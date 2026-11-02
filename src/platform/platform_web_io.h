@@ -84,6 +84,32 @@ PlatformWeb_IO_InitCacheId(
     unsigned int quirks,
     const char* dir);
 
+/*
+ * A live reload rewrote archive `archive` of dat2 table `index` (the client's
+ * role number) on the server: CACHE_INVALIDATE, by way of
+ * CacheProvider_InvalidateArchive's hook (main.c). The web half of
+ * PlatformX_IO_InvalidateArchive. platform_web_io.js drops its decoded copy
+ * (the decoded-archive LRU), its resident container and its reference-table
+ * memo for the index, and asks the page's host to re-prime: a fresh 255/255
+ * and 255/<index> from the JS5 server, every IndexedDB-stored group of the
+ * index re-validated against the new table and the rewritten ones fetched and
+ * overwritten (src/web/torirs_js5.js `invalidateArchive`). Reads of the index
+ * wait for that and never answer from the old bytes meanwhile.
+ * PlatformWeb_IO_ArchiveInvalidateHook is the same call in the shape
+ * CacheProvider_SetArchiveInvalidateHook takes (`user` is the IO handle).
+ */
+void
+PlatformWeb_IO_InvalidateArchive(
+    struct PlatformWeb_IO* px,
+    int index,
+    int archive);
+
+void
+PlatformWeb_IO_ArchiveInvalidateHook(
+    void* user,
+    int index,
+    int archive);
+
 /**
  * Answer one item immediately, or refuse.
  *

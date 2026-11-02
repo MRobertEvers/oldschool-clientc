@@ -1,0 +1,9 @@
+// ToriRSEd loc builder model. The builder reads this file back; the
+// scripts and configs beside it are generated from it and never parsed.
+[interaction]
+version=1
+subject=loc
+name=ed_test_door
+
+[server]
+door=closed,ed_test_door_open

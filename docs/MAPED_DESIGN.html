@@ -1,0 +1,725 @@
+<title>ToriRSEd Design</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: one reading column (72ch) with full-width tables and diagrams; a sticky
+     contents rail on wide screens. Palette is the editor's own baked chrome
+     (OSRS brown body, black chrome, orange title) read as a document. */
+  :root {
+    --bg: #f4f1ec;
+    --bg-2: #e9e4dc;
+    --panel: #fbfaf7;
+    --fg: #231f1a;
+    --fg-2: #5c554b;
+    --rule: #cfc7ba;
+    --accent: #b5600a;      /* the chrome's title orange, darkened for paper */
+    --accent-ink: #ffffff;
+    --keep: #2f6f3a;
+    --replace: #9a3b2c;
+    --extend: #8a5a00;
+    --new: #2d5f8a;
+    --code-bg: #ece7df;
+    --mermaid-bg: #fbfaf7;
+    --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #26221d; --bg-2: #2f2a24; --panel: #332d26; --fg: #efe9df; --fg-2: #bdb3a4;
+      --rule: #4c443a; --accent: #ff981f; --accent-ink: #1a1510;
+      --keep: #7fcf8a; --replace: #f08a76; --extend: #e8c35a; --new: #7fb6e6;
+      --code-bg: #1d1a16; --mermaid-bg: #1d1a16; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #26221d; --bg-2: #2f2a24; --panel: #332d26; --fg: #efe9df; --fg-2: #bdb3a4;
+    --rule: #4c443a; --accent: #ff981f; --accent-ink: #1a1510;
+    --keep: #7fcf8a; --replace: #f08a76; --extend: #e8c35a; --new: #7fb6e6;
+    --code-bg: #1d1a16; --mermaid-bg: #1d1a16; color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.55 var(--font-body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 0 64px;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 40px; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: minmax(0, 1fr); } nav.toc { display: none; } }
+  nav.toc { position: sticky; top: 16px; align-self: start; font-size: 13px; line-height: 1.4; padding-top: 48px; }
+  nav.toc a { color: var(--fg-2); text-decoration: none; display: block; padding: 3px 0; border-left: 2px solid transparent; padding-left: 10px; }
+  nav.toc a:hover, nav.toc a:focus { color: var(--accent); border-left-color: var(--accent); }
+  nav.toc .eyebrow { margin-bottom: 8px; }
+  main { min-width: 0; }
+  header.hero { padding: 48px 0 28px; border-bottom: 1px solid var(--rule); margin-bottom: 32px; }
+  .eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { font-size: clamp(30px, 4vw, 42px); line-height: 1.1; margin: 8px 0 14px; text-wrap: balance; font-weight: 700; }
+  h2 { font-size: 24px; margin: 56px 0 14px; padding-top: 18px; border-top: 1px solid var(--rule); text-wrap: balance; }
+  h2 .num { color: var(--accent); font-family: var(--font-mono); font-size: 15px; margin-right: 10px; vertical-align: 2px; }
+  h3 { font-size: 18px; margin: 30px 0 8px; text-wrap: balance; }
+  h4 { font-size: 15px; margin: 22px 0 6px; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-2); }
+  p, li { max-width: 72ch; }
+  p { margin: 0 0 14px; }
+  ul, ol { padding-left: 22px; margin: 0 0 14px; }
+  li { margin: 0 0 6px; }
+  li > ul { margin-top: 6px; }
+  code, kbd { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+  pre { font-family: var(--font-mono); font-size: 13px; line-height: 1.5; background: var(--code-bg); padding: 14px 16px; border-radius: 4px; overflow-x: auto; margin: 0 0 18px; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .lede { font-size: 19px; line-height: 1.5; color: var(--fg-2); max-width: 62ch; }
+  .meta { font-size: 13px; color: var(--fg-2); font-family: var(--font-mono); }
+  .tablewrap { overflow-x: auto; margin: 0 0 20px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--rule); }
+  th { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-2); font-weight: 600; background: var(--bg-2); }
+  td code { white-space: nowrap; }
+  td.wrap-code code { white-space: normal; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; border: 1px solid currentColor; white-space: nowrap; }
+  .keep { color: var(--keep); } .replace { color: var(--replace); } .extend { color: var(--extend); } .new { color: var(--new); }
+  .callout { border-left: 3px solid var(--accent); background: var(--panel); padding: 12px 16px; margin: 0 0 18px; }
+  .callout p:last-child { margin-bottom: 0; }
+  .req { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; align-items: start; margin: 0 0 10px; }
+  .req .n { font-family: var(--font-mono); font-size: 13px; color: var(--accent); padding-top: 3px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin: 0 0 18px; }
+  .card { background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 14px 16px; min-width: 0; }
+  .card h4 { margin-top: 0; }
+  .card p:last-child, .card ul:last-child { margin-bottom: 0; }
+  pre.mermaid { background: var(--mermaid-bg); padding: 12px; }
+  .fileline { font-family: var(--font-mono); font-size: 13px; color: var(--fg-2); }
+  .small { font-size: 13px; color: var(--fg-2); }
+  a { color: var(--accent); }
+  a:focus-visible, nav.toc a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <div class="eyebrow">Contents</div>
+  <a href="#verdict">1. What exists, and the verdict</a>
+  <a href="#arch">2. Architecture</a>
+  <a href="#documents">3. Documents and commands</a>
+  <a href="#world">4. The editing World</a>
+  <a href="#windows">5. Windows, views, cameras</a>
+  <a href="#protocol">6. Server state and protocol</a>
+  <a href="#chrome">7. Chrome: baked assets and new widgets</a>
+  <a href="#catalog">8. Asset catalog</a>
+  <a href="#terrain">9. Terrain tools</a>
+  <a href="#squares">9b. Square picker and New square</a>
+  <a href="#placement">10. Placement tools</a>
+  <a href="#locbuilder">11. Loc interaction builder</a>
+  <a href="#npcbuilder">12. NPC interaction and dialogue builder</a>
+  <a href="#vars">13. Varp and varbit editor</a>
+  <a href="#cs2">14. CS2 and the interface editor</a>
+  <a href="#save">15. Save, save as new, export, pack</a>
+  <a href="#run">16. RUN and the live lane</a>
+  <a href="#web">17. The web</a>
+  <a href="#plan">18. Build order</a>
+  <a href="#risks">19. Open questions</a>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="eyebrow">OSRS-Content · 3draster v3 · design</div>
+  <h1>ToriRSEd: the game and map editor for OSRS-Content</h1>
+  <p class="lede">One editor server owns every document and every undo step. Any number of windows, native or browser tabs, mirror it with their own cameras. Save writes text into the content tree, RUN builds the packs and reloads the live server and its clients.</p>
+  <p class="meta">Written 2026-10-30 against v3 at 076f80db6. Audience: engineers building this in the tree. Every path is relative to the repo root; OSRS-Content paths are under <code>OSRS-Content/osrs-content/</code>.</p>
+</header>
+
+<div class="callout">
+  <p><strong>The thesis.</strong> The existing map editor is not wrong, it is narrow. Its core (an authoritative server, mirrors that apply only the server's echo, authored-not-derived documents, delta commands, a cache-free chrome) is exactly the shape the sixteen requirements need, and this design keeps it. What rotted is everything around that core: one document kind, one window, one camera, a panel that holds spawns outside the authority, no catalog beyond the loaded region, no builders, no live lane, and no build target in <code>all</code>. The work is to generalise the core and build the rest on it, not to start over.</p>
+</div>
+
+<h3>Requirements, and where each lands</h3>
+<div class="req"><span class="n">R1</span><span>Editing-optimised World and map structures, selectable at runtime. <a href="#world">§4</a></span></div>
+<div class="req"><span class="n">R2</span><span>All chrome baked into ToriRSChrome; new visuals extracted from the cache and baked. <a href="#chrome">§7</a></span></div>
+<div class="req"><span class="n">R3</span><span>Multiple clients, each with its own camera; a world view embedded with controls or standalone. <a href="#windows">§5</a></span></div>
+<div class="req"><span class="n">R4</span><span>One main window that spawns other windows with different cameras. <a href="#windows">§5</a></span></div>
+<div class="req"><span class="n">R5</span><span>Client state on the backend; commands and state updates between windows. <a href="#protocol">§6</a></span></div>
+<div class="req"><span class="n">R6</span><span>Works on the web; server designed as if it could run there. <a href="#web">§17</a></span></div>
+<div class="req"><span class="n">R7</span><span>Comprehensive asset catalog: locs, NPCs, objs and the rest. <a href="#catalog">§8</a></span></div>
+<div class="req"><span class="n">R8</span><span>Terrain height, colour and shape tools. <a href="#terrain">§9</a></span></div>
+<div class="req"><span class="n">R9</span><span>Placing locs, NPCs, objs. <a href="#placement">§10</a></span></div>
+<div class="req"><span class="n">R10</span><span>Loc interaction builder with multilocs. <a href="#locbuilder">§11</a></span></div>
+<div class="req"><span class="n">R11</span><span>NPC interaction and dialogue builder with multinpcs. <a href="#npcbuilder">§12</a></span></div>
+<div class="req"><span class="n">R12</span><span>Varp and varbit editor. <a href="#vars">§13</a></span></div>
+<div class="req"><span class="n">R13</span><span>Running CS2 and integrating interfaces. <a href="#cs2">§14</a></span></div>
+<div class="req"><span class="n">R14</span><span>Fix up and expand the interface editor. <a href="#cs2">§14</a></span></div>
+<div class="req"><span class="n">R15</span><span>Export, save, edit, save as new, cache packing. <a href="#save">§15</a></span></div>
+<div class="req"><span class="n">R16</span><span>A live client lane: save, RUN, server reloads, clients reload. <a href="#run">§16</a></span></div>
+
+<!-- ============================================================ -->
+<h2 id="verdict"><span class="num">1</span>What exists, and the verdict</h2>
+<p>The survey covered <code>src/editor</code>, <code>src/torirsmaped</code>, <code>src/app/app_map_editor.c</code>, the ToriRSChrome layer, the world builder, the content tree, the pack pipeline and the live-server surface. The table is the decision per piece. "Keep" means the code and its contract stay; "extend" means the contract stays and grows; "replace" means the contract itself changes.</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Piece</th><th>Where</th><th>State today</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Authoritative editor server with mirrors, facts, client groups, per-group state store</td><td><code>src/torirsmaped/torirs_maped.h</code></td><td>Built. TCP daemon on 43610 with WebSocket framing, in-process embed, headless <code>torirsmapedctl</code>. Protocol v1, one document kind.</td><td><span class="tag extend">extend</span> Protocol v2: document kinds, catalog, build, live. Same server, same shape.</td></tr>
+<tr><td>Authored tile and loc records, square document, byte-exact <code>.jm2</code>/<code>.jl2</code> codec</td><td><code>editor_types.h</code>, <code>editor_doc.h</code>, <code>editor_jm2.c</code></td><td>Built; round-trips all 2,933 squares. Rule: display derived, edit authored, save authored.</td><td><span class="tag keep">keep</span> This becomes one document kind among several.</td></tr>
+<tr><td>Delta commands, 65,536-deep undo with stroke groups, seam rebuild span</td><td><code>editor_cmd.h</code></td><td>Built for TILE and LOC. Fixed 144-byte wire encoding.</td><td><span class="tag extend">extend</span> Kind-tagged commands; variable wire size.</td></tr>
+<tr><td>EditorHost seam (filesystem and bake behind a vtable)</td><td><code>editor_host.h</code></td><td>Built: local and remote bindings. Only map squares and spawns.</td><td><span class="tag extend">extend</span> Generic path-addressed blobs under the content root, a build runner, a live link.</td></tr>
+<tr><td>Spawn placement</td><td><code>editor_panel.c</code> (Editor_PanelSpawn*)</td><td>Session-local, not in the authority, not undoable, not shared. Writes the edited <code>.spawn</code> lane.</td><td><span class="tag replace">replace</span> <code>EDITOR_CMD_SPAWN</code> in the authority; the lane stays.</td></tr>
+<tr><td>Panel UI</td><td><code>editor_panel.c</code> (2,915 lines)</td><td>One flat panel set: tools, palettes, catalog of loaded records, squares list capped at 512 rows, no modal, no tree, no icons.</td><td><span class="tag replace">replace</span> Dockable panel set on a wider ToriRSChrome vocabulary; the catalog becomes server-indexed.</td></tr>
+<tr><td>World view in the editor</td><td><code>app_map_editor.c</code>, <code>app_world_load.c</code></td><td>The game's static world: whole-window rebuild per edit square, coalesced per frame. One view, one camera.</td><td><span class="tag new">new</span> An edit World layout beside the static one. <a href="#world">§4</a></td></tr>
+<tr><td>ToriRSChrome widget model, baked skin, baked fonts, executors (buffer, SDL surface, web DOM, native browser)</td><td><code>src/ui/uitree_debug_overlay.h</code>, <code>torirs_chrome_*.{c,h}</code>, <code>engine/torirs_chrome_skin_baked.c</code></td><td>Built and used by plugins. 15 widget kinds, 30 skin slots, 3 fonts at 1x/2x/3x. Capacities 24 panels, 384 widgets, 1,536 prims.</td><td><span class="tag extend">extend</span> New widgets, new baked slots, larger capacities. <a href="#chrome">§7</a></td></tr>
+<tr><td>Web two-tab channel (canvas tab and panel tab)</td><td><code>src/web/torirs_channel.js</code>, <code>panel.html</code></td><td>Built. The panel is hand-written HTML/CSS copying the skin colours.</td><td><span class="tag replace">replace</span> The panel tab becomes a ToriRSChrome WEB-executor page, so there is one chrome, not a CSS copy of it.</td></tr>
+<tr><td>Second native window</td><td><code>platform_window.h</code> Aux* and Chrome*</td><td>One auxiliary SDL window, software surface, "never a render target". No popout source in tree (binaries only).</td><td><span class="tag new">new</span> Extra world views are viewer processes. <a href="#windows">§5</a></td></tr>
+<tr><td>Interface editor</td><td><code>src/main.c</code> dump switches</td><td>A viewer with <code>TORIRS_DUMP_*</code> dumps. No write-back to <code>.if</code>. The TypeScript editor it mirrored is outside the repo.</td><td><span class="tag new">new</span> <a href="#cs2">§14</a></td></tr>
+<tr><td>Content pipeline</td><td><code>tools/build_packs.py</code>, <code>cachepack</code>, <code>sscompile</code>, <code>docs/serverpack.md</code></td><td>Incremental: one <code>.rs2</code> edit rebuilds in about one second, one config record in about five. A hot-reload contract is written and not implemented.</td><td><span class="tag extend">extend</span> Implement the contract; add client-cache incremental pack. <a href="#run">§16</a></td></tr>
+<tr><td>Live server reload</td><td><code>torirs_server_scripts.c</code> ScriptsLoad/Free</td><td>None at runtime. <code>ToriRSServer_ScriptsLoad</code> refuses a second load; square reload exists only as a test hook.</td><td><span class="tag new">new</span> <a href="#run">§16</a></td></tr>
+<tr><td>Build integration</td><td><code>src/makefile</code></td><td><code>torirsmaped</code>, <code>torirsmapedctl</code> and every <code>test-editor-*</code> target are outside <code>all</code>; local binaries are two months stale.</td><td><span class="tag extend">extend</span> Editor targets join <code>all</code> and the test aggregate.</td></tr>
+</tbody></table></div>
+
+<h3>Rules carried over from the comments in the tree</h3>
+<ul>
+  <li><strong>Mirrors never apply their own edit.</strong> Every change is an intent; the mirror mutates on the server's echo, the sender included (<code>editor.h</code>). This is what makes N windows agree.</li>
+  <li><strong>Chrome reaches no cache.</strong> The editor exists to repair content, so it must open on a broken bake (<code>editor_panel.h</code>). Palette entries and catalog rows are content and may degrade to ids; the frame around them never does.</li>
+  <li><strong>Save writes text, never the cache.</strong> Only dirty halves are written, atomically. Baking is a separate explicit action and is wired to nothing else.</li>
+  <li><strong>Commands carry authored records.</strong> Undo on a procedurally heighted tile must restore absence.</li>
+  <li><strong>Codecs are byte-exact</strong> or a save diffs files the user never touched. Every new codec in this design gets the same whole-tree round-trip test <code>editor_jm2_test.c</code> has.</li>
+  <li><strong>Generated files are never hand-edited.</strong> Spawns go to <code>server/scripts/areas/edited/</code>, never the generated <code>areas/world/</code>. Every generator in this design writes into a directory it owns and marks its output.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="arch"><span class="num">2</span>Architecture</h2>
+<p>Three kinds of process. The <strong>editor server</strong> is the authority. <strong>Editor clients</strong> are the main window, any spawned viewer windows, and browser tabs; each is a connection in a client group. The <strong>live lane</strong> is an ordinary game server with ordinary game clients, which the editor server drives on RUN.</p>
+
+<pre class="mermaid">
+flowchart LR
+  subgraph EC[Editor clients, one client group]
+    MW[Main window<br/>chrome + world view<br/>camera A]
+    VW[Viewer window<br/>world view only<br/>camera B]
+    WT[Browser tabs<br/>canvas tab + chrome tab<br/>camera C]
+  end
+  subgraph ES[Editor server: torirsmaped v2]
+    DOC[Documents<br/>squares, spawns, configs,<br/>interfaces, scripts, cs2]
+    UNDO[Undo history]
+    ST[State store<br/>per client group]
+    CAT[Catalog index]
+    BR[Build runner]
+    LL[Live link]
+  end
+  subgraph LIVE[Live lane]
+    GS[torirsserver]
+    J5[js5_server / io_server]
+    GC1[Game client]
+    GC2[Game client]
+  end
+  CT[(OSRS-Content<br/>osrs-content/)]
+  MW -- intents --> ES
+  VW -- intents --> ES
+  WT -- intents over WebSocket --> ES
+  ES -- facts (broadcast) --> MW
+  ES -- facts --> VW
+  ES -- facts --> WT
+  DOC -- save: text --> CT
+  BR -- make torirsserver-packs<br/>cachepack pack --> CT
+  LL -- reload --> GS
+  CT --> J5
+  GS -- REBUILD / CACHE_INVALIDATE --> GC1
+  GS --> GC2
+  J5 --> GC1
+  J5 --> GC2
+</pre>
+
+<p>Nothing in this diagram is new in kind. The editor server is the daemon that exists, the clients are the connections it already accepts, the live lane is <code>make -C src servers</code> plus a game server, and the content tree is the one source of truth both halves already have. The new edges are the catalog, the build runner, and the live link.</p>
+
+<h3>Why the authority is a separate process even when it is embedded</h3>
+<p>The embed path (<code>torirs_maped_embed.h</code>) runs the server inside the main window's process over in-memory queues and exercises the real wire protocol. That stays the default for a single-window session, because it needs no daemon. The moment a second window is spawned, the main window's embedded server becomes the daemon other windows connect to: <code>Editor_HostOpenMapEdEmbedPeer</code> already lets a process hold several connections, and the embed can expose its listening socket the same way the game server's embed exposes a party link. A viewer that crashes never takes the document with it, and a viewer on another machine (the NUC, a phone's browser) is the same connection as a local one.</p>
+
+<!-- ============================================================ -->
+<h2 id="documents"><span class="num">3</span>Documents and commands</h2>
+<p>Today the document is a set of map squares. The editor needs to edit seven kinds of thing, all of them text in the content tree. One abstraction covers them: a <strong>document</strong> is a path-addressed text blob under the content root with a kind-specific codec, an authored in-memory record, a derived view for rendering, and a dirty flag. Commands are deltas against the authored record.</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Kind</th><th>Source files</th><th>Authored record</th><th>Codec</th><th>Commands</th></tr></thead>
+<tbody>
+<tr><td>Map square</td><td><code>maps/m&lt;x&gt;_&lt;z&gt;.jm2</code>, <code>.jl2</code></td><td><code>Editor_Square</code> (exists)</td><td><code>editor_jm2.c</code> (exists)</td><td><code>TILE</code>, <code>LOC</code> (exist)</td></tr>
+<tr><td>Spawns</td><td><code>server/scripts/areas/edited/configs/m&lt;x&gt;_&lt;z&gt;.spawn</code></td><td>list of {kind npc/obj, name, abs x, z, level, count}</td><td>new <code>editor_spawn.c</code>: the <code>==== NPC ====</code>/<code>==== OBJ ====</code> grammar the loader reads at <code>torirs_server_content.c</code></td><td><code>SPAWN</code> with before/after, plus <code>SPAWN_SUPPRESS</code> for a generated spawn (see <a href="#placement">§10</a>)</td></tr>
+<tr><td>Config record</td><td>cache half: <code>configs/all.&lt;type&gt;</code> + <code>.compack</code>; server half: <code>server/scripts/**/configs/*.&lt;type&gt;</code></td><td>one <code>[name]</code> block as an ordered key list; keys not understood are carried verbatim</td><td>new <code>editor_cfg.c</code>: block-level text codec; writes only the touched block, preserving every other byte</td><td><code>CFG_FIELD</code> (name, key, before, after), <code>CFG_BLOCK</code> (add/remove/rename)</td></tr>
+<tr><td>Interface</td><td><code>interfaces/&lt;name&gt;.if</code> + <code>.compack</code></td><td>component list; each a key list mirroring <code>ToriRS_Component</code></td><td>new <code>editor_if.c</code>; round-trip test over all 982 interfaces</td><td><code>IF_FIELD</code>, <code>IF_COMPONENT</code> (add/remove/reparent/reorder)</td></tr>
+<tr><td>Server script</td><td><code>server/scripts/**/*.rs2</code></td><td>text; for builder-owned files also the builder's structured model</td><td>plain text plus the builder's own emitter</td><td><code>TEXT_SPLICE</code> (offset, before, after); builders submit one splice per regeneration</td></tr>
+<tr><td>CS2 script</td><td><code>scripts/&lt;name&gt;.cs2</code></td><td>text</td><td>plain text; compile check through <code>3rd/rscache/tools/cs2</code></td><td><code>TEXT_SPLICE</code></td></tr>
+<tr><td>Pack and membership</td><td><code>pack/&lt;ns&gt;.alloc</code>, <code>.client</code>, <code>.server</code>, <code>configs/all.&lt;type&gt;.compack</code>, <code>interfaces/*.compack</code></td><td>id/name lines</td><td>line codec</td><td>never edited directly: a <code>CFG_BLOCK</code> add or a save-as-new allocates through <code>tools/ss_allocate.py</code>'s ledger rules and the server emits the matching line</td></tr>
+</tbody></table></div>
+
+<h3>The command envelope</h3>
+<p>The v1 wire sends a fixed 144-byte <code>Editor_Cmd</code>. v2 keeps <code>[u32 type][u32 length]</code> framing and makes <code>REQ_CMD</code> carry <code>[u32 doc_kind][u32 doc_key_len][key][kind payload]</code>. Fixed-size payloads stay fixed-size per kind; text splices are variable. A mirror that does not know a kind applies nothing and asks for a resync of that document, which keeps an old viewer safe against a newer controller.</p>
+
+<pre><code>struct Editor_Cmd
+{
+    enum Editor_DocKind doc_kind;     /* SQUARE, SPAWN, CFG, IFACE, TEXT */
+    char doc_key[128];                /* "m50_50", "loc:newbie_door1", "if:bank", "rs2:edited/doors/my_door.rs2" */
+    enum Editor_CmdKind kind;         /* TILE, LOC, SPAWN, SPAWN_SUPPRESS, CFG_FIELD, CFG_BLOCK, IF_FIELD, IF_COMPONENT, TEXT_SPLICE */
+    union { ...per-kind before/after pairs... } u;
+};</code></pre>
+
+<p>Undo is still one history on the server, grouped by stroke. A builder regeneration (one dialogue edit that rewrites an <code>.rs2</code> file and a <code>.npc</code> overlay) is one stroke, so it undoes as one step. <code>Editor_CmdRebuildSpan</code> generalises to "what must re-derive": squares for TILE and LOC, the live world's spawn set for SPAWN, the record's resolver for CFG, the mounted interface for IF.</p>
+
+<h3>Opening documents</h3>
+<p><code>REQ_DOC_OPEN(kind, key)</code> answers the authoritative current text and dirty flags, exactly as <code>SQUARE_OPEN</code> does today. A document stays open in the authority while any connection has it open, plus a linger, so two windows editing the same loc record see each other's field edits.</p>
+
+<!-- ============================================================ -->
+<h2 id="world"><span class="num">4</span>The editing World (R1)</h2>
+<p>The runtime World is built to be looked at, not edited. The survey pinned down exactly what makes it static:</p>
+<ul>
+  <li>Terrain is one ToriDraw model per tile with the four corner heights and the lighting baked into the vertices (<code>world_decode_tile</code>, emitted at <code>world_terrain.u.c</code> 703–750).</li>
+  <li>The builder's per-tile maps (heightmap, blendmap, overlaymap, shape map, flag map, lightmap, sharelight, decor build map, occluder build map) exist only during the bake and are freed at <code>RebuildCenterzoneEnd</code>; a runtime loc spawn already needs shims because three of them are NULL afterwards.</li>
+  <li>A rebuild is whole-window: <code>RebuildCenterzoneBegin</code> clears the static pool and resets the scene. There is no per-tile invalidation.</li>
+  <li>Scenery of the same (loc, shape, rotation) shares one lit prototype model through <code>ToriDraw_SceneSharedModels</code>; placements are instances of it.</li>
+  <li>The World's bookkeeping arrays are fixed (events 8,192, pick 4,096, loc changes 256).</li>
+</ul>
+<p>A brush drag over the border of a square today means one full square remesh per frame per square touched. That is why the current editor feels heavy, and it is the reason behind R1.</p>
+
+<h3>Design: two world layouts behind one builder interface</h3>
+<p>The renderer, the painter and the scene API do not change. What changes is who fills the scene and how it reacts to a change. A <code>WorldBuilderOps</code> vtable gets two implementations, chosen at runtime:</p>
+
+<div class="grid2">
+  <div class="card">
+    <h4>STATIC (the game, unchanged)</h4>
+    <p>The existing path under <code>src/engine/world_builder/</code>. Bake, free the build maps, rebuild whole windows on REBUILD packets. Chosen by every game manifest. Nothing moves.</p>
+  </div>
+  <div class="card">
+    <h4>EDIT (new, <code>src/engine/world_builder/edit/</code>)</h4>
+    <p>The same bake, but the build maps stay resident for the session, every tile and placement has a stable handle, and changes are applied as local invalidations with a per-frame flush. Chosen by the editor manifest (<code>[world:boot] layout=edit</code>) or <code>--world-layout edit</code>.</p>
+  </div>
+</div>
+
+<pre><code>struct WorldBuilderOps
+{
+    void (*rebuild_window)(struct WorldBuilder*, ...);           /* both: full bake of the window */
+    void (*tile_set)(struct WorldBuilder*, int x, int z, int level, const struct ToriRS_MapFloor* authored_derived);
+    void (*loc_place)(struct WorldBuilder*, const struct World_LocPlacement*);   /* returns a stable placement handle */
+    void (*loc_remove)(struct WorldBuilder*, int placement_handle);
+    void (*flush)(struct WorldBuilder*);                          /* EDIT: remesh dirty tiles, relight, recollide; STATIC: no-op */
+};</code></pre>
+
+<h4>What EDIT keeps resident, and what an edit costs</h4>
+<div class="tablewrap"><table>
+<thead><tr><th>Edit</th><th>Invalidation</th><th>Work on flush</th></tr></thead>
+<tbody>
+<tr><td>Corner height</td><td>the 4 tiles sharing the corner, on this level and the levels above (heights stack by 240 units per level)</td><td>relight those corners (the lightmap is a local normal computation), remesh 4 tiles via <code>world_decode_tile</code>, <code>SetModel</code> on their existing elements, re-sample <code>height_center</code> for scenery standing on them, re-stamp collision for those tiles, update 4 minimap pixels</td></tr>
+<tr><td>Underlay id</td><td>the ±5 blend window around the tile (the blend averages an 11×11 neighbourhood)</td><td>re-blend that window, remesh the tiles whose colour changed (compare hsl16 before writing)</td></tr>
+<tr><td>Overlay id, shape, rotation</td><td>the tile</td><td>remesh one tile; update its minimap pixel and texture flag</td></tr>
+<tr><td>Flags (block, link-below, remove-roof, vis-below)</td><td>the tile; link-below touches the painter level maps of its column</td><td>collision restamp; painter level recompute for the column</td></tr>
+<tr><td>Loc place / remove / move / rotate / reshape</td><td>the loc's footprint</td><td>already exists as <code>WorldBuilder_ApplyLocChange</code>, kept; EDIT drops the NULL-map shims because the maps are resident</td></tr>
+<tr><td>Varbit or varp changed (multiloc preview)</td><td>every placement whose shell resolves through that var</td><td>resolve with <code>VarPManager_ResolveTransform</code>, swap models; hidden placements come back from the resident <code>hidden_locs</code> table</td></tr>
+</tbody></table></div>
+
+<p>Memory: a 104×104×4 window of resident maps is a few megabytes; the heightmap alone is 105×105×4 int16. That is nothing against the scene. Scenery prototypes stay shared; an edited placement that needs a unique model copies through <code>ToriDraw_SceneElementModelForWrite</code>, which exists.</p>
+
+<h4>Stable handles</h4>
+<p>EDIT gives every placement a handle that survives flushes (the pool index plus a generation), and keeps the <code>tile → terrain element</code> map <code>World_TerrainSet</code> already maintains. Selection, ghosts and the loc editor hold handles, never element ids, so a remesh cannot orphan a selection.</p>
+
+<h4>Deriving from the document</h4>
+<p>The authority holds authored squares; each mirror derives. Today <code>Editor_LoadSquare</code> seeds the <code>CacheProvider</code> with derived <code>ToriRS_MapTerrain</code> and the load task skips a square the provider already holds. That stays as the <em>load</em> path. The <em>edit</em> path changes: a FACT_CMD TILE calls <code>ops->tile_set</code> with the single derived tile instead of queueing a square rebuild. <code>Editor_DrainRebuilds</code> becomes <code>Editor_Flush</code>, which calls <code>ops->flush</code> once per frame. The square-level derivation (<code>Editor_SquareDeriveTerrain</code>) remains for load and for the STATIC fallback.</p>
+
+<h4>Regions bigger than one window</h4>
+<p>The scene is 104×104 and the load path tops out at 64 squares. The editor does not fight that. A view is centred on a window like the game's; panning past the window edge is a REBUILD of the view's own world (the viewer owns one World), and the authority's open-document set is independent of any view's window. Two viewers can look at two continents while editing the same document set.</p>
+
+<h4>The server's scene</h4>
+<p>The game server keeps collision and locs per square and has no heights (<code>torirs_server_scene.c</code>). A saved square reaches it through RUN (<a href="#run">§16</a>), not through the editor world; the editor world is a preview, exactly as the current design says: "the renderer owns the world and the panel mirrors it", with the authority now where the document lives.</p>
+
+<!-- ============================================================ -->
+<h2 id="windows"><span class="num">5</span>Windows, views, cameras (R3, R4)</h2>
+<p>Definitions. A <strong>view</strong> is one World rendered through one camera with its own level cap, layer filters and ghost state. A <strong>window</strong> is an OS window or browser tab that hosts zero or one view plus any number of chrome panels. A <strong>client group</strong> is the set of connections acting as one editing session; the server already stores shared state per group and relays document facts to everyone.</p>
+
+<h3>The main window</h3>
+<p>The main window is a view with full chrome: menu bar, tool rail, catalog, inspector, builders, output console. It is what <code>manifest_osrs241_mapeditor.ini</code> boots today, with the panel set rebuilt (<a href="#chrome">§7</a>). It is the only window that spawns others.</p>
+
+<h3>Spawned windows are viewer processes</h3>
+<p>The question is whether a second view is a second OS window in the same process or a second process. The tree answers it:</p>
+<ul>
+  <li>The client is single-window by construction: one <code>SDL_Window</code>, one GL context, one ToriDraw scene, one painter, one cache provider, process-wide server tables. The auxiliary window is a software surface, "never a render target".</li>
+  <li>The web already does this with tabs, and a tab is a process from the page's point of view.</li>
+  <li>The plan (M7) already chose "a second process speaking the same frames over a local socket".</li>
+  <li>A viewer that hangs on a 68 ms frame or crashes on a bad model does not stall the authority or the main window.</li>
+</ul>
+<p>So a spawned window is <code>torirs --manifest &lt;editor manifest&gt; --editor-view --maped tcp://host:port --maped-group &lt;id&gt; --camera "x,z,level,yaw,pitch,zoom"</code>: the same binary, booted in a mode that opens no game connection, joins the main window's client group as <code>ROLE_VIEWER</code>, builds an EDIT world, and shows a thin ToriRSChrome toolbar (level cap, layer toggles, follow-selection, camera presets, detach/close). Natively the main window spawns it through the launch service in <code>platform/launch_sessions.c</code>, which already spawns the host's own binary with the host's manifest for party play. On the web the main tab calls <code>window.open('index.html?editor_view=1&amp;maped=wss://…&amp;group=…')</code>, which is what <code>torirs_host.js</code> already does for the viewer page.</p>
+
+<h3>What is per view and what is shared</h3>
+<div class="tablewrap"><table>
+<thead><tr><th>Per view (local, never on the wire unless published)</th><th>Shared through the group state store</th></tr></thead>
+<tbody><tr><td>
+<ul>
+  <li>camera pose, zoom, projection</li>
+  <li>vis level cap and vis-solo</li>
+  <li>layer filters (terrain, locs by shape class, npcs, objs, collision overlay, tile grid, zone grid)</li>
+  <li>hover</li>
+  <li>window size and chrome scale</li>
+</ul></td><td>
+<ul>
+  <li>selection (kind, handles, tile) — <code>STATE_SELECTION</code> exists</li>
+  <li>active tool and brush settings — <code>STATE_TOOL</code> exists</li>
+  <li>edit level — <code>STATE_EDIT_LEVEL</code> exists</li>
+  <li>catalog pick — <code>STATE_CATALOG_PICK</code> exists</li>
+  <li>view square — <code>STATE_VIEW_SQUARE</code> exists</li>
+  <li>new: <code>STATE_CAMERA_&lt;conn&gt;</code>, published only when a view opts in to "broadcast my camera"; any view may "follow" another's key</li>
+  <li>new: <code>STATE_VAR_PREVIEW</code>: the varp/varbit values the session is previewing (multiloc/multinpc resolution)</li>
+  <li>new: <code>STATE_LIVE_FOCUS</code>: the live player the inspector is following</li>
+</ul></td></tr></tbody></table></div>
+
+<p>A controller connection with no world (the browser chrome tab, a phone) follows the viewer's clicks through the same store, which is already how the panel works.</p>
+
+<h3>Embedded view with extra controls versus standalone</h3>
+<p>Both are the same view code. "Embedded" is the main window's view with the full chrome around it. "Standalone" is the viewer process with the thin toolbar. A viewer can be promoted: its toolbar's "Open panels" opens the controller panels in that window too, as a second full client of the same group. There is no third kind.</p>
+
+<h3>Input routing</h3>
+<p>Each window owns its keyboard, which is the property the web two-tab design bought on purpose: typing a height into a panel cannot fly another window's camera. Inside one window ToriRSChrome's <code>WantsPointer</code>/<code>WantsWheel</code> arbitrate between chrome and the view, as today.</p>
+
+<!-- ============================================================ -->
+<h2 id="protocol"><span class="num">6</span>Server state and protocol (R5)</h2>
+<p>v2 keeps every v1 frame and adds the ones below. Document facts broadcast to every connection; state facts to the requester's group; build and live facts to every connection (they describe the shared tree and the shared live lane).</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Request</th><th>Answer</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>HELLO(version=2, role, group)</code></td><td><code>FACT_HELLO(version, writable, group, capabilities)</code></td><td>capabilities bitset: can_build, can_live, kinds supported. A v1 client is refused with a message naming the versions.</td></tr>
+<tr><td><code>DOC_OPEN(kind, key)</code> / <code>DOC_CLOSE</code></td><td><code>FACT_DOC_TEXT(kind, key, dirty, text…)</code></td><td>generalises SQUARE_OPEN; the square form stays as an alias</td></tr>
+<tr><td><code>CMD</code>, <code>UNDO</code>, <code>REDO</code>, <code>STROKE</code></td><td><code>FACT_CMD(seq, direction, cmd)</code> broadcast, <code>FACT_STATUS</code></td><td>kind-tagged payload (<a href="#documents">§3</a>)</td></tr>
+<tr><td><code>SAVE_ALL</code> / <code>SAVE(kind, key)</code></td><td><code>FACT_SAVED(list of kind,key)</code></td><td>text only</td></tr>
+<tr><td><code>SAVE_AS(kind, key, new_name)</code></td><td><code>FACT_CMD</code> stream (the clone as commands) then <code>FACT_STATUS</code></td><td>allocates the id on the server; see <a href="#save">§15</a></td></tr>
+<tr><td><code>CATALOG_QUERY(kind, filter text, flags, page)</code></td><td><code>FACT_CATALOG_PAGE(total, rows…)</code></td><td>rows: id, name, display name, summary fields; server-side index (<a href="#catalog">§8</a>)</td></tr>
+<tr><td><code>CATALOG_RECORD(kind, id)</code></td><td><code>FACT_CATALOG_RECORD</code></td><td>the merged record (cache block plus server overlay) with per-field provenance</td></tr>
+<tr><td><code>BUILD(what)</code></td><td><code>FACT_BUILD_LINE</code>… then <code>FACT_BUILD_DONE(status, changed units)</code></td><td>what: packs, client cache, scripts lint, cs2 compile; generalises BAKE</td></tr>
+<tr><td><code>RUN</code></td><td><code>FACT_BUILD_*</code> then <code>FACT_LIVE_*</code></td><td>save-all, build, live reload, in that order; stops at the first failure (<a href="#run">§16</a>)</td></tr>
+<tr><td><code>LIVE_ATTACH(addr or launch)</code> / <code>LIVE_DETACH</code></td><td><code>FACT_LIVE_STATUS(attached, players, pack stamps, stale list)</code></td><td>the live link</td></tr>
+<tr><td><code>LIVE_CHEAT(line)</code></td><td><code>FACT_LIVE_LINE</code></td><td>a <code>::</code> debugproc on the live server, gated (<a href="#run">§16</a>)</td></tr>
+<tr><td><code>STATE_SET</code> / <code>STATE_SYNC</code></td><td><code>FACT_STATE</code></td><td>unchanged; key space grows (<a href="#windows">§5</a>)</td></tr>
+<tr><td><code>SPAWN_VIEW(camera)</code></td><td><code>FACT_STATUS</code></td><td>native only: the server's host spawns a viewer process joined to the requester's group through the launch service; on the web the client opens the tab itself</td></tr>
+</tbody></table></div>
+
+<h3>Where the server keeps state</h3>
+<p>All of it is inside <code>struct ToriRSMapEd</code>: documents, undo, state store, catalog index, build and live handles. No file-scope globals, which is what lets two embeds coexist and is a precondition for running the server anywhere (<a href="#web">§17</a>). The server still never links the cache profile or ToriDraw: deriving is the mirrors' job, so the server stays a small, portable binary.</p>
+
+<h3>Transports</h3>
+<p>In-process queues (embed), TCP, and WebSocket all exist in <code>torirs_maped_main.c</code>. Nothing new. The frame cap (16 MB) covers the largest document text.</p>
+
+<!-- ============================================================ -->
+<h2 id="chrome"><span class="num">7</span>Chrome: baked assets and new widgets (R2)</h2>
+<p>ToriRSChrome is the only chrome. Its skin is 30 baked sprites extracted from the OSRS cache by <code>spritebake</code> into <code>src/engine/torirs_chrome_skin_baked.c</code>; its fonts are three cache fonts baked at 1x, 2x, 3x; its executors render the same retained model into a software surface, an SDL window, the web DOM bundle, or a native browser pane. The editor adds widgets and slots to this; it adds no second chrome and loads nothing from the cache at runtime.</p>
+
+<h3>The baking pipeline for a new visual element</h3>
+<ol>
+  <li>Find the source sprite: <code>3rd/rscache/tools/spritebake/spritebake --rev osrs241 cache.osrs241 --list</code> and <code>--probe name,...</code>. Per the memory note, probe the full name; frame names with commas split.</li>
+  <li>If no cache sprite fits, synthesise from one that does: <code>tools/chrome_button_stamp.py</code> stamps a glyph onto a borrowed plate (that is how the pop-out and dock buttons exist today).</li>
+  <li>Append <code>--sprite ARCHIVE[.FRAME]=Symbol[@x,y,w,h]</code> to the recipe in the baked file's header and re-run with <code>--out src/engine/torirs_chrome_skin_baked.c --header … --sheet sheet.bmp</code>. Order is slot index.</li>
+  <li>Add the slot to <code>enum ToriRSChromeSkinSlot</code> at the same index, bump the count, add the pin in <code>src/ui/torirs_chrome_skin.h</code> (the static asserts catch a wrong order).</li>
+  <li>Regenerate the web skin: <code>tools/spritebake_png.py</code> into <code>res/plugin_chrome/skin/</code>. Fonts are unchanged unless a size is added.</li>
+  <li>Add a makefile target <code>chrome-skin</code> that runs steps 3 and 5 from the recipe, so the bake is reproducible rather than a comment. Today there is none.</li>
+</ol>
+
+<h3>Slots the editor needs</h3>
+<p>Each row names the need, a candidate cache sprite to probe first, and the fallback if the probe finds nothing usable. The candidates are from the OSRS sprite name table; they must be confirmed with <code>--probe</code> before the recipe grows.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Need</th><th>Candidate cache sprite(s)</th><th>Fallback</th></tr></thead>
+<tbody>
+<tr><td>Tool rail icons: select, raise, lower, flatten, smooth, paint underlay, paint overlay, flags, place, move, rotate, delete</td><td>the world map and skill-guide icon sets (<code>worldmap_icons</code>, <code>side_icons</code>, <code>magic_icons</code>), the Construction tools, the sawmill and crafting glyphs</td><td>stamp glyphs onto the 36×36 <code>ButtonLeft</code> plate with <code>chrome_button_stamp.py --rows</code></td></tr>
+<tr><td>Search glass for catalog fields</td><td><code>magnifying_glass</code>, the bank search icon</td><td>stamp</td></tr>
+<tr><td>Tree expander (closed, open)</td><td>the collection-log and quest-list expander arrows, <code>scrollbar_arrow</code> frames rotated</td><td>reuse <code>ScrollDown</code> and <code>ScrollUp</code></td></tr>
+<tr><td>Radio buttons (on, off)</td><td><code>options_radio_buttons</code> frames 0 and 1 (memory: hash the full name)</td><td><code>CheckOn</code>/<code>CheckOff</code></td></tr>
+<tr><td>Slider track and knob</td><td>the settings brightness slider pieces</td><td>drawn with RECT prims</td></tr>
+<tr><td>Splitter grip</td><td>the resizable-mode window edge piece</td><td>RECT</td></tr>
+<tr><td>Tab close, warning and error glyphs</td><td><code>CloseButton</code> exists; <code>warning</code> triangle from the login screen, the hint-arrow red</td><td>stamp</td></tr>
+<tr><td>Floating window title strip</td><td>the bank/trade title plate pieces beside <code>tradebacking</code></td><td>the 8-piece <code>Frame*</code> set exists; a title strip is <code>FrameTop</code> plus text</td></tr>
+<tr><td>RUN / stop / build / save</td><td>the emote tab's play glyphs, the <code>steel_border</code> button set</td><td>stamp</td></tr>
+<tr><td>Dialogue graph node frame, port dot, link colours</td><td>the chat box's <code>chatbox</code> plate for node body</td><td>RECT prims; the graph is a CUSTOM well</td></tr>
+<tr><td>Colour swatch frame for underlay/overlay palettes</td><td>the hitsplat colour chooser well</td><td>RECT</td></tr>
+</tbody></table></div>
+
+<h3>Widgets to add to the model</h3>
+<p>The model has LABEL, CHECKBOX, TEXTINPUT, SEPARATOR, MENUITEM, DROPDOWN, MODELVIEW, BUTTON, TABSTRIP, LISTROW, COLORPICK, TEXTAREA, CUSTOM. Every new widget follows the existing pattern: a kind, an add call, setters, a prim emitter, an intent, and a command in the executor stream so the web and browser executors can render it. None of them may hold a pointer the plugin or editor owns beyond the frame (the dropdown options trap).</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Widget</th><th>For</th><th>Shape</th></tr></thead>
+<tbody>
+<tr><td><code>TREE</code></td><td>interface component tree, dialogue outline, content tree browser</td><td>LISTROW with depth, expander slot, and a children-virtualised flag; rows beyond the viewport are not widgets</td></tr>
+<tr><td><code>VLIST</code></td><td>catalog results (tens of thousands of rows)</td><td>a scrollable well that owns row count and asks the host for the text of visible rows; the chrome never holds the list</td></tr>
+<tr><td><code>TOOLBAR</code> / <code>ICONBUTTON</code></td><td>tool rail, viewer toolbar</td><td>sprite-faced buttons with pressed state and tooltip text</td></tr>
+<tr><td><code>SLIDER</code></td><td>brush radius, falloff, height step, camera zoom</td><td>track + knob, int range, drag intent</td></tr>
+<tr><td><code>RADIO</code></td><td>level 0–3, shape class</td><td>a CHECKBOX variant with exclusive group id</td></tr>
+<tr><td><code>SPLITTER</code> and dockable <code>WINDOW</code> panels</td><td>the main window layout</td><td>the WINDOW style exists; add dock edges, resize grips, a saved layout (per view, in the manifest's user prefs)</td></tr>
+<tr><td><code>MODAL</code></td><td>save/discard/cancel, confirm delete, RUN failures</td><td>a WINDOW panel that takes pointer and keyboard until closed; the plan notes this is the missing piece for the unsaved-edit guard</td></tr>
+<tr><td><code>TOOLTIP</code></td><td>everything with an icon</td><td>hover text after a delay; theme already has <code>menu_hover_text</code></td></tr>
+<tr><td><code>CODE</code></td><td>RuneScript and CS2 source</td><td>TEXTAREA with monospace Menu font, gutter line numbers, a highlight span list the host supplies (the tree-sitter grammar in <code>tools/tree-sitter-runescript/</code> can drive it natively)</td></tr>
+<tr><td><code>GRAPH</code></td><td>dialogue builder</td><td>a CUSTOM well: the host draws nodes and links with RECT/LINE/TEXT prims through the existing <code>ToriRS_Graphics</code>-style path and handles drag intents by hit key</td></tr>
+</tbody></table></div>
+
+<h3>Capacities</h3>
+<p>24 panels, 384 widgets, 1,536 prims and 1,024 journal changes were sized for a plugin pane. An editor with a catalog, an inspector, a tree and a console wants an order of magnitude more. Raise to 64 panels, 4,096 widgets, 16,384 prims as compile-time constants, keep the fixed-size POD model, and add <code>VLIST</code> so lists do not spend widgets per row. The 63-byte label and 191-byte text limits stay but stop being silent: a truncated label is logged once per widget serial.</p>
+
+<h3>The web executor replaces <code>panel.html</code></h3>
+<p>The current two-tab panel is a hand-written HTML form styled to look like the chrome. That is a second rendering of the skin and it will drift. The WEB executor already renders the retained model into the <code>modern.html</code> bundle with the baked skin as PNGs and the baked fonts converted by <code>tools/torirs_chrome_fonts.py</code>. The editor's browser chrome tab becomes that bundle driven by the editor's chrome model over <code>torirs_channel.js</code>. The channel is kept; the form is deleted.</p>
+
+<!-- ============================================================ -->
+<h2 id="catalog"><span class="num">8</span>Asset catalog (R7)</h2>
+<p>The current catalog lists what the provider has decoded, because sweeping tens of thousands of cache records through the task system is the trap the entity viewer hit. The fix is to index on the server, where the names already are as text.</p>
+
+<h3>The index</h3>
+<p>At open, the editor server reads <code>pack/*.pack</code>, every <code>configs/all.&lt;type&gt;.compack</code>, the server overlay <code>[name]</code> blocks, <code>interfaces/*.compack</code>, the <code>.cs2</code> headers and the <code>.rs2</code> trigger headers. That is a few hundred thousand lines of text and takes well under a second; the server pack build does more every run. It holds, per entity: kind, id, name, display name (the <code>name=</code> field), the fields the catalog summarises (ops, models, category, multi shell and its var, size, combat level), and provenance (cache block, overlay file, both). It watches the tree's mtimes the way <code>packcheck</code> does and refreshes incrementally.</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Kind</th><th>Source</th><th>Summary fields</th></tr></thead>
+<tbody>
+<tr><td>Loc</td><td><code>all.loc</code> + overlays</td><td>name, ops, shapes, size, category, multivar + slot count, model ids</td></tr>
+<tr><td>NPC</td><td><code>all.npc</code> + overlays + <code>npc_combat/</code>, <code>npc_stats/</code></td><td>name, combat level, ops, size, multivar + slots, has dialogue (an <code>[opnpc1,name]</code> exists)</td></tr>
+<tr><td>Obj</td><td><code>all.obj</code></td><td>name, stackable, wearpos, ops, cost</td></tr>
+<tr><td>Seq, Spotanim, Sprite, Model, Texture, Sound (synth, jingle, song)</td><td>pack tables</td><td>name, id, size/frames</td></tr>
+<tr><td>Varp, Varbit, Varc</td><td><code>all.varp</code>, <code>all.varbit</code>, <code>all.varc</code> + overlays</td><td>basevar, bit range, transmit, scope, users (scripts and multi shells that read it)</td></tr>
+<tr><td>Struct, Enum, Param, Inv, DBRow, DBTable</td><td>config text</td><td>type, key/value count</td></tr>
+<tr><td>Interface</td><td><code>interfaces/*.compack</code></td><td>name, component count, root types</td></tr>
+<tr><td>CS2 script</td><td><code>scripts/*.cs2</code> headers</td><td>name, id, kind (clientscript/proc), arity, <code>.cs2b</code> flag</td></tr>
+<tr><td>Server script trigger</td><td><code>.rs2</code> headers</td><td>trigger kind, subject name, file</td></tr>
+<tr><td>Map square</td><td><code>maps/</code></td><td>coords, has locs, spawn count</td></tr>
+</tbody></table></div>
+
+<h3>The panel</h3>
+<p>Kind tabs, a search field (name, display name, id, or <code>key=value</code> filters such as <code>multivar=varb4153</code> or <code>op=Open</code>), a <code>VLIST</code> of results paged from the server, and a detail pane. The detail pane shows the merged record with provenance per field, the model preview through the existing host-rendered <code>ToriRSChrome_ModelView</code> (the record's model is loaded on demand through the provider's <code>*Load</code> task, one record, never a sweep), and actions: <strong>Place</strong> (sets the catalog pick for the place tool), <strong>Edit</strong> (opens the record document in the inspector), <strong>Open builder</strong> (loc or NPC), <strong>Find in world</strong> (spawn and placement coordinates from the index), <strong>Save as new</strong>.</p>
+<p>The catalog pick is group state (<code>STATE_CATALOG_PICK</code>), so a pick in the browser tab arms the place tool in the viewer window.</p>
+
+<!-- ============================================================ -->
+<h2 id="terrain"><span class="num">9</span>Terrain tools (R8)</h2>
+<p>Terrain edits are <code>TILE</code> commands on authored records, grouped by stroke, applied to the EDIT world through <code>tile_set</code>. The tools are the current ones made brush-shaped and given the controls the plan listed as missing.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Tool</th><th>Edits</th><th>Controls</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Height raise / lower</td><td><code>h</code> token on the tile's corner (authored height, 8-unit basis)</td><td>radius (slider), falloff (linear, smooth, flat), step</td><td>a tile with no <code>h</code> becomes authored on first touch; the inspector shows "generated" vs "authored" as today, and <strong>Clear height</strong> restores absence</td></tr>
+<tr><td>Flatten</td><td>sets every corner in the brush to the first-clicked height</td><td>radius</td><td>level-aware: on level 1+ the authored value is relative to the level below, as the fixup defines</td></tr>
+<tr><td>Smooth</td><td>averages corners toward neighbours</td><td>radius, strength</td><td>reads derived heights, writes authored</td></tr>
+<tr><td>Underlay paint</td><td><code>u</code> token</td><td>palette from <code>all.underlay</code> with colour swatches, radius</td><td>colour swatch is the record's rgb; the blend window remesh is the EDIT world's job</td></tr>
+<tr><td>Overlay paint</td><td><code>o</code> token: id, shape, rotation</td><td>palette from <code>all.overlay</code> (colour or texture), shape picker with thumbnails drawn from <code>world_decode_tile</code>'s shape tables, rotation 0–3</td><td>thumbnails from the mesh builder's own table so the picture cannot disagree with the result</td></tr>
+<tr><td>Flags</td><td><code>f</code> bits: block, link-below, remove-roof, vis-below</td><td>four checkboxes, click or paint</td><td>link-below (bridge) shows the three level spaces in the inspector: cache, draw, paint</td></tr>
+<tr><td>Level</td><td>which plane the tools write</td><td>radio auto/0/1/2/3, plus the per-view vis cap</td><td>unchanged semantics from the plan</td></tr>
+<tr><td>Select rectangle</td><td>none</td><td>drag</td><td>selection of tiles for copy, paste, fill, clear; paste is a stroke of TILE commands with the delta applied to authored heights</td></tr>
+<tr><td>Square operations</td><td>whole square</td><td>copy square to coords, clear square, import from another revision's tree</td><td>SAVE_AS on a square document</td></tr>
+</tbody></table></div>
+<p>Edits at a square border still produce commands for both squares' documents; <code>Editor_CmdRebuildSpan</code> already names them, and the EDIT world's invalidation is tile-local so there is no seam crack.</p>
+
+<!-- ============================================================ -->
+<h2 id="squares"><span class="num">9b</span>Square picker and New square</h2>
+<p>Today the squares panel is a 512-row list of 2,933 coordinates. The replacement is a map. The content tree already says where every square belongs: <code>worldmap/areas/*.wma</code> lists the world-map areas (the surface, each dungeon map, the instance maps) and <code>*.wmc</code> their composite region lists, and every <code>maps/m&lt;x&gt;_&lt;z&gt;</code> that no area claims is still a square with coordinates.</p>
+<h3>The picker</h3>
+<ul>
+  <li><strong>Server side</strong> (catalog index): a square atlas. For each square: coordinates, which world-map area claims it (surface, a named dungeon, an instance map, or none), whether it has a <code>.jl2</code>, its spawn count, and a thumbnail colour (the average underlay/overlay colour of its level-0 tiles from the <code>.jm2</code>, so the picker reads like the game's map without loading the cache). Served as <code>FACT_CATALOG_SQUARES</code>, one row per square, refreshed when <code>maps/</code> changes.</li>
+  <li><strong>Client side:</strong> a <code>GRAPH</code>-style well with one tab per world-map area plus an <strong>Unmapped</strong> tab for squares no area claims (instance regions in the high coordinates). The surface tab draws the 64×64-tile squares as a grid of thumbnail cells with the map coordinates on the axes, zoomable with the wheel, hover names the square and its area, click opens it, shift-click adds it to the open set, right-click offers Open in new view, Copy to…, Delete. A search field accepts <code>m50_50</code>, <code>50 50</code>, an absolute tile <code>3222 3218</code>, or an area or region name.</li>
+  <li><strong>Open squares</strong> are outlined, dirty ones in the accent colour, and the view's current window is drawn as a frame; every open view publishes its window through <code>STATE_VIEW_SQUARE</code> so the picker shows where every window is looking.</li>
+</ul>
+<h3>New square</h3>
+<p>A <strong>New</strong> button in the picker asks two things before anything is written:</p>
+<ol>
+  <li><strong>Where it lives:</strong> the coordinates (picked by clicking an empty cell or typed), and the <em>storage</em>: the content tree's <code>maps/</code> (the default, which the cache pack reads), or a lane directory (<code>ported/&lt;lane&gt;/maps/</code>, for content that ships behind a lane descriptor). The dialog lists the lanes it finds and offers to create one. A square whose coordinates are already taken in that storage is refused with the owner shown.</li>
+  <li><strong>What it starts as:</strong> empty (all-default tiles, a square with no <code>.jm2</code> line), a copy of an existing square (the picker's current selection), or a flat fill at an authored height and underlay.</li>
+</ol>
+<p>Confirm sends <code>DOC_CREATE(SQUARE, "m&lt;x&gt;_&lt;z&gt;", storage, template)</code>; the server creates the document in the authority (and its <code>.filepack</code> line, since the tree indexes a square's files), broadcasts the commands that fill it, and the picker's atlas row appears in every window. Nothing is written to disk until Save, like every other document. The same dialog, with the storage question only, is what <strong>Copy to…</strong> and <strong>Save as new</strong> show for a square.</p>
+
+<!-- ============================================================ -->
+<h2 id="placement"><span class="num">10</span>Placement tools (R9)</h2>
+<h3>Locs</h3>
+<p>Place, move, rotate, reshape, delete and clear-tile exist as <code>LOC</code> commands with ghost preview. Added: multi-select (shift-click, rectangle), nudge by arrow keys, rotate by R, cycle shape by S, duplicate, align to grid for multi-tile locs, and a per-placement inspector (loc record summary, shape, rotation, footprint, the resolved multiloc child at the preview var value). Picking disambiguates layers through the minimenu as today ("Select Wall", "Select Ground Decor").</p>
+
+<h3>NPC and obj spawns</h3>
+<p>Spawns move into the authority as <code>EDITOR_CMD_SPAWN</code> on the spawn document for the square, written to the edited lane <code>server/scripts/areas/edited/configs/m&lt;x&gt;_&lt;z&gt;.spawn</code> that the server loader already merges. Fields: kind, content name, absolute tile, level, count for objs. Placing requires a content name, which the catalog guarantees. Spawns render in the EDIT world as scenery-tier entities with the NPC's model and the obj's ground model, filterable per view.</p>
+<p><strong>Deleting a generated spawn</strong> is the open question the plan left. This design resolves it with a suppression line in the edited file:</p>
+<pre><code>==== NPC ====
+giantspider1        3200  3238 0
+-goblin_unarmed_melee_4  3202  3253 0      // suppress the generated spawn at this tile</code></pre>
+<p>The loader change is small: a leading <code>-</code> records a suppression keyed on (name, x, z, level), applied after every file is merged. The generator leaves the edited tree alone (it writes only its own directory). The editor shows a suppressed generated spawn as a greyed ghost with "restore".</p>
+
+<h3>Other placeable things</h3>
+<p>Map links (<code>docs/MAPLINKS.md</code>), music and ambient sound areas (<code>docs/audio/music_areas.tsv</code>), and zone trigger areas are authored text too. They are documents of the CFG kind with a tile or area geometry, drawn as overlays in the view, placed with the rectangle tool. They are in scope for the document model and out of scope for the first milestone.</p>
+
+<!-- ============================================================ -->
+<h2 id="locbuilder"><span class="num">11</span>Loc interaction builder (R10)</h2>
+<p>A loc interaction in this tree is a <code>.rs2</code> trigger block (<code>[oploc1,name]</code> … <code>[oploc5]</code>, <code>[oplocu]</code>, <code>[aploc1]</code> …) plus the server overlay block that gives the loc its server fields (<code>category=</code>, <code>param=</code>). The builder is a form that owns both and emits them.</p>
+
+<h3>Ownership</h3>
+<p>Builder output lives under a directory the builder owns: <code>server/scripts/edited/&lt;subject&gt;/scripts/&lt;subject&gt;.rs2</code> and <code>server/scripts/edited/&lt;subject&gt;/configs/&lt;subject&gt;.loc</code>. Each generated file opens with a header naming the builder and the model it was generated from. The <strong>model</strong> is the builder's own structured record, stored as an INI block in <code>server/scripts/edited/&lt;subject&gt;/&lt;subject&gt;.interaction</code>; the <code>.rs2</code> is derived from it. Re-opening the builder reads the model, never parses the script. A <strong>Detach</strong> button deletes the model and the header so the script becomes hand-authored. The server loader ignores <code>.interaction</code> files (it reads only the extensions it knows).</p>
+<p>A loc that already has a hand-authored trigger elsewhere is shown read-only in the builder with "open the script", because <code>sscompile</code> refuses duplicate triggers and the builder must not create one.</p>
+
+<h3>The form</h3>
+<ul>
+  <li><strong>Subject:</strong> the loc, with its cache <code>op1..op5</code> names as the trigger labels. Renaming an op edits the cache record's <code>opN=</code> field (a <code>CFG_FIELD</code> on <code>all.loc</code>), and the builder warns that this changes the client-visible menu and needs a client cache pack.</li>
+  <li><strong>Per op:</strong> approach or operate (<code>aploc</code> vs <code>oploc</code>), and a list of steps. Steps are the vocabulary the tree already uses most, each a template with typed parameters: message (<code>mes</code>), conditional on a var (<code>if (%var … )</code> with the var picker), set var, give or take obj with a count, require obj or level, open interface (<code>if_openmain</code> / <code>if_opensub</code> with the interface picker), play anim and sound (<code>anim</code>, <code>sound_synth</code>), teleport (<code>p_telejump</code>), delay (<code>p_delay</code>), loc swap (<code>loc_change</code> to another loc for N ticks), door via the <code>door_closed</code>/<code>door_opened</code> category pair with <code>param=next_loc_stage</code> (so a door is two field edits, not a script), ladder or stairs via the maplink lane, run a proc or jump to a label by name (free text, checked against the index), raw RuneScript (an escape hatch, kept verbatim).</li>
+  <li><strong>Use-on:</strong> <code>[oplocu,name]</code> with the held obj as a condition, same steps.</li>
+  <li><strong>Server fields:</strong> category, params, from the overlay block, with the field register from <code>fields/loc.ini</code> saying which side a field reaches.</li>
+</ul>
+
+<h3>Multilocs</h3>
+<p>A multiloc shell is <code>multivarbit=</code> or <code>multivarp=</code> plus <code>multiloc1..N</code>, 1-based in the text, value <em>N</em> selecting <code>multiloc&lt;N+1&gt;</code>, <code>-1</code> hidden, the last entry the default for any value past the list. The shell editor shows the slots as a table with the value column computed, a child picker per slot, "none" for hidden, and the default row marked. Changing the var opens the var editor (<a href="#vars">§13</a>) in place. The preview control sets <code>STATE_VAR_PREVIEW</code> so every view resolves the shell with <code>VarPManager_ResolveTransform</code> and shows the child, including the hidden case. Interactions bind to the shell or to a child; the index lists both and the builder says which the game's dispatch will hit (child category beats base trigger, per the Plague City notes).</p>
+
+<h3>Validation</h3>
+<p>Every regeneration runs <code>sscompile --dry-run</code> on the unit (the incremental compiler answers in well under a second) and shows errors inline. Save does not require a clean compile; RUN does.</p>
+
+<!-- ============================================================ -->
+<h2 id="npcbuilder"><span class="num">12</span>NPC interaction and dialogue builder (R11)</h2>
+<p>Same ownership and same step vocabulary as the loc builder, with <code>[opnpc1..5]</code>, <code>[opnpcu]</code>, <code>[apnpc]</code> triggers and a dialogue graph instead of a step list for the Talk-to op.</p>
+
+<h3>The dialogue graph</h3>
+<p>Nodes map one-to-one onto the procs the tree already uses by the thousand:</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Node</th><th>Emits</th><th>Fields</th></tr></thead>
+<tbody>
+<tr><td>NPC says</td><td><code>~chatnpc_anim(^chat_&lt;expr&gt;, "text");</code> or <code>~chatnpc("text");</code></td><td>text (wrapped to the chat box's line rules; the editor shows the page breaks), expression from the <code>^chat_*</code> constants, speaker override (<code>~chatnpc_specific</code> with an npc and a display name)</td></tr>
+<tr><td>Player says</td><td><code>~chatplayer_anim(…)</code> / <code>~chatplayer(…)</code></td><td>text, expression</td></tr>
+<tr><td>Message box / item box</td><td><code>~mesbox</code>, <code>~objbox(obj, "text")</code></td><td>text, obj</td></tr>
+<tr><td>Choice</td><td><code>def_int $choice = ~p_choice2..5("A", 1, "B", 2 …);</code> then <code>if ($choice = 1) { … }</code></td><td>2–5 options, each an out-port; optional title</td></tr>
+<tr><td>Branch on var</td><td><code>if (%varb… = ^const) { … } else if …</code></td><td>var picker, comparisons, out-port per arm and a default</td></tr>
+<tr><td>Set var / give / take / require</td><td>the same steps as the loc builder</td><td></td></tr>
+<tr><td>Call / jump</td><td><code>~proc(args)</code> / <code>@label</code></td><td>name from the index</td></tr>
+<tr><td>Quest hook</td><td><code>~quest_start</code>, journal and stage helpers as the tree defines them</td><td>quest dbrow</td></tr>
+<tr><td>End</td><td><code>return;</code></td><td></td></tr>
+</tbody></table></div>
+<p>The emitter walks the graph into nested <code>if</code>/<code>else</code> blocks and labels for shared tails. Text containing the player's name uses the display-name helper, never a literal, and the lint from the quest tooling (<code>lint_quest.py</code>'s NBSP rule) is reused on the generated text. The graph is drawn in the <code>GRAPH</code> well; the outline is also shown as a <code>TREE</code>, which is the accessible form and the one the browser chrome tab uses.</p>
+
+<h3>Multinpcs</h3>
+<p>Identical to the multiloc shell editor: <code>multivarbit=</code>/<code>multivarp=</code>, <code>multinpc1..N</code>, <code>-1</code> hidden, last entry default. The preview var drives every view. The <code>docs/MULTI_NPCS.md</code> audit rows (spawns, default, visibility per value) become the catalog's summary fields for a shell, so the builder shows "visible at 0–5, hidden from 6" without the user computing it.</p>
+
+<h3>Preview</h3>
+<p>Two previews, both cheap. <strong>Static:</strong> the main window renders each dialogue page through the client's own chat interfaces (the uitree already draws <code>chatnpc</code> pages from text and a head model), so the page breaks and the head anim are seen before anything runs. <strong>Live:</strong> RUN, then <code>LIVE_CHEAT("::tele …")</code> the live player to the spawn and talk; the editor's live inspector shows the var values changing (<a href="#run">§16</a>).</p>
+
+<!-- ============================================================ -->
+<h2 id="vars"><span class="num">13</span>Varp and varbit editor (R12)</h2>
+<p>Vars have two homes. The cache half (<code>configs/all.varp</code>, <code>all.varbit</code>) carries what the client decodes: a varp's <code>clientcode</code>, a varbit's <code>basevar</code>, <code>startbit</code>, <code>endbit</code>. The server half (<code>.varp</code> overlays under <code>server/scripts/</code>, <code>fields/varp.ini</code>) carries <code>transmit</code>, <code>scope</code>, <code>protect</code>. Names carry kind and id: <code>varp29_cookquest</code>, <code>varb346_golem_a</code>, enforced by lint and by <code>tools/var_prefix_names.py</code>.</p>
+
+<h3>The panel</h3>
+<ul>
+  <li><strong>Browse:</strong> catalog kinds Varp, Varbit, Varc with users (which scripts, interfaces and shells read them) from the index.</li>
+  <li><strong>Varp:</strong> a bit map of its 32 bits showing every varbit laid over it, overlaps flagged red, free bits shown. Edit transmit, scope, protect in the overlay; clientcode in the cache block.</li>
+  <li><strong>New varp:</strong> allocated in the server headroom above the cache's highest id (<code>TORIRSSERVER_VARP_SERVER_HEADROOM</code> is 3,200), through the <code>pack/varp.alloc</code> ledger the way <code>ss_allocate.py</code> does, membership line in <code>pack/varp.server</code> (and <code>.client</code> if the client must see it), the name coined as <code>varp&lt;id&gt;_&lt;name&gt;</code>.</li>
+  <li><strong>New varbit:</strong> pick a basevar, then a free bit range from the bit map; the editor refuses an overlap. Written to <code>configs/all.varbit</code> with its compack line, which <code>cachepack pack</code> encodes into the client cache; a server-only varbit is also fine (the server has its own carrier table).</li>
+  <li><strong>Constants:</strong> a var's named values are <code>^constants</code> in <code>.constant</code> files; the editor shows and edits the ones whose comment or name references the var, and the builders offer them in comparisons.</li>
+  <li><strong>Preview value:</strong> set the session's <code>STATE_VAR_PREVIEW</code> for a var, which drives multiloc and multinpc resolution in every view.</li>
+  <li><strong>Live value:</strong> when attached, read the followed player's value and set it, through <code>::getvar</code>/<code>::setvar</code> debugprocs (<code>::setvar varp101_qp 43</code> is the existing form).</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="cs2"><span class="num">14</span>CS2 and the interface editor (R13, R14)</h2>
+<p>There is no interface editor to fix up; there is a viewer with dump switches. The design treats the client as the WYSIWYG surface, since it is the only renderer that is right by definition, and builds the editing around it.</p>
+
+<h3>Interface editor</h3>
+<ul>
+  <li><strong>Open:</strong> the catalog's Interface kind; the main window mounts it the way the server would (<code>App_OpenRootInterface</code> for a top-level, <code>App_OpenSubInterface(target, id, type)</code> into a chosen slot of the current gameframe for a sub). A "mount as" control chooses root, modal, overlay or tab.</li>
+  <li><strong>Component tree:</strong> a <code>TREE</code> built from the <code>.if</code> document (block order is child id order from the <code>.compack</code>). Selecting a node highlights its node in the uitree; clicking a node in the view with the pick tool selects it in the tree (the uitree hit test exists; <code>TORIRS_DUMP_BOUNDS</code> already computes the boxes).</li>
+  <li><strong>Inspector:</strong> every <code>.if</code> key grouped as the component struct groups them: geometry and modes, graphic and text, model, inventory, interaction (ops, click mask, target verb), scripts (<code>onload</code>, <code>onclick</code>, …, <code>varptriggers</code>). Edits are <code>IF_FIELD</code> commands. The mirror re-fills the build component for that one node (<code>UITree_FillBuildFromToriRS</code>) and relayouts; no cache round trip.</li>
+  <li><strong>Structure:</strong> add, delete, reparent, reorder components (<code>IF_COMPONENT</code>); a new component gets the next child id in the compack. Drag to move or resize in the view writes <code>x</code>/<code>y</code>/<code>width</code>/<code>height</code> under the current modes.</li>
+  <li><strong>Hooks:</strong> a script reference picker for each hook: the CS2 script from the catalog, its typed argument list from the script header, the argument spelling (<code>i:</code>, <code>s:</code>, event placeholders) as the <code>.if</code> grammar writes it.</li>
+  <li><strong>Round trip:</strong> <code>editor_if.c</code> must re-emit every untouched interface byte-for-byte; the test runs over all 982 before any save is allowed. The unverified fields the survey flagged (the <code>layer=</code> encoding, the numeric <code>type=</code> set) are settled by that test, not by guessing.</li>
+  <li><strong>New interface:</strong> SAVE_AS allocates an interface id and writes <code>&lt;name&gt;.if</code>, <code>&lt;name&gt;.compack</code> and the <code>pack/3_interfaces.pack</code> line.</li>
+</ul>
+
+<h3>CS2 runner</h3>
+<ul>
+  <li><strong>Run:</strong> pick a script, fill its arguments (ints, strings, component ids by picker), run against the mounted interface with <code>CreateTask_CS2RunMixed</code>. The VM drains to a fixed point before the tree is shown, as <code>docs/CS2_EXECUTION.md</code> requires.</li>
+  <li><strong>Trace:</strong> the <code>TORIRS_CS2_TRACE</code> op trace goes to an output panel with the script, opcode and stack depth per line; a failure names the opcode the way the VM already logs it.</li>
+  <li><strong>Watch:</strong> varc, varp and varbit values read live from <code>VarCManager</code> and <code>VarPManager</code>, with set controls, so a script's inputs can be staged.</li>
+  <li><strong>Edit:</strong> a <code>.cs2</code> source in the <code>CODE</code> widget; <strong>Compile</strong> runs <code>3rd/rscache/tools/cs2 compile</code> on the file and reports every declined spelling, so nothing becomes a silent <code>.cs2b</code>. A compiled script can be hot-swapped into the client's script cache for the session (the mirror's own VM), which is enough to iterate without a cache pack; the pack happens on RUN.</li>
+  <li><strong>Harness:</strong> the existing <code>TORIRS_CS2_HARNESS</code> case format (script id, args, screenshot) can be written from the runner panel, so a reproduced bug becomes a regression case in one click.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="save"><span class="num">15</span>Save, save as new, export, pack (R15)</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Action</th><th>What happens</th></tr></thead>
+<tbody>
+<tr><td><strong>Save</strong></td><td>Dirty documents are written as text, atomically, only the touched halves and blocks. Never a cache. <code>FACT_SAVED</code> clears dirty in every mirror. Unchanged.</td></tr>
+<tr><td><strong>Save as new</strong></td><td>The server clones a document under a new name: for a config record, a new <code>[name]</code> block with an id from the namespace's <code>.alloc</code> ledger and membership lines; for a square, a copy at new coordinates; for an interface, new <code>.if</code>/<code>.compack</code>/pack line; for a builder subject, a new edited directory. The clone arrives as <code>FACT_CMD</code>s so it is undoable and every mirror sees it.</td></tr>
+<tr><td><strong>Export lane</strong></td><td>A set of edited documents is written as a lane directory in the shape the tree already uses for ported content (<code>ported/&lt;lane&gt;/</code> with <code>lane.ini</code>, configs, scripts, maps), and tarred. <strong>Import lane</strong> reads one and submits it as commands, so a lane from another checkout merges through the authority with conflicts shown as commands that failed to apply.</td></tr>
+<tr><td><strong>Build packs</strong></td><td><code>make -C src torirsserver-packs</code>: id allocation, both script packs and the server pack, incremental, with the per-unit lines streamed as <code>FACT_BUILD_LINE</code>. Seconds for an edit.</td></tr>
+<tr><td><strong>Build client cache</strong></td><td><code>cachepack pack --src … --base cache.osrs241 --out &lt;live cache&gt;</code>. Full is minutes. The server pack already has an incremental unit model in <code>cp_incremental.c</code> (type-level units, archive-level diffs); the client pack gets the same: repack only the types whose inputs changed, write only changed archives, bump the reference table. Target: a config edit repacks in the ~5 s the server pack takes, a map square in under a second.</td></tr>
+<tr><td><strong>Bake</strong> (legacy name)</td><td>Kept as the name of "build client cache" in the menu for continuity; still only ever from the explicit action.</td></tr>
+</tbody></table></div>
+<p>Everything above runs through the server's <code>BuildRunner</code>, which spawns the project's own make targets rather than assembling tool command lines in C, for the reason the host comment gives: the makefile is the authority on how a build is done.</p>
+
+<!-- ============================================================ -->
+<h2 id="run"><span class="num">16</span>RUN and the live lane (R16)</h2>
+<p>The flow the requirement names: save in the editor, hit RUN, the live server updates, the live clients reload. Today none of the live half exists: <code>ToriRSServer_ScriptsLoad</code> refuses a second load, square reload is a test hook, and the editor server has no link to the game server. The pack side is ready: incremental builds, a per-unit manifest, pack locks, and a written hot-reload contract in <code>docs/serverpack.md</code>.</p>
+
+<pre class="mermaid">
+sequenceDiagram
+  participant W as Main window
+  participant E as Editor server
+  participant M as make / cachepack
+  participant G as torirsserver
+  participant J as js5_server
+  participant C as Game client
+  W->>E: RUN
+  E->>E: SAVE_ALL (text)
+  E->>M: torirsserver-packs (incremental)
+  M-->>E: unit lines, manifest diff
+  E->>M: client cache pack (changed archives only)
+  M-->>E: archive list
+  E->>G: RELOAD(manifest diffs, archive list, squares, spawn files) over the control link
+  G->>G: at tick boundary: swap scripts, replace config groups, reload squares, re-merge spawns
+  G-->>E: RELOAD_DONE(counts, restart-needed list)
+  J->>J: re-stats dat2, swaps store (existing, once per second)
+  G->>C: CACHE_INVALIDATE(index, archives) + REBUILD(reload=1)
+  C->>J: re-fetch invalidated archives
+  C->>C: rebuild scene, re-open interfaces, re-resolve records
+  E-->>W: FACT_LIVE_STATUS(ok, N players refreshed)
+</pre>
+
+<h3>The live link</h3>
+<p>The editor server attaches to a game server in one of two ways. <strong>Launch:</strong> it starts <code>torirsserver</code>, <code>js5_server</code> and <code>io_server</code> itself with the editor's content dir and the live cache dir, the way <code>make web</code>'s servers run, and owns their lifetime. <strong>Attach:</strong> it connects to a running server by address (the NUC). Either way the link is a control connection the game server does not have today: a small admin protocol on the game port, selected by first byte like JS5 is, gated by the same ticket <code>io_gate.c</code> issues (<code>TORIRSSERVER_GATE</code>) so a stray connection cannot reload a public world. Its verbs: <code>STATUS</code>, <code>RELOAD(diff)</code>, <code>CHEAT(player, line)</code> (which runs the ordinary <code>::</code> debugproc path <code>ToriRSServer_ScriptsRunDebugproc</code>), <code>SUBSCRIBE(varps of player)</code> for the live inspector.</p>
+
+<h3>Server reload: implementing the contract</h3>
+<p><code>docs/serverpack.md</code> §"The hot-reload contract" is the spec. In order:</p>
+<ol>
+  <li><strong>Scripts.</strong> Read the new manifest under the shared pack lock; diff script hashes. Load changed and new scripts into a new table; keep old script objects alive by refcount for parked and queued instances; swap trigger lookups and new invocations at the tick boundary. Ids are stable, so unchanged callers keep working. Signature changes are safe because the build recompiled every caller in the same pack. This replaces the "once per world" guard in <code>ToriRSServer_ScriptsLoad</code> with a load-into-shadow-then-swap.</li>
+  <li><strong>Config groups.</strong> For every changed server-pack archive, re-read that group and replace the records in the type's table at the tick boundary. Entities hold ids, not record pointers.</li>
+  <li><strong>Map squares.</strong> Promote <code>ToriRSServer_SceneDebugReloadSquare</code> to a maintained <code>ToriRSServer_SceneReloadSquares(list)</code>: re-read the squares from the live cache, restamp collision and locs, then mark <code>rebuild_pending</code> for every player whose window covers them so the existing barrier sends <code>REBUILD</code> with the <code>reload</code> flag set (<code>w239_rebuild_region</code> already carries it).</li>
+  <li><strong>Spawns.</strong> The contract lists spawns as not reloadable because they are boot-time text. The editor needs them most of all, so: re-parse only the edited lane's changed files, diff against the current spawn set, despawn removed and spawn added statically. The generated lane stays boot-only.</li>
+  <li><strong>Not reloadable</strong> (fields, <code>content.ini</code>, the content loader's symbol tables, <code>.constant</code> values read as text): the server answers <code>restart-needed</code> with the list, and the editor offers Restart, which for a launched lane is one click and for an attached lane is a message.</li>
+</ol>
+
+<h3>Client reload</h3>
+<p>Clients learn about changes two ways. Map squares come through <code>REBUILD</code>, which already makes the client reload the window; with <code>reload=1</code> the client drops its cached copies of those map archives before refetching. For everything else the game protocol has no "your cache changed" message, because Jagex ships caches at logout. Both ends here are ours and the protocol spec is the INI in <code>rsprot</code>, so this design adds one server-to-client packet in our own namespace, <code>CACHE_INVALIDATE(index, count, archive ids…)</code>. The client: forgets those archives in its sparse dat2 and the IndexedDB store, re-primes the affected reference table from JS5 (the metadata-prime path already exists at boot), evicts the decoded records from the provider, and then for interfaces re-opens any mounted interface in the list, for CS2 re-fetches the script, for loc/npc/obj records re-resolves the entities on screen (the varp-driven remorph path already re-resolves shells; this reuses it with "all"), for maps triggers the normal rebuild. The JS5 server picks up the new dat2 by itself: it re-stats once a second and swaps its store.</p>
+<p>A client that does not understand the packet (an old build) ignores it under the ordinary unknown-opcode rule and sees the change at its next login, which is what happens today.</p>
+
+<h3>The live inspector</h3>
+<p>With a link attached, the main window gains a Live panel: players online, the followed player's position and var values (live-updated through <code>SUBSCRIBE</code>), a cheat line, "teleport me to the selection", "teleport me to this spawn", and the stale-unit banner the server prints at boot shown as a list that RUN will clear. <code>STATE_LIVE_FOCUS</code> shares the followed player across the group so a viewer window can lock its camera to them.</p>
+
+<!-- ============================================================ -->
+<h2 id="web"><span class="num">17</span>The web (R6)</h2>
+<p>The editor client is the wasm build with the editor manifest, which already runs: the canvas tab holds the view and chrome, or the chrome lives in a second tab over <code>torirs_channel.js</code>. The editor server is the native daemon reached over its WebSocket transport. <code>io_server</code> serves the page; the live lane is the same servers it is on the desktop.</p>
+<p>Designing the server "as if it could run on the web" is a discipline the current code already mostly has, made explicit:</p>
+<ul>
+  <li>The server touches files only through <code>EditorHost</code>. A browser host binding would store the content tree in IndexedDB or fetch it from <code>io_server</code>'s <code>/boot/</code> route; nothing in the server knows which.</li>
+  <li>Building and the live link go behind two more vtables, <code>BuildRunner</code> and <code>LiveLink</code>. The native bindings spawn make and open a socket. A browser binding would answer "not available here" for build and open a WebSocket for live. The protocol's capabilities bitset tells clients which actions exist, so a menu item is disabled rather than failing.</li>
+  <li>No process-wide state; no threads; pump-driven. Already true, and the embed test (<code>test-editor-torirsmaped-embed</code>) keeps it true.</li>
+  <li>A viewer tab has no filesystem and needs none: it derives from text the server sends.</li>
+</ul>
+<p>Web limits to state plainly: the browser cannot spawn processes, so a web main tab spawns views as tabs only; the js5 server's <code>--max-pending</code> must be raised for a page (memory note: 65,535), and the chrome scale follows the display density as on the desktop.</p>
+
+<!-- ============================================================ -->
+<h2 id="plan"><span class="num">18</span>Build order</h2>
+<p>Each milestone is independently useful and has a check that fails loudly. The order puts the two things with no existing seam first, because everything else is built on them.</p>
+<ol>
+  <li><strong>Foundations.</strong> Editor targets into <code>all</code> and <code>test-editor</code> into the test aggregate; protocol v2 envelope with kind-tagged commands and the alias for v1 square frames; <code>EDITOR_CMD_SPAWN</code> with the suppression line and the loader change; <code>editor_spawn.c</code> with a round-trip test over the 972 generated files. Check: two embeds, one daemon, the mirror divergence assert, byte-exact spawns.</li>
+  <li><strong>EDIT world.</strong> <code>WorldBuilderOps</code>, the resident build maps, tile-local invalidation and flush, stable handles; the editor manifest selects it. Check: a 20-tile brush drag at the border of two squares costs under a millisecond of remesh per frame on the Mac (measure with <code>sample</code>, never <code>TORIRS_PERF</code>), and a scripted sequence of random edits followed by a full STATIC rebuild produces an identical scene (same element models and positions).</li>
+  <li><strong>Chrome growth.</strong> Capacities, <code>VLIST</code>, <code>TREE</code>, <code>TOOLBAR</code>, <code>SLIDER</code>, <code>RADIO</code>, <code>MODAL</code>, <code>TOOLTIP</code>, docking; the <code>chrome-skin</code> make target and the first batch of baked tool icons; the WEB executor replaces <code>panel.html</code>. Check: the existing executor tests plus a sync test per new widget; <code>spritebake --sheet</code> reviewed as a crop (visual verification means crops).</li>
+  <li><strong>Catalog.</strong> Server index and query, the panel with model preview, Find in world. Check: every name in every pack is reachable by search; index build time logged.</li>
+  <li><strong>Views.</strong> Viewer mode, group join, camera state keys, native spawn via the launch service, web spawn via a tab. Check: three windows, one brush stroke, three identical mirrors (the divergence assert) and three different cameras.</li>
+  <li><strong>Terrain and placement tools</strong> on the new chrome: brushes, palettes with swatches, shape thumbnails, multi-select, spawn placement in the authority.</li>
+  <li><strong>Config documents and the var editor.</strong> <code>editor_cfg.c</code> with a round-trip test over every <code>all.&lt;type&gt;</code> and every overlay; the inspector; varp bit map; allocation through the ledger. Check: <code>make torirsserver-packs</code> on a tree with one editor-made varbit packs cleanly and the server boots on it.</li>
+  <li><strong>Builders.</strong> Loc and NPC interaction forms, the dialogue graph, the <code>.interaction</code> model and emitters, <code>sscompile --dry-run</code> inline. Check: a generated Talk-to for a test NPC compiles, packs, and plays through <code>scriptrun</code> with the quest driver's <code>chat.play</code> rows.</li>
+  <li><strong>Interfaces and CS2.</strong> <code>editor_if.c</code> with the 982-file round trip, tree and inspector, hook picker, runner and trace, compile check. Check: an edited interface opens identically in the client from the packed cache and from the mirror.</li>
+  <li><strong>RUN.</strong> The server control link and gate, the hot-reload contract in the game server, square and spawn reload, <code>CACHE_INVALIDATE</code> in the client, incremental client cache pack, launched and attached lanes. Check: edit a dialogue line, RUN, and a logged-in client sees the new line on the next Talk-to without a relog; edit a tile height, RUN, the client's window rebuilds with the new height.</li>
+  <li><strong>Lanes.</strong> Export and import, save-as-new for squares and interfaces.</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="risks"><span class="num">19</span>Open questions and risks</h2>
+<ul>
+  <li><strong>Client cache invalidation is a protocol extension.</strong> It is the only part of the design that is not a shape the tree already has. The alternative, relog to see config changes, fails R16 for anything but scripts and map squares. The packet is ours on both ends and the spec is INI; the risk is scope creep in the client's eviction paths, which is why interfaces, CS2 and records are listed separately with the existing path each reuses.</li>
+  <li><strong>Hot reload of scripts under parked state.</strong> The contract covers it by refcount; the <code>ScriptsFree</code> comment about a conversation parked across a reload walking a freed pointer is the exact bug a test must reproduce before the swap ships: a player parked in <code>p_pausebutton</code> during RUN must finish the old dialogue and get the new one on the next click.</li>
+  <li><strong>Viewer processes on one GPU.</strong> Several torirs processes each with a GL context is ordinary on macOS and Linux; on a laptop with many viewers open it is the user's memory to spend. If it proves heavy, the fallback is one process rendering several views into aux windows, which requires the renderer to become multi-target; this design does not need that and does not propose it.</li>
+  <li><strong>The <code>.if</code> codec's unknowns.</strong> The <code>layer=</code> encoding and the numeric type set were not verified by the survey. The byte-exact round-trip test over all 982 files settles them mechanically and must pass before the inspector may write.</li>
+  <li><strong>Generated-spawn suppression</strong> changes the loader's grammar. It is one line kind and one post-merge pass; the alternative (editing generated files) is a known data-loss bug.</li>
+  <li><strong>Builder model versus hand edits.</strong> Someone will hand-edit a generated <code>.rs2</code>. The header says not to, Detach is one click, and the builder refuses to regenerate over a file whose hash no longer matches what it wrote, showing a diff instead.</li>
+  <li><strong>Chrome capacity on the browser executor.</strong> Raising widget counts raises the DOM; the WEB executor already batches and fences, but a 4,096-widget page is to be measured, not assumed. <code>VLIST</code> exists to keep the real number far lower.</li>
+  <li><strong>Mutation checks.</strong> Every check above that edits source to prove a test fails runs in a throwaway worktree, never in the shared tree (CLAUDE.md).</li>
+</ul>
+
+<p class="small">Survey sources: <code>src/editor/*.h</code>, <code>src/torirsmaped/torirs_maped.h</code>, <code>docs/MAP_EDITOR_PLAN.md</code>, <code>docs/chrome_executors.md</code>, <code>docs/serverpack.md</code>, <code>docs/WEB_SERVERS.md</code>, <code>docs/JS5_INCREMENTAL_CACHE.md</code>, <code>docs/CONTENT_PACK_PLAN.md</code>, <code>docs/PACK_ENTITY_SPLIT_PLAN.md</code>, <code>OSRS-Content/README.md</code>, <code>src/ui/uitree_debug_overlay.h</code>, <code>src/engine/torirs_chrome_skin_baked.h</code>, <code>src/world/world.h</code>, <code>src/engine/world_builder/</code>, <code>src/torirsserver/torirs_server_scripts.c</code>, <code>src/platform/platform_window.h</code>, <code>src/web/torirs_channel.js</code>, <code>src/cs2vm2/</code>, <code>src/varp/varp_manager.h</code>.</p>
+</main>
+</div>

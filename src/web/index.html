@@ -430,6 +430,15 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
       save .bin
     </button>
   </span>
+  <!-- Map editor boots on a torirsmaped daemon only; torirs_host.js unhides
+       it. Opens another VIEW of the same editor session in a new tab
+       (?editor_view=1&maped=...&group=N, docs/MAPED_DESIGN.html #windows). -->
+  <span id="editorview" hidden>
+    <button type="button" id="btn-spawn-view"
+            title="Open another view of this editor session in a new tab, looking where this one looks.">
+      spawn view
+    </button>
+  </span>
   <span id="viewctl">
     <button type="button" id="btn-fullcanvas" aria-pressed="false"
             title="Hide the log panels and scale the canvas to the window. Remembered across reloads (?fullcanvas=1).">

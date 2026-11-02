@@ -5,8 +5,12 @@
 
 #include "cp_incremental.h"
 
+#include "asset_access.h"
+#include "cache_edit.h"
+#include "cache_write.h"
 #include "cp_walk.h"
 #include "dat2disk.h"
+#include "filelist.h"
 #include "rscache_serverpack.h"
 
 #include <assert.h>
@@ -1133,6 +1137,63 @@ collect_input_list(
     return count;
 }
 
+/* What no encoder's lookups can be traced through: the registers, the meta,
+ * the asset/stat/category indexes and the interface members. The name tables
+ * (the all.<type>.compack and <type>.alloc files) and the constants are not
+ * here — their lookups are recorded per type instead. */
+static int
+is_global_input(const char* rel)
+{
+    size_t length = strlen(rel);
+
+    return strcmp(rel, "meta.ini") == 0 || strcmp(rel, "content.ini") == 0 ||
+           strncmp(rel, "fields/", 7) == 0 || strncmp(rel, "interfaces/", 11) == 0 ||
+           strcmp(rel, "pack/stat.pack") == 0 || strcmp(rel, "pack/category.pack") == 0 ||
+           (strncmp(rel, "pack/", 5) == 0 && rel[5] >= '0' && rel[5] <= '9' && length > 5 &&
+            strcmp(rel + length - 5, ".pack") == 0);
+}
+
+/* A type's own files folded into `key`: every *.<type> the walk found, its
+ * routing files, and for dbrow the *.dbtable files its schemas come from. The
+ * server pack and the client pack key a type the same way. */
+static uint64_t
+type_files_key(
+    struct CP_Ctx* ctx,
+    enum CP_TypeId type,
+    uint64_t key,
+    struct Inputs* inputs,
+    const struct State* previous,
+    const struct Inputs* previous_index)
+{
+    const char* found[CP_PACK_MAX_SOURCES];
+    int found_count = cp_walk_find(&ctx->walk, cp_type(type)->name, found, CP_PACK_MAX_SOURCES);
+    char rel[600];
+
+    for( int f = 0; f < found_count; f++ )
+    {
+        const char* r = relative_to(ctx->srcdir, found[f]);
+
+        assert(r);
+        key = input_digest(key, input_get(inputs, previous, previous_index, ctx->srcdir, r));
+    }
+    snprintf(rel, sizeof(rel), "pack/%s.client", cp_type(type)->name);
+    key = input_digest(key, input_get(inputs, previous, previous_index, ctx->srcdir, rel));
+    snprintf(rel, sizeof(rel), "pack/%s.server", cp_type(type)->name);
+    key = input_digest(key, input_get(inputs, previous, previous_index, ctx->srcdir, rel));
+    if( type == CP_TYPE_DBROW )
+    {
+        found_count = cp_walk_find(&ctx->walk, "dbtable", found, CP_PACK_MAX_SOURCES);
+        for( int f = 0; f < found_count; f++ )
+        {
+            const char* r = relative_to(ctx->srcdir, found[f]);
+
+            assert(r);
+            key = input_digest(key, input_get(inputs, previous, previous_index, ctx->srcdir, r));
+        }
+    }
+    return key;
+}
+
 /* ------------------------------------------------------------------ */
 /* The up-to-date check, from stats alone                              */
 /* ------------------------------------------------------------------ */
@@ -1455,18 +1516,7 @@ cp_pack_server_incremental(
     {
         struct Input* input = input_get(&inputs, &previous, previous.loaded ? &previous_index : NULL,
                                         ctx->srcdir, rels[i]);
-        const char* rel = rels[i];
-        size_t length = strlen(rel);
-
-        /* What no encoder's lookups can be traced through: the registers, the
-         * meta, the asset/stat/category indexes and the interface members. The
-         * name tables (the all.<type>.compack and <type>.alloc files) and the constants
-         * are not here — their lookups are recorded per type instead. */
-        if( strcmp(rel, "meta.ini") == 0 || strcmp(rel, "content.ini") == 0 ||
-            strncmp(rel, "fields/", 7) == 0 || strncmp(rel, "interfaces/", 11) == 0 ||
-            strcmp(rel, "pack/stat.pack") == 0 || strcmp(rel, "pack/category.pack") == 0 ||
-            (strncmp(rel, "pack/", 5) == 0 && rel[5] >= '0' && rel[5] <= '9' && length > 5 &&
-             strcmp(rel + length - 5, ".pack") == 0) )
+        if( is_global_input(rels[i]) )
             global = input_digest(global, input);
     }
     global_changed = !previous.loaded || previous.global != global;
@@ -1532,42 +1582,8 @@ cp_pack_server_incremental(
         /* The type's own files: every *.<type> the walk found, its routing
          * files, and for dbrow the *.dbtable files its schemas come from. */
         if( u < CP_TYPE_COUNT )
-        {
-            const char* found[CP_PACK_MAX_SOURCES];
-            int found_count = cp_walk_find(&ctx->walk, cp_type(u)->name, found, CP_PACK_MAX_SOURCES);
-            char rel[600];
-
-            for( int f = 0; f < found_count; f++ )
-            {
-                const char* r = relative_to(ctx->srcdir, found[f]);
-
-                assert(r);
-                key = input_digest(key, input_get(&inputs, &previous,
-                                                  previous.loaded ? &previous_index : NULL,
-                                                  ctx->srcdir, r));
-            }
-            snprintf(rel, sizeof(rel), "pack/%s.client", cp_type(u)->name);
-            key = input_digest(key, input_get(&inputs, &previous,
-                                              previous.loaded ? &previous_index : NULL, ctx->srcdir,
-                                              rel));
-            snprintf(rel, sizeof(rel), "pack/%s.server", cp_type(u)->name);
-            key = input_digest(key, input_get(&inputs, &previous,
-                                              previous.loaded ? &previous_index : NULL, ctx->srcdir,
-                                              rel));
-            if( u == CP_TYPE_DBROW )
-            {
-                found_count = cp_walk_find(&ctx->walk, "dbtable", found, CP_PACK_MAX_SOURCES);
-                for( int f = 0; f < found_count; f++ )
-                {
-                    const char* r = relative_to(ctx->srcdir, found[f]);
-
-                    assert(r);
-                    key = input_digest(key, input_get(&inputs, &previous,
-                                                      previous.loaded ? &previous_index : NULL,
-                                                      ctx->srcdir, r));
-                }
-            }
-        }
+            key = type_files_key(ctx, (enum CP_TypeId)u, key, &inputs, &previous,
+                                 previous.loaded ? &previous_index : NULL);
 
         if( !global_changed && !ctx->force_server &&
             unit_reusable(old, key, &why, why_buf, sizeof(why_buf)) )
@@ -1836,6 +1852,435 @@ done:
     free(revision_hashes);
     free(log.data);
     free(manifest.data);
+    state_free(&previous);
+    state_free(&next);
+    lock_release(&lock);
+    return status;
+}
+
+/* ------------------------------------------------------------------ */
+/* The incremental client pack (cp_incremental.h has the contract)     */
+/* ------------------------------------------------------------------ */
+
+/** One captured client record write. */
+struct ClientPut
+{
+    int table;
+    int archive;
+    int file;
+    uint32_t size;
+    uint8_t* data;
+};
+
+static int g_client_capture;
+static struct ClientPut* g_client_puts;
+static int g_client_put_count;
+static int g_client_put_capacity;
+
+bool
+cp_client_put(
+    struct RSCache_Dat2Edit* edit,
+    int table_id,
+    int archive_id,
+    int file_id,
+    const uint8_t* data,
+    uint32_t size)
+{
+    struct ClientPut* put;
+
+    assert(edit);
+    assert(data || size == 0);
+    if( !g_client_capture )
+        return RSCache_Dat2EditPutFile(edit, table_id, archive_id, file_id, data, size);
+    if( g_client_put_count == g_client_put_capacity )
+    {
+        g_client_put_capacity = g_client_put_capacity ? g_client_put_capacity * 2 : 1024;
+        g_client_puts = (struct ClientPut*)realloc(
+            g_client_puts, (size_t)g_client_put_capacity * sizeof(struct ClientPut));
+        assert(g_client_puts);
+    }
+    put = &g_client_puts[g_client_put_count++];
+    put->table = table_id;
+    put->archive = archive_id;
+    put->file = file_id;
+    put->size = size;
+    put->data = (uint8_t*)malloc(size ? size : 1);
+    assert(put->data);
+    if( size )
+        memcpy(put->data, data, size);
+    return true;
+}
+
+static void
+client_puts_clear(void)
+{
+    for( int i = 0; i < g_client_put_count; i++ )
+        free(g_client_puts[i].data);
+    g_client_put_count = 0;
+}
+
+/**
+ * Do the captured puts [first, end) for (table, archive) change what the cache
+ * holds? Answered against the archive's own files: a put whose file is absent
+ * or whose bytes differ is a change; a file the puts do not name stays as it
+ * is (a commit keeps it), so it is not one.
+ */
+static int
+client_archive_differs(
+    struct CP_Ctx* ctx,
+    int table,
+    int archive_id,
+    int first,
+    int end)
+{
+    struct RSCache_Dat2DiskArchive* archive =
+        RSCache_Dat2DiskArchiveNewLoad(ctx->cache.disk, table, archive_id);
+    struct RSCache_FileList* files = NULL;
+    int differs = 0;
+
+    if( !archive )
+        return 1;
+    if( !RSCache_Dat2DiskArchiveInitMetadata(ctx->cache.disk, archive) || archive->file_count <= 0 )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return 1;
+    }
+    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
+    if( !files )
+    {
+        RSCache_Dat2DiskArchiveFree(archive);
+        return 1;
+    }
+    /* file id -> slot: the ids are ascending in the reference table. */
+    for( int i = first; i < end && !differs; i++ )
+    {
+        const struct ClientPut* put = &g_client_puts[i];
+        int lo = 0;
+        int hi = archive->file_count - 1;
+        int at = -1;
+
+        if( put->table != table || put->archive != archive_id )
+            continue;
+        while( lo <= hi )
+        {
+            int mid = (lo + hi) / 2;
+
+            if( archive->file_ids[mid] == put->file )
+            {
+                at = mid;
+                break;
+            }
+            if( archive->file_ids[mid] < put->file )
+                lo = mid + 1;
+            else
+                hi = mid - 1;
+        }
+        if( at < 0 || (uint32_t)files->file_sizes[at] != put->size ||
+            (put->size && memcmp(files->files[at], put->data, put->size) != 0) )
+            differs = 1;
+    }
+    RSCache_FileListFree(files);
+    RSCache_Dat2DiskArchiveFree(archive);
+    return differs;
+}
+
+int
+cp_pack_client_incremental(
+    struct CP_Ctx* ctx,
+    const struct CP_Selection* sel,
+    const char* base_cache_dir,
+    const char* out_cache_dir)
+{
+    struct State previous;
+    struct State next;
+    struct Inputs inputs;
+    struct Inputs previous_index;
+    struct Lock lock;
+    struct Buf changed;
+    struct RSCache_Dat2Edit* edit = NULL;
+    char path[1400];
+    char** rels = NULL;
+    const char* note;
+    int rel_count = 0;
+    int config_table;
+    uint64_t global;
+    int global_changed;
+    int repacked = 0;
+    int reused = 0;
+    int skipped = 0;
+    int archives_changed = 0;
+    int records = 0;
+    int failed = 0;
+    int status = 1;
+    double started = now_seconds();
+    struct stat info;
+
+    assert(ctx);
+    assert(sel);
+    assert(out_cache_dir);
+    memset(&inputs, 0, sizeof(inputs));
+    memset(&previous_index, 0, sizeof(previous_index));
+    memset(&previous, 0, sizeof(previous));
+    memset(&next, 0, sizeof(next));
+    memset(&changed, 0, sizeof(changed));
+    g_ctx = ctx;
+
+    /* The cache is written in place. Only a target with no store yet is
+     * seeded: from --base when there is one, else created empty. */
+    snprintf(path, sizeof(path), "%s/main_file_cache.dat2", out_cache_dir);
+    if( stat(path, &info) != 0 )
+    {
+        if( base_cache_dir )
+        {
+            printf("Copying %s -> %s (first incremental build)\n", base_cache_dir, out_cache_dir);
+            if( tool_copy_cache_dir(base_cache_dir, out_cache_dir) != 0 )
+            {
+                fprintf(stderr, "cachepack: failed to copy the base cache\n");
+                return 0;
+            }
+        }
+        else
+        {
+            printf("Creating %s (no --base: packing the tree alone)\n", out_cache_dir);
+            if( !tool_dat2_create(out_cache_dir) )
+                return 0;
+        }
+    }
+    cp_mkdir(out_cache_dir);
+    if( !lock_take(&lock, out_cache_dir) )
+    {
+        fprintf(stderr, "cachepack: cannot lock %s/.pack.lock\n", out_cache_dir);
+        return 0;
+    }
+    if( !tool_dat2_open(out_cache_dir, &ctx->profile, &ctx->cache) )
+    {
+        lock_release(&lock);
+        return 0;
+    }
+    ctx->cache_open = true;
+    config_table = RSCache_Dat2DiskTableId(ctx->cache.disk, RSCACHE_DAT2_TABLE_CONFIGS);
+    if( config_table == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+    {
+        fprintf(stderr, "cachepack: the target cache has no config table\n");
+        lock_release(&lock);
+        return 0;
+    }
+
+    cp_walk_content(ctx);
+    cp_constants_load(ctx);
+    printf("Typed %d param(s) from the tree\n", cp_param_types_load(ctx));
+
+    snprintf(path, sizeof(path), "%s/cp.client.state", out_cache_dir);
+    note = state_read(&previous, path);
+    if( ctx->force_server && !note )
+        note = "--force: every type repacks";
+    if( previous.loaded )
+    {
+        previous_index.items = previous.inputs;
+        previous_index.count = previous.input_count;
+        inputs_reindex(&previous_index);
+    }
+
+    /* The global key: the server pack's, under its own seed, plus the
+     * selection (a --types build keys only what it packed). */
+    rel_count = collect_input_list(ctx->srcdir, ctx->lanes, ctx->lane_count, &rels);
+    global = hash_u64(0x3c6ef372fe94f82bull, STATE_FORMAT);
+    global = hash_u64(global, executable_hash(NULL));
+    global = hash_u64(global, lanes_digest(ctx->lanes, ctx->lane_count));
+    global = hash_u64(global, (uint64_t)ctx->profile.game);
+    global = hash_u64(global, (uint64_t)ctx->profile.revision);
+    global = hash_str(global, ctx->srcdir);
+    global = hash_u64(global, hash_bytes(ctx->param_types,
+                                         (size_t)ctx->param_types_count * sizeof(*ctx->param_types),
+                                         0x9e3779b97f4a7c15ull));
+    for( int i = 0; i < rel_count; i++ )
+    {
+        struct Input* input = input_get(&inputs, &previous, previous.loaded ? &previous_index : NULL,
+                                        ctx->srcdir, rels[i]);
+
+        if( is_global_input(rels[i]) )
+            global = input_digest(global, input);
+    }
+    global_changed = !previous.loaded || previous.global != global;
+    if( !note && global_changed )
+        note = "a global input changed (fields, content.ini, meta.ini, an asset or interface "
+               "index, the param types, the binary or the lanes): every type repacks";
+    if( note )
+        printf("cachepack: %s\n", note);
+
+    edit = RSCache_Dat2EditNew(ctx->cache.disk);
+    assert(edit);
+    printf("Packing client configs from %s into %s\n", ctx->srcdir, out_cache_dir);
+    for( int u = 0; u < CP_TYPE_COUNT; u++ )
+    {
+        struct Unit* old = &previous.units[u];
+        struct Unit* unit = &next.units[u];
+        const struct CP_Type* type = cp_type(u);
+        uint64_t key = hash_u64(0x6a09e667f3bcc909ull, (uint64_t)u);
+        const char* why = NULL;
+        char why_buf[512];
+        int before_unresolved;
+        int before_defaults;
+        int type_records = 0;
+        int type_failed = 0;
+        int ok;
+        int first;
+        int end;
+
+        if( !sel->all && !(sel->mask & (1u << u)) )
+        {
+            /* Not in this build: keep what the last build knew about it. */
+            *unit = *old;
+            memset(old, 0, sizeof(*old));
+            continue;
+        }
+        if( (type->flags & CP_TYPE_NO_ENCODER) || type->config_kind < 0 )
+        {
+            skipped++;
+            continue;
+        }
+        key = type_files_key(ctx, (enum CP_TypeId)u, key, &inputs, &previous,
+                             previous.loaded ? &previous_index : NULL);
+        if( !global_changed && !ctx->force_server &&
+            unit_reusable(old, key, &why, why_buf, sizeof(why_buf)) )
+        {
+            *unit = *old;
+            memset(old, 0, sizeof(*old));
+            ctx->warn_unresolved_name += unit->unresolved;
+            ctx->defaults_used += unit->defaults;
+            reused++;
+            continue;
+        }
+        if( global_changed || ctx->force_server )
+            why = note;
+
+        unit->present = 1;
+        unit->key = key;
+        g_unit = unit;
+        g_unit_writes = 0;
+        g_seen_used = 0;
+        if( g_seen )
+            memset(g_seen, 0, g_seen_capacity * sizeof(uint64_t));
+        before_unresolved = ctx->warn_unresolved_name;
+        before_defaults = ctx->defaults_used;
+        first = g_client_put_count;
+        g_client_capture = 1;
+        g_cp_recording = 1;
+        ok = cp_client_pack_type(ctx, (enum CP_TypeId)u, edit, config_table, &type_records,
+                                 &type_failed);
+        g_cp_recording = 0;
+        g_client_capture = 0;
+        g_unit = NULL;
+        end = g_client_put_count;
+        unit->unresolved = ctx->warn_unresolved_name - before_unresolved;
+        unit->defaults = ctx->defaults_used - before_defaults;
+        unit->result = type_records > 0 ? 1 : 0;
+        records += type_records;
+        failed += type_failed;
+        if( !ok )
+        {
+            status = 0;
+            break;
+        }
+        repacked++;
+        /* Only an archive whose records moved is staged. One type is one
+         * archive of the config table today (its config kind). */
+        if( end > first &&
+            client_archive_differs(ctx, config_table, type->config_kind, first, end) )
+        {
+            for( int i = first; i < end; i++ )
+            {
+                const struct ClientPut* put = &g_client_puts[i];
+
+                if( !RSCache_Dat2EditPutFile(edit, put->table, put->archive, put->file, put->data,
+                                             put->size) )
+                {
+                    fprintf(stderr, "cachepack: %s: failed to stage a record\n", type->name);
+                    status = 0;
+                    break;
+                }
+            }
+            archives_changed++;
+            buf_printf(&changed, "archive %d %d %s\n", config_table, type->config_kind,
+                       type->name);
+            printf("cachepack: repacked %s — %s; archive %d/%d changed\n", type->name,
+                   why ? why : "", config_table, type->config_kind);
+        }
+        else
+            printf("cachepack: repacked %s — %s; its archive is unchanged\n", type->name,
+                   why ? why : "");
+        client_puts_clear();
+        if( !status )
+            break;
+    }
+    client_puts_clear();
+    if( !status )
+        goto done;
+    if( failed || ctx->warn_unresolved_name )
+    {
+        fprintf(stderr, "cachepack: %d record(s) failed, %d unresolved name(s): the cache is left "
+                        "as it was\n",
+                failed, ctx->warn_unresolved_name);
+        status = 0;
+        goto done;
+    }
+    if( !cp_defaults_verdict(ctx) )
+    {
+        status = 0;
+        goto done;
+    }
+
+    /* One commit: the changed archives and the config table's reference
+     * table, nothing else. No change, no commit. */
+    if( archives_changed > 0 )
+    {
+        if( !RSCache_Dat2EditCommit(edit, out_cache_dir) )
+        {
+            fprintf(stderr, "cachepack: commit failed\n");
+            status = 0;
+            goto done;
+        }
+        RSCache_Dat2DiskWriteFlush();
+        ctx->cache_committed = true;
+    }
+
+    /* The state: every input, and the units' keys and lookups. */
+    next.global = global;
+    next.generation = previous.generation + (archives_changed > 0 ? 1 : 0);
+    next.input_count = inputs.count;
+    next.inputs = (struct Input*)calloc((size_t)(inputs.count ? inputs.count : 1), sizeof(struct Input));
+    assert(next.inputs);
+    for( int i = 0; i < inputs.count; i++ )
+    {
+        next.inputs[i] = inputs.items[i];
+        inputs.items[i].rel = NULL;
+    }
+    snprintf(path, sizeof(path), "%s/cp.client.state", out_cache_dir);
+    if( !state_write(&next, path) )
+        status = 0;
+    snprintf(path, sizeof(path), "%s/client.changed", out_cache_dir);
+    if( status && !write_text_atomic(path, changed.data ? (const void*)changed.data : (const void*)"", changed.length) )
+        status = 0;
+    if( status )
+        printf("Client pack: %d type(s) repacked, %d reused, %d without an encoder; %d archive(s) "
+               "changed, %d record(s) packed [total %.2fs]\n",
+               repacked, reused, skipped, archives_changed, records, now_seconds() - started);
+
+done:
+    g_unit = NULL;
+    g_cp_recording = 0;
+    g_client_capture = 0;
+    client_puts_clear();
+    RSCache_Dat2EditFree(edit);
+    for( int i = 0; i < rel_count; i++ )
+        free(rels[i]);
+    free(rels);
+    for( int i = 0; i < inputs.count; i++ )
+        free(inputs.items[i].rel);
+    free(inputs.items);
+    free(inputs.slots);
+    free(previous_index.slots);
+    free(changed.data);
     state_free(&previous);
     state_free(&next);
     lock_release(&lock);

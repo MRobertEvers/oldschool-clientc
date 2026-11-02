@@ -218,19 +218,38 @@ written to a temporary and renamed into place.
 
 ## The hot-reload contract
 
-Not implemented in the server yet; nothing in the format precludes it, and this is
-what a reload may rely on.
+What a reload may rely on, and (after each point) how the live lane implements
+it: an editor RUN (torirsmaped `jobs_*`, docs/MAPED_STATUS.md "The live lane end
+to end") builds the packs into the lane and sends one CTL_RELOAD; the game server
+applies it at a tick boundary (`ToriRSServer_Reload`,
+`src/torirsserver/torirs_server_control.c`); the clients are told with
+CACHE_INVALIDATE and, where placed state carries a record, a REBUILD.
 
 1. **Diff, don't reload.** Read the new manifest; a script whose `script` line's
    hash differs from the loaded one changed; a missing line is a retired id; a new
    id is a new script. For the server pack, an `archive` line whose hash differs is
    the only thing to re-read, by (index, archive) — dat2 reads one archive without
    touching the rest.
+
+   *Implemented:* scripts are diffed by the server against the script pack's
+   manifest (`ToriRSServer_ScriptsReload`). The server pack is diffed by the
+   EDITOR: the native build runner snapshots `<lane>/servpack/pack.manifest`
+   before a packs build and diffs the `archive` lines after it
+   (`ToriRSMapEd_BuildServPackDiff`, `src/torirsmaped/torirs_maped_build.c`);
+   every changed, new or vanished archive names its group in one reload row
+   `(255, group)` (`TORIRSSERVER_RELOAD_SERVPACK_INDEX`) — a group once however
+   many of its archives moved; the per-kind `[default]` (192) and client-id (193)
+   groups name their kind's band group, since the archive there is the kind. The
+   build log says `servpack: N archive(s) changed in M group(s)`.
 2. **Ids are stable**, so every compiled gosub, queue and timer reference in the
    *unchanged* scripts still points at the right script after a reload. A reload
    never renumbers; `--renumber` is a cold-boot-only operation.
 3. **Take the pack lock shared** while reading the new files, and check the
    manifest's `output` hashes against what was read before swapping anything in.
+
+   *Implemented:* `ToriRSServer_ServPackReloadGroups` holds the server pack's
+   lock shared and keeps one `RSCache_ServerPack` open for the whole reload, so
+   every archive it reads comes from one build.
 4. **Swap at a tick boundary.** A suspended or queued script instance keeps the
    script object it started on until it finishes (refcount the old one); new
    invocations, queue arms and trigger lookups use the new one. A signature change
@@ -239,10 +258,99 @@ what a reload may rely on.
 5. **A changed config archive** replaces that group's records in the type's table
    at the same tick boundary. Entities hold type ids, not record pointers, so they
    see the new record on their next lookup.
+
+   *Implemented* per config KIND (the build's unit is the type, so the whole
+   kind is replaced, records and bands, never single fields):
+   `ToriRSServer_ServPackReloadGroups` maps the named groups to kinds and calls
+   `ToriRSServer_ReloadConfigKind` once per kind, which answers 1 (replaced),
+   0 (restart, with the reason) or -1 (refused: the running table is kept).
+
+   | kind | how | world-held copies handled |
+   |---|---|---|
+   | seq, healthbar, struct | the boot loader again (frees first) | none: looked up by id |
+   | loc | `ToriRSServer_ContentReloadLocs`: `ToriRSServer_LocInfoLoad` (names, footprints, categories, params, ops), the scene's raw client records and decoded CLOCK ring, the loc defs from the bands, their categories, the scene's op overlays | every player is owed a REBUILD (`ToriRSServer_WorldReloadOweRebuild`) so clients re-place scenery from the new records |
+   | npc | `ToriRSServer_ContentReloadNpcs`: `ToriRSServer_NpcInfoLoad`, `[default]` in place, the npc defs into a new array | the old def array is retired; every `npc->def` (TORIRSSERVER_NPC_MAX slots, once per reload) is re-pointed by type, then the old array is freed |
+   | obj | `ToriRSServer_ContentReloadObjs`: `ToriRSServer_ObjInfoFree` + `Load`, the bands' requirement rows | none: inventories, stacks and worn slots hold ids |
+
+   Each of the three checks the whole kind against the open pack FIRST (every
+   client record decodes with the client codec, every band decodes whole against
+   this boot's `fields/` register, npc's `[default]` too) and touches nothing when
+   it does not; having passed, the loaders cannot refuse the same bytes, so no
+   tick ever sees half a kind. A band that applies with a content error is
+   replaced anyway and the line says so. The answer lines read
+   `config: loc 1 of 1 group(s) replaced: 1 player(s) owed a REBUILD`, or
+   `config: loc 0 of 1 group(s) replaced: <why>; the running table is kept`.
+
+   Still restart-only (answer 0, reason in the restart row): param, enum, varp,
+   inv, idk (read at boot with the content symbols), varbit (the bank's ranges
+   and the varp layout are derived from it), dbrow/dbtable (loaded once with the
+   symbols), the name tables (128+), and every kind the server keeps no table of.
+   A RESTART_NEEDED answer finishes the editor's RUN (status 1 with restart rows
+   is done, not failed) and clears its pending rows.
+
+   Not re-derived live: collision already stamped into loaded squares from the
+   old loc records (a changed `blockwalk`/footprint applies to squares loaded
+   afterwards, or after a square reload); per-instance npc state taken from the
+   def at spawn (hitpoints, wander radius) until the npc respawns.
+
+   *Clients:* the editor's client-cache rows `(2, kind)` reach every client as
+   CACHE_INVALIDATE (`src/game/rs_gameproto_exec.c`), and the chain is:
+
+   - `CacheProvider_InvalidateArchive` (`src/engine/cache_provider.c`) evicts
+     every resident loctype / npctype / objtype for 2/6, 2/9, 2/10 (retired,
+     not freed: a parked task or the CS2 host may hold the pointer) and the
+     dat2 split-group LRU's copy (vtable `InvalidateArchive` →
+     `Dat2GroupCache_Evict`);
+   - its archive hook, registered in `src/main.c` after `App_Init`
+     (`PlatformX_IO_ArchiveInvalidateHook`), drops the decompressed-archive LRU
+     slot (`PlatformX_IO_InvalidateArchive`, `src/platform/platform_x_io.c`)
+     and calls `PlatformXIOJs5Cache_Invalidate` → `Js5ClientInvalidateArchive`
+     (`src/js5/js5.c`): a fresh 255/255, then 255/<index> when its entry moved,
+     then every stored group re-validated against the new table, so a rewritten
+     group no longer matches its sparse copy and is fetched and overwritten;
+   - `js5_server` (and torirsserver's own JS5) re-checks its snapshot of the
+     cache on every 255/255 request (`Js5ServerCacheLoad`), not only on its
+     one-second reactor refresh: the client asks within milliseconds of the
+     repack, and the stale master would validate the old tables;
+   - the handler sets `net_force_rebuild` on a map (5) row or an evicting
+     config row, so the REBUILD the server owes after it is not skipped by the
+     same-zone early-out (`task_gameproto_exec.c`), and the rebuilt scene
+     re-decodes every placed loc from the fetched group.
+
+   `TORIRS_CACHE_INVALIDATE_DEBUG=1` prints each step (`cache invalidate: index
+   2, …`, `io 2/6: …`, `js5 fetched 255/255 / 255/2 / 2/6`), and
+   `TORIRS_LOC_CFG=<id>` prints the loc's decoded ops (`loc_cfg 1187 decoded: …
+   ops [] [] [Smell] [] []`), both surviving an optimized build. The scriptrun
+   bot drops its decoded loc configs on the 2/6 row
+   (`ScriptrunCore_LocConfigsInvalidate`).
+
+   *The web client* takes the same chain from the provider down; only the
+   hook's half differs. `src/main.c` registers
+   `PlatformWeb_IO_ArchiveInvalidateHook` (`src/platform/platform_web_api.c`) on
+   the emscripten build, which calls the JS library's
+   `PlatformWeb_IO_InvalidateArchive` (`src/platform/platform_web_io.js`): the
+   decoded-archive LRU entry is released, the resident container and the
+   index's reference-table memo dropped (the owned decode retired, not freed),
+   and the table's generation moved so a read already in flight keeps nothing it
+   fetched and reads again. The page's host then re-primes
+   (`torirs_hostio.js` `invalidateArchive` -> `torirs_js5.js`
+   `invalidateArchive`): the index's outstanding JS5 requests and the master are
+   parked (the socket reopened when one was on the wire, so no old answer lands
+   on a re-asked key), a fresh 255/255, 255/<index> when the IndexedDB copy no
+   longer matches the master, then every stored group of the index checked by
+   its container CRC against the new table (decoded by rscache,
+   `ToriRS_WebApi_ReferenceTableArchiveCrc`) and only the rewritten ones fetched
+   and overwritten; the new table is stored last. Reads of the index wait for
+   the re-prime, and re-primes run one at a time. The same debug lines print to
+   the browser console with `?env=TORIRS_CACHE_INVALIDATE_DEBUG%3D1` (and
+   `&env=TORIRS_LOC_CFG%3D<id>`).
 6. **Not reloadable**: `.spawn` files, `.constant` values the server reads as text
    at boot (`torirs_server_content.c`), map squares (read from the cache), and the
    symbol tables of the content loader — those need a boot. Spawns are text read
    at boot and need no build; a spawn hot-reload would be a separate world feature.
+
+   (Since written: map squares and the edited lane's spawns ARE reloaded by
+   CTL_RELOAD — `ToriRSServer_WorldReloadSquares`, `ToriRSServer_WorldReloadSpawns`.)
 
 `src/game/content_test.c`'s `reload` (a full `ScriptsFree` + `ScriptsLoad` that
 re-binds queues and timers by name) is the existing, coarse form; the manifest
@@ -308,3 +416,9 @@ stale     server/scripts/interface_bank/scripts/bank_worn.rs2 — 1 of 98 record
 - `src/torirsserver/torirs_server_packcheck.{c,h}` — the server's per-unit check and pack lock
 - `tools/build_packs.py`, `tools/tob_build_packs.sh`, `src/makefile` `torirsserver-packs`
 - `tools/ss_allocate.py` — the prefix fix and `--stamp`
+- `src/torirsserver/torirs_server_control.c` `ToriRSServer_Reload` / `ToriRSServer_ReloadConfigKind`,
+  `torirs_server_servpack.c` `ToriRSServer_ServPackReloadGroups`, `torirs_server_content.c`
+  `ToriRSServer_ContentReload{Locs,Npcs,Objs}` — the live config reload
+- `src/torirsmaped/torirs_maped_build.c` `ToriRSMapEd_BuildServPackDiff` — the editor's manifest diff
+- `src/engine/cache_provider.c` `CacheProvider_InvalidateArchive`, `src/js5/js5.c`
+  `Js5ClientInvalidateArchive` — the client half

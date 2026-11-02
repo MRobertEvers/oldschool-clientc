@@ -225,6 +225,12 @@ app_host_request(
         assert(req->u.get_world_letterbox.out_y);
         assert(req->u.get_world_letterbox.out_w);
         assert(req->u.get_world_letterbox.out_h);
+        /* The map editor's World panel cuts the world to its body; the rest
+         * of the widget's box is the black band (app_map_editor.c). */
+        if( App_MapEditorWorldLetterbox(app, req->u.get_world_letterbox.box_w, req->u.get_world_letterbox.box_h,
+                req->u.get_world_letterbox.out_x, req->u.get_world_letterbox.out_y,
+                req->u.get_world_letterbox.out_w, req->u.get_world_letterbox.out_h) )
+            return 1;
         ToriRS_ViewportLetterboxCompute(
             0,
             0,

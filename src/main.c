@@ -4,6 +4,7 @@
 #include "cmd/cmdbus.h"
 #include "engine/uitree_scene_bridge.h"
 #include "engine/world_builder/world_builder.h"
+#include "editor/editor_view.h"
 #include "executor_config.h"
 #include "game/content_test.h"
 #include "game/cs2_harness.h"
@@ -2128,6 +2129,87 @@ static struct NetTransport* sock;
  * left it, which an unlocked replay overrides and a relocked one restores.
  */
 static char const* rsprox_replay_path;
+
+/*
+ * The map editor's VIEWER flags (docs/MAPED_DESIGN.html #windows,
+ * editor/editor_view.h): `--editor-view` boots this process as a view of
+ * another window's editor session, `--maped <url>` names the ToriRSMapEd it
+ * joins, `--maped-group <id>` the Client, `--camera <pose>` where it looks.
+ * The launch service's `view` verb starts exactly this command line.
+ */
+static char const* editor_view_camera_text;
+static int editor_view_flag;
+/** `--maped`'s host, out of the URL; cfg.editor_server_host points here. */
+static char editor_maped_host[128];
+
+/** `tcp://host:port`, `ws://host[:port][/path]` or `wss://...` into
+ *  editor_maped_host and *out_port. On the web the URL itself is the socket's
+ *  (torirs_host.js hands emscripten a ws(s) URL); here only host and port are
+ *  kept, for the label and a native dial. 0 on a malformed URL. */
+static int
+main_parse_maped_url(
+    char const* url,
+    int* out_port)
+{
+    char const* rest;
+    size_t host_length;
+    int port;
+    int default_port;
+
+    if( strncmp(url, "tcp://", 6) == 0 )
+    {
+        rest = url + 6;
+        default_port = 43610; /* TORIRSMAPED_DEFAULT_PORT */
+    }
+    else if( strncmp(url, "ws://", 5) == 0 )
+    {
+        rest = url + 5;
+        default_port = 43610;
+    }
+    else if( strncmp(url, "wss://", 6) == 0 )
+    {
+        rest = url + 6;
+        default_port = 443;
+    }
+    else
+        return 0;
+
+    if( rest[0] == '[' )
+    {
+        char const* close = strchr(rest, ']');
+        if( !close )
+            return 0;
+        host_length = (size_t)(close - rest - 1);
+        if( host_length == 0 || host_length >= sizeof(editor_maped_host) )
+            return 0;
+        memcpy(editor_maped_host, rest + 1, host_length);
+        editor_maped_host[host_length] = '\0';
+        rest = close + 1;
+    }
+    else
+    {
+        host_length = strcspn(rest, ":/");
+        if( host_length == 0 || host_length >= sizeof(editor_maped_host) )
+            return 0;
+        memcpy(editor_maped_host, rest, host_length);
+        editor_maped_host[host_length] = '\0';
+        rest += host_length;
+    }
+
+    port = default_port;
+    if( rest[0] == ':' )
+    {
+        char* end = NULL;
+        long value = strtol(rest + 1, &end, 10);
+        if( end == rest + 1 || value < 1 || value > 65535 || (*end != '\0' && *end != '/') )
+            return 0;
+        port = (int)value;
+    }
+    else if( rest[0] != '\0' && rest[0] != '/' )
+        return 0;
+    *out_port = port;
+    return 1;
+}
 static struct RsproxRecording rsprox_replay_rec;
 static int rsprox_replay_uncapped;
 static int sim_openmain = -1;
@@ -2918,6 +3000,343 @@ main_shutdown(struct App* a)
     sim_pixels = NULL;
     sim_pixel_count = 0;
     ToriMem_Shutdown();
+}
+
+/*
+ * TORIRS_SIM_HOTKEY: one press of a chord at a main-loop frame.
+ *
+ *   TORIRS_SIM_HOTKEY="<frame>,<chord>[,hold=<frames>][;<frame>,<chord>...]"
+ *   chord = [ctrl+][shift+][alt+]<name>
+ *
+ * <name> is LibToriRS_KeyCodeName's spelling ("z", "f1", "lbracket",
+ * "pageup", "escape" ...; "enter", "page_up", "page_down" too), any case; the
+ * modifiers may come in any order. The key goes down at <frame> and up
+ * <hold> frames later (default 2): IsKeyDown sees the press on its frame
+ * only, IsKeyHeld from that frame until the release. The chord's modifiers are
+ * held over the same span. Each entry is independent, so presses may overlap
+ * (a modifier two entries hold stays down until the last lets go) and need
+ * not be in frame order.
+ *
+ * Both key spaces are written, as a real press writes them: the
+ * platform-neutral arrays (enum LibToriRS_KeyCode, which the editor's hotkeys,
+ * the manifest's [debug:hotkeys] and the camera read) and, for every key the
+ * cache's keymap maps, the OSRS arrays (revconfig hotkeys, CS2 KEYPRESSED).
+ *
+ * A malformed entry stops the run: a typo that pressed nothing would make a
+ * photograph prove the wrong thing.
+ */
+enum
+{
+    SIM_HOTKEY_MOD_CTRL = 1u << 0,
+    SIM_HOTKEY_MOD_SHIFT = 1u << 1,
+    SIM_HOTKEY_MOD_ALT = 1u << 2,
+};
+
+struct SimHotkey
+{
+    long frame;
+    long hold;
+    enum LibToriRS_KeyCode key;
+    /** OSRS code for key, or -1 when the cache's keymap has none. */
+    int osrs;
+    unsigned mods;
+    /** 0 waiting, 1 down, 2 released. */
+    int state;
+    long pressed_at;
+    char chord[48];
+};
+
+static struct
+{
+    unsigned bit;
+    enum LibToriRS_KeyCode key;
+    int vk;
+} const sim_hotkey_mods[] = {
+    { SIM_HOTKEY_MOD_CTRL, TORIRSK_CTRL, TORIRS_VK_CTRL },
+    { SIM_HOTKEY_MOD_SHIFT, TORIRSK_SHIFT, TORIRS_VK_SHIFT },
+    { SIM_HOTKEY_MOD_ALT, TORIRSK_ALT, TORIRS_VK_ALT },
+};
+
+static void
+sim_hotkey_die(
+    char const* entry,
+    char const* why)
+{
+    TORIRS_ERR("sim_hotkey: bad entry '%s': %s\n", entry, why);
+    TORIRS_ERR(
+        "sim_hotkey: grammar is <frame>,[ctrl+][shift+][alt+]<key>[,hold=<frames>][;...]\n");
+    exit(2);
+}
+
+/* One "<frame>,<chord>[,hold=<n>]" entry (no ';'), into *out. */
+static void
+sim_hotkey_parse_entry(
+    char const* entry,
+    struct SimHotkey* out)
+{
+    char* end = NULL;
+    char const* chord;
+    size_t chord_len = 0;
+    char token[32];
+
+    assert(entry);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->hold = 2;
+    out->osrs = -1;
+
+    out->frame = strtol(entry, &end, 0);
+    if( end == entry || *end != ',' || out->frame < 0 )
+        sim_hotkey_die(entry, "expected a frame number and a comma");
+    chord = end + 1;
+    while( chord[chord_len] && chord[chord_len] != ',' )
+        chord_len++;
+    if( chord_len == 0 || chord_len >= sizeof(out->chord) )
+        sim_hotkey_die(entry, "missing or overlong chord");
+    memcpy(out->chord, chord, chord_len);
+    out->chord[chord_len] = '\0';
+
+    if( chord[chord_len] == ',' )
+    {
+        char const* opt = chord + chord_len + 1;
+        if( strncmp(opt, "hold=", 5) != 0 )
+            sim_hotkey_die(entry, "the only option is hold=<frames>");
+        out->hold = strtol(opt + 5, &end, 0);
+        if( end == opt + 5 || *end != '\0' || out->hold < 1 )
+            sim_hotkey_die(entry, "hold must be a whole number of frames, at least 1");
+    }
+
+    /* Split the chord on '+': every token but the last is a modifier. */
+    for( char const* t = out->chord;; )
+    {
+        char const* plus = strchr(t, '+');
+        size_t len = plus ? (size_t)(plus - t) : strlen(t);
+        enum LibToriRS_KeyCode code;
+        if( len == 0 || len >= sizeof(token) )
+            sim_hotkey_die(entry, "empty or overlong key name in the chord");
+        memcpy(token, t, len);
+        token[len] = '\0';
+        code = LibToriRS_KeyCodeFromName(token);
+        if( code == TORIRSK_UNKNOWN )
+            sim_hotkey_die(entry, "unknown key name (see LibToriRS_KeyCodeName)");
+        if( !plus )
+        {
+            out->key = code;
+            break;
+        }
+        {
+            unsigned bit = 0;
+            for( size_t m = 0; m < sizeof(sim_hotkey_mods) / sizeof(sim_hotkey_mods[0]); m++ )
+                if( sim_hotkey_mods[m].key == code )
+                    bit = sim_hotkey_mods[m].bit;
+            if( !bit )
+                sim_hotkey_die(entry, "only ctrl, shift and alt may precede '+'");
+            out->mods |= bit;
+        }
+        t = plus + 1;
+    }
+
+    /* The OSRS side through the cache keymap's own name lookup; -1 for the
+     * keys it leaves unmapped (brackets, slash, grave, insert ...). */
+    out->osrs = LibToriRS_OsrsKeyFromName(LibToriRS_KeyCodeName(out->key));
+}
+
+/* The whole variable, into a calloc'd array the process keeps. */
+static struct SimHotkey*
+sim_hotkey_parse(
+    char const* text,
+    int* out_count)
+{
+    int capacity = 1;
+    int count = 0;
+    struct SimHotkey* entries;
+    char entry[128];
+
+    assert(text);
+    assert(out_count);
+    for( char const* c = text; *c; c++ )
+        if( *c == ';' )
+            capacity++;
+    entries = calloc((size_t)capacity, sizeof(*entries));
+    assert(entries);
+
+    for( char const* t = text; *t; )
+    {
+        char const* semi = strchr(t, ';');
+        size_t len = semi ? (size_t)(semi - t) : strlen(t);
+        if( len >= sizeof(entry) )
+            sim_hotkey_die(t, "entry too long");
+        memcpy(entry, t, len);
+        entry[len] = '\0';
+        if( len > 0 )
+            sim_hotkey_parse_entry(entry, &entries[count++]);
+        if( !semi )
+            break;
+        t = semi + 1;
+    }
+    *out_count = count;
+    return entries;
+}
+
+/* The modifier names of a mask, "ctrl+shift" style, for the log line. */
+static void
+sim_hotkey_mods_text(
+    unsigned mods,
+    char* out,
+    size_t out_size)
+{
+    size_t used = 0;
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    for( size_t m = 0; m < sizeof(sim_hotkey_mods) / sizeof(sim_hotkey_mods[0]); m++ )
+        if( mods & sim_hotkey_mods[m].bit )
+            used += (size_t)snprintf(
+                out + used,
+                used < out_size ? out_size - used : 0,
+                "%s%s",
+                used ? "+" : "",
+                LibToriRS_KeyCodeName(sim_hotkey_mods[m].key));
+    if( used >= out_size )
+        out[out_size - 1] = '\0';
+    if( used == 0 )
+        snprintf(out, out_size, "none");
+}
+
+/* One frame of TORIRS_SIM_HOTKEY: releases due, then the modifier set the
+ * live presses want, then the presses due. */
+static void
+sim_hotkey_step(
+    struct ToriRS_CmdBus* bus,
+    struct SimHotkey* entries,
+    int count,
+    unsigned* mods_held,
+    long frame)
+{
+    unsigned want = 0;
+
+    assert(bus);
+    assert(mods_held);
+    if( count == 0 )
+        return;
+    assert(entries);
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct SimHotkey* e = &entries[i];
+        if( e->state == 1 && frame >= e->pressed_at + e->hold )
+        {
+            CmdBus_PushKey(bus, TORIRS_CMD_INPUT_KEY_UP, (uint8_t)e->key);
+            if( e->osrs >= 0 )
+                CmdBus_PushOsrsKey(bus, (int16_t)e->osrs, 0, 0);
+            e->state = 2;
+        }
+    }
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct SimHotkey const* e = &entries[i];
+        if( e->state == 1 || (e->state == 0 && frame >= e->frame) )
+            want |= e->mods;
+    }
+    for( size_t m = 0; m < sizeof(sim_hotkey_mods) / sizeof(sim_hotkey_mods[0]); m++ )
+    {
+        unsigned bit = sim_hotkey_mods[m].bit;
+        int osrs = LibToriRS_OsrsKeyFromVk(sim_hotkey_mods[m].vk);
+        if( (want & bit) && !(*mods_held & bit) )
+        {
+            CmdBus_PushKey(bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)sim_hotkey_mods[m].key);
+            if( osrs >= 0 )
+                CmdBus_PushOsrsKey(bus, (int16_t)osrs, 1, 1);
+        }
+        else if( !(want & bit) && (*mods_held & bit) )
+        {
+            CmdBus_PushKey(bus, TORIRS_CMD_INPUT_KEY_UP, (uint8_t)sim_hotkey_mods[m].key);
+            if( osrs >= 0 )
+                CmdBus_PushOsrsKey(bus, (int16_t)osrs, 0, 0);
+        }
+    }
+    *mods_held = want;
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct SimHotkey* e = &entries[i];
+        char mods_text[32];
+        if( e->state != 0 || frame < e->frame )
+            continue;
+        CmdBus_PushKey(bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)e->key);
+        if( e->osrs >= 0 )
+            CmdBus_PushOsrsKey(bus, (int16_t)e->osrs, 1, 1);
+        e->state = 1;
+        e->pressed_at = frame;
+        sim_hotkey_mods_text(e->mods, mods_text, sizeof(mods_text));
+        /* TORIRS_REPORT, not TORIRS_LOG: the receipt for a lever someone set,
+         * and OPT builds (every photograph) compile TORIRS_LOG away. */
+        TORIRS_REPORT(
+            "sim_hotkey: '%s' -> key=%s mods=%s osrs_key=%d at frame %ld, release at %ld\n",
+            e->chord,
+            LibToriRS_KeyCodeName(e->key),
+            mods_text,
+            e->osrs,
+            frame,
+            frame + e->hold);
+    }
+}
+
+/*
+ * TORIRS_HOTKEY_DEBUG=1: one `hotkey_edges:` line per frame on which any
+ * platform-neutral key went down or up, listing the frame's down and up edges
+ * and every key held after LibToriRS_Input_End -- what the editor's hotkey
+ * table and the manifest's [debug:hotkeys] will see. Silent otherwise.
+ */
+static void
+main_hotkey_debug_edges(
+    struct LibToriRS_Input const* input,
+    long frame)
+{
+    static int enabled = -1;
+    char line[512];
+    size_t used = 0;
+    int any_edge = 0;
+
+    assert(input);
+    if( enabled < 0 )
+    {
+        char const* env = getenv("TORIRS_HOTKEY_DEBUG");
+        enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+    }
+    if( !enabled )
+        return;
+    for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
+        if( input->curr.key_down[k] || input->curr.key_up[k] )
+            any_edge = 1;
+    if( !any_edge )
+        return;
+
+    line[0] = '\0';
+    for( int pass = 0; pass < 3; pass++ )
+    {
+        static char const* const label[3] = { "down", "up", "held" };
+        used += (size_t)snprintf(
+            line + used, used < sizeof(line) ? sizeof(line) - used : 0, " %s=", label[pass]);
+        for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
+        {
+            int on = pass == 0   ? input->curr.key_down[k]
+                     : pass == 1 ? input->curr.key_up[k]
+                                 : input->key_held[k];
+            if( on )
+                used += (size_t)snprintf(
+                    line + used,
+                    used < sizeof(line) ? sizeof(line) - used : 0,
+                    "%s,",
+                    LibToriRS_KeyCodeName((enum LibToriRS_KeyCode)k));
+            if( used >= sizeof(line) )
+                used = sizeof(line) - 1;
+        }
+        if( used >= sizeof(line) )
+            used = sizeof(line) - 1;
+    }
+    TORIRS_REPORT("hotkey_edges: frame %ld%s\n", frame, line);
 }
 
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
@@ -4131,81 +4550,30 @@ frame_loop_step(void)
                 }
             }
 
-            /* TORIRS_SIM_HOTKEY="frame,<key>[;frame,<key>...]": press a named key
-             * at that main-loop frame and release it two frames later. Key names
-             * are the revconfig [hotkey:…] spelling (f1, 3, escape — see
-             * LibToriRS_OsrsKeyFromName).
+            /* TORIRS_SIM_HOTKEY: a chord at a main-loop frame -- grammar and
+             * semantics on struct SimHotkey above.
              *
              * Separate from the pre-loop TORIRS_SIM_KEYS block because that one
              * runs before the frame loop and behind App_BootWait; a binding is only
-             * live once the tree is baked and App_Interact is running. Drives the
-             * OSRS-coded key arrays, which is what both revconfig hotkeys and CS2
-             * KEYPRESSED read. */
+             * live once the tree is baked and App_Interact is running. Pushed on
+             * the bus before this iteration's drain, so the press lands in this
+             * frame's LibToriRS_Input edges, and the state machine keys on
+             * frame_count (not loop iterations), so a frame the SIM_READY clock
+             * holds still does not press twice. */
             {
-                static char const* hk_cursor = NULL;
+                static struct SimHotkey* hk_entries = NULL;
+                static int hk_count = 0;
                 static int hk_init = 0;
-                static long hk_frame = -1;
-                static int hk_key = -1;
-                /* Platform-neutral code for the same key when it has one (letters
-                 * and digits). A real press fills both arrays, and the debug world
-                 * hotkeys read this one — pressing only the OSRS side would make a
-                 * hotkey/spawn-key collision untestable. */
-                static enum LibToriRS_KeyCode hk_plain = TORIRSK_UNKNOWN;
+                static unsigned hk_mods_held = 0;
                 if( !hk_init )
                 {
+                    char const* env = getenv("TORIRS_SIM_HOTKEY");
                     hk_init = 1;
-                    hk_cursor = getenv("TORIRS_SIM_HOTKEY");
+                    if( env && *env )
+                        hk_entries = sim_hotkey_parse(env, &hk_count);
                 }
-                if( hk_frame < 0 && hk_cursor && *hk_cursor )
-                {
-                    char* end = NULL;
-                    char name[64] = { 0 };
-                    long at = strtol(hk_cursor, &end, 0);
-                    if( end && *end == ',' )
-                    {
-                        char const* start = end + 1;
-                        size_t len = 0;
-                        while( start[len] && start[len] != ';' && len < sizeof(name) - 1 )
-                            len++;
-                        memcpy(name, start, len);
-                        hk_cursor = start[len] == ';' ? start + len + 1 : NULL;
-                        hk_frame = at;
-                        hk_key = LibToriRS_OsrsKeyFromName(name);
-                        hk_plain = TORIRSK_UNKNOWN;
-                        if( name[0] && !name[1] )
-                        {
-                            if( name[0] >= 'a' && name[0] <= 'z' )
-                                hk_plain = (enum LibToriRS_KeyCode)(TORIRSK_A + (name[0] - 'a'));
-                            else if( name[0] >= '0' && name[0] <= '9' )
-                                hk_plain = (enum LibToriRS_KeyCode)(TORIRSK_0 + (name[0] - '0'));
-                        }
-                        TORIRS_LOG(
-                            "sim_hotkey: '%s' -> osrs_key=%d at frame %ld\n",
-                            name,
-                            hk_key,
-                            hk_frame);
-                    }
-                    else
-                        hk_cursor = NULL;
-                }
-                if( hk_frame >= 0 && hk_key >= 0 && frame_count >= hk_frame )
-                {
-                    if( frame_count == hk_frame )
-                    {
-                        CmdBus_PushOsrsKey(&bus, (int16_t)hk_key, 1, 1);
-                        if( hk_plain != TORIRSK_UNKNOWN )
-                            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)hk_plain);
-                    }
-                    else if( frame_count >= hk_frame + 2 )
-                    {
-                        CmdBus_PushOsrsKey(&bus, (int16_t)hk_key, 0, 0);
-                        if( hk_plain != TORIRSK_UNKNOWN )
-                            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, (uint8_t)hk_plain);
-                        hk_frame = -1;
-                        hk_key = -1;
-                        hk_plain = TORIRSK_UNKNOWN;
-                    }
-                }
+                if( hk_count > 0 )
+                    sim_hotkey_step(&bus, hk_entries, hk_count, &hk_mods_held, frame_count);
             }
 
             /* TORIRS_SIM_CMD="frame,text[;frame,text...]": send a `::` command at
@@ -4797,6 +5165,7 @@ frame_loop_step(void)
             LibToriRS_Input_Begin(input, now);
         App_DrainCommands(&app, &bus, input);
         LibToriRS_Input_End(input);
+        main_hotkey_debug_edges(input, frame_count);
     }
 
     /* Reconcile the presentation surfaces with the canvas the drain just
@@ -6602,6 +6971,9 @@ main_print_usage(char const* program)
         "[--js5|--no-js5] [--js5-host H] [--js5-port N] "
         "[--js5-fallback-port N] [--js5-revision N] [--uncapped] [--unlocked] "
         "[--replay <rsprox.bin[.gz]>] "
+        "[--world-layout static|edit] "
+        "[--editor-view] [--maped tcp://host:port] [--maped-group N] "
+        "[--camera x,z,level,yaw,pitch,zoom] "
         "[--pacer gameshell|deadline] "
         "[--windowmode fixed|resizable] [--window WxH] "
         "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|"
@@ -6749,6 +7121,56 @@ main_parse_argument_layer(
         if( strcmp(argv[argi], "--rev") == 0 && argi + 1 < argc )
         {
             cfg.rev_name = argv[++argi];
+            continue;
+        }
+        /* The map editor's viewer boot (editor/editor_view.h). */
+        if( strcmp(argv[argi], "--editor-view") == 0 )
+        {
+            editor_view_flag = 1;
+            cfg.editor_panel = BOOTMANIFEST_EDITOR_PANEL_VIEW;
+            continue;
+        }
+        if( strcmp(argv[argi], "--maped") == 0 && argi + 1 < argc )
+        {
+            int port = 0;
+            if( !main_parse_maped_url(argv[++argi], &port) )
+            {
+                TORIRS_ERR("torirs: --maped takes tcp://host:port (or ws://, wss://), got '%s'\n",
+                    argv[argi]);
+                return 0;
+            }
+            cfg.editor_server = BOOTMANIFEST_EDITOR_SERVER_TCP;
+            cfg.editor_server_host = editor_maped_host;
+            cfg.editor_server_port = port;
+            continue;
+        }
+        if( strcmp(argv[argi], "--maped-group") == 0 && argi + 1 < argc )
+        {
+            char* end = NULL;
+            long group = strtol(argv[++argi], &end, 10);
+            if( end == argv[argi] || *end != '\0' || group < 1 || group > 2147483647L )
+            {
+                TORIRS_ERR("torirs: --maped-group takes a ToriRSMapEd Client id (1..), got '%s'\n",
+                    argv[argi]);
+                return 0;
+            }
+            cfg.editor_client_id = (int)group;
+            continue;
+        }
+        if( strcmp(argv[argi], "--camera") == 0 && argi + 1 < argc )
+        {
+            editor_view_camera_text = argv[++argi];
+            continue;
+        }
+        if( strcmp(argv[argi], "--world-layout") == 0 && argi + 1 < argc )
+        {
+            enum WorldBuilderLayout layout;
+            if( !WorldBuilder_LayoutParse(argv[++argi], &layout) )
+            {
+                TORIRS_ERR("torirs: --world-layout must be static|edit, got '%s'\n", argv[argi]);
+                return 0;
+            }
+            cfg.world_layout = (int)layout;
             continue;
         }
         if( strcmp(argv[argi], "--uncapped") == 0 )
@@ -7135,7 +7557,68 @@ main_argument_takes_value(char const* argument)
            strcmp(argument, "--js5-host") == 0 || strcmp(argument, "--js5-port") == 0 ||
            strcmp(argument, "--js5-fallback-port") == 0 ||
            strcmp(argument, "--js5-revision") == 0 || strcmp(argument, "--windowmode") == 0 ||
-           strcmp(argument, "--window") == 0 || strcmp(argument, "--replay") == 0;
+           strcmp(argument, "--window") == 0 || strcmp(argument, "--replay") == 0 ||
+           strcmp(argument, "--world-layout") == 0 || strcmp(argument, "--maped") == 0 ||
+           strcmp(argument, "--maped-group") == 0 || strcmp(argument, "--camera") == 0;
+}
+
+/*
+ * The viewer boot, settled once every argv layer is in: the camera (CLI over
+ * `[editor:boot] camera=`), and what a VIEW may not be -- a window with no
+ * Client to join, or one that dials a game server. Returns 0 to stop the boot
+ * with the reason already printed.
+ */
+static int
+main_settle_editor_view(struct BootManifest const* boot_manifest)
+{
+    char const* camera_text = editor_view_camera_text;
+
+    if( !camera_text && boot_manifest->editor_camera[0] )
+        camera_text = boot_manifest->editor_camera;
+    if( camera_text )
+    {
+        int32_t values[TORIRSMAPED_CAMERA_VALUES];
+        struct EditorViewCamera camera;
+
+        if( !ToriRSMapEd_CameraParse(camera_text, values) )
+        {
+            TORIRS_ERR("torirs: --camera takes x,z,level,yaw,pitch,zoom (x/z in tiles, "
+                "level 0..3, yaw/pitch 0..2047, zoom 0..65535), got '%s'\n",
+                camera_text);
+            return 0;
+        }
+        EditorView_CameraFromValues(values, &camera);
+        EditorView_SetBootCamera(&camera);
+        /* The world loads around the square the camera looks at. */
+        cfg.spawn_x = camera.x / (64 * 128);
+        cfg.spawn_z = camera.z / (64 * 128);
+    }
+
+    if( cfg.editor_client_id > 0 && cfg.editor_server != BOOTMANIFEST_EDITOR_SERVER_TCP )
+    {
+        TORIRS_ERR("torirs: --maped-group joins a Client on a torirsmaped daemon; name it "
+            "with --maped tcp://host:port\n");
+        return 0;
+    }
+    if( cfg.editor_panel != BOOTMANIFEST_EDITOR_PANEL_VIEW )
+        return 1;
+
+    if( cfg.editor_server != BOOTMANIFEST_EDITOR_SERVER_TCP )
+    {
+        TORIRS_ERR("torirs: --editor-view joins another window's editor session: name its "
+            "ToriRSMapEd with --maped tcp://host:port (an embedded server has no other "
+            "window)\n");
+        return 0;
+    }
+    /* A view opens NO game connection: it is a window onto the editor's
+     * document, and a game server dialled beside it would be a second world. */
+    if( cfg.connect_target && cfg.connect_target[0] )
+    {
+        TORIRS_LOG("torirs: an editor view opens no game connection; ignoring %s%s\n",
+            editor_view_flag ? "--connect/[net:boot] " : "", cfg.connect_target);
+        cfg.connect_target = NULL;
+    }
+    return 1;
 }
 
 /*
@@ -7351,6 +7834,8 @@ main(
         return 1;
     if( !main_parse_argument_layer(argc, argv, 1, 0, argv[0], &arg_state) )
         return 1;
+    if( !main_settle_editor_view(&boot_manifest) )
+        return 1;
     if( !rsprox_replay_path && getenv("TORIRS_RSPROX_REPLAY") && getenv("TORIRS_RSPROX_REPLAY")[0] )
         rsprox_replay_path = getenv("TORIRS_RSPROX_REPLAY");
     if( rsprox_replay_path && !main_rsprox_replay_open() )
@@ -7561,6 +8046,21 @@ main(
 #endif
     ToriRS_BootTelemetry_Mark("app_init");
     App_Init(&app, &cfg);
+#if !defined(TORIRS_PLATFORM_WEB)
+    /* A live reload's CACHE_INVALIDATE reaches the IO below the provider: the
+     * decompressed-archive LRU and the JS5 client's reference table
+     * (docs/serverpack.md "The hot-reload contract", clients). */
+    if( app.provider )
+        CacheProvider_SetArchiveInvalidateHook(app.provider, PlatformX_IO_ArchiveInvalidateHook,
+                                               app.runner.px);
+#else
+    /* The browser's half: platform_web_io.js drops its decoded copy, resident
+     * container and reference-table memo, and the page's JS5 client re-primes
+     * the index against IndexedDB (src/web/torirs_js5.js invalidateArchive). */
+    if( app.provider )
+        CacheProvider_SetArchiveInvalidateHook(app.provider, PlatformWeb_IO_ArchiveInvalidateHook,
+                                               app.runner.px);
+#endif
     ToriRS_BootTelemetry_Mark("app_init:done");
     if( getenv("TORIRS_PREVIEW_BMP") )
     {

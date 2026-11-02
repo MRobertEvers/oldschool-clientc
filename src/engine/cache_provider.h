@@ -135,6 +135,32 @@ struct CacheProvider
      * siblings queued behind a parent parked on PT_TASK_JOIN.
      */
     struct ToriRS_TaskQueue* asset_queue;
+
+    /**
+     * Told of every archive a CACHE_INVALIDATE evicts (CacheProvider_SetArchiveInvalidateHook):
+     * the IO layer's half -- its decompressed-archive LRU and the JS5 client's
+     * reference table (Js5ClientInvalidateArchive) -- which the provider cannot
+     * reach. NULL: nothing below the provider is told.
+     */
+    void (*archive_invalidate_hook)(void* user, int index, int archive);
+    void* archive_invalidate_user;
+
+    /**
+     * Records a CACHE_INVALIDATE evicted, kept alive until the provider is
+     * freed: an entity, a scene element or a parked task may still hold the
+     * pointer it was handed (task_entity_assets.c, the CS2 host), and an
+     * evicted record must stay readable for it. Bounded by the records that
+     * were resident at each live reload; a dev lane's cost, never a player's.
+     */
+    struct ToriRS_Location** retired_locations;
+    int retired_location_count;
+    int retired_location_capacity;
+    struct ToriRS_Npctype** retired_npctypes;
+    int retired_npctype_count;
+    int retired_npctype_capacity;
+    struct ToriRS_Objtype** retired_objtypes;
+    int retired_objtype_count;
+    int retired_objtype_capacity;
 };
 
 /** Name the queue loaders fan their siblings out on. See `asset_queue`. */
@@ -384,6 +410,16 @@ struct CacheProviderVTable
     bool (*TextureIsSd)(
         struct CacheProvider* provider,
         int texture_id);
+    /**
+     * A live reload rewrote archive `archive` of index `index`: drop what the
+     * provider's own loaders keep derived from it (dat2: the split group in
+     * its group LRU), so the next record read re-reads the archive. NULL on a
+     * provider that keeps nothing (dat1).
+     */
+    void (*InvalidateArchive)(
+        struct CacheProvider* provider,
+        int index,
+        int archive);
 };
 
 void
@@ -744,6 +780,59 @@ CacheProvider_ComponentPackHas(
 
 void
 CacheProvider_ComponentPacksCleanup(struct CacheProvider* provider);
+
+/* What CacheProvider_InvalidateArchive did with one archive. */
+enum CacheProviderInvalidate
+{
+    /** Nothing decoded from it was resident: the next read fetches it. */
+    CACHE_PROVIDER_INVALIDATE_NONE = 0,
+    /** Its decoded records were dropped. */
+    CACHE_PROVIDER_INVALIDATE_EVICTED = 1,
+    /** Records of this index are held by live state (a running CS2 frame, an
+     *  entity's type) and are not dropped under it: the change shows at the
+     *  next login. */
+    CACHE_PROVIDER_INVALIDATE_DEFERRED = 2,
+};
+
+/**
+ * CACHE_INVALIDATE (the live reload): drop what was decoded from archive
+ * `archive` of cache index `index`, so the next use reads the rebuilt one.
+ *
+ *   index 3 (interfaces): the interface's pack -- replacing a mounted
+ *     interface's pack is the same operation the interface editor's live mount
+ *     already performs.
+ *   index 2, archive 6 / 9 / 10 (the loc, npc and obj config groups): every
+ *     resident loctype / npctype / objtype (the group holds every record of
+ *     the kind). Evicted records are RETIRED, not freed (see
+ *     `retired_locations`), so a holder of an old pointer reads stale data,
+ *     never freed memory; the next CacheProvider_*Get misses and the loader
+ *     decodes the rebuilt group.
+ *
+ * For the evicted archives the provider's own derived copy (vtable
+ * InvalidateArchive: dat2's split-group LRU) and the IO layer
+ * (`archive_invalidate_hook`) are told too. Every other archive answers
+ * DEFERRED: its records are held by live state (config tables the VMs and
+ * varp layout read, client scripts under a running CS2 frame) and show at the
+ * next login.
+ */
+enum CacheProviderInvalidate
+CacheProvider_InvalidateArchive(
+    struct CacheProvider* provider,
+    int index,
+    int archive);
+
+/**
+ * Who owns the IO below the provider registers here to hear every archive
+ * CacheProvider_InvalidateArchive evicts (index, archive), and must drop its
+ * own copies of it: a decompressed-archive LRU, and the JS5 client's reference
+ * table for the index (Js5ClientInvalidateArchive), so the next read fetches
+ * the rebuilt archive instead of re-serving the stored one. NULL unregisters.
+ */
+void
+CacheProvider_SetArchiveInvalidateHook(
+    struct CacheProvider* provider,
+    void (*hook)(void* user, int index, int archive),
+    void* user);
 
 /** packed_id = (iface_id << 16) | (child & 0xFFFF). Resolves into pack cache. */
 struct ToriRS_Component*

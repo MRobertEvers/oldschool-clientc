@@ -127,6 +127,91 @@ _Static_assert(
 _Static_assert(
     (int)TORIRS_CHROME_SKIN_BUTTON_RIGHT == (int)ToriRSChromeSkin_SLOT_ButtonRight,
     "chrome skin: BUTTON_RIGHT is not the baked ButtonRight");
+/* The map editor's slots (docs/MAPED_DESIGN.html #chrome). */
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_SELECT == (int)ToriRSChromeSkin_SLOT_ToolSelect,
+    "chrome skin: TOOL_SELECT is not the baked ToolSelect");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_RAISE == (int)ToriRSChromeSkin_SLOT_ToolRaise,
+    "chrome skin: TOOL_RAISE is not the baked ToolRaise");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_LOWER == (int)ToriRSChromeSkin_SLOT_ToolLower,
+    "chrome skin: TOOL_LOWER is not the baked ToolLower");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_FLATTEN == (int)ToriRSChromeSkin_SLOT_ToolFlatten,
+    "chrome skin: TOOL_FLATTEN is not the baked ToolFlatten");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_SMOOTH == (int)ToriRSChromeSkin_SLOT_ToolSmooth,
+    "chrome skin: TOOL_SMOOTH is not the baked ToolSmooth");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_PAINT_UNDERLAY == (int)ToriRSChromeSkin_SLOT_ToolPaintUnderlay,
+    "chrome skin: TOOL_PAINT_UNDERLAY is not the baked ToolPaintUnderlay");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_PAINT_OVERLAY == (int)ToriRSChromeSkin_SLOT_ToolPaintOverlay,
+    "chrome skin: TOOL_PAINT_OVERLAY is not the baked ToolPaintOverlay");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_FLAGS == (int)ToriRSChromeSkin_SLOT_ToolFlags,
+    "chrome skin: TOOL_FLAGS is not the baked ToolFlags");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_PLACE == (int)ToriRSChromeSkin_SLOT_ToolPlace,
+    "chrome skin: TOOL_PLACE is not the baked ToolPlace");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_MOVE == (int)ToriRSChromeSkin_SLOT_ToolMove,
+    "chrome skin: TOOL_MOVE is not the baked ToolMove");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_ROTATE == (int)ToriRSChromeSkin_SLOT_ToolRotate,
+    "chrome skin: TOOL_ROTATE is not the baked ToolRotate");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_DELETE == (int)ToriRSChromeSkin_SLOT_ToolDelete,
+    "chrome skin: TOOL_DELETE is not the baked ToolDelete");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_SEARCH == (int)ToriRSChromeSkin_SLOT_SearchGlass,
+    "chrome skin: SEARCH is not the baked SearchGlass");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TREE_CLOSED == (int)ToriRSChromeSkin_SLOT_TreeClosed,
+    "chrome skin: TREE_CLOSED is not the baked TreeClosed");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TREE_OPEN == (int)ToriRSChromeSkin_SLOT_TreeOpen,
+    "chrome skin: TREE_OPEN is not the baked TreeOpen");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_RADIO_ON == (int)ToriRSChromeSkin_SLOT_RadioOn,
+    "chrome skin: RADIO_ON is not the baked RadioOn");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_RADIO_OFF == (int)ToriRSChromeSkin_SLOT_RadioOff,
+    "chrome skin: RADIO_OFF is not the baked RadioOff");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_SLIDER_TRACK == (int)ToriRSChromeSkin_SLOT_SliderTrack,
+    "chrome skin: SLIDER_TRACK is not the baked SliderTrack");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_SLIDER_KNOB == (int)ToriRSChromeSkin_SLOT_SliderKnob,
+    "chrome skin: SLIDER_KNOB is not the baked SliderKnob");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_SPLITTER_GRIP == (int)ToriRSChromeSkin_SLOT_SplitterGrip,
+    "chrome skin: SPLITTER_GRIP is not the baked SplitterGrip");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_WARNING == (int)ToriRSChromeSkin_SLOT_WarningGlyph,
+    "chrome skin: WARNING is not the baked WarningGlyph");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_ERROR == (int)ToriRSChromeSkin_SLOT_ErrorGlyph,
+    "chrome skin: ERROR is not the baked ErrorGlyph");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_RUN == (int)ToriRSChromeSkin_SLOT_RunButton,
+    "chrome skin: RUN is not the baked RunButton");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_STOP == (int)ToriRSChromeSkin_SLOT_StopButton,
+    "chrome skin: STOP is not the baked StopButton");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_BUILD == (int)ToriRSChromeSkin_SLOT_BuildButton,
+    "chrome skin: BUILD is not the baked BuildButton");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_SAVE == (int)ToriRSChromeSkin_SLOT_SaveButton,
+    "chrome skin: SAVE is not the baked SaveButton");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_SLIDER_TRACK_LEFT == (int)ToriRSChromeSkin_SLOT_SliderTrackLeft,
+    "chrome skin: SLIDER_TRACK_LEFT is not the baked SliderTrackLeft");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_SLIDER_TRACK_RIGHT == (int)ToriRSChromeSkin_SLOT_SliderTrackRight,
+    "chrome skin: SLIDER_TRACK_RIGHT is not the baked SliderTrackRight");
 _Static_assert(
     (int)TORIRS_CHROME_SKIN_SLOT_COUNT == (int)ToriRSChromeSkin_SLOT_COUNT,
     "chrome skin: the semantic slots and the bake disagree on how many there are");

@@ -116,6 +116,24 @@ Dat2GroupCache_Clear(struct Dat2GroupCache* cache)
     assert(cache->bytes == 0);
 }
 
+int
+Dat2GroupCache_Evict(
+    struct Dat2GroupCache* cache,
+    int table,
+    int group)
+{
+    assert(cache);
+    for( int i = 0; i < DAT2_GROUP_CACHE_SLOTS; i++ )
+    {
+        struct Dat2GroupCacheSlot* slot = &cache->slots[i];
+        if( !slot->occupied || slot->group.table != table || slot->group.group != group )
+            continue;
+        dat2_group_cache_release(slot, &cache->bytes);
+        return 1;
+    }
+    return 0;
+}
+
 size_t
 Dat2GroupCache_Bytes(struct Dat2GroupCache const* cache)
 {

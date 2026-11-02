@@ -24,6 +24,11 @@ app_debug_world_key(
     enum AppDebugHotkey target);
 
 /*
+ * A chord the map editor's table claims this frame (bound in a live context:
+ * app_editor_hotkeys.c) is the editor's, whether or not it acted, so the
+ * binding readers below skip it -- Ctrl+S saves and never also flies the
+ * camera back.
+ *
  * Developer hotkeys hold CTRL.
  *
  * Because the game's own keys are not the client's to intercept. Every key
@@ -54,7 +59,8 @@ app_debug_binding_down(
         return NULL;
     for( int i = 0; i < app->cfg.debug_hotkey_count; i++ )
         if( app->cfg.debug_hotkeys[i].target == target &&
-            LibToriRS_Input_IsKeyDown(input, app->cfg.debug_hotkeys[i].key) )
+            LibToriRS_Input_IsKeyDown(input, app->cfg.debug_hotkeys[i].key) &&
+            !app_editor_hotkeys_claimed(app, app->cfg.debug_hotkeys[i].key) )
             return &app->cfg.debug_hotkeys[i];
     return NULL;
 }
@@ -78,7 +84,8 @@ app_debug_key_held(
         return 0;
     for( int i = 0; i < app->cfg.debug_hotkey_count; i++ )
         if( app->cfg.debug_hotkeys[i].target == target &&
-            LibToriRS_Input_IsKeyHeld(input, app->cfg.debug_hotkeys[i].key) )
+            LibToriRS_Input_IsKeyHeld(input, app->cfg.debug_hotkeys[i].key) &&
+            !app_editor_hotkeys_claimed(app, app->cfg.debug_hotkeys[i].key) )
             return 1;
     return 0;
 }
@@ -103,6 +110,10 @@ app_ui_hotkeys(
     struct LibToriRS_Input* input)
 {
     memset(app->hotkey_consumed, 0, sizeof(app->hotkey_consumed));
+    /* The map editor's chords acted earlier this frame (app_editor_hotkeys.c,
+     * before the overlay ticks); their keys stay consumed for the world
+     * hotkeys below. */
+    app_editor_hotkeys_mark_consumed(app);
 
     /* Escape, ahead of every gate below: it must fire with the chat line
      * focused (the line is focused by default) and with no revconfig bindings
@@ -194,6 +205,41 @@ app_ui_hotkeys(
     }
 }
 
+/* The OSRS key code of a LibToriRS key: name -> VK -> OSRS, through the
+ * cache keymap's one table. -1 for a key it does not map. */
+int
+app_keycode_osrs(int key)
+{
+    static const struct
+    {
+        int key;
+        int vk;
+    } k_vk[] = {
+        { TORIRSK_ESCAPE, TORIRS_VK_ESCAPE }, { TORIRSK_RETURN, TORIRS_VK_ENTER },
+        { TORIRSK_BACKSPACE, TORIRS_VK_BACKSPACE }, { TORIRSK_DELETE, TORIRS_VK_DELETE },
+        { TORIRSK_SHIFT, TORIRS_VK_SHIFT }, { TORIRSK_CTRL, TORIRS_VK_CTRL }, { TORIRSK_ALT, TORIRS_VK_ALT },
+        { TORIRSK_TAB, TORIRS_VK_TAB }, { TORIRSK_SPACE, TORIRS_VK_SPACE }, { TORIRSK_LEFT, 37 },
+        { TORIRSK_UP, 38 }, { TORIRSK_RIGHT, 39 }, { TORIRSK_DOWN, 40 }, { TORIRSK_PAGE_UP, 33 },
+        { TORIRSK_PAGE_DOWN, 34 }, { TORIRSK_END, 35 }, { TORIRSK_HOME, 36 }, { TORIRSK_INSERT, 45 },
+        { TORIRSK_SEMICOLON, 186 }, { TORIRSK_EQUALS, 187 }, { TORIRSK_COMMA, 188 }, { TORIRSK_MINUS, 189 },
+        { TORIRSK_PERIOD, 190 }, { TORIRSK_SLASH, 191 }, { TORIRSK_GRAVE, 192 }, { TORIRSK_LBRACKET, 219 },
+        { TORIRSK_BACKSLASH, 220 }, { TORIRSK_RBRACKET, 221 }, { TORIRSK_APOSTROPHE, 222 },
+    };
+    int vk = -1;
+
+    if( key >= TORIRSK_A && key <= TORIRSK_Z )
+        vk = 65 + (key - TORIRSK_A);
+    else if( key >= TORIRSK_0 && key <= TORIRSK_9 )
+        vk = 48 + (key - TORIRSK_0);
+    else if( key >= TORIRSK_F1 && key <= TORIRSK_F12 )
+        vk = 112 + (key - TORIRSK_F1);
+    else
+        for( size_t i = 0; i < sizeof(k_vk) / sizeof(k_vk[0]); i++ )
+            if( k_vk[i].key == key )
+                vk = k_vk[i].vk;
+    return vk < 0 ? -1 : LibToriRS_OsrsKeyFromVk(vk);
+}
+
 /* A configured debug key is available only if no revconfig hotkey binding
  * already acted on the corresponding OSRS key this frame. */
 static struct AppDebugHotkeyBinding const*
@@ -205,64 +251,12 @@ app_debug_world_key(
     for( int i = 0; i < app->cfg.debug_hotkey_count; i++ )
     {
         enum LibToriRS_KeyCode key = app->cfg.debug_hotkeys[i].key;
-        int vk = -1;
         int osrs_key;
 
-        if( app->cfg.debug_hotkeys[i].target != target || !LibToriRS_Input_IsKeyDown(input, key) )
+        if( app->cfg.debug_hotkeys[i].target != target || !LibToriRS_Input_IsKeyDown(input, key)
+            || app_editor_hotkeys_claimed(app, key) )
             continue;
-        if( key >= TORIRSK_A && key <= TORIRSK_Z )
-            vk = 65 + (key - TORIRSK_A);
-        else if( key >= TORIRSK_0 && key <= TORIRSK_9 )
-            vk = 48 + (key - TORIRSK_0);
-        else
-            switch( key )
-            {
-            case TORIRSK_ESCAPE:
-                vk = TORIRS_VK_ESCAPE;
-                break;
-            case TORIRSK_RETURN:
-                vk = TORIRS_VK_ENTER;
-                break;
-            case TORIRSK_BACKSPACE:
-                vk = TORIRS_VK_BACKSPACE;
-                break;
-            case TORIRSK_DELETE:
-                vk = TORIRS_VK_DELETE;
-                break;
-            case TORIRSK_SHIFT:
-                vk = TORIRS_VK_SHIFT;
-                break;
-            case TORIRSK_CTRL:
-                vk = TORIRS_VK_CTRL;
-                break;
-            case TORIRSK_TAB:
-                vk = TORIRS_VK_TAB;
-                break;
-            case TORIRSK_SPACE:
-                vk = TORIRS_VK_SPACE;
-                break;
-            case TORIRSK_LEFT:
-                vk = 37;
-                break;
-            case TORIRSK_UP:
-                vk = 38;
-                break;
-            case TORIRSK_RIGHT:
-                vk = 39;
-                break;
-            case TORIRSK_DOWN:
-                vk = 40;
-                break;
-            case TORIRSK_PAGE_UP:
-                vk = 33;
-                break;
-            case TORIRSK_PAGE_DOWN:
-                vk = 34;
-                break;
-            default:
-                break;
-            }
-        osrs_key = LibToriRS_OsrsKeyFromVk(vk);
+        osrs_key = app_keycode_osrs(key);
         if( osrs_key < 0 || osrs_key >= TORIRS_OSRSKEY_COUNT || !app->hotkey_consumed[osrs_key] )
             return &app->cfg.debug_hotkeys[i];
     }

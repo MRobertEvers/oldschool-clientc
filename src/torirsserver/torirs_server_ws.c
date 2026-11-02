@@ -14,6 +14,7 @@
 #include <assert.h>
 
 #include "torirs_server_auth.h"
+#include "torirs_server_control.h"
 
 #include "platform/net_transport_ws_frame.h"
 #include "platform/net_transport_ws_handshake.h"
@@ -367,6 +368,22 @@ ToriRSServer_ConnOpenStep(struct ToriRSServerConn* conn)
         conn->upgrade = 1;
         return ws_handshake_step(conn);
     }
+    /*
+     * 0xED: the control link (torirs_server_control.h) -- an editor's admin
+     * connection, not a client. It is handed over and this connection lets
+     * its copy go: the link keeps a duplicate descriptor, so the host's close
+     * of this one ends nothing. Ahead of the raw-TCP refusal below because the
+     * gate is checked differently here: the ticket rides in CTL_HELLO, and
+     * with no gate only loopback is adopted.
+     */
+    if( first == TORIRSSERVER_CTL_FIRST_BYTE )
+    {
+        /* The selector is taken here, not by the link: its frames start at
+         * the byte after it. It was peeked, so it is there to take. */
+        if( recv(conn->fd, (char*)&first, 1, 0) == 1 )
+            ToriRSServer_ControlAdopt(conn->fd, conn->require_ticket);
+        return TORIRSSERVER_CONN_OPEN_FAILED;
+    }
     /* Behind the gate nothing is answered without its cookie, and raw TCP
      * cannot carry one: a native client is refused along with everything
      * else that is not a signed-in browser. */
@@ -634,3 +651,8 @@ ToriRSServer_ConnSend(
         return -1;
     return len;
 }
+
+/* The control link, compiled in this unit (see the head of the file it
+ * includes): the server's source lists are src/makefile's, closed to this
+ * change, and the link shares this file's socket helpers. */
+#include "torirs_server_control.c"

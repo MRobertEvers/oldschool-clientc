@@ -288,7 +288,24 @@ dat2_texture_is_sd(
     return bc->materials->materials[texture_id].valid;
 }
 
+/* CacheProviderVTable.InvalidateArchive: the split group goes, so the next
+ * record read re-reads the archive through the IO layer. The configs table's
+ * logical id is its physical index in every dat2 branch. */
+static void
+dat2_invalidate_archive(
+    struct CacheProvider* provider,
+    int index,
+    int archive)
+{
+    struct Dat2BuildCache* bc = (struct Dat2BuildCache*)provider;
+
+    assert(bc);
+    if( bc->group_cache )
+        Dat2GroupCache_Evict(bc->group_cache, index, archive);
+}
+
 static struct CacheProviderVTable dat2_vtable = {
+    .InvalidateArchive = dat2_invalidate_archive,
     .Task_ModelLoad = CreateTask_Dat2ModelLoad,
     .Task_ComponentPackLoad = CreateTask_Dat2ComponentPackLoad,
     .Task_ClientScriptLoad = CreateTask_Dat2ClientScriptLoad,

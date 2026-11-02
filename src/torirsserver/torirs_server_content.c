@@ -38,6 +38,7 @@
 #include "torirs_server_servercodec.h"
 #include "torirs_server_servpack.h"
 #include "torirs_server_shop.h"
+#include "torirs_server_control.h"
 
 #include <rscache.h>
 #include "rscache_valuetype.h"
@@ -1154,6 +1155,22 @@ static struct ToriRSServerMapObjSpawn* g_obj_spawns;
 static int g_obj_spawn_count;
 static int g_obj_spawn_capacity;
 
+/* `-name x z level` rows: spawns another file makes that the edited lane
+ * suppresses. Collected while the .spawn files merge, applied once after
+ * the last one (ToriRSServer_ContentLoadSpawns), then dropped. */
+struct SpawnSuppression
+{
+    int is_obj;
+    int id;
+    int x;
+    int z;
+    int level;
+    int matched;
+};
+static struct SpawnSuppression* g_spawn_suppressions;
+static int g_spawn_suppression_count;
+static int g_spawn_suppression_capacity;
+
 /** Engine defaults. OpenRune's NpcCombatDef.DEFAULT, with LostCity's animation
  *  names — the two agree on all of it. */
 static struct ToriRSServerNpcDef g_npc_default;
@@ -1766,6 +1783,13 @@ ToriRSServer_ContentStructParam(
  * the last place in this tree carrying a bare id, so it was the last place a
  * cache bump could silently repoint at a different creature — and it already
  * had (`sos_pest_giantspider1`, level 50, standing in the Lumbridge Swamp).
+ *
+ * A row whose name starts with `-` is a SUPPRESSION (docs/MAPED_DESIGN.html
+ * #placement): it names a spawn some other file makes — the generated
+ * `areas/world` file the map editor must not write into — and every spawn of
+ * that npc/obj on that tile and level is removed once all files are merged.
+ * The name resolves exactly like a spawn's, so the key is (kind, id, x, z,
+ * level); an obj suppression's count, if stated, is ignored.
  */
 enum SpawnSection
 {
@@ -1794,6 +1818,7 @@ load_spawn_config(const char* path)
         int count;
         int id;
         int fields;
+        int suppress;
 
         line_number++;
         if( !*line )
@@ -1835,6 +1860,14 @@ load_spawn_config(const char* path)
             CONTENT_ERROR("%s:%d: an npc spawn has no count\n", path, line_number);
             continue;
         }
+        suppress = name[0] == '-';
+        if( suppress )
+            memmove(name, name + 1, strlen(name));
+        if( !name[0] )
+        {
+            CONTENT_ERROR("%s:%d: a suppression row names nothing\n", path, line_number);
+            continue;
+        }
         if( level < 0 || level > 3 )
         {
             CONTENT_ERROR("%s:%d: level %d is not 0..3\n", path, line_number, level);
@@ -1873,7 +1906,19 @@ load_spawn_config(const char* path)
             }
         }
 
-        if( section == SPAWN_NPC )
+        if( suppress )
+        {
+            g_spawn_suppressions = grow(g_spawn_suppressions, &g_spawn_suppression_capacity,
+                                        g_spawn_suppression_count, sizeof(*g_spawn_suppressions));
+            g_spawn_suppressions[g_spawn_suppression_count].is_obj = section == SPAWN_OBJ;
+            g_spawn_suppressions[g_spawn_suppression_count].id = id;
+            g_spawn_suppressions[g_spawn_suppression_count].x = x;
+            g_spawn_suppressions[g_spawn_suppression_count].z = z;
+            g_spawn_suppressions[g_spawn_suppression_count].level = level;
+            g_spawn_suppressions[g_spawn_suppression_count].matched = 0;
+            g_spawn_suppression_count++;
+        }
+        else if( section == SPAWN_NPC )
         {
             g_npc_spawns = grow(g_npc_spawns, &g_npc_spawn_capacity, g_npc_spawn_count,
                                 sizeof(*g_npc_spawns));
@@ -1896,6 +1941,346 @@ load_spawn_config(const char* path)
         }
     }
     fclose(file);
+}
+
+/* Defined with the other directory walks below. */
+static void
+walk_configs(
+    const char* dir,
+    const char* suffix,
+    void (*load)(const char*));
+
+static int
+suppressed(
+    int is_obj,
+    int id,
+    int x,
+    int z,
+    int level)
+{
+    for( int i = 0; i < g_spawn_suppression_count; i++ )
+    {
+        struct SpawnSuppression* row = &g_spawn_suppressions[i];
+        if( row->is_obj == is_obj && row->id == id && row->x == x && row->z == z
+            && row->level == level )
+        {
+            row->matched = 1;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/*
+ * Apply the merged suppression rows to the merged spawn tables, once: one
+ * pass per table, compacting in place so the merge order of every surviving
+ * spawn is unchanged -- and a tree with no `-` rows is untouched. Frees the
+ * suppression list. Returns the spawns removed.
+ */
+static int
+spawn_apply_suppressions(void)
+{
+    int removed = 0;
+    int kept;
+
+    if( g_spawn_suppression_count > 0 )
+    {
+        kept = 0;
+        for( int i = 0; i < g_npc_spawn_count; i++ )
+        {
+            const struct ToriRSServerMapNpcSpawn* spawn = &g_npc_spawns[i];
+            if( suppressed(0, spawn->npc_id, spawn->x, spawn->z, spawn->level) )
+                continue;
+            g_npc_spawns[kept++] = *spawn;
+        }
+        removed += g_npc_spawn_count - kept;
+        g_npc_spawn_count = kept;
+
+        kept = 0;
+        for( int i = 0; i < g_obj_spawn_count; i++ )
+        {
+            const struct ToriRSServerMapObjSpawn* spawn = &g_obj_spawns[i];
+            if( suppressed(1, spawn->obj_id, spawn->x, spawn->z, spawn->level) )
+                continue;
+            g_obj_spawns[kept++] = *spawn;
+        }
+        removed += g_obj_spawn_count - kept;
+        g_obj_spawn_count = kept;
+
+        /* A suppression that hides nothing is stale — the generated spawn it
+         * named moved or went away — which is worth a line, not an error:
+         * the world it asked for (no such spawn there) is the world loaded. */
+        for( int i = 0; i < g_spawn_suppression_count; i++ )
+        {
+            if( !g_spawn_suppressions[i].matched )
+                fprintf(stderr,
+                        "torirsserver: spawn suppression of %s %d at %d %d %d matched nothing\n",
+                        g_spawn_suppressions[i].is_obj ? "obj" : "npc", g_spawn_suppressions[i].id,
+                        g_spawn_suppressions[i].x, g_spawn_suppressions[i].z,
+                        g_spawn_suppressions[i].level);
+        }
+    }
+
+    ToriMem_Free(ToriMem_ServerContent(), g_spawn_suppressions);
+    g_spawn_suppressions = NULL;
+    g_spawn_suppression_count = 0;
+    g_spawn_suppression_capacity = 0;
+    return removed;
+}
+
+/*
+ * Each .spawn file's own rows, as parsed and before any suppression: what
+ * lets the live reload re-read ONE lane file and rebuild the merged tables
+ * without parsing the other ~970 (docs/MAPED_DESIGN.html #run, "Spawns").
+ * Kept in walk order, so a rebuilt table merges in the order a boot would.
+ */
+struct SpawnFileRows
+{
+    /* Relative to the scripts directory, as the walk built the path. */
+    char rel[512];
+    struct ToriRSServerMapNpcSpawn* npcs;
+    int npc_count;
+    struct ToriRSServerMapObjSpawn* objs;
+    int obj_count;
+    struct SpawnSuppression* supps;
+    int supp_count;
+};
+static struct SpawnFileRows* g_spawn_files;
+static int g_spawn_file_count;
+static int g_spawn_file_capacity;
+static char g_spawn_scripts_dir[1024];
+
+static void
+spawn_file_rows_clear(struct SpawnFileRows* rows)
+{
+    ToriMem_Free(ToriMem_ServerContent(), rows->npcs);
+    ToriMem_Free(ToriMem_ServerContent(), rows->objs);
+    ToriMem_Free(ToriMem_ServerContent(), rows->supps);
+    rows->npcs = NULL;
+    rows->objs = NULL;
+    rows->supps = NULL;
+    rows->npc_count = rows->obj_count = rows->supp_count = 0;
+}
+
+static void*
+spawn_rows_copy(
+    const void* from,
+    int count,
+    size_t element)
+{
+    void* copy;
+
+    if( count <= 0 )
+        return NULL;
+    copy = ToriMem_Alloc(ToriMem_ServerContent(), (size_t)count * element);
+    assert(copy);
+    memcpy(copy, from, (size_t)count * element);
+    return copy;
+}
+
+/* Parse `path` through the one parser and keep what it appended as `rows`'
+ * own. The merged tables still hold the appended rows; a reload rebuilds them
+ * after (spawn_tables_rebuild), a boot keeps them. */
+static void
+spawn_file_parse(
+    struct SpawnFileRows* rows,
+    const char* path)
+{
+    int npc0 = g_npc_spawn_count;
+    int obj0 = g_obj_spawn_count;
+    int supp0 = g_spawn_suppression_count;
+
+    load_spawn_config(path);
+    rows->npc_count = g_npc_spawn_count - npc0;
+    rows->obj_count = g_obj_spawn_count - obj0;
+    rows->supp_count = g_spawn_suppression_count - supp0;
+    rows->npcs = spawn_rows_copy(g_npc_spawns + npc0, rows->npc_count, sizeof(*g_npc_spawns));
+    rows->objs = spawn_rows_copy(g_obj_spawns + obj0, rows->obj_count, sizeof(*g_obj_spawns));
+    rows->supps = spawn_rows_copy(g_spawn_suppressions + supp0, rows->supp_count,
+                                  sizeof(*g_spawn_suppressions));
+}
+
+static struct SpawnFileRows*
+spawn_file_add(const char* rel)
+{
+    struct SpawnFileRows* rows;
+
+    g_spawn_files =
+        grow(g_spawn_files, &g_spawn_file_capacity, g_spawn_file_count, sizeof(*g_spawn_files));
+    assert(g_spawn_files);
+    rows = &g_spawn_files[g_spawn_file_count++];
+    memset(rows, 0, sizeof(*rows));
+    snprintf(rows->rel, sizeof(rows->rel), "%s", rel);
+    return rows;
+}
+
+/* The walk's per-file callback at boot. */
+static void
+load_spawn_config_tracked(const char* path)
+{
+    size_t dir_length = strlen(g_spawn_scripts_dir);
+    const char* rel = path;
+
+    if( dir_length && strncmp(path, g_spawn_scripts_dir, dir_length) == 0 && path[dir_length] == '/' )
+        rel = path + dir_length + 1;
+    spawn_file_parse(spawn_file_add(rel), path);
+}
+
+int
+ToriRSServer_ContentLoadSpawns(const char* scripts_dir)
+{
+    assert(scripts_dir);
+
+    snprintf(g_spawn_scripts_dir, sizeof(g_spawn_scripts_dir), "%s", scripts_dir);
+    walk_configs(scripts_dir, ".spawn", load_spawn_config_tracked);
+    return spawn_apply_suppressions();
+}
+
+/* Merged tables again from every file's rows, in walk order, then the
+ * suppressions over them. */
+static int
+spawn_tables_rebuild(void)
+{
+    g_npc_spawn_count = 0;
+    g_obj_spawn_count = 0;
+    g_spawn_suppression_count = 0;
+    for( int f = 0; f < g_spawn_file_count; f++ )
+    {
+        const struct SpawnFileRows* rows = &g_spawn_files[f];
+
+        for( int i = 0; i < rows->npc_count; i++ )
+        {
+            g_npc_spawns = grow(g_npc_spawns, &g_npc_spawn_capacity, g_npc_spawn_count,
+                                sizeof(*g_npc_spawns));
+            g_npc_spawns[g_npc_spawn_count++] = rows->npcs[i];
+        }
+        for( int i = 0; i < rows->obj_count; i++ )
+        {
+            g_obj_spawns = grow(g_obj_spawns, &g_obj_spawn_capacity, g_obj_spawn_count,
+                                sizeof(*g_obj_spawns));
+            g_obj_spawns[g_obj_spawn_count++] = rows->objs[i];
+        }
+        for( int i = 0; i < rows->supp_count; i++ )
+        {
+            g_spawn_suppressions = grow(g_spawn_suppressions, &g_spawn_suppression_capacity,
+                                        g_spawn_suppression_count, sizeof(*g_spawn_suppressions));
+            g_spawn_suppressions[g_spawn_suppression_count] = rows->supps[i];
+            g_spawn_suppressions[g_spawn_suppression_count].matched = 0;
+            g_spawn_suppression_count++;
+        }
+    }
+    return spawn_apply_suppressions();
+}
+
+/* A reload names a file relative to the scripts directory, as
+ * `server/scripts/...` (relative to the content root), or absolutely. */
+static int
+spawn_file_rel(
+    const char* scripts_dir,
+    const char* file,
+    char* out,
+    size_t cap)
+{
+    static const char content_prefix[] = "server/scripts/";
+    size_t dir_length = strlen(scripts_dir);
+
+    if( strncmp(file, scripts_dir, dir_length) == 0 && file[dir_length] == '/' )
+    {
+        snprintf(out, cap, "%s", file + dir_length + 1);
+        return 1;
+    }
+    if( file[0] == '/' )
+    {
+        char real_dir[PATH_MAX];
+        size_t real_length;
+
+#if defined(_WIN32)
+        if( !_fullpath(real_dir, scripts_dir, sizeof(real_dir)) )
+            return 0;
+#else
+        if( !realpath(scripts_dir, real_dir) )
+            return 0;
+#endif
+        real_length = strlen(real_dir);
+        if( strncmp(file, real_dir, real_length) != 0 || file[real_length] != '/' )
+            return 0;
+        snprintf(out, cap, "%s", file + real_length + 1);
+        return 1;
+    }
+    if( strncmp(file, content_prefix, sizeof(content_prefix) - 1) == 0 )
+        file += sizeof(content_prefix) - 1;
+    snprintf(out, cap, "%s", file);
+    return 1;
+}
+
+static void
+spawn_reload_restart(
+    struct ToriRSServerReloadResult* result,
+    const char* rel)
+{
+    char line[TORIRSSERVER_RELOAD_LINE_MAX];
+
+    snprintf(line, sizeof(line), "%s: the generated spawn lane is boot-only", rel);
+    fprintf(stderr, "torirsserver: reload: restart needed: %s\n", line);
+    if( result && result->restart_count < TORIRSSERVER_RELOAD_RESTART_MAX )
+        snprintf(result->restart[result->restart_count++], TORIRSSERVER_RELOAD_LINE_MAX, "%s",
+                 line);
+}
+
+int
+ToriRSServer_ContentReloadSpawnFiles(
+    const char* scripts_dir,
+    const char* const* files,
+    int file_count,
+    struct ToriRSServerReloadResult* result)
+{
+    static const char generated[] = "areas/world/configs/";
+    int reread = 0;
+
+    assert(scripts_dir);
+    if( file_count <= 0 )
+        return 0;
+    assert(files);
+    for( int i = 0; i < file_count; i++ )
+    {
+        char rel[512];
+        char path[1600];
+        struct SpawnFileRows* rows = NULL;
+        FILE* probe;
+
+        assert(files[i]);
+        if( !spawn_file_rel(scripts_dir, files[i], rel, sizeof(rel)) )
+        {
+            fprintf(stderr, "torirsserver: reload: %s is not under %s; not a spawn file of "
+                            "this world\n",
+                    files[i], scripts_dir);
+            continue;
+        }
+        if( strncmp(rel, generated, sizeof(generated) - 1) == 0 )
+        {
+            spawn_reload_restart(result, rel);
+            continue;
+        }
+        for( int f = 0; f < g_spawn_file_count && !rows; f++ )
+            if( strcmp(g_spawn_files[f].rel, rel) == 0 )
+                rows = &g_spawn_files[f];
+        if( !rows )
+            rows = spawn_file_add(rel);
+        spawn_file_rows_clear(rows);
+        snprintf(path, sizeof(path), "%s/%s", scripts_dir, rel);
+        /* A deleted file is a file with no rows. */
+        probe = fopen(path, "rb");
+        if( probe )
+        {
+            fclose(probe);
+            spawn_file_parse(rows, path);
+        }
+        reread++;
+    }
+    if( !reread )
+        return 0;
+    spawn_tables_rebuild();
+    return 1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -2751,7 +3136,7 @@ ToriRSServer_ContentLoad(
     }
     /* After the configs: a spawn names an npc or an obj, and the name has to
      * resolve against the packs the loader has already read. */
-    walk_configs(path, ".spawn", load_spawn_config);
+    ToriRSServer_ContentLoadSpawns(path);
 
     snprintf(path, sizeof(path), "%s/maps/multiway.csv", dir);
     load_multiway(path);
@@ -3020,6 +3405,78 @@ compare_loc_def(
     return left < right ? -1 : (left > right ? 1 : 0);
 }
 
+/*
+ * The category half of a loc def. A loc's category is a client field and the
+ * pack's record carries the merged one (`ToriRSServer_LocInfo`), so this is
+ * a copy, not a second source: it is here because the def is what the door
+ * validator and `ToriRSServer_LocCategoryMembers` walk. Appended unsorted,
+ * sorted once below. Run over the banded defs, after ToriRSServer_LocInfoLoad;
+ * returns how many defs took a category.
+ */
+static int
+content_loc_categories_merge(void)
+{
+    int banded = g_loc_def_count;
+    int categorised = 0;
+
+    qsort(g_loc_defs, (size_t)g_loc_def_count, sizeof(*g_loc_defs), compare_loc_def);
+    for( int i = 0; i < ToriRSServer_LocInfoCategoryCount(); i++ )
+    {
+        int loc_id;
+        int category;
+        struct ToriRSServerLocDef* def;
+
+        ToriRSServer_LocInfoCategoryAt(i, &loc_id, &category);
+        /* Searched over the banded prefix only: it is sorted, and the
+         * category-only defs appended past it are not, until the sort
+         * below. Each loc id appears once in the category table, so an
+         * appended def is never looked for again. */
+        {
+            struct ToriRSServerLocDef key;
+
+            key.loc_id = loc_id;
+            def = banded > 0 ? (struct ToriRSServerLocDef*)bsearch(
+                                   &key, g_loc_defs, (size_t)banded, sizeof(*g_loc_defs),
+                                   compare_loc_def)
+                             : NULL;
+        }
+        if( !def )
+            def = loc_def_add(loc_id);
+        def->category = category;
+        categorised++;
+    }
+    qsort(g_loc_defs, (size_t)g_loc_def_count, sizeof(*g_loc_defs), compare_loc_def);
+    return categorised;
+}
+
+/*
+ * The ops the server answers for, from the pack's records. `ToriRSServer_SceneLocOp`
+ * reads the scene's own cache record for anything not laid over it, so every op
+ * the pack states is laid over: the pack is the source, and `op3=hidden` (which
+ * no client cache states) is how a skilling loop resumes. Returns the op count.
+ */
+static int
+content_loc_ops_overlay(void)
+{
+    int ops = 0;
+
+    for( int i = 0; i < ToriRSServer_LocInfoOpCount(); i++ )
+    {
+        int loc_id = ToriRSServer_LocInfoOpLocAt(i);
+
+        for( int op = 1; op <= 5; op++ )
+        {
+            const char* text = ToriRSServer_LocInfoOp(loc_id, op);
+
+            if( !text )
+                continue;
+            ToriRSServer_SceneLocOpOverlay(loc_id, op, text);
+            ops++;
+        }
+    }
+    return ops;
+}
+
 int
 ToriRSServer_ContentLoadPack(struct RSCache_ServerPack* pack)
 {
@@ -3100,65 +3557,8 @@ ToriRSServer_ContentLoadPack(struct RSCache_ServerPack* pack)
     if( obj_bands < 0 || obj_failed )
         return -1;
 
-    /*
-     * The category half of a loc def. A loc's category is a client field and the
-     * pack's record carries the merged one (`ToriRSServer_LocInfo`), so this is
-     * a copy, not a second source: it is here because the def is what the door
-     * validator and `ToriRSServer_LocCategoryMembers` walk. Appended unsorted,
-     * sorted once below.
-     */
-    {
-        int banded = g_loc_def_count;
-
-        qsort(g_loc_defs, (size_t)g_loc_def_count, sizeof(*g_loc_defs), compare_loc_def);
-        for( int i = 0; i < ToriRSServer_LocInfoCategoryCount(); i++ )
-        {
-            int loc_id;
-            int category;
-            struct ToriRSServerLocDef* def;
-
-            ToriRSServer_LocInfoCategoryAt(i, &loc_id, &category);
-            /* Searched over the banded prefix only: it is sorted, and the
-             * category-only defs appended past it are not, until the sort
-             * below. Each loc id appears once in the category table, so an
-             * appended def is never looked for again. */
-            {
-                struct ToriRSServerLocDef key;
-
-                key.loc_id = loc_id;
-                def = banded > 0 ? (struct ToriRSServerLocDef*)bsearch(
-                                       &key, g_loc_defs, (size_t)banded, sizeof(*g_loc_defs),
-                                       compare_loc_def)
-                                 : NULL;
-            }
-            if( !def )
-                def = loc_def_add(loc_id);
-            def->category = category;
-            categorised++;
-        }
-        qsort(g_loc_defs, (size_t)g_loc_def_count, sizeof(*g_loc_defs), compare_loc_def);
-    }
-
-    /*
-     * The ops the server answers for, from the pack's records. `ToriRSServer_SceneLocOp`
-     * reads the scene's own cache record for anything not laid over it, so every op
-     * the pack states is laid over: the pack is the source, and `op3=hidden` (which
-     * no client cache states) is how a skilling loop resumes.
-     */
-    for( int i = 0; i < ToriRSServer_LocInfoOpCount(); i++ )
-    {
-        int loc_id = ToriRSServer_LocInfoOpLocAt(i);
-
-        for( int op = 1; op <= 5; op++ )
-        {
-            const char* text = ToriRSServer_LocInfoOp(loc_id, op);
-
-            if( !text )
-                continue;
-            ToriRSServer_SceneLocOpOverlay(loc_id, op, text);
-            ops++;
-        }
-    }
+    categorised = content_loc_categories_merge();
+    ops = content_loc_ops_overlay();
 
     fprintf(stderr,
             "torirsserver: server pack: %d npc defs from %d band(s) over the [default] band, %d loc "
@@ -3166,6 +3566,349 @@ ToriRSServer_ContentLoadPack(struct RSCache_ServerPack* pack)
             g_npc_def_count, npc_bands, g_loc_def_count, loc_bands, categorised, ops,
             g_errors != errors_before ? ", WITH ERRORS" : "");
     return g_errors != errors_before ? -1 : 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Live reload of one config kind                                      */
+/* ------------------------------------------------------------------ */
+
+/*
+ * docs/serverpack.md "The hot-reload contract", section 5: a changed server-pack
+ * group replaces its kind's records at the tick boundary. Every reload below is
+ * two passes over ONE open pack, held under its shared lock by the caller
+ * (ToriRSServer_ServPackReloadGroups), so both passes read the same bytes:
+ *
+ *   1. check: every client record of the kind decodes with the client codec,
+ *      every band decodes whole against this boot's register, and (npc) the
+ *      `[default]` band does. Nothing is touched. A pack that fails here is
+ *      refused and the running tables stay exactly as they were.
+ *   2. replace: the same loaders the boot runs, each of which frees the old
+ *      table first. Having passed 1 they cannot refuse the pack (an allocation
+ *      failure asserts), so the world never sees half a kind.
+ *
+ * The whole kind is replaced, not the edited record's fields: the build's unit
+ * is the type (cp_incremental.c), and so is this.
+ */
+
+struct ContentReloadCheck
+{
+    struct RSCache profile;
+    int kind;
+    const struct RSCache_Register* fields;
+    int failed;
+};
+
+static void
+content_reload_check_record(
+    void* context,
+    int id,
+    const uint8_t* body,
+    uint32_t size)
+{
+    struct ContentReloadCheck* check = (struct ContentReloadCheck*)context;
+
+    assert(check);
+    (void)id;
+    if( size == 0 )
+        return;
+    if( check->kind == RSCACHE_DAT2_CONFIG_KIND_LOCS )
+    {
+        struct RSCache_Dat2ConfigLoc* loc =
+            RSCache_Dat2ConfigLocNewDecodeProfile(&check->profile, (char*)body, (int)size);
+
+        if( !loc )
+            check->failed++;
+        else
+            RSCache_Dat2ConfigLocFree(loc);
+    }
+    else if( check->kind == RSCACHE_DAT2_CONFIG_KIND_NPC )
+    {
+        struct RSCache_Dat2ConfigNpc* npc =
+            RSCache_Dat2ConfigNpcNewDecodeProfile(&check->profile, (char*)body, (int)size);
+
+        if( !npc )
+            check->failed++;
+        else
+            RSCache_Dat2ConfigNpcFree(npc);
+    }
+    else
+    {
+        struct RSCache_Dat2ConfigObj* obj =
+            RSCache_Dat2ConfigObjNewDecodeProfile(&check->profile, (char*)body, (int)size);
+
+        assert(check->kind == RSCACHE_DAT2_CONFIG_KIND_OBJECT);
+        if( !obj )
+            check->failed++;
+        else
+            RSCache_Dat2ConfigObjFree(obj);
+    }
+}
+
+/* The structure only: RSCache_BandDecode applies no binding, so the check has
+ * no side effect (the obj binding writes the requirement table). */
+static void
+content_reload_check_band(
+    void* context,
+    int id,
+    const uint8_t* band,
+    uint32_t size)
+{
+    struct ContentReloadCheck* check = (struct ContentReloadCheck*)context;
+    struct RSCache_BandRecord record;
+
+    assert(check);
+    (void)id;
+    RSCache_BandRecordReset(&record);
+    if( RSCache_BandDecode(check->fields, &record, band, (int)size) != (int)size )
+        check->failed++;
+    RSCache_BandRecordFree(&record);
+}
+
+/* Pass 1. Returns 1 when the kind may be replaced; 0 with the reason. */
+static int
+content_reload_check(
+    struct RSCache_ServerPack* pack,
+    int kind,
+    const struct RSCache_Register* fields,
+    char* why,
+    size_t why_size)
+{
+    struct ContentReloadCheck check;
+    int records;
+    int bands;
+
+    assert(pack);
+    assert(fields);
+    assert(why);
+    memset(&check, 0, sizeof(check));
+    check.profile = RSCache_ProfileZero();
+    check.profile.game = RSCACHE_GAME_OLDSCHOOL;
+    check.profile.epoch = RSCACHE_EPOCH_DAT2;
+    check.profile.revision = TORIRSSERVER_CACHE_REVISION;
+    check.kind = kind;
+    check.fields = fields;
+    if( g_band_register_problems )
+    {
+        snprintf(why, why_size, "the field registers disagree with this server's band bindings");
+        return 0;
+    }
+    records = ToriRSServer_ServPackEachRecord(pack, kind, content_reload_check_record, &check);
+    if( records <= 0 || check.failed > 0 )
+    {
+        snprintf(why, why_size, "%s", records < 0 ? "a record archive does not validate"
+                                      : records == 0 ? "the pack holds no record of it"
+                                                     : "a record does not decode");
+        return 0;
+    }
+    bands = ToriRSServer_ServPackEachBand(pack, kind, content_reload_check_band, &check);
+    if( bands < 0 || check.failed > 0 )
+    {
+        snprintf(why, why_size, "%s", bands < 0 ? "a band archive does not validate"
+                                                : "a band does not decode against fields/");
+        return 0;
+    }
+    if( kind == RSCACHE_DAT2_CONFIG_KIND_NPC )
+    {
+        void* owned = NULL;
+        const uint8_t* band = NULL;
+        uint32_t size = 0;
+        struct RSCache_BandRecord record;
+        int whole;
+
+        if( !ToriRSServer_ServPackDefaults(pack, kind, &owned, &band, &size) )
+        {
+            snprintf(why, why_size, "the pack holds no [default] band");
+            return 0;
+        }
+        RSCache_BandRecordReset(&record);
+        whole = RSCache_BandDecode(fields, &record, band, (int)size) == (int)size;
+        RSCache_BandRecordFree(&record);
+        RSCACHE_FREE(owned);
+        if( !whole )
+        {
+            snprintf(why, why_size, "the [default] band does not decode against fields/");
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int
+ToriRSServer_ContentReloadLocs(
+    struct RSCache_ServerPack* pack,
+    char* why,
+    size_t why_size)
+{
+    int errors_before;
+    int failed = 0;
+    int bands;
+
+    assert(pack);
+    assert(why);
+    why[0] = '\0';
+    if( !content_reload_check(pack, RSCACHE_DAT2_CONFIG_KIND_LOCS, &g_loc_fields, why, why_size) )
+        return 0;
+
+    /* The records: names, footprints, categories, params, ops, and the scene's
+     * raw client records (its decoded CLOCK ring goes with them -- no caller
+     * keeps a decoded config across a tick, the ring evicts them anyway). */
+    {
+        int loaded = ToriRSServer_LocInfoLoad(pack);
+
+        assert(loaded);
+        ToriRSServer_SceneLocConfigsFree();
+        loaded = ToriRSServer_SceneLocConfigsLoad(pack);
+        assert(loaded >= 0);
+        (void)loaded;
+    }
+
+    /* The bands: every loc def, then the categories and op overlays the boot
+     * lays over them. Nothing keeps a ToriRSServerLocDef pointer: every reader
+     * looks the def up by id (ToriRSServer_ContentLoc). */
+    errors_before = g_errors;
+    ToriMem_Free(ToriMem_ServerContent(), g_loc_defs);
+    g_loc_defs = NULL;
+    g_loc_def_count = g_loc_def_capacity = 0;
+    bands = ToriRSServer_ServPackEachBand(pack, RSCACHE_DAT2_CONFIG_KIND_LOCS, loc_load_band,
+                                          &failed);
+    assert(bands >= 0);
+    (void)bands;
+    content_loc_categories_merge();
+    ToriRSServer_SceneLocOpOverlayReset();
+    content_loc_ops_overlay();
+    if( g_errors != errors_before || failed )
+        snprintf(why, why_size, "replaced WITH ERRORS (see the server log)");
+    fprintf(stderr, "torirsserver: reload: loc records replaced (%d records, %d defs, %d with ops)%s\n",
+            ToriRSServer_LocInfoCount(), g_loc_def_count, ToriRSServer_LocInfoOpCount(),
+            why[0] ? ", WITH ERRORS" : "");
+    return 1;
+}
+
+/* The npc def array a reload replaced, kept until the caller has re-pointed
+ * every live npc's `def` (ToriRSServer_ContentNpcRetiredFree). */
+static struct ToriRSServerNpcDef* g_npc_defs_retired;
+static int g_npc_defs_retired_count;
+
+int
+ToriRSServer_ContentReloadNpcs(
+    struct RSCache_ServerPack* pack,
+    char* why,
+    size_t why_size)
+{
+    int errors_before;
+    int failed = 0;
+    int bands;
+
+    assert(pack);
+    assert(why);
+    why[0] = '\0';
+    /* A reload whose re-point pass did not run would leak the array before. */
+    assert(!g_npc_defs_retired);
+    if( !content_reload_check(pack, RSCACHE_DAT2_CONFIG_KIND_NPC, &g_npc_fields, why, why_size) )
+        return 0;
+
+    /* The records (names, sizes, ops, transforms, params) first: a def is
+     * seeded from its record (npc_def_seed_from_cache). */
+    {
+        int loaded = ToriRSServer_NpcInfoLoad(pack);
+
+        assert(loaded);
+        (void)loaded;
+    }
+
+    errors_before = g_errors;
+    /* `[default]` in place: an npc with no def of its own points at it. */
+    {
+        void* owned = NULL;
+        const uint8_t* band = NULL;
+        uint32_t size = 0;
+        int have;
+
+        ToriMem_Free(ToriMem_ServerContent(), g_npc_default.params);
+        ToriMem_Free(ToriMem_ServerContent(), g_npc_default.patrol);
+        npc_def_builtin(&g_npc_default);
+        have = ToriRSServer_ServPackDefaults(pack, RSCACHE_DAT2_CONFIG_KIND_NPC, &owned, &band,
+                                             &size);
+        assert(have);
+        (void)have;
+        if( !npc_apply_band(&g_npc_default, band, size, -1, "server/pack npc [default]") )
+            failed++;
+        RSCACHE_FREE(owned);
+    }
+
+    /* The defs: a new array; the old one is retired, not freed, because live
+     * npcs point into it until the caller's re-point pass. */
+    g_npc_defs_retired = g_npc_defs;
+    g_npc_defs_retired_count = g_npc_def_count;
+    g_npc_defs = NULL;
+    g_npc_def_count = g_npc_def_capacity = 0;
+    bands = ToriRSServer_ServPackEachBand(pack, RSCACHE_DAT2_CONFIG_KIND_NPC, npc_load_band,
+                                          &failed);
+    assert(bands >= 0);
+    (void)bands;
+    if( g_npc_def_count > 0 )
+    {
+        g_npc_defs = ToriMem_Realloc(ToriMem_ServerContent(), g_npc_defs,
+                                     (size_t)g_npc_def_count * sizeof(*g_npc_defs));
+        assert(g_npc_defs);
+        g_npc_def_capacity = g_npc_def_count;
+    }
+    if( g_errors != errors_before || failed )
+        snprintf(why, why_size, "replaced WITH ERRORS (see the server log)");
+    fprintf(stderr, "torirsserver: reload: npc records replaced (%d records, %d defs)%s\n",
+            ToriRSServer_NpcInfoCount(), g_npc_def_count, why[0] ? ", WITH ERRORS" : "");
+    return 1;
+}
+
+void
+ToriRSServer_ContentNpcRetiredFree(void)
+{
+    for( int i = 0; i < g_npc_defs_retired_count; i++ )
+    {
+        ToriMem_Free(ToriMem_ServerContent(), g_npc_defs_retired[i].params);
+        ToriMem_Free(ToriMem_ServerContent(), g_npc_defs_retired[i].patrol);
+    }
+    ToriMem_Free(ToriMem_ServerContent(), g_npc_defs_retired);
+    g_npc_defs_retired = NULL;
+    g_npc_defs_retired_count = 0;
+}
+
+int
+ToriRSServer_ContentReloadObjs(
+    struct RSCache_ServerPack* pack,
+    char* why,
+    size_t why_size)
+{
+    int errors_before;
+    int failed = 0;
+    int bands;
+
+    assert(pack);
+    assert(why);
+    why[0] = '\0';
+    if( !content_reload_check(pack, RSCACHE_DAT2_CONFIG_KIND_OBJECT, &g_obj_fields, why, why_size) )
+        return 0;
+
+    /* The records, then the bands' requirement rows over them (the table the
+     * free empties). Objs are ids everywhere the world keeps one (inventories,
+     * ground stacks, worn slots). */
+    ToriRSServer_ObjInfoFree();
+    {
+        int loaded = ToriRSServer_ObjInfoLoad(pack);
+
+        assert(loaded > 0);
+        (void)loaded;
+    }
+    errors_before = g_errors;
+    bands = ToriRSServer_ServPackEachBand(pack, RSCACHE_DAT2_CONFIG_KIND_OBJECT, obj_load_band,
+                                          &failed);
+    assert(bands >= 0);
+    (void)bands;
+    if( g_errors != errors_before || failed )
+        snprintf(why, why_size, "replaced WITH ERRORS (see the server log)");
+    fprintf(stderr, "torirsserver: reload: obj records replaced (%d records)%s\n",
+            ToriRSServer_ObjInfoCount(), why[0] ? ", WITH ERRORS" : "");
+    return 1;
 }
 
 void
@@ -3195,6 +3938,7 @@ ToriRSServer_ContentFree(void)
     ToriMem_Free(ToriMem_ServerContent(), g_npc_defs);
     g_npc_defs = NULL;
     g_npc_def_count = g_npc_def_capacity = 0;
+    ToriRSServer_ContentNpcRetiredFree();
     ToriMem_Free(ToriMem_ServerContent(), g_npc_default.params);
     g_npc_default.params = NULL;
     g_npc_default.param_count = 0;
@@ -3249,6 +3993,12 @@ ToriRSServer_ContentFree(void)
     g_npc_spawn_count = g_npc_spawn_capacity = 0;
     ToriMem_Free(ToriMem_ServerContent(), g_obj_spawns);
     g_obj_spawns = NULL;
+    for( int f = 0; f < g_spawn_file_count; f++ )
+        spawn_file_rows_clear(&g_spawn_files[f]);
+    ToriMem_Free(ToriMem_ServerContent(), g_spawn_files);
+    g_spawn_files = NULL;
+    g_spawn_file_count = 0;
+    g_spawn_file_capacity = 0;
     g_obj_spawn_count = g_obj_spawn_capacity = 0;
     g_errors = 0;
 }

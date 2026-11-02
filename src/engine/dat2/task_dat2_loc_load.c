@@ -130,6 +130,11 @@ Task_Dat2LocLoad_Run(
             torirs_loc->seq_id,
             torirs_loc->shapes ? "yes" : "no(implicit shape 10)",
             torirs_loc->shapes_and_model_count);
+        /* REPORT, not LOG: the decoded ops are what a live reload's proof
+         * reads, and an optimized client compiles LOG out. */
+        TORIRS_REPORT("loc_cfg %d decoded: name='%s' ops [%s] [%s] [%s] [%s] [%s]\n",
+            task->loc_id, torirs_loc->name, torirs_loc->actions[0], torirs_loc->actions[1],
+            torirs_loc->actions[2], torirs_loc->actions[3], torirs_loc->actions[4]);
         TORIRS_LOG("  transforms: count=%d varbit=%d varp=%d ->",
             torirs_loc->transform_count,
             torirs_loc->transform_varbit,

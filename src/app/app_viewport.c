@@ -250,6 +250,9 @@ app_update_world_viewport(struct App* app)
                 app->emit.cmds[i].rotation_r2pi2048);
         }
     }
+    /* The map editor's World panel owns the world rect while its panels show
+     * (app_map_editor.c); before the projection scale reads it. */
+    App_MapEditorWorldView(app);
     /* Recomputes the projection scale from the world viewport height, the
      * reference behaviour (TORIRS_WEDGE_SCALE=off reverts to constant 512). */
     app_apply_wedge_scale(app);

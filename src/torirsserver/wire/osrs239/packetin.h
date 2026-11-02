@@ -201,6 +201,7 @@ static const struct Osrs239PacketInDef g_packet_in_definitions_osrs239[] = {
     {  126, PKTIN_LENGTH_VARU16,   PKT_NAME_NONE,                       "HISCORE_REPLY" },
     {   93, 2,                     PKT_NAME_NONE,                       "PACKET_GROUP_START" },
     {   24, PKTIN_LENGTH_VARU8,    PKT_NAME_NONE,                       "UNKNOWN_STRING" },
+    {  237, PKTIN_LENGTH_VARU16,   PKT_NAME_CACHE_INVALIDATE,           "CACHE_INVALIDATE" },
 };
 /* clang-format on */
 

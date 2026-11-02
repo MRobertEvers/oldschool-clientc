@@ -199,8 +199,11 @@ def prepare_via_run_live(manifest_path, repo_root, env=None):
     process_env["TORIRS_PREPARE_ONLY"] = "1"
     if env:
         process_env.update({str(k): str(v) for k, v in env.items()})
+    # Through /bin/sh rather than by its own executable bit: a checkout made
+    # with core.fileMode off, or a commit that recorded the file as 100644,
+    # must not turn every `./launch run` into EACCES (2026-11-02).
     proc = subprocess.run(
-        ["./run-live.sh", manifest_path], cwd=repo_root, env=process_env)
+        ["/bin/sh", "./run-live.sh", manifest_path], cwd=repo_root, env=process_env)
     if proc.returncode != 0:
         return False, "run-live.sh preparation exited %d" % proc.returncode
     return True, "prepared via run-live.sh"

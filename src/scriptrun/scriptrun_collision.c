@@ -72,6 +72,24 @@ loc_config(int loc_id)
     return g_locs[loc_id];
 }
 
+int
+ScriptrunCore_LocConfigsInvalidate(void)
+{
+    int dropped = 0;
+
+    /* Nothing keeps one of these across a packet: placements hold loc ids and
+     * resolve_loc/placed_config hand them out for the length of a call. */
+    for( int i = 0; i < g_locs_count; i++ )
+    {
+        if( !g_locs[i] )
+            continue;
+        ToriRS_LocationFree(g_locs[i]);
+        g_locs[i] = NULL;
+        dropped++;
+    }
+    return dropped;
+}
+
 /* VarPManager_ResolveTransform over the bot's own varps, walked as
  * world_builder_resolve_loc does; NULL when the rung selects no loc. */
 static struct ToriRS_Location*

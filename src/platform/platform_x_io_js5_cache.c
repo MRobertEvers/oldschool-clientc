@@ -8,6 +8,7 @@
 #include <dat2disk.h>
 
 #include <stdlib.h>
+#include "log/torirs_log.h"
 #include <string.h>
 
 struct PlatformXIOJs5Cache
@@ -18,6 +19,9 @@ struct PlatformXIOJs5Cache
     size_t failed_group_count;
     size_t failed_group_capacity;
     int adapter_failed;
+    /* TORIRS_CACHE_INVALIDATE_DEBUG: archives re-primed since the last
+     * metadata-ready tick, so the fetches that answer them are logged. */
+    int watch_reprime;
 };
 
 static void
@@ -117,6 +121,18 @@ PlatformXIOJs5Cache_Tick(
     {
         if( completion.kind == JS5_COMPLETION_ERROR && completion.archive < 255u )
             js5_cache_record_group_failure(cache, completion.archive, completion.group);
+        /* After a live invalidation: what the re-prime fetched, by address. */
+        if( cache->watch_reprime && completion.from_network &&
+            (completion.kind == JS5_COMPLETION_MASTER_READY ||
+             completion.kind == JS5_COMPLETION_REFERENCE_READY ||
+             completion.kind == JS5_COMPLETION_GROUP_READY) )
+            TORIRS_REPORT("cache invalidate: js5 fetched %u/%u (%u bytes)\n",
+                       completion.kind == JS5_COMPLETION_REFERENCE_READY ? 255u
+                                                                         : completion.archive,
+                       completion.kind == JS5_COMPLETION_REFERENCE_READY
+                           ? completion.archive
+                           : completion.group,
+                       completion.bytes);
     }
     return cache->adapter_failed ? -1 : result;
 }
@@ -156,6 +172,26 @@ PlatformXIOJs5Cache_GroupFailed(
         if( cache->failed_groups[i] == key )
             return true;
     return false;
+}
+
+bool
+PlatformXIOJs5Cache_Invalidate(
+    struct PlatformXIOJs5Cache* cache,
+    int archive)
+{
+    size_t kept = 0;
+
+    assert(cache);
+    assert(archive >= 0);
+    assert(archive < 255);
+    /* A group that failed against the old table may well exist in the new
+     * one: forget the failures of this archive with its table. */
+    for( size_t i = 0; i < cache->failed_group_count; i++ )
+        if( (int)(cache->failed_groups[i] >> 16u) != archive )
+            cache->failed_groups[kept++] = cache->failed_groups[i];
+    cache->failed_group_count = kept;
+    cache->watch_reprime = getenv("TORIRS_CACHE_INVALIDATE_DEBUG") != NULL;
+    return Js5ClientInvalidateArchive(cache->client, archive);
 }
 
 bool

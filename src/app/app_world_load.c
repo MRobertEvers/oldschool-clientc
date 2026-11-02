@@ -358,7 +358,13 @@ app_world_load_begin(
     if( app->editor )
     {
         for( int i = 0; i < chunk_pair_count; i++ )
+        {
             Editor_LoadSquare(app->editor, app->provider, chunks_xz[i * 2], chunks_xz[i * 2 + 1]);
+            /* EDIT layout: the square's first shadow, taken with the seed so
+             * the flush can tell what later commands changed. A no-op under
+             * STATIC and for a square that already has one. */
+            app_map_editor_shadow_seed(app, chunks_xz[i * 2], chunks_xz[i * 2 + 1]);
+        }
     }
 
     task = CreateTask_WorldLoad(

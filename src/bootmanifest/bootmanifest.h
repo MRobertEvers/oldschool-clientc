@@ -39,7 +39,7 @@
  *                when the resolved primary is 43594; 0 explicitly disables it.
  *   [editor:boot] content_dir=<path>  repo_root=<path>
  *                server=embed|tcp  host=<h>  port=<n>  client=<n>
- *                panel=inprocess|tab
+ *                panel=inprocess|tab|view  camera=<x,z,level,yaw,pitch,zoom>
  *                Turn on the world map editor. The editor is a client of the
  *                ToriRSMapEd server: `server=embed` (default) hosts it in
  *                this process over `content_dir`, `server=tcp` dials a
@@ -47,6 +47,17 @@
  *                choosing the game server. Stating `content_dir` (or
  *                server=tcp) is what enables it; `repo_root` additionally
  *                allows baking, which only ever runs when the user asks for it.
+ *                `panel=view` boots a VIEWER window instead (design #windows):
+ *                no command panel, the thin view toolbar, joined to another
+ *                window's Client over server=tcp; `camera=` is where it
+ *                starts looking (the client's --editor-view / --camera).
+ *   [world:boot] layout=static|edit
+ *                Which world builder fills the scene (docs/MAPED_DESIGN.html
+ *                #world). `static` (the default, every game manifest) bakes a
+ *                window and rebuilds whole windows; `edit` (the map editor
+ *                manifests) keeps the build maps resident and applies a tile or
+ *                loc edit as a local invalidation. The client's
+ *                `--world-layout static|edit` overrides it.
  *
  *   [features:boot] era=lostcity|osrs|server_routed
  *                 Client-behaviour generation (src/features/features.h): who
@@ -182,6 +193,14 @@ enum BootManifestEditorServer
     BOOTMANIFEST_EDITOR_SERVER_TCP
 };
 
+/** Which world builder `[world:boot] layout=` names: enum WorldBuilderLayout's
+ *  values, spelled here so this parser links no world code. */
+enum BootManifestWorldLayout
+{
+    BOOTMANIFEST_WORLD_LAYOUT_STATIC = 0,
+    BOOTMANIFEST_WORLD_LAYOUT_EDIT = 1,
+};
+
 /** Where `[editor:boot] panel=` puts the command panel. */
 enum BootManifestEditorPanel
 {
@@ -196,7 +215,15 @@ enum BootManifestEditorPanel
      * silently ignored -- a native binary has no tab to open, and a manifest
      * that asks for one is stating an intent this build cannot honour.
      */
-    BOOTMANIFEST_EDITOR_PANEL_TAB
+    BOOTMANIFEST_EDITOR_PANEL_TAB,
+    /**
+     * A VIEWER window (design #windows; editor/editor_view.h): no command
+     * panel, the thin view toolbar instead, joined to another window's Client
+     * -- so it needs server=tcp, and the load refuses it with an embedded
+     * server, which has no other window to join. The client's
+     * `--editor-view` sets the same.
+     */
+    BOOTMANIFEST_EDITOR_PANEL_VIEW
 };
 
 #define BOOTMANIFEST_DEBUG_ACTION_MAX 64
@@ -349,6 +376,14 @@ struct BootManifest
      * context that has to be opened before it can be talked to.
      */
     enum BootManifestEditorPanel editor_panel;
+    /**
+     * `[editor:boot] camera=` -- where a view starts looking, as the text
+     * "x,z,level,yaw,pitch,zoom" (torirsmaped/torirs_maped_view.h has the
+     * layout). Kept as text: this parser links no editor code, so the client
+     * parses it at boot (main.c, beside `--camera`, which wins) and refuses a
+     * bad one there. "" = none.
+     */
+    char editor_camera[96];
 
     /**
      * `[chrome] executor=` -- enum ToriRSChromeExecKind for the plugin window.
@@ -371,6 +406,12 @@ struct BootManifest
     int chrome_executor_error;
     /** Set when `panel=` named something unknown; the load fails on it. */
     int editor_panel_error;
+
+    /** `[world:boot] layout=`: the world builder this boot uses. STATIC when
+     *  the key is absent. */
+    enum BootManifestWorldLayout world_layout;
+    /** Set when `layout=` named something unknown; the load fails on it. */
+    int world_layout_error;
 
     /* [content:lanes] — which gated content lanes `server_scripts` above was
      * compiled from, one `lane=` per line.

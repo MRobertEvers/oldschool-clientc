@@ -66,16 +66,14 @@ test_undo_restores_procedural_absence(void)
     check(square->tiles[index].has_height == 0, "tile starts with no authored height");
 
     memset(&command, 0, sizeof(command));
-    command.kind = EDITOR_CMD_TILE;
-    command.map_x = 50;
-    command.map_z = 50;
-    command.level = 0;
-    command.x = 10;
-    command.z = 12;
-    command.tile_before = square->tiles[index];
-    command.tile_after = square->tiles[index];
-    command.tile_after.has_height = 1;
-    command.tile_after.height = 42;
+    Editor_CmdInitSquare(&command, EDITOR_CMD_TILE, 50, 50);
+    command.u.tile.level = 0;
+    command.u.tile.x = 10;
+    command.u.tile.z = 12;
+    command.u.tile.before = square->tiles[index];
+    command.u.tile.after = square->tiles[index];
+    command.u.tile.after.has_height = 1;
+    command.u.tile.after.height = 42;
 
     Editor_CmdApply(&g_doc, &command, EDITOR_CMD_FORWARD);
     Editor_UndoPush(&undo, &command);
@@ -144,13 +142,11 @@ test_stroke_undoes_as_one_step(void)
         int index = Editor_TileIndex(i, 0, 0);
 
         memset(&command, 0, sizeof(command));
-        command.kind = EDITOR_CMD_TILE;
-        command.map_x = 50;
-        command.map_z = 50;
-        command.x = i;
-        command.tile_before = square->tiles[index];
-        command.tile_after = square->tiles[index];
-        command.tile_after.underlay_id = 9;
+        Editor_CmdInitSquare(&command, EDITOR_CMD_TILE, 50, 50);
+        command.u.tile.x = i;
+        command.u.tile.before = square->tiles[index];
+        command.u.tile.after = square->tiles[index];
+        command.u.tile.after.underlay_id = 9;
 
         Editor_CmdApply(&g_doc, &command, EDITOR_CMD_FORWARD);
         Editor_UndoPush(&undo, &command);
@@ -178,15 +174,13 @@ test_loc_commands(void)
     Editor_UndoInit(&undo);
 
     memset(&command, 0, sizeof(command));
-    command.kind = EDITOR_CMD_LOC;
-    command.map_x = 50;
-    command.map_z = 50;
+    Editor_CmdInitSquare(&command, EDITOR_CMD_LOC, 50, 50);
     command.has_after = 1;
-    command.loc_after.loc_id = 1234;
-    command.loc_after.shape = 10;
-    command.loc_after.rotation = 2;
-    command.loc_after.x = 5;
-    command.loc_after.z = 6;
+    command.u.loc.after.loc_id = 1234;
+    command.u.loc.after.shape = 10;
+    command.u.loc.after.rotation = 2;
+    command.u.loc.after.x = 5;
+    command.u.loc.after.z = 6;
 
     Editor_CmdApply(&g_doc, &command, EDITOR_CMD_FORWARD);
     Editor_UndoPush(&undo, &command);
@@ -228,37 +222,35 @@ test_rebuild_span_crosses_borders(void)
     int count;
 
     memset(&command, 0, sizeof(command));
-    command.kind = EDITOR_CMD_TILE;
-    command.map_x = 50;
-    command.map_z = 50;
+    Editor_CmdInitSquare(&command, EDITOR_CMD_TILE, 50, 50);
 
     /* Interior height edit: nothing else needs rebuilding. */
-    command.x = 32;
-    command.z = 32;
-    command.tile_after.has_height = 1;
-    command.tile_after.height = 5;
+    command.u.tile.x = 32;
+    command.u.tile.z = 32;
+    command.u.tile.after.has_height = 1;
+    command.u.tile.after.height = 5;
     count = Editor_CmdRebuildSpan(&command, coords, 16);
     check(count == 1, "interior edit rebuilds one square");
 
     /* Height edit on the west edge: the neighbour shares that corner. */
-    command.x = 0;
-    command.z = 32;
+    command.u.tile.x = 0;
+    command.u.tile.z = 32;
     count = Editor_CmdRebuildSpan(&command, coords, 16);
     check(count == 2, "edge height edit rebuilds the neighbour too");
 
     /* Underlay edit four tiles in: inside the blend window, so it still
      * reaches across even though the tile is not on the border. */
-    memset(&command.tile_after, 0, sizeof(command.tile_after));
-    memset(&command.tile_before, 0, sizeof(command.tile_before));
-    command.tile_after.underlay_id = 12;
-    command.x = 4;
-    command.z = 32;
+    memset(&command.u.tile.after, 0, sizeof(command.u.tile.after));
+    memset(&command.u.tile.before, 0, sizeof(command.u.tile.before));
+    command.u.tile.after.underlay_id = 12;
+    command.u.tile.x = 4;
+    command.u.tile.z = 32;
     count = Editor_CmdRebuildSpan(&command, coords, 16);
     check(count == 2, "underlay edit near the seam rebuilds the neighbour");
 
     /* A corner touches three other squares. */
-    command.x = 0;
-    command.z = 0;
+    command.u.tile.x = 0;
+    command.u.tile.z = 0;
     count = Editor_CmdRebuildSpan(&command, coords, 16);
     check(count == 4, "corner edit rebuilds three neighbours");
 

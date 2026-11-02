@@ -57,9 +57,13 @@ LibToriRS_OsrsKeyFromVk(int vk);
  *
  * Resolves name -> VK -> OSRS through the one table above rather than carrying
  * a second mapping. OSRS codes are also what LibToriRS_Input.osrs_key_pressed
- * is indexed by, and that array (unlike enum LibToriRS_KeyCode) already covers
- * the F-keys -- see the note on sdl_keycode_to_vk about not growing
- * TORIRSK_COUNT.
+ * is indexed by: the cache's own keymap, which CS2 and revconfig speak.
+ * enum LibToriRS_KeyCode is the other space -- the platform-neutral edge/held
+ * arrays -- and since 2026-10-31 it names the F-keys, Home/End, Alt and the
+ * punctuation too (LibToriRS_KeyCodeName / LibToriRS_KeyCodeFromName in
+ * torirs_input.h, the editor's and the manifest's vocabulary). The two stay
+ * separate: the OSRS arrays cover keys the enum never names (the numpad), and
+ * the enum names keys the OSRS table leaves unmapped (brackets, slash, grave).
  */
 int
 LibToriRS_OsrsKeyFromName(char const* name);

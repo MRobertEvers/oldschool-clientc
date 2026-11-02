@@ -47,6 +47,10 @@ struct Editor
      *  editing is useful — it just cannot save. */
     int writable;
 
+    /** FACT_HELLO v2's TORIRSMAPED_CAP_* bits: which optional server
+     *  bindings (build, live, catalog, spawn_view) exist. */
+    uint32_t capabilities;
+
     /** Where shared-state facts land (the panel registers here). May be
      *  NULL; the session still mirrors nothing for state — semantics are
      *  the registrant's. */
@@ -72,6 +76,17 @@ struct Editor
      */
     int rebuild_queue[EDITOR_REBUILD_QUEUE_MAX * 2];
     int rebuild_count;
+
+    /** The undo groups as this mirror saw them (editor_cmd.h Editor_History):
+     *  derived from the FACT_CMD stream and this session's own intents, for
+     *  the History panel. The authority's stack is still the only one Undo
+     *  and Redo act on. */
+    struct Editor_History history;
+    /** Inside an intent (Apply, Undo, Redo, a create): the facts its pump
+     *  drains are this window's, not a batch from elsewhere. */
+    int history_intent;
+    /** Between StrokeBegin and StrokeEnd: the facts join one group. */
+    int history_stroke;
 };
 
 /**
@@ -133,6 +148,63 @@ Editor_LoadSquare(
     int map_z);
 
 /**
+ * Open any document in the mirror — a square (without seeding the provider;
+ * Editor_LoadSquare does that), a spawn file, a config record, an interface,
+ * a script — by asking the authority for its current text (DOC_OPEN).
+ * Re-opening a loaded document re-syncs it from the authority. A SQUARE key
+ * may carry its storage ("ported/<lane>/maps/m16_101").
+ *
+ * Returns 1 on success.
+ */
+int
+Editor_OpenDoc(
+    struct Editor* editor,
+    enum Editor_DocKind kind,
+    const char* key);
+
+/** Tell the authority this session no longer looks at (kind, key). The
+ *  mirror keeps its copy. */
+void
+Editor_CloseDoc(
+    struct Editor* editor,
+    enum Editor_DocKind kind,
+    const char* key);
+
+/** Save one document on the authority. Returns 1 when written, 0 when it had
+ *  nothing unsaved, -1 when the server is read-only or the save failed. */
+int
+Editor_SaveDoc(
+    struct Editor* editor,
+    enum Editor_DocKind kind,
+    const char* key);
+
+/**
+ * New square (design #squares): DOC_CREATE on the authority with the storage
+ * and template the New dialog chose, then open the created square in this
+ * mirror. EDITOR_HOST_REFUSED when the key already exists in that storage.
+ * Nothing is written to disk until a save.
+ */
+enum EditorHost_Status
+Editor_CreateSquare(
+    struct Editor* editor,
+    const struct EditorHost_DocCreate* request);
+
+/**
+ * Copy a loc / npc / obj definition (CFG "<type>:<name>") to `new_name` with
+ * a fresh id: SAVE_AS on the authority (one undo step: the id line, the
+ * client membership line, the new block with every field of the source),
+ * then open "<type>:<new_name>" in this mirror. `out_id` (may be NULL) gets
+ * the new id. EDITOR_HOST_REFUSED when the name is taken or not a name.
+ */
+enum EditorHost_Status
+Editor_CopyRecord(
+    struct Editor* editor,
+    const char* type,
+    const char* name,
+    const char* new_name,
+    int* out_id);
+
+/**
  * Apply an edit: submit it to the authority, and on acceptance apply its
  * echo to the mirror, mark dirty, and queue the squares it invalidates —
  * the same three effects the local apply used to have, now guaranteed to
@@ -156,6 +228,18 @@ Editor_Redo(struct Editor* editor);
 /** Group every command until StrokeEnd into one undo step (a brush drag). */
 void
 Editor_StrokeBegin(struct Editor* editor);
+
+/** The mirror's derived history (read only): one summary per undo group,
+ *  `applied` the position, `serial` bumping on every change. */
+const struct Editor_History*
+Editor_GetHistory(const struct Editor* editor);
+
+/** Name the action the open (or next) undo group records -- "Raise",
+ *  "nudge locs" -- for the History panel's row. Affects nothing else. */
+void
+Editor_HistoryName(
+    struct Editor* editor,
+    const char* verb);
 
 void
 Editor_StrokeEnd(struct Editor* editor);
@@ -202,14 +286,14 @@ Editor_DrainRebuilds(
     int max);
 
 /**
- * Write every dirty square back to the content tree as text.
+ * Write every dirty document back to the content tree as text.
  *
  * Only the halves that changed are written — a terrain edit does not rewrite
  * the square's `.jl2` — and each file lands atomically. Saving does NOT bake:
  * the cache the game reads is updated only by Editor_Bake, which the user asks
  * for explicitly.
  *
- * Returns the number of squares saved, or -1 when the session is read-only.
+ * Returns the number of documents saved, or -1 when the session is read-only.
  */
 int
 Editor_SaveAll(struct Editor* editor);

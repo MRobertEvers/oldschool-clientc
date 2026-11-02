@@ -29,6 +29,13 @@
 //                                 derive from it (default: this page's directory)
 //   ?ws=wss://host/path | ?ws=ws  the game socket's URL; JS5 follows it
 //   ?js5_host= ?js5_port= ?js5_url=   where JS5 is, when not the page's host
+//   ?editor_view=1&maped=wss://host/path&group=N[&camera=x,z,level,yaw,pitch,zoom]
+//                                 a map-editor VIEW tab (docs/MAPED_DESIGN.html
+//                                 #windows): the editor manifest booted with
+//                                 --editor-view, joined to Client N on the
+//                                 torirsmaped daemon at `maped` -- see
+//                                 editorViewBoot; `manifest=` picks another
+//                                 editor manifest
 //
 // A tab that is already logged in appends its own `--user`/`--pass` to that
 // command line when the page is reloaded -- see createResumeSession.
@@ -237,11 +244,88 @@
     return out;
   }
 
+  /*
+   * A map-editor VIEW tab (docs/MAPED_DESIGN.html #windows, editor/editor_view.h).
+   *
+   * ?editor_view=1&maped=<url>&group=<id>[&camera=<pose>] boots the page the
+   * way the launch service boots a native viewer: the editor manifest (or
+   * `manifest=`, or whatever arg=/args= say) plus
+   *
+   *     --editor-view --maped <url> --maped-group <id> [--camera <pose>]
+   *
+   * so main() opens no game connection and joins Client <id> on the
+   * torirsmaped daemon as a viewer. A browser has no TCP: emscripten turns the
+   * client's connect() into a WebSocket, so a ws:// or wss:// `maped` is also
+   * handed to the runtime as the socket's URL (Module.websocket, below), which
+   * reaches a daemon behind a reverse proxy by path. A relative `maped`
+   * resolves against this page like `ws=` does. tcp://host:port is passed
+   * through as written (a page on the daemon's own host, dialled at its port).
+   *
+   * Returns { args, socketUrl, error }: the command line, the socket URL the
+   * runtime should dial (null to leave it alone), and why the request is
+   * unusable (the args then boot the editor manifest without a view, which
+   * main() refuses with its own message -- the page says so as well).
+   */
+  function resolveSocketUrl(given, location) {
+    if (/^wss?:\/\//.test(given)) { return given; }
+    const scheme = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    return scheme + location.host + new URL(given, location.href).pathname;
+  }
+
+  const EDITOR_VIEW_MANIFEST = 'manifests/manifest_osrs241_mapeditor.ini';
+
+  function editorViewBoot(query, argv, location) {
+    if (query.get('editor_view') !== '1') { return { args: argv, socketUrl: null, error: null }; }
+    const explicit = query.getAll('arg').length > 0 || query.has('args');
+    const out = explicit ? argv.slice()
+                         : ['--manifest', query.get('manifest') || EDITOR_VIEW_MANIFEST];
+    const maped = query.get('maped');
+    if (!maped) {
+      return { args: out, socketUrl: null,
+               error: 'editor_view=1 needs maped=<the torirsmaped daemon\'s ws:// or wss:// URL>' };
+    }
+    let socketUrl = null;
+    let mapedArg = maped;
+    if (!/^tcp:\/\//.test(maped)) {
+      socketUrl = resolveSocketUrl(maped, location);
+      mapedArg = socketUrl;
+    }
+    out.push('--editor-view', '--maped', mapedArg);
+    const group = query.get('group');
+    if (group && /^[1-9][0-9]*$/.test(group)) { out.push('--maped-group', group); }
+    const camera = query.get('camera');
+    if (camera) { out.push('--camera', camera); }
+    return { args: out, socketUrl, error: null };
+  }
+
+  /*
+   * The URL of a new view tab of this editor session: this page with the view
+   * query, carrying over where this page finds its servers (io, JS5, env) and
+   * which manifest it booted, so the tab boots the same world.
+   */
+  function editorViewUrl(pageHref, query, manifest, maped, group, camera) {
+    const url = new URL(pageHref);
+    const next = new URLSearchParams();
+    ['io', 'js5_host', 'js5_port', 'js5_url', 'js5_revision', 'js5_delay', 'env'].forEach(key => {
+      query.getAll(key).forEach(value => next.append(key, value));
+    });
+    next.set('editor_view', '1');
+    next.set('maped', maped);
+    if (group) { next.set('group', String(group)); }
+    if (camera) { next.set('camera', camera); }
+    if (manifest) { next.set('manifest', manifest); }
+    url.search = next.toString();
+    url.hash = '';
+    return url.toString();
+  }
+
   const resumeSession = createResumeSession(sessionStorageOrNull());
   /* The page's own command line, plus whatever session this tab is still in.
    * `--resume` is what makes it a reconnect rather than a login, and the
-   * client's title screen keeps its loading bar up for it. */
-  const args = resumeSession.boot(readArgs());
+   * client's title screen keeps its loading bar up for it. An editor view tab
+   * replaces it with the viewer's (editorViewBoot). */
+  const editorView = editorViewBoot(params, resumeSession.boot(readArgs()), window.location);
+  const args = editorView.args;
   /* C -> page, from app/app_session_resume.c. Both are one-liners here because
    * the rules about what may be kept are the comment above createResumeSession,
    * and the rules about WHEN belong to the client. */
@@ -534,7 +618,8 @@
           argument === '--connect' || argument === '--user' ||
           argument === '--pass' || argument === '--rev' ||
           argument === '--windowmode' || argument === '--window' ||
-          argument === '--replay';
+          argument === '--replay' || argument === '--maped' ||
+          argument === '--maped-group' || argument === '--camera';
       }
 
       async function takeArgFiles(argv) {
@@ -811,6 +896,10 @@
     return scheme + window.location.host + new URL(given, window.location.href).pathname;
   })();
   if (gameWsUrl) { Module.websocket = { url: gameWsUrl }; }
+  /* A view tab opens no game socket (main() refuses one beside --editor-view),
+   * so the runtime's one socket URL is the daemon's. ws= still wins: it names
+   * the socket explicitly. */
+  else if (editorView.socketUrl) { Module.websocket = { url: editorView.socketUrl }; }
 
   /*
    * JS5 rides the same socket. The game server serves JS5 and the game on one
@@ -1081,6 +1170,58 @@
     controls.hidden = false;
     log('memtrace: heap tracing is on — "heap profile" opens the viewer');
   }
+
+  // ------------------------------------------------------------- editor views
+
+  /*
+   * "Spawn view": open a new view tab of this editor session (design #windows:
+   * a page cannot start a process, so on the web a view is a tab). Called
+   * from C (editor/editor_view.c EditorView_AppSpawn, through
+   * torirs_editor_view_spawn for the header button) with the pose as
+   * x,z,level,yaw,pitch,zoom, the Client id, and this boot's own maped
+   * address for a page that was not given one in its query.
+   */
+  window.torirsSpawnEditorView = (camera, group, fallbackMaped) => {
+    const maped = params.get('maped') || editorView.socketUrl ||
+      (Module.websocket && Module.websocket.url) || fallbackMaped;
+    if (!maped) {
+      log('editor view: this page does not know its torirsmaped address (maped=)', true);
+      return false;
+    }
+    const at = args.indexOf('--manifest');
+    const manifest = at >= 0 && at + 1 < args.length ? args[at + 1] : null;
+    const tab = window.open(
+      editorViewUrl(window.location.href, params, manifest, maped, group, camera), '_blank');
+    if (!tab) {
+      log('editor view: the view tab was blocked -- allow popups for this site', true);
+      return false;
+    }
+    log(`editor view: opened a view of Client ${group || '(new)'}` +
+        (camera ? ` at ${camera}` : ''));
+    return true;
+  };
+
+  /* The header button: shown on an editor boot that talks to a daemon (the
+   * only kind a second tab can join). C picks the pose and the Client; a
+   * build without the export falls back to the page's own group= and no pose. */
+  function installEditorViewButton() {
+    const controls = document.getElementById('editorview');
+    const mapedBoot = args.indexOf('--maped') >= 0 || params.has('maped');
+    if (!controls || !mapedBoot) { return; }
+    document.getElementById('btn-spawn-view').onclick = () => {
+      if (typeof Module._torirs_editor_view_spawn === 'function') {
+        if (!Module._torirs_editor_view_spawn()) {
+          log('editor view: no editor session in this tab to open a view of', true);
+        }
+        return;
+      }
+      window.torirsSpawnEditorView('', params.get('group'), null);
+    };
+    controls.hidden = false;
+  }
+
+  if (editorView.error) { log(`torirs: ${editorView.error}`, true); }
+  installEditorViewButton();
 
   Module.setStatus = text => { if (text) { setStatus(text); } };
 })();

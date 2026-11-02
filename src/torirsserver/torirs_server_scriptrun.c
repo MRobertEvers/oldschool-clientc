@@ -4,6 +4,7 @@
  *
  *   torirsserver --scriptrun <test.lua> [--bots N] [--name NAME] [--ticks N]
  *                [--script-root DIR] [--session DIR] [--quiet]
+ *                [--tick-ms N] [--control-port N]
  *
  * THE BOT. One sessionless player per seat (as the bot runner makes them,
  * torirs_server_botrun.c), each with
@@ -25,12 +26,23 @@
  * re-tested and its script resumed, inputs land through the packet door, then
  * the world ticks and its packets reach the bots. A script acting on tick n's
  * packets reaches the server on tick n + 1, as a client's click would.
+ * `--tick-ms N` paces the loop to at least N ms a tick instead (600 is a live
+ * server's clock), for a run something outside the process acts on.
+ *
+ * THE CONTROL LINK. `--control-port N` listens on 127.0.0.1:N for the game
+ * server's control link (torirs_server_control.h, first byte 0xED): the editor
+ * server's live link attaches to a running scriptrun exactly as it does to a
+ * socket host, and a RELOAD reaches the bots' world at the next tick
+ * boundary. No game logins are taken on that port; a connection whose first
+ * byte is not 0xED is closed.
  */
 
 #include "torirs_server.h"
 #include "mem/torirs_mem.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_content.h"
+#include "torirs_server_control.h"
+#include "torirs_server_host.h"
 #include "torirs_server_wire.h"
 #include "torirs_server_scene.h"
 #include "torirs_server_save.h"
@@ -5541,6 +5553,9 @@ ToriRSServer_ScriptRun(
     char const* name = "srun";
     int bots = 1;
     int ticks_max = 6000;
+    int tick_ms = 0;
+    int control_port = 0;
+    int control_fd = -1;
     int64_t started;
     int ticks_run = 0;
     int status = 0;
@@ -5553,7 +5568,8 @@ ToriRSServer_ScriptRun(
     if( argc < 3 )
     {
         fprintf(stderr, "usage: torirsserver --scriptrun <test.lua> [--bots N] [--name NAME] "
-                        "[--ticks N] [--script-root DIR] [--session DIR] [--quiet]\n");
+                        "[--ticks N] [--script-root DIR] [--session DIR] [--quiet] "
+                        "[--tick-ms N] [--control-port N]\n");
         return 2;
     }
     run.test_path = argv[2];
@@ -5573,6 +5589,10 @@ ToriRSServer_ScriptRun(
             run.fixture = argv[++i];
         else if( strcmp(argv[i], "--quiet") == 0 )
             run.quiet = 1;
+        else if( strcmp(argv[i], "--tick-ms") == 0 && i + 1 < argc )
+            tick_ms = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--control-port") == 0 && i + 1 < argc )
+            control_port = atoi(argv[++i]);
         else if( strcmp(argv[i], "--check-collision") == 0 )
             run.check_collision = 1;
     }
@@ -5746,10 +5766,34 @@ ToriRSServer_ScriptRun(
         }
     }
 
+    if( control_port < 0 || control_port > 65535 )
+    {
+        fprintf(stderr, "scriptrun: --control-port must be 1..65535\n");
+        status = 2;
+        goto out;
+    }
+    if( control_port > 0 )
+    {
+        control_fd = ToriRSServer_ControlListenOpen(control_port);
+        if( control_fd < 0 )
+        {
+            status = 2;
+            goto out;
+        }
+    }
     started = now_ms();
     for( int t = 0; t < ticks_max; t++ )
     {
         int live = 0;
+        int64_t tick_started = now_ms();
+
+        /* SIGTERM / SIGINT (torirs_server_main.c): a launched lane is stopped
+         * that way by the editor server's LIVE_DETACH. */
+        if( ToriRSServer_HostShutdownRequested() )
+        {
+            fprintf(stderr, "scriptrun: stopped by a signal at tick %d\n", t);
+            break;
+        }
 
         for( int i = 0; i < run.count; i++ )
             relog_tick(&run, &run.bots[i]);
@@ -5806,8 +5850,23 @@ ToriRSServer_ScriptRun(
         }
         for( int i = 0; i < run.count; i++ )
             flush_inputs(&run.bots[i]);
+        /* Before the tick: its first step (ToriRSServer_ControlTick) reads
+         * what an adopted link sent. */
+        if( control_fd >= 0 )
+            ToriRSServer_ControlListenPump(control_fd);
         ToriRSServer_WorldTick(srv);
         ticks_run++;
+        if( tick_ms > 0 )
+        {
+            int64_t left = tick_ms - (now_ms() - tick_started);
+            if( left > 0 )
+            {
+                struct timespec pause;
+                pause.tv_sec = (time_t)(left / 1000);
+                pause.tv_nsec = (long)((left % 1000) * 1000000);
+                nanosleep(&pause, NULL);
+            }
+        }
     }
     if( getenv("TORIRS_SCRIPTRUN_DEBUG") )
     {
@@ -5859,6 +5918,11 @@ ToriRSServer_ScriptRun(
         status = failed ? 1 : 0;
     }
 out:
+    if( control_fd >= 0 )
+    {
+        ToriRSServer_ControlListenClose(control_fd);
+        ToriRSServer_ControlCloseAll();
+    }
     srv->packet_sink = NULL;
     srv->packet_sink_ctx = NULL;
     for( int i = 0; i < run.count; i++ )

@@ -36,6 +36,63 @@ struct MapEditorGhostSpec
     int angle;
 };
 
+/**
+ * The SPAWN ghost: the npc or obj a Place click with an npc / obj catalog pick
+ * would add, standing translucent on the hovered tile. A sibling of the loc
+ * ghost rather than a kind of it, because nothing is displaced: actors and
+ * ground items share tiles, so there is no occupant to remember, only the
+ * entity the ghost itself became.
+ *
+ * Placing one is asynchronous (the npc's config and body, the obj's model
+ * load first), so a ghost is PENDING until the caller lands it with the pool
+ * index the world handed back. Taking it down hands that index back so the
+ * caller can despawn exactly what it spawned -- and nothing, when it never
+ * landed.
+ */
+enum MapEditorSpawnKind
+{
+    MAP_EDITOR_SPAWN_NPC = 1,
+    MAP_EDITOR_SPAWN_OBJ = 2,
+};
+
+struct MapEditorSpawnSpec
+{
+    enum MapEditorSpawnKind kind;
+    int id;
+    int scene_x;
+    int scene_z;
+    int level;
+};
+
+struct MapEditorSpawnGhost
+{
+    bool active;
+    struct MapEditorSpawnSpec spec;
+    /** The world pool index it landed as (npc pool, obj-stack pool); -1 while
+     *  pending. */
+    int entity;
+    /** The world it landed in (World.load_seq): a rebuild since freed it. */
+    unsigned load_seq;
+    /** Footprint side in tiles (the npc type's size, 1 for an obj), known
+     *  once landed. */
+    int size;
+    bool faded;
+};
+
+/**
+ * Where the editor's pointer is this frame, as the ghosts and the overlay
+ * read it (the hover tile, or TORIRS_EDITOR_HOVER's in a headless shot), and
+ * the level the next edit writes. Recomputed once per frame by the ghost
+ * update; `valid` 0 when the pointer is off the world or on a panel.
+ */
+struct MapEditorHover
+{
+    bool valid;
+    int scene_x;
+    int scene_z;
+    int level;
+};
+
 struct MapEditorGhost
 {
     bool active;
@@ -48,8 +105,15 @@ struct MapEditorGhost
      *  there was anyone. */
     bool displaced_valid;
     struct MapEditorGhostSpec displaced;
+
+    /* Siblings the loc functions below never touch (their Reset clears the
+     * loc ghost alone): the App holds every editor preview in this one
+     * field. */
+    struct MapEditorSpawnGhost spawn;
+    struct MapEditorHover hover;
 };
 
+/** Clear everything: the loc ghost, the spawn ghost, the hover. */
 void
 MapEditorGhost_Reset(struct MapEditorGhost* ghost);
 
@@ -112,5 +176,113 @@ MapEditorGhost_NoteFaded(struct MapEditorGhost* ghost);
 /** True while a ghost is up and its fade has not been written yet. */
 bool
 MapEditorGhost_NeedsFade(struct MapEditorGhost const* ghost);
+
+/* ---- the spawn ghost ----------------------------------------------------- */
+
+/** Whether a spawn ghost standing as `want` describes is this one (pending or
+ *  landed). False when none is up. */
+bool
+MapEditorSpawnGhost_Matches(
+    struct MapEditorSpawnGhost const* ghost,
+    struct MapEditorSpawnSpec const* want);
+
+/** Put a spawn ghost up, pending: the caller places the entity and lands it. */
+void
+MapEditorSpawnGhost_Place(
+    struct MapEditorSpawnGhost* ghost,
+    struct MapEditorSpawnSpec const* spec);
+
+/** The placement produced pool index `entity` (>= 0) in world `load_seq`,
+ *  `size` tiles a side. */
+void
+MapEditorSpawnGhost_Land(
+    struct MapEditorSpawnGhost* ghost,
+    int entity,
+    unsigned load_seq,
+    int size);
+
+/** True while up and not landed: the caller keeps trying to place it. */
+bool
+MapEditorSpawnGhost_Pending(struct MapEditorSpawnGhost const* ghost);
+
+/**
+ * Take the spawn ghost down. Returns false when none was up. `*out_entity`
+ * is the pool index to despawn, or -1 when it never landed or landed in a
+ * world `load_seq` no longer is (a rebuild already freed it); `out_spec` says
+ * what and where.
+ */
+bool
+MapEditorSpawnGhost_Remove(
+    struct MapEditorSpawnGhost* ghost,
+    unsigned load_seq,
+    struct MapEditorSpawnSpec* out_spec,
+    int* out_entity);
+
+/* ---- the wander preview ----------------------------------------------------
+ *
+ * How far an npc roams from where it spawns, drawn on the ground: the
+ * WANDER square (every tile within `wanderrange` of the spawn, the npc's own
+ * footprint grown by that much on each side -- the server's roam picks a
+ * destination within wanderrange of the spawn coord on both axes) and the
+ * LEASH square (`maxrange`, how far it follows before it gives up and walks
+ * home) as a fainter outline. Values are the record's server fields; a
+ * record that states none gets the engine's built-in 5 and 7
+ * (torirs_server_content.c npc_def_builtin).
+ *
+ * Shown for the spawn ghost under the pointer, for every selected npc spawn
+ * in the Spawns panel, and at a pending Move's destination. The rectangles
+ * are ABSOLUTE world tiles, inclusive; the App turns them into scene tiles
+ * and draws them (app_overlay.c).
+ */
+
+#define MAP_EDITOR_WANDER_DEFAULT 5
+#define MAP_EDITOR_LEASH_DEFAULT 7
+/** A range past this is clamped for drawing (a square is 2r+1 tiles). */
+#define MAP_EDITOR_WANDER_RANGE_MAX 64
+/** Rectangles one frame draws at most: 64 selected spawns, each with its
+ *  wander and leash squares, plus a move destination's and a ghost's. */
+#define MAP_EDITOR_WANDER_RECTS_MAX 200
+
+enum MapEditorWanderKind
+{
+    /** The tiles the npc roams over: translucent fill and an outline. */
+    MAP_EDITOR_WANDER_AREA = 0,
+    /** The leash: an outline only, fainter. */
+    MAP_EDITOR_WANDER_LEASH = 1,
+    /** Where a pending move puts the spawn itself (its footprint). */
+    MAP_EDITOR_WANDER_FOOTPRINT = 2,
+};
+
+struct MapEditorWanderRect
+{
+    enum MapEditorWanderKind kind;
+    int x0;
+    int z0;
+    int x1;
+    int z1;
+    int level;
+};
+
+/**
+ * The squares of one npc standing at (x, z, level) with a `size` footprint:
+ * its wander area (`wanderrange` < 0 means the default 5; 0 draws no area,
+ * the npc does not roam) and its leash (`maxrange` < 0: the default 7; a
+ * leash no larger than the wander area is not drawn). Writes at most `max`
+ * and returns the count.
+ */
+int
+MapEditorWander_Rects(
+    int x,
+    int z,
+    int level,
+    int size,
+    int wanderrange,
+    int maxrange,
+    struct MapEditorWanderRect* out,
+    int max);
+
+/** Tiles inside a rectangle (what a test counts). */
+int
+MapEditorWander_RectTiles(struct MapEditorWanderRect const* rect);
 
 #endif /* SRC_EDITOR_MAP_EDITOR_GHOST_H */

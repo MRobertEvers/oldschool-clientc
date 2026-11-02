@@ -338,6 +338,7 @@ enum bm_section
     BM_SECTION_RENDER,
     BM_SECTION_CONTENT,
     BM_SECTION_EDITOR,
+    BM_SECTION_WORLD,
     BM_SECTION_CHROME,
     /* Inline RevConfig. Recognised so the keys are not reported as unknown, but
      * never decoded here — revconfig_load_fields_from_ini_prefixed re-reads the
@@ -377,6 +378,8 @@ bm_section_of(char const* header)
         return BM_SECTION_CONTENT;
     if( strncmp(header, "editor:", 7) == 0 )
         return BM_SECTION_EDITOR;
+    if( strncmp(header, "world:", 6) == 0 )
+        return BM_SECTION_WORLD;
     if( strncmp(header, "chrome", 6) == 0 )
         return BM_SECTION_CHROME;
     if( strncmp(header, "revconfig:", 10) == 0 )
@@ -508,11 +511,46 @@ bm_set_kv(
                 bm->editor_panel = BOOTMANIFEST_EDITOR_PANEL_INPROCESS;
             else if( strcmp(value, "tab") == 0 )
                 bm->editor_panel = BOOTMANIFEST_EDITOR_PANEL_TAB;
+            else if( strcmp(value, "view") == 0 )
+                bm->editor_panel = BOOTMANIFEST_EDITOR_PANEL_VIEW;
             else
             {
-                TORIRS_LOG("bootmanifest: [editor:boot] panel must be inprocess|tab, got '%s'\n",
+                TORIRS_LOG(
+                    "bootmanifest: [editor:boot] panel must be inprocess|tab|view, got '%s'\n",
                     value);
                 bm->editor_panel_error = 1;
+            }
+            return;
+        }
+        /* A view's first camera. Text until the client parses it: this file
+         * links no editor code (see BootManifest::editor_camera). */
+        if( strcmp(key, "camera") == 0 )
+        {
+            if( strlen(value) >= sizeof(bm->editor_camera) )
+            {
+                TORIRS_LOG("bootmanifest: [editor:boot] camera is too long: '%s'\n", value);
+                bm->editor_panel_error = 1;
+                return;
+            }
+            snprintf(bm->editor_camera, sizeof(bm->editor_camera), "%s", value);
+            return;
+        }
+        break;
+
+    case BM_SECTION_WORLD:
+        /* Which world builder fills the scene: the game's STATIC bake, or the
+         * map editor's EDIT layout with resident build maps. */
+        if( strcmp(key, "layout") == 0 )
+        {
+            if( strcmp(value, "static") == 0 )
+                bm->world_layout = BOOTMANIFEST_WORLD_LAYOUT_STATIC;
+            else if( strcmp(value, "edit") == 0 )
+                bm->world_layout = BOOTMANIFEST_WORLD_LAYOUT_EDIT;
+            else
+            {
+                TORIRS_LOG("bootmanifest: [world:boot] layout must be static|edit, got '%s'\n",
+                    value);
+                bm->world_layout_error = 1;
             }
             return;
         }
@@ -1074,34 +1112,11 @@ bm_set_kv(
 
     case BM_SECTION_DEBUG_HOTKEYS:
     {
-        enum LibToriRS_KeyCode parsed = TORIRSK_UNKNOWN;
-        static struct
-        {
-            char const* name;
-            enum LibToriRS_KeyCode key;
-        } const named[] = {
-            { "escape",    TORIRSK_ESCAPE    }, { "enter",   TORIRSK_RETURN    },
-            { "return",    TORIRSK_RETURN    }, { "backspace", TORIRSK_BACKSPACE },
-            { "insert",    TORIRSK_INSERT    }, { "delete",  TORIRSK_DELETE    },
-            { "shift",     TORIRSK_SHIFT     }, { "ctrl",    TORIRSK_CTRL      },
-            { "tab",       TORIRSK_TAB       }, { "space",   TORIRSK_SPACE     },
-            { "left",      TORIRSK_LEFT      }, { "right",   TORIRSK_RIGHT     },
-            { "up",        TORIRSK_UP        }, { "down",    TORIRSK_DOWN      },
-            { "page_up",   TORIRSK_PAGE_UP   }, { "page_down", TORIRSK_PAGE_DOWN },
-            { "comma",     TORIRSK_COMMA     },
-        };
+        /* One vocabulary with the editor's hotkeys file and TORIRS_SIM_HOTKEY;
+         * the older spellings ("enter", "page_up", "page_down") are aliases
+         * LibToriRS_KeyCodeFromName accepts. */
+        enum LibToriRS_KeyCode parsed = LibToriRS_KeyCodeFromName(key);
 
-        if( key[0] && !key[1] && key[0] >= 'a' && key[0] <= 'z' )
-            parsed = (enum LibToriRS_KeyCode)(TORIRSK_A + key[0] - 'a');
-        else if( key[0] && !key[1] && key[0] >= '0' && key[0] <= '9' )
-            parsed = (enum LibToriRS_KeyCode)(TORIRSK_0 + key[0] - '0');
-        else
-            for( size_t i = 0; i < sizeof(named) / sizeof(named[0]); i++ )
-                if( strcmp(key, named[i].name) == 0 )
-                {
-                    parsed = named[i].key;
-                    break;
-                }
         if( parsed == TORIRSK_UNKNOWN )
         {
             TORIRS_ERR("bootmanifest: [debug:hotkeys] has unknown key '%s'\n", key);
@@ -1512,6 +1527,8 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
         return -1;
     if( bm->editor_server_error )
         return -1;
+    if( bm->world_layout_error )
+        return -1;
 
     /* server=embed serves `content_dir`, so leaving it out means there is no
      * tree to serve — a manifest mistake to report at load, not a blank
@@ -1524,6 +1541,18 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
         TORIRS_LOG("bootmanifest: '%s' sets [editor:boot] host/port/client without "
             "server=tcp; the embedded ToriRSMapEd has no address and no other "
             "process to share a Client with\n",
+            path);
+        return -1;
+    }
+
+    /* A view joins another window's Client, which only a daemon can share:
+     * the embedded server lives inside one process. */
+    if( bm->editor_panel == BOOTMANIFEST_EDITOR_PANEL_VIEW
+        && bm->editor_server != BOOTMANIFEST_EDITOR_SERVER_TCP )
+    {
+        TORIRS_LOG("bootmanifest: '%s' asks for [editor:boot] panel=view without "
+            "server=tcp; a view joins another window's Client on the torirsmaped "
+            "daemon, and an embedded server has no other window\n",
             path);
         return -1;
     }
@@ -1598,6 +1627,8 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
     if( bm->editor_repo_root[0] )
         cfg->editor_repo_root = bm->editor_repo_root;
     cfg->editor_panel = (int)bm->editor_panel;
+    /* BOOTMANIFEST_WORLD_LAYOUT_* has the values of WORLD_BUILDER_LAYOUT_*. */
+    cfg->world_layout = (int)bm->world_layout;
     cfg->editor_server = (int)bm->editor_server;
     if( bm->editor_server_host[0] )
         cfg->editor_server_host = bm->editor_server_host;

@@ -446,6 +446,13 @@ app_world_paint(struct App* app)
         if( editor_vis_mask )
             level_mask = editor_vis_mask;
     }
+    /* A viewer window's level cap (editor/editor_view.h); 0 = every level. */
+    if( app->editor )
+    {
+        uint8_t const view_mask = EditorView_AppLevelMask(app);
+        if( view_mask )
+            level_mask = view_mask;
+    }
     /* CAM_SHAKE jitter (reference Client-TS 4448): each axis is a sine plus a
      * random spread, and all five compound. It displaces the camera for this
      * frame's draw only — the base position is restored below, or the y axis

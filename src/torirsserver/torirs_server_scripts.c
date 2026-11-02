@@ -40,6 +40,7 @@
 #include "torirs_server_session.h"
 #include "torirs_server_world_internal.h"
 #include "torirs_server_shop.h"
+#include "torirs_server_control.h"
 
 #include "ss_meta.h"
 #include "ss_opcode.h"
@@ -432,6 +433,524 @@ scripts_pack_newer_than_server(const struct SSVM_Provider* provider)
     return count;
 }
 
+static int
+scripts_reserved_queue_violations(const struct SSVM_Provider* provider);
+
+/* ------------------------------------------------------------------ */
+/* Hot reload: a shadow table, swapped at a tick boundary               */
+/* ------------------------------------------------------------------ */
+
+/*
+ * docs/serverpack.md "The hot-reload contract", the script half.
+ *
+ * A reload reads the new script.dat/script.idx into a SHADOW provider under the
+ * pack lock, checks it the way a boot does (reserved queue slots, opcodes this
+ * binary lacks, ids that moved), and only then swaps it in. The swap is two
+ * pointer writes -- `srv->scripts` and the env's provider -- so every trigger
+ * lookup, every queue that fires and every new invocation from the next
+ * instruction on runs the new table.
+ *
+ * What it must not do is free the old one. A state parked in p_pausebutton,
+ * p_delay or a world_delay holds `const struct SSVM_Script*` pointers into the
+ * old table (its current script and every caller frame) and borrowed string
+ * operands; freeing it under them is the use-after-free the once-per-world
+ * guard used to refuse. So the old table is RETIRED: kept, and freed by
+ * ToriRSServer_ScriptsRetireSweep at the first tick boundary at which no
+ * holder -- a player's or npc's active_script, a world_queue slot, the
+ * command state -- still has a frame in it. That scan is the refcount: it
+ * cannot drift the way a counter bumped on park and dropped on release could,
+ * since it reads the only places a parked state can live.
+ *
+ * A state started before the swap finishes on the old code -- the dialogue the
+ * player was in plays to its end as it was written -- and a gosub it makes is
+ * resolved by id through the env, i.e. in the new table. That is safe because
+ * ids are stable across an incremental build and the build recompiled every
+ * caller (contract points 2 and 4), and it is checked here: a reload whose
+ * table names an id differently from the running one is a renumbered pack and
+ * is refused.
+ *
+ * File-static and keyed by server, not fields on `struct ToriRSServer`
+ * (torirs_server.h is closed to this change): a process holds one world, or a
+ * selftest's one world at a time, and the tables are sized well past that.
+ */
+enum
+{
+    SCRIPTS_RETIRED_MAX = 16,
+    SCRIPTS_STAMP_MAX = 8,
+};
+
+struct ScriptsRetired
+{
+    const struct ToriRSServer* srv;
+    struct SSVM_Provider* provider;
+};
+
+struct ScriptsStamp
+{
+    const struct ToriRSServer* srv;
+    char dir[1024];
+    long long dat_size;
+    long long dat_mtime;
+    unsigned long long dat_ino;
+    long long idx_size;
+    long long idx_mtime;
+};
+
+static struct ScriptsRetired g_scripts_retired[SCRIPTS_RETIRED_MAX];
+static struct ScriptsStamp g_scripts_stamps[SCRIPTS_STAMP_MAX];
+
+static int
+scripts_file_stat(
+    const char* dir,
+    const char* name,
+    long long* size,
+    long long* mtime,
+    unsigned long long* ino)
+{
+    char path[1100];
+    struct stat st;
+
+    snprintf(path, sizeof(path), "%s/%s", dir, name);
+    if( stat(path, &st) != 0 )
+        return 0;
+    *size = (long long)st.st_size;
+    *mtime = (long long)st.st_mtime;
+    if( ino )
+        *ino = (unsigned long long)st.st_ino;
+    return 1;
+}
+
+static struct ScriptsStamp*
+scripts_stamp_slot(
+    const struct ToriRSServer* srv,
+    int create)
+{
+    struct ScriptsStamp* free_slot = NULL;
+
+    for( int i = 0; i < SCRIPTS_STAMP_MAX; i++ )
+    {
+        if( g_scripts_stamps[i].srv == srv )
+            return &g_scripts_stamps[i];
+        if( !g_scripts_stamps[i].srv && !free_slot )
+            free_slot = &g_scripts_stamps[i];
+    }
+    if( !create )
+        return NULL;
+    /* More live worlds than this is a leak of worlds, not a load level. */
+    assert(free_slot);
+    memset(free_slot, 0, sizeof(*free_slot));
+    free_slot->srv = srv;
+    return free_slot;
+}
+
+static void
+scripts_stamp_record(
+    const struct ToriRSServer* srv,
+    const char* dir)
+{
+    struct ScriptsStamp* stamp = scripts_stamp_slot(srv, 1);
+
+    snprintf(stamp->dir, sizeof(stamp->dir), "%s", dir);
+    if( !scripts_file_stat(dir, "script.dat", &stamp->dat_size, &stamp->dat_mtime,
+                           &stamp->dat_ino) )
+        stamp->dat_size = stamp->dat_mtime = -1;
+    if( !scripts_file_stat(dir, "script.idx", &stamp->idx_size, &stamp->idx_mtime, NULL) )
+        stamp->idx_size = stamp->idx_mtime = -1;
+}
+
+/* The same pair of files the running table was read from: same inode, size and
+ * mtime. A build swaps a new pair in by rename, so any rebuild changes the
+ * inode even inside one second. Another spelling of the same directory (the
+ * selftest's `../` fallback) is the same files. */
+static int
+scripts_stamp_same(
+    const struct ToriRSServer* srv,
+    const char* dir)
+{
+    const struct ScriptsStamp* stamp = scripts_stamp_slot(srv, 0);
+    long long dat_size, dat_mtime, idx_size, idx_mtime;
+    unsigned long long dat_ino = 0;
+
+    if( !stamp )
+        return 0;
+    if( !scripts_file_stat(dir, "script.dat", &dat_size, &dat_mtime, &dat_ino) ||
+        !scripts_file_stat(dir, "script.idx", &idx_size, &idx_mtime, NULL) )
+        return 0;
+    return dat_size == stamp->dat_size && dat_mtime == stamp->dat_mtime &&
+           dat_ino == stamp->dat_ino && idx_size == stamp->idx_size &&
+           idx_mtime == stamp->idx_mtime;
+}
+
+void
+ToriRSServer_ScriptsStampText(
+    const struct ToriRSServer* srv,
+    char* out,
+    size_t cap)
+{
+    const struct ScriptsStamp* stamp;
+
+    assert(srv);
+    assert(out);
+    stamp = scripts_stamp_slot(srv, 0);
+    if( !srv->scripts_ok || !stamp )
+    {
+        snprintf(out, cap, "%s", "");
+        return;
+    }
+    snprintf(out, cap, "%lld:%lld:%lld", stamp->dat_size, stamp->dat_mtime, stamp->idx_size);
+}
+
+static int
+script_in_provider(
+    const struct SSVM_Script* script,
+    const struct SSVM_Provider* provider)
+{
+    return script && provider->scripts && script >= provider->scripts &&
+           script < provider->scripts + provider->count;
+}
+
+/* Does this state still execute (or return into) code of `provider`? */
+static int
+state_on_provider(
+    const struct SSVM_State* state,
+    const struct SSVM_Provider* provider)
+{
+    if( !state )
+        return 0;
+    if( script_in_provider(state->script, provider) )
+        return 1;
+    for( int f = 0; f < state->fp && f < SSVM_MAX_FRAMES; f++ )
+        if( script_in_provider(state->frames[f].script, provider) )
+            return 1;
+    return 0;
+}
+
+/* Every place a state outlives the call that started it, i.e. every holder
+ * ToriRSServer_ScriptsFree has to clear (discard_parked_state). */
+static int
+provider_held(
+    const struct ToriRSServer* srv,
+    const struct SSVM_Provider* provider)
+{
+    if( state_on_provider(srv->script_command_state, provider) )
+        return 1;
+    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+        if( state_on_provider(srv->players[i].active_script, provider) )
+            return 1;
+    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+        if( state_on_provider(srv->npcs[i].active_script, provider) )
+            return 1;
+    for( int i = 0; i < TORIRSSERVER_WORLD_QUEUE_MAX; i++ )
+        if( state_on_provider(srv->world_queue[i].state, provider) )
+            return 1;
+    return 0;
+}
+
+static void
+scripts_provider_destroy(struct SSVM_Provider* provider)
+{
+    SSVM_ProviderFree(provider);
+    ToriMem_Free(ToriMem_ServerScripts(), provider);
+}
+
+int
+ToriRSServer_ScriptsRetireSweep(struct ToriRSServer* srv)
+{
+    int still = 0;
+
+    assert(srv);
+    for( int i = 0; i < SCRIPTS_RETIRED_MAX; i++ )
+    {
+        struct ScriptsRetired* retired = &g_scripts_retired[i];
+
+        if( retired->srv != srv || !retired->provider )
+            continue;
+        if( provider_held(srv, retired->provider) )
+        {
+            still++;
+            continue;
+        }
+        fprintf(stderr, "torirsserver: script reload: the previous table is free (no instance "
+                        "left on it)\n");
+        scripts_provider_destroy(retired->provider);
+        retired->provider = NULL;
+        retired->srv = NULL;
+    }
+    return still;
+}
+
+int
+ToriRSServer_ScriptsRetiredCount(const struct ToriRSServer* srv)
+{
+    int count = 0;
+
+    assert(srv);
+    for( int i = 0; i < SCRIPTS_RETIRED_MAX; i++ )
+        if( g_scripts_retired[i].srv == srv && g_scripts_retired[i].provider )
+            count++;
+    return count;
+}
+
+/* The world is going: nothing can be parked on any generation any more. */
+static void
+scripts_retired_free_all(const struct ToriRSServer* srv)
+{
+    for( int i = 0; i < SCRIPTS_RETIRED_MAX; i++ )
+    {
+        if( g_scripts_retired[i].srv != srv || !g_scripts_retired[i].provider )
+            continue;
+        scripts_provider_destroy(g_scripts_retired[i].provider);
+        g_scripts_retired[i].provider = NULL;
+        g_scripts_retired[i].srv = NULL;
+    }
+}
+
+static int
+script_strings_same(
+    const char* a,
+    const char* b)
+{
+    if( !a || !b )
+        return a == b;
+    return strcmp(a, b) == 0;
+}
+
+/* Same compiled code, operand for operand. Source paths and line tables are
+ * not code: a script that only moved within its file is unchanged. */
+static int
+script_same(
+    const struct SSVM_Script* a,
+    const struct SSVM_Script* b)
+{
+    if( a->op_count != b->op_count )
+        return 0;
+    if( a->op_count <= 0 )
+        return 1;
+    if( !script_strings_same(a->name, b->name) || a->lookup_key != b->lookup_key ||
+        a->int_local_count != b->int_local_count ||
+        a->string_local_count != b->string_local_count ||
+        a->int_arg_count != b->int_arg_count || a->string_arg_count != b->string_arg_count ||
+        a->switch_table_count != b->switch_table_count )
+        return 0;
+    if( memcmp(a->opcodes, b->opcodes, (size_t)a->op_count * sizeof(*a->opcodes)) != 0 ||
+        memcmp(a->int_operands, b->int_operands, (size_t)a->op_count * sizeof(*a->int_operands)) !=
+            0 )
+        return 0;
+    for( int op = 0; op < a->op_count; op++ )
+        if( !script_strings_same(a->string_operands ? a->string_operands[op] : NULL,
+                                 b->string_operands ? b->string_operands[op] : NULL) )
+            return 0;
+    for( int t = 0; t < a->switch_table_count; t++ )
+    {
+        const struct SSVM_SwitchTable* ta = &a->switch_tables[t];
+        const struct SSVM_SwitchTable* tb = &b->switch_tables[t];
+
+        if( ta->case_count != tb->case_count ||
+            (ta->case_count &&
+             memcmp(ta->cases, tb->cases, (size_t)ta->case_count * sizeof(*ta->cases)) != 0) )
+            return 0;
+    }
+    return 1;
+}
+
+int
+ToriRSServer_ScriptsReload(
+    struct ToriRSServer* srv,
+    const char* dir,
+    int* out_changed,
+    char* why,
+    size_t why_cap)
+{
+    struct SSVM_Provider* shadow;
+    struct SSVM_Provider* old;
+    struct SSVM_Error err;
+    int loaded;
+    int changed = 0;
+    int retired_slot = -1;
+
+    assert(srv);
+    assert(dir);
+    if( out_changed )
+        *out_changed = 0;
+    if( why && why_cap )
+        why[0] = '\0';
+
+    /* Nothing running yet: a reload is a load, with all of its checks. */
+    if( !srv->scripts_ok )
+    {
+        int first = ToriRSServer_ScriptsLoad(srv, dir);
+
+        if( first <= 0 && why )
+            snprintf(why, why_cap, "no script pack loads from %s", dir);
+        if( out_changed && first > 0 )
+            *out_changed = srv->scripts->loaded;
+        return first > 0;
+    }
+
+    /* Retire what is free already, so a run of reloads with nobody parked does
+     * not walk into the cap below. */
+    ToriRSServer_ScriptsRetireSweep(srv);
+    for( int i = 0; i < SCRIPTS_RETIRED_MAX && retired_slot < 0; i++ )
+        if( !g_scripts_retired[i].provider )
+            retired_slot = i;
+    if( retired_slot < 0 )
+    {
+        if( why )
+            snprintf(why, why_cap,
+                     "%d earlier script tables still have parked instances on them; "
+                     "not loading another",
+                     (int)SCRIPTS_RETIRED_MAX);
+        return 0;
+    }
+
+    shadow = (struct SSVM_Provider*)ToriMem_Calloc(ToriMem_ServerScripts(), 1,
+                                                   sizeof(struct SSVM_Provider));
+    assert(shadow);
+    SSVM_ErrorClear(&err);
+    {
+        long lock = ToriRSServer_PackLockShared(dir);
+
+        loaded = SSVM_ProviderLoadDir(shadow, dir, &err);
+        ToriRSServer_PackUnlock(lock);
+    }
+    if( !loaded )
+    {
+        if( why )
+            snprintf(why, why_cap, "the script pack at %s does not load: %s", dir, err.message);
+        scripts_provider_destroy(shadow);
+        return 0;
+    }
+    if( scripts_pack_newer_than_server(shadow) > 0 )
+    {
+        if( why )
+            snprintf(why, why_cap, "the script pack at %s uses opcodes this server binary lacks; "
+                                   "rebuild the server and restart it", dir);
+        scripts_provider_destroy(shadow);
+        return 0;
+    }
+    if( scripts_reserved_queue_violations(shadow) > 0 )
+    {
+        if( why )
+            snprintf(why, why_cap, "the script pack at %s binds npc_del to the retaliation queue "
+                                   "(see the lines above); not swapped in", dir);
+        scripts_provider_destroy(shadow);
+        return 0;
+    }
+
+    /* Contract point 2, checked rather than trusted: an id both tables hold
+     * names the same script, or a parked instance's gosub would land in some
+     * other script's body. */
+    old = srv->scripts;
+    for( int id = 0; id < old->count || id < shadow->count; id++ )
+    {
+        const struct SSVM_Script* before = id < old->count ? &old->scripts[id] : NULL;
+        const struct SSVM_Script* after = id < shadow->count ? &shadow->scripts[id] : NULL;
+        int had = before && before->op_count > 0;
+        int has = after && after->op_count > 0;
+
+        if( had && has && !script_strings_same(before->name, after->name) )
+        {
+            if( why )
+                snprintf(why, why_cap,
+                         "script id %d is %s in the running table and %s in %s: the pack was "
+                         "renumbered, which only a restart can take",
+                         id, before->name ? before->name : "?", after->name ? after->name : "?",
+                         dir);
+            scripts_provider_destroy(shadow);
+            return 0;
+        }
+        if( had != has || (had && !script_same(before, after)) )
+            changed++;
+    }
+
+    srv->scripts = shadow;
+    srv->script_env->provider = shadow;
+    g_scripts_retired[retired_slot].srv = srv;
+    g_scripts_retired[retired_slot].provider = old;
+    scripts_stamp_record(srv, dir);
+    fprintf(stderr, "torirsserver: script reload: %d script(s) changed, %d loaded from %s\n",
+            changed, shadow->loaded, dir);
+    /* The same reports a boot prints, about the table now running. */
+    ToriRSServer_ScriptsReportGaps(srv);
+    ToriRSServer_ScriptsReportScriptIdArgs(srv);
+    /* Free it at once when nothing is parked on it. */
+    ToriRSServer_ScriptsRetireSweep(srv);
+    if( out_changed )
+        *out_changed = changed;
+    return 1;
+}
+
+/*
+ * The RESERVED QUEUE SLOTS check of ToriRSServer_ScriptsLoad (the comment
+ * there says why), over any provider: a reload runs it on the shadow table
+ * before anything is swapped, so content that may not run is refused there
+ * too -- without freeing the table that is running.
+ */
+static int
+scripts_reserved_queue_violations(const struct SSVM_Provider* provider)
+{
+    int bad = 0;
+
+    for( int i = 0; i < provider->count; i++ )
+    {
+        const struct SSVM_Script* sc = &provider->scripts[i];
+        int trigger;
+        int subject;
+
+        if( sc->op_count <= 0 || sc->lookup_key < 0 )
+            continue;
+        trigger = sc->lookup_key & 0xff;
+        /* `subject` is the type/category half of the key; `_` (the default
+         * rung) encodes as no subject and is exactly the binding that is
+         * SUPPOSED to live here. */
+        subject = sc->lookup_key >> 10;
+        if( trigger != SS_TRIGGER_AI_QUEUE1 || subject == 0 )
+            continue;
+        for( int pc = 0; pc < sc->op_count; pc++ )
+        {
+            char type_name[128];
+            const char* comma;
+            int npc_type;
+
+            if( sc->opcodes[pc] != SS_OP_NPC_DEL )
+                continue;
+            /*
+             * Only for an npc a player can ATTACK. Queue 1 fires off a
+             * hitsplat, so an npc with no Attack option can never reach
+             * this binding by being hit — a corpse form, a fading rubble
+             * marker, a death bat. Ninety-five of these exist and every one
+             * of them is fine; the two that were not (`maiden_elemental`,
+             * Verzik's phase-2 reds) are exactly the two the team fights.
+             * `ToriRSServer_CombatAttackable` is the client's own minimenu
+             * test, so this cannot disagree with what is clickable.
+             */
+            comma = sc->name ? strchr(sc->name, ',') : NULL;
+            if( !comma )
+                break;
+            snprintf(type_name, sizeof(type_name), "%s", comma + 1);
+            {
+                char* close = strchr(type_name, ']');
+                if( close )
+                    *close = '\0';
+            }
+            npc_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, type_name);
+            if( npc_type < 0 || !ToriRSServer_CombatAttackable(npc_type) )
+                break;
+            fprintf(stderr,
+                    "torirsserver: RESERVED QUEUE SLOT: %s calls npc_del, and %s is "
+                    "ATTACKABLE. Queue 1 is the retaliation rung "
+                    "(`[ai_queue1,_]`), armed when a player HITS this npc — so "
+                    "this deletes it on the first hitsplat, before its death "
+                    "animation can play. It will vanish when attacked instead "
+                    "of dying. Use another queue slot.\n",
+                    sc->name ? sc->name : "?", type_name);
+            bad++;
+            break;
+        }
+    }
+    return bad;
+}
+
 int
 ToriRSServer_ScriptsLoad(
     struct ToriRSServer* srv,
@@ -441,17 +960,27 @@ ToriRSServer_ScriptsLoad(
     int loaded;
 
     /*
-     * Once per world, however many players log in.
+     * Once per world for the same pack, however many players log in; a NEW
+     * pack is loaded into a shadow table and swapped in.
      *
-     * Both hosts call this from their login path, and reloading on a second
-     * login frees the env out from under the *first* player's parked script —
-     * a use-after-free whose symptom is a crash several ticks later, in
-     * whichever conversation happened to be open. Reloading content while
-     * somebody is logged in is not a thing this server supports; the honest
-     * spelling of that is to refuse rather than to corrupt.
+     * Both hosts call this from their login path, and the old answer to a
+     * second load -- free the env, load again -- freed the env out from under
+     * the *first* player's parked script: a use-after-free whose symptom was
+     * a crash several ticks later, in whichever conversation happened to be
+     * open. So it used to refuse outright. The hot-reload contract
+     * (docs/serverpack.md) is the other way to be safe: the running table is
+     * never freed while a parked or queued instance still runs on it
+     * (ToriRSServer_ScriptsReload keeps it, refcounted by its holders, until
+     * the last one finishes). The same script.dat is still a no-op; a login
+     * never sits behind a 40k-script decode for nothing.
      */
     if( srv->scripts_ok )
-        return 1;
+    {
+        if( scripts_stamp_same(srv, dir) )
+            return 1;
+        ToriRSServer_ScriptsReload(srv, dir, NULL, NULL, 0);
+        return srv->scripts_ok && srv->scripts ? (srv->scripts->loaded > 0 ? srv->scripts->loaded : 1) : 0;
+    }
 
     ToriRSServer_ScriptsFree(srv);
 
@@ -538,65 +1067,8 @@ ToriRSServer_ScriptsLoad(
      * queue slots and must use one of them.
      */
     {
-        int bad = 0;
+        int bad = scripts_reserved_queue_violations(srv->scripts);
 
-        for( int i = 0; i < srv->scripts->count; i++ )
-        {
-            const struct SSVM_Script* sc = &srv->scripts->scripts[i];
-            int trigger;
-            int subject;
-
-            if( sc->op_count <= 0 || sc->lookup_key < 0 )
-                continue;
-            trigger = sc->lookup_key & 0xff;
-            /* `subject` is the type/category half of the key; `_` (the default
-             * rung) encodes as no subject and is exactly the binding that is
-             * SUPPOSED to live here. */
-            subject = sc->lookup_key >> 10;
-            if( trigger != SS_TRIGGER_AI_QUEUE1 || subject == 0 )
-                continue;
-            for( int pc = 0; pc < sc->op_count; pc++ )
-            {
-                char type_name[128];
-                const char* comma;
-                int npc_type;
-
-                if( sc->opcodes[pc] != SS_OP_NPC_DEL )
-                    continue;
-                /*
-                 * Only for an npc a player can ATTACK. Queue 1 fires off a
-                 * hitsplat, so an npc with no Attack option can never reach
-                 * this binding by being hit — a corpse form, a fading rubble
-                 * marker, a death bat. Ninety-five of these exist and every one
-                 * of them is fine; the two that were not (`maiden_elemental`,
-                 * Verzik's phase-2 reds) are exactly the two the team fights.
-                 * `ToriRSServer_CombatAttackable` is the client's own minimenu
-                 * test, so this cannot disagree with what is clickable.
-                 */
-                comma = sc->name ? strchr(sc->name, ',') : NULL;
-                if( !comma )
-                    break;
-                snprintf(type_name, sizeof(type_name), "%s", comma + 1);
-                {
-                    char* close = strchr(type_name, ']');
-                    if( close )
-                        *close = '\0';
-                }
-                npc_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, type_name);
-                if( npc_type < 0 || !ToriRSServer_CombatAttackable(npc_type) )
-                    break;
-                fprintf(stderr,
-                        "torirsserver: RESERVED QUEUE SLOT: %s calls npc_del, and %s is "
-                        "ATTACKABLE. Queue 1 is the retaliation rung "
-                        "(`[ai_queue1,_]`), armed when a player HITS this npc — so "
-                        "this deletes it on the first hitsplat, before its death "
-                        "animation can play. It will vanish when attacked instead "
-                        "of dying. Use another queue slot.\n",
-                        sc->name ? sc->name : "?", type_name);
-                bad++;
-                break;
-            }
-        }
         if( bad )
         {
             fprintf(stderr,
@@ -708,6 +1180,7 @@ checked:
      * cannot wait for a session to notice it — the timer has to fire first, and
      * a quest-completion queue does not fire until somebody finishes the quest. */
     ToriRSServer_ScriptsReportScriptIdArgs(srv);
+    scripts_stamp_record(srv, dir);
     return srv->scripts->loaded;
 }
 
@@ -987,6 +1460,13 @@ ToriRSServer_ScriptsFree(struct ToriRSServer* srv)
         SSVM_ProviderFree(srv->scripts);
         ToriMem_Free(ToriMem_ServerScripts(), srv->scripts);
         srv->scripts = NULL;
+    }
+    scripts_retired_free_all(srv);
+    {
+        struct ScriptsStamp* stamp = scripts_stamp_slot(srv, 0);
+
+        if( stamp )
+            memset(stamp, 0, sizeof(*stamp));
     }
     srv->scripts_ok = 0;
 }

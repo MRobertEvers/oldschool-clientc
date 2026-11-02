@@ -477,6 +477,36 @@ test_the_players_zoom_is_clamped_wider_than_the_fits(void)
     CHECK(!camera.dirty, "a zero-step zoom asked for a re-render");
 }
 
+
+/* The wander preview's squares come from the record's wanderrange and
+ * maxrange: the footprint grown by each on every side. */
+static void
+test_the_wander_squares_follow_the_record(void)
+{
+    struct MapEditorWanderRect rects[4];
+    int n;
+
+    n = MapEditorWander_Rects(3200, 3238, 1, 1, 3, 9, rects, 4);
+    CHECK(n == 2, "a wander square and a leash (%d)", n);
+    CHECK(rects[0].kind == MAP_EDITOR_WANDER_AREA && rects[0].x0 == 3197 && rects[0].z0 == 3235
+              && rects[0].x1 == 3203 && rects[0].z1 == 3241 && rects[0].level == 1
+              && MapEditorWander_RectTiles(&rects[0]) == 7 * 7,
+        "wanderrange 3 is the 7x7 square centred on the spawn");
+    CHECK(rects[1].kind == MAP_EDITOR_WANDER_LEASH && MapEditorWander_RectTiles(&rects[1]) == 19 * 19,
+        "maxrange 9 is the 19x19 leash");
+    n = MapEditorWander_Rects(10, 10, 0, 2, -1, -1, rects, 4);
+    CHECK(n == 2 && rects[0].x0 == 5 && rects[0].x1 == 16 && MapEditorWander_RectTiles(&rects[1]) == 16 * 16,
+        "a record stating neither gets 5 and 7 around a 2x2 footprint");
+    n = MapEditorWander_Rects(10, 10, 0, 1, 0, 7, rects, 4);
+    CHECK(n == 1 && rects[0].kind == MAP_EDITOR_WANDER_LEASH, "wanderrange 0 roams nowhere: only the leash");
+    n = MapEditorWander_Rects(10, 10, 0, 1, 8, 7, rects, 4);
+    CHECK(n == 1 && rects[0].kind == MAP_EDITOR_WANDER_AREA, "a leash inside the wander square is not drawn");
+    n = MapEditorWander_Rects(1000, 1000, 0, 1, 500, 900, rects, 4);
+    CHECK(n == 1 && rects[0].x1 - rects[0].x0 == 2 * MAP_EDITOR_WANDER_RANGE_MAX,
+        "a huge range is clamped for drawing");
+    CHECK(MapEditorWander_Rects(0, 0, 0, 1, 5, 7, rects, 1) == 1, "the output bound is kept");
+}
+
 int
 main(void)
 {
@@ -486,6 +516,7 @@ main(void)
     test_committing_forgets_the_occupant();
     test_the_ghost_follows_the_hover();
     test_the_fade_is_written_once();
+    test_the_wander_squares_follow_the_record();
 
     test_an_orbit_survives_its_own_render();
     test_a_new_pick_is_reframed();

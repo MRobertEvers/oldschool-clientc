@@ -30,6 +30,7 @@
  * file outside the content tree.
  */
 
+#include "editor_cmd.h"
 #include "mem/torirs_mem.h"
 
 #include <stddef.h>
@@ -72,6 +73,12 @@ enum EditorHost_Status
     EDITOR_HOST_LOCKED,
     /** The bake ran and exited non-zero. */
     EDITOR_HOST_BAKE_FAILED,
+    /** The request is well-formed but not allowed: a DOC_CREATE whose key
+     *  already exists in that storage, a key or storage that names nothing a
+     *  document may address, an edit the document does not match. */
+    EDITOR_HOST_REFUSED,
+    /** This binding or server does not offer the operation (yet). */
+    EDITOR_HOST_UNSUPPORTED,
 };
 
 struct EditorHost_VTable
@@ -169,13 +176,90 @@ struct EditorHost_VTable
     /** Release the binding's own resources. NULL-tolerant, like every other
      *  deallocator in this tree. */
     void (*free_)(void* user_data);
+
+    /**
+     * One part of a document's text, addressed by (kind, key, part) — never
+     * by path. The binding resolves the path (Editor_HostDocPath), so a
+     * caller cannot name a file outside the content root.
+     *
+     *   SQUARE  part 0 `.jm2`, 1 `.jl2`, 2 `.filepack`; the key may carry
+     *           its storage ("ported/<lane>/maps/m16_101").
+     *   SPAWN   part 0, the edited `.spawn`.
+     *   CFG     part 0, the `[name]` block's text out of `configs/all.<type>`
+     *           -- or, for an overlay key "<type>:<name>@<overlay>", out of
+     *           `server/scripts/<overlay>` (editor_cfg.h) -- from its header
+     *           to the next header; ABSENT when the record does not exist.
+     *   IFACE   part 0, `interfaces/<name>.if`.
+     *   TEXT    part 0, the script.
+     *
+     * ABSENT when the file (or record) does not exist — data, not failure.
+     * The remote binding answers from the AUTHORITY's document (DOC_OPEN).
+     */
+    enum EditorHost_Status (*doc_load)(
+        void* user_data,
+        enum Editor_DocKind kind,
+        const char* key,
+        int part,
+        struct EditorHost_Blob* out_blob);
+
+    /**
+     * Write one part of a document, atomically, creating directories the
+     * path needs. NULL text deletes the file (a CFG record: removes the
+     * block). A CFG save replaces the record's block in `configs/all.<type>`
+     * (or the overlay file an "@<overlay>" key names; appends it when new)
+     * and leaves every other byte alone. Local binding
+     * only: the remote one answers UNSUPPORTED, because a client never writes
+     * — the authority saves its own documents (Editor_HostMapEdSave).
+     */
+    enum EditorHost_Status (*doc_save)(
+        void* user_data,
+        enum Editor_DocKind kind,
+        const char* key,
+        int part,
+        const char* text,
+        size_t length);
 };
+
+/**
+ * The path, relative to the content root, of one part of a document —
+ * the ONE place a document key becomes a file name (see doc_load for the
+ * table). Returns 0 when the key or part names nothing a document may
+ * address; keys arrive off the wire, so that is an answer, not an assert.
+ */
+int
+Editor_HostDocPath(
+    enum Editor_DocKind kind,
+    const char* key,
+    int part,
+    char* out,
+    size_t out_size);
 
 struct EditorHost
 {
     const struct EditorHost_VTable* vtable;
     void* user_data;
 };
+
+/* ---- open in the user's editor ------------------------------------------- */
+
+/**
+ * Hand `path` (absolute, on this machine) and its 1-based `line` to the
+ * user's own editor: TORIRS_EDITOR_OPEN_CMD (`{path}` / `{line}` placeholders,
+ * editor_open_cmd.h), else `code --goto {path}:{line}` when `code` is on
+ * PATH, else `open {path}` (macOS) / `xdg-open {path}`. Spawned as
+ * `/bin/sh -c '( <cmd> ) >/dev/null 2>&1 &'` and that shell reaped at once: the
+ * editor outlives it and the UI thread never waits on the editor. The
+ * command line goes to `out_cmdline` (may be NULL) for the Console.
+ * OK when the shell ran; UNSUPPORTED on the web and Windows (show the path
+ * instead); REFUSED for a command that does not fit; IO_ERROR when the shell
+ * could not be started.
+ */
+enum EditorHost_Status
+Editor_HostLocalOpenInEditor(
+    const char* path,
+    int line,
+    char* out_cmdline,
+    size_t out_size);
 
 /* ---- local binding ------------------------------------------------------- */
 
@@ -266,11 +350,14 @@ Editor_HostOpenMapEdEmbedPeer(
  * like every other connection.
  */
 
-#include "editor_cmd.h"
-
 /** 1 when this host is a ToriRSMapEd connection. The calls below assert it. */
 int
 Editor_HostIsMapEd(const struct EditorHost* host);
+
+/** FACT_HELLO v2's capability bits (TORIRSMAPED_CAP_*): which optional
+ *  bindings — build, live, catalog, spawn_view — the server has. */
+uint32_t
+Editor_HostMapEdCapabilities(const struct EditorHost* host);
 
 /** What FACT_HELLO reported: can the server save its tree? */
 int
@@ -294,6 +381,112 @@ Editor_HostMapEdSquareOpen(
     struct EditorHost_Blob* out_jl2,
     int* out_dirty_map,
     int* out_dirty_loc);
+
+/** A document's current text as the authority answers DOC_OPEN. */
+struct EditorHost_DocText
+{
+    enum Editor_DocKind kind;
+    /** The canonical key: a square's storage prefix moves to `storage`. */
+    char key[EDITOR_DOC_KEY_MAX];
+    /** Squares only: "" for the content tree's maps/, else the lane's. */
+    char storage[EDITOR_DOC_STORAGE_MAX];
+    /** Bit 0: the first part is unsaved (a square's terrain, any other
+     *  document's text). Bit 1: the second part (a square's locs). */
+    uint32_t dirty;
+    /** 2 for a square (jm2, jl2), 1 otherwise. A part with NULL data is
+     *  absent (no file yet), which differs from empty. */
+    int part_count;
+    struct EditorHost_Blob parts[2];
+};
+
+/** Frees the parts. NULL-tolerant. */
+void
+Editor_HostDocTextFree(struct EditorHost_DocText* text);
+
+/**
+ * Open (kind, key) in the AUTHORITATIVE document and receive its current
+ * text — another Client's unsaved edits included. A SQUARE key may carry its
+ * storage ("ported/<lane>/maps/m16_101"). The v1 SQUARE_OPEN alias below
+ * answers the same text for a square.
+ */
+enum EditorHost_Status
+Editor_HostMapEdDocOpen(
+    struct EditorHost* host,
+    enum Editor_DocKind kind,
+    const char* key,
+    struct EditorHost_DocText* out_text);
+
+/** This connection no longer looks at (kind, key). */
+enum EditorHost_Status
+Editor_HostMapEdDocClose(
+    struct EditorHost* host,
+    enum Editor_DocKind kind,
+    const char* key);
+
+/** Save one document server-side. Returns 1 when it was written, 0 when it
+ *  had nothing unsaved, -1 when the server is read-only or the save failed.
+ *  FACT_SAVED tells every mirror what landed. */
+int
+Editor_HostMapEdSave(
+    struct EditorHost* host,
+    enum Editor_DocKind kind,
+    const char* key);
+
+/** What a NEW square starts as (design #squares). */
+enum Editor_DocTemplate
+{
+    /** All-default tiles, no locs. */
+    EDITOR_DOC_TEMPLATE_EMPTY = 0,
+    /** A copy of `source_key`'s tiles and locs. */
+    EDITOR_DOC_TEMPLATE_COPY,
+    /** Level 0 authored flat at `fill_height`, underlay `fill_underlay`. */
+    EDITOR_DOC_TEMPLATE_FLAT,
+};
+
+struct EditorHost_DocCreate
+{
+    /** SQUARE; the server refuses every other kind for now. */
+    enum Editor_DocKind kind;
+    /** "m<x>_<z>". */
+    char key[EDITOR_DOC_KEY_MAX];
+    /** "" (or "maps") for the content tree's maps/, "ported/<lane>/maps". */
+    char storage[EDITOR_DOC_STORAGE_MAX];
+    enum Editor_DocTemplate template_kind;
+    /** TEMPLATE_COPY: the square to copy, which may carry its storage. */
+    char source_key[EDITOR_DOC_KEY_MAX];
+    int fill_height;
+    int fill_underlay;
+};
+
+/**
+ * DOC_CREATE: make a NEW document in the authority. For a square the server
+ * refuses (EDITOR_HOST_REFUSED) when the key already exists in that storage
+ * or is open from another one; otherwise it creates the square and its
+ * `.filepack` line, broadcasts the commands that fill it from the template
+ * (one undo step), and writes nothing until Save.
+ */
+enum EditorHost_Status
+Editor_HostMapEdDocCreate(
+    struct EditorHost* host,
+    const struct EditorHost_DocCreate* request);
+
+/**
+ * SAVE_AS: copy a document under a new key in the authority (design #save
+ * "Save as new"). Today a CFG record of a loc, npc or obj type: "loc:<name>"
+ * to "loc:<new name>", with a fresh id from the namespace's .alloc ledger,
+ * its pack/<type>.client line and every field of the source, broadcast as
+ * one undo step (editor_alloc.h Editor_AllocCopyPlan). `out_id` (may be
+ * NULL) gets the new id. REFUSED when the new name is taken or not a name,
+ * ABSENT when the source record is not there, UNSUPPORTED for other kinds.
+ * Nothing is written until Save.
+ */
+enum EditorHost_Status
+Editor_HostMapEdSaveAs(
+    struct EditorHost* host,
+    enum Editor_DocKind kind,
+    const char* key,
+    const char* new_key,
+    int* out_id);
 
 /** Submit one edit. OK means the authority applied it and the echo is on
  *  its way; ABSENT means the square was never opened server-side. */
@@ -335,6 +528,228 @@ Editor_HostMapEdStateSet(
 int
 Editor_HostMapEdStateSync(struct EditorHost* host);
 
+/** SPAWN_VIEW (torirsmaped/torirs_maped_view.h): ask the SERVER's host to
+ *  start a viewer joined to this connection's Client, looking at `camera`
+ *  (TORIRSMAPED_CAMERA_VALUES, absolute fine units). OK and *out_pid;
+ *  UNSUPPORTED when the server has no binding (capability bit clear);
+ *  REFUSED for a pose out of range. */
+enum EditorHost_Status
+Editor_HostMapEdSpawnView(
+    struct EditorHost* host,
+    const int32_t* camera,
+    int* out_pid);
+
+/* ---- the catalog (design #catalog, #squares) ------------------------------
+ *
+ * Read-only questions about the content tree, answered by the server's index
+ * (torirsmaped/torirs_maped_catalog.h has the kinds, flags and the wire).
+ * Each answer is one allocation the caller frees; every string in it is
+ * NUL-terminated and lives as long as the answer does.
+ */
+
+/** One `key=value` summary field. */
+struct EditorHost_CatalogField
+{
+    const char* key;
+    const char* value;
+};
+
+struct EditorHost_CatalogRow
+{
+    /** enum ToriRSMapEdCatalogKind. */
+    uint32_t kind;
+    /** -1 when the entity has no id (a server-only overlay, a trigger). */
+    int32_t id;
+    /** TORIRSMAPED_PROV_* bits: every source that said something. */
+    uint32_t provenance;
+    const char* name;
+    /** The `name=` field; "" when there is none. */
+    const char* display;
+    int field_count;
+    const struct EditorHost_CatalogField* fields;
+};
+
+struct EditorHost_CatalogPage
+{
+    /** Matches across every page. */
+    uint32_t total;
+    uint32_t page;
+    uint32_t page_size;
+    int row_count;
+    struct EditorHost_CatalogRow* rows;
+    void* storage;
+};
+
+/**
+ * CATALOG_QUERY: one page of the records of `kind` (TORIRSMAPED_CATALOG_ANY
+ * for every kind) matching `filter` — free terms against name, display name
+ * and id, plus `key=value` filters (`op=Open`, `multivar=varb4153`). `flags`
+ * TORIRSMAPED_CATALOG_EXACT makes the text one whole name. `page_size` 0 is
+ * the server's default. REFUSED for an unknown kind; UNSUPPORTED when the
+ * server has no catalog (capability bit clear).
+ */
+enum EditorHost_Status
+Editor_HostMapEdCatalogQuery(
+    struct EditorHost* host,
+    uint32_t kind,
+    const char* filter,
+    uint32_t flags,
+    uint32_t page,
+    uint32_t page_size,
+    struct EditorHost_CatalogPage* out_page);
+
+/** NULL-tolerant. */
+void
+Editor_HostCatalogPageFree(struct EditorHost_CatalogPage* page);
+
+struct EditorHost_CatalogSource
+{
+    /** Relative to the content root. */
+    const char* path;
+    /** The one TORIRSMAPED_PROV_* bit this source contributed as. */
+    uint32_t provenance;
+    /** 1-based line of the record in that file (its block header). */
+    uint32_t line;
+};
+
+struct EditorHost_CatalogRecordField
+{
+    const char* key;
+    const char* value;
+    /** Index into `sources`, or -1 for a field only the index derives
+     *  (`dialogue`, `users`, a square's `area`). */
+    int source;
+    /** When a later source (a server overlay) restated a field: the value
+     *  it replaced and where that came from; NULL / -1 otherwise. */
+    const char* overridden_value;
+    int overridden_source;
+};
+
+struct EditorHost_CatalogRecord
+{
+    uint32_t kind;
+    int32_t id;
+    uint32_t provenance;
+    const char* name;
+    const char* display;
+    int source_count;
+    struct EditorHost_CatalogSource* sources;
+    int field_count;
+    struct EditorHost_CatalogRecordField* fields;
+    void* storage;
+};
+
+/**
+ * CATALOG_RECORD: the merged record — the cache block, every server overlay
+ * over it, ids, membership — with the provenance of each field. Addressed
+ * by `name` when non-empty, else by `id`. ABSENT when there is no such
+ * record.
+ */
+enum EditorHost_Status
+Editor_HostMapEdCatalogRecord(
+    struct EditorHost* host,
+    uint32_t kind,
+    int32_t id,
+    const char* name,
+    struct EditorHost_CatalogRecord* out_record);
+
+/** NULL-tolerant. */
+void
+Editor_HostCatalogRecordFree(struct EditorHost_CatalogRecord* record);
+
+/** A world-map area: the surface, a dungeon map, an instance map. */
+struct EditorHost_CatalogArea
+{
+    /** The `.wma` block name ("main", "ancient_cavern"). */
+    const char* internal_name;
+    /** What the world map calls it ("Gielinor Surface"). */
+    const char* display_name;
+    int is_main;
+};
+
+struct EditorHost_CatalogSquare
+{
+    int map_x;
+    int map_z;
+    /** Index into the atlas's `storages`. */
+    int storage;
+    /** TORIRSMAPED_SQUARE_* bits. */
+    uint32_t flags;
+    int spawn_count;
+    /** 0xRRGGBB averaged over the level-0 floors; 0 when it has none. */
+    uint32_t rgb;
+    /** Index into `areas` of the most specific claiming area, or -1 for an
+     *  unmapped square (the picker's Unmapped tab). */
+    int primary_area;
+    /** Every area that claims it, most specific first. */
+    int area_count;
+    const int* areas;
+};
+
+struct EditorHost_CatalogSquares
+{
+    /** "maps" first, then "ported/<lane>/maps" for every lane directory —
+     *  what the New dialog offers as storage. */
+    int storage_count;
+    const char* const* storages;
+    int area_count;
+    const struct EditorHost_CatalogArea* areas;
+    int square_count;
+    const struct EditorHost_CatalogSquare* squares;
+    void* storage_mem;
+};
+
+/** CATALOG_SQUARES: the square atlas the picker draws. */
+enum EditorHost_Status
+Editor_HostMapEdCatalogSquares(
+    struct EditorHost* host,
+    struct EditorHost_CatalogSquares* out_atlas);
+
+/**
+ * The atlas changed under every window — a DOC_CREATE (the new square's row
+ * arrives flagged TORIRSMAPED_SQUARE_CREATED before anything is on disk), a
+ * save that wrote squares. The server broadcasts the whole atlas; DrainFacts
+ * keeps the newest one here instead of handing it to the fact sink (whose
+ * callers fill their sinks field by field). Returns 1 and fills `out_atlas`
+ * (free it) when one arrived since the last call, else 0. Poll it after
+ * Editor_HostMapEdDrainFacts.
+ */
+int
+Editor_HostMapEdCatalogSquaresChanged(
+    struct EditorHost* host,
+    struct EditorHost_CatalogSquares* out_atlas);
+
+/** NULL-tolerant. */
+void
+Editor_HostCatalogSquaresFree(struct EditorHost_CatalogSquares* atlas);
+
+/* ---- BUILD, RUN and the live link -------------------------------------------
+ *
+ * torirsmaped/torirs_maped_build.h and torirs_maped_live.h define the frames;
+ * editor/live/live_client.h encodes the requests and decodes the facts. The
+ * host only carries them, so a new live frame needs no change here.
+ */
+
+/** Send one live-editor request (BUILD, RUN, LIVE_*: types 53..64) with its
+ *  payload, fire and forget -- every answer is a broadcast fact. 1 when sent,
+ *  0 when the connection is gone. */
+int
+Editor_HostMapEdLiveSend(
+    struct EditorHost* host,
+    uint32_t type,
+    const uint8_t* payload,
+    uint32_t length);
+
+/** The oldest live-editor fact (types 173..190) Editor_HostMapEdDrainFacts
+ *  kept, oldest first; 0 when none is waiting. *out_body is ToriMem_Editor's
+ *  (ToriMem_Free it). Poll after DrainFacts. */
+int
+Editor_HostMapEdLiveTake(
+    struct EditorHost* host,
+    uint32_t* out_type,
+    uint8_t** out_body,
+    uint32_t* out_length);
+
 /** Where broadcasts land. Any callback may be NULL to ignore that kind. */
 struct EditorHostMapEdFacts
 {
@@ -345,14 +760,18 @@ struct EditorHostMapEdFacts
         uint32_t seq,
         int direction,
         const struct Editor_Cmd* command);
-    /** Squares written to disk, as `count` (map_x, map_z) pairs. */
-    void (*on_saved)(void* user_data, int count, const int* coords);
+    /** Documents written to disk, as `count` (kind, key) rows. */
+    void (*on_saved)(void* user_data, int count, const struct Editor_DocRef* rows);
     /** A shared-state field changed somewhere in this connection's Client. */
     void (*on_state)(
         void* user_data,
         uint32_t key,
         const int32_t* values,
         int count);
+    /** A FACT_CMD of a kind this build does not know arrived for (kind,
+     *  key): nothing was applied, and the mirror must re-open that document
+     *  to resync (MAPED_IMPLEMENTATION.md section 2). */
+    void (*on_resync)(void* user_data, enum Editor_DocKind kind, const char* key);
 };
 
 /**

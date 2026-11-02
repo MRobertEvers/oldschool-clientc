@@ -9,7 +9,7 @@
  * embedded IO server to start the other clients. The service keeps a table of
  * LAUNCH SESSIONS: one per party, its seats, their pids, a secret token, the
  * leader's heartbeat, a mailbox per seat and the last status each seat posted.
- * It answers seven verbs as plain request/answer calls (the caller is the
+ * It answers eight verbs as plain request/answer calls (the caller is the
  * plugin channel's `launch/<verb>` IO item; this module knows nothing of IO
  * items, HTTP or sockets):
  *
@@ -21,6 +21,12 @@
  *   status     every seat's pid, alive, exit code and last status
  *   heartbeat  the leader is still here (status/spawn/command count too)
  *   close      clean end: `quit` to every seat, the grace, then the kill
+ *   view       start one map-editor VIEWER (design #windows): the host's
+ *              binary and manifest with --editor-view --maped <maped>
+ *              --maped-group <group> [--camera <camera>]; no session, no
+ *              token, no mailbox. Keys maped= group= camera=; answers
+ *              `view=<n>` and `pid=<pid>`. Views end with the host (Free)
+ *              and are reaped by LaunchSessions_Reap.
  *
  * Bodies are `key=value` lines. An answer's first line is `ok`,
  * `error: <reason>` or `unsupported: <reason>`; `ok` is followed by more
@@ -64,6 +70,8 @@ enum
     LAUNCH_SESSIONS_LINE_MAX = 2048,
     LAUNCH_SESSIONS_PATH_MAX = 1024,
     LAUNCH_SESSIONS_BODY_MAX = 64 * 1024,
+    /* `view`: editor viewer windows one host keeps open at once. */
+    LAUNCH_SESSIONS_VIEW_MAX = 8,
 };
 
 /* What a spawn needs from the operating system. The host passes the real one

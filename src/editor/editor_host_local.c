@@ -7,6 +7,10 @@
  */
 
 #include "editor_host.h"
+#include "editor_cfg.h"
+#include "editor_doc.h"
+#include "editor_if.h"
+#include "editor_open_cmd.h"
 #include "mem/torirs_mem.h"
 
 #include <assert.h>
@@ -420,9 +424,359 @@ local_spawn_save(
     return write_file_atomic(path, text, length);
 }
 
+/* ---- documents by (kind, key) -------------------------------------------- */
+
+int
+Editor_HostDocPath(
+    enum Editor_DocKind kind,
+    const char* key,
+    int part,
+    char* out,
+    size_t out_size)
+{
+    int written;
+
+    assert(key);
+    assert(out);
+    assert(out_size > 0);
+
+    out[0] = '\0';
+    switch( kind )
+    {
+    case EDITOR_DOC_SQUARE:
+    {
+        char storage[EDITOR_DOC_STORAGE_MAX];
+        char bare[EDITOR_DOC_KEY_MAX];
+        static char const* const extensions[] = { "jm2", "jl2", "filepack" };
+
+        if( part < 0 || part > 2 || !Editor_DocSplitSquareKey(key, storage, bare) )
+            return 0;
+        written = snprintf(
+            out, out_size, "%s/%s.%s", storage[0] ? storage : "maps", bare, extensions[part]);
+        break;
+    }
+    case EDITOR_DOC_SPAWN:
+        if( part != 0 || !Editor_DocKeyValid(kind, key) )
+            return 0;
+        written = snprintf(out, out_size, "server/scripts/areas/edited/configs/%s.spawn", key);
+        break;
+    case EDITOR_DOC_CFG:
+    {
+        const char* colon = strchr(key, ':');
+        const char* overlay;
+        if( part != 0 || !Editor_DocKeyValid(kind, key) || !colon )
+            return 0;
+        /* "<type>:<name>@<overlay>": the block lives in that server overlay. */
+        overlay = Editor_CfgKeyOverlay(key);
+        if( overlay )
+            written = snprintf(out, out_size, "server/scripts/%s", overlay);
+        else
+            written = snprintf(out, out_size, "configs/all.%.*s", (int)(colon - key), key);
+        break;
+    }
+    case EDITOR_DOC_IFACE:
+        if( part != 0 || !Editor_DocKeyValid(kind, key) )
+            return 0;
+        written = snprintf(out, out_size, "interfaces/%s.if", key + 3);
+        break;
+    case EDITOR_DOC_AREAS:
+        /* The named areas and square collections: in the content tree so
+         * the team shares them, outside every pack input (editor_areas.h). */
+        if( part != 0 || !Editor_DocKeyValid(kind, key) )
+            return 0;
+        written = snprintf(out, out_size, "editor/areas.txt");
+        break;
+    case EDITOR_DOC_TEXT:
+        if( part != 0 || !Editor_DocKeyValid(kind, key) )
+            return 0;
+        if( strncmp(key, "rs2:", 4) == 0 )
+            written = snprintf(out, out_size, "server/scripts/%s", key + 4);
+        else if( strncmp(key, "cs2:", 4) == 0 )
+            written = snprintf(out, out_size, "scripts/%s.cs2", key + 4);
+        else if( strncmp(key, "pack:", 5) == 0 )
+            written = snprintf(out, out_size, "pack/%s", key + 5);
+        else if( strncmp(key, "compack:", 8) == 0 )
+            written = snprintf(out, out_size, "configs/all.%s.compack", key + 8);
+        else if( strncmp(key, "fields:", 7) == 0 )
+            written = snprintf(out, out_size, "fields/%s", key + 7);
+        else
+            return 0;
+        break;
+    default:
+        return 0;
+    }
+    return written > 0 && (size_t)written < out_size;
+}
+
+/** The `[name]` block of a CFG key inside the file text: from its header line
+ *  to the next header (or EOF). Returns 0 when the record is not there. */
+static int
+cfg_block_extent(
+    const char* text,
+    size_t length,
+    const char* key,
+    size_t* out_start,
+    size_t* out_end)
+{
+    const char* name = strchr(key, ':') + 1;
+    /* An overlay key's record name stops at its '@'. */
+    size_t name_length = strchr(name, '@') ? (size_t)(strchr(name, '@') - name) : strlen(name);
+    size_t at = 0;
+
+    while( at < length )
+    {
+        const char* newline = memchr(text + at, '\n', length - at);
+        size_t stop = newline ? (size_t)(newline - text) : length;
+        size_t content = stop;
+
+        if( content > at && text[content - 1] == '\r' )
+            content--;
+        if( content - at == name_length + 2 && text[at] == '[' && text[content - 1] == ']'
+            && memcmp(text + at + 1, name, name_length) == 0 )
+        {
+            size_t next = newline ? stop + 1 : length;
+            while( next < length )
+            {
+                const char* nl = memchr(text + next, '\n', length - next);
+                if( text[next] == '[' )
+                    break;
+                next = nl ? (size_t)(nl - text) + 1 : length;
+            }
+            *out_start = at;
+            *out_end = next;
+            return 1;
+        }
+        at = newline ? stop + 1 : length;
+    }
+    return 0;
+}
+
+static enum EditorHost_Status
+local_doc_load(
+    void* user_data,
+    enum Editor_DocKind kind,
+    const char* key,
+    int part,
+    struct EditorHost_Blob* out_blob)
+{
+    struct local_host* host = user_data;
+    char relative[1024];
+    char path[2200];
+    enum EditorHost_Status status;
+
+    assert(host);
+    assert(key);
+    assert(out_blob);
+
+    out_blob->data = NULL;
+    out_blob->size = 0;
+    if( !Editor_HostDocPath(kind, key, part, relative, sizeof(relative)) )
+        return EDITOR_HOST_REFUSED;
+    snprintf(path, sizeof(path), "%s/%s", host->content_dir, relative);
+
+    status = read_whole_file(path, out_blob);
+    if( status != EDITOR_HOST_OK || kind != EDITOR_DOC_CFG )
+        return status;
+
+    /* A config record is its block, not the whole all.<type> — the largest of
+     * those files is several times the wire's frame bound. */
+    {
+        size_t start;
+        size_t end;
+        char* block;
+
+        if( !cfg_block_extent(out_blob->data, out_blob->size, key, &start, &end) )
+        {
+            Editor_HostBlobFree(out_blob);
+            return EDITOR_HOST_ABSENT;
+        }
+        block = ToriMem_Alloc(ToriMem_Editor(), end - start + 1);
+        memcpy(block, out_blob->data + start, end - start);
+        block[end - start] = '\0';
+        Editor_HostBlobFree(out_blob);
+        out_blob->data = block;
+        out_blob->size = end - start;
+    }
+    return EDITOR_HOST_OK;
+}
+
+/** mkdir -p for the directories of `relative` under the content root. */
+static enum EditorHost_Status
+make_parents(
+    const struct local_host* host,
+    const char* relative)
+{
+    char dir[2200];
+    size_t base;
+
+    base = (size_t)snprintf(dir, sizeof(dir), "%s/", host->content_dir);
+    for( const char* at = relative; *at; at++ )
+    {
+        if( *at != '/' )
+            continue;
+        snprintf(dir + base, sizeof(dir) - base, "%.*s", (int)(at - relative), relative);
+        if( editor_mkdir(dir) != 0 && errno != EEXIST )
+        {
+            TORIRS_ERR("editor: cannot create %s: %s\n", dir, strerror(errno));
+            return EDITOR_HOST_IO_ERROR;
+        }
+    }
+    return EDITOR_HOST_OK;
+}
+
+/* An interface saves its .compack beside it. Block positions are file ids
+ * while the compack is positional, and a structure edit renumbers them
+ * (editor_if.h, Editor_IfCompackForSave). */
+static enum EditorHost_Status
+local_iface_save(
+    const char* path,
+    const char* text,
+    size_t length)
+{
+    struct EditorHost_Blob old_if = { NULL, 0 };
+    struct EditorHost_Blob compack = { NULL, 0 };
+    char compack_path[2300];
+    char* rewritten = NULL;
+    size_t rewritten_length = 0;
+    size_t const path_length = strlen(path);
+    enum EditorHost_Status status;
+
+    assert(path_length > 3); /* Editor_HostDocPath names every IFACE "<name>.if" */
+    assert(strcmp(path + path_length - 3, ".if") == 0);
+    snprintf(compack_path, sizeof(compack_path), "%.*s.compack", (int)(path_length - 3), path);
+    status = read_whole_file(path, &old_if);
+    if( status == EDITOR_HOST_IO_ERROR )
+        return status;
+    status = read_whole_file(compack_path, &compack);
+    if( status == EDITOR_HOST_IO_ERROR )
+    {
+        Editor_HostBlobFree(&old_if);
+        return status;
+    }
+    if( !Editor_IfCompackForSave(compack.data ? compack.data : "",
+            compack.size,
+            old_if.data ? old_if.data : "",
+            old_if.size,
+            text,
+            length,
+            &rewritten,
+            &rewritten_length) )
+    {
+        TORIRS_ERR("editor: %s: its components changed but the .compack is not positional; "
+                   "not saved\n",
+            path);
+        status = EDITOR_HOST_REFUSED;
+    }
+    else
+    {
+        status = write_file_atomic(path, text, length);
+        if( status == EDITOR_HOST_OK && rewritten )
+            status = write_file_atomic(compack_path, rewritten, rewritten_length);
+    }
+    ToriMem_Free(ToriMem_Editor(), rewritten);
+    Editor_HostBlobFree(&old_if);
+    Editor_HostBlobFree(&compack);
+    return status;
+}
+
+static enum EditorHost_Status
+local_doc_save(
+    void* user_data,
+    enum Editor_DocKind kind,
+    const char* key,
+    int part,
+    const char* text,
+    size_t length)
+{
+    struct local_host* host = user_data;
+    char relative[1024];
+    char path[2200];
+    enum EditorHost_Status status;
+
+    assert(host);
+    assert(key);
+    assert(text || length == 0);
+
+    if( host->lock_path[0] == '\0' )
+    {
+        TORIRS_ERR("editor: refusing to save without the session lock\n");
+        return EDITOR_HOST_LOCKED;
+    }
+    if( !Editor_HostDocPath(kind, key, part, relative, sizeof(relative)) )
+        return EDITOR_HOST_REFUSED;
+    snprintf(path, sizeof(path), "%s/%s", host->content_dir, relative);
+
+    status = make_parents(host, relative);
+    if( status != EDITOR_HOST_OK )
+        return status;
+
+    if( kind == EDITOR_DOC_IFACE && text )
+        return local_iface_save(path, text, length);
+    if( kind != EDITOR_DOC_CFG )
+    {
+        if( !text )
+        {
+            remove(path); /* absent is the state asked for; missing is it already */
+            return EDITOR_HOST_OK;
+        }
+        return write_file_atomic(path, text, length);
+    }
+
+    /* A record save rewrites one block of all.<type> and no other byte. */
+    {
+        struct EditorHost_Blob file = { NULL, 0 };
+        size_t start = 0;
+        size_t end = 0;
+        size_t total;
+        size_t at = 0;
+        char* merged;
+        int found;
+
+        status = read_whole_file(path, &file);
+        if( status == EDITOR_HOST_IO_ERROR )
+            return status;
+        found = file.data && cfg_block_extent(file.data, file.size, key, &start, &end);
+        if( !found )
+        {
+            start = file.size;
+            end = file.size;
+        }
+
+        total = file.size - (end - start) + (text ? length : 0) + 2;
+        merged = ToriMem_Alloc(ToriMem_Editor(), total);
+        if( start > 0 )
+            memcpy(merged, file.data, start);
+        at = start;
+        if( !found && text && length > 0 && file.size > 0 )
+        {
+            /* A new record goes at the end, after a blank separator line. */
+            if( file.data[file.size - 1] != '\n' )
+                merged[at++] = '\n';
+            if( file.size < 2 || file.data[file.size - 2] != '\n'
+                || file.data[file.size - 1] != '\n' )
+                merged[at++] = '\n';
+        }
+        if( text && length > 0 )
+        {
+            memcpy(merged + at, text, length);
+            at += length;
+        }
+        if( file.size > end )
+        {
+            memcpy(merged + at, file.data + end, file.size - end);
+            at += file.size - end;
+        }
+        status = write_file_atomic(path, merged, at);
+        ToriMem_Free(ToriMem_Editor(), merged);
+        Editor_HostBlobFree(&file);
+        return status;
+    }
+}
+
 static const struct EditorHost_VTable local_vtable = {
     local_square_list, local_square_load, local_square_save, local_spawn_save,
-    local_bake,        local_session,     local_free,
+    local_bake,        local_session,     local_free,        local_doc_load,
+    local_doc_save,
 };
 
 int
@@ -446,3 +800,95 @@ Editor_HostOpenLocal(
     host->user_data = local;
     return 1;
 }
+
+/* ---- open in the user's editor ---------------------------------------------- */
+
+#if defined(_WIN32) || defined(__EMSCRIPTEN__)
+
+enum EditorHost_Status
+Editor_HostLocalOpenInEditor(
+    const char* path,
+    int line,
+    char* out_cmdline,
+    size_t out_size)
+{
+    assert(path);
+    (void)line;
+    if( out_cmdline && out_size > 0 )
+        out_cmdline[0] = '\0';
+    return EDITOR_HOST_UNSUPPORTED;
+}
+
+#else
+
+#include <spawn.h>
+#include <sys/wait.h>
+extern char** environ;
+
+/** `name` is an executable in a PATH directory. */
+static int
+on_path(const char* name)
+{
+    const char* path = getenv("PATH");
+    char candidate[1200];
+
+    while( path && *path )
+    {
+        const char* colon = strchr(path, ':');
+        size_t const length = colon ? (size_t)(colon - path) : strlen(path);
+        if( length > 0 && length < 1000 )
+        {
+            snprintf(candidate, sizeof(candidate), "%.*s/%s", (int)length, path, name);
+            if( access(candidate, X_OK) == 0 )
+                return 1;
+        }
+        path = colon ? colon + 1 : NULL;
+    }
+    return 0;
+}
+
+enum EditorHost_Status
+Editor_HostLocalOpenInEditor(
+    const char* path,
+    int line,
+    char* out_cmdline,
+    size_t out_size)
+{
+    const char* tmpl = getenv("TORIRS_EDITOR_OPEN_CMD");
+    char command[2048];
+    char shell_line[2100];
+    char* argv[4];
+    pid_t pid;
+    int status = 0;
+
+    assert(path);
+    if( out_cmdline && out_size > 0 )
+        out_cmdline[0] = '\0';
+    if( !tmpl || !tmpl[0] )
+#if defined(__APPLE__)
+        tmpl = Editor_OpenCommandDefault(on_path("code"), 1);
+#else
+        tmpl = Editor_OpenCommandDefault(on_path("code"), 0);
+#endif
+    if( Editor_OpenCommandLine(tmpl, path, line, command, sizeof(command)) == 0 )
+        return EDITOR_HOST_REFUSED;
+    if( out_cmdline && out_size > 0 )
+        snprintf(out_cmdline, out_size, "%s", command);
+    /* Backgrounded inside the shell, which exits at once: waiting on it is
+     * waiting on nothing, and the editor is never this process's child. */
+    snprintf(shell_line, sizeof(shell_line), "( %s ) >/dev/null 2>&1 &", command);
+    argv[0] = "/bin/sh";
+    argv[1] = "-c";
+    argv[2] = shell_line;
+    argv[3] = NULL;
+    if( posix_spawn(&pid, "/bin/sh", NULL, NULL, argv, environ) != 0 )
+        return EDITOR_HOST_IO_ERROR;
+    while( waitpid(pid, &status, 0) < 0 )
+    {
+        if( errno != EINTR )
+            break;
+    }
+    return EDITOR_HOST_OK;
+}
+
+#endif

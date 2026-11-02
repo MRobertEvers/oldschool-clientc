@@ -112,6 +112,7 @@ static const struct ToriRSServerSymbolRef k_refs[] = {
         { TORIRSSERVER_PACK_INTERFACE, "orbs", &g_ids.iface_orbs },
         { TORIRSSERVER_PACK_INTERFACE, "orbs_osm", &g_ids.iface_orbs_osm },
         { TORIRSSERVER_PACK_INTERFACE, "welcome_screen", &g_ids.iface_welcome_screen },
+        { TORIRSSERVER_PACK_COMPONENT, "welcome_screen:motw", &g_ids.com_welcome_screen_motw },
         { TORIRSSERVER_PACK_COMPONENT, "welcome_screen:model1", &g_ids.com_welcome_screen_model1 },
         { TORIRSSERVER_PACK_COMPONENT, "welcome_screen:model2", &g_ids.com_welcome_screen_model2 },
         { TORIRSSERVER_PACK_COMPONENT, "inventory:items", &g_ids.com_inventory_items },

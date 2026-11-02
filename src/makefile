@@ -95,6 +95,13 @@ include $(SRC_DIR)/platform/platform.mk
 # Lane invariant assertions (`make lane-check`). Separate from platform.mk so
 # that file stays a pure set of declarations.
 include $(SRC_DIR)/platform/platform_check.mk
+# The editor's per-owner fragments (docs/MAPED_IMPLEMENTATION.md): each owner
+# adds targets in src/maped/<owner>.mk, never here. Included this early, so a
+# fragment's RULE lines must not name $(OBJ_DIR) or other variables defined
+# below (they expand empty at read time); recipes may use anything. Sources a
+# fragment adds to the client or to torirsmaped go in MAPED_CLIENT_SRCS /
+# MAPED_SERVER_SRCS, which SRCS and TORIRSMAPED_SRCS pick up.
+-include $(wildcard $(SRC_DIR)/maped/*.mk)
 
 CC := $(PLATFORM_CC)
 ifeq ($(MEMTRACE),1)
@@ -913,7 +920,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	world/worldview.c \
 	world/wev.c world/wev_deck.c engine/dat2/task_dat2_wevconfig_load.c engine/dat2/task_dat2_varclantype_load.c \
 	engine/world_builder/task_world_load.c \
-	editor/editor.c editor/editor_doc.c editor/editor_jm2.c \
+	editor/editor.c editor/editor_doc.c editor/editor_jm2.c editor/editor_spawn.c \
 	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \
 	editor/editor_host_remote.c editor/editor_panel.c \
 	torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
@@ -1043,6 +1050,9 @@ EMBED_SERVER_DUP_SRCS = features/features.c $(TORIMEM_SRCS) \
 SRCS += $(filter-out $(EMBED_SERVER_DUP_SRCS),$(TORIRSSERVER_CORE_SRCS))
 EMBED_SERVER_OBJS = $(OBJ_DIR)/rsareabuf.o
 endif
+# Fragment client sources (src/maped/*.mk) link into every client build, not
+# only the embedded-server one: editor_doc.c needs editor_cfg.c either way.
+SRCS += $(MAPED_CLIENT_SRCS)
 INI_SRC = $(REPO_ROOT)/3rd/ini/ini.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
 RSPROT_UNITY_SRC = $(RSPROT_DIR)/rsprot_unity.c
@@ -1353,7 +1363,7 @@ endif
 .PHONY: torirsserver-scripts-lanes torirsserver-lanes torirsserver-scripts-rs2012
 .PHONY: test-wev test-wev-rebuild test-painters-world-entity test-painters-dynamic-pool
 
-all: $(OBJ_DIR) $(TARGET)
+all: $(OBJ_DIR) $(TARGET) torirsmaped torirsmapedctl
 
 release:
 	$(MAKE) OPT=1 all
@@ -1581,7 +1591,7 @@ IO_SERVER_SRCS = $(TORIMEM_SRCS) ioserver/io_server_main.c ioserver/http_server.
 	platform/io_wire.c platform/platform_x_io.c \
 	platform/platform_x_io_ondemand.c \
 	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c \
-	bootmanifest/bootmanifest.c features/features.c \
+	bootmanifest/bootmanifest.c input/torirs_keymap.c features/features.c \
 	ui/torirs_chrome_exec_kind.c $(INI_SRC) \
 	ioserver/io_gate.c ioserver/io_gate_links.c ioserver/io_site.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
 	accountserver/account_client.c accountserver/account_proto.c \
@@ -1934,6 +1944,7 @@ test-app-extracted: check-app-boundary
 	$(MAKE) test-net-link-watch
 	$(MAKE) test-clientscript-queue
 	$(MAKE) test-editor-ghost
+	$(MAKE) test-editor
 	$(MAKE) test-world-camera
 	$(MAKE) test-uitree-if-store
 	$(MAKE) test-minimap-mapscene
@@ -2168,6 +2179,22 @@ test-worldmap-drag: $(OBJ_DIR) $(OBJ_DIR)/hmap.o
 		engine/cache_provider.c engine/torirs_worldmap_from_rscache.c \
 		$(OBJ_DIR)/hmap.o $(LDFLAGS)
 	./$(OBJ_DIR)/worldmap_drag_test$(PLATFORM_EXE_SUFFIX)
+
+# CACHE_INVALIDATE for the loc/npc/obj config groups: the provider drops the
+# kind's records (retired, not freed), tells the IO layer's hook, and the dat2
+# split-group LRU drops the group (docs/serverpack.md "The hot-reload contract").
+.PHONY: test-cache-provider-invalidate
+test-cache-provider-invalidate: $(OBJ_DIR) $(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o \
+		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cache_provider_invalidate_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
+		engine/test/cache_provider_invalidate_test.c engine/cache_provider.c \
+		engine/torirs_types.c engine/torirs_location_from_rscache.c \
+		engine/torirs_npctype_from_rscache.c engine/torirs_worldmap_from_rscache.c \
+		engine/dat2/dat2_group_cache.c engine/torirs_db.c engine/torirs_component_hook.c \
+		cs2vm2/cs2vm2_script.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/hmap.o $(LDFLAGS)
+	./$(OBJ_DIR)/cache_provider_invalidate_test$(PLATFORM_EXE_SUFFIX)
 
 # The server's IF_SETEVENTS store: the arming gate for every click. Its failure
 # mode always looks like a different bug -- the interface renders, the
@@ -3244,10 +3271,17 @@ test-touch: $(OBJ_DIR) input/torirs_touch.c input/test/torirs_touch_test.c
 		input/test/torirs_touch_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/torirs_touch_test
 
+# enum LibToriRS_KeyCode's config names: every code round-trips, the legacy
+# aliases resolve, case is ignored, an unknown name is TORIRSK_UNKNOWN.
+test-keymap: $(OBJ_DIR) input/torirs_keymap.c input/test/torirs_keymap_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_keymap_test \
+		input/torirs_keymap.c input/test/torirs_keymap_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/torirs_keymap_test
+
 test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
-		editor/test/editor_cmd_test.c
+		editor/editor_spawn.c editor/test/editor_cmd_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_cmd_test $(TORIMEM_SRCS) \
-		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c editor/editor_spawn.c \
 		editor/test/editor_cmd_test.c
 	./$(OBJ_DIR)/editor_cmd_test
 
@@ -3255,10 +3289,11 @@ test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/edito
 # parse -> emit byte for byte. The editor's save path rewrites the file it
 # loaded, so any asymmetry here is a diff the user never asked for, landing
 # across thousands of squares at once.
-test-editor-jm2: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c \
+test-editor-jm2: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_spawn.c \
 		editor/test/editor_jm2_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_jm2_test $(TORIMEM_SRCS) \
-		editor/editor_jm2.c editor/editor_doc.c editor/test/editor_jm2_test.c
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_spawn.c \
+		editor/test/editor_jm2_test.c
 	./$(OBJ_DIR)/editor_jm2_test $(EDITOR_CONTENT_DIR)
 
 # The editor renders what the game renders: a square loaded from text derives
@@ -3266,10 +3301,10 @@ test-editor-jm2: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c \
 # the one test that exercises the Perlin height fixup end to end.
 test-editor-derive: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-		editor/editor_jm2.c editor/editor_doc.c editor/editor_derive.c \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_derive.c editor/editor_spawn.c \
 		editor/test/editor_derive_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_derive_test $(TORIMEM_SRCS) \
-		editor/editor_jm2.c editor/editor_doc.c editor/editor_derive.c \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_derive.c editor/editor_spawn.c \
 		editor/test/editor_derive_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
@@ -3279,9 +3314,9 @@ test-editor-derive: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # untouched half stays byte-identical, the file reloads, no .tmp is stranded,
 # and a session without the lock cannot write at all.
 test-editor-save: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
-		editor/editor_host_local.c editor/test/editor_save_test.c
+		editor/editor_spawn.c editor/editor_host_local.c editor/test/editor_save_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_save_test $(TORIMEM_SRCS) \
-		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c editor/editor_spawn.c \
 		editor/editor_host_local.c editor/test/editor_save_test.c
 	rm -rf $(OBJ_DIR)/editor_save_scratch/maps
 	mkdir -p $(OBJ_DIR)/editor_save_scratch/maps
@@ -3297,13 +3332,13 @@ test-torirsmaped-embed: $(OBJ_DIR) torirsmaped/torirs_maped.c torirsmaped/torirs
 		torirsmaped/torirs_maped_cmdwire.c \
 		torirsmaped/torirs_maped_embed.c editor/editor_host_local.c \
 		editor/editor_host_remote.c editor/editor_doc.c editor/editor_cmd.c \
-		editor/editor_jm2.c torirsmaped/test/maped_embed_test.c
+		editor/editor_spawn.c editor/editor_jm2.c torirsmaped/test/maped_embed_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/maped_embed_test $(TORIMEM_SRCS) \
 		torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
 		torirsmaped/torirs_maped_cmdwire.c \
 		torirsmaped/torirs_maped_embed.c editor/editor_host_local.c \
 		editor/editor_host_remote.c editor/editor_doc.c editor/editor_cmd.c \
-		editor/editor_jm2.c torirsmaped/test/maped_embed_test.c
+		editor/editor_spawn.c editor/editor_jm2.c torirsmaped/test/maped_embed_test.c
 	rm -rf $(OBJ_DIR)/maped_scratch
 	mkdir -p $(OBJ_DIR)/maped_scratch/maps
 	./$(OBJ_DIR)/maped_embed_test $(OBJ_DIR)/maped_scratch \
@@ -3977,7 +4012,19 @@ test-web-channel:
 	node web/test/hostio_read_file_test.js
 	node web/test/js5_reconnect_test.js
 	node web/test/session_resume_test.js
+	$(MAKE) test-web-cache-invalidate
 	$(MAKE) test-chrome-web-skin
+
+# The web client's half of a live reload (CACHE_INVALIDATE): the IO executor
+# drops its decoded, resident and reference-table copies of the archive
+# (platform/platform_web_io.js), and the JS5 client re-primes the index
+# against IndexedDB -- 255/255, 255/<index>, only the rewritten groups
+# (web/torirs_js5.js invalidateArchive, through web/torirs_hostio.js). Node
+# only; part of test-web-channel.
+.PHONY: test-web-cache-invalidate
+test-web-cache-invalidate:
+	node web/test/web_io_invalidate_test.js
+	node web/test/js5_invalidate_test.js
 
 test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o
@@ -5019,7 +5066,8 @@ TORIRSMAPED_SRCS = torirsmaped/torirs_maped_main.c torirsmaped/torirs_maped.c \
 	torirsmaped/torirs_maped_buf.c torirsmaped/torirs_maped_cmdwire.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c \
 	editor/editor_host_local.c \
-	editor/editor_doc.c editor/editor_cmd.c editor/editor_jm2.c
+	editor/editor_doc.c editor/editor_cmd.c editor/editor_jm2.c editor/editor_spawn.c \
+	$(MAPED_SERVER_SRCS)
 
 torirsmaped: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsmaped $(TORIMEM_SRCS) $(TORIRSMAPED_SRCS)
@@ -6709,7 +6757,7 @@ test-ws-frame: $(OBJ_DIR)
 test-bootmanifest: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/bootmanifest -o $(OBJ_DIR)/bootmanifest_test $(TORIMEM_SRCS) \
 		bootmanifest/bootmanifest.c executor_config.c features/features.c \
-		ui/torirs_chrome_exec_kind.c $(INI_SRC) \
+		ui/torirs_chrome_exec_kind.c input/torirs_keymap.c $(INI_SRC) \
 		bootmanifest/test/bootmanifest_test.c \
 		$(RSCACHE_DIR)/build/rscache_unity.o $(RSCACHE_DIR)/build/bzip.o \
 		$(RSCACHE_DIR)/build/bzip_encode.o $(RSCACHE_DIR)/build/miniz.o \

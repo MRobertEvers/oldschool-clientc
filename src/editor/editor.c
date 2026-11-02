@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "editor_areas.h"
 #include "log/torirs_log.h"
 
 int
@@ -30,14 +31,23 @@ Editor_OpenHost(
 
     memset(editor, 0, sizeof(*editor));
     Editor_DocInit(&editor->doc, profile);
+    Editor_HistoryInit(&editor->history);
 
     editor->host = *host;
     editor->host_open = 1;
 
     editor->writable = Editor_HostMapEdWritable(&editor->host);
+    editor->capabilities = Editor_HostMapEdCapabilities(&editor->host);
     if( !editor->writable )
         TORIRS_LOG("editor: another server holds %s — opening read-only\n",
             label);
+
+    /* The named areas and square collections (editor_areas.h): one small
+     * document every window of every Client mirrors from the start, so the
+     * world overlay and the Areas panel never wait on an open. A server that
+     * predates the kind refuses it; the session runs without areas. */
+    if( !Editor_OpenDoc(editor, EDITOR_DOC_AREAS, EDITOR_AREAS_DOC_KEY) )
+        TORIRS_LOG("editor: %s serves no areas document; named areas are off\n", label);
 
     return 1;
 }
@@ -72,6 +82,7 @@ Editor_Close(struct Editor* editor)
         editor->host_open = 0;
     }
     Editor_DocFree(&editor->doc);
+    Editor_HistoryFree(&editor->history);
 }
 
 /**
@@ -126,6 +137,220 @@ seed_provider(
     return 1;
 }
 
+/**
+ * Fill the mirror's copy of a document from the authority's DOC_OPEN answer.
+ * Re-filling a loaded document replaces it — that is the resync path.
+ */
+static int
+mirror_fill(
+    struct Editor* editor,
+    const struct EditorHost_DocText* text)
+{
+    struct Editor_DocHandle handle;
+
+    assert(editor);
+    assert(text);
+
+    if( !Editor_DocOpen(&editor->doc, text->kind, text->key, &handle) )
+    {
+        TORIRS_ERR("editor: no room to mirror %s\n", text->key);
+        return 0;
+    }
+
+    if( handle.square )
+    {
+        struct Editor_Square* square = handle.square;
+        struct Editor_ParseResult result;
+
+        if( text->part_count != 2 )
+            return 0;
+        result = Editor_Jm2Parse(square, text->parts[0].data, text->parts[0].size);
+        if( result.status != EDITOR_PARSE_OK )
+        {
+            TORIRS_ERR("editor: %s.jm2 line %d: parse error %d\n",
+                text->key,
+                result.line,
+                (int)result.status);
+            return 0;
+        }
+        /* A square with no scenery ships no `.jl2`; zero locs is the right
+         * answer, not a parse failure. */
+        square->loc_count = 0;
+        if( text->parts[1].data && text->parts[1].size > 0 )
+        {
+            result = Editor_Jl2Parse(square, text->parts[1].data, text->parts[1].size);
+            if( result.status != EDITOR_PARSE_OK )
+            {
+                TORIRS_ERR("editor: %s.jl2 line %d: parse error %d\n",
+                    text->key,
+                    result.line,
+                    (int)result.status);
+                return 0;
+            }
+        }
+        Editor_DocSquareSetStorage(&editor->doc, square, text->storage);
+        square->dirty_map = (text->dirty & 1) != 0;
+        square->dirty_loc = (text->dirty & 2) != 0;
+        square->loaded = 1;
+        return 1;
+    }
+
+    if( text->part_count != 1 )
+        return 0;
+    if( handle.spawn )
+    {
+        struct Editor_SpawnParseResult result = Editor_SpawnParse(
+            &handle.spawn->file, text->parts[0].data, text->parts[0].size);
+        if( !result.ok )
+        {
+            TORIRS_ERR("editor: spawn %s line %d does not parse\n", text->key, result.line);
+            return 0;
+        }
+        handle.spawn->loaded = 1;
+        handle.spawn->dirty = (text->dirty & 1) != 0;
+        return 1;
+    }
+    Editor_TextDocSet(handle.text, text->parts[0].data, text->parts[0].size);
+    handle.text->dirty = (text->dirty & 1) != 0;
+    return 1;
+}
+
+int
+Editor_OpenDoc(
+    struct Editor* editor,
+    enum Editor_DocKind kind,
+    const char* key)
+{
+    struct EditorHost_DocText text;
+    enum EditorHost_Status status;
+    int ok;
+
+    assert(editor);
+    assert(key);
+
+    /* Open on the AUTHORITY, mirror what it answers — the document's current
+     * text, another client's unsaved edits included, plus the dirty flags so
+     * this mirror agrees about what is unsaved. */
+    status = Editor_HostMapEdDocOpen(&editor->host, kind, key, &text);
+    if( status != EDITOR_HOST_OK )
+    {
+        TORIRS_ERR("editor: cannot open %s (status %d)\n", key, (int)status);
+        Editor_HostDocTextFree(&text);
+        return 0;
+    }
+    ok = mirror_fill(editor, &text);
+    Editor_HostDocTextFree(&text);
+    return ok;
+}
+
+void
+Editor_CloseDoc(
+    struct Editor* editor,
+    enum Editor_DocKind kind,
+    const char* key)
+{
+    assert(editor);
+    assert(key);
+    Editor_HostMapEdDocClose(&editor->host, kind, key);
+}
+
+int
+Editor_SaveDoc(
+    struct Editor* editor,
+    enum Editor_DocKind kind,
+    const char* key)
+{
+    int saved;
+
+    assert(editor);
+    assert(key);
+
+    saved = Editor_HostMapEdSave(&editor->host, kind, key);
+    Editor_PumpFacts(editor);
+    return saved;
+}
+
+enum EditorHost_Status
+Editor_CreateSquare(
+    struct Editor* editor,
+    const struct EditorHost_DocCreate* request)
+{
+    enum EditorHost_Status status;
+    char key[EDITOR_DOC_KEY_MAX + EDITOR_DOC_STORAGE_MAX];
+
+    assert(editor);
+    assert(request);
+
+    {
+        char label[EDITOR_HISTORY_LABEL_MAX];
+        if( request->template_kind == EDITOR_DOC_TEMPLATE_COPY )
+            snprintf(label, sizeof(label), "New square %.24s (copy of %.40s)", request->key, request->source_key);
+        else
+            snprintf(label, sizeof(label), "New square %.24s (%s)", request->key,
+                request->template_kind == EDITOR_DOC_TEMPLATE_FLAT ? "flat" : "empty");
+        editor->history_intent++;
+        Editor_HistoryBreak(&editor->history, label);
+    }
+    status = Editor_HostMapEdDocCreate(&editor->host, request);
+    /* The fill's FACT_CMDs went out before the ack; this mirror does not
+     * hold the square yet, so they applied to nothing — opening it now
+     * receives the filled text in one answer. */
+    Editor_PumpFacts(editor);
+    editor->history_intent--;
+    Editor_HistoryBreak(&editor->history, NULL);
+    if( status != EDITOR_HOST_OK )
+        return status;
+    if( request->storage[0] && strcmp(request->storage, "maps") != 0 )
+        snprintf(key, sizeof(key), "%s/%s", request->storage, request->key);
+    else
+        snprintf(key, sizeof(key), "%s", request->key);
+    return Editor_OpenDoc(editor, EDITOR_DOC_SQUARE, key) ? EDITOR_HOST_OK : EDITOR_HOST_IO_ERROR;
+}
+
+enum EditorHost_Status
+Editor_CopyRecord(
+    struct Editor* editor,
+    const char* type,
+    const char* name,
+    const char* new_name,
+    int* out_id)
+{
+    enum EditorHost_Status status;
+    char key[EDITOR_DOC_KEY_MAX];
+    char new_key[EDITOR_DOC_KEY_MAX];
+    int written;
+
+    assert(editor);
+    assert(type);
+    assert(name);
+    assert(new_name);
+
+    if( out_id )
+        *out_id = -1;
+    written = snprintf(key, sizeof(key), "%s:%s", type, name);
+    if( written <= 0 || (size_t)written >= sizeof(key) )
+        return EDITOR_HOST_REFUSED;
+    written = snprintf(new_key, sizeof(new_key), "%s:%s", type, new_name);
+    if( written <= 0 || (size_t)written >= sizeof(new_key) )
+        return EDITOR_HOST_REFUSED;
+    {
+        char label[EDITOR_HISTORY_LABEL_MAX];
+        snprintf(label, sizeof(label), "Copy %.40s to %.40s", key, new_name);
+        editor->history_intent++;
+        Editor_HistoryBreak(&editor->history, label);
+    }
+    status = Editor_HostMapEdSaveAs(&editor->host, EDITOR_DOC_CFG, key, new_key, out_id);
+    /* The copy's FACT_CMDs went out before the ack: the ledger and
+     * membership documents this mirror holds take them now; the new record
+     * this mirror does not hold yet arrives whole when it opens. */
+    Editor_PumpFacts(editor);
+    editor->history_intent--;
+    Editor_HistoryBreak(&editor->history, NULL);
+    if( status != EDITOR_HOST_OK )
+        return status;
+    return Editor_OpenDoc(editor, EDITOR_DOC_CFG, new_key) ? EDITOR_HOST_OK : EDITOR_HOST_IO_ERROR;
+}
+
 int
 Editor_LoadSquare(
     struct Editor* editor,
@@ -134,73 +359,28 @@ Editor_LoadSquare(
     int map_z)
 {
     struct Editor_Square* square;
-    struct EditorHost_Blob jm2 = { NULL, 0 };
-    struct EditorHost_Blob jl2 = { NULL, 0 };
-    struct Editor_ParseResult result;
-    enum EditorHost_Status status;
+    char key[EDITOR_DOC_KEY_MAX];
 
     assert(editor);
     assert(provider);
 
-    int dirty_map = 0;
-    int dirty_loc = 0;
-
-    square = Editor_DocOpenSquare(&editor->doc, map_x, map_z);
-    if( !square )
+    square = Editor_DocFindSquare(&editor->doc, map_x, map_z);
+    if( square && square->loaded )
+        return 1;
+    if( !square && editor->doc.square_count == EDITOR_DOC_MAX_SQUARES )
     {
         TORIRS_ERR("editor: no room for another square\n");
         return 0;
     }
-    if( square->loaded )
-        return 1;
 
-    /* Open on the AUTHORITY, mirror what it answers — which is the doc's
-     * current text, another client's unsaved edits included, plus the dirty
-     * flags so this mirror agrees about what is unsaved. */
-    status = Editor_HostMapEdSquareOpen(
-        &editor->host, map_x, map_z, &jm2, &jl2, &dirty_map, &dirty_loc);
-    if( status != EDITOR_HOST_OK )
+    Editor_SquareKey(key, map_x, map_z);
+    if( !Editor_OpenDoc(editor, EDITOR_DOC_SQUARE, key) )
     {
         TORIRS_ERR("editor: cannot read square %d,%d\n", map_x, map_z);
         return 0;
     }
-
-    result = Editor_Jm2Parse(square, jm2.data, jm2.size);
-    if( result.status != EDITOR_PARSE_OK )
-    {
-        TORIRS_ERR("editor: m%d_%d.jm2 line %d: parse error %d\n",
-            map_x,
-            map_z,
-            result.line,
-            (int)result.status);
-        Editor_HostBlobFree(&jm2);
-        Editor_HostBlobFree(&jl2);
-        return 0;
-    }
-
-    /* A square with no scenery ships no `.jl2`; zero locs is the right answer,
-     * not a parse failure. */
-    if( jl2.data && jl2.size > 0 )
-    {
-        result = Editor_Jl2Parse(square, jl2.data, jl2.size);
-        if( result.status != EDITOR_PARSE_OK )
-        {
-            TORIRS_ERR("editor: m%d_%d.jl2 line %d: parse error %d\n",
-                map_x,
-                map_z,
-                result.line,
-                (int)result.status);
-            Editor_HostBlobFree(&jm2);
-            Editor_HostBlobFree(&jl2);
-            return 0;
-        }
-    }
-
-    Editor_HostBlobFree(&jm2);
-    Editor_HostBlobFree(&jl2);
-
-    square->dirty_map = dirty_map;
-    square->dirty_loc = dirty_loc;
+    square = Editor_DocFindSquare(&editor->doc, map_x, map_z);
+    assert(square);
 
     if( !seed_provider(editor, provider, square) )
         return 0;
@@ -291,25 +471,45 @@ mirror_on_cmd(
         command,
         direction == EDITOR_CMD_INVERSE ? EDITOR_CMD_INVERSE : EDITOR_CMD_FORWARD);
     queue_span(editor, command);
+    Editor_HistoryOnFact(
+        &editor->history, direction == EDITOR_CMD_INVERSE ? EDITOR_CMD_INVERSE : EDITOR_CMD_FORWARD,
+        command);
 }
 
 static void
 mirror_on_saved(
     void* user_data,
     int count,
-    const int* coords)
+    const struct Editor_DocRef* rows)
 {
     struct Editor* editor = user_data;
 
     for( int i = 0; i < count; i++ )
     {
-        struct Editor_Square* square =
-            Editor_DocFindSquare(&editor->doc, coords[i * 2], coords[i * 2 + 1]);
-        if( !square )
-            continue;
-        square->dirty_map = 0;
-        square->dirty_loc = 0;
+        struct Editor_DocHandle handle;
+        if( Editor_DocFind(&editor->doc, rows[i].kind, rows[i].key, &handle) )
+            Editor_DocHandleClearDirty(&handle);
     }
+}
+
+/** A FACT_CMD this build cannot read: re-open the document it named, if
+ *  this mirror holds it, so the next frame shows the authority's text. */
+static void
+mirror_on_resync(
+    void* user_data,
+    enum Editor_DocKind kind,
+    const char* key)
+{
+    struct Editor* editor = user_data;
+    struct Editor_DocHandle handle;
+
+    if( !Editor_DocFind(&editor->doc, kind, key, &handle) )
+        return;
+    TORIRS_LOG("editor: a newer peer edited %s in a way this build cannot apply — "
+               "re-opening it\n",
+        key);
+    if( Editor_OpenDoc(editor, kind, key) && handle.square )
+        queue_rebuild(editor, handle.square->map_x, handle.square->map_z);
 }
 
 static void
@@ -336,7 +536,23 @@ Editor_PumpFacts(struct Editor* editor)
     sink.on_cmd = mirror_on_cmd;
     sink.on_saved = mirror_on_saved;
     sink.on_state = mirror_on_state;
-    return Editor_HostMapEdDrainFacts(&editor->host, &sink);
+    sink.on_resync = mirror_on_resync;
+    if( editor->history_intent )
+        return Editor_HostMapEdDrainFacts(&editor->host, &sink);
+    {
+        /* Facts no intent of this session asked for: another window's. Its
+         * stroke boundaries are not on the wire, so one pump is one group
+         * (inside this session's own stroke they join it, as the
+         * authority's single open stroke does). */
+        int drained;
+        if( !editor->history_stroke )
+            Editor_HistoryBreak(&editor->history, NULL);
+        drained = Editor_HostMapEdDrainFacts(&editor->host, &sink);
+        Editor_HistoryBatchEnd(&editor->history);
+        if( !editor->history_stroke )
+            Editor_HistoryBreak(&editor->history, NULL);
+        return drained;
+    }
 }
 
 /* ---- intents ------------------------------------------------------------- */
@@ -349,12 +565,21 @@ Editor_Apply(
     assert(editor);
     assert(command);
 
+    /* Outside a stroke every command is its own undo step on the authority,
+     * and so its own row here. */
+    if( !editor->history_stroke )
+        Editor_HistoryBreak(&editor->history, NULL);
+    editor->history_intent++;
     if( Editor_HostMapEdCmd(&editor->host, command) != EDITOR_HOST_OK )
+    {
+        editor->history_intent--;
         return 0;
+    }
     /* The authority broadcast before it acked, so the echo is in hand;
      * consuming it here is what lets callers read the document's new state
      * the moment this returns, as they always could. */
     Editor_PumpFacts(editor);
+    editor->history_intent--;
     return 1;
 }
 
@@ -365,8 +590,15 @@ Editor_Undo(struct Editor* editor)
 
     assert(editor);
 
+    /* Facts from elsewhere that are already queued are a batch of their
+     * own, not part of this undo. */
+    Editor_PumpFacts(editor);
+    editor->history_intent++;
+    Editor_HistoryReplayBegin(&editor->history, -1);
     count = Editor_HostMapEdUndo(&editor->host);
     Editor_PumpFacts(editor);
+    Editor_HistoryReplayEnd(&editor->history, count);
+    editor->history_intent--;
     return count;
 }
 
@@ -377,8 +609,13 @@ Editor_Redo(struct Editor* editor)
 
     assert(editor);
 
+    Editor_PumpFacts(editor);
+    editor->history_intent++;
+    Editor_HistoryReplayBegin(&editor->history, 1);
     count = Editor_HostMapEdRedo(&editor->host);
     Editor_PumpFacts(editor);
+    Editor_HistoryReplayEnd(&editor->history, count);
+    editor->history_intent--;
     return count;
 }
 
@@ -387,6 +624,25 @@ Editor_StrokeBegin(struct Editor* editor)
 {
     assert(editor);
     Editor_HostMapEdStroke(&editor->host, 1);
+    editor->history_stroke = 1;
+    Editor_HistoryBreak(&editor->history, NULL);
+}
+
+const struct Editor_History*
+Editor_GetHistory(const struct Editor* editor)
+{
+    assert(editor);
+    return &editor->history;
+}
+
+void
+Editor_HistoryName(
+    struct Editor* editor,
+    const char* verb)
+{
+    assert(editor);
+    assert(verb);
+    Editor_HistoryVerb(&editor->history, verb);
 }
 
 void
@@ -394,6 +650,8 @@ Editor_StrokeEnd(struct Editor* editor)
 {
     assert(editor);
     Editor_HostMapEdStroke(&editor->host, 0);
+    editor->history_stroke = 0;
+    Editor_HistoryBreak(&editor->history, NULL);
 }
 
 int

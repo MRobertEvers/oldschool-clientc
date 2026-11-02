@@ -17,7 +17,8 @@
     /* Must equal TORIRS_CHROME_OPTION_MAX: the model and both browser runtimes
      * accept the same bounded list rather than truncating at presentation. */
     var MAX_OPTIONS = 512;
-    var MAX_PAGE_COMMANDS = 8190; /* 8192 including SYNC_BEGIN/SYNC_END. */
+    /* TORIRS_CHROME_PROTOCOL_COMMAND_MAX less SYNC_BEGIN/SYNC_END. */
+    var MAX_PAGE_COMMANDS = 49150;
     var MAX_TEXT = 191;
     var Codec = global.ToriRSPluginChromeCodec;
     if (!Codec)
@@ -28,16 +29,20 @@
         WIDGET_ADD: 8, WIDGET_REMOVE: 9, WIDGET_LABEL: 10, WIDGET_TEXT: 11,
         WIDGET_CHECKED: 12, WIDGET_HIDDEN: 13, WIDGET_COLOR: 14,
         WIDGET_SELECTED: 15, WIDGET_FOCUS: 16, WIDGET_OPTIONS: 17,
-        WIDGET_OPTION: 18, CHECK_STYLE: 19, WIDGET_HEIGHT: 20
+        WIDGET_OPTION: 18, CHECK_STYLE: 19, WIDGET_HEIGHT: 20,
+        PANEL_MODE: 21, WIDGET_VALUE: 22, WIDGET_ROW: 23, WIDGET_SPAN: 24,
+        WIDGET_GRAPH: 25, WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27
     };
     var W = {
         LABEL: 0, CHECKBOX: 1, TEXTINPUT: 2, SEPARATOR: 3, MENUITEM: 4,
         DROPDOWN: 5, MODELVIEW: 6, BUTTON: 7, TABSTRIP: 8, LISTROW: 9,
-        COLORPICK: 10, TEXTAREA: 11, CUSTOM: 12, FREE: 13
+        COLORPICK: 10, TEXTAREA: 11, CUSTOM: 12, TREE: 13, VLIST: 14,
+        ICONBUTTON: 15, SLIDER: 16, RADIO: 17, CODE: 18, GRAPH: 19, FREE: 20
     };
     var INTENT = {
         ACTIVATE: 1, ACTION: 2, TOGGLE: 3, TEXT: 4, PICK: 5, TAB: 6,
-        CLOSE: 7, CUSTOM_ACTIVATE: 8, CUSTOM_MENU: 9
+        CLOSE: 7, CUSTOM_ACTIVATE: 8, CUSTOM_MENU: 9, EXPAND: 10, SCROLL: 11,
+        VALUE: 12, SPLIT: 13, CODE_EDIT: 14, GRAPH: 15, GRAPH_WHEEL: 16
     };
     var ROW_ACTION = 0x1;
     var ROW_LOCKED = 0x2;
@@ -772,6 +777,8 @@
         tabs.scrollLeft = 0;
         setTabsVisible(false);
         hidden(pane, true);
+        /* A modal page leaves with its page: the veil is the page's. */
+        toggleClass(shell, 'tpc-modal', false);
         state.pageGeneration = 0;
         state.panel = -1;
         state.activeTab = 0;
@@ -1206,6 +1213,15 @@
                 record.control = custom_1;
                 break;
             }
+            case W.TREE:
+            case W.VLIST:
+            case W.ICONBUTTON:
+            case W.SLIDER:
+            case W.RADIO:
+            case W.CODE:
+            case W.GRAPH:
+                createEditorWidget(record, row);
+                break;
             case W.FREE:
             default:
                 hidden(row, true);
@@ -1229,6 +1245,567 @@
         state.widgets.set(record.handle, record);
         indexWidget(record);
         queueWidgetRender(record, RENDER.FULL);
+    }
+    /* ---- the map editor's widgets (docs/MAPED_DESIGN.html #chrome) ---------
+     *
+     * TREE, VLIST, ICONBUTTON, SLIDER, RADIO, CODE and GRAPH, rendered from the
+     * same command stream the in-canvas chrome draws from. Like every other
+     * kind, a control here owns only its presentation: a click is reported as an
+     * intent and the model's answer comes back as a command. */
+    /* Skin file per ToriRSChromeSkinSlot, in enum order, so an ICONBUTTON's slot
+     * names the packaged PNG the bake wrote for it (tools/spritebake_png.py). */
+    var SKIN_FILES = [
+        'PanelBody', 'ScrollUp', 'ScrollDown', 'ScrollTrack', 'ScrollGripTop',
+        'ScrollGripMid', 'ScrollGripBottom', 'DropdownBody', 'PluginIcon', 'CheckOn',
+        'CheckOff', 'FrameTopLeft', 'FrameTop', 'FrameTopRight', 'FrameLeft',
+        'FrameRight', 'FrameBottomLeft', 'FrameBottom', 'FrameBottomRight',
+        'CloseButton', 'CloseButtonOver', 'PopoutButton', 'PopoutButtonOver',
+        'DockButton', 'DockButtonOver', 'CheckBoxOn', 'CheckBoxOff', 'ButtonLeft',
+        'ButtonMid', 'ButtonRight', 'ToolSelect', 'ToolRaise', 'ToolLower',
+        'ToolFlatten', 'ToolSmooth', 'ToolPaintUnderlay', 'ToolPaintOverlay',
+        'ToolFlags', 'ToolPlace', 'ToolMove', 'ToolRotate', 'ToolDelete',
+        'SearchGlass', 'TreeClosed', 'TreeOpen', 'RadioOn', 'RadioOff',
+        'SliderTrack', 'SliderKnob', 'SplitterGrip', 'WarningGlyph', 'ErrorGlyph',
+        'RunButton', 'StopButton', 'BuildButton', 'SaveButton'
+    ];
+    var TREE_LEAF = 0;
+    var TREE_OPEN = 2;
+    var VROW_H = 20;
+    var CODE_LINE_H = 17;
+    var EV = {
+        GRAPH_PRESS: 1, GRAPH_DRAG: 2, GRAPH_RELEASE: 3, GRAPH_MENU: 4,
+        GRAPH_HOVER: 5, CODE_REPLACE: 7, CODE_SPLIT: 8, CODE_JOIN: 9
+    };
+    var GRAPH_ITEM = { RECT: 0, RECT_OUTLINE: 1, LINE: 2, TEXT: 3 };
+    function skinFile(slot) {
+        var name = slot >= 0 && slot < SKIN_FILES.length ? SKIN_FILES[slot] : '';
+        return name ? "skin/".concat(name, ".png") : '';
+    }
+    function cssColor(rgb) {
+        var raw = ((rgb >>> 0) & 0xffffff).toString(16);
+        return "#".concat('000000'.slice(raw.length)).concat(raw);
+    }
+    function isEditorKind(kind) {
+        return kind === W.TREE || kind === W.VLIST || kind === W.ICONBUTTON ||
+            kind === W.SLIDER || kind === W.RADIO || kind === W.CODE || kind === W.GRAPH;
+    }
+    function editorPoint(node, event) {
+        var bounds = node.getBoundingClientRect();
+        return {
+            x: Math.floor(event.clientX - bounds.left - integer(node.clientLeft, 0)),
+            y: Math.floor(event.clientY - bounds.top - integer(node.clientTop, 0))
+        };
+    }
+    /** Topmost keyed rect under a well-local point, as the model resolves it. */
+    function graphKeyAt(record, x, y) {
+        for (var i = record.items.length - 1; i >= 0; i--) {
+            var item = record.items[i];
+            if (!item || !item.key || (item.kind !== GRAPH_ITEM.RECT &&
+                item.kind !== GRAPH_ITEM.RECT_OUTLINE))
+                continue;
+            if (x >= item.x && x < item.x + item.w && y >= item.y && y < item.y + item.h)
+                return item.key;
+        }
+        return 0;
+    }
+    function createEditorWidget(record, row) {
+        record.value = 0;
+        record.first = 0;
+        record.count = 0;
+        record.step = 1;
+        record.aux = 0;
+        record.rowText = new Store();
+        record.spans = new Store();
+        record.items = [];
+        record.tooltip = '';
+        switch (record.kind) {
+            case W.TREE: {
+                row.className += ' tpc-tree-row';
+                row.style.paddingLeft = "".concat(Math.max(0, record.shape) * 12, "px");
+                var expander = document.createElement('button');
+                expander.type = 'button';
+                expander.className = 'tpc-tree-exp';
+                bind(expander, 'click', function (event) {
+                    if (event && event.stopPropagation)
+                        event.stopPropagation();
+                    else if (event)
+                        event.cancelBubble = true;
+                    if (record.value === TREE_LEAF)
+                        return;
+                    postWidget(record, INTENT.EXPAND, record.value === TREE_OPEN ? 1 : 2);
+                });
+                var caption = document.createElement('span');
+                caption.className = 'tpc-tree-caption';
+                bind(row, 'click', function () { return postWidget(record, INTENT.ACTIVATE); });
+                row.appendChild(expander);
+                row.appendChild(caption);
+                record.control = row;
+                record.expander = expander;
+                record.caption = caption;
+                break;
+            }
+            case W.VLIST:
+            case W.CODE: {
+                var code = record.kind === W.CODE;
+                var lineH_1 = code ? CODE_LINE_H : VROW_H;
+                row.className += ' tpc-tall-row';
+                if (record.label)
+                    row.appendChild(labelNode(record.label));
+                var list_1 = document.createElement('div');
+                list_1.className = code ? 'tpc-vlist tpc-code' : 'tpc-vlist';
+                list_1.style.height = "".concat(Math.max(1, record.rows) * lineH_1, "px");
+                list_1.tabIndex = 0;
+                var spacer = document.createElement('div');
+                spacer.className = 'tpc-vlist-spacer';
+                list_1.appendChild(spacer);
+                bind(list_1, 'scroll', function () {
+                    var first = Math.floor(list_1.scrollTop / lineH_1);
+                    if (first !== record.first && !record.settingScroll)
+                        postWidget(record, INTENT.SCROLL, first);
+                });
+                if (!code)
+                    bind(list_1, 'click', function (event) {
+                        var point = editorPoint(list_1, event);
+                        var index = Math.floor((point.y + list_1.scrollTop) / lineH_1);
+                        if (index >= 0 && index < record.count)
+                            postWidget(record, INTENT.PICK, index);
+                    });
+                row.appendChild(list_1);
+                record.control = list_1;
+                record.spacer = spacer;
+                record.lineNodes = [];
+                record.editLine = -1;
+                break;
+            }
+            case W.ICONBUTTON: {
+                row.className += ' tpc-icon-row';
+                var button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'tpc-iconbutton';
+                var icon = document.createElement('span');
+                icon.className = 'tpc-icon';
+                button.appendChild(icon);
+                bind(button, 'click', function () { return postWidget(record, INTENT.ACTIVATE); });
+                row.appendChild(button);
+                record.control = button;
+                record.icon = icon;
+                break;
+            }
+            case W.SLIDER: {
+                row.className += ' tpc-field-row';
+                var range_1 = document.createElement('input');
+                range_1.type = 'range';
+                range_1.className = 'tpc-slider';
+                var value_1 = document.createElement('span');
+                value_1.className = 'tpc-slider-value';
+                bind(range_1, 'input', function () { return setText(value_1, String(range_1.value)); });
+                bind(range_1, 'change', function () {
+                    return postWidget(record, INTENT.VALUE, integer(parseInt(range_1.value, 10), record.value));
+                });
+                attachLabel(row, record, range_1);
+                row.appendChild(value_1);
+                record.control = range_1;
+                record.valueNode = value_1;
+                break;
+            }
+            case W.RADIO: {
+                row.className += ' tpc-toggle-row';
+                var radio_1 = document.createElement('input');
+                radio_1.type = 'radio';
+                radio_1.className = 'tpc-radio';
+                radio_1.name = "tpc-radio-".concat(record.panel, "-").concat(record.shape);
+                bind(radio_1, 'change', function () { if (radio_1.checked)
+                    postWidget(record, INTENT.TOGGLE, 1); });
+                var caption = document.createElement('span');
+                row.appendChild(radio_1);
+                row.appendChild(caption);
+                record.control = radio_1;
+                record.caption = caption;
+                break;
+            }
+            case W.GRAPH: {
+                row.className += ' tpc-tall-row';
+                if (record.label)
+                    row.appendChild(labelNode(record.label));
+                var well_1 = document.createElement('div');
+                well_1.className = 'tpc-graph';
+                well_1.style.height = customHeightPx(record.rows);
+                well_1.tabIndex = 0;
+                bind(well_1, 'mousedown', function (event) {
+                    var point = editorPoint(well_1, event);
+                    record.pressed = true;
+                    postWidget(record, INTENT.GRAPH, EV.GRAPH_PRESS, '', point.x, point.y);
+                });
+                bind(well_1, 'mousemove', function (event) {
+                    var point = editorPoint(well_1, event);
+                    if (record.pressed) {
+                        postWidget(record, INTENT.GRAPH, EV.GRAPH_DRAG, '', point.x, point.y);
+                        return;
+                    }
+                    var key = graphKeyAt(record, point.x, point.y);
+                    if (key !== record.hoverKey) {
+                        record.hoverKey = key;
+                        postWidget(record, INTENT.GRAPH, EV.GRAPH_HOVER, '', point.x, point.y);
+                    }
+                });
+                bind(well_1, 'mouseup', function (event) {
+                    if (!record.pressed)
+                        return;
+                    record.pressed = false;
+                    var point = editorPoint(well_1, event);
+                    postWidget(record, INTENT.GRAPH, EV.GRAPH_RELEASE, '', point.x, point.y);
+                });
+                bind(well_1, 'contextmenu', function (event) {
+                    var point = editorPoint(well_1, event);
+                    if (event.preventDefault)
+                        event.preventDefault();
+                    else
+                        event.returnValue = false;
+                    if (event.stopPropagation)
+                        event.stopPropagation();
+                    else
+                        event.cancelBubble = true;
+                    postWidget(record, INTENT.GRAPH, EV.GRAPH_MENU, '', point.x, point.y);
+                });
+                var wheel = function (event) {
+                    var point = editorPoint(well_1, event);
+                    var delta = (event.deltaY || -(event.wheelDelta || 0)) > 0 ? 1 : -1;
+                    if (event.preventDefault)
+                        event.preventDefault();
+                    else
+                        event.returnValue = false;
+                    postWidget(record, INTENT.GRAPH_WHEEL, delta, '', point.x, point.y);
+                };
+                bind(well_1, 'wheel', wheel);
+                bind(well_1, 'mousewheel', wheel);
+                row.appendChild(well_1);
+                record.control = well_1;
+                record.hoverKey = 0;
+                break;
+            }
+            default:
+                hidden(row, true);
+                break;
+        }
+    }
+    function renderCodeText(node, text, spans) {
+        clear(node);
+        var list = spans || [];
+        var at = 0;
+        var sorted = list.slice(0).sort(function (a, b) { return a.start - b.start; });
+        for (var i = 0; i < sorted.length; i++) {
+            var span = sorted[i];
+            if (span.start < at || span.start >= text.length)
+                continue;
+            if (span.start > at)
+                node.appendChild(document.createTextNode(text.slice(at, span.start)));
+            var run = document.createElement('span');
+            run.style.color = cssColor(span.color);
+            setText(run, text.slice(span.start, span.start + span.len));
+            node.appendChild(run);
+            at = span.start + span.len;
+        }
+        if (at < text.length)
+            node.appendChild(document.createTextNode(text.slice(at)));
+    }
+    function codeLineEditor(record, line, text) {
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'tpc-code-edit';
+        input.maxLength = MAX_TEXT;
+        input.value = text;
+        bind(input, 'change', function () {
+            postWidget(record, INTENT.CODE_EDIT, line, input.value, EV.CODE_REPLACE, input.selectionStart || 0);
+        });
+        bind(input, 'keydown', function (event) {
+            var code = event.keyCode || event.which || 0;
+            var at = integer(input.selectionStart, 0);
+            var end = integer(input.selectionEnd, 0);
+            var stop = function () {
+                if (event.preventDefault)
+                    event.preventDefault();
+                else
+                    event.returnValue = false;
+            };
+            if (code === 13) {
+                if (input.value !== text)
+                    postWidget(record, INTENT.CODE_EDIT, line, input.value, EV.CODE_REPLACE, at);
+                postWidget(record, INTENT.CODE_EDIT, line, '', EV.CODE_SPLIT, at);
+                stop();
+            }
+            else if (code === 8 && at === 0 && end === 0 && line > 0) {
+                postWidget(record, INTENT.CODE_EDIT, line - 1, '', EV.CODE_JOIN, 0);
+                stop();
+            }
+            else if (code === 46 && at === input.value.length && end === at) {
+                postWidget(record, INTENT.CODE_EDIT, line, '', EV.CODE_JOIN, at);
+                stop();
+            }
+        });
+        bind(input, 'blur', function () {
+            if (input.value !== text)
+                postWidget(record, INTENT.CODE_EDIT, line, input.value, EV.CODE_REPLACE, 0);
+            record.editLine = -1;
+            queueWidgetRender(record, RENDER.CONTENT);
+        });
+        return input;
+    }
+    function renderListRows(record) {
+        var code = record.kind === W.CODE;
+        var lineH = code ? CODE_LINE_H : VROW_H;
+        var list = record.control;
+        record.spacer.style.height = "".concat(Math.max(0, record.count) * lineH, "px");
+        for (var i = 0; i < record.lineNodes.length; i++)
+            if (record.lineNodes[i].parentNode)
+                record.lineNodes[i].parentNode.removeChild(record.lineNodes[i]);
+        record.lineNodes = [];
+        var last = Math.min(record.count, record.first + Math.max(1, record.rows));
+        var _loop_2 = function (index) {
+            var text_1 = record.rowText.get(index);
+            var line = document.createElement('div');
+            line.className = code ? 'tpc-code-line' : 'tpc-vlist-row';
+            line.style.top = "".concat(index * lineH, "px");
+            if (!code && index === record.value)
+                line.className += ' tpc-selected';
+            if (code) {
+                var gutter = document.createElement('span');
+                gutter.className = 'tpc-code-gutter';
+                setText(gutter, String(index + 1));
+                line.appendChild(gutter);
+                if (index === record.editLine) {
+                    line.appendChild(codeLineEditor(record, index, text_1 || ''));
+                }
+                else {
+                    var body = document.createElement('span');
+                    body.className = 'tpc-code-text';
+                    renderCodeText(body, text_1 || '', record.spans.get(index));
+                    line.appendChild(body);
+                    var at_1 = index;
+                    bind(line, 'click', function () {
+                        record.editLine = at_1;
+                        queueWidgetRender(record, RENDER.CONTENT);
+                    });
+                }
+            }
+            else {
+                setText(line, text_1 === undefined ? '' : text_1);
+            }
+            list.appendChild(line);
+            record.lineNodes.push(line);
+        };
+        for (var index = record.first; index < last; index++) {
+            _loop_2(index);
+        }
+        if (Math.floor(list.scrollTop / lineH) !== record.first) {
+            record.settingScroll = true;
+            list.scrollTop = record.first * lineH;
+            record.settingScroll = false;
+        }
+        if (code && record.editLine >= 0) {
+            for (var i = 0; i < record.lineNodes.length; i++) {
+                var node = record.lineNodes[i].lastChild;
+                if (node && node.tagName && String(node.tagName).toUpperCase() === 'INPUT' && node.focus) {
+                    try {
+                        node.focus({ preventScroll: true });
+                    }
+                    catch (error) {
+                        node.focus();
+                    }
+                }
+            }
+        }
+    }
+    function renderGraph(record) {
+        var well = record.control;
+        clear(well);
+        for (var i = 0; i < record.items.length; i++) {
+            var item = record.items[i];
+            if (!item)
+                continue;
+            var node = document.createElement('div');
+            node.className = 'tpc-graph-item';
+            if (item.kind === GRAPH_ITEM.RECT || item.kind === GRAPH_ITEM.RECT_OUTLINE) {
+                node.style.left = "".concat(item.x, "px");
+                node.style.top = "".concat(item.y, "px");
+                node.style.width = "".concat(Math.max(0, item.w), "px");
+                node.style.height = "".concat(Math.max(0, item.h), "px");
+                if (item.kind === GRAPH_ITEM.RECT)
+                    node.style.background = cssColor(item.color);
+                else
+                    node.style.border = "1px solid ".concat(cssColor(item.color));
+                if (item.key)
+                    node.setAttribute('data-key', String(item.key));
+            }
+            else if (item.kind === GRAPH_ITEM.LINE) {
+                if (legacy)
+                    continue;
+                var length_1 = Math.sqrt(item.w * item.w + item.h * item.h);
+                node.style.left = "".concat(item.x, "px");
+                node.style.top = "".concat(item.y, "px");
+                node.style.width = "".concat(Math.max(1, Math.round(length_1)), "px");
+                node.style.height = '1px';
+                node.style.background = cssColor(item.color);
+                node.style.transformOrigin = '0 0';
+                node.style.transform = "rotate(".concat(Math.atan2(item.h, item.w), "rad)");
+            }
+            else if (item.kind === GRAPH_ITEM.TEXT) {
+                node.className += ' tpc-graph-text';
+                node.style.left = "".concat(item.x, "px");
+                node.style.top = "".concat(item.y - 12, "px");
+                node.style.color = cssColor(item.color);
+                setText(node, item.label);
+            }
+            else
+                continue;
+            well.appendChild(node);
+        }
+    }
+    function renderEditorContent(record) {
+        if (!record.control)
+            return;
+        if (record.tooltip || record.kind === W.ICONBUTTON) {
+            var tip = record.tooltip || record.label || '';
+            if (tip)
+                record.row.title = text(tip, 63);
+            else if (record.row.removeAttribute)
+                record.row.removeAttribute('title');
+        }
+        switch (record.kind) {
+            case W.TREE: {
+                setText(record.caption, record.label || record.text);
+                toggleClass(record.row, 'tpc-selected', !!record.checked);
+                hidden(record.expander, record.value === TREE_LEAF);
+                toggleClass(record.expander, 'tpc-tree-open', record.value === TREE_OPEN);
+                if (!legacy)
+                    record.expander.style.backgroundImage =
+                        cssUrl(record.value === TREE_OPEN ? 'skin/TreeOpen.png' : 'skin/TreeClosed.png');
+                if (record.color)
+                    record.caption.style.color = cssColor(record.color);
+                record.row.setAttribute('aria-expanded', record.value === TREE_LEAF ? 'false' : (record.value === TREE_OPEN ? 'true' : 'false'));
+                break;
+            }
+            case W.VLIST:
+            case W.CODE:
+                renderListRows(record);
+                break;
+            case W.ICONBUTTON: {
+                var file = skinFile(record.value);
+                if (!legacy && file)
+                    record.icon.style.backgroundImage = cssUrl(file);
+                setText(record.icon, file ? '' : (record.label || '?').slice(0, 2));
+                record.control.setAttribute('aria-label', text(record.label || 'Tool', 63));
+                record.control.setAttribute('aria-pressed', record.checked ? 'true' : 'false');
+                toggleClass(record.control, 'tpc-pressed', !!record.checked);
+                break;
+            }
+            case W.SLIDER:
+                record.control.min = String(record.first);
+                record.control.max = String(record.count);
+                record.control.step = String(Math.max(1, record.step));
+                record.control.value = String(record.value);
+                setText(record.valueNode, String(record.value));
+                break;
+            case W.RADIO:
+                record.control.checked = !!record.checked;
+                setText(record.caption, record.label || record.text);
+                if (!legacy) {
+                    record.control.style.backgroundImage =
+                        cssUrl(record.checked ? 'skin/RadioOn.png' : 'skin/RadioOff.png');
+                }
+                break;
+            case W.GRAPH:
+                renderGraph(record);
+                break;
+            default:
+                break;
+        }
+    }
+    function applyEditorCommand(command, record) {
+        switch (command.k) {
+            case CMD.PANEL_MODE:
+                if (command.p !== state.panel)
+                    return;
+                /* One page here: a modal page draws over a veil; a dock is the
+                 * host's layout and only recorded. */
+                toggleClass(shell, 'tpc-modal', !!(command.v & 1));
+                shell.setAttribute('data-tpc-dock', String(command.x));
+                return;
+            case CMD.WIDGET_VALUE:
+                if (!record || !isEditorKind(record.kind))
+                    return;
+                record.value = command.v;
+                record.first = command.x;
+                record.count = command.y;
+                record.step = command.cw;
+                record.aux = command.ch;
+                if (record.kind === W.VLIST || record.kind === W.CODE) {
+                    /* Rows that left the window are not kept: the model has dropped
+                     * them too, and refills what comes back into view. */
+                    var keep = new Store();
+                    var spans = new Store();
+                    var last = record.first + Math.max(1, record.rows);
+                    for (var index = record.first; index < last; index++) {
+                        var value = record.rowText.get(index);
+                        if (value !== undefined)
+                            keep.set(index, value);
+                        var span = record.spans.get(index);
+                        if (span)
+                            spans.set(index, span);
+                    }
+                    record.rowText = keep;
+                    record.spans = spans;
+                }
+                queueWidgetRender(record, RENDER.CONTENT);
+                return;
+            case CMD.WIDGET_ROW:
+                if (!record || (record.kind !== W.VLIST && record.kind !== W.CODE))
+                    return;
+                record.rowText.set(command.v, command.text);
+                record.spans.drop(command.v);
+                queueWidgetRender(record, RENDER.CONTENT);
+                return;
+            case CMD.WIDGET_SPAN:
+                if (!record || record.kind !== W.CODE)
+                    return;
+                {
+                    var list = record.spans.get(command.v) || [];
+                    list.push({ start: Math.max(0, command.x), len: Math.max(0, command.y), color: command.c });
+                    record.spans.set(command.v, list);
+                }
+                queueWidgetRender(record, RENDER.CONTENT);
+                return;
+            case CMD.WIDGET_GRAPH:
+                if (!record || record.kind !== W.GRAPH)
+                    return;
+                record.items = new Array(Math.max(0, Math.min(MAX_PAGE_COMMANDS, command.v)));
+                record.itemCursor = 0;
+                queueWidgetRender(record, RENDER.CONTENT);
+                return;
+            case CMD.WIDGET_GRAPH_ITEM:
+                if (!record || record.kind !== W.GRAPH || record.itemCursor >= record.items.length)
+                    return;
+                record.items[record.itemCursor++] = {
+                    kind: command.tab, x: command.x, y: command.y, w: command.cw, h: command.ch,
+                    color: command.c, key: command.v, label: command.label
+                };
+                queueWidgetRender(record, RENDER.CONTENT);
+                return;
+            case CMD.WIDGET_TOOLTIP:
+                if (!record)
+                    return;
+                record.tooltip = command.label;
+                if (isEditorKind(record.kind))
+                    queueWidgetRender(record, RENDER.CONTENT);
+                else if (record.row) {
+                    if (command.label)
+                        record.row.title = command.label;
+                    else if (record.row.removeAttribute)
+                        record.row.removeAttribute('title');
+                }
+                return;
+            default:
+                return;
+        }
     }
     function removeWidget(handle) {
         var record = state.widgets.get(handle);
@@ -1256,7 +1833,7 @@
         }
         else if (record.kind === W.TABSTRIP) {
             clear(tabs);
-            var _loop_2 = function (index) {
+            var _loop_3 = function (index) {
                 var button = document.createElement('button');
                 button.type = 'button';
                 setText(button, record.options[index]);
@@ -1265,7 +1842,7 @@
                 tabs.appendChild(button);
             };
             for (var index = 0; index < record.options.length; index++) {
-                _loop_2(index);
+                _loop_3(index);
             }
             setTabsVisible(record.options.length !== 0);
         }
@@ -1340,6 +1917,7 @@
                 break;
             }
             default:
+                renderEditorContent(record);
                 break;
         }
     }
@@ -1472,7 +2050,7 @@
                 /* Resized in place, deliberately without renderWidget: the well holds
                  * drawn content a rebuilt element would lose, and a list growing a
                  * row is the ordinary case rather than the exceptional one. */
-                if (record && record.kind === W.CUSTOM) {
+                if (record && (record.kind === W.CUSTOM || record.kind === W.GRAPH)) {
                     record.rows = command.ch;
                     if (record.control)
                         record.control.style.height = customHeightPx(record.rows);
@@ -1527,6 +2105,7 @@
                 }
                 break;
             default:
+                applyEditorCommand(command, record);
                 break;
         }
     }
@@ -1987,7 +2566,7 @@
         box.appendChild(separator);
         var list = document.createElement('div');
         list.className = 'tpc-minimenu-list';
-        var _loop_3 = function (i) {
+        var _loop_4 = function (i) {
             var entry = rows[i];
             var option = document.createElement('button');
             option.type = 'button';
@@ -2001,7 +2580,7 @@
             list.appendChild(option);
         };
         for (var i = 0; i < rows.length; i++) {
-            _loop_3(i);
+            _loop_4(i);
         }
         box.appendChild(list);
         back.appendChild(box);
@@ -2235,7 +2814,7 @@
         var scroller = document.createElement('div');
         scroller.className = 'tpc-dropdown-scroller';
         var rows = [];
-        var _loop_4 = function (index) {
+        var _loop_5 = function (index) {
             var row = document.createElement('div');
             var enabled = optionEnabled(record, index);
             /* The bands alternate on the OPTION index, so they scroll with the text. */
@@ -2265,7 +2844,7 @@
             rows.push(row);
         };
         for (var index = 0; index < record.options.length; index++) {
-            _loop_4(index);
+            _loop_5(index);
         }
         box.appendChild(scroller);
         back.appendChild(box);

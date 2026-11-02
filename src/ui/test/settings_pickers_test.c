@@ -141,7 +141,7 @@ number_request(int varp_id)
 static void
 test_a_row_with_no_varp_opens_nothing(void)
 {
-    struct ToriRSChrome chrome;
+    static struct ToriRSChrome chrome; /* ~5 MB: never on the stack */
     struct UISettingsPickers pickers;
     struct UITree* tree = tree_with_the_row();
 
@@ -173,7 +173,7 @@ test_a_row_with_no_varp_opens_nothing(void)
 static void
 test_a_colour_commits_plus_one(void)
 {
-    struct ToriRSChrome chrome;
+    static struct ToriRSChrome chrome; /* ~5 MB: never on the stack */
     struct UISettingsPickers pickers;
     struct UITree* tree = tree_with_the_row();
     struct RS_CS2SettingsColourRequest request = colour_request(2345);
@@ -226,7 +226,7 @@ test_a_colour_commits_plus_one(void)
 static void
 test_default_commits_verbatim(void)
 {
-    struct ToriRSChrome chrome;
+    static struct ToriRSChrome chrome; /* ~5 MB: never on the stack */
     struct UISettingsPickers pickers;
     struct UITree* tree = tree_with_the_row();
     struct RS_CS2SettingsColourRequest request = colour_request(2345);
@@ -272,7 +272,7 @@ test_default_commits_verbatim(void)
 static void
 test_a_number_commits_plain(void)
 {
-    struct ToriRSChrome chrome;
+    static struct ToriRSChrome chrome; /* ~5 MB: never on the stack */
     struct UISettingsPickers pickers;
     struct UITree* tree = tree_with_the_row();
     struct RS_CS2SettingsNumberRequest request = number_request(678);
@@ -338,7 +338,7 @@ test_a_number_commits_plain(void)
 static void
 test_the_activation_is_peeked(void)
 {
-    struct ToriRSChrome chrome;
+    static struct ToriRSChrome chrome; /* ~5 MB: never on the stack */
     struct UISettingsPickers pickers;
     struct UITree* tree = tree_with_the_row();
     struct RS_CS2SettingsColourRequest request = colour_request(2345);
@@ -386,7 +386,7 @@ test_the_activation_is_peeked(void)
 static void
 test_a_picker_follows_its_row_out(void)
 {
-    struct ToriRSChrome chrome;
+    static struct ToriRSChrome chrome; /* ~5 MB: never on the stack */
     struct UISettingsPickers pickers;
     struct UITree* tree = tree_with_the_row();
     struct RS_CS2SettingsColourRequest request = colour_request(2345);
@@ -444,7 +444,7 @@ test_a_picker_follows_its_row_out(void)
 static void
 test_a_number_entry_follows_its_row_out(void)
 {
-    struct ToriRSChrome chrome;
+    static struct ToriRSChrome chrome; /* ~5 MB: never on the stack */
     struct UISettingsPickers pickers;
     struct UITree* tree = tree_with_the_row();
     struct RS_CS2SettingsNumberRequest request = number_request(678);
@@ -478,7 +478,7 @@ test_a_number_entry_follows_its_row_out(void)
 static void
 test_the_panels_own_close_is_reconciled(void)
 {
-    struct ToriRSChrome chrome;
+    static struct ToriRSChrome chrome; /* ~5 MB: never on the stack */
     struct UISettingsPickers pickers;
     struct UITree* tree = tree_with_the_row();
     struct RS_CS2SettingsColourRequest request = colour_request(2345);
@@ -510,7 +510,7 @@ test_the_panels_own_close_is_reconciled(void)
 static void
 test_the_two_pickers_are_independent(void)
 {
-    struct ToriRSChrome chrome;
+    static struct ToriRSChrome chrome; /* ~5 MB: never on the stack */
     struct UISettingsPickers pickers;
     struct UITree* tree = tree_with_the_row();
     struct RS_CS2SettingsColourRequest colour = colour_request(2345);

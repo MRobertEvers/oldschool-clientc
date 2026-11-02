@@ -1672,7 +1672,7 @@ visual_dropdown_scrollbar_drag(void)
     ToriRSChrome_Init(&g_ui);
     g_ui.theme = torirs_chrome_theme_osrs;
     for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
-        g_ui.skin_avail |= 1u << i;
+        ToriRSChrome_SetSkinAvailable(&g_ui, i, 1);
     g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->w;
     g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->h;
 
@@ -1788,7 +1788,7 @@ visual_dropdown_fallbacks(void)
     g_ui.theme = torirs_chrome_theme_osrs;
     ToriRSChrome_SetScale(&g_ui, 3);
     for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
-        g_ui.skin_avail |= 1u << i;
+        ToriRSChrome_SetSkinAvailable(&g_ui, i, 1);
     g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->w;
     g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->h;
     panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 4, 0, "Catalog");
@@ -1861,7 +1861,7 @@ visual_menubar_dropdown(void)
     ToriRSChrome_Init(&g_ui);
     g_ui.theme = torirs_chrome_theme_osrs;
     for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
-        g_ui.skin_avail |= 1u << i;
+        ToriRSChrome_SetSkinAvailable(&g_ui, i, 1);
     g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->w;
     g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->h;
 
@@ -2140,7 +2140,7 @@ visual_listrow_skinned(void)
     printf("VISUAL: roster list rows, skinned\n");
     ToriRSChrome_Init(&g_ui);
     for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
-        g_ui.skin_avail |= 1u << i;
+        ToriRSChrome_SetSkinAvailable(&g_ui, i, 1);
     g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->w;
     g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->h;
 
@@ -2213,7 +2213,7 @@ visual_listrow_skinned(void)
         struct ToriRSChromeRect framed = ToriRSChrome_PanelRect(&g_ui, panel);
         struct ToriRSChromeRect railed;
 
-        g_ui.skin_avail &= ~(1u << TORIRS_CHROME_SKIN_FRAME_TOP_LEFT);
+        ToriRSChrome_SetSkinAvailable(&g_ui, TORIRS_CHROME_SKIN_FRAME_TOP_LEFT, 0);
         ToriRSChrome_PanelSetVisible(&g_ui, panel, 0);
         ToriRSChrome_PanelSetVisible(&g_ui, panel, 1);
         ToriRSChrome_Build(&g_ui);

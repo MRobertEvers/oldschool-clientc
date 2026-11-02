@@ -75,7 +75,7 @@ def start(directory, binary, scripts=None, content_root=None):
     (directory / 'manifest').write_text(manifest)
     env = os.environ.copy()
     env.update(TORIRS_CONTENT_TEST=str(directory), TORIRS_CONTENT_TEST_CHECKPOINTS='1', TORIRS_CONTENT_TEST_TICK_ONLY='1', SDL_VIDEODRIVER='dummy', SDL_AUDIODRIVER='dummy',
-               TORIRSSERVER_SAVES=str(directory / 'saves'), TORIRS_PREFS='',
+               TORIRSSERVER_SAVES=str(directory / 'saves'), TORIRS_PREFS='', TORIRS_EDITOR_LAYOUT='',
                TORIRSSERVER_CONTENT=str(Path(content_root).resolve() if content_root else ROOT / 'OSRS-Content/osrs-content'),
                TORIRS_PLUGIN_PREFS=str(directory / 'plugin_prefs.ini'),
                TORIRSSERVER_HOME='3243,3237', TORIRSSERVER_TUTORIAL_HOME='3243,3237',

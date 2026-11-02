@@ -108,6 +108,7 @@ cp ${TORIRS_SHOT_PREFS:-$here/../plugins_all.ini} $run/plugins.ini
 
 ( cd $repo && env \
     TORIRS_PREFS=$run/preferences.ini \
+    TORIRS_EDITOR_LAYOUT=$run/editor_layout.ini \
     TORIRSSERVER_SAVES=$run/saves \
     TORIRS_PLUGIN_PREFS=$run/plugins.ini \
     TORIRS_PLUGINS=1 \

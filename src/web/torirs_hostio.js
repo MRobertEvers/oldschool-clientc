@@ -97,6 +97,24 @@
     /* Whole-table reads in progress for a warm prefetch, by scan key. */
     const wholeTables = new Map();
 
+    /*
+     * Live reloads in progress, by dat2 table: the JS5 client's re-prime of
+     * that index (invalidateArchive below). Until it settles the stored
+     * copies of the index may be the old bytes, so every read of the index
+     * -- its groups and its reference table 255/<index> -- waits here first.
+     * The re-prime's own reads and writes go to the database directly and
+     * never through these gates.
+     */
+    const reprimes = new Map();
+
+    async function awaitReprime(table, archive, flags) {
+      if (isDat1(flags) || reprimes.size === 0) { return; }
+      const index = table === 255 ? archive : table;
+      for (let gate = reprimes.get(index); gate; gate = reprimes.get(index)) {
+        await gate.catch(() => null);
+      }
+    }
+
     function scanTable(key, table, flags) {
       const scanKey = `${key}|${table}|${flags | 0}`;
       let scan = presentIds.get(scanKey);
@@ -281,6 +299,7 @@
        * offline deployment rather than an error.
        */
       async readArchive(table, archive, flags) {
+        await awaitReprime(table, archive, flags);
         const key = cacheKey();
         /*
          * A miss decided in memory, when the table has been scanned.
@@ -339,6 +358,7 @@
        * Returns bytes-or-null per id, in the order asked.
        */
       async readArchives(table, ids, flags) {
+        await awaitReprime(table, -1, flags);
         const key = cacheKey();
         /* Which of these the database holds, from one key scan per table
          * per session -- a cold cache then asks the database for nothing
@@ -399,6 +419,67 @@
         scanTable(cacheKey(), table, CACHE_DAT2).catch(() => null);
         scanFiles().catch(() => null);
         return await this.readArchive(255, table, CACHE_DAT2);
+      },
+
+      /*
+       * A live reload rewrote archive `archive` of dat2 table `table` on the
+       * server (CACHE_INVALIDATE; platform_web_io.js has already dropped its
+       * decoded and resident copies). The JS5 client re-primes the index
+       * against this database: a fresh 255/255, 255/<table> when the stored
+       * one no longer matches the master, then every stored group of the
+       * table checked against the new table by the CRC of its container --
+       * the test the native client makes of its sparse copy -- and the
+       * rewritten ones fetched and overwritten; the rest stay and keep being
+       * read from here. Reads of the table wait for it (awaitReprime).
+       *
+       * `opts.decodeReference(bytes)` turns a reference table into its
+       * listing (id -> {crc, version}; the executor's rscache decode),
+       * `opts.log(line)` prints the steps under
+       * TORIRS_CACHE_INVALIDATE_DEBUG. A lane with no JS5 producer has
+       * nothing stored to re-prime from and answers null.
+       */
+      invalidateArchive(table, archive, opts) {
+        const producer = js5();
+        if (!producer || typeof producer.invalidateArchive !== 'function') { return null; }
+        const key = cacheKey();
+        const scanKey = `${key}|${table}|${CACHE_DAT2}`;
+        const options = opts || {};
+        /* The whole-table read a warm prefetch shares would hand out rows
+         * read before the rewrite. */
+        wholeTables.delete(scanKey);
+        const store = {
+          /* Every stored id of the table: a fresh scan (the session's memo
+           * may predate writes) plus what this session wrote. */
+          async ids() {
+            const found = typeof idb.groupIdsPresent === 'function'
+              ? await idb.groupIdsPresent(key, table, CACHE_DAT2)
+              : new Set();
+            const prefix = `${scanKey}|`;
+            for (const k of stored) {
+              if (k.startsWith(prefix)) { found.add(parseInt(k.substring(prefix.length), 10)); }
+            }
+            return Array.from(found).sort((a, b) => a - b);
+          },
+          get: (id) => idb.groupGet(key, table, id, CACHE_DAT2),
+          async put(id, bytes) {
+            await idb.groupPut(key, table, id, CACHE_DAT2, bytes);
+            stored.add(`${scanKey}|${id}`);
+          },
+          getReference: () => idb.groupGet(key, 255, table, CACHE_DAT2),
+          async putReference(bytes) {
+            await idb.groupPut(key, 255, table, CACHE_DAT2, bytes);
+            stored.add(`${key}|255|${CACHE_DAT2}|${table}`);
+          },
+        };
+        const run = producer.invalidateArchive(table, {
+          store,
+          decodeReference: options.decodeReference || null,
+          log: options.log || null,
+        });
+        reprimes.set(table, run);
+        const settle = () => { if (reprimes.get(table) === run) { reprimes.delete(table); } };
+        run.then(settle, settle);
+        return run;
       },
 
       /*

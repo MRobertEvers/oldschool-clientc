@@ -256,6 +256,21 @@ Js5ClientRequestGroup(
     int group,
     enum Js5Priority priority);
 
+/*
+ * The server rewrote this archive (a live reload's CACHE_INVALIDATE for it):
+ * forget its reference table and re-prime it from the server -- a fresh
+ * 255/255 master, then 255/archive when its entry moved. Until the new table
+ * is installed the archive's groups are not ready (Js5ClientRequestGroup
+ * answers DEFERRED, Js5ClientGroupReady false); then every stored group is
+ * validated against it again, so a group whose CRC changed is fetched and
+ * overwritten on disk while the rest stay. A request on the wire is
+ * re-sent after a reconnect. Returns false only on a failed client.
+ */
+bool
+Js5ClientInvalidateArchive(
+    struct Js5Client* client,
+    int archive);
+
 void
 Js5ClientSetLoggedIn(
     struct Js5Client* client,

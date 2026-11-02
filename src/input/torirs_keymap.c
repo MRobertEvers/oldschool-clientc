@@ -1,5 +1,7 @@
 #include "torirs_keymap.h"
+#include "torirs_input.h"
 #include <assert.h>
+#include <stddef.h>
 
 /*
  * Index = VK / DOM keyCode, value = OSRS internal code (-1 = unmapped).
@@ -103,4 +105,60 @@ LibToriRS_OsrsKeyFromName(char const* name)
             return LibToriRS_OsrsKeyFromVk(s_named_vk[i].vk);
     }
     return -1;
+}
+
+/* One name per enum LibToriRS_KeyCode, indexed by the code. */
+static char const* const keycode_names[TORIRSK_COUNT] = {
+    [TORIRSK_UNKNOWN] = NULL,
+    [TORIRSK_A] = "a", [TORIRSK_B] = "b", [TORIRSK_C] = "c", [TORIRSK_D] = "d",
+    [TORIRSK_E] = "e", [TORIRSK_F] = "f", [TORIRSK_G] = "g", [TORIRSK_H] = "h",
+    [TORIRSK_I] = "i", [TORIRSK_J] = "j", [TORIRSK_K] = "k", [TORIRSK_L] = "l",
+    [TORIRSK_M] = "m", [TORIRSK_N] = "n", [TORIRSK_O] = "o", [TORIRSK_P] = "p",
+    [TORIRSK_Q] = "q", [TORIRSK_R] = "r", [TORIRSK_S] = "s", [TORIRSK_T] = "t",
+    [TORIRSK_U] = "u", [TORIRSK_V] = "v", [TORIRSK_W] = "w", [TORIRSK_X] = "x",
+    [TORIRSK_Y] = "y", [TORIRSK_Z] = "z",
+    [TORIRSK_0] = "0", [TORIRSK_1] = "1", [TORIRSK_2] = "2", [TORIRSK_3] = "3",
+    [TORIRSK_4] = "4", [TORIRSK_5] = "5", [TORIRSK_6] = "6", [TORIRSK_7] = "7",
+    [TORIRSK_8] = "8", [TORIRSK_9] = "9",
+    [TORIRSK_ESCAPE] = "escape", [TORIRSK_RETURN] = "return",
+    [TORIRSK_BACKSPACE] = "backspace", [TORIRSK_INSERT] = "insert",
+    [TORIRSK_DELETE] = "delete", [TORIRSK_SHIFT] = "shift", [TORIRSK_CTRL] = "ctrl",
+    [TORIRSK_TAB] = "tab", [TORIRSK_SPACE] = "space",
+    [TORIRSK_LEFT] = "left", [TORIRSK_RIGHT] = "right", [TORIRSK_UP] = "up",
+    [TORIRSK_DOWN] = "down", [TORIRSK_PAGE_UP] = "pageup", [TORIRSK_PAGE_DOWN] = "pagedown",
+    [TORIRSK_COMMA] = "comma", [TORIRSK_PERIOD] = "period", [TORIRSK_MINUS] = "minus",
+    [TORIRSK_EQUALS] = "equals", [TORIRSK_LBRACKET] = "lbracket",
+    [TORIRSK_RBRACKET] = "rbracket", [TORIRSK_SEMICOLON] = "semicolon",
+    [TORIRSK_APOSTROPHE] = "apostrophe", [TORIRSK_GRAVE] = "grave",
+    [TORIRSK_SLASH] = "slash", [TORIRSK_BACKSLASH] = "backslash",
+    [TORIRSK_HOME] = "home", [TORIRSK_END] = "end", [TORIRSK_ALT] = "alt",
+    [TORIRSK_F1] = "f1", [TORIRSK_F2] = "f2", [TORIRSK_F3] = "f3", [TORIRSK_F4] = "f4",
+    [TORIRSK_F5] = "f5", [TORIRSK_F6] = "f6", [TORIRSK_F7] = "f7", [TORIRSK_F8] = "f8",
+    [TORIRSK_F9] = "f9", [TORIRSK_F10] = "f10", [TORIRSK_F11] = "f11", [TORIRSK_F12] = "f12",
+};
+
+char const*
+LibToriRS_KeyCodeName(enum LibToriRS_KeyCode key)
+{
+    if( (int)key <= TORIRSK_UNKNOWN || key >= TORIRSK_COUNT )
+        return NULL;
+    return keycode_names[key];
+}
+
+enum LibToriRS_KeyCode
+LibToriRS_KeyCodeFromName(char const* name)
+{
+    assert(name);
+    if( name[0] == '\0' )
+        return TORIRSK_UNKNOWN;
+    for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
+        if( keycode_names[k] && name_equals_ci(name, keycode_names[k]) )
+            return (enum LibToriRS_KeyCode)k;
+    if( name_equals_ci(name, "enter") )
+        return TORIRSK_RETURN;
+    if( name_equals_ci(name, "page_up") )
+        return TORIRSK_PAGE_UP;
+    if( name_equals_ci(name, "page_down") )
+        return TORIRSK_PAGE_DOWN;
+    return TORIRSK_UNKNOWN;
 }

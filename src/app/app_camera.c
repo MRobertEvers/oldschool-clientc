@@ -156,10 +156,38 @@ app_world_camera_keys(
         app->frame_view->world_camera_pos.y -= move;
     if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_DOWN) )
         app->frame_view->world_camera_pos.y += move;
+    /* The map editor's own flight (bare W/A/S/D/Q/E, held; Fly faster on top)
+     * -- rebindable actions of its hotkey table, resolved and gated by
+     * app_editor_hotkeys.c, moving the same camera the debug flight does. */
+    if( app_editor_hotkeys_owns_camera(app) )
+    {
+        int const fly = app_editor_hotkeys_active(app, EDITOR_HK_CAM_FAST) ? move * 4 : move;
+        if( app_editor_hotkeys_active(app, EDITOR_HK_CAM_FORWARD) )
+            app_camera_move_forward(app, fly);
+        if( app_editor_hotkeys_active(app, EDITOR_HK_CAM_BACK) )
+            app_camera_move_forward(app, -fly);
+        if( app_editor_hotkeys_active(app, EDITOR_HK_CAM_LEFT) )
+            app_camera_move_left(app, -fly);
+        if( app_editor_hotkeys_active(app, EDITOR_HK_CAM_RIGHT) )
+            app_camera_move_left(app, fly);
+        if( app_editor_hotkeys_active(app, EDITOR_HK_CAM_UP) )
+            app->frame_view->world_camera_pos.y -= fly;
+        if( app_editor_hotkeys_active(app, EDITOR_HK_CAM_DOWN) )
+            app->frame_view->world_camera_pos.y += fly;
+    }
     /* Arrows drive the orbit camera (reference keyHeld[1..4]); the follow
      * step consumes these next frame. When the follow cam is off (offline or
      * scripted) fall back to the free-cam direct rotate. */
-    if( app->revconfig_profile.camera.controls & REVCONFIG_CAMERA_CONTROL_ARROW_KEYS )
+    if( app_editor_hotkeys_owns_camera(app) )
+    {
+        /* The editor's turn / tilt actions: only with no loc selected (the
+         * arrows nudge a selection then), and rebindable. */
+        app->frame_view->cam_key_left = app_editor_hotkeys_active(app, EDITOR_HK_CAM_TURN_LEFT);
+        app->frame_view->cam_key_right = app_editor_hotkeys_active(app, EDITOR_HK_CAM_TURN_RIGHT);
+        app->frame_view->cam_key_up = app_editor_hotkeys_active(app, EDITOR_HK_CAM_TILT_UP);
+        app->frame_view->cam_key_down = app_editor_hotkeys_active(app, EDITOR_HK_CAM_TILT_DOWN);
+    }
+    else if( app->revconfig_profile.camera.controls & REVCONFIG_CAMERA_CONTROL_ARROW_KEYS )
     {
         app->frame_view->cam_key_left = LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT);
         app->frame_view->cam_key_right = LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT);

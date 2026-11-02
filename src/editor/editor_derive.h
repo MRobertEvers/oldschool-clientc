@@ -13,6 +13,7 @@
 #include "editor_types.h"
 
 struct ToriRS_MapTerrain;
+struct ToriRS_MapFloor;
 struct ToriRS_MapLocs;
 struct RSCache;
 
@@ -42,6 +43,37 @@ Editor_SquareDeriveTerrain(
     const struct Editor_Square* square,
     const struct RSCache* profile,
     struct ToriRS_MapTerrain* out_terrain);
+
+/**
+ * One tile of a square, derived exactly as Editor_SquareDeriveTerrain derives
+ * it -- the per-tile form the EDIT world's tile_set takes.
+ *
+ * A tile's resolved height depends on nothing but its own column: Perlin noise
+ * at its absolute coordinates on level 0, the level below plus its own
+ * authored step above that. So one tile costs a walk up its column, not a
+ * square's fixup, which is what lets a brush stroke derive only the tiles it
+ * touched. The levels above the one edited move with it (a height edit on
+ * level 0 lifts every floor stacked on that column), which is why
+ * Editor_TileDeriveColumn exists beside it.
+ *
+ * `x`, `z` are square-local (0..63), `level` 0..3. Agreement with the square
+ * derive is checked tile for tile by edit_world_test.
+ */
+void
+Editor_TileDerive(
+    const struct Editor_Square* square,
+    int x,
+    int z,
+    int level,
+    struct ToriRS_MapFloor* out_floor);
+
+/** All four levels of one column into `out_floors[0..3]`. */
+void
+Editor_TileDeriveColumn(
+    const struct Editor_Square* square,
+    int x,
+    int z,
+    struct ToriRS_MapFloor* out_floors);
 
 /**
  * Authored locs -> the renderer's scenery list.

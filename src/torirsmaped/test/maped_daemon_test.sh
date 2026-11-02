@@ -17,6 +17,24 @@
 #      else's.
 #   5. The authoritative document answers a square open to a client that
 #      holds no document of its own.
+#   7. cfg-copy (SAVE_AS on a config record) through the daemon: the copy's
+#      block, its ledger id and its client membership line land byte-exact
+#      on save; a second copy takes the next id; undo takes the whole copy
+#      back as one step; a taken name, a missing source and a non-config
+#      type are refused.
+#   8. spawn-edit / spawn-move / cfg-set through the daemon: a move rewrites
+#      one line of a hand-written .spawn in place (its comment kept), a kind
+#      change is a delete + add, undo + save puts the file back byte for
+#      byte, a row the file does not hold is refused; cfg-set edits a record
+#      block of configs/all.<type> and of a server overlay
+#      ("<type>:<name>@<overlay>") and save writes exactly that.
+#   9. The named areas (editor/areas.txt): area-set marks an area (rectangles,
+#      level, quoted name with a space), a second area-set of the same name
+#      replaces it keeping its colour and note, `rename` renames it, a taken
+#      name is refused, collection-set lists squares (a bad key is refused),
+#      `areas` prints the records, area-remove + undo restores the row, save
+#      writes the file with its header, and removing everything then saving
+#      removes the file.
 #
 # Document facts (FACT_CMD/FACT_SAVED) are proven in test-torirsmaped-embed,
 # which has real mirror documents to apply them to; this script covers what
@@ -57,9 +75,31 @@ lacks() {
 }
 
 rm -rf "$SCRATCH"
-mkdir -p "$SCRATCH/maps"
+mkdir -p "$SCRATCH/maps" "$SCRATCH/configs" "$SCRATCH/pack"
 cp "$SAMPLE_JM2" "$SCRATCH/maps/"
 cp "$SAMPLE_JL2" "$SCRATCH/maps/"
+
+# A loc type of two records for cfg-copy (7): a repeated key, a comment and a
+# blank line inside the block, an empty value and a value past what one
+# CFG_FIELD carries (both go across as splices).
+LONG_VALUE=$(printf 'x%.0s' $(seq 1 240))
+{
+    printf '// two locs for cfg-copy\n\n'
+    printf '[src_loc]\nname=Crate\nmodels=15402\n// a comment the copy drops\nparam=a,1\n'
+    printf 'desc=\nparam=b,2\nop1=Search\nlongfield=%s\n\n' "$LONG_VALUE"
+    printf '[other_loc]\nname=Other\n'
+} > "$SCRATCH/configs/all.loc"
+printf '0=src_loc\n1=other_loc\n' > "$SCRATCH/configs/all.loc.compack"
+
+# A hand-written edited spawn file, an npc record and a server overlay for 8.
+mkdir -p "$SCRATCH/server/scripts/areas/edited/configs" "$SCRATCH/server/scripts/areas/t/configs"
+printf '// hand-written\n==== NPC ====\ngoblin   3205  3210 0   // keep me\nrat                                           3206  3211 0\n' \
+    > "$SCRATCH/server/scripts/areas/edited/configs/m50_50.spawn"
+cp "$SCRATCH/server/scripts/areas/edited/configs/m50_50.spawn" "$SCRATCH/m50_50.spawn.before"
+printf '[guard]\nname=Guard\n' > "$SCRATCH/configs/all.npc"
+printf '0=guard\n' > "$SCRATCH/configs/all.npc.compack"
+printf '// authored\n[guard]\nwanderrange=2\n\n[other]\nwanderrange=1\n' > "$SCRATCH/server/scripts/areas/t/configs/t.npc"
+printf '// Which loc entities have a client half.\n' > "$SCRATCH/pack/loc.client"
 
 # --repo-root '' disables baking: a test must never shell out to a cache build.
 "$DAEMON" "$PORT" --content-dir "$SCRATCH" --repo-root '' > "$SCRATCH/daemon.log" 2>&1 &
@@ -109,6 +149,157 @@ contains "$SCRATCH/sync_c2.log" "0 state key(s)" "the other Client's store is em
 "$CTL" --port "$PORT" open 50 50 > "$SCRATCH/open.log" 2>&1
 contains "$SCRATCH/open.log" "m50_50 open:" "the document answers a square open"
 contains "$SCRATCH/open.log" "dirty map=0 loc=0" "a freshly opened square is clean"
+
+# 7. cfg-copy through the daemon.
+cp "$SCRATCH/configs/all.loc" "$SCRATCH/all.loc.before"
+cp "$SCRATCH/pack/loc.client" "$SCRATCH/loc.client.before"
+"$CTL" --port "$PORT" cfg-copy loc src_loc copy_loc > "$SCRATCH/copy.log" 2>&1 || true
+contains "$SCRATCH/copy.log" "copied loc:src_loc to loc:copy_loc, id 70000" \
+    "cfg-copy coins the namespace's floor id (70000, the register's loc base)"
+"$CTL" --port "$PORT" save > "$SCRATCH/copy_save.log" 2>&1 || true
+contains "$SCRATCH/copy_save.log" "loc:copy_loc" "save writes the copied record"
+contains "$SCRATCH/copy_save.log" "pack:loc.alloc" "and the ledger"
+contains "$SCRATCH/copy_save.log" "pack:loc.client" "and the client membership"
+{
+    cat "$SCRATCH/all.loc.before"
+    printf '\n[copy_loc]\nname=Crate\nmodels=15402\nparam=a,1\ndesc=\nparam=b,2\nop1=Search\n'
+    printf 'longfield=%s\n' "$LONG_VALUE"
+} > "$SCRATCH/all.loc.expected"
+if cmp -s "$SCRATCH/all.loc.expected" "$SCRATCH/configs/all.loc"; then
+    check 1 "configs/all.loc gains exactly [copy_loc] with every field, after a separator"
+else
+    check 0 "configs/all.loc gains exactly [copy_loc] with every field, after a separator"
+    diff "$SCRATCH/all.loc.expected" "$SCRATCH/configs/all.loc" | head -20
+fi
+{ cat "$SCRATCH/loc.client.before"; printf 'copy_loc\n'; } > "$SCRATCH/loc.client.expected"
+if cmp -s "$SCRATCH/loc.client.expected" "$SCRATCH/pack/loc.client"; then
+    check 1 "pack/loc.client gains exactly one copy_loc line"
+else
+    check 0 "pack/loc.client gains exactly one copy_loc line"
+fi
+check "$( [ "$(tail -n 1 "$SCRATCH/pack/loc.alloc")" = "70000=copy_loc" ] && echo 1 )" \
+    "pack/loc.alloc ends with 70000=copy_loc"
+check "$( [ "$(grep -c 'allocated below this line by tools/ss_allocate.py' "$SCRATCH/pack/loc.alloc")" = 1 ] && echo 1 )" \
+    "the new ledger carries ss_allocate.py's marker once"
+cp "$SCRATCH/configs/all.loc" "$SCRATCH/all.loc.saved"
+cp "$SCRATCH/pack/loc.alloc" "$SCRATCH/loc.alloc.saved"
+cp "$SCRATCH/pack/loc.client" "$SCRATCH/loc.client.saved"
+
+"$CTL" --port "$PORT" cfg-copy loc src_loc copy_two > "$SCRATCH/copy2.log" 2>&1 || true
+contains "$SCRATCH/copy2.log" "copied loc:src_loc to loc:copy_two, id 70001" \
+    "a second copy takes the next id"
+"$CTL" --port "$PORT" undo > "$SCRATCH/copy_undo.log" 2>&1 || true
+contains "$SCRATCH/copy_undo.log" "undo " "undo answers"
+lacks "$SCRATCH/copy_undo.log" "undo 0 command(s)" "and takes the copy back"
+"$CTL" --port "$PORT" save > "$SCRATCH/copy_save2.log" 2>&1 || true
+for f in configs/all.loc pack/loc.alloc pack/loc.client; do
+    b=$(basename "$f")
+    if cmp -s "$SCRATCH/$f" "$SCRATCH/$b.saved"; then
+        check 1 "after undo + save, $f is byte-identical to before the second copy"
+    else
+        check 0 "after undo + save, $f is byte-identical to before the second copy"
+    fi
+done
+"$CTL" --port "$PORT" cfg-copy loc src_loc copy_loc > "$SCRATCH/copy_taken.log" 2>&1 || true
+contains "$SCRATCH/copy_taken.log" "was refused" "copying onto a taken name is refused"
+"$CTL" --port "$PORT" cfg-copy loc no_such_loc copy_three > "$SCRATCH/copy_absent.log" 2>&1 || true
+contains "$SCRATCH/copy_absent.log" "was refused" "copying a record that is not there is refused"
+"$CTL" --port "$PORT" cfg-copy enum some_enum copy_enum > "$SCRATCH/copy_enum.log" 2>&1 || true
+contains "$SCRATCH/copy_enum.log" "was refused" "a non-loc/npc/obj type is refused"
+
+# 8. spawn-edit / spawn-move / cfg-set.
+SPAWN="$SCRATCH/server/scripts/areas/edited/configs/m50_50.spawn"
+"$CTL" --port "$PORT" spawn-move npc goblin 3205 3210 0 to 3207 3212 > "$SCRATCH/smove.log" 2>&1 || true
+contains "$SCRATCH/smove.log" "moved npc goblin 3205 3210 0 -> goblin 3207 3212 0 (1 command, one undo step)" \
+    "spawn-move is one SPAWN_EDIT"
+"$CTL" --port "$PORT" save > "$SCRATCH/smove_save.log" 2>&1 || true
+printf '// hand-written\n==== NPC ====\ngoblin                                        3207  3212 0   // keep me\nrat                                           3206  3211 0\n' \
+    > "$SCRATCH/m50_50.spawn.moved"
+if cmp -s "$SCRATCH/m50_50.spawn.moved" "$SPAWN"; then
+    check 1 "the save rewrites exactly the moved line, its comment kept"
+else
+    check 0 "the save rewrites exactly the moved line, its comment kept"
+    diff "$SCRATCH/m50_50.spawn.moved" "$SPAWN" | head -10
+fi
+"$CTL" --port "$PORT" spawn-edit npc rat 3206 3211 0 to obj rat 3206 3211 0 5 > "$SCRATCH/skind.log" 2>&1 || true
+contains "$SCRATCH/skind.log" "(2 commands, one undo step)" "npc -> obj is a delete and an add"
+"$CTL" --port "$PORT" undo > "$SCRATCH/skind_undo.log" 2>&1 || true
+contains "$SCRATCH/skind_undo.log" "undo 2 command(s)" "one undo takes both back"
+"$CTL" --port "$PORT" undo > "$SCRATCH/smove_undo.log" 2>&1 || true
+contains "$SCRATCH/smove_undo.log" "undo 1 command(s)" "undo the move"
+"$CTL" --port "$PORT" save > "$SCRATCH/smove_save2.log" 2>&1 || true
+if cmp -s "$SCRATCH/m50_50.spawn.before" "$SPAWN"; then
+    check 1 "after undo + save the hand-spaced spawn file is byte-identical"
+else
+    check 0 "after undo + save the hand-spaced spawn file is byte-identical"
+    diff "$SCRATCH/m50_50.spawn.before" "$SPAWN" | head -10
+fi
+if "$CTL" --port "$PORT" spawn-move npc nobody 3205 3210 0 to 3200 3200 > "$SCRATCH/snone.log" 2>&1; then
+    check 0 "moving a row the file does not hold fails"
+else
+    check 1 "moving a row the file does not hold fails"
+fi
+contains "$SCRATCH/snone.log" "was refused" "and says the authority refused it"
+"$CTL" --port "$PORT" cfg-set npc:guard@areas/t/configs/t.npc wanderrange 6 > "$SCRATCH/cfgset.log" 2>&1 || true
+contains "$SCRATCH/cfgset.log" "wanderrange: '2' -> '6'" "cfg-set edits the overlay block"
+"$CTL" --port "$PORT" cfg-set npc:guard op1 Talk-to > "$SCRATCH/cfgset2.log" 2>&1 || true
+contains "$SCRATCH/cfgset2.log" "op1: '' -> 'Talk-to'" "cfg-set adds a field to the all.npc block"
+"$CTL" --port "$PORT" save > "$SCRATCH/cfgset_save.log" 2>&1 || true
+contains "$SCRATCH/cfgset_save.log" "npc:guard@areas/t/configs/t.npc" "save names the overlay key"
+check "$( [ "$(cat "$SCRATCH/server/scripts/areas/t/configs/t.npc")" = "$(printf '// authored\n[guard]\nwanderrange=6\n\n[other]\nwanderrange=1')" ] && echo 1 )" \
+    "the overlay file changes in [guard] only"
+check "$( [ "$(cat "$SCRATCH/configs/all.npc")" = "$(printf '[guard]\nname=Guard\nop1=Talk-to')" ] && echo 1 )" \
+    "configs/all.npc gains op1"
+if "$CTL" --port "$PORT" cfg-set 'npc:guard@../t.npc' wanderrange 1 > "$SCRATCH/cfgbad.log" 2>&1; then
+    check 0 "an overlay key with .. is refused"
+else
+    check 1 "an overlay key with .. is refused"
+fi
+
+# 9. The named areas and square collections.
+AREAS_FILE="$SCRATCH/editor/areas.txt"
+"$CTL" --port "$PORT" area-set "Lumbridge castle" 0 3205 3208 3225 3226 colour 2 note "the castle" > "$SCRATCH/aset.log" 2>&1 || true
+contains "$SCRATCH/aset.log" "Mark area Lumbridge castle" "area-set marks a named area"
+"$CTL" --port "$PORT" area-set "Lumbridge castle" 0 3205 3208 3225 3226 3226 3210 3230 3214 > "$SCRATCH/aset2.log" 2>&1 || true
+contains "$SCRATCH/aset2.log" "Add rect to area Lumbridge castle" "a second area-set replaces it (one more rect)"
+"$CTL" --port "$PORT" area-set Courtyard all 3210 3215 3220 3222 > "$SCRATCH/aset3.log" 2>&1 || true
+contains "$SCRATCH/aset3.log" "Mark area Courtyard" "an area on every level"
+if "$CTL" --port "$PORT" area-set Courtyard all 3210 3215 3220 3222 rename "Lumbridge castle" > "$SCRATCH/ataken.log" 2>&1; then
+    check 0 "renaming onto a taken name fails"
+else
+    check 1 "renaming onto a taken name fails"
+fi
+"$CTL" --port "$PORT" area-set Courtyard all 3210 3215 3220 3222 rename Yard > "$SCRATCH/arename.log" 2>&1 || true
+contains "$SCRATCH/arename.log" "Rename area Courtyard to Yard" "rename gives the area a new name"
+"$CTL" --port "$PORT" collection-set Lumbridge m50_50 m50_51 > "$SCRATCH/cset.log" 2>&1 || true
+contains "$SCRATCH/cset.log" "New collection Lumbridge" "collection-set names a collection of squares"
+if "$CTL" --port "$PORT" collection-set Bad 50_50 > "$SCRATCH/cbad.log" 2>&1; then
+    check 0 "a key that is not a square is refused"
+else
+    check 1 "a key that is not a square is refused"
+fi
+"$CTL" --port "$PORT" areas > "$SCRATCH/areas.log" 2>&1 || true
+contains "$SCRATCH/areas.log" "2 area(s), 1 collection(s)" "areas counts the records"
+contains "$SCRATCH/areas.log" "area Lumbridge castle | level 0 | rects 3205 3208 3225 3226, 3226 3210 3230 3214 | colour 2 | note the castle" \
+    "the replaced area kept its colour and note"
+contains "$SCRATCH/areas.log" "collection Lumbridge | squares m50_50 m50_51" "areas lists the collection"
+"$CTL" --port "$PORT" area-remove Yard > "$SCRATCH/arm.log" 2>&1 || true
+contains "$SCRATCH/arm.log" "Delete area Yard" "area-remove deletes it"
+"$CTL" --port "$PORT" undo > "$SCRATCH/aundo.log" 2>&1 || true
+contains "$SCRATCH/aundo.log" "undo 1 command(s)" "undo takes the delete back"
+"$CTL" --port "$PORT" save > "$SCRATCH/asave.log" 2>&1 || true
+contains "$SCRATCH/asave.log" "areas" "save names the areas document"
+check "$( [ "$(head -n 1 "$AREAS_FILE")" = "# ToriRSMapEd named areas and square collections (editor/areas.txt)." ] && echo 1 )" \
+    "editor/areas.txt starts with its header"
+check "$( [ "$(grep -cE '^(area|collection) ' "$AREAS_FILE")" = 3 ] && echo 1 )" \
+    "editor/areas.txt holds the three records"
+contains "$AREAS_FILE" "area Yard | level all | rects 3210 3215 3220 3222" "the undone delete is saved in place"
+"$CTL" --port "$PORT" area-remove "Lumbridge castle" > /dev/null 2>&1 || true
+"$CTL" --port "$PORT" area-remove Yard > /dev/null 2>&1 || true
+"$CTL" --port "$PORT" collection-remove Lumbridge > "$SCRATCH/crm.log" 2>&1 || true
+contains "$SCRATCH/crm.log" "Delete collection Lumbridge" "collection-remove deletes it"
+"$CTL" --port "$PORT" save > /dev/null 2>&1 || true
+check "$( [ ! -e "$AREAS_FILE" ] && echo 1 )" "removing every record and saving removes the file"
 
 # 6. The browser's route in: the same daemon, upgraded, framed. Skipped
 # rather than failed when python3 is absent — the probe needs a WebSocket

@@ -394,6 +394,59 @@ dat2_archive_cache_put(
     lru->last_used = ++px->archive_cache_clock;
 }
 
+void
+PlatformX_IO_InvalidateArchive(
+    struct PlatformX_IO* px,
+    int index,
+    int archive)
+{
+    int dropped = 0;
+
+    assert(px);
+    assert(index >= 0);
+    assert(index < 255);
+    assert(archive >= 0);
+    /* The decompressed copy: released, not freed -- a task still holding it
+     * (the cache lends, see above) keeps it until its own Free. */
+    for( int i = 0; i < px->archive_cache_slots; i++ )
+    {
+        struct Dat2ArchiveCacheSlot* slot = &px->archive_cache[i];
+        if( !slot->archive || slot->archive->table_id != index ||
+            slot->archive->archive_id != archive )
+            continue;
+        RSCache_Dat2DiskArchiveFree(slot->archive);
+        slot->archive = NULL;
+        slot->last_used = 0;
+        dropped++;
+    }
+    {
+        const char* js5_note = "";
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+        /* The stored copy: the JS5 client re-primes the index's reference
+         * table, and a group whose CRC moved stops validating and is fetched
+         * again. */
+        if( px->js5 )
+        {
+            PlatformXIOJs5Cache_Invalidate(px->js5, index);
+            js5_note = "; js5 re-prime of 255/255 and the index's reference table queued";
+        }
+#endif
+        if( getenv("TORIRS_CACHE_INVALIDATE_DEBUG") )
+            TORIRS_REPORT("cache invalidate: io %d/%d: %d decompressed cop%s dropped%s\n", index,
+                       archive, dropped, dropped == 1 ? "y" : "ies", js5_note);
+    }
+}
+
+void
+PlatformX_IO_ArchiveInvalidateHook(
+    void* user,
+    int index,
+    int archive)
+{
+    assert(user);
+    PlatformX_IO_InvalidateArchive((struct PlatformX_IO*)user, index, archive);
+}
+
 static int
 read_whole_file(
     const char* path,

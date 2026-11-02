@@ -291,6 +291,9 @@ struct ToriRSServerIds
     int iface_orbs;
     int iface_orbs_osm;
     int iface_welcome_screen;
+    /* The bottom scroll's message-of-the-week text: the interface ships it
+     * empty and the login burst fills it (IF_SETTEXT, index 4339 [0]). */
+    int com_welcome_screen_motw;
     int com_welcome_screen_model1;
     int com_welcome_screen_model2;
 

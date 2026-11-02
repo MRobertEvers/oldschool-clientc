@@ -958,6 +958,18 @@ struct PktRawPayload
     uint8_t* data;
 };
 
+/*
+ * CACHE_INVALIDATE (our own prot, 3rd/rsprot/spec/packets/cache_invalidate.ini):
+ * forget `count` archives of cache index `index` -- the live reload rebuilt
+ * them. `archives` is heap, freed by gameproto_free; NULL when count is 0.
+ */
+struct PktCacheInvalidate
+{
+    int index;
+    int count;
+    int32_t* archives;
+};
+
 /* MESSAGE_CLANCHANNEL / MESSAGE_CLANCHANNEL_SYSTEM. `text` is heap, freed by
  * gameproto_free. The system form has no sender and no crown (crown -1). */
 struct PktMessageClanChannel
@@ -1491,6 +1503,7 @@ struct RevPacket
         struct PktWorldEntityInfo _worldentity_info;
         struct PktRebuildWev _rebuild_wev;
         struct PktRawPayload _raw_payload;
+        struct PktCacheInvalidate _cache_invalidate;
         struct PktMessageClanChannel _message_clanchannel;
         struct PktUpdateStockmarketSlot _update_stockmarket_slot;
         struct PktUpdateTradingPost _update_tradingpost;

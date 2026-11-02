@@ -15,6 +15,7 @@
 #include "torirsserver/wire/osrs241/packetin.h" /* the opcode names, for the wirelog's every-packet line */
 
 #include <assert.h>
+#include <datatypes/dat2_configs.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2262,6 +2263,23 @@ core_packet(
         break;
     case PKT_NAME_WORLDENTITY_INFO:
         core_worldentity_info(core, &packet._worldentity_info);
+        break;
+    case PKT_NAME_CACHE_INVALIDATE:
+        /* The live reload rewrote these archives. The bot's loc configs are
+         * decoded from the server's own records (ToriRSServer_SceneLocConfigDecode),
+         * which the reload has already replaced; the config group 2/6 row is
+         * the bot's cue to drop its decodes, as the client drops its loctypes.
+         * Its npc and obj rows read the server's tables at every lookup. */
+        if( packet._cache_invalidate.index == 2 )
+        {
+            for( int i = 0; i < packet._cache_invalidate.count; i++ )
+            {
+                if( packet._cache_invalidate.archives[i] != RSCACHE_DAT2_CONFIG_KIND_LOCS )
+                    continue;
+                fprintf(stderr, "scriptrun: cache invalidate: %d loc config(s) dropped\n",
+                        ScriptrunCore_LocConfigsInvalidate());
+            }
+        }
         break;
     case PKT_NAME_REBUILD_WORLDENTITY:
         core_rebuild_worldentity(core, &packet._rebuild_wev);

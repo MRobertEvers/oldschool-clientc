@@ -66,13 +66,21 @@
  * Scrolling is what lets MAX_PRIMS stay far below MAX_WIDGETS: a panel only
  * ever emits the rows inside its own view, so a 40-row tab costs the same
  * display list as the 12 rows of it you can see.
+ *
+ * 64 / 4,096 / 16,384 since the map editor (docs/MAPED_DESIGN.html #chrome):
+ * 24 / 384 / 1,536 were sized for one plugin pane, and an editor with a
+ * catalog, an inspector, a tree and a console is an order of magnitude more.
+ * Lists that could be tens of thousands of rows do NOT spend widgets per row
+ * -- that is what TORIRS_CHROME_W_VLIST is for -- so these stay compile-time
+ * constants of a fixed-size POD (a few MB: heap or static, never a stack
+ * local in anything but a test's main).
  */
 /** Panels the overlay can hold at once. */
-#define TORIRS_CHROME_MAX_PANELS 24
+#define TORIRS_CHROME_MAX_PANELS 64
 /** Widgets across all panels. */
-#define TORIRS_CHROME_MAX_WIDGETS 384
+#define TORIRS_CHROME_MAX_WIDGETS 4096
 /** Primitives in the display list. Build stops early and sets `overflow`. */
-#define TORIRS_CHROME_MAX_PRIMS 1536
+#define TORIRS_CHROME_MAX_PRIMS 16384
 /**
  * Semantic changes retained until the bound chrome executor consumes them.
  *
@@ -81,7 +89,7 @@
  * covers remove/re-add churn before the next executor tick. Exhaustion is not
  * silent: `change_lost` asks the executor seam for one full catch-up snapshot.
  */
-#define TORIRS_CHROME_MAX_CHANGES 1024
+#define TORIRS_CHROME_MAX_CHANGES 8192
 /**
  * Bytes of wrapped-line scratch one build may hand out. @see
  * ToriRSChrome::wrap_pool.
@@ -91,8 +99,12 @@
  * the lines actually on screen, so this is room for ten of them at once on one
  * page. A settings page with more than that draws the first ten and raises
  * `overflow`, which is the same answer running out of prims gives.
+ *
+ * 32 KiB since the map editor: a CODE view copies its gutter numbers and its
+ * highlighted runs here too, and 48 visible source lines of up to 191 bytes
+ * each are most of it.
  */
-#define TORIRS_CHROME_WRAP_POOL 2048
+#define TORIRS_CHROME_WRAP_POOL 32768
 /** Label / title bytes, including the terminator. */
 #define TORIRS_CHROME_LABEL_MAX 64
 /**
@@ -133,6 +145,30 @@
 #define TORIRS_CHROME_SELECT_OPTIONS_MAX 128
 #define TORIRS_CHROME_SELECT_VALUE_MAX TORIRS_CHROME_INPUT_MAX
 #define TORIRS_CHROME_SELECT_DETAIL_MAX TORIRS_CHROME_INPUT_MAX
+
+/* ---- the editor widgets' shared pools ------------------------------------
+ *
+ * The widgets added for the map editor (TREE, VLIST, CODE, GRAPH, ...) keep
+ * the module's two rules: no allocation, and nothing borrowed past the frame.
+ * Their variable-length parts therefore live in fixed pools shared by the
+ * whole instance rather than in a block per widget slot -- 4,096 slots each
+ * carrying a 32-row window would be most of a megabyte nobody uses.
+ */
+/** Visible-row slots across every VLIST and CODE widget. A widget reserves
+ *  `rows` contiguous slots at add time; removing it returns them. */
+#define TORIRS_CHROME_VROW_POOL 512
+/** Most rows one VLIST/CODE window shows at once. */
+#define TORIRS_CHROME_VROW_WINDOW_MAX 48
+/** Highlight spans across every CODE widget's visible lines. */
+#define TORIRS_CHROME_SPAN_POOL 1024
+/** Drawn items (rect, line, text) across every GRAPH well. */
+#define TORIRS_CHROME_GRAPH_ITEMS_MAX 4096
+/** Bytes of one graph item's caption, terminator included. */
+#define TORIRS_CHROME_GRAPH_TEXT_MAX 32
+/** Pointer and edit events (GRAPH gestures, CODE edits) awaiting the host. */
+#define TORIRS_CHROME_EVENT_MAX 64
+/** Hover time before a widget's tooltip shows, in the host's milliseconds. */
+#define TORIRS_CHROME_TOOLTIP_DELAY_MS 500
 
 /** Call-scoped input copied by DropdownStructured/SetStructuredOptions. */
 struct ToriRSChromeSelectOptionInput
@@ -401,6 +437,57 @@ enum ToriRSChromeSkinSlot
     TORIRS_CHROME_SKIN_BUTTON_LEFT,
     TORIRS_CHROME_SKIN_BUTTON_MID,
     TORIRS_CHROME_SKIN_BUTTON_RIGHT,
+    /*
+     * The map editor's slots (docs/MAPED_DESIGN.html #chrome, the "Slots the
+     * editor needs" table). Every one is a cache sprite found with
+     * `spritebake --list` against cache.osrs241 and named in the bake's
+     * recipe by archive id; none needed synthesising, so the recipe carries
+     * no new --stamp. The archive each came from is in the generated file's
+     * header, beside its size.
+     *
+     * Tool rail icons: the world map's 15x15 function discs where one reads
+     * as the tool (crosshair, spade, flag, curved arrow, ...), the 16x16
+     * chevrons for raise/lower, and the bank's own bin for delete.
+     */
+    TORIRS_CHROME_SKIN_TOOL_SELECT,
+    TORIRS_CHROME_SKIN_TOOL_RAISE,
+    TORIRS_CHROME_SKIN_TOOL_LOWER,
+    TORIRS_CHROME_SKIN_TOOL_FLATTEN,
+    TORIRS_CHROME_SKIN_TOOL_SMOOTH,
+    TORIRS_CHROME_SKIN_TOOL_PAINT_UNDERLAY,
+    TORIRS_CHROME_SKIN_TOOL_PAINT_OVERLAY,
+    TORIRS_CHROME_SKIN_TOOL_FLAGS,
+    TORIRS_CHROME_SKIN_TOOL_PLACE,
+    TORIRS_CHROME_SKIN_TOOL_MOVE,
+    TORIRS_CHROME_SKIN_TOOL_ROTATE,
+    TORIRS_CHROME_SKIN_TOOL_DELETE,
+    /** The bank's search glass, for catalog fields. */
+    TORIRS_CHROME_SKIN_SEARCH,
+    /** Tree expander, closed (pointing right) and open (pointing down). */
+    TORIRS_CHROME_SKIN_TREE_CLOSED,
+    TORIRS_CHROME_SKIN_TREE_OPEN,
+    /** options_radio_buttons frames 2 (on) and 0 (off), 17x17 like CheckOn. */
+    TORIRS_CHROME_SKIN_RADIO_ON,
+    TORIRS_CHROME_SKIN_RADIO_OFF,
+    /** The settings tab's slider: the plain middle of its track (repeated
+     *  across the track; the caps are SLIDER_TRACK_LEFT/RIGHT below) and the
+     *  brightness slider's bobble (2858). */
+    TORIRS_CHROME_SKIN_SLIDER_TRACK,
+    TORIRS_CHROME_SKIN_SLIDER_KNOB,
+    /** A 7x11 drag handle, centred on a splitter's grip band. */
+    TORIRS_CHROME_SKIN_SPLITTER_GRIP,
+    /** Output-console glyphs: a warning mark and an error cross. */
+    TORIRS_CHROME_SKIN_WARNING,
+    TORIRS_CHROME_SKIN_ERROR,
+    /** RUN / stop / build / save, for the main window's command strip. */
+    TORIRS_CHROME_SKIN_RUN,
+    TORIRS_CHROME_SKIN_STOP,
+    TORIRS_CHROME_SKIN_BUILD,
+    TORIRS_CHROME_SKIN_SAVE,
+    /** The slider track's two pointed end caps, 8x14 each. Appended rather
+     *  than placed beside SLIDER_TRACK so no earlier slot changes index. */
+    TORIRS_CHROME_SKIN_SLIDER_TRACK_LEFT,
+    TORIRS_CHROME_SKIN_SLIDER_TRACK_RIGHT,
     TORIRS_CHROME_SKIN_SLOT_COUNT
 };
 
@@ -669,7 +756,36 @@ enum ToriRSChromePanelStyle
      * debug menu is authored in the order it is read).
      */
     TORIRS_CHROME_PANEL_MENU = 1,
+    /**
+     * A strip of TORIRS_CHROME_W_ICONBUTTONs: no title bar, no rails, the
+     * buttons laid left to right and wrapped at the panel's fixed width. A
+     * fixed width of one button is the vertical tool rail; no fixed width is
+     * one row, the viewer window's thin toolbar. Widgets of any other kind in
+     * a toolbar are skipped -- a strip holds buttons.
+     */
+    TORIRS_CHROME_PANEL_TOOLBAR = 3,
 };
+
+/**
+ * Which edge of the surface a WINDOW panel is docked to (the main window's
+ * layout). Docked panels are placed by Build from ToriRSChrome_SetSurface's
+ * box in panel order -- each takes its `dock_size` off the edge it names from
+ * what the panels before it left -- and FILL takes the rest. A docked panel's
+ * inner edge is a splitter: dragging it resizes the panel, and the panels
+ * after it reflow. NONE is a floating panel, placed by its owner as before.
+ */
+enum ToriRSChromeDock
+{
+    TORIRS_CHROME_DOCK_NONE = 0,
+    TORIRS_CHROME_DOCK_LEFT,
+    TORIRS_CHROME_DOCK_RIGHT,
+    TORIRS_CHROME_DOCK_TOP,
+    TORIRS_CHROME_DOCK_BOTTOM,
+    TORIRS_CHROME_DOCK_FILL,
+};
+
+/** PANEL_MODE flag: the panel is modal. @see ToriRSChrome_PanelSetModal. */
+#define TORIRS_CHROME_PANEL_MODE_MODAL 0x1
 
 enum ToriRSChromeWidgetKind
 {
@@ -790,6 +906,73 @@ enum ToriRSChromeWidgetKind
      */
     TORIRS_CHROME_W_CUSTOM,
     /**
+     * One row of a tree: a LISTROW with a DEPTH (indent), an EXPANDER
+     * (none, closed, open) and a selected state. The children of a closed row
+     * are simply not widgets -- the host adds the rows it wants shown, so a
+     * component tree of thousands of nodes costs only its expanded part.
+     *
+     * `iaux` is the depth (shape: rides WIDGET_ADD's `w`), `ivalue` the
+     * expander (enum ToriRSChromeTreeExpander), `checked` the selection. A
+     * click on the expander flips it and activates with
+     * ToriRSChrome_ActivationWasExpand; a click anywhere else selects the row
+     * (and deselects the panel's other tree rows) and activates.
+     */
+    TORIRS_CHROME_W_TREE,
+    /**
+     * A scrollable list that owns its row COUNT and nothing else. It shows
+     * `rows` rows from `imin` (the first visible row) and asks the host for
+     * their text: ToriRSChrome_VListWindow says which rows are on screen and
+     * ToriRSChrome_VListSetRow fills one. A catalog of fifty thousand records
+     * is one widget and `rows` copied strings -- the chrome never holds the
+     * list. `ivalue` is the selected row (-1 none), `imax` the row count.
+     */
+    TORIRS_CHROME_W_VLIST,
+    /**
+     * A sprite-faced button: `ivalue` names the skin slot drawn on it,
+     * `checked` is its PRESSED state (the active tool), `label` its accessible
+     * name and the tooltip it shows when it has no tooltip of its own. A run of
+     * them packs left to right; a TORIRS_CHROME_PANEL_TOOLBAR is a strip of
+     * nothing else. Activates on release like a BUTTON; whether that presses it
+     * is the host's call (a tool rail is exclusive, a toggle is not).
+     */
+    TORIRS_CHROME_W_ICONBUTTON,
+    /**
+     * A track and a knob over an integer range: `ivalue` in [`imin`, `imax`]
+     * in steps of `istep`. Dragging the knob sweeps the value and activates
+     * on release; the wheel and Left/Right step it. The label sits in the
+     * label column like any one-line field, the value is printed after the
+     * track.
+     */
+    TORIRS_CHROME_W_SLIDER,
+    /**
+     * A CHECKBOX that is one of a group: `iaux` is the group id (shape),
+     * `checked` whether it is the chosen one. Choosing one clears every other
+     * radio of the same panel and group. Drawn with the settings page's own
+     * radio art.
+     */
+    TORIRS_CHROME_W_RADIO,
+    /**
+     * Source text: a VLIST of LINES with a gutter of line numbers, the menu
+     * face, a caret, and a highlight span list the host supplies per visible
+     * line (ToriRSChrome_CodeAddSpan). Like VLIST it owns only the line count
+     * and the window: the host holds the document and fills the visible lines.
+     * Edits are not applied to anything but the visible line they touch; each
+     * one is queued as a TORIRS_CHROME_EVENT_CODE_* for the host to apply to
+     * its document, which then restates the lines. `ivalue` is the caret line,
+     * `caret` its column, `imin` the first visible line, `imax` the count.
+     */
+    TORIRS_CHROME_W_CODE,
+    /**
+     * A CUSTOM well whose content the CHROME draws: the host lists rects,
+     * lines and captions in well-local logical pixels (ToriRSChrome_GraphRect
+     * and friends), each rect optionally carrying a HIT KEY. A press, drag,
+     * release, secondary click, hover or wheel over the well is queued as a
+     * TORIRS_CHROME_EVENT_GRAPH_* carrying the key of the topmost keyed rect
+     * under the pointer (0 for none) and the local point. The dialogue graph
+     * and the square picker are this.
+     */
+    TORIRS_CHROME_W_GRAPH,
+    /**
      * A removed widget's slot, waiting on the free list.
      *
      * A kind rather than a flag so a stale handle is inert everywhere at once:
@@ -820,6 +1003,109 @@ enum ToriRSChromeLabelStyle
     TORIRS_CHROME_LABEL_PROGRESS,
     TORIRS_CHROME_LABEL_ERROR,
     TORIRS_CHROME_LABEL_STYLE_COUNT,
+};
+
+/** TREE row expander states (ToriRSChromeWidget::ivalue). */
+enum ToriRSChromeTreeExpander
+{
+    TORIRS_CHROME_TREE_LEAF = 0,
+    TORIRS_CHROME_TREE_CLOSED = 1,
+    TORIRS_CHROME_TREE_OPEN = 2,
+};
+
+/** What a ToriRSChromeEvent reports. */
+enum ToriRSChromeEventKind
+{
+    TORIRS_CHROME_EVENT_NONE = 0,
+    /** Primary button went down over the well: `key`, `x`, `y`. */
+    TORIRS_CHROME_EVENT_GRAPH_PRESS,
+    /** The pointer moved with the button held; consecutive drags coalesce. */
+    TORIRS_CHROME_EVENT_GRAPH_DRAG,
+    /** ...and came back up, wherever it is now. */
+    TORIRS_CHROME_EVENT_GRAPH_RELEASE,
+    /** Secondary click: `key`, `x`, `y`. */
+    TORIRS_CHROME_EVENT_GRAPH_MENU,
+    /** The hovered key changed (`key` 0 when off every keyed rect). */
+    TORIRS_CHROME_EVENT_GRAPH_HOVER,
+    /** Wheel over the well: `value` is the delta, negative up. */
+    TORIRS_CHROME_EVENT_GRAPH_WHEEL,
+    /** Line `line` is now `text`. */
+    TORIRS_CHROME_EVENT_CODE_REPLACE,
+    /** Line `line` splits at column `col` (Enter). */
+    TORIRS_CHROME_EVENT_CODE_SPLIT,
+    /** Line `line` joins the line after it (Delete at its end, or Backspace at
+     *  column 0 of line `line + 1`). */
+    TORIRS_CHROME_EVENT_CODE_JOIN,
+};
+
+/** One queued GRAPH gesture or CODE edit. @see ToriRSChrome_TakeEvent. */
+struct ToriRSChromeEvent
+{
+    int kind;
+    int widget;
+    /** The widget's serial when queued; a recycled handle cannot claim it. */
+    int serial;
+    int key;
+    int x;
+    int y;
+    int value;
+    int line;
+    int col;
+    char text[TORIRS_CHROME_INPUT_MAX];
+};
+
+/** One retained visible-row slot of a VLIST or CODE widget. */
+struct ToriRSChromeVRow
+{
+    /** Owning widget handle, -1 for a free slot. */
+    int owner;
+    /** Absolute row this slot holds text for, -1 when the host has not filled
+     *  it since the window moved. Drawn empty until it does. */
+    int index;
+    char text[TORIRS_CHROME_INPUT_MAX];
+};
+
+/** Call-scoped input to ToriRSChrome_CodeSetLineSpans. */
+struct ToriRSChromeSpanInput
+{
+    int start;
+    int len;
+    uint32_t color;
+};
+
+/** One highlight span of a CODE widget's line. */
+struct ToriRSChromeSpan
+{
+    /** Owning widget handle, -1 for a free entry. */
+    int owner;
+    int line;
+    int start;
+    int len;
+    uint32_t color;
+};
+
+enum ToriRSChromeGraphItemKind
+{
+    TORIRS_CHROME_GRAPH_RECT = 0,
+    TORIRS_CHROME_GRAPH_RECT_OUTLINE,
+    TORIRS_CHROME_GRAPH_LINE,
+    TORIRS_CHROME_GRAPH_TEXT,
+};
+
+/** One drawn item of a GRAPH well, in well-local logical pixels. */
+struct ToriRSChromeGraphItem
+{
+    /** enum ToriRSChromeGraphItemKind. */
+    int kind;
+    /** RECT: the box. LINE: from (x, y) to (x + w, y + h). TEXT: x, baseline y. */
+    int x;
+    int y;
+    int w;
+    int h;
+    uint32_t color;
+    /** Hit key of a rect, 0 for none. Topmost (last listed) keyed rect wins. */
+    int key;
+    char text[TORIRS_CHROME_GRAPH_TEXT_MAX];
 };
 
 /** Rows the open dropdown list shows at once; longer lists scroll. Chosen so a
@@ -980,6 +1266,37 @@ struct ToriRSChromeWidget
     uint32_t intent_serial;
     /** First visible row while the list is open. */
     int scroll;
+
+    /* ---- the editor widgets (TREE .. GRAPH) ----------------------------
+     *
+     * One numeric block every new kind reads its own way, so the executor
+     * stream needs ONE command for all of it (TORIRS_CHROME_CMD_WIDGET_VALUE:
+     * value = ivalue, x = imin, y = imax, w = istep, h = iaux) rather than a
+     * command per kind. Each kind's doc comment says which it uses.
+     */
+    int ivalue;
+    int imin;
+    int imax;
+    int istep;
+    /** Shape, never changed after the add: TREE depth, RADIO group. */
+    int iaux;
+    /** VLIST/CODE: the first of this widget's `rows` pool slots, -1 none. */
+    int vrow_first;
+    /** GRAPH: this well's items are graph_items[first .. first + count). */
+    int graph_first;
+    int graph_count;
+    /** GRAPH: content hash of the items as of the last GraphEnd, so a host
+     *  that restates the same picture records nothing. */
+    uint64_t graph_hash;
+    /** Bumped whenever row texts, spans or graph items really changed; the
+     *  executor shadow compares it rather than the pools themselves. */
+    uint32_t rows_rev;
+    /** Hover text, shown after TORIRS_CHROME_TOOLTIP_DELAY_MS. "" for none
+     *  (an ICONBUTTON falls back to its label). */
+    char tooltip[TORIRS_CHROME_LABEL_MAX];
+    /** A string handed to this widget was cut to fit and that was logged --
+     *  once per widget serial, so a page rebuilt every frame says it once. */
+    int truncation_logged;
 };
 
 struct ToriRSChromePanel
@@ -1102,6 +1419,34 @@ struct ToriRSChromePanel
     int first_widget;
     int last_widget;
     char title[TORIRS_CHROME_LABEL_MAX];
+    /**
+     * Takes pointer and keyboard until it closes. @see ToriRSChrome_PanelSetModal.
+     * `modal_centred` keeps it centred on the surface until it is dragged.
+     */
+    int modal;
+    int modal_centred;
+    /** enum ToriRSChromeDock, and the docked extent (width for LEFT/RIGHT,
+     *  height for TOP/BOTTOM) in chrome pixels. `dock_min` floors a splitter
+     *  drag. */
+    int dock;
+    int dock_size;
+    int dock_min;
+    /**
+     * Set when the user ends a drag or a resize that changed this panel's box
+     * (ToriRSChrome_MouseUp); never cleared by the chrome. A host that lays
+     * its windows out itself reads it as "leave this one where it was put"
+     * and clears it when it takes the layout back (the editor's Reset layout).
+     */
+    int user_placed;
+    /**
+     * The panel is a FRAME around something the host draws under it: the
+     * title bar, the border rails and the grip are drawn and take the
+     * pointer, the body is neither painted nor hit -- a press, a wheel or a
+     * hover there falls through to whatever is below (the next panel down,
+     * or the host's own view). The map editor's World panel is one: its body
+     * is the 3D view. @see ToriRSChrome_PanelSetHollow, ToriRSChrome_PanelBodyRect.
+     */
+    int hollow;
 };
 
 /** Internal retained-model event kinds consumed by ToriRSChromeSync_Run. */
@@ -1119,9 +1464,12 @@ enum ToriRSChromeChangeKind
 #define TORIRS_CHROME_CHANGE_PANEL_TITLE (1u << 1)
 #define TORIRS_CHROME_CHANGE_PANEL_RECT (1u << 2)
 #define TORIRS_CHROME_CHANGE_PANEL_TAB (1u << 3)
+/** Modal flag or dock edge/size. */
+#define TORIRS_CHROME_CHANGE_PANEL_MODE (1u << 4)
 #define TORIRS_CHROME_CHANGE_PANEL_ALL                                            \
     (TORIRS_CHROME_CHANGE_PANEL_LIFECYCLE | TORIRS_CHROME_CHANGE_PANEL_TITLE |   \
-     TORIRS_CHROME_CHANGE_PANEL_RECT | TORIRS_CHROME_CHANGE_PANEL_TAB)
+     TORIRS_CHROME_CHANGE_PANEL_RECT | TORIRS_CHROME_CHANGE_PANEL_TAB |          \
+     TORIRS_CHROME_CHANGE_PANEL_MODE)
 
 /* Property masks recorded with WIDGET events. */
 #define TORIRS_CHROME_CHANGE_WIDGET_ADD (1u << 0)
@@ -1135,7 +1483,12 @@ enum ToriRSChromeChangeKind
 #define TORIRS_CHROME_CHANGE_WIDGET_FOCUS (1u << 8)
 #define TORIRS_CHROME_CHANGE_WIDGET_HEIGHT (1u << 9)
 #define TORIRS_CHROME_CHANGE_WIDGET_IDENTITY (1u << 10)
-#define TORIRS_CHROME_CHANGE_WIDGET_ALL ((1u << 11) - 1u)
+/** ivalue/imin/imax/istep (the editor widgets' numeric state). */
+#define TORIRS_CHROME_CHANGE_WIDGET_VALUE (1u << 11)
+/** VLIST/CODE row texts and spans, or GRAPH items (rows_rev moved). */
+#define TORIRS_CHROME_CHANGE_WIDGET_ROWS (1u << 12)
+#define TORIRS_CHROME_CHANGE_WIDGET_TOOLTIP (1u << 13)
+#define TORIRS_CHROME_CHANGE_WIDGET_ALL ((1u << 14) - 1u)
 
 /**
  * One changed retained node, not a rendered command.
@@ -1246,13 +1599,17 @@ struct ToriRSChrome
     /**
      * Bit per enum ToriRSChromeSkinSlot the drawer actually has an image for.
      *
+     * 64 bits since the editor's slots took the count past 32: set it with
+     * ToriRSChrome_SetSkinAvailable rather than `1u << slot`, which is
+     * undefined behaviour for a slot of 32 or more.
+     *
      * The host sets this after it uploads the baked skin; 0 (the Init default)
      * means "no skin", and every skinned draw falls back to its flat form. So
      * the fallback is the state the module starts in rather than an error path
      * that has to be remembered -- a build with no skin module, or a host that
      * never uploads one, renders the flat chrome without anything special.
      */
-    uint32_t skin_avail;
+    uint64_t skin_avail;
     /** Native size of the PANEL_BODY image, so the tiling loop can step by it.
      *  Set alongside skin_avail; ignored when that bit is clear. */
     int skin_tile_w;
@@ -1273,6 +1630,10 @@ struct ToriRSChrome
     int drag_panel;
     int drag_grab_x;
     int drag_grab_y;
+    /** Where the dragged panel was when it was picked up: a release that puts
+     *  it back there is a click on the title, not a placement. */
+    int drag_from_x;
+    int drag_from_y;
 
     /**
      * Panel being resized by its grip, or -1.
@@ -1284,6 +1645,9 @@ struct ToriRSChrome
     int resize_panel;
     int resize_grab_x;
     int resize_grab_y;
+    /** The resized panel's box when the grip was taken (see drag_from_x). */
+    int resize_from_w;
+    int resize_from_h;
 
     /** Widget handles, -1 for none. */
     int focus;
@@ -1409,6 +1773,47 @@ struct ToriRSChrome
      * a serial does not.
      */
     int build_serial;
+    /* ---- the editor widgets' pools and gestures ------------------------- */
+    struct ToriRSChromeVRow vrows[TORIRS_CHROME_VROW_POOL];
+    struct ToriRSChromeSpan spans[TORIRS_CHROME_SPAN_POOL];
+    int span_count;
+    struct ToriRSChromeGraphItem graph_items[TORIRS_CHROME_GRAPH_ITEMS_MAX];
+    int graph_item_count;
+    /** GRAPH between GraphBegin and GraphEnd, or -1. One at a time. */
+    int graph_building;
+    /** Queued gestures and edits, oldest first. @see ToriRSChrome_TakeEvent. */
+    struct ToriRSChromeEvent events[TORIRS_CHROME_EVENT_MAX];
+    int event_count;
+    /** Set when an event did not fit; cleared by TakeEventOverflow. */
+    int event_overflow;
+    /** SLIDER whose knob is being dragged, or -1. */
+    int slider_drag;
+    /** GRAPH holding the primary button, or -1, and its last hovered key. */
+    int graph_drag;
+    int graph_hover;
+    int graph_hover_key;
+    /** Docked panel whose splitter is being dragged, or -1. */
+    int split_panel;
+    /**
+     * Snapping for a dropped or resized floating panel, in chrome pixels
+     * (ToriRSChrome_SetSnap). `snap_grid` 0 is off: the panel lands where it
+     * was let go, as before.
+     */
+    int snap_grid;
+    int snap_tolerance;
+    /** Host clock as of the last ToriRSChrome_Tick, and when the current
+     *  hover began on it (-1 = not yet stamped). */
+    int64_t now_ms;
+    int64_t hover_since_ms;
+    /** Widget whose tooltip is up, or -1; the one the delay is timing, or -1;
+     *  and the box it was last drawn in, so hiding it damages that box. */
+    int tooltip_widget;
+    int tooltip_candidate;
+    struct ToriRSChromeRect tooltip_rect;
+    /** Set beside `activated` when a TREE row's expander fired it. */
+    int activated_expand;
+    int taken_expand;
+
     /** Set by Build when a capacity limit truncated the display list. */
     int overflow;
     /** Union of what changed since the last DamageClear. w/h 0 = nothing. */
@@ -1531,6 +1936,21 @@ ToriRSChrome_PanelSetVisible(struct ToriRSChrome* ui, int panel, int visible);
  */
 void
 ToriRSChrome_PanelSetResizable(struct ToriRSChrome* ui, int panel, int resizable);
+
+/** A hollow panel: frame and title bar only, the body drawn by and handed
+ *  through to whatever is under it. @see ToriRSChromePanel::hollow */
+void
+ToriRSChrome_PanelSetHollow(struct ToriRSChrome* ui, int panel, int hollow);
+
+/**
+ * The panel's body: its box minus the title bar (with the rule under it), the
+ * border rails or frame, and the bottom rule -- the part a hollow panel hands
+ * through. Computed from the panel's LIVE position and size (its fixed size
+ * when set, else the last Build's), so it is right the moment a host has
+ * moved or sized the panel, before the next Build.
+ */
+struct ToriRSChromeRect
+ToriRSChrome_PanelBodyRect(struct ToriRSChrome const* ui, int panel);
 
 /**
  * Give a panel the interfaces' nine-slice border.
@@ -2301,5 +2721,242 @@ ToriRSChrome_Damage(struct ToriRSChrome const* ui, struct ToriRSChromeRect* out)
 
 void
 ToriRSChrome_DamageClear(struct ToriRSChrome* ui);
+
+
+/* ---- the editor widgets ---------------------------------------------------
+ *
+ * TREE, VLIST, ICONBUTTON (and the TOOLBAR panel), SLIDER, RADIO, CODE,
+ * GRAPH, plus three things that are not widgets of their own: MODAL and
+ * docking/SPLITTER are panel properties, TOOLTIP a property every widget has.
+ * Each follows the pattern every older kind does: an add call, compare-then-set
+ * setters, a prim emitter in Build, an intent in the executor seam
+ * (torirs_chrome_exec.h) and a command in its stream. None of them keeps a
+ * pointer the caller owns past the call that handed it over.
+ */
+
+/**
+ * The baked size of an editor skin slot at 1x (the icons, radio, slider and
+ * glyph slots). The module links no bake, so it carries the sizes the recipe
+ * produced; test-chrome-widgets checks them against the bake. @return 0 for a
+ * slot it has no size for.
+ */
+int
+ToriRSChrome_SkinSlotSize(int slot, int* out_w, int* out_h);
+
+/** Mark one baked skin slot as uploaded (or not). The 64-bit successor of
+ *  writing `skin_avail` bits by hand. */
+void
+ToriRSChrome_SetSkinAvailable(struct ToriRSChrome* ui, int slot, int available);
+
+/**
+ * The host's clock, for the tooltip delay. ui/ owns no clock, the same way the
+ * caret blink is app-driven. Call once a frame; a frame where the hover has
+ * sat on one widget for TORIRS_CHROME_TOOLTIP_DELAY_MS shows its tooltip.
+ */
+void
+ToriRSChrome_Tick(struct ToriRSChrome* ui, int64_t now_ms);
+
+/** Hover text for `widget` ("" or NULL clears it). Copied, 63 bytes. */
+void
+ToriRSChrome_SetTooltip(struct ToriRSChrome* ui, int widget, char const* text);
+
+/** The tooltip currently shown, or -1. */
+int
+ToriRSChrome_TooltipWidget(struct ToriRSChrome const* ui);
+
+/* TREE */
+int
+ToriRSChrome_TreeRow(
+    struct ToriRSChrome* ui, int panel, char const* label, int depth, int expander);
+/** enum ToriRSChromeTreeExpander. */
+void
+ToriRSChrome_TreeSetExpander(struct ToriRSChrome* ui, int widget, int expander);
+int
+ToriRSChrome_TreeExpander(struct ToriRSChrome const* ui, int widget);
+/** Select one row (checked) and clear the panel's other tree rows. */
+void
+ToriRSChrome_TreeSelect(struct ToriRSChrome* ui, int widget);
+/** The activation just drained was a TREE row's EXPANDER, not its body. */
+int
+ToriRSChrome_ActivationWasExpand(struct ToriRSChrome const* ui);
+
+/* VLIST */
+/** `rows` visible rows (clamped to 1..TORIRS_CHROME_VROW_WINDOW_MAX), and
+ *  `row_count` rows in all. -1 when the row pool cannot hold `rows` more. */
+int
+ToriRSChrome_VList(
+    struct ToriRSChrome* ui, int panel, char const* label, int rows, int row_count);
+void
+ToriRSChrome_VListSetCount(struct ToriRSChrome* ui, int widget, int row_count);
+/** First visible row, clamped to the count. */
+void
+ToriRSChrome_VListSetScroll(struct ToriRSChrome* ui, int widget, int first);
+void
+ToriRSChrome_VListSetSelected(struct ToriRSChrome* ui, int widget, int row);
+int
+ToriRSChrome_VListSelected(struct ToriRSChrome const* ui, int widget);
+/** The rows on screen: [*out_first, *out_first + *out_count). 0 when none. */
+int
+ToriRSChrome_VListWindow(
+    struct ToriRSChrome const* ui, int widget, int* out_first, int* out_count);
+/** 1 when some visible row has no text for its current index yet. */
+int
+ToriRSChrome_VListNeedsRows(struct ToriRSChrome const* ui, int widget);
+/** Text of absolute row `row`, compare-then-set; ignored when off screen. */
+void
+ToriRSChrome_VListSetRow(struct ToriRSChrome* ui, int widget, int row, char const* text);
+
+/* ICONBUTTON */
+int
+ToriRSChrome_IconButton(struct ToriRSChrome* ui, int panel, int skin_slot, char const* label);
+void
+ToriRSChrome_IconButtonSetIcon(struct ToriRSChrome* ui, int widget, int skin_slot);
+
+/* SLIDER */
+int
+ToriRSChrome_Slider(
+    struct ToriRSChrome* ui,
+    int panel,
+    char const* label,
+    int min,
+    int max,
+    int value,
+    int step);
+void
+ToriRSChrome_SliderSetRange(struct ToriRSChrome* ui, int widget, int min, int max, int step);
+/** Clamped to the range and snapped to the step. */
+void
+ToriRSChrome_SliderSet(struct ToriRSChrome* ui, int widget, int value);
+int
+ToriRSChrome_SliderValue(struct ToriRSChrome const* ui, int widget);
+
+/* RADIO */
+int
+ToriRSChrome_Radio(
+    struct ToriRSChrome* ui, int panel, char const* label, int group, int checked);
+/** Choose `widget` and clear the rest of its group. */
+void
+ToriRSChrome_RadioSelect(struct ToriRSChrome* ui, int widget);
+
+/* CODE */
+/** `rows` visible lines, `line_count` lines in all. -1 when the pool is full. */
+int
+ToriRSChrome_Code(
+    struct ToriRSChrome* ui, int panel, char const* label, int rows, int line_count);
+/** Text of line `line`; the CODE counterpart of VListSetRow (and the count,
+ *  scroll, window and needs-rows calls are VLIST's, which CODE shares). */
+void
+ToriRSChrome_CodeSetLine(struct ToriRSChrome* ui, int widget, int line, char const* text);
+/** Caret at (line, col); scrolls the window to keep it visible. */
+void
+ToriRSChrome_CodeSetCaret(struct ToriRSChrome* ui, int widget, int line, int col);
+/** Drop every highlight span of `widget`. */
+void
+ToriRSChrome_CodeClearSpans(struct ToriRSChrome* ui, int widget);
+/**
+ * Line `line`'s highlight: colour bytes [start, start + len) of it, for each
+ * entry. Compare-then-set PER LINE, so a host that re-highlights the visible
+ * lines every frame records only the lines whose colouring moved. Copied.
+ * @return 0 when the span pool cannot hold them (the line keeps its old ones).
+ */
+int
+ToriRSChrome_CodeSetLineSpans(
+    struct ToriRSChrome* ui,
+    int widget,
+    int line,
+    struct ToriRSChromeSpanInput const* spans,
+    int count);
+
+/* GRAPH */
+/** A well `height` chrome pixels tall (non-positive: TORIRS_CHROME_M_CUSTOM_H). */
+int
+ToriRSChrome_Graph(struct ToriRSChrome* ui, int panel, char const* label, int height);
+/** Restate the well's whole picture: Begin, then items, then End. End compares
+ *  against the previous picture, so restating the same one records nothing. */
+void
+ToriRSChrome_GraphBegin(struct ToriRSChrome* ui, int widget);
+int
+ToriRSChrome_GraphRect(
+    struct ToriRSChrome* ui,
+    int widget,
+    int x,
+    int y,
+    int w,
+    int h,
+    uint32_t color,
+    int filled,
+    int key);
+int
+ToriRSChrome_GraphLine(
+    struct ToriRSChrome* ui, int widget, int x0, int y0, int x1, int y1, uint32_t color);
+int
+ToriRSChrome_GraphText(
+    struct ToriRSChrome* ui, int widget, int x, int baseline, uint32_t color, char const* text);
+void
+ToriRSChrome_GraphEnd(struct ToriRSChrome* ui, int widget);
+/** Topmost keyed rect under well-local (x, y), 0 for none. */
+int
+ToriRSChrome_GraphKeyAt(struct ToriRSChrome const* ui, int widget, int x, int y);
+
+/* Events: GRAPH gestures and CODE edits, oldest first. */
+/** Pop one queued event into `out`. @return 0 when none. */
+int
+ToriRSChrome_TakeEvent(struct ToriRSChrome* ui, struct ToriRSChromeEvent* out);
+/** Whether an event was dropped since the last call (and clear the flag). */
+int
+ToriRSChrome_TakeEventOverflow(struct ToriRSChrome* ui);
+/** Queue one event (the intent seam's way in; also what native input uses). */
+int
+ToriRSChrome_PushEvent(struct ToriRSChrome* ui, struct ToriRSChromeEvent const* event);
+
+/* MODAL */
+/**
+ * While a visible panel is modal it is drawn last, over a veil across the
+ * surface, and it alone receives the pointer and the keyboard: a click
+ * anywhere else is consumed into nothing (WantsPointer answers 1 everywhere),
+ * focus outside it is released, and Escape closes it. The unsaved-edit guard,
+ * a confirm-delete and a RUN failure are this.
+ */
+void
+ToriRSChrome_PanelSetModal(struct ToriRSChrome* ui, int panel, int modal);
+/** A WINDOW panel `width` wide, modal, closable, centred on the surface. */
+int
+ToriRSChrome_ModalAdd(struct ToriRSChrome* ui, char const* title, int width);
+/** The topmost visible modal panel, or -1. */
+int
+ToriRSChrome_ModalPanel(struct ToriRSChrome const* ui);
+
+/* Snapping */
+/**
+ * Snap floating panels when the user lets go of them. On the release of a
+ * title-bar drag the panel's left and top edges (or its right and bottom
+ * ones) go to the nearest edge of the surface or of a visible neighbour
+ * within `tolerance` pixels -- abutting it, or aligned with it when the two
+ * sit side by side -- and otherwise to the nearest multiple of `grid`. On the
+ * release of a resize grip the dragged right and bottom edges snap the same
+ * way, and otherwise the size rounds to the grid. Nothing snaps mid-gesture.
+ * `grid` 0 turns snapping off; a negative value is a caller bug.
+ */
+void
+ToriRSChrome_SetSnap(struct ToriRSChrome* ui, int grid, int tolerance);
+
+/* Docking and splitters */
+/** enum ToriRSChromeDock; `size` the docked extent (ignored for FILL/NONE). */
+void
+ToriRSChrome_PanelSetDock(struct ToriRSChrome* ui, int panel, int dock, int size);
+void
+ToriRSChrome_PanelSetDockSize(struct ToriRSChrome* ui, int panel, int size);
+/**
+ * The docked layout as text, "title=dock:size;..." for each docked panel, for
+ * the host to keep in its per-view user prefs. @return bytes written (without
+ * the terminator), or -1 when `cap` was too small.
+ */
+int
+ToriRSChrome_LayoutSave(struct ToriRSChrome const* ui, char* out, int cap);
+/** Apply a LayoutSave string: each named panel that exists takes its dock and
+ *  size. Unknown titles are ignored (a panel set changes between versions).
+ *  @return how many panels it applied to. */
+int
+ToriRSChrome_LayoutLoad(struct ToriRSChrome* ui, char const* text);
 
 #endif

@@ -35,6 +35,7 @@
 #include "torirs_server_auth.h"
 #include "torirs_server_session.h"
 #include "torirs_server_scene.h"
+#include "torirs_server_control.h"
 #include "torirs_server_world_internal.h"
 #include "mock239_facing.h"
 #include "mock239_interface_inbound.h"
@@ -17520,13 +17521,25 @@ login_shows_welcome(struct ToriRSServerPlayer const* player)
 
 /*
  * The welcome screen, as the login burst sends it (identical in indexes 4339,
- * 4396 and 4367): the message-of-the-week models, welcome_screen modal in
- * displaymodal, the update-broadcast link and the CRM banner with its Play
- * button. Jagex sends the two model scripts just before IF_OPENTOP; here they
- * follow the mount, so the components they address exist when they run.
+ * 4396 and 4367): the message of the week -- its text and its two models --,
+ * welcome_screen modal in displaymodal, the update-broadcast link and the CRM
+ * banner with its Play button. Jagex sends the text and the two model scripts
+ * just before IF_OPENTOP; here they follow the mount, so the components they
+ * address exist when they arrive.
+ *
+ * welcome_screen:motw is an empty text component in the cache, and no client
+ * script writes it: without this IF_SETTEXT the bottom scroll is bare
+ * parchment. The text belongs with the models -- the same week's message
+ * (The Fractured Archive, its guardian in model1); a later week changes all
+ * three together (index 4447: Halloween, models 38921 and 2388).
  */
-static void
-login_open_welcome_screen(struct ToriRSServerPlayer* player)
+static const char k_welcome_motw_text[] =
+    "<col=006000>The Fractured Archive</col> is finally here. Find the entrance near the "
+    "<col=004000>Guthixian Temple</col> if you think you're strong enough to take on "
+    "<col=731d1d>Old School's fourth raid.</col>";
+
+void
+ToriRSServer_WorldOpenWelcomeScreen(struct ToriRSServerPlayer* player)
 {
     const struct ToriRSServerIds* ids = ToriRSServer_Ids();
     int model1[9] = { ids->com_welcome_screen_model1, 62570, 0, 80, 2023, 1954, 0, 2000, 14746 };
@@ -17535,11 +17548,14 @@ login_open_welcome_screen(struct ToriRSServerPlayer* player)
     int const banner_intv[6] = { 781, 1, 1104, 0, -1, -1 };
     const char* banner_strv[6] = { NULL, NULL, NULL, "Play", NULL, NULL };
 
+    assert(player);
+    assert(ids->com_welcome_screen_motw > 0);
     ToriRSServer_SendIfOpensub(player,
                                TORIRSSERVER_COM_GROUP(ids->com_toplevel_display_displaymodal),
                                TORIRSSERVER_COM_CHILD(ids->com_toplevel_display_displaymodal),
                                ids->iface_welcome_screen,
                                0);
+    ToriRSServer_SendIfSettext(player, ids->com_welcome_screen_motw, k_welcome_motw_text);
     ToriRSServer_SendRunClientscript(player, 233, model1, 9);
     ToriRSServer_SendRunClientscript(player, 233, model2, 9);
     ToriRSServer_SendRunClientscriptMixed(player, 1080, "ss", NULL, broadcast_strv, 2);
@@ -17632,7 +17648,7 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
                                        TORIRSSERVER_COM_CHILD(ids->com_toplevel_display_orbs),
                                        mobile ? ids->iface_orbs_osm : ids->iface_orbs,
                                        1);
-            login_open_welcome_screen(player);
+            ToriRSServer_WorldOpenWelcomeScreen(player);
         }
         else
             ToriRSServer_GameframeOpentop(player, iface);
@@ -21167,6 +21183,16 @@ world_tick_body(struct ToriRSServer* srv)
     srv->tick++;
     /* Squares nobody has held for their linger leave the collision store. */
     ToriRSServer_SceneSquaresSweep(srv->tick);
+    /*
+     * The tick boundary the hot-reload contract swaps at (docs/serverpack.md):
+     * nothing is mid-instruction, the last tick's output is out, and this
+     * tick's phases have not looked at a table yet. The control link reads its
+     * requests and applies a RELOAD here, so CACHE_INVALIDATE and the REBUILD
+     * it owes go out in THIS tick's clients_out, invalidation first; and the
+     * script tables nothing runs on any more are freed. One branch with no
+     * control connection and nothing retired.
+     */
+    ToriRSServer_ControlTick(srv);
 
     phase_world(srv);
     BD_MARK();
@@ -21368,4 +21394,419 @@ ToriRSServer_WorldSoundAreaLoops(
             ToriRSServer_SendSynthSound(p, sound, loops, delay);
         ToriRSServer_TicklogSoundArea(srv, p, sound, loops, delay, coord, range, drop_off);
     }
+}
+
+/* ------------------------------------------------------------------ */
+/* Live reload: squares and spawns (torirs_server_control.h)           */
+/* ------------------------------------------------------------------ */
+
+/* Players owed a REBUILD_REGION that says reload=1, by pool slot. File-static
+ * for the reason the static roster is (one world per process at a time, and
+ * torirs_server.h closed to this change). */
+static uint8_t g_rebuild_reload[TORIRSSERVER_PLAYER_MAX];
+
+int
+ToriRSServer_WorldTakeRebuildReload(struct ToriRSServerPlayer* player)
+{
+    int slot;
+    int owed;
+
+    assert(player);
+    assert(player->world);
+    slot = (int)(player - player->world->players);
+    assert(slot >= 0);
+    assert(slot < TORIRSSERVER_PLAYER_MAX);
+    owed = g_rebuild_reload[slot];
+    g_rebuild_reload[slot] = 0;
+    return owed;
+}
+
+static int
+window_covers_any(
+    const struct ToriRSServerSceneWindow* window,
+    const int* map_x,
+    const int* map_z,
+    int count)
+{
+    for( int i = 0; i < count; i++ )
+        if( ToriRSServer_SceneWindowCoversSquare(window, map_x[i], map_z[i]) )
+            return 1;
+    return 0;
+}
+
+/*
+ * The map-square half of a live reload (docs/MAPED_DESIGN.html #run). The
+ * store re-reads the squares (ToriRSServer_SceneReloadSquares); every window
+ * that covers one is built again, because a window's collision view is a copy
+ * of the squares it held when it was built; and every player whose window
+ * covers one is owed exactly one REBUILD, through the ordinary barrier
+ * (phase_clients_out sends it and waits for MAP_BUILD_COMPLETE), so the client
+ * drops the scene it holds and loads the squares again. Their zones are reset
+ * for the same reason maybe_rebuild resets them: the client's new scene holds
+ * no zone state, and phase 10 re-states each one.
+ */
+int
+ToriRSServer_WorldReloadSquares(
+    struct ToriRSServer* srv,
+    const int* map_x,
+    const int* map_z,
+    int count)
+{
+    int reloaded;
+    int resident = 0;
+    int owed = 0;
+
+    assert(srv);
+    if( count <= 0 )
+        return 0;
+    assert(map_x);
+    assert(map_z);
+    reloaded = ToriRSServer_SceneReloadSquares(map_x, map_z, count, &resident);
+    if( window_covers_any(ToriRSServer_SceneWindowRoot(), map_x, map_z, count) )
+        ToriRSServer_WorldSceneRebuild(srv);
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        struct ToriRSServerPlayer* player = &srv->players[i];
+
+        if( !player->active )
+            continue;
+        if( !window_covers_any(ToriRSServer_PlayerSceneWindow(player), map_x, map_z, count) )
+            continue;
+        world_player_scene_build(srv, player);
+        player->rebuild_pending = 1;
+        player->place_dirty = 1;
+        ToriRSServer_ZonePlayerReset(player);
+        player->move_count = 0;
+        g_rebuild_reload[i] = 1;
+        owed++;
+    }
+    /* A build may have moved the active player's binding. */
+    ToriRSServer_WorldSetActive(srv, srv->active_player);
+    fprintf(stderr, "torirsserver: reload: %d square(s) current (%d were held), %d player(s) "
+                    "owed a REBUILD\n",
+            reloaded, resident, owed);
+    return reloaded;
+}
+
+int
+ToriRSServer_WorldReloadOweRebuild(struct ToriRSServer* srv)
+{
+    int owed = 0;
+
+    assert(srv);
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        struct ToriRSServerPlayer* player = &srv->players[i];
+
+        if( !player->active )
+            continue;
+        world_player_scene_build(srv, player);
+        player->rebuild_pending = 1;
+        player->place_dirty = 1;
+        ToriRSServer_ZonePlayerReset(player);
+        player->move_count = 0;
+        g_rebuild_reload[i] = 1;
+        owed++;
+    }
+    ToriRSServer_WorldSetActive(srv, srv->active_player);
+    return owed;
+}
+
+struct SpawnKey
+{
+    int id;
+    int x;
+    int z;
+    int level;
+    int index;
+};
+
+static int
+spawn_key_compare(
+    const void* a,
+    const void* b)
+{
+    const struct SpawnKey* left = a;
+    const struct SpawnKey* right = b;
+
+    if( left->id != right->id )
+        return left->id < right->id ? -1 : 1;
+    if( left->x != right->x )
+        return left->x < right->x ? -1 : 1;
+    if( left->z != right->z )
+        return left->z < right->z ? -1 : 1;
+    if( left->level != right->level )
+        return left->level < right->level ? -1 : 1;
+    return left->index < right->index ? -1 : (left->index > right->index);
+}
+
+/*
+ * Pair two spawn lists by (id, x, z, level), equal keys in index order:
+ * `old_to_new[i]` is the new index of old spawn i, or -1 when it went;
+ * `new_matched[j]` is 1 when new spawn j existed before. Sorted merge, not a
+ * scan of one list per entry of the other: the roster is ~23k rows.
+ */
+static void
+spawn_pair(
+    struct SpawnKey* old_keys,
+    int old_count,
+    struct SpawnKey* new_keys,
+    int new_count,
+    int* old_to_new,
+    uint8_t* new_matched)
+{
+    int i = 0;
+    int j = 0;
+
+    if( old_count > 0 )
+        qsort(old_keys, (size_t)old_count, sizeof(*old_keys), spawn_key_compare);
+    if( new_count > 0 )
+        qsort(new_keys, (size_t)new_count, sizeof(*new_keys), spawn_key_compare);
+    for( int k = 0; k < old_count; k++ )
+        old_to_new[k] = -1;
+    for( int k = 0; k < new_count; k++ )
+        new_matched[k] = 0;
+    while( i < old_count && j < new_count )
+    {
+        struct SpawnKey a = old_keys[i];
+        struct SpawnKey b = new_keys[j];
+        int order;
+
+        a.index = b.index = 0;
+        order = spawn_key_compare(&a, &b);
+        if( order < 0 )
+            i++;
+        else if( order > 0 )
+            j++;
+        else
+        {
+            old_to_new[old_keys[i].index] = new_keys[j].index;
+            new_matched[new_keys[j].index] = 1;
+            i++;
+            j++;
+        }
+    }
+}
+
+/* A map spawn of `obj_id` on that tile, standing or waiting to come back. */
+static void
+ground_spawn_remove(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerMapObjSpawn* spawn)
+{
+    for( int slot = 0; slot < TORIRSSERVER_GROUND_MAX; slot++ )
+    {
+        struct ToriRSServerGroundObj* obj = &srv->ground[slot];
+
+        if( !obj->is_spawn || obj->obj_id != spawn->obj_id || obj->x != spawn->x ||
+            obj->z != spawn->z || obj->level != spawn->level )
+            continue;
+        if( !obj->active && obj->respawn_tick < 0 )
+            continue;
+        obj->respawn_tick = -1;
+        ground_clear(srv, slot);
+        obj->is_spawn = 0;
+        return;
+    }
+}
+
+/*
+ * The spawn half of a live reload. The contract lists spawns as boot-only;
+ * the editor needs them most, so: the edited lane's changed files are read
+ * again (ToriRSServer_ContentReloadSpawnFiles, which refuses the generated
+ * lane), the new roster is paired with the old by (id, tile, level), an npc
+ * standing for a spawn that went is taken out the way the roster sync retires
+ * one (the ordinary NPC_INFO remove, no death), the survivors are re-indexed,
+ * and a spawn that is new stands up through world_static_npcs_sync like any
+ * other roster entry a window reaches. Ground spawns are cleared or added.
+ */
+int
+ToriRSServer_WorldReloadSpawns(
+    struct ToriRSServer* srv,
+    const char* scripts_dir,
+    const char* const* files,
+    int file_count,
+    struct ToriRSServerReloadResult* result)
+{
+    int old_npc_count = 0;
+    int old_obj_count = 0;
+    const struct ToriRSServerMapNpcSpawn* old_npcs = ToriRSServer_ContentNpcSpawns(&old_npc_count);
+    const struct ToriRSServerMapObjSpawn* old_objs_live = ToriRSServer_ContentObjSpawns(&old_obj_count);
+    struct ToriRSServerMapObjSpawn* old_objs = NULL;
+    struct SpawnKey* old_keys = NULL;
+    struct SpawnKey* new_keys = NULL;
+    int* old_to_new = NULL;
+    uint8_t* new_matched = NULL;
+    uint8_t* realised = NULL;
+    const struct ToriRSServerMapNpcSpawn* new_npcs;
+    const struct ToriRSServerMapObjSpawn* new_objs;
+    int new_npc_count = 0;
+    int new_obj_count = 0;
+    int changed = 0;
+    int removed_npcs = 0;
+    int added_npcs = 0;
+
+    assert(srv);
+    if( file_count <= 0 )
+        return 0;
+
+    /* The old tables, copied: the reload rebuilds the arrays in place. */
+    if( old_npc_count > 0 )
+    {
+        old_keys = ToriMem_Alloc(ToriMem_ServerWorld(), (size_t)old_npc_count * sizeof(*old_keys));
+        assert(old_keys);
+        for( int i = 0; i < old_npc_count; i++ )
+        {
+            old_keys[i].id = old_npcs[i].npc_id;
+            old_keys[i].x = old_npcs[i].x;
+            old_keys[i].z = old_npcs[i].z;
+            old_keys[i].level = old_npcs[i].level;
+            old_keys[i].index = i;
+        }
+    }
+    if( old_obj_count > 0 )
+    {
+        old_objs = ToriMem_Alloc(ToriMem_ServerWorld(), (size_t)old_obj_count * sizeof(*old_objs));
+        assert(old_objs);
+        memcpy(old_objs, old_objs_live, (size_t)old_obj_count * sizeof(*old_objs));
+    }
+
+    if( !ToriRSServer_ContentReloadSpawnFiles(scripts_dir, files, file_count, result) )
+    {
+        ToriMem_Free(ToriMem_ServerWorld(), old_keys);
+        ToriMem_Free(ToriMem_ServerWorld(), old_objs);
+        return 0;
+    }
+    new_npcs = ToriRSServer_ContentNpcSpawns(&new_npc_count);
+    new_objs = ToriRSServer_ContentObjSpawns(&new_obj_count);
+
+    /* npcs */
+    if( new_npc_count > 0 )
+    {
+        new_keys = ToriMem_Alloc(ToriMem_ServerWorld(), (size_t)new_npc_count * sizeof(*new_keys));
+        assert(new_keys);
+        new_matched = ToriMem_Alloc(ToriMem_ServerWorld(), (size_t)new_npc_count);
+        assert(new_matched);
+        for( int j = 0; j < new_npc_count; j++ )
+        {
+            new_keys[j].id = new_npcs[j].npc_id;
+            new_keys[j].x = new_npcs[j].x;
+            new_keys[j].z = new_npcs[j].z;
+            new_keys[j].level = new_npcs[j].level;
+            new_keys[j].index = j;
+        }
+    }
+    if( old_npc_count > 0 )
+    {
+        old_to_new = ToriMem_Alloc(ToriMem_ServerWorld(), (size_t)old_npc_count * sizeof(int));
+        assert(old_to_new);
+    }
+    spawn_pair(old_keys, old_npc_count, new_keys, new_npc_count, old_to_new, new_matched);
+
+    if( new_npc_count > 0 )
+    {
+        realised = ToriMem_Calloc(ToriMem_ServerWorld(), (size_t)new_npc_count, 1);
+        assert(realised);
+    }
+    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+    {
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
+        int index = npc->static_spawn;
+
+        if( index < 0 || index >= old_npc_count )
+            continue;
+        if( old_to_new[index] >= 0 )
+        {
+            npc->static_spawn = old_to_new[index];
+            if( npc->active )
+                realised[old_to_new[index]] = 1;
+            continue;
+        }
+        npc->static_spawn = -1;
+        if( !npc->active )
+            continue;
+        npc_set_occupancy(npc, 0);
+        ToriRSServer_WorldNpcFree(srv, slot);
+        ToriRSServer_ZoneNpcRefile(srv, slot);
+    }
+    for( int i = 0; i < old_npc_count; i++ )
+        removed_npcs += old_to_new[i] < 0;
+    for( int j = 0; j < new_npc_count; j++ )
+        added_npcs += !new_matched[j];
+    ToriMem_Free(ToriMem_ServerWorld(), g_static_realised);
+    g_static_realised = realised;
+    g_static_realised_count = realised ? new_npc_count : 0;
+    world_static_npcs_sync(srv);
+    changed += removed_npcs + added_npcs;
+
+    /* ground objs: the same pairing, then clear what went and add what came */
+    {
+        struct SpawnKey* ok = NULL;
+        struct SpawnKey* nk = NULL;
+        int* o2n = NULL;
+        uint8_t* nm = NULL;
+        int removed_objs = 0;
+        int added_objs = 0;
+
+        if( old_obj_count > 0 )
+        {
+            ok = ToriMem_Alloc(ToriMem_ServerWorld(), (size_t)old_obj_count * sizeof(*ok));
+            o2n = ToriMem_Alloc(ToriMem_ServerWorld(), (size_t)old_obj_count * sizeof(int));
+            assert(ok);
+            assert(o2n);
+            for( int i = 0; i < old_obj_count; i++ )
+            {
+                ok[i].id = old_objs[i].obj_id;
+                ok[i].x = old_objs[i].x;
+                ok[i].z = old_objs[i].z;
+                ok[i].level = old_objs[i].level;
+                ok[i].index = i;
+            }
+        }
+        if( new_obj_count > 0 )
+        {
+            nk = ToriMem_Alloc(ToriMem_ServerWorld(), (size_t)new_obj_count * sizeof(*nk));
+            nm = ToriMem_Alloc(ToriMem_ServerWorld(), (size_t)new_obj_count);
+            assert(nk);
+            assert(nm);
+            for( int j = 0; j < new_obj_count; j++ )
+            {
+                nk[j].id = new_objs[j].obj_id;
+                nk[j].x = new_objs[j].x;
+                nk[j].z = new_objs[j].z;
+                nk[j].level = new_objs[j].level;
+                nk[j].index = j;
+            }
+        }
+        spawn_pair(ok, old_obj_count, nk, new_obj_count, o2n, nm);
+        for( int i = 0; i < old_obj_count; i++ )
+        {
+            if( o2n[i] >= 0 )
+                continue;
+            ground_spawn_remove(srv, &old_objs[i]);
+            removed_objs++;
+        }
+        for( int j = 0; j < new_obj_count; j++ )
+        {
+            if( nm[j] )
+                continue;
+            ToriRSServer_WorldObjAdd(srv, new_objs[j].obj_id, new_objs[j].count, new_objs[j].x,
+                                     new_objs[j].z, new_objs[j].level, -1);
+            added_objs++;
+        }
+        changed += removed_objs + added_objs;
+        fprintf(stderr, "torirsserver: reload: spawns: npcs -%d +%d, objs -%d +%d\n", removed_npcs,
+                added_npcs, removed_objs, added_objs);
+        ToriMem_Free(ToriMem_ServerWorld(), ok);
+        ToriMem_Free(ToriMem_ServerWorld(), nk);
+        ToriMem_Free(ToriMem_ServerWorld(), o2n);
+        ToriMem_Free(ToriMem_ServerWorld(), nm);
+    }
+
+    ToriMem_Free(ToriMem_ServerWorld(), old_keys);
+    ToriMem_Free(ToriMem_ServerWorld(), new_keys);
+    ToriMem_Free(ToriMem_ServerWorld(), old_to_new);
+    ToriMem_Free(ToriMem_ServerWorld(), new_matched);
+    ToriMem_Free(ToriMem_ServerWorld(), old_objs);
+    return changed;
 }

@@ -211,6 +211,7 @@ class Session:
             "TORIRS_CONTENT_TEST": str(self.directory),
             "TORIRS_CONTENT_TEST_CHECKPOINTS": "1",
             "TORIRS_PREFS": str(self.directory / "client-prefs.ini"),
+            "TORIRS_EDITOR_LAYOUT": str(self.directory / "editor_layout.ini"),
             "TORIRS_PLUGIN_PREFS": str(self.directory / "plugin-prefs.ini"),
             "TORIRS_TRANSPORT": "embed",
             "TORIRSSERVER_SAVES": str(saves),

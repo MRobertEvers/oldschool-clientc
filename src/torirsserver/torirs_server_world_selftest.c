@@ -5480,6 +5480,71 @@ selftest_apmeng_engine(
     selftest_park_player(srv, 3222, 3218);
 }
 
+/*
+ * The welcome screen's bottom scroll carries the message of the week.
+ *
+ * welcome_screen:motw is an empty text component in the cache and no client
+ * script writes it; Jagex fills it in the login burst with IF_SETTEXT, ahead
+ * of the two motw_setmodel (233) calls (RSProx indexes 4339, 4396, 4367 and
+ * 4447 all do). The burst used to send the models and not the text, so every
+ * client -- native and web -- showed bare parchment under CLICK HERE TO PLAY.
+ */
+static void
+selftest_welcome_motw(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    static struct ToriRSServerCapture cap;
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    int const motw = ids->com_welcome_screen_motw;
+    int opensub = -1;
+    int settext = -1;
+    int first_model = -1;
+    const char* text = NULL;
+
+    fprintf(stderr, "ToriRSServer selftest: the welcome screen's message of the week\n");
+    SELFTEST_CHECK(ids->iface_welcome_screen > 0 && motw > 0 && ids->com_welcome_screen_model1 > 0,
+                   "welcome: welcome_screen, :motw and :model1 resolve");
+    if( ids->iface_welcome_screen <= 0 || motw <= 0 )
+        return;
+
+    ToriRSServer_CaptureBegin(srv, &cap);
+    ToriRSServer_WorldOpenWelcomeScreen(player);
+    ToriRSServer_CaptureEnd(srv);
+
+    opensub = ToriRSServer_CaptureFindNamed(&cap, PKT_NAME_IF_OPENSUB, 0);
+    for( int p = 0; p < cap.count; p++ )
+    {
+        if( cap.packets[p].name == PKT_NAME_IF_SETTEXT && settext < 0 &&
+            selftest_settext_uid(srv, &cap.packets[p]) == motw )
+        {
+            settext = p;
+            text = selftest_settext_text(srv, &cap.packets[p]);
+        }
+        if( cap.packets[p].name == PKT_NAME_RUNCLIENTSCRIPT && first_model < 0 )
+        {
+            char types[24];
+            int argc = 0;
+            int argv[19];
+            int script_id = -1;
+
+            ToriRSServer_WireReadRunClientscript(
+                srv->wire, cap.packets[p].data, cap.packets[p].len, types, (int)sizeof(types),
+                argv, (int)(sizeof(argv) / sizeof(argv[0])), &argc, &script_id);
+            if( script_id == 233 )
+                first_model = p;
+        }
+    }
+    SELFTEST_CHECK(opensub >= 0, "welcome: the burst mounts welcome_screen (IF_OPENSUB)");
+    SELFTEST_CHECK(settext >= 0, "welcome: an IF_SETTEXT addresses welcome_screen:motw");
+    SELFTEST_CHECK(text && strstr(text, "The Fractured Archive") != NULL,
+                   "welcome: the motw text is this week's message, \"%s\"", text ? text : "(none)");
+    SELFTEST_CHECK(settext > opensub && first_model > settext,
+                   "welcome: the text follows the mount and precedes motw_setmodel, as recorded "
+                   "(opensub %d, settext %d, model %d)",
+                   opensub, settext, first_model);
+}
+
 /* RUNCLIENTSCRIPT 2376 (`hp_hud_handle_event`, the boss bar shown) in a capture. */
 static int
 selftest_capture_count_hpbar_show(
@@ -5802,6 +5867,16 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer apmeng selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("apmeng");
+        return g_selftest_failures;
+    }
+
+    /* TORIRSSERVER_SELFTEST_WELCOME_ONLY=1 ./src/build_opt/torirsserver --selftest */
+    if( getenv("TORIRSSERVER_SELFTEST_WELCOME_ONLY") )
+    {
+        selftest_welcome_motw(srv, player);
+        fprintf(stderr, "ToriRSServer welcome selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("welcome");
         return g_selftest_failures;
     }
 
@@ -65170,6 +65245,7 @@ ToriRSServer_WorldSelftest(void)
     }
     selftest_apmeng_engine(srv, player);
     selftest_hpbar_reshow(srv, player);
+    selftest_welcome_motw(srv, player);
     selftest_reset_world(srv, player, 402, 402);
 
     /* Across the WHOLE suite — see the two counters' fields. Asserted here

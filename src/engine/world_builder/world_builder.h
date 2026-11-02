@@ -20,6 +20,105 @@ struct Shademap2;
 struct FlagMap;
 struct OccluderBuildmap;
 struct SceneOccluders;
+struct ToriRS_MapFloor;
+struct WorldBuilder;
+struct WorldEdit;
+
+/* ------------------------------------------------------------------ */
+/* World layouts (docs/MAPED_DESIGN.html #world)                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Who fills the scene, and how it reacts to a change.
+ *
+ * STATIC is the game: bake a window, free the build maps, rebuild whole
+ * windows. EDIT (engine/world_builder/edit/) runs the same bake but keeps the
+ * terrain build maps resident, gives every placement a stable handle, and
+ * applies a tile or loc change as a local invalidation that one flush per frame
+ * remeshes. The renderer, the painter and the scene API are the same for both.
+ */
+enum WorldBuilderLayout
+{
+    WORLD_BUILDER_LAYOUT_STATIC = 0,
+    WORLD_BUILDER_LAYOUT_EDIT = 1,
+};
+
+/** One loc placement, in scene tiles, as the map lists it. */
+struct World_LocPlacement
+{
+    int scene_x;
+    int scene_z;
+    int level;
+    int loc_id;
+    int shape;
+    int angle;
+};
+
+/**
+ * The window a rebuild bakes: a REBUILD_NORMAL zone centre (zone_center_x >= 0,
+ * scene_size tiles square) or an explicit square list (zone_center_x < 0,
+ * `chunks_xz` = (map_x, map_z) pairs, borrowed for the call).
+ */
+struct WorldBuilderWindow
+{
+    int zone_center_x;
+    int zone_center_z;
+    int scene_size;
+    const int* chunks_xz;
+    int chunk_count;
+};
+
+/** WorldBuilderOps.flush answers. */
+enum WorldBuilderFlush
+{
+    /** Every queued change is on screen. */
+    WORLD_BUILDER_FLUSH_OK = 0,
+    /** A change this layout cannot apply locally (EDIT: a LINK_BELOW bridge
+     *  flag moves painter tiles between levels) is queued: the caller re-runs
+     *  the window's bake from the provider, which already holds the edit. The
+     *  caller does it, not the flush, because a rebuild must drain the world's
+     *  entity-removed events first and only the caller owns that drain. */
+    WORLD_BUILDER_FLUSH_REBUILD = 1,
+};
+
+/** No placement. A handle is otherwise opaque and >= 0. */
+#define WORLD_BUILDER_HANDLE_NONE (-1)
+
+/**
+ * The builder interface of the design's #world section. One table per layout;
+ * a builder points at one (WorldBuilder_SetLayout). Call through the
+ * WorldBuilder_* dispatchers below, which state each entry's contract.
+ */
+struct WorldBuilderOps
+{
+    /** "static" | "edit": what logs and tests print. */
+    const char* name;
+    /** Both layouts: the full bake of a window. */
+    void (*rebuild_window)(
+        struct WorldBuilder* builder,
+        const struct WorldBuilderWindow* window);
+    /** EDIT: one tile's authored-derived floor (heights resolved). STATIC has
+     *  none (NULL): its answer to an edit is a window rebuild. */
+    void (*tile_set)(
+        struct WorldBuilder* builder,
+        int scene_x,
+        int scene_z,
+        int level,
+        const struct ToriRS_MapFloor* floor);
+    /** Place a loc; returns its placement handle. */
+    int (*loc_place)(
+        struct WorldBuilder* builder,
+        const struct World_LocPlacement* placement);
+    /** Remove the placement a handle names. */
+    void (*loc_remove)(
+        struct WorldBuilder* builder,
+        int placement_handle);
+    /** EDIT: remesh dirty tiles, relight, recollide. STATIC: nothing queued. */
+    int (*flush)(struct WorldBuilder* builder);
+};
+
+extern const struct WorldBuilderOps g_world_builder_ops_static;
+extern const struct WorldBuilderOps g_world_builder_ops_edit;
 
 /** Longest placement op label a hidden record keeps, NUL included -- the
  *  width of a zone LOC_ADD_CHANGE_V2 op label (Task_AppSpawn loc_ops). */
@@ -121,7 +220,74 @@ struct WorldBuilder
     struct WorldBuilderHiddenLoc* hidden_locs;
     int hidden_loc_count;
     int hidden_loc_capacity;
+
+    /** The layout's table (WorldBuilder_SetLayout); never NULL. */
+    const struct WorldBuilderOps* ops;
+    /** EDIT's resident state (edit/world_edit.h); NULL under STATIC, which
+     *  is what keeps every EDIT hook in the bake a no-op for the game. */
+    struct WorldEdit* edit;
+    /** Set by EDIT: RebuildCenterzoneEnd leaves the terrain build maps
+     *  (blend, overlay, shape, light, shade, flags) allocated after the bake
+     *  instead of freeing them. 0 = the game's lifetime, unchanged. */
+    int keep_build_maps;
+    /** Set while EDIT re-places a placement through the build path: the
+     *  placement registers like a runtime spawn (per-frame painter pass) but is
+     *  lit by EDIT's local sharelight pass rather than on the spot. */
+    int scenery_edit_rebake;
 };
+
+/** The layout name, "static" | "edit" -> *out. Returns 0 for anything else. */
+int
+WorldBuilder_LayoutParse(
+    const char* name,
+    enum WorldBuilderLayout* out);
+
+/**
+ * Put a builder on a layout. Call before the first bake: EDIT allocates its
+ * resident state here and the next bake fills it; leaving EDIT frees it. A
+ * builder starts STATIC (WorldBuilder_New).
+ */
+void
+WorldBuilder_SetLayout(
+    struct WorldBuilder* builder,
+    enum WorldBuilderLayout layout);
+
+enum WorldBuilderLayout
+WorldBuilder_GetLayout(const struct WorldBuilder* builder);
+
+/** ops->rebuild_window. */
+void
+WorldBuilder_RebuildWindow(
+    struct WorldBuilder* builder,
+    const struct WorldBuilderWindow* window);
+
+/** ops->tile_set. Asserts the layout has one (EDIT); STATIC callers rebuild
+ *  the window instead. `scene_x`/`scene_z` inside the scene. */
+void
+WorldBuilder_TileSet(
+    struct WorldBuilder* builder,
+    int scene_x,
+    int scene_z,
+    int level,
+    const struct ToriRS_MapFloor* floor);
+
+/** ops->loc_place. Returns the placement handle (EDIT: stable across
+ *  flushes until the next bake; STATIC: the scenery pool index, valid until
+ *  the next change on that tile). */
+int
+WorldBuilder_LocPlace(
+    struct WorldBuilder* builder,
+    const struct World_LocPlacement* placement);
+
+/** ops->loc_remove. */
+void
+WorldBuilder_LocRemove(
+    struct WorldBuilder* builder,
+    int placement_handle);
+
+/** ops->flush; once per frame. Returns enum WorldBuilderFlush. */
+int
+WorldBuilder_Flush(struct WorldBuilder* builder);
 
 /** How many placements a multiloc hides in this builder's scene right now. */
 int

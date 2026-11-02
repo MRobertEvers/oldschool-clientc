@@ -28,6 +28,7 @@
 
 #include "mem/torirs_mem.h"
 #include "mem/torimem_rscache.h"
+#include "platform/platform_web_io.h"
 #include <rscache.h>
 
 #include <assert.h>
@@ -202,6 +203,52 @@ ToriRS_WebApi_ReferenceTableFromContainer(
 }
 
 /*
+ * A decoded table's per-group CRC and version, for the live reload's re-prime
+ * (platform_web_io.js `referenceListing`, src/web/torirs_js5.js
+ * `invalidateArchive`): the stored copy of a group is valid while the CRC of
+ * its container matches the table's, which is the test the native JS5 client
+ * makes of its sparse copy (js5.c). The decode stays here; JS only reads the
+ * three numbers per listed group.
+ *
+ * ArchiveCount is the id span (one past the largest id); an id inside it may
+ * still be a hole, which ReferenceTableHasArchive answers.
+ */
+EMSCRIPTEN_KEEPALIVE int
+ToriRS_WebApi_ReferenceTableArchiveCount(struct RSCache_ReferenceTable const* table)
+{
+    assert(table);
+    return table->archive_count;
+}
+
+EMSCRIPTEN_KEEPALIVE int
+ToriRS_WebApi_ReferenceTableArchiveCrc(
+    struct RSCache_ReferenceTable const* table,
+    int archive_id)
+{
+    assert(table);
+    assert(RSCache_ReferenceTableHasArchive(table, archive_id));
+    return table->archives[archive_id].crc;
+}
+
+EMSCRIPTEN_KEEPALIVE int
+ToriRS_WebApi_ReferenceTableArchiveVersion(
+    struct RSCache_ReferenceTable const* table,
+    int archive_id)
+{
+    assert(table);
+    assert(RSCache_ReferenceTableHasArchive(table, archive_id));
+    return table->archives[archive_id].version;
+}
+
+/* A table decoded only to be read (the re-prime's listing) and never handed to
+ * the queue: the executor frees it itself. */
+EMSCRIPTEN_KEEPALIVE void
+ToriRS_WebApi_ReferenceTableFree(struct RSCache_ReferenceTable* table)
+{
+    RSCache_ReferenceTableFree(table);
+}
+
+/*
  * Sizes the queue reports in `data_size` for these two kinds.
  *
  * The client's readers cast `data` and never walk it by length, so these are
@@ -326,6 +373,22 @@ ToriRS_WebApi_ArchiveDataSize(struct RSCache_Dat2DiskArchive const* archive)
 {
     assert(archive);
     return archive->data_size;
+}
+
+/*
+ * CacheProvider_SetArchiveInvalidateHook's shape around the JS library's
+ * PlatformWeb_IO_InvalidateArchive (platform_web_io.js), registered in main.c
+ * after App_Init: a C function, so the provider holds a plain table entry and
+ * not the address of a JS import. `user` is the IO handle.
+ */
+void
+PlatformWeb_IO_ArchiveInvalidateHook(
+    void* user,
+    int index,
+    int archive)
+{
+    assert(user);
+    PlatformWeb_IO_InvalidateArchive((struct PlatformWeb_IO*)user, index, archive);
 }
 
 #endif /* __EMSCRIPTEN__ */

@@ -409,6 +409,13 @@ Js5ServerCacheLoad(
 
     if( archive == JS5_REFERENCE_INDEX && group == JS5_REFERENCE_INDEX )
     {
+        /* The master is what a client asks for first when it is told the
+         * cache changed (a live reload's CACHE_INVALIDATE ->
+         * Js5ClientInvalidateArchive), usually within milliseconds of the
+         * repack -- inside the reactor's one-second refresh throttle, which
+         * would hand it the snapshot from before the repack, and every table
+         * would then validate against the old entries. Two stat() calls. */
+        Js5ServerCacheRefreshIfStale(cache);
         blob->data = (uint8_t*)ToriMem_Alloc(ToriMem_ServerNet(), cache->master_size);
         assert(blob->data);
         memcpy(blob->data, cache->master, cache->master_size);

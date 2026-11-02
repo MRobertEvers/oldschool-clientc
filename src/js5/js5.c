@@ -2139,6 +2139,88 @@ Js5ClientLastError(const struct Js5Client* client)
 }
 
 bool
+Js5ClientInvalidateArchive(struct Js5Client* client, int archive_id)
+{
+    assert(client);
+    assert(archive_id >= 0);
+    assert(archive_id < 255);
+    if( client->state == JS5_STATE_FAILED )
+        return false;
+    struct Js5Archive* archive = &client->archives[archive_id];
+    /* Nothing of it is resident yet: the boot's own master and reference
+     * requests will read what the server serves now. */
+    if( !archive->registered || archive->empty || !archive->reference_ready )
+        return true;
+
+    /* 1. No response may land against the old expectation: one already on
+     *    the wire would fail its CRC (and four of those are terminal). A
+     *    disconnect re-queues every request in flight; the next tick
+     *    reconnects. */
+    bool on_wire = client->inflight_normal != 0u || client->inflight_urgent != 0u ||
+                   client->tx_request != NULL || client->response_request != NULL;
+    if( on_wire )
+        js5_disconnect(client, JS5_ERROR_NONE);
+
+    /* 2. Its queued group requests carry the old CRC: they wait for the new
+     *    reference (js5_resolve_waiting_requests re-queues them with its
+     *    entries). */
+    for( unsigned bucket = 0u; bucket < JS5_REQUEST_BUCKETS; bucket++ )
+    {
+        for( struct Js5Request* request = client->requests[bucket]; request;
+             request = request->hash_next )
+        {
+            if( request->kind != JS5_REQUEST_KIND_GROUP || request->archive != archive_id )
+                continue;
+            if( request->state == JS5_REQUEST_QUEUED_NORMAL )
+                js5_queue_remove(&client->normal_queue, request);
+            else if( request->state == JS5_REQUEST_QUEUED_URGENT )
+                js5_queue_remove(&client->urgent_queue, request);
+            else
+                continue;
+            request->state = JS5_REQUEST_WAIT_METADATA;
+        }
+    }
+
+    /* 3. The archive goes back to waiting for its reference table. Its group
+     *    states are forgotten, so no group reads as READY off the old table;
+     *    the table itself is replaced when the new one installs
+     *    (js5_reference_apply), which re-validates every local group against
+     *    it: a group the server rewrote no longer matches its stored copy and
+     *    is fetched again (and overwritten on disk by install_group). */
+    client->references_ready--;
+    client->groups_total -= archive->total_groups;
+    client->groups_valid -= archive->valid_groups;
+    if( archive->ready )
+    {
+        archive->ready = false;
+        client->archives_ready--;
+    }
+    if( archive->group_states && archive->reference )
+        memset(archive->group_states, JS5_GROUP_UNKNOWN, (size_t)archive->reference->archive_count);
+    archive->reference_ready = false;
+    archive->scanning = false;
+    archive->master_present = false;
+    archive->total_groups = 0u;
+    archive->valid_groups = 0u;
+
+    /* 4. A fresh master: its entry for this archive names the new reference
+     *    table's CRC and version (js5_process_master -> 
+     *    js5_process_registered_archive, which tries the stored table first
+     *    and, when that no longer matches, requests it). */
+    client->master_ready = false;
+    return js5_request_new(
+               client,
+               JS5_REQUEST_KIND_MASTER,
+               255,
+               255,
+               0u,
+               0u,
+               JS5_PRIORITY_URGENT,
+               false,
+               false) != NULL;
+}
+
+bool
 Js5ClientArchiveReady(const struct Js5Client* client, int archive)
 {
     return client && archive >= 0 && archive < 255 && client->archives[archive].ready;

@@ -12,8 +12,12 @@
 
   const PROTOCOL = 1;
   const MAX_PENDING = 128;
-  const MAX_PENDING_BYTES = 8 * 1024 * 1024;
-  const MAX_BATCH_COMMANDS = 8192;
+  /* An editor-sized full snapshot (TORIRS_CHROME_PROTOCOL_COMMAND_MAX
+   * commands) can pass 8 MiB of JSON; the byte cap is sized to the command
+   * cap rather than to a plugin page. */
+  const MAX_PENDING_BYTES = 48 * 1024 * 1024;
+  /* TORIRS_CHROME_PROTOCOL_COMMAND_MAX, including SYNC_BEGIN/SYNC_END. */
+  const MAX_BATCH_COMMANDS = 49152;
   const MAX_CUSTOM_PIXELS = 1200000;
   const MAX_INTENTS = 64;
   /* The rail's allocation, in CSS pixels: the shared bundle lays the rail out
@@ -39,16 +43,20 @@
     WIDGET_ADD: 8, WIDGET_REMOVE: 9, WIDGET_LABEL: 10, WIDGET_TEXT: 11,
     WIDGET_CHECKED: 12, WIDGET_HIDDEN: 13, WIDGET_COLOR: 14,
     WIDGET_SELECTED: 15, WIDGET_FOCUS: 16, WIDGET_OPTIONS: 17,
-    WIDGET_OPTION: 18, CHECK_STYLE: 19, WIDGET_HEIGHT: 20
+    WIDGET_OPTION: 18, CHECK_STYLE: 19, WIDGET_HEIGHT: 20,
+    PANEL_MODE: 21, WIDGET_VALUE: 22, WIDGET_ROW: 23, WIDGET_SPAN: 24,
+    WIDGET_GRAPH: 25, WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27
   };
   const W = {
     LABEL: 0, CHECKBOX: 1, TEXTINPUT: 2, SEPARATOR: 3, MENUITEM: 4,
     DROPDOWN: 5, MODELVIEW: 6, BUTTON: 7, TABSTRIP: 8, LISTROW: 9,
-    COLORPICK: 10, TEXTAREA: 11, CUSTOM: 12, FREE: 13
+    COLORPICK: 10, TEXTAREA: 11, CUSTOM: 12, TREE: 13, VLIST: 14,
+    ICONBUTTON: 15, SLIDER: 16, RADIO: 17, CODE: 18, GRAPH: 19, FREE: 20
   };
   const INTENT = {
     ACTIVATE: 1, ACTION: 2, TOGGLE: 3, TEXT: 4, PICK: 5, TAB: 6,
-    CLOSE: 7, CUSTOM_ACTIVATE: 8
+    CLOSE: 7, CUSTOM_ACTIVATE: 8, CUSTOM_MENU: 9, EXPAND: 10, SCROLL: 11,
+    VALUE: 12, SPLIT: 13, CODE_EDIT: 14, GRAPH: 15, GRAPH_WHEEL: 16
   };
 
   const THEME = {
@@ -664,11 +672,14 @@
           text: boundedText(intent.text, 191), x: integer(intent.x, 0),
           y: integer(intent.y, 0), g: unsigned(intent.g), s: unsigned(intent.s)
         };
+        /* Every kind the C header declares, up to its last
+         * (TORIRS_CHROME_INTENT_KIND_MAX). CUSTOM_MENU used to fall past an
+         * older bound here and every secondary click on a well was dropped. */
         if (!this.pageOpen || normalized.k < INTENT.ACTIVATE ||
-            normalized.k > INTENT.CUSTOM_ACTIVATE ||
+            normalized.k > INTENT.GRAPH_WHEEL ||
             normalized.g !== this.pageGeneration || normalized.p !== this.pagePanel)
           return false;
-        if (normalized.k === INTENT.CLOSE) {
+        if (normalized.k === INTENT.CLOSE || normalized.k === INTENT.SPLIT) {
           if (normalized.w !== -1) return false;
         } else {
           const expected = normalized.w >= 0 && this.widgetSerials[String(normalized.w)];

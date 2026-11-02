@@ -46,8 +46,17 @@
 /** Bytes of one command's string payload, terminator included. */
 #define TORIRS_CHROME_TEXT_MAX TORIRS_CHROME_INPUT_MAX
 
-/** Complete atomic transaction capacity shared by WEB and BROWSER. */
-#define TORIRS_CHROME_PROTOCOL_COMMAND_MAX 8192
+/**
+ * Complete atomic transaction capacity shared by WEB and BROWSER.
+ *
+ * 49152 since the map editor raised the model to 64 panels / 4,096 widgets and
+ * added the row, span and graph pools (docs/MAPED_DESIGN.html #chrome); the
+ * worst legal full snapshot is proved to fit by the _Static_assert beside the
+ * serializer in torirs_chrome_exec.c. The JS reducers' caps
+ * (plugin_chrome/runtime-source.js MAX_PAGE_COMMANDS, web/torirs_chrome.js
+ * MAX_BATCH_COMMANDS) are this number too.
+ */
+#define TORIRS_CHROME_PROTOCOL_COMMAND_MAX 49152
 
 /**
  * A LISTROW's SHAPE, carried in TORIRS_CHROME_CMD_WIDGET_ADD's `w`.
@@ -255,6 +264,48 @@ enum ToriRSChromeCmdKind
      * from the display list never sees it and does not need to.
      */
     TORIRS_CHROME_CMD_WIDGET_HEIGHT,
+
+    /* ---- the map editor's widgets (docs/MAPED_DESIGN.html #chrome) ---- */
+
+    /**
+     * A panel's mode: `value` = TORIRS_CHROME_PANEL_MODE_* flags (MODAL),
+     * `x` = enum ToriRSChromeDock, `w` = the docked extent. Sent after
+     * PANEL_OPEN whenever any of them is not the default, and on a change.
+     * A presentation with one page shows a modal page over a veil; one that
+     * lays out several panels docks them.
+     */
+    TORIRS_CHROME_CMD_PANEL_MODE,
+    /**
+     * An editor widget's numeric state (ToriRSChromeWidget ivalue/imin/imax/
+     * istep): `value` = ivalue, `x` = imin, `y` = imax, `w` = istep, `h` = the
+     * CODE caret column (iaux otherwise). Per kind:
+     *   TREE        value = expander (enum ToriRSChromeTreeExpander)
+     *   VLIST       value = selected row, x = first visible row, y = row count
+     *   CODE        value = caret line, x = first visible line, y = line count,
+     *               h = caret column
+     *   ICONBUTTON  value = the skin slot it wears
+     *   SLIDER      value, x = min, y = max, w = step
+     */
+    TORIRS_CHROME_CMD_WIDGET_VALUE,
+    /**
+     * VLIST/CODE: absolute row `value` now reads `text`. Only rows inside the
+     * window are ever sent; a row with no text yet is simply not sent, and the
+     * presentation draws it blank. For CODE it also drops that line's spans:
+     * the WIDGET_SPANs that follow it restate them.
+     */
+    TORIRS_CHROME_CMD_WIDGET_ROW,
+    /** CODE: line `value` colours bytes [`x`, `x` + `y`) in `color`. */
+    TORIRS_CHROME_CMD_WIDGET_SPAN,
+    /** GRAPH: the picture is restated in full, `value` items follow. */
+    TORIRS_CHROME_CMD_WIDGET_GRAPH,
+    /**
+     * One GRAPH item, in order: `tab` = enum ToriRSChromeGraphItemKind,
+     * `x`/`y`/`w`/`h` its box (a LINE runs from x,y to x+w,y+h; TEXT draws at
+     * x with baseline y), `color`, `value` = its hit key, `label` = its text.
+     */
+    TORIRS_CHROME_CMD_WIDGET_GRAPH_ITEM,
+    /** `label` = the widget's hover text ("" none). */
+    TORIRS_CHROME_CMD_WIDGET_TOOLTIP,
 };
 
 /**
@@ -335,7 +386,35 @@ enum ToriRSChromeIntentKind
      * on ACTIVATE. @see TORIRS_PANEL_ACTION_MENU for what a well does with it.
      */
     TORIRS_CHROME_INTENT_CUSTOM_MENU,
+
+    /* ---- the map editor's widgets ---- */
+
+    /** A TREE row's expander was clicked: `value` = the new expander state. */
+    TORIRS_CHROME_INTENT_EXPAND,
+    /** A VLIST/CODE window scrolled: `value` = the first visible row. */
+    TORIRS_CHROME_INTENT_SCROLL,
+    /** A SLIDER was set: `value`. */
+    TORIRS_CHROME_INTENT_VALUE,
+    /** A docked panel's splitter was dragged: `panel`, `value` = its size. */
+    TORIRS_CHROME_INTENT_SPLIT,
+    /**
+     * A CODE line was edited: `value` = the line, `x` = enum
+     * ToriRSChromeEventKind (CODE_REPLACE / CODE_SPLIT / CODE_JOIN), `y` =
+     * the column, `text` = the line's new text for a REPLACE.
+     */
+    TORIRS_CHROME_INTENT_CODE_EDIT,
+    /**
+     * A gesture over a GRAPH well: `value` = enum ToriRSChromeEventKind
+     * (GRAPH_PRESS .. GRAPH_HOVER), `x`/`y` well-local logical units. The
+     * model resolves the hit key from its own item list.
+     */
+    TORIRS_CHROME_INTENT_GRAPH,
+    /** The wheel over a GRAPH well: `value` = the delta, `x`/`y` as above. */
+    TORIRS_CHROME_INTENT_GRAPH_WHEEL,
 };
+
+/** The highest intent kind; executors fence what they accept against it. */
+#define TORIRS_CHROME_INTENT_KIND_MAX TORIRS_CHROME_INTENT_GRAPH_WHEEL
 
 /*
  * There was a CONFIRM here -- "the Ok beside the close box was used" -- and it
@@ -547,6 +626,13 @@ struct ToriRSChromeShadowWidget
     char text[TORIRS_CHROME_INPUT_MAX];
     /** Mount of the owning panel for which this shadow is valid. */
     uint32_t panel_mount;
+    /** The editor widgets: hash of the WIDGET_VALUE last sent, the rows_rev
+     *  last restated, and the tooltip -- each with a "never sent" flag. */
+    int ext_known;
+    uint64_t ext_hash;
+    int rows_known;
+    uint32_t rows_rev;
+    char tooltip[TORIRS_CHROME_LABEL_MAX];
 };
 
 struct ToriRSChromeShadowPanel
@@ -561,6 +647,11 @@ struct ToriRSChromeShadowPanel
     /** Advanced on every PANEL_OPEN; closing a panel invalidates rows in O(1). */
     uint32_t mount;
     char title[TORIRS_CHROME_LABEL_MAX];
+    /** PANEL_MODE as last sent: flags, dock, dock size. */
+    int mode_known;
+    int mode_flags;
+    int dock;
+    int dock_size;
 };
 
 struct ToriRSChromeSync

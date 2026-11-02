@@ -381,7 +381,9 @@ ToriRSServer_WireReadMessageGame(
 
     out_text[0] = '\0';
     rsab_wrap(&buf, (uint8_t*)data, (size_t)(len < 0 ? 0 : len));
-    if( wire->payload && wire->payload->message_game == w239_message_game )
+    /* 239 and 241 both write the smart type plus the name_present flag
+     * (w241_message_game: "as at 239"); only 230 writes a bare g1 type. */
+    if( wire->revision >= 239 )
     {
         (void)rsab_gsmart(&buf); /* message type */
         (void)rsab_g1(&buf);     /* sender-name present flag */
@@ -1758,6 +1760,9 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_SERVER_TICK_END, PKT_NAME_VARP_RESET, PKT_NAME_VARP_SYNC,
     PKT_NAME_CAM_RESET,       PKT_NAME_RESET_ANIMS,
     PKT_NAME_TRIGGER_ONDIALOGABORT,
+    /* ToriRS's own prot (3rd/rsprot/spec/packets/cache_invalidate.ini),
+     * written by ToriRSServer_CacheInvalidateEncode. */
+    PKT_NAME_CACHE_INVALIDATE,
 };
 
 static const struct ToriRSServerWire k_wire_osrs230 = {

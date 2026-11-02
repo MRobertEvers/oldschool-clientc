@@ -556,6 +556,16 @@ ScriptrunCore_LocOpName(
     int loc_id,
     int op);
 
+/**
+ * Forget every decoded loc config (scriptrun_collision.c), shared by every bot:
+ * the next lookup decodes the server's current client record. The bot's half of
+ * a CACHE_INVALIDATE for the loc config group (index 2, archive 6), what the
+ * client's CacheProvider_InvalidateArchive does with its own copies. Returns
+ * how many were dropped.
+ */
+int
+ScriptrunCore_LocConfigsInvalidate(void);
+
 /* The label a placed loc's menu shows on slot `op` (1..5), or NULL when the
  * slot is empty or hidden: the placement's mask and labels over the
  * resolved loctype's, in the reference's order (mask, loctype, override). */

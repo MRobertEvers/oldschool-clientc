@@ -134,6 +134,8 @@ static int g_wb_env_no_face_clone = -1;
  * placements repeat. */
 #define WB_ENV_NO_FACE_CLONE() wb_env_on("TORIRS_NO_FACE_CLONE", &g_wb_env_no_face_clone)
 
+#include "edit/world_edit_hooks.h"
+
 // clang-format off
 #include "world_terrain.u.c"
 #include "world_collision.u.c"
@@ -543,6 +545,8 @@ WorldBuilder_New(
      * the pools a single-world client has always used. */
     builder->static_pool = TORIDRAW_SCENE_POOL_STATIC;
     builder->dynamic_pool = TORIDRAW_SCENE_POOL_DYNAMIC;
+    /* The game's layout until told otherwise (WorldBuilder_SetLayout). */
+    builder->ops = &g_world_builder_ops_static;
     /* calloc leaves the debug ring at 0, which is a valid element id. */
     for( int i = 0; i < (int)(sizeof(builder->scenery_dbg_element) /
                               sizeof(builder->scenery_dbg_element[0]));
@@ -558,6 +562,7 @@ WorldBuilder_Free(struct WorldBuilder* builder)
         return;
     world_builder_free_transient_maps(builder);
     world_builder_hidden_release(builder);
+    WorldBuilder_SetLayout(builder, WORLD_BUILDER_LAYOUT_STATIC);
     ToriMem_Free(ToriMem_Scene(), builder);
 }
 
@@ -659,6 +664,9 @@ WorldBuilder_RebuildCenterzoneBegin(
      * maxTileX+1 × maxTileZ+1). */
     builder->occluder_buildmap =
         occluder_buildmap_new(scene_size + 1, scene_size + 1, WORLD_MAP_TERRAIN_LEVELS);
+
+    if( builder->edit )
+        world_edit_on_bake_begin(builder, zone_center_x, zone_center_z, NULL, 0);
 }
 
 static inline bool
@@ -708,6 +716,11 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
         struct ToriRS_MapLoc* map_loc = &map_locs->locs[i];
         struct ToriRS_Location* config_loc = CacheProvider_LocationGet(builder->cache, map_loc->loc_id);
         dbg_total++;
+        /* EDIT records every placement of the square in list order -- the
+         * ones that place nothing too -- so a square's i-th loc and its i-th
+         * placement handle agree. NULL under STATIC. */
+        if( builder->edit )
+            world_edit_bake_placement(builder, mapx, mapz, map_loc);
         if( !config_loc )
         {
             dbg_no_config++;
@@ -932,6 +945,8 @@ WorldBuilder_RebuildInstance(
     assert(zone_count <= WORLD_INSTANCE_ZONES);
 
     WorldBuilder_RebuildCenterzoneBegin(builder, zone_center_x, zone_center_z, scene_size);
+    if( builder->edit )
+        world_edit_on_bake_instance(builder);
 
     world_builder_batch_begin(builder);
 
@@ -1143,7 +1158,9 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
                         (uint8_t)flag_map_get(builder->flag_map, x, z, level);
     }
 
-    if( builder->flag_map )
+    /* EDIT (keep_build_maps) keeps the flag map: a flag edit restamps from
+     * it. Everything below reads the persisted tile_flags, not this map. */
+    if( builder->flag_map && !builder->keep_build_maps )
     {
         flag_map_free(builder->flag_map);
         builder->flag_map = NULL;
@@ -1218,30 +1235,36 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
         sharelight_map_free(builder->sharelight_map);
         builder->sharelight_map = NULL;
     }
-    if( builder->shademap )
+    /* The terrain build maps die here in the game. EDIT (keep_build_maps)
+     * keeps them for the session: a tile edit re-blends, relights and
+     * remeshes from them instead of baking the window again. */
+    if( !builder->keep_build_maps )
     {
-        shademap2_free(builder->shademap);
-        builder->shademap = NULL;
-    }
-    if( builder->blendmap )
-    {
-        blendmap_free(builder->blendmap);
-        builder->blendmap = NULL;
-    }
-    if( builder->overlaymap )
-    {
-        overlaymap_free(builder->overlaymap);
-        builder->overlaymap = NULL;
-    }
-    if( builder->terrain_shapemap )
-    {
-        terrain_shape_map_free(builder->terrain_shapemap);
-        builder->terrain_shapemap = NULL;
-    }
-    if( builder->lightmap )
-    {
-        lightmap_free(builder->lightmap);
-        builder->lightmap = NULL;
+        if( builder->shademap )
+        {
+            shademap2_free(builder->shademap);
+            builder->shademap = NULL;
+        }
+        if( builder->blendmap )
+        {
+            blendmap_free(builder->blendmap);
+            builder->blendmap = NULL;
+        }
+        if( builder->overlaymap )
+        {
+            overlaymap_free(builder->overlaymap);
+            builder->overlaymap = NULL;
+        }
+        if( builder->terrain_shapemap )
+        {
+            terrain_shape_map_free(builder->terrain_shapemap);
+            builder->terrain_shapemap = NULL;
+        }
+        if( builder->lightmap )
+        {
+            lightmap_free(builder->lightmap);
+            builder->lightmap = NULL;
+        }
     }
 
     if( wb_timing_on() )
@@ -1288,6 +1311,9 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
     }
 
     world->load_complete = true;
+
+    if( builder->edit )
+        world_edit_on_bake_end(builder);
 }
 
 void
@@ -1382,6 +1408,9 @@ WorldBuilder_RebuildChunklistBegin(
      * maxTileX+1 × maxTileZ+1). */
     builder->occluder_buildmap =
         occluder_buildmap_new(scene_size + 1, scene_size + 1, WORLD_MAP_TERRAIN_LEVELS);
+
+    if( builder->edit )
+        world_edit_on_bake_begin(builder, -1, -1, chunks_xz, count);
 }
 
 void
@@ -1420,8 +1449,8 @@ WorldBuilder_RebuildChunklist(
  * torn down via the entity-removed event (ToriDraw_SceneElementRemove), and the
  * new loc is flagged runtime_spawn so world_cycle re-registers it with the
  * painter each frame (the baked static set can't take late additions). */
-void
-WorldBuilder_ApplyLocChange(
+static void
+world_builder_apply_loc_change(
     struct WorldBuilder* builder,
     int scene_x,
     int scene_z,
@@ -1603,6 +1632,34 @@ WorldBuilder_ApplyLocChange(
     }
 }
 
+void
+WorldBuilder_ApplyLocChange(
+    struct WorldBuilder* builder,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle)
+{
+    struct WorldEditStash stash;
+
+    assert(builder);
+
+    /* The game's runtime change, under either layout. EDIT's build maps are
+     * resident, and this path must neither write a ghost's shadow into them
+     * nor be captured as a placement: it runs against the maps the game has
+     * after a bake, which is none. */
+    if( !builder->edit )
+    {
+        world_builder_apply_loc_change(builder, scene_x, scene_z, level, loc_id, shape, angle);
+        return;
+    }
+    world_edit_stash_maps(builder, &stash);
+    world_builder_apply_loc_change(builder, scene_x, scene_z, level, loc_id, shape, angle);
+    world_edit_unstash_maps(builder, &stash);
+}
+
 /* The collision half of WorldBuilder_ApplyLocChange, into `maps` -- copies of
  * the world's collision maps -- instead of the world's. See the header. */
 int
@@ -1683,3 +1740,175 @@ WorldBuilder_LocChangeCollisionInto(
     }
     return 1;
 }
+
+/* ------------------------------------------------------------------ */
+/* Layouts: the STATIC table, the dispatchers                          */
+/* ------------------------------------------------------------------ */
+
+static void
+world_builder_static_rebuild_window(
+    struct WorldBuilder* builder,
+    const struct WorldBuilderWindow* window)
+{
+    assert(builder);
+    assert(window);
+    if( window->zone_center_x >= 0 )
+    {
+        WorldBuilder_RebuildCenterzone(
+            builder, window->zone_center_x, window->zone_center_z, window->scene_size);
+        return;
+    }
+    assert(window->chunks_xz);
+    assert(window->chunk_count > 0);
+    WorldBuilder_RebuildChunklist(builder, window->chunks_xz, window->chunk_count);
+}
+
+/* The game's loc change, as a placement. The handle is the scenery pool index
+ * the change registered: STATIC has no handle that survives the next change on
+ * the tile, and says so in the header. */
+static int
+world_builder_static_loc_place(
+    struct WorldBuilder* builder,
+    const struct World_LocPlacement* placement)
+{
+    assert(builder);
+    assert(placement);
+    WorldBuilder_ApplyLocChange(
+        builder,
+        placement->scene_x,
+        placement->scene_z,
+        placement->level,
+        placement->loc_id,
+        placement->shape,
+        placement->angle);
+    return World_SceneryFindAt(
+        builder->world, placement->scene_x, placement->scene_z, placement->level, placement->shape);
+}
+
+static void
+world_builder_static_loc_remove(
+    struct WorldBuilder* builder,
+    int placement_handle)
+{
+    struct WorldEntity_Scenery* scenery;
+
+    assert(builder);
+    assert(placement_handle >= 0);
+    scenery = World_EntityPoolGet(&builder->world->entities.scenery, placement_handle);
+    assert(scenery);
+    WorldBuilder_ApplyLocChange(
+        builder,
+        scenery->grid_position.x,
+        scenery->grid_position.z,
+        scenery->grid_position.level,
+        -1,
+        scenery->shape,
+        scenery->angle);
+}
+
+static int
+world_builder_static_flush(struct WorldBuilder* builder)
+{
+    assert(builder);
+    (void)builder;
+    return WORLD_BUILDER_FLUSH_OK;
+}
+
+const struct WorldBuilderOps g_world_builder_ops_static = {
+    .name = "static",
+    .rebuild_window = world_builder_static_rebuild_window,
+    /* None: a STATIC world answers an edit by rebuilding its window. */
+    .tile_set = NULL,
+    .loc_place = world_builder_static_loc_place,
+    .loc_remove = world_builder_static_loc_remove,
+    .flush = world_builder_static_flush,
+};
+
+int
+WorldBuilder_LayoutParse(
+    const char* name,
+    enum WorldBuilderLayout* out)
+{
+    assert(name);
+    assert(out);
+    if( strcmp(name, "static") == 0 )
+    {
+        *out = WORLD_BUILDER_LAYOUT_STATIC;
+        return 1;
+    }
+    if( strcmp(name, "edit") == 0 )
+    {
+        *out = WORLD_BUILDER_LAYOUT_EDIT;
+        return 1;
+    }
+    return 0;
+}
+
+enum WorldBuilderLayout
+WorldBuilder_GetLayout(const struct WorldBuilder* builder)
+{
+    assert(builder);
+    return builder->ops == &g_world_builder_ops_edit ? WORLD_BUILDER_LAYOUT_EDIT
+                                                     : WORLD_BUILDER_LAYOUT_STATIC;
+}
+
+void
+WorldBuilder_RebuildWindow(
+    struct WorldBuilder* builder,
+    const struct WorldBuilderWindow* window)
+{
+    assert(builder);
+    assert(builder->ops);
+    builder->ops->rebuild_window(builder, window);
+}
+
+void
+WorldBuilder_TileSet(
+    struct WorldBuilder* builder,
+    int scene_x,
+    int scene_z,
+    int level,
+    const struct ToriRS_MapFloor* floor)
+{
+    assert(builder);
+    assert(builder->ops);
+    /* STATIC has no tile-local edit: its caller rebuilds the window. */
+    assert(builder->ops->tile_set);
+    assert(floor);
+    builder->ops->tile_set(builder, scene_x, scene_z, level, floor);
+}
+
+int
+WorldBuilder_LocPlace(
+    struct WorldBuilder* builder,
+    const struct World_LocPlacement* placement)
+{
+    assert(builder);
+    assert(builder->ops);
+    assert(placement);
+    return builder->ops->loc_place(builder, placement);
+}
+
+void
+WorldBuilder_LocRemove(
+    struct WorldBuilder* builder,
+    int placement_handle)
+{
+    assert(builder);
+    assert(builder->ops);
+    builder->ops->loc_remove(builder, placement_handle);
+}
+
+int
+WorldBuilder_Flush(struct WorldBuilder* builder)
+{
+    assert(builder);
+    assert(builder->ops);
+    return builder->ops->flush(builder);
+}
+
+/* The EDIT layout (edit/world_edit.h): a fragment of this translation unit, so
+ * it reaches the bake's own helpers and needs no object of its own. */
+// clang-format off
+#include "edit/world_edit.u.c"
+// clang-format on
