@@ -121,6 +121,8 @@ return {
     },
 
     run = function(t)
+        -- The wire audit's tick log (docs/rsprox-analysis/quests/making_history.md).
+        t.ticklog.start()
         local function tile_text(r, tt)
             if r == "ok" and type(tt) == "table" then
                 return tostring(tt.x) .. "," .. tostring(tt.z) .. "," .. tostring(tt.level)
@@ -169,15 +171,16 @@ return {
                 trader_not_started = 0,
                 trader_got_key = 1,
                 trader_dug_chest = 2,
-                trader_got_journal = 3,
+                trader_done = 4, -- RSProx 4463 [1009]
                 warr_not_started = 0,
-                warr_talked_blanin = 1,
-                warr_complete = 2,
+                warr_talked_blanin = 2, -- [1242]
+                warr_answered = 3, -- [1496]
+                warr_done = 4, -- [1554]
                 ghost_not_started = 0,
-                ghost_talked_droalak = 1,
-                ghost_melina_done = 2,
-                ghost_got_scroll = 3,
-                ghost_droalak_farewell = 4,
+                ghost_talked_droalak = 2, -- RSProx 4462 [3829]
+                ghost_melina_done = 4, -- 4463 [295]
+                ghost_got_scroll = 5, -- [324]
+                ghost_done = 6, -- [490]
                 reward_crafting_xp = 1000,
                 reward_prayer_xp = 1000,
                 reward_coins = 750,
@@ -214,93 +217,61 @@ return {
         camelot_teleport("talkToJorral.camelotTeleport")
         outpost_in("talkToJorral")
         t.exec("talkToJorral", t.player.talk_to, "makinghistory_jorral")
+        -- RSProx index 4460 [192..403]: the pages, the tour, the start, a lead.
         t.exec("talkToJorral-dialog", t.chat.play, {
-            "npc:Have you heard? King Lathas me",
-            "choose:Ask about the outpost.",
-            "player:Ask about the outpost.",
-            "npc:Nobody living seems to know th",
+            "player:Hi there.",
+            "npc:All is lost!",
+            "player:Sorry?",
+            "npc:Just look around you!",
+            "player:Great building?",
+            "npc:Of course! This building has a history",
+            "player:Ah, I see, a great history.",
+            "npc:It's to be ripped apart",
+            "player:Does the king not respect",
+            "npc:Well, actually nobody knows",
+            "npc:Wait a minute. You could help me!",
+            "player:Me?",
+            "npc:Yes! Uncover the history",
             "choose:Tell me more.",
-        })
-        -- Cutscene: the packets fire when the "Tell me more." page is clicked away.
-        local outpost_cutscene_mark = t.cutscene.mark()
-        t.exec("mh.outpost.tellmore", t.chat.play, {
             "player:Tell me more.",
         })
-        -- No pages run for ~55 ticks: hold at the recording's shots so they are photographed.
-        t.ticks(2) -- the fade to black, clip 3.5-5.5 s
-        local fade0_cam = t.world.camera()
-        t.check("mh.outpost.fade0", fade0_cam ~= nil and fade0_cam.server_driven == true,
-            "camera during the opening fade: eye " .. tostring(fade0_cam and fade0_cam.x) .. "," .. tostring(fade0_cam and fade0_cam.z)
-                .. " pitch " .. tostring(fade0_cam and fade0_cam.pitch) .. " last_op " .. tostring(fade0_cam and fade0_cam.last_op))
-        t.ticks(3) -- shot 1 early: hut small top-centre, clip 8 s (cutscene +5 s)
-        local shot1a_cam = t.world.camera()
-        t.check("mh.outpost.shot1a", shot1a_cam ~= nil and shot1a_cam.server_driven == true,
-            "camera in shot 1, early: eye " .. tostring(shot1a_cam and shot1a_cam.x) .. "," .. tostring(shot1a_cam and shot1a_cam.z)
-                .. " pitch " .. tostring(shot1a_cam and shot1a_cam.pitch) .. " last_op " .. tostring(shot1a_cam and shot1a_cam.last_op))
-        t.ticks(5) -- shot 1 at the end of its glide, clip 10 s
-        local shot1b_cam = t.world.camera()
-        t.check("mh.outpost.shot1b", shot1b_cam ~= nil and shot1b_cam.server_driven == true,
-            "camera at the end of the shot 1 glide: eye " .. tostring(shot1b_cam and shot1b_cam.x) .. "," .. tostring(shot1b_cam and shot1b_cam.z)
-                .. " pitch " .. tostring(shot1b_cam and shot1b_cam.pitch) .. " last_op " .. tostring(shot1b_cam and shot1b_cam.last_op))
-        t.ticks(5) -- shot 2 (hut centre, slope behind), clip 14 s
-        local shot2_cam = t.world.camera()
-        t.check("mh.outpost.shot2", shot2_cam ~= nil and shot2_cam.server_driven == true,
-            "camera in shot 2: eye " .. tostring(shot2_cam and shot2_cam.x) .. "," .. tostring(shot2_cam and shot2_cam.z)
-                .. " pitch " .. tostring(shot2_cam and shot2_cam.pitch) .. " last_op " .. tostring(shot2_cam and shot2_cam.last_op))
-        t.ticks(11) -- shot 3 (interior, slope and dead trees behind), clip 20 s
-        local shot3_cam = t.world.camera()
-        t.check("mh.outpost.shot3", shot3_cam ~= nil and shot3_cam.server_driven == true,
-            "camera in shot 3: eye " .. tostring(shot3_cam and shot3_cam.x) .. "," .. tostring(shot3_cam and shot3_cam.z)
-                .. " pitch " .. tostring(shot3_cam and shot3_cam.pitch) .. " last_op " .. tostring(shot3_cam and shot3_cam.last_op))
-        t.ticks(10) -- shot 4 (door wall, hillside behind), clip 26 s
-        local shot4_cam = t.world.camera()
-        t.check("mh.outpost.shot4", shot4_cam ~= nil and shot4_cam.server_driven == true,
-            "camera in shot 4: eye " .. tostring(shot4_cam and shot4_cam.x) .. "," .. tostring(shot4_cam and shot4_cam.z)
-                .. " pitch " .. tostring(shot4_cam and shot4_cam.pitch) .. " last_op " .. tostring(shot4_cam and shot4_cam.last_op))
-        t.ticks(5) -- shot 5a (hut from the south), clip 31 s
-        local shot5a_cam = t.world.camera()
-        t.check("mh.outpost.shot5a", shot5a_cam ~= nil and shot5a_cam.server_driven == true,
-            "camera in shot 5a: eye " .. tostring(shot5a_cam and shot5a_cam.x) .. "," .. tostring(shot5a_cam and shot5a_cam.z)
-                .. " pitch " .. tostring(shot5a_cam and shot5a_cam.pitch) .. " last_op " .. tostring(shot5a_cam and shot5a_cam.last_op))
-        t.ticks(5) -- shot 5b (hills and boulder), clip 34 s
-        local shot5b_cam = t.world.camera()
-        t.check("mh.outpost.shot5b", shot5b_cam ~= nil and shot5b_cam.server_driven == true,
-            "camera in shot 5b: eye " .. tostring(shot5b_cam and shot5b_cam.x) .. "," .. tostring(shot5b_cam and shot5b_cam.z)
-                .. " pitch " .. tostring(shot5b_cam and shot5b_cam.pitch) .. " last_op " .. tostring(shot5b_cam and shot5b_cam.last_op))
-        t.ticks(6) -- the closing fade to black, clip 36.5-38 s
-        local fade1_cam = t.world.camera()
-        t.check("mh.outpost.fade1", fade1_cam ~= nil and fade1_cam.server_driven == true,
-            "camera during the closing fade: eye " .. tostring(fade1_cam and fade1_cam.x) .. "," .. tostring(fade1_cam and fade1_cam.z)
-                .. " pitch " .. tostring(fade1_cam and fade1_cam.pitch) .. " last_op " .. tostring(fade1_cam and fade1_cam.last_op))
-        t.ticks(4) -- the reset and the fade back in
+        local outpost_cutscene_mark = t.cutscene.mark()
+        t.exec("mh.outpost.tellmore", t.chat.play, {
+            "npc:That's what I like to hear.",
+        })
+        -- The tour runs 57 ticks with no page ([250..307]).
+        t.ticks(60)
         t.exec("mh.outpost.page", t.chat.play, {
-            "npc:There are three who might know",
+            "npc:If all goes well, I hope to be able to turn it into a museum",
+            "choose:Yes.",
+            "player:OK, I will make a stand for history!",
+            "npc:Oh thank you so much",
+            "player:But where should I start?",
+            "player:What do I need to do now?",
+            "npc:There are three people that may be able to help:",
+            "choose:A ghost in Port Phasmatys",
+            "npc:I've been told that there's a ghost",
+            "player:Sounds ominous.",
+            "npc:He does indeed. It's Droalak.",
+            "player:I'll track him down.",
+            "npc:It might not be so simple!",
+            "player:I've conversed with the dead before",
+            "choose:Got to go, bye!",
+            "player:Got to go, bye!",
         })
-        t.exec("mh.outpost.cutscene", t.cutscene.await, "mh.outpost", { since = outpost_cutscene_mark, shots = "all", expect = {
-            { op = "moveto", coord = "0_37_52_58_47", height = 1000 },  -- makinghistory_jorral.rs2, copied verbatim
-            { op = "lookat", coord = "0_38_52_3_21", height = 0 },
-            { op = "moveto", coord = "0_37_52_52_38", height = 1200 },  -- glide (4, 2)
-            { op = "lookat", coord = "0_38_52_4_18", height = 0 },
-            { op = "moveto", coord = "0_37_52_46_34", height = 1300 },  -- shot 2 drift (2, 1)
-            { op = "moveto", coord = "0_38_52_14_10", height = 1000 },  -- shot 3 cut
-            { op = "lookat", coord = "0_37_52_60_22", height = 0 },
-            { op = "moveto", coord = "0_38_52_11_13", height = 950 },   -- glide (1, 1)
-            { op = "moveto", coord = "0_37_52_50_12", height = 300 },   -- shot 4 cut
-            { op = "lookat", coord = "0_38_52_6_16", height = 250 },
-            { op = "moveto", coord = "0_37_52_53_12", height = 300 },   -- drift (1, 1)
-            { op = "moveto", coord = "0_38_52_12_0", height = 400 },    -- shot 5a cut
-            { op = "lookat", coord = "0_38_52_0_36", height = 0 },
-            { op = "moveto", coord = "0_38_52_12_4", height = 380 },    -- drift (1, 1)
-            { op = "moveto", coord = "0_38_52_16_22", height = 420 },   -- shot 5b cut
-            { op = "lookat", coord = "0_37_52_58_38", height = 0 },
-            { op = "moveto", coord = "0_38_52_14_24", height = 400 },   -- drift (1, 1)
-            { op = "reset" },
-        } })
-        t.exec("talkToJorral-dialog2", t.chat.play, {
-            "choose:Ok, I'll make a stand for history!",
-            "player:Ok, I'll make a stand for hist",
-            "npc:Wonderful! Speak to the silver",
-        })
+        if outpost_cutscene_mark ~= nil then
+            t.exec("mh.outpost.cutscene", t.cutscene.await, "mh.outpost", { since = outpost_cutscene_mark, expect = {
+                { op = "moveto", coord = "0_38_52_0_52", height = 1000 }, -- [252]
+                { op = "lookat", coord = "0_38_52_4_18", height = 500 },
+                { op = "moveto", coord = "0_38_52_0_33", height = 1000 }, -- [254]
+                { op = "moveto", coord = "0_38_52_13_33", height = 1000 }, -- [264]
+                { op = "moveto", coord = "0_38_52_13_2", height = 1000 }, -- [274]
+                { op = "moveto", coord = "0_38_52_0_2", height = 1000 }, -- [284]
+                { op = "lookat", coord = "0_38_52_6_22", height = 525 }, -- [294]
+                { op = "moveto", coord = "0_38_52_3_19", height = 800 },
+                { op = "reset" }, -- [307]
+            } })
+        end
 
         local prog_probe_result, prog_probe = t.var.server("varb1383_makinghistory_prog")
         t.check("prog.serverProbeAfterOffer", prog_probe_result == "ok" and prog_probe == 1,
@@ -324,7 +295,7 @@ return {
         end
         t.check("quest.stage.started", started_journal_result == "ok" and started_journal ~= nil
             and started_journal.first_line ~= nil
-            and started_journal.first_line:find("I agreed to help Jorral", 1, true) ~= nil,
+            and started_journal.first_line:find("Jorral wants to save the outpost", 1, true) ~= nil,
             "journal_open(Making History) -> " .. tostring(started_journal_result) .. " first_line="
                 .. tostring(started_journal and started_journal.first_line)
                 .. " -- channel: ui.journal_open (server-side ~makinghistory_journal proc, unaffected by "
@@ -340,15 +311,28 @@ return {
         -- Jorral's offer landed server-side.
         t.exec("goto-talkToSilverMerchant", t.player.goto_tile, 2658, 3316, 0)
         t.exec("talkToSilverMerchant", t.player.talk_to, "silver_merchant_ardougne")
+        -- RSProx index 4463 [538..579].
         t.exec("talkToSilverMerchant-dialog", t.chat.play, {
-            "npc:Silver! Silver!",
+            "npc:Silver! Silver! Best prices for buying and selling in all",
             "choose:Ask about the outpost.",
-            "player:Ask about the outpost.",
-            "npc:My great-grandfather lived there",
-            "npc:opens.",
-            "npc:Perhaps you'll have better luck",
+            "player:Are you Erin?",
+            "npc:That I am. What do you want?",
+            "player:This shouldn't take too long.",
+            "npc:What's it to you?",
+            "player:I'm doing some research for a man called Jorral.",
+            "npc:That can only cause chaos!",
+            "player:I see.",
+            "npc:The only thing I have of his is a key.",
+            "player:No idea at all?",
+            "npc:Well, I imagine it's to some sort of chest",
+            "player:It's better than nothing.",
+            "npc:Why not. I can't use it anyway.",
         })
         t.expect("haveKey", t.inv.await("makinghistory_key", 1, 10))
+        -- [582]: the first feel since login has no comparison; 2659,3316 is
+        -- 220 from the treasure.
+        t.exec("feelKey.market", t.player.inv_op, "makinghistory_key", 1)
+        t.expect("feelKey.market.line", t.msg.expect("It's freezing"))
         local traderprog_after_key_result, traderprog_after_key = t.var.server("varb1384_makinghistory_trader_prog")
         t.check("traderProg.serverProbeAfterKey", traderprog_after_key_result == "ok" and traderprog_after_key == 1,
             "t.var.server(makinghistory_trader_prog) right after the key lands -> " .. tostring(traderprog_after_key_result)
@@ -368,7 +352,12 @@ return {
         t.check("dig.tileProbe", dig_tile_result == "ok" and dig_tile.x == 2442 and dig_tile.z == 3140 and dig_tile.level == 0,
             "world.tile() right before the dig click -> " .. tile_text(dig_tile_result, dig_tile)
                 .. " (^makinghistory_dig_coord 0_38_49_10_4 decodes to 2442,3140,0)")
+        -- [939]: steaming at 2442,3140 (3 from the treasure), no comparison.
+        t.exec("feelKey.dig", t.player.inv_op, "makinghistory_key", 1)
+        t.expect("feelKey.dig.line", t.msg.expect("The key is steaming. It must be right below your feet."))
+        -- [941..943]: the box on the dig, the chest on its continue.
         t.exec("dig", t.player.inv_op, "spade", 1)
+        t.exec("dig-box", t.chat.play, { "mesbox:You use the spade and find a chest. Wonder what's inside?" })
         t.expect("haveChest", t.inv.await("makinghistory_chest", 1, 10))
 
         -- Open the chest with the enchanted key (makinghistory_trader.rs2's
@@ -378,8 +367,16 @@ return {
         -- use_item_on_item settles on the backpack change itself (measured:
         -- "gained makinghistory_journal 0->1; lost makinghistory_chest 1->0"
         -- in the same row, no dialogue ever mounts).
+        -- [948..950]: the box on the use, the journal on its continue.
         t.exec("openChest", t.player.use_item_on_item, "makinghistory_key", "makinghistory_chest")
+        t.exec("openChest-box", t.chat.play, { "mesbox:You look in the chest and find a journal" })
         t.expect("haveJournal", t.inv.await("makinghistory_journal", 1, 10))
+        -- [952..959]: Drozal's Journal, four spreads.
+        t.exec("readJournal", t.player.inv_op, "makinghistory_journal", 1)
+        t.exec("readJournal.open", t.ui.await_open, "book", 10)
+        t.exec("readJournal.row2", t.ui.expect_text, "book:page_left_text_2", "---1st Bennath", 5)
+        -- (No page turn here: scriptrun turns no book's page -- _books.lua
+        -- fails its turn rows the same way. The walk to Rellekka shuts it.)
         -- The guide's "Use the enchanted key on the chest": the chest leaves
         -- the pack (inv_del in makinghistory_open_chest) and the key stays.
         local chest_after_result, chest_after = t.inv.count("makinghistory_chest")
@@ -398,11 +395,19 @@ return {
         -- they are never their own chat.play entry.
         t.exec("goto-talkToBlanin", t.player.goto_tile, 2675, 3671, 0)
         t.exec("talkToBlanin", t.player.talk_to, "makinghistory_blanin")
+        -- RSProx index 4463 [1225..1242].
         t.exec("talkToBlanin-dialog", t.chat.play, {
-            "player:I'm looking into the history of an old outpost.",
-            "npc:Ha! Dron won't tell a stranger",
-            "npc:Here, let me tell you what you'll need",
-            "npc:Go on then. He's north of the longhall.",
+            "player:Hello there. Are you the brother of Dron?",
+            "npc:That I am. Why? Has he killed one of your family?",
+            "player:Not that I know of...",
+            "npc:Oh good, how can I help you?",
+            "player:Well I'd like to talk to your brother Dron",
+            "npc:I'm afraid he's not easy to talk to",
+            "player:Like?",
+            "npc:You must be firm with him",
+            "npc:His favorite drink is red spider blood",
+            "player:O..K....",
+            "npc:I know this sounds strange",
         })
 
         -- Dron demands proof first (~p_choice2), then quizzes back every
@@ -412,55 +417,74 @@ return {
         -- legs so a wrong answer's page names exactly which question missed.
         t.exec("goto-talkToDron", t.player.goto_tile, 2658, 3700, 0)
         t.exec("talkToDron", t.player.talk_to, "makinghistory_dron")
+        -- RSProx index 4463 [1419..1500].
         t.exec("talkToDron-dialog-1-intro-q1-q4", t.chat.play, {
+            "player:I need to talk to you.",
+            "npc:Why should I?",
+            "choose:I'm after important answers.",
             "player:I'm after important answers.",
-            "npc:Important answers, is it?",
+            "npc:But how do you know me?",
             "choose:Why, you're the famous warrior Dron!",
             "player:Why, you're the famous warrior Dron!",
-            "npc:Hah! Flattery.",
-            "npc:What weapon do I favour?",
+            "npc:If so, what weapon do I use?",
             "choose:An iron mace",
-            "player:An iron mace",
-            "npc:Correct. Now -- when do I eat rats?",
+            "player:An iron mace.",
+            "npc:When do I like to eat rats?",
             "choose:Breakfast",
-            "player:Breakfast",
-            "npc:And kittens?",
+            "player:Breakfast.",
+            "npc:When are kittens best devoured?",
             "choose:Lunch",
-            "player:Lunch",
-            "npc:Good. What do I like to have with my tea?",
+            "player:Lunch.",
+            "npc:What do I usually eat for tea?",
             "choose:Bunnies",
-            "player:Bunnies",
+            "player:Bunnies.",
         })
         t.exec("talkToDron-dialog-2-q5-q8", t.chat.play, {
-            "npc:What colour is spider blood?",
+            "npc:What colour spider blood tastes the best?",
             "choose:Red",
-            "player:Red",
-            "npc:How old am I, in years?",
+            "player:Red.",
+            "npc:How many years old am I?",
             "choose:36",
             "player:36",
-            "npc:And the extra months?",
+            "npc:and months?",
             "choose:8",
             "player:8",
-            "npc:Which two Ages' battles am I most interested in?",
+            "npc:What are the most interesting ages for battles?",
             "choose:Fifth and Fourth",
-            "player:Fifth and Fourth",
+            "player:Fifth and Fourth.",
         })
         t.exec("talkToDron-dialog-3-q9-q12-conclusion", t.chat.play, {
-            "npc:Whereabouts do I live?",
+            "npc:And my house is situated where?",
             "choose:North East side of town",
-            "player:North East side of town",
-            "npc:What's my brother's name?",
+            "player:North East side of town.",
+            "npc:What is my brother's name?",
             "choose:Blanin",
-            "player:Blanin",
-            "npc:And my cat's name?",
+            "player:Blanin.",
+            "npc:And my pet cat is called?",
             "choose:Fluffy",
-            "player:Fluffy",
-            "npc:One last thing. Five plus seven",
+            "player:Fluffy.",
+            "npc:What's 5 plus 7?",
             "choose:12, but what does that have to do with anything?",
             "player:12, but what does that have to do with anything?",
-            "npc:Ha! Good -- you actually think for yourself.",
-            "npc:Alright, you've earned it.",
-            "npc:One of them went on to become Ardougne's first king.",
+            "npc:Everything! Besides, it's 13!",
+            "player:Er, I think you'll find it's 12.",
+            "npc:....",
+            "npc:..........",
+            "npc:Very well, you seem to know me quite well",
+            "player:Phew!",
+            "npc:Well what are they then?",
+            "player:I'm trying to find out the history of the outpost",
+            "npc:Let me see. Ah yes, I remember reading of a battle",
+            "npc:sole survivors because of their superior strength.",
+            "player:Ex-friends?",
+            "npc:They were once friends",
+            "npc:outpost caused them to see the errors of their ways",
+            "player:Ah, I like happy endings.",
+            "npc:You would.",
+            "player:Thank you, I can report this back to Jorral now.",
+            "npc:Anything else?",
+            "player:Well, I was wondering how you get the blood stains",
+            "npc:BE GONE!",
         })
 
         -- === Ghost branch: Droalak's errand, Melina, the scroll ==========
@@ -503,13 +527,23 @@ return {
         t.exec("enterMorytania.talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
         t.exec("enterMorytania.talkToDrezel-dialog", t.chat.play, {
             "player:So can I pass through that barrier now?",
-            "npc:Ah, ",
-            "npc:Morytania is an evil land",
-            "npc:You should take some basic precautions",
-            "npc:In many ways Werewolves",
-            "npc:and it is a holy relic",
-            "npc:wolf form is incredibly powerful",
-            "player:Okay, I will keep it equipped",
+            "npc:Into Morytania? Yes, you can.",
+            "npc:I must warn you though, Morytania is an evil land.",
+            "npc:Worst of all are the vampyres",
+            "player:I'll be careful. Anything else I should know?",
+            "npc:The first settlement you'll likely come across is Canifis",
+            "npc:You should keep that dagger I gave you to hand.",
+            "player:I see. Thanks.",
+            "npc:One last thing.",
+            "player:The Myreque?",
+            "npc:Yes. They're a band of freedom fighters.",
+            "npc:Veliaf, the leader of their Mort Myre group",
+            "player:I'll keep an eye out for them.",
+            "npc:Right, I think that's everything.",
+            "mesbox:Drezel blesses you",
+            "npc:Good luck out there. Stay safe.",
+            "choose:And you. See you later.",
+            "player:And you. See you later.",
         })
         t.exec("enterMorytania.drezelAdvice", t.var.await_server, "varp302_priestperil", 61, 8)
         t.exec("enterMorytania.holyBarrier", t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
@@ -525,12 +559,7 @@ return {
         local tok_before_r, tok_before = t.inv.count("ectotoken")
         t.exec("enterPhasmatys", t.player.cross_gate, { loc = "ahoy_town_barrier_multi", op = 1, at = { 3652, 3485, 0 },
             near = { 3651, 3485 }, far_ok = function(tile) return tile.x >= 3653 end,
-            far_desc = "inside Port Phasmatys, east of the west barrier, x >= 3653",
-            chat = {
-                "npc:All visitors to Port Phasmatys must pay",
-                "choose:I would like to enter Port Phasmatys - here's 2 Ectotokens.",
-                "player:I would like to enter Port Phasmatys",
-            } })
+            far_desc = "inside Port Phasmatys, east of the west barrier, x >= 3653" })
         local tok_after_r, tok_after = t.inv.count("ectotoken")
         t.check("enterPhasmatys.toll", tok_before_r == "ok" and tok_after_r == "ok" and tok_before == 2 and tok_after == 0,
             "ectotoken " .. tostring(tok_before) .. " -> " .. tostring(tok_after) .. " (want 2 -> 0, ^ahoy_barrier_toll)")
@@ -540,11 +569,23 @@ return {
         t.check("walkToDroalak", dr_r == "ok" and dr.level == 0 and math.abs(dr.x - 3658) <= 1 and math.abs(dr.z - 3467) <= 1,
             "walked to 3658,3467 (outside the general store) -> " .. tile_text(dr_r, dr))
         t.exec("talkToDroalak", t.player.talk_to, "makinghistory_droalak_multi")
+        -- RSProx index 4462 [3793..3829].
         t.exec("talkToDroalak-intro-dialog", t.chat.play, {
-            "player:Excuse me -- were you here when the outpost was still standing?",
-            "npc:I was. I died here, a long time ago.",
-            "npc:I have a scroll that sets it all down",
-            "npc:My wife, Melina, died not long after me.",
+            "player:Hello. Are you Droalak?",
+            "npc:Wow. I haven't spoken to the living",
+            "player:So your name IS Droalak?",
+            "npc:Sorry, yes I am he.",
+            "player:Great. Do you know anything about the outpost",
+            "npc:I don't really like to talk about it",
+            "player:Oh dear.",
+            "npc:I do have a scroll",
+            "player:Like what?",
+            "npc:Well, I left to go to the outpost",
+            "player:You want me to patch things up?",
+            "npc:Yes, how'd you guess?",
+            "player:Call it 'traveller's intuition'.",
+            "npc:OK, well perhaps you could give her a strung sapphire amulet",
+            "player:No problem.",
         })
 
         local function in_melina(tt)
@@ -554,11 +595,19 @@ return {
             at = { 3676, 3476, 0 }, near = { 3676, 3475 }, far = { 3675, 3479 }, far_ok = in_melina,
             far_desc = "inside Melina's house, x 3671-3678 z 3477-3484" })
         t.exec("talkToMelina", t.player.talk_to, "makinghistory_melina_multi")
+        -- RSProx index 4463 [275..295].
         t.exec("talkToMelina-dialog", t.chat.play, {
-            "player:Droalak wanted you to have this. He said he's sorry.",
-            "npc:This is... the same amulet",
-            "npc:I was angry with him for so long.",
-            "npc:Tell him -- tell him I forgive him.",
+            "player:If you don't mind me asking, are you Melina?",
+            "npc:That I am. What's it to you?",
+            "player:I've been talking to Droalak.",
+            "npc:He did. I suppose he has asked you",
+            "player:Well actually he told me to give you this amulet.",
+            "npc:A sapphire amulet! He remembers!",
+            "player:I honestly believe he's sorry.",
+            "npc:I'm so glad. Please, tell him I forgive him!",
+            "player:I will.",
+            "npc:At last I feel complete. Fare well.",
+            "player:Goodbye.",
         })
         -- inv.expect_absent is an instant read, not a wait -- Melina's own
         -- inv_del runs on the script statement right after the last page
@@ -586,10 +635,13 @@ return {
         t.check("returnToDroalak.walk", dr2_r == "ok" and dr2.level == 0 and math.abs(dr2.x - 3658) <= 1 and math.abs(dr2.z - 3467) <= 1,
             "walked to 3658,3467 (outside the general store) -> " .. tile_text(dr2_r, dr2))
         t.exec("talkToDroalak2", t.player.talk_to, "makinghistory_droalak_multi")
+        -- RSProx index 4463 [312..324].
         t.exec("talkToDroalak-scroll-dialog", t.chat.play, {
-            "player:I spoke with Melina. She forgave you.",
-            "npc:She... she did? After everything?",
-            "npc:This is the timeline of the outpost",
+            "player:I've given her the amulet.",
+            "npc:Excellent! I am so glad she believes me.",
+            "player:Could I have that scroll you mentioned first?",
+            "npc:Of course. Let me know if it was of any use",
+            "player:Thank you.",
         })
         t.expect("haveScroll", t.inv.await("makinghistory_scroll1", 1, 10))
 
@@ -601,14 +653,70 @@ return {
         -- open ground.
         camelot_teleport("leaveMorytania")
         outpost_in("talkToJorral-handin")
+        -- One lead per talk, each as recorded: the scroll (RSProx index 4463
+        -- [474..490]), the journal ([970..1030], the last lead told straight
+        -- away), the warrior and the letter ([1538..1569]). The recorder
+        -- brought each back as it was found; this route brings all three.
         t.exec("talkToJorral-handin", t.player.talk_to, "makinghistory_jorral")
         t.exec("talkToJorral-handin-dialog", t.chat.play, {
-            "player:I've learned everything I can about the outpost's history.",
-            "npc:This is remarkable!",
-            "npc:Guthix.",
-            "npc:One of them went on to found Ardougne's monarchy.",
-            "npc:This building isn't just old stone",
-            "npc:I've written it all down for King Lathas.",
+            "player:Hi there.",
+            "npc:How's it going?",
+            "player:I have been in contact with the ghost you suggested",
+            "mesbox:Jorral skims over the contents of the scroll",
+            "npc:Very interesting. So there was a great battle",
+            "choose:What's the story so far?",
+            "player:What's the story so far?",
+            "npc:From the scroll you received from the ghost",
+            "npc:Ardougne and another established the market place.",
+            "choose:Got to go, bye!",
+            "player:Got to go, bye!",
+        })
+        t.exec("talkToJorral-handin2", t.player.talk_to, "makinghistory_jorral")
+        t.exec("talkToJorral-handin2-dialog", t.chat.play, {
+            "player:Hi there.",
+            "npc:How's it going?",
+            "player:I found a journal!",
+            "npc:Good work. Let's see what it says.",
+            "mesbox:Jorral reads through the journal.",
+            "npc:The person who wrote the journal",
+            "player:I see.",
+            "npc:He talks of all the nasty things",
+            "player:Interesting.",
+            "choose:What do I need to do now?",
+            "player:What do I need to do now?",
+            "npc:There is 1 person left that may be able to help:",
+            "npc:Up near the mountains, in Rellekka",
+            "player:And how's he related to this outpost?",
+            "npc:He isn't directly",
+            "player:That sounds simple enough.",
+            "npc:He isn't the easiest person to talk to",
+            "choose:Got to go, bye!",
+            "player:Got to go, bye!",
+        })
+        t.exec("talkToJorral-handin3", t.player.talk_to, "makinghistory_jorral")
+        t.exec("talkToJorral-handin3-dialog", t.chat.play, {
+            "player:Hi there.",
+            "npc:How's it going?",
+            "player:I've talked to the warrior.",
+            "npc:Excellent! What did he say?",
+            "player:Well...",
+        })
+        -- [1544..1550]: "Well..." closes with the chat into a fade, the next
+        -- page six ticks on.
+        t.ticks(8)
+        t.exec("talkToJorral-handin3-dialog2", t.chat.play, {
+            "player:And then I asked him about getting the blood stains",
+            "npc:It seems you're lucky he didn't beat you up!",
+            "npc:It all makes sense now",
+            "player:I'm glad to hear. What's the whole story?",
+            "npc:Many years ago, there were two friends",
+            "npc:this outpost with a group of others",
+            "npc:two ex-friends at the top of the outpost",
+            "npc:market where all could trade",
+            "player:So what should I do now?",
+            "npc:Well, what I'll do is write down the details",
+            "player:Then I suppose you want ME to deliver it to the king?",
+            "npc:You've got that right!",
         })
         t.expect("haveLetter1", t.inv.await("makinghistory_letter1", 1, 10))
         outpost_out("leaveJorral-handin")
@@ -641,12 +749,16 @@ return {
             at = { 2575, 3293, 1 }, near = { 2574, 3293 }, far = { 2577, 3293 }, far_ok = in_kings_room,
             far_desc = "in King Lathas's room, x 2575-2579 z 3292-3294 level 1" })
         t.exec("talkToKingLathas", t.player.talk_to, "kinglathas")
+        -- RSProx index 4463 [1665..1676].
         t.exec("talkToKingLathas-dialog", t.chat.play, {
-            "player:I have a letter for you, from Jorral at the old outpost.",
-            "npc:The outpost? I hadn't given it much thought",
-            "npc:my own great-grandfather stood watch there",
-            "npc:Very well. If Jorral believes it's worth preserving",
-            "npc:Take this back to him as proof.",
+            "choose:Talk about the outpost.",
+            "player:Excuse me. I have been asked to hand you this",
+            "npc:I see.",
+            "mesbox:The King reads the letter.",
+            "npc:I had no idea that place had any value at all!",
+            "player:I am sure he only wants what is best.",
+            "npc:Very well, I will comply with his request.",
+            "player:Thank you.",
         })
         t.expect("haveLetter2", t.inv.await("makinghistory_letter2", 1, 10))
         -- Out the way in: the king's door, down the stairs, the castle door.
@@ -683,10 +795,21 @@ return {
 
         outpost_in("talkToJorral-finish")
         t.exec("talkToJorral-finish", t.player.talk_to, "makinghistory_jorral")
+        -- RSProx index 4463 [1829..1848]: a fade between the last two pages,
+        -- the completion on the last one's click.
         t.exec("talkToJorral-finish-dialog", t.chat.play, {
-            "player:King Lathas has agreed to preserve the outpost as a museum.",
-            "npc:Wonderful news! I always knew this old place",
-            "npc:Thank you for everything",
+            "player:I've been to see the king and he gave me this letter.",
+            "npc:Quick, let me see.",
+            "mesbox:Jorral reads the letter.",
+            "npc:Hurrah! Good work, you've done it.",
+            "player:My pleasure.",
+            "npc:I can now continue with my plans for this place.",
+        })
+        -- [1837..1843]: the fade out with the chat, the museum opened under
+        -- the fade in, the last page six ticks on.
+        t.ticks(8)
+        t.exec("talkToJorral-finish-dialog2", t.chat.play, {
+            "npc:Take a look at the artefacts in the new museum room.",
         })
         t.ticks(3) -- makinghistory_quest_complete is a 0-tick queue, not client-side yet
 
@@ -707,13 +830,11 @@ return {
                 tostring(coins_before), tostring(coins_after),
                 tostring(coins_before_result), tostring(coins_after_result)))
 
-        -- The completion cheat re-grants makinghistory_key on top of the
-        -- original (never consumed opening the chest), so the backpack
-        -- should now hold two.
+        -- The key is kept from Erin's loan; the completion adds none.
         local key_after_result, key_after = t.inv.count("makinghistory_key")
-        t.check("reward.key", key_after_result == "ok" and key_after == 2,
+        t.check("reward.key", key_after_result == "ok" and key_after == 1,
             "inv.count(makinghistory_key) after completion -> " .. tostring(key_after_result) .. " "
-                .. tostring(key_after) .. " (want 2: the original plus the reward key)")
+                .. tostring(key_after) .. " (want 1: the key kept, none added -- RSProx index 4463 [1848])")
 
         -- ------------------------------------------------- the committed state
         -- The varp seam this file used to block on (see queue.py's
@@ -801,6 +922,22 @@ return {
                 .. "else-branch only prints 'QUEST COMPLETE!' once %varb1383_makinghistory_prog is genuinely past "
                 .. "lathas_done, so this is not readable from an incomplete quest)")
         t.ui.journal_close()
+
+        -- The museum (RSProx index 4463 [1856..1880]): Jorral's line after
+        -- the quest, the room next door, a case and the bookcase.
+        t.exec("museum.jorral", t.player.talk_to, "makinghistory_jorral")
+        t.exec("museum.jorral-dialog", t.chat.play, { "npc:Thanks for the help again. Feel free to browse the room" })
+        t.exec("museum.doorIn", t.player.pass_door, { closed = "makinghistory_door", open = "makinghistory_door_open",
+            at = { 2436, 3345, 0 }, near = { 2436, 3346 }, far = { 2436, 3344 },
+            far_ok = function(tt) return tt.level == 0 and tt.z <= 3344 end, far_desc = "in the museum room, z <= 3344" })
+        t.exec("museum.shield", t.player.click_loc, "makinghistory_shield_display_multiloc", 1, { at = { 2437, 3344, 0 } })
+        t.exec("museum.shield-box", t.chat.play, { "mesbox:Inside the case is a giant shield" })
+        t.exec("museum.bookcase", t.player.click_loc, "makinghistory_bookcase_multiloc", 1, { at = { 2434, 3344, 0 } })
+        t.exec("museum.bookcase-dialog", t.chat.play, {
+            "mesbox:There's a great variety of books. Which shall you choose?",
+            "choose:The Times of Ardignas.",
+            "mesbox:You pick on a new looking book: 'The Times of Ardignas'.",
+        })
 
         t.finish(0)
         return
