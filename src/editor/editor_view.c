@@ -96,6 +96,16 @@ EditorView_Init(
     view->toolbar.panel = -1;
 }
 
+void
+EditorView_ExpectSync(
+    struct EditorView* view,
+    int count)
+{
+    assert(view);
+    assert(count >= 0);
+    view->sync_pending = count;
+}
+
 int
 EditorView_AskSelf(struct EditorView* view)
 {
@@ -140,6 +150,15 @@ EditorView_OnState(
 
     assert(view);
     assert(values || count == 0);
+
+    /* The boot's replay: the Client's pinned level is where a new view
+     * starts (not consumed -- the panels want it too). */
+    if( view->sync_pending > 0 )
+    {
+        view->sync_pending--;
+        if( key == TORIRSMAPED_STATE_EDIT_LEVEL && count >= 1 && values[0] >= -1 && values[0] <= 3 )
+            EditorView_SetLevelCap(view, values[0], 0);
+    }
 
     if( key == TORIRSMAPED_STATE_VIEW_SELF )
     {
@@ -703,6 +722,7 @@ EditorView_SpawnBody(
     const char* maped_url,
     uint32_t group,
     const struct EditorViewCamera* camera,
+    const char* panel,
     char* out,
     int out_size)
 {
@@ -717,8 +737,12 @@ EditorView_SpawnBody(
 
     EditorView_CameraToValues(camera, values);
     ToriRSMapEd_CameraFormat(values, pose, sizeof(pose));
-    length = snprintf(
-        out, (size_t)out_size, "maped=%s\ngroup=%u\ncamera=%s\n", maped_url, (unsigned)group, pose);
+    if( panel && strcmp(panel, "world") != 0 )
+        length = snprintf(out, (size_t)out_size, "maped=%s\ngroup=%u\ncamera=%s\npanel=%s\n", maped_url,
+            (unsigned)group, pose, panel);
+    else
+        length = snprintf(
+            out, (size_t)out_size, "maped=%s\ngroup=%u\ncamera=%s\n", maped_url, (unsigned)group, pose);
     return length < out_size ? length : -1;
 }
 
@@ -749,4 +773,26 @@ EditorView_BootCamera(struct EditorViewCamera* out)
         return 0;
     *out = g_boot_camera;
     return 1;
+}
+
+/* The panel `--editor-panel` asked this viewer to show alone. One per
+ * process, like the boot pose. */
+static char g_boot_panel[32];
+
+void
+EditorView_SetBootPanel(const char* module)
+{
+    if( !module || strcmp(module, "world") == 0 )
+    {
+        g_boot_panel[0] = '\0';
+        return;
+    }
+    assert(strlen(module) < sizeof(g_boot_panel));
+    snprintf(g_boot_panel, sizeof(g_boot_panel), "%s", module);
+}
+
+const char*
+EditorView_BootPanel(void)
+{
+    return g_boot_panel[0] ? g_boot_panel : NULL;
 }

@@ -1505,6 +1505,21 @@ view_camera_shaped(char const* camera)
     return fields == 6 && digits > 0;
 }
 
+/* An editor panel module name (editor/editor_ui.h EditorUiPanel::name):
+ * lower-case letters, digits and '_' -- a word, never a path or a flag. */
+static int
+view_panel_shaped(char const* panel)
+{
+    size_t const length = strlen(panel);
+
+    if( length == 0 || length > 31 )
+        return 0;
+    for( char const* c = panel; *c; c++ )
+        if( !((*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || *c == '_') )
+            return 0;
+    return 1;
+}
+
 static void
 view_environment(struct LaunchSessions const* table, struct LaunchEnvironment* environment)
 {
@@ -1574,10 +1589,11 @@ views_reap(struct LaunchSessions* table, int block)
  * with the host's manifest booted as a view:
  *
  *     <binary> --manifest <host manifest> --editor-view --maped <maped>
- *              --maped-group <group> [--camera <camera>]
+ *              --maped-group <group> [--camera <camera>] [--editor-panel <panel>]
  *
  * Keys: maped= (required), group= (required, the Client to join), camera=
- * (optional). Answer: `ok`, `view=<n>`, `pid=<pid>`. No session and no token:
+ * (optional), panel= (optional: an editor panel module the window shows
+ * alone, filling it -- a popped-out panel; absent or "world" = the 3D view). Answer: `ok`, `view=<n>`, `pid=<pid>`. No session and no token:
  * a view is not a party seat, and the request names only where it connects
  * and where it looks -- never a program, an account or an environment.
  */
@@ -1585,12 +1601,13 @@ static void
 verb_view(struct LaunchSessions* table, struct LaunchRequest const* request,
           struct LaunchText* answer)
 {
-    static char const* const allowed[] = { "maped", "group", "camera", NULL };
+    static char const* const allowed[] = { "maped", "group", "camera", "panel", NULL };
     struct LaunchSessions_Spawner const* spawner = table->spawner;
     char const* unknown = request_unknown_key(request, allowed);
     char const* maped = request_value(request, "maped");
     char const* group_text = request_value(request, "group");
     char const* camera = request_value(request, "camera");
+    char const* panel = request_value(request, "panel");
     struct LaunchView* view = NULL;
     struct LaunchEnvironment environment;
     struct LaunchText directory = { 0 };
@@ -1620,6 +1637,11 @@ verb_view(struct LaunchSessions* table, struct LaunchRequest const* request,
     if( camera && !view_camera_shaped(camera) )
     {
         answer_error(answer, "launch/view camera= is x,z,level,yaw,pitch,zoom");
+        return;
+    }
+    if( panel && !view_panel_shaped(panel) )
+    {
+        answer_error(answer, "launch/view panel= is an editor panel module name ([a-z0-9_], 1..31)");
         return;
     }
     if( !table->has_manifest )
@@ -1667,6 +1689,11 @@ verb_view(struct LaunchSessions* table, struct LaunchRequest const* request,
         argv[argc++] = "--camera";
         argv[argc++] = camera;
     }
+    if( panel )
+    {
+        argv[argc++] = "--editor-panel";
+        argv[argc++] = panel;
+    }
     argv[argc] = NULL;
 
     view_environment(table, &environment);
@@ -1683,9 +1710,9 @@ verb_view(struct LaunchSessions* table, struct LaunchRequest const* request,
     view->alive = 1;
     view->pid = pid;
     view->process_group = process_group;
-    fprintf(stderr, "launch: view %d is pid %d (maped %s, group %ld%s%s, log %s)\n",
+    fprintf(stderr, "launch: view %d is pid %d (maped %s, group %ld%s%s%s%s, log %s)\n",
             view->number, pid, maped, group, camera ? ", camera " : "", camera ? camera : "",
-            log_path.data);
+            panel ? ", panel " : "", panel ? panel : "", log_path.data);
     ToriMem_Free(ToriMem_Net(), log_path.data);
     text_append(answer, "ok\nview=%d\npid=%d\n", view->number, pid);
 }

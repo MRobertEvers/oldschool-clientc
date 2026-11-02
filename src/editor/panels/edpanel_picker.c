@@ -98,6 +98,7 @@ Editor_PickerSetFilter(
     }
     picker->hover = -1;
     picker_build_filter(picker);
+    picker->atlas_serial++;
     return picker->filter_shown;
 }
 
@@ -441,6 +442,7 @@ Editor_PickerSetAtlas(
     if( picker->storage_filter >= picker->storage_count )
         picker->storage_filter = -1;
     picker_build_filter(picker);
+    picker->atlas_serial++;
     return picker_rebuild_tabs(picker);
 }
 
@@ -735,6 +737,57 @@ picker_visible(
     if( picker->filter_on )
         return picker->filter_mask && picker->filter_mask[index];
     return Editor_PickerSquareOnTab(picker, index, picker->active_tab);
+}
+
+int
+Editor_PickerSquareVisible(
+    const struct Editor_Picker* picker,
+    int index)
+{
+    assert(picker);
+    assert(index >= 0);
+    assert(index < picker->square_count);
+    return picker_visible(picker, index);
+}
+
+int
+Editor_PickerVisibleSquares(
+    const struct Editor_Picker* picker,
+    int* out_x0,
+    int* out_z0,
+    int* out_w,
+    int* out_h)
+{
+    int x0;
+    int x1;
+    int z0;
+    int z1;
+
+    assert(picker);
+    assert(out_x0);
+    assert(out_z0);
+    assert(out_w);
+    assert(out_h);
+
+    if( picker->cell <= 0 || picker->well_w <= EDITOR_PICKER_LEFT || picker->well_h <= EDITOR_PICKER_TOP )
+        return 0;
+    /* A square is in the well when its rect (picker_cell_rect) overlaps the
+     * grid area [LEFT, well_w) x [TOP, well_h). */
+    x0 = (int)floor(picker->origin_x);
+    x1 = (int)ceil(picker->origin_x + (double)(picker->well_w - EDITOR_PICKER_LEFT) / picker->cell);
+    z1 = (int)ceil(picker->origin_z);
+    z0 = (int)floor(picker->origin_z - (double)(picker->well_h - EDITOR_PICKER_TOP) / picker->cell);
+    if( x0 < 0 )
+        x0 = 0;
+    if( z0 < 0 )
+        z0 = 0;
+    if( x1 <= x0 || z1 <= z0 )
+        return 0;
+    *out_x0 = x0;
+    *out_z0 = z0;
+    *out_w = x1 - x0;
+    *out_h = z1 - z0;
+    return 1;
 }
 
 int
@@ -1064,6 +1117,20 @@ picker_cell_rect(
     *out_y = EDITOR_PICKER_TOP + (int)floor((picker->origin_z - (map_z + 1)) * picker->cell + 0.5);
 }
 
+void
+Editor_PickerCellOrigin(
+    const struct Editor_Picker* picker,
+    int map_x,
+    int map_z,
+    int* out_x,
+    int* out_y)
+{
+    assert(picker);
+    assert(out_x);
+    assert(out_y);
+    picker_cell_rect(picker, map_x, map_z, out_x, out_y);
+}
+
 /** A rectangle clipped to the grid area; 0 when nothing is left. */
 static int
 picker_clip(
@@ -1142,6 +1209,18 @@ Editor_PickerDraw(
     ToriRSChrome_GraphRect(chrome, graph, 0, 0, well_w, well_h, colors->background, 1, 0);
     items++;
 
+    /* The world map under the grid: one picture, then the label margins
+     * painted over the part of it that strays into them. */
+    if( picker->underlay.scene_id > 0 )
+    {
+        ToriRSChrome_GraphImage(
+            chrome, graph, picker->underlay.x, picker->underlay.y, picker->underlay.w, picker->underlay.h,
+            picker->underlay.scene_id);
+        ToriRSChrome_GraphRect(chrome, graph, 0, 0, EDITOR_PICKER_LEFT, well_h, colors->background, 1, 0);
+        ToriRSChrome_GraphRect(chrome, graph, 0, 0, well_w, EDITOR_PICKER_TOP, colors->background, 1, 0);
+        items += 3;
+    }
+
     /* Axis labels: map x across the top, map z down the left, at a spacing
      * that keeps them readable at any zoom. */
     {
@@ -1208,6 +1287,9 @@ Editor_PickerDraw(
 
             if( pass < 2 )
             {
+                /* The map is the fill: a square's own colour would hide it. */
+                if( picker->underlay.scene_id > 0 )
+                    continue;
                 if( items >= budget )
                 {
                     truncated = 1;

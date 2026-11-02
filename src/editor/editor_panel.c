@@ -198,9 +198,7 @@ hook_open_in_new_view(
     if( EditorView_AppSpawn(app, &camera) )
         Editor_UiLog(app->editor_panel.ui, "editor: opening a new view of m%d_%d", map_x, map_z);
     else
-        Editor_UiLog(app->editor_panel.ui,
-            "editor: Open in new view (m%d_%d) needs the torirsmaped daemon "
-            "([editor:boot] server=tcp); see the log",
+        Editor_UiLog(app->editor_panel.ui, "editor: Open in new view (m%d_%d) could not start one; see the log",
             map_x, map_z);
 }
 

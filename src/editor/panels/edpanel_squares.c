@@ -4,15 +4,18 @@
  * with the Area dropdown (a tab per area made a strip of ~50 overlapping
  * labels nobody could read).
  *
- *   the well       thumbnail cells in each square's average floor colour,
- *                  north up, map coordinates on the axes; wheel zooms about
- *                  the pointer, a drag pans
+ *   the well       the world map of the page's area (the CS2 world map's
+ *                  own picture, editor_worldmap.h) under the square grid,
+ *                  squares the page does not show dimmed; without the App's
+ *                  map services (headless, web) thumbnail cells in each
+ *                  square's average floor colour. North up, map coordinates
+ *                  on the axes; wheel zooms about the pointer, a drag pans
  *   hover          the readout names the square, its area, its spawns, its
  *                  storage
  *   click          opens the square in this window (through the save guard)
  *   shift-click    adds it to the open set
  *   right-click    Open, Open in new view, Copy to..., Delete (clear)
- *   empty cell     a click marks it; New creates there
+ *   empty cell     a click opens New square on it
  *   search         m50_50, "50 50", an absolute tile "3222 3218", or an area
  *                  or region name
  *   outlines       open squares white, unsaved ones in the accent, the
@@ -32,6 +35,7 @@
 #include "edpanel_picker.h"
 #include "edpanels.h"
 #include "editor/editor_areas.h"
+#include "editor/editor_worldmap.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
@@ -68,6 +72,10 @@ struct SquaresPanel
 {
     struct Editor_Picker picker;
     struct Editor_PickerColors colors;
+    /** The world map under the grid (editor_worldmap.h). */
+    struct Editor_WorldMap map;
+    /** TORIRS_EDITOR_PICKER was applied (once). */
+    int env_done;
 
     int panel;
     int input_search;
@@ -125,6 +133,13 @@ struct SquaresPanel
     uint32_t flags_hash;
     uint32_t frames_hash;
 };
+
+static void
+squares_click(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    int x,
+    int y);
 
 static struct SquaresPanel*
 squares_self(struct EditorUi* ui)
@@ -447,6 +462,85 @@ squares_collection_rows(
         squares_apply_collection(ui, self, file);
 }
 
+/**
+ * TORIRS_EDITOR_PICKER=<area>[,<cell>][,<x>,<z>][,new], for a photograph:
+ * once the atlas is in and the well has a size, show page <area> (an area
+ * or region name as the Find field takes it; "-" keeps the page), at <cell>
+ * px per square, centred on square (x, z); `new` then clicks that square
+ * (an empty one opens New square). One number is the cell, two the square,
+ * three all of them.
+ */
+static void
+squares_apply_env(
+    struct EditorUi* ui,
+    struct SquaresPanel* self)
+{
+    struct Editor_Picker* picker = &self->picker;
+    const char* env;
+    char text[128];
+    char* save = NULL;
+    int numbers[3];
+    int n = 0;
+    int click_new = 0;
+    char area[EDITOR_PICKER_NAME_MAX] = { 0 };
+
+    if( self->env_done || picker->tab_count == 0 || picker->well_w <= 0 )
+        return;
+    self->env_done = 1;
+    env = getenv("TORIRS_EDITOR_PICKER");
+    if( !env || !env[0] )
+        return;
+    snprintf(text, sizeof(text), "%s", env);
+    for( char* token = strtok_r(text, ",", &save); token; token = strtok_r(NULL, ",", &save) )
+    {
+        char* end = NULL;
+        long const value = strtol(token, &end, 10);
+        if( end && end != token && *end == '\0' && n < 3 )
+            numbers[n++] = (int)value;
+        else if( strcmp(token, "new") == 0 )
+            click_new = 1;
+        else if( !area[0] )
+            snprintf(area, sizeof(area), "%s", token);
+    }
+    if( area[0] && strcmp(area, "-") != 0 )
+    {
+        struct Editor_PickerSearch result;
+        if( Editor_PickerSearch(picker, area, &result) && result.kind == EDITOR_PICKER_SEARCH_AREA )
+        {
+            Editor_PickerSetTab(picker, result.tab);
+            ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_area, picker->active_tab);
+        }
+        else
+            Editor_UiLog(ui, "editor: TORIRS_EDITOR_PICKER: no area '%s'", area);
+    }
+    if( n == 1 || n == 3 )
+    {
+        const struct Editor_PickerTab* tab = &picker->tabs[picker->active_tab];
+        picker->cell = numbers[0] < EDITOR_PICKER_CELL_MIN   ? EDITOR_PICKER_CELL_MIN
+                       : numbers[0] > EDITOR_PICKER_CELL_MAX ? EDITOR_PICKER_CELL_MAX
+                                                             : numbers[0];
+        /* The page's middle at the new cell, until a square is named. */
+        Editor_PickerCentre(picker, (tab->min_x + tab->max_x) / 2, (tab->min_z + tab->max_z) / 2);
+    }
+    if( n >= 2 )
+    {
+        int const x = numbers[n - 2];
+        int const z = numbers[n - 1];
+        int px;
+        int py;
+        Editor_PickerCentre(picker, x, z);
+        if( click_new )
+        {
+            Editor_PickerCellOrigin(picker, x, z, &px, &py);
+            squares_click(ui, self, px + picker->cell / 2, py + picker->cell / 2);
+        }
+    }
+    self->user_view = 1;
+    self->dirty = 1;
+    Editor_UiLog(ui, "editor: TORIRS_EDITOR_PICKER=%s (%s, %d px a square)", env,
+        picker->tabs[picker->active_tab].title, picker->cell);
+}
+
 static void
 squares_tick(
     struct EditorUi* ui,
@@ -482,6 +576,10 @@ squares_tick(
         Editor_PickerFit(picker, squares_well_w(ui, self), squares_well_h(ui, self));
         self->dirty = 1;
     }
+
+    squares_apply_env(ui, self);
+    if( Editor_WorldMapUpdate(&self->map, &ui->app_services, picker, ToriRSChrome_Scale(ui->chrome)) )
+        self->dirty = 1;
 
     if( ui->editor )
         Editor_PickerNoteDocument(picker, &ui->editor->doc);
@@ -598,7 +696,8 @@ squares_click(
         picker->empty_valid = 1;
         picker->empty_map_x = map_x;
         picker->empty_map_z = map_z;
-        Editor_UiLog(ui, "editor: m%d_%d is empty; New creates it here", map_x, map_z);
+        Editor_UiLog(ui, "editor: m%d_%d is empty: New square", map_x, map_z);
+        Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_NEW, NULL, map_x, map_z);
     }
     self->dirty = 1;
 }
@@ -852,6 +951,7 @@ squares_destroy(
 {
     struct SquaresPanel* self = opaque;
     (void)ui;
+    Editor_WorldMapFree(&self->map);
     Editor_PickerFree(&self->picker);
     ToriMem_Free(ToriMem_Editor(), self);
 }
@@ -974,6 +1074,7 @@ Editor_SquarePicker_Register(struct EditorUi* ui)
     self = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*self));
     assert(self);
     Editor_PickerInit(&self->picker);
+    Editor_WorldMapInit(&self->map);
     Editor_PickerDefaultColors(&self->colors);
     self->colors.dirty = chrome->theme.accent ? chrome->theme.accent : self->colors.dirty;
     self->menu_square = -1;

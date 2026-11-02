@@ -37,6 +37,7 @@
 #include "mem/torirs_mem.h"
 #include "platform/launch_sessions.h"
 #include "torirsmaped/torirs_maped.h"
+#include "torirsmaped/torirs_maped_net.h"
 #include "torirsmaped/torirs_maped_view.h"
 #include "ui/uitree_debug_overlay.h"
 
@@ -46,6 +47,7 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <pthread.h>
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdio.h>
@@ -595,6 +597,149 @@ test_three_connections(
     Editor_Close(&g_ed[0]);
 }
 
+/* ---- the embedded server's loopback door (a popped-out window) ------------- */
+
+struct ListenPump
+{
+    struct ToriRSMapEdListener* listener;
+    volatile int stop;
+};
+
+/* Only while the main thread is blocked in the TCP client's synchronous
+ * requests (HELLO, the doc open, STATE_SYNC): the server is then touched by
+ * this thread alone. */
+static void*
+listen_pump_run(void* arg)
+{
+    struct ListenPump* pump = arg;
+    while( !pump->stop )
+        (void)ToriRSMapEd_ListenerPoll(pump->listener, 5);
+    return NULL;
+}
+
+static void
+test_embed_listener(
+    char const* scratch,
+    const struct RSCache* profile)
+{
+    static struct Editor main_ed;
+    static struct Editor popped_ed;
+    static struct EditorView popped_view;
+    static struct Watch main_watch;
+    static struct Watch popped_watch;
+    static struct EditorView main_view;
+    struct EditorHost main_host;
+    struct EditorHost popped_host;
+    struct ToriRSMapEdListener* listener;
+    struct ListenPump pump;
+    pthread_t thread;
+    int replayed = -1;
+    int opened = 0;
+    int32_t value;
+    char* main_text;
+    char* popped_text;
+
+    check(Editor_HostOpenMapEdEmbed(&main_host, scratch, NULL), "listener: the embedded server starts");
+    check(Editor_HostMapEdEmbedServer(&main_host) != NULL, "listener: an embed host names its server");
+    Editor_OpenHost(&main_ed, &main_host, "main", profile);
+    EditorView_Init(&main_view, &main_ed);
+    memset(&main_watch, 0, sizeof(main_watch));
+    main_watch.view = &main_view;
+    Editor_SetStateCallback(&main_ed, on_state, &main_watch);
+    check(Editor_OpenDoc(&main_ed, EDITOR_DOC_SQUARE, "m50_50") == 1, "listener: the main window opens m50_50");
+    /* The main window has level 2 pinned. */
+    value = 2;
+    check(Editor_StateSet(&main_ed, TORIRSMAPED_STATE_EDIT_LEVEL, &value, 1), "listener: the main window pins level 2");
+    Editor_PumpFacts(&main_ed);
+
+    listener = ToriRSMapEd_ListenerOpen(Editor_HostMapEdEmbedServer(&main_host), 0, "views test");
+    check(listener && ToriRSMapEd_ListenerPort(listener) > 0, "listener: the door opens on an ephemeral port");
+    if( !listener )
+    {
+        Editor_Close(&main_ed);
+        return;
+    }
+
+    /* The popped-out window: a TCP client of the same server, joining the
+     * main window's Client, exactly as it would join the daemon. */
+    pump.listener = listener;
+    pump.stop = 0;
+    pthread_create(&thread, NULL, listen_pump_run, &pump);
+    if( Editor_HostOpenMapEdTcp(&popped_host, "127.0.0.1", ToriRSMapEd_ListenerPort(listener),
+            TORIRSMAPED_ROLE_VIEWER, Editor_HostMapEdClientId(&main_host)) )
+    {
+        opened = 1;
+        Editor_OpenHost(&popped_ed, &popped_host, "popped", profile);
+        (void)Editor_OpenDoc(&popped_ed, EDITOR_DOC_SQUARE, "m50_50");
+        replayed = Editor_HostMapEdStateSync(&popped_ed.host);
+    }
+    pump.stop = 1;
+    pthread_join(thread, NULL);
+    check(opened, "listener: a TCP client connects through the door");
+    if( !opened )
+    {
+        ToriRSMapEd_ListenerClose(listener);
+        Editor_Close(&main_ed);
+        return;
+    }
+    check(Editor_HostMapEdClientId(&popped_host) == Editor_HostMapEdClientId(&main_host),
+        "listener: it joins the main window's Client");
+    check(ToriRSMapEd_ListenerConnections(listener) == 1, "listener: one connection on the door");
+
+    /* The view side of a popped-out window's boot: the Client's pinned
+     * level, replayed, becomes its cap. */
+    EditorView_Init(&popped_view, &popped_ed);
+    memset(&popped_watch, 0, sizeof(popped_watch));
+    popped_watch.view = &popped_view;
+    Editor_SetStateCallback(&popped_ed, on_state, &popped_watch);
+    check(replayed >= 1, "listener: STATE_SYNC replays the Client's store");
+    EditorView_ExpectSync(&popped_view, replayed > 0 ? replayed : 0);
+    Editor_PumpFacts(&popped_ed);
+    check(popped_view.level_cap == 2 && !popped_view.level_solo,
+        "listener: the popped-out view starts at the main window's pinned level");
+    check(popped_view.sync_pending == 0, "listener: and only the replay is adopted");
+
+    /* The same document on both sides. */
+    main_text = emit_jm2(&main_ed);
+    popped_text = emit_jm2(&popped_ed);
+    check(main_text && popped_text && strcmp(main_text, popped_text) == 0,
+        "listener: the popped-out mirror holds the authority's m50_50");
+    free(main_text);
+    free(popped_text);
+
+    /* The relay both ways, the main window pumping the door each frame. */
+    main_watch.watch_key = TORIRSMAPED_STATE_TOOL;
+    popped_watch.watch_key = TORIRSMAPED_STATE_TOOL;
+    value = 3;
+    check(Editor_StateSet(&popped_ed, TORIRSMAPED_STATE_TOOL, &value, 1), "listener: the popped window sets the tool");
+    for( int frame = 0; frame < 50 && main_watch.watch_hits == 0; frame++ )
+    {
+        (void)ToriRSMapEd_ListenerPoll(listener, 2);
+        Editor_PumpFacts(&main_ed);
+    }
+    check(main_watch.watch_hits >= 1 && main_watch.watch_last_value0 == 3,
+        "listener: the main window hears the popped window's tool");
+    value = 5;
+    popped_watch.watch_hits = 0;
+    check(Editor_StateSet(&main_ed, TORIRSMAPED_STATE_TOOL, &value, 1), "listener: the main window sets the tool");
+    for( int frame = 0; frame < 50 && popped_watch.watch_last_value0 != 5; frame++ )
+    {
+        Editor_PumpFacts(&main_ed);
+        (void)ToriRSMapEd_ListenerPoll(listener, 2);
+        Editor_PumpFacts(&popped_ed);
+    }
+    check(popped_watch.watch_last_value0 == 5, "listener: the popped window hears the main window's tool");
+
+    /* Closing the window retires its connection; closing the door is safe
+     * with none left, and the session goes on. */
+    Editor_Close(&popped_ed);
+    for( int frame = 0; frame < 50 && ToriRSMapEd_ListenerConnections(listener) > 0; frame++ )
+        (void)ToriRSMapEd_ListenerPoll(listener, 2);
+    check(ToriRSMapEd_ListenerConnections(listener) == 0, "listener: a closed window leaves the door");
+    ToriRSMapEd_ListenerClose(listener);
+    Editor_Close(&main_ed);
+}
+
 /* ---- SPAWN_VIEW on a server, frame by frame -------------------------------- */
 
 struct MemPipe
@@ -998,7 +1143,7 @@ test_launch_view(char const* scratch)
     config.manifest_path = "manifests/manifest_osrs241_mapeditor.ini";
     table = LaunchSessions_New(&config);
 
-    length = EditorView_SpawnBody("tcp://127.0.0.1:43610", 3, &camera, body, (int)sizeof(body));
+    length = EditorView_SpawnBody("tcp://127.0.0.1:43610", 3, &camera, NULL, body, (int)sizeof(body));
     check(length > 0 && strstr(body, "camera=3222.5,3218.5,0,512,300,1200\n") != NULL,
         "EditorView_SpawnBody writes the launch lines");
     answer = launch(table, "view", body);
@@ -1013,6 +1158,35 @@ test_launch_view(char const* scratch)
     check(strstr(fake.log_path, "/launch/views/view1.log") != NULL, "logging under the launch dir");
     check(fake.has_prefs_blank && !fake.has_party_join,
         "never the owner's preferences, never a party seat's env");
+
+    /* A popped-out panel: the body names it, the window boots with it. */
+    length = EditorView_SpawnBody("tcp://127.0.0.1:51129", 3, &camera, "terrain", body, (int)sizeof(body));
+    check(length > 0 && strstr(body, "\npanel=terrain\n") != NULL, "a panel's spawn body names the panel");
+    check(EditorView_SpawnBody("tcp://127.0.0.1:51129", 3, &camera, "world", expect, (int)sizeof(expect)) > 0
+              && !strstr(expect, "panel="),
+        "the 3D view's body names none");
+    answer = launch(table, "view", body);
+    check(strncmp(answer, "ok\nview=2\n", 10) == 0, "the view verb starts a panel window");
+    ToriMem_Free(ToriMem_Net(), answer);
+    snprintf(expect, sizeof(expect),
+        "/opt/torirs/torirs --manifest manifests/manifest_osrs241_mapeditor.ini --editor-view "
+        "--maped tcp://127.0.0.1:51129 --maped-group 3 --camera 3222.5,3218.5,0,512,300,1200 "
+        "--editor-panel terrain ");
+    check(strcmp(fake.argv_line, expect) == 0, "booted --editor-panel terrain");
+    if( strcmp(fake.argv_line, expect) != 0 )
+        fprintf(stderr, "  got:  %s\n  want: %s\n", fake.argv_line, expect);
+    answer = launch(table, "view", "maped=tcp://127.0.0.1:43610\ngroup=3\npanel=../x\n");
+    check(strncmp(answer, "error: launch/view panel=", 25) == 0, "a panel that is not a module word is refused");
+    ToriMem_Free(ToriMem_Net(), answer);
+    answer = launch(table, "view", "maped=tcp://127.0.0.1:43610\ngroup=3\npanel=--connect\n");
+    check(strncmp(answer, "error: launch/view panel=", 25) == 0, "a panel smuggling a flag is refused");
+    ToriMem_Free(ToriMem_Net(), answer);
+    /* The process side: the name main.c hands over, "world" being the view. */
+    EditorView_SetBootPanel("terrain");
+    check(EditorView_BootPanel() && strcmp(EditorView_BootPanel(), "terrain") == 0, "the boot panel is kept");
+    EditorView_SetBootPanel("world");
+    check(EditorView_BootPanel() == NULL, "world boots the 3D view");
+    EditorView_SetBootPanel(NULL);
 
     answer = launch(table, "view", "maped=http://x\ngroup=3\n");
     check(strncmp(answer, "error: launch/view needs maped=", 31) == 0, "a non-maped URL is refused");
@@ -1030,7 +1204,7 @@ test_launch_view(char const* scratch)
     check(strncmp(answer, "error: launch/view does not take program=", 41) == 0,
         "a view names no program");
     ToriMem_Free(ToriMem_Net(), answer);
-    check(fake.spawns == 1, "none of the refusals spawned anything");
+    check(fake.spawns == 2, "none of the refusals spawned anything");
 
     fake.signals = 0;
     LaunchSessions_Free(table);
@@ -1343,6 +1517,7 @@ main(
     ToriDraw_InitMath();
     test_pose_eye();
     test_three_connections(scratch, &profile);
+    test_embed_listener(scratch, &profile);
     test_spawn_view_frames(scratch);
     test_launch_view(scratch);
     test_manifest(scratch);

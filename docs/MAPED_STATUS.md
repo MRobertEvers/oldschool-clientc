@@ -43,6 +43,42 @@ opens the hidden ones. The 3D view is itself a panel, **World**: View > World
 hides or shows it, its title bar moves it and its grip resizes it like any
 other panel.
 
+**Panel furniture: Close, Pop out, edges.** Every View-menu panel, World
+included, carries two buttons at the right end of its title bar: the X
+closes it (exactly View > <panel> off; the View menu row then reads
+"<panel>  hidden" in its right column, and the row or the panel's hotkey
+brings it back) and the arrow beside it **pops it out** into a window of its
+own. Every edge and corner of a panel's border resizes it (the grip in the
+bottom-right corner stays as the visible handle); a moved edge snaps to the
+grid, and a resized panel keeps its box in the saved layout like a dragged
+one. A docked panel that closes or pops out gives its space back: the column
+closes up, and with World gone the panels spread over as many columns as fit.
+
+**Pop out** (`Editor_UiPanelPopOut(ui, "<module>")`, `Editor_UiWorldPopOut`)
+opens a second process of the same binary and manifest -- the launch
+service's `view` verb, `--editor-view [--editor-panel <module>] --maped
+tcp://127.0.0.1:<port> --maped-group <Client> --camera <pose>` -- joined to
+this window's Client, so documents, selection, tool, level and every state
+relay stay mirrored. World pops out as the viewer window looking exactly
+where the World panel looked (same pose; the pinned level becomes its
+level cap through the boot STATE_SYNC); any other module pops out as that
+panel alone, filling the window (no menu bar, no world drawn; the world is
+still loaded around the camera's square so App-bound panels answer). The
+main window hides the panel; View > <panel> shows it here again (pop in);
+the other window runs until it is closed. One console line each way.
+Several panels may be out at once, one process each: each is a full client
+(cache, renderer, an EDIT world of the open squares) -- roughly the main
+window's footprint again per window. It works under BOTH server modes: with
+`server=tcp` the window dials the daemon (World may use the daemon's own
+SPAWN_VIEW); with the default `server=embed` the first pop-out opens a
+loopback listener on the embedded ToriRSMapEd -- 127.0.0.1, an ephemeral
+port, the daemon's own accept/pump code (src/torirsmaped/torirs_maped_net.c)
+polled from the client's frame loop (`EditorView_AppFrame`) -- and the
+window dials that. On the web Pop out opens a tab per panel
+(`torirsSpawnEditorView(camera, group, maped, panel)`, `&panel=<module>` in
+the tab URL); it needs a page booted against a daemon (`maped=`), since one
+tab cannot reach the ToriRSMapEd embedded in another.
+
 **Environment the editor client reads** (beside the manifest):
 
 - `TORIRS_EDITOR_LAYOUT` -- where the dock layout is saved (below). Unset:
@@ -77,6 +113,15 @@ other panel.
   level once at boot, optionally with the free camera on absolute tile x,z of
   that level; same file),
   `TORIRSMAPED_LIVE_DIR` (the live lane, below).
+- `TORIRS_EDITOR_POPOUT=<module>[,<module>...][@<frame>]` -- for a
+  photograph: at main-window editor frame `<frame>` (default 300) pop each
+  named panel out, as its title-bar button does
+  (src/app/app_editor_view.c). `TORIRS_EDITOR_RESIZE=<module>,<l|r|t|b>,<dx>,<dy>[@<frame>]`
+  presses that panel's border on that edge, moves it by (dx, dy) and lets
+  go (default frame 200). A popped-out window inherits its leader's
+  environment, TORIRS_PRESENT_BMP included: `TORIRS_EDITOR_VIEW_BMP=<dir>[@<frame>]`
+  makes each write `<dir>/view_<module>.bmp` at its own frame (default 400)
+  instead.
 - `TORIRS_EDITOR_OPEN_CMD` -- the Triggers panel's and the catalog's "Open
   in editor" command, `{path}` (the absolute path, shell-quoted) and
   `{line}` placeholders, e.g. `code --goto {path}:{line}` or
@@ -219,14 +264,14 @@ The whole loop, scripted, is `make -C src maped-live-e2e`
 | 2 | Architecture | authority + mirrors + facts + group state; EditorHost, BuildRunner and LiveLink vtables; embed, tcp and ws transports; the editor modules name no `struct App`: the App-bound panels (catalog, inspector, areas) ask the client through `struct EditorUiAppServices` (src/editor/editor_ui.h, `user_data` + nullable function pointers like `Builder_Services`), filled by `app_map_editor_ui_services` (src/app/app_map_editor.c) before they register, and the viewer's App glue is a unit of the App layer (src/app/app_editor_view.c) | browser host binding for the content tree (IndexedDB / io_server `/boot/`) |
 | 3 | Documents and commands | kind-keyed documents (square, spawn, cfg incl. server-overlay blocks `<type>:<name>@<overlay>`, iface, text incl. `fields:<type>.ini`, and AREAS: kind 5, key `areas`, `editor/areas.txt`, below); Editor_Cmd per brief §2 with TILE, LOC, SPAWN, SPAWN_SUPPRESS, CFG_FIELD, CFG_BLOCK, IF_FIELD, IF_COMPONENT, TEXT_SPLICE, and SPAWN_EDIT (kind 9: one row rewritten in place, wire `before row, after row, string before_text`, a row being `u32 is_obj, u32 suppress, string name, u32 x, u32 z, u32 level, u32 count`); v2 wire encoding; undo stack grows on demand | DOC_DELETE; DOC_CLOSE unloading; SAVE_AS (reserved, UNSUPPORTED) |
 | 4 | The editing World | WorldBuilderOps with STATIC (pure refactor) and EDIT (resident build maps, placement handles, tile-local flush); `[world:boot] layout=`; per-tile derive | local flush gaps (occluders, minimap icons, LINK_BELOW rebakes); ghost under EDIT still uses runtime loc changes |
-| 5 | Windows, views, cameras | viewer windows as processes (`--editor-view`), STATE_CAMERA publish/follow, SPAWN_VIEW, web viewer tab | layer toggles not read by the painter; embedded editor cannot spawn views; viewer not yet exercised against a daemon in an open window |
+| 5 | Windows, views, cameras | viewer windows as processes (`--editor-view`), STATE_CAMERA publish/follow, SPAWN_VIEW, web viewer tab; **popped-out panels** (`--editor-panel <module>`: one panel filling a window of the session, `Editor_UiSetSolo`), the launch verb's `panel=` key, a new view adopting its Client's pinned level from a boot STATE_SYNC (`EditorView_ExpectSync`); the embedded ToriRSMapEd's on-demand loopback listener (src/torirsmaped/torirs_maped_net.{h,c}, shared with the daemon's reactor), so Open in new view and Pop out work under `server=embed`; tests: views_embed_test (the listener end to end with a TCP client joining the embed's Client, the replayed level cap, the relay both ways; the panel spawn body and launch argv), editor_view_test.js (`panel=`) | layer toggles not read by the painter; see open issues (World, views) |
 | 6 | Server state and protocol | protocol v2, HELLO capabilities, frame/state-key reservations, group state relay | — |
 | 7 | Chrome | TREE, VLIST, TOOLBAR, SLIDER (settings-bar track 2852/2855/2857, gem knob 2858, label column <= 30%), RADIO, MODAL, TOOLTIP, CODE, GRAPH, splitter docking; grid snap on drag/resize release (`ToriRSChrome_SetSnap`, 8 px at 1x, 16 at 2x, edge snap within one cell); 28 baked skin slots; DOM rendering; hollow panels (`ToriRSChrome_PanelSetHollow`: title bar, rails and grip drawn and hit, the body neither painted nor hit, `ToriRSChrome_PanelBodyRect`); the dock layout persisted per device in `editor_layout.ini` (`TORIRS_EDITOR_LAYOUT`; codec src/editor/editor_layout.c, IO tasks src/editor/task_editor_layout_io.c, debounce `app_map_editor_layout_tick`; desktop file / web IndexedDB through host.readClientFile/writeClientFile) | DOM multi-panel dock layout; a drag still in progress at quit is not saved |
-| 7b | World panel | the 3D view is the registry module "world" (editor_ui.c `ui_world_register`, first chrome panel so it draws under the rest): titled, resizable, hollow; in the View menu; the default layout docks it over exactly the region the old world rect was; `Editor_UiWorldRect` is its body; the App cuts the world widget to it through the reference letterbox (`App_MapEditorWorldLetterbox` answers UITREE_HOST_GET_WORLD_LETTERBOX: the 3D pass draws in the body, the rest of the widget box is the black band) and restates `world_emit_desc` (`App_MapEditorWorldView`), so the paint, picks, hover, brush footprint, ghosts and selection marks all follow it; hidden World = no world drawn or picked; part of the saved layout; viewer windows (panels hidden) keep the whole frame | the box origin of the world widget is taken from last frame's desc (the letterbox request carries only its size); the panel has no maximise / dock-to-edge gesture |
+| 7b | World panel | the 3D view is the registry module "world" (editor_ui.c `ui_world_register`, first chrome panel so it draws under the rest): titled, resizable, hollow; in the View menu; the default layout docks it over exactly the region the old world rect was; `Editor_UiWorldRect` is its body; the App cuts the world widget to it through the reference letterbox (`App_MapEditorWorldLetterbox` answers UITREE_HOST_GET_WORLD_LETTERBOX: the 3D pass draws in the body, the rest of the widget box is the black band) and restates `world_emit_desc` (`App_MapEditorWorldView`), so the paint, picks, hover, brush footprint, ghosts and selection marks all follow it; hidden World = no world drawn or picked; part of the saved layout; viewer windows (panels hidden) keep the whole frame; **Pop out / Pop in** (title-bar arrow, `Editor_UiWorldPopOut`; View > World pops it back in) under embed (loopback listener) and tcp, the main window's columns taking the freed space; **Close box** and **edge resize** on World and every other View-menu panel (chrome `poppable`, `closable`, `ToriRSChrome_PanelEdgeAt`); tests: editor_panels_test `test_popout` (button press, camera and pinned level handed to the App, hide, View row "popped out", pop in, refusal kept with its reason, the column closing up, Close box + View row "hidden", left-edge and corner resize with the grid, World's top edge, a solo window); photographed 2026-11-02 under the default embed profile | the box origin of the world widget is taken from last frame's desc (the letterbox request carries only its size); the panel has no maximise / dock-to-edge gesture |
 | 8 | Asset catalog | server-side index of packs, allocs, compacks, config blocks, overlays, interfaces, cs2/rs2 headers, spawns, maps; CATALOG_QUERY/RECORD (a record's fields in the pack's merge order: all.<type>, `.generated.` overlays, authored overlays, path order within a rank); mtime refresh; the Catalog panel queries it (every kind, settled find, paged list, record view, Edit record..., Copy to new; edpanel_catalog_model.c) | first build blocks the server pump (~1 s warm, ~6 s cold) |
 | 9a | Active level | menu bar Level row after View: `Auto 0 1 2 3 Above`, the pressed button is `tools.edit_level`, Above (pinned only) draws every level; keys PageUp/PageDown step and clamp 0..3 (from Auto, from the plane under the pointer), Ctrl+0..3 pin, the same chord again = Auto; World panel title "World - level N"; a pin caps the view at itself (`vis_level` follows, levels above and roofs not drawn), Auto draws every level as before; `edp_level_*` in src/editor/panels/edpanel_common.c; synced as STATE_EDIT_LEVEL (another window's pin moves the cap too, menu bar tick); with a level pinned the hover, every tool's click (select included), the brush footprint, ghosts, rectangle and inspector use the PINNED plane's tile under the pointer (`app_map_editor_pin_hover` re-picks against that level's height field when the pick met another plane; `Editor_PanelHoverTile`); the free camera's eye shifts by the height between planes on a pin; an empty upper level takes paint, heights, locs and spawns (flushed locally) | see open issues (World, views) |
 | 9 | Terrain tools | brushes with radius/falloff/step, palettes with shape thumbnails, flags, level radio, rectangle select/copy/paste/fill/clear; brush footprint under the pointer (`Editor_Terrain_BrushFootprint`, same weights as the stroke, falloff shown as wash intensity, follows a drag; >121 tiles as nested washes) | — |
-| 9b | Square picker and New square | atlas (storages, world-map areas incl. Unmapped instance regions, colour, spawns, flags), picker GRAPH with area tabs, zoom, hover, search, open/shift-open/right-click; New modal (coordinates, storage maps/ or a lane with lane creation, template empty/copy/flat) -> DOC_CREATE | picker Delete only clears the square (no DOC_DELETE); tab strip unreadable with ~50 areas; a NEW square has no `pack/5_maps.pack` line, so BUILD client cache cannot import it yet |
+| 9b | Square picker and New square | atlas (storages, world-map areas incl. Unmapped instance regions, colour, spawns, flags), picker GRAPH with area tabs, zoom, hover, search, open/shift-open/right-click; New modal (coordinates, storage maps/ or a lane with lane creation, template empty/copy/flat) -> DOC_CREATE. **World map under the grid** (2026-11-02): the page's area drawn as the CS2 world map (595) draws it -- the client's own renderer (game/rs_worldmap_render.c, new `RS_WorldMapRender_RegionPixels`: a region baked into a caller buffer, same loads/waits/request table as `RegionSprite`, plus `SetFrameBudget`), kept at one pixel per tile per region for the process (game/rs_worldmap_overview.{h,c}, ~16 KB a region, never evicted) and box-filtered into a window of WORLD squares through the area's compositemap records (whole regions and 8x8 chunks, so a dungeon page shows its squares where they are in the world). The editor side (editor/editor_worldmap.{h,c}) asks the App through four `EditorUiAppServices` members (`worldmap_area` by the atlas area's internal name, -2 while the cache's areas load; `worldmap_poll`; `worldmap_render`; `image_publish`, two scene sprites `UITREE_SCENE_EDITOR_PICKER_MAP_ID(0/1)` taken in turn), for the visible squares plus a quarter of the view each side; the picture is keyed on area, cell, pixels per square, window and what the page shows (`Editor_Picker.atlas_serial`, page, storage filter, collection) and rendered again only when that key changes or while regions are still arriving (polled every tick, redrawn at most every 10 ticks, then once more when the last lands) -- a pan inside the window only moves it. Squares the page does not show (no map in any storage, another page, filtered out) are dimmed, black where the map has nothing, a faint grid from 8 px a square; the cells are no longer filled over the map, the outlines (selected, open, unsaved, created), hover, the empty-cell mark, axis labels and view frames are drawn over it. The chrome's GRAPH gained `TORIRS_CHROME_GRAPH_IMAGE` / `ToriRSChrome_GraphImage` (a scene-sprite prim stretched over the box, clipped to the well; the DOM executor gets the scene id in the item's value). A click on an EMPTY square now opens New square prefilled with it. No services (headless harness, web -- not filled under `__EMSCRIPTEN__`): the picker as before. Unmapped page: no area, no map. Cold full surface (1632 regions, osrs241, this Mac, private OPT build): 0.73-0.80 s from the first ask to the last bake (about 0.4 s of it one frame reading the regions' tiles, the rest four polls of up to 512 bakes at ~0.12 ms each); afterwards instant. `TORIRS_WORLDMAP_STATS=1` prints each poll's regions-to-come and elapsed ms (stderr); `TORIRS_EDITOR_PICKER=<area>[,<cell>][,<x>,<z>][,new]` shows a page at a cell centred on a square (`new` clicks it) for photographs (src/editor/panels/edpanel_squares.c). Tests: editor_worldmap_test (22: the mapping, whole region and chunk, box filter, window edges; the composition), editor_panels_test `test_worldmap` (fake App: area asked once then after the retry, only the visible window plus margin asked for, the picture reused on 20 quiet ticks, a one-square pan renders nothing, a zoom renders once, empty-square click -> New square prefilled, Unmapped and no-services fall back to filled cells). Photographed 2026-11-02 (whole surface at 3 px, Lumbridge/Varrock at 24 px, New square from empty m63_44) | picker Delete only clears the square (no DOC_DELETE); a NEW square has no `pack/5_maps.pack` line, so BUILD client cache cannot import it yet; see open issues (Square picker world map) |
 | 10 | Placement tools | loc multi-select, nudge (cross-border as one undo), rotate, reshape, duplicate; spawn place/delete/suppress, spawn multi-select and Duplicate (Ctrl+D); translucent npc/obj placement ghost with footprint (`map_editor_ghost.c` spawn ghost, Place click writes the spawn row via `Editor_Locs_PlaceSpawn`); Move tool outlines every selected loc's destination; **spawn edit form** (Spawns > Edit tab: kind, name -- pack symbol, `#<id>`, or a display name the catalog resolves, refused when unknown -- abs X/Z, level, count, Suppressed; Apply = one undo step "edit spawn"/"move spawn" via `Editor_SpawnEditPlan`: SPAWN_EDIT in place, delete+add across a square or kind, suppress+add for a generated row; a multi-selection takes each changed field, X/Z/Level as an offset); **spawn move** typed or "Move: click a tile" (the next world click, `editor_panel.c`), the destination footprint and wander square previewed under the pointer; **wander preview** ("Show wander range", default on: each selected npc's wanderrange square filled and maxrange leash outlined on its level, also around the npc spawn ghost; values from the Record panel when it holds the npc, else the catalog's merged record, else 5/7; `MapEditorWander_Rects`, drawn in `app_overlay.c`); orphan `-name` rows listed and editable; ctl `spawn-edit`/`spawn-move` | arrow nudges commit per press (no preview); the move preview is footprint + wander square, not a translucent npc model; a delete+add edit's undo re-adds the row at its section's end |
 | 11 | Loc interaction builder | `.interaction` model, loc emitter (oploc/oplocu/aploc), step templates, sscompile Check | Check runs synchronously on the UI thread |
 | 12 | NPC interaction and dialogue builder | npc emitter, dialogue graph to nested if/else, multiloc/multinpc shell editor; **Record panel** (Catalog > Edit record..., Spawns > Edit npc record...): one loc/npc/obj record over every file that states it -- `configs/all.<type>` and each server overlay the catalog lists, as block-scoped CFG documents -- every field resolved to the layer that wins it (rank 0/1/2, path order, `param=<name>,..` per name), plus every key of `fields/<type>.ini` the record states nowhere; Set field writes where the field is stated or "override in <layer>" (opening the block there with CFG_BLOCK if needed), Remove field shows the layer beneath; one undo step "edit record"; `editor_cfg.h` Editor_CfgRecord; ctl `cfg-set` | STATE_VAR_PREVIEW not honoured by the world's multiloc resolve |
@@ -331,6 +376,38 @@ Every issue the phase reports left open, by area, with where to start.
   the protocol or a panel: src/editor/editor_alloc.c, src/editor/editor_vars.c.
 - 3 non-positional compacks are not locked in the mirror: src/editor/editor_if.c.
 
+### Square picker world map
+
+- The web shows no map: the DOM executor (src/plugin_chrome/runtime*.js
+  `renderGraph`) skips a `TORIRS_CHROME_GRAPH_IMAGE` item, and the App does
+  not fill the four map services under `__EMSCRIPTEN__`, so the web picker
+  keeps its filled cells. To show it there the executor needs the pixels:
+  e.g. a new chrome command carrying the picture (or a URL the page can fetch
+  from the bridge) keyed by the scene id the item already sends, drawn into
+  a canvas behind the item list.
+- Map element icons (banks, altars...) are not drawn: the overview keeps
+  pixels only (`RS_WorldMapRender_RegionPixels` passes no slot). The landmark
+  map scenes (trees, rocks) are baked in when the bridge has the mapscene
+  pack resident.
+- Cold load blocks one frame for ~0.4 s while the runner reads all 1632
+  surface regions' tiles (table 18 plus the table 20 ground PNG per region,
+  src/engine/dat2/task_dat2_worldmap_geography_load.c); a later open is
+  instant. A smaller first window (the visible squares only, the margin
+  later) or decoding the ground PNGs off the frame would cut it.
+- The overview's bakes are a process-lifetime static in
+  src/app/app_map_editor.c (`g_picker_worldmap`; the App holds no field for
+  them by check-app-boundary) and are never freed or evicted (~25 MB for the
+  whole surface, more as dungeon pages are visited).
+- A content edit does not redraw the map: the picture is the CACHE's world
+  map (what 595 shows), not the content tree's squares. A square created or
+  re-terrained in the editor shows the cache's old picture (or black) until
+  the client cache is rebuilt and the bakes dropped (no hook drops them yet).
+- Ocean tints differ by region on the surface (teal, blue and purple
+  patches east of Al Kharid and south of Zeah). The dimming only scales
+  brightness, so the hue is the renderer's; the land matches a headless 595
+  dump of Lumbridge (TORIRS_WORLDMAP_ZOOM=25) but the open sea has not been
+  compared against 595 at the same place yet.
+
 ### Areas and collections
 
 - A record line holds 511 bytes at most (two ride in one command,
@@ -382,8 +459,31 @@ Every issue the phase reports left open, by area, with where to start.
   (`EditorView_LayerShown` has no caller in src/app/app_world_paint.c).
 - STATE_VAR_PREVIEW is published (src/editor/builder/) but not honoured by the
   world's multiloc/multinpc resolve.
-- The embedded editor server cannot spawn views (SPAWN_VIEW answers
-  UNSUPPORTED without the daemon's launch binding): src/torirsmaped/torirs_maped_view.c.
+- The embedded editor server still answers SPAWN_VIEW UNSUPPORTED (no
+  launch binding inside it): Open in new view and Pop out go through the
+  client's own launch service and the embed's loopback listener instead
+  (src/app/app_editor_view.c `EditorView_AppSpawnModule`). The listener stays
+  open, idle, until the session closes once anything popped out.
+- Pop out: a popped-out window is a whole client process (cache, renderer,
+  EDIT world): several out at once cost that footprint each. Its window is
+  the OS window -- closing it is the only way to end it; there is no "pop
+  back in" from the popped-out side (View > <panel> in the main window shows
+  the panel there, and the other window keeps running). A panel window loads
+  the world around the camera's square although it draws none. A pinned
+  "Above" is not carried (STATE_EDIT_LEVEL holds only the pin): the popped-out
+  World caps at the pinned level. The framing of the popped-out World
+  differs from the panel's by the two viewports' sizes (same eye, yaw,
+  pitch). Flyouts a solo panel opens (a Record panel, a builder) appear at
+  their registration place over it. The web needs a daemon (`maped=`); with
+  the page's embedded server Pop out says so and keeps the panel.
+- Panel furniture: no cursor change over a resizable edge (the chrome has
+  no cursor hint); the border band is the frame (6 px at 1x) or 4 px,
+  whichever is wider. The DOM executor mirrors none of it -- it has no
+  multi-panel dock layout at all (below); the web build draws the editor
+  through the native chrome. What it would need: a close and a pop-out
+  intent per panel (TORIRS_CHROME_INTENT_CLOSE exists for the single plugin
+  window; a TORIRS_CHROME_INTENT_POPOUT beside it), the panel boxes and
+  an edge-drag gesture reported as a rect change, i.e. the dock layout.
 - The viewer window and Open in new view have not been run against a daemon
   in an open window (only in tests and headless boots).
 - The DOM chrome has no multi-panel dock layout: src/plugin_chrome/runtime-source.js.

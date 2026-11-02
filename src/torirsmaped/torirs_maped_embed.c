@@ -187,6 +187,13 @@ ToriRSMapEd_EmbedPending(
     return ToriRSMapEd_BufAvailable(&embed->clients[client_id].to_client);
 }
 
+struct ToriRSMapEd*
+ToriRSMapEd_EmbedServer(struct ToriRSMapEdEmbed* embed)
+{
+    assert(embed);
+    return &embed->maped;
+}
+
 int
 ToriRSMapEd_EmbedPump(struct ToriRSMapEdEmbed* embed)
 {

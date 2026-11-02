@@ -145,6 +145,26 @@ const q = s => new URLSearchParams(s);
   passed++;
 }
 
+/* 7b. A popped-out panel: the tab URL carries panel=, and the tab boots
+ *     --editor-panel <module>; "world" and anything that is not a module word
+ *     add nothing. */
+{
+  const href = 'https://example.org/torirs/index.html?io=/io2';
+  const url = new URL(editorViewUrl(href, new URL(href).searchParams, 'm.ini',
+    'wss://example.org/maped', 5, '3222,3218,0,512,300,1200', 'terrain'));
+  assert.strictEqual(url.searchParams.get('panel'), 'terrain');
+  const boot = editorViewBoot(url.searchParams, DEFAULT, HTTPS);
+  assert.deepStrictEqual(Array.from(boot.args).slice(-2), ['--editor-panel', 'terrain']);
+  const world = new URL(editorViewUrl(href, new URL(href).searchParams, 'm.ini',
+    'wss://example.org/maped', 5, '', 'world'));
+  assert.ok(!world.searchParams.has('panel'));
+  let bad = editorViewBoot(q('editor_view=1&maped=ws://h:1&panel=../x'), DEFAULT, HTTP);
+  assert.ok(!bad.args.includes('--editor-panel'));
+  bad = editorViewBoot(q('editor_view=1&maped=ws://h:1&panel=world'), DEFAULT, HTTP);
+  assert.ok(!bad.args.includes('--editor-panel'));
+  passed++;
+}
+
 /* 8. The page wiring exists: the spawn function, the button, the socket URL. */
 {
   assert.ok(SRC.includes('window.torirsSpawnEditorView ='));

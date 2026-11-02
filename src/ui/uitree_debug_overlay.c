@@ -1880,6 +1880,8 @@ ToriRSChrome_Init(struct ToriRSChrome* ui)
     ui->free_widget = -1;
     ui->scroll_panel = -1;
     ui->hover_close_panel = -1;
+    ui->hover_popout_panel = -1;
+    ui->popout_requested = -1;
     ui->caret_visible = 1;
     dbg_ext_init(ui);
 }
@@ -1920,6 +1922,8 @@ ToriRSChrome_Reset(struct ToriRSChrome* ui)
     ui->resize_panel = -1;
     ui->scroll_panel = -1;
     ui->hover_close_panel = -1;
+    ui->hover_popout_panel = -1;
+    ui->popout_requested = -1;
     ui->overflow = 0;
     dbg_ext_init(ui);
     ui->dirty = 1;
@@ -2274,6 +2278,91 @@ dbg_panel_close_at(struct ToriRSChrome const* ui, int x, int y)
             return i;
     }
     return -1;
+}
+
+void
+ToriRSChrome_PanelSetPoppable(struct ToriRSChrome* ui, int panel, int poppable)
+{
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    poppable = poppable ? 1 : 0;
+    if( ui->panels[panel].poppable == poppable )
+        return;
+    ui->panels[panel].poppable = poppable;
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
+    dbg_dirty_panel(ui, panel);
+}
+
+int
+ToriRSChrome_TakePopOut(struct ToriRSChrome* ui)
+{
+    int const panel = ui->popout_requested;
+
+    assert(ui);
+    ui->popout_requested = -1;
+    return panel;
+}
+
+/**
+ * The Pop out button's box: the Close box's size, one box and one pad to its
+ * left when the panel has a Close, in the Close's place when it has none.
+ * Derived from dbg_panel_close_box so the two can never overlap or drift.
+ */
+static struct ToriRSChromeRect
+dbg_panel_popout_box(
+    struct ToriRSChrome const* ui,
+    struct ToriRSChromePanel const* p,
+    struct ToriRSChromeRect box)
+{
+    struct ToriRSChromeRect out = dbg_panel_close_box(ui, p, box);
+
+    if( out.w > 0 && p->closable )
+        out.x -= out.w + DBG_CLOSE_PAD;
+    return out;
+}
+
+static struct ToriRSChromeRect
+dbg_panel_popout_rect(struct ToriRSChrome const* ui, int panel)
+{
+    struct ToriRSChromeRect out = { 0, 0, 0, 0 };
+    struct ToriRSChromePanel const* p;
+
+    if( !dbg_valid_panel(ui, panel) )
+        return out;
+    p = &ui->panels[panel];
+    if( !p->poppable || !p->title[0] )
+        return out;
+    return dbg_panel_popout_box(ui, p, p->last_rect);
+}
+
+/** Panel whose Pop out button is under the point, or -1. */
+static int
+dbg_panel_popout_at(struct ToriRSChrome const* ui, int x, int y)
+{
+    for( int i = ui->panel_count - 1; i >= 0; i-- )
+    {
+        if( !ui->panels[i].visible || !ui->panels[i].poppable )
+            continue;
+        if( dbg_point_in_rect(x, y, dbg_panel_popout_rect(ui, i)) )
+            return i;
+    }
+    return -1;
+}
+
+struct ToriRSChromeRect
+ToriRSChrome_PanelCloseRect(struct ToriRSChrome const* ui, int panel)
+{
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    return dbg_panel_close_rect(ui, panel);
+}
+
+struct ToriRSChromeRect
+ToriRSChrome_PanelPopOutRect(struct ToriRSChrome const* ui, int panel)
+{
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    return dbg_panel_popout_rect(ui, panel);
 }
 
 void
@@ -5382,6 +5471,43 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             }
         }
     }
+    /*
+     * Pop out, when the panel asked for it: beside the Close, from the same
+     * live box for the same reason, in the baked PopoutButton art (the close
+     * plate stamped with a north-east arrow) -- or, with no skin, the flat
+     * box the Close falls back to, carrying a small square in its top-right
+     * corner for the arrow.
+     */
+    if( p->poppable && p->title[0] )
+    {
+        struct ToriRSChromeRect live;
+        struct ToriRSChromeRect box;
+
+        live.x = p->x;
+        live.y = p->y;
+        live.w = p->w;
+        live.h = p->h;
+        box = dbg_panel_popout_box(ui, p, live);
+        if( box.w > 0 )
+        {
+            int const hot = dbg_point_in_rect(ui->hover_x, ui->hover_y, box);
+            int const slot = hot ? TORIRS_CHROME_SKIN_POPOUT_OVER : TORIRS_CHROME_SKIN_POPOUT;
+
+            if( th->skin_dropdown && dbg_skin_has(ui, slot) )
+                dbg_push_sprite_box(ui, box.x, box.y, box.w, box.h, slot, clip);
+            else
+            {
+                int const mark = box.w / 3;
+                dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->input_bg, 1, clip);
+                dbg_push_rect(ui, box.x + DBG_RULE, box.y + DBG_RULE, box.w - 2 * DBG_RULE,
+                    box.h - 2 * DBG_RULE, th->accent, 1, clip);
+                dbg_push_rect(ui, box.x + box.w - DBG_RULE - mark - DBG_RULE, box.y + 2 * DBG_RULE, mark, mark,
+                    th->input_bg, 1, clip);
+                if( hot )
+                    dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->accent, 0, clip);
+            }
+        }
+    }
     /* Bottom rule and the two side rails: inset a pixel, and running from the
      * separator down, exactly as dbg_build_menu draws them. A titleless panel
      * has no separator to start at, so its rails start at the top border
@@ -7608,6 +7734,109 @@ dbg_panel_move_to(struct ToriRSChrome* ui, int panel, int x, int y)
     dbg_dirty_panel(ui, panel);
 }
 
+/**
+ * Carry the edges ui->resize_edges names by the pointer's travel since the
+ * press, from the box the resize was taken from. The edge opposite a moved
+ * one stays put; a box at its minimum stops the moved edge rather than
+ * pushing the other. The grip's minimum is the chrome's own floor; an edge
+ * drag's is a usable panel (but never more than the box it started as).
+ */
+static void
+dbg_panel_resize_edges(struct ToriRSChrome* ui, int panel, int x, int y)
+{
+    int const e = ui->resize_edges;
+    int const dx = x - ui->resize_press_x;
+    int const dy = y - ui->resize_press_y;
+    int left = ui->resize_from_x;
+    int top = ui->resize_from_y;
+    int right = ui->resize_from_x + ui->resize_from_w;
+    int bottom = ui->resize_from_y + ui->resize_from_h;
+    int min_w = DBG_MIN_PANEL_W;
+    int min_h = DBG_MIN_PANEL_H;
+
+    if( e != (TORIRS_CHROME_EDGE_RIGHT | TORIRS_CHROME_EDGE_BOTTOM) )
+    {
+        if( min_w < DBG_PX(120) )
+            min_w = DBG_PX(120);
+        if( min_h < DBG_PX(64) )
+            min_h = DBG_PX(64);
+        if( min_w > ui->resize_from_w )
+            min_w = ui->resize_from_w;
+        if( min_h > ui->resize_from_h )
+            min_h = ui->resize_from_h;
+        if( min_w < DBG_MIN_PANEL_W )
+            min_w = DBG_MIN_PANEL_W;
+        if( min_h < DBG_MIN_PANEL_H )
+            min_h = DBG_MIN_PANEL_H;
+    }
+    if( e & TORIRS_CHROME_EDGE_LEFT )
+        left += dx;
+    if( e & TORIRS_CHROME_EDGE_RIGHT )
+        right += dx;
+    if( e & TORIRS_CHROME_EDGE_TOP )
+        top += dy;
+    if( e & TORIRS_CHROME_EDGE_BOTTOM )
+        bottom += dy;
+    if( right - left < min_w )
+    {
+        if( e & TORIRS_CHROME_EDGE_LEFT )
+            left = right - min_w;
+        else
+            right = left + min_w;
+    }
+    if( bottom - top < min_h )
+    {
+        if( e & TORIRS_CHROME_EDGE_TOP )
+            top = bottom - min_h;
+        else
+            bottom = top + min_h;
+    }
+    if( e & (TORIRS_CHROME_EDGE_LEFT | TORIRS_CHROME_EDGE_TOP) )
+        dbg_panel_move_to(ui, panel, left, top);
+    dbg_panel_resize_to(ui, panel, right, bottom);
+}
+
+int
+ToriRSChrome_PanelEdgeAt(struct ToriRSChrome const* ui, int x, int y, int* out_panel)
+{
+    assert(ui);
+    assert(out_panel);
+    *out_panel = -1;
+    for( int i = ui->panel_count - 1; i >= 0; i-- )
+    {
+        struct ToriRSChromePanel const* p = &ui->panels[i];
+        struct ToriRSChromeRect const r = p->last_rect;
+        /* The window's own border: the frame where it wears one, never less
+         * than a band a pointer can find. */
+        int band = dbg_panel_is_framed(ui, p) ? DBG_FRAME : DBG_RULE;
+        int edges = 0;
+
+        if( !p->visible || r.w <= 0 )
+            continue;
+        if( !dbg_point_in_rect(x, y, r) )
+            continue;
+        /* The topmost panel under the point owns it: a press inside it is
+         * never a resize of a window beneath. */
+        if( p->style != TORIRS_CHROME_PANEL_WINDOW || !dbg_panel_has_grip(p)
+            || p->dock != TORIRS_CHROME_DOCK_NONE || p->modal )
+            return 0;
+        if( band < DBG_PX(4) )
+            band = DBG_PX(4);
+        if( x < r.x + band )
+            edges |= TORIRS_CHROME_EDGE_LEFT;
+        else if( x >= r.x + r.w - band )
+            edges |= TORIRS_CHROME_EDGE_RIGHT;
+        if( y < r.y + band )
+            edges |= TORIRS_CHROME_EDGE_TOP;
+        else if( y >= r.y + r.h - band )
+            edges |= TORIRS_CHROME_EDGE_BOTTOM;
+        if( edges )
+            *out_panel = i;
+        return edges;
+    }
+    return 0;
+}
+
 /* ---- snapping a dropped panel ----------------------------------------------
  *
  * Runs once, on the release that ends a title drag or a grip resize: the panel
@@ -7779,6 +8008,54 @@ dbg_panel_snap_size(struct ToriRSChrome* ui, int panel)
     w = dbg_snap_axis_size(ui, panel, 1, p->x, p->x + p->fixed_w, p->y, p->fixed_h);
     h = dbg_snap_axis_size(ui, panel, 0, p->y, p->y + p->fixed_h, p->x, w);
     dbg_panel_resize_to(ui, panel, p->x + w, p->y + h);
+}
+
+/** Round `v` to the nearest multiple of `grid`. */
+static int
+dbg_round_to_grid(int v, int grid)
+{
+    return grid > 0 ? (v + grid / 2) / grid * grid : v;
+}
+
+/**
+ * Snap a released resize. The grip (RIGHT|BOTTOM) keeps the neighbour-edge
+ * and grid snap it always had; an edge or corner drag rounds each edge it
+ * MOVED to the grid and leaves the others exactly where they were, so a
+ * left-edge drag never walks the right edge.
+ */
+static void
+dbg_panel_snap_edges(struct ToriRSChrome* ui, int panel)
+{
+    struct ToriRSChromePanel const* p = &ui->panels[panel];
+    int const e = ui->resize_edges;
+    int left;
+    int top;
+    int right;
+    int bottom;
+
+    if( e == (TORIRS_CHROME_EDGE_RIGHT | TORIRS_CHROME_EDGE_BOTTOM) )
+    {
+        dbg_panel_snap_size(ui, panel);
+        return;
+    }
+    if( ui->snap_grid <= 0 || p->dock != TORIRS_CHROME_DOCK_NONE || p->fixed_w <= 0 || p->fixed_h <= 0 )
+        return;
+    left = p->x;
+    top = p->y;
+    right = p->x + p->fixed_w;
+    bottom = p->y + p->fixed_h;
+    if( e & TORIRS_CHROME_EDGE_LEFT )
+        left = dbg_round_to_grid(left, ui->snap_grid);
+    if( e & TORIRS_CHROME_EDGE_TOP )
+        top = dbg_round_to_grid(top, ui->snap_grid);
+    if( e & TORIRS_CHROME_EDGE_RIGHT )
+        right = dbg_round_to_grid(right, ui->snap_grid);
+    if( e & TORIRS_CHROME_EDGE_BOTTOM )
+        bottom = dbg_round_to_grid(bottom, ui->snap_grid);
+    if( right - left < DBG_MIN_PANEL_W || bottom - top < DBG_MIN_PANEL_H )
+        return;
+    dbg_panel_move_to(ui, panel, left, top);
+    dbg_panel_resize_to(ui, panel, right, bottom);
 }
 
 void
@@ -8142,6 +8419,16 @@ ToriRSChrome_MouseMove(struct ToriRSChrome* ui, int x, int y)
             dbg_dirty_panel(ui, panel);
         }
     }
+    {
+        int const panel = dbg_panel_popout_at(ui, x, y);
+
+        if( panel != ui->hover_popout_panel )
+        {
+            dbg_dirty_panel(ui, ui->hover_popout_panel);
+            ui->hover_popout_panel = panel;
+            dbg_dirty_panel(ui, panel);
+        }
+    }
 
     /* A panel's own grip, held for as long as the button is: same rule as the
      * dropdown's below it, and checked first for the same reason. */
@@ -8174,8 +8461,7 @@ ToriRSChrome_MouseMove(struct ToriRSChrome* ui, int x, int y)
     if( ui->resize_panel >= 0 )
     {
         if( dbg_valid_panel(ui, ui->resize_panel) )
-            dbg_panel_resize_to(
-                ui, ui->resize_panel, x - ui->resize_grab_x, y - ui->resize_grab_y);
+            dbg_panel_resize_edges(ui, ui->resize_panel, x, y);
         else
             ui->resize_panel = -1;
         return 1;
@@ -8327,7 +8613,7 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
      * at RELEASE like every other clickable thing here, so a press that slides
      * off cancels.
      */
-    if( dbg_panel_close_at(ui, x, y) >= 0 )
+    if( dbg_panel_close_at(ui, x, y) >= 0 || dbg_panel_popout_at(ui, x, y) >= 0 )
     {
         dbg_focus_release(ui);
         ui->press = -1;
@@ -8361,18 +8647,33 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
             dbg_focus_release(ui);
             return 1;
         }
+        int edge_panel = -1;
+        int edges = 0;
+
         if( grip >= 0 && ui->panels[grip].dock == TORIRS_CHROME_DOCK_NONE )
         {
-            /* Offsets from the corner being dragged, not from the origin, so
-             * the panel keeps the exact point it was picked up by instead of
-             * snapping its corner to the cursor on the first move. */
-            ui->resize_grab_x =
-                x - (ui->panels[grip].last_rect.x + ui->panels[grip].last_rect.w);
-            ui->resize_grab_y =
-                y - (ui->panels[grip].last_rect.y + ui->panels[grip].last_rect.h);
-            ui->resize_panel = grip;
-            ui->resize_from_w = ui->panels[grip].last_rect.w;
-            ui->resize_from_h = ui->panels[grip].last_rect.h;
+            edge_panel = grip;
+            edges = TORIRS_CHROME_EDGE_RIGHT | TORIRS_CHROME_EDGE_BOTTOM;
+        }
+        else if( grip < 0 )
+            edges = ToriRSChrome_PanelEdgeAt(ui, x, y, &edge_panel);
+        if( edges && edge_panel >= 0 )
+        {
+            struct ToriRSChromeRect const from = ui->panels[edge_panel].last_rect;
+            /* The box it was taken from and where the pointer took it: each
+             * moved edge then follows the pointer's TRAVEL, so the panel keeps
+             * the exact point it was picked up by instead of snapping an edge
+             * to the cursor on the first move. */
+            ui->resize_grab_x = x - (from.x + from.w);
+            ui->resize_grab_y = y - (from.y + from.h);
+            ui->resize_panel = edge_panel;
+            ui->resize_edges = edges;
+            ui->resize_press_x = x;
+            ui->resize_press_y = y;
+            ui->resize_from_x = from.x;
+            ui->resize_from_y = from.y;
+            ui->resize_from_w = from.w;
+            ui->resize_from_h = from.h;
             ui->press = -1;
             dbg_focus_release(ui);
             return 1;
@@ -8534,6 +8835,16 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
             return 1;
         }
     }
+    /* A poppable panel's Pop out: latched for the host, nothing hidden. */
+    {
+        int const panel = dbg_panel_popout_at(ui, x, y);
+        if( panel >= 0 && !dbg_modal_blocks(ui, x, y) )
+        {
+            ui->popout_requested = panel;
+            ui->press = -1;
+            return 1;
+        }
+    }
 
     /* The release that ends a bar sweep. It reports the change through the
      * ordinary activation latch -- exactly as choosing a dropdown row does --
@@ -8572,10 +8883,10 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
         if( dbg_valid_panel(ui, ui->resize_panel) )
         {
             struct ToriRSChromePanel* p = &ui->panels[ui->resize_panel];
-            dbg_panel_resize_to(
-                ui, ui->resize_panel, x - ui->resize_grab_x, y - ui->resize_grab_y);
-            dbg_panel_snap_size(ui, ui->resize_panel);
-            if( p->fixed_w != ui->resize_from_w || p->fixed_h != ui->resize_from_h )
+            dbg_panel_resize_edges(ui, ui->resize_panel, x, y);
+            dbg_panel_snap_edges(ui, ui->resize_panel);
+            if( p->fixed_w != ui->resize_from_w || p->fixed_h != ui->resize_from_h
+                || p->x != ui->resize_from_x || p->y != ui->resize_from_y )
                 p->user_placed = 1;
         }
         ui->resize_panel = -1;

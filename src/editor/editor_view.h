@@ -169,6 +169,12 @@ struct EditorView
     uint32_t layers;
     /** Frame the Client's selection when it changes. */
     int follow_selection;
+    /** STATE facts still to come from the boot's STATE_SYNC replay
+     *  (EditorView_ExpectSync). While nonzero, a STATE_EDIT_LEVEL is adopted
+     *  as the level cap: a new view starts at the level its Client has
+     *  pinned (a popped-out World looks at the main window's pinned level),
+     *  then keeps its own cap. */
+    int sync_pending;
 
     /** Publish this view's camera under its key. */
     int broadcast;
@@ -216,6 +222,14 @@ EditorView_OnState(
     struct EditorView* view,
     uint32_t key,
     const int32_t* values,
+    int count);
+
+/** The host asked the server to replay this Client's state (STATE_SYNC) and
+ *  `count` facts are coming: the level the Client has pinned among them
+ *  becomes this view's cap. */
+void
+EditorView_ExpectSync(
+    struct EditorView* view,
     int count);
 
 /** The host's camera moved (input, flight): record the pose. Marks it for
@@ -338,13 +352,16 @@ EditorView_ToolbarActivate(
     int widget);
 
 /** The launch service's `view` body (platform/launch_sessions.h): the
- *  `maped=`, `group=` and `camera=` lines, into `out`. Returns its length,
- *  or -1 when it does not fit. */
+ *  `maped=`, `group=` and `camera=` lines, and `panel=` when `panel` names a
+ *  module other than "world" (a popped-out panel window), into `out`.
+ *  `panel` NULL = the 3D view. Returns its length, or -1 when it does not
+ *  fit. */
 int
 EditorView_SpawnBody(
     const char* maped_url,
     uint32_t group,
     const struct EditorViewCamera* camera,
+    const char* panel,
     char* out,
     int out_size);
 
@@ -359,6 +376,17 @@ EditorView_SetBootCamera(const struct EditorViewCamera* camera);
 /** 1 and `out` when a boot pose was set. */
 int
 EditorView_BootCamera(struct EditorViewCamera* out);
+
+/** The editor panel module (EditorUiPanel::name) the command line
+ *  (`--editor-panel`) asked this viewer process to show ALONE, filling the
+ *  window -- a popped-out panel. "world" or NULL = the 3D view (today's
+ *  viewer). main.c sets it before App_Init; the name is copied. */
+void
+EditorView_SetBootPanel(const char* module);
+
+/** The boot panel, or NULL for the 3D view. Never "world". */
+const char*
+EditorView_BootPanel(void);
 
 
 #endif

@@ -392,8 +392,10 @@ dbg_graph_hash(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w
     for( int i = 0; i < w->graph_count; i++ )
     {
         struct ToriRSChromeGraphItem const* it = &ui->graph_items[w->graph_first + i];
-        int const fields[7] = { it->kind, it->x, it->y, it->w, it->h, (int)it->color, it->key };
-        for( int f = 0; f < 7; f++ )
+        int const fields[8] = {
+            it->kind, it->x, it->y, it->w, it->h, (int)it->color, it->key, it->scene_id
+        };
+        for( int f = 0; f < 8; f++ )
         {
             hash ^= (uint64_t)(uint32_t)fields[f];
             hash *= 1099511628211ull;
@@ -1355,6 +1357,28 @@ ToriRSChrome_GraphText(
     return 1;
 }
 
+int
+ToriRSChrome_GraphImage(
+    struct ToriRSChrome* ui, int widget, int x, int y, int w, int h, int scene_id)
+{
+    struct ToriRSChromeGraphItem* it;
+
+    assert(ui);
+    assert(scene_id > 0);
+    if( ui->graph_building != widget )
+        return 0;
+    it = dbg_graph_append(ui, widget);
+    if( !it )
+        return 0;
+    it->kind = TORIRS_CHROME_GRAPH_IMAGE;
+    it->x = x;
+    it->y = y;
+    it->w = w;
+    it->h = h;
+    it->scene_id = scene_id;
+    return 1;
+}
+
 void
 ToriRSChrome_GraphEnd(struct ToriRSChrome* ui, int widget)
 {
@@ -2182,6 +2206,26 @@ dbg_draw_graph(
             if( it->text[0] )
                 dbg_push_text(ui, x, y, it->text, it->color, ui->theme.font_row, 0, visible);
             break;
+        case TORIRS_CHROME_GRAPH_IMAGE:
+        {
+            struct ToriRSChromePrim* p;
+            if( x + it->w * s <= visible.x || y + it->h * s <= visible.y ||
+                x >= visible.x + visible.w || y >= visible.y + visible.h || it->w <= 0 || it->h <= 0 )
+                break;
+            /* Clipped to the visible well, as MODELVIEW's preview: the
+             * picture may start left of or above the well. */
+            p = dbg_prim_push(ui);
+            if( !p )
+                break;
+            p->kind = TORIRS_CHROME_PRIM_SPRITE;
+            p->x = x;
+            p->y = y;
+            p->w = it->w * s;
+            p->h = it->h * s;
+            p->sprite_scene_id = it->scene_id;
+            p->clip = visible;
+            break;
+        }
         default:
             break;
         }

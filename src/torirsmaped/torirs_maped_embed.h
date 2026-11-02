@@ -88,6 +88,14 @@ ToriRSMapEd_EmbedPending(
     const struct ToriRSMapEdEmbed* embed,
     int client_id);
 
+struct ToriRSMapEd;
+
+/** The server itself, for a host that serves it on another transport too
+ *  (the loopback listener, torirs_maped_net.h). Every call on it from the
+ *  embed's one thread. */
+struct ToriRSMapEd*
+ToriRSMapEd_EmbedServer(struct ToriRSMapEdEmbed* embed);
+
 /** Let the server act on whatever every client wrote. Returns the number of
  *  sessions still alive. */
 int

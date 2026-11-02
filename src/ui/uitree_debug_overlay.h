@@ -1090,6 +1090,14 @@ enum ToriRSChromeGraphItemKind
     TORIRS_CHROME_GRAPH_RECT_OUTLINE,
     TORIRS_CHROME_GRAPH_LINE,
     TORIRS_CHROME_GRAPH_TEXT,
+    /**
+     * A host-rendered picture stretched over the box: `scene_id` names a
+     * scene sprite the host registered (the square picker's world map). The
+     * chrome stays a non-rasteriser, as with MODELVIEW: it emits a SPRITE
+     * prim carrying the id. Never hit-tested. The DOM executor receives the
+     * id in the item's value and, having no pixels for it, draws nothing.
+     */
+    TORIRS_CHROME_GRAPH_IMAGE,
 };
 
 /** One drawn item of a GRAPH well, in well-local logical pixels. */
@@ -1105,6 +1113,8 @@ struct ToriRSChromeGraphItem
     uint32_t color;
     /** Hit key of a rect, 0 for none. Topmost (last listed) keyed rect wins. */
     int key;
+    /** IMAGE: the scene sprite drawn into the box. */
+    int scene_id;
     char text[TORIRS_CHROME_GRAPH_TEXT_MAX];
 };
 
@@ -1299,6 +1309,15 @@ struct ToriRSChromeWidget
     int truncation_logged;
 };
 
+/** The edges a panel resize moves (ToriRSChrome::resize_edges). */
+enum
+{
+    TORIRS_CHROME_EDGE_LEFT = 1,
+    TORIRS_CHROME_EDGE_TOP = 2,
+    TORIRS_CHROME_EDGE_RIGHT = 4,
+    TORIRS_CHROME_EDGE_BOTTOM = 8,
+};
+
 struct ToriRSChromePanel
 {
     int style;
@@ -1322,6 +1341,16 @@ struct ToriRSChromePanel
      * as rows, where they are labelled and can be found.
      */
     int closable;
+    /**
+     * The panel carries a Pop out button in its title bar, just left of its
+     * Close (or at the right end when it has none). OPT-IN like `closable`.
+     *
+     * Pressing it does NOT hide the panel: what popping out means is the
+     * host's business (the map editor opens the panel in a window of its
+     * own and hides it here only once that window was asked for), so the
+     * press is latched for ToriRSChrome_TakePopOut and nothing else.
+     */
+    int poppable;
     /**
      * Draw a resize grip in the bottom-right corner and let it be dragged.
      *
@@ -1648,6 +1677,17 @@ struct ToriRSChrome
     /** The resized panel's box when the grip was taken (see drag_from_x). */
     int resize_from_w;
     int resize_from_h;
+    /**
+     * Which edges the resize moves (TORIRS_CHROME_EDGE_* bits): RIGHT|BOTTOM
+     * for the grip, any edge or corner for a press on a resizable window's
+     * border band. The new box is the box it was taken from (resize_from_*)
+     * with each moved edge carried by the pointer's travel from the press.
+     */
+    int resize_edges;
+    int resize_press_x;
+    int resize_press_y;
+    int resize_from_x;
+    int resize_from_y;
 
     /** Widget handles, -1 for none. */
     int focus;
@@ -1674,6 +1714,12 @@ struct ToriRSChrome
      * dirtied.
      */
     int hover_close_panel;
+    /** The panel whose Pop out button is under the cursor, or -1 (held for
+     *  the reason hover_close_panel is). */
+    int hover_popout_panel;
+    /** A poppable panel's Pop out was clicked: latched at release, drained by
+     *  ToriRSChrome_TakePopOut. -1 = none. */
+    int popout_requested;
     /** Latched by input, drained by ToriRSChrome_TakeActivated. -1 = none. */
     int activated;
     /** Set beside `activated` when a LISTROW's ACTION zone was what fired it,
@@ -1973,6 +2019,33 @@ ToriRSChrome_PanelSetFramed(struct ToriRSChrome* ui, int panel, int framed);
  */
 void
 ToriRSChrome_PanelSetClosable(struct ToriRSChrome* ui, int panel, int closable);
+
+/**
+ * Give a panel a Pop out button in its title bar, left of its Close: a click
+ * latches the panel for ToriRSChrome_TakePopOut and does nothing else (the
+ * host decides what popping out is). Opt-in.
+ */
+void
+ToriRSChrome_PanelSetPoppable(struct ToriRSChrome* ui, int panel, int poppable);
+
+/** The panel whose Pop out was clicked since the last call, or -1. */
+int
+ToriRSChrome_TakePopOut(struct ToriRSChrome* ui);
+
+/** Screen boxes of a panel's title-bar Close and Pop out buttons, as last
+ *  drawn (zero rects when it has none or was never built): what a test or a
+ *  driver presses. */
+struct ToriRSChromeRect
+ToriRSChrome_PanelCloseRect(struct ToriRSChrome const* ui, int panel);
+
+struct ToriRSChromeRect
+ToriRSChrome_PanelPopOutRect(struct ToriRSChrome const* ui, int panel);
+
+/** The edges a press at (x, y) would resize (TORIRS_CHROME_EDGE_* bits) and
+ *  which panel, or 0: the border band of a visible, resizable, floating
+ *  WINDOW, topmost first. The grip's corner is RIGHT|BOTTOM. */
+int
+ToriRSChrome_PanelEdgeAt(struct ToriRSChrome const* ui, int x, int y, int* out_panel);
 
 /**
  * Set a panel's hand-picked width, or 0 to go back to sizing from content.
@@ -2892,6 +2965,12 @@ ToriRSChrome_GraphLine(
 int
 ToriRSChrome_GraphText(
     struct ToriRSChrome* ui, int widget, int x, int baseline, uint32_t color, char const* text);
+/** A scene sprite the host rendered, stretched over (x, y, w, h). A new
+ *  picture under the same id is not noticed (the item hash holds the id):
+ *  alternate two ids. */
+int
+ToriRSChrome_GraphImage(
+    struct ToriRSChrome* ui, int widget, int x, int y, int w, int h, int scene_id);
 void
 ToriRSChrome_GraphEnd(struct ToriRSChrome* ui, int widget);
 /** Topmost keyed rect under well-local (x, y), 0 for none. */

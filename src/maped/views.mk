@@ -18,6 +18,11 @@ MAPED_CLIENT_SRCS += app/app_editor_view.c
 # The daemon binds SPAWN_VIEW to the launch service's `view` verb. The client
 # already links launch_sessions.c (src/makefile SRCS).
 MAPED_SERVER_SRCS += platform/launch_sessions.c
+# The loopback front door (listening socket + per-connection transport): the
+# daemon's reactor, and the embedded server's on-demand socket that a
+# popped-out panel window dials (torirs_maped_net.h).
+MAPED_SERVER_SRCS += torirsmaped/torirs_maped_net.c
+MAPED_CLIENT_SRCS += torirsmaped/torirs_maped_net.c
 
 # Three connections on one embedded ToriRSMapEd, each a real client session
 # (struct Editor) with its own EditorView: one stroke, three byte-identical

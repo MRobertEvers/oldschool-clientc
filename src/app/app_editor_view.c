@@ -10,7 +10,10 @@
  */
 
 #include "app/app_internal.h"
+#include "editor/editor_host.h"
+#include "editor/editor_ui.h"
 #include "editor/editor_view.h"
+#include "torirsmaped/torirs_maped_net.h"
 #include "asyncio.h"
 #include "bootmanifest/bootmanifest.h"
 #include "log/torirs_log.h"
@@ -18,6 +21,9 @@
 #include "plugin/task_plugin_io.h"
 #include "world/world.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #if defined(__EMSCRIPTEN__)
@@ -42,6 +48,10 @@ static struct EditorViewCamera g_pending_camera;
  *  that, the view's pose stands as adopted rather than being re-derived from
  *  the eye (which, on a slope, would come back a few units off and make two
  *  views following each other drift). */
+/** The embedded ToriRSMapEd's loopback door (server=embed): opened by the
+ *  first pop-out, polled every frame, closed before the session. NULL until
+ *  then, and always NULL in a process whose server is a daemon. */
+static struct ToriRSMapEdListener* g_embed_listener;
 static int g_applied_valid;
 static struct ToriDraw_Position g_applied_eye;
 static int g_applied_yaw;
@@ -174,8 +184,49 @@ EditorView_AppBoot(struct App* app)
 
     EditorView_Init(&g_app_view, app->editor);
     g_app_view_live = 1;
-    EditorView_ToolbarBuild(&g_app_view, &app->dbg_ui);
+    /* Photographs of popped-out windows: a window inherits its leader's
+     * environment, TORIRS_PRESENT_BMP included, so each takes its own file
+     * under TORIRS_EDITOR_VIEW_BMP=<dir>[@<frame>] instead. */
+    {
+        char const* dir = getenv("TORIRS_EDITOR_VIEW_BMP");
+        if( dir && dir[0] )
+        {
+            char path[512];
+            char frame[16];
+            int const dir_len = (int)strcspn(dir, "@");
+            snprintf(path, sizeof(path), "%.*s/view_%s.bmp", dir_len, dir,
+                EditorView_BootPanel() ? EditorView_BootPanel() : "world");
+            setenv("TORIRS_PRESENT_BMP", path, 1);
+            snprintf(frame, sizeof(frame), "%d", dir[dir_len] == '@' ? atoi(dir + dir_len + 1) : 400);
+            setenv("TORIRS_PRESENT_BMP_FRAME", frame, 1);
+        }
+    }
+    if( EditorView_BootPanel() )
+    {
+        /* A popped-out panel: the command panels shown, every one but this
+         * one hidden by the solo layout, no world drawn (World is hidden),
+         * no thin toolbar (it steers a 3D view this window does not show). */
+        const char* const module = EditorView_BootPanel();
+        assert(app->editor_panel.built);
+        Editor_PanelSetVisible(&app->editor_panel, &app->dbg_ui, 1);
+        if( !Editor_UiSetSolo(app->editor_panel.ui, module) )
+            TORIRS_REPORT("editor view: there is no panel '%s' to show; showing the panels\n", module);
+        else
+            TORIRS_REPORT("editor view: a popped-out %s panel of Client %u\n", module,
+                Editor_HostMapEdClientId(&app->editor->host));
+    }
+    else
+        EditorView_ToolbarBuild(&g_app_view, &app->dbg_ui);
     EditorView_AskSelf(&g_app_view);
+    /* The Client's state as it stands (selection, tool, the pinned level):
+     * a window that joins late starts where the others are, and a view
+     * takes the pinned level as its cap. */
+    if( Editor_HostIsMapEd(&app->editor->host) )
+    {
+        int const replayed = Editor_HostMapEdStateSync(&app->editor->host);
+        if( replayed > 0 )
+            EditorView_ExpectSync(&g_app_view, replayed);
+    }
 
     boot_set = EditorView_BootCamera(&boot);
     if( boot_set )
@@ -212,14 +263,98 @@ EditorView_AppActivate(
     return action != EDITOR_VIEW_ACTION_NONE;
 }
 
+/* ---- headless drivers for photographs ------------------------------------
+ *
+ *   TORIRS_EDITOR_RESIZE=<module>,<l|r|t|b>,<dx>,<dy>[@<frame>]
+ *       at main-loop editor frame <frame> (default 200) press the named
+ *       panel's border on that edge, move by (dx, dy), release: a real chrome
+ *       edge resize.
+ *   TORIRS_EDITOR_POPOUT=<module>[,<module>...][@<frame>]
+ *       at frame <frame> (default 300) pop each named panel out
+ *       (Editor_UiPanelPopOut), exactly as its title-bar button does.
+ *
+ * One shot each, main window only (a popped-out window ignores them). */
+static int g_drive_frame;
+
+static int
+view_drive_at(
+    const char* spec,
+    int fallback)
+{
+    char const* at = strchr(spec, '@');
+    return at ? atoi(at + 1) : fallback;
+}
+
+static void
+view_drive(struct App* app)
+{
+    char const* resize = getenv("TORIRS_EDITOR_RESIZE");
+    char const* popout = getenv("TORIRS_EDITOR_POPOUT");
+    struct EditorUi* ui = app->editor_panel.ui;
+
+    g_drive_frame++;
+    if( !ui || !app->editor_panel.visible )
+        return;
+    if( resize && resize[0] && g_drive_frame == view_drive_at(resize, 200) )
+    {
+        char module[32] = { 0 };
+        char edge = 0;
+        int dx = 0;
+        int dy = 0;
+        struct EditorUiPanel* panel;
+        if( sscanf(resize, "%31[a-z0-9_],%c,%d,%d", module, &edge, &dx, &dy) == 4
+            && (panel = Editor_UiFindPanel(ui, module)) && panel->chrome_panel >= 0 )
+        {
+            struct ToriRSChromeRect const r = app->dbg_ui.panels[panel->chrome_panel].last_rect;
+            int x = r.x + r.w / 2;
+            int y = r.y + r.h / 2;
+            if( edge == 'l' )
+                x = r.x + 1;
+            else if( edge == 'r' )
+                x = r.x + r.w - 2;
+            else if( edge == 't' )
+                y = r.y + 1;
+            else
+                y = r.y + r.h - 2;
+            ToriRSChrome_MouseMove(&app->dbg_ui, x, y);
+            ToriRSChrome_MouseDown(&app->dbg_ui, x, y);
+            ToriRSChrome_MouseMove(&app->dbg_ui, x + dx, y + dy);
+            ToriRSChrome_MouseUp(&app->dbg_ui, x + dx, y + dy);
+            TORIRS_REPORT("editor: TORIRS_EDITOR_RESIZE %s edge %c by %d,%d: box %d,%d %dx%d -> %d,%d %dx%d\n",
+                module, edge, dx, dy, r.x, r.y, r.w, r.h, app->dbg_ui.panels[panel->chrome_panel].x,
+                app->dbg_ui.panels[panel->chrome_panel].y, app->dbg_ui.panels[panel->chrome_panel].fixed_w,
+                app->dbg_ui.panels[panel->chrome_panel].fixed_h);
+        }
+        else
+            TORIRS_REPORT("editor: TORIRS_EDITOR_RESIZE '%s' names no panel edge\n", resize);
+    }
+    if( popout && popout[0] && g_drive_frame == view_drive_at(popout, 300) )
+    {
+        char list[128];
+        snprintf(list, sizeof(list), "%.*s", (int)strcspn(popout, "@"), popout);
+        for( char* module = strtok(list, ","); module; module = strtok(NULL, ",") )
+            (void)Editor_UiPanelPopOut(ui, module);
+    }
+}
+
 void
 EditorView_AppFrame(struct App* app)
 {
     struct EditorViewCamera pose;
 
     assert(app);
+    /* The embedded server's loopback door: popped-out windows' requests and
+     * their broadcasts, a few rounds a frame so a window's boot (one
+     * synchronous request after another) is not one round trip per frame. */
+    if( g_embed_listener )
+        for( int round = 0; round < 4; round++ )
+            if( ToriRSMapEd_ListenerPoll(g_embed_listener, 0) <= 0 )
+                break;
     if( !g_app_view_live )
+    {
+        view_drive(app);
         return;
+    }
 
     /* The frame's one activation is ours while the panels are hidden; once
      * they show, their dispatcher drains it and offers it back. */
@@ -273,7 +408,7 @@ EditorView_AppOnState(
     if( !g_app_view_live )
         return 0;
     consumed = EditorView_OnState(&g_app_view, key, values, count);
-    if( consumed )
+    if( (consumed || key == TORIRSMAPED_STATE_EDIT_LEVEL) && !EditorView_BootPanel() )
         EditorView_ToolbarRefresh(&g_app_view, &app->dbg_ui);
     return consumed;
 }
@@ -291,11 +426,14 @@ EditorView_AppLevelMask(const struct App* app)
 #if defined(__EMSCRIPTEN__)
 /* torirs_host.js's torirsSpawnEditorView: the page knows its own maped URL,
  * manifest and servers, and is the only thing that may open a tab. `maped` is
- * this boot's own address, for a page that was not given one. */
-EM_JS(int, editor_view_web_spawn, (const char* camera, unsigned group, const char* maped), {
+ * this boot's own address, for a page that was not given one; `panel` the
+ * popped-out module ("" = the 3D view). */
+EM_JS(int, editor_view_web_spawn, (const char* camera, unsigned group, const char* maped, const char* panel), {
     if( typeof window.torirsSpawnEditorView !== 'function' )
         return 0;
-    return window.torirsSpawnEditorView(UTF8ToString(camera), group, UTF8ToString(maped)) ? 1 : 0;
+    return window.torirsSpawnEditorView(UTF8ToString(camera), group, UTF8ToString(maped), UTF8ToString(panel))
+               ? 1
+               : 0;
 });
 #endif
 
@@ -317,30 +455,94 @@ view_spawn_delivered(
         TORIRS_LOG("editor view: no launch service answered %s\n", path);
         return;
     }
-    TORIRS_LOG("editor view: %.*s", size, (const char*)data);
+    TORIRS_REPORT("editor view: %.*s", size, (const char*)data);
     ToriMem_Free(ToriMem_Net(), data);
+}
+
+/**
+ * The port a second process dials to join this session: the daemon's under
+ * server=tcp; under server=embed the embedded server's own loopback door,
+ * opened here the first time (an ephemeral 127.0.0.1 port, so it never
+ * contends with a daemon on the manifest's port). 0 with the reason.
+ */
+static int
+view_session_port(
+    struct App* app,
+    char* why,
+    int why_size)
+{
+    struct ToriRSMapEd* server;
+
+    if( app->cfg.editor_server == BOOTMANIFEST_EDITOR_SERVER_TCP )
+        return app->cfg.editor_server_port > 0 ? app->cfg.editor_server_port : TORIRSMAPED_DEFAULT_PORT;
+    if( g_embed_listener )
+        return ToriRSMapEd_ListenerPort(g_embed_listener);
+    server = Editor_HostIsMapEd(&app->editor->host) ? Editor_HostMapEdEmbedServer(&app->editor->host) : NULL;
+    if( !server )
+    {
+        snprintf(why, (size_t)why_size, "this session has no ToriRSMapEd server another window could join");
+        return 0;
+    }
+    g_embed_listener = ToriRSMapEd_ListenerOpen(server, 0, "editor: embedded maped");
+    if( !g_embed_listener )
+    {
+        snprintf(why, (size_t)why_size,
+            "the embedded ToriRSMapEd could not open a loopback socket (see the log); "
+            "run osrs241-mapeditor-tcp to pop panels out");
+        return 0;
+    }
+    TORIRS_REPORT("editor: the embedded ToriRSMapEd now also listens on 127.0.0.1:%d for popped-out windows\n",
+        ToriRSMapEd_ListenerPort(g_embed_listener));
+    return ToriRSMapEd_ListenerPort(g_embed_listener);
 }
 #endif
 
 int
-EditorView_AppSpawn(
+EditorView_AppSpawnModule(
     struct App* app,
-    const struct EditorViewCamera* camera)
+    const char* module,
+    const struct EditorViewCamera* camera,
+    char* why,
+    int why_size)
 {
     uint32_t group;
+    int const is_world = strcmp(module, "world") == 0;
+    struct EditorViewCamera pose;
 
     assert(app);
-    assert(camera);
+    assert(module);
+    assert(why);
+    assert(why_size > 0);
     assert(app->editor);
 
+    why[0] = '\0';
     group = Editor_HostMapEdClientId(&app->editor->host);
+    /* No camera (a window with no world yet): the default orbit over the
+     * boot square, so the window still loads somewhere sensible. */
+    if( camera )
+        pose = *camera;
+    else
+    {
+        memset(&pose, 0, sizeof(pose));
+        pose.x = (app->cfg.spawn_x * 64 + 32) * 128;
+        pose.z = (app->cfg.spawn_z * 64 + 32) * 128;
+        pose.pitch = 383;
+        pose.zoom = 2600;
+    }
 #if defined(__EMSCRIPTEN__)
     {
         int32_t values[TORIRSMAPED_CAMERA_VALUES];
-        char pose[96];
+        char text[96];
         char maped[192];
-        EditorView_CameraToValues(camera, values);
-        ToriRSMapEd_CameraFormat(values, pose, sizeof(pose));
+        if( app->cfg.editor_server != BOOTMANIFEST_EDITOR_SERVER_TCP )
+        {
+            snprintf(why, (size_t)why_size,
+                "a browser tab cannot reach the ToriRSMapEd embedded in this page; "
+                "boot the page against a torirsmaped daemon (maped=) to pop panels out");
+            return 0;
+        }
+        EditorView_CameraToValues(&pose, values);
+        ToriRSMapEd_CameraFormat(values, text, sizeof(text));
         snprintf(maped,
             sizeof(maped),
             "ws://%s:%d",
@@ -349,9 +551,9 @@ EditorView_AppSpawn(
                 : "localhost",
             app->cfg.editor_server_port > 0 ? app->cfg.editor_server_port
                                             : TORIRSMAPED_DEFAULT_PORT);
-        if( !editor_view_web_spawn(pose, group, maped) )
+        if( !editor_view_web_spawn(text, group, maped, is_world ? "" : module) )
         {
-            TORIRS_LOG("editor view: the page could not open a view tab (allow popups)\n");
+            snprintf(why, (size_t)why_size, "the page could not open a tab (allow popups for this site)");
             return 0;
         }
         return 1;
@@ -361,48 +563,105 @@ EditorView_AppSpawn(
         char url[192];
         char body[512];
         int length;
+        int port;
         static int serial;
 
-        /* A server with a SPAWN_VIEW binding starts the view on ITS host, with
-         * its own binary and manifest -- the only way a remote daemon's view
-         * can join it, and as good as the local launch for one beside us. */
-        if( app->editor->capabilities & TORIRSMAPED_CAP_SPAWN_VIEW )
+        /* A server with a SPAWN_VIEW binding starts the 3D view on ITS host,
+         * with its own binary and manifest -- the only way a remote daemon's
+         * view can join it, and as good as the local launch for one beside
+         * us. SPAWN_VIEW carries a camera and no panel, so a panel window is
+         * always this host's own launch. */
+        if( is_world && (app->editor->capabilities & TORIRSMAPED_CAP_SPAWN_VIEW) )
         {
             int32_t values[TORIRSMAPED_CAMERA_VALUES];
             int pid = 0;
             enum EditorHost_Status status;
-            EditorView_CameraToValues(camera, values);
+            EditorView_CameraToValues(&pose, values);
             status = Editor_HostMapEdSpawnView(&app->editor->host, values, &pid);
             if( status == EDITOR_HOST_OK )
             {
-                TORIRS_LOG("editor view: the server started a view (pid %d)\n", pid);
+                TORIRS_REPORT("editor view: the server started a view (pid %d)\n", pid);
                 return 1;
             }
-            TORIRS_LOG("editor view: the server refused SPAWN_VIEW (status %d)\n", (int)status);
+            snprintf(why, (size_t)why_size, "the server refused SPAWN_VIEW (status %d)", (int)status);
             return 0;
         }
-        if( app->cfg.editor_server != BOOTMANIFEST_EDITOR_SERVER_TCP )
-        {
-            TORIRS_LOG("editor view: a new view is a second process, and this session's "
-                       "ToriRSMapEd is embedded in this one with no socket to reach it -- "
-                       "run the torirsmaped daemon ([editor:boot] server=tcp) to open views\n");
+        port = view_session_port(app, why, why_size);
+        if( port <= 0 )
             return 0;
-        }
         snprintf(url,
             sizeof(url),
             "tcp://%s:%d",
-            app->cfg.editor_server_host && app->cfg.editor_server_host[0]
+            app->cfg.editor_server == BOOTMANIFEST_EDITOR_SERVER_TCP && app->cfg.editor_server_host
+                    && app->cfg.editor_server_host[0]
                 ? app->cfg.editor_server_host
                 : "127.0.0.1",
-            app->cfg.editor_server_port > 0 ? app->cfg.editor_server_port
-                                            : TORIRSMAPED_DEFAULT_PORT);
-        length = EditorView_SpawnBody(url, group, camera, body, (int)sizeof(body));
+            port);
+        length = EditorView_SpawnBody(url, group, &pose, is_world ? NULL : module, body, (int)sizeof(body));
         assert(length > 0);
         ToriRS_TaskQueue_Add(app->runner.queue,
             CreateTask_PluginLaunch("view", body, length, ++serial, view_spawn_delivered, NULL));
         return 1;
     }
 #endif
+}
+
+int
+EditorView_AppSpawn(
+    struct App* app,
+    const struct EditorViewCamera* camera)
+{
+    char why[192];
+
+    assert(app);
+    assert(camera);
+    if( EditorView_AppSpawnModule(app, "world", camera, why, (int)sizeof(why)) )
+        return 1;
+    TORIRS_REPORT("editor view: %s\n", why);
+    return 0;
+}
+
+int
+EditorView_AppWorldCamera(
+    void* user_data,
+    int level,
+    struct EditorViewCamera* out)
+{
+    struct App* app = user_data;
+    struct EditorViewCamera previous;
+
+    assert(app);
+    assert(out);
+    assert(level >= 0 && level <= 3);
+    if( !app->world || !app->frame_view )
+        return 0;
+    memset(&previous, 0, sizeof(previous));
+    previous.level = level;
+    previous.zoom = 1200;
+    return view_read_from_app(app, &previous, out);
+}
+
+int
+EditorView_AppSpawnPanel(
+    void* user_data,
+    const char* module,
+    const struct EditorViewCamera* camera,
+    char* why,
+    int why_size)
+{
+    struct App* app = user_data;
+
+    assert(app);
+    return EditorView_AppSpawnModule(app, module, camera, why, why_size);
+}
+
+void
+EditorView_AppShutdown(struct App* app)
+{
+    assert(app);
+    (void)app; /* one listener per process, like the view */
+    ToriRSMapEd_ListenerClose(g_embed_listener);
+    g_embed_listener = NULL;
 }
 
 #if defined(__EMSCRIPTEN__)

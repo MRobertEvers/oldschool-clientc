@@ -341,6 +341,18 @@ Editor_HostOpenMapEdEmbedPeer(
     int role,
     int join_group);
 
+struct ToriRSMapEd;
+
+/**
+ * The server an embedded MapEd host runs in THIS process (server=embed, the
+ * host Editor_HostOpenMapEdEmbed opened or a peer of it), or NULL for a
+ * connection to a daemon. What the client's on-demand loopback listener
+ * serves (torirsmaped/torirs_maped_net.h), so a second process can join an
+ * embedded session. Asserts the host is a MapEd binding.
+ */
+struct ToriRSMapEd*
+Editor_HostMapEdEmbedServer(const struct EditorHost* host);
+
 /* ---- the document and state layer ----------------------------------------
  *
  * Only a MapEd binding offers these — the authoritative document lives in

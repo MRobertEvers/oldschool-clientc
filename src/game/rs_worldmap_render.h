@@ -2,6 +2,7 @@
 #define RS_WORLDMAP_RENDER_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 struct CacheProvider;
 struct ToriDraw_Scene;
@@ -34,6 +35,15 @@ RS_WorldMapRender_Free(struct RS_WorldMapRender* render);
  *  budget that keeps a zoom-out from stalling the client. */
 void
 RS_WorldMapRender_BeginFrame(struct RS_WorldMapRender* render);
+
+/** Bakes and asset loads one frame may start: 6 and 24 unless set. An owner
+ *  that bakes at one pixel per tile (the editor's overview,
+ *  rs_worldmap_overview.h) can afford far more of both. */
+void
+RS_WorldMapRender_SetFrameBudget(
+    struct RS_WorldMapRender* render,
+    int bakes_per_frame,
+    int loads_per_frame);
 
 /** Scene id of the "mapscene" sprite pack, from the app's bridge: the landmark
  *  icons (trees, rocks, altars, piers) baked into each region. */
@@ -95,5 +105,31 @@ RS_WorldMapRender_RegionIcons(
     struct RS_WorldMapRender* render,
     int scene_id,
     struct RS_WorldMapRegionIcon const** out_icons);
+
+/**
+ * Bake one map surface region into the caller's buffer instead of a scene
+ * sprite: (64 * pixels_per_tile) squared ARGB pixels, north up, the same
+ * picture RegionSprite draws minus the icons. The same loads, waits and frame
+ * budget as RegionSprite (one request table), so the region's geography is
+ * queued once and asked again only after the retry window.
+ *
+ * Returns 1 when `out_pixels` holds the bake (`*out_complete` false when the
+ * floors or locs it waited on never all arrived -- bake it again later for
+ * the rest), 0 when it is not ready yet (its loads queued onto `queue`; ask
+ * again on a later frame), -1 when the area has no such region.
+ * `pixels_per_tile` is 1..8 (asserted).
+ */
+int
+RS_WorldMapRender_RegionPixels(
+    struct RS_WorldMapRender* render,
+    struct CacheProvider* provider,
+    struct ToriDraw_Scene* scene,
+    struct ToriRS_TaskQueue* queue,
+    struct ToriRS_WorldMapArea const* area,
+    int region_x,
+    int region_y,
+    int pixels_per_tile,
+    uint32_t* out_pixels,
+    bool* out_complete);
 
 #endif /* RS_WORLDMAP_RENDER_H */

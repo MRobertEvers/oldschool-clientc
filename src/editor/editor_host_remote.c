@@ -953,6 +953,20 @@ Editor_HostOpenMapEdEmbedPeer(
 
 #endif /* !TORIRS_MAPED_NO_EMBED */
 
+struct ToriRSMapEd*
+Editor_HostMapEdEmbedServer(const struct EditorHost* host)
+{
+    struct maped_remote* remote = as_remote(host);
+
+#if !defined(TORIRS_MAPED_NO_EMBED)
+    if( remote->embed )
+        return ToriRSMapEd_EmbedServer(remote->embed);
+#else
+    (void)remote;
+#endif
+    return NULL;
+}
+
 int
 Editor_HostOpenMapEdTcp(
     struct EditorHost* host,

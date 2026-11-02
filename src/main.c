@@ -7130,6 +7130,22 @@ main_parse_argument_layer(
             cfg.editor_panel = BOOTMANIFEST_EDITOR_PANEL_VIEW;
             continue;
         }
+        /* A popped-out editor panel: a viewer that shows ONE panel module
+         * filling the window (editor/editor_view.h EditorView_BootPanel). */
+        if( strcmp(argv[argi], "--editor-panel") == 0 && argi + 1 < argc )
+        {
+            char const* module = argv[++argi];
+            size_t const length = strlen(module);
+            if( length == 0 || length > 31 || strspn(module, "abcdefghijklmnopqrstuvwxyz0123456789_") != length )
+            {
+                TORIRS_ERR("torirs: --editor-panel takes an editor panel module name, got '%s'\n", module);
+                return 0;
+            }
+            editor_view_flag = 1;
+            cfg.editor_panel = BOOTMANIFEST_EDITOR_PANEL_VIEW;
+            EditorView_SetBootPanel(module);
+            continue;
+        }
         if( strcmp(argv[argi], "--maped") == 0 && argi + 1 < argc )
         {
             int port = 0;
@@ -7559,7 +7575,8 @@ main_argument_takes_value(char const* argument)
            strcmp(argument, "--js5-revision") == 0 || strcmp(argument, "--windowmode") == 0 ||
            strcmp(argument, "--window") == 0 || strcmp(argument, "--replay") == 0 ||
            strcmp(argument, "--world-layout") == 0 || strcmp(argument, "--maped") == 0 ||
-           strcmp(argument, "--maped-group") == 0 || strcmp(argument, "--camera") == 0;
+           strcmp(argument, "--maped-group") == 0 || strcmp(argument, "--camera") == 0 ||
+           strcmp(argument, "--editor-panel") == 0;
 }
 
 /*

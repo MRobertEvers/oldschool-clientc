@@ -259,6 +259,8 @@ test_resolve(void)
         "Q rotates, Shift+Q reshapes");
     CHECK(fire("r", G) == -1 && fire("e", G) == -1, "bare R and E fire no edge action");
     CHECK(fire("ctrl+g", G) == EDITOR_HK_VIEW_SNAP, "Ctrl+G toggles Snap to grid");
+    CHECK(fire("shift+f12", G) == EDITOR_HK_VIEW_POPOUT && fire("ctrl+w", G) == EDITOR_HK_VIEW_CLOSE_PANEL,
+        "Shift+F12 pops the panel out, Ctrl+W closes it");
 
     /* Held: the camera turns with no loc selected, W flies with Shift on top. */
     input_clear(1000);
@@ -293,11 +295,11 @@ test_resolve(void)
     Editor_HotkeysResolve(&g_hk, &g_in, &frame);
     CHECK(frame.active[EDITOR_HK_VIEW_SNAP_HOLD] && frame.count == 0, "Ctrl held forces the dock snap");
     input_clear(1000);
-    press("ctrl+w");
+    press("ctrl+r");
     g_in.contexts = G;
     Editor_HotkeysResolve(&g_hk, &g_in, &frame);
-    CHECK(!frame.active[EDITOR_HK_CAM_FORWARD] && !frame.claimed[TORIRSK_W],
-        "Ctrl+W is not claimed: the manifest's debug flight keeps it");
+    CHECK(!frame.active[EDITOR_HK_CAM_UP] && !frame.claimed[TORIRSK_R],
+        "Ctrl+R is not claimed: the manifest's debug flight keeps it (Ctrl+W is Close panel now)");
     input_clear(1000);
     press("ctrl+s");
     g_in.down[TORIRSK_S] = 0;

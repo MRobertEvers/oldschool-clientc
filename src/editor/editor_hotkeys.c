@@ -193,6 +193,12 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_VIEW_SNAP_HOLD] = { "view.snap_hold", "View", "Snap while dragging (hold)",
                                    "Snap while dragging a panel (hold; the toggle is untouched)", G, HELD,
                                    { "ctrl" }, NULL },
+    [EDITOR_HK_VIEW_POPOUT] = { "view.popout", "View", "Pop out panel",
+                                "Pop out the panel under the pointer into its own window (World when over none)", G,
+                                EDGE, { "shift+f12" }, NULL },
+    [EDITOR_HK_VIEW_CLOSE_PANEL] = { "view.close_panel", "View", "Close panel",
+                                     "Hide the panel under the pointer (the View menu brings it back)", G, EDGE,
+                                     { "ctrl+w" }, NULL },
 };
 
 #undef G

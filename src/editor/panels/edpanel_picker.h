@@ -88,6 +88,18 @@ struct Editor_PickerTab
     int max_z;
 };
 
+/** A picture under the grid (editor/editor_worldmap.h): the world map. */
+struct Editor_PickerUnderlay
+{
+    /** Scene sprite id; 0 none (the cells are filled as ever). */
+    int scene_id;
+    /** Where it goes, well-local logical px; may start outside the well. */
+    int x;
+    int y;
+    int w;
+    int h;
+};
+
 struct Editor_Picker
 {
     struct Editor_PickerSquare* squares;
@@ -147,6 +159,12 @@ struct Editor_Picker
     unsigned char* filter_mask;
     /** Squares the filter shows. */
     int filter_shown;
+    /** Bumped whenever which squares are shown may have changed (a new
+     *  atlas, a filter): what a picture keyed on them compares. */
+    uint32_t atlas_serial;
+    /** Drawn under the grid when set; the cells then are not filled (the
+     *  picture is what fills them) and only the outlines go on top. */
+    struct Editor_PickerUnderlay underlay;
 };
 
 void
@@ -239,6 +257,32 @@ Editor_PickerCellAt(
     int y,
     int* out_map_x,
     int* out_map_z);
+
+/** Whether square `index` is shown on the active page (its tab, the
+ *  storage filter, the collection filter). */
+int
+Editor_PickerSquareVisible(
+    const struct Editor_Picker* picker,
+    int index);
+
+/** The well point of square (map_x, map_z)'s top-left corner, as drawn. */
+void
+Editor_PickerCellOrigin(
+    const struct Editor_Picker* picker,
+    int map_x,
+    int map_z,
+    int* out_x,
+    int* out_y);
+
+/** The squares any part of which is in the well: [x0, x0+w) x [z0, z0+h),
+ *  clamped at 0. 0 when none is (a well not sized yet). */
+int
+Editor_PickerVisibleSquares(
+    const struct Editor_Picker* picker,
+    int* out_x0,
+    int* out_z0,
+    int* out_w,
+    int* out_h);
 
 /** The square shown at well point (x, y) on the active tab, or -1. */
 int

@@ -1085,16 +1085,56 @@ EditorView_AppLevelMask(const struct App* app);
 
 /**
  * Open a new view of this session looking at `camera` (the main window's
- * "Open in new view"). Natively the launch service's `view` verb starts the
- * viewer process (server=tcp only: an embedded server has no socket for a
- * second process to reach -- refused with the reason); on the web the page
- * opens a viewer tab (index.html's torirsSpawnEditorView). Returns 1 when the
- * request went out.
+ * "Open in new view"): EditorView_AppSpawnModule(app, "world", camera, ...)
+ * with the reason logged. Returns 1 when the request went out.
  */
 int
 EditorView_AppSpawn(
     struct App* app,
     const struct EditorViewCamera* camera);
+
+/**
+ * Open a window of this session that shows editor panel `module` alone
+ * ("world" = the 3D view at `camera`; any other module = that panel filling
+ * the window, the world loaded around `camera`'s square). Natively the
+ * launch service's `view` verb starts the process (`--editor-view
+ * [--editor-panel <module>]`): against the daemon (server=tcp) it dials the
+ * daemon -- or, for the 3D view, the daemon's own SPAWN_VIEW when it has
+ * one; under server=embed this process first opens a loopback listener on
+ * its embedded ToriRSMapEd (an ephemeral port, polled from
+ * EditorView_AppFrame) and the window dials that. On the web the page opens
+ * a tab (torirsSpawnEditorView), which needs a daemon. Returns 1 when the
+ * request went out; 0 with the reason in `why`.
+ */
+int
+EditorView_AppSpawnModule(
+    struct App* app,
+    const char* module,
+    const struct EditorViewCamera* camera,
+    char* why,
+    int why_size);
+
+/** EditorUiAppServices::world_camera (user_data = the App): the free
+ *  camera as a pose read on `level`'s ground. */
+int
+EditorView_AppWorldCamera(
+    void* user_data,
+    int level,
+    struct EditorViewCamera* out);
+
+/** EditorUiAppServices::spawn_panel (user_data = the App). */
+int
+EditorView_AppSpawnPanel(
+    void* user_data,
+    const char* module,
+    const struct EditorViewCamera* camera,
+    char* why,
+    int why_size);
+
+/** Before the editor session closes: the embedded server's loopback
+ *  listener and every window attached through it. */
+void
+EditorView_AppShutdown(struct App* app);
 
 /* ---- app_editor_hotkeys.c ---- */
 /** The map editor's hotkeys for this frame: snapshot, gates, resolve,

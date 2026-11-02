@@ -49,6 +49,10 @@ static struct
     /** This frame's resolution; `valid` while it belongs to this frame. */
     struct Editor_HotkeyFrame frame;
     int valid;
+    /** The pointer when this frame resolved, for the "panel under the
+     *  pointer" actions (pop out, close). */
+    int mouse_x;
+    int mouse_y;
     /** OSRS key codes of the keys that acted (hotkey_consumed's index). */
     unsigned char consumed_osrs[TORIRS_OSRSKEY_COUNT];
     int consumed_any;
@@ -402,6 +406,23 @@ app_hk_run(
     case EDITOR_HK_CAM_FRAME_SQUARE:
         app_hk_frame(app, ui, 1);
         break;
+    case EDITOR_HK_VIEW_POPOUT:
+    {
+        /* The panel under the pointer, else the World: a pop-out pressed
+         * over the 3D view or over nothing pops the view out. */
+        const char* module = Editor_UiPanelAt(ui, g_app_hk.mouse_x, g_app_hk.mouse_y);
+        (void)Editor_UiPanelPopOut(ui, module ? module : "world");
+        break;
+    }
+    case EDITOR_HK_VIEW_CLOSE_PANEL:
+    {
+        /* A panel under the pointer is open by definition, so the View
+         * toggle hides it; over no panel the key does nothing. */
+        const char* module = Editor_UiPanelAt(ui, g_app_hk.mouse_x, g_app_hk.mouse_y);
+        if( module )
+            (void)Editor_UiTogglePanel(ui, module);
+        break;
+    }
     default:
         (void)Editor_HotkeyRun(ui, action);
         if( action >= EDITOR_HK_LEVEL_PIN0 && action <= EDITOR_HK_LEVEL_AUTO )
@@ -551,6 +572,8 @@ app_editor_hotkeys_frame(
 
     Editor_HotkeysResolve(&ui->hotkeys, &snapshot, &g_app_hk.frame);
     g_app_hk.valid = 1;
+    g_app_hk.mouse_x = input->curr.mouse_x;
+    g_app_hk.mouse_y = input->curr.mouse_y;
     for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
         if( g_app_hk.frame.consumed[k] )
             app_hk_consume_key(app, k);

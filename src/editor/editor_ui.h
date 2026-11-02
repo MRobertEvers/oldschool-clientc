@@ -241,6 +241,7 @@ struct EditorUiHooks
  * a headless test fills none -- and each says what a NULL one reads as.
  */
 struct ToriRS_Location;
+struct EditorViewCamera;
 
 struct EditorUiAppServices
 {
@@ -273,6 +274,54 @@ struct EditorUiAppServices
     int (*world_busy)(void* user_data);
     /** The window should draw again. NULL member: nothing happens. */
     void (*request_redraw)(void* user_data);
+    /** The World panel's camera as a view pose (editor/editor_view.h: the
+     *  point looked at, its level, yaw, pitch, distance), read on `level`'s
+     *  ground. 0 when the window has no world. NULL member: no camera. */
+    int (*world_camera)(void* user_data, int level, struct EditorViewCamera* out);
+    /** Open a window of this session that shows registry module `module`
+     *  alone, filling it ("world" = the 3D view) -- a popped-out panel --
+     *  looking at `camera`. 1 when the window was asked for; 0 when it
+     *  cannot be, with the reason in `why` (one line, no newline). NULL
+     *  member: nothing can pop out of this window. */
+    int (*spawn_panel)(void* user_data, const char* module, const struct EditorViewCamera* camera, char* why,
+        int why_size);
+
+    /* The world map under the square picker (editor/editor_worldmap.h). All
+     * four or none: a NULL member (the headless harness, the web) and the
+     * picker draws its coloured cells as before. Coordinates are WORLD
+     * squares; the App maps them through the area's compositemap. */
+    /** The cache's world-map area whose internal name is `internal_name`
+     *  ("main", "ancient_cavern"): its id, -1 when the cache has none, -2
+     *  when the cache's areas are not loaded yet (asked for: ask again). */
+    int (*worldmap_area)(void* user_data, const char* internal_name);
+    /** Move area `area_id`'s squares [x0, x0+w) x [z0, z0+h) along: queue
+     *  their loads, bake what is ready. Returns the bake serial (changes
+     *  when anything new can be drawn), -1 for an unknown area;
+     *  `*out_missing` the regions still to come (0: final). */
+    int (*worldmap_poll)(
+        void* user_data,
+        int area_id,
+        int square_x0,
+        int square_z0,
+        int squares_w,
+        int squares_h,
+        int* out_missing);
+    /** Draw those squares from what is baked, `px_per_square` (1..64) pixels
+     *  a square, north row first, into `out_argb` ((w * px) x (h * px)):
+     *  0xFFRRGGBB where the map has a tile, 0 where it has none. 0 for an
+     *  unknown area (nothing written). */
+    int (*worldmap_render)(
+        void* user_data,
+        int area_id,
+        int square_x0,
+        int square_z0,
+        int squares_w,
+        int squares_h,
+        int px_per_square,
+        uint32_t* out_argb);
+    /** Make `argb` (w x h, copied) image `slot` (0 or 1) for a GRAPH image
+     *  item; returns its scene sprite id, 0 when it cannot. */
+    int (*image_publish)(void* user_data, int slot, const uint32_t* argb, int w, int h);
 };
 
 /* ---- panels ---------------------------------------------------------------- */
@@ -454,6 +503,18 @@ struct EditorUi
     /** The World panel's chrome panel (module "world"), -1 before it is
      *  registered. Its body is the 3D view: Editor_UiWorldRect. */
     int world_panel;
+    /** Registry panels (by registry index) popped out into windows of their
+     *  own (Editor_UiPanelPopOut): hidden here until the View menu shows
+     *  them again, which is "pop in". */
+    unsigned char popped[EDITOR_UI_PANELS_MAX];
+    /** This window shows ONE registry panel filling its surface -- it is a
+     *  popped-out window (Editor_UiSetSolo) -- and this is its chrome panel;
+     *  -1 in an ordinary window. */
+    int solo_panel;
+    /** A docked panel the user just showed again: the next layout shows it
+     *  even when the column has no room (it then flies out beside it). -1
+     *  for none. */
+    int layout_reopened;
 
     /**
      * The saved layout (editor_layout.h). `layout_hold` is set by the host
@@ -654,6 +715,56 @@ Editor_UiPublish(
     uint32_t key,
     const int32_t* values,
     int count);
+
+/**
+ * Pop registry module `name` out of this window: ask the App for a window of
+ * this session that shows that panel ALONE, filling it ("world" = the 3D
+ * view, looking exactly where the World panel looks: same pose, the pinned
+ * level), and -- once it is asked for -- hide the panel here so the layout's
+ * space is free. View > <panel> shows it here again (pop in); the other
+ * window keeps running until it is closed. One console line each way; a
+ * refusal says why in the console and leaves the panel where it was.
+ * The title-bar Pop out button and the hotkey both land here. Returns 1 when
+ * the window was asked for.
+ */
+int
+Editor_UiPanelPopOut(
+    struct EditorUi* ui,
+    const char* name);
+
+/** Editor_UiPanelPopOut(ui, "world"). */
+int
+Editor_UiWorldPopOut(struct EditorUi* ui);
+
+/** 1 while registry module `name` is popped out of this window (and not
+ *  shown here again since). */
+int
+Editor_UiPanelPoppedOut(
+    const struct EditorUi* ui,
+    const char* name);
+
+/**
+ * The registry module under surface point (x, y) -- the topmost visible
+ * titled panel whose box holds it -- or NULL. What a "pop out the panel
+ * under the pointer" hotkey passes to Editor_UiPanelPopOut.
+ */
+const char*
+Editor_UiPanelAt(
+    struct EditorUi* ui,
+    int x,
+    int y);
+
+/**
+ * Make this window a popped-out window of registry module `name`: from the
+ * next layout every other registry panel (the menu bar, the rail and World
+ * included) is hidden and `name`'s panel fills the surface, with no title-bar
+ * Close / Pop out (the OS window's close ends it). 0 when there is no such
+ * titled module.
+ */
+int
+Editor_UiSetSolo(
+    struct EditorUi* ui,
+    const char* name);
 
 /** Show or hide the chrome panel of registry module `name` (the View menu's
  *  toggle). Returns 1 when it is open afterwards, -1 when there is no such

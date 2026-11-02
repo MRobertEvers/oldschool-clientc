@@ -324,7 +324,8 @@ sync_emit_rows(
             cmd.w = it->w;
             cmd.h = it->h;
             cmd.color = it->color;
-            cmd.value = it->key;
+            /* An IMAGE is never keyed; its value is the scene sprite. */
+            cmd.value = it->kind == TORIRS_CHROME_GRAPH_IMAGE ? it->scene_id : it->key;
             chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, it->text);
             sync_emit(sync, &cmd);
         }

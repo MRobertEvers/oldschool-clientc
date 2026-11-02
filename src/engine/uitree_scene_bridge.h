@@ -198,6 +198,10 @@ UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id);
  */
 #define UITREE_SCENE_INKWELL_ID 0x4000000D
 
+/** The square picker's world map (editor/editor_worldmap.h): two slots taken
+ *  in turn, so the GRAPH item naming the new picture differs from the old. */
+#define UITREE_SCENE_EDITOR_PICKER_MAP_ID(slot) (0x4000000E + ((slot) & 1))
+
 /**
  * Base of the reserved scene-sprite range for PLUGIN IMAGES: art a plugin
  * shipped as its own asset file and decoded at runtime (scene id = base +

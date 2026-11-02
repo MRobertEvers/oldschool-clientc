@@ -19,6 +19,7 @@
 #include "editor/builder/builder_ssc.h"
 #include "editor/editor_host.h"
 #include "editor/editor_ui.h"
+#include "editor/editor_view.h"
 #include "editor/panels/edpanel_catalog_model.h"
 #include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanel_newform.h"
@@ -1741,6 +1742,302 @@ test_chrome(void)
     Editor_UiFree(&g_ui);
 }
 
+/* ---- the world map under the picker (editor_worldmap.h) ----------------------- */
+
+#include "editor/editor_worldmap.h"
+
+/* The fake App's map: what the picker asked of it. */
+static struct
+{
+    int area_calls;
+    int area_pending;
+    int polls;
+    int renders;
+    int publishes;
+    int serial;
+    int missing;
+    int redraws;
+    int x0;
+    int z0;
+    int w;
+    int h;
+    int px;
+    int publish_w;
+    int publish_h;
+} g_map;
+
+static int
+fake_map_area(
+    void* user,
+    const char* name)
+{
+    (void)user;
+    g_map.area_calls++;
+    if( g_map.area_pending > 0 )
+    {
+        g_map.area_pending--;
+        return -2;
+    }
+    return strcmp(name, "main") == 0 ? 0 : -1;
+}
+
+static int
+fake_map_poll(
+    void* user,
+    int area_id,
+    int x0,
+    int z0,
+    int w,
+    int h,
+    int* out_missing)
+{
+    (void)user;
+    if( area_id != 0 )
+        return -1;
+    g_map.polls++;
+    g_map.x0 = x0;
+    g_map.z0 = z0;
+    g_map.w = w;
+    g_map.h = h;
+    *out_missing = g_map.missing;
+    return g_map.serial;
+}
+
+static int
+fake_map_render(
+    void* user,
+    int area_id,
+    int x0,
+    int z0,
+    int w,
+    int h,
+    int px,
+    uint32_t* out)
+{
+    (void)user;
+    if( area_id != 0 )
+        return 0;
+    g_map.renders++;
+    g_map.px = px;
+    CHECK(x0 == g_map.x0 && z0 == g_map.z0 && w == g_map.w && h == g_map.h,
+        "the picture is rendered over the window it polled");
+    for( int i = 0; i < w * px * h * px; i++ )
+        out[i] = 0xFF204080u;
+    return 1;
+}
+
+static int
+fake_map_publish(
+    void* user,
+    int slot,
+    const uint32_t* argb,
+    int w,
+    int h)
+{
+    (void)user;
+    (void)argb;
+    g_map.publishes++;
+    g_map.publish_w = w;
+    g_map.publish_h = h;
+    return 0x4000000E + (slot & 1);
+}
+
+static void
+fake_map_redraw(void* user)
+{
+    (void)user;
+    g_map.redraws++;
+}
+
+/** GRAPH items of `kind` in `graph`'s picture (keyed only, for rects). */
+static int
+graph_items_of(
+    int graph,
+    int kind,
+    int keyed)
+{
+    const struct ToriRSChromeWidget* w = &g_chrome.widgets[graph];
+    int n = 0;
+    for( int i = 0; i < w->graph_count; i++ )
+    {
+        const struct ToriRSChromeGraphItem* it = &g_chrome.graph_items[w->graph_first + i];
+        if( it->kind == kind && (!keyed || it->key != 0) )
+            n++;
+    }
+    return n;
+}
+
+static void
+test_worldmap(void)
+{
+    struct Editor_Picker* picker;
+    int squares_panel;
+    int graph;
+    int x;
+    int y;
+
+    ToriRSChrome_Init(&g_chrome);
+    ToriRSChrome_SetSurface(&g_chrome, 1280, 800);
+    Editor_UiInit(&g_ui, &g_chrome, &g_editor);
+    g_ui.hooks.open_square = fake_open_square;
+    g_ui.hooks.open_in_new_view = fake_open_in_new_view;
+    g_ui.hooks.floor_rgb = fake_floor_rgb;
+    g_ui.hooks.view_window = fake_view_window;
+    memset(&g_map, 0, sizeof(g_map));
+    g_map.area_pending = 1;
+    g_map.serial = 1;
+    g_map.missing = 2;
+    g_ui.app_services.worldmap_area = fake_map_area;
+    g_ui.app_services.worldmap_poll = fake_map_poll;
+    g_ui.app_services.worldmap_render = fake_map_render;
+    g_ui.app_services.image_publish = fake_map_publish;
+    g_ui.app_services.request_redraw = fake_map_redraw;
+    Editor_UiRegisterToolsPanels(&g_ui);
+    Editor_UiSetVisible(&g_ui, 1);
+    squares_panel = find_panel("Squares");
+    g_squares_panel = squares_panel;
+    graph = find_widget(squares_panel, TORIRS_CHROME_W_GRAPH, NULL);
+    for( int i = 0; i < 3; i++ )
+        frame();
+    picker = (struct Editor_Picker*)edp_squares_picker(&g_ui);
+    CHECK(picker && graph >= 0, "the picker is up");
+    if( !picker || graph < 0 )
+        return;
+    search_field("m50_50");
+    CHECK(picker->underlay.scene_id == 0 && g_map.area_calls == 1 && g_map.renders == 0,
+        "the cache's areas are still loading: no picture yet, asked once (%d)", g_map.area_calls);
+    CHECK(g_map.redraws > 0, "...and the window is kept drawing to ask again");
+    for( int i = 0; i < EDITOR_WORLDMAP_AREA_RETRY_TICKS + 1; i++ )
+        frame();
+    CHECK(g_map.area_calls == 2, "asked again once after the retry, then remembered (%d)", g_map.area_calls);
+    CHECK(picker->underlay.scene_id == 0x4000000E || picker->underlay.scene_id == 0x4000000F,
+        "the surface's map is under the grid (scene %d)", picker->underlay.scene_id);
+    CHECK(graph_items_of(graph, TORIRS_CHROME_GRAPH_IMAGE, 0) == 1, "one GRAPH image item draws it");
+    CHECK(graph_items_of(graph, TORIRS_CHROME_GRAPH_RECT, 1) == 0, "no square is filled over the map");
+
+    /* Only the visible squares (and a margin) are asked for. */
+    {
+        int vx0;
+        int vz0;
+        int vw;
+        int vh;
+        int const scale = ToriRSChrome_Scale(&g_chrome);
+        CHECK(Editor_PickerVisibleSquares(picker, &vx0, &vz0, &vw, &vh), "the well shows squares");
+        CHECK(g_map.x0 <= vx0 && g_map.z0 <= vz0 && g_map.x0 + g_map.w >= vx0 + vw && g_map.z0 + g_map.h >= vz0 + vh,
+            "the window holds every visible square ([%d,%d %dx%d] vs [%d,%d %dx%d])", g_map.x0, g_map.z0, g_map.w,
+            g_map.h, vx0, vz0, vw, vh);
+        CHECK(g_map.w <= vw + 2 * (vw / 4 > 2 ? vw / 4 : 2) && g_map.h <= vh + 2 * (vh / 4 > 2 ? vh / 4 : 2),
+            "...and no more than a quarter of the view beyond it (%dx%d for %dx%d visible)", g_map.w, g_map.h, vw, vh);
+        CHECK(g_map.px == (picker->cell * scale < 64 ? picker->cell * scale : 64),
+            "rendered at the size it is shown (%d px a square, cell %d)", g_map.px, picker->cell);
+        CHECK(g_map.publish_w == g_map.w * g_map.px && g_map.publish_h == g_map.h * g_map.px,
+            "the published picture is the window at that size");
+    }
+
+    /* Regions still arriving: polled every few ticks, the picture redone
+     * when the serial moves; then nothing at all while nothing changes. */
+    {
+        int const renders = g_map.renders;
+        int const polls = g_map.polls;
+        for( int i = 0; i < 6; i++ )
+            frame();
+        CHECK(g_map.polls > polls && g_map.renders == renders,
+            "while regions load: polled (%d), not redrawn with nothing new (%d)", g_map.polls - polls,
+            g_map.renders - renders);
+        g_map.serial = 2;
+        g_map.missing = 0;
+        for( int i = 0; i < EDITOR_WORLDMAP_POLL_TICKS + 1; i++ )
+            frame();
+        CHECK(g_map.renders == renders + 1, "the last regions landed: drawn once more (%d)", g_map.renders - renders);
+    }
+    {
+        int const renders = g_map.renders;
+        int const polls = g_map.polls;
+        int const publishes = g_map.publishes;
+        for( int i = 0; i < 20; i++ )
+            frame();
+        CHECK(g_map.renders == renders && g_map.polls == polls && g_map.publishes == publishes,
+            "a view that does not change reuses its picture (renders +%d, polls +%d)", g_map.renders - renders,
+            g_map.polls - polls);
+    }
+
+    /* A pan inside the window moves the picture; a zoom draws a new one. */
+    {
+        int const renders = g_map.renders;
+        int const under_x = picker->underlay.x;
+        picker_point(picker, 50, 50, &x, &y);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_DRAG, x + picker->cell, y, 0);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x + picker->cell, y, 0);
+        frame();
+        frame();
+        CHECK(g_map.renders == renders && picker->underlay.x == under_x + picker->cell,
+            "a one-square pan moves the picture (%d -> %d), renders nothing (+%d)", under_x, picker->underlay.x,
+            g_map.renders - renders);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_WHEEL, x, y, 1);
+        frame();
+        CHECK(g_map.renders == renders + 1 && g_map.px == (picker->cell < 64 ? picker->cell : 64),
+            "a zoom draws the new size once (%d px a square)", g_map.px);
+    }
+
+    /* A click on an empty square opens New square on it. */
+    {
+        struct Editor_PickerSearch search;
+        int new_panel;
+        CHECK(Editor_PickerFind(picker, 55, 55, -1) < 0, "m55_55 is empty in the test tree");
+        CHECK(Editor_PickerSearch(picker, "m55_55", &search), "find m55_55");
+        Editor_PickerShow(picker, &search);
+        frame();
+        CHECK(picker_point(picker, 55, 55, &x, &y), "m55_55 is in view");
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y, 0);
+        frame();
+        new_panel = find_panel("New square");
+        CHECK(new_panel >= 0 && g_chrome.panels[new_panel].visible, "a click on the empty square opens New square");
+        if( new_panel >= 0 )
+        {
+            int const input_x = find_widget(new_panel, TORIRS_CHROME_W_TEXTINPUT, "Map x");
+            int const input_z = find_widget(new_panel, TORIRS_CHROME_W_TEXTINPUT, "Map z");
+            CHECK(input_x >= 0 && strcmp(ToriRSChrome_Text(&g_chrome, input_x), "55") == 0
+                      && input_z >= 0 && strcmp(ToriRSChrome_Text(&g_chrome, input_z), "55") == 0,
+                "...prefilled with m55_55");
+            activate(find_widget(new_panel, TORIRS_CHROME_W_BUTTON, "Cancel"));
+        }
+        CHECK(picker->underlay.scene_id > 0, "the map stays under the grid");
+    }
+
+    /* The Unmapped page has no area: no map, the cells are filled. */
+    {
+        int const area = find_widget(squares_panel, TORIRS_CHROME_W_DROPDOWN, "Area");
+        int const last = picker->tab_count - 1;
+        CHECK(picker->tabs[last].area < 0, "the last page is Unmapped");
+        ToriRSChrome_DropdownSetSelected(&g_chrome, area, last);
+        activate(area);
+        frame();
+        CHECK(picker->underlay.scene_id == 0 && graph_items_of(graph, TORIRS_CHROME_GRAPH_IMAGE, 0) == 0,
+            "Unmapped: no map");
+        CHECK(graph_items_of(graph, TORIRS_CHROME_GRAPH_RECT, 1) > 0, "...its squares filled as ever");
+    }
+
+    /* No map services (the headless App, the web): the picker as before. */
+    {
+        int const area = find_widget(squares_panel, TORIRS_CHROME_W_DROPDOWN, "Area");
+        ToriRSChrome_DropdownSetSelected(&g_chrome, area, 0);
+        activate(area);
+        frame();
+        CHECK(picker->underlay.scene_id > 0, "back on the surface: the map again");
+        g_ui.app_services.worldmap_render = NULL;
+        frame();
+        CHECK(picker->underlay.scene_id == 0 && graph_items_of(graph, TORIRS_CHROME_GRAPH_RECT, 1) > 0,
+            "without the services the cells are filled, no picture");
+    }
+    printf("worldmap: %d area asks, %d polls, %d renders, %d publishes, last window %d,%d %dx%d at %d px\n",
+        g_map.area_calls, g_map.polls, g_map.renders, g_map.publishes, g_map.x0, g_map.z0, g_map.w, g_map.h,
+        g_map.px);
+
+    Editor_UiFree(&g_ui);
+}
+
 /* ---- the default layout and the dock grid ---------------------------------------- */
 
 static int
@@ -2137,6 +2434,289 @@ test_world_panel(void)
     CHECK(!g_chrome.panels[wp].user_placed && rect_eq(Editor_UiWorldRect(&g_ui), world),
         "Reset layout docks World back over the region");
     layout_check("World after Reset layout");
+    Editor_UiFree(&g_ui);
+}
+
+/* ---- pop out, the title-bar Close and Pop out, edge resize ---------------------- */
+
+/* The fake App: the camera it answers and what it was asked to spawn. */
+static struct
+{
+    int calls;
+    char module[32];
+    int had_camera;
+    struct EditorViewCamera camera;
+    int camera_level;
+    int refuse;
+} g_pop;
+
+static int
+fake_world_camera(
+    void* user,
+    int level,
+    struct EditorViewCamera* out)
+{
+    (void)user;
+    memset(out, 0, sizeof(*out));
+    out->x = 3222 * 128 + 64;
+    out->z = 3218 * 128 + 64;
+    out->level = level;
+    out->yaw = 512;
+    out->pitch = 300;
+    out->zoom = 1500;
+    g_pop.camera_level = level;
+    return 1;
+}
+
+static int
+fake_spawn_panel(
+    void* user,
+    const char* module,
+    const struct EditorViewCamera* camera,
+    char* why,
+    int why_size)
+{
+    (void)user;
+    g_pop.calls++;
+    snprintf(g_pop.module, sizeof(g_pop.module), "%s", module);
+    g_pop.had_camera = camera != NULL;
+    if( camera )
+        g_pop.camera = *camera;
+    if( g_pop.refuse )
+    {
+        snprintf(why, (size_t)why_size, "no socket for a second process");
+        return 0;
+    }
+    return 1;
+}
+
+static int
+popout_console_has(const char* needle)
+{
+    for( int i = 0; i < 8; i++ )
+    {
+        const char* line = Editor_UiConsoleLine(&g_ui, i);
+        if( line && strstr(line, needle) )
+            return 1;
+    }
+    return 0;
+}
+
+/** Press and release at the middle of `r`, as the pointer does. */
+static void
+click_rect(struct ToriRSChromeRect r)
+{
+    int const x = r.x + r.w / 2;
+    int const y = r.y + r.h / 2;
+    ToriRSChrome_MouseMove(&g_chrome, x, y);
+    (void)ToriRSChrome_MouseDown(&g_chrome, x, y);
+    (void)ToriRSChrome_MouseUp(&g_chrome, x, y);
+    frame();
+    frame();
+}
+
+/** The View menu's row for `label`, or NULL. */
+static const char*
+view_row(const char* label)
+{
+    int const view = view_menu();
+    if( view < 0 || !g_chrome.widgets[view].options )
+        return NULL;
+    for( int r = 0; r < g_chrome.widgets[view].option_count; r++ )
+        if( menu_row_is(g_chrome.widgets[view].options[r], label) )
+            return g_chrome.widgets[view].options[r];
+    return NULL;
+}
+
+static void
+test_popout(void)
+{
+    int wp;
+    int terrain;
+    int palette;
+    const char* row;
+    struct ToriRSChromeRect r;
+
+    memset(&g_pop, 0, sizeof(g_pop));
+    layout_boot(1530, 1006, 1);
+    g_ui.app_services.world_camera = fake_world_camera;
+    g_ui.app_services.spawn_panel = fake_spawn_panel;
+    wp = find_panel("World");
+    terrain = find_panel("Terrain");
+    palette = find_panel("Palette");
+    CHECK(wp >= 0 && terrain >= 0 && palette >= 0, "World, Terrain and Palette are panels");
+    if( wp < 0 || terrain < 0 || palette < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+
+    /* Every View-menu window wears a Close box, a Pop out beside it and a
+     * grip; the menu bar (not a window) wears none. */
+    CHECK(g_chrome.panels[wp].closable && g_chrome.panels[wp].poppable && g_chrome.panels[wp].resizable,
+        "World has a Close box, a Pop out and a grip");
+    CHECK(g_chrome.panels[terrain].closable && g_chrome.panels[terrain].poppable
+              && g_chrome.panels[terrain].resizable,
+        "Terrain has a Close box, a Pop out and a grip");
+    {
+        struct ToriRSChromeRect const close = ToriRSChrome_PanelCloseRect(&g_chrome, terrain);
+        struct ToriRSChromeRect const pop = ToriRSChrome_PanelPopOutRect(&g_chrome, terrain);
+        struct ToriRSChromeRect const box = g_chrome.panels[terrain].last_rect;
+        CHECK(close.w > 0 && pop.w > 0 && pop.x + pop.w <= close.x && close.x + close.w <= box.x + box.w
+                  && pop.y == close.y && pop.y >= box.y,
+            "Pop out sits left of Close, both in the title bar (pop %d,%d close %d,%d)", pop.x, pop.y, close.x,
+            close.y);
+    }
+
+    /* Pop out World with level 1 pinned: its title-bar button asks the App
+     * for a window at the World panel's camera on level 1's ground, and the
+     * panel leaves this window. */
+    g_ui.tools.edit_level = 1;
+    frame();
+    click_rect(ToriRSChrome_PanelPopOutRect(&g_chrome, wp));
+    CHECK(g_pop.calls == 1 && strcmp(g_pop.module, "world") == 0, "World's Pop out asks for a world window");
+    CHECK(g_pop.had_camera && g_pop.camera_level == 1 && g_pop.camera.level == 1
+              && g_pop.camera.x == 3222 * 128 + 64 && g_pop.camera.z == 3218 * 128 + 64 && g_pop.camera.yaw == 512
+              && g_pop.camera.pitch == 300 && g_pop.camera.zoom == 1500,
+        "with the World panel's pose and the pinned level (level %d)", g_pop.camera.level);
+    CHECK(!g_chrome.panels[wp].visible && !Editor_UiWorldShown(&g_ui) && Editor_UiPanelPoppedOut(&g_ui, "world"),
+        "and World is hidden here, popped out");
+    CHECK(popout_console_has("World popped out into its own window"), "one console line says so");
+    /* (Auto again: the World title names a pinned level, and the layout
+     * checks below find the panel by its title.) */
+    g_ui.tools.edit_level = -1;
+    row = view_row("World");
+    CHECK(row && strstr(row, "popped out"), "the View menu row says World is popped out (%s)", row ? row : "-");
+    /* The space is the panels': with no World the dock runs in columns
+     * across the surface, Terrain still at the head of the rightmost. */
+    frame();
+    CHECK(g_ui.dock_x < 1530 - g_ui.dock_w, "with World out the dock widens to columns (x %d, w %d)", g_ui.dock_x,
+        g_ui.dock_w);
+    CHECK(g_chrome.panels[terrain].visible && g_chrome.panels[terrain].x == 1530 - g_ui.dock_w
+              && g_chrome.panels[terrain].y == g_ui.dock_top,
+        "Terrain heads the rightmost column (%d,%d)", g_chrome.panels[terrain].x, g_chrome.panels[terrain].y);
+
+    /* Pop in: View > World shows it here again (one line), and the layout
+     * gives it its region back. */
+    view_toggle("World");
+    frame();
+    CHECK(g_chrome.panels[wp].visible && Editor_UiWorldShown(&g_ui) && !Editor_UiPanelPoppedOut(&g_ui, "world"),
+        "View > World pops it back in");
+    CHECK(popout_console_has("World popped back in"), "one console line says so");
+    layout_check("World popped back in");
+    row = view_row("World");
+    CHECK(row && !strstr(row, "popped out") && !strstr(row, "hidden"), "and its View row is plain again");
+
+    /* A refusal leaves the panel where it was and says why. */
+    g_pop.refuse = 1;
+    CHECK(!Editor_UiPanelPopOut(&g_ui, "terrain") && g_chrome.panels[terrain].visible
+              && !Editor_UiPanelPoppedOut(&g_ui, "terrain"),
+        "a refused pop out keeps Terrain here");
+    CHECK(popout_console_has("could not pop out Terrain: no socket for a second process"),
+        "and the console says why");
+    g_pop.refuse = 0;
+
+    /* Any panel pops out by name (the hotkey's entry point); the column
+     * closes up behind it. */
+    CHECK(Editor_UiPanelPopOut(&g_ui, "terrain") && strcmp(g_pop.module, "terrain") == 0 && g_pop.had_camera,
+        "Terrain pops out by name, with the camera");
+    frame();
+    frame();
+    CHECK(!g_chrome.panels[terrain].visible && g_chrome.panels[palette].visible
+              && g_chrome.panels[palette].y == g_ui.dock_top,
+        "Terrain is gone and Palette moves up to the head of the column (y %d)", g_chrome.panels[palette].y);
+    view_toggle("Terrain");
+    frame();
+    CHECK(g_chrome.panels[terrain].visible && !Editor_UiPanelPoppedOut(&g_ui, "terrain")
+              && g_chrome.panels[terrain].y == g_ui.dock_top,
+        "View > Terrain pops it back in at the head of the column");
+
+    /* The Close box: exactly View > Terrain off -- hidden, the View row
+     * says so, and the View menu brings it back. */
+    click_rect(ToriRSChrome_PanelCloseRect(&g_chrome, terrain));
+    CHECK(!g_chrome.panels[terrain].visible && !Editor_UiPanelPoppedOut(&g_ui, "terrain"),
+        "Terrain's Close box hides it");
+    row = view_row("Terrain");
+    CHECK(row && strstr(row, "hidden"), "the View menu row says Terrain is hidden (%s)", row ? row : "-");
+    view_toggle("Terrain");
+    frame();
+    row = view_row("Terrain");
+    CHECK(g_chrome.panels[terrain].visible && row && !strstr(row, "hidden"), "View > Terrain shows it again");
+
+    /* Edge resize: Terrain widened from its LEFT edge -- the right edge
+     * stays, the box snaps to the grid, and it counts as placed (the saved
+     * layout keeps it). */
+    frame();
+    r = g_chrome.panels[terrain].last_rect;
+    {
+        int edge_panel = -1;
+        int const edges = ToriRSChrome_PanelEdgeAt(&g_chrome, r.x + 1, r.y + r.h / 2, &edge_panel);
+        CHECK(edges == TORIRS_CHROME_EDGE_LEFT && edge_panel == terrain, "Terrain's left border is a resize edge");
+        CHECK(ToriRSChrome_PanelEdgeAt(&g_chrome, r.x + r.w / 2, r.y + r.h / 2, &edge_panel) == 0,
+            "its middle is not");
+    }
+    drag(r.x + 1, r.y + r.h / 2, r.x + 1 - 80, r.y + r.h / 2);
+    CHECK(abs(g_chrome.panels[terrain].x - (r.x - 80)) <= EDP_GRID / 2
+              && g_chrome.panels[terrain].x + g_chrome.panels[terrain].fixed_w == r.x + r.w
+              && g_chrome.panels[terrain].user_placed,
+        "dragging Terrain's left edge 80 px widens it to the left, the right edge kept (x %d -> %d, w %d -> %d)",
+        r.x, g_chrome.panels[terrain].x, r.w, g_chrome.panels[terrain].fixed_w);
+    CHECK(g_chrome.panels[terrain].x % EDP_GRID == 0, "and the moved edge lands on the grid");
+    /* The bottom-left corner moves two edges; a drag past the minimum
+     * stops at a usable panel instead of inverting. */
+    r = g_chrome.panels[terrain].last_rect;
+    drag(r.x + 1, r.y + r.h - 2, r.x + r.w + 400, r.y + r.h - 2 + 16);
+    CHECK(g_chrome.panels[terrain].fixed_w >= 120 && g_chrome.panels[terrain].x + g_chrome.panels[terrain].fixed_w
+              == r.x + r.w,
+        "a left edge dragged past the right one stops at the minimum (w %d)", g_chrome.panels[terrain].fixed_w);
+    CHECK(g_chrome.panels[terrain].fixed_h > r.h, "and the bottom edge of that corner moved down (h %d -> %d)", r.h,
+        g_chrome.panels[terrain].fixed_h);
+    /* The top edge of the World panel resizes it too (and the world rect
+     * follows, as with the grip). */
+    {
+        struct EditorUiRect const before = Editor_UiWorldRect(&g_ui);
+        r = g_chrome.panels[wp].last_rect;
+        drag(r.x + r.w / 2, r.y + 1, r.x + r.w / 2, r.y + 1 + 48);
+        CHECK(abs(g_chrome.panels[wp].y - (r.y + 48)) <= EDP_GRID / 2
+                  && Editor_UiWorldRect(&g_ui).h == before.h - (g_chrome.panels[wp].y - r.y)
+                  && g_chrome.panels[wp].y + g_chrome.panels[wp].fixed_h == r.y + r.h,
+            "World's top edge moves it down, its bottom kept, and the world rect shrinks with it (h %d -> %d)",
+            before.h, Editor_UiWorldRect(&g_ui).h);
+    }
+    Editor_UiFree(&g_ui);
+
+    /* A popped-out window: one panel over the whole surface, nothing else,
+     * no Close / Pop out, and it pops nothing further. */
+    layout_boot(900, 700, 1);
+    g_ui.app_services.world_camera = fake_world_camera;
+    g_ui.app_services.spawn_panel = fake_spawn_panel;
+    terrain = find_panel("Terrain");
+    wp = find_panel("World");
+    CHECK(Editor_UiSetSolo(&g_ui, "terrain") && !Editor_UiSetSolo(&g_ui, "menubar"),
+        "a titled module can be a window's solo panel; the menu bar cannot");
+    Editor_UiSetSolo(&g_ui, "terrain");
+    frame();
+    frame();
+    CHECK(terrain >= 0 && g_chrome.panels[terrain].visible && g_chrome.panels[terrain].x == 0
+              && g_chrome.panels[terrain].y == 0 && g_chrome.panels[terrain].fixed_w == 900
+              && g_chrome.panels[terrain].fixed_h == 700,
+        "the solo Terrain fills the surface");
+    {
+        int others = 0;
+        for( int i = g_ui.panel_first; i < g_ui.panel_end; i++ )
+            others += i != terrain && g_chrome.panels[i].visible;
+        CHECK(others == 0 && !Editor_UiWorldShown(&g_ui), "no other panel shows, World neither (%d)", others);
+    }
+    CHECK(terrain >= 0 && !g_chrome.panels[terrain].closable && !g_chrome.panels[terrain].poppable,
+        "the solo panel wears no Close / Pop out");
+    g_pop.calls = 0;
+    CHECK(!Editor_UiPanelPopOut(&g_ui, "palette") && g_pop.calls == 0, "a popped-out window pops nothing further");
+    ToriRSChrome_SetSurface(&g_chrome, 1100, 760);
+    frame();
+    frame();
+    CHECK(terrain >= 0 && g_chrome.panels[terrain].fixed_w == 1100 && g_chrome.panels[terrain].fixed_h == 760,
+        "and follows the window's size");
+    (void)wp;
     Editor_UiFree(&g_ui);
 }
 
@@ -4098,7 +4678,10 @@ test_hotkeys(void)
     CHECK(!g_chrome.panels[panel].visible, "hotkeys: hidden until asked for");
     {
         const char* row = menu_row(view_menu(), "Hotkeys");
-        CHECK(row && strstr(row, "\tF1"), "hotkeys: View lists it with F1 (%s)", row ? row : "-");
+        /* The row's right column: the state ("hidden") before the chord. */
+        CHECK(row && strchr(row, '\t') && strlen(row) >= 2 && strcmp(row + strlen(row) - 2, "F1") == 0
+                  && strstr(row, "hidden"),
+            "hotkeys: View lists it, hidden, with F1 (%s)", row ? row : "-");
     }
     CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_HOTKEYS) == 1, "hotkeys: F1's action runs");
     frame();
@@ -4589,9 +5172,11 @@ main(
     test_picker();
     test_newform();
     test_chrome();
+    test_worldmap();
     test_layout();
     g_tmp_root = root;
     test_world_panel();
+    test_popout();
     test_layout_codec();
     test_saved_layout();
 

@@ -1,6 +1,7 @@
 #include "editor_ui.h"
 
 #include "editor.h"
+#include "editor_view.h"
 #include "builder/builder_panels.h"
 #include "iface/iface_panels.h"
 #include "live/live_panel.h"
@@ -81,6 +82,8 @@ Editor_UiInit(
     ui->view_published[0] = -1;
     ui->snap = 1;
     ui->world_panel = -1;
+    ui->solo_panel = -1;
+    ui->layout_reopened = -1;
     Editor_HotkeysInit(&ui->hotkeys);
     ui->previous_tool = EDITOR_TOOL_SELECT;
 }
@@ -182,6 +185,34 @@ ui_world_register(struct EditorUi* ui)
     ui->world_panel = panel;
 }
 
+/**
+ * Every View-menu window of this registry -- World included -- wears the same
+ * title-bar furniture: a Close box at the right end (closing is exactly View >
+ * <panel> off: the chrome hides it, the layout notes it closed, the View menu
+ * and the saved layout follow), a Pop out button beside it
+ * (Editor_UiPanelPopOut), and a resize grip with every edge and corner of its
+ * border draggable. Opt-in on the chrome, so the game's own panels are
+ * unchanged; modal dialogs keep their own furniture.
+ */
+static void
+ui_window_furniture(struct EditorUi* ui)
+{
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        int const panel = ui->panels[i].chrome_panel;
+        struct ToriRSChromePanel const* p;
+
+        if( !ui->panels[i].title || panel < ui->panel_first || panel >= ui->panel_end )
+            continue;
+        p = &ui->chrome->panels[panel];
+        if( p->style != TORIRS_CHROME_PANEL_WINDOW || p->modal )
+            continue;
+        ToriRSChrome_PanelSetClosable(ui->chrome, panel, 1);
+        ToriRSChrome_PanelSetPoppable(ui->chrome, panel, 1);
+        ToriRSChrome_PanelSetResizable(ui->chrome, panel, 1);
+    }
+}
+
 void
 Editor_UiRegisterToolsPanels(struct EditorUi* ui)
 {
@@ -233,6 +264,7 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     Editor_Hotkeys_Register(ui);
     ui->panel_end = ui->chrome->panel_count;
     ui->layout_scale = ToriRSChrome_Scale(ui->chrome);
+    ui_window_furniture(ui);
 }
 
 void
@@ -435,6 +467,8 @@ struct UiDockSlot
     int natural;
     int min;
     int h;
+    /** The column it was admitted to: 0 is the rightmost. */
+    int col;
 };
 
 /** Measure a column candidate laid out at the column's width with no fixed
@@ -488,6 +522,38 @@ ui_capture_boot(struct EditorUi* ui)
     ui->booted_layout = 1;
 }
 
+/** A popped-out window's layout: its one panel over the whole surface, every
+ *  other registry window hidden. */
+static void
+ui_layout_solo(struct EditorUi* ui)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    int const solo = ui->solo_panel;
+
+    for( int i = ui->panel_first; i < ui->panel_end && i < chrome->panel_count; i++ )
+        if( i != solo && !chrome->panels[i].modal )
+            ToriRSChrome_PanelSetVisible(chrome, i, 0);
+    ToriRSChrome_PanelSetClosable(chrome, solo, 0);
+    ToriRSChrome_PanelSetPoppable(chrome, solo, 0);
+    ToriRSChrome_PanelSetResizable(chrome, solo, 0);
+    ToriRSChrome_PanelSetFixedWidth(chrome, solo, chrome->surface_w);
+    ToriRSChrome_PanelSetFixedHeight(chrome, solo, chrome->surface_h);
+    ToriRSChrome_PanelSetScrollable(chrome, solo, 1);
+    ToriRSChrome_PanelMove(chrome, solo, 0, 0);
+    ToriRSChrome_PanelSetVisible(chrome, solo, 1);
+    ui->world.x = 0;
+    ui->world.y = 0;
+    ui->world.w = chrome->surface_w;
+    ui->world.h = chrome->surface_h;
+    ui->dock_x = chrome->surface_w;
+    ui->dock_w = 0;
+    ui->dock_top = 0;
+    ui->dock_bottom = chrome->surface_h;
+    ui->layout_surface_w = chrome->surface_w;
+    ui->layout_surface_h = chrome->surface_h;
+    ui->laid_out = 1;
+}
+
 void
 Editor_UiLayout(struct EditorUi* ui)
 {
@@ -508,6 +574,9 @@ Editor_UiLayout(struct EditorUi* ui)
     int world;
     int avail;
     int used;
+    int world_wanted;
+    int columns;
+    int column_h;
 
     assert(ui);
     chrome = ui->chrome;
@@ -516,6 +585,11 @@ Editor_UiLayout(struct EditorUi* ui)
     assert(surface_w > 0);
     assert(surface_h > 0);
 
+    if( ui->solo_panel >= 0 )
+    {
+        ui_layout_solo(ui);
+        return;
+    }
     menubar = ui_chrome_panel(ui, "menubar");
     rail = ui_chrome_panel(ui, "toolrail");
     console = ui_chrome_panel(ui, "console");
@@ -542,6 +616,7 @@ Editor_UiLayout(struct EditorUi* ui)
         ui->member[at] = 1;
         slots[slot_count].panel = panel;
         slots[slot_count].module = module;
+        slots[slot_count].col = 0;
         slot_count++;
     }
 
@@ -572,8 +647,18 @@ Editor_UiLayout(struct EditorUi* ui)
         left = one_w + (columns - 1) * pitch;
     }
 
+    /* The World panel is wanted unless the user closed it or popped it out
+     * (a World the user placed by hand floats: the column leaves it be). */
+    {
+        int const at = world >= 0 ? world - ui->panel_first : -1;
+        world_wanted = world < 0 || chrome->panels[world].user_placed || chrome->panels[world].visible
+                       || (ui->member[at] && !ui->closed[at]);
+    }
+
     /* The column's width: a share of the surface, never so wide the world
-     * would be narrower than it. */
+     * would be narrower than it. With no World the space is the panels':
+     * as many columns of that width as fit between the rail and the right
+     * edge, widened to fill it exactly. */
     dock_w = ui_round_down(surface_w * EDP_DOCK_W_PERCENT / 100, grid);
     if( dock_w < edp_px(ui, EDP_DOCK_W_MIN) )
         dock_w = edp_px(ui, EDP_DOCK_W_MIN);
@@ -581,10 +666,21 @@ Editor_UiLayout(struct EditorUi* ui)
         dock_w = edp_px(ui, EDP_DOCK_W_MAX);
     if( surface_w - left - dock_w < dock_w )
         dock_w = ui_round_down((surface_w - left) / 2, grid);
-    dock_x = surface_w - dock_w;
+    columns = 1;
+    if( !world_wanted && dock_w > 0 )
+    {
+        columns = (surface_w - left) / dock_w;
+        if( columns < 1 )
+            columns = 1;
+        if( columns > UI_DOCK_COUNT )
+            columns = UI_DOCK_COUNT;
+        dock_w = ui_round_down((surface_w - left) / columns, grid);
+    }
+    dock_x = surface_w - dock_w * columns;
 
     /* Measure every candidate at the column's width and the console at the
-     * world's, content-sized: one Build answers all of them. */
+     * world's (with no World, under every column), content-sized: one Build
+     * answers all of them. */
     for( int i = 0; i < slot_count; i++ )
     {
         ToriRSChrome_PanelSetFixedWidth(chrome, slots[i].panel, dock_w);
@@ -593,7 +689,7 @@ Editor_UiLayout(struct EditorUi* ui)
     }
     if( console >= 0 && !chrome->panels[console].user_placed )
     {
-        ToriRSChrome_PanelSetFixedWidth(chrome, console, dock_x - left);
+        ToriRSChrome_PanelSetFixedWidth(chrome, console, world_wanted ? dock_x - left : surface_w - left);
         ToriRSChrome_PanelSetFixedHeight(chrome, console, 0);
     }
     ToriRSChrome_Build(chrome);
@@ -622,32 +718,47 @@ Editor_UiLayout(struct EditorUi* ui)
         else if( wanted )
             ToriRSChrome_PanelSetVisible(chrome, console, 0);
     }
+    /* With no World the console strip runs under the columns too. */
+    column_h = world_wanted ? avail : world_bottom - top;
 
     /* Admit candidates top-down while every admitted one still gets its
-     * minimum; the rest of the default set is hidden. */
-    used = 0;
-    for( int i = 0; i < slot_count; i++ )
+     * minimum, a column at a time; the rest of the default set is hidden. */
     {
-        ui_dock_measure(ui, &slots[i]);
-        if( used + slots[i].min > avail )
+        int col = 0;
+        used = 0;
+        for( int i = 0; i < slot_count; i++ )
         {
-            ToriRSChrome_PanelSetVisible(chrome, slots[i].panel, 0);
-            slots[i].h = -1;
-            continue;
+            ui_dock_measure(ui, &slots[i]);
+            if( used + slots[i].min > column_h && used > 0 && col + 1 < columns )
+            {
+                col++;
+                used = 0;
+            }
+            if( used + slots[i].min > column_h )
+            {
+                ToriRSChrome_PanelSetVisible(chrome, slots[i].panel, 0);
+                slots[i].h = -1;
+                continue;
+            }
+            slots[i].h = slots[i].min;
+            slots[i].col = col;
+            used += slots[i].min;
         }
-        slots[i].h = slots[i].min;
-        used += slots[i].min;
     }
-    /* Then share what is left in proportion to what each still asks for
-     * (so the picker's well grows with the terrain panel rather than after
-     * it), each up to its asking height; a stretching panel (the picker's
-     * well) takes any remainder. */
+    /* Then, per column, share what is left in proportion to what each still
+     * asks for (so the picker's well grows with the terrain panel rather than
+     * after it), each up to its asking height; a stretching panel (the
+     * picker's well) takes any remainder. */
+    for( int col = 0; col < columns; col++ )
     {
-        int left_over = avail - used;
+        int left_over = column_h;
         int64_t wanted = 0;
         int stretcher = -1;
         for( int i = 0; i < slot_count; i++ )
-            if( slots[i].h >= 0 && slots[i].natural > slots[i].h )
+            if( slots[i].h >= 0 && slots[i].col == col )
+                left_over -= slots[i].h;
+        for( int i = 0; i < slot_count; i++ )
+            if( slots[i].h >= 0 && slots[i].col == col && slots[i].natural > slots[i].h )
                 wanted += slots[i].natural - slots[i].h;
         if( wanted > 0 && left_over > 0 )
         {
@@ -656,7 +767,7 @@ Editor_UiLayout(struct EditorUi* ui)
             for( int i = 0; i < slot_count; i++ )
             {
                 int extra;
-                if( slots[i].h < 0 || slots[i].natural <= slots[i].h )
+                if( slots[i].h < 0 || slots[i].col != col || slots[i].natural <= slots[i].h )
                     continue;
                 extra = (int)((int64_t)(slots[i].natural - slots[i].h) * share / wanted);
                 slots[i].h += extra;
@@ -665,24 +776,26 @@ Editor_UiLayout(struct EditorUi* ui)
             left_over -= given;
         }
         for( int i = 0; i < slot_count; i++ )
-            if( slots[i].h >= 0 && slots[i].module && slots[i].module->stretch )
+            if( slots[i].h >= 0 && slots[i].col == col && slots[i].module && slots[i].module->stretch )
                 stretcher = i;
         if( stretcher >= 0 && left_over > 0 )
             slots[stretcher].h += left_over;
     }
+    for( int col = 0; col < columns; col++ )
     {
         int y = top;
+        int const x = surface_w - dock_w * (col + 1);
         for( int i = 0; i < slot_count; i++ )
         {
             int const at = slots[i].panel - ui->panel_first;
-            if( slots[i].h < 0 )
+            if( slots[i].h < 0 || slots[i].col != col )
                 continue;
             ToriRSChrome_PanelSetFixedHeight(chrome, slots[i].panel, slots[i].h);
             /* A fixed height drops rows past the bottom unless the panel
              * scrolls; content that grows later (the inspector's rows) must
              * not vanish. */
             ToriRSChrome_PanelSetScrollable(chrome, slots[i].panel, 1);
-            ToriRSChrome_PanelMove(chrome, slots[i].panel, dock_x, y);
+            ToriRSChrome_PanelMove(chrome, slots[i].panel, x, y);
             ui->docked[at] = 1;
             ui->closed[at] = 0;
             ui->flown[at] = 0;
@@ -740,6 +853,10 @@ ui_layout_follow(struct EditorUi* ui)
     struct ToriRSChrome* chrome = ui->chrome;
     int y = ui->dock_top;
 
+    /* A popped-out window has no column to fly beside. */
+    if( ui->solo_panel >= 0 )
+        return;
+
     /* Where the open flyouts end. */
     for( int i = 0; i < ui->panel_count; i++ )
     {
@@ -766,10 +883,23 @@ ui_layout_follow(struct EditorUi* ui)
         p = &chrome->panels[panel];
         if( !p->visible )
         {
+            /* A docked panel just closed (its Close box, the View menu, a
+             * pop-out): lay out again, so the rest of the column -- or, for
+             * World, the columns -- take the space it left. */
+            if( ui->docked[at] && ui->member[at] && !ui->closed[at] && !p->user_placed )
+                ui->laid_out = 0;
             if( ui->docked[at] && ui->member[at] )
                 ui->closed[at] = 1;
             ui->flown[at] = 0;
             continue;
+        }
+        /* And one coming back takes its place in the layout again (or,
+         * when the column has no room for it, flies out beside it:
+         * ui_default_layout). */
+        if( ui->closed[at] && !p->user_placed )
+        {
+            ui->laid_out = 0;
+            ui->layout_reopened = panel;
         }
         ui->closed[at] = 0;
         if( ui->docked[at] || ui->flown[at] || p->user_placed || p->modal
@@ -1118,10 +1248,25 @@ ui_default_layout(struct EditorUi* ui)
     }
     if( ui->laid_out || ui->chrome->surface_w <= 0 || ui->chrome->surface_h <= 0 )
         return;
-    /* Not built yet (no heights to stack): next frame. */
-    if( menubar >= 0 && ToriRSChrome_PanelRect(ui->chrome, menubar).h <= 0 )
+    /* Not built yet (no heights to stack): next frame. A popped-out window
+     * stacks nothing (its menu bar is hidden). */
+    if( ui->solo_panel < 0 && menubar >= 0 && ToriRSChrome_PanelRect(ui->chrome, menubar).h <= 0 )
         return;
     Editor_UiLayout(ui);
+    /* A panel the user just brought back is shown, whatever the column had
+     * room for: if the layout could not admit it, it opens beside the column
+     * (ui_layout_follow), never back into hiding. */
+    if( ui->layout_reopened >= 0 )
+    {
+        int const reopened = ui->layout_reopened;
+        ui->layout_reopened = -1;
+        if( reopened >= ui->panel_first && reopened < ui->panel_end && !ui->chrome->panels[reopened].visible )
+        {
+            ToriRSChrome_PanelSetVisible(ui->chrome, reopened, 1);
+            ui->docked[reopened - ui->panel_first] = 0;
+            ui->flown[reopened - ui->panel_first] = 0;
+        }
+    }
     if( ui->layout_restore )
     {
         ui->layout_restore = 0;
@@ -1130,6 +1275,163 @@ ui_default_layout(struct EditorUi* ui)
 }
 
 /* ---- the frame ------------------------------------------------------------- */
+
+/** The registry index of chrome panel `panel`, or -1. */
+static int
+ui_registry_of(
+    const struct EditorUi* ui,
+    int panel)
+{
+    for( int i = 0; i < ui->panel_count; i++ )
+        if( ui->panels[i].chrome_panel == panel )
+            return i;
+    return -1;
+}
+
+/** Per frame: a title-bar Pop out press, and a popped-out panel shown here
+ *  again (pop in, however it came back: the View menu, its hotkey, Reset
+ *  layout). Cheap: the registry, not the UI tree. */
+static void
+ui_popout_tick(struct EditorUi* ui)
+{
+    int const pressed = ToriRSChrome_TakePopOut(ui->chrome);
+
+    if( pressed >= 0 )
+    {
+        int const at = ui_registry_of(ui, pressed);
+        if( at >= 0 )
+            (void)Editor_UiPanelPopOut(ui, ui->panels[at].name);
+    }
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        int const panel = ui->panels[i].chrome_panel;
+        if( !ui->popped[i] || panel < 0 || !ui->chrome->panels[panel].visible )
+            continue;
+        ui->popped[i] = 0;
+        Editor_UiLog(ui, "editor: %s popped back in (its own window keeps running until you close it)",
+            ui->panels[i].title);
+    }
+}
+
+int
+Editor_UiPanelPopOut(
+    struct EditorUi* ui,
+    const char* name)
+{
+    struct EditorUiPanel* panel;
+    struct EditorViewCamera camera;
+    struct EditorViewCamera const* pose = NULL;
+    char why[192];
+    int at;
+    int const level = ui->tools.edit_level >= 0 ? ui->tools.edit_level : 0;
+
+    assert(ui);
+    assert(name);
+
+    panel = Editor_UiFindPanel(ui, name);
+    if( !panel || !panel->title || panel->chrome_panel < 0 )
+    {
+        Editor_UiLog(ui, "editor: there is no panel '%s' to pop out", name);
+        return 0;
+    }
+    at = (int)(panel - ui->panels);
+    if( ui->solo_panel >= 0 )
+    {
+        Editor_UiLog(ui, "editor: this window is already a popped-out %s", panel->title);
+        return 0;
+    }
+    if( !ui->app_services.spawn_panel )
+    {
+        Editor_UiLog(ui, "editor: Pop out %s: this window cannot open other windows", panel->title);
+        return 0;
+    }
+    /* Where the World panel looks, on the pinned level's ground: the 3D view
+     * opens exactly there, and a panel window loads the same square. */
+    memset(&camera, 0, sizeof(camera));
+    if( ui->app_services.world_camera
+        && ui->app_services.world_camera(ui->app_services.user_data, level, &camera) )
+        pose = &camera;
+    why[0] = '\0';
+    if( !ui->app_services.spawn_panel(ui->app_services.user_data, name, pose, why, (int)sizeof(why)) )
+    {
+        Editor_UiLog(ui, "editor: could not pop out %s: %s", panel->title, why[0] ? why : "no reason given");
+        return 0;
+    }
+    ToriRSChrome_PanelSetVisible(ui->chrome, panel->chrome_panel, 0);
+    ui->popped[at] = 1;
+    if( pose )
+        Editor_UiLog(ui, "editor: %s popped out into its own window (at %d,%d level %d) -- View > %s brings it back",
+            panel->title, pose->x / 128, pose->z / 128, pose->level, panel->title);
+    else
+        Editor_UiLog(ui, "editor: %s popped out into its own window -- View > %s brings it back", panel->title,
+            panel->title);
+    return 1;
+}
+
+int
+Editor_UiWorldPopOut(struct EditorUi* ui)
+{
+    assert(ui);
+    return Editor_UiPanelPopOut(ui, "world");
+}
+
+int
+Editor_UiPanelPoppedOut(
+    const struct EditorUi* ui,
+    const char* name)
+{
+    assert(ui);
+    assert(name);
+    for( int i = 0; i < ui->panel_count; i++ )
+        if( strcmp(ui->panels[i].name, name) == 0 )
+            return ui->popped[i];
+    return 0;
+}
+
+const char*
+Editor_UiPanelAt(
+    struct EditorUi* ui,
+    int x,
+    int y)
+{
+    const char* found = NULL;
+    int top = -1;
+
+    assert(ui);
+    /* The chrome draws later panels over earlier ones: the highest index
+     * holding the point is the one the pointer is on. */
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        int const panel = ui->panels[i].chrome_panel;
+        struct ToriRSChromeRect r;
+        if( !ui->panels[i].title || panel < 0 || panel <= top || !ui->chrome->panels[panel].visible )
+            continue;
+        r = ui->chrome->panels[panel].last_rect;
+        if( x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h )
+        {
+            top = panel;
+            found = ui->panels[i].name;
+        }
+    }
+    return found;
+}
+
+int
+Editor_UiSetSolo(
+    struct EditorUi* ui,
+    const char* name)
+{
+    struct EditorUiPanel* panel;
+
+    assert(ui);
+    assert(name);
+    panel = Editor_UiFindPanel(ui, name);
+    if( !panel || !panel->title || panel->chrome_panel < 0 )
+        return 0;
+    ui->solo_panel = panel->chrome_panel;
+    ui->laid_out = 0;
+    return 1;
+}
 
 void
 Editor_UiTick(struct EditorUi* ui)
@@ -1148,6 +1450,8 @@ Editor_UiTick(struct EditorUi* ui)
     ui_default_layout(ui);
     if( ui->laid_out )
         ui_layout_follow(ui);
+
+    ui_popout_tick(ui);
 
     /* ONE activation per frame, and it is either one module's or nobody's
      * here. Unclaimed, it goes back where it was: another consumer of this

@@ -17,6 +17,10 @@
 #include "editor/panels/edpanels.h"
 #include "editor/task_editor_layout_io.h"
 #include "engine/world_builder/edit/world_edit.h"
+#include "game/rs_worldmap_overview.h"
+
+#include <ctype.h>
+#include <time.h>
 
 /* Private to this unit, declared up front so definition order is free. */
 static void
@@ -178,6 +182,9 @@ app_map_editor_shutdown(struct App* app)
     assert(app);
     assert(app->editor);
     app_map_editor_layout_flush(app);
+    /* The embedded server's loopback listener, before the session it serves
+     * goes (app/app_editor_view.c). */
+    EditorView_AppShutdown(app);
     Editor_PanelFree(&app->editor_panel);
     app_map_editor_free(app);
 }
@@ -345,6 +352,199 @@ ui_service_request_redraw(void* user_data)
     app->need_redraw = 1;
 }
 
+#if !defined(__EMSCRIPTEN__)
+/* ---- the square picker's world map (editor/editor_worldmap.h) ----------
+ *
+ * The overview's bakes live for the process: one App per process, and the
+ * App holds no field for them (check-app-boundary). Created on first use. */
+
+static struct RS_WorldMapOverview* g_picker_worldmap;
+static int g_picker_worldmap_load_asked;
+
+static struct ToriRS_WorldMapArea*
+ui_service_worldmap_area_of(
+    struct App* app,
+    int area_id)
+{
+    struct ToriRS_WorldMapAreas* areas;
+
+    if( !app->provider || area_id < 0 )
+        return NULL;
+    areas = CacheProvider_WorldMapGet(app->provider);
+    if( !areas )
+        return NULL;
+    return ToriRS_WorldMapAreasGet(areas, area_id);
+}
+
+static int
+ui_service_worldmap_area(
+    void* user_data,
+    const char* internal_name)
+{
+    struct App* app = user_data;
+    struct ToriRS_WorldMapAreas* areas;
+
+    assert(app);
+    assert(internal_name);
+    if( !app->provider )
+        return -1;
+    areas = CacheProvider_WorldMapGet(app->provider);
+    if( !areas )
+    {
+        /* Asked for once; a cache with no world map never publishes any,
+         * and the picker keeps asking every half second, harmlessly. */
+        if( !g_picker_worldmap_load_asked )
+        {
+            struct ToriRS_Task* task = CreateTask_WorldMapLoad(app->provider);
+            g_picker_worldmap_load_asked = 1;
+            if( !task )
+                return -1;
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+        }
+        return -2;
+    }
+    for( int i = 0; i < areas->count; i++ )
+    {
+        /* The atlas's names are the content tree's .wma blocks, written
+         * from these; compared without case all the same. */
+        const char* a = areas->areas[i].internal_name;
+        const char* b = internal_name;
+        if( !a )
+            continue;
+        while( *a && *b && tolower((unsigned char)*a) == tolower((unsigned char)*b) )
+        {
+            a++;
+            b++;
+        }
+        if( *a == '\0' && *b == '\0' )
+            return areas->areas[i].id;
+    }
+    return -1;
+}
+
+static int
+ui_service_worldmap_poll(
+    void* user_data,
+    int area_id,
+    int square_x0,
+    int square_z0,
+    int squares_w,
+    int squares_h,
+    int* out_missing)
+{
+    struct App* app = user_data;
+    struct ToriRS_WorldMapArea* area;
+    struct RS_WorldMapOverviewWindow window;
+    struct timespec poll_t0;
+
+    assert(app);
+    assert(out_missing);
+    area = ui_service_worldmap_area_of(app, area_id);
+    if( !area )
+        return -1;
+    if( !g_picker_worldmap )
+        g_picker_worldmap = RS_WorldMapOverview_New();
+    window.square_x0 = square_x0;
+    window.square_z0 = square_z0;
+    window.squares_w = squares_w;
+    window.squares_h = squares_h;
+    window.pixels_per_square = 1;
+    clock_gettime(CLOCK_MONOTONIC, &poll_t0);
+    *out_missing = RS_WorldMapOverview_Poll(
+        g_picker_worldmap, app->provider, app->scene, app->runner.queue,
+        UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPSCENE), area, &window);
+    /* TORIRS_WORLDMAP_STATS=1: how long a window takes to arrive, from its
+     * first poll to the one that finds nothing missing (stderr in every
+     * build: it is asked for). */
+    if( getenv("TORIRS_WORLDMAP_STATS") )
+    {
+        static struct timespec started;
+        static int timing;
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        if( !timing && *out_missing > 0 )
+        {
+            started = now;
+            timing = 1;
+        }
+        if( timing )
+            TORIRS_ERR("worldmap picker: area %d squares %d,%d %dx%d: %d regions to come, %ld ms (poll %ld us)\n",
+                area_id, square_x0, square_z0, squares_w, squares_h, *out_missing,
+                (long)((now.tv_sec - started.tv_sec) * 1000 + (now.tv_nsec - started.tv_nsec) / 1000000),
+                (long)((now.tv_sec - poll_t0.tv_sec) * 1000000 + (now.tv_nsec - poll_t0.tv_nsec) / 1000));
+        if( timing && *out_missing == 0 )
+            timing = 0;
+    }
+    return RS_WorldMapOverview_Serial(g_picker_worldmap);
+}
+
+static int
+ui_service_worldmap_render(
+    void* user_data,
+    int area_id,
+    int square_x0,
+    int square_z0,
+    int squares_w,
+    int squares_h,
+    int px_per_square,
+    uint32_t* out_argb)
+{
+    struct App* app = user_data;
+    struct ToriRS_WorldMapArea* area;
+    struct RS_WorldMapOverviewWindow window;
+
+    assert(app);
+    assert(out_argb);
+    area = ui_service_worldmap_area_of(app, area_id);
+    if( !area )
+        return 0;
+    if( !g_picker_worldmap )
+        g_picker_worldmap = RS_WorldMapOverview_New();
+    window.square_x0 = square_x0;
+    window.square_z0 = square_z0;
+    window.squares_w = squares_w;
+    window.squares_h = squares_h;
+    window.pixels_per_square = px_per_square;
+    RS_WorldMapOverview_Render(g_picker_worldmap, area, &window, out_argb);
+    return 1;
+}
+
+static int
+ui_service_image_publish(
+    void* user_data,
+    int slot,
+    const uint32_t* argb,
+    int w,
+    int h)
+{
+    struct App* app = user_data;
+    int const id = UITREE_SCENE_EDITOR_PICKER_MAP_ID(slot);
+    struct ToriDraw_Sprite* sprite;
+    struct ToriDraw_Sprite** sprites;
+    uint32_t* copy;
+
+    assert(app);
+    assert(argb);
+    assert(w > 0);
+    assert(h > 0);
+    if( !app->scene )
+        return 0;
+    copy = TORIDRAW_MALLOC((size_t)w * (size_t)h * sizeof(*copy)); /* the sprite owns it */
+    assert(copy);
+    memcpy(copy, argb, (size_t)w * (size_t)h * sizeof(*copy));
+    sprite = ToriDraw_SpriteNewFromArgbOwned(copy, w, h);
+    assert(sprite);
+    sprites = TORIDRAW_MALLOC(sizeof(*sprites)); /* SceneSpriteAdd frees it */
+    assert(sprites);
+    sprites[0] = sprite;
+    if( ToriDraw_SceneSpriteHas(app->scene, id) )
+        ToriDraw_SceneSpriteRemove(app->scene, id);
+    ToriDraw_SceneSpriteAdd(app->scene, id, sprites, 1);
+    app->need_redraw = 1;
+    return id;
+}
+#endif /* !__EMSCRIPTEN__ */
+
 void
 app_map_editor_ui_services(
     struct App* app,
@@ -363,6 +563,19 @@ app_map_editor_ui_services(
     out->preview_invalidate = ui_service_preview_invalidate;
     out->world_busy = ui_service_world_busy;
     out->request_redraw = ui_service_request_redraw;
+#if !defined(__EMSCRIPTEN__)
+    /* The square picker's world map. Not on the web: its panels are DOM,
+     * which has no pixels for a GRAPH image (ui/uitree_debug_overlay.h
+     * TORIRS_CHROME_GRAPH_IMAGE), and the picker would trade its cells for a
+     * picture nobody sees. */
+    out->worldmap_area = ui_service_worldmap_area;
+    out->worldmap_poll = ui_service_worldmap_poll;
+    out->worldmap_render = ui_service_worldmap_render;
+    out->image_publish = ui_service_image_publish;
+#endif
+    /* Pop out (app/app_editor_view.c). */
+    out->world_camera = EditorView_AppWorldCamera;
+    out->spawn_panel = EditorView_AppSpawnPanel;
 }
 
 static struct AppMapEditShadow*

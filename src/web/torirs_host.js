@@ -29,7 +29,7 @@
 //                                 derive from it (default: this page's directory)
 //   ?ws=wss://host/path | ?ws=ws  the game socket's URL; JS5 follows it
 //   ?js5_host= ?js5_port= ?js5_url=   where JS5 is, when not the page's host
-//   ?editor_view=1&maped=wss://host/path&group=N[&camera=x,z,level,yaw,pitch,zoom]
+//   ?editor_view=1&maped=wss://host/path&group=N[&camera=x,z,level,yaw,pitch,zoom][&panel=<module>]
 //                                 a map-editor VIEW tab (docs/MAPED_DESIGN.html
 //                                 #windows): the editor manifest booted with
 //                                 --editor-view, joined to Client N on the
@@ -295,6 +295,9 @@
     if (group && /^[1-9][0-9]*$/.test(group)) { out.push('--maped-group', group); }
     const camera = query.get('camera');
     if (camera) { out.push('--camera', camera); }
+    /* A popped-out editor panel: the tab shows that one panel, filling it. */
+    const panel = query.get('panel');
+    if (panel && panel !== 'world' && /^[a-z0-9_]{1,31}$/.test(panel)) { out.push('--editor-panel', panel); }
     return { args: out, socketUrl, error: null };
   }
 
@@ -303,7 +306,7 @@
    * query, carrying over where this page finds its servers (io, JS5, env) and
    * which manifest it booted, so the tab boots the same world.
    */
-  function editorViewUrl(pageHref, query, manifest, maped, group, camera) {
+  function editorViewUrl(pageHref, query, manifest, maped, group, camera, panel) {
     const url = new URL(pageHref);
     const next = new URLSearchParams();
     ['io', 'js5_host', 'js5_port', 'js5_url', 'js5_revision', 'js5_delay', 'env'].forEach(key => {
@@ -313,6 +316,7 @@
     next.set('maped', maped);
     if (group) { next.set('group', String(group)); }
     if (camera) { next.set('camera', camera); }
+    if (panel && panel !== 'world') { next.set('panel', panel); }
     if (manifest) { next.set('manifest', manifest); }
     url.search = next.toString();
     url.hash = '';
@@ -1181,7 +1185,7 @@
    * x,z,level,yaw,pitch,zoom, the Client id, and this boot's own maped
    * address for a page that was not given one in its query.
    */
-  window.torirsSpawnEditorView = (camera, group, fallbackMaped) => {
+  window.torirsSpawnEditorView = (camera, group, fallbackMaped, panel) => {
     const maped = params.get('maped') || editorView.socketUrl ||
       (Module.websocket && Module.websocket.url) || fallbackMaped;
     if (!maped) {
@@ -1191,12 +1195,12 @@
     const at = args.indexOf('--manifest');
     const manifest = at >= 0 && at + 1 < args.length ? args[at + 1] : null;
     const tab = window.open(
-      editorViewUrl(window.location.href, params, manifest, maped, group, camera), '_blank');
+      editorViewUrl(window.location.href, params, manifest, maped, group, camera, panel), '_blank');
     if (!tab) {
       log('editor view: the view tab was blocked -- allow popups for this site', true);
       return false;
     }
-    log(`editor view: opened a view of Client ${group || '(new)'}` +
+    log(`editor view: opened a ${panel ? `${panel} panel` : 'view'} of Client ${group || '(new)'}` +
         (camera ? ` at ${camera}` : ''));
     return true;
   };

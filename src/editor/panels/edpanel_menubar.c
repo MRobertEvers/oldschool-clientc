@@ -82,6 +82,9 @@ struct MenuBarPanel
     int view_panel_count;
     int view_built_for;
     int view_built_snap;
+    /** menubar_view_state() the rows were labelled from: a panel shown,
+     *  closed or popped out relabels them. */
+    uint32_t view_built_state;
     /** The File and Edit rows' labels (the dropdowns borrow them). */
     char file_labels[FILE_COUNT][TORIRS_CHROME_LABEL_MAX];
     const char* file_rows[FILE_COUNT];
@@ -97,6 +100,42 @@ struct MenuBarPanel
     int shown_level;
     int shown_vis;
 };
+
+/** A digest of which View-menu panels are open and which popped out: the
+ *  rows say both. The registry, not the UI tree. */
+static uint32_t
+menubar_view_state(const struct EditorUi* ui)
+{
+    uint32_t h = 2166136261u;
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        int const panel = ui->panels[i].chrome_panel;
+        int const open = panel >= 0 && ui->chrome->panels[panel].visible;
+        h = (h ^ (uint32_t)(open | (ui->popped[i] << 1))) * 16777619u;
+    }
+    return h;
+}
+
+/**
+ * A panel row's right-hand column: what is not open says so before the
+ * chord ("Name\thidden  F3", "Name\tpopped out"), so the row still starts
+ * with the panel's name and a closed panel is told from an open one.
+ */
+static void
+menubar_mark_row(
+    char* label,
+    int size,
+    const char* state)
+{
+    char const* tab = strchr(label, '\t');
+    char row[TORIRS_CHROME_LABEL_MAX];
+
+    if( tab )
+        snprintf(row, sizeof(row), "%.*s\t%s  %s", (int)(tab - label), label, state, tab + 1);
+    else
+        snprintf(row, sizeof(row), "%s\t%s", label, state);
+    snprintf(label, (size_t)size, "%s", row);
+}
 
 static void
 menubar_build_view(
@@ -115,6 +154,10 @@ menubar_build_view(
             edp_hotkey_row(ui, action, panel->title, self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX);
         else
             snprintf(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "%s", panel->title);
+        if( ui->popped[i] )
+            menubar_mark_row(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "popped out");
+        else if( !ui->chrome->panels[panel->chrome_panel].visible )
+            menubar_mark_row(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "hidden");
         self->view_rows[self->view_count] = self->view_labels[self->view_count];
         self->view_targets[self->view_count] = i;
         self->view_count++;
@@ -138,6 +181,7 @@ menubar_build_view(
     ToriRSChrome_DropdownSetOptions(ui->chrome, self->menu_view, self->view_rows, self->view_count, -1);
     self->view_built_for = ui->panel_count;
     self->view_built_snap = ui->snap;
+    self->view_built_state = menubar_view_state(ui);
 }
 
 /** The File and Edit rows and the Level tips, from the hotkey table. */
@@ -217,7 +261,8 @@ menubar_tick(
         menubar_hints(ui, self);
         menubar_build_view(ui, self);
     }
-    if( self->view_built_for != ui->panel_count || self->view_built_snap != ui->snap )
+    if( self->view_built_for != ui->panel_count || self->view_built_snap != ui->snap
+        || self->view_built_state != menubar_view_state(ui) )
         menubar_build_view(ui, self);
     /* A level changed behind the row's back -- another window
      * (STATE_EDIT_LEVEL lands in edit_level alone) or a key: the cap follows

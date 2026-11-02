@@ -179,6 +179,10 @@ enum Editor_HotkeyAction
     EDITOR_HK_VIEW_SNAP,
     /** Hold: panels snap to the grid while this is down, whatever the toggle. */
     EDITOR_HK_VIEW_SNAP_HOLD,
+    /** Pop the panel under the pointer out into its own window (World when
+     *  over none); hide the panel under the pointer. */
+    EDITOR_HK_VIEW_POPOUT,
+    EDITOR_HK_VIEW_CLOSE_PANEL,
     EDITOR_HK_COUNT
 };
 
