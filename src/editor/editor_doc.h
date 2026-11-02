@@ -139,6 +139,17 @@ Editor_SquareLocAdd(
     struct Editor_Square* square,
     const struct Editor_Loc* loc);
 
+/**
+ * Insert a placement where the cache orders it (loc id, level, x, z, shape,
+ * rotation) and return its index. What an edit uses -- Editor_SquareLocAdd
+ * keeps the file's own order for the parser -- so a deleted loc that comes
+ * back on undo lands where it stood, and the .jl2 saves byte for byte.
+ */
+int
+Editor_SquareLocInsert(
+    struct Editor_Square* square,
+    const struct Editor_Loc* loc);
+
 void
 Editor_SquareLocRemoveAt(
     struct Editor_Square* square,
@@ -159,6 +170,13 @@ Editor_SquareLocFind(
     int x,
     int z,
     int shape);
+
+/** Index of the placement equal to `loc` in every field (id, shape,
+ *  rotation, level, x, z), or -1: what a delete or a move names. */
+int
+Editor_SquareLocFindExact(
+    const struct Editor_Square* square,
+    const struct Editor_Loc* loc);
 
 /* ---- keys --------------------------------------------------------------- */
 

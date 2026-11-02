@@ -49,11 +49,65 @@ Editor_SquareLocAdd(
         int next = square->loc_capacity ? square->loc_capacity * 2 : 256;
         square->locs =
             ToriMem_Realloc(ToriMem_Editor(), square->locs, (size_t)next * sizeof(*square->locs));
+        assert(square->locs);
         square->loc_capacity = next;
     }
 
     square->locs[square->loc_count] = *loc;
     return square->loc_count++;
+}
+
+/* The cache's order for a square's locs: loc id, then the packed position
+ * (level, x, z), then -- among one loc's layers on one tile -- shape and
+ * rotation. Every .jl2 in the content tree is in it (2,949 squares). */
+static int
+loc_cache_order(
+    const struct Editor_Loc* a,
+    const struct Editor_Loc* b)
+{
+    if( a->loc_id != b->loc_id )
+        return a->loc_id < b->loc_id ? -1 : 1;
+    if( a->level != b->level )
+        return a->level < b->level ? -1 : 1;
+    if( a->x != b->x )
+        return a->x < b->x ? -1 : 1;
+    if( a->z != b->z )
+        return a->z < b->z ? -1 : 1;
+    if( a->shape != b->shape )
+        return a->shape < b->shape ? -1 : 1;
+    if( a->rotation != b->rotation )
+        return a->rotation < b->rotation ? -1 : 1;
+    return 0;
+}
+
+int
+Editor_SquareLocInsert(
+    struct Editor_Square* square,
+    const struct Editor_Loc* loc)
+{
+    int index;
+    int at;
+
+    assert(square);
+    assert(loc);
+
+    /* Before the first placement that sorts after it: in a file in cache
+     * order (all of them) that is exactly where a deleted loc stood, so an
+     * undone delete saves byte for byte. A hand-ordered file still gets a
+     * stable, deterministic place -- the same on the authority and on every
+     * mirror. */
+    at = square->loc_count;
+    for( int i = 0; i < square->loc_count; i++ )
+        if( loc_cache_order(&square->locs[i], loc) > 0 )
+        {
+            at = i;
+            break;
+        }
+    index = Editor_SquareLocAdd(square, loc);
+    assert(index == square->loc_count - 1);
+    memmove(&square->locs[at + 1], &square->locs[at], (size_t)(index - at) * sizeof(*square->locs));
+    square->locs[at] = *loc;
+    return at;
 }
 
 void
@@ -91,6 +145,20 @@ Editor_SquareLocFind(
         if( loc->level == level && loc->x == x && loc->z == z && loc->shape == shape )
             return i;
     }
+    return -1;
+}
+
+int
+Editor_SquareLocFindExact(
+    const struct Editor_Square* square,
+    const struct Editor_Loc* loc)
+{
+    assert(square);
+    assert(loc);
+
+    for( int i = 0; i < square->loc_count; i++ )
+        if( loc_cache_order(&square->locs[i], loc) == 0 )
+            return i;
     return -1;
 }
 

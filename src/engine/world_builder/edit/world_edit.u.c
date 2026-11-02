@@ -14,9 +14,11 @@
  * Vocabulary:
  *
  *   placement   one map loc, in map order: (square index in the window's bake
- *               order, sequence within the square). New placements append to
- *               their square, removals keep the rest in order -- exactly what
- *               the editor's document does to the square's loc list, so EDIT's
+ *               order, sequence within the square). loc_place appends to its
+ *               square, WorldEdit_LocPlaceBefore inserts ahead of a placement
+ *               (the document inserts in cache order, so an undone delete lands
+ *               mid-list), removals keep the rest in order -- exactly what the
+ *               editor's document does to the square's loc list, so EDIT's
  *               order and a fresh bake's agree.
  *   record      what a placement did to the build maps while it was placed:
  *               the shadows it cast, the wall offset it set, the decor it hung,
@@ -920,10 +922,13 @@ we_changed_add(
     e->changed[e->changed_count++] = index;
 }
 
+/* Place, in map order just before placement `before` of the same square, or
+ * (before < 0) at the end of the square's list. */
 static int
-world_edit_loc_place(
+we_loc_place(
     struct WorldBuilder* builder,
-    const struct World_LocPlacement* placement)
+    const struct World_LocPlacement* placement,
+    int before)
 {
     struct WorldEdit* e = we_get(builder);
     struct World* world = builder->world;
@@ -944,11 +949,22 @@ world_edit_loc_place(
     assert(placement->level >= 0);
     assert(placement->level < WORLD_MAP_TERRAIN_LEVELS);
 
-    /* It joins the end of its square's list, as the document appends it. */
     abs_x = world->_chunk_sw_x * WORLD_MAP_TERRAIN_X + world->_offset_x + placement->scene_x;
     abs_z = world->_chunk_sw_z * WORLD_MAP_TERRAIN_Z + world->_offset_z + placement->scene_z;
     square = we_square_add(e, abs_x / WORLD_MAP_TERRAIN_X, abs_z / WORLD_MAP_TERRAIN_Z);
     index = we_placement_new(e, placement, square, WE_P_ADD);
+    if( before >= 0 )
+    {
+        /* Where the document put it: the shade replay and the last wall of a
+         * tile follow map order, so EDIT's order has to be the list's, or a
+         * fresh bake of the same document lights the tile differently. */
+        int const at = e->placements[before].seq;
+        assert(e->placements[before].square == square);
+        for( int i = 0; i < e->placement_count; i++ )
+            if( i != index && e->placements[i].square == square && e->placements[i].seq >= at )
+                e->placements[i].seq++;
+        e->placements[index].seq = at;
+    }
     we_footprint(builder, placement, &sx, &sz);
     if( sx > e->max_size )
         e->max_size = sx;
@@ -956,6 +972,65 @@ world_edit_loc_place(
         e->max_size = sz;
     we_changed_add(e, index);
     return we_make_handle(e, index);
+}
+
+static int
+world_edit_loc_place(
+    struct WorldBuilder* builder,
+    const struct World_LocPlacement* placement)
+{
+    /* The end of its square's list: what loc_place has always meant. */
+    return we_loc_place(builder, placement, -1);
+}
+
+int
+WorldEdit_LocPlaceBefore(
+    struct WorldBuilder* builder,
+    const struct World_LocPlacement* placement,
+    int before_handle)
+{
+    struct WorldEdit* e;
+    int before;
+
+    assert(builder);
+    assert(builder->edit);
+    assert(placement);
+    e = builder->edit;
+    if( before_handle == WORLD_BUILDER_HANDLE_NONE || !e->ready )
+        return we_loc_place(builder, placement, -1);
+    before = we_handle_index(e, before_handle);
+    assert(before >= 0 && "world_edit: place before a handle that names nothing");
+    assert(e->placements[before].state == WE_P_LIVE || e->placements[before].state == WE_P_ADD);
+    return we_loc_place(builder, placement, before);
+}
+
+int
+WorldEdit_PlacementNext(
+    const struct WorldBuilder* builder,
+    int handle)
+{
+    const struct WorldEdit* e;
+    int index;
+    int best = -1;
+
+    assert(builder);
+    assert(builder->edit);
+    e = builder->edit;
+    if( !e->ready )
+        return WORLD_BUILDER_HANDLE_NONE;
+    index = we_handle_index(e, handle);
+    assert(index >= 0 && "world_edit: next of a handle that names nothing");
+    for( int i = 0; i < e->placement_count; i++ )
+    {
+        const struct WorldEditPlacement* pl = &e->placements[i];
+        if( pl->square != e->placements[index].square || (pl->state != WE_P_LIVE && pl->state != WE_P_ADD) )
+            continue;
+        if( we_order_cmp(e, i, index) <= 0 )
+            continue;
+        if( best < 0 || we_order_cmp(e, i, best) < 0 )
+            best = i;
+    }
+    return best < 0 ? WORLD_BUILDER_HANDLE_NONE : we_make_handle(e, best);
 }
 
 static void

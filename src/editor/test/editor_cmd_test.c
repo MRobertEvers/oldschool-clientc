@@ -207,6 +207,215 @@ test_loc_commands(void)
     Editor_DocFree(&g_doc);
 }
 
+/* ---- locs: delete, undo, redo ------------------------------------------------
+ *
+ * The .jl2 the authority would save after an undo must be the file it held
+ * before the edit, byte for byte: an undo that leaves a placement moved to the
+ * end of the list is a diff the user never asked for, on every save after it.
+ * The content tree's files are in cache order -- loc id, then level, x, z,
+ * then shape -- which is what an undone delete has to land back in. */
+
+static char*
+emit_jl2(const struct Editor_Square* square)
+{
+    size_t size = Editor_Jl2Emit(square, NULL, 0);
+    char* text = malloc(size + 1);
+    if( !text )
+        abort();
+    Editor_Jl2Emit(square, text, size + 1);
+    return text;
+}
+
+static struct Editor_Cmd
+loc_delete_cmd(const struct Editor_Loc* loc)
+{
+    struct Editor_Cmd command;
+    Editor_CmdInitSquare(&command, EDITOR_CMD_LOC, 50, 50);
+    command.has_before = 1;
+    command.u.loc.before = *loc;
+    return command;
+}
+
+static const char k_sorted_jl2[] = "==== LOC ====\n"
+                                   "0 18 17: 85 0 2\n"
+                                   "0 19 17: 85 0 1\n"
+                                   "0 19 17: 85 4 1\n"
+                                   "0 12 15: 114 10 2\n"
+                                   "0 19 17: 179 22 3\n"
+                                   "0 28 55: 179 22\n";
+
+static void
+test_loc_delete_undo_keeps_file_order(void)
+{
+    struct Editor_Square* square = open_square();
+    struct Editor_UndoStack undo;
+    struct Editor_Cmd command;
+    char* original;
+    char* deleted;
+    char* text;
+
+    Editor_UndoInit(&undo);
+    square->loaded = 1;
+    Editor_Jl2Parse(square, k_sorted_jl2, strlen(k_sorted_jl2));
+    original = emit_jl2(square);
+    check(strcmp(original, k_sorted_jl2) == 0, "loc order: the sorted .jl2 round-trips");
+
+    /* One delete from the middle of the list, undone. */
+    command = loc_delete_cmd(&square->locs[1]);
+    check(Editor_CmdApply(&g_doc, &command, EDITOR_CMD_FORWARD) == 1, "loc order: the delete applies");
+    Editor_UndoPush(&undo, &command);
+    deleted = emit_jl2(square);
+    Editor_UndoUndo(&undo, &g_doc, NULL, NULL);
+    text = emit_jl2(square);
+    check(strcmp(text, original) == 0, "loc order: an undone delete is back where it stood, byte for byte");
+    if( strcmp(text, original) != 0 )
+        fprintf(stderr, "---- after undo:\n%s---- expected:\n%s", text, original);
+    free(text);
+    Editor_UndoRedo(&undo, &g_doc, NULL, NULL);
+    text = emit_jl2(square);
+    check(strcmp(text, deleted) == 0, "loc order: the redo deletes it again");
+    free(text);
+    Editor_UndoUndo(&undo, &g_doc, NULL, NULL);
+
+    /* Clear tile: every layer on (19, 17) in list order, one stroke, undone. */
+    Editor_UndoStrokeBegin(&undo);
+    for( int i = 0; i < square->loc_count; )
+    {
+        if( square->locs[i].x == 19 && square->locs[i].z == 17 )
+        {
+            command = loc_delete_cmd(&square->locs[i]);
+            check(Editor_CmdApply(&g_doc, &command, EDITOR_CMD_FORWARD) == 1, "loc order: a clear-tile delete applies");
+            Editor_UndoPush(&undo, &command);
+            continue;
+        }
+        i++;
+    }
+    Editor_UndoStrokeEnd(&undo);
+    check(square->loc_count == 3, "loc order: clear tile took the three locs on (19, 17)");
+    check(Editor_UndoUndo(&undo, &g_doc, NULL, NULL) == 3, "loc order: one undo step brings all three back");
+    text = emit_jl2(square);
+    check(strcmp(text, original) == 0, "loc order: an undone clear tile restores the file byte for byte");
+    if( strcmp(text, original) != 0 )
+        fprintf(stderr, "---- after undo:\n%s---- expected:\n%s", text, original);
+    free(text);
+
+    /* A new placement lands in cache order too: an add then an undo is the
+     * file it was. */
+    memset(&command, 0, sizeof(command));
+    Editor_CmdInitSquare(&command, EDITOR_CMD_LOC, 50, 50);
+    command.has_after = 1;
+    command.u.loc.after.loc_id = 100;
+    command.u.loc.after.shape = 10;
+    command.u.loc.after.x = 3;
+    command.u.loc.after.z = 4;
+    check(Editor_CmdApply(&g_doc, &command, EDITOR_CMD_FORWARD) == 1, "loc order: an add applies");
+    check(square->locs[3].loc_id == 100, "loc order: the added loc sits in cache order (after the 85s, before 114)");
+    Editor_CmdApply(&g_doc, &command, EDITOR_CMD_INVERSE);
+    text = emit_jl2(square);
+    check(strcmp(text, original) == 0, "loc order: the add undone leaves the file as it was");
+    free(text);
+
+    free(deleted);
+    free(original);
+    Editor_UndoFree(&undo);
+    Editor_DocFree(&g_doc);
+}
+
+/* A delete names a placement exactly. One that is not there (another window
+ * deleted it first, or a stale selection) must change nothing and say so: the
+ * authority that accepted it would record it, and its undo would then ADD a
+ * loc that was never deleted -- a duplicate. */
+static void
+test_loc_delete_of_absent_refused(void)
+{
+    struct Editor_Square* square = open_square();
+    struct Editor_UndoStack undo;
+    struct Editor_Cmd command;
+    struct Editor_Loc wall = { 85, 0, 1, 0, 19, 17 };
+    struct Editor_Loc other = { 86, 0, 1, 0, 19, 17 };
+
+    Editor_UndoInit(&undo);
+    square->loaded = 1;
+    Editor_Jl2Parse(square, k_sorted_jl2, strlen(k_sorted_jl2));
+    square->dirty_loc = 0;
+
+    command = loc_delete_cmd(&wall);
+    check(Editor_CmdApply(&g_doc, &command, EDITOR_CMD_FORWARD) == 1, "absent: the first delete applies");
+    Editor_UndoPush(&undo, &command);
+    square->dirty_loc = 0;
+    check(Editor_CmdApply(&g_doc, &command, EDITOR_CMD_FORWARD) == 0, "absent: the same delete again is refused");
+    check(square->loc_count == 5, "absent: and changed nothing");
+    check(square->dirty_loc == 0, "absent: nor dirtied the square");
+    Editor_UndoUndo(&undo, &g_doc, NULL, NULL);
+    check(square->loc_count == 6, "absent: one undo brings back one wall, no duplicate");
+
+    /* Same tile and shape, a different loc: not this placement. */
+    command = loc_delete_cmd(&other);
+    check(Editor_CmdApply(&g_doc, &command, EDITOR_CMD_FORWARD) == 0,
+        "absent: a delete naming another loc id at an occupied tile+shape is refused");
+    check(Editor_SquareLocFind(square, 0, 19, 17, 0) >= 0, "absent: the wall that is there stays");
+
+    Editor_UndoFree(&undo);
+    Editor_DocFree(&g_doc);
+}
+
+/* (level, x, z, shape) names one placement -- no square in the content tree
+ * holds two -- and every by-key path relies on it: the undo of an add, the
+ * selection's resolve, the world's placement lookup. An add onto a taken key
+ * is refused; the Place tool sends a replace there instead, whose undo puts
+ * the occupant back. */
+static void
+test_loc_add_onto_taken_key(void)
+{
+    struct Editor_Square* square = open_square();
+    struct Editor_UndoStack undo;
+    struct Editor_Cmd command;
+    struct Editor_Loc tree = { 100, 10, 0, 0, 5, 6 };
+    struct Editor_Loc rock = { 200, 10, 1, 0, 5, 6 };
+    struct Editor_Loc decor = { 300, 22, 0, 0, 5, 6 };
+    int index;
+
+    Editor_UndoInit(&undo);
+    square->loaded = 1;
+    Editor_SquareLocAdd(square, &tree);
+
+    memset(&command, 0, sizeof(command));
+    Editor_CmdInitSquare(&command, EDITOR_CMD_LOC, 50, 50);
+    command.has_after = 1;
+    command.u.loc.after = rock;
+    check(Editor_CmdApply(&g_doc, &command, EDITOR_CMD_FORWARD) == 0,
+        "taken key: an add onto a tile+shape already placed is refused");
+    check(square->loc_count == 1, "taken key: and leaves the tile as it was");
+
+    command.u.loc.after = decor;
+    check(Editor_CmdApply(&g_doc, &command, EDITOR_CMD_FORWARD) == 1, "taken key: another layer on the tile is fine");
+    Editor_UndoPush(&undo, &command);
+
+    /* The replace the Place tool sends: the tree goes, the rock comes. */
+    memset(&command, 0, sizeof(command));
+    Editor_CmdInitSquare(&command, EDITOR_CMD_LOC, 50, 50);
+    command.has_before = 1;
+    command.has_after = 1;
+    command.u.loc.before = tree;
+    command.u.loc.after = rock;
+    check(Editor_CmdApply(&g_doc, &command, EDITOR_CMD_FORWARD) == 1, "taken key: the replace applies");
+    Editor_UndoPush(&undo, &command);
+    index = Editor_SquareLocFind(square, 0, 5, 6, 10);
+    check(index >= 0 && square->locs[index].loc_id == 200, "taken key: the rock stands there");
+    check(square->loc_count == 2, "taken key: one centrepiece and the decor");
+    Editor_UndoUndo(&undo, &g_doc, NULL, NULL);
+    index = Editor_SquareLocFind(square, 0, 5, 6, 10);
+    check(index >= 0 && square->locs[index].loc_id == 100 && square->locs[index].rotation == 0,
+        "taken key: undo puts the tree back, not the rock");
+    check(square->loc_count == 2, "taken key: and nothing else moved");
+    Editor_UndoUndo(&undo, &g_doc, NULL, NULL);
+    check(square->loc_count == 1 && Editor_SquareLocFind(square, 0, 5, 6, 22) < 0,
+        "taken key: the second undo takes the decor");
+
+    Editor_UndoFree(&undo);
+    Editor_DocFree(&g_doc);
+}
+
 /**
  * Edits at a square's edge must repaint the neighbour.
  *
@@ -324,6 +533,9 @@ main(void)
     test_emit_does_not_bake_procedural_heights();
     test_stroke_undoes_as_one_step();
     test_loc_commands();
+    test_loc_delete_undo_keeps_file_order();
+    test_loc_delete_of_absent_refused();
+    test_loc_add_onto_taken_key();
     test_rebuild_span_crosses_borders();
     test_parse_reports_bad_input();
     test_foreign_sections_survive();

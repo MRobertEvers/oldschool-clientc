@@ -713,6 +713,40 @@ ops_loc_emit(
     return 1;
 }
 
+/** Whether the tile+shape a transformed loc lands on is held by a loc that
+ *  is not in the selection (and is not the loc itself). */
+static int
+ops_dest_taken(
+    struct Editor_Doc* doc,
+    const struct Editor_LocRef* refs,
+    int n,
+    const struct Editor_Loc* after,
+    int to_map_x,
+    int to_map_z,
+    int from_map_x,
+    int from_map_z,
+    int from_index,
+    int copy)
+{
+    struct Editor_Square* target = Editor_DocFindSquare(doc, to_map_x, to_map_z);
+    int taken;
+
+    if( !target || !target->loaded )
+        return 0;
+    taken = Editor_SquareLocFind(target, after->level, after->x, after->z, after->shape);
+    if( taken < 0 )
+        return 0;
+    if( !copy && to_map_x == from_map_x && to_map_z == from_map_z && taken == from_index )
+        return 0;
+    if( copy )
+        return 1;
+    for( int i = 0; i < n; i++ )
+        if( refs[i].map_x == to_map_x && refs[i].map_z == to_map_z
+            && Editor_LocRefResolve(doc, &refs[i]) == taken )
+            return 0;
+    return 1;
+}
+
 struct OpsOrder
 {
     int index;
@@ -804,6 +838,12 @@ ops_transform(
         after.rotation = (before.rotation + quarters) & 3;
         if( reshape )
             after.shape = Editor_LocShapeCycle(before.shape);
+        /* A tile holds one loc per shape: landing on one that is not part of
+         * the selection (a selected one is moved out of the way first, by the
+         * order above) would be refused by the document. Leave this one where
+         * it is rather than send a command the authority turns down. */
+        if( ops_dest_taken(doc, refs, n, &after, to_map_x, to_map_z, ref->map_x, ref->map_z, index, copy) )
+            continue;
 
         if( !ops_loc_emit(
                 doc, &before, ref->map_x, ref->map_z, &after, to_map_x, to_map_z, copy, out,
@@ -834,6 +874,7 @@ Editor_LocOpsPlace(
     struct Editor_LocOpResult* result)
 {
     struct Editor_Square* square;
+    int occupant;
     int x;
     int z;
 
@@ -848,7 +889,16 @@ Editor_LocOpsPlace(
     square = ops_square_at(doc, world_x, world_z, &x, &z);
     if( !square || max < 1 )
         return 0;
+    occupant = Editor_SquareLocFind(square, level, x, z, shape);
     Editor_CmdInitSquare(&out[0], EDITOR_CMD_LOC, square->map_x, square->map_z);
+    /* A tile holds one loc per shape (the document refuses a second), so a
+     * place onto a taken shape REPLACES it -- what the ghost previewed by
+     * hiding the occupant -- and its undo puts the occupant back. */
+    if( occupant >= 0 )
+    {
+        out[0].has_before = 1;
+        out[0].u.loc.before = square->locs[occupant];
+    }
     out[0].has_after = 1;
     out[0].u.loc.after.loc_id = loc_id;
     out[0].u.loc.after.shape = shape;

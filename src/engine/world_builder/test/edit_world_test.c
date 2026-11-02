@@ -42,6 +42,8 @@
 #include "editor/editor_derive.h"
 #include "editor/editor_doc.h"
 #include "editor/editor_jm2.h"
+#include "editor/editor_host.h"
+#include "editor/panels/edpanel_ops.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/torirs_types.h"
@@ -57,6 +59,7 @@
 #include "painters/painters.h"
 #include "platform/platform_x_io.h"
 #include "task_runner.h"
+#include "torirsmaped/torirs_maped.h"
 #include "varp/varp_manager.h"
 #include "world/world.h"
 
@@ -1047,6 +1050,766 @@ mirror_tile(
     Editor_Apply(ed, &cmd);
 }
 
+/* ---- locs: delete, undo, redo through the editor ------------------------------
+ *
+ * The owner's report (2026-11-02): "delete and the undo redo buffer are buggy
+ * when adding or removing locs". Every add / remove / undo / redo sequence a
+ * user makes, through the embedded authority, the mirror's echo and the
+ * client's EDIT flush, checked on BOTH sides: the document (the loc list, and
+ * the .jl2 Save would write -- byte-identical after an undo) and the world
+ * (the scenery the scene holds on the tile: id, shape, angle; nothing left
+ * behind, nothing doubled; a restored loc's element selects and deletes).
+ * The STATIC rebuild that closes mirror_phase then holds the world to the
+ * document over every tile. */
+
+struct LocUndo
+{
+    struct Harness* h;
+    struct Editor* ed;
+    struct TestWorld* m;
+    int* rebakes;
+};
+
+static void
+lu_step(struct LocUndo* lu)
+{
+    Editor_PumpFacts(lu->ed);
+    if( app_map_editor_edit_step(lu->ed, lu->h->provider, lu->m->builder, lu->m->world, lu->m->scene) )
+    {
+        world_load(lu->h, lu->m);
+        (*lu->rebakes)++;
+    }
+    world_drain(lu->m);
+}
+
+static char*
+lu_jl2(const struct Editor_Square* sq)
+{
+    size_t size = Editor_Jl2Emit(sq, NULL, 0);
+    char* text = malloc(size + 1);
+    assert(text);
+    Editor_Jl2Emit(sq, text, size + 1);
+    return text;
+}
+
+static void
+lu_scene_of(
+    const struct LocUndo* lu,
+    const struct Editor_Square* sq,
+    int x,
+    int z,
+    int* out_sx,
+    int* out_sz)
+{
+    *out_sx = World_ToSceneX(lu->m->world, sq->map_x, x);
+    *out_sz = World_ToSceneZ(lu->m->world, sq->map_z, z);
+}
+
+/** Scenery on a scene tile: every entity, or (loc_id >= 0) the ones equal to
+ *  that loc, shape and angle. The element id of the last match. */
+static int
+lu_world_count(
+    const struct LocUndo* lu,
+    int sx,
+    int sz,
+    int level,
+    int loc_id,
+    int shape,
+    int angle,
+    int* out_element)
+{
+    struct World_EntityPool* pool = &lu->m->world->entities.scenery;
+    int n = 0;
+
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, i);
+        if( !sc || sc->grid_position.x != sx || sc->grid_position.z != sz || sc->grid_position.level != level )
+            continue;
+        if( loc_id >= 0 && (sc->loc_id != loc_id || sc->shape != shape || (sc->angle & 3) != angle) )
+            continue;
+        if( out_element )
+            *out_element = sc->element_id;
+        n++;
+    }
+    return n;
+}
+
+static int
+lu_world_has(
+    const struct LocUndo* lu,
+    const struct Editor_Square* sq,
+    const struct Editor_Loc* loc,
+    int* out_element)
+{
+    int sx;
+    int sz;
+    lu_scene_of(lu, sq, loc->x, loc->z, &sx, &sz);
+    return lu_world_count(lu, sx, sz, loc->level, loc->loc_id, loc->shape, loc->rotation, out_element);
+}
+
+static int
+lu_doc_count(
+    const struct Editor_Square* sq,
+    int level,
+    int x,
+    int z)
+{
+    int n = 0;
+    for( int i = 0; i < sq->loc_count; i++ )
+        if( sq->locs[i].level == level && sq->locs[i].x == x && sq->locs[i].z == z )
+            n++;
+    return n;
+}
+
+/** A loc the EDIT world places locally: config present, no multiloc. */
+static int
+lu_plain(
+    const struct LocUndo* lu,
+    int loc_id)
+{
+    struct ToriRS_Location* cfg = CacheProvider_LocationGet(lu->h->provider, loc_id);
+    return cfg && cfg->transform_count == 0;
+}
+
+/* After every sequence the EDIT world must be what a fresh STATIC bake of the
+ * same documents is: nothing left behind, nothing doubled, and every loc filed
+ * in the document's order (the shade replay and a tile's last wall follow it). */
+static void
+lu_bisect(
+    struct LocUndo* lu,
+    const char* label)
+{
+    struct TestWorld fresh;
+    world_new(lu->h, &fresh);
+    world_load(lu->h, &fresh);
+    compare_worlds(label, lu->m, &fresh);
+    world_drain(&fresh);
+    WorldBuilder_Free(fresh.builder);
+    World_Free(fresh.world);
+    ToriDraw_SceneFree(fresh.scene);
+    VarPManager_Free(&fresh.varp);
+}
+
+/** Submit commands as the panels do (edp_apply): one stroke, one named row. */
+static int
+lu_apply(
+    struct LocUndo* lu,
+    const struct Editor_Cmd* commands,
+    int count,
+    const char* verb)
+{
+    int applied = 0;
+    Editor_StrokeBegin(lu->ed);
+    Editor_HistoryName(lu->ed, verb);
+    for( int i = 0; i < count; i++ )
+        applied += Editor_Apply(lu->ed, &commands[i]) ? 1 : 0;
+    Editor_StrokeEnd(lu->ed);
+    lu_step(lu);
+    return applied;
+}
+
+/** The ref Editor_PanelDeleteLocByElement / SelectLoc build from a world
+ *  element. 0 when the element is not live. */
+static int
+lu_ref_of_element(
+    const struct LocUndo* lu,
+    const struct Editor_Square* sq,
+    int element_id,
+    struct Editor_LocRef* out)
+{
+    struct WorldEntity_Scenery* sc = World_SceneryGetByElementId(lu->m->world, element_id);
+    if( !sc )
+        return 0;
+    Editor_LocRefAt(out, sq->map_x * 64 + (sc->grid_position.x - World_ToSceneX(lu->m->world, sq->map_x, 0)),
+        sq->map_z * 64 + (sc->grid_position.z - World_ToSceneZ(lu->m->world, sq->map_z, 0)),
+        sc->grid_position.level, sc->shape, sc->loc_id, sc->angle & 3);
+    return 1;
+}
+
+static void
+loc_undo_phase(
+    struct Harness* h,
+    struct Editor* ed,
+    struct TestWorld* m,
+    const struct Pools* pools,
+    int* rebakes)
+{
+    struct LocUndo lu = { h, ed, m, rebakes };
+    struct Editor_Square* sq = Editor_DocFindSquare(&ed->doc, BASE_X, BASE_Z);
+    const struct Editor_History* hist = Editor_GetHistory(ed);
+    struct Editor_Loc P;
+    struct Editor_Loc Q;
+    struct Editor_LocOpResult result;
+    struct Editor_Cmd cmds[32];
+    int empty_x = -1;
+    int empty_z = -1;
+    int empty2_x = -1;
+    int empty2_z = -1;
+    int twin = -1;
+    int multi_x = -1;
+    int multi_z = -1;
+    int have_p = 0;
+    int have_q = 0;
+    int n;
+
+    assert(sq);
+    /* A removed element tagged with its kind (every scenery and terrain
+     * element is) hands its slot back: the next add reuses it. */
+    {
+        int const raw = ToriDraw_SceneElementAddPool(m->scene, TORIDRAW_SCENE_POOL_DYNAMIC);
+        int const tagged = ElementId_Raw(ElementId_Make(TORIDRAW_ELEMENT_KIND_SCENERY, raw));
+        int again;
+        CHECK(raw >= 0, "locs: a scene element allocates");
+        ToriDraw_SceneElementRemove(m->scene, tagged);
+        again = ToriDraw_SceneElementAddPool(m->scene, TORIDRAW_SCENE_POOL_DYNAMIC);
+        CHECK(again == raw, "locs: removing a kind-tagged element frees its slot (re-add got %d, freed %d)", again,
+            raw);
+        ToriDraw_SceneElementRemove(m->scene, again);
+    }
+    /* Two plain centrepieces from the pools, different ids. */
+    for( int i = 0; i < pools->loc_count; i++ )
+    {
+        const struct Editor_Loc* c = &pools->locs[i];
+        if( c->shape != 10 || !lu_plain(&lu, c->loc_id) )
+            continue;
+        if( !have_p )
+        {
+            P = *c;
+            have_p = 1;
+        }
+        else if( !have_q && c->loc_id != P.loc_id )
+        {
+            Q = *c;
+            have_q = 1;
+        }
+    }
+    CHECK(have_p && have_q, "locs: two plain shape-10 locs in the pools");
+    if( !have_p || !have_q )
+        return;
+
+    /* Tiles of m50_50, level 0, away from the edges: two with no loc, one
+     * holding a lone plain shape-10 loc, one holding several layers. */
+    for( int z = 8; z < 56; z++ )
+        for( int x = 8; x < 56; x++ )
+        {
+            int const here = lu_doc_count(sq, 0, x, z);
+            if( here == 0 && lu_doc_count(sq, 0, x + 2, z) == 0 && (x % 3) == 0 )
+            {
+                if( empty_x < 0 )
+                {
+                    empty_x = x;
+                    empty_z = z;
+                }
+                else if( empty2_x < 0 && (z != empty_z || x > empty_x + 4) )
+                {
+                    empty2_x = x;
+                    empty2_z = z;
+                }
+            }
+            if( here >= 2 && multi_x < 0 )
+            {
+                multi_x = x;
+                multi_z = z;
+            }
+            if( here == 1 && twin < 0 )
+            {
+                int const k = Editor_SquareLocFind(sq, 0, x, z, 10);
+                if( k >= 0 && sq->locs[k].loc_id != P.loc_id && lu_plain(&lu, sq->locs[k].loc_id) )
+                    twin = k;
+            }
+        }
+    CHECK(empty_x >= 0 && empty2_x >= 0 && twin >= 0 && multi_x >= 0,
+        "locs: test tiles found (empty %d,%d / %d,%d, lone centrepiece %d, multi %d,%d)", empty_x, empty_z,
+        empty2_x, empty2_z, twin, multi_x, multi_z);
+    if( empty_x < 0 || empty2_x < 0 || twin < 0 || multi_x < 0 )
+        return;
+    lu_step(&lu);
+
+    lu_bisect(&lu, "locs: world == STATIC bake before sequence 1");
+    /* 1. Place, undo, redo. */
+    {
+        char* before = lu_jl2(sq);
+        int const rows = hist->count;
+        struct Editor_Loc want = P;
+        char* after_text;
+        want.x = empty_x;
+        want.z = empty_z;
+        want.level = 0;
+        want.rotation = 1;
+        n = Editor_LocOpsPlace(&ed->doc, P.loc_id, 10, 1, BASE_X * 64 + empty_x, BASE_Z * 64 + empty_z, 0, cmds, 1,
+            &result);
+        CHECK(n == 1 && lu_apply(&lu, cmds, n, "place") == 1, "locs 1: the place applies");
+        CHECK(Editor_SquareLocFindExact(sq, &want) >= 0, "locs 1: the document holds the placed loc");
+        CHECK(lu_world_has(&lu, sq, &want, NULL) == 1, "locs 1: the world draws it once (id, shape 10, angle 1)");
+        CHECK(hist->count == rows + 1 && hist->applied == rows + 1, "locs 1: one History row, applied");
+        after_text = lu_jl2(sq);
+        CHECK(Editor_Undo(ed) == 1, "locs 1: undo takes one command");
+        lu_step(&lu);
+        {
+            char* text = lu_jl2(sq);
+            CHECK(strcmp(text, before) == 0, "locs 1: after undo the .jl2 is the file before the place");
+            free(text);
+        }
+        CHECK(lu_world_count(&lu, World_ToSceneX(m->world, BASE_X, empty_x), World_ToSceneZ(m->world, BASE_Z, empty_z),
+                  0, -1, 0, 0, NULL) == 0,
+            "locs 1: after undo the tile holds no scenery");
+        CHECK(hist->count == rows + 1 && hist->applied == rows, "locs 1: the row is the undone prefix");
+        CHECK(Editor_Redo(ed) == 1, "locs 1: redo takes one command");
+        lu_step(&lu);
+        CHECK(lu_world_has(&lu, sq, &want, NULL) == 1, "locs 1: after redo the world draws it again, same shape and angle");
+        {
+            char* text = lu_jl2(sq);
+            CHECK(strcmp(text, after_text) == 0, "locs 1: after redo the .jl2 is the file after the place");
+            free(text);
+        }
+        CHECK(hist->applied == rows + 1, "locs 1: redo re-applies the row");
+        /* Leave the tile empty again. */
+        Editor_Undo(ed);
+        lu_step(&lu);
+        free(after_text);
+        free(before);
+    }
+
+    lu_bisect(&lu, "locs: world == STATIC bake before sequence 2");
+    /* 2. Place onto a tile already holding a loc of that shape, undo. */
+    {
+        struct Editor_Loc const occupant = sq->locs[twin];
+        struct Editor_Loc want = Q;
+        char* before = lu_jl2(sq);
+        int k;
+        want.x = occupant.x;
+        want.z = occupant.z;
+        want.level = 0;
+        want.rotation = 0;
+        CHECK(lu_world_has(&lu, sq, &occupant, NULL) == 1, "locs 2: the occupant is drawn before");
+        n = Editor_LocOpsPlace(&ed->doc, Q.loc_id, 10, 0, BASE_X * 64 + occupant.x, BASE_Z * 64 + occupant.z, 0, cmds,
+            1, &result);
+        CHECK(n == 1 && lu_apply(&lu, cmds, n, "place") == 1, "locs 2: the place onto the taken shape applies");
+        k = Editor_SquareLocFind(sq, 0, occupant.x, occupant.z, 10);
+        CHECK(k >= 0 && sq->locs[k].loc_id == Q.loc_id, "locs 2: the tile's shape-10 loc is the placed one");
+        CHECK(lu_doc_count(sq, 0, occupant.x, occupant.z) == 1, "locs 2: one loc on the tile, not two (%d)",
+            lu_doc_count(sq, 0, occupant.x, occupant.z));
+        CHECK(lu_world_has(&lu, sq, &want, NULL) == 1 && lu_world_has(&lu, sq, &occupant, NULL) == 0,
+            "locs 2: the world draws the new loc in its place");
+        {
+            char row[EDITOR_HISTORY_LABEL_MAX * 2];
+            Editor_HistoryGroupName(&hist->groups[hist->applied - 1], row, sizeof(row));
+            CHECK(strstr(row, "place") != NULL, "locs 2: the History row is the place (\"%s\")", row);
+        }
+        Editor_Undo(ed);
+        lu_step(&lu);
+        k = Editor_SquareLocFind(sq, 0, occupant.x, occupant.z, 10);
+        CHECK(k >= 0 && sq->locs[k].loc_id == occupant.loc_id, "locs 2: undo puts the occupant back in the document");
+        CHECK(lu_doc_count(sq, 0, occupant.x, occupant.z) == 1, "locs 2: and only it");
+        CHECK(lu_world_has(&lu, sq, &occupant, NULL) == 1 && lu_world_has(&lu, sq, &want, NULL) == 0,
+            "locs 2: the world draws the occupant, not the placed loc");
+        {
+            char* text = lu_jl2(sq);
+            CHECK(strcmp(text, before) == 0, "locs 2: after undo the .jl2 is the file before the place");
+            free(text);
+        }
+        free(before);
+    }
+
+    lu_bisect(&lu, "locs: world == STATIC bake before sequence 3");
+    /* 3. Delete by element from the middle of the list, undo: the file comes
+     *    back byte for byte, the world draws it once, its new element selects
+     *    and deletes, and the rest of the square keeps its elements. */
+    {
+        int const mid = sq->loc_count / 2;
+        struct Editor_Loc gone;
+        struct Editor_Loc tail;
+        struct Editor_LocRef ref;
+        char* before = lu_jl2(sq);
+        int element = -1;
+        int tail_element = -1;
+        int tail_after = -1;
+        int pick = -1;
+        for( int i = mid; i < sq->loc_count && pick < 0; i++ )
+            if( lu_plain(&lu, sq->locs[i].loc_id) && lu_world_has(&lu, sq, &sq->locs[i], NULL) == 1 )
+                pick = i;
+        CHECK(pick >= 0, "locs 3: a drawn loc in the middle of m50_50's list");
+        if( pick >= 0 )
+        {
+            gone = sq->locs[pick];
+            tail = sq->locs[sq->loc_count - 1];
+            (void)lu_world_has(&lu, sq, &tail, &tail_element);
+            (void)lu_world_has(&lu, sq, &gone, &element);
+            CHECK(lu_ref_of_element(&lu, sq, element, &ref), "locs 3: the element is live");
+            n = Editor_LocOpsDelete(&ed->doc, &ref, 1, cmds, 1, &result);
+            CHECK(n == 1 && lu_apply(&lu, cmds, n, "delete loc") == 1, "locs 3: delete by element applies");
+            CHECK(lu_world_has(&lu, sq, &gone, NULL) == 0, "locs 3: the world no longer draws it");
+            CHECK(World_SceneryGetByElementId(m->world, element) == NULL, "locs 3: its element is gone");
+            Editor_Undo(ed);
+            lu_step(&lu);
+            {
+                char* text = lu_jl2(sq);
+                CHECK(strcmp(text, before) == 0, "locs 3: after undo the .jl2 is the file before the delete");
+                free(text);
+            }
+            element = -1;
+            CHECK(lu_world_has(&lu, sq, &gone, &element) == 1, "locs 3: after undo the world draws it once");
+            (void)lu_world_has(&lu, sq, &tail, &tail_after);
+            CHECK(tail_after == tail_element,
+                "locs 3: a loc later in the list keeps its element (%d -> %d): the undo re-placed one loc, not the "
+                "rest of the square",
+                tail_element, tail_after);
+            {
+                /* EDIT files it where the list has it: the placement after it
+                 * in map order is the next loc in the document (the shade
+                 * replay and a tile's last wall follow map order). */
+                int const k = Editor_SquareLocFindExact(sq, &gone);
+                if( k >= 0 && k + 1 < sq->loc_count )
+                {
+                    const struct Editor_Loc* nx = &sq->locs[k + 1];
+                    int sx;
+                    int sz;
+                    int nsx;
+                    int nsz;
+                    int h;
+                    int hn;
+                    lu_scene_of(&lu, sq, gone.x, gone.z, &sx, &sz);
+                    lu_scene_of(&lu, sq, nx->x, nx->z, &nsx, &nsz);
+                    h = WorldEdit_FindPlacement(m->builder, sx, sz, gone.level, gone.shape);
+                    hn = WorldEdit_FindPlacement(m->builder, nsx, nsz, nx->level, nx->shape);
+                    CHECK(h != WORLD_BUILDER_HANDLE_NONE && hn != WORLD_BUILDER_HANDLE_NONE
+                              && WorldEdit_PlacementNext(m->builder, h) == hn,
+                        "locs 3: the restored loc is filed in map order before the document's next loc");
+                }
+            }
+            CHECK(lu_ref_of_element(&lu, sq, element, &ref) && Editor_LocRefResolve(&ed->doc, &ref) >= 0,
+                "locs 3: the restored element selects (its ref resolves in the document)");
+            n = Editor_LocOpsDelete(&ed->doc, &ref, 1, cmds, 1, &result);
+            CHECK(n == 1 && lu_apply(&lu, cmds, n, "delete loc") == 1, "locs 3: and deletes again");
+            CHECK(lu_world_has(&lu, sq, &gone, NULL) == 0, "locs 3: gone from the world again");
+            Editor_Undo(ed);
+            lu_step(&lu);
+            CHECK(lu_world_has(&lu, sq, &gone, NULL) == 1, "locs 3: and back");
+        }
+        free(before);
+    }
+
+    lu_bisect(&lu, "locs: world == STATIC bake before sequence 4");
+    /* 4. Clear tile (the C-click: every layer, list order, one step), undo. */
+    {
+        char* before = lu_jl2(sq);
+        int sx;
+        int sz;
+        int drawn;
+        n = 0;
+        for( int i = 0; i < sq->loc_count && n < 16; i++ )
+            if( sq->locs[i].level == 0 && sq->locs[i].x == multi_x && sq->locs[i].z == multi_z )
+            {
+                Editor_CmdInitSquare(&cmds[n], EDITOR_CMD_LOC, sq->map_x, sq->map_z);
+                cmds[n].has_before = 1;
+                cmds[n].u.loc.before = sq->locs[i];
+                n++;
+            }
+        lu_scene_of(&lu, sq, multi_x, multi_z, &sx, &sz);
+        drawn = lu_world_count(&lu, sx, sz, 0, -1, 0, 0, NULL);
+        CHECK(lu_apply(&lu, cmds, n, "clear tile locs") == n, "locs 4: clear tile takes all %d locs", n);
+        CHECK(lu_doc_count(sq, 0, multi_x, multi_z) == 0, "locs 4: the document's tile is empty");
+        CHECK(lu_world_count(&lu, sx, sz, 0, -1, 0, 0, NULL) == 0, "locs 4: the world's tile is empty");
+        CHECK(Editor_Undo(ed) == n, "locs 4: one undo step brings back all %d", n);
+        lu_step(&lu);
+        {
+            char* text = lu_jl2(sq);
+            CHECK(strcmp(text, before) == 0, "locs 4: after undo the .jl2 is the file before the clear");
+            free(text);
+        }
+        CHECK(lu_world_count(&lu, sx, sz, 0, -1, 0, 0, NULL) == drawn, "locs 4: the world draws the %d it drew before",
+            drawn);
+        Editor_Redo(ed);
+        lu_step(&lu);
+        CHECK(lu_world_count(&lu, sx, sz, 0, -1, 0, 0, NULL) == 0, "locs 4: redo clears the tile again");
+        Editor_Undo(ed);
+        lu_step(&lu);
+        free(before);
+    }
+
+    lu_bisect(&lu, "locs: world == STATIC bake before sequence 5");
+    /* 5. Two locs on two tiles selected, Delete, undo (both back), redo. */
+    {
+        struct Editor_LocRef refs[2];
+        struct Editor_Loc a = sq->locs[twin];
+        struct Editor_Loc b;
+        int bi = -1;
+        for( int i = 0; i < sq->loc_count && bi < 0; i++ )
+            if( (sq->locs[i].x != a.x || sq->locs[i].z != a.z) && lu_plain(&lu, sq->locs[i].loc_id)
+                && lu_world_has(&lu, sq, &sq->locs[i], NULL) == 1 )
+                bi = i;
+        b = sq->locs[bi];
+        Editor_LocRefAt(&refs[0], BASE_X * 64 + a.x, BASE_Z * 64 + a.z, a.level, a.shape, a.loc_id, a.rotation);
+        Editor_LocRefAt(&refs[1], BASE_X * 64 + b.x, BASE_Z * 64 + b.z, b.level, b.shape, b.loc_id, b.rotation);
+        n = Editor_LocOpsDelete(&ed->doc, refs, 2, cmds, 2, &result);
+        CHECK(n == 2 && lu_apply(&lu, cmds, n, "delete") == 2, "locs 5: the two-loc delete applies");
+        CHECK(lu_world_has(&lu, sq, &a, NULL) == 0 && lu_world_has(&lu, sq, &b, NULL) == 0, "locs 5: both gone");
+        CHECK(Editor_Undo(ed) == 2, "locs 5: one undo brings both");
+        lu_step(&lu);
+        CHECK(lu_world_has(&lu, sq, &a, NULL) == 1 && lu_world_has(&lu, sq, &b, NULL) == 1, "locs 5: both drawn again");
+        CHECK(Editor_Redo(ed) == 2, "locs 5: one redo takes both");
+        lu_step(&lu);
+        CHECK(lu_world_has(&lu, sq, &a, NULL) == 0 && lu_world_has(&lu, sq, &b, NULL) == 0, "locs 5: both gone again");
+        Editor_Undo(ed);
+        lu_step(&lu);
+    }
+
+    lu_bisect(&lu, "locs: world == STATIC bake before sequence 6");
+    /* 6. Place, move (the Move tool), undo twice. */
+    {
+        struct Editor_Loc at = P;
+        struct Editor_Loc moved;
+        struct Editor_LocRef placed;
+        char* before = lu_jl2(sq);
+        at.x = empty_x;
+        at.z = empty_z;
+        at.level = 0;
+        at.rotation = 0;
+        moved = at;
+        moved.x = empty_x + 2;
+        n = Editor_LocOpsPlace(&ed->doc, P.loc_id, 10, 0, BASE_X * 64 + empty_x, BASE_Z * 64 + empty_z, 0, cmds, 1,
+            &result);
+        lu_apply(&lu, cmds, n, "place");
+        placed = result.refs[0];
+
+        n = Editor_LocOpsMoveTo(&ed->doc, &placed, 1, BASE_X * 64 + empty_x + 2, BASE_Z * 64 + empty_z, cmds, 2,
+            &result);
+        CHECK(n == 1 && lu_apply(&lu, cmds, n, "move") == 1, "locs 6: the move applies");
+        CHECK(lu_world_has(&lu, sq, &moved, NULL) == 1 && lu_world_has(&lu, sq, &at, NULL) == 0,
+            "locs 6: the world draws it on the new tile only");
+        Editor_Undo(ed);
+        lu_step(&lu);
+        CHECK(lu_world_has(&lu, sq, &at, NULL) == 1 && lu_world_has(&lu, sq, &moved, NULL) == 0,
+            "locs 6: undo puts it back on the first tile only");
+        Editor_Undo(ed);
+        lu_step(&lu);
+        CHECK(lu_world_has(&lu, sq, &at, NULL) == 0 && lu_world_has(&lu, sq, &moved, NULL) == 0,
+            "locs 6: the second undo takes the place");
+        {
+            char* text = lu_jl2(sq);
+            CHECK(strcmp(text, before) == 0, "locs 6: the .jl2 is the file before the place");
+            free(text);
+        }
+        free(before);
+    }
+
+    lu_bisect(&lu, "locs: world == STATIC bake before sequence 7");
+    /* 7. Delete, place a different loc on the same tile, undo, undo. */
+    {
+        struct Editor_Loc const occupant = sq->locs[twin];
+        struct Editor_Loc want = Q;
+        struct Editor_LocRef ref;
+        char* before = lu_jl2(sq);
+        want.x = occupant.x;
+        want.z = occupant.z;
+        want.level = 0;
+        want.rotation = 2;
+        Editor_LocRefAt(&ref, BASE_X * 64 + occupant.x, BASE_Z * 64 + occupant.z, 0, 10, occupant.loc_id,
+            occupant.rotation);
+        n = Editor_LocOpsDelete(&ed->doc, &ref, 1, cmds, 1, &result);
+        lu_apply(&lu, cmds, n, "delete");
+        n = Editor_LocOpsPlace(&ed->doc, Q.loc_id, 10, 2, BASE_X * 64 + occupant.x, BASE_Z * 64 + occupant.z, 0, cmds,
+            1, &result);
+        CHECK(n == 1 && !cmds[0].has_before, "locs 7: on the emptied tile the place is a plain add");
+        lu_apply(&lu, cmds, n, "place");
+        CHECK(lu_world_has(&lu, sq, &want, NULL) == 1 && lu_world_has(&lu, sq, &occupant, NULL) == 0,
+            "locs 7: the world draws the new loc");
+        Editor_Undo(ed);
+        lu_step(&lu);
+        CHECK(lu_world_count(&lu, World_ToSceneX(m->world, BASE_X, occupant.x),
+                  World_ToSceneZ(m->world, BASE_Z, occupant.z), 0, -1, 0, 0, NULL) == 0,
+            "locs 7: the first undo empties the tile");
+        Editor_Undo(ed);
+        lu_step(&lu);
+        CHECK(lu_world_has(&lu, sq, &occupant, NULL) == 1 && lu_world_has(&lu, sq, &want, NULL) == 0,
+            "locs 7: the second brings the deleted loc back");
+        {
+            char* text = lu_jl2(sq);
+            CHECK(strcmp(text, before) == 0, "locs 7: the .jl2 is the file before the delete");
+            free(text);
+        }
+        free(before);
+    }
+
+    lu_bisect(&lu, "locs: world == STATIC bake before sequence 8");
+    /* 8. The same square in two windows: both delete the same loc; the second
+     *    is refused, one undo brings back one loc, in both windows. */
+    {
+        static struct Editor peer;
+        struct EditorHost peer_host;
+        struct Editor_Loc const occupant = sq->locs[twin];
+        struct Editor_Square* psq;
+        struct Editor_Cmd mine;
+        struct Editor_Cmd theirs;
+        int k;
+
+        CHECK(Editor_HostOpenMapEdEmbedPeer(&peer_host, &ed->host, TORIRSMAPED_ROLE_GENERIC, 1),
+            "locs 8: a second window joins");
+        Editor_OpenHost(&peer, &peer_host, "second window", &h->profile);
+        CHECK(Editor_OpenDoc(&peer, EDITOR_DOC_SQUARE, "m50_50"), "locs 8: the second window opens m50_50");
+        psq = Editor_DocFindSquare(&peer.doc, BASE_X, BASE_Z);
+        CHECK(psq && psq->loc_count == sq->loc_count, "locs 8: both windows hold the same %d locs", sq->loc_count);
+        Editor_CmdInitSquare(&mine, EDITOR_CMD_LOC, BASE_X, BASE_Z);
+        mine.has_before = 1;
+        mine.u.loc.before = occupant;
+        theirs = mine;
+        CHECK(lu_apply(&lu, &mine, 1, "delete loc") == 1, "locs 8: this window's delete applies");
+        Editor_PumpFacts(&peer);
+        CHECK(Editor_Apply(&peer, &theirs) == 0, "locs 8: the other window's delete of the same loc is refused");
+        lu_step(&lu);
+        Editor_Undo(ed);
+        lu_step(&lu);
+        Editor_PumpFacts(&peer);
+        k = 0;
+        for( int i = 0; i < sq->loc_count; i++ )
+            k += memcmp(&sq->locs[i], &occupant, sizeof(occupant)) == 0;
+        CHECK(k == 1, "locs 8: one undo brings back exactly one loc (%d)", k);
+        CHECK(lu_world_has(&lu, sq, &occupant, NULL) == 1, "locs 8: drawn once");
+        CHECK(psq && Editor_SquareLocFindExact(psq, &occupant) >= 0 && psq->loc_count == sq->loc_count,
+            "locs 8: the other window's document shows the undo too");
+        /* An undo from the other window shows in this one. */
+        Editor_Apply(&peer, &theirs);
+        Editor_PumpFacts(&peer);
+        lu_step(&lu);
+        CHECK(lu_world_has(&lu, sq, &occupant, NULL) == 0, "locs 8: the other window's delete shows here");
+        {
+            /* This window sees the other's delete as the delete row it had
+             * undone, redone (the same command; the authority's new push is
+             * the same group either way). */
+            char row[EDITOR_HISTORY_LABEL_MAX * 2];
+            Editor_HistoryGroupName(&hist->groups[hist->applied - 1], row, sizeof(row));
+            CHECK(strstr(row, "elete loc") != NULL && hist->applied == hist->count,
+                "locs 8: the other window's delete is the applied delete row here (\"%s\")", row);
+        }
+        CHECK(Editor_Undo(&peer) == 1, "locs 8: the other window undoes it");
+        lu_step(&lu);
+        CHECK(lu_world_has(&lu, sq, &occupant, NULL) == 1 && Editor_SquareLocFindExact(sq, &occupant) >= 0,
+            "locs 8: and the undo shows here, document and world");
+        /* A replace from the other window (its Place onto a taken shape)
+         * reads as one here. */
+        {
+            struct Editor_Cmd swap;
+            char row[EDITOR_HISTORY_LABEL_MAX * 2];
+            struct Editor_LocOpResult r2;
+            Editor_PumpFacts(&peer);
+            CHECK(Editor_LocOpsPlace(&peer.doc, Q.loc_id, 10, 0, BASE_X * 64 + occupant.x, BASE_Z * 64 + occupant.z, 0,
+                      &swap, 1, &r2) == 1
+                      && swap.has_before,
+                "locs 8: the other window's place onto the occupant is a replace");
+            Editor_Apply(&peer, &swap);
+            lu_step(&lu);
+            Editor_HistoryGroupName(&hist->groups[hist->applied - 1], row, sizeof(row));
+            CHECK(strncmp(row, "Replace loc", 11) == 0, "locs 8: and reads \"Replace loc ...\" here (\"%s\")", row);
+            Editor_Undo(ed);
+            lu_step(&lu);
+            CHECK(lu_world_has(&lu, sq, &occupant, NULL) == 1, "locs 8: undone from this window, the occupant is back");
+        }
+        Editor_Close(&peer);
+    }
+
+    lu_bisect(&lu, "locs: world == STATIC bake before sequence 9");
+    /* 9. History: a new edit after undo discards the redo tail -- also when
+     *    the new edit happens to be the very command undone. */
+    {
+        struct Editor_Loc at = P;
+        struct Editor_Cmd first;
+        int base;
+        at.x = empty_x;
+        at.z = empty_z;
+        at.level = 0;
+        at.rotation = 0;
+        lu_step(&lu);
+        base = hist->applied;
+        n = Editor_LocOpsPlace(&ed->doc, P.loc_id, 10, 0, BASE_X * 64 + empty_x, BASE_Z * 64 + empty_z, 0, &first, 1,
+            &result);
+        lu_apply(&lu, &first, 1, "place");
+        n = Editor_LocOpsPlace(&ed->doc, Q.loc_id, 10, 0, BASE_X * 64 + empty2_x, BASE_Z * 64 + empty2_z, 0, cmds, 1,
+            &result);
+        lu_apply(&lu, cmds, 1, "place");
+        CHECK(hist->applied == base + 2 && hist->count == base + 2, "locs 9: two rows");
+        Editor_Undo(ed);
+        Editor_Undo(ed);
+        lu_step(&lu);
+        CHECK(hist->applied == base && hist->count == base + 2, "locs 9: both undone, both in the redo tail");
+        /* The same place again: a NEW edit, which drops the tail. */
+        lu_apply(&lu, &first, 1, "place");
+        CHECK(hist->applied == base + 1 && hist->count == base + 1,
+            "locs 9: placing the undone loc again is a new row and the redo tail is gone (applied %d count %d, want %d)",
+            hist->applied - base, hist->count - base, 1);
+        CHECK(Editor_Redo(ed) == 0, "locs 9: the authority has nothing to redo either");
+        lu_step(&lu);
+        CHECK(lu_world_has(&lu, sq, &at, NULL) == 1, "locs 9: the loc is drawn once");
+        Editor_Undo(ed);
+        lu_step(&lu);
+        CHECK(lu_world_has(&lu, sq, &at, NULL) == 0, "locs 9: and undone");
+    }
+
+    lu_bisect(&lu, "locs: world == STATIC bake before sequence 10");
+    /* 10. Undo after Save: the document is dirty again and is the file before. */
+    {
+        struct Editor_Loc at = P;
+        char* before = lu_jl2(sq);
+        at.x = empty_x;
+        at.z = empty_z;
+        at.level = 0;
+        at.rotation = 3;
+        n = Editor_LocOpsPlace(&ed->doc, P.loc_id, 10, 3, BASE_X * 64 + empty_x, BASE_Z * 64 + empty_z, 0, cmds, 1,
+            &result);
+        lu_apply(&lu, cmds, n, "place");
+        CHECK(Editor_SaveAll(ed) >= 1, "locs 10: save writes the square");
+        Editor_PumpFacts(ed);
+        CHECK(!sq->dirty_loc, "locs 10: saved, clean");
+        Editor_Undo(ed);
+        lu_step(&lu);
+        CHECK(sq->dirty_loc, "locs 10: the undo after the save dirties it again");
+        CHECK(lu_world_has(&lu, sq, &at, NULL) == 0, "locs 10: and takes the loc from the world");
+        {
+            char* text = lu_jl2(sq);
+            CHECK(strcmp(text, before) == 0, "locs 10: the .jl2 is the file before the place");
+            free(text);
+        }
+        free(before);
+    }
+
+    /* 11. Delete and undo every 4th loc of m50_50, one step each: each comes
+     *     back mid-list, and the world files it there -- a loc filed at the end
+     *     instead lights the tiles its shadow shares with a later loc
+     *     differently from a fresh bake. */
+    {
+        char* before = lu_jl2(sq);
+        int cycles = 0;
+        int const elements_before = m->scene->elements.count;
+        lu_bisect(&lu, "locs: world == STATIC bake before sequence 11");
+        for( int i = 1; i < sq->loc_count; i += 4 )
+        {
+            struct Editor_Cmd one;
+            Editor_CmdInitSquare(&one, EDITOR_CMD_LOC, BASE_X, BASE_Z);
+            one.has_before = 1;
+            one.u.loc.before = sq->locs[i];
+            if( lu_apply(&lu, &one, 1, "delete loc") != 1 )
+                continue;
+            Editor_Undo(ed);
+            lu_step(&lu);
+            cycles++;
+        }
+        {
+            char* text = lu_jl2(sq);
+            CHECK(cycles > 100 && strcmp(text, before) == 0,
+                "locs 11: %d deletes undone, the .jl2 is the file it was", cycles);
+            free(text);
+        }
+        /* Every removal hands its scene element back: a session of deletes
+         * and undos must not climb toward the scene's 65536 (it ran out at
+         * ~570 of these cycles, the next add asserting). */
+        CHECK(m->scene->elements.count <= elements_before + 64,
+            "locs 11: the scene's element high-water stays put (%d -> %d over %d cycles)", elements_before,
+            m->scene->elements.count, cycles);
+        lu_bisect(&lu, "locs 11: after the deletes undone, world == STATIC bake");
+        free(before);
+    }
+}
+
 static void
 mirror_phase(
     struct Harness* h,
@@ -1307,6 +2070,7 @@ mirror_phase(
             world_drain(&m);
         }
     }
+    loc_undo_phase(h, ed, &m, &pools, &rebakes);
     printf("mirror: %d strokes, %d commands applied, %d undone strokes, %d rebakes\n", strokes,
         applied, undos, rebakes);
 

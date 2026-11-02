@@ -218,6 +218,10 @@ main(
         size_t length;
         char* text;
 
+        /* On a tile with no centrepiece: a tile holds one loc per shape, and
+         * an add onto a taken one is refused (the place tool sends a replace
+         * there). m50_50 has a shape-10 loc at (31, 29). */
+        check(Editor_SquareLocFind(square, 0, 31, 30, 10) < 0, "(31, 30) holds no centrepiece");
         Editor_CmdInitSquare(&place, EDITOR_CMD_LOC, 50, 50);
         place.has_after = 1;
         place.u.loc.after.loc_id = 4321;
@@ -225,8 +229,8 @@ main(
         place.u.loc.after.rotation = 3;
         place.u.loc.after.level = 0;
         place.u.loc.after.x = 31;
-        place.u.loc.after.z = 29;
-        Editor_CmdApply(doc, &place, EDITOR_CMD_FORWARD);
+        place.u.loc.after.z = 30;
+        check(Editor_CmdApply(doc, &place, EDITOR_CMD_FORWARD) == 1, "the place applies");
         check(square->dirty_loc == 1, "placing a loc dirties the loc half");
 
         length = Editor_Jl2Emit(square, NULL, 0);
@@ -263,7 +267,7 @@ main(
         check(found >= 0, "the placed loc is on disk");
         if( found >= 0 )
         {
-            check(fresh->locs[found].x == 31 && fresh->locs[found].z == 29, "at the placed tile");
+            check(fresh->locs[found].x == 31 && fresh->locs[found].z == 30, "at the placed tile");
             check(fresh->locs[found].shape == 10, "with the placed shape");
             check(fresh->locs[found].rotation == 3, "and the placed rotation");
         }

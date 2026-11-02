@@ -1031,6 +1031,24 @@ app_edit_loc_equal(
            a->level == b->level && a->x == b->x && a->z == b->z;
 }
 
+/** A bucket for a loc by value (app_edit_loc_equal's fields); `buckets` is a
+ *  power of two. */
+static int
+app_edit_loc_bucket(
+    const struct Editor_Loc* loc,
+    int buckets)
+{
+    uint32_t h = 2166136261u;
+    int const fields[6] = { loc->loc_id, loc->shape, loc->rotation, loc->level, loc->x, loc->z };
+
+    for( int k = 0; k < 6; k++ )
+    {
+        h ^= (uint32_t)fields[k];
+        h *= 16777619u;
+    }
+    return (int)(h & (uint32_t)(buckets - 1));
+}
+
 /*
  * One queued square: the tiles and locs the document changed since the shadow
  * go to the provider and, where the square is in the EDIT window, to the world
@@ -1084,33 +1102,61 @@ app_edit_sync_square(
                 WorldBuilder_TileSet(wb, sx, sz, l, &column[l]);
     }
 
-    /* Locs: the document only ever appends to a square's list and removes from
-     * it in place, so walking both lists in step names every removal and the
-     * appended tail. (A resync that reorders is still right: it reads as
-     * removals and additions.) */
+    /* Locs: each document loc takes the handle of an equal shadow loc, so
+     * only what really went is removed and only what really came is placed.
+     * The document inserts in cache order (an undone delete lands back in the
+     * middle of the list), so the lists are matched by value, not walked in
+     * step -- a walk would read every loc after an insertion as gone and come
+     * back, re-placing the rest of the square and renumbering its elements.
+     * Removals go first: a replace frees its tile+shape before the new loc
+     * lands there. */
     handles = ToriMem_Alloc(ToriMem_Editor(), sizeof(int) * (size_t)(square->loc_count + 1));
     assert(handles);
     {
-        int i = 0;
-        int j = 0;
-        while( i < sh->loc_count )
+        int const buckets = 1024;
+        int* head = ToriMem_Alloc(ToriMem_Editor(), sizeof(int) * (size_t)buckets);
+        int* next = ToriMem_Alloc(ToriMem_Editor(), sizeof(int) * (size_t)(sh->loc_count + 1));
+        unsigned char* taken = ToriMem_Calloc(ToriMem_Editor(), (size_t)(sh->loc_count + 1), 1);
+        unsigned char* matched = ToriMem_Calloc(ToriMem_Editor(), (size_t)(square->loc_count + 1), 1);
+
+        assert(head);
+        assert(next);
+        assert(taken);
+        assert(matched);
+        for( int b = 0; b < buckets; b++ )
+            head[b] = -1;
+        /* Chained newest-first; walked below in the shadow's order. */
+        for( int i = sh->loc_count - 1; i >= 0; i-- )
         {
-            if( j < square->loc_count && app_edit_loc_equal(&sh->locs[i], &square->locs[j]) )
-            {
-                handles[j++] = sh->handles[i++];
-                continue;
-            }
-            if( in_window && !rebake && sh->handles[i] != WORLD_BUILDER_HANDLE_NONE )
-                WorldBuilder_LocRemove(wb, sh->handles[i]);
-            i++;
+            int const b = app_edit_loc_bucket(&sh->locs[i], buckets);
+            next[i] = head[b];
+            head[b] = i;
         }
-        for( ; j < square->loc_count; j++ )
+        for( int j = 0; j < square->loc_count; j++ )
+        {
+            handles[j] = WORLD_BUILDER_HANDLE_NONE;
+            for( int i = head[app_edit_loc_bucket(&square->locs[j], buckets)]; i >= 0; i = next[i] )
+                if( !taken[i] && app_edit_loc_equal(&sh->locs[i], &square->locs[j]) )
+                {
+                    taken[i] = 1;
+                    matched[j] = 1;
+                    handles[j] = sh->handles[i];
+                    break;
+                }
+        }
+        for( int i = 0; i < sh->loc_count; i++ )
+            if( !taken[i] && in_window && !rebake && sh->handles[i] != WORLD_BUILDER_HANDLE_NONE )
+                WorldBuilder_LocRemove(wb, sh->handles[i]);
+        /* Last first, each ahead of the loc after it in the list (matched,
+         * or placed a step ago): EDIT files a placement in map order, and the
+         * list's order is the order a fresh bake would place them in. */
+        for( int j = square->loc_count - 1; j >= 0; j-- )
         {
             const struct Editor_Loc* loc = &square->locs[j];
             struct World_LocPlacement placement;
+            int before = WORLD_BUILDER_HANDLE_NONE;
 
-            handles[j] = WORLD_BUILDER_HANDLE_NONE;
-            if( !in_window || rebake )
+            if( matched[j] || !in_window || rebake )
                 continue;
             if( !app_edit_loc_ready(ctx, loc->loc_id) )
             {
@@ -1125,8 +1171,14 @@ app_edit_sync_square(
             placement.loc_id = loc->loc_id;
             placement.shape = loc->shape;
             placement.angle = loc->rotation;
-            handles[j] = WorldBuilder_LocPlace(wb, &placement);
+            for( int k = j + 1; k < square->loc_count && before == WORLD_BUILDER_HANDLE_NONE; k++ )
+                before = handles[k];
+            handles[j] = WorldEdit_LocPlaceBefore(wb, &placement, before);
         }
+        ToriMem_Free(ToriMem_Editor(), matched);
+        ToriMem_Free(ToriMem_Editor(), taken);
+        ToriMem_Free(ToriMem_Editor(), next);
+        ToriMem_Free(ToriMem_Editor(), head);
     }
     ToriMem_Free(ToriMem_Assets(), provider_locs->locs);
     provider_locs->locs = NULL;
@@ -2051,10 +2103,14 @@ static struct
 {
     int ghost_handle;
     int occupant_handle;
+    /* The placement after the occupant in its square's map order: the
+     * occupant goes back ahead of it, where the document lists it, not at
+     * the end -- the shade replay follows map order. */
+    int occupant_next;
     /* The bake the handles belong to: after a rebake they name nothing, and
      * the bake already showed the document without the ghost. */
     uint32_t bake_serial;
-} g_app_edit_ghost = { WORLD_BUILDER_HANDLE_NONE, WORLD_BUILDER_HANDLE_NONE, 0 };
+} g_app_edit_ghost = { WORLD_BUILDER_HANDLE_NONE, WORLD_BUILDER_HANDLE_NONE, WORLD_BUILDER_HANDLE_NONE, 0 };
 
 static int
 app_map_editor_ghost_is_edit(struct App const* app)
@@ -2115,6 +2171,7 @@ app_map_editor_ghost_remove(struct App* app)
         {
             g_app_edit_ghost.ghost_handle = WORLD_BUILDER_HANDLE_NONE;
             g_app_edit_ghost.occupant_handle = WORLD_BUILDER_HANDLE_NONE;
+            g_app_edit_ghost.occupant_next = WORLD_BUILDER_HANDLE_NONE;
             return;
         }
         if( g_app_edit_ghost.ghost_handle != WORLD_BUILDER_HANDLE_NONE
@@ -2124,11 +2181,17 @@ app_map_editor_ghost_remove(struct App* app)
         {
             struct World_LocPlacement place = { restore.scene_x, restore.scene_z, restore.level,
                                                 restore.loc_id, restore.shape, restore.angle };
-            int const handle = WorldBuilder_LocPlace(wb, &place);
+            struct World_LocPlacement next_live;
+            int next = g_app_edit_ghost.occupant_next;
+            int handle;
+            if( next != WORLD_BUILDER_HANDLE_NONE && !WorldEdit_PlacementGet(wb, next, &next_live) )
+                next = WORLD_BUILDER_HANDLE_NONE;
+            handle = WorldEdit_LocPlaceBefore(wb, &place, next);
             app_edit_shadow_rebind(g_app_edit_ghost.occupant_handle, handle);
         }
         g_app_edit_ghost.ghost_handle = WORLD_BUILDER_HANDLE_NONE;
         g_app_edit_ghost.occupant_handle = WORLD_BUILDER_HANDLE_NONE;
+        g_app_edit_ghost.occupant_next = WORLD_BUILDER_HANDLE_NONE;
         (void)WorldBuilder_Flush(wb);
         app->need_redraw = 1;
         return;
@@ -2169,6 +2232,7 @@ app_map_editor_ghost_place_edit(
         }
         return 0;
     }
+    g_app_edit_ghost.occupant_next = WORLD_BUILDER_HANDLE_NONE;
     occupant = WorldEdit_FindPlacement(wb, wanted->scene_x, wanted->scene_z, wanted->level, wanted->shape);
     if( occupant != WORLD_BUILDER_HANDLE_NONE )
     {
@@ -2180,6 +2244,7 @@ app_map_editor_ghost_place_edit(
             displaced.shape = held.shape;
             displaced.angle = held.angle;
             has_displaced = 1;
+            g_app_edit_ghost.occupant_next = WorldEdit_PlacementNext(wb, occupant);
             WorldBuilder_LocRemove(wb, occupant);
         }
     }

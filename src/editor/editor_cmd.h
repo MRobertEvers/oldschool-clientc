@@ -565,6 +565,8 @@ struct Editor_HistoryGroup
     int loc_removes;
     int loc_moves;
     int loc_turns;
+    /** Same tile, another loc or shape: a place onto a taken shape, a swap. */
+    int loc_replaces;
     int loc_id;
 
     /* SPAWN / SPAWN_SUPPRESS / SPAWN_EDIT */
@@ -613,7 +615,19 @@ struct Editor_History
      *  how many groups it finished so far. */
     int local_replay;
     int local_groups;
+    /** Non-zero while the facts arriving answer this window's own new edit
+     *  (Editor_Apply's echo): never a Redo, even when the command is the
+     *  redo tail's first -- the user undid a place and placed it again, and
+     *  the authority's push dropped the tail (Editor_HistoryOwnEdit). */
+    int own_edit;
 };
+
+/** The facts that follow (until called with 0) are this window's own new
+ *  edit: they open or extend a group, never redo one. */
+void
+Editor_HistoryOwnEdit(
+    struct Editor_History* history,
+    int on);
 
 /** A stable 32-bit hash of a command's bytes (FNV-1a over the struct; the
  *  wire decode zeroes the struct first, so equal commands hash equal). */

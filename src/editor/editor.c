@@ -610,8 +610,12 @@ Editor_Apply(
     }
     /* The authority broadcast before it acked, so the echo is in hand;
      * consuming it here is what lets callers read the document's new state
-     * the moment this returns, as they always could. */
+     * the moment this returns, as they always could. The echo is a NEW
+     * edit: the authority's push dropped any redo tail, so the History must
+     * not read it as a Redo even when it repeats the command undone last. */
+    Editor_HistoryOwnEdit(&editor->history, 1);
     Editor_PumpFacts(editor);
+    Editor_HistoryOwnEdit(&editor->history, 0);
     editor->history_intent--;
     return 1;
 }

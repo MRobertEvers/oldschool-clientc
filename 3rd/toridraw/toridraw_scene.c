@@ -574,7 +574,12 @@ td_scene_free_element_id(
         td_scene_reset_element(element);
     }
 
-    ToriDraw_IntrusiveListRelease(&scene->elements, element_id);
+    /* By INDEX: the id may carry its kind in the top bits (ElementId_Make),
+     * and the list, handed the tagged int, finds it out of range and frees
+     * nothing -- the node stays live, reset, and every tagged removal (a loc
+     * the map editor deletes or undoes, an npc despawn) leaks a slot until a
+     * pool clear, or until the scene's 65536 run out and the next add fails. */
+    ToriDraw_IntrusiveListRelease(&scene->elements, ToriDraw_ElementIndexOfRaw(element_id));
     scene->anim_list_dirty = true;
 }
 

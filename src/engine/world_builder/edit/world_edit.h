@@ -111,6 +111,27 @@ WorldEdit_FindPlacement(
     int level,
     int shape);
 
+/**
+ * loc_place, but in map order just ahead of `before_handle` (a live placement
+ * of the same square; NONE: the end of the square, as loc_place). The
+ * document inserts a loc where the cache orders it -- an undone delete goes
+ * back mid-list -- and EDIT's order must be the list's: the shade replay and
+ * a tile's last wall follow it, so a placement filed in the wrong place
+ * lights its neighbours differently from a fresh bake of the same squares.
+ */
+int
+WorldEdit_LocPlaceBefore(
+    struct WorldBuilder* builder,
+    const struct World_LocPlacement* placement,
+    int before_handle);
+
+/** The live placement after `handle` in its square's map order, or NONE: where
+ *  a placement taken down for a moment (the hover ghost's occupant) goes back. */
+int
+WorldEdit_PlacementNext(
+    const struct WorldBuilder* builder,
+    int handle);
+
 /** A live placement's record. Returns 0 when the handle names nothing live. */
 int
 WorldEdit_PlacementGet(

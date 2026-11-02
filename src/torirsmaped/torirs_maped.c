@@ -102,7 +102,8 @@ ToriRSMapEd_Open(
         TORIRS_LOG("torirsmaped: another server holds %s — serving read-only\n",
             content_dir);
 
-    /* The catalog reads nothing until its first query. */
+    /* The catalog reads nothing here: the service pass warm-builds it in
+     * slices (ToriRSMapEdCatalog_Service), a request before that finishes it. */
     maped->catalog = ToriRSMapEdCatalog_Create(content_dir);
     maped->capabilities |= TORIRSMAPED_CAP_CATALOG;
 
@@ -1910,7 +1911,8 @@ handle_frame(
     }
     if( v2
         && (type == TORIRSMAPED_REQ_LIVE_ATTACH || type == TORIRSMAPED_REQ_LIVE_DETACH
-            || type == TORIRSMAPED_REQ_LIVE_CHEAT || type == TORIRSMAPED_REQ_LIVE_SUBSCRIBE) )
+            || type == TORIRSMAPED_REQ_LIVE_CHEAT || type == TORIRSMAPED_REQ_LIVE_SUBSCRIBE
+            || type == TORIRSMAPED_REQ_LIVE_PLAY) )
     {
         handle_live(session, maped, type, body, length);
         return;

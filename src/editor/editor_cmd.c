@@ -74,6 +74,7 @@ apply_loc(
     const struct Editor_Loc* insert_loc;
     int had_remove;
     int had_insert;
+    int remove_index = -1;
 
     assert(doc);
     assert(command);
@@ -100,15 +101,36 @@ apply_loc(
         had_insert = command->has_before;
     }
 
+    /* All or nothing, judged before anything moves -- the authority records
+     * what this accepts, and its undo replays the inverse:
+     *
+     *   - the removal names one placement exactly (id, shape, rotation and
+     *     tile). One that is not there -- deleted from another window first,
+     *     a stale selection -- is refused: accepted, its undo would ADD a loc
+     *     nobody deleted.
+     *   - (level, x, z, shape) names one placement (no square in the content
+     *     tree holds two, and every by-key lookup -- the selection, the
+     *     world's placement, the ghost -- relies on it), so an insertion onto
+     *     a taken key is refused; the Place tool sends a replace there. */
     if( had_remove )
     {
-        int index = Editor_SquareLocFind(
-            square, remove_loc->level, remove_loc->x, remove_loc->z, remove_loc->shape);
-        if( index >= 0 )
-            Editor_SquareLocRemoveAt(square, index);
+        remove_index = Editor_SquareLocFindExact(square, remove_loc);
+        if( remove_index < 0 )
+            return 0;
     }
     if( had_insert )
-        Editor_SquareLocAdd(square, insert_loc);
+    {
+        int const taken = Editor_SquareLocFind(
+            square, insert_loc->level, insert_loc->x, insert_loc->z, insert_loc->shape);
+        if( taken >= 0 && taken != remove_index )
+            return 0;
+    }
+
+    if( had_remove )
+        Editor_SquareLocRemoveAt(square, remove_index);
+    /* In cache order, so an undone delete is back where it stood. */
+    if( had_insert )
+        Editor_SquareLocInsert(square, insert_loc);
 
     square->dirty_loc = 1;
     return 1;
@@ -585,6 +607,15 @@ Editor_HistoryFree(struct Editor_History* history)
 }
 
 void
+Editor_HistoryOwnEdit(
+    struct Editor_History* history,
+    int on)
+{
+    assert(history);
+    history->own_edit = on ? 1 : 0;
+}
+
+void
 Editor_HistoryBreak(
     struct Editor_History* history,
     const char* label)
@@ -704,9 +735,11 @@ history_tally(
             const struct Editor_Loc* a = &command->u.loc.after;
             if( b->x != a->x || b->z != a->z || b->level != a->level )
                 group->loc_moves++;
+            else if( b->loc_id != a->loc_id || b->shape != a->shape )
+                group->loc_replaces++;
             else
                 group->loc_turns++;
-            if( group->loc_moves + group->loc_turns == 1 )
+            if( group->loc_moves + group->loc_turns + group->loc_replaces == 1 )
                 group->loc_id = a->loc_id;
         }
         break;
@@ -896,6 +929,7 @@ history_merge(
         into->loc_removes += g->loc_removes;
         into->loc_moves += g->loc_moves;
         into->loc_turns += g->loc_turns;
+        into->loc_replaces += g->loc_replaces;
         into->spawn_adds += g->spawn_adds;
         into->spawn_removes += g->spawn_removes;
         into->spawn_edits += g->spawn_edits;
@@ -1067,7 +1101,7 @@ Editor_HistoryOnFact(
         Editor_HistoryBatchEnd(history);
     if( history->applied < history->count
         && (history->local_replay > 0
-            || (history->local_replay == 0 && !history->open
+            || (history->local_replay == 0 && !history->own_edit && !history->open
                 && Editor_CmdHash(command) == history->groups[history->applied].first_hash)) )
     {
         history->replay = 1;
@@ -1178,7 +1212,7 @@ Editor_HistoryGroupName(
     }
     case EDITOR_CMD_LOC:
     {
-        int const changes = group->loc_moves + group->loc_turns;
+        int const changes = group->loc_moves + group->loc_turns + group->loc_replaces;
         int const n = group->kinds[EDITOR_CMD_LOC];
         if( group->loc_adds && !group->loc_removes && !changes )
             snprintf(verb, sizeof(verb), "Place");
@@ -1186,6 +1220,8 @@ Editor_HistoryGroupName(
             snprintf(verb, sizeof(verb), "Delete");
         else if( group->loc_moves || (group->loc_adds && group->loc_adds == group->loc_removes) )
             snprintf(verb, sizeof(verb), "Move");
+        else if( group->loc_replaces )
+            snprintf(verb, sizeof(verb), "Replace");
         else if( group->loc_turns )
             snprintf(verb, sizeof(verb), "Turn");
         else

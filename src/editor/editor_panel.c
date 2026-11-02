@@ -489,6 +489,67 @@ panel_loc_ref_at(
     return 1;
 }
 
+/**
+ * The loc the pointer is ON: the front-most scenery model the last rendered
+ * frame hittested under the pointer, on `level` -- what the user sees and
+ * clicks. A Delete or Rotate click on a tree's canopy names the tree, not
+ * whatever loc is filed first on the terrain tile behind it (a flower patch
+ * under the tree's corner, which was being deleted while the tree stayed).
+ *
+ * Ground decor (shape 22) is flat on the floor and its hit box reaches out
+ * from under anything standing over it, so it is taken only when no other
+ * model is under the pointer. With no model at all, the first loc on the
+ * hovered tile.
+ */
+static int
+panel_loc_ref_pointed(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    struct Editor_LocRef* out)
+{
+    struct World_PickSet const* picks;
+    struct WorldEntity_Scenery* best = NULL;
+
+    if( !app->world )
+        return 0;
+    picks = &app->frame_view->world_pickset;
+    if( picks->mouse_valid && picks->mouse_x == app->frame_view->world_mouse_x
+        && picks->mouse_y == app->frame_view->world_mouse_y )
+    {
+        /* Hits arrive back to front: the last is nearest. */
+        for( int i = picks->count - 1; i >= 0; i-- )
+        {
+            struct World_Picked const* hit = &picks->items[i];
+            struct WorldEntity_Scenery* scenery;
+            if( hit->type != WORLD_PICK_SCENERY || hit->view_id != 0 )
+                continue;
+            scenery = World_SceneryGetByElementId(app->world, hit->element_id);
+            if( !scenery || scenery->grid_position.level != level )
+                continue;
+            if( scenery->shape != RSCACHE_LOC_SHAPE_FLOOR_DECORATION )
+            {
+                best = scenery;
+                break;
+            }
+            if( !best )
+                best = scenery;
+        }
+    }
+    if( best )
+    {
+        int world_x;
+        int world_z;
+        if( panel_scene_to_world(app, best->grid_position.x, best->grid_position.z, &world_x, &world_z) )
+        {
+            Editor_LocRefAt(out, world_x, world_z, level, best->shape, best->loc_id, best->angle & 3);
+            return 1;
+        }
+    }
+    return panel_loc_ref_at(app, scene_x, scene_z, level, -1, out);
+}
+
 void
 Editor_PanelSelectLoc(
     struct Editor_Panel* panel,
@@ -662,7 +723,7 @@ Editor_PanelDeleteLocAt(
 
     assert(panel);
     assert(app);
-    if( !panel->ui || !app->editor || !panel_loc_ref_at(app, scene_x, scene_z, level, -1, &ref) )
+    if( !panel->ui || !app->editor || !panel_loc_ref_pointed(app, scene_x, scene_z, level, &ref) )
         return 0;
     if( !Editor_LocOpsDelete(&app->editor->doc, &ref, 1, &command, 1, &result) )
         return 0;
@@ -863,7 +924,7 @@ Editor_PanelApplyToolAt(
     case EDITOR_TOOL_LOC_DELETE:
     {
         struct Editor_LocRef ref;
-        if( !panel_loc_ref_at(app, scene_x, scene_z, level, -1, &ref) )
+        if( !panel_loc_ref_pointed(app, scene_x, scene_z, level, &ref) )
         {
             Editor_UiLog(ui, "editor: no loc on that tile");
             return 0;

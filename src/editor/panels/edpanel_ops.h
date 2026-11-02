@@ -197,7 +197,8 @@ struct Editor_LocOpResult
     int ref_count;
 };
 
-/** Place one loc. `out` needs 1 slot. */
+/** Place one loc. `out` needs 1 slot. Onto a tile+shape already placed the
+ *  command is a replace (before = the occupant), so its undo restores it. */
 int
 Editor_LocOpsPlace(
     struct Editor_Doc* doc,
@@ -212,8 +213,10 @@ Editor_LocOpsPlace(
     struct Editor_LocOpResult* result);
 
 /** Move every selected loc by (dx, dz) tiles. A loc that changes square is a
- *  delete from one and an add to the other, in the same stroke. `out` needs
- *  2 * n slots. */
+ *  delete from one and an add to the other, in the same stroke. A loc whose
+ *  landing tile+shape is held by an unselected loc stays (the document
+ *  refuses a second loc of a shape on a tile); so do the rotate, reshape and
+ *  duplicate below. `out` needs 2 * n slots. */
 int
 Editor_LocOpsNudge(
     struct Editor_Doc* doc,

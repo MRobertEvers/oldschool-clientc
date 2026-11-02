@@ -165,6 +165,14 @@ edp_locs_delete(struct EditorUi* ui)
         return 0;
     count = Editor_LocOpsDelete(
         &ui->editor->doc, ui->tools.locs, ui->tools.loc_count, commands, capacity, &g_result);
+    if( count == 0 )
+    {
+        /* Every selected loc is "(gone)" in the Locs panel: undone, or
+         * deleted from another window. Say so rather than do nothing. */
+        Editor_UiLog(ui, "editor: delete: the selected loc%s no longer there (undone or deleted elsewhere)",
+            ui->tools.loc_count == 1 ? " is" : "s are");
+        return 0;
+    }
     applied = edp_apply(ui, commands, count, "delete");
     if( applied > 0 )
     {
