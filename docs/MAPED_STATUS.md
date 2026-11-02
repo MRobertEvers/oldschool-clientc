@@ -205,7 +205,7 @@ The whole loop, scripted, is `make -C src maped-live-e2e`
 | § | section | built | not built |
 |---|---|---|---|
 | 1 | What exists, and the verdict | ToriRSMapEd kept as the authority; documents generalised | — |
-| 2 | Architecture | authority + mirrors + facts + group state; EditorHost, BuildRunner and LiveLink vtables; embed, tcp and ws transports | browser host binding for the content tree (IndexedDB / io_server `/boot/`) |
+| 2 | Architecture | authority + mirrors + facts + group state; EditorHost, BuildRunner and LiveLink vtables; embed, tcp and ws transports; the editor modules name no `struct App`: the App-bound panels (catalog, inspector, areas) ask the client through `struct EditorUiAppServices` (src/editor/editor_ui.h, `user_data` + nullable function pointers like `Builder_Services`), filled by `app_map_editor_ui_services` (src/app/app_map_editor.c) before they register, and the viewer's App glue is a unit of the App layer (src/app/app_editor_view.c) | browser host binding for the content tree (IndexedDB / io_server `/boot/`) |
 | 3 | Documents and commands | kind-keyed documents (square, spawn, cfg incl. server-overlay blocks `<type>:<name>@<overlay>`, iface, text incl. `fields:<type>.ini`, and AREAS: kind 5, key `areas`, `editor/areas.txt`, below); Editor_Cmd per brief §2 with TILE, LOC, SPAWN, SPAWN_SUPPRESS, CFG_FIELD, CFG_BLOCK, IF_FIELD, IF_COMPONENT, TEXT_SPLICE, and SPAWN_EDIT (kind 9: one row rewritten in place, wire `before row, after row, string before_text`, a row being `u32 is_obj, u32 suppress, string name, u32 x, u32 z, u32 level, u32 count`); v2 wire encoding; undo stack grows on demand | DOC_DELETE; DOC_CLOSE unloading; SAVE_AS (reserved, UNSUPPORTED) |
 | 4 | The editing World | WorldBuilderOps with STATIC (pure refactor) and EDIT (resident build maps, placement handles, tile-local flush); `[world:boot] layout=`; per-tile derive | local flush gaps (occluders, minimap icons, LINK_BELOW rebakes); ghost under EDIT still uses runtime loc changes |
 | 5 | Windows, views, cameras | viewer windows as processes (`--editor-view`), STATE_CAMERA publish/follow, SPAWN_VIEW, web viewer tab | layer toggles not read by the painter; embedded editor cannot spawn views; viewer not yet exercised against a daemon in an open window |
@@ -368,7 +368,7 @@ Every issue the phase reports left open, by area, with where to start.
 - The ghost still displaces through runtime loc changes under EDIT:
   src/editor/map_editor_ghost.c.
 - Layer toggles are not read by the painter: src/editor/editor_view.c:359
-  (`EditorView_LayerVisible` has no caller in src/app/app_world_paint.c).
+  (`EditorView_LayerShown` has no caller in src/app/app_world_paint.c).
 - STATE_VAR_PREVIEW is published (src/editor/builder/) but not honoured by the
   world's multiloc/multinpc resolve.
 - The embedded editor server cannot spawn views (SPAWN_VIEW answers
@@ -407,8 +407,24 @@ Every issue the phase reports left open, by area, with where to start.
 - builder_test uses stand-ins for parts of the tree: src/editor/test/builder_test.c.
 - test-bootmanifest cannot run in this worktree (symlinked content root);
   test-world's 19 edge-band failures predate phase 2.
+- (resolved 2026-11-02) `make -C src check-app-boundary` passes. What this
+  branch added now takes parameters: the catalog, inspector and areas panels
+  include no app.h and name no `struct App` -- they ask through
+  `ui->app_services` (loc record, loc load request, hover tile + edit level,
+  scene window, select terrain, camera to a tile, preview reset, world busy,
+  redraw; every member NULL in a headless test, which behaves as before);
+  the view's App glue (`EditorView_AppBoot/AppFrame/AppActivate/AppOnState/
+  AppLevelMask/AppSpawn`, the camera apply/read-back, the web's
+  `torirs_editor_view_spawn`) moved from src/editor/editor_view.c to
+  src/app/app_editor_view.c, declared in app/app_internal.h; App_Shutdown's
+  editor lines are one `app_map_editor_shutdown` call. What was already red
+  at v3 19d7d7b26 was re-baselined in tools/appc_map_baseline.txt with the
+  reason recorded: src/plugin/torirs_plugin_drive_record.c (provider,
+  seq_source, the npc pool) added to the reach-in list, `struct-App-fields`
+  332 -> 378 (this branch added none), `app.c-lines` 1331 -> 1457 (1452 at
+  v3, plus the editor's two boot calls and the shutdown call).
 - STATE_LIVE_FOCUS is not followed by viewer windows (design #run: a viewer
-  locks its camera to the followed player): src/editor/editor_view.c
+  locks its camera to the followed player): src/app/app_editor_view.c
   `EditorView_AppOnState`. The position is always -1 today anyway (below).
 
 ### Hotkeys

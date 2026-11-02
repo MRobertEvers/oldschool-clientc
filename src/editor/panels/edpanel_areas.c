@@ -26,14 +26,11 @@
  * collection and filters the picker to it.
  */
 
-#include "app.h"
-#include "app/app_internal.h"
 #include "edpanel_common.h"
 #include "edpanel_picker.h"
 #include "edpanels.h"
 #include "editor/editor.h"
 #include "editor/editor_areas.h"
-#include "editor/editor_view.h"
 #include "mem/torirs_mem.h"
 
 #include <stdio.h>
@@ -470,42 +467,42 @@ areas_delete_area(
     return 1;
 }
 
-/** Put the App's free camera over absolute tile (x, z): 0 when that tile is
- *  not in the loaded scene (the caller opens its square and retries). */
+/** Put the client's free camera over absolute tile (x, z) through the App's
+ *  services (ui->app_services.camera_to_tile): 0 when that tile is not in the
+ *  loaded scene (the caller opens its square and retries) or this window has
+ *  no client to move. */
 static int
 areas_camera_to(
-    struct App* app,
+    struct EditorUi* ui,
     int tile_x,
     int tile_z,
     int level)
 {
-    struct App_WorldView* view;
-    struct EditorViewCamera pose;
-    int scene_x;
-    int scene_z;
-    int extent;
+    const struct EditorUiAppServices* services = &ui->app_services;
+    if( !services->camera_to_tile )
+        return 0;
+    return services->camera_to_tile(services->user_data, tile_x, tile_z, level);
+}
 
-    if( !app->world || !app->frame_view )
-        return 0;
-    view = app->frame_view;
-    scene_x = (tile_x - app->world->_base_tile_x) * 128 + 64;
-    scene_z = (tile_z - app->world->_base_tile_z) * 128 + 64;
-    extent = app->world->_scene_size * 128;
-    if( scene_x < 0 || scene_z < 0 || scene_x >= extent || scene_z >= extent )
-        return 0;
-    memset(&pose, 0, sizeof(pose));
-    pose.x = tile_x * 128 + 64;
-    pose.z = tile_z * 128 + 64;
-    pose.level = level;
-    pose.yaw = view->world_camera.yaw & 0x7ff;
-    pose.pitch = app_world_clamp_pitch(app, view->world_camera.pitch > 0 ? view->world_camera.pitch : 383);
-    pose.zoom = 2600;
-    EditorView_PoseEye(&pose, app->world->_base_tile_x * 128, app->world->_base_tile_z * 128,
-        app_world_height(app, scene_x, scene_z, level), &view->world_camera_pos);
-    view->world_camera.pitch = pose.pitch;
-    view->camera_unlocked = 1;
-    app->need_redraw = 1;
-    return 1;
+/** 1 when this window is a client with a world to load squares into (the
+ *  App filled its services); 0 in a headless one, where opening a square
+ *  only records it. */
+static int
+areas_client_window(const struct EditorUi* ui)
+{
+    return ui->app_services.scene_window != NULL;
+}
+
+/** 1 when this client window has a world loaded. */
+static int
+areas_world_loaded(const struct EditorUi* ui)
+{
+    int base_x;
+    int base_z;
+    int size;
+
+    assert(ui->app_services.scene_window);
+    return ui->app_services.scene_window(ui->app_services.user_data, &base_x, &base_z, &size);
 }
 
 int
@@ -516,8 +513,7 @@ Editor_Areas_CameraTo(
     int level)
 {
     assert(ui);
-    assert(ui->app);
-    return areas_camera_to(ui->app, tile_x, tile_z, level);
+    return areas_camera_to(ui, tile_x, tile_z, level);
 }
 
 int
@@ -539,12 +535,12 @@ Editor_Areas_GoTo(struct EditorUi* ui)
         return 0;
     }
     Editor_AreaCentre(area, &x, &z);
-    if( !ui->app )
+    if( !ui->app_services.camera_to_tile )
     {
         Editor_UiLog(ui, "editor: Go to %s (%d,%d) needs a world in this window", area->name, x, z);
         return 0;
     }
-    if( areas_camera_to(ui->app, x, z, area->level < 0 ? 0 : area->level) )
+    if( areas_camera_to(ui, x, z, area->level < 0 ? 0 : area->level) )
     {
         Editor_UiLog(ui, "editor: camera at %s (%d,%d)", area->name, x, z);
         return 1;
@@ -908,12 +904,8 @@ areas_pump_open(
         int map_z = 0;
         const char* key = self->open_queue[self->open_next];
 
-        if( ui->app )
-        {
-            struct App* app = ui->app;
-            if( app->world_load_inflight || app->editor_panel.sq_open_pending )
-                return;
-        }
+        if( ui->app_services.world_busy && ui->app_services.world_busy(ui->app_services.user_data) )
+            return;
         self->open_next++;
         if( !Editor_DocSplitSquareKey(key, storage, bare) || !Editor_SquareKeyParse(bare, &map_x, &map_z) )
             continue;
@@ -926,7 +918,7 @@ areas_pump_open(
         ui->hooks.open_square(ui->hooks_user, map_x, map_z, storage, 1);
         /* One per frame with a world (each is a load); every one at once
          * without (the hook only records). */
-        if( ui->app )
+        if( areas_client_window(ui) )
             return;
     }
 }
@@ -1239,7 +1231,7 @@ areas_tick(
     struct AreasPanel* self = opaque;
 
     areas_refresh(ui, self);
-    if( !self->env_done && self->file_doc && (!ui->app || ((struct App*)ui->app)->world) )
+    if( !self->env_done && self->file_doc && (!areas_client_window(ui) || areas_world_loaded(ui)) )
         areas_env(ui, self);
     /* A few frames after the layout, so the column has its final boxes. */
     if( self->env_dock && ui->laid_out && ++self->env_dock > 4 )
@@ -1248,9 +1240,9 @@ areas_tick(
         self->env_dock = 0;
     }
     areas_pump_open(ui, self);
-    if( self->goto_pending && ui->app )
+    if( self->goto_pending && ui->app_services.camera_to_tile )
     {
-        if( areas_camera_to(ui->app, self->goto_x, self->goto_z, self->goto_level) )
+        if( areas_camera_to(ui, self->goto_x, self->goto_z, self->goto_level) )
             self->goto_pending = 0;
         else if( ++self->goto_frames > AREAS_GOTO_WAIT_FRAMES )
         {

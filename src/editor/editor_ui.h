@@ -25,7 +25,9 @@
  * App-free by construction: a module that needs the world, the provider or
  * the window reaches it through `hooks` (filled by editor_panel.c for the
  * client, by a test for a fake), or -- the App-bound modules (catalog,
- * inspector, locs) -- through `app`, which only those include app.h to read.
+ * inspector, areas) -- through `app_services`, which the App layer fills
+ * (src/app/app_map_editor.c). `app` stays opaque: it says only that this
+ * window has a client, and no module reads through it.
  * That is what lets the picker, the New dialog and the save guard run in a
  * headless test against the real chrome model and an embedded ToriRSMapEd.
  *
@@ -230,6 +232,49 @@ struct EditorUiHooks
     void (*selection_changed)(void* user);
 };
 
+/* ---- App services ---------------------------------------------------------
+ *
+ * What the App-bound modules (catalog, inspector, areas) ask of the client
+ * App around them, filled by the App layer (app_map_editor_ui_services in
+ * src/app/app_map_editor.c) before the modules register. The modules name no
+ * App: this is the whole of what they see of it. Every member may be NULL --
+ * a headless test fills none -- and each says what a NULL one reads as.
+ */
+struct ToriRS_Location;
+
+struct EditorUiAppServices
+{
+    void* user_data;
+    /** The cache's loc record `loc_id`, or NULL when it is not resident.
+     *  NULL member: no record is ever resident. */
+    struct ToriRS_Location* (*loc_record)(void* user_data, int loc_id);
+    /** Ask for loc `loc_id`'s record to be loaded; loc_record answers on a
+     *  later frame. NULL member: nothing is requested. */
+    void (*loc_request)(void* user_data, int loc_id);
+    /** The tile under the pointer, ABSOLUTE (with a level pinned, the pinned
+     *  plane's tile), and the level edits go to. 0 when nothing is hovered.
+     *  NULL member: nothing is ever hovered. */
+    int (*hover_tile)(void* user_data, int* out_world_x, int* out_world_z, int* out_level);
+    /** The loaded scene: its SW absolute tile and its size in tiles. 0 when
+     *  the window has no world. NULL member: no world. */
+    int (*scene_window)(void* user_data, int* out_base_x, int* out_base_z, int* out_size);
+    /** Latch the terrain tile at ABSOLUTE (x, z) on `level` as the selection
+     *  (the inspector's "View tile"). NULL member: nothing happens. */
+    void (*select_terrain)(void* user_data, int world_x, int world_z, int level);
+    /** Put the free camera over ABSOLUTE tile (x, z) on `level`, keeping its
+     *  yaw and pitch. 0 when that tile is not in the loaded scene (the caller
+     *  opens its square and retries). NULL member: always 0. */
+    int (*camera_to_tile)(void* user_data, int tile_x, int tile_z, int level);
+    /** Put the catalog's model preview back at its default pose. NULL
+     *  member: nothing happens. */
+    void (*preview_invalidate)(void* user_data);
+    /** 1 while the world is busy: a load in flight, or a square open still
+     *  pending. NULL member: never busy. */
+    int (*world_busy)(void* user_data);
+    /** The window should draw again. NULL member: nothing happens. */
+    void (*request_redraw)(void* user_data);
+};
+
 /* ---- panels ---------------------------------------------------------------- */
 
 struct EditorUi;
@@ -322,8 +367,13 @@ struct EditorUi
     /** The session; NULL in a window with no editor (every module tolerates
      *  it and says so). */
     struct Editor* editor;
-    /** The client App for the App-bound modules; opaque here. */
+    /** The client App; opaque here, and read by nobody: non-NULL only says
+     *  this window has a client, which is what registers the App-bound
+     *  modules. What they ask of it goes through `app_services`. */
     void* app;
+    /** Filled by the App layer before registration; zeroed by Editor_UiInit
+     *  (every member NULL) for a window without one. */
+    struct EditorUiAppServices app_services;
 
     struct EditorUiHooks hooks;
     void* hooks_user;
@@ -469,8 +519,9 @@ Editor_UiPanelSelf(
 /**
  * Register every tools-panels module (menu bar, tool rail, terrain, palette,
  * rectangle select, locs, spawns, inspector, console, save guard, square
- * picker, New square). The App-bound modules (catalog, inspector, locs) need
- * `ui->app`; with it NULL they are skipped.
+ * picker, New square). The App-bound modules (catalog, inspector) need
+ * `ui->app`; with it NULL they are skipped. They reach the App through
+ * `ui->app_services` only, filled before this is called.
  *
  * integrate-3 adds the other owners' Register calls beside this one.
  */

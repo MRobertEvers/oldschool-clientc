@@ -1,5 +1,6 @@
 /*
- * The inspector (App-bound): what is under the cursor or latched, read out.
+ * The inspector (App-bound, through ui->app_services): what is under the
+ * cursor or latched, read out.
  *
  *   tile   the square and tile, the authored tokens (u, o;shape;rot, f) and
  *          whether the height is AUTHORED (an h token) or GENERATED (the
@@ -13,12 +14,11 @@
  * "View tile" moves the selection from the loc to the ground it stands on.
  */
 
-#include "app.h"
 #include "edpanel_common.h"
 #include "edpanel_ops.h"
 #include "edpanels.h"
 #include "mem/torirs_mem.h"
-#include "world/world.h"
+#include "engine/torirs_types.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -44,9 +44,9 @@ struct InspectorPanel
 static void
 inspector_loc_rows(
     struct EditorUi* ui,
-    struct InspectorPanel* self,
-    struct App* app)
+    struct InspectorPanel* self)
 {
+    const struct EditorUiAppServices* services = &ui->app_services;
     char line[TORIRS_CHROME_LABEL_MAX];
     const struct Editor_LocRef* ref;
     struct ToriRS_Location* cfg;
@@ -71,7 +71,7 @@ inspector_loc_rows(
         ref->rotation, ui->tools.loc_count > 1 ? "  (+ more selected)" : "");
     ToriRSChrome_SetText(ui->chrome, self->row_loc_place, line);
 
-    cfg = app->provider ? CacheProvider_LocationGet(app->provider, ref->loc_id) : NULL;
+    cfg = services->loc_record ? services->loc_record(services->user_data, ref->loc_id) : NULL;
     if( !cfg )
     {
         snprintf(line, sizeof(line), "loc %d  (config not resident)", ref->loc_id);
@@ -116,7 +116,7 @@ inspector_tick(
     void* opaque)
 {
     struct InspectorPanel* self = opaque;
-    struct App* app = ui->app;
+    const struct EditorUiAppServices* services = &ui->app_services;
     char line[TORIRS_CHROME_LABEL_MAX];
     int world_x;
     int world_z;
@@ -125,7 +125,6 @@ inspector_tick(
 
     if( !ui->chrome->panels[self->panel].visible )
         return;
-    assert(app);
 
     if( ui->editor )
     {
@@ -133,7 +132,7 @@ inspector_tick(
             Editor_DocHasUnsaved(&ui->editor->doc) ? "  *unsaved*" : "");
         ToriRSChrome_SetText(ui->chrome, self->row_status, line);
     }
-    inspector_loc_rows(ui, self, app);
+    inspector_loc_rows(ui, self);
 
     if( latched )
     {
@@ -141,16 +140,9 @@ inspector_tick(
         world_z = ui->tools.tile_z;
         level = ui->tools.tile_level;
     }
-    else if( Editor_PanelHoverTile(&app->editor_panel, app, &world_x, &world_z) )
-    {
-        /* With a level pinned, the pinned plane's tile under the pointer and
-         * that level (Editor_PanelHoverTile), not the first surface the pick
-         * met. */
-        world_x += app->world->_base_tile_x;
-        world_z += app->world->_base_tile_z;
-        level = Editor_PanelEditLevel(&app->editor_panel, app);
-    }
-    else
+    /* With a level pinned, the pinned plane's tile under the pointer and that
+     * level (Editor_PanelHoverTile), not the first surface the pick met. */
+    else if( !services->hover_tile || !services->hover_tile(services->user_data, &world_x, &world_z, &level) )
     {
         ToriRSChrome_SetText(ui->chrome, self->row_square, "no tile under the cursor");
         ToriRSChrome_SetText(ui->chrome, self->row_tokens, "");
@@ -213,20 +205,19 @@ inspector_activate(
     int widget)
 {
     struct InspectorPanel* self = opaque;
-    struct App* app = ui->app;
+    const struct EditorUiAppServices* services = &ui->app_services;
 
     if( widget != self->item_view_tile )
         return 0;
-    if( ui->tools.loc_count > 0 && app->world )
+    if( ui->tools.loc_count > 0 && services->select_terrain )
     {
         const struct Editor_LocRef* ref = &ui->tools.locs[0];
         int wx;
         int wz;
         Editor_LocRefWorld(ref, &wx, &wz);
-        Editor_PanelSelectTerrain(
-            &app->editor_panel, app, wx - app->world->_base_tile_x, wz - app->world->_base_tile_z,
-            ref->level);
-        app->need_redraw = 1;
+        services->select_terrain(services->user_data, wx, wz, ref->level);
+        if( services->request_redraw )
+            services->request_redraw(services->user_data);
     }
     return 1;
 }
@@ -249,7 +240,6 @@ Editor_Inspector_Register(struct EditorUi* ui)
     int x;
 
     assert(ui);
-    assert(ui->app);
     chrome = ui->chrome;
 
     self = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*self));

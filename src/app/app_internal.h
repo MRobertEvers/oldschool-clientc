@@ -1035,6 +1035,67 @@ app_host_request(
     struct UITreeHostRequest* req);
 
 
+/* ---- app_editor_view.c ----
+ *
+ * The map editor's viewer glue (editor/editor_view.h has the view's contract;
+ * one view per process: the process IS the window). */
+struct EditorViewCamera;
+
+/** Every editor boot, right after the editor session opened. A viewer boot
+ *  (`[editor:boot] panel=view` / `--editor-view`) builds this process's view,
+ *  its toolbar in app->dbg_ui, unlocks the free camera and puts it at the
+ *  boot pose; any other editor boot is only remembered, for the page's
+ *  "spawn view" (torirs_editor_view_spawn on the web). */
+void
+EditorView_AppBoot(struct App* app);
+
+/** 1 once EditorView_AppBoot ran: this process is a viewer. */
+int
+EditorView_AppIsView(void);
+
+/** Per frame, in the editor block: the toolbar's activation (while the
+ *  command panels are hidden -- once "Open panels" showed them, their
+ *  dispatcher owns the frame's one activation and offers it to
+ *  EditorView_AppActivate), the camera read-back, the publish, and a pose
+ *  the view changed (follow, preset, selection) applied to the App's camera,
+ *  loading the square it looks at when that is outside the scene. */
+void
+EditorView_AppFrame(struct App* app);
+
+/** The frame's activated widget, offered by whichever dispatcher drained it.
+ *  Returns 1 when it was the view toolbar's. */
+int
+EditorView_AppActivate(
+    struct App* app,
+    int widget);
+
+/** The Editor state callback's fan-out (app_editor_on_state). Returns 1 when
+ *  the key was the view's alone. */
+int
+EditorView_AppOnState(
+    struct App* app,
+    uint32_t key,
+    const int32_t* values,
+    int count);
+
+/** The painter's level mask for this process's view, 0 when there is no
+ *  view or it shows every level. */
+uint8_t
+EditorView_AppLevelMask(const struct App* app);
+
+/**
+ * Open a new view of this session looking at `camera` (the main window's
+ * "Open in new view"). Natively the launch service's `view` verb starts the
+ * viewer process (server=tcp only: an embedded server has no socket for a
+ * second process to reach -- refused with the reason); on the web the page
+ * opens a viewer tab (index.html's torirsSpawnEditorView). Returns 1 when the
+ * request went out.
+ */
+int
+EditorView_AppSpawn(
+    struct App* app,
+    const struct EditorViewCamera* camera);
+
 /* ---- app_editor_hotkeys.c ---- */
 /** The map editor's hotkeys for this frame: snapshot, gates, resolve,
  *  dispatch (docs/MAPED_HOTKEYS.md). Before the developer overlay and every
@@ -1259,6 +1320,20 @@ App_MapEditorWorldSignature(struct App const* app);
  *  editor's close. Safe when none were taken. */
 void
 app_map_editor_free(struct App* app);
+
+/** The editor's whole shutdown (App_Shutdown): the layout and hotkeys files,
+ *  Editor_PanelFree, then app_map_editor_free. Needs app->editor. */
+void
+app_map_editor_shutdown(struct App* app);
+
+/** Fill the App-bound editor modules' services (editor/editor_ui.h struct
+ *  EditorUiAppServices) with this App; Editor_PanelInit calls it before the
+ *  modules register. */
+struct EditorUiAppServices;
+void
+app_map_editor_ui_services(
+    struct App* app,
+    struct EditorUiAppServices* out);
 
 /** EDIT layout: a square about to load gets its first shadow, and the
  *  provider is seeded from the document (app_map_editor.c). No-op under STATIC. */

@@ -10,7 +10,6 @@
 #include "mem/torirs_mem.h"
 #include "app/app_iface_editor.h"
 #include "app/app_internal.h"
-#include "editor/editor_view.h"
 #include "perf_audit.h"
 
 #ifdef TORIRS_EMBED_SERVER

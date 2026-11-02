@@ -28,11 +28,11 @@
  * TWO HALVES. The core (EditorView_*) holds the per-view state, talks to the
  * session through Editor_StateSet and Editor's state facts, and builds the
  * toolbar on a ToriRSChrome -- no App, no renderer, so a test drives three of
- * them against one embedded server. The APP GLUE (EditorView_App*, compiled
- * unless EDITOR_VIEW_NO_APP) is what a viewer process calls: it moves the
- * App's free camera to the view's pose and reads it back, feeds the level
- * mask to the painter, and spawns new views (launch service natively, a tab
- * on the web).
+ * them against one embedded server. The APP GLUE (EditorView_App*, in
+ * src/app/app_editor_view.c, declared in app/app_internal.h) is what a viewer
+ * process calls: it moves the App's free camera to the view's pose and reads
+ * it back, feeds the level mask to the painter, and spawns new views (launch
+ * service natively, a tab on the web).
  *
  * The camera pose is an ORBIT pose: the point looked at (absolute fine
  * units, 128 per tile), its level, yaw, pitch and the distance to the eye.
@@ -46,7 +46,6 @@
 #include <stdint.h>
 
 struct ToriRSChrome;
-struct App;
 
 /** An orbit camera pose; the TORIRSMAPED_CAMERA_* layout, named. */
 struct EditorViewCamera
@@ -349,9 +348,7 @@ EditorView_SpawnBody(
     char* out,
     int out_size);
 
-#if !defined(EDITOR_VIEW_NO_APP)
-
-/* ---- the app glue (one view per process: the process IS the window) ------ */
+/* ---- the boot pose (one per process) ------------------------------------ */
 
 /** The pose the command line (`--camera`) or the manifest (`camera=`) asked
  *  this process's view to start at; main.c sets it before App_Init. NULL
@@ -363,61 +360,5 @@ EditorView_SetBootCamera(const struct EditorViewCamera* camera);
 int
 EditorView_BootCamera(struct EditorViewCamera* out);
 
-/** Every editor boot, right after the editor session opened. A viewer boot
- *  (`[editor:boot] panel=view` / `--editor-view`) builds this process's view,
- *  its toolbar in app->dbg_ui, unlocks the free camera and puts it at the
- *  boot pose; any other editor boot is only remembered, for the page's
- *  "spawn view" (torirs_editor_view_spawn on the web). */
-void
-EditorView_AppBoot(struct App* app);
-
-/** 1 once EditorView_AppBoot ran: this process is a viewer. */
-int
-EditorView_AppIsView(void);
-
-/** Per frame, in the editor block: the toolbar's activation (while the
- *  command panels are hidden -- once "Open panels" showed them, their
- *  dispatcher owns the frame's one activation and offers it to
- *  EditorView_AppActivate), the camera read-back, the publish, and a pose
- *  the view changed (follow, preset, selection) applied to the App's camera,
- *  loading the square it looks at when that is outside the scene. */
-void
-EditorView_AppFrame(struct App* app);
-
-/** The frame's activated widget, offered by whichever dispatcher drained it.
- *  Returns 1 when it was the view toolbar's. */
-int
-EditorView_AppActivate(
-    struct App* app,
-    int widget);
-
-/** The Editor state callback's fan-out (app_editor_on_state). Returns 1 when
- *  the key was the view's alone. */
-int
-EditorView_AppOnState(
-    struct App* app,
-    uint32_t key,
-    const int32_t* values,
-    int count);
-
-/** The painter's level mask for this process's view, 0 when there is no
- *  view or it shows every level. */
-uint8_t
-EditorView_AppLevelMask(const struct App* app);
-
-/**
- * Open a new view of this session looking at `camera` (the main window's
- * "Open in new view"). Natively the launch service's `view` verb starts the
- * viewer process (server=tcp only: an embedded server has no socket for a
- * second process to reach -- refused with the reason); on the web the page
- * opens a viewer tab (index.html's torirsSpawnEditorView). Returns 1 when the
- * request went out.
- */
-int
-EditorView_AppSpawn(
-    struct App* app,
-    const struct EditorViewCamera* camera);
-
-#endif /* !EDITOR_VIEW_NO_APP */
 
 #endif

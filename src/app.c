@@ -8,7 +8,6 @@
  */
 
 #include "app/app_internal.h"
-#include "editor/editor_view.h"
 #include "mem/torirs_mem.h"
 
 #include "perf_audit.h"
@@ -470,8 +469,7 @@ App_Init(
     World_SetScene(app->world, app->scene);
     app->world_builder = WorldBuilder_New(app->world, app->provider, app->scene, &app->varps);
     assert(app->world_builder);
-    /* [world:boot] layout / --world-layout: the map editor's EDIT builder, or
-     * the game's STATIC one (engine/world_builder/edit/world_edit.h). */
+    /* [world:boot] layout: the map editor's EDIT builder or the game's STATIC. */
     WorldBuilder_SetLayout(app->world_builder, (enum WorldBuilderLayout)app->cfg.world_layout);
     /* Multi-world substrate (SAILING_PLAN C0): the root view borrows the pair
      * above; boat views register owned pairs later. The cursor starts — and
@@ -1154,9 +1152,7 @@ App_Init(
             &app->editor_panel,
             &app->dbg_ui,
             cfg->editor_panel == BOOTMANIFEST_EDITOR_PANEL_INPROCESS);
-        /* Every editor boot: a viewer (panel=view / --editor-view) builds its
-         * view and thin toolbar here; the main window is remembered for the
-         * page's "spawn view" (editor/editor_view.h). */
+        /* A viewer boot builds its view here (app/app_editor_view.c). */
         EditorView_AppBoot(app);
 
         /*
@@ -1358,9 +1354,7 @@ App_Shutdown(struct App* app)
          * would put edits on disk that were abandoned on purpose. */
         if( Editor_DocHasUnsaved(&app->editor->doc) )
             TORIRS_LOG("app: map editor closing with unsaved edits\n");
-        app_map_editor_layout_flush(app);
-        Editor_PanelFree(&app->editor_panel);
-        app_map_editor_free(app);
+        app_map_editor_shutdown(app);
         Editor_Close(app->editor);
         ToriMem_Free(ToriMem_Process(), app->editor);
         app->editor = NULL;

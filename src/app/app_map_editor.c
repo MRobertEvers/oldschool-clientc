@@ -27,6 +27,10 @@ static int
 app_map_editor_ghost_is_edit(struct App const* app);
 static void
 app_map_editor_spawn_ghost_remove(struct App* app);
+static int
+app_map_editor_hover_env_tile(
+    int* out_world_x,
+    int* out_world_z);
 static struct ToriDraw_Sprite*
 app_preview_raster(
     struct App* app,
@@ -162,6 +166,203 @@ app_map_editor_free(struct App* app)
         ToriMem_Free(ToriMem_Editor(), sh->handles);
     }
     memset(&g_app_edit_mirror, 0, sizeof(g_app_edit_mirror));
+}
+
+/* The editor's shutdown, in the order it needs: the dock layout and hotkeys
+ * files are written while the panel still exists, the panel (and every
+ * registered module) is freed, then the EDIT shadows. App_Shutdown calls this
+ * before it closes the session. */
+void
+app_map_editor_shutdown(struct App* app)
+{
+    assert(app);
+    assert(app->editor);
+    app_map_editor_layout_flush(app);
+    Editor_PanelFree(&app->editor_panel);
+    app_map_editor_free(app);
+}
+
+/* ---- the App-bound panels' services (editor_ui.h struct EditorUiAppServices)
+ *
+ * The catalog, inspector and areas modules name no App: what they need of it
+ * is these, with the App as user_data. */
+
+static struct ToriRS_Location*
+ui_service_loc_record(
+    void* user_data,
+    int loc_id)
+{
+    struct App* app = user_data;
+    assert(app);
+    if( !app->provider )
+        return NULL;
+    return CacheProvider_LocationGet(app->provider, loc_id);
+}
+
+static void
+ui_service_loc_request(
+    void* user_data,
+    int loc_id)
+{
+    struct App* app = user_data;
+    struct ToriRS_Task* task;
+
+    assert(app);
+    if( !app->provider )
+        return;
+    task = CreateTask_LocLoad(app->provider, loc_id);
+    if( task )
+        ToriRS_TaskQueue_Add(app->runner.queue, task);
+}
+
+static int
+ui_service_hover_tile(
+    void* user_data,
+    int* out_world_x,
+    int* out_world_z,
+    int* out_level)
+{
+    struct App* app = user_data;
+    int scene_x;
+    int scene_z;
+
+    assert(app);
+    assert(out_world_x);
+    assert(out_world_z);
+    assert(out_level);
+    /* A photograph's parked hover (TORIRS_EDITOR_HOVER) is the pointer. */
+    if( app_map_editor_hover_env_tile(out_world_x, out_world_z) )
+    {
+        *out_level = Editor_PanelEditLevel(&app->editor_panel, app);
+        return 1;
+    }
+    if( !app->world || !Editor_PanelHoverTile(&app->editor_panel, app, &scene_x, &scene_z) )
+        return 0;
+    *out_world_x = scene_x + app->world->_base_tile_x;
+    *out_world_z = scene_z + app->world->_base_tile_z;
+    *out_level = Editor_PanelEditLevel(&app->editor_panel, app);
+    return 1;
+}
+
+static int
+ui_service_scene_window(
+    void* user_data,
+    int* out_base_x,
+    int* out_base_z,
+    int* out_size)
+{
+    struct App* app = user_data;
+
+    assert(app);
+    assert(out_base_x);
+    assert(out_base_z);
+    assert(out_size);
+    if( !app->world )
+        return 0;
+    *out_base_x = app->world->_base_tile_x;
+    *out_base_z = app->world->_base_tile_z;
+    *out_size = app->world->_scene_size;
+    return 1;
+}
+
+static void
+ui_service_select_terrain(
+    void* user_data,
+    int world_x,
+    int world_z,
+    int level)
+{
+    struct App* app = user_data;
+
+    assert(app);
+    if( !app->world )
+        return;
+    Editor_PanelSelectTerrain(
+        &app->editor_panel, app, world_x - app->world->_base_tile_x, world_z - app->world->_base_tile_z, level);
+}
+
+/* The areas panel's Go to: over the tile, the current yaw, the pitch clamped
+ * (383 when the camera has none yet), the eye 2600 units out. */
+static int
+ui_service_camera_to_tile(
+    void* user_data,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    struct App* app = user_data;
+    struct App_WorldView* view;
+    struct EditorViewCamera pose;
+    int scene_x;
+    int scene_z;
+    int extent;
+
+    assert(app);
+    if( !app->world || !app->frame_view )
+        return 0;
+    view = app->frame_view;
+    scene_x = (tile_x - app->world->_base_tile_x) * 128 + 64;
+    scene_z = (tile_z - app->world->_base_tile_z) * 128 + 64;
+    extent = app->world->_scene_size * 128;
+    if( scene_x < 0 || scene_z < 0 || scene_x >= extent || scene_z >= extent )
+        return 0;
+    memset(&pose, 0, sizeof(pose));
+    pose.x = tile_x * 128 + 64;
+    pose.z = tile_z * 128 + 64;
+    pose.level = level;
+    pose.yaw = view->world_camera.yaw & 0x7ff;
+    pose.pitch = app_world_clamp_pitch(app, view->world_camera.pitch > 0 ? view->world_camera.pitch : 383);
+    pose.zoom = 2600;
+    EditorView_PoseEye(&pose, app->world->_base_tile_x * 128, app->world->_base_tile_z * 128,
+        app_world_height(app, scene_x, scene_z, level), &view->world_camera_pos);
+    view->world_camera.pitch = pose.pitch;
+    view->camera_unlocked = 1;
+    app->need_redraw = 1;
+    return 1;
+}
+
+static void
+ui_service_preview_invalidate(void* user_data)
+{
+    struct App* app = user_data;
+    assert(app);
+    EditorPreviewCamera_Invalidate(&app->preview_camera, false);
+}
+
+static int
+ui_service_world_busy(void* user_data)
+{
+    struct App* app = user_data;
+    assert(app);
+    return app->world_load_inflight || app->editor_panel.sq_open_pending;
+}
+
+static void
+ui_service_request_redraw(void* user_data)
+{
+    struct App* app = user_data;
+    assert(app);
+    app->need_redraw = 1;
+}
+
+void
+app_map_editor_ui_services(
+    struct App* app,
+    struct EditorUiAppServices* out)
+{
+    assert(app);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->user_data = app;
+    out->loc_record = ui_service_loc_record;
+    out->loc_request = ui_service_loc_request;
+    out->hover_tile = ui_service_hover_tile;
+    out->scene_window = ui_service_scene_window;
+    out->select_terrain = ui_service_select_terrain;
+    out->camera_to_tile = ui_service_camera_to_tile;
+    out->preview_invalidate = ui_service_preview_invalidate;
+    out->world_busy = ui_service_world_busy;
+    out->request_redraw = ui_service_request_redraw;
 }
 
 static struct AppMapEditShadow*
@@ -1663,8 +1864,9 @@ app_map_editor_ghost_place_edit(
  * tile (x, z) for every frame, and once, at the first frame with panels,
  * arms the named tool (Editor_ToolName, case-insensitive, spaces as '_':
  * raise, paint_underlay, place, move) and the catalog pick. Only the
- * previews read it (the brush footprint, the loc / spawn ghosts, the move
- * footprints); clicks still need a real pointer. Read once per process.
+ * previews (the brush footprint, the loc / spawn ghosts, the move
+ * footprints) and the Inspector's hovered tile read it; clicks still need a
+ * real pointer. Read once per process.
  */
 static struct
 {
@@ -1695,6 +1897,22 @@ app_map_editor_hover_env_resolve(void)
             g_app_editor_hover_env.tool, g_app_editor_hover_env.pick_kind, &g_app_editor_hover_env.pick_id)
         >= 2 )
         g_app_editor_hover_env.on = 1;
+}
+
+/** TORIRS_EDITOR_HOVER's parked tile, ABSOLUTE: 1 when one is parked. */
+static int
+app_map_editor_hover_env_tile(
+    int* out_world_x,
+    int* out_world_z)
+{
+    assert(out_world_x);
+    assert(out_world_z);
+    app_map_editor_hover_env_resolve();
+    if( !g_app_editor_hover_env.on )
+        return 0;
+    *out_world_x = g_app_editor_hover_env.abs_x;
+    *out_world_z = g_app_editor_hover_env.abs_z;
+    return 1;
 }
 
 /** Arm TORIRS_EDITOR_HOVER's tool and pick, once. */

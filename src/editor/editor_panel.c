@@ -15,6 +15,7 @@
 #include "editor_panel.h"
 
 #include "app.h"
+#include "app/app_internal.h"
 #include "builder/builder_panels.h"
 #include "editor_view.h"
 #include "engine/world_builder/world_builder.h"
@@ -319,6 +320,8 @@ Editor_PanelInit(
     panel->ui->hooks.bake = hook_bake;
     panel->ui->hooks.view_window = hook_view_window;
     panel->ui->hooks.selection_changed = hook_selection_changed;
+    /* What the App-bound modules ask of the App, before they register. */
+    app_map_editor_ui_services(app, &panel->ui->app_services);
     Editor_UiRegisterToolsPanels(panel->ui);
     /* The builders' Check button compiles against a stage of the content
      * tree's scripts with this checkout's sscompile (builder_ssc.h); the

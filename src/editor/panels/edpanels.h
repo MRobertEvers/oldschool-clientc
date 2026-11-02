@@ -9,8 +9,9 @@
  *
  * App-free modules (run headless in tools-panels' tests): console, menu bar,
  * tool rail, terrain, palette, rectangle select, square picker, locs, spawns,
- * New square, save guard. App-bound (they read `ui->app`): catalog,
- * inspector.
+ * New square, save guard. App-bound (they ask the App through
+ * `ui->app_services`, editor_ui.h): catalog, inspector, and the areas
+ * panel's camera moves.
  */
 
 #include "editor/editor_hotkeys.h"
@@ -421,7 +422,8 @@ Editor_Areas_GoTo(struct EditorUi* ui);
 
 /** The free camera to absolute tile (x, z) on `level`, the way Go to moves
  *  it (keeps yaw and pitch, eye 2600 units out). 0 when the tile is not in
- *  the loaded scene or the window has no world. Needs `ui->app`. */
+ *  the loaded scene or the window has no world (no
+ *  `ui->app_services.camera_to_tile`). */
 int
 Editor_Areas_CameraTo(
     struct EditorUi* ui,

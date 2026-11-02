@@ -54,7 +54,22 @@
 # camera pose, camera input latches, world pointer and pick results -- 25
 # fields -- moved into struct App_WorldView, and App holds views[2],
 # view_count and frame_view in their place.
-struct-App-fields: 332
+# Raised from 332 to 378 on 2026-11-02 (v3-maped, the map editor's
+# check-app-boundary pass): the check was already red at v3 19d7d7b26 with
+# 378 fields, and this branch added none (its one boot knob, world_layout,
+# is inside struct AppConfig). Against 325c57690's app.h, 57 fields arrived
+# and 11 left without passing this gate: the Porcelain plugin surface
+# (plugin_surface_*, 7), the accounts and site stores (accounts*, site*,
+# 5 each), the title screen (title_card_count, title_song*, 4), the minimenu
+# interaction defaults (interaction_*, 4), instance-zone rebuilds
+# (rebuild_instance_*, 4), the chat line and fps window (3 each), the server
+# tick serial and z-buffer (server_*, 2), sign-in (2), detached parents (2),
+# and sixteen single fields (curve_vm, wev_flat, oauth, view_split,
+# platform_bus, ...); the plugin_layout_* family (7), plugin_launcher,
+# plugin_nav, plugin_frame_active and view_count left. Recorded so the number
+# means "today", not forgiven: each family is a candidate for the subsystem
+# that owns it.
+struct-App-fields: 378
 
 src/main.c
 src/executor_config.c
@@ -97,6 +112,15 @@ src/plugin/torirs_plugin_drive_pointer.c
 src/plugin/torirs_plugin_drive_read.c
 src/plugin/torirs_plugin_drive_state.c
 src/plugin/torirs_plugin_drive_ui.c
+# Added 2026-11-02 (v3-maped): already reaching in at v3 19d7d7b26, where the
+# check was red on it. The drive-record plugin reads three App handles --
+# app->provider (npc types), app->seq_source (animations) and the npc pool
+# (app->world->entities.npc) -- through g_app like the six above, and is a
+# candidate for the parameter treatment. The map editor's own reach-ins
+# (editor_view.c and the catalog, inspector and areas panels) were given it
+# instead: the panels take struct EditorUiAppServices (editor/editor_ui.h),
+# and the view's App glue moved to src/app/app_editor_view.c.
+src/plugin/torirs_plugin_drive_record.c
 # The composition root of the App layer: construction, teardown and the
 # globals main.c shares. Everything else is a unit under src/app/.
 # Raised from 1255 by the touch-UI boot resolution and the Porcelain table
@@ -112,4 +136,11 @@ src/plugin/torirs_plugin_drive_ui.c
 # the one App_WorldViewsInit call App_Init makes right after its memset --
 # construction, which is what the composition root is for; the initialiser
 # itself is static inline in src/app.h beside struct App_WorldView.
-app.c-lines: 1331
+# Raised from 1331 to 1457 on 2026-11-02 (v3-maped): 1452 at v3 19d7d7b26
+# (the check was already red), plus the map editor's five -- in App_Init the
+# WorldBuilder_SetLayout call that picks the EDIT or STATIC builder and the
+# EditorView_AppBoot call, each one line with a one-line comment, beside the
+# editor boot they follow; in App_Shutdown one app_map_editor_shutdown call.
+# Each subsystem is in its own unit under src/app/ (app_map_editor.c,
+# app_editor_view.c).
+app.c-lines: 1457

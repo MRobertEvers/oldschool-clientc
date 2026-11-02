@@ -12,6 +12,9 @@
 # The viewer window's toolbar, per-view state and camera publish/follow, in
 # the client.
 MAPED_CLIENT_SRCS += editor/editor_view.c
+# Its App glue (EditorView_App*): a unit of the App layer, so the core above
+# names no App (tools/appc_map.py check).
+MAPED_CLIENT_SRCS += app/app_editor_view.c
 # The daemon binds SPAWN_VIEW to the launch service's `view` verb. The client
 # already links launch_sessions.c (src/makefile SRCS).
 MAPED_SERVER_SRCS += platform/launch_sessions.c

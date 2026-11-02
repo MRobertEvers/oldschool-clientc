@@ -25,16 +25,17 @@
  * The pick is shared tool state (tools.pick_kind / pick_id / pick_name): a
  * loc, npc or obj row with an id becomes it, the Place tool stamps it, the
  * spawns panel resolves an npc / obj pick to its pack symbol. The model well
- * and the multiloc rungs stay on the client's provider (App-bound, and
- * skipped when the panel runs without an App, as in editor_panels_test): a
+ * and the multiloc rungs stay on the client's provider, reached through
+ * ui->app_services (skipped when they are NULL, as in editor_panels_test): a
  * preview is one record loaded on demand, never a sweep.
  */
 
-#include "app.h"
 #include "edpanel_catalog_model.h"
 #include "edpanel_common.h"
 #include "edpanels.h"
 #include "editor/editor_cfg.h"
+#include "engine/cache_provider.h"
+#include "engine/torirs_types.h"
 #include "editor/editor_script.h"
 #include "editor/map_editor_ghost.h"
 #include "mem/torirs_mem.h"
@@ -109,7 +110,18 @@ catalog_host(struct EditorUi* ui)
     return &ui->editor->host;
 }
 
-/* ---- the multiloc rungs and the model well (App-bound) ------------------------ */
+/* ---- the multiloc rungs and the model well (App-bound: ui->app_services) ------ */
+
+/** Loc record `loc_id` through the App's services; NULL when it is not
+ *  resident or the window has no App to ask. */
+static struct ToriRS_Location*
+catalog_loc_record(
+    struct EditorUi* ui,
+    int loc_id)
+{
+    const struct EditorUiAppServices* services = &ui->app_services;
+    return services->loc_record ? services->loc_record(services->user_data, loc_id) : NULL;
+}
 
 static void
 catalog_rows_hidden(
@@ -186,17 +198,15 @@ catalog_variant_readout(
     struct EditorUi* ui,
     struct CatalogPanel* self)
 {
-    struct App* app = ui->app;
     int const loc_id = self->var_choice > 0 ? catalog_variant_id(self) : ui->tools.pick_id;
     struct ToriRS_Location* cfg;
 
-    assert(app);
     if( loc_id < 0 )
     {
         catalog_rows_blank(ui, &self->var_rows, "(nothing at this value)");
         return;
     }
-    cfg = app->provider ? CacheProvider_LocationGet(app->provider, loc_id) : NULL;
+    cfg = catalog_loc_record(ui, loc_id);
     if( cfg )
         catalog_rows_fill(ui, &self->var_rows, cfg, loc_id);
     else
@@ -209,7 +219,7 @@ catalog_variant_rebuild(
     struct EditorUi* ui,
     struct CatalogPanel* self)
 {
-    struct App* app = ui->app;
+    const struct EditorUiAppServices* services = &ui->app_services;
     struct ToriRS_Location* cfg = NULL;
     char line[TORIRS_CHROME_LABEL_MAX];
 
@@ -219,8 +229,8 @@ catalog_variant_rebuild(
     self->var_shown_kind = ui->tools.pick_kind;
     self->var_count = 0;
 
-    if( app && app->provider && ui->tools.pick_kind == CACHEPROVIDER_CATALOG_LOC && ui->tools.pick_id >= 0 )
-        cfg = CacheProvider_LocationGet(app->provider, ui->tools.pick_id);
+    if( ui->tools.pick_kind == CACHEPROVIDER_CATALOG_LOC && ui->tools.pick_id >= 0 )
+        cfg = catalog_loc_record(ui, ui->tools.pick_id);
     if( !cfg || cfg->transform_count <= 0 || !cfg->transforms )
     {
         self->var_choice = 0;
@@ -239,7 +249,7 @@ catalog_variant_rebuild(
         int const rung = cfg->transforms[i];
         int const row = self->var_count;
         int const fallback = i == cfg->transform_count - 1;
-        struct ToriRS_Location* rung_cfg = rung > 0 ? CacheProvider_LocationGet(app->provider, rung) : NULL;
+        struct ToriRS_Location* rung_cfg = rung > 0 ? catalog_loc_record(ui, rung) : NULL;
         char key[8];
 
         if( fallback )
@@ -256,12 +266,8 @@ catalog_variant_rebuild(
         self->var_options[row] = self->var_labels[row];
         self->var_ids[row] = rung > 0 ? rung : -1;
         self->var_count++;
-        if( rung > 0 && !rung_cfg )
-        {
-            struct ToriRS_Task* task = CreateTask_LocLoad(app->provider, rung);
-            if( task )
-                ToriRS_TaskQueue_Add(app->runner.queue, task);
-        }
+        if( rung > 0 && !rung_cfg && services->loc_request )
+            services->loc_request(services->user_data, rung);
     }
     if( self->var_choice >= self->var_count )
         self->var_choice = 0;
@@ -447,7 +453,7 @@ catalog_tick(
     ToriRSChrome_SetText(ui->chrome, self->row_count, line);
     catalog_list_rows(ui, self);
     catalog_record_rows(ui, self);
-    if( ui->app && (self->var_shown_id != ui->tools.pick_id || self->var_shown_kind != ui->tools.pick_kind) )
+    if( ui->app_services.loc_record && (self->var_shown_id != ui->tools.pick_id || self->var_shown_kind != ui->tools.pick_kind) )
         catalog_variant_rebuild(ui, self);
 }
 
@@ -663,15 +669,14 @@ catalog_activate(
     {
         int const choice = ToriRSChrome_DropdownSelected(ui->chrome, widget);
         self->var_choice = choice >= 0 && choice < self->var_count ? choice : 0;
-        if( ui->app )
+        if( ui->app_services.loc_record )
             catalog_variant_readout(ui, self);
         return 1;
     }
     if( widget == self->item_reset )
     {
-        struct App* app = ui->app;
-        if( app )
-            EditorPreviewCamera_Invalidate(&app->preview_camera, false);
+        if( ui->app_services.preview_invalidate )
+            ui->app_services.preview_invalidate(ui->app_services.user_data);
         return 1;
     }
     return widget == self->input_search || widget == self->view || widget == self->record_list
@@ -721,17 +726,15 @@ Editor_Catalog_Adopt(
     int loc_id)
 {
     struct CatalogPanel* self;
-    struct App* app;
     struct ToriRS_Location* cfg;
 
     assert(ui);
-    app = ui->app;
     self = Editor_UiPanelSelf(ui, "catalog");
     if( !self || loc_id < 0 )
         return;
     ui->tools.pick_kind = CACHEPROVIDER_CATALOG_LOC;
     ui->tools.pick_id = loc_id;
-    cfg = app && app->provider ? CacheProvider_LocationGet(app->provider, loc_id) : NULL;
+    cfg = catalog_loc_record(ui, loc_id);
     snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "%s (%d)",
         cfg && cfg->name[0] ? cfg->name : "<unnamed>", loc_id);
     catalog_picked_label(ui, self);
@@ -801,9 +804,9 @@ Editor_Catalog_Register(struct EditorUi* ui)
     self->var_rows.render = ToriRSChrome_Label(chrome, self->panel, "");
     self->var_rows.ops = ToriRSChrome_Label(chrome, self->panel, "");
     catalog_rows_hidden(ui, self, 1);
-    if( !ui->app )
+    if( !ui->app_services.preview_invalidate )
     {
-        /* No provider to preview with (a headless test). */
+        /* No App to preview with (a headless test). */
         ToriRSChrome_SetHidden(chrome, self->view, 1);
         ToriRSChrome_SetHidden(chrome, self->item_reset, 1);
     }

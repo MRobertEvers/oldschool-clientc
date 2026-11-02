@@ -7,7 +7,6 @@
  */
 
 #include "app/app_internal.h"
-#include "editor/editor_view.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static int
