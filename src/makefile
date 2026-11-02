@@ -3668,6 +3668,12 @@ test-cam-arc: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cam_arc_test app/test/cam_arc_test.c -lm
 	./$(OBJ_DIR)/cam_arc_test
 
+# The editor free camera's scene clamp (app/app_camera_clamp.h): header-only.
+.PHONY: test-cam-clamp
+test-cam-clamp: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cam_clamp_test app/test/cam_clamp_test.c -lm
+	./$(OBJ_DIR)/cam_clamp_test
+
 # Decode RSProx recordings at their own revision (227-241) with the generated
 # executors, packet by packet: `RECORDINGS="a.bin.gz b.bin.gz"`. Not a suite
 # test -- it needs recordings, which are not in the tree.

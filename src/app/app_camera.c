@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "app/app_camera_clamp.h"
 #include "app/app_cam_arc.h"
 
 /* Private to this unit, declared up front so definition order is free. */
@@ -91,6 +92,49 @@ app_camera_move_left(
 
 /* Optional developer camera keys. All bindings come from `[debug:hotkeys]` and
  * are off when omitted. Arrow yaw/pitch remains ordinary game camera input. */
+/* The editor's free camera, held over the loaded scene (app_camera_clamp.h).
+ * Only with an editor session and a world: the game's own cameras are the
+ * server's and the follow step's, and a view with no world has nothing to
+ * stay over. The floor is the ground under the clamped tile on the pinned
+ * level (level 0 while Auto), half a tile above it. */
+static void
+app_camera_keep_over_scene(struct App* app)
+{
+    struct App_WorldView* view;
+    int extent;
+    int margin;
+    int tile_x;
+    int tile_z;
+    int level;
+    int ground;
+
+    assert(app);
+    if( !app->editor || !app->world || !app->frame_view )
+        return;
+    /* Only over a scene that is there: before the first load, and while a
+     * load is rebuilding it, the world has no extent to hold the camera in
+     * (clamping to an empty range threw the eye to minus one tile and the
+     * ground lookup read a zero-size world, 2026-11-02). */
+    if( app->world->_scene_size <= 0 || app->world_load_inflight )
+        return;
+    view = app->frame_view;
+    extent = app->world->_scene_size * 128;
+    /* A tile INSIDE the edge, not past it: at the edge facing outward the
+     * view is the void anyway, and the eye staying over the last tile keeps
+     * ground under the pointer and the way back one key away. */
+    margin = -128;
+    assert(extent + 2 * margin > 0);
+    tile_x = app_camera_clamp_axis(view->world_camera_pos.x, 0, extent - 1) / 128;
+    tile_z = app_camera_clamp_axis(view->world_camera_pos.z, 0, extent - 1) / 128;
+    level = app->editor_panel.ui && app->editor_panel.ui->tools.edit_level >= 0
+                ? app->editor_panel.ui->tools.edit_level
+                : 0;
+    ground = app_world_height(app, tile_x * 128 + 64, tile_z * 128 + 64, level);
+    if( app_camera_clamp_scene(&view->world_camera_pos.x, &view->world_camera_pos.y, &view->world_camera_pos.z,
+            extent, margin, ground, 64, -extent) )
+        app->need_redraw = 1;
+}
+
 void
 app_world_camera_keys(
     struct App* app,
@@ -175,6 +219,11 @@ app_world_camera_keys(
         if( app_editor_hotkeys_active(app, EDITOR_HK_CAM_DOWN) )
             app->frame_view->world_camera_pos.y += fly;
     }
+    /* Whichever flight moved it, the editor's camera stays over the scene it
+     * can see (app_camera_clamp.h): a few tiles past the loaded squares at
+     * most, never under the ground, never higher than the scene is wide. */
+    app_camera_keep_over_scene(app);
+
     /* Arrows drive the orbit camera (reference keyHeld[1..4]); the follow
      * step consumes these next frame. When the follow cam is off (offline or
      * scripted) fall back to the free-cam direct rotate. */
