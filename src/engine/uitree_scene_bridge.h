@@ -198,9 +198,6 @@ UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id);
  */
 #define UITREE_SCENE_INKWELL_ID 0x4000000D
 
-/** The square picker's world map (editor/editor_worldmap.h): two slots taken
- *  in turn, so the GRAPH item naming the new picture differs from the old. */
-#define UITREE_SCENE_EDITOR_PICKER_MAP_ID(slot) (0x4000000E + ((slot) & 1))
 
 /**
  * Base of the reserved scene-sprite range for PLUGIN IMAGES: art a plugin
@@ -227,6 +224,16 @@ UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id);
  * higher, so there is no ceiling here worth economising against.
  */
 #define UITREE_SCENE_PLUGIN_IMAGE_SLOTS 192
+
+/**
+ * The square picker's world map (editor/editor_worldmap.h): one scene sprite
+ * per kept tile, base + slot, slot < EDITOR_UI_MAP_IMAGE_SLOTS (80). Every
+ * picture put under one of these is the same size, so an atlas renderer
+ * (GL3's 2D atlas is 2048 square, shared) overwrites its place in the sheet
+ * instead of packing a new one.
+ */
+#define UITREE_SCENE_EDITOR_PICKER_MAP_BASE 0x4C000000
+#define UITREE_SCENE_EDITOR_PICKER_MAP_SLOTS 80
 
 void
 UITreeSceneBridge_Init(

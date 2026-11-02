@@ -88,6 +88,13 @@ struct Editor_Panel
     int sq_open_z;
     int sq_open_add;
     char sq_open_storage[EDITOR_DOC_STORAGE_MAX];
+    /** Open (not Add) also brings the free camera to the square once its
+     *  load has landed: the tile it goes to, pending until the world has it.
+     *  Without this an Open of a square away from the camera looked like
+     *  nothing at all (owner, 2026-11-02). */
+    int sq_goto_pending;
+    int sq_goto_x;
+    int sq_goto_z;
 
     /** The brush stroke the world click opened on press (a drag is one undo
      *  step), and the last tile it painted, so a drag paints each tile once

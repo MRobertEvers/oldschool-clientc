@@ -358,6 +358,10 @@ ui_service_request_redraw(void* user_data)
  * The overview's bakes live for the process: one App per process, and the
  * App holds no field for them (check-app-boundary). Created on first use. */
 
+_Static_assert(
+    EDITOR_UI_MAP_IMAGE_SLOTS == UITREE_SCENE_EDITOR_PICKER_MAP_SLOTS,
+    "the picker's map slots are the scene's reserved picker range");
+
 static struct RS_WorldMapOverview* g_picker_worldmap;
 static int g_picker_worldmap_load_asked;
 
@@ -368,7 +372,7 @@ ui_service_worldmap_area_of(
 {
     struct ToriRS_WorldMapAreas* areas;
 
-    if( !app->provider || area_id < 0 )
+    if( !app->provider || area_id < 0 || area_id == EDITOR_UI_MAP_AREA_ALL )
         return NULL;
     areas = CacheProvider_WorldMapGet(app->provider);
     if( !areas )
@@ -403,6 +407,8 @@ ui_service_worldmap_area(
         }
         return -2;
     }
+    if( strcmp(internal_name, "*") == 0 )
+        return EDITOR_UI_MAP_AREA_ALL;
     for( int i = 0; i < areas->count; i++ )
     {
         /* The atlas's names are the content tree's .wma blocks, written
@@ -430,6 +436,7 @@ ui_service_worldmap_poll(
     int square_z0,
     int squares_w,
     int squares_h,
+    double px_per_square,
     int* out_missing)
 {
     struct App* app = user_data;
@@ -440,7 +447,7 @@ ui_service_worldmap_poll(
     assert(app);
     assert(out_missing);
     area = ui_service_worldmap_area_of(app, area_id);
-    if( !area )
+    if( !area && !(area_id == EDITOR_UI_MAP_AREA_ALL && app->provider && CacheProvider_WorldMapGet(app->provider)) )
         return -1;
     if( !g_picker_worldmap )
         g_picker_worldmap = RS_WorldMapOverview_New();
@@ -448,11 +455,15 @@ ui_service_worldmap_poll(
     window.square_z0 = square_z0;
     window.squares_w = squares_w;
     window.squares_h = squares_h;
-    window.pixels_per_square = 1;
     clock_gettime(CLOCK_MONOTONIC, &poll_t0);
-    *out_missing = RS_WorldMapOverview_Poll(
-        g_picker_worldmap, app->provider, app->scene, app->runner.queue,
-        UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPSCENE), area, &window);
+    if( area_id == EDITOR_UI_MAP_AREA_ALL )
+        *out_missing = RS_WorldMapOverview_PollAll(g_picker_worldmap, app->provider, app->scene, app->runner.queue,
+            UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPSCENE),
+            CacheProvider_WorldMapGet(app->provider), &window, px_per_square);
+    else
+        *out_missing = RS_WorldMapOverview_Poll(g_picker_worldmap, app->provider, app->scene, app->runner.queue,
+            UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_MAPSCENE), area, &window,
+            px_per_square);
     /* TORIRS_WORLDMAP_STATS=1: how long a window takes to arrive, from its
      * first poll to the one that finds nothing missing (stderr in every
      * build: it is asked for). */
@@ -479,34 +490,119 @@ ui_service_worldmap_poll(
 }
 
 static int
-ui_service_worldmap_render(
+ui_service_worldmap_render_tile(
+    void* user_data,
+    int area_id,
+    double px_per_square,
+    int pixel_x0,
+    int pixel_y0,
+    int size,
+    uint32_t* out_argb)
+{
+    struct App* app = user_data;
+    struct ToriRS_WorldMapArea* area;
+    struct RS_WorldMapOverviewTile tile;
+
+    assert(app);
+    assert(out_argb);
+    assert(size > 0);
+    area = ui_service_worldmap_area_of(app, area_id);
+    if( !area && !(area_id == EDITOR_UI_MAP_AREA_ALL && app->provider && CacheProvider_WorldMapGet(app->provider)) )
+        return 0;
+    if( !g_picker_worldmap )
+        g_picker_worldmap = RS_WorldMapOverview_New();
+    tile.pixels_per_square = px_per_square;
+    tile.pixel_x0 = pixel_x0;
+    tile.pixel_y0 = pixel_y0;
+    tile.width = size;
+    tile.height = size;
+    if( area_id == EDITOR_UI_MAP_AREA_ALL )
+        RS_WorldMapOverview_RenderTileAll(g_picker_worldmap, CacheProvider_WorldMapGet(app->provider), &tile, out_argb);
+    else
+        RS_WorldMapOverview_RenderTile(g_picker_worldmap, area, &tile, out_argb);
+    return 1;
+}
+
+static int
+ui_service_worldmap_icons(
     void* user_data,
     int area_id,
     int square_x0,
     int square_z0,
     int squares_w,
     int squares_h,
-    int px_per_square,
-    uint32_t* out_argb)
+    struct EditorUiMapIcon* out,
+    int capacity,
+    int* out_pending)
 {
     struct App* app = user_data;
     struct ToriRS_WorldMapArea* area;
     struct RS_WorldMapOverviewWindow window;
+    struct RS_WorldMapOverviewIcon found[1536];
+    int found_count;
+    int count = 0;
 
     assert(app);
-    assert(out_argb);
+    assert(out);
+    assert(out_pending);
+    *out_pending = 0;
     area = ui_service_worldmap_area_of(app, area_id);
-    if( !area )
-        return 0;
     if( !g_picker_worldmap )
-        g_picker_worldmap = RS_WorldMapOverview_New();
+        return 0;
+    if( !area && !(area_id == EDITOR_UI_MAP_AREA_ALL && app->provider && CacheProvider_WorldMapGet(app->provider)) )
+        return 0;
     window.square_x0 = square_x0;
     window.square_z0 = square_z0;
     window.squares_w = squares_w;
     window.squares_h = squares_h;
-    window.pixels_per_square = px_per_square;
-    RS_WorldMapOverview_Render(g_picker_worldmap, area, &window, out_argb);
-    return 1;
+    found_count = area_id == EDITOR_UI_MAP_AREA_ALL
+                      ? RS_WorldMapOverview_IconsAll(g_picker_worldmap, CacheProvider_WorldMapGet(app->provider),
+                            &window, found, (int)(sizeof(found) / sizeof(found[0])))
+                      : RS_WorldMapOverview_Icons(
+                            g_picker_worldmap, area, &window, found, (int)(sizeof(found) / sizeof(found[0])));
+    for( int i = 0; i < found_count && count < capacity; i++ )
+    {
+        struct ToriRS_MapElement* element = NULL;
+        /* The element's config and sprite, asked for when cold (the same
+         * binding the 595 map's icons go through). */
+        int const scene_id = app_mapfunction_scene_id(app, found[i].element_id, &element);
+        struct EditorUiMapIcon* icon = &out[count];
+
+        if( !element )
+        {
+            (*out_pending)++;
+            continue;
+        }
+        memset(icon, 0, sizeof(*icon));
+        icon->tile_x = found[i].tile_x;
+        icon->tile_z = found[i].tile_z;
+        icon->text_size = element->text_size;
+        if( scene_id > 0 )
+        {
+            int frame_count = 0;
+            struct ToriDraw_Sprite** frames = ToriDraw_SceneSpriteGet(app->scene, scene_id, &frame_count);
+            if( !frames || frame_count <= 0 || !frames[0] )
+            {
+                (*out_pending)++;
+                continue;
+            }
+            icon->scene_id = scene_id;
+            icon->w = frames[0]->crop_width > 0 ? frames[0]->crop_width : frames[0]->width;
+            icon->h = frames[0]->crop_height > 0 ? frames[0]->crop_height : frames[0]->height;
+        }
+        else if( element->sprite_id >= 0 )
+        {
+            /* An icon whose sprite is still loading. */
+            (*out_pending)++;
+            continue;
+        }
+        else if( element->name && element->name[0] )
+            snprintf(icon->label, sizeof(icon->label), "%s", element->name);
+        else
+            continue;
+        count++;
+    }
+    return count;
 }
 
 static int
@@ -518,7 +614,7 @@ ui_service_image_publish(
     int h)
 {
     struct App* app = user_data;
-    int const id = UITREE_SCENE_EDITOR_PICKER_MAP_ID(slot);
+    int const id = UITREE_SCENE_EDITOR_PICKER_MAP_BASE + slot;
     struct ToriDraw_Sprite* sprite;
     struct ToriDraw_Sprite** sprites;
     uint32_t* copy;
@@ -527,6 +623,8 @@ ui_service_image_publish(
     assert(argb);
     assert(w > 0);
     assert(h > 0);
+    assert(slot >= 0);
+    assert(slot < UITREE_SCENE_EDITOR_PICKER_MAP_SLOTS);
     if( !app->scene )
         return 0;
     copy = TORIDRAW_MALLOC((size_t)w * (size_t)h * sizeof(*copy)); /* the sprite owns it */
@@ -570,8 +668,9 @@ app_map_editor_ui_services(
      * picture nobody sees. */
     out->worldmap_area = ui_service_worldmap_area;
     out->worldmap_poll = ui_service_worldmap_poll;
-    out->worldmap_render = ui_service_worldmap_render;
+    out->worldmap_render_tile = ui_service_worldmap_render_tile;
     out->image_publish = ui_service_image_publish;
+    out->worldmap_icons = ui_service_worldmap_icons;
 #endif
     /* Pop out (app/app_editor_view.c). */
     out->world_camera = EditorView_AppWorldCamera;
@@ -734,7 +833,21 @@ app_map_editor_open_pending_square(struct App* app)
     assert(app);
 
     panel = &app->editor_panel;
-    if( !app->editor || !panel->sq_open_pending )
+    if( !app->editor )
+        return;
+    /* The camera move an Open asked for, once the square's load has landed.
+     * Cleared whether or not the tile turned out to be in the scene, so a
+     * square the load could not bring does not keep a stale request. */
+    if( panel->sq_goto_pending && !app->world_load_inflight && app->world )
+    {
+        panel->sq_goto_pending = 0;
+        if( ui_service_camera_to_tile(app, panel->sq_goto_x, panel->sq_goto_z, 0) )
+            app->need_redraw = 1;
+        else if( panel->ui )
+            Editor_UiLog(panel->ui, "editor: m%d_%d is not in the scene after its open", panel->sq_goto_x / 64,
+                panel->sq_goto_z / 64);
+    }
+    if( !panel->sq_open_pending )
         return;
     if( app->world_load_inflight )
         return; /* the request waits for the load in flight */
@@ -785,6 +898,13 @@ app_map_editor_open_pending_square(struct App* app)
         panel->sq_open_add ? ", added" : "", count, count == 1 ? "" : "s");
     app->world_load_attempted = 0;
     app_world_load_begin(app, chunks, count);
+    /* Open brings the camera; Add to open set keeps the view where it is. */
+    if( !panel->sq_open_add )
+    {
+        panel->sq_goto_pending = 1;
+        panel->sq_goto_x = panel->sq_open_x * 64 + 32;
+        panel->sq_goto_z = panel->sq_open_z * 64 + 32;
+    }
 }
 
 static int

@@ -48,7 +48,13 @@
  * to when the layout gives the panel a height to fill (1x pixels). */
 #define SQUARES_WELL_H 300
 #define SQUARES_WELL_MIN_H 120
+/* A press that moves further than this is a pan and never a click. */
 #define SQUARES_DRAG_SLOP 3
+/* Two clicks on one square this close are a double-click. */
+#define SQUARES_DOUBLE_TICKS 30
+#define SQUARES_DOUBLE_MS 450
+/* TORIRS_EDITOR_PICKER waits this many ticks for the layout. */
+#define SQUARES_ENV_TICKS 20
 #define SQUARES_STORAGE_ROWS 32
 /* "all" plus this many collections in the Collection dropdown. */
 #define SQUARES_COLLECTION_ROWS 32
@@ -76,6 +82,14 @@ struct SquaresPanel
     struct Editor_WorldMap map;
     /** TORIRS_EDITOR_PICKER was applied (once). */
     int env_done;
+    /** Ticks seen, and the last click (for a double-click). */
+    int ticks;
+    int click_valid;
+    int click_map_x;
+    int click_map_z;
+    int click_tick;
+    int click_ms;
+    int click_opened_here;
 
     int panel;
     int input_search;
@@ -463,13 +477,39 @@ squares_collection_rows(
 }
 
 /**
- * TORIRS_EDITOR_PICKER=<area>[,<cell>][,<x>,<z>][,new], for a photograph:
- * once the atlas is in and the well has a size, show page <area> (an area
- * or region name as the Find field takes it; "-" keeps the page), at <cell>
- * px per square, centred on square (x, z); `new` then clicks that square
- * (an empty one opens New square). One number is the cell, two the square,
- * three all of them.
+ * TORIRS_EDITOR_PICKER, for a photograph: once the atlas is in and the well
+ * has a size, comma-separated, in order:
+ *
+ *   <area>        the page (an area or region name as Find takes it; "-"
+ *                 keeps it)
+ *   fit           Fit the page
+ *   zoom=<px>     px a square (real, clamped to the zoom range)
+ *   at=<x>:<z>    centre square (x, z)
+ *   click=<x>:<z> click square (x, z) (as a plain click: an empty one opens
+ *                 New square); repeatable, each a separate click
+ *   new           click the centred square
+ *
+ * The older short form `<area>,<zoom>,<x>,<z>[,new]` (one number the zoom,
+ * two the square, three both) still works.
  */
+static void
+squares_env_click(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    int map_x,
+    int map_z)
+{
+    int x;
+    int y;
+    int w;
+    int h;
+
+    Editor_PickerCellBox(&self->picker, map_x, map_z, &x, &y, &w, &h);
+    /* Two env clicks are two separate clicks, never a double-click. */
+    self->click_valid = 0;
+    squares_click(ui, self, x + w / 2, y + h / 2);
+}
+
 static void
 squares_apply_env(
     struct EditorUi* ui,
@@ -477,14 +517,23 @@ squares_apply_env(
 {
     struct Editor_Picker* picker = &self->picker;
     const char* env;
-    char text[128];
+    char text[256];
     char* save = NULL;
-    int numbers[3];
+    double numbers[3];
     int n = 0;
+    int clicks[8][2];
+    int click_count = 0;
     int click_new = 0;
+    int centre_valid = 0;
+    int centre_x = 0;
+    int centre_z = 0;
+    double zoom = 0;
+    int fit = 0;
     char area[EDITOR_PICKER_NAME_MAX] = { 0 };
 
-    if( self->env_done || picker->tab_count == 0 || picker->well_w <= 0 )
+    /* After the layout has settled (a saved layout resizes the panel a few
+     * ticks in): a zoom set before that would be for another well. */
+    if( self->env_done || picker->tab_count == 0 || picker->well_w <= 0 || self->ticks < SQUARES_ENV_TICKS )
         return;
     self->env_done = 1;
     env = getenv("TORIRS_EDITOR_PICKER");
@@ -494,13 +543,39 @@ squares_apply_env(
     for( char* token = strtok_r(text, ",", &save); token; token = strtok_r(NULL, ",", &save) )
     {
         char* end = NULL;
-        long const value = strtol(token, &end, 10);
+        double const value = strtod(token, &end);
+        int x;
+        int z;
         if( end && end != token && *end == '\0' && n < 3 )
-            numbers[n++] = (int)value;
+            numbers[n++] = value;
         else if( strcmp(token, "new") == 0 )
             click_new = 1;
+        else if( strcmp(token, "fit") == 0 )
+            fit = 1;
+        else if( strncmp(token, "zoom=", 5) == 0 )
+            zoom = strtod(token + 5, NULL);
+        else if( sscanf(token, "at=%d:%d", &x, &z) == 2 )
+        {
+            centre_valid = 1;
+            centre_x = x;
+            centre_z = z;
+        }
+        else if( sscanf(token, "click=%d:%d", &x, &z) == 2 && click_count < 8 )
+        {
+            clicks[click_count][0] = x;
+            clicks[click_count][1] = z;
+            click_count++;
+        }
         else if( !area[0] )
             snprintf(area, sizeof(area), "%s", token);
+    }
+    if( n == 1 || n == 3 )
+        zoom = numbers[0];
+    if( n >= 2 )
+    {
+        centre_valid = 1;
+        centre_x = (int)numbers[n - 2];
+        centre_z = (int)numbers[n - 1];
     }
     if( area[0] && strcmp(area, "-") != 0 )
     {
@@ -513,32 +588,27 @@ squares_apply_env(
         else
             Editor_UiLog(ui, "editor: TORIRS_EDITOR_PICKER: no area '%s'", area);
     }
-    if( n == 1 || n == 3 )
+    if( fit )
+        Editor_PickerFit(picker, 0, 0);
+    if( zoom > 0 )
     {
         const struct Editor_PickerTab* tab = &picker->tabs[picker->active_tab];
-        picker->cell = numbers[0] < EDITOR_PICKER_CELL_MIN   ? EDITOR_PICKER_CELL_MIN
-                       : numbers[0] > EDITOR_PICKER_CELL_MAX ? EDITOR_PICKER_CELL_MAX
-                                                             : numbers[0];
-        /* The page's middle at the new cell, until a square is named. */
+        Editor_PickerZoomTo(picker, zoom, (EDITOR_PICKER_LEFT + picker->well_w) / 2,
+            (EDITOR_PICKER_TOP + picker->well_h) / 2);
+        /* The page's middle at the new zoom, until a square is named. */
         Editor_PickerCentre(picker, (tab->min_x + tab->max_x) / 2, (tab->min_z + tab->max_z) / 2);
     }
-    if( n >= 2 )
-    {
-        int const x = numbers[n - 2];
-        int const z = numbers[n - 1];
-        int px;
-        int py;
-        Editor_PickerCentre(picker, x, z);
-        if( click_new )
-        {
-            Editor_PickerCellOrigin(picker, x, z, &px, &py);
-            squares_click(ui, self, px + picker->cell / 2, py + picker->cell / 2);
-        }
-    }
-    self->user_view = 1;
+    if( centre_valid )
+        Editor_PickerCentre(picker, centre_x, centre_z);
+    for( int i = 0; i < click_count; i++ )
+        squares_env_click(ui, self, clicks[i][0], clicks[i][1]);
+    if( click_new && centre_valid )
+        squares_env_click(ui, self, centre_x, centre_z);
+    /* A bare `fit` stays fitted, as the Fit button leaves it. */
+    self->user_view = zoom > 0 || centre_valid || click_count > 0 || !fit;
     self->dirty = 1;
-    Editor_UiLog(ui, "editor: TORIRS_EDITOR_PICKER=%s (%s, %d px a square)", env,
-        picker->tabs[picker->active_tab].title, picker->cell);
+    Editor_UiLog(ui, "editor: TORIRS_EDITOR_PICKER=%s (%s, %.1f px a square)", env,
+        picker->tabs[picker->active_tab].title, picker->zoom);
 }
 
 static void
@@ -577,12 +647,19 @@ squares_tick(
         self->dirty = 1;
     }
 
+    self->ticks++;
     squares_apply_env(ui, self);
-    if( Editor_WorldMapUpdate(&self->map, &ui->app_services, picker, ToriRSChrome_Scale(ui->chrome)) )
+    if( Editor_WorldMapUpdate(&self->map, &ui->app_services, picker) )
         self->dirty = 1;
 
     if( ui->editor )
-        Editor_PickerNoteDocument(picker, &ui->editor->doc);
+    {
+        const struct EditorUiViewFrame* own = NULL;
+        for( int f = 0; f < EDITOR_UI_VIEW_FRAMES_MAX; f++ )
+            if( ui->frames[f].used && ui->frames[f].slot == ui->view_slot )
+                own = &ui->frames[f];
+        Editor_PickerNoteDocument(picker, &ui->editor->doc, own);
+    }
     {
         uint32_t const flags = squares_hash_flags(picker);
         uint32_t const frames = squares_hash_frames(ui);
@@ -682,15 +759,39 @@ squares_click(
 {
     struct Editor_Picker* picker = &self->picker;
     int const square = Editor_PickerSquareAt(picker, x, y);
-    int map_x;
-    int map_z;
+    int map_x = -1;
+    int map_z = -1;
+    int const on_cell = Editor_PickerCellAt(picker, x, y, &map_x, &map_z);
+    int const now_ms = (int)ui->chrome->now_ms;
+    int const twice = on_cell && self->click_valid && map_x == self->click_map_x && map_z == self->click_map_z
+                      && self->ticks - self->click_tick <= SQUARES_DOUBLE_TICKS
+                      && (ui->chrome->now_ms == 0 || now_ms - self->click_ms <= SQUARES_DOUBLE_MS);
+
+    /* The second click of a double-click opens the square in place; the
+     * first did already unless it was a shift-click. */
+    self->click_valid = !twice;
+    self->click_map_x = map_x;
+    self->click_map_z = map_z;
+    self->click_tick = self->ticks;
+    self->click_ms = now_ms;
+    if( twice )
+    {
+        if( square >= 0 && !self->click_opened_here )
+        {
+            Editor_PickerSelect(picker, square, 0);
+            squares_open(ui, self, square, 0);
+        }
+        self->dirty = 1;
+        return;
+    }
+    self->click_opened_here = square >= 0 && !ui->shift_held;
 
     if( square >= 0 )
     {
         Editor_PickerSelect(picker, square, ui->shift_held);
         squares_open(ui, self, square, ui->shift_held);
     }
-    else if( Editor_PickerCellAt(picker, x, y, &map_x, &map_z) )
+    else if( on_cell )
     {
         Editor_PickerSelect(picker, -1, 0);
         picker->empty_valid = 1;
@@ -767,6 +868,32 @@ squares_event(
         self->user_view = 1;
         self->dirty = 1;
         break;
+    case TORIRS_CHROME_EVENT_GRAPH_KEY:
+    {
+        /* The well has focus: + / - zoom about its middle, the arrows pan
+         * an eighth of it. */
+        int const mid_x = (EDITOR_PICKER_LEFT + picker->well_w) / 2;
+        int const mid_y = (EDITOR_PICKER_TOP + picker->well_h) / 2;
+        int const step_x = (picker->well_w - EDITOR_PICKER_LEFT) / 8 > 1 ? (picker->well_w - EDITOR_PICKER_LEFT) / 8 : 1;
+        int const step_y = (picker->well_h - EDITOR_PICKER_TOP) / 8 > 1 ? (picker->well_h - EDITOR_PICKER_TOP) / 8 : 1;
+        if( event->value == '+' || event->value == '=' )
+            Editor_PickerZoom(picker, -1, mid_x, mid_y);
+        else if( event->value == '-' || event->value == '_' )
+            Editor_PickerZoom(picker, 1, mid_x, mid_y);
+        else if( event->value == -TORIRS_CHROME_KEY_LEFT )
+            Editor_PickerPan(picker, step_x, 0);
+        else if( event->value == -TORIRS_CHROME_KEY_RIGHT )
+            Editor_PickerPan(picker, -step_x, 0);
+        else if( event->value == -TORIRS_CHROME_KEY_UP )
+            Editor_PickerPan(picker, 0, step_y);
+        else if( event->value == -TORIRS_CHROME_KEY_DOWN )
+            Editor_PickerPan(picker, 0, -step_y);
+        else
+            break;
+        self->user_view = 1;
+        self->dirty = 1;
+        break;
+    }
     default:
         break;
     }

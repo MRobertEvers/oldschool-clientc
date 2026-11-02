@@ -1274,6 +1274,141 @@ ui_default_layout(struct EditorUi* ui)
     }
 }
 
+/* ---- the shared tools (STATE_TOOLS) ------------------------------------------
+ *
+ * Every window of a Client edits with the same brush, palette, flags,
+ * placement shape and view level as the tool itself (STATE_TOOL): a slider
+ * moved in a popped-out Terrain window paints in the main window's World. One
+ * key carries them all; a tick whose tools differ from what this window last
+ * published or applied publishes them (so every way a panel or a hotkey
+ * changes a tool is covered without each one publishing), and the fact lands
+ * back in every window's tools, where each panel's own follow redraws it. */
+_Static_assert(EDITOR_UI_TOOLS_VALUES == TORIRSMAPED_TOOLS_VALUES, "the editor packs every shared tool");
+
+static void
+ui_tools_pack(
+    const struct EditorUi* ui,
+    int32_t* out)
+{
+    struct EditorUiTools const* t = &ui->tools;
+    out[0] = t->brush.radius;
+    out[1] = (int32_t)t->brush.falloff;
+    out[2] = t->brush.step;
+    out[3] = t->brush.strength;
+    out[4] = t->underlay_id;
+    out[5] = t->overlay_id;
+    out[6] = t->overlay_none;
+    out[7] = t->overlay_shape;
+    out[8] = t->overlay_rotation;
+    out[9] = t->flags_value;
+    out[10] = t->place_shape;
+    out[11] = t->place_rotation;
+    out[12] = t->vis_level;
+    out[13] = t->vis_solo;
+}
+
+static void
+ui_tools_unpack(
+    struct EditorUi* ui,
+    const int32_t* values)
+{
+    struct EditorUiTools* t = &ui->tools;
+    t->brush.radius = values[0] < 0 ? 0 : values[0] > EDITOR_BRUSH_RADIUS_MAX ? EDITOR_BRUSH_RADIUS_MAX : values[0];
+    if( values[1] >= 0 && values[1] < EDITOR_BRUSH_FALLOFF_COUNT )
+        t->brush.falloff = (enum Editor_BrushFalloff)values[1];
+    t->brush.step = values[2];
+    t->brush.strength = values[3];
+    t->underlay_id = values[4];
+    t->overlay_id = values[5];
+    t->overlay_none = values[6];
+    t->overlay_shape = values[7];
+    t->overlay_rotation = values[8];
+    t->flags_value = values[9];
+    t->place_shape = values[10];
+    t->place_rotation = values[11];
+    if( values[12] >= -1 && values[12] < EDITOR_SQUARE_LEVELS )
+        t->vis_level = values[12];
+    t->vis_solo = values[13];
+}
+
+/** A popped-out World says in its title what a click in it does -- the
+ *  Client's tool and pinned level -- since its window has no tool rail or
+ *  Level row to show them. */
+static void
+ui_solo_title(struct EditorUi* ui)
+{
+    char title[TORIRS_CHROME_LABEL_MAX];
+
+    if( ui->solo_panel < 0 || ui->solo_panel != ui->world_panel )
+        return;
+    if( ui->tools.edit_level >= 0 )
+        snprintf(title, sizeof(title), "World - %s - level %d", Editor_ToolName(ui->tools.tool), ui->tools.edit_level);
+    else
+        snprintf(title, sizeof(title), "World - %s", Editor_ToolName(ui->tools.tool));
+    if( strcmp(ui->chrome->panels[ui->solo_panel].title, title) != 0 )
+        ToriRSChrome_PanelSetTitle(ui->chrome, ui->solo_panel, title);
+}
+
+/** Per frame, after the panels ticked: publish the tools when they moved. */
+static void
+ui_tools_publish(struct EditorUi* ui)
+{
+    int32_t now[EDITOR_UI_TOOLS_VALUES];
+
+    ui_tools_pack(ui, now);
+    if( !ui->tools_known )
+    {
+        /* The baseline: what this window booted with is not a change. */
+        memcpy(ui->tools_shared, now, sizeof(now));
+        ui->tools_known = 1;
+        return;
+    }
+    if( memcmp(now, ui->tools_shared, sizeof(now)) == 0 )
+        return;
+    memcpy(ui->tools_shared, now, sizeof(now));
+    if( !Editor_UiPublish(ui, TORIRSMAPED_STATE_TOOLS, now, EDITOR_UI_TOOLS_VALUES) )
+        return;
+    if( ui->tools_echo_count == (int)(sizeof(ui->tools_echo) / sizeof(ui->tools_echo[0])) )
+    {
+        /* A full queue of publishes with no echo: the oldest is not coming back. */
+        memmove(ui->tools_echo[0], ui->tools_echo[1], sizeof(ui->tools_echo) - sizeof(ui->tools_echo[0]));
+        ui->tools_echo_count--;
+    }
+    memcpy(ui->tools_echo[ui->tools_echo_count++], now, sizeof(now));
+}
+
+/**
+ * A STATE_TOOLS fact. The server relays every publish to the whole Client in
+ * ONE order, the publisher included, so while this window still waits for
+ * the echo of its own publish, anything it hears was ordered BEFORE that
+ * publish: superseded by it, and every other window will end on this
+ * window's value too. So: this window's own echo is consumed, another
+ * window's fact heard before it is dropped, and only a fact heard with no
+ * echo pending becomes this window's tools.
+ */
+static void
+ui_tools_heard(
+    struct EditorUi* ui,
+    const int32_t* values,
+    int count)
+{
+    if( count < EDITOR_UI_TOOLS_VALUES )
+        return;
+    if( ui->tools_echo_count > 0 )
+    {
+        if( memcmp(values, ui->tools_echo[0], sizeof(ui->tools_echo[0])) == 0 )
+        {
+            ui->tools_echo_count--;
+            memmove(
+                ui->tools_echo[0], ui->tools_echo[1], sizeof(ui->tools_echo[0]) * (size_t)ui->tools_echo_count);
+        }
+        return;
+    }
+    ui_tools_unpack(ui, values);
+    ui_tools_pack(ui, ui->tools_shared);
+    ui->tools_known = 1;
+}
+
 /* ---- the frame ------------------------------------------------------------- */
 
 /** The registry index of chrome panel `panel`, or -1. */
@@ -1416,6 +1551,20 @@ Editor_UiPanelAt(
     return found;
 }
 
+void
+Editor_UiClearSolo(struct EditorUi* ui)
+{
+    assert(ui);
+    assert(ui->solo_panel >= 0);
+    if( ui->solo_panel == ui->world_panel )
+        ToriRSChrome_PanelSetTitle(ui->chrome, ui->world_panel, "World");
+    ui->solo_panel = -1;
+    ui_window_furniture(ui);
+    /* Every titled panel shown, the default layout hiding what the column
+     * has no room for -- the main window's own boot. */
+    Editor_UiSetVisible(ui, 1);
+}
+
 int
 Editor_UiSetSolo(
     struct EditorUi* ui,
@@ -1482,6 +1631,8 @@ Editor_UiTick(struct EditorUi* ui)
     for( int i = 0; i < ui->panel_count; i++ )
         if( ui->panels[i].tick )
             ui->panels[i].tick(ui, ui->panels[i].self);
+    ui_tools_publish(ui);
+    ui_solo_title(ui);
 }
 
 void
@@ -1506,6 +1657,8 @@ Editor_UiApplyState(
         ui->tools.tool = (enum Editor_Tool)values[0];
     else if( key == TORIRSMAPED_STATE_EDIT_LEVEL && count >= 1 && values[0] >= -1 && values[0] <= 3 )
         ui->tools.edit_level = values[0];
+    else if( key == TORIRSMAPED_STATE_TOOLS )
+        ui_tools_heard(ui, values, count);
 
     for( int i = 0; i < ui->panel_count; i++ )
         if( ui->panels[i].on_state )

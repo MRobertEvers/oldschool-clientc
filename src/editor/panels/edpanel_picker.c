@@ -12,15 +12,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-static const int k_cells[] = { 3, 4, 6, 8, 12, 16, 24, 32, 48 };
-#define PICKER_CELL_STEPS ((int)(sizeof(k_cells) / sizeof(k_cells[0])))
 
 void
 Editor_PickerInit(struct Editor_Picker* picker)
 {
     assert(picker);
     memset(picker, 0, sizeof(*picker));
-    picker->cell = 8;
+    picker->zoom = 8.0;
     picker->hover = -1;
     picker->focus = -1;
     picker->storage_filter = -1;
@@ -141,6 +139,8 @@ Editor_PickerSquareOnTab(
 
     square = &picker->squares[index];
     area = picker->tabs[tab].area;
+    if( area == EDITOR_PICKER_TAB_FULL )
+        return 1;
     if( area < 0 )
         return square->primary_area < 0;
     for( int i = 0; i < square->area_count; i++ )
@@ -185,13 +185,19 @@ picker_tab_cmp(
     const struct Editor_PickerTab* ta = a;
     const struct Editor_PickerTab* tb = b;
     const struct Editor_Picker* picker = g_sort_picker;
+    /* The surface first, the Full map beside it, the other areas by what the
+     * world map calls them, Unmapped last. */
+    int const rank_a = ta->area == EDITOR_PICKER_TAB_FULL       ? 1
+                       : ta->area == EDITOR_PICKER_TAB_UNMAPPED ? 3
+                       : picker->areas[ta->area].is_main        ? 0
+                                                                : 2;
+    int const rank_b = tb->area == EDITOR_PICKER_TAB_FULL       ? 1
+                       : tb->area == EDITOR_PICKER_TAB_UNMAPPED ? 3
+                       : picker->areas[tb->area].is_main        ? 0
+                                                                : 2;
 
-    /* Surface first, Unmapped last, the rest by what the world map calls
-     * them. */
-    if( ta->area < 0 || tb->area < 0 )
-        return ta->area < 0 ? (tb->area < 0 ? 0 : 1) : -1;
-    if( picker->areas[ta->area].is_main != picker->areas[tb->area].is_main )
-        return picker->areas[ta->area].is_main ? -1 : 1;
+    if( rank_a != rank_b )
+        return rank_a < rank_b ? -1 : 1;
     return strcmp(ta->title, tb->title);
 }
 
@@ -205,7 +211,7 @@ picker_rebuild_tabs(struct Editor_Picker* picker)
     int changed;
     int previous_area = picker->tab_count > 0 && picker->active_tab < picker->tab_count
                             ? picker->tabs[picker->active_tab].area
-                            : -2;
+                            : -100;
     int* claimed = ToriMem_Calloc(group, (size_t)(picker->area_count + 1), sizeof(int));
 
     assert(claimed);
@@ -218,7 +224,7 @@ picker_rebuild_tabs(struct Editor_Picker* picker)
             claimed[picker->area_refs[square->area_first + k]] = 1;
     }
 
-    tabs = ToriMem_Calloc(group, (size_t)(picker->area_count + 1), sizeof(*tabs));
+    tabs = ToriMem_Calloc(group, (size_t)(picker->area_count + 2), sizeof(*tabs));
     assert(tabs);
     for( int a = 0; a < picker->area_count; a++ )
     {
@@ -233,8 +239,14 @@ picker_rebuild_tabs(struct Editor_Picker* picker)
     }
     if( unmapped || count == 0 )
     {
-        tabs[count].area = -1;
+        tabs[count].area = EDITOR_PICKER_TAB_UNMAPPED;
         snprintf(tabs[count].title, sizeof(tabs[count].title), "Unmapped");
+        count++;
+    }
+    if( picker->square_count > 0 )
+    {
+        tabs[count].area = EDITOR_PICKER_TAB_FULL;
+        snprintf(tabs[count].title, sizeof(tabs[count].title), "Full map");
         count++;
     }
     ToriMem_Free(group, claimed);
@@ -533,7 +545,8 @@ Editor_PickerSquareKey(
 void
 Editor_PickerNoteDocument(
     struct Editor_Picker* picker,
-    struct Editor_Doc* doc)
+    struct Editor_Doc* doc,
+    const struct EditorUiViewFrame* self_frame)
 {
     assert(picker);
     assert(doc);
@@ -550,7 +563,13 @@ Editor_PickerNoteDocument(
         storage = Editor_DocSquareStorage(doc, open);
         if( Editor_PickerStorageIndex(picker, storage ? storage : "") != square->storage )
             continue;
-        square->flags |= EDITOR_PICKER_OPEN_HERE;
+        /* The mirror keeps every square it ever opened; "open here" is the
+         * ones in this window's world now, so the mark goes when the world
+         * moves on. Unsaved work is marked wherever it is. */
+        if( self_frame && self_frame->used && square->map_x >= self_frame->map_x
+            && square->map_x < self_frame->map_x + self_frame->w && square->map_z >= self_frame->map_z
+            && square->map_z < self_frame->map_z + self_frame->h )
+            square->flags |= EDITOR_PICKER_OPEN_HERE;
         if( open->dirty_map || open->dirty_loc )
             square->flags |= EDITOR_PICKER_DIRTY_HERE;
     }
@@ -572,6 +591,100 @@ picker_avail_h(const struct Editor_Picker* picker)
     return h > 8 ? h : 8;
 }
 
+/* The global pixel space at the zoom (game/rs_worldmap_overview.h): square
+ * column m starts at floor(m * 64 * k), square row r (from the world's north
+ * edge, r = 255 - map_z) at floor(r * 64 * k), k = zoom / 64. The map's
+ * pictures are cut from the same space, so the grid and the map agree to the
+ * pixel at every zoom. */
+
+#define picker_edge Editor_PickerEdge
+
+/** The global pixel at the well's grid corner (LEFT, TOP). */
+static int
+picker_ox(const struct Editor_Picker* picker)
+{
+    return (int)floor(picker->origin_x * picker->zoom + 0.5);
+}
+
+static int
+picker_oy(const struct Editor_Picker* picker)
+{
+    return (int)floor(((double)EDITOR_PICKER_WORLD_SQUARES - picker->origin_z) * picker->zoom + 0.5);
+}
+
+void
+Editor_PickerGlobalOrigin(
+    const struct Editor_Picker* picker,
+    int* out_x,
+    int* out_y)
+{
+    assert(picker);
+    assert(out_x);
+    assert(out_y);
+    *out_x = picker_ox(picker) - EDITOR_PICKER_LEFT;
+    *out_y = picker_oy(picker) - EDITOR_PICKER_TOP;
+}
+
+double
+Editor_PickerZoomMax(const struct Editor_Picker* picker)
+{
+    double one;
+
+    assert(picker);
+    /* One square filling the well, and never less than the CS2 map's
+     * closest look at a small well (8 px a tile is 512 device px a square). */
+    one = (double)(picker_avail_w(picker) < picker_avail_h(picker) ? picker_avail_w(picker)
+                                                                     : picker_avail_h(picker));
+    return one > EDITOR_PICKER_ZOOM_CLOSEST ? one : EDITOR_PICKER_ZOOM_CLOSEST;
+}
+
+/** The zoom that fits squares [min, max] x [min, max] into the well. */
+static double
+picker_fit_zoom(
+    const struct Editor_Picker* picker,
+    int min_x,
+    int max_x,
+    int min_z,
+    int max_z)
+{
+    double const zx = (double)picker_avail_w(picker) / (double)(max_x - min_x + 1);
+    double const zz = (double)picker_avail_h(picker) / (double)(max_z - min_z + 1);
+    return zx < zz ? zx : zz;
+}
+
+double
+Editor_PickerZoomMin(const struct Editor_Picker* picker)
+{
+    double fit;
+
+    assert(picker);
+    if( picker->tab_count == 0 )
+        return EDITOR_PICKER_ZOOM_FLOOR;
+    {
+        const struct Editor_PickerTab* tab = &picker->tabs[picker->active_tab];
+        fit = picker_fit_zoom(picker, tab->min_x, tab->max_x, tab->min_z, tab->max_z);
+    }
+    /* The whole page fits; a small page may still be backed out of to a
+     * few px a square to see what is around it. */
+    if( fit > EDITOR_PICKER_ZOOM_OUT_TO )
+        fit = EDITOR_PICKER_ZOOM_OUT_TO;
+    return fit < EDITOR_PICKER_ZOOM_FLOOR ? EDITOR_PICKER_ZOOM_FLOOR : fit;
+}
+
+static double
+picker_clamp_zoom(
+    const struct Editor_Picker* picker,
+    double zoom)
+{
+    double const lo = Editor_PickerZoomMin(picker);
+    double const hi = Editor_PickerZoomMax(picker);
+    if( zoom < lo )
+        zoom = lo;
+    if( zoom > hi )
+        zoom = hi;
+    return zoom;
+}
+
 void
 Editor_PickerCentre(
     struct Editor_Picker* picker,
@@ -579,10 +692,10 @@ Editor_PickerCentre(
     int map_z)
 {
     assert(picker);
-    assert(picker->cell > 0);
+    assert(picker->zoom > 0);
 
-    picker->origin_x = (double)map_x + 0.5 - (double)picker_avail_w(picker) / (2.0 * picker->cell);
-    picker->origin_z = (double)map_z + 0.5 + (double)picker_avail_h(picker) / (2.0 * picker->cell);
+    picker->origin_x = (double)map_x + 0.5 - (double)picker_avail_w(picker) / (2.0 * picker->zoom);
+    picker->origin_z = (double)map_z + 0.5 + (double)picker_avail_h(picker) / (2.0 * picker->zoom);
 }
 
 void
@@ -593,9 +706,6 @@ Editor_PickerFit(
 {
     const struct Editor_PickerTab* tab;
     struct Editor_PickerTab bounds;
-    int span_x;
-    int span_z;
-    int fit;
 
     assert(picker);
     if( well_w > 0 )
@@ -623,21 +733,14 @@ Editor_PickerFit(
         }
         tab = &bounds;
     }
-    span_x = tab->max_x - tab->min_x + 1;
-    span_z = tab->max_z - tab->min_z + 1;
-    fit = picker_avail_w(picker) / span_x;
-    if( picker_avail_h(picker) / span_z < fit )
-        fit = picker_avail_h(picker) / span_z;
-    /* The largest ladder step that fits; the smallest when none does (the
-     * surface at full width is a pan, not an unreadable smear). */
-    picker->cell = k_cells[0];
-    for( int i = 0; i < PICKER_CELL_STEPS; i++ )
-        if( k_cells[i] <= fit )
-            picker->cell = k_cells[i];
-    picker->origin_x = (tab->min_x + tab->max_x + 1) / 2.0
-                       - (double)picker_avail_w(picker) / (2.0 * picker->cell);
-    picker->origin_z = (tab->min_z + tab->max_z + 1) / 2.0
-                       + (double)picker_avail_h(picker) / (2.0 * picker->cell);
+    /* Exactly the squares, edge to edge in the narrower direction. */
+    picker->zoom = picker_fit_zoom(picker, tab->min_x, tab->max_x, tab->min_z, tab->max_z);
+    if( picker->zoom > Editor_PickerZoomMax(picker) )
+        picker->zoom = Editor_PickerZoomMax(picker);
+    if( picker->zoom < EDITOR_PICKER_ZOOM_FLOOR )
+        picker->zoom = EDITOR_PICKER_ZOOM_FLOOR;
+    picker->origin_x = (tab->min_x + tab->max_x + 1) / 2.0 - (double)picker_avail_w(picker) / (2.0 * picker->zoom);
+    picker->origin_z = (tab->min_z + tab->max_z + 1) / 2.0 + (double)picker_avail_h(picker) / (2.0 * picker->zoom);
 }
 
 void
@@ -655,36 +758,39 @@ Editor_PickerSetTab(
 }
 
 void
+Editor_PickerZoomTo(
+    struct Editor_Picker* picker,
+    double zoom,
+    int x,
+    int y)
+{
+    double map_x;
+    double map_z;
+
+    assert(picker);
+    assert(picker->zoom > 0);
+    assert(zoom > 0);
+
+    /* The point under (x, y) stays under it. */
+    map_x = picker->origin_x + (double)(x - EDITOR_PICKER_LEFT) / picker->zoom;
+    map_z = picker->origin_z - (double)(y - EDITOR_PICKER_TOP) / picker->zoom;
+    picker->zoom = picker_clamp_zoom(picker, zoom);
+    picker->origin_x = map_x - (double)(x - EDITOR_PICKER_LEFT) / picker->zoom;
+    picker->origin_z = map_z + (double)(y - EDITOR_PICKER_TOP) / picker->zoom;
+}
+
+void
 Editor_PickerZoom(
     struct Editor_Picker* picker,
     int delta,
     int x,
     int y)
 {
-    int step = 0;
-    int next;
-    double map_x;
-    double map_z;
-
     assert(picker);
-
-    for( int i = 0; i < PICKER_CELL_STEPS; i++ )
-        if( k_cells[i] <= picker->cell )
-            step = i;
-    next = step + (delta < 0 ? 1 : delta > 0 ? -1 : 0);
-    if( next < 0 )
-        next = 0;
-    if( next >= PICKER_CELL_STEPS )
-        next = PICKER_CELL_STEPS - 1;
-    if( k_cells[next] == picker->cell )
+    if( delta == 0 )
         return;
-
-    /* The square under the pointer stays under it. */
-    map_x = picker->origin_x + (double)(x - EDITOR_PICKER_LEFT) / picker->cell;
-    map_z = picker->origin_z - (double)(y - EDITOR_PICKER_TOP) / picker->cell;
-    picker->cell = k_cells[next];
-    picker->origin_x = map_x - (double)(x - EDITOR_PICKER_LEFT) / picker->cell;
-    picker->origin_z = map_z + (double)(y - EDITOR_PICKER_TOP) / picker->cell;
+    /* Continuous, a fixed ratio a notch: the same feel at every zoom. */
+    Editor_PickerZoomTo(picker, picker->zoom * pow(EDITOR_PICKER_ZOOM_STEP, (double)-delta), x, y);
 }
 
 void
@@ -694,11 +800,13 @@ Editor_PickerPan(
     int dy)
 {
     assert(picker);
-    assert(picker->cell > 0);
+    assert(picker->zoom > 0);
 
-    picker->origin_x -= (double)dx / picker->cell;
-    picker->origin_z += (double)dy / picker->cell;
+    picker->origin_x -= (double)dx / picker->zoom;
+    picker->origin_z += (double)dy / picker->zoom;
 }
+
+#define picker_square_at Editor_PickerSquareOfPixel
 
 int
 Editor_PickerCellAt(
@@ -715,12 +823,12 @@ Editor_PickerCellAt(
     assert(out_map_x);
     assert(out_map_z);
 
-    if( gx < 0 || gy < 0 || picker->cell <= 0 )
+    if( gx < 0 || gy < 0 || picker->zoom <= 0 )
         return 0;
     if( picker->well_w > 0 && (x >= picker->well_w || y >= picker->well_h) )
         return 0;
-    *out_map_x = (int)floor(picker->origin_x + ((double)gx + 0.5) / picker->cell);
-    *out_map_z = (int)floor(picker->origin_z - ((double)gy + 0.5) / picker->cell);
+    *out_map_x = picker_square_at(picker->zoom, gx + picker_ox(picker));
+    *out_map_z = EDITOR_PICKER_WORLD_SQUARES - 1 - picker_square_at(picker->zoom, gy + picker_oy(picker));
     return *out_map_x >= 0 && *out_map_z >= 0;
 }
 
@@ -769,14 +877,14 @@ Editor_PickerVisibleSquares(
     assert(out_w);
     assert(out_h);
 
-    if( picker->cell <= 0 || picker->well_w <= EDITOR_PICKER_LEFT || picker->well_h <= EDITOR_PICKER_TOP )
+    if( picker->zoom <= 0 || picker->well_w <= EDITOR_PICKER_LEFT || picker->well_h <= EDITOR_PICKER_TOP )
         return 0;
     /* A square is in the well when its rect (picker_cell_rect) overlaps the
      * grid area [LEFT, well_w) x [TOP, well_h). */
     x0 = (int)floor(picker->origin_x);
-    x1 = (int)ceil(picker->origin_x + (double)(picker->well_w - EDITOR_PICKER_LEFT) / picker->cell);
+    x1 = (int)ceil(picker->origin_x + (double)(picker->well_w - EDITOR_PICKER_LEFT) / picker->zoom);
     z1 = (int)ceil(picker->origin_z);
-    z0 = (int)floor(picker->origin_z - (double)(picker->well_h - EDITOR_PICKER_TOP) / picker->cell);
+    z0 = (int)floor(picker->origin_z - (double)(picker->well_h - EDITOR_PICKER_TOP) / picker->zoom);
     if( x0 < 0 )
         x0 = 0;
     if( z0 < 0 )
@@ -1072,8 +1180,8 @@ Editor_PickerShow(
         picker->active_tab = result->tab;
         picker->hover = -1;
     }
-    if( picker->cell < 12 )
-        picker->cell = 12;
+    if( picker->zoom < EDITOR_PICKER_ZOOM_SHOW )
+        picker->zoom = picker_clamp_zoom(picker, EDITOR_PICKER_ZOOM_SHOW);
     Editor_PickerCentre(picker, result->map_x, result->map_z);
     if( result->square >= 0 )
         Editor_PickerSelect(picker, result->square, 0);
@@ -1096,7 +1204,7 @@ Editor_PickerDefaultColors(struct Editor_PickerColors* colors)
     colors->grid = 0x2c2820;
     colors->empty = 0x4a463c;
     colors->text = 0xd8cfb0;
-    colors->open = 0xffffff;
+    colors->open = 0x4fd0ff;
     colors->dirty = 0xff981f;
     colors->selected = 0xffff00;
     colors->created = 0x6fd06f;
@@ -1104,17 +1212,25 @@ Editor_PickerDefaultColors(struct Editor_PickerColors* colors)
     colors->self_frame = 0xff4fd0;
 }
 
-/** Cell rectangle of map square (x, z) in well pixels. */
+/** Cell rectangle of map square (x, z) in well pixels: the global pixel
+ *  space's edges, so a cell is floor or ceil of the zoom wide. */
 static void
 picker_cell_rect(
     const struct Editor_Picker* picker,
     int map_x,
     int map_z,
     int* out_x,
-    int* out_y)
+    int* out_y,
+    int* out_w,
+    int* out_h)
 {
-    *out_x = EDITOR_PICKER_LEFT + (int)floor((map_x - picker->origin_x) * picker->cell + 0.5);
-    *out_y = EDITOR_PICKER_TOP + (int)floor((picker->origin_z - (map_z + 1)) * picker->cell + 0.5);
+    int const row = EDITOR_PICKER_WORLD_SQUARES - 1 - map_z;
+    int const x0 = picker_edge(picker->zoom, map_x);
+    int const y0 = picker_edge(picker->zoom, row);
+    *out_x = EDITOR_PICKER_LEFT + x0 - picker_ox(picker);
+    *out_y = EDITOR_PICKER_TOP + y0 - picker_oy(picker);
+    *out_w = picker_edge(picker->zoom, map_x + 1) - x0;
+    *out_h = picker_edge(picker->zoom, row + 1) - y0;
 }
 
 void
@@ -1125,10 +1241,31 @@ Editor_PickerCellOrigin(
     int* out_x,
     int* out_y)
 {
+    int w;
+    int h;
+
     assert(picker);
     assert(out_x);
     assert(out_y);
-    picker_cell_rect(picker, map_x, map_z, out_x, out_y);
+    picker_cell_rect(picker, map_x, map_z, out_x, out_y, &w, &h);
+}
+
+void
+Editor_PickerCellBox(
+    const struct Editor_Picker* picker,
+    int map_x,
+    int map_z,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    assert(picker);
+    assert(out_x);
+    assert(out_y);
+    assert(out_w);
+    assert(out_h);
+    picker_cell_rect(picker, map_x, map_z, out_x, out_y, out_w, out_h);
 }
 
 /** A rectangle clipped to the grid area; 0 when nothing is left. */
@@ -1166,12 +1303,16 @@ picker_clip(
     return 1;
 }
 
-static int
-picker_label_every(int cell)
+int
+Editor_PickerLabelEvery(
+    double zoom,
+    int min_px)
 {
     static const int k_steps[] = { 1, 2, 5, 10, 20, 50, 100 };
+
+    assert(zoom > 0);
     for( int i = 0; i < (int)(sizeof(k_steps) / sizeof(k_steps[0])); i++ )
-        if( k_steps[i] * cell >= 26 )
+        if( (double)k_steps[i] * zoom >= (double)min_px )
             return k_steps[i];
     return 100;
 }
@@ -1191,8 +1332,8 @@ Editor_PickerDraw(
     int items = 0;
     int budget = EDITOR_PICKER_ITEMS_BUDGET;
     int truncated = 0;
-    int const cell = picker ? picker->cell : 0;
     int gap;
+    const struct Editor_PickerUnderlay* map;
 
     assert(picker);
     assert(chrome);
@@ -1203,99 +1344,155 @@ Editor_PickerDraw(
 
     picker->well_w = well_w;
     picker->well_h = well_h;
-    gap = cell >= 8 ? 1 : 0;
+    map = &picker->underlay;
+    gap = picker->zoom >= 8.0 ? 1 : 0;
 
     ToriRSChrome_GraphBegin(chrome, graph);
     ToriRSChrome_GraphRect(chrome, graph, 0, 0, well_w, well_h, colors->background, 1, 0);
     items++;
 
-    /* The world map under the grid: one picture, then the label margins
-     * painted over the part of it that strays into them. */
-    if( picker->underlay.scene_id > 0 )
+    /* The world map under the grid: its pictures, then what 595 draws over
+     * it (icons, labels), then the label margins painted over whatever of
+     * it strays into them. */
+    if( map->active )
     {
-        ToriRSChrome_GraphImage(
-            chrome, graph, picker->underlay.x, picker->underlay.y, picker->underlay.w, picker->underlay.h,
-            picker->underlay.scene_id);
+        ToriRSChrome_GraphRect(
+            chrome, graph, EDITOR_PICKER_LEFT, EDITOR_PICKER_TOP, well_w - EDITOR_PICKER_LEFT,
+            well_h - EDITOR_PICKER_TOP, 0x000000, 1, 0);
+        items++;
+        for( int i = 0; i < map->count && items < budget; i++ )
+        {
+            const struct Editor_PickerImage* image = &map->items[i];
+            ToriRSChrome_GraphImage(
+                chrome, graph, image->x, image->y, image->w, image->h, image->scene_id, image->trans, image->version);
+            items++;
+        }
+        for( int i = 0; i < map->icon_count && items < budget; i++ )
+        {
+            const struct Editor_PickerImage* icon = &map->icons[i];
+            ToriRSChrome_GraphImage(
+                chrome, graph, icon->x, icon->y, icon->w, icon->h, icon->scene_id, icon->trans, icon->version);
+            items++;
+        }
+        for( int i = 0; i < map->label_count && items < budget; i++ )
+        {
+            const struct Editor_PickerLabel* label = &map->labels[i];
+            ToriRSChrome_GraphText(chrome, graph, label->x, label->y, label->color, label->text);
+            items++;
+        }
         ToriRSChrome_GraphRect(chrome, graph, 0, 0, EDITOR_PICKER_LEFT, well_h, colors->background, 1, 0);
         ToriRSChrome_GraphRect(chrome, graph, 0, 0, well_w, EDITOR_PICKER_TOP, colors->background, 1, 0);
-        items += 3;
+        items += 2;
     }
 
-    /* Axis labels: map x across the top, map z down the left, at a spacing
-     * that keeps them readable at any zoom. */
+    /* Axis labels: map x across the top, map z down the left, thinned so
+     * neighbours never touch at any zoom. */
     {
-        int const every = picker_label_every(cell);
+        int const every_x = Editor_PickerLabelEvery(picker->zoom, EDITOR_PICKER_LABEL_W);
+        int const every_z = Editor_PickerLabelEvery(picker->zoom, EDITOR_PICKER_LABEL_H);
         int const first_x = (int)floor(picker->origin_x);
-        int const last_x = first_x + picker_avail_w(picker) / cell + 1;
+        int const last_x = (int)ceil(picker->origin_x + picker_avail_w(picker) / picker->zoom) + 1;
         int const first_z = (int)floor(picker->origin_z);
-        int const last_z = first_z - picker_avail_h(picker) / cell - 1;
+        int const last_z = (int)floor(picker->origin_z - picker_avail_h(picker) / picker->zoom) - 1;
         char text[16];
 
-        for( int mx = first_x - first_x % every; mx <= last_x && items < budget; mx += every )
+        for( int mx = first_x - (first_x % every_x + every_x) % every_x; mx <= last_x && items < budget;
+             mx += every_x )
         {
             int px;
             int py;
+            int pw;
+            int ph;
             if( mx < 0 )
                 continue;
-            picker_cell_rect(picker, mx, 0, &px, &py);
+            picker_cell_rect(picker, mx, 0, &px, &py, &pw, &ph);
             if( px < EDITOR_PICKER_LEFT || px >= well_w - 8 )
                 continue;
             snprintf(text, sizeof(text), "%d", mx);
             ToriRSChrome_GraphText(chrome, graph, px, EDITOR_PICKER_TOP - 2, colors->text, text);
             items++;
         }
-        for( int mz = first_z - first_z % every; mz >= last_z && items < budget; mz -= every )
+        for( int mz = first_z - (first_z % every_z + every_z) % every_z; mz >= last_z && items < budget;
+             mz -= every_z )
         {
             int px;
             int py;
+            int pw;
+            int ph;
             if( mz < 0 )
                 break;
-            picker_cell_rect(picker, 0, mz, &px, &py);
+            picker_cell_rect(picker, 0, mz, &px, &py, &pw, &ph);
             if( py < EDITOR_PICKER_TOP || py >= well_h - 4 )
                 continue;
             snprintf(text, sizeof(text), "%d", mz);
-            ToriRSChrome_GraphText(chrome, graph, 1, py + (cell < 10 ? cell : 10), colors->text, text);
+            ToriRSChrome_GraphText(chrome, graph, 1, py + (ph < 10 ? ph : 10), colors->text, text);
             items++;
         }
     }
 
     /* Cells, then outlines over them, so an outline is never painted over by
-     * a neighbour's fill. Two passes over the visible set; the budget keeps
-     * the shared item pool for the page's other wells. */
+     * a neighbour's fill. Passes 0/1 fill, 2/3 outline; the even pass takes
+     * the lanes, the odd one the content tree's maps/, so maps/ is on top. */
     for( int pass = 0; pass < 4; pass++ )
     {
-        /* Passes 0/1 fill, 2/3 outline; the even pass takes the lanes, the
-         * odd one the content tree's maps/, so maps/ is on top. */
         int const want_maps = pass & 1;
+        /* The view frames go between the fills and the outlines: a frame
+         * on the selected square must not hide its selection mark. */
+        if( pass == 2 )
+        {
+            /* Every view's window, this window's in its own colour. */
+            for( int f = 0; f < frame_count && items < budget; f++ )
+            {
+                int x;
+                int y;
+                int w;
+                int h;
+                int x1;
+                int y1;
+                int w1;
+                int h1;
+                if( !frames[f].used )
+                    continue;
+                picker_cell_rect(picker, frames[f].map_x, frames[f].map_z + frames[f].h - 1, &x, &y, &w, &h);
+                picker_cell_rect(picker, frames[f].map_x + frames[f].w - 1, frames[f].map_z, &x1, &y1, &w1, &h1);
+                w = x1 + w1 - x;
+                h = y1 + h1 - y;
+                if( !picker_clip(picker, &x, &y, &w, &h) )
+                    continue;
+                ToriRSChrome_GraphRect(
+                    chrome, graph, x, y, w, h, frames[f].slot == self_slot ? colors->self_frame : colors->frame, 0, 0);
+                items++;
+            }
+        }
         for( int i = 0; i < picker->square_count; i++ )
         {
             const struct Editor_PickerSquare* square = &picker->squares[i];
             int x;
             int y;
-            int w = cell - gap;
-            int h = cell - gap;
+            int w;
+            int h;
             uint32_t outline = 0;
             int has_outline = 0;
 
-            if( !picker_visible(picker, i)
-                || picker_storage_is_maps(picker, square->storage) != want_maps )
+            if( !picker_visible(picker, i) || picker_storage_is_maps(picker, square->storage) != want_maps )
                 continue;
-            picker_cell_rect(picker, square->map_x, square->map_z, &x, &y);
-            if( x + w <= EDITOR_PICKER_LEFT || y + h <= EDITOR_PICKER_TOP || x >= well_w
-                || y >= well_h )
+            picker_cell_rect(picker, square->map_x, square->map_z, &x, &y, &w, &h);
+            if( x + w <= EDITOR_PICKER_LEFT || y + h <= EDITOR_PICKER_TOP || x >= well_w || y >= well_h )
                 continue;
 
             if( pass < 2 )
             {
                 /* The map is the fill: a square's own colour would hide it. */
-                if( picker->underlay.scene_id > 0 )
+                if( map->active )
                     continue;
                 if( items >= budget )
                 {
                     truncated = 1;
                     continue;
                 }
-                if( !picker_clip(picker, &x, &y, &w, &h) )
+                w -= gap;
+                h -= gap;
+                if( w <= 0 || h <= 0 || !picker_clip(picker, &x, &y, &w, &h) )
                     continue;
                 ToriRSChrome_GraphRect(
                     chrome, graph, x, y, w, h, square->rgb ? square->rgb : colors->empty, 1,
@@ -1304,6 +1501,10 @@ Editor_PickerDraw(
                 continue;
             }
 
+            /* The selection (yellow), unsaved (accent) and created (green)
+             * squares: the whole cell. The squares in this window's own world
+             * (EDITOR_PICKER_OPEN_HERE): an inset in their own colour, so the
+             * open set never reads as a selection. */
             if( picker->selected[i] )
             {
                 outline = colors->selected;
@@ -1314,15 +1515,22 @@ Editor_PickerDraw(
                 outline = colors->dirty;
                 has_outline = 1;
             }
-            else if( square->flags & (TORIRSMAPED_SQUARE_OPEN | EDITOR_PICKER_OPEN_HERE) )
-            {
-                outline = colors->open;
-                has_outline = 1;
-            }
             else if( square->flags & TORIRSMAPED_SQUARE_CREATED )
             {
                 outline = colors->created;
                 has_outline = 1;
+            }
+            if( (square->flags & EDITOR_PICKER_OPEN_HERE) && w >= 7 && h >= 7 && items < budget )
+            {
+                int ix = x + 2;
+                int iy = y + 2;
+                int iw = w - 4;
+                int ih = h - 4;
+                if( picker_clip(picker, &ix, &iy, &iw, &ih) )
+                {
+                    ToriRSChrome_GraphRect(chrome, graph, ix, iy, iw, ih, colors->open, 0, 0);
+                    items++;
+                }
             }
             if( !has_outline || items >= budget )
                 continue;
@@ -1338,9 +1546,9 @@ Editor_PickerDraw(
     {
         int x;
         int y;
-        int w = cell;
-        int h = cell;
-        picker_cell_rect(picker, picker->empty_map_x, picker->empty_map_z, &x, &y);
+        int w;
+        int h;
+        picker_cell_rect(picker, picker->empty_map_x, picker->empty_map_z, &x, &y, &w, &h);
         if( picker_clip(picker, &x, &y, &w, &h) )
         {
             ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, colors->created, 0, 0);
@@ -1353,34 +1561,14 @@ Editor_PickerDraw(
     {
         int x;
         int y;
-        int w = cell;
-        int h = cell;
-        picker_cell_rect(picker, picker->hover_map_x, picker->hover_map_z, &x, &y);
+        int w;
+        int h;
+        picker_cell_rect(picker, picker->hover_map_x, picker->hover_map_z, &x, &y, &w, &h);
         if( picker_clip(picker, &x, &y, &w, &h) )
         {
             ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, colors->text, 0, 0);
             items++;
         }
-    }
-
-    /* Every view's window, this window's in its own colour. */
-    for( int f = 0; f < frame_count && items < budget; f++ )
-    {
-        int x;
-        int y;
-        int w;
-        int h;
-        if( !frames[f].used )
-            continue;
-        picker_cell_rect(picker, frames[f].map_x, frames[f].map_z + frames[f].h - 1, &x, &y);
-        w = frames[f].w * cell;
-        h = frames[f].h * cell;
-        if( !picker_clip(picker, &x, &y, &w, &h) )
-            continue;
-        ToriRSChrome_GraphRect(
-            chrome, graph, x, y, w, h,
-            frames[f].slot == self_slot ? colors->self_frame : colors->frame, 0, 0);
-        items++;
     }
 
     ToriRSChrome_GraphEnd(chrome, graph);

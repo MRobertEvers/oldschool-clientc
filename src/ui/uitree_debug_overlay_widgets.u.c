@@ -392,10 +392,10 @@ dbg_graph_hash(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w
     for( int i = 0; i < w->graph_count; i++ )
     {
         struct ToriRSChromeGraphItem const* it = &ui->graph_items[w->graph_first + i];
-        int const fields[8] = {
-            it->kind, it->x, it->y, it->w, it->h, (int)it->color, it->key, it->scene_id
+        int const fields[9] = {
+            it->kind, it->x, it->y, it->w, it->h, (int)it->color, it->key, it->scene_id, it->trans
         };
-        for( int f = 0; f < 8; f++ )
+        for( int f = 0; f < 9; f++ )
         {
             hash ^= (uint64_t)(uint32_t)fields[f];
             hash *= 1099511628211ull;
@@ -1359,7 +1359,7 @@ ToriRSChrome_GraphText(
 
 int
 ToriRSChrome_GraphImage(
-    struct ToriRSChrome* ui, int widget, int x, int y, int w, int h, int scene_id)
+    struct ToriRSChrome* ui, int widget, int x, int y, int w, int h, int scene_id, int trans, uint32_t version)
 {
     struct ToriRSChromeGraphItem* it;
 
@@ -1376,6 +1376,8 @@ ToriRSChrome_GraphImage(
     it->w = w;
     it->h = h;
     it->scene_id = scene_id;
+    it->trans = trans < 0 ? 0 : trans > 255 ? 255 : trans;
+    it->color = version;
     return 1;
 }
 
@@ -1464,6 +1466,17 @@ dbg_graph_push(struct ToriRSChrome* ui, int widget, int kind, int x, int y, int 
     ev.key = ToriRSChrome_GraphKeyAt(ui, widget, ev.x, ev.y);
     ev.value = value;
     return ToriRSChrome_PushEvent(ui, &ev);
+}
+
+/** A key for the focused well: TORIRS_CHROME_EVENT_GRAPH_KEY, no position. */
+static void
+dbg_graph_key(struct ToriRSChrome* ui, int widget, int value)
+{
+    struct ToriRSChromeEvent ev;
+
+    dbg_event_init(&ev, ui, TORIRS_CHROME_EVENT_GRAPH_KEY, widget);
+    ev.value = value;
+    (void)ToriRSChrome_PushEvent(ui, &ev);
 }
 
 /* ---- MODAL ------------------------------------------------------------------------- */
@@ -2223,6 +2236,7 @@ dbg_draw_graph(
             p->w = it->w * s;
             p->h = it->h * s;
             p->sprite_scene_id = it->scene_id;
+            p->trans = it->trans;
             p->clip = visible;
             break;
         }
@@ -2795,6 +2809,14 @@ dbg_ext_key_char(struct ToriRSChrome* ui, int ch)
     int len;
     int col;
 
+    if( w->kind == TORIRS_CHROME_W_GRAPH )
+    {
+        /* The zoom keys go to the host; anything else is not the well's. */
+        if( ch != '+' && ch != '-' && ch != '=' && ch != '_' )
+            return 0;
+        dbg_graph_key(ui, ui->focus, ch);
+        return 1;
+    }
     if( w->kind != TORIRS_CHROME_W_CODE )
         return 0;
     if( ch < 0x20 || ch > 0x7E )
@@ -2822,6 +2844,18 @@ dbg_ext_key_edit(struct ToriRSChrome* ui, int key)
 
     switch( w->kind )
     {
+    case TORIRS_CHROME_W_GRAPH:
+        if( key == TORIRS_CHROME_KEY_LEFT || key == TORIRS_CHROME_KEY_RIGHT || key == TORIRS_CHROME_KEY_UP ||
+            key == TORIRS_CHROME_KEY_DOWN )
+        {
+            dbg_graph_key(ui, focus, -key);
+            return 1;
+        }
+        if( key == TORIRS_CHROME_KEY_ESCAPE )
+            (void)ToriRSChrome_FocusWidget(ui, -1, 0);
+        /* Every other editing key stops at the well, as before. */
+        return 1;
+
     case TORIRS_CHROME_W_SLIDER:
         if( key == TORIRS_CHROME_KEY_LEFT || key == TORIRS_CHROME_KEY_RIGHT ||
             key == TORIRS_CHROME_KEY_HOME || key == TORIRS_CHROME_KEY_END )
@@ -2952,11 +2986,6 @@ dbg_ext_key_edit(struct ToriRSChrome* ui, int key)
             return 0;
         }
     }
-
-    case TORIRS_CHROME_W_GRAPH:
-        if( key == TORIRS_CHROME_KEY_ESCAPE )
-            (void)ToriRSChrome_FocusWidget(ui, -1, 0);
-        return 1;
 
     default:
         return 0;

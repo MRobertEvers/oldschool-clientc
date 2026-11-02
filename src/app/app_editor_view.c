@@ -195,7 +195,7 @@ EditorView_AppBoot(struct App* app)
             char frame[16];
             int const dir_len = (int)strcspn(dir, "@");
             snprintf(path, sizeof(path), "%.*s/view_%s.bmp", dir_len, dir,
-                EditorView_BootPanel() ? EditorView_BootPanel() : "world");
+                EditorView_BootPanel() ? EditorView_BootPanel() : "viewer");
             setenv("TORIRS_PRESENT_BMP", path, 1);
             snprintf(frame, sizeof(frame), "%d", dir[dir_len] == '@' ? atoi(dir + dir_len + 1) : 400);
             setenv("TORIRS_PRESENT_BMP_FRAME", frame, 1);
@@ -203,9 +203,12 @@ EditorView_AppBoot(struct App* app)
     }
     if( EditorView_BootPanel() )
     {
-        /* A popped-out panel: the command panels shown, every one but this
-         * one hidden by the solo layout, no world drawn (World is hidden),
-         * no thin toolbar (it steers a 3D view this window does not show). */
+        /* A popped-out panel: the command panels shown -- so this window's
+         * session follows and drives the Client's tool, brush, level and
+         * selection like the main window's -- every one but this one hidden
+         * by the solo layout. A popped-out World edits: its clicks run the
+         * shared tool, and the thin toolbar sits over it. Any other panel
+         * draws no world (World is hidden) and has no toolbar. */
         const char* const module = EditorView_BootPanel();
         assert(app->editor_panel.built);
         Editor_PanelSetVisible(&app->editor_panel, &app->dbg_ui, 1);
@@ -214,17 +217,22 @@ EditorView_AppBoot(struct App* app)
         else
             TORIRS_REPORT("editor view: a popped-out %s panel of Client %u\n", module,
                 Editor_HostMapEdClientId(&app->editor->host));
+        if( strcmp(module, "world") == 0 )
+            EditorView_ToolbarBuild(&g_app_view, &app->dbg_ui);
     }
     else
         EditorView_ToolbarBuild(&g_app_view, &app->dbg_ui);
     EditorView_AskSelf(&g_app_view);
-    /* The Client's state as it stands (selection, tool, the pinned level):
-     * a window that joins late starts where the others are, and a view
-     * takes the pinned level as its cap. */
+    /* The Client's state as it stands (selection, tool, brush, palette,
+     * the pinned level): a window that joins late starts where the others
+     * are. */
     if( Editor_HostIsMapEd(&app->editor->host) )
     {
         int const replayed = Editor_HostMapEdStateSync(&app->editor->host);
-        if( replayed > 0 )
+        /* A plain viewer has no panels to follow the pinned level: it takes
+         * it once as its cap. A popped-out panel's session follows the
+         * level (and every shared tool) live, so its view adds no cap. */
+        if( replayed > 0 && !EditorView_BootPanel() )
             EditorView_ExpectSync(&g_app_view, replayed);
     }
 
@@ -256,8 +264,11 @@ EditorView_AppActivate(
     action = EditorView_ToolbarActivate(&g_app_view, &app->dbg_ui, widget);
     if( action == EDITOR_VIEW_ACTION_OPEN_PANELS )
     {
-        /* Promotion: the same window becomes a full client of the Client. */
+        /* Promotion: the same window becomes a full client of the Client
+         * (a popped-out World leaves its solo layout for the whole set). */
         Editor_PanelSetVisible(&app->editor_panel, &app->dbg_ui, 1);
+        if( app->editor_panel.ui && app->editor_panel.ui->solo_panel >= 0 )
+            Editor_UiClearSolo(app->editor_panel.ui);
         TORIRS_LOG("editor view: panels opened in this window\n");
     }
     return action != EDITOR_VIEW_ACTION_NONE;
@@ -356,6 +367,19 @@ EditorView_AppFrame(struct App* app)
         return;
     }
 
+    /* A popped-out World: the thin toolbar sits inside the World panel's
+     * body, under its title bar (which names the Client's tool and level),
+     * wherever the solo layout put the panel for this window's size. */
+    if( g_app_view.toolbar.built && app->editor_panel.ui && app->editor_panel.ui->solo_panel >= 0
+        && app->editor_panel.ui->solo_panel == app->editor_panel.ui->world_panel )
+    {
+        struct ToriRSChromeRect const body = ToriRSChrome_PanelBodyRect(&app->dbg_ui, app->editor_panel.ui->world_panel);
+        int const pad = 8 * ToriRSChrome_Scale(&app->dbg_ui);
+        struct ToriRSChromePanel const* bar = &app->dbg_ui.panels[g_app_view.toolbar.panel];
+        if( body.w > 0 && (bar->x != body.x + pad || bar->y != body.y + pad) )
+            ToriRSChrome_PanelMove(&app->dbg_ui, g_app_view.toolbar.panel, body.x + pad, body.y + pad);
+    }
+
     /* The frame's one activation is ours while the panels are hidden; once
      * they show, their dispatcher drains it and offers it back. */
     if( !app->editor_panel.visible )
@@ -408,7 +432,7 @@ EditorView_AppOnState(
     if( !g_app_view_live )
         return 0;
     consumed = EditorView_OnState(&g_app_view, key, values, count);
-    if( (consumed || key == TORIRSMAPED_STATE_EDIT_LEVEL) && !EditorView_BootPanel() )
+    if( (consumed || key == TORIRSMAPED_STATE_EDIT_LEVEL) && g_app_view.toolbar.built )
         EditorView_ToolbarRefresh(&g_app_view, &app->dbg_ui);
     return consumed;
 }
@@ -506,11 +530,11 @@ EditorView_AppSpawnModule(
     int why_size)
 {
     uint32_t group;
-    int const is_world = strcmp(module, "world") == 0;
+    /* NULL: a plain viewer window (Open in new view). */
+    int const is_viewer = module == NULL;
     struct EditorViewCamera pose;
 
     assert(app);
-    assert(module);
     assert(why);
     assert(why_size > 0);
     assert(app->editor);
@@ -551,7 +575,7 @@ EditorView_AppSpawnModule(
                 : "localhost",
             app->cfg.editor_server_port > 0 ? app->cfg.editor_server_port
                                             : TORIRSMAPED_DEFAULT_PORT);
-        if( !editor_view_web_spawn(text, group, maped, is_world ? "" : module) )
+        if( !editor_view_web_spawn(text, group, maped, is_viewer ? "" : module) )
         {
             snprintf(why, (size_t)why_size, "the page could not open a tab (allow popups for this site)");
             return 0;
@@ -566,12 +590,12 @@ EditorView_AppSpawnModule(
         int port;
         static int serial;
 
-        /* A server with a SPAWN_VIEW binding starts the 3D view on ITS host,
-         * with its own binary and manifest -- the only way a remote daemon's
-         * view can join it, and as good as the local launch for one beside
-         * us. SPAWN_VIEW carries a camera and no panel, so a panel window is
-         * always this host's own launch. */
-        if( is_world && (app->editor->capabilities & TORIRSMAPED_CAP_SPAWN_VIEW) )
+        /* A server with a SPAWN_VIEW binding starts a plain viewer on ITS
+         * host, with its own binary and manifest -- the only way a remote
+         * daemon's view can join it, and as good as the local launch for one
+         * beside us. SPAWN_VIEW carries a camera and no panel, so a popped-out
+         * panel (World included) is always this host's own launch. */
+        if( is_viewer && (app->editor->capabilities & TORIRSMAPED_CAP_SPAWN_VIEW) )
         {
             int32_t values[TORIRSMAPED_CAMERA_VALUES];
             int pid = 0;
@@ -597,7 +621,7 @@ EditorView_AppSpawnModule(
                 ? app->cfg.editor_server_host
                 : "127.0.0.1",
             port);
-        length = EditorView_SpawnBody(url, group, &pose, is_world ? NULL : module, body, (int)sizeof(body));
+        length = EditorView_SpawnBody(url, group, &pose, module, body, (int)sizeof(body));
         assert(length > 0);
         ToriRS_TaskQueue_Add(app->runner.queue,
             CreateTask_PluginLaunch("view", body, length, ++serial, view_spawn_delivered, NULL));
@@ -615,7 +639,7 @@ EditorView_AppSpawn(
 
     assert(app);
     assert(camera);
-    if( EditorView_AppSpawnModule(app, "world", camera, why, (int)sizeof(why)) )
+    if( EditorView_AppSpawnModule(app, NULL, camera, why, (int)sizeof(why)) )
         return 1;
     TORIRS_REPORT("editor view: %s\n", why);
     return 0;

@@ -1036,6 +1036,10 @@ enum ToriRSChromeEventKind
     /** Line `line` joins the line after it (Delete at its end, or Backspace at
      *  column 0 of line `line + 1`). */
     TORIRS_CHROME_EVENT_CODE_JOIN,
+    /** A key while the well has focus (it takes it on a press): `value` is
+     *  the printable character ('+', '-', '=', '_') or, negated, the enum
+     *  ToriRSChromeKey (arrows). Escape releases the focus instead. */
+    TORIRS_CHROME_EVENT_GRAPH_KEY,
 };
 
 /** One queued GRAPH gesture or CODE edit. @see ToriRSChrome_TakeEvent. */
@@ -1113,8 +1117,10 @@ struct ToriRSChromeGraphItem
     uint32_t color;
     /** Hit key of a rect, 0 for none. Topmost (last listed) keyed rect wins. */
     int key;
-    /** IMAGE: the scene sprite drawn into the box. */
+    /** IMAGE: the scene sprite drawn into the box, and its transparency
+     *  (0 opaque .. 255 invisible, the prim's sense). */
     int scene_id;
+    int trans;
     char text[TORIRS_CHROME_GRAPH_TEXT_MAX];
 };
 
@@ -2965,12 +2971,13 @@ ToriRSChrome_GraphLine(
 int
 ToriRSChrome_GraphText(
     struct ToriRSChrome* ui, int widget, int x, int baseline, uint32_t color, char const* text);
-/** A scene sprite the host rendered, stretched over (x, y, w, h). A new
- *  picture under the same id is not noticed (the item hash holds the id):
- *  alternate two ids. */
+/** A scene sprite the host rendered, stretched over (x, y, w, h), `trans`
+ *  0 opaque .. 255 invisible. `version` is the host's count of pictures put
+ *  under that id (kept in the item's colour): a new picture under the same
+ *  id with the same version would not be noticed by the item hash. */
 int
 ToriRSChrome_GraphImage(
-    struct ToriRSChrome* ui, int widget, int x, int y, int w, int h, int scene_id);
+    struct ToriRSChrome* ui, int widget, int x, int y, int w, int h, int scene_id, int trans, uint32_t version);
 void
 ToriRSChrome_GraphEnd(struct ToriRSChrome* ui, int widget);
 /** Topmost keyed rect under well-local (x, y), 0 for none. */

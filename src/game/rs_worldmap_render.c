@@ -1003,6 +1003,31 @@ worldmap_request_due(
     return true;
 }
 
+/** A request that landed and was used up (the tiles of a baked region,
+ *  released after the bake): the next need asks again at once instead of
+ *  waiting out the retry window -- a close-up bake right after the overview's
+ *  one-pixel bake stalled two seconds on it. */
+static void
+worldmap_request_forget(
+    struct RS_WorldMapRender* render,
+    enum WorldMapRequestKind kind,
+    int id)
+{
+    uint32_t slot = (((uint32_t)id * 2654435761u) ^ ((uint32_t)kind * 0x9E3779B9u)) % WORLDMAP_REQUESTED_SLOTS;
+    for( int probe = 0; probe < WORLDMAP_REQUESTED_SLOTS; probe++ )
+    {
+        struct RS_WorldMapRequested* entry =
+            &render->requested[(slot + (uint32_t)probe) % WORLDMAP_REQUESTED_SLOTS];
+        if( entry->kind_plus1 == 0 )
+            return;
+        if( entry->kind_plus1 == (int)kind + 1 && entry->id == id )
+        {
+            entry->asked_frame = render->frame - WORLDMAP_REQUEST_RETRY_FRAMES;
+            return;
+        }
+    }
+}
+
 static bool
 worldmap_floors_ready(
     struct RS_WorldMapRender* render,
@@ -1408,10 +1433,14 @@ RS_WorldMapRender_RegionPixels(
     int region_y,
     int pixels_per_tile,
     uint32_t* out_pixels,
-    bool* out_complete)
+    bool* out_complete,
+    struct RS_WorldMapRegionIcon* out_icons,
+    int icon_capacity,
+    int* out_icon_count)
 {
     struct ToriRS_WorldMapRegionSource sources[64];
     struct RSCache_WorldMapGeography* geography;
+    struct RS_WorldMapRegionSlot slot;
     struct ToriDraw_Sprite** map_scenes = NULL;
     int map_scene_count = 0;
     int source_count;
@@ -1425,8 +1454,12 @@ RS_WorldMapRender_RegionPixels(
     assert(out_complete);
     assert(pixels_per_tile >= 1);
     assert(pixels_per_tile <= 8);
+    assert(icon_capacity >= 0);
+    assert(out_icons || icon_capacity == 0);
+    assert(out_icon_count);
 
     *out_complete = false;
+    *out_icon_count = 0;
     source_count = worldmap_region_sources(
         area, region_x, region_y, sources, (int)(sizeof(sources) / sizeof(sources[0])));
     if( source_count == 0 )
@@ -1467,19 +1500,27 @@ RS_WorldMapRender_RegionPixels(
 
     if( scene && render->mapscene_scene_id > 0 )
         map_scenes = ToriDraw_SceneSpriteGet(scene, render->mapscene_scene_id, &map_scene_count);
-    /* No slot: the icons a slot collects are the game map's, drawn over its
-     * sprites; a caller of this keeps only the pixels. */
+    /* A slot of its own for the icons the locs carry, copied out: the
+     * pool's slots are the game map's. */
+    memset(&slot, 0, sizeof(slot));
+    slot.key = -1;
     worldmap_bake_region(
         provider,
         geography,
         area->background_colour & 0xFFFFFF,
         pixels_per_tile,
         out_pixels,
-        NULL,
+        &slot,
         map_scenes,
         map_scenes ? map_scene_count : 0);
+    for( int i = 0; i < slot.icon_count && i < icon_capacity; i++ )
+        out_icons[i] = slot.icons[i];
+    *out_icon_count = slot.icon_count < icon_capacity ? slot.icon_count : icon_capacity;
     if( complete )
+    {
         CacheProvider_WorldMapGeographyRelease(provider, key);
+        worldmap_request_forget(render, WORLDMAP_REQUEST_GEOGRAPHY, key);
+    }
     *out_complete = complete;
     return 1;
 }

@@ -1085,8 +1085,8 @@ EditorView_AppLevelMask(const struct App* app);
 
 /**
  * Open a new view of this session looking at `camera` (the main window's
- * "Open in new view"): EditorView_AppSpawnModule(app, "world", camera, ...)
- * with the reason logged. Returns 1 when the request went out.
+ * "Open in new view"): EditorView_AppSpawnModule(app, NULL, camera, ...) --
+ * a plain viewer -- with the reason logged. Returns 1 when the request went out.
  */
 int
 EditorView_AppSpawn(
@@ -1095,11 +1095,12 @@ EditorView_AppSpawn(
 
 /**
  * Open a window of this session that shows editor panel `module` alone
- * ("world" = the 3D view at `camera`; any other module = that panel filling
- * the window, the world loaded around `camera`'s square). Natively the
+ * ("world" = the World panel at `camera`, editing with the Client's shared
+ * tool; any other module = that panel filling the window, the world loaded
+ * around `camera`'s square; NULL = a plain viewer, no panels). Natively the
  * launch service's `view` verb starts the process (`--editor-view
  * [--editor-panel <module>]`): against the daemon (server=tcp) it dials the
- * daemon -- or, for the 3D view, the daemon's own SPAWN_VIEW when it has
+ * daemon -- or, for a plain viewer, the daemon's own SPAWN_VIEW when it has
  * one; under server=embed this process first opens a loopback listener on
  * its embedded ToriRSMapEd (an ephemeral port, polled from
  * EditorView_AppFrame) and the window dials that. On the web the page opens

@@ -59,11 +59,24 @@ opens a second process of the same binary and manifest -- the launch
 service's `view` verb, `--editor-view [--editor-panel <module>] --maped
 tcp://127.0.0.1:<port> --maped-group <Client> --camera <pose>` -- joined to
 this window's Client, so documents, selection, tool, level and every state
-relay stay mirrored. World pops out as the viewer window looking exactly
-where the World panel looked (same pose; the pinned level becomes its
-level cap through the boot STATE_SYNC); any other module pops out as that
-panel alone, filling the window (no menu bar, no world drawn; the world is
-still loaded around the camera's square so App-bound panels answer). The
+relay stay mirrored. Every popped-out window runs the full command-panel
+session in solo layout (`Editor_UiSetSolo`): it hears and publishes the
+Client's shared state like the main window -- STATE_TOOL, STATE_EDIT_LEVEL,
+STATE_SELECTION, STATE_CATALOG_PICK and **STATE_TOOLS** (key 7: brush
+radius/falloff/step/strength, underlay, overlay, overlay none/shape/rotation,
+flags, place shape/rotation, view level/solo; `ui_tools_pack` in
+src/editor/editor_ui.c publishes whenever a window's tools moved, a window's
+boot publishes nothing, and its own echo -- or a fact ordered before it --
+never undoes a newer change), and the boot STATE_SYNC hands a late window
+the Client's state as it stands. World pops out as the World panel alone
+(`--editor-panel world`), looking exactly where the panel looked: its
+clicks run the Client's tool with the Client's brush and palette, its title
+names them ("World - Raise - level 1"), and the viewer's thin toolbar sits
+over it (Open panels turns it into a full window). Any other module pops
+out as that panel alone, filling the window (no menu bar, no world drawn;
+the world is still loaded around the camera's square so App-bound panels
+answer). Open in new view (the picker) still opens a plain viewer, which
+does not edit. The
 main window hides the panel; View > <panel> shows it here again (pop in);
 the other window runs until it is closed. One console line each way.
 Several panels may be out at once, one process each: each is a full client
@@ -122,6 +135,14 @@ tab cannot reach the ToriRSMapEd embedded in another.
   environment, TORIRS_PRESENT_BMP included: `TORIRS_EDITOR_VIEW_BMP=<dir>[@<frame>]`
   makes each write `<dir>/view_<module>.bmp` at its own frame (default 400)
   instead.
+- `TORIRS_MAPED_STATE_DEBUG=1` -- one `maped state: Client <n> sets|heard
+  key <k> [<count>] <values...>` line per shared-state fact a window sets or
+  hears (src/editor/editor.c): run the main window and a popped-out one with
+  it to watch the relay in both logs (a popped-out window's log is
+  `build/launch/views/view<n>.log` under the main window's working
+  directory). Keys: 1 selection, 2 tool, 3 pinned level, 4 catalog pick,
+  5 view square, 7 shared tools, 10.. cameras, 39 view self. A popped-out
+  window never inherits `TORIRS_SIM_HOTKEY` (the leader's simulated keys).
 - `TORIRS_EDITOR_OPEN_CMD` -- the Triggers panel's and the catalog's "Open
   in editor" command, `{path}` (the absolute path, shell-quoted) and
   `{line}` placeholders, e.g. `code --goto {path}:{line}` or
@@ -280,7 +301,7 @@ The whole loop, scripted, is `make -C src maped-live-e2e`
 | 8 | Asset catalog | server-side index of packs, allocs, compacks, config blocks, overlays, interfaces, cs2/rs2 headers, spawns, maps; CATALOG_QUERY/RECORD (a record's fields in the pack's merge order: all.<type>, `.generated.` overlays, authored overlays, path order within a rank); mtime refresh; the Catalog panel queries it (every kind, settled find, paged list, record view, Edit record..., Copy to new; edpanel_catalog_model.c) | first build blocks the server pump (~1 s warm, ~6 s cold) |
 | 9a | Active level | menu bar Level row after View: `Auto 0 1 2 3 Above`, the pressed button is `tools.edit_level`, Above (pinned only) draws every level; keys PageUp/PageDown step and clamp 0..3 (from Auto, from the plane under the pointer), Ctrl+0..3 pin, the same chord again = Auto; World panel title "World - level N"; a pin caps the view at itself (`vis_level` follows, levels above and roofs not drawn), Auto draws every level as before; `edp_level_*` in src/editor/panels/edpanel_common.c; synced as STATE_EDIT_LEVEL (another window's pin moves the cap too, menu bar tick); with a level pinned the hover, every tool's click (select included), the brush footprint, ghosts, rectangle and inspector use the PINNED plane's tile under the pointer (`app_map_editor_pin_hover` re-picks against that level's height field when the pick met another plane; `Editor_PanelHoverTile`); the free camera's eye shifts by the height between planes on a pin; an empty upper level takes paint, heights, locs and spawns (flushed locally) | see open issues (World, views) |
 | 9 | Terrain tools | brushes with radius/falloff/step, palettes with shape thumbnails, flags, level radio, rectangle select/copy/paste/fill/clear; brush footprint under the pointer (`Editor_Terrain_BrushFootprint`, same weights as the stroke, falloff shown as wash intensity, follows a drag; >121 tiles as nested washes) | — |
-| 9b | Square picker and New square | atlas (storages, world-map areas incl. Unmapped instance regions, colour, spawns, flags), picker GRAPH with area tabs, zoom, hover, search, open/shift-open/right-click; New modal (coordinates, storage maps/ or a lane with lane creation, template empty/copy/flat) -> DOC_CREATE. **World map under the grid** (2026-11-02): the page's area drawn as the CS2 world map (595) draws it -- the client's own renderer (game/rs_worldmap_render.c, new `RS_WorldMapRender_RegionPixels`: a region baked into a caller buffer, same loads/waits/request table as `RegionSprite`, plus `SetFrameBudget`), kept at one pixel per tile per region for the process (game/rs_worldmap_overview.{h,c}, ~16 KB a region, never evicted) and box-filtered into a window of WORLD squares through the area's compositemap records (whole regions and 8x8 chunks, so a dungeon page shows its squares where they are in the world). The editor side (editor/editor_worldmap.{h,c}) asks the App through four `EditorUiAppServices` members (`worldmap_area` by the atlas area's internal name, -2 while the cache's areas load; `worldmap_poll`; `worldmap_render`; `image_publish`, two scene sprites `UITREE_SCENE_EDITOR_PICKER_MAP_ID(0/1)` taken in turn), for the visible squares plus a quarter of the view each side; the picture is keyed on area, cell, pixels per square, window and what the page shows (`Editor_Picker.atlas_serial`, page, storage filter, collection) and rendered again only when that key changes or while regions are still arriving (polled every tick, redrawn at most every 10 ticks, then once more when the last lands) -- a pan inside the window only moves it. Squares the page does not show (no map in any storage, another page, filtered out) are dimmed, black where the map has nothing, a faint grid from 8 px a square; the cells are no longer filled over the map, the outlines (selected, open, unsaved, created), hover, the empty-cell mark, axis labels and view frames are drawn over it. The chrome's GRAPH gained `TORIRS_CHROME_GRAPH_IMAGE` / `ToriRSChrome_GraphImage` (a scene-sprite prim stretched over the box, clipped to the well; the DOM executor gets the scene id in the item's value). A click on an EMPTY square now opens New square prefilled with it. No services (headless harness, web -- not filled under `__EMSCRIPTEN__`): the picker as before. Unmapped page: no area, no map. Cold full surface (1632 regions, osrs241, this Mac, private OPT build): 0.73-0.80 s from the first ask to the last bake (about 0.4 s of it one frame reading the regions' tiles, the rest four polls of up to 512 bakes at ~0.12 ms each); afterwards instant. `TORIRS_WORLDMAP_STATS=1` prints each poll's regions-to-come and elapsed ms (stderr); `TORIRS_EDITOR_PICKER=<area>[,<cell>][,<x>,<z>][,new]` shows a page at a cell centred on a square (`new` clicks it) for photographs (src/editor/panels/edpanel_squares.c). Tests: editor_worldmap_test (22: the mapping, whole region and chunk, box filter, window edges; the composition), editor_panels_test `test_worldmap` (fake App: area asked once then after the retry, only the visible window plus margin asked for, the picture reused on 20 quiet ticks, a one-square pan renders nothing, a zoom renders once, empty-square click -> New square prefilled, Unmapped and no-services fall back to filled cells). Photographed 2026-11-02 (whole surface at 3 px, Lumbridge/Varrock at 24 px, New square from empty m63_44) | picker Delete only clears the square (no DOC_DELETE); a NEW square has no `pack/5_maps.pack` line, so BUILD client cache cannot import it yet; see open issues (Square picker world map) |
+| 9b | Square picker and New square | atlas (storages, world-map areas incl. Unmapped instance regions, colour, spawns, flags), picker GRAPH with area tabs, zoom, hover, search, open/shift-open/right-click; New modal (coordinates, storage maps/ or a lane with lane creation, template empty/copy/flat) -> DOC_CREATE. **World map under the grid, zoomed like 595** (2026-11-02, reworked the same day after the owner's notes): the page's area drawn as the CS2 world map draws it, by the client's own renderer (game/rs_worldmap_render.c `RS_WorldMapRender_RegionPixels`: a region baked into a caller buffer with the icons its locs carry, same loads/waits/request table as `RegionSprite`; `SetFrameBudget`; a used-up geography request is forgotten so the next bake of that region asks again at once). game/rs_worldmap_overview.{h,c} keeps every region at one pixel per tile for the process (~16 KB each, never evicted) plus a pool of close-up bakes at the zoom's own 2..8 px a tile (`RS_WorldMapOverview_BakeScale` = ceil(px/64), 595's range; 96 slots, 64 MB, least recently used out, four 8 px regions a poll), and cuts pictures of a zoom's GLOBAL pixel space (struct RS_WorldMapOverviewTile: square column m starts at floor(m*64*zoom/64), rows from the world's north edge) through each area's compositemap records -- box-filtered below one pixel a tile, the close-up bake pixel for pixel above it. **Zoom**: continuous (`Editor_Picker.zoom`, logical px a square) from the whole page in the well (`Editor_PickerZoomMin`; 4 px for a small page, never below 0.25) to one square filling it (at least 256, `Editor_PickerZoomMax`); the wheel is x1.25 a notch about the cursor (the map point under it stays put); left-drag pans (past 3 px it is a pan, never a click); a still click selects and opens (shift adds); a double-click opens in place; with the well focused (a press focuses it) `+`/`=` and `-`/`_` zoom about its middle and the arrows pan an eighth of it (new `TORIRS_CHROME_EVENT_GRAPH_KEY`; Escape releases); Fit frames the page's squares edge to edge; axis labels thin to 1/2/5/10/20/50/100 so neighbours never touch; the grid and the map share the global pixel space so they agree to the pixel at every zoom. **Tiles** (editor/editor_worldmap.{h,c}): the well is drawn as 128x128 logical-px pictures, each rendered once per zoom, area and page into one of 80 scene sprites (`UITREE_SCENE_EDITOR_PICKER_MAP_BASE` 0x4C000000 + slot, least recently drawn reused) -- every picture the same size. THAT was the owner's "blanks out when I zoom in": the old single picture changed size on every zoom, and the GL3 renderer packs sprites into its shared 2048-square 2D atlas and reuses a sprite's place only for the same size, so after a few zooms the inserts failed and the map silently stopped drawing (src/platform/platform_sdl2_renderer_gl3.c `gl3_sprite_upload_rgba`); pictures are logical px (stretched by the chrome scale) for the same reason. A pan renders only the tiles it brings in; tiles render nearest the middle first, 3M source tiles of work a tick (at least one); until a zoom's tiles are in, the last complete zoom is drawn scaled under them (the transition), so a zoom never flashes black and never stalls a frame. Regions still loading: polled every tick, tiles drawn meanwhile redrawn when the bake serial moves (at most every 10 ticks). **Over the map**: the map element icons (the bakes' loc icons and the compositemap's own list, the latter first so labels survive a crowded view) through `app_mapfunction_scene_id` (config and sprite loaded on demand, like 595), fading in from 40 to 64 px a square, and area labels by text size (large from 6, medium 16, small 40, a grey-to-white fade); outlines: the selection (yellow, the whole cell; a plain click replaces it, shift adds), unsaved (accent), created (green), and the squares in THIS window's world (`EDITOR_PICKER_OPEN_HERE` = loaded and inside the window's own view frame, a cyan 2 px inset) -- the owner's "small selection squares that persist" were the old white open-set outline of every square the mirror had ever opened; the server's open flag no longer draws one, and the view frames are drawn under the selection so a frame never hides it. Squares the page does not show are dimmed; a shown square no area maps keeps its own colour; black elsewhere; a faint grid from 8 px a square. **Full map** page (beside the surface in the Area dropdown, `EDITOR_PICKER_TAB_FULL`): every square of the atlas at its true coordinate, every world-map area composed onto that one grid (worldmap_area("*") = `EDITOR_UI_MAP_AREA_ALL`; `RS_WorldMapOverview_PollAll` / `RenderTileAll` / `IconsAll`, the main area first, where two areas place a region the first keeps it), so dungeons, caves and instance regions show their imagery where their squares are; same search, open, New square and selection. Services on `EditorUiAppServices`: `worldmap_area`, `worldmap_poll` (with the zoom), `worldmap_render_tile`, `image_publish`, `worldmap_icons` (src/app/app_map_editor.c, not filled under `__EMSCRIPTEN__`). A click on an EMPTY square opens New square prefilled with it. No services (headless harness, web): the picker as before; Unmapped page: no map. Timing (osrs241, this Mac, private OPT build): cold full surface 0.73-0.80 s first ask to last bake (about 0.4 s of it one frame reading the 1632 regions' tiles); Lumbridge at 595's 100% (256 px a square) 80 ms; the Full map's whole grid ~1 s cold. `TORIRS_WORLDMAP_STATS=1` prints each poll's regions to come and elapsed ms (stderr). `TORIRS_EDITOR_PICKER=<area>[,fit][,zoom=<px>][,at=<x>:<z>][,click=<x>:<z>]...[,new]` (applied 20 ticks in, after the layout; the short `<area>,<zoom>,<x>,<z>` still works) sets a page, zoom, centre and clicks for photographs. Tests: editor_worldmap_test (31: whole region and chunk records, box filter, 48 px a square drawn exactly over its square, 512 px sharp blocks, close-up bake pixel for pixel, the map's edges equal the picker's at real zooms, composition incl. a shown square's own colour), editor_panels_test `test_worldmap` (fake App: area asked once then after the retry, the poll is the visible squares, every picture 128x128 in a slot below 80, quiet ticks reuse pictures, stale tiles redrawn when regions land, slop vs drag-pan vs click, click A then B leaves one selection mark at B drawn over the frame, the open-here mark gone when the world moves, shift-click then double-click opens in place, `+`/`-`/Left on the focused well, the zoom transition keeps the map under the cursor then leaves no stand-in, 48 px a square has pictures with map in them, icon centred on its tile and opaque at 64, fading at 52, gone at 20 with the large label kept, empty-square click -> New square, Full map extent = every atlas square and m27_83 drawn at 27,83, Unmapped and no-services fall back) and `test_picker` (wheel x1.25 about the cursor, zoom range ends, Fit framing, label spacing). Photographed 2026-11-02 at 1x with the Squares panel enlarged: whole surface Fit, Lumbridge at 256 px a square with icons and labels, one square filling the well, the owner's 48 px view at 49,43, two successive plain clicks, the Full map whole and its underground band (z 140-159) at 40 px | picker Delete only clears the square (no DOC_DELETE); a NEW square has no `pack/5_maps.pack` line, so BUILD client cache cannot import it yet; see open issues (Square picker world map) |
 | 10 | Placement tools | loc multi-select, nudge (cross-border as one undo), rotate, reshape, duplicate; spawn place/delete/suppress, spawn multi-select and Duplicate (Ctrl+D); translucent npc/obj placement ghost with footprint (`map_editor_ghost.c` spawn ghost, Place click writes the spawn row via `Editor_Locs_PlaceSpawn`); Move tool outlines every selected loc's destination; **spawn edit form** (Spawns > Edit tab: kind, name -- pack symbol, `#<id>`, or a display name the catalog resolves, refused when unknown -- abs X/Z, level, count, Suppressed; Apply = one undo step "edit spawn"/"move spawn" via `Editor_SpawnEditPlan`: SPAWN_EDIT in place, delete+add across a square or kind, suppress+add for a generated row; a multi-selection takes each changed field, X/Z/Level as an offset); **spawn move** typed or "Move: click a tile" (the next world click, `editor_panel.c`), the destination footprint and wander square previewed under the pointer; **wander preview** ("Show wander range", default on: each selected npc's wanderrange square filled and maxrange leash outlined on its level, also around the npc spawn ghost; values from the Record panel when it holds the npc, else the catalog's merged record, else 5/7; `MapEditorWander_Rects`, drawn in `app_overlay.c`); orphan `-name` rows listed and editable; ctl `spawn-edit`/`spawn-move` | arrow nudges commit per press (no preview); the move preview is footprint + wander square, not a translucent npc model; a delete+add edit's undo re-adds the row at its section's end |
 | 11 | Loc interaction builder | `.interaction` model, loc emitter (oploc/oplocu/aploc), step templates, sscompile Check | Check runs synchronously on the UI thread |
 | 12 | NPC interaction and dialogue builder | npc emitter, dialogue graph to nested if/else, multiloc/multinpc shell editor; **Record panel** (Catalog > Edit record..., Spawns > Edit npc record...): one loc/npc/obj record over every file that states it -- `configs/all.<type>` and each server overlay the catalog lists, as block-scoped CFG documents -- every field resolved to the layer that wins it (rank 0/1/2, path order, `param=<name>,..` per name), plus every key of `fields/<type>.ini` the record states nowhere; Set field writes where the field is stated or "override in <layer>" (opening the block there with CFG_BLOCK if needed), Remove field shows the layer beneath; one undo step "edit record"; `editor_cfg.h` Editor_CfgRecord; ctl `cfg-set` | STATE_VAR_PREVIEW not honoured by the world's multiloc resolve |
@@ -388,34 +409,37 @@ Every issue the phase reports left open, by area, with where to start.
 ### Square picker world map
 
 - The web shows no map: the DOM executor (src/plugin_chrome/runtime*.js
-  `renderGraph`) skips a `TORIRS_CHROME_GRAPH_IMAGE` item, and the App does
-  not fill the four map services under `__EMSCRIPTEN__`, so the web picker
-  keeps its filled cells. To show it there the executor needs the pixels:
-  e.g. a new chrome command carrying the picture (or a URL the page can fetch
-  from the bridge) keyed by the scene id the item already sends, drawn into
-  a canvas behind the item list.
-- Map element icons (banks, altars...) are not drawn: the overview keeps
-  pixels only (`RS_WorldMapRender_RegionPixels` passes no slot). The landmark
-  map scenes (trees, rocks) are baked in when the bridge has the mapscene
-  pack resident.
-- Cold load blocks one frame for ~0.4 s while the runner reads all 1632
-  surface regions' tiles (table 18 plus the table 20 ground PNG per region,
-  src/engine/dat2/task_dat2_worldmap_geography_load.c); a later open is
-  instant. A smaller first window (the visible squares only, the margin
-  later) or decoding the ground PNGs off the frame would cut it.
-- The overview's bakes are a process-lifetime static in
-  src/app/app_map_editor.c (`g_picker_worldmap`; the App holds no field for
-  them by check-app-boundary) and are never freed or evicted (~25 MB for the
-  whole surface, more as dungeon pages are visited).
-- A content edit does not redraw the map: the picture is the CACHE's world
-  map (what 595 shows), not the content tree's squares. A square created or
-  re-terrained in the editor shows the cache's old picture (or black) until
-  the client cache is rebuilt and the bakes dropped (no hook drops them yet).
-- Ocean tints differ by region on the surface (teal, blue and purple
-  patches east of Al Kharid and south of Zeah). The dimming only scales
-  brightness, so the hue is the renderer's; the land matches a headless 595
-  dump of Lumbridge (TORIRS_WORLDMAP_ZOOM=25) but the open sea has not been
-  compared against 595 at the same place yet.
+  `renderGraph`) skips a `TORIRS_CHROME_GRAPH_IMAGE` item and the App does not
+  fill the map services under `__EMSCRIPTEN__`, so the web picker keeps its
+  filled cells. To show it there the executor needs the pixels: a chrome
+  command carrying each 128x128 picture (or a URL the page can fetch from the
+  bridge) keyed by the scene id the item already sends, drawn into a canvas
+  behind the item list; and a GRAPH_KEY intent for the zoom keys.
+- The pictures are logical pixels stretched by the chrome scale (sharp but
+  pixel-doubled at 2x): device-pixel pictures of a large well would need more
+  than half of GL3's shared 2048-square 2D atlas. A renderer with its own
+  texture per large sprite would lift it.
+- Cold load blocks one frame for ~0.4 s while the runner reads all the
+  surface regions' tiles (table 18 plus a ground PNG per region,
+  src/engine/dat2/task_dat2_worldmap_geography_load.c); later opens are
+  instant. A first poll of the visible squares only, or the PNG decode off
+  the frame, would cut it.
+- The overview is a process-lifetime static in src/app/app_map_editor.c
+  (`g_picker_worldmap`; the App holds no field by check-app-boundary). The
+  one-pixel bakes are never freed (~25 MB the surface, ~64 MB once the Full
+  map has seen every area); the close-up pool is capped at 64 MB.
+- At 48 px a square the surface is crowded with icons (595's farthest zoom is
+  the same); there is no per-category filter like 595's key panel.
+- A content edit does not redraw the map: it is the CACHE's world map. A
+  square created or re-terrained in the editor shows the cache's old picture
+  (or its own colour) until the client cache is rebuilt and the bakes dropped
+  (no hook drops them yet).
+- Ocean tints differ by region (teal, blue, purple patches east of Al Kharid
+  and south of Zeah): the hue is the renderer's; not yet compared against a
+  595 dump of the same sea.
+- Full map overlaps: where two areas place a region on the same true square
+  the main area (then the cache's order) wins; nothing chooses between two
+  dungeon areas deliberately.
 
 ### Areas and collections
 
@@ -473,6 +497,13 @@ Every issue the phase reports left open, by area, with where to start.
   client's own launch service and the embed's loopback listener instead
   (src/app/app_editor_view.c `EditorView_AppSpawnModule`). The listener stays
   open, idle, until the session closes once anything popped out.
+- Shared state: the Client shares the tool, brush, palette, flags,
+  placement shape, view level and selection; it does NOT share the loc
+  multi-selection beyond its primary, the rectangle, the flatten target or
+  any panel's own list/scroll/tab state (each window keeps its own). Two
+  windows changing the same shared tool in the same frame end on the
+  server's order (both converge). A plain viewer (Open in new view) still
+  ignores clicks; pop out World for an editing window.
 - Pop out: a popped-out window is a whole client process (cache, renderer,
   EDIT world): several out at once cost that footprint each. Its window is
   the OS window -- closing it is the only way to end it; there is no "pop

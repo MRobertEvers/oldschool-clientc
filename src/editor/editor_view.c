@@ -737,7 +737,7 @@ EditorView_SpawnBody(
 
     EditorView_CameraToValues(camera, values);
     ToriRSMapEd_CameraFormat(values, pose, sizeof(pose));
-    if( panel && strcmp(panel, "world") != 0 )
+    if( panel )
         length = snprintf(out, (size_t)out_size, "maped=%s\ngroup=%u\ncamera=%s\npanel=%s\n", maped_url,
             (unsigned)group, pose, panel);
     else
@@ -782,7 +782,7 @@ static char g_boot_panel[32];
 void
 EditorView_SetBootPanel(const char* module)
 {
-    if( !module || strcmp(module, "world") == 0 )
+    if( !module )
     {
         g_boot_panel[0] = '\0';
         return;

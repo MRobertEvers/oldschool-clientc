@@ -146,8 +146,8 @@ const q = s => new URLSearchParams(s);
 }
 
 /* 7b. A popped-out panel: the tab URL carries panel=, and the tab boots
- *     --editor-panel <module>; "world" and anything that is not a module word
- *     add nothing. */
+ *     --editor-panel <module> ("world" too: the editing World); anything that
+ *     is not a module word adds nothing, and no panel is a plain viewer. */
 {
   const href = 'https://example.org/torirs/index.html?io=/io2';
   const url = new URL(editorViewUrl(href, new URL(href).searchParams, 'm.ini',
@@ -157,10 +157,13 @@ const q = s => new URLSearchParams(s);
   assert.deepStrictEqual(Array.from(boot.args).slice(-2), ['--editor-panel', 'terrain']);
   const world = new URL(editorViewUrl(href, new URL(href).searchParams, 'm.ini',
     'wss://example.org/maped', 5, '', 'world'));
-  assert.ok(!world.searchParams.has('panel'));
-  let bad = editorViewBoot(q('editor_view=1&maped=ws://h:1&panel=../x'), DEFAULT, HTTP);
-  assert.ok(!bad.args.includes('--editor-panel'));
-  bad = editorViewBoot(q('editor_view=1&maped=ws://h:1&panel=world'), DEFAULT, HTTP);
+  assert.strictEqual(world.searchParams.get('panel'), 'world');
+  assert.deepStrictEqual(Array.from(editorViewBoot(world.searchParams, DEFAULT, HTTPS).args).slice(-2),
+    ['--editor-panel', 'world']);
+  const viewer = new URL(editorViewUrl(href, new URL(href).searchParams, 'm.ini',
+    'wss://example.org/maped', 5, '', ''));
+  assert.ok(!viewer.searchParams.has('panel'));
+  const bad = editorViewBoot(q('editor_view=1&maped=ws://h:1&panel=../x'), DEFAULT, HTTP);
   assert.ok(!bad.args.includes('--editor-panel'));
   passed++;
 }

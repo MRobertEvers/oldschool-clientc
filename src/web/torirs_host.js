@@ -295,9 +295,10 @@
     if (group && /^[1-9][0-9]*$/.test(group)) { out.push('--maped-group', group); }
     const camera = query.get('camera');
     if (camera) { out.push('--camera', camera); }
-    /* A popped-out editor panel: the tab shows that one panel, filling it. */
+    /* A popped-out editor panel: the tab shows that one panel, filling it
+     * ("world": the World panel, editing with the Client's tool). */
     const panel = query.get('panel');
-    if (panel && panel !== 'world' && /^[a-z0-9_]{1,31}$/.test(panel)) { out.push('--editor-panel', panel); }
+    if (panel && /^[a-z0-9_]{1,31}$/.test(panel)) { out.push('--editor-panel', panel); }
     return { args: out, socketUrl, error: null };
   }
 
@@ -316,7 +317,7 @@
     next.set('maped', maped);
     if (group) { next.set('group', String(group)); }
     if (camera) { next.set('camera', camera); }
-    if (panel && panel !== 'world') { next.set('panel', panel); }
+    if (panel) { next.set('panel', panel); }
     if (manifest) { next.set('manifest', manifest); }
     url.search = next.toString();
     url.hash = '';

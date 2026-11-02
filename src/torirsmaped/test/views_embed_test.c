@@ -730,6 +730,46 @@ test_embed_listener(
     }
     check(popped_watch.watch_last_value0 == 5, "listener: the popped window hears the main window's tool");
 
+    /* Every shared key, both ways: the selection from the main window, the
+     * shared tools (brush, palette, ...) from the popped window, and the
+     * catalog pick and pinned level from the main window again. */
+    {
+        static uint32_t const keys[4] = { TORIRSMAPED_STATE_SELECTION, TORIRSMAPED_STATE_TOOLS,
+            TORIRSMAPED_STATE_CATALOG_PICK, TORIRSMAPED_STATE_EDIT_LEVEL };
+        static char const* const names[4] = { "selection", "shared tools", "catalog pick", "pinned level" };
+        for( int k = 0; k < 4; k++ )
+        {
+            int32_t values[TORIRSMAPED_TOOLS_VALUES];
+            int const count = keys[k] == TORIRSMAPED_STATE_TOOLS ? TORIRSMAPED_TOOLS_VALUES
+                              : keys[k] == TORIRSMAPED_STATE_SELECTION ? 7
+                              : keys[k] == TORIRSMAPED_STATE_CATALOG_PICK ? 2
+                                                                         : 1;
+            int const from_popped = (k & 1) != 0;
+            struct Editor* sender = from_popped ? &popped_ed : &main_ed;
+            struct Watch* hearer = from_popped ? &main_watch : &popped_watch;
+            char what[96];
+            for( int v = 0; v < count; v++ )
+                values[v] = 100 + k * 10 + v;
+            if( keys[k] == TORIRSMAPED_STATE_EDIT_LEVEL )
+                values[0] = 3;
+            hearer->watch_key = keys[k];
+            hearer->watch_hits = 0;
+            hearer->watch_last_value0 = -1;
+            check(Editor_StateSet(sender, keys[k], values, count), "listener: a window sets a shared key");
+            for( int frame = 0; frame < 50 && hearer->watch_hits == 0; frame++ )
+            {
+                Editor_PumpFacts(&main_ed);
+                (void)ToriRSMapEd_ListenerPoll(listener, 2);
+                Editor_PumpFacts(&popped_ed);
+            }
+            snprintf(what, sizeof(what), "listener: the %s window's %s reaches the %s window",
+                from_popped ? "popped" : "main", names[k], from_popped ? "main" : "popped");
+            check(hearer->watch_hits >= 1 && hearer->watch_last_count == count
+                      && hearer->watch_last_value0 == values[0],
+                what);
+        }
+    }
+
     /* Closing the window retires its connection; closing the door is safe
      * with none left, and the session goes on. */
     Editor_Close(&popped_ed);
@@ -1163,8 +1203,11 @@ test_launch_view(char const* scratch)
     length = EditorView_SpawnBody("tcp://127.0.0.1:51129", 3, &camera, "terrain", body, (int)sizeof(body));
     check(length > 0 && strstr(body, "\npanel=terrain\n") != NULL, "a panel's spawn body names the panel");
     check(EditorView_SpawnBody("tcp://127.0.0.1:51129", 3, &camera, "world", expect, (int)sizeof(expect)) > 0
+              && strstr(expect, "\npanel=world\n"),
+        "a popped-out World's body names it");
+    check(EditorView_SpawnBody("tcp://127.0.0.1:51129", 3, &camera, NULL, expect, (int)sizeof(expect)) > 0
               && !strstr(expect, "panel="),
-        "the 3D view's body names none");
+        "a plain viewer's body names none");
     answer = launch(table, "view", body);
     check(strncmp(answer, "ok\nview=2\n", 10) == 0, "the view verb starts a panel window");
     ToriMem_Free(ToriMem_Net(), answer);
@@ -1185,8 +1228,9 @@ test_launch_view(char const* scratch)
     EditorView_SetBootPanel("terrain");
     check(EditorView_BootPanel() && strcmp(EditorView_BootPanel(), "terrain") == 0, "the boot panel is kept");
     EditorView_SetBootPanel("world");
-    check(EditorView_BootPanel() == NULL, "world boots the 3D view");
+    check(EditorView_BootPanel() && strcmp(EditorView_BootPanel(), "world") == 0, "world boots the World panel alone");
     EditorView_SetBootPanel(NULL);
+    check(EditorView_BootPanel() == NULL, "no panel boots a plain viewer");
 
     answer = launch(table, "view", "maped=http://x\ngroup=3\n");
     check(strncmp(answer, "error: launch/view needs maped=", 31) == 0, "a non-maped URL is refused");

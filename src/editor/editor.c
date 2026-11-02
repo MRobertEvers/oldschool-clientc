@@ -512,6 +512,37 @@ mirror_on_resync(
         queue_rebuild(editor, handle.square->map_x, handle.square->map_z);
 }
 
+/* TORIRS_MAPED_STATE_DEBUG=1: one line per shared-state fact this session
+ * hears and per state it sets -- the Client, which key and
+ * its first values -- so a relay between windows can be watched in each
+ * process's log. */
+static int
+state_debug(void)
+{
+    static int known;
+    static int on;
+    if( !known )
+    {
+        char const* value = getenv("TORIRS_MAPED_STATE_DEBUG");
+        on = value && value[0] && value[0] != '0';
+        known = 1;
+    }
+    return on;
+}
+
+static void
+state_debug_line(
+    const struct Editor* editor,
+    const char* verb,
+    uint32_t key,
+    const int32_t* values,
+    int count)
+{
+    TORIRS_REPORT("maped state: Client %u %s key %u [%d]%s%d %d %d\n",
+        Editor_HostIsMapEd(&editor->host) ? Editor_HostMapEdClientId(&editor->host) : 0u, verb, key, count,
+        count > 0 ? " " : "", count > 0 ? values[0] : 0, count > 1 ? values[1] : 0, count > 2 ? values[2] : 0);
+}
+
 static void
 mirror_on_state(
     void* user_data,
@@ -521,6 +552,8 @@ mirror_on_state(
 {
     struct Editor* editor = user_data;
 
+    if( state_debug() )
+        state_debug_line(editor, "heard", key, values, count);
     if( editor->on_state )
         editor->on_state(editor->on_state_user_data, key, values, count);
 }
@@ -662,6 +695,8 @@ Editor_StateSet(
     int count)
 {
     assert(editor);
+    if( state_debug() )
+        state_debug_line(editor, "sets", key, values, count);
     return Editor_HostMapEdStateSet(&editor->host, key, values, count);
 }
 

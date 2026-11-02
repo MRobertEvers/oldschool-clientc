@@ -243,6 +243,27 @@ struct EditorUiHooks
 struct ToriRS_Location;
 struct EditorViewCamera;
 
+/** The area id worldmap_area answers for "*": every area at once, on the
+ *  true square grid (the picker's Full map). */
+#define EDITOR_UI_MAP_AREA_ALL 0x10000
+/** Scene sprite slots the picker's map may hold at once (image_publish). */
+#define EDITOR_UI_MAP_IMAGE_SLOTS 80
+#define EDITOR_UI_MAP_LABEL_MAX 32
+
+/** One map element for the picker (EditorUiAppServices worldmap_icons): an
+ *  icon (`scene_id` > 0, `w` x `h` its sprite) or a text label (`label`
+ *  set, `text_size` 0 small .. 2 large), at a WORLD tile. */
+struct EditorUiMapIcon
+{
+    int tile_x;
+    int tile_z;
+    int scene_id;
+    int w;
+    int h;
+    int text_size;
+    char label[EDITOR_UI_MAP_LABEL_MAX];
+};
+
 struct EditorUiAppServices
 {
     void* user_data;
@@ -286,18 +307,21 @@ struct EditorUiAppServices
     int (*spawn_panel)(void* user_data, const char* module, const struct EditorViewCamera* camera, char* why,
         int why_size);
 
-    /* The world map under the square picker (editor/editor_worldmap.h). All
-     * four or none: a NULL member (the headless harness, the web) and the
-     * picker draws its coloured cells as before. Coordinates are WORLD
-     * squares; the App maps them through the area's compositemap. */
+    /* The world map under the square picker (editor/editor_worldmap.h).
+     * area / poll / render_tile / image_publish all or none: a NULL member
+     * (the headless harness, the web) and the picker draws its coloured
+     * cells as before; icons is optional. Coordinates are WORLD squares and
+     * tiles; the App maps them through the area's compositemap. */
     /** The cache's world-map area whose internal name is `internal_name`
      *  ("main", "ancient_cavern"): its id, -1 when the cache has none, -2
-     *  when the cache's areas are not loaded yet (asked for: ask again). */
+     *  when the cache's areas are not loaded yet (asked for: ask again).
+     *  "*" is EDITOR_UI_MAP_AREA_ALL, every area at once. */
     int (*worldmap_area)(void* user_data, const char* internal_name);
-    /** Move area `area_id`'s squares [x0, x0+w) x [z0, z0+h) along: queue
-     *  their loads, bake what is ready. Returns the bake serial (changes
-     *  when anything new can be drawn), -1 for an unknown area;
-     *  `*out_missing` the regions still to come (0: final). */
+    /** Move area `area_id`'s squares [x0, x0+w) x [z0, z0+h) along for a
+     *  zoom of `px_per_square`: queue their loads, bake what is ready (past
+     *  64 px a square, again at the zoom's own pixels a tile). Returns the
+     *  bake serial (changes when anything new can be drawn), -1 for an
+     *  unknown area; `*out_missing` the regions still to come (0: final). */
     int (*worldmap_poll)(
         void* user_data,
         int area_id,
@@ -305,23 +329,39 @@ struct EditorUiAppServices
         int square_z0,
         int squares_w,
         int squares_h,
+        double px_per_square,
         int* out_missing);
-    /** Draw those squares from what is baked, `px_per_square` (1..64) pixels
-     *  a square, north row first, into `out_argb` ((w * px) x (h * px)):
-     *  0xFFRRGGBB where the map has a tile, 0 where it has none. 0 for an
-     *  unknown area (nothing written). */
-    int (*worldmap_render)(
+    /** Draw one `size` x `size` picture of the map at `px_per_square` (real,
+     *  >= 1) from what is baked: the rectangle at (pixel_x0, pixel_y0) of
+     *  that zoom's global pixel space (game/rs_worldmap_overview.h
+     *  struct RS_WorldMapOverviewTile), 0xFFRRGGBB where the map has a tile,
+     *  0 where it has none. 0 for an unknown area (nothing written). */
+    int (*worldmap_render_tile)(
+        void* user_data,
+        int area_id,
+        double px_per_square,
+        int pixel_x0,
+        int pixel_y0,
+        int size,
+        uint32_t* out_argb);
+    /** Make `argb` (w x h, copied) image `slot` (0 ..
+     *  EDITOR_UI_MAP_IMAGE_SLOTS - 1) for a GRAPH image item; returns its
+     *  scene sprite id, 0 when it cannot. */
+    int (*image_publish)(void* user_data, int slot, const uint32_t* argb, int w, int h);
+    /** The map elements on squares [x0, x0+w) x [z0, z0+h) of area
+     *  `area_id`, what 595 draws over the map: up to `capacity` into `out`.
+     *  An element whose config or sprite is not resident yet is asked for
+     *  and counted in `*out_pending` (ask again). Returns how many. */
+    int (*worldmap_icons)(
         void* user_data,
         int area_id,
         int square_x0,
         int square_z0,
         int squares_w,
         int squares_h,
-        int px_per_square,
-        uint32_t* out_argb);
-    /** Make `argb` (w x h, copied) image `slot` (0 or 1) for a GRAPH image
-     *  item; returns its scene sprite id, 0 when it cannot. */
-    int (*image_publish)(void* user_data, int slot, const uint32_t* argb, int w, int h);
+        struct EditorUiMapIcon* out,
+        int capacity,
+        int* out_pending);
 };
 
 /* ---- panels ---------------------------------------------------------------- */
@@ -409,6 +449,10 @@ struct EditorUiViewFrame
     int h;
     int64_t seen_ms;
 };
+
+/** TORIRSMAPED_TOOLS_VALUES (torirsmaped/torirs_maped.h), asserted equal in
+ *  editor_ui.c. */
+#define EDITOR_UI_TOOLS_VALUES 14
 
 struct EditorUi
 {
@@ -511,6 +555,17 @@ struct EditorUi
      *  popped-out window (Editor_UiSetSolo) -- and this is its chrome panel;
      *  -1 in an ordinary window. */
     int solo_panel;
+    /** STATE_TOOLS (the brush, palette, flags, placement and view level the
+     *  Client's windows share): what this window last published or applied
+     *  -- a tick whose tools differ publishes them -- and the publishes
+     *  whose echo has not come back yet, oldest first, so this window's own
+     *  echo never undoes a newer change. `tools_known` is 0 until the first
+     *  tick took its baseline (a window that boots never overwrites the
+     *  Client's tools with its defaults). */
+    int32_t tools_shared[EDITOR_UI_TOOLS_VALUES];
+    int tools_known;
+    int32_t tools_echo[32][EDITOR_UI_TOOLS_VALUES];
+    int tools_echo_count;
     /** A docked panel the user just showed again: the next layout shows it
      *  even when the column has no room (it then flies out beside it). -1
      *  for none. */
@@ -765,6 +820,11 @@ int
 Editor_UiSetSolo(
     struct EditorUi* ui,
     const char* name);
+
+/** Leave the solo layout (a popped-out World's "Open panels"): every panel
+ *  back, laid out as the main window's are. Asserts the window was solo. */
+void
+Editor_UiClearSolo(struct EditorUi* ui);
 
 /** Show or hide the chrome panel of registry module `name` (the View menu's
  *  toggle). Returns 1 when it is open afterwards, -1 when there is no such

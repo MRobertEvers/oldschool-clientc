@@ -109,7 +109,9 @@ RS_WorldMapRender_RegionIcons(
 /**
  * Bake one map surface region into the caller's buffer instead of a scene
  * sprite: (64 * pixels_per_tile) squared ARGB pixels, north up, the same
- * picture RegionSprite draws minus the icons. The same loads, waits and frame
+ * picture RegionSprite draws; the map element icons its locs carry (what
+ * RegionIcons answers for a pool bake) are copied into `out_icons`, at most
+ * `icon_capacity`, their count in `*out_icon_count`. The same loads, waits and frame
  * budget as RegionSprite (one request table), so the region's geography is
  * queued once and asked again only after the retry window.
  *
@@ -130,6 +132,9 @@ RS_WorldMapRender_RegionPixels(
     int region_y,
     int pixels_per_tile,
     uint32_t* out_pixels,
-    bool* out_complete);
+    bool* out_complete,
+    struct RS_WorldMapRegionIcon* out_icons,
+    int icon_capacity,
+    int* out_icon_count);
 
 #endif /* RS_WORLDMAP_RENDER_H */

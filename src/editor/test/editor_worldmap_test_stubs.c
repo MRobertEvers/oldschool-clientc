@@ -70,8 +70,14 @@ RS_WorldMapRender_RegionPixels(
     int region_y,
     int pixels_per_tile,
     uint32_t* out_pixels,
-    bool* out_complete)
+    bool* out_complete,
+    struct RS_WorldMapRegionIcon* out_icons,
+    int icon_capacity,
+    int* out_icon_count)
 {
+    (void)out_icons;
+    (void)icon_capacity;
+    (void)out_icon_count;
     (void)render;
     (void)provider;
     (void)scene;
@@ -109,6 +115,18 @@ Editor_PickerCellOrigin(
     (void)out_x;
     (void)out_y;
     STUB("Editor_PickerCellOrigin");
+}
+
+void
+Editor_PickerGlobalOrigin(
+    const struct Editor_Picker* picker,
+    int* out_x,
+    int* out_y)
+{
+    (void)picker;
+    (void)out_x;
+    (void)out_y;
+    STUB("Editor_PickerGlobalOrigin");
 }
 
 int

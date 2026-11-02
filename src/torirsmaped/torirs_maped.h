@@ -325,6 +325,17 @@ enum ToriRSMapEdStateKey
      *   40..47  live-editor  STATE_LIVE_FOCUS 40 */
     /** The var values a preview resolves multilocs/multinpcs against. */
     TORIRSMAPED_STATE_VAR_PREVIEW = 6,
+    /** The editing tools every window of a Client shares beside the tool
+     *  itself (editor_ui.c ui_tools_pack): brush radius, falloff, step,
+     *  strength; underlay id, overlay id, overlay none, overlay shape,
+     *  overlay rotation; flags value; place shape, place rotation; view
+     *  level, view solo -- TORIRSMAPED_TOOLS_VALUES in that order. */
+    TORIRSMAPED_STATE_TOOLS = 7,
+};
+
+enum
+{
+    TORIRSMAPED_TOOLS_VALUES = 14,
 };
 
 enum

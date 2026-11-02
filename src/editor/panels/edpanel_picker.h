@@ -20,17 +20,62 @@
 #include "editor/editor_host.h"
 #include "editor/editor_ui.h"
 
+#include <math.h>
 #include <stdint.h>
 
 struct ToriRSChrome;
 struct Editor_Doc;
 
+/* The global pixel space of a zoom (game/rs_worldmap_overview.h), which the
+ * grid and the world map's pictures share: square column (or north-based
+ * row) m starts at floor(m * 64 * (zoom / 64)). */
+static inline int
+Editor_PickerEdge(
+    double zoom,
+    int squares)
+{
+    double const k = zoom / 64.0;
+    return (int)floor((double)(squares * 64) * k);
+}
+
+/** The square column (or north-based row) holding global pixel `g`. */
+static inline int
+Editor_PickerSquareOfPixel(
+    double zoom,
+    int g)
+{
+    int m = (int)floor(((double)g + 0.5) / zoom);
+    while( Editor_PickerEdge(zoom, m + 1) <= g )
+        m++;
+    while( Editor_PickerEdge(zoom, m) > g )
+        m--;
+    return m;
+}
+
 #define EDITOR_PICKER_TITLE_MAX 32
 #define EDITOR_PICKER_NAME_MAX 64
 
-/** Cell sizes the zoom moves through, logical px per square. */
-#define EDITOR_PICKER_CELL_MIN 3
-#define EDITOR_PICKER_CELL_MAX 48
+/** The zoom, logical px per square, is continuous (struct Editor_Picker
+ *  `zoom`): from the whole page fitting the well (Editor_PickerZoomMin) to
+ *  one square filling it (Editor_PickerZoomMax). A wheel notch is this
+ *  ratio. */
+#define EDITOR_PICKER_ZOOM_STEP 1.25
+/** Never fewer px a square than this: the Full map's ~200 rows still fit
+ *  a small well. */
+#define EDITOR_PICKER_ZOOM_FLOOR 0.25
+/** A small page may still be backed out of to this many px a square. */
+#define EDITOR_PICKER_ZOOM_OUT_TO 4.0
+/** The closest the zoom always reaches, whatever the well: the CS2 world
+ *  map's 8 px a tile is 512 device px a square, 256 logical at 2x. */
+#define EDITOR_PICKER_ZOOM_CLOSEST 256.0
+/** A search result is shown at least this close. */
+#define EDITOR_PICKER_ZOOM_SHOW 24.0
+/** The world's north edge in squares: square rows of the global pixel
+ *  space count from it (game/rs_worldmap_overview.h). */
+#define EDITOR_PICKER_WORLD_SQUARES 256
+/** Axis labels: the least room one takes across (x) and down (z). */
+#define EDITOR_PICKER_LABEL_W 30
+#define EDITOR_PICKER_LABEL_H 16
 
 /** Where the grid starts inside the well: room for the axis labels. */
 #define EDITOR_PICKER_LEFT 22
@@ -47,10 +92,39 @@ struct Editor_Doc;
 /** TORIRSMAPED_SQUARE_* plus what only this window knows. */
 enum
 {
-    /** Open in THIS window's mirror. */
+    /** In THIS window's world now (its view frame), loaded in its mirror. */
     EDITOR_PICKER_OPEN_HERE = 1 << 16,
     /** Unsaved in this window's mirror. */
     EDITOR_PICKER_DIRTY_HERE = 1 << 17,
+};
+
+/** What the world map puts in the well (editor/editor_worldmap.h). */
+#define EDITOR_PICKER_MAP_IMAGES_MAX 192
+#define EDITOR_PICKER_MAP_ICONS_MAX 900
+#define EDITOR_PICKER_MAP_LABELS_MAX 96
+
+/** One picture or icon: a scene sprite over a box of the well. */
+struct Editor_PickerImage
+{
+    int scene_id;
+    int x;
+    int y;
+    int w;
+    int h;
+    /** 0 opaque .. 255 invisible (a fade). */
+    int trans;
+    /** Pictures put under `scene_id` so far: a repaint of the same id is a
+     *  new item to the GRAPH. */
+    uint32_t version;
+};
+
+struct Editor_PickerLabel
+{
+    /** Left end and baseline, well px. */
+    int x;
+    int y;
+    uint32_t color;
+    char text[32];
 };
 
 struct Editor_PickerSquare
@@ -76,9 +150,15 @@ struct Editor_PickerArea
     int is_main;
 };
 
+/** Editor_PickerTab.area of the Full map page: every square of the grid
+ *  where it really is, every world-map area's imagery composed onto it. */
+#define EDITOR_PICKER_TAB_FULL (-2)
+/** ...and of the Unmapped page. */
+#define EDITOR_PICKER_TAB_UNMAPPED (-1)
+
 struct Editor_PickerTab
 {
-    /** Index into areas; -1 the Unmapped tab. */
+    /** Index into areas; EDITOR_PICKER_TAB_UNMAPPED, or EDITOR_PICKER_TAB_FULL. */
     int area;
     char title[EDITOR_PICKER_TITLE_MAX];
     int count;
@@ -88,16 +168,21 @@ struct Editor_PickerTab
     int max_z;
 };
 
-/** A picture under the grid (editor/editor_worldmap.h): the world map. */
+/** The world map under the grid (editor/editor_worldmap.h). */
 struct Editor_PickerUnderlay
 {
-    /** Scene sprite id; 0 none (the cells are filled as ever). */
-    int scene_id;
-    /** Where it goes, well-local logical px; may start outside the well. */
-    int x;
-    int y;
-    int w;
-    int h;
+    /** A map is shown: the cells are not filled (the map fills them) and
+     *  the well under the grid is black where it has nothing. */
+    int active;
+    /** Its pictures, drawn first (stand-ins from another zoom, then this
+     *  zoom's over them). */
+    int count;
+    struct Editor_PickerImage items[EDITOR_PICKER_MAP_IMAGES_MAX];
+    /** Map element icons and area labels over them. */
+    int icon_count;
+    struct Editor_PickerImage icons[EDITOR_PICKER_MAP_ICONS_MAX];
+    int label_count;
+    struct Editor_PickerLabel labels[EDITOR_PICKER_MAP_LABELS_MAX];
 };
 
 struct Editor_Picker
@@ -117,8 +202,8 @@ struct Editor_Picker
     int tab_count;
     int active_tab;
 
-    /** Logical px per square. */
-    int cell;
+    /** Logical px per square: continuous, Editor_PickerZoomMin..Max. */
+    double zoom;
     /** The map coordinates at the grid's top-left corner, in squares: x of
      *  the west edge, z of the NORTH edge. Fractional, so a drag pans by the
      *  pixel at any zoom. */
@@ -234,13 +319,44 @@ Editor_PickerCentre(
     int map_x,
     int map_z);
 
-/** Zoom by wheel `delta` (negative in) about well point (x, y). */
+/** Zoom by wheel `delta` notches (negative in) about well point (x, y):
+ *  EDITOR_PICKER_ZOOM_STEP a notch, clamped. */
 void
 Editor_PickerZoom(
     struct Editor_Picker* picker,
     int delta,
     int x,
     int y);
+
+/** Zoom to `zoom` (clamped) keeping the map point under (x, y). */
+void
+Editor_PickerZoomTo(
+    struct Editor_Picker* picker,
+    double zoom,
+    int x,
+    int y);
+
+/** The zoom range: the whole page in the well (or EDITOR_PICKER_ZOOM_OUT_TO
+ *  for a small page) .. one square filling it (at least
+ *  EDITOR_PICKER_ZOOM_CLOSEST). */
+double
+Editor_PickerZoomMin(const struct Editor_Picker* picker);
+double
+Editor_PickerZoomMax(const struct Editor_Picker* picker);
+
+/** The global pixel (game/rs_worldmap_overview.h, at `zoom`) under well
+ *  point (0, 0): a picture at global (gx, gy) is drawn at (gx - x, gy - y). */
+void
+Editor_PickerGlobalOrigin(
+    const struct Editor_Picker* picker,
+    int* out_x,
+    int* out_y);
+
+/** Labels every this many squares so that each has `min_px` of room. */
+int
+Editor_PickerLabelEvery(
+    double zoom,
+    int min_px);
 
 /** Pan by (dx, dy) well pixels (a drag). */
 void
@@ -264,6 +380,17 @@ int
 Editor_PickerSquareVisible(
     const struct Editor_Picker* picker,
     int index);
+
+/** Square (map_x, map_z)'s cell as drawn, well px. */
+void
+Editor_PickerCellBox(
+    const struct Editor_Picker* picker,
+    int map_x,
+    int map_z,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h);
 
 /** The well point of square (map_x, map_z)'s top-left corner, as drawn. */
 void
@@ -331,11 +458,14 @@ Editor_PickerSetFilter(
     const char* const* keys,
     int count);
 
-/** Fold this window's mirror into the flags: OPEN_HERE, DIRTY_HERE. */
+/** Fold this window's mirror into the flags: DIRTY_HERE for a loaded square
+ *  with unsaved edits, OPEN_HERE for one inside `self_frame` (this window's
+ *  world; NULL: none). */
 void
 Editor_PickerNoteDocument(
     struct Editor_Picker* picker,
-    struct Editor_Doc* doc);
+    struct Editor_Doc* doc,
+    const struct EditorUiViewFrame* self_frame);
 
 enum Editor_PickerSearchKind
 {

@@ -1533,6 +1533,9 @@ view_environment(struct LaunchSessions const* table, struct LaunchEnvironment* e
      * second process at once. */
     environment_set(environment, "TORIRS_PREFS", "");
     environment_set(environment, "TORIRS_EDITOR_LAYOUT", "");
+    /* The leader's simulated keys are the leader's: a view pressing them too
+     * would be a second, unasked-for input (docs/MAPED_STATUS.md). */
+    environment_set(environment, "TORIRS_SIM_HOTKEY", "");
     environment_set(environment, "TORIRS_STDERR_UNBUFFERED", "1");
 }
 

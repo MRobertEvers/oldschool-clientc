@@ -18,6 +18,7 @@
 #include "editor/editor_script.h"
 #include "editor/builder/builder_ssc.h"
 #include "editor/editor_host.h"
+#include "editor/editor_panel.h"
 #include "editor/editor_ui.h"
 #include "editor/editor_view.h"
 #include "editor/panels/edpanel_catalog_model.h"
@@ -1313,7 +1314,7 @@ test_picker(void)
     /* The grid: north up, hit test, zoom about the pointer, pan. */
     Editor_PickerSetTab(&g_picker, Editor_PickerTabOfSquare(&g_picker, index));
     Editor_PickerFit(&g_picker, 360, 300);
-    g_picker.cell = 16;
+    g_picker.zoom = 16.0;
     Editor_PickerCentre(&g_picker, 50, 50);
     x = EDITOR_PICKER_LEFT + (360 - EDITOR_PICKER_LEFT - 2) / 2;
     y = EDITOR_PICKER_TOP + (300 - EDITOR_PICKER_TOP - 2) / 2;
@@ -1322,13 +1323,65 @@ test_picker(void)
     CHECK(Editor_PickerCellAt(&g_picker, x, y - 16, &map_x, &map_z) && map_z == 51, "one cell up is north (z %d)",
         map_z);
     CHECK(Editor_PickerSquareAt(&g_picker, x, y) == index, "the square at the centre is m50_50");
-    Editor_PickerZoom(&g_picker, -1, x + 5, y + 5);
-    CHECK(g_picker.cell == 24, "wheel in steps the zoom (%d)", g_picker.cell);
-    CHECK(Editor_PickerCellAt(&g_picker, x + 5, y + 5, &map_x, &map_z) && map_x == 50 && map_z == 50,
-        "the square under the pointer stays under it");
+    /* The wheel: continuous, a notch EDITOR_PICKER_ZOOM_STEP, about the
+     * pointer -- the map point under it (not just its square) stays put. */
+    {
+        double const before_x = g_picker.origin_x + (double)(x + 5 - EDITOR_PICKER_LEFT) / g_picker.zoom;
+        double const before_z = g_picker.origin_z - (double)(y + 5 - EDITOR_PICKER_TOP) / g_picker.zoom;
+        double after_x;
+        double after_z;
+        Editor_PickerZoom(&g_picker, -1, x + 5, y + 5);
+        after_x = g_picker.origin_x + (double)(x + 5 - EDITOR_PICKER_LEFT) / g_picker.zoom;
+        after_z = g_picker.origin_z - (double)(y + 5 - EDITOR_PICKER_TOP) / g_picker.zoom;
+        CHECK(fabs(g_picker.zoom - 16.0 * EDITOR_PICKER_ZOOM_STEP) < 1e-9, "a notch in is x%.2f (%.3f)",
+            EDITOR_PICKER_ZOOM_STEP, g_picker.zoom);
+        CHECK(fabs(after_x - before_x) < 1e-9 && fabs(after_z - before_z) < 1e-9,
+            "the map point under the pointer stays under it (%.4f,%.4f -> %.4f,%.4f)", before_x, before_z, after_x,
+            after_z);
+        CHECK(Editor_PickerCellAt(&g_picker, x + 5, y + 5, &map_x, &map_z) && map_x == 50 && map_z == 50,
+            "...so its square does");
+        for( int i = 0; i < 40; i++ )
+            Editor_PickerZoom(&g_picker, -1, x, y);
+        CHECK(fabs(g_picker.zoom - Editor_PickerZoomMax(&g_picker)) < 1e-9
+                  && g_picker.zoom >= (double)(300 - EDITOR_PICKER_TOP - 2),
+            "zooming in stops with one square filling the well or closer (%.1f)", g_picker.zoom);
+        for( int i = 0; i < 80; i++ )
+            Editor_PickerZoom(&g_picker, 1, x, y);
+        CHECK(fabs(g_picker.zoom - Editor_PickerZoomMin(&g_picker)) < 1e-9, "...and out at the page fitting (%.2f)",
+            g_picker.zoom);
+        g_picker.zoom = 24.0;
+        Editor_PickerCentre(&g_picker, 50, 50);
+    }
     Editor_PickerPan(&g_picker, -24, 0);
     CHECK(Editor_PickerCellAt(&g_picker, x + 5, y + 5, &map_x, &map_z) && map_x == 51,
         "dragging left one cell shows the square east (%d)", map_x);
+    /* Fit: the page's squares, edge to edge in the narrower direction. */
+    {
+        const struct Editor_PickerTab* tab = &g_picker.tabs[g_picker.active_tab];
+        int cx;
+        int cy;
+        int cw;
+        int ch;
+        int ex;
+        int ey;
+        int ew;
+        int eh;
+        Editor_PickerFit(&g_picker, 360, 300);
+        Editor_PickerCellBox(&g_picker, tab->min_x, tab->max_z, &cx, &cy, &cw, &ch);
+        Editor_PickerCellBox(&g_picker, tab->max_x, tab->min_z, &ex, &ey, &ew, &eh);
+        CHECK(cx >= EDITOR_PICKER_LEFT - 1 && cy >= EDITOR_PICKER_TOP - 1 && ex + ew <= 360 + 1 && ey + eh <= 300 + 1,
+            "Fit frames every square of the page (%d,%d .. %d,%d)", cx, cy, ex + ew, ey + eh);
+        CHECK(ex + ew - cx >= 360 - EDITOR_PICKER_LEFT - 4 || ey + eh - cy >= 300 - EDITOR_PICKER_TOP - 4,
+            "...filling the well one way (%d x %d)", ex + ew - cx, ey + eh - cy);
+    }
+    /* Labels thin out so they never touch. */
+    CHECK(Editor_PickerLabelEvery(3.0, EDITOR_PICKER_LABEL_W) * 3.0 >= EDITOR_PICKER_LABEL_W
+              && Editor_PickerLabelEvery(300.0, EDITOR_PICKER_LABEL_W) == 1
+              && Editor_PickerLabelEvery(12.0, EDITOR_PICKER_LABEL_W) == 5,
+        "axis labels every 10 at 3 px, every square at 300, every 5 at 12 (%d, %d, %d)",
+        Editor_PickerLabelEvery(3.0, EDITOR_PICKER_LABEL_W), Editor_PickerLabelEvery(300.0, EDITOR_PICKER_LABEL_W),
+        Editor_PickerLabelEvery(12.0, EDITOR_PICKER_LABEL_W));
+    g_picker.zoom = 16.0;
     Editor_PickerCentre(&g_picker, 50, 50);
 }
 
@@ -1411,8 +1464,11 @@ picker_point(
     int* out_x,
     int* out_y)
 {
-    *out_x = EDITOR_PICKER_LEFT + (int)((map_x + 0.5 - picker->origin_x) * picker->cell);
-    *out_y = EDITOR_PICKER_TOP + (int)((picker->origin_z - (map_z + 0.5)) * picker->cell);
+    int w;
+    int h;
+    Editor_PickerCellBox(picker, map_x, map_z, out_x, out_y, &w, &h);
+    *out_x += w / 2;
+    *out_y += h / 2;
     return *out_x > EDITOR_PICKER_LEFT && *out_y > EDITOR_PICKER_TOP && *out_x < picker->well_w
            && *out_y < picker->well_h;
 }
@@ -1513,8 +1569,8 @@ test_chrome(void)
     CHECK(g_window.open_calls == 1 && g_window.open_x == 50 && g_window.open_z == 50 && !g_window.open_add,
         "a click opens m50_50 in place (%d calls)", g_window.open_calls);
     g_ui.shift_held = 1;
-    push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y - picker->cell, 0);
-    push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y - picker->cell, 0);
+    push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y - (int)picker->zoom, 0);
+    push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y - (int)picker->zoom, 0);
     frame();
     g_ui.shift_held = 0;
     CHECK(g_window.open_calls == 2 && g_window.open_z == 51 && g_window.open_add,
@@ -1530,13 +1586,13 @@ test_chrome(void)
         CHECK(picker->origin_x < origin && g_window.open_calls == 2, "a drag pans the map and opens nothing");
     }
     {
-        int const cell = picker->cell;
+        double const cell = picker->zoom;
         push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_WHEEL, x, y, 1);
         frame();
-        CHECK(picker->cell < cell, "the wheel zooms out (%d -> %d)", cell, picker->cell);
+        CHECK(picker->zoom < cell, "the wheel zooms out (%.2f -> %.2f)", cell, picker->zoom);
         push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_WHEEL, x, y, -1);
         frame();
-        CHECK(picker->cell == cell, "...and back in (%d)", picker->cell);
+        CHECK(fabs(picker->zoom - cell) < 1e-9, "...and back in (%.2f)", picker->zoom);
     }
 
     /* Right-click: the menu; Copy to opens the storage question. */
@@ -1569,9 +1625,13 @@ test_chrome(void)
     /* The Area dropdown switches the area the well draws, fitted. */
     {
         int const area = find_widget(squares_panel, TORIRS_CHROME_W_DROPDOWN, "Area");
-        ToriRSChrome_DropdownSetSelected(&g_chrome, area, 1);
+        int const other = picker->tab_count - 2; /* the last area before Unmapped */
+        CHECK(picker->tabs[1].area == EDITOR_PICKER_TAB_FULL && strcmp(picker->tabs[1].title, "Full map") == 0,
+            "the Full map page sits beside the surface");
+        ToriRSChrome_DropdownSetSelected(&g_chrome, area, other);
         activate(area);
-        CHECK(picker->active_tab == 1, "the Area dropdown picks the area (%s)", picker->tabs[picker->active_tab].title);
+        CHECK(picker->active_tab == other && picker->tabs[other].area >= 0, "the Area dropdown picks the area (%s)",
+            picker->tabs[picker->active_tab].title);
         search_field("m50_50");
         CHECK(picker->active_tab == 0, "a search switches back to the square's tab");
     }
@@ -1746,7 +1806,8 @@ test_chrome(void)
 
 #include "editor/editor_worldmap.h"
 
-/* The fake App's map: what the picker asked of it. */
+/* The fake App's map: what the picker asked of it. The map has tiles on
+ * squares 40..60 x 40..60 only. */
 static struct
 {
     int area_calls;
@@ -1754,6 +1815,8 @@ static struct
     int polls;
     int renders;
     int publishes;
+    int bad_publishes;
+    int max_slot;
     int serial;
     int missing;
     int redraws;
@@ -1761,10 +1824,31 @@ static struct
     int z0;
     int w;
     int h;
-    int px;
-    int publish_w;
-    int publish_h;
+    double zoom;
+    int drawn_pixels;
+    int dungeon_pixels;
+    int icon_calls;
+    int area;
 } g_map;
+
+static int g_view_x = 50;
+static int g_view_z = 50;
+
+static int
+fake_moving_view_window(
+    void* user,
+    int* out_map_x,
+    int* out_map_z,
+    int* out_w,
+    int* out_h)
+{
+    (void)user;
+    *out_map_x = g_view_x;
+    *out_map_z = g_view_z;
+    *out_w = 2;
+    *out_h = 2;
+    return 1;
+}
 
 static int
 fake_map_area(
@@ -1778,6 +1862,8 @@ fake_map_area(
         g_map.area_pending--;
         return -2;
     }
+    if( strcmp(name, "*") == 0 )
+        return EDITOR_UI_MAP_AREA_ALL;
     return strcmp(name, "main") == 0 ? 0 : -1;
 }
 
@@ -1789,12 +1875,15 @@ fake_map_poll(
     int z0,
     int w,
     int h,
+    double zoom,
     int* out_missing)
 {
     (void)user;
-    if( area_id != 0 )
+    (void)zoom;
+    if( area_id != 0 && area_id != EDITOR_UI_MAP_AREA_ALL )
         return -1;
     g_map.polls++;
+    g_map.area = area_id;
     g_map.x0 = x0;
     g_map.z0 = z0;
     g_map.w = w;
@@ -1804,25 +1893,36 @@ fake_map_poll(
 }
 
 static int
-fake_map_render(
+fake_map_render_tile(
     void* user,
     int area_id,
-    int x0,
-    int z0,
-    int w,
-    int h,
-    int px,
+    double zoom,
+    int gx0,
+    int gy0,
+    int size,
     uint32_t* out)
 {
     (void)user;
-    if( area_id != 0 )
+    if( area_id != 0 && area_id != EDITOR_UI_MAP_AREA_ALL )
         return 0;
     g_map.renders++;
-    g_map.px = px;
-    CHECK(x0 == g_map.x0 && z0 == g_map.z0 && w == g_map.w && h == g_map.h,
-        "the picture is rendered over the window it polled");
-    for( int i = 0; i < w * px * h * px; i++ )
-        out[i] = 0xFF204080u;
+    g_map.zoom = zoom;
+    g_map.drawn_pixels = 0;
+    for( int row = 0; row < size; row++ )
+    {
+        int const map_z = EDITOR_PICKER_WORLD_SQUARES - 1 - Editor_PickerSquareOfPixel(zoom, gy0 + row);
+        for( int col = 0; col < size; col++ )
+        {
+            int const map_x = Editor_PickerSquareOfPixel(zoom, gx0 + col);
+            /* The surface's squares; with every area, the Ancient Cavern's
+             * m27_83 too, at its true coordinate. */
+            int const dungeon = area_id == EDITOR_UI_MAP_AREA_ALL && map_x == 27 && map_z == 83;
+            int const on = (map_x >= 40 && map_x <= 60 && map_z >= 40 && map_z <= 60) || dungeon;
+            out[row * size + col] = on ? 0xFF204080u : 0;
+            g_map.drawn_pixels += on;
+            g_map.dungeon_pixels += dungeon;
+        }
+    }
     return 1;
 }
 
@@ -1837,9 +1937,43 @@ fake_map_publish(
     (void)user;
     (void)argb;
     g_map.publishes++;
-    g_map.publish_w = w;
-    g_map.publish_h = h;
-    return 0x4000000E + (slot & 1);
+    if( w != EDITOR_WORLDMAP_TILE || h != EDITOR_WORLDMAP_TILE || slot < 0 || slot >= EDITOR_UI_MAP_IMAGE_SLOTS )
+        g_map.bad_publishes++;
+    if( slot > g_map.max_slot )
+        g_map.max_slot = slot;
+    return 0x4C000000 + slot;
+}
+
+static int
+fake_map_icons(
+    void* user,
+    int area_id,
+    int x0,
+    int z0,
+    int w,
+    int h,
+    struct EditorUiMapIcon* out,
+    int capacity,
+    int* out_pending)
+{
+    (void)user;
+    (void)area_id;
+    g_map.icon_calls++;
+    *out_pending = 0;
+    if( capacity < 2 || x0 > 50 || x0 + w <= 50 || z0 > 50 || z0 + h <= 50 )
+        return 0;
+    memset(out, 0, 2 * sizeof(*out));
+    /* A bank booth's icon at Lumbridge castle and the town's label. */
+    out[0].tile_x = 3222;
+    out[0].tile_z = 3218;
+    out[0].scene_id = 777;
+    out[0].w = 15;
+    out[0].h = 15;
+    out[1].tile_x = 3222;
+    out[1].tile_z = 3240;
+    out[1].text_size = 2;
+    snprintf(out[1].label, sizeof(out[1].label), "Lumbridge");
+    return 2;
 }
 
 static void
@@ -1867,30 +2001,90 @@ graph_items_of(
     return n;
 }
 
+/** Outline items of colour `color`; the last one's box in `out_*`. */
+static int
+graph_outlines_of(
+    int graph,
+    uint32_t color,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    const struct ToriRSChromeWidget* w = &g_chrome.widgets[graph];
+    int n = 0;
+    for( int i = 0; i < w->graph_count; i++ )
+    {
+        const struct ToriRSChromeGraphItem* it = &g_chrome.graph_items[w->graph_first + i];
+        if( it->kind != TORIRS_CHROME_GRAPH_RECT_OUTLINE || it->color != color )
+            continue;
+        n++;
+        *out_x = it->x;
+        *out_y = it->y;
+        *out_w = it->w;
+        *out_h = it->h;
+    }
+    return n;
+}
+
+/** Ticks until the map has every tile of the view (or `limit`). */
+static int
+settle_map(int limit)
+{
+    int ticks = 0;
+    int renders = -1;
+    while( ticks < limit && renders != g_map.renders )
+    {
+        renders = g_map.renders;
+        frame();
+        ticks++;
+    }
+    return ticks;
+}
+
+/** Whether the underlay's pictures cover well point (x, y). */
+static int
+underlay_covers(
+    const struct Editor_Picker* picker,
+    int x,
+    int y)
+{
+    for( int i = 0; i < picker->underlay.count; i++ )
+    {
+        const struct Editor_PickerImage* image = &picker->underlay.items[i];
+        if( x >= image->x && x < image->x + image->w && y >= image->y && y < image->y + image->h )
+            return 1;
+    }
+    return 0;
+}
+
 static void
 test_worldmap(void)
 {
     struct Editor_Picker* picker;
+    struct Editor_PickerColors colors;
     int squares_panel;
     int graph;
     int x;
     int y;
 
+    Editor_PickerDefaultColors(&colors);
     ToriRSChrome_Init(&g_chrome);
     ToriRSChrome_SetSurface(&g_chrome, 1280, 800);
     Editor_UiInit(&g_ui, &g_chrome, &g_editor);
     g_ui.hooks.open_square = fake_open_square;
     g_ui.hooks.open_in_new_view = fake_open_in_new_view;
     g_ui.hooks.floor_rgb = fake_floor_rgb;
-    g_ui.hooks.view_window = fake_view_window;
+    g_ui.hooks.view_window = fake_moving_view_window;
     memset(&g_map, 0, sizeof(g_map));
     g_map.area_pending = 1;
     g_map.serial = 1;
     g_map.missing = 2;
     g_ui.app_services.worldmap_area = fake_map_area;
     g_ui.app_services.worldmap_poll = fake_map_poll;
-    g_ui.app_services.worldmap_render = fake_map_render;
+    g_ui.app_services.worldmap_render_tile = fake_map_render_tile;
     g_ui.app_services.image_publish = fake_map_publish;
+    g_ui.app_services.worldmap_icons = fake_map_icons;
     g_ui.app_services.request_redraw = fake_map_redraw;
     Editor_UiRegisterToolsPanels(&g_ui);
     Editor_UiSetVisible(&g_ui, 1);
@@ -1904,52 +2098,53 @@ test_worldmap(void)
     if( !picker || graph < 0 )
         return;
     search_field("m50_50");
-    CHECK(picker->underlay.scene_id == 0 && g_map.area_calls == 1 && g_map.renders == 0,
-        "the cache's areas are still loading: no picture yet, asked once (%d)", g_map.area_calls);
+    CHECK(!picker->underlay.active && g_map.area_calls == 1 && g_map.renders == 0,
+        "the cache's areas are still loading: no map yet, asked once (%d)", g_map.area_calls);
     CHECK(g_map.redraws > 0, "...and the window is kept drawing to ask again");
     for( int i = 0; i < EDITOR_WORLDMAP_AREA_RETRY_TICKS + 1; i++ )
         frame();
     CHECK(g_map.area_calls == 2, "asked again once after the retry, then remembered (%d)", g_map.area_calls);
-    CHECK(picker->underlay.scene_id == 0x4000000E || picker->underlay.scene_id == 0x4000000F,
-        "the surface's map is under the grid (scene %d)", picker->underlay.scene_id);
-    CHECK(graph_items_of(graph, TORIRS_CHROME_GRAPH_IMAGE, 0) == 1, "one GRAPH image item draws it");
+    settle_map(40);
+    CHECK(picker->underlay.active && picker->underlay.count > 0, "the surface's map is under the grid (%d pictures)",
+        picker->underlay.count);
+    CHECK(graph_items_of(graph, TORIRS_CHROME_GRAPH_IMAGE, 0) >= picker->underlay.count,
+        "GRAPH image items draw them");
     CHECK(graph_items_of(graph, TORIRS_CHROME_GRAPH_RECT, 1) == 0, "no square is filled over the map");
+    CHECK(g_map.bad_publishes == 0 && g_map.max_slot < EDITOR_UI_MAP_IMAGE_SLOTS,
+        "every picture is %dx%d in a slot below %d (an atlas renderer reuses its place)", EDITOR_WORLDMAP_TILE,
+        EDITOR_WORLDMAP_TILE, EDITOR_UI_MAP_IMAGE_SLOTS);
 
-    /* Only the visible squares (and a margin) are asked for. */
+    /* Only the visible squares are asked for. */
     {
         int vx0;
         int vz0;
         int vw;
         int vh;
-        int const scale = ToriRSChrome_Scale(&g_chrome);
         CHECK(Editor_PickerVisibleSquares(picker, &vx0, &vz0, &vw, &vh), "the well shows squares");
-        CHECK(g_map.x0 <= vx0 && g_map.z0 <= vz0 && g_map.x0 + g_map.w >= vx0 + vw && g_map.z0 + g_map.h >= vz0 + vh,
-            "the window holds every visible square ([%d,%d %dx%d] vs [%d,%d %dx%d])", g_map.x0, g_map.z0, g_map.w,
-            g_map.h, vx0, vz0, vw, vh);
-        CHECK(g_map.w <= vw + 2 * (vw / 4 > 2 ? vw / 4 : 2) && g_map.h <= vh + 2 * (vh / 4 > 2 ? vh / 4 : 2),
-            "...and no more than a quarter of the view beyond it (%dx%d for %dx%d visible)", g_map.w, g_map.h, vw, vh);
-        CHECK(g_map.px == (picker->cell * scale < 64 ? picker->cell * scale : 64),
-            "rendered at the size it is shown (%d px a square, cell %d)", g_map.px, picker->cell);
-        CHECK(g_map.publish_w == g_map.w * g_map.px && g_map.publish_h == g_map.h * g_map.px,
-            "the published picture is the window at that size");
+        CHECK(g_map.x0 == vx0 && g_map.z0 == vz0 && g_map.w == vw && g_map.h == vh,
+            "the poll is the visible squares ([%d,%d %dx%d] vs [%d,%d %dx%d])", g_map.x0, g_map.z0, g_map.w, g_map.h,
+            vx0, vz0, vw, vh);
+        CHECK(g_map.zoom == picker->zoom, "tiles are rendered at the zoom shown (%.2f)", g_map.zoom);
     }
 
-    /* Regions still arriving: polled every few ticks, the picture redone
-     * when the serial moves; then nothing at all while nothing changes. */
+    /* Regions still arriving: polled every tick; tiles drawn meanwhile are
+     * drawn again once the serial moves; then nothing while nothing changes. */
     {
-        int const renders = g_map.renders;
         int const polls = g_map.polls;
-        for( int i = 0; i < 6; i++ )
+        int const renders = g_map.renders;
+        for( int i = 0; i < 4; i++ )
             frame();
-        CHECK(g_map.polls > polls && g_map.renders == renders,
+        CHECK(g_map.polls >= polls + 3 && g_map.renders == renders,
             "while regions load: polled (%d), not redrawn with nothing new (%d)", g_map.polls - polls,
             g_map.renders - renders);
         g_map.serial = 2;
         g_map.missing = 0;
-        for( int i = 0; i < EDITOR_WORLDMAP_POLL_TICKS + 1; i++ )
+        for( int i = 0; i < EDITOR_WORLDMAP_LOADING_TICKS + 2; i++ )
             frame();
-        CHECK(g_map.renders == renders + 1, "the last regions landed: drawn once more (%d)", g_map.renders - renders);
+        CHECK(g_map.renders > renders, "the last regions landed: the stale tiles drawn again (%d)",
+            g_map.renders - renders);
     }
+    settle_map(40);
     {
         int const renders = g_map.renders;
         int const polls = g_map.polls;
@@ -1957,27 +2152,201 @@ test_worldmap(void)
         for( int i = 0; i < 20; i++ )
             frame();
         CHECK(g_map.renders == renders && g_map.polls == polls && g_map.publishes == publishes,
-            "a view that does not change reuses its picture (renders +%d, polls +%d)", g_map.renders - renders,
+            "a view that does not change reuses its pictures (renders +%d, polls +%d)", g_map.renders - renders,
             g_map.polls - polls);
     }
 
-    /* A pan inside the window moves the picture; a zoom draws a new one. */
+    /* Drag pans, never selects; a still click selects and opens. */
     {
+        double const origin = picker->origin_x;
         int const renders = g_map.renders;
-        int const under_x = picker->underlay.x;
+        int const tiles = picker->underlay.count;
+        memset(&g_window, 0, sizeof(g_window));
         picker_point(picker, 50, 50, &x, &y);
         push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
-        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_DRAG, x + picker->cell, y, 0);
-        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x + picker->cell, y, 0);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_DRAG, x + 2, y, 0);
+        frame();
+        CHECK(picker->origin_x == origin, "a move inside the slop does not pan");
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_DRAG, x + 40, y, 0);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x + 40, y, 0);
+        frame();
+        CHECK(picker->origin_x < origin && g_window.open_calls == 0 && Editor_PickerSelectedCount(picker) <= 1,
+            "a drag pans the map and opens nothing");
+        CHECK(g_map.renders - renders <= tiles / 2 + 2,
+            "the pan renders only the tiles it brought in (%d of %d)", g_map.renders - renders, tiles);
+        settle_map(40);
+    }
+
+    /* Plain clicks: A then B leaves exactly one selection mark, at B; the
+     * squares in this window's world keep their own (inset) mark, and lose
+     * it when the world moves on. */
+    {
+        int sx = 0;
+        int sy = 0;
+        int sw = 0;
+        int sh = 0;
+        int bx;
+        int by;
+        int bw;
+        int bh;
+        int marks;
+        search_field("m50_50");
+        settle_map(40);
+        picker_point(picker, 50, 50, &x, &y);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y, 0);
+        frame();
+        for( int i = 0; i < 40; i++ )
+            frame(); /* not a double-click */
+        picker_point(picker, 51, 50, &x, &y);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y, 0);
+        frame();
+        marks = graph_outlines_of(graph, colors.selected, &sx, &sy, &sw, &sh);
+        Editor_PickerCellBox(picker, 51, 50, &bx, &by, &bw, &bh);
+        CHECK(marks == 1 && sx == bx && sy == by, "click A then B: one selection mark, at B (%d marks, at %d,%d vs %d,%d)",
+            marks, sx, sy, bx, by);
+        CHECK(graph_outlines_of(graph, colors.open, &sx, &sy, &sw, &sh) >= 1,
+            "the squares in this window's world have their own mark");
+        {
+            const struct ToriRSChromeWidget* wg = &g_chrome.widgets[graph];
+            int frame_at = -1;
+            int mark_at = -1;
+            for( int i = 0; i < wg->graph_count; i++ )
+            {
+                const struct ToriRSChromeGraphItem* it = &g_chrome.graph_items[wg->graph_first + i];
+                if( it->kind == TORIRS_CHROME_GRAPH_RECT_OUTLINE && it->color == colors.self_frame )
+                    frame_at = i;
+                if( it->kind == TORIRS_CHROME_GRAPH_RECT_OUTLINE && it->color == colors.selected )
+                    mark_at = i;
+            }
+            CHECK(frame_at >= 0 && mark_at > frame_at,
+                "the selection mark is drawn over this window's frame, never hidden by it (%d after %d)", mark_at,
+                frame_at);
+        }
+        g_view_x = 30;
+        g_view_z = 30;
         frame();
         frame();
-        CHECK(g_map.renders == renders && picker->underlay.x == under_x + picker->cell,
-            "a one-square pan moves the picture (%d -> %d), renders nothing (+%d)", under_x, picker->underlay.x,
-            g_map.renders - renders);
-        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_WHEEL, x, y, 1);
+        CHECK(graph_outlines_of(graph, colors.open, &sx, &sy, &sw, &sh) == 0,
+            "...gone once the world moved on (the mirror still holds them)");
+        g_view_x = 50;
+        g_view_z = 50;
+    }
+
+    /* A double-click opens in place: shift-click (adds), then click again. */
+    {
+        memset(&g_window, 0, sizeof(g_window));
+        for( int i = 0; i < 40; i++ )
+            frame();
+        picker_point(picker, 50, 50, &x, &y);
+        g_ui.shift_held = 1;
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y, 0);
         frame();
-        CHECK(g_map.renders == renders + 1 && g_map.px == (picker->cell < 64 ? picker->cell : 64),
-            "a zoom draws the new size once (%d px a square)", g_map.px);
+        g_ui.shift_held = 0;
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y, 0);
+        frame();
+        CHECK(g_window.open_calls == 2 && g_window.open_x == 50 && !g_window.open_add,
+            "shift-click adds, the double-click's second click opens m50_50 in place (%d calls, add %d)",
+            g_window.open_calls, g_window.open_add);
+    }
+
+    /* Keys while the well has focus: + zooms in about the middle, Left pans. */
+    {
+        double const zoom = picker->zoom;
+        double origin;
+        ToriRSChrome_FocusWidget(&g_chrome, graph, 0);
+        CHECK(ToriRSChrome_KeyChar(&g_chrome, '+'), "the focused well takes '+'");
+        frame();
+        CHECK(fabs(picker->zoom - zoom * EDITOR_PICKER_ZOOM_STEP) < 1e-9, "'+' zooms in a notch (%.2f -> %.2f)", zoom,
+            picker->zoom);
+        CHECK(ToriRSChrome_KeyChar(&g_chrome, '-'), "...and '-'");
+        frame();
+        CHECK(fabs(picker->zoom - zoom) < 1e-9, "'-' zooms back out (%.2f)", picker->zoom);
+        origin = picker->origin_x;
+        CHECK(ToriRSChrome_KeyEdit(&g_chrome, TORIRS_CHROME_KEY_LEFT), "...and Left");
+        frame();
+        CHECK(picker->origin_x < origin, "Left shows the squares west (%.2f -> %.2f)", origin, picker->origin_x);
+        CHECK(!ToriRSChrome_KeyChar(&g_chrome, 'q'), "a letter is not the well's");
+        ToriRSChrome_FocusWidget(&g_chrome, -1, 0);
+    }
+
+    /* A zoom: the old zoom's pictures stand in, scaled, while the new ones
+     * arrive within the budget; then the new ones alone, sharp. */
+    {
+        int pictures;
+        search_field("m50_50");
+        settle_map(40);
+        picker_point(picker, 50, 50, &x, &y);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_WHEEL, x, y, -1);
+        frame();
+        pictures = picker->underlay.count;
+        CHECK(pictures > 0 && underlay_covers(picker, x, y), "the frame after a zoom still shows the map there (%d pictures)",
+            pictures);
+        settle_map(60);
+        CHECK(g_map.zoom == picker->zoom, "then this zoom's tiles are drawn (%.2f)", g_map.zoom);
+        {
+            int stand_ins = 0;
+            for( int i = 0; i < picker->underlay.count; i++ )
+                stand_ins += picker->underlay.items[i].w != EDITOR_WORLDMAP_TILE;
+            CHECK(stand_ins == 0, "...and no scaled stand-in is left (%d)", stand_ins);
+        }
+    }
+
+    /* 48 px a square, the zoom the owner saw blank: pictures over the well,
+     * non-black where regions exist. */
+    {
+        int vx0;
+        int vz0;
+        int vw;
+        int vh;
+        Editor_PickerZoomTo(picker, 48.0, x, y);
+        Editor_PickerCentre(picker, 49, 43);
+        frame();
+        settle_map(80);
+        picker_point(picker, 49, 43, &x, &y);
+        CHECK(fabs(picker->zoom - 48.0) < 1e-9 && underlay_covers(picker, x, y) && g_map.zoom == 48.0,
+            "48 px a square: m49_43 is under a picture");
+        CHECK(g_map.drawn_pixels > 0, "...and the last picture drawn has map in it (%d px)", g_map.drawn_pixels);
+        CHECK(Editor_PickerVisibleSquares(picker, &vx0, &vz0, &vw, &vh) && g_map.w == vw, "...polled for the view");
+        CHECK(g_map.bad_publishes == 0, "every picture still the one size after %d publishes", g_map.publishes);
+    }
+
+    /* Icons and labels: placed at their tiles, fading in with the zoom. */
+    {
+        int gox;
+        int goy;
+        int cx;
+        int cy;
+        Editor_PickerZoomTo(picker, 64.0, x, y);
+        Editor_PickerCentre(picker, 50, 50);
+        settle_map(60);
+        Editor_PickerGlobalOrigin(picker, &gox, &goy);
+        cx = (int)floor((3222 + 0.5) * picker->zoom / 64.0) - gox;
+        cy = (int)floor((EDITOR_PICKER_WORLD_SQUARES * 64 - 1 - 3218 + 0.5) * picker->zoom / 64.0) - goy;
+        CHECK(g_map.icon_calls > 0 && picker->underlay.icon_count == 1, "64 px a square: the icon is drawn (%d)",
+            picker->underlay.icon_count);
+        CHECK(picker->underlay.icon_count == 1 && picker->underlay.icons[0].x == cx - 7
+                  && picker->underlay.icons[0].y == cy - 7 && picker->underlay.icons[0].trans == 0,
+            "...centred on tile 3222,3218, opaque (%d,%d vs %d,%d)", picker->underlay.icons[0].x,
+            picker->underlay.icons[0].y, cx - 7, cy - 7);
+        CHECK(picker->underlay.label_count == 1 && strcmp(picker->underlay.labels[0].text, "Lumbridge") == 0,
+            "...and the town's label");
+        CHECK(graph_items_of(graph, TORIRS_CHROME_GRAPH_IMAGE, 0) == picker->underlay.count + 1,
+            "the icon is a GRAPH image over the map's");
+        Editor_PickerZoomTo(picker, 52.0, x, y);
+        Editor_PickerCentre(picker, 50, 50);
+        settle_map(60);
+        CHECK(picker->underlay.icon_count == 1 && picker->underlay.icons[0].trans > 0
+                  && picker->underlay.icons[0].trans < 255,
+            "52 px a square: fading in (trans %d)", picker->underlay.icon_count ? picker->underlay.icons[0].trans : -1);
+        Editor_PickerZoomTo(picker, 20.0, x, y);
+        Editor_PickerCentre(picker, 50, 50);
+        settle_map(60);
+        CHECK(picker->underlay.icon_count == 0 && picker->underlay.label_count == 1,
+            "20 px a square: no icons, the large label still");
     }
 
     /* A click on an empty square opens New square on it. */
@@ -1988,6 +2357,8 @@ test_worldmap(void)
         CHECK(Editor_PickerSearch(picker, "m55_55", &search), "find m55_55");
         Editor_PickerShow(picker, &search);
         frame();
+        for( int i = 0; i < 40; i++ )
+            frame();
         CHECK(picker_point(picker, 55, 55, &x, &y), "m55_55 is in view");
         push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
         push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y, 0);
@@ -1998,12 +2369,56 @@ test_worldmap(void)
         {
             int const input_x = find_widget(new_panel, TORIRS_CHROME_W_TEXTINPUT, "Map x");
             int const input_z = find_widget(new_panel, TORIRS_CHROME_W_TEXTINPUT, "Map z");
-            CHECK(input_x >= 0 && strcmp(ToriRSChrome_Text(&g_chrome, input_x), "55") == 0
-                      && input_z >= 0 && strcmp(ToriRSChrome_Text(&g_chrome, input_z), "55") == 0,
+            CHECK(input_x >= 0 && strcmp(ToriRSChrome_Text(&g_chrome, input_x), "55") == 0 && input_z >= 0
+                      && strcmp(ToriRSChrome_Text(&g_chrome, input_z), "55") == 0,
                 "...prefilled with m55_55");
             activate(find_widget(new_panel, TORIRS_CHROME_W_BUTTON, "Cancel"));
         }
-        CHECK(picker->underlay.scene_id > 0, "the map stays under the grid");
+        CHECK(picker->underlay.active, "the map stays under the grid");
+    }
+
+    /* The Full map: every square of the grid where it is, every area's
+     * imagery composed onto it -- the dungeon square at its true place. */
+    {
+        int const area = find_widget(squares_panel, TORIRS_CHROME_W_DROPDOWN, "Area");
+        int min_x = 1 << 30;
+        int max_x = -1;
+        int min_z = 1 << 30;
+        int max_z = -1;
+        int dungeon;
+        int vx0;
+        int vz0;
+        int vw;
+        int vh;
+        for( int i = 0; i < picker->square_count; i++ )
+        {
+            min_x = picker->squares[i].map_x < min_x ? picker->squares[i].map_x : min_x;
+            max_x = picker->squares[i].map_x > max_x ? picker->squares[i].map_x : max_x;
+            min_z = picker->squares[i].map_z < min_z ? picker->squares[i].map_z : min_z;
+            max_z = picker->squares[i].map_z > max_z ? picker->squares[i].map_z : max_z;
+        }
+        ToriRSChrome_DropdownSetSelected(&g_chrome, area, 1);
+        activate(area);
+        CHECK(picker->tabs[picker->active_tab].area == EDITOR_PICKER_TAB_FULL, "the Full map page is shown");
+        CHECK(picker->tabs[1].count == picker->square_count && picker->tabs[1].min_x == min_x
+                  && picker->tabs[1].max_x == max_x && picker->tabs[1].min_z == min_z && picker->tabs[1].max_z == max_z,
+            "its extent is every square of the atlas (%d squares, x %d..%d, z %d..%d)", picker->tabs[1].count,
+            picker->tabs[1].min_x, picker->tabs[1].max_x, picker->tabs[1].min_z, picker->tabs[1].max_z);
+        settle_map(80);
+        CHECK(Editor_PickerVisibleSquares(picker, &vx0, &vz0, &vw, &vh) && vx0 <= min_x && vz0 <= min_z
+                  && vx0 + vw > max_x && vz0 + vh > max_z,
+            "fitted, the whole grid is in the well ([%d,%d %dx%d])", vx0, vz0, vw, vh);
+        CHECK(g_map.area == EDITOR_UI_MAP_AREA_ALL, "every area is asked for at once");
+        dungeon = Editor_PickerFind(picker, 27, 83, -1);
+        g_map.dungeon_pixels = 0;
+        Editor_PickerZoomTo(picker, 48.0, x, y);
+        Editor_PickerCentre(picker, 27, 83);
+        settle_map(80);
+        picker_point(picker, 27, 83, &x, &y);
+        CHECK(dungeon >= 0 && Editor_PickerSquareAt(picker, x, y) == dungeon,
+            "the Ancient Cavern's m27_83 is on the grid at 27,83");
+        CHECK(g_map.dungeon_pixels > 0 && underlay_covers(picker, x, y),
+            "...with its imagery drawn there (%d px)", g_map.dungeon_pixels);
     }
 
     /* The Unmapped page has no area: no map, the cells are filled. */
@@ -2014,8 +2429,7 @@ test_worldmap(void)
         ToriRSChrome_DropdownSetSelected(&g_chrome, area, last);
         activate(area);
         frame();
-        CHECK(picker->underlay.scene_id == 0 && graph_items_of(graph, TORIRS_CHROME_GRAPH_IMAGE, 0) == 0,
-            "Unmapped: no map");
+        CHECK(!picker->underlay.active && graph_items_of(graph, TORIRS_CHROME_GRAPH_IMAGE, 0) == 0, "Unmapped: no map");
         CHECK(graph_items_of(graph, TORIRS_CHROME_GRAPH_RECT, 1) > 0, "...its squares filled as ever");
     }
 
@@ -2024,16 +2438,15 @@ test_worldmap(void)
         int const area = find_widget(squares_panel, TORIRS_CHROME_W_DROPDOWN, "Area");
         ToriRSChrome_DropdownSetSelected(&g_chrome, area, 0);
         activate(area);
+        settle_map(60);
+        CHECK(picker->underlay.active, "back on the surface: the map again");
+        g_ui.app_services.worldmap_render_tile = NULL;
         frame();
-        CHECK(picker->underlay.scene_id > 0, "back on the surface: the map again");
-        g_ui.app_services.worldmap_render = NULL;
-        frame();
-        CHECK(picker->underlay.scene_id == 0 && graph_items_of(graph, TORIRS_CHROME_GRAPH_RECT, 1) > 0,
+        CHECK(!picker->underlay.active && graph_items_of(graph, TORIRS_CHROME_GRAPH_RECT, 1) > 0,
             "without the services the cells are filled, no picture");
     }
-    printf("worldmap: %d area asks, %d polls, %d renders, %d publishes, last window %d,%d %dx%d at %d px\n",
-        g_map.area_calls, g_map.polls, g_map.renders, g_map.publishes, g_map.x0, g_map.z0, g_map.w, g_map.h,
-        g_map.px);
+    printf("worldmap: %d area asks, %d polls, %d tile renders, %d publishes (slots to %d), %d icon asks\n",
+        g_map.area_calls, g_map.polls, g_map.renders, g_map.publishes, g_map.max_slot, g_map.icon_calls);
 
     Editor_UiFree(&g_ui);
 }
@@ -2717,6 +3130,180 @@ test_popout(void)
     CHECK(terrain >= 0 && g_chrome.panels[terrain].fixed_w == 1100 && g_chrome.panels[terrain].fixed_h == 760,
         "and follows the window's size");
     (void)wp;
+    Editor_UiFree(&g_ui);
+}
+
+/* ---- the tools every window of a Client shares ----------------------------------- */
+
+/* The main window here is g_ui over g_editor; the other window is a second
+ * connection to the same embedded server joined to the same Client (what a
+ * popped-out window is), with no registry: it records what it hears. */
+static struct
+{
+    int tool;
+    int tool_hits;
+    int tools_hits;
+    int32_t tools[TORIRSMAPED_TOOLS_VALUES];
+    int selection_hits;
+    int32_t selection[7];
+} g_peer_heard;
+
+static void
+peer_on_state(
+    void* user,
+    uint32_t key,
+    const int32_t* values,
+    int count)
+{
+    (void)user;
+    if( key == TORIRSMAPED_STATE_TOOL && count >= 1 )
+    {
+        g_peer_heard.tool = values[0];
+        g_peer_heard.tool_hits++;
+    }
+    else if( key == TORIRSMAPED_STATE_TOOLS && count >= TORIRSMAPED_TOOLS_VALUES )
+    {
+        memcpy(g_peer_heard.tools, values, sizeof(g_peer_heard.tools));
+        g_peer_heard.tools_hits++;
+    }
+    else if( key == TORIRSMAPED_STATE_SELECTION && count >= 7 )
+    {
+        memcpy(g_peer_heard.selection, values, sizeof(g_peer_heard.selection));
+        g_peer_heard.selection_hits++;
+    }
+}
+
+static void
+main_on_state(
+    void* user,
+    uint32_t key,
+    const int32_t* values,
+    int count)
+{
+    Editor_UiApplyState((struct EditorUi*)user, key, values, count);
+}
+
+static void
+test_shared_tools(void)
+{
+    static struct Editor peer;
+    struct EditorHost peer_host;
+    int32_t tools[TORIRSMAPED_TOOLS_VALUES];
+    int32_t value;
+    int terrain;
+
+    layout_boot(1530, 1006, 1);
+    terrain = find_panel("Terrain");
+    if( !Editor_HostOpenMapEdEmbedPeer(&peer_host, &g_editor.host, TORIRSMAPED_ROLE_GENERIC, 1) )
+    {
+        CHECK(0, "shared tools: a second window joins the Client");
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    Editor_OpenHost(&peer, &peer_host, "popped-out window", &g_profile);
+    memset(&g_peer_heard, 0, sizeof(g_peer_heard));
+    Editor_SetStateCallback(&peer, peer_on_state, NULL);
+    Editor_SetStateCallback(&g_editor, main_on_state, &g_ui);
+    frame();
+    Editor_PumpFacts(&peer);
+    CHECK(g_peer_heard.tools_hits == 0, "shared tools: a window's boot publishes no tools (its defaults are no change)");
+
+    /* Main -> other window: the tool (the 3 key arms Raise), the brush, the
+     * palette, all heard. */
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+    g_ui.tools.brush.radius = 5;
+    g_ui.tools.brush.strength = 70;
+    g_ui.tools.underlay_id = 12;
+    g_ui.tools.overlay_none = 0;
+    g_ui.tools.overlay_id = 7;
+    g_ui.tools.place_shape = 22;
+    frame();
+    Editor_PumpFacts(&g_editor);
+    Editor_PumpFacts(&peer);
+    CHECK(g_peer_heard.tool_hits >= 1 && g_peer_heard.tool == EDITOR_TOOL_RAISE,
+        "shared tools: the other window hears the main window arm Raise");
+    CHECK(g_peer_heard.tools_hits >= 1 && g_peer_heard.tools[0] == 5 && g_peer_heard.tools[3] == 70
+              && g_peer_heard.tools[4] == 12 && g_peer_heard.tools[5] == 7 && g_peer_heard.tools[6] == 0
+              && g_peer_heard.tools[10] == 22,
+        "shared tools: and its brush, palette and placement shape (radius %d underlay %d overlay %d)",
+        g_peer_heard.tools[0], g_peer_heard.tools[4], g_peer_heard.tools[5]);
+    CHECK(g_ui.tools.brush.radius == 5 && g_ui.tools.underlay_id == 12,
+        "shared tools: the main window's own echo leaves its tools as they are (radius %d underlay %d, %d echoes "
+        "pending)",
+        g_ui.tools.brush.radius, g_ui.tools.underlay_id, g_ui.tools_echo_count);
+
+    /* Other window -> main: its tool, brush, palette and selection land in
+     * the main window's tools, and the Terrain panel follows. */
+    value = EDITOR_TOOL_SELECT;
+    Editor_StateSet(&peer, TORIRSMAPED_STATE_TOOL, &value, 1);
+    memcpy(tools, g_peer_heard.tools, sizeof(tools));
+    tools[0] = 9;
+    tools[2] = 4;
+    tools[4] = 33;
+    tools[12] = 1;
+    Editor_StateSet(&peer, TORIRSMAPED_STATE_TOOLS, tools, TORIRSMAPED_TOOLS_VALUES);
+    {
+        int32_t const selection[7] = { EDITOR_SELECTION_TERRAIN, 3210, 3220, 0, 0, 0, 0 };
+        Editor_StateSet(&peer, TORIRSMAPED_STATE_SELECTION, selection, 7);
+    }
+    Editor_PumpFacts(&peer);
+    Editor_PumpFacts(&g_editor);
+    frame();
+    CHECK(g_ui.tools.tool == EDITOR_TOOL_SELECT, "shared tools: the main window takes the other window's tool");
+    CHECK(g_ui.tools.brush.radius == 9 && g_ui.tools.brush.step == 4 && g_ui.tools.underlay_id == 33
+              && g_ui.tools.vis_level == 1,
+        "shared tools: and its brush, palette and view level (radius %d step %d underlay %d vis %d)",
+        g_ui.tools.brush.radius, g_ui.tools.brush.step, g_ui.tools.underlay_id, g_ui.tools.vis_level);
+    if( terrain >= 0 )
+    {
+        int slider = -1;
+        for( int i = 0; i < g_chrome.widget_count && slider < 0; i++ )
+            if( g_chrome.widgets[i].panel == terrain && g_chrome.widgets[i].kind == TORIRS_CHROME_W_SLIDER )
+                slider = i;
+        CHECK(slider >= 0 && ToriRSChrome_SliderValue(&g_chrome, slider) == 9,
+            "shared tools: the Terrain panel's Radius slider follows (%d)",
+            slider >= 0 ? ToriRSChrome_SliderValue(&g_chrome, slider) : -1);
+    }
+    g_peer_heard.tools_hits = 0;
+    frame();
+    Editor_PumpFacts(&g_editor);
+    Editor_PumpFacts(&peer);
+    CHECK(g_peer_heard.tools_hits == 0, "shared tools: tools taken from another window are not published back");
+
+    /* The echo rule: a change made before this window's own echo returns
+     * is not undone by it. */
+    g_ui.tools.brush.radius = 2;
+    frame();
+    g_ui.tools.brush.radius = 3;
+    Editor_PumpFacts(&g_editor);
+    CHECK(g_ui.tools.brush.radius == 3, "shared tools: a stale echo of radius 2 does not undo radius 3");
+    frame();
+    Editor_PumpFacts(&g_editor);
+    Editor_PumpFacts(&peer);
+    CHECK(g_peer_heard.tools[0] == 3 && g_ui.tools.brush.radius == 3, "shared tools: both windows end at radius 3");
+
+    /* A popped-out World: the World panel alone, its title naming what a
+     * click in it does. */
+    CHECK(Editor_UiSetSolo(&g_ui, "world"), "shared tools: World can be a window's solo panel");
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+    frame();
+    frame();
+    CHECK(g_ui.world_panel >= 0 && Editor_UiWorldShown(&g_ui)
+              && strcmp(g_chrome.panels[g_ui.world_panel].title, "World - Raise") == 0,
+        "shared tools: the popped-out World shows and names the armed tool (%s)",
+        g_ui.world_panel >= 0 ? g_chrome.panels[g_ui.world_panel].title : "-");
+    CHECK(Editor_UiWorldRect(&g_ui).w > 1400 && Editor_UiWorldRect(&g_ui).h > 900,
+        "shared tools: its world fills the window (%dx%d)", Editor_UiWorldRect(&g_ui).w, Editor_UiWorldRect(&g_ui).h);
+    Editor_UiClearSolo(&g_ui);
+    frame();
+    frame();
+    CHECK(g_ui.solo_panel < 0 && strcmp(g_chrome.panels[g_ui.world_panel].title, "World") == 0
+              && g_chrome.panels[g_ui.world_panel].poppable,
+        "shared tools: Open panels takes it back to the whole set");
+
+    Editor_SetStateCallback(&g_editor, NULL, NULL);
+    Editor_Close(&peer);
+    Editor_PumpFacts(&g_editor);
     Editor_UiFree(&g_ui);
 }
 
@@ -5177,6 +5764,7 @@ main(
     g_tmp_root = root;
     test_world_panel();
     test_popout();
+    test_shared_tools();
     test_layout_codec();
     test_saved_layout();
 

@@ -353,9 +353,9 @@ EditorView_ToolbarActivate(
 
 /** The launch service's `view` body (platform/launch_sessions.h): the
  *  `maped=`, `group=` and `camera=` lines, and `panel=` when `panel` names a
- *  module other than "world" (a popped-out panel window), into `out`.
- *  `panel` NULL = the 3D view. Returns its length, or -1 when it does not
- *  fit. */
+ *  module (a popped-out panel window; "world" = the World panel alone, an
+ *  editing window), into `out`. `panel` NULL = a plain viewer window (Open
+ *  in new view). Returns its length, or -1 when it does not fit. */
 int
 EditorView_SpawnBody(
     const char* maped_url,
@@ -379,12 +379,15 @@ EditorView_BootCamera(struct EditorViewCamera* out);
 
 /** The editor panel module (EditorUiPanel::name) the command line
  *  (`--editor-panel`) asked this viewer process to show ALONE, filling the
- *  window -- a popped-out panel. "world" or NULL = the 3D view (today's
- *  viewer). main.c sets it before App_Init; the name is copied. */
+ *  window -- a popped-out panel. "world" is the World panel alone: the
+ *  command panels' session (tool, brush, level, selection, all shared with
+ *  the Client) driving clicks in it, with the view's thin toolbar over it.
+ *  NULL = a plain viewer (no panels, no editing). main.c sets it before
+ *  App_Init; the name is copied. */
 void
 EditorView_SetBootPanel(const char* module);
 
-/** The boot panel, or NULL for the 3D view. Never "world". */
+/** The boot panel, or NULL for a plain viewer. */
 const char*
 EditorView_BootPanel(void);
 
