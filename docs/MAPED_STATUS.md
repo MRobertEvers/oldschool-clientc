@@ -138,12 +138,14 @@ tab cannot reach the ToriRSMapEd embedded in another.
   lists that file); `record` opens the Record panel beside it, `add=` runs
   Add trigger, `check` runs Check (src/editor/panels/edpanel_triggers.c).
 
-**No plugin rail.** An editor window -- the main one and every popped-out
-panel or view -- carries no plugin rail: the Manage Plugins wrench and the
-plugin strip are game chrome. main.c hides the SDL strip before the window
-opens (`PlatformWindow_ChromeSetRailHidden`) and the plugin panel publishes
-an empty rail snapshot for an editor App, which keeps the web page's rail
-empty too (owner, 2026-11-02).
+**The plugin rail is the client settings.** An editor window -- the main one
+and every popped-out panel or view -- keeps the platform's rail, but it
+carries one stone, "Client settings", and that stone opens the client
+settings page directly: the roster (Manage Plugins), the page's Back and
+every other way to the roster land on that page, and no plugin page is
+offered beside the editor's dock (`app_plugin_editor_page`,
+src/plugin/torirs_plugin_panel.u.c; owner, 2026-11-02).
+`TORIRS_PLUGIN_RAIL_DEBUG=1` prints the stones a window offers.
 
 **The saved layout.** Every panel's box, whether it is open, whether the user
 placed it, and View > Snap to grid persist across launches in

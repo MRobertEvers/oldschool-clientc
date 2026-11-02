@@ -7131,7 +7131,8 @@ main_parse_argument_layer(
             continue;
         }
         /* A popped-out editor panel: a viewer that shows ONE panel module
-         * filling the window (editor/editor_view.h EditorView_BootPanel). */
+         * filling the window, "world" included (editor/editor_view.h
+         * EditorView_BootPanel). */
         if( strcmp(argv[argi], "--editor-panel") == 0 && argi + 1 < argc )
         {
             char const* module = argv[++argi];
@@ -9100,12 +9101,6 @@ main(
             main_shutdown(&app);
             return 1;
         }
-        /* An editor window (the main one and every popped-out panel or view)
-         * has no plugin rail: the strip at the window's right edge is game
-         * chrome. Hidden before the window opens, so no width is ever
-         * reserved for it (owner, 2026-11-02). */
-        if( app.editor )
-            PlatformWindow_ChromeSetRailHidden(platform, true);
         /* The runner camera split (struct App_ViewSplit): a script gets a view
          * of its own only in a client that presents to a person. SDL's dummy
          * driver is a headless run -- one view, nothing created -- unless

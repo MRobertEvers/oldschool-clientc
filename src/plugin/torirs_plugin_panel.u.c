@@ -127,10 +127,39 @@ app_plugin_rail_publish(struct App* app);
 
 /* Change the ONE page selection and its generation together. A platform event
  * queued by the page being left is stale from this statement onward. */
+/* Registered first in torirs_plugin_registry.c; its id is the host's name. */
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_CLIENT_SETTINGS;
+
+/** In an editor window, the one plugin page the window may show -- the
+ *  client settings -- as its host index; -1 in the game, or with no host. */
+static int
+app_plugin_editor_page(struct App const* app)
+{
+    assert(app);
+    if( !app->editor || !app->plugins )
+        return -1;
+    return PluginHost_IndexOf(app->plugins, TORIRS_PLUGIN_CLIENT_SETTINGS.id);
+}
+
 static void
 app_plugin_page_select(struct App* app, int page, int view)
 {
     assert(app);
+
+    /* The map editor's plugin window is the client settings and nothing
+     * else: the roster (page -1), whether asked by the rail's stone, the
+     * page's Back or a vanished page, lands on that one settings face
+     * (owner, 2026-11-02: "the plugin chrome should only allow editing the
+     * client settings and should go straight there"). */
+    if( page < 0 )
+    {
+        int const editor_page = app_plugin_editor_page(app);
+        if( editor_page >= 0 )
+        {
+            page = editor_page;
+            view = APP_PLUGIN_VIEW_SETTINGS;
+        }
+    }
 
     /*
      * The SETTINGS view of a plugin that has a panel is still a page with no
@@ -1679,7 +1708,7 @@ app_plugin_panel_sync(struct App* app)
          * only other way back is knowing that the pressed Manage stone reopens
          * the roster. A registered semantic page is its own destination and
          * does not get one -- its stone is the way in and out. */
-        if( !on_page )
+        if( !on_page && app_plugin_editor_page(app) < 0 )
         {
             g_plugin_back_widget =
                 ToriRSChrome_Button(&app->plugin_ui, app->plugin_panel, "< Plugins");
@@ -2390,14 +2419,6 @@ app_plugin_rail_snapshot(
     ToriRSChromeRailSnapshot_Init(snapshot);
     if( !app->plugins )
         return;
-    /* An editor window carries no plugin rail: its panels are the editor's
-     * own dock, and a Manage Plugins wrench beside them is game chrome in a
-     * tool (owner, 2026-11-02). An empty snapshot keeps the retained rail
-     * empty on every presentation, native and web; main.c also hides the
-     * SDL strip itself for editor boots. */
-    if( app->editor )
-        return;
-
     snapshot->registry_revision =
         PluginHost_PanelRegistryRevision(app->plugins);
     snapshot->selection_generation = app->plugin_shell.selection_generation;
@@ -2431,7 +2452,13 @@ app_plugin_rail_snapshot(
     /* Permanent application destination, in the same retained rail and the
      * same shared page pane as plugins. Its icon is the baked wrench. */
     (void)ToriRSChromeRailSnapshot_AddManage(
-        snapshot, TORIRS_CHROME_SHELL_PAGE_MANAGE, "Manage Plugins");
+        snapshot, TORIRS_CHROME_SHELL_PAGE_MANAGE,
+        app_plugin_editor_page(app) >= 0 ? "Client settings" : "Manage Plugins");
+    /* An editor window's rail is that one stone: it opens the client
+     * settings directly (app_plugin_page_select), and no plugin page is
+     * offered beside the editor's own dock (owner, 2026-11-02). */
+    if( app_plugin_editor_page(app) >= 0 )
+        return;
 
     count = PluginHost_Count(app->plugins);
     for( int plugin = 0; plugin < count; plugin++ )
@@ -2462,6 +2489,24 @@ app_plugin_rail_publish(struct App* app)
     app_plugin_rail_snapshot(app, &snapshot);
     (void)ToriRSChromeRailSync_Run(
         &app->plugin_rail, &app->plugin_exec_pending, &snapshot);
+    /* TORIRS_PLUGIN_RAIL_DEBUG=1: one line per change of what the rail
+     * offers, so a headless run can prove the editor's single stone (the
+     * strip itself is the platform's and outside every frame capture). */
+    if( getenv("TORIRS_PLUGIN_RAIL_DEBUG") )
+    {
+        static int last_count = -1;
+        static char last_first[64];
+        char const* first = snapshot.entry_count > 0 ? snapshot.entries[0].title : "";
+        if( snapshot.entry_count != last_count || strcmp(first, last_first) != 0 )
+        {
+            last_count = snapshot.entry_count;
+            snprintf(last_first, sizeof(last_first), "%s", first);
+            TORIRS_REPORT("plugin rail: %d stone(s)", snapshot.entry_count);
+            for( int i = 0; i < snapshot.entry_count; i++ )
+                TORIRS_REPORT(" [%s]", snapshot.entries[i].title);
+            TORIRS_REPORT("\n");
+        }
+    }
     if( !app->plugins )
         return;
     for( int i = 0; i < snapshot.entry_count; i++ )
