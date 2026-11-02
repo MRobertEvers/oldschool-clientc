@@ -974,12 +974,17 @@ def cmd_completion(args):
     """Print the shell glue, so installing it is one line of copy-paste."""
     from . import completion
 
-    shell = args.shell
-    if not shell:
-        shell = os.path.basename(os.environ.get("SHELL", "")) or "bash"
-    if shell not in completion.SHELLS:
+    typed = args.shell
+    if not typed:
+        # $SHELL names the login shell on every Unix; Windows has no $SHELL
+        # and its interactive shell with completion is PowerShell.
+        typed = os.path.basename(os.environ.get("SHELL", ""))
+        if not typed:
+            typed = "powershell" if os.name == "nt" else "bash"
+    shell = completion.shell_name(typed)
+    if shell is None:
         raise LaunchError("no completion script for '%s' (have: %s)"
-                          % (shell, ", ".join(sorted(completion.SHELLS))))
+                          % (typed, ", ".join(sorted(completion.SHELLS))))
     body = completion.script(shell)
     if body is None:
         raise LaunchError("completion script for '%s' is missing from %s"
@@ -989,7 +994,7 @@ def cmd_completion(args):
     if sys.stdout.isatty():
         # Only when a human is looking: piping this into a file or eval must
         # get the script and nothing else.
-        say("install with:  eval \"$(./launch completion %s)\"" % shell)
+        say("install with:  %s" % completion.SHELL_INSTALL[shell])
     return 0
 
 
@@ -1193,7 +1198,8 @@ def main(argv=None):
     shell = sub.add_parser("completion",
                            help="print the shell tab-completion script")
     shell.add_argument("shell", nargs="?",
-                       help="bash or zsh ($SHELL by default)")
+                       help="bash, zsh, fish or powershell ($SHELL by default; "
+                            "powershell on Windows)")
 
     args = parser.parse_args(argv)
     if not args.command:

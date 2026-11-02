@@ -4,6 +4,7 @@ rem implementation of the one thing that matters.
 rem
 rem   launch.cmd list
 rem   launch.cmd run <profile> [client args...]
+rem   launch.cmd completion powershell | Out-String | Invoke-Expression   (tab completion, pwsh)
 rem
 rem TWO MACHINES, ONE COMMAND.
 rem

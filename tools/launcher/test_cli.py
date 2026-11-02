@@ -68,3 +68,56 @@ class WindowsAsanTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CompletionScriptsTest(unittest.TestCase):
+    """One glue file per shell, all driven by the same `launch complete`."""
+
+    def test_every_shell_has_a_script_that_asks_launch_complete(self):
+        from . import completion
+        for shell in completion.SHELLS:
+            body = completion.script(shell)
+            self.assertIsNotNone(body, shell)
+            self.assertIn("complete --", body, shell)
+
+    def test_shell_spellings_resolve(self):
+        from . import completion
+        self.assertEqual("powershell", completion.shell_name("pwsh"))
+        self.assertEqual("powershell", completion.shell_name("PowerShell"))
+        self.assertEqual("bash", completion.shell_name("sh"))
+        self.assertEqual("fish", completion.shell_name("fish"))
+        self.assertIsNone(completion.shell_name("cmd"))
+        self.assertIsNone(completion.shell_name(""))
+
+    def test_every_shell_has_an_install_line(self):
+        from . import completion
+        self.assertEqual(set(completion.SHELLS), set(completion.SHELL_INSTALL))
+
+    def test_the_shell_slot_completes_to_every_shell(self):
+        import io
+        from . import completion
+        out = io.StringIO()
+        completion.emit(cli.REPO_ROOT, ["completion", ""], out)
+        offered = {line.split("\t")[0] for line in out.getvalue().splitlines()}
+        self.assertEqual(set(completion.SHELLS), offered)
+
+    def test_completion_command_prints_the_named_shells_script(self):
+        import io
+        from contextlib import redirect_stdout
+        from . import completion
+        for typed, shell in (("fish", "fish"), ("pwsh", "powershell")):
+            out = io.StringIO()
+            with redirect_stdout(out):
+                code = cli.main(["completion", typed])
+            self.assertEqual(0, code, typed)
+            self.assertEqual(completion.script(shell), out.getvalue(), typed)
+
+    def test_an_unknown_shell_is_refused_by_name(self):
+        import io
+        from contextlib import redirect_stderr, redirect_stdout
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = cli.main(["completion", "cmd"])
+        self.assertEqual(1, code)
+        self.assertEqual("", out.getvalue())
+        self.assertIn("no completion script for 'cmd'", err.getvalue())

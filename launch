@@ -7,7 +7,11 @@
     ./launch status
     ./launch stop --all
 
-Tab completion:  eval "$(./launch completion zsh)"   (or bash)
+Tab completion (bash, zsh, fish, PowerShell -- `./launch completion` picks
+your $SHELL, or name one):
+    eval "$(./launch completion zsh)"                           # zsh, bash
+    ./launch completion fish > ~/.config/fish/completions/launch.fish
+    ./launch completion powershell | Out-String | Invoke-Expression   # pwsh, launch.cmd
 """
 
 import os

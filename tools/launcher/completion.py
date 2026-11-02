@@ -122,7 +122,34 @@ FLAVORS = {
     "asan": "ASan+UBSan in their own objdir (macOS/Linux only)",
 }
 
-SHELLS = {"bash": "bash completion function", "zsh": "zsh compdef function"}
+SHELLS = {
+    "bash": "bash completion function",
+    "zsh": "zsh compdef function",
+    "fish": "fish completion (~/.config/fish/completions/launch.fish)",
+    "powershell": "PowerShell Register-ArgumentCompleter (Windows and pwsh)",
+}
+
+# The file each shell's glue lives in under completions/, where the extension
+# is not the shell's name.
+SHELL_FILES = {"powershell": "launch.ps1"}
+
+# Spellings people type for the same shell; $SHELL basenames included.
+SHELL_ALIASES = {"pwsh": "powershell", "ps1": "powershell", "sh": "bash"}
+
+# The one-line install, shown after the script when a human is looking.
+SHELL_INSTALL = {
+    "bash": 'eval "$(./launch completion bash)"',
+    "zsh": 'eval "$(./launch completion zsh)"',
+    "fish": "./launch completion fish > ~/.config/fish/completions/launch.fish",
+    "powershell": "./launch completion powershell | Out-String | Invoke-Expression",
+}
+
+
+def shell_name(shell):
+    """The canonical shell for a typed or $SHELL spelling, or None."""
+    shell = (shell or "").strip().lower()
+    shell = SHELL_ALIASES.get(shell, shell)
+    return shell if shell in SHELLS else None
 
 
 def _profile_names(repo_root):
@@ -354,7 +381,7 @@ def emit(repo_root, words, stream):
 def script(shell):
     """The shell glue, read from completions/ so there is one copy of it."""
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        "completions", "launch.%s" % shell)
+                        "completions", SHELL_FILES.get(shell, "launch.%s" % shell))
     if not os.path.isfile(path):
         return None
     with open(path) as handle:
