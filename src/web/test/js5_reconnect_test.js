@@ -5,8 +5,9 @@
  * A proxy or server that closes an idle WebSocket (the public reverse proxy
  * did, at 120 s) must not take the cache producer down with it: the next
  * request reconnects, and a request that was in flight when the socket went
- * is re-sent on the new one. Only a refused handshake or an unreachable
- * server is a failure.
+ * is re-sent on the new one. A server that has answered once and then
+ * refuses the socket is restarting: the request waits for it. Only a refused
+ * handshake, or a server that never answered at all, is a failure.
  *
  * Runs under plain node (22+, for the global WebSocket): the server is a
  * hand-rolled RFC 6455 endpoint on a loopback port, so nothing is installed.
@@ -25,7 +26,7 @@ const GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 /* A JS5-over-WebSocket server with two policies under test: it closes a
  * connection that has been quiet for `idleMs`, and it hangs up instead of
  * answering the first request for `dropOnGroup`. */
-function fakeServer({ idleMs, dropOnGroup, handshakeStatus = 0 }) {
+function fakeServer({ idleMs, dropOnGroup, handshakeStatus = 0, port = 0 }) {
   const state = { connections: 0, dropped: false, server: null, port: 0 };
   state.server = net.createServer(socket => {
     state.connections++;
@@ -104,7 +105,7 @@ function fakeServer({ idleMs, dropOnGroup, handshakeStatus = 0 }) {
     });
     socket.on('error', () => {});
   });
-  return new Promise(resolve => state.server.listen(0, '127.0.0.1', () => {
+  return new Promise(resolve => state.server.listen(port, '127.0.0.1', () => {
     state.port = state.server.address().port;
     resolve(state);
   }));
@@ -156,17 +157,41 @@ async function main() {
     assert.strictEqual(server.connections, 4);
     passed++;
 
-    /* 4. The server goes away for good: a request fails, and stays failed. */
+    /* 4. The server restarts: a request made while it is down waits, and is
+     * answered once it is back on the same port. Failing here used to leave
+     * the session without any group the database did not already hold. */
+    const port = server.port;
     server.server.close();
     await sleep(400);
-    let err = null;
-    try { await js5.group(2, 3); } catch (e) { err = e; }
-    assert.ok(err && err.torirsUnreachable, 'an unreachable server is an outage');
-    assert.ok(js5.stats().failed, 'and the client stays failed');
+    let settled = false;
+    const waiting = js5.group(2, 3).then(bytes => { settled = true; return bytes; });
+    await sleep(800);
+    assert.strictEqual(settled, false, 'the request waits for the server');
+    assert.strictEqual(js5.stats().failed, null, 'a restarting server is not an outage');
+    assert.ok(js5.stats().retries > 0, 'the client kept dialling');
+    const restarted = await fakeServer({ idleMs: 0, port });
+    const answer = await waiting;
+    assert.strictEqual(answer[7], 3, 'answered by the restarted server');
+    assert.strictEqual(restarted.connections, 1);
+    assert.strictEqual(js5.stats().failed, null);
     passed++;
   }
 
-  /* 5. A refused handshake is a configuration failure, never a reconnect. */
+  /* 5. A server that never answered: an outage, failed at once and for good. */
+  {
+    const gone = await fakeServer({ idleMs: 0 });
+    const port = gone.port;
+    await new Promise(resolve => gone.server.close(resolve));
+    const js5 = create('127.0.0.1', port, 239, `ws://127.0.0.1:${port}/`);
+    let err = null;
+    try { await js5.group(2, 1); } catch (e) { err = e; }
+    assert.ok(err && err.torirsUnreachable, 'an unreachable server is an outage');
+    assert.ok(js5.stats().failed, 'and the client stays failed');
+    assert.strictEqual(js5.stats().retries, 0, 'without dialling again');
+    passed++;
+  }
+
+  /* 6. A refused handshake is a configuration failure, never a reconnect. */
   {
     const server = await fakeServer({ idleMs: 0, handshakeStatus: 6 });
     const js5 = create('127.0.0.1', server.port, 239, `ws://127.0.0.1:${server.port}/`);

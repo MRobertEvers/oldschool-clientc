@@ -13,6 +13,33 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
+/*
+ * An empty read, judged: absent, or failed.
+ *
+ * The two look the same from here -- no archive -- and mean opposite things.
+ * An id the sprites table does not list will never arrive, and is recorded so
+ * nothing asks again; an id it DOES list came back empty because the read
+ * failed (a dropped JS5 socket, a browser storage error), and recording that
+ * as absent is what used to leave an interface without its art for the rest of
+ * the session. With no table resident yet nothing is decided: a later attempt
+ * will have one.
+ */
+static void
+dat2_sprite_read_empty(
+    struct Dat2BuildCache* bc,
+    int sprite_id)
+{
+    struct RSCache_ReferenceTable* table;
+
+    assert(bc);
+    if( !dat2_buildcache_reference_table_has(bc, RSCACHE_DAT2_TABLE_SPRITES) )
+        return;
+    table = dat2_buildcache_reference_table_get(bc, RSCACHE_DAT2_TABLE_SPRITES);
+    assert(table);
+    if( !RSCache_ReferenceTableHasArchive(table, sprite_id) )
+        CacheProvider_SpriteMarkAbsent(&bc->base, sprite_id);
+}
+
 struct Task_Dat2SpriteLoad
 {
     struct ToriRS_Task task;
@@ -39,6 +66,7 @@ Task_Dat2SpriteLoad_Run(
     if( !archive )
     {
         TORIRS_ERR("Failed to decode dat2 sprite archive %d\n", task->sprite_id);
+        dat2_sprite_read_empty(task->bc, task->sprite_id);
         PT_EXIT(&task->pt);
     }
 
@@ -77,7 +105,8 @@ CreateTask_Dat2SpriteLoad(
     assert(provider);
 
     dat2_buildcache = (struct Dat2BuildCache*)provider;
-    if( CacheProvider_SpriteHas(provider, sprite_id) )
+    if( CacheProvider_SpriteHas(provider, sprite_id) ||
+        CacheProvider_SpriteAbsent(provider, sprite_id) )
         return NULL;
 
     task = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*task));

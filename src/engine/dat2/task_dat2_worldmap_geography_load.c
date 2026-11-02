@@ -108,9 +108,40 @@ struct Task_Dat2WorldMapGeographyLoad
     /* The ground image is per group, so it is fetched once for the first record
      * that names one — a chunk-assembled region shares its neighbours' image. */
     int ground_group;
+    /* A read of a group the table lists came back empty: the region is not
+     * published, so the renderer asks again (worldmap_geography_read_empty). */
+    bool failed;
     struct WorldMapGeoFileCacheEntry file_cache[WORLDMAP_GEO_FILE_CACHE_CAP];
     int file_cache_count;
 };
+
+/*
+ * An empty read, judged: is it the cache's answer, or a failure?
+ *
+ * Geography is a sparse table, so "no group" is ordinary -- an ocean region has
+ * none, and publishing that region empty is what keeps the renderer from asking
+ * every frame. But a group the table DOES list that came back empty is a read
+ * that failed (a dropped JS5 socket, a browser storage error), and publishing
+ * it empty baked a grey region that was marked complete and never asked for
+ * again. No resident table cannot tell the two apart, and is taken as a
+ * failure: asking again costs a read after the renderer's pause, deciding
+ * "absent" costs the region for the session.
+ */
+static bool
+worldmap_read_failed(
+    struct Dat2BuildCache* bc,
+    enum RSCache_Dat2Table table_id,
+    int group)
+{
+    struct RSCache_ReferenceTable* table;
+
+    assert(bc);
+    if( !dat2_buildcache_reference_table_has(bc, table_id) )
+        return true;
+    table = dat2_buildcache_reference_table_get(bc, table_id);
+    assert(table);
+    return RSCache_ReferenceTableHasArchive(table, group);
+}
 
 static void
 worldmap_geo_file_cache_clear(struct Task_Dat2WorldMapGeographyLoad* task)
@@ -256,7 +287,11 @@ Task_Dat2WorldMapGeographyLoad_Run(
                 archive ? "ok" : "MISSING",
                 archive ? archive->file_count : -1);
         if( !archive )
+        {
+            if( worldmap_read_failed(task->bc, RSCACHE_DAT2_TABLE_WORLDMAP_GEOGRAPHY, group_id) )
+                task->failed = true;
             continue;
+        }
 
         filelist =
             RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
@@ -428,9 +463,21 @@ Task_Dat2WorldMapGeographyLoad_Run(
             RSCache_FileListFree(filelist);
             RSCache_Dat2DiskArchiveFree(archive);
         }
+        else if( worldmap_read_failed(
+                     task->bc, RSCACHE_DAT2_TABLE_WORLDMAP_GROUND, task->ground_group) )
+        {
+            task->failed = true;
+        }
     }
 
     worldmap_geo_file_cache_clear(task);
+
+    if( task->failed )
+    {
+        /* Free leaves nothing published; the renderer asks again. */
+        TORIRS_ERR("worldmap geography: key 0x%08x read failed; not published\n", task->key);
+        PT_EXIT(&task->pt);
+    }
 
     if( task->decoded == 0 )
     {

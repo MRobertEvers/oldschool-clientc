@@ -332,7 +332,6 @@ App_MinimapBuildDots(
         for( int i = 0; i < count; i++ )
         {
             struct Wev* wev = Wevs_ViewListAt(&app->wevs, WORLDVIEW_ROOT, i);
-            struct ToriRS_Sprite* sprite;
             int scene_id;
 
             assert(wev);
@@ -341,17 +340,10 @@ App_MinimapBuildDots(
             assert(wev->config);
             if( wev->config->minimap_sprite_id < 0 || app_minimap_view_flattened(app, wev->id) )
                 continue;
-            sprite = CacheProvider_SpriteGet(app->provider, wev->config->minimap_sprite_id);
-            if( !sprite || sprite->frame_count <= 0 )
-            {
-                struct ToriRS_Task* task =
-                    CreateTask_SpriteLoad(app->provider, wev->config->minimap_sprite_id);
-                if( task )
-                    ToriRS_TaskQueue_Add(app->runner.queue, task);
-                continue;
-            }
-            scene_id = UITreeSceneBridge_EnsureSprite(&app->bridge, wev->config->minimap_sprite_id);
-            if( scene_id <= 0 )
+            /* Bound, and drawn once the scene holds it: the bridge asks for
+             * it once per pause, where asking here was once per frame. */
+            scene_id = UITreeSceneBridge_BindSprite(&app->bridge, wev->config->minimap_sprite_id);
+            if( scene_id <= 0 || !ToriDraw_SceneSpriteHas(app->scene, scene_id) )
                 continue;
             {
                 int before = app->minimap_dots.count;
