@@ -100,21 +100,51 @@ def load(content_dir):
 GRANTS = ("p_finduid", "p_findmutualfriend", "p_findvisibleplayer", "npc_findhero")
 
 
-def edges(body):
+def granting_procs(bodies):
+    """Every proc that makes a p_finduid-family call, itself or through a gosub.
+
+    The grant is the script's, not the proc's: a `~bind_fighter` that calls
+    p_finduid and returns leaves its caller holding the player
+    (troll_champion.rs2's `if (~troll_dad_bind_fighter = false) return;`).
+    """
+    procs = {name for (kind, name) in bodies if kind == "proc"}
+    granting = set()
+    changed = True
+    while changed:
+        changed = False
+        for name in procs - granting:
+            for _, _, line in bodies[("proc", name)]:
+                if any(re.search(r"\b%s\b" % g, line) for g in GRANTS) or \
+                        any(m.group(1) in granting for m in GOSUB.finditer(line)):
+                    granting.add(name)
+                    changed = True
+                    break
+    return granting
+
+
+def edges(body, granting=frozenset()):
     """(target, file, line, granted) for every gosub/jump/suspend in a body.
 
-    `granted` is True once a p_finduid-family call has appeared on this or an
-    earlier line of the same body: those are the calls that give a script
-    protected access in the reference (Engine-TS PlayerOps.ts P_FINDUID), so a
-    suspend after one is legal. Line order stands in for control flow, which
-    is the usual `if (p_finduid(uid) = true) { @label; }` shape.
+    `granted` is True once a p_finduid-family call -- or a gosub to a proc in
+    `granting`, which makes one -- has appeared on this or an earlier line of
+    the same body: those are the calls that give a script protected access in
+    the reference (Engine-TS PlayerOps.ts P_FINDUID), so a suspend after one
+    is legal. Line order stands in for control flow, which is the usual
+    `if (p_finduid(uid) = true) { @label; }` shape. The granting gosub itself
+    is walked ungranted: a suspend inside it before its own p_finduid is
+    still found.
     """
     granted = False
     for path, lineno, line in body:
+        before = granted
         if any(re.search(r"\b%s\b" % g, line) for g in GRANTS):
             granted = True
         for m in GOSUB.finditer(line):
-            yield ("proc", m.group(1)), path, lineno, granted
+            if m.group(1) in granting:
+                yield ("proc", m.group(1)), path, lineno, before
+                granted = True
+            else:
+                yield ("proc", m.group(1)), path, lineno, granted
         for m in JUMP.finditer(line):
             yield ("label", m.group(1)), path, lineno, granted
         for m in COMMAND.finditer(line):
@@ -122,7 +152,7 @@ def edges(body):
                 yield ("!", m.group(1)), path, lineno, granted
 
 
-def find_chains(bodies, start):
+def find_chains(bodies, start, granting=frozenset()):
     """{(suspend command, granted): shortest chain from `start` to it}.
 
     Walked over (script, granted) so an ungranted path to a suspend is found
@@ -135,7 +165,7 @@ def find_chains(bodies, start):
     queue = deque([(start, False, [])])
     while queue:
         key, granted_in, chain = queue.popleft()
-        for target, path, lineno, granted_here in edges(bodies.get(key, [])):
+        for target, path, lineno, granted_here in edges(bodies.get(key, []), granting):
             granted = granted_in or granted_here
             step = chain + [(key, target, path, lineno)]
             if target[0] == "!":
@@ -159,6 +189,7 @@ def main():
     args = ap.parse_args()
 
     bodies = load(args.content)
+    granting = granting_procs(bodies)
     hits = []
     for key in sorted(bodies):
         kind, subject = key
@@ -166,7 +197,7 @@ def main():
             continue
         if args.only and args.only not in "[%s,%s]" % key:
             continue
-        chains = find_chains(bodies, key)
+        chains = find_chains(bodies, key, granting)
         ungranted = {cmd: chain for (cmd, granted), chain in chains.items() if not granted}
         granted = sorted({cmd for (cmd, g) in chains if g})
         if ungranted or (granted and args.all):

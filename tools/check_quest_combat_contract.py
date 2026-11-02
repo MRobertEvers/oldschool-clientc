@@ -304,6 +304,7 @@ AHOY_HUB = CONTENT / "quests/quest_ghostsahoy/scripts/ahoy_hub.rs2"
 AHOY_MANUAL = CONTENT / "quests/quest_ghostsahoy/scripts/ahoy_manual.rs2"
 AHOY_ROBES = CONTENT / "quests/quest_ghostsahoy/scripts/ahoy_robes.rs2"
 AHOY_SHARED = CONTENT / "quests/quest_ghostsahoy/scripts/ahoy_shared.rs2"
+AHOY_CRONE = CONTENT / "quests/quest_ghostsahoy/scripts/ahoy_crone.rs2"
 AHOY_COOKING = CONTENT / "skill_cooking/scripts/cooking.rs2"
 AHOY_DYES = CONTENT / "skill_crafting/scripts/dye_cape.rs2"
 CATEGORY_PACK = ROOT / "OSRS-Content/osrs-content/pack/category.pack"
@@ -4381,22 +4382,29 @@ def check_roving_elves() -> None:
 
 
 def check_ghosts_ahoy() -> None:
+    """Ghosts Ahoy as RSProx index 4462 (rev 241, 2026-11-02) recorded it:
+    docs/rsprox-analysis/quests/ghosts_ahoy.md."""
     require_text(
         AHOY_CONSTANT.read_text(),
         (
             "^ahoy_req_agility = 25", "^ahoy_req_cooking = 20",
+            "^ahoy_reward_prayer_xp = 24000", "^ahoy_barrier_toll = 2",
+            "^ahoy_boat_fare = 25", "^ahoy_runedraw_stake = 25",
+            # Jagex's stage values, each written on its recorded tick.
+            "^ahoy_talked_velorina = 1", "^ahoy_talked_necrovarus = 2",
+            "^ahoy_told_of_crone = 3", "^ahoy_gathering_items = 4",
+            "^ahoy_need_amulet = 5", "^ahoy_amulet_enchanted = 6",
+            "^ahoy_necrovarus_defeated = 7", "^ahoy_complete = 8",
+            "^ahoy_petition_burnt = 31",
             "^ahoy_captain_chest_coord = 1_56_55_35_25",
-            "^ahoy_rock_chest_coord = 0_56_55_22_44",
+            # The lower deck's chest holds the lobster and scrap 2, the rock's scrap 3.
             "^ahoy_lobster_chest_coord = 0_56_55_34_22",
-            "^ahoy_lobster_loot_coord = 0_56_55_35_22",
-            "^ahoy_lobster_spawn_coord = 0_56_55_33_22",
-            "^ahoy_lobster_lifetime = 200",
-            "^ahoy_lobster_head_rate = 25",
-            "^ahoy_lobster_clue_rate = 128",
+            "^ahoy_rock_chest_coord = 0_56_55_22_44",
             "^ahoy_dig_book_coord = 0_59_55_27_10",
-            "^ahoy_boat_fare = 25",
+            "^ahoy_dragontooth_dock_coord = 0_59_55_16_39",
+            "^ahoy_phas_dock_coord = 0_57_54_54_31",
         ),
-        "Ghosts Ahoy exact wreck, lobster and captain constants",
+        "Ghosts Ahoy recorded stages, tiles and fares",
     )
     require_text(
         config_text.read_text(AHOY_VARP),
@@ -4404,7 +4412,7 @@ def check_ghosts_ahoy() -> None:
             "[varp7502_ahoy_lobster_active]", "scope=temp",
             "[varp7503_ahoy_flag_top]", "[varp7504_ahoy_flag_bottom]", "[varp7505_ahoy_flag_skull]",
             "[varp7506_ahoy_ship_top]", "[varp7507_ahoy_ship_bottom]", "[varp7508_ahoy_ship_skull]",
-            "[varp7509_ahoy_dragontooth_pass]", "[varp7510_ahoy_captain_chest_unlocked]",
+            "[varp7509_ahoy_dragontooth_pass]",
         ),
         "Ghosts Ahoy private persistent puzzle state",
     )
@@ -4424,50 +4432,63 @@ def check_ghosts_ahoy() -> None:
     require_text(
         AHOY_HUB.read_text(),
         (
-            "[proc,ahoy_boil_nettle_tea]()(boolean)",
-            "if (stat(cooking) < ^ahoy_req_cooking)",
-            "slayerguide_slayer_gloves", "ranger_gloves",
-            "magictraining_infinitygloves", "lunar_moonclan_gloves",
-            "granite_gloves", "lunar_gloves", "beekeeper_gloves",
+            # The barrier [1018..1054], [341..343].
+            "inv_del(inv, ectotoken, ^ahoy_barrier_toll);",
+            "You pay the 2 ectoken toll to enter Port Phasmatys.",
+            "You don't have enough tokens to pay the toll.",
+            # The petition burnt and the bone key [5949..5956].
+            "inv_add(inv, ashes, 1);", "The petition form turns to ashes in your hand.",
             "obj_add_private(coord, ahoy_bone_key, 1",
-            "inv_add(inv, ashes, 1);",
-            "~ahoy_give(ahoy_toy_boat);",
+            "%varb217_ahoy_questvar = ^ahoy_necrovarus_defeated;",
+            # Nettles [1319..1337]: gloves or the sting, the patch gone 13 ticks.
+            "inv_getobj(worn, ^wearpos_hands) = null", "You have been stung by the nettles!",
+            "damage(uid, hitsplat_poison, 2);", "loc_del(13);",
+            "[proc,ahoy_boil_nettle_tea]", "if (stat(cooking) < ^ahoy_req_cooking)",
+            "You boil the water and make nettle tea.", "You accidentally let the water boil over.",
         ),
-        "Ghosts Ahoy prerequisites, tea and unique-item recovery",
+        "Ghosts Ahoy barrier, Necrovarus and nettle tea",
+    )
+    require_text(
+        AHOY_CRONE.read_text(),
+        ("npc_anim(human_dancing, 0);", "%varb217_ahoy_questvar = ^ahoy_amulet_enchanted;",
+         "inv_setslot(worn, ^wearpos_front, amulet_of_ghostspeak_enchanted, 1);"),
+        "Ghosts Ahoy crone's ritual",
     )
     book = AHOY_BOOK.read_text()
     require_text(
         book,
         (
-            "[proc,ahoy_flag_init]", "add(1, random(6))",
+            "[proc,ahoy_flag_init]", "calc(1 + random(6))",
             "[proc,ahoy_dye_colour](obj $dye)(int)",
-            "case reddye", "case bluedye", "case yellowdye",
-            "case orangedye", "case greendye", "case purpledye",
-            "if_openoverlay(ahoy_windspeed)", "[timer,ahoy_wind]",
-            "%varp7506_ahoy_ship_top ! %varp7503_ahoy_flag_top",
-            "if (loc_coord = ^ahoy_rock_chest_coord)",
-            "if (loc_coord ! ^ahoy_lobster_chest_coord)",
-            "if (loc_coord ! ^ahoy_lobster_loot_coord)",
-            "healenergy(-500);", "stat_random(agility, 120, 260)",
-            "stat_advance(agility, 100);", "p_teleport(loc_coord);",
+            "[oploc1,ahoy_mast]", "[softtimer,ahoy_wind]", "%varb205_ahoy_windspeed",
+            "The wind is blowing too hard to make out any details.",
+            # The chests: the captain's takes the key and flashes, the others open.
+            "if (loc_coord ! ^ahoy_captain_chest_coord",
+            "loc_change(ahoy_chest_locked_active, 1);", "sound_synth(62, 1, 0);",
+            "anim(human_openchest, 0);", "sound_synth(52, 1, 0);",
+            "if (loc_coord = ^ahoy_lobster_chest_coord)",
+            "~ahoy_give(ahoy_map_scrap_2);",
+            "if (~ahoy_plane0(loc_coord) = ^ahoy_rock_chest_coord",
+            "~ahoy_give(ahoy_map_scrap_3);",
+            # The rocks [5296..5354].
+            "anim(human_jump_stones, 26);", "sound_synth(2461, 1, 0);",
+            "anim(human_falling_end, 0);", "stat_advance(agility, 100);",
         ),
-        "Ghosts Ahoy per-player flag, three-chest and rock contract",
+        "Ghosts Ahoy per-player flag, wind, three chests and rocks",
     )
     require_text(
         book,
         (
-            "npc_add(^ahoy_lobster_spawn_coord, giant_lobster, ^ahoy_lobster_lifetime);",
-            "npc_setowner;", "npc_setmode(opplayer2);", "hint_npc;",
+            # [4774..4822]
+            "You are attacked by a giant lobster!!",
+            "npc_add(movecoord(^ahoy_lobster_chest_coord, -2, 0, 1), giant_lobster, 200);",
+            "npc_setowner;", "hint_npc;", "npc_setmode(opplayer2);",
             "[opnpc2,giant_lobster]", "[apnpc2,giant_lobster]",
             "[ai_queue3,giant_lobster]", "npc_findhero", "p_finduid(uid)",
-            "%varb215_ahoy_killed_lobster = 1;",
-            "obj_add_private($drop, seaweed, 1",
-            "random(^ahoy_lobster_head_rate)", "arceuus_corpse_scorpion",
-            "random(^ahoy_lobster_clue_rate)", "trail_clue_beginner",
-            "[timer,ahoy_lobster_monitor]", "~ahoy_cleanup_lobster;",
+            "%varb215_ahoy_killed_lobster = 1;", "~ahoy_cleanup_lobster;",
             "[proc,ahoy_on_death]", "[proc,ahoy_on_logout]",
         ),
-        "Ghosts Ahoy owner-private timed lobster and complete loot",
+        "Ghosts Ahoy owner-private lobster",
     )
     # The lobster is a melee monster (wiki Giant_lobster_(Ghosts_Ahoy) oldid 15272821:
     # Stab, speed 4, max hit 4): it retaliates through the default [ai_queue1,_]
@@ -4496,38 +4517,38 @@ def check_ghosts_ahoy() -> None:
     require_text(
         book,
         (
-            "inv_total(inv, ahoy_map_scrap_1) < 1",
-            "inv_total(inv, ahoy_map_scrap_2) < 1",
-            "inv_total(inv, ahoy_map_scrap_3) < 1",
             "inv_add(inv, ahoy_map_complete, 1);",
-            "inv_total(worn, ring_of_charos_unlocked) > 0", "$fare = 10;",
-            "inv_total(inv, ectotoken) < 500", "%varp7509_ahoy_dragontooth_pass = 1;",
+            # The captain [5514..5669]: 25 tokens, the fade, the move four ticks on.
+            "inv_del(inv, ectotoken, ^ahoy_boat_fare);",
+            "After a long boat trip you arrive at Dragontooth Island.",
             "distance(coord, ^ahoy_dragontooth_dock_coord) <= 24",
-            "coord = ^ahoy_dig_book_coord", "inv_add(inv, ahoy_book_of_haricanto, 1);",
+            "[label,ahoy_captain_sail](coord $to, string $text)",
+            # The dig [5629].
+            "if (coord ! ^ahoy_dig_book_coord", "anim(human_dig, 0);", "sound_synth(1470, 1, 0);",
+            "~ahoy_give(ahoy_book_of_haricanto);",
         ),
-        "Ghosts Ahoy map, captain fare and exact dig route",
+        "Ghosts Ahoy map, captain and exact dig",
     )
     require_text(
         AHOY_MANUAL.read_text(),
-        ("I've lost the bow you signed for Ak-Haranu.",
-         "inv_total(bank, oak_longbow_signed) < 1",
-         "inv_add(inv, oak_longbow_signed, 1);"),
-        "Ghosts Ahoy signed-bow recovery",
+        ("[proc,ahoy_runedraw_open]", "if_openmain(ahoy_runedraw);",
+         "[if_button,ahoy_runedraw:runedraw_btn_draw]",
+         "[if_button,ahoy_runedraw:runedraw_btn_hold]", "Thinking...", "Your turn"),
+        "Ghosts Ahoy Runedraw on interface 9",
     )
     require_text(
         AHOY_ROBES.read_text(),
-        ("I can replace the bedsheet when you have a free inventory slot.",
-         "I can replace the petition when you have a free inventory slot.",
-         "obj_add_private(coord, ahoy_robes_of_necrovarus, 1",
-         "inv_total(bank, ahoy_robes_of_necrovarus) >= 1"),
-        "Ghosts Ahoy bedsheet, petition and robes recovery",
+        ("%varb209_ahoy_signaturecounter = ^ahoy_petition_given;",
+         "[oploc1,ahoy_coffin_open]", "~ahoy_give(ahoy_robes_of_necrovarus);"),
+        "Ghosts Ahoy petition and robes",
     )
     require_text(
         AHOY_SHARED.read_text(),
-        ("%varp107_prieststart < ^priest_complete", "%varp302_priestperil < ^priestperil_complete",
-         "%varp302_priestperil = ^priestperil_complete;", "%varp7503_ahoy_flag_top = 0;",
-         "%varp7509_ahoy_dragontooth_pass = 0;", "%varp7510_ahoy_captain_chest_unlocked = 0;"),
-        "Ghosts Ahoy deterministic reset coverage",
+        ("[proc,ahoy_quest_complete]", "~ahoy_give(ectophial);",
+         "stat_advance(prayer, ^ahoy_reward_prayer_xp);", "[proc,ahoy_journal]",
+         "[proc,ahoy_reset]", "%varp7502_ahoy_lobster_active = 0;",
+         "%varp7503_ahoy_flag_top = 0;", "%varp7509_ahoy_dragontooth_pass = 0;"),
+        "Ghosts Ahoy completion, journal and deterministic reset",
     )
     require_text(AHOY_COOKING.read_text(), ("if (last_useitem = bowl_nettlewater)", "~ahoy_boil_nettle_tea;"),
                  "Ghosts Ahoy shared cooking-fire integration")
@@ -5288,12 +5309,18 @@ def check_wanted() -> None:
                         "param=slashattack,18", "param=strengthbonus,16",
                         "param=death_drop,null"),
                        "Wanted!")
+    # RSProx 4464 (docs/rsprox-analysis/quests/wanted.md): Solus turns attackable
+    # where he stands after "YOU DIE NOW!" [4707]; his death and the sixth stop's
+    # knight's are queued on the player; the knight is added beside them [4455].
     require_text(WANTED_HUNT.read_text(), (
-        "npc_add(^wanted_essence_mine_coord, wanted_solus_attackable, 100);",
+        "npc_changetype(wanted_solus_attackable, 1000);\n    npc_setmode(opplayer2);",
         "[opnpc2,wanted_solus_attackable]\n~npc_retaliate(0);\n@player_combat_start;",
-        "[ai_queue3,wanted_solus_attackable]\nif (npc_findhero = ^true & %varb1051_wanted_main = ^wanted_hunt) {",
+        "[ai_queue3,wanted_solus_attackable]\nif (npc_findhero = ^true) {\n"
+        "    if (p_finduid(uid) = true) {\n        queue(wanted_solus_defeated, 0, 0);",
+        "[queue,wanted_solus_defeated]\nif (%varb1051_wanted_main ! ^wanted_hunt) {",
         "%varb1051_wanted_main = ^wanted_final_battle;",
-        "npc_add($knight_spot, wanted_summoned_black_knight, 200);",
+        "npc_add($knight, wanted_summoned_black_knight, 500);",
+        "[ai_queue3,wanted_summoned_black_knight]",
     ), "Wanted! Solus fight")
 
 
