@@ -4275,8 +4275,24 @@ npc_vs_npc_tick(
     if( srv->tick < npc->attack_clock )
         return 1;
     npc->attack_clock = srv->tick + npc_def(npc)->attackrate;
-    ToriRSServer_ScriptsRunTriggerNpc2(srv, SS_TRIGGER_AI_OPNPC2, npc->type, -1, slot,
-                                     target_slot);
+    /*
+     * An npc's swing at an npc has no player behind it. The npc phase belongs
+     * to no player, so `active_player` here is whoever was served last; the
+     * swing ran under it, an `npc_queue` it armed recorded it as the hit's
+     * hero, and the hit then took the retaliation latch onto that player:
+     * every guard and cultist of Twilight's Promise's Teomat battle left its
+     * opponent for the player the first time it was hurt (half the recorded
+     * swings, RSProx index 4444 [2258..2400]). Bound to nobody, as the npc
+     * queue already runs an entry an npc armed.
+     */
+    {
+        struct ToriRSServerPlayer* saved_active = srv->active_player;
+
+        ToriRSServer_WorldSetActive(srv, NULL);
+        ToriRSServer_ScriptsRunTriggerNpc2(srv, SS_TRIGGER_AI_OPNPC2, npc->type, -1, slot,
+                                         target_slot);
+        ToriRSServer_WorldSetActive(srv, saved_active);
+    }
     return 1;
 }
 

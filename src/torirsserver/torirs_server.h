@@ -10326,6 +10326,9 @@ ToriRSServer_SlotMapClient(
 /** As ToriRSServer_SlotMapRelease, recording WHY for TORIRSSERVER_NPC_TRACE. The reason
  *  is the diagnostic: a released slot is a despawn on the client, and the
  *  re-add gets a different slot. */
+/** `follower_npc`: (type << 16) | client npc index, set by `npc_setfollower`. */
+#define TORIRSSERVER_VARP_FOLLOWER_NPC 447
+
 /** Record/clear this player's follower. NULL clears. */
 void
 ToriRSServer_WorldNpcSetFollower(

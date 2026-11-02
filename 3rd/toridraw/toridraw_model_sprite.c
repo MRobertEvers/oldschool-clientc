@@ -438,8 +438,15 @@ ToriDraw_RenderModelExtentsAtWidget(
 
         int bw = widget_w > 0 ? widget_w : sw;
         int bh = widget_h > 0 ? widget_h : sh;
-        int origin_x = widget_x + (bw / 2) - blit_offset_x;
-        int origin_y = widget_y + (bh / 2) - blit_offset_y;
+        /* widget_model_project_vertices leaves each vertex relative to the
+         * CENTRE of the sw x sh extents sprite (px + dx - sw/2), as the sprite
+         * baker wants. Here the sprite's top-left goes at widget centre - dx,
+         * so add sw/2 back: the vertex lands at widget centre + px, the deob's
+         * drawOrtho (class144.method4835, centre from class147.method5050) and
+         * GL3. Without it every ortho model sat half its extents up-left: the
+         * quetzal map's scroll left the screen (RSProx 4444 [2038]). */
+        int origin_x = widget_x + (bw / 2) - blit_offset_x + (sw >> 1);
+        int origin_y = widget_y + (bh / 2) - blit_offset_y + (sh >> 1);
 
         if( !widget_model_project_vertices(scene, hnd, &xf, sw, sh, blit_offset_x, blit_offset_y) )
             return false;

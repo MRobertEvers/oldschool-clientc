@@ -3985,7 +3985,9 @@ def check_twilightspromise() -> None:
                                   "magic=20", "param=attackrate,5", "param=damagetype,^slash_style",
                                   "param=strengthbonus,0", "param=stabdefence,28",
                                   "param=slashdefence,26", "param=crushdefence,10",
-                                  "param=magicdefence,5", "param=death_drop,null")),
+                                  "param=magicdefence,5", "param=death_drop,null",
+                                  # RSProx 4444/1679: he yields at nothing left, never dies.
+                                  "param=death_script,yes")),
     ) + tuple(
         (f"vmq2_cultist_{kind}", ("hitpoints=25", "attack=30", "strength=35", "defence=30",
                                    "param=attackrate,4", "param=damagetype,^stab_style",
@@ -3999,12 +4001,20 @@ def check_twilightspromise() -> None:
     colosseum = (base / "scripts/twilightspromise_colosseum.rs2").read_text()
     require_text(
         colosseum,
+        # RSProx index 4444 [1401..1641] / 1679 [1649..1702]: the copy, his spawn
+        # tile, the prayer counted on the landing and said a tick later, his
+        # overhead on every swing, and the yield (no death) into the way out.
         ("[proc,tp_mezan_start]", "~map_instance_from_square(^tp_arena_template);",
-         "npc_add(map_instance_coord($handle, ^tp_arena_knight_x, ^tp_arena_knight_z, 0), vmq2_knight_6_combat",
+         "npc_add(map_instance_coord($handle, 32, 36, 0), vmq2_knight_6_combat",
+         "npc_setmode(opplayer2);",
          "[opnpc2,vmq2_knight_6_combat]", "~npc_retaliate(0);", "@player_combat_start;",
-         "[proc,tp_mezan_prepare_hit]", "%tp_mezan_streak >= ^tp_mezan_streak",
-         "[ai_queue3,vmq2_knight_6_combat]", "%varb9832_vmq2_colosseum_knight = 2;",
-         "queue(tp_mezan_leave, 4, 0);", "~npc_default_death;"),
+         "[proc,tp_mezan_prepare_hit]", "[ai_queue2,vmq2_knight_6_combat]",
+         "~npc_default_damage(last_int);", "$count < ^tp_mezan_streak",
+         "npc_queue(4, $code, 1);", "[ai_queue4,vmq2_knight_6_combat]",
+         "npc_headicon(0, 440, calc($code - 1));", "[ai_opplayer2,vmq2_knight_6_combat]",
+         "~npc_meleeattack;", "[ai_queue3,vmq2_knight_6_combat]",
+         "npc_changetype(vmq2_knight_6_combat_done, 0);", "npc_setops(0);",
+         "queue(tp_mezan_beaten, 1, 0);", "%varb9832_vmq2_colosseum_knight = 2;"),
         "Twilight's Promise colosseum script",
     )
     funnel = (ROOT / "OSRS-Content/osrs-content/server/scripts/skill_combat/scripts/player/player_hit_npc_prepare.rs2").read_text()
@@ -4013,12 +4023,14 @@ def check_twilightspromise() -> None:
     battle = (base / "scripts/twilightspromise_battle.rs2").read_text()
     require_text(
         battle,
-        ("[proc,tp_battle_start]", "~map_instance_from_square(^tp_battle_template);",
-         "npc_add(map_findsquare(movecoord($landing, 5, 0, 0), 0, 2, ^map_findsquare_lineofwalk), vmq2_cultist_m_1",
+        # RSProx index 4444 [2252..2430]: a copy, the cast in pairs, one cultist
+        # on the player, every death counted, the aftermath on the eighth.
+        ("[proc,tp_battle_start]", "~cutscene_copy_enter(^tp_battle_template, 33, 43)",
+         "~tp_battle_actor(32, 39, vmq2_cultist_m_1, 33, 43)",
          "npc_setmode(opplayer2);", "[opnpc2,vmq2_cultist_m_1]", "[opnpc2,vmq2_cultist_f_3]",
-         "[ai_queue3,vmq2_cultist_m_1]", "[ai_queue3,vmq2_cultist_f_3]",
-         "%varp7966_tp_battle_kills >= ^tp_cultists_total", "queue(tp_battle_won, 3, 0);",
-         "[queue,tp_battle_won]", "~map_instance_release_here;", "%varb9649_vmq2 = ^tp_finish;"),
+         "[ai_opnpc2,vmq2_guard_1]", "[ai_queue3,vmq2_cultist_m_1]", "[ai_queue3,vmq2_cultist_f_3]",
+         "%varp7966_tp_battle_kills >= ^tp_cultists_total", "queue(tp_battle_won, 0, 0);",
+         "[queue,tp_battle_won]", "%varb9649_vmq2 = ^tp_finish;"),
         "Twilight's Promise battle script",
     )
 

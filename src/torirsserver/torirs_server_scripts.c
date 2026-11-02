@@ -7272,6 +7272,21 @@ script_command(
         slot = (int)(npc - srv->npcs);
         ToriRSServer_WorldNpcSetOwner(npc, player);
         ToriRSServer_WorldNpcSetFollower(player, npc, slot);
+        /*
+         * `follower_npc` is (type << 16) | the npc's index in THIS client's
+         * view, sent on the tick the follower is added (RSProx index 4444
+         * [1155]: 877777880 = 13393 << 16 | 54232, Azali). The index is the
+         * per-player name the npc info hands out, so it is taken here and the
+         * add reuses it. `follower_obj` (448) and both clears are content's:
+         * the obj is the follower's own (a pet's item).
+         */
+        {
+            int const client_slot = ToriRSServer_SlotMapAcquire(player, slot);
+
+            if( client_slot >= 0 )
+                ToriRSServer_WorldSetVarpOn(srv, player, TORIRSSERVER_VARP_FOLLOWER_NPC,
+                                            (npc->type << 16) | client_slot);
+        }
         return 1;
     }
 

@@ -6,10 +6,12 @@
 return {
     id = "twilightspromise",
     fixture = "fresh_lumbridge.ini",
+    max_frames = 240000,
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots
         "::twilightspromise", -- debugproc: reset quest state, stand beside Regulus outside Varrock
         "::complete quest_childrenofthesun", -- guide requirement: Children of the Sun
+        "::setvar varb9652_vmq2_first_travel 4", -- flown before: RSProx index 4444 logs in with 4 ([0])
         -- LEG 2 brought-along kit: Quest Helper lists "Two combat styles" for the Colosseum knight (guide enterColosseum)
         "::setlevel hitpoints 80",
         "::setlevel attack 60", -- melee style
@@ -47,15 +49,10 @@ return {
 
                 -- LEG 1 BEGIN: talkToRegulusStart
                 t.exec("goto-talkToRegulusStart", t.player.goto_tile, 3281, 3413, 0)
-                -- Talk to Regulus Cento outside Varrock's East Gate (twilightspromise.rs2:147).
-                t.exec("talkToRegulusStart", t.player.talk_to, "vmq2_quetzal_keeper_varrock", 1)
-                t.exec("talkToRegulusStart-dialog", t.chat.play, {
-                    "npc:Nilsal, adventurer. Do you wis",
-                    "choose:Let's do it!",
-                    "player:Let's do it!",
-                    "npc:Then hold on tight. Varlamore ",
-                })
-                t.ticks(5)
+                -- Regulus's Travel outside Varrock's East Gate, as the recorder flew (RSProx
+                -- index 4444 [241]): the wings and the fade, Fortis on C+4.
+                t.player.talk_to("vmq2_quetzal_keeper_varrock", 3)
+                t.ticks(9)
                 local _, arrive = t.world.tile()
                 t.check("talkToRegulusStart.arrived", arrive ~= nil and arrive.x < 2000,
                     "flew to Civitas illa Fortis, tile " .. tostring(arrive and (arrive.x .. "," .. arrive.z)))
@@ -67,7 +64,7 @@ return {
                     "npc:I believe so.",
                     "npc:Doesn't look like much.",
                     "choose:Yes.",
-                    "player:Hey I recognise you two!",
+                    "player:Hey, I recognise you two!",
                     "npc:Indeed we were.",
                     "npc:More than part of.",
                     "npc:As was our duty.",
@@ -91,7 +88,7 @@ return {
                     "npc:Yes... and no.",
                     "player:Your only companion is death?",
                     "npc:You jest, as your kind often do.",
-                    "player:Well things got deep very quickly.",
+                    "player:Well, things got deep very quickly.",
                     "npc:Few seek an introduction",
                     "player:Right... So who actually are you?",
                     "npc:I am Metzli, Teokan of Ranul.",
@@ -129,7 +126,7 @@ return {
                     "player:Your father?",
                     "npc:Yes, very fun stuff.",
                     "npc:Nilsal, my child.",
-                    "npc:Well let's not start celebrating",
+                    "npc:Well, let's not start celebrating",
                     "npc:Sorry about that, by the way.",
                     "player:It's not a problem.",
                     "npc:Ah, the Tullus twins.",
@@ -152,7 +149,7 @@ return {
                     "npc:Nonsense!",
                     "npc:The Teomat does not offer",
                     "npc:I am the chosen messenger",
-                    "npc:Well this is a terrible idea",
+                    "npc:Well, this is a terrible idea",
                     "npc:My child, I would be delighted",
                     "npc:, since Servius here seems keen",
                     "player:I'm sure I can manage that.",
@@ -186,7 +183,7 @@ return {
                     "player:You two are quite the pair",
                     "npc:Thank you.",
                     "npc:I do not believe that was a compliment",
-                    "npc:Oh... Well let's get to it then.",
+                    "npc:Oh... Well, let's get to it then.",
                     "player:He's asked me to investigate the knights",
                     "npc:Has he forgotten that he himself",
                     "player:He's staying with Servius",
@@ -228,15 +225,15 @@ return {
                     "npc:Nilsal. Can we help",
                     "player:Ennius and Furia Tullus need",
                     "npc:If that were so",
-                    "player:Well it just so happens",
+                    "player:Well, it just so happens",
                     "*", -- objbox: the crest shown
-                    "npc:Hmm... Well we're not going",
+                    "npc:Hmm... Well, we're not going",
                     "player:I can do that",
                     "npc:A band of thieves",
                     "npc:Find the amulet",
                     "player:How will I find it",
                     "npc:Beat them at their own game",
-                    "player:Well this doesn't sound",
+                    "player:Well, this doesn't sound",
                 })
                 t.ticks(2)
                 t.expect("bazaar.asked", t.var.expect("varb9829_vmq2_bazaar_knights", 1))
@@ -267,7 +264,7 @@ return {
                     "npc:Good work",
                     "player:So you'll return",
                     "npc:We'll be there once",
-                    "player:Well good luck",
+                    "player:Well, good luck",
                     "*", -- objbox: the amulet handed over
                 })
                 t.ticks(2)
@@ -314,7 +311,7 @@ return {
                 t.exec("talkToPubKnights", t.player.talk_to, "vmq2_knight_5_drunk", 1)
                 t.exec("talkToPubKnights-dialog", t.chat.play, {
                     "player:Hello!",
-                    "npc:Well look who it is!",
+                    "npc:Well, look who it is!",
                     "player:Er... I don't know you",
                     "npc:Oh...",
                     "npc:I told you not to have",
@@ -328,33 +325,45 @@ return {
                     "npc:Azali here can't",
                     "player:Hmm... Where's the nearest",
                     "npc:There's one outside",
-                    "player:Well there's nothing like",
+                    "player:Well, there's nothing like",
                     "npc:Ohh... We're going somewhere new",
                 })
                 t.ticks(2)
                 t.expect("pub.following", t.var.expect("varb9834_vmq2_drunk_knight_vis", 2))
 
-                -- walk her to the fountain: she stops now and then (knights.rs2:364), talk to her again
+                -- Lead her to the fountain the way the recorder did (RSProx index 4444
+                -- [1155..1233]): short hops, and talk to her again whenever she stops for
+                -- a break or because the player got ten tiles ahead.
                 local led = false
-                for leg_step = 1, 30 do
-                    t.player.walk_to(1757, 3068, 40)
-                    t.ticks(6)
+                for leg_step = 1, 60 do
                     local _, pub = t.var.server("varb9831_vmq2_pub_knights")
                     if (pub or 0) >= 2 then led = true; break end
-                    local nr = t.player.talk_to("vmq2_knight_5_follower", 1)
-                    t.chat.drain({})
-                    t.ticks(2)
+                    local _, me = t.world.tile()
+                    local _, summary = t.npc.tiles("vmq2_knight_5_follower", 20)
+                    local ax, az = tostring(summary):match(" at (%d+),(%d+) ")
+                    ax, az = tonumber(ax), tonumber(az)
+                    if me and ax and math.max(math.abs(me.x - ax), math.abs(me.z - az)) >= 4 then
+                        t.player.talk_to("vmq2_knight_5_follower", 1)
+                        t.chat.drain({})
+                        t.ticks(2)
+                    elseif me then
+                        local nx = math.min(me.x + 3, 1756)
+                        local nz = me.z + ((3068 > me.z) and 1 or ((3068 < me.z) and -1 or 0))
+                        t.player.walk_to(nx, nz, 6)
+                        t.ticks(2)
+                    end
                 end
                 local _, pubv = t.var.server("varb9831_vmq2_pub_knights")
                 local _, wt = t.world.tile()
                 t.check("takePubKnightsToFountain", led, "walked from the pub, pub group var " .. tostring(pubv) .. ", standing at " .. tostring(wt and (wt.x .. "," .. wt.z)))
 
-                t.exec("talkToPubKnightAtFountain", t.player.talk_to, "vmq2_knight_5_vis", 1)
+                -- The fountain scene (RSProx index 4444 [1234..1257]) ends in her first page.
+                t.ticks(20)
                 t.exec("talkToPubKnightAtFountain-dialog", t.chat.play, {
                     "npc:Oh boy...",
                     "player:Feeling a bit better",
                     "npc:Not exactly.",
-                    "player:Well it will have to do",
+                    "player:Well, it will have to do.",
                     "npc:This day is the worst",
                 })
                 t.ticks(2)
@@ -366,7 +375,9 @@ return {
                 t.exec("wield-platelegs", t.player.equip, "rune_platelegs")
                 t.exec("goto-enterColosseum", t.player.goto_tile, 1795, 3106, 0)
                 t.exec("enterColosseum", t.player.click_loc, "colosseum_entrance_outside", 1)
-                t.ticks(3)
+                -- The lobby door's frame (twilightspromise_colosseum.rs2, RSProx 4444 [1337..1345]):
+                -- the fade, the minimap off, then the lobby at 1799,9506.
+                t.ticks(8)
                 local _, lobby = t.world.tile()
                 t.check("enterColosseum.arrived", lobby ~= nil and lobby.z > 9000, "in the lobby at " .. tostring(lobby and (lobby.x .. "," .. lobby.z)))
 
@@ -374,7 +385,7 @@ return {
                 t.exec("talkToColosseumKnight-dialog", t.chat.play, {
                     "player:Hi there.",
                     "npc:Sorry, but I'm waiting",
-                    "player:Well you might need",
+                    "player:Well, you might need",
                     "npc:You don't work for the palace",
                     "player:I'm working directly",
                     "npc:If you are, then prove it",
@@ -395,30 +406,76 @@ return {
                 local _, arena = t.world.tile()
                 t.check("talkToColosseumKnight.arena", arena ~= nil and arena.x > 6000 and arena.x ~= lobby.x, "in the arena copy at " .. tostring(arena and (arena.x .. "," .. arena.z .. "," .. arena.level)))
 
-                -- Mezan prays against a style used four swings in a row (colosseum.rs2:102): never more than three
-                -- melee swings before one Wind Strike, so the streak never reaches four.
+                -- Mezan prays against a style once four of the player's hits in it LAND running
+                -- (twilightspromise_colosseum.rs2; RSProx 4444 and 1679: a tick after the fourth
+                -- splat, splashes not counted), and says so in the chat ("Shield me, Ralos!",
+                -- "Ralos' light protects me!", "Ralos will defend me!"). Melee until he prays
+                -- melee, Wind Strike until he prays magic, round again; at nothing left he
+                -- yields (his var 2), and nothing dies.
+                local function ralos_serial()
+                    local _, list = t.msg.last(100)
+                    local best = 0
+                    for _, m in ipairs(list or {}) do
+                        local text = tostring(m.text)
+                        if string.find(text, "Knight of Varlamore|", 1, true) and string.find(text, "Ralos", 1, true)
+                            and not string.find(text, "faith", 1, true) and (m.serial or 0) > best then
+                            best = m.serial
+                        end
+                    end
+                    return best
+                end
+                local function knight_var()
+                    local _, v = t.var.server("varb9832_vmq2_colosseum_knight")
+                    return v or -1
+                end
                 local _, food0 = t.inv.count("shark")
                 local lowest = 999
-                local dead = false
-                t.exec("defeatColosseumKnight", t.player.attack, "vmq2_knight_6_combat", 2, 30)
-                for cycle = 1, 40 do
-                    local wr, wd = t.npc.await_dead_engaged(9, 1, { eat = { item = "shark", below = 40 } })
-                    local lo = tonumber(tostring(wd):match("lowest hp (%d+)/"))
-                    if lo and lo < lowest then lowest = lo end
-                    if wr == "ok" then dead = true; break end
-                    local cr = t.player.cast("wind_strike", "vmq2_knight_6_combat", 8)
-                    local cr2, cd2 = t.npc.await_dead_engaged(3, 1, { eat = { item = "shark", below = 40 } })
-                    if cr2 == "ok" then dead = true; break end
-                    t.player.attack("vmq2_knight_6_combat", 2, 8)
+                local function until_he_prays(style, cap)
+                    local before = ralos_serial()
+                    for i = 1, cap do
+                        if knight_var() >= 2 or ralos_serial() > before then
+                            return
+                        end
+                        if style == "melee" then
+                            if i == 1 then
+                                t.player.attack("vmq2_knight_6_combat", 2, 4)
+                            else
+                                t.ticks(4)
+                            end
+                        else
+                            t.player.cast("wind_strike", "vmq2_knight_6_combat", 5)
+                        end
+                        local _, snap = t.skill.snapshot()
+                        local hp = snap and snap.hitpoints and snap.hitpoints.level
+                        if hp then
+                            if hp < lowest then lowest = hp end
+                            if hp < 40 then t.player.eat("shark") end
+                        end
+                    end
                 end
+                t.exec("defeatColosseumKnight", t.player.attack, "vmq2_knight_6_combat", 2, 4)
+                for _ = 1, 12 do
+                    if knight_var() >= 2 then break end
+                    until_he_prays("melee", 14)
+                    if knight_var() >= 2 then break end
+                    until_he_prays("magic", 14)
+                end
+                for _ = 1, 10 do
+                    if knight_var() >= 2 then break end
+                    t.ticks(1)
+                end
+                local dead = knight_var() >= 2
                 local _, food1 = t.inv.count("shark")
-                t.check("defeatColosseumKnight.dead", dead, "Mezan beaten (loop of 3 melee swings then one Wind Strike), lowest hp " .. tostring(lowest) .. "/80")
+                t.check("defeatColosseumKnight.dead", dead, "Mezan yielded (melee until he prays melee, Wind Strike until he prays magic), lowest hp " .. tostring(lowest) .. "/80")
                 t.check("defeatColosseumKnight.dead.margin", (food1 or 0) >= 1 and lowest >= 25, "sharks before " .. tostring(food0) .. ", left " .. tostring(food1) .. ", lowest hp " .. tostring(lowest) .. "/80 (margin: food left >= 1 AND lowest hp >= 25)")
-                t.ticks(10)
-                t.msg.expect("You leave the battle")
                 t.expect("colosseum.beaten", t.var.expect("varb9832_vmq2_colosseum_knight", 2))
 
-                t.exec("talkToColosseumKnight2", t.player.talk_to, "vmq2_knight_6_colosseum", 1)
+                -- His page comes by itself: the fade, the training room at 1803,9521, and
+                -- eight ticks after he yields the talk (4444 [1635..1641], 1679 [1696..1702]).
+                for _ = 1, 20 do
+                    if t.chat.kind() ~= "none" then break end
+                    t.ticks(1)
+                end
                 t.exec("talkToColosseumKnight2-dialog", t.chat.play, {
                     "npc:You fought well in there",
                     "player:So you'll return",
@@ -441,7 +498,8 @@ return {
                 t.ticks(2)
                 -- LEG 3 BEGIN: climbStairs
                 t.exec("climbStairs", t.player.click_loc, "colosseum_exit_lobby", 1)
-                t.ticks(3)
+                -- The lobby door's frame back to the street (RSProx 4444 [1661..1670]).
+                t.ticks(8)
                 local _, out = t.world.tile()
                 t.check("climbStairs.arrived", out ~= nil and out.z < 9000,
                     "out of the lobby at " .. tostring(out and (out.x .. "," .. out.z)))
@@ -452,7 +510,7 @@ return {
                     "npc:Have you spoken to all the knights",
                     "player:Yes. They should be here soon",
                     "npc:Six knights",
-                    "player:Well I'm going to guess",
+                    "player:Well, I'm going to guess",
                     "npc:After they were picked",
                     "npc:We'll keep the knights busy",
                     "player:Okay, I'll be back soon",
@@ -554,14 +612,16 @@ return {
                 -- pads swapped 3 April 2024). The pad is walled west/north/east; she is talked to from the
                 -- row south of it, 1697,3140.
                 t.exec("goto-feedRenu", t.player.goto_tile, 1697, 3140, 0)
+                -- RSProx index 4444 [2019..2038]: the player's line, the held box (no
+                -- continue) for nine ticks, the box again with its continue, Regulus.
                 t.exec("feedRenu", t.player.talk_to, "quetzal_fortis", 1)
-                t.chat.continue_()
+                t.exec("feedRenu-hello", t.chat.play, { "player:Hello, Renu." })
+                t.ticks(11)
+                t.exec("feedRenu-dialog", t.chat.play, { "objbox:Renu eagerly takes", "npc:Kuani! I reckon she" })
                 t.ticks(2)
-                t.exec("feedRenu-dialog", t.chat.play, { "npc:Kuani! I reckon she" })
-                t.ticks(3)
                 t.expect("quest.stage.teomat", t.quest.expect_stage(38))
-                local _, uiopen = t.ui.await_open("quetzal_menu", 8)
-                t.check("feedRenu.menu", uiopen ~= nil, "quetzal map opened after the feed: " .. tostring(uiopen))
+                local uiopen = t.ui.await_open("quetzal_menu", 8)
+                t.check("feedRenu.menu", uiopen == "ok", "quetzal map opened after the feed: " .. tostring(uiopen))
                 t.key("escape")
                 t.ticks(2)
 
@@ -587,6 +647,8 @@ return {
                 t.ticks(4)
                 t.expect("quest.stage.cultists", t.quest.expect_stage(44))
 
+                local snapr, snap = t.skill.snapshot()
+                t.check("skill.snapshot", snapr == "ok", "snapshot before the battle: " .. tostring(snapr))
                 local cultists = { "vmq2_cultist_m_1", "vmq2_cultist_f_1", "vmq2_cultist_m_2", "vmq2_cultist_f_2", "vmq2_cultist_m_3", "vmq2_cultist_f_3" }
                 local _, food0 = t.inv.count("shark")
                 local lowest, kills = 999, 0
@@ -609,23 +671,18 @@ return {
                 local _, food1 = t.inv.count("shark")
                 t.check("defeat8Cultists.kills", tonumber(kfin) == 8, "cultists felled " .. tostring(kfin) .. " of 8 (varp7966_tp_battle_kills)")
                 t.check("defeat8Cultists.margin", (food1 or 0) >= 1 and lowest >= 25, "sharks before " .. tostring(food0) .. ", left " .. tostring(food1) .. ", lowest hp " .. tostring(lowest) .. "/80 (margin: food left >= 1 AND lowest hp >= 25)")
+                -- The eighth death: the aftermath scene, then the prince's talk with no
+                -- click (4444 [2403..2430]); the quest completes on its last page.
                 t.ticks(8)
-                t.msg.expect("You leave the battle")
                 t.exec("defeat8Cultists-aftermath", t.chat.drain, { max_pages = 30 })
-                t.ticks(3)
-                t.expect("quest.stage.finish2", t.quest.expect_stage(48))
-
-                local snapr, snap = t.skill.snapshot()
-                t.check("skill.snapshot", snapr == "ok", "snapshot before the hand-in: " .. tostring(snapr))
-                t.exec("goto-finishQuest", t.player.goto_tile, 1454, 3173, 0)
-                t.exec("finishQuest", t.player.talk_to, "vmq2_itzla_teomat", 1)
+                t.ticks(6)
                 t.exec("finishQuest-dialog", t.chat.drain, { max_pages = 30 })
                 t.ticks(3)
                 t.quest.expect_complete()
                 local tr, td = t.skill.expect_gain("thieving", 3000, snap)
                 t.check("reward.thieving", tr == "ok", "thieving +3000 xp documented: " .. tostring(tr) .. " " .. tostring(td))
                 local _, ft = t.var.server("varb9652_vmq2_first_travel")
-                t.check("reward.quetzal", ft == 3, "Quetzal Transport System unlocked (varb9652_vmq2_first_travel " .. tostring(ft) .. " == 3, twilightspromise.rs2:86)")
+                t.check("reward.quetzal", (ft or 0) >= 3, "Quetzal Transport System unlocked (varb9652_vmq2_first_travel " .. tostring(ft) .. " >= 3)")
                 t.ticks(2)
                 local _, vmq2 = t.var.server("varb9649_vmq2")
                 t.check("reward.teleport.unlocked", vmq2 == 50, "varb9649_vmq2 " .. tostring(vmq2) .. " == 50 (tp_complete gate, teleport.rs2:37)")
