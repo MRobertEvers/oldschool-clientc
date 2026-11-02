@@ -74,7 +74,7 @@ teleport_scroll.rs2` (the Digsite scroll); `areas/world/configs/m52_52.spawn`, `
 | 2073.., 2813 | bury bones | generic |
 | 2429, 2601 | wear boots / gloves | generic |
 | 2842 | trowel on a workman | **this content**: "Nothing interesting happens." |
-| 2862 | Polish the buttons | generic (Animal Magnetism's polished buttons): not bound in ours, **open** |
+| 2862 | Polish the buttons | **fixed**: `[opheld2,digsitebuttons]` was unbound (§12) |
 | 2862 | eat a rotten apple | engine "Nothing interesting happens.": matched |
 | 3139, 3164 | read the invitation | matched |
 | 3218 | invitation to a workman | **this content** (§9) |
@@ -241,7 +241,10 @@ not returned) are composed from the recorded rows and the wiki's colours: **unve
 
 * Digsite teleport scroll: unbound; added on the Lumberyard scroll's recorded shape.
 * Exam Centre doors, bank, tablets, potions, ring of dueling: matched or audited before.
-* Buttons' Polish (Animal Magnetism's polished buttons): **open**.
+* Buttons' Polish ([2862], `op=3`): spam "You rub the buttons on your clothes and they become
+  more shiny.", `anma_p_buttons` into the same slot, synth `anma_polish_buttons` (3281).
+  **Fixed**: `[opheld2,digsitebuttons]` in quest_itexam.rs2; `_vm_patrol_probe.lua` row
+  `buttons.polished` passes and the synth is on our tick log.
 
 ## 13. Results
 
@@ -276,15 +279,57 @@ students wander on the generated default, which their recorded lives fit; the sk
 in the recording and showed no steps in our short visit (open). No skeleton attacked or
 faced the recorder: no fight to port.
 
+## 15. The museum's patrolling workmen (the site's ambience)
+
+The squeaks the recorder heard all over the site (`vm_wheelbarrow_squeek` 3670 x166, range 7)
+and the plank drops (`vm_drop_plank` 3646 x10, range 15) are two Varrock Museum npcs, not the
+quest's workmen. Jagex sends both sounds to players far outside their range (the npc is often
+out of view), so the squeak trail maps the whole route. Ours had both npcs spawned on the
+generated `wander` default and sent neither sound. Rebuilt from 4446, 3211 and 3213 (npc
+info) and the squeak trails of 1694, 1707, 1741, 1827, 3198, 3208, 3209, 3253, 3258.
+
+**The wheelbarrow** (`vm_patrol_route_wheelbarrow`/`_empty`, one npc): a 305-tick loop
+(recorded 304..306) between the museum yard's dump (3264,3444) and the Dig Site loader
+(3356,3413). He moves in hops of one or two tiles (RSProx `teleport`, which the client
+walks), every second hop squeaking at the tile he leaves. Each row's wait is the recorded
+one (13 sessions' hops, x1..x17 each); the stretch 3273..3305 east of Varrock is out of
+every npc-info view and is filled from the squeak trail (its ticks match; the tiles between
+squeaks are inferred).
+
+| stop | R | ours |
+|---|---|---|
+| dump (4446 [260]..[273]) | arrive A; A+3 face 3264,3446; A+5 `vm_patrol_wheelbarrow_dumping_rocks`, "Another lot for ya!", `vm_empty_wheelbarrow` (3651) r15; A+8 archaeologist "Alright, thanks."; A+10 empty, face 3264,3442; A+12 first hop; A+13 "Off we go again!" | same |
+| east gate (4446 [593]) | "How's it going, officers?" on the hop to 3269,3428 | same |
+| empty break (3213 [900]..[906]) | 3335,3404, +2 "Hmm, time for a break.", 6 ticks | same |
+| loader (4446 [2230]..[2240]) | arrive L; L+1 face; L+4 loader `vm_wheelbarrow_loader`, faces 3354,3413, "Got another load for ya!"; L+7 "Great, just what my arms need!"; L+9 full; L+10 first hop | same |
+| loaded break (3211 [601]..[633]) | 3310,3425, +2 "Ohhh, time for a break.", +31 "Time I got moving...", 32 ticks | same |
+| the museum guard (3211 [649], [958]) | `vm_museum_guard2` "Keep 'em coming!" as the loaded barrow reaches 3295,3428 | same |
+
+Our tick log (`_vm_patrol_probe.lua`): load at 73, dump at 246 (173 after), next load 378
+(132 after), next dump 551 (305 loop); the Varrock squeaks 3273, 3269, 3265, 3264,3431,
+3435, 3439 at dump-16..-2, as 4446 [548]..[562] before its dump at [564].
+
+**The plank carrier** (`vm_patrol_route_workmen_1`/`_no_plank`): an 86-tick loop on y=3443
+(3211, 23 drops). At Ed's pile (3326) +2: `vm_patrol_route_workmen_plank_pickup` and one of
+"More planks, Ed!" / "Foreman says we need more, Ed!" / "Boss says: 'keep chopping'." (7/9/6);
++6 the plank, and Ed (`vm_woodcutter`) sometimes answers "I'll be charging overtime, then!"
+(5 of 18 pickups; ours 1 in 4); a tile a tick east to 3363; +2
+`vm_patrol_route_workmen_plank_drop`, `vm_drop_plank` r15 and "Aaannnd rest!" / "Down we go!"
+/ "Well, that's a relief!" (11/10/2); +6 without the plank, one of "Let's go get more, then." /
+"Right you are, guv." / "More? You want more?" / "Okay, but Ed won't be happy!" (8/10/4/2),
+and back west. Ours: drops at 42, 128, 214, 300 (86 apart), the turn 6 later, the pickup 44
+after each drop, the plank 4 after that; the lines drawn with the recorded weights.
+
+Not ported: Jagex sends `[facing] type=reset` with every wheelbarrow hop (ours sends none);
+Ed's and the barge painter's own lines answer the recorder's Talk-to clicks (not ambience).
+
 ## Open
 
 * Curator's medallion purchase (the digsite pendant): only the wiki's first answer.
-* Buttons' Polish unbound.
 * Workman 3630's greeting (clicked, never answered).
+* The wheelbarrow's per-hop `[facing] type=reset` (§15), and the 3273..3305 road tiles between
+  squeaks (inferred; their timing matches).
 * Journal stages 0..1 (pre-stamp), 7, 8, 9 and partial errand states: the wiki's.
-* The ambience: Varrock Museum's wheelbarrow workmen (`vm_wheelbarrow_squeek` x166,
-  `vm_drop_plank` x10 by `qip_digsite_digworkman_03/04` and `vm_patrol_route_wheelbarrow`) are
-  not sent by ours — museum content, not built.
 * The Exam Centre's doors: in two of five test runs a door that had passed several times
   stood open on the client while the server refused the doorway, permanently, after a long
   absence (the south door in one run, the east in another; the last two runs passed every
