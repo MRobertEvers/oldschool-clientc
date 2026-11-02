@@ -173,6 +173,9 @@ PIP_DREZEL = CONTENT / "quests/quest_priestperil/scripts/mausoleum_drezel.rs2"
 PIP_TRAPPED_DREZEL = CONTENT / "quests/quest_priestperil/scripts/trapped_drezel.rs2"
 PIP_COFFIN = CONTENT / "quests/quest_priestperil/scripts/vampire_coffin.rs2"
 PIP_TEMPLE_DOORS = CONTENT / "quests/quest_priestperil/scripts/temple_doors.rs2"
+PIP_QUEST_SPAWN = CONTENT / "quests/quest_priestperil/configs/quest_priestperil.spawn"
+PIP_TRAPDOORS = CONTENT / "general_use/scripts/trapdoors.rs2"
+PIP_LADDERS = CONTENT / "ladders_stairs/scripts/ladders.rs2"
 PIP_GATES = CONTENT / "areas/area_mausoleum/scripts/gates.rs2"
 PIP_KING = CONTENT / "areas/varrock/scripts/king_roald.rs2"
 REG_ROUTE = CONTENT / "quests/quest_regicide/scripts/regicide_route.rs2"
@@ -2234,6 +2237,8 @@ def check_nature_spirit() -> None:
 
 
 def check_priest_in_peril() -> None:
+    """Priest in Peril as RSProx index 4459 (rev 241, 2026-11-02) recorded it:
+    docs/rsprox-analysis/quests/priest_in_peril.md."""
     npc = config_text.read_text(PIP_NPC)
     guardian_block = npc.split("[priestperilguarddog]", 1)[1].split(
         "[priestperilevilmonk1]", 1
@@ -2244,6 +2249,9 @@ def check_priest_in_peril() -> None:
             "hitpoints=45", "attack=20", "strength=20", "defence=20",
             "magic=1", "ranged=1", "respawnrate=500",
             "param=attackrate,4", "param=damagetype,0", "param=death_drop,null",
+            # 4459 [738..772]
+            "param=attack_anim,dm_attack", "param=defend_anim,dm_block", "param=death_anim,dm_death",
+            "param=attack_sound,wolf_attack", "param=defend_sound,wolf_hit", "param=death_sound,wolf_death",
         ),
         "Priest in Peril Temple Guardian config",
     )
@@ -2253,18 +2261,18 @@ def check_priest_in_peril() -> None:
     monk_contracts = {
         "priestperilevilmonk1": (
             "hitpoints=20", "attack=18", "strength=18", "defence=22",
-            "magic=25", "ranged=1", "respawnrate=25", "huntmode=aggressive",
+            "magic=25", "ranged=1", "respawnrate=25",
             "param=attackrate,4", "param=damagetype,2", "param=death_drop,null",
         ),
         "priestperilevilmonk2": (
             "hitpoints=10", "attack=8", "strength=8", "defence=12",
-            "magic=25", "ranged=1", "respawnrate=25", "huntmode=aggressive",
+            "magic=25", "ranged=1", "respawnrate=25",
             "param=attackrate,4", "param=damagetype,2",
             "param=strengthbonus,124", "param=death_drop,null",
         ),
         "priestperilevilmonk3": (
             "hitpoints=25", "attack=25", "strength=25", "defence=25",
-            "magic=40", "ranged=1", "respawnrate=25", "huntmode=aggressive",
+            "magic=40", "ranged=1", "respawnrate=25",
             "param=attackrate,4", "param=damagetype,2", "param=death_drop,null",
         ),
     }
@@ -2273,29 +2281,47 @@ def check_priest_in_peril() -> None:
         later = list(monk_contracts)[index + 1:]
         if later:
             block = block.split(f"[{later[0]}]", 1)[0]
-        require_text(block, needles, f"Priest in Peril {monk} config")
+        # 4459 [1088..1134]: the punch, the unarmed block, the sounds; the
+        # monks hunt by script from stage 4, never by huntmode.
+        require_text(block, needles + (
+            "param=defend_anim,human_unarmed_def", "param=attack_sound,unarmed_punch",
+            "param=defend_sound,human_hit", "param=death_sound,human_death",
+        ), f"Priest in Peril {monk} config")
+        require("huntmode=aggressive" not in block,
+                f"Priest in Peril: {monk} must not hunt by huntmode (4459: only once Roald is angry)")
 
     guardian = PIP_GUARDIAN.read_text()
     require_text(
         guardian,
         (
-            "[zone,0_53_154_8_40]", "[zone,0_53_154_8_48]",
-            "%varp302_priestperil ! ^priestperil_agree_to_kill_dog",
-            "npc_add(0_53_154_13_46, priestperilguarddog, 32000);",
-            "npc_setowner;", "[opnpc2,priestperilguarddog]",
-            "[apnpc2,priestperilguarddog]", "@player_combat_start;",
-            "@player_combat_start_ap;", "[ai_queue3,priestperilguarddog]",
+            "[proc,priestperil_dog_cellar_enter]", "~map_instance_from_square(0_53_154_0_0)",
+            "npc_add(map_instance_coord($handle, 13, 44, 0), priestperilguarddog, 3000);",
+            "[proc,priestperil_cellar_leave]()(boolean)", "p_telejump(0_53_54_13_50);",
+            "[opnpc2,priestperilguarddog]", "[apnpc2,priestperilguarddog]",
+            "@player_combat_start;", "@player_combat_start_ap;",
+            "You have no reason to do that!", "[ai_queue3,priestperilguarddog]",
             "if (npc_findhero = ^false)", "npc_statheal(hitpoints, 0, 100);",
+            "queue(priestperil_defeat_guardian, 0, 0);",
             "%varp302_priestperil = ^priestperil_killed_dog;",
         ),
-        "Priest in Peril owner-private Guardian lifecycle",
+        "Priest in Peril instanced Guardian lifecycle",
     )
     require("obj_add" not in guardian,
             "Priest in Peril: Temple Guardian must not drop loot")
     require("priestperilguarddog" in SPAWN_GENERATOR.read_text(),
-            "Priest in Peril: spawn generator must exclude the public Guardian")
+            "Priest in Peril: spawn generator must exclude the dump's Guardian")
     require("priestperilguarddog" not in PIP_WORLD_SPAWN.read_text(),
-            "Priest in Peril: public Guardian remained in generated world spawns")
+            "Priest in Peril: the dump's Guardian remained in generated world spawns")
+    require("priestperilguarddog                           3405  9902 0" in PIP_QUEST_SPAWN.read_text(),
+            "Priest in Peril: the public Guardian (4459 [478]) is the quest's own spawn")
+    require_text(
+        PIP_TRAPDOORS.read_text(),
+        ("loc_coord = 0_53_54_13_51 & %varp302_priestperil = ^priestperil_agree_to_kill_dog",
+         "~priestperil_dog_cellar_enter;"),
+        "Priest in Peril trapdoor into the cellar copy",
+    )
+    require("~priestperil_cellar_leave = true" in PIP_LADDERS.read_text(),
+            "Priest in Peril: the cellar ladder must leave the copy")
 
     magic = PLAYER_MAGIC.read_text()
     require_text(
@@ -2318,9 +2344,12 @@ def check_priest_in_peril() -> None:
     require_text(
         monks,
         (
-            "[ai_opplayer2,priestperilevilmonk1]", "~npc_zap_attack(10, npc_param(attackrate));",
-            "[ai_opplayer2,priestperilevilmonk2]", "~npc_meleeattack;",
-            "[ai_opplayer2,priestperilevilmonk3]", "~npc_zap_attack(8, npc_param(attackrate));",
+            "[ai_opplayer2,priestperilevilmonk1]", "[ai_opplayer2,priestperilevilmonk2]",
+            "[ai_opplayer2,priestperilevilmonk3]", "~npc_meleeattack;",
+            # 4459 [1119] confuse, [1123] fire bolt, [1674] weaken
+            "~npc_cast_spell(^confuse, npc_param(attackrate));",
+            "~npc_cast_spell(^weaken, npc_param(attackrate));",
+            "~npc_cast_spell_with_forced_max_hit(^fire_bolt, npc_param(attackrate), 8);",
             "if (npc_findhero = ^false)",
             "obj_add_private(npc_coord, bones, 1, ^lootdrop_duration, 100);",
             "def_int $robe = random(20);", "if ($robe = 0)",
@@ -2329,8 +2358,12 @@ def check_priest_in_peril() -> None:
             "obj_add_private(npc_coord, monkrobebottom, 1, ^lootdrop_duration, 100);",
             "npc_type = priestperilevilmonk3 & %varp302_priestperil < ^priestperil_unlocked_drezel",
             "obj_add_private(npc_coord, pipkey_gold, 1, ^lootdrop_duration, 100);",
+            # 4459 [1136]
+            'mes("<col=ef1020>Untradeable drop: Golden key</col>");',
+            "%varb15615_priestperilevilmonk_dead = 1;",
+            "[softtimer,priestperil_monk_hunt]", "%varb15614_priestperilevilmonk_hunt",
         ),
-        "Priest in Peril monk AI and private loot",
+        "Priest in Peril monk AI, hunt and private loot",
     )
     require_text(
         PLAYER_HIT_FUNNEL.read_text(),
@@ -2347,16 +2380,15 @@ def check_priest_in_peril() -> None:
         (
             "[oploc1,priestperil_grave_base1]", "[oploc1,priestperil_grave_base7]",
             "[oploc2,priestperil_grave_base1]", "[oplocu,priestperil_grave_base7]",
-            "testbit(%varp7408_priestperil_mausoleum, 21)",
-            "setbit_range_toint(%varp7408_priestperil_mausoleum, random(100), 22, 28)",
-            "multiply($grave_no, 17)", "modulo($seed, 7)",
+            "enum(loc, int, monument_graves_locs, $loc)",
             "if ($grave_item = pipkey_iron)", "last_useitem ! pipkey_gold",
             "if (~obj_gettotal(pipkey_iron) > 0)",
             "inv_del(inv, pipkey_gold, 1);", "inv_add(inv, pipkey_iron, 1);",
             "setbit(%varp7408_priestperil_mausoleum, $swap_bit)",
-            "damage(uid, hitsplat_damage, add(random(6), 1));",
+            # 4459: 8 of 8 tries hit 1.
+            "damage(uid, hitsplat_damage, 1);",
         ),
-        "Priest in Peril randomized monument swaps",
+        "Priest in Peril fixed monuments and swaps",
     )
     require("7408=varp7408_priestperil_mausoleum" in PIP_VARP_ALLOC.read_text(),
             "Priest in Peril: durable monument varp allocation missing")
@@ -2367,8 +2399,8 @@ def check_priest_in_peril() -> None:
         (
             "[oploc1,pip_underground_door1]", "testbit(%varp7408_priestperil_mausoleum, 20)",
             "inv_total(inv, pipkey_gold) = 0", "setbit(%varp7408_priestperil_mausoleum, 20)",
-            "[oploc1,pip_underground_door2]",
-            "~check_priest_peril_gate(^priestperil_meet_in_mausoleum);",
+            "[oploc1,pip_underground_door2]", "%varp302_priestperil < ^priestperil_meet_in_mausoleum",
+            "The gate is securely locked.", "loc_add($gate, inviswall, $rot, wall_straight, 2);",
         ),
         "Priest in Peril durable gate unlock",
     )
@@ -2378,29 +2410,33 @@ def check_priest_in_peril() -> None:
         (
             "[label,roald_priestperil_dialogue]", "%varp302_priestperil = ^priestperil_started;",
             "%varp302_priestperil = ^priestperil_return_to_drezel;",
-            "%varp302_priestperil = ^priestperil_poured_blessed_water",
+            "%varb15612_priestperil_returned_to_roald = 1;",
+            "%varb15614_priestperilevilmonk_hunt = 1;",
         ),
         "Priest in Peril King Roald start and return path",
     )
     require_text(
         PIP_TEMPLE_DOORS.read_text(),
-        ("[label,templedoors_agree_help]", "%varp302_priestperil = ^priestperil_agree_to_kill_dog;"),
+        ("[proc,priestperil_door_drezel]", "%varp302_priestperil = ^priestperil_agree_to_kill_dog;",
+         "%varb15613_priestperil_returned_to_fake_drezel = 1;"),
         "Priest in Peril temple deception",
     )
     require_text(
         PIP_TRAPPED_DREZEL.read_text(),
         (
             "[oplocu,pip_prisondoor]", "inv_del(inv, pipkey_iron, 1);",
-            "%varp302_priestperil = ^priestperil_unlocked_drezel;", "def_int $water = inv_total(inv, bucket_murkywater);",
-            "inv_del(inv, bucket_murkywater, $water);", "inv_add(inv, bucket_blessedwater, $water);",
+            "%varp302_priestperil = ^priestperil_unlocked_drezel;",
+            "%varp302_priestperil = ^priestperil_find_drezel_key;",
+            "inv_del(inv, bucket_murkywater, 1);", "inv_add(inv, bucket_blessedwater, 1);",
         ),
-        "Priest in Peril cell and all-bucket blessing",
+        "Priest in Peril cell and blessing",
     )
     require_text(
         PIP_COFFIN.read_text(),
         (
             "last_useitem = bucket_blessedwater", "%varp302_priestperil = ^priestperil_poured_blessed_water;",
             "inv_del(inv, bucket_blessedwater, 1);", "inv_add(inv, bucket_empty, 1);",
+            'Pour the blessed water over the coffin?',
         ),
         "Priest in Peril vampyre containment",
     )
@@ -2433,11 +2469,12 @@ def check_priest_in_peril() -> None:
         (
             "[opnpc1,priestperiltrappedmonk2]", "[opnpcu,priestperiltrappedmonk2]",
             "add(inv_total(inv, blankrune), inv_total(inv, blankrune_high))",
-            "def_int $take_rune = min($to_give, $have_rune);", "inv_del(inv, blankrune, $take_rune);",
-            "inv_del(inv, blankrune_high, $take_pure);", "%varp302_priestperil = add(%varp302_priestperil, $given);",
+            # 4459 [1791]: one stage write per essence.
+            "%varp302_priestperil = add(%varp302_priestperil, 1);",
             "stat_advance(prayer, ^priestperil_reward_prayer_xp);",
-            "inv_add(inv, dagger_wolfbane, 1);", "~quest_complete_rewards(quest_priestinperil",
+            "inv_add(inv, dagger_wolfbane, 1);", "~quest_complete_rewards_at(quest_priestinperil",
             "if (~obj_gettotal(dagger_wolfbane) = 0)", "%varp302_priestperil = ^priestperil_access_holy_barrier;",
+            "%varb15617_priestperil_ending_dialogue = 1;",
         ),
         "Priest in Peril essence, reward, reclaim and barrier access",
     )

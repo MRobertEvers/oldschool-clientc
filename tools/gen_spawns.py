@@ -401,6 +401,14 @@ NPC_SPAWN_ID_CORRECTIONS = {
     (3543, 3343, 2964, 0): "feud_camel2_multi",
     (3548, 3334, 2949, 0): "feud_egyptian_minder_multi",
     (3442, 3364, 3001, 0): "feud_dye_lady_multi",
+    # Paterdomus has one hooded leader (priestperilevilmonk3); the dump lists
+    # two. RSProx index 4459 (rev 241, 2026-11-02) adds the ground floor's
+    # monks as 2 x monk1, 2 x monk2 and 1 x monk3 every time the player
+    # arrives ([499], [717..724], [1075..1080]); the dump's second leader is
+    # the level-17 monk that walks there. The first floor's are 3 x monk1 and
+    # 2 x monk2 ([1142], [1210], [1490]): its dump leader is a monk1.
+    (3486, 3415, 3485, 0): "priestperilevilmonk2",
+    (3486, 3416, 3491, 1): "priestperilevilmonk1",
 }
 #
 # Getting Ahead, Gordon and Mary's farmhouse upstairs: the dump lays the empty
