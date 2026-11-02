@@ -3135,6 +3135,132 @@ test_popout(void)
 
 /* ---- the tools every window of a Client shares ----------------------------------- */
 
+
+/* An Open in a window that shows no world (a popped-out Squares panel) is
+ * relayed to the windows that show one; a window that shows a world opens
+ * locally and acts on another window's relayed open. */
+static void
+main_on_state(
+    void* user,
+    uint32_t key,
+    const int32_t* values,
+    int count);
+static struct
+{
+    int hits;
+    int map_x;
+    int map_z;
+    int add;
+    char storage[EDITOR_DOC_STORAGE_MAX];
+} g_open_heard;
+static void
+open_square_recorder(
+    void* user,
+    int map_x,
+    int map_z,
+    const char* storage,
+    int add)
+{
+    (void)user;
+    g_open_heard.hits++;
+    g_open_heard.map_x = map_x;
+    g_open_heard.map_z = map_z;
+    g_open_heard.add = add;
+    snprintf(g_open_heard.storage, sizeof(g_open_heard.storage), "%s", storage);
+}
+static struct
+{
+    int hits;
+    int32_t values[5];
+} g_open_relayed;
+static void
+open_peer_on_state(
+    void* user,
+    uint32_t key,
+    const int32_t* values,
+    int count)
+{
+    (void)user;
+    if( key == TORIRSMAPED_STATE_OPEN_SQUARE && count >= 5 )
+    {
+        memcpy(g_open_relayed.values, values, sizeof(g_open_relayed.values));
+        g_open_relayed.hits++;
+    }
+}
+static void
+test_open_square_relay(void)
+{
+    static struct Editor peer;
+    struct EditorHost peer_host;
+    int32_t request[5];
+
+    layout_boot(1530, 1006, 1);
+    if( !Editor_HostOpenMapEdEmbedPeer(&peer_host, &g_editor.host, TORIRSMAPED_ROLE_GENERIC, 1) )
+    {
+        CHECK(0, "open relay: a second window joins the Client");
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    Editor_OpenHost(&peer, &peer_host, "popped-out squares", &g_profile);
+    memset(&g_open_heard, 0, sizeof(g_open_heard));
+    memset(&g_open_relayed, 0, sizeof(g_open_relayed));
+    Editor_SetStateCallback(&peer, open_peer_on_state, NULL);
+    Editor_SetStateCallback(&g_editor, main_on_state, &g_ui);
+    g_ui.hooks.open_square = open_square_recorder;
+    frame();
+    Editor_PumpFacts(&peer);
+
+    /* The main window shows a world: its own Open is local, nothing relayed. */
+    CHECK(Editor_UiWorldShown(&g_ui), "open relay: the main window shows a world");
+    Editor_UiOpenSquare(&g_ui, 40, 52, "", 0, 0);
+    frame();
+    Editor_PumpFacts(&g_editor);
+    Editor_PumpFacts(&peer);
+    CHECK(g_open_heard.hits == 1 && g_open_heard.map_x == 40 && g_open_heard.map_z == 52 && !g_open_heard.add,
+        "open relay: a window with a world opens locally (%d hits)", g_open_heard.hits);
+    CHECK(g_open_relayed.hits == 0, "open relay: and relays nothing (%d heard)", g_open_relayed.hits);
+
+    /* Another window's request lands here: the window that shows a world
+     * opens it, add and all. */
+    request[0] = 41;
+    request[1] = 53;
+    request[2] = 1;
+    request[3] = -1;
+    request[4] = 7;
+    Editor_StateSet(&peer, TORIRSMAPED_STATE_OPEN_SQUARE, request, 5);
+    Editor_PumpFacts(&peer);
+    Editor_PumpFacts(&g_editor);
+    frame();
+    CHECK(g_open_heard.hits == 2 && g_open_heard.map_x == 41 && g_open_heard.map_z == 53 && g_open_heard.add
+              && g_open_heard.storage[0] == '\0',
+        "open relay: a relayed open lands in the window that shows a world (%d hits, m%d_%d add %d)",
+        g_open_heard.hits, g_open_heard.map_x, g_open_heard.map_z, g_open_heard.add);
+
+    /* With its World hidden (popped out, or a panel-only window) an Open is
+     * relayed instead of opened here, with a serial that moves per request. */
+    ToriRSChrome_PanelSetVisible(g_ui.chrome, g_ui.world_panel, 0);
+    CHECK(!Editor_UiWorldShown(&g_ui), "open relay: the main window's world is hidden");
+    /* The peer heard the echo of its own request above; count from here. */
+    memset(&g_open_relayed, 0, sizeof(g_open_relayed));
+    Editor_UiOpenSquare(&g_ui, 42, 54, "", 0, 0);
+    Editor_UiOpenSquare(&g_ui, 42, 54, "", 0, 0);
+    frame();
+    Editor_PumpFacts(&g_editor);
+    Editor_PumpFacts(&peer);
+    CHECK(g_open_heard.hits == 2, "open relay: nothing opened in the window without a world (%d hits)",
+        g_open_heard.hits);
+    CHECK(g_open_relayed.hits == 2 && g_open_relayed.values[0] == 42 && g_open_relayed.values[1] == 54
+              && g_open_relayed.values[2] == 0 && g_open_relayed.values[4] == 2,
+        "open relay: the other window heard both requests, the second with serial 2 (%d heard, serial %d)",
+        g_open_relayed.hits, g_open_relayed.values[4]);
+    CHECK(popout_console_has("in the window that shows the world"),
+        "open relay: the console says where the open went");
+
+    Editor_SetStateCallback(&g_editor, NULL, NULL);
+    Editor_Close(&peer);
+    Editor_UiFree(&g_ui);
+}
+
 /* The main window here is g_ui over g_editor; the other window is a second
  * connection to the same embedded server joined to the same Client (what a
  * popped-out window is), with no registry: it records what it hears. */
@@ -6095,6 +6221,7 @@ main(
     test_world_panel();
     test_popout();
     test_shared_tools();
+    test_open_square_relay();
     test_layout_codec();
     test_saved_layout();
 

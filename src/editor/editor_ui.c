@@ -1642,6 +1642,43 @@ Editor_UiTick(struct EditorUi* ui)
 }
 
 void
+Editor_UiOpenSquare(
+    struct EditorUi* ui,
+    int map_x,
+    int map_z,
+    const char* storage,
+    int storage_index,
+    int add)
+{
+    assert(ui);
+    assert(storage);
+    if( Editor_UiWorldShown(ui) )
+    {
+        if( ui->hooks.open_square )
+            ui->hooks.open_square(ui->hooks_user, map_x, map_z, storage, add);
+        else
+            Editor_UiLog(ui, "editor: this window cannot open squares");
+        return;
+    }
+    if( ui->editor )
+    {
+        int32_t values[5];
+        values[0] = map_x;
+        values[1] = map_z;
+        values[2] = add ? 1 : 0;
+        values[3] = storage_index;
+        values[4] = (int32_t)++ui->open_square_serial;
+        if( Editor_UiPublish(ui, TORIRSMAPED_STATE_OPEN_SQUARE, values, 5) )
+        {
+            Editor_UiLog(ui, "editor: %s m%d_%d in the window that shows the world", add ? "adding" : "opening",
+                map_x, map_z);
+            return;
+        }
+    }
+    Editor_UiLog(ui, "editor: no window shows a world to open m%d_%d in", map_x, map_z);
+}
+
+void
 Editor_UiApplyState(
     struct EditorUi* ui,
     uint32_t key,
@@ -1665,6 +1702,17 @@ Editor_UiApplyState(
         ui->tools.edit_level = values[0];
     else if( key == TORIRSMAPED_STATE_TOOLS )
         ui_tools_heard(ui, values, count);
+    else if( key == TORIRSMAPED_STATE_OPEN_SQUARE && count >= 5 && Editor_UiWorldShown(ui) )
+    {
+        /* Another window's Open: this one shows a world, so it is the one
+         * meant. The storage comes back from the index through this
+         * window's own atlas; an unknown index is the content tree. */
+        char storage[EDITOR_DOC_STORAGE_MAX];
+        storage[0] = '\0';
+        (void)Editor_Squares_StorageName(ui, values[3], storage);
+        if( ui->hooks.open_square )
+            ui->hooks.open_square(ui->hooks_user, values[0], values[1], storage, values[2] != 0);
+    }
 
     for( int i = 0; i < ui->panel_count; i++ )
         if( ui->panels[i].on_state )
@@ -1877,10 +1925,7 @@ Editor_UiRunGuarded(
     switch( guard->action )
     {
     case EDITOR_UI_GUARD_OPEN_SQUARE:
-        if( ui->hooks.open_square )
-            ui->hooks.open_square(ui->hooks_user, guard->map_x, guard->map_z, guard->storage, 0);
-        else
-            Editor_UiLog(ui, "editor: this window cannot open squares");
+        Editor_UiOpenSquare(ui, guard->map_x, guard->map_z, guard->storage, guard->storage_index, 0);
         break;
     case EDITOR_UI_GUARD_CLOSE:
         if( ui->hooks.close_editor )

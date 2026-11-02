@@ -720,6 +720,16 @@ Editor_HotkeySnapHold(
     struct EditorUi* ui,
     int held);
 
+/** The picker's storage at `storage_index` as a document storage ("" for the
+ *  content tree's maps/): what a relayed open resolves its index through.
+ *  Returns 0, with `out` empty, when this window has no Squares panel or the
+ *  index is outside its atlas. */
+int
+Editor_Squares_StorageName(
+    struct EditorUi* ui,
+    int storage_index,
+    char out[EDITOR_DOC_STORAGE_MAX]);
+
 /** The action the Hotkeys panel is capturing a chord for, or -1. */
 int
 Editor_Hotkeys_Capturing(struct EditorUi* ui);

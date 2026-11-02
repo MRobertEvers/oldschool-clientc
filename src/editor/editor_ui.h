@@ -434,6 +434,9 @@ struct EditorUiGuard
     int map_x;
     int map_z;
     char storage[EDITOR_DOC_STORAGE_MAX];
+    /** The picker's index of `storage`, what a relayed open carries (every
+     *  window mirrors the same atlas, so the index names the same storage). */
+    int storage_index;
 };
 
 /** Other views' windows, as the picker frames them (STATE_VIEW_SQUARE). */
@@ -487,6 +490,8 @@ struct EditorUi
 
     /** The pending action the save guard is asking about. */
     struct EditorUiGuard guard;
+    /** Serial of the last TORIRSMAPED_STATE_OPEN_SQUARE this window asked. */
+    uint32_t open_square_serial;
 
     /** STATE_VIEW_SQUARE frames from every view of this Client. */
     struct EditorUiViewFrame frames[EDITOR_UI_VIEW_FRAMES_MAX];
@@ -843,6 +848,23 @@ Editor_UiPanelOpenBeside(
 /** Show or hide the chrome panel of registry module `name` (the View menu's
  *  toggle). Returns 1 when it is open afterwards, -1 when there is no such
  *  module in this window. */
+/**
+ * Open a square (`add` 1 keeps what is open) in the window that shows a
+ * world: this one when its World panel is shown, else every window of the
+ * Client that shows one, through TORIRSMAPED_STATE_OPEN_SQUARE -- a popped-out
+ * Squares panel has a world of its own that nobody sees, and an Open there
+ * used to land in it (owner, 2026-11-02). `storage_index` is the picker's
+ * index of `storage` (-1 when unknown: the content tree's maps/).
+ */
+void
+Editor_UiOpenSquare(
+    struct EditorUi* ui,
+    int map_x,
+    int map_z,
+    const char* storage,
+    int storage_index,
+    int add);
+
 int
 Editor_UiTogglePanel(
     struct EditorUi* ui,

@@ -331,6 +331,12 @@ enum ToriRSMapEdStateKey
      *  overlay rotation; flags value; place shape, place rotation; view
      *  level, view solo -- TORIRSMAPED_TOOLS_VALUES in that order. */
     TORIRSMAPED_STATE_TOOLS = 7,
+    /** A window with no world of its own (a popped-out Squares panel) asks
+     *  the windows that show one to open a square: map_x, map_z, add (1
+     *  keeps what is open), the picker's storage index, and a serial so the
+     *  same square asked twice is two requests (editor_ui.c
+     *  Editor_UiOpenSquare / Editor_UiApplyState). */
+    TORIRSMAPED_STATE_OPEN_SQUARE = 8,
 };
 
 enum

@@ -161,6 +161,26 @@ squares_self(struct EditorUi* ui)
     return Editor_UiPanelSelf(ui, "squares");
 }
 
+int
+Editor_Squares_StorageName(
+    struct EditorUi* ui,
+    int storage_index,
+    char out[EDITOR_DOC_STORAGE_MAX])
+{
+    struct SquaresPanel* self;
+    const char* storage;
+
+    assert(ui);
+    assert(out);
+    out[0] = '\0';
+    self = squares_self(ui);
+    if( !self || storage_index < 0 || storage_index >= self->picker.storage_count )
+        return 0;
+    storage = self->picker.storages[storage_index];
+    snprintf(out, EDITOR_DOC_STORAGE_MAX, "%s", strcmp(storage, "maps") == 0 ? "" : storage);
+    return 1;
+}
+
 /* ---- the atlas ------------------------------------------------------------------- */
 
 static void
@@ -708,14 +728,12 @@ squares_open(
     guard.action = EDITOR_UI_GUARD_OPEN_SQUARE;
     guard.map_x = picker->squares[square].map_x;
     guard.map_z = picker->squares[square].map_z;
+    guard.storage_index = picker->squares[square].storage;
     squares_storage_of(picker, square, guard.storage);
     if( add )
     {
         /* Adding keeps what is open: nothing unsaved is at stake. */
-        if( ui->hooks.open_square )
-            ui->hooks.open_square(ui->hooks_user, guard.map_x, guard.map_z, guard.storage, 1);
-        else
-            Editor_UiLog(ui, "editor: this window cannot open squares");
+        Editor_UiOpenSquare(ui, guard.map_x, guard.map_z, guard.storage, guard.storage_index, 1);
         return;
     }
     (void)Editor_UiGuarded(ui, &guard);
