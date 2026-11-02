@@ -602,15 +602,6 @@ Editor_PanelVisLevelMask(struct Editor_Panel const* panel)
     return (uint8_t)((1u << (level + 1)) - 1);
 }
 
-int
-Editor_PanelCatalogPreviewId(struct Editor_Panel const* panel)
-{
-    assert(panel);
-    if( !panel->ui )
-        return -1;
-    return Editor_Catalog_PreviewId(panel->ui);
-}
-
 void
 Editor_PanelGhostSpec(
     struct Editor_Panel* panel,

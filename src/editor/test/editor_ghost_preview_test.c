@@ -477,6 +477,40 @@ test_the_players_zoom_is_clamped_wider_than_the_fits(void)
     CHECK(!camera.dirty, "a zero-step zoom asked for a re-render");
 }
 
+static void
+test_a_bigger_well_shows_the_same_framing_bigger(void)
+{
+    printf("TEST: the Preview panel's well scales the reference framing\n");
+
+    /* The reference well projects at the reference scale. */
+    CHECK(EditorPreviewCamera_ProjectionScale(EDITOR_PREVIEW_REF_W, EDITOR_PREVIEW_REF_H)
+              == EDITOR_PREVIEW_REF_PROJECTION,
+        "the 120 x 96 well projects at %d", EDITOR_PREVIEW_REF_PROJECTION);
+    /* And at that scale a fitted model's larger dimension lands inside the
+     * well with a margin (the old 512 put it a fifth outside: a tree's crown
+     * and an npc's head were cut off). */
+    {
+        struct EditorPreviewCamera camera;
+        int projected;
+        EditorPreviewCamera_Reset(&camera);
+        (void)EditorPreviewCamera_TakeFit(&camera, 50, 0, 400);
+        projected = 400 * EDITOR_PREVIEW_REF_PROJECTION / camera.zoom;
+        CHECK(projected < EDITOR_PREVIEW_REF_H && projected * 5 > EDITOR_PREVIEW_REF_H * 4,
+            "a fitted 400-tall model projects %d px into the %d px well", projected, EDITOR_PREVIEW_REF_H);
+    }
+    /* Twice each way: twice the scale. */
+    CHECK(EditorPreviewCamera_ProjectionScale(240, 192) == 2 * EDITOR_PREVIEW_REF_PROJECTION,
+        "a 240 x 192 well projects at twice the scale (%d)", EditorPreviewCamera_ProjectionScale(240, 192));
+    /* Long one way: the smaller ratio binds, so the fitted model stays whole. */
+    CHECK(EditorPreviewCamera_ProjectionScale(480, 192) == 2 * EDITOR_PREVIEW_REF_PROJECTION,
+        "a wide well is bound by its height (%d)", EditorPreviewCamera_ProjectionScale(480, 192));
+    CHECK(EditorPreviewCamera_ProjectionScale(240, 960) == 2 * EDITOR_PREVIEW_REF_PROJECTION,
+        "a tall well is bound by its width (%d)", EditorPreviewCamera_ProjectionScale(240, 960));
+    /* Smaller than the reference: smaller, never zero. */
+    CHECK(EditorPreviewCamera_ProjectionScale(60, 48) == EDITOR_PREVIEW_REF_PROJECTION / 2,
+        "a half-size well projects at half the scale (%d)", EditorPreviewCamera_ProjectionScale(60, 48));
+    CHECK(EditorPreviewCamera_ProjectionScale(1, 1) > 0, "a one-pixel well still projects");
+}
 
 /* The wander preview's squares come from the record's wanderrange and
  * maxrange: the footprint grown by each on every side. */
@@ -525,6 +559,7 @@ main(void)
     test_the_fit_is_clamped_at_both_ends();
     test_the_fit_happens_once();
     test_the_players_zoom_is_clamped_wider_than_the_fits();
+    test_a_bigger_well_shows_the_same_framing_bigger();
 
     if( g_failures )
     {

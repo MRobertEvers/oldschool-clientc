@@ -24,10 +24,13 @@
  *
  * The pick is shared tool state (tools.pick_kind / pick_id / pick_name): a
  * loc, npc or obj row with an id becomes it, the Place tool stamps it, the
- * spawns panel resolves an npc / obj pick to its pack symbol. The model well
- * and the multiloc rungs stay on the client's provider, reached through
- * ui->app_services (skipped when they are NULL, as in editor_panels_test): a
- * preview is one record loaded on demand, never a sweep.
+ * spawns panel resolves an npc / obj pick to its pack symbol, and the PREVIEW
+ * panel (edpanel_preview.c, registered with this one) shows its model. It is
+ * also the Client's: every pick is published as STATE_CATALOG_PICK and heard
+ * back (catalog_on_state), so a popped-out Preview or Catalog follows the
+ * window that picked. The multiloc rungs stay on the client's provider,
+ * reached through ui->app_services (skipped when they are NULL, as in
+ * editor_panels_test): one record loaded on demand, never a sweep.
  */
 
 #include "edpanel_catalog_model.h"
@@ -52,6 +55,8 @@
 /** Result rows on screen, which is also the page size asked for. */
 #define CATALOG_LIST_ROWS 12
 #define CATALOG_RECORD_ROWS 8
+/** Picks published whose echo has not come back yet. */
+#define CATALOG_PICK_ECHO_MAX 8
 
 struct CatalogRows
 {
@@ -82,8 +87,6 @@ struct CatalogPanel
     int button_open_script;
     int row_multi;
     int dropdown_variant;
-    int view;
-    int item_reset;
     struct CatalogRows var_rows;
 
     struct Editor_CatalogModel model;
@@ -100,7 +103,23 @@ struct CatalogPanel
     int var_choice;
     int var_shown_id;
     int var_shown_kind;
+
+    /** The pick relay (STATE_CATALOG_PICK): this window's publishes whose
+     *  echo is still to come, oldest first; a heard pick's name, to be asked
+     *  of the catalog on the next tick. */
+    int32_t pick_echo[CATALOG_PICK_ECHO_MAX][2];
+    int pick_echo_count;
+    int pick_name_pending;
+    /** Editor_Catalog_PickRecord: the row to select once the page holding it
+     *  lands ("" none). */
+    char select_name[EDITOR_CMD_NAME_MAX];
+    uint32_t select_kind;
 };
+
+static void
+catalog_pick_name(
+    struct EditorUi* ui,
+    struct CatalogPanel* self);
 
 static struct EditorHost*
 catalog_host(struct EditorUi* ui)
@@ -419,6 +438,19 @@ catalog_list_show(
     catalog_list_rows(ui, self);
     snprintf(line, sizeof(line), "page %u of %u", self->model.page + 1, Editor_CatalogModelPageCount(&self->model));
     ToriRSChrome_SetText(ui->chrome, self->row_page, line);
+    /* Editor_Catalog_PickRecord's row, once a page holding it lands. */
+    if( self->select_name[0] )
+        for( int r = 0; r < rows; r++ )
+        {
+            const struct EditorHost_CatalogRow* row = Editor_CatalogModelRow(&self->model, r);
+            if( row->kind == self->select_kind && strcmp(row->name, self->select_name) == 0 )
+            {
+                self->select_name[0] = '\0';
+                self->selected = r;
+                ToriRSChrome_VListSetSelected(ui->chrome, self->list, r);
+                break;
+            }
+        }
     catalog_record_show(ui, self);
 }
 
@@ -433,6 +465,10 @@ catalog_tick(
     char line[TORIRS_CHROME_LABEL_MAX];
     int const kind_index = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_kind);
 
+    /* A pick heard from another window: named whether or not this panel is
+     * open (a popped-out Preview shows the name). */
+    if( self->pick_name_pending )
+        catalog_pick_name(ui, self);
     if( !ui->chrome->panels[self->panel].visible )
         return;
     host = catalog_host(ui);
@@ -455,6 +491,92 @@ catalog_tick(
     catalog_record_rows(ui, self);
     if( ui->app_services.loc_record && (self->var_shown_id != ui->tools.pick_id || self->var_shown_kind != ui->tools.pick_kind) )
         catalog_variant_rebuild(ui, self);
+}
+
+/** Publish the pick to the Client, noting the echo to come (catalog_on_state
+ *  consumes it). A window with no catalog panel publishes untracked: its
+ *  echo is the same pick and lands as a no-op. */
+static void
+catalog_publish_pick(struct EditorUi* ui)
+{
+    struct CatalogPanel* self = Editor_UiPanelSelf(ui, "catalog");
+    int32_t const values[2] = { (int32_t)ui->tools.pick_kind, ui->tools.pick_id };
+
+    if( !Editor_UiPublish(ui, TORIRSMAPED_STATE_CATALOG_PICK, values, 2) || !self )
+        return;
+    if( self->pick_echo_count == CATALOG_PICK_ECHO_MAX )
+    {
+        /* A full queue of publishes with no echo: the oldest is not coming back. */
+        memmove(self->pick_echo[0], self->pick_echo[1], sizeof(self->pick_echo) - sizeof(self->pick_echo[0]));
+        self->pick_echo_count--;
+    }
+    self->pick_echo[self->pick_echo_count][0] = values[0];
+    self->pick_echo[self->pick_echo_count][1] = values[1];
+    self->pick_echo_count++;
+}
+
+/**
+ * A STATE_CATALOG_PICK fact. The server relays every publish to the whole
+ * Client in one order, the publisher included, so while this window waits for
+ * its own echo anything it hears was ordered before that publish and is
+ * superseded by it (the shared tools' rule, editor_ui.c ui_tools_heard). A
+ * pick heard with no echo pending becomes this window's; its name is asked of
+ * the catalog on the next tick (not from inside the fact pump).
+ */
+static void
+catalog_on_state(
+    struct EditorUi* ui,
+    void* opaque,
+    uint32_t key,
+    const int32_t* values,
+    int count)
+{
+    struct CatalogPanel* self = opaque;
+
+    if( key != TORIRSMAPED_STATE_CATALOG_PICK || count < 2 )
+        return;
+    if( self->pick_echo_count > 0 )
+    {
+        if( values[0] == self->pick_echo[0][0] && values[1] == self->pick_echo[0][1] )
+        {
+            self->pick_echo_count--;
+            memmove(self->pick_echo[0], self->pick_echo[1], sizeof(self->pick_echo[0]) * (size_t)self->pick_echo_count);
+        }
+        return;
+    }
+    /* Wire data, not a caller: a kind this window cannot preview is ignored. */
+    if( values[0] < (int32_t)TORIRSMAPED_CATALOG_LOC || values[0] > (int32_t)TORIRSMAPED_CATALOG_OBJ || values[1] < 0 )
+        return;
+    if( ui->tools.pick_kind == values[0] && ui->tools.pick_id == values[1] )
+        return;
+    ui->tools.pick_kind = values[0];
+    ui->tools.pick_id = values[1];
+    snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "#%d", (int)values[1]);
+    self->pick_name_pending = 1;
+    catalog_picked_label(ui, self);
+}
+
+/** A heard pick's name, from the catalog's record of it: once per pick. */
+static void
+catalog_pick_name(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    struct EditorHost* host = catalog_host(ui);
+    struct EditorHost_CatalogRecord record;
+
+    self->pick_name_pending = 0;
+    if( !host || ui->tools.pick_kind < 0 || ui->tools.pick_id < 0 )
+        return;
+    memset(&record, 0, sizeof(record));
+    if( Editor_HostMapEdCatalogRecord(host, (uint32_t)ui->tools.pick_kind, ui->tools.pick_id, "", &record)
+            == EDITOR_HOST_OK
+        && record.name && record.name[0] )
+    {
+        snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "%s (%d)", record.name, ui->tools.pick_id);
+        catalog_picked_label(ui, self);
+    }
+    Editor_HostCatalogRecordFree(&record);
 }
 
 /** The pick follows a selected loc / npc / obj row with an id. */
@@ -480,10 +602,7 @@ catalog_pick_row(
     /* A loc pick arms Place: picking one is asking to put it down. */
     if( r->kind == TORIRSMAPED_CATALOG_LOC && ui->tools.tool == EDITOR_TOOL_SELECT )
         Editor_UiSetTool(ui, EDITOR_TOOL_LOC_PLACE);
-    {
-        int32_t values[2] = { (int32_t)r->kind, r->id };
-        (void)Editor_UiPublish(ui, TORIRSMAPED_STATE_CATALOG_PICK, values, 2);
-    }
+    catalog_publish_pick(ui);
 }
 
 /** 1 when `name` can be a record name: [a-z0-9_], and it fits. */
@@ -549,10 +668,7 @@ Editor_Catalog_CopyRecord(
     ui->tools.pick_kind = (int)kind;
     ui->tools.pick_id = id;
     snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "%s (%d)", new_name, id);
-    {
-        int32_t values[2] = { (int32_t)kind, id };
-        (void)Editor_UiPublish(ui, TORIRSMAPED_STATE_CATALOG_PICK, values, 2);
-    }
+    catalog_publish_pick(ui);
     Editor_UiLog(ui, "editor: copied %s:%s to %s:%s, id %d (unsaved; Save writes it, RUN builds it)", type, name,
         type, new_name, id);
     return 1;
@@ -673,14 +789,7 @@ catalog_activate(
             catalog_variant_readout(ui, self);
         return 1;
     }
-    if( widget == self->item_reset )
-    {
-        if( ui->app_services.preview_invalidate )
-            ui->app_services.preview_invalidate(ui->app_services.user_data);
-        return 1;
-    }
-    return widget == self->input_search || widget == self->view || widget == self->record_list
-           || widget == self->input_new_name;
+    return widget == self->input_search || widget == self->record_list || widget == self->input_new_name;
 }
 
 static void
@@ -705,19 +814,58 @@ Editor_Catalog_PreviewId(struct EditorUi* ui)
         return -1;
     if( ui->tools.pick_kind != CACHEPROVIDER_CATALOG_LOC )
         return ui->tools.pick_id;
-    if( self->var_count > 0 && self->var_choice > 0 )
+    /* The rung only while the rungs are this pick's (they are rebuilt when
+     * the panel next ticks open; a closed panel keeps an older pick's). */
+    if( self->var_count > 0 && self->var_choice > 0 && self->var_shown_id == ui->tools.pick_id
+        && self->var_shown_kind == ui->tools.pick_kind )
         return catalog_variant_id(self);
     return ui->tools.pick_id;
 }
 
 int
-Editor_Catalog_ModelView(struct EditorUi* ui)
+Editor_Catalog_PickRecord(
+    struct EditorUi* ui,
+    uint32_t kind,
+    const char* name)
 {
     struct CatalogPanel* self;
+    struct EditorHost* host;
+    struct EditorHost_CatalogRecord record;
+    int id = -1;
 
     assert(ui);
+    assert(name);
+    assert(kind <= TORIRSMAPED_CATALOG_OBJ);
     self = Editor_UiPanelSelf(ui, "catalog");
-    return self ? self->view : -1;
+    host = catalog_host(ui);
+    if( !self || !host )
+    {
+        Editor_UiLog(ui, "editor: no catalog to pick %s %s from", ToriRSMapEdCatalog_KindName(kind), name);
+        return 0;
+    }
+    memset(&record, 0, sizeof(record));
+    if( Editor_HostMapEdCatalogRecord(host, kind, -1, name, &record) == EDITOR_HOST_OK )
+        id = record.id;
+    Editor_HostCatalogRecordFree(&record);
+    if( id < 0 )
+    {
+        Editor_UiLog(ui, "editor: the catalog has no %s %s with an id", ToriRSMapEdCatalog_KindName(kind), name);
+        return 0;
+    }
+    ui->tools.pick_kind = (int)kind;
+    ui->tools.pick_id = id;
+    snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "%s (%d)", name, id);
+    if( kind == TORIRSMAPED_CATALOG_LOC && ui->tools.tool == EDITOR_TOOL_SELECT )
+        Editor_UiSetTool(ui, EDITOR_TOOL_LOC_PLACE);
+    catalog_publish_pick(ui);
+    catalog_picked_label(ui, self);
+    /* Shown in the list: that kind, found by name, its row selected when the
+     * page lands (catalog_list_show). */
+    ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_kind, Editor_CatalogModelKindIndex(kind));
+    ToriRSChrome_SetText(ui->chrome, self->input_search, name);
+    snprintf(self->select_name, sizeof(self->select_name), "%s", name);
+    self->select_kind = kind;
+    return 1;
 }
 
 void
@@ -737,6 +885,7 @@ Editor_Catalog_Adopt(
     cfg = catalog_loc_record(ui, loc_id);
     snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "%s (%d)",
         cfg && cfg->name[0] ? cfg->name : "<unnamed>", loc_id);
+    catalog_publish_pick(ui);
     catalog_picked_label(ui, self);
     /* Show it: kind loc, found by id (one query, when the panel next ticks). */
     ToriRSChrome_DropdownSetSelected(
@@ -795,8 +944,6 @@ Editor_Catalog_Register(struct EditorUi* ui)
         "Copy the picked loc/npc/obj to New name, fresh id");
     self->row_multi = ToriRSChrome_Label(chrome, self->panel, "");
     self->dropdown_variant = ToriRSChrome_Dropdown(chrome, self->panel, "", NULL, 0, -1);
-    self->view = ToriRSChrome_ModelView(chrome, self->panel, 120, 96);
-    self->item_reset = ToriRSChrome_MenuItem(chrome, self->panel, "Reset view");
     self->var_rows.name = ToriRSChrome_Label(chrome, self->panel, "");
     self->var_rows.desc = ToriRSChrome_Label(chrome, self->panel, "");
     self->var_rows.cfg = ToriRSChrome_Label(chrome, self->panel, "");
@@ -804,12 +951,6 @@ Editor_Catalog_Register(struct EditorUi* ui)
     self->var_rows.render = ToriRSChrome_Label(chrome, self->panel, "");
     self->var_rows.ops = ToriRSChrome_Label(chrome, self->panel, "");
     catalog_rows_hidden(ui, self, 1);
-    if( !ui->app_services.preview_invalidate )
-    {
-        /* No App to preview with (a headless test). */
-        ToriRSChrome_SetHidden(chrome, self->view, 1);
-        ToriRSChrome_SetHidden(chrome, self->item_reset, 1);
-    }
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);
     ToriRSChrome_PanelSetVisible(chrome, self->panel, 0);
 
@@ -820,9 +961,14 @@ Editor_Catalog_Register(struct EditorUi* ui)
     desc.chrome_panel = self->panel;
     desc.tick = catalog_tick;
     desc.activate = catalog_activate;
+    desc.on_state = catalog_on_state;
     desc.destroy = catalog_destroy;
     Editor_UiAddPanel(ui, &desc);
 
+    /* The Preview shows the catalog's pick, and sits next to it in the View
+     * menu and the dock order. */
+    if( !Editor_UiPanelSelf(ui, "preview") )
+        Editor_Preview_Register(ui);
     /* The record editor travels with the catalog it opens records from. */
     if( !Editor_UiPanelSelf(ui, "record") )
         Editor_Record_Register(ui);

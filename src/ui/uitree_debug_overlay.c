@@ -2655,6 +2655,8 @@ ToriRSChrome_ModelView(struct ToriRSChrome* ui, int panel, int w, int h)
     ui->widgets[handle].view_w = w > 0 ? w : 64;
     ui->widgets[handle].view_h = h > 0 ? h : 64;
     ui->widgets[handle].view_scene_id = 0;
+    ui->widgets[handle].view_sprite_w = 0;
+    ui->widgets[handle].view_sprite_h = 0;
     return handle;
 }
 
@@ -2664,10 +2666,88 @@ ToriRSChrome_ModelViewSet(struct ToriRSChrome* ui, int widget, int scene_sprite_
     assert(ui);
     if( !dbg_valid_widget(ui, widget) )
         return;
-    if( ui->widgets[widget].view_scene_id == scene_sprite_id )
+    if( ui->widgets[widget].view_scene_id == scene_sprite_id && ui->widgets[widget].view_sprite_w == 0 )
         return;
     ui->widgets[widget].view_scene_id = scene_sprite_id;
+    ui->widgets[widget].view_sprite_w = 0;
+    ui->widgets[widget].view_sprite_h = 0;
     dbg_dirty_widget_paint(ui, widget);
+}
+
+void
+ToriRSChrome_ModelViewSetSprite(
+    struct ToriRSChrome* ui,
+    int widget,
+    int scene_sprite_id,
+    int sprite_w,
+    int sprite_h)
+{
+    struct ToriRSChromeWidget* w;
+
+    assert(ui);
+    assert(dbg_valid_widget(ui, widget));
+    assert(sprite_w > 0);
+    assert(sprite_h > 0);
+    w = &ui->widgets[widget];
+    assert(w->kind == TORIRS_CHROME_W_MODELVIEW);
+    if( w->view_scene_id == scene_sprite_id && w->view_sprite_w == sprite_w && w->view_sprite_h == sprite_h )
+        return;
+    w->view_scene_id = scene_sprite_id;
+    w->view_sprite_w = sprite_w;
+    w->view_sprite_h = sprite_h;
+    dbg_dirty_widget_paint(ui, widget);
+}
+
+void
+ToriRSChrome_ModelViewSetBox(struct ToriRSChrome* ui, int widget, int box_w, int box_h)
+{
+    struct ToriRSChromeWidget* w;
+    int view_w;
+    int view_h;
+
+    assert(ui);
+    assert(dbg_valid_widget(ui, widget));
+    w = &ui->widgets[widget];
+    assert(w->kind == TORIRS_CHROME_W_MODELVIEW);
+    view_w = box_w - 2 * DBG_RULE;
+    view_h = box_h - 2 * DBG_RULE;
+    if( view_w < 16 )
+        view_w = 16;
+    if( view_h < 16 )
+        view_h = 16;
+    if( w->view_w == view_w && w->view_h == view_h )
+        return;
+    w->view_w = view_w;
+    w->view_h = view_h;
+    /* Structural, as ToriRSChrome_SetCustomHeight: the rows below move. */
+    dbg_change_widget_layout(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_HEIGHT);
+    dbg_dirty_widget(ui, widget);
+}
+
+int
+ToriRSChrome_ModelViewBox(
+    struct ToriRSChrome const* ui,
+    int widget,
+    int* out_box_w,
+    int* out_box_h,
+    int* out_well_w,
+    int* out_well_h)
+{
+    struct ToriRSChromeWidget const* w;
+
+    assert(ui);
+    assert(out_box_w);
+    assert(out_box_h);
+    assert(out_well_w);
+    assert(out_well_h);
+    if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].kind != TORIRS_CHROME_W_MODELVIEW )
+        return 0;
+    w = &ui->widgets[widget];
+    *out_well_w = w->view_w;
+    *out_well_h = w->view_h;
+    *out_box_w = w->view_w + 2 * DBG_RULE;
+    *out_box_h = w->view_h + 2 * DBG_RULE;
+    return 1;
 }
 
 
@@ -5896,6 +5976,14 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                     p2->kind = TORIRS_CHROME_PRIM_SPRITE;
                     p2->x = row_x + DBG_RULE;
                     p2->y = row_y + DBG_RULE;
+                    /* A sprite of a stated size sits centred on the well
+                     * (ToriRSChrome_ModelViewSetSprite), overhanging it on
+                     * every side when it is larger. */
+                    if( w->view_sprite_w > 0 && w->view_sprite_h > 0 )
+                    {
+                        p2->x += (w->view_w - w->view_sprite_w) / 2;
+                        p2->y += (w->view_h - w->view_sprite_h) / 2;
+                    }
                     p2->sprite_scene_id = w->view_scene_id;
                     /* Clip to the well, not the panel: the host's render may
                      * be larger than the box. */

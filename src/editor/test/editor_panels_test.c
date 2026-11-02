@@ -3307,6 +3307,336 @@ test_shared_tools(void)
     Editor_UiFree(&g_ui);
 }
 
+/* ---- the Preview panel ---------------------------------------------------------- */
+
+static int g_preview_resets;
+static int g_preview_app_stand_in;
+
+static void
+fake_preview_invalidate(void* user)
+{
+    (void)user;
+    g_preview_resets++;
+}
+
+/** layout_boot with services standing in for an App: the Catalog, and with
+ *  it the Preview and Record panels, register. */
+static void
+layout_boot_catalog(
+    int w,
+    int h,
+    const struct EditorLayoutFile* file)
+{
+    ToriRSChrome_Init(&g_chrome);
+    ToriRSChrome_SetScale(&g_chrome, 1);
+    ToriRSChrome_SetSurface(&g_chrome, w, h);
+    Editor_UiInit(&g_ui, &g_chrome, &g_editor);
+    g_ui.hooks.open_square = fake_open_square;
+    g_ui.hooks.open_in_new_view = fake_open_in_new_view;
+    g_ui.hooks.floor_rgb = fake_floor_rgb;
+    g_ui.hooks.view_window = fake_view_window;
+    g_ui.hooks.selection_changed = fake_selection_changed;
+    g_ui.app_services.user_data = &g_preview_app_stand_in;
+    g_ui.app_services.preview_invalidate = fake_preview_invalidate;
+    g_ui.app_services.world_camera = fake_world_camera;
+    g_ui.app_services.spawn_panel = fake_spawn_panel;
+    Editor_UiRegisterToolsPanels(&g_ui);
+    if( file )
+        Editor_UiLayoutHold(&g_ui);
+    Editor_UiSetVisible(&g_ui, 1);
+    frame();
+    frame();
+    if( file )
+        Editor_UiLayoutLoaded(&g_ui, file);
+    for( int i = 0; i < 4; i++ )
+        frame();
+}
+
+/** The Catalog's result row `row`, picked as a click does. */
+static void
+preview_pick_row(
+    int catalog,
+    const char* find_text,
+    int row)
+{
+    int const find = find_widget(catalog, TORIRS_CHROME_W_TEXTINPUT, "Find");
+    int const list = find_widget(catalog, TORIRS_CHROME_W_VLIST, NULL);
+
+    assert(find >= 0);
+    assert(list >= 0);
+    ToriRSChrome_SetText(&g_chrome, find, find_text);
+    for( int i = 0; i < 3; i++ )
+        frame();
+    ToriRSChrome_VListSetSelected(&g_chrome, list, row);
+    activate(list);
+}
+
+static void
+test_preview(void)
+{
+    static struct Editor peer;
+    static struct ToriRSChrome pv_chrome;
+    static struct EditorUi pv_ui;
+    struct EditorHost peer_host;
+    struct EditorLayoutFile file;
+    struct EditorLayoutFile without;
+    struct EditorUiPanel* module;
+    int preview;
+    int catalog;
+    int view;
+    int reset;
+    int subject;
+    int kind;
+    int id;
+    int box_w;
+    int box_h;
+    int well_w;
+    int well_h;
+    const char* row;
+
+    g_preview_resets = 0;
+    memset(&g_pop, 0, sizeof(g_pop));
+    layout_boot_catalog(1280, 800, NULL);
+    preview = find_panel("Preview");
+    catalog = find_panel("Catalog");
+    CHECK(preview >= 0 && catalog >= 0, "preview: the Catalog registers a Preview panel beside it");
+    if( preview < 0 || catalog < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    module = Editor_UiFindPanel(&g_ui, "preview");
+    CHECK(module && module - g_ui.panels == Editor_UiFindPanel(&g_ui, "catalog") - g_ui.panels + 1,
+        "preview: module \"preview\", right after the Catalog in the registry (and the View menu)");
+    CHECK(g_chrome.panels[preview].closable && g_chrome.panels[preview].poppable
+              && g_chrome.panels[preview].resizable,
+        "preview: it wears the Close box, the Pop out and the grip");
+    row = view_row("Preview");
+    CHECK(row && strstr(row, "Shift+P"), "preview: View > Preview shows its chord (%s)", row ? row : "-");
+    CHECK(Editor_HotkeyForPanel("preview") == EDITOR_HK_VIEW_PREVIEW, "preview: view.preview toggles it");
+
+    /* The Catalog no longer carries the model view; the Preview does. */
+    CHECK(find_widget(catalog, TORIRS_CHROME_W_MODELVIEW, NULL) < 0
+              && find_widget(catalog, TORIRS_CHROME_W_MENUITEM, "Reset view") < 0,
+        "preview: the Catalog has no model view and no Reset view");
+    view = find_widget(preview, TORIRS_CHROME_W_MODELVIEW, NULL);
+    reset = find_widget(preview, TORIRS_CHROME_W_MENUITEM, "Reset view");
+    subject = find_widget(preview, TORIRS_CHROME_W_LABEL, NULL);
+    CHECK(view >= 0 && reset >= 0 && subject >= 0, "preview: the model view, Reset view and the subject row");
+    if( view < 0 || reset < 0 || subject < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+
+    /* 1280x800 has no room for either in the column: both hidden by the
+     * layout -- not a close of the user's. Opening the Catalog opens the
+     * Preview against its left side, top-aligned. */
+    CHECK(!g_chrome.panels[catalog].visible && !g_chrome.panels[preview].visible,
+        "preview: at 1280x800 the layout leaves the Catalog and the Preview closed");
+    CHECK(Editor_Preview_ModelView(&g_ui) == -1, "preview: closed, it has no well to render into");
+    (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_CATALOG);
+    frame();
+    frame();
+    CHECK(g_chrome.panels[catalog].visible && g_chrome.panels[preview].visible && Editor_Preview_AutoOpens(&g_ui) == 1,
+        "preview: opening the Catalog opened the Preview once (%d)", Editor_Preview_AutoOpens(&g_ui));
+    {
+        struct ToriRSChromeRect const c = g_chrome.panels[catalog].last_rect;
+        struct ToriRSChromeRect const p = g_chrome.panels[preview].last_rect;
+        CHECK((p.x + p.w == c.x || p.x == c.x + c.w) && p.y == c.y,
+            "preview: beside the Catalog (preview %d,%d %dx%d, catalog %d,%d %dx%d)", p.x, p.y, p.w, p.h, c.x, c.y,
+            c.w, c.h);
+    }
+    CHECK(Editor_Preview_ModelView(&g_ui) == view, "preview: open, its well is the one the App renders into");
+    CHECK(!Editor_Preview_Subject(&g_ui, &kind, &id) && strstr(g_chrome.widgets[subject].text, "pick a loc"),
+        "preview: with nothing picked or selected it asks for a pick (%s)", g_chrome.widgets[subject].text);
+
+    /* With nothing picked, the primary selected loc. */
+    g_ui.tools.loc_count = 1;
+    g_ui.tools.locs[0].loc_id = 1;
+    frame();
+    CHECK(Editor_Preview_Subject(&g_ui, &kind, &id) && kind == 0 && id == 1
+              && strstr(g_chrome.widgets[subject].text, "selected loc 1"),
+        "preview: with nothing picked it shows the selected loc (%d %d, %s)", kind, id,
+        g_chrome.widgets[subject].text);
+    g_ui.tools.loc_count = 0;
+
+    /* It follows the Catalog's pick. */
+    Editor_SetStateCallback(&g_editor, main_on_state, &g_ui);
+    preview_pick_row(catalog, "crate", 0);
+    frame();
+    CHECK(Editor_Preview_Subject(&g_ui, &kind, &id) && kind == 0 && id == 0
+              && strcmp(g_chrome.widgets[subject].text, "loc test_crate (0)") == 0,
+        "preview: a picked row is its subject (%d %d, %s)", kind, id, g_chrome.widgets[subject].text);
+    CHECK(Editor_Preview_AutoOpens(&g_ui) == 1, "preview: already open, a pick does not open it again");
+
+    /* Reset view: the App's camera back to the default pose. */
+    activate(reset);
+    CHECK(g_preview_resets == 1, "preview: Reset view asks the App for the default pose (%d)", g_preview_resets);
+
+    /* The well fills the body, and grows with the panel. */
+    (void)ToriRSChrome_ModelViewBox(&g_chrome, view, &box_w, &box_h, &well_w, &well_h);
+    CHECK(box_w == g_chrome.widgets[view].w && box_w > 200,
+        "preview: the well is the panel's width (%d of %d)", box_w, g_chrome.widgets[view].w);
+    {
+        int const was_h = box_h;
+        ToriRSChrome_PanelSetFixedHeight(&g_chrome, preview, g_chrome.panels[preview].last_rect.h + 200);
+        ToriRSChrome_PanelSetScrollable(&g_chrome, preview, 1);
+        frame();
+        frame();
+        (void)ToriRSChrome_ModelViewBox(&g_chrome, view, &box_w, &box_h, &well_w, &well_h);
+        CHECK(box_h == was_h + 200 && g_chrome.panels[preview].content_h <= g_chrome.panels[preview].view_h,
+            "preview: 200 px taller, the well is 200 px taller and nothing scrolls (%d -> %d)", was_h, box_h);
+    }
+
+    /* The pick relay: a popped-out Preview -- another window of the Client,
+     * its own registry, solo -- follows this window's picks. */
+    if( Editor_HostOpenMapEdEmbedPeer(&peer_host, &g_editor.host, TORIRSMAPED_ROLE_GENERIC, 1) )
+    {
+        int pv_preview;
+        int pv_subject = -1;
+
+        Editor_OpenHost(&peer, &peer_host, "popped-out Preview", &g_profile);
+        ToriRSChrome_Init(&pv_chrome);
+        ToriRSChrome_SetSurface(&pv_chrome, 800, 600);
+        Editor_UiInit(&pv_ui, &pv_chrome, &peer);
+        pv_ui.app_services.user_data = &g_preview_app_stand_in;
+        Editor_Catalog_Register(&pv_ui);
+        CHECK(Editor_UiSetSolo(&pv_ui, "preview"), "preview: a window can be the Preview alone");
+        Editor_UiSetVisible(&pv_ui, 1);
+        Editor_SetStateCallback(&peer, main_on_state, &pv_ui);
+        pv_preview = -1;
+        for( int i = 0; i < pv_chrome.panel_count; i++ )
+            if( strcmp(pv_chrome.panels[i].title, "Preview") == 0 )
+                pv_preview = i;
+        for( int i = 0; i < pv_chrome.widget_count && pv_subject < 0; i++ )
+            if( pv_chrome.widgets[i].panel == pv_preview && pv_chrome.widgets[i].kind == TORIRS_CHROME_W_LABEL )
+                pv_subject = i;
+
+        /* The main window picks test_guard (npc 0). */
+        ToriRSChrome_DropdownSetSelected(&g_chrome, find_widget(catalog, TORIRS_CHROME_W_DROPDOWN, "Kind"),
+            Editor_CatalogModelKindIndex(TORIRSMAPED_CATALOG_NPC));
+        activate(find_widget(catalog, TORIRS_CHROME_W_DROPDOWN, "Kind"));
+        preview_pick_row(catalog, "", 0);
+        CHECK(g_ui.tools.pick_kind == 1 && g_ui.tools.pick_id == 0, "preview: the main window picked test_guard");
+        Editor_PumpFacts(&g_editor);
+        Editor_PumpFacts(&peer);
+        for( int i = 0; i < 3; i++ )
+        {
+            ToriRSChrome_Build(&pv_chrome);
+            Editor_UiTick(&pv_ui);
+        }
+        ToriRSChrome_Build(&pv_chrome);
+        CHECK(pv_ui.tools.pick_kind == 1 && pv_ui.tools.pick_id == 0
+                  && Editor_Preview_Subject(&pv_ui, &kind, &id) && kind == 1 && id == 0,
+            "preview: the popped-out Preview heard the pick (%d %d)", pv_ui.tools.pick_kind, pv_ui.tools.pick_id);
+        CHECK(pv_subject >= 0 && strcmp(pv_chrome.widgets[pv_subject].text, "npc test_guard (0)") == 0,
+            "preview: and names it from its catalog (%s)", pv_subject >= 0 ? pv_chrome.widgets[pv_subject].text : "-");
+        CHECK(g_ui.tools.pick_kind == 1 && g_ui.tools.pick_id == 0,
+            "preview: the main window's own echo left its pick alone");
+
+        /* The echo rule: a pick made before this window's echo returns is not
+         * undone by it. */
+        ToriRSChrome_DropdownSetSelected(&g_chrome, find_widget(catalog, TORIRS_CHROME_W_DROPDOWN, "Kind"),
+            Editor_CatalogModelKindIndex(TORIRSMAPED_CATALOG_LOC));
+        activate(find_widget(catalog, TORIRS_CHROME_W_DROPDOWN, "Kind"));
+        preview_pick_row(catalog, "door", 0);
+        preview_pick_row(catalog, "crate", 0);
+        Editor_PumpFacts(&g_editor);
+        Editor_PumpFacts(&peer);
+        frame();
+        ToriRSChrome_Build(&pv_chrome);
+        Editor_UiTick(&pv_ui);
+        CHECK(g_ui.tools.pick_kind == 0 && g_ui.tools.pick_id == 0 && pv_ui.tools.pick_kind == 0
+                  && pv_ui.tools.pick_id == 0,
+            "preview: door then crate: both windows end on test_crate (main %d, popped-out %d)", g_ui.tools.pick_id,
+            pv_ui.tools.pick_id);
+
+        Editor_SetStateCallback(&peer, NULL, NULL);
+        Editor_UiFree(&pv_ui);
+        Editor_Close(&peer);
+        Editor_PumpFacts(&g_editor);
+    }
+    else
+        CHECK(0, "preview: a second window joins the Client");
+
+    /* Popped out here, it is not opened again by the next pick. */
+    frame();
+    click_rect(ToriRSChrome_PanelPopOutRect(&g_chrome, preview));
+    CHECK(g_pop.calls == 1 && strcmp(g_pop.module, "preview") == 0 && !g_chrome.panels[preview].visible,
+        "preview: its Pop out asks for a \"preview\" window and hides it here");
+    preview_pick_row(catalog, "door", 0);
+    frame();
+    CHECK(!g_chrome.panels[preview].visible && Editor_Preview_AutoOpens(&g_ui) == 1,
+        "preview: popped out, a pick does not open it here");
+    (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_PREVIEW);
+    frame();
+    frame();
+    CHECK(g_chrome.panels[preview].visible && !Editor_UiPanelPoppedOut(&g_ui, "preview"),
+        "preview: View > Preview (Ctrl+Shift+P) pops it back in");
+
+    /* The Close box hides it, and the user's close holds for the session:
+     * neither a pick nor the Catalog opening again opens it. */
+    click_rect(ToriRSChrome_PanelCloseRect(&g_chrome, preview));
+    CHECK(!g_chrome.panels[preview].visible, "preview: the Close box hides it");
+    row = view_row("Preview");
+    CHECK(row && strstr(row, "hidden"), "preview: the View row says hidden (%s)", row ? row : "-");
+    preview_pick_row(catalog, "crate", 0);
+    (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_CATALOG);
+    frame();
+    (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_CATALOG);
+    frame();
+    frame();
+    CHECK(g_chrome.panels[catalog].visible && !g_chrome.panels[preview].visible
+              && Editor_Preview_AutoOpens(&g_ui) == 1,
+        "preview: closed by the user, it stays closed through a pick and a Catalog reopen");
+
+    /* A layout saved before the Preview existed: everything else applies,
+     * the Preview keeps its default (closed, its registration box). */
+    Editor_UiLayoutCapture(&g_ui, &file);
+    EditorLayout_Clear(&without);
+    without.version = file.version;
+    without.surface_w = file.surface_w;
+    without.surface_h = file.surface_h;
+    without.scale = file.scale;
+    without.has_snap = file.has_snap;
+    without.snap = file.snap;
+    for( int i = 0; i < file.panel_count; i++ )
+        if( strcmp(file.panels[i].name, "preview") != 0 )
+            *EditorLayout_Add(&without, file.panels[i].name) = file.panels[i];
+    CHECK(EditorLayout_Find(&file, "preview") && !EditorLayout_Find(&without, "preview"),
+        "preview: the saved layout names it; the old file does not");
+    Editor_SetStateCallback(&g_editor, NULL, NULL);
+    Editor_UiFree(&g_ui);
+    {
+        /* The control: the same file WITH the Preview, booted the same way. */
+        unsigned char shown[TORIRS_CHROME_MAX_PANELS];
+        int same = 1;
+
+        layout_boot_catalog(1280, 800, &file);
+        for( int i = 0; i < g_chrome.panel_count; i++ )
+            shown[i] = (unsigned char)g_chrome.panels[i].visible;
+        Editor_UiFree(&g_ui);
+        layout_boot_catalog(1280, 800, &without);
+        preview = find_panel("Preview");
+        catalog = find_panel("Catalog");
+        CHECK(preview >= 0 && catalog >= 0, "preview: a layout without \"preview\" loads");
+        for( int i = 0; i < g_chrome.panel_count; i++ )
+            if( i != preview && g_chrome.panels[i].visible != shown[i] )
+            {
+                printf("  %s: open %d without the preview line, %d with it\n", g_chrome.panels[i].title,
+                    g_chrome.panels[i].visible, shown[i]);
+                same = 0;
+            }
+        CHECK(same, "preview: every other panel comes back as it does from the file that names the Preview");
+        CHECK(preview >= 0 && !g_chrome.panels[preview].user_placed
+                  && g_chrome.panels[preview].visible == g_chrome.panels[catalog].visible,
+            "preview: the Preview takes its default -- beside the Catalog when that opens (catalog %d preview %d)",
+            g_chrome.panels[catalog].visible, preview >= 0 ? g_chrome.panels[preview].visible : -1);
+    }
+    Editor_UiFree(&g_ui);
+}
+
 /** Every saved field of two files agrees. */
 static int
 layout_files_equal(
@@ -5769,6 +6099,7 @@ main(
     test_saved_layout();
 
     test_catalog_panel();
+    test_preview();
     test_spawn_duplicate();
     test_spawn_edit();
     test_record_editor();

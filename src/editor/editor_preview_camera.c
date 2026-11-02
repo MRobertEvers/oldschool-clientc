@@ -105,3 +105,17 @@ EditorPreviewCamera_TakeFit(
         camera->zoom = EDITOR_PREVIEW_FIT_ZOOM_MAX;
     return true;
 }
+
+int
+EditorPreviewCamera_ProjectionScale(
+    int well_w,
+    int well_h)
+{
+    assert(well_w > 0);
+    assert(well_h > 0);
+    /* Whichever ratio is smaller binds: w / REF_W against h / REF_H, compared
+     * cross-multiplied so no ratio is rounded before it is chosen. */
+    if( (long long)well_w * EDITOR_PREVIEW_REF_H <= (long long)well_h * EDITOR_PREVIEW_REF_W )
+        return (int)((long long)EDITOR_PREVIEW_REF_PROJECTION * well_w / EDITOR_PREVIEW_REF_W);
+    return (int)((long long)EDITOR_PREVIEW_REF_PROJECTION * well_h / EDITOR_PREVIEW_REF_H);
+}

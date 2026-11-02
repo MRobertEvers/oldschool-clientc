@@ -160,6 +160,8 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_VIEW_INSPECTOR] = { "view.inspector", "View", "Inspector", "| Inspector |", G, EDGE, { "f7" },
                                    "inspector" },
     [EDITOR_HK_VIEW_CATALOG] = { "view.catalog", "View", "Catalog", "| Catalog |", G, EDGE, { "f8" }, "catalog" },
+    [EDITOR_HK_VIEW_PREVIEW] = { "view.preview", "View", "Preview", "| Preview (the Catalog pick's model) |", G,
+                                 EDGE, { "ctrl+shift+p" }, "preview" },
     [EDITOR_HK_VIEW_CONSOLE] = { "view.console", "View", "Console (Output)", "| Console |", G, EDGE, { "f9" },
                                  "console" },
     [EDITOR_HK_VIEW_HISTORY] = { "view.history", "View", "History", "| History |", G, EDGE, { "f10" }, "history" },

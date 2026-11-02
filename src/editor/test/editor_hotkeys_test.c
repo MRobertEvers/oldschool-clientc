@@ -116,6 +116,18 @@ test_defaults(void)
         }
     }
     CHECK(Editor_HotkeyFind("no.such") == -1, "an unknown id is -1");
+    /* The Preview panel (the Catalog pick's model): its own View action, on
+     * Ctrl+Shift+P (every F-key is taken). */
+    {
+        const struct Editor_HotkeyActionInfo* info = Editor_HotkeyInfo(EDITOR_HK_VIEW_PREVIEW);
+        struct Editor_Chord chord;
+        CHECK(Editor_HotkeyFind("view.preview") == EDITOR_HK_VIEW_PREVIEW
+                  && Editor_HotkeyForPanel("preview") == EDITOR_HK_VIEW_PREVIEW,
+            "view.preview names the preview module");
+        CHECK(info->defaults[0] && Editor_ChordParse(info->defaults[0], &chord) && chord.key == TORIRSK_P
+                  && chord.mods == (EDITOR_HK_MOD_CTRL | EDITOR_HK_MOD_SHIFT) && !info->defaults[1],
+            "view.preview defaults to Ctrl+Shift+P alone");
+    }
     CHECK(Editor_HotkeyForPanel("terrain") == EDITOR_HK_VIEW_TERRAIN && Editor_HotkeyForPanel("hotkeys")
               == EDITOR_HK_VIEW_HOTKEYS,
         "the View actions name their modules");

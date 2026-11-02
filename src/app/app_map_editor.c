@@ -18,6 +18,12 @@
 #include "editor/task_editor_layout_io.h"
 #include "engine/world_builder/edit/world_edit.h"
 #include "game/rs_worldmap_overview.h"
+#include "graphics/pixel_format.h"
+#include "toridraw.h"
+#include "toridraw_alloc.h"
+#include "toridraw_math.h"
+#include "toridraw_raster_kernel.h"
+#include "toridraw_sprite.h"
 
 #include <ctype.h>
 #include <time.h>
@@ -38,7 +44,9 @@ app_map_editor_hover_env_tile(
 static struct ToriDraw_Sprite*
 app_preview_raster(
     struct App* app,
-    struct ToriDraw_ModelHandle hnd);
+    struct ToriDraw_ModelHandle hnd,
+    int width,
+    int height);
 
 /**
  * Whether the map editor's SELECT tool is the thing the minimenu should be
@@ -2706,7 +2714,8 @@ app_map_editor_ghost_update(struct App* app)
 }
 
 /**
- * Render the catalog's picked entry into its model-view well.
+ * Render the Preview panel's subject (the catalog's pick, else the selected
+ * loc: Editor_Preview_Subject) into its model-view well.
  *
  * Objs ride the inventory-icon pipeline unchanged. Locs have no equivalent --
  * loc models are composed per shape by the world builder, privately -- so this
@@ -2717,41 +2726,98 @@ app_map_editor_ghost_update(struct App* app)
  * lands, so a miss this frame is a retry next frame, not a permanent blank.
  */
 /**
- * Raster a preview model with the preview camera, fitting the zoom on demand.
+ * Raster a preview model with the preview camera for a `width` x `height`
+ * well, fitting the zoom on demand. The sprite is always
+ * EDITOR_PREVIEW_SPRITE_W x _H (one atlas tile for the life of the window,
+ * whatever the well does) with the model at its middle; the well shows it
+ * centred (ToriRSChrome_ModelViewSetSprite).
  *
  * The fit reads the model's bounds cylinder and scales the raster distance so
- * the larger dimension fills most of the well -- a candle and a castle gate
- * both arrive framed, instead of one vanishing and the other cropping to a
- * wall of pixels. The constant is calibrated against the obj-icon pipeline
- * (zoom 2000 frames a typical item in ~30px) and clamped so a degenerate
- * bounds cannot zoom to infinity.
+ * the larger dimension fills most of the reference 120 x 96 well -- a candle
+ * and a castle gate both arrive framed, instead of one vanishing and the other
+ * cropping to a wall of pixels. The constant is calibrated against the
+ * obj-icon pipeline (zoom 2000 frames a typical item in ~30px) and clamped so
+ * a degenerate bounds cannot zoom to infinity.
+ *
+ * The Preview panel's well is any size, so this is ToriDraw_SpriteNewFromModelRaster's
+ * camera with the PROJECTION scaled to the well
+ * (EditorPreviewCamera_ProjectionScale): one framing, drawn bigger in a bigger
+ * well. Scaling the distance instead would change the perspective. The model's
+ * vertical middle is put on the view's: that raster's own placement
+ * (`sin_pitch - height / 2 + model_height / 2`, a pixel count read as model
+ * units) lifts a model by a quarter of a 96 px well and grows with the well's
+ * pixels, which walked a tall well's model off its top.
  */
 static struct ToriDraw_Sprite*
 app_preview_raster(
     struct App* app,
-    struct ToriDraw_ModelHandle hnd)
+    struct ToriDraw_ModelHandle hnd,
+    int width,
+    int height)
 {
-    {
-        /* A model with no bounds is one that has not finished loading. 128 is
-         * a middling size, so the well shows something framed rather than a
-         * dot or a wall while it waits. */
-        struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
+    struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
+    struct ToriDraw_ViewPort view_port;
+    struct ToriDraw_Camera camera;
+    struct ToriDraw_Position position;
+    toripixel_t* pixels;
+    uint32_t* argb;
+    int const sprite_w = EDITOR_PREVIEW_SPRITE_W;
+    int const sprite_h = EDITOR_PREVIEW_SPRITE_H;
+    size_t const pixel_count = (size_t)sprite_w * (size_t)sprite_h;
+    int zoom;
+    int middle_y;
 
-        (void)EditorPreviewCamera_TakeFit(
-            &app->preview_camera,
-            bounds ? bounds->radius : 64,
-            bounds ? bounds->min_y : 0,
-            bounds ? bounds->max_y : 128);
+    assert(width > 0);
+    assert(height > 0);
+    /* A model with no bounds is one that has not finished loading. 128 is a
+     * middling size, so the well shows something framed rather than a dot or
+     * a wall while it waits. */
+    (void)EditorPreviewCamera_TakeFit(
+        &app->preview_camera, bounds ? bounds->radius : 64, bounds ? bounds->min_y : 0, bounds ? bounds->max_y : 128);
+    middle_y = bounds ? (bounds->min_y + bounds->max_y) / 2 : 0;
+    /* After the fit: a new model's first render is at the zoom it chose. */
+    zoom = app->preview_camera.zoom > 0 ? app->preview_camera.zoom : 2000;
+
+    /* Only the part the well shows is rastered: the sprite's middle. */
+    if( width > sprite_w )
+        width = sprite_w;
+    if( height > sprite_h )
+        height = sprite_h;
+    memset(&view_port, 0, sizeof(view_port));
+    view_port.width = sprite_w;
+    view_port.height = sprite_h;
+    view_port.clip_left = (sprite_w - width) / 2;
+    view_port.clip_top = (sprite_h - height) / 2;
+    view_port.clip_right = view_port.clip_left + width;
+    view_port.clip_bottom = view_port.clip_top + height;
+    view_port.x_center = sprite_w / 2;
+    view_port.y_center = sprite_h / 2;
+    view_port.stride = sprite_w;
+
+    memset(&camera, 0, sizeof(camera));
+    camera.pitch = app->preview_camera.pitch;
+    camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    camera.projection_scale = EditorPreviewCamera_ProjectionScale(width, height);
+    camera.near_plane_z = 1;
+
+    memset(&position, 0, sizeof(position));
+    position.yaw = app->preview_camera.yaw;
+    position.y = ((ToriDraw_Sin(app->preview_camera.pitch) * zoom) >> 16) - middle_y;
+    position.z = (ToriDraw_Cos(app->preview_camera.pitch) * zoom) >> 16;
+
+    pixels = TORIDRAW_CALLOC(pixel_count, sizeof(toripixel_t));
+    assert(pixels);
+    ToriDraw_RenderModelWithTable(hnd, app->scene, &position, &view_port, &camera, pixels,
+        ToriDraw_KernelGetSpriteBaker());
+    argb = TORIDRAW_MALLOC(pixel_count * sizeof(uint32_t));
+    assert(argb);
+    for( size_t i = 0; i < pixel_count; i++ )
+    {
+        uint32_t const rgb = toripixel_to_argb8888(pixels[i]) & 0xFFFFFFu;
+        argb[i] = rgb ? (rgb | 0xFF000000u) : 0u;
     }
-    return ToriDraw_SpriteNewFromModelRaster(
-        app->scene,
-        hnd,
-        app->preview_camera.zoom,
-        app->preview_camera.pitch,
-        app->preview_camera.yaw,
-        120,
-        96,
-        false);
+    TORIDRAW_FREE(pixels);
+    return ToriDraw_SpriteNewFromArgbOwned(argb, sprite_w, sprite_h);
 }
 
 void
@@ -2759,41 +2825,74 @@ app_map_editor_preview_update(struct App* app)
 {
     static int last_kind = -1;
     static int last_id = -1;
+    static int last_w = -1;
+    static int last_h = -1;
+    /** The subject the camera was framed for: a new one is framed afresh. */
+    static int subject_kind = -1;
+    static int subject_id = -1;
+    /** The loc / npc config last asked for, so a config still loading is
+     *  asked once, not once a frame. */
+    static int requested_kind = -1;
+    static int requested_id = -1;
+    /** The subject whose missing models were asked for: once, not once a
+     *  frame (seven npc parts a frame for the seconds a cold load takes
+     *  piled thousands of duplicate loads into the queue). */
+    static int models_kind = -1;
+    static int models_id = -1;
     struct Editor_Panel* panel = &app->editor_panel;
     struct ToriDraw_Sprite* sprite = NULL;
     int cat_kind;
     int cat_view;
-    /* Not the pick: while a multiloc VARIANT row is chosen this is that
-     * rung's loc, so the well shows the variant the catalog is reading out. */
+    /* Not just the pick: while a multiloc VARIANT row is chosen this is that
+     * rung's loc, so the well shows the variant the catalog is reading out;
+     * with nothing picked, the selected loc. */
     int preview_id;
+    int box_w;
+    int box_h;
+    int well_w;
+    int well_h;
 
     assert(app);
 
     if( !app->editor || !panel->visible || !panel->ui )
         return;
-    /* The catalog module owns the well and the pick (panels/edpanel_catalog.c). */
-    cat_kind = panel->ui->tools.pick_kind;
-    cat_view = Editor_Catalog_ModelView(panel->ui);
+    /* The Preview module owns the well (panels/edpanel_preview.c), the
+     * catalog the pick (panels/edpanel_catalog.c). A closed Preview renders
+     * nothing. */
+    cat_view = Editor_Preview_ModelView(panel->ui);
     if( cat_view < 0 )
         return;
-    preview_id = Editor_PanelCatalogPreviewId(panel);
-    if( preview_id < 0 )
+    if( !ToriRSChrome_ModelViewBox(&app->dbg_ui, cat_view, &box_w, &box_h, &well_w, &well_h) )
+        return;
+    if( !Editor_Preview_Subject(panel->ui, &cat_kind, &preview_id) )
     {
         ToriRSChrome_ModelViewSet(&app->dbg_ui, cat_view, 0);
         last_kind = -1;
         last_id = -1;
         return;
     }
+    /* A new subject is a new model: the default pose and a fresh fit, as
+     * Reset view gives -- a candle picked after a castle gate is framed for
+     * itself, not left at the gate's distance. */
+    if( cat_kind != subject_kind || preview_id != subject_id )
+    {
+        subject_kind = cat_kind;
+        subject_id = preview_id;
+        EditorPreviewCamera_Invalidate(&app->preview_camera, false);
+    }
     /* A key moved the camera: re-render the same pick. Taking the render is
      * also what resets the framing for a NEW one, so the two cannot disagree
-     * about whether this is the same model. */
-    if( EditorPreviewCamera_TakeRender(&app->preview_camera) )
+     * about whether this is the same model. A resized well is the same model
+     * at the new size, framed the same (the projection follows the well). */
+    if( EditorPreviewCamera_TakeRender(&app->preview_camera) || well_w != last_w || well_h != last_h )
     {
         last_kind = -1;
         last_id = -1;
     }
     if( cat_kind == last_kind && preview_id == last_id )
         return;
+    last_w = well_w;
+    last_h = well_h;
 
     if( cat_kind == CACHEPROVIDER_CATALOG_OBJ )
     {
@@ -2858,7 +2957,7 @@ app_map_editor_preview_update(struct App* app)
             hnd.kind = TORIDRAWMK_MODEL;
             hnd.u.model.model = model;
             ToriDraw_LightModelScene(hnd, obj->contrast, obj->ambient);
-            sprite = app_preview_raster(app, hnd);
+            sprite = app_preview_raster(app, hnd, well_w, well_h);
             ToriDraw_ModelFree(model);
         }
 
@@ -2871,8 +2970,8 @@ app_map_editor_preview_update(struct App* app)
             if( ToriDraw_SceneSpriteHas(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID) )
                 ToriDraw_SceneSpriteRemove(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID);
             ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID, sprites, 1);
-            ToriRSChrome_ModelViewSet(
-                &app->dbg_ui, cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID);
+            ToriRSChrome_ModelViewSetSprite(&app->dbg_ui, cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID,
+                EDITOR_PREVIEW_SPRITE_W, EDITOR_PREVIEW_SPRITE_H);
             last_kind = cat_kind;
             last_id = preview_id;
         }
@@ -2885,7 +2984,20 @@ app_map_editor_preview_update(struct App* app)
         int model_id = -1;
 
         if( !cfg )
+        {
+            /* Not resident: a window whose world never held this loc (a
+             * popped-out Preview following another window's pick). Ask once;
+             * retry every frame until it lands. */
+            if( requested_kind != cat_kind || requested_id != preview_id )
+            {
+                struct ToriRS_Task* task = CreateTask_LocLoad(app->provider, preview_id);
+                if( task )
+                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+                requested_kind = cat_kind;
+                requested_id = preview_id;
+            }
             return;
+        }
         /* The default-shape model set: no shapes array means one set; with
          * one, prefer the centrepiece (10) row, else the first row. */
         if( cfg->shapes_and_model_count > 0 && cfg->models && cfg->lengths )
@@ -2911,9 +3023,14 @@ app_map_editor_preview_update(struct App* app)
 
         if( !CacheProvider_ModelHas(app->provider, model_id) )
         {
-            struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, model_id);
-            if( task )
-                ToriRS_TaskQueue_Add(app->runner.queue, task);
+            if( models_kind != cat_kind || models_id != preview_id )
+            {
+                struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, model_id);
+                if( task )
+                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+                models_kind = cat_kind;
+                models_id = preview_id;
+            }
             return; /* retry next frame once it lands */
         }
 
@@ -2933,7 +3050,7 @@ app_map_editor_preview_update(struct App* app)
             hnd.kind = TORIDRAWMK_MODEL;
             hnd.u.model.model = model;
             ToriDraw_LightModelScene(hnd, cfg->contrast, cfg->ambient);
-            sprite = app_preview_raster(app, hnd);
+            sprite = app_preview_raster(app, hnd, well_w, well_h);
             ToriDraw_ModelFree(model);
         }
 
@@ -2948,8 +3065,8 @@ app_map_editor_preview_update(struct App* app)
             if( ToriDraw_SceneSpriteHas(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID) )
                 ToriDraw_SceneSpriteRemove(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID);
             ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID, sprites, 1);
-            ToriRSChrome_ModelViewSet(
-                &app->dbg_ui, cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID);
+            ToriRSChrome_ModelViewSetSprite(&app->dbg_ui, cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID,
+                EDITOR_PREVIEW_SPRITE_W, EDITOR_PREVIEW_SPRITE_H);
             last_kind = cat_kind;
             last_id = preview_id;
         }
@@ -2961,7 +3078,21 @@ app_map_editor_preview_update(struct App* app)
         struct ToriRS_Npctype* npc = CacheProvider_NpctypeGet(app->provider, preview_id);
         int missing = 0;
 
-        if( !npc || npc->models_count <= 0 )
+        if( !npc )
+        {
+            /* Not resident (no such npc spawned in this window's world): ask
+             * once, as for a loc above. */
+            if( requested_kind != cat_kind || requested_id != preview_id )
+            {
+                struct ToriRS_Task* task = CreateTask_NpcLoad(app->provider, preview_id);
+                if( task )
+                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+                requested_kind = cat_kind;
+                requested_id = preview_id;
+            }
+            return;
+        }
+        if( npc->models_count <= 0 )
         {
             ToriRSChrome_ModelViewSet(&app->dbg_ui, cat_view, 0);
             last_kind = cat_kind;
@@ -2971,13 +3102,20 @@ app_map_editor_preview_update(struct App* app)
         for( int i = 0; i < npc->models_count; i++ )
             if( npc->models[i] > 0 && !CacheProvider_ModelHas(app->provider, npc->models[i]) )
             {
-                struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, npc->models[i]);
-                if( task )
-                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+                if( models_kind != cat_kind || models_id != preview_id )
+                {
+                    struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, npc->models[i]);
+                    if( task )
+                        ToriRS_TaskQueue_Add(app->runner.queue, task);
+                }
                 missing = 1;
             }
         if( missing )
+        {
+            models_kind = cat_kind;
+            models_id = preview_id;
             return; /* retry once the parts land */
+        }
 
         {
             /* An npc body is its PARTS MERGED -- QBD is two models, and a
@@ -3016,7 +3154,7 @@ app_map_editor_preview_update(struct App* app)
             hnd.kind = TORIDRAWMK_MODEL;
             hnd.u.model.model = merged;
             ToriDraw_LightModelScene(hnd, npc->contrast, npc->ambient);
-            sprite = app_preview_raster(app, hnd);
+            sprite = app_preview_raster(app, hnd, well_w, well_h);
             if( part_count > 1 )
                 for( int i = 0; i < part_count; i++ )
                     ToriDraw_ModelFree(parts[i]);
@@ -3032,8 +3170,8 @@ app_map_editor_preview_update(struct App* app)
             if( ToriDraw_SceneSpriteHas(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID) )
                 ToriDraw_SceneSpriteRemove(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID);
             ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID, sprites, 1);
-            ToriRSChrome_ModelViewSet(
-                &app->dbg_ui, cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID);
+            ToriRSChrome_ModelViewSetSprite(&app->dbg_ui, cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID,
+                EDITOR_PREVIEW_SPRITE_W, EDITOR_PREVIEW_SPRITE_H);
             last_kind = cat_kind;
             last_id = preview_id;
         }

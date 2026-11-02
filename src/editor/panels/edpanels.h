@@ -90,10 +90,37 @@ void
 Editor_SaveGuard_Register(struct EditorUi* ui);
 
 /** The asset catalog over the server's index (kind, find, paged results,
- *  the record, Copy to new), with the provider's model well when an App is
- *  bound (the panel runs without one). "catalog" */
+ *  the record, Copy to new; the multiloc rungs when an App is bound -- the
+ *  panel runs without one). Registers the Record and Preview panels with
+ *  it. "catalog" */
 void
 Editor_Catalog_Register(struct EditorUi* ui);
+
+/** The model view of the Catalog's pick, a dock panel of its own
+ *  (edpanel_preview.c). Registered by Editor_Catalog_Register. "preview" */
+void
+Editor_Preview_Register(struct EditorUi* ui);
+
+/**
+ * What the Preview shows: the Catalog's pick (`*out_kind` a
+ * CacheProvider_CatalogKind, `*out_id` the pick, or for a multiloc the rung the
+ * Catalog chose), else -- while nothing is picked -- the primary selected loc.
+ * 0 with -1 / -1 when there is nothing to show.
+ */
+int
+Editor_Preview_Subject(
+    struct EditorUi* ui,
+    int* out_kind,
+    int* out_id);
+
+/** The Preview panel's model-view widget; -1 when the panel is absent or
+ *  closed (nothing to render into). */
+int
+Editor_Preview_ModelView(struct EditorUi* ui);
+
+/** How many times the Preview opened itself beside the Catalog (tests). */
+int
+Editor_Preview_AutoOpens(struct EditorUi* ui);
 
 /** Tile and loc readout: authored vs generated, the loc record. App-bound.
  *  "inspector" */
@@ -148,14 +175,23 @@ Editor_SquarePicker_EmptyCell(
     int* out_map_x,
     int* out_map_z);
 
-/** What the catalog's model well shows: the pick, or the chosen multiloc
- *  rung (-1 nothing). -1 without a catalog. */
+/** What the Preview shows of the catalog's pick: the pick, or the chosen
+ *  multiloc rung (-1 nothing). -1 without a catalog. */
 int
 Editor_Catalog_PreviewId(struct EditorUi* ui);
 
-/** The catalog's model-view widget, -1 without a catalog. */
+/**
+ * Make record `name` of `kind` (TORIRSMAPED_CATALOG_LOC..OBJ) the pick, as a
+ * click on its row does (published to the Client; a loc arms Place), and show
+ * it in the Catalog: kind set, Find = the name, the row selected with its
+ * record once the page lands. 0 when there is no catalog or no such record
+ * (the console says which). TORIRS_EDITOR_PREVIEW drives it.
+ */
 int
-Editor_Catalog_ModelView(struct EditorUi* ui);
+Editor_Catalog_PickRecord(
+    struct EditorUi* ui,
+    uint32_t kind,
+    const char* name);
 
 /**
  * Copy the loc / npc / obj definition `name` (`kind` a

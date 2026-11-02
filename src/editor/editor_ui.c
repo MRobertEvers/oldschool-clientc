@@ -235,7 +235,10 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     Editor_SquarePicker_Register(ui);
     Editor_Locs_Register(ui);
     Editor_Spawns_Register(ui);
-    if( ui->app )
+    /* App-bound: a window with an App, or services standing in for one (a
+     * headless harness's fakes); the Catalog brings the Preview and the
+     * Record panels with it. */
+    if( ui->app || ui->app_services.user_data )
     {
         Editor_Catalog_Register(ui);
         Editor_Inspector_Register(ui);
@@ -398,7 +401,7 @@ _Static_assert(EDITOR_UI_LAYOUT_PANELS_MAX >= TORIRS_CHROME_MAX_PANELS,
  *  is open at a layout it takes its place here, else it opens beside the
  *  column. */
 static const char* const k_dock_order[] = {
-    "terrain", "palette", "locs", "spawns", "rect", "inspector", "squares", "areas", "catalog", "history",
+    "terrain", "palette", "locs", "spawns", "rect", "inspector", "squares", "areas", "catalog", "preview", "history",
 };
 #define UI_DOCK_COUNT ((int)(sizeof(k_dock_order) / sizeof(k_dock_order[0])))
 
@@ -585,6 +588,7 @@ Editor_UiLayout(struct EditorUi* ui)
     assert(surface_w > 0);
     assert(surface_h > 0);
 
+    ui->layout_runs++;
     if( ui->solo_panel >= 0 )
     {
         ui_layout_solo(ui);
@@ -775,7 +779,9 @@ Editor_UiLayout(struct EditorUi* ui)
             }
             left_over -= given;
         }
-        for( int i = 0; i < slot_count; i++ )
+        /* The first stretching panel of the column: the picker's well over
+         * the Preview's when both are docked in one column. */
+        for( int i = 0; i < slot_count && stretcher < 0; i++ )
             if( slots[i].h >= 0 && slots[i].col == col && slots[i].module && slots[i].module->stretch )
                 stretcher = i;
         if( stretcher >= 0 && left_over > 0 )
@@ -1699,6 +1705,60 @@ Editor_UiSetTool(
     ui->tools.flatten_valid = 0;
     value = (int32_t)tool;
     (void)Editor_UiPublish(ui, TORIRSMAPED_STATE_TOOL, &value, 1);
+}
+
+void
+Editor_UiPanelOpenBeside(
+    struct EditorUi* ui,
+    const char* name,
+    const char* anchor)
+{
+    struct EditorUiPanel* panel;
+    struct EditorUiPanel* beside;
+    struct ToriRSChrome* chrome;
+    struct ToriRSChromeRect r;
+    int at;
+    int w;
+    int x;
+
+    assert(ui);
+    assert(name);
+    assert(anchor);
+    chrome = ui->chrome;
+    panel = Editor_UiFindPanel(ui, name);
+    assert(panel);
+    assert(panel->chrome_panel >= 0);
+
+    ToriRSChrome_PanelSetVisible(chrome, panel->chrome_panel, 1);
+    beside = Editor_UiFindPanel(ui, anchor);
+    /* Placed only among the windows this registry lays out (a harness that
+     * registers modules one by one lays out none). */
+    if( ui->solo_panel >= 0 || panel->chrome_panel < ui->panel_first || panel->chrome_panel >= ui->panel_end
+        || !beside || beside->chrome_panel < ui->panel_first
+        || beside->chrome_panel >= ui->panel_end || !chrome->panels[beside->chrome_panel].visible
+        || chrome->panels[panel->chrome_panel].user_placed )
+        return;
+    /* Where the anchor IS (a panel the layout flew out this very tick has
+     * moved since its last Build), at the width it was laid out at. */
+    r = chrome->panels[beside->chrome_panel].last_rect;
+    r.x = chrome->panels[beside->chrome_panel].x;
+    r.y = chrome->panels[beside->chrome_panel].y;
+    if( chrome->panels[beside->chrome_panel].fixed_w > 0 )
+        r.w = chrome->panels[beside->chrome_panel].fixed_w;
+    w = chrome->panels[panel->chrome_panel].fixed_w > 0 ? chrome->panels[panel->chrome_panel].fixed_w
+                                                          : chrome->panels[panel->chrome_panel].last_rect.w;
+    x = r.x - w;
+    if( x < ui->world.x && r.x + r.w + w <= chrome->surface_w )
+        x = r.x + r.w;
+    if( x < 0 )
+        x = 0;
+    /* A flyout: content-sized, at its own box, and the column leaves it be
+     * (ui_layout_follow places only what is neither docked nor flown). */
+    ToriRSChrome_PanelSetFixedHeight(chrome, panel->chrome_panel, 0);
+    ToriRSChrome_PanelMove(chrome, panel->chrome_panel, x, r.y);
+    at = panel->chrome_panel - ui->panel_first;
+    ui->docked[at] = 0;
+    ui->flown[at] = 1;
 }
 
 int

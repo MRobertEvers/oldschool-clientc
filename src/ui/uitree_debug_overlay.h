@@ -1231,6 +1231,11 @@ struct ToriRSChromeWidget
     int view_w;
     int view_h;
     int view_scene_id;
+    /** MODELVIEW: the sprite's size when the host stated it
+     *  (ToriRSChrome_ModelViewSetSprite): it is then drawn centred in the
+     *  well, clipped to it; 0 draws it at the well's top-left. */
+    int view_sprite_w;
+    int view_sprite_h;
     /** CUSTOM: the visible intersection of its inner drawing region and the
      * panel's current content clip. Cleared when the row is offscreen. */
     int custom_clip_x;
@@ -2606,9 +2611,39 @@ int
 ToriRSChrome_ModelView(struct ToriRSChrome* ui, int panel, int w, int h);
 
 /** Point a model view at a scene sprite id the host registered (0 = clear).
- *  The widget draws the sprite at its native size, centred in the box. */
+ *  The widget draws the sprite at its native size from the box's top-left,
+ *  clipped to the box. */
 void
 ToriRSChrome_ModelViewSet(struct ToriRSChrome* ui, int widget, int scene_sprite_id);
+
+/** As ToriRSChrome_ModelViewSet, for a sprite of `sprite_w` x `sprite_h`
+ *  drawn CENTRED in the well and clipped to it: a host that renders one fixed
+ *  size for every well (so the renderer's sprite atlas reuses its tile) puts
+ *  the model at the sprite's middle and it lands at the well's. */
+void
+ToriRSChrome_ModelViewSetSprite(
+    struct ToriRSChrome* ui,
+    int widget,
+    int scene_sprite_id,
+    int sprite_w,
+    int sprite_h);
+
+/** Resize a model view by its OUTER box (its border included), in chrome
+ *  pixels: a panel whose well fills its body states the box it has left.
+ *  Compare-then-set; a changed size relayouts the panel. */
+void
+ToriRSChrome_ModelViewSetBox(struct ToriRSChrome* ui, int widget, int box_w, int box_h);
+
+/** A model view's outer box (border included) and its inner well, the
+ *  pixels the host's sprite fills. 0 for a widget that is not a model view. */
+int
+ToriRSChrome_ModelViewBox(
+    struct ToriRSChrome const* ui,
+    int widget,
+    int* out_box_w,
+    int* out_box_h,
+    int* out_well_w,
+    int* out_well_h);
 
 /**
  * Does the chrome own the pointer at (x, y)?

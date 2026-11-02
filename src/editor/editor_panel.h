@@ -247,10 +247,6 @@ Editor_PanelApplyToSelection(
     struct Editor_Panel* panel,
     struct App* app);
 
-/** The catalog well's model: the pick, or the chosen multiloc rung. */
-int
-Editor_PanelCatalogPreviewId(struct Editor_Panel const* panel);
-
 /** The pose the Place tool would stamp now, for the hover ghost. */
 void
 Editor_PanelGhostSpec(

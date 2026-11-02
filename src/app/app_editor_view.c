@@ -199,6 +199,14 @@ EditorView_AppBoot(struct App* app)
             setenv("TORIRS_PRESENT_BMP", path, 1);
             snprintf(frame, sizeof(frame), "%d", dir[dir_len] == '@' ? atoi(dir + dir_len + 1) : 400);
             setenv("TORIRS_PRESENT_BMP_FRAME", frame, 1);
+            /* And its exit capture beside it, never over the leader's
+             * TORIRS_EXIT_BMP (this window outlives the leader's last frame). */
+            if( getenv("TORIRS_EXIT_BMP") )
+            {
+                snprintf(path, sizeof(path), "%.*s/view_%s_exit.bmp", dir_len, dir,
+                    EditorView_BootPanel() ? EditorView_BootPanel() : "viewer");
+                setenv("TORIRS_EXIT_BMP", path, 1);
+            }
         }
     }
     if( EditorView_BootPanel() )

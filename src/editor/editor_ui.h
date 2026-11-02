@@ -570,6 +570,9 @@ struct EditorUi
      *  even when the column has no room (it then flies out beside it). -1
      *  for none. */
     int layout_reopened;
+    /** Editor_UiLayout runs so far: a panel tells a relayout's hiding from
+     *  the user's close by it (edpanel_preview.c). */
+    unsigned layout_runs;
 
     /**
      * The saved layout (editor_layout.h). `layout_hold` is set by the host
@@ -825,6 +828,17 @@ Editor_UiSetSolo(
  *  back, laid out as the main window's are. Asserts the window was solo. */
 void
 Editor_UiClearSolo(struct EditorUi* ui);
+
+/** Show registry module `name`'s panel against the side of module `anchor`'s
+ *  (left of it, top-aligned; right of it when the left has no room), as a
+ *  flyout the column leaves be -- a panel that belongs with another opening
+ *  beside it. With `anchor` hidden or absent it is a plain show (the layout
+ *  puts it beside the column). Asserts `name` is a module with a panel. */
+void
+Editor_UiPanelOpenBeside(
+    struct EditorUi* ui,
+    const char* name,
+    const char* anchor);
 
 /** Show or hide the chrome panel of registry module `name` (the View menu's
  *  toggle). Returns 1 when it is open afterwards, -1 when there is no such

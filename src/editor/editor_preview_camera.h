@@ -35,6 +35,28 @@ enum
      *  down, which is the angle the catalog's own thumbnails are drawn at. */
     EDITOR_PREVIEW_DEFAULT_PITCH = 160,
     EDITOR_PREVIEW_DEFAULT_YAW = 300,
+    /** The well the fit is calibrated for: a fitted model fills a 120 x 96
+     *  well at the reference projection (screen = coord * scale / z). A larger
+     *  well shows the same framing larger (EditorPreviewCamera_ProjectionScale).
+     *  The scale is 3/4 of the raster's default 512: the calibrated fit
+     *  ((size * 9) / 2) projects a model's larger dimension at 512 / 4.5 =
+     *  114 px, a fifth more than the 96 px well, and the catalog's old well
+     *  cut the top off every tree and every npc; at 384 it is 85 px, the whole
+     *  model with a margin. */
+    EDITOR_PREVIEW_REF_W = 120,
+    EDITOR_PREVIEW_REF_H = 96,
+    EDITOR_PREVIEW_REF_PROJECTION = 384,
+    /** The one size the preview sprite is rendered at, whatever the well:
+     *  a renderer that packs sprites into a shared atlas reuses a sprite's
+     *  tile only at the same size (src/platform/platform_sdl2_renderer_gl3.c
+     *  gl3_sprite_upload_rgba), so a well rendered at its own size would take
+     *  a new tile on every resize until the atlas is full and the preview,
+     *  and every sprite after it, silently stop drawing. The model is drawn
+     *  at the sprite's middle and the well shows the sprite centred, clipped.
+     *  A well larger than this frames the model at this size (5:4, the
+     *  reference's aspect, a little over 5x it). */
+    EDITOR_PREVIEW_SPRITE_W = 640,
+    EDITOR_PREVIEW_SPRITE_H = 512,
 };
 
 struct EditorPreviewCamera
@@ -112,5 +134,21 @@ EditorPreviewCamera_TakeFit(
     int radius,
     int min_y,
     int max_y);
+
+/**
+ * The projection scale that shows a well of `well_w` x `well_h` pixels the
+ * framing the reference 120 x 96 well shows, scaled by the smaller of the two
+ * ratios (so the fitted model stays whole whichever way the well is long).
+ *
+ * The scale, not the zoom: the zoom is the camera's DISTANCE, and moving the
+ * camera closer to fill a bigger well changes the perspective and walks the
+ * raster's vertical placement off the middle; scaling the projection draws the
+ * very same view bigger, and leaves the orbit and zoom keys meaning what they
+ * meant. Re-fitting on a resize is this and nothing else.
+ */
+int
+EditorPreviewCamera_ProjectionScale(
+    int well_w,
+    int well_h);
 
 #endif /* SRC_EDITOR_EDITOR_PREVIEW_CAMERA_H */
