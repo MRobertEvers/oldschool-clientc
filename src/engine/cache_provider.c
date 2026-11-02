@@ -2020,6 +2020,24 @@ CacheProvider_InvalidateArchive(
         (void)evicted;
         return CACHE_PROVIDER_INVALIDATE_EVICTED;
     }
+    /* Index 5: the map squares (an m<x>_<z> terrain or l<x>_<z> locs
+     * archive). The REBUILD the server owes after a square reload re-reads
+     * the squares through the IO layer, so every copy of the old bytes goes:
+     * the split group, the IO layer's decompressed and stored copies (the JS5
+     * re-prime fetches the rewritten group, and reads of the index wait for
+     * it), and the decoded squares the provider keeps (owned by the cache
+     * alone: its LRU trim frees them the same way). Without this a real
+     * client rebuilt the scene from the square it already had. */
+    if( index == RSCACHE_DAT2_TABLE_MAPS )
+    {
+        CacheProvider_MapTerrainsCleanup(provider);
+        CacheProvider_MapSceneryCleanup(provider);
+        if( provider->vtable && provider->vtable->InvalidateArchive )
+            provider->vtable->InvalidateArchive(provider, index, archive);
+        if( provider->archive_invalidate_hook )
+            provider->archive_invalidate_hook(provider->archive_invalidate_user, index, archive);
+        return CACHE_PROVIDER_INVALIDATE_EVICTED;
+    }
     return CACHE_PROVIDER_INVALIDATE_DEFERRED;
 }
 

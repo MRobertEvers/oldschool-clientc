@@ -178,6 +178,9 @@ test_provider(void)
               CACHE_PROVIDER_INVALIDATE_DEFERRED,
           "a seq group (2/12) stays DEFERRED");
     check(log.calls == 0, "and the IO layer is not told");
+    check(CacheProvider_InvalidateArchive(&provider, 5, 1234) == CACHE_PROVIDER_INVALIDATE_EVICTED,
+          "CACHE_INVALIDATE 5/<square> evicts (the REBUILD re-reads the square)");
+    check(log.calls == 1, "and the IO layer's hook hears the map archive");
 
     CacheProvider_FreeEngineCaches(&provider);
     check(provider.retired_location_count == 0 && provider.retired_npctype_count == 0,

@@ -21,6 +21,8 @@ Editor_LiveModelInit(struct Editor_LiveModel* model)
     memset(model, 0, sizeof(*model));
     model->state = TORIRSMAPED_LIVE_DETACHED;
     model->run_step = TORIRSMAPED_RUN_STEP_IDLE;
+    model->play_state = TORIRSMAPED_PLAY_NONE;
+    model->play_x = model->play_z = model->play_level = -1;
 }
 
 int
@@ -258,6 +260,45 @@ Editor_LiveModelApply(
         live_log(model, "> %s", line);
         return 1;
     }
+    if( type == TORIRSMAPED_FACT_LIVE_PLAY )
+    {
+        struct Editor_LiveModel next = *model;
+        uint32_t rows;
+        next.play_state = ToriRSMapEd_GetU32(&reader);
+        next.play_browser = (int)ToriRSMapEd_GetU32(&reader);
+        get_text(&reader, next.play_account, sizeof(next.play_account));
+        next.play_pid = (int32_t)ToriRSMapEd_GetU32(&reader);
+        next.play_exit = (int32_t)ToriRSMapEd_GetU32(&reader);
+        get_text(&reader, next.play_message, sizeof(next.play_message));
+        next.play_x = (int32_t)ToriRSMapEd_GetU32(&reader);
+        next.play_z = (int32_t)ToriRSMapEd_GetU32(&reader);
+        next.play_level = (int32_t)ToriRSMapEd_GetU32(&reader);
+        next.play_starts = ToriRSMapEd_GetU32(&reader);
+        get_text(&reader, next.play_web_url, sizeof(next.play_web_url));
+        next.players_known = (int)ToriRSMapEd_GetU32(&reader);
+        next.logins = ToriRSMapEd_GetU32(&reader);
+        next.players = ToriRSMapEd_GetU32(&reader);
+        rows = ToriRSMapEd_GetU32(&reader);
+        next.player_row_count = 0;
+        for( uint32_t i = 0; i < rows && !reader.bad; i++ )
+        {
+            struct Editor_LivePlayer row;
+            get_text(&reader, row.name, sizeof(row.name));
+            row.x = (int32_t)ToriRSMapEd_GetU32(&reader);
+            row.z = (int32_t)ToriRSMapEd_GetU32(&reader);
+            row.level = (int32_t)ToriRSMapEd_GetU32(&reader);
+            if( next.player_row_count < EDITOR_LIVE_PLAYERS_MAX )
+                next.player_rows[next.player_row_count++] = row;
+        }
+        if( !ToriRSMapEd_ReaderDone(&reader) )
+            goto malformed;
+        if( next.play_message[0]
+            && (strcmp(next.play_message, model->play_message) != 0 || next.play_state != model->play_state) )
+            live_log(&next, "play: %s", next.play_message);
+        next.play_serial++;
+        *model = next;
+        return 1;
+    }
     if( type == TORIRSMAPED_FACT_LIVE_VARS )
     {
         char player[64];
@@ -363,6 +404,43 @@ Editor_LiveEncodeCheat(
     ToriRSMapEd_PutString(out, player);
     ToriRSMapEd_PutString(out, line);
     return TORIRSMAPED_REQ_LIVE_CHEAT;
+}
+
+uint32_t
+Editor_LiveEncodePlay(
+    struct ToriRSMapEdBuf* out,
+    uint32_t action)
+{
+    assert(out);
+    assert(action <= TORIRSMAPED_PLAY_BROWSER);
+    ToriRSMapEd_PutU32(out, action);
+    return TORIRSMAPED_REQ_LIVE_PLAY;
+}
+
+void
+Editor_LivePlayLine(
+    const struct Editor_LiveModel* model,
+    char* out,
+    size_t out_size)
+{
+    assert(model);
+    assert(out);
+    if( model->play_state == TORIRSMAPED_PLAY_ONLINE && model->play_x >= 0 )
+        snprintf(out, out_size, "play: logged in as %s at m%d_%d (%d,%d)%s", model->play_account,
+            model->play_x >> 6, model->play_z >> 6, model->play_x, model->play_z,
+            model->play_browser ? " in a browser tab" : "");
+    else if( model->play_state == TORIRSMAPED_PLAY_STARTING )
+        snprintf(out, out_size, "play: starting %s%s%s", model->play_account,
+            model->play_message[0] ? " -- " : "", model->play_message);
+    else if( model->play_state == TORIRSMAPED_PLAY_EXITED )
+        snprintf(out, out_size, "play: exited -- %s", model->play_message);
+    else if( model->play_state == TORIRSMAPED_PLAY_LOGGED_OUT )
+        snprintf(out, out_size, "play: %s logged out (the client still runs)", model->play_account);
+    else if( model->play_browser )
+        snprintf(out, out_size, "play: in a browser tab%s", model->play_web_url[0] ? "" : " (no web page)");
+    else
+        snprintf(out, out_size, "play: not started%s%s", model->play_message[0] ? " -- " : "",
+            model->play_message);
 }
 
 uint32_t

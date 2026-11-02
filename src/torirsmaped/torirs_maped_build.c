@@ -46,6 +46,20 @@ enum
     JOBS_ARCHIVES_MAX = 4096,
     JOBS_STALE_MAX = 32,
     JOBS_SUBSCRIBE_MAX = 64,
+    /** Players of CTL_FACT_PLAYERS kept (and passed on in FACT_LIVE_PLAY). */
+    JOBS_PLAYER_ROWS = 16,
+};
+
+/** One player the game server reported (CTL_FACT_PLAYERS). */
+struct ToriRSMapEdJobsPlayer
+{
+    char account[64];
+    char display[64];
+    uint32_t slot;
+    uint32_t generation;
+    int32_t x;
+    int32_t z;
+    int32_t level;
 };
 
 /**
@@ -60,6 +74,8 @@ struct ToriRSMapEdJobs
     struct ToriRSMapEdLane lane;
     int have_link;
     struct ToriRSMapEdLiveLink link;
+    int have_play;
+    struct ToriRSMapEdPlayLauncher play;
 
     /* ---- the build in flight ---- */
     int building;
@@ -106,6 +122,46 @@ struct ToriRSMapEdJobs
     uint32_t sub_varps[JOBS_SUBSCRIBE_MAX];
     int sub_count;
     int sub_active;
+
+    /* ---- the server's players (CTL_FACT_PLAYERS) ---- */
+    /** The server sent CTL_FACT_PLAYERS since this link attached: it answers
+     *  CTL_PLAYERS (an older server would close the link on it). */
+    int players_known;
+    uint32_t logins;
+    uint32_t players_active;
+    struct ToriRSMapEdJobsPlayer player_rows[JOBS_PLAYER_ROWS];
+    int player_row_count;
+    time_t last_players;
+
+    /* ---- the play client (torirs_maped_live.h) ---- */
+    /** enum ToriRSMapEdPlayState. */
+    uint32_t play_state;
+    /** A window plays in a browser tab (LIVE_PLAY browser): never spawn. */
+    int play_browser;
+    int play_pid;
+    /** The exit status of the last one that exited (-signal for a signal). */
+    int play_exit;
+    int play_starts;
+    time_t play_started;
+    /** Started while the lane's ports were not up yet: spawn once they are
+     *  (the client's boot needs JS5 at once), or give up at the deadline. */
+    int play_wait_lane;
+    time_t play_wait_deadline;
+    /** The login it holds once seen: (slot, generation) changes on a relog. */
+    uint32_t play_slot;
+    uint32_t play_generation;
+    int32_t play_x;
+    int32_t play_z;
+    int32_t play_level;
+    char play_message[256];
+
+    /* ---- RUN's play step: the reload's outcome, finished after it ---- */
+    int run_play_waiting;
+    time_t run_play_deadline;
+    char run_message[256];
+    uint32_t run_counts[4];
+    struct ToriRSMapEdBuf run_restart;
+    uint32_t run_restart_count;
 };
 
 static void jobs_live_broadcast_status(struct ToriRSMapEd* maped);
@@ -136,6 +192,8 @@ ToriRSMapEd_RunStepName(uint32_t step)
         return "client cache";
     if( step == TORIRSMAPED_RUN_STEP_RELOAD )
         return "reload";
+    if( step == TORIRSMAPED_RUN_STEP_PLAY )
+        return "play client";
     if( step == TORIRSMAPED_RUN_STEP_DONE )
         return "done";
     return "?";
@@ -185,6 +243,11 @@ ToriRSMapEd_LaneDefaults(
     lane->game_port = 43620;
     lane->js5_port = 43621;
     lane->io_port = 43622;
+    snprintf(lane->play_bin, sizeof(lane->play_bin), "%s/src/torirs", repo_root);
+    snprintf(lane->play_manifest, sizeof(lane->play_manifest), "%s/manifests/manifest_%s.ini", repo_root,
+        lane->rev);
+    snprintf(lane->play_fixture, sizeof(lane->play_fixture), "%s/test/quests/fixtures/fresh_lumbridge.ini",
+        repo_root);
 }
 
 /** `path` resolved when it exists, else its parent resolved plus the last
@@ -704,56 +767,88 @@ ToriRSMapEd_BuildLineUnit(
 
 #if TORIRSMAPED_JOBS_NATIVE
 
-/** Spawn `argv` (PATH-searched when argv[0] has no '/'), `extra_env` (NULL
- *  or "K=V" strings, NULL-terminated) layered over this process's
- *  environment. With `out_fd`, stdout and stderr go to one non-blocking pipe
- *  whose read end is returned there; else to /dev/null. Returns the pid, or
- *  -1 with errno. */
+/** 1 when the environment entry `entry` ("NAME=VALUE") is named by `drop`:
+ *  "NAME" drops exactly NAME, "PREFIX*" every name starting with PREFIX. */
 static int
-jobs_spawn(
-    char* const* argv,
+jobs_env_dropped(
+    const char* entry,
+    const char* const* drop)
+{
+    const char* eq = strchr(entry, '=');
+    size_t const name = eq ? (size_t)(eq - entry) : strlen(entry);
+
+    for( int d = 0; drop && drop[d]; d++ )
+    {
+        size_t const length = strlen(drop[d]);
+        if( length > 0 && drop[d][length - 1] == '*' )
+        {
+            if( name >= length - 1 && strncmp(entry, drop[d], length - 1) == 0 )
+                return 1;
+        }
+        else if( length == name && strncmp(entry, drop[d], name) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
+/** A child's environment: this process's minus what `drop` names
+ *  (jobs_env_dropped), with `extra_env` ("K=V", NULL-terminated, may be
+ *  NULL) layered over it. The array is owned (free it); the strings are
+ *  borrowed from environ and `extra_env`. */
+static char**
+jobs_env_build(
     const char* const* extra_env,
+    const char* const* drop)
+{
+    int base = 0;
+    int extra = 0;
+    int n = 0;
+    char** env;
+
+    while( environ[base] )
+        base++;
+    while( extra_env && extra_env[extra] )
+        extra++;
+    env = malloc((size_t)(base + extra + 1) * sizeof(char*));
+    assert(env);
+    for( int i = 0; i < base; i++ )
+    {
+        const char* eq = strchr(environ[i], '=');
+        size_t const name = eq ? (size_t)(eq - environ[i]) : strlen(environ[i]);
+        int replaced = jobs_env_dropped(environ[i], drop);
+        for( int e = 0; e < extra && !replaced; e++ )
+        {
+            if( strncmp(extra_env[e], environ[i], name) == 0 && extra_env[e][name] == '=' )
+                replaced = 1;
+        }
+        if( !replaced )
+            env[n++] = environ[i];
+    }
+    for( int e = 0; e < extra; e++ )
+        env[n++] = (char*)extra_env[e];
+    env[n] = NULL;
+    return env;
+}
+
+/** Spawn `argv` (PATH-searched when argv[0] has no '/') with environment
+ *  `envp`. stdout and stderr go: with `out_fd`, to one non-blocking pipe
+ *  whose read end is returned there; else with `log_path`, to that file
+ *  (truncated); else to /dev/null. Returns the pid, or -1 with errno. */
+static int
+jobs_spawn_envp(
+    char* const* argv,
+    char* const* envp,
+    const char* log_path,
     int* out_fd)
 {
     posix_spawn_file_actions_t actions;
-    char** envp = environ;
-    char** owned_env = NULL;
     int pipe_fds[2] = { -1, -1 };
     pid_t pid = -1;
     int rc;
 
     assert(argv);
     assert(argv[0]);
-
-    if( extra_env )
-    {
-        int base = 0;
-        int extra = 0;
-        int n = 0;
-        while( environ[base] )
-            base++;
-        while( extra_env[extra] )
-            extra++;
-        owned_env = malloc((size_t)(base + extra + 1) * sizeof(char*));
-        assert(owned_env);
-        for( int i = 0; i < base; i++ )
-        {
-            const char* eq = strchr(environ[i], '=');
-            size_t const name = eq ? (size_t)(eq - environ[i]) : strlen(environ[i]);
-            int replaced = 0;
-            for( int e = 0; e < extra; e++ )
-            {
-                if( strncmp(extra_env[e], environ[i], name) == 0 && extra_env[e][name] == '=' )
-                    replaced = 1;
-            }
-            if( !replaced )
-                owned_env[n++] = environ[i];
-        }
-        for( int e = 0; e < extra; e++ )
-            owned_env[n++] = (char*)extra_env[e];
-        owned_env[n] = NULL;
-        envp = owned_env;
-    }
+    assert(envp);
 
     posix_spawn_file_actions_init(&actions);
     if( out_fd )
@@ -761,13 +856,17 @@ jobs_spawn(
         if( pipe(pipe_fds) != 0 )
         {
             posix_spawn_file_actions_destroy(&actions);
-            free(owned_env);
             return -1;
         }
         posix_spawn_file_actions_addclose(&actions, pipe_fds[0]);
         posix_spawn_file_actions_adddup2(&actions, pipe_fds[1], 1);
         posix_spawn_file_actions_adddup2(&actions, pipe_fds[1], 2);
         posix_spawn_file_actions_addclose(&actions, pipe_fds[1]);
+    }
+    else if( log_path && log_path[0] )
+    {
+        posix_spawn_file_actions_addopen(&actions, 1, log_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        posix_spawn_file_actions_adddup2(&actions, 1, 2);
     }
     else
     {
@@ -781,7 +880,6 @@ jobs_spawn(
     else
         rc = posix_spawnp(&pid, argv[0], &actions, NULL, argv, envp);
     posix_spawn_file_actions_destroy(&actions);
-    free(owned_env);
 
     if( out_fd )
         close(pipe_fds[1]);
@@ -799,6 +897,35 @@ jobs_spawn(
         *out_fd = pipe_fds[0];
     }
     return (int)pid;
+}
+
+/** Spawn `argv` (PATH-searched when argv[0] has no '/'), `extra_env` (NULL
+ *  or "K=V" strings, NULL-terminated) layered over this process's
+ *  environment. Output as jobs_spawn_envp (`out_fd`, else `log_path`, else
+ *  /dev/null). Returns the pid, or -1 with errno. */
+static int
+jobs_spawn_logged(
+    char* const* argv,
+    const char* const* extra_env,
+    const char* log_path,
+    int* out_fd)
+{
+    char** env = jobs_env_build(extra_env, NULL);
+    int const pid = jobs_spawn_envp(argv, env, log_path, out_fd);
+    int const saved = errno;
+
+    free(env);
+    errno = saved;
+    return pid;
+}
+
+static int
+jobs_spawn(
+    char* const* argv,
+    const char* const* extra_env,
+    int* out_fd)
+{
+    return jobs_spawn_logged(argv, extra_env, NULL, out_fd);
 }
 
 /** SIGTERM, up to `grace_ms` for it to go, then SIGKILL; always reaped. */
@@ -1219,6 +1346,8 @@ jobs_create(void)
     assert(jobs);
     jobs->run_step = TORIRSMAPED_RUN_STEP_IDLE;
     jobs->live_state = TORIRSMAPED_LIVE_DETACHED;
+    jobs->play_state = TORIRSMAPED_PLAY_NONE;
+    jobs->play_x = jobs->play_z = jobs->play_level = -1;
     return jobs;
 }
 
@@ -1237,6 +1366,14 @@ jobs_free(struct ToriRSMapEd* maped)
         if( jobs->link.free_ )
             jobs->link.free_(jobs->link.ctx);
     }
+    if( jobs->have_play )
+    {
+        /* The play client is the lane's, like its servers: it goes too. */
+        jobs->play.stop(jobs->play.ctx);
+        if( jobs->play.free_ )
+            jobs->play.free_(jobs->play.ctx);
+    }
+    ToriRSMapEd_BufFree(&jobs->run_restart);
     if( jobs->have_runner )
     {
         if( jobs->building && jobs->runner.cancel )
@@ -1626,6 +1763,7 @@ jobs_run_finish(
 
     jobs->run_step = TORIRSMAPED_RUN_STEP_IDLE;
     jobs->reload_waiting = 0;
+    jobs->run_play_waiting = 0;
     memset(&payload, 0, sizeof(payload));
     ToriRSMapEd_PutU32(&payload, (uint32_t)status);
     ToriRSMapEd_PutU32(&payload, step);

@@ -10,6 +10,8 @@
 #include "torirs_maped_live.h"
 
 #include <assert.h>
+#include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -114,6 +116,65 @@ ToriRSMapEd_LiveStateName(uint32_t state)
     return "?";
 }
 
+const char*
+ToriRSMapEd_PlayStateName(uint32_t state)
+{
+    if( state == TORIRSMAPED_PLAY_NONE )
+        return "not started";
+    if( state == TORIRSMAPED_PLAY_STARTING )
+        return "starting";
+    if( state == TORIRSMAPED_PLAY_ONLINE )
+        return "logged in";
+    if( state == TORIRSMAPED_PLAY_LOGGED_OUT )
+        return "logged out";
+    if( state == TORIRSMAPED_PLAY_EXITED )
+        return "exited";
+    return "?";
+}
+
+void
+ToriRSMapEd_LanePlayAccount(
+    const struct ToriRSMapEdLane* lane,
+    char* out_user,
+    size_t user_size,
+    char* out_pass,
+    size_t pass_size)
+{
+    assert(lane);
+    assert(out_user);
+    assert(out_pass);
+    if( lane->play_user[0] )
+        snprintf(out_user, user_size, "%s", lane->play_user);
+    else
+        snprintf(out_user, user_size, "maped%d", lane->game_port);
+    if( lane->play_pass[0] )
+        snprintf(out_pass, pass_size, "%s", lane->play_pass);
+    else
+        snprintf(out_pass, pass_size, "lane%drun", lane->game_port);
+}
+
+void
+ToriRSMapEd_LaneWebPlayUrl(
+    const struct ToriRSMapEdLane* lane,
+    char* out,
+    size_t out_size)
+{
+    char user[16];
+    char pass[24];
+
+    assert(lane);
+    assert(out);
+    out[0] = '\0';
+    if( !lane->io_bin[0] || !lane->io_manifest[0] )
+        return;
+    ToriRSMapEd_LanePlayAccount(lane, user, sizeof(user), pass, sizeof(pass));
+    snprintf(out, out_size,
+        "http://127.0.0.1:%d/?args=--manifest,manifests/manifest_%s.ini,--connect,127.0.0.1:%d,"
+        "--user,%s,--pass,%s&ws=ws://127.0.0.1:%d/&js5_url=ws://127.0.0.1:%d/&idb=maped%d",
+        lane->io_port, lane->rev, lane->game_port, user, pass, lane->game_port, lane->js5_port,
+        lane->game_port);
+}
+
 /* ------------------------------------------------------------------ */
 /* Control frames                                                      */
 /* ------------------------------------------------------------------ */
@@ -132,6 +193,9 @@ ToriRSMapEd_CtlFrame(
     if( length > 0 )
         ToriRSMapEd_BufWrite(out, ToriRSMapEd_BufPeek(payload), (int)length);
 }
+
+static void live_service(struct ToriRSMapEd* maped);
+static void jobs_run_play_decide(struct ToriRSMapEd* maped, int relaunched);
 
 /** One control frame to the game server. 0 when the link is gone. */
 static int
@@ -214,12 +278,18 @@ jobs_live_drop(
     jobs->hello_sent = 0;
     jobs->players = 0;
     jobs->tick = 0;
+    jobs->players_known = 0;
+    jobs->player_row_count = 0;
+    jobs->players_active = 0;
+    jobs->logins = 0;
     ToriRSMapEd_BufFree(&jobs->ctl_in);
     memset(&jobs->ctl_in, 0, sizeof(jobs->ctl_in));
     snprintf(jobs->message, sizeof(jobs->message), "%s", message ? message : "");
     if( jobs->reload_waiting )
         jobs_run_finish(maped, EDITOR_HOST_IO_ERROR, TORIRSMAPED_RUN_STEP_RELOAD,
             "the live link dropped during the reload", NULL, NULL, 0);
+    else if( jobs->run_play_waiting )
+        jobs_run_play_decide(maped, 0);
 }
 
 static void
@@ -244,7 +314,457 @@ live_send_subscribe(struct ToriRSMapEd* maped)
     ToriRSMapEd_BufFree(&payload);
 }
 
+/* ---- the play client ---------------------------------------------------------- */
+
+static int
+live_name_equal(
+    const char* a,
+    const char* b)
+{
+    while( *a && *b )
+    {
+        char ca = *a >= 'A' && *a <= 'Z' ? (char)(*a - 'A' + 'a') : *a;
+        char cb = *b >= 'A' && *b <= 'Z' ? (char)(*b - 'A' + 'a') : *b;
+        /* The server keys an account by its file name: ' ' and '-' are '_'. */
+        if( ca == ' ' || ca == '-' )
+            ca = '_';
+        if( cb == ' ' || cb == '-' )
+            cb = '_';
+        if( ca != cb )
+            return 0;
+        a++;
+        b++;
+    }
+    return *a == '\0' && *b == '\0';
+}
+
+static void
+jobs_play_account(
+    const struct ToriRSMapEdJobs* jobs,
+    char* user,
+    size_t user_size,
+    char* pass,
+    size_t pass_size)
+{
+    user[0] = '\0';
+    pass[0] = '\0';
+    if( jobs->have_lane )
+        ToriRSMapEd_LanePlayAccount(&jobs->lane, user, user_size, pass, pass_size);
+}
+
+static void
+jobs_live_broadcast_play(struct ToriRSMapEd* maped)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+    struct ToriRSMapEdBuf payload;
+    char user[16];
+    char pass[24];
+    char url[1024];
+
+    jobs_play_account(jobs, user, sizeof(user), pass, sizeof(pass));
+    url[0] = '\0';
+    if( jobs->have_lane )
+        ToriRSMapEd_LaneWebPlayUrl(&jobs->lane, url, sizeof(url));
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_PutU32(&payload, jobs->play_state);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->play_browser);
+    ToriRSMapEd_PutString(&payload, user);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->play_pid);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->play_exit);
+    ToriRSMapEd_PutString(&payload, jobs->play_message);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->play_x);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->play_z);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->play_level);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->play_starts);
+    ToriRSMapEd_PutString(&payload, url);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->players_known);
+    ToriRSMapEd_PutU32(&payload, jobs->logins);
+    ToriRSMapEd_PutU32(&payload, jobs->players_active);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->player_row_count);
+    for( int i = 0; i < jobs->player_row_count; i++ )
+    {
+        const struct ToriRSMapEdJobsPlayer* row = &jobs->player_rows[i];
+        ToriRSMapEd_PutString(&payload, row->display[0] ? row->display : row->account);
+        ToriRSMapEd_PutU32(&payload, (uint32_t)row->x);
+        ToriRSMapEd_PutU32(&payload, (uint32_t)row->z);
+        ToriRSMapEd_PutU32(&payload, (uint32_t)row->level);
+    }
+    jobs_broadcast(maped, TORIRSMAPED_FACT_LIVE_PLAY, &payload);
+    ToriRSMapEd_BufFree(&payload);
+}
+
+static void
+jobs_play_note(
+    struct ToriRSMapEdJobs* jobs,
+    uint32_t state,
+    const char* format,
+    ...)
+#if defined(__GNUC__) || defined(__clang__)
+    __attribute__((format(printf, 3, 4)))
+#endif
+    ;
+
+static void
+jobs_play_note(
+    struct ToriRSMapEdJobs* jobs,
+    uint32_t state,
+    const char* format,
+    ...)
+{
+    va_list args;
+
+    jobs->play_state = state;
+    va_start(args, format);
+    vsnprintf(jobs->play_message, sizeof(jobs->play_message), format, args);
+    va_end(args);
+    TORIRS_LOG("torirsmaped: play client: %s\n", jobs->play_message);
+}
+
+/** The process half of liveness: 1 when it exited since the last look (the
+ *  state is EXITED then). */
+static int
+jobs_play_poll(struct ToriRSMapEd* maped)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+    int status = 0;
+
+    if( !jobs->have_play || jobs->play_pid <= 0 )
+        return 0;
+    if( jobs->play.alive(jobs->play.ctx, &status) )
+        return 0;
+    jobs->play_pid = 0;
+    jobs->play_exit = status;
+    jobs->play_wait_lane = 0;
+    jobs_play_note(jobs, TORIRSMAPED_PLAY_EXITED, "the play client exited (%s %d)",
+        status < 0 ? "signal" : "status", status < 0 ? -status : status);
+    return 1;
+}
+
+/** The server half: fold the latest player list into the play state. 1 when
+ *  the state changed. */
+static int
+jobs_play_observe(struct ToriRSMapEd* maped)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+    char user[16];
+    char pass[24];
+    const struct ToriRSMapEdJobsPlayer* found = NULL;
+    uint32_t const before = jobs->play_state;
+
+    jobs_play_account(jobs, user, sizeof(user), pass, sizeof(pass));
+    if( !user[0] )
+        return 0;
+    for( int i = 0; i < jobs->player_row_count && !found; i++ )
+    {
+        if( live_name_equal(jobs->player_rows[i].account, user)
+            || live_name_equal(jobs->player_rows[i].display, user) )
+            found = &jobs->player_rows[i];
+    }
+    if( found )
+    {
+        int const relogged = jobs->play_state == TORIRSMAPED_PLAY_ONLINE
+                             && (found->slot != jobs->play_slot || found->generation != jobs->play_generation);
+        int const moved = found->x != jobs->play_x || found->z != jobs->play_z || found->level != jobs->play_level;
+        jobs->play_x = found->x;
+        jobs->play_z = found->z;
+        jobs->play_level = found->level;
+        if( jobs->play_state != TORIRSMAPED_PLAY_ONLINE || relogged )
+        {
+            jobs->play_slot = found->slot;
+            jobs->play_generation = found->generation;
+            jobs->play_wait_lane = 0;
+            jobs_play_note(jobs, TORIRSMAPED_PLAY_ONLINE, "%s as %s at %d,%d level %d%s",
+                relogged ? "logged in again" : "logged in", user, found->x, found->z, found->level,
+                jobs->play_pid > 0 || jobs->play_browser ? "" : " (a client this server did not start)");
+            return 1;
+        }
+        return moved;
+    }
+    if( jobs->play_state == TORIRSMAPED_PLAY_ONLINE )
+    {
+        if( jobs->play_pid > 0 )
+            jobs_play_note(jobs, TORIRSMAPED_PLAY_LOGGED_OUT, "%s left the server (the process still runs)", user);
+        else
+            jobs_play_note(jobs, TORIRSMAPED_PLAY_NONE, "%s left the server", user);
+        jobs->play_x = jobs->play_z = jobs->play_level = -1;
+    }
+    return jobs->play_state != before;
+}
+
+/** Spawn now (the lane's ports are up). */
+static enum EditorHost_Status
+jobs_play_spawn(
+    struct ToriRSMapEd* maped,
+    char* why,
+    size_t why_size)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+    struct ToriRSMapEdPlaySpec spec;
+    enum EditorHost_Status status;
+    int pid = 0;
+
+    memset(&spec, 0, sizeof(spec));
+    jobs_play_account(jobs, spec.user, sizeof(spec.user), spec.pass, sizeof(spec.pass));
+    why[0] = '\0';
+    jobs->play_wait_lane = 0;
+    status = jobs->play.start(jobs->play.ctx, &spec, &pid, why, why_size);
+    if( status != EDITOR_HOST_OK )
+    {
+        jobs->play_pid = 0;
+        jobs_play_note(jobs, TORIRSMAPED_PLAY_EXITED, "the play client did not start: %s",
+            why[0] ? why : "the launcher refused");
+        return status;
+    }
+    jobs->play_pid = pid;
+    jobs->play_exit = 0;
+    jobs->play_starts++;
+    jobs->play_started = time(NULL);
+    jobs->play_slot = 0;
+    jobs->play_generation = 0;
+    jobs->play_x = jobs->play_z = jobs->play_level = -1;
+    jobs_play_note(jobs, TORIRSMAPED_PLAY_STARTING, "starting as %s (pid %d)", spec.user, pid);
+    return EDITOR_HOST_OK;
+}
+
+/** Start the play client (a running one is stopped first). Waits for the
+ *  lane's ports without blocking: the spawn happens in a later service pass
+ *  when they are not up yet. */
+static enum EditorHost_Status
+jobs_play_start(
+    struct ToriRSMapEd* maped,
+    char* why,
+    size_t why_size)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+
+    why[0] = '\0';
+    if( jobs->play_browser )
+    {
+        snprintf(why, why_size, "a browser window plays this lane (its own tab)");
+        return EDITOR_HOST_UNSUPPORTED;
+    }
+    if( !jobs->have_play || !jobs->have_lane )
+    {
+        snprintf(why, why_size, "no play client is configured (the lane has no play binary, or this host "
+                                "cannot start processes)");
+        return EDITOR_HOST_UNSUPPORTED;
+    }
+    if( jobs->play_pid > 0 )
+        jobs->play.stop(jobs->play.ctx);
+    jobs->play_pid = 0;
+    if( !jobs->play.ready(jobs->play.ctx) )
+    {
+        jobs->play_wait_lane = 1;
+        jobs->play_wait_deadline = time(NULL) + 60;
+        jobs->play_x = jobs->play_z = jobs->play_level = -1;
+        jobs_play_note(jobs, TORIRSMAPED_PLAY_STARTING, "waiting for the lane's game and JS5 ports");
+        return EDITOR_HOST_OK;
+    }
+    return jobs_play_spawn(maped, why, why_size);
+}
+
+static void
+jobs_play_stop(
+    struct ToriRSMapEd* maped,
+    const char* message)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+
+    if( jobs->have_play && jobs->play_pid > 0 )
+        jobs->play.stop(jobs->play.ctx);
+    jobs->play_pid = 0;
+    jobs->play_wait_lane = 0;
+    jobs->play_x = jobs->play_z = jobs->play_level = -1;
+    jobs_play_note(jobs, TORIRSMAPED_PLAY_NONE, "%s", message);
+}
+
+static void
+live_send_players_request(struct ToriRSMapEd* maped)
+{
+    maped->jobs->last_players = time(NULL);
+    live_send(maped, TORIRSMAPED_CTL_PLAYERS, NULL);
+}
+
+/** Launch the lane's servers and start dialling their game port (the
+ *  LIVE_ATTACH launch path, and RUN's when the lane is down). */
+static enum EditorHost_Status
+jobs_live_launch(
+    struct ToriRSMapEd* maped,
+    char* why,
+    size_t why_size)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+    struct ToriRSMapEdLiveTarget target;
+    enum EditorHost_Status status;
+
+    why[0] = '\0';
+    if( !jobs->have_link )
+    {
+        snprintf(why, why_size, "this editor server has no live link");
+        return EDITOR_HOST_UNSUPPORTED;
+    }
+    if( !jobs->have_lane )
+    {
+        snprintf(why, why_size, "launch needs a lane (none is bound)");
+        return EDITOR_HOST_UNSUPPORTED;
+    }
+    if( jobs->live_state == TORIRSMAPED_LIVE_CONNECTING || jobs->live_state == TORIRSMAPED_LIVE_ATTACHED )
+        jobs_live_drop(maped, TORIRSMAPED_LIVE_DETACHED, "re-attaching");
+    memset(&target, 0, sizeof(target));
+    target.launch = 1;
+    snprintf(target.host, sizeof(target.host), "127.0.0.1");
+    target.port = jobs->lane.game_port;
+    snprintf(jobs->address, sizeof(jobs->address), "%s:%d", target.host, target.port);
+    status = jobs->link.open(jobs->link.ctx, &target, why, why_size);
+    if( status != EDITOR_HOST_OK )
+    {
+        jobs->live_state = TORIRSMAPED_LIVE_FAILED;
+        snprintf(jobs->message, sizeof(jobs->message), "%s", why[0] ? why : "the link did not open");
+        jobs_live_broadcast_status(maped);
+        return status;
+    }
+    jobs->live_state = TORIRSMAPED_LIVE_CONNECTING;
+    jobs->launched = 1;
+    jobs->hello_sent = 0;
+    snprintf(jobs->message, sizeof(jobs->message),
+        "launched; connecting to %s (a torirsserver answers its control link after its first login)",
+        jobs->address);
+    jobs_live_broadcast_status(maped);
+    live_service(maped);
+    return EDITOR_HOST_OK;
+}
+
+/** 1 when the lane can be launched from here (a lane with a server binary
+ *  and a link to dial it with). */
+static int
+jobs_lane_launchable(const struct ToriRSMapEdJobs* jobs)
+{
+    return jobs->have_link && jobs->have_lane && jobs->lane.server_bin[0];
+}
+
 /* ---- RUN's reload ----------------------------------------------------------- */
+
+/** RUN's last step (RUN_STEP_PLAY): the play client after the reload (or the
+ *  launch), then RUN_DONE with the reload's outcome and what the play client
+ *  did. `relaunched`: the lane was just launched, so a client from before is
+ *  connected to nothing and starts again. */
+static void
+jobs_run_play_decide(
+    struct ToriRSMapEd* maped,
+    int relaunched)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+    char user[16];
+    char pass[24];
+    char why[256];
+    char note[384];
+    char message[sizeof(jobs->run_message) + sizeof(note) + 4];
+    enum EditorHost_Status status = EDITOR_HOST_OK;
+    struct ToriRSMapEdBuf restart;
+    uint32_t restart_count;
+    uint32_t counts[4];
+
+    jobs->run_play_waiting = 0;
+    jobs->run_step = TORIRSMAPED_RUN_STEP_PLAY;
+    jobs_play_account(jobs, user, sizeof(user), pass, sizeof(pass));
+    (void)jobs_play_poll(maped);
+    note[0] = '\0';
+    if( jobs->play_browser )
+    {
+        char url[1024];
+        url[0] = '\0';
+        if( jobs->have_lane )
+            ToriRSMapEd_LaneWebPlayUrl(&jobs->lane, url, sizeof(url));
+        if( jobs->play_state == TORIRSMAPED_PLAY_ONLINE && !relaunched )
+            snprintf(note, sizeof(note), "reloaded in the running browser client (%s at %d,%d)", user,
+                jobs->play_x, jobs->play_z);
+        else if( url[0] )
+            snprintf(note, sizeof(note), "open the play tab: %.300s", url);
+        else
+            snprintf(note, sizeof(note), "no play tab: the lane serves no web page (no io_server)");
+    }
+    else if( !jobs->have_play )
+        snprintf(note, sizeof(note), "no play client (the lane has no play binary)");
+    else if( relaunched )
+    {
+        status = jobs_play_start(maped, why, sizeof(why));
+        snprintf(note, sizeof(note), status == EDITOR_HOST_OK ? "play client started as %s on the launched lane"
+                                                              : "the play client did not start: %s",
+            status == EDITOR_HOST_OK ? user : why);
+    }
+    else if( jobs->play_state == TORIRSMAPED_PLAY_ONLINE )
+        snprintf(note, sizeof(note), "reloaded in the running client (%s at %d,%d, no relog)", user,
+            jobs->play_x, jobs->play_z);
+    else if( jobs->play_state == TORIRSMAPED_PLAY_STARTING
+             && (jobs->play_wait_lane || !jobs->players_known || time(NULL) - jobs->play_started < 120) )
+        snprintf(note, sizeof(note), jobs->players_known
+                                         ? "the play client is still logging in (it loads the new content)"
+                                         : "the play client runs (pid %d; this server does not report its "
+                                           "players)",
+            jobs->play_pid);
+    else
+    {
+        uint32_t const was = jobs->play_state;
+        int const exit_status = jobs->play_exit;
+        status = jobs_play_start(maped, why, sizeof(why));
+        if( status != EDITOR_HOST_OK )
+            snprintf(note, sizeof(note), "the play client did not start: %s", why);
+        else if( was == TORIRSMAPED_PLAY_EXITED )
+            snprintf(note, sizeof(note), "restarted the play client (it had exited, status %d)", exit_status);
+        else if( was == TORIRSMAPED_PLAY_LOGGED_OUT || was == TORIRSMAPED_PLAY_STARTING )
+            snprintf(note, sizeof(note), "restarted the play client (it was not on the server)");
+        else
+            snprintf(note, sizeof(note), "started the play client (it logs in as %s)", user);
+    }
+    jobs_live_broadcast_play(maped);
+
+    snprintf(message, sizeof(message), "%s; %s", jobs->run_message, note);
+    memcpy(counts, jobs->run_counts, sizeof(counts));
+    restart = jobs->run_restart;
+    restart_count = jobs->run_restart_count;
+    memset(&jobs->run_restart, 0, sizeof(jobs->run_restart));
+    jobs->run_restart_count = 0;
+    if( status == EDITOR_HOST_OK )
+        jobs_run_finish(maped, EDITOR_HOST_OK, TORIRSMAPED_RUN_STEP_DONE, message, counts, &restart,
+            restart_count);
+    else
+        jobs_run_finish(maped, status, TORIRSMAPED_RUN_STEP_PLAY, message, counts, &restart, restart_count);
+    ToriRSMapEd_BufFree(&restart);
+}
+
+/** The reload landed (or the lane was launched on the new build): keep its
+ *  outcome for RUN_DONE and go to the play step -- after one fresh player
+ *  list when the server reports them. */
+static void
+jobs_run_play_step(
+    struct ToriRSMapEd* maped,
+    const char* message,
+    const uint32_t* counts,
+    const struct ToriRSMapEdBuf* restart,
+    uint32_t restart_count,
+    int relaunched)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+
+    snprintf(jobs->run_message, sizeof(jobs->run_message), "%s", message);
+    for( int i = 0; i < 4; i++ )
+        jobs->run_counts[i] = counts ? counts[i] : 0;
+    ToriRSMapEd_BufFree(&jobs->run_restart);
+    memset(&jobs->run_restart, 0, sizeof(jobs->run_restart));
+    if( restart && ToriRSMapEd_BufAvailable(restart) > 0 )
+        ToriRSMapEd_BufWrite(&jobs->run_restart, ToriRSMapEd_BufPeek(restart), ToriRSMapEd_BufAvailable(restart));
+    jobs->run_restart_count = restart_count;
+    jobs->run_step = TORIRSMAPED_RUN_STEP_PLAY;
+    if( !relaunched && jobs->players_known && jobs->live_state == TORIRSMAPED_LIVE_ATTACHED )
+    {
+        jobs->run_play_waiting = 1;
+        jobs->run_play_deadline = time(NULL) + 5;
+        live_send_players_request(maped);
+        jobs_live_broadcast_status(maped);
+        return;
+    }
+    jobs_run_play_decide(maped, relaunched);
+}
 
 static void
 jobs_run_reload(struct ToriRSMapEd* maped)
@@ -255,10 +775,45 @@ jobs_run_reload(struct ToriRSMapEd* maped)
 
     if( !jobs->have_link || jobs->live_state != TORIRSMAPED_LIVE_ATTACHED )
     {
-        jobs_run_finish(maped, EDITOR_HOST_UNSUPPORTED, TORIRSMAPED_RUN_STEP_RELOAD,
-            jobs->have_link ? "no live server is attached (LIVE_ATTACH first); the packs are built"
-                            : "this server has no live link; the packs are built",
-            NULL, NULL, 0);
+        char why[256];
+        enum EditorHost_Status status;
+
+        if( !jobs->have_link )
+        {
+            jobs_run_finish(maped, EDITOR_HOST_UNSUPPORTED, TORIRSMAPED_RUN_STEP_RELOAD,
+                "this server has no live link; the packs are built", NULL, NULL, 0);
+            return;
+        }
+        if( jobs->live_state == TORIRSMAPED_LIVE_CONNECTING && !jobs->launched )
+        {
+            jobs_run_finish(maped, EDITOR_HOST_UNSUPPORTED, TORIRSMAPED_RUN_STEP_RELOAD,
+                "the live link is still connecting; the packs are built (RUN again once it is attached)", NULL,
+                NULL, 0);
+            return;
+        }
+        if( !jobs_lane_launchable(jobs) )
+        {
+            jobs_run_finish(maped, EDITOR_HOST_UNSUPPORTED, TORIRSMAPED_RUN_STEP_RELOAD,
+                "no live server is attached (LIVE_ATTACH first); the packs are built. Launch the lane first",
+                NULL, NULL, 0);
+            return;
+        }
+        /* The lane is down (or launched and not answering yet -- no login has
+         * built its world, so nothing is on it): (re)launch it on what this
+         * RUN just built. A fresh server boots from those packs and the
+         * play client's JS5 serves that cache, so nothing is owed a reload. */
+        status = jobs_live_launch(maped, why, sizeof(why));
+        if( status != EDITOR_HOST_OK )
+        {
+            char message[384];
+            snprintf(message, sizeof(message), "the lane was not up and did not launch: %s", why);
+            jobs_run_finish(maped, status, TORIRSMAPED_RUN_STEP_RELOAD, message, NULL, NULL, 0);
+            return;
+        }
+        jobs->pending_square_count = 0;
+        jobs->pending_spawn_count = 0;
+        jobs->pending_archive_count = 0;
+        jobs_run_play_step(maped, "the lane was not up: launched it on the new packs and cache", NULL, NULL, 0, 1);
         return;
     }
     if( jobs->have_lane )
@@ -426,9 +981,9 @@ live_fact(
             jobs->pending_square_count = 0;
             jobs->pending_spawn_count = 0;
             jobs->pending_archive_count = 0;
-            jobs_run_finish(maped, EDITOR_HOST_OK, TORIRSMAPED_RUN_STEP_DONE, message, counts,
-                &restart, restart_count);
             live_send_status_request(maped);
+            /* Then the play client: is it on the server to have taken it? */
+            jobs_run_play_step(maped, message, counts, &restart, restart_count, 0);
         }
         else
         {
@@ -438,6 +993,61 @@ live_fact(
                 &restart, restart_count);
         }
         ToriRSMapEd_BufFree(&restart);
+        return 1;
+    }
+    if( type == TORIRSMAPED_CTL_FACT_PLAYERS )
+    {
+        uint32_t logins = ToriRSMapEd_GetU32(&reader);
+        uint32_t active = ToriRSMapEd_GetU32(&reader);
+        uint32_t rows = ToriRSMapEd_GetU32(&reader);
+        struct ToriRSMapEdJobsPlayer kept[JOBS_PLAYER_ROWS];
+        int kept_count = 0;
+        char user[16];
+        char pass[24];
+        int changed;
+        if( reader.bad )
+            return 0;
+        jobs_play_account(jobs, user, sizeof(user), pass, sizeof(pass));
+        for( uint32_t i = 0; i < rows && !reader.bad; i++ )
+        {
+            struct ToriRSMapEdJobsPlayer row;
+            memset(&row, 0, sizeof(row));
+            ToriRSMapEd_GetString(&reader, row.account, sizeof(row.account));
+            ToriRSMapEd_GetString(&reader, row.display, sizeof(row.display));
+            row.slot = ToriRSMapEd_GetU32(&reader);
+            row.generation = ToriRSMapEd_GetU32(&reader);
+            row.x = (int32_t)ToriRSMapEd_GetU32(&reader);
+            row.z = (int32_t)ToriRSMapEd_GetU32(&reader);
+            row.level = (int32_t)ToriRSMapEd_GetU32(&reader);
+            /* Keep the play account always, then the first others. */
+            if( user[0] && (live_name_equal(row.account, user) || live_name_equal(row.display, user)) )
+            {
+                if( kept_count == JOBS_PLAYER_ROWS )
+                    kept_count--;
+                memmove(&kept[1], &kept[0], (size_t)kept_count * sizeof(kept[0]));
+                kept[0] = row;
+                kept_count++;
+            }
+            else if( kept_count < JOBS_PLAYER_ROWS )
+                kept[kept_count++] = row;
+        }
+        if( !ToriRSMapEd_ReaderDone(&reader) )
+            return 0;
+        changed = !jobs->players_known || logins != jobs->logins || active != jobs->players_active
+                  || kept_count != jobs->player_row_count
+                  || memcmp(kept, jobs->player_rows, (size_t)kept_count * sizeof(kept[0])) != 0;
+        jobs->players_known = 1;
+        jobs->logins = logins;
+        jobs->players_active = active;
+        jobs->players = active;
+        memcpy(jobs->player_rows, kept, (size_t)kept_count * sizeof(kept[0]));
+        jobs->player_row_count = kept_count;
+        jobs->last_players = time(NULL);
+        changed |= jobs_play_observe(maped);
+        if( jobs->run_play_waiting )
+            jobs_run_play_decide(maped, 0);
+        else if( changed )
+            jobs_live_broadcast_play(maped);
         return 1;
     }
     if( type == TORIRSMAPED_CTL_FACT_VARS )
@@ -568,12 +1178,51 @@ live_service(struct ToriRSMapEd* maped)
     if( jobs->live_state == TORIRSMAPED_LIVE_ATTACHED )
     {
         time_t const now = time(NULL);
+        /* Every second while the play client is on its way in, so its line
+         * turns "logged in" promptly; else at the status cadence. */
+        int const players_period = jobs->play_state == TORIRSMAPED_PLAY_STARTING
+                                           || jobs->play_state == TORIRSMAPED_PLAY_LOGGED_OUT
+                                       ? 1
+                                       : LIVE_STATUS_PERIOD_S;
         if( now - jobs->last_status >= LIVE_STATUS_PERIOD_S )
             live_send_status_request(maped);
+        if( jobs->players_known && now - jobs->last_players >= players_period )
+            live_send_players_request(maped);
         if( jobs->reload_waiting && now > jobs->reload_deadline )
             jobs_run_finish(maped, EDITOR_HOST_IO_ERROR, TORIRSMAPED_RUN_STEP_RELOAD,
                 "the game server did not answer the reload", NULL, NULL, 0);
     }
+}
+
+/** The play client's half of a service pass: reap it, spawn it once the
+ *  lane's ports are up, finish a RUN whose player list never came. */
+static void
+play_service(struct ToriRSMapEd* maped)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+    int changed = 0;
+
+    if( jobs->have_play && jobs->play_wait_lane )
+    {
+        if( jobs->play.ready(jobs->play.ctx) )
+        {
+            char why[256];
+            (void)jobs_play_spawn(maped, why, sizeof(why));
+            changed = 1;
+        }
+        else if( time(NULL) > jobs->play_wait_deadline )
+        {
+            jobs->play_wait_lane = 0;
+            jobs_play_note(jobs, TORIRSMAPED_PLAY_EXITED,
+                "the lane's game and JS5 ports did not come up in 60 s; the play client was not started");
+            changed = 1;
+        }
+    }
+    changed |= jobs_play_poll(maped);
+    if( jobs->run_play_waiting && time(NULL) > jobs->run_play_deadline )
+        jobs_run_play_decide(maped, 0);
+    else if( changed )
+        jobs_live_broadcast_play(maped);
 }
 
 /* ---- LIVE_* ------------------------------------------------------------------ */
@@ -632,10 +1281,6 @@ handle_live(
             live_unavailable(maped, "a RUN is in flight; attach after it");
             return;
         }
-        if( jobs->live_state == TORIRSMAPED_LIVE_CONNECTING || jobs->live_state == TORIRSMAPED_LIVE_ATTACHED )
-            jobs_live_drop(maped, TORIRSMAPED_LIVE_DETACHED, "re-attaching");
-        memset(&target, 0, sizeof(target));
-        target.launch = (int)mode;
         if( mode == 1 )
         {
             if( !jobs->have_lane )
@@ -643,10 +1288,14 @@ handle_live(
                 live_unavailable(maped, "launch needs a lane (none is bound)");
                 return;
             }
-            snprintf(target.host, sizeof(target.host), "127.0.0.1");
-            target.port = jobs->lane.game_port;
+            snprintf(jobs->ticket, sizeof(jobs->ticket), "%s", ticket);
+            (void)jobs_live_launch(maped, why, sizeof(why));
+            return;
         }
-        else
+        if( jobs->live_state == TORIRSMAPED_LIVE_CONNECTING || jobs->live_state == TORIRSMAPED_LIVE_ATTACHED )
+            jobs_live_drop(maped, TORIRSMAPED_LIVE_DETACHED, "re-attaching");
+        memset(&target, 0, sizeof(target));
+        target.launch = 0;
         {
             const char* colon = strrchr(address, ':');
             long port = colon ? strtol(colon + 1, NULL, 10) : 0;
@@ -685,12 +1334,73 @@ handle_live(
             session->alive = 0;
             return;
         }
-        if( jobs->have_link && jobs->live_state != TORIRSMAPED_LIVE_DETACHED )
-            jobs_live_drop(maped, TORIRSMAPED_LIVE_DETACHED, "detached");
-        else
-            snprintf(jobs->message, sizeof(jobs->message), "detached");
-        jobs->live_state = TORIRSMAPED_LIVE_DETACHED;
+        {
+            int const was_launched = jobs->launched;
+            if( jobs->have_link && jobs->live_state != TORIRSMAPED_LIVE_DETACHED )
+                jobs_live_drop(maped, TORIRSMAPED_LIVE_DETACHED, "detached");
+            else
+                snprintf(jobs->message, sizeof(jobs->message), "detached");
+            jobs->live_state = TORIRSMAPED_LIVE_DETACHED;
+            /* The lane's servers stopped: its play client would sit on a
+             * dead connection. It goes with them. */
+            if( was_launched && jobs->play_pid > 0 )
+            {
+                jobs_play_stop(maped, "stopped with the lane");
+                jobs_live_broadcast_play(maped);
+            }
+        }
         jobs_live_broadcast_status(maped);
+        return;
+    }
+    if( type == TORIRSMAPED_REQ_LIVE_PLAY )
+    {
+        uint32_t action = ToriRSMapEd_GetU32(&reader);
+        char why[256];
+        if( !ToriRSMapEd_ReaderDone(&reader) || action > TORIRSMAPED_PLAY_BROWSER )
+        {
+            session->alive = 0;
+            return;
+        }
+        (void)jobs_play_poll(maped);
+        if( action == TORIRSMAPED_PLAY_BROWSER )
+        {
+            if( jobs->play_pid > 0 )
+                jobs->play.stop(jobs->play.ctx);
+            jobs->play_pid = 0;
+            jobs->play_wait_lane = 0;
+            jobs->play_browser = 1;
+            (void)jobs_play_observe(maped);
+            if( jobs->play_state != TORIRSMAPED_PLAY_ONLINE )
+                jobs_play_note(jobs, TORIRSMAPED_PLAY_NONE, "a browser window plays this lane");
+        }
+        else if( action == TORIRSMAPED_PLAY_STOP )
+            jobs_play_stop(maped, "stopped");
+        else if( action == TORIRSMAPED_PLAY_START && jobs->play_state == TORIRSMAPED_PLAY_ONLINE )
+        {
+            char user[16];
+            char pass[24];
+            jobs_play_account(jobs, user, sizeof(user), pass, sizeof(pass));
+            snprintf(jobs->play_message, sizeof(jobs->play_message), "already logged in as %s at %d,%d", user,
+                jobs->play_x, jobs->play_z);
+        }
+        else if( action == TORIRSMAPED_PLAY_START && jobs->play_state == TORIRSMAPED_PLAY_STARTING
+                 && (jobs->play_pid > 0 || jobs->play_wait_lane) )
+            ; /* on its way in: the line already says so */
+        else
+        {
+            /* START or RESTART: the lane must be up for it to log into. A
+             * lane that is down is launched (it boots on whatever its last
+             * build left in the live dir). */
+            enum EditorHost_Status status = EDITOR_HOST_OK;
+            if( (jobs->live_state == TORIRSMAPED_LIVE_DETACHED || jobs->live_state == TORIRSMAPED_LIVE_FAILED)
+                && jobs_lane_launchable(jobs) && !jobs->play_browser && jobs->have_play )
+                status = jobs_live_launch(maped, why, sizeof(why));
+            if( status == EDITOR_HOST_OK )
+                status = jobs_play_start(maped, why, sizeof(why));
+            if( status != EDITOR_HOST_OK )
+                snprintf(jobs->play_message, sizeof(jobs->play_message), "%s", why);
+        }
+        jobs_live_broadcast_play(maped);
         return;
     }
     if( type == TORIRSMAPED_REQ_LIVE_CHEAT )
@@ -756,6 +1466,19 @@ ToriRSMapEd_Service(struct ToriRSMapEd* maped)
     assert(maped->jobs);
     jobs_build_service(maped);
     live_service(maped);
+    play_service(maped);
+    /* The catalog's warm build and freshness sweeps, a slice at a time
+     * (torirs_maped_catalog.h ToriRSMapEdCatalog_Service). */
+    if( maped->catalog )
+    {
+        uint32_t const maps = ToriRSMapEdCatalog_MapsRevision(maped->catalog);
+        (void)ToriRSMapEdCatalog_Service(maped->catalog, ToriRSMapEdCatalog_Built(maped->catalog)
+                                                             ? TORIRSMAPED_CATALOG_SLICE_MS
+                                                             : TORIRSMAPED_CATALOG_WARM_SLICE_MS);
+        /* A sweep that merged a square changed on disk: every window's atlas. */
+        if( ToriRSMapEdCatalog_MapsRevision(maped->catalog) != maps )
+            catalog_atlas_changed(maped, 0);
+    }
 }
 
 int
@@ -767,7 +1490,8 @@ ToriRSMapEd_Busy(const struct ToriRSMapEd* maped)
     assert(maped->jobs);
     jobs = maped->jobs;
     return jobs->building || jobs->run_step != TORIRSMAPED_RUN_STEP_IDLE
-           || jobs->live_state == TORIRSMAPED_LIVE_CONNECTING;
+           || jobs->live_state == TORIRSMAPED_LIVE_CONNECTING || jobs->play_wait_lane
+           || (maped->catalog && ToriRSMapEdCatalog_Working(maped->catalog));
 }
 
 void
@@ -801,6 +1525,113 @@ ToriRSMapEd_SetLiveLink(
         jobs->have_link = 1;
         maped->capabilities |= TORIRSMAPED_CAP_LIVE;
     }
+}
+
+/* ------------------------------------------------------------------ */
+/* The play client's files                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Write a client manifest for the lane from lane->play_manifest: the
+ * [cache:boot] dir becomes `cache_dir`, [net:boot] dials the lane's game
+ * port on 127.0.0.1 over tcp, and with `absolute` every "../" or "./" value
+ * is made absolute against the source's directory (the copy lives elsewhere).
+ */
+static int
+play_manifest_write(
+    const struct ToriRSMapEdLane* lane,
+    const char* out_path,
+    const char* cache_dir,
+    int absolute,
+    char* why,
+    size_t why_size)
+{
+    char source_dir[TORIRSMAPED_LANE_PATH_MAX];
+    char line[4096];
+    char section[128] = "";
+    const char* slash;
+    FILE* in;
+    FILE* out;
+    int failed = 0;
+
+    in = fopen(lane->play_manifest, "rb");
+    if( !in )
+    {
+        snprintf(why, why_size, "cannot read the play manifest %s: %s", lane->play_manifest, strerror(errno));
+        return 0;
+    }
+    out = fopen(out_path, "wb");
+    if( !out )
+    {
+        snprintf(why, why_size, "cannot write %s: %s", out_path, strerror(errno));
+        fclose(in);
+        return 0;
+    }
+    slash = strrchr(lane->play_manifest, '/');
+    if( slash )
+        snprintf(source_dir, sizeof(source_dir), "%.*s", (int)(slash - lane->play_manifest), lane->play_manifest);
+    else
+        snprintf(source_dir, sizeof(source_dir), ".");
+    fprintf(out, "; Written by ToriRSMapEd for the live lane's play client from\n; %s\n; (cache dir, net "
+                 "host and port%s rewritten; regenerated at every start).\n\n",
+        lane->play_manifest, absolute ? ", relative paths" : "");
+    while( fgets(line, sizeof(line), in) )
+    {
+        size_t length = strlen(line);
+        const char* eq;
+        while( length > 0 && (line[length - 1] == '\n' || line[length - 1] == '\r') )
+            line[--length] = '\0';
+        if( line[0] == '[' )
+        {
+            const char* close = strchr(line, ']');
+            snprintf(section, sizeof(section), "%.*s", close ? (int)(close - line + 1) : (int)length, line);
+            fprintf(out, "%s\n", line);
+            continue;
+        }
+        eq = strchr(line, '=');
+        if( strcmp(section, "[cache:boot]") == 0 && strncmp(line, "dir=", 4) == 0 )
+            fprintf(out, "dir=%s\n", cache_dir);
+        else if( strcmp(section, "[net:boot]") == 0 && strncmp(line, "host=", 5) == 0 )
+            fprintf(out, "host=127.0.0.1\n");
+        else if( strcmp(section, "[net:boot]") == 0 && strncmp(line, "port=", 5) == 0 )
+            fprintf(out, "port=%d\n", lane->game_port);
+        else if( strcmp(section, "[net:boot]") == 0 && strncmp(line, "transport=", 10) == 0 )
+            fprintf(out, "transport=tcp\n");
+        else if( absolute && eq && line[0] != ';' && line[0] != '#'
+                 && (strncmp(eq + 1, "../", 3) == 0 || strncmp(eq + 1, "./", 2) == 0) )
+            fprintf(out, "%.*s%s/%s\n", (int)(eq - line + 1), line, source_dir, eq + 1);
+        else
+            fprintf(out, "%s\n", line);
+    }
+    if( ferror(in) )
+        failed = 1;
+    fclose(in);
+    if( fclose(out) != 0 )
+        failed = 1;
+    if( failed )
+    {
+        snprintf(why, why_size, "writing %s failed", out_path);
+        return 0;
+    }
+    return 1;
+}
+
+int
+ToriRSMapEd_PlayManifestWrite(
+    const struct ToriRSMapEdLane* lane,
+    const char* out_path,
+    char* why,
+    size_t why_size)
+{
+    char live[TORIRSMAPED_LANE_PATH_MAX + 256];
+    char cache[TORIRSMAPED_LANE_PATH_MAX + 300];
+
+    assert(lane);
+    assert(out_path);
+    assert(why);
+    build_resolve(lane->live_dir, live, sizeof(live));
+    snprintf(cache, sizeof(cache), "%s/play/cache", live);
+    return play_manifest_write(lane, out_path, cache, 1, why, why_size);
 }
 
 /* ------------------------------------------------------------------ */
@@ -842,6 +1673,63 @@ live_now_ms(void)
     struct timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
     return (int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000;
+}
+
+/** `mkdir -p`. */
+static void
+live_mkdirs(const char* path)
+{
+    char partial[TORIRSMAPED_LANE_PATH_MAX + 64];
+    size_t used = 0;
+
+    for( const char* scan = path; *scan && used + 1 < sizeof(partial); scan++ )
+    {
+        if( *scan == '/' && used > 0 )
+        {
+            partial[used] = '\0';
+            mkdir(partial, 0755);
+        }
+        partial[used++] = *scan;
+    }
+    partial[used] = '\0';
+    if( used > 0 )
+        mkdir(partial, 0755);
+}
+
+/**
+ * The tree io_server's --boot-root is for a browser playing the lane:
+ * <live>/play/web/manifests/manifest_<rev>.ini (the play manifest with its
+ * relative paths kept and dir=../cache), <live>/play/web/cache, a link to the
+ * lane's cache (io_server opens only a cache inside its boot root), and
+ * <live>/play/web/revconfig, a link to the repository's revconfig/ the
+ * manifest's relative paths name. `out_root` gets <live>/play/web.
+ */
+static void
+live_web_play_prepare(
+    const struct ToriRSMapEdLane* lane,
+    char* out_root,
+    size_t out_size)
+{
+    char live[TORIRSMAPED_LANE_PATH_MAX + 256];
+    char path[TORIRSMAPED_LANE_PATH_MAX + 512];
+    char target[TORIRSMAPED_LANE_PATH_MAX + 64];
+    char why[512];
+
+    build_resolve(lane->live_dir, live, sizeof(live));
+    snprintf(out_root, out_size, "%s/play/web", live);
+    snprintf(path, sizeof(path), "%s/play/web/manifests", live);
+    live_mkdirs(path);
+    snprintf(path, sizeof(path), "%s/play/web/revconfig", live);
+    snprintf(target, sizeof(target), "%s/revconfig", lane->repo_root);
+    if( access(path, F_OK) != 0 && symlink(target, path) != 0 )
+        TORIRS_LOG("torirsmaped: cannot link %s -> %s: %s\n", path, target, strerror(errno));
+    snprintf(path, sizeof(path), "%s/play/web/cache", live);
+    snprintf(target, sizeof(target), "%s/cache", live);
+    if( access(path, F_OK) != 0 && symlink(target, path) != 0 )
+        TORIRS_LOG("torirsmaped: cannot link %s -> %s: %s\n", path, target, strerror(errno));
+    snprintf(path, sizeof(path), "%s/play/web/manifests/manifest_%s.ini", live, lane->rev);
+    if( !play_manifest_write(lane, path, "../cache", 0, why, sizeof(why)) )
+        TORIRS_LOG("torirsmaped: the web play manifest: %s\n", why);
 }
 
 static void
@@ -928,9 +1816,11 @@ live_native_open(
     {
         const struct ToriRSMapEdLane* lane = &native->lane;
         char port[3][16];
-        char env[4][TORIRSMAPED_LANE_PATH_MAX + 32];
-        const char* extra_env[5];
+        char env[6][TORIRSMAPED_LANE_PATH_MAX + 32];
+        const char* extra_env[7];
         char cache[TORIRSMAPED_LANE_PATH_MAX + 16];
+        char logs[3][TORIRSMAPED_LANE_PATH_MAX + 32];
+        char web_root[TORIRSMAPED_LANE_PATH_MAX + 32];
         char rev_number[16];
         const char* digits;
 
@@ -951,12 +1841,25 @@ live_native_open(
         snprintf(env[1], sizeof(env[1]), "TORIRSSERVER_CACHE=%s", cache);
         snprintf(env[2], sizeof(env[2]), "TORIRSSERVER_SCRIPTS=%s/scripts", lane->live_dir);
         snprintf(env[3], sizeof(env[3]), "TORIRSSERVER_PACK_DIR=%s/servpack", lane->live_dir);
-        for( int i = 0; i < 4; i++ )
+        /* The lane's accounts and saves (the play account's among them) stay
+         * in the lane, never in whatever directory the editor runs from. */
+        snprintf(env[4], sizeof(env[4]), "TORIRSSERVER_SAVES=%s/saves", lane->live_dir);
+        /* A dev lane: the play client goes straight into the world rather
+         * than waiting on the welcome screen's Play. */
+        snprintf(env[5], sizeof(env[5]), "TORIRSSERVER_SKIP_WELCOME=1");
+        for( int i = 0; i < 6; i++ )
             extra_env[i] = env[i];
-        extra_env[4] = NULL;
+        extra_env[6] = NULL;
+        snprintf(logs[0], sizeof(logs[0]), "%s/logs", lane->live_dir);
+        live_mkdirs(logs[0]);
+        snprintf(logs[0], sizeof(logs[0]), "%s/saves", lane->live_dir);
+        live_mkdirs(logs[0]);
+        snprintf(logs[0], sizeof(logs[0]), "%s/logs/server.log", lane->live_dir);
+        snprintf(logs[1], sizeof(logs[1]), "%s/logs/js5.log", lane->live_dir);
+        snprintf(logs[2], sizeof(logs[2]), "%s/logs/io.log", lane->live_dir);
         {
             char* argv[] = { (char*)lane->server_bin, port[0], (char*)"--rev", (char*)lane->rev, NULL };
-            native->pids[0] = jobs_spawn(argv, extra_env, NULL);
+            native->pids[0] = jobs_spawn_logged(argv, extra_env, logs[0], NULL);
             if( native->pids[0] < 0 )
             {
                 native->pids[0] = 0;
@@ -968,7 +1871,7 @@ live_native_open(
         {
             char* argv[] = { (char*)lane->js5_bin, (char*)"--cache", cache, (char*)"--revision",
                 rev_number, (char*)"--port", port[1], (char*)"--max-pending", (char*)"65535", NULL };
-            native->pids[1] = jobs_spawn(argv, NULL, NULL);
+            native->pids[1] = jobs_spawn_logged(argv, NULL, logs[1], NULL);
             if( native->pids[1] < 0 )
             {
                 native->pids[1] = 0;
@@ -979,9 +1882,16 @@ live_native_open(
         }
         if( lane->io_bin[0] && lane->io_manifest[0] )
         {
-            char* argv[] = { (char*)lane->io_bin, (char*)"--manifest", (char*)lane->io_manifest,
-                (char*)"--root", (char*)lane->io_root, (char*)"--port", port[2], NULL };
-            native->pids[2] = jobs_spawn(argv, NULL, NULL);
+            /* --boot-root is the web play tree (live_web_play_prepare): the
+             * page boots manifests/manifest_<rev>.ini from it, which names
+             * the lane's game port and (through the tree's link) its cache.
+             * No --manifest preopen: io_server reads a preopen's file from
+             * its working directory but resolves the cache it names under
+             * the boot root, and the page's first request opens it anyway. */
+            char* argv[] = { (char*)lane->io_bin, (char*)"--root", (char*)lane->io_root, (char*)"--port", port[2],
+                (char*)"--boot-root", web_root, NULL };
+            live_web_play_prepare(lane, web_root, sizeof(web_root));
+            native->pids[2] = jobs_spawn_logged(argv, NULL, logs[2], NULL);
             if( native->pids[2] < 0 )
             {
                 native->pids[2] = 0;
@@ -1143,7 +2053,313 @@ live_native_free(void* ctx)
     free(native);
 }
 
+/* ---- the native play launcher -------------------------------------------- */
+
+enum
+{
+    PLAY_ENV_MAX = 32,
+};
+
+struct play_native
+{
+    struct ToriRSMapEdLane lane;
+    int pid;
+};
+
+/** 1 when 127.0.0.1:`port` accepts a connection now (loopback answers at
+ *  once either way). */
+static int
+play_port_open(int port)
+{
+    struct sockaddr_in addr;
+    int fd;
+    int ok;
+
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    if( fd < 0 )
+        return 0;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons((uint16_t)port);
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ok = connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0;
+    close(fd);
+    return ok;
+}
+
+static int
+play_native_ready(void* ctx)
+{
+    struct play_native* play = ctx;
+
+    assert(play);
+    if( !play_port_open(play->lane.game_port) )
+        return 0;
+    return !play->lane.js5_bin[0] || play_port_open(play->lane.js5_port);
+}
+
+/** The fixture as the account's first save: copied once (a save the server
+ *  wrote since is the player's), its `name =` the account's. */
+static void
+play_copy_fixture(
+    const struct ToriRSMapEdLane* lane,
+    const char* live,
+    const char* user)
+{
+    char path[TORIRSMAPED_LANE_PATH_MAX + 128];
+    char line[4096];
+    char file[64];
+    size_t used = 0;
+    FILE* in;
+    FILE* out;
+
+    if( !lane->play_fixture[0] )
+        return;
+    for( const char* scan = user; *scan && used + 1 < sizeof(file); scan++ )
+    {
+        char c = *scan;
+        if( c >= 'A' && c <= 'Z' )
+            file[used++] = (char)(c - 'A' + 'a');
+        else if( (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') )
+            file[used++] = c;
+        else if( c == ' ' || c == '-' || c == '_' )
+            file[used++] = '_';
+    }
+    file[used] = '\0';
+    snprintf(path, sizeof(path), "%s/saves/%s.ini", live, file);
+    if( access(path, F_OK) == 0 )
+        return;
+    in = fopen(lane->play_fixture, "rb");
+    if( !in )
+    {
+        TORIRS_LOG("torirsmaped: play client: no fixture save %s (%s): the account starts as a new "
+                   "character\n", lane->play_fixture, strerror(errno));
+        return;
+    }
+    out = fopen(path, "wb");
+    if( !out )
+    {
+        TORIRS_LOG("torirsmaped: play client: cannot write %s: %s\n", path, strerror(errno));
+        fclose(in);
+        return;
+    }
+    while( fgets(line, sizeof(line), in) )
+    {
+        if( strncmp(line, "name = ", 7) == 0 || strncmp(line, "name=", 5) == 0 )
+            fprintf(out, "name = %s\n", user);
+        else
+            fputs(line, out);
+    }
+    fclose(in);
+    fclose(out);
+}
+
+static enum EditorHost_Status
+play_native_start(
+    void* ctx,
+    const struct ToriRSMapEdPlaySpec* spec,
+    int* out_pid,
+    char* why,
+    size_t why_size)
+{
+    static const char* const drop[] = { "TORIRS_SIM_HOTKEY", "TORIRS_EXIT_BMP", "TORIRS_MAX_FRAMES",
+        "TORIRS_BMP_SERIES", "TORIRS_PRESENT_BMP*", "TORIRS_SCREENSHOT*", "TORIRS_SHOT_FRAME", "TORIRS_EDITOR_*",
+        "TORIRS_PREFS", "TORIRSMAPED_*", NULL };
+    struct play_native* play = ctx;
+    const struct ToriRSMapEdLane* lane;
+    char live[TORIRSMAPED_LANE_PATH_MAX + 256];
+    char path[TORIRSMAPED_LANE_PATH_MAX + 320];
+    char manifest[TORIRSMAPED_LANE_PATH_MAX + 320];
+    char log_path[TORIRSMAPED_LANE_PATH_MAX + 320];
+    char js5_port[16];
+    char extra_store[PLAY_ENV_MAX][TORIRSMAPED_LANE_PATH_MAX + 64];
+    const char* extra[PLAY_ENV_MAX + 1];
+    int extra_count = 0;
+    char** env;
+    int pid;
+
+    assert(play);
+    assert(spec);
+    assert(out_pid);
+    assert(why);
+    lane = &play->lane;
+    if( play->pid > 0 )
+    {
+        jobs_stop_process(play->pid, 3000);
+        play->pid = 0;
+    }
+    if( access(lane->play_bin, X_OK) != 0 )
+    {
+        snprintf(why, why_size, "the play client %s is not an executable (%s)", lane->play_bin, strerror(errno));
+        return EDITOR_HOST_UNSUPPORTED;
+    }
+    build_resolve(lane->live_dir, live, sizeof(live));
+    snprintf(path, sizeof(path), "%s/play/cache", live);
+    live_mkdirs(path);
+    snprintf(path, sizeof(path), "%s/saves", live);
+    live_mkdirs(path);
+    snprintf(path, sizeof(path), "%s/logs", live);
+    live_mkdirs(path);
+    snprintf(manifest, sizeof(manifest), "%s/play/manifest.ini", live);
+    if( !ToriRSMapEd_PlayManifestWrite(lane, manifest, why, why_size) )
+        return EDITOR_HOST_IO_ERROR;
+    play_copy_fixture(lane, live, spec->user);
+
+    snprintf(extra_store[extra_count], sizeof(extra_store[0]), "TORIRS_PREFS=%s/play/preferences.ini", live);
+    extra[extra_count] = extra_store[extra_count];
+    extra_count++;
+    snprintf(extra_store[extra_count], sizeof(extra_store[0]), "TORIRS_STDERR_UNBUFFERED=1");
+    extra[extra_count] = extra_store[extra_count];
+    extra_count++;
+    /* TORIRSMAPED_PLAY_ENV_<NAME>=<value> -> NAME=<value>: the play client's
+     * own keys (its capture settings in a headless run). */
+    for( int i = 0; environ[i] && extra_count < PLAY_ENV_MAX; i++ )
+    {
+        static const char prefix[] = "TORIRSMAPED_PLAY_ENV_";
+        if( strncmp(environ[i], prefix, sizeof(prefix) - 1) == 0 && strchr(environ[i], '=') )
+        {
+            snprintf(extra_store[extra_count], sizeof(extra_store[0]), "%s", environ[i] + sizeof(prefix) - 1);
+            extra[extra_count] = extra_store[extra_count];
+            extra_count++;
+        }
+    }
+    extra[extra_count] = NULL;
+    snprintf(js5_port, sizeof(js5_port), "%d", lane->js5_port);
+    snprintf(log_path, sizeof(log_path), "%s/logs/play.log", live);
+    {
+        /* The last client's log is kept beside (a restart is often "why did
+         * it die"). */
+        char previous[TORIRSMAPED_LANE_PATH_MAX + 320];
+        snprintf(previous, sizeof(previous), "%s/logs/play.prev.log", live);
+        (void)rename(log_path, previous);
+    }
+    env = jobs_env_build(extra, drop);
+    {
+        char* argv[] = { (char*)lane->play_bin, (char*)"--manifest", manifest, (char*)"--js5", (char*)"--js5-host",
+            (char*)"127.0.0.1", (char*)"--js5-port", js5_port, (char*)"--js5-fallback-port", (char*)"0",
+            (char*)"--user", (char*)spec->user, (char*)"--pass", (char*)spec->pass, NULL };
+        pid = jobs_spawn_envp(argv, env, log_path, NULL);
+    }
+    free(env);
+    if( pid < 0 )
+    {
+        snprintf(why, why_size, "cannot start %s: %s", lane->play_bin, strerror(errno));
+        return EDITOR_HOST_IO_ERROR;
+    }
+    play->pid = pid;
+    *out_pid = pid;
+    TORIRS_LOG("torirsmaped: play client pid %d: %s --manifest %s --js5-port %d --user %s (log %s)\n", pid,
+        lane->play_bin, manifest, lane->js5_port, spec->user, log_path);
+    return EDITOR_HOST_OK;
+}
+
+static int
+play_native_alive(
+    void* ctx,
+    int* out_status)
+{
+    struct play_native* play = ctx;
+    int status = 0;
+    pid_t got;
+
+    assert(play);
+    assert(out_status);
+    *out_status = 0;
+    if( play->pid <= 0 )
+        return 0;
+    got = waitpid((pid_t)play->pid, &status, WNOHANG);
+    if( got == 0 )
+        return 1;
+    if( got == (pid_t)play->pid )
+        *out_status = WIFEXITED(status) ? WEXITSTATUS(status) : WIFSIGNALED(status) ? -WTERMSIG(status) : -1;
+    play->pid = 0;
+    return 0;
+}
+
+static void
+play_native_stop(void* ctx)
+{
+    struct play_native* play = ctx;
+
+    assert(play);
+    if( play->pid > 0 )
+        jobs_stop_process(play->pid, 3000);
+    play->pid = 0;
+}
+
+static void
+play_native_free(void* ctx)
+{
+    struct play_native* play = ctx;
+    if( !play )
+        return;
+    play_native_stop(play);
+    free(play);
+}
+
 #endif /* TORIRSMAPED_JOBS_NATIVE */
+
+int
+ToriRSMapEd_PlayLauncherNative(
+    struct ToriRSMapEdPlayLauncher* out,
+    const struct ToriRSMapEdLane* lane)
+{
+    assert(out);
+    assert(lane);
+
+    memset(out, 0, sizeof(*out));
+#if TORIRSMAPED_JOBS_NATIVE
+    if( !lane->play_bin[0] )
+        return 0;
+    {
+        struct play_native* play = calloc(1, sizeof(*play));
+        assert(play);
+        play->lane = *lane;
+        out->ctx = play;
+        out->ready = play_native_ready;
+        out->start = play_native_start;
+        out->alive = play_native_alive;
+        out->stop = play_native_stop;
+        out->free_ = play_native_free;
+        return 1;
+    }
+#else
+    return 0;
+#endif
+}
+
+void
+ToriRSMapEd_SetPlayLauncher(
+    struct ToriRSMapEd* maped,
+    const struct ToriRSMapEdPlayLauncher* launcher)
+{
+    struct ToriRSMapEdJobs* jobs;
+
+    assert(maped);
+    assert(maped->jobs);
+    jobs = maped->jobs;
+    if( jobs->have_play )
+    {
+        jobs->play.stop(jobs->play.ctx);
+        if( jobs->play.free_ )
+            jobs->play.free_(jobs->play.ctx);
+    }
+    memset(&jobs->play, 0, sizeof(jobs->play));
+    jobs->have_play = 0;
+    jobs->play_pid = 0;
+    jobs->play_wait_lane = 0;
+    jobs->play_state = TORIRSMAPED_PLAY_NONE;
+    jobs->play_x = jobs->play_z = jobs->play_level = -1;
+    if( launcher )
+    {
+        assert(launcher->ready);
+        assert(launcher->start);
+        assert(launcher->alive);
+        assert(launcher->stop);
+        jobs->play = *launcher;
+        jobs->have_play = 1;
+    }
+}
 
 int
 ToriRSMapEd_LiveLinkNative(
@@ -1238,6 +2454,10 @@ live_env_port(
  *   TORIRSMAPED_LIVE_IO_ROOT      io_server's --root
  *   TORIRSMAPED_LIVE_BASE_CACHE   the cache a first client build copies
  *   TORIRSMAPED_LIVE_GAME_PORT, TORIRSMAPED_LIVE_JS5_PORT, TORIRSMAPED_LIVE_IO_PORT
+ *   TORIRSMAPED_LIVE_PLAY_BIN     the play client ("" = none)
+ *   TORIRSMAPED_LIVE_PLAY_MANIFEST the client manifest the play manifest is written from
+ *   TORIRSMAPED_LIVE_PLAY_FIXTURE the play account's first save ("" = a new character)
+ *   TORIRSMAPED_LIVE_PLAY_USER, TORIRSMAPED_LIVE_PLAY_PASS   the play account
  */
 static void
 live_lane_from_env(struct ToriRSMapEdLane* lane)
@@ -1252,6 +2472,11 @@ live_lane_from_env(struct ToriRSMapEdLane* lane)
     live_env_port("TORIRSMAPED_LIVE_GAME_PORT", &lane->game_port);
     live_env_port("TORIRSMAPED_LIVE_JS5_PORT", &lane->js5_port);
     live_env_port("TORIRSMAPED_LIVE_IO_PORT", &lane->io_port);
+    live_env_path("TORIRSMAPED_LIVE_PLAY_BIN", lane->play_bin, sizeof(lane->play_bin));
+    live_env_path("TORIRSMAPED_LIVE_PLAY_MANIFEST", lane->play_manifest, sizeof(lane->play_manifest));
+    live_env_path("TORIRSMAPED_LIVE_PLAY_FIXTURE", lane->play_fixture, sizeof(lane->play_fixture));
+    live_env_path("TORIRSMAPED_LIVE_PLAY_USER", lane->play_user, sizeof(lane->play_user));
+    live_env_path("TORIRSMAPED_LIVE_PLAY_PASS", lane->play_pass, sizeof(lane->play_pass));
 }
 
 int
@@ -1280,6 +2505,11 @@ ToriRSMapEd_BindLiveFromEnv(
     }
     ToriRSMapEd_SetBuildRunner(maped, &runner);
     ToriRSMapEd_SetLiveLink(maped, &link);
+    {
+        struct ToriRSMapEdPlayLauncher play;
+        if( ToriRSMapEd_PlayLauncherNative(&play, &lane) )
+            ToriRSMapEd_SetPlayLauncher(maped, &play);
+    }
     TORIRS_LOG("torirsmaped: live lane %s (builds write there; RUN reloads the attached server)\n",
         live_dir);
     return 1;

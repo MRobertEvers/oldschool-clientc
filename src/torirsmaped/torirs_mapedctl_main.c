@@ -85,8 +85,15 @@
  *                          a debugproc on the attached server
  *   build packs|client [seconds]
  *   run [seconds]          RUN: save all, build packs, build the client
- *                          cache, reload the attached server; streams every
- *                          line and exits 0 when RUN finished every step
+ *                          cache, reload the attached server (or launch the
+ *                          lane when it is down), then start or check the
+ *                          lane's play client; streams every line and exits
+ *                          0 when RUN finished every step
+ *   play [seconds]         start the lane's play client (launching the lane
+ *                          when it is down) and wait until it is logged in
+ *                          (default 180 s); exits 0 once the server lists it
+ *   play-restart [seconds] stop it and start it again, then as play
+ *   play-stop              stop the lane's play client
  *
  * Exit status is 0 when the command did what it said, 1 otherwise.
  */
@@ -1352,7 +1359,17 @@ struct live_wait
     uint32_t want_fact;
     int done;
     int ok;
+    /** FACT_LIVE_PLAY: 1 wait for ONLINE (EXITED fails), 2 for NONE. */
+    int want_play;
 };
+
+/** enum ToriRSMapEdPlayState's name (this tool links no server code). */
+static const char*
+ctl_play_state_name(uint32_t state)
+{
+    static const char* const names[] = { "not started", "starting", "logged in", "logged out", "exited" };
+    return state < sizeof(names) / sizeof(names[0]) ? names[state] : "?";
+}
 
 /** Print one live-editor fact; fold it into `wait`. */
 static void
@@ -1443,6 +1460,60 @@ live_print(
     {
         ToriRSMapEd_GetString(&reader, text, sizeof(text));
         printf("  [live] %s\n", text);
+    }
+    else if( type == TORIRSMAPED_FACT_LIVE_PLAY )
+    {
+        uint32_t state = ToriRSMapEd_GetU32(&reader);
+        uint32_t browser = ToriRSMapEd_GetU32(&reader);
+        char account[64];
+        char url[1024];
+        int32_t pid;
+        int32_t exit_status;
+        int32_t x;
+        int32_t z;
+        int32_t level;
+        uint32_t starts;
+        uint32_t known;
+        uint32_t logins;
+        uint32_t active;
+        uint32_t rows;
+        ToriRSMapEd_GetString(&reader, account, sizeof(account));
+        pid = (int32_t)ToriRSMapEd_GetU32(&reader);
+        exit_status = (int32_t)ToriRSMapEd_GetU32(&reader);
+        ToriRSMapEd_GetString(&reader, text, sizeof(text));
+        x = (int32_t)ToriRSMapEd_GetU32(&reader);
+        z = (int32_t)ToriRSMapEd_GetU32(&reader);
+        level = (int32_t)ToriRSMapEd_GetU32(&reader);
+        starts = ToriRSMapEd_GetU32(&reader);
+        ToriRSMapEd_GetString(&reader, url, sizeof(url));
+        known = ToriRSMapEd_GetU32(&reader);
+        logins = ToriRSMapEd_GetU32(&reader);
+        active = ToriRSMapEd_GetU32(&reader);
+        rows = ToriRSMapEd_GetU32(&reader);
+        printf("play: state %s%s account %s pid %d exit %d at %d,%d,%d starts %u players %s%u logins %u '%s'\n",
+            ctl_play_state_name(state), browser ? " (browser)" : "", account, pid, exit_status, x, z, level,
+            starts, known ? "" : "unreported ", active, logins, text);
+        for( uint32_t i = 0; i < rows && !reader.bad; i++ )
+        {
+            char name[64];
+            ToriRSMapEd_GetString(&reader, name, sizeof(name));
+            x = (int32_t)ToriRSMapEd_GetU32(&reader);
+            z = (int32_t)ToriRSMapEd_GetU32(&reader);
+            level = (int32_t)ToriRSMapEd_GetU32(&reader);
+            printf("  player %s at %d,%d,%d\n", name, x, z, level);
+        }
+        if( url[0] )
+            printf("  web play: %s\n", url);
+        if( wait->want_play == 1 && (state == TORIRSMAPED_PLAY_ONLINE || state == TORIRSMAPED_PLAY_EXITED) )
+        {
+            wait->done = 1;
+            wait->ok = state == TORIRSMAPED_PLAY_ONLINE;
+        }
+        else if( wait->want_play == 2 && state == TORIRSMAPED_PLAY_NONE )
+        {
+            wait->done = 1;
+            wait->ok = 1;
+        }
     }
     fflush(stdout);
 }
@@ -1544,6 +1615,7 @@ main(
             "  area-set <name> <level|all> <x0> <z0> <x1> <z1> [...] [colour <n|->] [note <text|->] [rename <new>]\n"
             "  collection-set <name> [<square key>...] [note <text|->] [rename <new>]\n"
             "  live-attach launch|<host:port> [ticket] | live-detach | live-cheat <player> <line>\n"
+            "  play [seconds] | play-restart [seconds] | play-stop\n"
             "  build packs|client [seconds] | run [seconds]\n");
         return 1;
     }
@@ -1656,7 +1728,7 @@ main(
     else if( strcmp(command, "live-attach") == 0 && arg_count >= 1 )
     {
         struct ToriRSMapEdBuf payload = { 0 };
-        struct live_wait wait = { 1, 0, 0, 0 };
+        struct live_wait wait = { 1, 0, 0, 0, 0 };
         int launch = strcmp(args[0], "launch") == 0;
         ToriRSMapEd_PutU32(&payload, launch ? 1u : 0u);
         ToriRSMapEd_PutString(&payload, launch ? "" : args[0]);
@@ -1666,14 +1738,14 @@ main(
     else if( strcmp(command, "live-detach") == 0 )
     {
         struct ToriRSMapEdBuf payload = { 0 };
-        struct live_wait wait = { 2, 0, 0, 0 };
+        struct live_wait wait = { 2, 0, 0, 0, 0 };
         result = live_request(&host, TORIRSMAPED_REQ_LIVE_DETACH, &payload, &wait, 30);
     }
     else if( strcmp(command, "live-cheat") == 0 && arg_count >= 2 )
     {
         struct ToriRSMapEdBuf payload = { 0 };
         /* Answered by lines, then a status. */
-        struct live_wait wait = { 1, 0, 0, 0 };
+        struct live_wait wait = { 1, 0, 0, 0, 0 };
         ToriRSMapEd_PutString(&payload, args[0]);
         ToriRSMapEd_PutString(&payload, args[1]);
         result = live_request(&host, TORIRSMAPED_REQ_LIVE_CHEAT, &payload, &wait, 30);
@@ -1681,7 +1753,7 @@ main(
     else if( strcmp(command, "build") == 0 && arg_count >= 1 )
     {
         struct ToriRSMapEdBuf payload = { 0 };
-        struct live_wait wait = { 0, TORIRSMAPED_FACT_BUILD_DONE, 0, 0 };
+        struct live_wait wait = { 0, TORIRSMAPED_FACT_BUILD_DONE, 0, 0, 0 };
         ToriRSMapEd_PutU32(&payload, strcmp(args[0], "client") == 0 ? TORIRSMAPED_BUILD_CLIENT_CACHE
                                                                      : TORIRSMAPED_BUILD_PACKS);
         result = live_request(&host, TORIRSMAPED_REQ_BUILD, &payload, &wait,
@@ -1690,9 +1762,25 @@ main(
     else if( strcmp(command, "run") == 0 )
     {
         struct ToriRSMapEdBuf payload = { 0 };
-        struct live_wait wait = { 0, TORIRSMAPED_FACT_RUN_DONE, 0, 0 };
+        struct live_wait wait = { 0, TORIRSMAPED_FACT_RUN_DONE, 0, 0, 0 };
         result = live_request(&host, TORIRSMAPED_REQ_RUN, &payload, &wait,
             arg_count >= 1 ? atoi(args[0]) : 1800);
+    }
+    else if( strcmp(command, "play") == 0 || strcmp(command, "play-restart") == 0 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct live_wait wait = { 0, 0, 0, 0, 1 };
+        ToriRSMapEd_PutU32(&payload,
+            strcmp(command, "play") == 0 ? TORIRSMAPED_PLAY_START : TORIRSMAPED_PLAY_RESTART);
+        result = live_request(&host, TORIRSMAPED_REQ_LIVE_PLAY, &payload, &wait,
+            arg_count >= 1 ? atoi(args[0]) : 180);
+    }
+    else if( strcmp(command, "play-stop") == 0 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct live_wait wait = { 0, 0, 0, 0, 2 };
+        ToriRSMapEd_PutU32(&payload, TORIRSMAPED_PLAY_STOP);
+        result = live_request(&host, TORIRSMAPED_REQ_LIVE_PLAY, &payload, &wait, 30);
     }
     else if( strcmp(command, "bake") == 0 )
         result = host.vtable->bake(host.user_data, print_bake_line, NULL) == EDITOR_HOST_OK

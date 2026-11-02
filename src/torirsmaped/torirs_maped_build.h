@@ -102,6 +102,11 @@ enum ToriRSMapEdRunStep
     TORIRSMAPED_RUN_STEP_RELOAD = 4,
     /** Every step succeeded. */
     TORIRSMAPED_RUN_STEP_DONE = 5,
+    /** After the reload: the lane's play client is checked (is it on the
+     *  server?) and started or restarted (torirs_maped_live.h "The play
+     *  client"). Runs between RELOAD and DONE; numbered after DONE so DONE
+     *  keeps the value every older peer compares against. */
+    TORIRSMAPED_RUN_STEP_PLAY = 6,
 };
 
 /** The step's name, for logs and the Live panel ("save", "packs", ...). */
@@ -130,6 +135,10 @@ enum
  *   <live_dir>/servpack        the server pack (SERVPACK_OUT)
  *   <live_dir>/cache           the client cache the live JS5 serves
  *   <live_dir>/map_archives.txt the squares the next client build repacks
+ *   <live_dir>/saves           the launched server's saves and accounts
+ *                              (TORIRSSERVER_SAVES), the play account's too
+ *   <live_dir>/play            the play client's manifest, cache and prefs
+ *   <live_dir>/logs            server.log, js5.log, io.log, play.log
  *
  * The id allocation `torirsserver-packs` runs first still appends to the
  * content tree's pack/<ns>.alloc ledgers: that is what allocation is. A lane
@@ -160,13 +169,29 @@ struct ToriRSMapEdLane
     int game_port;
     int js5_port;
     int io_port;
+
+    /* The play client (torirs_maped_live.h "The play client"): a game client
+     * logged into the lane's server through its JS5. "" play_bin = none. */
+    char play_bin[TORIRSMAPED_LANE_PATH_MAX];
+    /** The client manifest the play manifest is written from (its cache dir,
+     *  net host and port and relative paths rewritten). */
+    char play_manifest[TORIRSMAPED_LANE_PATH_MAX];
+    /** The save copied in as the play account's first save, so it does not
+     *  start on Tutorial Island; "" = none (a fresh character). */
+    char play_fixture[TORIRSMAPED_LANE_PATH_MAX];
+    /** The play account; "" = derived from the game port
+     *  (ToriRSMapEd_LanePlayAccount). */
+    char play_user[16];
+    char play_pass[24];
 };
 
 /**
  * Fill a lane from its roots with every derived path at its default: the
  * pack outputs under `live_dir`, the binaries under `<repo_root>/src/
  * build_opt/` (io_server under build/), ports 43620 (game), 43621 (js5),
- * 43622 (io), base cache `<repo_root>/cache.<rev>`.
+ * 43622 (io), base cache `<repo_root>/cache.<rev>`; the play client
+ * `<repo_root>/src/torirs` on `<repo_root>/manifests/manifest_<rev>.ini` with
+ * the `test/quests/fixtures/fresh_lumbridge.ini` save.
  */
 void
 ToriRSMapEd_LaneDefaults(

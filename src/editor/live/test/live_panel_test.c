@@ -10,7 +10,10 @@
  *     shows the values, STATE_LIVE_FOCUS published with the name;
  *   - Teleport to selection -> `tele level_mx_mz_lx_lz` for the player;
  *   - the cheat line -> the peer runs it, the line is cleared;
- *   - RUN -> the run line reads done, the log lists the build lines;
+ *   - RUN -> the run line reads done, the log lists the build lines, and the
+ *     play line follows the lane's play client (a fake launcher): RUN starts
+ *     it, the peer's player list logs it in, the next RUN reads "reloaded in
+ *     the running client"; Stop and Play;
  *   - Build packs -> FACT_BUILD_DONE folded;
  *   - STATE_LIVE_FOCUS from another window fills the player field;
  *   - Detach -> detached, cheat disabled.
@@ -56,6 +59,59 @@ check(
         fprintf(stderr, "FAIL: %s\n", what);
         g_failures++;
     }
+}
+
+/* ---- a play launcher with no process: the panel only sees its facts ---------- */
+
+static struct
+{
+    int running;
+    int starts;
+    int stops;
+} g_fake;
+
+static int
+fake_ready(void* ctx)
+{
+    (void)ctx;
+    return 1;
+}
+
+static enum EditorHost_Status
+fake_start(
+    void* ctx,
+    const struct ToriRSMapEdPlaySpec* spec,
+    int* out_pid,
+    char* why,
+    size_t why_size)
+{
+    (void)ctx;
+    (void)spec;
+    (void)why;
+    (void)why_size;
+    g_fake.running = 1;
+    g_fake.starts++;
+    *out_pid = 90000 + g_fake.starts;
+    return EDITOR_HOST_OK;
+}
+
+static int
+fake_alive(
+    void* ctx,
+    int* out_status)
+{
+    (void)ctx;
+    *out_status = 0;
+    return g_fake.running;
+}
+
+static void
+fake_stop(void* ctx)
+{
+    (void)ctx;
+    if( g_fake.running )
+        g_fake.stops++;
+    g_fake.running = 0;
 }
 
 static struct ToriRSChrome g_chrome;
@@ -364,6 +420,9 @@ main(
     int w_tele;
     int w_vars;
     int w_log;
+    int w_play_line;
+    int w_play;
+    int w_play_stop;
     const struct Editor_LiveModel* model;
 
     if( argc != 4 )
@@ -404,6 +463,15 @@ main(
     ToriRSMapEd_SetBuildRunner(g_maped, &runner);
     check(ToriRSMapEd_LiveLinkNative(&link, &lane), "native link");
     ToriRSMapEd_SetLiveLink(g_maped, &link);
+    {
+        struct ToriRSMapEdPlayLauncher fake;
+        memset(&fake, 0, sizeof(fake));
+        fake.ready = fake_ready;
+        fake.start = fake_start;
+        fake.alive = fake_alive;
+        fake.stop = fake_stop;
+        ToriRSMapEd_SetPlayLauncher(g_maped, &fake);
+    }
     memset(&g_conn, 0, sizeof(g_conn));
     server_side.ctx = NULL;
     server_side.recv = conn_recv;
@@ -460,6 +528,11 @@ main(
     w_tele = find_widget(panel, TORIRS_CHROME_W_BUTTON, "Teleport to selection");
     w_vars = find_widget(panel, TORIRS_CHROME_W_VLIST, "Vars");
     w_log = find_widget(panel, TORIRS_CHROME_W_VLIST, "Log");
+    w_play_line = find_widget(panel, TORIRS_CHROME_W_LABEL, "play: not started");
+    w_play = find_widget(panel, TORIRS_CHROME_W_BUTTON, "Play");
+    w_play_stop = find_widget(panel, TORIRS_CHROME_W_BUTTON, "Stop");
+    check(w_play_line >= 0 && w_play >= 0 && w_play_stop >= 0, "the play line, Play and Stop are on the panel");
+    check(ToriRSChrome_Disabled(&g_chrome, w_play_stop), "no play client: Stop is disabled");
     check(w_status >= 0 && w_address >= 0 && w_attach >= 0 && w_detach >= 0 && w_run >= 0 && w_packs >= 0
               && w_player >= 0 && w_varps >= 0 && w_follow >= 0 && w_cheat_input >= 0 && w_cheat >= 0
               && w_tele >= 0 && w_vars >= 0 && w_log >= 0,
@@ -514,6 +587,32 @@ main(
     check(peer_has("\"req\": \"reload\""), "RUN: the peer was asked to reload");
     frames_for(50);
     check(model->log_count > 3 && vlist_has(w_log, "RUN done"), "RUN: the log lists the outcome");
+    check(label_has(w_run_line, "started the play client") && g_fake.starts == 1,
+        "RUN: with no play client, RUN started one (the run line says so)");
+    check(wait_label(w_play_line, "play: starting", 3000) && !ToriRSChrome_Disabled(&g_chrome, w_play_stop),
+        "RUN: the play line reads starting; Stop enables");
+
+    /* the play client logs in: the server's list says so */
+    ToriRSChrome_SetText(&g_chrome, w_cheat_input, "join maped43620");
+    press(w_cheat);
+    check(wait_label(w_play_line, "logged in as maped43620 at m50_50", 8000),
+        "play: the line reads logged in as maped43620 at m50_50");
+
+    /* a RUN with it on the server: reloaded in place */
+    press(w_run);
+    frames_for(20);
+    check(wait_label(w_run_line, "reloaded in the running client", 10000) && g_fake.starts == 1,
+        "RUN again: \"reloaded in the running client\", nothing started");
+
+    /* it logs out (the process runs on), Stop, then Play */
+    ToriRSChrome_SetText(&g_chrome, w_cheat_input, "leave maped43620");
+    press(w_cheat);
+    check(wait_label(w_play_line, "logged out", 8000), "play: off the server's list -> logged out");
+    press(w_play_stop);
+    check(wait_label(w_play_line, "play: not started", 3000) && g_fake.stops == 1 && !g_fake.running,
+        "Stop: the play client stopped");
+    press(w_play);
+    check(wait_label(w_play_line, "play: starting", 3000) && g_fake.starts == 2, "Play: started again");
 
     /* Build packs */
     {

@@ -17,11 +17,17 @@ Environment:
                       line (required); the launch command line and the
                       TORIRSSERVER_* environment are its first line
     MOCK_PEER_TICKET  when set, CTL_HELLO must carry this ticket
+    MOCK_PEER_NO_PLAYERS  when set, behave as a server older than CTL_PLAYERS:
+                      no CTL_FACT_PLAYERS after HELLO, and CTL_PLAYERS closes
+                      the connection (an unknown frame)
 
 Cheat lines steer the next reload (they are answered like any cheat):
     failnext     the next RELOAD answers status 1
     restartnext  the next RELOAD lists a restart-needed reason
     dropnext     the next RELOAD closes the connection without answering
+    join <name>  <name> logs in (a new slot generation each time): CTL_PLAYERS
+                 lists them at 3222,3218,0
+    leave <name> <name> logs out
 """
 
 import json
@@ -30,8 +36,8 @@ import socket
 import struct
 import sys
 
-CTL_HELLO, CTL_STATUS, CTL_RELOAD, CTL_CHEAT, CTL_SUBSCRIBE, CTL_BYE = 1, 2, 3, 4, 5, 6
-F_HELLO, F_STATUS, F_LINE, F_RELOAD_DONE, F_VARS = 129, 130, 131, 132, 133
+CTL_HELLO, CTL_STATUS, CTL_RELOAD, CTL_CHEAT, CTL_SUBSCRIBE, CTL_BYE, CTL_PLAYERS = 1, 2, 3, 4, 5, 6, 7
+F_HELLO, F_STATUS, F_LINE, F_RELOAD_DONE, F_VARS, F_PLAYERS = 129, 130, 131, 132, 133, 134
 
 
 def log(record):
@@ -81,6 +87,8 @@ class World:
         self.fail_next = False
         self.restart_next = False
         self.drop_next = False
+        self.online = {}  # name -> (slot, generation)
+        self.logins = 0
 
 
 def frame(kind, payload=b""):
@@ -89,11 +97,19 @@ def frame(kind, payload=b""):
 
 def status_payload(world):
     world.tick += 1
-    body = u32(2) + u32(world.tick)
+    body = u32(len(world.online)) + u32(world.tick)
     body += string("scripts-%d" % world.reloads) + string("servpack-%d" % world.reloads)
     body += u32(len(world.stale))
     for row in world.stale:
         body += string(row)
+    return body
+
+
+def players_payload(world):
+    body = u32(world.logins) + u32(len(world.online)) + u32(len(world.online))
+    for name, (slot, generation) in sorted(world.online.items()):
+        body += string(name) + string(name) + u32(slot) + u32(generation)
+        body += u32(3222) + u32(3218) + u32(0)
     return body
 
 
@@ -129,9 +145,14 @@ def serve(conn, world):
             wanted = os.environ.get("MOCK_PEER_TICKET")
             ok = 1 if version == 1 and (wanted is None or ticket == wanted) else 0
             log({"req": "hello", "version": version, "ticket": ticket, "ok": ok})
-            conn.sendall(frame(F_HELLO, u32(1) + u32(ok) + string("mockworld") + u32(2)))
+            conn.sendall(frame(F_HELLO, u32(1) + u32(ok) + string("mockworld") + u32(len(world.online))))
             if not ok:
                 return
+            if not os.environ.get("MOCK_PEER_NO_PLAYERS"):
+                conn.sendall(frame(F_PLAYERS, players_payload(world)))
+        elif kind == CTL_PLAYERS and not os.environ.get("MOCK_PEER_NO_PLAYERS"):
+            log({"req": "players"})
+            conn.sendall(frame(F_PLAYERS, players_payload(world)))
         elif kind == CTL_STATUS:
             log({"req": "status"})
             conn.sendall(frame(F_STATUS, status_payload(world)))
@@ -173,6 +194,11 @@ def serve(conn, world):
                 world.restart_next = True
             elif line == "dropnext":
                 world.drop_next = True
+            elif line.startswith("join "):
+                world.logins += 1
+                world.online[line[5:]] = (len(world.online) + 1, world.logins)
+            elif line.startswith("leave "):
+                world.online.pop(line[6:], None)
             conn.sendall(frame(F_LINE, string("ran ::%s for %s" % (line, player))))
             conn.sendall(frame(F_STATUS, status_payload(world)))
         elif kind == CTL_SUBSCRIBE:
@@ -188,7 +214,9 @@ def serve(conn, world):
             log({"req": "bye"})
             return
         else:
+            # As the real server: an unknown frame closes the link.
             log({"req": "unknown", "type": kind})
+            return
 
 
 def main():

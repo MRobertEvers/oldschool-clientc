@@ -958,6 +958,42 @@ ctl_send_status(
     ctl_frame_end(&frame);
 }
 
+/* CTL_FACT_PLAYERS (torirs_server_control.h). A bounded pass over the pool's
+ * high-water mark, asked for at the editor's status cadence. */
+static void
+ctl_send_players(
+    struct ToriRSServer* srv,
+    struct CtlConn* c)
+{
+    struct CtlFrame frame = ctl_frame_begin(c, TORIRSSERVER_CTL_FACT_PLAYERS);
+    uint32_t logins = 0;
+    int rows = 0;
+    int const active = ctl_active_players(srv);
+
+    for( int i = 0; i < srv->player_count; i++ )
+        logins += srv->players[i].login_generation;
+    ctl_frame_u32(&frame, logins);
+    ctl_frame_u32(&frame, (uint32_t)active);
+    rows = active < TORIRSSERVER_CTL_PLAYER_ROWS ? active : TORIRSSERVER_CTL_PLAYER_ROWS;
+    ctl_frame_u32(&frame, (uint32_t)rows);
+    for( int i = 0; i < srv->player_count && rows > 0; i++ )
+    {
+        struct ToriRSServerPlayer const* player = &srv->players[i];
+
+        if( !player->active )
+            continue;
+        ctl_frame_str(&frame, player->account_name);
+        ctl_frame_str(&frame, player->display_name);
+        ctl_frame_u32(&frame, (uint32_t)i);
+        ctl_frame_u32(&frame, player->login_generation);
+        ctl_frame_u32(&frame, (uint32_t)player->x);
+        ctl_frame_u32(&frame, (uint32_t)player->z);
+        ctl_frame_u32(&frame, (uint32_t)player->level);
+        rows--;
+    }
+    ctl_frame_end(&frame);
+}
+
 static void
 ctl_handle_hello(
     struct ToriRSServer* srv,
@@ -987,6 +1023,8 @@ ctl_handle_hello(
             c->hello_ok ? "accepted" : "refused", who[0] ? " for " : "", who);
     if( !c->hello_ok )
         c->closing = 1;
+    else
+        ctl_send_players(srv, c); /* also says CTL_PLAYERS is understood here */
 }
 
 static void
@@ -1220,6 +1258,8 @@ ctl_dispatch(
         ctl_handle_cheat(srv, c, &r);
     else if( type == TORIRSSERVER_CTL_SUBSCRIBE )
         ctl_handle_subscribe(c, &r);
+    else if( type == TORIRSSERVER_CTL_PLAYERS )
+        ctl_send_players(srv, c);
     else if( type == TORIRSSERVER_CTL_BYE )
         c->closing = 1;
     else

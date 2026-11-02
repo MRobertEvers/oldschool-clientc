@@ -14,7 +14,18 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+/* The page opens the lane's web play URL in a tab of its own (a browser
+ * cannot start a native client). 1 when the browser gave a window. */
+EM_JS(int, live_web_open, (const char* url), {
+    var opened = window.open(UTF8ToString(url), '_blank');
+    return opened ? 1 : 0;
+});
+#endif
 
 enum
 {
@@ -32,6 +43,9 @@ struct LivePanel
     int panel;
     int label_status;
     int label_run;
+    int label_play;
+    int button_play;
+    int button_play_stop;
     int input_address;
     int input_ticket;
     int button_attach;
@@ -56,7 +70,14 @@ struct LivePanel
     int shown_log_serial;
     int shown_run_serial;
     int shown_build_serial;
+    int shown_play_serial;
     int log_follow;
+    /** Web: LIVE_PLAY browser was sent (once per panel). */
+    int browser_sent;
+    /** Web: the RUN whose play tab was handled (one tab per RUN). */
+    int web_run_handled;
+    /** TORIRS_EDITOR_LIVE=show (photographs): 0 unread, 1 show, 2 done. */
+    int env_show;
 
     /** Who this window follows ("" nobody), and the varps it asked for. */
     char following[64];
@@ -166,6 +187,17 @@ live_refresh(
         self->shown_run_serial = m->run_serial;
         self->shown_build_serial = m->build_serial;
     }
+    if( self->shown_play_serial != m->play_serial || self->shown_run_serial != m->run_serial )
+    {
+        int const starting = m->play_state == TORIRSMAPED_PLAY_STARTING;
+        int const stoppable = m->play_state == TORIRSMAPED_PLAY_STARTING || m->play_state == TORIRSMAPED_PLAY_ONLINE
+                              || m->play_state == TORIRSMAPED_PLAY_LOGGED_OUT;
+        Editor_LivePlayLine(m, text, sizeof(text));
+        ToriRSChrome_SetText(ui->chrome, self->label_play, text);
+        ToriRSChrome_SetDisabled(ui->chrome, self->button_play, starting && !m->play_browser);
+        ToriRSChrome_SetDisabled(ui->chrome, self->button_play_stop, !stoppable || m->play_browser);
+        self->shown_play_serial = m->play_serial;
+    }
     if( self->shown_vars_serial != m->vars_serial )
     {
         live_set_rows(ui, self->list_vars, m->var_count, live_var_row, self);
@@ -193,6 +225,33 @@ live_tick(
     struct LivePanel* self = opaque;
 
     Editor_LiveDrain(&self->transport, &self->model);
+#if defined(__EMSCRIPTEN__)
+    /* A browser window plays the lane in a tab: tell the editor server once,
+     * so its RUN never starts a native client for us. */
+    if( !self->browser_sent )
+    {
+        struct ToriRSMapEdBuf payload;
+        uint32_t type;
+        memset(&payload, 0, sizeof(payload));
+        type = Editor_LiveEncodePlay(&payload, TORIRSMAPED_PLAY_BROWSER);
+        self->browser_sent = Editor_LiveSend(&self->transport, type, &payload);
+    }
+    /* After a RUN, a lane whose account is not on the server gets its play
+     * tab (the RUN_DONE message said "open the play tab"). */
+    if( self->model.run_serial != self->web_run_handled && self->model.run_step == TORIRSMAPED_RUN_STEP_IDLE )
+    {
+        self->web_run_handled = self->model.run_serial;
+        if( self->model.run_status == 0 && self->model.play_state != TORIRSMAPED_PLAY_ONLINE
+            && self->model.play_web_url[0] )
+        {
+            if( live_web_open(self->model.play_web_url) )
+                Editor_UiLog(ui, "play: opened the play tab");
+            else
+                Editor_UiLog(ui, "play: the page could not open a tab (allow popups for this site): %s",
+                    self->model.play_web_url);
+        }
+    }
+#endif
     live_refresh(ui, self);
 }
 
@@ -293,6 +352,25 @@ live_activate(
     if( widget == self->button_run )
     {
         (void)Editor_Live_Run(ui);
+        return 1;
+    }
+    if( widget == self->button_play || widget == self->button_play_stop )
+    {
+#if defined(__EMSCRIPTEN__)
+        if( widget == self->button_play )
+        {
+            if( self->model.play_state == TORIRSMAPED_PLAY_ONLINE )
+                Editor_UiLog(ui, "play: already logged in (its tab is open)");
+            else if( !self->model.play_web_url[0] )
+                Editor_UiLog(ui, "play: the lane serves no web page (it launches no io_server)");
+            else if( !live_web_open(self->model.play_web_url) )
+                Editor_UiLog(ui, "play: the page could not open a tab (allow popups for this site)");
+            return 1;
+        }
+#endif
+        type = Editor_LiveEncodePlay(
+            &payload, widget == self->button_play ? TORIRSMAPED_PLAY_START : TORIRSMAPED_PLAY_STOP);
+        live_send(ui, self, type, &payload);
         return 1;
     }
     if( widget == self->button_packs || widget == self->button_client )
@@ -407,7 +485,13 @@ live_set_visible(
 {
     struct LivePanel* self = opaque;
     (void)visible;
-    ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
+    if( self->env_show == 0 )
+    {
+        const char* value = getenv("TORIRS_EDITOR_LIVE");
+        self->env_show = value && strcmp(value, "show") == 0 ? 1 : 2;
+    }
+    /* TORIRS_EDITOR_LIVE=show (photographs): open with the editor. */
+    ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, visible && self->env_show == 1);
 }
 
 static void
@@ -442,6 +526,7 @@ Editor_Live_RegisterWith(
     self->shown_log_serial = -1;
     self->shown_run_serial = -1;
     self->shown_build_serial = -1;
+    self->shown_play_serial = -1;
     self->log_follow = 1;
 
     self->panel = ToriRSChrome_PanelAdd(
@@ -460,9 +545,17 @@ Editor_Live_RegisterWith(
     ToriRSChrome_Separator(ui->chrome, self->panel);
     self->button_run = ToriRSChrome_Button(ui->chrome, self->panel, "RUN");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_run,
-        "Save all, build packs and client cache, reload the live server");
+        "Save all, build packs and client cache, reload the live server, then open (or reload) the play "
+        "client logged into it");
     self->button_packs = ToriRSChrome_Button(ui->chrome, self->panel, "Build packs");
     self->button_client = ToriRSChrome_Button(ui->chrome, self->panel, "Build client cache");
+    ToriRSChrome_Separator(ui->chrome, self->panel);
+    self->label_play = ToriRSChrome_Label(ui->chrome, self->panel, "play: not started");
+    self->button_play = ToriRSChrome_Button(ui->chrome, self->panel, "Play");
+    self->button_play_stop = ToriRSChrome_Button(ui->chrome, self->panel, "Stop");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_play,
+        "Start the lane's play client logged into the live server (restart it if it exited or logged out)");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_play_stop, "Stop the lane's play client");
     ToriRSChrome_Separator(ui->chrome, self->panel);
     self->input_player = ToriRSChrome_TextInput(ui->chrome, self->panel, "Player", "");
     self->input_varps = ToriRSChrome_TextInput(ui->chrome, self->panel, "Varps", "");

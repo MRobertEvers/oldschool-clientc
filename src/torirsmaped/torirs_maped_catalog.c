@@ -201,6 +201,67 @@ struct cat_square
     int record;
 };
 
+struct cat_hit
+{
+    int score;
+    int kind;
+    int32_t id;
+    const char* name;
+    int record;
+};
+
+/** The last query's hits (cat_query_hits): the next page, a repeat and a
+ *  narrowing query read them instead of the records. */
+struct cat_held_query
+{
+    int valid;
+    uint32_t kind;
+    uint32_t flags;
+    uint32_t revision;
+    char filter[1024];
+    struct cat_hit* hits;
+    int count;
+    int cap;
+};
+
+/** Directories the sliced scan holds open at once; a deeper subtree is
+ *  walked whole when reached (none in the tree is near it). */
+#define CAT_JOB_DEPTH 24
+
+enum cat_job_phase
+{
+    CAT_JOB_IDLE = 0,
+    /** Walking the roots, a slice at a time (cat_found marks what changed). */
+    CAT_JOB_SCAN,
+    /** The warm build only: parsing the dirty sources a few at a time. A
+     *  sweep parses and merges in one step, since a record's refs index its
+     *  sources' contributions and must not see half a re-parse. */
+    CAT_JOB_PARSE,
+};
+
+struct cat_job_dir
+{
+    DIR* dir;
+    int root;
+    char rel[CAT_PATH_MAX];
+};
+
+/** The background index job (cat_job_begin / cat_job_step): the warm build,
+ *  then freshness sweeps. */
+struct cat_job
+{
+    enum cat_job_phase phase;
+    /** The next root to open: k_cat_roots, then `lanes`. */
+    int root;
+    int depth;
+    struct cat_job_dir stack[CAT_JOB_DEPTH];
+    /** "maps" and the lanes' maps/, in the order the full scan walks them. */
+    char** lanes;
+    int lane_count;
+    int parse_at;
+    struct ToriRSMapEdCatalogStats stats;
+};
+
 struct ToriRSMapEdCatalog
 {
     char content_dir[CAT_PATH_MAX];
@@ -248,6 +309,16 @@ struct ToriRSMapEdCatalog
     /** Reused file buffer. */
     char* scratch;
     size_t scratch_cap;
+
+    /** The background job: the warm build and the freshness sweeps. */
+    struct cat_job job;
+    /** Bumped by every merge; the held query is keyed on it. */
+    uint32_t revision;
+    /** Bumped by a merge of a built index that took in a maps change (a
+     *  square file parsed or gone, a lane): the atlas holders want it. */
+    uint32_t maps_revision;
+    struct cat_held_query held;
+    struct ToriRSMapEdCatalogCounters counters;
 };
 
 /* ------------------------------------------------------------------ */
@@ -2042,6 +2113,51 @@ cat_classify_worldmap(
     return 0;
 }
 
+/**
+ * One directory entry of a scan, in `rel_dir`: a source (cat_found has
+ * recorded it; 1), a directory (its path in `rel`; 2), or neither (0).
+ */
+static int
+cat_walk_entry(
+    struct ToriRSMapEdCatalog* catalog,
+    const char* rel_dir,
+    const struct dirent* entry,
+    cat_classify_fn classify,
+    char* rel,
+    size_t rel_size)
+{
+    char full[CAT_PATH_MAX * 2];
+    struct stat st;
+    int is_dir = -1;
+    int type = 0;
+    int kind = -1;
+
+    if( entry->d_name[0] == '.' )
+        return 0;
+    if( (size_t)snprintf(rel, rel_size, "%s/%s", rel_dir, entry->d_name) >= rel_size )
+        return 0;
+#if defined(DT_DIR)
+    if( entry->d_type == DT_DIR )
+        is_dir = 1;
+    else if( entry->d_type == DT_REG )
+        is_dir = 0;
+#endif
+    if( is_dir == 0 && !classify(rel_dir, entry->d_name, &type, &kind) )
+        return 0;
+    snprintf(full, sizeof(full), "%s/%s", catalog->content_dir, rel);
+    catalog->counters.stats++;
+    if( stat(full, &st) != 0 )
+        return 0;
+    if( is_dir < 0 )
+        is_dir = S_ISDIR(st.st_mode) ? 1 : 0;
+    if( is_dir )
+        return 2;
+    if( !classify(rel_dir, entry->d_name, &type, &kind) )
+        return 0;
+    cat_found(catalog, rel, type, kind, &st);
+    return 1;
+}
+
 static void
 cat_walk(
     struct ToriRSMapEdCatalog* catalog,
@@ -2060,41 +2176,32 @@ cat_walk(
     while( (entry = readdir(dir)) != NULL )
     {
         char rel[CAT_PATH_MAX];
-        char full[CAT_PATH_MAX * 2];
-        struct stat st;
-        int is_dir = -1;
-        int type = 0;
-        int kind = -1;
-
-        if( entry->d_name[0] == '.' )
-            continue;
-        if( (size_t)snprintf(rel, sizeof(rel), "%s/%s", rel_dir, entry->d_name) >= sizeof(rel) )
-            continue;
-#if defined(DT_DIR)
-        if( entry->d_type == DT_DIR )
-            is_dir = 1;
-        else if( entry->d_type == DT_REG )
-            is_dir = 0;
-#endif
-        if( is_dir == 0 && !classify(rel_dir, entry->d_name, &type, &kind) )
-            continue;
-        snprintf(full, sizeof(full), "%s/%s", catalog->content_dir, rel);
-        if( stat(full, &st) != 0 )
-            continue;
-        if( is_dir < 0 )
-            is_dir = S_ISDIR(st.st_mode) ? 1 : 0;
-        if( is_dir )
-        {
-            if( recursive )
-                cat_walk(catalog, rel, recursive, classify);
-            continue;
-        }
-        if( !classify(rel_dir, entry->d_name, &type, &kind) )
-            continue;
-        cat_found(catalog, rel, type, kind, &st);
+        if( cat_walk_entry(catalog, rel_dir, entry, classify, rel, sizeof(rel)) == 2 && recursive )
+            cat_walk(catalog, rel, recursive, classify);
     }
     closedir(dir);
 }
+
+/** What a full scan walks before the maps, in order (cat_scan and the sliced
+ *  job read the same table). */
+struct cat_root
+{
+    const char* rel;
+    int recursive;
+    cat_classify_fn classify;
+};
+
+static const struct cat_root k_cat_roots[] = {
+    { "pack", 0, cat_classify_pack },
+    { "configs", 0, cat_classify_configs },
+    { "server/scripts", 1, cat_classify_scripts_tree },
+    { "npc_stats", 1, cat_classify_npc_stats },
+    { "npc_combat", 1, cat_classify_npc_stats },
+    { "interfaces", 0, cat_classify_interfaces },
+    { "scripts", 0, cat_classify_cs2 },
+    { "worldmap/areas", 0, cat_classify_worldmap },
+};
+#define CAT_ROOT_COUNT ((int)(sizeof(k_cat_roots) / sizeof(k_cat_roots[0])))
 
 static int
 cat_storage_cmp(
@@ -2104,26 +2211,44 @@ cat_storage_cmp(
     return strcmp(*(char* const*)a, *(char* const*)b);
 }
 
-/** maps/, then every lane's maps/; rebuilds the storage list. */
 static void
-cat_scan_maps(struct ToriRSMapEdCatalog* catalog)
+cat_lanes_free(
+    char** lanes,
+    int count)
+{
+    for( int i = 0; i < count; i++ )
+        ToriMem_Free(ToriMem_Editor(), lanes[i]);
+    ToriMem_Free(ToriMem_Editor(), lanes);
+}
+
+static void
+cat_lanes_add(
+    char*** lanes,
+    int* count,
+    int* cap,
+    const char* storage)
+{
+    *lanes = cat_grow(*lanes, cap, *count + 1, sizeof(**lanes));
+    (*lanes)[*count] = ToriMem_Strdup(ToriMem_Editor(), storage);
+    assert((*lanes)[*count]);
+    (*count)++;
+}
+
+/** "maps", then "ported/<lane>/maps" for every lane directory, in the
+ *  order the directory lists them (the order the scan walks them). */
+static char**
+cat_lanes(
+    struct ToriRSMapEdCatalog* catalog,
+    int* out_count)
 {
     char dir_path[CAT_PATH_MAX * 2];
     DIR* dir;
     struct dirent* entry;
+    char** lanes = NULL;
+    int count = 0;
     int cap = 0;
-    char** old = catalog->storages;
-    int old_count = catalog->storage_count;
 
-    catalog->storages = NULL;
-    catalog->storage_count = 0;
-    catalog->storages = cat_grow(catalog->storages, &cap, 1, sizeof(*catalog->storages));
-    catalog->storages[catalog->storage_count] = ToriMem_Strdup(ToriMem_Editor(), "maps");
-    assert(catalog->storages[catalog->storage_count]);
-    catalog->storage_count++;
-
-    cat_walk(catalog, "maps", 0, cat_classify_maps);
-
+    cat_lanes_add(&lanes, &count, &cap, "maps");
     snprintf(dir_path, sizeof(dir_path), "%s/ported", catalog->content_dir);
     dir = opendir(dir_path);
     while( dir && (entry = readdir(dir)) != NULL )
@@ -2134,31 +2259,77 @@ cat_scan_maps(struct ToriRSMapEdCatalog* catalog)
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(full, sizeof(full), "%s/ported/%s", catalog->content_dir, entry->d_name);
+        catalog->counters.stats++;
         if( stat(full, &st) != 0 || !S_ISDIR(st.st_mode) )
             continue;
         snprintf(storage, sizeof(storage), "ported/%s/maps", entry->d_name);
-        catalog->storages = cat_grow(
-            catalog->storages, &cap, catalog->storage_count + 1, sizeof(*catalog->storages));
-        catalog->storages[catalog->storage_count] = ToriMem_Strdup(ToriMem_Editor(), storage);
-        assert(catalog->storages[catalog->storage_count]);
-        catalog->storage_count++;
-        cat_walk(catalog, storage, 0, cat_classify_maps);
+        cat_lanes_add(&lanes, &count, &cap, storage);
     }
     if( dir )
         closedir(dir);
-    /* Lanes in name order, after "maps". */
-    if( catalog->storage_count > 2 )
-        qsort(catalog->storages + 1, (size_t)catalog->storage_count - 1,
-            sizeof(*catalog->storages), cat_storage_cmp);
+    *out_count = count;
+    return lanes;
+}
 
-    catalog->storages_changed = old_count != catalog->storage_count;
-    for( int i = 0; i < old_count; i++ )
+/** A copy of `lanes` as the storage list holds it: "maps", then the lanes
+ *  by name. */
+static char**
+cat_lanes_sorted(
+    char* const* lanes,
+    int count)
+{
+    char** sorted = ToriMem_Alloc(ToriMem_Editor(), (size_t)count * sizeof(*sorted));
+    assert(sorted);
+    for( int i = 0; i < count; i++ )
     {
-        if( !catalog->storages_changed && strcmp(old[i], catalog->storages[i]) != 0 )
-            catalog->storages_changed = 1;
-        ToriMem_Free(ToriMem_Editor(), old[i]);
+        sorted[i] = ToriMem_Strdup(ToriMem_Editor(), lanes[i]);
+        assert(sorted[i]);
     }
-    ToriMem_Free(ToriMem_Editor(), old);
+    if( count > 2 )
+        qsort(sorted + 1, (size_t)count - 1, sizeof(*sorted), cat_storage_cmp);
+    return sorted;
+}
+
+static int
+cat_lanes_same(
+    char* const* a,
+    int a_count,
+    char* const* b,
+    int b_count)
+{
+    if( a_count != b_count )
+        return 0;
+    for( int i = 0; i < a_count; i++ )
+        if( strcmp(a[i], b[i]) != 0 )
+            return 0;
+    return 1;
+}
+
+/** Adopt `sorted` as the storage list (taking it), noting whether it moved
+ *  any square's storage index. */
+static void
+cat_storages_adopt(
+    struct ToriRSMapEdCatalog* catalog,
+    char** sorted,
+    int count)
+{
+    catalog->storages_changed = !cat_lanes_same(catalog->storages, catalog->storage_count, sorted, count);
+    cat_lanes_free(catalog->storages, catalog->storage_count);
+    catalog->storages = sorted;
+    catalog->storage_count = count;
+}
+
+/** maps/, then every lane's maps/; rebuilds the storage list. */
+static void
+cat_scan_maps(struct ToriRSMapEdCatalog* catalog)
+{
+    int count;
+    char** lanes = cat_lanes(catalog, &count);
+
+    for( int i = 0; i < count; i++ )
+        cat_walk(catalog, lanes[i], 0, cat_classify_maps);
+    cat_storages_adopt(catalog, cat_lanes_sorted(lanes, count), count);
+    cat_lanes_free(lanes, count);
 }
 
 static int
@@ -2178,16 +2349,8 @@ cat_scan(
         cat_path_index_rebuild(catalog);
 
     if( !maps_only )
-    {
-        cat_walk(catalog, "pack", 0, cat_classify_pack);
-        cat_walk(catalog, "configs", 0, cat_classify_configs);
-        cat_walk(catalog, "server/scripts", 1, cat_classify_scripts_tree);
-        cat_walk(catalog, "npc_stats", 1, cat_classify_npc_stats);
-        cat_walk(catalog, "npc_combat", 1, cat_classify_npc_stats);
-        cat_walk(catalog, "interfaces", 0, cat_classify_interfaces);
-        cat_walk(catalog, "scripts", 0, cat_classify_cs2);
-        cat_walk(catalog, "worldmap/areas", 0, cat_classify_worldmap);
-    }
+        for( int r = 0; r < CAT_ROOT_COUNT; r++ )
+            cat_walk(catalog, k_cat_roots[r].rel, k_cat_roots[r].recursive, k_cat_roots[r].classify);
     cat_scan_maps(catalog);
 }
 
@@ -2798,11 +2961,16 @@ ToriRSMapEdCatalog_Create(const char* content_dir)
     return catalog;
 }
 
+static void
+cat_job_abort(struct ToriRSMapEdCatalog* catalog);
+
 void
 ToriRSMapEdCatalog_Free(struct ToriRSMapEdCatalog* catalog)
 {
     if( !catalog )
         return;
+    cat_job_abort(catalog);
+    ToriMem_Free(ToriMem_Editor(), catalog->held.hits);
     for( int i = 0; i < catalog->source_count; i++ )
         cat_source_free(&catalog->sources[i]);
     for( int i = 0; i < catalog->storage_count; i++ )
@@ -2825,22 +2993,32 @@ ToriRSMapEdCatalog_Free(struct ToriRSMapEdCatalog* catalog)
     ToriMem_Free(ToriMem_Editor(), catalog);
 }
 
+/**
+ * After a scan: drop what it did not see (`compact`), parse every dirty
+ * source, and merge when anything changed. `full_pass` restarts the refresh
+ * interval. The scan's time is already in `stats`.
+ */
 static int
-cat_refresh(
+cat_finish(
     struct ToriRSMapEdCatalog* catalog,
-    int maps_only,
-    struct ToriRSMapEdCatalogStats* out_stats)
+    int compact,
+    int full_pass,
+    struct ToriRSMapEdCatalogStats* stats)
 {
-    struct ToriRSMapEdCatalogStats stats;
-    double t0 = cat_now_ms();
-    double t1;
+    double const t1 = cat_now_ms();
     double t2;
     int changed;
 
-    memset(&stats, 0, sizeof(stats));
-    cat_scan(catalog, maps_only);
-    stats.removed = cat_compact(catalog);
-    t1 = cat_now_ms();
+    int maps_changed = catalog->storages_changed;
+
+    if( compact )
+    {
+        for( int i = 0; i < catalog->source_count && !maps_changed; i++ )
+            maps_changed = !catalog->sources[i].seen && cat_is_maps_type(catalog->sources[i].type);
+        stats->removed = cat_compact(catalog);
+    }
+    for( int i = 0; i < catalog->source_count && !maps_changed; i++ )
+        maps_changed = catalog->sources[i].dirty && cat_is_maps_type(catalog->sources[i].type);
     {
         /* TORIRS_CATALOG_TRACE=1: where the parse time went, by source type */
         static const char* const type_names[] = { "pack", "alloc", "client", "server",
@@ -2860,7 +3038,7 @@ cat_refresh(
             at = trace ? cat_now_ms() : 0.0;
             cat_parse_source(catalog, &catalog->sources[i]);
             catalog->sources[i].dirty = 0;
-            stats.parsed++;
+            stats->parsed++;
             if( trace && type >= 0 && (size_t)type < sizeof(type_names) / sizeof(type_names[0]) )
             {
                 type_ms[type] += cat_now_ms() - at;
@@ -2875,21 +3053,27 @@ cat_refresh(
         }
     }
     t2 = cat_now_ms();
-    changed = !catalog->built || stats.parsed > 0 || stats.removed > 0 || catalog->storages_changed;
+    changed = !catalog->built || stats->parsed > 0 || stats->removed > 0 || catalog->storages_changed;
     if( changed )
+    {
+        if( catalog->built && maps_changed )
+            catalog->maps_revision++;
         cat_merge(catalog);
+        catalog->revision++;
+        catalog->counters.merges++;
+    }
+    catalog->storages_changed = 0;
     catalog->built = 1;
-    if( !maps_only )
+    if( full_pass )
     {
         catalog->invalid = 0;
         catalog->last_refresh = time(NULL);
     }
-    stats.sources = catalog->source_count;
-    stats.records = catalog->record_count;
-    stats.squares = catalog->square_count;
-    stats.scan_ms = t1 - t0;
-    stats.parse_ms = t2 - t1;
-    stats.merge_ms = cat_now_ms() - t2;
+    stats->sources = catalog->source_count;
+    stats->records = catalog->record_count;
+    stats->squares = catalog->square_count;
+    stats->parse_ms += t2 - t1;
+    stats->merge_ms = cat_now_ms() - t2;
     /* all.loc alone is 86 MB: do not keep its buffer for the server's life */
     if( catalog->scratch_cap > 4 * 1024 * 1024 )
     {
@@ -2897,9 +3081,261 @@ cat_refresh(
         catalog->scratch = NULL;
         catalog->scratch_cap = 0;
     }
+    return changed;
+}
+
+/** The whole refresh at once: what Refresh, RefreshMaps and a request
+ *  that finds no index run. Ends any job in flight (this scan covers it). */
+static int
+cat_refresh(
+    struct ToriRSMapEdCatalog* catalog,
+    int maps_only,
+    struct ToriRSMapEdCatalogStats* out_stats)
+{
+    struct ToriRSMapEdCatalogStats stats;
+    double const t0 = cat_now_ms();
+    int changed;
+
+    cat_job_abort(catalog);
+    memset(&stats, 0, sizeof(stats));
+    cat_scan(catalog, maps_only);
+    stats.scan_ms = cat_now_ms() - t0;
+    changed = cat_finish(catalog, 1, !maps_only, &stats);
     if( out_stats )
         *out_stats = stats;
     return changed;
+}
+
+/* ---- the background job: the warm build and the freshness sweeps ---- */
+
+static void
+cat_job_abort(struct ToriRSMapEdCatalog* catalog)
+{
+    struct cat_job* job = &catalog->job;
+    while( job->depth > 0 )
+        closedir(job->stack[--job->depth].dir);
+    cat_lanes_free(job->lanes, job->lane_count);
+    job->lanes = NULL;
+    job->lane_count = 0;
+    job->phase = CAT_JOB_IDLE;
+}
+
+/**
+ * Start a pass: the warm build when there is no index, else a freshness
+ * sweep. A sweep that finds the lane directories changed (a lane came or
+ * went: every square's storage index may move) runs the whole refresh at
+ * once instead, and the job stays idle.
+ */
+static void
+cat_job_begin(struct ToriRSMapEdCatalog* catalog)
+{
+    struct cat_job* job = &catalog->job;
+    char** sorted;
+
+    assert(job->phase == CAT_JOB_IDLE);
+    memset(&job->stats, 0, sizeof(job->stats));
+    job->root = 0;
+    job->depth = 0;
+    job->parse_at = 0;
+    for( int i = 0; i < catalog->source_count; i++ )
+        catalog->sources[i].seen = 0;
+    if( catalog->path_slot_count == 0 )
+        cat_path_index_rebuild(catalog);
+    job->lanes = cat_lanes(catalog, &job->lane_count);
+    sorted = cat_lanes_sorted(job->lanes, job->lane_count);
+    if( !catalog->built )
+        cat_storages_adopt(catalog, sorted, job->lane_count);
+    else if( !cat_lanes_same(catalog->storages, catalog->storage_count, sorted, job->lane_count) )
+    {
+        cat_lanes_free(sorted, job->lane_count);
+        (void)cat_refresh(catalog, 0, NULL);
+        return;
+    }
+    else
+        cat_lanes_free(sorted, job->lane_count);
+    job->phase = CAT_JOB_SCAN;
+}
+
+/** Advance the job until `deadline_ms` (0: to its end). Returns 1 when the
+ *  pass finished. */
+static int
+cat_job_step(
+    struct ToriRSMapEdCatalog* catalog,
+    double deadline_ms)
+{
+    struct cat_job* job = &catalog->job;
+    double const t0 = cat_now_ms();
+    unsigned n = 0;
+
+    if( job->phase == CAT_JOB_SCAN )
+    {
+        for( ;; )
+        {
+            struct cat_job_dir* top;
+            struct dirent* entry;
+            char rel[CAT_PATH_MAX];
+            int recursive;
+            cat_classify_fn classify;
+            int got;
+
+            if( deadline_ms > 0.0 && (++n & 15u) == 0 && cat_now_ms() >= deadline_ms )
+            {
+                job->stats.scan_ms += cat_now_ms() - t0;
+                return 0;
+            }
+            if( job->depth == 0 )
+            {
+                char dir_path[CAT_PATH_MAX * 2];
+                const char* root_rel;
+                DIR* dir;
+                if( job->root >= CAT_ROOT_COUNT + job->lane_count )
+                    break;
+                root_rel = job->root < CAT_ROOT_COUNT ? k_cat_roots[job->root].rel
+                                                      : job->lanes[job->root - CAT_ROOT_COUNT];
+                snprintf(dir_path, sizeof(dir_path), "%s/%s", catalog->content_dir, root_rel);
+                dir = opendir(dir_path);
+                if( dir )
+                {
+                    job->stack[0].dir = dir;
+                    job->stack[0].root = job->root;
+                    snprintf(job->stack[0].rel, sizeof(job->stack[0].rel), "%s", root_rel);
+                    job->depth = 1;
+                }
+                job->root++;
+                continue;
+            }
+            top = &job->stack[job->depth - 1];
+            entry = readdir(top->dir);
+            if( !entry )
+            {
+                closedir(top->dir);
+                job->depth--;
+                continue;
+            }
+            recursive = top->root < CAT_ROOT_COUNT && k_cat_roots[top->root].recursive;
+            classify = top->root < CAT_ROOT_COUNT ? k_cat_roots[top->root].classify : cat_classify_maps;
+            got = cat_walk_entry(catalog, top->rel, entry, classify, rel, sizeof(rel));
+            if( got != 2 || !recursive )
+                continue;
+            if( job->depth < CAT_JOB_DEPTH )
+            {
+                char dir_path[CAT_PATH_MAX * 2];
+                DIR* dir;
+                snprintf(dir_path, sizeof(dir_path), "%s/%s", catalog->content_dir, rel);
+                dir = opendir(dir_path);
+                if( dir )
+                {
+                    struct cat_job_dir* below = &job->stack[job->depth++];
+                    below->dir = dir;
+                    below->root = top->root;
+                    snprintf(below->rel, sizeof(below->rel), "%s", rel);
+                }
+            }
+            else
+                cat_walk(catalog, rel, 1, classify);
+        }
+        job->stats.scan_ms += cat_now_ms() - t0;
+        job->phase = catalog->built ? CAT_JOB_IDLE : CAT_JOB_PARSE;
+    }
+    if( job->phase == CAT_JOB_PARSE )
+    {
+        double const t1 = cat_now_ms();
+        while( job->parse_at < catalog->source_count )
+        {
+            struct cat_source* src = &catalog->sources[job->parse_at++];
+            if( !src->dirty )
+                continue;
+            cat_parse_source(catalog, src);
+            src->dirty = 0;
+            job->stats.parsed++;
+            if( deadline_ms > 0.0 && cat_now_ms() >= deadline_ms )
+            {
+                job->stats.parse_ms += cat_now_ms() - t1;
+                return 0;
+            }
+        }
+        job->stats.parse_ms += cat_now_ms() - t1;
+    }
+    /* The scan is whole: drop what it did not see, parse (a sweep's) changes
+     * and merge -- one step, so no request sees half of it. */
+    cat_job_abort(catalog);
+    (void)cat_finish(catalog, 1, 1, &job->stats);
+    catalog->counters.sweeps++;
+    if( getenv("TORIRS_CATALOG_TRACE") )
+        fprintf(stderr, "catalog: pass done: scan %.1f ms, %d parsed (%.1f ms), %d removed, merge %.1f ms\n",
+            job->stats.scan_ms, job->stats.parsed, job->stats.parse_ms, job->stats.removed, job->stats.merge_ms);
+    return 1;
+}
+
+int
+ToriRSMapEdCatalog_Service(
+    struct ToriRSMapEdCatalog* catalog,
+    double budget_ms)
+{
+    double const t0 = cat_now_ms();
+    double took;
+    int done;
+
+    assert(catalog);
+    assert(budget_ms > 0.0);
+    /* The warm build starts on its own; a sweep only when a request asked. */
+    if( catalog->job.phase == CAT_JOB_IDLE && !catalog->built )
+        cat_job_begin(catalog);
+    if( catalog->job.phase == CAT_JOB_IDLE )
+        return 0;
+    done = cat_job_step(catalog, t0 + budget_ms);
+    took = cat_now_ms() - t0;
+    catalog->counters.slices++;
+    if( took > catalog->counters.slice_max_ms )
+        catalog->counters.slice_max_ms = took;
+    return !done;
+}
+
+uint32_t
+ToriRSMapEdCatalog_MapsRevision(const struct ToriRSMapEdCatalog* catalog)
+{
+    assert(catalog);
+    return catalog->maps_revision;
+}
+
+int
+ToriRSMapEdCatalog_Working(const struct ToriRSMapEdCatalog* catalog)
+{
+    assert(catalog);
+    return catalog->job.phase != CAT_JOB_IDLE;
+}
+
+void
+ToriRSMapEdCatalog_Counters(
+    const struct ToriRSMapEdCatalog* catalog,
+    struct ToriRSMapEdCatalogCounters* out)
+{
+    assert(catalog);
+    assert(out);
+    *out = catalog->counters;
+}
+
+/**
+ * What every request runs first: an index to answer from. Only a server with
+ * no index yet waits (for the warm build to finish, or for a whole build);
+ * otherwise, once the interval has passed (or a save asked), a sweep starts
+ * for the service pass to advance, and the request answers from the index
+ * as it stands.
+ */
+static void
+cat_request_index(struct ToriRSMapEdCatalog* catalog)
+{
+    if( !catalog->built )
+    {
+        if( catalog->job.phase != CAT_JOB_IDLE )
+            (void)cat_job_step(catalog, 0.0);
+        if( !catalog->built )
+            (void)cat_refresh(catalog, 0, NULL);
+        return;
+    }
+    if( catalog->job.phase == CAT_JOB_IDLE
+        && (catalog->invalid || time(NULL) - catalog->last_refresh >= catalog->refresh_interval_s) )
+        cat_job_begin(catalog);
 }
 
 int
@@ -3230,15 +3666,6 @@ cat_filters_match(
     return 1;
 }
 
-struct cat_hit
-{
-    int score;
-    int kind;
-    int32_t id;
-    const char* name;
-    int record;
-};
-
 static int
 cat_hit_cmp(
     const void* a,
@@ -3330,31 +3757,77 @@ cat_hit_add(
     hit->record = record;
 }
 
-/** Every match, sorted; the caller frees `*out_hits`. */
+/**
+ * 1 when every record `query` matches also matches `held`, so the held hits
+ * hold every answer: each held filter is restated exactly (a filter value is
+ * matched whole, so "op=Ch" says nothing about "op=Chop"), and each held
+ * term is inside a term of `query` that is not a number (a number also
+ * matches by id, which says nothing about the name).
+ */
 static int
-cat_query_run(
+cat_query_implies(
+    const struct cat_query* query,
+    const struct cat_query* held)
+{
+    for( int f = 0; f < held->filter_count; f++ )
+    {
+        int found = 0;
+        for( int g = 0; g < query->filter_count && !found; g++ )
+            found = strcmp(query->filter_key[g], held->filter_key[f]) == 0
+                    && strcmp(query->filter_value[g], held->filter_value[f]) == 0;
+        if( !found )
+            return 0;
+    }
+    for( int t = 0; t < held->term_count; t++ )
+    {
+        int found = 0;
+        for( int u = 0; u < query->term_count && !found; u++ )
+        {
+            int number;
+            found = !cat_parse_whole_int(query->terms[u], &number) && strstr(query->terms[u], held->terms[t]) != NULL;
+        }
+        if( !found )
+            return 0;
+    }
+    return 1;
+}
+
+/**
+ * Every match of (kind, filter, flags), sorted, in the held query's buffer:
+ * valid until the next query or merge. The held hits answer the same
+ * question again (a page flip) without testing a record, and a question that
+ * implies the held one (typing on) is tested against the held hits only.
+ */
+static int
+cat_query_hits(
     struct ToriRSMapEdCatalog* catalog,
     uint32_t kind,
     const char* filter,
     uint32_t flags,
-    struct cat_hit** out_hits)
+    const struct cat_hit** out_hits)
 {
+    struct cat_held_query* held = &catalog->held;
     struct cat_query query;
-    struct cat_hit* hits = NULL;
-    int count = 0;
-    int cap = 0;
+    int const same_index = held->valid && held->revision == catalog->revision && held->kind == kind
+                           && held->flags == flags;
 
+    *out_hits = held->hits;
+    if( same_index && strcmp(held->filter, filter) == 0 )
+    {
+        catalog->counters.held++;
+        return held->count;
+    }
     cat_query_parse(filter, &query);
-    *out_hits = NULL;
-    if( catalog->record_count == 0 )
-        return 0;
 
-    if( (flags & TORIRSMAPED_CATALOG_EXACT) && query.term_count > 0 )
+    if( catalog->record_count == 0 )
+        held->count = 0;
+    else if( (flags & TORIRSMAPED_CATALOG_EXACT) && query.term_count > 0 )
     {
         /* Hash probes: by name and display name in every kind asked for,
          * and by id when the text is a number. */
         int number;
         int numeric = cat_parse_whole_int(query.whole, &number);
+        held->count = 0;
         for( int k = 0; k < TORIRSMAPED_CATALOG_KIND_COUNT; k++ )
         {
             uint32_t slot;
@@ -3366,14 +3839,14 @@ cat_query_run(
                 const struct cat_record* rec = &catalog->records[r];
                 if( rec->kind == k && cat_ieq(rec->name, query.whole)
                     && cat_filters_match(catalog, r, &query) )
-                    cat_hit_add(&hits, &count, &cap, rec, r, 0);
+                    cat_hit_add(&held->hits, &held->count, &held->cap, rec, r, 0);
             }
             for( int32_t r = catalog->display_heads[slot]; r >= 0; r = catalog->records[r].next_display )
             {
                 const struct cat_record* rec = &catalog->records[r];
                 if( rec->kind == k && cat_ieq(rec->display, query.whole)
                     && cat_filters_match(catalog, r, &query) )
-                    cat_hit_add(&hits, &count, &cap, rec, r, 1);
+                    cat_hit_add(&held->hits, &held->count, &held->cap, rec, r, 1);
             }
             if( numeric && number >= 0 )
             {
@@ -3382,36 +3855,69 @@ cat_query_run(
                 {
                     const struct cat_record* rec = &catalog->records[r];
                     if( rec->kind == k && rec->id == number && cat_filters_match(catalog, r, &query) )
-                        cat_hit_add(&hits, &count, &cap, rec, r, 1);
+                        cat_hit_add(&held->hits, &held->count, &held->cap, rec, r, 1);
                 }
             }
         }
     }
     else
     {
-        hits = ToriMem_Alloc(ToriMem_Editor(), 1024 * sizeof(*hits));
-        assert(hits);
-        cap = 1024;
-        for( int r = 0; r < catalog->record_count; r++ )
+        struct cat_query held_query;
+        int narrow = 0;
+        if( same_index && !(held->flags & TORIRSMAPED_CATALOG_EXACT) )
         {
-            const struct cat_record* rec = &catalog->records[r];
-            struct cat_hit* hit;
-            if( !cat_kind_ok(kind, rec->kind) || !cat_terms_match(rec, &query)
-                || !cat_filters_match(catalog, r, &query) )
-                continue;
-            hits = cat_grow(hits, &cap, count + 1, sizeof(*hits));
-            hit = &hits[count++];
-            hit->score = cat_score(rec, &query);
-            hit->kind = rec->kind;
-            hit->id = rec->id;
-            hit->name = rec->name;
-            hit->record = r;
+            cat_query_parse(held->filter, &held_query);
+            narrow = cat_query_implies(&query, &held_query);
+        }
+        if( narrow )
+        {
+            /* Typing on: only the held hits can match; kept in place. */
+            int kept = 0;
+            for( int i = 0; i < held->count; i++ )
+            {
+                int const r = held->hits[i].record;
+                const struct cat_record* rec = &catalog->records[r];
+                catalog->counters.examined++;
+                if( !cat_terms_match(rec, &query) || !cat_filters_match(catalog, r, &query) )
+                    continue;
+                held->hits[kept] = held->hits[i];
+                held->hits[kept].score = cat_score(rec, &query);
+                kept++;
+            }
+            held->count = kept;
+            catalog->counters.narrowed++;
+        }
+        else
+        {
+            held->count = 0;
+            for( int r = 0; r < catalog->record_count; r++ )
+            {
+                const struct cat_record* rec = &catalog->records[r];
+                struct cat_hit* hit;
+                catalog->counters.examined++;
+                if( !cat_kind_ok(kind, rec->kind) || !cat_terms_match(rec, &query)
+                    || !cat_filters_match(catalog, r, &query) )
+                    continue;
+                held->hits = cat_grow(held->hits, &held->cap, held->count + 1, sizeof(*held->hits));
+                hit = &held->hits[held->count++];
+                hit->score = cat_score(rec, &query);
+                hit->kind = rec->kind;
+                hit->id = rec->id;
+                hit->name = rec->name;
+                hit->record = r;
+            }
+            catalog->counters.full_scans++;
         }
     }
-    if( count > 1 )
-        qsort(hits, (size_t)count, sizeof(*hits), cat_hit_cmp);
-    *out_hits = hits;
-    return count;
+    if( held->count > 1 )
+        qsort(held->hits, (size_t)held->count, sizeof(*held->hits), cat_hit_cmp);
+    held->valid = 1;
+    held->revision = catalog->revision;
+    held->kind = kind;
+    held->flags = flags;
+    snprintf(held->filter, sizeof(held->filter), "%s", filter);
+    *out_hits = held->hits;
+    return held->count;
 }
 
 int
@@ -3423,16 +3929,15 @@ ToriRSMapEdCatalog_Query(
     int* out_records,
     int max)
 {
-    struct cat_hit* hits;
+    const struct cat_hit* hits;
     int count;
     assert(catalog);
     assert(filter);
     assert(out_records || max == 0);
-    ToriRSMapEdCatalog_Refresh(catalog, 0, NULL);
-    count = cat_query_run(catalog, kind, filter, flags, &hits);
+    cat_request_index(catalog);
+    count = cat_query_hits(catalog, kind, filter, flags, &hits);
     for( int i = 0; i < count && i < max; i++ )
         out_records[i] = hits[i].record;
-    ToriMem_Free(ToriMem_Editor(), hits);
     return count;
 }
 
@@ -3522,7 +4027,7 @@ ToriRSMapEdCatalog_HandleQuery(
     uint32_t flags;
     uint32_t page;
     uint32_t page_size;
-    struct cat_hit* hits;
+    const struct cat_hit* hits;
     int total;
     uint32_t first;
     uint32_t rows;
@@ -3549,8 +4054,8 @@ ToriRSMapEdCatalog_HandleQuery(
     if( page_size > TORIRSMAPED_CATALOG_PAGE_MAX )
         page_size = TORIRSMAPED_CATALOG_PAGE_MAX;
 
-    ToriRSMapEdCatalog_Refresh(catalog, 0, NULL);
-    total = cat_query_run(catalog, kind, filter, flags, &hits);
+    cat_request_index(catalog);
+    total = cat_query_hits(catalog, kind, filter, flags, &hits);
     first = page * page_size;
     if( page > 0 && first / page != page_size )
         first = UINT32_MAX; /* overflow: past the end */
@@ -3565,7 +4070,6 @@ ToriRSMapEdCatalog_HandleQuery(
     ToriRSMapEd_PutU32(out, rows);
     for( uint32_t i = 0; i < rows; i++ )
         cat_put_row(catalog, hits[first + i].record, out);
-    ToriMem_Free(ToriMem_Editor(), hits);
     return 1;
 }
 
@@ -3693,10 +4197,11 @@ cat_rec_put_text(
     }
 }
 
-/** 1 when every file the record's blocks come from is as indexed. */
+/** 1 when every file the record's blocks come from is as indexed (a sweep
+ *  that has seen a file change but not yet re-parsed it marks it dirty). */
 static int
 cat_record_fresh(
-    const struct ToriRSMapEdCatalog* catalog,
+    struct ToriRSMapEdCatalog* catalog,
     int record)
 {
     for( int32_t r = catalog->records[record].first_ref; r >= 0; r = catalog->refs[r].next )
@@ -3704,12 +4209,51 @@ cat_record_fresh(
         const struct cat_source* src = &catalog->sources[catalog->refs[r].source];
         char full[CAT_PATH_MAX * 2];
         struct stat st;
+        if( src->dirty )
+            return 0;
         snprintf(full, sizeof(full), "%s/%s", catalog->content_dir, src->path);
+        catalog->counters.stats++;
         if( stat(full, &st) != 0 || cat_mtime_ns(&st) != src->mtime_ns
             || (int64_t)st.st_size != src->size )
             return 0;
     }
     return 1;
+}
+
+/**
+ * A record's files changed under the index (its offsets are stale): re-read
+ * just those files and merge, rather than re-stat the tree. A file that is
+ * gone takes the whole refresh (the record may have gone with it). A sweep
+ * in flight carries on; what it has marked dirty is parsed here too.
+ */
+static void
+cat_refresh_record(
+    struct ToriRSMapEdCatalog* catalog,
+    int record)
+{
+    struct ToriRSMapEdCatalogStats stats;
+
+    for( int32_t r = catalog->records[record].first_ref; r >= 0; r = catalog->refs[r].next )
+    {
+        struct cat_source* src = &catalog->sources[catalog->refs[r].source];
+        char full[CAT_PATH_MAX * 2];
+        struct stat st;
+        snprintf(full, sizeof(full), "%s/%s", catalog->content_dir, src->path);
+        catalog->counters.stats++;
+        if( stat(full, &st) != 0 )
+        {
+            (void)cat_refresh(catalog, 0, NULL);
+            return;
+        }
+        if( cat_mtime_ns(&st) != src->mtime_ns || (int64_t)st.st_size != src->size )
+        {
+            src->mtime_ns = cat_mtime_ns(&st);
+            src->size = (int64_t)st.st_size;
+            src->dirty = 1;
+        }
+    }
+    memset(&stats, 0, sizeof(stats));
+    (void)cat_finish(catalog, 0, 0, &stats);
 }
 
 /** A source's merge rank for a record view (see HandleRecord). */
@@ -3785,12 +4329,12 @@ ToriRSMapEdCatalog_HandleRecord(
     if( !ToriRSMapEd_ReaderDone(&reader) )
         return 0;
 
-    ToriRSMapEdCatalog_Refresh(catalog, 0, NULL);
+    cat_request_index(catalog);
     record = cat_record_lookup(catalog, kind, id, name);
     if( record >= 0 && !cat_record_fresh(catalog, record) )
     {
         /* A block's file changed under the index: offsets are stale. */
-        ToriRSMapEdCatalog_Refresh(catalog, 1, NULL);
+        cat_refresh_record(catalog, record);
         record = cat_record_lookup(catalog, kind, id, name);
     }
     if( record < 0 )
@@ -3870,6 +4414,7 @@ ToriRSMapEdCatalog_HandleRecord(
                 continue;
             block = ToriMem_Alloc(ToriMem_Editor(), (size_t)c->len + 1);
             assert(block);
+            catalog->counters.block_reads++;
             if( fseek(file, (long)c->off, SEEK_SET) == 0 )
                 got = fread(block, 1, c->len, file);
             fclose(file);
@@ -3990,7 +4535,7 @@ ToriRSMapEdCatalog_HandleSquares(
     (void)body;
     if( length != 0 )
         return 0;
-    ToriRSMapEdCatalog_Refresh(catalog, 0, NULL);
+    cat_request_index(catalog);
     ToriRSMapEdCatalog_EncodeSquares(catalog, doc, out);
     return 1;
 }

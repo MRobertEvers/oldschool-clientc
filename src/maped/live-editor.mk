@@ -53,7 +53,10 @@ maped-client-cache:
 # LAUNCHED as the lane's torirsserver beside a fake js5_server. Covers RUN's
 # sequencing (save -> packs -> client cache -> reload -> RUN_DONE ->
 # LIVE_STATUS) and its stop at the first failure, cheat, subscribe, the gate
-# ticket, detach and the launched processes' lifetime, plus the client model.
+# ticket, detach and the launched processes' lifetime, plus the client model,
+# and the play client: the native launcher on a fake client binary
+# (editor/live/test/fake_play.sh) and RUN's play step against the peer's
+# player list (start, reloaded-in-place, logged out, died, Play/Stop, browser).
 # One square copied under $(OBJ_DIR)/tmp/live_editor; the tree is read only.
 .PHONY: test-live-editor
 test-live-editor:
@@ -66,11 +69,14 @@ test-live-editor:
 		$(OBJ_DIR)/tmp/live_editor/content/server/scripts/areas/edited/configs
 	cp $(EDITOR_CONTENT_DIR)/maps/m50_50.jm2 $(EDITOR_CONTENT_DIR)/maps/m50_50.jl2 \
 		$(OBJ_DIR)/tmp/live_editor/content/maps/
-	cp editor/live/test/mock_control_peer.py editor/live/test/fake_server.sh $(OBJ_DIR)/tmp/live_editor/
-	chmod +x $(OBJ_DIR)/tmp/live_editor/mock_control_peer.py $(OBJ_DIR)/tmp/live_editor/fake_server.sh
+	cp editor/live/test/mock_control_peer.py editor/live/test/fake_server.sh editor/live/test/fake_play.sh \
+		$(OBJ_DIR)/tmp/live_editor/
+	chmod +x $(OBJ_DIR)/tmp/live_editor/mock_control_peer.py $(OBJ_DIR)/tmp/live_editor/fake_server.sh \
+		$(OBJ_DIR)/tmp/live_editor/fake_play.sh
 	./$(OBJ_DIR)/live_editor_test $(abspath $(OBJ_DIR)/tmp/live_editor) \
 		$(abspath $(OBJ_DIR)/tmp/live_editor/mock_control_peer.py) \
-		$(abspath $(OBJ_DIR)/tmp/live_editor/fake_server.sh) $(REPO_ROOT)
+		$(abspath $(OBJ_DIR)/tmp/live_editor/fake_server.sh) $(REPO_ROOT) \
+		$(abspath $(OBJ_DIR)/tmp/live_editor/fake_play.sh)
 
 test-editor: test-live-editor
 

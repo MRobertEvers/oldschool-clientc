@@ -223,7 +223,13 @@ it: an editor RUN (torirsmaped `jobs_*`, docs/MAPED_STATUS.md "The live lane end
 to end") builds the packs into the lane and sends one CTL_RELOAD; the game server
 applies it at a tick boundary (`ToriRSServer_Reload`,
 `src/torirsserver/torirs_server_control.c`); the clients are told with
-CACHE_INVALIDATE and, where placed state carries a record, a REBUILD.
+CACHE_INVALIDATE and, where placed state carries a record, a REBUILD. The RUN
+then checks the lane's play client against the server's player list
+(CTL_PLAYERS -> CTL_FACT_PLAYERS: every login the process took, and per player
+the account, display name, pool slot, login generation and tile): a client still
+listed took the reload live (no relog -- the same (slot, generation)); one that
+is gone is started again. A lane that is not up when RUN reaches the reload is
+launched on the packs the RUN just built instead, so nothing is owed a reload.
 
 1. **Diff, don't reload.** Read the new manifest; a script whose `script` line's
    hash differs from the loaded one changed; a missing line is a retired id; a new

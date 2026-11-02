@@ -19,9 +19,16 @@
  *     both stopped on detach);
  *   - the lane refusing a live dir inside the content tree, the command
  *     formatter, the client.changed parser, the map list, STATE_LIVE_FOCUS;
- *   - the client model (editor/live/live_client.h) folding every fact.
+ *   - the client model (editor/live/live_client.h) folding every fact;
+ *   - the PLAY CLIENT (torirs_maped_live.h): the native launcher on a fake
+ *     client binary (its manifest, the fixture save, its environment), and
+ *     RUN's play step as a state machine against the mock peer's player list:
+ *     lane down -> launched and started; online -> "reloaded in the running
+ *     client", no restart; logged out -> restarted; died -> restarted; Play /
+ *     Stop; a browser window; detach stops it; a lane that cannot launch says
+ *     "Launch the lane first"; a server that does not report players.
  *
- *   live_editor_test <scratch-dir> <peer-script> <fake-server-script> <repo-root>
+ *   live_editor_test <scratch-dir> <peer-script> <fake-server-script> <repo-root> <fake-play-script>
  *
  * The scratch dir holds a content tree with one square; everything written
  * lands under it.
@@ -509,6 +516,7 @@ main(
     const char* peer_script;
     const char* fake_script;
     const char* repo_root;
+    const char* play_script;
     char content[1024];
     char live[1024];
     char path[2048];
@@ -527,15 +535,16 @@ main(
     uint32_t step;
     int at;
 
-    if( argc != 5 )
+    if( argc != 6 )
     {
-        fprintf(stderr, "usage: live_editor_test <scratch> <peer-script> <fake-server> <repo-root>\n");
+        fprintf(stderr, "usage: live_editor_test <scratch> <peer-script> <fake-server> <repo-root> <fake-play>\n");
         return 2;
     }
     scratch = argv[1];
     peer_script = argv[2];
     fake_script = argv[3];
     repo_root = argv[4];
+    play_script = argv[5];
     signal(SIGPIPE, SIG_IGN);
     ToriMem_Init();
     snprintf(content, sizeof(content), "%s/content", scratch);
@@ -565,6 +574,29 @@ main(
         check(strstr(why, "inside the content tree") != NULL, "lane: the refusal says why");
         ToriRSMapEd_LaneDefaults(&lane, repo_root, content, live);
         check(ToriRSMapEd_LaneValid(&lane, why, sizeof(why)), "lane: a live dir beside the content tree is valid");
+        {
+            char user[16];
+            char pass[24];
+            char url[1024];
+            snprintf(path, sizeof(path), "%s/src/torirs", repo_root);
+            check(strcmp(lane.play_bin, path) == 0, "lane: the play client defaults to src/torirs");
+            check(strstr(lane.play_fixture, "fresh_lumbridge.ini") != NULL, "lane: the play fixture is fresh_lumbridge");
+            ToriRSMapEd_LanePlayAccount(&lane, user, sizeof(user), pass, sizeof(pass));
+            check(strcmp(user, "maped43620") == 0 && strcmp(pass, "lane43620run") == 0,
+                "lane: the play account is derived from the game port");
+            ToriRSMapEd_LaneWebPlayUrl(&lane, url, sizeof(url));
+            check(url[0] == '\0', "lane: no web play URL without an io_server");
+            snprintf(inside.io_manifest, sizeof(inside.io_manifest), "x.ini");
+            ToriRSMapEd_LaneWebPlayUrl(&inside, url, sizeof(url));
+            check(strstr(url, "http://127.0.0.1:43622/?args=--manifest,manifests/manifest_osrs241.ini,"
+                              "--connect,127.0.0.1:43620,--user,maped43620,--pass,lane43620run")
+                      && strstr(url, "&ws=ws://127.0.0.1:43620/&js5_url=ws://127.0.0.1:43621/"),
+                "lane: the web play URL names io_server, the game port and the JS5");
+        }
+        /* This lane must never start the real server or client: RUN with it
+         * unattached is the "cannot launch" case. */
+        lane.server_bin[0] = '\0';
+        lane.play_bin[0] = '\0';
 
         memset(&job, 0, sizeof(job));
         job.what = TORIRSMAPED_BUILD_PACKS;
@@ -749,6 +781,8 @@ main(
     at = wait_run_done(&a, &status, &step);
     check(at >= 0 && status == EDITOR_HOST_UNSUPPORTED && step == TORIRSMAPED_RUN_STEP_RELOAD,
         "RUN unattached: stops at the reload, UNSUPPORTED");
+    check(strstr(a.model.run_message, "Launch the lane first") != NULL,
+        "RUN unattached, a lane that cannot launch: \"Launch the lane first\"");
     check(find_fact(&a, TORIRSMAPED_FACT_SAVED, a.mark) >= 0, "RUN unattached: it saved first");
     check(mock->command_count == 2 && mock->command_whats[0] == TORIRSMAPED_BUILD_PACKS
               && mock->command_whats[1] == TORIRSMAPED_BUILD_CLIENT_CACHE,
@@ -794,7 +828,9 @@ main(
         }
     }
     check(a.model.state == TORIRSMAPED_LIVE_ATTACHED, "attach: attached with the right ticket");
-    check(strcmp(a.model.server_name, "mockworld") == 0 && a.model.players == 2, "attach: server name and players");
+    check(strcmp(a.model.server_name, "mockworld") == 0 && a.model.players == 0, "attach: server name and players");
+    check(a.model.players_known && a.model.player_row_count == 0,
+        "attach: the server's player list (CTL_FACT_PLAYERS after HELLO) reached the model");
     check(b.model.state == TORIRSMAPED_LIVE_ATTACHED, "attach: the other window sees it too");
     peer_last("\"hello\"", line, sizeof(line));
     check(strstr(line, "\"ticket\": \"letmein\"") != NULL, "attach: HELLO carried the ticket after 0xED");
@@ -1042,6 +1078,303 @@ main(
         pump();
         check(!pid_alive(pids[0]) && !pid_alive(pids[1]), "launch: detach stops what it launched");
         check(a.model.state == TORIRSMAPED_LIVE_DETACHED, "launch: detached");
+    }
+
+    /* ---- the play client: the native launcher and RUN's play step -------------------- */
+    {
+        struct ToriRSMapEdLane play_lane = lane;
+        struct ToriRSMapEdLiveLink play_link;
+        struct ToriRSMapEdPlayLauncher launcher;
+        char user[16];
+        char pass[24];
+        char play_log[1100];
+        char text[1024];
+        int first_pid;
+        int pid_before;
+        FILE* f;
+
+        port = free_port();
+        unsetenv("MOCK_PEER_TICKET");
+        unsetenv("MOCK_PEER_NO_PLAYERS");
+        unlink(g_peer_log);
+        snprintf(play_log, sizeof(play_log), "%s.play", g_peer_log);
+        unlink(play_log);
+        snprintf(play_lane.server_bin, sizeof(play_lane.server_bin), "%s", peer_script);
+        play_lane.js5_bin[0] = '\0';
+        play_lane.io_bin[0] = '\0';
+        play_lane.game_port = port;
+        play_lane.js5_port = port + 1;
+        snprintf(play_lane.play_bin, sizeof(play_lane.play_bin), "%s", play_script);
+        snprintf(path, sizeof(path), "%s/play_src", scratch);
+        mkdir(path, 0755);
+        snprintf(play_lane.play_manifest, sizeof(play_lane.play_manifest), "%s/play_src/manifest_test.ini", scratch);
+        f = fopen(play_lane.play_manifest, "wb");
+        assert(f);
+        fputs("[cache:boot]\ndir=../cache.sparse\n\n[net:boot]\ntransport=embed\nhost=localhost\nport=1\n\n"
+              "[ui:boot]\nrevconfig_ui=../revconfig/x.ini\nkeep=plain\n",
+            f);
+        fclose(f);
+        snprintf(play_lane.play_fixture, sizeof(play_lane.play_fixture), "%s/play_src/fixture.ini", scratch);
+        f = fopen(play_lane.play_fixture, "wb");
+        assert(f);
+        fputs("[player]\nversion = 1\nname = fresh_lumbridge\nx = 3206\n", f);
+        fclose(f);
+        /* The editor's own capture keys must not reach the play client; its
+         * TORIRSMAPED_PLAY_ENV_ keys must. */
+        setenv("TORIRS_SIM_HOTKEY", "10,ctrl+return", 1);
+        setenv("TORIRSMAPED_PLAY_ENV_TORIRS_TEST_MARK", "yes", 1);
+        check(ToriRSMapEd_SetLane(maped, &play_lane), "play: lane rebound");
+        check(ToriRSMapEd_LiveLinkNative(&play_link, &play_lane), "play: native link");
+        ToriRSMapEd_SetLiveLink(maped, &play_link);
+        check(ToriRSMapEd_PlayLauncherNative(&launcher, &play_lane), "play: native launcher");
+        ToriRSMapEd_SetPlayLauncher(maped, &launcher);
+        ToriRSMapEd_LanePlayAccount(&play_lane, user, sizeof(user), pass, sizeof(pass));
+
+        /* (1) the lane is down: RUN builds, launches it, starts the client */
+        add_spawn(&a, 3205);
+        pump();
+        mark(&a);
+        mock->command_count = 0;
+        send_live(&a, TORIRSMAPED_REQ_RUN, &payload);
+        at = wait_run_done(&a, &status, &step);
+        check(at >= 0 && status == EDITOR_HOST_OK && step == TORIRSMAPED_RUN_STEP_DONE,
+            "play: RUN with the lane down finishes OK");
+        check(strstr(a.model.run_message, "the lane was not up: launched it") != NULL
+                  && strstr(a.model.run_message, "play client started") != NULL,
+            "play: RUN says it launched the lane and started the play client");
+        if( !strstr(a.model.run_message, "play client started") )
+            fprintf(stderr, "  RUN said: %s\n", a.model.run_message);
+        check(mock->command_count == 2, "play: the RUN built packs and the client cache first");
+        check(a.model.pending_squares == 0 && a.model.pending_spawns == 0 && a.model.pending_archives == 0,
+            "play: a launch on the new build owes no reload");
+        {
+            int64_t const deadline = now_ms() + 15000;
+            while( (a.model.play_pid <= 0 || a.model.state != TORIRSMAPED_LIVE_ATTACHED) && now_ms() < deadline )
+            {
+                pump();
+                usleep(5000);
+            }
+        }
+        check(a.model.play_state == TORIRSMAPED_PLAY_STARTING && a.model.play_pid > 0,
+            "play: the client was spawned once the lane's port answered");
+        check(a.model.state == TORIRSMAPED_LIVE_ATTACHED && a.model.launched, "play: the launched lane attached");
+        check(strcmp(a.model.play_account, user) == 0, "play: the model names the play account");
+        first_pid = a.model.play_pid;
+        peer_last("\"start\"", line, sizeof(line));
+        snprintf(path, sizeof(path), "\"TORIRSSERVER_SAVES\": \"%s/saves\"", live);
+        check(strstr(line, path) != NULL, "play: the launched server keeps its saves in the lane");
+        check(strstr(line, "\"TORIRSSERVER_SKIP_WELCOME\": \"1\"") != NULL,
+            "play: the launched server skips the welcome screen");
+        {
+            int64_t const deadline = now_ms() + 5000;
+            size_t size = 0;
+            char* recorded = NULL;
+            while( now_ms() < deadline )
+            {
+                free(recorded);
+                recorded = slurp(play_log, &size);
+                if( recorded && strstr(recorded, "TORIRS_TEST_MARK") )
+                    break;
+                usleep(5000);
+            }
+            snprintf(text, sizeof(text), "--manifest %s/play/manifest.ini --js5 --js5-host 127.0.0.1 --js5-port %d "
+                                         "--js5-fallback-port 0 --user %s --pass %s",
+                live, port + 1, user, pass);
+            check(recorded && strstr(recorded, text), "play: the client's command line (manifest, js5, account)");
+            if( !(recorded && strstr(recorded, text)) )
+                fprintf(stderr, "  want %s\n  got  %s\n", text, recorded ? recorded : "(nothing)");
+            snprintf(text, sizeof(text), "env TORIRS_PREFS=%s/play/preferences.ini", live);
+            check(recorded && strstr(recorded, text), "play: TORIRS_PREFS is the lane's own");
+            check(recorded && strstr(recorded, "env TORIRS_SIM_HOTKEY=<unset>")
+                      && strstr(recorded, "env TORIRSMAPED_LIVE_DIR=<unset>"),
+                "play: the editor's capture and lane keys are stripped");
+            check(recorded && strstr(recorded, "env TORIRS_TEST_MARK=yes"),
+                "play: TORIRSMAPED_PLAY_ENV_<NAME> reaches the client as <NAME>");
+            free(recorded);
+        }
+        {
+            size_t size;
+            char* manifest;
+            snprintf(path, sizeof(path), "%s/play/manifest.ini", live);
+            manifest = slurp(path, &size);
+            snprintf(text, sizeof(text), "dir=%s/play/cache\n", live);
+            check(manifest && strstr(manifest, text), "play manifest: the cache is the lane's play cache");
+            snprintf(text, sizeof(text), "port=%d\n", port);
+            check(manifest && strstr(manifest, text) && strstr(manifest, "host=127.0.0.1\n")
+                      && strstr(manifest, "transport=tcp\n"),
+                "play manifest: tcp to the lane's game port");
+            snprintf(text, sizeof(text), "revconfig_ui=%s/play_src/../revconfig/x.ini\n", scratch);
+            check(manifest && strstr(manifest, text) && strstr(manifest, "keep=plain\n"),
+                "play manifest: relative paths made absolute, the rest kept");
+            free(manifest);
+            snprintf(path, sizeof(path), "%s/saves/%s.ini", live, user);
+            manifest = slurp(path, &size);
+            snprintf(text, sizeof(text), "name = %s\n", user);
+            check(manifest && strstr(manifest, text) && strstr(manifest, "x = 3206"),
+                "play: the fixture is the account's first save, named for it");
+            free(manifest);
+        }
+
+        /* (2) it logs in: the server's player list says so */
+        snprintf(text, sizeof(text), "join %s", user);
+        Editor_LiveEncodeCheat(&payload, "", text);
+        send_live(&a, TORIRSMAPED_REQ_LIVE_CHEAT, &payload);
+        {
+            int64_t const deadline = now_ms() + 8000;
+            while( a.model.play_state != TORIRSMAPED_PLAY_ONLINE && now_ms() < deadline )
+            {
+                pump();
+                usleep(5000);
+            }
+        }
+        check(a.model.play_state == TORIRSMAPED_PLAY_ONLINE && a.model.play_x == 3222 && a.model.play_z == 3218,
+            "play: on the server's player list -> logged in, with its tile");
+        check(a.model.players_known && a.model.logins == 1 && a.model.player_row_count == 1,
+            "play: the model holds the server's players and login count");
+        Editor_LivePlayLine(&a.model, text, sizeof(text));
+        check(strstr(text, "logged in as") && strstr(text, "m50_50"), "play: the panel line names the square");
+
+        /* (3) a RUN with the client on the server: it took the reload */
+        add_spawn(&a, 3206);
+        pump();
+        mark(&a);
+        {
+            int const reloads = peer_count("\"reload\"");
+            send_live(&a, TORIRSMAPED_REQ_RUN, &payload);
+            at = wait_run_done(&a, &status, &step);
+            check(at >= 0 && status == EDITOR_HOST_OK && step == TORIRSMAPED_RUN_STEP_DONE, "play: RUN online OK");
+            check(peer_count("\"reload\"") == reloads + 1, "play: RUN online reloaded the server");
+        }
+        check(strstr(a.model.run_message, "reloaded in the running client") != NULL,
+            "play: RUN online -> \"reloaded in the running client\"");
+        check(a.model.play_pid == first_pid && a.model.play_starts == 1 && pid_alive(first_pid),
+            "play: RUN online started nothing (same pid, one start)");
+
+        /* (4) it logs out: the next RUN starts it again */
+        snprintf(text, sizeof(text), "leave %s", user);
+        Editor_LiveEncodeCheat(&payload, "", text);
+        send_live(&a, TORIRSMAPED_REQ_LIVE_CHEAT, &payload);
+        {
+            int64_t const deadline = now_ms() + 8000;
+            while( a.model.play_state != TORIRSMAPED_PLAY_LOGGED_OUT && now_ms() < deadline )
+            {
+                pump();
+                usleep(5000);
+            }
+        }
+        check(a.model.play_state == TORIRSMAPED_PLAY_LOGGED_OUT, "play: off the player list, process alive -> logged out");
+        add_spawn(&a, 3207);
+        pump();
+        mark(&a);
+        send_live(&a, TORIRSMAPED_REQ_RUN, &payload);
+        at = wait_run_done(&a, &status, &step);
+        check(at >= 0 && status == EDITOR_HOST_OK && strstr(a.model.run_message, "restarted the play client"),
+            "play: RUN logged out -> restarted the play client");
+        pump_for(300);
+        check(a.model.play_starts == 2 && a.model.play_pid > 0 && a.model.play_pid != first_pid
+                  && !pid_alive(first_pid),
+            "play: the logged-out client was stopped and a new one started");
+
+        /* (5) it dies: the service pass reaps it, the next RUN starts it again */
+        pid_before = a.model.play_pid;
+        kill((pid_t)pid_before, SIGKILL);
+        {
+            int64_t const deadline = now_ms() + 5000;
+            while( a.model.play_state != TORIRSMAPED_PLAY_EXITED && now_ms() < deadline )
+            {
+                pump();
+                usleep(5000);
+            }
+        }
+        check(a.model.play_state == TORIRSMAPED_PLAY_EXITED && a.model.play_exit == -SIGKILL,
+            "play: a killed client reads exited, with its signal");
+        mark(&a);
+        send_live(&a, TORIRSMAPED_REQ_RUN, &payload);
+        at = wait_run_done(&a, &status, &step);
+        check(at >= 0 && status == EDITOR_HOST_OK && strstr(a.model.run_message, "it had exited"),
+            "play: RUN after it died -> restarted (it had exited)");
+        pump_for(200);
+        check(a.model.play_starts == 3 && a.model.play_pid > 0 && a.model.play_pid != pid_before,
+            "play: a third start");
+
+        /* (6) Play while it is on its way in changes nothing; Stop stops it */
+        pid_before = a.model.play_pid;
+        mark(&a);
+        Editor_LiveEncodePlay(&payload, TORIRSMAPED_PLAY_START);
+        send_live(&a, TORIRSMAPED_REQ_LIVE_PLAY, &payload);
+        check(wait_fact(&a, TORIRSMAPED_FACT_LIVE_PLAY, 2000) >= 0 && a.model.play_starts == 3
+                  && a.model.play_pid == pid_before,
+            "play: Play while starting starts nothing new");
+        mark(&a);
+        Editor_LiveEncodePlay(&payload, TORIRSMAPED_PLAY_STOP);
+        send_live(&a, TORIRSMAPED_REQ_LIVE_PLAY, &payload);
+        check(wait_fact(&a, TORIRSMAPED_FACT_LIVE_PLAY, 2000) >= 0 && a.model.play_state == TORIRSMAPED_PLAY_NONE
+                  && !pid_alive(pid_before),
+            "play: Stop stops it");
+        mark(&a);
+        Editor_LiveEncodePlay(&payload, TORIRSMAPED_PLAY_START);
+        send_live(&a, TORIRSMAPED_REQ_LIVE_PLAY, &payload);
+        pump_for(300);
+        check(a.model.play_state == TORIRSMAPED_PLAY_STARTING && a.model.play_starts == 4 && a.model.play_pid > 0,
+            "play: Play starts it again");
+
+        /* (7) detaching the launched lane takes the play client with it */
+        pid_before = a.model.play_pid;
+        mark(&a);
+        send_live(&a, TORIRSMAPED_REQ_LIVE_DETACH, &payload);
+        pump_for(200);
+        check(a.model.state == TORIRSMAPED_LIVE_DETACHED && a.model.play_state == TORIRSMAPED_PLAY_NONE
+                  && !pid_alive(pid_before),
+            "play: detach stops the play client with the lane");
+
+        /* (8) a server older than CTL_PLAYERS: never asked, the link holds */
+        setenv("MOCK_PEER_NO_PLAYERS", "1", 1);
+        add_spawn(&a, 3208);
+        pump();
+        mark(&a);
+        send_live(&a, TORIRSMAPED_REQ_RUN, &payload);
+        at = wait_run_done(&a, &status, &step);
+        check(at >= 0 && status == EDITOR_HOST_OK, "play: RUN relaunches the lane (no players reported)");
+        {
+            int64_t const deadline = now_ms() + 15000;
+            while( (a.model.play_pid <= 0 || a.model.state != TORIRSMAPED_LIVE_ATTACHED) && now_ms() < deadline )
+            {
+                pump();
+                usleep(5000);
+            }
+        }
+        add_spawn(&a, 3209);
+        pump();
+        mark(&a);
+        send_live(&a, TORIRSMAPED_REQ_RUN, &payload);
+        at = wait_run_done(&a, &status, &step);
+        check(at >= 0 && status == EDITOR_HOST_OK && strstr(a.model.run_message, "does not report its players"),
+            "play: RUN on a server without CTL_PLAYERS -> the running client, said so");
+        pump_for(200);
+        check(a.model.state == TORIRSMAPED_LIVE_ATTACHED && !a.model.players_known && peer_count("\"unknown\"") == 0,
+            "play: no CTL_PLAYERS was sent to it; the link holds");
+        unsetenv("MOCK_PEER_NO_PLAYERS");
+
+        /* (9) a browser window plays in a tab: no native client, the URL */
+        pid_before = a.model.play_pid;
+        mark(&a);
+        Editor_LiveEncodePlay(&payload, TORIRSMAPED_PLAY_BROWSER);
+        send_live(&a, TORIRSMAPED_REQ_LIVE_PLAY, &payload);
+        check(wait_fact(&a, TORIRSMAPED_FACT_LIVE_PLAY, 2000) >= 0 && a.model.play_browser
+                  && a.model.play_pid <= 0 && !pid_alive(pid_before),
+            "play: a browser window stops the native client");
+        mark(&a);
+        send_live(&a, TORIRSMAPED_REQ_RUN, &payload);
+        at = wait_run_done(&a, &status, &step);
+        check(at >= 0 && status == EDITOR_HOST_OK && strstr(a.model.run_message, "no play tab")
+                  && a.model.play_pid <= 0,
+            "play: RUN for a browser window starts nothing and names the (missing) web page");
+
+        mark(&a);
+        send_live(&a, TORIRSMAPED_REQ_LIVE_DETACH, &payload);
+        pump();
+        unsetenv("TORIRS_SIM_HOTKEY");
+        unsetenv("TORIRSMAPED_PLAY_ENV_TORIRS_TEST_MARK");
     }
 
     /* the server closes with no link bound left running */

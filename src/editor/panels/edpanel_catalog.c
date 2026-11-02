@@ -41,6 +41,7 @@
 #include "engine/torirs_types.h"
 #include "editor/editor_script.h"
 #include "editor/map_editor_ghost.h"
+#include "log/torirs_log.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
@@ -57,6 +58,8 @@
 #define CATALOG_RECORD_ROWS 8
 /** Picks published whose echo has not come back yet. */
 #define CATALOG_PICK_ECHO_MAX 8
+/** TORIRS_EDITOR_CATALOG pick= entries. */
+#define CATALOG_ENV_PICKS 8
 
 struct CatalogRows
 {
@@ -114,6 +117,24 @@ struct CatalogPanel
      *  lands ("" none). */
     char select_name[EDITOR_CMD_NAME_MAX];
     uint32_t select_kind;
+
+    /* TORIRS_EDITOR_CATALOG (catalog_env_tick) and the frame meter
+     * (TORIRS_CATALOG_STATS). */
+    int env_read;
+    int env_frames;
+    int env_open_frame;
+    int env_every;
+    uint32_t env_kind;
+    char env_find[64];
+    int env_typed;
+    int env_pick_count;
+    int env_pick_row[CATALOG_ENV_PICKS];
+    int env_pick_frame[CATALOG_ENV_PICKS];
+    int env_pick_next;
+    int env_edit_frame;
+    int env_next_frame;
+    int env_last_frame;
+    double meter_last_ms;
 };
 
 static void
@@ -454,6 +475,168 @@ catalog_list_show(
     catalog_record_show(ui, self);
 }
 
+/* ---- TORIRS_EDITOR_CATALOG -------------------------------------------------------
+ *
+ * TORIRS_EDITOR_CATALOG=<kind>:<find>[@<frame>][,every=<frames>][,pick=<row>@<frame>...]
+ *                       [,next=<frame>][,edit=<frame>]
+ * (measurements and photographs; main window only): at editor frame <frame>
+ * (default 60) open the Catalog on <kind>, then type <find> into Find one
+ * character every <frames> frames (default 8, a quick typist at 60 Hz), and
+ * at each pick frame select result row <row> as a click on it does; `next`
+ * presses Next page, `edit` presses Edit record... on the selection. With
+ * TORIRS_CATALOG_STATS=1 every frame from the open to 30 frames after the
+ * last action prints its wall time (catalog_meter). */
+
+static void
+catalog_env_read(struct CatalogPanel* self)
+{
+    const char* value = getenv("TORIRS_EDITOR_CATALOG");
+    char spec[256];
+    char* next;
+    char* entry;
+
+    self->env_read = 1;
+    self->env_open_frame = -1;
+    if( !value || !value[0] )
+        return;
+    snprintf(spec, sizeof(spec), "%s", value);
+    entry = strtok_r(spec, ",", &next);
+    if( !entry )
+        return;
+    {
+        char kind[16] = { 0 };
+        char* at = strchr(entry, '@');
+        char* colon;
+        self->env_open_frame = at ? atoi(at + 1) : 60;
+        if( at )
+            *at = '\0';
+        colon = strchr(entry, ':');
+        if( colon )
+        {
+            *colon = '\0';
+            snprintf(self->env_find, sizeof(self->env_find), "%s", colon + 1);
+        }
+        snprintf(kind, sizeof(kind), "%s", entry);
+        self->env_kind = TORIRSMAPED_CATALOG_ANY;
+        for( int i = 0; i < Editor_CatalogModelKindCount() - 1; i++ )
+            if( strcmp(ToriRSMapEdCatalog_KindName(Editor_CatalogModelKindAt(i)), kind) == 0 )
+                self->env_kind = Editor_CatalogModelKindAt(i);
+    }
+    self->env_every = 8;
+    self->env_edit_frame = -1;
+    self->env_next_frame = -1;
+    while( (entry = strtok_r(NULL, ",", &next)) )
+    {
+        if( strncmp(entry, "edit=", 5) == 0 )
+            self->env_edit_frame = atoi(entry + 5);
+        else if( strncmp(entry, "next=", 5) == 0 )
+            self->env_next_frame = atoi(entry + 5);
+        else if( strncmp(entry, "every=", 6) == 0 )
+            self->env_every = atoi(entry + 6) > 0 ? atoi(entry + 6) : 1;
+        else if( strncmp(entry, "pick=", 5) == 0 && self->env_pick_count < CATALOG_ENV_PICKS )
+        {
+            char* at = strchr(entry, '@');
+            self->env_pick_row[self->env_pick_count] = atoi(entry + 5);
+            self->env_pick_frame[self->env_pick_count] = at ? atoi(at + 1) : 0;
+            self->env_pick_count++;
+        }
+    }
+    self->env_last_frame = self->env_open_frame + 1 + (int)strlen(self->env_find) * self->env_every;
+    for( int i = 0; i < self->env_pick_count; i++ )
+        if( self->env_pick_frame[i] > self->env_last_frame )
+            self->env_last_frame = self->env_pick_frame[i];
+    if( self->env_edit_frame > self->env_last_frame )
+        self->env_last_frame = self->env_edit_frame;
+    if( self->env_next_frame > self->env_last_frame )
+        self->env_last_frame = self->env_next_frame;
+}
+
+static int
+catalog_activate(
+    struct EditorUi* ui,
+    void* opaque,
+    int widget);
+
+static void
+catalog_env_tick(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    int f;
+
+    if( !self->env_read )
+        catalog_env_read(self);
+    if( self->env_open_frame < 0 || ui->solo_panel >= 0 )
+        return;
+    f = ++self->env_frames;
+    if( f == self->env_open_frame )
+    {
+        if( !ui->chrome->panels[self->panel].visible )
+            (void)Editor_UiTogglePanel(ui, "catalog");
+        ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_kind, Editor_CatalogModelKindIndex(self->env_kind));
+        ToriRSChrome_SetText(ui->chrome, self->input_search, "");
+        Editor_UiLog(ui, "editor: TORIRS_EDITOR_CATALOG opens %s", getenv("TORIRS_EDITOR_CATALOG"));
+    }
+    if( f > self->env_open_frame && (f - self->env_open_frame) % self->env_every == 0
+        && self->env_typed < (int)strlen(self->env_find) )
+    {
+        char typed[64];
+        self->env_typed++;
+        snprintf(typed, sizeof(typed), "%.*s", self->env_typed, self->env_find);
+        ToriRSChrome_SetText(ui->chrome, self->input_search, typed);
+        if( Editor_CatalogModelStats() )
+            TORIRS_REPORT("catalog: frame %d types '%s'\n", f, typed);
+    }
+    while( self->env_pick_next < self->env_pick_count && f >= self->env_pick_frame[self->env_pick_next] )
+    {
+        int const row = self->env_pick_row[self->env_pick_next++];
+        if( row < 0 || row >= Editor_CatalogModelRowCount(&self->model) )
+        {
+            Editor_UiLog(ui, "editor: TORIRS_EDITOR_CATALOG pick=%d: the page has %d rows", row,
+                Editor_CatalogModelRowCount(&self->model));
+            continue;
+        }
+        if( Editor_CatalogModelStats() )
+            TORIRS_REPORT("catalog: frame %d picks row %d\n", f, row);
+        ToriRSChrome_VListSetSelected(ui->chrome, self->list, row);
+        (void)catalog_activate(ui, self, self->list);
+    }
+    if( f == self->env_next_frame )
+    {
+        if( Editor_CatalogModelStats() )
+            TORIRS_REPORT("catalog: frame %d presses Next page\n", f);
+        (void)catalog_activate(ui, self, self->button_next);
+    }
+    if( f == self->env_edit_frame )
+    {
+        double const t0 = Editor_CatalogModelNowMs();
+        (void)catalog_activate(ui, self, self->button_edit_record);
+        if( Editor_CatalogModelStats() )
+            TORIRS_REPORT("catalog: frame %d Edit record... %.2f ms\n", f, Editor_CatalogModelNowMs() - t0);
+    }
+}
+
+/** TORIRS_CATALOG_STATS=1: the wall time between this tick and the last, i.e.
+ *  the frame that just ran, for every frame the env drives and any frame
+ *  over 33 ms (the warm build's slices included). */
+static void
+catalog_meter(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    double const now = Editor_CatalogModelNowMs();
+    double const dt = self->meter_last_ms > 0.0 ? now - self->meter_last_ms : 0.0;
+    int const driven = self->env_open_frame >= 0 && self->env_frames >= self->env_open_frame
+                       && self->env_frames <= self->env_last_frame + 30;
+
+    self->meter_last_ms = now;
+    if( !Editor_CatalogModelStats() || dt <= 0.0 )
+        return;
+    (void)ui;
+    if( driven || dt > 33.0 )
+        TORIRS_REPORT("catalog: frame %d %.2f ms\n", self->env_frames, dt);
+}
+
 static void
 catalog_tick(
     struct EditorUi* ui,
@@ -463,8 +646,11 @@ catalog_tick(
     struct EditorHost* host;
     const char* search;
     char line[TORIRS_CHROME_LABEL_MAX];
-    int const kind_index = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_kind);
+    int kind_index;
 
+    catalog_meter(ui, self);
+    catalog_env_tick(ui, self);
+    kind_index = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_kind);
     /* A pick heard from another window: named whether or not this panel is
      * open (a popped-out Preview shows the name). */
     if( self->pick_name_pending )

@@ -25,6 +25,11 @@
 #    never relogged, presses the new op3 and reads the script's message.
 # 6. (d) the same for an npc: `op4=Wave` on Hans and [opnpc4,hans].
 # 7. live-detach stops the launched processes; the tree is checked untouched.
+#
+# The lane has no play client (TORIRSMAPED_LIVE_PLAY_BIN=): the scriptrun bot
+# is its player, and a scriptrun server refuses a real client. run_play.sh
+# (make -C src maped-live-e2e-play) is the lane with a real server and the
+# real play client.
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../../../.." && pwd)
@@ -73,7 +78,7 @@ cp -R "$repo/cache.osrs241/" "$dir/lane/cache"
 say "lane ready: $(du -sh "$dir/lane" | cut -f1)"
 
 LIVE_E2E_REPO="$repo" LIVE_E2E_DIR="$dir/lane" LIVE_E2E_OBJ="$obj" \
-TORIRSMAPED_LIVE_SERVER_BIN="$here/server.sh" \
+TORIRSMAPED_LIVE_SERVER_BIN="$here/server.sh" TORIRSMAPED_LIVE_PLAY_BIN= \
 TORIRSMAPED_LIVE_JS5_BIN="$repo/src/$obj/js5_server" \
 TORIRSMAPED_LIVE_GAME_PORT="$game_port" TORIRSMAPED_LIVE_JS5_PORT="$js5_port" \
     "$repo/src/$obj/torirsmaped" "$maped_port" --content-dir "$dir/content" --repo-root "$repo" \

@@ -8,9 +8,35 @@
 
 #include "torirsmaped/torirs_maped_catalog.h"
 
+#include "log/torirs_log.h"
+
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+double
+Editor_CatalogModelNowMs(void)
+{
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
+}
+
+int
+Editor_CatalogModelStats(void)
+{
+    static int read = 0;
+    static int on = 0;
+    if( !read )
+    {
+        const char* value = getenv("TORIRS_CATALOG_STATS");
+        on = value && value[0] && value[0] != '0';
+        read = 1;
+    }
+    return on;
+}
 
 /* The dropdown: the kinds people place and edit first, then the rest of the
  * index, then every kind at once. */
@@ -190,8 +216,15 @@ Editor_CatalogModelRefresh(
     }
 
     memset(&page, 0, sizeof(page));
-    status = Editor_HostMapEdCatalogQuery(host, model->kind, model->filter, 0, model->page, model->page_size, &page);
+    {
+        double const t0 = Editor_CatalogModelNowMs();
+        status = Editor_HostMapEdCatalogQuery(host, model->kind, model->filter, 0, model->page, model->page_size, &page);
+        model->last_query_ms = Editor_CatalogModelNowMs() - t0;
+    }
     model->queries++;
+    if( Editor_CatalogModelStats() )
+        TORIRS_REPORT("catalog: query kind=%u find='%s' page=%u total=%u rows=%d %.2f ms\n", model->kind,
+            model->filter, model->page, page.total, page.row_count, model->last_query_ms);
     if( model->held )
         Editor_HostCatalogPageFree(&model->result);
     drop_record(model);
@@ -292,8 +325,15 @@ Editor_CatalogModelRecord(
     {
         drop_record(model);
         r = Editor_CatalogModelRow(model, row);
-        model->record_status = Editor_HostMapEdCatalogRecord(host, r->kind, r->id, r->name, &model->record);
+        {
+            double const t0 = Editor_CatalogModelNowMs();
+            model->record_status = Editor_HostMapEdCatalogRecord(host, r->kind, r->id, r->name, &model->record);
+            model->last_record_ms = Editor_CatalogModelNowMs() - t0;
+        }
         model->record_fetches++;
+        if( Editor_CatalogModelStats() )
+            TORIRS_REPORT("catalog: record %s %s %.2f ms\n", ToriRSMapEdCatalog_KindName(r->kind), r->name,
+                model->last_record_ms);
         model->record_row = row;
         model->record_held = model->record_status == EDITOR_HOST_OK;
     }

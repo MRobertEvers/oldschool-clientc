@@ -242,9 +242,11 @@ struct Editor_Doc;
 struct ToriRSMapEdCatalog;
 
 /**
- * A catalog over `content_dir`. Builds nothing yet: the first query (or
- * ToriRSMapEdCatalog_Refresh) does, so a server that is never asked for the
- * catalog never pays for reading the tree. Never writes anything.
+ * A catalog over `content_dir`. Builds nothing yet: the service pass builds
+ * it in slices (ToriRSMapEdCatalog_Service), and the first query (or
+ * ToriRSMapEdCatalog_Refresh) finishes whatever is left, so a process that
+ * neither services nor queries it never reads the tree. Never writes
+ * anything.
  */
 struct ToriRSMapEdCatalog*
 ToriRSMapEdCatalog_Create(const char* content_dir);
@@ -268,9 +270,18 @@ struct ToriRSMapEdCatalogStats
 
 /**
  * Re-stat every source and re-parse what changed (on the first call: build
- * everything). `force` 0 does nothing when the last refresh was under
- * `refresh_interval_s` ago — what a query calls, so a burst of queries stats
- * the tree once. Returns 1 when the merged index changed.
+ * everything), all at once. `force` 0 does nothing when the last refresh was
+ * under `refresh_interval_s` ago. Returns 1 when the merged index changed.
+ *
+ * Requests do NOT call this (docs/MAPED_STATUS.md "Catalog performance"):
+ * stat'ing the ~100,000 files of the tree took 0.2-1.8 s, and doing it on the
+ * request after every two-second pause made a keystroke or a row click stall
+ * the editor's frame for that long. A request answers from the index it has
+ * (building it only when there is none) and, once `refresh_interval_s` has
+ * passed since the last pass, starts a freshness SWEEP that
+ * ToriRSMapEdCatalog_Service advances a slice at a time; what the sweep finds
+ * changed is parsed and merged when it ends. A record view re-checks its own
+ * files on every request and re-reads them when they changed.
  */
 int
 ToriRSMapEdCatalog_Refresh(
@@ -288,7 +299,66 @@ ToriRSMapEdCatalog_RefreshMaps(struct ToriRSMapEdCatalog* catalog);
 int
 ToriRSMapEdCatalog_Built(const struct ToriRSMapEdCatalog* catalog);
 
-/** Seconds between the stat sweeps a query may trigger. Default 2. */
+/** Milliseconds one service slice may spend on a freshness sweep, and on
+ *  the warm build (the build is ~6 s of work on the owner's tree: at 6 ms a
+ *  frame it is done ~20 s after the editor opens; a Catalog opened sooner
+ *  waits for the rest). */
+#define TORIRSMAPED_CATALOG_SLICE_MS 2.0
+#define TORIRSMAPED_CATALOG_WARM_SLICE_MS 6.0
+
+/**
+ * The index's background job, from the server's service pass (every pump):
+ * builds the index in slices from the first call (a scan, then the files
+ * parsed a few at a time, then the merge), and afterwards advances a
+ * freshness sweep a request started. Spends about `budget_ms` per call; one
+ * file's parse or the closing merge may run past it. Returns 1 while work
+ * remains (the daemon then polls quickly).
+ */
+int
+ToriRSMapEdCatalog_Service(
+    struct ToriRSMapEdCatalog* catalog,
+    double budget_ms);
+
+/** Changes when a merge of a built index took in a square file that changed,
+ *  came or went (or a lane): the service pass then broadcasts the atlas, as
+ *  a save does (torirs_maped_live.c ToriRSMapEd_Service). */
+uint32_t
+ToriRSMapEdCatalog_MapsRevision(const struct ToriRSMapEdCatalog* catalog);
+
+/** 1 while a build or a sweep is in progress. */
+int
+ToriRSMapEdCatalog_Working(const struct ToriRSMapEdCatalog* catalog);
+
+/** What the index has done since it was created: the work bounds the
+ *  perf test (editor_catalog_perf_test.c) checks. */
+struct ToriRSMapEdCatalogCounters
+{
+    /** Files and directories stat'ed, by any scan or freshness check. */
+    long stats;
+    /** Freshness sweeps (and the warm build) finished, and the service
+     *  slices that advanced them; the longest slice. */
+    long sweeps;
+    long slices;
+    double slice_max_ms;
+    /** Merges run (each bumps the index revision). */
+    long merges;
+    /** Records a query tested; queries that tested every record, that
+     *  narrowed the previous query's hits, that the held hits answered. */
+    long examined;
+    long full_scans;
+    long narrowed;
+    long held;
+    /** Config blocks read back from disk for record views. */
+    long block_reads;
+};
+
+void
+ToriRSMapEdCatalog_Counters(
+    const struct ToriRSMapEdCatalog* catalog,
+    struct ToriRSMapEdCatalogCounters* out);
+
+/** Seconds between the end of one freshness sweep and the next a request
+ *  may start. Default 2. */
 void
 ToriRSMapEdCatalog_SetRefreshInterval(
     struct ToriRSMapEdCatalog* catalog,
@@ -339,7 +409,12 @@ ToriRSMapEdCatalog_EncodeSquares(
 
 /** The query engine behind CATALOG_QUERY: matching record indices, sorted
  *  (exact name matches first, then by kind, id, name), written into
- *  `out_records` up to `max`. Returns the total match count. */
+ *  `out_records` up to `max`. Returns the total match count.
+ *
+ *  The last query's hits are held, keyed on (kind, text, flags, index
+ *  revision): the same query again (the next page) tests nothing, and a
+ *  query whose terms and filters imply the held one's (typing on: "oa" after
+ *  "o", "oak tree" after "oak") tests only the held hits. */
 int
 ToriRSMapEdCatalog_Query(
     struct ToriRSMapEdCatalog* catalog,

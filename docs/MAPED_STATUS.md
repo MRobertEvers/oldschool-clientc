@@ -166,6 +166,13 @@ tab cannot reach the ToriRSMapEd embedded in another.
   `TORIRS_EDITOR_VIEW_BMP` set a popped-out window also moves an inherited
   `TORIRS_EXIT_BMP` to `<dir>/view_<module>_exit.bmp`, so it no longer
   overwrites the leader's exit photograph.
+- `TORIRS_EDITOR_CATALOG=<kind>:<find>[@<frame>][,every=<frames>][,pick=<row>@<frame>...][,next=<frame>][,edit=<frame>]`
+  -- for a measurement: at main-window editor frame `<frame>` (default 60)
+  open the Catalog on `<kind>` and type `<find>` one character every
+  `<frames>` frames (default 8), click result row `<row>` at each pick
+  frame, Next page / Edit record... at theirs. `TORIRS_CATALOG_STATS=1`
+  prints a line per catalog round trip (ms) and per frame
+  (src/editor/panels/edpanel_catalog.c; "Catalog performance" below).
 - `TORIRS_EDITOR_TRIGGERS=<subject>[,file][,record][,add=<kind>[:<op
   text>]][,check]` -- for a photograph: once the layout ran, dock the
   Triggers panel over the right half of the world on record `<subject>`
@@ -211,7 +218,9 @@ then boot the client with `server=tcp` in `[editor:boot]` (host/port default
 localhost:43610). `torirsmapedctl` drives the same daemon headless: `status`,
 `squares`, `open`, `doc`, `new`, `select`, `undo`/`redo`, `save`, and since
 phase 4 `text-replace`, `tile-height`, `live-attach`, `live-detach`,
-`live-cheat`, `build packs|client`, `run`, and for spawns and records:
+`live-cheat`, `build packs|client`, `run`, `play [seconds]` (start the lane's
+play client, launching the lane when it is down, and wait until the server
+lists it), `play-restart [seconds]`, `play-stop`, and for spawns and records:
 
     torirsmapedctl spawn-edit [gen:]<kind> <name> <x> <z> <level> [count] to <kind> <name> <x> <z> <level> [count]
     torirsmapedctl spawn-move [gen:]<kind> <name> <x> <z> <level> [count] to <x> <z> [level]
@@ -279,6 +288,28 @@ a dat2 cache, e.g. the lane's), and open
 see the reload). The lane's server builds its world, and answers the daemon's
 control link, only after that first login.
 
+A LAUNCHED lane serves that page itself when it has an io_server
+(`TORIRSMAPED_LIVE_IO_BIN` and `TORIRSMAPED_LIVE_IO_MANIFEST` set -- the
+latter now only switches io_server on; there is no preopen): it starts
+`io_server --root <io_root> --port <io_port> --boot-root <live>/play/web`,
+the tree holding `manifests/manifest_<rev>.ini` (the play manifest, `dir=../cache`,
+the lane's game port), `cache` (a link to the lane's cache: io_server opens only a
+cache inside its boot root) and `revconfig` (a link to the repository's), and
+FACT_LIVE_PLAY carries the play URL
+(`ToriRSMapEd_LaneWebPlayUrl`: `http://127.0.0.1:<io>/?args=--manifest,manifests/manifest_<rev>.ini,--connect,127.0.0.1:<game>,--user,maped<game>,--pass,lane<game>run&ws=ws://127.0.0.1:<game>/&js5_url=ws://127.0.0.1:<js5>/&idb=maped<game>`;
+`torirsmapedctl play` prints it as `web play:`). **Checked (2026-11-02):** that
+URL, opened in headless Chromium against a launched lane, logged in as the
+lane's account (server log `maped43633 logged in`, the link attached) and drew
+both RUN spikes, with the build-web/ of 2026-10-22. **The web editor's RUN:**
+its Live panel sends LIVE_PLAY browser once (src/editor/live/live_panel.c), so
+the daemon never starts a native client for it, and after a RUN whose account
+is not on the server it opens the play URL in a tab (`window.open`; a
+blocked popup is logged); its Play does the same. That half is
+compile-checked (emcc -fsyntax-only of live_panel.c, live_client.c and
+torirs_maped.c) but was not run in a browser: build-web/ was not rebuilt
+(it is a shared output). A lane with no io_server answers "no play tab: the
+lane serves no web page".
+
 **The launched live lane** (edit, RUN, the live server and clients update):
 
     torirsmaped ... --content-dir <writable tree> --repo-root . --live-dir <live dir>
@@ -295,10 +326,48 @@ launch settings default from `ToriRSMapEd_LaneDefaults`
 (View menu) attaches or launches, runs BUILD and RUN, follows a player's
 varps, sends cheats and teleports to the selection. The pack build allocates
 ids into the content tree's `pack/<ns>.alloc` (that is what allocation is), so
-the content dir of a lane must be writable.
+the content dir of a lane must be writable. A launched lane's server keeps its
+accounts and saves in `<live>/saves` (`TORIRSSERVER_SAVES`), skips the welcome
+screen (`TORIRSSERVER_SKIP_WELCOME=1`), and every launched process writes
+`<live>/logs/{server,js5,io,play}.log`.
+
+**The play client** (RUN opens a game client, or reloads the one it opened):
+each lane has one, started and tracked by the editor server like the lane's
+servers (src/torirsmaped/torirs_maped_live.h "The play client"), so a RUN
+from any window, the Live panel's **Play** / **Stop** and
+`torirsmapedctl play | play-restart [seconds] | play-stop` reach the same one.
+It is `<repo>/src/torirs` (`TORIRSMAPED_LIVE_PLAY_BIN`; "" = none) on
+`<live>/play/manifest.ini`, written at each start from
+`manifests/manifest_<rev>.ini` (`_PLAY_MANIFEST`) with the cache dir
+`<live>/play/cache` (filled over the lane's JS5), `[net:boot]` the lane's game
+port and every relative path made absolute, run as `--js5 --js5-host
+127.0.0.1 --js5-port <js5> --js5-fallback-port 0 --user maped<game port>
+--pass lane<game port>run` (`_PLAY_USER`, `_PLAY_PASS`), its first save
+`test/quests/fixtures/fresh_lumbridge.ini` copied to
+`<live>/saves/<account>.ini` (`_PLAY_FIXTURE`) so it does not start on
+Tutorial Island. It inherits the editor's environment minus the capture and
+editor keys (`TORIRS_SIM_HOTKEY`, `TORIRS_EXIT_BMP`, `TORIRS_MAX_FRAMES`,
+`TORIRS_BMP_SERIES`, `TORIRS_PRESENT_BMP*`, `TORIRS_SCREENSHOT*`,
+`TORIRS_EDITOR_*`, `TORIRSMAPED_*`) with `TORIRS_PREFS=<live>/play/
+preferences.ini`; `TORIRSMAPED_PLAY_ENV_<NAME>=<value>` reaches it as
+`NAME=<value>` (headless: `TORIRSMAPED_PLAY_ENV_SDL_VIDEODRIVER=dummy`). RUN,
+after the reload: no play client -> it is started; one on the server's player
+list -> "reloaded in the running client (<account> at x,z, no relog)" (it took
+CACHE_INVALIDATE and the REBUILD); exited or logged out -> started again;
+still logging in -> left alone. A lane that is DOWN when RUN reaches the
+reload is launched on what the RUN just built (no reload owed) and the client
+started; its login builds the main torirsserver's world, which is when the
+link attaches. A lane that cannot launch (no server binary) keeps the old
+failure plus "Launch the lane first". The Live panel's play line reads `play:
+not started | starting <account> | logged in as <account> at m50_50
+(3222,3218) | <account> logged out | exited -- <why>`; Play starts it (or
+restarts a dead or logged-out one, launching the lane when it is down), Stop
+stops it; Detach of a launched lane stops it with the servers.
+`TORIRS_EDITOR_LIVE=show` opens the Live panel with the editor (photographs).
 
 The whole loop, scripted, is `make -C src maped-live-e2e`
-(src/maped/test/live_e2e/run.sh, below).
+(src/maped/test/live_e2e/run.sh, below), and with the real server and the
+real play client `make -C src maped-live-e2e-play` (run_play.sh, below).
 
 ## Built, by design section
 
@@ -312,7 +381,7 @@ The whole loop, scripted, is `make -C src maped-live-e2e`
 | 6 | Server state and protocol | protocol v2, HELLO capabilities, frame/state-key reservations, group state relay | — |
 | 7 | Chrome | TREE, VLIST, TOOLBAR, SLIDER (settings-bar track 2852/2855/2857, gem knob 2858, label column <= 30%), RADIO, MODAL, TOOLTIP, CODE, GRAPH, splitter docking; grid snap on drag/resize release (`ToriRSChrome_SetSnap`, 8 px at 1x, 16 at 2x, edge snap within one cell); 28 baked skin slots; DOM rendering; hollow panels (`ToriRSChrome_PanelSetHollow`: title bar, rails and grip drawn and hit, the body neither painted nor hit, `ToriRSChrome_PanelBodyRect`); the dock layout persisted per device in `editor_layout.ini` (`TORIRS_EDITOR_LAYOUT`; codec src/editor/editor_layout.c, IO tasks src/editor/task_editor_layout_io.c, debounce `app_map_editor_layout_tick`; desktop file / web IndexedDB through host.readClientFile/writeClientFile) | DOM multi-panel dock layout; a drag still in progress at quit is not saved |
 | 7b | World panel | the 3D view is the registry module "world" (editor_ui.c `ui_world_register`, first chrome panel so it draws under the rest): titled, resizable, hollow; in the View menu; the default layout docks it over exactly the region the old world rect was; `Editor_UiWorldRect` is its body; the App cuts the world widget to it through the reference letterbox (`App_MapEditorWorldLetterbox` answers UITREE_HOST_GET_WORLD_LETTERBOX: the 3D pass draws in the body, the rest of the widget box is the black band) and restates `world_emit_desc` (`App_MapEditorWorldView`), so the paint, picks, hover, brush footprint, ghosts and selection marks all follow it; hidden World = no world drawn or picked; part of the saved layout; viewer windows (panels hidden) keep the whole frame; **Pop out / Pop in** (title-bar arrow, `Editor_UiWorldPopOut`; View > World pops it back in) under embed (loopback listener) and tcp, the main window's columns taking the freed space; **Close box** and **edge resize** on World and every other View-menu panel (chrome `poppable`, `closable`, `ToriRSChrome_PanelEdgeAt`); tests: editor_panels_test `test_popout` (button press, camera and pinned level handed to the App, hide, View row "popped out", pop in, refusal kept with its reason, the column closing up, Close box + View row "hidden", left-edge and corner resize with the grid, World's top edge, a solo window); photographed 2026-11-02 under the default embed profile | the box origin of the world widget is taken from last frame's desc (the letterbox request carries only its size); the panel has no maximise / dock-to-edge gesture |
-| 8 | Asset catalog | server-side index of packs, allocs, compacks, config blocks, overlays, interfaces, cs2/rs2 headers, spawns, maps; CATALOG_QUERY/RECORD (a record's fields in the pack's merge order: all.<type>, `.generated.` overlays, authored overlays, path order within a rank); mtime refresh; the Catalog panel queries it (every kind, settled find, paged list, record view, Edit record..., Copy to new; edpanel_catalog_model.c). **Preview panel** (2026-11-02, owner: "the previewer in the catalog should be its own panel connected to the catalog panel"; module "preview", src/editor/panels/edpanel_preview.c, registered by the Catalog, right after it in the View menu and the dock order): the Catalog lost its model well and Reset view (it is that much shorter) and the Preview holds them -- a subject row, the MODELVIEW filling the body (`stretch`, so the dock and a resize give the well every spare pixel; `ToriRSChrome_ModelViewSetBox`), Reset view. Subject (`Editor_Preview_Subject`): the pick (a multiloc's chosen rung, `Editor_Catalog_PreviewId`), else while nothing is picked the primary selected loc. The App renders it at the well's size (src/app/app_map_editor.c `app_map_editor_preview_update`): one 640x512 sprite for every well (`EDITOR_PREVIEW_SPRITE_W/H`; GL3 reuses an atlas tile only at the same size, so per-size sprites would fill the 2D atlas within a few resizes) drawn centred and clipped (`ToriRSChrome_ModelViewSetSprite`), the projection scaled to the well (`EditorPreviewCamera_ProjectionScale`: the reference 120x96 framing, bigger; 384 at the reference, so the calibrated fit no longer cuts the top off trees and npcs) and the model's vertical middle on the view's; a new subject gets the default pose and a fresh fit; a loc or npc config the window never loaded is asked for once (a popped-out window's world need not hold it), and missing models are asked for once per subject, not every frame. Orbit keys as before while the well has the focus (`app_modelview_focused` is any focused MODELVIEW, which is now the Preview's; the editor hotkeys stay gated). **Opening**: when the Catalog opens or a record is picked while the Preview is closed, it opens against the Catalog's left side, top-aligned (`Editor_UiPanelOpenBeside`), unless the user closed it in this session (in-process memory, never the layout file; a relayout with no room, Tab, a pop-out or the editor closing is not a user close). **Relay**: the pick is now heard as well as published (STATE_CATALOG_PICK, `catalog_on_state`, with the shared tools' echo rule; the name asked of the catalog on the next tick), so a popped-out Preview -- or Catalog -- follows the main window's picks; the eyedropper (Shift+I, `Editor_Catalog_Adopt`) publishes too. Tests: editor_panels_test `test_preview` (registry order, furniture, View row and chord, the Catalog has no model view, auto-open beside the Catalog, the selected-loc subject, a picked row, Reset view, the well growing 200 px with the panel and nothing scrolling, a peer window solo on "preview" hearing the pick and naming it, the echo rule, Pop out / pop in, the Close box holding through a pick and a Catalog reopen, a layout file without "preview" loading as the one with it does), editor_ghost_preview_test (projection scale), editor_hotkeys_test (`view.preview`). Photographed 2026-11-02 at 1280x800: the Catalog with oaktree picked beside the Preview; a popped-out Preview showing hans after the main window picked him | first build blocks the server pump (~1 s warm, ~6 s cold); see open issues (Preview panel) |
+| 8 | Asset catalog | server-side index of packs, allocs, compacks, config blocks, overlays, interfaces, cs2/rs2 headers, spawns, maps; CATALOG_QUERY/RECORD (a record's fields in the pack's merge order: all.<type>, `.generated.` overlays, authored overlays, path order within a rank); mtime refresh; the Catalog panel queries it (every kind, settled find, paged list, record view, Edit record..., Copy to new; edpanel_catalog_model.c). **Preview panel** (2026-11-02, owner: "the previewer in the catalog should be its own panel connected to the catalog panel"; module "preview", src/editor/panels/edpanel_preview.c, registered by the Catalog, right after it in the View menu and the dock order): the Catalog lost its model well and Reset view (it is that much shorter) and the Preview holds them -- a subject row, the MODELVIEW filling the body (`stretch`, so the dock and a resize give the well every spare pixel; `ToriRSChrome_ModelViewSetBox`), Reset view. Subject (`Editor_Preview_Subject`): the pick (a multiloc's chosen rung, `Editor_Catalog_PreviewId`), else while nothing is picked the primary selected loc. The App renders it at the well's size (src/app/app_map_editor.c `app_map_editor_preview_update`): one 640x512 sprite for every well (`EDITOR_PREVIEW_SPRITE_W/H`; GL3 reuses an atlas tile only at the same size, so per-size sprites would fill the 2D atlas within a few resizes) drawn centred and clipped (`ToriRSChrome_ModelViewSetSprite`), the projection scaled to the well (`EditorPreviewCamera_ProjectionScale`: the reference 120x96 framing, bigger; 384 at the reference, so the calibrated fit no longer cuts the top off trees and npcs) and the model's vertical middle on the view's; a new subject gets the default pose and a fresh fit; a loc or npc config the window never loaded is asked for once (a popped-out window's world need not hold it), and missing models are asked for once per subject, not every frame. Orbit keys as before while the well has the focus (`app_modelview_focused` is any focused MODELVIEW, which is now the Preview's; the editor hotkeys stay gated). **Opening**: when the Catalog opens or a record is picked while the Preview is closed, it opens against the Catalog's left side, top-aligned (`Editor_UiPanelOpenBeside`), unless the user closed it in this session (in-process memory, never the layout file; a relayout with no room, Tab, a pop-out or the editor closing is not a user close). **Relay**: the pick is now heard as well as published (STATE_CATALOG_PICK, `catalog_on_state`, with the shared tools' echo rule; the name asked of the catalog on the next tick), so a popped-out Preview -- or Catalog -- follows the main window's picks; the eyedropper (Shift+I, `Editor_Catalog_Adopt`) publishes too. Tests: editor_panels_test `test_preview` (registry order, furniture, View row and chord, the Catalog has no model view, auto-open beside the Catalog, the selected-loc subject, a picked row, Reset view, the well growing 200 px with the panel and nothing scrolling, a peer window solo on "preview" hearing the pick and naming it, the echo rule, Pop out / pop in, the Close box holding through a pick and a Catalog reopen, a layout file without "preview" loading as the one with it does), editor_ghost_preview_test (projection scale), editor_hotkeys_test (`view.preview`). Photographed 2026-11-02 at 1280x800: the Catalog with oaktree picked beside the Preview; a popped-out Preview showing hans after the main window picked him **Catalog performance** (2026-11-02, owner: "Selecting and searching is very slow"): no request stats the tree any more -- a request answers from the index and, past the 2 s interval, starts a freshness sweep the service pass advances 2 ms a slice; the index warm-builds in 6 ms slices from the server's first service pass; the last query's hits are held (a page flip tests nothing, typing on tests only the held hits); a record view re-reads only its own changed files. Numbers, recipe and test: open issues "Catalog performance" | a Catalog opened in the first ~15 s waits for the rest of the warm build; a sweep that finds a change merges in one ~80-100 ms step; see open issues (Catalog performance, Preview panel) |
 | 9a | Active level | menu bar Level row after View: `Auto 0 1 2 3 Above`, the pressed button is `tools.edit_level`, Above (pinned only) draws every level; keys PageUp/PageDown step and clamp 0..3 (from Auto, from the plane under the pointer), Ctrl+0..3 pin, the same chord again = Auto; World panel title "World - level N"; a pin caps the view at itself (`vis_level` follows, levels above and roofs not drawn), Auto draws every level as before; `edp_level_*` in src/editor/panels/edpanel_common.c; synced as STATE_EDIT_LEVEL (another window's pin moves the cap too, menu bar tick); with a level pinned the hover, every tool's click (select included), the brush footprint, ghosts, rectangle and inspector use the PINNED plane's tile under the pointer (`app_map_editor_pin_hover` re-picks against that level's height field when the pick met another plane; `Editor_PanelHoverTile`); the free camera's eye shifts by the height between planes on a pin; an empty upper level takes paint, heights, locs and spawns (flushed locally) | see open issues (World, views) |
 | 9 | Terrain tools | brushes with radius/falloff/step, palettes with shape thumbnails, flags, level radio, rectangle select/copy/paste/fill/clear; brush footprint under the pointer (`Editor_Terrain_BrushFootprint`, same weights as the stroke, falloff shown as wash intensity, follows a drag; >121 tiles as nested washes) | — |
 | 9b | Square picker and New square | atlas (storages, world-map areas incl. Unmapped instance regions, colour, spawns, flags), picker GRAPH with area tabs, zoom, hover, search, open/shift-open/right-click; New modal (coordinates, storage maps/ or a lane with lane creation, template empty/copy/flat) -> DOC_CREATE. **World map under the grid, zoomed like 595** (2026-11-02, reworked the same day after the owner's notes): the page's area drawn as the CS2 world map draws it, by the client's own renderer (game/rs_worldmap_render.c `RS_WorldMapRender_RegionPixels`: a region baked into a caller buffer with the icons its locs carry, same loads/waits/request table as `RegionSprite`; `SetFrameBudget`; a used-up geography request is forgotten so the next bake of that region asks again at once). game/rs_worldmap_overview.{h,c} keeps every region at one pixel per tile for the process (~16 KB each, never evicted) plus a pool of close-up bakes at the zoom's own 2..8 px a tile (`RS_WorldMapOverview_BakeScale` = ceil(px/64), 595's range; 96 slots, 64 MB, least recently used out, four 8 px regions a poll), and cuts pictures of a zoom's GLOBAL pixel space (struct RS_WorldMapOverviewTile: square column m starts at floor(m*64*zoom/64), rows from the world's north edge) through each area's compositemap records -- box-filtered below one pixel a tile, the close-up bake pixel for pixel above it. **Zoom**: continuous (`Editor_Picker.zoom`, logical px a square) from the whole page in the well (`Editor_PickerZoomMin`; 4 px for a small page, never below 0.25) to one square filling it (at least 256, `Editor_PickerZoomMax`); the wheel is x1.25 a notch about the cursor (the map point under it stays put); left-drag pans (past 3 px it is a pan, never a click); a still click selects and opens (shift adds); a double-click opens in place; with the well focused (a press focuses it) `+`/`=` and `-`/`_` zoom about its middle and the arrows pan an eighth of it (new `TORIRS_CHROME_EVENT_GRAPH_KEY`; Escape releases); Fit frames the page's squares edge to edge; axis labels thin to 1/2/5/10/20/50/100 so neighbours never touch; the grid and the map share the global pixel space so they agree to the pixel at every zoom. **Tiles** (editor/editor_worldmap.{h,c}): the well is drawn as 128x128 logical-px pictures, each rendered once per zoom, area and page into one of 80 scene sprites (`UITREE_SCENE_EDITOR_PICKER_MAP_BASE` 0x4C000000 + slot, least recently drawn reused) -- every picture the same size. THAT was the owner's "blanks out when I zoom in": the old single picture changed size on every zoom, and the GL3 renderer packs sprites into its shared 2048-square 2D atlas and reuses a sprite's place only for the same size, so after a few zooms the inserts failed and the map silently stopped drawing (src/platform/platform_sdl2_renderer_gl3.c `gl3_sprite_upload_rgba`); pictures are logical px (stretched by the chrome scale) for the same reason. A pan renders only the tiles it brings in; tiles render nearest the middle first, 3M source tiles of work a tick (at least one); until a zoom's tiles are in, the last complete zoom is drawn scaled under them (the transition), so a zoom never flashes black and never stalls a frame. Regions still loading: polled every tick, tiles drawn meanwhile redrawn when the bake serial moves (at most every 10 ticks). **Over the map**: the map element icons (the bakes' loc icons and the compositemap's own list, the latter first so labels survive a crowded view) through `app_mapfunction_scene_id` (config and sprite loaded on demand, like 595), fading in from 40 to 64 px a square, and area labels by text size (large from 6, medium 16, small 40, a grey-to-white fade); outlines: the selection (yellow, the whole cell; a plain click replaces it, shift adds), unsaved (accent), created (green), and the squares in THIS window's world (`EDITOR_PICKER_OPEN_HERE` = loaded and inside the window's own view frame, a cyan 2 px inset) -- the owner's "small selection squares that persist" were the old white open-set outline of every square the mirror had ever opened; the server's open flag no longer draws one, and the view frames are drawn under the selection so a frame never hides it. Squares the page does not show are dimmed; a shown square no area maps keeps its own colour; black elsewhere; a faint grid from 8 px a square. **Full map** page (beside the surface in the Area dropdown, `EDITOR_PICKER_TAB_FULL`): every square of the atlas at its true coordinate, every world-map area composed onto that one grid (worldmap_area("*") = `EDITOR_UI_MAP_AREA_ALL`; `RS_WorldMapOverview_PollAll` / `RenderTileAll` / `IconsAll`, the main area first, where two areas place a region the first keeps it), so dungeons, caves and instance regions show their imagery where their squares are; same search, open, New square and selection. Services on `EditorUiAppServices`: `worldmap_area`, `worldmap_poll` (with the zoom), `worldmap_render_tile`, `image_publish`, `worldmap_icons` (src/app/app_map_editor.c, not filled under `__EMSCRIPTEN__`). A click on an EMPTY square opens New square prefilled with it. No services (headless harness, web): the picker as before; Unmapped page: no map. Timing (osrs241, this Mac, private OPT build): cold full surface 0.73-0.80 s first ask to last bake (about 0.4 s of it one frame reading the 1632 regions' tiles); Lumbridge at 595's 100% (256 px a square) 80 ms; the Full map's whole grid ~1 s cold. `TORIRS_WORLDMAP_STATS=1` prints each poll's regions to come and elapsed ms (stderr). `TORIRS_EDITOR_PICKER=<area>[,fit][,zoom=<px>][,at=<x>:<z>][,click=<x>:<z>]...[,new]` (applied 20 ticks in, after the layout; the short `<area>,<zoom>,<x>,<z>` still works) sets a page, zoom, centre and clicks for photographs. Tests: editor_worldmap_test (31: whole region and chunk records, box filter, 48 px a square drawn exactly over its square, 512 px sharp blocks, close-up bake pixel for pixel, the map's edges equal the picker's at real zooms, composition incl. a shown square's own colour), editor_panels_test `test_worldmap` (fake App: area asked once then after the retry, the poll is the visible squares, every picture 128x128 in a slot below 80, quiet ticks reuse pictures, stale tiles redrawn when regions land, slop vs drag-pan vs click, click A then B leaves one selection mark at B drawn over the frame, the open-here mark gone when the world moves, shift-click then double-click opens in place, `+`/`-`/Left on the focused well, the zoom transition keeps the map under the cursor then leaves no stand-in, 48 px a square has pictures with map in them, icon centred on its tile and opaque at 64, fading at 52, gone at 20 with the large label kept, empty-square click -> New square, Full map extent = every atlas square and m27_83 drawn at 27,83, Unmapped and no-services fall back) and `test_picker` (wheel x1.25 about the cursor, zoom range ends, Fit framing, label spacing). Photographed 2026-11-02 at 1x with the Squares panel enlarged: whole surface Fit, Lumbridge at 256 px a square with icons and labels, one square filling the well, the owner's 48 px view at 49,43, two successive plain clicks, the Full map whole and its underground band (z 140-159) at 40 px | picker Delete only clears the square (no DOC_DELETE); a NEW square has no `pack/5_maps.pack` line, so BUILD client cache cannot import it yet; see open issues (Square picker world map) |
@@ -322,7 +391,7 @@ The whole loop, scripted, is `make -C src maped-live-e2e`
 | 13 | Varp and varbit editor | editor_vars bit map, overlap check, naming; editor_alloc mirrors ss_allocate.py | allocator and vars not wired to the protocol or a panel; constants; live ::getvar/::setvar |
 | 14 | CS2 and the interface editor | `.if`/`.compack` codec (982 interfaces byte exact), component tree, inspector, hooks, CS2 run/trace/watch, CODE editor with `cs2 compile`, App mount/pick/refill | IF1 type 8 not mountable; IF_FIELD values over 190 bytes read only; cs2 compile synchronous |
 | 15 | Save, save as new, export, pack | atomic text saves, FACT_SAVED; SAVE_AS of a loc/npc/obj record (fresh id in pack/<type>.alloc, .client line, every field; one undo step; catalog and shell editor "Copy to new...", `torirsmapedctl cfg-copy`); BUILD packs (`make torirsserver-packs` into the live dir); BUILD client cache (`cachepack pack --incremental`, only changed archives written, reference table bumped, plus saved squares by archive) | Save as new for squares (DOC_CREATE copy covers it), interfaces and builder subjects; export/import lane; incremental repack of interfaces, CS2 and other assets in BUILD client cache; scripts lint and cs2 compile as BUILD kinds |
-| 16 | RUN and the live lane | RUN = SAVE_ALL -> packs -> client cache -> CTL_RELOAD -> FACT_RUN_DONE/LIVE_STATUS, stop at first failure, pending set kept on a failed reload; control link (0xED) with gate ticket; script hot reload (shadow table, swap at the tick boundary, old table freed when no frame holds it); sequence/healthbar/struct config groups live; square reload with one REBUILD per covering player and reload=1 on REBUILD_REGION; edited-lane spawn reload; CACHE_INVALIDATE (our opcode 237) sent at 239/241 before the REBUILD; Live panel; launch and attach; scriptrun `--control-port` **Config groups go live (phase 9, 2026-11-01):** the editor snapshots `servpack/pack.manifest` before the packs build and diffs its `archive` lines after it (`ToriRSMapEd_BuildServPackDiff`), sending one reload row `(255, group)` per changed group beside the script pack and client rows (build log `servpack: N archive(s) changed in M group(s)`). The server (`ToriRSServer_ReloadConfigKind`, `ToriRSServer_ContentReload{Locs,Npcs,Objs}`) checks the whole kind against the open pack first and keeps the running table on refusal; loc replaces the info tables, scene records, defs, categories and op overlays and owes every logged-in player one REBUILD; npc re-points every live `npc->def` by type in one bounded pass while the old array is held; obj replaces the info table and requirement rows; seq, healthbar and struct as before. A RESTART_NEEDED answer finishes the RUN with restart rows instead of failing every later RUN. **Client:** CACHE_INVALIDATE on 2/6, 2/9, 2/10 evicts the decoded loc/npc/obj records (retired, never freed under a holder) and the dat2 group cache, then the provider's archive hook (registered in main.c, native) drops the platform's decompressed copy and re-primes JS5 -- 255/255, 255/<index>, the rewritten group (`Js5ClientInvalidateArchive`; js5_server re-checks its cache on every master request); the owed REBUILD is forced past the same-zone early-out so placed scenery re-decodes. Proven: e2e RUN (c) loc op3 and (d) npc op4 pressed by the never-relogged bot (16 s / 13 s); a real client logged into a real torirsserver lane re-decoded blueflower's op3 as the new text after one RUN, no relog (`TORIRS_CACHE_INVALIDATE_DEBUG=1`, `TORIRS_LOC_CFG=<id>`). **Web client (2026-11-01):** main.c registers the same hook on the emscripten build (`PlatformWeb_IO_ArchiveInvalidateHook`, platform_web_api.c); `PlatformWeb_IO_InvalidateArchive` (platform_web_io.js) releases the decoded-archive LRU entry, drops the resident container and the index's reference-table memo (owned decode retired, never freed) and moves the table's generation so a read already out keeps nothing; the host's `invalidateArchive` (torirs_hostio.js -> torirs_js5.js) parks the index's outstanding requests (socket reopened when one was on the wire), fetches 255/255, 255/<index> when the stored table no longer matches the master, re-validates every IndexedDB-stored group of the index by its container CRC against the new table (rscache decode, `ToriRS_WebApi_ReferenceTableArchiveCrc`) and overwrites only the rewritten ones; reads of the index wait meanwhile; re-primes are serialised. Proven on a real torirsserver lane in Chromium: one RUN, no relog, the console showed `io 2/6: 1 decompressed copy dropped`, `js5 fetched 255/255`, `255/2`, the 8 groups the client build rewrote, then `loc_cfg 1187 decoded: name='Flower' ops [] [] [Smell] [] []` (`?env=TORIRS_CACHE_INVALIDATE_DEBUG%3D1&env=TORIRS_LOC_CFG%3D1187`). Tests: web_io_invalidate_test 5, js5_invalidate_test 7 (`make -C src test-web-cache-invalidate`, in test-web-channel). | player list and position in the control protocol; Restart offer; stale list (always 0) |
+| 16 | RUN and the live lane | RUN = SAVE_ALL -> packs -> client cache -> CTL_RELOAD -> FACT_RUN_DONE/LIVE_STATUS, stop at first failure, pending set kept on a failed reload; control link (0xED) with gate ticket; script hot reload (shadow table, swap at the tick boundary, old table freed when no frame holds it); sequence/healthbar/struct config groups live; square reload with one REBUILD per covering player and reload=1 on REBUILD_REGION; edited-lane spawn reload; CACHE_INVALIDATE (our opcode 237) sent at 239/241 before the REBUILD; Live panel; launch and attach; scriptrun `--control-port` **Config groups go live (phase 9, 2026-11-01):** the editor snapshots `servpack/pack.manifest` before the packs build and diffs its `archive` lines after it (`ToriRSMapEd_BuildServPackDiff`), sending one reload row `(255, group)` per changed group beside the script pack and client rows (build log `servpack: N archive(s) changed in M group(s)`). The server (`ToriRSServer_ReloadConfigKind`, `ToriRSServer_ContentReload{Locs,Npcs,Objs}`) checks the whole kind against the open pack first and keeps the running table on refusal; loc replaces the info tables, scene records, defs, categories and op overlays and owes every logged-in player one REBUILD; npc re-points every live `npc->def` by type in one bounded pass while the old array is held; obj replaces the info table and requirement rows; seq, healthbar and struct as before. A RESTART_NEEDED answer finishes the RUN with restart rows instead of failing every later RUN. **Client:** CACHE_INVALIDATE on 2/6, 2/9, 2/10 evicts the decoded loc/npc/obj records (retired, never freed under a holder) and the dat2 group cache, then the provider's archive hook (registered in main.c, native) drops the platform's decompressed copy and re-primes JS5 -- 255/255, 255/<index>, the rewritten group (`Js5ClientInvalidateArchive`; js5_server re-checks its cache on every master request); the owed REBUILD is forced past the same-zone early-out so placed scenery re-decodes. Proven: e2e RUN (c) loc op3 and (d) npc op4 pressed by the never-relogged bot (16 s / 13 s); a real client logged into a real torirsserver lane re-decoded blueflower's op3 as the new text after one RUN, no relog (`TORIRS_CACHE_INVALIDATE_DEBUG=1`, `TORIRS_LOC_CFG=<id>`). **Web client (2026-11-01):** main.c registers the same hook on the emscripten build (`PlatformWeb_IO_ArchiveInvalidateHook`, platform_web_api.c); `PlatformWeb_IO_InvalidateArchive` (platform_web_io.js) releases the decoded-archive LRU entry, drops the resident container and the index's reference-table memo (owned decode retired, never freed) and moves the table's generation so a read already out keeps nothing; the host's `invalidateArchive` (torirs_hostio.js -> torirs_js5.js) parks the index's outstanding requests (socket reopened when one was on the wire), fetches 255/255, 255/<index> when the stored table no longer matches the master, re-validates every IndexedDB-stored group of the index by its container CRC against the new table (rscache decode, `ToriRS_WebApi_ReferenceTableArchiveCrc`) and overwrites only the rewritten ones; reads of the index wait meanwhile; re-primes are serialised. Proven on a real torirsserver lane in Chromium: one RUN, no relog, the console showed `io 2/6: 1 decompressed copy dropped`, `js5 fetched 255/255`, `255/2`, the 8 groups the client build rewrote, then `loc_cfg 1187 decoded: name='Flower' ops [] [] [Smell] [] []` (`?env=TORIRS_CACHE_INVALIDATE_DEBUG%3D1&env=TORIRS_LOC_CFG%3D1187`). Tests: web_io_invalidate_test 5, js5_invalidate_test 7 (`make -C src test-web-cache-invalidate`, in test-web-channel). **Play client (2026-11-02):** RUN = ... reload -> RUN_STEP_PLAY (6, numbered after DONE) -> DONE: the lane's play client (torirs_maped_live.h "The play client"; How to run it) is started when there is none, left alone when the server lists its account ("reloaded in the running client (<account> at x,z, no relog)"), started again when it exited or logged out; a lane that is down at the reload is LAUNCHED on what the RUN built and the client started (no reload owed), a lane that cannot launch says "Launch the lane first". The editor server owns the process like the lane's servers (a `ToriRSMapEdPlayLauncher` seam: native posix_spawn + waitpid; the test binds a fake), so RUN from any window, the Live panel's play line + **Play** / **Stop**, and `torirsmapedctl play | play-restart | play-stop` drive one client, headless or not; LIVE_PLAY (59) / FACT_LIVE_PLAY (179). **Control link:** CTL_PLAYERS (7) -> CTL_FACT_PLAYERS (134): logins since boot (the pool slots' login generations summed), active count, and per player account, display name, slot, login generation, tile; sent once after an accepted HELLO (which is how the editor knows to ask: an older server closes the link on an unknown frame), then polled with the status (every second while the client logs in). The lane's launched server now keeps its saves in `<live>/saves`, skips the welcome screen, and logs to `<live>/logs/`. **Client:** CACHE_INVALIDATE on index 5 (a map square) now evicts too (`CacheProvider_InvalidateArchive`: the split group, the IO layer's copies through the archive hook -- JS5 re-primes and refetches the square -- and the provider's decoded squares); before, a real client rebuilt the scene from the square it already held and a terrain edit waited for the next login (the scriptrun bot, having no cache provider, never showed it). Proven by `make -C src maped-live-e2e-play` (below) and photographed (a RUN from the editor window launched the lane and started the client; a second RUN raised a second spike in the same, never-relogged client). Tests: live_editor_test 146 (play section: launcher on a fake client binary -- manifest, fixture save, environment -- and the state machine: lane down, online, logged out, died, Play/Stop, detach, a server without CTL_PLAYERS, browser), live_panel_test 34, cache_provider_invalidate_test 25. | the play client's position does not reach STATE_LIVE_FOCUS (viewers do not lock to it); Play cannot raise an existing window (it reports "already logged in"); Restart offer; stale list (always 0) |
 | 17 | The web | wasm editor client, viewer tab boot, capabilities gate the menus | browser BuildRunner/LiveLink (answer UNSUPPORTED); content tree host binding |
 | 3c | Areas and Collections | **AREAS document** (kind 5, key `areas`, `<content_dir>/editor/areas.txt`: in the content tree so the team shares and reviews it, outside every pack input so naming an area never changes a build; header comment in src/editor/editor_areas.h): one record per line, `area <name> \| level <0..3\|all> \| rects <x0> <z0> <x1> <z1>[, ...] [\| colour <0..7>] [\| note <text>]` and `collection <name> \| squares <key> ... [\| note <text>]`, names unique per kind; line-preserving codec (src/editor/editor_areas.c: comments, blank lines, CRLF, no final newline byte-identical; the first record brings a 3-line header comment, the last removed takes it back, an emptied document's save removes the file); opened by every session at `Editor_OpenHost`, so every window mirrors it; held as text, applied by parse -> edit -> emit; **commands** AREA_SET 10, AREA_REMOVE 11, COLLECTION_SET 12, COLLECTION_REMOVE 13 (`u.area`: `int line`, the record line before and after, each <= 511 bytes; wire `i32 line, string before, string after`; a SET with a before replaces by name, a rename when the names differ; a REMOVE's undo re-inserts at its old line; refused when the bytes do not match or a name is taken), History rows from the codec ("Mark area Lumbridge castle", "Rename area A to B", "Set level of area A to 1", "Add rect to area A", "New collection C", "Add 1 square to collection C", "Delete area A"); **Areas panel** (module "areas", View menu, dock order after "squares", admitted when the column has room): Areas tab (list name/level/rects, rect status, Name, New from rect -- the Rect tool's rectangle on its level, "no rectangle" said in the panel --, Add rect (to the selected), Rename, Level + Set level, Delete, Go to -- the free camera to the area's centre, opening its square first when it is not loaded --, Show outlines (on), Hide others) and Collections tab (list name/squares, current square = the picker's focus else the latched tile's square, From open (squares), From picker (the shift-click set), Add / Remove current, Rename, Delete, Open all -- each as a document, into the world one load at a time, a confirm past 16); the Rect panel's "Mark area from rect"; the Squares picker's **Collection** dropdown (`all` + every collection: only its squares, on any Area page, Fit frames them; follows edits; off when the collection goes); **world overlay** (app_overlay.c `app_overlay_build_editor_areas` from `Editor_Areas_Overlay`: each rect washed in its colour on its level, outlined along the ground, the name in the overlay's TEXT at the NW corner of the first rect, the selected area brighter; through `world_emit_desc`, so it follows the World panel); ctl `areas`, `area-set`, `area-remove`, `collection-set`, `collection-remove`; tests editor_areas_test, editor_panels_test `test_areas`, maped_embed_test, maped_daemon_test.sh (9) | see open issues (Areas and collections) |
 | 3b | History panel | `Editor_History` (editor_cmd.c) rebuilt from the FACT_CMD stream + own undo/redo; rows newest first with names ("Raise 21 tiles m50_50 L0", "New square m1_1 (copy of m50_50)"), undone prefix, current marker, filter by key, click-to-jump; rebuilds only on serial change | a late-joining window lists only steps since it connected; another window's long drag may show as several rows until an undo re-cuts them |
@@ -374,12 +443,107 @@ and exactly one more at tick 397, after two CACHE_INVALIDATEs in the same
 tick. RUN (b) also swapped 7 scripts: the mirror's per-file symlinks follow
 OSRS-Content, which other sessions were editing meanwhile.
 
-What the end to end does NOT cover: a real game client (src/torirs) logged
-into the lane (the scriptrun bot decodes with the client's parser but has no
-cache provider, so CacheProvider_InvalidateArchive is exercised only by
-live_reload_test's decode check); io_server (no io manifest in the lane); the
-Live panel driving the RUN (torirsmapedctl drives the same frames; the panel
-is covered by test-live-panel against the python mock peer); a gated server.
+What run.sh does NOT cover: a real game client (the scriptrun bot decodes
+with the client's parser but has no cache provider; run_play.sh below is the
+real-client lane); io_server (no io manifest in the lane); the Live panel
+driving the RUN (torirsmapedctl drives the same frames; the panel is covered
+by test-live-panel against the python mock peer); a gated server.
+
+**The real server and the real play client:** `make -C src
+maped-live-e2e-play` runs `src/maped/test/live_e2e/run_play.sh` (writes only
+under `src/<obj>/tmp/live_play/`, removed when it passes unless
+`LIVE_E2E_KEEP=1`; the client is the `$(PLATFORM_TARGET)` the make links,
+headless through `TORIRSMAPED_PLAY_ENV_SDL_VIDEODRIVER=dummy`): the same
+mirror and lane copies, the lane's server the real torirsserver,
+`TORIRSMAPED_LIVE_PLAY_BIN` the client. (A) tile spike, `run` with the lane
+DOWN: launched on what it built, play client started, `play` waits until the
+server lists it (one login); (B) a second spike, `run`: "reloaded in the
+running client (maped43633 at 3222,3218, no relog)", `squares_reloaded 1`,
+the client's log shows `cache invalidate: index 5, 1 archive(s): 1 dropped`
+and `js5 fetched 5/12850`, the server's login count stays 1 and the same pid
+runs; (C) the client is killed, `run`: "restarted the play client (it had
+exited, status -9)", it logs in again (login 2); `live-detach` stops server,
+js5_server and client; OSRS-Content checked untouched. `LIVE_E2E_SHOTS=<dir>`
+gives the client a film strip; `LIVE_E2E_MIRROR_HOOK=<command>` may replace a
+file in the MIRROR when another session's half-written content fails the
+packs build (2026-11-02: `quests/quest_wanted/configs/wanted.varp`'s new
+varp9514 lacked `clientcode`/`wholewrite`/`wholeread`). Last run
+(2026-11-02, private OPT build): **23 ok, 0 failed**; RUN (A) 41 s (first
+packs build of the mirror), login 5 s later from an empty play cache, RUN (B)
+21 s. Photographed the same day from the editor window (Ctrl+Return under
+`TORIRS_SIM_HOTKEY`, `TORIRS_EDITOR_LIVE=show`): the Live panel after the RUN
+that launched the lane ("RUN done: the lane was not up: launched it on the new
+packs and cache; play client started as maped43633 on the launched lane",
+"play: logged in as maped43633 at m50_50 (3222,3218)"), the client's own frame
+with that RUN's spike, and after a second RUN (ctl) the second spike in the
+same client, the server's login count still 1.
+
+## Locs: delete, undo, redo (2026-11-02)
+
+The owner's report: "delete and the undo redo buffer are buggy when adding or
+removing locs". Every add / remove / undo / redo sequence is now a test
+through the embedded authority, the mirror's echo and the client's EDIT flush,
+checked on the document (the loc list and the `.jl2` Save would write) and on
+the world (the scenery on the tile, element ids, and a STATIC rebake of the
+same documents after every sequence): `loc_undo_phase` in
+src/engine/world_builder/test/edit_world_test.c (sequences 1-11), the
+document half in src/editor/test/editor_cmd_test.c. What it found, by side:
+
+- **Document** (src/editor/editor_doc.c, editor_cmd.c `apply_loc`). An undone
+  delete was appended to the end of the square's list, so the `.jl2` saved
+  after delete + undo differed from the file (a Clear tile undo also reversed
+  the tile's order). Edits now insert in cache order (loc id, level, x, z,
+  shape, rotation -- every `.jl2` in the content tree is in it) with
+  `Editor_SquareLocInsert`; the parser keeps file order. A removal names its
+  placement exactly (`Editor_SquareLocFindExact`) and is REFUSED when it is
+  not there -- accepted, a delete of a loc another window had already deleted
+  was recorded and its undo added a duplicate. (level, x, z, shape) names one
+  placement (no content square holds two): an add onto a taken key is refused.
+- **Command** (src/editor/panels/edpanel_ops.c). Place onto a tile+shape already
+  placed added a second loc there (what the ghost previewed was a replace), so
+  its undo, a delete or a select by key hit the OLD loc. Place now sends a
+  replace (before = the occupant) and its undo restores the occupant;
+  move / rotate / reshape / duplicate leave a loc whose landing key is held by
+  an unselected loc where it is. Delete of a selection that is all "(gone)"
+  says so in the console.
+- **Apply** (src/app/app_map_editor.c `app_edit_sync_square`). The world diff
+  walked shadow and document in step, which read every loc after a mid-list
+  insertion as gone and back: the undo re-placed the rest of the square and
+  renumbered its elements. It now matches locs by value, removes first, then
+  places each new loc in map order (`WorldEdit_LocPlaceBefore`) -- EDIT's
+  shade replay and a tile's last wall follow map order, so a loc filed at the
+  end lit its neighbours differently from a fresh bake. The hover ghost's
+  displaced occupant goes back in its place the same way
+  (`WorldEdit_PlacementNext`).
+- **Scene** (3rd/toridraw/toridraw_scene.c `td_scene_free_element_id`). A
+  removed element whose id carries its kind (every scenery and terrain
+  element, since 5fa22160b) was reset but never released: each delete, undo
+  or redo leaked a slot until a pool clear, and ~570 delete/undo cycles in one
+  session ran the scene out of its 65536 (the next add asserted; OPT crashed in
+  ToriDraw_SceneElementSetModel). Released by index now. An npc despawn leaked
+  the same way between region loads.
+- **History** (src/editor/editor_cmd.c, src/editor/editor.c). Undo a place,
+  then place the same loc again: the window read its own new edit as a Redo of
+  the undone row, so the redo tail the authority had dropped stayed in the
+  panel. `Editor_HistoryOwnEdit` marks the echo of this window's own edit. A
+  same-tile change of loc or shape reads "Replace" (not "Turn").
+- **Tool** (src/editor/editor_panel.c `panel_loc_ref_pointed`). The Delete and
+  Rotate tools and the K accelerator acted on the first loc filed on the
+  terrain tile under the pointer: clicking a tree deleted the flower patch
+  under its corner and the tree stayed. They act on the front-most model the
+  frame hit-tested under the pointer (ground decor only when nothing stands
+  over it), the tile's first loc when no model is there.
+
+Photographs (TORIRS_SIM_HOTKEY `x` arms Delete, TORIRS_SIM_CLICK_AT on the
+tree at 390,350 of m50_50's default view, `ctrl+z`, `ctrl+y`; mirror +
+scratch manifest, TORIRS_EXIT_BMP): before / after delete / after undo /
+after redo -- the tree goes, comes back pixel-identical, goes again; the only
+other pixels that move are the fishing spots' animation.
+
+Not done: torirsmapedctl has no loc verbs (loc-add / loc-remove); a hand-made
+`.jl2` out of cache order gets a deterministic but different position for an
+undone delete; a DOC_CREATE template holding two locs on one key would trip
+`server_command`'s assert (no content square does).
 
 ## Open issues
 
@@ -592,6 +756,85 @@ Every issue the phase reports left open, by area, with where to start.
   locks its camera to the followed player): src/app/app_editor_view.c
   `EditorView_AppOnState`. The position is always -1 today anyway (below).
 
+### Catalog performance
+
+Measured 2026-11-02 on the owner's tree (63,307 locs, 405,868 records,
+~100,000 files under the scanned roots), private no-LTO client
+(`PROFILE=1 OPT_RELEASE_CFLAGS=-DNDEBUG OPT_RELEASE_LDFLAGS=`), `sample` on
+the running process. Recipe (one action every 150 frames, ~3 s, the pace
+that exposed it):
+
+    TORIRS_PLUGINS=0 TORIRS_HIDPI=0 TORIRS_EDITOR_LAYOUT= TORIRS_EDITOR_HOTKEYS= \
+    TORIRS_CATALOG_STATS=1 TORIRS_MAX_FRAMES=1600 \
+    TORIRS_EDITOR_CATALOG="loc:oak@200,every=150,pick=0@800,pick=1@950,pick=2@1100,edit=1250,next=1400" \
+      <client> --manifest manifests/manifest_osrs241_mapeditor.ini
+
+(`TORIRS_EDITOR_CATALOG=<kind>:<find>[@<frame>][,every=<frames>][,pick=<row>@<frame>...][,next=<frame>][,edit=<frame>]`
+opens the Catalog, types the find text a character at a time, clicks rows,
+Next page and Edit record...; `TORIRS_CATALOG_STATS=1` prints one line per
+CATALOG_QUERY / CATALOG_RECORD round trip with its ms and every frame's wall
+time from the open to 30 frames after the last action, plus any frame over
+33 ms: src/editor/panels/edpanel_catalog.c, edpanel_catalog_model.c.)
+
+| action | before | after |
+|---|---|---|
+| keystroke ('o', 'oa', 'oak') | 174-186 ms frame (and 0.2-1.8 s in other runs) | 2.6-9 ms |
+| click a row (record) | 168-1375 ms | 0.4-3.3 ms |
+| Next page | 566 ms | 2.3-7 ms |
+| Edit record... | 303 ms | 22-45 ms |
+| first open at frame 200 (~4 s after boot) | 2.7-3.8 s | 2.6-3.3 s (the warm build's remainder) |
+| first open at frame 1500 (~30 s after boot) | 3.5 s | 6.7 ms |
+
+The cause (sample, 20 s window over typed keystrokes): 1,376 of 1,384 ms in
+`Editor_HostMapEdCatalogQuery` were `ToriRSMapEdCatalog_Refresh` ->
+`cat_refresh` -> `cat_scan` -> `cat_walk` (stat + getdirentries over the
+whole tree), the query itself 8 ms. Every request re-stat'ed ~100k files
+when two seconds had passed since the last refresh, synchronously on the UI
+thread (the embedded server runs inside `await_reply`). The fix
+(src/torirsmaped/torirs_maped_catalog.c): requests call
+`cat_request_index` -- build only when there is no index, else start a
+sweep; `ToriRSMapEdCatalog_Service` (from `ToriRSMapEd_Service`, every pump;
+the daemon polls at 20 ms while `ToriRSMapEd_Busy`) walks the roots with an
+explicit directory stack a budget at a time, then compacts, parses what
+changed and merges in one step (a record's refs index its sources'
+contributions, so no request may see half a re-parse). The held query
+(`cat_query_hits`): same (kind, text, flags, revision) answers from the
+held hits; a query whose filters restate the held ones and whose terms
+contain the held terms (`cat_query_implies`; a numeric term never implies,
+it also matches by id) tests only the held hits. A record whose file
+changed is re-read alone (`cat_refresh_record`). Test:
+`make -C src test-catalog-perf` (src/editor/test/editor_catalog_perf_test.c,
+58 checks over a 60,000-loc, 3,000-script synthetic tree: requests past the
+interval stat at most their records' own files, the sweep is sliced and
+catches an edit, narrowing tests only the held hits and answers what a cold
+query answers, a record view reads one block; then the real tree's numbers,
+printed).
+
+Still slow, with where to start:
+
+- A Catalog opened in the first ~15 s after the editor opens waits for the
+  rest of the warm build (~6 s of work on this tree: scan 0.5-1.8 s, parse
+  2.5-3.6 s -- cs2 935 ms, jm2 951 ms, jl2 527 ms, rs2 357 ms -- merge
+  80-130 ms) at 6 ms a frame (`TORIRSMAPED_CATALOG_WARM_SLICE_MS`). The warm
+  build's own slices cost one ~70 ms frame (configs/all.loc, 86 MB, is one
+  file's parse) and one ~90 ms frame (the merge).
+- A sweep that finds a changed file merges the whole index in one step,
+  ~80-100 ms on this tree (`cat_merge`): one hitch per change seen, while
+  the Catalog is being used (sweeps start only from requests). An
+  incremental merge would remove it.
+- A sweep lags: an external edit shows in a query once a sweep has seen it
+  (a sweep is ~180-650 ms of 2 ms slices, ~1.5-5 s at 50 fps). A record view
+  is always fresh for its own files.
+- Kind "all kinds" queries test every record: 22 ms for '', 17 ms for 'o',
+  12 ms for 'oa' on 405k records (loc: 1-2.5 ms); a key=value filter
+  collects every record's fields: 'op=Chop' 18 ms (loc), 100 ms (all kinds)
+  per keystroke, and a filter value never narrows (it is matched whole).
+- Edit record... 22-45 ms: each layer's CFG document is loaded by reading
+  the whole file and scanning it for the block (src/editor/editor_host_local.c
+  `local_doc_load` / `cfg_block_extent`; configs/all.loc is 86 MB). The
+  catalog knows every block's offset; a block-offset index there would make
+  it a few ms.
+
 ### Preview panel
 
 - A well larger than 640x512 (`EDITOR_PREVIEW_SPRITE_W/H`,
@@ -692,11 +935,27 @@ Every issue the phase reports left open, by area, with where to start.
 
 ### Live lane: editor side
 
-- The control protocol has no player list and no player position (CTL_STATUS
-  carries a count), so the Live panel shows a count, the followed player is
-  typed by name, and STATE_LIVE_FOCUS x/z/level are -1. Needs a CTL_PLAYERS
-  frame: src/torirsserver/torirs_server_control.c:857 `ctl_send_status`,
-  src/torirsmaped/torirs_maped_live.c.
+- The control link reports players now (CTL_PLAYERS, row 16), but only the
+  play client uses it: the followed player is still typed by name and
+  STATE_LIVE_FOCUS x/z/level stay -1, so viewer windows do not lock to a
+  position; the player rows reach the Live panel's model
+  (`Editor_LiveModel.player_rows`, 16 kept) and no list shows them:
+  src/editor/live/live_panel.c.
+- The play client: Play on one that is logged in cannot raise its window (it
+  answers "already logged in"); `--pass` is on its command line (a dev
+  account, visible in `ps`); one per lane, so two editor servers on one lane
+  each start their own as the same account; the account's save follows the
+  player (the fixture is copied only once); an attached lane the editor did
+  NOT launch is still checked by account name, and a client the editor did
+  not start but logged in as that account counts as "the running client"
+  (FACT_LIVE_PLAY says so); RUN reports a play client that did not start as
+  a failure at RUN_STEP_PLAY after the reload has landed:
+  src/torirsmaped/torirs_maped_live.c `jobs_run_play_decide`.
+- LIVE_PLAY browser is per editor server, not per window: a web window and a
+  native one on the same daemon share "a browser plays this lane", and no
+  request turns it back off (restart the daemon).
+- The scriptrun e2e lane runs with no play client (`TORIRSMAPED_LIVE_PLAY_BIN=`
+  in run.sh): a scriptrun server refuses a real client.
 - RUN sends a `(255, group)` row for every server-pack archive whose manifest
   hash changed (resolved 2026-11-01). The diff is taken from the lane's
   `servpack/pack.manifest`; a build that rewrites the manifest without changing
@@ -743,6 +1002,20 @@ Every issue the phase reports left open, by area, with where to start.
   listing first); the re-prime's `cache invalidate: js5 fetched ...` and the
   executor's `io ...` lines go to the browser console (console.log), not the
   page's CLIENT panel, where only the C side's lines appear.
+- A CACHE_INVALIDATE that lands while the play client's JS5 is still filling
+  an empty cache in the background (the first minute after a first login)
+  drops the client's game session: it reconnects, the server refuses the
+  reclaim ("reconnect for maped43633 has no session to reclaim"), and RUN's
+  play step, finding the account gone, restarts the client (it then logs in
+  on the new content, so the RUN still ends in a client showing it). Seen with
+  map squares since index 5 started evicting (row 16); the loc/npc/obj
+  invalidation re-primes the same way and is presumably exposed too. With the
+  fill finished the reload lands in place (run_play.sh waits 75 s before
+  RUN (B), `LIVE_E2E_SETTLE`). Cause not pinned (the client's net narration is
+  compiled out of OPT builds): a suspect is the REBUILD parking the packet
+  pipeline on the square while the re-primed index waits behind the fill's
+  queued requests: src/js5/js5.c `Js5ClientInvalidateArchive`,
+  src/app/app_net.c `app_net_link_watch`.
 - Client scripts (12) and mounted interfaces still wait for the next login
   (scripts cannot be freed under a running CS2VM2_Frame, cache_provider.c
   `CacheProvider_ClientScriptAdd`). Decoded terrain and scenery rely on the
@@ -767,8 +1040,10 @@ Every issue the phase reports left open, by area, with where to start.
   fixture's appearance names an identikit the lane's cache does not hold.
   Not caused by the reload; unexamined.
 - The main torirsserver builds no world, and so answers no control link, until
-  its first login; attaching an editor to an empty real server times out. The
-  e2e has no real-client step; the real-client proof was run by hand.
+  its first login: a launched lane's link stays "connecting" (no timeout once
+  HELLO is out) until the play client logs in, and a lane launched with no
+  play client never attaches. `make -C src maped-live-e2e-play` is the
+  real-client e2e (run_play.sh).
 - A login now swaps in a rebuilt script pack (shadow, then swap; the same
   script.dat is a no-op), so a long-running server picks up a pack another
   session rebuilt at the next login; the renumbering check refuses a pack built

@@ -64,7 +64,20 @@ struct Editor_CatalogModel
      *  them to prove an unchanged frame asks nothing. */
     int queries;
     int record_fetches;
+    /** Wall time of the last CATALOG_QUERY / CATALOG_RECORD round trip
+     *  (TORIRS_CATALOG_STATS=1 prints each one). */
+    double last_query_ms;
+    double last_record_ms;
 };
+
+/** Wall clock in ms (the stats lines and the panel's frame meter). */
+double
+Editor_CatalogModelNowMs(void);
+
+/** 1 when TORIRS_CATALOG_STATS is set: one line per round trip, one per
+ *  frame the catalog drives. */
+int
+Editor_CatalogModelStats(void);
 
 void
 Editor_CatalogModelInit(

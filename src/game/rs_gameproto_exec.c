@@ -2784,12 +2784,12 @@ RS_GameProto_Exec(
          * Our own prot (3rd/rsprot/spec/packets/cache_invalidate.ini): the
          * live reload rebuilt these archives. What is resident and can be
          * dropped without pulling it from under live state is dropped
-         * (CacheProvider_InvalidateArchive): interface packs (3) and the loc,
-         * npc and obj records (2/6, 2/9, 2/10), whose IO-layer copies go
-         * through the provider's archive hook. Maps need nothing here, and
-         * neither does placed scenery: the server owes a REBUILD after a
+         * (CacheProvider_InvalidateArchive): interface packs (3), the loc,
+         * npc and obj records (2/6, 2/9, 2/10) and the map squares (5), whose
+         * IO-layer copies go through the provider's archive hook. Placed
+         * scenery needs nothing more: the server owes a REBUILD after a
          * square or a loc-record reload, sent after this packet, and the
-         * rebuilt scene re-reads every placed loc's record (its menu ops).
+         * rebuilt scene re-reads the squares and every placed loc's record.
          */
         if( ctx->app && ctx->app->provider )
         {

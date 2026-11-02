@@ -43,13 +43,30 @@ enum ToriRSServerCtlFrame
     TORIRSSERVER_CTL_CHEAT = 4,
     TORIRSSERVER_CTL_SUBSCRIBE = 5,
     TORIRSSERVER_CTL_BYE = 6,
+    /** Who is on: answered by CTL_FACT_PLAYERS. */
+    TORIRSSERVER_CTL_PLAYERS = 7,
 
     TORIRSSERVER_CTL_FACT_HELLO = 129,
     TORIRSSERVER_CTL_FACT_STATUS = 130,
     TORIRSSERVER_CTL_FACT_LINE = 131,
     TORIRSSERVER_CTL_FACT_RELOAD_DONE = 132,
     TORIRSSERVER_CTL_FACT_VARS = 133,
+    /**
+     * u32 logins (every login this process took: the sum of the pool slots'
+     * login generations), u32 active (players on now), u32 rows (at most
+     * TORIRSSERVER_CTL_PLAYER_ROWS of them), rows * (string account_name,
+     * string display_name, u32 slot, u32 login_generation, i32 x, i32 z,
+     * i32 level). Sent once after an accepted CTL_HELLO -- which is how an
+     * editor learns the server answers CTL_PLAYERS at all (an older server
+     * closes the link on a frame it does not know; an older editor ignores a
+     * fact it does not know) -- and then for every CTL_PLAYERS. A relog is a
+     * new (slot, login_generation) pair.
+     */
+    TORIRSSERVER_CTL_FACT_PLAYERS = 134,
 };
+
+/** Rows CTL_FACT_PLAYERS lists; `active` still counts everyone. */
+#define TORIRSSERVER_CTL_PLAYER_ROWS 256
 
 /* CTL_FACT_RELOAD_DONE.status */
 enum ToriRSServerReloadStatus

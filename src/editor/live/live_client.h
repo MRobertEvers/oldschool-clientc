@@ -29,6 +29,15 @@ enum
     EDITOR_LIVE_STALE_MAX = 32,
     EDITOR_LIVE_VARS_MAX = 64,
     EDITOR_LIVE_RESTART_MAX = 16,
+    EDITOR_LIVE_PLAYERS_MAX = 16,
+};
+
+struct Editor_LivePlayer
+{
+    char name[64];
+    int32_t x;
+    int32_t z;
+    int32_t level;
 };
 
 struct Editor_LiveVar
@@ -78,6 +87,30 @@ struct Editor_LiveModel
     uint32_t run_counts[4];
     char restart[EDITOR_LIVE_RESTART_MAX][192];
     int restart_count;
+
+    /* ---- FACT_LIVE_PLAY: the lane's play client and the server's players ---- */
+    /** enum ToriRSMapEdPlayState. */
+    uint32_t play_state;
+    int play_browser;
+    char play_account[32];
+    int32_t play_pid;
+    int32_t play_exit;
+    char play_message[256];
+    /** Absolute tile, -1 until the server reported it. */
+    int32_t play_x;
+    int32_t play_z;
+    int32_t play_level;
+    uint32_t play_starts;
+    /** Where a browser plays the lane ("" when it serves no web page). */
+    char play_web_url[1024];
+    /** The server reports its players (CTL_PLAYERS). */
+    int players_known;
+    /** Every login the server took (a relog adds one). */
+    uint32_t logins;
+    struct Editor_LivePlayer player_rows[EDITOR_LIVE_PLAYERS_MAX];
+    int player_row_count;
+    /** Bumps on every FACT_LIVE_PLAY. */
+    int play_serial;
 
     /* ---- FACT_LIVE_VARS ---- */
     char vars_player[64];
@@ -156,6 +189,20 @@ Editor_LiveEncodeCheat(
     struct ToriRSMapEdBuf* out,
     const char* player,
     const char* line);
+
+/** LIVE_PLAY: `action` is enum ToriRSMapEdPlayAction. */
+uint32_t
+Editor_LiveEncodePlay(
+    struct ToriRSMapEdBuf* out,
+    uint32_t action);
+
+/** The play client's line for the Live panel: "play: not started",
+ *  "play: logged in as maped43620 at m50_50 (3222,3218)", ... */
+void
+Editor_LivePlayLine(
+    const struct Editor_LiveModel* model,
+    char* out,
+    size_t out_size);
 
 /** Follow `player`'s varps (n = 0 unsubscribes). */
 uint32_t

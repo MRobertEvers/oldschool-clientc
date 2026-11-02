@@ -38,6 +38,19 @@
  *                                                      string player, u32 n,
  *                                                      n * (u32 varp, i32 value)
  *   CTL_BYE 6
+ *   CTL_PLAYERS 7                                   -> CTL_FACT_PLAYERS 134
+ *                                                      u32 logins, u32 active,
+ *                                                      u32 rows, rows * (string
+ *                                                      account, string display,
+ *                                                      u32 slot, u32 generation,
+ *                                                      i32 x, i32 z, i32 level)
+ *
+ * The server sends one CTL_FACT_PLAYERS right after an accepted HELLO; only
+ * then does the editor send CTL_PLAYERS (with each CTL_STATUS, every second
+ * while the play client is logging in), because a server older than the frame
+ * closes the link on it. `logins` counts every login the process took (a relog
+ * is a new (slot, generation) pair), which is how a test proves a RUN did not
+ * relog the play client.
  *
  * RUN's reload names, from what this server saw and built since the last
  * successful reload: the lane's script manifest (`<live_dir>/scripts/
@@ -68,6 +81,17 @@
  *   FACT_LIVE_LINE    string line
  *   FACT_LIVE_VARS    string player, u32 n, n * (u32 varp, i32 value)
  *
+ *   LIVE_PLAY      u32 action (enum ToriRSMapEdPlayAction)
+ *                  -> broadcast FACT_LIVE_PLAY (and FACT_LIVE_STATUS when it
+ *                     launched the lane)
+ *
+ *   FACT_LIVE_PLAY    u32 play_state (enum ToriRSMapEdPlayState), u32 browser,
+ *                     string account, i32 pid, i32 exit_status, string message,
+ *                     i32 x, i32 z, i32 level (-1 until seen), u32 starts,
+ *                     string web_url ("" when the lane serves no web page),
+ *                     u32 players_known, u32 logins, u32 active,
+ *                     u32 rows, rows * (string name, i32 x, i32 z, i32 level)
+ *
  * A link that is not attached answers LIVE_CHEAT / LIVE_SUBSCRIBE with a
  * FACT_LIVE_STATUS whose message says so; a server with no link binding
  * (TORIRSMAPED_CAP_LIVE clear) answers every LIVE_* that way too.
@@ -93,10 +117,12 @@ enum
     TORIRSMAPED_REQ_LIVE_DETACH = 56,
     TORIRSMAPED_REQ_LIVE_CHEAT = 57,
     TORIRSMAPED_REQ_LIVE_SUBSCRIBE = 58,
+    TORIRSMAPED_REQ_LIVE_PLAY = 59,
 
     TORIRSMAPED_FACT_LIVE_STATUS = 175,
     TORIRSMAPED_FACT_LIVE_LINE = 176,
     TORIRSMAPED_FACT_LIVE_VARS = 177,
+    TORIRSMAPED_FACT_LIVE_PLAY = 179,
 
     TORIRSMAPED_STATE_LIVE_FOCUS = 40,
 };
@@ -148,12 +174,14 @@ enum
     TORIRSMAPED_CTL_CHEAT = 4,
     TORIRSMAPED_CTL_SUBSCRIBE = 5,
     TORIRSMAPED_CTL_BYE = 6,
+    TORIRSMAPED_CTL_PLAYERS = 7,
 
     TORIRSMAPED_CTL_FACT_HELLO = 129,
     TORIRSMAPED_CTL_FACT_STATUS = 130,
     TORIRSMAPED_CTL_FACT_LINE = 131,
     TORIRSMAPED_CTL_FACT_RELOAD_DONE = 132,
     TORIRSMAPED_CTL_FACT_VARS = 133,
+    TORIRSMAPED_CTL_FACT_PLAYERS = 134,
 };
 
 enum ToriRSMapEdLiveState
@@ -227,8 +255,9 @@ ToriRSMapEd_SetLiveLink(
  *       TORIRSSERVER_PACK_DIR=<live>/servpack
  *   <js5_bin> --cache <live>/cache --revision <rev number> --port <js5_port>
  *       --max-pending 65535
- *   <io_bin> --manifest <io_manifest> --root <io_root> --port <io_port>
- *       (only with an io_manifest)
+ *   <io_bin> --root <io_root> --port <io_port> --boot-root <live>/play/web
+ *       (only when io_manifest is set: it switches io_server on; the page's
+ *       manifest is the lane's web play tree's, ToriRSMapEd_LaneWebPlayUrl)
  *
  * Close sends SIGTERM to each, waits up to two seconds, then SIGKILL.
  * Returns 0 where processes and sockets are unavailable (web, Windows).
@@ -272,6 +301,165 @@ ToriRSMapEd_Service(struct ToriRSMapEd* maped);
 /** 1 while a build, a RUN or a connecting link wants servicing soon. */
 int
 ToriRSMapEd_Busy(const struct ToriRSMapEd* maped);
+
+/* ---- the play client --------------------------------------------------------
+ *
+ * Each lane has one PLAY CLIENT: a game client (the lane's play_bin, by
+ * default src/torirs) logged into the lane's game server through the lane's
+ * JS5, as a dev account the lane owns (ToriRSMapEd_LanePlayAccount; its first
+ * save is the lane's play_fixture, so it does not start on Tutorial Island).
+ * The editor server starts and tracks it the way it starts and tracks the
+ * lane's servers, so a RUN from a window, the Live panel's Play and
+ * `torirsmapedctl play` all reach the same one, with or without a window.
+ *
+ * Liveness is two facts: the process (reaped by the service pass; EXITED with
+ * its status) and the server's player list (CTL_FACT_PLAYERS: ONLINE when the
+ * account is on, LOGGED_OUT when it was and is not any more).
+ *
+ * RUN, after the reload (RUN_STEP_PLAY):
+ *   - no play client yet           -> start it; it logs in on the new content
+ *   - alive and on the server      -> it took the reload live (CACHE_INVALIDATE
+ *                                     and the REBUILD); "reloaded in the
+ *                                     running client"
+ *   - exited, or logged out        -> start it again
+ *   - still logging in             -> left alone; it boots on the new content
+ * and when the lane is not up at the reload: a lane that can launch is
+ * launched (on the packs and cache the RUN just built, so no reload is owed)
+ * and the play client started; its login builds the main torirsserver's world,
+ * which is when the server first answers the control link and the link
+ * attaches. A lane that cannot launch keeps the old failure, plus "Launch the
+ * lane first".
+ *
+ * A browser window (LIVE_PLAY browser) plays in a tab of its own: the editor
+ * server then never spawns a native client, and RUN's play step answers with
+ * the lane's web play URL (FACT_LIVE_PLAY web_url) for the window to open
+ * when the account is not on the server.
+ */
+
+enum ToriRSMapEdPlayState
+{
+    /** Not started (or stopped). */
+    TORIRSMAPED_PLAY_NONE = 0,
+    /** Spawned; not on the server yet. */
+    TORIRSMAPED_PLAY_STARTING = 1,
+    /** On the server (CTL_FACT_PLAYERS names the account). */
+    TORIRSMAPED_PLAY_ONLINE = 2,
+    /** The process runs but the account left the server. */
+    TORIRSMAPED_PLAY_LOGGED_OUT = 3,
+    /** The process is gone; FACT_LIVE_PLAY exit_status says how. */
+    TORIRSMAPED_PLAY_EXITED = 4,
+};
+
+enum ToriRSMapEdPlayAction
+{
+    /** Start it unless it runs and is on the server (a logged-out or exited
+     *  one is started again); launches the lane first when it is down. */
+    TORIRSMAPED_PLAY_START = 0,
+    /** Stop it and start it again. */
+    TORIRSMAPED_PLAY_RESTART = 1,
+    TORIRSMAPED_PLAY_STOP = 2,
+    /** This window plays in a browser tab: never spawn a native client;
+     *  answer with the web play URL. */
+    TORIRSMAPED_PLAY_BROWSER = 3,
+};
+
+const char*
+ToriRSMapEd_PlayStateName(uint32_t state);
+
+/** The play account of `lane`: its play_user/play_pass, else "maped<game
+ *  port>" and "lane<game port>run" (names are 1..12 characters; passwords
+ *  8..20 with a letter and a digit and not containing the name). */
+void
+ToriRSMapEd_LanePlayAccount(
+    const struct ToriRSMapEdLane* lane,
+    char* out_user,
+    size_t user_size,
+    char* out_pass,
+    size_t pass_size);
+
+/** The URL a browser plays the lane at ("" when the lane launches no
+ *  io_server, i.e. has no io_manifest): io_server's page with the lane's game
+ *  port as both the connect target and the WebSocket, its JS5 as js5_url. */
+void
+ToriRSMapEd_LaneWebPlayUrl(
+    const struct ToriRSMapEdLane* lane,
+    char* out,
+    size_t out_size);
+
+/** What the play launcher starts. */
+struct ToriRSMapEdPlaySpec
+{
+    char user[16];
+    char pass[24];
+};
+
+/**
+ * The seam under the play client, as the live link is under the control
+ * connection: start a process, say whether it still runs, stop it. Nothing
+ * blocks except `stop` (bounded: SIGTERM, a grace, SIGKILL).
+ */
+struct ToriRSMapEdPlayLauncher
+{
+    void* ctx;
+    /** 1 when the lane's game port (and JS5 port, when the lane has a JS5)
+     *  accept a connection: a client started before that fails its boot. */
+    int (*ready)(void* ctx);
+    /** Prepare (manifest, save, directories) and start. The pid in
+     *  `out_pid`; why not in `why`. */
+    enum EditorHost_Status (*start)(
+        void* ctx,
+        const struct ToriRSMapEdPlaySpec* spec,
+        int* out_pid,
+        char* why,
+        size_t why_size);
+    /** 1 while it runs; 0 once it exited (status in `out_status`: the exit
+     *  code, or -signal); 0 too when nothing was started (status 0). */
+    int (*alive)(void* ctx, int* out_status);
+    /** Stop what `start` started (nothing when nothing runs). */
+    void (*stop)(void* ctx);
+    void (*free_)(void* ctx);
+};
+
+/** Bind (or, with NULL, clear) the play launcher. Owned as the live link is. */
+void
+ToriRSMapEd_SetPlayLauncher(
+    struct ToriRSMapEd* maped,
+    const struct ToriRSMapEdPlayLauncher* launcher);
+
+/**
+ * The native play launcher. `start` makes <live>/play, <live>/saves and
+ * <live>/logs, writes <live>/play/manifest.ini from lane->play_manifest (the
+ * [cache:boot] dir becomes <live>/play/cache, [net:boot] host/port the lane's
+ * game port on 127.0.0.1, every "../" or "./" value absolute against the
+ * source manifest's directory), copies lane->play_fixture to
+ * <live>/saves/<account>.ini when that save does not exist yet (its `name =`
+ * the account), and spawns
+ *
+ *   <play_bin> --manifest <live>/play/manifest.ini --js5 --js5-host 127.0.0.1
+ *       --js5-port <js5_port> --js5-fallback-port 0 --user <user> --pass <pass>
+ *
+ * with output to <live>/logs/play.log and this process's environment minus
+ * the capture and editor keys (TORIRS_SIM_HOTKEY, TORIRS_EXIT_BMP,
+ * TORIRS_MAX_FRAMES, TORIRS_BMP_SERIES, TORIRS_PRESENT_BMP*, TORIRS_SCREENSHOT*,
+ * TORIRS_EDITOR_*, TORIRSMAPED_*), TORIRS_PREFS=<live>/play/preferences.ini,
+ * and every TORIRSMAPED_PLAY_ENV_<NAME>=<value> as NAME=<value> (how a
+ * headless run gives the play client its own capture keys). Returns 0 where
+ * processes are unavailable (web, Windows) or the lane has no play_bin.
+ */
+int
+ToriRSMapEd_PlayLauncherNative(
+    struct ToriRSMapEdPlayLauncher* out,
+    const struct ToriRSMapEdLane* lane);
+
+/** Write the play manifest (as the native launcher's `start` does) to
+ *  `out_path`. 1 written; 0 with `why` (the source cannot be read, the
+ *  destination cannot be written). Exported for the tests. */
+int
+ToriRSMapEd_PlayManifestWrite(
+    const struct ToriRSMapEdLane* lane,
+    const char* out_path,
+    char* why,
+    size_t why_size);
 
 /* ---- the control protocol, for a peer --------------------------------------
  *
