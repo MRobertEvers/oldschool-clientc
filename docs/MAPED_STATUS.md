@@ -24,6 +24,17 @@ checkout, or the mirror `src/maped/test/live_e2e/mirror.py` makes).
     make -C src
     src/torirs --manifest manifests/manifest_osrs241_mapeditor.ini
 
+or through the launcher, which builds the client and prepares the lane first:
+
+    ./launch run osrs241-mapeditor          # one window, embedded ToriRSMapEd
+    ./launch run osrs241-mapeditor-tcp      # the window attached to a shared daemon (started for you, port 43610)
+    ./launch run osrs241-mapeditor-view     # a viewer window of that session (start -tcp first)
+
+(`profiles/osrs241-mapeditor*.ini`; `./launch list` names the osrs239 twins.
+The preparation runs the content tree's contract checks and refuses a tree
+that fails them; `TORIRS_SKIP_CHECKS=1 ./launch run ...` boots on the tree as
+it stands.)
+
 The manifest's `[editor:boot] server=embed` runs ToriRSMapEd inside the
 process over `content_dir`. The panel set (menu bar, tool rail, terrain,
 palettes, square picker, New, locs, spawns, inspector, catalog, console,
