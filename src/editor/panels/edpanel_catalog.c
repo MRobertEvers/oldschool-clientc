@@ -21,6 +21,8 @@
  *   Copy       "Copy to new..." copies the picked loc / npc / obj
  *              definition to the typed name with a fresh id (SAVE_AS:
  *              Editor_CopyRecord), one undo step; the copy becomes the pick.
+ *   Palette    "Add to palette" puts the pick into the Catalog palette's
+ *              first free slot (edpanel_catalog_palette.c).
  *
  * The pick is shared tool state (tools.pick_kind / pick_id / pick_name): a
  * loc, npc or obj row with an id becomes it, the Place tool stamps it, the
@@ -87,6 +89,8 @@ struct CatalogPanel
     int input_new_name;
     int button_copy;
     int button_edit_record;
+    /** The pick into the Catalog palette's first free slot. */
+    int button_add_palette;
     int button_open_script;
     int row_multi;
     int dropdown_variant;
@@ -926,6 +930,11 @@ catalog_activate(
         catalog_copy(ui, self);
         return 1;
     }
+    if( widget == self->button_add_palette )
+    {
+        (void)Editor_CatalogPalette_AddPick(ui, 0);
+        return 1;
+    }
     if( widget == self->button_edit_record )
     {
         const struct EditorHost_CatalogRow* r;
@@ -1122,6 +1131,9 @@ Editor_Catalog_Register(struct EditorUi* ui)
     self->button_edit_record = ToriRSChrome_Button(chrome, self->panel, "Edit record...");
     ToriRSChrome_SetTooltip(chrome, self->button_edit_record,
         "every field of the picked loc/npc/obj");
+    self->button_add_palette = ToriRSChrome_Button(chrome, self->panel, "Add to palette");
+    ToriRSChrome_SetTooltip(chrome, self->button_add_palette,
+        "the pick into the Catalog palette's first free slot");
     self->button_open_script = ToriRSChrome_Button(chrome, self->panel, "Open in editor");
     ToriRSChrome_SetTooltip(chrome, self->button_open_script, "the picked trigger's file at its line, in your editor");
     self->input_new_name = ToriRSChrome_TextInput(chrome, self->panel, "New name", "");

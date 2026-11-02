@@ -585,6 +585,49 @@ live_send_players_request(struct ToriRSMapEd* maped)
     live_send(maped, TORIRSMAPED_CTL_PLAYERS, NULL);
 }
 
+/**
+ * 1 when the lane has something to launch on: a server pack, a script pack
+ * and a client cache under the live dir, and no packs or client-cache build
+ * whose last run failed. Else 0 and `why` says what to do. A server started
+ * on a lane RUN never built dies at once ("no server pack at <live>/servpack")
+ * and the panel used to show only its exit status (owner, 2026-11-02).
+ */
+static int
+jobs_lane_built(
+    const struct ToriRSMapEdJobs* jobs,
+    char* why,
+    size_t why_size)
+{
+#if TORIRSMAPED_JOBS_NATIVE
+    static const char* const needed[] = { "servpack/pack.manifest", "scripts/pack.manifest", "cache" };
+    char path[TORIRSMAPED_LANE_PATH_MAX + 64];
+
+    if( jobs->build_failed_what )
+    {
+        snprintf(why, why_size, "the last %s build failed (its lines are in the log): fix it and RUN; the "
+                                "lane is not launched on a failed build",
+            ToriRSMapEd_BuildWhatName(jobs->build_failed_what));
+        return 0;
+    }
+    for( size_t i = 0; i < sizeof(needed) / sizeof(needed[0]); i++ )
+    {
+        snprintf(path, sizeof(path), "%s/%s", jobs->lane.live_dir, needed[i]);
+        if( access(path, F_OK) != 0 )
+        {
+            snprintf(why, why_size, "the lane has not been built (no %s): press RUN -- it builds the packs "
+                                    "and the client cache, then launches the lane and the play client",
+                path);
+            return 0;
+        }
+    }
+#else
+    (void)jobs;
+    (void)why;
+    (void)why_size;
+#endif
+    return 1;
+}
+
 /** Launch the lane's servers and start dialling their game port (the
  *  LIVE_ATTACH launch path, and RUN's when the lane is down). */
 static enum EditorHost_Status
@@ -607,6 +650,12 @@ jobs_live_launch(
     {
         snprintf(why, why_size, "launch needs a lane (none is bound)");
         return EDITOR_HOST_UNSUPPORTED;
+    }
+    if( !jobs_lane_built(jobs, why, why_size) )
+    {
+        snprintf(jobs->message, sizeof(jobs->message), "not launched: %s", why);
+        jobs_live_broadcast_status(maped);
+        return EDITOR_HOST_REFUSED;
     }
     if( jobs->live_state == TORIRSMAPED_LIVE_CONNECTING || jobs->live_state == TORIRSMAPED_LIVE_ATTACHED )
         jobs_live_drop(maped, TORIRSMAPED_LIVE_DETACHED, "re-attaching");
@@ -1080,12 +1129,79 @@ live_fact(
     return 1;
 }
 
+/**
+ * A launched server died (or never answered): repeat the last lines of its
+ * log, `<live>/logs/server.log`, to the panel, and append the last one to
+ * `message` -- the server says why it refused to run ("no server pack at
+ * ..."), and "exited (status 1)" alone told nobody anything.
+ */
+static void
+jobs_live_server_log_tail(
+    struct ToriRSMapEd* maped,
+    char* message,
+    size_t message_size)
+{
+#if TORIRSMAPED_JOBS_NATIVE
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+    char path[TORIRSMAPED_LANE_PATH_MAX + 32];
+    char text[8192];
+    const char* lines[JOBS_FAILURE_LINES];
+    int count = 0;
+    FILE* file;
+    long size;
+    size_t got;
+    char line[700];
+
+    if( !jobs->have_lane )
+        return;
+    snprintf(path, sizeof(path), "%s/logs/server.log", jobs->lane.live_dir);
+    file = fopen(path, "rb");
+    if( !file )
+        return;
+    fseek(file, 0, SEEK_END);
+    size = ftell(file);
+    fseek(file, size > (long)sizeof(text) - 1 ? size - (long)sizeof(text) + 1 : 0, SEEK_SET);
+    got = fread(text, 1, sizeof(text) - 1, file);
+    fclose(file);
+    text[got] = '\0';
+    /* The last JOBS_FAILURE_LINES non-empty lines, a ring. */
+    for( char* p = text; *p; )
+    {
+        char* end = strchr(p, '\n');
+        if( end )
+            *end = '\0';
+        if( *p )
+            lines[count++ % JOBS_FAILURE_LINES] = p;
+        if( !end )
+            break;
+        p = end + 1;
+    }
+    if( count == 0 )
+        return;
+    snprintf(line, sizeof(line), "the lane's game server log (%s) ends:", path);
+    live_line(maped, line, (uint32_t)strlen(line));
+    for( int i = count > JOBS_FAILURE_LINES ? count - JOBS_FAILURE_LINES : 0; i < count; i++ )
+    {
+        snprintf(line, sizeof(line), "  %s", lines[i % JOBS_FAILURE_LINES]);
+        live_line(maped, line, (uint32_t)strlen(line));
+    }
+    {
+        size_t const at = strlen(message);
+        snprintf(message + at, message_size - at, ": %s", lines[(count - 1) % JOBS_FAILURE_LINES]);
+    }
+#else
+    (void)maped;
+    (void)message;
+    (void)message_size;
+#endif
+}
+
 static void
 live_service(struct ToriRSMapEd* maped)
 {
     struct ToriRSMapEdJobs* jobs = maped->jobs;
     uint8_t chunk[16384];
-    char why[256];
+    char why[512];
     int peer_gone = 0;
 
     if( !jobs->have_link || jobs->live_state == TORIRSMAPED_LIVE_DETACHED
@@ -1097,7 +1213,20 @@ live_service(struct ToriRSMapEd* maped)
         int up = jobs->link.poll(jobs->link.ctx, why, sizeof(why));
         if( up < 0 )
         {
-            jobs_live_drop(maped, TORIRSMAPED_LIVE_FAILED, why);
+            int const was_launched = jobs->launched;
+            char message[sizeof(jobs->message)];
+            snprintf(message, sizeof(message), "%s", why);
+            if( was_launched )
+                jobs_live_server_log_tail(maped, message, sizeof(message));
+            jobs_live_drop(maped, TORIRSMAPED_LIVE_FAILED, message);
+            if( was_launched && jobs->play_wait_lane )
+            {
+                /* It was waiting for this lane's ports: they never come. */
+                jobs->play_wait_lane = 0;
+                jobs_play_note(jobs, TORIRSMAPED_PLAY_EXITED,
+                    "the lane's game server did not come up; the play client was not started");
+                jobs_live_broadcast_play(maped);
+            }
             jobs_live_broadcast_status(maped);
             return;
         }
@@ -1704,6 +1833,8 @@ live_mkdirs(const char* path)
  * <live>/play/web/revconfig, a link to the repository's revconfig/ the
  * manifest's relative paths name. `out_root` gets <live>/play/web.
  */
+static void play_copy_fixture(const struct ToriRSMapEdLane* lane, const char* live, const char* user);
+
 static void
 live_web_play_prepare(
     const struct ToriRSMapEdLane* lane,
@@ -1891,6 +2022,17 @@ live_native_open(
             char* argv[] = { (char*)lane->io_bin, (char*)"--root", (char*)lane->io_root, (char*)"--port", port[2],
                 (char*)"--boot-root", web_root, NULL };
             live_web_play_prepare(lane, web_root, sizeof(web_root));
+            /* A browser plays as the lane's account too: give it the
+             * fixture's first save, as the native play client gets, or the
+             * play tab opens on "Set display name" in a new character. */
+            {
+                char user[64];
+                char pass[64];
+                char live[TORIRSMAPED_LANE_PATH_MAX + 256];
+                build_resolve(lane->live_dir, live, sizeof(live));
+                ToriRSMapEd_LanePlayAccount(lane, user, sizeof(user), pass, sizeof(pass));
+                play_copy_fixture(lane, live, user);
+            }
             native->pids[2] = jobs_spawn_logged(argv, NULL, logs[2], NULL);
             if( native->pids[2] < 0 )
             {
@@ -2486,13 +2628,53 @@ ToriRSMapEd_BindLiveFromEnv(
     const char* content_dir)
 {
     const char* live_dir = getenv("TORIRSMAPED_LIVE_DIR");
+    char default_dir[1024];
+    char repo_abs[TORIRSMAPED_LANE_PATH_MAX];
+    char content_abs[TORIRSMAPED_LANE_PATH_MAX];
+    char live_abs[TORIRSMAPED_LANE_PATH_MAX];
     struct ToriRSMapEdLane lane;
     struct ToriRSMapEdBuildRunner runner;
     struct ToriRSMapEdLiveLink link;
 
     assert(maped);
-    if( !live_dir || !live_dir[0] || !repo_root || !content_dir )
+    if( !repo_root || !content_dir )
         return 0;
+    /* Absolute, all three: the builds run `make -C <repo>/src`, so a path
+     * relative to this process's directory names something else there. A
+     * manifest's `repo_root=..` arrives as "manifests/.." and the lane's base
+     * cache became src/manifests/../cache.osrs241 -- a client cache built
+     * from nothing (master index 29 bytes), and a play client that logged in
+     * and crashed on the missing interfaces table (2026-11-02). */
+    build_resolve(repo_root, repo_abs, sizeof(repo_abs));
+    build_resolve(content_dir, content_abs, sizeof(content_abs));
+    repo_root = repo_abs;
+    content_dir = content_abs;
+    /* Unset: the lane lives under the repo's build tree, so RUN works from
+     * the default profile with nothing configured (the owner hit RUN with no
+     * lane bound and nothing happened, 2026-11-02). Set but empty: no lane,
+     * the same rule as TORIRS_EDITOR_LAYOUT. */
+    if( !live_dir )
+    {
+        snprintf(default_dir, sizeof(default_dir), "%s/build/live/default", repo_root);
+        live_dir = default_dir;
+    }
+    if( !live_dir[0] )
+        return 0;
+    if( live_dir[0] != '/' )
+    {
+        /* A relative live dir is the process's; a missing parent is made so
+         * the resolve can anchor it. */
+        build_resolve(live_dir, live_abs, sizeof(live_abs));
+#if TORIRSMAPED_JOBS_NATIVE
+        if( live_abs[0] != '/' )
+        {
+            char cwd[TORIRSMAPED_LANE_PATH_MAX];
+            if( getcwd(cwd, sizeof(cwd)) )
+                snprintf(live_abs, sizeof(live_abs), "%.500s/%.500s", cwd, live_dir);
+        }
+#endif
+        live_dir = live_abs;
+    }
     ToriRSMapEd_LaneDefaults(&lane, repo_root, content_dir, live_dir);
     live_lane_from_env(&lane);
     if( !ToriRSMapEd_SetLane(maped, &lane) )

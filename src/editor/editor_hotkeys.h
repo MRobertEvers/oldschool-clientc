@@ -33,9 +33,16 @@
 /* ---- contexts ---------------------------------------------------------------
  *
  * Where an action is live. G is always live while the editor is open; the
- * rest are states of the editor. L (locs selected) excludes S and N, which
- * both mean "no loc is selected": a chord may be reused across exclusive
- * contexts (the arrows nudge in L and turn the camera in N).
+ * rest are states of the editor. A chord may be reused across exclusive
+ * contexts: the arrows nudge in M and turn the camera in N; Return applies
+ * the tool in L and places in P.
+ *
+ *   L excludes S and P (both say no loc is selected);
+ *   M (locs selected AND the Select or Move tool armed) excludes N (no loc
+ *   selected, OR another tool armed), S and P.
+ *
+ * With the Place tool (or a brush, Rect, Rotate, Delete) armed and locs
+ * selected, the arrows turn the camera: only Select and Move nudge.
  */
 #define EDITOR_HK_CTX_G (1u << 0)
 /** The pointer is over the World panel's body. */
@@ -46,9 +53,14 @@
 #define EDITOR_HK_CTX_R (1u << 3)
 /** The Spawns panel holds a selection and no loc is selected. */
 #define EDITOR_HK_CTX_S (1u << 4)
-/** No loc is selected. */
+/** No loc is selected, or the armed tool is neither Select nor Move. */
 #define EDITOR_HK_CTX_N (1u << 5)
-#define EDITOR_HK_CTX_ALL 0x3fu
+/** Locs are selected and the Select or Move tool is armed (the nudges). */
+#define EDITOR_HK_CTX_M (1u << 6)
+/** The Place tool is armed with a loc pick and no loc is selected. */
+#define EDITOR_HK_CTX_P (1u << 7)
+#define EDITOR_HK_CTX_COUNT 8
+#define EDITOR_HK_CTX_ALL 0xffu
 
 /** Modifier bits of a chord. */
 #define EDITOR_HK_MOD_CTRL 1u
@@ -101,6 +113,11 @@ enum Editor_HotkeyAction
     EDITOR_HK_EDIT_FILL,
     EDITOR_HK_EDIT_CLEAR,
     EDITOR_HK_EDIT_MARK_AREA,
+    /* Place: the Place tool's own keys (its ghost's Q / Shift+Q are Edit's
+     * Rotate and Reshape, which turn the pose while Place is armed). */
+    EDITOR_HK_PLACE_HERE,
+    EDITOR_HK_PLACE_FIT,
+    EDITOR_HK_PLACE_SWAP,
     /* Tools: the first EDITOR_TOOL_COUNT follow enum Editor_Tool's order. */
     EDITOR_HK_TOOL_SELECT,
     EDITOR_HK_TOOL_RECT,
@@ -152,6 +169,21 @@ enum Editor_HotkeyAction
     EDITOR_HK_CAM_FRAME,
     EDITOR_HK_CAM_FRAME_SQUARE,
     /* View: one per View-menu panel module, then the layout rows. */
+    /** The Catalog palette's slots (Shift+1..9, Shift+0), add the pick,
+     *  next / previous palette (src/editor/panels/edpanel_catalog_palette.c). */
+    EDITOR_HK_PALETTE_SLOT_1,
+    EDITOR_HK_PALETTE_SLOT_2,
+    EDITOR_HK_PALETTE_SLOT_3,
+    EDITOR_HK_PALETTE_SLOT_4,
+    EDITOR_HK_PALETTE_SLOT_5,
+    EDITOR_HK_PALETTE_SLOT_6,
+    EDITOR_HK_PALETTE_SLOT_7,
+    EDITOR_HK_PALETTE_SLOT_8,
+    EDITOR_HK_PALETTE_SLOT_9,
+    EDITOR_HK_PALETTE_SLOT_10,
+    EDITOR_HK_PALETTE_ADD_PICK,
+    EDITOR_HK_PALETTE_NEXT,
+    EDITOR_HK_PALETTE_PREVIOUS,
     EDITOR_HK_VIEW_HOTKEYS,
     EDITOR_HK_VIEW_TERRAIN,
     EDITOR_HK_VIEW_PALETTE,
@@ -161,6 +193,7 @@ enum Editor_HotkeyAction
     EDITOR_HK_VIEW_INSPECTOR,
     EDITOR_HK_VIEW_CATALOG,
     EDITOR_HK_VIEW_PREVIEW,
+    EDITOR_HK_VIEW_CATALOG_PALETTE,
     EDITOR_HK_VIEW_CONSOLE,
     EDITOR_HK_VIEW_HISTORY,
     EDITOR_HK_VIEW_AREAS,

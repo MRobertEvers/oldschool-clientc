@@ -32,7 +32,7 @@
 #include <string.h>
 
 /** The doc's tables, in order. */
-static const char* const k_groups[] = { "File", "Edit", "Tools", "Brush", "Level", "Camera", "View" };
+static const char* const k_groups[] = { "File", "Edit", "Place", "Palette", "Tools", "Brush", "Level", "Camera", "View" };
 #define HOTKEYS_GROUPS ((int)(sizeof(k_groups) / sizeof(k_groups[0])))
 
 #define HOTKEYS_CLASH_RGB 0xFF5555u
@@ -160,7 +160,15 @@ hk_run_edit(
         return 1;
     case EDITOR_HK_EDIT_DESELECT:
         /* A drag in progress is the App's to cancel first; here the
-         * selection and the rectangle go. */
+         * selection and the rectangle go. With neither, under the Place
+         * tool, the ghost goes: back to Select, the catalog pick kept (0
+         * arms Place on it again). */
+        if( tools->loc_count == 0 && !tools->rect.valid && tools->tool == EDITOR_TOOL_LOC_PLACE )
+        {
+            Editor_UiSetTool(ui, EDITOR_TOOL_SELECT);
+            Editor_UiLog(ui, "editor: placing cancelled (the catalog pick is kept)");
+            return 1;
+        }
         tools->loc_count = 0;
         tools->rect.valid = 0;
         if( ui->hooks.selection_changed )
@@ -181,22 +189,19 @@ hk_run_edit(
         return 1;
     case EDITOR_HK_EDIT_ROTATE:
         /* The selection; else the Place ghost's pose. */
-        if( tools->loc_count > 0 )
+        /* The Place tool's ghost while Place is armed, whatever is
+         * selected; else the selection; else the pose. */
+        if( tools->loc_count > 0 && tools->tool != EDITOR_TOOL_LOC_PLACE )
             (void)edp_locs_rotate(ui);
         else
-        {
-            tools->place_rotation = (tools->place_rotation + 1) & 3;
-            Editor_UiLog(ui, "editor: place rotation %d", tools->place_rotation);
-        }
+            edp_place_rotate(ui);
         return 1;
     case EDITOR_HK_EDIT_RESHAPE:
-        if( tools->loc_count > 0 )
+        /* Within the loc's own shapes, the selection's or the pick's. */
+        if( tools->loc_count > 0 && tools->tool != EDITOR_TOOL_LOC_PLACE )
             (void)edp_locs_reshape(ui);
         else
-        {
-            tools->place_shape = Editor_LocShapeCycle(tools->place_shape);
-            Editor_UiLog(ui, "editor: place shape %d", tools->place_shape);
-        }
+            edp_place_reshape(ui);
         return 1;
     case EDITOR_HK_EDIT_NUDGE_N:
         (void)edp_locs_nudge(ui, 0, 1);
@@ -250,6 +255,20 @@ Editor_HotkeyRun(
     }
     if( action <= EDITOR_HK_EDIT_MARK_AREA )
         return hk_run_edit(ui, action);
+    if( action == EDITOR_HK_PLACE_FIT )
+    {
+        edp_place_fit_set(!edp_place_fit_enabled());
+        Editor_UiLog(ui, "editor: fit walls to neighbours %s", edp_place_fit_enabled() ? "on" : "off");
+        return 1;
+    }
+    if( action == EDITOR_HK_PLACE_SWAP )
+    {
+        (void)edp_locs_swap(ui);
+        return 1;
+    }
+    /* Place at the hovered tile needs the world: the App's. */
+    if( action == EDITOR_HK_PLACE_HERE )
+        return 0;
     if( action >= EDITOR_HK_TOOL_SELECT && action < EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_COUNT )
     {
         Editor_UiSetTool(ui, (enum Editor_Tool)(action - EDITOR_HK_TOOL_SELECT));

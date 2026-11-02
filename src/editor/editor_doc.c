@@ -308,6 +308,9 @@ Editor_DocKeyValid(
     case EDITOR_DOC_AREAS:
         /* One per content tree. */
         return strcmp(key, "areas") == 0;
+    case EDITOR_DOC_PALETTES:
+        /* One per content tree (editor_palette.h). */
+        return strcmp(key, "palettes") == 0;
     case EDITOR_DOC_TEXT:
         if( strncmp(key, "rs2:", 4) == 0 )
             return relative_path_valid(key + 4);

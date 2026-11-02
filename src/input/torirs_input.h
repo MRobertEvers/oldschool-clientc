@@ -157,6 +157,31 @@ struct LibToriRS_Input_State
     int mouse_x;
     int mouse_y;
     int mouse_wheel_y;
+
+    /**
+     * This frame's pinch (TORIRS_CMD_INPUT_PINCH): the product of every pinch
+     * step that arrived, 0 when none did (memset-to-zero is "no pinch"). > 1
+     * is fingers apart. Centre in canvas pixels, the last step's.
+     * `pinch_from_wheel`: the same motion is also in `mouse_wheel_y`.
+     */
+    float pinch_scale;
+    int pinch_x;
+    int pinch_y;
+    int pinch_from_wheel;
+
+    /**
+     * The wheel's exact deltas this frame (TORIRS_CMD_INPUT_SCROLL), canvas
+     * pixels, the platform's own direction setting applied: +y scroll up
+     * (content down), +x scroll right (content left). `scroll_trackpad` when
+     * any of them came from a trackpad; `scroll_px_per_notch` the last one's
+     * (0 when no scroll arrived); `scroll_flipped` the platform's "natural"
+     * flag (-scroll_dy then has mouse_wheel_y's sign).
+     */
+    float scroll_dx;
+    float scroll_dy;
+    int scroll_px_per_notch;
+    int scroll_trackpad;
+    int scroll_flipped;
 };
 
 struct LibToriRS_Input
@@ -343,6 +368,25 @@ void
 LibToriRS_Input_PushMouseWheel(
     struct LibToriRS_Input* input,
     int wheel_y);
+
+/** A pinch step: multiplies curr.pinch_scale, centre (x, y). scale > 0. */
+void
+LibToriRS_Input_PushPinch(
+    struct LibToriRS_Input* input,
+    float scale,
+    int x,
+    int y,
+    int from_wheel);
+
+/** A precise scroll: adds to curr.scroll_dx/dy. px_per_notch > 0. */
+void
+LibToriRS_Input_PushScroll(
+    struct LibToriRS_Input* input,
+    float dx,
+    float dy,
+    int px_per_notch,
+    int trackpad,
+    int flipped);
 
 /**
  * The pointer stopped resting on the surface: the finger lifted, or the cursor

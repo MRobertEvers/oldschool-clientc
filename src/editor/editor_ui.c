@@ -86,6 +86,16 @@ Editor_UiInit(
     ui->layout_reopened = -1;
     Editor_HotkeysInit(&ui->hotkeys);
     ui->previous_tool = EDITOR_TOOL_SELECT;
+
+    /* A read-only session says so, and who holds the tree, before anybody
+     * edits and finds out at Save (or RUN). */
+    if( editor && editor->host_open && !editor->writable )
+    {
+        Editor_UiLog(ui, "editor: READ-ONLY: %s",
+            editor->read_only_reason[0] ? editor->read_only_reason : "another editor server holds the content tree");
+        Editor_UiLog(ui, "editor: close that process (a dead holder's lock is taken back at the next start), "
+                         "or run this window against the daemon");
+    }
 }
 
 void
@@ -242,6 +252,9 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     {
         Editor_Catalog_Register(ui);
         Editor_Inspector_Register(ui);
+        /* Named strips of catalog records (the PALETTES document); it picks
+         * through the Catalog, so it comes with it. */
+        Editor_CatalogPalette_Register(ui);
     }
     Editor_NewSquare_Register(ui);
     Editor_SaveGuard_Register(ui);
@@ -401,7 +414,8 @@ _Static_assert(EDITOR_UI_LAYOUT_PANELS_MAX >= TORIRS_CHROME_MAX_PANELS,
  *  is open at a layout it takes its place here, else it opens beside the
  *  column. */
 static const char* const k_dock_order[] = {
-    "terrain", "palette", "locs", "spawns", "rect", "inspector", "squares", "areas", "catalog", "preview", "history",
+    "terrain", "palette", "locs", "spawns", "rect", "inspector", "squares", "areas", "catalog", "preview",
+    "catalog_palette", "history",
 };
 #define UI_DOCK_COUNT ((int)(sizeof(k_dock_order) / sizeof(k_dock_order[0])))
 
@@ -930,6 +944,10 @@ Editor_UiResetLayout(struct EditorUi* ui)
     for( int i = ui->panel_first; i < ui->panel_end && i < ui->chrome->panel_count; i++ )
     {
         int const at = i - ui->panel_first;
+        /* Reset returns every panel to the default layout, unmaximised. */
+        if( ToriRSChrome_PanelIsMaximised(ui->chrome, i) )
+            ToriRSChrome_PanelRestore(ui->chrome, i);
+        ui->maximise_pending[at] = 0;
         ui->chrome->panels[i].user_placed = 0;
         ui->closed[at] = 0;
         ui->member[at] = ui->boot_member[at];
@@ -1030,6 +1048,25 @@ Editor_UiLayoutCapture(
         p->y = cp->y / scale;
         p->w = cp->fixed_w / scale;
         p->h = cp->fixed_h / scale;
+        /* Maximised: the box written is the one it restores to. */
+        {
+            int rx = 0;
+            int ry = 0;
+            int rw = 0;
+            int rh = 0;
+            int placed = 0;
+            p->has_maximised = 1;
+            p->maximised = ToriRSChrome_PanelRestoreBox(
+                ui->chrome, ui->panels[i].chrome_panel, &rx, &ry, &rw, &rh, &placed);
+            if( p->maximised )
+            {
+                p->user_placed = placed ? 1 : 0;
+                p->x = rx / scale;
+                p->y = ry / scale;
+                p->w = rw / scale;
+                p->h = rh / scale;
+            }
+        }
     }
 }
 
@@ -1118,6 +1155,14 @@ Editor_UiLayoutApply(
             cp->user_placed = 1;
             ui->docked[at] = 0;
             ui->flown[at] = 0;
+        }
+        /* Maximised when saved: once the layout below has given it the box
+         * it restores to (ui_maximise_tick). */
+        if( sp->has_maximised )
+        {
+            ui->maximise_pending[at] = (unsigned char)(sp->maximised ? 1 : 0);
+            if( !sp->maximised && ToriRSChrome_PanelIsMaximised(chrome, panel) )
+                ToriRSChrome_PanelRestore(chrome, panel);
         }
         if( sp->has_visible )
         {
@@ -1223,6 +1268,7 @@ Editor_UiLayoutFingerprint(const struct EditorUi* ui)
         h = ui_fnv(h, cp->y);
         h = ui_fnv(h, cp->fixed_w);
         h = ui_fnv(h, cp->fixed_h);
+        h = ui_fnv(h, cp->maximised);
     }
     return h;
 }
@@ -1588,6 +1634,94 @@ Editor_UiSetSolo(
     return 1;
 }
 
+/* ---- maximise: a double-click on a panel's title ------------------------ */
+
+/** The area a maximised panel fills: the whole surface below the menu bar --
+ *  every pixel the dock lays panels out in. */
+static struct ToriRSChromeRect
+ui_maximise_area(struct EditorUi* ui)
+{
+    struct ToriRSChromeRect area;
+    int const menubar = ui_chrome_panel(ui, "menubar");
+    int top = 0;
+
+    if( menubar >= 0 && ui->chrome->panels[menubar].visible )
+    {
+        struct ToriRSChromeRect const bar = ToriRSChrome_PanelRect(ui->chrome, menubar);
+        top = bar.y + bar.h;
+    }
+    area.x = 0;
+    area.y = top;
+    area.w = ui->chrome->surface_w;
+    area.h = ui->chrome->surface_h - top;
+    return area;
+}
+
+/** The registry panel whose chrome panel is `panel`, when it is one the
+ *  layout keeps (a titled View-menu window), else -1. */
+static int
+ui_layout_panel_of(
+    const struct EditorUi* ui,
+    int panel)
+{
+    for( int i = 0; i < ui->panel_count; i++ )
+        if( ui->panels[i].chrome_panel == panel && ui_layout_saves(ui, i) )
+            return i;
+    return -1;
+}
+
+/**
+ * Every frame (the registry, not the UI tree): a title double-click maximises
+ * that panel over the dock or restores it; a maximised panel follows the
+ * surface; one the saved layout says was maximised is maximised once the
+ * layout has placed its box.
+ */
+static void
+ui_maximise_tick(struct EditorUi* ui)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    struct ToriRSChromeRect const area = ui_maximise_area(ui);
+    int const clicked = ToriRSChrome_TakeTitleDoubleClick(chrome);
+
+    /* A popped-out window is a window of its own; it has no dock to fill. */
+    if( ui->solo_panel >= 0 || area.w <= 0 || area.h <= 0 )
+        return;
+    if( clicked >= 0 && ui_layout_panel_of(ui, clicked) >= 0 )
+    {
+        if( ToriRSChrome_PanelIsMaximised(chrome, clicked) )
+        {
+            ToriRSChrome_PanelRestore(chrome, clicked);
+            /* A docked panel goes back into the column the layout keeps. */
+            ui->laid_out = 0;
+            Editor_UiLog(ui, "editor: %s restored", chrome->panels[clicked].title);
+        }
+        else
+        {
+            ToriRSChrome_PanelMaximise(chrome, clicked, area);
+            Editor_UiLog(ui, "editor: %s maximised (double-click its title to restore)",
+                chrome->panels[clicked].title);
+        }
+    }
+    else if( clicked >= 0 )
+        chrome->title_double = clicked;
+
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        int const panel = ui->panels[i].chrome_panel;
+        int at;
+        if( !ui_layout_saves(ui, i) )
+            continue;
+        at = panel - ui->panel_first;
+        if( ui->maximise_pending[at] && ui->laid_out && !ui->layout_hold && !ui->layout_pending )
+        {
+            ui->maximise_pending[at] = 0;
+            ToriRSChrome_PanelMaximise(chrome, panel, area);
+        }
+        else if( ToriRSChrome_PanelIsMaximised(chrome, panel) )
+            ToriRSChrome_PanelMaximise(chrome, panel, area);
+    }
+}
+
 void
 Editor_UiTick(struct EditorUi* ui)
 {
@@ -1607,6 +1741,7 @@ Editor_UiTick(struct EditorUi* ui)
         ui_layout_follow(ui);
 
     ui_popout_tick(ui);
+    ui_maximise_tick(ui);
 
     /* ONE activation per frame, and it is either one module's or nobody's
      * here. Unclaimed, it goes back where it was: another consumer of this

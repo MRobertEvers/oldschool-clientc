@@ -1103,7 +1103,8 @@ app_view_split_command_is_input(uint32_t type)
            type == TORIRS_CMD_INPUT_KEY_EVENT || type == TORIRS_CMD_INPUT_OSRS_KEY ||
            type == TORIRS_CMD_INPUT_MOUSE_DOWN || type == TORIRS_CMD_INPUT_MOUSE_UP ||
            type == TORIRS_CMD_INPUT_MOUSE_MOVE || type == TORIRS_CMD_INPUT_MOUSE_WHEEL ||
-           type == TORIRS_CMD_INPUT_CLEAR_KEYS || type == TORIRS_CMD_INPUT_MOUSE_LEAVE;
+           type == TORIRS_CMD_INPUT_CLEAR_KEYS || type == TORIRS_CMD_INPUT_MOUSE_LEAVE ||
+           type == TORIRS_CMD_INPUT_PINCH || type == TORIRS_CMD_INPUT_SCROLL;
 }
 
 /* The runner is between a press and its release, or between a right press

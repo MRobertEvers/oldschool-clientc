@@ -46,6 +46,9 @@ struct Editor
      *  lock). The editor still runs — looking at a tree somebody else is
      *  editing is useful — it just cannot save. */
     int writable;
+    /** When not writable, why, as the server said it: "<content_dir> is
+     *  held by pid N (<command>, since HH:MM)"; "" when it did not say. */
+    char read_only_reason[1024];
 
     /** FACT_HELLO v2's TORIRSMAPED_CAP_* bits: which optional server
      *  bindings (build, live, catalog, spawn_view) exist. */

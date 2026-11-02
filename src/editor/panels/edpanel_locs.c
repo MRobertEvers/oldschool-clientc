@@ -24,14 +24,9 @@
 
 #define LOCS_LIST_ROWS 6
 
-/* Shapes worth offering when placing; the full 0..22 space is mostly roof
- * pieces. */
-static const char* const k_shape_names[] = {
-    "10 centrepiece", "11 centrepiece diag", "22 ground decor", "0 wall", "1 wall corner",
-    "2 wall L",       "3 wall square corner", "9 wall diag",     "4 decor inside", "5 decor outside",
-};
-static const int k_shape_ids[] = { 10, 11, 22, 0, 1, 2, 3, 9, 4, 5 };
-#define LOCS_SHAPE_COUNT ((int)(sizeof(k_shape_ids) / sizeof(k_shape_ids[0])))
+/* The shape strip: one button per shape the subject loc has (its config's
+ * models), at most this many -- no loc in the cache has more. */
+#define LOCS_STRIP_MAX 16
 static const char* const k_rotation_names[4] = { "0", "90", "180", "270" };
 
 struct LocsPanel
@@ -48,8 +43,32 @@ struct LocsPanel
     int button_duplicate;
     int button_delete;
     int button_swap;
+    int button_fit;
     int dropdown_shape;
     int dropdown_rotation;
+    int check_fit;
+    int strip_label;
+    int strip_view;
+    int strip_buttons[LOCS_STRIP_MAX];
+
+    /* The shape strip's subject: the selection's first loc, else the Place
+     * tool's pick. Rebuilt when the subject, its shape set or its current
+     * shape moves. */
+    int strip_loc_id;
+    uint32_t strip_mask;
+    int strip_current;
+    int strip_selected;
+    int strip_count;
+    int strip_shapes[LOCS_STRIP_MAX];
+    /* The Place pose dropdown lists the pick's shapes. */
+    int pose_loc_id;
+    uint32_t pose_mask;
+    int pose_count;
+    int pose_shapes[LOCS_STRIP_MAX];
+    /* The dropdown keeps pointers to its option texts: they live here. */
+    char pose_names[LOCS_STRIP_MAX][32];
+    const char* pose_name_ptrs[LOCS_STRIP_MAX];
+    int pose_row;
 
     struct Editor_LocRef shown[EDITOR_LOC_SELECTION_MAX];
     int shown_count;
@@ -59,6 +78,142 @@ struct LocsPanel
     /** ui->hotkeys.serial the buttons' tips were labelled from. */
     uint32_t hint_serial;
 };
+
+/** The one Locs panel of this window, for the App's thumbnail render
+ *  (Editor_Locs_ShapeStrip). */
+static struct LocsPanel* g_locs;
+
+/** The strip's subject: the selection's first loc, else a loc pick. */
+static int
+locs_subject(
+    const struct EditorUi* ui,
+    int* out_shape)
+{
+    if( ui->tools.loc_count > 0 )
+    {
+        *out_shape = ui->tools.locs[0].shape;
+        return ui->tools.locs[0].loc_id;
+    }
+    if( ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0 )
+    {
+        *out_shape = ui->tools.place_shape;
+        return ui->tools.pick_id;
+    }
+    *out_shape = -1;
+    return -1;
+}
+
+/** The strip follows its subject: a button per shape the loc has, the
+ *  current one marked. */
+static void
+locs_strip_refresh(
+    struct EditorUi* ui,
+    struct LocsPanel* self)
+{
+    int shape = -1;
+    int const loc_id = locs_subject(ui, &shape);
+    uint32_t mask = 0;
+    int known = loc_id >= 0 && edp_loc_shapes(ui, loc_id, &mask);
+    char line[TORIRS_CHROME_LABEL_MAX];
+
+    if( !known )
+        mask = 0;
+    if( loc_id == self->strip_loc_id && mask == self->strip_mask && shape == self->strip_current
+        && (ui->tools.loc_count > 0) == self->strip_selected )
+        return;
+    self->strip_selected = ui->tools.loc_count > 0;
+    self->strip_loc_id = loc_id;
+    self->strip_mask = mask;
+    self->strip_current = shape;
+    self->strip_count = Editor_LocShapeList(mask, self->strip_shapes);
+    if( self->strip_count > LOCS_STRIP_MAX )
+        self->strip_count = LOCS_STRIP_MAX;
+    if( loc_id < 0 )
+        snprintf(line, sizeof(line), "Shapes: select a loc or pick one in the catalog");
+    else if( !known )
+        snprintf(line, sizeof(line), "Shapes of loc %d: loading...", loc_id);
+    else
+        snprintf(line, sizeof(line), "Shapes of loc %d (%d)%s", loc_id, self->strip_count,
+            ui->tools.loc_count > 0 ? " -- click to reshape" : " -- click to set the pose");
+    ToriRSChrome_SetText(ui->chrome, self->strip_label, line);
+    for( int i = 0; i < LOCS_STRIP_MAX; i++ )
+    {
+        char label[TORIRS_CHROME_LABEL_MAX];
+        if( i >= self->strip_count )
+        {
+            ToriRSChrome_SetHidden(ui->chrome, self->strip_buttons[i], 1);
+            continue;
+        }
+        snprintf(label, sizeof(label), "%s%d %s", self->strip_shapes[i] == shape ? "> " : "", self->strip_shapes[i],
+            Editor_LocShapeName(self->strip_shapes[i]));
+        ToriRSChrome_SetLabel(ui->chrome, self->strip_buttons[i], label);
+        ToriRSChrome_SetHidden(ui->chrome, self->strip_buttons[i], 0);
+    }
+    ToriRSChrome_SetHidden(ui->chrome, self->strip_view, self->strip_count == 0);
+}
+
+/** The Place pose's Shape dropdown lists the pick's shapes only. */
+static void
+locs_pose_refresh(
+    struct EditorUi* ui,
+    struct LocsPanel* self)
+{
+    int const loc_id = ui->tools.pick_kind == 0 ? ui->tools.pick_id : -1;
+    uint32_t mask = 0;
+    int row = 0;
+
+    if( loc_id < 0 || !edp_loc_shapes(ui, loc_id, &mask) )
+        mask = 0;
+    if( loc_id != self->pose_loc_id || mask != self->pose_mask )
+    {
+        self->pose_loc_id = loc_id;
+        self->pose_mask = mask;
+        self->pose_count = Editor_LocShapeList(mask, self->pose_shapes);
+        if( self->pose_count > LOCS_STRIP_MAX )
+            self->pose_count = LOCS_STRIP_MAX;
+        if( self->pose_count == 0 )
+        {
+            /* No loc picked (or still loading): the pose as it stands. */
+            self->pose_count = 1;
+            self->pose_shapes[0] = ui->tools.place_shape;
+        }
+        self->pose_row = -1;
+    }
+    for( int i = 0; i < self->pose_count; i++ )
+    {
+        int const shape = self->pose_shapes[i];
+        snprintf(self->pose_names[i], sizeof(self->pose_names[i]), "%d %s", shape,
+            shape >= 0 && shape < EDITOR_LOC_SHAPE_COUNT ? Editor_LocShapeName(shape) : "?");
+        self->pose_name_ptrs[i] = self->pose_names[i];
+        if( shape == ui->tools.place_shape )
+            row = i;
+    }
+    if( row != self->pose_row )
+    {
+        ToriRSChrome_DropdownSetOptions(ui->chrome, self->dropdown_shape, self->pose_name_ptrs, self->pose_count, row);
+        self->pose_row = row;
+    }
+}
+
+int
+Editor_Locs_ShapeStrip(
+    struct EditorUi* ui,
+    int* out_loc_id,
+    int out_shapes[EDITOR_LOC_SHAPE_COUNT],
+    int* out_view)
+{
+    assert(ui);
+    assert(out_loc_id);
+    assert(out_shapes);
+    assert(out_view);
+    (void)ui;
+    if( !g_locs || g_locs->strip_count == 0 )
+        return 0;
+    *out_loc_id = g_locs->strip_loc_id;
+    *out_view = g_locs->strip_view;
+    memcpy(out_shapes, g_locs->strip_shapes, sizeof(int) * (size_t)g_locs->strip_count);
+    return g_locs->strip_count;
+}
 
 /** Each button's tip names its chord from the hotkey table. */
 static void
@@ -161,10 +316,34 @@ locs_tick(
     struct LocsPanel* self = opaque;
     int first;
     int shown;
-    int const empty = ui->tools.loc_count == 0;
+    /* Open while locs are selected, and while the Place tool holds a loc
+     * pick: the pose and the shape strip are the Place tool's controls. */
+    int const empty = ui->tools.loc_count == 0
+                      && !(ui->tools.tool == EDITOR_TOOL_LOC_PLACE && ui->tools.pick_kind == 0
+                           && ui->tools.pick_id >= 0);
 
     if( self->hint_serial != ui->hotkeys.serial )
         locs_hints(ui, self);
+    /* The selection follows an undo or redo of a rotate or swap: a ref
+     * resolves by tile, shape and id, so its rotation (and an id the swap
+     * changed under it) is taken from the document again. */
+    if( ui->editor )
+        for( int i = 0; i < ui->tools.loc_count; i++ )
+        {
+            struct Editor_LocRef* ref = &ui->tools.locs[i];
+            struct Editor_Square* square = Editor_DocFindSquare(&ui->editor->doc, ref->map_x, ref->map_z);
+            int const index = Editor_LocRefResolve(&ui->editor->doc, ref);
+            if( index >= 0 && square->locs[index].rotation != ref->rotation )
+                ref->rotation = square->locs[index].rotation;
+        }
+    (void)edp_place_pose_follow(ui);
+    locs_pose_refresh(ui, self);
+    locs_strip_refresh(ui, self);
+    /* Q turns the pose from the keyboard: the dropdown follows. */
+    if( ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_rotation) != (ui->tools.place_rotation & 3) )
+        ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_rotation, ui->tools.place_rotation & 3);
+    if( ToriRSChrome_Checked(ui->chrome, self->check_fit) != edp_place_fit_enabled() )
+        ToriRSChrome_SetChecked(ui->chrome, self->check_fit, edp_place_fit_enabled());
 
     /* Opens when something is selected, closes when nothing is, like the
      * old Loc panel; the View menu still opens it by hand in between. */
@@ -200,7 +379,8 @@ locs_tick(
         int wz;
         int const live = ui->editor ? Editor_LocRefResolve(&ui->editor->doc, ref) >= 0 : 0;
         Editor_LocRefWorld(ref, &wx, &wz);
-        snprintf(text, sizeof(text), "loc %d  shape %d rot %d  %d,%d L%d%s", ref->loc_id, ref->shape,
+        snprintf(text, sizeof(text), "loc %d  shape %d %s  rot %d  %d,%d L%d%s", ref->loc_id, ref->shape,
+            ref->shape >= 0 && ref->shape < EDITOR_LOC_SHAPE_COUNT ? Editor_LocShapeName(ref->shape) : "?",
             ref->rotation, wx, wz, ref->level, live ? "" : "  (gone)");
         ToriRSChrome_VListSetRow(ui->chrome, self->list, r, text);
     }
@@ -216,6 +396,19 @@ locs_activate(
 
     if( widget == self->list )
         return 1;
+    for( int i = 0; i < self->strip_count; i++ )
+        if( widget == self->strip_buttons[i] )
+        {
+            int const shape = self->strip_shapes[i];
+            if( ui->tools.loc_count > 0 )
+                (void)edp_locs_set_shape(ui, shape);
+            else
+            {
+                ui->tools.place_shape = shape;
+                Editor_UiLog(ui, "editor: place shape %d %s", shape, Editor_LocShapeName(shape));
+            }
+            return 1;
+        }
     if( widget == self->button_north )
         (void)edp_locs_nudge(ui, 0, 1);
     else if( widget == self->button_south )
@@ -233,52 +426,20 @@ locs_activate(
     else if( widget == self->button_delete )
         (void)edp_locs_delete(ui);
     else if( widget == self->button_swap )
-    {
-        /* Same placements, the catalog's loc: a delete and an add per loc,
-         * one stroke, keeping tile, shape and rotation. */
-        int capacity;
-        struct Editor_Cmd* commands = edp_scratch(&capacity);
-        int count = 0;
-
-        if( ui->tools.pick_kind != 0 || ui->tools.pick_id < 0 )
-        {
-            Editor_UiLog(ui, "editor: pick a replacement loc in the catalog first");
-            return 1;
-        }
-        if( !ui->editor || ui->tools.loc_count == 0 )
-        {
-            Editor_UiLog(ui, "editor: select the locs to swap first");
-            return 1;
-        }
-        for( int i = 0; i < ui->tools.loc_count && count < capacity; i++ )
-        {
-            struct Editor_LocRef* ref = &ui->tools.locs[i];
-            struct Editor_Square* square = Editor_DocFindSquare(&ui->editor->doc, ref->map_x, ref->map_z);
-            int const index = Editor_LocRefResolve(&ui->editor->doc, ref);
-            if( index < 0 )
-                continue;
-            Editor_CmdInitSquare(&commands[count], EDITOR_CMD_LOC, ref->map_x, ref->map_z);
-            commands[count].has_before = 1;
-            commands[count].has_after = 1;
-            commands[count].u.loc.before = square->locs[index];
-            commands[count].u.loc.after = square->locs[index];
-            commands[count].u.loc.after.loc_id = ui->tools.pick_id;
-            count++;
-        }
-        if( edp_apply(ui, commands, count, "swap") > 0 )
-        {
-            for( int i = 0; i < ui->tools.loc_count; i++ )
-                ui->tools.locs[i].loc_id = ui->tools.pick_id;
-            if( ui->hooks.selection_changed )
-                ui->hooks.selection_changed(ui->hooks_user);
-        }
-    }
+        (void)edp_locs_swap(ui);
     else if( widget == self->dropdown_shape )
     {
         int const row = ToriRSChrome_DropdownSelected(ui->chrome, widget);
-        if( row >= 0 && row < LOCS_SHAPE_COUNT )
-            ui->tools.place_shape = k_shape_ids[row];
+        if( row >= 0 && row < self->pose_count )
+            ui->tools.place_shape = self->pose_shapes[row];
     }
+    else if( widget == self->check_fit )
+    {
+        edp_place_fit_set(ToriRSChrome_Checked(ui->chrome, widget));
+        Editor_UiLog(ui, "editor: fit walls to neighbours %s", edp_place_fit_enabled() ? "on" : "off");
+    }
+    else if( widget == self->button_fit )
+        (void)edp_locs_fit(ui);
     else if( widget == self->dropdown_rotation )
     {
         int const row = ToriRSChrome_DropdownSelected(ui->chrome, widget);
@@ -308,6 +469,8 @@ locs_destroy(
     void* opaque)
 {
     (void)ui;
+    if( g_locs == opaque )
+        g_locs = NULL;
     ToriMem_Free(ToriMem_Editor(), opaque);
 }
 
@@ -317,17 +480,18 @@ Editor_Locs_Register(struct EditorUi* ui)
     struct LocsPanel* self;
     struct EditorUiPanel desc;
     struct ToriRSChrome* chrome;
-    int shape_row = 0;
-
     assert(ui);
     chrome = ui->chrome;
 
     self = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*self));
     assert(self);
     self->was_empty = 1;
-    for( int i = 0; i < LOCS_SHAPE_COUNT; i++ )
-        if( k_shape_ids[i] == ui->tools.place_shape )
-            shape_row = i;
+    self->strip_loc_id = -2;
+    self->strip_current = -2;
+    self->pose_loc_id = -2;
+    self->pose_row = -1;
+    snprintf(self->pose_names[0], sizeof(self->pose_names[0]), "%d", ui->tools.place_shape);
+    self->pose_name_ptrs[0] = self->pose_names[0];
 
     self->panel = ToriRSChrome_PanelAdd(
         chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X + EDP_COL_W + 8), edp_px(ui, 260),
@@ -344,11 +508,22 @@ Editor_Locs_Register(struct EditorUi* ui)
     self->button_duplicate = ToriRSChrome_Button(chrome, self->panel, "Duplicate");
     self->button_delete = ToriRSChrome_Button(chrome, self->panel, "Delete");
     self->button_swap = ToriRSChrome_Button(chrome, self->panel, "Swap to catalog pick");
+    self->button_fit = ToriRSChrome_Button(chrome, self->panel, "Fit selection to neighbours");
     locs_hints(ui, self);
     ToriRSChrome_Separator(chrome, self->panel);
+    /* The shape strip: the subject's shapes as thumbnails (the App renders
+     * them into the view, Editor_Locs_ShapeStrip) and one button each. */
+    self->strip_label = ToriRSChrome_Label(chrome, self->panel, "");
+    self->strip_view = ToriRSChrome_ModelView(chrome, self->panel, edp_px(ui, 224), edp_px(ui, 44));
+    for( int i = 0; i < LOCS_STRIP_MAX; i++ )
+    {
+        self->strip_buttons[i] = ToriRSChrome_Button(chrome, self->panel, "");
+        ToriRSChrome_SetHidden(chrome, self->strip_buttons[i], 1);
+    }
+    ToriRSChrome_Separator(chrome, self->panel);
     ToriRSChrome_Label(chrome, self->panel, "Place pose");
-    self->dropdown_shape =
-        ToriRSChrome_Dropdown(chrome, self->panel, "Shape", k_shape_names, LOCS_SHAPE_COUNT, shape_row);
+    self->dropdown_shape = ToriRSChrome_Dropdown(chrome, self->panel, "Shape", self->pose_name_ptrs, 1, 0);
+    self->check_fit = ToriRSChrome_Checkbox(chrome, self->panel, "Fit walls to neighbours", edp_place_fit_enabled());
     self->dropdown_rotation = ToriRSChrome_Dropdown(
         chrome, self->panel, "Rotation", k_rotation_names, 4, ui->tools.place_rotation & 3);
     ToriRSChrome_PanelSetScrollable(chrome, self->panel, 1);
@@ -365,4 +540,5 @@ Editor_Locs_Register(struct EditorUi* ui)
     desc.set_visible = locs_set_visible;
     desc.destroy = locs_destroy;
     Editor_UiAddPanel(ui, &desc);
+    g_locs = self;
 }

@@ -271,6 +271,8 @@ encode_payload(
     case EDITOR_CMD_AREA_REMOVE:
     case EDITOR_CMD_COLLECTION_SET:
     case EDITOR_CMD_COLLECTION_REMOVE:
+    case EDITOR_CMD_PALETTE_SET:
+    case EDITOR_CMD_PALETTE_REMOVE:
         /* i32 line, string before ("" = none), string after ("" = none):
          * the record's line before and after, editor_areas.h. */
         assert(command->u.area.before_len <= EDITOR_CMD_SPLICE_MAX / 2);
@@ -398,6 +400,8 @@ decode_payload(
     case EDITOR_CMD_AREA_REMOVE:
     case EDITOR_CMD_COLLECTION_SET:
     case EDITOR_CMD_COLLECTION_REMOVE:
+    case EDITOR_CMD_PALETTE_SET:
+    case EDITOR_CMD_PALETTE_REMOVE:
     {
         const uint8_t* before;
         const uint8_t* after;

@@ -482,12 +482,31 @@ app_chrome_route_input(
             ui, input->press_origin_x[TORIRSM_RIGHT], input->press_origin_y[TORIRSM_RIGHT]) )
         app->input_frame_consumed = 1;
 
-    /* The wheel, so an open dropdown or a scrolling panel moves. Consumed when
-     * the chrome takes it, or the camera would zoom behind it at the same time. */
-    if( input->curr.mouse_wheel_y != 0 &&
-        ToriRSChrome_MouseWheel(
-            ui, input->curr.mouse_x, input->curr.mouse_y, input->curr.mouse_wheel_y) )
-        app->input_frame_consumed = 1;
+    /* The wheel, so an open dropdown or a scrolling panel moves, plus the
+     * trackpad's exact scroll and pinch, which only a GRAPH well (the map
+     * editor's world map) takes -- everywhere else the integer wheel goes
+     * exactly where it always went. Consumed when the chrome takes any of it,
+     * or the camera would zoom behind it at the same time. An unclaimed pinch
+     * is dropped: the desktop game has no pinch of its own. */
+    {
+        struct ToriRSChromeWheelFrame frame;
+        memset(&frame, 0, sizeof(frame));
+        frame.x = input->curr.mouse_x;
+        frame.y = input->curr.mouse_y;
+        frame.wheel = input->curr.mouse_wheel_y;
+        frame.scroll_dx = input->curr.scroll_dx;
+        frame.scroll_dy = input->curr.scroll_dy;
+        frame.px_per_notch = input->curr.scroll_px_per_notch;
+        frame.trackpad = input->curr.scroll_trackpad;
+        frame.flipped = input->curr.scroll_flipped;
+        frame.ctrl = input->key_held[TORIRSK_CTRL];
+        frame.pinch_scale = input->curr.pinch_scale;
+        frame.pinch_x = input->curr.pinch_x;
+        frame.pinch_y = input->curr.pinch_y;
+        frame.pinch_from_wheel = input->curr.pinch_from_wheel;
+        if( ToriRSChrome_WheelFrame(ui, &frame) )
+            app->input_frame_consumed = 1;
+    }
 
     app_chrome_route_keys(app, ui, input);
 }

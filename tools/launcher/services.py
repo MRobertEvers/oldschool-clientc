@@ -171,6 +171,10 @@ def _build_io_server(config, context):
     ]
     if config.get("boot_root"):
         argv += ["--boot-root", config["boot_root"]]
+    # The map editor's web lane: /maped/ proxied to the torirsmaped daemon on
+    # this machine (the page's only link to it; src/ioserver/io_maped_proxy.c).
+    if config.get("maped_port"):
+        argv += ["--maped-port", str(config["maped_port"])]
     return Service(
         name="io_server",
         argv=argv,
@@ -247,6 +251,9 @@ def _build_torirsmaped(config, context):
         "--content-dir", content,
         "--repo-root", repo_dir,
     ]
+    # The live lane BUILD and RUN write into, launch from and play on.
+    if config.get("live_dir"):
+        argv += ["--live-dir", config["live_dir"]]
     return Service(
         name="torirsmaped",
         argv=argv,
@@ -309,7 +316,9 @@ def advisory_services(profile, manifest, declared, client=None):
     transport = (manifest.transport or "").strip()
     advisory = {}
 
-    if "torirsserver" not in declared:
+    # A map-editor boot dials no game server: its lane's servers are the
+    # torirsmaped daemon's to launch (RUN), not the launcher's.
+    if "torirsserver" not in declared and not manifest.is_editor:
         if client in ("web", "web-idb"):
             advisory["torirsserver"] = (
                 "a browser cannot host the in-process server, so one has to "
@@ -344,5 +353,16 @@ def build_services(profile, manifest, manifest_path, repo_root):
             raise LaunchError(
                 "profile '%s': unknown service '%s' (known: %s)"
                 % (profile.name, name, ", ".join(SERVICE_NAMES)))
-        built.append(BUILDERS[name](profile.service_config(name), context))
+        config = profile.service_config(name)
+        service = BUILDERS[name](config, context)
+        # `binary=` runs that file instead of the tree's build of the service
+        # (a private objdir's, say), and nothing is made for it.
+        if config.get("binary"):
+            binary = config["binary"]
+            if not os.path.isabs(binary) and not binary.startswith("."):
+                binary = "./" + binary
+            service.argv[0] = binary
+            service.binary_candidates = (config["binary"],)
+            service.build_target = None
+        built.append(service)
     return built

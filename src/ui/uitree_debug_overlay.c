@@ -10,7 +10,9 @@
  * file owns them. */
 #include "torirs_chrome_metrics.h"
 
+#include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* ---- the map editor's widgets (uitree_debug_overlay_widgets.u.c) ---------
@@ -45,6 +47,9 @@ static void dbg_ext_hover(struct ToriRSChrome* ui, int hit, int x, int y);
 static int dbg_ext_mouse_up(struct ToriRSChrome* ui, int x, int y);
 static int dbg_ext_click(struct ToriRSChrome* ui, int hit, int x, int y);
 static int dbg_ext_wheel(struct ToriRSChrome* ui, int x, int y, int delta);
+static int dbg_title_press(struct ToriRSChrome* ui, int panel, int x, int y);
+static int dbg_unmaximise_for_drag(struct ToriRSChrome* ui, int x, int y);
+static int dbg_unmaximise_for_resize(struct ToriRSChrome* ui, int x, int y);
 static int dbg_ext_secondary(struct ToriRSChrome* ui, int x, int y);
 static int dbg_ext_key_char(struct ToriRSChrome* ui, int ch);
 static int dbg_ext_key_edit(struct ToriRSChrome* ui, int key);
@@ -1877,6 +1882,8 @@ ToriRSChrome_Init(struct ToriRSChrome* ui)
     ui->colorpick_drag_bar = TORIRS_CHROME_COLORBAR_NONE;
     ui->drag_panel = -1;
     ui->resize_panel = -1;
+    ui->title_press_panel = -1;
+    ui->title_double = -1;
     ui->free_widget = -1;
     ui->scroll_panel = -1;
     ui->hover_close_panel = -1;
@@ -1920,6 +1927,8 @@ ToriRSChrome_Reset(struct ToriRSChrome* ui)
     ui->taken_custom = 0;
     ui->drag_panel = -1;
     ui->resize_panel = -1;
+    ui->title_press_panel = -1;
+    ui->title_double = -1;
     ui->scroll_panel = -1;
     ui->hover_close_panel = -1;
     ui->hover_popout_panel = -1;
@@ -2266,12 +2275,38 @@ dbg_panel_close_rect(struct ToriRSChrome const* ui, int panel)
     return dbg_panel_close_box(ui, p, p->last_rect);
 }
 
+/**
+ * The maximised panel when (x, y) is inside it, else -1. Every hit test
+ * below asks this first: a maximised panel is over every other non-modal
+ * one, whatever their order in the array (a modal is above it, and
+ * dbg_modal_blocks answers for that before any of these runs).
+ */
+static int
+dbg_maximised_over(struct ToriRSChrome const* ui, int x, int y)
+{
+    for( int i = ui->panel_count - 1; i >= 0; i-- )
+    {
+        struct ToriRSChromePanel const* p = &ui->panels[i];
+        if( !p->visible || !p->maximised || p->modal || p->last_rect.w <= 0 )
+            continue;
+        if( x >= p->last_rect.x && x < p->last_rect.x + p->last_rect.w && y >= p->last_rect.y &&
+            y < p->last_rect.y + p->last_rect.h )
+            return i;
+        return -1;
+    }
+    return -1;
+}
+
 /** Panel whose Close button is under the point, or -1. */
 static int
 dbg_panel_close_at(struct ToriRSChrome const* ui, int x, int y)
 {
+    int const top = dbg_maximised_over(ui, x, y);
+
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
+        if( top >= 0 && i != top && !ui->panels[i].modal )
+            continue;
         if( !ui->panels[i].visible || !ui->panels[i].closable )
             continue;
         if( dbg_point_in_rect(x, y, dbg_panel_close_rect(ui, i)) )
@@ -2339,8 +2374,12 @@ dbg_panel_popout_rect(struct ToriRSChrome const* ui, int panel)
 static int
 dbg_panel_popout_at(struct ToriRSChrome const* ui, int x, int y)
 {
+    int const top = dbg_maximised_over(ui, x, y);
+
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
+        if( top >= 0 && i != top && !ui->panels[i].modal )
+            continue;
         if( !ui->panels[i].visible || !ui->panels[i].poppable )
             continue;
         if( dbg_point_in_rect(x, y, dbg_panel_popout_rect(ui, i)) )
@@ -6893,13 +6932,13 @@ ToriRSChrome_Build(struct ToriRSChrome* ui)
     dbg_dock_layout(ui);
 
     /*
-     * Two passes: every ordinary panel, then -- over a veil across the whole
-     * surface -- the modal ones, so a dialog is never buried under a panel
-     * that happens to sit later in the array.
+     * Three passes: every ordinary panel, a maximised one over them, then --
+     * over a veil across the whole surface -- the modal ones, so a dialog is
+     * never buried under a panel that happens to sit later in the array.
      */
-    for( int pass = 0; pass < 2; pass++ )
+    for( int pass = 0; pass < 3; pass++ )
     {
-        if( pass == 1 )
+        if( pass == 2 )
         {
             struct ToriRSChromeRect veil;
             if( ToriRSChrome_ModalPanel(ui) < 0 )
@@ -6918,9 +6957,11 @@ ToriRSChrome_Build(struct ToriRSChrome* ui)
         int const prim_mark = ui->prim_count;
         int const wrap_mark = ui->wrap_used;
 
-        if( p->visible && (p->modal ? 1 : 0) != pass )
+        /* Pass 0 the ordinary panels, 1 a maximised one (over them all),
+         * 2 the modal ones over the veil. */
+        if( p->visible && (p->modal ? 2 : p->maximised ? 1 : 0) != pass )
             continue;
-        if( !p->visible && pass == 1 )
+        if( !p->visible && pass != 0 )
             continue;
 
         if( !p->visible )
@@ -7662,6 +7703,11 @@ dbg_panel_at(struct ToriRSChrome const* ui, int x, int y)
                        : -1;
         }
     }
+    {
+        int const top = dbg_maximised_over(ui, x, y);
+        if( top >= 0 )
+            return top;
+    }
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
         struct ToriRSChromePanel const* p = &ui->panels[i];
@@ -7732,8 +7778,12 @@ dbg_panel_title_rect(struct ToriRSChrome const* ui, struct ToriRSChromePanel con
 static int
 dbg_panel_header_at(struct ToriRSChrome const* ui, int x, int y)
 {
+    int const top = dbg_maximised_over(ui, x, y);
+
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
+        if( top >= 0 && i != top && !ui->panels[i].modal )
+            continue;
         struct ToriRSChromePanel const* p = &ui->panels[i];
 
         if( !p->visible || p->last_rect.w <= 0 || p->style != TORIRS_CHROME_PANEL_WINDOW )
@@ -7753,8 +7803,12 @@ dbg_panel_header_at(struct ToriRSChrome const* ui, int x, int y)
 static int
 dbg_panel_grip_at(struct ToriRSChrome const* ui, int x, int y)
 {
+    int const top = dbg_maximised_over(ui, x, y);
+
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
+        if( top >= 0 && i != top && !ui->panels[i].modal )
+            continue;
         struct ToriRSChromePanel const* p = &ui->panels[i];
         struct ToriRSChromeRect g;
 
@@ -7890,6 +7944,7 @@ ToriRSChrome_PanelEdgeAt(struct ToriRSChrome const* ui, int x, int y, int* out_p
     assert(ui);
     assert(out_panel);
     *out_panel = -1;
+    int const top = dbg_maximised_over(ui, x, y);
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
         struct ToriRSChromePanel const* p = &ui->panels[i];
@@ -7899,6 +7954,8 @@ ToriRSChrome_PanelEdgeAt(struct ToriRSChrome const* ui, int x, int y, int* out_p
         int band = dbg_panel_is_framed(ui, p) ? DBG_FRAME : DBG_RULE;
         int edges = 0;
 
+        if( top >= 0 && i != top && !p->modal )
+            continue;
         if( !p->visible || r.w <= 0 )
             continue;
         if( !dbg_point_in_rect(x, y, r) )
@@ -8219,8 +8276,12 @@ dbg_panel_scroll_to(struct ToriRSChrome* ui, int panel, int scroll)
 static int
 dbg_panel_scroll_press(struct ToriRSChrome* ui, int x, int y)
 {
+    int const top = dbg_maximised_over(ui, x, y);
+
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
+        if( top >= 0 && i != top && !ui->panels[i].modal )
+            continue;
         struct ToriRSChromeRect const bar = dbg_panel_scrollbar_rect(ui, i);
         struct ToriRSChromePanel* p = &ui->panels[i];
         struct DbgScrollGeom g;
@@ -8548,10 +8609,10 @@ ToriRSChrome_MouseMove(struct ToriRSChrome* ui, int x, int y)
      * belongs to the grip until it is let go. */
     if( ui->resize_panel >= 0 )
     {
-        if( dbg_valid_panel(ui, ui->resize_panel) )
-            dbg_panel_resize_edges(ui, ui->resize_panel, x, y);
-        else
+        if( !dbg_valid_panel(ui, ui->resize_panel) )
             ui->resize_panel = -1;
+        else if( dbg_unmaximise_for_resize(ui, x, y) )
+            dbg_panel_resize_edges(ui, ui->resize_panel, x, y);
         return 1;
     }
 
@@ -8561,10 +8622,10 @@ ToriRSChrome_MouseMove(struct ToriRSChrome* ui, int x, int y)
      * user is carrying. */
     if( ui->drag_panel >= 0 )
     {
-        if( dbg_valid_panel(ui, ui->drag_panel) )
-            dbg_panel_move_to(ui, ui->drag_panel, x - ui->drag_grab_x, y - ui->drag_grab_y);
-        else
+        if( !dbg_valid_panel(ui, ui->drag_panel) )
             ui->drag_panel = -1;
+        else if( dbg_unmaximise_for_drag(ui, x, y) )
+            dbg_panel_move_to(ui, ui->drag_panel, x - ui->drag_grab_x, y - ui->drag_grab_y);
         return 1;
     }
 
@@ -8776,6 +8837,14 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
     if( hit < 0 )
     {
         int const header = dbg_panel_header_at(ui, x, y);
+        /* The second press of a double-click on a title is the double-click,
+         * not the start of another drag. */
+        if( header >= 0 && dbg_title_press(ui, header, x, y) )
+        {
+            ui->press = -1;
+            dbg_focus_release(ui);
+            return 1;
+        }
         /* A docked panel is placed by its dock: its header does not move it. */
         if( header >= 0 && ui->panels[header].dock == TORIRS_CHROME_DOCK_NONE )
         {
@@ -8968,7 +9037,7 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
      * the width is not delivered to the world underneath. */
     if( ui->resize_panel >= 0 )
     {
-        if( dbg_valid_panel(ui, ui->resize_panel) )
+        if( dbg_valid_panel(ui, ui->resize_panel) && !ui->panels[ui->resize_panel].maximised )
         {
             struct ToriRSChromePanel* p = &ui->panels[ui->resize_panel];
             dbg_panel_resize_edges(ui, ui->resize_panel, x, y);
@@ -8988,7 +9057,7 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
      * delivered to whatever is underneath it. */
     if( ui->drag_panel >= 0 )
     {
-        if( dbg_valid_panel(ui, ui->drag_panel) )
+        if( dbg_valid_panel(ui, ui->drag_panel) && !ui->panels[ui->drag_panel].maximised )
         {
             struct ToriRSChromePanel* p = &ui->panels[ui->drag_panel];
             dbg_panel_move_to(ui, ui->drag_panel, x - ui->drag_grab_x, y - ui->drag_grab_y);

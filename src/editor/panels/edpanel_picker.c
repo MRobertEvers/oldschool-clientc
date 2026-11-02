@@ -806,6 +806,19 @@ Editor_PickerPan(
     picker->origin_z += (double)dy / picker->zoom;
 }
 
+void
+Editor_PickerPanBy(
+    struct Editor_Picker* picker,
+    double dx,
+    double dy)
+{
+    assert(picker);
+    assert(picker->zoom > 0);
+
+    picker->origin_x -= dx / picker->zoom;
+    picker->origin_z += dy / picker->zoom;
+}
+
 #define picker_square_at Editor_PickerSquareOfPixel
 
 int

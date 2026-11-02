@@ -1486,6 +1486,193 @@ search_field(const char* text)
     frame();
 }
 
+/* A surface point inside the GRAPH well and the well-local point it is:
+ * the chrome's own Pinch reports the conversion, and the probe is taken back
+ * off the queue. */
+static void
+well_point(
+    int graph,
+    int* out_sx,
+    int* out_sy,
+    int* out_lx,
+    int* out_ly)
+{
+    const struct ToriRSChromeWidget* w = &g_chrome.widgets[graph];
+    struct ToriRSChromeEvent probe;
+
+    *out_sx = w->x + w->w / 2;
+    *out_sy = w->y + w->h / 2;
+    CHECK(ToriRSChrome_Pinch(&g_chrome, *out_sx, *out_sy, 1.0) == 1, "the well's middle takes a pinch");
+    CHECK(ToriRSChrome_TakeEvent(&g_chrome, &probe) && probe.kind == TORIRS_CHROME_EVENT_GRAPH_PINCH,
+        "as a GRAPH_PINCH");
+    *out_lx = probe.x;
+    *out_ly = probe.y;
+}
+
+/*
+ * Trackpad gestures over the world map, through the chrome's real routing
+ * (ToriRSChrome_WheelFrame, what app_chrome_route_input hands a frame to):
+ * a pinch zooms continuously about its centre, a two-finger scroll pans and
+ * never zooms, a mouse wheel still steps x1.25, ctrl+wheel zooms by the exact
+ * fraction, and a pinch that came with a wheel echo spends the echo.
+ */
+static void
+test_picker_gestures(
+    int graph,
+    struct Editor_Picker* picker)
+{
+    struct ToriRSChromeWheelFrame f;
+    int sx;
+    int sy;
+    int lx;
+    int ly;
+    double map_x;
+    double map_z;
+    double zoom;
+
+    frame();
+    well_point(graph, &sx, &sy, &lx, &ly);
+    Editor_PickerZoomTo(picker, 32.0, lx, ly);
+    frame();
+
+    /* A 2x pinch about the well's middle: the zoom doubles, exactly, and the
+     * map point under the centre stays under it. (The chrome carries a scale
+     * in 1/65536ths, so other ratios are exact to about 1e-5.) */
+    map_x = picker->origin_x + (double)(lx - EDITOR_PICKER_LEFT) / picker->zoom;
+    map_z = picker->origin_z - (double)(ly - EDITOR_PICKER_TOP) / picker->zoom;
+    zoom = picker->zoom;
+    memset(&f, 0, sizeof(f));
+    f.x = sx;
+    f.y = sy;
+    f.pinch_scale = 2.0f;
+    f.pinch_x = sx;
+    f.pinch_y = sy;
+    CHECK(ToriRSChrome_WheelFrame(&g_chrome, &f) == 1, "a pinch over the well is taken");
+    frame();
+    CHECK(fabs(picker->zoom - 2.0 * zoom) < 1e-6, "a 2x pinch is a 2x zoom, no 1.25 steps (%.3f -> %.3f)", zoom,
+        picker->zoom);
+    CHECK(fabs(picker->origin_x + (double)(lx - EDITOR_PICKER_LEFT) / picker->zoom - map_x) < 1e-9
+              && fabs(picker->origin_z - (double)(ly - EDITOR_PICKER_TOP) / picker->zoom - map_z) < 1e-9,
+        "the map point under the pinch centre stays under it (%.4f,%.4f)", map_x, map_z);
+
+    /* A pinch out of 0.8 then: continuous the other way. */
+    zoom = picker->zoom;
+    f.pinch_scale = 0.8f;
+    (void)ToriRSChrome_WheelFrame(&g_chrome, &f);
+    frame();
+    CHECK(fabs(picker->zoom / (0.8 * zoom) - 1.0) < 1e-4, "a 0.8 pinch is a 0.8 zoom (%.3f)", picker->zoom);
+
+    /* A two-finger scroll pans by its deltas and never zooms, even with the
+     * integer notch SDL rounded out of it in the same frame. */
+    {
+        double const origin_x = picker->origin_x;
+        double const origin_z = picker->origin_z;
+        int const scale = g_chrome.scale > 0 ? g_chrome.scale : 1;
+        zoom = picker->zoom;
+        memset(&f, 0, sizeof(f));
+        f.x = sx;
+        f.y = sy;
+        f.wheel = 1;
+        f.scroll_dx = 30.0f * (float)scale;
+        f.scroll_dy = -20.0f * (float)scale;
+        f.px_per_notch = 48;
+        f.trackpad = 1;
+        CHECK(ToriRSChrome_WheelFrame(&g_chrome, &f) == 1, "a trackpad scroll over the well is taken");
+        frame();
+        CHECK(picker->zoom == zoom, "a two-finger scroll never zooms (%.3f -> %.3f)", zoom, picker->zoom);
+        /* Scroll right (+dx) moves the map left: the origin goes east by dx;
+         * scroll down (-dy) moves the map up: the origin goes south. */
+        CHECK(fabs(picker->origin_x - (origin_x + 30.0 / zoom)) < 1e-6,
+            "scroll right pans the map left by exactly dx (%.4f -> %.4f)", origin_x, picker->origin_x);
+        CHECK(fabs(picker->origin_z - (origin_z - 20.0 / zoom)) < 1e-6,
+            "scroll down pans the map up by exactly dy (%.4f -> %.4f)", origin_z, picker->origin_z);
+    }
+
+    /* A mouse wheel (whole deltas, no trackpad flag) still steps x1.25 about
+     * the cursor. */
+    zoom = picker->zoom;
+    memset(&f, 0, sizeof(f));
+    f.x = sx;
+    f.y = sy;
+    f.wheel = -1;
+    f.scroll_dy = -48.0f;
+    f.px_per_notch = 48;
+    CHECK(ToriRSChrome_WheelFrame(&g_chrome, &f) == 1, "a mouse wheel over the well is taken");
+    frame();
+    CHECK(fabs(picker->zoom / (zoom * 1.25) - 1.0) < 1e-9, "a mouse notch is still one x1.25 step (%.3f -> %.3f)", zoom,
+        picker->zoom);
+
+    /* ctrl+wheel zooms continuously: a quarter notch is a quarter of the
+     * ratio, in the plain wheel's direction (down is in). */
+    zoom = picker->zoom;
+    memset(&f, 0, sizeof(f));
+    f.x = sx;
+    f.y = sy;
+    f.ctrl = 1;
+    f.scroll_dy = -12.0f;
+    f.px_per_notch = 48;
+    f.trackpad = 1;
+    CHECK(ToriRSChrome_WheelFrame(&g_chrome, &f) == 1, "ctrl+wheel over the well is taken");
+    frame();
+    CHECK(fabs(picker->zoom / (zoom * pow(1.25, 0.25)) - 1.0) < 1e-4, "ctrl + a quarter notch zooms by 1.25^0.25 (%.4f -> %.4f)",
+        zoom, picker->zoom);
+    /* ...and with only an integer wheel (no exact deltas), a whole step. */
+    zoom = picker->zoom;
+    f.scroll_dy = 0.0f;
+    f.px_per_notch = 0;
+    f.trackpad = 0;
+    f.wheel = 1;
+    (void)ToriRSChrome_WheelFrame(&g_chrome, &f);
+    frame();
+    CHECK(fabs(picker->zoom / (zoom / 1.25) - 1.0) < 1e-4, "ctrl + a whole notch up is one step out (%.4f)", picker->zoom);
+
+    /* A browser's pinch arrives as a ctrl+wheel too: the pinch takes it and
+     * its wheel echo is spent, not stepped on top. */
+    zoom = picker->zoom;
+    memset(&f, 0, sizeof(f));
+    f.x = sx;
+    f.y = sy;
+    f.wheel = -1;
+    f.scroll_dy = -30.0f;
+    f.px_per_notch = 100;
+    f.trackpad = 1;
+    f.pinch_scale = 1.5f;
+    f.pinch_x = sx;
+    f.pinch_y = sy;
+    f.pinch_from_wheel = 1;
+    (void)ToriRSChrome_WheelFrame(&g_chrome, &f);
+    frame();
+    CHECK(fabs(picker->zoom / (zoom * 1.5) - 1.0) < 1e-4, "a browser pinch zooms by its scale only (%.3f -> %.3f)", zoom,
+        picker->zoom);
+
+    /* Off every panel nothing is taken: the game keeps its wheel, and an
+     * unclaimed pinch is the caller's to drop. */
+    memset(&f, 0, sizeof(f));
+    f.x = f.pinch_x = 2;
+    f.y = f.pinch_y = 795;
+    f.pinch_scale = 2.0f;
+    f.scroll_dy = 10.0f;
+    f.px_per_notch = 48;
+    f.trackpad = 1;
+    if( ToriRSChrome_HitTest(&g_chrome, 2, 795) < 0 && !ToriRSChrome_WantsPointer(&g_chrome, 2, 795) )
+        CHECK(ToriRSChrome_WheelFrame(&g_chrome, &f) == 0, "a pinch and a scroll off the chrome are not taken");
+
+    /* The keyboard keeps working after all of it. */
+    zoom = picker->zoom;
+    {
+        struct ToriRSChromeEvent key;
+        memset(&key, 0, sizeof(key));
+        key.kind = TORIRS_CHROME_EVENT_GRAPH_KEY;
+        key.widget = graph;
+        key.serial = g_chrome.widgets[graph].serial;
+        key.value = '+';
+        (void)ToriRSChrome_PushEvent(&g_chrome, &key);
+        frame();
+    }
+    CHECK(fabs(picker->zoom - zoom * 1.25) < 1e-6 || picker->zoom == Editor_PickerZoomMax(picker),
+        "+ still zooms in a step (%.3f -> %.3f)", zoom, picker->zoom);
+}
+
 static void
 test_chrome(void)
 {
@@ -1594,6 +1781,8 @@ test_chrome(void)
         frame();
         CHECK(fabs(picker->zoom - cell) < 1e-9, "...and back in (%.2f)", picker->zoom);
     }
+
+    test_picker_gestures(graph, (struct Editor_Picker*)picker);
 
     /* Right-click: the menu; Copy to opens the storage question. */
     {
@@ -3770,6 +3959,190 @@ layout_files_equal(
     const struct EditorLayoutFile* b)
 {
     return memcmp(a, b, sizeof(*a)) == 0;
+}
+
+static void
+layout_boot_saved(
+    int w,
+    int h,
+    int scale,
+    const struct EditorLayoutFile* file);
+
+/* One click on a panel's title at chrome time `ms`. */
+static void
+title_click(
+    int x,
+    int y,
+    int64_t ms)
+{
+    ToriRSChrome_Tick(&g_chrome, ms);
+    ToriRSChrome_MouseMove(&g_chrome, x, y);
+    (void)ToriRSChrome_MouseDown(&g_chrome, x, y);
+    (void)ToriRSChrome_MouseUp(&g_chrome, x, y);
+    frame();
+}
+
+static int
+rect_is(
+    struct ToriRSChromeRect r,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    return r.x == x && r.y == y && r.w == w && r.h == h;
+}
+
+/*
+ * A double-click on a panel's title maximises it over the whole dock surface
+ * (below the menu bar) and over every other panel; another restores the box
+ * it had; a title drag while maximised restores it first and then moves it;
+ * a slow second click is two clicks; the saved layout records the state and
+ * the box it restores to, and a boot with that file comes back maximised.
+ */
+static void
+test_maximise(void)
+{
+    struct EditorLayoutFile saved;
+    struct EditorLayoutFile reread;
+    struct ToriRSChromeRect before;
+    struct ToriRSChromeRect bar;
+    const struct EditorLayoutPanel* sp;
+    int terrain;
+    int menubar = -1;
+    int top;
+    int tx;
+    int ty;
+    char* text = NULL;
+    int size = 0;
+
+    layout_boot(1530, 1006, 1);
+    terrain = find_panel("Terrain");
+    CHECK(terrain >= 0 && g_chrome.panels[terrain].visible, "Terrain is open");
+    if( terrain < 0 )
+        return;
+    for( int i = 0; i < g_chrome.panel_count; i++ )
+        if( g_chrome.panels[i].style == TORIRS_CHROME_PANEL_MENUBAR && g_chrome.panels[i].visible )
+            menubar = i;
+    bar = menubar >= 0 ? g_chrome.panels[menubar].last_rect : (struct ToriRSChromeRect){ 0, 0, 0, 0 };
+    top = bar.y + bar.h;
+    before = g_chrome.panels[terrain].last_rect;
+    tx = before.x + 24;
+    ty = before.y + 6;
+
+    /* Too slow: two clicks, nothing maximised. */
+    title_click(tx, ty, 10000);
+    title_click(tx, ty, 10000 + TORIRS_CHROME_DOUBLE_CLICK_MS + 50);
+    CHECK(!g_chrome.panels[terrain].maximised, "two title clicks further apart than the double-click time do nothing");
+
+    /* Double-click: the whole surface below the menu bar, over the others. */
+    title_click(tx, ty, 20000);
+    title_click(tx + 1, ty, 20120);
+    CHECK(g_chrome.panels[terrain].maximised, "a title double-click maximises the panel");
+    CHECK(rect_is(g_chrome.panels[terrain].last_rect, 0, top, 1530, 1006 - top),
+        "to the dock surface below the menu bar (%d,%d %dx%d, menu bar ends at %d)",
+        g_chrome.panels[terrain].last_rect.x, g_chrome.panels[terrain].last_rect.y,
+        g_chrome.panels[terrain].last_rect.w, g_chrome.panels[terrain].last_rect.h, top);
+    /* Over the others: a point inside another panel now belongs to it. */
+    {
+        int const palette = find_panel("Palette");
+        if( palette >= 0 && g_chrome.panels[palette].visible )
+        {
+            struct ToriRSChromeRect const pr = g_chrome.panels[palette].last_rect;
+            int other = 0;
+            for( int w = g_chrome.panels[palette].first_widget; w >= 0; w = g_chrome.widgets[w].next )
+                if( ToriRSChrome_HitTest(&g_chrome, g_chrome.widgets[w].x + 1, g_chrome.widgets[w].y + 1) == w )
+                    other++;
+            CHECK(other == 0, "no widget of a panel under it can be hit (%d) (Palette at %d,%d)", other, pr.x, pr.y);
+        }
+    }
+    {
+        int x = 0, y = 0, fw = 0, fh = 0, placed = 0;
+        CHECK(ToriRSChrome_PanelRestoreBox(&g_chrome, terrain, &x, &y, &fw, &fh, &placed) && x == before.x
+                  && y == before.y,
+            "it keeps the box it had (%d,%d)", x, y);
+    }
+
+    /* A second double-click restores that box. */
+    title_click(tx, ty, 30000);
+    title_click(tx, ty, 30100);
+    frame();
+    CHECK(!g_chrome.panels[terrain].maximised, "a second double-click restores it");
+    CHECK(rect_is(g_chrome.panels[terrain].last_rect, before.x, before.y, before.w, before.h),
+        "to exactly the box it had (%d,%d %dx%d, was %d,%d %dx%d)", g_chrome.panels[terrain].last_rect.x,
+        g_chrome.panels[terrain].last_rect.y, g_chrome.panels[terrain].last_rect.w,
+        g_chrome.panels[terrain].last_rect.h, before.x, before.y, before.w, before.h);
+
+    /* Maximised, then a title drag: restored first (its own width again),
+     * then carried by the pointer. */
+    title_click(tx, ty, 40000);
+    title_click(tx, ty, 40100);
+    CHECK(g_chrome.panels[terrain].maximised, "maximised again");
+    ToriRSChrome_Tick(&g_chrome, 41000);
+    {
+        struct ToriRSChromeRect after;
+        int const from_x = 400;
+        int const from_y = top + 6;
+        drag(from_x, from_y, from_x + 120, from_y + 200);
+        frame();
+        after = g_chrome.panels[terrain].last_rect;
+        CHECK(!g_chrome.panels[terrain].maximised, "a title drag restores a maximised panel");
+        CHECK(after.w == before.w && after.h == before.h, "at its own size (%dx%d, was %dx%d)", after.w, after.h,
+            before.w, before.h);
+        CHECK(after.x <= from_x + 120 && after.x + after.w > from_x + 120 && after.y <= from_y + 200
+                  && after.y + 30 > from_y + 200,
+            "and under the pointer where it was let go (%d,%d)", after.x, after.y);
+    }
+
+    /* Maximise, save, and boot with the file: maximised again, and restoring
+     * puts back the box the file recorded. */
+    before = g_chrome.panels[terrain].last_rect;
+    tx = before.x + 24;
+    ty = before.y + 6;
+    title_click(tx, ty, 50000);
+    title_click(tx, ty, 50100);
+    CHECK(g_chrome.panels[terrain].maximised, "maximised before the save");
+    Editor_UiLayoutCapture(&g_ui, &saved);
+    sp = EditorLayout_Find(&saved, "terrain");
+    CHECK(sp && sp->has_maximised && sp->maximised, "the layout records the maximised state");
+    CHECK(sp && sp->x == before.x && sp->y == before.y && sp->user_placed,
+        "and the box it restores to, not the maximised one (%d,%d)", sp ? sp->x : -1, sp ? sp->y : -1);
+    EditorLayout_Encode(&saved, &text, &size);
+    CHECK(text && strstr(text, "maximised = 1") != NULL, "the file says maximised = 1");
+    CHECK(EditorLayout_Decode(&reread, text, size) && layout_files_equal(&saved, &reread),
+        "and survives encode -> decode");
+    ToriMem_Free(ToriMem_Process(), text);
+    Editor_UiFree(&g_ui);
+
+    layout_boot_saved(1530, 1006, 1, &reread);
+    terrain = find_panel("Terrain");
+    frame();
+    CHECK(terrain >= 0 && g_chrome.panels[terrain].maximised, "a boot with that file comes back maximised");
+    CHECK(terrain >= 0 && rect_is(g_chrome.panels[terrain].last_rect, 0, top, 1530, 1006 - top),
+        "over the dock surface");
+    if( terrain >= 0 )
+    {
+        title_click(30, top + 6, 60000);
+        title_click(30, top + 6, 60100);
+        frame();
+        CHECK(!g_chrome.panels[terrain].maximised
+                  && rect_is(g_chrome.panels[terrain].last_rect, before.x, before.y, before.w, before.h),
+            "and restores to the saved box (%d,%d %dx%d)", g_chrome.panels[terrain].last_rect.x,
+            g_chrome.panels[terrain].last_rect.y, g_chrome.panels[terrain].last_rect.w,
+            g_chrome.panels[terrain].last_rect.h);
+    }
+
+    /* Reset layout returns it unmaximised. */
+    if( terrain >= 0 )
+    {
+        title_click(before.x + 24, before.y + 6, 70000);
+        title_click(before.x + 24, before.y + 6, 70100);
+        CHECK(g_chrome.panels[terrain].maximised, "maximised before Reset layout");
+        Editor_UiResetLayout(&g_ui);
+        frame();
+        CHECK(!g_chrome.panels[terrain].maximised, "Reset layout restores a maximised panel");
+    }
+    Editor_UiFree(&g_ui);
 }
 
 static void
@@ -6224,6 +6597,7 @@ main(
     test_open_square_relay();
     test_layout_codec();
     test_saved_layout();
+    test_maximise();
 
     test_catalog_panel();
     test_preview();

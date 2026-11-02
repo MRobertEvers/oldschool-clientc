@@ -398,6 +398,10 @@
   /* The manifest's directory, which its paths -- dir among them -- are
    * relative to (main.c joins them the same way). */
   let manifestDir = '';
+  /* The manifest states an `[editor:boot]` (a map-editor boot), and the
+   * daemon port it names (TORIRSMAPED_DEFAULT_PORT when it names none). */
+  let editorManifest = false;
+  let editorPort = 43610;
 
   function readBootIdentity(bytes) {
     const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
@@ -408,6 +412,14 @@
       if (line.charAt(0) === '[') {
         const close = line.indexOf(']');
         if (close > 0) { section = line.substring(1, close); }
+        if (section === 'editor:boot') { editorManifest = true; }
+        return;
+      }
+      if (section === 'editor:boot') {
+        const eq = line.indexOf('=');
+        if (eq > 0 && line.substring(0, eq).trim() === 'port') {
+          editorPort = parseInt(line.substring(eq + 1).trim(), 10) || editorPort;
+        }
         return;
       }
       if (section !== 'cache:boot') { return; }
@@ -466,7 +478,11 @@
     }
   }
 
+  /* A boot that stopped (the map editor's daemon is not up) keeps its one
+   * line in the status bar: the frame's heap/cache line must not replace it. */
+  let haltedStatus = null;
   function setStatus(text) {
+    if (haltedStatus) { text = haltedStatus; }
     if (!statusEl) { statusEl = document.getElementById('status'); }
     if (statusEl) { statusEl.textContent = text; }
   }
@@ -744,6 +760,63 @@
     }
   }
 
+  /*
+   * The map editor on the web is a client of the NATIVE torirsmaped daemon,
+   * always (owner, 2026-11-02): a page has no filesystem, so an in-page
+   * server could not save the content tree, hold its lock, build packs or
+   * RUN. A boot of an editor manifest therefore attaches to the daemon --
+   * whatever its `server=` says -- through this page's own io_server, which
+   * proxies `/maped/` to the daemon on its machine (io_server --maped-port,
+   * src/ioserver/io_maped_proxy.c). Not over the daemon's WebSocket: the
+   * editor's client half waits for each answer inside a C call, and a page
+   * without ASYNCIFY or threads only receives WebSocket bytes after it
+   * returns to the event loop; its link is synchronous XHRs instead
+   * (editor/editor_host_remote.c maped_web_io). One origin, no second port.
+   *
+   * Pop-out tabs and RUN's play tab follow from the same proxy. Nothing
+   * answering is said in one line with the command that starts it, and the
+   * page stops: there is no read-only in-memory editor to fall back to.
+   * Returns false when the boot must stop.
+   */
+  const EDITOR_DAEMON_HINT = './launch run osrs241-mapeditor-web';
+  /* `--maped` for this boot's editor windows: the daemon on io_server's own
+   * machine, at the manifest's port. */
+  let editorMapedArg = null;
+  window.torirsMapedProxyBase = `${cacheBase}/maped`;
+
+  async function editorDaemonBoot() {
+    if (!editorManifest || editorView.socketUrl || args.indexOf('--maped') >= 0) {
+      const at = args.indexOf('--maped');
+      if (at >= 0 && at + 1 < args.length) { editorMapedArg = args[at + 1]; }
+      return true;
+    }
+    const ping = `${window.torirsMapedProxyBase}/ping?port=${editorPort}`;
+    let answer = null;
+    let detail = '';
+    try {
+      answer = await fetch(ping, { cache: 'no-store' });
+      detail = (await answer.text()).trim();
+    } catch (err) {
+      detail = String(err && err.message ? err.message : err);
+    }
+    if (!answer || answer.status !== 200) {
+      const why = answer && answer.status === 404
+        ? 'this io_server does not proxy the map-editor daemon (it runs without --maped-port)'
+        : (answer && detail ? detail : `no torirsmaped daemon answers on port ${editorPort}`);
+      const line = `map editor: ${why} -- start it with ${EDITOR_DAEMON_HINT}, then reload`;
+      log(line, true);
+      haltedStatus = line;
+      setStatus(line);
+      return false;
+    }
+    editorMapedArg = `tcp://127.0.0.1:${editorPort}`;
+    args.push('--maped', editorMapedArg);
+    log(`map editor: editor server = the native torirsmaped daemon (${detail}), through ` +
+        `${window.torirsMapedProxyBase}/ -- it saves the content tree, builds and RUNs; this tab is one ` +
+        'of its windows');
+    return true;
+  }
+
   const clientBoot = {
     async start() {
       /*
@@ -774,6 +847,9 @@
       } catch (err) {
         log(`torirs: boot files could not be staged — ${err && err.message}`, true);
       }
+
+      if (!(await editorDaemonBoot())) { return; }
+      installEditorViewButton();
 
       /*
        * ?replay=<url>: an RSProx recording (.bin or .bin.gz -- the client
@@ -1187,7 +1263,7 @@
    * address for a page that was not given one in its query.
    */
   window.torirsSpawnEditorView = (camera, group, fallbackMaped, panel) => {
-    const maped = params.get('maped') || editorView.socketUrl ||
+    const maped = params.get('maped') || editorMapedArg || editorView.socketUrl ||
       (Module.websocket && Module.websocket.url) || fallbackMaped;
     if (!maped) {
       log('editor view: this page does not know its torirsmaped address (maped=)', true);

@@ -195,6 +195,15 @@ struct Editor_LocOpResult
      *  empty; a duplicate selects the copies). */
     struct Editor_LocRef refs[EDITOR_LOC_SELECTION_MAX];
     int ref_count;
+    /** Locs the op pushed off a tile+shape a moved loc landed on: each went
+     *  to the tile the move left empty (a swap). The first one's id. */
+    int swapped;
+    int swapped_loc_id;
+    /** Selected locs left where they were because their landing tile+shape
+     *  is held and a copy / reshape has nowhere to put the holder; the first
+     *  one's landing tile (its loc_id / rotation are the holder's). */
+    int blocked;
+    struct Editor_LocRef blocked_at;
 };
 
 /** Place one loc. `out` needs 1 slot. Onto a tile+shape already placed the
@@ -213,10 +222,11 @@ Editor_LocOpsPlace(
     struct Editor_LocOpResult* result);
 
 /** Move every selected loc by (dx, dz) tiles. A loc that changes square is a
- *  delete from one and an add to the other, in the same stroke. A loc whose
- *  landing tile+shape is held by an unselected loc stays (the document
- *  refuses a second loc of a shape on a tile); so do the rotate, reshape and
- *  duplicate below. `out` needs 2 * n slots. */
+ *  delete from one and an add to the other, in the same stroke. A loc landing
+ *  on a tile+shape held by an unselected loc SWAPS with it: the holder goes to
+ *  the tile the move leaves empty (a wall piece slides along its wall line).
+ *  The reshape and duplicate below leave such a loc where it is and count it
+ *  in result->blocked. `out` needs 4 * n slots. */
 int
 Editor_LocOpsNudge(
     struct Editor_Doc* doc,
@@ -251,7 +261,85 @@ Editor_LocOpsRotate(
     int max,
     struct Editor_LocOpResult* result);
 
-/** Cycle every selected loc's shape within its family. */
+/* ---- loc shapes ----------------------------------------------------------------
+ *
+ * Which of the 23 placement shapes a loc can be placed in is what its config
+ * has a model for: a shape-list row per model shape (none: a centrepiece
+ * only), wall decor 5..8 drawing shape 4's models and the diagonal
+ * centrepiece 11 shape 10's (world_scenery.u.c). Every way of choosing a
+ * shape -- the Place pose, the shape strip, Reshape, a command the panels
+ * build -- is limited to that mask.
+ */
+#define EDITOR_LOC_SHAPE_COUNT 23
+
+struct ToriRS_Location;
+
+/** "wall", "wall L", "centrepiece", ... for shape 0..22. */
+const char*
+Editor_LocShapeName(int shape);
+
+/** The shape whose models a placement of `shape` draws (4 for 5..8, 10 for
+ *  11). */
+int
+Editor_LocShapeModelShape(int shape);
+
+/** Bit s set: the loc can be placed as shape s. 0 when it has no models. */
+uint32_t
+Editor_LocShapeMask(const struct ToriRS_Location* cfg);
+
+/** The mask's shapes in the order they are offered (centrepiece, ground
+ *  decor, walls, decor, roofs); returns the count. */
+int
+Editor_LocShapeList(
+    uint32_t mask,
+    int out[EDITOR_LOC_SHAPE_COUNT]);
+
+/** The first shape the mask offers, or -1 for an empty mask. */
+int
+Editor_LocShapeFirst(uint32_t mask);
+
+/** The mask's next shape after `shape` in that order, wrapping (a shape not
+ *  in the mask goes to the first); `shape` itself for an empty mask. */
+int
+Editor_LocShapeNext(
+    uint32_t mask,
+    int shape);
+
+/**
+ * Fit to neighbours: the wall shape and rotation that joins loc `loc_id` at
+ * world tile (x, z) on `level` to the walls OF THE SAME LOC on the tiles
+ * around it -- a straight wall (0) on the edge its north/south or east/west
+ * neighbours run along, an L (2) where a vertical and a horizontal run meet,
+ * a diagonal (9) continuing a diagonal neighbour. Only shapes in `mask`.
+ * Returns 0 (outputs untouched) when no neighbour says anything.
+ */
+int
+Editor_LocFitWall(
+    struct Editor_Doc* doc,
+    int loc_id,
+    uint32_t mask,
+    int world_x,
+    int world_z,
+    int level,
+    int* out_shape,
+    int* out_rotation);
+
+/** Give every selected loc the shape `shapes[i]` (and, when `rotations` is
+ *  not NULL and rotations[i] >= 0, that rotation); -1 keeps it. A loc whose
+ *  new tile+shape is held is left as it is (result->blocked). */
+int
+Editor_LocOpsReshapeTo(
+    struct Editor_Doc* doc,
+    const struct Editor_LocRef* refs,
+    int n,
+    const int* shapes,
+    const int* rotations,
+    struct Editor_Cmd* out,
+    int max,
+    struct Editor_LocOpResult* result);
+
+/** Cycle every selected loc's shape within its family. (The panels cycle
+ *  within the loc's own shapes instead: Editor_LocOpsReshapeTo.) */
 int
 Editor_LocOpsReshape(
     struct Editor_Doc* doc,

@@ -90,12 +90,22 @@ app_hk_snapshot(
         && my < world.y + world.h && !app_chrome_wants_pointer(app, mx, my) )
         out->contexts |= EDITOR_HK_CTX_W;
     if( ui->tools.loc_count > 0 )
+    {
         out->contexts |= EDITOR_HK_CTX_L;
+        /* Only Select and Move nudge with the arrows; any other tool (Place
+         * above all) leaves them to the camera. */
+        if( ui->tools.tool == EDITOR_TOOL_SELECT || ui->tools.tool == EDITOR_TOOL_LOC_MOVE )
+            out->contexts |= EDITOR_HK_CTX_M;
+        else
+            out->contexts |= EDITOR_HK_CTX_N;
+    }
     else
     {
         out->contexts |= EDITOR_HK_CTX_N;
         if( Editor_Spawns_SelectionCount(ui) > 0 )
             out->contexts |= EDITOR_HK_CTX_S;
+        if( ui->tools.tool == EDITOR_TOOL_LOC_PLACE && ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0 )
+            out->contexts |= EDITOR_HK_CTX_P;
     }
     if( ui->tools.rect.valid )
         out->contexts |= EDITOR_HK_CTX_R;
@@ -376,6 +386,17 @@ app_hk_run(
     case EDITOR_HK_EDIT_APPLY:
         Editor_PanelApplyToSelection(panel, app);
         break;
+    case EDITOR_HK_PLACE_HERE:
+    {
+        int hx;
+        int hz;
+        if( Editor_PanelHoverTile(panel, app, &hx, &hz) )
+            (void)Editor_PanelPlaceLocAt(panel, app, hx, hz, Editor_PanelEditLevel(panel, app));
+        else
+            Editor_UiLog(ui, "editor: point at the tile to place on");
+        app->need_redraw = 1;
+        break;
+    }
     case EDITOR_HK_EDIT_SELECT_SQUARE:
         app_hk_select_square(app, ui);
         break;
@@ -414,6 +435,27 @@ app_hk_run(
         (void)Editor_UiPanelPopOut(ui, module ? module : "world");
         break;
     }
+    case EDITOR_HK_PALETTE_SLOT_1:
+    case EDITOR_HK_PALETTE_SLOT_2:
+    case EDITOR_HK_PALETTE_SLOT_3:
+    case EDITOR_HK_PALETTE_SLOT_4:
+    case EDITOR_HK_PALETTE_SLOT_5:
+    case EDITOR_HK_PALETTE_SLOT_6:
+    case EDITOR_HK_PALETTE_SLOT_7:
+    case EDITOR_HK_PALETTE_SLOT_8:
+    case EDITOR_HK_PALETTE_SLOT_9:
+    case EDITOR_HK_PALETTE_SLOT_10:
+        (void)Editor_CatalogPalette_UseSlot(ui, (int)(action - EDITOR_HK_PALETTE_SLOT_1) + 1);
+        break;
+    case EDITOR_HK_PALETTE_ADD_PICK:
+        (void)Editor_CatalogPalette_AddPick(ui, 0);
+        break;
+    case EDITOR_HK_PALETTE_NEXT:
+        (void)Editor_CatalogPalette_Step(ui, 1);
+        break;
+    case EDITOR_HK_PALETTE_PREVIOUS:
+        (void)Editor_CatalogPalette_Step(ui, -1);
+        break;
     case EDITOR_HK_VIEW_CLOSE_PANEL:
     {
         /* A panel under the pointer is open by definition, so the View

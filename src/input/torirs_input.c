@@ -335,3 +335,39 @@ LibToriRS_Input_PushMouseWheel(
     assert(input);
     input->curr.mouse_wheel_y += wheel_y;
 }
+
+void
+LibToriRS_Input_PushPinch(
+    struct LibToriRS_Input* input,
+    float scale,
+    int x,
+    int y,
+    int from_wheel)
+{
+    assert(input);
+    assert(scale > 0.0f);
+    input->curr.pinch_scale = input->curr.pinch_scale > 0.0f ? input->curr.pinch_scale * scale : scale;
+    input->curr.pinch_x = x;
+    input->curr.pinch_y = y;
+    if( from_wheel )
+        input->curr.pinch_from_wheel = 1;
+}
+
+void
+LibToriRS_Input_PushScroll(
+    struct LibToriRS_Input* input,
+    float dx,
+    float dy,
+    int px_per_notch,
+    int trackpad,
+    int flipped)
+{
+    assert(input);
+    assert(px_per_notch > 0);
+    input->curr.scroll_dx += dx;
+    input->curr.scroll_dy += dy;
+    input->curr.scroll_px_per_notch = px_per_notch;
+    if( trackpad )
+        input->curr.scroll_trackpad = 1;
+    input->curr.scroll_flipped = flipped ? 1 : 0;
+}

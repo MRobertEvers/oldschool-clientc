@@ -98,6 +98,16 @@ class Ini:
         `[override:*]` blocks are discovered without naming each one."""
         return [name for name in self.sections() if name.startswith(prefix)]
 
+    def with_values(self, pairs):
+        """A copy with each ((section, key), value) in `pairs` set: every
+        existing value of that key in that section is replaced by the one
+        given. How `./launch run --set` edits a profile for one run."""
+        replaced = {(section, key) for (section, key), _ in pairs}
+        entries = [entry for entry in self.entries
+                   if (entry[0], entry[1]) not in replaced]
+        entries.extend((section, key, value) for (section, key), value in pairs)
+        return Ini(self.path, entries)
+
     def platform_overlay(self, platform, known_platforms):
         """Apply matching ``[section@platform]`` entries key by key.
 

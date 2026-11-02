@@ -31,6 +31,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 
 static int g_checks;
@@ -400,10 +401,25 @@ test_v1_peer(char const* scratch)
     ToriRSMapEd_WriteU32(hello, TORIRSMAPED_PROTO_VERSION);
     raw_send_frame(v2, TORIRSMAPED_REQ_HELLO, hello, 12);
     check(
-        raw_take(v2, &type, &length, &body) && type == TORIRSMAPED_FACT_HELLO && length == 16
+        raw_take(v2, &type, &length, &body) && type == TORIRSMAPED_FACT_HELLO && length > 16
             && ToriRSMapEd_ReadU32(body) == 2
             && ToriRSMapEd_ReadU32(body + 12) == TORIRSMAPED_CAP_CATALOG,
         "a v2 HELLO gets FACT_HELLO v2 with capabilities (the catalog)");
+    {
+        /* This server is read-only (the first embed holds the tree): its v2
+         * HELLO names the holder after the capabilities -- this process. */
+        struct ToriRSMapEdReader reader;
+        char reason[1024] = "";
+        char want[64];
+        if( length > 16 )
+        {
+            ToriRSMapEd_ReaderInit(&reader, body + 16, length - 16);
+            ToriRSMapEd_GetString(&reader, reason, sizeof(reason));
+        }
+        snprintf(want, sizeof(want), "is held by pid %ld", (long)getpid());
+        check(ToriRSMapEd_ReadU32(body + 4) == 0 && strstr(reason, want) != NULL,
+            "a read-only server's v2 HELLO names who holds the tree (pid)");
+    }
 
     {
         uint8_t coords[8];

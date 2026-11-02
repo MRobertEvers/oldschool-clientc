@@ -1022,10 +1022,30 @@ wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
     case WM_MOUSEWHEEL:
         if( bus )
         {
-            int delta = GET_WHEEL_DELTA_WPARAM(wparam) / WHEEL_DELTA;
+            int const raw = GET_WHEEL_DELTA_WPARAM(wparam);
+            int delta = raw / WHEEL_DELTA;
             CmdBus_PushMouseWheel(bus, (int16_t)delta);
+            /* The exact deltas beside it (TORIRS_CMD_INPUT_SCROLL): a
+             * precision touchpad sends fractions of WHEEL_DELTA, which the
+             * integer notch above rounds to nothing. 48 px a notch, the SDL
+             * desktop lane's. */
+            CmdBus_PushScroll(
+                bus, 0.0, (double)raw * 48.0 / (double)WHEEL_DELTA, 48, raw % WHEEL_DELTA != 0, 0);
         }
         break;
+
+#if defined(WM_MOUSEHWHEEL)
+    case WM_MOUSEHWHEEL:
+        /* Sideways: only the exact scroll (positive is "scroll right", SDL's
+         * sign); the game has no horizontal wheel. */
+        if( bus )
+        {
+            int const raw = GET_WHEEL_DELTA_WPARAM(wparam);
+            CmdBus_PushScroll(
+                bus, (double)raw * 48.0 / (double)WHEEL_DELTA, 0.0, 48, raw % WHEEL_DELTA != 0, 0);
+        }
+        break;
+#endif
 
     case WM_TOUCH:
         if( bus && g_get_touch_input_info )

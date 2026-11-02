@@ -48,6 +48,11 @@ enum
     JOBS_SUBSCRIBE_MAX = 64,
     /** Players of CTL_FACT_PLAYERS kept (and passed on in FACT_LIVE_PLAY). */
     JOBS_PLAYER_ROWS = 16,
+    /** A build's last lines, kept to say why it failed. */
+    JOBS_BUILD_TAIL = 24,
+    JOBS_BUILD_TAIL_LINE = 512,
+    /** Lines of a failed build or a dead server's log repeated to the panel. */
+    JOBS_FAILURE_LINES = 6,
 };
 
 /** One player the game server reported (CTL_FACT_PLAYERS). */
@@ -86,6 +91,14 @@ struct ToriRSMapEdJobs
     uint32_t build_unit_count;
     uint32_t build_archives[2 * JOBS_ARCHIVES_MAX];
     int build_archive_count;
+    /** The build's last JOBS_BUILD_TAIL lines, a ring (oldest at
+     *  build_tail_head when full). */
+    char build_tail[JOBS_BUILD_TAIL][JOBS_BUILD_TAIL_LINE];
+    int build_tail_head;
+    int build_tail_count;
+    /** The packs or client-cache build whose last run failed (0 none): the
+     *  lane is not launched on what it left until that build passes. */
+    uint32_t build_failed_what;
 
     /* ---- RUN ---- */
     uint32_t run_step;
@@ -110,7 +123,7 @@ struct ToriRSMapEdJobs
     char servpack_stamp[128];
     char stale[JOBS_STALE_MAX][256];
     int stale_count;
-    char message[256];
+    char message[1024];
     struct ToriRSMapEdBuf ctl_in;
     int hello_sent;
     time_t last_status;
@@ -727,6 +740,79 @@ build_read_whole(
     return text;
 }
 #endif /* TORIRSMAPED_JOBS_NATIVE */
+
+/** `needle` in `text`, ignoring ASCII case. */
+static int
+build_has_word(
+    const char* text,
+    const char* needle)
+{
+    size_t const length = strlen(needle);
+    for( const char* p = text; *p; p++ )
+    {
+        size_t i = 0;
+        while( i < length && p[i]
+               && (p[i] | 0x20) == (needle[i] | 0x20) )
+            i++;
+        if( i == length )
+            return 1;
+    }
+    return 0;
+}
+
+/** make's own words about a failure ("make: *** [x] Error 2", "make[1]:
+ *  Leaving directory") and step banners say nothing a person needs. */
+static int
+build_line_is_noise(const char* line)
+{
+    while( *line == ' ' || *line == '\t' )
+        line++;
+    if( !line[0] )
+        return 1;
+    if( strncmp(line, "make", 4) == 0 && (line[4] == ':' || line[4] == '[') )
+        return 1;
+    if( strncmp(line, "== ", 3) == 0 )
+        return 1;
+    return 0;
+}
+
+int
+ToriRSMapEd_BuildFailureLine(
+    const char* const* lines,
+    int count,
+    char* out,
+    size_t out_size)
+{
+    static const char* const words[] = { "error", "failed", "refus", "cannot", "missing", "not found",
+        "lacks", "undefined", "unknown" };
+    int fallback = -1;
+
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    if( count <= 0 )
+        return 0;
+    assert(lines);
+    for( int i = count - 1; i >= 0; i-- )
+    {
+        if( build_line_is_noise(lines[i]) )
+            continue;
+        if( fallback < 0 )
+            fallback = i;
+        for( size_t w = 0; w < sizeof(words) / sizeof(words[0]); w++ )
+        {
+            if( build_has_word(lines[i], words[w]) )
+            {
+                snprintf(out, out_size, "%s", lines[i]);
+                return 1;
+            }
+        }
+    }
+    if( fallback < 0 )
+        return 0;
+    snprintf(out, out_size, "%s", lines[fallback]);
+    return 1;
+}
 
 int
 ToriRSMapEd_BuildLineUnit(
@@ -1521,7 +1607,17 @@ jobs_build_sink_line(
     const char* line)
 {
     struct ToriRSMapEd* maped = user;
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
     struct ToriRSMapEdBuf payload;
+
+    {
+        int const slot = (jobs->build_tail_head + jobs->build_tail_count) % JOBS_BUILD_TAIL;
+        snprintf(jobs->build_tail[slot], JOBS_BUILD_TAIL_LINE, "%s", line);
+        if( jobs->build_tail_count < JOBS_BUILD_TAIL )
+            jobs->build_tail_count++;
+        else
+            jobs->build_tail_head = (jobs->build_tail_head + 1) % JOBS_BUILD_TAIL;
+    }
 
     memset(&payload, 0, sizeof(payload));
     ToriRSMapEd_PutU32(&payload, maped->jobs->build_what);
@@ -1593,6 +1689,8 @@ jobs_build_start(
     memset(&jobs->build_units, 0, sizeof(jobs->build_units));
     jobs->build_unit_count = 0;
     jobs->build_archive_count = 0;
+    jobs->build_tail_head = 0;
+    jobs->build_tail_count = 0;
     return EDITOR_HOST_OK;
 }
 
@@ -1631,6 +1729,55 @@ jobs_build_send_done(
     ToriRSMapEd_BufFree(&payload);
 }
 
+/** Why the build in `jobs->build_tail` failed, one line ("" when it printed
+ *  nothing useful). */
+static void
+jobs_build_failure_line(
+    const struct ToriRSMapEdJobs* jobs,
+    char* out,
+    size_t out_size)
+{
+    const char* lines[JOBS_BUILD_TAIL];
+    for( int i = 0; i < jobs->build_tail_count; i++ )
+        lines[i] = jobs->build_tail[(jobs->build_tail_head + i) % JOBS_BUILD_TAIL];
+    (void)ToriRSMapEd_BuildFailureLine(lines, jobs->build_tail_count, out, out_size);
+}
+
+static void live_line(struct ToriRSMapEd* maped, const char* line, uint32_t length);
+
+/** A failed build's last lines again, after its BUILD_DONE, so the panel's
+ *  log ends on the reason and not on a hundred lines of progress. */
+static void
+jobs_build_report_failure(
+    struct ToriRSMapEd* maped,
+    uint32_t what)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+    int shown = 0;
+    int first;
+    char line[JOBS_BUILD_TAIL_LINE + 64];
+
+    /* The last JOBS_FAILURE_LINES lines that are not make's own. */
+    first = jobs->build_tail_count;
+    while( first > 0 && shown < JOBS_FAILURE_LINES )
+    {
+        first--;
+        if( !build_line_is_noise(jobs->build_tail[(jobs->build_tail_head + first) % JOBS_BUILD_TAIL]) )
+            shown++;
+    }
+    snprintf(line, sizeof(line), "the %s build failed; its last lines:", ToriRSMapEd_BuildWhatName(what));
+    live_line(maped, line, (uint32_t)strlen(line));
+    for( int i = first; i < jobs->build_tail_count; i++ )
+    {
+        const char* text = jobs->build_tail[(jobs->build_tail_head + i) % JOBS_BUILD_TAIL];
+        if( build_line_is_noise(text) )
+            continue;
+        snprintf(line, sizeof(line), "  %s", text);
+        live_line(maped, line, (uint32_t)strlen(line));
+    }
+    TORIRS_LOG("torirsmaped: the %s build failed\n", ToriRSMapEd_BuildWhatName(what));
+}
+
 /** The build finished: report it, keep its archives for the reload, and move
  *  RUN on (or stop it). */
 static void
@@ -1666,13 +1813,26 @@ jobs_build_finished(
             jobs->pending_archive_count++;
         }
     }
+    if( what == TORIRSMAPED_BUILD_PACKS || what == TORIRSMAPED_BUILD_CLIENT_CACHE )
+    {
+        if( status != EDITOR_HOST_OK )
+            jobs->build_failed_what = what;
+        else if( jobs->build_failed_what == what )
+            jobs->build_failed_what = 0;
+    }
+    if( status != EDITOR_HOST_OK )
+        jobs_build_report_failure(maped, what);
     if( !for_run )
         return;
 
     if( status != EDITOR_HOST_OK )
     {
-        char message[160];
-        snprintf(message, sizeof(message), "the %s build failed", ToriRSMapEd_BuildWhatName(what));
+        char message[JOBS_BUILD_TAIL_LINE + 160];
+        char why[JOBS_BUILD_TAIL_LINE];
+        jobs_build_failure_line(jobs, why, sizeof(why));
+        /* RUN stops here: nothing is launched or reloaded on a failed build. */
+        snprintf(message, sizeof(message), "the %s build failed%s%s; nothing was launched or reloaded",
+            ToriRSMapEd_BuildWhatName(what), why[0] ? ": " : "", why);
         jobs_run_finish(maped, status,
             what == TORIRSMAPED_BUILD_PACKS ? TORIRSMAPED_RUN_STEP_PACKS : TORIRSMAPED_RUN_STEP_CLIENT_CACHE,
             message, NULL, NULL, 0);
@@ -1852,7 +2012,7 @@ handle_run(
     enum EditorHost_Status status;
     int saved;
     int failed;
-    char message[160];
+    char message[1400];
 
     if( length != 0 )
     {
@@ -1881,7 +2041,10 @@ handle_run(
     if( status != EDITOR_HOST_OK )
     {
         if( status == EDITOR_HOST_LOCKED )
-            snprintf(message, sizeof(message), "the tree is read-only here (another server holds its lock)");
+            snprintf(message, sizeof(message),
+                "read-only: %s -- close it, or run this window against the daemon (nothing was saved, "
+                "built or launched)",
+                maped->read_only_reason[0] ? maped->read_only_reason : "another server holds the tree's lock");
         else
             snprintf(message, sizeof(message), "%d document(s) did not save", failed);
         jobs_run_finish(maped, status, TORIRSMAPED_RUN_STEP_SAVE, message, NULL, NULL, 0);

@@ -3,6 +3,7 @@
 #include "editor_areas.h"
 #include "editor_doc.h"
 #include "editor_if.h"
+#include "editor_palette.h"
 #include "editor_spawn.h"
 #include "mem/torirs_mem.h"
 
@@ -299,6 +300,39 @@ apply_areas(
     return changed;
 }
 
+/** PALETTE_* on the PALETTES document: held as text, applied through the
+ *  line-preserving codec exactly as apply_areas does. */
+static int
+apply_palettes(
+    struct Editor_Doc* doc,
+    const struct Editor_Cmd* command,
+    enum Editor_CmdDirection direction)
+{
+    struct Editor_DocHandle handle;
+    struct Editor_PalettesFile file;
+    struct Editor_PalettesParseResult parsed;
+    int changed;
+
+    if( !Editor_DocFind(doc, command->doc_kind, command->doc_key, &handle) || !handle.text
+        || !handle.text->loaded )
+        return 0;
+    Editor_PalettesInit(&file);
+    parsed = Editor_PalettesParse(&file, handle.text->text, handle.text->length);
+    changed = parsed.ok && Editor_PalettesApply(&file, command, direction == EDITOR_CMD_INVERSE);
+    if( changed )
+    {
+        size_t const size = Editor_PalettesEmit(&file, NULL, 0);
+        char* text = ToriMem_Alloc(ToriMem_Editor(), size + 1);
+        assert(text);
+        Editor_PalettesEmit(&file, text, size + 1);
+        Editor_TextDocSet(handle.text, text, size);
+        handle.text->dirty = 1;
+        ToriMem_Free(ToriMem_Editor(), text);
+    }
+    Editor_PalettesFree(&file);
+    return changed;
+}
+
 int
 Editor_CmdApply(
     struct Editor_Doc* doc,
@@ -337,6 +371,9 @@ Editor_CmdApply(
     case EDITOR_CMD_COLLECTION_SET:
     case EDITOR_CMD_COLLECTION_REMOVE:
         return apply_areas(doc, command, direction);
+    case EDITOR_CMD_PALETTE_SET:
+    case EDITOR_CMD_PALETTE_REMOVE:
+        return apply_palettes(doc, command, direction);
     }
     return 0;
 }
@@ -825,6 +862,14 @@ history_tally(
                    == 1 )
             Editor_AreasCmdLabel(command, group->label, sizeof(group->label));
         break;
+    case EDITOR_CMD_PALETTE_SET:
+    case EDITOR_CMD_PALETTE_REMOVE:
+        /* The codec names the step ("Add oaktree to palette Lumbridge slot
+         * 3"); a several-line stroke is named by the window (HistoryBreak). */
+        if( group->label[0] == '\0' && group->verb[0] == '\0'
+            && group->kinds[EDITOR_CMD_PALETTE_SET] + group->kinds[EDITOR_CMD_PALETTE_REMOVE] == 1 )
+            Editor_PalettesCmdLabel(command, group->label, sizeof(group->label));
+        break;
     }
 }
 
@@ -1293,6 +1338,11 @@ Editor_HistoryGroupName(
         /* Named by the label at tally time; a window's own verb lands here. */
         snprintf(verb, sizeof(verb), "Edit");
         snprintf(what, sizeof(what), "%d record%s %s", group->cmd_count, group->cmd_count == 1 ? "" : "s", doc);
+        break;
+    case EDITOR_CMD_PALETTE_SET:
+    case EDITOR_CMD_PALETTE_REMOVE:
+        snprintf(verb, sizeof(verb), "Edit");
+        snprintf(what, sizeof(what), "%d palette line%s", group->cmd_count, group->cmd_count == 1 ? "" : "s");
         break;
     case EDITOR_CMD_TEXT_SPLICE:
         snprintf(verb, sizeof(verb), "Edit text");

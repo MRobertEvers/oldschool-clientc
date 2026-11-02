@@ -3907,6 +3907,25 @@ test-sdl-chrome-geometry:
 	@false
 endif
 
+# The SDL desktop's wheel events on the command bus: the integer wheel as it
+# always was, the exact deltas (TORIRS_CMD_INPUT_SCROLL) beside it with the
+# trackpad and natural-scrolling flags, no pinch from a fingerless gesture.
+.PHONY: test-sdl-gesture
+ifneq ($(filter $(PLATFORM),macos linux),)
+test-sdl-gesture: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/sdl_gesture_test $(TORIMEM_SRCS) \
+		platform/test/sdl_gesture_test.c platform/platform_sdl2.c \
+		$(PLATFORM_OBJC_SRCS) \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
+		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_gesture_test
+else
+test-sdl-gesture:
+	@echo "test-sdl-gesture requires PLATFORM=macos or PLATFORM=linux"
+	@false
+endif
+
 # The SDL desktop's native rail and surface page (no embedded browser): rail
 # presses, the pop-out mark and the aux window's close box against a fake
 # strip. Host-only C; TORIRS_SURFACE_TEST_BMP=<path> dumps the painted strip.

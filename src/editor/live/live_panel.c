@@ -76,6 +76,9 @@ struct LivePanel
     int browser_sent;
     /** Web: the RUN whose play tab was handled (one tab per RUN). */
     int web_run_handled;
+    /** This window sent the RUN in flight (Editor_Live_Run): its RUN_DONE
+     *  opens the play tab here. */
+    int run_requested;
     /** TORIRS_EDITOR_LIVE=show (photographs): 0 unread, 1 show, 2 done. */
     int env_show;
 
@@ -240,8 +243,14 @@ live_tick(
      * tab (the RUN_DONE message said "open the play tab"). */
     if( self->model.run_serial != self->web_run_handled && self->model.run_step == TORIRSMAPED_RUN_STEP_IDLE )
     {
+        int const mine = self->run_requested || ui->solo_panel < 0;
         self->web_run_handled = self->model.run_serial;
-        if( self->model.run_status == 0 && self->model.play_state != TORIRSMAPED_PLAY_ONLINE
+        /* One tab per RUN: every window of the Client hears RUN_DONE, so a
+         * popped-out panel's tab opens none unless it pressed RUN itself
+         * (two opened, 2026-11-02); a RUN from elsewhere (torirsmapedctl)
+         * opens it in the main window. */
+        self->run_requested = 0;
+        if( mine && self->model.run_status == 0 && self->model.play_state != TORIRSMAPED_PLAY_ONLINE
             && self->model.play_web_url[0] )
         {
             if( live_web_open(self->model.play_web_url) )
@@ -628,6 +637,7 @@ Editor_Live_Run(struct EditorUi* ui)
     type = Editor_LiveEncodeRun(&payload);
     if( !live_send(ui, self, type, &payload) )
         return 0;
+    self->run_requested = 1;
     Editor_UiLog(ui, "RUN: save, build packs, build the client cache, reload the live server");
     return 1;
 }

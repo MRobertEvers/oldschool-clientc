@@ -77,6 +77,19 @@
  *                          replace the list, none keeps it
  *   collection-remove <name>
  *                          COLLECTION_REMOVE
+ *   palettes               the catalog palettes (editor/palettes.txt), one
+ *                          header or slot per line
+ *   palette-set <palette> <slot|0> <loc|npc|obj>:<record> [shape <s> rot <r>]
+ *                          PALETTE_SET: the record into slot 1..10 of the
+ *                          palette (0: its first free slot), replacing what
+ *                          the slot held; a loc may carry its placement
+ *                          pose (shape 0..22, rotation 0..3). Unsaved until
+ *                          save.
+ *   palette-set <palette> rename <new name>
+ *                          every line of the palette renamed, one undo step
+ *   palette-remove <palette> [<slot>]
+ *                          PALETTE_REMOVE: the slot, or with no slot every
+ *                          line of the palette, one undo step
  *   live-attach launch|<host:port> [ticket]
  *                          attach the editor server's live link (launch
  *                          starts the lane's servers) and wait for the answer
@@ -99,6 +112,7 @@
  */
 
 #include "editor/editor_areas.h"
+#include "editor/editor_palette.h"
 #include "editor/editor_host.h"
 #include "mem/torirs_mem.h"
 #include "torirs_maped.h"
@@ -149,7 +163,7 @@ selection_kind_name(int32_t kind)
 
 static char const* const k_cmd_kind_names[] = {
     "tile", "loc", "spawn", "suppress", "cfgfield", "cfgblock", "iffield", "ifcomp", "splice", "spawnedit",
-    "areaset", "arearm", "collset", "collrm",
+    "areaset", "arearm", "collset", "collrm", "palset", "palrm",
 };
 _Static_assert(sizeof(k_cmd_kind_names) / sizeof(k_cmd_kind_names[0]) == EDITOR_CMD_KIND_COUNT,
     "a name per command kind");
@@ -324,7 +338,7 @@ cmd_open(
 static int
 parse_kind(char const* name)
 {
-    static char const* const names[] = { "square", "spawn", "cfg", "iface", "text", "areas" };
+    static char const* const names[] = { "square", "spawn", "cfg", "iface", "text", "areas", "palettes" };
     _Static_assert(sizeof(names) / sizeof(names[0]) == EDITOR_DOC_KIND_COUNT, "a name per document kind");
     for( int i = 0; i < EDITOR_DOC_KIND_COUNT; i++ )
     {
@@ -1252,6 +1266,189 @@ cmd_areas_remove(
     return ctl_areas_send(host, &command);
 }
 
+/* ---- the catalog palettes (editor_palette.h) ------------------------------ */
+
+/** DOC_OPEN the PALETTES document and parse it. 0 (said why) when it cannot. */
+static int
+ctl_palettes_load(
+    struct EditorHost* host,
+    struct Editor_PalettesFile* out)
+{
+    struct EditorHost_DocText text;
+    struct Editor_PalettesParseResult parsed;
+
+    Editor_PalettesInit(out);
+    memset(&text, 0, sizeof(text));
+    if( Editor_HostMapEdDocOpen(host, EDITOR_DOC_PALETTES, EDITOR_PALETTES_DOC_KEY, &text) != EDITOR_HOST_OK )
+    {
+        fprintf(stderr, "torirsmapedctl: the server has no palettes document\n");
+        Editor_HostDocTextFree(&text);
+        return 0;
+    }
+    parsed = Editor_PalettesParse(out, text.part_count > 0 ? (char const*)text.parts[0].data : NULL,
+        text.part_count > 0 && text.parts[0].data ? text.parts[0].size : 0);
+    Editor_HostDocTextFree(&text);
+    if( !parsed.ok )
+    {
+        fprintf(stderr, "torirsmapedctl: %s line %d does not parse\n", EDITOR_PALETTES_FILE_PATH, parsed.line);
+        Editor_PalettesFree(out);
+        return 0;
+    }
+    return 1;
+}
+
+/** Send `count` commands, several as ONE stroke (one undo step). */
+static int
+ctl_palettes_send(
+    struct EditorHost* host,
+    struct Editor_Cmd const* commands,
+    int count)
+{
+    char label[160];
+    int refused = 0;
+
+    if( count > 1 )
+        Editor_HostMapEdStroke(host, 1);
+    for( int i = 0; i < count; i++ )
+    {
+        enum EditorHost_Status const status = Editor_HostMapEdCmd(host, &commands[i]);
+        Editor_PalettesCmdLabel(&commands[i], label, sizeof(label));
+        if( status != EDITOR_HOST_OK )
+        {
+            fprintf(stderr, "torirsmapedctl: %s was refused (status %d)\n", label, (int)status);
+            refused++;
+        }
+        else
+            printf("%s (unsaved until save)\n", label);
+    }
+    if( count > 1 )
+        Editor_HostMapEdStroke(host, 0);
+    return refused ? 1 : 0;
+}
+
+static int
+cmd_palettes(struct EditorHost* host)
+{
+    struct Editor_PalettesFile file;
+
+    if( !ctl_palettes_load(host, &file) )
+        return 1;
+    printf("%d palette(s)\n", Editor_PalettesCount(&file));
+    for( int i = 0; i < file.line_count; i++ )
+        if( file.lines[i].kind != EDITOR_PALETTES_LINE_TEXT )
+            printf("%s\n", file.lines[i].text);
+    Editor_PalettesFree(&file);
+    return 0;
+}
+
+static int
+cmd_palette_set(
+    struct EditorHost* host,
+    char const* const* args,
+    int count)
+{
+    struct Editor_PalettesFile file;
+    struct Editor_PaletteRow row;
+    struct Editor_Cmd* commands;
+    char kind_name[8] = { 0 };
+    char record[EDITOR_PALETTE_RECORD_MAX] = { 0 };
+    int planned;
+    int result;
+    int slot;
+    int kind;
+
+    if( count == 3 && strcmp(args[1], "rename") == 0 )
+    {
+        if( !ctl_palettes_load(host, &file) )
+            return 1;
+        commands = calloc(EDITOR_PALETTE_PLAN_MAX, sizeof(*commands));
+        assert(commands);
+        planned = Editor_PalettePlanRename(commands, EDITOR_PALETTE_PLAN_MAX, &file, args[0], args[2]);
+        Editor_PalettesFree(&file);
+        if( planned == 0 )
+        {
+            fprintf(stderr, "torirsmapedctl: no palette '%s', or '%s' is taken or not a name\n", args[0], args[2]);
+            free(commands);
+            return 1;
+        }
+        result = ctl_palettes_send(host, commands, planned);
+        free(commands);
+        return result;
+    }
+    if( (count != 3 && count != 7) || sscanf(args[2], "%7[a-z]:%63s", kind_name, record) != 2
+        || (kind = Editor_PaletteKindFromName(kind_name)) < 0 )
+    {
+        fprintf(stderr, "torirsmapedctl: palette-set <palette> <slot|0> <loc|npc|obj>:<record> [shape <s> rot <r>]\n");
+        return 1;
+    }
+    slot = atoi(args[1]);
+    if( !ctl_palettes_load(host, &file) )
+        return 1;
+    if( slot == 0 )
+        slot = Editor_PalettesFirstFreeSlot(&file, args[0]);
+    Editor_PaletteEntryRow(&row, args[0], slot, kind, record);
+    if( count == 7 )
+    {
+        if( strcmp(args[3], "shape") != 0 || strcmp(args[5], "rot") != 0 )
+        {
+            fprintf(stderr, "torirsmapedctl: the pose is 'shape <s> rot <r>'\n");
+            Editor_PalettesFree(&file);
+            return 1;
+        }
+        row.shape = atoi(args[4]);
+        row.rotation = atoi(args[6]);
+    }
+    commands = calloc(EDITOR_PALETTE_PLAN_MAX, sizeof(*commands));
+    assert(commands);
+    planned = Editor_PaletteRowValid(&row) ? Editor_PalettePlanAdd(commands, EDITOR_PALETTE_PLAN_MAX, &file, &row) : 0;
+    Editor_PalettesFree(&file);
+    if( planned == 0 )
+    {
+        fprintf(stderr, "torirsmapedctl: not a slot the palette can hold (full? 1..10), not a valid row, or nothing "
+                        "changes\n");
+        free(commands);
+        return 1;
+    }
+    result = ctl_palettes_send(host, commands, planned);
+    free(commands);
+    return result;
+}
+
+static int
+cmd_palette_remove(
+    struct EditorHost* host,
+    char const* const* args,
+    int count)
+{
+    struct Editor_PalettesFile file;
+    struct Editor_Cmd* commands;
+    int planned = 0;
+    int result;
+
+    if( !ctl_palettes_load(host, &file) )
+        return 1;
+    commands = calloc(EDITOR_PALETTE_PLAN_MAX, sizeof(*commands));
+    assert(commands);
+    if( count >= 2 )
+    {
+        int const slot = atoi(args[1]);
+        int const line = slot >= 1 && slot <= EDITOR_PALETTE_SLOTS ? Editor_PalettesFindEntry(&file, args[0], slot) : -1;
+        planned = line >= 0 && Editor_PaletteRemoveCommand(&commands[0], &file, line) ? 1 : 0;
+    }
+    else
+        planned = Editor_PalettePlanDelete(commands, EDITOR_PALETTE_PLAN_MAX, &file, args[0]);
+    Editor_PalettesFree(&file);
+    if( planned == 0 )
+    {
+        fprintf(stderr, "torirsmapedctl: there is no palette '%s'%s\n", args[0], count >= 2 ? " (or that slot is empty)" : "");
+        free(commands);
+        return 1;
+    }
+    result = ctl_palettes_send(host, commands, planned);
+    free(commands);
+    return result;
+}
+
 static int
 cmd_cfg_set(
     struct EditorHost* host,
@@ -1614,6 +1811,8 @@ main(
             "  areas | area-remove <name> | collection-remove <name>\n"
             "  area-set <name> <level|all> <x0> <z0> <x1> <z1> [...] [colour <n|->] [note <text|->] [rename <new>]\n"
             "  collection-set <name> [<square key>...] [note <text|->] [rename <new>]\n"
+            "  palettes | palette-remove <palette> [<slot>] | palette-set <palette> rename <new>\n"
+            "  palette-set <palette> <slot|0> <loc|npc|obj>:<record> [shape <s> rot <r>]\n"
             "  live-attach launch|<host:port> [ticket] | live-detach | live-cheat <player> <line>\n"
             "  play [seconds] | play-restart [seconds] | play-stop\n"
             "  build packs|client [seconds] | run [seconds]\n");
@@ -1715,6 +1914,12 @@ main(
         result = cmd_spawn_edit(&host, strcmp(command, "spawn-move") == 0, args, arg_count);
     else if( strcmp(command, "cfg-set") == 0 && arg_count >= 3 )
         result = cmd_cfg_set(&host, args[0], args[1], args[2]);
+    else if( strcmp(command, "palettes") == 0 )
+        result = cmd_palettes(&host);
+    else if( strcmp(command, "palette-set") == 0 )
+        result = cmd_palette_set(&host, args, arg_count);
+    else if( strcmp(command, "palette-remove") == 0 && arg_count >= 1 )
+        result = cmd_palette_remove(&host, args, arg_count);
     else if( strcmp(command, "areas") == 0 )
         result = cmd_areas(&host);
     else if( strcmp(command, "area-set") == 0 )

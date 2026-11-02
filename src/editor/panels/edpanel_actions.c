@@ -16,6 +16,33 @@
 /* The clipboard outlives any one panel: copy in the menu, paste from a key. */
 static struct Editor_TileClip* g_clip;
 
+/** Say what a selection op did beyond the obvious: whom a move swapped with,
+ *  what a reshape or copy could not land on, or that nothing it names is
+ *  there any more. Silence here is what made a refused nudge look stuck. */
+static void
+actions_report(
+    struct EditorUi* ui,
+    const char* what,
+    const struct Editor_LocOpResult* result,
+    int applied)
+{
+    if( result->swapped > 0 )
+        Editor_UiLog(ui, "editor: %s: swapped places with loc %d%s (that tile already held one of that shape)", what,
+            result->swapped_loc_id, result->swapped > 1 ? " and others" : "");
+    if( result->blocked > 0 )
+    {
+        int wx;
+        int wz;
+        Editor_LocRefWorld(&result->blocked_at, &wx, &wz);
+        Editor_UiLog(ui, "editor: %s: %d,%d L%d already holds a shape-%d loc (loc %d); %d loc%s left as %s", what, wx,
+            wz, result->blocked_at.level, result->blocked_at.shape, result->blocked_at.loc_id, result->blocked,
+            result->blocked == 1 ? "" : "s", result->blocked == 1 ? "it was" : "they were");
+    }
+    if( applied == 0 && result->blocked == 0 && result->command_count == 0 )
+        Editor_UiLog(ui, "editor: %s: the selected loc%s no longer there (undone or deleted elsewhere)", what,
+            ui->tools.loc_count == 1 ? " is" : "s are");
+}
+
 static void
 actions_selection_moved(
     struct EditorUi* ui,
@@ -48,6 +75,13 @@ actions_need_selection(
     return 1;
 }
 
+static int
+actions_reshape_to(
+    struct EditorUi* ui,
+    const char* what,
+    const int* shapes,
+    const int* rotations);
+
 /** Result scratch: one op at a time, and it is ~8 KB. */
 static struct Editor_LocOpResult g_result;
 
@@ -68,6 +102,7 @@ edp_locs_nudge(
     count = Editor_LocOpsNudge(
         &ui->editor->doc, ui->tools.locs, ui->tools.loc_count, dx, dz, commands, capacity, &g_result);
     applied = edp_apply(ui, commands, count, "nudge");
+    actions_report(ui, "nudge", &g_result, applied);
     actions_selection_moved(ui, &g_result, applied > 0);
     return applied;
 }
@@ -90,6 +125,7 @@ edp_locs_move_to(
         &ui->editor->doc, ui->tools.locs, ui->tools.loc_count, world_x, world_z, commands, capacity,
         &g_result);
     applied = edp_apply(ui, commands, count, "move");
+    actions_report(ui, "move", &g_result, applied);
     actions_selection_moved(ui, &g_result, applied > 0);
     return applied;
 }
@@ -108,6 +144,7 @@ edp_locs_rotate(struct EditorUi* ui)
     count = Editor_LocOpsRotate(
         &ui->editor->doc, ui->tools.locs, ui->tools.loc_count, 1, commands, capacity, &g_result);
     applied = edp_apply(ui, commands, count, "rotate");
+    actions_report(ui, "rotate", &g_result, applied);
     actions_selection_moved(ui, &g_result, applied > 0);
     return applied;
 }
@@ -115,19 +152,23 @@ edp_locs_rotate(struct EditorUi* ui)
 int
 edp_locs_reshape(struct EditorUi* ui)
 {
-    int capacity;
-    struct Editor_Cmd* commands = edp_scratch(&capacity);
-    int count;
-    int applied;
+    int shapes[EDITOR_LOC_SELECTION_MAX];
 
     assert(ui);
     if( !actions_need_selection(ui, "reshape") )
         return 0;
-    count = Editor_LocOpsReshape(
-        &ui->editor->doc, ui->tools.locs, ui->tools.loc_count, commands, capacity, &g_result);
-    applied = edp_apply(ui, commands, count, "reshape");
-    actions_selection_moved(ui, &g_result, applied > 0);
-    return applied;
+    /* Each loc to its own next shape: a wall cycles its wall shapes, never
+     * to one it has no model for. */
+    for( int i = 0; i < ui->tools.loc_count; i++ )
+    {
+        uint32_t mask;
+        shapes[i] = -1;
+        if( edp_loc_shapes(ui, ui->tools.locs[i].loc_id, &mask) && mask != 0 )
+            shapes[i] = Editor_LocShapeNext(mask, ui->tools.locs[i].shape);
+        else
+            Editor_UiLog(ui, "editor: reshape: loc %d is still loading; try again in a moment", ui->tools.locs[i].loc_id);
+    }
+    return actions_reshape_to(ui, "reshape", shapes, NULL);
 }
 
 int
@@ -146,6 +187,7 @@ edp_locs_duplicate(struct EditorUi* ui)
     count = Editor_LocOpsDuplicate(
         &ui->editor->doc, ui->tools.locs, ui->tools.loc_count, 1, 0, commands, capacity, &g_result);
     applied = edp_apply(ui, commands, count, "duplicate");
+    actions_report(ui, "duplicate", &g_result, applied);
     actions_selection_moved(ui, &g_result, applied > 0);
     if( applied > 0 )
         Editor_UiLog(ui, "editor: duplicated %d loc(s); the copies are selected", applied);
@@ -184,6 +226,252 @@ edp_locs_delete(struct EditorUi* ui)
     return applied;
 }
 
+/* ---- a loc's shapes ------------------------------------------------------------ */
+
+static int g_place_fit = 1;
+
+int
+edp_place_fit_enabled(void)
+{
+    return g_place_fit;
+}
+
+void
+edp_place_fit_set(int on)
+{
+    g_place_fit = on ? 1 : 0;
+}
+
+int
+edp_loc_shapes(
+    struct EditorUi* ui,
+    int loc_id,
+    uint32_t* out_mask)
+{
+    struct ToriRS_Location* cfg;
+
+    assert(ui);
+    assert(out_mask);
+    assert(loc_id >= 0);
+    if( !ui->app_services.loc_record )
+    {
+        *out_mask = (1u << EDITOR_LOC_SHAPE_COUNT) - 1u;
+        return 1;
+    }
+    cfg = ui->app_services.loc_record(ui->app_services.user_data, loc_id);
+    if( !cfg )
+    {
+        if( ui->app_services.loc_request )
+            ui->app_services.loc_request(ui->app_services.user_data, loc_id);
+        return 0;
+    }
+    *out_mask = Editor_LocShapeMask(cfg);
+    return 1;
+}
+
+/** "10 centrepiece, 0 wall, 2 wall L" into `out`. */
+static void
+actions_shape_list_text(
+    uint32_t mask,
+    char* out,
+    size_t size)
+{
+    int shapes[EDITOR_LOC_SHAPE_COUNT];
+    int const count = Editor_LocShapeList(mask, shapes);
+    size_t used = 0;
+
+    out[0] = '\0';
+    for( int i = 0; i < count && used + 1 < size; i++ )
+        used += (size_t)snprintf(out + used, size - used, "%s%d %s", i ? ", " : "", shapes[i],
+            Editor_LocShapeName(shapes[i]));
+    if( count == 0 )
+        snprintf(out, size, "none");
+}
+
+int
+edp_loc_shape_check(
+    struct EditorUi* ui,
+    int loc_id,
+    int shape,
+    const char* what)
+{
+    uint32_t mask;
+    char list[160];
+
+    assert(ui);
+    assert(what);
+    if( !edp_loc_shapes(ui, loc_id, &mask) )
+    {
+        Editor_UiLog(ui, "editor: %s: loc %d is still loading; try again in a moment", what, loc_id);
+        return 0;
+    }
+    if( shape >= 0 && shape < EDITOR_LOC_SHAPE_COUNT && (mask & (1u << shape)) )
+        return 1;
+    actions_shape_list_text(mask, list, sizeof(list));
+    Editor_UiLog(ui, "editor: %s: loc %d has no model for shape %d (%s); its shapes: %s", what, loc_id, shape,
+        shape >= 0 && shape < EDITOR_LOC_SHAPE_COUNT ? Editor_LocShapeName(shape) : "?", list);
+    return 0;
+}
+
+int
+edp_place_pose_follow(struct EditorUi* ui)
+{
+    uint32_t mask;
+    int first;
+
+    assert(ui);
+    if( ui->tools.pick_kind != 0 || ui->tools.pick_id < 0 )
+        return 0;
+    if( !edp_loc_shapes(ui, ui->tools.pick_id, &mask) || mask == 0 )
+        return 0;
+    if( ui->tools.place_shape >= 0 && ui->tools.place_shape < EDITOR_LOC_SHAPE_COUNT
+        && (mask & (1u << ui->tools.place_shape)) )
+        return 0;
+    first = Editor_LocShapeFirst(mask);
+    Editor_UiLog(ui, "editor: loc %d has no shape %d; the Place pose is %d %s", ui->tools.pick_id,
+        ui->tools.place_shape, first, Editor_LocShapeName(first));
+    ui->tools.place_shape = first;
+    return 1;
+}
+
+void
+edp_place_reshape(struct EditorUi* ui)
+{
+    uint32_t mask = 0;
+
+    assert(ui);
+    if( ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0 && edp_loc_shapes(ui, ui->tools.pick_id, &mask) )
+        ui->tools.place_shape = Editor_LocShapeNext(mask, ui->tools.place_shape);
+    else
+        ui->tools.place_shape = Editor_LocShapeCycle(ui->tools.place_shape);
+    Editor_UiLog(ui, "editor: place shape %d %s", ui->tools.place_shape,
+        ui->tools.place_shape >= 0 && ui->tools.place_shape < EDITOR_LOC_SHAPE_COUNT
+            ? Editor_LocShapeName(ui->tools.place_shape)
+            : "");
+}
+
+void
+edp_place_rotate(struct EditorUi* ui)
+{
+    assert(ui);
+    ui->tools.place_rotation = (ui->tools.place_rotation + 1) & 3;
+    Editor_UiLog(ui, "editor: place rotation %d", ui->tools.place_rotation);
+}
+
+void
+edp_place_pose_at(
+    struct EditorUi* ui,
+    int world_x,
+    int world_z,
+    int level,
+    int* out_shape,
+    int* out_rotation)
+{
+    uint32_t mask;
+
+    assert(ui);
+    assert(out_shape);
+    assert(out_rotation);
+    *out_shape = ui->tools.place_shape;
+    *out_rotation = ui->tools.place_rotation & 3;
+    if( !g_place_fit || !ui->editor || ui->tools.pick_kind != 0 || ui->tools.pick_id < 0 )
+        return;
+    if( !edp_loc_shapes(ui, ui->tools.pick_id, &mask) )
+        return;
+    /* Only a wall pick fits: a centrepiece placed beside a wall of its own
+     * loc stays the centrepiece it was asked to be. */
+    if( *out_shape != 0 && *out_shape != 1 && *out_shape != 2 && *out_shape != 3 && *out_shape != 9 )
+        return;
+    (void)Editor_LocFitWall(
+        &ui->editor->doc, ui->tools.pick_id, mask, world_x, world_z, level, out_shape, out_rotation);
+}
+
+/** Give the selection `shapes[i]` / `rotations[i]` (-1 keeps), one step. */
+static int
+actions_reshape_to(
+    struct EditorUi* ui,
+    const char* what,
+    const int* shapes,
+    const int* rotations)
+{
+    int capacity;
+    struct Editor_Cmd* commands = edp_scratch(&capacity);
+    int count;
+    int applied;
+
+    count = Editor_LocOpsReshapeTo(&ui->editor->doc, ui->tools.locs, ui->tools.loc_count, shapes, rotations, commands,
+        capacity, &g_result);
+    applied = edp_apply(ui, commands, count, what);
+    actions_report(ui, what, &g_result, applied);
+    actions_selection_moved(ui, &g_result, applied > 0);
+    return applied;
+}
+
+int
+edp_locs_set_shape(
+    struct EditorUi* ui,
+    int shape)
+{
+    int shapes[EDITOR_LOC_SELECTION_MAX];
+    int any = 0;
+
+    assert(ui);
+    assert(shape >= 0);
+    assert(shape < EDITOR_LOC_SHAPE_COUNT);
+    if( !actions_need_selection(ui, "set shape") )
+        return 0;
+    for( int i = 0; i < ui->tools.loc_count; i++ )
+    {
+        shapes[i] = -1;
+        if( ui->tools.locs[i].shape == shape )
+            continue;
+        if( !edp_loc_shape_check(ui, ui->tools.locs[i].loc_id, shape, "set shape") )
+            continue;
+        shapes[i] = shape;
+        any = 1;
+    }
+    if( !any )
+        return 0;
+    return actions_reshape_to(ui, "reshape", shapes, NULL);
+}
+
+int
+edp_locs_fit(struct EditorUi* ui)
+{
+    int shapes[EDITOR_LOC_SELECTION_MAX];
+    int rotations[EDITOR_LOC_SELECTION_MAX];
+    int fitted = 0;
+
+    assert(ui);
+    if( !actions_need_selection(ui, "fit") )
+        return 0;
+    for( int i = 0; i < ui->tools.loc_count; i++ )
+    {
+        const struct Editor_LocRef* ref = &ui->tools.locs[i];
+        uint32_t mask;
+        int wx;
+        int wz;
+        int shape = ref->shape;
+        int rotation = ref->rotation;
+        shapes[i] = -1;
+        rotations[i] = -1;
+        if( !edp_loc_shapes(ui, ref->loc_id, &mask) )
+            continue;
+        Editor_LocRefWorld(ref, &wx, &wz);
+        if( !Editor_LocFitWall(&ui->editor->doc, ref->loc_id, mask, wx, wz, ref->level, &shape, &rotation) )
+            continue;
+        shapes[i] = shape;
+        rotations[i] = rotation;
+        fitted++;
+    }
+    if( fitted == 0 )
+    {
+        Editor_UiLog(ui, "editor: fit: no wall of the same loc next to the selection to fit to");
+        return 0;
+    }
+    return actions_reshape_to(ui, "fit to neighbours", shapes, rotations);
+}
+
 int
 edp_locs_place(
     struct EditorUi* ui,
@@ -208,6 +496,8 @@ edp_locs_place(
         Editor_UiLog(ui, "editor: pick a loc in the catalog first");
         return 0;
     }
+    if( !edp_loc_shape_check(ui, loc_id, shape, "place") )
+        return 0;
     if( !Editor_LocOpsPlace(
             &ui->editor->doc, loc_id, shape, rotation, world_x, world_z, level, &command, 1,
             &g_result) )
@@ -424,4 +714,60 @@ edp_actions_free(void)
 {
     ToriMem_Free(ToriMem_Editor(), g_clip);
     g_clip = NULL;
+}
+
+int
+edp_locs_swap(struct EditorUi* ui)
+{
+    /* Same placements, the catalog's loc: one replace per loc, one stroke,
+     * keeping tile, shape and rotation -- for each loc the pick has a model
+     * for that shape. */
+    int capacity;
+    struct Editor_Cmd* commands = edp_scratch(&capacity);
+    int count = 0;
+    int applied;
+
+    assert(ui);
+    if( ui->tools.pick_kind != 0 || ui->tools.pick_id < 0 )
+    {
+        Editor_UiLog(ui, "editor: pick a replacement loc in the catalog first");
+        return 0;
+    }
+    if( !ui->editor || ui->tools.loc_count == 0 )
+    {
+        Editor_UiLog(ui, "editor: select the locs to swap first");
+        return 0;
+    }
+    for( int i = 0; i < ui->tools.loc_count && count < capacity; i++ )
+    {
+        struct Editor_LocRef* ref = &ui->tools.locs[i];
+        struct Editor_Square* square = Editor_DocFindSquare(&ui->editor->doc, ref->map_x, ref->map_z);
+        int const index = Editor_LocRefResolve(&ui->editor->doc, ref);
+        if( index < 0 )
+            continue;
+        if( !edp_loc_shape_check(ui, ui->tools.pick_id, square->locs[index].shape, "swap") )
+            continue;
+        Editor_CmdInitSquare(&commands[count], EDITOR_CMD_LOC, ref->map_x, ref->map_z);
+        commands[count].has_before = 1;
+        commands[count].has_after = 1;
+        commands[count].u.loc.before = square->locs[index];
+        commands[count].u.loc.after = square->locs[index];
+        commands[count].u.loc.after.loc_id = ui->tools.pick_id;
+        count++;
+    }
+    applied = edp_apply(ui, commands, count, "swap");
+    if( applied > 0 )
+    {
+        for( int i = 0; i < ui->tools.loc_count; i++ )
+            if( Editor_LocRefResolve(&ui->editor->doc, &ui->tools.locs[i]) < 0 )
+            {
+                struct Editor_LocRef swapped = ui->tools.locs[i];
+                swapped.loc_id = ui->tools.pick_id;
+                if( Editor_LocRefResolve(&ui->editor->doc, &swapped) >= 0 )
+                    ui->tools.locs[i] = swapped;
+            }
+        if( ui->hooks.selection_changed )
+            ui->hooks.selection_changed(ui->hooks_user);
+    }
+    return applied;
 }

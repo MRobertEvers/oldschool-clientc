@@ -51,9 +51,12 @@ enum Editor_DocKind
     /** The named areas and square collections (editor_areas.h), one
      *  document per content tree, key "areas", held as text. */
     EDITOR_DOC_AREAS,
+    /** The catalog palettes (editor_palette.h): one document per content
+     *  tree, key "palettes", held as text. */
+    EDITOR_DOC_PALETTES,
 };
 
-#define EDITOR_DOC_KIND_COUNT 6
+#define EDITOR_DOC_KIND_COUNT 7
 /** Bytes in a document key, the terminator included. */
 #define EDITOR_DOC_KEY_MAX 128
 /** Bytes in a square's storage name ("" = the content tree's maps/,
@@ -118,9 +121,18 @@ enum Editor_CmdKind
     EDITOR_CMD_AREA_REMOVE,
     EDITOR_CMD_COLLECTION_SET,
     EDITOR_CMD_COLLECTION_REMOVE,
+    /**
+     * PALETTES documents (editor_palette.h). One header or entry line, by key
+     * (palette, slot): SET upserts (has_after; has_before too when it rewrites
+     * a line, whose exact text it carries -- a rename or a move to another
+     * slot is a SET whose keys differ), REMOVE takes one out (has_before only)
+     * and remembers the index it stood at. `u.area` holds both lines.
+     */
+    EDITOR_CMD_PALETTE_SET,
+    EDITOR_CMD_PALETTE_REMOVE,
 };
 
-#define EDITOR_CMD_KIND_COUNT 14
+#define EDITOR_CMD_KIND_COUNT 16
 
 /** Bytes a TEXT_SPLICE carries, before and after together. A regeneration
  *  larger than this is several splices in one stroke. */
@@ -219,7 +231,7 @@ struct Editor_Cmd
             uint32_t after_len;
             char text[EDITOR_CMD_SPLICE_MAX];
         } text_splice;
-        /** AREA_* / COLLECTION_*: the record line before then after, back to
+        /** AREA_* / COLLECTION_* (and PALETTE_*, editor_palette.h): the record line before then after, back to
          *  back in `text` (each at most EDITOR_AREAS_LINE_MAX bytes), and the
          *  line index `before` stood at (-1: unknown, an undone remove
          *  appends). */
@@ -359,6 +371,8 @@ Editor_CmdKindFits(
     case EDITOR_DOC_AREAS:
         return kind == EDITOR_CMD_AREA_SET || kind == EDITOR_CMD_AREA_REMOVE
                || kind == EDITOR_CMD_COLLECTION_SET || kind == EDITOR_CMD_COLLECTION_REMOVE;
+    case EDITOR_DOC_PALETTES:
+        return kind == EDITOR_CMD_PALETTE_SET || kind == EDITOR_CMD_PALETTE_REMOVE;
     }
     return 0;
 }

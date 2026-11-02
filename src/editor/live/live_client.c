@@ -48,13 +48,28 @@ live_log(
     ...)
 {
     va_list args;
+    char text[1024];
+    const char* at = text;
+    int first = 1;
 
     va_start(args, format);
-    vsnprintf(model->log[model->log_head], EDITOR_LIVE_LOG_LINE_MAX, format, args);
+    vsnprintf(text, sizeof(text), format, args);
     va_end(args);
-    model->log_head = (model->log_head + 1) % EDITOR_LIVE_LOG_LINES;
-    if( model->log_count < EDITOR_LIVE_LOG_LINES )
-        model->log_count++;
+    /* A long line (a RUN stop naming a lock holder, a compiler error with
+     * its path) continues on the next rows rather than losing its end. */
+    do
+    {
+        size_t const room = EDITOR_LIVE_LOG_LINE_MAX - 1 - (first ? 0 : 4);
+        size_t const length = strlen(at);
+        size_t const take = length < room ? length : room;
+        snprintf(model->log[model->log_head], EDITOR_LIVE_LOG_LINE_MAX, "%s%.*s", first ? "" : "    ", (int)take,
+            at);
+        at += take;
+        first = 0;
+        model->log_head = (model->log_head + 1) % EDITOR_LIVE_LOG_LINES;
+        if( model->log_count < EDITOR_LIVE_LOG_LINES )
+            model->log_count++;
+    } while( *at );
     model->log_serial++;
 }
 
@@ -211,7 +226,7 @@ Editor_LiveModelApply(
     {
         uint32_t status = ToriRSMapEd_GetU32(&reader);
         uint32_t step = ToriRSMapEd_GetU32(&reader);
-        char message[256];
+        char message[1024];
         uint32_t counts[4];
         uint32_t restart;
         char rows[EDITOR_LIVE_RESTART_MAX][192];

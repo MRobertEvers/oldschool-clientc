@@ -1499,6 +1499,192 @@ dbg_damage_surface(struct ToriRSChrome* ui)
         dbg_dirty_panel(ui, i);
 }
 
+/* ---- MAXIMISE ---------------------------------------------------------------------- */
+
+/** A press on `panel`'s title: 1 when it completes a double-click (latched
+ *  for ToriRSChrome_TakeTitleDoubleClick), else it is remembered as the
+ *  first half of one. */
+static int
+dbg_title_press(struct ToriRSChrome* ui, int panel, int x, int y)
+{
+    int const slop = TORIRS_CHROME_DOUBLE_CLICK_SLOP * (ui->scale > 0 ? ui->scale : 1);
+
+    /* No clock (a host that never calls ToriRSChrome_Tick), no double-click:
+     * every press would be at the same instant. */
+    if( ui->now_ms <= 0 )
+        return 0;
+    if( ui->title_press_panel == panel && ui->now_ms - ui->title_press_ms <= TORIRS_CHROME_DOUBLE_CLICK_MS &&
+        ui->now_ms >= ui->title_press_ms && abs(x - ui->title_press_x) <= slop &&
+        abs(y - ui->title_press_y) <= slop )
+    {
+        ui->title_press_panel = -1;
+        ui->title_double = panel;
+        return 1;
+    }
+    ui->title_press_panel = panel;
+    ui->title_press_ms = ui->now_ms;
+    ui->title_press_x = x;
+    ui->title_press_y = y;
+    return 0;
+}
+
+int
+ToriRSChrome_TakeTitleDoubleClick(struct ToriRSChrome* ui)
+{
+    int panel;
+
+    assert(ui);
+    panel = ui->title_double;
+    ui->title_double = -1;
+    return panel;
+}
+
+int
+ToriRSChrome_PanelIsMaximised(struct ToriRSChrome const* ui, int panel)
+{
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    return ui->panels[panel].maximised;
+}
+
+int
+ToriRSChrome_PanelRestoreBox(
+    struct ToriRSChrome const* ui,
+    int panel,
+    int* out_x,
+    int* out_y,
+    int* out_fixed_w,
+    int* out_fixed_h,
+    int* out_user_placed)
+{
+    struct ToriRSChromePanel const* p;
+
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    assert(out_x);
+    assert(out_y);
+    assert(out_fixed_w);
+    assert(out_fixed_h);
+    assert(out_user_placed);
+    p = &ui->panels[panel];
+    if( !p->maximised )
+        return 0;
+    *out_x = p->restore_x;
+    *out_y = p->restore_y;
+    *out_fixed_w = p->restore_fixed_w;
+    *out_fixed_h = p->restore_fixed_h;
+    *out_user_placed = p->restore_user_placed;
+    return 1;
+}
+
+void
+ToriRSChrome_PanelRestore(struct ToriRSChrome* ui, int panel)
+{
+    struct ToriRSChromePanel* p;
+
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    p = &ui->panels[panel];
+    if( !p->maximised )
+        return;
+    p->maximised = 0;
+    ToriRSChrome_PanelSetFixedWidth(ui, panel, p->restore_fixed_w);
+    ToriRSChrome_PanelSetFixedHeight(ui, panel, p->restore_fixed_h);
+    ToriRSChrome_PanelSetScrollable(ui, panel, p->restore_scrollable);
+    ToriRSChrome_PanelMove(ui, panel, p->restore_x, p->restore_y);
+    p->user_placed = p->restore_user_placed;
+    /* Everything it covered shows again. */
+    dbg_damage_surface(ui);
+}
+
+void
+ToriRSChrome_PanelMaximise(struct ToriRSChrome* ui, int panel, struct ToriRSChromeRect area)
+{
+    struct ToriRSChromePanel* p;
+
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    assert(area.w > 0);
+    assert(area.h > 0);
+    for( int i = 0; i < ui->panel_count; i++ )
+        if( i != panel && ui->panels[i].maximised )
+            ToriRSChrome_PanelRestore(ui, i);
+    p = &ui->panels[panel];
+    if( !p->maximised )
+    {
+        p->restore_rect = p->last_rect;
+        p->restore_x = p->x;
+        p->restore_y = p->y;
+        p->restore_fixed_w = p->fixed_w;
+        p->restore_fixed_h = p->fixed_h;
+        p->restore_user_placed = p->user_placed;
+        p->restore_scrollable = p->scrollable;
+        p->maximised = 1;
+        dbg_damage_surface(ui);
+    }
+    ToriRSChrome_PanelSetFixedWidth(ui, panel, area.w);
+    ToriRSChrome_PanelSetFixedHeight(ui, panel, area.h);
+    /* A hand-set height drops rows past the bottom unless it scrolls. */
+    ToriRSChrome_PanelSetScrollable(ui, panel, 1);
+    ToriRSChrome_PanelMove(ui, panel, area.x, area.y);
+    /* A host that lays its windows out itself must leave this one alone. */
+    p->user_placed = 1;
+}
+
+/**
+ * The drag of a maximised panel's title: still inside the slop it does not
+ * move; past it the panel is restored first, under the pointer at the same
+ * fraction of its width the press was at, keeping the press's height in the
+ * title. @return 1 when the drag should move the panel now.
+ */
+static int
+dbg_unmaximise_for_drag(struct ToriRSChrome* ui, int x, int y)
+{
+    int const panel = ui->drag_panel;
+    struct ToriRSChromePanel* p = &ui->panels[panel];
+    int const press_x = ui->drag_from_x + ui->drag_grab_x;
+    int const press_y = ui->drag_from_y + ui->drag_grab_y;
+    int const slop = TORIRS_CHROME_DOUBLE_CLICK_SLOP * (ui->scale > 0 ? ui->scale : 1);
+    struct ToriRSChromeRect const maxed = p->last_rect;
+    int restored_w;
+
+    if( !p->maximised )
+        return 1;
+    if( abs(x - press_x) <= slop && abs(y - press_y) <= slop )
+        return 0;
+    restored_w = p->restore_fixed_w > 0 ? p->restore_fixed_w : p->restore_rect.w;
+    ToriRSChrome_PanelRestore(ui, panel);
+    if( maxed.w > 0 && restored_w > 0 )
+        ui->drag_grab_x = (int)((long)(press_x - maxed.x) * restored_w / maxed.w);
+    ui->drag_grab_y = press_y - maxed.y;
+    /* Picked up from where it was restored to, so the release counts it as
+     * placed only by where it is then dropped. */
+    ui->drag_from_x = press_x - ui->drag_grab_x;
+    ui->drag_from_y = press_y - ui->drag_grab_y;
+    return 1;
+}
+
+/** The edge resize of a maximised panel: the same slop, then restored first
+ *  and resized from the restored box by the pointer's travel. */
+static int
+dbg_unmaximise_for_resize(struct ToriRSChrome* ui, int x, int y)
+{
+    int const panel = ui->resize_panel;
+    struct ToriRSChromePanel* p = &ui->panels[panel];
+    int const slop = TORIRS_CHROME_DOUBLE_CLICK_SLOP * (ui->scale > 0 ? ui->scale : 1);
+
+    if( !p->maximised )
+        return 1;
+    if( abs(x - ui->resize_press_x) <= slop && abs(y - ui->resize_press_y) <= slop )
+        return 0;
+    ToriRSChrome_PanelRestore(ui, panel);
+    ui->resize_from_x = p->restore_x;
+    ui->resize_from_y = p->restore_y;
+    ui->resize_from_w = p->restore_fixed_w > 0 ? p->restore_fixed_w : p->restore_rect.w;
+    ui->resize_from_h = p->restore_fixed_h > 0 ? p->restore_fixed_h : p->restore_rect.h;
+    return 1;
+}
+
 void
 ToriRSChrome_PanelSetModal(struct ToriRSChrome* ui, int panel, int modal)
 {
@@ -2765,6 +2951,140 @@ dbg_ext_wheel(struct ToriRSChrome* ui, int x, int y, int delta)
     default:
         return 0;
     }
+}
+
+/** The GRAPH well whose visible part holds surface (x, y), or -1. */
+static int
+dbg_graph_at(struct ToriRSChrome* ui, int x, int y)
+{
+    int const hit = ToriRSChrome_HitTest(ui, x, y);
+    struct ToriRSChromeRect region;
+    struct ToriRSChromeRect clip;
+
+    if( hit < 0 || ui->widgets[hit].kind != TORIRS_CHROME_W_GRAPH )
+        return -1;
+    if( !dbg_graph_region(ui, hit, &region, &clip) || !dbg_point_in_rect(x, y, clip) )
+        return -1;
+    return hit;
+}
+
+int
+ToriRSChrome_Pinch(struct ToriRSChrome* ui, int x, int y, double scale)
+{
+    int graph;
+    double q;
+
+    assert(ui);
+    assert(scale > 0.0);
+    if( dbg_modal_blocks(ui, x, y) )
+        return 1;
+    /* An open list or colour picker is over everything; a pinch there has
+     * nothing to scale and must not reach a well underneath. */
+    if( ui->dropdown_open >= 0 || ui->colorpick_open >= 0 )
+        return 0;
+    graph = dbg_graph_at(ui, x, y);
+    if( graph < 0 )
+        return 0;
+    q = scale * 65536.0 + 0.5;
+    if( q < 1.0 )
+        q = 1.0;
+    if( q > 2147483000.0 )
+        q = 2147483000.0;
+    (void)dbg_graph_push(ui, graph, TORIRS_CHROME_EVENT_GRAPH_PINCH, x, y, (int)q);
+    return 1;
+}
+
+static int
+dbg_q8(double v)
+{
+    double const q = v * 256.0;
+    if( q > 2147483000.0 )
+        return 2147483000;
+    if( q < -2147483000.0 )
+        return -2147483000;
+    return (int)(q < 0 ? q - 0.5 : q + 0.5);
+}
+
+int
+ToriRSChrome_Scroll(struct ToriRSChrome* ui, int x, int y, double dx, double dy)
+{
+    int graph;
+    int scale;
+    struct ToriRSChromeRect region;
+    struct ToriRSChromeRect clip;
+    struct ToriRSChromeEvent ev;
+
+    assert(ui);
+    scale = ui->scale > 0 ? ui->scale : 1;
+    if( dbg_modal_blocks(ui, x, y) )
+        return 1;
+    if( ui->dropdown_open >= 0 || ui->colorpick_open >= 0 )
+        return 0;
+    graph = dbg_graph_at(ui, x, y);
+    if( graph < 0 || !dbg_graph_region(ui, graph, &region, &clip) )
+        return 0;
+    dbg_event_init(&ev, ui, TORIRS_CHROME_EVENT_GRAPH_SCROLL, graph);
+    ev.x = (x - region.x) / scale;
+    ev.y = (y - region.y) / scale;
+    ev.key = ToriRSChrome_GraphKeyAt(ui, graph, ev.x, ev.y);
+    ev.dx = dbg_q8(dx / (double)scale);
+    ev.dy = dbg_q8(dy / (double)scale);
+    (void)ToriRSChrome_PushEvent(ui, &ev);
+    return 1;
+}
+
+int
+ToriRSChrome_WheelFrame(struct ToriRSChrome* ui, struct ToriRSChromeWheelFrame const* frame)
+{
+    int consumed = 0;
+    int wheel_spent = 0;
+
+    assert(ui);
+    assert(frame);
+
+    if( frame->pinch_scale > 0.0f &&
+        ToriRSChrome_Pinch(ui, frame->pinch_x, frame->pinch_y, (double)frame->pinch_scale) )
+    {
+        consumed = 1;
+        if( frame->pinch_from_wheel )
+            wheel_spent = 1;
+    }
+
+    if( !wheel_spent && frame->ctrl && (frame->wheel != 0 || frame->scroll_dy != 0.0f) &&
+        dbg_graph_at(ui, frame->x, frame->y) >= 0 )
+    {
+        /* Notches in the integer wheel's own direction (positive up): the
+         * exact deltas when there are any, the integer wheel otherwise. */
+        double notches = (double)frame->wheel;
+        if( frame->px_per_notch > 0 && frame->scroll_dy != 0.0f )
+        {
+            notches = (double)frame->scroll_dy / (double)frame->px_per_notch;
+            if( frame->flipped )
+                notches = -notches;
+        }
+        if( notches != 0.0 )
+        {
+            /* GRAPH_WHEEL's direction: a notch up (positive) zooms OUT. */
+            double const scale = exp(-notches * log(TORIRS_CHROME_PINCH_WHEEL_STEP));
+            if( ToriRSChrome_Pinch(ui, frame->x, frame->y, scale) )
+            {
+                consumed = 1;
+                wheel_spent = 1;
+            }
+        }
+    }
+
+    if( !wheel_spent && frame->trackpad && (frame->scroll_dx != 0.0f || frame->scroll_dy != 0.0f) &&
+        ToriRSChrome_Scroll(ui, frame->x, frame->y, (double)frame->scroll_dx, (double)frame->scroll_dy) )
+    {
+        consumed = 1;
+        wheel_spent = 1;
+    }
+
+    if( !wheel_spent && frame->wheel != 0 &&
+        ToriRSChrome_MouseWheel(ui, frame->x, frame->y, frame->wheel) )
+        consumed = 1;
+    return consumed;
 }
 
 static int

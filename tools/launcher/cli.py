@@ -334,8 +334,12 @@ def build_plan(profile, client_override=None, flavor_override=None,
         if client == "headless":
             # A headless run must terminate on its own, or it is a hung job
             # rather than a capture. Give it a frame cap unless one is stated.
-            env.setdefault("SDL_VIDEODRIVER", "dummy")
-            env.setdefault("TORIRS_MAX_FRAMES", "60")
+            # The shell's own value wins: the run's env is laid OVER the
+            # shell's, so a default set here would replace it.
+            for key, value in (("SDL_VIDEODRIVER", "dummy"),
+                               ("TORIRS_MAX_FRAMES", "60")):
+                if key not in os.environ:
+                    env.setdefault(key, value)
     elif client in ("web", "web-idb"):
         args = ["--manifest", manifest_rel] + credential_argv
         args += list(profile.client_args) + list(extra_args)
@@ -360,6 +364,16 @@ def build_plan(profile, client_override=None, flavor_override=None,
             query["js5_port"] = js5.port
         url = "http://localhost:%s/?%s" % (
             web_port, urllib.parse.urlencode(query))
+        # `[service:io_server] bare_url=1`: io_server sends a bare GET / to
+        # this query itself (--page-query), so the URL a person types, and
+        # every tab that reloads, is http://localhost:<port>/.
+        io_service = next(
+            (service for service in service_list
+             if service.name == "io_server"), None)
+        if io_service and str(profile.service_config("io_server").get(
+                "bare_url", "0")).strip().lower() in ("1", "yes", "on", "true"):
+            io_service.argv += ["--page-query", urllib.parse.urlencode(query)]
+            url = "http://localhost:%s/" % web_port
         target = "web-idb" if client == "web-idb" else "web"
         make_args = []
 
@@ -391,6 +405,7 @@ def cmd_list(args):
 
 def cmd_show(args):
     profile = load_profile(REPO_ROOT, args.profile)
+    profile.apply_settings(args.set)
     plan = build_plan(profile, args.client, args.flavor, args.args)
     print("profile     %s" % profile.name)
     print("platform    %s" % profile.platform)
@@ -421,6 +436,8 @@ def cmd_show(args):
         print("    %-14s port %-6s %s"
               % (service.name, service.port or "-", service.description))
         print("        %s" % " ".join(service.argv))
+    if profile.prebuild:
+        print("prebuild    %s" % " ".join(profile.prebuild))
     if plan.make_args or plan.target:
         _, display = host.make_command(
             REPO_ROOT, plan.target, plan.make_args, parallel=True)
@@ -612,7 +629,19 @@ def _stdin_is_interactive():
 
 def cmd_run(args):
     profile = load_profile(REPO_ROOT, args.profile)
+    profile.apply_settings(args.set)
     plan = build_plan(profile, args.client, args.flavor, args.args)
+    if args.binary:
+        if plan.client not in ("native", "headless"):
+            raise LaunchError("--binary names a native client; %s runs in a "
+                              "browser" % profile.name)
+        binary = args.binary
+        if not os.path.isabs(binary) and not binary.startswith("."):
+            binary = "./" + binary
+        plan.client_argv[0] = binary
+        plan.binary = binary
+        # The client is the one given: nothing to make for it.
+        plan.target = None
 
     existing = supervisor.run_status(REPO_ROOT, profile.name)
     live = [row for row in existing["services"] if row["state"] == "running"]
@@ -654,6 +683,13 @@ def _run_plan(plan, args):
         # The delegate started nothing of ours and stops its own services, so
         # there is nothing here to take down.
         return subprocess.run(argv, cwd=REPO_ROOT, env=env).returncode, True
+
+    if not args.no_build:
+        for target in profile.prebuild:
+            say("building %s (the profile's build=)" % target)
+            if _run_make(target, []) != 0:
+                say("failed to build %s" % target)
+                return 1, False
 
     if plan.target and not args.no_build:
         if _run_make(plan.target, plan.make_args, plan.env) != 0:
@@ -1127,6 +1163,8 @@ def main(argv=None):
     show.add_argument("profile")
     show.add_argument("--client")
     show.add_argument("--flavor")
+    show.add_argument("--set", action="append", default=[],
+                      metavar="SECTION.KEY=VALUE")
     show.add_argument("args", nargs="*")
 
     run = sub.add_parser("run", help="prepare, build, start services, launch")
@@ -1148,6 +1186,14 @@ def main(argv=None):
                           "stop them and start again without asking")
     run.add_argument("--no-open", action="store_true",
                      help="print the URL instead of opening a browser")
+    run.add_argument("--set", action="append", default=[],
+                     metavar="SECTION.KEY=VALUE",
+                     help="set one profile key for this run (repeatable): "
+                          "override:editor:boot.content_dir=<dir> edits the "
+                          "manifest, service:io_server.root=<dir> a service")
+    run.add_argument("--binary",
+                     help="run this native client binary instead of building "
+                          "the profile's")
     run.add_argument("args", nargs="*", help="extra client arguments")
 
     bench_cmd = sub.add_parser(

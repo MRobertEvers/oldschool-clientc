@@ -128,8 +128,15 @@ inspector_tick(
 
     if( ui->editor )
     {
-        snprintf(line, sizeof(line), "%s%s", ui->editor->writable ? "writable" : "READ-ONLY",
-            Editor_DocHasUnsaved(&ui->editor->doc) ? "  *unsaved*" : "");
+        /* Read-only names its holder (the row is short: "held by pid N (cmd"
+         * is what fits; the console has the whole line). */
+        const char* holder = strstr(ui->editor->read_only_reason, " is held by ");
+        if( !ui->editor->writable && holder )
+            snprintf(line, sizeof(line), "READ-ONLY: %s%s", holder + 4,
+                Editor_DocHasUnsaved(&ui->editor->doc) ? "  *unsaved*" : "");
+        else
+            snprintf(line, sizeof(line), "%s%s", ui->editor->writable ? "writable" : "READ-ONLY",
+                Editor_DocHasUnsaved(&ui->editor->doc) ? "  *unsaved*" : "");
         ToriRSChrome_SetText(ui->chrome, self->row_status, line);
     }
     inspector_loc_rows(ui, self);

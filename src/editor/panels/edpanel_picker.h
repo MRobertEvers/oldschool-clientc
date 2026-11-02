@@ -365,6 +365,14 @@ Editor_PickerPan(
     int dx,
     int dy);
 
+/** Pan by (dx, dy) well pixels, fractions kept (a trackpad scroll). The
+ *  content moves by the deltas, as under Editor_PickerPan. */
+void
+Editor_PickerPanBy(
+    struct Editor_Picker* picker,
+    double dx,
+    double dy);
+
 /** The map cell under well point (x, y). 0 when the point is off the grid. */
 int
 Editor_PickerCellAt(

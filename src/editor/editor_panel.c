@@ -111,7 +111,48 @@ panel_publish_selection(
     values[4] = panel->sel_loc_id;
     values[5] = panel->sel_shape;
     values[6] = panel->sel_angle;
-    Editor_StateSet(panel->editor, TORIRSMAPED_STATE_SELECTION, values, 7);
+    if( Editor_StateSet(panel->editor, TORIRSMAPED_STATE_SELECTION, values, 7) )
+        Editor_PanelSelectionPublished(panel, values);
+}
+
+void
+Editor_PanelSelectionPublished(
+    struct Editor_Panel* panel,
+    const int32_t values[7])
+{
+    int const cap = (int)(sizeof(panel->sel_echo) / sizeof(panel->sel_echo[0]));
+
+    assert(panel);
+    assert(values);
+    if( panel->sel_echo_count == cap )
+    {
+        /* A full queue with no echo: the oldest is not coming back. */
+        memmove(panel->sel_echo[0], panel->sel_echo[1], sizeof(panel->sel_echo) - sizeof(panel->sel_echo[0]));
+        panel->sel_echo_count--;
+    }
+    memcpy(panel->sel_echo[panel->sel_echo_count++], values, sizeof(panel->sel_echo[0]));
+}
+
+int
+Editor_PanelSelectionHeard(
+    struct Editor_Panel* panel,
+    const int32_t* values,
+    int count)
+{
+    assert(panel);
+    assert(values);
+    if( count < 7 )
+        return 0;
+    if( panel->sel_echo_count > 0 )
+    {
+        if( memcmp(values, panel->sel_echo[0], sizeof(panel->sel_echo[0])) == 0 )
+        {
+            panel->sel_echo_count--;
+            memmove(panel->sel_echo[0], panel->sel_echo[1], sizeof(panel->sel_echo[0]) * (size_t)panel->sel_echo_count);
+        }
+        return 0;
+    }
+    return 1;
 }
 
 /** The primary latch from the multi-selection's first loc. */
@@ -550,6 +591,22 @@ panel_loc_ref_pointed(
     return panel_loc_ref_at(app, scene_x, scene_z, level, -1, out);
 }
 
+int
+Editor_PanelPointedLoc(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    struct Editor_LocRef* out)
+{
+    assert(panel);
+    assert(app);
+    assert(out);
+    (void)panel;
+    return panel_loc_ref_pointed(app, scene_x, scene_z, level, out);
+}
+
 void
 Editor_PanelSelectLoc(
     struct Editor_Panel* panel,
@@ -672,11 +729,23 @@ Editor_PanelGhostSpec(
 {
     assert(panel);
     assert(app);
-    (void)app;
     assert(out_shape);
     assert(out_angle);
     *out_shape = panel->ui ? panel->ui->tools.place_shape : 10;
     *out_angle = panel->ui ? panel->ui->tools.place_rotation & 3 : 0;
+    if( panel->ui )
+    {
+        /* What the click would place there: with Fit walls to neighbours on,
+         * the wall shape and rotation that joins the line. */
+        int scene_x;
+        int scene_z;
+        int world_x;
+        int world_z;
+        if( Editor_PanelHoverTile(panel, app, &scene_x, &scene_z)
+            && panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+            edp_place_pose_at(
+                panel->ui, world_x, world_z, Editor_PanelEditLevel(panel, app), out_shape, out_angle);
+    }
 }
 
 /* ---- world actions ---------------------------------------------------------- */
@@ -705,8 +774,12 @@ Editor_PanelPlaceLocAt(
         Editor_UiLog(ui, "editor: pick a loc in the catalog first");
         return 0;
     }
-    return edp_locs_place(
-        ui, ui->tools.pick_id, ui->tools.place_shape, ui->tools.place_rotation, world_x, world_z, level);
+    {
+        int shape;
+        int rotation;
+        edp_place_pose_at(ui, world_x, world_z, level, &shape, &rotation);
+        return edp_locs_place(ui, ui->tools.pick_id, shape, rotation, world_x, world_z, level);
+    }
 }
 
 int
@@ -978,6 +1051,8 @@ Editor_PanelApplySharedState(
     if( panel->ui )
         Editor_UiApplyState(panel->ui, key, values, count);
     if( key != TORIRSMAPED_STATE_SELECTION || count < 7 || !panel->ui )
+        return;
+    if( !Editor_PanelSelectionHeard(panel, values, count) )
         return;
 
     panel->applying_shared_state = 1;

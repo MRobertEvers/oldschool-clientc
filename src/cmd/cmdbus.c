@@ -1,4 +1,5 @@
 #include "cmdbus.h"
+#include <assert.h>
 
 #include <string.h>
 
@@ -209,6 +210,63 @@ CmdBus_PushMouseWheel(
 {
     struct ToriRS_CmdMouseWheel cmd = { wheel_y };
     return CmdBus_Push(bus, TORIRS_CMD_INPUT_MOUSE_WHEEL, &cmd, sizeof(cmd));
+}
+
+int
+CmdBus_PushPinch(
+    struct ToriRS_CmdBus* bus,
+    double scale,
+    int16_t x,
+    int16_t y,
+    int from_wheel)
+{
+    struct ToriRS_CmdPinch cmd;
+
+    assert(scale > 0.0);
+    /* One frame of any real pinch is far inside this; the clamp only keeps a
+     * runaway accumulation inside the fixed point. */
+    if( scale < 1.0 / 64.0 )
+        scale = 1.0 / 64.0;
+    if( scale > 64.0 )
+        scale = 64.0;
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.scale_q16 = (int32_t)(scale * 65536.0 + 0.5);
+    cmd.x = x;
+    cmd.y = y;
+    cmd.from_wheel = from_wheel ? 1 : 0;
+    return CmdBus_Push(bus, TORIRS_CMD_INPUT_PINCH, &cmd, sizeof(cmd));
+}
+
+static int32_t
+cmdbus_milli(double v)
+{
+    double const m = v * 1000.0;
+    if( m > 2147483000.0 )
+        return 2147483000;
+    if( m < -2147483000.0 )
+        return -2147483000;
+    return (int32_t)(m < 0 ? m - 0.5 : m + 0.5);
+}
+
+int
+CmdBus_PushScroll(
+    struct ToriRS_CmdBus* bus,
+    double dx,
+    double dy,
+    int px_per_notch,
+    int trackpad,
+    int flipped)
+{
+    struct ToriRS_CmdScroll cmd;
+
+    assert(px_per_notch > 0);
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.dx_milli = cmdbus_milli(dx);
+    cmd.dy_milli = cmdbus_milli(dy);
+    cmd.px_per_notch = (uint16_t)(px_per_notch > 65535 ? 65535 : px_per_notch);
+    cmd.trackpad = trackpad ? 1 : 0;
+    cmd.flipped = flipped ? 1 : 0;
+    return CmdBus_Push(bus, TORIRS_CMD_INPUT_SCROLL, &cmd, sizeof(cmd));
 }
 
 int

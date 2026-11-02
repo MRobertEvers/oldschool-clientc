@@ -114,7 +114,96 @@ edp_locs_duplicate(struct EditorUi* ui);
 int
 edp_locs_delete(struct EditorUi* ui);
 
-/** Place `loc_id` at a world tile; the placed loc becomes the selection. */
+/* ---- a loc's shapes (edpanel_actions.c) -------------------------------------
+ *
+ * What the App's cache says loc `loc_id` can be placed as
+ * (Editor_LocShapeMask), through ui->app_services.loc_record. 1 with
+ * *out_mask when known; 0 when the record is not resident yet (asked for --
+ * it answers a frame or two later). A window with no loc service (a
+ * controller, a headless harness) answers 1 with every shape: it cannot
+ * judge, and the authority accepts any shape (content ships hand-written
+ * ones).
+ */
+int
+edp_loc_shapes(
+    struct EditorUi* ui,
+    int loc_id,
+    uint32_t* out_mask);
+
+/** 1 when loc `loc_id` has a model for `shape`; else 0 and one console line
+ *  for `what` naming the shapes it does have (or that it is still loading). */
+int
+edp_loc_shape_check(
+    struct EditorUi* ui,
+    int loc_id,
+    int shape,
+    const char* what);
+
+/** Keep the Place pose on a shape the catalog's loc pick has: a pick whose
+ *  shapes do not include the pose (a new pick, a relayed STATE_TOOLS, the
+ *  dropdown) snaps to its first shape. Returns 1 when it moved the pose.
+ *  Run every frame by the Locs panel. */
+int
+edp_place_pose_follow(struct EditorUi* ui);
+
+/** The Place pose's next shape among the pick's own shapes (Shift+Q with
+ *  nothing selected), and its next quarter turn (Q). */
+void
+edp_place_reshape(struct EditorUi* ui);
+
+void
+edp_place_rotate(struct EditorUi* ui);
+
+/** Give every selected loc `shape` (the shape strip): only those of the
+ *  selected locs that have it change; the rest are named in the console. */
+int
+edp_locs_set_shape(
+    struct EditorUi* ui,
+    int shape);
+
+/** Swap every selected loc to the catalog's loc pick (same tile, shape and
+ *  rotation; a loc whose shape the pick lacks stays, named in the console). */
+int
+edp_locs_swap(struct EditorUi* ui);
+
+/** Fit every selected wall to the walls of its own loc around it
+ *  (Editor_LocFitWall): one step. */
+int
+edp_locs_fit(struct EditorUi* ui);
+
+/** "Fit walls to neighbours" for the Place tool (default on): the place and
+ *  the ghost take the fitted shape and rotation where a wall of the picked
+ *  loc stands next to the hovered tile. One per window, not relayed. */
+int
+edp_place_fit_enabled(void);
+
+void
+edp_place_fit_set(int on);
+
+/** The pose a place at (world_x, world_z, level) takes: the Place pose, or
+ *  with fit on the fitted wall shape and rotation. What the click places and
+ *  what the ghost shows. */
+void
+edp_place_pose_at(
+    struct EditorUi* ui,
+    int world_x,
+    int world_z,
+    int level,
+    int* out_shape,
+    int* out_rotation);
+
+/** The Locs panel's shape strip, for the App to render its thumbnails: the
+ *  subject loc, its shapes in strip order, and the model view to fill (one
+ *  sprite, the shapes side by side). 0 when the strip is empty. */
+int
+Editor_Locs_ShapeStrip(
+    struct EditorUi* ui,
+    int* out_loc_id,
+    int out_shapes[23],
+    int* out_view);
+
+/** Place `loc_id` at a world tile; the placed loc becomes the selection. A
+ *  shape the loc has no model for is refused with a console line. */
 int
 edp_locs_place(
     struct EditorUi* ui,

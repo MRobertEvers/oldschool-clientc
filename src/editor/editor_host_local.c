@@ -21,8 +21,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include "log/torirs_log.h"
+
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#include <signal.h>
+#endif
+#if defined(__APPLE__)
+#include <crt_externs.h>
+#include <libproc.h>
+#endif
 
 #ifdef _WIN32
 #include <direct.h>
@@ -38,6 +47,9 @@ struct local_host
     char repo_root[1024];
     /** Path of the lockfile while this session holds it; empty when it does not. */
     char lock_path[1100];
+    /** Who holds the tree when the last acquire found it taken
+     *  ("<content_dir> is held by pid N (...)"); empty otherwise. */
+    char lock_holder[1024];
 };
 
 static void
@@ -320,7 +332,256 @@ local_bake(
  * keeps two editor sessions — or an editor and a content-watching rebake —
  * from interleaving writes into the same squares. A session that cannot take
  * it still runs; it just cannot save.
+ *
+ * The file says who holds it, one `key value` line each:
+ *
+ *     pid 43893
+ *     since 1762100533
+ *     cmd /Users/me/3draster/src/torirs --manifest manifests/...
+ *
+ * so a session that finds it taken can name the holder, and a holder that
+ * died without releasing it (a crash, a kill -9) does not lock the tree
+ * forever: a lock whose pid no longer runs is moved aside and taken
+ * (2026-11-02: a dead editor's lock left the owner's window read-only, and
+ * the RUN message named nobody).
  */
+
+/** This process's command line, space-joined, "" when it cannot be read. */
+static void
+lock_own_command(
+    char* out,
+    size_t out_size)
+{
+    size_t at = 0;
+
+    out[0] = '\0';
+#if defined(__APPLE__)
+    {
+        int const argc = *_NSGetArgc();
+        char** const argv = *_NSGetArgv();
+        for( int i = 0; i < argc && argv && argv[i]; i++ )
+        {
+            int const wrote = snprintf(out + at, out_size - at, "%s%s", i ? " " : "", argv[i]);
+            if( wrote < 0 || (size_t)wrote >= out_size - at )
+                break;
+            at += (size_t)wrote;
+        }
+    }
+#elif defined(__linux__)
+    {
+        FILE* file = fopen("/proc/self/cmdline", "rb");
+        if( file )
+        {
+            size_t got = fread(out, 1, out_size - 1, file);
+            fclose(file);
+            for( size_t i = 0; i < got; i++ )
+            {
+                if( out[i] == '\0' )
+                    out[i] = ' ';
+            }
+            while( got > 0 && out[got - 1] == ' ' )
+                got--;
+            out[got] = '\0';
+        }
+    }
+#else
+    (void)at;
+    (void)out_size;
+#endif
+    /* One line in the lockfile: a newline in an argument would end it. */
+    for( char* p = out; *p; p++ )
+    {
+        if( *p == '\n' || *p == '\r' )
+            *p = ' ';
+    }
+}
+
+/** What runs as `pid` (its executable), for a lockfile that names no cmd. */
+static void
+lock_process_command(
+    long pid,
+    char* out,
+    size_t out_size)
+{
+    out[0] = '\0';
+#if defined(__APPLE__)
+    {
+        char path[PROC_PIDPATHINFO_MAXSIZE];
+        if( proc_pidpath((int)pid, path, sizeof(path)) > 0 )
+            snprintf(out, out_size, "%s", path);
+    }
+#elif defined(__linux__)
+    {
+        char path[64];
+        FILE* file;
+        snprintf(path, sizeof(path), "/proc/%ld/cmdline", pid);
+        file = fopen(path, "rb");
+        if( file )
+        {
+            size_t got = fread(out, 1, out_size - 1, file);
+            fclose(file);
+            for( size_t i = 0; i < got; i++ )
+            {
+                if( out[i] == '\0' )
+                    out[i] = ' ';
+            }
+            out[got] = '\0';
+        }
+    }
+#else
+    (void)pid;
+    (void)out_size;
+#endif
+}
+
+/** The holder a lockfile's text names. `pid` 0 when it names none. */
+struct lock_holder
+{
+    long pid;
+    long long since;
+    char cmd[400];
+};
+
+static void
+lock_parse(
+    const char* text,
+    struct lock_holder* out)
+{
+    const char* line = text;
+
+    memset(out, 0, sizeof(*out));
+    while( line && *line )
+    {
+        const char* end = strchr(line, '\n');
+        size_t const length = end ? (size_t)(end - line) : strlen(line);
+        if( length > 4 && strncmp(line, "pid ", 4) == 0 )
+            out->pid = strtol(line + 4, NULL, 10);
+        else if( length > 6 && strncmp(line, "since ", 6) == 0 )
+            out->since = strtoll(line + 6, NULL, 10);
+        else if( length > 4 && strncmp(line, "cmd ", 4) == 0 )
+            snprintf(out->cmd, sizeof(out->cmd), "%.*s", (int)(length - 4), line + 4);
+        line = end ? end + 1 : NULL;
+    }
+}
+
+/** Read the lockfile at `path` (at most a few hundred bytes are meaningful).
+ *  0 when it cannot be read. */
+static int
+lock_read(
+    const char* path,
+    struct lock_holder* out)
+{
+    char text[1024];
+    FILE* file = fopen(path, "rb");
+    size_t got;
+
+    memset(out, 0, sizeof(*out));
+    if( !file )
+        return 0;
+    got = fread(text, 1, sizeof(text) - 1, file);
+    fclose(file);
+    text[got] = '\0';
+    lock_parse(text, out);
+    return 1;
+}
+
+/** 1 when `pid` names a running process (a process of another user counts:
+ *  it runs, we just may not signal it). */
+static int
+lock_pid_alive(long pid)
+{
+#if defined(_WIN32) || defined(__EMSCRIPTEN__)
+    (void)pid;
+    return 1; /* no way to ask: never call a lock stale */
+#else
+    if( pid <= 0 )
+        return 1; /* names nobody: not ours to judge */
+    if( kill((pid_t)pid, 0) == 0 )
+        return 1;
+    return errno != ESRCH;
+#endif
+}
+
+/** "pid 43893 (torirs --manifest ..., since 16:22)" for a person. */
+static void
+lock_describe(
+    const struct lock_holder* holder,
+    char* out,
+    size_t out_size)
+{
+    char cmd[400];
+    char since[48];
+    const char* shown;
+
+    snprintf(cmd, sizeof(cmd), "%s", holder->cmd);
+    if( !cmd[0] && holder->pid > 0 )
+        lock_process_command(holder->pid, cmd, sizeof(cmd));
+    /* The executable's directory says nothing a person needs: torirs, not
+     * /Users/.../src/torirs. */
+    shown = cmd;
+    {
+        const char* space = strchr(cmd, ' ');
+        const char* slash = NULL;
+        for( const char* p = cmd; *p && (!space || p < space); p++ )
+        {
+            if( *p == '/' )
+                slash = p;
+        }
+        if( slash )
+            shown = slash + 1;
+    }
+    since[0] = '\0';
+    if( holder->since > 0 )
+    {
+        time_t const at = (time_t)holder->since;
+        time_t const now = time(NULL);
+        struct tm then_tm;
+        struct tm now_tm;
+#if defined(_WIN32)
+        localtime_s(&then_tm, &at);
+        localtime_s(&now_tm, &now);
+#else
+        localtime_r(&at, &then_tm);
+        localtime_r(&now, &now_tm);
+#endif
+        if( then_tm.tm_year == now_tm.tm_year && then_tm.tm_yday == now_tm.tm_yday )
+            strftime(since, sizeof(since), "since %H:%M", &then_tm);
+        else
+            strftime(since, sizeof(since), "since %b %d %H:%M", &then_tm);
+    }
+    if( holder->pid <= 0 )
+        snprintf(out, out_size, "an unnamed holder (the lockfile names no pid)");
+    else if( shown[0] && since[0] )
+        snprintf(out, out_size, "pid %ld (%.160s%s, %s)", holder->pid, shown,
+            strlen(shown) > 160 ? "..." : "", since);
+    else if( shown[0] )
+        snprintf(out, out_size, "pid %ld (%.160s%s)", holder->pid, shown, strlen(shown) > 160 ? "..." : "");
+    else if( since[0] )
+        snprintf(out, out_size, "pid %ld (%s)", holder->pid, since);
+    else
+        snprintf(out, out_size, "pid %ld", holder->pid);
+}
+
+/** Make the lockfile. 1 taken, 0 it exists (errno EEXIST) or cannot be made. */
+static int
+lock_create(const char* path)
+{
+    char note[600];
+    char cmd[440];
+    int fd = open(path, O_CREAT | O_EXCL | O_WRONLY, 0644);
+    int length;
+
+    if( fd < 0 )
+        return 0;
+    lock_own_command(cmd, sizeof(cmd));
+    length = snprintf(note, sizeof(note), "pid %ld\nsince %lld\ncmd %s\n", (long)getpid(),
+        (long long)time(NULL), cmd);
+    if( length > 0 )
+        (void)!write(fd, note, (size_t)(length < (int)sizeof(note) ? length : (int)sizeof(note) - 1));
+    close(fd);
+    return 1;
+}
+
 static enum EditorHost_Status
 local_session(
     void* user_data,
@@ -328,7 +589,7 @@ local_session(
 {
     struct local_host* host = user_data;
     char path[1100];
-    int fd;
+    struct lock_holder holder;
 
     assert(host);
 
@@ -344,20 +605,64 @@ local_session(
         return EDITOR_HOST_OK;
     }
 
-    fd = open(path, O_CREAT | O_EXCL | O_WRONLY, 0644);
-    if( fd < 0 )
+    host->lock_holder[0] = '\0';
+    if( lock_create(path) )
+    {
+        snprintf(host->lock_path, sizeof(host->lock_path), "%s", path);
+        return EDITOR_HOST_OK;
+    }
+
+    if( !lock_read(path, &holder) )
+    {
+        /* Gone between the create and the read (its holder released it), or
+         * unreadable: one more try, then report what is there. */
+        if( lock_create(path) )
+        {
+            snprintf(host->lock_path, sizeof(host->lock_path), "%s", path);
+            return EDITOR_HOST_OK;
+        }
+        snprintf(host->lock_holder, sizeof(host->lock_holder),
+            "%s is held (%s exists and cannot be read)", host->content_dir, path);
         return EDITOR_HOST_LOCKED;
+    }
+
+    if( holder.pid > 0 && !lock_pid_alive(holder.pid) )
+    {
+        /* Its holder is dead. Move it aside rather than remove it, and check
+         * the moved file is the one judged: a second session reclaiming the
+         * same stale lock may already have replaced it with its own live one,
+         * which must go back. */
+        char aside[1200];
+        struct lock_holder moved;
+        char who[512];
+        snprintf(aside, sizeof(aside), "%s.stale.%ld", path, (long)getpid());
+        lock_describe(&holder, who, sizeof(who));
+        if( rename(path, aside) == 0 )
+        {
+            if( lock_read(aside, &moved) && moved.pid == holder.pid && moved.since == holder.since )
+            {
+                remove(aside);
+                TORIRS_LOG("editor: %s held a stale lock (%s no longer runs); removed it\n",
+                    host->content_dir, who);
+                if( lock_create(path) )
+                {
+                    snprintf(host->lock_path, sizeof(host->lock_path), "%s", path);
+                    return EDITOR_HOST_OK;
+                }
+            }
+            else
+                (void)rename(aside, path);
+        }
+        if( !lock_read(path, &holder) )
+            memset(&holder, 0, sizeof(holder));
+    }
 
     {
-        char note[64];
-        int length = snprintf(note, sizeof(note), "pid %ld\n", (long)getpid());
-        if( length > 0 )
-            (void)!write(fd, note, (size_t)length);
+        char who[512];
+        lock_describe(&holder, who, sizeof(who));
+        snprintf(host->lock_holder, sizeof(host->lock_holder), "%s is held by %s", host->content_dir, who);
     }
-    close(fd);
-
-    snprintf(host->lock_path, sizeof(host->lock_path), "%s", path);
-    return EDITOR_HOST_OK;
+    return EDITOR_HOST_LOCKED;
 }
 
 static void
@@ -485,6 +790,13 @@ Editor_HostDocPath(
         if( part != 0 || !Editor_DocKeyValid(kind, key) )
             return 0;
         written = snprintf(out, out_size, "editor/areas.txt");
+        break;
+    case EDITOR_DOC_PALETTES:
+        /* The catalog palettes: beside the areas, for the same reasons
+         * (editor_palette.h). */
+        if( part != 0 || !Editor_DocKeyValid(kind, key) )
+            return 0;
+        written = snprintf(out, out_size, "editor/palettes.txt");
         break;
     case EDITOR_DOC_TEXT:
         if( part != 0 || !Editor_DocKeyValid(kind, key) )
@@ -799,6 +1111,14 @@ Editor_HostOpenLocal(
     host->vtable = &local_vtable;
     host->user_data = local;
     return 1;
+}
+
+const char*
+Editor_HostLocalLockHolder(const struct EditorHost* host)
+{
+    assert(host);
+    assert(host->vtable == &local_vtable);
+    return ((const struct local_host*)host->user_data)->lock_holder;
 }
 
 /* ---- open in the user's editor ---------------------------------------------- */

@@ -713,10 +713,12 @@ ops_loc_emit(
     return 1;
 }
 
-/** Whether the tile+shape a transformed loc lands on is held by a loc that
- *  is not in the selection (and is not the loc itself). */
+/** The loc of the target square holding the tile+shape a transformed loc
+ *  lands on when that loc is not in the selection (and is not the loc
+ *  itself), or -1. A selected one moves out of the way first (the order in
+ *  ops_transform), so it does not count. */
 static int
-ops_dest_taken(
+ops_dest_occupant(
     struct Editor_Doc* doc,
     const struct Editor_LocRef* refs,
     int n,
@@ -732,19 +734,62 @@ ops_dest_taken(
     int taken;
 
     if( !target || !target->loaded )
-        return 0;
+        return -1;
     taken = Editor_SquareLocFind(target, after->level, after->x, after->z, after->shape);
     if( taken < 0 )
-        return 0;
+        return -1;
     if( !copy && to_map_x == from_map_x && to_map_z == from_map_z && taken == from_index )
-        return 0;
+        return -1;
     if( copy )
-        return 1;
+        return taken;
     for( int i = 0; i < n; i++ )
         if( refs[i].map_x == to_map_x && refs[i].map_z == to_map_z
             && Editor_LocRefResolve(doc, &refs[i]) == taken )
-            return 0;
-    return 1;
+            return -1;
+    return taken;
+}
+
+/** Where an unselected loc pushed off (dest) by a selection translated by
+ *  (dx, dz) goes: back along the run of selected locs of that level and shape
+ *  that land on each other's tiles, to the one tile the run leaves empty. A
+ *  single wall piece slid along its wall line swaps with its neighbour; a run
+ *  of three slid one tile pushes the neighbour to the run's tail. */
+static void
+ops_vacated(
+    const struct Editor_LocRef* refs,
+    int n,
+    int dx,
+    int dz,
+    int origin_x,
+    int origin_z,
+    int level,
+    int shape,
+    int* out_x,
+    int* out_z)
+{
+    int x = origin_x;
+    int z = origin_z;
+
+    for( int step = 0; step < n; step++ )
+    {
+        int moved = 0;
+        for( int i = 0; i < n && !moved; i++ )
+        {
+            int wx;
+            int wz;
+            Editor_LocRefWorld(&refs[i], &wx, &wz);
+            if( refs[i].level == level && refs[i].shape == shape && wx + dx == x && wz + dz == z )
+            {
+                x = wx;
+                z = wz;
+                moved = 1;
+            }
+        }
+        if( !moved )
+            break;
+    }
+    *out_x = x;
+    *out_z = z;
 }
 
 struct OpsOrder
@@ -781,11 +826,20 @@ ops_transform(
     int quarters,
     int reshape,
     int copy,
+    const int* shape_to,
+    const int* rotation_to,
     struct Editor_Cmd* out,
     int max,
     struct Editor_LocOpResult* result)
 {
     struct OpsOrder order[EDITOR_LOC_SELECTION_MAX];
+    struct
+    {
+        struct Editor_Loc loc;
+        int map_x;
+        int map_z;
+    } swaps[EDITOR_LOC_SELECTION_MAX];
+    int swap_count = 0;
     int count = 0;
 
     assert(doc);
@@ -838,12 +892,71 @@ ops_transform(
         after.rotation = (before.rotation + quarters) & 3;
         if( reshape )
             after.shape = Editor_LocShapeCycle(before.shape);
-        /* A tile holds one loc per shape: landing on one that is not part of
-         * the selection (a selected one is moved out of the way first, by the
-         * order above) would be refused by the document. Leave this one where
-         * it is rather than send a command the authority turns down. */
-        if( ops_dest_taken(doc, refs, n, &after, to_map_x, to_map_z, ref->map_x, ref->map_z, index, copy) )
-            continue;
+        if( shape_to && shape_to[i] >= 0 )
+            after.shape = shape_to[i];
+        if( rotation_to && rotation_to[i] >= 0 )
+            after.rotation = rotation_to[i] & 3;
+        /*
+         * A tile holds one loc per shape, so landing on one that is not part
+         * of the selection needs a decision:
+         *
+         *   - a MOVE swaps: the loc standing there goes to the tile the move
+         *     leaves empty. Sliding a wall piece (a door, a window) along its
+         *     wall line meets a wall on every neighbouring tile -- that is
+         *     the common case, not the odd one -- and a swap keeps the line
+         *     whole: no gap behind, no second wall on a tile, and the next
+         *     nudge slides on. Refusing left the piece stuck with no word
+         *     why; replacing would eat the line one wall per key press.
+         *   - a copy or a reshape onto a taken shape has nowhere to put the
+         *     loc standing there, so this loc stays and the result says so.
+         *
+         * The occupant leaves (a delete, before this loc lands) and comes
+         * back at the vacated tile after every selected loc has moved -- the
+         * tile is empty only then -- in the same stroke, so one undo puts
+         * all of it back.
+         */
+        {
+            int const occupant =
+                ops_dest_occupant(doc, refs, n, &after, to_map_x, to_map_z, ref->map_x, ref->map_z, index, copy);
+            if( occupant >= 0 )
+            {
+                struct Editor_Square* target = Editor_DocFindSquare(doc, to_map_x, to_map_z);
+                struct Editor_Loc const held = target->locs[occupant];
+                int vx;
+                int vz;
+                int v_map_x;
+                int v_map_z;
+                int v_x;
+                int v_z;
+
+                if( copy || (dx == 0 && dz == 0) || swap_count >= EDITOR_LOC_SELECTION_MAX
+                    || count + 3 > max )
+                {
+                    if( result->blocked == 0 )
+                        Editor_LocRefAt(&result->blocked_at, to_map_x * EDITOR_SQUARE_X + to_x,
+                            to_map_z * EDITOR_SQUARE_Z + to_z, after.level, after.shape, held.loc_id,
+                            held.rotation);
+                    result->blocked++;
+                    continue;
+                }
+                ops_vacated(refs, n, dx, dz, wx, wz, before.level, before.shape, &vx, &vz);
+                if( !ops_split(vx, vz, &v_map_x, &v_map_z, &v_x, &v_z) )
+                    continue;
+                Editor_CmdInitSquare(&out[count], EDITOR_CMD_LOC, to_map_x, to_map_z);
+                out[count].has_before = 1;
+                out[count].u.loc.before = held;
+                count++;
+                swaps[swap_count].loc = held;
+                swaps[swap_count].loc.x = v_x;
+                swaps[swap_count].loc.z = v_z;
+                swaps[swap_count].map_x = v_map_x;
+                swaps[swap_count].map_z = v_map_z;
+                swap_count++;
+                if( result->swapped == 0 )
+                    result->swapped_loc_id = held.loc_id;
+                result->swapped++;
+            }
+        }
 
         if( !ops_loc_emit(
                 doc, &before, ref->map_x, ref->map_z, &after, to_map_x, to_map_z, copy, out,
@@ -855,6 +968,14 @@ ops_transform(
         result->refs[i].map_z = to_map_z;
         result->refs[i].x = to_x;
         result->refs[i].z = to_z;
+    }
+    /* The swapped locs land last: their tiles are empty now. */
+    for( int k = 0; k < swap_count && count < max; k++ )
+    {
+        Editor_CmdInitSquare(&out[count], EDITOR_CMD_LOC, swaps[k].map_x, swaps[k].map_z);
+        out[count].has_after = 1;
+        out[count].u.loc.after = swaps[k].loc;
+        count++;
     }
     result->command_count = count;
     return count;
@@ -923,7 +1044,7 @@ Editor_LocOpsNudge(
     int max,
     struct Editor_LocOpResult* result)
 {
-    return ops_transform(doc, refs, n, dx, dz, 0, 0, 0, out, max, result);
+    return ops_transform(doc, refs, n, dx, dz, 0, 0, 0, NULL, NULL, out, max, result);
 }
 
 int
@@ -948,7 +1069,7 @@ Editor_LocOpsMoveTo(
         return 0;
     }
     Editor_LocRefWorld(&refs[0], &wx, &wz);
-    return ops_transform(doc, refs, n, world_x - wx, world_z - wz, 0, 0, 0, out, max, result);
+    return ops_transform(doc, refs, n, world_x - wx, world_z - wz, 0, 0, 0, NULL, NULL, out, max, result);
 }
 
 int
@@ -961,7 +1082,7 @@ Editor_LocOpsRotate(
     int max,
     struct Editor_LocOpResult* result)
 {
-    return ops_transform(doc, refs, n, 0, 0, quarters & 3, 0, 0, out, max, result);
+    return ops_transform(doc, refs, n, 0, 0, quarters & 3, 0, 0, NULL, NULL, out, max, result);
 }
 
 int
@@ -973,7 +1094,7 @@ Editor_LocOpsReshape(
     int max,
     struct Editor_LocOpResult* result)
 {
-    return ops_transform(doc, refs, n, 0, 0, 0, 1, 0, out, max, result);
+    return ops_transform(doc, refs, n, 0, 0, 0, 1, 0, NULL, NULL, out, max, result);
 }
 
 int
@@ -988,7 +1109,7 @@ Editor_LocOpsDuplicate(
     struct Editor_LocOpResult* result)
 {
     assert(dx != 0 || dz != 0);
-    return ops_transform(doc, refs, n, dx, dz, 0, 0, 1, out, max, result);
+    return ops_transform(doc, refs, n, dx, dz, 0, 0, 1, NULL, NULL, out, max, result);
 }
 
 int
@@ -1145,4 +1266,238 @@ Editor_SpawnOpsDuplicate(
         count++;
     }
     return count;
+}
+
+/* ---- loc shapes: which a loc has, and fitting a wall to its line --------------- */
+
+static const char* const k_loc_shape_names[EDITOR_LOC_SHAPE_COUNT] = {
+    "wall",          "wall corner post",   "wall L",          "wall corner",        "decor inside",
+    "decor outside", "decor diag outside", "decor diag inside", "decor diag double", "wall diagonal",
+    "centrepiece",   "centrepiece diag",   "roof",            "roof outer",         "roof inner",
+    "roof hard inner", "roof hard outer",  "roof flat",       "roof overhang",      "overhang outer",
+    "overhang inner", "overhang hard outer", "ground decor",
+};
+
+/* The order a loc's shapes are offered and cycled in: what is placed most. */
+static const int k_loc_shape_order[EDITOR_LOC_SHAPE_COUNT] = {
+    10, 11, 22, 0, 1, 2, 3, 9, 4, 5, 6, 7, 8, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+};
+
+const char*
+Editor_LocShapeName(int shape)
+{
+    assert(shape >= 0);
+    assert(shape < EDITOR_LOC_SHAPE_COUNT);
+    return k_loc_shape_names[shape];
+}
+
+int
+Editor_LocShapeModelShape(int shape)
+{
+    assert(shape >= 0);
+    assert(shape < EDITOR_LOC_SHAPE_COUNT);
+    /* world_scenery.u.c: wall decor 4..8 all draw shape 4's models (offset,
+     * turned, doubled), the diagonal centrepiece draws shape 10's turned. */
+    if( shape >= 4 && shape <= 8 )
+        return 4;
+    if( shape == 11 )
+        return 10;
+    return shape;
+}
+
+uint32_t
+Editor_LocShapeMask(const struct ToriRS_Location* cfg)
+{
+    uint32_t have = 0;
+    uint32_t mask = 0;
+
+    assert(cfg);
+    if( cfg->shapes_and_model_count <= 0 || !cfg->models || !cfg->lengths )
+        return 0;
+    if( !cfg->shapes )
+    {
+        /* No shape list: the models are a centrepiece's and nothing else
+         * (scenery_load_model: "centrepiece only"). */
+        if( cfg->lengths[0] > 0 )
+            have = 1u << 10;
+    }
+    else
+        for( int i = 0; i < cfg->shapes_and_model_count; i++ )
+            if( cfg->shapes[i] >= 0 && cfg->shapes[i] < EDITOR_LOC_SHAPE_COUNT && cfg->lengths[i] > 0 )
+                have |= 1u << cfg->shapes[i];
+    for( int s = 0; s < EDITOR_LOC_SHAPE_COUNT; s++ )
+        if( have & (1u << Editor_LocShapeModelShape(s)) )
+            mask |= 1u << s;
+    return mask;
+}
+
+int
+Editor_LocShapeFirst(uint32_t mask)
+{
+    for( int i = 0; i < EDITOR_LOC_SHAPE_COUNT; i++ )
+        if( mask & (1u << k_loc_shape_order[i]) )
+            return k_loc_shape_order[i];
+    return -1;
+}
+
+int
+Editor_LocShapeList(
+    uint32_t mask,
+    int out[EDITOR_LOC_SHAPE_COUNT])
+{
+    int count = 0;
+
+    assert(out);
+    for( int i = 0; i < EDITOR_LOC_SHAPE_COUNT; i++ )
+        if( mask & (1u << k_loc_shape_order[i]) )
+            out[count++] = k_loc_shape_order[i];
+    return count;
+}
+
+int
+Editor_LocShapeNext(
+    uint32_t mask,
+    int shape)
+{
+    int at = -1;
+
+    if( mask == 0 )
+        return shape;
+    if( shape < 0 || shape >= EDITOR_LOC_SHAPE_COUNT || !(mask & (1u << shape)) )
+        return Editor_LocShapeFirst(mask);
+    for( int i = 0; i < EDITOR_LOC_SHAPE_COUNT; i++ )
+        if( k_loc_shape_order[i] == shape )
+            at = i;
+    for( int step = 1; step <= EDITOR_LOC_SHAPE_COUNT; step++ )
+    {
+        int const s = k_loc_shape_order[((at < 0 ? -1 : at) + step) % EDITOR_LOC_SHAPE_COUNT];
+        if( mask & (1u << s) )
+            return s;
+    }
+    return shape;
+}
+
+/** The edges (bit e: 0 west, 1 north, 2 east, 3 south) a wall of this shape
+ *  and rotation stands on: a straight wall one, an L two. */
+static unsigned
+ops_wall_edges(
+    int shape,
+    int rotation)
+{
+    if( shape == 0 )
+        return 1u << (rotation & 3);
+    if( shape == 2 )
+        return (1u << (rotation & 3)) | (1u << ((rotation + 1) & 3));
+    return 0;
+}
+
+int
+Editor_LocFitWall(
+    struct Editor_Doc* doc,
+    int loc_id,
+    uint32_t mask,
+    int world_x,
+    int world_z,
+    int level,
+    int* out_shape,
+    int* out_rotation)
+{
+    int votes[4] = { 0, 0, 0, 0 };
+    int diag_rotation = -1;
+    int vertical = -1;
+    int horizontal = -1;
+
+    assert(doc);
+    assert(out_shape);
+    assert(out_rotation);
+
+    for( int dz = -1; dz <= 1; dz++ )
+        for( int dx = -1; dx <= 1; dx++ )
+        {
+            struct Editor_Square* square;
+            int x;
+            int z;
+            if( dx == 0 && dz == 0 )
+                continue;
+            square = ops_square_at(doc, world_x + dx, world_z + dz, &x, &z);
+            if( !square )
+                continue;
+            for( int i = 0; i < square->loc_count; i++ )
+            {
+                const struct Editor_Loc* loc = &square->locs[i];
+                unsigned edges;
+                if( loc->loc_id != loc_id || loc->level != level || loc->x != x || loc->z != z )
+                    continue;
+                if( dx != 0 && dz != 0 )
+                {
+                    /* A diagonal wall runs on: rotations 1 and 3 join the
+                     * north-west and south-east neighbours, 0 and 2 the
+                     * south-west and north-east (m50_50's castle: 9 rot 3 on
+                     * (15,28) and (16,27)). */
+                    if( loc->shape == 9 && ((dx * dz < 0) == ((loc->rotation & 1) == 1)) )
+                        diag_rotation = loc->rotation & 3;
+                    continue;
+                }
+                edges = ops_wall_edges(loc->shape, loc->rotation);
+                /* A north or south neighbour continues its west / east edge
+                 * into this tile; an east or west one its north / south. */
+                if( dz != 0 )
+                {
+                    if( edges & 1u )
+                        votes[0]++;
+                    if( edges & 4u )
+                        votes[2]++;
+                }
+                else
+                {
+                    if( edges & 2u )
+                        votes[1]++;
+                    if( edges & 8u )
+                        votes[3]++;
+                }
+            }
+        }
+    if( votes[0] || votes[2] )
+        vertical = votes[2] > votes[0] ? 2 : 0;
+    if( votes[1] || votes[3] )
+        horizontal = votes[3] > votes[1] ? 3 : 1;
+
+    if( vertical >= 0 && horizontal >= 0 && (mask & (1u << 2)) )
+    {
+        /* An L stands on edges r and r+1. */
+        *out_shape = 2;
+        *out_rotation = ((vertical == 0 && horizontal == 1) ? 0
+                         : (vertical == 2 && horizontal == 1) ? 1
+                         : (vertical == 2 && horizontal == 3) ? 2
+                                                              : 3);
+        return 1;
+    }
+    if( (vertical >= 0 || horizontal >= 0) && (mask & 1u) )
+    {
+        *out_shape = 0;
+        *out_rotation = vertical >= 0 ? vertical : horizontal;
+        return 1;
+    }
+    if( diag_rotation >= 0 && (mask & (1u << 9)) )
+    {
+        *out_shape = 9;
+        *out_rotation = diag_rotation;
+        return 1;
+    }
+    return 0;
+}
+
+int
+Editor_LocOpsReshapeTo(
+    struct Editor_Doc* doc,
+    const struct Editor_LocRef* refs,
+    int n,
+    const int* shapes,
+    const int* rotations,
+    struct Editor_Cmd* out,
+    int max,
+    struct Editor_LocOpResult* result)
+{
+    assert(shapes);
+    return ops_transform(doc, refs, n, 0, 0, 0, 0, 0, shapes, rotations, out, max, result);
 }

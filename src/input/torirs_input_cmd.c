@@ -79,6 +79,33 @@ ToriRS_Input_ApplyCmd(
         LibToriRS_Input_PushMouseWheel(input, cmd.wheel_y);
         return 1;
     }
+    case TORIRS_CMD_INPUT_PINCH:
+    {
+        struct ToriRS_CmdPinch cmd;
+        if( header->length < sizeof(cmd) )
+            return 1;
+        memcpy(&cmd, payload, sizeof(cmd));
+        if( cmd.scale_q16 > 0 )
+            LibToriRS_Input_PushPinch(
+                input, (float)cmd.scale_q16 / 65536.0f, cmd.x, cmd.y, cmd.from_wheel);
+        return 1;
+    }
+    case TORIRS_CMD_INPUT_SCROLL:
+    {
+        struct ToriRS_CmdScroll cmd;
+        if( header->length < sizeof(cmd) )
+            return 1;
+        memcpy(&cmd, payload, sizeof(cmd));
+        if( cmd.px_per_notch > 0 )
+            LibToriRS_Input_PushScroll(
+                input,
+                (float)cmd.dx_milli / 1000.0f,
+                (float)cmd.dy_milli / 1000.0f,
+                cmd.px_per_notch,
+                cmd.trackpad,
+                cmd.flipped);
+        return 1;
+    }
     case TORIRS_CMD_INPUT_CLEAR_KEYS:
         LibToriRS_Input_ClearKeys(input);
         return 1;

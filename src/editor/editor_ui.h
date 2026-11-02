@@ -547,6 +547,9 @@ struct EditorUi
     unsigned char docked[EDITOR_UI_LAYOUT_PANELS_MAX];
     unsigned char closed[EDITOR_UI_LAYOUT_PANELS_MAX];
     unsigned char flown[EDITOR_UI_LAYOUT_PANELS_MAX];
+    /** The saved layout says this panel was maximised: maximised once the
+     *  default layout (and a same-surface restore) has placed its box. */
+    unsigned char maximise_pending[EDITOR_UI_LAYOUT_PANELS_MAX];
     int booted_layout;
 
     /** The World panel's chrome panel (module "world"), -1 before it is

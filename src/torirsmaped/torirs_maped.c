@@ -99,8 +99,11 @@ ToriRSMapEd_Open(
     maped->writable =
         maped->files.vtable->session(maped->files.user_data, 1) == EDITOR_HOST_OK;
     if( !maped->writable )
-        TORIRS_LOG("torirsmaped: another server holds %s — serving read-only\n",
-            content_dir);
+    {
+        snprintf(maped->read_only_reason, sizeof(maped->read_only_reason), "%s",
+            Editor_HostLocalLockHolder(&maped->files));
+        TORIRS_LOG("torirsmaped: serving read-only: %s\n", maped->read_only_reason);
+    }
 
     /* The catalog reads nothing here: the service pass warm-builds it in
      * slices (ToriRSMapEdCatalog_Service), a request before that finishes it. */
@@ -1123,7 +1126,9 @@ save_doc(
             handle->kind,
             handle->text->key,
             0,
-            (handle->kind == EDITOR_DOC_TEXT || handle->kind == EDITOR_DOC_AREAS) && handle->text->length == 0
+            (handle->kind == EDITOR_DOC_TEXT || handle->kind == EDITOR_DOC_AREAS
+                || handle->kind == EDITOR_DOC_PALETTES)
+                    && handle->text->length == 0
                 ? NULL
                 : handle->text->text,
             handle->text->length);
@@ -1721,6 +1726,18 @@ handle_frame(
         ToriRSMapEd_WriteU32(payload + 4, (uint32_t)maped->writable);
         ToriRSMapEd_WriteU32(payload + 8, session->client_id);
         ToriRSMapEd_WriteU32(payload + 12, maped->capabilities);
+        if( session->version >= TORIRSMAPED_PROTO_VERSION && !maped->writable )
+        {
+            /* A read-only server names who holds its tree, so every window
+             * can say why it cannot save. */
+            struct ToriRSMapEdBuf hello;
+            memset(&hello, 0, sizeof(hello));
+            ToriRSMapEd_BufWrite(&hello, payload, 16);
+            ToriRSMapEd_PutString(&hello, maped->read_only_reason);
+            send_buf(session, TORIRSMAPED_FACT_HELLO, &hello);
+            ToriRSMapEd_BufFree(&hello);
+            return;
+        }
         send_frame(
             session,
             TORIRSMAPED_FACT_HELLO,

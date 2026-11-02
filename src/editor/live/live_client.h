@@ -60,7 +60,7 @@ struct Editor_LiveModel
     char servpack_stamp[128];
     char stale[EDITOR_LIVE_STALE_MAX][192];
     int stale_count;
-    char message[256];
+    char message[1024];
     /** enum ToriRSMapEdRunStep; IDLE when no RUN is in flight. */
     uint32_t run_step;
     uint32_t pending_squares;
@@ -83,7 +83,7 @@ struct Editor_LiveModel
     int run_serial;
     uint32_t run_status;
     uint32_t run_last_step;
-    char run_message[256];
+    char run_message[1024];
     uint32_t run_counts[4];
     char restart[EDITOR_LIVE_RESTART_MAX][192];
     int restart_count;

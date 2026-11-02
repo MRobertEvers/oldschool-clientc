@@ -48,7 +48,12 @@ it was built and what is open.
 
 Context: **G** always (editor open) · **W** pointer over the World panel ·
 **L** one or more locs selected · **R** the Rect tool holds a rectangle ·
-**S** the Spawns panel holds a selection and no loc is selected.
+**S** the Spawns panel holds a selection and no loc is selected ·
+**M** locs selected and the Select or Move tool armed (the nudges) ·
+**N** no loc selected, or a tool other than Select / Move armed (the camera's
+arrows: with the Place tool, a brush, Rect, Rotate or Delete armed the arrows
+turn the camera even with locs selected) ·
+**P** the Place tool armed with a loc pick and no loc selected.
 
 ### File
 | Action | Chord | Ctx |
@@ -66,19 +71,29 @@ Context: **G** always (editor open) · **W** pointer over the World panel ·
 |---|---|---|
 | Undo | Ctrl+Z | G |
 | Redo | Ctrl+Shift+Z, Ctrl+Y | G |
-| Deselect / cancel (open menu, drag or rectangle in progress, then the selection) | Escape | G |
+| Deselect / cancel (open menu, drag or rectangle in progress, then the selection; with the Place tool armed and nothing selected, drops the ghost: back to Select, the pick kept) | Escape | G |
 | Delete selection (locs; else the Spawns selection) | Delete, Backspace | L, S |
 | Duplicate (locs; else the Spawns selection) | Ctrl+D | L, S |
-| Rotate (selected locs; else the Place ghost) | Q | G |
-| Reshape (selected loc; else the Place ghost) | Shift+Q | G |
+| Rotate (selected locs; else the Place ghost -- the ghost whenever the Place tool is armed) | Q | G |
+| Reshape (selected loc; else the Place ghost -- within the loc's own shapes only) | Shift+Q | G |
 | Apply the armed tool to the selection | Return | L |
 | Select every loc of the hovered tile's square on the edit level | Ctrl+A | W |
-| Nudge selection N / S / W / E one tile | Up / Down / Left / Right | L |
+| Nudge selection N / S / W / E one tile (onto a tile holding a loc of that shape: the two swap) | Up / Down / Left / Right | M |
 | Copy tiles | Ctrl+C | R |
 | Paste tiles at the hovered tile | Ctrl+V | W |
 | Fill tiles | Ctrl+Shift+F | R |
 | Clear tiles | Shift+Delete | R |
 | Mark area from rect | Ctrl+Shift+M | R |
+
+### Place
+| Action | Chord | Ctx |
+|---|---|---|
+| Place the catalog's loc at the hovered tile (the ghost's pose) | Space, Return | P |
+| Fit walls to neighbours on/off (Place tool) | G | G |
+| Swap the selected locs to the catalog's pick | E | L |
+
+The ghost's turn and shape are Edit's Rotate (Q) and Reshape (Shift+Q); Escape
+drops the ghost (Deselect / cancel).
 
 ### Tools
 | Action | Chord | Ctx |
@@ -118,13 +133,33 @@ Context: **G** always (editor open) · **W** pointer over the World panel ·
 | Level Auto | Ctrl+4 | G |
 | Show above on/off | Ctrl+5 | G |
 
+### Catalog palette
+| Action | Chord | Ctx |
+|---|---|---|
+| Palette slot 1 | Shift+1 | G |
+| Palette slot 2 | Shift+2 | G |
+| Palette slot 3 | Shift+3 | G |
+| Palette slot 4 | Shift+4 | G |
+| Palette slot 5 | Shift+5 | G |
+| Palette slot 6 | Shift+6 | G |
+| Palette slot 7 | Shift+7 | G |
+| Palette slot 8 | Shift+8 | G |
+| Palette slot 9 | Shift+9 | G |
+| Palette slot 10 | Shift+0 | G |
+| Add the pick to the palette | Ctrl+Shift+A | G |
+| Next palette | Alt+] | G |
+| Previous palette | Alt+[ | G |
+
+A slot makes its record the catalog pick and arms placement with the slot's
+remembered shape and rotation (docs/MAPED_STATUS.md row 3d).
+
 ### Camera
 | Action | Chord | Ctx |
 |---|---|---|
 | Fly forward / back / left / right (held) | W / S / A / D | G |
 | Fly down / up (held) | F / R | G |
 | Fly faster (held with the above) | Shift | G |
-| Turn left / right, tilt up / down (held) | Left / Right / Up / Down | G, no loc selected |
+| Turn left / right, tilt up / down (held) | Left / Right / Up / Down | N |
 | Frame the selection, else the hovered square | Home | G |
 | Frame the current square's centre | Ctrl+Home | G |
 
@@ -143,6 +178,7 @@ where the editor claims no chord; Ctrl+S, Ctrl+D and Ctrl+A are claimed.
 | Inspector | F7 | G |
 | Catalog | F8 | G |
 | Preview (the Catalog pick's model) | Ctrl+Shift+P | G |
+| Catalog palette (slots of locs, npcs and objs) | unbound | G |
 | Console | F9 | G |
 | History | F10 | G |
 | Areas | F11 | G |
@@ -178,11 +214,13 @@ tables (the Hotkeys panel calls them by the name after the id):
 
 - **File**: `file.new` New square..., `file.save_all` Save all, `file.save_as` Save square as new..., `file.bake` Bake cache (slow), `file.close` Close editor, `file.check_scripts` Check scripts, `file.run` Run (save, build, reload)
 - **Edit**: `edit.undo` Undo, `edit.redo` Redo, `edit.deselect` Deselect / cancel, `edit.delete` Delete selection, `edit.duplicate` Duplicate, `edit.rotate` Rotate, `edit.reshape` Reshape, `edit.apply` Apply tool to selection, `edit.select_square` Select the square's locs, `edit.nudge_n` Nudge north, `edit.nudge_s` Nudge south, `edit.nudge_w` Nudge west, `edit.nudge_e` Nudge east, `edit.copy` Copy tiles, `edit.paste` Paste tiles, `edit.fill` Fill tiles, `edit.clear` Clear tiles, `edit.mark_area` Mark area from rect
+- **Place**: `place.here` Place at the hovered tile, `place.fit` Fit walls to neighbours (toggle), `place.swap` Swap to catalog pick
+- **Palette**: `palette.slot_1` Palette slot 1, `palette.slot_2` Palette slot 2, `palette.slot_3` Palette slot 3, `palette.slot_4` Palette slot 4, `palette.slot_5` Palette slot 5, `palette.slot_6` Palette slot 6, `palette.slot_7` Palette slot 7, `palette.slot_8` Palette slot 8, `palette.slot_9` Palette slot 9, `palette.slot_10` Palette slot 10, `palette.add_pick` Add the pick to the palette, `palette.next` Next palette, `palette.previous` Previous palette
 - **Tools**: `tool.select` Select, `tool.rect` Rectangle, `tool.raise` Raise, `tool.lower` Lower, `tool.flatten` Flatten, `tool.smooth` Smooth, `tool.paint_underlay` Paint underlay, `tool.paint_overlay` Paint overlay, `tool.paint_flags` Paint flags, `tool.place` Place loc, `tool.move` Move loc, `tool.rotate` Rotate loc (tool), `tool.delete` Delete loc (tool), `tool.previous` Previous tool, `tool.pick_paint` Pick the tile's paint, `tool.pick_loc` Pick the hovered loc, `hold.place` Click places a loc (hold), `hold.delete` Click deletes a loc (hold), `hold.clear` Click clears the tile (hold)
 - **Brush**: `brush.radius_down` Radius -, `brush.radius_up` Radius +, `brush.strength_down` Strength -, `brush.strength_up` Strength +, `brush.step_down` Step -, `brush.step_up` Step +
 - **Level**: `level.down` Level down, `level.up` Level up, `level.pin0` Pin level 0, `level.pin1` Pin level 1, `level.pin2` Pin level 2, `level.pin3` Pin level 3, `level.auto` Level Auto, `level.above` Show above
 - **Camera**: `camera.forward` Fly forward, `camera.back` Fly back, `camera.left` Fly left, `camera.right` Fly right, `camera.down` Fly down, `camera.up` Fly up, `camera.fast` Fly faster, `camera.turn_left` Turn left, `camera.turn_right` Turn right, `camera.tilt_up` Tilt up, `camera.tilt_down` Tilt down, `camera.frame` Frame the selection, `camera.frame_square` Frame the square's centre
-- **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC builder, `view.shelleditor` Shell editor, `view.iface` Interface editor, `view.cs2` CS2, `view.live` Live, `view.triggers` Triggers, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel
+- **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.catalog_palette` Catalog palette, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC builder, `view.shelleditor` Shell editor, `view.iface` Interface editor, `view.cs2` CS2, `view.live` Live, `view.triggers` Triggers, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel
 
 Example:
 

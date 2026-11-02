@@ -66,6 +66,9 @@
  *
  *     HELLO        u32 version, u32 role,   -> FACT_HELLO   u32 version,
  *                  u32 client_id (0 = new)       u32 writable, u32 client_id
+ *                                                [v2: u32 capabilities
+ *                                                 [string read_only_reason,
+ *                                                  only when not writable]]
  *     SQUARE_LIST  (empty)                  -> FACT_SQUARE_LIST
  *                                                u32 status, u32 count,
  *                                                count * (i32 x, i32 z)
@@ -618,6 +621,10 @@ struct ToriRSMapEd
     struct Editor_UndoStack undo;
     /** 0 when another server holds the tree's lock: serve, but never save. */
     int writable;
+    /** When not writable, who holds the tree (Editor_HostLocalLockHolder):
+     *  "<content_dir> is held by pid N (<command>, since HH:MM)". Sent after
+     *  FACT_HELLO's fields and named in RUN's read-only stop. */
+    char read_only_reason[1024];
     /** Stamped onto every FACT_CMD, so a mirror can assert it missed nothing. */
     uint32_t seq;
 

@@ -176,6 +176,13 @@ struct IoServer
     int manifest_count;
 
     char root[512];
+    /* --page-query: what a bare GET / is sent to ("" = serve index.html
+     * as is). A profile names its page's command line once, here, so the
+     * URL a person types stays http://host:port/. */
+    char page_query[640];
+    /* --maped-port: the map-editor daemon /maped/ proxies to (0 = off;
+     * io_maped_proxy.c). */
+    int maped_port;
     /* Where GET /boot/<path> reads from: the tree the manifests live in, and
      * the root the caches themselves are resolved against. */
     char boot_root[512];
@@ -910,6 +917,15 @@ handle_static(
     if( sanitize_path(req->path, rel, (int)sizeof(rel)) != 0 )
     {
         res->status = 400;
+        return;
+    }
+    /* A bare page request with a --page-query: the page with that query. A
+     * relative Location keeps the path, so a page mounted under a prefix
+     * behind a proxy redirects to itself. */
+    if( server->page_query[0] && strcmp(rel, "/index.html") == 0 && !strchr(req->path, '?') )
+    {
+        res->status = 302;
+        snprintf(res->location, sizeof(res->location), "?%s", server->page_query);
         return;
     }
     snprintf(full, sizeof(full), "%s%s", server->root, rel);
@@ -1654,6 +1670,8 @@ io_server_handler(
         render_error_page(req, res);
 }
 
+#include "io_maped_proxy.c"
+
 static void
 io_server_route(
     struct IoServer* server,
@@ -1665,6 +1683,11 @@ io_server_route(
         res->status = 204;
         res->body = NULL;
         res->body_len = 0;
+        return;
+    }
+    if( strncmp(req->path, "/maped/", 7) == 0 )
+    {
+        handle_maped_proxy(server->maped_port, req, res);
         return;
     }
     if( strcmp(req->method, "POST") == 0 && strncmp(req->path, "/io", 3) == 0 )
@@ -1772,6 +1795,11 @@ usage(char const* argv0)
         "  --boot-root  directory served over GET /boot/<path> — the manifests and\n"
         "               RevConfig INIs the client opens by name (default .)\n"
         "  --port       listen port (default %d)\n"
+        "  --maped-port proxy /maped/ to the map-editor daemon on 127.0.0.1:N, the\n"
+        "               web editor's link to it (off by default)\n"
+        "  --page-query send a bare GET / to /?<QUERY> -- the page's command\n"
+        "               line, so a profile's URL stays http://host:port/ (the map\n"
+        "               editor's: 'args=--manifest,manifests/manifest_osrs241_mapeditor.ini')\n"
         "  --gate       serve only the sign-in pages until the visitor signs in\n"
         "               with a web login (the account server: account_server), then send\n"
         "               them to LANDING, e.g.\n"
@@ -1873,6 +1901,16 @@ main(
         if( strcmp(argv[i], "--boot-root") == 0 && i + 1 < argc )
         {
             snprintf(server.boot_root, sizeof(server.boot_root), "%s", argv[++i]);
+            continue;
+        }
+        if( strcmp(argv[i], "--maped-port") == 0 && i + 1 < argc )
+        {
+            server.maped_port = atoi(argv[++i]);
+            continue;
+        }
+        if( strcmp(argv[i], "--page-query") == 0 && i + 1 < argc )
+        {
+            snprintf(server.page_query, sizeof(server.page_query), "%s", argv[++i]);
             continue;
         }
         if( strcmp(argv[i], "--config") == 0 && i + 1 < argc )

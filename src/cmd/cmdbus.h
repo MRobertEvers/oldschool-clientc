@@ -58,6 +58,17 @@ enum ToriRS_CmdType
                                                 the text, not NUL-terminated */
     TORIRS_CMD_INPUT_CREDENTIAL_FOCUS = 27,  /* u8 field */
     TORIRS_CMD_INPUT_CREDENTIAL_SUBMIT = 28, /* no payload */
+    /* A pinch: the content under (x, y) scaled by `scale_q16` / 65536 since
+     * the last one (fingers apart > 1). From a trackpad's magnify gesture
+     * (macOS NSEventTypeMagnify), SDL_MULTIGESTURE's spread, or a browser's
+     * ctrl+wheel / Safari gesturechange. `from_wheel` says the same motion
+     * ALSO arrived as this frame's wheel (a touch pinch's notches, a browser
+     * pinch's ctrl+wheel), so whoever takes the pinch drops that wheel. */
+    TORIRS_CMD_INPUT_PINCH = 29,  /* struct ToriRS_CmdPinch */
+    /* The wheel's exact deltas, beside the integer TORIRS_CMD_INPUT_MOUSE_WHEEL
+     * it always accompanies: a two-finger trackpad scroll is a stream of
+     * fractions that the integer wheel rounds into an occasional notch. */
+    TORIRS_CMD_INPUT_SCROLL = 30, /* struct ToriRS_CmdScroll */
 
     /* -> ToriRS_Network (raw-byte semantics, v0 net ring parity) */
     TORIRS_CMD_NET_CONNECT = 32, /* "host:port" string, not NUL-terminated */
@@ -191,6 +202,37 @@ struct ToriRS_CmdMouseMove
 struct ToriRS_CmdMouseWheel
 {
     int16_t wheel_y;
+};
+
+struct ToriRS_CmdPinch
+{
+    /** Scale since the previous pinch, 65536 = 1.0. */
+    int32_t scale_q16;
+    /** The pinch's centre, canvas pixels (where the pointer is on a trackpad). */
+    int16_t x;
+    int16_t y;
+    uint8_t from_wheel;
+    uint8_t pad[3];
+};
+
+struct ToriRS_CmdScroll
+{
+    /**
+     * The scroll in canvas pixels x1000, as the PLATFORM delivers it -- its
+     * own "natural scrolling" setting applied, never undone: +y is "scroll
+     * up" (a document's content moves DOWN), +x is "scroll right" (content
+     * moves LEFT); SDL's sign convention.
+     */
+    int32_t dx_milli;
+    int32_t dy_milli;
+    /** Canvas pixels one wheel notch is worth on this platform, for a reader
+     *  that wants notches (ctrl+wheel zoom). */
+    uint16_t px_per_notch;
+    /** 1 when a trackpad (precise, continuous deltas) produced it. */
+    uint8_t trackpad;
+    /** 1 when the platform reports its wheel direction inverted ("natural"):
+     *  -dy is then the direction the integer wheel reports. */
+    uint8_t flipped;
 };
 
 struct ToriRS_CmdPluginChrome
@@ -402,6 +444,25 @@ int
 CmdBus_PushMouseWheel(
     struct ToriRS_CmdBus* bus,
     int16_t wheel_y);
+
+/** @see TORIRS_CMD_INPUT_PINCH. `scale` is clamped to a sane range. */
+int
+CmdBus_PushPinch(
+    struct ToriRS_CmdBus* bus,
+    double scale,
+    int16_t x,
+    int16_t y,
+    int from_wheel);
+
+/** @see TORIRS_CMD_INPUT_SCROLL; dx/dy canvas pixels. */
+int
+CmdBus_PushScroll(
+    struct ToriRS_CmdBus* bus,
+    double dx,
+    double dy,
+    int px_per_notch,
+    int trackpad,
+    int flipped);
 
 int
 CmdBus_PushWindowResize(

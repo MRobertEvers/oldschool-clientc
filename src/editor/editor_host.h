@@ -277,6 +277,18 @@ Editor_HostOpenLocal(
     const char* content_dir,
     const char* repo_root);
 
+/**
+ * Who holds the content tree, after a `session(acquire)` on a LOCAL binding
+ * answered EDITOR_HOST_LOCKED: "<content_dir> is held by pid 43893 (torirs
+ * --manifest ..., since 16:22)" -- the pid, command line and start the
+ * lockfile records (or, for a lockfile that predates them, the executable
+ * the pid runs). "" when the last acquire took the lock. A lockfile whose
+ * pid no longer runs is never reported: the acquire removes it and takes
+ * the tree. `host` must be a local binding.
+ */
+const char*
+Editor_HostLocalLockHolder(const struct EditorHost* host);
+
 /** Calls the binding's free_ and clears the host. NULL-tolerant.
  *
  * Inline for the same reason as Editor_HostBlobFree: it belongs to the SEAM,
@@ -374,6 +386,12 @@ Editor_HostMapEdCapabilities(const struct EditorHost* host);
 /** What FACT_HELLO reported: can the server save its tree? */
 int
 Editor_HostMapEdWritable(const struct EditorHost* host);
+
+/** Why the server cannot save, when it said (FACT_HELLO's trailing string):
+ *  "<content_dir> is held by pid N (<command>, since HH:MM)". "" when the
+ *  server is writable or did not say. */
+const char*
+Editor_HostMapEdReadOnlyReason(const struct EditorHost* host);
 
 /** The Client (session group) this connection was granted or joined. */
 uint32_t

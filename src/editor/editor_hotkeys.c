@@ -20,6 +20,8 @@
 #define R EDITOR_HK_CTX_R
 #define S EDITOR_HK_CTX_S
 #define N EDITOR_HK_CTX_N
+#define M EDITOR_HK_CTX_M
+#define P EDITOR_HK_CTX_P
 #define EDGE EDITOR_HK_EDGE
 #define REPEAT EDITOR_HK_REPEAT
 #define HELD EDITOR_HK_HELD
@@ -54,13 +56,13 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_EDIT_SELECT_SQUARE] = { "edit.select_square", "Edit", "Select the square's locs",
                                        "Select every loc of the hovered tile's square", W, EDGE, { "ctrl+a" },
                                        NULL },
-    [EDITOR_HK_EDIT_NUDGE_N] = { "edit.nudge_n", "Edit", "Nudge north", "Nudge selection N / S / W / E", L, REPEAT,
+    [EDITOR_HK_EDIT_NUDGE_N] = { "edit.nudge_n", "Edit", "Nudge north", "Nudge selection N / S / W / E", M, REPEAT,
                                  { "up" }, NULL },
-    [EDITOR_HK_EDIT_NUDGE_S] = { "edit.nudge_s", "Edit", "Nudge south", "Nudge selection N / S / W / E", L, REPEAT,
+    [EDITOR_HK_EDIT_NUDGE_S] = { "edit.nudge_s", "Edit", "Nudge south", "Nudge selection N / S / W / E", M, REPEAT,
                                  { "down" }, NULL },
-    [EDITOR_HK_EDIT_NUDGE_W] = { "edit.nudge_w", "Edit", "Nudge west", "Nudge selection N / S / W / E", L, REPEAT,
+    [EDITOR_HK_EDIT_NUDGE_W] = { "edit.nudge_w", "Edit", "Nudge west", "Nudge selection N / S / W / E", M, REPEAT,
                                  { "left" }, NULL },
-    [EDITOR_HK_EDIT_NUDGE_E] = { "edit.nudge_e", "Edit", "Nudge east", "Nudge selection N / S / W / E", L, REPEAT,
+    [EDITOR_HK_EDIT_NUDGE_E] = { "edit.nudge_e", "Edit", "Nudge east", "Nudge selection N / S / W / E", M, REPEAT,
                                  { "right" }, NULL },
     [EDITOR_HK_EDIT_COPY] = { "edit.copy", "Edit", "Copy tiles", "Copy tiles", R, EDGE, { "ctrl+c" }, NULL },
     [EDITOR_HK_EDIT_PASTE] = { "edit.paste", "Edit", "Paste tiles", "Paste tiles at the hovered tile", W, EDGE,
@@ -71,6 +73,13 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_EDIT_MARK_AREA] = { "edit.mark_area", "Edit", "Mark area from rect", "Mark area from rect", R, EDGE,
                                    { "ctrl+shift+m" }, NULL },
 
+    [EDITOR_HK_PLACE_HERE] = { "place.here", "Place", "Place at the hovered tile",
+                               "Place the catalog's loc at the hovered tile (the ghost's pose)", P, EDGE,
+                               { "space", "return" }, NULL },
+    [EDITOR_HK_PLACE_FIT] = { "place.fit", "Place", "Fit walls to neighbours (toggle)",
+                              "Fit walls to neighbours on/off (Place tool)", G, EDGE, { "g" }, NULL },
+    [EDITOR_HK_PLACE_SWAP] = { "place.swap", "Place", "Swap to catalog pick",
+                               "Swap the selected locs to the catalog's pick", L, EDGE, { "e" }, NULL },
     [EDITOR_HK_TOOL_SELECT] = { "tool.select", "Tools", "Select", "| Select |", G, EDGE, { "1" }, NULL },
     [EDITOR_HK_TOOL_RECT] = { "tool.rect", "Tools", "Rectangle", "| Rectangle |", G, EDGE, { "2" }, NULL },
     [EDITOR_HK_TOOL_RAISE] = { "tool.raise", "Tools", "Raise", "| Raise |", G, EDGE, { "3" }, NULL },
@@ -150,6 +159,32 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_CAM_FRAME_SQUARE] = { "camera.frame_square", "Camera", "Frame the square's centre",
                                      "Frame the current square's centre", G, EDGE, { "ctrl+home" }, NULL },
 
+    [EDITOR_HK_PALETTE_SLOT_1] = { "palette.slot_1", "Palette", "Palette slot 1", "Palette slot 1", G, EDGE,
+                                   { "shift+1" }, NULL },
+    [EDITOR_HK_PALETTE_SLOT_2] = { "palette.slot_2", "Palette", "Palette slot 2", "Palette slot 2", G, EDGE,
+                                   { "shift+2" }, NULL },
+    [EDITOR_HK_PALETTE_SLOT_3] = { "palette.slot_3", "Palette", "Palette slot 3", "Palette slot 3", G, EDGE,
+                                   { "shift+3" }, NULL },
+    [EDITOR_HK_PALETTE_SLOT_4] = { "palette.slot_4", "Palette", "Palette slot 4", "Palette slot 4", G, EDGE,
+                                   { "shift+4" }, NULL },
+    [EDITOR_HK_PALETTE_SLOT_5] = { "palette.slot_5", "Palette", "Palette slot 5", "Palette slot 5", G, EDGE,
+                                   { "shift+5" }, NULL },
+    [EDITOR_HK_PALETTE_SLOT_6] = { "palette.slot_6", "Palette", "Palette slot 6", "Palette slot 6", G, EDGE,
+                                   { "shift+6" }, NULL },
+    [EDITOR_HK_PALETTE_SLOT_7] = { "palette.slot_7", "Palette", "Palette slot 7", "Palette slot 7", G, EDGE,
+                                   { "shift+7" }, NULL },
+    [EDITOR_HK_PALETTE_SLOT_8] = { "palette.slot_8", "Palette", "Palette slot 8", "Palette slot 8", G, EDGE,
+                                   { "shift+8" }, NULL },
+    [EDITOR_HK_PALETTE_SLOT_9] = { "palette.slot_9", "Palette", "Palette slot 9", "Palette slot 9", G, EDGE,
+                                   { "shift+9" }, NULL },
+    [EDITOR_HK_PALETTE_SLOT_10] = { "palette.slot_10", "Palette", "Palette slot 10", "Palette slot 10", G, EDGE,
+                                   { "shift+0" }, NULL },
+    [EDITOR_HK_PALETTE_ADD_PICK] = { "palette.add_pick", "Palette", "Add the pick to the palette",
+                                     "Add the pick to the palette", G, EDGE, { "ctrl+shift+a" }, NULL },
+    [EDITOR_HK_PALETTE_NEXT] = { "palette.next", "Palette", "Next palette", "Next palette", G, EDGE,
+                                 { "alt+rbracket" }, NULL },
+    [EDITOR_HK_PALETTE_PREVIOUS] = { "palette.previous", "Palette", "Previous palette", "Previous palette", G, EDGE,
+                                     { "alt+lbracket" }, NULL },
     [EDITOR_HK_VIEW_HOTKEYS] = { "view.hotkeys", "View", "Hotkeys panel", "Hotkeys panel", G, EDGE, { "f1" },
                                  "hotkeys" },
     [EDITOR_HK_VIEW_TERRAIN] = { "view.terrain", "View", "Terrain", "| Terrain |", G, EDGE, { "f2" }, "terrain" },
@@ -162,6 +197,9 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_VIEW_CATALOG] = { "view.catalog", "View", "Catalog", "| Catalog |", G, EDGE, { "f8" }, "catalog" },
     [EDITOR_HK_VIEW_PREVIEW] = { "view.preview", "View", "Preview", "| Preview (the Catalog pick's model) |", G,
                                  EDGE, { "ctrl+shift+p" }, "preview" },
+    [EDITOR_HK_VIEW_CATALOG_PALETTE] = { "view.catalog_palette", "View", "Catalog palette",
+                                         "| Catalog palette (slots of locs, npcs and objs) |", G, EDGE, { NULL },
+                                         "catalog_palette" },
     [EDITOR_HK_VIEW_CONSOLE] = { "view.console", "View", "Console (Output)", "| Console |", G, EDGE, { "f9" },
                                  "console" },
     [EDITOR_HK_VIEW_HISTORY] = { "view.history", "View", "History", "| History |", G, EDGE, { "f10" }, "history" },
@@ -249,13 +287,14 @@ Editor_HotkeyContextText(
     char* out,
     int out_size)
 {
-    static const char* const k_names[6] = { "G", "W", "L", "R", "S", "no loc" };
+    static const char* const k_names[EDITOR_HK_CTX_COUNT] = { "G", "W", "L", "R", "S", "no loc / not Select-Move",
+        "M", "P" };
     int used = 0;
 
     assert(out);
     assert(out_size > 0);
     out[0] = '\0';
-    for( int i = 0; i < 6; i++ )
+    for( int i = 0; i < EDITOR_HK_CTX_COUNT; i++ )
     {
         if( !(contexts & (1u << i)) )
             continue;
@@ -265,17 +304,25 @@ Editor_HotkeyContextText(
     }
 }
 
-/* L excludes S and N: both say no loc is selected. */
+/* L excludes S and P (no loc selected); M excludes N, S and P. */
+static int
+hk_ctx_exclusive_one(
+    unsigned a,
+    unsigned b)
+{
+    if( a == EDITOR_HK_CTX_L )
+        return b == EDITOR_HK_CTX_S || b == EDITOR_HK_CTX_P;
+    if( a == EDITOR_HK_CTX_M )
+        return b == EDITOR_HK_CTX_N || b == EDITOR_HK_CTX_S || b == EDITOR_HK_CTX_P;
+    return 0;
+}
+
 static int
 hk_ctx_exclusive(
     unsigned a,
     unsigned b)
 {
-    if( a == EDITOR_HK_CTX_L )
-        return b == EDITOR_HK_CTX_S || b == EDITOR_HK_CTX_N;
-    if( b == EDITOR_HK_CTX_L )
-        return a == EDITOR_HK_CTX_S || a == EDITOR_HK_CTX_N;
-    return 0;
+    return hk_ctx_exclusive_one(a, b) || hk_ctx_exclusive_one(b, a);
 }
 
 int
@@ -283,11 +330,11 @@ Editor_HotkeyContextsOverlap(
     unsigned a,
     unsigned b)
 {
-    for( int i = 0; i < 6; i++ )
+    for( int i = 0; i < EDITOR_HK_CTX_COUNT; i++ )
     {
         if( !(a & (1u << i)) )
             continue;
-        for( int j = 0; j < 6; j++ )
+        for( int j = 0; j < EDITOR_HK_CTX_COUNT; j++ )
             if( (b & (1u << j)) && !hk_ctx_exclusive(1u << i, 1u << j) )
                 return 1;
     }

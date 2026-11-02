@@ -4118,6 +4118,105 @@ frame_loop_step(void)
                 }
             }
 
+            /* TORIRS_SIM_PINCH="frame,scale,x,y[;frame,scale,x,y...]": a trackpad
+             * pinch of `scale` (2 = fingers twice as far apart) centred on canvas
+             * (x,y). The pointer moves there on the frame -- a trackpad's pinch
+             * is centred on the pointer -- and the pinch lands three frames later,
+             * the same TORIRS_CMD_INPUT_PINCH the platform pushes from
+             * NSEventTypeMagnify / SDL_MULTIGESTURE / a browser's ctrl+wheel. */
+            {
+                static char const* pinch_cursor = NULL;
+                static int pinch_init = 0;
+                static long pinch_frame = -1, pinch_x, pinch_y;
+                static double pinch_scale = 1.0;
+                if( !pinch_init )
+                {
+                    pinch_init = 1;
+                    pinch_cursor = getenv("TORIRS_SIM_PINCH");
+                }
+                if( pinch_frame < 0 && pinch_cursor && *pinch_cursor )
+                {
+                    char* end = NULL;
+                    long const f = strtol(pinch_cursor, &end, 0);
+                    double scale = 0.0;
+                    long x = 0;
+                    long y = 0;
+                    if( end && *end == ',' )
+                        scale = strtod(end + 1, &end);
+                    if( end && *end == ',' )
+                        x = strtol(end + 1, &end, 0);
+                    if( end && *end == ',' )
+                        y = strtol(end + 1, &end, 0);
+                    pinch_cursor = (end && *end == ';') ? end + 1 : NULL;
+                    if( scale > 0.0 )
+                    {
+                        pinch_frame = f;
+                        pinch_scale = scale;
+                        pinch_x = x;
+                        pinch_y = y;
+                    }
+                }
+                if( pinch_frame >= 0 && frame_count >= pinch_frame )
+                {
+                    long const step = frame_count - pinch_frame;
+                    if( step == 0 )
+                        CmdBus_PushMouseMove(&bus, (int16_t)pinch_x, (int16_t)pinch_y);
+                    else if( step >= 3 )
+                    {
+                        CmdBus_PushPinch(&bus, pinch_scale, (int16_t)pinch_x, (int16_t)pinch_y, 0);
+                        TORIRS_REPORT(
+                            "sim_pinch: frame=%ld scale=%.3f at %ld,%ld\n",
+                            (long)frame_count,
+                            pinch_scale,
+                            pinch_x,
+                            pinch_y);
+                        pinch_frame = -1;
+                    }
+                }
+            }
+
+            /* TORIRS_SIM_SCROLL="frame,dx,dy[,trackpad][;...]": the wheel's exact
+             * deltas at the pointer, canvas pixels in SDL's sign (+dy scroll up,
+             * +dx scroll right), `trackpad` 1 for a two-finger scroll, 0 (the
+             * default) for a mouse wheel. Pushed as the platform does: the
+             * TORIRS_CMD_INPUT_SCROLL and the integer wheel notches rounded out
+             * of it (48 px a notch, the desktop SDL lane's). */
+            {
+                static char const* scroll_cursor = NULL;
+                static int scroll_init = 0;
+                if( !scroll_init )
+                {
+                    scroll_init = 1;
+                    scroll_cursor = getenv("TORIRS_SIM_SCROLL");
+                }
+                while( scroll_cursor && *scroll_cursor )
+                {
+                    char* end = NULL;
+                    long const f = strtol(scroll_cursor, &end, 0);
+                    double dx = 0.0;
+                    double dy = 0.0;
+                    long trackpad = 0;
+                    if( f > frame_count )
+                        break;
+                    if( end && *end == ',' )
+                        dx = strtod(end + 1, &end);
+                    if( end && *end == ',' )
+                        dy = strtod(end + 1, &end);
+                    if( end && *end == ',' )
+                        trackpad = strtol(end + 1, &end, 0);
+                    scroll_cursor = (end && *end == ';') ? end + 1 : NULL;
+                    CmdBus_PushScroll(&bus, dx, dy, 48, trackpad != 0, 0);
+                    if( (int)(dy / 48.0) != 0 )
+                        CmdBus_PushMouseWheel(&bus, (int16_t)(int)(dy / 48.0));
+                    TORIRS_REPORT(
+                        "sim_scroll: frame=%ld d=%.1f,%.1f trackpad=%ld\n",
+                        (long)frame_count,
+                        dx,
+                        dy,
+                        trackpad);
+                }
+            }
+
             /* TORIRS_SIM_HOOK="frame,com[;frame,com...]": dispatch a component's
              * onop (falling back to onclick) hook at that main-loop frame.
              *

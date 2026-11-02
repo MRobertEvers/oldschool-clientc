@@ -32,6 +32,9 @@
  *     y = 22                ; layout saved at 2x fits at 1x and back
  *     w = 1155              ; fixed width / height, 0 = sized to content
  *     h = 984
+ *     maximised = 0         ; 1 = maximised over the dock (title double-click);
+ *                           ; x/y/w/h and user_placed are then the box it
+ *                           ; restores to
  *
  * What the editor does with it (Editor_UiLayoutApply, the policy):
  *   - snap and every panel's `visible` are applied whatever the surface: what
@@ -82,6 +85,10 @@ struct EditorLayoutPanel
     int w;
     int has_h;
     int h;
+    /** Maximised over the dock (a double-click on its title): x/y/w/h and
+     *  user_placed above are then the box it restores to. */
+    int has_maximised;
+    int maximised;
 };
 
 struct EditorLayoutFile

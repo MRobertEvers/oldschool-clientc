@@ -1654,21 +1654,15 @@ app_map_editor_toggle_loc_at(
     int level)
 {
     struct EditorUi* ui = app->editor_panel.ui;
-    struct WorldEntity_Scenery* scenery;
     struct Editor_LocRef ref;
-    int idx;
 
     if( !app->world || !ui )
         return 0;
-    idx = World_SceneryFindAt(app->world, scene_x, scene_z, level, -1);
-    if( idx < 0 )
+    /* The loc the pointer is on (the model under it), as Delete takes it --
+     * not the first one filed on the tile, which on a wall line is as often
+     * the flower patch at the wall's foot. */
+    if( !Editor_PanelPointedLoc(&app->editor_panel, app, scene_x, scene_z, level, &ref) )
         return 0;
-    scenery = World_EntityPoolGet(&app->world->entities.scenery, idx);
-    if( !scenery )
-        return 0;
-    Editor_LocRefAt(
-        &ref, app->world->_base_tile_x + scene_x, app->world->_base_tile_z + scene_z, level,
-        scenery->shape, scenery->loc_id, scenery->angle & 3);
     (void)Editor_UiToggleLoc(ui, &ref);
     if( ui->hooks.selection_changed )
         ui->hooks.selection_changed(ui->hooks_user);
@@ -2684,6 +2678,12 @@ app_map_editor_ghost_update(struct App* app)
             id = ui->tools.pick_id;
             Editor_PanelGhostSpec(panel, app, &shape, &angle);
             level = Editor_PanelEditLevel(panel, app);
+            /* At the ghost's own tile (the hover a photograph parks too):
+             * with Fit walls to neighbours on, the pose that joins the wall
+             * line there -- what the click will place. */
+            if( app->world )
+                edp_place_pose_at(ui, app->world->_base_tile_x + app->map_ghost.hover.scene_x,
+                    app->world->_base_tile_z + app->map_ghost.hover.scene_z, level, &shape, &angle);
         }
         else if( panel->visible && hover_ok && ui->tools.tool == EDITOR_TOOL_LOC_MOVE
                  && panel->sel_kind == EDITOR_SELECTION_LOC
@@ -2885,6 +2885,209 @@ app_preview_raster(
     return ToriDraw_SpriteNewFromArgbOwned(argb, sprite_w, sprite_h);
 }
 
+/* ---- the Locs panel's shape strip: one thumbnail per shape the loc has ---- */
+
+/* One scene sprite for the whole strip, the shapes side by side. 0x400001xx
+ * is free in uitree_scene_bridge.h's registry (PREVIEW is 0x4000000A, the
+ * scaled fonts start at 0x40001000). */
+#define APP_EDITOR_SHAPE_STRIP_SPRITE_ID 0x40000100
+#define APP_EDITOR_SHAPE_THUMB_H 44
+#define APP_EDITOR_SHAPE_STRIP_W 224
+
+/** Raster `count` models (one placement's parts) into the slot
+ *  [slot_x, slot_x + slot_w) of an ARGB strip `stride` wide, framed by their
+ *  joint bounds, from the Preview's default angle (+ `yaw`). */
+static void
+app_shape_thumb_raster(
+    struct App* app,
+    struct ToriDraw_ModelHandle const* parts,
+    int count,
+    toripixel_t* pixels,
+    int stride,
+    int slot_x,
+    int slot_w,
+    int slot_h,
+    int yaw)
+{
+    struct ToriDraw_ViewPort view_port;
+    struct ToriDraw_Camera camera;
+    struct ToriDraw_Position position;
+    int radius = 0;
+    int min_y = 0;
+    int max_y = 0;
+    int size;
+    int zoom;
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriDraw_BoundsCylinder* b = ToriDraw_ModelGetBoundsCylinder(parts[i]);
+        if( !b )
+            continue;
+        if( b->radius > radius )
+            radius = b->radius;
+        if( b->min_y < min_y )
+            min_y = b->min_y;
+        if( b->max_y > max_y )
+            max_y = b->max_y;
+    }
+    /* EditorPreviewCamera_TakeFit's framing, at the strip's size. */
+    size = 2 * radius > max_y - min_y ? 2 * radius : max_y - min_y;
+    zoom = (size * 9) / 2;
+    if( zoom < EDITOR_PREVIEW_FIT_ZOOM_MIN )
+        zoom = EDITOR_PREVIEW_FIT_ZOOM_MIN;
+    if( zoom > EDITOR_PREVIEW_FIT_ZOOM_MAX )
+        zoom = EDITOR_PREVIEW_FIT_ZOOM_MAX;
+
+    memset(&view_port, 0, sizeof(view_port));
+    view_port.width = stride;
+    view_port.height = slot_h;
+    view_port.clip_left = slot_x;
+    view_port.clip_top = 0;
+    view_port.clip_right = slot_x + slot_w;
+    view_port.clip_bottom = slot_h;
+    view_port.x_center = slot_x + slot_w / 2;
+    view_port.y_center = slot_h / 2;
+    view_port.stride = stride;
+
+    memset(&camera, 0, sizeof(camera));
+    camera.pitch = EDITOR_PREVIEW_DEFAULT_PITCH;
+    camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    camera.projection_scale = EditorPreviewCamera_ProjectionScale(slot_w, slot_h);
+    camera.near_plane_z = 1;
+
+    memset(&position, 0, sizeof(position));
+    position.yaw = (EDITOR_PREVIEW_DEFAULT_YAW + yaw) & 2047;
+    position.y = ((ToriDraw_Sin(camera.pitch) * zoom) >> 16) - (min_y + max_y) / 2;
+    position.z = (ToriDraw_Cos(camera.pitch) * zoom) >> 16;
+    for( int i = 0; i < count; i++ )
+        ToriDraw_RenderModelWithTable(
+            parts[i], app->scene, &position, &view_port, &camera, pixels, ToriDraw_KernelGetSpriteBaker());
+}
+
+/**
+ * The strip's thumbnails: each shape's own models (wall decor 5..8 shape 4's,
+ * the diagonal centrepiece shape 10's turned an eighth), rendered once per
+ * loc and shape set into one sprite. Models still loading are asked for and
+ * the strip waits a frame.
+ */
+static void
+app_map_editor_shape_strip_update(struct App* app)
+{
+    static int last_loc = -1;
+    static int last_count = 0;
+    static int last_shapes[EDITOR_LOC_SHAPE_COUNT];
+    static int requested_loc = -1;
+    int shapes[EDITOR_LOC_SHAPE_COUNT];
+    int loc_id;
+    int view;
+    int count;
+    int slot_w;
+    int strip_w;
+    struct ToriRS_Location* cfg;
+    int missing = 0;
+    toripixel_t* pixels;
+    uint32_t* argb;
+
+    /* After the world's first load: a raster at boot ran before the scene's
+     * tables were ready and drew slivers. */
+    if( !app->editor_panel.ui || !app->scene || !app->provider || !app->world || !app->world->load_complete
+        || app->world_load_inflight )
+        return;
+    count = Editor_Locs_ShapeStrip(app->editor_panel.ui, &loc_id, shapes, &view);
+    if( count <= 0 )
+        return;
+    if( loc_id == last_loc && count == last_count && memcmp(shapes, last_shapes, sizeof(int) * (size_t)count) == 0 )
+        return;
+    cfg = CacheProvider_LocationGet(app->provider, loc_id);
+    if( !cfg )
+    {
+        if( requested_loc != loc_id )
+        {
+            struct ToriRS_Task* task = CreateTask_LocLoad(app->provider, loc_id);
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+            requested_loc = loc_id;
+        }
+        return;
+    }
+    for( int row = 0; row < cfg->shapes_and_model_count; row++ )
+        for( int k = 0; cfg->models && cfg->lengths && k < cfg->lengths[row]; k++ )
+            if( cfg->models[row][k] > 0 && !CacheProvider_ModelHas(app->provider, cfg->models[row][k]) )
+            {
+                struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, cfg->models[row][k]);
+                if( task )
+                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+                missing = 1;
+            }
+    if( missing )
+        return;
+
+    slot_w = APP_EDITOR_SHAPE_STRIP_W / count;
+    if( slot_w > APP_EDITOR_SHAPE_THUMB_H + 8 )
+        slot_w = APP_EDITOR_SHAPE_THUMB_H + 8;
+    strip_w = slot_w * count;
+    pixels = TORIDRAW_CALLOC((size_t)strip_w * APP_EDITOR_SHAPE_THUMB_H, sizeof(toripixel_t));
+    assert(pixels);
+    for( int i = 0; i < count; i++ )
+    {
+        int const model_shape = Editor_LocShapeModelShape(shapes[i]);
+        struct ToriDraw_ModelHandle parts[10];
+        struct ToriDraw_Model* models[10];
+        int n = 0;
+        for( int row = 0; row < cfg->shapes_and_model_count; row++ )
+        {
+            if( cfg->shapes ? cfg->shapes[row] != model_shape : row != 0 )
+                continue;
+            for( int k = 0; k < cfg->lengths[row] && n < 10; k++ )
+            {
+                struct ToriRS_Model* rs_model;
+                if( cfg->models[row][k] <= 0 )
+                    continue;
+                rs_model = CacheProvider_ModelGet(app->provider, cfg->models[row][k]);
+                assert(rs_model);
+                models[n] = ToriDraw_ModelFromToriRS(rs_model);
+                assert(models[n]);
+                for( int c = 0; c < cfg->recolor_count; c++ )
+                    ToriDraw_ModelRecolor(models[n], cfg->recolors_from[c], cfg->recolors_to[c]);
+                ToriDraw_ModelSetBoundsCylinder(models[n]);
+                ToriDraw_ModelDropNonSdTextures(app->provider, models[n]);
+                memset(&parts[n], 0, sizeof(parts[n]));
+                parts[n].kind = TORIDRAWMK_MODEL;
+                parts[n].u.model.model = models[n];
+                ToriDraw_LightModelScene(parts[n], cfg->contrast, cfg->ambient);
+                n++;
+            }
+        }
+        app_shape_thumb_raster(app, parts, n, pixels, strip_w, i * slot_w, slot_w, APP_EDITOR_SHAPE_THUMB_H,
+            shapes[i] == 11 ? 256 : 0);
+        for( int k = 0; k < n; k++ )
+            ToriDraw_ModelFree(models[k]);
+    }
+    argb = TORIDRAW_MALLOC((size_t)strip_w * APP_EDITOR_SHAPE_THUMB_H * sizeof(uint32_t));
+    assert(argb);
+    for( int i = 0; i < strip_w * APP_EDITOR_SHAPE_THUMB_H; i++ )
+    {
+        uint32_t const rgb = toripixel_to_argb8888(pixels[i]) & 0xFFFFFFu;
+        argb[i] = rgb ? (rgb | 0xFF000000u) : 0u;
+    }
+    TORIDRAW_FREE(pixels);
+    {
+        struct ToriDraw_Sprite** sprites = TORIDRAW_MALLOC(sizeof(*sprites)); /* SceneSpriteAdd frees it */
+        assert(sprites);
+        sprites[0] = ToriDraw_SpriteNewFromArgbOwned(argb, strip_w, APP_EDITOR_SHAPE_THUMB_H);
+        assert(sprites[0]);
+        if( ToriDraw_SceneSpriteHas(app->scene, APP_EDITOR_SHAPE_STRIP_SPRITE_ID) )
+            ToriDraw_SceneSpriteRemove(app->scene, APP_EDITOR_SHAPE_STRIP_SPRITE_ID);
+        ToriDraw_SceneSpriteAdd(app->scene, APP_EDITOR_SHAPE_STRIP_SPRITE_ID, sprites, 1);
+        ToriRSChrome_ModelViewSetSprite(
+            &app->dbg_ui, view, APP_EDITOR_SHAPE_STRIP_SPRITE_ID, strip_w, APP_EDITOR_SHAPE_THUMB_H);
+    }
+    last_loc = loc_id;
+    last_count = count;
+    memcpy(last_shapes, shapes, sizeof(int) * (size_t)count);
+    app->need_redraw = 1;
+}
+
 void
 app_map_editor_preview_update(struct App* app)
 {
@@ -2918,6 +3121,7 @@ app_map_editor_preview_update(struct App* app)
     int well_h;
 
     assert(app);
+    app_map_editor_shape_strip_update(app);
 
     if( !app->editor || !panel->visible || !panel->ui )
         return;

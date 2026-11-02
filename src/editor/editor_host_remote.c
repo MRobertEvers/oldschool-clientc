@@ -55,6 +55,10 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#endif
+
 #if !defined(_WIN32)
 #include <errno.h>
 #include <netdb.h>
@@ -95,7 +99,14 @@ struct maped_remote
     struct stashed_fact* stash_head;
     struct stashed_fact* stash_tail;
     /** FACT_HELLO's answer: whether the server can save its tree. */
+    /** The web build's io_server /maped/ session (0 = not that link). */
+    int web_session;
+    /** Bytes link_send held for the next fill's request (web). */
+    struct ToriRSMapEdBuf web_out;
     int writable;
+    /** FACT_HELLO's trailing reason when the server is read-only ("" when
+     *  writable, or from a server that does not say). */
+    char read_only_reason[1024];
     /** FACT_HELLO's answer: the Client (session group) this connection
      *  belongs to. State facts relay only within it. */
     uint32_t client_id;
@@ -145,6 +156,91 @@ live_keep(struct maped_remote* remote, uint32_t type, const uint8_t* body, uint3
     remote->live_tail = fact;
 }
 
+#if defined(__EMSCRIPTEN__)
+/*
+ * The web build's link to the daemon: io_server's /maped/ proxy
+ * (src/ioserver/io_maped_proxy.c), over SYNCHRONOUS XMLHttpRequests.
+ *
+ * Not the WebSocket the daemon speaks: this binding is request/reply
+ * (await_reply waits for its answer inside the C call), and a page without
+ * ASYNCIFY or threads receives a WebSocket's bytes only when it returns to the
+ * event loop -- which a waiting C call never does, so the answer could never
+ * arrive. A synchronous XHR is the one call a page can block in. The proxy
+ * lives on the page's own origin (torirs_host.js sets
+ * window.torirsMapedProxyBase), so there is no second port or CORS either.
+ *
+ * Bytes the proxy answered beyond what one read takes wait in
+ * Module.torirsMapedPending[session] for the next.
+ */
+EM_JS(int, maped_web_open, (int port), {
+    try {
+        var base = (typeof window !== 'undefined' && window.torirsMapedProxyBase) || 'maped';
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', base + '/open?port=' + port, false);
+        xhr.send();
+        if (xhr.status !== 200) {
+            console.error('map editor: ' + base + '/open answered ' + xhr.status + ': ' + xhr.responseText);
+            return -1;
+        }
+        return parseInt(xhr.responseText, 10) || -1;
+    } catch (e) {
+        console.error('map editor: the editor daemon proxy did not answer: ' + e);
+        return -1;
+    }
+});
+
+EM_JS(int, maped_web_io, (int session, const unsigned char* out, int out_len, int wait_ms, unsigned char* dst,
+                             int dst_cap), {
+    Module.torirsMapedPending = Module.torirsMapedPending || {};
+    var pending = Module.torirsMapedPending[session];
+    /* wait_ms < 0: only what an earlier answer left over, no request. */
+    if (wait_ms >= 0 && (!(pending && pending.length) || out_len > 0)) {
+        try {
+            var base = (typeof window !== 'undefined' && window.torirsMapedProxyBase) || 'maped';
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', base + '/io?s=' + session + '&wait=' + wait_ms, false);
+            xhr.overrideMimeType('text/plain; charset=x-user-defined');
+            xhr.send(out_len > 0 ? HEAPU8.slice(out, out + out_len) : null);
+            if (xhr.status === 410) { return -1; }
+            if (xhr.status !== 200) {
+                console.error('map editor: ' + base + '/io answered ' + xhr.status);
+                return -1;
+            }
+            var text = xhr.responseText;
+            if (text.length) {
+                var bytes = new Uint8Array(text.length);
+                for (var i = 0; i < text.length; i++) { bytes[i] = text.charCodeAt(i) & 0xff; }
+                if (pending && pending.length) {
+                    var joined = new Uint8Array(pending.length + bytes.length);
+                    joined.set(pending, 0);
+                    joined.set(bytes, pending.length);
+                    bytes = joined;
+                }
+                pending = bytes;
+            }
+        } catch (e) {
+            console.error('map editor: the editor daemon proxy did not answer: ' + e);
+            return -1;
+        }
+    }
+    if (!(pending && pending.length)) { Module.torirsMapedPending[session] = null; return 0; }
+    var take = Math.min(pending.length, dst_cap);
+    HEAPU8.set(pending.subarray(0, take), dst);
+    Module.torirsMapedPending[session] = take < pending.length ? pending.slice(take) : null;
+    return take;
+});
+
+EM_JS(void, maped_web_close, (int session), {
+    try {
+        var base = (typeof window !== 'undefined' && window.torirsMapedProxyBase) || 'maped';
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', base + '/close?s=' + session, false);
+        xhr.send();
+    } catch (e) { /* the page is going away */ }
+    if (Module.torirsMapedPending) { Module.torirsMapedPending[session] = null; }
+});
+#endif
+
 static int
 link_send(
     struct maped_remote* remote,
@@ -153,6 +249,18 @@ link_send(
 {
     assert(remote);
     assert(data || len == 0);
+
+#if defined(__EMSCRIPTEN__)
+    /* Held until the next fill, which sends it with its one request. A
+     * session that died (-1) takes nothing. */
+    if( remote->web_session < 0 )
+        return 0;
+    if( remote->web_session > 0 )
+    {
+        ToriRSMapEd_BufWrite(&remote->web_out, data, len);
+        return 1;
+    }
+#endif
 
 #if !defined(TORIRS_MAPED_NO_EMBED)
     if( remote->embed )
@@ -207,6 +315,40 @@ link_fill(
         {
             ToriRSMapEd_BufWrite(&remote->in, chunk, taken);
             got = 1;
+        }
+        if( taken < 0 && !got )
+            return -1;
+        return got;
+    }
+#endif
+
+#if defined(__EMSCRIPTEN__)
+    /* The proxy or the daemon went away once: say so once, and never ask
+     * again (a request per frame per window, each failing, flooded the
+     * console when io_server stopped). */
+    if( remote->web_session < 0 )
+        return -1;
+    if( remote->web_session > 0 )
+    {
+        int const out_len = ToriRSMapEd_BufAvailable(&remote->web_out);
+        int taken = maped_web_io(remote->web_session, out_len > 0 ? ToriRSMapEd_BufPeek(&remote->web_out) : chunk,
+            out_len, timeout_ms, chunk, (int)sizeof(chunk));
+        int got = 0;
+        if( out_len > 0 )
+            ToriRSMapEd_BufConsume(&remote->web_out, out_len);
+        while( taken > 0 )
+        {
+            ToriRSMapEd_BufWrite(&remote->in, chunk, taken);
+            got = 1;
+            taken = maped_web_io(remote->web_session, chunk, 0, -1, chunk, (int)sizeof(chunk));
+            if( taken <= 0 )
+                break;
+        }
+        if( taken < 0 )
+        {
+            TORIRS_ERR("editor: the map-editor daemon (through this page's io_server) is gone; reload the "
+                       "page once it runs again\n");
+            remote->web_session = -1;
         }
         if( taken < 0 && !got )
             return -1;
@@ -718,6 +860,17 @@ remote_free(void* user_data)
             ToriRSMapEd_EmbedStop(remote->embed);
     }
 #endif
+#if defined(__EMSCRIPTEN__)
+    if( remote->web_session > 0 )
+    {
+        (void)link_fill(remote, 0); /* sends the BYE */
+    }
+    if( remote->web_session > 0 )
+    {
+        maped_web_close(remote->web_session);
+    }
+    ToriRSMapEd_BufFree(&remote->web_out);
+#endif
 #if !defined(_WIN32)
     if( remote->fd >= 0 )
         close(remote->fd);
@@ -851,7 +1004,7 @@ hello(
      * version check below. */
     fact = await_reply(
         remote, REMOTE_OP_TIMEOUT_MS, TORIRSMAPED_FACT_HELLO, 0, &fact_type, &fact_length);
-    if( !fact || (fact_length != 12 && fact_length != 16) )
+    if( !fact || (fact_length != 12 && fact_length < 16) )
     {
         if( fact )
             frame_done(remote, fact_length);
@@ -860,7 +1013,17 @@ hello(
     version = ToriRSMapEd_ReadU32(fact);
     remote->writable = (int)ToriRSMapEd_ReadU32(fact + 4);
     remote->client_id = ToriRSMapEd_ReadU32(fact + 8);
-    remote->capabilities = fact_length == 16 ? ToriRSMapEd_ReadU32(fact + 12) : 0;
+    remote->capabilities = fact_length >= 16 ? ToriRSMapEd_ReadU32(fact + 12) : 0;
+    remote->read_only_reason[0] = '\0';
+    if( fact_length > 16 )
+    {
+        /* A read-only server's reason: who holds its tree. */
+        struct ToriRSMapEdReader reader;
+        ToriRSMapEd_ReaderInit(&reader, fact + 16, fact_length - 16);
+        ToriRSMapEd_GetString(&reader, remote->read_only_reason, sizeof(remote->read_only_reason));
+        if( !ToriRSMapEd_ReaderDone(&reader) )
+            remote->read_only_reason[0] = '\0';
+    }
     frame_done(remote, fact_length);
     if( version != TORIRSMAPED_PROTO_VERSION )
     {
@@ -884,6 +1047,20 @@ Editor_HostOpenMapEdEmbed(
 
     assert(host);
     assert(content_dir);
+
+#if defined(__EMSCRIPTEN__)
+    /* A page has no filesystem: an in-page ToriRSMapEd could not save the
+     * content tree, hold its lock, build packs or RUN -- a read-only editor
+     * over an empty MEMFS. The web editor is a client of the NATIVE daemon,
+     * always (owner, 2026-11-02): the page boots with --maped ws://<its
+     * host>:43610/ (src/web/torirs_host.js), and a boot without one ends
+     * here, saying how to start it. */
+    TORIRS_ERR("editor: the web editor attaches to the native torirsmaped daemon over WebSocket; this "
+               "page booted without one (no --maped). Start it: ./launch run osrs241-mapeditor-web\n");
+    (void)repo_root;
+    (void)remote;
+    return 0;
+#endif
 
     remote = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*remote));
     remote->fd = -1;
@@ -988,6 +1165,39 @@ Editor_HostOpenMapEdTcp(
     if( port <= 0 )
         port = TORIRSMAPED_DEFAULT_PORT;
 
+#if defined(__EMSCRIPTEN__)
+    /* The page's io_server proxies to the daemon on its own machine (see
+     * maped_web_open): `server_host` is only the label here. */
+    {
+        int const session = maped_web_open(port);
+        (void)hints;
+        (void)found;
+        (void)port_text;
+        (void)fd;
+        if( session <= 0 )
+        {
+            TORIRS_ERR("editor: the page's io_server reaches no torirsmaped on port %d (start it: ./launch run "
+                       "osrs241-mapeditor-web)\n",
+                port);
+            return 0;
+        }
+        remote = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*remote));
+        remote->fd = -1;
+        remote->web_session = session;
+        if( !hello(remote, (uint32_t)role, join_group) )
+        {
+            maped_web_close(session);
+            ToriRSMapEd_BufFree(&remote->web_out);
+            ToriRSMapEd_BufFree(&remote->in);
+            ToriMem_Free(ToriMem_Editor(), remote);
+            return 0;
+        }
+        host->vtable = &remote_vtable;
+        host->user_data = remote;
+        return 1;
+    }
+#endif
+
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
@@ -1047,6 +1257,12 @@ int
 Editor_HostMapEdWritable(const struct EditorHost* host)
 {
     return as_remote(host)->writable;
+}
+
+const char*
+Editor_HostMapEdReadOnlyReason(const struct EditorHost* host)
+{
+    return as_remote(host)->read_only_reason;
 }
 
 uint32_t

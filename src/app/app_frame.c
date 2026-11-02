@@ -8,6 +8,7 @@
  */
 
 #include "mem/torirs_mem.h"
+#include "app/app_catalog_palette.h"
 #include "app/app_iface_editor.h"
 #include "app/app_internal.h"
 #include "perf_audit.h"
@@ -820,6 +821,8 @@ App_RunOnce(
         app_map_editor_world_click(app, input);
         app_map_editor_ghost_update(app);
         app_map_editor_preview_update(app);
+        /* The Catalog palette's slot thumbnails (app_catalog_palette.c). */
+        app_catalog_palette_update(app);
         app_map_editor_open_pending_square(app);
         app_map_editor_drain(app);
     }

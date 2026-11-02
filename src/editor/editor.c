@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "editor_areas.h"
+#include "editor_palette.h"
 #include "log/torirs_log.h"
 
 int
@@ -39,8 +40,12 @@ Editor_OpenHost(
     editor->writable = Editor_HostMapEdWritable(&editor->host);
     editor->capabilities = Editor_HostMapEdCapabilities(&editor->host);
     if( !editor->writable )
-        TORIRS_LOG("editor: another server holds %s — opening read-only\n",
-            label);
+    {
+        snprintf(editor->read_only_reason, sizeof(editor->read_only_reason), "%s",
+            Editor_HostMapEdReadOnlyReason(&editor->host));
+        TORIRS_LOG("editor: %s is read-only: %s\n", label,
+            editor->read_only_reason[0] ? editor->read_only_reason : "another server holds its tree");
+    }
 
     /* The named areas and square collections (editor_areas.h): one small
      * document every window of every Client mirrors from the start, so the
@@ -48,6 +53,10 @@ Editor_OpenHost(
      * predates the kind refuses it; the session runs without areas. */
     if( !Editor_OpenDoc(editor, EDITOR_DOC_AREAS, EDITOR_AREAS_DOC_KEY) )
         TORIRS_LOG("editor: %s serves no areas document; named areas are off\n", label);
+    /* The catalog palettes (editor_palette.h), mirrored the same way so the
+     * Catalog palette panel of every window shows the same strips. */
+    if( !Editor_OpenDoc(editor, EDITOR_DOC_PALETTES, EDITOR_PALETTES_DOC_KEY) )
+        TORIRS_LOG("editor: %s serves no palettes document; catalog palettes are off\n", label);
 
     return 1;
 }

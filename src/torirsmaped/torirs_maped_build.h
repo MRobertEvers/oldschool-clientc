@@ -355,6 +355,20 @@ ToriRSMapEd_BuildServPackDiff(
     const struct ToriRSMapEdBuildSink* sink,
     int* out_groups);
 
+/**
+ * The line of a failed build's output that says why, out of its last
+ * `count` lines (oldest first): the newest line that reads as an error
+ * ("error", "failed", "refus", "cannot", "missing", "not found"), skipping
+ * make's own "make: *** [...] Error N" and "== step" banners; else the newest
+ * line that is neither. 0 (and `out` "") when no line qualifies.
+ */
+int
+ToriRSMapEd_BuildFailureLine(
+    const char* const* lines,
+    int count,
+    char* out,
+    size_t out_size);
+
 /** A tool line that names a rebuilt unit ("compiled  <path> — why",
  *  "cachepack: repacked <type> — why"): copies the unit into `out` and
  *  returns 1, else 0. */

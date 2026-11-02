@@ -206,6 +206,11 @@ EditorLayout_Decode(
                     p->has_h = 1;
                     p->h = v;
                 }
+                else if( strcmp(key, "maximised") == 0 )
+                {
+                    p->has_maximised = 1;
+                    p->maximised = v ? 1 : 0;
+                }
             }
         }
     }
@@ -218,9 +223,9 @@ EditorLayout_Encode(
     char** out_data,
     int* out_size)
 {
-    /* Bounded: a header, and per panel one section line and six short
+    /* Bounded: a header, and per panel one section line and seven short
      * `key = int` lines. */
-    int const cap = 1024 + EDITOR_LAYOUT_PANELS_MAX * (EDITOR_LAYOUT_NAME_MAX + 6 * 32 + 16);
+    int const cap = 1024 + EDITOR_LAYOUT_PANELS_MAX * (EDITOR_LAYOUT_NAME_MAX + 7 * 32 + 16);
     char* text;
     int len = 0;
 
@@ -238,6 +243,7 @@ EditorLayout_Encode(
         "; Geometry is in chrome pixels at scale 1. On the same surface and scale every\n"
         "; panel gets its x/y/w/h back; on another surface only panels with\n"
         "; user_placed = 1 do, and the rest are placed by the default layout for it.\n"
+        "; maximised = 1: drawn over the dock, x/y/w/h being the box it restores to.\n"
         "\n[layout]\n"
         "version = %d\n"
         "surface_w = %d\n"
@@ -262,6 +268,8 @@ EditorLayout_Encode(
             len += snprintf(text + len, (size_t)(cap - len), "w = %d\n", p->w);
         if( p->has_h )
             len += snprintf(text + len, (size_t)(cap - len), "h = %d\n", p->h);
+        if( p->has_maximised )
+            len += snprintf(text + len, (size_t)(cap - len), "maximised = %d\n", p->maximised ? 1 : 0);
     }
     assert(len < cap);
     *out_data = text;

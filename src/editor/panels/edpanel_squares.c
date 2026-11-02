@@ -882,9 +882,32 @@ squares_event(
             self->dirty = 1;
         break;
     case TORIRS_CHROME_EVENT_GRAPH_WHEEL:
+        /* A mouse wheel: x1.25 a notch about the cursor. */
         Editor_PickerZoom(picker, event->value, event->x, event->y);
         self->user_view = 1;
         self->dirty = 1;
+        break;
+    case TORIRS_CHROME_EVENT_GRAPH_PINCH:
+        /* A pinch (or ctrl+wheel): continuous, by exactly its ratio, about
+         * its centre -- a 2x spread is a 2x zoom. */
+        if( event->value > 0 )
+        {
+            Editor_PickerZoomTo(
+                picker, picker->zoom * ((double)event->value / 65536.0), event->x, event->y);
+            self->user_view = 1;
+            self->dirty = 1;
+        }
+        break;
+    case TORIRS_CHROME_EVENT_GRAPH_SCROLL:
+        /* A two-finger scroll pans, never zooms: the map moves the way the
+         * platform scrolls a document (its natural-scrolling setting is in
+         * the deltas already), so scroll up moves the map down. */
+        if( event->dx != 0 || event->dy != 0 )
+        {
+            Editor_PickerPanBy(picker, -(double)event->dx / 256.0, (double)event->dy / 256.0);
+            self->user_view = 1;
+            self->dirty = 1;
+        }
         break;
     case TORIRS_CHROME_EVENT_GRAPH_KEY:
     {

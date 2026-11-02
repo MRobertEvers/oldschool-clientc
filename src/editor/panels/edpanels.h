@@ -751,4 +751,75 @@ Editor_Hotkeys_Feed(
     struct EditorUi* ui,
     const struct Editor_HotkeyInput* input);
 
+/* ---- the Catalog palette (edpanel_catalog_palette.c) ----------------------
+ *
+ * Named strips of up to ten loc / npc / obj records over the PALETTES
+ * document (editor/editor_palette.h) every window mirrors: click a slot to
+ * make it the catalog pick and arm Place. App-bound (it picks through the
+ * Catalog). "catalog_palette" */
+
+/** Thumbnail cache entries; the App draws entry `slot` as scene sprite
+ *  EDITOR_CATALOG_PALETTE_SCENE_BASE + slot, EDITOR_CATALOG_PALETTE_THUMB_PX
+ *  square (one size, so an atlas renderer reuses its place). */
+#define EDITOR_CATALOG_PALETTE_THUMBS 32
+#define EDITOR_CATALOG_PALETTE_THUMB_PX 64
+/** Free in engine/uitree_scene_bridge.h's registry: past the picker map's
+ *  80 slots at 0x4C000000. */
+#define EDITOR_CATALOG_PALETTE_SCENE_BASE 0x4C001000
+
+void
+Editor_CatalogPalette_Register(struct EditorUi* ui);
+
+/** Slot `slot` (1..10) of the shown palette, as a click on it: the catalog
+ *  pick (published) and the Place tool armed, a loc with the slot's pose.
+ *  0 (said in the console) when the slot is empty or the catalog has no
+ *  such record. */
+int
+Editor_CatalogPalette_UseSlot(
+    struct EditorUi* ui,
+    int slot);
+
+/** The catalog's pick into slot `slot` (1..10, replacing what it held) of the
+ *  shown palette, or `slot` 0: the first free one; a loc with the Place
+ *  tool's pose. No palette yet: a new one, "Palette 1". Returns the slot it
+ *  went to, 0 when it did not (said in the console). */
+int
+Editor_CatalogPalette_AddPick(
+    struct EditorUi* ui,
+    int slot);
+
+/** Show palette `name`. 0 when there is no such palette. */
+int
+Editor_CatalogPalette_Show(
+    struct EditorUi* ui,
+    const char* name);
+
+/** Show the next (`step` 1) or previous (-1) palette, wrapping. 0 when there
+ *  is no other palette. */
+int
+Editor_CatalogPalette_Step(
+    struct EditorUi* ui,
+    int step);
+
+/** The shown palette's name, "" when none. */
+const char*
+Editor_CatalogPalette_Current(struct EditorUi* ui);
+
+/** For the App: a thumbnail the strip wants drawn (record `kind` / `id` into
+ *  cache entry `slot`). 0 when none is wanted or the panel is closed. */
+int
+Editor_CatalogPalette_ThumbWanted(
+    struct EditorUi* ui,
+    int* out_kind,
+    int* out_id,
+    int* out_slot);
+
+/** The App drew cache entry `slot` as scene sprite `scene_id` (0: the record
+ *  has no model; the cell keeps its name). */
+void
+Editor_CatalogPalette_ThumbDone(
+    struct EditorUi* ui,
+    int slot,
+    int scene_id);
+
 #endif

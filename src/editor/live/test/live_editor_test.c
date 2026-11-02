@@ -528,6 +528,7 @@ main(
     struct ToriRSMapEdLiveLink link;
     static struct conn a;
     static struct conn b;
+    static struct conn ro;
     struct ToriRSMapEdBuf payload;
     int port;
     pid_t peer = -1;
@@ -552,8 +553,9 @@ main(
     snprintf(g_peer_log, sizeof(g_peer_log), "%s/peer.log", scratch);
     setenv("MOCK_PEER_LOG", g_peer_log, 1);
     unsetenv("MOCK_PEER_TICKET");
-    /* Open must not bind the native runner from the caller's environment. */
-    unsetenv("TORIRSMAPED_LIVE_DIR");
+    /* Open must not bind the native runner from the caller's environment:
+     * empty is "no lane" (unset means the repo's build/live/default). */
+    setenv("TORIRSMAPED_LIVE_DIR", "", 1);
     memset(&payload, 0, sizeof(payload));
 
     /* ---- pure pieces ---------------------------------------------------- */
@@ -643,6 +645,24 @@ main(
         check(!ToriRSMapEd_BuildLineUnit("Server pack: 1 type(s) repacked", unit, sizeof(unit)),
             "unit: a summary is not a unit");
         {
+            static const char* const failed[] = { "== script pack (base) -> live/scripts",
+                "compiled  server/scripts/a.rs2 — edited",
+                "sscompile: quests/quest_wanted/configs/wanted.varp:4: varp9514 lacks clientcode",
+                "build_packs: script pack failed", "make[1]: *** [torirsserver-packs] Error 1",
+                "make: *** [torirsserver-packs] Error 2" };
+            static const char* const quiet[] = { "== packs", "progress 50%", "make: *** [x] Error 2" };
+            char why[256];
+            check(ToriRSMapEd_BuildFailureLine(failed, 6, why, sizeof(why))
+                      && strcmp(why, "build_packs: script pack failed") == 0,
+                "failure line: the newest error line, make's own skipped");
+            check(ToriRSMapEd_BuildFailureLine(failed, 3, why, sizeof(why)) && strstr(why, "wanted.varp"),
+                "failure line: the compiler's line when it is the newest error");
+            check(ToriRSMapEd_BuildFailureLine(quiet, 3, why, sizeof(why)) && strcmp(why, "progress 50%") == 0,
+                "failure line: no error word, the newest real line");
+            check(!ToriRSMapEd_BuildFailureLine(quiet, 1, why, sizeof(why)) && why[0] == '\0',
+                "failure line: only banners, none");
+        }
+        {
             struct ToriRSMapEdBuildSink sink;
             memset(&sink, 0, sizeof(sink));
             sink.archive = changed_archive;
@@ -667,10 +687,83 @@ main(
     }
 
     /* ---- the server, a test runner, the native link ------------------------- */
+    /* ---- the content-tree lock: a dead holder's is taken, a live one named ---- */
+    {
+        pid_t dead = fork();
+        FILE* lock;
+        int status_dead = 0;
+        assert(dead >= 0);
+        if( dead == 0 )
+            _exit(0);
+        waitpid(dead, &status_dead, 0);
+        snprintf(path, sizeof(path), "%s/.editor-session.lock", content);
+        lock = fopen(path, "wb");
+        assert(lock);
+        fprintf(lock, "pid %ld\nsince %lld\ncmd /x/src/torirs --manifest crashed.ini\n", (long)dead,
+            (long long)time(NULL) - 3600);
+        fclose(lock);
+    }
     maped = calloc(1, sizeof(*maped));
     assert(maped);
     ToriRSMapEd_Open(maped, content, repo_root);
+    check(maped->writable, "lock: a lockfile whose pid no longer runs is taken (stale)");
+    {
+        FILE* lock = fopen(path, "rb");
+        char text[512] = "";
+        char want[64];
+        if( lock )
+        {
+            size_t got = fread(text, 1, sizeof(text) - 1, lock);
+            text[got] = '\0';
+            fclose(lock);
+        }
+        snprintf(want, sizeof(want), "pid %ld\nsince ", (long)getpid());
+        check(strncmp(text, want, strlen(want)) == 0 && strstr(text, "\ncmd ") != NULL,
+            "lock: the new lockfile names this pid, a start time and a command line");
+        check(maped->read_only_reason[0] == '\0', "lock: a writable server has no read-only reason");
+    }
     check(!(maped->capabilities & TORIRSMAPED_CAP_BUILD), "no runner until one is bound");
+    {
+        /* A second server on the same tree: the holder (this process) is live,
+         * so it serves read-only and names it -- in its HELLO and in RUN. */
+        struct ToriRSMapEd* second = calloc(1, sizeof(*second));
+        char want[160];
+        assert(second);
+        ToriRSMapEd_Open(second, content, repo_root);
+        snprintf(want, sizeof(want), "is held by pid %ld (", (long)getpid());
+        check(!second->writable && strstr(second->read_only_reason, want) && strstr(second->read_only_reason, content)
+                  && strstr(second->read_only_reason, "since "),
+            "lock: a live holder is reported by pid, command and start");
+        if( !strstr(second->read_only_reason, want) )
+            fprintf(stderr, "  reason: %s\n", second->read_only_reason);
+        conn_open(&ro, second);
+        g_conns[g_conn_count++] = &ro;
+        hello(&ro);
+        at = wait_fact(&ro, TORIRSMAPED_FACT_HELLO, 2000);
+        check(at >= 0 && ro.facts[at].length > 16 && fact_u32(&ro.facts[at], 1) == 0, "lock: HELLO says read-only");
+        if( at >= 0 && ro.facts[at].length > 16 )
+        {
+            struct ToriRSMapEdReader reader;
+            char reason[1024];
+            ToriRSMapEd_ReaderInit(&reader, ro.facts[at].data + 16, ro.facts[at].length - 16);
+            ToriRSMapEd_GetString(&reader, reason, sizeof(reason));
+            check(ToriRSMapEd_ReaderDone(&reader) && strstr(reason, want), "lock: HELLO carries who holds the tree");
+        }
+        mark(&ro);
+        send_live(&ro, TORIRSMAPED_REQ_RUN, &payload);
+        at = wait_run_done(&ro, &status, &step);
+        check(at >= 0 && status == EDITOR_HOST_LOCKED && step == TORIRSMAPED_RUN_STEP_SAVE
+                  && strstr(ro.model.run_message, "read-only: ") && strstr(ro.model.run_message, want)
+                  && strstr(ro.model.run_message, "run this window against the daemon"),
+            "lock: a read-only RUN names the holder and what to do");
+        if( !strstr(ro.model.run_message, want) )
+            fprintf(stderr, "  run: %s\n", ro.model.run_message);
+        g_conn_count--;
+        ToriRSMapEd_SessionFree(&ro.session);
+        ToriRSMapEd_Close(second);
+        free(second);
+        check(access(path, F_OK) == 0, "lock: the read-only server leaves the holder's lock alone");
+    }
     mock = calloc(1, sizeof(*mock));
     assert(mock);
     mock->lane = lane;
@@ -918,15 +1011,39 @@ main(
         int const reloads_before = peer_count("\"reload\"");
         mark(&a);
         mock->command_count = 0;
+        static const char* const failing_lines[] = { "== script pack (base) -> live/scripts",
+            "sscompile: quests/quest_wanted/configs/wanted.varp:4: varp9514 lacks clientcode",
+            "make[1]: *** [torirsserver-packs] Error 1", "make: *** [torirsserver-packs] Error 2" };
+        const char* const* const ok_lines = mock->scripts[TORIRSMAPED_BUILD_PACKS].lines;
+        int const ok_count = mock->scripts[TORIRSMAPED_BUILD_PACKS].line_count;
+        mock->scripts[TORIRSMAPED_BUILD_PACKS].lines = failing_lines;
+        mock->scripts[TORIRSMAPED_BUILD_PACKS].line_count = 4;
         mock->scripts[TORIRSMAPED_BUILD_PACKS].status = EDITOR_HOST_BAKE_FAILED;
         send_live(&a, TORIRSMAPED_REQ_RUN, &payload);
         at = wait_run_done(&a, &status, &step);
         check(at >= 0 && status == EDITOR_HOST_BAKE_FAILED && step == TORIRSMAPED_RUN_STEP_PACKS,
             "fail packs: RUN stops at packs");
+        check(strstr(a.model.run_message, "wanted.varp:4: varp9514 lacks clientcode")
+                  && strstr(a.model.run_message, "nothing was launched"),
+            "fail packs: the RUN message names the failing line, not make's");
+        if( !strstr(a.model.run_message, "wanted.varp") )
+            fprintf(stderr, "  run: %s\n", a.model.run_message);
+        {
+            int found = 0;
+            for( int i = 0; i < a.model.log_count && i < 12; i++ )
+            {
+                const char* text = Editor_LiveLogLine(&a.model, i);
+                if( text && strstr(text, "> ") == text && strstr(text, "  sscompile: quests/quest_wanted") )
+                    found = 1;
+            }
+            check(found, "fail packs: the build's last lines are repeated at the end of the log");
+        }
         check(mock->command_count == 1, "fail packs: no client cache build started");
         pump_for(200);
         check(peer_count("\"reload\"") == reloads_before, "fail packs: no RELOAD sent");
         check(a.model.pending_spawns == 1, "fail packs: the spawn file stays pending");
+        mock->scripts[TORIRSMAPED_BUILD_PACKS].lines = ok_lines;
+        mock->scripts[TORIRSMAPED_BUILD_PACKS].line_count = ok_count;
         mock->scripts[TORIRSMAPED_BUILD_PACKS].status = EDITOR_HOST_OK;
 
         mark(&a);
@@ -1020,6 +1137,7 @@ main(
         struct ToriRSMapEdLane launch_lane = lane;
         struct ToriRSMapEdLiveLink launch_link;
         int pids[3];
+        FILE* f;
         port = free_port();
         unsetenv("MOCK_PEER_TICKET");
         unlink(g_peer_log);
@@ -1031,6 +1149,84 @@ main(
         check(ToriRSMapEd_SetLane(maped, &launch_lane), "launch: lane rebound");
         check(ToriRSMapEd_LiveLinkNative(&launch_link, &launch_lane), "launch: native link");
         ToriRSMapEd_SetLiveLink(maped, &launch_link);
+
+        /* A lane RUN never built is not launched: the server would die at
+         * once on a missing server pack. */
+        mark(&a);
+        Editor_LiveEncodeAttach(&payload, 1, "", "");
+        send_live(&a, TORIRSMAPED_REQ_LIVE_ATTACH, &payload);
+        pump_for(300);
+        check(a.model.state != TORIRSMAPED_LIVE_ATTACHED && a.model.state != TORIRSMAPED_LIVE_CONNECTING
+                  && strstr(a.model.message, "the lane has not been built") && strstr(a.model.message, "press RUN"),
+            "launch: an unbuilt lane is refused with what to do");
+        if( !strstr(a.model.message, "the lane has not been built") )
+            fprintf(stderr, "  status: %s\n", a.model.message);
+        snprintf(path, sizeof(path), "%s/servpack", live);
+        mkdir(path, 0755);
+        snprintf(path, sizeof(path), "%s/servpack/pack.manifest", live);
+        f = fopen(path, "wb");
+        assert(f);
+        fclose(f);
+        snprintf(path, sizeof(path), "%s/scripts", live);
+        mkdir(path, 0755);
+        snprintf(path, sizeof(path), "%s/scripts/pack.manifest", live);
+        f = fopen(path, "wb");
+        assert(f);
+        fclose(f);
+        snprintf(path, sizeof(path), "%s/cache", live);
+        mkdir(path, 0755);
+
+        /* A launched server that exits before it answers: its log's last
+         * lines reach the panel, and the status says why. */
+        {
+            struct ToriRSMapEdLane dying_lane = launch_lane;
+            struct ToriRSMapEdLiveLink dying_link;
+            snprintf(path, sizeof(path), "%s/dying_server.sh", scratch);
+            f = fopen(path, "wb");
+            assert(f);
+            fputs("#!/bin/sh\necho \"torirsserver: booting on port $1\"\n"
+                  "echo \"torirsserver: no server pack at $TORIRSSERVER_PACK_DIR -- run the packs build\"\nexit 1\n",
+                f);
+            fclose(f);
+            chmod(path, 0755);
+            snprintf(dying_lane.server_bin, sizeof(dying_lane.server_bin), "%s", path);
+            dying_lane.js5_bin[0] = '\0';
+            check(ToriRSMapEd_SetLane(maped, &dying_lane), "dying: lane rebound");
+            check(ToriRSMapEd_LiveLinkNative(&dying_link, &dying_lane), "dying: native link");
+            ToriRSMapEd_SetLiveLink(maped, &dying_link);
+            mark(&a);
+            Editor_LiveEncodeAttach(&payload, 1, "", "");
+            send_live(&a, TORIRSMAPED_REQ_LIVE_ATTACH, &payload);
+            {
+                int64_t const deadline = now_ms() + 10000;
+                while( a.model.state != TORIRSMAPED_LIVE_FAILED && now_ms() < deadline )
+                {
+                    pump();
+                    usleep(5000);
+                }
+            }
+            check(a.model.state == TORIRSMAPED_LIVE_FAILED && strstr(a.model.message, "exited (status 1)")
+                      && strstr(a.model.message, "no server pack at"),
+                "dying: the status names the exit and the server's own last line");
+            if( !strstr(a.model.message, "no server pack at") )
+                fprintf(stderr, "  status: %s\n", a.model.message);
+            {
+                int found = 0;
+                for( int i = 0; i < a.model.log_count && i < 8; i++ )
+                {
+                    const char* text = Editor_LiveLogLine(&a.model, i);
+                    if( text && strstr(text, "torirsserver: booting on port") )
+                        found = 1;
+                }
+                check(found, "dying: the server log's last lines are in the panel's log");
+            }
+            /* SetLiveLink freed launch_link's binding when dying_link
+             * replaced it: make a new one. */
+            ToriRSMapEd_SetLane(maped, &launch_lane);
+            check(ToriRSMapEd_LiveLinkNative(&launch_link, &launch_lane), "launch: native link again");
+            ToriRSMapEd_SetLiveLink(maped, &launch_link);
+        }
+
         mark(&a);
         Editor_LiveEncodeAttach(&payload, 1, "", "");
         send_live(&a, TORIRSMAPED_REQ_LIVE_ATTACH, &payload);

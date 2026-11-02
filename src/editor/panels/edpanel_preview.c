@@ -17,6 +17,8 @@
  *              (app_editor_hotkeys.c: a focused model view gates them).
  *   Reset view the camera back to the default pose and a fresh fit
  *              (EditorUiAppServices.preview_invalidate).
+ *   Add to palette  the pick into the Catalog palette's first free slot
+ *              (edpanel_catalog_palette.c).
  *
  * It follows the SHARED pick, so a popped-out Preview (its own process, solo
  * layout) shows what the main window's Catalog picks: the Catalog publishes
@@ -72,6 +74,8 @@ struct PreviewPanel
     int row_subject;
     int view;
     int item_reset;
+    /** The pick into the Catalog palette's first free slot. */
+    int item_add_palette;
 
     /** The subject the row last named (kind, id, the pick's name). */
     int shown_kind;
@@ -362,6 +366,11 @@ preview_activate(
 {
     struct PreviewPanel* self = opaque;
 
+    if( widget == self->item_add_palette )
+    {
+        (void)Editor_CatalogPalette_AddPick(ui, 0);
+        return 1;
+    }
     if( widget == self->item_reset )
     {
         if( ui->app_services.preview_invalidate )
@@ -409,6 +418,7 @@ Editor_Preview_Register(struct EditorUi* ui)
     assert(self->view >= 0);
     ToriRSChrome_SetTooltip(chrome, self->view, "click, then WASD / arrows orbit, E / F zoom");
     self->item_reset = ToriRSChrome_MenuItem(chrome, self->panel, "Reset view");
+    self->item_add_palette = ToriRSChrome_MenuItem(chrome, self->panel, "Add to palette");
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);
     ToriRSChrome_PanelSetVisible(chrome, self->panel, 0);
 

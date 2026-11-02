@@ -35,6 +35,11 @@
 #      `areas` prints the records, area-remove + undo restores the row, save
 #      writes the file with its header, and removing everything then saving
 #      removes the file.
+#  10. The catalog palettes (editor/palettes.txt): palette-set 0 fills the
+#      first free slot (with a pose), a held slot is replaced, slot 11 is
+#      refused, `palettes` lists, rename moves every line, palette-remove of a
+#      slot + undo, save writes the file with its header, palette-remove with
+#      no slot deletes the palette and the emptied file goes on save.
 #
 # Document facts (FACT_CMD/FACT_SAVED) are proven in test-torirsmaped-embed,
 # which has real mirror documents to apply them to; this script covers what
@@ -300,6 +305,39 @@ contains "$AREAS_FILE" "area Yard | level all | rects 3210 3215 3220 3222" "the 
 contains "$SCRATCH/crm.log" "Delete collection Lumbridge" "collection-remove deletes it"
 "$CTL" --port "$PORT" save > /dev/null 2>&1 || true
 check "$( [ ! -e "$AREAS_FILE" ] && echo 1 )" "removing every record and saving removes the file"
+
+# 10. The catalog palettes.
+PALETTES_FILE="$SCRATCH/editor/palettes.txt"
+"$CTL" --port "$PORT" palette-set Lumbridge 0 loc:tree > "$SCRATCH/pset.log" 2>&1 || true
+contains "$SCRATCH/pset.log" "Add tree to palette Lumbridge slot 1" "palette-set 0 fills the first free slot"
+"$CTL" --port "$PORT" palette-set Lumbridge 0 loc:oaktree shape 10 rot 2 > "$SCRATCH/pset2.log" 2>&1 || true
+contains "$SCRATCH/pset2.log" "Add oaktree to palette Lumbridge slot 2" "then the next one, with a pose"
+"$CTL" --port "$PORT" palette-set Lumbridge 2 npc:hans > "$SCRATCH/pset3.log" 2>&1 || true
+contains "$SCRATCH/pset3.log" "Replace oaktree with hans in palette Lumbridge slot 2" "a held slot is replaced"
+if "$CTL" --port "$PORT" palette-set Lumbridge 11 loc:tree > "$SCRATCH/pbad.log" 2>&1; then
+    check 0 "slot 11 is refused"
+else
+    check 1 "slot 11 is refused"
+fi
+"$CTL" --port "$PORT" palettes > "$SCRATCH/palettes.log" 2>&1 || true
+contains "$SCRATCH/palettes.log" "1 palette(s)" "palettes counts them"
+contains "$SCRATCH/palettes.log" "palette Lumbridge | slot 2 | npc:hans" "palettes lists the slots"
+"$CTL" --port "$PORT" palette-set Lumbridge rename Castle > "$SCRATCH/prename.log" 2>&1 || true
+contains "$SCRATCH/prename.log" "Rename palette Lumbridge to Castle" "rename moves the palette"
+"$CTL" --port "$PORT" palette-remove Castle 1 > "$SCRATCH/prm.log" 2>&1 || true
+contains "$SCRATCH/prm.log" "Remove tree from palette Castle slot 1" "palette-remove empties a slot"
+"$CTL" --port "$PORT" undo > "$SCRATCH/pundo.log" 2>&1 || true
+contains "$SCRATCH/pundo.log" "undo 1 command(s)" "undo puts the slot back"
+"$CTL" --port "$PORT" save > "$SCRATCH/psave.log" 2>&1 || true
+contains "$SCRATCH/psave.log" "palettes" "save names the palettes document"
+check "$( [ "$(head -n 1 "$PALETTES_FILE")" = "# ToriRSMapEd catalog palettes (editor/palettes.txt)." ] && echo 1 )" \
+    "editor/palettes.txt starts with its header"
+contains "$PALETTES_FILE" "palette Castle | slot 1 | loc:tree" "the undone remove is saved"
+contains "$PALETTES_FILE" "palette Castle | slot 2 | npc:hans" "the renamed slot is saved"
+"$CTL" --port "$PORT" palette-remove Castle > "$SCRATCH/pdel.log" 2>&1 || true
+contains "$SCRATCH/pdel.log" "Remove hans from palette Castle slot 2" "palette-remove with no slot takes every line"
+"$CTL" --port "$PORT" save > /dev/null 2>&1 || true
+check "$( [ ! -e "$PALETTES_FILE" ] && echo 1 )" "deleting the last palette and saving removes the file"
 
 # 6. The browser's route in: the same daemon, upgraded, framed. Skipped
 # rather than failed when python3 is absent — the probe needs a WebSocket

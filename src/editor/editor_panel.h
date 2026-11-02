@@ -57,6 +57,10 @@ struct Editor_Panel
     /** Set while applying a received state fact, so the latching it causes
      *  does not re-publish what the server just said. */
     int applying_shared_state;
+    /** STATE_SELECTION publishes whose echo has not come back yet, oldest
+     *  first (Editor_PanelSelectionHeard). */
+    int32_t sel_echo[8][7];
+    int sel_echo_count;
 
     int built;
     int visible;
@@ -268,10 +272,46 @@ Editor_PanelDeleteLocByElement(
     struct App* app,
     int element_id);
 
+/** The loc the pointer is on at scene tile (x, z) on `level`: the front-most
+ *  model the frame hit-tested under the pointer (ground decor only when
+ *  nothing stands over it), else the first loc on the tile. 0 when none. */
+int
+Editor_PanelPointedLoc(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    struct Editor_LocRef* out);
+
 void
 Editor_PanelClearSelection(
     struct Editor_Panel* panel,
     struct App* app);
+
+/**
+ * Whether a STATE_SELECTION fact should become this window's selection. The
+ * server relays every publish to the whole Client in one order, the
+ * publisher included, so while this window waits for the echo of its own
+ * publish, anything it hears was ordered before that publish and is
+ * superseded by it: its own echo is consumed, another window's earlier fact
+ * dropped, and only a fact heard with no echo pending is applied (the
+ * STATE_TOOLS rule, editor_ui.c ui_tools_heard). Applying its own echo
+ * collapsed a multi-selection to its first loc, and a late echo -- a nudge
+ * repeated before the previous one's came back -- pointed the selection at
+ * the tile the loc had left, so every later nudge resolved nothing.
+ */
+int
+Editor_PanelSelectionHeard(
+    struct Editor_Panel* panel,
+    const int32_t* values,
+    int count);
+
+/** Remember a STATE_SELECTION this window published, for the rule above. */
+void
+Editor_PanelSelectionPublished(
+    struct Editor_Panel* panel,
+    const int32_t values[7]);
 
 /** A shared-state fact from this connection's Client: the selection relay,
  *  and every other key to the panel modules. */

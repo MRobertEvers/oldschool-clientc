@@ -43,6 +43,9 @@
 #include "editor/editor_doc.h"
 #include "editor/editor_jm2.h"
 #include "editor/editor_host.h"
+#include "editor/editor_panel.h"
+#include "editor/editor_ui.h"
+#include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanel_ops.h"
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -1191,6 +1194,15 @@ lu_bisect(
     VarPManager_Free(&fresh.varp);
 }
 
+/** ui->app_services.loc_record for the tests: the harness's provider. */
+static struct ToriRS_Location*
+lu_loc_record(
+    void* user_data,
+    int loc_id)
+{
+    return CacheProvider_LocationGet(user_data, loc_id);
+}
+
 /** Submit commands as the panels do (edp_apply): one stroke, one named row. */
 static int
 lu_apply(
@@ -1807,6 +1819,360 @@ loc_undo_phase(
             m->scene->elements.count, cycles);
         lu_bisect(&lu, "locs 11: after the deletes undone, world == STATIC bake");
         free(before);
+    }
+    /* 12. Nudging walls along Lumbridge castle's wall line (the owner's
+     *     2026-11-02 report: "moving a loc with the arrow keys sometimes
+     *     causes the loc to get stuck"). m50_50 holds castlewall 1911 shape
+     *     0 rot 0 on (17,23), (17,24), (17,25), (17,26): a nudge along the
+     *     line lands on a wall every time. Through the panel's own action
+     *     (edp_locs_nudge, what the arrow keys run), a window's EditorUi. */
+    {
+        struct EditorUi* ui = calloc(1, sizeof(*ui));
+        struct Editor_Loc piece;
+        struct Editor_Loc line;
+        int pick_shape0 = -1;
+        int k;
+
+        assert(ui);
+        ui->editor = ed;
+        lu_step(&lu);
+        line.loc_id = 1911;
+        line.shape = 0;
+        line.rotation = 0;
+        line.level = 0;
+        line.x = 17;
+        line.z = 24;
+        CHECK(Editor_SquareLocFindExact(sq, &line) >= 0, "locs 12: m50_50 has castlewall 1911 on (17,24)");
+        /* A different shape-0 loc as the piece that slides (a door in the
+         * wall), so a swap shows in the document. */
+        for( int i = 0; i < sq->loc_count && pick_shape0 < 0; i++ )
+            if( sq->locs[i].shape == 0 && sq->locs[i].loc_id != 1911 && lu_plain(&lu, sq->locs[i].loc_id)
+                && lu_world_has(&lu, sq, &sq->locs[i], NULL) == 1 )
+                pick_shape0 = sq->locs[i].loc_id;
+        CHECK(pick_shape0 >= 0, "locs 12: another shape-0 loc to slide");
+        piece.loc_id = pick_shape0;
+        piece.shape = 0;
+        piece.rotation = 0;
+        piece.level = 0;
+        piece.x = 18;
+        piece.z = 24;
+        CHECK(lu_doc_count(sq, 0, 18, 24) == 0 && lu_doc_count(sq, 0, 18, 25) == 0 && lu_doc_count(sq, 0, 19, 25) == 0,
+            "locs 12: (18,24), (18,25), (19,25) are free");
+        n = Editor_LocOpsPlace(&ed->doc, piece.loc_id, 0, 0, BASE_X * 64 + 18, BASE_Z * 64 + 24, 0, cmds, 1, &result);
+        lu_apply(&lu, cmds, n, "place");
+        ui->tools.locs[0] = result.refs[0];
+        ui->tools.loc_count = 1;
+
+        /* Off the line and back: free tiles, four nudges in a row, the
+         * selection naming the loc the document holds after each. */
+        {
+            static const int steps[4][2] = { { 1, 0 }, { 0, 1 }, { 0, -1 }, { -1, 0 } };
+            int x = 18;
+            int z = 24;
+            for( k = 0; k < 4; k++ )
+            {
+                struct Editor_Loc at = piece;
+                x += steps[k][0];
+                z += steps[k][1];
+                at.x = x;
+                at.z = z;
+                CHECK(edp_locs_nudge(ui, steps[k][0], steps[k][1]) == 1, "locs 12: free nudge %d applies", k + 1);
+                lu_step(&lu);
+                CHECK(Editor_SquareLocFindExact(sq, &at) >= 0, "locs 12: after free nudge %d the document holds the piece at (%d,%d)", k + 1, x, z);
+                CHECK(lu_world_has(&lu, sq, &at, NULL) == 1,
+                    "locs 12: after free nudge %d the world draws the piece at (%d,%d) once (%d; loc %d)", k + 1, x, z,
+                    lu_world_has(&lu, sq, &at, NULL), at.loc_id);
+                CHECK(ui->tools.loc_count == 1 && Editor_LocRefResolve(&ed->doc, &ui->tools.locs[0]) >= 0
+                          && ui->tools.locs[0].x == x && ui->tools.locs[0].z == z,
+                    "locs 12: after free nudge %d the selection names it", k + 1);
+            }
+        }
+
+        /* Into the line: (17,24) holds a wall. The piece swaps with it, the
+         * line stays whole, and the next nudges slide it on along the line. */
+        {
+            static const int path[4][2] = { { 17, 24 }, { 17, 25 }, { 17, 26 }, { 17, 25 } };
+            static const int step[4][2] = { { -1, 0 }, { 0, 1 }, { 0, 1 }, { 0, -1 } };
+            for( k = 0; k < 4; k++ )
+            {
+                struct Editor_Loc at = piece;
+                const char* newest;
+                int walls = 0;
+                at.x = path[k][0];
+                at.z = path[k][1];
+                CHECK(edp_locs_nudge(ui, step[k][0], step[k][1]) >= 1, "locs 12: line nudge %d applies", k + 1);
+                lu_step(&lu);
+                newest = Editor_UiConsoleLine(ui, 0);
+                CHECK(Editor_SquareLocFindExact(sq, &at) >= 0 && lu_world_has(&lu, sq, &at, NULL) == 1,
+                    "locs 12: line nudge %d: the piece is on (%d,%d), drawn once", k + 1, at.x, at.z);
+                CHECK(ui->tools.loc_count == 1 && Editor_LocRefResolve(&ed->doc, &ui->tools.locs[0]) >= 0
+                          && ui->tools.locs[0].x == at.x && ui->tools.locs[0].z == at.z,
+                    "locs 12: line nudge %d: the selection follows it", k + 1);
+                CHECK(newest && strstr(newest, "swapped places with loc 1911"),
+                    "locs 12: line nudge %d says it swapped (\"%s\")", k + 1, newest ? newest : "");
+                for( int z = 23; z <= 26; z++ )
+                {
+                    int const there = Editor_SquareLocFind(sq, 0, 17, z, 0);
+                    CHECK(there >= 0, "locs 12: line nudge %d: (17,%d) still holds a wall (no gap)", k + 1, z);
+                    walls += there >= 0 && sq->locs[there].loc_id == 1911;
+                }
+                /* Entering the line from the side swapped the wall there out
+                 * to (18,24), where the piece came from; sliding along the
+                 * line swaps neighbours and leaves it be. */
+                {
+                    int const popped = Editor_SquareLocFind(sq, 0, 18, 24, 0);
+                    CHECK(walls == 3 && popped >= 0 && sq->locs[popped].loc_id == 1911,
+                        "locs 12: line nudge %d: three castlewalls and the piece on the line, the wall it entered "
+                        "on swapped out to (18,24)",
+                        k + 1);
+                }
+            }
+        }
+
+        /* Rotate and reshape after the nudges still find the loc. */
+        CHECK(edp_locs_rotate(ui) == 1 && Editor_LocRefResolve(&ed->doc, &ui->tools.locs[0]) >= 0,
+            "locs 12: a rotate after the nudges applies and the selection still resolves");
+        CHECK(Editor_Undo(ed) == 1, "locs 12: undo the rotate");
+        lu_step(&lu);
+        ui->tools.locs[0].rotation = 0;
+        CHECK(Editor_LocRefResolve(&ed->doc, &ui->tools.locs[0]) >= 0, "locs 12: the selection resolves after undo");
+
+        /* A copy onto a held tile+shape has nowhere to put the holder: it
+         * stays, the selection stays, and the console says why. */
+        ui->tools.locs[0].x = 17;
+        ui->tools.locs[0].z = 25;
+        {
+            int const before_count = sq->loc_count;
+            struct Editor_LocRef keep = ui->tools.locs[0];
+            const char* newest;
+            /* Duplicate goes one tile east: (18,25) is free, so first make it
+             * held by nudging a wall... use the line itself: duplicate NORTH
+             * is not offered, so duplicate the wall at (17,24) by hand. */
+            n = Editor_LocOpsDuplicate(&ed->doc, &keep, 1, 0, 1, cmds, 4, &result);
+            CHECK(n == 0 && result.blocked == 1, "locs 12: a copy onto the next wall of the line is blocked");
+            CHECK(sq->loc_count == before_count, "locs 12: and changes nothing");
+            (void)edp_locs_duplicate(ui);
+            newest = Editor_UiConsoleLine(ui, 0);
+            CHECK(ui->tools.loc_count == 1, "locs 12: the selection is intact after a duplicate");
+            (void)newest;
+        }
+
+        /* Two selected walls of the line nudged one tile north: the wall in
+         * front goes to the run's tail; every tile keeps one wall. */
+        {
+            struct Editor_LocRef two[2];
+            int const before_count = sq->loc_count;
+            Editor_LocRefAt(&two[0], BASE_X * 64 + 17, BASE_Z * 64 + 23, 0, 0, 1911, 0);
+            Editor_LocRefAt(&two[1], BASE_X * 64 + 17, BASE_Z * 64 + 24, 0, 0, 1911, 0);
+            if( Editor_LocRefResolve(&ed->doc, &two[0]) >= 0 && Editor_LocRefResolve(&ed->doc, &two[1]) >= 0 )
+            {
+                ui->tools.locs[0] = two[0];
+                ui->tools.locs[1] = two[1];
+                ui->tools.loc_count = 2;
+                CHECK(edp_locs_nudge(ui, 0, 1) >= 2, "locs 12: a two-wall run nudges");
+                lu_step(&lu);
+                CHECK(sq->loc_count == before_count, "locs 12: no loc gained or lost");
+                for( int z = 23; z <= 26; z++ )
+                    CHECK(lu_doc_count(sq, 0, 17, z) >= 1 && Editor_SquareLocFind(sq, 0, 17, z, 0) >= 0,
+                        "locs 12: after the run nudge (17,%d) holds a wall", z);
+                CHECK(ui->tools.loc_count == 2 && ui->tools.locs[0].z == 24 && ui->tools.locs[1].z == 25
+                          && Editor_LocRefResolve(&ed->doc, &ui->tools.locs[0]) >= 0
+                          && Editor_LocRefResolve(&ed->doc, &ui->tools.locs[1]) >= 0,
+                    "locs 12: both stay selected, one tile north");
+                CHECK(Editor_Undo(ed) >= 3, "locs 12: one undo takes the run nudge back");
+                lu_step(&lu);
+            }
+        }
+
+        /* The selection relay: this window's own echo never replaces its
+         * selection (a multi-selection collapsed to its first loc, and a late
+         * echo pointed it at the tile a nudged loc had left). */
+        {
+            struct Editor_Panel* panel = calloc(1, sizeof(*panel));
+            int32_t const a[7] = { 2, 3217, 3224, 0, 1911, 0, 0 };
+            int32_t const b[7] = { 2, 3217, 3225, 0, 1911, 0, 0 };
+            int32_t const other[7] = { 2, 3230, 3230, 0, 99, 10, 0 };
+            assert(panel);
+            Editor_PanelSelectionPublished(panel, a);
+            Editor_PanelSelectionPublished(panel, b);
+            CHECK(!Editor_PanelSelectionHeard(panel, a, 7), "locs 12: the first publish's echo is consumed, not applied");
+            CHECK(!Editor_PanelSelectionHeard(panel, other, 7),
+                "locs 12: another window's fact heard before this window's newer echo is superseded");
+            CHECK(!Editor_PanelSelectionHeard(panel, b, 7), "locs 12: the second echo is consumed");
+            CHECK(Editor_PanelSelectionHeard(panel, other, 7),
+                "locs 12: with no echo pending, another window's selection applies");
+            free(panel);
+        }
+
+        lu_bisect(&lu, "locs 12: after the nudges, world == STATIC bake");
+        free(ui);
+    }
+    /* 13. A loc's shapes (the owner, 2026-11-02: "improve the experience for
+     *     locs with multiple shapes, like walls"; "it shouldn't let me select
+     *     a shape that a loc doesn't have"). castlewall 1911 has models for
+     *     shapes 0, 1, 2, 3 and 9 only. */
+    {
+        struct EditorUi* ui = calloc(1, sizeof(*ui));
+        struct ToriRS_Location* wall = CacheProvider_LocationGet(h->provider, 1911);
+        int list[EDITOR_LOC_SHAPE_COUNT];
+        uint32_t mask = 0;
+        int count;
+        int bx = -1;
+        int bz = -1;
+
+        assert(ui);
+        ui->editor = ed;
+        ui->app_services.user_data = h->provider;
+        ui->app_services.loc_record = lu_loc_record;
+        CHECK(wall != NULL, "shapes: castlewall 1911 is resident");
+        if( !wall )
+        {
+            free(ui);
+            return;
+        }
+        mask = Editor_LocShapeMask(wall);
+        count = Editor_LocShapeList(mask, list);
+        CHECK(mask == ((1u << 0) | (1u << 1) | (1u << 2) | (1u << 3) | (1u << 9)),
+            "shapes: castlewall's shapes are 0, 1, 2, 3, 9 (mask %x)", mask);
+        CHECK(count == 5 && list[0] == 0 && list[4] == 9, "shapes: listed wall first, diagonal last");
+        /* A synthetic loc with three shapes, and the derived ones. */
+        {
+            struct ToriRS_Location fake;
+            int shapes3[3] = { 0, 4, 10 };
+            int lengths3[3] = { 1, 1, 1 };
+            int m0[1] = { 1 };
+            int* models3[3] = { m0, m0, m0 };
+            uint32_t m3;
+            memset(&fake, 0, sizeof(fake));
+            fake.shapes = shapes3;
+            fake.models = models3;
+            fake.lengths = lengths3;
+            fake.shapes_and_model_count = 3;
+            m3 = Editor_LocShapeMask(&fake);
+            CHECK(m3 == ((1u << 0) | (1u << 4) | (1u << 5) | (1u << 6) | (1u << 7) | (1u << 8) | (1u << 10) | (1u << 11)),
+                "shapes: a loc with models for 0, 4 and 10 offers 0, the decor 4..8 and 10, 11 (%x)", m3);
+            CHECK(Editor_LocShapeNext(m3, 10) == 11 && Editor_LocShapeNext(m3, 11) == 0 && Editor_LocShapeNext(m3, 8) == 10,
+                "shapes: cycling stays within them and wraps");
+            CHECK(Editor_LocShapeNext(m3, 22) == 10, "shapes: from a shape it lacks, cycling goes to its first");
+            fake.shapes = NULL;
+            CHECK(Editor_LocShapeMask(&fake) == ((1u << 10) | (1u << 11)),
+                "shapes: no shape list is a centrepiece only (10, 11)");
+        }
+        CHECK(Editor_LocShapeNext(mask, 0) == 1 && Editor_LocShapeNext(mask, 3) == 9 && Editor_LocShapeNext(mask, 9) == 0,
+            "shapes: castlewall cycles 0 -> 1 ... 3 -> 9 -> 0");
+
+        /* The Place pose snaps to a shape the pick has; a place naming one
+         * it lacks is refused and says so. */
+        ui->tools.pick_kind = 0;
+        ui->tools.pick_id = 1911;
+        ui->tools.place_shape = 10;
+        CHECK(edp_place_pose_follow(ui) == 1 && ui->tools.place_shape == 0,
+            "shapes: picking castlewall with the pose on 10 snaps the pose to its first shape, 0");
+        edp_place_reshape(ui);
+        CHECK(ui->tools.place_shape == 1, "shapes: Shift+Q on the pose goes to castlewall's next shape");
+        for( int k = 0; k < 4; k++ )
+            edp_place_reshape(ui);
+        CHECK(ui->tools.place_shape == 0, "shapes: five presses come back round (never a shape it lacks)");
+
+        /* A free 5x5 (no loc on level 0) in one of the open squares. */
+        for( int q = 0; q < SQUARE_COUNT && bx < 0; q++ )
+        {
+            struct Editor_Square* s2 = Editor_DocFindSquare(&ed->doc, k_squares[q][0], k_squares[q][1]);
+            for( int z = 4; z < 56 && bx < 0; z++ )
+                for( int x = 4; x < 56 && bx < 0; x++ )
+                {
+                    int empty = 1;
+                    for( int dz = 0; dz < 5 && empty; dz++ )
+                        for( int dx = 0; dx < 5 && empty; dx++ )
+                            empty = lu_doc_count(s2, 0, x + dx, z + dz) == 0;
+                    if( empty )
+                    {
+                        sq = s2;
+                        bx = x;
+                        bz = z;
+                    }
+                }
+        }
+        CHECK(bx >= 0, "shapes: a free 5x5 in the open squares");
+        if( bx >= 0 )
+        {
+            int const wx = sq->map_x * 64 + bx;
+            int const wz = sq->map_z * 64 + bz;
+            int shape;
+            int rotation;
+            int before_count = sq->loc_count;
+            const char* newest;
+
+            CHECK(edp_locs_place(ui, 1911, 10, 0, wx, wz, 0) == 0 && sq->loc_count == before_count,
+                "shapes: placing castlewall as shape 10 is refused");
+            newest = Editor_UiConsoleLine(ui, 0);
+            CHECK(newest && strstr(newest, "has no model for shape 10"), "shapes: and the console says why (\"%s\")",
+                newest ? newest : "");
+
+            /* Fit to neighbours: a straight run on the west edges of (bx, bz)
+             * and (bx, bz+1); the next tile north continues it. */
+            CHECK(edp_locs_place(ui, 1911, 0, 0, wx, wz, 0) == 1 && edp_locs_place(ui, 1911, 0, 0, wx, wz + 1, 0) == 1,
+                "fit: two castlewalls on a west-edge run");
+            ui->tools.place_shape = 3;
+            ui->tools.place_rotation = 2;
+            edp_place_fit_set(1);
+            edp_place_pose_at(ui, wx, wz + 2, 0, &shape, &rotation);
+            CHECK(shape == 0 && rotation == 0, "fit: the tile north of the run fits a straight wall on its west edge (%d rot %d)",
+                shape, rotation);
+            /* A run along the north edges going east from (bx+1, bz+3): the
+             * tile (bx, bz+2) between the two runs is their corner. */
+            CHECK(edp_locs_place(ui, 1911, 0, 1, wx + 1, wz + 2, 0) == 1, "fit: a castlewall on a north-edge run");
+            edp_place_pose_at(ui, wx, wz + 2, 0, &shape, &rotation);
+            CHECK(shape == 2 && rotation == 0, "fit: where the west run meets the north run, an L (2 rot 0) (%d rot %d)",
+                shape, rotation);
+            {
+                struct Editor_Loc want = { 1911, 2, 0, 0, bx, bz + 2 };
+                CHECK(edp_locs_place(ui, 1911, shape, rotation, wx, wz + 2, 0) == 1
+                          && Editor_SquareLocFindExact(sq, &want) >= 0,
+                    "fit: placing with the fitted pose puts the L in the document");
+                lu_step(&lu);
+                {
+                    int sx;
+                    int sz;
+                    lu_scene_of(&lu, sq, want.x, want.z, &sx, &sz);
+                    /* An L is two wall models on the tile, one entity each. */
+                    CHECK(lu_world_count(&lu, sx, sz, 0, 1911, 2, 0, NULL) >= 1,
+                        "fit: and the world draws it (%d entities of 1911 shape 2 there; %d on the tile)",
+                        lu_world_count(&lu, sx, sz, 0, 1911, 2, 0, NULL), lu_world_count(&lu, sx, sz, 0, -1, 0, 0, NULL));
+                }
+            }
+            /* A diagonal continues a diagonal neighbour. */
+            CHECK(edp_locs_place(ui, 1911, 9, 3, wx + 3, wz + 1, 0) == 1, "fit: a diagonal castlewall");
+            ui->tools.place_shape = 0;
+            edp_place_pose_at(ui, wx + 4, wz, 0, &shape, &rotation);
+            CHECK(shape == 9 && rotation == 3, "fit: the tile south-east of it continues the diagonal (%d rot %d)", shape,
+                rotation);
+            /* With fit off, the pose as set. */
+            edp_place_fit_set(0);
+            edp_place_pose_at(ui, wx + 4, wz, 0, &shape, &rotation);
+            CHECK(shape == 0, "fit: off, the pose is the pose");
+            edp_place_fit_set(1);
+
+            /* Reshape of a selection cycles the loc's own shapes; Fit fixes a
+             * wrong one. */
+            {
+                struct Editor_LocRef ref;
+                Editor_LocRefAt(&ref, wx, wz + 1, 0, 0, 1911, 0);
+                ui->tools.locs[0] = ref;
+                ui->tools.loc_count = 1;
+                CHECK(edp_locs_reshape(ui) == 1 && ui->tools.locs[0].shape == 1,
+                    "shapes: Reshape takes the selected castlewall from 0 to 1, its next shape");
+                CHECK(edp_locs_set_shape(ui, 10) == 0 && ui->tools.locs[0].shape == 1,
+                    "shapes: the strip cannot give it shape 10");
+                CHECK(edp_locs_set_shape(ui, 9) == 1 && ui->tools.locs[0].shape == 9, "shapes: the strip gives it 9");
+                CHECK(edp_locs_fit(ui) == 1 && ui->tools.locs[0].shape == 0 && ui->tools.locs[0].rotation == 0,
+                    "fit: Fit selection puts it back as the straight wall of its run (%d rot %d)", ui->tools.locs[0].shape,
+                    ui->tools.locs[0].rotation);
+                lu_step(&lu);
+            }
+            lu_bisect(&lu, "shapes: after the walls, world == STATIC bake");
+        }
+        free(ui);
     }
 }
 

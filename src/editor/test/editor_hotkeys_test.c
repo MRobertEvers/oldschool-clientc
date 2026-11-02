@@ -246,7 +246,12 @@ test_resolve(void)
 {
     struct Editor_HotkeyFrame frame;
     unsigned const G = EDITOR_HK_CTX_G | EDITOR_HK_CTX_N;
-    unsigned const LOCS = EDITOR_HK_CTX_G | EDITOR_HK_CTX_L;
+    /* Locs selected under Select / Move: what the App sets (contexts M). */
+    unsigned const LOCS = EDITOR_HK_CTX_G | EDITOR_HK_CTX_L | EDITOR_HK_CTX_M;
+    /* Locs selected with another tool armed (Place, a brush): N, not M. */
+    unsigned const LOCS_PLACE = EDITOR_HK_CTX_G | EDITOR_HK_CTX_L | EDITOR_HK_CTX_N;
+    /* The Place tool with a loc pick and nothing selected. */
+    unsigned const PLACING = EDITOR_HK_CTX_G | EDITOR_HK_CTX_N | EDITOR_HK_CTX_P;
     unsigned const SPAWNS = EDITOR_HK_CTX_G | EDITOR_HK_CTX_S | EDITOR_HK_CTX_N;
 
     Editor_HotkeysInit(&g_hk);
@@ -264,13 +269,44 @@ test_resolve(void)
         "[ radius, Ctrl+] step");
     CHECK(fire("ctrl+c", G) == -1 && fire("ctrl+c", G | EDITOR_HK_CTX_R) == EDITOR_HK_EDIT_COPY,
         "Ctrl+C copies only with a rectangle");
-    CHECK(fire("up", LOCS) == EDITOR_HK_EDIT_NUDGE_N, "Up nudges a selection");
+    CHECK(fire("up", LOCS) == EDITOR_HK_EDIT_NUDGE_N, "Up nudges a selection under Select / Move");
+    /* 2026-11-02 (owner: "the loc placement tool needs hotkeys and to not
+     * lock the arrow keys"): with the Place tool armed the arrows are the
+     * camera's even with locs selected; the Place tool's keys. */
+    CHECK(fire("up", LOCS_PLACE) == -1 && fire("left", LOCS_PLACE) == -1,
+        "with locs selected under the Place tool the arrows fire no nudge");
+    {
+        struct Editor_HotkeyFrame held;
+        input_clear(1000);
+        press("left");
+        g_in.contexts = LOCS_PLACE;
+        Editor_HotkeysResolve(&g_hk, &g_in, &held);
+        CHECK(held.active[EDITOR_HK_CAM_TURN_LEFT] && held.count == 0,
+            "...they turn the camera (Left held turns left)");
+    }
+    CHECK(fire("space", PLACING) == EDITOR_HK_PLACE_HERE && fire("return", PLACING) == EDITOR_HK_PLACE_HERE,
+        "Space and Return place at the hovered tile with the Place tool armed and nothing selected");
+    CHECK(fire("return", LOCS) == EDITOR_HK_EDIT_APPLY && fire("space", G) == -1,
+        "Return still applies the tool to a selection; Space is nothing elsewhere");
+    CHECK(fire("q", PLACING) == EDITOR_HK_EDIT_ROTATE && fire("shift+q", PLACING) == EDITOR_HK_EDIT_RESHAPE,
+        "Q / Shift+Q turn and reshape the ghost (the Edit actions, which act on the pose while placing)");
+    CHECK(fire("g", G) == EDITOR_HK_PLACE_FIT, "G toggles Fit walls to neighbours");
+    CHECK(fire("e", LOCS) == EDITOR_HK_PLACE_SWAP && fire("e", LOCS_PLACE) == EDITOR_HK_PLACE_SWAP,
+        "E swaps the selected locs to the catalog's pick");
+    CHECK(fire("escape", PLACING) == EDITOR_HK_EDIT_DESELECT, "Escape is Deselect / cancel (drops the ghost)");
     CHECK(fire("f1", G) == EDITOR_HK_VIEW_HOTKEYS, "F1 opens the Hotkeys panel");
     /* 2026-11-02: R and F fly, so Rotate moved to Q and Reshape to Shift+Q. */
     CHECK(fire("q", G) == EDITOR_HK_EDIT_ROTATE && fire("shift+q", G) == EDITOR_HK_EDIT_RESHAPE,
         "Q rotates, Shift+Q reshapes");
-    CHECK(fire("r", G) == -1 && fire("e", G) == -1, "bare R and E fire no edge action");
+    CHECK(fire("r", G) == -1 && fire("e", G) == -1, "bare R and E fire no edge action with nothing selected");
     CHECK(fire("ctrl+g", G) == EDITOR_HK_VIEW_SNAP, "Ctrl+G toggles Snap to grid");
+    CHECK(fire("shift+3", G) == EDITOR_HK_PALETTE_SLOT_3 && fire("shift+0", G) == EDITOR_HK_PALETTE_SLOT_10,
+        "Shift+3 and Shift+0 are palette slots 3 and 10");
+    CHECK(fire("ctrl+shift+a", G) == EDITOR_HK_PALETTE_ADD_PICK && fire("alt+rbracket", G) == EDITOR_HK_PALETTE_NEXT
+              && fire("alt+lbracket", G) == EDITOR_HK_PALETTE_PREVIOUS,
+        "Ctrl+Shift+A adds the pick, Alt+] / Alt+[ step palettes");
+    CHECK(Editor_HotkeyForPanel("catalog_palette") == EDITOR_HK_VIEW_CATALOG_PALETTE,
+        "the Catalog palette panel has its View action");
     CHECK(fire("shift+f12", G) == EDITOR_HK_VIEW_POPOUT && fire("ctrl+w", G) == EDITOR_HK_VIEW_CLOSE_PANEL,
         "Shift+F12 pops the panel out, Ctrl+W closes it");
 

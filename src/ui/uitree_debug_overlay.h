@@ -1040,6 +1040,17 @@ enum ToriRSChromeEventKind
      *  the printable character ('+', '-', '=', '_') or, negated, the enum
      *  ToriRSChromeKey (arrows). Escape releases the focus instead. */
     TORIRS_CHROME_EVENT_GRAPH_KEY,
+    /** A pinch over the well (a trackpad's magnify, a touch spread, a
+     *  browser's ctrl+wheel, or ctrl+wheel itself): the content under `x`,
+     *  `y` (the centre) is to scale by `value` / 65536 (> 1 apart, zoom in).
+     *  @see ToriRSChrome_Pinch. */
+    TORIRS_CHROME_EVENT_GRAPH_PINCH,
+    /** A trackpad scroll over the well, exact: `dx`, `dy` in 1/256 well
+     *  logical px, the platform's own direction setting applied (+dy scroll
+     *  up = content down, +dx scroll right = content left); `x`, `y` the
+     *  pointer. A mouse wheel never sends this; it stays GRAPH_WHEEL.
+     *  @see ToriRSChrome_Scroll. */
+    TORIRS_CHROME_EVENT_GRAPH_SCROLL,
 };
 
 /** One queued GRAPH gesture or CODE edit. @see ToriRSChrome_TakeEvent. */
@@ -1053,6 +1064,9 @@ struct ToriRSChromeEvent
     int x;
     int y;
     int value;
+    /** GRAPH_SCROLL: the deltas, 1/256 well logical px. */
+    int dx;
+    int dy;
     int line;
     int col;
     char text[TORIRS_CHROME_INPUT_MAX];
@@ -1479,6 +1493,22 @@ struct ToriRSChromePanel
      */
     int user_placed;
     /**
+     * Maximised (ToriRSChrome_PanelMaximise): drawn after every other
+     * non-modal panel and hit before them, so it sits over the lot; the box it
+     * had before is kept below and ToriRSChrome_PanelRestore puts it back. A
+     * title drag or an edge resize that moves past the slop restores it first.
+     */
+    int maximised;
+    /** The drawn box when it was maximised (what a restore-for-drag sizes
+     *  the grab by), and the fields the restore puts back. */
+    struct ToriRSChromeRect restore_rect;
+    int restore_x;
+    int restore_y;
+    int restore_fixed_w;
+    int restore_fixed_h;
+    int restore_user_placed;
+    int restore_scrollable;
+    /**
      * The panel is a FRAME around something the host draws under it: the
      * title bar, the border rails and the grip are drawn and take the
      * pointer, the body is neither painted nor hit -- a press, a wheel or a
@@ -1699,6 +1729,19 @@ struct ToriRSChrome
     int resize_press_y;
     int resize_from_x;
     int resize_from_y;
+
+    /**
+     * The last press on a title bar (panel, chrome clock, where), for the
+     * double-click: a second press on the same title within
+     * TORIRS_CHROME_DOUBLE_CLICK_MS and TORIRS_CHROME_DOUBLE_CLICK_SLOP
+     * chrome px of the first latches `title_double`
+     * (ToriRSChrome_TakeTitleDoubleClick). -1 = none.
+     */
+    int title_press_panel;
+    int64_t title_press_ms;
+    int title_press_x;
+    int title_press_y;
+    int title_double;
 
     /** Widget handles, -1 for none. */
     int focus;
@@ -2765,6 +2808,74 @@ int
 ToriRSChrome_MouseWheel(struct ToriRSChrome* ui, int x, int y, int delta);
 
 /**
+ * A pinch with its centre at surface (x, y), `scale` since the last (> 1 is
+ * fingers apart). Only a GRAPH well takes one (TORIRS_CHROME_EVENT_GRAPH_PINCH)
+ * -- a list or a slider has nothing to scale -- and an open modal swallows it.
+ * @return 1 when taken; 0 leaves it to the caller (which drops it: the game
+ * has no pinch of its own on a desktop).
+ */
+int
+ToriRSChrome_Pinch(struct ToriRSChrome* ui, int x, int y, double scale);
+
+/**
+ * A trackpad's exact scroll at surface (x, y): `dx`, `dy` surface pixels in
+ * the platform's convention (+dy scroll up, +dx scroll right). Only a GRAPH
+ * well takes one (TORIRS_CHROME_EVENT_GRAPH_SCROLL); anywhere else returns 0
+ * and the caller routes the integer wheel as it always has.
+ */
+int
+ToriRSChrome_Scroll(struct ToriRSChrome* ui, int x, int y, double dx, double dy);
+
+/** ctrl+wheel zooms a GRAPH well by this a notch, continuously (a fraction
+ *  of a notch is the same fraction of the ratio). */
+#define TORIRS_CHROME_PINCH_WHEEL_STEP 1.25
+
+/** One frame's wheel-shaped input, for ToriRSChrome_WheelFrame. */
+struct ToriRSChromeWheelFrame
+{
+    /** The pointer, surface pixels. */
+    int x;
+    int y;
+    /** The integer wheel, notches, positive up (LibToriRS_Input mouse_wheel_y). */
+    int wheel;
+    /** The exact scroll (LibToriRS_Input scroll_*), surface px; px_per_notch
+     *  0 when the platform sent none. */
+    float scroll_dx;
+    float scroll_dy;
+    int px_per_notch;
+    int trackpad;
+    int flipped;
+    /** Ctrl (Command on a Mac) is held. */
+    int ctrl;
+    /** The pinch (LibToriRS_Input pinch_*), scale 0 when none. */
+    float pinch_scale;
+    int pinch_x;
+    int pinch_y;
+    int pinch_from_wheel;
+};
+
+/**
+ * Route one frame's wheel, exact scroll and pinch, in this order:
+ *
+ *  1. a pinch goes to the GRAPH under its centre; taken, and the pinch came
+ *     with a wheel echo (a browser's ctrl+wheel, a touch pinch's notches),
+ *     that echo is spent;
+ *  2. ctrl+wheel over a GRAPH is a pinch about the pointer:
+ *     TORIRS_CHROME_PINCH_WHEEL_STEP ^ -notches, the exact deltas when the
+ *     platform sent them (so a fraction of a notch is a fraction of the
+ *     ratio), the direction the well's plain wheel zooms;
+ *  3. a TRACKPAD's exact scroll over a GRAPH is GRAPH_SCROLL, and the
+ *     integer notches rounded out of it are spent;
+ *  4. whatever wheel is left goes to ToriRSChrome_MouseWheel, as before.
+ *
+ * Anything but a GRAPH well therefore sees exactly the wheel it always saw.
+ * @return 1 when the chrome took any of it (the caller marks the frame's
+ * input consumed, so the camera behind stays still).
+ */
+int
+ToriRSChrome_WheelFrame(struct ToriRSChrome* ui, struct ToriRSChromeWheelFrame const* frame);
+
+/**
  * Move model focus to `widget` and place its caret, compare-then-set.
  *
  * Native presenters use this instead of assigning `focus` directly so both
@@ -3029,6 +3140,48 @@ ToriRSChrome_TakeEventOverflow(struct ToriRSChrome* ui);
 /** Queue one event (the intent seam's way in; also what native input uses). */
 int
 ToriRSChrome_PushEvent(struct ToriRSChrome* ui, struct ToriRSChromeEvent const* event);
+
+/* MAXIMISE */
+/** Two presses on a title bar this close in time (the chrome's own clock,
+ *  ToriRSChrome_Tick -- a host that never ticks it gets none) and place
+ *  (chrome px at scale 1) are a double-click. */
+#define TORIRS_CHROME_DOUBLE_CLICK_MS 400
+#define TORIRS_CHROME_DOUBLE_CLICK_SLOP 4
+/**
+ * A title bar was double-clicked since the last call: the panel, or -1. The
+ * press that completes it is consumed (no drag starts). What it means is the
+ * host's: the editor maximises the panel, or restores it.
+ */
+int
+ToriRSChrome_TakeTitleDoubleClick(struct ToriRSChrome* ui);
+/**
+ * Maximise `panel` to `area` (surface px): the box it has now is kept (or,
+ * already maximised, kept as it was -- this is also how a host refits it to
+ * a resized surface), the panel takes `area` as a user-placed, scrolling box,
+ * and it is drawn over and hit before every other non-modal panel. Another
+ * maximised panel is restored first: one at a time.
+ */
+void
+ToriRSChrome_PanelMaximise(struct ToriRSChrome* ui, int panel, struct ToriRSChromeRect area);
+/** Put a maximised panel back in the box it had. Not maximised: nothing. */
+void
+ToriRSChrome_PanelRestore(struct ToriRSChrome* ui, int panel);
+int
+ToriRSChrome_PanelIsMaximised(struct ToriRSChrome const* ui, int panel);
+/**
+ * A maximised panel's kept box: position, fixed size (0 = sized to its
+ * content) and user_placed, as ToriRSChrome_PanelRestore will put them back.
+ * @return 0 (outputs untouched) when the panel is not maximised.
+ */
+int
+ToriRSChrome_PanelRestoreBox(
+    struct ToriRSChrome const* ui,
+    int panel,
+    int* out_x,
+    int* out_y,
+    int* out_fixed_w,
+    int* out_fixed_h,
+    int* out_user_placed);
 
 /* MODAL */
 /**

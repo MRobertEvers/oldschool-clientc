@@ -2,6 +2,7 @@
 #include "mem/torirs_mem.h"
 #include "platform/client_scale.h"
 #include "platform/platform_pointer_map.h"
+#include "platform/platform_sdl2_input.h"
 
 #include "cmd/cmdbus.h"
 #include "input/torirs_input.h"
@@ -10,6 +11,7 @@
 #include "ui/torirs_chrome_metrics.h"
 
 #if defined(__APPLE__)
+#include "platform/platform_macos_gesture.h"
 #include "platform/platform_macos_webview.h"
 #include <SDL_syswm.h>
 #endif
@@ -20,6 +22,7 @@
 #endif
 
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -206,6 +209,12 @@ struct PlatformWindow
     /* Fingers. @see ToriRS_Touch, which holds the whole gesture policy so that
      * this backend and the Win32 one cannot drift apart about it. */
     struct ToriRS_Touch touch;
+
+    /* SDL_MULTIGESTURE's pinch: the spread of the device's first two fingers
+     * at the previous gesture event (normalised device units), 0 when there
+     * is no gesture in progress, so the next one only measures. */
+    float gesture_spread;
+    SDL_TouchID gesture_touch;
 };
 
 /*
@@ -1102,6 +1111,7 @@ PlatformWindow_Free(struct PlatformWindow* platform)
         return;
     PlatformWindow_ChromeClose(platform);
 #if defined(__APPLE__)
+    PlatformMacGesture_Uninstall();
     PlatformMacPluginBrowser_Destroy(platform);
 #endif
     if( platform->chrome_texture )
@@ -3949,6 +3959,339 @@ sdl_sim_click_pump(struct PlatformWindow* platform)
     }
 }
 
+/* ---- trackpad gestures: pinch and the wheel's exact deltas ---------------------- */
+
+/*
+ * Window points one wheel notch is worth. SDL's precise deltas are notches
+ * (Windows: WHEEL_DELTA / 120; a browser: CSS pixels / 100, the divisor
+ * emscripten's SDL port uses); a two-finger scroll moves the content by about
+ * this much per notch, which is what a document view would do with it.
+ */
+#if defined(TORIRS_PLATFORM_WEB)
+#define SDL_SCROLL_POINTS_PER_NOTCH 100.0
+#else
+#define SDL_SCROLL_POINTS_PER_NOTCH 48.0
+#endif
+
+/** Canvas (layout) pixels per window point, from the pointer mapping itself so
+ *  the density, the client scale and the letterbox all come with it. */
+static double
+sdl_layout_px_per_point(struct PlatformWindow* platform)
+{
+    int w = 0;
+    int h = 0;
+    int ax = 0;
+    int ay = 0;
+    int bx = 0;
+    int by = 0;
+    int d;
+    double scale;
+
+    assert(platform);
+    SDL_GetWindowSize(platform->window, &w, &h);
+    d = (w < h ? w : h) / 4;
+    if( d < 1 )
+        return 1.0;
+    PlatformWindow_MapMouse(platform, w / 2 - d, h / 2 - d, &ax, &ay);
+    PlatformWindow_MapMouse(platform, w / 2 + d, h / 2 + d, &bx, &by);
+    scale = (double)(bx - ax) / (2.0 * (double)d);
+    return scale > 0.0 ? scale : 1.0;
+}
+
+/** The pointer, mapped to the canvas: where a trackpad gesture is centred. */
+static void
+sdl_pointer_layout(struct PlatformWindow* platform, int* out_x, int* out_y)
+{
+    int wx = 0;
+    int wy = 0;
+
+    assert(platform);
+    assert(out_x);
+    assert(out_y);
+    (void)SDL_GetMouseState(&wx, &wy);
+    PlatformWindow_MapMouse(platform, wx, wy, out_x, out_y);
+}
+
+#if defined(TORIRS_PLATFORM_WEB)
+/*
+ * The browser's pinch, which SDL's port never reports as one: Chrome and
+ * Firefox send it as a wheel event with ctrlKey set (and no ctrl key ever
+ * goes down), Safari as its own gesturestart/gesturechange with a cumulative
+ * `scale`. One capture listener on the window takes both for the canvas, as a
+ * running scale this side reads once a frame. The ctrl+wheel is left to reach
+ * SDL as well (its listener cancels the page zoom); the pinch command says so
+ * with `from_wheel`, and whoever takes the pinch drops that wheel.
+ *
+ * The same listener classifies every wheel: a mouse wheel arrives in lines or
+ * pages, or in pixels that are whole multiples of 120 in the legacy
+ * wheelDelta; anything else is a trackpad.
+ *
+ * Chrome's ctrl+wheel deltaY is -100 * ln(scale) for its pinch, so
+ * exp(-deltaY / 100) gives the scale back exactly; Firefox's pixel deltas are
+ * close to the same.
+ */
+// clang-format off
+EM_JS(void, web_gesture_install, (void), {
+    if (globalThis.__torirsGesture)
+        return;
+    var g = { scale: 1.0, pending: 0, wheel: 0, safari: 1.0, trackpad: 0 };
+    globalThis.__torirsGesture = g;
+    function onCanvas(e) {
+        var c = (typeof Module !== 'undefined' && Module['canvas']) ? Module['canvas'] : null;
+        return c && e.target === c;
+    }
+    window.addEventListener('wheel', function (e) {
+        if (!onCanvas(e))
+            return;
+        var legacy = e.wheelDeltaY !== undefined ? e.wheelDeltaY : 0;
+        g.trackpad = (e.deltaMode === 0 && (legacy === 0 || (legacy % 120) !== 0 || e.deltaX !== 0)) ? 1 : 0;
+        if (e.ctrlKey) {
+            var dy = e.deltaY;
+            if (e.deltaMode === 1)
+                dy *= 33;
+            else if (e.deltaMode === 2)
+                dy *= 400;
+            g.scale *= Math.exp(-dy / 100.0);
+            g.pending = 1;
+            g.wheel = 1;
+        }
+    }, { capture: true, passive: true });
+    window.addEventListener('gesturestart', function (e) {
+        if (!onCanvas(e))
+            return;
+        e.preventDefault();
+        g.safari = 1.0;
+    }, { capture: true, passive: false });
+    window.addEventListener('gesturechange', function (e) {
+        if (!onCanvas(e))
+            return;
+        e.preventDefault();
+        if (e.scale > 0 && g.safari > 0) {
+            g.scale *= e.scale / g.safari;
+            g.safari = e.scale;
+            g.pending = 1;
+        }
+    }, { capture: true, passive: false });
+    window.addEventListener('gestureend', function (e) {
+        if (onCanvas(e))
+            e.preventDefault();
+    }, { capture: true, passive: false });
+});
+EM_JS(double, web_gesture_take_pinch, (int* from_wheel), {
+    var g = globalThis.__torirsGesture;
+    if (!g || !g.pending)
+        return 0.0;
+    var s = g.scale;
+    HEAP32[from_wheel >> 2] = g.wheel;
+    g.scale = 1.0;
+    g.pending = 0;
+    g.wheel = 0;
+    return s;
+});
+EM_JS(int, web_gesture_wheel_trackpad, (void), {
+    var g = globalThis.__torirsGesture;
+    return g ? g.trackpad : 0;
+});
+// clang-format on
+#endif
+
+/**
+ * The exact deltas of one SDL wheel event, as TORIRS_CMD_INPUT_SCROLL: canvas
+ * pixels in SDL's sign (the platform's natural-scrolling setting kept), with
+ * whether a trackpad produced it.
+ */
+static void
+sdl_push_scroll(
+    struct PlatformWindow* platform,
+    struct ToriRS_CmdBus* bus,
+    SDL_MouseWheelEvent const* wheel)
+{
+    double const px_per_point = sdl_layout_px_per_point(platform);
+    double const px_per_notch = SDL_SCROLL_POINTS_PER_NOTCH * px_per_point;
+    float const px = wheel->preciseX;
+    float const py = wheel->preciseY;
+    int trackpad;
+
+    assert(platform);
+    assert(bus);
+    assert(wheel);
+    if( px == 0.0f && py == 0.0f )
+        return;
+#if defined(TORIRS_PLATFORM_WEB)
+    trackpad = web_gesture_wheel_trackpad();
+#else
+    /* No device kind from SDL: a wheel's notches are whole (and its integer
+     * fields carry them), a trackpad's deltas are fractions. */
+    trackpad = px != floorf(px) || py != floorf(py) || (float)wheel->x != px || (float)wheel->y != py;
+#endif
+    CmdBus_PushScroll(
+        bus,
+        (double)px * px_per_notch,
+        (double)py * px_per_notch,
+        (int)(px_per_notch + 0.5) > 0 ? (int)(px_per_notch + 0.5) : 1,
+        trackpad,
+        wheel->direction == SDL_MOUSEWHEEL_FLIPPED);
+}
+
+void
+PlatformSdl_PushWheel(
+    struct PlatformWindow* platform,
+    struct ToriRS_CmdBus* bus,
+    SDL_MouseWheelEvent const* wheel)
+{
+    int wheel_y;
+
+    assert(platform);
+    assert(bus);
+    assert(wheel);
+    wheel_y = wheel->y;
+    if( wheel->direction == SDL_MOUSEWHEEL_FLIPPED )
+        wheel_y = -wheel_y;
+    CmdBus_PushMouseWheel(bus, (int16_t)wheel_y);
+    /* The exact deltas beside it. A Mac trackpad's come from AppKit itself
+     * after the batch (points, flagged as a trackpad): SDL pumps Cocoa before
+     * it queues, so the monitor has already seen this event, and its deltas
+     * are not pushed twice. */
+#if defined(__APPLE__)
+    if( PlatformMacGesture_PreciseScrollPending() )
+        return;
+#endif
+    sdl_push_scroll(platform, bus, wheel);
+}
+
+/** Spread of the touch device's first two fingers, normalised units, and
+ *  their midpoint; 0 when fewer than two are down. */
+static float
+sdl_touch_spread(SDL_TouchID touch, float* out_mid_x, float* out_mid_y)
+{
+    SDL_Finger* a;
+    SDL_Finger* b;
+    float dx;
+    float dy;
+
+    assert(out_mid_x);
+    assert(out_mid_y);
+    if( SDL_GetNumTouchFingers(touch) < 2 )
+        return 0.0f;
+    a = SDL_GetTouchFinger(touch, 0);
+    b = SDL_GetTouchFinger(touch, 1);
+    if( !a || !b )
+        return 0.0f;
+    dx = a->x - b->x;
+    dy = a->y - b->y;
+    *out_mid_x = (a->x + b->x) * 0.5f;
+    *out_mid_y = (a->y + b->y) * 0.5f;
+    return sqrtf(dx * dx + dy * dy);
+}
+
+/**
+ * SDL_MULTIGESTURE as a pinch. Its own dDist is one finger's change of
+ * distance from a centroid that moves with it, which is not a scale; the
+ * scale is measured from the fingers themselves, spread now over spread at
+ * the previous gesture event, so a 2x spread is a 2x pinch.
+ *
+ * The same fingers already reach ToriRS_TouchEvent, whose pinch turns into
+ * wheel notches for the game camera; `from_wheel` says so, and a GRAPH well
+ * that takes the pinch drops those notches.
+ */
+void
+PlatformSdl_PushMultiGesture(
+    struct PlatformWindow* platform,
+    struct ToriRS_CmdBus* bus,
+    SDL_MultiGestureEvent const* gesture)
+{
+    float mid_x = 0.0f;
+    float mid_y = 0.0f;
+    float spread;
+    int lx = 0;
+    int ly = 0;
+
+    assert(platform);
+    assert(bus);
+    assert(gesture);
+#if defined(__APPLE__)
+    /* A Mac trackpad's pinch is NSEventTypeMagnify (platform_macos_gesture.m);
+     * counting its fingers here too would zoom twice. */
+    if( SDL_GetTouchDeviceType(gesture->touchId) == SDL_TOUCH_DEVICE_INDIRECT_RELATIVE )
+        return;
+#endif
+    spread = sdl_touch_spread(gesture->touchId, &mid_x, &mid_y);
+    if( spread <= 0.0f )
+    {
+        platform->gesture_spread = 0.0f;
+        return;
+    }
+    if( platform->gesture_spread <= 0.0f || platform->gesture_touch != gesture->touchId )
+    {
+        platform->gesture_spread = spread;
+        platform->gesture_touch = gesture->touchId;
+        return;
+    }
+    if( SDL_GetTouchDeviceType(gesture->touchId) == SDL_TOUCH_DEVICE_DIRECT )
+    {
+        int window_w = 0;
+        int window_h = 0;
+        SDL_GetWindowSize(platform->window, &window_w, &window_h);
+        PlatformWindow_MapMouse(
+            platform, (int)(mid_x * (float)window_w), (int)(mid_y * (float)window_h), &lx, &ly);
+    }
+    else
+        sdl_pointer_layout(platform, &lx, &ly);
+    CmdBus_PushPinch(
+        bus, (double)(spread / platform->gesture_spread), (int16_t)lx, (int16_t)ly, 1);
+    platform->gesture_spread = spread;
+}
+
+/** After the batch: the gestures that arrive outside SDL's event stream. */
+static void
+sdl_push_native_gestures(struct PlatformWindow* platform, struct ToriRS_CmdBus* bus)
+{
+    double scale = 0.0;
+    int lx = 0;
+    int ly = 0;
+
+    assert(platform);
+    assert(bus);
+#if defined(__APPLE__)
+    {
+        double dx = 0.0;
+        double dy = 0.0;
+        int flipped = 0;
+        if( PlatformMacGesture_TakeScroll(&dx, &dy, &flipped) > 0 && (dx != 0.0 || dy != 0.0) )
+        {
+            double const px_per_point = sdl_layout_px_per_point(platform);
+            double const px_per_notch = SDL_SCROLL_POINTS_PER_NOTCH * px_per_point;
+            CmdBus_PushScroll(
+                bus,
+                dx * px_per_point,
+                dy * px_per_point,
+                (int)(px_per_notch + 0.5) > 0 ? (int)(px_per_notch + 0.5) : 1,
+                1,
+                flipped);
+        }
+    }
+    if( PlatformMacGesture_TakePinch(&scale) && scale > 0.0 && scale != 1.0 )
+    {
+        sdl_pointer_layout(platform, &lx, &ly);
+        CmdBus_PushPinch(bus, scale, (int16_t)lx, (int16_t)ly, 0);
+    }
+#elif defined(TORIRS_PLATFORM_WEB)
+    {
+        int from_wheel = 0;
+        scale = web_gesture_take_pinch(&from_wheel);
+        if( scale > 0.0 && scale != 1.0 )
+        {
+            sdl_pointer_layout(platform, &lx, &ly);
+            CmdBus_PushPinch(bus, scale, (int16_t)lx, (int16_t)ly, from_wheel);
+        }
+    }
+#else
+    (void)scale;
+    (void)lx;
+    (void)ly;
+#endif
+}
+
 void
 PlatformWindow_PollCommands(
     struct PlatformWindow* platform,
@@ -3989,6 +4332,11 @@ PlatformWindow_PollCommands(
     sdl_aux_sync_drawable(platform);
     sdl_chrome_sync_drawable(platform);
     sdl_sim_click_pump(platform);
+#if defined(__APPLE__)
+    PlatformMacGesture_Install(platform);
+#elif defined(TORIRS_PLATFORM_WEB)
+    web_gesture_install();
+#endif
 
     while( SDL_PollEvent(&event) )
     {
@@ -4138,23 +4486,26 @@ PlatformWindow_PollCommands(
                 phase = TORIRS_TOUCH_BEGAN;
             else if( event.type == SDL_FINGERUP )
                 phase = TORIRS_TOUCH_ENDED;
+            /* A finger came or went: the pinch's next gesture event measures
+             * afresh rather than scaling against another pair's spread. */
+            if( event.type != SDL_FINGERMOTION )
+                platform->gesture_spread = 0.0f;
             ToriRS_TouchEvent(
                 &platform->touch, bus, phase, (int64_t)event.tfinger.fingerId, lx, ly,
                 (uint64_t)SDL_GetTicks());
             break;
         }
         case SDL_MOUSEWHEEL:
-        {
-            int wheel_y = event.wheel.y;
-            if( event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED )
-                wheel_y = -wheel_y;
-            CmdBus_PushMouseWheel(bus, (int16_t)wheel_y);
+            PlatformSdl_PushWheel(platform, bus, &event.wheel);
             break;
-        }
+        case SDL_MULTIGESTURE:
+            PlatformSdl_PushMultiGesture(platform, bus, &event.mgesture);
+            break;
         default:
             break;
         }
     }
+    sdl_push_native_gestures(platform, bus);
 
     /* The coalesced resize. Pushed after the input above so a click that landed
      * at the old size is applied at the old size, exactly as it was seen.
