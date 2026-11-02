@@ -175,57 +175,63 @@ return {
         t.check("walkIntoArena", arena_walk_result == "ok" and arena_walk_tile ~= nil
                 and arena_walk_tile.x >= 2900,
             "walked through the opened arena entrance to " .. tostring(arena_walk_tile and (arena_walk_tile.x .. "," .. arena_walk_tile.z)))
-        t.exec("fightDad-talk", t.player.talk_to, "troll_champion", 1)
-        t.exec("fightDad-dialog", t.chat.play, {
-            "npc:What tiny human do in troll arena",
-            "choose:I accept your challenge!",
-            "player:I accept your challenge",
-            "npc:Tiny human brave",
-        })
-        t.chat.drain({})
-        t.chat.close()
-        t.ticks(1)
+        -- RSProx index 4455 [717..939] (docs/rsprox-analysis/quests/troll_stronghold_dad.md): Attack is the
+        -- challenge -- troll_accepted_challenge and Dad's page "Tiny human brave. Dad squish!" on the op tick --
+        -- and the fight starts on its continue. He surrenders on the hit that leaves him under 20; the
+        -- rune scimitar's best hit at 99 Strength (19) cannot take him from 20 to nothing.
+        local challenge_result, challenge_detail = t.player.attack("troll_champion", 2, 8)
+        local challenge_kind = t.chat.kind()
+        t.check("fightDad-challenge", challenge_kind == "npc", "Attack -> " .. tostring(challenge_result) .. " "
+            .. tostring(challenge_detail) .. "; chat kind " .. tostring(challenge_kind) .. " (want Dad's page)")
+        t.exec("fightDad-dialog", t.chat.play, { "npc:Tiny human brave. Dad squish!" })
 
+        -- Attack is pressed once every 12 ticks, a single press and never while a page is up (his
+        -- treetrunk throw or an eat can end the swing): a click landing while his surrender page is up
+        -- closes it, and the menu with it.
         local surrendered = false
         local rounds = 0
         local ate = 0
-        local dad_lowest = nil -- margin row below: the lowest Hitpoints read between attacks
+        local presses = 0
+        local dad_lowest = nil -- margin row below: the lowest Hitpoints read in the fight
         local seen = {}
         local last_attack_result = nil
         local last_attack_detail = nil
-        while (not surrendered) and rounds < 160 do
+        local last_press = -100
+        while (not surrendered) and rounds < 1200 do
             rounds = rounds + 1
+            local k0 = t.chat.kind()
+            if k0 ~= "none" then
+                surrendered = true
+                seen[#seen + 1] = "chat:" .. k0
+                break
+            end
             local hp_r, hp = t.skill.read("hitpoints")
             if hp_r == "ok" and type(hp) == "table" and hp.level ~= nil and (dad_lowest == nil or hp.level < dad_lowest) then
                 dad_lowest = hp.level
             end
+            local _, now = t.tick()
             if hp_r == "ok" and type(hp) == "table" and hp.level ~= nil and hp.level < 60 then
                 t.player.inv_op("shark", 1)
                 ate = ate + 1
-            end
-            local k0 = t.chat.kind()
-            if k0 ~= "none" then
-                surrendered = true
-                seen[#seen + 1] = "before-attack:" .. k0
-                break
-            end
-            last_attack_result, last_attack_detail = t.player.attack("troll_champion", 2, 3)
-            t.ticks(2) -- let the attack click settle before the surrender page is looked for
-            local k1 = t.chat.kind()
-            if k1 ~= "none" then
-                surrendered = true
-                seen[#seen + 1] = "after-attack:" .. k1
+                t.ticks(1)
+            elseif (now or 0) - last_press >= 12 then
+                presses = presses + 1
+                last_press = now or 0
+                last_attack_result, last_attack_detail = t.player.attack("troll_champion", 2, 1)
+            else
+                t.ticks(1)
             end
             local sv_r, sv = t.quest.stage()
-            if sv_r == "ok" and sv ~= nil and sv >= 20 and not surrendered then
+            if sv_r == "ok" and sv ~= nil and sv >= 20 and t.chat.kind() == "none" then
                 seen[#seen + 1] = "stage>=20 with chat none at round " .. rounds
                 break
             end
         end
+        -- The recorder's answer [938]; Attack is refused after it ([942]), and Dad turns on the player again.
         local surrender_result, surrender_detail = t.chat.play({
-            "npc:Stop! You win",
-            "choose:I'll be going now.",
-            "player:I'll be going now",
+            "npc:Stop! You win. Not hurt Dad.",
+            "choose:I'm not done yet! Prepare to die!",
+            "player:I'm not done yet! Prepare to die!",
         })
         t.check("fightDad", surrendered and surrender_result == "ok", "Dad's surrender page up: chat kind at loop end="
             .. tostring(surrendered) .. " " .. table.concat(seen, ";") .. " after " .. rounds .. " rounds, sharks eaten "

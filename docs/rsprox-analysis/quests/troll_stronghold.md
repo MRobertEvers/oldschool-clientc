@@ -67,7 +67,7 @@ another session had it mid-edit, `src/build_e9_opt/torirsserver`, `TORIRSSERVER_
 | 699..980 | arena doors, Dad, spectators | **this content**: doors §4, the fight `troll_stronghold_dad.md` |
 | 710, 1366 | staff of earth / rune scimitar Wield | the recorder's kit |
 | 712.., 1047.. | Protect from Melee / Missiles | generic prayer |
-| 968 | cert_blankrune_high pickup | Dad's drop (`troll_stronghold_dad.md`) |
+| 968 | cert_blankrune_high pickup | another player's kill: a clue wizard's drop at 2909,3617 turned public (`ownership=other`), not Dad's; Dad never dies in this recording (`troll_stronghold_dad.md`) |
 | 1004..1024 | troll pass entrance / exit | **this content**: teleports matched (2907,10019 / 2908,3654), no arrivedelay |
 | 1092 | camp guard Examine | client/engine |
 | 1100 | diary_troll_climbingrocks | superseded by the door click at [1102]; the loc is `climb_unqualified` |
@@ -241,6 +241,12 @@ spawns either matches or differs only by how long it was in view.
   `human_block_*`/`human_hit_*`. Engine-wide, not this quest.
 - A world npc-vs-npc fight aborts in `[proc,pest_on_damage]` (varp 6674 with no player) on
   every run of this test; not this quest's npcs.
+- Dad is added per player (owner-private) at 2912,3613, not where 4455 first shows him (2901,3618
+  facing west [698]): added there, he blocks and never swings on the scriptrun (troll_dad.lua's
+  swing rows fail), cause not found. Whether Jagex's Dad is a
+  shared world npc is unverified (he is not in the m45_56 static spawn dump). An owned npc faces its
+  owner whenever idle (engine), so ours faces the player before the challenge and never sends the
+  recorded face resets [926]/[981] (`troll_stronghold_dad.md`).
 - Unrecorded: the arena's right exit leaf, the prison door after stage 30, a sleeping guard
   attacked, the climbing-rock slip rate, the stage-10 "told"/"accepted" journals, the
   completed journal, Denulth's "No.".
