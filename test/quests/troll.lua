@@ -38,6 +38,8 @@ return {
             display = "Troll Stronghold",
             points = 1,
         })
+        -- The wire audit's tick log (docs/rsprox-analysis/quests/troll_stronghold.md).
+        t.ticklog.start()
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
@@ -70,10 +72,11 @@ return {
             "npc:bad news",
             "player:What happened?",
             "npc:*",
-            "choose:Is there anything I can do to help?",
+            -- RSProx index 4455 [280]: the start confirm straight after the ambush
+            -- page (no combat warning at the staged levels).
+            "choose:Yes.",
             "player:Is there anything",
             "npc:The way to the stronghold is treacherous",
-            "choose:I'll get Godric back!",
             "player:I'll get Godric back",
             "npc:God speed friend",
         })
@@ -102,7 +105,7 @@ return {
             "npc:12 gold",
             "choose:OK, sounds good.",
             "player:OK, sounds good",
-            "mesbox:Tenzing has given you some Climbing boots",
+            "objbox:Tenzing has given you some Climbing boots",
             "npc:Was there anything else",
             "choose:Nothing, thanks!",
             "player:Nothing, thanks",
@@ -239,12 +242,13 @@ return {
         -- leaveArena, enterArenaCavern, leaveArenaCavern, enterStronghold
         ------------------------------------------------------------------
         -- The arena's north gate (troll_stronghold_arena_exit_left 2916,3629, south edge; door_selfstage_open once
-        -- %troll_quest >= defeated_dad, quest_troll.rs2:100-112) opens into a 100-tile walled pocket whose only other
+        -- %troll_quest >= defeated_dad, a walk-through) opens into a 100-tile walled pocket whose only other
         -- way out is the cave mouth troll_pass_entrance 2903,3644 (comp.py 2916,3631: doors on edge = the two gate
         -- leaves only). The cave's west-angle copies teleport 2907,10019 in and 2908,3654 out (quest_troll.rs2:127-133).
         t.exec("walk-leaveArena", t.player.walk_to, 2916, 3628, 40)
-        t.exec("leaveArena", t.player.pass_door, { closed = "troll_stronghold_arena_exit_left",
-            open = "troll_stronghold_arena_exit_left", at = { 2916, 3629, 0 }, near = { 2916, 3628 }, far = { 2916, 3631 } })
+        -- A walk-through (RSProx index 4455 [980]): the player steps onto the door's own tile.
+        t.exec("leaveArena", t.player.cross_gate, { loc = "troll_stronghold_arena_exit_left", at = { 2916, 3629, 0 },
+            near = { 2916, 3628 }, far_ok = function(tile) return tile.z >= 3629 end, far_desc = "north of the arena wall, z >= 3629" })
         t.exec("walk-enterArenaCavern", t.player.walk_to, 2903, 3643, 30)
         t.exec("enterArenaCavern", t.player.climb, { loc = "troll_pass_entrance", op = 1, op_name = "Enter",
             at = { 2903, 3644, 0 }, src = { 2903, 3643 }, dest = { 2907, 10019, 0 } })
@@ -277,7 +281,9 @@ return {
             t.check("killGeneral-protectMelee", tab_result == "ok" and wr == "ok" and on == 1, "varb4118_prayer_protectfrommelee " .. tostring(on) .. "; prayer skill " .. tostring(type(pr) == "table" and (tostring(pr.level) .. "/" .. tostring(pr.base_level)) or pr))
         end
         local _, sharks_at_general = t.inv.count("shark")
-        t.exec("goto-killGeneral", t.player.goto_tile, 2835, 10088, 2)
+        -- Where the recorder stood to take the first general (RSProx index 4455 [1344]): the hall's west side. From
+        -- 2835,10088 the route to a general detours south round the wall and the general wanders out of view.
+        t.exec("goto-killGeneral", t.player.goto_tile, 2826, 10084, 2)
         t.ticks(4)
         local have_prison_key = false
         local general_symbols = { "troll_general", "troll_general2", "troll_general3" }

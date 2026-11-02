@@ -12,6 +12,8 @@
 --   Grail): RSProx index 4435, exactly.
 --   Death Plateau, stages 20, 30, 40, 50, 55 and four states of 70: RSProx index
 --   4431, exactly.
+--   Troll Stronghold, stages 10, 20 (outside, inside, with the prison key), 30
+--   (and with Eadgar freed) and 40: RSProx index 4455, exactly.
 --   The Grand Tree, stages 20, 60, 80, 90, 100, 110, 120 and 150 (the rock held):
 --   RSProx index 4429, exactly (stage 90's trailing blank row dropped: a read
 --   ends at the last text row).
@@ -1000,6 +1002,92 @@ local DP_4431_70_CERT = {
     "<col=800000>Denulth<col=000080> gave me a <col=800000>certificate<col=000080> to prove that Dunstan's son",
     "<col=000080>has been signed up for the Imperial Guard.",
 }
+-- RSProx index 4455 [294].
+local TS_4455_10 = {
+    "<col=000080>I promised <col=800000>Denulth<col=000080> that I would rescue <col=800000>Godric <col=000080>from the <col=800000>Troll",
+    "<col=800000>Stronghold",
+}
+-- RSProx index 4455 [999], [1075].
+local TS_4455_20 = {
+    "<col=000080>I promised <col=800000>Denulth<col=000080> that I would rescue <col=800000>Godric <col=000080>from the <col=800000>Troll",
+    "<col=800000>Stronghold",
+    "",
+    "<str>I got some climbing boots from Tenzing.",
+    "",
+    "<str>I have defeated the Troll Champion.",
+    "",
+    "<col=000080>I have to find a way to get into the <col=800000>Troll Stronghold",
+    "",
+    "<col=000080>I have to find a way to get into the <col=800000>prison",
+}
+-- RSProx index 4455 [1539].
+local TS_4455_20_IN = {
+    "<col=000080>I promised <col=800000>Denulth<col=000080> that I would rescue <col=800000>Godric <col=000080>from the <col=800000>Troll",
+    "<col=800000>Stronghold",
+    "",
+    "<str>I got some climbing boots from Tenzing.",
+    "",
+    "<str>I have defeated the Troll Champion.",
+    "",
+    "<str>I have found my way into the Troll Stronghold.",
+    "",
+    "<col=000080>I have to find a way to get into the <col=800000>prison",
+}
+-- RSProx index 4455 [1837].
+local TS_4455_20_KEY = {
+    "<col=000080>I promised <col=800000>Denulth<col=000080> that I would rescue <col=800000>Godric <col=000080>from the <col=800000>Troll",
+    "<col=800000>Stronghold",
+    "",
+    "<str>I got some climbing boots from Tenzing.",
+    "",
+    "<str>I have defeated the Troll Champion.",
+    "",
+    "<str>I have found my way into the Troll Stronghold.",
+    "",
+    "<str>I have the prison key.",
+    "<col=000080>I have to get into the <col=800000>prison",
+}
+-- RSProx index 4455 [1916].
+local TS_4455_30 = {
+    "<col=000080>I promised <col=800000>Denulth<col=000080> that I would rescue <col=800000>Godric <col=000080>from the <col=800000>Troll",
+    "<col=800000>Stronghold",
+    "",
+    "<str>I got some climbing boots from Tenzing.",
+    "",
+    "<str>I have defeated the Troll Champion.",
+    "",
+    "<str>I found my way into the prison.",
+    "",
+    "<col=000080>I have to rescue <col=800000>Godric",
+}
+-- RSProx index 4455 [2126].
+local TS_4455_30_EADGAR = {
+    "<col=000080>I promised <col=800000>Denulth<col=000080> that I would rescue <col=800000>Godric <col=000080>from the <col=800000>Troll",
+    "<col=800000>Stronghold",
+    "",
+    "<str>I got some climbing boots from Tenzing.",
+    "",
+    "<str>I have defeated the Troll Champion.",
+    "",
+    "<str>I found my way into the prison.",
+    "",
+    "<str>I've rescued Mad Eadgar.",
+    "<col=000080>I have to rescue <col=800000>Godric",
+}
+-- RSProx index 4455 [2175], [2214].
+local TS_4455_40 = {
+    "<col=000080>I promised <col=800000>Denulth<col=000080> that I would rescue <col=800000>Godric <col=000080>from the <col=800000>Troll",
+    "<col=800000>Stronghold",
+    "",
+    "<str>I got some climbing boots from Tenzing.",
+    "",
+    "<str>I have defeated the Troll Champion.",
+    "",
+    "<str>I found my way into the prison.",
+    "",
+    "<str>I've rescued Godric and Mad Eadgar.",
+    "<col=000080>I should return and tell <col=800000>Dunstan <col=000080>his son is safe.",
+}
 -- RSProx index 4431 [1762].
 local DP_4431_70_SCOUTED = {
     "<str>I have found another way up Death Plateau for Denulth.",
@@ -1825,6 +1913,30 @@ return {
         set("::setvar varp6442_death_map 0")
         set("::setvar varp314_death_equiproom 0")
         set("::clearinv")
+
+        -- Troll Stronghold, RSProx index 4455: every state the recorder opened.
+        -- The boots row stands on Dad's warning having been heard (varbit
+        -- troll_told) or boots held; the key row on the key in the backpack.
+        set("::clearinv")
+        set("::setvar varp317_troll_quest 10")
+        exact("journal.trollstronghold.10", "Troll Stronghold", TS_4455_10)
+        set("::setvar varb4_troll_told 1")
+        set("::setvar varp317_troll_quest 20")
+        exact("journal.trollstronghold.20", "Troll Stronghold", TS_4455_20)
+        set("::setvar varb2_troll_entered_stronghold 1")
+        exact("journal.trollstronghold.20.in", "Troll Stronghold", TS_4455_20_IN)
+        set("::give troll_key_prison 1")
+        exact("journal.trollstronghold.20.key", "Troll Stronghold", TS_4455_20_KEY)
+        set("::clearinv")
+        set("::setvar varp317_troll_quest 30")
+        exact("journal.trollstronghold.30", "Troll Stronghold", TS_4455_30)
+        set("::setvar varb0_troll_freed_eadgar 1")
+        exact("journal.trollstronghold.30.eadgar", "Troll Stronghold", TS_4455_30_EADGAR)
+        set("::setvar varp317_troll_quest 40")
+        exact("journal.trollstronghold.40", "Troll Stronghold", TS_4455_40)
+        for _, v in ipairs({ "varb0_troll_freed_eadgar", "varb2_troll_entered_stronghold", "varb4_troll_told", "varp317_troll_quest" }) do
+            set("::setvar " .. v .. " 0")
+        end
 
         -- Holy Grail, RSProx index 4435: every state the recorder opened; stage
         -- 8 with and without the feather, 9 with and without the Grail.

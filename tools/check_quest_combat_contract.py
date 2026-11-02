@@ -2736,8 +2736,10 @@ def check_troll_stronghold() -> None:
             "[label,troll_unlock_cell_1]", "%varp317_troll_quest = ^troll_freed_godric;",
             "inv_del(inv, troll_key_godric, 1);", "[label,troll_unlock_cell_2]",
             "%varb0_troll_freed_eadgar = ^true;", "inv_del(inv, troll_key_eadgar, 1);",
-            "[proc,troll_npc_forcewalk]", "[queue,troll_quest_complete]",
-            "inv_freespace(inv) < 1", "%varp317_troll_quest = ^troll_complete;",
+            "[proc,troll_npc_forcewalk]",
+            # RSProx index 4455 [2261]: the completion on the click of Dunstan's last
+            # page (a label he jumps to), not a queue; his branch checks the space.
+            "[label,troll_quest_complete]", "%varp317_troll_quest = ^troll_complete;",
             "inv_add(inv, law_talisman, 1);", "~quest_complete_rewards(quest_trollstronghold",
         ),
         "Troll Stronghold route, private prisoners and reward",
@@ -2863,7 +2865,7 @@ def check_troll_stronghold() -> None:
     require_text(
         TROLL_DUNSTAN.read_text(),
         ("%varp317_troll_quest = ^troll_freed_godric", "inv_freespace(inv) = 0",
-         "queue(troll_quest_complete, 0, 0);", "~obj_gettotal(law_talisman) = 0",
+         "@troll_quest_complete;", "~obj_gettotal(law_talisman) = 0",
          "[label,dunstan_lawtali]", "inv_total(inv, coins) < 1000",
          "inv_del(inv, coins, 1000);", "inv_add(inv, law_talisman, 1);"),
         "Troll Stronghold Dunstan completion and replacement",
