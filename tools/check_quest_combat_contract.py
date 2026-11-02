@@ -260,6 +260,8 @@ HMQ_CONSTANT = CONTENT / "quests/quest_hauntedmine/configs/quest_hauntedmine.con
 HMQ_STRINGING = CONTENT / "skill_crafting/scripts/jewellery/stringing.rs2"
 HMQ_GENERATED_ANIMS = CONTENT / "npc/configs/npc_anims.generated.npc"
 TROLLLOVE_ARRG = CONTENT / "quests/quest_troll_love/scripts/trollromance_arrg.rs2"
+TROLLLOVE_ARRG_FIGHT = CONTENT / "quests/quest_troll_love/scripts/trollromance_arrg_fight.rs2"
+TROLLLOVE_BURTHORPE = CONTENT / "quests/quest_troll_love/scripts/trollromance_burthorpe.rs2"
 TROLLLOVE_SLED = CONTENT / "quests/quest_troll_love/scripts/trollromance_sled.rs2"
 TROLLLOVE_UG = CONTENT / "quests/quest_troll_love/scripts/trollromance_ug.rs2"
 TROLLLOVE_NPC = CONTENT / "quests/quest_troll_love/configs/quest_troll_love.npc"
@@ -3506,28 +3508,29 @@ def check_haunted_mine() -> None:
 
 
 def check_troll_romance() -> None:
+    # Rebuilt from RSProx index 4456 (2026-11-02): docs/rsprox-analysis/quests/troll_romance.md.
+    # Arrg's combat numbers are the fight audit's (trollromance_arrg_fight.rs2), pinned by
+    # what is structural here; the pages and the challenge are trollromance_arrg.rs2.
     require_text(
         TROLLLOVE_CONSTANT.read_text(),
-        ("^troll_love_slide_agility = 28", "^troll_love_arrg_lifetime = 500",
-         "^troll_love_arrg_prayer_penetrate = 5",
-         "^troll_love_arrg_ranged_accuracy_scale = 4",
-         "^troll_love_arrg_melee_max = 38", "^troll_love_arrg_ranged_max = 30",
+        ("^troll_love_slide_agility = 28", "^troll_love_arrg_spawn = 0_45_56_29_27",
+         "^troll_love_arena_player = 0_45_56_32_27",
          "^troll_love_arena_min", "^troll_love_arena_max"),
         "Troll Romance encounter constants",
     )
-    npc = config_text.read_text(TROLLLOVE_NPC)
+    require("[trollromance_arrg_attackable]" in config_text.read_text(TROLLLOVE_NPC),
+            "Troll Romance: Arrg's combat row")
+    # His reach, his hunt and his death clock (4456: no swing from 2 or 4 tiles; the duel
+    # hands him the player on A+1; his "Arrg!" and the stage with the death animation).
     require_text(
-        npc,
-        ("[trollromance_arrg_attackable]", "hitpoints=140", "attack=70",
-         "strength=140", "defence=40", "magic=0", "ranged=70",
-         "param=attackrate,4", "param=damagetype,^slash_style",
-         "param=slashattack,60", "param=strengthbonus,100",
-         "param=stabdefence,35", "param=slashdefence,60",
-         "param=crushdefence,35", "param=magicdefence,200",
-         "param=rangedefence,200", "param=elemental_weakness,^element_earth",
-         "param=elemental_weakness_percent,50",
-         "param=combat_xp_multiplier,1075", "param=death_drop,null"),
-        "Troll Romance exact Arrg combat row",
+        config_text.read_text(TROLLLOVE_NPC),
+        ("param=attackrange,1", "huntmode=none", "death_delay=0", "param=attackrate,4"),
+        "Troll Romance: Arrg's reach, hunt and death clock (4456 [2071..2266])",
+    )
+    require_text(
+        TROLLLOVE_CONSTANT.read_text(),
+        ("^troll_love_arrg_rock_endtime = 47", "^troll_love_arrg_rock_max = 30"),
+        "Troll Romance: Arrg's rock (4456 [2076], [2087]; the wiki's max)",
     )
     require_text(
         config_text.read_text(TROLLLOVE_VARP),
@@ -3535,51 +3538,75 @@ def check_troll_romance() -> None:
          "protect=no", "transmit=no", "scope=temp"),
         "Troll Romance private session state",
     )
-    arrg = TROLLLOVE_ARRG.read_text()
+    require_text(
+        TROLLLOVE_ARRG.read_text(),
+        ('"Ehh, Excuse me... Mr. Troll, sir, "', "\"But not in front of the lady, let's take it outside.\"",
+         "[proc,trollromance_arrg_arena]", "p_teleport(^troll_love_arena_player);",
+         "npc_add(^troll_love_arrg_spawn, trollromance_arrg_attackable",
+         "npc_setowner;", "%varb14192_current_hint_arrow = 7;", "hint_stop;", "hint_npc;",
+         "queue(trollromance_arrg_engage, 1, npc_uid);"),
+        "Troll Romance challenge: Arrg added in the arena on the last page's click (4456 [2071])",
+    )
+    require("This is not a safe death" not in TROLLLOVE_ARRG.read_text(),
+            "Troll Romance: no confirm menu before the arena (4456 [2071])")
+    arrg = TROLLLOVE_ARRG_FIGHT.read_text()
     require_text(
         arrg,
-        ("This is not a safe death", "npc_add(^troll_love_arrg_spawn, trollromance_arrg_attackable",
-         "npc_setowner;", "[ai_timer,trollromance_arrg_attackable]",
-         "~playerhit_n_melee_bypass_prayer(^slash_style, $damage);",
-         "~playerhit_n_ranged($check_prayer, $damage, $duration);",
-         "multiply(~npc_ranged_attack_roll, ^troll_love_arrg_ranged_accuracy_scale)",
-         "[ai_queue3,trollromance_arrg_attackable]",
+        ("[ai_queue3,trollromance_arrg_attackable]",
          "%varp385_troll_love = ^troll_love_defeated_arrg;",
-         "[proc,trollromance_arrg_drop_table](coord $where)",
-         "obj_add_private($where, bones, 1", "def_int $roll = random(128);",
-         "else if ($roll < 123)", "~troll_gem_drop(true)",
-         "if (random(45) = 0) obj_add_private($where, arceuus_corpse_troll",
          "[timer,trollromance_arrg_monitor]", "[proc,trollromance_arrg_cleanup]",
          "[proc,trollromance_on_death]", "[proc,trollromance_on_logout]"),
-        "Troll Romance owner-private Arrg, loot and lifecycle",
+        "Troll Romance owner-private Arrg lifecycle",
     )
+    require_text(
+        arrg,
+        ("[queue,trollromance_arrg_engage]", "p_opnpc(2);",
+         "[ai_queue4,trollromance_arrg_attackable]", "npc_attackplayer;", "npc_attackdelay(4);",
+         "[ai_opplayer2,trollromance_arrg_attackable]", "sound_synth(warhammer_crush, 1, 0);",
+         "npc_anim(troll_rock_throw_lefthand, 0);", "sound_area(troll_throw_rock, 0, npc_coord, 10);",
+         "projanim_pl_raw(npc_coord, uid, troll_rock_travel, 146, 146, 31, ^troll_love_arrg_rock_endtime, 8, 128);",
+         "sound_area(stone_impact, 0, coord, 10);", 'npc_say("Arrg!");', "npc_delay(1);"),
+        "Troll Romance: Arrg's swings and death as recorded (4456 [2072], [2076], [2081], [2087], [2264], [2266])",
+    )
+    for guess in ('mes("Arrg!")', "tired of waiting", "spotanim_npc(troll_rock_launch",
+                  "troll_love_arrg_prayer_penetrate", "troll_love_arrg_ranged_accuracy_scale",
+                  "npc_facesquare(coord)", "[ai_timer,trollromance_arrg_attackable]"):
+        require(guess not in arrg,
+                f"Troll Romance: {guess} is in neither 4456 nor the wiki (trollromance_arrg_fight.rs2)")
     require("@troll_drop_table" not in arrg,
             "Troll Romance: Arrg must not use the public generic troll table")
     require_text(
         TROLLLOVE_SLED.read_text(),
-        ("inv_del(inv, cake_tin, 1);", "stat(agility) < ^troll_love_slide_agility",
-         "[opheld2,trollromance_toboggon_waxed]", "[timer,trollromance_sled_monitor]",
-         "inv_del(worn, trollromance_toboggon_waxed, 1);",
-         "[proc,trollromance_has_sled]()(boolean)", "[proc,trollromance_on_login]"),
-        "Troll Romance wax, slide and sled-loss route",
+        ('mes_spam("You make some sled wax.");', "inv_setslot(inv, $bucket_slot, trollromance_wax, 1);",
+         "inv_setslot(inv, $sled_slot, trollromance_toboggon_waxed, 1);",
+         "stat(agility) < ^troll_love_slide_agility",
+         "[opheld2,trollromance_toboggon_waxed]", "sound_synth(equip_fun, 0, 0);",
+         "[timer,trollromance_sled_monitor]",
+         "inv_del(worn, trollromance_toboggon_waxed, 1);", "[proc,trollromance_on_login]"),
+        "Troll Romance wax, slide and sled-loss route (4456 [1026], [1033], [1454], [1696])",
     )
     require_text(
         TROLLLOVE_DUNSTAN.read_text(),
-        ("~trollromance_has_sled = false", "Lost it, did you?",
-         "if (%varp385_troll_love < ^troll_love_dunstan_made_sled)"),
-        "Troll Romance sled replacement",
+        ('"Talk about a quest."', "@trollromance_dunstan;"),
+        "Troll Romance: Dunstan's quest menu (4456 [902])",
+    )
+    require_text(
+        TROLLLOVE_BURTHORPE.read_text(),
+        ("%varp385_troll_love = ^troll_love_learnt_about_trollweiss;",
+         "%varp385_troll_love = ^troll_love_bring_dunstan_materials;",
+         "inv_add(inv, trollromance_toboggon, 1);",
+         "%varp385_troll_love = ^troll_love_dunstan_made_sled;"),
+        "Troll Romance: Tenzing and Dunstan's sled (4456 [857], [984], [994])",
     )
     require_text(
         TROLLLOVE_UG.read_text(),
-        ("inv_total(worn, trollromance_rare_flower) > 0",
-         "inv_freespace(inv) < 7", "inv_add(inv, uncut_diamond, 1);",
-         "inv_add(inv, uncut_ruby, 2);", "inv_add(inv, uncut_emerald, 4);",
+        ("inv_del(inv, trollromance_rare_flower, 1);",
+         "~trollromance_give_or_drop(uncut_diamond);",
+         "obj_add_private(coord, $item, 1, ^lootdrop_duration, ^lootdrop_duration);",
+         '"8,000 Agility XP|4,000 Strength XP|7 Uncut Gems"',
          "stat_advance(agility, 80000);", "stat_advance(strength, 40000);"),
-        "Troll Romance flower and atomic reward",
+        "Troll Romance flower and reward (4456 [1992], [2491])",
     )
-    require_text(COMBAT_STATS.read_text(),
-                 ("[proc,playerhit_n_melee_bypass_prayer]", "~playerhit_n_melee_apply"),
-                 "Troll Romance prayer-penetrating melee funnel")
     require_text(PLAYER_DEATH.read_text(), ("~trollromance_on_death;",),
                  "Troll Romance death cleanup hook")
     require_text(PLAYER_LOGOUT.read_text(), ("~trollromance_on_logout;",),

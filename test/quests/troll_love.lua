@@ -71,6 +71,7 @@ return {
             points = 2,
         })
         t.ticks(3)
+        t.ticklog.start() -- the wire audit against RSProx index 4456 (docs/rsprox-analysis/quests/troll_romance.md)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
         -- seam troll_love_arrg_and_sleds: Arrg is the OSRS wiki block (max 38 melee / 30 ranged);
         -- the armour is worn from the start (the guide's "Combat gear").
@@ -212,7 +213,10 @@ return {
             "player:Awww, you poor troll. What see",
             "npc:I love Aga, she so beautiful, ",
             "npc:But Arrg that... arrrrrg! He t",
-            "choose:Don't worry now, I'll see what I can do.",
+            "player:Who is Aga?",
+            "npc:She most beautiful troll in world.",
+            "npc:Ug want to marry Aga, but she with Arrg!",
+            "choose:Yes.",
             "player:Don't worry now, I'll see what",
             "npc:You help Ug? You nice, maybe U",
             "player:Errrr... thanks... I think?",
@@ -237,8 +241,10 @@ return {
             "player:(Maybe trolls DO have a romant",
             "player:And Arrg said he would get you",
             "npc:He very strong, if he love Aga",
-            "choose:Errr... I've got to go.",
-            "player:Errr... I've got to go.",
+            "choose:So... what do you think about Ug?",
+            "player:So... what do you think about Ug?",
+            "npc:Who?",
+            "player:You know that wimpy, crying... nevermind.",
         })
         t.ticks(2)
         t.expect("quest.stage.aga_wants_trollweiss", t.quest.expect_stage("aga_wants_trollweiss"))
@@ -254,47 +260,75 @@ return {
             runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot" })
         tenzing_in("talkToTenzing")
         t.exec("talkToTenzing", t.player.talk_to, "death_sherpa", 1)
+        -- RSProx index 4456 [774..861]: at stage 10 no greeting, the hub's slot 4 is the question.
         t.exec("talkToTenzing-dialog", t.chat.play, {
-            "player:Hello Tenzing!",
-            "npc:Hello again traveller. What can I do for you?",
+            "choose:Do you know where I can find Trollweiss?",
             "player:Do you know where I can find Trollweiss?",
-            "npc:Trollweiss used to grow all over",
-            "player:What would I need to get there?",
-            "npc:You'd need to head up into the domain",
-            "npc:The plateau used to be easy enough",
+            "npc:It has been a long time since",
+            "npc:In the old days Trollweiss",
+            "npc:There is one place, where I am sure",
+            "player:Nothing's impossible",
+            "npc:Ahhh, the youth of today.",
+            "player:Spare me with the lectures",
+            "npc:Well, you will need to enter the domain",
+            "npc:It used to be easy to get to this plateau",
+            "player:There must be a way to get there.",
+            "npc:There is maybe one thing...",
+            "player:Go on.",
             "npc:If you could make some sort of sled",
-            "npc:Just remember, once you slide down",
-            "mesbox:You should go and speak to Dunstan",
+            "choose:What would I need to make such a sled?",
+            "player:What would I need to make such a sled?",
+            "npc:Well, I'm no expert.",
+            "player:Like who?",
+            "npc:Why don't you ask Dunstan.",
+            "player:Thank you very much for the information.",
         })
         t.ticks(2)
         t.expect("quest.stage.learnt_about_trollweiss", t.quest.expect_stage("learnt_about_trollweiss"))
         tenzing_out("leaveTenzing")
 
         ---------------------------------------------------------------- 15: Dunstan
-        -- The materials are in the pack (the guide's bring-alongs), so ONE conversation asks for the sled
-        -- (stage 20) and hands it over (stage 22): death_dunstan.rs2:273-289 writes
-        -- ^troll_love_bring_dunstan_materials and then checks the pack in the same label.
-        -- ANY-OF: talkToDunstanAgain talkToDunstan death_dunstan.rs2:273-289 asks for the materials and builds the sled in one talk when they are carried
+        -- RSProx index 4456 [902..1016]: the first talk asks for the sled (stage 20 on its last page),
+        -- the second hands the materials over (stage 22) and asks about the wax.
         t.exec("goto-talkToDunstan.street", t.player.goto_tile, 2921, 3569, 0)
         t.exec("talkToDunstan.doorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
             at = { 2921, 3571, 0 }, near = { 2921, 3571 }, far = { 2921, 3572 } })
         t.exec("talkToDunstan", t.player.talk_to, "death_smithy", 1)
         t.exec("talkToDunstan-dialog", t.chat.play, {
+            "choose:Talk about a quest.",
             "player:Hi!",
             "npc:Hi! Did you want something?",
-            "choose:I wanted to ask about something else.",
-            "choose:Can you build me a sled to get to Trollweiss?",
-            "player:Can you build me a sled to get to Trollweiss?",
-            "npc:A sled, eh? Should be no trouble",
-            "player:I've got everything you need right here.",
-            "mesbox:A short while later, Dunstan hands you a sled.",
-            "npc:There you go, one sled!",
-            "player:Where would I find some wax?",
-            "npc:Maybe you should look for some bees.",
-            "npc:Anything else before I get on with my work?",
-            "choose:I wanted to ask about something else.",
-            "choose:Nothing, thanks.",
-            "player:Nothing, thanks.",
+            "choose:I need a sled!!",
+            "player:I need a sled!!",
+            "npc:Haha, very funny!",
+            "choose:No.",
+            "player:No.",
+            "npc:Hahahaha.",
+            "player:No, I actually still like rolling around in the snow.",
+            "npc:Well, I guess some of us never grow up!",
+            "player:I need the sled to get to a certain location",
+            "npc:Well, since you've helped my family out",
+            "npc:Let me think...",
+            "npc:...",
+            "npc:Yeah, that should do it.",
+            "npc:I should have my designs ready",
+        })
+        t.ticks(2)
+        t.expect("quest.stage.bring_dunstan_materials", t.quest.expect_stage("bring_dunstan_materials"))
+        t.exec("talkToDunstanAgain", t.player.talk_to, "death_smithy", 1)
+        t.exec("talkToDunstanAgain-dialog", t.chat.play, {
+            "choose:Talk about a quest.",
+            "npc:Have you got all the materials for the sled yet?",
+            "player:Yes, I have all the materials for the sled.",
+            "objbox:Dunstan takes the materials",
+            "npc:Well, here's the sled",
+            "npc:Maybe if you mix some wax",
+            "choose:Where can I get wax from?",
+            "player:Where can I get wax from?",
+            "npc:I don't know. I'm a smith!",
+            "choose:See you!",
+            "player:See you!",
+            "npc:Thank you, come again.",
         })
         t.ticks(2)
         t.expect("quest.stage.dunstan_made_sled", t.quest.expect_stage("dunstan_made_sled"))
@@ -439,11 +473,13 @@ return {
         t.exec("challengeArrg-dialog", t.chat.play, {
             "npc:Whaaaaaaaat?",
             "player:Ehh, Excuse me... Mr. Troll, sir,",
-            "choose:I am here to kill you!",
-            "player:I am here to kill you!",
-            "npc:Very good, Arrg was getting hungry.",
+            "choose:Aga deserves better than you.",
+            "player:Aga deserves better than you.",
+            "npc:What you mean? Arrg strong troll",
+            "player:But you don't love her!",
+            "npc:This concept of 'love'",
+            "player:Looks like I'm going to have to teach you",
             "player:But not in front of the lady",
-            "choose:Enter the arena. This is not a safe death.",
         })
         t.ticks(4)
         t.exec("killArrg", t.player.attack, "trollromance_arrg_attackable", 2, 20)
