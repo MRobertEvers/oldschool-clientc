@@ -456,7 +456,11 @@ function QD.chat._continue_unarmed()
     -- (objbox_setbuttons "" and no events, RSProx index 4370 [552], [555]).
     -- An objectbox's row is cc_create'd and reads no text, so only its
     -- armed bit answers.
-    if sym ~= "messagebox" and sym ~= "objectbox" then
+    -- And a chat_left / chat_right page sent with nothing to click: Jagex's
+    -- timed scenes (Wanted!'s hunt, RSProx index 4464 [2840]: events -1..-1
+    -- [] and the continue text blank) put each line up and replace it from
+    -- the script.
+    if sym ~= "messagebox" and sym ~= "objectbox" and sym ~= "chat_left" and sym ~= "chat_right" then
         return false
     end
     local continue_symbol = QD.chat._continue_symbol_by_iface[sym]
@@ -472,7 +476,7 @@ function QD.chat._continue_unarmed()
     end
     -- An empty continue label is the server's own "nothing to click here"
     -- (the armed bit can outlive the page that set it).
-    if sym == "messagebox" then
+    if sym == "messagebox" or sym == "chat_left" or sym == "chat_right" then
         local text_res, text = api_drive.widget_text(com_id)
         if text_res == "ok" and text == "" then
             return true

@@ -145,8 +145,10 @@ return {
         t.exec("talkToBarnabyKaramja.d1", t.chat.drain, { stop_at = "options" })
         t.exec("talkToBarnabyKaramja.c1", t.chat.choose, "I'd like to go to Ardougne.")
         t.exec("talkToBarnabyKaramja.d2", t.chat.drain, {})
-        t.expect("barnabyKaramja.sailMessage", t.msg.expect("You board the ship and sail to Ardougne."))
+        -- The sail line goes out with the move, three ticks after the pay (RSProx
+        -- index 4464 [3109] -> [3112]).
         t.ticks(4)
+        t.expect("barnabyKaramja.sailMessage", t.msg.expect("You board the ship and sail to Ardougne."))
         deck_check("barnabyKaramja.onDeckAtArdougne", 2683, 3263, coins1)
         t.exec("ardougne.disembark", t.player.climb, { loc = "brimhavenshipplank_off", op_name = "Cross",
             at = { 2683, 3264, 1 }, dest = { 2683, 3266, 0 }, slack = 2 })

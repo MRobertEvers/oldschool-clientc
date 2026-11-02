@@ -67,8 +67,9 @@ return {
         "::setlevel defence 99",
         "::setlevel hitpoints 99",
         "::setlevel magic 45", -- Camelot Teleport's level (Varrock Teleport needs 25); see the header on combat level
+        "::setlevel agility 13", -- the Lost Tribe hole to Dorgesh-Kaan's mine (losttribe.rs2: "You need an Agility level of 13")
         "::give coins 10000", -- getItemRequirements(): 10,000 coins for the Commorb (bought, not made)
-        "::give blankrune 20", -- getItemRequirements(): 20 un-noted rune essence for the Mage of Zamorak
+        "::give blankrune_high 20", -- 20 pure essence for the Mage of Zamorak (RSProx index 4464 [1948]: pure, "20 Pure Essences" in the journal)
         "::give rune_scimitar 1",
         "::wield rune_scimitar", -- worn in setup so its backpack slot is free for the light source
         "::give slayer_helm 1", -- getItemRequirements(): the spiny helmet OR slayer helm for the swamp caves (no spiny helmet obj exists; slayer_helm is the guide's alternative)
@@ -87,6 +88,62 @@ return {
     },
 
     run = function(t)
+        -- A conversation by its menus: every page between them is continued (or, a
+        -- page with nothing to click, waited out: the hunt's scenes are timed,
+        -- RSProx index 4464), each menu answered with the next choice in order.
+        -- A scan scene is over when its stop's bit is written, the lock is lifted and its
+        -- last (clickable) page is gone.
+        local function scene_done(var)
+            return function()
+                local _, v = t.var.server(var)
+                local _, cs = t.var.server("varb542_cutscene_status")
+                return v == 1 and cs == 0 and t.chat.kind() == "none"
+            end
+        end
+
+        local function converse(choices, opts)
+            opts = opts or {}
+            local seen = {}
+            if opts.open then
+                -- a scene's first page comes a couple of ticks after the click that starts it
+                t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the scene's first page" }, opts.open)
+            end
+            for _, choice in ipairs(choices) do
+                local r, d = t.chat.drain({ stop_at = "options", wait_ticks = opts.wait_ticks or 120, max_pages = 200 })
+                if r ~= "ok" or d ~= "options" then
+                    return "mismatch", "before '" .. choice .. "': drain -> " .. tostring(r) .. " " .. tostring(d)
+                end
+                local cr, cd = t.chat.choose(choice)
+                if cr ~= "ok" then
+                    return cr, "choose '" .. choice .. "': " .. tostring(cd)
+                end
+                seen[#seen + 1] = choice
+            end
+            local r, d = t.chat.drain({ wait_ticks = opts.wait_ticks or 120, max_pages = 200 })
+            if r ~= "ok" then
+                return r, "after the menus: " .. tostring(d)
+            end
+            -- A scene has gaps with no page up (a spell's empty box, a fade): keep
+            -- draining until the scene's own end (a varbit it writes) is in.
+            if opts.done then
+                local budget = opts.budget or 300
+                while not opts.done() and budget > 0 do
+                    t.ticks(1)
+                    budget = budget - 1
+                    if t.chat.kind() ~= "none" then
+                        r, d = t.chat.drain({ wait_ticks = opts.wait_ticks or 120, max_pages = 200 })
+                        if r ~= "ok" then
+                            return r, "in the scene: " .. tostring(d)
+                        end
+                    end
+                end
+                if not opts.done() then
+                    return "timeout", "the scene's end never came"
+                end
+            end
+            return "ok", #seen .. " menu(s): " .. table.concat(seen, " / ") .. "; ended on " .. tostring(d)
+        end
+
         -- The 15-location random pool (missions 5-19; wanted.constant zones,
         -- wanted_hunt.rs2 ~wanted_pool_clue) -- three are drawn at random by
         -- the server for scan positions 2/4/6, so the test reads back which
@@ -129,6 +186,14 @@ return {
         --   Port Sarim's seaman 3028,3221 REACH from all three; Musa Point's jetty 2956,3146 -> 2916,3160
         --     REACH 56, -> 2818,3182 (east of Karamja's membergatel) REACH 176; 2815,3182 -> 2801,3167 REACH 29.
         --   Canifis 3485,3481 -> 3428,3533 REACH 119; the holy barrier's 3423,3485 -> 3428,3533 REACH 77.
+        -- The recorded stops' scan tiles (RSProx index 4464): Brimhaven [3235], Goblin Village [3681],
+        -- the Slayer Tower [4426]. The rest scan anywhere in the place.
+        local SCAN_TILE = { [13] = { 2798, 3167 }, [7] = { 2955, 3510 }, [17] = { 3426, 3538 } }
+        local function to_scan_tile(pfx, id)
+            if SCAN_TILE[id] then
+                t.exec(pfx .. ".scanTile", t.player.walk_to, SCAN_TILE[id][1], SCAN_TILE[id][2], 30)
+            end
+        end
         local CAMELOT_POOLS = { [8] = true, [9] = true, [10] = true, [14] = true, [15] = true, [16] = true, [18] = true }
         local KARAMJA_POOLS = { [5] = true, [13] = true }
 
@@ -196,16 +261,8 @@ return {
             if ppr == "ok" and ppv == 60 then
                 -- Priest in Peril's farewell advice (the dagger is in the bank: ~obj_gettotal counts it).
                 t.exec(pfx .. ".talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
-                t.exec(pfx .. ".talkToDrezel-dialog", t.chat.play, {
-                    "player:So can I pass through that barrier now?",
-                    "npc:Ah, ",
-                    "npc:Morytania is an evil land",
-                    "npc:You should take some basic precautions",
-                    "npc:In many ways Werewolves",
-                    "npc:and it is a holy relic",
-                    "npc:wolf form is incredibly powerful",
-                    "player:Okay, I will keep it equipped",
-                })
+                -- Priest in Peril rebuilt from RSProx 4459 (mausoleum_drezel.rs2): the blessing, then his menu.
+                t.exec(pfx .. ".talkToDrezel-dialog", converse, { "And you. See you later." })
             end
             t.exec(pfx .. ".drezelAdvice", t.var.await_server, "varp302_priestperil", 61, 8)
             t.exec(pfx .. ".holyBarrier", t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
@@ -422,6 +479,8 @@ return {
             varp = "varb1051_wanted_main",
             constants = {
                 not_started = 0,
+                started = 1,
+                briefed = 2,
                 amik_first = 3,
                 tiffy_second = 4,
                 amik_second = 5,
@@ -450,18 +509,11 @@ return {
         -- 2997,3373 is solid).
         t.exec("goto-tiffy1", t.player.goto_tile, 2997, 3374, 0)
         t.exec("tiffy1.talk", t.player.talk_to, "rd_teleporter_guy", 1)
-        t.exec("tiffy1.dialog", t.chat.play, {
-            "player:Do you have any jobs for me yet?",
-            "npc:As a matter of fact, I do. Are you interested?",
-            "choose:Yes, I'm interested.",
-            "player:Yes, I'm interested.",
-            "npc:Splendid! Ask me about the Wanted! Quest if you'd like the details.",
-            "choose:Ask about the Wanted! Quest",
-            "npc:There's a rather dangerous mage on the loose called Solus Dellagar. We need a new Temple Knight to hunt him down.",
-            "player:How will all that help?",
-            "npc:Well now, it's really very simple. I want you to go to Sir Amik, tell him that you have decided to not join the Temple Knights, and that you have decided to become a White Knight instead.",
-            "npc:Go and tell him that -- but make sure you refuse if he offers to make you a Squire, we don't have five years to spare.",
-        })
+        -- RSProx index 4464 [175..314]: his menu, the dossier, the start confirm, the
+        -- plan; "What am I supposed to be doing again?" back to his menu, asked once more.
+        t.exec("tiffy1.dialog", converse, { "Do you have any jobs for me yet?", "Yes.", "Ask about the Wanted! Quest",
+            "Do I really have to quit the Temple Knights?", "How will all that help?",
+            "What am I supposed to be doing again?", "Ask about the Wanted! Quest" })
         t.expect("quest.stage.amik_first", t.quest.expect_stage("amik_first"))
 
         -- The White Knights' Castle: the goto lands in the open courtyard (2968,3338: the park
@@ -494,51 +546,31 @@ return {
         -- 2. Sir Amik Varze (White Knights' Castle, 2nd floor): DECLINE the squire offer
         castle_in("amik1")
         t.exec("amik1.talk", t.player.talk_to, "sir_amik_varze", 1)
-        t.exec("amik1.dialog", t.chat.play, {
-            "player:Hello Sir Amik.",
-            "npc:Hello, friend!",
-            "player:Sir Amik, I wish to join the White Knights.",
-            "npc:A White Knight, eh? Normally we'd have you serve five years as a Squire first...",
-            "choose:Um... can I skip the waiting and be deputised straight away instead?",
-            "player:Um... As tempting an offer as that sounds Sir Amik, I am really not a fan of waiting around... Can I do that instead?",
-            "npc:No, not right now -- but Sir Tiffy Cashien in Falador Park may have something more suited to your impatience. Go and speak with him.",
-        })
+        -- [456..525]: what a squire does, then no.
+        t.exec("amik1.dialog", converse, { "What does being a Squire entail?", "No, not right now..." })
         t.expect("quest.stage.tiffy_second", t.quest.expect_stage("tiffy_second"))
         castle_out("amik1")
 
         -- 3. Tiffy: a crisis has arisen (2997,3374: the open park tile beside him; 2997,3373 is solid)
         t.exec("goto-tiffy2", t.player.goto_tile, 2997, 3374, 0)
         t.exec("tiffy2.talk", t.player.talk_to, "rd_teleporter_guy", 1)
-        t.exec("tiffy2.dialog", t.chat.play, {
-            "choose:Ask about the Wanted! Quest",
-            "npc:Good man. Now, go back to Sir Amik and tell him you'll help after all.",
-        })
+        -- [587..602]
+        t.exec("tiffy2.dialog", converse, { "Ask about the Wanted! Quest" })
         t.expect("quest.stage.amik_second", t.quest.expect_stage("amik_second"))
 
         -- 4. Amik: Solus Dellagar is back; accept the mission
         castle_in("amik2")
         t.exec("amik2.talk", t.player.talk_to, "sir_amik_varze", 1)
-        t.exec("amik2.dialog", t.chat.play, {
-            "player:Hello Sir Amik.",
-            "npc:Hello, friend!",
-            "player:Sir Tiffy sent me back -- will you help hunt this mage?",
-            "npc:Hey, there's nothing I like more than fighting! Deputise me up, and I'll go get this guy for you!",
-            "npc:Go and report back to Sir Tiffy -- he'll sort you out with the equipment you need.",
-        })
+        -- [657..718]: who Solus is, the reward, then yes.
+        t.exec("amik2.dialog", converse, { "Who is Solus?", "What will I get for helping?", "Sure, I'll help you!" })
         t.expect("quest.stage.tiffy_third", t.quest.expect_stage("tiffy_third"))
         castle_out("amik2")
 
         -- 5. Tiffy offers the Commorb: buy it for 10,000 coins
         t.exec("goto-tiffy3", t.player.goto_tile, 2997, 3374, 0)
         t.exec("tiffy3.talk", t.player.talk_to, "rd_teleporter_guy", 1)
-        t.exec("tiffy3.dialog", t.chat.play, {
-            "choose:Ask about the Wanted! Quest",
-            "npc:Right, down to business. You'll need a Communication Orb -- a Commorb -- to keep in touch with our Savant.",
-            "choose:Buy One",
-            "npc:It's 10,000 coins for the Temple Knight Communication Orb. You have that kind of money with you?",
-            "choose:YES",
-            "npc:Here you go -- guard it well.",
-        })
+        -- [765..804], then bought (UNVERIFIED: the recorder had one made, [913..927]).
+        t.exec("tiffy3.dialog", converse, { "Ask about the Wanted! Quest", "Buy One", "YES", "YES" })
         t.expect("quest.stage.investigation", t.quest.expect_stage("investigation"))
         t.expect("commorb.held", t.inv.expect_has("wanted_crystal_ball", 1))
         do
@@ -548,12 +580,28 @@ return {
 
         -- 6. Commorb Contact: Savant sends you to the Black Knights' Base and the Mage of Zamorak
         t.exec("contact1.op", t.player.inv_op, "wanted_crystal_ball", 2)
-        t.exec("contact1.dialog", t.chat.play, {
-            "choose:Current Assignment",
-            "mesbox:Savant: Oh! You're chasing Solus Dellagar?",
-            "mesbox:Savant: He was last reported in the company of the Black Knights.",
-        })
+        -- [947..1047]: the first call, then the assignment.
+        t.exec("contact1.dialog", converse, { "Current Assignment" })
+        t.expect("commorb.contacted", t.var.await_server("varb1054_wanted_contacted_savant", 1, 10))
         t.expect("commorb.intel", t.var.await_server("varb1053_wanted_commorb_intel", 1, 10))
+
+        -- 6b. The observation records, played in the White Knights' Castle courtyard where the
+        -- recorder watched them (RSProx index 4464 [1296..1521], [1567..1781]): each a scene in a
+        -- copy of its room, the player put back where they stood.
+        t.exec("goto-records", t.player.goto_tile, 2968, 3338, 0)
+        for rec = 1, 2 do
+            t.ticks(4) -- the last record's script ends a tick after its unlock
+            local br, bt = t.world.tile()
+            t.exec("record" .. rec .. ".play", t.player.inv_op, "wanted_crystal_ball", 4)
+            t.exec("record" .. rec .. ".scene", converse, { "Current Assignment", "Solus Observation Record " .. rec }, { wait_ticks = 40 })
+            t.await({ level = function()
+                local _, v = t.var.server("varb542_cutscene_status")
+                return v == 0
+            end, note = "record " .. rec .. " over" }, 260)
+            local ar, at = t.world.tile()
+            t.check("record" .. rec .. ".back", br == "ok" and ar == "ok" and at.x == bt.x and at.z == bt.z and at.level == bt.level,
+                "before " .. tile_text(br, bt) .. " after " .. tile_text(ar, at) .. " (want the same tile)")
+        end
 
         -- 7. Lord Daquarius (Taverley Dungeon, SW room) tells you nothing. Falador Park -> east of
         -- Taverley's members' gate (REACH 135), through it, then 2934,3450 -> beside the dungeon
@@ -571,14 +619,8 @@ return {
             far_ok = function(tile) return tile.z <= 9697 end, far_desc = "inside the Black Knights' base, z <= 9697" })
         t.exec("base.at_daquarius", t.player.walk_to, 2893, 9683, 40)
         t.exec("daquarius1.talk", t.player.talk_to, "lord_daquarius", 1)
-        t.exec("daquarius1.dialog", t.chat.play, {
-            "player:I'm looking for Solus Dellagar. I know he's been working with the Black Knights.",
-            "npc:The Kinshra are not your personal soldiers Solus! I will not waste any of my warriors in your foolish schemes!",
-            "npc:...Oh. You're not Solus. No matter -- I have no interest in helping some jumped-up little adventurer.",
-            "choose:Tell me where he is, or I'll start with your men.",
-            "player:Tell me where he is, or I'll start with your men.",
-            "npc:You wouldn't dare! ...Fine. Prove you're serious. Kill one of my Black Knights, and perhaps I'll reconsider.",
-        })
+        -- [2223..2484]: the threat, Savant's advice.
+        t.exec("daquarius1.dialog", converse, {})
         t.expect("daquarius.hint_talked", t.var.await_server("varb1055_wanted_daquarius_hint", 1, 10))
 
         -- 8. Kill a Black Knight after talking to Daquarius (drop_tables/scripts/black_knight.rs2)
@@ -589,16 +631,15 @@ return {
             local _, sharks = t.inv.count("shark")
             t.check("blackknight.margin", low ~= nil and low >= 25 and sharks ~= nil and sharks >= 1, "lowest hp " .. tostring(low) .. " (want >= 25), sharks left " .. tostring(sharks) .. " (want >= 1): " .. tostring(bkd))
         end
+        -- [2536]: his "Stop!" on the drop tick; the hint on its click [2539].
+        t.await({ level = function() return t.chat.kind() ~= "none" end, note = "Lord Daquarius's Stop! page" }, 10)
+        t.exec("daquarius.stop", converse, {})
         t.expect("daquarius.hint_dead", t.var.await_server("varb1055_wanted_daquarius_hint", 2, 10))
 
         -- 9. Daquarius gives in: Solus is somewhere with fur "not from a bear"
         t.exec("daquarius2.talk", t.player.talk_to, "lord_daquarius", 1)
-        t.exec("daquarius2.dialog", t.chat.play, {
-            "player:I've done as you asked. Now tell me where Solus is.",
-            "npc:You actually did it? ...Fine, a deal is a deal.",
-            "npc:All I know is that he left behind some fur when he left, I would expect him to be in an area with furred creatures of some sort.",
-            "npc:You'll want to speak to the Mage of Zamorak -- he deals with Solus more directly than I do. Try the Chaos Temple in south-east Varrock.",
-        })
+        -- [2580..2598]; the mage not yet paid, Savant sends the player on (UNVERIFIED, wiki).
+        t.exec("daquarius2.dialog", converse, {})
         t.expect("daquarius.exposition", t.var.await_server("varb1058_wanted_lord_d_exposition", 1, 10))
 
         -- 10. Mage of Zamorak, Varrock Zamorakian chapel: 20 un-noted essence for the tip.
@@ -619,20 +660,14 @@ return {
             open = "fai_varrock_poor_door_open_flipped", at = { 3255, 3388, 0 }, near = { 3254, 3388 }, far = { 3257, 3387 },
             far_ok = function(tile) return tile.x >= 3256 end, far_desc = "inside the chapel, x >= 3256" })
         t.exec("mage1.talk", t.player.talk_to, "rcu_zammy_mage1_edge", 1)
-        t.exec("mage1.dialog", t.chat.play, {
-            "choose:Solus Dellagar",
-            "player:Solus Dellagar",
-            "npc:Solus Dellagar? What is your business with him?",
-            "player:Lord Daquarius sent me. I need to find him.",
-            "npc:Twenty parts of rune essence is the price for my information. You may take it or leave it...",
-        })
+        -- [1117..1194] his story and price; [1943..1966] the essence and what he knows;
+        -- Daquarius already questioned, so the Canifis deduction is here (UNVERIFIED, wiki).
+        t.exec("mage1.dialog", converse, { "Solus Dellagar." })
+        t.expect("mage.price", t.var.await_server("varb1056_wanted_zammy_mage_hint", 1, 10))
         t.exec("mage2.talk", t.player.talk_to, "rcu_zammy_mage1_edge", 1)
-        t.exec("mage2.dialog", t.chat.play, {
-            "player:Here -- twenty parts of essence, as agreed.",
-            "npc:Solus was last seen near Canifis, asking Savant's people about the old Myreque tunnels. Your Commorb should be able to pick up his trail from there.",
-        })
+        t.exec("mage2.dialog", converse, { "Solus Dellagar." })
         t.expect("quest.stage.hunt", t.quest.expect_stage("hunt"))
-        t.expect("essence.spent", t.inv.expect_absent("blankrune"))
+        t.expect("essence.spent", t.inv.expect_absent("blankrune_high"))
         t.exec("mage.chapelDoorOut", t.player.pass_door, { closed = "fai_varrock_poor_door_flipped",
             open = "fai_varrock_poor_door_open_flipped", at = { 3255, 3388, 0 }, near = { 3257, 3387 }, far = { 3253, 3388 },
             far_ok = function(tile) return tile.x <= 3255 end, far_desc = "back on the street west of the door, x <= 3255" })
@@ -651,27 +686,16 @@ return {
         -- 11. The hunt for Solus, position 1 -- Canifis (fixed): establishes Savant contact.
         -- Into Morytania by Paterdomus, then the barrier's 3423,3485 -> Canifis (REACH 76).
         enter_morytania("enterCanifis")
+        -- Entering square 54_54 starts Savant's briefing (RSProx index 4464 [2749], [2763]).
         t.exec("canifis.goto", t.player.goto_tile, 3485, 3481, 0)
+        t.await({ level = function() return t.chat.kind() ~= "none" end, note = "Savant's Canifis briefing" }, 20)
+        t.exec("canifis.briefing", converse, {}, { open = 10 })
+        t.expect("canifis.mission1", t.var.await_server("varb1065_wanted_mission1", 1, 10))
+        -- The recorded scan tile, 4 from Solus's 3488,3489 [2831].
+        t.exec("canifis.scanTile", t.player.walk_to, 3492, 3485, 30)
         t.exec("canifis.scan", t.player.inv_op, "wanted_crystal_ball", 1)
-        t.exec("canifis.solus", t.chat.play, {
-            "npc:What the...?",
-            "npc:Well well well! I was wondering when the White Knights would come looking for me!",
-            "npc:Well you'll have to be quicker than that, my friend!",
-        })
-        t.exec("canifis.savant", t.chat.play, {
-            "mesbox:Savant: Argh! He got away...",
-            "player:So what can we do now?",
-            "mesbox:Savant: Wait a second... There was another item in the teleport with him...",
-            "player:What does that mean?",
-            "mesbox:Savant: Well, I might be able to retrieve it from the slow-teleport!",
-            "player:Well what are you waiting for? Try and get it!",
-            "*",
-            "mesbox:Savant: It's",
-            "*",
-            "mesbox:Savant:",
-            "mesbox:I want you to search for him, and use your Comm-Orb to scan for him",
-            "player:Okay I'll head off immediately. Let's hope we're not too late.",
-        })
+        t.exec("canifis.scene", converse, {}, { open = 10, done = scene_done("varb1066_wanted_mission1complete") })
+        t.expect("canifis.done", t.var.await_server("varb1066_wanted_mission1complete", 1, 10))
 
         -- Read back which pool id got drawn for position 2 (missions 5-19).
         local pos2_id = read_pool_draw()
@@ -686,33 +710,14 @@ return {
             t.check("pos2.in_pool_zone", zr == "ok" and zt.x >= pool2[6] and zt.x <= pool2[7] and zt.z >= pool2[8] and zt.z <= pool2[9],
                 "tile " .. (zr == "ok" and (zt.x .. "," .. zt.z .. "," .. zt.level) or tostring(zr)) .. " in " .. pool2[1] .. " zone x " .. pool2[6] .. "-" .. pool2[7] .. " z " .. pool2[8] .. "-" .. pool2[9])
         end
+        to_scan_tile("pos2", pos2_id)
         t.exec("pos2.scan", t.player.inv_op, "wanted_crystal_ball", 1)
-        t.exec("pos2.solus", t.chat.play, {
-            "npc:You again???",
-            "npc:I warn you, if you interfere with my plans I will see you suffer!",
-            "player:Solus! I am here by authority of the White Knights of Falador!",
-            "npc:Ha! Like I care!",
-            "mesbox:Savant: Okay, I am attempting to block his teleport...",
-            "npc:Oh, we have a little magical skill do we?",
-            "npc:Then let's see how you deal with this!",
-        })
+        t.exec("pos2.scene", converse, {}, { open = 10, done = scene_done("varb1067_wanted_mission2") })
         local camelot_result, camelot_tile = t.world.tile()
         t.check("pos2.teleported_camelot", camelot_result == "ok" and camelot_tile ~= nil
-                and math.abs(camelot_tile.x - 2757) <= 5 and math.abs(camelot_tile.z - 3478) <= 5,
+                and camelot_tile.x == 2759 and camelot_tile.z == 3480,
             "player tile " .. tostring(camelot_result == "ok" and (camelot_tile.x .. "," .. camelot_tile.z .. "," .. camelot_tile.level) or camelot_result)
-                .. " (Camelot Teleport lands 2757,3478)")
-        t.expect("pos2.teleport_message", t.msg.expect("Solus teleports you away"))
-        t.exec("pos2.savant", t.chat.play, {
-            "mesbox:Savant: Argh! I should have known he would try something like that!",
-            "mesbox:I should have stopped him using that spell",
-            "player:That doesn't matter right now Savant, did you get a reading of where his teleport was coming from?",
-            "mesbox:Savant: The spell is still running, wait a moment... There!",
-            "player:Well?",
-            "*",
-            "mesbox:Savant: It's a cape",
-            "player:More than you might think Savant.",
-            "mesbox:Savant: Well I still don't know what help that is",
-        })
+                .. " (Teleother Camelot lands 2759,3480: RSProx index 4464 [3289])")
         t.expect("pos2.blue_cape", t.inv.expect_has("blue_cape", 1))
         t.expect("hunt.pos2_complete", t.var.await_server("varb1067_wanted_mission2", 1, 10))
 
@@ -727,24 +732,9 @@ return {
             far_ok = function(tile) return tile.z <= 3362 and tile.z >= 3352 and tile.x >= 3188 and tile.x <= 3194 end,
             far_desc = "inside the guild, z 3352..3362", chat = { "npc:Greetings bold adventurer" },
             chat_optional = "the guild master greets only an entering player (champions_guild.rs2:12)" })
+        t.exec("cg.scanTile", t.player.walk_to, 3194, 3357, 20) -- [3459]
         t.exec("cg.scan", t.player.inv_op, "wanted_crystal_ball", 1)
-        t.exec("cg.solus", t.chat.play, {
-            "npc:Well now, I am beginning to get sick of your constant interference!",
-            "npc:Or at least I would be if you weren't so laughably easy to escape from!",
-        })
-        t.expect("cg.smoke_message", t.msg.expect("Solus casts Smoke Barrage on you"))
-        t.exec("cg.savant", t.chat.play, {
-            "player:*cough* Savant?",
-            "player:He threw some kind of smoke at me or something...",
-            "mesbox:he may have escaped AGAIN",
-            "mesbox:Savant: Okay, the smoke's cleared",
-            "mesbox:Savant: Let's see if I grabbed anything useful from him while he was teleporting...",
-            "*",
-            "mesbox:Savant: It's",
-            "*",
-            "mesbox:Savant:",
-            "player:Okay, I'm on my way. This Solus guy is really beginning to get on my nerves!",
-        })
+        t.exec("cg.scene", converse, {}, { open = 10, done = scene_done("varb1068_wanted_mission2complete") })
         t.expect("hunt.pos2_marked_complete", t.var.await_server("varb1068_wanted_mission2complete", 1, 10))
         t.exec("cg.openGuildDoorOut", t.player.cross_gate, { loc = "championdoor", at = { 3191, 3363, 0 }, near = { 3191, 3362 },
             far_ok = function(tile) return tile.z >= 3363 end, far_desc = "out of the guild, z >= 3363", far = { 3191, 3367 } })
@@ -761,64 +751,24 @@ return {
             t.check("pos4.in_pool_zone", zr == "ok" and zt.x >= pool4[6] and zt.x <= pool4[7] and zt.z >= pool4[8] and zt.z <= pool4[9],
                 "tile " .. (zr == "ok" and (zt.x .. "," .. zt.z .. "," .. zt.level) or tostring(zr)) .. " in " .. pool4[1] .. " zone x " .. pool4[6] .. "-" .. pool4[7] .. " z " .. pool4[8] .. "-" .. pool4[9])
         end
+        to_scan_tile("pos4", pos4_id)
         local hp_before_result, hp_before_reading = t.skill.read("hitpoints")
         t.step("pos4.hp_before", hp_before_result == "ok" and "PASS" or "FAIL", "hitpoints=" .. tostring(hp_before_reading and hp_before_reading.level))
         t.exec("pos4.scan", t.player.inv_op, "wanted_crystal_ball", 1)
-        t.exec("pos4.solus", t.chat.play, {
-            "npc:This is getting very tiresome!",
-            "npc:Little White Knight, I command powers beyond your imagination!",
-            "npc:If you do not cease pursuing me, I will be forced to use them upon you!",
-            "player:You can't threaten me old man...",
-            "player:Dead or alive, you're coming with me.",
-            "npc:This charade bores me!",
-            "mesbox:I am reading a huge power surge from Solus",
-        })
-        t.expect("pos4.flames_message", t.msg.expect("Solus casts Flames of Zamorak on you"))
-        t.exec("pos4.shield", t.chat.play, { "mesbox:!!!" }) -- the "Savant: <displayname>!!!" page suspends the script until dismissed -- p_teleport to the White Knights' Castle wakeup tile is AFTER this page, not before it
+        t.exec("pos4.scene", converse, {}, { open = 10, done = scene_done("varb1069_wanted_mission3") })
         local hp_after_result, hp_after_reading = t.skill.read("hitpoints")
-        t.check("pos4.flames_damage", hp_after_result == "ok" and hp_after_reading ~= nil and hp_after_reading.level >= 1
-                and hp_before_reading ~= nil and hp_after_reading.level < hp_before_reading.level,
+        -- read after the scene (~150 ticks): one regenerated hitpoint is allowed
+        t.check("pos4.flames_damage", hp_after_result == "ok" and hp_after_reading ~= nil and hp_after_reading.level >= 10 and hp_after_reading.level <= 11,
             "hitpoints " .. tostring(hp_before_reading and hp_before_reading.level) .. " -> " .. tostring(hp_after_reading and hp_after_reading.level)
-                .. " (111/121 of current, never lethal)")
+                .. " (want 10: RSProx index 4464 [3732] 29 -> 10)")
         local wkc_result, wkc_tile = t.world.tile()
-        t.check("pos4.woke_at_falador_castle", wkc_result == "ok" and wkc_tile ~= nil
-                and wkc_tile.x >= 2954 and wkc_tile.x <= 2998 and wkc_tile.z >= 3327 and wkc_tile.z <= 3353 and wkc_tile.level == 0,
+        t.check("pos4.woke_at_falador_castle", wkc_result == "ok" and wkc_tile ~= nil and wkc_tile.x == 2971 and wkc_tile.z == 3338 and wkc_tile.level == 0,
             "player tile " .. tostring(wkc_result == "ok" and (wkc_tile.x .. "," .. wkc_tile.z .. "," .. wkc_tile.level) or wkc_result)
-                .. " (White Knights' Castle 2954-2998,3327-3353)")
-        -- heal up the way Savant's line says: eat three of the sharks staged in setup (no ::setlevel)
+                .. " (want 2971,3338,0: [3737])")
         for eat_n = 1, 3 do
             t.player.inv_op("shark", 1)
             t.ticks(5)
         end
-        do
-            local hr, hh = t.skill.read("hitpoints")
-            local _, sharks_left = t.inv.count("shark")
-            t.check("pos4.healed_by_food", hr == "ok" and hh ~= nil and hh.level >= 60 and sharks_left ~= nil and sharks_left >= 1,
-                "hitpoints " .. tostring(hh and hh.level) .. " (want >= 60) after eating 3 sharks, sharks left " .. tostring(sharks_left) .. " (want >= 1)")
-        end
-        t.exec("pos4.savant", t.chat.play, {
-            "player:What happened?",
-            "mesbox:Savant: I managed to shield you from most of his attack",
-            "player:I don't understand though Savant, you said he could only be in a few places simultaneously...",
-            "player:But he keeps getting away! And he keeps moving around!",
-            "mesbox:I don't know how he is doing it",
-            "mesbox:But he can't run forever",
-            "player:So he isn't going to shoot me like that again?",
-            "mesbox:I am sorry that I let him hurt you like that",
-            "mesbox:together we are going to bring him to justice",
-            "player:You're right about that, there's no way I'm letting him get away with treating me like that!",
-            "player:So did we get any clues to his real location from that last scan?",
-            "mesbox:That's the spirit",
-            "*",
-            "mesbox:Savant: It's",
-            "player:I recognise that...",
-            "player:It's the type of spear used by the Dorgeshuun goblins.",
-            "mesbox:Savant: The who?",
-            "mesbox:Savant: Well, if you know who or what they are, you should go and see them",
-            "mesbox:You should probably take a minute to restock on supplies and heal up",
-            "mesbox:we don't want you dying while doing so",
-            "player:Okay Savant, I'll heal up, then go looking for him amongst the Dorgeshuun.",
-        })
         t.expect("pos4.bone_spear", t.inv.expect_has("cave_goblin_bone_spear", 1))
         t.expect("hunt.pos4_complete", t.var.await_server("varb1069_wanted_mission3", 1, 10))
 
@@ -834,35 +784,9 @@ return {
         t.exec("dk.squeezeThroughHole", t.player.cross_trap, { loc = "lost_tribe_cavewall_hole_walldecor", at = { 3219, 9618, 0 },
             src = { 3219, 9618 }, dest = { 3221, 9618 }, attempts = 1 })
         t.exec("dk.goto", t.player.goto_tile, 3315, 9629, 0)
+        t.exec("dk.scanTile", t.player.walk_to, 3310, 9612, 40) -- [3993]
         t.exec("dk.scan", t.player.inv_op, "wanted_crystal_ball", 1)
-        t.exec("dk.solus", t.chat.play, {
-            "npc:Oh thank you, you have freed me!",
-            "player:W-what? Who are you?",
-            "npc:Oh, I am but a poor maiden kidnapped by the evil Solus!",
-            "npc:But you chased him so hard, that now I am free...",
-            "mesbox:I am getting some strange readings from this 'maiden'",
-            "npc:Muhahaha! Sucker!",
-        })
-        t.expect("dk.punch_message", t.msg.expect("Solus sucker punches you"))
-        t.exec("dk.savant", t.chat.play, {
-            "mesbox:I should have spotted his little trick earlier",
-            "player:Oooohhhh...",
-            "player:Did anyone get the number of that wagon?",
-            "mesbox:I am reconfiguring your CommOrb",
-            "player:Please tell me you have a reading on his actual location by now",
-            "mesbox:Savant: No, but every time he escapes you I am shutting down his teleport to a specific area.",
-            "mesbox:I think we are on the final stretch now",
-            "mesbox:Keep up the chase",
-            "player:Uh... Out of interest, what am I going to do with an insane super-powerful murderous mage when he's cornered?",
-            "mesbox:Leave that to me and the Temple Knights",
-            "player:Well okay then, where should I head now?",
-            "mesbox:Savant: Examining readings now...",
-            "*",
-            "mesbox:Savant: It's",
-            "*",
-            "mesbox:Savant:",
-            "player:Okay, I'm on my way - and Solus had better watch out, I am up to here with his annoying tricks!",
-        })
+        t.exec("dk.scene", converse, {}, { open = 10, done = scene_done("varb1070_wanted_mission3complete") })
         t.expect("hunt.pos5_complete", t.var.await_server("varb1070_wanted_mission3complete", 1, 10))
 
         -- Read back which pool id got drawn for position 6.
@@ -874,7 +798,7 @@ return {
         -- leave the mine the way we came: back along the tunnel, squeeze out through the hole, climb the cellar ladder
         t.exec("dk.goto_tunnel_end", t.player.goto_tile, 3221, 9618, 0)
         t.exec("dk.squeezeBackThroughHole", t.player.cross_trap, { loc = "lost_tribe_cavewall_hole_walldecor", at = { 3221, 9618, 0 },
-            src = { 3221, 9618 }, dest = { 3218, 9618 }, attempts = 1 })
+            src = { 3221, 9618 }, dest = { 3219, 9618 }, attempts = 1 }) -- the hole goes 3219 <-> 3221 (RSProx index 4464 [3977])
         t.exec("dk.climbOutOfCellar", t.player.climb, { loc = "ladder_from_cellar", op = 1, op_name = "Climb-up",
             at = { 3209, 9616, 0 }, src = { 3210, 9616 }, dest = { 3210, 3216, 0 } })
         -- out of the castle kitchen into the open courtyard (a doorway, no door: REACH 30)
@@ -885,13 +809,10 @@ return {
             t.check("pos6.in_pool_zone", zr == "ok" and zt.x >= pool6[6] and zt.x <= pool6[7] and zt.z >= pool6[8] and zt.z <= pool6[9],
                 "tile " .. (zr == "ok" and (zt.x .. "," .. zt.z .. "," .. zt.level) or tostring(zr)) .. " in " .. pool6[1] .. " zone x " .. pool6[6] .. "-" .. pool6[7] .. " z " .. pool6[8] .. "-" .. pool6[9])
         end
+        to_scan_tile("pos6", pos6_id)
         t.exec("pos6.scan", t.player.inv_op, "wanted_crystal_ball", 1)
-        t.exec("pos6.solus", t.chat.play, {
-            "npc:Well you ARE a persistent one, aren't you?",
-            "player:I am here to take you in, Solus. You can forget your little tricks.",
-            "npc:Little tricks, you say? Well how about this one!",
-            "npc:Say hello to my little friend! And goodbye to me!",
-        })
+        -- The scene's last page has nothing to click and stays up through the fight [4451..4504].
+        t.ticks(30)
         t.expect("pos6.knight_present", t.npc.await_present("wanted_summoned_black_knight", 6, 10))
         t.exec("pos6.attack", t.player.attack, "wanted_summoned_black_knight", 2, 20)
         local k6r, k6d = t.exec("pos6.knight_dead", t.npc.await_dead_engaged, 60, 8, { eat = { item = "shark", below = 50 } })
@@ -900,20 +821,14 @@ return {
             local _, sharks = t.inv.count("shark")
             t.check("pos6.margin", low ~= nil and low >= 25 and sharks ~= nil and sharks >= 1, "lowest hp " .. tostring(low) .. " (want >= 25), sharks left " .. tostring(sharks) .. " (want >= 1): " .. tostring(k6d))
         end
-        t.exec("pos6.savant", t.chat.play, {
-            "*",
-            "mesbox:Savant: Okay, we have our scan results...",
-            "mesbox:Savant: It's some kind of highly magically susceptible rock...",
-            "mesbox:Savant: Isn't that the same rock that you gave that Zamorakian mage in Varrock?",
-            "player:Yeah it is, which means I know where he is, and how to get there!",
-            "player:It's a mine for Rune Essence, but there are only supposed to be a few people who know how to get there...",
-            "mesbox:Savant: Let's worry about that later; Go get Solus!",
-        })
+        t.await({ level = function() return t.chat.kind() == "objbox" or t.chat.kind() == "npc" end, note = "Savant's transfer" }, 10)
+        t.exec("pos6.savant", converse, {}, { done = function() local _, v = t.var.server("varb1071_wanted_mission4"); return v == 1 end })
         t.expect("pos6.essence", t.inv.expect_has("cert_blankrune_high", 20))
         t.expect("hunt.pos6_complete", t.var.await_server("varb1071_wanted_mission4", 1, 10))
         do
             local chain_ok, chain_txt = true, ""
-            for _, vn in ipairs({ "varb1067_wanted_mission2", "varb1068_wanted_mission2complete", "varb1069_wanted_mission3", "varb1070_wanted_mission3complete", "varb1071_wanted_mission4" }) do
+            -- A stop's bit goes back to 0 as it completes (RSProx index 4464 [3352]: mission13 1 -> 0).
+            for _, vn in ipairs({ "varb1068_wanted_mission2complete", "varb1070_wanted_mission3complete", "varb1071_wanted_mission4" }) do
                 local vr, vv = t.var.server(vn)
                 chain_ok = chain_ok and vr == "ok" and vv == 1
                 chain_txt = chain_txt .. vn .. "=" .. tostring(vv) .. " "
@@ -941,17 +856,8 @@ return {
             at = { 3253, 3398, 0 }, near = { 3253, 3397 }, far = { 3253, 3400 },
             far_ok = function(tile) return tile.z >= 3399 end, far_desc = "inside Aubury's shop, z >= 3399" })
         t.exec("goToEssenceMine", t.player.talk_to, "aubury", 4)
-        t.ticks(6)
-        do local mr, mt = t.world.tile(); t.check("mine.teleported", mr == "ok" and mt.x >= 2880 and mt.x <= 2938 and mt.z >= 4806 and mt.z <= 4861, mr == "ok" and (mt.x .. "," .. mt.z .. "," .. mt.level) or tostring(mr)) end
-        -- Solus is added at the mine's fixed coordinate 2909,4833 (wanted_hunt.rs2:788) and Aubury's teleport lands you elsewhere in the mine: walk to him first
-        do
-            local mw = t.player.walk_to(2911, 4835, 100)
-            local mwr, mwt = t.world.tile()
-            t.check("mine.walked_to_solus_spot", mwr == "ok" and math.abs(mwt.x - 2911) <= 4 and math.abs(mwt.z - 4835) <= 4, "walk_to 2911,4835 -> " .. tostring(mw) .. " tile " .. (mwr == "ok" and (mwt.x .. "," .. mwt.z) or tostring(mwr)))
-        end
-        t.exec("mine.scan", t.player.inv_op, "wanted_crystal_ball", 1)
-        t.exec("mine.savant", t.chat.play, { "mesbox:Savant: This is it -- he's right there!" })
-        t.expect("mine.solus_present", t.npc.await_present("wanted_solus_attackable", 15, 10))
+        -- The scene in the copy of the mine [4596..4707]: Solus turns attackable on "YOU DIE NOW!".
+        t.expect("mine.solus_present", t.npc.await_present("wanted_solus_attackable", 15, 160))
         t.exec("mine.attack", t.player.attack, "wanted_solus_attackable", 2, 20)
         local msr, msd = t.exec("mine.solus_dead", t.npc.await_dead_engaged, 60, 8, { eat = { item = "shark", below = 50 } })
         do
@@ -960,23 +866,12 @@ return {
             t.check("mine.margin", low ~= nil and low >= 25 and sharks ~= nil and sharks >= 1, "lowest hp " .. tostring(low) .. " (want >= 25), sharks left " .. tostring(sharks) .. " (want >= 1): " .. tostring(msd))
         end
         t.expect("quest.stage.final_battle", t.quest.expect_stage("final_battle"))
-
-        -- leave the mine by its exit portal (Aubury's teleport brought us in), then land outside before the goto
-        t.exec("mine.exitPortal", t.player.click_loc, "blankrunestone_exit_portal", 1)
-        t.ticks(6)
-        do local xr, xt = t.world.tile(); t.check("mine.left", xr == "ok" and xt.z < 4000, xr == "ok" and (xt.x .. "," .. xt.z .. "," .. xt.level) or tostring(xr)) end
-        -- the portal sets you down inside Aubury's shop: walk out through its open door
+        -- Savant's pages, the fade and the way back to where the teleport came from [4951..4972].
+        t.exec("mine.after", converse, {}, { open = 10, done = function() local _, v = t.var.server("varb542_cutscene_status"); return v == 0 and t.chat.kind() == "none" end })
+        t.expect("trophy.held", t.inv.expect_has("wanted_solus_trophy", 1))
         t.exec("aubury.shopDoorOut", t.player.pass_door, { closed = "fai_varrock_poor_door", open = "fai_varrock_poor_door_open",
             at = { 3253, 3398, 0 }, near = { 3253, 3400 }, far = { 3253, 3396 },
             far_ok = function(tile) return tile.z <= 3397 end, far_desc = "on the street south of the shop, z <= 3397" })
-
-        -- 18. Commorb Contact: claim Solus's hat as proof
-        t.exec("contact2.op", t.player.inv_op, "wanted_crystal_ball", 2)
-        t.exec("contact2.dialog", t.chat.play, {
-            "choose:Current Assignment",
-            "mesbox:Savant: Congratulations on defeating Solus Dellagar!",
-        })
-        t.expect("trophy.held", t.inv.expect_has("wanted_solus_trophy", 1))
 
         local snap_result, snap = t.skill.snapshot()
         t.step("reward.snapshot", snap_result == "ok" and "PASS" or "FAIL",
@@ -985,14 +880,8 @@ return {
         -- 19. Show the proof to Sir Amik Varze (the street south of Aubury's -> the castle courtyard, REACH 421)
         castle_in("amik3")
         t.exec("amik3.talk", t.player.talk_to, "sir_amik_varze", 1)
-        t.exec("amik3.dialog", t.chat.play, {
-            "player:Hello Sir Amik.",
-            "npc:Hello, friend!",
-            "player:Sir Amik, I've done it. Solus Dellagar is defeated.",
-            "npc:You have??? Then you must have some proof of your encounter! A weapon perhaps, or an item of clothing?",
-            "player:I have his hat.",
-            "npc:Then it is done! Welcome, Temple Knight -- the White Knights' Armoury is open to you.",
-        })
+        -- [5068..5109]: the scroll on "Well hand it over then, and let's see it!".
+        t.exec("amik3.dialog", converse, {})
         -- t.quest.expect_complete() is not driven bare here: its own
         -- quest.journal row opens a FRESH journal right after scroll.close()
         -- with no settle between the two, and QUEST_AUTHORING.md documents
@@ -1029,6 +918,8 @@ return {
             "scroll.title() after the hand-in -> " .. tostring(scroll_title_result) .. " name="
                 .. tostring(scroll_title and scroll_title.name) .. scroll_shot_note)
         t.scroll.close()
+        -- His explanation after the scroll [5119..5133].
+        t.exec("amik3.after", converse, {})
 
         -- Rewards (wiki Wanted!): 1 quest point and 5,000 Slayer experience.
         local qp_after_result, qp_after = t.var.varp("varp101_qp")
