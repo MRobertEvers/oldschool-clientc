@@ -89,6 +89,9 @@ QUEST_GATED_OWNER_OVERRIDES: dict[str, list[str]] = {
     # The Fremennik Isles: Vanligga sells contraband yak produce only to a
     # player who refunded her window tax (fris_tax.rs2 opens the label).
     "contraband_yak_produce": [],
+    # The Lost Tribe: Nardok refuses a surface-dweller before the treaty
+    # (RSProx index 4454 [1092], Trade); losttribe_tunnels.rs2 opens the label.
+    "nardoks_bone_weapons": [],
 }
 
 
