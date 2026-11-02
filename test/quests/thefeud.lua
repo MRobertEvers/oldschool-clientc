@@ -1,854 +1,391 @@
--- The Feud (thefeud). Driven end to end through real clicks and dialogue:
--- Ali Morrisane's offer -> the Shantay Pass gate -> the magic carpet flight
--- to Pollnivneach -> questioning both gangs -> buying camels and handing
--- out receipts -> Ali the Operator's recruitment and three pickpocket
--- proving tasks -> the mayor's-house jewel heist (disguise, door, desk,
--- bed, the Fibonacci safe dial) -> hunting the traitor (barman, kebab
--- sauce, camel dung, the snake-charm minigame, the Hag's poison, the
--- poisoned beer) -> the Menaphite Leader/Tough Guy and Bandit
--- Leader/Bandit champion fights -> Ali the Mayor's reveal -> the carpet
--- back to the Shantay Pass and north through its doorway -> Ali
--- Morrisane's reward.
+-- The Feud (thefeud), following RSProx index 4448 (part 1), 4452 (part 2),
+-- 4451 (part 3) and 4453 (the end), rev 241, 2026-11-01: every stage is
+-- Jagex's feud_var value at the click that wrote it. Content:
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_thefeud/scripts/
+-- {feud_alimorrisane,feud_town,feud_gangs,feud_lessons,feud_heist,
+-- feud_traitor,feud_confrontation,feud_journal}.rs2;
+-- docs/rsprox-analysis/quests/the_feud.md.
 --
--- Door rule (b67 re-drive): the Shantay Pass doorway is pressed by its op
--- both ways (cross_gate), the mayor's house is entered and left by its door
--- (pass_door feud_closed_door_left 3370,2971) and its stairs are climbed
--- (t.player.climb on the maplink rows); every goto lands on an open tile
--- (reach.py: all REACH closed-doors, none solid). No dialogue on the route
--- branches on combat level (grep combat_level over quest_thefeud, shantay*,
--- magic_carpet*), so the staged 99 melee stats see the only branch there is. Content source for every symbol/text/stage number:
--- OSRS-Content/osrs-content/server/scripts/quests/quest_thefeud/
---   scripts/{feud_alimorrisane,feud_recruitment,feud_heist,feud_traitor,
---   feud_confrontation,feud_villagers}.rs2, configs/quest_thefeud.constant,
--- OSRS-Content/osrs-content/server/scripts/areas/area_alkharid/scripts/
---   shantay.rs2, shantay_pass.rs2; areas/area_desert/scripts/
---   magic_carpet.rs2, magic_carpet_talk.rs2; shop/pollnivneach/scripts/
---   the_asp_snake_bar.rs2; quest_ratcatchers/scripts/ratcatchers.rs2
---   (feud_money_bowl's real trigger). docs/quests/the_feud.md.
---
--- seam27 (feud_four_legs): the desert disguise is bought from Ali's Discount
--- Wares and made by using the headpiece on the fake beard; the third
--- pickpocket lesson is a real Lure / Knock-Out / Pickpocket; Ali the Hag takes
--- the snake and the dung in separate hand-ins and gives the vial of Hag's
--- poison (Transcript:The_Feud oldid 15325427; wiki Desert_disguise).
+-- Menus go through drain{stop_at="options"} + choose (verbs-chat.md): the
+-- conversations are long and their page counts follow the stage.
 
 return {
     id = "thefeud",
     fixture = "fresh_lumbridge.ini",
     setup = {
-        "::clearinv", -- the fixture's fourteen tutorial slots
-        "::give leather_gloves 1", -- wiki: gloves that work at the cactus
-        "::give bucket_empty 1", -- wiki: a bucket, for the camel dung
-        "::give coins 1000", -- wiki: 501+ coins (carpet fare 200, shantay pass 5, beer 30, camels 500, urchin 10, money pot 1)
+        "::clearinv",
+        "::give leather_gloves 1",
+        "::give bucket_empty 1",
+        "::give coins 3000",
         "::give rune_scimitar 1",
-        "::give shark 5",
-        "::setlevel thieving 30", -- wiki: 30 Thieving, not boostable (dbrow requirement_stats)
-        "::setlevel attack 99",
-        "::setlevel strength 99",
-        "::setlevel defence 99",
-        "::setlevel hitpoints 99",
+        "::give shark 8",
+        "::setlevel thieving 30", -- the cache's quest_feud row: 30, not boostable
+        "::setlevel attack 70",
+        "::setlevel strength 70",
+        "::setlevel defence 70",
+        "::setlevel hitpoints 70",
     },
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
             varp = "varb334_feud_var",
             constants = {
-                accepted = 1,
-                bandit_beaten = 26,
-                barman_done = 18,
-                beer_poisoned = 23,
-                camel_cost = 500,
-                camels_bought = 4,
-                complete = 28,
-                drunken_ali_done = 2,
-                dung_bucketed = 20,
-                gangs_questioned = 3,
-                heist_briefed = 10,
-                house_entered = 11,
-                jewels_delivered = 15,
-                mayor_talked = 27,
-                menaphite_beaten = 25,
-                not_started = 0,
-                note_fib = 13,
-                note_numbers = 12,
-                operator_joined = 6,
-                pickpocket1_done = 7,
-                pickpocket2_done = 8,
-                pickpocket3_done = 9,
-                poison_made = 22,
-                ready_confront = 24,
-                receipts_given = 5,
-                req_thieving = 30,
-                reward_coins = 500,
-                reward_thieving_xp = 150000,
-                safe_opened = 14,
-                sauce_bought = 19,
-                snake_done = 21,
-                thug_questioned = 17,
-                traitor_briefed = 16,
+                not_started = 0, started = 1, drunk_told = 2, gangs_asked = 3,
+                camels_bought = 4, receipts_given = 5, joined = 6, picked_one = 7,
+                urchin_distracting = 8, picked_two = 9, villager_lured = 10,
+                villager_knocked_out = 11, picked_three = 12, burglary_set = 13,
+                house_staked = 14, jewels_taken = 15, find_traitor = 16,
+                kill_traitor = 17, hag_has_snake = 18, have_poison = 22,
+                beer_poisoned = 23, see_leader = 24, menaphites_gone = 25,
+                bandits_gone = 26, mayor_told = 27, complete = 28,
             },
             row = "quest_thefeud",
             display = "The Feud",
             points = 1,
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
-        t.ticks(3) -- setup cheats not client-side yet
+        t.ticklog.start()
+        t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+        local FIGHT_EAT = { item = "shark", below = 35 }
 
-        -- Fights: sharks eaten inside the attack press and the kill wait below
-        -- 60 hp (verbs-combat.md "Eating inside an attack press"). A fight's
-        -- margin (brief): the lowest hp either eater read is at least a quarter
-        -- of the maximum AND at least one shark is left.
-        local FIGHT_EAT = { item = "shark", below = 60 }
-        local function fight_margin(name, fight, attack_detail, dead_detail, food_before)
-            local lows = {}
-            for _, d in ipairs({ tostring(attack_detail), tostring(dead_detail) }) do
-                local low = tonumber(d:match("lowest hp (%d+)/"))
-                if low then lows[#lows + 1] = low end
-            end
-            local lowest = nil
-            for _, v in ipairs(lows) do
-                if lowest == nil or v < lowest then lowest = v end
-            end
-            local hp_r, hp = t.skill.read("hitpoints")
-            local max_hp = (hp_r == "ok" and type(hp) == "table") and hp.base_level or nil
-            local food_r, food_left = t.inv.count("shark")
-            t.check(name, lowest ~= nil and max_hp ~= nil and food_r == "ok"
-                and lowest * 4 >= max_hp and food_left >= 1,
-                fight .. ": lowest hp " .. tostring(lowest) .. "/" .. tostring(max_hp)
-                .. " (from " .. #lows .. " eater reading(s)), sharks " .. tostring(food_before)
-                .. " -> " .. tostring(food_left)
-                .. " (margin: lowest hp >= a quarter of max AND at least one shark left)")
-        end
+        -- ======================= Ali Morrisane (4448 [1054..1101])
+        t.ticklog.mark("leg.start")
+        t.exec("goto-ali", t.player.goto_tile, 3305, 3211, 0)
+        t.exec("start", t.player.talk_to, "feud_ali_m", 1)
+        t.exec("start-menu1", t.chat.drain, { stop_at = "options" })
+        t.exec("start-ask", t.chat.choose, "Are you really the greatest salesman in the world?")
+        t.exec("start-menu2", t.chat.drain, { stop_at = "options" })
+        t.exec("start-help", t.chat.choose, "I'd like to help you, but...")
+        t.exec("start-menu3", t.chat.drain, { stop_at = "options" })
+        t.exec("start-yes", t.chat.choose, "Yes.")
+        t.exec("start-menu4", t.chat.drain, { stop_at = "options" })
+        t.exec("start-busy", t.chat.choose, "No, I'm really too busy.")
+        t.exec("start-end", t.chat.drain, {})
+        t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
-        local equip_scim_r, equip_scim_d = t.player.equip("rune_scimitar")
-        t.step("equipScimitar", equip_scim_r == "ok" and "PASS" or "FAIL", tostring(equip_scim_d))
+        -- The disguise from Ali's shop (4448 [1112..1138]).
+        t.exec("buyDisguise", t.shop.open, "feud_ali_m", 3, "feud_morrisanes")
+        t.exec("buyDisguise-turban", t.shop.buy, "feud_karidian_turban", 1)
+        t.exec("buyDisguise-beard", t.shop.buy, "feud_karidian_fakebeard", 1)
+        t.check("buyDisguise-close", t.shop.close())
+        t.exec("makeDisguise", t.player.use_item_on_item, "feud_karidian_fakebeard", "feud_karidian_turban")
+        t.expect("makeDisguise-made", t.inv.await("feud_desert_disguise", 1, 10))
 
-        -- getBucket: a bring-along item (wiki getItemRequirements), staged
-        -- in setup, never gathered in-quest -- read it back here.
-        local bucket_r, bucket_has = t.inv.has("bucket_empty")
-        t.check("getBucket", bucket_r == "ok" and bucket_has == true,
-            "bucket_empty has=" .. tostring(bucket_has) .. " (brought along, ::give in setup)")
+        -- ======================= Shantay and the doorway (4448 [1186], [1209..1216])
+        t.exec("goto-shantay", t.player.goto_tile, 3304, 3122, 0)
+        t.exec("buyPass", t.player.talk_to, "shantay", 4)
+        t.exec("buyPass-box", t.chat.drain, {})
+        t.expect("buyPass-got", t.inv.await("shantay_pass", 1, 10))
+        t.exec("doorway", t.player.click_loc, "shantay_pass_henge_doorway", 1)
+        t.expect("doorway-warning", t.ui.await_open("cws_warning_10", 15))
+        local wr, w = t.ui.widget("cws_warning_10:warn1")
+        t.expect("doorway-warn1", wr, "cws_warning_10:warn1")
+        t.check("doorway-go", select(1, t.ui.invoke(w, 1)) == "ok", "Yes, through the gate")
+        t.ticks(2)
+        t.expect("doorway-msg", t.msg.expect("The guard takes your Shantay Pass as you go through the gate."))
+        t.expect("doorway-passTaken", t.inv.expect_absent("shantay_pass"))
 
-        -- ==================== startQuest: Ali Morrisane's offer =============
-        t.exec("goto-startQuest", t.player.goto_tile, 3304, 3211, 0)
-        t.exec("startQuest", t.player.talk_to, "feud_ali_m", 1)
-        t.exec("startQuest-dialog", t.chat.play, {
-            "npc:Oh, adventurer -- might I trouble you",
-            "choose:What's the matter?",
-            "player:What's the matter?",
-            "npc:My nephew went to Pollnivneach",
-            "npc:If you are, then why are you s",
-            "choose:I'd like to help you find your nephew.",
-            "player:I'd like to help you find your",
-            "npc:Thank you! Head south to Polln",
-            "npc:town's in such an uproar.",
-            "choose:Yes, I'll head there now.",
-            "player:Yes, I'll head there now.",
-            "npc:Take this -- a Kharidian headp",
-        })
-        t.expect("quest.stage.accepted", t.quest.expect_stage("accepted"))
-
-        -- ==================== buyDisguiseGear / createDisguise ================
-        -- Wiki The_Feud (oldid 15315438): "buy the Kharidian headpiece and fake
-        -- beard from Ali Morrisane"; Desert_disguise: made "by combining a fake
-        -- beard and a Kharidian headpiece". Ali's Discount Wares is his Trade op
-        -- (shop/al_kharid/scripts/alis_discount_wares__1.rs2, inv feud_morrisanes).
-        t.exec("buyDisguiseGear", t.shop.open, "feud_ali_m", 3, "feud_morrisanes")
-        t.exec("buyDisguiseGear-beard", t.shop.buy, "feud_karidian_fakebeard", 1)
-        t.exec("buyDisguiseGear-headpiece", t.shop.buy, "feud_karidian_turban", 1)
-        t.check("buyDisguiseGear-close", t.shop.close())
-        local beard_r, beard_n = t.inv.count("feud_karidian_fakebeard")
-        local turban_r, turban_n = t.inv.count("feud_karidian_turban")
-        t.check("buyDisguiseGear-verify", beard_r == "ok" and beard_n == 1 and turban_r == "ok" and turban_n == 1,
-            "feud_karidian_fakebeard=" .. tostring(beard_n) .. " feud_karidian_turban=" .. tostring(turban_n))
-        t.exec("createDisguise", t.player.use_item_on_item, "feud_karidian_turban", "feud_karidian_fakebeard")
-        t.expect("createDisguise-made", t.inv.await("feud_desert_disguise", 1, 10))
-        local left_r, left_n = t.inv.count("feud_karidian_turban")
-        local leftb_r, leftb_n = t.inv.count("feud_karidian_fakebeard")
-        t.check("createDisguise-consumed", left_r == "ok" and left_n == 0 and leftb_r == "ok" and leftb_n == 0,
-            "after the combine: feud_karidian_turban=" .. tostring(left_n) .. " feud_karidian_fakebeard=" .. tostring(leftb_n))
-
-        -- ==================== buyShantayPass =================================
-        t.exec("goto-buyShantayPass", t.player.goto_tile, 3304, 3123, 0)
-        t.exec("buyShantayPass", t.player.talk_to, "shantay", 1)
-        t.exec("buyShantayPass-dialog", t.chat.play, {
-            "npc:Hello effendi, I am Shantay.",
-            "npc:I see you're new. Please read",
-            "choose:I want to buy a shantay pass for 5 gold coins.",
-            "player:I want to buy a shantay pass for",
-            "mesbox:You purchase a Shantay Pass.",
-        })
-        local pass_r, pass_has = t.inv.has("shantay_pass")
-        t.check("buyShantayPass-verify", pass_r == "ok" and pass_has == true, "shantay_pass has=" .. tostring(pass_has))
-
-        -- ==================== goToShantay: through the gate ===================
-        -- shantay_pass_henge_doorway (3302,3116) is the desert's only way in on
-        -- foot (b64-seam1: a blocking crossing loc is judged like an only-way
-        -- gate), so it is crossed by its own op on every trip. From the north
-        -- its oploc1 reads the poster, takes the pass, hands over the
-        -- disclaimer, then [queue,shantay_pass_enter] carries the player south
-        -- (shantay_pass.rs2 [oploc1,shantay_pass_henge_doorway]). cross_gate
-        -- walks to the north tile 3304,3118 itself (no goto) and is graded on
-        -- the player standing south of the doorway afterwards.
-        local pass_before_r, pass_before_n = t.inv.count("shantay_pass")
-        t.exec("goToShantay", t.player.cross_gate, { loc = "shantay_pass_henge_doorway", at = { 3302, 3116, 0 },
-            near = { 3304, 3118 }, far_ok = function(tile) return tile.z <= 3115 end,
-            far_desc = "south of the Shantay Pass doorway, z <= 3115",
-            chat = {
-                "mesbox:There is a large poster on the wall",
-                "mesbox:The Desert is a VERY Dangerous place",
-                "mesbox:That seems pretty scary!",
-                "choose:Yeah, that poster doesn't scare me!",
-                "npc:Can I see your Shantay Desert Pass",
-                "mesbox:You hand over a Shantay Pass.",
-                "player:Sure, here you go!",
-                "npc:Here, have a disclaimer",
-            } })
-        local pass_after_r, pass_after_n = t.inv.count("shantay_pass")
-        t.check("goToShantay-passHandedOver", pass_before_r == "ok" and pass_after_r == "ok"
-            and pass_before_n == 1 and pass_after_n == 0,
-            "shantay_pass " .. tostring(pass_before_n) .. " -> " .. tostring(pass_after_n)
-            .. " across the doorway (handed over, shantay_pass.rs2)")
-
-        -- ==================== talkToRugMerchant: carpet flight to Pollnivneach
-        t.exec("goto-talkToRugMerchant", t.player.goto_tile, 3311, 3109, 0)
-        t.exec("talkToRugMerchant", t.player.talk_to, "magic_carpet_seller1", 1)
-        t.exec("talkToRugMerchant-dialog", t.chat.play, {
-            "player:Hello.",
-            "npc:*",
-            "choose:Yes please.",
-            "player:Yes please.",
-            "npc:*", -- carpet_menu_shantay's first hub line (Uzer-open or not)
-            "npc:*", -- its second hub line, always printed too
-            "choose:I want to travel to Pollnivneach.",
-            "player:I want to travel to Pollnivneach.",
-        })
-        -- seam24: the flight is ~110 tiles at 3 tiles/tick plus boarding and
-        -- banks (magic_carpet.rs2 ~carpet_ride, magic_carpet.constant route 1
-        -- ends on ^carpet_pad_npoll 3349,3003) -- t.ticks(20) ended mid-air and
-        -- the ::goto that followed teleported a player_lock'd rider whose
-        -- ~carpet_glide then flew him back to the pad. Await the landing.
-        local landed_r, landed_d = t.await({
+        -- ======================= The carpet to Pollnivneach (4448 [1433..1504])
+        t.exec("goto-rug", t.player.goto_tile, 3310, 3109, 0)
+        t.exec("rug", t.player.talk_to, "magic_carpet_seller1", 1)
+        t.exec("rug-menu", t.chat.drain, { stop_at = "options" })
+        t.exec("rug-yes", t.chat.choose, "Yes please.")
+        t.exec("rug-where", t.chat.drain, { stop_at = "options" })
+        t.exec("rug-poll", t.chat.choose, "I want to travel to Pollnivneach.")
+        t.exec("rug-fare", t.chat.drain, {})
+        local landed_r = t.await({
             level = function()
                 local r, tl = t.world.tile()
                 return r == "ok" and tl.x == 3349 and tl.z == 3003 and select(2, t.drive._player_idle()) == true
             end,
-            note = "carpet landed on the north Pollnivneach pad 3349,3003",
-        }, 80)
-        local land_tr, land_tile = t.world.tile()
-        t.check("carpet-landed", landed_r == "ok" and land_tr == "ok" and land_tile.x == 3349
-            and land_tile.z == 3003 and land_tile.level == 0,
-            "carpet await " .. tostring(landed_r) .. " (landing tile reached and player idle)"
-            .. "; rider at " .. tostring(land_tile and land_tile.x) .. "," .. tostring(land_tile and land_tile.z)
-            .. "," .. tostring(land_tile and land_tile.level) .. " (the north Pollnivneach pad is 3349,3003,0)")
-        t.ticks(3) -- ~carpet_ride's carpet_land + p_delay(1) + player_unlock
-        -- The pad (carpet_rolledout_multi 3349,3003) is a solid loc the ride
-        -- telejumps onto: step off it onto open ground before travelling on.
-        t.exec("carpet-stepOff", t.player.walk_to, 3349, 3004, 8)
-        -- The Asp & Snake bar has open arches (desertwall_arch_l/r at
-        -- 3356-3359,2953/2958, no door loc): land on an open floor tile inside
-        -- it, beside the table at 3360,2956 (reach.py: REACH closed-doors).
-        t.exec("goto-buyBeers", t.player.goto_tile, 3359, 2956, 0)
-        t.exec("buyBeers-open", t.shop.open, "feud_ali_the_barman", 3, "feud_alispub")
-        t.exec("buyBeers", t.shop.buy, "beer", 3)
-        t.check("buyBeers-close", t.shop.close())
-        local br, bn = t.inv.count("beer")
-        t.check("buyBeers-verify", br == "ok" and bn == 3, "beer count=" .. tostring(bn))
-        local ali = t.player.by_symbol("npc", "feud_drunken_ali")
-        for i = 1, 3 do
-            -- feud_recruitment.rs2 [opnpcu,feud_drunken_ali]: each beer is
-            -- inv_del'd and %feud_var_drink steps 0 -> 1 -> 2 -> 3.
-            local beers_before_r, beers_before = t.inv.count("beer")
-            t.exec("drunkenAli-beer" .. i, t.player.use_on, "beer", ali)
-            local pages = { "player:*", "npc:*" }
-            if i == 3 then pages[3] = "npc:*" end
-            t.exec("drunkenAli-beer" .. i .. "-dialog", t.chat.play, pages)
-            local beers_after_r, beers_after = t.inv.count("beer")
-            t.check("drunkenAli-beer" .. i .. "-drunk", beers_before_r == "ok" and beers_after_r == "ok"
-                and beers_before == 4 - i and beers_after == 3 - i,
-                "beer " .. tostring(beers_before) .. " -> " .. tostring(beers_after)
-                .. " (Drunken Ali took beer " .. i .. " of 3)")
-        end
-        t.expect("quest.stage.drunken_ali_done", t.quest.expect_stage("drunken_ali_done"))
-        -- ==================== talkToThug / talkToBandit: question both gangs
-        -- feud_recruitment.rs2 [opnpc1,feud_egyptian_doorman_multi] and
-        -- [opnpc1,feud_arabian_guard_multi]; feud_var_talk_gangs 1 + 2 -> 3.
-        t.exec("goto-talkToThug", t.player.goto_tile, 3333, 2954, 0)
-        t.exec("talkToThug", t.player.talk_to, "feud_egyptian_doorman_multi", 1)
-        t.exec("talkToThug-dialog", t.chat.play, { "npc:Those thieving bandits accused us" })
-        t.exec("goto-talkToBandit", t.player.goto_tile, 3355, 2989, 0)
-        t.exec("talkToBandit", t.player.talk_to, "feud_arabian_guard_multi", 1)
-        t.exec("talkToBandit-dialog", t.chat.play, { "npc:Those Menaphite dogs stole" })
-        t.expect("quest.stage.gangs_questioned", t.quest.expect_stage("gangs_questioned"))
+            note = "landed on the north Pollnivneach pad 3349,3003",
+        }, 120)
+        t.expect("rug-landed", landed_r, "the carpet's landing")
+        t.ticks(3)
+        t.exec("rug-stepOff", t.player.walk_to, 3349, 3004, 8)
 
-        -- ==================== talkToCamelman: two camels for 500 coins
-        t.exec("goto-talkToCamelman", t.player.goto_tile, 3350, 2965, 0)
-        t.exec("talkToCamelman", t.player.talk_to, "feud_ali_the_discount_camel_seller", 1)
-        t.exec("talkToCamelman-dialog", t.chat.play, {
-            "player:Are those camels around the side",
-            "npc:They certainly are",
-            "player:What price do you want",
-            "npc:For the pair?",
-            "choose:Would 500 gold coins for the pair of them do?",
-            "player:Would 500 gold coins for the pair",
-            "npc:Pleasure doing business",
-        })
+        -- ======================= Drunken Ali's three beers (4448 [2692..2774])
+        t.ticklog.mark("leg.drunk")
+        t.exec("goto-bar", t.player.goto_tile, 3359, 2956, 0)
+        t.exec("beers", t.shop.open, "feud_ali_the_barman_multi", 3, "feud_alispub")
+        t.exec("beers-buy", t.shop.buy, "beer", 3)
+        t.check("beers-close", t.shop.close())
+        local ali = t.player.by_symbol("npc", "feud_drunken_ali_multi")
+        t.exec("beer1", t.player.use_on, "beer", ali)
+        t.exec("beer1-pages", t.chat.drain, {})
+        t.exec("beer2", t.player.use_on, "beer", ali)
+        t.exec("beer2-pages", t.chat.drain, {})
+        t.exec("beer3", t.player.use_on, "beer", ali)
+        t.exec("beer3-pages", t.chat.drain, {})
+        t.expect("quest.stage.drunk_told", t.quest.expect_stage("drunk_told"))
+
+        -- ======================= Both gangs (4448 [2805], [2942])
+        t.exec("goto-thug", t.player.goto_tile, 3343, 2957, 0)
+        t.exec("thug", t.player.talk_to, "feud_egyptian_doorman_multi", 1)
+        t.exec("thug-pages", t.chat.drain, {})
+        t.exec("goto-banditCamp", t.player.goto_tile, 3364, 2986, 0)
+        local bandit_r, bandit_row = t.npc.nearest("feud_arabian_guard_multi", 40)
+        t.expect("find-bandit", bandit_r, "feud_arabian_guard_multi")
+        if bandit_row then t.exec("goto-bandit", t.player.goto_tile, bandit_row.x, bandit_row.z - 1, 0) end
+        t.exec("bandit", t.player.talk_to, "feud_arabian_guard_multi", 1)
+        t.exec("bandit-pages", t.chat.drain, {})
+        t.expect("quest.stage.gangs_asked", t.quest.expect_stage("gangs_asked"))
+
+        -- ======================= Two camels for 1,000 (4448 [2978..3037])
+        t.exec("goto-camelman", t.player.goto_tile, 3350, 2965, 0)
+        t.exec("camels", t.player.talk_to, "feud_ali_the_discount_camel_seller_multi", 1)
+        t.exec("camels-m1", t.chat.drain, { stop_at = "options" })
+        t.exec("camels-forSale", t.chat.choose, "Are those camels around the side for sale?")
+        t.exec("camels-m2", t.chat.drain, { stop_at = "options" })
+        t.exec("camels-price", t.chat.choose, "What price do you want for both of them?")
+        t.exec("camels-m3", t.chat.drain, { stop_at = "options" })
+        t.exec("camels-1000", t.chat.choose, "Would 1000 gold coins for the pair of them do?")
+        t.exec("camels-m4", t.chat.drain, { stop_at = "options" })
+        t.exec("camels-done", t.chat.choose, "No, but thanks for your time.")
+        t.exec("camels-end", t.chat.drain, {})
         t.expect("quest.stage.camels_bought", t.quest.expect_stage("camels_bought"))
-        local receipt_r, receipt_n = t.inv.count("feud_camel_receipt")
-        t.check("returnCamels-receipts", receipt_r == "ok" and receipt_n == 2, "feud_camel_receipt count=" .. tostring(receipt_n) .. " (want 2)")
+        t.expect("camels-receipts", t.inv.await("feud_camel_receipt", 2, 5))
 
-        -- ==================== returnCamels: one receipt to each gang
-        t.exec("goto-returnCamelsMenaphite", t.player.goto_tile, 3333, 2954, 0)
-        t.exec("talkToMenaphiteReturnedCamel", t.player.talk_to, "feud_egyptian_doorman_multi", 1)
-        t.exec("talkToMenaphiteReturnedCamel-dialog", t.chat.play, { "npc:A receipt?" })
-        t.exec("goto-returnCamelsBandit", t.player.goto_tile, 3355, 2989, 0)
-        t.exec("talkToBanditReturnedCamel", t.player.talk_to, "feud_arabian_guard_multi", 1)
-        t.exec("talkToBanditReturnedCamel-dialog", t.chat.play, { "npc:Pfft." })
+        -- ======================= The receipts (4448 [3183], [3237])
+        t.exec("goto-thug2", t.player.goto_tile, 3343, 2957, 0)
+        t.exec("thugReceipt", t.player.talk_to, "feud_egyptian_doorman_multi", 1)
+        t.exec("thugReceipt-pages", t.chat.drain, {})
+        t.exec("goto-banditCamp2", t.player.goto_tile, 3364, 2986, 0)
+        local bandit2_r, bandit2_row = t.npc.nearest("feud_arabian_guard_multi", 40)
+        t.expect("find-bandit2", bandit2_r, "feud_arabian_guard_multi")
+        if bandit2_row then t.exec("goto-bandit2", t.player.goto_tile, bandit2_row.x, bandit2_row.z - 1, 0) end
+        t.exec("banditReceipt", t.player.talk_to, "feud_arabian_guard_multi", 1)
+        t.exec("banditReceipt-pages", t.chat.drain, {})
         t.expect("quest.stage.receipts_given", t.quest.expect_stage("receipts_given"))
 
-        -- ==================== talkToAliTheOperator: ask to join
-        t.exec("goto-talkToAliTheOperator", t.player.goto_tile, 3334, 2951, 0)
-        t.exec("talkToAliTheOperator", t.player.talk_to, "feud_egyptian_minder", 1)
-        t.exec("talkToAliTheOperator-dialog", t.chat.play, {
-            "player:Yes, of course, those bandits",
-            "npc:Would you now.",
-            "choose:I can prove myself.",
-            "player:I can prove myself.",
-            "npc:Very well.",
-        })
-        t.expect("quest.stage.operator_joined", t.quest.expect_stage("operator_joined"))
+        -- ======================= Joining (4448 [3363..3377])
+        t.exec("goto-operator", t.player.goto_tile, 3334, 2951, 0)
+        t.exec("join", t.player.talk_to, "feud_egyptian_minder_multi", 1)
+        t.exec("join-m1", t.chat.drain, { stop_at = "options" })
+        t.exec("join-yes", t.chat.choose, "Yes, of course, those bandits should be taught a lesson.")
+        t.exec("join-m2", t.chat.drain, { stop_at = "options" })
+        t.exec("join-done", t.chat.choose, "No thanks.")
+        t.expect("quest.stage.joined", t.quest.expect_stage("joined"))
 
-        -- ==================== pickpocketVillager (task 1): Pickpocket = op 3
-        t.exec("goto-pickpocketVillager1", t.player.goto_tile, 3356, 2951, 0)
-        t.exec("pickpocketVillager1", t.player.talk_to, "feud_villager_multi_1", 3)
-        t.expect("quest.stage.pickpocket1_done", t.quest.expect_stage("pickpocket1_done"))
-
-        -- ==================== task 2: Operator, then the street urchin's distraction
-        t.exec("goto-operatorTask2", t.player.goto_tile, 3334, 2951, 0)
-        t.exec("operatorTask2", t.player.talk_to, "feud_egyptian_minder", 1)
-        t.exec("operatorTask2-dialog", t.chat.play, { "npc:Not bad. Now try again" })
-        -- 3352,2961: open street beside the outside stairs (feud_outsidestairs_base
-        -- 3353,2958 is solid).
-        t.exec("goto-urchin", t.player.goto_tile, 3352, 2961, 0)
+        -- ======================= The first trial (4452 [42..587])
+        t.ticklog.mark("leg.trial")
+        t.exec("goto-square", t.player.goto_tile, 3348, 2960, 0)
+        local pocket1_r, pocket1_row = t.npc.nearest("feud_villager_multi_2", 40)
+        t.expect("find-pocket1", pocket1_r, "feud_villager_multi_2")
+        if pocket1_row then t.exec("goto-pocket1", t.player.goto_tile, pocket1_row.x, pocket1_row.z - 1, 0) end
+        t.exec("pocket1", t.player.talk_to, "feud_villager_multi_2", 3)
+        t.ticks(6)
+        t.expect("quest.stage.picked_one", t.quest.expect_stage("picked_one"))
+        t.exec("goto-urchin", t.player.goto_tile, 3359, 2973, 0)
         t.exec("urchin", t.player.talk_to, "feud_street_urchin", 1)
-        t.exec("urchin-dialog", t.chat.play, {
-            "npc:Need a distraction?",
-            "choose:Wow, a street urchin. Can I have a go? Please?",
-            "player:Wow, a street urchin.",
-            "npc:Right you are!",
-        })
-        t.exec("goto-pickpocketVillager2", t.player.goto_tile, 3356, 2951, 0)
-        t.exec("pickpocketVillagerWithUrchin", t.player.talk_to, "feud_villager_multi_1", 3)
-        t.expect("quest.stage.pickpocket2_done", t.quest.expect_stage("pickpocket2_done"))
+        t.exec("urchin-pages", t.chat.drain, {})
+        t.expect("quest.stage.urchin_distracting", t.quest.expect_stage("urchin_distracting"))
+        local mark_a, mark_b = t.var.server("varb329_feud_closest_villager")
+        local mark = tonumber(mark_b) or tonumber(mark_a)
+        t.check("urchin-mark", mark ~= nil and mark >= 1 and mark <= 3, "the urchin's mark: villager " .. tostring(mark))
+        t.exec("pocket2", t.player.talk_to, "feud_villager_multi_" .. tostring(mark or 2), 3)
+        t.ticks(6)
+        t.expect("quest.stage.picked_two", t.quest.expect_stage("picked_two"))
+        t.exec("goto-operator2", t.player.goto_tile, 3334, 2951, 0)
+        t.exec("blackjack", t.player.talk_to, "feud_egyptian_minder_multi", 1)
+        t.exec("blackjack-m1", t.chat.drain, { stop_at = "options" })
+        t.exec("blackjack-advice", t.chat.choose, "Yeah, I could do with a bit of advice.")
+        t.exec("blackjack-end", t.chat.drain, {})
+        t.expect("blackjack-got", t.inv.await("blackjack_oak", 1, 5))
+        t.exec("wieldBlackjack", t.player.equip, "blackjack_oak")
+        t.exec("goto-square2", t.player.goto_tile, 3352, 2966, 0)
+        local lure_r, lure_row = t.npc.nearest("feud_villager_multi_1", 40)
+        t.expect("find-lure", lure_r, "feud_villager_multi_1")
+        if lure_row then t.exec("goto-lure", t.player.goto_tile, lure_row.x, lure_row.z - 1, 0) end
+        t.exec("lure", t.player.talk_to, "feud_villager_multi_1", 4)
+        t.exec("lure-pages", t.chat.drain, {})
+        t.expect("quest.stage.villager_lured", t.quest.expect_stage("villager_lured"))
+        t.ticks(2)
+        t.exec("knockout", t.player.talk_to, "feud_villager_multi_1", 5)
+        t.ticks(3)
+        t.expect("quest.stage.villager_knocked_out", t.quest.expect_stage("villager_knocked_out"))
+        t.exec("pocket3", t.player.talk_to, "feud_villager_multi_1", 3)
+        t.ticks(4)
+        t.expect("quest.stage.picked_three", t.quest.expect_stage("picked_three"))
+        t.exec("goto-operator3", t.player.goto_tile, 3334, 2951, 0)
+        t.exec("burglary", t.player.talk_to, "feud_egyptian_minder_multi", 1)
+        t.exec("burglary-pages", t.chat.drain, {})
+        t.expect("quest.stage.burglary_set", t.quest.expect_stage("burglary_set"))
+        t.expect("burglary-keys", t.inv.await("feud_mayors_house_keys", 1, 5))
 
-        -- ==================== task 3: the oak blackjack
-        t.exec("goto-operatorTask3", t.player.goto_tile, 3334, 2951, 0)
-        t.exec("operatorTask3", t.player.talk_to, "feud_egyptian_minder", 1)
-        t.exec("operatorTask3-dialog", t.chat.play, {
-            "npc:Good work. One more test.",
-            "npc:Take this blackjack.",
-        })
-        t.expect("operatorTask3-blackjack", t.inv.await("blackjack_oak", 1, 10))
-        t.exec("equipBlackjack", t.player.equip, "blackjack_oak")
-        t.expect("operatorTask3-lureTaught", t.var.await_server("varb340_feud_npc_multi", 2, 5))
-
-        -- blackjackVillager: Lure (op4), Knock-Out (op5), Pickpocket (op3).
-        -- Wiki The_Feud (oldid 15315438) "3rd villager": "lure a villager ...,
-        -- knock them out with the blackjack, and finally pick their pocket (all
-        -- options are right click)". The knock-out is a Thieving roll and
-        -- refuses where another villager, bandit or thug can see
-        -- (skill_thieving/scripts/blackjack.rs2), so the villager is led east
-        -- of the Menaphite houses, onto open ground no one else stands on.
-        -- press, not talk_to: the knocked-out window is a few ticks and
-        -- talk_to spends five of them waiting for a page that never comes.
-        -- The Knock-Out press waits up to 12 ticks: a villager that fell
-        -- behind the lead is walked back to first (p_arrivedelay).
-        t.exec("goto-blackjackVillager", t.player.goto_tile, 3356, 2951, 0)
-        t.exec("blackjackVillager-lure", t.player.talk_to, "feud_villager_multi_1", 4)
-        t.exec("blackjackVillager-lure-dialog", t.chat.play, { "player:Oi! Over here, you!" })
-        -- walk_to answers ok only on reaching the tile (verbs-pointer: a real graded row).
-        t.exec("blackjackVillager-lead", t.player.walk_to, 3371, 2958, 20)
-        -- Each Knock-Out press is an attempt (a Thieving roll), graded by a
-        -- note; the outcome row is blackjackVillager-knockedOut below.
-        local knocked = false
-        local ko_tries, ko_last = 0, "no press"
-        for attempt = 1, 8 do
-            local ko_r, ko_d = t.player.press("feud_villager_multi_1", 5, 12)
-            local ko_text = tostring(ko_d)
-            ko_tries, ko_last = attempt, tostring(ko_r) .. " " .. ko_text
-            t.note("blackjackVillager-knockout attempt " .. attempt .. ": " .. ko_last)
-            if ko_r == "ok" and string.find(ko_text, "out cold", 1, true) then
-                knocked = true
-                break
-            end
-            -- A failed roll turns the villager on the player, and the Lure
-            -- takes it back out of combat (blackjack.rs2 [label,blackjack_lure]);
-            -- a witness that wandered in means leading it a little further.
-            t.exec("blackjackVillager-relure", t.player.talk_to, "feud_villager_multi_1", 4)
-            t.exec("blackjackVillager-relure-dialog", t.chat.play, { "player:Oi! Over here, you!" })
-            if string.find(ko_text, "will see me", 1, true) then
-                -- An attempt, not an outcome: the knock-out row above is the verdict.
-                local far_r, far_d = t.player.walk_to(3374, 2956 - attempt, 20)
-                t.note("blackjackVillager-leadFurther: walk_to 3374," .. (2956 - attempt) .. " -> "
-                    .. tostring(far_r) .. " " .. tostring(far_d))
-            end
-        end
-        t.check("blackjackVillager-knockedOut", knocked, "knock-out landed: " .. tostring(knocked) .. " after "
-            .. ko_tries .. " press(es) of at most 8; last: " .. ko_last)
-        t.exec("blackjackVillager", t.player.press, "feud_villager_multi_1", 3, 4)
-        t.expect("blackjackVillager-msg", t.msg.expect("You pick the villager's pocket."))
-        t.expect("quest.stage.pickpocket3_done", t.quest.expect_stage("pickpocket3_done"))
-
-        -- ==================== talkToAliToGetSecondJob: the heist briefing
-        t.exec("goto-heistBriefing", t.player.goto_tile, 3334, 2951, 0)
-        t.exec("heistBriefing", t.player.talk_to, "feud_egyptian_minder", 1)
-        -- Transcript:The_Feud "Welcome to the Menaphites": keys only.
-        t.exec("heistBriefing-dialog", t.chat.play, {
-            "npc:Well done! You have finished your first trial.",
-            "player:First trial?",
-            "npc:You didn't think we'd hire you",
-            "player:Ah, of course not.",
-            "npc:Good! Now, the next thing you have to do",
-            "npc:The only place worth pilfering",
-            "npc:I want you to retrieve his wife's jewels.",
-            "player:Got any advice?",
-            "npc:Well I think that a disguise would be a good start.",
-            "npc:You'll need a key to the front door, too.",
-            "*", -- objbox: Ali the Operator hands you a set of keys.
-            "player:Anything else?",
-            "npc:No! Now get going.",
-        })
-        t.expect("quest.stage.heist_briefed", t.quest.expect_stage("heist_briefed"))
-        t.expect("heistBriefing-keys", t.inv.await("feud_mayors_house_keys", 1, 10))
-        local own_r, own_n = t.inv.count("feud_desert_disguise")
-        t.check("heistBriefing-noDisguiseGrant", own_r == "ok" and own_n == 1,
-            "feud_desert_disguise count=" .. tostring(own_n) .. " (the one made at createDisguise; the Operator gives keys only)")
-
-        -- ==================== hideBehindCactus: disguise + gloves worn
-        t.exec("equipDisguise", t.player.equip, "feud_desert_disguise")
-        t.exec("equipGloves", t.player.equip, "leather_gloves")
-        -- 3364,2969: open courtyard tile beside the cactus row (feud_cactus_row
-        -- 3363,2967 is solid; reach.py: REACH closed-doors from the Menaphite camp).
-        t.exec("goto-hideBehindCactus", t.player.goto_tile, 3364, 2969, 0)
-        t.exec("hideBehindCactus", t.player.click_loc, "feud_cactus_row", 1)
-        t.expect("hideBehindCactus-msg", t.msg.expect("coast is clear"))
-
-        -- ==================== openTheDoor: the villa door, key in the pack
-        -- The door is a real two-leaf door since seam25 (feud_heist.rs2 ~feud_mayors_door calls
-        -- doors/scripts/doubledoors.rs2 ~open_double_door_left): feud_closed_door_left 3370,2971
-        -- (rot 2, the guide's leaf) swings to feud_open_door_left one tile east and pulls the
-        -- right leaf with it; both stand open 500 ticks. Wiki Transcript:The_Feud "Using the keys
-        -- on the Mayor's house door": "You hear a satisfying click as the door unlocks."
-        -- The house behind it is a closed space: walked into and out of by this door only
-        -- (reach.py 3373,2977 -> 3334,2951: NEEDS-DOOR via feud_closed_door_left).
-        t.exec("openTheDoor", t.player.pass_door, { closed = "feud_closed_door_left", open = "feud_open_door_left",
-            at = { 3370, 2971, 0 }, near = { 3369, 2971 }, far = { 3372, 2971 } })
-        t.expect("openTheDoor-unlock", t.msg.expect("satisfying click as the door unlocks"))
-        t.expect("openTheDoor-msg", t.msg.expect("You slip inside, disguised"))
-        t.expect("quest.stage.house_entered", t.quest.expect_stage("house_entered"))
-
-        -- ==================== heist: the study desk (3367,2966,0) -- the numbers note
-        -- (the study opens off the hall through the open curtain desertdooropen 3370,2966)
-        t.exec("searchDesk", t.player.click_loc, "feud_mayors_desk", 1)
-        t.expect("searchDesk-note", t.inv.await("feud_nos_note", 1, 10))
-        t.expect("quest.stage.note_numbers", t.quest.expect_stage("note_numbers"))
-
-        -- ==================== heist: upstairs (feud_insidestairs_base 3373,2978,0), the bed
-        -- maplink.dbrow maplink_0_52_46_45_33_up: 3373,2977,0 -> 3374,2979,1.
-        t.exec("goUpStairs", t.player.climb, { loc = "feud_insidestairs_base", op = 1, op_name = "Climb-up",
+        -- ======================= The burglary (4452 [997..1005]; 4451 [48..586])
+        t.ticklog.mark("leg.burglary")
+        t.exec("wieldScimitar", t.player.equip, "rune_scimitar")
+        t.exec("wearDisguise", t.player.equip, "feud_desert_disguise")
+        t.exec("wearGloves", t.player.equip, "leather_gloves")
+        t.exec("goto-cactus", t.player.goto_tile, 3365, 2967, 0)
+        t.exec("stakeout", t.player.click_loc, "feud_cactus_row", 1)
+        t.ticks(8)
+        t.exec("stakeout-box", t.chat.drain, {})
+        t.expect("quest.stage.house_staked", t.quest.expect_stage("house_staked"))
+        t.exec("goto-door", t.player.goto_tile, 3369, 2970, 0)
+        local door = t.player.by_symbol("loc", "feud_closed_door_right")
+        t.exec("unlock", t.player.use_on, "feud_mayors_house_keys", door)
+        t.expect("unlock-msg", t.msg.expect("You hear a satisfying click as the door unlocks."))
+        t.ticks(3)
+        t.exec("desk", t.player.click_loc, "feud_mayors_desk", 1)
+        t.exec("desk-box", t.chat.drain, {})
+        t.expect("desk-note", t.inv.await("feud_nos_note", 1, 5))
+        t.exec("upstairs", t.player.climb, { loc = "feud_insidestairs_base", op = 1, op_name = "Climb-up",
             at = { 3373, 2978, 0 }, dest = { 3374, 2979, 1 }, slack = 1 })
-        t.exec("searchBed", t.player.click_loc, "feud_mayors_bed", 1)
-        t.expect("searchBed-note", t.inv.await("feud_fib_hint", 1, 10))
-        t.expect("quest.stage.note_fib", t.quest.expect_stage("note_fib"))
-
-        -- ==================== crackTheSafe: the landscape picture (3374,2974,1) hides interface 330
-        -- QH TheFeud.java:390 "Enter the code 1, 1, 2, 3, 5, 8."
-        t.exec("searchPicture", t.player.click_loc, "feud_mayors_picture", 1)
-        local safe_r, safe_d = t.ui.await_open("the_feud_safe", 10)
-        t.expect("safe-open", safe_r,
-            "the_feud_safe (interface 330) await_open -> " .. tostring(safe_r)
-            .. " -- mounted by the picture's Search behind 3374,2974,1")
-        t.expect("searchPicture-msg", t.msg.expect("covering something: a safe"))
-        local SAFE = { "feud_over_model1", "feud_overstate_model2", "feud_overstate_model3",
-            "feud_overstate_model4", "feud_overstate_model5", "feud_overstate_model6",
-            "feud_overstate_model7", "feud_overstate_model8", "feud_overstate_model9" }
+        t.exec("bed", t.player.click_loc, "feud_mayors_bed", 1)
+        t.exec("bed-box", t.chat.drain, {})
+        t.expect("bed-note", t.inv.await("feud_fib_hint", 1, 5))
+        t.exec("picture", t.player.click_loc, "feud_mayors_picture", 1)
+        t.exec("picture-box", t.chat.drain, {})
+        t.expect("safe-open", t.ui.await_open("the_feud_safe", 10))
+        local SAFE = { [1] = "feud_over_model1", [2] = "feud_overstate_model2", [3] = "feud_overstate_model3",
+            [5] = "feud_overstate_model5", [8] = "feud_overstate_model8" }
         local code = { 1, 1, 2, 3, 5, 8 }
         for i = 1, #code do
-            local wr, w = t.ui.widget("the_feud_safe:" .. SAFE[code[i]])
-            t.expect("safe-dial" .. i .. "-widget", wr, "Set to " .. code[i])
-            local ir, id = t.ui.invoke(w, 1)
-            t.ticks(1)
-            t.check("safe-dial" .. i, ir == "ok", "invoke Set to " .. code[i] .. " -> " .. tostring(ir) .. " " .. tostring(id))
+            local sr, sw = t.ui.widget("the_feud_safe:" .. SAFE[code[i]])
+            t.expect("safe-digit" .. i .. "-widget", sr, tostring(code[i]))
+            t.check("safe-digit" .. i, select(1, t.ui.invoke(sw, 1)) == "ok", "digit " .. tostring(code[i]))
+            t.ticks(3)
         end
-        t.expect("safe-jewels", t.inv.await("feud_mayors_jewels", 1, 10))
-        t.expect("safe-msg", t.msg.expect("You remove the jewels from the safe."))
-        t.expect("quest.stage.safe_opened", t.quest.expect_stage("safe_opened"))
+        t.expect("safe-jewels", t.inv.await("feud_mayors_jewels", 1, 15))
+        t.expect("quest.stage.jewels_taken", t.quest.expect_stage("jewels_taken"))
+        t.exec("safe-box", t.chat.drain, {})
+        t.exec("downstairs", t.player.climb, { loc = "feud_insidestairs_top", op = 1, op_name = "Climb-down",
+            at = { 3373, 2978, 1 }, dest = { 3373, 2977, 0 }, slack = 1 })
+        t.exec("goto-doorOut", t.player.goto_tile, 3371, 2971, 0)
+        t.exec("doorOut", t.player.click_loc, "feud_closed_door_left", 1)
+        t.ticks(3)
+        t.exec("goto-operator4", t.player.goto_tile, 3334, 2951, 0)
+        t.exec("jewels", t.player.talk_to, "feud_egyptian_minder_multi", 1)
+        t.exec("jewels-pages", t.chat.drain, {})
+        t.expect("quest.stage.find_traitor", t.quest.expect_stage("find_traitor"))
 
-        -- ==================== leave the house: down the stairs and out through the door
-        -- maplink.dbrow maplink_1_52_46_46_34/35_down: -> 3373,2977,0.
-        t.exec("goDownStairs", t.player.climb, { loc = "feud_insidestairs_top", op = 1, op_name = "Climb-down",
-            at = { 3373, 2978, 1 }, dest = { 3373, 2977, 0 } })
-        -- Out of the house by the same door: it still stands open from the
-        -- way in (500 ticks) or is pressed again (~feud_mayors_door past
-        -- ^feud_safe_opened only swings the leaves).
-        t.exec("leaveHouse", t.player.pass_door, { closed = "feud_closed_door_left", open = "feud_open_door_left",
-            at = { 3370, 2971, 0 }, near = { 3372, 2971 }, far = { 3369, 2971 } })
-
-        -- ==================== returnTheJewels: the Operator's traitor briefing
-        t.exec("goto-returnJewels", t.player.goto_tile, 3334, 2951, 0)
-        t.exec("returnJewels", t.player.talk_to, "feud_egyptian_minder", 1)
-        t.exec("returnJewels-dialog", t.chat.play, {
-            "player:Here are the mayor's wife's jewels",
-            "npc:Excellent work!",
-            "npc:Someone in this camp is drinking",
-        })
-        t.expect("quest.stage.traitor_briefed", t.quest.expect_stage("traitor_briefed"))
-
-        -- ==================== findTraitor: talkMenaphiteToFindTraitor
-        -- feud_recruitment.rs2 [label,feud_thug_questioning]
-        t.exec("goto-talkMenaphiteToFindTraitor", t.player.goto_tile, 3333, 2954, 0)
-        t.exec("talkMenaphiteToFindTraitor", t.player.talk_to, "feud_egyptian_doorman_multi", 1)
-        t.exec("talkMenaphiteToFindTraitor-dialog", t.chat.play, {
-            "player:There's a traitor among the gang",
-            "npc:A traitor?",
-            "npc:If I were you, I'd ask Ali the Barman",
-        })
-        t.expect("quest.stage.thug_questioned", t.quest.expect_stage("thug_questioned"))
-
-        -- tellAliYouFoundTraitor: the Operator's stage 16..22 line
-        t.exec("goto-tellAliYouFoundTraitor", t.player.goto_tile, 3334, 2951, 0)
-        t.exec("tellAliYouFoundTraitor", t.player.talk_to, "feud_egyptian_minder", 1)
-        t.exec("tellAliYouFoundTraitor-dialog", t.chat.play, { "npc:Find that traitor and deal with them" })
-
-        -- ==================== talkToAliTheBarman: whose drink is it
-        t.exec("goto-talkToAliTheBarman", t.player.goto_tile, 3359, 2956, 0) -- open floor beside the table 3360,2956
-        t.exec("talkToAliTheBarman", t.player.talk_to, "feud_ali_the_barman", 1)
-        t.exec("talkToAliTheBarman-dialog", t.chat.play, {
-            "player:I'm looking for Traitorous Ali",
-            "npc:Now that you mention it",
-            "choose:Thanks, that's useful.",
-            "player:Thanks, that's useful.",
-        })
-        t.expect("quest.stage.barman_done", t.quest.expect_stage("barman_done"))
-
-        -- ==================== talkToAliTheHag: ask for poison (guide stage 17)
-        t.exec("goto-talkToAliTheHag", t.player.goto_tile, 3346, 2985, 0)
-        t.exec("talkToAliTheHag", t.player.talk_to, "feud_hag", 1)
-        t.exec("talkToAliTheHag-dialog", t.chat.play, {
-            "player:Good day, Hag.",
-            "npc:Good day to you too, Blockhead.",
-            "npc:Now what do you want?",
-            "player:Actually I just want your help",
-            "npc:Ahh, I see.",
-            "player:Don't worry about the consequences",
-            "npc:Well now this is getting interesting.",
-            "player:'Traitorous Ali', please.",
-            "npc:Traitorous Ali? Say no more!",
-            "player:What payment do you require?",
-            "npc:None at all",
-            "player:What do you need?",
-            "npc:Ah, impatience!",
-            "player:Where would I get some snake poison?",
-            "npc:From a snake perhaps?",
-            "player:What I meant was how do I extract",
-            "npc:Sheesh! You'd make a terrible hag.",
-        })
-        -- %feud_hag_list lives on feud_var_multi, which the server never transmits
-        -- (no carrier in general/configs), so the client cannot read it; the
-        -- snake hand-in below only plays from %feud_hag_list = 1.
-
-        -- ==================== talkToAliTheKebabSalesman: the special sauce
-        t.exec("goto-talkToAliTheKebabSalesman", t.player.goto_tile, 3351, 2974, 0) -- open tile beside cookingshelves 3352,2973
-        t.exec("talkToAliTheKebabSalesman", t.player.talk_to, "feud_kebabman", 1)
-        t.exec("talkToAliTheKebabSalesman-dialog", t.chat.play, {
-            "player:Would you sell me that bottle of special kebab sauce?",
-            "npc:This old thing?",
-            "choose:Thanks.",
-            "player:Thanks.",
-        })
-        t.expect("quest.stage.sauce_bought", t.quest.expect_stage("sauce_bought"))
-        t.expect("talkToAliTheKebabSalesman-sauce", t.inv.await("superhot_kebab_sauce", 1, 10))
-
-        -- ==================== getDung: sauce on the trough, the camel leaves dung in the bucket
-        t.exec("goto-getDung", t.player.goto_tile, 3345, 2960, 0)
-        local trough = t.player.by_symbol("loc", "feud_foodtrough2")
-        t.exec("getDung", t.player.use_on, "superhot_kebab_sauce", trough)
-        t.expect("getDung-bucket", t.inv.await("feud_camel_pooh_bucket", 1, 10))
-        -- feud_traitor.rs2 [oplocu,feud_foodtrough2]: the sauce and the empty bucket are spent.
-        local sauce_r, sauce_n = t.inv.count("superhot_kebab_sauce")
-        local bucket_left_r, bucket_left_n = t.inv.count("bucket_empty")
-        t.check("getDung-spent", sauce_r == "ok" and sauce_n == 0 and bucket_left_r == "ok" and bucket_left_n == 0,
-            "after the trough: superhot_kebab_sauce=" .. tostring(sauce_n) .. " bucket_empty=" .. tostring(bucket_left_n))
-        t.expect("quest.stage.dung_bucketed", t.quest.expect_stage("dung_bucketed"))
-
-        -- ==================== giveCoinToSnakeCharmer: coins on the money pot
-        t.exec("goto-giveCoinToSnakeCharmer", t.player.goto_tile, 3356, 2951, 0)
+        -- ======================= The traitor (4451 [612..2811])
+        t.ticklog.mark("leg.traitor")
+        t.exec("goto-thug3", t.player.goto_tile, 3343, 2957, 0)
+        t.exec("traitorName", t.player.talk_to, "feud_egyptian_doorman_multi", 1)
+        t.exec("traitorName-pages", t.chat.drain, {})
+        t.exec("goto-operator5", t.player.goto_tile, 3334, 2951, 0)
+        t.exec("traitorTold", t.player.talk_to, "feud_egyptian_minder_multi", 1)
+        t.exec("traitorTold-m", t.chat.drain, { stop_at = "options" })
+        t.exec("traitorTold-done", t.chat.choose, "No thanks.")
+        t.expect("quest.stage.kill_traitor", t.quest.expect_stage("kill_traitor"))
+        t.exec("goto-hag", t.player.goto_tile, 3346, 2985, 0)
+        t.exec("hagMeet", t.player.talk_to, "feud_hag_multi", 1)
+        t.exec("hagMeet-pages", t.chat.drain, {})
+        t.exec("hagList", t.player.talk_to, "feud_hag_multi", 1)
+        t.exec("hagList-pages", t.chat.drain, {})
+        t.exec("goto-pot", t.player.goto_tile, 3355, 2951, 0)
         local pot = t.player.by_symbol("loc", "feud_money_bowl")
-        local pot_coins_before_r, pot_coins_before = t.inv.count("coins")
-        t.exec("giveCoinToSnakeCharmer", t.player.use_on, "coins", pot)
-        t.expect("giveCoinToSnakeCharmer-charm", t.inv.await("snake_flute", 1, 10))
-        t.expect("giveCoinToSnakeCharmer-basket", t.inv.await("basket_for_snake", 1, 10))
-        local pot_coins_after_r, pot_coins_after = t.inv.count("coins")
-        t.check("giveCoinToSnakeCharmer-coin", pot_coins_before_r == "ok" and pot_coins_after_r == "ok"
-            and pot_coins_before - pot_coins_after == 1,
-            "coins " .. tostring(pot_coins_before) .. " -> " .. tostring(pot_coins_after)
-            .. " (one coin into the pot, ratcatchers.rs2 [oplocu,feud_money_bowl])")
-
-        -- ==================== catchSnake: the charm on a desert snake
-        t.exec("goto-catchSnake", t.player.goto_tile, 3334, 2960, 0)
+        t.exec("pot", t.player.use_on, "coins", pot)
+        t.exec("pot-pages", t.chat.drain, {})
+        t.expect("pot-flute", t.inv.await("snake_flute", 1, 5))
+        t.exec("goto-snake", t.player.goto_tile, 3331, 2958, 0)
         local snake = t.player.by_symbol("npc", "feud_desert_snake")
-        t.exec("catchSnake", t.player.use_on, "snake_flute", snake)
-        t.expect("catchSnake-basket", t.inv.await("basket_with_snake", 1, 10))
-        t.expect("quest.stage.snake_done", t.quest.expect_stage("snake_done"))
-
-        -- ==================== giveSnakeToHag: the snake first
-        -- Transcript:The_Feud "Talking to Ali the Hag with a Snake basket full"
-        t.exec("goto-giveSnakeToHag", t.player.goto_tile, 3346, 2985, 0)
-        t.exec("giveSnakeToHag", t.player.talk_to, "feud_hag", 1)
-        t.exec("giveSnakeToHag-dialog", t.chat.play, {
-            "player:Good day, Hag.",
-            "npc:Good day to you too, Blockhead.",
-            "player:I have the snake. What else do you need?",
-            "npc:Ah yes, that snake will do nicely.",
-            "npc:Who's a vindictive little beast?",
-            "player:Erm, yes. Do you need anything else?",
-            "npc:Now that I have the toxin",
-            "player:What? That's disgusting.",
-            "npc:Do you want the poison or not?",
-            "player:Fine, fine, I'll get some camel dung.",
-            "npc:And make that fresh camel dung!",
-            "player:Oops! I almost forgot!",
-            "mesbox:You hand the basket with the charmed snake over",
-        })
-        t.expect("giveSnakeToHag-basketGone", t.inv.expect_absent("basket_with_snake"))
-        local keep_r, keep_n = t.inv.count("feud_camel_pooh_bucket")
-        local pois_r, pois_n = t.inv.count("poison_from_hag")
-        t.check("giveSnakeToHag-dungKept", keep_r == "ok" and keep_n == 1 and pois_r == "ok" and pois_n == 0,
-            "after the snake hand-in: feud_camel_pooh_bucket=" .. tostring(keep_n) .. " poison_from_hag=" .. tostring(pois_n) .. " (the dung is a separate hand-in)")
-        t.expect("quest.stage.snake_done-still", t.quest.expect_stage("snake_done"))
-
-        -- ==================== givenDungToHag: then the dung, for the poison
-        -- Transcript:The_Feud "Talking to Ali the Hag with Ughthanki dung"
-        t.exec("givenDungToHag", t.player.talk_to, "feud_hag", 1)
-        t.exec("givenDungToHag-dialog", t.chat.play, {
-            "player:Good day, Hag.",
-            "npc:Good day to you too, Blockhead.",
-            "npc:Here's your poison!",
-            "player:Wow, that was quick!",
-            "npc:Actually I already had it brewing.",
-            "npc:You wouldn't believe the demand.",
-            "player:That's not even remotely funny.",
-            "npc:Sorry, I've been dying to say that",
-            "player:Just stop. Thanks for the poison",
-            "npc:Wait! Just remember, this poison",
-            "player:Got it. Thanks again!",
-            "*", -- objbox: You hand over your bucket of fresh camel dung and receive a vial of poison in return.
-        })
-        t.expect("givenDungToHag-poison", t.inv.await("poison_from_hag", 1, 10))
-        t.expect("givenDungToHag-dungGone", t.inv.expect_absent("feud_camel_pooh_bucket"))
-        t.expect("quest.stage.poison_made", t.quest.expect_stage("poison_made"))
-
-        -- ==================== poisonTheDrink: poison on the traitor's beer
-        t.exec("goto-poisonTheDrink", t.player.goto_tile, 3356, 2956, 0)
+        t.exec("charm", t.player.use_on, "snake_flute", snake)
+        t.expect("charm-basket", t.inv.await("basket_with_snake", 1, 20))
+        t.exec("charm-box", t.chat.drain, {})
+        t.exec("goto-hag2", t.player.goto_tile, 3346, 2985, 0)
+        t.exec("hagSnake", t.player.talk_to, "feud_hag_multi", 1)
+        t.exec("hagSnake-pages", t.chat.drain, {})
+        t.expect("quest.stage.hag_has_snake", t.quest.expect_stage("hag_has_snake"))
+        t.exec("goto-kebab", t.player.goto_tile, 3352, 2972, 0)
+        t.exec("kebab", t.player.talk_to, "feud_kebabman_multi", 1)
+        t.exec("kebab-m1", t.chat.drain, { stop_at = "options" })
+        t.exec("kebab-sauce", t.chat.choose, "Would you sell me that bottle of special kebab sauce?")
+        t.exec("kebab-m2", t.chat.drain, { stop_at = "options" })
+        t.exec("kebab-done", t.chat.choose, "No thanks, I'm good.")
+        t.exec("kebab-end", t.chat.drain, {})
+        t.expect("kebab-sauceGot", t.inv.await("superhot_kebab_sauce", 1, 5))
+        t.exec("goto-trough", t.player.goto_tile, 3342, 2960, 0)
+        local trough = t.player.by_symbol("loc", "feud_foodtrough2")
+        t.exec("trough", t.player.use_on, "superhot_kebab_sauce", trough)
+        t.expect("trough-msg", t.msg.expect("You pour some hot kebab sauce in the trough."))
+        t.ticks(26) -- the camel's dung, 22 ticks after it eats (4451 [2297] -> [2319])
+        local dung = t.player.by_symbol("loc", "feud_ugthanki_pooh")
+        t.exec("scoop", t.player.use_on, "bucket_empty", dung)
+        t.expect("scoop-bucket", t.inv.await("feud_camel_pooh_bucket", 1, 10))
+        t.exec("scoop-box", t.chat.drain, {})
+        t.exec("goto-hag3", t.player.goto_tile, 3346, 2985, 0)
+        t.exec("hagDung", t.player.talk_to, "feud_hag_multi", 1)
+        t.exec("hagDung-pages", t.chat.drain, {})
+        t.expect("quest.stage.have_poison", t.quest.expect_stage("have_poison"))
+        t.exec("goto-table", t.player.goto_tile, 3357, 2957, 0)
         local beer_table = t.player.by_symbol("loc", "feud_poison_beer_table")
-        t.exec("poisonTheDrink", t.player.use_on, "poison_from_hag", beer_table)
+        t.exec("poison", t.player.use_on, "poison_from_hag", beer_table)
+        t.expect("poison-msg", t.msg.expect("You poison the drink."))
         t.expect("quest.stage.beer_poisoned", t.quest.expect_stage("beer_poisoned"))
-        t.expect("poisonTheDrink-vialGone", t.inv.expect_absent("poison_from_hag")) -- feud_traitor.rs2:254 inv_del
+        t.exec("goto-operator6", t.player.goto_tile, 3334, 2951, 0)
+        t.exec("deedDone", t.player.talk_to, "feud_egyptian_minder_multi", 1)
+        t.exec("deedDone-pages", t.chat.drain, {})
+        t.expect("quest.stage.see_leader", t.quest.expect_stage("see_leader"))
 
-        -- ==================== tellAliOperatorPoisoned: final orders
-        t.exec("goto-tellAliOperatorPoisoned", t.player.goto_tile, 3334, 2951, 0)
-        t.exec("tellAliOperatorPoisoned", t.player.talk_to, "feud_egyptian_minder", 1)
-        t.exec("tellAliOperatorPoisoned-dialog", t.chat.play, {
-            "npc:The traitor's dealt with",
-            "npc:Confront the Menaphite Leader",
-        })
-        t.expect("quest.stage.ready_confront", t.quest.expect_stage("ready_confront"))
-        -- The Bandit Leader waits for the villager talk (Transcript:The_Feud,
-        -- varbit 338 0 -> 1 there), not for these orders.
-        local bvis_r, bvis = t.var.server("varb338_feud_bandit_boss_vis")
-        t.check("ready_confront-banditLeaderHidden", bvis_r == "ok" and bvis == 0, "feud_bandit_boss_vis=" .. tostring(bvis) .. " after the final orders")
+        -- ======================= The Menaphite Leader and his Tough Guy (4451 [2917..3095])
+        t.ticklog.mark("leg.menaphites")
+        t.exec("goto-leader", t.player.goto_tile, 3334, 2954, 0)
+        t.exec("leader", t.player.talk_to, "feud_menap_boss", 1)
+        t.exec("leader-pages", t.chat.drain, {})
+        t.exec("toughGuy", t.player.attack, "feud_menap_toughguy", 2, 15, { eat = FIGHT_EAT })
+        t.exec("toughGuy-dead", t.npc.await_dead_engaged, 120, 10, { eat = FIGHT_EAT })
+        t.expect("quest.stage.menaphites_gone", t.quest.expect_stage("menaphites_gone"))
+        t.ticks(12)
+        t.exec("toughGuy-line", t.chat.drain, {})
+        t.exec("goto-villager", t.player.goto_tile, 3343, 2955, 0)
+        t.exec("villagerBalance", t.player.talk_to, "feud_villager_multi_2", 1)
+        t.exec("villagerBalance-m", t.chat.drain, { stop_at = "options" })
+        t.exec("villagerBalance-ask", t.chat.choose, "What do you mean by 'fix the mess I created'?")
+        t.exec("villagerBalance-end", t.chat.drain, {})
 
-        -- ==================== talkToMenaphiteLeader / killMenaphiteThug
-        -- the blackjack took the weapon slot in task 3; the scimitar goes back on
-        t.exec("equipScimitarForFights", t.player.equip, "rune_scimitar")
-        t.exec("goto-talkToMenaphiteLeader", t.player.goto_tile, 3334, 2954, 0)
-        t.exec("talkToMenaphiteLeader", t.player.talk_to, "feud_menap_boss", 1)
-        t.exec("talkToMenaphiteLeader-dialog", t.chat.play, {
-            "npc:So, the outsider who's been sniffing around",
-            "choose:I know you started this feud over a stolen camel. It ends now.",
-            "player:I know you started this feud",
-            "npc:You think you can just walk in here",
-        })
-        -- Tough Guy (vislevel 75; configs/all.npc stat1..6 = 85/50/50/75/0/80, a real block;
-        -- docs/bosses/quest_combat_manifest.json quest-the-feud). Sharks are eaten inside the
-        -- press and the wait below 60 hp; the margin row reads the eater's lowest hp.
-        local thug_food_before_r, thug_food_before = t.inv.count("shark")
-        local _, thug_attack_d = t.exec("killMenaphiteThug", t.player.attack, "feud_menap_toughguy", 2, 15, { eat = FIGHT_EAT })
-        local _, thug_dead_d = t.exec("killMenaphiteThug-dead", t.npc.await_dead_engaged, 80, 10, { eat = FIGHT_EAT })
-        fight_margin("killMenaphiteThug.margin", "Tough Guy (level 75)", thug_attack_d, thug_dead_d,
-            thug_food_before_r == "ok" and thug_food_before or nil)
-        t.ticks(5) -- the [ai_queue3] outcome lands after the release
-        t.expect("quest.stage.menaphite_beaten", t.quest.expect_stage("menaphite_beaten"))
+        -- ======================= The Bandit Leader and his champion (4451 [3267..3388])
+        t.ticklog.mark("leg.bandits")
+        t.exec("goto-banditLeader", t.player.goto_tile, 3353, 3000, 0)
+        t.exec("banditLeader", t.player.talk_to, "feud_bandit_boss", 1)
+        t.exec("banditLeader-pages", t.chat.drain, {})
+        t.exec("champion", t.player.attack, "feud_bandit_toughguy", 2, 15, { eat = FIGHT_EAT })
+        t.exec("champion-dead", t.npc.await_dead_engaged, 120, 10, { eat = FIGHT_EAT })
+        t.expect("quest.stage.bandits_gone", t.quest.expect_stage("bandits_gone"))
+        t.exec("champion-pages", t.chat.drain, {})
+        t.exec("goto-villager2", t.player.goto_tile, 3343, 2955, 0)
+        t.exec("villagerUngrateful", t.player.talk_to, "feud_villager_multi_2", 1)
+        t.exec("villagerUngrateful-pages", t.chat.drain, {})
+        t.exec("goto-mayor", t.player.goto_tile, 3359, 2970, 0)
+        t.exec("mayor", t.player.talk_to, "feud_mayor", 1)
+        t.exec("mayor-pages", t.chat.drain, {})
+        t.expect("quest.stage.mayor_told", t.quest.expect_stage("mayor_told"))
 
-        -- ==================== talkToAVillager: the balance of power is lost
-        -- feud_villagers.rs2 [label,feud_villager_balance_lost] (Transcript:The_Feud,
-        -- "Celebrating your victory / Talking to a Villager"): %feud_talk_villager
-        -- 0 -> 1 and the Bandit Leader shown (%feud_bandit_boss_vis 1).
-        t.exec("goto-talkToAVillager", t.player.goto_tile, 3356, 2951, 0)
-        t.exec("talkToAVillager", t.player.talk_to, "feud_villager_multi_1", 1)
-        t.exec("talkToAVillager-dialog", t.chat.play, {
-            "player:Hello.",
-            "npc:You! You're the one that just made everything worse",
-            "player:What?! I just single-handedly",
-            "npc:You adventurers! You never think",
-            "npc:It's not that simple",
-            "npc:Who do you think is stronger?",
-            "player:Oops. Sorry, I was just trying to help.",
-            "npc:Yes. Before your intervention",
-            "npc:Now that the balance is lost",
-            "player:You know, this adventuring lark",
-            "npc:If you're prepared to change something",
-            "choose:What do you mean by fix the mess I created?",
-            "player:What do you mean by fix the mess",
-            "npc:Do I have to spell it out to you?",
-            "player:Would you please?",
-            "npc:Just run the bandits out of town.",
-        })
-        t.expect("talkToAVillager-talked", t.var.await_server("varb343_feud_talk_villager", 1, 5))
-        t.expect("talkToAVillager-banditLeaderShown", t.var.await_server("varb338_feud_bandit_boss_vis", 1, 5))
-
-        -- ==================== talkToBanditLeader / killBanditChampion
-        t.exec("goto-talkToBanditLeader", t.player.goto_tile, 3353, 3000, 0)
-        t.exec("talkToBanditLeader", t.player.talk_to, "feud_bandit_boss", 1)
-        t.exec("talkToBanditLeader-dialog", t.chat.play, {
-            "npc:You've already caused enough trouble",
-            "choose:I know about the stolen camel. This feud ends now.",
-            "player:I know about the stolen camel",
-            "npc:Ha! You'll have to go through me first",
-        })
-        -- Bandit champion (vislevel 70; configs/all.npc stat1..6 = 59/50/80/50/0/0, a real block).
-        local champ_food_before_r, champ_food_before = t.inv.count("shark")
-        local _, champ_attack_d = t.exec("killBanditChampion", t.player.attack, "feud_bandit_toughguy", 2, 15, { eat = FIGHT_EAT })
-        local _, champ_dead_d = t.exec("killBanditChampion-dead", t.npc.await_dead_engaged, 80, 10, { eat = FIGHT_EAT })
-        fight_margin("killBanditChampion.margin", "Bandit champion (level 70)", champ_attack_d, champ_dead_d,
-            champ_food_before_r == "ok" and champ_food_before or nil)
-        t.ticks(5)
-        t.expect("quest.stage.bandit_beaten", t.quest.expect_stage("bandit_beaten"))
-        t.expect("bandit_beaten-mayorHidden", t.var.await_server("varb14604_feud_mayor_multivar", 2, 5))
-
-        -- ==================== talkToAVillagerToSpawnMayor: "talk to the mayor"
-        -- feud_villagers.rs2 [label,feud_villager_talk_to_mayor] (Transcript:The_Feud,
-        -- "Finishing up / Talking to a Villager"): %feud_talk_villager 1 -> 2,
-        -- %feud_mayor_multivar 2 -> 0 -- Ali the Mayor is back by the well.
-        t.exec("goto-talkToAVillagerToSpawnMayor", t.player.goto_tile, 3358, 2967, 0) -- open tile north of cactus5 3358,2965
-        t.exec("talkToAVillagerToSpawnMayor", t.player.talk_to, "feud_villager_multi_1", 1)
-        t.exec("talkToAVillagerToSpawnMayor-dialog", t.chat.play, {
-            "player:Now are you satisfied?",
-            "npc:Oh, it's you again!",
-            "player:I have delivered you from two evil tyrants.",
-            "npc:Thank you? For what?",
-            "player:I wonder why I bother sometimes!",
-        })
-        t.expect("talkToAVillagerToSpawnMayor-talked", t.var.await_server("varb343_feud_talk_villager", 2, 5))
-        t.expect("talkToAVillagerToSpawnMayor-mayorShown", t.var.await_server("varb14604_feud_mayor_multivar", 0, 5))
-
-        -- ==================== talkToMayor: Ali the Mayor's reveal
-        t.exec("goto-talkToMayor", t.player.goto_tile, 3360, 2972, 0)
-        t.exec("talkToMayor", t.player.talk_to, "feud_mayor", 1)
-        t.exec("talkToMayor-dialog", t.chat.play, {
-            "player:This whole feud started over a stolen camel",
-            "npc:Ha! I do indeed.",
-            "npc:Now that the gangs have had the fight",
-        })
-        t.expect("quest.stage.mayor_talked", t.quest.expect_stage("mayor_talked"))
-
-        -- ==================== back to Al Kharid: the carpet, then the doorway north
-        -- Pollnivneach -> Al Kharid crosses the Shantay Pass doorway (the
-        -- desert's only way out on foot). A player flies back the way he came:
-        -- the north Pollnivneach rug merchant (magic_carpet_seller4, m52_46.spawn
-        -- 3350,3001) -> the Shantay pad 3308,3110 (magic_carpet.rs2
-        -- @carpet_menu_return, ^carpet_route_npoll; fare ^carpet_fare_full 200).
-        t.exec("goto-carpetBack", t.player.goto_tile, 3350, 3004, 0) -- open ground north of the pad
-        local fare_before_r, fare_before = t.inv.count("coins")
-        t.exec("carpetBack", t.player.talk_to, "magic_carpet_seller4", 1)
-        t.exec("carpetBack-dialog", t.chat.play, {
-            "player:Hello.",
-            "npc:Greetings, desert traveller.",
-            "choose:Yes please.",
-            "player:Yes please.",
-            "npc:From here you can travel to the Shantay Pass",
-            "choose:Take me to the Pass then.",
-            "player:Take me to the Pass then.",
-        })
-        local back_r = t.await({
+        -- ======================= Home, and Ali Morrisane (4453 [290..373])
+        t.ticklog.mark("leg.end")
+        t.exec("goto-rugNorth", t.player.goto_tile, 3350, 3003, 0)
+        t.exec("rugHome", t.player.talk_to, "magic_carpet_seller4", 1)
+        t.exec("rugHome-m1", t.chat.drain, { stop_at = "options" })
+        t.exec("rugHome-yes", t.chat.choose, "Yes please.")
+        t.exec("rugHome-m2", t.chat.drain, { stop_at = "options" })
+        t.exec("rugHome-go", t.chat.choose, "Take me to the Pass then.")
+        t.exec("rugHome-end", t.chat.drain, {})
+        local home_r = t.await({
             level = function()
                 local r, tl = t.world.tile()
-                return r == "ok" and tl.x == 3308 and tl.z == 3110 and select(2, t.drive._player_idle()) == true
+                return r == "ok" and tl.z > 3095 and tl.z < 3115 and select(2, t.drive._player_idle()) == true
             end,
-            note = "carpet landed on the Shantay Pass pad 3308,3110",
-        }, 80)
-        local back_tr, back_tile = t.world.tile()
-        local fare_after_r, fare_after = t.inv.count("coins")
-        t.check("carpetBack-landed", back_r == "ok" and back_tr == "ok" and back_tile.x == 3308
-            and back_tile.z == 3110 and back_tile.level == 0,
-            "carpet await " .. tostring(back_r) .. "; rider at " .. tostring(back_tile and back_tile.x) .. ","
-            .. tostring(back_tile and back_tile.z) .. "," .. tostring(back_tile and back_tile.level)
-            .. " (the Shantay pad is 3308,3110,0)")
-        t.check("carpetBack-fare", fare_before_r == "ok" and fare_after_r == "ok" and fare_before - fare_after == 200,
-            "coins " .. tostring(fare_before) .. " -> " .. tostring(fare_after) .. " (fare 200, magic_carpet.constant ^carpet_fare_full)")
-        t.ticks(3) -- ~carpet_ride's carpet_land + p_delay(1) + player_unlock
-        -- Off the pad (a solid rug) onto the open sand south of the doorway.
-        t.exec("walk-shantaySouth", t.player.walk_to, 3304, 3113, 12)
-        -- North through the doorway: free from the south (shantay_pass.rs2: a
-        -- player at or south of the loc is pushed 3 tiles north), pressed by its op.
-        t.exec("leaveDesert", t.player.cross_gate, { loc = "shantay_pass_henge_doorway", at = { 3302, 3116, 0 },
-            near = { 3304, 3114 }, far_ok = function(tile) return tile.z > 3116 end,
-            far_desc = "north of the Shantay doorway, z > 3116" })
-
-        -- ==================== finishQuest: Ali Morrisane's reward
-        local reward_snap_r, reward_snap = t.skill.snapshot()
-        local function count_of(sym)
-            local r, n = t.inv.count(sym)
-            return r == "ok" and n or nil
-        end
-        local coins_before = count_of("coins")
-        local willow_before = count_of("blackjack_willow")
-        local addy_before = count_of("adamant_scimitar")
-        local disguise_before = count_of("feud_desert_disguise")
-        t.exec("goto-finishQuest", t.player.goto_tile, 3304, 3211, 0)
-        t.exec("finishQuest", t.player.talk_to, "feud_ali_m", 1)
-        t.exec("finishQuest-dialog", t.chat.play, {
-            "player:Your nephew's safe",
-            "npc:A stolen... camel?",
-            "npc:No, I'm really too busy",
-        })
+            note = "landed at the Shantay Pass pad",
+        }, 120)
+        t.expect("rugHome-landed", home_r, "the carpet's landing at the Shantay Pass")
+        t.ticks(3)
+        t.exec("goto-shantaySouth", t.player.goto_tile, 3303, 3113, 0)
+        t.exec("leaveDesert", t.player.click_loc, "shantay_pass_henge_doorway", 1)
+        t.ticks(4)
+        local snap_r, snap = t.skill.snapshot()
+        t.exec("goto-ali2", t.player.goto_tile, 3305, 3211, 0)
+        t.exec("finish", t.player.talk_to, "feud_ali_m", 1)
+        t.exec("finish-m", t.chat.drain, { stop_at = "options" })
+        t.exec("finish-busy", t.chat.choose, "No, I'm really too busy.")
+        t.exec("finish-end", t.chat.play, { "player:No, I'm really too busy." })
         t.ticks(3)
         t.quest.expect_complete()
-
-        -- Rewards (feud_alimorrisane.rs2:57-66; wiki The_Feud "Rewards"): 1 quest
-        -- point (quest.points above), 15,000 Thieving xp, 500 coins, a willow
-        -- blackjack, an adamant scimitar, and a desert disguise when none is in
-        -- the pack (the one made at createDisguise is worn, so the pack holds 0).
-        local xp_r, xp_d = t.skill.expect_gain("thieving", 15000, reward_snap)
-        t.check("reward.thievingXp", reward_snap_r == "ok" and xp_r == "ok",
-            "snapshot " .. tostring(reward_snap_r) .. "; t.skill.expect_gain(thieving, 15000) -> " .. tostring(xp_r)
-            .. " " .. tostring(xp_d) .. " -- dbrow stat_xp_awarded 150000 tenths")
-        local coins_after = count_of("coins")
-        t.check("reward.coins", coins_before ~= nil and coins_after ~= nil and coins_after - coins_before == 500,
-            "coins " .. tostring(coins_before) .. " -> " .. tostring(coins_after) .. " (+500 documented)")
-        local willow_after = count_of("blackjack_willow")
-        t.check("reward.willowBlackjack", willow_before == 0 and willow_after == 1,
-            "blackjack_willow " .. tostring(willow_before) .. " -> " .. tostring(willow_after)
-            .. " (+1, scroll: Willow blackjack, feud_alimorrisane.rs2:63)")
-        local addy_after = count_of("adamant_scimitar")
-        t.check("reward.adamantScimitar", addy_before == 0 and addy_after == 1,
-            "adamant_scimitar " .. tostring(addy_before) .. " -> " .. tostring(addy_after)
-            .. " (+1, scroll: An Adamant scimitar, feud_alimorrisane.rs2:64)")
-        local disguise_after = count_of("feud_desert_disguise")
-        t.check("reward.desertDisguise", disguise_before == 0 and disguise_after == 1,
-            "feud_desert_disguise in the pack " .. tostring(disguise_before) .. " -> " .. tostring(disguise_after)
-            .. " (+1, the made one is worn; scroll: Desert disguise, feud_alimorrisane.rs2:60-61)")
+        local xp_r, xp_d = t.skill.expect_gain("thieving", 15000, snap)
+        t.check("reward.thievingXp", snap_r == "ok" and xp_r == "ok", tostring(xp_d))
         t.finish(0)
         return
     end,

@@ -385,6 +385,22 @@ NPC_SPAWN_ID_CORRECTIONS = {
     (517, 3015, 3515, 1): "aggressive_black_knight_f",
     (517, 3023, 3512, 1): "aggressive_black_knight_f",
     (517, 3023, 3514, 2): "aggressive_black_knight_f",
+    # Pollnivneach, The Feud: the dump lists each quest npc as the rung its
+    # multinpc shows during the quest; Jagex spawns the shell (`id=` on every
+    # recorded add, RSProx index 4448/4451/4452/4453), whose feud_var rung 29
+    # is the post-quest npc and whose ops the server dispatches on. Which of
+    # the two wandering camels is feud_camel2_multi is not decided by any
+    # recording (they wander between both tiles).
+    (3534, 3360, 2957, 0): "feud_drunken_ali_multi",
+    (3535, 3361, 2955, 0): "feud_ali_the_barman_multi",
+    (3536, 3352, 2974, 0): "feud_kebabman_multi",
+    (3538, 3350, 2967, 0): "feud_ali_the_discount_camel_seller_multi",
+    (3541, 3346, 2987, 0): "feud_hag_multi",
+    (3542, 3354, 2953, 0): "feud_snakecharmer_multi",
+    (3543, 3342, 2962, 0): "feud_camel_multi",
+    (3543, 3343, 2964, 0): "feud_camel2_multi",
+    (3548, 3334, 2949, 0): "feud_egyptian_minder_multi",
+    (3442, 3364, 3001, 0): "feud_dye_lady_multi",
 }
 #
 # Getting Ahead, Gordon and Mary's farmhouse upstairs: the dump lays the empty
