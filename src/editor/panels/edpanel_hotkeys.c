@@ -567,7 +567,9 @@ Editor_Hotkeys_Feed(
         self->capturing = -1;
         Editor_UiLog(ui, "editor: %s unbound", Editor_HotkeyInfo(action)->name);
     }
-    else if( Editor_HotkeysCapture(input, action == EDITOR_HK_CAM_FAST, &chord) )
+    else if( Editor_HotkeysCapture(input,
+                                   action == EDITOR_HK_CAM_FAST || action == EDITOR_HK_VIEW_SNAP_HOLD,
+                                   &chord) )
     {
         char text[32];
         int other;
@@ -643,4 +645,29 @@ Editor_Hotkeys_Register(struct EditorUi* ui)
     desc.set_visible = hotkeys_set_visible;
     desc.destroy = hotkeys_destroy;
     Editor_UiAddPanel(ui, &desc);
+}
+
+/*
+ * View > Snap to grid is the toggle the layout file remembers; the hold key
+ * (view.snap_hold) forces the chrome's snap for as long as it is down without
+ * touching that toggle, so the saved layout keeps the user's setting and a
+ * one-off aligned drop costs one held key. Re-applied only when the
+ * effective value changes: ToriRSChrome_SetSnap is cheap, but the pattern of
+ * writing a setting every frame is what hides a stuck key.
+ */
+void
+Editor_HotkeySnapHold(
+    struct EditorUi* ui,
+    int held)
+{
+    static int last_effective = -1;
+    int effective;
+
+    assert(ui);
+    effective = (ui->snap || held) ? 1 : 0;
+    if( effective == last_effective )
+        return;
+    last_effective = effective;
+    ToriRSChrome_SetSnap(
+        ui->chrome, effective ? edp_px(ui, EDP_GRID) : 0, effective ? edp_px(ui, EDP_GRID) : 0);
 }

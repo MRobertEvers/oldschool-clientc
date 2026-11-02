@@ -677,6 +677,13 @@ Editor_HotkeyRun(
     struct EditorUi* ui,
     enum Editor_HotkeyAction action);
 
+/** Force the dock's grid snap while the hold key (view.snap_hold) is down;
+ *  the View toggle is untouched. Called once per frame by the dispatcher. */
+void
+Editor_HotkeySnapHold(
+    struct EditorUi* ui,
+    int held);
+
 /** The action the Hotkeys panel is capturing a chord for, or -1. */
 int
 Editor_Hotkeys_Capturing(struct EditorUi* ui);

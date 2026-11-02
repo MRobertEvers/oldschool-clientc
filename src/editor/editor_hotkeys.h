@@ -177,6 +177,8 @@ enum Editor_HotkeyAction
     EDITOR_HK_VIEW_HIDE_PANELS,
     EDITOR_HK_VIEW_RESET_LAYOUT,
     EDITOR_HK_VIEW_SNAP,
+    /** Hold: panels snap to the grid while this is down, whatever the toggle. */
+    EDITOR_HK_VIEW_SNAP_HOLD,
     EDITOR_HK_COUNT
 };
 

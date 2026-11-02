@@ -254,6 +254,11 @@ test_resolve(void)
         "Ctrl+C copies only with a rectangle");
     CHECK(fire("up", LOCS) == EDITOR_HK_EDIT_NUDGE_N, "Up nudges a selection");
     CHECK(fire("f1", G) == EDITOR_HK_VIEW_HOTKEYS, "F1 opens the Hotkeys panel");
+    /* 2026-11-02: R and F fly, so Rotate moved to Q and Reshape to Shift+Q. */
+    CHECK(fire("q", G) == EDITOR_HK_EDIT_ROTATE && fire("shift+q", G) == EDITOR_HK_EDIT_RESHAPE,
+        "Q rotates, Shift+Q reshapes");
+    CHECK(fire("r", G) == -1 && fire("e", G) == -1, "bare R and E fire no edge action");
+    CHECK(fire("ctrl+g", G) == EDITOR_HK_VIEW_SNAP, "Ctrl+G toggles Snap to grid");
 
     /* Held: the camera turns with no loc selected, W flies with Shift on top. */
     input_clear(1000);
@@ -268,6 +273,25 @@ test_resolve(void)
     g_in.contexts = G;
     Editor_HotkeysResolve(&g_hk, &g_in, &frame);
     CHECK(frame.active[EDITOR_HK_CAM_FORWARD] && frame.active[EDITOR_HK_CAM_FAST], "Shift+W held flies forward, fast");
+    input_clear(1000);
+    press("r");
+    g_in.down[TORIRSK_R] = 0;
+    g_in.contexts = G;
+    Editor_HotkeysResolve(&g_hk, &g_in, &frame);
+    CHECK(frame.active[EDITOR_HK_CAM_UP] && !frame.active[EDITOR_HK_CAM_DOWN], "R held flies up");
+    input_clear(1000);
+    press("f");
+    g_in.down[TORIRSK_F] = 0;
+    g_in.contexts = G;
+    Editor_HotkeysResolve(&g_hk, &g_in, &frame);
+    CHECK(frame.active[EDITOR_HK_CAM_DOWN] && !frame.active[EDITOR_HK_CAM_UP], "F held flies down");
+    /* Ctrl alone is the snap hold: active while down, and it fires nothing. */
+    input_clear(1000);
+    press("ctrl");
+    g_in.down[TORIRSK_CTRL] = 0;
+    g_in.contexts = G;
+    Editor_HotkeysResolve(&g_hk, &g_in, &frame);
+    CHECK(frame.active[EDITOR_HK_VIEW_SNAP_HOLD] && frame.count == 0, "Ctrl held forces the dock snap");
     input_clear(1000);
     press("ctrl+w");
     g_in.contexts = G;

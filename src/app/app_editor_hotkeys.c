@@ -545,6 +545,7 @@ app_editor_hotkeys_frame(
         /* Nothing resolves, but a repeater must not fire the moment the
          * gate lifts on a key that is still held from before it. */
         memset(ui->hotkeys.repeat_held, 0, sizeof(ui->hotkeys.repeat_held));
+        Editor_HotkeySnapHold(ui, 0);
         return;
     }
 
@@ -573,6 +574,7 @@ app_editor_hotkeys_frame(
     for( int a = 0; a < EDITOR_HK_COUNT; a++ )
         if( g_app_hk.frame.active[a] )
             app->need_redraw = 1;
+    Editor_HotkeySnapHold(ui, g_app_hk.frame.active[EDITOR_HK_VIEW_SNAP_HOLD]);
 }
 
 int
