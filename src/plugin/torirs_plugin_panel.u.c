@@ -2390,6 +2390,13 @@ app_plugin_rail_snapshot(
     ToriRSChromeRailSnapshot_Init(snapshot);
     if( !app->plugins )
         return;
+    /* An editor window carries no plugin rail: its panels are the editor's
+     * own dock, and a Manage Plugins wrench beside them is game chrome in a
+     * tool (owner, 2026-11-02). An empty snapshot keeps the retained rail
+     * empty on every presentation, native and web; main.c also hides the
+     * SDL strip itself for editor boots. */
+    if( app->editor )
+        return;
 
     snapshot->registry_revision =
         PluginHost_PanelRegistryRevision(app->plugins);

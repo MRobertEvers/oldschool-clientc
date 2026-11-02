@@ -138,6 +138,13 @@ tab cannot reach the ToriRSMapEd embedded in another.
   lists that file); `record` opens the Record panel beside it, `add=` runs
   Add trigger, `check` runs Check (src/editor/panels/edpanel_triggers.c).
 
+**No plugin rail.** An editor window -- the main one and every popped-out
+panel or view -- carries no plugin rail: the Manage Plugins wrench and the
+plugin strip are game chrome. main.c hides the SDL strip before the window
+opens (`PlatformWindow_ChromeSetRailHidden`) and the plugin panel publishes
+an empty rail snapshot for an editor App, which keeps the web page's rail
+empty too (owner, 2026-11-02).
+
 **The saved layout.** Every panel's box, whether it is open, whether the user
 placed it, and View > Snap to grid persist across launches in
 `editor_layout.ini` (format and policy: src/editor/editor_layout.h). It is
