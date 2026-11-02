@@ -2749,6 +2749,11 @@ def check_troll_stronghold() -> None:
     require(core.count("npc_setowner;") >= 3,
             "Troll Stronghold: Dad and both prisoners must be owner-private")
 
+    # RSProx index 4455 [717..980] (docs/rsprox-analysis/quests/troll_stronghold_dad.md):
+    # Attack is the challenge (varbit + page on the op tick), Attack is refused
+    # after the surrender whatever was answered, the plain swing and the
+    # treetrunk throw (5 tiles from the player, the hit two ticks later), the
+    # surrender on the hit that leaves him under 20 (the splat still lands).
     dad = TROLL_DAD.read_text()
     require_text(
         dad,
