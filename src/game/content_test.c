@@ -29,7 +29,10 @@ int ContentTest_Enabled(void)
     return enabled;
 }
 
-/* TORIRS_CONTENT_TEST_TICK_ONLY, read once (asked every frame of a test run). */
+#if defined(TORIRS_EMBED_SERVER) && TORIRS_EMBED_SERVER
+/* TORIRS_CONTENT_TEST_TICK_ONLY, read once (asked every frame of a test run).
+ * Its readers sit in the embedded-server block below, so it lives behind the
+ * same guard: a client without the embedded server has no caller for it. */
 static int content_test_tick_only(void)
 {
     static int on = -1;
@@ -37,6 +40,7 @@ static int content_test_tick_only(void)
         on = getenv("TORIRS_CONTENT_TEST_TICK_ONLY") != NULL;
     return on;
 }
+#endif /* TORIRS_EMBED_SERVER */
 
 #if defined(TORIRS_EMBED_SERVER) && TORIRS_EMBED_SERVER
 #include "torirsserver/torirs_server_embed.h"

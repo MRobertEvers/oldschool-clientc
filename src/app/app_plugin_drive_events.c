@@ -222,6 +222,7 @@ void
 App_DriveMapAnimNote(struct App* app, int x, int z, int level, int spotanim)
 {
     assert(app);
+    (void)app; /* the assert is all this build reads of it (NDEBUG drops it) */
     (void)x;
     (void)z;
     (void)level;

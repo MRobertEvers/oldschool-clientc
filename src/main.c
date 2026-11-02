@@ -719,6 +719,10 @@ interactive_render_present(
     int const interface_scale_mode = RS_CS2Host_UiScaleMode(&app->host);
     struct ClientScaleSettings client_scale;
 
+    /* Read only inside the D3D9, GLES2 and WebGL2 blocks below; a build
+     * with none of those families (the macOS GL3 client) never looks at it. */
+    (void)world_depth;
+
     /* Device options 15 and 30..33 are presentation state, just like option
      * 27's canvas size. Apply them immediately after the click that changed
      * them and to every renderer lane; each setter is cheap while the value is
