@@ -13,6 +13,12 @@
 
 #include <math.h>
 
+/* MinGW's <math.h> defines M_PI only under _USE_MATH_DEFINES; the Windows
+ * lanes compile this header without it. */
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 struct App_CamArc
 {
     double cx, cz, radius, a0, a1;

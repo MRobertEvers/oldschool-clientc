@@ -1139,6 +1139,27 @@ PlatformWindow_SetGameAreaFloor(struct PlatformWindow* p, int min_w, int min_h)
     /* The window is the display: nothing to grow, nothing to hold a minimum. */
 }
 
+bool
+PlatformWindow_WindowBox(struct PlatformWindow* p, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    assert(p);
+    assert(out_x);
+    assert(out_y);
+    assert(out_w);
+    assert(out_h);
+    /* The display is the window: there is no box on a desktop to report. */
+    return false;
+}
+
+void
+PlatformWindow_SetWindowPosition(struct PlatformWindow* p, int x, int y)
+{
+    assert(p);
+    (void)x;
+    (void)y;
+    /* No desktop: nowhere to move to. */
+}
+
 void
 PlatformWindow_SetWindowSize(struct PlatformWindow* p, int width, int height)
 {

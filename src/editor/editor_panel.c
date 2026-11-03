@@ -214,6 +214,21 @@ hook_open_square(
     panel->sq_open_z = map_z;
     panel->sq_open_add = add;
     snprintf(panel->sq_open_storage, sizeof(panel->sq_open_storage), "%s", storage ? storage : "");
+    /* A tile asked for with the open (the palette): the camera lands there
+     * instead of the square's centre. Consumed here, so the picker's next
+     * plain Open centres as before. */
+    panel->sq_open_goto_valid = 0;
+    if( panel->ui && panel->ui->open_goto_valid )
+    {
+        panel->ui->open_goto_valid = 0;
+        if( panel->ui->open_goto_x / 64 == map_x && panel->ui->open_goto_z / 64 == map_z )
+        {
+            panel->sq_open_goto_valid = 1;
+            panel->sq_open_goto_x = panel->ui->open_goto_x;
+            panel->sq_open_goto_z = panel->ui->open_goto_z;
+            panel->sq_open_goto_level = panel->ui->open_goto_level;
+        }
+    }
 }
 
 static void

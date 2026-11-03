@@ -10,6 +10,7 @@
 #include "mem/torirs_mem.h"
 #include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
+#include "perf/frame_stats.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static int
@@ -644,6 +645,7 @@ App_Render(
     int height)
 {
     struct ToriRS_Frame frame;
+    uint64_t const t_render0 = FrameStats_Now();
 
     assert(app);
     assert(pixels);
@@ -744,6 +746,7 @@ App_Render(
                 caption,
                 caption_font_scene_id);
         ToriPlatform_Renderer_Soft3D_LayerEnd(app->soft);
+        FrameStats_Span(FRAME_STATS_FRAME, t_render0);
         return;
     }
 
@@ -756,12 +759,21 @@ App_Render(
      * scene scratch holds its projection), then the raw hits classify into
      * the pickset + hover tile the click/hotkey paths consume next frame. */
     if( app_world_drawable(app) && app->frame_view->world_mouse_in_viewport )
+    {
         ToriPlatform_Renderer_Soft3D_SetPick(
             app->soft, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
+        FrameStats_Count(FRAME_STATS_CTR_PICK_FRAMES, 1);
+    }
+    if( app_world_drawable(app) )
+        FrameStats_Mark(FRAME_STATS_MARK_WORLD_DRAWN);
 
-    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
     {
-        ToriPlatform_Renderer_Soft3D_RenderFrame(app->soft, &frame);
+        uint64_t const t_rf = FrameStats_Now();
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
+        {
+            ToriPlatform_Renderer_Soft3D_RenderFrame(app->soft, &frame);
+        }
+        FrameStats_Span(FRAME_STATS_RENDER, t_rf);
     }
 
     /* deob method5761 / Client-TS REBUILD_NORMAL: while the scene rebuilds,
@@ -794,7 +806,12 @@ App_Render(
             frame.dbg_drop_no_model);
 
     if( app->soft->pick_enabled )
+    {
+        uint64_t const t_pick = FrameStats_Now();
         App_PickFinish(app, &app->soft->pick_hits);
+        FrameStats_Span(FRAME_STATS_HOVER_GHOSTS, t_pick);
+    }
+    FrameStats_Span(FRAME_STATS_FRAME, t_render0);
 }
 
 int

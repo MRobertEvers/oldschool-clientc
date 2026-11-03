@@ -1884,6 +1884,7 @@ ToriRSChrome_Init(struct ToriRSChrome* ui)
     ui->resize_panel = -1;
     ui->title_press_panel = -1;
     ui->title_double = -1;
+    ui->title_click = -1;
     ui->free_widget = -1;
     ui->scroll_panel = -1;
     ui->hover_close_panel = -1;
@@ -1929,6 +1930,7 @@ ToriRSChrome_Reset(struct ToriRSChrome* ui)
     ui->resize_panel = -1;
     ui->title_press_panel = -1;
     ui->title_double = -1;
+    ui->title_click = -1;
     ui->scroll_panel = -1;
     ui->hover_close_panel = -1;
     ui->hover_popout_panel = -1;
@@ -2163,6 +2165,47 @@ ToriRSChrome_PanelSetHollow(struct ToriRSChrome* ui, int panel, int hollow)
     /* The body fill comes or goes: a repaint of the panel's whole box. */
     dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_MODE);
     dbg_dirty_panel(ui, panel);
+}
+
+void
+ToriRSChrome_PanelSetCollapsed(struct ToriRSChrome* ui, int panel, int collapsed)
+{
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    collapsed = collapsed ? 1 : 0;
+    if( ui->panels[panel].collapsed == collapsed )
+        return;
+    /* The box it had is gone either way: the whole of the old rect is damage. */
+    dbg_damage_add(ui, ui->panels[panel].last_rect);
+    ui->panels[panel].collapsed = collapsed;
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
+    dbg_dirty_panel(ui, panel);
+}
+
+int
+ToriRSChrome_PanelIsCollapsed(struct ToriRSChrome const* ui, int panel)
+{
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    return ui->panels[panel].collapsed;
+}
+
+int
+ToriRSChrome_PanelCollapsedHeight(struct ToriRSChrome const* ui, int panel)
+{
+    struct ToriRSChromePanel const* p;
+    struct DbgMenuLayout l;
+    int edge;
+
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    p = &ui->panels[panel];
+    l = dbg_menu_layout(ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, ui->scale), ui->scale);
+    edge = dbg_panel_is_framed(ui, p) ? DBG_FRAME : DBG_RULE;
+    /* dbg_build_window's head_h (the header block to the separator rule) and
+     * the bottom border: the two must agree, or a column laid out from this
+     * number overlaps the panel built from the other. */
+    return (p->title[0] ? (edge - DBG_RULE) + l.separator_y + DBG_RULE : edge) + edge;
 }
 
 /** The body box of `p` at (x, y, w, h): the same insets dbg_build_window lays
@@ -5307,7 +5350,8 @@ static int
 dbg_panel_has_grip(struct ToriRSChromePanel const* p)
 {
     assert(p);
-    return p->resizable;
+    /* A collapsed panel is its title bar: nothing to pull. */
+    return p->resizable && !p->collapsed;
 }
 
 /*
@@ -5397,6 +5441,34 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
      * header block, the pads and the bottom border. */
     p->h = p->fixed_h > 0 ? p->fixed_h
                           : head_h + DBG_PAD_Y + strip_h + content_h + foot_h + edge;
+    /*
+     * Collapsed: the header block and the bottom border, whatever height was
+     * set -- the same number ToriRSChrome_PanelCollapsedHeight gives the
+     * layout -- and no rows: the strip and every widget lose their boxes so
+     * nothing below the title is drawn or hit.
+     */
+    if( p->collapsed )
+    {
+        p->h = head_h + edge;
+        strip = -1;
+        strip_h = 0;
+        content_h = 0;
+        for( widget = p->first_widget; widget >= 0; widget = ui->widgets[widget].next )
+        {
+            struct ToriRSChromeWidget* w = &ui->widgets[widget];
+            w->x = 0;
+            w->y = 0;
+            w->w = 0;
+            w->h = 0;
+            if( w->kind == TORIRS_CHROME_W_CUSTOM || w->kind == TORIRS_CHROME_W_GRAPH )
+            {
+                w->custom_clip_x = 0;
+                w->custom_clip_y = 0;
+                w->custom_clip_w = 0;
+                w->custom_clip_h = 0;
+            }
+        }
+    }
 
     /*
      * The scroll window, and whether there is anything to scroll.
@@ -5657,7 +5729,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             1,
             clip);
     }
-    if( p->resizable )
+    if( dbg_panel_has_grip(p) )
         dbg_push_grip(ui, p, clip);
 
     strip_y = p->y + head_h + DBG_PAD_Y;
@@ -5716,7 +5788,8 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
         clip.h = 0;
 
     row_y = content_top - p->scroll_y;
-    for( widget = p->first_widget; widget >= 0; widget = ui->widgets[widget].next )
+    /* A collapsed panel's rows were zeroed above; the header is the panel. */
+    for( widget = p->collapsed ? -1 : p->first_widget; widget >= 0; widget = ui->widgets[widget].next )
     {
         struct ToriRSChromeWidget* w = &ui->widgets[widget];
         int row_h;
@@ -7089,6 +7162,13 @@ dbg_dropdown_rect(struct ToriRSChrome const* ui)
     rect.y = w->y + w->h;
     /* Rows plus a pad above and below, which is script_9114's `$int26 + 4`. */
     rect.h = rows * DBG_DROP_ROW_H + 2 * DBG_DROP_LIST_PAD;
+    /* Inside the surface sideways: a menu list wider than what is right of
+     * its title (the View menu on a narrow window) is pulled back to the
+     * right edge rather than cut off there, and never past the left one. */
+    if( ui->surface_w > 0 && rect.x + rect.w > ui->surface_w )
+        rect.x = ui->surface_w - rect.w;
+    if( rect.x < 0 )
+        rect.x = 0;
 
     /*
      * BELOW the box, unless below the box is off the surface.
@@ -9057,7 +9137,16 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
      * delivered to whatever is underneath it. */
     if( ui->drag_panel >= 0 )
     {
-        if( dbg_valid_panel(ui, ui->drag_panel) && !ui->panels[ui->drag_panel].maximised )
+        int const slop = TORIRS_CHROME_DOUBLE_CLICK_SLOP * (ui->scale > 0 ? ui->scale : 1);
+        int const still = abs((x - ui->drag_grab_x) - ui->drag_from_x) <= slop
+                          && abs((y - ui->drag_grab_y) - ui->drag_from_y) <= slop;
+
+        /* Let go where it was picked up: a click on the title, not a
+         * placement -- the panel stays put (no snap moves a clicked panel)
+         * and the host hears of it through ToriRSChrome_TakeTitleClick. */
+        if( still && dbg_valid_panel(ui, ui->drag_panel) )
+            ui->title_click = ui->drag_panel;
+        else if( dbg_valid_panel(ui, ui->drag_panel) && !ui->panels[ui->drag_panel].maximised )
         {
             struct ToriRSChromePanel* p = &ui->panels[ui->drag_panel];
             dbg_panel_move_to(ui, ui->drag_panel, x - ui->drag_grab_x, y - ui->drag_grab_y);

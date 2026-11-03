@@ -2716,6 +2716,65 @@ layout_check(const char* what)
                     what, g_chrome.panels[i].title, g_chrome.panels[j].title);
     }
     CHECK(shown >= 4, "%s: the menu bar, the rail and at least two panels show (%d)", what, shown);
+    /* The world keeps at least EDP_WORLD_MIN_PERCENT of the surface at every
+     * size from 960x600 logical up (the console strip is capped, then
+     * dropped, to hold it); below that the dock's 200 px floor and the rail
+     * alone take more than the rest. */
+    if( g_chrome.surface_w / g_chrome.scale >= 960 && g_chrome.surface_h / g_chrome.scale >= 600 )
+        CHECK(world_area * 100 >= (long)g_chrome.surface_w * g_chrome.surface_h * EDP_WORLD_MIN_PERCENT,
+            "%s: the world (%ld) keeps %d%% of the surface (%ld%%)", what, world_area, EDP_WORLD_MIN_PERCENT,
+            world_area * 100 / ((long)g_chrome.surface_w * g_chrome.surface_h));
+    /* The status bar: a strip the width of the surface along its bottom, and
+     * everything else ends above it. */
+    {
+        struct EditorUiPanel const* sb = Editor_UiFindPanel(&g_ui, "statusbar");
+        CHECK(sb && sb->chrome_panel >= 0 && g_chrome.panels[sb->chrome_panel].visible, "%s: the status bar shows", what);
+        if( sb && sb->chrome_panel >= 0 )
+        {
+            struct ToriRSChromeRect const r = g_chrome.panels[sb->chrome_panel].last_rect;
+            CHECK(r.x == 0 && r.w == g_chrome.surface_w && r.h > 0 && r.y + r.h == g_chrome.surface_h,
+                "%s: the status bar %d,%d %dx%d spans the bottom", what, r.x, r.y, r.w, r.h);
+            CHECK(world.y + world.h <= r.y && g_ui.dock_bottom <= r.y, "%s: the world and the dock end above it", what);
+            for( int i = 0; i < g_chrome.panel_count; i++ )
+                if( layout_panel(i) && i != sb->chrome_panel )
+                    CHECK(g_chrome.panels[i].last_rect.y + g_chrome.panels[i].last_rect.h <= r.y,
+                        "%s: '%s' ends above the status bar", what, g_chrome.panels[i].title);
+        }
+    }
+    /* The tool rail never runs off the bottom: it wraps into columns. */
+    {
+        int const rail = find_panel("Tools");
+        struct EditorUiPanel const* sb = Editor_UiFindPanel(&g_ui, "statusbar");
+        int const strip_top = sb && sb->chrome_panel >= 0 && g_chrome.panels[sb->chrome_panel].visible
+                                  ? g_chrome.panels[sb->chrome_panel].last_rect.y
+                                  : g_chrome.surface_h;
+        CHECK(rail >= 0 && g_chrome.panels[rail].last_rect.y + g_chrome.panels[rail].last_rect.h <= strip_top,
+            "%s: the tool rail ends above the status bar", what);
+    }
+    /* Compact: every default dock member is in the column -- expanded or as
+     * its title bar -- and a collapsed one is exactly its collapsed height. */
+    if( Editor_UiCompact(&g_ui) )
+    {
+        static const char* const k_members[] = { "terrain", "palette", "squares", "areas", "history" };
+        int collapsed = 0;
+        for( int m = 0; m < 5; m++ )
+        {
+            struct EditorUiPanel const* p = Editor_UiFindPanel(&g_ui, k_members[m]);
+            int const cp = p ? p->chrome_panel : -1;
+            if( cp < 0 || !g_ui.member[cp - g_ui.panel_first] )
+                continue;
+            CHECK(g_chrome.panels[cp].visible && g_ui.docked[cp - g_ui.panel_first],
+                "%s: compact: %s is in the column", what, k_members[m]);
+            if( ToriRSChrome_PanelIsCollapsed(&g_chrome, cp) )
+            {
+                collapsed++;
+                CHECK(g_chrome.panels[cp].last_rect.h == ToriRSChrome_PanelCollapsedHeight(&g_chrome, cp),
+                    "%s: compact: %s collapsed is its title bar (%d px)", what, k_members[m],
+                    g_chrome.panels[cp].last_rect.h);
+            }
+        }
+        printf("layout %s: compact, %d collapsed\n", what, collapsed);
+    }
     /* The World panel docks over exactly the region the others leave, and
      * the world rect is its body: inside it, below its title bar. */
     {
@@ -2765,17 +2824,145 @@ drag(
 static void
 test_layout(void)
 {
-    static const int sizes[][2] = { { 1280, 800 }, { 1530, 1006 }, { 1920, 1080 }, { 2560, 1440 } };
+    /* Desktops and laptops at 1x (1366x768 and below are the compact ones),
+     * and the HighDPI surfaces at 2x: a 1440x900 MacBook is 2880x1800. */
+    static const int sizes_1x[][2] = { { 1280, 800 }, { 1530, 1006 }, { 1920, 1080 }, { 2560, 1440 },
+                                       { 1366, 768 }, { 1280, 720 },  { 1024, 600 },  { 960, 600 } };
+    static const int sizes_2x[][2] = { { 1280, 800 }, { 1530, 1006 }, { 1920, 1080 }, { 2560, 1440 }, { 2880, 1800 } };
     char what[64];
 
-    for( int scale = 1; scale <= 2; scale++ )
-        for( int s = 0; s < (int)(sizeof(sizes) / sizeof(sizes[0])); s++ )
+    for( int s = 0; s < (int)(sizeof(sizes_1x) / sizeof(sizes_1x[0])); s++ )
+    {
+        layout_boot(sizes_1x[s][0], sizes_1x[s][1], 1);
+        snprintf(what, sizeof(what), "%dx%d at 1x", sizes_1x[s][0], sizes_1x[s][1]);
+        CHECK(Editor_UiCompact(&g_ui) == (sizes_1x[s][1] < EDP_COMPACT_H || sizes_1x[s][0] < EDP_COMPACT_W),
+            "%s: compact is automatic below %dx%d logical (%d)", what, EDP_COMPACT_W, EDP_COMPACT_H,
+            Editor_UiCompact(&g_ui));
+        layout_check(what);
+        Editor_UiFree(&g_ui);
+    }
+    for( int s = 0; s < (int)(sizeof(sizes_2x) / sizeof(sizes_2x[0])); s++ )
+    {
+        layout_boot(sizes_2x[s][0], sizes_2x[s][1], 2);
+        snprintf(what, sizeof(what), "%dx%d at 2x", sizes_2x[s][0], sizes_2x[s][1]);
+        layout_check(what);
+        Editor_UiFree(&g_ui);
+    }
+    CHECK(!Editor_UiCompact(&g_ui) || 1, "a 2880x1800 surface at 2x is a 1440x900 window: not compact");
+
+    /* The compact dock at 1024x600: every member in the column, the ones the
+     * column cannot hold at their minimum collapsed to their title bars; a
+     * title click expands a collapsed panel (collapsing the least recently
+     * expanded when there is no room) and collapses an expanded one. */
+    {
+        int first_collapsed = -1;
+        int first_expanded = -1;
+        int expanded_before = 0;
+        int expanded_after = 0;
+
+        layout_boot(1024, 600, 1);
+        CHECK(Editor_UiCompact(&g_ui), "1024x600 is compact");
+        for( int i = g_ui.panel_first; i < g_ui.panel_end; i++ )
         {
-            layout_boot(sizes[s][0], sizes[s][1], scale);
-            snprintf(what, sizeof(what), "%dx%d at %dx", sizes[s][0], sizes[s][1], scale);
-            layout_check(what);
-            Editor_UiFree(&g_ui);
+            if( !g_ui.docked[i - g_ui.panel_first] || g_chrome.panels[i].style != TORIRS_CHROME_PANEL_WINDOW
+                || i == g_ui.world_panel || i == find_panel("Output") )
+                continue;
+            if( ToriRSChrome_PanelIsCollapsed(&g_chrome, i) )
+            {
+                if( first_collapsed < 0 )
+                    first_collapsed = i;
+            }
+            else
+            {
+                expanded_before++;
+                if( first_expanded < 0 )
+                    first_expanded = i;
+            }
         }
+        CHECK(first_collapsed >= 0 && first_expanded >= 0, "1024x600: the column has expanded (%d) and collapsed panels",
+            expanded_before);
+        if( first_collapsed >= 0 )
+        {
+            struct ToriRSChromeRect const r = g_chrome.panels[first_collapsed].last_rect;
+            ToriRSChrome_MouseMove(&g_chrome, r.x + 30, r.y + 6);
+            (void)ToriRSChrome_MouseDown(&g_chrome, r.x + 30, r.y + 6);
+            (void)ToriRSChrome_MouseUp(&g_chrome, r.x + 30, r.y + 6);
+            frame();
+            frame();
+            CHECK(!ToriRSChrome_PanelIsCollapsed(&g_chrome, first_collapsed), "a title click expands '%s'",
+                g_chrome.panels[first_collapsed].title);
+            CHECK(!g_chrome.panels[first_collapsed].user_placed, "and the click did not place it");
+            for( int i = g_ui.panel_first; i < g_ui.panel_end; i++ )
+                if( g_ui.docked[i - g_ui.panel_first] && g_chrome.panels[i].style == TORIRS_CHROME_PANEL_WINDOW
+                    && i != g_ui.world_panel && i != find_panel("Output") && !ToriRSChrome_PanelIsCollapsed(&g_chrome, i) )
+                    expanded_after++;
+            CHECK(expanded_after <= expanded_before + 1, "expanding one collapsed another when there was no room (%d -> %d)",
+                expanded_before, expanded_after);
+            layout_check("1024x600 after expanding a collapsed panel");
+        }
+        if( first_expanded >= 0 && !ToriRSChrome_PanelIsCollapsed(&g_chrome, first_expanded) )
+        {
+            struct ToriRSChromeRect const r = g_chrome.panels[first_expanded].last_rect;
+            ToriRSChrome_MouseMove(&g_chrome, r.x + 30, r.y + 6);
+            (void)ToriRSChrome_MouseDown(&g_chrome, r.x + 30, r.y + 6);
+            (void)ToriRSChrome_MouseUp(&g_chrome, r.x + 30, r.y + 6);
+            frame();
+            frame();
+            CHECK(ToriRSChrome_PanelIsCollapsed(&g_chrome, first_expanded), "a title click collapses '%s'",
+                g_chrome.panels[first_expanded].title);
+            layout_check("1024x600 after collapsing a panel");
+        }
+        /* The saved layout carries the collapsed state and the setting. */
+        {
+            struct EditorLayoutFile file;
+            const struct EditorLayoutPanel* sp;
+            Editor_UiLayoutCapture(&g_ui, &file);
+            sp = first_expanded >= 0 ? EditorLayout_Find(&file, "terrain") : NULL;
+            CHECK(file.has_compact && file.compact == -1, "the layout file says compact = -1 (automatic)");
+            CHECK(sp && sp->has_collapsed, "the layout file states each panel's collapsed state");
+        }
+        Editor_UiFree(&g_ui);
+    }
+
+    /* View > Compact panels on a large surface forces the compact dock; again
+     * turns it off; Reset layout returns to automatic. */
+    {
+        int view = -1;
+        layout_boot(1920, 1080, 1);
+        CHECK(!Editor_UiCompact(&g_ui), "1920x1080 is not compact");
+        for( int i = 0; i < g_chrome.widget_count; i++ )
+            if( g_chrome.widgets[i].kind == TORIRS_CHROME_W_DROPDOWN && g_chrome.widgets[i].menu_mode
+                && strcmp(g_chrome.widgets[i].text, "View") == 0 )
+                view = i;
+        CHECK(view >= 0, "the View menu exists");
+        if( view >= 0 )
+        {
+            int const rows = g_chrome.widgets[view].option_count;
+            int const compact_row = rows - 3;
+            CHECK(strncmp(g_chrome.widgets[view].options[compact_row], "Compact panels: off (auto)", 26) == 0
+                      || strstr(g_chrome.widgets[view].options[compact_row], "Compact panels") != NULL,
+                "the View menu has a Compact panels row (%s)", g_chrome.widgets[view].options[compact_row]);
+            ToriRSChrome_DropdownSetSelected(&g_chrome, view, compact_row);
+            activate(view);
+            frame();
+            frame();
+            CHECK(Editor_UiCompact(&g_ui) && g_ui.compact_mode == 1, "View > Compact panels turns it on");
+            layout_check("1920x1080 compact by the View menu");
+            ToriRSChrome_DropdownSetSelected(&g_chrome, view, compact_row);
+            activate(view);
+            frame();
+            frame();
+            CHECK(!Editor_UiCompact(&g_ui) && g_ui.compact_mode == 0, "and off again");
+            Editor_UiResetLayout(&g_ui);
+            frame();
+            CHECK(g_ui.compact_mode == -1, "Reset layout returns compact to automatic");
+        }
+        /* Ctrl+Shift+C is the chord. */
+        CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_COMPACT) && g_ui.compact_mode == 1,
+            "the Compact panels action toggles it");
+        Editor_UiResetLayout(&g_ui);
+        Editor_UiFree(&g_ui);
+    }
 
     /* A frame resize lays out again; so does every size in between. */
     layout_boot(1280, 800, 1);
@@ -4049,6 +4236,7 @@ test_maximise(void)
     int terrain;
     int menubar = -1;
     int top;
+    int area_bottom;
     int tx;
     int ty;
     char* text = NULL;
@@ -4059,9 +4247,16 @@ test_maximise(void)
     CHECK(terrain >= 0 && g_chrome.panels[terrain].visible, "Terrain is open");
     if( terrain < 0 )
         return;
-    for( int i = 0; i < g_chrome.panel_count; i++ )
-        if( g_chrome.panels[i].style == TORIRS_CHROME_PANEL_MENUBAR && g_chrome.panels[i].visible )
-            menubar = i;
+    /* The menu bar by its module (the status bar is a MENUBAR-style strip
+     * too, along the bottom); the dock surface ends at the status bar. */
+    {
+        struct EditorUiPanel const* mb = Editor_UiFindPanel(&g_ui, "menubar");
+        struct EditorUiPanel const* sb = Editor_UiFindPanel(&g_ui, "statusbar");
+        menubar = mb ? mb->chrome_panel : -1;
+        area_bottom = sb && sb->chrome_panel >= 0 && g_chrome.panels[sb->chrome_panel].visible
+                          ? g_chrome.panels[sb->chrome_panel].last_rect.y
+                          : 1006;
+    }
     bar = menubar >= 0 ? g_chrome.panels[menubar].last_rect : (struct ToriRSChromeRect){ 0, 0, 0, 0 };
     top = bar.y + bar.h;
     before = g_chrome.panels[terrain].last_rect;
@@ -4077,7 +4272,7 @@ test_maximise(void)
     title_click(tx, ty, 20000);
     title_click(tx + 1, ty, 20120);
     CHECK(g_chrome.panels[terrain].maximised, "a title double-click maximises the panel");
-    CHECK(rect_is(g_chrome.panels[terrain].last_rect, 0, top, 1530, 1006 - top),
+    CHECK(rect_is(g_chrome.panels[terrain].last_rect, 0, top, 1530, area_bottom - top),
         "to the dock surface below the menu bar (%d,%d %dx%d, menu bar ends at %d)",
         g_chrome.panels[terrain].last_rect.x, g_chrome.panels[terrain].last_rect.y,
         g_chrome.panels[terrain].last_rect.w, g_chrome.panels[terrain].last_rect.h, top);
@@ -4156,7 +4351,7 @@ test_maximise(void)
     terrain = find_panel("Terrain");
     frame();
     CHECK(terrain >= 0 && g_chrome.panels[terrain].maximised, "a boot with that file comes back maximised");
-    CHECK(terrain >= 0 && rect_is(g_chrome.panels[terrain].last_rect, 0, top, 1530, 1006 - top),
+    CHECK(terrain >= 0 && rect_is(g_chrome.panels[terrain].last_rect, 0, top, 1530, area_bottom - top),
         "over the dock surface");
     if( terrain >= 0 )
     {
@@ -4216,7 +4411,18 @@ test_layout_codec(void)
     p->has_x = p->has_y = 1;
     p->x = -3;
     p->y = 0;
+    p->has_collapsed = 1;
+    p->collapsed = 1;
+    a.has_compact = 1;
+    a.compact = -1;
+    a.has_window = 1;
+    a.window_x = 120;
+    a.window_y = 80;
+    a.window_w = 1366;
+    a.window_h = 768;
     EditorLayout_Encode(&a, &text, &size);
+    CHECK(strstr(text, "compact = -1\n") && strstr(text, "window_w = 1366\n") && strstr(text, "collapsed = 1\n"),
+        "the file states compact, the window box and a collapsed panel");
     CHECK(text && size > 0 && (int)strlen(text) == size, "the layout encodes (%d bytes)", size);
     CHECK(EditorLayout_Decode(&b, text, size), "the encoded layout decodes as a layout");
     CHECK(layout_files_equal(&a, &b), "encode -> decode is the identity");
@@ -6584,6 +6790,288 @@ test_triggers(void)
     Editor_UiFree(&g_cat_ui);
 }
 
+/* ---- the command palette (docs/MAPED_HOTKEYS.md "The command palette") -------- */
+
+/** Feed the palette one frame with `key` down (a TORIRSK_* code). */
+static int
+palette_feed(int key)
+{
+    struct Editor_HotkeyInput in;
+    memset(&in, 0, sizeof(in));
+    in.down[key] = 1;
+    in.held[key] = 1;
+    return Editor_Command_Feed(&g_ui, &in);
+}
+
+static void
+palette_type(
+    int input,
+    const char* text)
+{
+    ToriRSChrome_SetText(&g_chrome, input, text);
+    frame();
+    frame();
+}
+
+static void
+test_command_palette(void)
+{
+    struct EditorUiPanel* module;
+    int panel;
+    int input;
+    const char* row;
+    char chord[32];
+    int opens;
+
+    layout_boot(1280, 800, 1);
+    module = Editor_UiFindPanel(&g_ui, "command");
+    CHECK(module && module->chrome_panel >= 0, "palette: the module registers (\"command\")");
+    if( !module )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    panel = module->chrome_panel;
+    CHECK(!g_chrome.panels[panel].visible && !Editor_Command_IsOpen(&g_ui), "palette: closed at boot");
+    CHECK(g_chrome.panels[panel].modal, "palette: a modal (the veil, Esc closes it)");
+    {
+        const char* view_row = menu_row(view_menu(), "Command palette");
+        Editor_HotkeyDisplay(&g_ui.hotkeys, EDITOR_HK_VIEW_COMMAND, chord, (int)sizeof(chord));
+        CHECK(view_row && strstr(view_row, chord), "palette: View lists it with %s (%s)", chord, view_row ? view_row : "-");
+    }
+    input = find_widget(panel, TORIRS_CHROME_W_TEXTINPUT, ">");
+    CHECK(input >= 0, "palette: the box");
+    if( input < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+
+    /* Ctrl+P's action opens it with the box focused and the recents (none
+     * yet) as the rows. */
+    CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_COMMAND) == 1, "palette: the View action runs");
+    frame();
+    CHECK(Editor_Command_IsOpen(&g_ui) && g_chrome.panels[panel].visible, "palette: Ctrl+P opens it");
+    CHECK(g_chrome.focus == input, "palette: the box has the keyboard (focus %d, box %d)", g_chrome.focus, input);
+    CHECK(Editor_Command_Row(&g_ui, 0) == NULL, "palette: nothing typed, no square opened yet: no rows");
+
+    /* Typing filters: an action by name, with its chord after the tab. */
+    palette_type(input, "undo");
+    row = Editor_Command_Row(&g_ui, 0);
+    Editor_HotkeyDisplay(&g_ui.hotkeys, EDITOR_HK_EDIT_UNDO, chord, (int)sizeof(chord));
+    CHECK(row && strncmp(row, "Edit: Undo\t", 11) == 0 && strstr(row, chord), "palette: 'undo' -> '%s'",
+        row ? row : "-");
+    CHECK(Editor_Command_Chosen(&g_ui) == 0, "palette: the top hit is chosen");
+    {
+        int const tree = find_widget(panel, TORIRS_CHROME_W_TREE, row);
+        CHECK(tree >= 0 && !g_chrome.widgets[tree].hidden && g_chrome.widgets[tree].color == 0xFFFF00u,
+            "palette: the chosen row is a yellow tree row");
+    }
+    /* Fuzzy: a subsequence finds Save square as new... */
+    palette_type(input, "ssqn");
+    row = Editor_Command_Row(&g_ui, 0);
+    CHECK(row && strstr(row, "Save square as new"), "palette: 'ssqn' -> '%s'", row ? row : "-");
+    /* A panel: Open <title>. */
+    palette_type(input, "open hotk");
+    row = Editor_Command_Row(&g_ui, 0);
+    CHECK(row && strncmp(row, "Open Hotkeys", 12) == 0, "palette: 'open hotk' -> '%s'", row ? row : "-");
+    /* Up / Down move the choice; Escape closes. */
+    palette_type(input, "s");
+    CHECK(Editor_Command_Row(&g_ui, 1) != NULL, "palette: 's' has several hits");
+    CHECK(palette_feed(TORIRSK_DOWN) == 1 && Editor_Command_Chosen(&g_ui) == 1, "palette: Down chooses the second");
+    CHECK(palette_feed(TORIRSK_UP) == 1 && Editor_Command_Chosen(&g_ui) == 0, "palette: Up goes back");
+    CHECK(palette_feed(TORIRSK_ESCAPE) == 1 && !Editor_Command_IsOpen(&g_ui) && !g_chrome.panels[panel].visible,
+        "palette: Escape closes it");
+    CHECK(g_chrome.focus != input, "palette: the box lets the keyboard go");
+
+    /* Enter runs the top hit and closes: Open Hotkeys shows the Hotkeys panel. */
+    {
+        int const hotkeys = find_panel("Hotkeys");
+        Editor_Command_Open(&g_ui, "open hotkeys");
+        frame();
+        CHECK(g_chrome.focus == input && strcmp(g_chrome.widgets[input].text, "open hotkeys") == 0,
+            "palette: Open prefills the box and focuses it");
+        activate(input);
+        CHECK(!Editor_Command_IsOpen(&g_ui), "palette: Enter closes the palette");
+        frame();
+        CHECK(hotkeys >= 0 && g_chrome.panels[hotkeys].visible, "palette: ...and the Hotkeys panel is open");
+        ToriRSChrome_PanelSetVisible(&g_chrome, hotkeys, 0);
+    }
+
+    /* A square by name opens it (through the picker's parser and atlas). */
+    opens = g_window.open_calls;
+    Editor_Command_Open(&g_ui, "m50_51");
+    frame();
+    frame();
+    row = Editor_Command_Row(&g_ui, 0);
+    CHECK(row && strncmp(row, "Open m50_51", 11) == 0, "palette: 'm50_51' -> '%s'", row ? row : "-");
+    CHECK(Editor_Command_Run(&g_ui) == 1, "palette: Enter runs it");
+    frame();
+    CHECK((g_window.open_calls == opens + 1 && g_window.open_x == 50 && g_window.open_z == 51)
+              || (g_ui.guard.action == EDITOR_UI_GUARD_OPEN_SQUARE && g_ui.guard.map_x == 50 && g_ui.guard.map_z == 51),
+        "palette: m50_51 is opened (or the save guard asks about it)");
+    /* "m50" lists the squares that start so. */
+    Editor_Command_Open(&g_ui, "m50");
+    frame();
+    frame();
+    CHECK(Editor_Command_Row(&g_ui, 0) && strncmp(Editor_Command_Row(&g_ui, 0), "Open m50", 8) == 0
+              && Editor_Command_Row(&g_ui, 1) && strncmp(Editor_Command_Row(&g_ui, 1), "Open m50", 8) == 0,
+        "palette: 'm50' lists the atlas's m50_* squares (%s; %s)", Editor_Command_Row(&g_ui, 0),
+        Editor_Command_Row(&g_ui, 1));
+    Editor_Command_Close(&g_ui);
+    /* An absolute tile: the camera's landing travels with the open. */
+    opens = g_window.open_calls;
+    Editor_Command_Open(&g_ui, "3222,3218");
+    frame();
+    frame();
+    row = Editor_Command_Row(&g_ui, 0);
+    CHECK(row && strncmp(row, "Go to tile 3222,3218 L0\tm50_50", 30) == 0, "palette: '3222,3218' -> '%s'",
+        row ? row : "-");
+    CHECK(Editor_Command_Run(&g_ui) == 1, "palette: Enter goes there");
+    CHECK(g_ui.open_goto_valid && g_ui.open_goto_x == 3222 && g_ui.open_goto_z == 3218,
+        "palette: no camera in this window: the open carries the tile for the camera's landing");
+    g_ui.open_goto_valid = 0;
+    /* A cell with no square offers New square. */
+    Editor_Command_Open(&g_ui, "m3_3");
+    frame();
+    frame();
+    row = Editor_Command_Row(&g_ui, 0);
+    CHECK(row && strncmp(row, "New square at m3_3...", 21) == 0, "palette: an empty cell -> '%s'", row ? row : "-");
+    Editor_Command_Close(&g_ui);
+
+    /* Recent squares: an open notes the square; the File menu lists it and
+     * the palette's empty box offers it first. */
+    Editor_UiOpenSquare(&g_ui, 50, 51, "", -1, 0);
+    Editor_UiOpenSquare(&g_ui, 50, 50, "ported/testlane", 1, 0);
+    frame();
+    frame();
+    CHECK(g_ui.recent.count == 2 && strcmp(g_ui.recent.keys[0], "ported/testlane/m50_50") == 0
+              && strcmp(g_ui.recent.keys[1], "m50_51") == 0,
+        "recent: opens are noted newest first (%d: %s)", g_ui.recent.count, g_ui.recent.keys[0]);
+    {
+        int const file = menu_drop("File");
+        CHECK(menu_row(file, "Recent squares") != NULL && menu_row(file, "  ported/testlane/m50_50") != NULL
+                  && menu_row(file, "  m50_51") != NULL,
+            "recent: File lists Recent squares and both rows");
+        opens = g_window.open_calls;
+        if( file >= 0 )
+        {
+            int row_at = -1;
+            for( int r = 0; r < g_chrome.widgets[file].option_count; r++ )
+                if( menu_row_is(g_chrome.widgets[file].options[r], "  m50_51") )
+                    row_at = r;
+            CHECK(row_at >= 0, "recent: the m50_51 row is there");
+            if( row_at >= 0 )
+            {
+                ToriRSChrome_DropdownSetSelected(&g_chrome, file, row_at);
+                activate(file);
+                CHECK((g_window.open_calls == opens + 1 && g_window.open_x == 50 && g_window.open_z == 51)
+                          || (g_ui.guard.action == EDITOR_UI_GUARD_OPEN_SQUARE && g_ui.guard.map_x == 50
+                              && g_ui.guard.map_z == 51),
+                    "recent: the row opens m50_51 (or the save guard asks)");
+            }
+        }
+    }
+    Editor_Command_Open(&g_ui, NULL);
+    frame();
+    row = Editor_Command_Row(&g_ui, 0);
+    CHECK(row && strcmp(row, "Open ported/testlane/m50_50\trecent") == 0 && Editor_Command_Row(&g_ui, 1)
+              && strcmp(Editor_Command_Row(&g_ui, 1), "Open m50_51\trecent") == 0,
+        "palette: an empty box lists the recents (%s)", row ? row : "-");
+    Editor_Command_Close(&g_ui);
+
+    /* The camera scheme toggle is remembered in the same ring's file. */
+    CHECK(g_ui.recent.camera_scheme == EDITOR_CAMERA_SCHEME_DEFAULT, "camera: the default scheme at boot");
+    CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_CAM_SCHEME) == 1 && g_ui.recent.camera_scheme == EDITOR_CAMERA_SCHEME_UNITY,
+        "camera: the scheme action switches to Unity");
+    CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_CAM_SCHEME) == 1 && g_ui.recent.camera_scheme == EDITOR_CAMERA_SCHEME_DEFAULT,
+        "camera: ...and back");
+
+    /* Select all of the picked kind / Invert over the open squares. */
+    {
+        struct Editor_Square* square = square_of(50, 50);
+        int kind_count = 0;
+        int total = 0;
+        int loc_id = -1;
+        if( square )
+            for( int i = 0; i < square->loc_count; i++ )
+                if( square->locs[i].level == 0 )
+                {
+                    if( loc_id < 0 )
+                        loc_id = square->locs[i].loc_id;
+                    total++;
+                }
+        if( square )
+            for( int i = 0; i < square->loc_count; i++ )
+                if( square->locs[i].level == 0 && square->locs[i].loc_id == loc_id )
+                    kind_count++;
+        CHECK(square && loc_id >= 0 && total > kind_count, "select: m50_50 has locs of more than one id on L0");
+        g_ui.tools.pick_kind = 0;
+        g_ui.tools.pick_id = loc_id;
+        g_ui.tools.edit_level = 0;
+        g_ui.tools.loc_count = 0;
+        CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_EDIT_SELECT_KIND) == 1, "select: the kind action runs");
+        CHECK(g_ui.tools.loc_count > 0 && g_ui.tools.loc_count <= EDITOR_LOC_SELECTION_MAX,
+            "select: %d loc(s) of id %d selected over the open squares", g_ui.tools.loc_count, loc_id);
+        {
+            int all_kind = g_ui.tools.loc_count > 0;
+            for( int i = 0; i < g_ui.tools.loc_count; i++ )
+                all_kind &= g_ui.tools.locs[i].loc_id == loc_id && g_ui.tools.locs[i].level == 0;
+            CHECK(all_kind, "select: every selected loc is that id on L0");
+        }
+        {
+            int const before = g_ui.tools.loc_count;
+            CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_EDIT_INVERT) == 1, "select: Invert runs");
+            CHECK(g_ui.tools.loc_count > 0, "select: the inverse is %d loc(s) (was %d)", g_ui.tools.loc_count, before);
+            {
+                int none_kind = 1;
+                for( int i = 0; i < g_ui.tools.loc_count; i++ )
+                    none_kind &= g_ui.tools.locs[i].loc_id != loc_id;
+                CHECK(none_kind, "select: none of the inverse is the picked id");
+            }
+        }
+        g_ui.tools.loc_count = 0;
+        g_ui.tools.edit_level = -1;
+        g_ui.tools.pick_id = -1;
+    }
+    Editor_UiFree(&g_ui);
+
+    /* Records: "loc:crate" is the Catalog's find, Enter picks the record.
+     * The catalog harness (an embedded ToriRSMapEd over the fixture). */
+    ToriRSChrome_Init(&g_cat_chrome);
+    ToriRSChrome_SetSurface(&g_cat_chrome, 1280, 800);
+    Editor_UiInit(&g_cat_ui, &g_cat_chrome, &g_editor);
+    Editor_Catalog_Register(&g_cat_ui);
+    Editor_Command_Register(&g_cat_ui);
+    Editor_UiSetVisible(&g_cat_ui, 1);
+    cat_frame();
+    Editor_Command_Open(&g_cat_ui, "loc:crate");
+    for( int i = 0; i < 4; i++ )
+        cat_frame();
+    row = Editor_Command_Row(&g_cat_ui, 0);
+    CHECK(row && strncmp(row, "Pick loc test_crate", 19) == 0, "palette: 'loc:crate' -> '%s' (the catalog closed)",
+        row ? row : "-");
+    {
+        int const catalog = cat_panel("Catalog");
+        int const find = catalog >= 0 ? cat_widget(catalog, TORIRS_CHROME_W_TEXTINPUT, "Find") : -1;
+        CHECK(find >= 0 && strcmp(g_cat_chrome.widgets[find].text, "crate") == 0,
+            "palette: the Catalog's Find box carries the query (%s)", find >= 0 ? g_cat_chrome.widgets[find].text : "-");
+    }
+    CHECK(Editor_Command_Run(&g_cat_ui) == 1, "palette: Enter picks it");
+    CHECK(g_cat_ui.tools.pick_kind == 0 && g_cat_ui.tools.pick_id == 0
+              && strcmp(g_cat_ui.tools.pick_name, "test_crate (0)") == 0,
+        "palette: test_crate is the pick (%d %d %s)", g_cat_ui.tools.pick_kind, g_cat_ui.tools.pick_id,
+        g_cat_ui.tools.pick_name);
+    CHECK(!Editor_Command_IsOpen(&g_cat_ui), "palette: closed after the pick");
+    Editor_Command_Open(&g_cat_ui, "npc:gua");
+    for( int i = 0; i < 4; i++ )
+        cat_frame();
+    row = Editor_Command_Row(&g_cat_ui, 0);
+    CHECK(row && strncmp(row, "Pick npc test_guard", 19) == 0, "palette: 'npc:gua' -> '%s'", row ? row : "-");
+    Editor_Command_Close(&g_cat_ui);
+    Editor_UiFree(&g_cat_ui);
+}
+
 int
 main(
     int argc,
@@ -6648,6 +7136,7 @@ main(
     test_active_level();
     test_hotkeys();
     test_triggers();
+    test_command_palette();
     Editor_PickerFree(&g_picker);
     Editor_Close(&g_editor);
     printf("editor_panels_test: %d checks, %d failed\n", g_checks, g_failed);

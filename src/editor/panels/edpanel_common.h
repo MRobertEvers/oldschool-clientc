@@ -36,6 +36,14 @@
 #define EDP_DOCK_W_MIN 200
 #define EDP_DOCK_W_MAX 400
 #define EDP_DOCK_MIN_H 160
+/* Compact panels (Editor_UiSetCompact -1): automatic below this LOGICAL
+ * surface (device px / chrome scale). 1366x768 and smaller laptops, 1280x720,
+ * tablets; a 1440x900 MacBook at 2x (2880x1800) is not compact. */
+#define EDP_COMPACT_H 800
+#define EDP_COMPACT_W 1280
+/* The world keeps at least this share of the surface's area at every size:
+ * the console strip is capped (then dropped) to hold it. */
+#define EDP_WORLD_MIN_PERCENT 60
 /* The tool rail: one column is the 32 px box plus 3 px of strip each side;
  * each further column adds a box and a 2 px gap (dbg_build_toolbar). */
 #define EDP_RAIL_W 38

@@ -2141,6 +2141,13 @@ decode_catalog_squares(
 
     ToriRSMapEd_ReaderInit(&reader, body, length);
     status = (enum EditorHost_Status)ToriRSMapEd_GetU32(&reader);
+    if( status != EDITOR_HOST_OK )
+    {
+        /* BUSY (the index still building): empty lists follow. */
+        ToriMem_Free(ToriMem_Editor(), mem);
+        memset(out, 0, sizeof(*out));
+        return status;
+    }
     count = ToriRSMapEd_GetU32(&reader);
     if( count > storage_bound )
         reader.bad = 1;
@@ -2210,6 +2217,15 @@ Editor_HostMapEdCatalogSquares(
     struct EditorHost* host,
     struct EditorHost_CatalogSquares* out_atlas)
 {
+    return Editor_HostMapEdCatalogSquaresFlags(host, 0, out_atlas);
+}
+
+enum EditorHost_Status
+Editor_HostMapEdCatalogSquaresFlags(
+    struct EditorHost* host,
+    uint32_t flags,
+    struct EditorHost_CatalogSquares* out_atlas)
+{
     struct maped_remote* remote = as_remote(host);
     struct ToriRSMapEdBuf payload;
     const uint8_t* fact;
@@ -2222,6 +2238,10 @@ Editor_HostMapEdCatalogSquares(
         return EDITOR_HOST_UNSUPPORTED;
 
     memset(&payload, 0, sizeof(payload));
+    /* An empty body is the request every server answers; the flags u32 only
+     * when there are any (a NOWAIT the server answers BUSY to). */
+    if( flags )
+        ToriRSMapEd_PutU32(&payload, flags);
     fact = catalog_rpc(remote, TORIRSMAPED_REQ_CATALOG_SQUARES, &payload,
         TORIRSMAPED_FACT_CATALOG_SQUARES, &length);
     if( !fact )

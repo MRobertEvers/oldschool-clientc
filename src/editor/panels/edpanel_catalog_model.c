@@ -218,7 +218,10 @@ Editor_CatalogModelRefresh(
     memset(&page, 0, sizeof(page));
     {
         double const t0 = Editor_CatalogModelNowMs();
-        status = Editor_HostMapEdCatalogQuery(host, model->kind, model->filter, 0, model->page, model->page_size, &page);
+        /* NOWAIT: while the server's index builds the answer is BUSY and the
+         * question is asked again below, never a wait for the build. */
+        status = Editor_HostMapEdCatalogQuery(host, model->kind, model->filter, TORIRSMAPED_CATALOG_NOWAIT,
+            model->page, model->page_size, &page);
         model->last_query_ms = Editor_CatalogModelNowMs() - t0;
     }
     model->queries++;
@@ -228,6 +231,16 @@ Editor_CatalogModelRefresh(
     if( model->held )
         Editor_HostCatalogPageFree(&model->result);
     drop_record(model);
+    /* BUSY: the server's index is still building. Not held -- the same
+     * question is asked again after a short settle, and the count row says
+     * why meanwhile. */
+    if( status == EDITOR_HOST_BUSY )
+    {
+        model->building = 1;
+        model->settle = 10;
+        return 1;
+    }
+    model->building = 0;
     /* Held whatever came back — rows, none, or a refusal — so the same
      * question is not asked again next frame. */
     model->result = page;
@@ -276,7 +289,9 @@ Editor_CatalogModelCountText(
     assert(out);
     assert(out_size > 0);
 
-    if( !model->held )
+    if( !model->held && model->building )
+        snprintf(out, (size_t)out_size, "the catalog index is building...");
+    else if( !model->held )
         snprintf(out, (size_t)out_size, "asking the server...");
     else if( model->status == EDITOR_HOST_UNSUPPORTED )
         snprintf(out, (size_t)out_size, "the server has no catalog");

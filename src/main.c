@@ -4,6 +4,7 @@
 #include "cmd/cmdbus.h"
 #include "engine/uitree_scene_bridge.h"
 #include "engine/world_builder/world_builder.h"
+#include "editor/editor_layout.h"
 #include "editor/editor_view.h"
 #include "executor_config.h"
 #include "game/content_test.h"
@@ -2388,6 +2389,81 @@ static int paced_value = -1;
  * visual frame. They are cleared only after a stable tree reaches interaction. */
 static int input_frame_pending;
 
+/* --window on the command line: the editor's saved window box must not
+ * override it. Set while the arguments are read. */
+static int window_from_cli;
+/* The map editor's saved window position (main_editor_layout_window), applied
+ * once the OS window exists. */
+static int editor_window_placed;
+static int editor_window_x;
+static int editor_window_y;
+
+#if !defined(TORIRS_PLATFORM_WEB)
+/**
+ * The map editor's layout file (editor/editor_layout.h) read synchronously,
+ * before the window exists -- the editor's own read of it rides the IO queue
+ * after boot, too late to size the window. Its `window_*` keys are the box
+ * the last run ended with (Editor_UiSetWindowBox): the size goes into
+ * `*io_w` / `*io_h` and the position into the outputs. @return 1 when the
+ * file stated a window, else 0 with every output untouched. TORIRS_EDITOR_LAYOUT=""
+ * (the headless harnesses) reads nothing.
+ */
+static int
+main_editor_layout_window(
+    int* io_w,
+    int* io_h,
+    int* out_x,
+    int* out_y)
+{
+    char const* path = EditorLayout_Path();
+    struct EditorLayoutFile* file;
+    FILE* f;
+    long size;
+    char* data;
+    int found = 0;
+
+    assert(io_w);
+    assert(io_h);
+    assert(out_x);
+    assert(out_y);
+    if( !path )
+        return 0;
+    f = fopen(path, "rb");
+    if( !f )
+        return 0;
+    if( fseek(f, 0, SEEK_END) != 0 || (size = ftell(f)) <= 0 || size > (1 << 20) || fseek(f, 0, SEEK_SET) != 0 )
+    {
+        fclose(f);
+        return 0;
+    }
+    data = malloc((size_t)size);
+    assert(data);
+    if( fread(data, 1, (size_t)size, f) != (size_t)size )
+    {
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    fclose(f);
+    /* The file struct is large (every panel's section): off the stack. */
+    file = malloc(sizeof(*file));
+    assert(file);
+    if( EditorLayout_Decode(file, data, (int)size) && file->has_window )
+    {
+        *io_w = file->window_w;
+        *io_h = file->window_h;
+        *out_x = file->window_x;
+        *out_y = file->window_y;
+        found = 1;
+        TORIRS_LOG("editor: window %dx%d at %d,%d from %s\n", file->window_w, file->window_h, file->window_x,
+            file->window_y, path);
+    }
+    free(file);
+    free(data);
+    return found;
+}
+#endif
+
 /*
  * The `chrome_scale=dynamic` ladder: device pixels per ToriRSChrome pixel.
  *
@@ -3879,6 +3955,18 @@ frame_loop_step(void)
                     app.world_view_valid ? app.world_emit_desc.w : 0,
                     app.world_view_valid ? app.world_emit_desc.h : 0);
                 PlatformWindow_PollCommands(platform, &bus);
+                /* The editor's layout file remembers the window's box: told
+                 * every frame (a cached pair of SDL reads), written only when
+                 * it settles (app_map_editor_layout_tick). */
+                if( app.editor_panel.built && app.editor_panel.ui )
+                {
+                    int wx;
+                    int wy;
+                    int ww;
+                    int wh;
+                    if( PlatformWindow_WindowBox(platform, &wx, &wy, &ww, &wh) )
+                        Editor_UiSetWindowBox(app.editor_panel.ui, wx, wy, ww, wh);
+                }
                 if( sock )
                 {
                     /* The unlocked clock: the server's time is the cycles
@@ -7351,6 +7439,7 @@ main_parse_argument_layer(
             }
             cfg.window_w = (int)w;
             cfg.window_h = (int)h;
+            window_from_cli = 1;
             continue;
         }
         /*
@@ -7918,6 +8007,10 @@ main(
 #endif
     /* Pre-scan for --manifest so its values seed cfg before the flag loop;
      * explicit CLI flags below then override (precedence CLI > manifest). */
+    window_from_cli = 0;
+    editor_window_placed = 0;
+    editor_window_x = 0;
+    editor_window_y = 0;
     for( argi = 1; argi < argc; argi++ )
     {
         if( strcmp(argv[argi], "--manifest") == 0 && argi + 1 < argc )
@@ -8158,6 +8251,14 @@ main(
      * applied to the platform. */
     else if( cfg.window_w > 0 && cfg.window_h > 0 && cfg.window_mode != CS2VM_WINDOW_MODE_FIXED )
     {
+#if !defined(TORIRS_PLATFORM_WEB)
+        /* The map editor's window comes back where it was: its layout file
+         * (editor_layout.ini) keeps the box the last run ended with, over the
+         * manifest's `window=`; an explicit --window still wins. */
+        if( cfg.editor_content_dir && !window_from_cli
+            && main_editor_layout_window(&cfg.window_w, &cfg.window_h, &editor_window_x, &editor_window_y) )
+            editor_window_placed = 1;
+#endif
         UITree_LayoutSetRootSize(cfg.window_w, cfg.window_h);
     }
 
@@ -9306,6 +9407,10 @@ main(
             main_shutdown(&app);
             return 1;
         }
+        /* The editor's saved window position (main_editor_layout_window):
+         * once the window exists, before anything is drawn in it. */
+        if( editor_window_placed )
+            PlatformWindow_SetWindowPosition(platform, editor_window_x, editor_window_y);
         if( !PlatformWindow_SetPresent(platform, renderer_present(renderer_launch)) ||
             !renderer_start(renderer_launch) )
         {

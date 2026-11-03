@@ -630,6 +630,9 @@ struct ToriRSMapEd
      *  else the main lane of `content_dir` itself. */
     struct ToriRSMapEdLaneDef lane;
     int lane_bound;
+    /** A LANE_CHANGES scan on its worker thread (torirs_maped_lanes_wire.c);
+     *  NULL when none runs. */
+    struct ToriRSMapEdLaneScan* lane_scan;
 
     /** The document. Clients hold mirrors of it; this is the original. */
     struct Editor_Doc doc;

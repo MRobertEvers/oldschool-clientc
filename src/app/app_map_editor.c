@@ -10,8 +10,10 @@
 #include "mem/torirs_mem.h"
 #include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
+#include "perf/frame_stats.h"
 #include "editor/editor_derive.h"
 #include "editor/accounts/accounts_panel.h"
+#include "app/app_camera_clamp.h"
 #include "editor/editor_view.h"
 #include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanel_ops.h"
@@ -38,10 +40,6 @@ static int
 app_map_editor_ghost_is_edit(struct App const* app);
 static void
 app_map_editor_spawn_ghost_remove(struct App* app);
-static int
-app_map_editor_hover_env_tile(
-    int* out_world_x,
-    int* out_world_z);
 static struct ToriDraw_Sprite*
 app_preview_raster(
     struct App* app,
@@ -297,21 +295,20 @@ ui_service_select_terrain(
         &app->editor_panel, app, world_x - app->world->_base_tile_x, world_z - app->world->_base_tile_z, level);
 }
 
-/* The areas panel's Go to: over the tile, the current yaw, the pitch clamped
- * (383 when the camera has none yet), the eye 2600 units out. */
-static int
-ui_service_camera_to_tile(
-    void* user_data,
+int
+app_map_editor_camera_to_tile(
+    struct App* app,
     int tile_x,
     int tile_z,
-    int level)
+    int level,
+    int zoom)
 {
-    struct App* app = user_data;
     struct App_WorldView* view;
     struct EditorViewCamera pose;
     int scene_x;
     int scene_z;
     int extent;
+    int ground;
 
     assert(app);
     if( !app->world || !app->frame_view )
@@ -322,19 +319,48 @@ ui_service_camera_to_tile(
     extent = app->world->_scene_size * 128;
     if( scene_x < 0 || scene_z < 0 || scene_x >= extent || scene_z >= extent )
         return 0;
+    ground = app_world_height(app, scene_x, scene_z, level);
     memset(&pose, 0, sizeof(pose));
+    if( zoom <= 0 )
+    {
+        /* The distance the camera has now: the pose of its own view ray
+         * against the ground it is over (a level or climbing ray reads as
+         * the default). */
+        struct EditorViewCamera now;
+        int const cam_x = app_camera_clamp_axis(view->world_camera_pos.x, 0, extent - 1);
+        int const cam_z = app_camera_clamp_axis(view->world_camera_pos.z, 0, extent - 1);
+        EditorView_PoseFromEye(&view->world_camera_pos, view->world_camera.yaw, view->world_camera.pitch,
+            app_world_height(app, cam_x, cam_z, level), app->world->_base_tile_x * 128,
+            app->world->_base_tile_z * 128, level, 2600, &now);
+        zoom = now.zoom;
+    }
     pose.x = tile_x * 128 + 64;
     pose.z = tile_z * 128 + 64;
     pose.level = level;
     pose.yaw = view->world_camera.yaw & 0x7ff;
     pose.pitch = app_world_clamp_pitch(app, view->world_camera.pitch > 0 ? view->world_camera.pitch : 383);
-    pose.zoom = 2600;
-    EditorView_PoseEye(&pose, app->world->_base_tile_x * 128, app->world->_base_tile_z * 128,
-        app_world_height(app, scene_x, scene_z, level), &view->world_camera_pos);
+    pose.zoom = zoom;
+    EditorView_PoseEye(&pose, app->world->_base_tile_x * 128, app->world->_base_tile_z * 128, ground,
+        &view->world_camera_pos);
     view->world_camera.pitch = pose.pitch;
     view->camera_unlocked = 1;
     app->need_redraw = 1;
     return 1;
+}
+
+/* The areas panel's Go to: over the tile, the current yaw, the pitch clamped
+ * (383 when the camera has none yet), the eye 2600 units out. */
+static int
+ui_service_camera_to_tile(
+    void* user_data,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    struct App* app = user_data;
+
+    assert(app);
+    return app_map_editor_camera_to_tile(app, tile_x, tile_z, level, 2600);
 }
 
 static void
@@ -850,7 +876,7 @@ app_map_editor_open_pending_square(struct App* app)
     if( panel->sq_goto_pending && !app->world_load_inflight && app->world )
     {
         panel->sq_goto_pending = 0;
-        if( ui_service_camera_to_tile(app, panel->sq_goto_x, panel->sq_goto_z, 0) )
+        if( ui_service_camera_to_tile(app, panel->sq_goto_x, panel->sq_goto_z, panel->sq_goto_level) )
             app->need_redraw = 1;
         else if( panel->ui )
             Editor_UiLog(panel->ui, "editor: m%d_%d is not in the scene after its open", panel->sq_goto_x / 64,
@@ -907,12 +933,25 @@ app_map_editor_open_pending_square(struct App* app)
         panel->sq_open_add ? ", added" : "", count, count == 1 ? "" : "s");
     app->world_load_attempted = 0;
     app_world_load_begin(app, chunks, count);
-    /* Open brings the camera; Add to open set keeps the view where it is. */
-    if( !panel->sq_open_add )
+    /* Open brings the camera: to the tile the open asked for (the palette's
+     * coordinates), else the square's centre. Add to open set keeps the view
+     * where it is -- unless a tile was asked for. */
+    if( !panel->sq_open_add || panel->sq_open_goto_valid )
     {
         panel->sq_goto_pending = 1;
-        panel->sq_goto_x = panel->sq_open_x * 64 + 32;
-        panel->sq_goto_z = panel->sq_open_z * 64 + 32;
+        panel->sq_goto_level = 0;
+        if( panel->sq_open_goto_valid )
+        {
+            panel->sq_goto_x = panel->sq_open_goto_x;
+            panel->sq_goto_z = panel->sq_open_goto_z;
+            panel->sq_goto_level = panel->sq_open_goto_level;
+        }
+        else
+        {
+            panel->sq_goto_x = panel->sq_open_x * 64 + 32;
+            panel->sq_goto_z = panel->sq_open_z * 64 + 32;
+        }
+        panel->sq_open_goto_valid = 0;
     }
 }
 
@@ -1277,12 +1316,10 @@ app_edit_rebake_window(struct App* app)
  * never remeshed whole.
  */
 static void
-app_map_editor_flush(struct App* app)
+app_map_editor_flush_edits(struct App* app)
 {
     int had_work;
 
-    /* Other clients' edits land here, queued by square like ours. */
-    Editor_PumpFacts(app->editor);
     if( app->world_load_inflight )
         return; /* the load lands first; the queue waits for it */
     if( !app->world || !app->world_active )
@@ -1300,6 +1337,22 @@ app_map_editor_flush(struct App* app)
     }
     if( had_work )
         app->need_redraw = 1;
+}
+
+static void
+app_map_editor_flush(struct App* app)
+{
+    uint64_t t;
+
+    /* Other clients' edits land here, queued by square like ours. The pump
+     * is also where an embedded editor server runs its slice (the catalog's
+     * warm build among it): the frame stats count it as pump, not flush. */
+    t = FrameStats_Now();
+    Editor_PumpFacts(app->editor);
+    FrameStats_Span(FRAME_STATS_PUMP, t);
+    t = FrameStats_Now();
+    app_map_editor_flush_edits(app);
+    FrameStats_Span(FRAME_STATS_EDIT_FLUSH, t);
 }
 
 /* ---- the World panel and the saved layout --------------------------------- */
@@ -2041,11 +2094,17 @@ app_map_editor_world_click(
         /* A plain click latches the TILE (unambiguous where a wall, a decor
          * and a ground loc share it; the minimenu's "Select wall" rows pick
          * those exactly). Shift-click adds the loc under it to the
-         * multi-selection instead. */
+         * multi-selection instead. A double-click also recentres the camera
+         * on the tile, at the distance it has (every editor's "focus"). */
         if( ui->shift_held )
             (void)app_map_editor_toggle_loc_at(app, hx, hz, level);
         else
             Editor_PanelSelectTerrain(panel, app, hx, hz, level);
+        if( LibToriRS_Input_IsDoubleClick(input, TORIRSM_LEFT) && !ui->shift_held && app->world
+            && app_map_editor_camera_to_tile(app, app->world->_base_tile_x + hx, app->world->_base_tile_z + hz,
+                level, 0) )
+            Editor_UiLog(ui, "editor: camera on %d,%d L%d (double-click)", app->world->_base_tile_x + hx,
+                app->world->_base_tile_z + hz, level);
         app->need_redraw = 1;
         return;
     }
@@ -2314,7 +2373,7 @@ app_map_editor_hover_env_resolve(void)
 }
 
 /** TORIRS_EDITOR_HOVER's parked tile, ABSOLUTE: 1 when one is parked. */
-static int
+int
 app_map_editor_hover_env_tile(
     int* out_world_x,
     int* out_world_z)

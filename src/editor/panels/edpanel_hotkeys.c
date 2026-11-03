@@ -32,7 +32,10 @@
 #include <string.h>
 
 /** The doc's tables, in order. */
-static const char* const k_groups[] = { "File", "Edit", "Place", "Palette", "Tools", "Brush", "Level", "Camera", "View" };
+/* The doc's tables, in the TABLE's order (editor_hotkeys.c groups its rows
+ * File, Edit, Place, Tools, Brush, Level, Camera, Palette, View; Register
+ * below asserts it). */
+static const char* const k_groups[] = { "File", "Edit", "Place", "Tools", "Brush", "Level", "Camera", "Palette", "View" };
 #define HOTKEYS_GROUPS ((int)(sizeof(k_groups) / sizeof(k_groups[0])))
 
 #define HOTKEYS_CLASH_RGB 0xFF5555u
@@ -145,6 +148,143 @@ hk_run_file(
     }
 }
 
+/** The level a whole-square selection reads: the pinned level, else the
+ *  selection's, else the latched tile's, else 0. */
+static int
+hk_selection_level(const struct EditorUi* ui)
+{
+    if( ui->tools.edit_level >= 0 )
+        return ui->tools.edit_level;
+    if( ui->tools.loc_count > 0 )
+        return ui->tools.locs[0].level;
+    if( ui->tools.tile_valid )
+        return ui->tools.tile_level;
+    return 0;
+}
+
+/** Add square `square`'s loc `loc` to the selection; 0 when it is full. */
+static int
+hk_select_add(
+    struct EditorUi* ui,
+    const struct Editor_Square* square,
+    const struct Editor_Loc* loc)
+{
+    if( ui->tools.loc_count >= EDITOR_LOC_SELECTION_MAX )
+        return 0;
+    Editor_LocRefAt(&ui->tools.locs[ui->tools.loc_count], square->map_x * 64 + loc->x, square->map_z * 64 + loc->z,
+        loc->level, loc->shape, loc->loc_id, loc->rotation & 3);
+    ui->tools.loc_count++;
+    return 1;
+}
+
+/** Ctrl+Shift+L: every loc of the catalog's picked loc id (else of the
+ *  selection's first loc) in the open squares, on the selection's level. */
+static int
+hk_select_kind(struct EditorUi* ui)
+{
+    struct Editor_Doc* doc;
+    int const level = hk_selection_level(ui);
+    int loc_id = -1;
+    int count = 0;
+    int skipped = 0;
+
+    if( !ui->editor )
+    {
+        Editor_UiLog(ui, "editor: no session to select in");
+        return 0;
+    }
+    if( ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0 )
+        loc_id = ui->tools.pick_id;
+    else if( ui->tools.loc_count > 0 )
+        loc_id = ui->tools.locs[0].loc_id;
+    if( loc_id < 0 )
+    {
+        Editor_UiLog(ui, "editor: pick a loc in the catalog (or select one) first");
+        return 0;
+    }
+    doc = &ui->editor->doc;
+    Editor_UiSelectLoc(ui, NULL);
+    for( int i = 0; i < doc->square_count; i++ )
+    {
+        const struct Editor_Square* square = &doc->squares[i];
+        if( !square->loaded )
+            continue;
+        for( int l = 0; l < square->loc_count; l++ )
+        {
+            const struct Editor_Loc* loc = &square->locs[l];
+            if( loc->loc_id != loc_id || loc->level != level )
+                continue;
+            if( hk_select_add(ui, square, loc) )
+                count++;
+            else
+                skipped++;
+        }
+    }
+    if( ui->hooks.selection_changed )
+        ui->hooks.selection_changed(ui->hooks_user);
+    if( skipped )
+        Editor_UiLog(ui, "editor: selected %d loc(s) of id %d on L%d (%d past the %d-loc selection left out)", count,
+            loc_id, level, skipped, EDITOR_LOC_SELECTION_MAX);
+    else
+        Editor_UiLog(ui, "editor: selected %d loc(s) of id %d on L%d", count, loc_id, level);
+    return count;
+}
+
+/** Ctrl+I: the open squares' locs on the selection's level that are NOT
+ *  selected become the selection. */
+static int
+hk_invert_selection(struct EditorUi* ui)
+{
+    struct Editor_Doc* doc;
+    struct Editor_LocRef was[EDITOR_LOC_SELECTION_MAX];
+    int const was_count = ui->tools.loc_count;
+    int const level = hk_selection_level(ui);
+    int count = 0;
+    int skipped = 0;
+
+    if( !ui->editor )
+    {
+        Editor_UiLog(ui, "editor: no session to select in");
+        return 0;
+    }
+    doc = &ui->editor->doc;
+    memcpy(was, ui->tools.locs, (size_t)was_count * sizeof(was[0]));
+    ui->tools.loc_count = 0;
+    for( int i = 0; i < doc->square_count; i++ )
+    {
+        const struct Editor_Square* square = &doc->squares[i];
+        if( !square->loaded )
+            continue;
+        for( int l = 0; l < square->loc_count; l++ )
+        {
+            const struct Editor_Loc* loc = &square->locs[l];
+            struct Editor_LocRef ref;
+            int selected = 0;
+            if( loc->level != level )
+                continue;
+            Editor_LocRefAt(&ref, square->map_x * 64 + loc->x, square->map_z * 64 + loc->z, loc->level, loc->shape,
+                loc->loc_id, loc->rotation & 3);
+            for( int w = 0; w < was_count && !selected; w++ )
+                selected = was[w].map_x == ref.map_x && was[w].map_z == ref.map_z && was[w].level == ref.level
+                           && was[w].x == ref.x && was[w].z == ref.z && was[w].shape == ref.shape;
+            if( selected )
+                continue;
+            if( hk_select_add(ui, square, loc) )
+                count++;
+            else
+                skipped++;
+        }
+    }
+    if( ui->hooks.selection_changed )
+        ui->hooks.selection_changed(ui->hooks_user);
+    if( skipped )
+        Editor_UiLog(ui, "editor: inverted: %d loc(s) on L%d selected (%d past the %d-loc selection left out)", count,
+            level, skipped, EDITOR_LOC_SELECTION_MAX);
+    else
+        Editor_UiLog(ui, "editor: inverted: %d loc(s) on L%d selected (%d deselected)", count, level, was_count);
+    return count;
+}
+
 static int
 hk_run_edit(
     struct EditorUi* ui,
@@ -235,6 +375,12 @@ hk_run_edit(
         if( Editor_Areas_NewFromRect(ui, NULL) )
             Editor_Areas_Show(ui);
         return 1;
+    case EDITOR_HK_EDIT_SELECT_KIND:
+        (void)hk_select_kind(ui);
+        return 1;
+    case EDITOR_HK_EDIT_INVERT:
+        (void)hk_invert_selection(ui);
+        return 1;
     default:
         /* Apply to selection and Select the square's locs need the world. */
         return 0;
@@ -255,7 +401,7 @@ Editor_HotkeyRun(
         hk_run_file(ui, action);
         return 1;
     }
-    if( action <= EDITOR_HK_EDIT_MARK_AREA )
+    if( action <= EDITOR_HK_EDIT_INVERT )
         return hk_run_edit(ui, action);
     if( action == EDITOR_HK_PLACE_FIT )
     {
@@ -318,6 +464,46 @@ Editor_HotkeyRun(
             (void)edp_level_show_above(ui, !edp_level_showing_above(ui));
         return 1;
     }
+    if( action == EDITOR_HK_CAM_SCHEME )
+    {
+        enum Editor_CameraScheme const next = ui->recent.camera_scheme == EDITOR_CAMERA_SCHEME_UNITY
+                                                  ? EDITOR_CAMERA_SCHEME_DEFAULT
+                                                  : EDITOR_CAMERA_SCHEME_UNITY;
+        Editor_RecentSetScheme(&ui->recent, next);
+        if( next == EDITOR_CAMERA_SCHEME_UNITY )
+            Editor_UiLog(ui, "editor: camera scheme Unity: right-drag looks, middle-drag pans, wheel zooms to the "
+                             "cursor, Alt+drag orbits the selection, F frames it");
+        else
+            Editor_UiLog(ui, "editor: camera scheme default: WASD/RF fly, arrows turn, middle-drag orbits, "
+                             "wheel dollies");
+        return 1;
+    }
+    if( action == EDITOR_HK_VIEW_COMMAND )
+    {
+        /* A toggle whose open gives the box the keyboard. */
+        if( Editor_Command_IsOpen(ui) )
+            Editor_Command_Close(ui);
+        else
+            Editor_Command_Open(ui, NULL);
+        return 1;
+    }
+    if( action == EDITOR_HK_VIEW_GOTO )
+    {
+        /* The App prefills the hovered tile; here the latched tile, else
+         * the first selected loc, else nothing. */
+        char prefill[32] = "";
+        if( ui->tools.tile_valid )
+            snprintf(prefill, sizeof(prefill), "%d,%d", ui->tools.tile_x, ui->tools.tile_z);
+        else if( ui->tools.loc_count > 0 )
+        {
+            int x;
+            int z;
+            Editor_LocRefWorld(&ui->tools.locs[0], &x, &z);
+            snprintf(prefill, sizeof(prefill), "%d,%d", x, z);
+        }
+        Editor_Command_Open(ui, prefill);
+        return 1;
+    }
     if( info->panel )
     {
         int const open = Editor_UiTogglePanel(ui, info->panel);
@@ -339,6 +525,13 @@ Editor_HotkeyRun(
     if( action == EDITOR_HK_VIEW_SNAP )
     {
         Editor_UiSetSnap(ui, !ui->snap);
+        return 1;
+    }
+    if( action == EDITOR_HK_VIEW_COMPACT )
+    {
+        int const on = !Editor_UiCompact(ui);
+        Editor_UiSetCompact(ui, on);
+        Editor_UiLog(ui, "editor: compact panels %s (View > Reset layout returns to automatic)", on ? "on" : "off");
         return 1;
     }
     /* The camera, the eyedroppers and the click accelerators: the App's. */

@@ -630,6 +630,38 @@ app_world_camera_mouse(
     struct LibToriRS_Input* input,
     struct UIInteractOut const* out);
 
+/**
+ * The editor's Unity-style camera scheme (editor_recent.h
+ * EDITOR_CAMERA_SCHEME_UNITY): run from the hotkey dispatcher BEFORE the
+ * editor's world click, it latches an Alt+left press over the world as an
+ * orbit (and a right / middle press as a look / pan) and consumes the frame,
+ * so the click never paints, selects or opens the minimenu. The drags
+ * themselves move the camera in app_world_camera_mouse. No-op under the
+ * default scheme.
+ */
+void
+app_camera_unity_gate(
+    struct App* app,
+    struct LibToriRS_Input* input);
+
+/** TORIRS_EDITOR_HOVER's parked tile (a photograph's pointer), ABSOLUTE:
+ *  1 when one is parked. */
+int
+app_map_editor_hover_env_tile(
+    int* out_world_x,
+    int* out_world_z);
+
+/** The editor's free camera over ABSOLUTE tile (x, z) on `level`, keeping
+ *  its yaw; `zoom` fine units out from the tile, or <= 0 to keep the
+ *  distance it has now. 0 when the tile is not in the loaded scene. */
+int
+app_map_editor_camera_to_tile(
+    struct App* app,
+    int tile_x,
+    int tile_z,
+    int level,
+    int zoom);
+
 int
 app_cinema_level(struct App* app);
 

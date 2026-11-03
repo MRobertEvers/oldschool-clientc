@@ -24,6 +24,12 @@
  *     surface_h = 1006
  *     scale = 1             ; the chrome scale then
  *     snap = 1              ; View > Snap to grid
+ *     compact = -1          ; View > Compact panels: -1 automatic (small
+ *                           ; surfaces), 0 never, 1 always
+ *     window_x = 120        ; the OS window's last box, in window points:
+ *     window_y = 80         ; where the next run opens it (main.c reads this
+ *     window_w = 1366       ; before the window exists; absent = the
+ *     window_h = 768        ; manifest's `window=`)
  *
  *     [panel world]         ; one section per registry module, by its name
  *     visible = 1
@@ -35,6 +41,8 @@
  *     maximised = 0         ; 1 = maximised over the dock (title double-click);
  *                           ; x/y/w/h and user_placed are then the box it
  *                           ; restores to
+ *     collapsed = 0         ; 1 = shown as its title bar in the compact dock
+ *                           ; (a title click expands it)
  *
  * What the editor does with it (Editor_UiLayoutApply, the policy):
  *   - snap and every panel's `visible` are applied whatever the surface: what
@@ -89,6 +97,9 @@ struct EditorLayoutPanel
      *  user_placed above are then the box it restores to. */
     int has_maximised;
     int maximised;
+    /** Collapsed to its title bar in the compact dock. */
+    int has_collapsed;
+    int collapsed;
 };
 
 struct EditorLayoutFile
@@ -101,6 +112,16 @@ struct EditorLayoutFile
     int scale;
     int has_snap;
     int snap;
+    /** View > Compact panels: -1 automatic, 0 off, 1 on (Editor_UiSetCompact). */
+    int has_compact;
+    int compact;
+    /** The OS window's box in window points, for the next run; has_window 0
+     *  when the file did not say. */
+    int has_window;
+    int window_x;
+    int window_y;
+    int window_w;
+    int window_h;
     struct EditorLayoutPanel panels[EDITOR_LAYOUT_PANELS_MAX];
     int panel_count;
 };

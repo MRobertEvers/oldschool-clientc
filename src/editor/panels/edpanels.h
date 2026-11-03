@@ -28,6 +28,12 @@ Editor_Console_Register(struct EditorUi* ui);
 void
 Editor_MenuBar_Register(struct EditorUi* ui);
 
+/** The one-line strip along the bottom: hovered tile, selection, tool,
+ *  level, lane and unsaved count, live link and RUN, fps
+ *  (edpanel_statusbar.c). "statusbar" */
+void
+Editor_StatusBar_Register(struct EditorUi* ui);
+
 /** The vertical TOOLBAR of tool icons. "toolrail" */
 void
 Editor_ToolRail_Register(struct EditorUi* ui);
@@ -214,6 +220,20 @@ struct Editor_CatalogModel;
  *  panel: what the tests read. */
 const struct Editor_CatalogModel*
 Editor_Catalog_Model(struct EditorUi* ui);
+
+/**
+ * Show `kind` (TORIRSMAPED_CATALOG_LOC..OBJ) found by `text` in the Catalog
+ * -- its Kind dropdown and Find box set, as typing there does -- and drive
+ * its model this frame whether or not the panel is open (the command
+ * palette's "loc:oak" hits read the held page). Returns the model (NULL
+ * without a catalog). The model asks the server once per settled text, never
+ * per keystroke (edpanel_catalog_model.h).
+ */
+const struct Editor_CatalogModel*
+Editor_Catalog_Find(
+    struct EditorUi* ui,
+    uint32_t kind,
+    const char* text);
 
 /** The catalog follows a selected loc: kind Locs, pick = that loc. */
 void
@@ -824,6 +844,60 @@ Editor_CatalogPalette_ThumbDone(
 
 /* ---- Publish (edpanel_publish.c): the editor lane and where its changes go ---- */
 
+/* ---- the command palette (edpanel_command.c) ---------------------------------
+ *
+ * View > Command palette (Ctrl+P): a modal search box over every hotkey
+ * action (run it; its chord shown), every View-menu panel ("Open <panel>"),
+ * squares by name or coordinates ("m50_50", "50 50", an absolute tile
+ * "3222,3218" opens the square and centres the camera on the tile), the
+ * recent squares, and catalog records by kind ("loc:oaktree", "npc:hans"
+ * make the record the pick). Enter runs the top hit, Up / Down move,
+ * Escape closes; it closes after running. "command"
+ */
+void
+Editor_Command_Register(struct EditorUi* ui);
+
+/** Open the palette with `prefill` in its box ("" or NULL: empty; the box
+ *  has the keyboard). Go to tile... passes coordinates. */
+void
+Editor_Command_Open(
+    struct EditorUi* ui,
+    const char* prefill);
+
+void
+Editor_Command_Close(struct EditorUi* ui);
+
+/** 1 while the palette is open. */
+int
+Editor_Command_IsOpen(struct EditorUi* ui);
+
+/** The App feeds the frame's keys while the palette is open (its box has
+ *  the keyboard, so the hotkey gates are shut): Up / Down move the choice,
+ *  Escape closes. Returns 1 when a key acted. */
+int
+Editor_Command_Feed(
+    struct EditorUi* ui,
+    const struct Editor_HotkeyInput* input);
+
+/** An action the palette ran that only the App can perform (the camera,
+ *  the eyedroppers, Paste at the hovered tile): taken once, -1 for none. */
+int
+Editor_Command_TakePendingAction(struct EditorUi* ui);
+
+/** The hit rows the palette shows now (tests): `index`th row's text, NULL
+ *  past the end; and which row is chosen. */
+const char*
+Editor_Command_Row(
+    struct EditorUi* ui,
+    int index);
+
+int
+Editor_Command_Chosen(struct EditorUi* ui);
+
+/** Run the chosen hit, as Enter does. 1 when something ran. */
+int
+Editor_Command_Run(struct EditorUi* ui);
+
 /** Register the Publish panel (module "publish"); needs ui->editor. */
 void
 Editor_Publish_Register(struct EditorUi* ui);
@@ -832,5 +906,14 @@ Editor_Publish_Register(struct EditorUi* ui);
  *  Editor_UiTogglePanel does; 0 with a log line when there is none. */
 int
 Editor_Publish_Open(struct EditorUi* ui);
+
+/** The lane this editor edits, as the server last said ("main" for the tree
+ *  itself), into `out`. 0 (out "") until the lane facts have arrived or when
+ *  the window has no Publish panel. */
+int
+Editor_Publish_LaneName(
+    struct EditorUi* ui,
+    char* out,
+    int out_size);
 
 #endif

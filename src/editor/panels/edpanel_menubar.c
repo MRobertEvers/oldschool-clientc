@@ -18,6 +18,7 @@
  */
 
 #include "edpanel_common.h"
+#include "edpanel_picker.h"
 #include "edpanels.h"
 #include "mem/torirs_mem.h"
 #include "ui/uitree_layout.h"
@@ -34,6 +35,11 @@ static const enum Editor_HotkeyAction k_file_actions[] = {
     EDITOR_HK_FILE_CHECK_SCRIPTS, EDITOR_HK_FILE_RUN, EDITOR_HK_FILE_PUBLISH, EDITOR_HK_FILE_CLOSE,
 };
 #define FILE_COUNT ((int)(sizeof(k_file_actions) / sizeof(k_file_actions[0])))
+/* After the action rows: "Recent squares" (a header row; a click reopens
+ * the newest), then one row per remembered square, newest first
+ * (editor_recent.h). */
+#define FILE_RECENT_HEADER FILE_COUNT
+#define FILE_ROWS_MAX (FILE_COUNT + 1 + EDITOR_RECENT_MAX)
 
 static const enum Editor_HotkeyAction k_edit_actions[] = {
     EDITOR_HK_EDIT_UNDO,     EDITOR_HK_EDIT_REDO,   EDITOR_HK_EDIT_DESELECT, EDITOR_HK_EDIT_DELETE,
@@ -46,6 +52,7 @@ static const enum Editor_HotkeyAction k_edit_actions[] = {
 enum
 {
     VIEW_HIDE = 0,
+    VIEW_COMPACT,
     VIEW_RESET_LAYOUT,
     VIEW_SNAP,
     VIEW_LAYOUT_COUNT
@@ -82,12 +89,17 @@ struct MenuBarPanel
     int view_panel_count;
     int view_built_for;
     int view_built_snap;
+    /** Editor_UiCompact and compact_mode the Compact row was labelled from. */
+    int view_built_compact;
     /** menubar_view_state() the rows were labelled from: a panel shown,
      *  closed or popped out relabels them. */
     uint32_t view_built_state;
     /** The File and Edit rows' labels (the dropdowns borrow them). */
-    char file_labels[FILE_COUNT][TORIRS_CHROME_LABEL_MAX];
-    const char* file_rows[FILE_COUNT];
+    char file_labels[FILE_ROWS_MAX][TORIRS_CHROME_LABEL_MAX];
+    const char* file_rows[FILE_ROWS_MAX];
+    int file_count;
+    /** ui->recent.serial the File rows were made from. */
+    uint32_t recent_serial;
     char edit_labels[EDIT_COUNT][TORIRS_CHROME_LABEL_MAX];
     const char* edit_rows[EDIT_COUNT];
     /** ui->hotkeys.serial every label and tip was made from. */
@@ -167,6 +179,14 @@ menubar_build_view(
         TORIRS_CHROME_LABEL_MAX);
     self->view_rows[self->view_count] = self->view_labels[self->view_count];
     self->view_targets[self->view_count++] = -1;
+    {
+        char compact[48];
+        snprintf(compact, sizeof(compact), "Compact panels: %s%s", Editor_UiCompact(ui) ? "on" : "off",
+            ui->compact_mode < 0 ? " (auto)" : "");
+        edp_hotkey_row(ui, EDITOR_HK_VIEW_COMPACT, compact, self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX);
+    }
+    self->view_rows[self->view_count] = self->view_labels[self->view_count];
+    self->view_targets[self->view_count++] = -1;
     edp_hotkey_row(
         ui, EDITOR_HK_VIEW_RESET_LAYOUT, "Reset layout", self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX);
     self->view_rows[self->view_count] = self->view_labels[self->view_count];
@@ -181,6 +201,7 @@ menubar_build_view(
     ToriRSChrome_DropdownSetOptions(ui->chrome, self->menu_view, self->view_rows, self->view_count, -1);
     self->view_built_for = ui->panel_count;
     self->view_built_snap = ui->snap;
+    self->view_built_compact = Editor_UiCompact(ui) * 4 + ui->compact_mode + 1;
     self->view_built_state = menubar_view_state(ui);
 }
 
@@ -196,13 +217,27 @@ menubar_hints(
             TORIRS_CHROME_LABEL_MAX);
         self->file_rows[i] = self->file_labels[i];
     }
+    self->file_count = FILE_COUNT;
+    if( ui->recent.count > 0 )
+    {
+        snprintf(self->file_labels[self->file_count], TORIRS_CHROME_LABEL_MAX, "Recent squares");
+        self->file_rows[self->file_count] = self->file_labels[self->file_count];
+        self->file_count++;
+        for( int i = 0; i < ui->recent.count && self->file_count < FILE_ROWS_MAX; i++ )
+        {
+            snprintf(self->file_labels[self->file_count], TORIRS_CHROME_LABEL_MAX, "  %s", ui->recent.keys[i]);
+            self->file_rows[self->file_count] = self->file_labels[self->file_count];
+            self->file_count++;
+        }
+    }
+    self->recent_serial = ui->recent.serial;
     for( int i = 0; i < EDIT_COUNT; i++ )
     {
         edp_hotkey_row(ui, k_edit_actions[i], Editor_HotkeyInfo(k_edit_actions[i])->name, self->edit_labels[i],
             TORIRS_CHROME_LABEL_MAX);
         self->edit_rows[i] = self->edit_labels[i];
     }
-    ToriRSChrome_DropdownSetOptions(ui->chrome, self->menu_file, self->file_rows, FILE_COUNT, -1);
+    ToriRSChrome_DropdownSetOptions(ui->chrome, self->menu_file, self->file_rows, self->file_count, -1);
     ToriRSChrome_DropdownSetOptions(ui->chrome, self->menu_edit, self->edit_rows, EDIT_COUNT, -1);
     for( int i = 0; i < MENUBAR_LEVEL_BUTTONS; i++ )
     {
@@ -261,7 +296,10 @@ menubar_tick(
         menubar_hints(ui, self);
         menubar_build_view(ui, self);
     }
+    else if( self->recent_serial != ui->recent.serial )
+        menubar_hints(ui, self);
     if( self->view_built_for != ui->panel_count || self->view_built_snap != ui->snap
+        || self->view_built_compact != Editor_UiCompact(ui) * 4 + ui->compact_mode + 1
         || self->view_built_state != menubar_view_state(ui) )
         menubar_build_view(ui, self);
     /* A level changed behind the row's back -- another window
@@ -276,6 +314,25 @@ menubar_tick(
     /* The bar spans whatever the screen is now. */
     if( ui->chrome->panels[self->panel].fixed_w != width )
         ToriRSChrome_PanelSetFixedWidth(ui->chrome, self->panel, width);
+}
+
+/** File > Recent squares > row `index` (0 newest): open it as the picker's
+ *  Open does (the save guard first), in its storage. */
+static void
+menubar_open_recent(
+    struct EditorUi* ui,
+    int index)
+{
+    struct EditorUiGuard guard;
+    const struct Editor_Picker* picker;
+
+    memset(&guard, 0, sizeof(guard));
+    if( !Editor_RecentEntry(&ui->recent, index, &guard.map_x, &guard.map_z, guard.storage, (int)sizeof(guard.storage)) )
+        return;
+    guard.action = EDITOR_UI_GUARD_OPEN_SQUARE;
+    picker = edp_squares_picker(ui);
+    guard.storage_index = picker ? Editor_PickerStorageIndex(picker, guard.storage[0] ? guard.storage : "maps") : -1;
+    (void)Editor_UiGuarded(ui, &guard);
 }
 
 static int
@@ -307,10 +364,17 @@ menubar_activate(
         return 1;
     if( widget == self->menu_file && row < FILE_COUNT )
         (void)Editor_HotkeyRun(ui, k_file_actions[row]);
+    else if( widget == self->menu_file && row < self->file_count )
+        menubar_open_recent(ui, row == FILE_RECENT_HEADER ? 0 : row - FILE_RECENT_HEADER - 1);
     else if( widget == self->menu_edit && row < EDIT_COUNT )
         (void)Editor_HotkeyRun(ui, k_edit_actions[row]);
     else if( widget == self->menu_view && row == self->view_panel_count + VIEW_HIDE )
         (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_HIDE_PANELS);
+    else if( widget == self->menu_view && row == self->view_panel_count + VIEW_COMPACT )
+    {
+        (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_COMPACT);
+        menubar_build_view(ui, self);
+    }
     else if( widget == self->menu_view && row == self->view_panel_count + VIEW_RESET_LAYOUT )
         (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_RESET_LAYOUT);
     else if( widget == self->menu_view && row == self->view_panel_count + VIEW_SNAP )

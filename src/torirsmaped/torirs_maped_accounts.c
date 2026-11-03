@@ -28,6 +28,14 @@
 #include <time.h>
 #include <unistd.h>
 
+/* Windows' mkdir takes no mode (torirs_server_savefile.c does the same). */
+#if defined(_WIN32)
+#include <direct.h>
+#define acct_mkdir(p) _mkdir(p)
+#else
+#define acct_mkdir(p) mkdir(p, 0755)
+#endif
+
 /* ------------------------------------------------------------------ */
 /* Pure pieces                                                         */
 /* ------------------------------------------------------------------ */
@@ -1012,13 +1020,13 @@ acct_mkdirs(const char* path)
         if( *scan == '/' && used > 0 )
         {
             buf[used] = '\0';
-            (void)mkdir(buf, 0755);
+            (void)acct_mkdir(buf);
         }
         buf[used++] = *scan;
     }
     buf[used] = '\0';
     if( used > 0 )
-        (void)mkdir(buf, 0755);
+        (void)acct_mkdir(buf);
 }
 
 static void

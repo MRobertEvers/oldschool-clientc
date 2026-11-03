@@ -103,6 +103,8 @@ struct PublishPanel
 
     /** Asked the server, nothing heard yet (a request per kind). */
     int info_pending;
+    /** The boot-time ask was sent (the lane facts for the status bar). */
+    int asked_boot;
     int list_pending;
     int changes_pending;
     int action_pending;
@@ -326,6 +328,14 @@ publish_apply_fact(
     else if( type == TORIRSMAPED_FACT_LANE_CHANGES )
     {
         uint32_t rows;
+        uint32_t const state = ToriRSMapEd_GetU32(&reader);
+        if( state == TORIRSMAPED_LANE_CHANGES_SCANNING )
+        {
+            /* The rows follow as a broadcast when the scan ends. */
+            self->changes_known = 0;
+            self->changes_pending = 1;
+            return;
+        }
         self->modified = (int)ToriRSMapEd_GetU32(&reader);
         self->added = (int)ToriRSMapEd_GetU32(&reader);
         self->deleted = (int)ToriRSMapEd_GetU32(&reader);
@@ -399,6 +409,18 @@ publish_tick(
         if( self->seen_unsaved && !unsaved && self->info_known && !self->lane_is_main )
             self->refresh_wanted = 1;
         self->seen_unsaved = unsaved;
+    }
+    /* Once at boot, whatever shows: LANE_INFO alone, so the status bar's
+     * lane field (Editor_Publish_LaneName) has an answer. Never the change
+     * scan (LANE_CHANGES stats every file of the tree, 3-7 s on the
+     * embedded server): that is asked only while the panel shows, below. */
+    if( !self->asked_boot )
+    {
+        struct ToriRSMapEdBuf payload;
+        self->asked_boot = 1;
+        memset(&payload, 0, sizeof(payload));
+        if( publish_send(ui, TORIRSMAPED_REQ_LANE_INFO, &payload) )
+            self->info_pending = 1;
     }
     if( self->refresh_wanted && ui->chrome->panels[self->panel].visible )
         publish_ask(ui, self);
@@ -576,6 +598,25 @@ Editor_Publish_Register(struct EditorUi* ui)
     desc.set_visible = publish_set_visible;
     desc.destroy = publish_destroy;
     Editor_UiAddPanel(ui, &desc);
+}
+
+int
+Editor_Publish_LaneName(
+    struct EditorUi* ui,
+    char* out,
+    int out_size)
+{
+    struct PublishPanel* self;
+
+    assert(ui);
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    self = Editor_UiPanelSelf(ui, "publish");
+    if( !self || !self->info_known )
+        return 0;
+    snprintf(out, (size_t)out_size, "%s", self->lane_is_main ? "main" : self->lane_name);
+    return 1;
 }
 
 int

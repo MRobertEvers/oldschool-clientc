@@ -41,6 +41,7 @@
 #include "editor/panels/edpanel_ops.h"
 #include "editor/panels/edpanels.h"
 #include "editor/task_editor_hotkeys_io.h"
+#include "editor/task_editor_recent_io.h"
 
 /* One editor window per process (as g_app_editor_layout): file-static,
  * never freed, so a load in flight at shutdown still lands somewhere. */
@@ -65,6 +66,14 @@ static struct
     /** The table as the file left it: the shutdown flush writes only when a
      *  binding changed since. */
     uint32_t loaded_serial;
+
+    /* editor_recent.ini (the recent squares and the camera scheme), the
+     * same machine: 0 not started, 1 reading, 2 loaded, 3 off. */
+    int recent_state;
+    const char* recent_path;
+    struct EditorRecentLoad recent_load;
+    uint32_t recent_saved_serial;
+    uint32_t recent_loaded_serial;
 } g_app_hk;
 
 static void
@@ -109,6 +118,7 @@ app_hk_snapshot(
     }
     if( ui->tools.rect.valid )
         out->contexts |= EDITOR_HK_CTX_R;
+    out->contexts |= ui->recent.camera_scheme == EDITOR_CAMERA_SCHEME_UNITY ? EDITOR_HK_CTX_U : EDITOR_HK_CTX_D;
 }
 
 static void
@@ -138,6 +148,13 @@ app_hk_hover(
     int scene_x;
     int scene_z;
 
+    /* A photograph's parked hover (TORIRS_EDITOR_HOVER) is the pointer, as
+     * it is for the panels' hover service. */
+    if( app_map_editor_hover_env_tile(out_x, out_z) )
+    {
+        *out_level = Editor_PanelEditLevel(&app->editor_panel, app);
+        return 1;
+    }
     if( !app->world || !Editor_PanelHoverTile(&app->editor_panel, app, &scene_x, &scene_z) )
         return 0;
     *out_x = app->world->_base_tile_x + scene_x;
@@ -422,11 +439,26 @@ app_hk_run(
         break;
     }
     case EDITOR_HK_CAM_FRAME:
+    case EDITOR_HK_CAM_FRAME_KEY:
         app_hk_frame(app, ui, 0);
         break;
     case EDITOR_HK_CAM_FRAME_SQUARE:
         app_hk_frame(app, ui, 1);
         break;
+    case EDITOR_HK_VIEW_GOTO:
+    {
+        /* The palette prefilled with the tile under the pointer, else what
+         * the panel side knows (the latched tile, the selection). */
+        char prefill[32];
+        if( app_hk_hover(app, &x, &z, &level) )
+        {
+            snprintf(prefill, sizeof(prefill), "%d,%d", x, z);
+            Editor_Command_Open(ui, prefill);
+        }
+        else
+            (void)Editor_HotkeyRun(ui, action);
+        break;
+    }
     case EDITOR_HK_VIEW_POPOUT:
     {
         /* The panel under the pointer, else the World: a pop-out pressed
@@ -527,29 +559,99 @@ app_hk_io_tick(
     }
 }
 
-void
-app_editor_hotkeys_flush(struct App* app)
+/* editor_recent.ini: read once, written when the ring or the scheme moves. */
+static void
+app_hk_recent_tick(
+    struct App* app,
+    struct EditorUi* ui)
 {
-    struct EditorUi* ui;
-    struct ToriRS_IOBatch* io;
-    struct ToriRS_Task* task;
+    if( g_app_hk.recent_state == 3 )
+        return;
+    if( g_app_hk.recent_state == 0 )
+    {
+        g_app_hk.recent_path = Editor_RecentPath();
+        if( !g_app_hk.recent_path || !app->runner.queue )
+        {
+            g_app_hk.recent_state = 3;
+            return;
+        }
+        ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_EditorRecentLoad(&g_app_hk.recent_load, g_app_hk.recent_path));
+        g_app_hk.recent_state = 1;
+        return;
+    }
+    if( g_app_hk.recent_state == 1 )
+    {
+        if( !g_app_hk.recent_load.done )
+            return;
+        if( g_app_hk.recent_load.found )
+        {
+            /* Squares opened before the file landed (the boot's) stay in
+             * front of the file's. */
+            struct Editor_Recent merged = g_app_hk.recent_load.recent;
+            for( int i = ui->recent.count - 1; i >= 0; i-- )
+            {
+                int mx;
+                int mz;
+                char storage[EDITOR_DOC_STORAGE_MAX];
+                if( Editor_RecentEntry(&ui->recent, i, &mx, &mz, storage, (int)sizeof(storage)) )
+                    Editor_RecentNote(&merged, mx, mz, storage);
+            }
+            merged.serial = ui->recent.serial + 1;
+            ui->recent = merged;
+            Editor_UiLog(ui, "editor: %d recent square(s) and the %s camera scheme from %s", ui->recent.count,
+                Editor_CameraSchemeName(ui->recent.camera_scheme), g_app_hk.recent_path);
+        }
+        g_app_hk.recent_saved_serial = ui->recent.serial;
+        g_app_hk.recent_loaded_serial = ui->recent.serial;
+        g_app_hk.recent_state = 2;
+        return;
+    }
+    if( ui->recent.serial != g_app_hk.recent_saved_serial )
+    {
+        ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_EditorRecentSave(&ui->recent, g_app_hk.recent_path));
+        g_app_hk.recent_saved_serial = ui->recent.serial;
+    }
+}
+
+/** Run `task` to completion on a batch of its own (the shutdown flush: the
+ *  queue is freed, not stepped). */
+static void
+app_hk_run_task_now(
+    struct App* app,
+    struct ToriRS_Task* task)
+{
+    struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
     int guard = 0;
 
-    assert(app);
-    ui = app->editor_panel.ui;
-    /* A save the tick queued last frame may still sit in the queue, which
-     * is freed, not stepped: write by hand when anything changed since the
-     * file was read. */
-    if( g_app_hk.io_state != 2 || !ui || ui->hotkeys.serial == g_app_hk.loaded_serial )
-        return;
-    io = ToriRS_IOBatch_New();
-    task = CreateTask_EditorHotkeysSave(&ui->hotkeys, g_app_hk.path);
     io->task = task;
     while( task_run(task, io) == PT_YIELDED && guard++ < 8 )
         Platform_IO_Process(app->runner.px, io);
     task_free(task);
     ToriRS_IOBatch_Free(io);
-    g_app_hk.saved_serial = ui->hotkeys.serial;
+}
+
+void
+app_editor_hotkeys_flush(struct App* app)
+{
+    struct EditorUi* ui;
+
+    assert(app);
+    ui = app->editor_panel.ui;
+    if( !ui )
+        return;
+    /* A save the tick queued last frame may still sit in the queue, which
+     * is freed, not stepped: write by hand when anything changed since the
+     * file was read. */
+    if( g_app_hk.io_state == 2 && ui->hotkeys.serial != g_app_hk.loaded_serial )
+    {
+        app_hk_run_task_now(app, CreateTask_EditorHotkeysSave(&ui->hotkeys, g_app_hk.path));
+        g_app_hk.saved_serial = ui->hotkeys.serial;
+    }
+    if( g_app_hk.recent_state == 2 && ui->recent.serial != g_app_hk.recent_loaded_serial )
+    {
+        app_hk_run_task_now(app, CreateTask_EditorRecentSave(&ui->recent, g_app_hk.recent_path));
+        g_app_hk.recent_saved_serial = ui->recent.serial;
+    }
 }
 
 /* ---- the frame ------------------------------------------------------------------ */
@@ -571,6 +673,7 @@ app_editor_hotkeys_frame(
         return;
     ui = app->editor_panel.ui;
     app_hk_io_tick(app, ui);
+    app_hk_recent_tick(app, ui);
     if( !app->editor_panel.visible )
         return;
 
@@ -578,6 +681,42 @@ app_editor_hotkeys_frame(
     /* Shift is the multi-select modifier of a click (the picker's add-click,
      * the loc shift-click), whatever the gates say. */
     ui->shift_held = snapshot.held[TORIRSK_SHIFT] ? 1 : 0;
+
+    /* An App-bound action the command palette ran last frame (the camera,
+     * an eyedropper, Paste at the hovered tile): before any gate, the box
+     * that ran it may still be focused. */
+    {
+        int const pending = Editor_Command_TakePendingAction(ui);
+        if( pending >= 0 )
+        {
+            app_hk_run(app, ui, (enum Editor_HotkeyAction)pending);
+            app->need_redraw = 1;
+        }
+    }
+    /* The Unity camera scheme's presses, ahead of the editor's world click. */
+    app_camera_unity_gate(app, input);
+
+    /* The command palette open: its box has the keyboard (Enter is its
+     * activation); Up / Down and Escape are fed to it here, and nothing
+     * else resolves. */
+    if( Editor_Command_IsOpen(ui) )
+    {
+        int any = 0;
+        (void)Editor_Command_Feed(ui, &snapshot);
+        memset(&g_app_hk.frame, 0, sizeof(g_app_hk.frame));
+        for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
+        {
+            if( !snapshot.held[k] )
+                continue;
+            g_app_hk.frame.claimed[k] = 1;
+            app_hk_consume_key(app, k);
+            any |= snapshot.down[k];
+        }
+        g_app_hk.valid = 1;
+        if( any )
+            app->need_redraw = 1;
+        return;
+    }
 
     /* The Hotkeys panel waiting for a chord owns the keyboard. */
     if( Editor_Hotkeys_Capturing(ui) >= 0 )

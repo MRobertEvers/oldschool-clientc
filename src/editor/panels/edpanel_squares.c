@@ -130,6 +130,9 @@ struct SquaresPanel
 
     int fetched;
     int want_refresh;
+    /** The server answered BUSY (its index still building) and the log said
+     *  so once; the next tick asks again. */
+    int busy_logged;
     int dirty;
     /** The user zoomed, panned or searched: the view is theirs, and a well
      *  that changes size keeps it instead of fitting the page again. */
@@ -300,10 +303,23 @@ squares_fetch(
         return;
     }
     memset(&atlas, 0, sizeof(atlas));
-    if( Editor_HostMapEdCatalogSquares(&ui->editor->host, &atlas) != EDITOR_HOST_OK )
     {
-        Editor_UiLog(ui, "editor: the server did not answer CATALOG_SQUARES");
-        return;
+        enum EditorHost_Status const status =
+            Editor_HostMapEdCatalogSquaresFlags(&ui->editor->host, TORIRSMAPED_CATALOG_NOWAIT, &atlas);
+        if( status == EDITOR_HOST_BUSY )
+        {
+            /* The index is still building: `fetched` stays 0 and the next
+             * tick asks again (one round trip, microseconds). */
+            if( !self->busy_logged )
+                Editor_UiLog(ui, "editor: the catalog index is still building; the square picker waits for it");
+            self->busy_logged = 1;
+            return;
+        }
+        if( status != EDITOR_HOST_OK )
+        {
+            Editor_UiLog(ui, "editor: the server did not answer CATALOG_SQUARES");
+            return;
+        }
     }
     squares_take_atlas(ui, self, &atlas);
     Editor_HostCatalogSquaresFree(&atlas);

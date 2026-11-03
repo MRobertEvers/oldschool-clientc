@@ -39,6 +39,7 @@
 #include "editor/editor_host.h"
 #include "editor/editor_hotkeys.h"
 #include "editor/editor_layout.h"
+#include "editor/editor_recent.h"
 
 #include <stdarg.h>
 #include <stdint.h>
@@ -555,6 +556,32 @@ struct EditorUi
     unsigned char maximise_pending[EDITOR_UI_LAYOUT_PANELS_MAX];
     int booted_layout;
 
+    /**
+     * Compact panels (View > Compact panels, Editor_UiSetCompact): the dock
+     * column's members are every default panel, each either expanded or
+     * COLLAPSED to its title bar (ToriRSChrome_PanelSetCollapsed), so a
+     * small surface still shows the whole set and the world keeps its share.
+     * `compact_mode` is the setting (-1 automatic: on below
+     * EDP_COMPACT_H / EDP_COMPACT_W logical pixels; 0 off; 1 on) and
+     * `compact` what the last layout did with it. Per member: `expanded` is
+     * the user's wish (a title click toggles it; all 1 at boot), and
+     * `expand_serial` when it was last asked for -- when the column cannot
+     * hold every wished-for panel at its minimum, the least recently asked
+     * for are collapsed first.
+     */
+    int compact_mode;
+    int compact;
+    unsigned char expanded[EDITOR_UI_LAYOUT_PANELS_MAX];
+    unsigned expand_serial[EDITOR_UI_LAYOUT_PANELS_MAX];
+    unsigned expand_clock;
+    /** The OS window's box in window points, as the host last told it
+     *  (Editor_UiSetWindowBox); written to the layout file so the next run
+     *  opens the window there. w 0 = unknown. */
+    int window_x;
+    int window_y;
+    int window_w;
+    int window_h;
+
     /** The World panel's chrome panel (module "world"), -1 before it is
      *  registered. Its body is the 3D view: Editor_UiWorldRect. */
     int world_panel;
@@ -614,6 +641,18 @@ struct EditorUi
      *  panels were open when they were hidden (restored by the next press). */
     int panels_hidden;
     unsigned char panels_hidden_open[EDITOR_UI_PANELS_MAX];
+
+    /** The squares opened most recently and the camera scheme
+     *  (editor_recent.h): File > Recent squares, the command palette, the
+     *  camera's mouse. Noted by Editor_UiOpenSquare; the App persists it. */
+    struct Editor_Recent recent;
+    /** A tile the next Editor_UiOpenSquare should bring the camera to once
+     *  the square's load lands (the palette's "3222,3218"), instead of the
+     *  square's centre; consumed by the open hook. */
+    int open_goto_valid;
+    int open_goto_x;
+    int open_goto_z;
+    int open_goto_level;
 };
 
 /** Zero the registry over `chrome`; no panels yet. `editor` may be NULL. */
@@ -692,6 +731,26 @@ Editor_UiLayout(struct EditorUi* ui);
  *  the current surface, the default set shown again, drags forgotten. */
 void
 Editor_UiResetLayout(struct EditorUi* ui);
+
+/** View > Compact panels: `mode` -1 automatic, 0 off, 1 on. Lays out again. */
+void
+Editor_UiSetCompact(
+    struct EditorUi* ui,
+    int mode);
+
+/** 1 when the dock is compact now (the setting resolved against the surface:
+ *  EDP_COMPACT_H / EDP_COMPACT_W at the chrome's scale). */
+int
+Editor_UiCompact(const struct EditorUi* ui);
+
+/** The OS window's box in window points, for the layout file. */
+void
+Editor_UiSetWindowBox(
+    struct EditorUi* ui,
+    int x,
+    int y,
+    int w,
+    int h);
 
 /** View > Snap to grid. */
 void

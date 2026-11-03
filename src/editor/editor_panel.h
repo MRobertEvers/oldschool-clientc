@@ -99,6 +99,13 @@ struct Editor_Panel
     int sq_goto_pending;
     int sq_goto_x;
     int sq_goto_z;
+    int sq_goto_level;
+    /** The open asked for a TILE, not the centre (ui->open_goto_*: the
+     *  command palette's "3222,3218"): where sq_goto goes, and its level. */
+    int sq_open_goto_valid;
+    int sq_open_goto_x;
+    int sq_open_goto_z;
+    int sq_open_goto_level;
 
     /** The brush stroke the world click opened on press (a drag is one undo
      *  step), and the last tile it painted, so a drag paints each tile once

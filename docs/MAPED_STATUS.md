@@ -12,6 +12,9 @@ square in the brief), 1 `a0eeeb676`, 2 `ffdc6be36`, 3 `aa8798eae`, 4 `ceabbc9c2`
 2026-10-30 -- dock layout, server catalog panel, record copy, spawn duplicate,
 brush footprint, spawn ghosts, History panel, slider skin).
 
+The plan for the editor as a game editor, measured against the editors
+people know, is docs/MAPED_ROADMAP.md.
+
 ## How to run it
 
 ### Quick start (2026-11-02)
@@ -865,6 +868,403 @@ vocabulary). What to know when using it:
   next login (two logins on the server). Last run 2026-11-02: 26 ok, 0 failed
   (LIVE_E2E_OBJ=build_agent_acct_opt, server binaries from build_opt).
 
+## Ergonomics (2026-11-03)
+
+The owner's direction: a fully fledged game editor, ergonomic the way Unity,
+Unreal, Godot, Tiled and Hammer are. Four strands landed, each a hotkey
+action in the one table (docs/MAPED_HOTKEYS.md has the user's reference):
+
+- **Command palette** (`view.command`, **Ctrl+P**, View > Command palette;
+  module "command", src/editor/panels/edpanel_command.c). A chrome MODAL with
+  one box and twelve rows: every edge / repeat action of the hotkey table
+  (name, group, id; the chord after a tab; Enter runs it -- the App-bound
+  ones, the camera and the eyedroppers, land in the App's dispatcher on the
+  next frame through `Editor_Command_TakePendingAction`), "Open <panel>" for
+  every View-menu panel, squares by name or coordinates through the picker's
+  own parser over the atlas it holds (`Editor_PickerSearch`; "m50" lists the
+  atlas's m50_* squares; an empty cell offers New square there), absolute
+  tiles ("3222,3218": the camera goes there at once when the square is in
+  the scene, else the square is opened with the tile as the camera's landing
+  -- `ui->open_goto_*` -> `Editor_Panel.sq_open_goto_*` ->
+  `app_map_editor_open_pending_square`), catalog records by kind
+  ("loc:oak", "npc:hans", "obj:knife": `Editor_Catalog_Find` sets the
+  Catalog's Kind and Find and drives its model whether or not the panel is
+  open, the held page's rows are the hits, Enter is
+  `Editor_Catalog_PickRecord`), and the recent squares (first, with the box
+  empty). Matching: prefix > word-start > substring > subsequence. Up / Down
+  and Escape reach it through `Editor_Command_Feed` from the App's hotkey
+  frame (the box has the keyboard, so the gates are shut, exactly as the
+  Hotkeys panel's capture is fed); Enter is the box's own activation. The
+  palette closes before it runs the hit. Nothing scans the content tree per
+  keystroke: the catalog query settles and asks the server once per text.
+  Ctrl+Shift+P stays the Preview panel's (editor_hotkeys_test pins it).
+- **Go to tile...** (`view.goto_tile`, **Ctrl+Shift+G**; Ctrl+G stays Snap):
+  the palette prefilled with the hovered tile's coordinates (the App), else
+  the latched tile's or the selection's (the panel side).
+- **Recent squares** (File > Recent squares, the last ten, newest first;
+  src/editor/editor_recent.{h,c}, src/editor/task_editor_recent_io.{h,c}).
+  Noted by `Editor_UiOpenSquare` (every open path ends there), remembered
+  per user in `editor_recent.ini` beside `editor_layout.ini` under the same
+  path rule (`TORIRS_EDITOR_RECENT`; read at boot and written on change by
+  app_editor_hotkeys.c's second io machine, flushed at shutdown; never in
+  the content tree). The same file holds the camera scheme (`[camera]
+  scheme = default|unity`). The menu bar's File rows grow by a header and
+  one row per square; a row opens it as the picker's Open does (the save
+  guard first). edpanel_menubar.c `menubar_open_recent`.
+- **Camera schemes** (`camera.scheme`, unbound, the Hotkeys panel's row or
+  the palette's "Camera scheme"; remembered as above). The default scheme is
+  untouched. The **Unity** scheme (src/app/app_camera.c
+  `app_camera_unity_*`): right-drag looks (yaw / pitch, pitch clamped 64..512;
+  a right CLICK still opens the minimenu, a drag past 4 px hides it),
+  middle-drag pans the ground plane (faster the higher the eye), the wheel
+  zooms toward the tile under the cursor (a sixth of the distance per notch,
+  never under two tiles), Alt+left-drag orbits the selection's first loc
+  (else the latched tile, else the hovered tile) at the eye's distance, and
+  **F frames** the selection (`camera.frame_key`, context **U**; Fly down
+  keeps F under the default scheme, context **D** -- two new exclusive
+  contexts; a caller stating neither is on D, so every older test and the
+  resolver's callers are unchanged). Home / Ctrl+Home frame under both
+  schemes. The presses are latched by `app_camera_unity_gate` from the hotkey
+  frame, BEFORE the editor's world click, which then sees
+  `input_frame_consumed` and never paints or selects under an orbit or a
+  pan; the drags move the camera in `app_world_camera_mouse` and end in
+  `app_camera_keep_over_scene` (the clamp). Its state is the subsystem's
+  file-static (struct App may not grow). **Double-click** a tile in the
+  World panel (Select tool) recentres the camera on it at the distance it
+  has (`app_map_editor_camera_to_tile(..., zoom 0)`: the pose of the eye's
+  own view ray, `EditorView_PoseFromEye`), under either scheme.
+- **Selection**: `edit.select_kind` **Ctrl+Shift+L** selects every loc of
+  the catalog's picked loc id (else of the selection's first loc) over the
+  open squares on the pinned level (else the selection's); `edit.invert`
+  **Ctrl+I** makes the open squares' unselected locs on that level the
+  selection. Both App-free in edpanel_hotkeys.c, both capped by the 256-loc
+  selection (the console says how many were left out). **Hide selected /
+  Show all was skipped**: the world's scenery entities carry no per-loc
+  visibility flag (src/world/entity_scenery.h), so an overlay-only hide
+  would be a remove-and-restore through the edit layout per loc -- not
+  cheap, and not "overlay-only".
+- Fixed on the way: the Hotkeys panel's group headers were in the doc's
+  order (File, Edit, Place, Palette, Tools, ...) while the table is grouped
+  File, Edit, Place, Tools, Brush, Level, Camera, Palette, View; the
+  Register asserts the two agree, and the asserts are compiled out in the
+  OPT build, so the headers were mislabelled from "Palette" on (the Tools
+  rows sat under a "Palette" header). k_groups now follows the table.
+
+Tests: editor_hotkeys_test `test_ergonomics` (the chords, F under D / U,
+D and U exclusive and clash-free, the recent ring and its codec: 1095
+checks); editor_panels_test `test_command_palette` (the module, View row,
+open / focus, 'undo' / 'ssqn' / 'open hotk' hits with the chosen row yellow,
+Up / Down / Escape, Enter runs and closes, m50_51 opens, "m50" lists, a tile
+carries the landing, an empty cell offers New, recents in File and in the
+palette, the scheme toggle, Select kind / Invert over m50_50, and
+"loc:crate" / "npc:gua" picking through the catalog harness: 2711 checks, 0
+failed). `make -C src check-pt-switch check-tree-walks` pass.
+`check-app-boundary` fails at HEAD already (struct App has 380 top-level
+fields against the baseline's 378; src/app.h is untouched here -- someone
+committed two fields without raising the ceiling); editor_hotkeys_test's doc
+check fails on `view.compact`, the layout strand's row, whose doc lines were
+not in yet when this ran.
+
+Photographs (1280x800, TORIRS_HIDPI=0, against a mirror of the tree on a
+scratch lane; the scratchpad's `ergo/`): `palette_undo.bmp` (Ctrl+P, "undo"
+typed: the Edit: Undo row first, yellow, Ctrl+Z after the tab),
+`palette_tile.bmp` ("3222,3218": Go to tile 3222,3218 L0 / m50_50),
+`palette_goto.bmp` (Ctrl+Shift+G over a parked hover: the box prefilled
+"3222,3218"), `file_recent.bmp` (the File menu open with Recent squares),
+`palette_record.bmp` ("loc:oak": the catalog's page as Pick loc rows),
+`palette_tile_run.bmp` ("3286,3420" then Enter: the palette gone, m51_53
+opened and the camera over the tile -- TORIRS_SIM_TYPE's `k84` is the Enter
+the box sees; a TORIRS_SIM_HOTKEY `return` writes the key arrays only and
+never reaches a text input).
+
+Open:
+
+- The Unity scheme's right-drag look and the minimenu: the menu opens on
+  the right PRESS (app_frame.c, the interact pass) and is hidden once the
+  drag passes 4 px; a very short drag therefore flashes the menu for a
+  frame or two. Opening the menu on release instead is the interact pass's
+  (the performance strand owns app_frame.c).
+- The palette's record hits wait one settle frame plus a server round trip
+  ("asking the catalog..."); Enter during the wait keeps the box. Typing a
+  record query also moves the Catalog panel's Kind and Find (by design: the
+  Catalog shows what was asked), which a user who had a different kind
+  there will notice.
+- In the first seconds of a boot the server's square index is still
+  building and the picker has no atlas: the palette then parses
+  coordinates itself (`cmd_hits_coords_blind`: "m50_50", "50 50" a square,
+  "3222,3218" a tile, both under 256 a square) and the row says "(atlas
+  still building)"; an open of a square that is not there says so in the
+  console. The first photograph of "3222,3218" was taken in that window and
+  read "nothing matches" before this fallback.
+- The palette lists squares by NAME only for an "m<digits>" prefix (the
+  atlas is thousands of squares; "s" alone would list the world) and area
+  names are not offered (the picker's search handles them; the palette does
+  not -- a "Show area <name>" hit would need a non-const picker).
+- An App-bound action run from the palette (the camera, an eyedropper,
+  Paste at the hovered tile) runs on the NEXT frame, with the pointer still
+  where it was over the palette: the hover-dependent ones say "point at the
+  tile" in the console.
+- Alt+left-drag orbit: the pivot's ground is read on the edit level (Auto =
+  the loc's / tile's own level); the orbit distance is the eye's distance at
+  the press, so an eye far from the pivot orbits a wide circle -- frame it
+  first (Home / F).
+- No photograph of a drag (the headless sim has clicks and chords, no
+  drags): the Unity scheme is proven by editor_hotkeys_test's context checks
+  and by reading app_camera.c; a live run is the owner's.
+
+## Performance (2026-11-03)
+
+Owner: "It should be fast and efficient." Measured with the editor's own
+frame clocks, headless, on a mirror of the real tree (the recipe below):
+`TORIRS_EDITOR_FRAME_STATS=1` prints, at exit, the frames sampled (from the
+first drawn world frame; `TORIRS_EDITOR_FRAME_STATS_FROM=<n>` starts later,
+to isolate a scenario) and the p50 / p95 / max / mean in ms of each phase:
+the whole frame (App_RunOnce + App_Render), the editor UI tick (chrome tick,
+overlay and editor panel ticks; the chrome build inside it, on its own row),
+the hover pick finish + ghost / preview / palette updates, the async pump
+(IO and the embedded editor server), logic + movers, the edit layout's
+remesh flush, the game tree's interact pass, the render (world + 2D) and
+the world's DRAW_MODEL commands inside it; counters (chrome rebuilds, pick
+frames, preview rasters); and the startup marks "world drawn" and "catalog
+ready" as seconds from process start with the resident set at each
+(src/perf/frame_stats.h, header-only; the clocks are one branch when off;
+never TORIRS_PERF). The sites: app/app_frame.c, app/app_render.c,
+app/app_debug_ui.c, app/app_map_editor.c, platform/platform_renderer_soft3d.c,
+torirsmaped/torirs_maped_catalog.c.
+
+Recipe (private no-LTO OPT build so `sample` has stacks; a mirror so the
+real tree is never opened by a lock-taking editor; the lane under a scratch
+repo root; headless at 1280x800 on soft3d):
+
+    make -C src -j12 OPT=1 PROFILE=1 OPT_RELEASE_CFLAGS=-DNDEBUG OPT_RELEASE_LDFLAGS= \
+      PLATFORM_OBJ_BASE=build_agent_perf PLATFORM_TARGET=build_agent_perf_opt_prof/torirs \
+      build_agent_perf_opt_prof/torirs
+    python3 src/maped/test/live_e2e/mirror.py OSRS-Content/osrs-content <scratch>/content
+    # manifest: manifests/manifest_osrs241_mapeditor.ini with absolute dir=,
+    # content_dir=<scratch>/content, repo_root=<scratch>/repo, revconfig_cache=,
+    # and `window=1280x800` under [ui:boot]
+    TORIRS_HIDPI=0 TORIRS_PREFS="" TORIRS_EDITOR_LAYOUT="" TORIRS_PLUGINS=0 SDL_VIDEODRIVER=dummy \
+    TORIRS_EDITOR_FRAME_STATS=1 TORIRS_MAX_FRAMES=600 [scenario envs] \
+      ./src/build_agent_perf_opt_prof/torirs --manifest <scratch>/manifest.ini
+    # scenarios: TORIRS_SIM_HOTKEY="100,w,hold=200" (pan); TORIRS_EDITOR_CATALOG="loc:oak@200";
+    # TORIRS_EDITOR_PICKER="Full map,fit" (the Squares panel is in the default
+    # layout now); TORIRS_SIM_HOTKEY="500,3" TORIRS_SIM_DRAG="550,300,300,700,500,1,1,300"
+    # TORIRS_EDITOR_FRAME_STATS_FROM=540 (a Raise brush drag over the World panel);
+    # TORIRS_EDITOR_POPOUT="preview@150"; TORIRS_SIM_CLICK_AT="150,500,350" (mouse parked
+    # over the world: the hover pick every frame). `ps -o rss` sampled every 0.25 s
+    # beside it; `sample <pid> 8` for the hot functions.
+
+The numbers (this Mac, the mirror; frame = p50 / p95 ms; the loop is paced at
+20 ms so a frame under that is idle time given back):
+
+| scenario | before | after | what changed |
+|---|---|---|---|
+| idle, default panels | frame 8.4 / 9.6 ms; the async pump 6.2 ms every frame for the catalog's warm build (6 ms slices for the ~25 s it took at that pace; never finished within 1200 frames here) | 2.4 / 2.7 ms; pump 0.02 ms; catalog ready 8.4 s after start | the warm build runs on a worker thread (`cat_warm_thread_*`; `TORIRS_CATALOG_WARM_THREAD=0` keeps the slices) |
+| boot with the Square picker in the layout (the default since 2026-11-03) | world drawn 8.3-8.7 s after start: the picker's atlas request at frame 2 ran the whole build synchronously; the same 6.8-7.0 s stall for a Catalog opened at frame 200 or F4 at frame 100 | world drawn 0.12 s; the panel says "the catalog index is still building" and asks again each tick; the Catalog's count row says "the catalog index is building..." and re-asks every 10 ticks | `TORIRSMAPED_CATALOG_NOWAIT` on the two polling requests (query, squares) answers `EDITOR_HOST_BUSY` while the thread builds; every other catalog request waits as before (a click's record view, the Triggers/Spawns/Accounts lookups) |
+| Catalog open at frame 200 with "oak" | one 6.76 s frame | frame 2.5 / 4.0 ms, the query answers at frame ~409 | as above |
+| Square picker, Full map (8,370 regions) | ps rss peak 1355 MB, exit 1181 MB; assets group peak 773 MB; the pump stalled 400 ms (every region's tiles asked for at once and held until baked) | peak 877 MB, exit 713 MB; assets peak 268 MB; pump max 137 ms; the whole map in 914 ms (was 1073) | `OVERVIEW_REGIONS_IN_FLIGHT` 256: a poll stops asking for more regions once that many are loading or waiting (`TORIRS_WORLDMAP_INFLIGHT=<n>`, 0 = no cap) |
+| catalog index resident | editor group 292 MB live after the build (peak 420): pools 79 MB used of 123, contribs with a third of slack | 218 MB live (peak 346) | `cat_source_trim`: a parsed source gives back its pool and contrib growth slack (`TORIRS_CATALOG_TRACE=1` prints the breakdown) |
+| camera pan (W held 200 frames) | 7.5 / 9.3 ms | 1.0 / 2.8 ms | the pump (above); the pan itself was never the cost |
+| popped-out Preview attached | 8.7 / 10.0 ms | 2.5 / 2.9 ms | the pump (above) |
+| Raise brush drag, 300 frames | 3.7 / 5.1 ms (after the build); remesh flush p50 0.001 ms, max 1.8 ms | same | nothing: the edit layout's per-tile remesh is already cheap |
+| startup | world drawn 0.17-0.20 s, rss 183 MB (0.13 s with the thread); catalog ready never within 24 s (slices) | catalog ready 8.0-8.4 s on the mirror (scan 4.6 s + parse 3.7 s + merge 0.1 s of IO-bound work; the real tree's scan is faster), rss 450 MB at that moment; exit rss 192-206 MB | |
+
+Hot functions (`sample`, 8 s, idle with the mouse over the world): 83% of
+the main thread sleeps in the pacer; of the working samples 826/938 are
+the render -- `toridraw_textri_flat_trans_lerp8_v3_presorted_run_xrgb8888_asm`
+172, `toridraw_gouraud_opaque_s4_presorted_run_xrgb8888_asm` 144,
+`ToriDraw_ProjectWithVTable` 72, `toridraw_compute_projected_face_order_small_general`
+59, `scene_occluders_point_hidden_impl` 51, the SDL blit 48,
+`ToriDraw2D_FillRect` 45, `bucket_paint_world` 44 -- i.e. the software
+rasteriser drawing the World panel (1.4 ms of the 2.4 ms frame), then the
+2D chrome raster (~0.5 ms). During the warm build (the boot sample): 1697 of
+1788 samples under `cat_job_step`, of which 840 + 432 in `read` and 233 in
+`open` -- the parse is the file reads, not the parsing.
+
+Measured and left alone, with why:
+
+- The chrome build: 4-7 rebuilds in 600 idle frames, 59 in a 360-frame
+  brush drag, 0.004 ms mean -- it is retained already; a per-panel display
+  list cache would save nothing measurable.
+- The editor UI tick: 0.08 ms p50 with every default panel ticking. Ticking
+  only visible panels would save microseconds.
+- The hover pick: render 2.16 ms with the mouse parked over the world
+  (651 pick frames) against 2.18 without -- the per-model hit test is in
+  the noise; a pick cache keyed on mouse + camera + geometry is not worth
+  its staleness risk.
+- The Preview's 640x512 raster: only on a pose or subject change already
+  (`app_map_editor_preview_update` latches both); an orbit re-rasters per
+  key, which is the feature.
+- The world draw (1.4 ms, the rasteriser) and the 2D raster (0.5 ms) are
+  the frame now; nothing in the editor's own code is above 0.1 ms p50.
+- The Full map's remaining assets peak (268 MB) is the loc, underlay and
+  overlay types every region's floors ask the provider for; they stay
+  resident by the provider's design. The one-pixel bakes (16 KB x regions
+  seen, 134 MB for the Full map) are still never freed.
+- The max frame of ~90 ms in every run is the boot's world load landing in
+  the async pump (frame 6), before the first drawn frame.
+- A request that is not NOWAIT during the warm build still waits for the
+  rest of it (now a thread that has run flat out since boot): a Triggers,
+  Spawns or Accounts lookup in the first ~8 s. A NOWAIT on those needs a
+  retry in each panel.
+- NOT mine, seen on the last runs of the day (14:54 tree): a lanes request
+  at frame 2 (`handle_lanes` -> `changes_walk_base`, torirs_maped_lanes.c,
+  under another strand's edit) stats and lstats every file of the base
+  tree synchronously inside the embed pump: the world drew 3.3-7.0 s after
+  start again (0.12 s without it). The same shape as the catalog's warm
+  build was: it wants a thread or slices, and a BUSY answer meanwhile.
+
+## Screens and portability (2026-11-03)
+
+Owner's direction: "a fully fledged game editor. It should work on many
+machines and screen sizes." This strand: small screens, the layout engine,
+a status bar, the Windows and web builds, the window's box across runs.
+
+**Compact panels** (editor_ui.c `Editor_UiLayout`, the dock column). Below
+`EDP_COMPACT_H` x `EDP_COMPACT_W` = 800 rows or 1280 columns of LOGICAL
+pixels (device px / chrome scale: 1366x768, 1280x720, 1024x600, 960x600 at
+1x; a 1440x900 MacBook at 2x is 2880x1800 and is NOT compact) the column
+holds EVERY default member -- Terrain, Palette, Inspector, Squares, Areas,
+Catalog, Preview, History -- each either expanded or **collapsed to its title
+bar**. The chrome grew a collapsed panel state for it
+(`ToriRSChrome_PanelSetCollapsed` / `PanelIsCollapsed` /
+`PanelCollapsedHeight`: the header block and the bottom border, no rows, no
+tab strip, no scroll bar, no grip; the title still drags, closes, pops out)
+and a title single-click (`ToriRSChrome_TakeTitleClick`: a press and release
+on a title that moved the panel no further than the double-click slop; the
+first click of a double-click reports here too, a drag that moved it does
+not; a clicked panel is not snapped). Collapse over the chrome's tab strip
+because the tab strip is per PANEL and stamps that panel's own widgets:
+docking the modules as tabs of one panel would mean re-parenting every
+module's widget list, activations and GRAPH events into a shared panel (the
+chrome has no such move), or rewriting every module to build into one;
+collapsing keeps each module's panel, dispatch, saved box and View row
+exactly as they are, and the layout engine only decides heights.
+Rule: every member gets its title bar first (a title that does not even fit
+is hidden, last first); then, most recently expanded first (`expanded[]` is
+the user's wish, all 1 at boot, `expand_serial[]` the order), each panel
+takes its minimum (`EDP_DOCK_MIN_H`) while the column still holds it, so
+expanding one collapses the least recently expanded when there is no room;
+spare height is shared among the expanded ones (the stretcher, the picker's
+well, takes the remainder). A title click on a collapsed docked panel
+expands it; on an expanded one collapses it; a double-click still maximises
+(a collapsed panel is expanded first; Restore puts it back in the column).
+A collapsed panel dragged out of the column expands on its next title click.
+**Setting**: View > "Compact panels: on/off (auto)" and **Ctrl+Shift+C**
+(`EDITOR_HK_VIEW_COMPACT`) toggle it to the opposite of what is in effect
+(`Editor_UiSetCompact`: -1 automatic, 0 never, 1 always); Reset layout
+returns to automatic. The layout file records `compact = -1/0/1` under
+`[layout]` and `collapsed = 0/1` per panel (the wish comes back on the same
+surface). The tool rail wraps into up to 8 columns rather than running off
+the bottom; a menu list wider than what is right of its title is pulled
+back inside the surface (`dbg_dropdown_rect`), so the View menu never clips
+at narrow widths. **The world keeps at least `EDP_WORLD_MIN_PERCENT` (60%)
+of the surface's area at every size from 960x600 logical up**: the console
+strip under the world is shortened (scrolling) to what keeps it, and dropped
+below half a dock panel (it then waits in the View menu) -- at 1280x800 1x
+the strip is 96 px (was 149), at 1366x768 88 px, at 1024x600 none. Below
+960x600 logical the 200 px dock floor and the rail alone take more.
+
+**Status bar** (module "statusbar", editor/panels/edpanel_statusbar.c): a
+MENUBAR-style one-line strip along the bottom of the main window, a layout
+member like the menu bar (the dock column, the world and the console end
+above it; the maximise area too); View > "Status bar" is its one show/hide
+row and the layout file keeps it. Fields: the hovered tile `tile x,z Ln
+m<mx>_<mz>` (app_services.hover_tile), the selection `sel: 3 locs | 2 spawns
+| rect N tiles | tile | none`, the tool (a brush with its radius), `level
+Auto | level 1 +above`, `lane <name>  N unsaved` (the Publish panel's lane
+fact -- `Editor_Publish_LaneName`; the panel now asks the lane facts once at
+boot whatever shows -- and `Editor_DocUnsavedCount`), `live <state>  RUN
+<progress line | done | stopped>` (`Editor_LivePanelModel`), and `N fps`
+only with `TORIRS_EDITOR_FPS=1` (frames per chrome second). Every field is
+rebuilt only when its value changes, and `ToriRSChrome_SetText` is a no-op
+on the same text, so a still frame touches nothing. The ergonomics strand's
+status needs land here; there is no second bar.
+
+**Window box across runs**: the layout file also records `window_x/y/w/h`
+(window points; `Editor_UiSetWindowBox`, told every frame from
+`PlatformWindow_WindowBox`, written when the layout settles). main.c reads
+the file synchronously before the window exists
+(`main_editor_layout_window`, editor boots only, `TORIRS_EDITOR_LAYOUT=""`
+reads nothing) and sizes the window to it over the manifest's `window=`
+(an explicit `--window` still wins), then `PlatformWindow_SetWindowPosition`
+puts it back where it was once it exists (SDL, Win32 GDI; Android has no
+desktop).
+
+**Windows (mingw)**: `make -C src PLATFORM=win64 CC=x86_64-w64-mingw32-gcc
+OPT=1 PLATFORM_OBJ_BASE=build_agent_win64
+PLATFORM_TARGET=build_agent_win64/torirs_win64.exe
+build_agent_win64/torirs_win64.exe` links the whole client with the embedded
+editor server (PE32+ x86-64, 10.5 MB). What failed and was guarded:
+`M_PI` in app/app_cam_arc.h (MinGW's math.h hides it: a guarded define);
+`mkdir(path, mode)` in torirsmaped/torirs_maped_accounts.c (`_mkdir` on
+Windows, as torirs_server_savefile.c does); and torirsmaped/torirs_maped_lanes.c,
+the lane module the client links: `mkdir`, `realpath` (`_fullpath`),
+`lstat`/`S_ISLNK` (stat; nothing is a link), `kill(pid, 0)`
+(`OpenProcess`) go through one shim block, and the two `symlink` sites
+(a lane's mirror, a relink on Publish/Discard) are
+`TORIRSMAPED_LANES_SYMLINKS 0` on Windows: Mirror, Create and the relinks
+refuse with `why` ("a lane mirror needs symlinks, which this Windows build
+has no support for (edit the main tree: [editor:boot] lane=main)") -- never
+a mirror of copies that would silently diverge. Lookup, List, lane.ini and
+the main lane work. The daemon (posix_spawn, the live link) stays POSIX
+behind the existing `TORIRSMAPED_JOBS_NATIVE`. Not run on a Windows machine.
+
+**Web**: `make -C src PLATFORM=web OPT=1 PLATFORM_OBJ_BASE=build_agent_web
+<repo>/build-web/torirs.js` built the page (the `web` target's `servers`
+prerequisite would link into src/build, so the page target alone); the
+native chrome draws the editor there, so compact panels and the status bar
+are the same code. Photographed through DevTools in headless Google Chrome
+(scratchpad web/shoot.py: navigate, wait, set the device metrics, capture)
+against a js5_server (`--max-pending 65535`), the torirsmaped daemon on a
+mirror and src/build/io_server with `--maped-port`: at a 1024x600 and a
+1366x768 browser window the page's canvas (768 px wide in the harness
+layout; "full canvas" takes the window) showed the editor attached to the
+daemon ("editor server = the native torirsmaped daemon"), the compact dock
+(Terrain and Palette expanded, the rest as title bars), the rail in two
+columns and the status bar. The page assets in build-web/ were stale
+(torirs_host.js from Oct 22 never asked the daemon): the `web` target's
+asset copy was repeated by hand; a page built by `make -C src web` gets it.
+
+**Tests**: editor_panels_test `test_layout` boots 1280x800, 1530x1006,
+1920x1080, 2560x1440, 1366x768, 1280x720, 1024x600 and 960x600 at 1x and
+1280x800, 1530x1006, 1920x1080, 2560x1440 and 2880x1800 at 2x; every size:
+no panel covers the world, all on the surface, no overlaps, the world keeps
+60% (from 960x600 logical), the status bar spans the bottom and everything
+ends above it, the rail ends above the status bar, compact below 1280x800
+logical with every member in the column and a collapsed one exactly its
+collapsed height; at 1024x600 a title click expands a collapsed panel
+(collapsing another when there is no room) and collapses an expanded one,
+the file states `compact`/`collapsed`; at 1920x1080 the View row and
+`EDITOR_HK_VIEW_COMPACT` force it on and off and Reset returns to automatic;
+`test_layout_codec` round-trips compact, the window box and a collapsed
+panel; `test_maximise` finds the menu bar by module (the status bar is a
+MENUBAR-style strip too) and expects the area above the status bar.
+editor_panels_test: 2660 checks, 0 failed (was 1641; 2711 with the
+ergonomics strand's tests beside them). `make test-editor test-uitree`:
+every suite green (uitree "All UITree tests passed"); editor_hotkeys_test
+needs the `view.compact` rows in docs/MAPED_HOTKEYS.md (added). Under
+load (the web photograph's Chrome beside it) editor_panels_test once lost
+its catalog-index wait and segfaulted after it; alone it passes.
+`check-pt-switch` and `check-tree-walks` PASS; `check-app-boundary` is red
+on `struct App` 380 fields vs the 378 baseline -- not this strand's (app.h
+untouched here).
+
+**Photographs** (headless, SDL dummy, TORIRS_EXIT_BMP at frame 400, the
+mirror + a scratch manifest; looked at, crops at 2x): native 960x600,
+1024x600 (compact: Terrain and Palette expanded, Inspector / Squares / Areas /
+Catalog / Preview / History as title bars, the rail in two columns, the
+status bar reading `tile -  sel: none  Select  level Auto  lane working
+live detached`), 1280x720, 1366x768 (Terrain, Palette, Inspector, Areas
+expanded; the console strip 88 px), 2880x1800 at chrome scale 2 (not
+compact; the column Terrain, Palette, Inspector, Areas, Catalog). Paths in
+the strand's report.
+
+**Open**: the Windows binary has not been run on Windows; a lane on
+Windows needs a mirror without symlinks (junctions or copies with a
+manifest) before `lane=working` works there; the DOM executor still has no
+dock layout (the web draws the native chrome).
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.
@@ -924,8 +1324,10 @@ Every issue the phase reports left open, by area, with where to start.
   the frame, would cut it.
 - The overview is a process-lifetime static in src/app/app_map_editor.c
   (`g_picker_worldmap`; the App holds no field by check-app-boundary). The
-  one-pixel bakes are never freed (~25 MB the surface, ~64 MB once the Full
-  map has seen every area); the close-up pool is capped at 64 MB.
+  one-pixel bakes are never freed (~25 MB the surface, ~134 MB once the Full
+  map has seen every region); the close-up pool is capped at 64 MB. The
+  regions' decoded tiles are bounded since 2026-11-03 (`OVERVIEW_REGIONS_IN_FLIGHT`,
+  "Performance" above): the Full map held ~590 MB of them at once before.
 - At 48 px a square the surface is crowded with icons (595's farthest zoom is
   the same); there is no per-category filter like 595's key panel.
 - A content edit does not redraw the map: it is the CACHE's world map. A
@@ -1132,12 +1534,13 @@ printed).
 
 Still slow, with where to start:
 
-- A Catalog opened in the first ~15 s after the editor opens waits for the
-  rest of the warm build (~6 s of work on this tree: scan 0.5-1.8 s, parse
-  2.5-3.6 s -- cs2 935 ms, jm2 951 ms, jl2 527 ms, rs2 357 ms -- merge
-  80-130 ms) at 6 ms a frame (`TORIRSMAPED_CATALOG_WARM_SLICE_MS`). The warm
-  build's own slices cost one ~70 ms frame (configs/all.loc, 86 MB, is one
-  file's parse) and one ~90 ms frame (the merge).
+- (Fixed 2026-11-03, "Performance" above: the warm build runs on a worker
+  thread and the Catalog's query is NOWAIT.) A Catalog opened in the first
+  ~15 s after the editor opens used to wait for the rest of the warm build
+  (~6 s of work on this tree: scan 0.5-1.8 s, parse 2.5-3.6 s -- cs2 935 ms,
+  jm2 951 ms, jl2 527 ms, rs2 357 ms -- merge 80-130 ms) at 6 ms a frame
+  (`TORIRSMAPED_CATALOG_WARM_SLICE_MS`, still the shape under
+  `TORIRS_CATALOG_WARM_THREAD=0` and on the web/win32 lanes).
 - A sweep that finds a changed file merges the whole index in one step,
   ~80-100 ms on this tree (`cat_merge`): one hitch per change seen, while
   the Catalog is being used (sweeps start only from requests). An

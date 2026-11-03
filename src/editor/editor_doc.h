@@ -288,6 +288,11 @@ Editor_DocHandleClearDirty(struct Editor_DocHandle* handle);
 int
 Editor_DocHasUnsaved(const struct Editor_Doc* doc);
 
+/** How many open documents have unsaved edits (a square with both halves
+ *  dirty counts once). */
+int
+Editor_DocUnsavedCount(const struct Editor_Doc* doc);
+
 /* ---- text documents ----------------------------------------------------- */
 
 /** Replace a text document's contents and mark it loaded (not dirty). */

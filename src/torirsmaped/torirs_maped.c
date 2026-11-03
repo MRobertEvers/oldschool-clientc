@@ -87,6 +87,8 @@ static void handle_lanes(
     uint32_t type,
     const uint8_t* body,
     uint32_t length);
+static void lanes_service(struct ToriRSMapEd* maped);
+static void lanes_scan_free(struct ToriRSMapEd* maped);
 
 /* ------------------------------------------------------------------ */
 /* Server lifecycle                                                    */
@@ -153,6 +155,7 @@ ToriRSMapEd_Close(struct ToriRSMapEd* maped)
         /* Stops a running build and whatever the live link launched. */
         jobs_free(maped);
         acct_state_drop(maped);
+        lanes_scan_free(maped);
         maped->open = 0;
     }
 }

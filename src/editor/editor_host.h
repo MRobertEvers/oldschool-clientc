@@ -79,6 +79,10 @@ enum EditorHost_Status
     EDITOR_HOST_REFUSED,
     /** This binding or server does not offer the operation (yet). */
     EDITOR_HOST_UNSUPPORTED,
+    /** The server's catalog index is still being built (its warm build runs
+     *  on a thread for the first seconds of a session): ask again shortly.
+     *  Never a refusal -- the same request answers once the build is done. */
+    EDITOR_HOST_BUSY,
 };
 
 struct EditorHost_VTable
@@ -738,10 +742,20 @@ struct EditorHost_CatalogSquares
     void* storage_mem;
 };
 
-/** CATALOG_SQUARES: the square atlas the picker draws. */
+/** CATALOG_SQUARES: the square atlas the picker draws. Waits for the
+ *  server's index when it is still building. */
 enum EditorHost_Status
 Editor_HostMapEdCatalogSquares(
     struct EditorHost* host,
+    struct EditorHost_CatalogSquares* out_atlas);
+
+/** The same with ToriRSMapEdCatalogQueryFlag bits: TORIRSMAPED_CATALOG_NOWAIT
+ *  answers EDITOR_HOST_BUSY (an empty atlas) while the index builds, for a
+ *  caller that asks again every tick. */
+enum EditorHost_Status
+Editor_HostMapEdCatalogSquaresFlags(
+    struct EditorHost* host,
+    uint32_t flags,
     struct EditorHost_CatalogSquares* out_atlas);
 
 /**

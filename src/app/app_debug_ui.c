@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "perf/frame_stats.h"
 
 /*
  * XP-drop panel probe (TORIRS_XPDROP_DEBUG=1).
@@ -249,10 +250,16 @@ app_debug_overlay_tick(
     /* Build returns 0 on a frame where nothing moved. When it did rebuild the
      * canvas is stale — including the frame the panel was hidden on, whose
      * vacated pixels are still on screen until something repaints them. */
-    if( ToriRSChrome_Build(&app->dbg_ui) )
     {
-        app->need_redraw = 1;
-        ToriRSChrome_DamageClear(&app->dbg_ui);
+        uint64_t const t_build = FrameStats_Now();
+        int const rebuilt = ToriRSChrome_Build(&app->dbg_ui);
+        FrameStats_Span(FRAME_STATS_CHROME_BUILD, t_build);
+        if( rebuilt )
+        {
+            FrameStats_Count(FRAME_STATS_CTR_CHROME_REBUILDS, 1);
+            app->need_redraw = 1;
+            ToriRSChrome_DamageClear(&app->dbg_ui);
+        }
     }
 }
 

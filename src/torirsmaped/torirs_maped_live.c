@@ -1597,6 +1597,7 @@ ToriRSMapEd_Service(struct ToriRSMapEd* maped)
     live_service(maped);
     play_service(maped);
     jobs_progress_service(maped);
+    lanes_service(maped);
     /* The catalog's warm build and freshness sweeps, a slice at a time
      * (torirs_maped_catalog.h ToriRSMapEdCatalog_Service). */
     if( maped->catalog )

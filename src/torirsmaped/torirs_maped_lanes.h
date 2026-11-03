@@ -45,9 +45,16 @@
  *          -> FACT_LANE_LIST      u32 n, n * (string name, string content,
  *                                 string base, u32 is_main, u32 is_this)
  *   LANE_CHANGES  (empty)
- *          -> FACT_LANE_CHANGES   u32 modified, u32 added, u32 deleted,
+ *          -> FACT_LANE_CHANGES   u32 state (0 the answer, 1 still scanning:
+ *                                 the counts and rows below are empty and the
+ *                                 answer follows as a BROADCAST when the scan
+ *                                 ends), u32 modified, u32 added, u32 deleted,
  *                                 u32 rows, rows * (u32 kind, string path,
  *                                 u32 size)   (rows capped at 1024)
+ *          The scan stats every entry of the lane and of its base (~100 k
+ *          each, 1..7 s on a cold disk): it runs on a worker thread where the
+ *          platform has one, never inside the server pump, so an editor that
+ *          asks at boot keeps drawing.
  *   LANE_PUBLISH  string target (a lane name, "main"), string new_name
  *                 ("" unless a new lane is made from main first), u32 flags
  *                 (TORIRSMAPED_LANE_PUBLISH_*)
@@ -81,6 +88,8 @@ enum
     TORIRSMAPED_FACT_LANES_RANGE_FIRST = 201,
     TORIRSMAPED_FACT_LANES_RANGE_LAST = 210,
 
+    TORIRSMAPED_LANE_CHANGES_DONE = 0,
+    TORIRSMAPED_LANE_CHANGES_SCANNING = 1,
     TORIRSMAPED_LANE_PUBLISHED_PUBLISH = 1,
     TORIRSMAPED_LANE_PUBLISHED_DISCARD = 2,
     TORIRSMAPED_LANE_PUBLISHED_CREATE = 3,

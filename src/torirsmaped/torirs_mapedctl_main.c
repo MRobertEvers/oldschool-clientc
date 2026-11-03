@@ -126,7 +126,7 @@
  *                          a quest cheat is queued for the next login
  *   account-place <name> <x> <z> <level>
  *   lane                   this server's editor lane: name, content, live, base
- *   lanes                  every lane: main and build/lanes/* (* marks this one)
+ *   lanes                  every lane: main and build/lanes (* marks this one)
  *   changes                the lane's changes against its base (M/A/D path)
  *   publish <target> [keep] [force]
  *                          save all, then write the changes into lane <target>
@@ -2084,7 +2084,14 @@ lanes_print(
     }
     else if( type == TORIRSMAPED_FACT_LANE_CHANGES )
     {
-        uint32_t modified = ToriRSMapEd_GetU32(&reader);
+        uint32_t const state = ToriRSMapEd_GetU32(&reader);
+        uint32_t modified;
+        if( state == TORIRSMAPED_LANE_CHANGES_SCANNING )
+        {
+            printf("scanning the lane's changes...\n");
+            return;
+        }
+        modified = ToriRSMapEd_GetU32(&reader);
         uint32_t added = ToriRSMapEd_GetU32(&reader);
         uint32_t deleted = ToriRSMapEd_GetU32(&reader);
         uint32_t rows = ToriRSMapEd_GetU32(&reader);

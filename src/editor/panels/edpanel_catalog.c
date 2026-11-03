@@ -1063,6 +1063,39 @@ Editor_Catalog_PickRecord(
     return 1;
 }
 
+const struct Editor_CatalogModel*
+Editor_Catalog_Find(
+    struct EditorUi* ui,
+    uint32_t kind,
+    const char* text)
+{
+    struct CatalogPanel* self;
+    struct EditorHost* host;
+    const char* shown;
+
+    assert(ui);
+    assert(text);
+    assert(kind <= TORIRSMAPED_CATALOG_OBJ);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( !self )
+        return NULL;
+    /* The panel's own widgets carry the query, so an open Catalog shows what
+     * the palette asked for and a later keystroke there continues it. */
+    if( ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_kind) != Editor_CatalogModelKindIndex(kind) )
+        ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_kind, Editor_CatalogModelKindIndex(kind));
+    shown = ToriRSChrome_Text(ui->chrome, self->input_search);
+    if( !shown || strcmp(shown, text) != 0 )
+        ToriRSChrome_SetText(ui->chrome, self->input_search, text);
+    /* The panel's tick drives the model only while it is open: drive it here
+     * for a closed one (Want is keyed and settles, so this asks the server
+     * once per settled text, not per frame). */
+    (void)Editor_CatalogModelWant(&self->model, kind, text);
+    host = catalog_host(ui);
+    if( host && Editor_CatalogModelRefresh(&self->model, host) && ui->chrome->panels[self->panel].visible )
+        catalog_list_show(ui, self);
+    return &self->model;
+}
+
 void
 Editor_Catalog_Adopt(
     struct EditorUi* ui,

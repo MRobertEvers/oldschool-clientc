@@ -10,6 +10,11 @@
 #include "app/app_internal.h"
 #include "app/app_camera_clamp.h"
 #include "app/app_cam_arc.h"
+#include "editor/editor_panel.h"
+#include "editor/editor_view.h"
+#include "editor/panels/edpanel_ops.h"
+
+#include <math.h>
 
 /* Private to this unit, declared up front so definition order is free. */
 static void
@@ -133,6 +138,309 @@ app_camera_keep_over_scene(struct App* app)
     if( app_camera_clamp_scene(&view->world_camera_pos.x, &view->world_camera_pos.y, &view->world_camera_pos.z,
             extent, margin, ground, 64, -extent) )
         app->need_redraw = 1;
+}
+
+/* ---- the editor's Unity-style scheme -----------------------------------------
+ *
+ * docs/MAPED_HOTKEYS.md "Camera": with the scheme on (the Hotkeys panel's
+ * Camera scheme toggle, remembered in editor_recent.ini) the mouse works as
+ * in Unity's scene view -- right-drag looks (yaw / pitch), middle-drag pans
+ * the ground plane, the wheel zooms toward the tile under the cursor,
+ * Alt+left-drag orbits the selection (else the latched or hovered tile), and
+ * F frames the selection (the hotkey table's camera.frame_key, context U).
+ * Under the default scheme nothing here runs: the middle button orbits and
+ * the wheel dollies as before.
+ *
+ * The latches are the subsystem's own (one editor window per process, as
+ * app_editor_hotkeys.c keeps its): struct App may not grow. A press latches
+ * over the world only (the panels, the chrome and an open minimenu keep
+ * their pointer); the drag then follows the pointer anywhere until release.
+ * Every move ends in app_camera_keep_over_scene: the scheme never leaves the
+ * loaded squares.
+ */
+static struct
+{
+    int look_active;
+    int pan_active;
+    int orbit_active;
+    /** The pointer the last delta was measured from. */
+    int last_x;
+    int last_y;
+    /** How far the pointer moved since the press (a right CLICK under a
+     *  few px keeps the minimenu; past it the menu is the drag's casualty). */
+    int travel;
+    /** The orbit's pivot: scene fine units and its ground, the eye's
+     *  distance from it, and the pose's angles (the camera's, kept here so
+     *  the pitch clamp is applied to a running value). */
+    int pivot_x;
+    int pivot_y;
+    int pivot_z;
+    int pivot_dist;
+    int yaw;
+    int pitch;
+} g_cam_unity;
+
+/** The Unity scheme is on and this frame's camera is the editor's free one. */
+static int
+app_camera_unity_on(struct App const* app)
+{
+    struct EditorUi const* ui;
+    if( !app_editor_hotkeys_owns_camera(app) || !app->world || !app->frame_view )
+        return 0;
+    ui = app->editor_panel.ui;
+    return ui->recent.camera_scheme == EDITOR_CAMERA_SCHEME_UNITY;
+}
+
+/** The pointer is over the world and nothing else wants it. */
+static int
+app_camera_unity_over_world(
+    struct App* app,
+    int x,
+    int y)
+{
+    return !app_chrome_wants_pointer(app, x, y) && app_world_mouse_gate(app, x, y) && app->world_active
+           && app_world_viewport_component_live(app);
+}
+
+/** Pitch for a camera that looks around: never past straight down (512),
+ *  never under the horizon (64, an eleventh of a turn). */
+static int
+app_camera_unity_clamp_pitch(int pitch)
+{
+    return app_camera_clamp_axis(pitch, 64, 512);
+}
+
+/** The orbit's pivot: the selection's first loc, else the latched tile,
+ *  else the tile under the pointer. 0 with none. */
+static int
+app_camera_unity_pivot(
+    struct App* app,
+    int* out_x,
+    int* out_y,
+    int* out_z)
+{
+    struct EditorUi const* ui = app->editor_panel.ui;
+    int tile_x;
+    int tile_z;
+    int level = ui->tools.edit_level >= 0 ? ui->tools.edit_level : 0;
+    int scene_x;
+    int scene_z;
+
+    if( ui->tools.loc_count > 0 )
+    {
+        Editor_LocRefWorld(&ui->tools.locs[0], &tile_x, &tile_z);
+        level = ui->tools.locs[0].level;
+    }
+    else if( ui->tools.tile_valid )
+    {
+        tile_x = ui->tools.tile_x;
+        tile_z = ui->tools.tile_z;
+        level = ui->tools.tile_level;
+    }
+    else if( Editor_PanelHoverTile(&app->editor_panel, app, &scene_x, &scene_z) )
+    {
+        tile_x = scene_x + app->world->_base_tile_x;
+        tile_z = scene_z + app->world->_base_tile_z;
+        level = Editor_PanelEditLevel(&app->editor_panel, app);
+    }
+    else
+        return 0;
+    scene_x = (tile_x - app->world->_base_tile_x) * 128 + 64;
+    scene_z = (tile_z - app->world->_base_tile_z) * 128 + 64;
+    if( scene_x < 0 || scene_z < 0 || scene_x >= app->world->_scene_size * 128
+        || scene_z >= app->world->_scene_size * 128 )
+        return 0;
+    *out_x = scene_x;
+    *out_z = scene_z;
+    *out_y = app_world_height(app, scene_x, scene_z, level);
+    return 1;
+}
+
+void
+app_camera_unity_gate(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    int const mx = input->curr.mouse_x;
+    int const my = input->curr.mouse_y;
+    int const alt = LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT);
+
+    assert(app);
+    assert(input);
+    if( !app_camera_unity_on(app) )
+    {
+        g_cam_unity.look_active = 0;
+        g_cam_unity.pan_active = 0;
+        g_cam_unity.orbit_active = 0;
+        return;
+    }
+    /* Releases first, so a press and a release in one frame cancel. */
+    if( g_cam_unity.orbit_active && !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
+        g_cam_unity.orbit_active = 0;
+    if( g_cam_unity.look_active && !LibToriRS_Input_IsMouseHeld(input, TORIRSM_RIGHT) )
+        g_cam_unity.look_active = 0;
+    if( g_cam_unity.pan_active && !LibToriRS_Input_IsMouseHeld(input, TORIRSM_MIDDLE) )
+        g_cam_unity.pan_active = 0;
+
+    if( !g_cam_unity.orbit_active && alt && input->curr.mouse_button_down[TORIRSM_LEFT]
+        && !app->frame_view->minimenu->visible && app_camera_unity_over_world(app, mx, my) )
+    {
+        struct App_WorldView const* view = app->frame_view;
+        int px;
+        int py;
+        int pz;
+        if( app_camera_unity_pivot(app, &px, &py, &pz) )
+        {
+            long const dx = view->world_camera_pos.x - px;
+            long const dy = view->world_camera_pos.y - py;
+            long const dz = view->world_camera_pos.z - pz;
+            double const d = sqrt((double)(dx * dx + dy * dy + dz * dz));
+            g_cam_unity.orbit_active = 1;
+            g_cam_unity.pivot_x = px;
+            g_cam_unity.pivot_y = py;
+            g_cam_unity.pivot_z = pz;
+            g_cam_unity.pivot_dist = d < 256 ? 256 : (int)d;
+            g_cam_unity.yaw = view->world_camera.yaw & 0x7ff;
+            g_cam_unity.pitch = app_camera_unity_clamp_pitch(view->world_camera.pitch);
+            g_cam_unity.last_x = mx;
+            g_cam_unity.last_y = my;
+        }
+    }
+    if( !g_cam_unity.look_active && input->curr.mouse_button_down[TORIRSM_RIGHT]
+        && app_camera_unity_over_world(app, mx, my) )
+    {
+        g_cam_unity.look_active = 1;
+        g_cam_unity.last_x = mx;
+        g_cam_unity.last_y = my;
+        g_cam_unity.travel = 0;
+    }
+    if( !g_cam_unity.pan_active && input->curr.mouse_button_down[TORIRSM_MIDDLE]
+        && !app->frame_view->minimenu->visible && app_camera_unity_over_world(app, mx, my) )
+    {
+        g_cam_unity.pan_active = 1;
+        g_cam_unity.last_x = mx;
+        g_cam_unity.last_y = my;
+    }
+    /* An orbit or pan owns the frame's pointer from its press: the editor's
+     * click (which runs after this) must not paint, select or stroke, and the
+     * middle press must not start the default scheme's rotate. */
+    if( g_cam_unity.orbit_active || g_cam_unity.pan_active )
+        app->input_frame_consumed = 1;
+}
+
+/** The drags: one delta each, then the clamp. Runs from
+ *  app_world_camera_mouse under the scheme. */
+static void
+app_camera_unity_mouse(
+    struct App* app,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut const* out)
+{
+    struct App_WorldView* view = app->frame_view;
+    int const mx = input->curr.mouse_x;
+    int const my = input->curr.mouse_y;
+    int const dx = mx - g_cam_unity.last_x;
+    int const dy = my - g_cam_unity.last_y;
+
+    if( g_cam_unity.orbit_active )
+    {
+        struct EditorViewCamera pose;
+        if( dx || dy )
+        {
+            g_cam_unity.yaw = (g_cam_unity.yaw - dx * APP_WORLD_MMB_YAW_PER_PX) & 0x7ff;
+            g_cam_unity.pitch = app_camera_unity_clamp_pitch(g_cam_unity.pitch + dy * APP_WORLD_MMB_PITCH_PER_PX);
+        }
+        memset(&pose, 0, sizeof(pose));
+        pose.x = g_cam_unity.pivot_x;
+        pose.z = g_cam_unity.pivot_z;
+        pose.yaw = g_cam_unity.yaw;
+        pose.pitch = g_cam_unity.pitch;
+        pose.zoom = g_cam_unity.pivot_dist;
+        EditorView_PoseEye(&pose, 0, 0, g_cam_unity.pivot_y, &view->world_camera_pos);
+        view->world_camera.yaw = g_cam_unity.yaw;
+        view->world_camera.pitch = g_cam_unity.pitch;
+        view->camera_unlocked = 1;
+        if( dx || dy )
+            app->need_redraw = 1;
+    }
+    else if( g_cam_unity.look_active && (dx || dy) )
+    {
+        g_cam_unity.travel += (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
+        /* A right click stays a click (the minimenu opened on the press);
+         * a drag past a few px is a look, and the menu goes. */
+        if( g_cam_unity.travel > 4 )
+        {
+            if( view->minimenu->visible )
+                UIMinimenu_Hide(view->minimenu);
+            view->world_camera.yaw = ToriDraw_AddAngle(view->world_camera.yaw, -dx * APP_WORLD_MMB_YAW_PER_PX);
+            view->world_camera.pitch =
+                app_camera_unity_clamp_pitch(view->world_camera.pitch + dy * APP_WORLD_MMB_PITCH_PER_PX);
+            view->camera_unlocked = 1;
+            app->need_redraw = 1;
+        }
+    }
+    else if( g_cam_unity.pan_active && (dx || dy) )
+    {
+        /* Pan the ground plane: the pointer drags the world with it, so the
+         * eye moves the other way, faster the higher it is (one tile of
+         * ground per ~10 px from 2600 units up). */
+        int const extent = app->world->_scene_size * 128;
+        int const tx = app_camera_clamp_axis(view->world_camera_pos.x, 0, extent - 1);
+        int const tz = app_camera_clamp_axis(view->world_camera_pos.z, 0, extent - 1);
+        int const level = app->editor_panel.ui->tools.edit_level >= 0 ? app->editor_panel.ui->tools.edit_level : 0;
+        int const ground = app_world_height(app, tx, tz, level);
+        int height = ground - view->world_camera_pos.y;
+        int per_px;
+        if( height < 200 )
+            height = 200;
+        per_px = height / 200 + 1;
+        app_camera_move_left(app, dx * per_px);
+        app_camera_move_forward(app, dy * per_px);
+        view->camera_unlocked = 1;
+        app->need_redraw = 1;
+    }
+    g_cam_unity.last_x = mx;
+    g_cam_unity.last_y = my;
+
+    /* The wheel zooms TOWARD the tile under the cursor: the eye slides along
+     * the line to that tile's ground point, a sixth of the way per notch in,
+     * back out along it per notch out, never closer than two tiles. */
+    if( input->curr.mouse_wheel_y != 0 && !out->wheel_consumed && !view->minimenu->visible
+        && app_camera_unity_over_world(app, mx, my) )
+    {
+        int scene_x;
+        int scene_z;
+        if( Editor_PanelHoverTile(&app->editor_panel, app, &scene_x, &scene_z) )
+        {
+            int const level = Editor_PanelEditLevel(&app->editor_panel, app);
+            int const fx = scene_x * 128 + 64;
+            int const fz = scene_z * 128 + 64;
+            int const fy = app_world_height(app, fx, fz, level);
+            long const vx = fx - view->world_camera_pos.x;
+            long const vy = fy - view->world_camera_pos.y;
+            long const vz = fz - view->world_camera_pos.z;
+            double const dist = sqrt((double)(vx * vx + vy * vy + vz * vz));
+            int notches = input->curr.mouse_wheel_y;
+            double k = 0.0;
+            while( notches > 0 && dist * (1.0 - k) > 256.0 )
+            {
+                k += (1.0 - k) / 6.0;
+                notches--;
+            }
+            while( notches < 0 )
+            {
+                k -= (1.0 - k) / 5.0;
+                notches++;
+            }
+            view->world_camera_pos.x += (int)(vx * k);
+            view->world_camera_pos.y += (int)(vy * k);
+            view->world_camera_pos.z += (int)(vz * k);
+            view->camera_unlocked = 1;
+            app_debug_log_camera(app, "zoom-to-cursor", 0);
+            app->need_redraw = 1;
+        }
+    }
+    app_camera_keep_over_scene(app);
 }
 
 void
@@ -427,6 +735,15 @@ app_world_camera_mouse(
     /* The same split app_world_camera_keys makes: online and out of a cutscene
      * the orbit follow cam owns the angles, otherwise the free camera does. */
     follow_cam = app->net && !app->cam_script.scripted;
+
+    /* The editor's Unity-style scheme takes the mouse whole: its own drags
+     * and its zoom-to-cursor wheel, none of the default scheme's below. */
+    if( !follow_cam && app_camera_unity_on(app) )
+    {
+        app->frame_view->cam_mmb_active = 0;
+        app_camera_unity_mouse(app, input, out);
+        return;
+    }
 
     /* `controls=` is the revision's answer for a MOUSE; app->touch_camera is
      * the platform's answer for a FINGER, and the two are different questions.

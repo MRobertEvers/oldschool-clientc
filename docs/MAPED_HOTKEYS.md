@@ -53,7 +53,9 @@ Context: **G** always (editor open) · **W** pointer over the World panel ·
 **N** no loc selected, or a tool other than Select / Move armed (the camera's
 arrows: with the Place tool, a brush, Rect, Rotate or Delete armed the arrows
 turn the camera even with locs selected) ·
-**P** the Place tool armed with a loc pick and no loc selected.
+**P** the Place tool armed with a loc pick and no loc selected ·
+**D** the default camera scheme · **U** the Unity camera scheme (exactly one
+of the two is live; the Camera table below says which keys each has).
 
 ### File
 | Action | Chord | Ctx |
@@ -66,6 +68,13 @@ turn the camera even with locs selected) ·
 | Check the scripts on disk (sscompile) | Ctrl+Shift+B | G |
 | Run: save all, build, reload live | Ctrl+Return | G |
 | Publish the lane's changes to a lane | Ctrl+Shift+U | G |
+
+File also lists **Recent squares**: the last ten squares opened in this
+window (newest first, a lane square as `<lane>/m50_50`), remembered per user
+in `editor_recent.ini` beside `editor_layout.ini` (`TORIRS_EDITOR_RECENT`,
+the same path rule; never in the content tree). A row opens that square as
+the picker's Open does (the save guard first). The command palette lists the
+same squares when its box is empty.
 
 ### Edit
 | Action | Chord | Ctx |
@@ -85,6 +94,8 @@ turn the camera even with locs selected) ·
 | Fill tiles | Ctrl+Shift+F | R |
 | Clear tiles | Shift+Delete | R |
 | Mark area from rect | Ctrl+Shift+M | R |
+| Select every loc of the catalog's picked loc in the open squares (else of the selection's first loc; on the pinned level, else the selection's) | Ctrl+Shift+L | G |
+| Invert selection (over the open squares' locs on the selection's level) | Ctrl+I | G |
 
 ### Place
 | Action | Chord | Ctx |
@@ -159,14 +170,31 @@ remembered shape and rotation (docs/MAPED_STATUS.md row 3d).
 | Action | Chord | Ctx |
 |---|---|---|
 | Fly forward / back / left / right (held) | W / S / A / D | G |
-| Fly down / up (held) | F / R | G |
+| Fly down / up (held) | F / R | D (down) / G (up) |
 | Fly faster (held with the above) | Shift | G |
 | Turn left / right, tilt up / down (held) | Left / Right / Up / Down | N |
 | Frame the selection, else the hovered square | Home | G |
 | Frame the current square's centre | Ctrl+Home | G |
+| Frame the selection, else the hovered square (Unity scheme) | F | U |
+| Camera scheme: default / Unity (toggle) | unbound | G |
 
 The manifest's `[debug:hotkeys]` flight (Ctrl+W/A/S/D/R/F) keeps working
 where the editor claims no chord; Ctrl+S, Ctrl+D and Ctrl+A are claimed.
+
+**Camera schemes.** The default scheme is the one above: WASD / RF fly, the
+arrows turn, the middle button orbits, the wheel dollies along the view. The
+**Unity** scheme (the Camera scheme toggle -- the Hotkeys panel's row, or the
+command palette's "Camera scheme" -- remembered in `editor_recent.ini`) makes
+the mouse work as in Unity's scene view: **right-drag looks** around (yaw /
+pitch; a right CLICK still opens the minimenu, a drag past a few px closes
+it), **middle-drag pans** the ground plane (faster the higher the camera),
+the **wheel zooms toward the tile under the cursor** (never closer than two
+tiles), **Alt+left-drag orbits** the selection (else the latched tile, else
+the tile under the pointer), and **F frames** the selection (Home frames in
+both schemes; Fly down is R's twin only under the default scheme). The keys
+otherwise stay the table's. **Double-click a tile** in the World panel (Select
+tool) recentres the camera on it at the distance it has, under either scheme.
+Every move respects the camera clamp: the eye never leaves the loaded squares.
 
 ### View
 | Action | Chord | Ctx |
@@ -189,9 +217,27 @@ where the editor claims no chord; Ctrl+S, Ctrl+D and Ctrl+A are claimed.
 | Hide / show every panel but World | Tab | G |
 | Reset layout | Ctrl+Shift+R | G |
 | Snap to grid (toggle) | Ctrl+G | G |
+| Compact panels: dock members collapse to their title bars when the column is short (toggle; automatic on small windows, Reset layout returns to automatic) | Ctrl+Shift+C | G |
 | Snap while dragging a panel (hold; the toggle is untouched) | Ctrl | G |
 | Pop out the panel under the pointer into its own window (World when over none) | Shift+F12 | G |
 | Hide the panel under the pointer (the View menu brings it back) | Ctrl+W | G |
+| Command palette (actions, panels, squares, tiles, records) | Ctrl+P | G |
+| Go to tile... (the palette prefilled with coordinates) | Ctrl+Shift+G | G |
+
+**The command palette** (Ctrl+P; module "command"; src/editor/panels/
+edpanel_command.c) is one box over everything: type and the list below it
+fills with the hits -- every action of this table by name, group or id (the
+chord shown; Enter runs it), "Open <panel>" for every View-menu panel, a
+square ("m50_50", "50 50", "50,50"; a cell with no square offers New square
+there; "m50" lists the squares that start so), an absolute tile
+("3222,3218", "3222 3218 1": the camera goes there, opening the square first
+when it is not in the scene), a record by kind ("loc:oak", "npc:hans",
+"obj:knife": the Catalog's own find, its page's rows; Enter makes the record
+the pick, Place armed for a loc), and the recent squares (first, with the
+box empty). Up / Down choose, Enter runs the yellow row, Escape closes; the
+palette closes after a run. Matching is prefix, word-start, substring, then
+subsequence ("ssq" finds Save square as new...). Ctrl+Shift+P stays the
+Preview panel's.
 
 Every other panel the View menu lists (Record, New, builders, Live, Accounts,
 ...) is an action too, unbound by default. On the web, F11 and F12 may be taken by the
@@ -215,14 +261,14 @@ N: ...`); the rest of the file still applies. The ids, in the order of the
 tables (the Hotkeys panel calls them by the name after the id):
 
 - **File**: `file.new` New square..., `file.save_all` Save all, `file.save_as` Save square as new..., `file.bake` Bake cache (slow), `file.close` Close editor, `file.check_scripts` Check scripts, `file.run` Run (save, build, reload), `file.publish` Publish...
-- **Edit**: `edit.undo` Undo, `edit.redo` Redo, `edit.deselect` Deselect / cancel, `edit.delete` Delete selection, `edit.duplicate` Duplicate, `edit.rotate` Rotate, `edit.reshape` Reshape, `edit.apply` Apply tool to selection, `edit.select_square` Select the square's locs, `edit.nudge_n` Nudge north, `edit.nudge_s` Nudge south, `edit.nudge_w` Nudge west, `edit.nudge_e` Nudge east, `edit.copy` Copy tiles, `edit.paste` Paste tiles, `edit.fill` Fill tiles, `edit.clear` Clear tiles, `edit.mark_area` Mark area from rect
+- **Edit**: `edit.undo` Undo, `edit.redo` Redo, `edit.deselect` Deselect / cancel, `edit.delete` Delete selection, `edit.duplicate` Duplicate, `edit.rotate` Rotate, `edit.reshape` Reshape, `edit.apply` Apply tool to selection, `edit.select_square` Select the square's locs, `edit.nudge_n` Nudge north, `edit.nudge_s` Nudge south, `edit.nudge_w` Nudge west, `edit.nudge_e` Nudge east, `edit.copy` Copy tiles, `edit.paste` Paste tiles, `edit.fill` Fill tiles, `edit.clear` Clear tiles, `edit.mark_area` Mark area from rect, `edit.select_kind` Select all of the picked kind, `edit.invert` Invert selection
 - **Place**: `place.here` Place at the hovered tile, `place.fit` Fit walls to neighbours (toggle), `place.swap` Swap to catalog pick
 - **Palette**: `palette.slot_1` Palette slot 1, `palette.slot_2` Palette slot 2, `palette.slot_3` Palette slot 3, `palette.slot_4` Palette slot 4, `palette.slot_5` Palette slot 5, `palette.slot_6` Palette slot 6, `palette.slot_7` Palette slot 7, `palette.slot_8` Palette slot 8, `palette.slot_9` Palette slot 9, `palette.slot_10` Palette slot 10, `palette.add_pick` Add the pick to the palette, `palette.next` Next palette, `palette.previous` Previous palette
 - **Tools**: `tool.select` Select, `tool.rect` Rectangle, `tool.raise` Raise, `tool.lower` Lower, `tool.flatten` Flatten, `tool.smooth` Smooth, `tool.paint_underlay` Paint underlay, `tool.paint_overlay` Paint overlay, `tool.paint_flags` Paint flags, `tool.place` Place loc, `tool.move` Move loc, `tool.rotate` Rotate loc (tool), `tool.delete` Delete loc (tool), `tool.place_player` Place player, `tool.previous` Previous tool, `tool.pick_paint` Pick the tile's paint, `tool.pick_loc` Pick the hovered loc, `hold.place` Click places a loc (hold), `hold.delete` Click deletes a loc (hold), `hold.clear` Click clears the tile (hold)
 - **Brush**: `brush.radius_down` Radius -, `brush.radius_up` Radius +, `brush.strength_down` Strength -, `brush.strength_up` Strength +, `brush.step_down` Step -, `brush.step_up` Step +
 - **Level**: `level.down` Level down, `level.up` Level up, `level.pin0` Pin level 0, `level.pin1` Pin level 1, `level.pin2` Pin level 2, `level.pin3` Pin level 3, `level.auto` Level Auto, `level.above` Show above
-- **Camera**: `camera.forward` Fly forward, `camera.back` Fly back, `camera.left` Fly left, `camera.right` Fly right, `camera.down` Fly down, `camera.up` Fly up, `camera.fast` Fly faster, `camera.turn_left` Turn left, `camera.turn_right` Turn right, `camera.tilt_up` Tilt up, `camera.tilt_down` Tilt down, `camera.frame` Frame the selection, `camera.frame_square` Frame the square's centre
-- **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.catalog_palette` Catalog palette, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC builder, `view.shelleditor` Shell editor, `view.iface` Interface editor, `view.cs2` CS2, `view.live` Live, `view.accounts` Accounts, `view.triggers` Triggers, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel
+- **Camera**: `camera.forward` Fly forward, `camera.back` Fly back, `camera.left` Fly left, `camera.right` Fly right, `camera.down` Fly down, `camera.up` Fly up, `camera.fast` Fly faster, `camera.turn_left` Turn left, `camera.turn_right` Turn right, `camera.tilt_up` Tilt up, `camera.tilt_down` Tilt down, `camera.frame` Frame the selection, `camera.frame_square` Frame the square's centre, `camera.frame_key` Frame the selection (Unity scheme), `camera.scheme` Camera scheme: default / Unity (toggle)
+- **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.catalog_palette` Catalog palette, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC builder, `view.shelleditor` Shell editor, `view.iface` Interface editor, `view.cs2` CS2, `view.live` Live, `view.accounts` Accounts, `view.triggers` Triggers, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.compact` Compact panels, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel, `view.command` Command palette, `view.goto_tile` Go to tile...
 
 Example:
 

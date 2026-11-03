@@ -24,6 +24,31 @@
 #include <time.h>
 #include <unistd.h>
 
+/*
+ * The POSIX this module leans on, named once. A lane is a symlink mirror of
+ * its base, so on Windows (the client with the embedded editor server, which
+ * links this file) a lane cannot be MADE or put back: Mirror, Create and the
+ * relinks refuse with `why` naming the reason (TORIRSMAPED_LANES_SYMLINKS 0)
+ * -- never a mirror of copies that would silently diverge. Looking lanes up,
+ * listing them and reading lane.ini work there; the main lane always does.
+ */
+#if defined(_WIN32)
+#include <direct.h>
+#include <windows.h>
+#define TORIRSMAPED_LANES_SYMLINKS 0
+#define lanes_mkdir(path) _mkdir(path)
+/* No symlinks in a tree here, so stat IS lstat and nothing is a link. */
+#define lanes_lstat(path, st) stat(path, st)
+#define LANES_ISLNK(mode) 0
+#define lanes_realpath(path, out) _fullpath(out, path, PATH_MAX)
+#else
+#define TORIRSMAPED_LANES_SYMLINKS 1
+#define lanes_mkdir(path) mkdir(path, 0755)
+#define lanes_lstat(path, st) lstat(path, st)
+#define LANES_ISLNK(mode) S_ISLNK(mode)
+#define lanes_realpath(path, out) realpath(path, out)
+#endif
+
 /* ---- mirror.py's rules ---------------------------------------------------- */
 
 /** Pure inputs nothing in a build or a save writes: one directory symlink
@@ -87,11 +112,11 @@ mkdir_p(const char* path)
         if( copy[i] != '/' )
             continue;
         copy[i] = '\0';
-        if( mkdir(copy, 0755) != 0 && errno != EEXIST )
+        if( lanes_mkdir(copy) != 0 && errno != EEXIST )
             return 0;
         copy[i] = '/';
     }
-    return mkdir(copy, 0755) == 0 || errno == EEXIST;
+    return lanes_mkdir(copy) == 0 || errno == EEXIST;
 }
 
 static int
@@ -257,6 +282,7 @@ mirror_tree(
         }
         else
         {
+#if TORIRSMAPED_LANES_SYMLINKS
             if( symlink(source, target) != 0 )
             {
                 snprintf(why, why_size, "cannot link %s: %s", target, strerror(errno));
@@ -264,6 +290,12 @@ mirror_tree(
                 return -1;
             }
             count++;
+#else
+            snprintf(why, why_size, "cannot link %s: a lane mirror needs symlinks, which this Windows build has no "
+                                    "support for (edit the main tree: [editor:boot] lane=main)", target);
+            closedir(dir);
+            return -1;
+#endif
         }
     }
     closedir(dir);
@@ -287,12 +319,12 @@ ToriRSMapEdLanes_Mirror(
     assert(dst);
     assert(why);
     why[0] = '\0';
-    if( !realpath(base, real_base) )
+    if( !lanes_realpath(base, real_base) )
     {
         snprintf(why, why_size, "no such tree: %s", base);
         return -1;
     }
-    if( lstat(dst, &st) == 0 )
+    if( lanes_lstat(dst, &st) == 0 )
     {
         snprintf(why, why_size, "%s exists; remove it first", dst);
         return -1;
@@ -326,12 +358,19 @@ ToriRSMapEdLanes_Mirror(
         snprintf(target, sizeof(target), "%s/%s", dst, entry->d_name);
         if( !(stat(source, &st) == 0 && S_ISDIR(st.st_mode)) || in_list(k_linked, entry->d_name) )
         {
+#if TORIRSMAPED_LANES_SYMLINKS
             if( symlink(source, target) != 0 )
             {
                 snprintf(why, why_size, "cannot link %s: %s", target, strerror(errno));
                 closedir(dir);
                 return -1;
             }
+#else
+            snprintf(why, why_size, "cannot link %s: a lane mirror needs symlinks, which this Windows build has no "
+                                    "support for (edit the main tree: [editor:boot] lane=main)", target);
+            closedir(dir);
+            return -1;
+#endif
         }
         else
         {
@@ -376,7 +415,7 @@ resolve_abs(
     size_t out_size)
 {
     char real[PATH_MAX];
-    if( realpath(path, real) )
+    if( lanes_realpath(path, real) )
         snprintf(out, out_size, "%s", real);
     else if( path[0] == '/' )
         snprintf(out, out_size, "%s", path);
@@ -501,7 +540,7 @@ ToriRSMapEdLanes_Create(
     }
     lane_paths(repo_root, name, out);
     resolve_abs(base_tree, out->base, sizeof(out->base));
-    if( lstat(out->dir, &st) == 0 )
+    if( lanes_lstat(out->dir, &st) == 0 )
     {
         snprintf(why, why_size, "lane '%s' exists (%s)", name, out->dir);
         return 0;
@@ -667,7 +706,7 @@ changes_walk_lane(
         if( rel_transient(sub_rel) )
             continue;
         snprintf(path, sizeof(path), "%s/%s", dir_path, entry->d_name);
-        if( lstat(path, &st) != 0 || S_ISLNK(st.st_mode) )
+        if( lanes_lstat(path, &st) != 0 || LANES_ISLNK(st.st_mode) )
             continue; /* a link to the base: unchanged (a dangling one is a base file gone, not ours) */
         if( S_ISDIR(st.st_mode) )
         {
@@ -726,7 +765,7 @@ changes_walk_base(
         snprintf(lane_path, sizeof(lane_path), "%s/%s", lane->content, sub_rel);
         if( stat(base_path, &bst) != 0 )
             continue;
-        if( lstat(lane_path, &lst) != 0 )
+        if( lanes_lstat(lane_path, &lst) != 0 )
         {
             /* A base file the mirror never had (younger than the lane) is
              * new in the base, not a deletion by the lane. */
@@ -813,8 +852,18 @@ ToriRSMapEdLanes_TreeHeld(
     }
     if( pid <= 0 )
         return 0;
+#if defined(_WIN32)
+    {
+        /* Alive when the process can be opened at all (a dead pid cannot). */
+        HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pid);
+        if( !process )
+            return 0;
+        CloseHandle(process);
+    }
+#else
     if( kill((pid_t)pid, 0) != 0 && errno == ESRCH )
         return 0;
+#endif
     snprintf(out, out_size, "pid %ld (%s)", pid, cmd[0] ? cmd : "an editor");
     return 1;
 }
@@ -837,12 +886,18 @@ relink(
     }
     if( stat(base_path, &st) != 0 )
         return 1;
+#if TORIRSMAPED_LANES_SYMLINKS
     if( symlink(base_path, lane_path) != 0 )
     {
         snprintf(why, why_size, "cannot link %s: %s", lane_path, strerror(errno));
         return 0;
     }
     return 1;
+#else
+    snprintf(why, why_size, "cannot link %s: a lane needs symlinks, which this Windows build has no support for",
+        lane_path);
+    return 0;
+#endif
 }
 
 static int

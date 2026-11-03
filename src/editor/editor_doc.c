@@ -715,6 +715,24 @@ Editor_DocHasUnsaved(const struct Editor_Doc* doc)
     return 0;
 }
 
+int
+Editor_DocUnsavedCount(const struct Editor_Doc* doc)
+{
+    int count = 0;
+
+    assert(doc);
+    for( int i = 0; i < doc->square_count; i++ )
+        if( doc->squares[i].dirty_map || doc->squares[i].dirty_loc )
+            count++;
+    for( int i = 0; i < doc->spawn_count; i++ )
+        if( doc->spawns[i]->dirty )
+            count++;
+    for( int i = 0; i < doc->text_count; i++ )
+        if( doc->texts[i]->dirty )
+            count++;
+    return count;
+}
+
 /* ---- text documents ----------------------------------------------------- */
 
 static void

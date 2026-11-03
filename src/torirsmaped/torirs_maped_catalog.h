@@ -171,6 +171,11 @@ enum ToriRSMapEdCatalogQueryFlag
 {
     /** The text (filters aside) is one whole name, display name or id. */
     TORIRSMAPED_CATALOG_EXACT = 1,
+    /** Answer EDITOR_HOST_BUSY (a page / an atlas with that status and
+     *  nothing else) instead of waiting for the warm build on its thread.
+     *  For callers that ask again every tick (the Catalog panel's query,
+     *  the Square picker's atlas); every other request waits as before. */
+    TORIRSMAPED_CATALOG_NOWAIT = 2,
 };
 
 /** Where a record (or one of its fields) came from. A record's provenance
@@ -300,9 +305,13 @@ int
 ToriRSMapEdCatalog_Built(const struct ToriRSMapEdCatalog* catalog);
 
 /** Milliseconds one service slice may spend on a freshness sweep, and on
- *  the warm build (the build is ~6 s of work on the owner's tree: at 6 ms a
- *  frame it is done ~20 s after the editor opens; a Catalog opened sooner
- *  waits for the rest). */
+ *  the warm build where it runs in slices (`TORIRS_CATALOG_WARM_THREAD=0`,
+ *  the web and win32 lanes): the build is ~6 s of work on the owner's tree,
+ *  at 6 ms a frame done ~20 s after the editor opens, and a request sooner
+ *  waits for the rest. Elsewhere the warm build runs on a worker thread
+ *  (the service pass starts it and takes the index back when it is done;
+ *  a request meanwhile waits for it, or is answered EDITOR_HOST_BUSY when
+ *  it asked with TORIRSMAPED_CATALOG_NOWAIT). */
 #define TORIRSMAPED_CATALOG_SLICE_MS 2.0
 #define TORIRSMAPED_CATALOG_WARM_SLICE_MS 6.0
 
@@ -328,6 +337,14 @@ ToriRSMapEdCatalog_MapsRevision(const struct ToriRSMapEdCatalog* catalog);
 /** 1 while a build or a sweep is in progress. */
 int
 ToriRSMapEdCatalog_Working(const struct ToriRSMapEdCatalog* catalog);
+
+/** 1 while the warm build is running on its worker thread: a request now
+ *  would wait for the rest of it (seconds), so the server answers
+ *  EDITOR_HOST_BUSY instead and the panel asks again. 0 once the thread is
+ *  done (the next service pass or request takes the index) and on the lanes
+ *  that build in slices. */
+int
+ToriRSMapEdCatalog_Building(const struct ToriRSMapEdCatalog* catalog);
 
 /** What the index has done since it was created: the work bounds the
  *  perf test (editor_catalog_perf_test.c) checks. */

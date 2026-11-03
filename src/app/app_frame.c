@@ -12,6 +12,7 @@
 #include "app/app_iface_editor.h"
 #include "app/app_internal.h"
 #include "perf_audit.h"
+#include "perf/frame_stats.h"
 
 #ifdef TORIRS_EMBED_SERVER
 /* The party's frame audit and the one reader of TORIRS_LOGIC_CYCLES_PER_FRAME
@@ -682,8 +683,38 @@ App_PumpAsync(
     return result;
 }
 
+static int
+app_run_once_body(
+    struct App* app,
+    uint64_t now_ms,
+    struct LibToriRS_Input* input);
+
 int
 App_RunOnce(
+    struct App* app,
+    uint64_t now_ms,
+    struct LibToriRS_Input* input)
+{
+    /* TORIRS_EDITOR_FRAME_STATS=1 (perf/frame_stats.h): the frame that just
+     * ended is one sample; this one's RunOnce span joins the frame phase,
+     * App_Render adds its own. */
+    static int report_armed = 0;
+    uint64_t const t0 = FrameStats_Now();
+    int result;
+
+    FrameStats_FrameEnd();
+    if( t0 && !report_armed )
+    {
+        report_armed = 1;
+        atexit(FrameStats_Report);
+    }
+    result = app_run_once_body(app, now_ms, input);
+    FrameStats_Span(FRAME_STATS_FRAME, t0);
+    return result;
+}
+
+static int
+app_run_once_body(
     struct App* app,
     uint64_t now_ms,
     struct LibToriRS_Input* input)
@@ -782,6 +813,7 @@ App_RunOnce(
      * and its readout has to be current before this frame's emit rebuild. */
     /* The developer chrome's clock: a hovered widget's tooltip shows after
      * TORIRS_CHROME_TOOLTIP_DELAY_MS of it (ui/ owns no clock). */
+    uint64_t const t_ui = FrameStats_Now();
     ToriRSChrome_Tick(&app->dbg_ui, (int64_t)now_ms);
     app_debug_overlay_tick(app, input);
     /* Right after the developer overlay, because it shares that instance: the
@@ -819,13 +851,18 @@ App_RunOnce(
             && AppIfaceEditor_PickAt(app, input->curr.mouse_x, input->curr.mouse_y) )
             app->input_frame_consumed = 1;
         app_map_editor_world_click(app, input);
-        app_map_editor_ghost_update(app);
-        app_map_editor_preview_update(app);
-        /* The Catalog palette's slot thumbnails (app_catalog_palette.c). */
-        app_catalog_palette_update(app);
+        {
+            uint64_t const t_hover = FrameStats_Now();
+            app_map_editor_ghost_update(app);
+            app_map_editor_preview_update(app);
+            /* The Catalog palette's slot thumbnails (app_catalog_palette.c). */
+            app_catalog_palette_update(app);
+            FrameStats_Span(FRAME_STATS_HOVER_GHOSTS, t_hover);
+        }
         app_map_editor_open_pending_square(app);
         app_map_editor_drain(app);
     }
+    FrameStats_Span(FRAME_STATS_EDITOR_UI, t_ui);
 
     /*
      * Is the link still worth talking to?
@@ -840,7 +877,11 @@ App_RunOnce(
     /* The monotonic clock the idle-time and trading-post age commands read. */
     app->host.client.now_ms = (int64_t)now_ms;
 
-    App_PumpAsync(app, 1);
+    {
+        uint64_t const t_pump = FrameStats_Now();
+        App_PumpAsync(app, 1);
+        FrameStats_Span(FRAME_STATS_PUMP, t_pump);
+    }
     /* Sprites bound before they were resident: filled as they land, asked for
      * again while they have not. */
     UITreeSceneBridge_PumpSprites(&app->bridge, now_ms);
@@ -880,6 +921,7 @@ App_RunOnce(
     /* Logic ticks at 20ms with bounded catch-up after a stall. */
     if( app->last_logic_ms == 0 )
         app->last_logic_ms = now_ms;
+    uint64_t const t_logic = FrameStats_Now();
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LOGIC)
     {
         /*
@@ -1074,6 +1116,7 @@ App_RunOnce(
          * the only difference between the two that should exist. */
         app_world_frame(app, ticks, (float)app->logic_frame_ms / (float)APP_LOGIC_TICK_MS);
     }
+    FrameStats_Span(FRAME_STATS_LOGIC, t_logic);
 
     /* A logout inside one of those ticks took the gameframe down with it: the
      * tree below is empty and the bake that replaces it has asked for the last
@@ -1194,6 +1237,7 @@ App_RunOnce(
      * per-cycle timer, and the repeat is what puts the tooltip back. */
     app->interact.client_cycle = app->logic_cycle;
 
+    uint64_t const t_interact = FrameStats_Now();
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INTERACT)
     {
         UITree_InteractFrameWithPointerOwner(
@@ -1206,6 +1250,7 @@ App_RunOnce(
             app->chrome_pointer_owned,
             &out);
     }
+    FrameStats_Span(FRAME_STATS_INTERACT, t_interact);
     plugin_pointer_consumed = out.minimenu_consumed_pointer;
 
     /* World hover: gate on the mouse being over the world element. The pick

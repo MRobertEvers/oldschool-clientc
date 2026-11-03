@@ -673,6 +673,32 @@ PlatformWindow_SetWindowSize(
     int height);
 
 /**
+ * The OS window's box in window points: where it sits on the desktop and the
+ * GAME AREA's size (the plugin pane beside it excluded, as SetWindowSize
+ * takes it). What the map editor writes to its layout file so the next run
+ * opens the window where this one was. @return false where there is no
+ * window to ask (Android, a window not yet created).
+ */
+bool
+PlatformWindow_WindowBox(
+    struct PlatformWindow* platform,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h);
+
+/**
+ * Move the OS window to (x, y) desktop points, as if the user had dragged
+ * its title there. Never while the window manager owns the frame
+ * (maximised, fullscreen). A no-op where there is no desktop (Android).
+ */
+void
+PlatformWindow_SetWindowPosition(
+    struct PlatformWindow* platform,
+    int x,
+    int y);
+
+/**
  * The interface's size: the space every pointer and touch coordinate is
  * reported in, and the shape the frame is placed with.
  *

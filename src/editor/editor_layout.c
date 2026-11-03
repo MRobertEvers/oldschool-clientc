@@ -172,6 +172,25 @@ EditorLayout_Decode(
                     out->has_snap = 1;
                     out->snap = v ? 1 : 0;
                 }
+                else if( strcmp(key, "compact") == 0 && v >= -1 && v <= 1 )
+                {
+                    out->has_compact = 1;
+                    out->compact = v;
+                }
+                else if( strcmp(key, "window_x") == 0 )
+                    out->window_x = v;
+                else if( strcmp(key, "window_y") == 0 )
+                    out->window_y = v;
+                else if( strcmp(key, "window_w") == 0 && v > 0 )
+                {
+                    out->window_w = v;
+                    out->has_window = out->window_h > 0;
+                }
+                else if( strcmp(key, "window_h") == 0 && v > 0 )
+                {
+                    out->window_h = v;
+                    out->has_window = out->window_w > 0;
+                }
                 continue;
             }
             {
@@ -211,6 +230,11 @@ EditorLayout_Decode(
                     p->has_maximised = 1;
                     p->maximised = v ? 1 : 0;
                 }
+                else if( strcmp(key, "collapsed") == 0 )
+                {
+                    p->has_collapsed = 1;
+                    p->collapsed = v ? 1 : 0;
+                }
             }
         }
     }
@@ -223,9 +247,9 @@ EditorLayout_Encode(
     char** out_data,
     int* out_size)
 {
-    /* Bounded: a header, and per panel one section line and seven short
+    /* Bounded: a header, and per panel one section line and eight short
      * `key = int` lines. */
-    int const cap = 1024 + EDITOR_LAYOUT_PANELS_MAX * (EDITOR_LAYOUT_NAME_MAX + 7 * 32 + 16);
+    int const cap = 1024 + EDITOR_LAYOUT_PANELS_MAX * (EDITOR_LAYOUT_NAME_MAX + 8 * 32 + 16);
     char* text;
     int len = 0;
 
@@ -244,6 +268,9 @@ EditorLayout_Encode(
         "; panel gets its x/y/w/h back; on another surface only panels with\n"
         "; user_placed = 1 do, and the rest are placed by the default layout for it.\n"
         "; maximised = 1: drawn over the dock, x/y/w/h being the box it restores to.\n"
+        "; compact: -1 automatic (small surfaces), 0 never, 1 always; collapsed = 1: a\n"
+        "; compact-dock panel shown as its title bar. window_*: the OS window's box in\n"
+        "; window points, where the next run opens it.\n"
         "\n[layout]\n"
         "version = %d\n"
         "surface_w = %d\n"
@@ -252,6 +279,11 @@ EditorLayout_Encode(
         EDITOR_LAYOUT_VERSION, file->surface_w, file->surface_h, file->scale);
     if( file->has_snap )
         len += snprintf(text + len, (size_t)(cap - len), "snap = %d\n", file->snap ? 1 : 0);
+    if( file->has_compact )
+        len += snprintf(text + len, (size_t)(cap - len), "compact = %d\n", file->compact);
+    if( file->has_window )
+        len += snprintf(text + len, (size_t)(cap - len), "window_x = %d\nwindow_y = %d\nwindow_w = %d\nwindow_h = %d\n",
+            file->window_x, file->window_y, file->window_w, file->window_h);
     for( int i = 0; i < file->panel_count; i++ )
     {
         const struct EditorLayoutPanel* p = &file->panels[i];
@@ -270,6 +302,8 @@ EditorLayout_Encode(
             len += snprintf(text + len, (size_t)(cap - len), "h = %d\n", p->h);
         if( p->has_maximised )
             len += snprintf(text + len, (size_t)(cap - len), "maximised = %d\n", p->maximised ? 1 : 0);
+        if( p->has_collapsed )
+            len += snprintf(text + len, (size_t)(cap - len), "collapsed = %d\n", p->collapsed ? 1 : 0);
     }
     assert(len < cap);
     *out_data = text;

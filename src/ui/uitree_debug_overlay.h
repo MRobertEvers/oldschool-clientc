@@ -1517,6 +1517,16 @@ struct ToriRSChromePanel
      * is the 3D view. @see ToriRSChrome_PanelSetHollow, ToriRSChrome_PanelBodyRect.
      */
     int hollow;
+    /**
+     * Collapsed to its title bar (ToriRSChrome_PanelSetCollapsed): the panel
+     * is exactly its header block -- the border, the title bar and the
+     * separator -- and nothing below it is built, drawn or hit: no rows, no
+     * tab strip, no scroll bar, no grip. A host that stacks panels in a
+     * column (the map editor's compact dock) collapses the ones that do not
+     * fit and expands one on a title click (ToriRSChrome_TakeTitleClick).
+     * The title bar still drags, closes and pops out as before.
+     */
+    int collapsed;
 };
 
 /** Internal retained-model event kinds consumed by ToriRSChromeSync_Run. */
@@ -1742,6 +1752,10 @@ struct ToriRSChrome
     int title_press_x;
     int title_press_y;
     int title_double;
+    /** A press and release on one title bar that did not move the panel past
+     *  the double-click slop: a click on the title, for
+     *  ToriRSChrome_TakeTitleClick. -1 = none. */
+    int title_click;
 
     /** Widget handles, -1 for none. */
     int focus;
@@ -2041,6 +2055,17 @@ ToriRSChrome_PanelSetResizable(struct ToriRSChrome* ui, int panel, int resizable
  *  through to whatever is under it. @see ToriRSChromePanel::hollow */
 void
 ToriRSChrome_PanelSetHollow(struct ToriRSChrome* ui, int panel, int hollow);
+
+/** Collapse `panel` to its title bar, or expand it. @see ToriRSChromePanel::collapsed. */
+void
+ToriRSChrome_PanelSetCollapsed(struct ToriRSChrome* ui, int panel, int collapsed);
+int
+ToriRSChrome_PanelIsCollapsed(struct ToriRSChrome const* ui, int panel);
+/** The height a WINDOW panel has when collapsed (its header block and the
+ *  bottom border), in chrome pixels at the current scale -- what a column
+ *  layout reserves for a collapsed member before any Build. */
+int
+ToriRSChrome_PanelCollapsedHeight(struct ToriRSChrome const* ui, int panel);
 
 /**
  * The panel's body: its box minus the title bar (with the rule under it), the
@@ -3154,6 +3179,14 @@ ToriRSChrome_PushEvent(struct ToriRSChrome* ui, struct ToriRSChromeEvent const* 
  */
 int
 ToriRSChrome_TakeTitleDoubleClick(struct ToriRSChrome* ui);
+/**
+ * A title bar was clicked since the last call -- pressed and released with
+ * the panel not moved past TORIRS_CHROME_DOUBLE_CLICK_SLOP -- the panel, or
+ * -1. The first press of a double-click is reported here too (the second is
+ * the double-click, never a click); a drag that moved the panel is not.
+ */
+int
+ToriRSChrome_TakeTitleClick(struct ToriRSChrome* ui);
 /**
  * Maximise `panel` to `area` (surface px): the box it has now is kept (or,
  * already maximised, kept as it was -- this is also how a host refits it to

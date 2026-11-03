@@ -7,6 +7,7 @@
  */
 
 #include "editor/editor_hotkeys.h"
+#include "editor/editor_recent.h"
 #include "mem/torirs_mem.h"
 
 #include <assert.h>
@@ -449,6 +450,100 @@ test_doc(const char* path)
     free(text);
 }
 
+/* The ergonomics additions (2026-11-03): the palette's and Go to tile's
+ * chords, the camera schemes as contexts, and the recent-squares file. */
+static void
+test_ergonomics(void)
+{
+    struct Editor_Chord chord;
+    struct Editor_HotkeyFrame frame;
+    struct Editor_Recent recent;
+    struct Editor_Recent again;
+    char* data = NULL;
+    int size = 0;
+    int mx;
+    int mz;
+    char storage[EDITOR_DOC_STORAGE_MAX];
+    unsigned const G = EDITOR_HK_CTX_G | EDITOR_HK_CTX_N;
+
+    Editor_HotkeysInit(&g_hk);
+    CHECK(Editor_HotkeyFind("view.command") == EDITOR_HK_VIEW_COMMAND
+              && Editor_HotkeyForPanel("command") == EDITOR_HK_VIEW_COMMAND,
+        "view.command names the command module");
+    CHECK(Editor_ChordParse(Editor_HotkeyInfo(EDITOR_HK_VIEW_COMMAND)->defaults[0], &chord) && chord.key == TORIRSK_P
+              && chord.mods == EDITOR_HK_MOD_CTRL,
+        "the palette is Ctrl+P");
+    CHECK(Editor_ChordParse(Editor_HotkeyInfo(EDITOR_HK_VIEW_GOTO)->defaults[0], &chord) && chord.key == TORIRSK_G
+              && chord.mods == (EDITOR_HK_MOD_CTRL | EDITOR_HK_MOD_SHIFT),
+        "Go to tile... is Ctrl+Shift+G (Ctrl+G stays Snap)");
+    CHECK(fire("ctrl+p", G) == EDITOR_HK_VIEW_COMMAND, "Ctrl+P fires the palette");
+    CHECK(fire("ctrl+shift+g", G) == EDITOR_HK_VIEW_GOTO && fire("ctrl+g", G) == EDITOR_HK_VIEW_SNAP,
+        "Ctrl+Shift+G is Go to tile, Ctrl+G still Snap");
+    CHECK(fire("ctrl+shift+l", G) == EDITOR_HK_EDIT_SELECT_KIND && fire("ctrl+i", G) == EDITOR_HK_EDIT_INVERT,
+        "Ctrl+Shift+L selects the kind, Ctrl+I inverts");
+
+    /* F: fly down under the default scheme (held, no edge), frame under
+     * Unity (an edge, nothing held). A caller stating no scheme is on the
+     * default one. */
+    input_clear(1000);
+    press("f");
+    g_in.contexts = G;
+    Editor_HotkeysResolve(&g_hk, &g_in, &frame);
+    CHECK(frame.count == 0 && frame.active[EDITOR_HK_CAM_DOWN] && !frame.active[EDITOR_HK_CAM_FRAME_KEY],
+        "F with no scheme stated flies down (the default scheme is implied)");
+    input_clear(1000);
+    press("f");
+    g_in.contexts = G | EDITOR_HK_CTX_D;
+    Editor_HotkeysResolve(&g_hk, &g_in, &frame);
+    CHECK(frame.count == 0 && frame.active[EDITOR_HK_CAM_DOWN], "F under D flies down");
+    input_clear(1000);
+    press("f");
+    g_in.contexts = G | EDITOR_HK_CTX_U;
+    Editor_HotkeysResolve(&g_hk, &g_in, &frame);
+    CHECK(frame.count == 1 && frame.fired[0] == EDITOR_HK_CAM_FRAME_KEY && !frame.active[EDITOR_HK_CAM_DOWN],
+        "F under U frames the selection and does not fly");
+    CHECK(fire("r", G | EDITOR_HK_CTX_U) == -1 && fire("home", G | EDITOR_HK_CTX_U) == EDITOR_HK_CAM_FRAME,
+        "R still flies up (held) and Home still frames under U");
+    CHECK(!Editor_HotkeyContextsOverlap(EDITOR_HK_CTX_D, EDITOR_HK_CTX_U), "D and U never overlap");
+    CHECK(Editor_HotkeysClash(&g_hk, EDITOR_HK_CAM_FRAME_KEY) < 0, "F under U clashes with nothing");
+
+    /* editor_recent.ini: the ring (newest first, once each, ten at most)
+     * and the scheme roundtrip. */
+    Editor_RecentInit(&recent);
+    Editor_RecentNote(&recent, 50, 50, "");
+    Editor_RecentNote(&recent, 50, 51, "maps");
+    Editor_RecentNote(&recent, 50, 50, "ported/testlane");
+    Editor_RecentNote(&recent, 50, 50, "");
+    CHECK(recent.count == 3 && strcmp(recent.keys[0], "m50_50") == 0 && strcmp(recent.keys[1], "ported/testlane/m50_50") == 0
+              && strcmp(recent.keys[2], "m50_51") == 0,
+        "the ring is newest first, a square once (%d: %s, %s, %s)", recent.count, recent.keys[0], recent.keys[1],
+        recent.keys[2]);
+    for( int i = 0; i < 20; i++ )
+        Editor_RecentNote(&recent, 60 + i, 60, "");
+    CHECK(recent.count == EDITOR_RECENT_MAX && strcmp(recent.keys[0], "m79_60") == 0, "the ring holds %d",
+        EDITOR_RECENT_MAX);
+    Editor_RecentSetScheme(&recent, EDITOR_CAMERA_SCHEME_UNITY);
+    Editor_RecentEncode(&recent, &data, &size);
+    CHECK(data && strstr(data, "[recent]\nversion = 1\nsquare = m79_60\n") && strstr(data, "[camera]\nscheme = unity\n"),
+        "the file lists the ring and the scheme");
+    CHECK(Editor_RecentDecode(&again, data, size) == EDITOR_RECENT_MAX && again.count == recent.count
+              && again.camera_scheme == EDITOR_CAMERA_SCHEME_UNITY && strcmp(again.keys[0], recent.keys[0]) == 0
+              && strcmp(again.keys[9], recent.keys[9]) == 0,
+        "the file decodes to the same ring and scheme");
+    ToriMem_Free(ToriMem_Process(), data);
+    CHECK(Editor_RecentDecode(&again, "[recent]\nsquare = nonsense\nsquare = ported/x/m1_2\n[camera]\nscheme = zork\n", 62)
+                  == 1
+              && again.count == 1 && again.camera_scheme == EDITOR_CAMERA_SCHEME_DEFAULT
+              && Editor_RecentEntry(&again, 0, &mx, &mz, storage, (int)sizeof(storage)) && mx == 1 && mz == 2
+              && strcmp(storage, "ported/x") == 0,
+        "a bad square or scheme word is skipped, a lane key parses (%d, %s)", again.count, again.keys[0]);
+    CHECK(!Editor_RecentParseKey("m50", &mx, &mz, storage, (int)sizeof(storage))
+              && !Editor_RecentParseKey("x50_50", &mx, &mz, storage, (int)sizeof(storage)),
+        "a key is m<x>_<z>");
+    CHECK(Editor_RecentPath() && strcmp(Editor_RecentPath(), EDITOR_RECENT_DEFAULT_PATH) == 0,
+        "the file is editor_recent.ini beside the layout");
+}
+
 int
 main(
     int argc,
@@ -460,6 +555,7 @@ main(
     test_chords();
     test_ini();
     test_resolve();
+    test_ergonomics();
     test_doc(argc > 1 ? argv[1] : "../docs/MAPED_HOTKEYS.md");
     printf("editor_hotkeys_test: %d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;

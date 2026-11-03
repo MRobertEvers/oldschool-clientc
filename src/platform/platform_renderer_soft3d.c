@@ -1,6 +1,7 @@
 #include "mem/torirs_mem.h"
 #include "mem/torimem_toridraw.h"
 #include "platform/platform_renderer_soft3d.h"
+#include "perf/frame_stats.h"
 
 #include "graphics/fb_clear.h"
 #include "log/torirs_log.h"
@@ -1906,12 +1907,16 @@ soft3d_execute_measured(
     {
     case TORIRSRC_DRAW_MODEL:
     case TORIRSRC_DRAW_MODEL_WIDGET:
+    {
+        uint64_t const t_model = FrameStats_Now();
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS_MODEL, 1);
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_MODEL)
         {
             ToriPlatform_Renderer_Soft3D_Execute(soft, cmd);
         }
+        FrameStats_Span(FRAME_STATS_WORLD_DRAW, t_model);
         return;
+    }
     case TORIRSRC_SPRITE:
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS_SPRITE, 1);
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_SPRITE)

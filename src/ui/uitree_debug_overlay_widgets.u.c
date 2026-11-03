@@ -1540,6 +1540,17 @@ ToriRSChrome_TakeTitleDoubleClick(struct ToriRSChrome* ui)
 }
 
 int
+ToriRSChrome_TakeTitleClick(struct ToriRSChrome* ui)
+{
+    int panel;
+
+    assert(ui);
+    panel = ui->title_click;
+    ui->title_click = -1;
+    return panel;
+}
+
+int
 ToriRSChrome_PanelIsMaximised(struct ToriRSChrome const* ui, int panel)
 {
     assert(ui);

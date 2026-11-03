@@ -8,6 +8,10 @@
 # use them freely.
 MAPED_CLIENT_SRCS += editor/editor_hotkeys.c editor/task_editor_hotkeys_io.c \
 	editor/panels/edpanel_hotkeys.c app/app_editor_hotkeys.c
+# The command palette (Ctrl+P) and what it and the File menu remember per
+# user: the recent squares and the camera scheme (editor_recent.ini).
+MAPED_CLIENT_SRCS += editor/editor_recent.c editor/task_editor_recent_io.c \
+	editor/panels/edpanel_command.c
 
 # The pure half on its own: every default chord parses and formats back, the
 # defaults are conflict-free per context, the ini roundtrip (unbound and
@@ -18,7 +22,7 @@ MAPED_CLIENT_SRCS += editor/editor_hotkeys.c editor/task_editor_hotkeys_io.c \
 test-editor-hotkeys:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_hotkeys_test $(TORIMEM_SRCS) editor/editor_hotkeys.c \
-		input/torirs_keymap.c editor/test/editor_hotkeys_test.c
+		editor/editor_recent.c input/torirs_keymap.c editor/test/editor_hotkeys_test.c
 	./$(OBJ_DIR)/editor_hotkeys_test ../docs/MAPED_HOTKEYS.md
 
 test-editor: test-editor-hotkeys

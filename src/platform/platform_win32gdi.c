@@ -2782,6 +2782,40 @@ PlatformWindow_SetWindowSize(struct PlatformWindow* p, int width, int height)
 }
 
 bool
+PlatformWindow_WindowBox(struct PlatformWindow* p, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    RECT outer;
+    int w = 0;
+    int h = 0;
+
+    assert(p);
+    assert(out_x);
+    assert(out_y);
+    assert(out_w);
+    assert(out_h);
+    if( !p->hwnd || !GetWindowRect(p->hwnd, &outer) || !win32_main_client_size(p, &w, &h) )
+        return false;
+    /* The game area: the browser rail beside it is the platform's own. */
+    w -= win32_rail_width(p);
+    if( w <= 0 || h <= 0 )
+        return false;
+    *out_x = (int)outer.left;
+    *out_y = (int)outer.top;
+    *out_w = w;
+    *out_h = h;
+    return true;
+}
+
+void
+PlatformWindow_SetWindowPosition(struct PlatformWindow* p, int x, int y)
+{
+    assert(p);
+    if( !p->hwnd || IsZoomed(p->hwnd) || IsIconic(p->hwnd) )
+        return;
+    SetWindowPos(p->hwnd, NULL, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+bool
 PlatformWindow_Resize(struct PlatformWindow* p, int width, int height)
 {
     assert(p);

@@ -5,6 +5,149 @@
  * save path. Never on a link line of its own.
  */
 
+/* The change scan runs on a worker thread where the platform has one (the
+ * catalog's warm build has the same shape); the web and win32 lanes scan
+ * inline. Nothing on the thread allocates through ToriMem: the rows buffer is
+ * the main thread's, filled by the scan and read after the join. */
+#if !defined(__EMSCRIPTEN__) && !defined(_WIN32)
+#include <pthread.h>
+#define LANES_SCAN_THREAD 1
+#else
+#define LANES_SCAN_THREAD 0
+#endif
+
+struct ToriRSMapEdLaneScan
+{
+    struct ToriRSMapEdLaneDef lane;
+    struct ToriRSMapEdLaneChange* rows;
+    struct ToriRSMapEdLaneCounts counts;
+    int count;
+#if LANES_SCAN_THREAD
+    pthread_t thread;
+    int thread_live;
+#endif
+    int done;
+};
+
+static void
+lanes_scan_run(struct ToriRSMapEdLaneScan* scan)
+{
+    scan->count = ToriRSMapEdLanes_Changes(&scan->lane, scan->rows, TORIRSMAPED_LANE_CHANGE_ROWS_MAX, &scan->counts);
+    __atomic_store_n(&scan->done, 1, __ATOMIC_RELEASE);
+}
+
+#if LANES_SCAN_THREAD
+static void*
+lanes_scan_thread_main(void* arg)
+{
+    lanes_scan_run(arg);
+    return NULL;
+}
+#endif
+
+static void
+lanes_put_changes(
+    struct ToriRSMapEdBuf* payload,
+    uint32_t state,
+    const struct ToriRSMapEdLaneScan* scan)
+{
+    int const shown = scan ? (scan->count < TORIRSMAPED_LANE_CHANGE_ROWS_MAX ? scan->count
+                                                                            : TORIRSMAPED_LANE_CHANGE_ROWS_MAX)
+                           : 0;
+    ToriRSMapEd_PutU32(payload, state);
+    ToriRSMapEd_PutU32(payload, scan ? (uint32_t)scan->counts.modified : 0);
+    ToriRSMapEd_PutU32(payload, scan ? (uint32_t)scan->counts.added : 0);
+    ToriRSMapEd_PutU32(payload, scan ? (uint32_t)scan->counts.deleted : 0);
+    ToriRSMapEd_PutU32(payload, (uint32_t)shown);
+    for( int i = 0; i < shown; i++ )
+    {
+        ToriRSMapEd_PutU32(payload, (uint32_t)scan->rows[i].kind);
+        ToriRSMapEd_PutString(payload, scan->rows[i].path);
+        ToriRSMapEd_PutU32(payload, scan->rows[i].size);
+    }
+}
+
+static void
+lanes_scan_free(struct ToriRSMapEd* maped)
+{
+    struct ToriRSMapEdLaneScan* scan = maped->lane_scan;
+    if( !scan )
+        return;
+#if LANES_SCAN_THREAD
+    if( scan->thread_live )
+        pthread_join(scan->thread, NULL);
+#endif
+    ToriMem_Free(ToriMem_Editor(), scan->rows);
+    ToriMem_Free(ToriMem_Editor(), scan);
+    maped->lane_scan = NULL;
+}
+
+/** Once per service pass: a finished scan is joined and broadcast. */
+static void
+lanes_service(struct ToriRSMapEd* maped)
+{
+    struct ToriRSMapEdLaneScan* scan = maped->lane_scan;
+    struct ToriRSMapEdBuf payload;
+
+    if( !scan || !__atomic_load_n(&scan->done, __ATOMIC_ACQUIRE) )
+        return;
+#if LANES_SCAN_THREAD
+    if( scan->thread_live )
+    {
+        pthread_join(scan->thread, NULL);
+        scan->thread_live = 0;
+    }
+#endif
+    memset(&payload, 0, sizeof(payload));
+    lanes_put_changes(&payload, TORIRSMAPED_LANE_CHANGES_DONE, scan);
+    jobs_broadcast(maped, TORIRSMAPED_FACT_LANE_CHANGES, &payload);
+    ToriRSMapEd_BufFree(&payload);
+    lanes_scan_free(maped);
+}
+
+/** LANE_CHANGES: start the scan (or join the one running) and answer the
+ *  requester "scanning"; the rows reach every window from lanes_service. */
+static void
+lanes_scan_begin(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped)
+{
+    struct ToriRSMapEdLaneScan* scan;
+    struct ToriRSMapEdBuf payload;
+
+    memset(&payload, 0, sizeof(payload));
+    if( maped->lane.is_main )
+    {
+        /* The main tree is its own base: the answer is empty, at once. */
+        lanes_put_changes(&payload, TORIRSMAPED_LANE_CHANGES_DONE, NULL);
+        send_buf(session, TORIRSMAPED_FACT_LANE_CHANGES, &payload);
+        ToriRSMapEd_BufFree(&payload);
+        return;
+    }
+    if( !maped->lane_scan )
+    {
+        scan = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*scan));
+        assert(scan);
+        scan->lane = maped->lane;
+        scan->rows = ToriMem_Alloc(ToriMem_Editor(), TORIRSMAPED_LANE_CHANGE_ROWS_MAX * sizeof(*scan->rows));
+        assert(scan->rows);
+        maped->lane_scan = scan;
+#if LANES_SCAN_THREAD
+        if( pthread_create(&scan->thread, NULL, lanes_scan_thread_main, scan) == 0 )
+            scan->thread_live = 1;
+        else
+            lanes_scan_run(scan);
+#else
+        lanes_scan_run(scan);
+#endif
+    }
+    lanes_put_changes(&payload, TORIRSMAPED_LANE_CHANGES_SCANNING, NULL);
+    send_buf(session, TORIRSMAPED_FACT_LANE_CHANGES, &payload);
+    ToriRSMapEd_BufFree(&payload);
+    /* A scan that ran inline (no thread) is done: broadcast it now. */
+    lanes_service(maped);
+}
+
 int
 ToriRSMapEd_OpenLane(
     struct ToriRSMapEd* maped,
@@ -130,6 +273,8 @@ handle_lane_publish(
             "read-only: this server does not hold its lane's lock", target, NULL, 0);
         return;
     }
+    /* A scan in flight reads the tree this is about to rewrite. */
+    lanes_scan_free(maped);
     /* What is on disk is what gets published: every dirty document first. */
     status = save_all_docs(maped, &saved);
     if( status != EDITOR_HOST_OK )
@@ -196,6 +341,7 @@ handle_lane_discard(
             "read-only: this server does not hold its lane's lock", "", NULL, 0);
         return;
     }
+    lanes_scan_free(maped);
     /* Unsaved edits are changes too: the documents go with the files, and
      * every window reopens what it shows from the base. */
     Editor_DocFree(&maped->doc);
@@ -257,28 +403,7 @@ handle_lanes(
         send_buf(session, TORIRSMAPED_FACT_LANE_LIST, &payload);
     }
     else if( type == TORIRSMAPED_REQ_LANE_CHANGES )
-    {
-        struct ToriRSMapEdLaneChange* rows =
-            ToriMem_Alloc(ToriMem_Editor(), TORIRSMAPED_LANE_CHANGE_ROWS_MAX * sizeof(*rows));
-        struct ToriRSMapEdLaneCounts counts;
-        int count;
-        int shown;
-        assert(rows);
-        count = ToriRSMapEdLanes_Changes(&maped->lane, rows, TORIRSMAPED_LANE_CHANGE_ROWS_MAX, &counts);
-        shown = count < TORIRSMAPED_LANE_CHANGE_ROWS_MAX ? count : TORIRSMAPED_LANE_CHANGE_ROWS_MAX;
-        ToriRSMapEd_PutU32(&payload, (uint32_t)counts.modified);
-        ToriRSMapEd_PutU32(&payload, (uint32_t)counts.added);
-        ToriRSMapEd_PutU32(&payload, (uint32_t)counts.deleted);
-        ToriRSMapEd_PutU32(&payload, (uint32_t)shown);
-        for( int i = 0; i < shown; i++ )
-        {
-            ToriRSMapEd_PutU32(&payload, (uint32_t)rows[i].kind);
-            ToriRSMapEd_PutString(&payload, rows[i].path);
-            ToriRSMapEd_PutU32(&payload, rows[i].size);
-        }
-        ToriMem_Free(ToriMem_Editor(), rows);
-        send_buf(session, TORIRSMAPED_FACT_LANE_CHANGES, &payload);
-    }
+        lanes_scan_begin(session, maped);
     else if( type == TORIRSMAPED_REQ_LANE_PUBLISH )
         handle_lane_publish(session, maped, body, length);
     else if( type == TORIRSMAPED_REQ_LANE_DISCARD )

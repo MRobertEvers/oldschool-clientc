@@ -31,6 +31,7 @@
  */
 
 #include "torirs_maped_catalog.h"
+#include "perf/frame_stats.h"
 
 #include "torirs_maped.h"
 #include "editor/editor_doc.h"
@@ -46,6 +47,15 @@
 #include <time.h>
 #include <unistd.h>
 #include "log/torirs_log.h"
+
+/* The warm build runs on a worker thread where the platform has one
+ * (cat_warm_thread_*); the web and win32 lanes keep the sliced build. */
+#if !defined(__EMSCRIPTEN__) && !defined(_WIN32)
+#include <pthread.h>
+#define CAT_WARM_THREAD 1
+#else
+#define CAT_WARM_THREAD 0
+#endif
 
 #ifndef O_BINARY
 #define O_BINARY 0
@@ -260,6 +270,14 @@ struct cat_job
     int lane_count;
     int parse_at;
     struct ToriRSMapEdCatalogStats stats;
+    /** The warm build on its worker thread (cat_warm_thread_start / join):
+     *  while `thread_live`, the thread owns every field of the catalog and
+     *  the main thread reads only `thread_done`. */
+    int thread_live;
+    int thread_done;
+#if CAT_WARM_THREAD
+    pthread_t thread;
+#endif
 };
 
 struct ToriRSMapEdCatalog
@@ -590,6 +608,33 @@ cat_pool_int(
     char text[24];
     snprintf(text, sizeof(text), "%d", value);
     return cat_pool_str(src, text);
+}
+
+/**
+ * Give back a parsed source's growth slack: the pool and the contribs grow
+ * by doubling while a file parses, and over the 41,668 sources of the
+ * owner's tree the slack was 44 MB of pool and a third of the contribs
+ * (measured 2026-11-03: pools 79 MB used of 123 MB). A source parses once a
+ * build (or once per change), so nothing grows them again until then.
+ */
+static void
+cat_source_trim(struct cat_source* src)
+{
+    if( src->pool && src->pool_cap > src->pool_len + 1 )
+    {
+        char* pool = ToriMem_Realloc(ToriMem_Editor(), src->pool, src->pool_len + 1);
+        assert(pool);
+        src->pool = pool;
+        src->pool_cap = src->pool_len + 1;
+    }
+    if( src->contribs && src->contrib_cap > src->contrib_count && src->contrib_count > 0 )
+    {
+        struct cat_contrib* contribs = ToriMem_Realloc(
+            ToriMem_Editor(), src->contribs, (size_t)src->contrib_count * sizeof(*src->contribs));
+        assert(contribs);
+        src->contribs = contribs;
+        src->contrib_cap = src->contrib_count;
+    }
 }
 
 static struct cat_contrib*
@@ -2964,11 +3009,15 @@ ToriRSMapEdCatalog_Create(const char* content_dir)
 static void
 cat_job_abort(struct ToriRSMapEdCatalog* catalog);
 
+static void
+cat_warm_thread_join(struct ToriRSMapEdCatalog* catalog);
+
 void
 ToriRSMapEdCatalog_Free(struct ToriRSMapEdCatalog* catalog)
 {
     if( !catalog )
         return;
+    cat_warm_thread_join(catalog);
     cat_job_abort(catalog);
     ToriMem_Free(ToriMem_Editor(), catalog->held.hits);
     for( int i = 0; i < catalog->source_count; i++ )
@@ -3037,6 +3086,7 @@ cat_finish(
                 continue;
             at = trace ? cat_now_ms() : 0.0;
             cat_parse_source(catalog, &catalog->sources[i]);
+            cat_source_trim(&catalog->sources[i]);
             catalog->sources[i].dirty = 0;
             stats->parsed++;
             if( trace && type >= 0 && (size_t)type < sizeof(type_names) / sizeof(type_names[0]) )
@@ -3096,14 +3146,105 @@ cat_refresh(
     double const t0 = cat_now_ms();
     int changed;
 
+    cat_warm_thread_join(catalog);
     cat_job_abort(catalog);
     memset(&stats, 0, sizeof(stats));
     cat_scan(catalog, maps_only);
     stats.scan_ms = cat_now_ms() - t0;
     changed = cat_finish(catalog, 1, !maps_only, &stats);
+    /* TORIRS_EDITOR_FRAME_STATS: the first build is the "catalog ready"
+     * startup mark (the mark keeps the first; a sweep changes nothing). */
+    FrameStats_Mark(FRAME_STATS_MARK_CATALOG_READY);
     if( out_stats )
         *out_stats = stats;
     return changed;
+}
+
+/* ---- the warm build's worker thread ---------------------------------- */
+
+/**
+ * TORIRS_CATALOG_WARM_THREAD=0 keeps the warm build in the service pass's
+ * slices (the shape before 2026-11-03: 6 ms of every frame for the ~25 s the
+ * build took at that pace, and a Catalog or Square picker opened sooner
+ * stalled for the rest of it). With the thread the frame pays nothing and
+ * the build takes the ~4-7 s of work it is.
+ */
+static int
+cat_warm_thread_wanted(void)
+{
+#if CAT_WARM_THREAD
+    static int wanted = -1;
+    if( wanted < 0 )
+    {
+        const char* env = getenv("TORIRS_CATALOG_WARM_THREAD");
+        wanted = !(env && env[0] == '0');
+    }
+    return wanted;
+#else
+    return 0;
+#endif
+}
+
+static int
+cat_job_step(
+    struct ToriRSMapEdCatalog* catalog,
+    double deadline_ms);
+
+#if CAT_WARM_THREAD
+static void*
+cat_warm_thread_main(void* arg)
+{
+    struct ToriRSMapEdCatalog* catalog = arg;
+    (void)cat_job_step(catalog, 0.0);
+    /* Release: every write of the build is visible to the join's acquire. */
+    __atomic_store_n(&catalog->job.thread_done, 1, __ATOMIC_RELEASE);
+    ToriMem_ThreadExit();
+    return NULL;
+}
+#endif
+
+/** Hand the begun warm build to its thread. */
+static void
+cat_warm_thread_start(struct ToriRSMapEdCatalog* catalog)
+{
+#if CAT_WARM_THREAD
+    struct cat_job* job = &catalog->job;
+    assert(!job->thread_live);
+    assert(job->phase != CAT_JOB_IDLE);
+    job->thread_done = 0;
+    if( pthread_create(&job->thread, NULL, cat_warm_thread_main, catalog) != 0 )
+        return; /* the slices below build it instead */
+    job->thread_live = 1;
+#else
+    (void)catalog;
+#endif
+}
+
+/** Whether the thread is still building: a request or a service pass must
+ *  not read the catalog until it has joined. */
+static int
+cat_warm_thread_done(const struct ToriRSMapEdCatalog* catalog)
+{
+    return __atomic_load_n(&catalog->job.thread_done, __ATOMIC_ACQUIRE) != 0;
+}
+
+/** Wait for the thread (a request that cannot answer without the index) and
+ *  take the catalog back. A no-op when no thread runs. */
+static void
+cat_warm_thread_join(struct ToriRSMapEdCatalog* catalog)
+{
+#if CAT_WARM_THREAD
+    struct cat_job* job = &catalog->job;
+    if( !job->thread_live )
+        return;
+    pthread_join(job->thread, NULL);
+    job->thread_live = 0;
+    job->thread_done = 0;
+    catalog->counters.slices++;
+    FrameStats_Mark(FRAME_STATS_MARK_CATALOG_READY);
+#else
+    (void)catalog;
+#endif
 }
 
 /* ---- the background job: the warm build and the freshness sweeps ---- */
@@ -3246,6 +3387,7 @@ cat_job_step(
             if( !src->dirty )
                 continue;
             cat_parse_source(catalog, src);
+            cat_source_trim(src);
             src->dirty = 0;
             job->stats.parsed++;
             if( deadline_ms > 0.0 && cat_now_ms() >= deadline_ms )
@@ -3262,8 +3404,26 @@ cat_job_step(
     (void)cat_finish(catalog, 1, 1, &job->stats);
     catalog->counters.sweeps++;
     if( getenv("TORIRS_CATALOG_TRACE") )
+    {
+        size_t pool_bytes = 0;
+        size_t pool_cap = 0;
+        size_t contrib_bytes = 0;
         fprintf(stderr, "catalog: pass done: scan %.1f ms, %d parsed (%.1f ms), %d removed, merge %.1f ms\n",
             job->stats.scan_ms, job->stats.parsed, job->stats.parse_ms, job->stats.removed, job->stats.merge_ms);
+        for( int i = 0; i < catalog->source_count; i++ )
+        {
+            pool_bytes += catalog->sources[i].pool_len;
+            pool_cap += catalog->sources[i].pool_cap;
+            contrib_bytes += (size_t)catalog->sources[i].contrib_cap * sizeof(struct cat_contrib);
+        }
+        fprintf(stderr,
+            "catalog: memory: editor group live %.1f MB (peak %.1f MB); %d sources, pools %.1f MB used of %.1f MB,"
+            " contribs %.1f MB, records %.1f MB, refs %.1f MB, scratch %.1f MB\n",
+            (double)ToriMem_Editor()->live_bytes / 1048576.0, (double)ToriMem_Editor()->peak_bytes / 1048576.0,
+            catalog->source_count, (double)pool_bytes / 1048576.0, (double)pool_cap / 1048576.0,
+            (double)contrib_bytes / 1048576.0, (double)catalog->record_count * sizeof(struct cat_record) / 1048576.0,
+            (double)catalog->ref_count * sizeof(struct cat_ref) / 1048576.0, (double)catalog->scratch_cap / 1048576.0);
+    }
     return 1;
 }
 
@@ -3278,9 +3438,26 @@ ToriRSMapEdCatalog_Service(
 
     assert(catalog);
     assert(budget_ms > 0.0);
+    /* The thread owns the catalog until it is done; then the join takes it
+     * back (and the pass is over: the thread ran the job to its end). */
+    if( catalog->job.thread_live )
+    {
+        if( !cat_warm_thread_done(catalog) )
+            return 1;
+        cat_warm_thread_join(catalog);
+        return 0;
+    }
     /* The warm build starts on its own; a sweep only when a request asked. */
     if( catalog->job.phase == CAT_JOB_IDLE && !catalog->built )
+    {
         cat_job_begin(catalog);
+        if( catalog->job.phase != CAT_JOB_IDLE && cat_warm_thread_wanted() )
+        {
+            cat_warm_thread_start(catalog);
+            if( catalog->job.thread_live )
+                return 1;
+        }
+    }
     if( catalog->job.phase == CAT_JOB_IDLE )
         return 0;
     done = cat_job_step(catalog, t0 + budget_ms);
@@ -3299,10 +3476,18 @@ ToriRSMapEdCatalog_MapsRevision(const struct ToriRSMapEdCatalog* catalog)
 }
 
 int
+ToriRSMapEdCatalog_Building(const struct ToriRSMapEdCatalog* catalog)
+{
+    assert(catalog);
+    return catalog->job.thread_live && !cat_warm_thread_done(catalog);
+}
+
+int
 ToriRSMapEdCatalog_Working(const struct ToriRSMapEdCatalog* catalog)
 {
     assert(catalog);
-    return catalog->job.phase != CAT_JOB_IDLE;
+    /* `phase` is the thread's while it runs. */
+    return catalog->job.thread_live || catalog->job.phase != CAT_JOB_IDLE;
 }
 
 void
@@ -3325,12 +3510,17 @@ ToriRSMapEdCatalog_Counters(
 static void
 cat_request_index(struct ToriRSMapEdCatalog* catalog)
 {
+    /* A warm build on its thread: this request needs the index, so it waits
+     * for the rest of the build -- what a request before the build was done
+     * always did, now against a thread that has run flat out since boot. */
+    cat_warm_thread_join(catalog);
     if( !catalog->built )
     {
         if( catalog->job.phase != CAT_JOB_IDLE )
             (void)cat_job_step(catalog, 0.0);
         if( !catalog->built )
             (void)cat_refresh(catalog, 0, NULL);
+        FrameStats_Mark(FRAME_STATS_MARK_CATALOG_READY);
         return;
     }
     if( catalog->job.phase == CAT_JOB_IDLE
@@ -3371,7 +3561,8 @@ int
 ToriRSMapEdCatalog_Built(const struct ToriRSMapEdCatalog* catalog)
 {
     assert(catalog);
-    return catalog->built;
+    /* `built` is the thread's while it runs (the join reads it next). */
+    return !catalog->job.thread_live && catalog->built;
 }
 
 void
@@ -3932,6 +4123,7 @@ ToriRSMapEdCatalog_Query(
     const struct cat_hit* hits;
     int count;
     assert(catalog);
+    cat_warm_thread_join(catalog);
     assert(filter);
     assert(out_records || max == 0);
     cat_request_index(catalog);
@@ -3949,6 +4141,7 @@ ToriRSMapEdCatalog_Entry(
 {
     const struct cat_record* rec;
     assert(catalog);
+    cat_warm_thread_join((struct ToriRSMapEdCatalog*)catalog);
     assert(out);
     assert(record >= 0);
     assert(record < catalog->record_count);
@@ -3970,6 +4163,7 @@ ToriRSMapEdCatalog_Field(
 {
     struct cat_fields fields;
     assert(catalog);
+    cat_warm_thread_join((struct ToriRSMapEdCatalog*)catalog);
     assert(key);
     assert(out);
     assert(out_size > 0);
@@ -4053,6 +4247,16 @@ ToriRSMapEdCatalog_HandleQuery(
         page_size = TORIRSMAPED_CATALOG_PAGE_DEFAULT;
     if( page_size > TORIRSMAPED_CATALOG_PAGE_MAX )
         page_size = TORIRSMAPED_CATALOG_PAGE_MAX;
+    /* The warm build on its thread: a caller that asks again every tick is
+     * told so rather than made to wait (seconds) for the rest of it. */
+    if( (flags & TORIRSMAPED_CATALOG_NOWAIT) && ToriRSMapEdCatalog_Building(catalog) )
+    {
+        ToriRSMapEd_PutU32(out, EDITOR_HOST_BUSY);
+        for( int i = 0; i < 4; i++ )
+            ToriRSMapEd_PutU32(out, 0);
+        return 1;
+    }
+    flags &= ~(uint32_t)TORIRSMAPED_CATALOG_NOWAIT;
 
     cat_request_index(catalog);
     total = cat_query_hits(catalog, kind, filter, flags, &hits);
@@ -4529,12 +4733,26 @@ ToriRSMapEdCatalog_HandleSquares(
     uint32_t length,
     struct ToriRSMapEdBuf* out)
 {
+    uint32_t flags = 0;
+
     assert(catalog);
     assert(doc);
     assert(out);
-    (void)body;
-    if( length != 0 )
+    /* An empty body (the shape before 2026-11-03), or one u32 of
+     * ToriRSMapEdCatalogQueryFlag (NOWAIT is the one that applies). */
+    if( length != 0 && length != 4 )
         return 0;
+    if( length == 4 )
+        flags = ToriRSMapEd_ReadU32(body);
+    if( (flags & TORIRSMAPED_CATALOG_NOWAIT) && ToriRSMapEdCatalog_Building(catalog) )
+    {
+        /* The atlas's status, then empty storage, area, square and area-id
+         * lists: the caller asks again next tick. */
+        ToriRSMapEd_PutU32(out, EDITOR_HOST_BUSY);
+        for( int i = 0; i < 4; i++ )
+            ToriRSMapEd_PutU32(out, 0);
+        return 1;
+    }
     cat_request_index(catalog);
     ToriRSMapEdCatalog_EncodeSquares(catalog, doc, out);
     return 1;
@@ -4554,6 +4772,7 @@ ToriRSMapEdCatalog_EncodeSquares(
     int created = 0;
 
     assert(catalog);
+    cat_warm_thread_join(catalog);
     assert(doc);
     assert(out);
     assert(doc->square_count <= EDITOR_DOC_MAX_SQUARES);
@@ -4648,6 +4867,7 @@ ToriRSMapEdCatalog_Square(
     int record;
     const struct cat_square* sq;
     assert(catalog);
+    cat_warm_thread_join((struct ToriRSMapEdCatalog*)catalog);
     assert(key);
     assert(out);
     record = cat_find_exact(catalog, TORIRSMAPED_CATALOG_SQUARE, key);
@@ -4669,5 +4889,6 @@ int
 ToriRSMapEdCatalog_SquareCount(const struct ToriRSMapEdCatalog* catalog)
 {
     assert(catalog);
+    cat_warm_thread_join((struct ToriRSMapEdCatalog*)catalog);
     return catalog->square_count;
 }

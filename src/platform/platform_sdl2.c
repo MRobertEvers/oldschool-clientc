@@ -3496,6 +3496,50 @@ PlatformWindow_SetWindowSize(
     SDL_SetWindowSize(platform->window, width + sdl_chrome_pane_points(platform), height);
 }
 
+bool
+PlatformWindow_WindowBox(
+    struct PlatformWindow* platform,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+
+    assert(platform);
+    assert(out_x);
+    assert(out_y);
+    assert(out_w);
+    assert(out_h);
+    if( !platform->window )
+        return false;
+    SDL_GetWindowPosition(platform->window, &x, &y);
+    SDL_GetWindowSize(platform->window, &w, &h);
+    w -= sdl_chrome_pane_points(platform);
+    if( w <= 0 || h <= 0 )
+        return false;
+    *out_x = x;
+    *out_y = y;
+    *out_w = w;
+    *out_h = h;
+    return true;
+}
+
+void
+PlatformWindow_SetWindowPosition(
+    struct PlatformWindow* platform,
+    int x,
+    int y)
+{
+    assert(platform);
+    if( !platform->window || sdl_window_frame_locked(platform) )
+        return;
+    SDL_SetWindowPosition(platform->window, x, y);
+}
+
 void
 PlatformWindow_MapMouse(
     struct PlatformWindow* platform,

@@ -43,6 +43,8 @@ struct Editor_CatalogModel
     uint32_t page_size;
     /** Frames left before a changed filter is asked. */
     int settle;
+    /** The last query was answered BUSY (the index still building). */
+    int building;
 
     /* What `result` answers; `held` 0 until the first answer (or after an
      * invalidation). */

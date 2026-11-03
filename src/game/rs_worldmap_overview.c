@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define OVERVIEW_TILES 64
@@ -29,6 +30,14 @@
 #define OVERVIEW_HI_SCALE_MAX 8
 /* Close-up pixels baked per poll: four regions at 8 px a tile. */
 #define OVERVIEW_HI_PIXELS_PER_POLL (4L * 512 * 512)
+/* Regions a poll may have in flight (asked for, loaded and waiting on their
+ * floors, or past this poll's bake budget) before it stops asking for more.
+ * Every region asked for holds its decoded tiles (~70 KB) until its bake is
+ * complete, and a poll over the Full map's 8,370 regions that asked for all
+ * of them at once held ~590 MB of tiles (measured 2026-11-03; the assets
+ * group's peak) and stalled the pump 400 ms on the loads. At 256 the loads
+ * stream behind the bakes and the tiles held stay under ~20 MB. */
+#define OVERVIEW_REGIONS_IN_FLIGHT 256
 
 struct OverviewHiBake
 {
@@ -535,6 +544,22 @@ RS_WorldMapOverview_ResolveTile(
 
 /* ---- polling and drawing ------------------------------------------------ */
 
+/** OVERVIEW_REGIONS_IN_FLIGHT, or TORIRS_WORLDMAP_INFLIGHT=<n> (0: no cap,
+ *  the shape before the cap) for a measurement. */
+static int
+overview_regions_in_flight(void)
+{
+    static int cap = -1;
+    if( cap < 0 )
+    {
+        const char* env = getenv("TORIRS_WORLDMAP_INFLIGHT");
+        cap = env && env[0] ? atoi(env) : OVERVIEW_REGIONS_IN_FLIGHT;
+        if( cap <= 0 )
+            cap = 1 << 30;
+    }
+    return cap;
+}
+
 /** One area's share of a poll (the frame's budgets already begun). */
 static int
 overview_poll_area(
@@ -563,6 +588,13 @@ overview_poll_area(
         bake = overview_find(overview, key);
         if( bake && (bake->complete || bake->bakes >= RS_WORLDMAP_OVERVIEW_REBAKES) )
             continue;
+        /* Enough in flight: the rest is counted as still to come and asked
+         * for on a later poll, once these have baked. */
+        if( missing >= overview_regions_in_flight() )
+        {
+            missing++;
+            continue;
+        }
         baked = RS_WorldMapRender_RegionPixels(
             overview->render, provider, scene, queue, area, source->dst_region_x, source->dst_region_y, 1,
             overview->scratch, &complete, overview->icon_scratch, OVERVIEW_ICONS_PER_REGION, &icon_count);

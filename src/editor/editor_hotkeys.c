@@ -22,6 +22,8 @@
 #define N EDITOR_HK_CTX_N
 #define M EDITOR_HK_CTX_M
 #define P EDITOR_HK_CTX_P
+#define D EDITOR_HK_CTX_D
+#define U EDITOR_HK_CTX_U
 #define EDGE EDITOR_HK_EDGE
 #define REPEAT EDITOR_HK_REPEAT
 #define HELD EDITOR_HK_HELD
@@ -74,6 +76,12 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                                NULL },
     [EDITOR_HK_EDIT_MARK_AREA] = { "edit.mark_area", "Edit", "Mark area from rect", "Mark area from rect", R, EDGE,
                                    { "ctrl+shift+m" }, NULL },
+    [EDITOR_HK_EDIT_SELECT_KIND] = { "edit.select_kind", "Edit", "Select all of the picked kind",
+                                     "Select every loc of the catalog's picked loc in the open squares", G, EDGE,
+                                     { "ctrl+shift+l" }, NULL },
+    [EDITOR_HK_EDIT_INVERT] = { "edit.invert", "Edit", "Invert selection",
+                                "Invert selection (over the open squares' locs on the selection's level)", G, EDGE,
+                                { "ctrl+i" }, NULL },
 
     [EDITOR_HK_PLACE_HERE] = { "place.here", "Place", "Place at the hovered tile",
                                "Place the catalog's loc at the hovered tile (the ghost's pose)", P, EDGE,
@@ -148,7 +156,7 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                              { "a" }, NULL },
     [EDITOR_HK_CAM_RIGHT] = { "camera.right", "Camera", "Fly right", "Fly forward / back / left / right", G, HELD,
                               { "d" }, NULL },
-    [EDITOR_HK_CAM_DOWN] = { "camera.down", "Camera", "Fly down", "Fly down / up", G, HELD, { "f" }, NULL },
+    [EDITOR_HK_CAM_DOWN] = { "camera.down", "Camera", "Fly down", "Fly down / up", D, HELD, { "f" }, NULL },
     [EDITOR_HK_CAM_UP] = { "camera.up", "Camera", "Fly up", "Fly down / up", G, HELD, { "r" }, NULL },
     [EDITOR_HK_CAM_FAST] = { "camera.fast", "Camera", "Fly faster", "Fly faster", G, HELD, { "shift" }, NULL },
     [EDITOR_HK_CAM_TURN_LEFT] = { "camera.turn_left", "Camera", "Turn left", "Turn left / right, tilt up / down", N,
@@ -163,6 +171,11 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                               "Frame the selection, else the hovered square", G, EDGE, { "home" }, NULL },
     [EDITOR_HK_CAM_FRAME_SQUARE] = { "camera.frame_square", "Camera", "Frame the square's centre",
                                      "Frame the current square's centre", G, EDGE, { "ctrl+home" }, NULL },
+    [EDITOR_HK_CAM_FRAME_KEY] = { "camera.frame_key", "Camera", "Frame the selection (Unity scheme)",
+                                  "Frame the selection, else the hovered square (Unity scheme)", U, EDGE, { "f" },
+                                  NULL },
+    [EDITOR_HK_CAM_SCHEME] = { "camera.scheme", "Camera", "Camera scheme: default / Unity (toggle)",
+                               "Camera scheme: default / Unity (toggle)", G, EDGE, { NULL }, NULL },
 
     [EDITOR_HK_PALETTE_SLOT_1] = { "palette.slot_1", "Palette", "Palette slot 1", "Palette slot 1", G, EDGE,
                                    { "shift+1" }, NULL },
@@ -237,6 +250,10 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_VIEW_RESET_LAYOUT] = { "view.reset_layout", "View", "Reset layout", "Reset layout", G, EDGE,
                                       { "ctrl+shift+r" }, NULL },
     [EDITOR_HK_VIEW_SNAP] = { "view.snap", "View", "Snap to grid", "Snap to grid (toggle)", G, EDGE, { "ctrl+g" }, NULL },
+    [EDITOR_HK_VIEW_COMPACT] = { "view.compact", "View", "Compact panels",
+                                 "Compact panels: dock members collapse to their title bars when the column is short "
+                                 "(toggle; automatic on small windows, Reset layout returns to automatic)",
+                                 G, EDGE, { "ctrl+shift+c" }, NULL },
     [EDITOR_HK_VIEW_SNAP_HOLD] = { "view.snap_hold", "View", "Snap while dragging (hold)",
                                    "Snap while dragging a panel (hold; the toggle is untouched)", G, HELD,
                                    { "ctrl" }, NULL },
@@ -246,6 +263,12 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_VIEW_CLOSE_PANEL] = { "view.close_panel", "View", "Close panel",
                                      "Hide the panel under the pointer (the View menu brings it back)", G, EDGE,
                                      { "ctrl+w" }, NULL },
+    [EDITOR_HK_VIEW_COMMAND] = { "view.command", "View", "Command palette",
+                                 "| Command palette (actions, panels, squares, tiles, records) |", G, EDGE,
+                                 { "ctrl+p" }, "command" },
+    [EDITOR_HK_VIEW_GOTO] = { "view.goto_tile", "View", "Go to tile...",
+                              "Go to tile... (the palette prefilled with coordinates)", G, EDGE, { "ctrl+shift+g" },
+                              NULL },
 };
 
 #undef G
@@ -254,6 +277,10 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
 #undef R
 #undef S
 #undef N
+#undef M
+#undef P
+#undef D
+#undef U
 #undef EDGE
 #undef REPEAT
 #undef HELD
@@ -295,7 +322,7 @@ Editor_HotkeyContextText(
     int out_size)
 {
     static const char* const k_names[EDITOR_HK_CTX_COUNT] = { "G", "W", "L", "R", "S", "no loc / not Select-Move",
-        "M", "P" };
+        "M", "P", "D", "U" };
     int used = 0;
 
     assert(out);
@@ -311,7 +338,8 @@ Editor_HotkeyContextText(
     }
 }
 
-/* L excludes S and P (no loc selected); M excludes N, S and P. */
+/* L excludes S and P (no loc selected); M excludes N, S and P; D (the
+ * default camera scheme) excludes U (the Unity scheme). */
 static int
 hk_ctx_exclusive_one(
     unsigned a,
@@ -321,6 +349,8 @@ hk_ctx_exclusive_one(
         return b == EDITOR_HK_CTX_S || b == EDITOR_HK_CTX_P;
     if( a == EDITOR_HK_CTX_M )
         return b == EDITOR_HK_CTX_N || b == EDITOR_HK_CTX_S || b == EDITOR_HK_CTX_P;
+    if( a == EDITOR_HK_CTX_D )
+        return b == EDITOR_HK_CTX_U;
     return 0;
 }
 
@@ -984,7 +1014,7 @@ Editor_HotkeysResolve(
     const struct Editor_HotkeyInput* in,
     struct Editor_HotkeyFrame* out)
 {
-    unsigned const contexts = in ? (in->contexts | EDITOR_HK_CTX_G) : 0;
+    unsigned contexts = in ? (in->contexts | EDITOR_HK_CTX_G) : 0;
     unsigned held_mods;
     int candidate[EDITOR_HK_COUNT];
     struct Editor_Chord candidate_chord[EDITOR_HK_COUNT];
@@ -993,6 +1023,10 @@ Editor_HotkeysResolve(
     assert(hk);
     assert(in);
     assert(out);
+    /* A caller that states no camera scheme (the tests, an older App) is on
+     * the default one: exactly one of D / U is live every frame. */
+    if( !(contexts & (EDITOR_HK_CTX_D | EDITOR_HK_CTX_U)) )
+        contexts |= EDITOR_HK_CTX_D;
     memset(out, 0, sizeof(*out));
     held_mods = Editor_HotkeyHeldMods(in);
 

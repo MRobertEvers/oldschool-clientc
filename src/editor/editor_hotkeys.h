@@ -59,8 +59,13 @@
 #define EDITOR_HK_CTX_M (1u << 6)
 /** The Place tool is armed with a loc pick and no loc is selected. */
 #define EDITOR_HK_CTX_P (1u << 7)
-#define EDITOR_HK_CTX_COUNT 8
-#define EDITOR_HK_CTX_ALL 0xffu
+/** The camera scheme (ui->recent.camera_scheme): D the default scheme (F
+ *  flies down), U the Unity-style scheme (F frames the selection; the mouse
+ *  looks, pans and orbits). Exactly one of the two is live. */
+#define EDITOR_HK_CTX_D (1u << 8)
+#define EDITOR_HK_CTX_U (1u << 9)
+#define EDITOR_HK_CTX_COUNT 10
+#define EDITOR_HK_CTX_ALL 0x3ffu
 
 /** Modifier bits of a chord. */
 #define EDITOR_HK_MOD_CTRL 1u
@@ -114,6 +119,10 @@ enum Editor_HotkeyAction
     EDITOR_HK_EDIT_FILL,
     EDITOR_HK_EDIT_CLEAR,
     EDITOR_HK_EDIT_MARK_AREA,
+    /** Every loc of the catalog's picked loc id in the open squares; the
+     *  selection inverted over the open squares' locs (edpanel_hotkeys.c). */
+    EDITOR_HK_EDIT_SELECT_KIND,
+    EDITOR_HK_EDIT_INVERT,
     /* Place: the Place tool's own keys (its ghost's Q / Shift+Q are Edit's
      * Rotate and Reshape, which turn the pose while Place is armed). */
     EDITOR_HK_PLACE_HERE,
@@ -170,6 +179,10 @@ enum Editor_HotkeyAction
     EDITOR_HK_CAM_TILT_DOWN,
     EDITOR_HK_CAM_FRAME,
     EDITOR_HK_CAM_FRAME_SQUARE,
+    /** F under the Unity scheme (context U) frames the selection; the
+     *  scheme toggle (default <-> Unity) is remembered in editor_recent.ini. */
+    EDITOR_HK_CAM_FRAME_KEY,
+    EDITOR_HK_CAM_SCHEME,
     /* View: one per View-menu panel module, then the layout rows. */
     /** The Catalog palette's slots (Shift+1..9, Shift+0), add the pick,
      *  next / previous palette (src/editor/panels/edpanel_catalog_palette.c). */
@@ -214,12 +227,19 @@ enum Editor_HotkeyAction
     EDITOR_HK_VIEW_HIDE_PANELS,
     EDITOR_HK_VIEW_RESET_LAYOUT,
     EDITOR_HK_VIEW_SNAP,
+    /** Compact panels: the dock's members collapse to their title bars when
+     *  the column cannot hold them (toggle; Reset layout = automatic). */
+    EDITOR_HK_VIEW_COMPACT,
     /** Hold: panels snap to the grid while this is down, whatever the toggle. */
     EDITOR_HK_VIEW_SNAP_HOLD,
     /** Pop the panel under the pointer out into its own window (World when
      *  over none); hide the panel under the pointer. */
     EDITOR_HK_VIEW_POPOUT,
     EDITOR_HK_VIEW_CLOSE_PANEL,
+    /** The command palette (module "command", edpanel_command.c) and Go to
+     *  tile..., which opens it prefilled with coordinates. */
+    EDITOR_HK_VIEW_COMMAND,
+    EDITOR_HK_VIEW_GOTO,
     EDITOR_HK_COUNT
 };
 
