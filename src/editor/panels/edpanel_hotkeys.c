@@ -133,6 +133,8 @@ hk_run_file(
         (void)Editor_Triggers_Check(ui);
     else if( action == EDITOR_HK_FILE_RUN )
         (void)Editor_Live_Run(ui);
+    else if( action == EDITOR_HK_FILE_PUBLISH )
+        (void)Editor_Publish_Open(ui);
     else
     {
         struct EditorUiGuard guard;
@@ -248,7 +250,7 @@ Editor_HotkeyRun(
 
     assert(ui);
     info = Editor_HotkeyInfo(action);
-    if( action <= EDITOR_HK_FILE_RUN )
+    if( action <= EDITOR_HK_FILE_PUBLISH )
     {
         hk_run_file(ui, action);
         return 1;

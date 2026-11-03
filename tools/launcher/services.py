@@ -254,6 +254,11 @@ def _build_torirsmaped(config, context):
     # The live lane BUILD and RUN write into, launch from and play on.
     if config.get("live_dir"):
         argv += ["--live-dir", config["live_dir"]]
+    # The editor lane the daemon serves (torirsmaped/torirs_maped_lanes.h):
+    # the profile's, else the manifest's [editor:boot] lane=, else the tree.
+    lane = config.get("lane") or manifest.editor_lane
+    if lane:
+        argv += ["--lane", lane]
     return Service(
         name="torirsmaped",
         argv=argv,

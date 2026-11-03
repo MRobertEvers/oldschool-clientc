@@ -15,6 +15,7 @@
 #include "torirs_maped_view.h"
 #include "torirs_maped_build.h"
 #include "torirs_maped_live.h"
+#include "torirs_maped_accounts.h"
 
 #include "editor/editor_alloc.h"
 #include "editor/editor_cfg.h"
@@ -70,6 +71,22 @@ static void handle_live(
 static void catalog_atlas_changed(
     struct ToriRSMapEd* maped,
     int disk_changed);
+/* Accounts (torirs_maped_accounts.c, compiled into this unit after the live
+ * half: it reads the jobs' player list). */
+static void handle_accounts(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    uint32_t type,
+    const uint8_t* body,
+    uint32_t length);
+static void acct_state_drop(struct ToriRSMapEd* maped);
+/* Editor lanes (torirs_maped_lanes_wire.c, compiled into this unit last). */
+static void handle_lanes(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    uint32_t type,
+    const uint8_t* body,
+    uint32_t length);
 
 /* ------------------------------------------------------------------ */
 /* Server lifecycle                                                    */
@@ -87,6 +104,9 @@ ToriRSMapEd_Open(
     memset(maped, 0, sizeof(*maped));
     Editor_HostOpenLocal(&maped->files, content_dir, repo_root);
     snprintf(maped->content_dir, sizeof(maped->content_dir), "%s", content_dir);
+    snprintf(maped->repo_root, sizeof(maped->repo_root), "%s", repo_root ? repo_root : "");
+    /* Until OpenLane says otherwise, this tree is its own main lane. */
+    ToriRSMapEdLanes_Main(maped->repo_root[0] ? maped->repo_root : ".", content_dir, &maped->lane);
     maped->open = 1;
 
     /* The document never derives here — deriving needs the cache profile,
@@ -132,6 +152,7 @@ ToriRSMapEd_Close(struct ToriRSMapEd* maped)
         maped->catalog = NULL;
         /* Stops a running build and whatever the live link launched. */
         jobs_free(maped);
+        acct_state_drop(maped);
         maped->open = 0;
     }
 }
@@ -1143,20 +1164,18 @@ save_doc(
     return EDITOR_HOST_OK;
 }
 
-static void
-handle_save_all(
-    struct ToriRSMapEdSession* session,
-    struct ToriRSMapEd* maped)
+static enum EditorHost_Status
+save_all_docs(
+    struct ToriRSMapEd* maped,
+    int* out_saved)
 {
     struct Editor_DocRef* rows;
     int capacity;
     int saved = 0;
 
+    *out_saved = 0;
     if( !maped->writable )
-    {
-        send_status_extra(session, TORIRSMAPED_REQ_SAVE_ALL, EDITOR_HOST_LOCKED, 0);
-        return;
-    }
+        return EDITOR_HOST_LOCKED;
 
     capacity = maped->doc.square_count + maped->doc.spawn_count + maped->doc.text_count + 1;
     rows = ToriMem_Alloc(ToriMem_Editor(), (size_t)capacity * sizeof(*rows));
@@ -1191,7 +1210,20 @@ handle_save_all(
 
     broadcast_saved(maped, rows, saved);
     ToriMem_Free(ToriMem_Editor(), rows);
-    send_status_extra(session, TORIRSMAPED_REQ_SAVE_ALL, EDITOR_HOST_OK, (uint32_t)saved);
+    *out_saved = saved;
+    return EDITOR_HOST_OK;
+}
+
+/** SAVE_ALL: every dirty document, server-side (save_all_docs; a publish
+ *  saves the same way first). */
+static void
+handle_save_all(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped)
+{
+    int saved = 0;
+    enum EditorHost_Status const status = save_all_docs(maped, &saved);
+    send_status_extra(session, TORIRSMAPED_REQ_SAVE_ALL, status, (uint32_t)saved);
 }
 
 static void
@@ -1941,6 +1973,16 @@ handle_frame(
         handle_catalog(session, maped, type, body, length);
         return;
     }
+    if( v2 && type >= TORIRSMAPED_REQ_ACCOUNTS_RANGE_FIRST && type <= TORIRSMAPED_REQ_ACCOUNTS_RANGE_LAST )
+    {
+        handle_accounts(session, maped, type, body, length);
+        return;
+    }
+    if( v2 && type >= TORIRSMAPED_REQ_LANES_RANGE_FIRST && type <= TORIRSMAPED_REQ_LANES_RANGE_LAST )
+    {
+        handle_lanes(session, maped, type, body, length);
+        return;
+    }
 
     TORIRS_ERR("torirsmaped: unknown frame type %u — closing\n", type);
     session->alive = 0;
@@ -2009,6 +2051,7 @@ ToriRSMapEd_SessionPump(struct ToriRSMapEdSession* session)
     /* Builds and the live link advance on every pump: an embed pumps every
      * frame, so it needs no other call (torirs_maped_live.h). */
     ToriRSMapEd_Service(maped);
+    ToriRSMapEd_AccountsService(maped);
     return session->alive;
 }
 
@@ -2027,3 +2070,13 @@ ToriRSMapEd_SessionPump(struct ToriRSMapEdSession* session)
  * half's job state, so it follows it. */
 #include "torirs_maped_build.c"
 #include "torirs_maped_live.c"
+
+/* Accounts: the lane's player saves (torirs_maped_accounts.h, BUILD NOTE).
+ * After the live half: it reads the jobs' player list and sends cheats. */
+#include "torirs_maped_accounts.c"
+
+/* Editor lanes (torirs_maped_lanes.h): the module (registry, mirror, changes,
+ * publish, discard; also compiled alone by lanes_test), then its wire
+ * handlers, which use this unit's session helpers and save path. */
+#include "torirs_maped_lanes.c"
+#include "torirs_maped_lanes_wire.c"

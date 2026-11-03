@@ -1421,6 +1421,9 @@ app_overlay_build_hover_footprint(struct App* app)
  * footprint red), the spawn ghost's and the move destinations'. */
 #define APP_EDITOR_BRUSH_COLOR 0xFF3CC8FFu
 #define APP_EDITOR_GHOST_COLOR 0xFFFFC040u
+/* The Place player tool's marker: the tile the play account would land on
+ * (a magenta no other editor overlay uses). */
+#define APP_EDITOR_PLAYER_COLOR 0xFFE060E0u
 /* The wander preview (Editor_Spawns_WanderRects): an npc's wanderrange square
  * filled and outlined, its maxrange leash a fainter outline only. */
 #define APP_EDITOR_WANDER_COLOR 0xFF50E070u
@@ -1671,6 +1674,15 @@ app_overlay_build_editor_ghosts(struct App* app)
 
     if( !app->world )
         return;
+    /* Place player: the hovered tile, filled and outlined thicker, so it
+     * reads as a standing spot rather than a brush. */
+    if( panel->ui && hover->valid && panel->ui->tools.tool == EDITOR_TOOL_PLACE_PLAYER )
+    {
+        app_overlay_editor_block(app, hover->scene_x, hover->scene_z, 1, 1, hover->level, APP_EDITOR_PLAYER_COLOR,
+            APP_OUTLINE_FILL_TRANS);
+        app_overlay_editor_tile(app, hover->scene_x, hover->scene_z, hover->level, APP_EDITOR_PLAYER_COLOR, -1,
+            APP_OVERLAY_SEGMENT_WIDTH + 1);
+    }
     if( spawn->active && spawn->entity >= 0 && spawn->load_seq == app->world->load_seq )
     {
         if( spawn->spec.kind == MAP_EDITOR_SPAWN_NPC )

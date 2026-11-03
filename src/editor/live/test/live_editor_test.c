@@ -605,9 +605,9 @@ main(
         check(ToriRSMapEd_BuildCommand(&lane, &job, &command), "command: packs");
         ToriRSMapEd_BuildCommandFormat(&command, line, sizeof(line));
         snprintf(path, sizeof(path),
-            "make -C %s/src --no-print-directory torirsserver-packs TORIRSSERVER_CONTENT_DIR=%s "
+            "make -C %s/src --no-print-directory maped-lane-packs TORIRSSERVER_CONTENT_DIR=%s "
             "TORIRSSERVER_SCRIPT_OUT=%s/scripts TORIRSSERVER_PACKS_LANE_OUT=%s/scripts_lanes "
-            "SERVPACK_OUT=%s/servpack",
+            "SERVPACK_OUT=%s/servpack OBJVERIFY_SKIP=1",
             repo_root, content, live, live, live);
         check(strcmp(line, path) == 0, "command: the packs make line");
         if( strcmp(line, path) != 0 )
@@ -621,6 +621,13 @@ main(
         check(strstr(line, " maped-client-cache ") && strstr(line, path), "command: the client cache target and cache");
         snprintf(path, sizeof(path), "MAPED_MAP_ARCHIVES=%s/map_archives.txt", live);
         check(strstr(line, path) != NULL, "command: the squares' map list");
+        job.what = TORIRSMAPED_BUILD_RUN;
+        check(ToriRSMapEd_BuildCommand(&lane, &job, &command), "command: RUN's build");
+        ToriRSMapEd_BuildCommandFormat(&command, line, sizeof(line));
+        snprintf(path, sizeof(path), "SERVPACK_OUT=%s/servpack", live);
+        check(strstr(line, " maped-run-build ") && strstr(line, path) && strstr(line, "MAPED_LIVE_CACHE=")
+                  && strstr(line, "MAPED_MAP_ARCHIVES=") && strstr(line, " OBJVERIFY_SKIP=1"),
+            "command: RUN's build names both halves' outputs and skips the object verifier");
         job.what = TORIRSMAPED_BUILD_CS2;
         check(!ToriRSMapEd_BuildCommand(&lane, &job, &command), "command: cs2 has none (UNSUPPORTED)");
 
@@ -783,6 +790,18 @@ main(
         mock->scripts[TORIRSMAPED_BUILD_CLIENT_CACHE].status = EDITOR_HOST_OK;
         mock->scripts[TORIRSMAPED_BUILD_CLIENT_CACHE].archives = client_archives;
         mock->scripts[TORIRSMAPED_BUILD_CLIENT_CACHE].archive_count = 1;
+        /* RUN's build: both halves in one job (-j2 interleaves their lines). */
+        static const char* const run_lines[] = { "== script pack (base) -> live/scripts",
+            "Packing client configs from content",
+            "compiled  server/scripts/areas/edited/scripts/live_test.rs2 — edited",
+            "cachepack: repacked varp — its files changed; archive 2/16 changed",
+            "cachepack: repacked npc — its files changed", "Client pack: 1 type(s) repacked, 19 reused",
+            "== packs: ok" };
+        mock->scripts[TORIRSMAPED_BUILD_RUN].lines = run_lines;
+        mock->scripts[TORIRSMAPED_BUILD_RUN].line_count = 7;
+        mock->scripts[TORIRSMAPED_BUILD_RUN].status = EDITOR_HOST_OK;
+        mock->scripts[TORIRSMAPED_BUILD_RUN].archives = client_archives;
+        mock->scripts[TORIRSMAPED_BUILD_RUN].archive_count = 1;
     }
     ToriRSMapEd_BuildRunnerMock(&runner, mock);
     check(ToriRSMapEd_SetLane(maped, &lane), "lane bound");
@@ -823,7 +842,7 @@ main(
     }
     check(mock->command_count == 1 && mock->command_whats[0] == TORIRSMAPED_BUILD_PACKS,
         "BUILD: the runner was asked once, for packs");
-    check(strstr(mock->commands[0], "torirsserver-packs") && strstr(mock->commands[0], "SERVPACK_OUT=")
+    check(strstr(mock->commands[0], "maped-lane-packs") && strstr(mock->commands[0], "SERVPACK_OUT=")
               && strstr(mock->commands[0], live),
         "BUILD: the recorded command builds into the live dir");
     check(b.model.last_build_status == 0 && b.model.last_build_units == 2 && b.model.log_count >= 5,
@@ -877,10 +896,9 @@ main(
     check(strstr(a.model.run_message, "Launch the lane first") != NULL,
         "RUN unattached, a lane that cannot launch: \"Launch the lane first\"");
     check(find_fact(&a, TORIRSMAPED_FACT_SAVED, a.mark) >= 0, "RUN unattached: it saved first");
-    check(mock->command_count == 2 && mock->command_whats[0] == TORIRSMAPED_BUILD_PACKS
-              && mock->command_whats[1] == TORIRSMAPED_BUILD_CLIENT_CACHE,
-        "RUN unattached: packs, then the client cache");
-    check(strcmp(mock->command_squares[1], "60_60") == 0, "RUN unattached: the client build names the saved square");
+    check(mock->command_count == 1 && mock->command_whats[0] == TORIRSMAPED_BUILD_RUN,
+        "RUN unattached: one build, packs and client cache at once");
+    check(strcmp(mock->command_squares[0], "60_60") == 0, "RUN unattached: the build names the saved square");
     snprintf(path, sizeof(path), "%s/maps/m60_60.jm2", content);
     check(access(path, F_OK) == 0, "RUN unattached: the new square is on disk");
     check(a.model.pending_squares == 1 && a.model.pending_spawns == 1 && a.model.pending_archives == 1,
@@ -972,26 +990,42 @@ main(
     {
         /* The order on the wire, as the OTHER window heard it. */
         int saved = find_fact(&b, TORIRSMAPED_FACT_SAVED, b.mark);
-        int packs_done = -1;
-        int client_done = -1;
+        int build_done = -1;
         int live_line = -1;
+        int progress_build = -1;
+        int progress_reload = -1;
+        int progress_play = -1;
         int status_after = find_fact(&b, TORIRSMAPED_FACT_LIVE_STATUS, at);
         for( int i = b.mark; i < at; i++ )
         {
-            if( b.facts[i].type == TORIRSMAPED_FACT_BUILD_DONE && fact_u32(&b.facts[i], 0) == TORIRSMAPED_BUILD_PACKS )
-                packs_done = i;
-            if( b.facts[i].type == TORIRSMAPED_FACT_BUILD_DONE
-                && fact_u32(&b.facts[i], 0) == TORIRSMAPED_BUILD_CLIENT_CACHE )
-                client_done = i;
+            if( b.facts[i].type == TORIRSMAPED_FACT_BUILD_DONE && fact_u32(&b.facts[i], 0) == TORIRSMAPED_BUILD_RUN )
+                build_done = i;
             if( b.facts[i].type == TORIRSMAPED_FACT_LIVE_LINE && live_line < 0 )
                 live_line = i;
+            if( b.facts[i].type == TORIRSMAPED_FACT_RUN_PROGRESS )
+            {
+                uint32_t const step = fact_u32(&b.facts[i], 0);
+                if( step == TORIRSMAPED_RUN_STEP_BUILD && progress_build < 0 )
+                    progress_build = i;
+                if( step == TORIRSMAPED_RUN_STEP_RELOAD && progress_reload < 0 )
+                    progress_reload = i;
+                if( step == TORIRSMAPED_RUN_STEP_PLAY && progress_play < 0 )
+                    progress_play = i;
+            }
         }
-        check(saved >= 0 && packs_done > saved && client_done > packs_done && live_line > client_done
-                  && at > live_line && status_after > at,
-            "RUN: SAVED < packs done < client done < reload line < RUN_DONE < LIVE_STATUS");
+        check(saved >= 0 && build_done > saved && live_line > build_done && at > live_line && status_after > at,
+            "RUN: SAVED < build done < reload line < RUN_DONE < LIVE_STATUS");
+        check(progress_build > saved && progress_build < build_done && progress_reload > build_done
+                  && progress_play > progress_reload && progress_play < at,
+            "RUN: progress rows for build, reload and play in order");
+        if( progress_build >= 0 )
+            check(fact_u32(&b.facts[progress_build], 1) == 2 && fact_u32(&b.facts[progress_build], 2) == 4
+                      && fact_u32(&b.facts[progress_build], 3) < 100,
+                "RUN: the build is step 2 of 4, under 100 %");
         check(fact_u32(&b.facts[at], 2) + 0 > 0, "RUN: the done carries a message");
     }
-    check(mock->command_count == 2, "RUN: two builds asked for");
+    check(mock->command_count == 1, "RUN: one build asked for");
+    check(b.model.progress_serial > 0 && b.model.progress_count == 4, "model: the progress rows reached the model");
     peer_last("\"reload\"", line, sizeof(line));
     snprintf(path, sizeof(path), "\"manifest\": \"%s/scripts/pack.manifest\"", live);
     check(strstr(line, path) != NULL, "RELOAD: the lane's script manifest");
@@ -1014,18 +1048,19 @@ main(
         static const char* const failing_lines[] = { "== script pack (base) -> live/scripts",
             "sscompile: quests/quest_wanted/configs/wanted.varp:4: varp9514 lacks clientcode",
             "make[1]: *** [torirsserver-packs] Error 1", "make: *** [torirsserver-packs] Error 2" };
-        const char* const* const ok_lines = mock->scripts[TORIRSMAPED_BUILD_PACKS].lines;
-        int const ok_count = mock->scripts[TORIRSMAPED_BUILD_PACKS].line_count;
-        mock->scripts[TORIRSMAPED_BUILD_PACKS].lines = failing_lines;
-        mock->scripts[TORIRSMAPED_BUILD_PACKS].line_count = 4;
-        mock->scripts[TORIRSMAPED_BUILD_PACKS].status = EDITOR_HOST_BAKE_FAILED;
+        const char* const* const ok_lines = mock->scripts[TORIRSMAPED_BUILD_RUN].lines;
+        int const ok_count = mock->scripts[TORIRSMAPED_BUILD_RUN].line_count;
+        mock->scripts[TORIRSMAPED_BUILD_RUN].lines = failing_lines;
+        mock->scripts[TORIRSMAPED_BUILD_RUN].line_count = 4;
+        mock->scripts[TORIRSMAPED_BUILD_RUN].status = EDITOR_HOST_BAKE_FAILED;
         send_live(&a, TORIRSMAPED_REQ_RUN, &payload);
         at = wait_run_done(&a, &status, &step);
-        check(at >= 0 && status == EDITOR_HOST_BAKE_FAILED && step == TORIRSMAPED_RUN_STEP_PACKS,
-            "fail packs: RUN stops at packs");
-        check(strstr(a.model.run_message, "wanted.varp:4: varp9514 lacks clientcode")
+        check(at >= 0 && status == EDITOR_HOST_BAKE_FAILED && step == TORIRSMAPED_RUN_STEP_BUILD,
+            "fail packs: RUN stops at the build");
+        check(strstr(a.model.run_message, "the packs build failed")
+                  && strstr(a.model.run_message, "wanted.varp:4: varp9514 lacks clientcode")
                   && strstr(a.model.run_message, "nothing was launched"),
-            "fail packs: the RUN message names the failing line, not make's");
+            "fail packs: the RUN message names the packs half and the failing line, not make's");
         if( !strstr(a.model.run_message, "wanted.varp") )
             fprintf(stderr, "  run: %s\n", a.model.run_message);
         {
@@ -1038,25 +1073,32 @@ main(
             }
             check(found, "fail packs: the build's last lines are repeated at the end of the log");
         }
-        check(mock->command_count == 1, "fail packs: no client cache build started");
+        check(mock->command_count == 1, "fail packs: the one build, nothing after it");
         pump_for(200);
         check(peer_count("\"reload\"") == reloads_before, "fail packs: no RELOAD sent");
         check(a.model.pending_spawns == 1, "fail packs: the spawn file stays pending");
-        mock->scripts[TORIRSMAPED_BUILD_PACKS].lines = ok_lines;
-        mock->scripts[TORIRSMAPED_BUILD_PACKS].line_count = ok_count;
-        mock->scripts[TORIRSMAPED_BUILD_PACKS].status = EDITOR_HOST_OK;
 
-        mark(&a);
-        mock->command_count = 0;
-        mock->scripts[TORIRSMAPED_BUILD_CLIENT_CACHE].status = EDITOR_HOST_BAKE_FAILED;
-        send_live(&a, TORIRSMAPED_REQ_RUN, &payload);
-        at = wait_run_done(&a, &status, &step);
-        check(at >= 0 && status == EDITOR_HOST_BAKE_FAILED && step == TORIRSMAPED_RUN_STEP_CLIENT_CACHE,
-            "fail client cache: RUN stops there");
-        check(mock->command_count == 2, "fail client cache: packs then the client build");
-        pump_for(200);
-        check(peer_count("\"reload\"") == reloads_before, "fail client cache: no RELOAD sent");
-        mock->scripts[TORIRSMAPED_BUILD_CLIENT_CACHE].status = EDITOR_HOST_OK;
+        {
+            static const char* const client_failing[] = { "Packing client configs from content",
+                "cachepack: [tree] configs/all.loc:12: `shape` is not a loc key",
+                "make[1]: *** [maped-client-cache] Error 1", "make: *** [maped-client-cache] Error 2" };
+            mark(&a);
+            mock->command_count = 0;
+            mock->scripts[TORIRSMAPED_BUILD_RUN].lines = client_failing;
+            mock->scripts[TORIRSMAPED_BUILD_RUN].line_count = 4;
+            send_live(&a, TORIRSMAPED_REQ_RUN, &payload);
+            at = wait_run_done(&a, &status, &step);
+            check(at >= 0 && status == EDITOR_HOST_BAKE_FAILED && step == TORIRSMAPED_RUN_STEP_BUILD,
+                "fail client cache: RUN stops at the build");
+            check(strstr(a.model.run_message, "the client cache build failed") != NULL,
+                "fail client cache: the RUN message names the client cache half");
+            check(mock->command_count == 1, "fail client cache: the one build");
+            pump_for(200);
+            check(peer_count("\"reload\"") == reloads_before, "fail client cache: no RELOAD sent");
+        }
+        mock->scripts[TORIRSMAPED_BUILD_RUN].lines = ok_lines;
+        mock->scripts[TORIRSMAPED_BUILD_RUN].line_count = ok_count;
+        mock->scripts[TORIRSMAPED_BUILD_RUN].status = EDITOR_HOST_OK;
     }
 
     /* a reload the game server refuses: pending stays, the next RUN names it again */
@@ -1100,7 +1142,7 @@ main(
 
     /* a RUN while one is in flight is refused to the asker */
     mark(&a);
-    mock->scripts[TORIRSMAPED_BUILD_PACKS].idle_polls = 50;
+    mock->scripts[TORIRSMAPED_BUILD_RUN].idle_polls = 50;
     send_live(&a, TORIRSMAPED_REQ_RUN, &payload);
     send_live(&a, TORIRSMAPED_REQ_RUN, &payload);
     pump();
@@ -1122,7 +1164,7 @@ main(
         }
         check(done, "the first RUN still finishes");
     }
-    mock->scripts[TORIRSMAPED_BUILD_PACKS].idle_polls = 0;
+    mock->scripts[TORIRSMAPED_BUILD_RUN].idle_polls = 0;
 
     /* detach */
     mark(&a);
@@ -1340,7 +1382,7 @@ main(
             "play: RUN says it launched the lane and started the play client");
         if( !strstr(a.model.run_message, "play client started") )
             fprintf(stderr, "  RUN said: %s\n", a.model.run_message);
-        check(mock->command_count == 2, "play: the RUN built packs and the client cache first");
+        check(mock->command_count == 1, "play: the RUN built packs and the client cache first, in one build");
         check(a.model.pending_squares == 0 && a.model.pending_spawns == 0 && a.model.pending_archives == 0,
             "play: a launch on the new build owes no reload");
         {

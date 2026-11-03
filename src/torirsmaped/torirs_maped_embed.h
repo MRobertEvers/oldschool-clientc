@@ -24,6 +24,7 @@
  * simulation, so pumping is purely request-driven.
  */
 
+#include <stddef.h>
 #include <stdint.h>
 
 enum
@@ -50,6 +51,18 @@ struct ToriRSMapEdEmbed*
 ToriRSMapEd_EmbedStart(
     const char* content_dir,
     const char* repo_root);
+
+/** EmbedStart on an editor lane (torirs_maped_lanes.h): `lane` NULL, "" or
+ *  "main" is EmbedStart; otherwise the lane's mirror of `content_dir` is
+ *  served (made now when missing) and its live dir bound. NULL with `why`
+ *  when the lane cannot be made. */
+struct ToriRSMapEdEmbed*
+ToriRSMapEd_EmbedStartLane(
+    const char* content_dir,
+    const char* repo_root,
+    const char* lane,
+    char* why,
+    size_t why_size);
 
 /** Open another connection to the same server. Returns its client id, or -1
  *  when every slot is taken. */

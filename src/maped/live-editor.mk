@@ -46,6 +46,53 @@ maped-client-cache:
 		--out $(abspath $(MAPED_LIVE_CACHE)) --rev $(MAPED_CACHE_REV),@true)
 
 # ---------------------------------------------------------------------------
+# RUN's build (torirsmaped/torirs_maped_build.h TORIRSMAPED_BUILD_RUN): the
+# packs and the client cache at once. They share no output and no input they
+# write, and on a fresh lane each is a full repack of about 20 s, one after the
+# other -- RUN's "extremely long time before the client opens" (owner,
+# 2026-11-02): the first RUN of the day into build/live/default took 17:52 ->
+# 17:53:43 on this Mac. The cachepack tool is built once, serially, before the
+# two targets run under -j2 (both would otherwise rebuild it at the same
+# moment); sscompile is torirsserver-packs' own prerequisite. Command-line
+# variables reach the inner make through MAKEFLAGS.
+#
+# A BRAND-NEW lane (no pack.manifest in SERVPACK_OUT / TORIRSSERVER_SCRIPT_OUT /
+# TORIRSSERVER_PACKS_LANE_OUT) is seeded from the tree's own pack outputs,
+# incremental state included, and the build then brings it up to date -- a copy
+# of a few hundred MB instead of a 20 s repack of the server pack and a 3 s
+# compile of each script pack. Skipped while the tree's pack is mid-write
+# (.pack.lock) and when the tree has none. Nothing is written under the tree.
+#
+#   make -C src maped-run-build TORIRSSERVER_CONTENT_DIR=<tree> \
+#       TORIRSSERVER_SCRIPT_OUT=<live>/scripts TORIRSSERVER_PACKS_LANE_OUT=<live>/scripts_lanes \
+#       SERVPACK_OUT=<live>/servpack MAPED_LIVE_CACHE=<live>/cache [MAPED_MAP_ARCHIVES=<list>] \
+#       TORIRSSERVER_CACHE_BASE=<base cache> MAPED_CACHE_REV=osrs241 OBJVERIFY_SKIP=1
+.PHONY: maped-lane-seed
+maped-lane-seed:
+	@seed() { \
+		dst="$$1"; src="$$2"; what="$$3"; \
+		[ -n "$$dst" ] || return 0; \
+		[ ! -e "$$dst/pack.manifest" ] || return 0; \
+		[ -e "$$src/pack.manifest" ] || return 0; \
+		[ ! -e "$$src/.pack.lock" ] || { echo "maped-lane-seed: $$what: the tree's is being written ($$src/.pack.lock); building it instead"; return 0; }; \
+		rm -rf "$$dst"; mkdir -p "$$(dirname "$$dst")"; cp -R "$$src" "$$dst" && rm -f "$$dst/.pack.lock"; \
+		echo "maped-lane-seed: $$what seeded from $$src"; \
+	}; \
+	seed "$(SERVPACK_OUT)" "$(TORIRSSERVER_CONTENT_DIR)/server/pack" "server pack"; \
+	seed "$(TORIRSSERVER_SCRIPT_OUT)" "$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build" "script pack (base)"; \
+	seed "$(TORIRSSERVER_PACKS_LANE_OUT)" "$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning_curses" "script pack (lanes)"
+
+# BUILD packs on a lane: the seed, then the tree's own packs target.
+.PHONY: maped-lane-packs
+maped-lane-packs: maped-lane-seed
+	@$(MAKE) --no-print-directory torirsserver-packs
+
+.PHONY: maped-run-build
+maped-run-build: maped-lane-seed
+	@$(SUBMAKE) --no-print-directory -C $(RSCACHE_DIR)/tools cachepack > /dev/null
+	@$(MAKE) --no-print-directory -j2 torirsserver-packs maped-client-cache
+
+# ---------------------------------------------------------------------------
 # BUILD, RUN and the live link against a real ToriRSMapEd (no chrome): the
 # test BuildRunner records the make lines and answers from a script; a python
 # MOCK CONTROL-LINK PEER (editor/live/test/mock_control_peer.py, brief section

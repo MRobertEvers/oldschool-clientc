@@ -175,7 +175,23 @@ struct ToriRSMapEdJobs
     uint32_t run_counts[4];
     struct ToriRSMapEdBuf run_restart;
     uint32_t run_restart_count;
+
+    /* ---- FACT_RUN_PROGRESS: this RUN's clock and the last RUN's durations ---- */
+    /** When the step in `run_step` began (monotonic ms); 0 outside a RUN. */
+    int64_t step_started_ms;
+    /** This RUN's measured steps so far, by jobs_run_step_index. */
+    uint32_t step_run_ms[4];
+    /** The last RUN that finished on this lane: per step, and the units its
+     *  build reported (<live>/run_times.ini); 0 = unknown. */
+    uint32_t step_last_ms[4];
+    uint32_t build_last_units;
+    int run_times_loaded;
+    int64_t progress_sent_ms;
+    char progress_detail[160];
 };
+
+static void jobs_run_step_enter(struct ToriRSMapEd* maped, uint32_t step);
+static void jobs_progress_broadcast(struct ToriRSMapEd* maped, int force);
 
 static void jobs_live_broadcast_status(struct ToriRSMapEd* maped);
 static void jobs_run_finish(
@@ -207,6 +223,8 @@ ToriRSMapEd_RunStepName(uint32_t step)
         return "reload";
     if( step == TORIRSMAPED_RUN_STEP_PLAY )
         return "play client";
+    if( step == TORIRSMAPED_RUN_STEP_BUILD )
+        return "build";
     if( step == TORIRSMAPED_RUN_STEP_DONE )
         return "done";
     return "?";
@@ -223,6 +241,8 @@ ToriRSMapEd_BuildWhatName(uint32_t what)
         return "scripts lint";
     if( what == TORIRSMAPED_BUILD_CS2 )
         return "cs2 compile";
+    if( what == TORIRSMAPED_BUILD_RUN )
+        return "packs and client cache";
     return "?";
 }
 
@@ -356,30 +376,38 @@ ToriRSMapEd_BuildCommand(
     assert(job);
     assert(out);
 
+    int const packs = job->what == TORIRSMAPED_BUILD_PACKS || job->what == TORIRSMAPED_BUILD_RUN;
+    int const client = job->what == TORIRSMAPED_BUILD_CLIENT_CACHE || job->what == TORIRSMAPED_BUILD_RUN;
+
     memset(out, 0, sizeof(*out));
-    if( job->what != TORIRSMAPED_BUILD_PACKS && job->what != TORIRSMAPED_BUILD_CLIENT_CACHE )
+    if( !packs && !client )
         return 0;
 
     build_arg(out, "%s%s", lane->make[0] ? lane->make : "make", "");
     build_arg(out, "-C%s%s", "", "");
     build_arg(out, "%s/src%s", lane->repo_root, "");
     build_arg(out, "--no-print-directory%s%s", "", "");
+    /* src/maped/live-editor.mk: maped-lane-packs seeds a brand-new lane from
+     * the tree's own pack outputs, then tools/build_packs.py under the
+     * project's own target (allocation, the base and lane script packs and
+     * the server pack, incremental); maped-client-cache is cachepack pack
+     * --incremental into the live cache, then the named map squares;
+     * maped-run-build is both at once under -j2. */
     if( job->what == TORIRSMAPED_BUILD_PACKS )
+        build_arg(out, "maped-lane-packs%s%s", "", "");
+    else if( job->what == TORIRSMAPED_BUILD_CLIENT_CACHE )
+        build_arg(out, "maped-client-cache%s%s", "", "");
+    else
+        build_arg(out, "maped-run-build%s%s", "", "");
+    build_arg(out, "TORIRSSERVER_CONTENT_DIR=%s%s", lane->content_dir, "");
+    if( packs )
     {
-        /* tools/build_packs.py under the project's own target: allocation,
-         * the base and lane script packs and the server pack, incremental. */
-        build_arg(out, "torirsserver-packs%s%s", "", "");
-        build_arg(out, "TORIRSSERVER_CONTENT_DIR=%s%s", lane->content_dir, "");
         build_arg(out, "TORIRSSERVER_SCRIPT_OUT=%s/scripts%s", lane->live_dir, "");
         build_arg(out, "TORIRSSERVER_PACKS_LANE_OUT=%s/scripts_lanes%s", lane->live_dir, "");
         build_arg(out, "SERVPACK_OUT=%s/servpack%s", lane->live_dir, "");
     }
-    else
+    if( client )
     {
-        /* src/maped/live-editor.mk: cachepack pack --incremental into the
-         * live cache, then the named map squares. */
-        build_arg(out, "maped-client-cache%s%s", "", "");
-        build_arg(out, "TORIRSSERVER_CONTENT_DIR=%s%s", lane->content_dir, "");
         build_arg(out, "MAPED_LIVE_CACHE=%s/cache%s", lane->live_dir, "");
         build_arg(out, "TORIRSSERVER_CACHE_BASE=%s%s", lane->base_cache, "");
         build_arg(out, "MAPED_CACHE_REV=%s%s", lane->rev, "");
@@ -388,6 +416,9 @@ ToriRSMapEd_BuildCommand(
         else
             build_arg(out, "MAPED_MAP_ARCHIVES=%s%s", "", "");
     }
+    /* Nothing of the object directory is compiled by these targets: the
+     * verifier's half second per make is not owed (src/makefile). */
+    build_arg(out, "OBJVERIFY_SKIP=1%s%s", "", "");
     return 1;
 }
 
@@ -1082,14 +1113,14 @@ build_native_start(
     free(native->servpack_before);
     native->servpack_before = NULL;
     native->servpack_before_length = 0;
-    if( job->what == TORIRSMAPED_BUILD_PACKS )
+    if( job->what == TORIRSMAPED_BUILD_PACKS || job->what == TORIRSMAPED_BUILD_RUN )
     {
         char path[TORIRSMAPED_LANE_PATH_MAX + 32];
         snprintf(path, sizeof(path), "%s/servpack/pack.manifest", native->lane.live_dir);
         native->servpack_before = build_read_whole(path, &native->servpack_before_length);
     }
-    if( job->what == TORIRSMAPED_BUILD_CLIENT_CACHE && native->job.square_count > 0
-        && !ToriRSMapEd_BuildWriteMapList(&native->lane, &native->job) )
+    if( (job->what == TORIRSMAPED_BUILD_CLIENT_CACHE || job->what == TORIRSMAPED_BUILD_RUN)
+        && native->job.square_count > 0 && !ToriRSMapEd_BuildWriteMapList(&native->lane, &native->job) )
     {
         TORIRS_ERR("torirsmaped: cannot write %s/map_archives.txt\n", native->lane.live_dir);
         return EDITOR_HOST_IO_ERROR;
@@ -1240,9 +1271,9 @@ build_native_poll(
         *out_status = EDITOR_HOST_BAKE_FAILED;
         return 0;
     }
-    if( native->job.what == TORIRSMAPED_BUILD_PACKS )
+    if( native->job.what == TORIRSMAPED_BUILD_PACKS || native->job.what == TORIRSMAPED_BUILD_RUN )
         build_native_servpack_diff(native, sink);
-    if( native->job.what == TORIRSMAPED_BUILD_CLIENT_CACHE )
+    if( native->job.what == TORIRSMAPED_BUILD_CLIENT_CACHE || native->job.what == TORIRSMAPED_BUILD_RUN )
     {
         char path[TORIRSMAPED_LANE_PATH_MAX + 32];
         FILE* file;
@@ -1373,7 +1404,7 @@ build_mock_poll(
     assert(sink);
     assert(out_status);
     assert(mock->running);
-    assert(mock->what <= TORIRSMAPED_BUILD_CS2);
+    assert(mock->what <= TORIRSMAPED_BUILD_RUN);
 
     script = &mock->scripts[mock->what];
     if( mock->polls++ < script->idle_polls )
@@ -1635,6 +1666,7 @@ jobs_build_sink_unit(
     struct ToriRSMapEd* maped = user;
     ToriRSMapEd_PutString(&maped->jobs->build_units, unit);
     maped->jobs->build_unit_count++;
+    snprintf(maped->jobs->progress_detail, sizeof(maped->jobs->progress_detail), "%s", unit);
 }
 
 static void
@@ -1670,7 +1702,7 @@ jobs_build_start(
     assert(!jobs->building);
     memset(&job, 0, sizeof(job));
     job.what = (enum ToriRSMapEdBuildWhat)what;
-    if( what == TORIRSMAPED_BUILD_CLIENT_CACHE )
+    if( what == TORIRSMAPED_BUILD_CLIENT_CACHE || what == TORIRSMAPED_BUILD_RUN )
     {
         job.squares = jobs->pending_squares;
         job.square_count = jobs->pending_square_count;
@@ -1795,7 +1827,8 @@ jobs_build_finished(
      * the packs build's server-pack groups (index 255, from the manifest
      * diff). Every one is owed to the next reload. */
     if( status == EDITOR_HOST_OK
-        && (what == TORIRSMAPED_BUILD_CLIENT_CACHE || what == TORIRSMAPED_BUILD_PACKS) )
+        && (what == TORIRSMAPED_BUILD_CLIENT_CACHE || what == TORIRSMAPED_BUILD_PACKS
+            || what == TORIRSMAPED_BUILD_RUN) )
     {
         for( int i = 0; i < jobs->build_archive_count; i++ )
         {
@@ -1813,7 +1846,7 @@ jobs_build_finished(
             jobs->pending_archive_count++;
         }
     }
-    if( what == TORIRSMAPED_BUILD_PACKS || what == TORIRSMAPED_BUILD_CLIENT_CACHE )
+    if( what == TORIRSMAPED_BUILD_PACKS || what == TORIRSMAPED_BUILD_CLIENT_CACHE || what == TORIRSMAPED_BUILD_RUN )
     {
         if( status != EDITOR_HOST_OK )
             jobs->build_failed_what = what;
@@ -1829,29 +1862,40 @@ jobs_build_finished(
     {
         char message[JOBS_BUILD_TAIL_LINE + 160];
         char why[JOBS_BUILD_TAIL_LINE];
+        const char* which = ToriRSMapEd_BuildWhatName(what);
+        uint32_t step = TORIRSMAPED_RUN_STEP_BUILD;
+
         jobs_build_failure_line(jobs, why, sizeof(why));
-        /* RUN stops here: nothing is launched or reloaded on a failed build. */
-        snprintf(message, sizeof(message), "the %s build failed%s%s; nothing was launched or reloaded",
-            ToriRSMapEd_BuildWhatName(what), why[0] ? ": " : "", why);
-        jobs_run_finish(maped, status,
-            what == TORIRSMAPED_BUILD_PACKS ? TORIRSMAPED_RUN_STEP_PACKS : TORIRSMAPED_RUN_STEP_CLIENT_CACHE,
-            message, NULL, NULL, 0);
-        return;
-    }
-    if( what == TORIRSMAPED_BUILD_PACKS )
-    {
-        enum EditorHost_Status started;
-        jobs->run_step = TORIRSMAPED_RUN_STEP_CLIENT_CACHE;
-        started = jobs_build_start(maped, TORIRSMAPED_BUILD_CLIENT_CACHE, 1);
-        if( started != EDITOR_HOST_OK )
+        if( what == TORIRSMAPED_BUILD_RUN )
         {
-            jobs_build_send_done(maped, TORIRSMAPED_BUILD_CLIENT_CACHE, started, 0);
-            jobs_run_finish(maped, started, TORIRSMAPED_RUN_STEP_CLIENT_CACHE,
-                "the client cache build did not start", NULL, NULL, 0);
+            /* The two halves ran at once: make's error lines name the half
+             * that failed. */
+            int packs_failed = 0;
+            int client_failed = 0;
+            for( int i = 0; i < jobs->build_tail_count; i++ )
+            {
+                const char* text = jobs->build_tail[(jobs->build_tail_head + i) % JOBS_BUILD_TAIL];
+                if( strstr(text, "[torirsserver-packs]") || strstr(text, "== packs: FAILED") )
+                    packs_failed = 1;
+                if( strstr(text, "[maped-client-cache]") )
+                    client_failed = 1;
+            }
+            which = packs_failed && client_failed ? "packs and client cache"
+                    : packs_failed              ? "packs"
+                    : client_failed             ? "client cache"
+                                                : "packs and client cache";
         }
+        else if( what == TORIRSMAPED_BUILD_PACKS )
+            step = TORIRSMAPED_RUN_STEP_PACKS;
+        else if( what == TORIRSMAPED_BUILD_CLIENT_CACHE )
+            step = TORIRSMAPED_RUN_STEP_CLIENT_CACHE;
+        /* RUN stops here: nothing is launched or reloaded on a failed build. */
+        snprintf(message, sizeof(message), "the %s build failed%s%s; nothing was launched or reloaded", which,
+            why[0] ? ": " : "", why);
+        jobs_run_finish(maped, status, step, message, NULL, NULL, 0);
         return;
     }
-    jobs->run_step = TORIRSMAPED_RUN_STEP_RELOAD;
+    jobs_run_step_enter(maped, TORIRSMAPED_RUN_STEP_RELOAD);
     jobs_run_reload(maped);
 }
 
@@ -1908,6 +1952,251 @@ handle_build(
 
 /* ---- RUN ---------------------------------------------------------------------- */
 
+/* RUN's progress (FACT_RUN_PROGRESS, torirs_maped_build.h).
+ *
+ * A RUN is four steps -- save, build, reload, play client -- and the bar's
+ * only honest source of "how far" is how long each took the last time it ran
+ * on this lane: a build's tools print a line per unit, not a count, and a
+ * reload answers when the server has swapped. So the lane remembers the last
+ * finished RUN's step durations and its build's unit count
+ * (<live>/run_times.ini), the whole-RUN percent weighs the steps by them, and
+ * within the build the units reported so far are set against that count.
+ * Without a history the step's own clock still moves the bar, asymptotically,
+ * and the remaining time reads unknown. */
+
+static const uint32_t k_run_steps[4] = { TORIRSMAPED_RUN_STEP_SAVE, TORIRSMAPED_RUN_STEP_BUILD,
+    TORIRSMAPED_RUN_STEP_RELOAD, TORIRSMAPED_RUN_STEP_PLAY };
+/** The weights without a history, i.e. a lane's FIRST RUN, which is the
+ *  cold one: its build is a 20 s client pack on this Mac (2026-11-02). */
+static const uint32_t k_run_default_ms[4] = { 300, 20000, 800, 3000 };
+static const char* const k_run_times_keys[4] = { "save_ms", "build_ms", "reload_ms", "play_ms" };
+
+static int64_t
+jobs_now_ms(void)
+{
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return (int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000;
+}
+
+static int
+jobs_run_step_index(uint32_t step)
+{
+    for( int i = 0; i < 4; i++ )
+    {
+        if( k_run_steps[i] == step )
+            return i;
+    }
+    return -1;
+}
+
+static void
+jobs_run_times_path(
+    const struct ToriRSMapEdJobs* jobs,
+    char* out,
+    size_t out_size)
+{
+    snprintf(out, out_size, "%s/run_times.ini", jobs->lane.live_dir);
+}
+
+static void
+jobs_run_times_load(struct ToriRSMapEdJobs* jobs)
+{
+    char path[TORIRSMAPED_LANE_PATH_MAX + 32];
+    char line[256];
+    FILE* file;
+
+    if( jobs->run_times_loaded || !jobs->have_lane )
+        return;
+    jobs->run_times_loaded = 1;
+    jobs_run_times_path(jobs, path, sizeof(path));
+    file = fopen(path, "rb");
+    if( !file )
+        return;
+    while( fgets(line, sizeof(line), file) )
+    {
+        char key[64];
+        unsigned value;
+        if( sscanf(line, " %63[a-z_] = %u", key, &value) != 2 )
+            continue;
+        for( int i = 0; i < 4; i++ )
+        {
+            if( strcmp(key, k_run_times_keys[i]) == 0 )
+                jobs->step_last_ms[i] = value;
+        }
+        if( strcmp(key, "build_units") == 0 )
+            jobs->build_last_units = value;
+    }
+    fclose(file);
+}
+
+/** A RUN finished every step: its measured steps become the next RUN's
+ *  estimate, on disk so a restarted editor server keeps them. */
+static void
+jobs_run_times_record(struct ToriRSMapEd* maped)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+    char path[TORIRSMAPED_LANE_PATH_MAX + 32];
+    int const last = jobs_run_step_index(jobs->run_step);
+    FILE* file;
+
+    if( last >= 0 && jobs->step_started_ms > 0 )
+    {
+        int64_t const took = jobs_now_ms() - jobs->step_started_ms;
+        jobs->step_run_ms[last] = took > 0 ? (uint32_t)took : 1;
+    }
+    for( int i = 0; i < 4; i++ )
+    {
+        if( jobs->step_run_ms[i] )
+            jobs->step_last_ms[i] = jobs->step_run_ms[i];
+    }
+    if( jobs->build_unit_count )
+        jobs->build_last_units = jobs->build_unit_count;
+    if( !jobs->have_lane )
+        return;
+    jobs_run_times_path(jobs, path, sizeof(path));
+    file = fopen(path, "wb");
+    if( !file )
+        return;
+    fprintf(file, "; The last RUN that finished on this lane, step by step: what the RUN\n"
+                  "; progress bar's estimate weighs by (torirsmaped/torirs_maped_build.h).\n");
+    for( int i = 0; i < 4; i++ )
+        fprintf(file, "%s = %u\n", k_run_times_keys[i], jobs->step_last_ms[i]);
+    fprintf(file, "build_units = %u\n", jobs->build_last_units);
+    fclose(file);
+}
+
+/** RUN moves to `step`: the step it leaves is timed, the new one's clock
+ *  starts, and every window hears the status and a progress row. A step
+ *  re-entered (PLAY decides twice) is not re-timed. */
+static void
+jobs_run_step_enter(
+    struct ToriRSMapEd* maped,
+    uint32_t step)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+    int64_t const now = jobs_now_ms();
+    int const leaving = jobs_run_step_index(jobs->run_step);
+
+    if( jobs->run_step == step )
+        return;
+    if( leaving >= 0 && jobs->step_started_ms > 0 )
+    {
+        int64_t const took = now - jobs->step_started_ms;
+        jobs->step_run_ms[leaving] = took > 0 ? (uint32_t)took : 1;
+    }
+    if( step == TORIRSMAPED_RUN_STEP_SAVE )
+    {
+        memset(jobs->step_run_ms, 0, sizeof(jobs->step_run_ms));
+        jobs_run_times_load(jobs);
+    }
+    jobs->run_step = step;
+    jobs->step_started_ms = now;
+    jobs->progress_sent_ms = 0;
+    /* The build's units are counted from this RUN's build, not the last
+     * job's (its count stays until jobs_build_start resets it). */
+    if( step == TORIRSMAPED_RUN_STEP_BUILD )
+        jobs->build_unit_count = 0;
+    if( step == TORIRSMAPED_RUN_STEP_SAVE )
+        snprintf(jobs->progress_detail, sizeof(jobs->progress_detail), "saving the edited documents");
+    else if( step == TORIRSMAPED_RUN_STEP_BUILD )
+        snprintf(jobs->progress_detail, sizeof(jobs->progress_detail), "packs and client cache");
+    else if( step == TORIRSMAPED_RUN_STEP_RELOAD )
+        snprintf(jobs->progress_detail, sizeof(jobs->progress_detail), "reloading the live server");
+    else
+        jobs->progress_detail[0] = '\0';
+    jobs_progress_broadcast(maped, 1);
+}
+
+static void
+jobs_progress_broadcast(
+    struct ToriRSMapEd* maped,
+    int force)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+    struct ToriRSMapEdBuf payload;
+    int const index = jobs_run_step_index(jobs->run_step);
+    int64_t const now = jobs_now_ms();
+    uint32_t weights[4];
+    uint64_t total = 0;
+    uint64_t done = 0;
+    uint64_t later = 0;
+    int64_t elapsed;
+    double fraction;
+    double time_fraction;
+    uint32_t percent;
+    uint32_t remaining;
+    const char* detail;
+
+    if( index < 0 || jobs->step_started_ms <= 0 )
+        return;
+    if( !force && now - jobs->progress_sent_ms < 250 )
+        return;
+    jobs->progress_sent_ms = now;
+    elapsed = now - jobs->step_started_ms;
+    if( elapsed < 0 )
+        elapsed = 0;
+    for( int i = 0; i < 4; i++ )
+    {
+        weights[i] = jobs->step_last_ms[i] ? jobs->step_last_ms[i] : k_run_default_ms[i];
+        total += weights[i];
+        if( i < index )
+            done += weights[i];
+        if( i > index )
+            later += weights[i];
+    }
+    /* The step's clock against its last duration, never reaching the end
+     * on its own: a step that runs long holds at 95 %. Without a history it
+     * approaches 90 % asymptotically. */
+    if( jobs->step_last_ms[index] )
+        time_fraction = (double)elapsed / (double)jobs->step_last_ms[index];
+    else
+        time_fraction = (double)elapsed / ((double)elapsed + (double)k_run_default_ms[index]);
+    if( time_fraction > 0.95 )
+        time_fraction = 0.95;
+    fraction = time_fraction;
+    if( jobs->run_step == TORIRSMAPED_RUN_STEP_BUILD && jobs->build_last_units > 0 && jobs->building )
+    {
+        double const units = (double)jobs->build_unit_count / (double)jobs->build_last_units;
+        if( units > fraction )
+            fraction = units > 0.97 ? 0.97 : units;
+    }
+    percent = (uint32_t)(((double)done + fraction * (double)weights[index]) * 100.0 / (double)total);
+    if( percent > 99 )
+        percent = 99;
+    if( jobs->step_last_ms[index] )
+    {
+        int64_t left = (int64_t)weights[index] - elapsed;
+        remaining = (uint32_t)((left > 0 ? left : 0) + (int64_t)later);
+    }
+    else
+        remaining = 0xFFFFFFFFu;
+    detail = jobs->progress_detail;
+    if( jobs->run_step == TORIRSMAPED_RUN_STEP_PLAY && jobs->play_message[0] )
+        detail = jobs->play_message;
+
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_PutU32(&payload, jobs->run_step);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)index + 1);
+    ToriRSMapEd_PutU32(&payload, 4);
+    ToriRSMapEd_PutU32(&payload, percent);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)(fraction * 100.0));
+    ToriRSMapEd_PutU32(&payload, (uint32_t)elapsed);
+    ToriRSMapEd_PutU32(&payload, remaining);
+    ToriRSMapEd_PutString(&payload, detail);
+    jobs_broadcast(maped, TORIRSMAPED_FACT_RUN_PROGRESS, &payload);
+    ToriRSMapEd_BufFree(&payload);
+}
+
+/** Once per service pass: the bar keeps moving between the tools' lines. */
+static void
+jobs_progress_service(struct ToriRSMapEd* maped)
+{
+    if( maped->jobs->run_step != TORIRSMAPED_RUN_STEP_IDLE )
+        jobs_progress_broadcast(maped, 0);
+}
+
+
 static void
 jobs_run_finish(
     struct ToriRSMapEd* maped,
@@ -1921,7 +2210,10 @@ jobs_run_finish(
     struct ToriRSMapEdJobs* jobs = maped->jobs;
     struct ToriRSMapEdBuf payload;
 
+    if( status == EDITOR_HOST_OK )
+        jobs_run_times_record(maped);
     jobs->run_step = TORIRSMAPED_RUN_STEP_IDLE;
+    jobs->step_started_ms = 0;
     jobs->reload_waiting = 0;
     jobs->run_play_waiting = 0;
     memset(&payload, 0, sizeof(payload));
@@ -2034,7 +2326,7 @@ handle_run(
         return;
     }
 
-    jobs->run_step = TORIRSMAPED_RUN_STEP_SAVE;
+    jobs_run_step_enter(maped, TORIRSMAPED_RUN_STEP_SAVE);
     status = jobs_run_save(maped, &saved, &failed);
     if( saved > 0 )
         catalog_atlas_changed(maped, 1);
@@ -2050,14 +2342,13 @@ handle_run(
         jobs_run_finish(maped, status, TORIRSMAPED_RUN_STEP_SAVE, message, NULL, NULL, 0);
         return;
     }
-    jobs->run_step = TORIRSMAPED_RUN_STEP_PACKS;
-    status = jobs_build_start(maped, TORIRSMAPED_BUILD_PACKS, 1);
+    jobs_run_step_enter(maped, TORIRSMAPED_RUN_STEP_BUILD);
+    status = jobs_build_start(maped, TORIRSMAPED_BUILD_RUN, 1);
     if( status != EDITOR_HOST_OK )
     {
-        jobs_build_send_done(maped, TORIRSMAPED_BUILD_PACKS, status, 0);
-        jobs_run_finish(maped, status, TORIRSMAPED_RUN_STEP_PACKS,
-            jobs->have_runner ? "the pack build did not start" : "this server has no build runner",
-            NULL, NULL, 0);
+        jobs_build_send_done(maped, TORIRSMAPED_BUILD_RUN, status, 0);
+        jobs_run_finish(maped, status, TORIRSMAPED_RUN_STEP_BUILD,
+            jobs->have_runner ? "the build did not start" : "this server has no build runner", NULL, NULL, 0);
         return;
     }
     jobs_live_broadcast_status(maped);

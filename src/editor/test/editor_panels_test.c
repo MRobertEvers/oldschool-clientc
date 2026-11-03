@@ -3686,6 +3686,44 @@ preview_pick_row(
     activate(list);
 }
 
+/* The Publish panel (edpanel_publish.c): File > Publish... opens it, it sits
+ * on the surface beside or in the column without covering the world, Close
+ * hides it, and the hotkey toggles it back. */
+static void
+test_publish(void)
+{
+    int publish;
+    struct ToriRSChromeRect r;
+
+    layout_boot(1280, 800, 1);
+    publish = find_panel("Publish");
+    CHECK(publish >= 0, "publish: the panel registers (module \"publish\")");
+    if( publish < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    CHECK(!g_chrome.panels[publish].visible, "publish: starts closed");
+    CHECK(Editor_UiFindPanel(&g_ui, "publish") != NULL, "publish: found by module name");
+    (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_FILE_PUBLISH);
+    for( int i = 0; i < 6; i++ )
+        frame();
+    r = g_chrome.panels[publish].last_rect;
+    CHECK(g_chrome.panels[publish].visible, "publish: File > Publish... opens it");
+    CHECK(r.w > 0 && r.h > 0 && r.x >= 0 && r.y >= 0 && r.x + r.w <= g_chrome.surface_w
+              && r.y + r.h <= g_chrome.surface_h,
+        "publish: it is on the surface (%d,%d %dx%d)", r.x, r.y, r.w, r.h);
+    /* An on-demand panel flies out beside the column (never into it, never
+     * under it), as the Live panel does. */
+    CHECK(r.x + r.w <= g_ui.dock_x && r.y >= g_ui.dock_top, "publish: it flies out beside the column (%d,%d %dx%d; column at %d)",
+        r.x, r.y, r.w, r.h, g_ui.dock_x);
+    (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_FILE_PUBLISH);
+    for( int i = 0; i < 3; i++ )
+        frame();
+    CHECK(!g_chrome.panels[publish].visible, "publish: the hotkey again closes it");
+    Editor_UiFree(&g_ui);
+}
+
 static void
 test_preview(void)
 {
@@ -6601,6 +6639,7 @@ main(
 
     test_catalog_panel();
     test_preview();
+    test_publish();
     test_spawn_duplicate();
     test_spawn_edit();
     test_record_editor();

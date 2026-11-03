@@ -40,6 +40,13 @@
 #      refused, `palettes` lists, rename moves every line, palette-remove of a
 #      slot + undo, save writes the file with its header, palette-remove with
 #      no slot deletes the palette and the emptied file goes on save.
+#  11. Accounts (torirs_maped_accounts.h) through a SECOND daemon bound to a
+#      lane (--repo-root + --live-dir beside the scratch tree; no binary is
+#      run): `accounts` lists none, account-new makes a save from a fixture
+#      (a bad password refused), account-set writes the position, a stat, a
+#      varp and an item into the save and queues a quest cheat, account-place
+#      moves the save, account-view reads it back, account-use makes it the
+#      play account (remembered in accounts.ini), account-dup / account-delete.
 #
 # Document facts (FACT_CMD/FACT_SAVED) are proven in test-torirsmaped-embed,
 # which has real mirror documents to apply them to; this script covers what
@@ -353,6 +360,161 @@ if command -v python3 > /dev/null 2>&1; then
 else
     echo "(python3 absent — skipping the WebSocket probe)"
 fi
+
+# 11. Accounts: a second daemon with a lane (the first has no repo root, so
+# no lane). The lane's live dir sits beside the scratch tree; nothing in it
+# is launched.
+ACCT_PORT=$((PORT + 1))
+ACCT_LIVE="$SCRATCH.live"
+REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+rm -rf "$ACCT_LIVE"
+mkdir -p "$ACCT_LIVE"
+printf '; a fixture\n[player]\nversion = 1\nname = fixture\nx = 3206\nz = 3233\nlevel = 0\n\n[varps]\n281 = 1000\n\n[inv]\n0 = 1277 1\n' \
+    > "$SCRATCH/fixture.ini"
+TORIRSMAPED_LIVE_SERVER_BIN=/nonexistent/torirsserver TORIRSMAPED_LIVE_PLAY_BIN=/nonexistent/torirs \
+    "$DAEMON" "$ACCT_PORT" --content-dir "$SCRATCH" --repo-root "$REPO_ROOT" --live-dir "$ACCT_LIVE" \
+    > "$SCRATCH/daemon_acct.log" 2>&1 &
+ACCT_DAEMON_PID=$!
+cleanup_acct() { kill "$ACCT_DAEMON_PID" 2>/dev/null || true; cleanup; }
+trap cleanup_acct EXIT INT TERM
+sleep 1
+ACTL() { "$CTL" --port "$ACCT_PORT" "$@"; }
+# The first daemon has no lane: the verb says so.
+"$CTL" --port "$PORT" accounts > "$SCRATCH/acct_nolane.log" 2>&1 || true
+contains "$SCRATCH/acct_nolane.log" "no lane is bound" "accounts on a daemon without a lane says so"
+ACTL accounts > "$SCRATCH/acct0.log" 2>&1 || true
+contains "$SCRATCH/acct0.log" "0 account(s) in " "accounts lists the lane's empty saves dir"
+contains "$SCRATCH/acct0.log" "/saves (play account" "naming the lane's saves dir"
+contains "$SCRATCH/acct0.log" "play account maped43620" "and the lane's default play account"
+if ACTL account-new tester short > "$SCRATCH/acct_bad.log" 2>&1; then
+    check 0 "account-new refuses a short password"
+else
+    check 1 "account-new refuses a short password"
+fi
+contains "$SCRATCH/acct_bad.log" "8 to 20 characters" "and says the rule"
+ACTL account-new tester Secret123x "$SCRATCH/fixture.ini" > "$SCRATCH/acct_new.log" 2>&1 || true
+contains "$SCRATCH/acct_new.log" "created tester from $SCRATCH/fixture.ini" "account-new makes the save from the fixture"
+check "$( [ -f "$ACCT_LIVE/saves/tester.ini" ] && echo 1 )" "the save file exists"
+contains "$ACCT_LIVE/saves/tester.ini" "name = tester" "with the account's name"
+contains "$ACCT_LIVE/accounts.ini" "tester = Secret123x" "the registry remembers the password"
+ACTL account-set tester player.pos 3222 3218 1 > "$SCRATCH/acct_pos.log" 2>&1 || true
+contains "$SCRATCH/acct_pos.log" "offline: wrote saves/tester.ini (position 3222,3218 level 1)" "account-set player.pos writes the save (offline)"
+contains "$ACCT_LIVE/saves/tester.ini" "x = 3222" "x is in the file"
+ACTL account-set tester stats.cooking 50 > "$SCRATCH/acct_stat.log" 2>&1 || true
+contains "$ACCT_LIVE/saves/tester.ini" "7 = 50 1013330" "stats.cooking 50 is boosted + xp_tenths"
+ACTL account-set tester varps.281 0 > "$SCRATCH/acct_varp.log" 2>&1 || true
+lacks "$ACCT_LIVE/saves/tester.ini" "281 = 1000" "varps.281 0 removes the line"
+ACTL account-set tester inv.3 995 100 > "$SCRATCH/acct_inv.log" 2>&1 || true
+contains "$ACCT_LIVE/saves/tester.ini" "3 = 995 100" "inv.3 995 100 lands in [inv]"
+if ACTL account-set tester stats.cooking 100 > "$SCRATCH/acct_refuse.log" 2>&1; then
+    check 0 "a level of 100 is refused (exit 1)"
+else
+    check 1 "a level of 100 is refused (exit 1)"
+fi
+contains "$SCRATCH/acct_refuse.log" "1..99" "with the range"
+ACTL account-set tester cheat ::give coins 5 > "$SCRATCH/acct_cheat.log" 2>&1 || true
+contains "$SCRATCH/acct_cheat.log" "queued for tester's next login" "an offline cheat is queued"
+contains "$ACCT_LIVE/accounts.ini" "tester.0 = give coins 5" "in the registry"
+ACTL account-place tester 3100 3300 2 > "$SCRATCH/acct_place.log" 2>&1 || true
+contains "$SCRATCH/acct_place.log" "offline: wrote saves/tester.ini (position 3100,3300 level 2)" "account-place writes the save"
+ACTL account-view tester > "$SCRATCH/acct_view.log" 2>&1 || true
+contains "$SCRATCH/acct_view.log" "position 3100,3300 level 2" "account-view reads the position back"
+contains "$SCRATCH/acct_view.log" "cooking=50/101333" "and the stat"
+contains "$SCRATCH/acct_view.log" "3=995x100" "and the item"
+contains "$SCRATCH/acct_view.log" "::give coins 5" "and the queue"
+ACTL account-use tester > "$SCRATCH/acct_use.log" 2>&1 || true
+contains "$SCRATCH/acct_use.log" "RUN and Play log in as tester" "account-use sets the play account"
+contains "$ACCT_LIVE/accounts.ini" "play_user = tester" "remembered in accounts.ini"
+ACTL accounts > "$SCRATCH/acct1.log" 2>&1 || true
+contains "$SCRATCH/acct1.log" "play account tester" "accounts shows the new play account"
+contains "$SCRATCH/acct1.log" "tester         offline 3100,3300,2 play password queued 1" "and the row with its flags"
+ACTL account-dup tester second Other9pass > "$SCRATCH/acct_dup.log" 2>&1 || true
+contains "$SCRATCH/acct_dup.log" "duplicated as second" "account-dup copies it"
+contains "$ACCT_LIVE/saves/second.ini" "name = second" "under its own name"
+ACTL account-delete second > "$SCRATCH/acct_del.log" 2>&1 || true
+contains "$SCRATCH/acct_del.log" "deleted second" "account-delete removes it"
+check "$( [ ! -e "$ACCT_LIVE/saves/second.ini" ] && echo 1 )" "the save is gone"
+ACTL quests > "$SCRATCH/acct_quests.log" 2>&1 || true
+contains "$SCRATCH/acct_quests.log" "quest row(s)" "quests answers (the scratch tree has none)"
+kill "$ACCT_DAEMON_PID" 2>/dev/null || true
+rm -rf "$ACCT_LIVE"
+
+# 12. Editor lanes (torirsmaped/torirs_maped_lanes.h): a third daemon on
+# --lane work, whose content is a mirror of the scratch tree under its own
+# repo root ($SCRATCH.repo/build/lanes/work). An edit saved through it lands
+# in the lane and never in the tree; publish-new copies it into a new lane;
+# publish main writes it into the tree and re-links the lane; discard puts a
+# later edit back.
+LANE_PORT=$((PORT + 2))
+LANE_REPO="$SCRATCH.repo"
+rm -rf "$LANE_REPO"
+mkdir -p "$LANE_REPO"
+SCRATCH_ABS="$(cd "$SCRATCH" && pwd)"
+LANE_REPO_ABS="$(cd "$LANE_REPO" && pwd)"
+"$DAEMON" "$LANE_PORT" --content-dir "$SCRATCH" --repo-root "$LANE_REPO" --lane work \
+    > "$SCRATCH/daemon_lane.log" 2>&1 &
+LANE_DAEMON_PID=$!
+cleanup_lane() { kill "$LANE_DAEMON_PID" 2>/dev/null || true; cleanup_acct; }
+trap cleanup_lane EXIT INT TERM
+sleep 2
+LCTL() { "$CTL" --port "$LANE_PORT" "$@"; }
+SQUARE_JM2="$(basename "$SAMPLE_JM2")"
+SQ_X="$(echo "$SQUARE_JM2" | sed -E 's/^m([0-9]+)_([0-9]+)\.jm2$/\1/')"
+SQ_Z="$(echo "$SQUARE_JM2" | sed -E 's/^m([0-9]+)_([0-9]+)\.jm2$/\2/')"
+contains "$SCRATCH/daemon_lane.log" "lane 'work': $LANE_REPO_ABS/build/lanes/work/content, mirrors $SCRATCH_ABS" \
+    "the daemon serves the lane's mirror"
+check "$( [ -L "$LANE_REPO/build/lanes/work/content/maps/$SQUARE_JM2" ] && echo 1 )" "the mirror links the square"
+"$CTL" --port "$PORT" lane > "$SCRATCH/lane_main.log" 2>&1 || true
+contains "$SCRATCH/lane_main.log" "lane main (the main tree)" "a daemon without a lane is the main lane"
+LCTL lane > "$SCRATCH/lane_work.log" 2>&1 || true
+contains "$SCRATCH/lane_work.log" "lane work" "lane names the lane"
+contains "$SCRATCH/lane_work.log" "base    $SCRATCH_ABS" "and its base"
+LCTL lanes > "$SCRATCH/lanes.log" 2>&1 || true
+contains "$SCRATCH/lanes.log" "2 lane(s)" "lanes: main and work"
+contains "$SCRATCH/lanes.log" "* work" "the served one is marked"
+LCTL changes > "$SCRATCH/changes0.log" 2>&1 || true
+contains "$SCRATCH/changes0.log" "0 modified, 0 added, 0 deleted" "a fresh lane has no changes"
+BASE_SUM="$(cksum < "$SCRATCH/maps/$SQUARE_JM2")"
+LCTL tile-height "$SQ_X" "$SQ_Z" 0 22 23 120 > "$SCRATCH/lane_edit.log" 2>&1 || true
+LCTL save > "$SCRATCH/lane_save.log" 2>&1 || true
+check "$( [ -f "$LANE_REPO/build/lanes/work/content/maps/$SQUARE_JM2" ] && [ ! -L "$LANE_REPO/build/lanes/work/content/maps/$SQUARE_JM2" ] && echo 1 )" \
+    "a save makes the square a real file in the lane"
+check "$( [ "$(cksum < "$SCRATCH/maps/$SQUARE_JM2")" = "$BASE_SUM" ] && echo 1 )" "the tree's square is untouched"
+LCTL changes > "$SCRATCH/changes1.log" 2>&1 || true
+contains "$SCRATCH/changes1.log" "1 modified, 0 added, 0 deleted" "changes: the saved square"
+contains "$SCRATCH/changes1.log" "M maps/$SQUARE_JM2" "by path"
+LCTL publish-new review > "$SCRATCH/pub_new.log" 2>&1 || true
+contains "$SCRATCH/pub_new.log" "publish done: published 1 file(s) to review" "publish-new makes the lane and writes into it"
+check "$( [ -f "$LANE_REPO/build/lanes/review/content/maps/$SQUARE_JM2" ] && [ ! -L "$LANE_REPO/build/lanes/review/content/maps/$SQUARE_JM2" ] && echo 1 )" \
+    "the new lane holds the square as a real file"
+check "$( [ "$(cksum < "$SCRATCH/maps/$SQUARE_JM2")" = "$BASE_SUM" ] && echo 1 )" "publishing to a lane leaves the tree alone"
+LCTL lanes > "$SCRATCH/lanes2.log" 2>&1 || true
+contains "$SCRATCH/lanes2.log" "3 lane(s)" "lanes: main, review, work"
+# The first daemon serves the tree directly and holds its lock: a publish
+# into it is refused until forced.
+LCTL publish main > "$SCRATCH/pub_main_held.log" 2>&1 || true
+contains "$SCRATCH/pub_main_held.log" "is being edited by pid" "publish main is refused while another editor holds the tree"
+LCTL publish main force > "$SCRATCH/pub_main.log" 2>&1 || true
+contains "$SCRATCH/pub_main.log" "publish done: published 1 file(s) to main (the main tree); this lane is clean again" \
+    "publish main force writes into the tree and resets the lane"
+check "$( [ "$(cksum < "$SCRATCH/maps/$SQUARE_JM2")" != "$BASE_SUM" ] && echo 1 )" "the tree's square changed"
+check "$( [ -L "$LANE_REPO/build/lanes/work/content/maps/$SQUARE_JM2" ] && echo 1 )" "the lane's square is a link again"
+LCTL changes > "$SCRATCH/changes2.log" 2>&1 || true
+contains "$SCRATCH/changes2.log" "0 modified, 0 added, 0 deleted" "and the lane has no changes"
+NEW_SUM="$(cksum < "$SCRATCH/maps/$SQUARE_JM2")"
+LCTL tile-height "$SQ_X" "$SQ_Z" 0 25 23 120 > "$SCRATCH/lane_edit2.log" 2>&1 || true
+LCTL save > "$SCRATCH/lane_save2.log" 2>&1 || true
+LCTL discard > "$SCRATCH/discard.log" 2>&1 || true
+contains "$SCRATCH/discard.log" "discard done: discarded 1 change(s)" "discard puts the change back"
+contains "$SCRATCH/discard.log" "every window reopens its square" "and tells every window to reopen"
+check "$( [ -L "$LANE_REPO/build/lanes/work/content/maps/$SQUARE_JM2" ] && echo 1 )" "the square is a link after the discard"
+check "$( [ "$(cksum < "$SCRATCH/maps/$SQUARE_JM2")" = "$NEW_SUM" ] && echo 1 )" "the tree kept what was published"
+"$CTL" --port "$PORT" changes > "$SCRATCH/changes_main.log" 2>&1 || true
+contains "$SCRATCH/changes_main.log" "0 modified, 0 added, 0 deleted" "the main lane never has changes"
+"$CTL" --port "$PORT" publish review > "$SCRATCH/pub_from_main.log" 2>&1 || true
+contains "$SCRATCH/pub_from_main.log" "edits the main tree directly" "publishing from main is refused"
+kill "$LANE_DAEMON_PID" 2>/dev/null || true
+rm -rf "$LANE_REPO"
 
 echo "maped_daemon_test: $CHECKS checks, $FAILURES failures"
 [ "$FAILURES" -eq 0 ]

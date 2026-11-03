@@ -22,12 +22,30 @@ brush footprint, spawn ghosts, History panel, slider skin).
 
 builds the client and the live lane's `torirsserver` and `js5_server` (the
 profile's `build=`), and opens the editor window with its embedded editor
-server on `OSRS-Content/osrs-content`. **RUN** (Ctrl+Return, or the Live
-panel's RUN) saves every dirty document, builds the packs and the client
-cache into the lane `build/live/default`, then reloads the lane's running
-server -- or, when the lane is down, launches its game server and js5_server
+server on the **working lane**: `build/lanes/working/content`, a
+copy-on-write mirror of `OSRS-Content/osrs-content` made on the first run
+(the manifest's `[editor:boot] lane=working`; see "Editor lanes" below).
+Every save lands in the lane, never in the tree; **File > Publish...**
+(Ctrl+Shift+U) writes the lane's changes into the tree, another lane or a
+new one. **RUN** (Ctrl+Return, or the Live panel's RUN) saves every dirty
+document, builds the packs and the client cache into the lane's live dir
+(`build/lanes/working/live`; `build/live/default` for a `lane=main`
+session), then reloads the lane's running server -- or, when the lane is down, launches its game server and js5_server
 on what it just built -- and starts the lane's play client (a second window,
 logged in as `maped43620`), or reloads the one it already started.
+
+A RUN shows a **progress bar** while it runs: at the foot of the main window
+and in the Live panel, with the step (save, build, reload, play client),
+what the build is on, and the time left estimated from the last RUN that
+finished on this lane (`build/live/default/run_times.ini`). The first RUN
+into a new lane has no estimate and says so. `torirsmapedctl run` prints the
+same rows. How long a RUN takes, measured 2026-11-02 (see "RUN speed"):
+
+| RUN                                  | before   | now      |
+|--------------------------------------|----------|----------|
+| warm lane, server up (edit + reload) | ~5 s     | ~3 s     |
+| warm lane, server down (launch too)  | ~7 s     | ~5 s     |
+| brand-new lane (first RUN ever)      | ~90 s    | ~25 s    |
 
 **Web, one command:**
 
@@ -254,6 +272,11 @@ tab cannot reach the ToriRSMapEd embedded in another.
   (with `file`, `<subject>` is a path under server/scripts and the panel
   lists that file); `record` opens the Record panel beside it, `add=` runs
   Add trigger, `check` runs Check (src/editor/panels/edpanel_triggers.c).
+- `TORIRS_EDITOR_ACCOUNTS=show[,tab=<n>][,account=<name>]` -- for a
+  photograph: once the layout ran, dock the Accounts panel over the column
+  under Terrain, open tab `<n>` (0 Position, 1 Stats, 2 Vars, 3 Quests, 4
+  Items) and select `<account>` once the lane's list arrived
+  (src/editor/accounts/accounts_panel.c).
 
 **The plugin rail is the client settings.** An editor window -- the main one
 and every popped-out panel or view -- keeps the platform's rail, but it
@@ -492,7 +515,8 @@ real play client `make -C src maped-live-e2e-play` (run_play.sh, below).
 | 13 | Varp and varbit editor | editor_vars bit map, overlap check, naming; editor_alloc mirrors ss_allocate.py | allocator and vars not wired to the protocol or a panel; constants; live ::getvar/::setvar |
 | 14 | CS2 and the interface editor | `.if`/`.compack` codec (982 interfaces byte exact), component tree, inspector, hooks, CS2 run/trace/watch, CODE editor with `cs2 compile`, App mount/pick/refill | IF1 type 8 not mountable; IF_FIELD values over 190 bytes read only; cs2 compile synchronous |
 | 15 | Save, save as new, export, pack | atomic text saves, FACT_SAVED; SAVE_AS of a loc/npc/obj record (fresh id in pack/<type>.alloc, .client line, every field; one undo step; catalog and shell editor "Copy to new...", `torirsmapedctl cfg-copy`); BUILD packs (`make torirsserver-packs` into the live dir); BUILD client cache (`cachepack pack --incremental`, only changed archives written, reference table bumped, plus saved squares by archive) | Save as new for squares (DOC_CREATE copy covers it), interfaces and builder subjects; export/import lane; incremental repack of interfaces, CS2 and other assets in BUILD client cache; scripts lint and cs2 compile as BUILD kinds |
-| 16 | RUN and the live lane | RUN = SAVE_ALL -> packs -> client cache -> CTL_RELOAD -> FACT_RUN_DONE/LIVE_STATUS, stop at first failure, pending set kept on a failed reload; control link (0xED) with gate ticket; script hot reload (shadow table, swap at the tick boundary, old table freed when no frame holds it); sequence/healthbar/struct config groups live; square reload with one REBUILD per covering player and reload=1 on REBUILD_REGION; edited-lane spawn reload; CACHE_INVALIDATE (our opcode 237) sent at 239/241 before the REBUILD; Live panel; launch and attach; scriptrun `--control-port` **Config groups go live (phase 9, 2026-11-01):** the editor snapshots `servpack/pack.manifest` before the packs build and diffs its `archive` lines after it (`ToriRSMapEd_BuildServPackDiff`), sending one reload row `(255, group)` per changed group beside the script pack and client rows (build log `servpack: N archive(s) changed in M group(s)`). The server (`ToriRSServer_ReloadConfigKind`, `ToriRSServer_ContentReload{Locs,Npcs,Objs}`) checks the whole kind against the open pack first and keeps the running table on refusal; loc replaces the info tables, scene records, defs, categories and op overlays and owes every logged-in player one REBUILD; npc re-points every live `npc->def` by type in one bounded pass while the old array is held; obj replaces the info table and requirement rows; seq, healthbar and struct as before. A RESTART_NEEDED answer finishes the RUN with restart rows instead of failing every later RUN. **Client:** CACHE_INVALIDATE on 2/6, 2/9, 2/10 evicts the decoded loc/npc/obj records (retired, never freed under a holder) and the dat2 group cache, then the provider's archive hook (registered in main.c, native) drops the platform's decompressed copy and re-primes JS5 -- 255/255, 255/<index>, the rewritten group (`Js5ClientInvalidateArchive`; js5_server re-checks its cache on every master request); the owed REBUILD is forced past the same-zone early-out so placed scenery re-decodes. Proven: e2e RUN (c) loc op3 and (d) npc op4 pressed by the never-relogged bot (16 s / 13 s); a real client logged into a real torirsserver lane re-decoded blueflower's op3 as the new text after one RUN, no relog (`TORIRS_CACHE_INVALIDATE_DEBUG=1`, `TORIRS_LOC_CFG=<id>`). **Web client (2026-11-01):** main.c registers the same hook on the emscripten build (`PlatformWeb_IO_ArchiveInvalidateHook`, platform_web_api.c); `PlatformWeb_IO_InvalidateArchive` (platform_web_io.js) releases the decoded-archive LRU entry, drops the resident container and the index's reference-table memo (owned decode retired, never freed) and moves the table's generation so a read already out keeps nothing; the host's `invalidateArchive` (torirs_hostio.js -> torirs_js5.js) parks the index's outstanding requests (socket reopened when one was on the wire), fetches 255/255, 255/<index> when the stored table no longer matches the master, re-validates every IndexedDB-stored group of the index by its container CRC against the new table (rscache decode, `ToriRS_WebApi_ReferenceTableArchiveCrc`) and overwrites only the rewritten ones; reads of the index wait meanwhile; re-primes are serialised. Proven on a real torirsserver lane in Chromium: one RUN, no relog, the console showed `io 2/6: 1 decompressed copy dropped`, `js5 fetched 255/255`, `255/2`, the 8 groups the client build rewrote, then `loc_cfg 1187 decoded: name='Flower' ops [] [] [Smell] [] []` (`?env=TORIRS_CACHE_INVALIDATE_DEBUG%3D1&env=TORIRS_LOC_CFG%3D1187`). Tests: web_io_invalidate_test 5, js5_invalidate_test 7 (`make -C src test-web-cache-invalidate`, in test-web-channel). **Play client (2026-11-02):** RUN = ... reload -> RUN_STEP_PLAY (6, numbered after DONE) -> DONE: the lane's play client (torirs_maped_live.h "The play client"; How to run it) is started when there is none, left alone when the server lists its account ("reloaded in the running client (<account> at x,z, no relog)"), started again when it exited or logged out; a lane that is down at the reload is LAUNCHED on what the RUN built and the client started (no reload owed), a lane that cannot launch says "Launch the lane first". The editor server owns the process like the lane's servers (a `ToriRSMapEdPlayLauncher` seam: native posix_spawn + waitpid; the test binds a fake), so RUN from any window, the Live panel's play line + **Play** / **Stop**, and `torirsmapedctl play | play-restart | play-stop` drive one client, headless or not; LIVE_PLAY (59) / FACT_LIVE_PLAY (179). **Control link:** CTL_PLAYERS (7) -> CTL_FACT_PLAYERS (134): logins since boot (the pool slots' login generations summed), active count, and per player account, display name, slot, login generation, tile; sent once after an accepted HELLO (which is how the editor knows to ask: an older server closes the link on an unknown frame), then polled with the status (every second while the client logs in). The lane's launched server now keeps its saves in `<live>/saves`, skips the welcome screen, and logs to `<live>/logs/`. **Client:** CACHE_INVALIDATE on index 5 (a map square) now evicts too (`CacheProvider_InvalidateArchive`: the split group, the IO layer's copies through the archive hook -- JS5 re-primes and refetches the square -- and the provider's decoded squares); before, a real client rebuilt the scene from the square it already held and a terrain edit waited for the next login (the scriptrun bot, having no cache provider, never showed it). Proven by `make -C src maped-live-e2e-play` (below) and photographed (a RUN from the editor window launched the lane and started the client; a second RUN raised a second spike in the same, never-relogged client). Tests: live_editor_test 146 (play section: launcher on a fake client binary -- manifest, fixture save, environment -- and the state machine: lane down, online, logged out, died, Play/Stop, detach, a server without CTL_PLAYERS, browser), live_panel_test 34, cache_provider_invalidate_test 25. | the play client's position does not reach STATE_LIVE_FOCUS (viewers do not lock to it); Play cannot raise an existing window (it reports "already logged in"); Restart offer; stale list (always 0) |
+| 16 | RUN and the live lane | RUN = SAVE_ALL -> build (packs and client cache at once since 2026-11-02, `TORIRSMAPED_BUILD_RUN`; see "RUN speed") -> CTL_RELOAD -> play client -> FACT_RUN_DONE/LIVE_STATUS, with FACT_RUN_PROGRESS rows (a bar in the Live panel and at the foot of the main window), stop at first failure, pending set kept on a failed reload; control link (0xED) with gate ticket; script hot reload (shadow table, swap at the tick boundary, old table freed when no frame holds it); sequence/healthbar/struct config groups live; square reload with one REBUILD per covering player and reload=1 on REBUILD_REGION; edited-lane spawn reload; CACHE_INVALIDATE (our opcode 237) sent at 239/241 before the REBUILD; Live panel; launch and attach; scriptrun `--control-port` **Config groups go live (phase 9, 2026-11-01):** the editor snapshots `servpack/pack.manifest` before the packs build and diffs its `archive` lines after it (`ToriRSMapEd_BuildServPackDiff`), sending one reload row `(255, group)` per changed group beside the script pack and client rows (build log `servpack: N archive(s) changed in M group(s)`). The server (`ToriRSServer_ReloadConfigKind`, `ToriRSServer_ContentReload{Locs,Npcs,Objs}`) checks the whole kind against the open pack first and keeps the running table on refusal; loc replaces the info tables, scene records, defs, categories and op overlays and owes every logged-in player one REBUILD; npc re-points every live `npc->def` by type in one bounded pass while the old array is held; obj replaces the info table and requirement rows; seq, healthbar and struct as before. A RESTART_NEEDED answer finishes the RUN with restart rows instead of failing every later RUN. **Client:** CACHE_INVALIDATE on 2/6, 2/9, 2/10 evicts the decoded loc/npc/obj records (retired, never freed under a holder) and the dat2 group cache, then the provider's archive hook (registered in main.c, native) drops the platform's decompressed copy and re-primes JS5 -- 255/255, 255/<index>, the rewritten group (`Js5ClientInvalidateArchive`; js5_server re-checks its cache on every master request); the owed REBUILD is forced past the same-zone early-out so placed scenery re-decodes. Proven: e2e RUN (c) loc op3 and (d) npc op4 pressed by the never-relogged bot (16 s / 13 s); a real client logged into a real torirsserver lane re-decoded blueflower's op3 as the new text after one RUN, no relog (`TORIRS_CACHE_INVALIDATE_DEBUG=1`, `TORIRS_LOC_CFG=<id>`). **Web client (2026-11-01):** main.c registers the same hook on the emscripten build (`PlatformWeb_IO_ArchiveInvalidateHook`, platform_web_api.c); `PlatformWeb_IO_InvalidateArchive` (platform_web_io.js) releases the decoded-archive LRU entry, drops the resident container and the index's reference-table memo (owned decode retired, never freed) and moves the table's generation so a read already out keeps nothing; the host's `invalidateArchive` (torirs_hostio.js -> torirs_js5.js) parks the index's outstanding requests (socket reopened when one was on the wire), fetches 255/255, 255/<index> when the stored table no longer matches the master, re-validates every IndexedDB-stored group of the index by its container CRC against the new table (rscache decode, `ToriRS_WebApi_ReferenceTableArchiveCrc`) and overwrites only the rewritten ones; reads of the index wait meanwhile; re-primes are serialised. Proven on a real torirsserver lane in Chromium: one RUN, no relog, the console showed `io 2/6: 1 decompressed copy dropped`, `js5 fetched 255/255`, `255/2`, the 8 groups the client build rewrote, then `loc_cfg 1187 decoded: name='Flower' ops [] [] [Smell] [] []` (`?env=TORIRS_CACHE_INVALIDATE_DEBUG%3D1&env=TORIRS_LOC_CFG%3D1187`). Tests: web_io_invalidate_test 5, js5_invalidate_test 7 (`make -C src test-web-cache-invalidate`, in test-web-channel). **Play client (2026-11-02):** RUN = ... reload -> RUN_STEP_PLAY (6, numbered after DONE) -> DONE: the lane's play client (torirs_maped_live.h "The play client"; How to run it) is started when there is none, left alone when the server lists its account ("reloaded in the running client (<account> at x,z, no relog)"), started again when it exited or logged out; a lane that is down at the reload is LAUNCHED on what the RUN built and the client started (no reload owed), a lane that cannot launch says "Launch the lane first". The editor server owns the process like the lane's servers (a `ToriRSMapEdPlayLauncher` seam: native posix_spawn + waitpid; the test binds a fake), so RUN from any window, the Live panel's play line + **Play** / **Stop**, and `torirsmapedctl play | play-restart | play-stop` drive one client, headless or not; LIVE_PLAY (59) / FACT_LIVE_PLAY (179). **Control link:** CTL_PLAYERS (7) -> CTL_FACT_PLAYERS (134): logins since boot (the pool slots' login generations summed), active count, and per player account, display name, slot, login generation, tile; sent once after an accepted HELLO (which is how the editor knows to ask: an older server closes the link on an unknown frame), then polled with the status (every second while the client logs in). The lane's launched server now keeps its saves in `<live>/saves`, skips the welcome screen, and logs to `<live>/logs/`. **Client:** CACHE_INVALIDATE on index 5 (a map square) now evicts too (`CacheProvider_InvalidateArchive`: the split group, the IO layer's copies through the archive hook -- JS5 re-primes and refetches the square -- and the provider's decoded squares); before, a real client rebuilt the scene from the square it already held and a terrain edit waited for the next login (the scriptrun bot, having no cache provider, never showed it). Proven by `make -C src maped-live-e2e-play` (below) and photographed (a RUN from the editor window launched the lane and started the client; a second RUN raised a second spike in the same, never-relogged client). Tests: live_editor_test 146 (play section: launcher on a fake client binary -- manifest, fixture save, environment -- and the state machine: lane down, online, logged out, died, Play/Stop, detach, a server without CTL_PLAYERS, browser), live_panel_test 34, cache_provider_invalidate_test 25. | the play client's position does not reach STATE_LIVE_FOCUS (viewers do not lock to it); Play cannot raise an existing window (it reports "already logged in"); Restart offer; stale list (always 0) |
+| 16b | Accounts and the Place player tool (2026-11-02) | **Accounts panel** (module "accounts", View > Accounts, starts closed, pops out, every window shares the same facts; src/editor/accounts/accounts_panel.c over the model in accounts_client.c): the lane's accounts are the saves under `<live_dir>/saves/*.ini`, listed by the editor server (only it knows the live dir; windows never touch a file). Per account a dropdown + status row ("online at 3222,3218 level 0: edits are cheats; values from the server's checkpoint" / "offline: edits write the save"), Refresh, **Use for RUN / Play** (the lane's play account at runtime, remembered in `<live_dir>/accounts.ini` [lane] so a daemon restart keeps it; FACT_LIVE_PLAY relays it to every window), Duplicate, Delete (offline only), Name + Password (+ Fixture) + New account (the save from the fixture, default the lane's play fixture; the password is claimed at the first login -- the server's rule -- and remembered in accounts.ini [passwords]); tabs **Position** (x z level + Move, To selection, the Place player tool), **Stats** (25 skills with level and xp; Set level, Set XP, Max all, Reset all), **Vars** (Find = a settled catalog query over varps and varbits by name or id; the save's varps with their catalog names; a varbit's base varp and bits from the catalog; Value + Set), **Quests** (every `quest` dbrow with [x]/[ ]/[?]; Complete = `::complete`, Mark complete = `::questmark`, Mark all complete; offline these are QUEUED per account and flushed 3 s after its login; the queue is shown), **Items** (Backpack / Worn / Bank slot lists; Slot + Obj by id or name or From Catalog pick + Count; Set, Remove, Clear backpack), and a Log of the server's answers (+ the Live log's lines while an online cheat is answered). **Every edit applies at once** (no Apply/Revert): the server chooses the path from CTL_FACT_PLAYERS -- ONLINE = a cheat on the control link (`setlevel`, `xp` (grows only), `maxstats`, `setvar <name>`, `item <id> <n>` (+ `wield`), `tele <coord>`, `complete`, `questmark`, `clearinv`) followed by `::checkpoint <leg>` whose file `saves/checkpoints/<leg>.ini` is read back as the view's SNAPSHOT (flag; "values from the server's checkpoint"); OFFLINE = the save edited in place with a line-preserving codec (comments and unknown keys kept; a varbit spliced into its base varp's bits; stats as `<boosted> <xp_tenths>`). **Daemon module** src/torirsmaped/torirs_maped_accounts.{h,c} (compiled into torirs_maped.c after the live half): requests 65..73 (ACCOUNTS_LIST 65, ACCOUNT_VIEW 66, CREATE 67, DELETE 68, DUPLICATE 69, USE 70, SET 71, PLACE 72, ACCOUNTS_QUESTS 73; range 65..80), facts 191..194 (FACT_ACCOUNTS 191, FACT_ACCOUNT 192, FACT_ACCOUNT_STATUS 193, FACT_QUESTS 194; range 191..200); one SET key vocabulary for the panel and the ctl (`player.pos`, `stats.<stat>[.xp]`, `stats.all max|reset`, `varps.<id|name>`, `varbits.<id|name>`, `vars.<name>`, `inv|worn|bank.<slot> <obj> [n] | -`, `inv.clear`, `quests.<dbrow> complete|mark`, `quests.all mark`, `cheat <line>`, `refresh`); the quest index = the `::complete` arms of quests/scripts/quest_cheat.rs2 (var + `^constant`, the constants read from every `.constant` under server/scripts) joined to the `quest` rows of configs/all.dbrow; the service pass (every pump + the daemon's idle loop) restores the play account, watches logins (queue flush), reads landed checkpoints (4 s timeout -> "wrote no checkpoint"). **Place player tool** (EDITOR_TOOL_PLACE_PLAYER, rail icon, hotkey P, `tool.place_player`): a world click sends ACCOUNT_PLACE for the lane's play account; a magenta tile marker follows the hover; the console says "online: ::tele ..." or "offline: wrote saves/...". The arrows and every other key stay the camera's / the table's. **ctl**: `accounts`, `account-view <name>`, `account-new <name> <password> [fixture]`, `account-dup <name> <new> <password>`, `account-delete <name>`, `account-use <name>`, `account-set <name> <section.key> <value...>`, `account-place <name> <x> <z> <level>`, `quests`. `TORIRS_EDITOR_ACCOUNTS=show[,tab=<n>][,account=<name>]`. Tests: accounts_test (140: codec byte for byte, quest arms, every SET key offline, queue, use/dup/delete, the ONLINE path against the mock control peer incl. the flush and a landed checkpoint), maped_daemon_test.sh (11), editor_panels_accounts_test (48), `make -C src maped-live-e2e-accounts` (the real server + play client: 26 ok, 0 failed). | varcs: no server op or cheat writes a varc for a player and a save holds none, so the panel has no Varcs tab (said here rather than faked); online, one slot cannot be emptied and the bank cannot be edited (no cheat; the Items tab says so); online xp only grows (`::xp` adds); `::setvar` needs the catalog's name (the daemon refuses while the catalog is still indexing); the view online is the last checkpoint, refreshed after each edit, not live-subscribed; a server attached by address keeps its own saves dir (the module reads the lane's); `::checkpoint` is refused in a dialogue or a fight (the Log says so and the view falls back to the save); accounts.ini holds passwords in plain text (a dev lane); the quest states of the four proc-arm quests are [?] |
 | 17 | The web | wasm editor client, viewer tab boot, capabilities gate the menus | browser BuildRunner/LiveLink (answer UNSUPPORTED); content tree host binding |
 | 3c | Areas and Collections | **AREAS document** (kind 5, key `areas`, `<content_dir>/editor/areas.txt`: in the content tree so the team shares and reviews it, outside every pack input so naming an area never changes a build; header comment in src/editor/editor_areas.h): one record per line, `area <name> \| level <0..3\|all> \| rects <x0> <z0> <x1> <z1>[, ...] [\| colour <0..7>] [\| note <text>]` and `collection <name> \| squares <key> ... [\| note <text>]`, names unique per kind; line-preserving codec (src/editor/editor_areas.c: comments, blank lines, CRLF, no final newline byte-identical; the first record brings a 3-line header comment, the last removed takes it back, an emptied document's save removes the file); opened by every session at `Editor_OpenHost`, so every window mirrors it; held as text, applied by parse -> edit -> emit; **commands** AREA_SET 10, AREA_REMOVE 11, COLLECTION_SET 12, COLLECTION_REMOVE 13 (`u.area`: `int line`, the record line before and after, each <= 511 bytes; wire `i32 line, string before, string after`; a SET with a before replaces by name, a rename when the names differ; a REMOVE's undo re-inserts at its old line; refused when the bytes do not match or a name is taken), History rows from the codec ("Mark area Lumbridge castle", "Rename area A to B", "Set level of area A to 1", "Add rect to area A", "New collection C", "Add 1 square to collection C", "Delete area A"); **Areas panel** (module "areas", View menu, dock order after "squares", admitted when the column has room): Areas tab (list name/level/rects, rect status, Name, New from rect -- the Rect tool's rectangle on its level, "no rectangle" said in the panel --, Add rect (to the selected), Rename, Level + Set level, Delete, Go to -- the free camera to the area's centre, opening its square first when it is not loaded --, Show outlines (on), Hide others) and Collections tab (list name/squares, current square = the picker's focus else the latched tile's square, From open (squares), From picker (the shift-click set), Add / Remove current, Rename, Delete, Open all -- each as a document, into the world one load at a time, a confirm past 16); the Rect panel's "Mark area from rect"; the Squares picker's **Collection** dropdown (`all` + every collection: only its squares, on any Area page, Fit frames them; follows edits; off when the collection goes); **world overlay** (app_overlay.c `app_overlay_build_editor_areas` from `Editor_Areas_Overlay`: each rect washed in its colour on its level, outlined along the ground, the name in the overlay's TEXT at the NW corner of the first rect, the selected area brighter; through `world_emit_desc`, so it follows the World panel); ctl `areas`, `area-set`, `area-remove`, `collection-set`, `collection-remove`; tests editor_areas_test, editor_panels_test `test_areas`, maped_embed_test, maped_daemon_test.sh (9) | see open issues (Areas and collections) |
 | 3d | Catalog palette | **PALETTES document** (kind 6, key `palettes`, `<content_dir>/editor/palettes.txt`, beside areas.txt and outside every pack input; header comment in src/editor/editor_palette.h): `palette <name> [\| note <text>]` headers and `palette <name> \| slot <1..10> \| <loc\|npc\|obj>:<record> [\| shape <0..22> rot <0..3>] [\| note <text>]` entries; keys unique (header per palette, entry per slot); line-preserving codec (src/editor/editor_palette.c), opened by every window at `Editor_OpenHost`; **commands** PALETTE_SET 14 / PALETTE_REMOVE 15 (`u.area`, wire `i32 line, string before, string after`, refused on a byte mismatch or a taken key; rename / delete / swap are one stroke via `Editor_PalettePlan*`), History rows from the codec ("Add oaktree to palette Lumbridge slot 3", "Rename palette A to B", "Swap slots 1 and 2 of palette P"); **Catalog palette panel** (module "catalog_palette", View menu, starts closed, docks after Preview; src/editor/panels/edpanel_catalog_palette.c): palette dropdown, Name + New palette / Rename / Delete, a 2x5 strip of numbered slots each a thumbnail rendered by the App (src/app/app_catalog_palette.c, the Preview's camera, one per frame, cached per record in scene sprites 0x4C001000+n; the record name on the web or while it renders), the pick's slot outlined, hover tooltip; click = the catalog pick (published: a popped-out palette picks for the main window) + Place armed with a loc slot's shape and rotation (an npc/obj pick under Place is the spawn ghost); right-click Remove / Set pose from Place tool / Move to slot 1..10 (held = swap); Add current pick into first free or a chosen slot (a loc with the Place pose); the Catalog's "Add to palette" button and the Preview's menu row; hotkeys Shift+1..9 / Shift+0 slots, Ctrl+Shift+A add, Alt+] / Alt+[ step (docs/MAPED_HOTKEYS.md); `TORIRS_EDITOR_CATALOG_PALETTE=<palette>[,slot=<n>]`; ctl `palettes`, `palette-set <palette> <slot|0> <kind>:<record> [shape <s> rot <r>]` / `palette-set <palette> rename <name>`, `palette-remove <palette> [<slot>]`; tests editor_palette_test, editor_panels_palette_test, maped_daemon_test.sh (10) | thumbnails duplicate the Preview's model building (one helper wanted); no thumbnails on the web; the shown palette is per window; a loc slot holds one pose, not multiloc rungs; slots cannot resolve without the catalog capability |
@@ -666,6 +690,180 @@ reshape the ghost, E swaps to the catalog pick, Escape drops the ghost.
 Tests: edit_world_test sequences 12-13, editor_hotkeys_test. Open: no shape
 strip in the Catalog or Preview panels; the strip's images are not
 clickable (the buttons under them are); the Fit toggle is per window.
+
+## Editor lanes (2026-11-02)
+
+Owner: "Edits should go to a dedicated 'working' lane and then there should
+be a publish menu that publishes to a target lane or a new lane."
+
+A **lane** is a content tree to edit plus the live dir its RUN builds into
+(torirsmaped/torirs_maped_lanes.h). `main` is the real tree
+(`OSRS-Content/osrs-content`) and `build/live/default`; a named lane is
+`build/lanes/<name>/{lane.ini, content/, live/}`. A lane's content is a
+copy-on-write MIRROR of its base (mirror.py's rules, ported to C in
+`ToriRSMapEdLanes_Mirror`): real directories, one symlink per file,
+directory symlinks for the pure-asset trees (models, sprites, ...), real
+copies of `pack/` (the id allocation rewrites its ledgers), no pack outputs
+and no locks. A save renames a temporary over the symlink, so the edited
+file is a real file in the lane and the base is untouched; the lane's
+**changes** are its real files that differ from the base (modified /
+added) and the base's files it no longer has (deleted). 102 k entries
+mirror in about two seconds; a changes scan reads only the real files.
+
+- **Serving a lane**: `torirsmaped ... --lane <name>` (or
+  `$TORIRSMAPED_LANE`), the manifest's `[editor:boot] lane=<name>` for the
+  embedded server (`ToriRSMapEd_OpenLane`, `ToriRSMapEd_EmbedStartLane`,
+  `Editor_HostOpenMapEdEmbedLane`; bootmanifest `editor_lane`), the launcher's
+  `[service:torirsmaped] lane=` (else the manifest's). The lane is made on
+  first use; its live dir is bound for BUILD, RUN and the servers. `main`
+  (or no lane) is the shape before: the tree itself. Both editor manifests
+  say `lane=working`.
+- **Wire** (requests 81..90, facts 201..210, torirs_maped_lanes.h):
+  LANE_INFO / LIST / CHANGES / PUBLISH (target or new name, flags reset |
+  force) / DISCARD / CREATE; FACT_LANE_PUBLISHED is a broadcast (every
+  window's panel refreshes). Handlers in torirs_maped_lanes_wire.c; the host
+  keeps the facts for the panel (`Editor_HostMapEdLanesSend/Take`).
+- **Publish**: every dirty document is saved first (the same save-all),
+  then the changes are written into the target's content -- the main tree
+  (refused while another editor's lock holds it, unless forced), another
+  lane, or a new lane mirrored from main first. When the target is the
+  lane's base, the published files become links again (the working lane is
+  clean) unless "keep". **Discard** drops the server's documents and its
+  history, re-links every change (removes additions), and every window
+  reopens the squares it shows (`FACT_LANE_PUBLISHED reload=1`).
+- **Publish panel** (module "publish", File > Publish..., Ctrl+Shift+U;
+  src/editor/panels/edpanel_publish.c): the lane and its base, the change
+  counts and list (M/A/D path), a target dropdown (every other lane, "New
+  lane..." with a name box), "Keep the changes here", Publish, Discard
+  changes, New lane, Refresh; refreshes when it opens and after a save. A
+  `lane=main` session's panel says there is nothing to publish and how to
+  start on a lane. On demand like the Live panel: hidden at boot, flies out
+  beside the column when opened (`TORIRS_EDITOR_PUBLISH=show` opens it with
+  the editor, for photographs); editor_panels_test `test_publish`.
+- **ctl**: `lane`, `lanes`, `changes`, `publish <target> [keep] [force]`,
+  `publish-new <name>`, `discard`, `lane-create <name>`.
+- Tests: lanes_test (62: names, the mirror's rules, create / lookup / list,
+  the change scan, publish to a new lane / another lane / main with reset,
+  the lock refusal and force, discard), maped_daemon_test.sh section 12 (a
+  daemon on `--lane work`: an edit saved through it never touches the tree,
+  publish-new, publish main resets the lane, discard), editor_hotkeys_test.
+
+Open: the Publish panel has no per-file pick (all or nothing); a lane's base
+is always the main tree (no lane of a lane); a lane does not notice its base
+moving under it (publish from main into a lane is the way to refresh one);
+the mirror is per file, so a directory added to the tree later is not seen
+by an older lane until it is re-made.
+
+## RUN speed (2026-11-02)
+
+Owner: "run takes an extremely long time before it opens the live client ...
+needs to be faster. Profile and fix." The first RUN of the day into
+`build/live/default` ran 17:52 -> 17:53:43 on his Mac. Profiled with the
+lane's own logs and a timed `torirsmapedctl run` sequence on a mirror
+(`timeline.sh`: lane down, attached, detached again; every ctl line
+timestamped), plus `time make ...` of each half and `sample` of cachepack:
+
+- A warm RUN was ~5 s: make start-up and the object verifier ~0.5 s per
+  make x 2, id allocation 0.4 s, script packs 1.2 s, server pack check
+  0.15 s, client pack 1.6 s + the map squares, reload < 1 s, then the play
+  step. The game server boots to "listening" in 2.1 s; the play client logs
+  in ~3 s after it starts.
+- A BRAND-NEW lane (the default lane is new since 2026-11-02) paid two FULL
+  repacks back to back: the server pack 20.7 s (`types 18.97s`, 121917
+  archives) then the client pack 20.3 s (20 types, 195393 records), then
+  the launch and the client -- the owner's 90 s. cachepack's hot path is
+  its per-line key lookup in the merge (`key_candidates`, strcmp), spread
+  over ~6 M lines; no single quadratic, left alone.
+- A RUN within ~a minute of the play client's login finds the client gone
+  from the server and restarts it (another boot and login): the JS5
+  background fill is still running and the CACHE_INVALIDATE drops the game
+  session (the e2e settles 75 s for this reason). Open, below.
+
+Fixes (src/maped/live-editor.mk, torirsmaped/torirs_maped_build.{h,c}):
+
+1. **One build, both halves at once.** RUN's build is `TORIRSMAPED_BUILD_RUN`
+   = `make -C src maped-run-build ...`: the cachepack tool once, serially,
+   then `make -j2 torirsserver-packs maped-client-cache`. RUN's steps are
+   save -> build (`RUN_STEP_BUILD`, 7) -> reload -> play client -> done; the
+   manual Build packs / Build client cache buttons keep their own jobs and
+   steps. Cold: 41 s -> 21 s. A failed half is named from make's error
+   lines ("the client cache build failed: ...").
+2. **A new lane is seeded**, not repacked: `maped-lane-seed` copies the
+   tree's own `server/pack`, `server/scripts/build` and
+   `server/scripts/build_summoning_curses` (incremental state included) into
+   a lane that has no `pack.manifest` yet, and the build brings them up to
+   date; skipped while the tree's pack is mid-write (`.pack.lock`). Nothing
+   is written under the tree. The client cache has no seed (its base is
+   `cache.osrs241`, the configs still pack): the brand-new lane's first RUN
+   is now one 20 s client pack.
+3. **`OBJVERIFY_SKIP=1`** on RUN's makes: the object verifier hashes every
+   object's prerequisites at every make start-up (~0.5 s) for a build that
+   compiles none of them.
+4. **Progress** (`FACT_RUN_PROGRESS`, 180): step, index of 4, whole-RUN and
+   step percent, elapsed, remaining, detail (the last unit the build
+   reported, the play client's state). The estimate weighs the steps by
+   the last finished RUN's durations and the build by its unit count
+   (`<live>/run_times.ini`, written at every RUN that finishes); without a
+   history the step's own clock moves the bar asymptotically and the time
+   left reads unknown. Four rows a second at most. Shown by the Live panel
+   (a bar under the run line) and by a small RUN window at the foot of the
+   main window (`live_panel.c`; never in the View menu, the dock or the
+   layout file; a popped-out window keeps the panel's bar only), and
+   printed by `torirsmapedctl run` per step and per 5 %.
+
+Measured after, same recipes: the timed sequence's RUNs 29 s / 5.3 s /
+4.2 s became 19.6 s / 3.5 s / 2.4 s (lane built elsewhere so every unit
+recompiles; attached and warm; lane down and warm; the client logs in ~3 s
+after a launch); maped-live-e2e-play's RUN (A) 39 s -> 22 s. Photographed
+2026-11-02: the RUN window at the foot of the main window and the Live
+panel's bar, both reading "RUN 21%: build 2/4: packs and client cache (4 s,
+~16 s left)" four seconds into a RUN.
+
+Tests: live_editor_test (the RUN build's command, the one job, both
+failure halves named, progress rows in order), maped-live-e2e-play (RUN (A)
+and (B) timings printed), maped_daemon_test.sh.
+
+## Accounts (2026-11-02)
+
+The lane's player saves, managed from the editor (row 16b; the module header
+src/torirsmaped/torirs_maped_accounts.h has the wire and the SET key
+vocabulary). What to know when using it:
+
+- **Where the accounts are.** `<live_dir>/saves/<name>.ini`, the directory the
+  lane's launched torirsserver keeps its players in (TORIRSSERVER_SAVES). The
+  daemon needs a lane (`--live-dir`, or `$TORIRSMAPED_LIVE_DIR`; unset =
+  `build/live/default`); without one every verb answers "no lane is bound".
+  The module's own file is `<live_dir>/accounts.ini`: `[lane] play_user /
+  play_pass` (what Use for RUN / Play set), `[passwords]` (accounts made here;
+  plain text, this is a dev lane), `[queue] <name>.<n> = <cheat>`.
+- **Online or offline is the server's call**, from the attached lane's player
+  list. Online the edit is a cheat for that player on the control link and
+  the view is refreshed through `::checkpoint <leg>` (legs 90001.. are this
+  module's; the quest harness counts from 1); the checkpoint carries every
+  non-zero varp, so the Vars tab shows the live state. Offline the save is
+  edited in place. The status fact says which ("online: ::setlevel cooking
+  60 for acctb" / "offline: wrote saves/acctb.ini (cooking level 60)") and the
+  editor console repeats it.
+- **Quests** have no offline form: `::complete` / `::questmark` are queued and
+  sent 3 s after the account's next login (the login's scene settles first);
+  the panel's Quests tab and `account-view` list the queue. A quest's state
+  is read from the save (or the checkpoint) through its `::complete` arm's
+  var and constant; the four quests whose arm goes through a proc (Clock
+  Tower, The Dig Site, Plague City, Vampyre Slayer) read `[?]`.
+- **Passwords.** The server claims a password at an account's FIRST login
+  (torirs_server_auth.c), so New account writes the save and removes any
+  stale `saves/accounts/<name>.ini`; Use for RUN / Play needs a password the
+  editor knows (made here, or the lane's default `maped<port>`).
+- **End to end** (`make -C src maped-live-e2e-accounts`, writes only under
+  `src/<obj>/tmp/live_accounts`): the real torirsserver and js5_server on
+  the lane's packs and cache, the real play client; an account made and
+  edited offline (attack 40) is the play account; after `play` the checkpoint
+  shows attack 40 and an online `stats.cooking 60`; `account-place` is
+  `::tele` and the server's player list moves; a quest mark online is
+  `::questmark` and the snapshot reads complete; after `play-stop` an offline
+  strength 33 and a QUEUED Sheep Shearer mark both reach the character at the
+  next login (two logins on the server). Last run 2026-11-02: 26 ok, 0 failed
+  (LIVE_E2E_OBJ=build_agent_acct_opt, server binaries from build_opt).
 
 ## Open issues
 
@@ -1054,6 +1252,29 @@ Still slow, with where to start:
   stays App-free (headless-testable).
 - Add trigger appends to the subject's edited script only; a trigger meant
   for an existing area file is added there by hand (Open in editor).
+
+### Accounts
+
+- No Varcs tab: a varc is client state; no server op or cheat writes one for
+  a logged-in player and a save holds none. Not faked.
+- Online: one slot cannot be emptied and the bank cannot be edited (no cheat
+  does either); xp only grows (`::xp` adds); a varp or varbit is set by NAME
+  (`::setvar`), so while the catalog is still indexing the content the daemon
+  refuses with "cannot be resolved yet".
+- The online view is the last checkpoint (refreshed after each edit and by
+  Refresh), not a live subscription; `::checkpoint` is refused in a dialogue
+  or a fight, and then the view falls back to the save after 4 s.
+- A server attached by ADDRESS keeps its own saves directory; the module
+  reads and writes the lane's.
+- `accounts.ini` holds the passwords of accounts made here in plain text.
+- The Hotkeys panel's Place player chord is P; the Items tab's "Set" and the
+  Vars tab's "Set" are two buttons of the same caption (a test finds them by
+  order).
+- `TORIRS_EDITOR_HOVER=<x>,<z>,<tool>` never armed a two-word tool
+  (`place_player`, `paint_underlay`): the name compare lower-cased the env's
+  `_` as well (fixed with this work, src/app/app_map_editor.c). The tool's
+  marker photograph: `TORIRS_EDITOR_LEVEL=0,3222,3218,0,400,1800
+  TORIRS_EDITOR_HOVER=3222,3218,place_player`.
 
 ### Live lane: editor side
 

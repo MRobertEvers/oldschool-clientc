@@ -32,8 +32,9 @@
  *          runner does not offer.
  *
  *   RUN    (empty)
- *          -> SAVE_ALL's broadcasts (FACT_SAVED), then BUILD packs' and BUILD
- *             client cache's FACT_BUILD_* streams, then the live link's
+ *          -> SAVE_ALL's broadcasts (FACT_SAVED), then ONE build's FACT_BUILD_*
+ *             stream (TORIRSMAPED_BUILD_RUN: the packs and the client cache at
+ *             once, `make -j2`; RUN_STEP_BUILD), then the live link's
  *             FACT_LIVE_LINE rows, then
  *             broadcast FACT_RUN_DONE   u32 status, u32 step (the step that
  *                                       failed, or RUN_STEP_DONE),
@@ -43,7 +44,17 @@
  *                                       u32 restart_count, restart_count * string
  *             and FACT_LIVE_STATUS (torirs_maped_live.h).
  *          Stops at the FIRST failure: a save that failed builds nothing, a
- *          failed pack builds no client cache, a failed build reloads nothing.
+ *          failed build reloads nothing.
+ *          While a RUN is in flight, broadcast FACT_RUN_PROGRESS (180):
+ *             u32 step (enum ToriRSMapEdRunStep), u32 step_index (1-based),
+ *             u32 step_count, u32 percent (0..100 of the whole RUN),
+ *             u32 step_percent, u32 elapsed_ms (in this step),
+ *             u32 remaining_ms (0xFFFFFFFF: no earlier RUN to estimate from),
+ *             string detail (the unit being built, the play client's state)
+ *          at every step change and at most four times a second in between.
+ *          The estimate weighs each step by its duration in the last RUN that
+ *          finished on this lane (<live>/run_times.ini) and, for the build,
+ *          by the units it has reported against that RUN's count.
  *
  * Build and live facts go to EVERY v2 connection (design #protocol): they
  * describe the shared tree and the shared live lane, so every window's Live
@@ -68,6 +79,8 @@ enum
     TORIRSMAPED_FACT_BUILD_DONE = 174,
     /** RUN's outcome (178, inside live-editor's 173..190). */
     TORIRSMAPED_FACT_RUN_DONE = 178,
+    /** Where the RUN in flight is (see the header comment). */
+    TORIRSMAPED_FACT_RUN_PROGRESS = 180,
 
     /** The whole live-editor fact range: a client that does not interpret
      *  them still knows they are broadcasts (editor_host_remote.c). */
@@ -90,6 +103,10 @@ enum ToriRSMapEdBuildWhat
     /** Reserved: no runner offers them yet (UNSUPPORTED). */
     TORIRSMAPED_BUILD_SCRIPTS_LINT = 3,
     TORIRSMAPED_BUILD_CS2 = 4,
+    /** `make -C src maped-run-build`: PACKS and CLIENT_CACHE together under
+     *  -j2 (src/maped/live-editor.mk), RUN's own build. One job, one
+     *  FACT_BUILD_* stream, both builds' units and archives. */
+    TORIRSMAPED_BUILD_RUN = 5,
 };
 
 /** RUN's steps, in order; FACT_RUN_DONE's `step`. */
@@ -107,6 +124,11 @@ enum ToriRSMapEdRunStep
      *  client"). Runs between RELOAD and DONE; numbered after DONE so DONE
      *  keeps the value every older peer compares against. */
     TORIRSMAPED_RUN_STEP_PLAY = 6,
+    /** RUN's build since 2026-11-02: packs and client cache at once
+     *  (TORIRSMAPED_BUILD_RUN). Replaces PACKS then CLIENT_CACHE in a RUN's
+     *  sequence (those two remain the manual BUILD buttons' steps and names);
+     *  numbered after PLAY for the same reason PLAY is after DONE. */
+    TORIRSMAPED_RUN_STEP_BUILD = 7,
 };
 
 /** The step's name, for logs and the Live panel ("save", "packs", ...). */
@@ -420,7 +442,7 @@ enum
 struct ToriRSMapEdBuildMock
 {
     struct ToriRSMapEdLane lane;
-    struct ToriRSMapEdBuildMockScript scripts[TORIRSMAPED_BUILD_CS2 + 1];
+    struct ToriRSMapEdBuildMockScript scripts[TORIRSMAPED_BUILD_RUN + 1];
     char commands[TORIRSMAPED_BUILD_MOCK_COMMANDS_MAX][4096];
     uint32_t command_whats[TORIRSMAPED_BUILD_MOCK_COMMANDS_MAX];
     /** The squares each recorded CLIENT_CACHE job named, as text "x_z x_z". */

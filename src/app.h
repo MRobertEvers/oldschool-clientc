@@ -396,6 +396,9 @@ struct AppConfig
      *  editor edits. NULL = no editor this boot, which is every normal client
      *  run. Borrowed from the BootManifest, which outlives the App. */
     char const* editor_content_dir;
+    /** [editor:boot] lane — the editor lane over `editor_content_dir`
+     *  (torirsmaped/torirs_maped_lanes.h); NULL or "main" edits the tree itself. */
+    char const* editor_lane;
     /** [editor:boot] repo_root — where a bake would run. NULL disables baking. */
     char const* editor_repo_root;
     /**

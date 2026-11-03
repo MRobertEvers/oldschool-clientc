@@ -39,6 +39,7 @@
 
 #include "torirs_maped.h"
 #include "torirs_maped_live.h"
+#include "torirs_maped_accounts.h"
 #include "torirs_maped_net.h"
 #include "torirs_maped_view.h"
 
@@ -197,6 +198,9 @@ serve_forever(
          * only pump when their sockets are readable, so a build streaming
          * lines while every client is idle is advanced here. */
         ToriRSMapEd_Service(maped);
+        /* Logins (queued account cheats), checkpoints landing
+         * (torirs_maped_accounts.h). */
+        ToriRSMapEd_AccountsService(maped);
     }
 }
 
@@ -210,6 +214,7 @@ main(
     const char* view_binary = getenv("TORIRSMAPED_VIEW_BINARY");
     const char* view_manifest = getenv("TORIRSMAPED_VIEW_MANIFEST");
     const char* live_dir = NULL;
+    const char* lane_name = getenv("TORIRSMAPED_LANE");
     int port = TORIRSMAPED_DEFAULT_PORT;
     struct ToriRSMapEdListener* listener;
     static struct ToriRSMapEd maped;
@@ -231,6 +236,8 @@ main(
             view_manifest = argv[++i];
         else if( strcmp(argv[i], "--live-dir") == 0 && i + 1 < argc )
             live_dir = argv[++i];
+        else if( strcmp(argv[i], "--lane") == 0 && i + 1 < argc )
+            lane_name = argv[++i];
         else if( argv[i][0] >= '0' && argv[i][0] <= '9' )
             port = atoi(argv[i]);
         else
@@ -259,7 +266,22 @@ main(
      * and the live link, everything a build writes under that dir. */
     if( live_dir )
         setenv("TORIRSMAPED_LIVE_DIR", live_dir, 1);
-    ToriRSMapEd_Open(&maped, content_dir, repo_root);
+    /* --lane <name> (or $TORIRSMAPED_LANE): serve the lane's mirror of
+     * --content-dir and build into the lane's live dir (torirs_maped_lanes.h);
+     * "main" is --content-dir itself. */
+    if( lane_name && lane_name[0] && strcmp(lane_name, "main") != 0 )
+    {
+        char why[512];
+        if( !ToriRSMapEd_OpenLane(&maped, content_dir, repo_root, lane_name, why, sizeof(why)) )
+        {
+            fprintf(stderr, "torirsmaped: lane '%s': %s\n", lane_name, why);
+            return 1;
+        }
+        fprintf(stderr, "torirsmaped: lane '%s': %s, mirrors %s (live %s)\n", maped.lane.name, maped.lane.content,
+            maped.lane.base, maped.lane.live);
+    }
+    else
+        ToriRSMapEd_Open(&maped, content_dir, repo_root);
     daemon_views_bind(&maped, view_binary, view_manifest, port);
 
     fprintf(

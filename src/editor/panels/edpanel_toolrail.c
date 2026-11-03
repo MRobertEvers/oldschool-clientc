@@ -29,6 +29,8 @@ static const int k_tool_icons[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_LOC_MOVE] = TORIRS_CHROME_SKIN_TOOL_MOVE,
     [EDITOR_TOOL_LOC_ROTATE] = TORIRS_CHROME_SKIN_TOOL_ROTATE,
     [EDITOR_TOOL_LOC_DELETE] = TORIRS_CHROME_SKIN_TOOL_DELETE,
+    /* No player glyph in the cache: the plugin icon (a figure) stands in. */
+    [EDITOR_TOOL_PLACE_PLAYER] = TORIRS_CHROME_SKIN_PLUGIN_ICON,
 };
 
 /* Short enough that "  [<chord>]" fits a tooltip's 63 bytes. */
@@ -46,6 +48,7 @@ static const char* const k_tool_tips[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_LOC_MOVE] = "Move the selected locs here",
     [EDITOR_TOOL_LOC_ROTATE] = "Rotate the clicked loc",
     [EDITOR_TOOL_LOC_DELETE] = "Delete the clicked loc",
+    [EDITOR_TOOL_PLACE_PLAYER] = "Place the play account on the tile",
 };
 
 struct ToolRailPanel

@@ -107,17 +107,52 @@
  *                          (default 180 s); exits 0 once the server lists it
  *   play-restart [seconds] stop it and start it again, then as play
  *   play-stop              stop the lane's play client
+ *   accounts               the lane's accounts (saves under <live>/saves),
+ *                          one per line: name, online/offline, tile, flags
+ *   account-view <name>    one account's position, stats, varps, items,
+ *                          queue and quest states
+ *   account-new <name> <password> [fixture]
+ *                          a new account from the fixture (default: the
+ *                          lane's play fixture); the password is claimed at
+ *                          its first login
+ *   account-dup <name> <new name> <password>
+ *   account-delete <name>  its save, password record and queue (offline only)
+ *   account-use <name>     RUN and Play log in as it from now on
+ *   account-set <name> <section.key> <value...>
+ *                          one edit (torirs_maped_accounts.h lists the keys:
+ *                          player.pos, stats.<stat>, varps.<id|name>,
+ *                          inv.<slot>, quests.<dbrow> complete|mark, ...);
+ *                          online it is a cheat, offline the save is written,
+ *                          a quest cheat is queued for the next login
+ *   account-place <name> <x> <z> <level>
+ *   lane                   this server's editor lane: name, content, live, base
+ *   lanes                  every lane: main and build/lanes/* (* marks this one)
+ *   changes                the lane's changes against its base (M/A/D path)
+ *   publish <target> [keep] [force]
+ *                          save all, then write the changes into lane <target>
+ *                          ("main" is the tree); the working lane is reset
+ *                          afterwards when <target> is its base unless `keep`;
+ *                          `force` writes into a main tree another editor holds
+ *   publish-new <name>     a new lane mirrored from main, then publish into it
+ *   discard                every change back to the base (documents dropped)
+ *   lane-create <name>     a new lane mirrored from main, nothing published
+ *                          the account onto that tile (::tele online, the
+ *                          save offline)
+ *   quests                 the content's quest rows and the var each
+ *                          ::complete arm writes
  *
  * Exit status is 0 when the command did what it said, 1 otherwise.
  */
 
 #include "editor/editor_areas.h"
 #include "editor/editor_palette.h"
+#include "torirsmaped/torirs_maped_accounts.h"
 #include "editor/editor_host.h"
 #include "mem/torirs_mem.h"
 #include "torirs_maped.h"
 #include "torirs_maped_build.h"
 #include "torirs_maped_live.h"
+#include "torirs_maped_lanes.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -1598,6 +1633,35 @@ live_print(
             wait->ok = status == EDITOR_HOST_OK;
         }
     }
+    else if( type == TORIRSMAPED_FACT_RUN_PROGRESS )
+    {
+        /* One line per step and per 5 %, not four a second. The step names
+         * are spelled here: this binary carries no torirs_maped.c. */
+        static const char* const step_names[8] = { "idle", "save", "packs", "client cache", "reload", "done",
+            "play client", "build" };
+        static uint32_t shown_step = 0;
+        static uint32_t shown_percent = 0xFFFFFFFFu;
+        uint32_t step = ToriRSMapEd_GetU32(&reader);
+        uint32_t index = ToriRSMapEd_GetU32(&reader);
+        uint32_t count = ToriRSMapEd_GetU32(&reader);
+        uint32_t percent = ToriRSMapEd_GetU32(&reader);
+        uint32_t step_percent = ToriRSMapEd_GetU32(&reader);
+        uint32_t elapsed = ToriRSMapEd_GetU32(&reader);
+        uint32_t remaining = ToriRSMapEd_GetU32(&reader);
+        ToriRSMapEd_GetString(&reader, text, sizeof(text));
+        if( step != shown_step || percent / 5 != shown_percent / 5 )
+        {
+            shown_step = step;
+            shown_percent = percent;
+            if( remaining == 0xFFFFFFFFu )
+                printf("RUN %3u%% [%u/%u %s %u%%] %s (%u.%u s)\n", percent, index, count,
+                    step < 8 ? step_names[step] : "?", step_percent, text, elapsed / 1000, (elapsed % 1000) / 100);
+            else
+                printf("RUN %3u%% [%u/%u %s %u%%] %s (%u.%u s, ~%u s left)\n", percent, index, count,
+                    step < 8 ? step_names[step] : "?", step_percent, text, elapsed / 1000, (elapsed % 1000) / 100,
+                    (remaining + 999) / 1000);
+        }
+    }
     else if( type == TORIRSMAPED_FACT_RUN_DONE )
     {
         uint32_t status = ToriRSMapEd_GetU32(&reader);
@@ -1761,6 +1825,403 @@ live_request(
     return wait->ok ? 0 : 1;
 }
 
+/* ---- accounts (torirs_maped_accounts.h) -------------------------------------- */
+
+struct accounts_wait
+{
+    /** The fact that ends the wait; FACT_ACCOUNT_STATUS also needs `request`. */
+    uint32_t want_fact;
+    uint32_t request;
+    int done;
+    int ok;
+};
+
+static const char*
+accounts_flag_text(
+    uint32_t flags,
+    char* out,
+    size_t out_size)
+{
+    snprintf(out, out_size, "%s%s%s%s%s", flags & TORIRSMAPED_ACCT_PLAY ? " play" : "",
+        flags & TORIRSMAPED_ACCT_PASSWORD ? " password" : "", flags & TORIRSMAPED_ACCT_SNAPSHOT ? " snapshot" : "",
+        flags & TORIRSMAPED_ACCT_REFRESHING ? " refreshing" : "", flags & TORIRSMAPED_ACCT_SAVE ? "" : " no-save");
+    return out;
+}
+
+/** Print one accounts fact; fold it into `wait`. */
+static void
+accounts_print(
+    uint32_t type,
+    const uint8_t* body,
+    uint32_t length,
+    struct accounts_wait* wait)
+{
+    struct ToriRSMapEdReader reader;
+    char text[1024];
+    char flags_text[96];
+
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    if( type == TORIRSMAPED_FACT_ACCOUNTS )
+    {
+        uint32_t status = ToriRSMapEd_GetU32(&reader);
+        char live[1024];
+        char play[64];
+        uint32_t attached;
+        uint32_t count;
+        ToriRSMapEd_GetString(&reader, live, sizeof(live));
+        ToriRSMapEd_GetString(&reader, play, sizeof(play));
+        attached = ToriRSMapEd_GetU32(&reader);
+        count = ToriRSMapEd_GetU32(&reader);
+        if( wait->want_fact == type )
+        {
+            wait->done = 1;
+            wait->ok = status == EDITOR_HOST_OK;
+        }
+        if( status != EDITOR_HOST_OK )
+        {
+            printf("accounts: no lane is bound (status %u)\n", status);
+            return;
+        }
+        printf("%u account(s) in %s/saves (play account %s; lane %s)\n", count, live, play,
+            attached ? "attached" : "not attached");
+        for( uint32_t i = 0; i < count && !reader.bad; i++ )
+        {
+            char name[64];
+            uint32_t flags;
+            int32_t x;
+            int32_t z;
+            int32_t level;
+            uint32_t queued;
+            ToriRSMapEd_GetString(&reader, name, sizeof(name));
+            flags = ToriRSMapEd_GetU32(&reader);
+            x = (int32_t)ToriRSMapEd_GetU32(&reader);
+            z = (int32_t)ToriRSMapEd_GetU32(&reader);
+            level = (int32_t)ToriRSMapEd_GetU32(&reader);
+            queued = ToriRSMapEd_GetU32(&reader);
+            printf("  %-14s %-7s %d,%d,%d%s queued %u\n", name, flags & TORIRSMAPED_ACCT_ONLINE ? "online" : "offline", x,
+                z, level, accounts_flag_text(flags, flags_text, sizeof(flags_text)), queued);
+        }
+    }
+    else if( type == TORIRSMAPED_FACT_ACCOUNT )
+    {
+        uint32_t status = ToriRSMapEd_GetU32(&reader);
+        char name[64];
+        uint32_t flags;
+        char display[64];
+        int32_t x;
+        int32_t z;
+        int32_t level;
+        uint32_t n;
+        int complete = 0;
+        int known = 0;
+        ToriRSMapEd_GetString(&reader, name, sizeof(name));
+        if( wait->want_fact == type )
+        {
+            wait->done = 1;
+            wait->ok = status == EDITOR_HOST_OK;
+        }
+        if( status != EDITOR_HOST_OK )
+        {
+            printf("account %s: %s (status %u)\n", name, status == EDITOR_HOST_ABSENT ? "no such save" : "unavailable",
+                status);
+            return;
+        }
+        flags = ToriRSMapEd_GetU32(&reader);
+        ToriRSMapEd_GetString(&reader, text, sizeof(text));
+        ToriRSMapEd_GetString(&reader, display, sizeof(display));
+        x = (int32_t)ToriRSMapEd_GetU32(&reader);
+        z = (int32_t)ToriRSMapEd_GetU32(&reader);
+        level = (int32_t)ToriRSMapEd_GetU32(&reader);
+        printf("account %s (%s):%s\n  %s\n  position %d,%d level %d\n", name, display,
+            accounts_flag_text(flags, flags_text, sizeof(flags_text)), text, x, z, level);
+        n = ToriRSMapEd_GetU32(&reader);
+        printf("  stats:");
+        for( uint32_t i = 0; i < n && !reader.bad; i++ )
+        {
+            int32_t boosted = (int32_t)ToriRSMapEd_GetU32(&reader);
+            int32_t xp_tenths = (int32_t)ToriRSMapEd_GetU32(&reader);
+            printf(" %s=%d/%d", ToriRSMapEd_AcctStatName((int)i), boosted, xp_tenths / 10);
+        }
+        printf("\n");
+        n = ToriRSMapEd_GetU32(&reader);
+        printf("  varps (%u):", n);
+        for( uint32_t i = 0; i < n && !reader.bad; i++ )
+        {
+            uint32_t id = ToriRSMapEd_GetU32(&reader);
+            int32_t value = (int32_t)ToriRSMapEd_GetU32(&reader);
+            char var_name[96];
+            ToriRSMapEd_GetString(&reader, var_name, sizeof(var_name));
+            printf(" %u%s%s=%d", id, var_name[0] ? ":" : "", var_name, value);
+        }
+        printf("\n");
+        for( int section = 0; section < 3 && !reader.bad; section++ )
+        {
+            n = ToriRSMapEd_GetU32(&reader);
+            printf("  %s (%u):", section == 0 ? "inv" : section == 1 ? "worn" : "bank", n);
+            for( uint32_t i = 0; i < n && !reader.bad; i++ )
+            {
+                uint32_t slot = ToriRSMapEd_GetU32(&reader);
+                int32_t obj = (int32_t)ToriRSMapEd_GetU32(&reader);
+                int32_t count = (int32_t)ToriRSMapEd_GetU32(&reader);
+                printf(" %u=%dx%d", slot, obj, count);
+            }
+            printf("\n");
+        }
+        n = ToriRSMapEd_GetU32(&reader);
+        printf("  queued (%u):\n", n);
+        for( uint32_t i = 0; i < n && !reader.bad; i++ )
+        {
+            ToriRSMapEd_GetString(&reader, text, sizeof(text));
+            printf("    ::%s\n", text);
+        }
+        n = ToriRSMapEd_GetU32(&reader);
+        for( uint32_t i = 0; i < n && !reader.bad; i++ )
+        {
+            uint32_t quest_state;
+            ToriRSMapEd_GetString(&reader, text, sizeof(text));
+            quest_state = ToriRSMapEd_GetU32(&reader);
+            (void)ToriRSMapEd_GetU32(&reader);
+            known += quest_state != TORIRSMAPED_QUEST_UNKNOWN;
+            complete += quest_state == TORIRSMAPED_QUEST_COMPLETE;
+            if( quest_state == TORIRSMAPED_QUEST_COMPLETE )
+                printf("  quest complete: %s\n", text);
+        }
+        printf("  quests: %d complete of %d readable (%u rows)\n", complete, known, n);
+    }
+    else if( type == TORIRSMAPED_FACT_ACCOUNT_STATUS )
+    {
+        uint32_t request = ToriRSMapEd_GetU32(&reader);
+        uint32_t status = ToriRSMapEd_GetU32(&reader);
+        char name[64];
+        ToriRSMapEd_GetString(&reader, name, sizeof(name));
+        ToriRSMapEd_GetString(&reader, text, sizeof(text));
+        printf("%s%s%s%s\n", name, name[0] ? ": " : "", text, status == EDITOR_HOST_OK ? "" : " (refused)");
+        if( wait->want_fact == type && (wait->request == 0 || request == wait->request) )
+        {
+            wait->done = 1;
+            wait->ok = status == EDITOR_HOST_OK;
+        }
+    }
+    else if( type == TORIRSMAPED_FACT_QUESTS )
+    {
+        uint32_t count = ToriRSMapEd_GetU32(&reader);
+        printf("%u quest row(s)\n", count);
+        for( uint32_t i = 0; i < count && !reader.bad; i++ )
+        {
+            char dbrow[64];
+            char display[64];
+            char var[32];
+            int32_t value;
+            ToriRSMapEd_GetString(&reader, dbrow, sizeof(dbrow));
+            ToriRSMapEd_GetString(&reader, display, sizeof(display));
+            ToriRSMapEd_GetString(&reader, var, sizeof(var));
+            value = (int32_t)ToriRSMapEd_GetU32(&reader);
+            printf("  %-40s %-32s %s%s%d\n", dbrow, display, var, var[0] ? " >= " : "(no arm) ", value);
+        }
+        if( wait->want_fact == type )
+        {
+            wait->done = 1;
+            wait->ok = 1;
+        }
+    }
+}
+
+/* ---- editor lanes (torirs_maped_lanes.h) ----------------------------------- */
+
+struct lanes_wait
+{
+    uint32_t want_fact;
+    int done;
+    int ok;
+};
+
+static void
+lanes_print(
+    uint32_t type,
+    const uint8_t* body,
+    uint32_t length,
+    struct lanes_wait* wait)
+{
+    struct ToriRSMapEdReader reader;
+    char text[1024];
+
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    if( type == TORIRSMAPED_FACT_LANE_INFO )
+    {
+        char content[1024];
+        char live[1024];
+        char base[1024];
+        uint32_t is_main;
+        uint32_t writable;
+        ToriRSMapEd_GetString(&reader, text, sizeof(text));
+        ToriRSMapEd_GetString(&reader, content, sizeof(content));
+        ToriRSMapEd_GetString(&reader, live, sizeof(live));
+        ToriRSMapEd_GetString(&reader, base, sizeof(base));
+        is_main = ToriRSMapEd_GetU32(&reader);
+        writable = ToriRSMapEd_GetU32(&reader);
+        printf("lane %s%s%s\n  content %s\n  live    %s\n", text, is_main ? " (the main tree)" : "",
+            writable ? "" : " [read-only]", content, live);
+        if( !is_main )
+            printf("  base    %s\n", base);
+    }
+    else if( type == TORIRSMAPED_FACT_LANE_LIST )
+    {
+        uint32_t count = ToriRSMapEd_GetU32(&reader);
+        printf("%u lane(s)\n", count);
+        for( uint32_t i = 0; i < count && !reader.bad; i++ )
+        {
+            char content[1024];
+            char base[1024];
+            uint32_t is_main;
+            uint32_t is_this;
+            ToriRSMapEd_GetString(&reader, text, sizeof(text));
+            ToriRSMapEd_GetString(&reader, content, sizeof(content));
+            ToriRSMapEd_GetString(&reader, base, sizeof(base));
+            is_main = ToriRSMapEd_GetU32(&reader);
+            is_this = ToriRSMapEd_GetU32(&reader);
+            printf("  %c %-16s %s%s\n", is_this ? '*' : ' ', text, content, is_main ? " (the main tree)" : "");
+        }
+    }
+    else if( type == TORIRSMAPED_FACT_LANE_CHANGES )
+    {
+        uint32_t modified = ToriRSMapEd_GetU32(&reader);
+        uint32_t added = ToriRSMapEd_GetU32(&reader);
+        uint32_t deleted = ToriRSMapEd_GetU32(&reader);
+        uint32_t rows = ToriRSMapEd_GetU32(&reader);
+        printf("%u modified, %u added, %u deleted\n", modified, added, deleted);
+        for( uint32_t i = 0; i < rows && !reader.bad; i++ )
+        {
+            uint32_t kind = ToriRSMapEd_GetU32(&reader);
+            uint32_t size;
+            ToriRSMapEd_GetString(&reader, text, sizeof(text));
+            size = ToriRSMapEd_GetU32(&reader);
+            printf("  %c %s%s%u bytes)\n",
+                kind == TORIRSMAPED_LANE_CHANGE_MODIFIED ? 'M' : kind == TORIRSMAPED_LANE_CHANGE_ADDED ? 'A' : 'D',
+                text, kind == TORIRSMAPED_LANE_CHANGE_DELETED ? " (" : " (", size);
+        }
+    }
+    else if( type == TORIRSMAPED_FACT_LANE_PUBLISHED )
+    {
+        uint32_t kind = ToriRSMapEd_GetU32(&reader);
+        uint32_t status = ToriRSMapEd_GetU32(&reader);
+        char target[64];
+        uint32_t written;
+        uint32_t removed;
+        uint32_t reload;
+        ToriRSMapEd_GetString(&reader, text, sizeof(text));
+        ToriRSMapEd_GetString(&reader, target, sizeof(target));
+        written = ToriRSMapEd_GetU32(&reader);
+        removed = ToriRSMapEd_GetU32(&reader);
+        reload = ToriRSMapEd_GetU32(&reader);
+        printf("%s %s: %s (%u written, %u removed%s)\n",
+            kind == TORIRSMAPED_LANE_PUBLISHED_PUBLISH ? "publish" : kind == TORIRSMAPED_LANE_PUBLISHED_DISCARD ? "discard" : "create",
+            status == EDITOR_HOST_OK ? "done" : "failed", text, written, removed,
+            reload ? "; every window reopens its square" : "");
+        if( wait->want_fact == type )
+        {
+            wait->done = 1;
+            wait->ok = status == EDITOR_HOST_OK;
+        }
+        return;
+    }
+    if( wait->want_fact == type )
+    {
+        wait->done = 1;
+        wait->ok = !reader.bad;
+    }
+}
+
+/** Send one lanes request and print its facts until `wait` is done. */
+static int
+lanes_request(
+    struct EditorHost* host,
+    uint32_t type,
+    struct ToriRSMapEdBuf* payload,
+    struct lanes_wait* wait,
+    int seconds)
+{
+    time_t const started = time(NULL);
+    int sent = Editor_HostMapEdLanesSend(host, type, payload->data ? payload->data + payload->head : NULL,
+        (uint32_t)ToriRSMapEd_BufAvailable(payload));
+
+    ToriRSMapEd_BufFree(payload);
+    if( !sent )
+    {
+        fprintf(stderr, "torirsmapedctl: the connection is gone\n");
+        return 1;
+    }
+    while( !g_stop && !wait->done )
+    {
+        uint32_t fact_type;
+        uint8_t* body;
+        uint32_t length;
+        Editor_HostMapEdDrainFacts(host, &k_quiet_sink);
+        while( !wait->done && Editor_HostMapEdLanesTake(host, &fact_type, &body, &length) )
+        {
+            lanes_print(fact_type, body, length, wait);
+            ToriMem_Free(ToriMem_Editor(), body);
+        }
+        if( wait->done )
+            break;
+        if( difftime(time(NULL), started) >= seconds )
+        {
+            fprintf(stderr, "torirsmapedctl: no answer in %d s\n", seconds);
+            return 1;
+        }
+#if !defined(_WIN32)
+        usleep(20 * 1000);
+#endif
+    }
+    return wait->ok ? 0 : 1;
+}
+
+/** Send one accounts request and print its facts until `wait` is done. */
+static int
+accounts_request(
+    struct EditorHost* host,
+    uint32_t type,
+    struct ToriRSMapEdBuf* payload,
+    struct accounts_wait* wait,
+    int seconds)
+{
+    time_t const started = time(NULL);
+    int sent = Editor_HostMapEdAccountsSend(host, type, payload->data ? payload->data + payload->head : NULL,
+        (uint32_t)ToriRSMapEd_BufAvailable(payload));
+
+    ToriRSMapEd_BufFree(payload);
+    if( !sent )
+    {
+        fprintf(stderr, "torirsmapedctl: the connection is gone\n");
+        return 1;
+    }
+    while( !g_stop && !wait->done )
+    {
+        uint32_t fact_type;
+        uint8_t* body;
+        uint32_t length;
+
+        Editor_HostMapEdDrainFacts(host, &k_quiet_sink);
+        /* The answer ends the command: the broadcasts behind it (the view,
+         * the list) are every window's, not this verb's output. */
+        while( !wait->done && Editor_HostMapEdAccountsTake(host, &fact_type, &body, &length) )
+        {
+            accounts_print(fact_type, body, length, wait);
+            ToriMem_Free(ToriMem_Editor(), body);
+        }
+        if( wait->done )
+            break;
+        if( difftime(time(NULL), started) >= seconds )
+        {
+            fprintf(stderr, "torirsmapedctl: no answer in %d s\n", seconds);
+            return 1;
+        }
+#if !defined(_WIN32)
+        usleep(20 * 1000);
+#endif
+    }
+    return wait->ok ? 0 : 1;
+}
+
 int
 main(
     int argc,
@@ -1814,6 +2275,9 @@ main(
             "  palettes | palette-remove <palette> [<slot>] | palette-set <palette> rename <new>\n"
             "  palette-set <palette> <slot|0> <loc|npc|obj>:<record> [shape <s> rot <r>]\n"
             "  live-attach launch|<host:port> [ticket] | live-detach | live-cheat <player> <line>\n"
+            "  accounts | account-view <name> | account-new <name> <password> [fixture]\n"
+            "  account-dup <name> <new> <password> | account-delete <name> | account-use <name>\n"
+            "  account-set <name> <section.key> <value...> | account-place <name> <x> <z> <level> | quests\n"
             "  play [seconds] | play-restart [seconds] | play-stop\n"
             "  build packs|client [seconds] | run [seconds]\n");
         return 1;
@@ -1945,6 +2409,132 @@ main(
         struct ToriRSMapEdBuf payload = { 0 };
         struct live_wait wait = { 2, 0, 0, 0, 0 };
         result = live_request(&host, TORIRSMAPED_REQ_LIVE_DETACH, &payload, &wait, 30);
+    }
+    else if( strcmp(command, "accounts") == 0 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct accounts_wait wait = { TORIRSMAPED_FACT_ACCOUNTS, 0, 0, 0 };
+        result = accounts_request(&host, TORIRSMAPED_REQ_ACCOUNTS_LIST, &payload, &wait, 30);
+    }
+    else if( strcmp(command, "quests") == 0 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct accounts_wait wait = { TORIRSMAPED_FACT_QUESTS, 0, 0, 0 };
+        result = accounts_request(&host, TORIRSMAPED_REQ_ACCOUNTS_QUESTS, &payload, &wait, 60);
+    }
+    else if( strcmp(command, "account-view") == 0 && arg_count >= 1 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct accounts_wait wait = { TORIRSMAPED_FACT_ACCOUNT, 0, 0, 0 };
+        ToriRSMapEd_PutString(&payload, args[0]);
+        result = accounts_request(&host, TORIRSMAPED_REQ_ACCOUNT_VIEW, &payload, &wait, 60);
+    }
+    else if( strcmp(command, "account-new") == 0 && arg_count >= 2 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct accounts_wait wait = { TORIRSMAPED_FACT_ACCOUNT_STATUS, TORIRSMAPED_REQ_ACCOUNT_CREATE, 0, 0 };
+        ToriRSMapEd_PutString(&payload, args[0]);
+        ToriRSMapEd_PutString(&payload, args[1]);
+        ToriRSMapEd_PutString(&payload, arg_count >= 3 ? args[2] : "");
+        result = accounts_request(&host, TORIRSMAPED_REQ_ACCOUNT_CREATE, &payload, &wait, 30);
+    }
+    else if( strcmp(command, "account-dup") == 0 && arg_count >= 3 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct accounts_wait wait = { TORIRSMAPED_FACT_ACCOUNT_STATUS, TORIRSMAPED_REQ_ACCOUNT_DUPLICATE, 0, 0 };
+        ToriRSMapEd_PutString(&payload, args[0]);
+        ToriRSMapEd_PutString(&payload, args[1]);
+        ToriRSMapEd_PutString(&payload, args[2]);
+        result = accounts_request(&host, TORIRSMAPED_REQ_ACCOUNT_DUPLICATE, &payload, &wait, 30);
+    }
+    else if( strcmp(command, "account-delete") == 0 && arg_count >= 1 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct accounts_wait wait = { TORIRSMAPED_FACT_ACCOUNT_STATUS, TORIRSMAPED_REQ_ACCOUNT_DELETE, 0, 0 };
+        ToriRSMapEd_PutString(&payload, args[0]);
+        result = accounts_request(&host, TORIRSMAPED_REQ_ACCOUNT_DELETE, &payload, &wait, 30);
+    }
+    else if( strcmp(command, "account-use") == 0 && arg_count >= 1 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct accounts_wait wait = { TORIRSMAPED_FACT_ACCOUNT_STATUS, TORIRSMAPED_REQ_ACCOUNT_USE, 0, 0 };
+        ToriRSMapEd_PutString(&payload, args[0]);
+        result = accounts_request(&host, TORIRSMAPED_REQ_ACCOUNT_USE, &payload, &wait, 30);
+    }
+    else if( strcmp(command, "account-set") == 0 && arg_count >= 2 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct accounts_wait wait = { TORIRSMAPED_FACT_ACCOUNT_STATUS, TORIRSMAPED_REQ_ACCOUNT_SET, 0, 0 };
+        char value[512] = "";
+        for( int i = 2; i < arg_count; i++ )
+        {
+            if( value[0] )
+                strncat(value, " ", sizeof(value) - strlen(value) - 1);
+            strncat(value, args[i], sizeof(value) - strlen(value) - 1);
+        }
+        ToriRSMapEd_PutString(&payload, args[0]);
+        ToriRSMapEd_PutString(&payload, args[1]);
+        ToriRSMapEd_PutString(&payload, value);
+        result = accounts_request(&host, TORIRSMAPED_REQ_ACCOUNT_SET, &payload, &wait, 60);
+    }
+    else if( strcmp(command, "account-place") == 0 && arg_count >= 4 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct accounts_wait wait = { TORIRSMAPED_FACT_ACCOUNT_STATUS, TORIRSMAPED_REQ_ACCOUNT_PLACE, 0, 0 };
+        ToriRSMapEd_PutString(&payload, args[0]);
+        ToriRSMapEd_PutU32(&payload, (uint32_t)atoi(args[1]));
+        ToriRSMapEd_PutU32(&payload, (uint32_t)atoi(args[2]));
+        ToriRSMapEd_PutU32(&payload, (uint32_t)atoi(args[3]));
+        result = accounts_request(&host, TORIRSMAPED_REQ_ACCOUNT_PLACE, &payload, &wait, 60);
+    }
+    else if( strcmp(command, "lane") == 0 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct lanes_wait wait = { TORIRSMAPED_FACT_LANE_INFO, 0, 0 };
+        result = lanes_request(&host, TORIRSMAPED_REQ_LANE_INFO, &payload, &wait, 30);
+    }
+    else if( strcmp(command, "lanes") == 0 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct lanes_wait wait = { TORIRSMAPED_FACT_LANE_LIST, 0, 0 };
+        result = lanes_request(&host, TORIRSMAPED_REQ_LANE_LIST, &payload, &wait, 30);
+    }
+    else if( strcmp(command, "changes") == 0 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct lanes_wait wait = { TORIRSMAPED_FACT_LANE_CHANGES, 0, 0 };
+        result = lanes_request(&host, TORIRSMAPED_REQ_LANE_CHANGES, &payload, &wait, 120);
+    }
+    else if( (strcmp(command, "publish") == 0 || strcmp(command, "publish-new") == 0) && arg_count >= 1 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct lanes_wait wait = { TORIRSMAPED_FACT_LANE_PUBLISHED, 0, 0 };
+        uint32_t flags = TORIRSMAPED_LANE_PUBLISH_RESET;
+        int const new_lane = strcmp(command, "publish-new") == 0;
+        for( int i = 1; i < arg_count; i++ )
+        {
+            if( strcmp(args[i], "keep") == 0 )
+                flags &= ~(uint32_t)TORIRSMAPED_LANE_PUBLISH_RESET;
+            else if( strcmp(args[i], "force") == 0 )
+                flags |= TORIRSMAPED_LANE_PUBLISH_FORCE;
+        }
+        ToriRSMapEd_PutString(&payload, new_lane ? "" : args[0]);
+        ToriRSMapEd_PutString(&payload, new_lane ? args[0] : "");
+        ToriRSMapEd_PutU32(&payload, flags);
+        result = lanes_request(&host, TORIRSMAPED_REQ_LANE_PUBLISH, &payload, &wait, 600);
+    }
+    else if( strcmp(command, "discard") == 0 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct lanes_wait wait = { TORIRSMAPED_FACT_LANE_PUBLISHED, 0, 0 };
+        result = lanes_request(&host, TORIRSMAPED_REQ_LANE_DISCARD, &payload, &wait, 600);
+    }
+    else if( strcmp(command, "lane-create") == 0 && arg_count >= 1 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct lanes_wait wait = { TORIRSMAPED_FACT_LANE_PUBLISHED, 0, 0 };
+        ToriRSMapEd_PutString(&payload, args[0]);
+        result = lanes_request(&host, TORIRSMAPED_REQ_LANE_CREATE, &payload, &wait, 600);
     }
     else if( strcmp(command, "live-cheat") == 0 && arg_count >= 2 )
     {

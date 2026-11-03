@@ -75,6 +75,9 @@ enum Editor_Tool
     EDITOR_TOOL_LOC_ROTATE,
     /** Delete the loc (or spawn) under the click. */
     EDITOR_TOOL_LOC_DELETE,
+    /** Put the lane's play account on the clicked tile (the Accounts panel:
+     *  ::tele online, the save offline; editor/accounts/accounts_panel.h). */
+    EDITOR_TOOL_PLACE_PLAYER,
     EDITOR_TOOL_COUNT
 };
 

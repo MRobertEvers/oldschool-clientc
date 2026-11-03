@@ -43,6 +43,18 @@ struct LivePanel
     int panel;
     int label_status;
     int label_run;
+    /** The RUN bar under the run line, hidden while no RUN is in flight. */
+    int progress;
+    /** The same bar as a small window at the foot of the MAIN window (a
+     *  popped-out panel's window keeps its own bar in the panel): RUN is in
+     *  the menu and the toolbar, so its progress must not need the Live
+     *  panel open. Not an editor panel: never in the View menu, the dock or
+     *  the layout file. */
+    int float_panel;
+    int float_label;
+    int float_progress;
+    int shown_progress_serial;
+    int progress_shown;
     int label_play;
     int button_play;
     int button_play_stop;
@@ -189,6 +201,34 @@ live_refresh(
         self->shown_status_serial = m->status_serial;
         self->shown_run_serial = m->run_serial;
         self->shown_build_serial = m->build_serial;
+    }
+    if( self->shown_progress_serial != m->progress_serial || self->shown_run_serial != m->run_serial
+        || running != self->progress_shown )
+    {
+        Editor_LiveProgressLine(m, text, sizeof(text));
+        if( running && text[0] )
+        {
+            char caption[600];
+            snprintf(caption, sizeof(caption), "RUN %u%%: %s", m->progress_percent, text);
+            ToriRSChrome_SetText(ui->chrome, self->label_run, caption);
+            ToriRSChrome_SetText(ui->chrome, self->float_label, caption);
+            ToriRSChrome_SetProgress(ui->chrome, self->progress, (int)m->progress_percent);
+            ToriRSChrome_SetProgress(ui->chrome, self->float_progress, (int)m->progress_percent);
+        }
+        ToriRSChrome_SetHidden(ui->chrome, self->progress, !running);
+        self->progress_shown = running;
+        ToriRSChrome_PanelSetVisible(ui->chrome, self->float_panel, running && ui->solo_panel < 0);
+        self->shown_progress_serial = m->progress_serial;
+    }
+    if( running && ui->solo_panel < 0 )
+    {
+        /* Bottom centre of the window, above nothing: the dock's columns
+         * leave the middle of the foot free. */
+        struct ToriRSChromeRect const rect = ToriRSChrome_PanelRect(ui->chrome, self->float_panel);
+        int const w = rect.w > 0 ? rect.w : 420 * ToriRSChrome_Scale(ui->chrome);
+        int const h = rect.h > 0 ? rect.h : 56 * ToriRSChrome_Scale(ui->chrome);
+        ToriRSChrome_PanelMove(ui->chrome, self->float_panel, (ui->chrome->surface_w - w) / 2,
+            ui->chrome->surface_h - h - 12 * ToriRSChrome_Scale(ui->chrome));
     }
     if( self->shown_play_serial != m->play_serial || self->shown_run_serial != m->run_serial )
     {
@@ -543,6 +583,8 @@ Editor_Live_RegisterWith(
     assert(self->panel >= 0);
     self->label_status = ToriRSChrome_Label(ui->chrome, self->panel, "detached");
     self->label_run = ToriRSChrome_Label(ui->chrome, self->panel, "");
+    self->progress = ToriRSChrome_Progress(ui->chrome, self->panel, "RUN", "", 0);
+    ToriRSChrome_SetHidden(ui->chrome, self->progress, 1);
     self->input_address = ToriRSChrome_TextInput(ui->chrome, self->panel, "Address", "127.0.0.1:43594");
     self->input_ticket = ToriRSChrome_TextInput(ui->chrome, self->panel, "Ticket", "");
     self->button_attach = ToriRSChrome_Button(ui->chrome, self->panel, "Attach");
@@ -578,6 +620,14 @@ Editor_Live_RegisterWith(
     self->list_log = ToriRSChrome_VList(ui->chrome, self->panel, "Log", LIVE_LOG_ROWS, 0);
     ToriRSChrome_PanelSetResizable(ui->chrome, self->panel, 1);
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
+
+    self->float_panel = ToriRSChrome_PanelAdd(ui->chrome, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 420 * scale, "RUN");
+    assert(self->float_panel >= 0);
+    self->float_label = ToriRSChrome_Label(ui->chrome, self->float_panel, "");
+    self->float_progress = ToriRSChrome_Progress(ui->chrome, self->float_panel, "", "", 0);
+    ToriRSChrome_PanelSetClosable(ui->chrome, self->float_panel, 0);
+    ToriRSChrome_PanelSetVisible(ui->chrome, self->float_panel, 0);
+    self->shown_progress_serial = -1;
 
     memset(&desc, 0, sizeof(desc));
     desc.name = "live";

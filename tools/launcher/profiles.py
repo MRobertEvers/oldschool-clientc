@@ -141,6 +141,10 @@ class Manifest:
         return self.resolve_path(raw) if raw else None
 
     @property
+    def editor_lane(self):
+        return self.ini.get("editor:boot", "lane")
+
+    @property
     def editor_repo_root(self):
         raw = self.ini.get("editor:boot", "repo_root")
         return self.resolve_path(raw) if raw else None

@@ -300,6 +300,8 @@ test_resolve(void)
         "Q rotates, Shift+Q reshapes");
     CHECK(fire("r", G) == -1 && fire("e", G) == -1, "bare R and E fire no edge action with nothing selected");
     CHECK(fire("ctrl+g", G) == EDITOR_HK_VIEW_SNAP, "Ctrl+G toggles Snap to grid");
+    CHECK(fire("ctrl+shift+u", G) == EDITOR_HK_FILE_PUBLISH && Editor_HotkeyForPanel("publish") == EDITOR_HK_FILE_PUBLISH,
+        "Ctrl+Shift+U is File > Publish..., the Publish panel's row");
     CHECK(fire("shift+3", G) == EDITOR_HK_PALETTE_SLOT_3 && fire("shift+0", G) == EDITOR_HK_PALETTE_SLOT_10,
         "Shift+3 and Shift+0 are palette slots 3 and 10");
     CHECK(fire("ctrl+shift+a", G) == EDITOR_HK_PALETTE_ADD_PICK && fire("alt+rbracket", G) == EDITOR_HK_PALETTE_NEXT

@@ -822,4 +822,15 @@ Editor_CatalogPalette_ThumbDone(
     int slot,
     int scene_id);
 
+/* ---- Publish (edpanel_publish.c): the editor lane and where its changes go ---- */
+
+/** Register the Publish panel (module "publish"); needs ui->editor. */
+void
+Editor_Publish_Register(struct EditorUi* ui);
+
+/** File > Publish... (Ctrl+Shift+U): toggle the panel. Returns what
+ *  Editor_UiTogglePanel does; 0 with a log line when there is none. */
+int
+Editor_Publish_Open(struct EditorUi* ui);
+
 #endif

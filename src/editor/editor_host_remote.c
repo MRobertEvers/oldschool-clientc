@@ -35,6 +35,7 @@
 #include "torirsmaped/torirs_maped_build.h"
 #include "torirsmaped/torirs_maped_view.h"
 #include "torirsmaped/torirs_maped_catalog.h"
+#include "torirsmaped/torirs_maped_accounts.h"
 
 /*
  * TORIRS_MAPED_NO_EMBED: build the TCP half only.
@@ -120,6 +121,14 @@ struct maped_remote
      *  kept for Editor_HostMapEdLiveTake, oldest first. */
     struct stashed_fact* live_head;
     struct stashed_fact* live_tail;
+    /** Accounts facts (191..200, torirs_maped_accounts.h) DrainFacts kept
+     *  for Editor_HostMapEdAccountsTake, oldest first. */
+    struct stashed_fact* accounts_head;
+    struct stashed_fact* accounts_tail;
+    /** Lanes facts (201..210, torirs_maped_lanes.h) kept for
+     *  Editor_HostMapEdLanesTake, oldest first. */
+    struct stashed_fact* lanes_head;
+    struct stashed_fact* lanes_tail;
 };
 
 static int
@@ -129,13 +138,27 @@ is_live_fact(uint32_t type)
 }
 
 static int
+is_accounts_fact(uint32_t type)
+{
+    return type >= TORIRSMAPED_FACT_ACCOUNTS_RANGE_FIRST && type <= TORIRSMAPED_FACT_ACCOUNTS_RANGE_LAST;
+}
+
+static int
+is_lanes_fact(uint32_t type)
+{
+    return type >= TORIRSMAPED_FACT_LANES_RANGE_FIRST && type <= TORIRSMAPED_FACT_LANES_RANGE_LAST;
+}
+
+static int
 is_broadcast(uint32_t type)
 {
-    /* Build and live facts go to every connection (torirs_maped_build.h), so
-     * one can arrive in the middle of any request's exchange. */
+    /* Build, live and accounts facts go to every connection
+     * (torirs_maped_build.h, torirs_maped_accounts.h), so one can arrive in
+     * the middle of any request's exchange. */
     return type == TORIRSMAPED_FACT_CMD || type == TORIRSMAPED_FACT_STATE
            || type == TORIRSMAPED_FACT_SAVED
-           || type == TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED || is_live_fact(type);
+           || type == TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED || is_live_fact(type) || is_accounts_fact(type)
+           || is_lanes_fact(type);
 }
 
 /** Keep one live-editor fact for Editor_HostMapEdLiveTake. */
@@ -143,17 +166,23 @@ static void
 live_keep(struct maped_remote* remote, uint32_t type, const uint8_t* body, uint32_t length)
 {
     struct stashed_fact* fact = ToriMem_Alloc(ToriMem_Editor(), sizeof(*fact) + length);
+    struct stashed_fact** head = is_accounts_fact(type) ? &remote->accounts_head
+                                 : is_lanes_fact(type)  ? &remote->lanes_head
+                                                        : &remote->live_head;
+    struct stashed_fact** tail = is_accounts_fact(type) ? &remote->accounts_tail
+                                 : is_lanes_fact(type)  ? &remote->lanes_tail
+                                                        : &remote->live_tail;
     assert(fact);
     fact->next = NULL;
     fact->type = type;
     fact->length = length;
     if( length > 0 )
         memcpy(fact->data, body, length);
-    if( remote->live_tail )
-        remote->live_tail->next = fact;
+    if( *tail )
+        (*tail)->next = fact;
     else
-        remote->live_head = fact;
-    remote->live_tail = fact;
+        *head = fact;
+    *tail = fact;
 }
 
 #if defined(__EMSCRIPTEN__)
@@ -883,6 +912,20 @@ remote_free(void* user_data)
         ToriMem_Free(ToriMem_Editor(), remote->live_head);
         remote->live_head = next;
     }
+    while( remote->accounts_head )
+    {
+        struct stashed_fact* next = remote->accounts_head->next;
+        ToriMem_Free(ToriMem_Editor(), remote->accounts_head);
+        remote->accounts_head = next;
+    }
+    remote->accounts_tail = NULL;
+    while( remote->lanes_head )
+    {
+        struct stashed_fact* next = remote->lanes_head->next;
+        ToriMem_Free(ToriMem_Editor(), remote->lanes_head);
+        remote->lanes_head = next;
+    }
+    remote->lanes_tail = NULL;
     ToriRSMapEd_BufFree(&remote->in);
     ToriMem_Free(ToriMem_Editor(), remote);
 }
@@ -1043,6 +1086,16 @@ Editor_HostOpenMapEdEmbed(
     const char* content_dir,
     const char* repo_root)
 {
+    return Editor_HostOpenMapEdEmbedLane(host, content_dir, repo_root, NULL);
+}
+
+int
+Editor_HostOpenMapEdEmbedLane(
+    struct EditorHost* host,
+    const char* content_dir,
+    const char* repo_root,
+    const char* lane)
+{
     struct maped_remote* remote;
 
     assert(host);
@@ -1065,11 +1118,16 @@ Editor_HostOpenMapEdEmbed(
     remote = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*remote));
     remote->fd = -1;
 
-    remote->embed = ToriRSMapEd_EmbedStart(content_dir, repo_root);
-    if( !remote->embed )
     {
-        ToriMem_Free(ToriMem_Editor(), remote);
-        return 0;
+        char why[512];
+        remote->embed = ToriRSMapEd_EmbedStartLane(content_dir, repo_root, lane, why, sizeof(why));
+        if( !remote->embed )
+        {
+            if( why[0] )
+                TORIRS_ERR("editor: lane '%s': %s\n", lane, why);
+            ToriMem_Free(ToriMem_Editor(), remote);
+            return 0;
+        }
     }
     remote->embed_client = 0;
 
@@ -1688,6 +1746,67 @@ Editor_HostMapEdLiveSend(struct EditorHost* host, uint32_t type, const uint8_t* 
     return send_request(remote, type, payload, length);
 }
 
+/** Pop the oldest kept fact of one queue into the caller's copy. */
+static int
+kept_take(struct stashed_fact** head, struct stashed_fact** tail, uint32_t* out_type, uint8_t** out_body,
+    uint32_t* out_length)
+{
+    struct stashed_fact* fact = *head;
+    if( !fact )
+        return 0;
+    *head = fact->next;
+    if( !*head )
+        *tail = NULL;
+    *out_type = fact->type;
+    *out_length = fact->length;
+    *out_body = ToriMem_Alloc(ToriMem_Editor(), fact->length ? fact->length : 1);
+    assert(*out_body);
+    if( fact->length > 0 )
+        memcpy(*out_body, fact->data, fact->length);
+    ToriMem_Free(ToriMem_Editor(), fact);
+    return 1;
+}
+
+int
+Editor_HostMapEdAccountsSend(struct EditorHost* host, uint32_t type, const uint8_t* payload, uint32_t length)
+{
+    struct maped_remote* remote = as_remote(host);
+    assert(payload || length == 0);
+    assert(type >= TORIRSMAPED_REQ_ACCOUNTS_RANGE_FIRST);
+    assert(type <= TORIRSMAPED_REQ_ACCOUNTS_RANGE_LAST);
+    return send_request(remote, type, payload, length);
+}
+
+int
+Editor_HostMapEdAccountsTake(struct EditorHost* host, uint32_t* out_type, uint8_t** out_body, uint32_t* out_length)
+{
+    struct maped_remote* remote = as_remote(host);
+    assert(out_type);
+    assert(out_body);
+    assert(out_length);
+    return kept_take(&remote->accounts_head, &remote->accounts_tail, out_type, out_body, out_length);
+}
+
+int
+Editor_HostMapEdLanesSend(struct EditorHost* host, uint32_t type, const uint8_t* payload, uint32_t length)
+{
+    struct maped_remote* remote = as_remote(host);
+    assert(payload || length == 0);
+    assert(type >= TORIRSMAPED_REQ_LANES_RANGE_FIRST);
+    assert(type <= TORIRSMAPED_REQ_LANES_RANGE_LAST);
+    return send_request(remote, type, payload, length);
+}
+
+int
+Editor_HostMapEdLanesTake(struct EditorHost* host, uint32_t* out_type, uint8_t** out_body, uint32_t* out_length)
+{
+    struct maped_remote* remote = as_remote(host);
+    assert(out_type);
+    assert(out_body);
+    assert(out_length);
+    return kept_take(&remote->lanes_head, &remote->lanes_tail, out_type, out_body, out_length);
+}
+
 int
 Editor_HostMapEdLiveTake(struct EditorHost* host, uint32_t* out_type, uint8_t** out_body, uint32_t* out_length)
 {
@@ -2250,9 +2369,10 @@ Editor_HostMapEdDrainFacts(
         remote->stash_head = fact->next;
         if( !remote->stash_head )
             remote->stash_tail = NULL;
-        if( is_live_fact(fact->type) )
+        if( is_live_fact(fact->type) || is_accounts_fact(fact->type) || is_lanes_fact(fact->type) )
         {
-            /* Kept for the Live panel's poll (Editor_HostMapEdLiveTake). */
+            /* Kept for the Live / Accounts / Publish panels' polls
+             * (Editor_HostMapEdLiveTake, Editor_HostMapEdAccountsTake). */
             live_keep(remote, fact->type, fact->data, fact->length);
             ToriMem_Free(ToriMem_Editor(), fact);
             delivered++;
@@ -2309,7 +2429,7 @@ Editor_HostMapEdDrainFacts(
             remote->atlas_changed = fact;
             delivered++;
         }
-        else if( is_live_fact(type) )
+        else if( is_live_fact(type) || is_accounts_fact(type) || is_lanes_fact(type) )
         {
             live_keep(remote, type, body, length);
             delivered++;

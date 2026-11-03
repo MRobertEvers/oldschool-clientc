@@ -339,6 +339,12 @@ struct BootManifest
      * `.jl2` text sources rather than the baked cache, so a content root is not
      * one of its options, it is the thing it operates on. */
     char editor_content_dir[512];
+    /* [editor:boot] lane -- which editor lane the session edits
+     * (torirsmaped/torirs_maped_lanes.h): "" or "main" is content_dir itself;
+     * any other name is build/lanes/<name>/content, a copy-on-write mirror of
+     * content_dir that RUN builds and plays on its own, and whose changes the
+     * Publish panel writes back. The default manifest says `working`. */
+    char editor_lane[64];
     /* [editor:boot] repo_root — where a bake runs from. "" disables baking,
      * which is the right default for a look-only session. Baking is never a
      * side effect of saving; it happens only when the user asks. */

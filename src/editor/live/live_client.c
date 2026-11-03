@@ -266,6 +266,29 @@ Editor_LiveModelApply(
             goto malformed;
         return 1;
     }
+    if( type == TORIRSMAPED_FACT_RUN_PROGRESS )
+    {
+        struct Editor_LiveModel next = *model;
+        next.progress_step = ToriRSMapEd_GetU32(&reader);
+        next.progress_index = ToriRSMapEd_GetU32(&reader);
+        next.progress_count = ToriRSMapEd_GetU32(&reader);
+        next.progress_percent = ToriRSMapEd_GetU32(&reader);
+        next.progress_step_percent = ToriRSMapEd_GetU32(&reader);
+        next.progress_elapsed_ms = ToriRSMapEd_GetU32(&reader);
+        next.progress_remaining_ms = ToriRSMapEd_GetU32(&reader);
+        get_text(&reader, next.progress_detail, sizeof(next.progress_detail));
+        if( !ToriRSMapEd_ReaderDone(&reader) )
+            goto malformed;
+        if( next.progress_percent > 100 )
+            next.progress_percent = 100;
+        /* A RUN's steps are its status's run_step too: a progress row that
+         * arrives first keeps the run line honest. */
+        if( next.progress_step != TORIRSMAPED_RUN_STEP_IDLE )
+            next.run_step = next.progress_step;
+        next.progress_serial++;
+        *model = next;
+        return 1;
+    }
     if( type == TORIRSMAPED_FACT_LIVE_LINE )
     {
         char line[EDITOR_LIVE_LOG_LINE_MAX];
@@ -430,6 +453,31 @@ Editor_LiveEncodePlay(
     assert(action <= TORIRSMAPED_PLAY_BROWSER);
     ToriRSMapEd_PutU32(out, action);
     return TORIRSMAPED_REQ_LIVE_PLAY;
+}
+
+void
+Editor_LiveProgressLine(
+    const struct Editor_LiveModel* model,
+    char* out,
+    size_t out_size)
+{
+    char left[48];
+
+    assert(model);
+    assert(out);
+    assert(out_size > 0);
+    if( model->run_step == TORIRSMAPED_RUN_STEP_IDLE || model->progress_serial == 0 )
+    {
+        out[0] = '\0';
+        return;
+    }
+    if( model->progress_remaining_ms == 0xFFFFFFFFu )
+        snprintf(left, sizeof(left), "first RUN here, no estimate");
+    else
+        snprintf(left, sizeof(left), "~%u s left", (model->progress_remaining_ms + 999) / 1000);
+    snprintf(out, out_size, "%s %u/%u: %s (%u s, %s)", ToriRSMapEd_RunStepName(model->progress_step),
+        model->progress_index, model->progress_count, model->progress_detail[0] ? model->progress_detail : "...",
+        model->progress_elapsed_ms / 1000, left);
 }
 
 void

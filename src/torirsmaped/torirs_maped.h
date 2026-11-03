@@ -206,6 +206,7 @@
 #include "editor/editor_cmd.h"
 #include "editor/editor_host.h"
 #include "torirs_maped_buf.h"
+#include "torirs_maped_lanes.h"
 
 enum
 {
@@ -248,7 +249,11 @@ enum ToriRSMapEdFrameType
      *                        CATALOG_SQUARES 43
      *   49..52  views        SPAWN_VIEW 49 (torirs_maped_view.h)
      *   53..64  live-editor  BUILD 53, RUN 54, LIVE_ATTACH 55, LIVE_DETACH 56,
-     *                        LIVE_CHEAT 57, LIVE_SUBSCRIBE 58 */
+     *                        LIVE_CHEAT 57, LIVE_SUBSCRIBE 58
+     *   65..80  accounts     ACCOUNTS_LIST 65, ACCOUNT_VIEW 66, ACCOUNT_CREATE 67,
+     *                        ACCOUNT_DELETE 68, ACCOUNT_DUPLICATE 69, ACCOUNT_USE 70,
+     *                        ACCOUNT_SET 71, ACCOUNT_PLACE 72, ACCOUNTS_QUESTS 73
+     *                        (torirs_maped_accounts.h) */
     TORIRSMAPED_REQ_DOC_OPEN = 17,
     TORIRSMAPED_REQ_DOC_CLOSE = 18,
     TORIRSMAPED_REQ_SAVE = 19,
@@ -277,7 +282,10 @@ enum ToriRSMapEdFrameType
      *   169..172  views
      *   173..190  live-editor  FACT_BUILD_LINE 173, FACT_BUILD_DONE 174,
      *                          FACT_LIVE_STATUS 175, FACT_LIVE_LINE 176,
-     *                          FACT_LIVE_VARS 177 */
+     *                          FACT_LIVE_VARS 177
+     *   191..200  accounts     FACT_ACCOUNTS 191, FACT_ACCOUNT 192,
+     *                          FACT_ACCOUNT_STATUS 193, FACT_QUESTS 194
+     *                          (torirs_maped_accounts.h) */
     /** A document's current text: the answer to DOC_OPEN. */
     TORIRSMAPED_FACT_DOC_TEXT = 139,
 };
@@ -615,6 +623,13 @@ struct ToriRSMapEd
     int open;
     /** The tree `files` serves; SAVE_AS reads its allocation layers. */
     char content_dir[1024];
+    /** The repo root Open was given ("" when none): builds run from it, the
+     *  lanes live under it. */
+    char repo_root[1024];
+    /** This server's lane (torirs_maped_lanes.h): the one OpenLane resolved,
+     *  else the main lane of `content_dir` itself. */
+    struct ToriRSMapEdLaneDef lane;
+    int lane_bound;
 
     /** The document. Clients hold mirrors of it; this is the original. */
     struct Editor_Doc doc;
@@ -681,6 +696,22 @@ ToriRSMapEd_Open(
     struct ToriRSMapEd* maped,
     const char* content_dir,
     const char* repo_root);
+
+/**
+ * Open on a lane (torirs_maped_lanes.h): `lane_name` "main" serves
+ * `base_tree` itself; any other name serves <repo>/build/lanes/<name>/content,
+ * a mirror of `base_tree` made now when it does not exist, and binds the
+ * lane's own live dir for BUILD and RUN. 0 with `why` when the lane cannot
+ * be made (then nothing is open).
+ */
+int
+ToriRSMapEd_OpenLane(
+    struct ToriRSMapEd* maped,
+    const char* base_tree,
+    const char* repo_root,
+    const char* lane_name,
+    char* why,
+    size_t why_size);
 
 void
 ToriRSMapEd_Close(struct ToriRSMapEd* maped);

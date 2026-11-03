@@ -11,6 +11,7 @@
 #include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
 #include "editor/editor_derive.h"
+#include "editor/accounts/accounts_panel.h"
 #include "editor/editor_view.h"
 #include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanel_ops.h"
@@ -2051,6 +2052,19 @@ app_map_editor_world_click(
     if( Editor_ToolIsBrush(tool) || tool == EDITOR_TOOL_RECT_SELECT )
         return;
 
+    /* Place player: the lane's play account onto the tile, through the
+     * Accounts panel's server request (::tele online, the save offline; the
+     * answer lands in the console). Nothing of the document changes. */
+    if( tool == EDITOR_TOOL_PLACE_PLAYER )
+    {
+        int world_x;
+        int world_z;
+        if( app_map_editor_hover_world(app, &world_x, &world_z) )
+            (void)Editor_Accounts_PlacePlayer(ui, world_x, world_z, level);
+        app->need_redraw = 1;
+        return;
+    }
+
     /* Place with an npc / obj pick commits what the spawn ghost showed: a row
      * in the square's edited .spawn. The ghost comes down first -- it is a
      * scene entity of its own, not the spawn. */
@@ -2331,7 +2345,7 @@ app_map_editor_hover_env_arm(struct EditorUi* ui)
             for( ; name[i] && g_app_editor_hover_env.tool[i]; i++ )
             {
                 char a = name[i] == ' ' ? '_' : (char)(name[i] | 0x20);
-                char b = (char)(g_app_editor_hover_env.tool[i] | 0x20);
+                char b = g_app_editor_hover_env.tool[i] == '_' ? '_' : (char)(g_app_editor_hover_env.tool[i] | 0x20);
                 if( a != b )
                     break;
             }

@@ -89,6 +89,31 @@ ToriRSMapEd_EmbedStart(
     return embed;
 }
 
+struct ToriRSMapEdEmbed*
+ToriRSMapEd_EmbedStartLane(
+    const char* content_dir,
+    const char* repo_root,
+    const char* lane,
+    char* why,
+    size_t why_size)
+{
+    struct ToriRSMapEdEmbed* embed;
+
+    assert(content_dir);
+    assert(why);
+    why[0] = '\0';
+    if( !lane || !lane[0] || strcmp(lane, "main") == 0 )
+        return ToriRSMapEd_EmbedStart(content_dir, repo_root);
+    embed = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*embed));
+    if( !ToriRSMapEd_OpenLane(&embed->maped, content_dir, repo_root, lane, why, why_size) )
+    {
+        ToriMem_Free(ToriMem_Editor(), embed);
+        return NULL;
+    }
+    client_open(embed, &embed->clients[0]);
+    return embed;
+}
+
 int
 ToriRSMapEd_EmbedConnect(struct ToriRSMapEdEmbed* embed)
 {

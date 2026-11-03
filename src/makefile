@@ -7464,9 +7464,16 @@ OBJVERIFY := $(REPO_ROOT)/tools/objverify.py
 # CC and the compile flag sets only: LDFLAGS cannot invalidate an object, and
 # putting it here would rebuild the world every time a link option moved.
 OBJVERIFY_SIG := $(CC)|$(CFLAGS)|$(RSCACHE_CFLAGS)|$(RSPROT_CFLAGS)|$(TORIDRAW_CFLAGS)
+# OBJVERIFY_SKIP=1 leaves the directory unverified: a make that compiles
+# nothing of it (the map editor's RUN builds packs and a client cache with
+# tools already built) pays half a second per invocation for nothing, and
+# whatever it finds stale is the next client build's to rebuild anyway.
+OBJVERIFY_SKIP ?=
+ifeq ($(OBJVERIFY_SKIP),)
 OBJVERIFY_REPORT := $(shell command -v python3 >/dev/null 2>&1 && \
 	python3 '$(OBJVERIFY)' '$(OBJ_DIR)' --sig '$(OBJVERIFY_SIG)' 2>&1)
 $(if $(OBJVERIFY_REPORT),$(info $(OBJVERIFY_REPORT)))
+endif
 
 # Its cases are built by hand in a temp directory: the failure being tested is a
 # timestamp relationship between an object and its sources, and no real compile

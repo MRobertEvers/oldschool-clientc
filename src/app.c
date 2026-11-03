@@ -1107,13 +1107,13 @@ App_Init(
         }
         else
         {
-            snprintf(
-                editor_label,
-                sizeof(editor_label),
-                "%s (embedded ToriRSMapEd)",
-                cfg->editor_content_dir);
-            editor_ok = Editor_HostOpenMapEdEmbed(
-                &editor_host, cfg->editor_content_dir, cfg->editor_repo_root);
+            snprintf(editor_label, sizeof(editor_label), "%s (embedded ToriRSMapEd%s%s)",
+                cfg->editor_content_dir, cfg->editor_lane ? ", lane " : "",
+                cfg->editor_lane ? cfg->editor_lane : "");
+            /* [editor:boot] lane= (torirsmaped/torirs_maped_lanes.h): the
+             * edits go to the lane's mirror of the tree, never the tree. */
+            editor_ok = Editor_HostOpenMapEdEmbedLane(
+                &editor_host, cfg->editor_content_dir, cfg->editor_repo_root, cfg->editor_lane);
         }
 
         /* An unreachable daemon is a deployment state, not a build defect:

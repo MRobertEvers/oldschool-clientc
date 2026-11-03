@@ -320,6 +320,15 @@ Editor_HostOpenMapEdEmbed(
     const char* content_dir,
     const char* repo_root);
 
+/** Editor_HostOpenMapEdEmbed on an editor lane (torirsmaped/
+ *  torirs_maped_lanes.h): `lane` NULL, "" or "main" is the tree itself. */
+int
+Editor_HostOpenMapEdEmbedLane(
+    struct EditorHost* host,
+    const char* content_dir,
+    const char* repo_root,
+    const char* lane);
+
 /**
  * The torirsmaped daemon over TCP. `port` <= 0 means the default
  * (TORIRSMAPED_DEFAULT_PORT). Returns 0 when the daemon cannot be reached —
@@ -775,6 +784,49 @@ Editor_HostMapEdLiveSend(
  *  (ToriMem_Free it). Poll after DrainFacts. */
 int
 Editor_HostMapEdLiveTake(
+    struct EditorHost* host,
+    uint32_t* out_type,
+    uint8_t** out_body,
+    uint32_t* out_length);
+
+/* ---- accounts (torirsmaped/torirs_maped_accounts.h) ---------------------------
+ *
+ * Carried like the live frames: requests 65..80 fire and forget, facts
+ * 191..200 kept for the Accounts panel's poll; editor/accounts/
+ * accounts_client.h encodes and decodes them. */
+
+int
+Editor_HostMapEdAccountsSend(
+    struct EditorHost* host,
+    uint32_t type,
+    const uint8_t* payload,
+    uint32_t length);
+
+/** The oldest accounts fact DrainFacts kept; 0 when none. *out_body is
+ *  ToriMem_Editor's (ToriMem_Free it). */
+int
+Editor_HostMapEdAccountsTake(
+    struct EditorHost* host,
+    uint32_t* out_type,
+    uint8_t** out_body,
+    uint32_t* out_length);
+
+/* ---- editor lanes (torirsmaped/torirs_maped_lanes.h) --------------------------
+ *
+ * Carried like the accounts frames: requests 81..90 fire and forget, facts
+ * 201..210 kept for the Publish panel's poll. */
+
+int
+Editor_HostMapEdLanesSend(
+    struct EditorHost* host,
+    uint32_t type,
+    const uint8_t* payload,
+    uint32_t length);
+
+/** The oldest lanes fact DrainFacts kept; 0 when none. *out_body is
+ *  ToriMem_Editor's (ToriMem_Free it). */
+int
+Editor_HostMapEdLanesTake(
     struct EditorHost* host,
     uint32_t* out_type,
     uint8_t** out_body,

@@ -457,6 +457,12 @@ bm_set_kv(
                 bm->editor_content_dir, sizeof(bm->editor_content_dir), manifest_dir, value);
             return;
         }
+        /* The editor lane this session edits (torirs_maped_lanes.h). */
+        if( strcmp(key, "lane") == 0 )
+        {
+            snprintf(bm->editor_lane, sizeof(bm->editor_lane), "%s", value);
+            return;
+        }
         /* Where a bake would run from. Absent means baking is unavailable this
          * session, which is the right default for a manifest that only wants to
          * look at the map. */
@@ -1624,6 +1630,8 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->web_port = bm->ws_port;
     if( bm->editor_content_dir[0] )
         cfg->editor_content_dir = bm->editor_content_dir;
+    if( bm->editor_lane[0] )
+        cfg->editor_lane = bm->editor_lane;
     if( bm->editor_repo_root[0] )
         cfg->editor_repo_root = bm->editor_repo_root;
     cfg->editor_panel = (int)bm->editor_panel;

@@ -714,7 +714,7 @@ jobs_run_play_decide(
     uint32_t counts[4];
 
     jobs->run_play_waiting = 0;
-    jobs->run_step = TORIRSMAPED_RUN_STEP_PLAY;
+    jobs_run_step_enter(maped, TORIRSMAPED_RUN_STEP_PLAY);
     jobs_play_account(jobs, user, sizeof(user), pass, sizeof(pass));
     (void)jobs_play_poll(maped);
     note[0] = '\0';
@@ -803,7 +803,7 @@ jobs_run_play_step(
     if( restart && ToriRSMapEd_BufAvailable(restart) > 0 )
         ToriRSMapEd_BufWrite(&jobs->run_restart, ToriRSMapEd_BufPeek(restart), ToriRSMapEd_BufAvailable(restart));
     jobs->run_restart_count = restart_count;
-    jobs->run_step = TORIRSMAPED_RUN_STEP_PLAY;
+    jobs_run_step_enter(maped, TORIRSMAPED_RUN_STEP_PLAY);
     if( !relaunched && jobs->players_known && jobs->live_state == TORIRSMAPED_LIVE_ATTACHED )
     {
         jobs->run_play_waiting = 1;
@@ -1596,6 +1596,7 @@ ToriRSMapEd_Service(struct ToriRSMapEd* maped)
     jobs_build_service(maped);
     live_service(maped);
     play_service(maped);
+    jobs_progress_service(maped);
     /* The catalog's warm build and freshness sweeps, a slice at a time
      * (torirs_maped_catalog.h ToriRSMapEdCatalog_Service). */
     if( maped->catalog )

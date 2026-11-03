@@ -5,6 +5,7 @@
 #include "builder/builder_panels.h"
 #include "iface/iface_panels.h"
 #include "live/live_panel.h"
+#include "accounts/accounts_panel.h"
 #include "log/torirs_log.h"
 #include "panels/edpanel_common.h"
 #include "panels/edpanels.h"
@@ -27,7 +28,7 @@ static const char* const k_tool_names[EDITOR_TOOL_COUNT] = {
     "Select",       "Rectangle select", "Raise",        "Lower",
     "Flatten",      "Smooth",           "Paint underlay", "Paint overlay",
     "Paint flags",  "Place",            "Move",         "Rotate",
-    "Delete",
+    "Delete",       "Place player",
 };
 
 const char*
@@ -270,6 +271,12 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     /* Phase 4: the Live panel (editor/live/), hidden until the View menu
      * opens it; it talks to the editor server's live link. */
     Editor_Live_Register(ui);
+    /* The editor lane and its publish (editor/panels/edpanel_publish.c,
+     * File > Publish...): hidden until opened. */
+    Editor_Publish_Register(ui);
+    /* The lane's accounts (editor/accounts/), hidden until the View menu
+     * opens it; after the Live panel, whose log it echoes. */
+    Editor_Accounts_Register(ui);
     /* The script triggers of a record or a file (View > Triggers, Ctrl+E):
      * Add trigger, Open in editor, Refresh, Check, Run. */
     Editor_Triggers_Register(ui);

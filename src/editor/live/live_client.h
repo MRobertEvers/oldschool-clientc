@@ -88,6 +88,21 @@ struct Editor_LiveModel
     char restart[EDITOR_LIVE_RESTART_MAX][192];
     int restart_count;
 
+    /* ---- FACT_RUN_PROGRESS: where the RUN in flight is (torirs_maped_build.h) ---- */
+    uint32_t progress_step;
+    /** 1-based step index and the step count (save, build, reload, play). */
+    uint32_t progress_index;
+    uint32_t progress_count;
+    /** Of the whole RUN, and of the current step, 0..100. */
+    uint32_t progress_percent;
+    uint32_t progress_step_percent;
+    uint32_t progress_elapsed_ms;
+    /** 0xFFFFFFFF when no earlier RUN gives an estimate. */
+    uint32_t progress_remaining_ms;
+    char progress_detail[160];
+    /** Bumps on every FACT_RUN_PROGRESS. */
+    int progress_serial;
+
     /* ---- FACT_LIVE_PLAY: the lane's play client and the server's players ---- */
     /** enum ToriRSMapEdPlayState. */
     uint32_t play_state;
@@ -195,6 +210,14 @@ uint32_t
 Editor_LiveEncodePlay(
     struct ToriRSMapEdBuf* out,
     uint32_t action);
+
+/** The RUN in flight for a bar's caption: "build 2/4: repacked npc (12 s,
+ *  ~9 s left)". "" when no RUN is in flight. */
+void
+Editor_LiveProgressLine(
+    const struct Editor_LiveModel* model,
+    char* out,
+    size_t out_size);
 
 /** The play client's line for the Live panel: "play: not started",
  *  "play: logged in as maped43620 at m50_50 (3222,3218)", ... */
