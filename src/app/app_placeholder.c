@@ -63,10 +63,11 @@
 
 #include "engine/task_obj_model_load.h"
 
-/* How many times a placeholder may go back for a model that the loader says
- * is still not there. A model the cache cannot serve at all would otherwise
- * be asked for forever, one round trip a time; after this the entity simply
- * has no model, which is what the reference draws for it too. */
+/* How many times a ground-stack placeholder may go back for a model that the
+ * loader says is still not there. A model the cache cannot serve at all would
+ * otherwise be asked for forever, one round trip a time; after this the entity
+ * simply has no model, which is what the reference draws for it too. (A widget
+ * icon is not capped: see app_placeholder_land_widget_icon.) */
 enum
 {
     APP_PLACEHOLDER_ATTEMPT_MAX = 4,
@@ -89,6 +90,11 @@ struct AppPlaceholderIconRequest
     int com_id;
     int obj_id;
     int count;
+    /* A request the script made is due at once (0). One put back by a land
+     * that found its parts still missing is due after `wait_ms`, which the
+     * next miss doubles (app_obj_icon_retry_wait). */
+    uint64_t due_ms;
+    uint32_t wait_ms;
 };
 
 /* The park. One pointer on `struct App`; everything about it is this unit's. */
@@ -121,7 +127,10 @@ struct Task_AppPlaceholder
      * cell itself carries which obj it currently wants, so the land re-reads
      * it rather than trusting the id this task set out with. */
     int component_id;
+    /* APP_PLACEHOLDER_OBJ_STACK: loads so far. WIDGET_ICON: the pause it was
+     * released after (0 for the script's own request). */
     int attempt;
+    uint32_t wait_ms;
 };
 
 static int
@@ -321,6 +330,48 @@ app_placeholder_land_obj_stack(struct Task_AppPlaceholder* self)
     }
 }
 
+/* The cell's row in the park, made if it has none; `*found` says which. */
+static struct AppPlaceholderIconRequest*
+app_placeholder_park_row(
+    struct App* app,
+    int component_id,
+    bool* found)
+{
+    struct AppPlaceholderPark* park;
+    struct AppPlaceholderIconRequest* row = NULL;
+
+    assert(app);
+    assert(found);
+
+    if( !app->placeholder_park )
+    {
+        app->placeholder_park = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*app->placeholder_park));
+        assert(app->placeholder_park);
+    }
+    park = app->placeholder_park;
+
+    for( int i = 0; i < park->count; i++ )
+        if( park->icons[i].com_id == component_id )
+        {
+            row = &park->icons[i];
+            break;
+        }
+    *found = row != NULL;
+    if( !row )
+    {
+        if( park->count == park->cap )
+        {
+            int cap = park->cap ? park->cap * 2 : 32;
+            park->icons = ToriMem_Realloc(ToriMem_Process(), park->icons, (size_t)cap * sizeof(*park->icons));
+            assert(park->icons);
+            park->cap = cap;
+        }
+        row = &park->icons[park->count++];
+        row->com_id = component_id;
+    }
+    return row;
+}
+
 /*
  * Park one cell's icon, for the next tick to release. @see the unit comment.
  *
@@ -338,37 +389,13 @@ app_placeholder_widget_icon(
     int obj_id,
     int count)
 {
-    struct AppPlaceholderPark* park;
-    struct AppPlaceholderIconRequest* row = NULL;
+    struct AppPlaceholderIconRequest* row;
+    bool found;
 
     assert(app);
     assert(obj_id >= 0);
 
-    if( !app->placeholder_park )
-    {
-        app->placeholder_park = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*app->placeholder_park));
-        assert(app->placeholder_park);
-    }
-    park = app->placeholder_park;
-
-    for( int i = 0; i < park->count; i++ )
-        if( park->icons[i].com_id == component_id )
-        {
-            row = &park->icons[i];
-            break;
-        }
-    if( !row )
-    {
-        if( park->count == park->cap )
-        {
-            int cap = park->cap ? park->cap * 2 : 32;
-            park->icons = ToriMem_Realloc(ToriMem_Process(), park->icons, (size_t)cap * sizeof(*park->icons));
-            assert(park->icons);
-            park->cap = cap;
-        }
-        row = &park->icons[park->count++];
-    }
-    row->com_id = component_id;
+    row = app_placeholder_park_row(app, component_id, &found);
     row->obj_id = obj_id;
     /*
      * The count VERBATIM, not normalised to 1 like the ground stack's.
@@ -382,6 +409,8 @@ app_placeholder_widget_icon(
      * inline bake in exec_set_object does, which is the point.
      */
     row->count = count;
+    row->due_ms = 0;
+    row->wait_ms = 0;
 }
 
 /* The CS2 host's hook, reached through the host's world_user. */
@@ -403,30 +432,39 @@ void
 app_placeholder_release_tick(struct App* app)
 {
     struct AppPlaceholderPark* park;
+    uint64_t now_ms;
     int release;
+    int kept;
 
     assert(app);
     park = app->placeholder_park;
     if( !park || park->count == 0 )
         return;
 
-    release = park->count < APP_PLACEHOLDER_WIDGET_ICON_BURST
-                  ? park->count
-                  : APP_PLACEHOLDER_WIDGET_ICON_BURST;
-    for( int i = 0; i < release; i++ )
+    now_ms = (uint64_t)app->host.client.now_ms;
+    release = 0;
+    kept = 0;
+    /* The due rows from the head, so the rest keep their place in line. */
+    for( int i = 0; i < park->count; i++ )
     {
-        struct Task_AppPlaceholder* task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
-        assert(task);
-        task->kind = APP_PLACEHOLDER_WIDGET_ICON;
-        task->component_id = park->icons[i].com_id;
-        task->obj_id = park->icons[i].obj_id;
-        task->count = park->icons[i].count;
-        app_placeholder_queue(app, task);
+        struct AppPlaceholderIconRequest const row = park->icons[i];
+
+        if( release < APP_PLACEHOLDER_WIDGET_ICON_BURST && row.due_ms <= now_ms )
+        {
+            struct Task_AppPlaceholder* task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
+            assert(task);
+            task->kind = APP_PLACEHOLDER_WIDGET_ICON;
+            task->component_id = row.com_id;
+            task->obj_id = row.obj_id;
+            task->count = row.count;
+            task->wait_ms = row.wait_ms;
+            app_placeholder_queue(app, task);
+            release++;
+            continue;
+        }
+        park->icons[kept++] = row;
     }
-    /* Released from the head, so the tail keeps its place in line. */
-    park->count -= release;
-    memmove(park->icons, park->icons + release,
-            (size_t)park->count * sizeof(*park->icons));
+    park->count = kept;
 }
 
 void
@@ -489,25 +527,36 @@ app_placeholder_land_widget_icon(struct Task_AppPlaceholder* self)
         app->need_redraw = 1;
         return;
     }
-    if( self->attempt + 1 >= APP_PLACEHOLDER_ATTEMPT_MAX )
-    {
-        TORIRS_LOG(
-            "placeholder: obj %d x%d on component 0x%08x has no icon after %d loads\n",
-            self->obj_id,
-            self->count,
-            (unsigned)self->component_id,
-            self->attempt + 1);
+    /* Every part resident and still no icon (an obj with no inventory
+     * model): asking again would load nothing new. */
+    if( !ObjModelLoad_NeedsWork(app->provider, self->obj_id, self->count) )
         return;
-    }
+    /*
+     * Parts still missing: back to the park, due after a pause.
+     *
+     * Never given up on while the cell wants this obj. The read that came
+     * back empty may be a dropped JS5 socket or a browser storage error, and
+     * a cap of a few asks back to back spent them all inside the outage: a
+     * shop whose stock never changes (nothing re-runs its script) kept the
+     * cells blank for the session (RSProx 4262, Ivan's Supplies, model reads
+     * failed for three seconds as it opened). The guards above end it --
+     * the cell closes or is set to something else -- and the pause bounds
+     * what an obj the cache cannot serve costs meanwhile.
+     *
+     * A newer request for the cell, parked by the script while this one
+     * loaded, already names what the cell wants; it is left alone.
+     */
     {
-        struct Task_AppPlaceholder* again = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*again));
-        assert(again);
-        again->kind = self->kind;
-        again->component_id = self->component_id;
-        again->obj_id = self->obj_id;
-        again->count = self->count;
-        again->attempt = self->attempt + 1;
-        app_placeholder_queue(app, again);
+        bool found;
+        struct AppPlaceholderIconRequest* row =
+            app_placeholder_park_row(app, self->component_id, &found);
+
+        if( found )
+            return;
+        row->obj_id = self->obj_id;
+        row->count = self->count;
+        row->wait_ms = app_obj_icon_retry_wait(self->wait_ms);
+        row->due_ms = (uint64_t)app->host.client.now_ms + row->wait_ms;
     }
 }
 

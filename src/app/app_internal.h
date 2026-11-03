@@ -822,6 +822,26 @@ app_placeholder_release_tick(struct App* app);
 void
 app_placeholder_park_free(struct App* app);
 
+/*
+ * The pause before an obj icon whose parts did not arrive is asked for again,
+ * doubled per miss up to the ceiling: UITreeSceneBridge_PumpSprites' pacing,
+ * for the same reason. A read that came back empty -- a dropped JS5 socket, a
+ * browser storage error -- is not an answer, and an icon given up on after a
+ * handful of back-to-back asks stays blank for the session: the asks all land
+ * inside the outage. The ceiling is what an outage costs after it ends.
+ */
+#define APP_OBJ_ICON_RETRY_FIRST_MS 500u
+#define APP_OBJ_ICON_RETRY_MAX_MS 4000u
+
+/* The wait after `wait_ms` (0 = none yet). */
+static inline uint32_t
+app_obj_icon_retry_wait(uint32_t wait_ms)
+{
+    if( wait_ms == 0 )
+        return APP_OBJ_ICON_RETRY_FIRST_MS;
+    return wait_ms * 2u > APP_OBJ_ICON_RETRY_MAX_MS ? APP_OBJ_ICON_RETRY_MAX_MS : wait_ms * 2u;
+}
+
 /* The CS2 host's lazy obj-icon hook (RS_CS2Host.widget_obj_icon_lazy): a
  * GRAPHIC cell whose obj is not resident takes a placeholder instead of
  * holding the script. */

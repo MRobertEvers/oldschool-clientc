@@ -1787,6 +1787,10 @@ struct App
     /* One inv obj-icon reconcile task in flight at a time (per-tick scan
      * re-enqueues while any item slot still lacks a rasterized icon). */
     int inv_icon_reconcile_inflight;
+    /* No reconcile pass before this; set after a pass that resolved nothing,
+     * paced by app_obj_icon_retry_wait from inv_icon_retry_wait_ms. */
+    uint64_t inv_icon_next_pass_ms;
+    uint32_t inv_icon_retry_wait_ms;
     struct VarPManager varps;
     /* Hitsplat types: type -> sprite id, from config group 32. See
      * src/game/rs_hitsplat.h for why a named sprite archive is not enough. */

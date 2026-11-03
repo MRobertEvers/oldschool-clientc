@@ -46,6 +46,8 @@ struct CacheProvider
     /** Sprite ids the sprites table does not list (CacheProvider_SpriteMarkAbsent).
      *  Separate from sprite_cache so an answer never counts against its LRU. */
     struct HMap* sprite_absent;
+    /** Obj ids the objtype group does not list (CacheProvider_ObjtypeMarkAbsent). */
+    struct HMap* obj_absent;
     struct HMap* font_cache;
     struct HMap* enum_cache;
     struct HMap* struct_cache;
@@ -499,6 +501,23 @@ bool
 CacheProvider_SpriteAbsent(
     struct CacheProvider* provider,
     int sprite_id);
+
+/**
+ * Record that the objtype config group has no record `obj_id` -- a recording
+ * of a newer revision names objs this cache never had. An answer, like
+ * CacheProvider_SpriteMarkAbsent: the group was read and does not list it. A
+ * group read that failed marks nothing. What reads it: ObjModelLoad_NeedsWork,
+ * so the icon loaders stop asking for an obj that can never arrive.
+ */
+void
+CacheProvider_ObjtypeMarkAbsent(
+    struct CacheProvider* provider,
+    int obj_id);
+
+bool
+CacheProvider_ObjtypeAbsent(
+    struct CacheProvider* provider,
+    int obj_id);
 
 /**
  * Record / look up a sprites-table archive id by cache-native name

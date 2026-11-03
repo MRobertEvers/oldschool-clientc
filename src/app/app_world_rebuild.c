@@ -494,7 +494,8 @@ App_WorldRebuildShift(
         }
     }
 
-    /* Cutscene camera (deob field706 = false / Client-TS cinemaCam = false). */
+    /* Cutscene camera (deob client.java's rebase: field904 = false; the targets
+     * and rates stay, as there). */
     app->cam_script.scripted = 0;
     for( int i = 0; i < 5; i++ )
         app->cam_script.shake[i] = 0;

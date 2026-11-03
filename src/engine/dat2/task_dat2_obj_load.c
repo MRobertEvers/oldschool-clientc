@@ -92,7 +92,15 @@ Task_Dat2ObjLoad_Run(
     }
 
     pos = Dat2Group_IndexOf(task->group, task->obj_id);
-    if( pos < 0 || !obj_adapt_member(task->bc, task->group, pos, task->obj_id) )
+    if( pos < 0 )
+    {
+        /* The group was read and does not list it: an answer, not a failed
+         * read, so nothing asks again (ObjModelLoad_NeedsWork). */
+        TORIRS_ERR("dat2 obj %d is not in this cache's objtype group\n", task->obj_id);
+        CacheProvider_ObjtypeMarkAbsent(&task->bc->base, task->obj_id);
+        PT_EXIT(&task->pt);
+    }
+    if( !obj_adapt_member(task->bc, task->group, pos, task->obj_id) )
     {
         TORIRS_ERR("Failed to load dat2 obj %d\n", task->obj_id);
         PT_EXIT(&task->pt);

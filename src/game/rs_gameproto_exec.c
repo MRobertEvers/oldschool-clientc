@@ -2148,13 +2148,8 @@ RS_GameProto_Exec(
             app->cam_script.move_rate2 = packet->_cam_moveto.rate2;
             app->cam_script.move_cycles.active = 0;
             app->cam_script.last_move_height = packet->_cam_moveto.height;
-            if( !app->cam_script.scripted )
-            {
-                /* First op of a cutscene: aim at where we already are, so the
-                 * unset half of the pair does not swing the shot to tile 0. */
-                app->cam_script.look_lx = cam_lx;
-                app->cam_script.look_lz = cam_lz;
-            }
+            /* The look half is left as it is (deob client.java, class243.field3026):
+             * after a CAM_RESET its rates are 0, so the angles hold. */
             app->cam_script.scripted = 1;
             if( packet->_cam_moveto.rate2 >= 100 )
                 App_CinemaCameraSnapPosition(app);
@@ -2187,11 +2182,10 @@ RS_GameProto_Exec(
             app->cam_script.look_rate = packet->_cam_lookat.rate;
             app->cam_script.look_rate2 = packet->_cam_lookat.rate2;
             app->cam_script.rotate_cycles.active = 0;
-            if( !app->cam_script.scripted )
-            {
-                app->cam_script.move_lx = app->frame_view->world_camera_pos.x / 128;
-                app->cam_script.move_lz = app->frame_view->world_camera_pos.z / 128;
-            }
+            /* The move half is left as it is (deob client.java, class243.field3073):
+             * after a CAM_RESET its rates are 0, so the eye holds where it was
+             * -- Wanted!'s scans turn to Solus without moving (RSProx 4464
+             * [2833]). */
             app->cam_script.scripted = 1;
             if( packet->_cam_lookat.rate2 >= 100 )
                 App_CinemaCameraSnapAngle(app);
@@ -2323,7 +2317,20 @@ RS_GameProto_Exec(
         if( ctx->app )
         {
             struct App* app = ctx->app;
+            /* Deob client.java, class243.field2937: both targets, heights and
+             * rates to 0, not just the flag. A stale move rate would carry the
+             * last scene's eye into the next look-at-only scene. */
             app->cam_script.scripted = 0;
+            app->cam_script.move_lx = 0;
+            app->cam_script.move_lz = 0;
+            app->cam_script.move_height = 0;
+            app->cam_script.move_rate = 0;
+            app->cam_script.move_rate2 = 0;
+            app->cam_script.look_lx = 0;
+            app->cam_script.look_lz = 0;
+            app->cam_script.look_height = 0;
+            app->cam_script.look_rate = 0;
+            app->cam_script.look_rate2 = 0;
             app->cam_script.move_cycles.active = 0;
             app->cam_script.rotate_cycles.active = 0;
             for( int i = 0; i < 5; i++ )

@@ -246,7 +246,7 @@ ObjModelLoad_NeedsWork(
     if( obj_id < 0 ) /* obj 0 (Dwarf remains) is a real item */
         return 0;
     if( !CacheProvider_ObjtypeHas(provider, obj_id) )
-        return 1;
+        return CacheProvider_ObjtypeAbsent(provider, obj_id) ? 0 : 1;
 
     count_obj_id = obj_model_resolve_count_obj_id(provider, obj_id, count);
     if( count_obj_id > 0 && !CacheProvider_ObjtypeHas(provider, count_obj_id) )

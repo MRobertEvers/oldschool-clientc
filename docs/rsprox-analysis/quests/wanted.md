@@ -158,8 +158,16 @@ the Champions' Guild door. Wanted!-side: Tiffy's armour shop page and the Falado
 
 - The quest test (`test/quests/wanted.lua`) is rewritten for this flow; its result is in
   the session report.
-- No wire audit (tick log against `rsprox_tells`) has been run yet for the scenes. The
-  timings are copied tick for tick from the drafts but are not measured on our wire.
+- The scenes' camera is audited on our wire (scriptrun, `TORIRS_SCRIPTRUN_WIRELOG`): Canifis
+  (lookat at the lock, reset +27, unlock +113), record 1 (moveto/lookat 232/232 a tick after
+  the copy's REBUILD_REGION) and Dorgesh-Kaan (no camera at all, unlock +154) match the
+  recording packet for packet. Dorgesh-Kaan used to send a lookat the recording does not
+  have. The rest of the scenes' packets are not measured on our wire yet.
+- The client's camera follows the deob now: CAM_RESET zeroes both targets and all rates, so
+  a look-at-only scan scene turns to Solus without moving the eye; before, the records'
+  232/232 move rates and height 1000 survived the reset and lifted the next scan's eye.
+  Roofs in a scene are the deob's `Statics.method7854`: hidden only with Hide roofs on, or
+  when the camera is low under a remove-roof tile.
 - Multinpc shells (`wanted_solusN`, `wanted_solus_fake_woman`): an older note said our
   client drew a spawned shell as nothing. Not re-checked with a photograph.
 - The ess mine's static portal locs in the copy: varbit 2313 is set to 0 so the loc portals

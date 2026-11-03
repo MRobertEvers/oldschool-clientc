@@ -21,7 +21,7 @@ app_update_painter_cull(
  * if any stepped tile (endpoints included) carries the remove-roof land flag
  * (0x4), cut drawing down to the player's level, else draw all 4. Only armed
  * at low pitch (< 310) — the high look-down orbit clears roofs anyway.
- * Scripted cams use the simpler roofCheck2 height test. */
+ * Scripted cams use the simpler camera-tile test below. */
 static int
 app_world_roof_check(struct App* app)
 {
@@ -53,10 +53,18 @@ app_world_roof_check(struct App* app)
     if( RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_HIDE_ROOFS) )
         return level;
 
+    /* A scripted camera (deob client.field904) is Statics.method7854, chosen in
+     * class71's scene draw: only the camera's own tile decides, roofs off when
+     * it is under a remove-roof tile and less than 800 above the ground, and
+     * off when it is outside the scene. Nothing else about a cutscene hides
+     * roofs: the player's "Hide roofs" above is the same test the free camera
+     * makes. */
     if( app->cam_script.scripted )
     {
         int cam_tx = app->frame_view->world_camera_pos.x >> 7;
         int cam_tz = app->frame_view->world_camera_pos.z >> 7;
+        if( cam_tx < 0 || cam_tz < 0 || cam_tx >= world->_scene_size || cam_tz >= world->_scene_size )
+            return level;
         int ground_y = app_world_height(
             app, app->frame_view->world_camera_pos.x, app->frame_view->world_camera_pos.z, level);
         if( ground_y - app->frame_view->world_camera_pos.y >= 800 ||

@@ -23,6 +23,7 @@
 #define CACHE_PROVIDER_SPRITE_CAPACITY 2048
 /* A session meets a handful of unlisted sprite ids; the map doubles past 75%. */
 #define CACHE_PROVIDER_SPRITE_ABSENT_CAPACITY 64
+#define CACHE_PROVIDER_OBJ_ABSENT_CAPACITY 64
 /*
  * How much of each derived cache survives a trim (see
  * CacheProvider_TrimDerivedCaches). These are working-set sizes, not hard
@@ -128,6 +129,11 @@ struct MapEntry_ProviderSprite
 };
 
 struct MapEntry_ProviderSpriteAbsent
+{
+    int id;
+};
+
+struct MapEntry_ProviderObjAbsent
 {
     int id;
 };
@@ -410,6 +416,8 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderSprite), CACHE_PROVIDER_SPRITE_CAPACITY);
     provider->sprite_absent = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderSpriteAbsent), CACHE_PROVIDER_SPRITE_ABSENT_CAPACITY);
+    provider->obj_absent = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderObjAbsent), CACHE_PROVIDER_OBJ_ABSENT_CAPACITY);
     provider->font_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderFont), CACHE_PROVIDER_FONT_CAPACITY);
     provider->enum_cache = cache_provider_hmap_new(
@@ -513,6 +521,8 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->sprite_cache = NULL;
     cache_provider_hmap_free(provider->sprite_absent);
     provider->sprite_absent = NULL;
+    cache_provider_hmap_free(provider->obj_absent);
+    provider->obj_absent = NULL;
     cache_provider_hmap_free(provider->font_cache);
     provider->font_cache = NULL;
     cache_provider_hmap_free(provider->enum_cache);
@@ -980,6 +990,32 @@ CacheProvider_SpriteAbsent(
     assert(provider);
     assert(provider->sprite_absent);
     return hmap_search(provider->sprite_absent, &sprite_id, HMAP_FIND) != NULL;
+}
+
+void
+CacheProvider_ObjtypeMarkAbsent(
+    struct CacheProvider* provider,
+    int obj_id)
+{
+    struct MapEntry_ProviderObjAbsent* entry;
+
+    assert(provider);
+    assert(provider->obj_absent);
+    cache_provider_hmap_prepare_insert(&provider->obj_absent);
+    entry = (struct MapEntry_ProviderObjAbsent*)hmap_search(
+        provider->obj_absent, &obj_id, HMAP_INSERT);
+    assert(entry && "Absent obj id must be inserted into hmap");
+    entry->id = obj_id;
+}
+
+bool
+CacheProvider_ObjtypeAbsent(
+    struct CacheProvider* provider,
+    int obj_id)
+{
+    assert(provider);
+    assert(provider->obj_absent);
+    return hmap_search(provider->obj_absent, &obj_id, HMAP_FIND) != NULL;
 }
 
 static int

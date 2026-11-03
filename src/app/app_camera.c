@@ -605,8 +605,8 @@ app_cinema_angles_to(
     *out_yaw = (int)(atan2((double)dx, (double)dz) * -325.949) & 0x7ff;
 }
 
-/* Pitch/yaw that point the eye at the look-at target. Reference cinemaCamera
- * (Client-TS 3542). */
+/* Pitch/yaw that point the eye at the look-at target (deob Statics.method234's
+ * aim, eased by Statics.method4719). */
 static void
 app_cinema_angles(
     struct App* app,
@@ -889,9 +889,11 @@ app_cinema_ease(
     return current;
 }
 
-/* Reference cinemaCamera (Client-TS 3542). Runs every frame the script is up:
- * the camera walks toward the move-to point and turns toward the look-at
- * point, so a rate2 under 100 glides instead of cutting. */
+/* Deob Statics.method234 (ar.bz). Runs every frame the script is up: the eye
+ * walks toward the move-to point (Statics.method10397) and turns toward the
+ * look-at point (Statics.method4719), a flat rate plus rate2/1000 of what is
+ * left, so a rate2 under 100 glides instead of cutting. A half whose rates are
+ * 0 (as CAM_RESET leaves them) holds still. */
 void
 app_world_camera_cinema(struct App* app)
 {

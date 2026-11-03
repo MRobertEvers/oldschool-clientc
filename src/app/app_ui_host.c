@@ -22,15 +22,13 @@
  * after the interface is open still get icons — the missing lazy path the
  * exec handlers' comment promised.
  *
- * A slot whose model can never be built is stamped with a distinct sentinel so
- * the per-tick scan stops re-enqueueing it; the server replacing the item
- * resets scene_id to NO_SCENE_ID and re-arms the reconcile. */
+ * A slot whose parts are all resident and still make no icon (an obj with no
+ * inventory model) is stamped with a distinct sentinel so the per-tick scan
+ * stops re-enqueueing it; the server replacing the item resets scene_id to
+ * NO_SCENE_ID and re-arms the reconcile. A slot whose parts did NOT arrive is
+ * never stamped: it waits for a later pass, paced by app_obj_icon_retry_wait. */
 #define APP_INV_ICON_BATCH_MAX 64
 #define APP_INV_ICON_SCENE_FAILED (-2)
-/* Reconcile passes a slot may spend waiting for its objtype, model and
- * textures before the icon is given up on. One pass per tick, so this is a
- * two-second ceiling on a cache that answers over the network. */
-#define APP_INV_ICON_ATTEMPT_MAX 100
 
 struct Task_InvIconReconcile
 {
@@ -41,6 +39,9 @@ struct Task_InvIconReconcile
     int counts[APP_INV_ICON_BATCH_MAX];
     int n;
     int published_change;
+    /* Slots this pass gave an icon or the FAILED stamp: 0 means every ask
+     * came back without its parts, and the next pass waits. */
+    int resolved;
 };
 
 /* Wrapper protothread that owns one CS1 evaluation pass: awaits the eval
@@ -447,6 +448,10 @@ app_inv_ui_host_change(
      * and dropped the way it was before this stamp existed. */
     App_DriveEvent(app, DRIVE_EVENT_INV_CHANGED, container_id, 0, 0, 0);
 
+    /* A new item is not held behind the pause of one whose parts did not
+     * arrive: the next tick runs a reconcile pass. */
+    app->inv_icon_next_pass_ms = 0;
+
     UITree_HostInputsChanged(&app->ui_host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY));
     app->need_redraw = 1;
 }
@@ -463,6 +468,7 @@ Task_InvIconReconcile_Run(
     PT_BEGIN(&self->pt);
 
     self->published_change = 0;
+    self->resolved = 0;
     /* Collect the batch that still needs a model load (bounded; leftovers are
      * caught by the next tick's scan once this pass stamps its slots). */
     self->n = 0;
@@ -506,9 +512,12 @@ Task_InvIconReconcile_Run(
      * (obj, count) key for the rest of the session, which draws as a stack
      * count with no item under it.
      *
-     * The attempt counter bounds the wait. An obj whose model genuinely never
-     * resolves keeps NeedsWork true forever, and without a bound it would
-     * re-arm this reconcile every tick for the rest of the session.
+     * A slot still missing parts after its load is NOT given up on. Its read
+     * may have come back empty -- a dropped JS5 socket, a browser storage
+     * error -- and an icon stamped FAILED then stayed blank for the session.
+     * The slot stays pending, and a pass that resolved nothing makes the next
+     * one wait (app_inv_icon_reconcile_tick), so an obj whose model never
+     * arrives costs one ask every few seconds, not one every tick.
      */
     for( int ci = 0; ci < app->invs.container_count; ci++ )
     {
@@ -530,17 +539,30 @@ Task_InvIconReconcile_Run(
                 slot->scene_id = scene_id;
                 slot->atlas_index = 0;
                 self->published_change = 1;
+                self->resolved++;
                 continue;
             }
-            /* Could not build it *yet*: leave the slot pending so the next
-             * pass batches it, until the attempts run out. */
-            if( ObjModelLoad_NeedsWork(app->provider, slot->obj_id, count) &&
-                ++slot->icon_attempts < APP_INV_ICON_ATTEMPT_MAX )
+            /* Could not build it *yet*: leave the slot pending for a later
+             * pass to batch. */
+            if( ObjModelLoad_NeedsWork(app->provider, slot->obj_id, count) )
                 continue;
             slot->scene_id = APP_INV_ICON_SCENE_FAILED;
             slot->atlas_index = 0;
             self->published_change = 1;
+            self->resolved++;
         }
+    }
+
+    if( self->resolved > 0 )
+    {
+        app->inv_icon_retry_wait_ms = 0;
+        app->inv_icon_next_pass_ms = 0;
+    }
+    else
+    {
+        app->inv_icon_retry_wait_ms = app_obj_icon_retry_wait(app->inv_icon_retry_wait_ms);
+        app->inv_icon_next_pass_ms =
+            (uint64_t)app->host.client.now_ms + app->inv_icon_retry_wait_ms;
     }
 
     if( self->published_change )
@@ -577,7 +599,9 @@ app_inv_icon_reconcile_tick(struct App* app)
 {
     struct Task_InvIconReconcile* task;
 
-    if( app->inv_icon_reconcile_inflight || !InvManager_HasUnbakedIcon(&app->invs) )
+    if( app->inv_icon_reconcile_inflight ||
+        (uint64_t)app->host.client.now_ms < app->inv_icon_next_pass_ms ||
+        !InvManager_HasUnbakedIcon(&app->invs) )
         return;
 
     task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
