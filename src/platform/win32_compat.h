@@ -13,6 +13,12 @@
 #define SRC_PLATFORM_WIN32_COMPAT_H
 
 #if defined(_WIN32)
+/* rand_s is declared only when _CRT_RAND_S precedes the first <stdlib.h>.
+ * This header is force-included, so it is always that first include, and a
+ * file's own #define _CRT_RAND_S (torirs_server_auth.c) arrives too late. */
+#ifndef _CRT_RAND_S
+#define _CRT_RAND_S
+#endif
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>

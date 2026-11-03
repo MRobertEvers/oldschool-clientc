@@ -30,6 +30,11 @@
  * bridges in-process), so this only has to compile and link. */
 #include <winsock2.h>
 #include <ws2tcpip.h>
+/* MinGW's <io.h> declares close/read/write, and it arrives later through
+ * <sys/stat.h> (torirs_server_control.c, included at the end of this file).
+ * Taken first, its guard makes that later include a no-op; taken after the
+ * macros below, they rewrite its prototypes into closesocket(int) et al. */
+#include <io.h>
 #define close closesocket
 /* This file does low-level read()/write() on socket fds; winsock uses
  * recv()/send(). The buffers are byte data, so the char* casts are safe. */

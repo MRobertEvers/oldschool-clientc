@@ -28,6 +28,13 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifdef _WIN32
+#include <direct.h>
+#define acct_mkdir(path) _mkdir(path)
+#else
+#define acct_mkdir(path) mkdir(path, 0755)
+#endif
+
 /* ------------------------------------------------------------------ */
 /* Pure pieces                                                         */
 /* ------------------------------------------------------------------ */
@@ -1012,13 +1019,13 @@ acct_mkdirs(const char* path)
         if( *scan == '/' && used > 0 )
         {
             buf[used] = '\0';
-            (void)mkdir(buf, 0755);
+            (void)acct_mkdir(buf);
         }
         buf[used++] = *scan;
     }
     buf[used] = '\0';
     if( used > 0 )
-        (void)mkdir(buf, 0755);
+        (void)acct_mkdir(buf);
 }
 
 static void

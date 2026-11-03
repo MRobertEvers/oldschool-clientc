@@ -1363,7 +1363,13 @@ endif
 .PHONY: torirsserver-scripts-lanes torirsserver-lanes torirsserver-scripts-rs2012
 .PHONY: test-wev test-wev-rebuild test-painters-world-entity test-painters-dynamic-pool
 
+# torirsmaped and its ctl are POSIX only (arpa/inet.h, symlink, two-argument
+# mkdir); MinGW cannot build them, so the Windows lanes ship the client alone.
+ifneq ($(filter win32 win64,$(PLATFORM)),)
+all: $(OBJ_DIR) $(TARGET)
+else
 all: $(OBJ_DIR) $(TARGET) torirsmaped torirsmapedctl
+endif
 
 release:
 	$(MAKE) OPT=1 all

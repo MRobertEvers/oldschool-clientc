@@ -67,7 +67,7 @@ static int64_t
 view_now_ms(void)
 {
     struct timespec now;
-    timespec_get(&now, TIME_UTC);
+    clock_gettime(CLOCK_MONOTONIC, &now);
     return (int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000;
 }
 

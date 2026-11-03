@@ -24,6 +24,141 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifdef _WIN32
+/*
+ * The POSIX calls a lane is built from, over Win32. A lane IS symlinks -- the
+ * mirror links every base file and the asset trees whole, and a changes scan
+ * tells an edited file from an untouched one by whether it is still a link --
+ * so these keep that meaning rather than degrading to copies, which would make
+ * every file in a mirror look edited.
+ *
+ * Links need Developer Mode (or an elevated process) on Windows 10+; without
+ * it CreateSymbolicLinkA fails and the caller reports "cannot link" as usual.
+ */
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <direct.h>
+#include <windows.h>
+
+#ifndef S_IFLNK
+#define S_IFLNK 0120000
+#endif
+#ifndef S_ISLNK
+#define S_ISLNK(m) (((m) & S_IFMT) == S_IFLNK)
+#endif
+
+/* `_mkdir("C:")` fails with EACCES, not EEXIST, and mkdir_p walks every
+ * prefix of an absolute path; an existing directory is EEXIST here as there. */
+static int
+lanes_mkdir(const char* path)
+{
+    DWORD attrs;
+
+    if( _mkdir(path) == 0 )
+        return 0;
+    attrs = GetFileAttributesA(path);
+    if( attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) )
+        errno = EEXIST;
+    return -1;
+}
+
+static int
+symlink(
+    const char* target,
+    const char* link_path)
+{
+    char native[TORIRSMAPED_LANE_PATH];
+    DWORD flags = SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE;
+    DWORD attrs;
+
+    /* The target is stored verbatim and Windows does not resolve '/' in it. */
+    snprintf(native, sizeof(native), "%s", target);
+    for( char* scan = native; *scan; scan++ )
+        if( *scan == '/' )
+            *scan = '\\';
+    attrs = GetFileAttributesA(native);
+    if( attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) )
+        flags |= SYMBOLIC_LINK_FLAG_DIRECTORY;
+    if( CreateSymbolicLinkA(link_path, native, flags) )
+        return 0;
+    errno = GetLastError() == ERROR_PRIVILEGE_NOT_HELD ? EPERM : EACCES;
+    return -1;
+}
+
+/* stat() of the entry itself: a reparse point (symlink) reads as S_IFLNK and
+ * is not followed, as POSIX lstat. */
+static int
+lstat(
+    const char* path,
+    struct stat* st)
+{
+    WIN32_FILE_ATTRIBUTE_DATA data;
+
+    if( !GetFileAttributesExA(path, GetFileExInfoStandard, &data) )
+    {
+        errno = ENOENT;
+        return -1;
+    }
+    if( !(data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) )
+        return stat(path, st);
+    memset(st, 0, sizeof(*st));
+    st->st_mode = S_IFLNK;
+    return 0;
+}
+
+/* An absolute path with '/' separators, as the callers compare and join it.
+ * NULL when `path` does not exist, as POSIX realpath. */
+static char*
+realpath(
+    const char* path,
+    char* resolved)
+{
+    if( GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES )
+    {
+        errno = ENOENT;
+        return NULL;
+    }
+    if( !_fullpath(resolved, path, PATH_MAX) )
+        return NULL;
+    for( char* scan = resolved; *scan; scan++ )
+        if( *scan == '\\' )
+            *scan = '/';
+    return resolved;
+}
+
+/* Only the existence probe, `kill(pid, 0)`: ESRCH when no such process is
+ * running, 0 when one is (including one we may not open, as POSIX EPERM). */
+static int
+kill(
+    pid_t pid,
+    int sig)
+{
+    HANDLE process;
+    DWORD code = 0;
+
+    assert(sig == 0);
+    (void)sig;
+    process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pid);
+    if( !process )
+    {
+        if( GetLastError() == ERROR_ACCESS_DENIED )
+            return 0;
+        errno = ESRCH;
+        return -1;
+    }
+    if( GetExitCodeProcess(process, &code) && code != STILL_ACTIVE )
+    {
+        CloseHandle(process);
+        errno = ESRCH;
+        return -1;
+    }
+    CloseHandle(process);
+    return 0;
+}
+#else
+#define lanes_mkdir(path) mkdir(path, 0755)
+#endif
+
 /* ---- mirror.py's rules ---------------------------------------------------- */
 
 /** Pure inputs nothing in a build or a save writes: one directory symlink
@@ -87,11 +222,11 @@ mkdir_p(const char* path)
         if( copy[i] != '/' )
             continue;
         copy[i] = '\0';
-        if( mkdir(copy, 0755) != 0 && errno != EEXIST )
+        if( lanes_mkdir(copy) != 0 && errno != EEXIST )
             return 0;
         copy[i] = '/';
     }
-    return mkdir(copy, 0755) == 0 || errno == EEXIST;
+    return lanes_mkdir(copy) == 0 || errno == EEXIST;
 }
 
 static int
