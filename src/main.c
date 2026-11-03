@@ -7063,10 +7063,12 @@ struct MainArgState
     int renderer_flag;
 };
 
+/* TORIRS_ERR, not TORIRS_LOG: usage follows an invalid argument, and a release
+ * build compiles TORIRS_LOG out -- build_windows.ps1's launch smoke reads it. */
 static void
 main_print_usage(char const* program)
 {
-    TORIRS_LOG(
+    TORIRS_ERR(
         "usage: %s [cache_dir] [interface_id] [--manifest <boot.ini>] "
         "[--dat1|--dat2] [--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] "
         "[--bmp] [--connect host[:port]] [--port N] [--offline] [--user U] "
