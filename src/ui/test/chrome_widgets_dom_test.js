@@ -98,8 +98,8 @@ assert(runtime, 'runtime boots');
  * numbers are the C header's; chrome_enum_sync_test.js pins the runtime to it. */
 const CMD = { PANEL_OPEN: 3, WIDGET_ADD: 8, WIDGET_CHECKED: 12, PANEL_MODE: 21,
   WIDGET_VALUE: 22, WIDGET_ROW: 23, WIDGET_SPAN: 24, WIDGET_GRAPH: 25,
-  WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27 };
-const W = { TREE: 13, VLIST: 14, ICONBUTTON: 15, SLIDER: 16, RADIO: 17, CODE: 18, GRAPH: 19 };
+  WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27, WIDGET_CHORD: 28 };
+const W = { BUTTON: 7, TREE: 13, VLIST: 14, ICONBUTTON: 15, SLIDER: 16, RADIO: 17, CODE: 18, GRAPH: 19 };
 const INTENT = { ACTIVATE: 1, TOGGLE: 3, PICK: 5, EXPAND: 10, SCROLL: 11, VALUE: 12,
   CODE_EDIT: 14, GRAPH: 15, GRAPH_WHEEL: 16 };
 function cmd(k, values) {
@@ -126,6 +126,7 @@ const commands = [
   cmd(CMD.WIDGET_VALUE, { w: 3, v: 31 }),
   cmd(CMD.WIDGET_CHECKED, { w: 3, v: 1 }),
   cmd(CMD.WIDGET_TOOLTIP, { w: 3, label: 'Raise terrain' }),
+  cmd(CMD.WIDGET_CHORD, { w: 3, label: 'R' }),
   cmd(CMD.WIDGET_ADD, { w: 4, v: W.SLIDER, label: 'Radius', s: 204 }),
   cmd(CMD.WIDGET_VALUE, { w: 4, v: 4, x: 1, y: 16, cw: 1 }),
   cmd(CMD.WIDGET_ADD, { w: 5, v: W.RADIO, label: 'Level 0', cw: 1, s: 205 }),
@@ -140,13 +141,16 @@ const commands = [
   cmd(CMD.WIDGET_GRAPH, { w: 8, v: 3 }),
   cmd(CMD.WIDGET_GRAPH_ITEM, { w: 8, tab: 0, x: 0, y: 0, cw: 20, ch: 20, c: 0x406020, v: 77 }),
   cmd(CMD.WIDGET_GRAPH_ITEM, { w: 8, tab: 2, x: 0, y: 0, cw: 30, ch: 40, c: 0xffff00 }),
-  cmd(CMD.WIDGET_GRAPH_ITEM, { w: 8, tab: 3, x: 2, y: 30, c: 0xffffff, label: 'm50_50' })
+  cmd(CMD.WIDGET_GRAPH_ITEM, { w: 8, tab: 3, x: 2, y: 30, c: 0xffffff, label: 'm50_50' }),
+  cmd(CMD.WIDGET_ADD, { w: 9, v: W.BUTTON, text: 'Build the lane', s: 209 }),
+  cmd(CMD.WIDGET_CHORD, { w: 9, label: 'Ctrl+B' }),
+  cmd(CMD.WIDGET_TOOLTIP, { w: 9, label: 'Pack the scripts', text: 'F5' })
 ];
 runtime.receive({ protocol: 1, type: 'page.snapshot', pageGeneration: 20, panel: 3,
   title: 'Editor', checkStyle: 0, commands });
 const rows = ids['tpc-content'].children;
 const byHandle = h => rows.find(r => r._tpcRecord && r._tpcRecord.handle === h)._tpcRecord;
-assert.strictEqual(runtime.inspect().widgetCount, 8, 'every editor kind is retained');
+assert.strictEqual(runtime.inspect().widgetCount, 9, 'every editor kind is retained');
 assert(/tpc-modal/.test(shell.className), 'PANEL_MODE modal puts the page over a veil');
 
 /* TREE */
@@ -178,7 +182,13 @@ assert.deepStrictEqual([typed[typed.length - 1].k, typed[typed.length - 1].v], [
 const icon = byHandle(3);
 assert.match(icon.icon.style.backgroundImage, /ToolRaise\.png/, 'the slot names the packaged skin PNG');
 assert.strictEqual(icon.control.getAttribute('aria-pressed'), 'true', 'pressed state');
-assert.strictEqual(icon.row.title, 'Raise terrain', 'the tooltip is the hover text');
+assert.strictEqual(icon.row.title, 'Raise terrain  [R]',
+  'the tooltip is the hover text, ending with the chord the button wears');
+assert.strictEqual(icon.badge.tagName, 'KBD', 'the chord badge is a key');
+assert.strictEqual(icon.badge.className, 'tpc-chord-badge', 'styled as the badge');
+assert.strictEqual(icon.badge.innerText, 'R', 'WIDGET_CHORD fills the badge');
+assert.strictEqual(icon.badge.parentNode, icon.control, 'inside the button, over its corner');
+assert(!icon.badge.hidden, 'a chord shows its badge');
 icon.control.fire('click');
 assert.strictEqual(typed[typed.length - 1].k, INTENT.ACTIVATE, 'an icon button activates');
 
@@ -246,11 +256,39 @@ graph.control.fire('wheel', { clientX: 5, clientY: 5, deltaY: 120 });
 assert.deepStrictEqual([typed[typed.length - 1].k, typed[typed.length - 1].v], [INTENT.GRAPH_WHEEL, 1],
   'the wheel reports GRAPH_WHEEL');
 
+/* BUTTON + chord: a caption span and a KBD keycap inside the button. */
+const button = byHandle(9);
+assert(/tpc-has-chord/.test(button.control.className), 'a button with a chord says so');
+assert.strictEqual(button.control.children.length, 2, 'caption, then key');
+assert.strictEqual(button.captionNode.className, 'tpc-button-caption', 'the caption span ellipses');
+assert.strictEqual(button.captionNode.innerText, 'Build the lane', 'the caption');
+assert.strictEqual(button.keycap.tagName, 'KBD', 'the keycap is a KBD');
+assert.strictEqual(button.keycap.className, 'tpc-keycap', 'styled as the keycap');
+assert.strictEqual(button.keycap.innerText, 'Ctrl+B', 'WIDGET_CHORD fills the key');
+assert.strictEqual(button.row.title, 'Pack the scripts  [F5]', 'its own tooltip chord wins');
+button.control.fire('click');
+assert.deepStrictEqual([typed[typed.length - 1].k, typed[typed.length - 1].w], [INTENT.ACTIVATE, 9],
+  'a button with a key still activates');
+
 /* Deltas update in place. */
 runtime.receive({ protocol: 1, type: 'page.delta', pageGeneration: 20, commands: [
   cmd(CMD.WIDGET_VALUE, { w: 1, v: 2 }),
-  cmd(CMD.WIDGET_VALUE, { w: 2, v: 11, x: 10, y: 5000 })
+  cmd(CMD.WIDGET_VALUE, { w: 2, v: 11, x: 10, y: 5000 }),
+  cmd(CMD.WIDGET_TOOLTIP, { w: 9, label: 'Pack the scripts', text: '' }),
+  cmd(CMD.WIDGET_CHORD, { w: 3, label: '' })
 ] });
+assert.strictEqual(button.row.title, 'Pack the scripts  [Ctrl+B]',
+  'with no chord of its own the tooltip ends with the keycap\'s');
+assert(icon.badge.hidden, 'a cleared chord hides the badge');
+assert.strictEqual(icon.row.title, 'Raise terrain', 'and drops out of the tooltip');
+runtime.receive({ protocol: 1, type: 'page.delta', pageGeneration: 20, commands: [
+  cmd(CMD.WIDGET_CHORD, { w: 9, label: '' })
+] });
+assert.strictEqual(button.keycap, null, 'a cleared chord takes the key away');
+assert(!/tpc-has-chord/.test(button.control.className), 'and the class');
+assert.strictEqual(button.control.children.length, 0, 'the button holds its caption as text again');
+assert.strictEqual(button.control.innerText, 'Build the lane', 'the caption');
+assert.strictEqual(button.row.title, 'Pack the scripts', 'the tooltip has no chord left to end with');
 assert.match(tree.expander.style.backgroundImage, /TreeOpen\.png/, 'VALUE opens the tree row in place');
 assert(/tpc-selected/.test(list.lineNodes[1].className), 'VALUE selects the list row in place');
 

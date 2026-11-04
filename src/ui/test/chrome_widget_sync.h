@@ -63,5 +63,7 @@ void cw_test_graph(void);
 void cw_test_splitter(void);
 void cw_test_skin(void);
 void cw_test_capacity(void);
+void cw_test_button(void);
+void cw_test_truncation(void);
 
 #endif

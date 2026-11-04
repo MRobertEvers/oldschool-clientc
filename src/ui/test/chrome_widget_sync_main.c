@@ -105,6 +105,8 @@ main(void)
     cw_test_splitter();
     cw_test_skin();
     cw_test_capacity();
+    cw_test_button();
+    cw_test_truncation();
     printf("chrome_widget_sync_test: %d checks, %d failed\n", g_cw_checks, g_cw_failed);
     return g_cw_failed ? 1 : 0;
 }

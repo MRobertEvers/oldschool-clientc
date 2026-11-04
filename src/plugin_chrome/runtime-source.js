@@ -30,7 +30,7 @@
     WIDGET_SELECTED: 15, WIDGET_FOCUS: 16, WIDGET_OPTIONS: 17,
     WIDGET_OPTION: 18, CHECK_STYLE: 19, WIDGET_HEIGHT: 20,
     PANEL_MODE: 21, WIDGET_VALUE: 22, WIDGET_ROW: 23, WIDGET_SPAN: 24,
-    WIDGET_GRAPH: 25, WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27
+    WIDGET_GRAPH: 25, WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27, WIDGET_CHORD: 28
   };
   const W = {
     LABEL: 0, CHECKBOX: 1, TEXTINPUT: 2, SEPARATOR: 3, MENUITEM: 4,
@@ -828,6 +828,9 @@
       checked: false, selected: -1, shown: -1, hidden: false, focused: false,
       options: [], structuredOptions: false, optionsRevision: 0,
       customRevision: 0, customScale: 1000,
+      /* WIDGET_CHORD (a BUTTON's keycap, an ICONBUTTON's badge) and the
+       * chord WIDGET_TOOLTIP's text says the tooltip ends with. */
+      chord: '', tooltipChord: '',
       renderFlags: 0, renderQueued: false,
       row, control: null
     };
@@ -1340,10 +1343,17 @@
         const icon = document.createElement('span');
         icon.className = 'tpc-icon';
         button.appendChild(icon);
+        /* The chord badge: in the box's bottom-right corner, over a black
+         * plate, hidden until a WIDGET_CHORD gives it something to say. */
+        const badge = document.createElement('kbd');
+        badge.className = 'tpc-chord-badge';
+        hidden(badge, true);
+        button.appendChild(badge);
         bind(button, 'click', () => postWidget(record, INTENT.ACTIVATE));
         row.appendChild(button);
         record.control = button;
         record.icon = icon;
+        record.badge = badge;
         break;
       }
       case W.SLIDER: {
@@ -1582,13 +1592,68 @@
     }
   }
 
+  /**
+   * The hover text the model's tooltip shows: the widget's own, an
+   * ICONBUTTON's label when it has none, and -- after two spaces, in
+   * brackets -- the chord it ends with: its own WIDGET_TOOLTIP chord, else the
+   * chord a BUTTON or ICONBUTTON wears. A title attribute cannot hold a
+   * keycap, so the brackets are what stands for one here.
+   */
+  function tooltipTitle(record) {
+    const tip = record.tooltip || (record.kind === W.ICONBUTTON ? record.label : '') || '';
+    if (!tip) return '';
+    const chord = record.tooltipChord ||
+      (record.kind === W.BUTTON || record.kind === W.ICONBUTTON ? record.chord : '');
+    return chord ? `${text(tip, 63)}  [${text(chord, 23)}]` : text(tip, 63);
+  }
+
+  function renderTooltip(record) {
+    const title = tooltipTitle(record);
+    if (title) record.row.title = title;
+    else if (record.row.removeAttribute) record.row.removeAttribute('title');
+    if (record.chord && record.row.setAttribute) record.row.setAttribute('data-tpc-chord', record.chord);
+    else if (record.row.removeAttribute) record.row.removeAttribute('data-tpc-chord');
+  }
+
+  /**
+   * A BUTTON's caption, and its chord as a keycap after it (the in-canvas
+   * chrome draws the same key right-aligned inside the plate). With no chord
+   * the button holds its caption as text, as it always has; with one it
+   * holds a caption span, which ellipses in the room the key leaves, and a
+   * KBD styled from torirs_chrome_metrics.h's KEYCAP_* numbers.
+   */
+  function renderButtonCaption(record) {
+    const caption = record.text || record.label;
+    if (!record.chord) {
+      if (record.keycap) {
+        clear(record.control);
+        record.keycap = null;
+        record.captionNode = null;
+        toggleClass(record.control, 'tpc-has-chord', false);
+      }
+      setText(record.control, caption);
+      return;
+    }
+    if (!record.keycap) {
+      clear(record.control);
+      setText(record.control, '');
+      const span = document.createElement('span');
+      span.className = 'tpc-button-caption';
+      const key = document.createElement('kbd');
+      key.className = 'tpc-keycap';
+      record.control.appendChild(span);
+      record.control.appendChild(key);
+      record.captionNode = span;
+      record.keycap = key;
+      toggleClass(record.control, 'tpc-has-chord', true);
+    }
+    setText(record.captionNode, caption);
+    setText(record.keycap, record.chord);
+  }
+
   function renderEditorContent(record) {
     if (!record.control) return;
-    if (record.tooltip || record.kind === W.ICONBUTTON) {
-      const tip = record.tooltip || record.label || '';
-      if (tip) record.row.title = text(tip, 63);
-      else if (record.row.removeAttribute) record.row.removeAttribute('title');
-    }
+    if (record.tooltip || record.kind === W.ICONBUTTON) renderTooltip(record);
     switch (record.kind) {
       case W.TREE: {
         setText(record.caption, record.label || record.text);
@@ -1613,6 +1678,8 @@
         record.control.setAttribute('aria-label', text(record.label || 'Tool', 63));
         record.control.setAttribute('aria-pressed', record.checked ? 'true' : 'false');
         toggleClass(record.control, 'tpc-pressed', !!record.checked);
+        setText(record.badge, record.chord);
+        hidden(record.badge, !record.chord);
         break;
       }
       case W.SLIDER:
@@ -1703,11 +1770,14 @@
       case CMD.WIDGET_TOOLTIP:
         if (!record) return;
         record.tooltip = command.label;
+        record.tooltipChord = text(command.text, 23);
         if (isEditorKind(record.kind)) queueWidgetRender(record, RENDER.CONTENT);
-        else if (record.row) {
-          if (command.label) record.row.title = command.label;
-          else if (record.row.removeAttribute) record.row.removeAttribute('title');
-        }
+        else if (record.row) renderTooltip(record);
+        return;
+      case CMD.WIDGET_CHORD:
+        if (!record || (record.kind !== W.BUTTON && record.kind !== W.ICONBUTTON)) return;
+        record.chord = text(command.label, 23);
+        queueWidgetRender(record, RENDER.CONTENT);
         return;
       default:
         return;
@@ -1776,9 +1846,13 @@
         if (record.control.value !== record.text) record.control.value = record.text;
         break;
       case W.MENUITEM:
-      case W.BUTTON:
         skinButton(record.control);
         setText(record.control, record.text || record.label);
+        break;
+      case W.BUTTON:
+        skinButton(record.control);
+        renderButtonCaption(record);
+        renderTooltip(record);
         break;
       case W.DROPDOWN:
         skinDropdown(record);

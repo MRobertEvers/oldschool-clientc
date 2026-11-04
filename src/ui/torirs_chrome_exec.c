@@ -7,9 +7,11 @@
 /* A full restatement emits one global style command, four commands per panel
  * (OPEN, RECT, TAB, MODE), nine fixed commands per widget (ADD, HIDDEN,
  * CHECKED, FOCUS, SELECTED, the OPTIONS or GRAPH header, VALUE, TOOLTIP, and
- * a spare for HEIGHT), then one command per retained option, visible row,
- * span and graph item -- each bounded by its pool. Include BEGIN/END because
- * WEB's atomic-array ceiling counts its markers too. Keeping this proof beside
+ * one of HEIGHT or CHORD -- HEIGHT is CUSTOM's and GRAPH's, CHORD BUTTON's and
+ * ICONBUTTON's, so no widget sends both), then one command per retained
+ * option, visible row, span and graph item -- each bounded by its pool.
+ * Include BEGIN/END because WEB's atomic-array ceiling counts its markers
+ * too. Keeping this proof beside
  * the serializer makes a future model-cap increase fail the build instead of
  * creating a snapshot that can never recover. */
 _Static_assert(
@@ -374,12 +376,26 @@ sync_emit_editor(
     struct ToriRSChromeCmd cmd;
 
     if( (flags & TORIRS_CHROME_CHANGE_WIDGET_TOOLTIP) &&
-        strcmp(sw->tooltip, w->tooltip) != 0 )
+        (strcmp(sw->tooltip, w->tooltip) != 0 ||
+         strcmp(sw->tooltip_chord, w->tooltip_chord) != 0) )
     {
         cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_TOOLTIP, w->panel, widget);
         chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->tooltip);
+        chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->tooltip_chord);
         sync_emit(sync, &cmd);
         chrome_copy(sw->tooltip, TORIRS_CHROME_LABEL_MAX, w->tooltip);
+        chrome_copy(sw->tooltip_chord, TORIRS_CHROME_CHORD_MAX, w->tooltip_chord);
+    }
+    /* The keycap or badge: BUTTON and ICONBUTTON only, which is also what
+     * keeps the snapshot bound -- neither kind ever sends a HEIGHT. */
+    if( (flags & TORIRS_CHROME_CHANGE_WIDGET_CHORD) &&
+        (w->kind == TORIRS_CHROME_W_BUTTON || w->kind == TORIRS_CHROME_W_ICONBUTTON) &&
+        strcmp(sw->chord, w->chord) != 0 )
+    {
+        cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_CHORD, w->panel, widget);
+        chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->chord);
+        sync_emit(sync, &cmd);
+        chrome_copy(sw->chord, TORIRS_CHROME_CHORD_MAX, w->chord);
     }
     if( !sync_is_editor_kind(w->kind) )
         return;

@@ -23,7 +23,15 @@ static void dbg_ext_init(struct ToriRSChrome* ui);
 static void dbg_ext_forget(struct ToriRSChrome* ui, int widget);
 static void dbg_copy_widget(
     struct ToriRSChrome* ui, int widget, char* dst, int cap, char const* src);
-static void dbg_note_truncation(struct ToriRSChrome* ui, int widget, char const* src, int cap);
+static int dbg_keycap_width(struct ToriRSChrome const* ui, char const* chord);
+static void dbg_push_keycap(
+    struct ToriRSChrome* ui,
+    struct ToriRSChromeRect cap,
+    char const* chord,
+    uint32_t ink,
+    struct ToriRSChromeRect clip);
+static void dbg_note_truncation(
+    struct ToriRSChrome* ui, int widget, int field, char const* src, int cap);
 static int dbg_ext_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w);
 static int dbg_ext_height(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w);
 static int dbg_ext_draw(
@@ -3933,7 +3941,7 @@ ToriRSChrome_SetText(struct ToriRSChrome* ui, int widget, char const* text)
     if( !dbg_valid_widget(ui, widget) )
         return;
     w = &ui->widgets[widget];
-    dbg_note_truncation(ui, widget, text, TORIRS_CHROME_INPUT_MAX);
+    dbg_note_truncation(ui, widget, TORIRS_CHROME_TRUNC_TEXT, text, TORIRS_CHROME_INPUT_MAX);
     dbg_copy(buf, TORIRS_CHROME_INPUT_MAX, text);
     /* Compare-then-set is the whole point of retained mode: an app that
      * rewrites its frame counter every frame with the same string does no
@@ -3976,7 +3984,7 @@ ToriRSChrome_SetLabel(struct ToriRSChrome* ui, int widget, char const* label)
     if( !dbg_valid_widget(ui, widget) )
         return;
     w = &ui->widgets[widget];
-    dbg_note_truncation(ui, widget, label, TORIRS_CHROME_LABEL_MAX);
+    dbg_note_truncation(ui, widget, TORIRS_CHROME_TRUNC_LABEL, label, TORIRS_CHROME_LABEL_MAX);
     dbg_copy(buf, TORIRS_CHROME_LABEL_MAX, label);
     if( strcmp(w->label, buf) == 0 )
         return;
@@ -6286,8 +6294,38 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             int const lit = hovered && usable;
             int const pressed = ui->press == widget && lit;
             int const nudge = pressed ? DBG_RULE : 0;
-            int const caption_w = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, caption);
+            /* A BUTTON's chord is a keycap right-aligned inside the plate (the
+             * workbench design's section 15). The caption is measured against
+             * what is LEFT of the plate and elided when it does not fit there,
+             * so a long caption ends in dots beside the key instead of running
+             * under it. A MENUITEM in a window has no chord slot. */
+            char const* chord =
+                w->kind == TORIRS_CHROME_W_BUTTON && w->chord[0] ? w->chord : NULL;
+            int const cap_inset = DBG_PX(TORIRS_CHROME_M_KEYCAP_INSET);
+            /* A chord wider than the plate's inside is cut at the plate, never
+             * drawn past it onto the next column. */
+            int const cap_room = box_w - 2 * cap_inset;
+            int const cap_want = chord ? dbg_keycap_width(ui, chord) : 0;
+            int const cap_w = cap_want < cap_room ? cap_want : cap_room;
+            int const cap_x = row_x + box_w - cap_inset - cap_w;
+            int const track_x = chord ? row_x + DBG_INPUT_PAD_X : row_x;
+            int const track_w =
+                chord ? cap_x - DBG_PX(TORIRS_CHROME_M_KEYCAP_GAP) - track_x : box_w;
+            int caption_w;
             struct ToriRSChromeRect box;
+
+            /* Without a chord a caption that fits is centred on the whole
+             * plate, as it always was; one that does not is elided to the
+             * plate less its text inset rather than clipped mid-glyph. With
+             * one, the track left of the key is what it is measured against,
+             * and a key that leaves no track leaves no caption. */
+            if( chord )
+                caption = track_w > 0 ? dbg_elide_text(ui, ui->theme.font_row, caption, track_w)
+                                      : "";
+            else if( ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, caption) > box_w )
+                caption = dbg_elide_text(
+                    ui, ui->theme.font_row, caption, box_w - 2 * DBG_INPUT_PAD_X);
+            caption_w = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, caption);
 
             box.x = row_x;
             box.y = row_y;
@@ -6296,11 +6334,27 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             dbg_push_field_chrome(ui, box, clip);
             if( lit )
                 dbg_push_rect(ui, row_x, row_y, box_w, row_h, th->accent, 0, clip);
+            if( chord )
+            {
+                /* Sized from the row, never the other way round: the row stays
+                 * one grid row tall with or without a key in it. */
+                struct ToriRSChromeRect cap;
+                cap.x = cap_x;
+                cap.y = row_y + cap_inset;
+                cap.w = cap_w;
+                cap.h = row_h - 2 * cap_inset;
+                dbg_push_keycap(
+                    ui,
+                    cap,
+                    chord,
+                    usable ? th->menu_hover_text : th->text_dim,
+                    dbg_rect_clip(clip, box));
+            }
             dbg_push_text(
                 ui,
                 /* A pressed button shifts its caption a pixel down and right --
                  * the whole of what makes the press read as a press. */
-                row_x + (box_w - caption_w) / 2 + nudge,
+                track_x + (track_w - caption_w) / 2 + nudge,
                 dbg_row_text_baseline(ui, row_y, row_h) + nudge,
                 caption,
                 !usable ? th->text_dim

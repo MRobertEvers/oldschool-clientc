@@ -302,6 +302,35 @@
 #define TORIRS_CHROME_M_CUSTOM_H_MIN 48
 #define TORIRS_CHROME_M_CUSTOM_H_MAX 2048
 
+/* ---- chords at the action: keycaps and badges ---------------------------
+ *
+ * The workbench design's section 15: a panel button wears its chord as a
+ * keycap after the caption, a tool button as a badge, a tooltip ends with
+ * one. All three are the Small face (whose line box is 12) on a dark box, in
+ * the yellow the tooltip's own text is drawn in, so the three read as one
+ * thing. None of them changes a row's height: the keycap is sized FROM the
+ * row, which is why its height is derived rather than authored.
+ *
+ * No colour of their own: a keycap is TORIRS_CHROME_C_FIELD_BG under a 1px
+ * TORIRS_CHROME_C_FRAME_INSET rule, a badge TORIRS_CHROME_C_CHROME, and the
+ * chord TORIRS_CHROME_C_ACCENT (the theme's menu_hover_text), dimmed to the
+ * theme's text_dim on a disabled control. The DOM pages' `.tpc-keycap` and
+ * `.tpc-chord-badge` are these numbers.
+ */
+
+/** Plate edge to keycap: the field frame's two rules and one clear pixel. */
+#define TORIRS_CHROME_M_KEYCAP_INSET 3
+/** Height of a keycap inside a grid row -- 12, the Small face's line box. */
+#define TORIRS_CHROME_M_KEYCAP_H (TORIRS_CHROME_M_ROW_H - 2 * TORIRS_CHROME_M_KEYCAP_INSET)
+/** Air either side of the chord inside its keycap or badge. */
+#define TORIRS_CHROME_M_KEYCAP_PAD_X 2
+/** Least air between a caption (or a tooltip's text) and the keycap after it. */
+#define TORIRS_CHROME_M_KEYCAP_GAP 4
+/** An icon button's badge: as tall as a keycap, one pixel in from the box's
+ *  bottom-right corner, where the hover outline does not cover it. */
+#define TORIRS_CHROME_M_BADGE_H TORIRS_CHROME_M_KEYCAP_H
+#define TORIRS_CHROME_M_BADGE_INSET 1
+
 /* ---- the open dropdown list ----------------------------------------------
  *
  * The list is the same width as the button it hangs off and starts at its

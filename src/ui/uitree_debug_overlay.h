@@ -108,6 +108,26 @@
 /** Label / title bytes, including the terminator. */
 #define TORIRS_CHROME_LABEL_MAX 64
 /**
+ * Bytes of one chord's display spelling, terminator included -- the keycap a
+ * BUTTON wears, an ICONBUTTON's badge, the keycap a tooltip ends with
+ * (docs/MAPED_HOTKEYS.md; the workbench design's section 15).
+ *
+ * 24, which holds both chords of an action in the word spelling --
+ * Ctrl+Shift+Z, a middle dot, Ctrl+Y is 22 bytes of UTF-8 -- and anything the
+ * hotkey table spells for one. Longer is cut like any label, and logged like
+ * one.
+ */
+#define TORIRS_CHROME_CHORD_MAX 24
+/**
+ * Truncation records the host has not drained yet
+ * (ToriRSChrome_TakeTruncation). A ring: one more than this overwrites the
+ * oldest and counts it as dropped, because the newest cut is the one the
+ * person who just opened a panel is looking at.
+ */
+#define TORIRS_CHROME_TRUNCATION_RING 16
+/** Bytes of the cut string a truncation record keeps, for the console line. */
+#define TORIRS_CHROME_TRUNCATION_HEAD 40
+/**
  * Text-input content bytes, including the terminator.
  *
  * 192, which is TORIRS_PLUGIN_CONFIG_VALUE_MAX -- the store these fields edit.
@@ -1329,9 +1349,58 @@ struct ToriRSChromeWidget
     /** Hover text, shown after TORIRS_CHROME_TOOLTIP_DELAY_MS. "" for none
      *  (an ICONBUTTON falls back to its label). */
     char tooltip[TORIRS_CHROME_LABEL_MAX];
+    /**
+     * BUTTON: the keycap drawn right-aligned inside the plate. ICONBUTTON: the
+     * badge in the icon box's bottom-right corner. "" for none; every other
+     * kind leaves it empty (@see ToriRSChrome_ButtonSetChord).
+     *
+     * One field for the two kinds because it is one thing -- the chord of the
+     * action the control runs -- drawn the way each control has room for.
+     */
+    char chord[TORIRS_CHROME_CHORD_MAX];
+    /**
+     * The chord the tooltip ends with, as a keycap after the text. "" falls
+     * back to `chord` on a BUTTON or ICONBUTTON, so a control that wears its
+     * chord says it in its tooltip too without the host stating it twice.
+     */
+    char tooltip_chord[TORIRS_CHROME_CHORD_MAX];
     /** A string handed to this widget was cut to fit and that was logged --
      *  once per widget serial, so a page rebuilt every frame says it once. */
     int truncation_logged;
+};
+
+/** Which of a widget's strings a truncation record is about. */
+enum ToriRSChromeTruncField
+{
+    TORIRS_CHROME_TRUNC_LABEL = 1,
+    TORIRS_CHROME_TRUNC_TEXT,
+    TORIRS_CHROME_TRUNC_TOOLTIP,
+    TORIRS_CHROME_TRUNC_CHORD,
+    TORIRS_CHROME_TRUNC_TOOLTIP_CHORD,
+};
+
+/**
+ * One string a setter cut to fit its buffer (the workbench contract's R2: a
+ * truncation is never silent).
+ *
+ * Recorded once per widget serial, the same once the stderr line is printed,
+ * so a page rebuilt every frame with the same 300-byte label says it once.
+ * The record is a copy: the widget may be gone by the time the host drains
+ * it, which `serial` lets the host tell.
+ */
+struct ToriRSChromeTruncation
+{
+    int widget;
+    int serial;
+    /** enum ToriRSChromeWidgetKind of the widget when it was cut. */
+    int widget_kind;
+    /** enum ToriRSChromeTruncField. */
+    int field;
+    /** Bytes kept (the buffer less its terminator) and bytes handed over. */
+    int kept;
+    int length;
+    /** The first bytes of what was handed over, terminated. */
+    char head[TORIRS_CHROME_TRUNCATION_HEAD];
 };
 
 /** The edges a panel resize moves (ToriRSChrome::resize_edges). */
@@ -1557,8 +1626,11 @@ enum ToriRSChromeChangeKind
 #define TORIRS_CHROME_CHANGE_WIDGET_VALUE (1u << 11)
 /** VLIST/CODE row texts and spans, or GRAPH items (rows_rev moved). */
 #define TORIRS_CHROME_CHANGE_WIDGET_ROWS (1u << 12)
+/** Hover text, or the chord the tooltip ends with. */
 #define TORIRS_CHROME_CHANGE_WIDGET_TOOLTIP (1u << 13)
-#define TORIRS_CHROME_CHANGE_WIDGET_ALL ((1u << 14) - 1u)
+/** A BUTTON's keycap or an ICONBUTTON's badge. */
+#define TORIRS_CHROME_CHANGE_WIDGET_CHORD (1u << 14)
+#define TORIRS_CHROME_CHANGE_WIDGET_ALL ((1u << 15) - 1u)
 
 /**
  * One changed retained node, not a rendered command.
@@ -1913,6 +1985,12 @@ struct ToriRSChrome
     /** Set beside `activated` when a TREE row's expander fired it. */
     int activated_expand;
     int taken_expand;
+    /** Truncations not yet drained, oldest at `truncation_head`; and how many
+     *  the ring overwrote since TakeTruncationsDropped last asked. */
+    struct ToriRSChromeTruncation truncations[TORIRS_CHROME_TRUNCATION_RING];
+    int truncation_head;
+    int truncation_count;
+    int truncation_dropped;
 
     /** Set by Build when a capacity limit truncated the display list. */
     int overflow;
@@ -2545,6 +2623,18 @@ int
 ToriRSChrome_Button(struct ToriRSChrome* ui, int panel, char const* text);
 
 /**
+ * The chord a BUTTON wears: a keycap right-aligned inside the plate, in the
+ * Small face, with the caption centred in what is left of the plate and
+ * elided when it does not fit there. The row stays one grid row tall.
+ *
+ * `chord` is the hotkey table's display spelling, copied (23 bytes); "" clears
+ * it. `widget` must be a live BUTTON. Compare-then-set, journalled as
+ * TORIRS_CHROME_CMD_WIDGET_CHORD.
+ */
+void
+ToriRSChrome_ButtonSetChord(struct ToriRSChrome* ui, int widget, char const* chord);
+
+/**
  * A tab strip over `titles`, which is BORROWED and must outlive the widget.
  *
  * One per panel. Selecting a tab shows the widgets stamped with its index and
@@ -2985,6 +3075,31 @@ ToriRSChrome_Tick(struct ToriRSChrome* ui, int64_t now_ms);
 void
 ToriRSChrome_SetTooltip(struct ToriRSChrome* ui, int widget, char const* text);
 
+/**
+ * The chord `widget`'s tooltip ends with, drawn as a keycap after the text
+ * ("text  [chord]"); the tooltip box widens for it. "" clears it, and a BUTTON
+ * or ICONBUTTON then falls back to the chord it wears. Copied, 23 bytes; sent
+ * as WIDGET_TOOLTIP's `text`. A widget with no tooltip text shows none.
+ */
+void
+ToriRSChrome_SetTooltipChord(struct ToriRSChrome* ui, int widget, char const* chord);
+
+/**
+ * The oldest truncation record the host has not drained: 1 and `*out`, or 0
+ * and `*out` zeroed when there is none. @see struct ToriRSChromeTruncation.
+ */
+int
+ToriRSChrome_TakeTruncation(struct ToriRSChrome* ui, struct ToriRSChromeTruncation* out);
+
+/** Records the ring overwrote before they were drained, since the last call;
+ *  clears the count. */
+int
+ToriRSChrome_TakeTruncationsDropped(struct ToriRSChrome* ui);
+
+/** "label", "text", "tooltip", "chord" or "tooltip chord", for a console line. */
+char const*
+ToriRSChrome_TruncationFieldName(int field);
+
 /** The tooltip currently shown, or -1. */
 int
 ToriRSChrome_TooltipWidget(struct ToriRSChrome const* ui);
@@ -3036,6 +3151,13 @@ int
 ToriRSChrome_IconButton(struct ToriRSChrome* ui, int panel, int skin_slot, char const* label);
 void
 ToriRSChrome_IconButtonSetIcon(struct ToriRSChrome* ui, int widget, int skin_slot);
+/**
+ * The chord an ICONBUTTON wears as a badge: Small face, over a black plate, in
+ * the icon box's bottom-right corner. "" clears it; copied, 23 bytes;
+ * `widget` must be a live ICONBUTTON. Journalled as WIDGET_CHORD.
+ */
+void
+ToriRSChrome_IconButtonSetChord(struct ToriRSChrome* ui, int widget, char const* chord);
 
 /* SLIDER */
 int

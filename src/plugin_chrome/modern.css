@@ -504,6 +504,41 @@ button { font-weight: 700; }
 .tpc-button:active, .tpc-menu:active { padding: 3px 0 0 2px !important; }
 .tpc-button { width: 104px; max-width: 100%; }
 .tpc-menu { width: 104px; max-width: 100%; text-align: left; }
+/*
+ * A button that wears its chord: the caption in what the key leaves, ending
+ * in an ellipsis rather than running under it, and the key right-aligned
+ * three pixels inside the plate, as the in-canvas chrome draws it
+ * (torirs_chrome_metrics.h KEYCAP_INSET 3, KEYCAP_GAP 4, KEYCAP_PAD_X 2,
+ * KEYCAP_H 12). The key reaches 13px into the cap border, so the button stops
+ * clipping and the caption clips itself instead.
+ */
+.tpc-button.tpc-has-chord {
+  display: -webkit-flex; display: flex; -webkit-align-items: flex-start; align-items: flex-start;
+  overflow: visible;
+}
+.tpc-button-caption {
+  -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tpc-keycap, .tpc-chord-badge {
+  height: 12px; padding: 0 2px;
+  background: #000; background: var(--tpc-field);
+  color: #ffff00; color: var(--tpc-accent);
+  font: 400 10px/12px "ToriRS Chrome Small", "Lucida Console", monospace;
+  white-space: nowrap; text-shadow: none;
+}
+.tpc-keycap {
+  -webkit-flex: 0 0 auto; flex: 0 0 auto; margin: 1px -13px 0 4px;
+  border: 1px solid #474745; border-color: var(--tpc-inset); line-height: 10px;
+}
+.tpc-button[disabled] .tpc-keycap { color: #ff981f; color: var(--tpc-label); }
+/* An icon button's chord: one pixel in from the box's bottom-right corner
+ * (BADGE_INSET 1; the button's own 1px border is that pixel), over black. */
+.tpc-chord-badge {
+  position: absolute; right: 0; bottom: 0; max-width: 30px; overflow: hidden;
+  pointer-events: none;
+}
+.tpc-iconbutton[disabled] .tpc-chord-badge { color: #ff981f; color: var(--tpc-label); }
 /* A roster row, as the retained chrome draws one: the name in its own column,
  * clipped at the furniture; the settings well (three dots in field chrome,
  * 16px, 5px before the switch); and the tick/cross right-aligned in its 24px
