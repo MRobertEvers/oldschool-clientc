@@ -215,7 +215,8 @@ Editor_Locs_ShapeStrip(
     return g_locs->strip_count;
 }
 
-/** Each button's tip names its chord from the hotkey table. */
+/** Each button wears its chord as a keycap (and its tooltip ends with every
+ *  chord), from the hotkey table; again whenever the table's serial moves. */
 static void
 locs_hints(
     struct EditorUi* ui,
@@ -235,13 +236,14 @@ locs_hints(
         { offsetof(struct LocsPanel, button_reshape), EDITOR_HK_EDIT_RESHAPE, "Cycle the selection's shape" },
         { offsetof(struct LocsPanel, button_duplicate), EDITOR_HK_EDIT_DUPLICATE, "Duplicate one tile east" },
         { offsetof(struct LocsPanel, button_delete), EDITOR_HK_EDIT_DELETE, "Delete the selected locs" },
+        { offsetof(struct LocsPanel, button_swap), EDITOR_HK_PLACE_SWAP,
+          "Swap the selected locs to the catalog's pick" },
     };
     for( size_t i = 0; i < sizeof(k_hints) / sizeof(k_hints[0]); i++ )
     {
-        char tip[TORIRS_CHROME_LABEL_MAX];
         int const widget = *(const int*)((const char*)self + k_hints[i].offset);
-        edp_hotkey_tip(ui, k_hints[i].action, k_hints[i].tip, tip, (int)sizeof(tip));
-        ToriRSChrome_SetTooltip(ui->chrome, widget, tip);
+        ToriRSChrome_SetTooltip(ui->chrome, widget, k_hints[i].tip);
+        edp_button_chord(ui, widget, k_hints[i].action);
     }
     self->hint_serial = ui->hotkeys.serial;
 }

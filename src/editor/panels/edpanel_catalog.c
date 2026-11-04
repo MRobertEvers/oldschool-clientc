@@ -91,6 +91,8 @@ struct CatalogPanel
     int button_edit_record;
     /** The pick into the Catalog palette's first free slot. */
     int button_add_palette;
+    /** ui->hotkeys.serial the Add button's keycap was labelled from. */
+    uint32_t chord_serial;
     int button_open_script;
     int row_multi;
     int dropdown_variant;
@@ -654,6 +656,13 @@ catalog_tick(
 
     catalog_meter(ui, self);
     catalog_env_tick(ui, self);
+    /* Add to palette wears palette.add_pick's chord (design section 15
+     * surface 3), relabelled on a rebind whether or not the panel shows. */
+    if( self->chord_serial != ui->hotkeys.serial )
+    {
+        edp_button_chord(ui, self->button_add_palette, EDITOR_HK_PALETTE_ADD_PICK);
+        self->chord_serial = ui->hotkeys.serial;
+    }
     kind_index = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_kind);
     /* A pick heard from another window: named whether or not this panel is
      * open (a popped-out Preview shows the name). */
@@ -1134,6 +1143,8 @@ Editor_Catalog_Register(struct EditorUi* ui)
     self->button_add_palette = ToriRSChrome_Button(chrome, self->panel, "Add to palette");
     ToriRSChrome_SetTooltip(chrome, self->button_add_palette,
         "the pick into the Catalog palette's first free slot");
+    edp_button_chord(ui, self->button_add_palette, EDITOR_HK_PALETTE_ADD_PICK);
+    self->chord_serial = ui->hotkeys.serial;
     self->button_open_script = ToriRSChrome_Button(chrome, self->panel, "Open in editor");
     ToriRSChrome_SetTooltip(chrome, self->button_open_script, "the picked trigger's file at its line, in your editor");
     self->input_new_name = ToriRSChrome_TextInput(chrome, self->panel, "New name", "");

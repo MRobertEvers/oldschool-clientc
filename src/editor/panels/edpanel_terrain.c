@@ -48,30 +48,37 @@ struct TerrainPanel
      *  state and the controls follow. */
     struct Editor_Brush shown_brush;
     int shown_flags;
-    /** ui->hotkeys.serial the sliders' tips were labelled from. */
+    /** ui->hotkeys.serial the sliders' labels and tips were labelled from. */
     uint32_t hint_serial;
 };
 
-/** A slider's tip: `text` and its two steppers' chords, "[ / ]". */
+/**
+ * A slider wears its two steppers' chords after its label, compacted the way
+ * the hint strip says them ("Radius  [ ]", "Strength  Shift+[ ]"; design
+ * section 15), and its tooltip ends with them as a keycap. The label alone
+ * when both are unbound.
+ */
 static void
-terrain_tip(
+terrain_slider_chords(
     struct EditorUi* ui,
     int widget,
+    const char* label,
     const char* text,
     enum Editor_HotkeyAction down,
     enum Editor_HotkeyAction up)
 {
-    char a[24];
-    char b[24];
-    char tip[TORIRS_CHROME_LABEL_MAX];
+    int const actions[2] = { (int)down, (int)up };
+    char chords[EDITOR_HK_HINT_CHORD_MAX];
+    char caption[TORIRS_CHROME_LABEL_MAX];
 
-    Editor_HotkeyDisplay(&ui->hotkeys, down, a, (int)sizeof(a));
-    Editor_HotkeyDisplay(&ui->hotkeys, up, b, (int)sizeof(b));
-    if( a[0] || b[0] )
-        snprintf(tip, sizeof(tip), "%s  [%s / %s]", text, a[0] ? a : "-", b[0] ? b : "-");
+    Editor_HotkeysJoin(&ui->hotkeys, actions, 2, chords, (int)sizeof(chords));
+    if( chords[0] )
+        snprintf(caption, sizeof(caption), "%s  %s", label, chords);
     else
-        snprintf(tip, sizeof(tip), "%s", text);
-    ToriRSChrome_SetTooltip(ui->chrome, widget, tip);
+        snprintf(caption, sizeof(caption), "%s", label);
+    ToriRSChrome_SetLabel(ui->chrome, widget, caption);
+    ToriRSChrome_SetTooltip(ui->chrome, widget, text);
+    ToriRSChrome_SetTooltipChord(ui->chrome, widget, chords);
 }
 
 static void
@@ -79,12 +86,12 @@ terrain_hints(
     struct EditorUi* ui,
     struct TerrainPanel* self)
 {
-    terrain_tip(ui, self->slider_radius, "Brush radius in tiles", EDITOR_HK_BRUSH_RADIUS_DOWN,
+    terrain_slider_chords(ui, self->slider_radius, "Radius", "Brush radius in tiles", EDITOR_HK_BRUSH_RADIUS_DOWN,
         EDITOR_HK_BRUSH_RADIUS_UP);
-    terrain_tip(ui, self->slider_step, "Raise / lower: steps per click", EDITOR_HK_BRUSH_STEP_DOWN,
+    terrain_slider_chords(ui, self->slider_step, "Step", "Raise / lower: steps per click", EDITOR_HK_BRUSH_STEP_DOWN,
         EDITOR_HK_BRUSH_STEP_UP);
-    terrain_tip(ui, self->slider_strength, "Smooth: toward the neighbours", EDITOR_HK_BRUSH_STRENGTH_DOWN,
-        EDITOR_HK_BRUSH_STRENGTH_UP);
+    terrain_slider_chords(ui, self->slider_strength, "Strength", "Smooth: toward the neighbours",
+        EDITOR_HK_BRUSH_STRENGTH_DOWN, EDITOR_HK_BRUSH_STRENGTH_UP);
     self->hint_serial = ui->hotkeys.serial;
 }
 

@@ -22,3 +22,20 @@ test-editor-hotkeys:
 	./$(OBJ_DIR)/editor_hotkeys_test ../docs/MAPED_HOTKEYS.md
 
 test-editor: test-editor-hotkeys
+
+# Chords at the action (workbench 6.0, design section 15 surfaces 2 and 3):
+# every panel button whose action has a hotkey wears its keycap and Build
+# draws it, the tool rail's badges, the Terrain sliders' "Radius  [ ]", a
+# rebind relabelling all of them on the next frame, and the chrome's
+# truncation ring drained into the console once per record (R2: a 300-byte
+# label logs once). Content-free, like test-editor-groups: links the
+# client's objects minus main.o.
+.PHONY: test-editor-chords
+test-editor-chords:
+	mkdir -p $(OBJ_DIR)
+	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_chords_test editor/test/editor_chords_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/editor_chords_test
+
+test-editor: test-editor-chords

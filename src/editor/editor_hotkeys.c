@@ -850,6 +850,28 @@ hk_hint_join(
         used += snprintf(out + used, (size_t)(out_size - used), "%s%s", i ? " " : "", shown[i] + prefix);
 }
 
+void
+Editor_HotkeysJoin(
+    const struct Editor_Hotkeys* hk,
+    const int* actions,
+    int count,
+    char* out,
+    int out_size)
+{
+    assert(hk);
+    assert(actions);
+    assert(count > 0);
+    assert(count <= EDITOR_HK_HINT_ACTIONS);
+    assert(out);
+    assert(out_size > 0);
+    for( int i = 0; i < count; i++ )
+    {
+        assert(actions[i] >= 0);
+        assert(actions[i] < EDITOR_HK_COUNT);
+    }
+    hk_hint_join(hk, actions, count, out, out_size);
+}
+
 int
 Editor_HotkeysHint(
     const struct Editor_Hotkeys* hk,

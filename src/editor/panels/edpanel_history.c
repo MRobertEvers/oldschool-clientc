@@ -59,7 +59,21 @@ struct HistoryPanel
     int built;
     /** Rebuilds so far: the tests pin "none on an unchanged frame". */
     int rebuilds;
+    /** ui->hotkeys.serial the buttons' keycaps were labelled from. */
+    uint32_t chord_serial;
 };
+
+/** Undo and Redo wear their chords as keycaps (design section 15 surface
+ *  3), from the hotkey table; again whenever its serial moves. */
+static void
+history_chords(
+    struct EditorUi* ui,
+    struct HistoryPanel* self)
+{
+    edp_button_chord(ui, self->button_undo, EDITOR_HK_EDIT_UNDO);
+    edp_button_chord(ui, self->button_redo, EDITOR_HK_EDIT_REDO);
+    self->chord_serial = ui->hotkeys.serial;
+}
 
 static int
 history_matches(
@@ -132,6 +146,8 @@ history_tick(
     int first;
     int shown;
 
+    if( self->chord_serial != ui->hotkeys.serial )
+        history_chords(ui, self);
     if( !ui->editor )
     {
         if( self->built )
@@ -311,9 +327,10 @@ Editor_History_Register(struct EditorUi* ui)
         edp_px(ui, EDP_COL_W + 120), "History");
     assert(self->panel >= 0);
     self->button_undo = ToriRSChrome_Button(chrome, self->panel, "Undo");
-    ToriRSChrome_SetTooltip(chrome, self->button_undo, "Undo the newest applied step (Ctrl+Z)");
+    ToriRSChrome_SetTooltip(chrome, self->button_undo, "Undo the newest applied step");
     self->button_redo = ToriRSChrome_Button(chrome, self->panel, "Redo");
     ToriRSChrome_SetTooltip(chrome, self->button_redo, "Redo the step undone last");
+    history_chords(ui, self);
     self->input_filter = ToriRSChrome_TextInput(chrome, self->panel, "Filter", "");
     ToriRSChrome_SetTooltip(chrome, self->input_filter, "Only steps on documents whose key contains this (m50_50, loc:)");
     self->row_status = ToriRSChrome_Label(chrome, self->panel, "");

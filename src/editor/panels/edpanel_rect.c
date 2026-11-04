@@ -28,7 +28,24 @@ struct RectPanel
     int shown_clip_w;
     int shown_clip_h;
     enum Editor_Tool shown_tool;
+    /** ui->hotkeys.serial the buttons' keycaps were labelled from. */
+    uint32_t chord_serial;
 };
+
+/** Every button wears its Edit action's chord as a keycap (design section
+ *  15 surface 3), from the hotkey table; again whenever its serial moves. */
+static void
+rect_chords(
+    struct EditorUi* ui,
+    struct RectPanel* self)
+{
+    edp_button_chord(ui, self->button_copy, EDITOR_HK_EDIT_COPY);
+    edp_button_chord(ui, self->button_paste, EDITOR_HK_EDIT_PASTE);
+    edp_button_chord(ui, self->button_fill, EDITOR_HK_EDIT_FILL);
+    edp_button_chord(ui, self->button_clear, EDITOR_HK_EDIT_CLEAR);
+    edp_button_chord(ui, self->button_mark_area, EDITOR_HK_EDIT_MARK_AREA);
+    self->chord_serial = ui->hotkeys.serial;
+}
 
 static void
 rect_tick(
@@ -40,6 +57,8 @@ rect_tick(
     int clip_w = 0;
     int clip_h = 0;
 
+    if( self->chord_serial != ui->hotkeys.serial )
+        rect_chords(ui, self);
     /* Arming the tool brings the panel up; it stays until closed. */
     if( self->shown_tool != ui->tools.tool )
     {
@@ -150,6 +169,7 @@ Editor_RectSelect_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(ui->chrome, self->button_clear, "Every tile back to no tokens");
     self->button_mark_area = ToriRSChrome_Button(ui->chrome, self->panel, "Mark area from rect");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_mark_area, "Name this rectangle as an area (Areas panel)");
+    rect_chords(ui, self);
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
 
     memset(&desc, 0, sizeof(desc));

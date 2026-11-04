@@ -426,12 +426,17 @@ test_default_groups(void)
         struct ToriRSChromeRect const ft = g_chrome.panels[top->chrome_panel].last_rect;
         struct ToriRSChromeRect const fb = g_chrome.panels[bottom->chrome_panel].last_rect;
         struct ToriRSChromeRect const console = g_chrome.panels[window_of("console")].last_rect;
+        struct ToriRSChromeRect const status = g_chrome.panels[window_of("statusbar")].last_rect;
 
         CHECK(fm.x == g_ui.dock_x && fm.y == g_ui.dock_top, "right-mid heads the column (Terrain's place) %d,%d",
             fm.x, fm.y);
         CHECK(ft.x == g_ui.dock_x && ft.y > fm.y, "right-top docks in the column below it (%d,%d)", ft.x, ft.y);
-        CHECK(fb.x == g_ui.world.x && console.y + console.h == g_chrome.surface_h,
-            "bottom is the strip under the world (frame %d,%d, console to %d)", fb.x, fb.y, console.y + console.h);
+        /* The status bar takes the foot (workbench 6.0): the strip ends on it. */
+        CHECK(status.h > 0 && status.y + status.h == g_chrome.surface_h,
+            "the status bar spans the foot (%d,%d %dx%d)", status.x, status.y, status.w, status.h);
+        CHECK(fb.x == g_ui.world.x && console.y + console.h == status.y,
+            "bottom is the strip under the world, above the status bar (frame %d,%d, console to %d)", fb.x, fb.y,
+            console.y + console.h);
         CHECK(g_ui.world.y + g_ui.world.h == fb.y, "the world ends where the bottom strip starts");
         /* Its size is the largest member's: every member has the box. */
         for( int slot = 0; slot < top->member_count; slot++ )

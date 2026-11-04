@@ -443,18 +443,19 @@ spawns_env_step(
         }
 }
 
-/** The buttons' tips name their chords from the hotkey table. */
+/** The buttons with a hotkey wear its chord as a keycap (the tooltip ends
+ *  with every chord), from the hotkey table; again whenever its serial moves.
+ *  Move and Place arm the next world click and have no action of their own
+ *  in the table, so they wear none. */
 static void
 spawns_hints(
     struct EditorUi* ui,
     struct SpawnsPanel* self)
 {
-    char tip[TORIRS_CHROME_LABEL_MAX];
-
-    edp_hotkey_tip(ui, EDITOR_HK_EDIT_DUPLICATE, "Copy the selection one tile east", tip, (int)sizeof(tip));
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_duplicate, tip);
-    edp_hotkey_tip(ui, EDITOR_HK_EDIT_DELETE, "Delete, or suppress a generated row", tip, (int)sizeof(tip));
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_delete, tip);
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_duplicate, "Copy the selection one tile east");
+    edp_button_chord(ui, self->button_duplicate, EDITOR_HK_EDIT_DUPLICATE);
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_delete, "Delete, or suppress a generated row");
+    edp_button_chord(ui, self->button_delete, EDITOR_HK_EDIT_DELETE);
     self->hint_serial = ui->hotkeys.serial;
 }
 

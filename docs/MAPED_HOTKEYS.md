@@ -3,8 +3,9 @@
 The editor is driven from the keyboard as completely as from the mouse: every
 menu row, tool, brush control, level button and panel has an action, every
 action may carry a chord, the default chords are below, and the user may rebind
-any of them from the Hotkeys panel (F1). Chords are shown beside the menu rows
-and in the tool tips, and they follow a rebind.
+any of them from the Hotkeys panel (F1). Chords are shown beside the menu rows,
+as keycaps on the panel buttons, as badges on the tool rail, after the tool
+tips and in the status bar's hint strip, and they follow a rebind.
 
 This file is the reference for the user. `docs/MAPED_STATUS.md` records how
 it was built and what is open.
@@ -203,7 +204,8 @@ One row per action: group, name, context, chord. A search box filters by any
 of them. Clicking a row's chord enters capture ("press a chord... Esc cancels,
 Backspace unbinds"); the next chord pressed binds, a clash in the same context
 is shown in red on both rows. "Reset to defaults" restores the table above.
-Rebinds take effect at once: the menu rows and tool tips re-label.
+Rebinds take effect at once: the menu rows, the keycaps and badges, the tool
+tips and the status bar's hints re-label on the next frame.
 
 ## Action ids (`editor_hotkeys.ini`)
 
@@ -257,9 +259,25 @@ Example:
   menu is clicked away from the world); Ctrl+V pastes at the hovered tile.
 - **Extra menu rows.** Edit gains "Mark area from rect", View gains
   "Hide / show panels"; both show their chords.
-- **Panel buttons.** The Locs and Spawns buttons keep plain captions (a
-  button caption is one label column wide) and carry their chord in the
-  tooltip; menu rows show it right-aligned after the label.
+- **Panel buttons wear keycaps** (workbench 6.0). A button whose action has
+  a chord draws its first chord as a keycap after the caption (the caption
+  is shortened with "..." when the two do not fit), and its tooltip ends with
+  every chord when there are two: Locs (nudges, Rotate, Reshape, Duplicate,
+  Delete, Swap), Spawns (Duplicate, Delete / suppress), Rectangle (Copy,
+  Paste, Fill, Clear, Mark area), History (Undo, Redo), Catalog and Catalog
+  palette (add the pick). Spawns' Move and Place buttons have no action, so
+  no keycap. Menu rows show the chord right-aligned after the label.
+- **Tool rail badges.** Each tool's icon carries its chord as a small badge in
+  the corner; its tooltip says what the click does and ends with the chord.
+  Save, New square and Squares name theirs in the tooltip only.
+- **Brush sliders.** The Terrain sliders' labels end with their two
+  steppers' chords: "Radius  [ ]", "Step  Ctrl+[ ]", "Strength  Shift+[ ]".
+- **Status bar.** The strip across the foot lists the armed tool's live
+  chords ("[Q] rotate", "[arrows] nudge" while Select or Move holds a
+  selection), each with a tooltip naming the action; the chords are plain
+  text there, not keycaps.
+- **Chord spelling** is the word form ("Ctrl+Shift+Z", "Del"): the chrome's
+  Small face has no ⌃ ⇧ ⌥ glyphs yet.
 - **Check and Run** (Triggers panel, docs/MAPED_STATUS.md row 7d) are File
   rows too. Check compiles the scripts ON DISK (the user edits them in their
   own editor; unsaved script documents are not in it) and runs synchronously:

@@ -865,6 +865,104 @@ vocabulary). What to know when using it:
   next login (two logins on the server). Last run 2026-11-02: 26 ok, 0 failed
   (LIVE_E2E_OBJ=build_agent_acct_opt, server binaries from build_opt).
 
+## Workbench step 6.0 (date 2026-11-04)
+
+The first step of the workbench design's build order (section 16, "6.0
+Chrome: keycaps, tooltips, groups, status bar"; section 15 "Hotkeys at the
+action"). Three slices merged into v3-workbench (chrome `b249c631`, status
+bar `2333f02a`, panel groups `c866edb6`), then the editor wired onto the
+chrome's new API.
+
+What landed:
+
+- **Keycaps, badges, tooltip chords** (src/ui). A BUTTON wears a chord as a
+  keycap right-aligned in its plate, Small face, caption elided beside it
+  (`ToriRSChrome_ButtonSetChord`); an ICONBUTTON wears a badge in its icon
+  box's corner (`ToriRSChrome_IconButtonSetChord`); a tooltip ends with a
+  keycap (`ToriRSChrome_SetTooltipChord`, falling back to the chord a button
+  wears). `TORIRS_CHROME_CHORD_MAX` 24. Executor stream: new
+  `TORIRS_CHROME_CMD_WIDGET_CHORD = 28`, WIDGET_TOOLTIP carries the tooltip
+  chord in `text`; the DOM executor (plugin_chrome runtime, modern and IE8
+  CSS) draws the same `<kbd>` keycap and badge.
+- **R2: no silent truncation.** The chrome keeps a 16-entry ring of cut
+  strings (`ToriRSChrome_TakeTruncation`, `ToriRSChrome_TakeTruncationsDropped`,
+  `ToriRSChrome_TruncationFieldName`); `Editor_UiTick` drains it every frame
+  into the console, one line per record ("chrome: History text cut to 191 of
+  300 bytes (widget N): ..."), plus one line for any the ring dropped.
+- **Chords at the action** (src/editor/panels, `edp_button_chord`,
+  `edp_iconbutton_chord`, `edp_tooltip_chord`; `Editor_HotkeysJoin` spells a
+  keycap or a compact pair). Each tool on the rail wears its chord as a badge
+  and its tooltip says what the click does; Save / New square / Squares say
+  theirs in the tooltip only. Keycaps on Locs (the four nudges, Rotate,
+  Reshape, Duplicate, Delete, Swap), Spawns (Duplicate, Delete / suppress),
+  Rectangle (Copy, Paste, Fill, Clear, Mark area), History (Undo, Redo),
+  Catalog (Add to palette) and Catalog palette (Add current pick). The
+  Terrain sliders read "Radius  [ ]", "Step  Ctrl+[ ]", "Strength  Shift+[ ]".
+  The tooltip names every chord when there are two ("Del, Backspace"). All of
+  them relabel on the frame after a rebind (`ui->hotkeys.serial`).
+- **Status bar** (module "statusbar", src/editor/panels/edpanel_statusbar.c):
+  a 20 px strip across the foot, a MENUBAR-style panel of LABELs: the armed
+  tool's live hint rows from `Editor_HotkeysHint` ("[Q] rotate"), the hover
+  readout ("3222,3218 L1 | m50_50"), the status sentence (`Editor_UiStatus`,
+  shown 6 s, kept in the console; `Editor_UiStatusText`), and "read-only" from
+  FACT_HELLO. `Editor_HotkeyContextsFrom` derives the contexts. The dock,
+  the console strip and a maximised panel stop above it. Its chords stay text
+  ("[Q]"): the chrome's keycap is a BUTTON / ICONBUTTON / tooltip drawing and
+  has no LABEL form.
+- **Panel groups** (editor_ui.c): `Editor_UiRegisterGroup`,
+  `Editor_UiJoinGroup`, `Editor_UiLeaveGroup`, `Editor_UiResetGroups`,
+  `Editor_UiFindGroup`, `Editor_UiGroupOf`, `Editor_UiPanelInStrip`,
+  `Editor_UiGroupShown`, `Editor_UiGroupShow`. Three default groups:
+  right-top (Catalog, Locs, Spawns, Inspector), right-mid (Terrain, Palette,
+  Catalog palette), bottom (Console, History). A group is one WINDOW frame
+  whose only row is a TABSTRIP ("Catalog (F8)"); the shown member's window
+  lays out under it, the others hide. One dock place per group; frame drag,
+  member resize, Close / Pop out on the shown tab, maximise, Hide/show
+  panels, solo windows and View > Reset groups all handle groups. The layout
+  file gains `[group <name>]` sections; older files still apply.
+- Fix: edpanel_hotkeys.c `k_groups` now follows the action enum's order
+  (Palette after Camera); before, any registry boot with the Hotkeys panel
+  asserted (OPT=0) or read past the array and crashed.
+
+Tests (2026-11-04, this container, objects in build_wb60*):
+test-chrome-widgets 328 checks, 0 failed, dom ok; test-editor-hotkeys 1689,
+0 failed; test-editor-groups 2051, 0 failed; **test-editor-chords** (new,
+content-free: every wired button wears and draws its keycap, the rail badges,
+the slider labels, a rebind / unbind / reset relabelling them, a 300-byte
+label logged once, a full ring) 363, 0 failed; the last three also at OPT=0
+with asserts. test-editor-dropdown 36, test-editor-cmd 62, test-editor-areas
+136, test-editor-panels-palette 50 and -accounts 48 (with `ulimit -s
+unlimited`), all 0 failed; the web channel's node tests pass;
+check-tree-walks and check-pt-switch PASS. test-editor-panels compiles and
+links but needs the OSRS-Content squares; its content-free tests (layout,
+codec, saved layout, maximise, world panel, popout, shared tools, open relay,
+hotkeys, status bar) ran from a scratch copy against an empty content dir:
+1263 checks, 0 failed.
+
+Open:
+
+- The panel-button keycap check lives in test-editor-chords (content-free),
+  not in editor_panels_test, which this container cannot run.
+- Spawns' "Move: click a tile" and "Place at latched tile" wear no keycap:
+  no table action runs them (place.here is the loc Place tool's).
+- The status bar shows no lane name or change count (FACT_HELLO carries no
+  lane name; the Publish panel keeps its lane state private), no lane / RUN
+  chips, no hovered loc or "fitted"; nothing calls `Editor_UiStatus` yet.
+  src/app/app_editor_hotkeys.c still derives the contexts itself instead of
+  calling `Editor_HotkeyContextsFrom`.
+- Groups: dragging a tab out of a strip or a title bar onto one is not wired
+  (`Editor_UiLeaveGroup` / `JoinGroup` exist; a LeaveGroup is not saved);
+  Shift+Pop out of a whole group; the red attention count on tabs. Group
+  titles are "A / B / C" (the baked font has no middle dot).
+- The Small face has no ⌃ ⇧ ⌥ glyphs yet, so chords use the word spelling;
+  a chord cut at 23 bytes can split a UTF-8 symbol, as labels can.
+- Panel titles and dropdown / structured option labels still truncate
+  without a record: they are not widget fields, so the ring does not see them.
+- The DOM button keeps its red art, so its keycap sits a few pixels from the
+  canvas one; the IE8 keycap and badge CSS is unchecked in MSHTML.
+- `make -C src torirsmaped` fails to link here (pow / floor: its recipe links
+  no `-lm`); the same objects link with `-lm` added. Not from this change.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.

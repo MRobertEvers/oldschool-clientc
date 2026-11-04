@@ -104,6 +104,8 @@ struct CatPalPanel
     int row_pick;
     int dropdown_target;
     int button_add;
+    /** ui->hotkeys.serial the Add button's keycap was labelled from. */
+    uint32_t chord_serial;
     int input_name;
     int button_new;
     int button_rename;
@@ -1127,6 +1129,12 @@ catpal_tick(
 
     catpal_refresh(ui, self);
     catpal_env_tick(ui, self);
+    /* Add wears palette.add_pick's chord (design section 15 surface 3). */
+    if( self->chord_serial != ui->hotkeys.serial )
+    {
+        edp_button_chord(ui, self->button_add, EDITOR_HK_PALETTE_ADD_PICK);
+        self->chord_serial = ui->hotkeys.serial;
+    }
     if( !ui->chrome->panels[self->panel].visible )
     {
         catpal_menu_hide(ui, self);
@@ -1306,6 +1314,8 @@ Editor_CatalogPalette_Register(struct EditorUi* ui)
     self->dropdown_target = ToriRSChrome_Dropdown(chrome, self->panel, "Add to", k_target_rows, EDITOR_PALETTE_SLOTS + 1, 0);
     self->button_add = ToriRSChrome_Button(chrome, self->panel, "Add current pick");
     ToriRSChrome_SetTooltip(chrome, self->button_add, "the Catalog's pick into the slot (a loc with the Place pose)");
+    edp_button_chord(ui, self->button_add, EDITOR_HK_PALETTE_ADD_PICK);
+    self->chord_serial = ui->hotkeys.serial;
     ToriRSChrome_Separator(chrome, self->panel);
     self->input_name = ToriRSChrome_TextInput(chrome, self->panel, "Name", "");
     self->button_new = ToriRSChrome_Button(chrome, self->panel, "New palette");

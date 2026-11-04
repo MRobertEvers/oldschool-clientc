@@ -3071,6 +3071,43 @@ ui_maximise_tick(struct EditorUi* ui)
     }
 }
 
+/**
+ * The chrome's truncation ring into the console, one line per record (the
+ * workbench contract's R2: a cut string is never silent). A record whose
+ * widget is still the one that was cut names its window. Once a frame, after
+ * the modules ran, so a label a module set this frame is said this frame.
+ */
+static void
+ui_truncations_drain(struct EditorUi* ui)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    struct ToriRSChromeTruncation rec;
+    int dropped;
+
+    while( ToriRSChrome_TakeTruncation(chrome, &rec) )
+    {
+        const char* where = "";
+        /* The module's title: a grouped window's own title bar is gone (its
+         * group's frame wears the tabs), the registry still knows it. */
+        if( rec.widget >= 0 && rec.widget < chrome->widget_count && chrome->widgets[rec.widget].serial == rec.serial
+            && chrome->widgets[rec.widget].kind != TORIRS_CHROME_W_FREE )
+        {
+            int const panel = chrome->widgets[rec.widget].panel;
+            for( int i = 0; i < ui->panel_count && !where[0]; i++ )
+                if( ui->panels[i].chrome_panel == panel && ui->panels[i].title )
+                    where = ui->panels[i].title;
+            if( !where[0] && panel >= 0 && panel < chrome->panel_count )
+                where = chrome->panels[panel].title;
+        }
+        Editor_UiLog(ui, "chrome: %s%s%s cut to %d of %d bytes (widget %d): \"%s...\"", where, where[0] ? " " : "",
+            ToriRSChrome_TruncationFieldName(rec.field), rec.kept, rec.length, rec.widget, rec.head);
+    }
+    dropped = ToriRSChrome_TakeTruncationsDropped(chrome);
+    if( dropped > 0 )
+        Editor_UiLog(ui, "chrome: %d more cut string(s) were not kept (the ring holds %d)", dropped,
+            TORIRS_CHROME_TRUNCATION_RING);
+}
+
 void
 Editor_UiTick(struct EditorUi* ui)
 {
@@ -3130,6 +3167,7 @@ Editor_UiTick(struct EditorUi* ui)
     ui_groups_follow(ui);
     ui_tools_publish(ui);
     ui_solo_title(ui);
+    ui_truncations_drain(ui);
 }
 
 void

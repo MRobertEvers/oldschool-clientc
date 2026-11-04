@@ -6282,8 +6282,10 @@ test_hotkeys(void)
     {
         struct EditorUiPanel* rail = Editor_UiFindPanel(&g_ui, "toolrail");
         int const raise = rail ? find_widget(rail->chrome_panel, TORIRS_CHROME_W_ICONBUTTON, "Raise") : -1;
-        CHECK(raise >= 0 && strcmp(g_chrome.widgets[raise].tooltip, "Raise terrain (brush)") == 0,
-            "hotkeys: the rail tip drops the chord (%s)", raise >= 0 ? g_chrome.widgets[raise].tooltip : "-");
+        CHECK(raise >= 0 && strcmp(g_chrome.widgets[raise].tooltip, "Raise terrain (brush)") == 0
+                  && g_chrome.widgets[raise].chord[0] == '\0' && g_chrome.widgets[raise].tooltip_chord[0] == '\0',
+            "hotkeys: the rail drops the badge and the tip's chord (%s / '%s')",
+            raise >= 0 ? g_chrome.widgets[raise].tooltip : "-", raise >= 0 ? g_chrome.widgets[raise].chord : "-");
     }
 
     /* Reset to defaults. */
@@ -6298,8 +6300,11 @@ test_hotkeys(void)
     {
         struct EditorUiPanel* rail = Editor_UiFindPanel(&g_ui, "toolrail");
         int const raise = rail ? find_widget(rail->chrome_panel, TORIRS_CHROME_W_ICONBUTTON, "Raise") : -1;
-        CHECK(raise >= 0 && strcmp(g_chrome.widgets[raise].tooltip, "Raise terrain (brush)  [3]") == 0,
-            "hotkeys: the rail tip ends with its chord (%s)", raise >= 0 ? g_chrome.widgets[raise].tooltip : "-");
+        /* The badge wears the chord; the tooltip falls back to it. */
+        CHECK(raise >= 0 && strcmp(g_chrome.widgets[raise].tooltip, "Raise terrain (brush)") == 0
+                  && strcmp(g_chrome.widgets[raise].chord, "3") == 0,
+            "hotkeys: the rail badge wears its chord again (%s / '%s')",
+            raise >= 0 ? g_chrome.widgets[raise].tooltip : "-", raise >= 0 ? g_chrome.widgets[raise].chord : "-");
     }
     {
         int const level1 = menubar_item("1");
@@ -6312,7 +6317,7 @@ test_hotkeys(void)
     {
         int const radius = g_ui.tools.brush.radius;
         int const terrain = find_panel("Terrain");
-        int const slider = terrain >= 0 ? find_widget(terrain, TORIRS_CHROME_W_SLIDER, "Radius") : -1;
+        int const slider = terrain >= 0 ? find_widget(terrain, TORIRS_CHROME_W_SLIDER, "Radius  [ ]") : -1;
         (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_BRUSH_RADIUS_UP);
         frame();
         CHECK(g_ui.tools.brush.radius == radius + 1, "hotkeys: ] grows the radius (%d)", g_ui.tools.brush.radius);

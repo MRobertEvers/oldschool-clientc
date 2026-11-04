@@ -359,6 +359,37 @@ edp_hotkey_tip(
     char* out,
     int out_size);
 
+/**
+ * The chord a control wears (workbench 6.0, design section 15 surfaces 2 and
+ * 3), from the live table's display spelling: `widget` (a BUTTON) wears
+ * `action`'s first chord as a keycap after its caption, and its tooltip ends
+ * with every chord ("Delete, Backspace") when there are more than the one it
+ * wears. "" when the action is unbound. A module calls it at register and
+ * again whenever ui->hotkeys.serial moves, so a rebind relabels it on the
+ * next frame.
+ */
+void
+edp_button_chord(
+    struct EditorUi* ui,
+    int widget,
+    enum Editor_HotkeyAction action);
+
+/** The same for an ICONBUTTON: the first chord as the badge in its icon
+ *  box's corner, every chord after its tooltip. */
+void
+edp_iconbutton_chord(
+    struct EditorUi* ui,
+    int widget,
+    enum Editor_HotkeyAction action);
+
+/** Only the tooltip's chord, for a control that wears none (a slider, a
+ *  command icon): every chord of `action`, "" when unbound. */
+void
+edp_tooltip_chord(
+    struct EditorUi* ui,
+    int widget,
+    enum Editor_HotkeyAction action);
+
 /** Release the scratch and the clipboard (Editor_UiFree). */
 void
 edp_scratch_free(void);

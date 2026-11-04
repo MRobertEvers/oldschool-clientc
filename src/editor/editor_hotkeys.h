@@ -366,6 +366,23 @@ Editor_HotkeyDisplay(
     char* out,
     int out_size);
 
+/**
+ * The FIRST chord of each of `actions`, compacted the way the hint strip
+ * spells a row of several: the modifier prefix they all share said once
+ * ("Shift+[ ]" for Shift+[ and Shift+]), the four arrow keys as "arrows".
+ * One action gives its first chord alone ("Q"), the keycap a control wears
+ * (workbench 6.0: ToriRSChrome_ButtonSetChord, the tool rail's badges, the
+ * Terrain sliders' "Radius  [ ]"). Unbound actions are skipped; "" when
+ * none is bound. 1 <= count <= EDITOR_HK_HINT_ACTIONS.
+ */
+void
+Editor_HotkeysJoin(
+    const struct Editor_Hotkeys* hk,
+    const int* actions,
+    int count,
+    char* out,
+    int out_size);
+
 /** The key a chord's modifier bit stands for (TORIRSK_CTRL ...), and back. */
 int
 Editor_HotkeyKeyIsModifier(int key);

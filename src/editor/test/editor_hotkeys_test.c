@@ -577,6 +577,44 @@ test_hint(void)
 /* The contexts the App's key snapshot and the status bar derive from the
  * shared tools (Editor_HotkeyContextsFrom): the exclusions at the top of
  * editor_hotkeys.h. */
+/* Editor_HotkeysJoin: the keycap one control wears (workbench 6.0), and the
+ * compact pair a slider's label ends with. */
+static void
+test_join(void)
+{
+    int const rotate[1] = { EDITOR_HK_EDIT_ROTATE };
+    int const radius[2] = { EDITOR_HK_BRUSH_RADIUS_DOWN, EDITOR_HK_BRUSH_RADIUS_UP };
+    int const strength[2] = { EDITOR_HK_BRUSH_STRENGTH_DOWN, EDITOR_HK_BRUSH_STRENGTH_UP };
+    int const redo[1] = { EDITOR_HK_EDIT_REDO };
+    int const nudges[4] = { EDITOR_HK_EDIT_NUDGE_N, EDITOR_HK_EDIT_NUDGE_S, EDITOR_HK_EDIT_NUDGE_W,
+                            EDITOR_HK_EDIT_NUDGE_E };
+    struct Editor_Chord chord;
+    char out[EDITOR_HK_HINT_CHORD_MAX];
+
+    Editor_HotkeysInit(&g_hk);
+    Editor_HotkeysJoin(&g_hk, rotate, 1, out, (int)sizeof(out));
+    CHECK(strcmp(out, "Q") == 0, "join: one action is its first chord ('%s')", out);
+    Editor_HotkeysJoin(&g_hk, redo, 1, out, (int)sizeof(out));
+    CHECK(strcmp(out, "Ctrl+Shift+Z") == 0 || strcmp(out, "Cmd+Shift+Z") == 0,
+        "join: Redo's keycap is its first chord only ('%s')", out);
+    Editor_HotkeysJoin(&g_hk, radius, 2, out, (int)sizeof(out));
+    CHECK(strcmp(out, "[ ]") == 0, "join: the radius pair is '[ ]' ('%s')", out);
+    Editor_HotkeysJoin(&g_hk, strength, 2, out, (int)sizeof(out));
+    CHECK(strcmp(out, "Shift+[ ]") == 0, "join: the shared modifier said once ('%s')", out);
+    Editor_HotkeysJoin(&g_hk, nudges, 4, out, (int)sizeof(out));
+    CHECK(strcmp(out, "arrows") == 0, "join: the four nudges are 'arrows' ('%s')", out);
+    CHECK(Editor_ChordParse("minus", &chord), "join: minus parses");
+    Editor_HotkeysSet(&g_hk, EDITOR_HK_BRUSH_RADIUS_DOWN, &chord, 1);
+    Editor_HotkeysJoin(&g_hk, radius, 2, out, (int)sizeof(out));
+    CHECK(strcmp(out, "- ]") == 0, "join: a rebind reads from the live table ('%s')", out);
+    Editor_HotkeysSet(&g_hk, EDITOR_HK_BRUSH_RADIUS_DOWN, NULL, 0);
+    Editor_HotkeysJoin(&g_hk, radius, 2, out, (int)sizeof(out));
+    CHECK(strcmp(out, "]") == 0, "join: an unbound action is skipped ('%s')", out);
+    Editor_HotkeysSet(&g_hk, EDITOR_HK_BRUSH_RADIUS_UP, NULL, 0);
+    Editor_HotkeysJoin(&g_hk, radius, 2, out, (int)sizeof(out));
+    CHECK(out[0] == '\0', "join: none bound is '' ('%s')", out);
+}
+
 static void
 test_contexts_from(void)
 {
@@ -674,6 +712,7 @@ main(
     test_ini();
     test_resolve();
     test_hint();
+    test_join();
     test_contexts_from();
     test_doc(argc > 1 ? argv[1] : "../docs/MAPED_HOTKEYS.md");
     printf("editor_hotkeys_test: %d checks, %d failed\n", g_checks, g_failed);
