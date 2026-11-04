@@ -31,8 +31,10 @@
 #include <stdio.h>
 #include <string.h>
 
-/** The doc's tables, in order. */
-static const char* const k_groups[] = { "File", "Edit", "Place", "Palette", "Tools", "Brush", "Level", "Camera", "View" };
+/** The table's groups, in the order the action enum runs through them
+ * (editor_hotkeys.h): Register walks the actions and opens the next group
+ * at each change, so this is the enum's order, Palette after Camera. */
+static const char* const k_groups[] = { "File", "Edit", "Place", "Tools", "Brush", "Level", "Camera", "Palette", "View" };
 #define HOTKEYS_GROUPS ((int)(sizeof(k_groups) / sizeof(k_groups[0])))
 
 #define HOTKEYS_CLASH_RGB 0xFF5555u

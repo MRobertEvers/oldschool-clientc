@@ -5,7 +5,10 @@
  * next to each other below, and the handler dispatches on the row's index.
  * The View menu lists every registered panel that has a title -- other
  * owners' panels included -- so it is filled on the first tick, after every
- * Register has run.
+ * Register has run. A panel in a group keeps its row and its chord: the row
+ * opens it in its group's strip (or brings its tab to the front), and closes
+ * it when it is the tab in front. Reset groups puts every panel back in its
+ * default group.
  *
  * After the menus, the ACTIVE LEVEL row: Auto 0 1 2 3 Above. Always on screen
  * (the bar is), never over the world. The pressed button is the edit level;
@@ -42,10 +45,12 @@ static const enum Editor_HotkeyAction k_edit_actions[] = {
 };
 #define EDIT_COUNT ((int)(sizeof(k_edit_actions) / sizeof(k_edit_actions[0])))
 
-/* After the panel rows: the layout's own two. */
+/* After the panel rows: the layout's own. Reset groups sits before Reset
+ * layout, so the last two rows stay Reset layout and Snap to grid. */
 enum
 {
     VIEW_HIDE = 0,
+    VIEW_RESET_GROUPS,
     VIEW_RESET_LAYOUT,
     VIEW_SNAP,
     VIEW_LAYOUT_COUNT
@@ -101,8 +106,9 @@ struct MenuBarPanel
     int shown_vis;
 };
 
-/** A digest of which View-menu panels are open and which popped out: the
- *  rows say both. The registry, not the UI tree. */
+/** A digest of which View-menu panels are open, which popped out and which
+ *  wait behind another tab of their group: the rows say all three. The
+ *  registry, not the UI tree. */
 static uint32_t
 menubar_view_state(const struct EditorUi* ui)
 {
@@ -111,7 +117,8 @@ menubar_view_state(const struct EditorUi* ui)
     {
         int const panel = ui->panels[i].chrome_panel;
         int const open = panel >= 0 && ui->chrome->panels[panel].visible;
-        h = (h ^ (uint32_t)(open | (ui->popped[i] << 1))) * 16777619u;
+        int const tabbed = ui->group_plus1[i] && Editor_UiPanelInStrip(ui, ui->panels[i].name);
+        h = (h ^ (uint32_t)(open | (ui->popped[i] << 1) | (tabbed << 2))) * 16777619u;
     }
     return h;
 }
@@ -154,9 +161,11 @@ menubar_build_view(
             edp_hotkey_row(ui, action, panel->title, self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX);
         else
             snprintf(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "%s", panel->title);
+        /* A member behind another tab of its group is open, not hidden: its
+         * row brings its tab to the front. */
         if( ui->popped[i] )
             menubar_mark_row(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "popped out");
-        else if( !ui->chrome->panels[panel->chrome_panel].visible )
+        else if( !ui->chrome->panels[panel->chrome_panel].visible && !Editor_UiPanelInStrip(ui, panel->name) )
             menubar_mark_row(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "hidden");
         self->view_rows[self->view_count] = self->view_labels[self->view_count];
         self->view_targets[self->view_count] = i;
@@ -165,6 +174,10 @@ menubar_build_view(
     self->view_panel_count = self->view_count;
     edp_hotkey_row(ui, EDITOR_HK_VIEW_HIDE_PANELS, "Hide / show panels", self->view_labels[self->view_count],
         TORIRS_CHROME_LABEL_MAX);
+    self->view_rows[self->view_count] = self->view_labels[self->view_count];
+    self->view_targets[self->view_count++] = -1;
+    /* No chord: the hotkey table has no action for it. */
+    snprintf(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "Reset groups");
     self->view_rows[self->view_count] = self->view_labels[self->view_count];
     self->view_targets[self->view_count++] = -1;
     edp_hotkey_row(
@@ -311,6 +324,11 @@ menubar_activate(
         (void)Editor_HotkeyRun(ui, k_edit_actions[row]);
     else if( widget == self->menu_view && row == self->view_panel_count + VIEW_HIDE )
         (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_HIDE_PANELS);
+    else if( widget == self->menu_view && row == self->view_panel_count + VIEW_RESET_GROUPS )
+    {
+        Editor_UiResetGroups(ui);
+        Editor_UiLog(ui, "editor: every panel back in its default group");
+    }
     else if( widget == self->menu_view && row == self->view_panel_count + VIEW_RESET_LAYOUT )
         (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_RESET_LAYOUT);
     else if( widget == self->menu_view && row == self->view_panel_count + VIEW_SNAP )

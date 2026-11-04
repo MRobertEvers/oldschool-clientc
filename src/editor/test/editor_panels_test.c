@@ -73,6 +73,22 @@ static struct Editor_TileClip g_clip;
 
 /* ---- helpers --------------------------------------------------------------------- */
 
+/**
+ * The checks here drive the panels as windows of their own -- dragged by
+ * their title bars, two of one default group shown at once, found by their
+ * titles -- as they were written before panel groups (workbench 6.0). So a
+ * registry from Editor_UiRegisterToolsPanels takes every module out of its
+ * default group first; editor_groups_test.c (test-editor-groups) tests the
+ * groups themselves.
+ */
+static void
+ungroup_all(struct EditorUi* ui)
+{
+    for( int i = 0; i < ui->panel_count; i++ )
+        if( Editor_UiGroupOf(ui, ui->panels[i].name) >= 0 )
+            Editor_UiLeaveGroup(ui, ui->panels[i].name);
+}
+
 static int
 apply_all(
     const struct Editor_Cmd* commands,
@@ -1696,6 +1712,7 @@ test_chrome(void)
     g_ui.hooks.view_window = fake_view_window;
     g_ui.hooks.selection_changed = fake_selection_changed;
     Editor_UiRegisterToolsPanels(&g_ui);
+    ungroup_all(&g_ui);
 
     CHECK(Editor_UiFindPanel(&g_ui, "squares") && Editor_UiFindPanel(&g_ui, "new_square")
               && Editor_UiFindPanel(&g_ui, "save_guard") && Editor_UiFindPanel(&g_ui, "toolrail")
@@ -2276,6 +2293,7 @@ test_worldmap(void)
     g_ui.app_services.worldmap_icons = fake_map_icons;
     g_ui.app_services.request_redraw = fake_map_redraw;
     Editor_UiRegisterToolsPanels(&g_ui);
+    ungroup_all(&g_ui);
     Editor_UiSetVisible(&g_ui, 1);
     squares_panel = find_panel("Squares");
     g_squares_panel = squares_panel;
@@ -2676,6 +2694,7 @@ layout_boot(
     g_ui.hooks.view_window = fake_view_window;
     g_ui.hooks.selection_changed = fake_selection_changed;
     Editor_UiRegisterToolsPanels(&g_ui);
+    ungroup_all(&g_ui);
     Editor_UiSetVisible(&g_ui, 1);
     for( int i = 0; i < 4; i++ )
         frame();
@@ -3656,6 +3675,7 @@ layout_boot_catalog(
     g_ui.app_services.world_camera = fake_world_camera;
     g_ui.app_services.spawn_panel = fake_spawn_panel;
     Editor_UiRegisterToolsPanels(&g_ui);
+    ungroup_all(&g_ui);
     if( file )
         Editor_UiLayoutHold(&g_ui);
     Editor_UiSetVisible(&g_ui, 1);
@@ -4216,7 +4236,24 @@ test_layout_codec(void)
     p->has_x = p->has_y = 1;
     p->x = -3;
     p->y = 0;
+    /* A panel group's section (workbench 6.0): the panel keys plus its
+     * front tab, by module name. */
+    {
+        struct EditorLayoutGroup* g = EditorLayout_AddGroup(&a, "right-top");
+        g->has_visible = g->has_user_placed = g->has_x = g->has_y = g->has_w = g->has_h = g->has_maximised = 1;
+        g->visible = 1;
+        g->user_placed = 1;
+        g->x = 1194;
+        g->y = 237;
+        g->w = 336;
+        g->h = 217;
+        g->has_shown = 1;
+        snprintf(g->shown, sizeof(g->shown), "%s", "catalog");
+        CHECK(EditorLayout_AddGroup(&a, "right-top") == g && a.group_count == 1, "AddGroup finds a group by name");
+    }
     EditorLayout_Encode(&a, &text, &size);
+    CHECK(text && strstr(text, "\n[group right-top]\n") && strstr(text, "shown = catalog\n"),
+        "the group encodes as a [group] section");
     CHECK(text && size > 0 && (int)strlen(text) == size, "the layout encodes (%d bytes)", size);
     CHECK(EditorLayout_Decode(&b, text, size), "the encoded layout decodes as a layout");
     CHECK(layout_files_equal(&a, &b), "encode -> decode is the identity");
@@ -4248,6 +4285,13 @@ test_layout_codec(void)
         CHECK(!EditorLayout_Decode(&b, prefs, (int)strlen(prefs)) && b.panel_count == 0,
             "a file with no [layout] is not a layout");
         CHECK(!EditorLayout_Decode(&b, "", 0), "an empty file is not a layout");
+    }
+    /* A file from before groups has none; a member's [panel] stays a panel. */
+    {
+        const char* old = "[layout]\n[panel catalog]\nvisible = 1\nx = 100\n";
+        CHECK(EditorLayout_Decode(&b, old, (int)strlen(old)) && b.group_count == 0 && b.panel_count == 1
+                  && EditorLayout_Find(&b, "catalog")->x == 100,
+            "an old file decodes with no groups");
     }
     /* TORIRS_EDITOR_LAYOUT: unset = default, empty = off, else the path. */
     {
@@ -4286,6 +4330,7 @@ layout_boot_saved(
     g_ui.hooks.view_window = fake_view_window;
     g_ui.hooks.selection_changed = fake_selection_changed;
     Editor_UiRegisterToolsPanels(&g_ui);
+    ungroup_all(&g_ui);
     Editor_UiLayoutHold(&g_ui);
     Editor_UiSetVisible(&g_ui, 1);
     frame();
