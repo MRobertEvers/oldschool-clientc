@@ -57,8 +57,9 @@ Editor_Spawns_Register(struct EditorUi* ui);
 
 struct Editor_SpawnRow;
 
-/** The spawns panel's multi-selection size; 0 while the panel is hidden
- *  (so the D key duplicates locs, or nothing, when it is closed). */
+/** The spawns panel's multi-selection size; 0 while the panel is closed
+ *  (so the D key duplicates locs, or nothing, when it is closed). A Spawns
+ *  tab behind another of its group's strip is open, and counts. */
 int
 Editor_Spawns_SelectionCount(struct EditorUi* ui);
 

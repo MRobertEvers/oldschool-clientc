@@ -262,16 +262,25 @@ statusbar_tick(
         snprintf(hover, sizeof(hover), "%d,%d L%d | m%d_%d", world_x, world_z, level, world_x >> 6, world_z >> 6);
     self->refit |= statusbar_track(self->hover, (int)sizeof(self->hover), hover);
 
-    /* The hint: the armed tool under the contexts the dispatcher would
-     * resolve the keys in this frame. */
+    /* The hint: the armed tool under the contexts the dispatcher resolved
+     * the keys in (app_editor_hotkeys.c leaves its mask on the EditorUi), so
+     * a W-gated row shows exactly when the key acts -- over void or sky, or a
+     * pinned level before its hover resolves, as much as over a tile. With
+     * no dispatcher (a headless test) the same rules over what the editor
+     * knows, the hover service standing in for the pointer. */
     memset(&facts, 0, sizeof(facts));
     facts.tool = (int)ui->tools.tool;
-    facts.pointer_in_world = hovered;
-    facts.loc_count = ui->tools.loc_count;
-    facts.spawn_count = Editor_Spawns_SelectionCount(ui);
-    facts.loc_pick = ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0;
-    facts.rect_valid = ui->tools.rect.valid;
-    contexts = Editor_HotkeyContextsFrom(&facts);
+    if( ui->hotkey_contexts_valid )
+        contexts = ui->hotkey_contexts;
+    else
+    {
+        facts.pointer_in_world = hovered;
+        facts.loc_count = ui->tools.loc_count;
+        facts.spawn_count = Editor_Spawns_SelectionCount(ui);
+        facts.loc_pick = ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0;
+        facts.rect_valid = ui->tools.rect.valid;
+        contexts = Editor_HotkeyContextsFrom(&facts);
+    }
     if( facts.tool != self->hint_tool || contexts != self->hint_contexts || ui->hotkeys.serial != self->hint_serial )
     {
         self->hint_tool = facts.tool;

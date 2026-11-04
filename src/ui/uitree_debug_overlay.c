@@ -6285,7 +6285,8 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
         case TORIRS_CHROME_W_MENUITEM:
         case TORIRS_CHROME_W_BUTTON:
         {
-            char const* caption = w->text[0] ? w->text : w->label;
+            char const* const whole_caption = w->text[0] ? w->text : w->label;
+            char const* caption = whole_caption;
             int const box_w = DBG_LABEL_W < w->w ? DBG_LABEL_W : w->w;
             /* An unavailable button answers to nothing the pointer does: no
              * accent under it, no caption nudge, dim ink. The same vocabulary
@@ -6325,6 +6326,8 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             else if( ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, caption) > box_w )
                 caption = dbg_elide_text(
                     ui, ui->theme.font_row, caption, box_w - 2 * DBG_INPUT_PAD_X);
+            /* What the plate cut is the tooltip's to say whole. */
+            w->caption_cut = caption != whole_caption;
             caption_w = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, caption);
 
             box.x = row_x;

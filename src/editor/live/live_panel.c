@@ -7,6 +7,7 @@
 #include "live_panel.h"
 
 #include "editor/editor_ui.h"
+#include "editor/panels/edpanel_common.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped_build.h"
 #include "torirsmaped/torirs_maped_live.h"
@@ -93,6 +94,8 @@ struct LivePanel
     int run_requested;
     /** TORIRS_EDITOR_LIVE=show (photographs): 0 unread, 1 show, 2 done. */
     int env_show;
+    /** ui->hotkeys.serial RUN's keycap was labelled from. */
+    uint32_t chord_serial;
 
     /** Who this window follows ("" nobody), and the varps it asked for. */
     char following[64];
@@ -267,6 +270,13 @@ live_tick(
 {
     struct LivePanel* self = opaque;
 
+    /* RUN wears file.run's chord (design section 15 surface 3), relabelled
+     * on the frame after a rebind. */
+    if( self->chord_serial != ui->hotkeys.serial )
+    {
+        edp_button_chord(ui, self->button_run, EDITOR_HK_FILE_RUN);
+        self->chord_serial = ui->hotkeys.serial;
+    }
     Editor_LiveDrain(&self->transport, &self->model);
 #if defined(__EMSCRIPTEN__)
     /* A browser window plays the lane in a tab: tell the editor server once,
@@ -595,17 +605,17 @@ Editor_Live_RegisterWith(
         "Start the lane's game server, JS5 and io servers and connect");
     ToriRSChrome_Separator(ui->chrome, self->panel);
     self->button_run = ToriRSChrome_Button(ui->chrome, self->panel, "RUN");
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_run,
-        "Save all, build packs and client cache, reload the live server, then open (or reload) the play "
-        "client logged into it");
+    /* Tips are 63 bytes (TORIRS_CHROME_LABEL_MAX); a longer one is cut. */
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_run, "Save all, build, reload the server, open the play client");
+    edp_button_chord(ui, self->button_run, EDITOR_HK_FILE_RUN);
+    self->chord_serial = ui->hotkeys.serial;
     self->button_packs = ToriRSChrome_Button(ui->chrome, self->panel, "Build packs");
     self->button_client = ToriRSChrome_Button(ui->chrome, self->panel, "Build client cache");
     ToriRSChrome_Separator(ui->chrome, self->panel);
     self->label_play = ToriRSChrome_Label(ui->chrome, self->panel, "play: not started");
     self->button_play = ToriRSChrome_Button(ui->chrome, self->panel, "Play");
     self->button_play_stop = ToriRSChrome_Button(ui->chrome, self->panel, "Stop");
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_play,
-        "Start the lane's play client logged into the live server (restart it if it exited or logged out)");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_play, "Start (or restart) the play client, logged into the server");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_play_stop, "Stop the lane's play client");
     ToriRSChrome_Separator(ui->chrome, self->panel);
     self->input_player = ToriRSChrome_TextInput(ui->chrome, self->panel, "Player", "");

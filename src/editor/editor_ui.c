@@ -963,12 +963,16 @@ ui_group_remove(
     int reg)
 {
     struct EditorUiGroup* g = ui_group_of(ui, reg);
-    int const slot = ui_group_slot(g, reg);
     int const panel = ui->panels[reg].chrome_panel;
-    int const was_shown = slot == g->shown;
-    int const was_open = g->open[slot] && !g->parked;
+    int slot;
+    int was_shown;
+    int was_open;
 
+    assert(g);
+    slot = ui_group_slot(g, reg);
     assert(slot >= 0);
+    was_shown = slot == g->shown;
+    was_open = g->open[slot] && !g->parked;
     if( was_shown )
         ui_group_unmaximise(ui, g, slot);
     ui_group_dress(ui, g, slot, 0);
@@ -1143,6 +1147,7 @@ Editor_UiPanelInStrip(
         return 0;
     g = &ui->groups[group];
     slot = ui_group_slot(g, ui_registry_index(ui, module));
+    assert(slot >= 0);
     return g->open[slot];
 }
 

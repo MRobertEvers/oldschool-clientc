@@ -924,15 +924,51 @@ What landed:
   (Palette after Camera); before, any registry boot with the Hotkeys panel
   asserted (OPT=0) or read past the array and crashed.
 
-Tests (2026-11-04, this container, objects in build_wb60*):
-test-chrome-widgets 328 checks, 0 failed, dom ok; test-editor-hotkeys 1689,
-0 failed; test-editor-groups 2051, 0 failed; **test-editor-chords** (new,
-content-free: every wired button wears and draws its keycap, the rail badges,
-the slider labels, a rebind / unbind / reset relabelling them, a 300-byte
-label logged once, a full ring) 363, 0 failed; the last three also at OPT=0
-with asserts. test-editor-dropdown 36, test-editor-cmd 62, test-editor-areas
+Review fixes (same date):
+
+- A Spawns selection behind a tab of its group is open, as the menubar
+  already said: `Editor_Spawns_SelectionCount` (and the wander rects) count
+  it while Spawns is in its strip, so Del, Ctrl+D, the S context and the
+  hint strip keep acting on it with Catalog in front (test-editor-groups
+  `test_spawns_behind_tab`).
+- The dispatcher derives its contexts with `Editor_HotkeyContextsFrom`
+  (app_editor_hotkeys.c `app_hk_snapshot`) and leaves the mask on the
+  EditorUi (`hotkey_contexts`); the status bar's hint reads it, so W-gated
+  rows (the Rect tool's Ctrl+V) show over void, sky and a pinned level
+  before its hover resolves, exactly when the key acts.
+- `Editor_HotkeysJoin` compacts a pair under its shared modifiers only when
+  both hold the same ones: Ctrl+Shift+[ beside Ctrl+] is "Ctrl+Shift+[
+  Ctrl+]", not "Ctrl+Shift+[ ]" (which named the unbound Ctrl+Shift+]).
+- No silent cut in the chrome: a BUTTON whose caption Build elided says it
+  whole on hover (`caption_cut`; the tooltip leads with it, "Redo: Redo the
+  step undone last", or is the caption when there is no tip;
+  `ToriRSChrome_TooltipText`); Copy and Fill have tips. A keycap or rail
+  badge whose chord is wider than its box shows the key it ends on
+  ("...+1"), never a fragment such as "Ctrl+S". The DOM's chord-less
+  button ellipses its caption like the canvas (modern and IE8 CSS
+  `text-overflow`), the badge ellipses, and the IE8 page sizes the keycap's
+  room from the key (`fitLegacyKeycap`) instead of a fixed 40px.
+- Live's RUN and Triggers' Check and Run wear their chords as keycaps; the
+  Triggers tips lost their "[chord]" text (Check's was 64 bytes and cut).
+  Two Live tips over 63 bytes (RUN, Play) are shorter, so a boot cuts none.
+- `ui_group_remove` and `Editor_UiPanelInStrip` assert the group and the
+  slot before reading them.
+
+Tests (2026-11-04, this container, objects in build_wb60*; after the
+review fixes): test-chrome-widgets 340 checks, 0 failed, dom ok (and the
+legacy page's keycap padding); test-editor-hotkeys 1696, 0 failed;
+test-editor-groups 2068, 0 failed; **test-editor-chords** (new,
+content-free: every wired button wears and draws its keycap, its drawn
+caption is whole or said whole by its tooltip, the rail badges and an
+over-wide one fitted, the slider labels, a rebind / unbind / reset
+relabelling them, a 300-byte label logged once, a full ring) 501, 0
+failed; the last three also at OPT=0 with asserts. Each new check was seen
+to fail on the code before its fix, in a scratch worktree. test-editor-dropdown 36, test-editor-cmd 62, test-editor-areas
 136, test-editor-panels-palette 50 and -accounts 48 (with `ulimit -s
-unlimited`), all 0 failed; the web channel's node tests pass;
+unlimited`), all 0 failed; the web channel's node tests pass but
+web/test/chrome_layout_test.js, which opens `src/Makefile` and so fails on
+a case-sensitive file system (the file is `src/makefile`; not from this
+change);
 check-tree-walks and check-pt-switch PASS. test-editor-panels compiles and
 links but needs the OSRS-Content squares; its content-free tests (layout,
 codec, saved layout, maximise, world panel, popout, shared tools, open relay,
@@ -948,8 +984,16 @@ Open:
 - The status bar shows no lane name or change count (FACT_HELLO carries no
   lane name; the Publish panel keeps its lane state private), no lane / RUN
   chips, no hovered loc or "fitted"; nothing calls `Editor_UiStatus` yet.
-  src/app/app_editor_hotkeys.c still derives the contexts itself instead of
-  calling `Editor_HotkeyContextsFrom`.
+- Group tabs say their chord as text in the title ("Catalog (F8)"), not as
+  the design's keycap: the TABSTRIP has no keycap drawing. A compressed tab
+  (four right-top tabs fill 303 of the 322 px strip at 1530x1006, so a
+  longer rebound chord compresses them) clips its title at the tab's edge
+  without an ellipsis.
+- At 1x a keycap leaves little of the 104 px plate: Redo beside Ctrl+Shift+Z
+  draws "Re...", Mark area from rect "M...". Hovering says the caption
+  whole; widening the plate or moving the key out of it is the design's
+  call. The DOM button's tooltip (`title`) does not lead with a caption its
+  CSS ellipsed: the runtime cannot tell that it did.
 - Groups: dragging a tab out of a strip or a title bar onto one is not wired
   (`Editor_UiLeaveGroup` / `JoinGroup` exist; a LeaveGroup is not saved);
   Shift+Pop out of a whole group; the red attention count on tabs. Group
@@ -959,7 +1003,9 @@ Open:
 - Panel titles and dropdown / structured option labels still truncate
   without a record: they are not widget fields, so the ring does not see them.
 - The DOM button keeps its red art, so its keycap sits a few pixels from the
-  canvas one; the IE8 keycap and badge CSS is unchecked in MSHTML.
+  canvas one; the IE8 keycap and badge CSS (and `fitLegacyKeycap`'s
+  measured padding, estimated when the key is not laid out yet) is unchecked
+  in MSHTML.
 - `make -C src torirsmaped` fails to link here (pow / floor: its recipe links
   no `-lm`); the same objects link with `-lm` added. Not from this change.
 

@@ -15,6 +15,7 @@
 
 #include "editor/editor_ui.h"
 #include "editor/editor_view.h"
+#include "editor/live/live_panel.h"
 #include "editor/panels/edpanel_common.h"
 #include "mem/torirs_mem.h"
 #include "ui/uitree_debug_overlay.h"
@@ -59,6 +60,46 @@ fake_spawn_panel(
     return 1;
 }
 
+/* The Live panel registers only over an editor host (live_host.c); the
+ * test gives it a transport that sends into nothing and receives nothing,
+ * so its RUN button is there to wear its chord. */
+static int
+fake_live_send(
+    void* user,
+    uint32_t type,
+    const uint8_t* payload,
+    uint32_t length)
+{
+    (void)user;
+    (void)type;
+    (void)payload;
+    (void)length;
+    return 1;
+}
+
+static int
+fake_live_take(
+    void* user,
+    uint32_t* out_type,
+    uint8_t** out_body,
+    uint32_t* out_length)
+{
+    (void)user;
+    (void)out_type;
+    (void)out_body;
+    (void)out_length;
+    return 0;
+}
+
+static void
+fake_live_release(
+    void* user,
+    uint8_t* body)
+{
+    (void)user;
+    (void)body;
+}
+
 static void
 frame(void)
 {
@@ -80,6 +121,14 @@ boot(
     g_ui.app_services.user_data = &g_app_stand_in;
     g_ui.app_services.spawn_panel = fake_spawn_panel;
     Editor_UiRegisterToolsPanels(&g_ui);
+    {
+        struct Editor_LiveTransport transport;
+        memset(&transport, 0, sizeof(transport));
+        transport.send = fake_live_send;
+        transport.take = fake_live_take;
+        transport.release = fake_live_release;
+        Editor_Live_RegisterWith(&g_ui, &transport);
+    }
     Editor_UiSetVisible(&g_ui, 1);
     for( int i = 0; i < 5; i++ )
         frame();
@@ -145,6 +194,40 @@ drawn_small(const char* text)
     return 0;
 }
 
+/** The caption text Build drew inside BUTTON `widget`'s plate (its row
+ *  face, not the keycap's Small one), or NULL. */
+static const char*
+drawn_caption(int widget)
+{
+    int n = 0;
+    struct ToriRSChromePrim const* prims = ToriRSChrome_Prims(&g_chrome, &n);
+    const struct ToriRSChromeWidget* w = &g_chrome.widgets[widget];
+
+    for( int i = 0; i < n; i++ )
+        if( prims[i].kind == TORIRS_CHROME_PRIM_TEXT && prims[i].text
+            && prims[i].font_slot != TORIRS_CHROME_FONT_SMALL && prims[i].x >= w->x && prims[i].x < w->x + w->w
+            && prims[i].y > w->y && prims[i].y <= w->y + w->h )
+            return prims[i].text;
+    return NULL;
+}
+
+/** The Small-face text Build drew inside ICONBUTTON `widget`'s box (its
+ *  badge), or NULL. */
+static const char*
+drawn_badge(int widget)
+{
+    int n = 0;
+    struct ToriRSChromePrim const* prims = ToriRSChrome_Prims(&g_chrome, &n);
+    const struct ToriRSChromeWidget* w = &g_chrome.widgets[widget];
+
+    for( int i = 0; i < n; i++ )
+        if( prims[i].kind == TORIRS_CHROME_PRIM_TEXT && prims[i].text
+            && prims[i].font_slot == TORIRS_CHROME_FONT_SMALL && prims[i].x >= w->x && prims[i].x < w->x + w->w
+            && prims[i].y > w->y && prims[i].y <= w->y + w->h )
+            return prims[i].text;
+    return NULL;
+}
+
 /** Console lines logged since `serial` that start with "chrome:". */
 static int
 chrome_lines_since(
@@ -195,6 +278,9 @@ static const struct
     { "history", "Redo", EDITOR_HK_EDIT_REDO },
     { "catalog", "Add to palette", EDITOR_HK_PALETTE_ADD_PICK },
     { "catalog_palette", "Add current pick", EDITOR_HK_PALETTE_ADD_PICK },
+    { "live", "RUN", EDITOR_HK_FILE_RUN },
+    { "triggers", "Check", EDITOR_HK_FILE_CHECK_SCRIPTS },
+    { "triggers", "Run", EDITOR_HK_FILE_RUN },
 };
 #define BUTTON_COUNT ((int)(sizeof(k_buttons) / sizeof(k_buttons[0])))
 
@@ -228,6 +314,8 @@ check_button_chords(const char* when)
 static void
 test_buttons(void)
 {
+    int cut;
+
     boot(1530, 1006, 1);
 
     /* Every default is bound, so every button wears a keycap. */
@@ -256,6 +344,7 @@ test_buttons(void)
 
     /* Build draws every keycap: each module's window opened content-sized,
      * one at a time, so none is clipped by a group's box or another window. */
+    cut = 0;
     for( int i = 0; i < BUTTON_COUNT; i++ )
     {
         int const panel = window_of(k_buttons[i].module);
@@ -276,7 +365,31 @@ test_buttons(void)
         CHECK(!g_chrome.widgets[widget].hidden && drawn_small(g_chrome.widgets[widget].chord),
             "%s '%s': Build draws its keycap '%s' in the Small face", k_buttons[i].module, k_buttons[i].caption,
             g_chrome.widgets[widget].chord);
+        /* Design section 2: what the plate cuts ends in "..." and the full
+         * text is the tooltip; section 15: the tooltip ends with the chord. */
+        {
+            const char* drawn = drawn_caption(widget);
+            char tip[TORIRS_CHROME_INPUT_MAX + TORIRS_CHROME_LABEL_MAX + 4];
+            int const has_tip = ToriRSChrome_TooltipText(&g_chrome, widget, tip, (int)sizeof(tip));
+            CHECK(drawn != NULL, "%s '%s': Build draws a caption", k_buttons[i].module, k_buttons[i].caption);
+            CHECK(!drawn || strcmp(drawn, k_buttons[i].caption) == 0 || (has_tip && strstr(tip, k_buttons[i].caption)),
+                "%s '%s': drawn '%s', so the tooltip ('%s') says it whole", k_buttons[i].module,
+                k_buttons[i].caption, drawn ? drawn : "-", tip);
+            CHECK(!drawn || strcmp(drawn, k_buttons[i].caption) == 0
+                      || (strlen(drawn) >= 3 && strcmp(drawn + strlen(drawn) - 3, "...") == 0),
+                "%s '%s': a cut caption ends in an ellipsis ('%s')", k_buttons[i].module, k_buttons[i].caption,
+                drawn ? drawn : "-");
+            CHECK(has_tip, "%s '%s': hovering it shows a tooltip, ending with its chord", k_buttons[i].module,
+                k_buttons[i].caption);
+            if( drawn && strcmp(drawn, k_buttons[i].caption) != 0 )
+                cut++;
+            if( strcmp(k_buttons[i].caption, "Redo") == 0 && drawn && strcmp(drawn, "Redo") != 0 )
+                CHECK(strncmp(tip, "Redo: ", 6) == 0, "Redo cut to '%s': its tooltip leads with it ('%s')", drawn,
+                    tip);
+        }
     }
+    /* The check above is live: beside Ctrl+Shift+Z at 1x, Redo is cut. */
+    CHECK(cut > 0, "some keycapped caption is cut at 1x (%d)", cut);
     shutdown_ui();
 }
 
@@ -335,6 +448,20 @@ test_rail(void)
             "rebind: the Select badge follows ('%s')", select >= 0 ? g_chrome.widgets[select].chord : "-");
         CHECK(undo >= 0 && g_chrome.widgets[undo].chord[0] == '\0', "unbind: Undo wears no keycap");
         CHECK(radius >= 0, "rebind: the Radius slider reads 'Radius  - ]'");
+        /* A badge wider than the icon box is fitted, never cut into a chord
+         * that reads as another ("Ctrl+S"); the tooltip has it whole. */
+        if( select >= 0 )
+        {
+            const char* badge;
+            int const panel = g_chrome.widgets[select].panel;
+            ToriRSChrome_PanelSetVisible(&g_chrome, panel, 1);
+            ToriRSChrome_Build(&g_chrome);
+            badge = drawn_badge(select);
+            CHECK(badge && strcmp(badge, "...+S") == 0, "rebind: the over-wide Select badge reads '...+S' ('%s')",
+                badge ? badge : "-");
+            CHECK(strstr(g_chrome.widgets[select].chord, "Shift+S") != NULL,
+                "rebind: the badge's chord (the tooltip's) is whole ('%s')", g_chrome.widgets[select].chord);
+        }
     }
     check_button_chords("rebound");
     Editor_HotkeysResetDefaults(&g_ui.hotkeys);

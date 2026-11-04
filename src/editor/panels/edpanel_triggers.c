@@ -1078,13 +1078,12 @@ triggers_hints(
     struct EditorUi* ui,
     struct TriggersPanel* self)
 {
-    char tip[TORIRS_CHROME_LABEL_MAX * 2];
-
-    edp_hotkey_tip(ui, EDITOR_HK_FILE_CHECK_SCRIPTS, "sscompile over the scripts on disk (synchronous)", tip,
-        (int)sizeof(tip));
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_check, tip);
-    edp_hotkey_tip(ui, EDITOR_HK_FILE_RUN, "The Live panel's RUN: save all, build, reload", tip, (int)sizeof(tip));
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_run, tip);
+    /* The chords are keycaps (design section 15 surface 3); the tips say
+     * what the click does, and end with the chord the button wears. */
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_check, "sscompile over the scripts on disk (synchronous)");
+    edp_button_chord(ui, self->button_check, EDITOR_HK_FILE_CHECK_SCRIPTS);
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_run, "The Live panel's RUN: save all, build, reload");
+    edp_button_chord(ui, self->button_run, EDITOR_HK_FILE_RUN);
     self->hint_serial = ui->hotkeys.serial;
 }
 
@@ -1243,11 +1242,12 @@ triggers_tick(
     int busy;
 
     triggers_env(ui, self);
+    /* Hidden or not, so the keycaps and tips are right the frame it opens. */
+    if( self->hint_serial != ui->hotkeys.serial )
+        triggers_hints(ui, self);
     if( !ui->chrome->panels[self->panel].visible )
         return;
     self->wanted = 1;
-    if( self->hint_serial != ui->hotkeys.serial )
-        triggers_hints(ui, self);
     busy = Editor_Live_Busy(ui);
     if( busy != self->run_shown )
     {
@@ -1420,6 +1420,7 @@ Editor_Triggers_Register(struct EditorUi* ui)
     ToriRSChrome_SetHidden(chrome, self->button_reload, 1);
     self->button_check = ToriRSChrome_Button(chrome, self->panel, "Check");
     self->button_run = ToriRSChrome_Button(chrome, self->panel, "Run");
+    triggers_hints(ui, self);
     self->list_diags = ToriRSChrome_VList(chrome, self->panel, "Problems", TRIGGERS_DIAG_ROWS, 0);
     self->button_open_diag = ToriRSChrome_Button(chrome, self->panel, "Open problem");
     ToriRSChrome_SetTooltip(chrome, self->button_open_diag, "the picked problem's file at its line, in your editor");

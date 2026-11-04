@@ -1711,6 +1711,8 @@
                 record.keycap = null;
                 record.captionNode = null;
                 toggleClass(record.control, 'tpc-has-chord', false);
+                if (legacy)
+                    record.control.style.paddingRight = '';
             }
             setText(record.control, caption);
             return;
@@ -1730,6 +1732,21 @@
         }
         setText(record.captionNode, caption);
         setText(record.keycap, record.chord);
+        if (legacy)
+            fitLegacyKeycap(record);
+    }
+    /**
+     * The downlevel page has no flex: its key is placed absolutely and the
+     * caption keeps clear of it by right padding (legacy-ie8.css). A fixed
+     * padding lets a wide key ("Ctrl+Shift+Z") cover the caption, so the
+     * padding is the key's own width plus KEYCAP_INSET 3 and KEYCAP_GAP 4:
+     * measured once the key is laid out, else estimated from the Small face's
+     * advance (about 6px a character at 10px, plus the key's air and rule).
+     */
+    function fitLegacyKeycap(record) {
+        var measured = integer(record.keycap.offsetWidth, 0);
+        var width = measured > 0 ? measured : record.chord.length * 6 + 2 * 2 + 2;
+        record.control.style.paddingRight = (width + 3 + 4) + 'px';
     }
     function renderEditorContent(record) {
         if (!record.control)

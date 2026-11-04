@@ -292,4 +292,92 @@ assert.strictEqual(button.row.title, 'Pack the scripts', 'the tooltip has no cho
 assert.match(tree.expander.style.backgroundImage, /TreeOpen\.png/, 'VALUE opens the tree row in place');
 assert(/tpc-selected/.test(list.lineNodes[1].className), 'VALUE selects the list row in place');
 
+/* A long caption with no chord: held whole as the button's text, which both
+ * stylesheets end in an ellipsis -- as the in-canvas chrome elides a
+ * chord-less caption that does not fit (chrome_widget_sync_button.c) --
+ * rather than clip it mid-glyph. */
+runtime.receive({ protocol: 1, type: 'page.delta', pageGeneration: 20, commands: [
+  cmd(11 /* WIDGET_TEXT */, { w: 9, text: 'Rebuild every collision map in the square' })
+] });
+assert.strictEqual(button.control.children.length, 0, 'a chord-less long caption is plain text');
+assert.strictEqual(button.control.innerText, 'Rebuild every collision map in the square',
+  'held whole: the stylesheet ellipses it, the runtime does not cut it');
+{
+  const fs = require('fs');
+  /* Every declaration of the rules whose selector list is exactly `selector`. */
+  const declarations = (file, selector) => {
+    const css = fs.readFileSync(path.join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const out = [];
+    const rule = /([^{}]+)\{([^{}]*)\}/g;
+    for (let m = rule.exec(css); m; m = rule.exec(css))
+      if (m[1].trim().replace(/\s+/g, ' ') === selector) out.push(m[2]);
+    return out.join(';');
+  };
+  for (const file of ['modern.css', 'legacy-ie8.css']) {
+    const plain = declarations(file, '.tpc-button, .tpc-menu');
+    assert.match(plain, /overflow:\s*hidden/, `${file}: a plain button hides what overflows`);
+    assert.match(plain, /text-overflow:\s*ellipsis/, `${file}: and ends it in an ellipsis`);
+    assert.match(plain, /white-space:\s*nowrap/, `${file}: on one line`);
+    assert.match(declarations(file, '.tpc-button-caption'), /text-overflow:\s*ellipsis/,
+      `${file}: a chord button's caption span ellipses`);
+    assert.match(declarations(file, '.tpc-chord-badge'), /text-overflow:\s*ellipsis/,
+      `${file}: an over-wide badge ellipses rather than cuts`);
+  }
+}
+
+/* The downlevel page has no flex: the caption keeps clear of the absolutely
+ * placed key by padding sized from the key itself, not a fixed 40px. */
+{
+  const legacyIds = {};
+  const legacyDocument = {
+    documentElement: node('html'), activeElement: null, createElement: node,
+    createTextNode(t) { const n = node('#text'); n.nodeText = String(t); return n; },
+    getElementById(id) { return legacyIds[id] || null; }
+  };
+  const put = (id, tag, parent) => {
+    const item = node(tag); item.id = id; legacyIds[id] = item;
+    if (parent) parent.appendChild(item);
+    return item;
+  };
+  const legacyShell = put('tpc-shell', 'div');
+  legacyShell.setAttribute('data-tpc-legacy', '1');
+  const legacyPane = put('tpc-pane', 'section', legacyShell);
+  put('tpc-title', 'h1', legacyPane);
+  put('tpc-close', 'button', legacyPane);
+  put('tpc-tabs', 'nav', legacyPane).hidden = true;
+  put('tpc-content', 'main', legacyPane);
+  const legacyRail = node('nav');
+  legacyShell.appendChild(legacyRail);
+  put('tpc-rail-list', 'div', legacyRail);
+  put('tpc-status', 'div');
+  const legacy = createRuntime(Object.assign({}, global_, { document: legacyDocument }), legacyDocument);
+  assert(legacy, 'the legacy runtime boots');
+  legacy.receive({
+    protocol: 1, type: 'rail.snapshot', registryRevision: 1, selectionGeneration: 8,
+    pageGeneration: 20, activePlugin: 0, lastSelectedPlugin: 0, selectedEntry: 0,
+    expanded: true, entries: [{ kind: 1, pluginIndex: -2, preferredWidth: 320, title: 'Manage',
+      iconAsset: '', badge: '', attention: false }]
+  });
+  legacy.receive({ protocol: 1, type: 'page.snapshot', pageGeneration: 20, panel: 3,
+    title: 'Editor', checkStyle: 0, commands: [
+      cmd(CMD.PANEL_OPEN, { text: 'Editor' }),
+      cmd(CMD.WIDGET_ADD, { w: 1, v: W.BUTTON, text: 'Redo', s: 301 }),
+      cmd(CMD.WIDGET_CHORD, { w: 1, label: 'Ctrl+Shift+Z' }),
+      cmd(CMD.WIDGET_ADD, { w: 2, v: W.BUTTON, text: 'Copy', s: 302 }),
+      cmd(CMD.WIDGET_CHORD, { w: 2, label: 'C' })
+    ] });
+  const legacyRows = legacyIds['tpc-content'].children;
+  const legacyHandle = h => legacyRows.find(r => r._tpcRecord && r._tpcRecord.handle === h)._tpcRecord;
+  const redo = legacyHandle(1);
+  const copy = legacyHandle(2);
+  const pad = record => parseInt(record.control.style.paddingRight, 10);
+  assert(redo.keycap && pad(redo) > 40, `a wide key gets room past the old fixed 40px (${redo.control.style.paddingRight})`);
+  assert(pad(redo) >= 'Ctrl+Shift+Z'.length * 6 + 3 + 4, 'room for the whole key, its inset and its gap');
+  assert(pad(copy) < pad(redo), 'a narrow key takes less');
+  legacy.receive({ protocol: 1, type: 'page.delta', pageGeneration: 20, commands: [
+    cmd(CMD.WIDGET_CHORD, { w: 1, label: '' })
+  ] });
+  assert.strictEqual(redo.control.style.paddingRight, '', 'a cleared chord gives the padding back');
+}
+
 console.log('chrome widgets dom: ok');

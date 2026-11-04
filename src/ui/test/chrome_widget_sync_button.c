@@ -137,6 +137,84 @@ cw_test_button(void)
         "measured against the room left of the key");
     CW_CHECK(caption && caption->x >= w->x + TORIRS_CHROME_M_FIELD_PAD_X, "and right of the inset");
 
+    /* The whole caption is one hover away: with no tip of its own the cut
+     * button's tooltip is the caption; with one, the caption leads it. One
+     * that fits adds nothing to its tip. */
+    {
+        char tip[TORIRS_CHROME_INPUT_MAX + TORIRS_CHROME_LABEL_MAX + 4];
+        CW_CHECK(g_cw_ui.widgets[lng].caption_cut && !g_cw_ui.widgets[build].caption_cut,
+            "Build notes the cut caption, and only it");
+        CW_CHECK(ToriRSChrome_TooltipText(&g_cw_ui, lng, tip, (int)sizeof(tip)) &&
+                     strcmp(tip, "Pack every server script") == 0,
+            "a cut caption with no tip is its own tooltip");
+        ToriRSChrome_SetTooltip(&g_cw_ui, lng, "Runs sscompile");
+        CW_CHECK(ToriRSChrome_TooltipText(&g_cw_ui, lng, tip, (int)sizeof(tip)) &&
+                     strcmp(tip, "Pack every server script: Runs sscompile") == 0,
+            "a cut caption leads its tip");
+        CW_CHECK(ToriRSChrome_TooltipText(&g_cw_ui, plain, tip, (int)sizeof(tip)) == 0 && tip[0] == '\0',
+            "a whole caption with no tip shows none");
+        ToriRSChrome_SetTooltip(&g_cw_ui, build, "Pack the scripts");
+        CW_CHECK(ToriRSChrome_TooltipText(&g_cw_ui, build, tip, (int)sizeof(tip)) &&
+                     strcmp(tip, "Pack the scripts") == 0,
+            "a whole caption leaves its tip alone");
+        ToriRSChrome_SetTooltip(&g_cw_ui, build, "");
+    }
+
+    /* Without a chord, a caption longer than the plate is elided to the
+     * plate less its inset, the same as the DOM's text-overflow ellipsis
+     * (chrome_widgets_dom_test.js checks the CSS), never clipped mid-glyph. */
+    {
+        int const bare = ToriRSChrome_Button(&g_cw_ui, panel, "Rebuild every collision map");
+        char tip[TORIRS_CHROME_INPUT_MAX + TORIRS_CHROME_LABEL_MAX + 4];
+        int n = 0;
+        struct ToriRSChromePrim const* prims;
+        (void)ToriRSChrome_Build(&g_cw_ui);
+        w = &g_cw_ui.widgets[bare];
+        prims = ToriRSChrome_Prims(&g_cw_ui, &n);
+        caption = NULL;
+        for( int i = 0; i < n; i++ )
+            if( prims[i].kind == TORIRS_CHROME_PRIM_TEXT && prims[i].text &&
+                strncmp(prims[i].text, "Rebuild", 7) == 0 )
+                caption = &prims[i];
+        CW_CHECK(cw_text_prim(w->text, 1) == NULL, "a chord-less long caption is not drawn whole");
+        CW_CHECK(caption && strlen(caption->text) > 3 &&
+                     strcmp(caption->text + strlen(caption->text) - 3, "...") == 0,
+            "a chord-less long caption ends in an ellipsis");
+        caption_w = caption ? ToriRSChrome_MeasureText(g_cw_ui.theme.font_row, 1, caption->text) : 0;
+        CW_CHECK(caption && caption->x >= w->x + TORIRS_CHROME_M_FIELD_PAD_X &&
+                     caption->x + caption_w <= w->x + w->w - TORIRS_CHROME_M_FIELD_PAD_X,
+            "inside the plate less its inset");
+        CW_CHECK(ToriRSChrome_TooltipText(&g_cw_ui, bare, tip, (int)sizeof(tip)) &&
+                     strcmp(tip, "Rebuild every collision map") == 0,
+            "and its tooltip is the caption whole");
+    }
+
+    /* A chord wider than the plate's inside is fitted to the key the plate
+     * has room for: the key it ends on after an ellipsis, never a cut that
+     * reads as another chord. */
+    {
+        int const wide = ToriRSChrome_Button(&g_cw_ui, panel, "Wide");
+        int n = 0;
+        struct ToriRSChromePrim const* prims;
+        int room;
+        ToriRSChrome_ButtonSetChord(&g_cw_ui, wide, "Ctrl+Shift+Alt+F12");
+        (void)ToriRSChrome_Build(&g_cw_ui);
+        w = &g_cw_ui.widgets[wide];
+        room = w->w - 2 * TORIRS_CHROME_M_KEYCAP_INSET - 2 * TORIRS_CHROME_M_KEYCAP_PAD_X;
+        CW_CHECK(ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, 1, w->chord) > room,
+            "the chord is wider than the plate's key room");
+        prims = ToriRSChrome_Prims(&g_cw_ui, &n);
+        key = NULL;
+        for( int i = 0; i < n; i++ )
+            if( prims[i].kind == TORIRS_CHROME_PRIM_TEXT && prims[i].text &&
+                prims[i].font_slot == TORIRS_CHROME_FONT_SMALL && prims[i].y > w->y &&
+                prims[i].y <= w->y + w->h && prims[i].x >= w->x && prims[i].x < w->x + w->w )
+                key = &prims[i];
+        CW_CHECK(key && strcmp(key->text, "...+F12") == 0, "the over-wide key reads '...+F12'");
+        CW_CHECK(key && ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, 1, key->text) <= room,
+            "and fits the key");
+    }
+
     /* The intent: the key is part of the button, so a click on it presses it,
      * and ACTIVATE from a presentation is unchanged. */
     w = &g_cw_ui.widgets[build];

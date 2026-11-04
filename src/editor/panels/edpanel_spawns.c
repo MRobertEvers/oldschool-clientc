@@ -1415,6 +1415,18 @@ Editor_Spawns_Register(struct EditorUi* ui)
     Editor_UiAddPanel(ui, &desc);
 }
 
+/** Shown, or open behind another tab of its group's strip: a Spawns tab
+ *  behind another keeps its selection, so Del, Ctrl+D, the S context, the
+ *  hint strip and the wander rects still act on it (the menubar's View rows
+ *  read "open" the same way). */
+static int
+spawns_open(
+    struct EditorUi* ui,
+    const struct SpawnsPanel* self)
+{
+    return ui->chrome->panels[self->panel].visible || Editor_UiPanelInStrip(ui, "spawns");
+}
+
 int
 Editor_Spawns_SelectionCount(struct EditorUi* ui)
 {
@@ -1422,7 +1434,7 @@ Editor_Spawns_SelectionCount(struct EditorUi* ui)
 
     assert(ui);
     self = Editor_UiPanelSelf(ui, "spawns");
-    if( !self || !ui->chrome->panels[self->panel].visible )
+    if( !self || !spawns_open(ui, self) )
         return 0;
     return self->selection_count;
 }
@@ -1584,7 +1596,7 @@ Editor_Spawns_WanderRects(
         spawns_wander_values(ui, self, name, &wander, &leash);
         count += MapEditorWander_Rects(hover_x, hover_z, hover_level, 1, wander, leash, out + count, max - count);
     }
-    if( !ui->chrome->panels[self->panel].visible )
+    if( !spawns_open(ui, self) )
         return count;
     for( int i = 0; i < self->selection_count; i++ )
     {

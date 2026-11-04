@@ -440,8 +440,11 @@ button { font-weight: 700; }
    *
    * The inset is 16, the caps' opaque width, NOT their 18px cell: the middle
    * then tucks half a pixel UNDER each cap, which the cap paints over, instead
-   * of stopping half a pixel short of it and leaving a seam. Overflow hides a
-   * caption too long for the span, as the native chrome's clip does.
+   * of stopping half a pixel short of it and leaving a seam. A caption too
+   * long for the span ends in an ellipsis rather than being clipped mid-glyph,
+   * as the native chrome elides it (uitree_debug_overlay.c's BUTTON); the
+   * native tooltip then leads with the caption whole. A button that wears a
+   * chord ellipses its caption span instead (.tpc-button-caption below).
    *
    * The inset is a TRANSPARENT BORDER rather than padding, and that is what
    * frees the padding for the caption nudge below: a border can be excluded
@@ -473,7 +476,7 @@ button { font-weight: 700; }
    * whose whole point is that it lands on the pixel grid.
    */
   padding: 2px 0 0;
-  overflow: hidden;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   background-origin: border-box, border-box, padding-box;
   background-clip: border-box, border-box, padding-box;
   /* White on the red plate, red under the cursor: the pair the interfaces
@@ -536,7 +539,7 @@ button { font-weight: 700; }
  * (BADGE_INSET 1; the button's own 1px border is that pixel), over black. */
 .tpc-chord-badge {
   position: absolute; right: 0; bottom: 0; max-width: 30px; overflow: hidden;
-  pointer-events: none;
+  text-overflow: ellipsis; pointer-events: none;
 }
 .tpc-iconbutton[disabled] .tpc-chord-badge { color: #ff981f; color: var(--tpc-label); }
 /* A roster row, as the retained chrome draws one: the name in its own column,

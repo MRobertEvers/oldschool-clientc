@@ -460,7 +460,8 @@ struct Editor_HotkeyContextFacts
     /** The pointer is over the World panel's body and no chrome wants it. */
     int pointer_in_world;
     int loc_count;
-    /** The Spawns panel's selection (0 while it is hidden). */
+    /** The Spawns panel's selection (0 while it is closed; behind a tab of
+     *  its strip it counts: Editor_Spawns_SelectionCount). */
     int spawn_count;
     /** The catalog's pick is a loc (kind 0, id >= 0). */
     int loc_pick;

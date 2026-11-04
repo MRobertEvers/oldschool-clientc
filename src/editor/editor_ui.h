@@ -586,6 +586,17 @@ struct EditorUi
     /** Set by the host each frame: shift is held (the picker's add-click and
      *  the loc multi-select read it). */
     int shift_held;
+    /**
+     * Set by the host's key dispatcher each frame it resolves the keys: the
+     * EDITOR_HK_CTX_* mask it resolved them in (Editor_HotkeyContextsFrom
+     * over the App's facts: the World panel shown, the pointer in its rect
+     * and no chrome wanting it). `hotkey_contexts_valid` 0 until a dispatcher
+     * has set it (a headless test), when the status bar derives the mask
+     * from what the editor knows itself. The status bar's hint reads it, so
+     * its rows are the keys' contexts, not a second guess at them.
+     */
+    unsigned hotkey_contexts;
+    int hotkey_contexts_valid;
 
     /** Set while a received fact is applied, so a module's own latching does
      *  not publish back what the server just said. */

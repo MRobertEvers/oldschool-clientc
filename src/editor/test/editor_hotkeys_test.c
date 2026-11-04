@@ -607,6 +607,32 @@ test_join(void)
     Editor_HotkeysSet(&g_hk, EDITOR_HK_BRUSH_RADIUS_DOWN, &chord, 1);
     Editor_HotkeysJoin(&g_hk, radius, 2, out, (int)sizeof(out));
     CHECK(strcmp(out, "- ]") == 0, "join: a rebind reads from the live table ('%s')", out);
+    /* Modifier sets that differ are never compacted under the part they
+     * share: "Ctrl+Shift+[ ]" would say Step + is Ctrl+Shift+]. */
+    {
+        int const step[2] = { EDITOR_HK_BRUSH_STEP_DOWN, EDITOR_HK_BRUSH_STEP_UP };
+        char want[EDITOR_HK_HINT_CHORD_MAX];
+        char down[32];
+        char up[32];
+        CHECK(Editor_ChordParse("ctrl+shift+lbracket", &chord), "join: ctrl+shift+lbracket parses");
+        Editor_HotkeysSet(&g_hk, EDITOR_HK_BRUSH_STEP_DOWN, &chord, 1);
+        Editor_ChordDisplay(g_hk.bind[EDITOR_HK_BRUSH_STEP_DOWN].chord[0], down, (int)sizeof(down));
+        Editor_ChordDisplay(g_hk.bind[EDITOR_HK_BRUSH_STEP_UP].chord[0], up, (int)sizeof(up));
+        snprintf(want, sizeof(want), "%s %s", down, up);
+        Editor_HotkeysJoin(&g_hk, step, 2, out, (int)sizeof(out));
+        CHECK(strcmp(out, want) == 0, "join: Ctrl+Shift+[ beside Ctrl+] is said whole ('%s', want '%s')", out, want);
+        CHECK(strstr(out, "Shift+[ ]") == NULL, "join: never the unbound Ctrl+Shift+] ('%s')", out);
+        CHECK(Editor_ChordParse("shift+rbracket", &chord), "join: shift+rbracket parses");
+        Editor_HotkeysSet(&g_hk, EDITOR_HK_BRUSH_STEP_DOWN, &chord, 1);
+        CHECK(Editor_ChordParse("rbracket", &chord), "join: rbracket parses");
+        Editor_HotkeysSet(&g_hk, EDITOR_HK_BRUSH_STEP_UP, &chord, 1);
+        Editor_HotkeysJoin(&g_hk, step, 2, out, (int)sizeof(out));
+        CHECK(strcmp(out, "Shift+] ]") == 0, "join: Shift+] beside bare ] is said whole ('%s')", out);
+        Editor_HotkeysResetDefaults(&g_hk);
+        Editor_HotkeysJoin(&g_hk, step, 2, out, (int)sizeof(out));
+        CHECK(strcmp(out, "Ctrl+[ ]") == 0 || strcmp(out, "Cmd+[ ]") == 0,
+            "join: the default step pair is still compact ('%s')", out);
+    }
     Editor_HotkeysSet(&g_hk, EDITOR_HK_BRUSH_RADIUS_DOWN, NULL, 0);
     Editor_HotkeysJoin(&g_hk, radius, 2, out, (int)sizeof(out));
     CHECK(strcmp(out, "]") == 0, "join: an unbound action is skipped ('%s')", out);

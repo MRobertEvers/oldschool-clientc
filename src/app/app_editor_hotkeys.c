@@ -77,6 +77,7 @@ app_hk_snapshot(
     struct EditorUiRect const world = Editor_UiWorldRect(ui);
     int const mx = input->curr.mouse_x;
     int const my = input->curr.mouse_y;
+    struct Editor_HotkeyContextFacts facts;
 
     memset(out, 0, sizeof(*out));
     out->now_ms = input->curr.time;
@@ -85,30 +86,20 @@ app_hk_snapshot(
         out->down[k] = LibToriRS_Input_IsKeyDown(input, (enum LibToriRS_KeyCode)k) ? 1 : 0;
         out->held[k] = out->down[k] || LibToriRS_Input_IsKeyHeld(input, (enum LibToriRS_KeyCode)k);
     }
-    out->contexts = EDITOR_HK_CTX_G;
-    if( Editor_UiWorldShown(ui) && mx >= world.x && my >= world.y && mx < world.x + world.w
-        && my < world.y + world.h && !app_chrome_wants_pointer(app, mx, my) )
-        out->contexts |= EDITOR_HK_CTX_W;
-    if( ui->tools.loc_count > 0 )
-    {
-        out->contexts |= EDITOR_HK_CTX_L;
-        /* Only Select and Move nudge with the arrows; any other tool (Place
-         * above all) leaves them to the camera. */
-        if( ui->tools.tool == EDITOR_TOOL_SELECT || ui->tools.tool == EDITOR_TOOL_LOC_MOVE )
-            out->contexts |= EDITOR_HK_CTX_M;
-        else
-            out->contexts |= EDITOR_HK_CTX_N;
-    }
-    else
-    {
-        out->contexts |= EDITOR_HK_CTX_N;
-        if( Editor_Spawns_SelectionCount(ui) > 0 )
-            out->contexts |= EDITOR_HK_CTX_S;
-        if( ui->tools.tool == EDITOR_TOOL_LOC_PLACE && ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0 )
-            out->contexts |= EDITOR_HK_CTX_P;
-    }
-    if( ui->tools.rect.valid )
-        out->contexts |= EDITOR_HK_CTX_R;
+    /* The contexts from the facts, by the one rule set the status bar's hint
+     * uses too (Editor_HotkeyContextsFrom); the mask is left on the EditorUi
+     * so the hint shows the chords these keys resolve in. */
+    memset(&facts, 0, sizeof(facts));
+    facts.tool = (int)ui->tools.tool;
+    facts.pointer_in_world = Editor_UiWorldShown(ui) && mx >= world.x && my >= world.y && mx < world.x + world.w
+                             && my < world.y + world.h && !app_chrome_wants_pointer(app, mx, my);
+    facts.loc_count = ui->tools.loc_count;
+    facts.spawn_count = Editor_Spawns_SelectionCount(ui);
+    facts.loc_pick = ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0;
+    facts.rect_valid = ui->tools.rect.valid;
+    out->contexts = Editor_HotkeyContextsFrom(&facts);
+    ui->hotkey_contexts = out->contexts;
+    ui->hotkey_contexts_valid = 1;
 }
 
 static void

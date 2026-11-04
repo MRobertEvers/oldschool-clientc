@@ -18,6 +18,7 @@
 #include "editor/editor_ui.h"
 #include "editor/editor_view.h"
 #include "editor/panels/edpanel_common.h"
+#include "editor/panels/edpanels.h"
 #include "mem/torirs_mem.h"
 #include "ui/uitree_debug_overlay.h"
 
@@ -629,6 +630,109 @@ test_strip_follows(void)
 
 /* ---- leaving, Reset groups, solo, maximise, drag and resize ------------------- */
 
+/** The status bar's shown LABEL whose text ends with `tail`, or NULL. */
+static const char*
+statusbar_hint_ending(const char* tail)
+{
+    int const panel = window_of("statusbar");
+    size_t const tail_len = strlen(tail);
+
+    if( panel < 0 )
+        return NULL;
+    for( int w = g_chrome.panels[panel].first_widget; w >= 0; w = g_chrome.widgets[w].next )
+    {
+        struct ToriRSChromeWidget const* widget = &g_chrome.widgets[w];
+        size_t const len = strlen(widget->text);
+        if( widget->kind == TORIRS_CHROME_W_LABEL && !widget->hidden && len >= tail_len
+            && strcmp(widget->text + len - tail_len, tail) == 0 )
+            return widget->text;
+    }
+    return NULL;
+}
+
+/** The status bar's shown LABELs, joined with '|'. */
+static const char*
+statusbar_text(void)
+{
+    static char text[1024];
+    int const panel = window_of("statusbar");
+    int used = 0;
+
+    text[0] = '\0';
+    if( panel < 0 )
+        return text;
+    for( int w = g_chrome.panels[panel].first_widget; w >= 0 && used < (int)sizeof(text); w = g_chrome.widgets[w].next )
+        if( g_chrome.widgets[w].kind == TORIRS_CHROME_W_LABEL && !g_chrome.widgets[w].hidden )
+            used += snprintf(text + used, sizeof(text) - (size_t)used, "%s%s", used ? "|" : "", g_chrome.widgets[w].text);
+    return text;
+}
+
+/** Del's path: the newest console line after Editor_HotkeyRun(Delete). */
+static const char*
+delete_says(void)
+{
+    const char* line;
+
+    CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_EDIT_DELETE) == 1, "Delete runs");
+    line = Editor_UiConsoleLine(&g_ui, 0);
+    return line ? line : "";
+}
+
+/* A Spawns selection behind a tab of its strip is still open (review 6.0):
+ * the S context, Del's route to the spawns and the hint strip's "delete"
+ * all keep acting on it while another tab of right-top is in front. */
+static void
+test_spawns_behind_tab(void)
+{
+    struct EditorUiGroup* top;
+    struct Editor_SpawnRow row;
+    struct Editor_HotkeyContextFacts facts;
+
+    /* Wide enough that the hint strip's share reaches Select's last row
+     * ("delete"); at 1530 the rows before it fill the share. */
+    boot(2560, 1006, 1);
+    top = group("right-top");
+    view_press("Spawns");
+    CHECK(shown_of("right-top") && strcmp(shown_of("right-top"), "spawns") == 0, "spawns tab: Spawns in front");
+
+    memset(&row, 0, sizeof(row));
+    snprintf(row.name, sizeof(row.name), "%s", "goblin");
+    row.abs_x = 3222;
+    row.abs_z = 3218;
+    CHECK(Editor_Spawns_Select(&g_ui, &row, 1) == 1, "spawns tab: one spawn selected");
+    frame();
+    CHECK(Editor_Spawns_SelectionCount(&g_ui) == 1, "spawns tab: the selection counts with Spawns in front");
+    CHECK(statusbar_hint_ending("] delete") != NULL, "spawns tab: the strip offers delete in front ('%s')",
+        statusbar_text());
+    CHECK(strstr(delete_says(), "pick a spawn") != NULL, "spawns tab: Del goes to the spawns in front ('%s')",
+        Editor_UiConsoleLine(&g_ui, 0));
+
+    /* The Catalog's tab to the front: Spawns waits behind it, still open. */
+    tab_click(top, 0);
+    CHECK(shown_of("right-top") && strcmp(shown_of("right-top"), "catalog") == 0, "spawns tab: the Catalog in front");
+    CHECK(!visible(window_of("spawns")) && Editor_UiPanelInStrip(&g_ui, "spawns"),
+        "spawns tab: Spawns waits behind its tab");
+    CHECK(Editor_Spawns_SelectionCount(&g_ui) == 1, "spawns tab: the selection still counts behind the tab (%d)",
+        Editor_Spawns_SelectionCount(&g_ui));
+    memset(&facts, 0, sizeof(facts));
+    facts.tool = (int)g_ui.tools.tool;
+    facts.spawn_count = Editor_Spawns_SelectionCount(&g_ui);
+    CHECK(Editor_HotkeyContextsFrom(&facts) & EDITOR_HK_CTX_S, "spawns tab: the S context is live behind the tab");
+    CHECK(statusbar_hint_ending("] delete") != NULL, "spawns tab: the strip still offers delete behind the tab ('%s')",
+        statusbar_text());
+    CHECK(strstr(delete_says(), "pick a spawn") != NULL, "spawns tab: Del still goes to the spawns ('%s')",
+        Editor_UiConsoleLine(&g_ui, 0));
+
+    /* Closed out of the strip, the selection is no longer the keys'. */
+    tab_click(top, 1);
+    CHECK(Editor_UiTogglePanel(&g_ui, "spawns") == 0, "spawns tab: toggling the shown Spawns closes it");
+    frame();
+    CHECK(!Editor_UiPanelInStrip(&g_ui, "spawns") && Editor_Spawns_SelectionCount(&g_ui) == 0,
+        "spawns tab: closed, the selection counts no more");
+    CHECK(statusbar_hint_ending("] delete") == NULL, "spawns tab: closed, the strip drops delete ('%s')",
+        statusbar_text());
+}
+
 static void
 test_reset_groups(void)
 {
@@ -949,6 +1053,7 @@ main(void)
 
     test_default_groups();
     test_strip_follows();
+    test_spawns_behind_tab();
     test_reset_groups();
     test_layout_file();
 

@@ -800,8 +800,9 @@ static const struct hk_hint_row* const k_hint_rows[EDITOR_HK_HINT_TOOLS] = {
 /**
  * The chords of a row of several actions, compacted: each action's first
  * chord, the modifier prefix they all share said once ("Shift+[ ]" for
- * Shift+[ and Shift+]), and the four arrow keys as "arrows". "" when none of
- * them is bound.
+ * Shift+[ and Shift+]) when they all hold the same modifiers (else each said
+ * whole: "Ctrl+Shift+[ Ctrl+]"), and the four arrow keys as "arrows". "" when
+ * none of them is bound.
  */
 static void
 hk_hint_join(
@@ -812,8 +813,10 @@ hk_hint_join(
     int out_size)
 {
     char shown[EDITOR_HK_HINT_ACTIONS][32];
+    uint8_t mods[EDITOR_HK_HINT_ACTIONS];
     int bound = 0;
     int prefix = 0;
+    int same_mods = 1;
     int used;
 
     assert(count <= EDITOR_HK_HINT_ACTIONS);
@@ -823,13 +826,20 @@ hk_hint_join(
         if( hk->bind[actions[i]].chord[0].key == TORIRSK_UNKNOWN )
             continue;
         Editor_ChordDisplay(hk->bind[actions[i]].chord[0], shown[bound], (int)sizeof(shown[bound]));
+        mods[bound] = hk->bind[actions[i]].chord[0].mods;
         bound++;
     }
     if( bound == 0 )
         return;
+    /* Compact only chords that hold the same modifiers: with Ctrl+Shift+[
+     * beside Ctrl+], a shared "Ctrl+" said once would read "Ctrl+Shift+[ ]",
+     * which says Ctrl+Shift+] -- a chord nothing is bound to. Each is then
+     * said whole. */
+    for( int i = 1; i < bound; i++ )
+        same_mods &= mods[i] == mods[0];
     /* The longest prefix every chord shares that ends just past a '+': the
      * modifiers, never part of a key. */
-    for( int at = 0; shown[0][at]; at++ )
+    for( int at = 0; same_mods && shown[0][at]; at++ )
     {
         int same = 1;
         for( int i = 1; i < bound && same; i++ )

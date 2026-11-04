@@ -1367,6 +1367,14 @@ struct ToriRSChromeWidget
     /** A string handed to this widget was cut to fit and that was logged --
      *  once per widget serial, so a page rebuilt every frame says it once. */
     int truncation_logged;
+    /**
+     * BUTTON: the last Build drew the caption elided ("Re...") because it did
+     * not fit the plate or the room its keycap leaves. The tooltip then leads
+     * with the caption whole ("Redo: Redo the step undone last"), or is the
+     * caption alone when the button has no tip of its own, so what the plate
+     * cut is always one hover away (@see ToriRSChrome_TooltipText).
+     */
+    int caption_cut;
 };
 
 /** Which of a widget's strings a truncation record is about. */
@@ -3074,6 +3082,16 @@ ToriRSChrome_Tick(struct ToriRSChrome* ui, int64_t now_ms);
 /** Hover text for `widget` ("" or NULL clears it). Copied, 63 bytes. */
 void
 ToriRSChrome_SetTooltip(struct ToriRSChrome* ui, int widget, char const* text);
+
+/**
+ * The text `widget`'s tooltip shows, without the chord it ends with: its own
+ * tip, else an ICONBUTTON's label; a BUTTON whose caption the last Build
+ * elided leads with the caption whole ("Redo: Redo the step undone last"), or
+ * shows the caption alone when it has no tip. Copied into `out`.
+ * @return 1, or 0 and `out` "" when the widget shows no tooltip.
+ */
+int
+ToriRSChrome_TooltipText(struct ToriRSChrome const* ui, int widget, char* out, int out_size);
 
 /**
  * The chord `widget`'s tooltip ends with, drawn as a keycap after the text

@@ -623,6 +623,39 @@ dbg_keycap_width(struct ToriRSChrome const* ui, char const* chord)
 }
 
 /**
+ * `chord` as it fits `width` pixels of the Small face: whole when it fits;
+ * else the key it ends on after an ellipsis ("...+1" for Ctrl+Shift+1), so a
+ * cut chord never reads as a different, shorter one ("Ctrl+S"); else elided.
+ * The tooltip carries it whole. Never clipped mid-glyph (rule R2).
+ */
+static char const*
+dbg_fit_chord(struct ToriRSChrome* ui, char const* chord, int width)
+{
+    char buffer[TORIRS_CHROME_CHORD_MAX + 4];
+    char const* plus;
+    int len;
+
+    if( ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, ui->scale, chord) <= width )
+        return chord;
+    /* The last segment: "Ctrl++" ends on the key '+', not on an empty one. */
+    plus = strrchr(chord, '+');
+    if( plus && plus[1] == '\0' && plus > chord && plus[-1] == '+' )
+        plus--;
+    if( plus && plus > chord )
+    {
+        len = snprintf(buffer, sizeof(buffer), "...%s", plus);
+        if( len > 0 && len < (int)sizeof(buffer) &&
+            ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, ui->scale, buffer) <= width )
+        {
+            char const* fitted = dbg_wrap_line(ui, buffer, len);
+            if( fitted )
+                return fitted;
+        }
+    }
+    return width > 0 ? dbg_elide_text(ui, TORIRS_CHROME_FONT_SMALL, chord, width) : "";
+}
+
+/**
  * One keycap: a dark box with the grey inset rule a field wears, and the
  * chord in the Small face centred on it in `ink`.
  *
@@ -642,7 +675,11 @@ dbg_push_keycap(
     struct ToriRSChromeTheme const* th = &ui->theme;
     int const line_box = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_SMALL, ui->scale);
     int const ascent = ToriRSChrome_FontLineHeight(TORIRS_CHROME_FONT_SMALL, ui->scale);
-    int const chord_w = ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, ui->scale, chord);
+    int chord_w;
+
+    /* A key narrower than its chord (a plate's room) shows it fitted. */
+    chord = dbg_fit_chord(ui, chord, cap.w - 2 * DBG_KEYCAP_PAD_X);
+    chord_w = ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, ui->scale, chord);
 
     dbg_push_rect(ui, cap.x, cap.y, cap.w, cap.h, th->input_bg, 1, clip);
     dbg_push_rect(ui, cap.x, cap.y, cap.w, cap.h, th->dropdown_border_inner, 0, clip);
@@ -659,6 +696,9 @@ dbg_push_keycap(
 
 /* ---- tooltips ---------------------------------------------------------------- */
 
+/** Whether `w` shows a tooltip, and its own text: the tip, an ICONBUTTON's
+ *  label, or a BUTTON's caption whole when Build elided it. NULL for none.
+ *  @see dbg_tooltip_compose for the text the box shows. */
 static char const*
 dbg_tooltip_text(struct ToriRSChromeWidget const* w)
 {
@@ -666,7 +706,38 @@ dbg_tooltip_text(struct ToriRSChromeWidget const* w)
         return w->tooltip;
     if( w->kind == TORIRS_CHROME_W_ICONBUTTON && w->label[0] )
         return w->label;
+    if( w->kind == TORIRS_CHROME_W_BUTTON && w->caption_cut )
+        return w->text[0] ? w->text : w->label;
     return NULL;
+}
+
+/** The tooltip's text into `out`: dbg_tooltip_text, led by the caption whole
+ *  ("Redo: Redo the step undone last") when Build elided a BUTTON's caption
+ *  and the button has a tip of its own. @return 0 and "" for none. */
+static int
+dbg_tooltip_compose(struct ToriRSChromeWidget const* w, char* out, int out_size)
+{
+    char const* text = dbg_tooltip_text(w);
+
+    out[0] = '\0';
+    if( !text )
+        return 0;
+    if( w->kind == TORIRS_CHROME_W_BUTTON && w->caption_cut && w->tooltip[0] )
+        snprintf(out, (size_t)out_size, "%s: %s", w->text[0] ? w->text : w->label, w->tooltip);
+    else
+        snprintf(out, (size_t)out_size, "%s", text);
+    return 1;
+}
+
+int
+ToriRSChrome_TooltipText(struct ToriRSChrome const* ui, int widget, char* out, int out_size)
+{
+    assert(ui);
+    assert(out);
+    assert(out_size > 0);
+    assert(widget >= 0);
+    assert(widget < ui->widget_count);
+    return dbg_tooltip_compose(&ui->widgets[widget], out, out_size);
 }
 
 /** The chord a tooltip ends with: its own, else the chord a BUTTON or
@@ -810,6 +881,7 @@ dbg_build_tooltip(struct ToriRSChrome* ui)
     struct ToriRSChromeWidget const* w;
     struct ToriRSChromeRect const surface = dbg_surface_rect(ui);
     struct ToriRSChromeRect box;
+    char composed[TORIRS_CHROME_INPUT_MAX + TORIRS_CHROME_LABEL_MAX + 4];
     char const* text;
     char const* chord;
     int text_w;
@@ -823,9 +895,18 @@ dbg_build_tooltip(struct ToriRSChrome* ui)
         return;
     }
     w = &ui->widgets[ui->tooltip_widget];
-    text = dbg_tooltip_text(w);
-    if( !text || !dbg_widget_shown(ui, w) || !ui->panels[w->panel].visible )
+    if( !dbg_tooltip_compose(w, composed, (int)sizeof(composed)) || !dbg_widget_shown(ui, w) ||
+        !ui->panels[w->panel].visible )
         return;
+    /* The text prim borrows the widget's own string; only a composed one
+     * ("Caption: tip") is copied to the frame's pool, past this stack. */
+    text = dbg_tooltip_text(w);
+    if( strcmp(composed, text) != 0 )
+    {
+        char const* stashed = dbg_wrap_line(ui, composed, (int)strlen(composed));
+        if( stashed )
+            text = stashed;
+    }
     chord = dbg_tooltip_chord(w);
     text_w = ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, ui->scale, text);
     /* "text  [chord]": the box widens by the gap and the keycap. */
@@ -2375,8 +2456,8 @@ dbg_draw_iconbutton(
     {
         /* The chord as a badge: Small face over a black plate in the bottom-
          * right corner, inside the hover outline so the outline never covers
-         * it. Clipped to the box -- a chord wider than the icon is cut at the
-         * button's edge rather than spilling onto its neighbour. */
+         * it. No wider than the box, and a chord wider than that is fitted to
+         * it rather than spilling onto its neighbour or cut mid-glyph. */
         struct ToriRSChromeRect badge;
         struct ToriRSChromeRect icon;
         int const line_box = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_SMALL, ui->scale);
@@ -2385,12 +2466,17 @@ dbg_draw_iconbutton(
         icon.y = y;
         icon.w = box;
         icon.h = box;
+        char const* shown;
+
         badge.w = dbg_keycap_width(ui, w->chord);
+        if( badge.w > box - 2 * DBG_BADGE_INSET )
+            badge.w = box - 2 * DBG_BADGE_INSET;
         badge.h = DBG_BADGE_H;
         badge.x = x + box - DBG_BADGE_INSET - badge.w;
         badge.y = y + box - DBG_BADGE_INSET - badge.h;
-        if( badge.x < x + DBG_BADGE_INSET )
-            badge.x = x + DBG_BADGE_INSET;
+        /* A chord wider than the icon box shows fitted ("...+1"), never cut
+         * mid-chord into one that reads as another; the tooltip has it whole. */
+        shown = dbg_fit_chord(ui, w->chord, badge.w - 2 * DBG_KEYCAP_PAD_X);
         icon = dbg_rect_clip(clip, icon);
         dbg_push_rect(ui, badge.x, badge.y, badge.w, badge.h, th->menu_chrome, 1, icon);
         dbg_push_text(
@@ -2398,7 +2484,7 @@ dbg_draw_iconbutton(
             badge.x + DBG_KEYCAP_PAD_X,
             badge.y + (badge.h - line_box) / 2 +
                 ToriRSChrome_FontLineHeight(TORIRS_CHROME_FONT_SMALL, ui->scale),
-            w->chord,
+            shown,
             w->disabled ? th->text_dim : th->menu_hover_text,
             TORIRS_CHROME_FONT_SMALL,
             0,
