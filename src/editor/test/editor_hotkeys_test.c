@@ -419,6 +419,219 @@ test_resolve(void)
     }
 }
 
+/* ---- the hint strip ----------------------------------------------------------------- */
+
+#define HINT_TOOL(action) ((action) - EDITOR_HK_TOOL_SELECT)
+
+#if defined(__APPLE__)
+#define HINT_CTRL "Cmd"
+#else
+#define HINT_CTRL "Ctrl"
+#endif
+
+/** The hint row whose verb is `verb`, or NULL. */
+static const struct Editor_HotkeyHint*
+hint_row(
+    const struct Editor_HotkeyHint* rows,
+    int count,
+    const char* verb)
+{
+    for( int i = 0; i < count; i++ )
+        if( strcmp(rows[i].verb, verb) == 0 )
+            return &rows[i];
+    return NULL;
+}
+
+/* The status bar's hint rows (Editor_HotkeysHint): every row of every tool
+ * reads a real action, the contexts filter them, and the chords are the live
+ * table's, so a rebind relabels the strip. */
+static void
+test_hint(void)
+{
+    /* With every context live, each tool shows all its rows. */
+    static const struct
+    {
+        int tool;
+        int rows;
+    } k_counts[] = {
+        { HINT_TOOL(EDITOR_HK_TOOL_SELECT), 9 },  { HINT_TOOL(EDITOR_HK_TOOL_PLACE), 6 },
+        { HINT_TOOL(EDITOR_HK_TOOL_RAISE), 4 },   { HINT_TOOL(EDITOR_HK_TOOL_PAINT_FLAGS), 4 },
+        { HINT_TOOL(EDITOR_HK_TOOL_MOVE), 2 },    { HINT_TOOL(EDITOR_HK_TOOL_ROTATE), 1 },
+        { HINT_TOOL(EDITOR_HK_TOOL_DELETE), 1 },  { HINT_TOOL(EDITOR_HK_TOOL_RECT), 5 },
+        { HINT_TOOL(EDITOR_HK_TOOL_PLACE_PLAYER), 1 },
+    };
+    struct Editor_HotkeyHint rows[EDITOR_HK_HINT_MAX];
+    const struct Editor_HotkeyHint* row;
+    struct Editor_Chord chords[2];
+    int count;
+
+    Editor_HotkeysInit(&g_hk);
+    for( int tool = 0; tool < EDITOR_HK_HINT_TOOLS; tool++ )
+    {
+        count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, tool, rows, EDITOR_HK_HINT_MAX);
+        CHECK(count > 0 && count <= EDITOR_HK_HINT_MAX, "hint: tool %d has rows (%d)", tool, count);
+        for( int i = 0; i < count; i++ )
+        {
+            CHECK(rows[i].verb && rows[i].verb[0] && strlen(rows[i].verb) <= 10,
+                "hint: tool %d row %d has a short verb", tool, i);
+            CHECK(rows[i].chord[0], "hint: tool %d row %d (%s) has a chord", tool, i, rows[i].verb);
+            CHECK(rows[i].action == -1 || (rows[i].action >= 0 && rows[i].action < EDITOR_HK_COUNT
+                                              && Editor_HotkeyInfo(rows[i].action)->id),
+                "hint: tool %d row %d (%s) reads a real action (%d)", tool, i, rows[i].verb, rows[i].action);
+        }
+    }
+    for( size_t i = 0; i < sizeof(k_counts) / sizeof(k_counts[0]); i++ )
+    {
+        count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, k_counts[i].tool, rows, EDITOR_HK_HINT_MAX);
+        CHECK(count == k_counts[i].rows, "hint: tool %d shows its %d rows with every context live (%d)",
+            k_counts[i].tool, k_counts[i].rows, count);
+    }
+    /* `max` bounds the rows. */
+    CHECK(Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_SELECT), rows, 3) == 3,
+        "hint: max bounds the rows");
+
+    /* The fixed order and the default spellings. */
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_SELECT), rows, EDITOR_HK_HINT_MAX);
+    CHECK(count == 9 && strcmp(rows[0].chord, "click") == 0 && strcmp(rows[0].verb, "tile") == 0
+              && strcmp(rows[1].chord, "Shift+click") == 0 && strcmp(rows[2].verb, "marquee") == 0
+              && strcmp(rows[3].chord, HINT_CTRL "+A") == 0 && strcmp(rows[4].chord, "arrows") == 0
+              && strcmp(rows[4].verb, "nudge") == 0 && strcmp(rows[5].chord, "Q") == 0
+              && strcmp(rows[6].chord, "Shift+Q") == 0 && strcmp(rows[7].chord, "E") == 0
+              && strcmp(rows[8].chord, "Del, Backspace") == 0 && strcmp(rows[8].verb, "delete") == 0,
+        "hint: Select's rows in order (row 3 '%s', 4 '%s', 8 '%s')", count > 3 ? rows[3].chord : "",
+        count > 4 ? rows[4].chord : "", count > 8 ? rows[8].chord : "");
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_PLACE), rows, EDITOR_HK_HINT_MAX);
+    CHECK(count == 6 && strcmp(rows[0].chord, "click/Space, Enter") == 0 && strcmp(rows[0].verb, "place") == 0
+              && rows[0].action == EDITOR_HK_PLACE_HERE && strcmp(rows[1].verb, "turn") == 0
+              && strcmp(rows[3].chord, "G") == 0 && strcmp(rows[5].chord, "Esc") == 0
+              && strcmp(rows[5].verb, "drop") == 0,
+        "hint: Place's rows in order (row 0 '%s')", count > 0 ? rows[0].chord : "");
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_SMOOTH), rows, EDITOR_HK_HINT_MAX);
+    CHECK(count == 4 && strcmp(rows[0].chord, "drag") == 0 && strcmp(rows[1].chord, "[ ]") == 0
+              && strcmp(rows[2].chord, "Shift+[ ]") == 0 && strcmp(rows[3].chord, HINT_CTRL "+[ ]") == 0,
+        "hint: a brush's bracket pairs say their modifier once ('%s', '%s', '%s')", count > 1 ? rows[1].chord : "",
+        count > 2 ? rows[2].chord : "", count > 3 ? rows[3].chord : "");
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_MOVE), rows, EDITOR_HK_HINT_MAX);
+    CHECK(count == 2 && strcmp(rows[0].chord, "drag/arrows") == 0 && strcmp(rows[1].chord, HINT_CTRL "+D") == 0,
+        "hint: Move drags or nudges, and duplicates ('%s')", count > 0 ? rows[0].chord : "");
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_RECT), rows, EDITOR_HK_HINT_MAX);
+    CHECK(count == 5 && strcmp(rows[1].chord, HINT_CTRL "+C") == 0 && strcmp(rows[2].chord, HINT_CTRL "+V") == 0
+              && strcmp(rows[3].chord, HINT_CTRL "+Shift+F") == 0 && strcmp(rows[4].chord, "Shift+Del") == 0,
+        "hint: Rect's clipboard rows ('%s', '%s')", count > 3 ? rows[3].chord : "", count > 4 ? rows[4].chord : "");
+
+    /* The live contexts filter: Select with nothing selected and the pointer
+     * off the world keeps its mouse rows and Q / Shift+Q, nothing else. */
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_N, HINT_TOOL(EDITOR_HK_TOOL_SELECT), rows, EDITOR_HK_HINT_MAX);
+    CHECK(count == 5 && !hint_row(rows, count, "nudge") && !hint_row(rows, count, "delete")
+              && !hint_row(rows, count, "swap") && !hint_row(rows, count, "square") && hint_row(rows, count, "rotate"),
+        "hint: Select with no selection drops nudge, delete, swap, square (%d rows)", count);
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_W | EDITOR_HK_CTX_L | EDITOR_HK_CTX_M,
+        HINT_TOOL(EDITOR_HK_TOOL_SELECT), rows, EDITOR_HK_HINT_MAX);
+    CHECK(count == 9, "hint: a selection under the pointer brings them back (%d rows)", count);
+    /* Place with no pick (no P): the click row keeps its mouse word. */
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_N, HINT_TOOL(EDITOR_HK_TOOL_PLACE), rows, EDITOR_HK_HINT_MAX);
+    row = hint_row(rows, count, "place");
+    CHECK(row && strcmp(row->chord, "click") == 0 && !hint_row(rows, count, "swap"),
+        "hint: Place without a pick says click alone, and no swap ('%s')", row ? row->chord : "");
+    /* Move with nothing selected: drag, no arrows, no dup. */
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_N, HINT_TOOL(EDITOR_HK_TOOL_MOVE), rows, EDITOR_HK_HINT_MAX);
+    CHECK(count == 1 && strcmp(rows[0].chord, "drag") == 0, "hint: Move with no selection says drag (%d rows)",
+        count);
+    /* Rect without a rectangle: drag, and paste only over the world. */
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_N, HINT_TOOL(EDITOR_HK_TOOL_RECT), rows, EDITOR_HK_HINT_MAX);
+    CHECK(count == 1, "hint: Rect with no rectangle and the pointer off the world says drag (%d rows)", count);
+
+    /* A rebind relabels the strip: the table is the one source. */
+    CHECK(Editor_ChordParse("r", &chords[0]), "hint: r parses");
+    Editor_HotkeysSet(&g_hk, EDITOR_HK_EDIT_ROTATE, chords, 1);
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_N, HINT_TOOL(EDITOR_HK_TOOL_SELECT), rows, EDITOR_HK_HINT_MAX);
+    row = hint_row(rows, count, "rotate");
+    CHECK(row && strcmp(row->chord, "R") == 0, "hint: Rotate rebound to R shows R ('%s')", row ? row->chord : "");
+    CHECK(Editor_ChordParse("minus", &chords[0]) && Editor_ChordParse("equals", &chords[1]), "hint: - and = parse");
+    Editor_HotkeysSet(&g_hk, EDITOR_HK_BRUSH_RADIUS_DOWN, &chords[0], 1);
+    Editor_HotkeysSet(&g_hk, EDITOR_HK_BRUSH_RADIUS_UP, &chords[1], 1);
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_N, HINT_TOOL(EDITOR_HK_TOOL_RAISE), rows, EDITOR_HK_HINT_MAX);
+    row = hint_row(rows, count, "radius");
+    CHECK(row && strcmp(row->chord, "- =") == 0, "hint: radius rebound to - and = shows '- =' ('%s')",
+        row ? row->chord : "");
+    CHECK(Editor_ChordParse("ctrl+w", &chords[0]), "hint: ctrl+w parses");
+    Editor_HotkeysSet(&g_hk, EDITOR_HK_EDIT_NUDGE_N, chords, 1);
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_M, HINT_TOOL(EDITOR_HK_TOOL_SELECT), rows, EDITOR_HK_HINT_MAX);
+    row = hint_row(rows, count, "nudge");
+    CHECK(row && strcmp(row->chord, HINT_CTRL "+W Down Left Right") == 0,
+        "hint: a nudge off the arrows spells the four keys ('%s')", row ? row->chord : "");
+    /* Unbinding an action drops its row; unbinding the click's chord leaves
+     * the mouse word. */
+    Editor_HotkeysSet(&g_hk, EDITOR_HK_EDIT_RESHAPE, NULL, 0);
+    Editor_HotkeysSet(&g_hk, EDITOR_HK_PLACE_HERE, NULL, 0);
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_PLACE), rows, EDITOR_HK_HINT_MAX);
+    row = hint_row(rows, count, "place");
+    CHECK(count == 5 && !hint_row(rows, count, "reshape") && row && strcmp(row->chord, "click") == 0,
+        "hint: unbound rows drop, the click stays (%d rows, '%s')", count, row ? row->chord : "");
+    Editor_HotkeysResetDefaults(&g_hk);
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_SELECT), rows, EDITOR_HK_HINT_MAX);
+    row = hint_row(rows, count, "rotate");
+    CHECK(row && strcmp(row->chord, "Q") == 0, "hint: Reset all puts Q back ('%s')", row ? row->chord : "");
+}
+
+/* The contexts the App's key snapshot and the status bar derive from the
+ * shared tools (Editor_HotkeyContextsFrom): the exclusions at the top of
+ * editor_hotkeys.h. */
+static void
+test_contexts_from(void)
+{
+    struct Editor_HotkeyContextFacts facts;
+    unsigned contexts;
+
+    memset(&facts, 0, sizeof(facts));
+    facts.tool = HINT_TOOL(EDITOR_HK_TOOL_SELECT);
+    contexts = Editor_HotkeyContextsFrom(&facts);
+    CHECK(contexts == (EDITOR_HK_CTX_G | EDITOR_HK_CTX_N), "contexts: Select, nothing selected is G and N (%#x)",
+        contexts);
+    facts.pointer_in_world = 1;
+    facts.loc_count = 2;
+    contexts = Editor_HotkeyContextsFrom(&facts);
+    CHECK(contexts == (EDITOR_HK_CTX_G | EDITOR_HK_CTX_W | EDITOR_HK_CTX_L | EDITOR_HK_CTX_M),
+        "contexts: Select with locs over the world is G W L M (%#x)", contexts);
+    facts.tool = HINT_TOOL(EDITOR_HK_TOOL_MOVE);
+    CHECK(Editor_HotkeyContextsFrom(&facts) & EDITOR_HK_CTX_M, "contexts: Move nudges too");
+    facts.tool = HINT_TOOL(EDITOR_HK_TOOL_PLACE);
+    facts.loc_pick = 1;
+    contexts = Editor_HotkeyContextsFrom(&facts);
+    CHECK((contexts & EDITOR_HK_CTX_N) && !(contexts & EDITOR_HK_CTX_M) && !(contexts & EDITOR_HK_CTX_P),
+        "contexts: Place with locs selected leaves the arrows to the camera and has no P (%#x)", contexts);
+    facts.loc_count = 0;
+    contexts = Editor_HotkeyContextsFrom(&facts);
+    CHECK((contexts & EDITOR_HK_CTX_P) && !(contexts & EDITOR_HK_CTX_L), "contexts: Place with a loc pick is P (%#x)",
+        contexts);
+    facts.loc_pick = 0;
+    CHECK(!(Editor_HotkeyContextsFrom(&facts) & EDITOR_HK_CTX_P), "contexts: no pick, no P");
+    facts.spawn_count = 1;
+    facts.rect_valid = 1;
+    contexts = Editor_HotkeyContextsFrom(&facts);
+    CHECK((contexts & EDITOR_HK_CTX_S) && (contexts & EDITOR_HK_CTX_R), "contexts: spawns are S, a rectangle R (%#x)",
+        contexts);
+    facts.loc_count = 1;
+    CHECK(!(Editor_HotkeyContextsFrom(&facts) & EDITOR_HK_CTX_S), "contexts: a loc selection excludes S");
+    /* Every mask the helper makes is one the table's exclusions allow. */
+    for( int tool = 0; tool < EDITOR_HK_HINT_TOOLS; tool++ )
+        for( int bits = 0; bits < 32; bits++ )
+        {
+            facts.tool = tool;
+            facts.pointer_in_world = bits & 1;
+            facts.loc_count = (bits >> 1) & 1;
+            facts.spawn_count = (bits >> 2) & 1;
+            facts.loc_pick = (bits >> 3) & 1;
+            facts.rect_valid = (bits >> 4) & 1;
+            contexts = Editor_HotkeyContextsFrom(&facts);
+            CHECK(!((contexts & EDITOR_HK_CTX_M) && (contexts & EDITOR_HK_CTX_N))
+                      && !((contexts & EDITOR_HK_CTX_L) && (contexts & (EDITOR_HK_CTX_S | EDITOR_HK_CTX_P))),
+                "contexts: tool %d facts %#x make an allowed mask (%#x)", tool, bits, contexts);
+        }
+}
+
+#undef HINT_TOOL
+
 /* Every action's ini id and its row are in the user's reference. */
 static void
 test_doc(const char* path)
@@ -460,6 +673,8 @@ main(
     test_chords();
     test_ini();
     test_resolve();
+    test_hint();
+    test_contexts_from();
     test_doc(argc > 1 ? argv[1] : "../docs/MAPED_HOTKEYS.md");
     printf("editor_hotkeys_test: %d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;

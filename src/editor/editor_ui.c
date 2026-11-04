@@ -31,6 +31,16 @@ static const char* const k_tool_names[EDITOR_TOOL_COUNT] = {
     "Delete",       "Place player",
 };
 
+/* The hotkey table arms the tools in enum Editor_Tool's order, and its hint
+ * strip and context derivation (Editor_HotkeysHint, Editor_HotkeyContextsFrom)
+ * take the tool by that value. */
+_Static_assert(EDITOR_TOOL_COUNT == EDITOR_HK_HINT_TOOLS, "one hint list per tool");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_LOC_PLACE == EDITOR_HK_TOOL_PLACE, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_LOC_MOVE == EDITOR_HK_TOOL_MOVE, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_RECT_SELECT == EDITOR_HK_TOOL_RECT, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_PLACE_PLAYER == EDITOR_HK_TOOL_PLACE_PLAYER,
+    "the tool orders agree");
+
 const char*
 Editor_ToolName(enum Editor_Tool tool)
 {
@@ -239,6 +249,8 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
      * goes last so a modal's panel sits above the panels it guards. */
     Editor_Console_Register(ui);
     Editor_MenuBar_Register(ui);
+    /* The status bar across the foot, always on with the editor. */
+    Editor_StatusBar_Register(ui);
     Editor_ToolRail_Register(ui);
     Editor_Terrain_Register(ui);
     Editor_Palette_Register(ui);
@@ -589,10 +601,13 @@ Editor_UiLayout(struct EditorUi* ui)
     int surface_h;
     int top = 0;
     int left = 0;
+    /** Where the status bar starts: everything else stops above it. */
+    int bottom;
     int world_bottom;
     int dock_w;
     int dock_x;
     int menubar;
+    int statusbar;
     int rail;
     int console;
     int world;
@@ -616,6 +631,7 @@ Editor_UiLayout(struct EditorUi* ui)
         return;
     }
     menubar = ui_chrome_panel(ui, "menubar");
+    statusbar = ui_chrome_panel(ui, "statusbar");
     rail = ui_chrome_panel(ui, "toolrail");
     console = ui_chrome_panel(ui, "console");
     world = ui_chrome_panel(ui, "world");
@@ -652,7 +668,18 @@ Editor_UiLayout(struct EditorUi* ui)
         ToriRSChrome_PanelMove(chrome, menubar, 0, 0);
         top = ToriRSChrome_PanelRect(chrome, menubar).h;
     }
-    avail = surface_h - top;
+    /* The status bar spans the foot; everything else ends above it. Its
+     * height is its face's line box (20 px at 1x), known from the last
+     * Build like the menu bar's. */
+    bottom = surface_h;
+    if( statusbar >= 0 && chrome->panels[statusbar].visible )
+    {
+        int const h = ToriRSChrome_PanelRect(chrome, statusbar).h;
+        ToriRSChrome_PanelSetFixedWidth(chrome, statusbar, surface_w);
+        ToriRSChrome_PanelMove(chrome, statusbar, 0, surface_h - h);
+        bottom = surface_h - h;
+    }
+    avail = bottom - top;
 
     /* The rail against the left edge, wrapped into as many columns as its
      * buttons need to stay on the surface. */
@@ -722,7 +749,7 @@ Editor_UiLayout(struct EditorUi* ui)
     /* The console is a strip under the world when it takes a quarter of the
      * height or less; otherwise the world keeps the height and the console
      * waits for the View menu. */
-    world_bottom = surface_h;
+    world_bottom = bottom;
     if( console >= 0 && !chrome->panels[console].user_placed )
     {
         int const at = console - ui->panel_first;
@@ -734,9 +761,9 @@ Editor_UiLayout(struct EditorUi* ui)
         if( wanted && fits )
         {
             ToriRSChrome_PanelSetFixedHeight(chrome, console, h);
-            ToriRSChrome_PanelMove(chrome, console, left, surface_h - h);
+            ToriRSChrome_PanelMove(chrome, console, left, bottom - h);
             ToriRSChrome_PanelSetVisible(chrome, console, 1);
-            world_bottom = surface_h - h;
+            world_bottom = bottom - h;
             ui->docked[at] = 1;
             ui->member[at] = 1;
         }
@@ -1295,6 +1322,7 @@ static void
 ui_default_layout(struct EditorUi* ui)
 {
     int const menubar = ui_chrome_panel(ui, "menubar");
+    int const statusbar = ui_chrome_panel(ui, "statusbar");
 
     /* The saved layout is still being read: wait for it rather than lay out
      * the default and move everything a frame later. */
@@ -1310,6 +1338,10 @@ ui_default_layout(struct EditorUi* ui)
     /* Not built yet (no heights to stack): next frame. A popped-out window
      * stacks nothing (its menu bar is hidden). */
     if( ui->solo_panel < 0 && menubar >= 0 && ToriRSChrome_PanelRect(ui->chrome, menubar).h <= 0 )
+        return;
+    /* Nor the status bar's band at the foot. */
+    if( ui->solo_panel < 0 && statusbar >= 0 && ui->chrome->panels[statusbar].visible
+        && ToriRSChrome_PanelRect(ui->chrome, statusbar).h <= 0 )
         return;
     Editor_UiLayout(ui);
     /* A panel the user just brought back is shown, whatever the column had
@@ -1643,24 +1675,29 @@ Editor_UiSetSolo(
 
 /* ---- maximise: a double-click on a panel's title ------------------------ */
 
-/** The area a maximised panel fills: the whole surface below the menu bar --
- *  every pixel the dock lays panels out in. */
+/** The area a maximised panel fills: the whole surface between the menu bar
+ *  and the status bar -- every pixel the dock lays panels out in. */
 static struct ToriRSChromeRect
 ui_maximise_area(struct EditorUi* ui)
 {
     struct ToriRSChromeRect area;
     int const menubar = ui_chrome_panel(ui, "menubar");
+    int const statusbar = ui_chrome_panel(ui, "statusbar");
     int top = 0;
+    int bottom = ui->chrome->surface_h;
 
     if( menubar >= 0 && ui->chrome->panels[menubar].visible )
     {
         struct ToriRSChromeRect const bar = ToriRSChrome_PanelRect(ui->chrome, menubar);
         top = bar.y + bar.h;
     }
+    /* A maximised panel stops above the status bar, as the dock does. */
+    if( statusbar >= 0 && ui->chrome->panels[statusbar].visible )
+        bottom -= ToriRSChrome_PanelRect(ui->chrome, statusbar).h;
     area.x = 0;
     area.y = top;
     area.w = ui->chrome->surface_w;
-    area.h = ui->chrome->surface_h - top;
+    area.h = bottom - top;
     return area;
 }
 
@@ -2052,6 +2089,42 @@ Editor_UiConsoleLine(
         return NULL;
     return ui->console[(ui->console_head - 1 - index + EDITOR_UI_CONSOLE_LINES)
                        % EDITOR_UI_CONSOLE_LINES];
+}
+
+/* ---- the status sentence --------------------------------------------------- */
+
+void
+Editor_UiStatus(
+    struct EditorUi* ui,
+    const char* format,
+    ...)
+{
+    va_list args;
+    size_t length;
+
+    assert(ui);
+    assert(format);
+
+    va_start(args, format);
+    vsnprintf(ui->status, sizeof(ui->status), format, args);
+    va_end(args);
+    /* One sentence, one line: a trailing newline is TORIRS_LOG's habit. */
+    length = strlen(ui->status);
+    while( length > 0 && (ui->status[length - 1] == '\n' || ui->status[length - 1] == '\r') )
+        ui->status[--length] = '\0';
+    /* The console keeps the sentence (R8); the bar shows it for 6 s. */
+    Editor_UiLog(ui, "%s", ui->status);
+    ui->status_ms = ui->chrome->now_ms;
+    ui->status_serial++;
+}
+
+const char*
+Editor_UiStatusText(const struct EditorUi* ui)
+{
+    assert(ui);
+    if( !ui->status[0] || ui->chrome->now_ms - ui->status_ms >= EDITOR_UI_STATUS_MS )
+        return "";
+    return ui->status;
 }
 
 /* ---- the save guard -------------------------------------------------------- */

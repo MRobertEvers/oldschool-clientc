@@ -420,6 +420,9 @@ struct EditorUiRect
 /** Lines the output console keeps, and their width. */
 #define EDITOR_UI_CONSOLE_LINES 512
 #define EDITOR_UI_CONSOLE_LINE_MAX 160
+/** How long the status bar shows a status sentence, on the chrome's frame
+ *  clock (design #rules R8: "the status bar shows it for 6 s"). */
+#define EDITOR_UI_STATUS_MS 6000
 
 /** What a guarded action is waiting on: the save/discard modal answers it. */
 enum EditorUi_Guarded
@@ -509,6 +512,11 @@ struct EditorUi
     int console_count;
     /** Bumps on every line, so the console panel refreshes only on change. */
     int console_serial;
+    /** The last status sentence (Editor_UiStatus), when it was said on the
+     *  chrome's clock, and a serial that moves on every sentence. */
+    char status[EDITOR_UI_CONSOLE_LINE_MAX];
+    int64_t status_ms;
+    uint32_t status_serial;
 
     /** The default layout ran for the current surface and scale
      *  (Editor_UiTick, the first frame the surface and the panels have
@@ -647,9 +655,10 @@ Editor_UiPanelSelf(
     const char* name);
 
 /**
- * Register every tools-panels module (menu bar, tool rail, terrain, palette,
- * rectangle select, locs, spawns, inspector, console, save guard, square
- * picker, New square). The App-bound modules (catalog, inspector) need
+ * Register every tools-panels module (menu bar, status bar, tool rail,
+ * terrain, palette, rectangle select, locs, spawns, inspector, console, save
+ * guard, square picker, New square). The App-bound modules (catalog,
+ * inspector) need
  * `ui->app`; with it NULL they are skipped. They reach the App through
  * `ui->app_services` only, filled before this is called.
  *
@@ -676,7 +685,8 @@ Editor_UiTick(struct EditorUi* ui);
  * across the top, the tool rail at the left edge, one column of panels docked
  * to the right edge (Terrain, Palette, Locs, Spawns, Rectangle, Inspector,
  * Squares, Catalog, in that order, each given at least a few rows and the
- * rest of the column shared top-down), the output console as a strip along
+ * rest of the column shared top-down), the status bar across the foot (the
+ * rest stops above it), the output console as a strip along
  * the bottom of the world when it is short enough, and the World panel
  * docked over the rectangle that is left -- the largest on the surface (its
  * body is Editor_UiWorldRect). Panels of the default
@@ -911,6 +921,39 @@ const char*
 Editor_UiConsoleLine(
     const struct EditorUi* ui,
     int index);
+
+/**
+ * Say one sentence in the status bar (design #rules R8, "nothing happens
+ * without a word": a refused action says why, "Place refused: tile 3222,3218
+ * holds a wall of that shape; press E to swap"). The console keeps it -- it
+ * is logged exactly as Editor_UiLog logs -- and the status bar shows it for
+ * EDITOR_UI_STATUS_MS of the chrome's frame clock, until a newer one.
+ */
+void
+Editor_UiStatus(
+    struct EditorUi* ui,
+    const char* format,
+    ...)
+#if defined(__GNUC__) || defined(__clang__)
+    __attribute__((format(printf, 2, 3)))
+#endif
+    ;
+
+/** The status sentence the bar shows now: the last one, or "" once it is
+ *  EDITOR_UI_STATUS_MS old on the chrome's clock (or none was said). */
+const char*
+Editor_UiStatusText(const struct EditorUi* ui);
+
+/**
+ * The status bar (module "statusbar", src/editor/panels/edpanel_statusbar.c;
+ * design #workbench "Status bar and hint strip"): the strip along the foot of
+ * the window, always on while the editor shows. Left, the armed tool's live
+ * chords (Editor_HotkeysHint); middle, the hover readout; right, the status
+ * sentence and the server's write state. Editor_UiLayout reserves its band:
+ * the world, the dock column and the console stop above it.
+ */
+void
+Editor_StatusBar_Register(struct EditorUi* ui);
 
 /**
  * Run `guard` now when nothing is unsaved, else hold it and open the save

@@ -33,6 +33,7 @@
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
+#include "ui/torirs_chrome_metrics.h"
 #include "ui/uitree_debug_overlay.h"
 
 #include <rscache.h>
@@ -4049,6 +4050,7 @@ test_maximise(void)
     int terrain;
     int menubar = -1;
     int top;
+    int bottom = 1006;
     int tx;
     int ty;
     char* text = NULL;
@@ -4059,9 +4061,16 @@ test_maximise(void)
     CHECK(terrain >= 0 && g_chrome.panels[terrain].visible, "Terrain is open");
     if( terrain < 0 )
         return;
-    for( int i = 0; i < g_chrome.panel_count; i++ )
-        if( g_chrome.panels[i].style == TORIRS_CHROME_PANEL_MENUBAR && g_chrome.panels[i].visible )
-            menubar = i;
+    /* By module: the status bar is a MENUBAR-style strip too. */
+    {
+        struct EditorUiPanel const* menu_module = Editor_UiFindPanel(&g_ui, "menubar");
+        struct EditorUiPanel const* status_module = Editor_UiFindPanel(&g_ui, "statusbar");
+        if( menu_module && g_chrome.panels[menu_module->chrome_panel].visible )
+            menubar = menu_module->chrome_panel;
+        /* The area stops above the status bar at the foot. */
+        if( status_module )
+            bottom = g_chrome.panels[status_module->chrome_panel].last_rect.y;
+    }
     bar = menubar >= 0 ? g_chrome.panels[menubar].last_rect : (struct ToriRSChromeRect){ 0, 0, 0, 0 };
     top = bar.y + bar.h;
     before = g_chrome.panels[terrain].last_rect;
@@ -4073,14 +4082,15 @@ test_maximise(void)
     title_click(tx, ty, 10000 + TORIRS_CHROME_DOUBLE_CLICK_MS + 50);
     CHECK(!g_chrome.panels[terrain].maximised, "two title clicks further apart than the double-click time do nothing");
 
-    /* Double-click: the whole surface below the menu bar, over the others. */
+    /* Double-click: the whole surface between the menu bar and the status
+     * bar, over the others. */
     title_click(tx, ty, 20000);
     title_click(tx + 1, ty, 20120);
     CHECK(g_chrome.panels[terrain].maximised, "a title double-click maximises the panel");
-    CHECK(rect_is(g_chrome.panels[terrain].last_rect, 0, top, 1530, 1006 - top),
-        "to the dock surface below the menu bar (%d,%d %dx%d, menu bar ends at %d)",
+    CHECK(bottom < 1006 && rect_is(g_chrome.panels[terrain].last_rect, 0, top, 1530, bottom - top),
+        "to the dock surface between the bars (%d,%d %dx%d, menu bar ends at %d, status bar starts at %d)",
         g_chrome.panels[terrain].last_rect.x, g_chrome.panels[terrain].last_rect.y,
-        g_chrome.panels[terrain].last_rect.w, g_chrome.panels[terrain].last_rect.h, top);
+        g_chrome.panels[terrain].last_rect.w, g_chrome.panels[terrain].last_rect.h, top, bottom);
     /* Over the others: a point inside another panel now belongs to it. */
     {
         int const palette = find_panel("Palette");
@@ -4156,7 +4166,7 @@ test_maximise(void)
     terrain = find_panel("Terrain");
     frame();
     CHECK(terrain >= 0 && g_chrome.panels[terrain].maximised, "a boot with that file comes back maximised");
-    CHECK(terrain >= 0 && rect_is(g_chrome.panels[terrain].last_rect, 0, top, 1530, 1006 - top),
+    CHECK(terrain >= 0 && rect_is(g_chrome.panels[terrain].last_rect, 0, top, 1530, bottom - top),
         "over the dock surface");
     if( terrain >= 0 )
     {
@@ -6358,6 +6368,262 @@ dump_console(int lines)
     }
 }
 
+/* ---- the status bar (edpanel_statusbar.c) ------------------------------------------ */
+
+static struct
+{
+    int on;
+    int x;
+    int z;
+    int level;
+} g_statusbar_hover;
+
+static int
+statusbar_fake_hover(
+    void* user,
+    int* out_world_x,
+    int* out_world_z,
+    int* out_level)
+{
+    (void)user;
+    if( !g_statusbar_hover.on )
+        return 0;
+    *out_world_x = g_statusbar_hover.x;
+    *out_world_z = g_statusbar_hover.z;
+    *out_level = g_statusbar_hover.level;
+    return 1;
+}
+
+#define STATUSBAR_RUNS_MAX 16
+
+/** The bar's shown runs, left to right: their widgets into `out`. */
+static int
+statusbar_runs(
+    int panel,
+    int* out)
+{
+    int count = 0;
+    for( int w = g_chrome.panels[panel].first_widget; w >= 0 && count < STATUSBAR_RUNS_MAX;
+         w = g_chrome.widgets[w].next )
+        if( g_chrome.widgets[w].kind == TORIRS_CHROME_W_LABEL && !g_chrome.widgets[w].hidden )
+            out[count++] = w;
+    return count;
+}
+
+/** The shown run whose text is `text`, or -1. */
+static int
+statusbar_run(
+    int panel,
+    const char* text)
+{
+    int runs[STATUSBAR_RUNS_MAX];
+    int const count = statusbar_runs(panel, runs);
+    for( int i = 0; i < count; i++ )
+        if( strcmp(g_chrome.widgets[runs[i]].text, text) == 0 )
+            return runs[i];
+    return -1;
+}
+
+/** Every shown run lies inside the bar, none cut (rule R2), and none carries a
+ *  cut-off hint row. */
+static void
+statusbar_check_fits(
+    int panel,
+    const char* what)
+{
+    int runs[STATUSBAR_RUNS_MAX];
+    int const count = statusbar_runs(panel, runs);
+    struct ToriRSChromeRect const bar = g_chrome.panels[panel].last_rect;
+    int const pad = TORIRS_CHROME_M_PAD * ToriRSChrome_Scale(&g_chrome);
+
+    for( int i = 0; i < count; i++ )
+    {
+        const struct ToriRSChromeWidget* w = &g_chrome.widgets[runs[i]];
+        int const text_w = ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_MENU, ToriRSChrome_Scale(&g_chrome), w->text);
+        /* The bar draws the text at the run's box + half a pad. */
+        int const text_x = w->x + pad / 2;
+        CHECK(text_x >= bar.x && text_x + text_w <= bar.x + bar.w, "%s: run '%s' (%d..%d) lies inside the bar (%d..%d)",
+            what, w->text, text_x, text_x + text_w, bar.x, bar.x + bar.w);
+        if( w->text[0] == '[' )
+            CHECK(strstr(w->text, "...") == NULL, "%s: hint run '%s' is whole", what, w->text);
+    }
+}
+
+static void
+test_statusbar(void)
+{
+    struct EditorUiPanel* module;
+    struct ToriRSChromeRect bar;
+    struct EditorUiRect world;
+    struct Editor_Chord chord;
+    int runs[STATUSBAR_RUNS_MAX];
+    int count;
+    int panel;
+    int run;
+    char long_status[160];
+
+    layout_boot(1530, 1006, 1);
+    module = Editor_UiFindPanel(&g_ui, "statusbar");
+    CHECK(module && module->chrome_panel >= 0, "statusbar: the module registers");
+    if( !module )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    panel = module->chrome_panel;
+    CHECK(!module->title && Editor_HotkeyForPanel("statusbar") < 0,
+        "statusbar: no View-menu row and no hotkey: it is always on");
+    CHECK(g_chrome.panels[panel].visible && g_chrome.panels[panel].title[0] == '\0'
+              && !g_chrome.panels[panel].framed && g_chrome.panels[panel].style == TORIRS_CHROME_PANEL_MENUBAR,
+        "statusbar: shown with the editor, no title bar, no frame, one row");
+
+    /* The band at the foot: 20 px at 1x, the surface's width; the world, the
+     * column and the console stop above it. */
+    bar = g_chrome.panels[panel].last_rect;
+    world = Editor_UiWorldRect(&g_ui);
+    CHECK(bar.x == 0 && bar.w == 1530 && bar.h == 20 && bar.y + bar.h == 1006,
+        "statusbar: a 20 px band across the foot (%d,%d %dx%d)", bar.x, bar.y, bar.w, bar.h);
+    CHECK(world.y + world.h <= bar.y && g_ui.world.y + g_ui.world.h <= bar.y && g_ui.dock_bottom <= bar.y,
+        "statusbar: the world (%d..%d) and the column (..%d) stop above it (%d)", world.y, world.y + world.h,
+        g_ui.dock_bottom, bar.y);
+    for( int i = 0; i < g_chrome.panel_count; i++ )
+    {
+        struct ToriRSChromeRect const r = g_chrome.panels[i].last_rect;
+        if( i == panel || !layout_panel(i) )
+            continue;
+        CHECK(r.y + r.h <= bar.y, "statusbar: '%s' (%d..%d) ends above the bar", g_chrome.panels[i].title, r.y,
+            r.y + r.h);
+    }
+    layout_check("with the status bar");
+
+    /* The hint: Select armed, nothing selected, the pointer off the world. */
+    CHECK(g_ui.tools.tool == EDITOR_TOOL_SELECT, "statusbar: Select is armed at boot");
+    count = statusbar_runs(panel, runs);
+    CHECK(count == 5 && strcmp(g_chrome.widgets[runs[0]].text, "[click] tile") == 0
+              && strcmp(g_chrome.widgets[runs[1]].text, "[Shift+click] add loc") == 0
+              && strcmp(g_chrome.widgets[runs[2]].text, "[drag] marquee") == 0
+              && strcmp(g_chrome.widgets[runs[3]].text, "[Q] rotate") == 0
+              && strcmp(g_chrome.widgets[runs[4]].text, "[Shift+Q] reshape") == 0,
+        "statusbar: Select's live chords (%d runs, first '%s')", count,
+        count > 0 ? g_chrome.widgets[runs[0]].text : "");
+    run = statusbar_run(panel, "[Q] rotate");
+    CHECK(run >= 0 && strcmp(g_chrome.widgets[run].tooltip, "Rotate  [Q]") == 0,
+        "statusbar: a hint's tooltip names the action and its chord ('%s')",
+        run >= 0 ? g_chrome.widgets[run].tooltip : "");
+    statusbar_check_fits(panel, "statusbar at boot");
+
+    /* The hover readout, and the pointer over the world brings Ctrl+A. */
+    g_ui.app_services.hover_tile = statusbar_fake_hover;
+    g_statusbar_hover.on = 1;
+    g_statusbar_hover.x = 3222;
+    g_statusbar_hover.z = 3218;
+    g_statusbar_hover.level = 1;
+    frame();
+    CHECK(statusbar_run(panel, "3222,3218 L1 | m50_50") >= 0, "statusbar: the hover reads tile, level and square");
+    CHECK(statusbar_run(panel, "[" "Ctrl" "+A] square") >= 0 || statusbar_run(panel, "[Cmd+A] square") >= 0,
+        "statusbar: over the world Select square appears");
+    g_statusbar_hover.on = 0;
+    frame();
+    count = statusbar_runs(panel, runs);
+    CHECK(count == 5, "statusbar: off the world the hover is gone (%d runs)", count);
+
+    /* The armed tool drives the strip; a pick brings Place's key. */
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_LOC_PLACE);
+    g_ui.tools.pick_kind = -1;
+    g_ui.tools.pick_id = -1;
+    frame();
+    CHECK(statusbar_run(panel, "[click] place") >= 0 && statusbar_run(panel, "[Q] turn") >= 0
+              && statusbar_run(panel, "[Esc] drop") >= 0,
+        "statusbar: Place's rows replace Select's");
+    g_ui.tools.pick_kind = 0;
+    g_ui.tools.pick_id = 1902;
+    frame();
+    CHECK(statusbar_run(panel, "[click/Space, Enter] place") >= 0, "statusbar: with a loc pick, Space places");
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+    frame();
+    CHECK(statusbar_run(panel, "[drag] paint") >= 0 && statusbar_run(panel, "[[ ]] radius") >= 0
+              && statusbar_run(panel, "[Shift+[ ]] strength") >= 0,
+        "statusbar: a brush's rows");
+
+    /* A rebind relabels the strip on the next frame. */
+    CHECK(Editor_ChordParse("minus", &chord), "statusbar: minus parses");
+    Editor_HotkeysSet(&g_ui.hotkeys, EDITOR_HK_BRUSH_RADIUS_DOWN, &chord, 1);
+    frame();
+    CHECK(statusbar_run(panel, "[- ]] radius") >= 0, "statusbar: the rebind shows on the next frame");
+    Editor_HotkeysResetDefaults(&g_ui.hotkeys);
+    frame();
+    CHECK(statusbar_run(panel, "[[ ]] radius") >= 0, "statusbar: Reset all shows the default again");
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_SELECT);
+
+    /* The status sentence: logged, shown for 6 s of the frame clock, gone. */
+    ToriRSChrome_Tick(&g_chrome, 100000);
+    Editor_UiStatus(&g_ui, "Place refused: tile %d,%d holds a wall of that shape; press E to swap", 3222, 3218);
+    frame();
+    CHECK(strcmp(Editor_UiConsoleLine(&g_ui, 0),
+              "Place refused: tile 3222,3218 holds a wall of that shape; press E to swap")
+              == 0,
+        "statusbar: the console keeps the sentence");
+    CHECK(statusbar_run(panel, "Place refused: tile 3222,3218 holds a wall of that shape; press E to swap") >= 0,
+        "statusbar: the bar shows it");
+    ToriRSChrome_Tick(&g_chrome, 100000 + EDITOR_UI_STATUS_MS - 1);
+    frame();
+    CHECK(Editor_UiStatusText(&g_ui)[0] && statusbar_run(panel, Editor_UiStatusText(&g_ui)) >= 0,
+        "statusbar: still shown a moment before 6 s");
+    ToriRSChrome_Tick(&g_chrome, 100000 + EDITOR_UI_STATUS_MS);
+    frame();
+    CHECK(!Editor_UiStatusText(&g_ui)[0] && statusbar_runs(panel, runs) == 5,
+        "statusbar: gone at 6 s, the hint alone again");
+    CHECK(strstr(Editor_UiConsoleLine(&g_ui, 0), "Place refused") != NULL, "statusbar: the console still has it");
+
+    /* Measured, never clipped: a long sentence on a narrow window ends in
+     * "...", the full text its tooltip; hint rows that do not fit are left
+     * out whole. */
+    ToriRSChrome_SetSurface(&g_chrome, 640, 480);
+    frame();
+    frame();
+    bar = g_chrome.panels[panel].last_rect;
+    CHECK(bar.w == 640 && bar.y + bar.h == 480, "statusbar: follows a resize (%d,%d %dx%d)", bar.x, bar.y, bar.w,
+        bar.h);
+    memset(long_status, 0, sizeof(long_status));
+    for( int i = 0; i < 25; i++ )
+        strcat(long_status, "word ");
+    Editor_UiStatus(&g_ui, "%s", long_status);
+    frame();
+    count = statusbar_runs(panel, runs);
+    run = count > 0 ? runs[count - 1] : -1;
+    CHECK(run >= 0 && strlen(g_chrome.widgets[run].text) > 3
+              && strcmp(g_chrome.widgets[run].text + strlen(g_chrome.widgets[run].text) - 3, "...") == 0
+              && strncmp(g_chrome.widgets[run].text, "word word", 9) == 0,
+        "statusbar: a long sentence ends in an ellipsis ('%s')", run >= 0 ? g_chrome.widgets[run].text : "");
+    CHECK(run >= 0 && strncmp(g_chrome.widgets[run].tooltip, "word word word", 14) == 0,
+        "statusbar: and its tooltip is the sentence");
+    statusbar_check_fits(panel, "statusbar at 640 px");
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_LOC_PLACE);
+    frame();
+    statusbar_check_fits(panel, "statusbar at 640 px, Place");
+
+    /* At 2x the band is 40 px and still ends at the foot. */
+    Editor_UiFree(&g_ui);
+    layout_boot(1530, 1006, 2);
+    module = Editor_UiFindPanel(&g_ui, "statusbar");
+    if( module )
+    {
+        bar = g_chrome.panels[module->chrome_panel].last_rect;
+        world = Editor_UiWorldRect(&g_ui);
+        CHECK(bar.h == 40 && bar.y + bar.h == 1006 && world.y + world.h <= bar.y,
+            "statusbar: 40 px at 2x, the world above it (%d,%d %dx%d)", bar.x, bar.y, bar.w, bar.h);
+        statusbar_check_fits(module->chrome_panel, "statusbar at 2x");
+        /* The server's write state, from FACT_HELLO. */
+        g_editor.writable = 0;
+        frame();
+        CHECK(statusbar_run(module->chrome_panel, "read-only") >= 0, "statusbar: a read-only server says so");
+        g_editor.writable = 1;
+        frame();
+        CHECK(statusbar_run(module->chrome_panel, "read-only") < 0, "statusbar: and stops when it can save");
+    }
+    Editor_UiFree(&g_ui);
+}
+
 static void
 test_triggers(void)
 {
@@ -6647,6 +6913,7 @@ main(
     test_areas();
     test_active_level();
     test_hotkeys();
+    test_statusbar();
     test_triggers();
     Editor_PickerFree(&g_picker);
     Editor_Close(&g_editor);

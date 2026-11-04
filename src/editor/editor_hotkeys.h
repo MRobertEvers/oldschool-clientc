@@ -370,6 +370,92 @@ Editor_HotkeyDisplay(
 int
 Editor_HotkeyKeyIsModifier(int key);
 
+/* ---- the hint strip ------------------------------------------------------------
+ *
+ * The status bar's left track (design #workbench "Status bar and hint strip",
+ * #hotkeys surface 4): the live chords of the ARMED tool, as (chord, verb)
+ * runs. One source -- the chords are read from the live table on every call,
+ * so a rebind relabels the strip on the next frame -- and the rows are the
+ * table's, filtered by the contexts live now: Delete appears once a loc is
+ * selected, the nudges while Select or Move holds a selection, Copy and Fill
+ * while the Rect tool holds a rectangle.
+ *
+ * `tool` is an enum Editor_Tool value (editor_ui.h, which includes this
+ * header; it asserts the two orders agree): the first EDITOR_HK_HINT_TOOLS
+ * EDITOR_HK_TOOL_* actions arm the tools in that order.
+ */
+#define EDITOR_HK_HINT_TOOLS (EDITOR_HK_TOOL_PLACE_PLAYER - EDITOR_HK_TOOL_SELECT + 1)
+/** Rows one tool's strip holds at most (Select's nine). */
+#define EDITOR_HK_HINT_MAX 10
+/** Actions one row reads its chords from at most (the four nudges). */
+#define EDITOR_HK_HINT_ACTIONS 4
+#define EDITOR_HK_HINT_CHORD_MAX 48
+
+struct Editor_HotkeyHint
+{
+    /** What to press, as the strip prints it: the mouse word ("click",
+     *  "drag"), then the live chords ("click/Space, Enter", "Shift+[ ]",
+     *  "arrows" for the four nudges on the arrow keys). */
+    char chord[EDITOR_HK_HINT_CHORD_MAX];
+    /** What it does, one short word or two ("rotate", "add loc"). Static. */
+    const char* verb;
+    /** The first table action the row reads its chords from, -1 for a row
+     *  that is the mouse alone (click tile, drag marquee). */
+    int action;
+};
+
+/**
+ * The live hint rows for `tool` under `contexts` (EDITOR_HK_CTX_*; G is
+ * implied), in the tool's fixed order, into `out_rows` (at most `max`).
+ * A row whose actions are unbound or not live keeps only its mouse word, and
+ * is dropped when it has none. Returns how many were written.
+ *
+ * The rows, per tool (chords are the defaults; the table decides):
+ *
+ *   Select        click tile, Shift+click add loc, drag marquee,
+ *                 Ctrl+A square (W), arrows nudge (M), Q rotate,
+ *                 Shift+Q reshape, E swap (L), Del delete (L, S)
+ *   Place         click/Space place (P), Q turn, Shift+Q reshape, G fit,
+ *                 E swap (L), Esc drop
+ *   the brushes   drag paint, [ ] radius, Shift+[ ] strength, Ctrl+[ ] step
+ *   Move          drag/arrows move (M), Ctrl+D dup (L, S)
+ *   Rotate        click rotate
+ *   Delete        click delete
+ *   Rect          drag rectangle, Ctrl+C copy (R), Ctrl+V paste (W),
+ *                 Ctrl+Shift+F fill (R), Shift+Del clear (R)
+ *   Place player  click put player
+ */
+int
+Editor_HotkeysHint(
+    const struct Editor_Hotkeys* hk,
+    unsigned contexts,
+    int tool,
+    struct Editor_HotkeyHint* out_rows,
+    int max);
+
+/** The editor state the contexts are derived from: what the App's key
+ *  snapshot (src/app/app_editor_hotkeys.c) and the status bar's hint both
+ *  read off the registry's shared tools. */
+struct Editor_HotkeyContextFacts
+{
+    /** enum Editor_Tool. */
+    int tool;
+    /** The pointer is over the World panel's body and no chrome wants it. */
+    int pointer_in_world;
+    int loc_count;
+    /** The Spawns panel's selection (0 while it is hidden). */
+    int spawn_count;
+    /** The catalog's pick is a loc (kind 0, id >= 0). */
+    int loc_pick;
+    /** The Rect tool holds a rectangle. */
+    int rect_valid;
+};
+
+/** The EDITOR_HK_CTX_* mask `facts` make live (G always): the rules at the
+ *  top of this header, in one place. */
+unsigned
+Editor_HotkeyContextsFrom(const struct Editor_HotkeyContextFacts* facts);
+
 /* ---- editor_hotkeys.ini ------------------------------------------------------------ */
 
 /** `TORIRS_EDITOR_HOTKEYS` unset: this name (cwd, IndexedDB on the web). */
