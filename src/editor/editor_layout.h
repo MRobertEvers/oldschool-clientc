@@ -36,6 +36,23 @@
  *                           ; x/y/w/h and user_placed are then the box it
  *                           ; restores to
  *
+ *     [group right-top]     ; one section per panel group (editor_ui.h), by
+ *     visible = 1           ; its name: the same keys as a panel, the box
+ *     user_placed = 0       ; being the whole group (its tab strip and the
+ *     x = 1224              ; shown tab under it)
+ *     y = 22
+ *     w = 306
+ *     h = 420
+ *     maximised = 0
+ *     shown = catalog       ; the module whose tab is in front
+ *
+ * A module that is in a group keeps its [panel] section, with only `visible`
+ * in it: whether it is open in its group's strip. Its geometry is the
+ * group's. A file written before groups existed (no [group] sections, every
+ * [panel] with its own box) still applies: each member's `visible` says
+ * whether it is in its strip, its box is ignored, and the default layout docks
+ * the group.
+ *
  * What the editor does with it (Editor_UiLayoutApply, the policy):
  *   - snap and every panel's `visible` are applied whatever the surface: what
  *     the user opened and closed is not a property of the window size;
@@ -63,6 +80,8 @@
 #define EDITOR_LAYOUT_VERSION 1
 /** Panels one file holds (the registry's own cap, EDITOR_UI_PANELS_MAX). */
 #define EDITOR_LAYOUT_PANELS_MAX 48
+/** Groups one file holds (the registry's own cap, EDITOR_UI_GROUPS_MAX). */
+#define EDITOR_LAYOUT_GROUPS_MAX 8
 #define EDITOR_LAYOUT_NAME_MAX 32
 /** `TORIRS_EDITOR_LAYOUT` unset: this name, resolved by the platform the way
  *  `preferences.ini` is (the working directory, or IndexedDB on the web). */
@@ -91,6 +110,31 @@ struct EditorLayoutPanel
     int maximised;
 };
 
+/** A [group <name>] section: the panel keys, the box being the group's, and
+ *  which member's tab is in front. */
+struct EditorLayoutGroup
+{
+    char name[EDITOR_LAYOUT_NAME_MAX];
+    int has_visible;
+    int visible;
+    int has_user_placed;
+    int user_placed;
+    /** Chrome pixels at scale 1: the whole group, strip and shown tab. */
+    int has_x;
+    int x;
+    int has_y;
+    int y;
+    int has_w;
+    int w;
+    int has_h;
+    int h;
+    int has_maximised;
+    int maximised;
+    /** The registry module whose tab is in front ("" when unstated). */
+    int has_shown;
+    char shown[EDITOR_LAYOUT_NAME_MAX];
+};
+
 struct EditorLayoutFile
 {
     int version;
@@ -103,6 +147,8 @@ struct EditorLayoutFile
     int snap;
     struct EditorLayoutPanel panels[EDITOR_LAYOUT_PANELS_MAX];
     int panel_count;
+    struct EditorLayoutGroup groups[EDITOR_LAYOUT_GROUPS_MAX];
+    int group_count;
 };
 
 /**
@@ -121,8 +167,9 @@ EditorLayout_Clear(struct EditorLayoutFile* file);
 /**
  * Parse `size` bytes of layout text into `out` (cleared first). Returns 1
  * when the text held a `[layout]` section, 0 otherwise (not a layout file:
- * nothing applies). Panels past EDITOR_LAYOUT_PANELS_MAX, names longer than
- * EDITOR_LAYOUT_NAME_MAX - 1 and non-numeric values are skipped.
+ * nothing applies). Panels past EDITOR_LAYOUT_PANELS_MAX, groups past
+ * EDITOR_LAYOUT_GROUPS_MAX, names longer than EDITOR_LAYOUT_NAME_MAX - 1 and
+ * non-numeric values (but a group's `shown`, which is a name) are skipped.
  */
 int
 EditorLayout_Decode(
@@ -150,6 +197,18 @@ EditorLayout_Find(
 /** The panel named `name`, appended when absent. Asserts on a full file. */
 struct EditorLayoutPanel*
 EditorLayout_Add(
+    struct EditorLayoutFile* file,
+    const char* name);
+
+/** The group named `name`, or NULL when the file does not mention it. */
+const struct EditorLayoutGroup*
+EditorLayout_FindGroup(
+    const struct EditorLayoutFile* file,
+    const char* name);
+
+/** The group named `name`, appended when absent. Asserts on a full file. */
+struct EditorLayoutGroup*
+EditorLayout_AddGroup(
     struct EditorLayoutFile* file,
     const char* name);
 

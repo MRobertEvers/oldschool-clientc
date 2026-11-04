@@ -417,6 +417,103 @@ struct EditorUiRect
 /** Chrome windows the default arrangement tracks (the chrome's own cap). */
 #define EDITOR_UI_LAYOUT_PANELS_MAX 64
 
+/* ---- panel groups (design #workbench, "Panel groups") ----------------------
+ *
+ * Several registered modules behind one tab strip. A group is ONE chrome
+ * WINDOW panel, the frame: its title bar is the group's (Close and Pop out on
+ * it act on the shown tab, a double-click maximises the group) and its first
+ * row is a TABSTRIP of the members open in it, each titled with its panel's
+ * title and, when the module has a View action, its chord in parentheses
+ * ("Catalog (F8)", Editor_HotkeyDisplay). The shown tab's own window lays out
+ * directly under the strip, the frame's width, with its title bar taken off
+ * (the frame's is the group's); every other member's window is hidden.
+ *
+ * Why the members keep their own windows rather than moving their rows into
+ * the frame: a widget belongs to its panel for life (the chrome refuses a
+ * move across panels, ToriRSChrome_WidgetMoveAfter), the modules address
+ * their rows and their pages through their own panel (Spawns carries a strip
+ * of its own, and a panel has one), and every path that already works on a
+ * member's window -- its pop-out, its View toggle, the module showing or
+ * hiding itself -- keeps working unchanged. So the strip says which member
+ * window lays out under it, and the members' visibility does the rest.
+ *
+ * The state is the registry's -- which members are open (in the strip), which
+ * one is shown -- and it follows the members' windows every frame
+ * (Editor_UiTick), so whatever showed or hid a window is obeyed:
+ *   - a member window shown from anywhere (View, its hotkey, the module
+ *     itself, a pop-in, Reset layout) joins its strip as the shown tab;
+ *   - the shown member's window hidden from anywhere (View, Close on the
+ *     frame, Pop out, the module itself) leaves the strip, and the tab shown
+ *     before it (else a neighbour) comes up; a group with no open member hides
+ *     its frame;
+ *   - a click on a tab shows that member.
+ * Editor_UiLayout docks a group as one window; the layout file keeps it as a
+ * [group <name>] section (editor_layout.h).
+ *
+ * Groups belong to the registry Editor_UiRegisterToolsPanels builds (their
+ * frames are counted among its windows); registering one anywhere else is a
+ * caller bug and asserts.
+ */
+#define EDITOR_UI_GROUPS_MAX 8
+#define EDITOR_UI_GROUP_MEMBERS_MAX 8
+/** A frame title or a tab title: the chrome's label size (asserted equal). */
+#define EDITOR_UI_GROUP_TITLE_MAX 64
+
+struct EditorUiGroup
+{
+    /** Stable lower-case name ("right-top"): the layout file's section. */
+    char name[EDITOR_LAYOUT_NAME_MAX];
+    /** The frame's title ("Catalog / Locs / Spawns / Inspector"). */
+    char title[EDITOR_UI_GROUP_TITLE_MAX];
+    /** The frame (a WINDOW) and its TABSTRIP. */
+    int chrome_panel;
+    int tabs;
+
+    /** Registry indices of the members, in strip order, and per member slot:
+     *  open (in the strip), and the member window's own title while the
+     *  frame wears the group's (`dressed`). */
+    int members[EDITOR_UI_GROUP_MEMBERS_MAX];
+    int member_count;
+    unsigned char open[EDITOR_UI_GROUP_MEMBERS_MAX];
+    unsigned char dressed[EDITOR_UI_GROUP_MEMBERS_MAX];
+    char member_titles[EDITOR_UI_GROUP_MEMBERS_MAX][EDITOR_UI_GROUP_TITLE_MAX];
+    /** The member slot whose window shows under the strip, -1 for none, and
+     *  the one shown before it (what comes back when it closes). */
+    int shown;
+    int prev_shown;
+    /** Hidden by the layout for want of room, its members still open: the
+     *  next layout with room (or View on a member) brings it back as it was. */
+    int parked;
+
+    /** The group's box in surface pixels: the frame's origin and width and
+     *  the shown window's height under it (0 = sized to its content), and the
+     *  member window last put there (-1 none: the next one shown is placed).
+     *  `pending_h` is a whole-group height from the layout file, resolved
+     *  once the frame's own height is known. */
+    int x;
+    int y;
+    int w;
+    int body_h;
+    int pending_h;
+    int placed;
+    /** The frame's height (title bar and strip) as last built, 0 unknown. */
+    int frame_h;
+
+    /** The strip's rows (borrowed by the TABSTRIP): one per open member, in
+     *  member order, and the member slot each names. */
+    char tab_labels[EDITOR_UI_GROUP_MEMBERS_MAX][EDITOR_UI_GROUP_TITLE_MAX];
+    const char* tab_rows[EDITOR_UI_GROUP_MEMBERS_MAX];
+    int tab_slots[EDITOR_UI_GROUP_MEMBERS_MAX];
+    int tab_count;
+    /** What the rows were made from (open set, shown, the hotkeys' serial). */
+    uint32_t tabs_digest;
+    int tabs_built;
+
+    /** The default membership, in strip order: what Reset groups restores. */
+    int home[EDITOR_UI_GROUP_MEMBERS_MAX];
+    int home_count;
+};
+
 /** Lines the output console keeps, and their width. */
 #define EDITOR_UI_CONSOLE_LINES 512
 #define EDITOR_UI_CONSOLE_LINE_MAX 160
@@ -622,6 +719,12 @@ struct EditorUi
      *  panels were open when they were hidden (restored by the next press). */
     int panels_hidden;
     unsigned char panels_hidden_open[EDITOR_UI_PANELS_MAX];
+
+    /** The panel groups (Editor_UiRegisterGroup), and per registry panel the
+     *  group it is in now, plus one (0: not in a group). */
+    struct EditorUiGroup groups[EDITOR_UI_GROUPS_MAX];
+    int group_count;
+    unsigned char group_plus1[EDITOR_UI_PANELS_MAX];
 };
 
 /** Zero the registry over `chrome`; no panels yet. `editor` may be NULL. */
@@ -662,10 +765,91 @@ Editor_UiPanelSelf(
  * `ui->app`; with it NULL they are skipped. They reach the App through
  * `ui->app_services` only, filled before this is called.
  *
+ * Then the default panel groups, each holding whichever of its modules this
+ * window registered: "right-top" (Catalog, Locs, Spawns, Inspector),
+ * "right-mid" (Terrain, Palette, Catalog palette) and "bottom" (Console,
+ * History). Every other module is a window of its own, as before.
+ *
  * integrate-3 adds the other owners' Register calls beside this one.
  */
 void
 Editor_UiRegisterToolsPanels(struct EditorUi* ui);
+
+/* ---- panel groups (the model is above, at struct EditorUiGroup) ----------- */
+
+/**
+ * Add an empty group `name` whose frame is titled `title`, hidden until a
+ * member opens. Called while Editor_UiRegisterToolsPanels runs, or straight
+ * after it before any other chrome panel is added (the frame must be the next
+ * window of the registry's). Asserts a new name and a free slot. Returns its
+ * index.
+ */
+int
+Editor_UiRegisterGroup(
+    struct EditorUi* ui,
+    const char* name,
+    const char* title);
+
+/**
+ * Put registry module `module` into group `group`, at the end of its strip;
+ * the first group a module joins is its default (Reset groups). Open in the
+ * strip when its window is shown. Asserts both exist, the module is a titled
+ * WINDOW of this registry, it is in no group yet, and the group has room.
+ */
+void
+Editor_UiJoinGroup(
+    struct EditorUi* ui,
+    const char* module,
+    const char* group);
+
+/**
+ * Take `module` out of its group: a window of its own again, with its title
+ * bar back, open when it was open in the strip, and laid out as a standalone
+ * panel (the design's "drag a tab out of its strip"). Lasts until Reset groups
+ * or the next launch. Asserts it is in a group.
+ */
+void
+Editor_UiLeaveGroup(
+    struct EditorUi* ui,
+    const char* module);
+
+/** View > Reset groups: every module back in its default group, in its
+ *  default place in the strip, and the layout run again. */
+void
+Editor_UiResetGroups(struct EditorUi* ui);
+
+/** The group named `name`, or NULL. */
+struct EditorUiGroup*
+Editor_UiFindGroup(
+    struct EditorUi* ui,
+    const char* name);
+
+/** Index of the group registry module `module` is in, or -1 (also for a name
+ *  that is no module). */
+int
+Editor_UiGroupOf(
+    const struct EditorUi* ui,
+    const char* module);
+
+/** 1 while registry module `module` is open in its group's strip, shown or
+ *  behind another tab; 0 when it is not, or is in no group. */
+int
+Editor_UiPanelInStrip(
+    const struct EditorUi* ui,
+    const char* module);
+
+/** The registry module whose tab group `group` shows, or NULL (none open). */
+const char*
+Editor_UiGroupShown(
+    const struct EditorUi* ui,
+    int group);
+
+/** Bring `module`'s tab to the front of its group (what a click on the tab
+ *  does), opening it in the strip if it was not. Asserts it is in a group. */
+void
+Editor_UiGroupShow(
+    struct EditorUi* ui,
+    const char* module);
 
 void
 Editor_UiSetVisible(
@@ -692,6 +876,11 @@ Editor_UiTick(struct EditorUi* ui);
  * body is Editor_UiWorldRect). Panels of the default
  * set that do not fit the column are hidden (the View menu opens them, beside
  * the column). Panels the user dragged or resized keep their place.
+ * A panel group takes ONE place: in the column where its first member in that
+ * order would go, or as the bottom strip when it holds the console; its
+ * height is its strip's plus its largest member's (the members all have the
+ * group's box, the shown one showing). A group with no room is hidden with
+ * its tabs kept, as a panel with no room is.
  * Editor_UiTick runs it on the first frame and whenever the surface or the
  * chrome scale changes.
  */
@@ -730,7 +919,9 @@ Editor_UiWorldShown(const struct EditorUi* ui);
 /* ---- the saved layout (editor_layout.h has the file and the policy) ------- */
 
 /** The live layout as a file: the surface, the scale, snap, and every
- *  View-menu panel's visibility, placement flag and geometry (at scale 1). */
+ *  View-menu panel's visibility, placement flag and geometry (at scale 1);
+ *  every group with members as a [group] section, and each member's [panel]
+ *  as only whether it is in its strip. */
 void
 Editor_UiLayoutCapture(
     const struct EditorUi* ui,

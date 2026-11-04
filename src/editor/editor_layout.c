@@ -66,6 +66,39 @@ EditorLayout_Add(
     return panel;
 }
 
+const struct EditorLayoutGroup*
+EditorLayout_FindGroup(
+    const struct EditorLayoutFile* file,
+    const char* name)
+{
+    assert(file);
+    assert(name);
+    for( int i = 0; i < file->group_count; i++ )
+        if( strcmp(file->groups[i].name, name) == 0 )
+            return &file->groups[i];
+    return NULL;
+}
+
+struct EditorLayoutGroup*
+EditorLayout_AddGroup(
+    struct EditorLayoutFile* file,
+    const char* name)
+{
+    struct EditorLayoutGroup* group;
+
+    assert(file);
+    assert(name);
+    assert(strlen(name) < EDITOR_LAYOUT_NAME_MAX);
+    group = (struct EditorLayoutGroup*)EditorLayout_FindGroup(file, name);
+    if( group )
+        return group;
+    assert(file->group_count < EDITOR_LAYOUT_GROUPS_MAX);
+    group = &file->groups[file->group_count++];
+    memset(group, 0, sizeof(*group));
+    snprintf(group->name, sizeof(group->name), "%s", name);
+    return group;
+}
+
 static void
 layout_trim(char* text)
 {
@@ -104,9 +137,32 @@ layout_int(
     return 1;
 }
 
-/* Section states. */
+/* Section states: a panel's index, or one of these; a group is
+ * LAYOUT_SECTION_GROUP minus its index. */
 #define LAYOUT_SECTION_NONE (-2)
 #define LAYOUT_SECTION_META (-1)
+#define LAYOUT_SECTION_GROUP (-3)
+
+/** `[<kind> <name>]`: the name after the kind word, trimmed, or NULL when the
+ *  section is not of that kind. */
+static char*
+layout_section_named(
+    char* section,
+    const char* kind)
+{
+    size_t const n = strlen(kind);
+    char* name;
+
+    if( strncmp(section, kind, n) != 0 || !isspace((unsigned char)section[n]) )
+        return NULL;
+    /* Past the separating blanks without moving them, so the section text
+     * still reads `<kind> <name>`. */
+    name = section + n;
+    while( *name && isspace((unsigned char)*name) )
+        name++;
+    layout_trim(name);
+    return name;
+}
 
 int
 EditorLayout_Decode(
@@ -131,20 +187,28 @@ EditorLayout_Decode(
         if( element.kind == INI_ELEMENT_SECTION )
         {
             char* name = element._section.name;
+            char* panel_name;
+            char* group_name;
             layout_trim(name);
             section = LAYOUT_SECTION_NONE;
+            panel_name = layout_section_named(name, "panel");
+            group_name = layout_section_named(name, "group");
             if( strcmp(name, "layout") == 0 )
             {
                 section = LAYOUT_SECTION_META;
                 found = 1;
             }
-            else if( strncmp(name, "panel", 5) == 0 && isspace((unsigned char)name[5]) )
+            else if( panel_name )
             {
-                char* panel_name = name + 5;
-                layout_trim(panel_name);
                 if( panel_name[0] && strlen(panel_name) < EDITOR_LAYOUT_NAME_MAX
                     && (EditorLayout_Find(out, panel_name) || out->panel_count < EDITOR_LAYOUT_PANELS_MAX) )
                     section = (int)(EditorLayout_Add(out, panel_name) - out->panels);
+            }
+            else if( group_name )
+            {
+                if( group_name[0] && strlen(group_name) < EDITOR_LAYOUT_NAME_MAX
+                    && (EditorLayout_FindGroup(out, group_name) || out->group_count < EDITOR_LAYOUT_GROUPS_MAX) )
+                    section = LAYOUT_SECTION_GROUP - (int)(EditorLayout_AddGroup(out, group_name) - out->groups);
             }
             continue;
         }
@@ -155,6 +219,24 @@ EditorLayout_Decode(
         {
             const char* key = element._keyval.name;
             int v;
+            /* The one key whose value is a name: the group's front tab. A
+             * trailing comment is cut off, as layout_int allows one. */
+            if( section <= LAYOUT_SECTION_GROUP && strcmp(key, "shown") == 0 )
+            {
+                struct EditorLayoutGroup* g = &out->groups[LAYOUT_SECTION_GROUP - section];
+                char* value = element._keyval.value;
+                char* cut = strpbrk(value, ";#");
+                if( cut )
+                    *cut = '\0';
+                layout_trim(value);
+                if( value[0] && strlen(value) < EDITOR_LAYOUT_NAME_MAX && !strpbrk(value, " \t") )
+                {
+                    g->has_shown = 1;
+                    memset(g->shown, 0, sizeof(g->shown));
+                    memcpy(g->shown, value, strlen(value));
+                }
+                continue;
+            }
             if( !layout_int(element._keyval.value, &v) )
                 continue;
             if( section == LAYOUT_SECTION_META )
@@ -171,6 +253,46 @@ EditorLayout_Decode(
                 {
                     out->has_snap = 1;
                     out->snap = v ? 1 : 0;
+                }
+                continue;
+            }
+            if( section <= LAYOUT_SECTION_GROUP )
+            {
+                struct EditorLayoutGroup* g = &out->groups[LAYOUT_SECTION_GROUP - section];
+                if( strcmp(key, "visible") == 0 )
+                {
+                    g->has_visible = 1;
+                    g->visible = v ? 1 : 0;
+                }
+                else if( strcmp(key, "user_placed") == 0 )
+                {
+                    g->has_user_placed = 1;
+                    g->user_placed = v ? 1 : 0;
+                }
+                else if( strcmp(key, "x") == 0 )
+                {
+                    g->has_x = 1;
+                    g->x = v;
+                }
+                else if( strcmp(key, "y") == 0 )
+                {
+                    g->has_y = 1;
+                    g->y = v;
+                }
+                else if( strcmp(key, "w") == 0 && v >= 0 )
+                {
+                    g->has_w = 1;
+                    g->w = v;
+                }
+                else if( strcmp(key, "h") == 0 && v >= 0 )
+                {
+                    g->has_h = 1;
+                    g->h = v;
+                }
+                else if( strcmp(key, "maximised") == 0 )
+                {
+                    g->has_maximised = 1;
+                    g->maximised = v ? 1 : 0;
                 }
                 continue;
             }
@@ -223,9 +345,10 @@ EditorLayout_Encode(
     char** out_data,
     int* out_size)
 {
-    /* Bounded: a header, and per panel one section line and seven short
-     * `key = int` lines. */
-    int const cap = 1024 + EDITOR_LAYOUT_PANELS_MAX * (EDITOR_LAYOUT_NAME_MAX + 7 * 32 + 16);
+    /* Bounded: a header, per panel one section line and seven short
+     * `key = int` lines, and per group the same plus its `shown` name. */
+    int const cap = 1024 + EDITOR_LAYOUT_PANELS_MAX * (EDITOR_LAYOUT_NAME_MAX + 7 * 32 + 16)
+                    + EDITOR_LAYOUT_GROUPS_MAX * (2 * EDITOR_LAYOUT_NAME_MAX + 8 * 32 + 16);
     char* text;
     int len = 0;
 
@@ -234,6 +357,8 @@ EditorLayout_Encode(
     assert(out_size);
     assert(file->panel_count >= 0);
     assert(file->panel_count <= EDITOR_LAYOUT_PANELS_MAX);
+    assert(file->group_count >= 0);
+    assert(file->group_count <= EDITOR_LAYOUT_GROUPS_MAX);
 
     text = ToriMem_Alloc(ToriMem_Process(), (size_t)cap);
     assert(text);
@@ -244,6 +369,8 @@ EditorLayout_Encode(
         "; panel gets its x/y/w/h back; on another surface only panels with\n"
         "; user_placed = 1 do, and the rest are placed by the default layout for it.\n"
         "; maximised = 1: drawn over the dock, x/y/w/h being the box it restores to.\n"
+        "; A [group] is panels behind one tab strip: its box is the whole group's,\n"
+        "; shown its front tab; a member's [panel] says only whether it is in the strip.\n"
         "\n[layout]\n"
         "version = %d\n"
         "surface_w = %d\n"
@@ -270,6 +397,27 @@ EditorLayout_Encode(
             len += snprintf(text + len, (size_t)(cap - len), "h = %d\n", p->h);
         if( p->has_maximised )
             len += snprintf(text + len, (size_t)(cap - len), "maximised = %d\n", p->maximised ? 1 : 0);
+    }
+    for( int i = 0; i < file->group_count; i++ )
+    {
+        const struct EditorLayoutGroup* g = &file->groups[i];
+        len += snprintf(text + len, (size_t)(cap - len), "\n[group %s]\n", g->name);
+        if( g->has_visible )
+            len += snprintf(text + len, (size_t)(cap - len), "visible = %d\n", g->visible ? 1 : 0);
+        if( g->has_user_placed )
+            len += snprintf(text + len, (size_t)(cap - len), "user_placed = %d\n", g->user_placed ? 1 : 0);
+        if( g->has_x )
+            len += snprintf(text + len, (size_t)(cap - len), "x = %d\n", g->x);
+        if( g->has_y )
+            len += snprintf(text + len, (size_t)(cap - len), "y = %d\n", g->y);
+        if( g->has_w )
+            len += snprintf(text + len, (size_t)(cap - len), "w = %d\n", g->w);
+        if( g->has_h )
+            len += snprintf(text + len, (size_t)(cap - len), "h = %d\n", g->h);
+        if( g->has_maximised )
+            len += snprintf(text + len, (size_t)(cap - len), "maximised = %d\n", g->maximised ? 1 : 0);
+        if( g->has_shown )
+            len += snprintf(text + len, (size_t)(cap - len), "shown = %s\n", g->shown);
     }
     assert(len < cap);
     *out_data = text;
