@@ -1,5 +1,9 @@
 #include "chrome_widget_sync.h"
 
+#include "ui/torirs_chrome_metrics.h"
+
+#include <string.h>
+
 /* ICONBUTTON and the TOOLBAR panel: a sprite-faced button, pressed state on
  * CHECKED, the slot on the ADD and on VALUE; a toolbar lays them out in a
  * strip wrapped at its fixed width. */
@@ -62,6 +66,56 @@ cw_test_iconbutton(void)
         "a new icon is one VALUE");
     ToriRSChrome_IconButtonSetIcon(&g_cw_ui, raise, TORIRS_CHROME_SKIN_TOOL_LOWER);
     CW_CHECK(cw_run() == 0, "the same icon again records nothing");
+
+    /* The chord badge (the workbench design's section 15, surface 2): the
+     * setter, a Small-face badge over a black plate in the icon box's
+     * bottom-right corner, and WIDGET_CHORD. */
+    cw_run();
+    ToriRSChrome_IconButtonSetChord(&g_cw_ui, raise, "R");
+    CW_CHECK(strcmp(b->chord, "R") == 0, "the setter copies the chord");
+    cw_run();
+    cmd = cw_find(TORIRS_CHROME_CMD_WIDGET_CHORD, raise);
+    CW_CHECK(cmd && strcmp(cmd->label, "R") == 0 && g_cw_rec.count == 3,
+        "a badge is one WIDGET_CHORD");
+    CW_CHECK(cw_find(TORIRS_CHROME_CMD_WIDGET_CHORD, select) == NULL,
+        "a button with no chord is sent none");
+    {
+        int n = 0;
+        int found_text = 0;
+        int found_plate = 0;
+        int const badge_w = ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, 1, "R") +
+                            2 * TORIRS_CHROME_M_KEYCAP_PAD_X;
+        struct ToriRSChromePrim const* prims;
+
+        (void)ToriRSChrome_Build(&g_cw_ui);
+        prims = ToriRSChrome_Prims(&g_cw_ui, &n);
+        for( int i = 0; i < n; i++ )
+        {
+            if( prims[i].kind == TORIRS_CHROME_PRIM_TEXT && prims[i].text == b->chord &&
+                prims[i].font_slot == TORIRS_CHROME_FONT_SMALL &&
+                prims[i].color == g_cw_ui.theme.menu_hover_text )
+                found_text = 1;
+            if( prims[i].kind == TORIRS_CHROME_PRIM_RECT && prims[i].filled &&
+                prims[i].color == g_cw_ui.theme.menu_chrome && prims[i].w == badge_w &&
+                prims[i].h == TORIRS_CHROME_M_BADGE_H &&
+                prims[i].x + prims[i].w == b->x + b->w - TORIRS_CHROME_M_BADGE_INSET &&
+                prims[i].y + prims[i].h == b->y + b->h - TORIRS_CHROME_M_BADGE_INSET )
+                found_plate = 1;
+        }
+        CW_CHECK(found_plate, "a black plate in the box's bottom-right corner");
+        CW_CHECK(found_text, "the chord on it, Small face, hint yellow, borrowed");
+    }
+    CW_CHECK(b->w == 32 && b->h == 32, "a badge does not change the button's box");
+    cw_click(b->x + b->w - 3, b->y + b->h - 3);
+    CW_CHECK(ToriRSChrome_TakeActivated(&g_cw_ui) == raise,
+        "a click on the badge presses the button");
+    cw_run();
+    ToriRSChrome_IconButtonSetChord(&g_cw_ui, raise, "R");
+    CW_CHECK(cw_run() == 0, "the same chord again records nothing");
+    ToriRSChrome_IconButtonSetChord(&g_cw_ui, raise, "");
+    cw_run();
+    cmd = cw_find(TORIRS_CHROME_CMD_WIDGET_CHORD, raise);
+    CW_CHECK(cmd && cmd->label[0] == '\0', "clearing it is sent as an empty chord");
 
     /* No fixed width: one row, the viewer window's thin toolbar. */
     ToriRSChrome_PanelSetFixedWidth(&g_cw_ui, rail, 0);

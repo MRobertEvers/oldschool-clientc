@@ -304,8 +304,22 @@ enum ToriRSChromeCmdKind
      * x with baseline y), `color`, `value` = its hit key, `label` = its text.
      */
     TORIRS_CHROME_CMD_WIDGET_GRAPH_ITEM,
-    /** `label` = the widget's hover text ("" none). */
+    /**
+     * `label` = the widget's hover text ("" none), `text` = the chord the
+     * tooltip ends with ("" none of its own: a BUTTON or ICONBUTTON then ends
+     * it with the chord its WIDGET_CHORD carries). A presentation shows
+     * "text  [chord]", the chord as a keycap where it can draw one.
+     */
     TORIRS_CHROME_CMD_WIDGET_TOOLTIP,
+    /**
+     * `label` = the chord a BUTTON wears as a keycap after its caption, or an
+     * ICONBUTTON as a badge in its corner ("" none). The display spelling of
+     * the hotkey table, already shortened to TORIRS_CHROME_CHORD_MAX; sent for
+     * those two kinds only, and only on a change. The keycap's geometry and
+     * ink are torirs_chrome_metrics.h's KEYCAP_* and BADGE_*, which the DOM
+     * presentations read too.
+     */
+    TORIRS_CHROME_CMD_WIDGET_CHORD,
 };
 
 /**
@@ -633,6 +647,10 @@ struct ToriRSChromeShadowWidget
     int rows_known;
     uint32_t rows_rev;
     char tooltip[TORIRS_CHROME_LABEL_MAX];
+    /** The tooltip's own chord and the BUTTON/ICONBUTTON chord, as last sent.
+     *  "" is what a fresh shadow holds, so a widget with none is told none. */
+    char tooltip_chord[TORIRS_CHROME_CHORD_MAX];
+    char chord[TORIRS_CHROME_CHORD_MAX];
 };
 
 struct ToriRSChromeShadowPanel

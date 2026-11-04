@@ -61,6 +61,12 @@
 #define DBG_CODE_LINE_H (ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, ui->scale) + DBG_PX(1))
 #define DBG_GUTTER_PAD DBG_PX(4)
 #define DBG_TOOLTIP_PAD DBG_PX(3)
+/** Chords at the action (torirs_chrome_metrics.h, "keycaps and badges"). */
+#define DBG_KEYCAP_INSET DBG_PX(TORIRS_CHROME_M_KEYCAP_INSET)
+#define DBG_KEYCAP_PAD_X DBG_PX(TORIRS_CHROME_M_KEYCAP_PAD_X)
+#define DBG_KEYCAP_GAP DBG_PX(TORIRS_CHROME_M_KEYCAP_GAP)
+#define DBG_BADGE_H DBG_PX(TORIRS_CHROME_M_BADGE_H)
+#define DBG_BADGE_INSET DBG_PX(TORIRS_CHROME_M_BADGE_INSET)
 /** Transparency of the veil under a modal (the reference's sense: 0 opaque). */
 #define DBG_MODAL_VEIL_TRANS 128
 
@@ -142,46 +148,124 @@ dbg_is_vlist_kind(int kind)
 }
 
 /**
- * Copy a caller string into one of a widget's fields, logging -- once per
- * widget serial -- when it did not fit. The limits stay (63-byte labels,
- * 191-byte text); what changes is that hitting one is no longer silent.
+ * Note -- once per widget serial -- that `src` did not fit a `cap`-byte field.
+ *
+ * Two answers, both kept: the stderr line every host already gets, and a
+ * record in the ring the host drains (ToriRSChrome_TakeTruncation), so the
+ * map editor's console can say it where the person editing will see it. The
+ * limits stay (63-byte labels, 191-byte text); what changes is that hitting
+ * one is never silent (the workbench contract's R2).
  */
+static void
+dbg_note_truncation(
+    struct ToriRSChrome* ui, int widget, int field, char const* src, int cap)
+{
+    struct ToriRSChromeWidget* w = &ui->widgets[widget];
+    struct ToriRSChromeTruncation* rec;
+    size_t length;
+    int slot;
+
+    if( !src || w->truncation_logged )
+        return;
+    length = strlen(src);
+    if( length < (size_t)cap )
+        return;
+    w->truncation_logged = 1;
+    fprintf(
+        stderr,
+        "chrome: widget %d (serial %d) string cut to %d bytes: \"%.40s...\"\n",
+        widget,
+        w->serial,
+        cap - 1,
+        src);
+    /* A full ring overwrites its oldest: the newest cut is the one on the page
+     * somebody just opened. */
+    if( ui->truncation_count == TORIRS_CHROME_TRUNCATION_RING )
+    {
+        ui->truncation_head = (ui->truncation_head + 1) % TORIRS_CHROME_TRUNCATION_RING;
+        ui->truncation_count--;
+        ui->truncation_dropped++;
+    }
+    slot = (ui->truncation_head + ui->truncation_count) % TORIRS_CHROME_TRUNCATION_RING;
+    rec = &ui->truncations[slot];
+    rec->widget = widget;
+    rec->serial = w->serial;
+    rec->widget_kind = w->kind;
+    rec->field = field;
+    rec->kept = cap - 1;
+    rec->length = length > 0x7FFFFFFF ? 0x7FFFFFFF : (int)length;
+    dbg_copy(rec->head, TORIRS_CHROME_TRUNCATION_HEAD, src);
+    ui->truncation_count++;
+}
+
+/** Which field of `w` the buffer `dst` is, for the truncation record. */
+static int
+dbg_widget_field(struct ToriRSChromeWidget const* w, char const* dst)
+{
+    if( dst == w->label )
+        return TORIRS_CHROME_TRUNC_LABEL;
+    if( dst == w->tooltip )
+        return TORIRS_CHROME_TRUNC_TOOLTIP;
+    if( dst == w->chord )
+        return TORIRS_CHROME_TRUNC_CHORD;
+    if( dst == w->tooltip_chord )
+        return TORIRS_CHROME_TRUNC_TOOLTIP_CHORD;
+    return TORIRS_CHROME_TRUNC_TEXT;
+}
+
+/** Copy a caller string into one of a widget's fields, noting a cut. */
 static void
 dbg_copy_widget(
     struct ToriRSChrome* ui, int widget, char* dst, int cap, char const* src)
 {
-    struct ToriRSChromeWidget* w = &ui->widgets[widget];
-
+    dbg_note_truncation(ui, widget, dbg_widget_field(&ui->widgets[widget], dst), src, cap);
     dbg_copy(dst, cap, src);
-    if( src && strlen(src) >= (size_t)cap && !w->truncation_logged )
-    {
-        w->truncation_logged = 1;
-        fprintf(
-            stderr,
-            "chrome: widget %d (serial %d) string cut to %d bytes: \"%.40s...\"\n",
-            widget,
-            w->serial,
-            cap - 1,
-            src);
-    }
 }
 
-/** The same check for a setter that copies into a scratch buffer first. */
-static void
-dbg_note_truncation(struct ToriRSChrome* ui, int widget, char const* src, int cap)
+int
+ToriRSChrome_TakeTruncation(struct ToriRSChrome* ui, struct ToriRSChromeTruncation* out)
 {
-    struct ToriRSChromeWidget* w = &ui->widgets[widget];
-
-    if( src && strlen(src) >= (size_t)cap && !w->truncation_logged )
+    assert(ui);
+    assert(out);
+    if( ui->truncation_count == 0 )
     {
-        w->truncation_logged = 1;
-        fprintf(
-            stderr,
-            "chrome: widget %d (serial %d) string cut to %d bytes: \"%.40s...\"\n",
-            widget,
-            w->serial,
-            cap - 1,
-            src);
+        memset(out, 0, sizeof(*out));
+        return 0;
+    }
+    *out = ui->truncations[ui->truncation_head];
+    ui->truncation_head = (ui->truncation_head + 1) % TORIRS_CHROME_TRUNCATION_RING;
+    ui->truncation_count--;
+    return 1;
+}
+
+int
+ToriRSChrome_TakeTruncationsDropped(struct ToriRSChrome* ui)
+{
+    int was;
+
+    assert(ui);
+    was = ui->truncation_dropped;
+    ui->truncation_dropped = 0;
+    return was;
+}
+
+char const*
+ToriRSChrome_TruncationFieldName(int field)
+{
+    assert(field >= TORIRS_CHROME_TRUNC_LABEL);
+    assert(field <= TORIRS_CHROME_TRUNC_TOOLTIP_CHORD);
+    switch( field )
+    {
+    case TORIRS_CHROME_TRUNC_LABEL:
+        return "label";
+    case TORIRS_CHROME_TRUNC_TEXT:
+        return "text";
+    case TORIRS_CHROME_TRUNC_TOOLTIP:
+        return "tooltip";
+    case TORIRS_CHROME_TRUNC_CHORD:
+        return "chord";
+    default:
+        return "tooltip chord";
     }
 }
 
@@ -528,6 +612,51 @@ dbg_event_init(
     ev->serial = ui->widgets[widget].serial;
 }
 
+/* ---- keycaps ------------------------------------------------------------------ */
+
+/** A keycap's width for `chord`: the chord in the Small face and its air. */
+static int
+dbg_keycap_width(struct ToriRSChrome const* ui, char const* chord)
+{
+    return ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, ui->scale, chord) +
+           2 * DBG_KEYCAP_PAD_X;
+}
+
+/**
+ * One keycap: a dark box with the grey inset rule a field wears, and the
+ * chord in the Small face centred on it in `ink`.
+ *
+ * The chord prim borrows `chord`, which is a widget's own field, the same as
+ * every caption here. The fill is the field black and the rule the field
+ * inset, so a keycap reads as a key set INTO the control rather than as a
+ * second button on it.
+ */
+static void
+dbg_push_keycap(
+    struct ToriRSChrome* ui,
+    struct ToriRSChromeRect cap,
+    char const* chord,
+    uint32_t ink,
+    struct ToriRSChromeRect clip)
+{
+    struct ToriRSChromeTheme const* th = &ui->theme;
+    int const line_box = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_SMALL, ui->scale);
+    int const ascent = ToriRSChrome_FontLineHeight(TORIRS_CHROME_FONT_SMALL, ui->scale);
+    int const chord_w = ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, ui->scale, chord);
+
+    dbg_push_rect(ui, cap.x, cap.y, cap.w, cap.h, th->input_bg, 1, clip);
+    dbg_push_rect(ui, cap.x, cap.y, cap.w, cap.h, th->dropdown_border_inner, 0, clip);
+    dbg_push_text(
+        ui,
+        cap.x + (cap.w - chord_w) / 2,
+        cap.y + (cap.h - line_box) / 2 + ascent,
+        chord,
+        ink,
+        TORIRS_CHROME_FONT_SMALL,
+        0,
+        dbg_rect_clip(clip, cap));
+}
+
 /* ---- tooltips ---------------------------------------------------------------- */
 
 static char const*
@@ -540,6 +669,75 @@ dbg_tooltip_text(struct ToriRSChromeWidget const* w)
     return NULL;
 }
 
+/** The chord a tooltip ends with: its own, else the chord a BUTTON or
+ *  ICONBUTTON wears. NULL for none. */
+static char const*
+dbg_tooltip_chord(struct ToriRSChromeWidget const* w)
+{
+    if( w->tooltip_chord[0] )
+        return w->tooltip_chord;
+    if( (w->kind == TORIRS_CHROME_W_BUTTON || w->kind == TORIRS_CHROME_W_ICONBUTTON) &&
+        w->chord[0] )
+        return w->chord;
+    return NULL;
+}
+
+/** A tooltip that is up redraws when anything it shows changed. */
+static void
+dbg_tooltip_touched(struct ToriRSChrome* ui, int widget)
+{
+    if( ui->tooltip_widget != widget )
+        return;
+    dbg_damage_add(ui, ui->tooltip_rect);
+    ui->dirty = 1;
+}
+
+/**
+ * Copy a chord into `dst` (a widget's chord or tooltip chord), noting a cut.
+ * @return 1 when the stored chord changed.
+ */
+static int
+dbg_set_chord(struct ToriRSChrome* ui, int widget, char* dst, char const* chord)
+{
+    char buf[TORIRS_CHROME_CHORD_MAX];
+
+    dbg_note_truncation(
+        ui, widget, dbg_widget_field(&ui->widgets[widget], dst), chord, TORIRS_CHROME_CHORD_MAX);
+    dbg_copy(buf, TORIRS_CHROME_CHORD_MAX, chord);
+    if( strcmp(buf, dst) == 0 )
+        return 0;
+    memcpy(dst, buf, sizeof(buf));
+    return 1;
+}
+
+void
+ToriRSChrome_SetTooltipChord(struct ToriRSChrome* ui, int widget, char const* chord)
+{
+    assert(ui);
+    assert(dbg_valid_widget(ui, widget));
+    assert(chord);
+    if( !dbg_set_chord(ui, widget, ui->widgets[widget].tooltip_chord, chord) )
+        return;
+    dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_TOOLTIP);
+    dbg_tooltip_touched(ui, widget);
+}
+
+void
+ToriRSChrome_ButtonSetChord(struct ToriRSChrome* ui, int widget, char const* chord)
+{
+    assert(ui);
+    assert(dbg_valid_widget(ui, widget));
+    assert(ui->widgets[widget].kind == TORIRS_CHROME_W_BUTTON);
+    assert(chord);
+    if( !dbg_set_chord(ui, widget, ui->widgets[widget].chord, chord) )
+        return;
+    dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_CHORD);
+    /* The plate is the label column wide whatever it holds, so the keycap
+     * moves no row: a repaint of this one is the whole of it. */
+    dbg_dirty_widget_paint(ui, widget);
+    dbg_tooltip_touched(ui, widget);
+}
+
 void
 ToriRSChrome_SetTooltip(struct ToriRSChrome* ui, int widget, char const* text)
 {
@@ -550,17 +748,13 @@ ToriRSChrome_SetTooltip(struct ToriRSChrome* ui, int widget, char const* text)
     if( !dbg_valid_widget(ui, widget) )
         return;
     w = &ui->widgets[widget];
-    dbg_note_truncation(ui, widget, text, TORIRS_CHROME_LABEL_MAX);
+    dbg_note_truncation(ui, widget, TORIRS_CHROME_TRUNC_TOOLTIP, text, TORIRS_CHROME_LABEL_MAX);
     dbg_copy(buf, TORIRS_CHROME_LABEL_MAX, text ? text : "");
     if( strcmp(buf, w->tooltip) == 0 )
         return;
     memcpy(w->tooltip, buf, sizeof(buf));
     dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_TOOLTIP);
-    if( ui->tooltip_widget == widget )
-    {
-        dbg_damage_add(ui, ui->tooltip_rect);
-        ui->dirty = 1;
-    }
+    dbg_tooltip_touched(ui, widget);
 }
 
 int
@@ -617,6 +811,9 @@ dbg_build_tooltip(struct ToriRSChrome* ui)
     struct ToriRSChromeRect const surface = dbg_surface_rect(ui);
     struct ToriRSChromeRect box;
     char const* text;
+    char const* chord;
+    int text_w;
+    int cap_w = 0;
 
     if( ui->tooltip_widget < 0 )
         return;
@@ -629,8 +826,12 @@ dbg_build_tooltip(struct ToriRSChrome* ui)
     text = dbg_tooltip_text(w);
     if( !text || !dbg_widget_shown(ui, w) || !ui->panels[w->panel].visible )
         return;
-    box.w = ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, ui->scale, text) +
-            2 * DBG_TOOLTIP_PAD;
+    chord = dbg_tooltip_chord(w);
+    text_w = ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, ui->scale, text);
+    /* "text  [chord]": the box widens by the gap and the keycap. */
+    if( chord )
+        cap_w = dbg_keycap_width(ui, chord);
+    box.w = text_w + (chord ? DBG_KEYCAP_GAP + cap_w : 0) + 2 * DBG_TOOLTIP_PAD;
     box.h = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_SMALL, ui->scale) +
             2 * DBG_TOOLTIP_PAD;
     box.x = ui->hover_x + DBG_PX(12);
@@ -655,6 +856,17 @@ dbg_build_tooltip(struct ToriRSChrome* ui)
         TORIRS_CHROME_FONT_SMALL,
         1,
         surface);
+    if( chord )
+    {
+        /* The keycap sits on the text's line box: the tooltip's pad is its
+         * frame, so it needs no inset of its own. */
+        struct ToriRSChromeRect cap;
+        cap.x = box.x + DBG_TOOLTIP_PAD + text_w + DBG_KEYCAP_GAP;
+        cap.y = box.y + DBG_TOOLTIP_PAD;
+        cap.w = cap_w;
+        cap.h = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_SMALL, ui->scale);
+        dbg_push_keycap(ui, cap, chord, th->menu_hover_text, surface);
+    }
     if( box.x != ui->tooltip_rect.x || box.y != ui->tooltip_rect.y ||
         box.w != ui->tooltip_rect.w || box.h != ui->tooltip_rect.h )
     {
@@ -906,7 +1118,7 @@ ToriRSChrome_VListSetRow(struct ToriRSChrome* ui, int widget, int row, char cons
     slot = dbg_vrow_slot(ui, w, row);
     if( !slot )
         return;
-    dbg_note_truncation(ui, widget, text, TORIRS_CHROME_INPUT_MAX);
+    dbg_note_truncation(ui, widget, TORIRS_CHROME_TRUNC_TEXT, text, TORIRS_CHROME_INPUT_MAX);
     dbg_copy(buf, TORIRS_CHROME_INPUT_MAX, text ? text : "");
     if( slot->index == row && strcmp(slot->text, buf) == 0 )
         return;
@@ -1063,6 +1275,20 @@ ToriRSChrome_IconButtonSetIcon(struct ToriRSChrome* ui, int widget, int skin_slo
     ui->widgets[widget].ivalue = skin_slot;
     dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_VALUE);
     dbg_dirty_widget_paint(ui, widget);
+}
+
+void
+ToriRSChrome_IconButtonSetChord(struct ToriRSChrome* ui, int widget, char const* chord)
+{
+    assert(ui);
+    assert(dbg_valid_widget(ui, widget));
+    assert(ui->widgets[widget].kind == TORIRS_CHROME_W_ICONBUTTON);
+    assert(chord);
+    if( !dbg_set_chord(ui, widget, ui->widgets[widget].chord, chord) )
+        return;
+    dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_CHORD);
+    dbg_dirty_widget_paint(ui, widget);
+    dbg_tooltip_touched(ui, widget);
 }
 
 /* ---- SLIDER ---------------------------------------------------------------------- */
@@ -2145,6 +2371,39 @@ dbg_draw_iconbutton(
     }
     if( hovered && !w->disabled )
         dbg_push_rect(ui, x, y, box, box, th->accent, 0, clip);
+    if( w->chord[0] )
+    {
+        /* The chord as a badge: Small face over a black plate in the bottom-
+         * right corner, inside the hover outline so the outline never covers
+         * it. Clipped to the box -- a chord wider than the icon is cut at the
+         * button's edge rather than spilling onto its neighbour. */
+        struct ToriRSChromeRect badge;
+        struct ToriRSChromeRect icon;
+        int const line_box = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_SMALL, ui->scale);
+
+        icon.x = x;
+        icon.y = y;
+        icon.w = box;
+        icon.h = box;
+        badge.w = dbg_keycap_width(ui, w->chord);
+        badge.h = DBG_BADGE_H;
+        badge.x = x + box - DBG_BADGE_INSET - badge.w;
+        badge.y = y + box - DBG_BADGE_INSET - badge.h;
+        if( badge.x < x + DBG_BADGE_INSET )
+            badge.x = x + DBG_BADGE_INSET;
+        icon = dbg_rect_clip(clip, icon);
+        dbg_push_rect(ui, badge.x, badge.y, badge.w, badge.h, th->menu_chrome, 1, icon);
+        dbg_push_text(
+            ui,
+            badge.x + DBG_KEYCAP_PAD_X,
+            badge.y + (badge.h - line_box) / 2 +
+                ToriRSChrome_FontLineHeight(TORIRS_CHROME_FONT_SMALL, ui->scale),
+            w->chord,
+            w->disabled ? th->text_dim : th->menu_hover_text,
+            TORIRS_CHROME_FONT_SMALL,
+            0,
+            dbg_rect_clip(icon, badge));
+    }
 }
 
 /** CODE: the gutter's width, wide enough for the largest line number. */

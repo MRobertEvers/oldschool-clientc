@@ -57,11 +57,12 @@ chrome-skin:
 # ---- one sync test per editor widget kind ------------------------------------
 #
 # TREE, VLIST, ICONBUTTON/TOOLBAR, SLIDER, RADIO, MODAL, TOOLTIP, CODE, GRAPH,
-# SPLITTER/docking, the baked slots, and the raised capacities: each drives
+# SPLITTER/docking, the baked slots, the raised capacities, BUTTON (its chord
+# keycap) and the truncation ring: each drives
 # the real model and the real executor seam (ToriRSChromeSync over a recorder).
 # Asserts on (-UNDEBUG), like the other chrome seam tests.
 CHROME_WIDGET_TESTS = main tree vlist iconbutton slider radio modal tooltip code graph \
-	splitter skin capacity
+	splitter skin capacity button truncation
 
 .PHONY: test-chrome-widgets
 test-chrome-widgets:
