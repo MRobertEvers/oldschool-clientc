@@ -696,6 +696,237 @@ Editor_HotkeyDisplay(
     }
 }
 
+/* ---- the hint strip ------------------------------------------------------------ */
+
+/** A tool by its arming action: enum Editor_Tool's value (editor_ui.c asserts
+ *  the two orders agree). */
+#define HK_TOOL(action) ((action) - EDITOR_HK_TOOL_SELECT)
+
+/** One hint row: the mouse word, the actions whose chords follow it, the
+ *  verb. A NULL verb ends a tool's list. */
+struct hk_hint_row
+{
+    const char* mouse;
+    int actions[EDITOR_HK_HINT_ACTIONS];
+    int action_count;
+    const char* verb;
+};
+
+#define HK_NUDGES                                                                                  \
+    {                                                                                              \
+        EDITOR_HK_EDIT_NUDGE_N, EDITOR_HK_EDIT_NUDGE_S, EDITOR_HK_EDIT_NUDGE_W, EDITOR_HK_EDIT_NUDGE_E \
+    }
+
+static const struct hk_hint_row k_hint_select[] = {
+    { "click", { 0 }, 0, "tile" },
+    { "Shift+click", { 0 }, 0, "add loc" },
+    { "drag", { 0 }, 0, "marquee" },
+    { NULL, { EDITOR_HK_EDIT_SELECT_SQUARE }, 1, "square" },
+    { NULL, HK_NUDGES, 4, "nudge" },
+    { NULL, { EDITOR_HK_EDIT_ROTATE }, 1, "rotate" },
+    { NULL, { EDITOR_HK_EDIT_RESHAPE }, 1, "reshape" },
+    { NULL, { EDITOR_HK_PLACE_SWAP }, 1, "swap" },
+    { NULL, { EDITOR_HK_EDIT_DELETE }, 1, "delete" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_place[] = {
+    { "click", { EDITOR_HK_PLACE_HERE }, 1, "place" },
+    { NULL, { EDITOR_HK_EDIT_ROTATE }, 1, "turn" },
+    { NULL, { EDITOR_HK_EDIT_RESHAPE }, 1, "reshape" },
+    { NULL, { EDITOR_HK_PLACE_FIT }, 1, "fit" },
+    { NULL, { EDITOR_HK_PLACE_SWAP }, 1, "swap" },
+    { NULL, { EDITOR_HK_EDIT_DESELECT }, 1, "drop" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_brush[] = {
+    { "drag", { 0 }, 0, "paint" },
+    { NULL, { EDITOR_HK_BRUSH_RADIUS_DOWN, EDITOR_HK_BRUSH_RADIUS_UP }, 2, "radius" },
+    { NULL, { EDITOR_HK_BRUSH_STRENGTH_DOWN, EDITOR_HK_BRUSH_STRENGTH_UP }, 2, "strength" },
+    { NULL, { EDITOR_HK_BRUSH_STEP_DOWN, EDITOR_HK_BRUSH_STEP_UP }, 2, "step" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_move[] = {
+    { "drag", HK_NUDGES, 4, "move" },
+    { NULL, { EDITOR_HK_EDIT_DUPLICATE }, 1, "dup" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_rotate[] = {
+    { "click", { 0 }, 0, "rotate" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_delete[] = {
+    { "click", { 0 }, 0, "delete" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_rect[] = {
+    { "drag", { 0 }, 0, "rectangle" },
+    { NULL, { EDITOR_HK_EDIT_COPY }, 1, "copy" },
+    { NULL, { EDITOR_HK_EDIT_PASTE }, 1, "paste" },
+    { NULL, { EDITOR_HK_EDIT_FILL }, 1, "fill" },
+    { NULL, { EDITOR_HK_EDIT_CLEAR }, 1, "clear" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_player[] = {
+    { "click", { 0 }, 0, "put player" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+#undef HK_NUDGES
+
+static const struct hk_hint_row* const k_hint_rows[EDITOR_HK_HINT_TOOLS] = {
+    [HK_TOOL(EDITOR_HK_TOOL_SELECT)] = k_hint_select,
+    [HK_TOOL(EDITOR_HK_TOOL_RECT)] = k_hint_rect,
+    [HK_TOOL(EDITOR_HK_TOOL_RAISE)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_LOWER)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_FLATTEN)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_SMOOTH)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_PAINT_UNDERLAY)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_PAINT_OVERLAY)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_PAINT_FLAGS)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_PLACE)] = k_hint_place,
+    [HK_TOOL(EDITOR_HK_TOOL_MOVE)] = k_hint_move,
+    [HK_TOOL(EDITOR_HK_TOOL_ROTATE)] = k_hint_rotate,
+    [HK_TOOL(EDITOR_HK_TOOL_DELETE)] = k_hint_delete,
+    [HK_TOOL(EDITOR_HK_TOOL_PLACE_PLAYER)] = k_hint_player,
+};
+
+/**
+ * The chords of a row of several actions, compacted: each action's first
+ * chord, the modifier prefix they all share said once ("Shift+[ ]" for
+ * Shift+[ and Shift+]), and the four arrow keys as "arrows". "" when none of
+ * them is bound.
+ */
+static void
+hk_hint_join(
+    const struct Editor_Hotkeys* hk,
+    const int* actions,
+    int count,
+    char* out,
+    int out_size)
+{
+    char shown[EDITOR_HK_HINT_ACTIONS][32];
+    int bound = 0;
+    int prefix = 0;
+    int used;
+
+    assert(count <= EDITOR_HK_HINT_ACTIONS);
+    out[0] = '\0';
+    for( int i = 0; i < count; i++ )
+    {
+        if( hk->bind[actions[i]].chord[0].key == TORIRSK_UNKNOWN )
+            continue;
+        Editor_ChordDisplay(hk->bind[actions[i]].chord[0], shown[bound], (int)sizeof(shown[bound]));
+        bound++;
+    }
+    if( bound == 0 )
+        return;
+    /* The longest prefix every chord shares that ends just past a '+': the
+     * modifiers, never part of a key. */
+    for( int at = 0; shown[0][at]; at++ )
+    {
+        int same = 1;
+        for( int i = 1; i < bound && same; i++ )
+            same = shown[i][at] == shown[0][at];
+        if( !same )
+            break;
+        if( shown[0][at] == '+' && shown[0][at + 1] )
+            prefix = at + 1;
+    }
+    used = snprintf(out, (size_t)out_size, "%.*s", prefix, shown[0]);
+    if( bound == 4 && strcmp(shown[0] + prefix, "Up") == 0 && strcmp(shown[1] + prefix, "Down") == 0
+        && strcmp(shown[2] + prefix, "Left") == 0 && strcmp(shown[3] + prefix, "Right") == 0 )
+    {
+        snprintf(out + used, (size_t)(out_size - used), "arrows");
+        return;
+    }
+    for( int i = 0; i < bound && used < out_size; i++ )
+        used += snprintf(out + used, (size_t)(out_size - used), "%s%s", i ? " " : "", shown[i] + prefix);
+}
+
+int
+Editor_HotkeysHint(
+    const struct Editor_Hotkeys* hk,
+    unsigned contexts,
+    int tool,
+    struct Editor_HotkeyHint* out_rows,
+    int max)
+{
+    const struct hk_hint_row* row;
+    int count = 0;
+
+    assert(hk);
+    assert(tool >= 0);
+    assert(tool < EDITOR_HK_HINT_TOOLS);
+    assert(out_rows);
+    assert(max > 0);
+    contexts |= EDITOR_HK_CTX_G;
+    for( row = k_hint_rows[tool]; row->verb && count < max; row++ )
+    {
+        struct Editor_HotkeyHint* out = &out_rows[count];
+        char keys[EDITOR_HK_HINT_CHORD_MAX];
+        int live = 0;
+
+        keys[0] = '\0';
+        for( int i = 0; i < row->action_count; i++ )
+            if( k_actions[row->actions[i]].contexts & contexts )
+                live = 1;
+        if( live && row->action_count == 1 )
+            Editor_HotkeyDisplay(hk, (enum Editor_HotkeyAction)row->actions[0], keys, (int)sizeof(keys));
+        else if( live )
+            hk_hint_join(hk, row->actions, row->action_count, keys, (int)sizeof(keys));
+        if( !row->mouse && !keys[0] )
+            continue;
+        snprintf(out->chord, sizeof(out->chord), "%s%s%s", row->mouse ? row->mouse : "",
+            row->mouse && keys[0] ? "/" : "", keys);
+        out->verb = row->verb;
+        out->action = row->action_count > 0 ? row->actions[0] : -1;
+        count++;
+    }
+    return count;
+}
+
+unsigned
+Editor_HotkeyContextsFrom(const struct Editor_HotkeyContextFacts* facts)
+{
+    unsigned contexts = EDITOR_HK_CTX_G;
+
+    assert(facts);
+    assert(facts->tool >= 0);
+    assert(facts->tool < EDITOR_HK_HINT_TOOLS);
+    if( facts->pointer_in_world )
+        contexts |= EDITOR_HK_CTX_W;
+    if( facts->loc_count > 0 )
+    {
+        contexts |= EDITOR_HK_CTX_L;
+        /* Only Select and Move nudge with the arrows; any other tool (Place
+         * above all) leaves them to the camera. */
+        if( facts->tool == HK_TOOL(EDITOR_HK_TOOL_SELECT) || facts->tool == HK_TOOL(EDITOR_HK_TOOL_MOVE) )
+            contexts |= EDITOR_HK_CTX_M;
+        else
+            contexts |= EDITOR_HK_CTX_N;
+    }
+    else
+    {
+        contexts |= EDITOR_HK_CTX_N;
+        if( facts->spawn_count > 0 )
+            contexts |= EDITOR_HK_CTX_S;
+        if( facts->tool == HK_TOOL(EDITOR_HK_TOOL_PLACE) && facts->loc_pick )
+            contexts |= EDITOR_HK_CTX_P;
+    }
+    if( facts->rect_valid )
+        contexts |= EDITOR_HK_CTX_R;
+    return contexts;
+}
+
+#undef HK_TOOL
+
 /* ---- editor_hotkeys.ini ------------------------------------------------------------ */
 
 const char*
