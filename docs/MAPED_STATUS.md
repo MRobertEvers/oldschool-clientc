@@ -1628,7 +1628,9 @@ smooth always" (`text_rendering` in editor_prefs.ini, `view.text_bitmap` /
 test-chrome-widgets have it. Still to do: the scene bridge draws the integer
 tiers only (main.c hands the native chrome `ToriRSChromeScaleQ_Whole(q)`), so
 in the native canvas the face is seen through the bake's raster until the
-bridge draws `ToriRSChromeBake_Face` at q; the DOM pages use it now. Not
+bridge draws `ToriRSChromeBake_Face` at q; the DOM pages use it now. Until
+then the View row reads "Text rendering: smooth always (web pages only)"
+(edpanel_menubar.c): drop the suffix when the bridge draws `FaceSmooth`. Not
 checked in a real browser or on XP: the Vector WOFF/EOT rendering, and that
 IE8 accepts the EOT (built by the same `write_eot` as the bitmap faces).
 

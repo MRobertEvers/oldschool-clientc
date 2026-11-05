@@ -265,6 +265,7 @@ button { font: 700 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
 /* "Smooth always": the vector family on every rule above that names a face.
  * Only the family moves; sizes and line boxes are the cell faces'. */
 .tpc-text-smooth body, .tpc-text-smooth input, .tpc-text-smooth textarea,
-.tpc-text-smooth button, .tpc-text-smooth .tpc-minimenu { font-family: "ToriRS Chrome Vector", "Lucida Console", monospace; }
+.tpc-text-smooth button, .tpc-text-smooth .tpc-dropdown-list,
+.tpc-text-smooth .tpc-minimenu { font-family: "ToriRS Chrome Vector", "Lucida Console", monospace; }
 .tpc-text-smooth .tpc-badge, .tpc-text-smooth .tpc-keycap,
 .tpc-text-smooth .tpc-chord-badge { font-family: "ToriRS Chrome Small Vector", "Lucida Console", monospace; }

@@ -128,6 +128,15 @@ assert.match(legacyCss,
     "XP has a direct local-file EOT of the vector Body face");
 assert.match(legacyCss, /\.tpc-text-smooth body[\s\S]*?font-family:\s*"ToriRS Chrome Vector"/,
     "XP draws it under smooth always");
+["body", "input", "textarea", "button", ".tpc-dropdown-list", ".tpc-minimenu"].forEach(function (sel) {
+    var esc = sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    [modernCss, legacyCss].forEach(function (css) {
+        if (css === modernCss && !/^\./.test(sel))
+            return;
+        assert.match(css, new RegExp("\\.tpc-text-smooth " + esc + "[^{]*\\{\\s*font-family:\\s*\"ToriRS Chrome Vector\""),
+            "smooth always gives " + sel + " the vector family in both stylesheets");
+    });
+});
 [modernRuntime, legacyRuntime].forEach(function (runtime) {
     assert.match(runtime, /tpc-text-smooth/, "the runtime states smooth always as one class on the root");
 });

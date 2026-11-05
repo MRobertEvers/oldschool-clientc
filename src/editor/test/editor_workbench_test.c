@@ -536,6 +536,10 @@ test_view_rows(void)
     CHECK(row_on(view_row("Text rendering: bitmap at whole scales")) &&
               !row_on(view_row("Text rendering: smooth always")),
         "bitmap at whole scales is the default and says on");
+    CHECK(strncmp(view_label(view_row("Text rendering: smooth always")),
+              "Text rendering: smooth always (web pages only)", 46) == 0,
+        "the smooth row says the native canvas does not draw it yet (%s)",
+        view_label(view_row("Text rendering: smooth always")));
     serial = g_ui.prefs_serial;
     choose(view_row("Text rendering: smooth always"));
     CHECK(g_ui.prefs.text_smooth == 1 && Editor_UiTextSmooth(&g_ui) == 1 && g_ui.prefs_serial != serial,

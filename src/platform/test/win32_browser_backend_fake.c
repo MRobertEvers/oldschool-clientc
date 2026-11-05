@@ -50,7 +50,10 @@ PlatformWin32Browser_New(HWND parent, WCHAR const* bundle_root)
         L"font\\ToriRSMenu.woff", L"font\\ToriRSMenu.ttf",
         L"font\\ToriRSSmall.eot", L"font\\ToriRSSmall.woff",
         L"font\\ToriRSSmall.ttf", L"font\\ToriRSBody-Vector.eot",
-        L"font\\ToriRSMenu-Vector.eot", L"font\\ToriRSSmall-Vector.eot",
+        L"font\\ToriRSBody-Vector.woff", L"font\\ToriRSBody-Vector.ttf",
+        L"font\\ToriRSMenu-Vector.eot", L"font\\ToriRSMenu-Vector.woff",
+        L"font\\ToriRSMenu-Vector.ttf", L"font\\ToriRSSmall-Vector.eot",
+        L"font\\ToriRSSmall-Vector.woff", L"font\\ToriRSSmall-Vector.ttf",
         L"font\\manifest.json"
     };
     struct PlatformWin32Browser* browser;

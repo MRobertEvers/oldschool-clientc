@@ -223,9 +223,14 @@ menubar_build_view(
         }
         else
         {
+            /* The native scene bridge draws the bake's whole-scale 1x art
+             * only (main.c hands it ToriRSChromeScaleQ_Whole(q)) and never
+             * FaceSmooth, so "smooth always" changes only the DOM pages
+             * today: the row says so until the bridge draws the face at q
+             * (docs/MAPED_STATUS.md, "Vector face (for the integrator)"). */
             int const smooth = action == EDITOR_HK_VIEW_TEXT_SMOOTH;
             snprintf(label, sizeof(label), "Text rendering: %s",
-                smooth ? "smooth always" : "bitmap at whole scales");
+                smooth ? "smooth always (web pages only)" : "bitmap at whole scales");
             on = ui->prefs.text_smooth == smooth;
         }
         edp_hotkey_row(ui, action, label, self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX);
