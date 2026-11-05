@@ -526,6 +526,69 @@ test_foreign_sections_survive(void)
     Editor_SquareFree(&square);
 }
 
+/**
+ * A wall run's release (workbench 6.3, edpanel_ops.h Editor_LocRunCommands)
+ * is one stroke of LOC commands: adds on empty tiles, and where the run turns
+ * on an end of an earlier run of the same loc, a REMOVE of the straight piece
+ * and an ADD of the L on its tile (two keys: shape 0 and shape 2). One undo
+ * must take the whole run back to the file it was, byte for byte -- the
+ * straight end restored in its place in the list.
+ */
+static void
+test_run_stroke_undoes_whole(void)
+{
+    struct Editor_Square* square = open_square();
+    struct Editor_UndoStack undo;
+    struct Editor_Loc const old_end = { 1902, 0, 1, 0, 14, 11 };
+    struct Editor_Loc const other = { 85, 10, 0, 0, 2, 2 };
+    char* before;
+    char* after;
+    int reverted;
+
+    Editor_UndoInit(&undo);
+    Editor_SquareLocAdd(square, &other);
+    Editor_SquareLocAdd(square, &old_end);
+    before = emit_jl2(square);
+
+    Editor_UndoStrokeBegin(&undo);
+    {
+        struct Editor_Cmd commands[4];
+        struct Editor_Loc const l_piece = { 1902, 2, 1, 0, 14, 11 };
+        struct Editor_Loc const down1 = { 1902, 0, 2, 0, 14, 10 };
+        struct Editor_Loc const down2 = { 1902, 0, 2, 0, 14, 9 };
+
+        commands[0] = loc_delete_cmd(&old_end);
+        for( int i = 1; i < 4; i++ )
+        {
+            Editor_CmdInitSquare(&commands[i], EDITOR_CMD_LOC, 50, 50);
+            commands[i].has_after = 1;
+        }
+        commands[1].u.loc.after = l_piece;
+        commands[2].u.loc.after = down1;
+        commands[3].u.loc.after = down2;
+        for( int i = 0; i < 4; i++ )
+        {
+            Editor_CmdApply(&g_doc, &commands[i], EDITOR_CMD_FORWARD);
+            Editor_UndoPush(&undo, &commands[i]);
+        }
+    }
+    Editor_UndoStrokeEnd(&undo);
+    check(square->loc_count == 4 && Editor_SquareLocFind(square, 0, 14, 11, 0) < 0
+              && Editor_SquareLocFind(square, 0, 14, 11, 2) >= 0,
+        "run: the straight end is off its key and the L on its own");
+
+    reverted = Editor_UndoUndo(&undo, &g_doc, NULL, NULL);
+    after = emit_jl2(square);
+    check(reverted == 4, "run: one undo reverts the whole run");
+    check(strcmp(before, after) == 0, "run: and the .jl2 is the file before it, byte for byte");
+    free(after);
+    check(Editor_UndoRedo(&undo, &g_doc, NULL, NULL) == 4 && Editor_SquareLocFind(square, 0, 14, 11, 2) >= 0,
+        "run: redo puts the L back");
+
+    free(before);
+    Editor_DocFree(&g_doc);
+}
+
 int
 main(void)
 {
@@ -539,6 +602,7 @@ main(void)
     test_rebuild_span_crosses_borders();
     test_parse_reports_bad_input();
     test_foreign_sections_survive();
+    test_run_stroke_undoes_whole();
 
     printf("editor_cmd_test: %d checks, %d failed\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

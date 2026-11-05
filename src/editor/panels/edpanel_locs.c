@@ -344,8 +344,8 @@ locs_tick(
     /* Q turns the pose from the keyboard: the dropdown follows. */
     if( ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_rotation) != (ui->tools.place_rotation & 3) )
         ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_rotation, ui->tools.place_rotation & 3);
-    if( ToriRSChrome_Checked(ui->chrome, self->check_fit) != edp_place_fit_enabled() )
-        ToriRSChrome_SetChecked(ui->chrome, self->check_fit, edp_place_fit_enabled());
+    if( ToriRSChrome_Checked(ui->chrome, self->check_fit) != edp_place_fit_enabled(ui) )
+        ToriRSChrome_SetChecked(ui->chrome, self->check_fit, edp_place_fit_enabled(ui));
 
     /* Opens when something is selected, closes when nothing is, like the
      * old Loc panel; the View menu still opens it by hand in between. */
@@ -437,8 +437,8 @@ locs_activate(
     }
     else if( widget == self->check_fit )
     {
-        edp_place_fit_set(ToriRSChrome_Checked(ui->chrome, widget));
-        Editor_UiLog(ui, "editor: fit walls to neighbours %s", edp_place_fit_enabled() ? "on" : "off");
+        edp_place_fit_set(ui, ToriRSChrome_Checked(ui->chrome, widget));
+        Editor_UiLog(ui, "editor: fit walls to neighbours %s", edp_place_fit_enabled(ui) ? "on" : "off");
     }
     else if( widget == self->button_fit )
         (void)edp_locs_fit(ui);
@@ -525,7 +525,7 @@ Editor_Locs_Register(struct EditorUi* ui)
     ToriRSChrome_Separator(chrome, self->panel);
     ToriRSChrome_Label(chrome, self->panel, "Place pose");
     self->dropdown_shape = ToriRSChrome_Dropdown(chrome, self->panel, "Shape", self->pose_name_ptrs, 1, 0);
-    self->check_fit = ToriRSChrome_Checkbox(chrome, self->panel, "Fit walls to neighbours", edp_place_fit_enabled());
+    self->check_fit = ToriRSChrome_Checkbox(chrome, self->panel, "Fit walls to neighbours", edp_place_fit_enabled(ui));
     self->dropdown_rotation = ToriRSChrome_Dropdown(
         chrome, self->panel, "Rotation", k_rotation_names, 4, ui->tools.place_rotation & 3);
     ToriRSChrome_PanelSetScrollable(chrome, self->panel, 1);

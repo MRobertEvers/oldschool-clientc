@@ -83,6 +83,7 @@ Editor_UiInit(
     ui->tools.edit_level = -1;
     ui->tools.vis_level = -1;
     ui->tools.place_shape = 10;
+    ui->tools.place_fit = 1;
     ui->tools.pick_kind = -1;
     ui->tools.pick_id = -1;
 
@@ -2878,7 +2879,7 @@ ui_default_layout(struct EditorUi* ui)
 /* ---- the shared tools (STATE_TOOLS) ------------------------------------------
  *
  * Every window of a Client edits with the same brush, palette, flags,
- * placement shape and view level as the tool itself (STATE_TOOL): a slider
+ * placement shape, Fit and view level as the tool itself (STATE_TOOL): a slider
  * moved in a popped-out Terrain window paints in the main window's World. One
  * key carries them all; a tick whose tools differ from what this window last
  * published or applied publishes them (so every way a panel or a hotkey
@@ -2906,6 +2907,7 @@ ui_tools_pack(
     out[11] = t->place_rotation;
     out[12] = t->vis_level;
     out[13] = t->vis_solo;
+    out[14] = t->place_fit;
 }
 
 static void
@@ -2930,6 +2932,7 @@ ui_tools_unpack(
     if( values[12] >= -1 && values[12] < EDITOR_SQUARE_LEVELS )
         t->vis_level = values[12];
     t->vis_solo = values[13];
+    t->place_fit = values[14] ? 1 : 0;
 }
 
 /** A popped-out World says in its title what a click in it does -- the

@@ -1466,10 +1466,7 @@ Editor_LocFitWall(
     {
         /* An L stands on edges r and r+1. */
         *out_shape = 2;
-        *out_rotation = ((vertical == 0 && horizontal == 1) ? 0
-                         : (vertical == 2 && horizontal == 1) ? 1
-                         : (vertical == 2 && horizontal == 3) ? 2
-                                                              : 3);
+        *out_rotation = Editor_LocWallCornerRotation(vertical, horizontal);
         return 1;
     }
     if( (vertical >= 0 || horizontal >= 0) && (mask & 1u) )
@@ -1500,4 +1497,615 @@ Editor_LocOpsReshapeTo(
 {
     assert(shapes);
     return ops_transform(doc, refs, n, 0, 0, 0, 0, 0, shapes, rotations, out, max, result);
+}
+
+/* ---- runs ----------------------------------------------------------------------- */
+
+int
+Editor_LocShapeIsWall(int shape)
+{
+    return shape == 0 || shape == 1 || shape == 2 || shape == 3 || shape == 9;
+}
+
+int
+Editor_LocShapeLayer(int shape)
+{
+    assert(shape >= 0);
+    assert(shape < EDITOR_LOC_SHAPE_COUNT);
+    /* Client-TS LOC_SHAPE_TO_LAYER: the diagonal wall (9) is filed with the
+     * centrepieces, as the game's scene keeps it. */
+    if( shape <= 3 )
+        return 0;
+    if( shape <= 8 )
+        return 1;
+    if( shape == 22 )
+        return 3;
+    return 2;
+}
+
+int
+Editor_LocWallCornerRotation(
+    int edge_a,
+    int edge_b)
+{
+    assert(edge_a >= 0);
+    assert(edge_a < 4);
+    assert(edge_b >= 0);
+    assert(edge_b < 4);
+    assert(((edge_a ^ edge_b) & 1) == 1);
+    return ((edge_a + 1) & 3) == edge_b ? edge_a : edge_b;
+}
+
+void
+Editor_LocRunBegin(
+    struct Editor_LocRunPath* path,
+    int world_x,
+    int world_z)
+{
+    assert(path);
+    assert(world_x >= 0);
+    assert(world_z >= 0);
+    path->count = 1;
+    path->x[0] = world_x;
+    path->z[0] = world_z;
+}
+
+/** Step onto (x, z): back to it where the run already holds it, else on. 0
+ *  when the run is full. */
+static int
+run_step(
+    struct Editor_LocRunPath* path,
+    int x,
+    int z)
+{
+    for( int k = 0; k < path->count; k++ )
+        if( path->x[k] == x && path->z[k] == z )
+        {
+            path->count = k + 1;
+            return 1;
+        }
+    if( path->count >= EDITOR_LOC_RUN_MAX )
+        return 0;
+    path->x[path->count] = x;
+    path->z[path->count] = z;
+    path->count++;
+    return 1;
+}
+
+/** Orthogonal steps from the run's last tile to (x, z), the longer axis
+ *  first, so a diagonal neighbour is x then z. */
+static void
+run_walk(
+    struct Editor_LocRunPath* path,
+    int x,
+    int z)
+{
+    int cx = path->x[path->count - 1];
+    int cz = path->z[path->count - 1];
+
+    while( cx != x || cz != z )
+    {
+        int const dx = x - cx;
+        int const dz = z - cz;
+        if( (dx < 0 ? -dx : dx) >= (dz < 0 ? -dz : dz) )
+            cx += dx > 0 ? 1 : -1;
+        else
+            cz += dz > 0 ? 1 : -1;
+        if( !run_step(path, cx, cz) )
+            return;
+        cx = path->x[path->count - 1];
+        cz = path->z[path->count - 1];
+    }
+}
+
+int
+Editor_LocRunTo(
+    struct Editor_LocRunPath* path,
+    int world_x,
+    int world_z,
+    int constrain)
+{
+    int old_count;
+    int old_x;
+    int old_z;
+
+    assert(path);
+    assert(path->count > 0);
+    if( world_x < 0 || world_z < 0 )
+        return 0;
+    old_count = path->count;
+    old_x = path->x[old_count - 1];
+    old_z = path->z[old_count - 1];
+    if( constrain )
+    {
+        int const dx = world_x - path->x[0];
+        int const dz = world_z - path->z[0];
+        /* The straight line from the first tile: rebuilt, so letting go of
+         * Shift and pressing it again never leaves a kink behind. */
+        if( (dx < 0 ? -dx : dx) >= (dz < 0 ? -dz : dz) )
+            world_z = path->z[0];
+        else
+            world_x = path->x[0];
+        path->count = 1;
+    }
+    run_walk(path, world_x, world_z);
+    return path->count != old_count || path->x[path->count - 1] != old_x || path->z[path->count - 1] != old_z;
+}
+
+/** The edge of a tile facing the next tile of the run (0 west, 1 north,
+ *  2 east, 3 south): the direction of travel. */
+static int
+run_heading(
+    const struct Editor_LocRunPath* path,
+    int from)
+{
+    int const dx = path->x[from + 1] - path->x[from];
+    int const dz = path->z[from + 1] - path->z[from];
+
+    assert((dx == 0) != (dz == 0));
+    if( dx > 0 )
+        return 2;
+    if( dx < 0 )
+        return 0;
+    return dz > 0 ? 1 : 3;
+}
+
+/** The edges a pose stands on, as a hint for which side of the run the wall
+ *  goes: a straight wall or a diagonal its rotation's edge, an L or a corner
+ *  piece the two edges of its corner. */
+static unsigned
+run_pose_edges(
+    int shape,
+    int rotation)
+{
+    if( shape == 1 || shape == 2 || shape == 3 )
+        return (1u << (rotation & 3)) | (1u << ((rotation + 1) & 3));
+    return 1u << (rotation & 3);
+}
+
+/** What stands on the piece's key now: the wall layer for a wall run, the
+ *  tile and shape otherwise. Fills state and holder. */
+static void
+run_judge(
+    struct Editor_Doc* doc,
+    const struct Editor_LocRunPlan* plan,
+    struct Editor_LocRunPiece* piece)
+{
+    struct Editor_Square* square;
+    int x;
+    int z;
+    int own = -1;
+    int other = -1;
+
+    piece->has_holder = 0;
+    /* No piece goes here: nothing to refuse either. */
+    if( piece->state == EDITOR_LOC_RUN_NONE )
+        return;
+    square = ops_square_at(doc, piece->world_x, piece->world_z, &x, &z);
+    if( !square )
+    {
+        piece->state = EDITOR_LOC_RUN_CLOSED;
+        return;
+    }
+    for( int i = 0; i < square->loc_count; i++ )
+    {
+        const struct Editor_Loc* loc = &square->locs[i];
+        if( loc->level != plan->level || loc->x != x || loc->z != z )
+            continue;
+        /* A wall run's pieces are all of the wall layer (0..3): the world
+         * keeps one of those a tile, whatever their shapes. */
+        if( plan->wall ? Editor_LocShapeLayer(loc->shape) != 0 : loc->shape != piece->shape )
+            continue;
+        if( loc->loc_id == plan->loc_id )
+        {
+            if( own < 0 )
+                own = i;
+        }
+        else if( other < 0 )
+            other = i;
+    }
+    if( other >= 0 )
+    {
+        piece->state = EDITOR_LOC_RUN_TAKEN;
+        piece->has_holder = 1;
+        piece->holder = square->locs[other];
+        return;
+    }
+    piece->state = EDITOR_LOC_RUN_PLACE;
+    if( own < 0 )
+        return;
+    if( square->locs[own].shape == piece->shape && (square->locs[own].rotation & 3) == piece->rotation )
+    {
+        piece->state = EDITOR_LOC_RUN_KEEP;
+        return;
+    }
+    piece->has_holder = 1;
+    piece->holder = square->locs[own];
+}
+
+/** The wall piece for run tile `i`: straight at the ends and along a
+ *  segment, the corner piece at a turn. `left` 1 puts the wall on the left of
+ *  the direction of travel. */
+static void
+run_wall_piece(
+    const struct Editor_LocRunPath* path,
+    int i,
+    int left,
+    uint32_t mask,
+    struct Editor_LocRunPiece* piece)
+{
+    int const n = path->count;
+    int const in = i > 0 ? run_heading(path, i - 1) : run_heading(path, 0);
+    int const out = i < n - 1 ? run_heading(path, i) : in;
+    int const edge_in = left ? (in + 3) & 3 : (in + 1) & 3;
+    int const edge_out = left ? (out + 3) & 3 : (out + 1) & 3;
+
+    piece->state = EDITOR_LOC_RUN_PLACE;
+    piece->shape = 0;
+    piece->rotation = edge_in;
+    if( i == 0 )
+    {
+        piece->rotation = edge_out;
+        return;
+    }
+    if( i == n - 1 || in == out )
+        return;
+    /*
+     * A turn. The wall coming in stands on edge_in, the one going out on
+     * edge_out. When edge_in is the edge the run leaves through, the turn is
+     * toward the wall: the two lines meet at a point, this tile's corner, and
+     * it takes the corner post (3). Otherwise the turn is away from it and
+     * this tile holds both edges: the L (2). Either way the rotation is the
+     * corner of those two edges, as Fit has it.
+     */
+    if( edge_in == out )
+    {
+        if( mask & (1u << 3) )
+        {
+            piece->shape = 3;
+            piece->rotation = Editor_LocWallCornerRotation(edge_in, edge_out);
+        }
+        else
+            piece->state = EDITOR_LOC_RUN_NONE;
+        return;
+    }
+    if( mask & (1u << 2) )
+    {
+        piece->shape = 2;
+        piece->rotation = Editor_LocWallCornerRotation(edge_in, edge_out);
+    }
+}
+
+void
+Editor_LocRunPlanMake(
+    struct Editor_Doc* doc,
+    const struct Editor_LocRunPath* path,
+    int loc_id,
+    uint32_t mask,
+    int shape,
+    int rotation,
+    int level,
+    struct Editor_LocRunPlan* plan)
+{
+    int left = 1;
+
+    assert(doc);
+    assert(path);
+    assert(plan);
+    assert(path->count > 0);
+    assert(path->count <= EDITOR_LOC_RUN_MAX);
+    assert(loc_id >= 0);
+    assert(shape >= 0);
+    assert(shape < EDITOR_LOC_SHAPE_COUNT);
+    assert(level >= 0);
+    assert(level < EDITOR_SQUARE_LEVELS);
+
+    plan->loc_id = loc_id;
+    plan->level = level;
+    plan->count = path->count;
+    plan->wall = Editor_LocShapeIsWall(shape) && (mask & 1u) && path->count > 1;
+    plan->place_count = 0;
+    plan->refused_count = 0;
+    plan->first_refused = -1;
+    if( plan->wall )
+    {
+        /* The side the pose stands on, read against the first segment. */
+        int const heading = run_heading(path, 0);
+        unsigned const edges = run_pose_edges(shape, rotation);
+        left = (edges & (1u << ((heading + 3) & 3))) || !(edges & (1u << ((heading + 1) & 3)));
+    }
+    for( int i = 0; i < path->count; i++ )
+    {
+        struct Editor_LocRunPiece* piece = &plan->pieces[i];
+        piece->world_x = path->x[i];
+        piece->world_z = path->z[i];
+        if( plan->wall )
+            run_wall_piece(path, i, left, mask, piece);
+        else
+        {
+            piece->state = EDITOR_LOC_RUN_PLACE;
+            piece->shape = shape;
+            piece->rotation = rotation & 3;
+        }
+        run_judge(doc, plan, piece);
+        if( piece->state == EDITOR_LOC_RUN_PLACE )
+            plan->place_count++;
+        else if( piece->state == EDITOR_LOC_RUN_CLOSED || piece->state == EDITOR_LOC_RUN_TAKEN )
+        {
+            if( plan->first_refused < 0 )
+                plan->first_refused = i;
+            plan->refused_count++;
+        }
+    }
+}
+
+int
+Editor_LocRunCommands(
+    const struct Editor_LocRunPlan* plan,
+    struct Editor_Cmd* out,
+    int max)
+{
+    int count = 0;
+
+    assert(plan);
+    assert(out);
+    for( int i = 0; i < plan->count; i++ )
+    {
+        const struct Editor_LocRunPiece* piece = &plan->pieces[i];
+        struct Editor_Loc after;
+        int map_x;
+        int map_z;
+
+        if( piece->state != EDITOR_LOC_RUN_PLACE )
+            continue;
+        if( count + 2 > max )
+            break;
+        (void)ops_split(piece->world_x, piece->world_z, &map_x, &map_z, &after.x, &after.z);
+        after.loc_id = plan->loc_id;
+        after.shape = piece->shape;
+        after.rotation = piece->rotation & 3;
+        after.level = plan->level;
+        if( piece->has_holder && piece->holder.shape != piece->shape )
+        {
+            /* The loc's own piece in another shape: off its key first. */
+            Editor_CmdInitSquare(&out[count], EDITOR_CMD_LOC, map_x, map_z);
+            out[count].has_before = 1;
+            out[count].u.loc.before = piece->holder;
+            count++;
+        }
+        Editor_CmdInitSquare(&out[count], EDITOR_CMD_LOC, map_x, map_z);
+        if( piece->has_holder && piece->holder.shape == piece->shape )
+        {
+            out[count].has_before = 1;
+            out[count].u.loc.before = piece->holder;
+        }
+        out[count].has_after = 1;
+        out[count].u.loc.after = after;
+        count++;
+    }
+    return count;
+}
+
+int
+Editor_LocRunRefusal(
+    const struct Editor_LocRunPlan* plan,
+    char* out,
+    size_t size)
+{
+    const struct Editor_LocRunPiece* piece;
+    int used;
+
+    assert(plan);
+    assert(out);
+    assert(size > 0);
+    out[0] = '\0';
+    if( plan->first_refused < 0 )
+        return 0;
+    piece = &plan->pieces[plan->first_refused];
+    if( piece->state == EDITOR_LOC_RUN_CLOSED )
+        used = snprintf(out, size, "Place refused: tile %d,%d L%d is in m%d_%d, which is not open", piece->world_x,
+            piece->world_z, plan->level, piece->world_x / EDITOR_SQUARE_X, piece->world_z / EDITOR_SQUARE_Z);
+    else if( piece->holder.shape == piece->shape )
+        used = snprintf(out, size, "Place refused: tile %d,%d L%d holds a %s of that shape (loc %d); press E to swap",
+            piece->world_x, piece->world_z, plan->level, Editor_LocShapeName(piece->holder.shape),
+            piece->holder.loc_id);
+    else
+        used = snprintf(out, size, "Place refused: tile %d,%d L%d holds a %s of another loc (loc %d); press E to swap",
+            piece->world_x, piece->world_z, plan->level, Editor_LocShapeName(piece->holder.shape),
+            piece->holder.loc_id);
+    if( plan->refused_count > 1 && used > 0 && (size_t)used < size )
+        snprintf(out + used, size - (size_t)used, ", and %d more tile%s of the run", plan->refused_count - 1,
+            plan->refused_count == 2 ? "" : "s");
+    return 1;
+}
+
+/* ---- selecting by area and by id ------------------------------------------------- */
+
+void
+Editor_LocFootprint(
+    int shape,
+    int rotation,
+    int size_x,
+    int size_z,
+    int* out_w,
+    int* out_h)
+{
+    assert(out_w);
+    assert(out_h);
+    *out_w = 1;
+    *out_h = 1;
+    if( shape != 10 && shape != 11 )
+        return;
+    if( size_x < 1 )
+        size_x = 1;
+    if( size_z < 1 )
+        size_z = 1;
+    *out_w = (rotation & 1) ? size_z : size_x;
+    *out_h = (rotation & 1) ? size_x : size_z;
+}
+
+int
+Editor_LocsTouchingRect(
+    struct Editor_Doc* doc,
+    const struct Editor_TileRect* rect,
+    Editor_LocSizeFn size,
+    void* size_user,
+    struct Editor_LocRef* out,
+    int max)
+{
+    int found = 0;
+
+    assert(doc);
+    assert(rect);
+    assert(out || max == 0);
+    assert(rect->x0 <= rect->x1);
+    assert(rect->z0 <= rect->z1);
+
+    for( int s = 0; s < doc->square_count; s++ )
+    {
+        struct Editor_Square* square = &doc->squares[s];
+        int const base_x = square->map_x * EDITOR_SQUARE_X;
+        int const base_z = square->map_z * EDITOR_SQUARE_Z;
+
+        if( !square->loaded )
+            continue;
+        for( int i = 0; i < square->loc_count; i++ )
+        {
+            const struct Editor_Loc* loc = &square->locs[i];
+            int const wx = base_x + loc->x;
+            int const wz = base_z + loc->z;
+            int size_x = 1;
+            int size_z = 1;
+            int w;
+            int h;
+
+            if( loc->level != rect->level )
+                continue;
+            if( size && (loc->shape == 10 || loc->shape == 11) && !size(size_user, loc->loc_id, &size_x, &size_z) )
+            {
+                size_x = 1;
+                size_z = 1;
+            }
+            Editor_LocFootprint(loc->shape, loc->rotation, size_x, size_z, &w, &h);
+            if( wx > rect->x1 || wz > rect->z1 || wx + w - 1 < rect->x0 || wz + h - 1 < rect->z0 )
+                continue;
+            if( found < max )
+                Editor_LocRefAt(&out[found], wx, wz, loc->level, loc->shape, loc->loc_id, loc->rotation & 3);
+            found++;
+        }
+    }
+    return found;
+}
+
+int
+Editor_LocsOfId(
+    struct Editor_Doc* doc,
+    int loc_id,
+    int level,
+    struct Editor_LocRef* out,
+    int max)
+{
+    int found = 0;
+
+    assert(doc);
+    assert(out || max == 0);
+    assert(loc_id >= 0);
+
+    for( int s = 0; s < doc->square_count; s++ )
+    {
+        struct Editor_Square* square = &doc->squares[s];
+        if( !square->loaded )
+            continue;
+        for( int i = 0; i < square->loc_count; i++ )
+        {
+            const struct Editor_Loc* loc = &square->locs[i];
+            if( loc->loc_id != loc_id || loc->level != level )
+                continue;
+            if( found < max )
+                Editor_LocRefAt(&out[found], square->map_x * EDITOR_SQUARE_X + loc->x,
+                    square->map_z * EDITOR_SQUARE_Z + loc->z, loc->level, loc->shape, loc->loc_id, loc->rotation & 3);
+            found++;
+        }
+    }
+    return found;
+}
+
+enum Editor_LocSelectMode
+Editor_LocSelectModeOf(
+    int shift,
+    int ctrl,
+    int alt)
+{
+    if( alt )
+        return EDITOR_LOC_SELECT_SUBTRACT;
+    if( ctrl )
+        return EDITOR_LOC_SELECT_TOGGLE;
+    if( shift )
+        return EDITOR_LOC_SELECT_ADD;
+    return EDITOR_LOC_SELECT_REPLACE;
+}
+
+/** Where the selection holds the loc with ref's key, or -1. */
+static int
+select_find(
+    const struct Editor_LocRef* selection,
+    int count,
+    const struct Editor_LocRef* ref)
+{
+    for( int i = 0; i < count; i++ )
+    {
+        const struct Editor_LocRef* s = &selection[i];
+        if( s->map_x == ref->map_x && s->map_z == ref->map_z && s->level == ref->level && s->x == ref->x
+            && s->z == ref->z && s->shape == ref->shape )
+            return i;
+    }
+    return -1;
+}
+
+int
+Editor_LocSelectionMerge(
+    struct Editor_LocRef* selection,
+    int count,
+    int max,
+    const struct Editor_LocRef* refs,
+    int n,
+    enum Editor_LocSelectMode mode,
+    int* out_dropped)
+{
+    int old = count;
+
+    assert(selection);
+    assert(refs || n == 0);
+    assert(out_dropped);
+    assert(count >= 0);
+    assert(count <= max);
+
+    *out_dropped = 0;
+    if( mode == EDITOR_LOC_SELECT_REPLACE )
+        count = 0;
+    for( int i = 0; i < n; i++ )
+    {
+        int const at = select_find(selection, count, &refs[i]);
+        if( mode == EDITOR_LOC_SELECT_SUBTRACT || (mode == EDITOR_LOC_SELECT_TOGGLE && at >= 0 && at < old) )
+        {
+            /* A toggle takes off what was selected before this set and
+             * adds the rest; what it added stays. */
+            if( at >= 0 )
+            {
+                memmove(&selection[at], &selection[at + 1], sizeof(selection[0]) * (size_t)(count - at - 1));
+                count--;
+                old--;
+            }
+            continue;
+        }
+        if( at >= 0 )
+            continue;
+        if( count >= max )
+        {
+            (*out_dropped)++;
+            continue;
+        }
+        selection[count++] = refs[i];
+    }
+    return count;
 }

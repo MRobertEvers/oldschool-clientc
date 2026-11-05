@@ -58,6 +58,9 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_EDIT_SELECT_SQUARE] = { "edit.select_square", "Edit", "Select the square's locs",
                                        "Select every loc of the hovered tile's square", W, EDGE, { "ctrl+a" },
                                        NULL },
+    [EDITOR_HK_EDIT_SELECT_SAME] = { "edit.select_same", "Edit", "Select same",
+                                     "Select every loc of the hovered loc's id (select same", W | L, EDGE,
+                                     { "alt+a" }, NULL },
     [EDITOR_HK_EDIT_NUDGE_N] = { "edit.nudge_n", "Edit", "Nudge north", "Nudge selection N / S / W / E", M, REPEAT,
                                  { "up" }, NULL },
     [EDITOR_HK_EDIT_NUDGE_S] = { "edit.nudge_s", "Edit", "Nudge south", "Nudge selection N / S / W / E", M, REPEAT,
@@ -82,6 +85,9 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                               "Fit walls to neighbours on/off (Place tool)", G, EDGE, { "g" }, NULL },
     [EDITOR_HK_PLACE_SWAP] = { "place.swap", "Place", "Swap to catalog pick",
                                "Swap the selected locs to the catalog's pick", L, EDGE, { "e" }, NULL },
+    [EDITOR_HK_PLACE_CONSTRAIN] = { "place.constrain", "Place", "Constrain a drag to one axis (hold)",
+                                    "Keep a Place drag (a wall run) to one axis (hold)", W, HELD, { "shift" },
+                                    NULL },
     [EDITOR_HK_TOOL_SELECT] = { "tool.select", "Tools", "Select", "| Select |", G, EDGE, { "1" }, NULL },
     [EDITOR_HK_TOOL_RECT] = { "tool.rect", "Tools", "Rectangle", "| Rectangle |", G, EDGE, { "2" }, NULL },
     [EDITOR_HK_TOOL_RAISE] = { "tool.raise", "Tools", "Raise", "| Raise |", G, EDGE, { "3" }, NULL },
@@ -446,12 +452,24 @@ Editor_HotkeysIsDefault(
     return 1;
 }
 
+int
+Editor_HotkeyIsQualifier(enum Editor_HotkeyAction action)
+{
+    assert((int)action >= 0);
+    assert(action < EDITOR_HK_COUNT);
+    return action == EDITOR_HK_CAM_FAST || action == EDITOR_HK_VIEW_SNAP_HOLD || action == EDITOR_HK_PLACE_CONSTRAIN;
+}
+
+/** Do actions a and b share a chord that makes them clash? Two qualifiers on
+ *  the same bare modifier do not: each only changes its own gesture. */
 static int
 hk_share_chord(
     const struct Editor_Hotkeys* hk,
     int a,
     int b)
 {
+    int const qualifiers = Editor_HotkeyIsQualifier(a) && Editor_HotkeyIsQualifier(b);
+
     for( int i = 0; i < EDITOR_HK_CHORDS; i++ )
     {
         struct Editor_Chord const ca = hk->bind[a].chord[i];
@@ -460,8 +478,11 @@ hk_share_chord(
         for( int j = 0; j < EDITOR_HK_CHORDS; j++ )
         {
             struct Editor_Chord const cb = hk->bind[b].chord[j];
-            if( cb.key == ca.key && cb.mods == ca.mods )
-                return 1;
+            if( cb.key != ca.key || cb.mods != ca.mods )
+                continue;
+            if( qualifiers && ca.mods == 0 && Editor_HotkeyKeyIsModifier(ca.key) )
+                continue;
+            return 1;
         }
     }
     return 0;
@@ -742,6 +763,7 @@ static const struct hk_hint_row k_hint_select[] = {
     { "Shift+click", { 0 }, 0, "add loc" },
     { "drag", { 0 }, 0, "marquee" },
     { NULL, { EDITOR_HK_EDIT_SELECT_SQUARE }, 1, "square" },
+    { NULL, { EDITOR_HK_EDIT_SELECT_SAME }, 1, "same" },
     { NULL, HK_NUDGES, 4, "nudge" },
     { NULL, { EDITOR_HK_EDIT_ROTATE }, 1, "rotate" },
     { NULL, { EDITOR_HK_EDIT_RESHAPE }, 1, "reshape" },
@@ -752,6 +774,8 @@ static const struct hk_hint_row k_hint_select[] = {
 
 static const struct hk_hint_row k_hint_place[] = {
     { "click", { EDITOR_HK_PLACE_HERE }, 1, "place" },
+    { "drag", { 0 }, 0, "wall run" },
+    { NULL, { EDITOR_HK_PLACE_CONSTRAIN }, 1, "one axis" },
     { NULL, { EDITOR_HK_EDIT_ROTATE }, 1, "turn" },
     { NULL, { EDITOR_HK_EDIT_RESHAPE }, 1, "reshape" },
     { NULL, { EDITOR_HK_PLACE_FIT }, 1, "fit" },

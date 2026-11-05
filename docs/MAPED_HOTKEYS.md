@@ -31,7 +31,12 @@ it was built and what is open.
 - **Context.** An action lives in one context; a chord may be reused across
   contexts that cannot both be live (a loc selected vs none). Within a context
   two actions never share a chord: the panel shows the clash in red and the
-  later binding wins until one is changed.
+  later binding wins until one is changed. The one exception is a
+  **qualifier**: a held action whose chord may be a modifier alone (Fly
+  faster, Snap while dragging, Constrain a drag). It fires nothing itself; it
+  changes how its own gesture goes, so two qualifiers on one bare modifier
+  are not a clash -- Shift both speeds the flight and keeps a wall run
+  straight.
 - **Modifiers** are Ctrl, Shift, Alt. On Apple platforms Command is reported as
   Ctrl too (the platform does it), and the hints read "Cmd".
 - **Persistence.** Rebinds are device-local like the dock layout:
@@ -81,6 +86,7 @@ turn the camera even with locs selected) ·
 | Reshape (selected loc; else the Place ghost -- within the loc's own shapes only) | Shift+Q | G |
 | Apply the armed tool to the selection | Return | L |
 | Select every loc of the hovered tile's square on the edit level | Ctrl+A | W |
+| Select every loc of the hovered loc's id (select same; with no loc under the pointer, the primary selected loc's) in the open squares on the edit level | Alt+A | W, L |
 | Nudge selection N / S / W / E one tile (onto a tile holding a loc of that shape: the two swap) | Up / Down / Left / Right | M |
 | Copy tiles | Ctrl+C | R |
 | Paste tiles at the hovered tile | Ctrl+V | W |
@@ -94,9 +100,30 @@ turn the camera even with locs selected) ·
 | Place the catalog's loc at the hovered tile (the ghost's pose) | Space, Return | P |
 | Fit walls to neighbours on/off (Place tool) | G | G |
 | Swap the selected locs to the catalog's pick | E | L |
+| Keep a Place drag (a wall run) to one axis (hold) | Shift | W |
 
 The ghost's turn and shape are Edit's Rotate (Q) and Reshape (Shift+Q); Escape
-drops the ghost (Deselect / cancel).
+drops the ghost (Deselect / cancel). Fit is shared by every window of the
+Client (it rides STATE_TOOLS with the pose).
+
+The pointer (workbench 6.3, design section 7):
+
+- **Place: drag along tiles** is a run. With a wall pick, one piece per tile
+  along the path (a diagonal step is two orthogonal steps; going back over
+  the path takes the tiles after it off), on the side of the path the ghost's
+  pose stands on; the two ends are straight walls and each turn a corner at
+  the rotation Fit computes: an L (shape 2) outside the turn, a corner post
+  (shape 3) inside it. With any other pick, one at the ghost's pose on every
+  tile crossed. The World shows every piece before release; a tile the
+  release would not fill (its square closed, another loc on its key) is red
+  and the status bar says why once a run. The release places the run as one
+  undo step and selects what it placed. Hold Shift to keep it to one axis;
+  Escape drops it.
+- **Select: drag on empty ground** is a marquee: the Rect tool's rectangle
+  (so copy, fill and clear act on it), selecting every loc on the edit level
+  whose footprint it touches. Shift adds, Ctrl toggles, Alt subtracts -- for
+  a marquee and for a click on a loc alike (a plain click latches the tile).
+  A **double-click** on a loc is select same (Alt+A).
 
 ### Tools
 | Action | Chord | Ctx |
@@ -245,8 +272,8 @@ N: ...`); the rest of the file still applies. The ids, in the order of the
 tables (the Hotkeys panel calls them by the name after the id):
 
 - **File**: `file.new` New square..., `file.save_all` Save all, `file.save_as` Save square as new..., `file.bake` Bake cache (slow), `file.close` Close editor, `file.check_scripts` Check scripts, `file.run` Run (save, build, reload), `file.publish` Publish...
-- **Edit**: `edit.undo` Undo, `edit.redo` Redo, `edit.deselect` Deselect / cancel, `edit.delete` Delete selection, `edit.duplicate` Duplicate, `edit.rotate` Rotate, `edit.reshape` Reshape, `edit.apply` Apply tool to selection, `edit.select_square` Select the square's locs, `edit.nudge_n` Nudge north, `edit.nudge_s` Nudge south, `edit.nudge_w` Nudge west, `edit.nudge_e` Nudge east, `edit.copy` Copy tiles, `edit.paste` Paste tiles, `edit.fill` Fill tiles, `edit.clear` Clear tiles, `edit.mark_area` Mark area from rect
-- **Place**: `place.here` Place at the hovered tile, `place.fit` Fit walls to neighbours (toggle), `place.swap` Swap to catalog pick
+- **Edit**: `edit.undo` Undo, `edit.redo` Redo, `edit.deselect` Deselect / cancel, `edit.delete` Delete selection, `edit.duplicate` Duplicate, `edit.rotate` Rotate, `edit.reshape` Reshape, `edit.apply` Apply tool to selection, `edit.select_square` Select the square's locs, `edit.select_same` Select same, `edit.nudge_n` Nudge north, `edit.nudge_s` Nudge south, `edit.nudge_w` Nudge west, `edit.nudge_e` Nudge east, `edit.copy` Copy tiles, `edit.paste` Paste tiles, `edit.fill` Fill tiles, `edit.clear` Clear tiles, `edit.mark_area` Mark area from rect
+- **Place**: `place.here` Place at the hovered tile, `place.fit` Fit walls to neighbours (toggle), `place.swap` Swap to catalog pick, `place.constrain` Constrain a drag to one axis (hold)
 - **Palette**: `palette.slot_1` Palette slot 1, `palette.slot_2` Palette slot 2, `palette.slot_3` Palette slot 3, `palette.slot_4` Palette slot 4, `palette.slot_5` Palette slot 5, `palette.slot_6` Palette slot 6, `palette.slot_7` Palette slot 7, `palette.slot_8` Palette slot 8, `palette.slot_9` Palette slot 9, `palette.slot_10` Palette slot 10, `palette.add_pick` Add the pick to the palette, `palette.next` Next palette, `palette.previous` Previous palette
 - **Tools**: `tool.select` Select, `tool.rect` Rectangle, `tool.raise` Raise, `tool.lower` Lower, `tool.flatten` Flatten, `tool.smooth` Smooth, `tool.paint_underlay` Paint underlay, `tool.paint_overlay` Paint overlay, `tool.paint_flags` Paint flags, `tool.place` Place loc, `tool.move` Move loc, `tool.rotate` Rotate loc (tool), `tool.delete` Delete loc (tool), `tool.place_player` Place player, `tool.previous` Previous tool, `tool.pick_paint` Pick the tile's paint, `tool.pick_loc` Pick the hovered loc, `hold.place` Click places a loc (hold), `hold.delete` Click deletes a loc (hold), `hold.clear` Click clears the tile (hold)
 - **Brush**: `brush.radius_down` Radius -, `brush.radius_up` Radius +, `brush.strength_down` Strength -, `brush.strength_up` Strength +, `brush.step_down` Step -, `brush.step_up` Step +

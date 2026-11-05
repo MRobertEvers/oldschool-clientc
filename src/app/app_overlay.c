@@ -1761,6 +1761,133 @@ app_overlay_build_editor_ghosts(struct App* app)
     }
 }
 
+/* A run tile the release would not fill (its square closed, its key another
+ * loc's): drawn in the footprint red. */
+#define APP_EDITOR_REFUSED_COLOR APP_OUTLINE_COLOR_FOOTPRINT
+/* A run's wall line, thick enough to read as the wall it will be. */
+#define APP_EDITOR_RUN_LINE_WIDTH (APP_OVERLAY_SEGMENT_WIDTH + 1)
+/* A corner post's half-width, fine units (a tile is 128). */
+#define APP_EDITOR_RUN_POST_HALF 20
+
+/** A segment between two fine points on the ground of `level`. */
+static void
+app_overlay_editor_ground_segment(
+    struct App* app,
+    int fx0,
+    int fz0,
+    int fx1,
+    int fz1,
+    int level,
+    uint32_t color,
+    int width)
+{
+    int sx0;
+    int sy0;
+    int sx1;
+    int sy1;
+
+    if( !app_world_project_at(app, fx0, fz0, app_world_height(app, fx0, fz0, level), &sx0, &sy0) )
+        return;
+    if( !app_world_project_at(app, fx1, fz1, app_world_height(app, fx1, fz1, level), &sx1, &sy1) )
+        return;
+    app_overlay_push_segment(app, sx0, sy0, sx1, sy1, color, width);
+}
+
+/** A wall edge of scene tile (sx, sz): 0 west, 1 north, 2 east, 3 south. */
+static void
+app_overlay_editor_wall_edge(
+    struct App* app,
+    int sx,
+    int sz,
+    int edge,
+    int level,
+    uint32_t color)
+{
+    /* Each edge's two corners, in tile units from the SW corner. */
+    static const int k_edge[4][4] = { { 0, 0, 0, 1 }, { 0, 1, 1, 1 }, { 1, 0, 1, 1 }, { 0, 0, 1, 0 } };
+    int const* e = k_edge[edge & 3];
+
+    app_overlay_editor_ground_segment(app, (sx + e[0]) * 128, (sz + e[1]) * 128, (sx + e[2]) * 128,
+        (sz + e[3]) * 128, level, color, APP_EDITOR_RUN_LINE_WIDTH);
+}
+
+/**
+ * The Place run in progress (Editor_Panel::run): every footprint of the plan
+ * at the pose the release will place -- a wall run's straight pieces as the
+ * edge they stand on, its L as both edges, its corner post as a square on
+ * the corner; any other run's pose as the loc's footprint block -- and a
+ * tile the release would not fill in red. The same plan the release commits
+ * (edp_run_end re-plans it against the document), so they cannot disagree.
+ */
+static void
+app_overlay_build_editor_run(struct App* app)
+{
+    struct Editor_Panel const* panel = &app->editor_panel;
+    struct Editor_LocRunPlan const* plan = &panel->run.plan;
+    int size_x = 1;
+    int size_z = 1;
+
+    if( !app->world || !panel->run.active || panel->run.path.count < 2 || plan->count < 2 )
+        return;
+    if( !plan->wall && app->provider && (plan->pieces[0].shape == 10 || plan->pieces[0].shape == 11) )
+    {
+        struct ToriRS_Location* cfg = CacheProvider_LocationGet(app->provider, plan->loc_id);
+        if( cfg )
+        {
+            size_x = cfg->size_x;
+            size_z = cfg->size_z;
+        }
+    }
+    for( int i = 0; i < plan->count; i++ )
+    {
+        struct Editor_LocRunPiece const* piece = &plan->pieces[i];
+        int const sx = piece->world_x - app->world->_base_tile_x;
+        int const sz = piece->world_z - app->world->_base_tile_z;
+        int const refused = piece->state == EDITOR_LOC_RUN_CLOSED || piece->state == EDITOR_LOC_RUN_TAKEN;
+        uint32_t const color = refused ? APP_EDITOR_REFUSED_COLOR : APP_EDITOR_GHOST_COLOR;
+
+        if( piece->state == EDITOR_LOC_RUN_NONE )
+            continue;
+        if( sx < 0 || sz < 0 || sx >= app->world->_scene_size || sz >= app->world->_scene_size )
+            continue;
+        if( refused )
+            app_overlay_editor_tile(app, sx, sz, plan->level, color, APP_OUTLINE_FILL_TRANS, APP_OVERLAY_SEGMENT_WIDTH);
+        if( !plan->wall )
+        {
+            int w;
+            int h;
+            Editor_LocFootprint(piece->shape, piece->rotation, size_x, size_z, &w, &h);
+            if( !refused )
+                app_overlay_editor_block(app, sx, sz, w, h, plan->level, color, APP_OUTLINE_FILL_TRANS);
+            continue;
+        }
+        if( piece->shape == 0 )
+            app_overlay_editor_wall_edge(app, sx, sz, piece->rotation, plan->level, color);
+        else if( piece->shape == 2 )
+        {
+            app_overlay_editor_wall_edge(app, sx, sz, piece->rotation, plan->level, color);
+            app_overlay_editor_wall_edge(app, sx, sz, piece->rotation + 1, plan->level, color);
+        }
+        else
+        {
+            /* A corner post: a small square on its corner (rotation 0 NW,
+             * 1 NE, 2 SE, 3 SW). */
+            static const int k_corner[4][2] = { { 0, 1 }, { 1, 1 }, { 1, 0 }, { 0, 0 } };
+            int const cx = (sx + k_corner[piece->rotation & 3][0]) * 128;
+            int const cz = (sz + k_corner[piece->rotation & 3][1]) * 128;
+            int const r = APP_EDITOR_RUN_POST_HALF;
+            app_overlay_editor_ground_segment(app, cx - r, cz - r, cx + r, cz - r, plan->level, color,
+                APP_EDITOR_RUN_LINE_WIDTH);
+            app_overlay_editor_ground_segment(app, cx + r, cz - r, cx + r, cz + r, plan->level, color,
+                APP_EDITOR_RUN_LINE_WIDTH);
+            app_overlay_editor_ground_segment(app, cx + r, cz + r, cx - r, cz + r, plan->level, color,
+                APP_EDITOR_RUN_LINE_WIDTH);
+            app_overlay_editor_ground_segment(app, cx - r, cz + r, cx - r, cz - r, plan->level, color,
+                APP_EDITOR_RUN_LINE_WIDTH);
+        }
+    }
+}
+
 /* Named areas (Editor_Areas_Overlay): a wash this translucent over the
  * ground, the selected area's stronger and its outline thicker. */
 #define APP_EDITOR_AREA_FILL_TRANS 214
@@ -1946,6 +2073,8 @@ app_overlay_build_editor_selection(struct App* app)
      * move destinations. */
     app_overlay_build_brush_footprint(app);
     app_overlay_build_editor_ghosts(app);
+    /* A Place drag's run: every footprint it will place, before release. */
+    app_overlay_build_editor_run(app);
     /* The named areas (Areas panel). */
     app_overlay_build_editor_areas(app);
 

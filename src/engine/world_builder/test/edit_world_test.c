@@ -1194,6 +1194,10 @@ lu_bisect(
     VarPManager_Free(&fresh.varp);
 }
 
+/** The chrome a window's EditorUi says its status sentences against (its
+ *  clock): nothing here draws it. */
+static struct ToriRSChrome g_lu_chrome;
+
 /** ui->app_services.loc_record for the tests: the harness's provider. */
 static struct ToriRS_Location*
 lu_loc_record(
@@ -1835,6 +1839,9 @@ loc_undo_phase(
 
         assert(ui);
         ui->editor = ed;
+        /* The status sentence reads the chrome's clock; Fit is on at boot. */
+        ui->chrome = &g_lu_chrome;
+        ui->tools.place_fit = 1;
         lu_step(&lu);
         line.loc_id = 1911;
         line.shape = 0;
@@ -2022,6 +2029,9 @@ loc_undo_phase(
 
         assert(ui);
         ui->editor = ed;
+        /* The status sentence reads the chrome's clock; Fit is on at boot. */
+        ui->chrome = &g_lu_chrome;
+        ui->tools.place_fit = 1;
         ui->app_services.user_data = h->provider;
         ui->app_services.loc_record = lu_loc_record;
         CHECK(wall != NULL, "shapes: castlewall 1911 is resident");
@@ -2115,7 +2125,7 @@ loc_undo_phase(
                 "fit: two castlewalls on a west-edge run");
             ui->tools.place_shape = 3;
             ui->tools.place_rotation = 2;
-            edp_place_fit_set(1);
+            edp_place_fit_set(ui, 1);
             edp_place_pose_at(ui, wx, wz + 2, 0, &shape, &rotation);
             CHECK(shape == 0 && rotation == 0, "fit: the tile north of the run fits a straight wall on its west edge (%d rot %d)",
                 shape, rotation);
@@ -2148,10 +2158,10 @@ loc_undo_phase(
             CHECK(shape == 9 && rotation == 3, "fit: the tile south-east of it continues the diagonal (%d rot %d)", shape,
                 rotation);
             /* With fit off, the pose as set. */
-            edp_place_fit_set(0);
+            edp_place_fit_set(ui, 0);
             edp_place_pose_at(ui, wx + 4, wz, 0, &shape, &rotation);
             CHECK(shape == 0, "fit: off, the pose is the pose");
-            edp_place_fit_set(1);
+            edp_place_fit_set(ui, 1);
 
             /* Reshape of a selection cycles the loc's own shapes; Fit fixes a
              * wrong one. */
@@ -2171,6 +2181,168 @@ loc_undo_phase(
                 lu_step(&lu);
             }
             lu_bisect(&lu, "shapes: after the walls, world == STATIC bake");
+        }
+        free(ui);
+    }
+    /* 14. The Place and Select tools' direct manipulation (workbench 6.3,
+     *     design section 7): a six-tile castlewall run with two corners
+     *     through the window's own drag (edp_run_*: what the World's press,
+     *     drag and release run), one undo step, the world against a STATIC
+     *     bake after each; a centrepiece run over a key another loc holds;
+     *     the marquee by footprint with its three modifiers; select same. */
+    {
+        static struct Editor_PlaceRun run;
+        static const int k_shape[6] = { 0, 0, 3, 2, 0, 0 };
+        static const int k_rotation[6] = { 1, 1, 0, 0, 1, 1 };
+        /* East two, north one, east two: the tiles from the first. */
+        static const int k_dx[6] = { 0, 1, 2, 2, 3, 4 };
+        static const int k_dz[6] = { 0, 0, 0, 1, 1, 1 };
+        struct EditorUi* ui = calloc(1, sizeof(*ui));
+        struct Editor_Square* s3 = NULL;
+        int rx = -1;
+        int rz = -1;
+
+        assert(ui);
+        ui->editor = ed;
+        ui->chrome = &g_lu_chrome;
+        ui->tools.place_fit = 1;
+        ui->app_services.user_data = h->provider;
+        ui->app_services.loc_record = lu_loc_record;
+        /* A free 8x6 (no loc on level 0) in the open squares. */
+        for( int q = 0; q < SQUARE_COUNT && rx < 0; q++ )
+        {
+            struct Editor_Square* s = Editor_DocFindSquare(&ed->doc, k_squares[q][0], k_squares[q][1]);
+            for( int z = 4; z < 56 && rx < 0; z++ )
+                for( int x = 4; x < 54 && rx < 0; x++ )
+                {
+                    int empty = 1;
+                    for( int dz = 0; dz < 6 && empty; dz++ )
+                        for( int dx = 0; dx < 8 && empty; dx++ )
+                            empty = lu_doc_count(s, 0, x + dx, z + dz) == 0;
+                    if( empty )
+                    {
+                        s3 = s;
+                        rx = x;
+                        rz = z;
+                    }
+                }
+        }
+        CHECK(rx >= 0, "runs: a free 8x6 in the open squares");
+        if( rx >= 0 )
+        {
+            int const wx = s3->map_x * 64 + rx + 1;
+            int const wz = s3->map_z * 64 + rz + 1;
+            int const groups = hist->applied;
+            int const count_before = s3->loc_count;
+            char* before = lu_jl2(s3);
+            char* after;
+            int sx;
+            int sz;
+
+            ui->tools.tool = EDITOR_TOOL_LOC_PLACE;
+            ui->tools.pick_kind = 0;
+            ui->tools.pick_id = 1911;
+            ui->tools.place_shape = 0;
+            ui->tools.place_rotation = 1;
+            CHECK(edp_run_begin(ui, &run, wx, wz, 0) == 1, "runs: the press opens a run");
+            (void)edp_run_to(ui, &run, wx + 2, wz, 0);
+            (void)edp_run_to(ui, &run, wx + 2, wz + 1, 0);
+            (void)edp_run_to(ui, &run, wx + 4, wz + 1, 0);
+            CHECK(run.plan.wall && run.plan.count == 6 && run.plan.place_count == 6,
+                "runs: six castlewall pieces planned (%d of %d)", run.plan.place_count, run.plan.count);
+            for( int i = 0; i < run.plan.count && i < 6; i++ )
+                CHECK(run.plan.pieces[i].shape == k_shape[i] && run.plan.pieces[i].rotation == k_rotation[i],
+                    "runs: piece %d is %d rot %d -- the ends straight, the inside corner a post (3), the outside an L "
+                    "(2), at Fit's rotations (%d rot %d)",
+                    i, k_shape[i], k_rotation[i], run.plan.pieces[i].shape, run.plan.pieces[i].rotation);
+            CHECK(edp_run_end(ui, &run) == 6 && hist->applied == groups + 1 && s3->loc_count == count_before + 6,
+                "runs: the release places the six, one undo step (%d groups, was %d)", hist->applied, groups);
+            lu_step(&lu);
+            for( int i = 0; i < 6; i++ )
+            {
+                CHECK(run.plan.pieces[i].world_x == wx + k_dx[i] && run.plan.pieces[i].world_z == wz + k_dz[i],
+                    "runs: piece %d is on the dragged path", i);
+                lu_scene_of(&lu, s3, rx + 1 + k_dx[i], rz + 1 + k_dz[i], &sx, &sz);
+                CHECK(lu_world_count(&lu, sx, sz, 0, 1911, k_shape[i], k_rotation[i], NULL) >= 1,
+                    "runs: the world draws piece %d (%d rot %d)", i, k_shape[i], k_rotation[i]);
+            }
+            lu_bisect(&lu, "runs: after the wall run, world == STATIC bake");
+            CHECK(Editor_Undo(ed) == 6, "runs: one undo takes the six");
+            lu_step(&lu);
+            after = lu_jl2(s3);
+            CHECK(strcmp(before, after) == 0 && s3->loc_count == count_before,
+                "runs: the .jl2 is byte-identical after the undo");
+            free(after);
+            lu_scene_of(&lu, s3, rx + 3, rz + 1, &sx, &sz);
+            CHECK(lu_world_count(&lu, sx, sz, 0, -1, 0, 0, NULL) == 0, "runs: nothing left on the corner's tile");
+            lu_bisect(&lu, "runs: after the undo, world == STATIC bake");
+            CHECK(Editor_Redo(ed) == 6, "runs: redo");
+            lu_step(&lu);
+            lu_bisect(&lu, "runs: after the redo, world == STATIC bake");
+
+            /* A centrepiece run along row rz+4 over a key Q holds. */
+            CHECK(edp_locs_place(ui, Q.loc_id, 10, 0, wx + 2, wz + 3, 0) == 1, "runs: Q on the row's middle tile");
+            lu_step(&lu);
+            ui->tools.pick_id = P.loc_id;
+            ui->tools.place_shape = 10;
+            ui->tools.place_rotation = 0;
+            (void)edp_run_begin(ui, &run, wx, wz + 3, 0);
+            (void)edp_run_to(ui, &run, wx + 4, wz + 3, 0);
+            CHECK(!run.plan.wall && run.plan.count == 5 && run.plan.pieces[2].state == EDITOR_LOC_RUN_TAKEN
+                      && run.plan.place_count == 4,
+                "runs: P along the row, Q's key refused (%d to place)", run.plan.place_count);
+            CHECK(strstr(Editor_UiStatusText(ui), "holds a centrepiece of that shape"),
+                "runs: and said (\"%s\")", Editor_UiStatusText(ui));
+            CHECK(edp_run_end(ui, &run) == 4, "runs: the release places the other four");
+            lu_step(&lu);
+            lu_scene_of(&lu, s3, rx + 3, rz + 4, &sx, &sz);
+            CHECK(lu_world_count(&lu, sx, sz, 0, Q.loc_id, 10, 0, NULL) == 1
+                      && lu_world_count(&lu, sx, sz, 0, P.loc_id, 10, 0, NULL) == 0,
+                "runs: Q stands, no P on its tile");
+            lu_bisect(&lu, "runs: after the centrepiece run, world == STATIC bake");
+
+            /* The marquee by footprint, on level 0, with its modifiers. */
+            {
+                struct Editor_TileRect rect;
+                struct Editor_LocRef p0;
+                struct Editor_LocRef post;
+                Editor_LocRefAt(&p0, wx, wz + 3, 0, 10, P.loc_id, 0);
+                Editor_LocRefAt(&post, wx + 2, wz, 0, 3, 1911, 0);
+                ui->tools.tool = EDITOR_TOOL_SELECT;
+                ui->tools.loc_count = 0;
+                rect = (struct Editor_TileRect){ 1, wx, wz + 3, wx, wz + 3, 0 };
+                (void)edp_select_rect(ui, &rect, EDITOR_LOC_SELECT_REPLACE);
+                CHECK(Editor_UiFindLoc(ui, &p0) >= 0, "marquee: over P's tile it selects P");
+                rect = (struct Editor_TileRect){ 1, wx + 2, wz, wx + 2, wz, 0 };
+                (void)edp_select_rect(ui, &rect, EDITOR_LOC_SELECT_ADD);
+                CHECK(Editor_UiFindLoc(ui, &p0) >= 0 && Editor_UiFindLoc(ui, &post) >= 0,
+                    "marquee: Shift adds the corner post");
+                rect = (struct Editor_TileRect){ 1, wx, wz + 3, wx, wz + 3, 0 };
+                (void)edp_select_rect(ui, &rect, EDITOR_LOC_SELECT_TOGGLE);
+                CHECK(Editor_UiFindLoc(ui, &p0) < 0 && Editor_UiFindLoc(ui, &post) >= 0, "marquee: Ctrl toggles P off");
+                rect = (struct Editor_TileRect){ 1, wx + 2, wz, wx + 2, wz, 0 };
+                (void)edp_select_rect(ui, &rect, EDITOR_LOC_SELECT_SUBTRACT);
+                CHECK(Editor_UiFindLoc(ui, &post) < 0, "marquee: Alt takes the post out");
+            }
+            /* Select same: every castlewall on level 0 of the open squares,
+             * the run's six among them. */
+            {
+                struct Editor_LocRef none[1];
+                int const total = Editor_LocsOfId(&ed->doc, 1911, 0, none, 0);
+                int const n = edp_select_same(ui, 1911, 0, EDITOR_LOC_SELECT_REPLACE);
+                int found = 0;
+                CHECK(n == (total < EDITOR_LOC_SELECTION_MAX ? total : EDITOR_LOC_SELECTION_MAX) && n >= 6,
+                    "select same: %d castlewalls (%d)", total, n);
+                for( int i = 0; i < 6; i++ )
+                {
+                    struct Editor_LocRef piece;
+                    Editor_LocRefAt(&piece, wx + k_dx[i], wz + k_dz[i], 0, k_shape[i], 1911, k_rotation[i]);
+                    found += Editor_UiFindLoc(ui, &piece) >= 0;
+                }
+                CHECK(found == 6 || total > EDITOR_LOC_SELECTION_MAX, "select same: the run's six among them (%d)",
+                    found);
+            }
+            free(before);
         }
         free(ui);
     }

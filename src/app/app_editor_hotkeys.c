@@ -351,11 +351,38 @@ app_hk_deselect(
     }
     if( panel->rect_dragging )
     {
+        /* A marquee too: it is the rectangle, and selects nothing now. */
         panel->rect_dragging = 0;
+        panel->marquee_active = 0;
         ui->tools.rect.valid = 0;
         return;
     }
+    /* A Place run in progress placed nothing yet: dropped whole. */
+    if( panel->run.active || panel->marquee_pending )
+    {
+        edp_run_cancel(&panel->run);
+        panel->marquee_pending = 0;
+        Editor_UiLog(ui, "editor: drag cancelled; nothing placed");
+        return;
+    }
     (void)Editor_HotkeyRun(ui, EDITOR_HK_EDIT_DESELECT);
+}
+
+/** Alt+A, select same: the hovered loc's id, else (no loc under the
+ *  pointer) the primary selected loc's, which the menu row also takes. */
+static void
+app_hk_select_same(
+    struct App* app,
+    struct EditorUi* ui)
+{
+    struct Editor_Panel* panel = &app->editor_panel;
+    int hx;
+    int hz;
+
+    if( Editor_PanelHoverTile(panel, app, &hx, &hz)
+        && Editor_PanelSelectSameAt(panel, app, hx, hz, Editor_PanelEditLevel(panel, app), EDITOR_LOC_SELECT_REPLACE) )
+        return;
+    (void)Editor_HotkeyRun(ui, EDITOR_HK_EDIT_SELECT_SAME);
 }
 
 static void
@@ -390,6 +417,9 @@ app_hk_run(
     }
     case EDITOR_HK_EDIT_SELECT_SQUARE:
         app_hk_select_square(app, ui);
+        break;
+    case EDITOR_HK_EDIT_SELECT_SAME:
+        app_hk_select_same(app, ui);
         break;
     case EDITOR_HK_EDIT_PASTE:
         if( app_hk_hover(app, &x, &z, &level) )
