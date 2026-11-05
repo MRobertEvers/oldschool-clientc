@@ -5,9 +5,10 @@
 #include "input/torirs_input.h"
 
 /**
- * Apply one TORIRS_CMD_INPUT_* command to the input state. This is the single
- * decode point between the command bus and ToriRS_Input; every producer (SDL,
- * replay, test harnesses) encodes, and only this function decodes.
+ * Apply one TORIRS_CMD_INPUT_* or TORIRS_CMD_GESTURE_* command to the input
+ * state. This is the single decode point between the command bus and
+ * ToriRS_Input; every producer (SDL, replay, test harnesses) encodes, and only
+ * this function decodes.
  *
  * Returns 1 when the command was an input command (now applied), 0 otherwise.
  */

@@ -5,8 +5,12 @@
 #include "log/torirs_log.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* Not M_PI: that is POSIX, not C, and a strict -std build has no such name. */
+#define TOUCH_PI 3.14159265358979323846
 
 static struct ToriRS_TouchFinger*
 touch_find(struct ToriRS_Touch* touch, int64_t id)
@@ -176,6 +180,150 @@ ToriRS_TouchReset(struct ToriRS_Touch* touch)
     assert(touch);
     memset(touch, 0, sizeof(*touch));
     touch->pinch_distance = -1;
+    ToriRS_GestureStreamReset(&touch->gesture);
+}
+
+void
+ToriRS_TouchSetGestureFrames(struct ToriRS_Touch* touch, int on)
+{
+    assert(touch);
+    on = on ? 1 : 0;
+    if( on == touch->gesture_frames )
+        return;
+    touch->gesture_frames = on;
+    touch->gesture_have = 0;
+    touch->gesture_moved = 0;
+    /* Off: whatever is open ends on the next event or tick. On again before
+     * that: the pending ENDs still go out first (the stream is left as it
+     * is, so they know what to end), then the new gesture measures afresh. */
+    if( !on )
+        touch->gesture_end_pending = 1;
+}
+
+/* ---- gesture frames (ToriRS_TouchSetGestureFrames) ---------------------- */
+
+/** The pair as a gesture reads it: the centroid of EVERY live finger (three
+ *  fingers pan as three), and the spread and direction of the first two.
+ *  The finger count; under two, nothing is measured. */
+static int
+touch_gesture_measure(
+    struct ToriRS_Touch const* touch,
+    double* out_cx,
+    double* out_cy,
+    double* out_spread,
+    double* out_angle)
+{
+    struct ToriRS_TouchFinger const* first = NULL;
+    struct ToriRS_TouchFinger const* second = NULL;
+    double sum_x = 0.0;
+    double sum_y = 0.0;
+    int live = 0;
+    double dx;
+    double dy;
+
+    for( int i = 0; i < TORIRS_TOUCH_MAX; i++ )
+    {
+        struct ToriRS_TouchFinger const* f = &touch->finger[i];
+        if( !f->live )
+            continue;
+        if( !first )
+            first = f;
+        else if( !second )
+            second = f;
+        sum_x += f->x;
+        sum_y += f->y;
+        live++;
+    }
+    if( live < 2 )
+        return live;
+    *out_cx = sum_x / (double)live;
+    *out_cy = sum_y / (double)live;
+    /* From the second finger to the first, in canvas axes (y down), so an
+     * increasing angle is a clockwise turn on screen. */
+    dx = (double)(first->x - second->x);
+    dy = (double)(first->y - second->y);
+    *out_spread = sqrt(dx * dx + dy * dy);
+    *out_angle = atan2(dy, dx);
+    return live;
+}
+
+/** Measure the pair and, if it moved since the last measurement, step the
+ *  gesture stream with the difference. The first measurement after a count
+ *  change is only the baseline. `final`: the last step before the gestures
+ *  end, which begins none (@see ToriRS_GestureStreamPairFinal). */
+static void
+touch_gesture_step(
+    struct ToriRS_Touch* touch,
+    struct ToriRS_CmdBus* bus,
+    uint64_t now_ms,
+    int final)
+{
+    double cx = 0.0;
+    double cy = 0.0;
+    double spread = 0.0;
+    double angle = 0.0;
+    int fingers;
+
+    fingers = touch_gesture_measure(touch, &cx, &cy, &spread, &angle);
+    if( fingers < 2 )
+        return;
+    if( touch->gesture_have && touch->gesture_moved )
+    {
+        double scale = 1.0;
+        double turn = angle - touch->gesture_angle;
+
+        /* A spread of zero (two fingers reported on one pixel) has no ratio;
+         * the step is a pan only, and the next one measures from here. */
+        if( spread > 0.0 && touch->gesture_spread > 0.0 )
+            scale = spread / touch->gesture_spread;
+        while( turn > TOUCH_PI )
+            turn -= 2.0 * TOUCH_PI;
+        while( turn < -TOUCH_PI )
+            turn += 2.0 * TOUCH_PI;
+        (final ? ToriRS_GestureStreamPairFinal : ToriRS_GestureStreamPair)(
+            &touch->gesture,
+            bus,
+            (int)floor(cx + 0.5),
+            (int)floor(cy + 0.5),
+            cx - touch->gesture_cx,
+            cy - touch->gesture_cy,
+            scale,
+            turn,
+            fingers > 255 ? 255 : fingers,
+            LIBTORIRS_GESTURE_FLAG_TOUCH,
+            now_ms);
+    }
+    else if( touch->gesture_have )
+        return;
+    touch->gesture_have = 1;
+    touch->gesture_moved = 0;
+    touch->gesture_cx = cx;
+    touch->gesture_cy = cy;
+    touch->gesture_spread = spread;
+    touch->gesture_angle = angle;
+}
+
+/** The finger count is about to change: what the pair did since the last tick
+ *  goes out first, then every open gesture ends -- two fingers and three are
+ *  different gestures, and one finger is none. */
+static void
+touch_gesture_close(struct ToriRS_Touch* touch, struct ToriRS_CmdBus* bus, uint64_t now_ms)
+{
+    if( touch->count >= 2 )
+        touch_gesture_step(touch, bus, now_ms, 1);
+    ToriRS_GestureStreamEndAll(&touch->gesture, bus);
+    touch->gesture_have = 0;
+    touch->gesture_moved = 0;
+}
+
+/** The flag went off mid-gesture: end it now that there is a bus. */
+static void
+touch_gesture_flush_pending(struct ToriRS_Touch* touch, struct ToriRS_CmdBus* bus)
+{
+    if( !touch->gesture_end_pending )
+        return;
+    touch->gesture_end_pending = 0;
+    ToriRS_GestureStreamEndAll(&touch->gesture, bus);
 }
 
 /** The pinch and the pan, from whatever the two live fingers are doing. */
@@ -262,11 +410,18 @@ ToriRS_TouchEvent(
 
     assert(touch);
     assert(bus);
+    touch_gesture_flush_pending(touch, bus);
 
     if( phase == TORIRS_TOUCH_BEGAN )
     {
         /* The pointer is back before the last one's departure was ever sent. */
         touch->leave_countdown = 0;
+        /* Before this finger is counted: the pair's motion so far belongs to
+         * the gesture it ends. A finger the policy will not follow (a ninth,
+         * or a repeated BEGAN of one already down) changes no count, but
+         * closing on it costs one baseline and nothing else. */
+        if( touch->gesture_frames )
+            touch_gesture_close(touch, bus, now_ms);
         /*
          * A backend that begins an id it never ended is describing a driver,
          * not making a mistake -- a finger lost to a focus change never sends
@@ -327,7 +482,12 @@ ToriRS_TouchEvent(
             /* A second finger turns this into a pinch/pan, so the one-finger
              * camera drag ends here rather than staying held through it. */
             touch_release_drag(touch, bus, canvas_x, canvas_y);
-            touch_two_finger(touch, bus);
+            /* Gesture frames are measured once a tick, not per event: note
+             * the motion, and ToriRS_TouchTick reads it. */
+            if( touch->gesture_frames )
+                touch->gesture_moved = 1;
+            else
+                touch_two_finger(touch, bus);
             return;
         }
         /*
@@ -418,6 +578,13 @@ ToriRS_TouchEvent(
     }
 
     /* ENDED */
+    /* The lifting finger's last position is already in: its travel since
+     * the tick goes out with the gesture it ends. */
+    if( touch->gesture_frames && touch->count >= 2 )
+    {
+        touch->gesture_moved = 1;
+        touch_gesture_close(touch, bus, now_ms);
+    }
     touch_release_drag(touch, bus, canvas_x, canvas_y);
     /*
      * A tap is a click, and so is the lift after a long press: the press
@@ -479,6 +646,9 @@ ToriRS_TouchTick(
 {
     assert(touch);
     assert(bus);
+    touch_gesture_flush_pending(touch, bus);
+    if( touch->gesture_frames && touch->count >= 2 )
+        touch_gesture_step(touch, bus, now_ms, 0);
 
     /* The deferred "the finger left" from the last release, once no finger has
      * come back down in the meantime. */

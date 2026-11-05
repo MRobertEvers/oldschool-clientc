@@ -779,7 +779,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	render/torirs_viewport_projection.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
-	input/torirs_touch.c \
+	input/torirs_touch.c input/torirs_gesture.c \
 	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
 	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
 	cs2vm2/cs2vm2_strpool.c \
@@ -3280,12 +3280,25 @@ test-plugin-contract: $(OBJ_DIR)
 test-plugin-contract-native:
 	TORIRS_TEST_CONTRACT_V3=1 $(MAKE) test-uitree
 
-test-touch: $(OBJ_DIR) input/torirs_touch.c input/test/torirs_touch_test.c
+test-touch: $(OBJ_DIR) input/torirs_touch.c input/torirs_gesture.c input/test/torirs_touch_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_touch_test $(TORIMEM_SRCS) \
-		input/torirs_touch.c input/torirs_input.c input/torirs_input_cmd.c \
+		input/torirs_touch.c input/torirs_gesture.c input/torirs_input.c input/torirs_input_cmd.c \
 		cmd/cmdbus.c cmd/cmdring.c \
 		input/test/torirs_touch_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/torirs_touch_test
+
+# The gesture frames (TORIRS_CMD_GESTURE_PAN / _PINCH / _TWIST): recorded and
+# replayed bit for bit, the decode's guards, the per-frame list's lifetime and
+# overflow, the stream's phases and the pair's start thresholds, the touch
+# policy's frames under ToriRS_TouchSetGestureFrames and its unchanged notches
+# and keys without it, and TORIRS_SIM_GESTURE's grammar. -UNDEBUG: the
+# contracts are asserts.
+test-gesture: $(OBJ_DIR) input/torirs_gesture.c input/test/torirs_gesture_test.c
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/torirs_gesture_test $(TORIMEM_SRCS) \
+		input/torirs_gesture.c input/torirs_touch.c input/torirs_input.c input/torirs_input_cmd.c \
+		cmd/cmdbus.c cmd/cmdring.c \
+		input/test/torirs_gesture_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/torirs_gesture_test $(OBJ_DIR)/torirs_gesture_test.trscmd
 
 # enum LibToriRS_KeyCode's config names: every code round-trips, the legacy
 # aliases resolve, case is ignored, an unknown name is TORIRSK_UNKNOWN.
@@ -3915,7 +3928,7 @@ test-sdl-chrome-geometry: $(OBJ_DIR)
 		$(PLATFORM_OBJC_SRCS) \
 		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
-		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+		input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c $(LDFLAGS)
 	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_chrome_geometry_test
 else
 test-sdl-chrome-geometry:
@@ -3934,7 +3947,7 @@ test-sdl-gesture: $(OBJ_DIR)
 		$(PLATFORM_OBJC_SRCS) \
 		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
-		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+		input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c $(LDFLAGS)
 	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_gesture_test
 else
 test-sdl-gesture:
@@ -3967,7 +3980,7 @@ test-sdl-pointer-map: $(OBJ_DIR)
 		$(PLATFORM_OBJC_SRCS) \
 		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
-		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+		input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c $(LDFLAGS)
 	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_pointer_map_test
 	SDL_VIDEODRIVER=dummy TORIRS_SIM_PIXEL_DENSITY=2 ./$(OBJ_DIR)/sdl_pointer_map_test
 else
@@ -3986,7 +3999,7 @@ test-sdl-text-input: $(OBJ_DIR)
 		$(PLATFORM_OBJC_SRCS) \
 		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
-		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+		input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c $(LDFLAGS)
 	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_text_input_test
 else
 test-sdl-text-input:
@@ -7364,7 +7377,7 @@ test-win32-platform: $(OBJ_DIR)
 		platform/test/win32_browser_backend_fake.c \
 		platform/platform_win32_timing.c platform/platform_app_icon.c \
 		cmd/cmdbus.c cmd/cmdring.c \
-		input/torirs_keymap.c input/torirs_touch.c $(WIN32_PLATFORM_TEST_LDFLAGS)
+		input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c $(WIN32_PLATFORM_TEST_LDFLAGS)
 	./$(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX)
 	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) \
 		-o $(OBJ_DIR)/win32_timing_test$(PLATFORM_EXE_SUFFIX) \
@@ -7387,7 +7400,7 @@ build-win32-plugin-chrome-capture: $(OBJ_DIR)
 		platform/platform_win32gdi.c platform/platform_win32_timing.c \
 		platform/platform_app_icon.c $(WIN32_CHROME_BROWSER_BACKEND) \
 		ui/torirs_chrome_exec_winbrowser.c ui/torirs_chrome_mirror.c \
-		cmd/cmdbus.c cmd/cmdring.c input/torirs_keymap.c input/torirs_touch.c \
+		cmd/cmdbus.c cmd/cmdring.c input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c \
 		-lm $(WIN32_PLATFORM_TEST_LDFLAGS)
 
 capture-win32-plugin-chrome: build-win32-plugin-chrome-capture
