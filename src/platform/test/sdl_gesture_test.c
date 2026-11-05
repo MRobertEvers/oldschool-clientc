@@ -257,6 +257,19 @@ main(void)
         CHECK(seen.gesture_pinches == 0 && seen.twists == 0 && seen.pans == 0, "and no gesture frame");
     }
 
+    /* The routing of one step, per device (the fingers themselves cannot be
+     * staged under the dummy driver: SDL_GetTouchFinger needs a device). */
+    CHECK(PlatformSdl_MultiGestureRoute(SDL_TOUCH_DEVICE_DIRECT, 1) == 0,
+        "a touchscreen with the gesture frames on is the touch policy's alone: no legacy pinch, no frames");
+    CHECK(PlatformSdl_MultiGestureRoute(SDL_TOUCH_DEVICE_DIRECT, 0) == PLATFORM_SDL_MULTI_LEGACY_PINCH,
+        "with them off its pinch is the legacy one, as in the game");
+    CHECK(PlatformSdl_MultiGestureRoute(SDL_TOUCH_DEVICE_INDIRECT_ABSOLUTE, 1) ==
+              (PLATFORM_SDL_MULTI_LEGACY_PINCH | PLATFORM_SDL_MULTI_FRAMES),
+        "a touchpad is this path's: both halves, the touch policy's flag or not");
+    CHECK(PlatformSdl_MultiGestureRoute(SDL_TOUCH_DEVICE_INDIRECT_RELATIVE, 0) ==
+              (PLATFORM_SDL_MULTI_LEGACY_PINCH | PLATFORM_SDL_MULTI_FRAMES),
+        "a relative touchpad too");
+
     PlatformWindow_Free(platform);
     printf("sdl_gesture_test: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

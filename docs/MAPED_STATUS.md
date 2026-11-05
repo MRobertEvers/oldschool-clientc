@@ -1470,12 +1470,14 @@ Open:
   a flat disc with the mark, where 1x doubled showed an outlined ring (seen
   in scale_q8.bmp against the scale-core slice's). This joins the six multi-ink GLYPH
   slots already listed as flattening; reclassify them as TEXTURED or draw
-  their tiers by hand.
+  their tiers by hand. Until then the web host draws the 1x skin
+  (`skinTiers: 1`, review fixes below).
 - Engine: `UITreeSceneBridge_EnsureDebugFont` / `EnsureChromeSkin` still
   load the integer tiers. At a fractional q they must register
   `ToriRSChromeBake_Face(slot, q)` and draw `ToriRSChromeBake_Skin(slot, q)`
-  at its own size; until then the native client at 125 / 150 / 175 % lays
-  out with the quarter metrics but draws the tier fonts. Toridraw's font
+  at its own size; until then main.c hands the native chrome the whole scale
+  (`ToriRSChromeScaleQ_Whole`, review fixes below), so 125 % draws 1x and
+  150 % / 175 % 2x natively, and only the DOM draws the fraction. Toridraw's font
   blitter treats any non-zero mask byte as solid, so the atlas's coverage
   pixels draw solid until it blends.
 - The host does not yet call `ToriRSChromeBake_SetScaleQ`; the bake's caches
@@ -1489,9 +1491,10 @@ Open:
 - Trackpad frames (ALSO_LEGACY) are not consumed (above); moving the
   trackpad onto them means dropping the legacy wheel / scroll / pinch for
   that frame before `ToriRSChrome_WheelFrame` and the camera's wheel see it.
-- `ToriRS_InputLastWasTouch` only changes on a gesture frame: a one-finger
-  tap or drag produces none, so the hint strip switches to the touch words
-  on the first two-finger gesture and back on a trackpad or wheel frame.
+- Under the runner split view (app_render.c) the pointer commands go to the
+  game's input and `TORIRS_CMD_INPUT_TOUCH_BEGAN` to the editor's, so there
+  the hint strip's touch words are not cleared by the mouse (review fixes
+  below).
 - The DOM zooms the whole shell by CSS `zoom`; the gesture intent's
   coordinates under a fractional zoom and the custom-well `scaleMilli` were
   not checked in a real browser.
@@ -1501,6 +1504,100 @@ Open:
   (Win32 GDI trackpad gestures, macOS twist, Linux touchpad pinch, the font
   hand-tuning queue, the macOS / WebView2 / MSHTML hosts at 1x, three-finger
   pitch, the gesture column) is still open.
+
+Review fixes (2026-11-05, after the integration; each finding checked
+against the code first). (1, 8) The DOM drew at DPR squared: the plugin
+chrome's q already holds the display's ratio, and the page's CSS pixel is
+already devicePixelRatio device pixels. `ToriRSChrome_SetPageScale(ui, q,
+density_percent)` now tells the sync the presentation's own density
+(main.c passes `PlatformWindow_ChromeDensityPercent` each frame), and
+`TORIRS_CHROME_CMD_SCALE` carries (q x 100) / (4 x density), reduced by
+gcd(100, density). Auto is no zoom on any display (8 / 8 at DPR 2, so a 2x
+chrome on a 2x page sends no SCALE at all), and View 200 % on a 1x page is
+8 / 4. The sync holds the zoom as a ratio (`scale_value` / `scale_den`).
+(2, 11) The native draw path cannot draw a fraction yet, so
+`main_chrome_scale_apply` hands App_SetChromeScale and both chrome models
+`ToriRSChromeScaleQ_Whole(q)`, which rounds halves up the way PixelDensity
+does (125 % draws 1x, 150 % and 175 % 2x, 250 % 3x). Only the DOM gets the
+asked q, through the page scale, and the View rows keep their fractional
+choices. (3) `App_EditorOwnsGestureFrames` now gates
+`PlatformWindow_SetTouchGestureFrames`. It is true when the editor owns the
+touch AND the free camera owns the World (offline, a cutscene, or
+`camera_unlocked`). Online with the follow camera, the touch layer's wheel
+notches and arrow keys turn and zoom it, as on the base commit, and
+`app_map_editor_world_gesture` treats `camera_unlocked` as the free camera
+(app_camera.c's test). (4, 14) The runtime's skin tier covers
+devicePixelRatio times the zoom (`deviceScale`), and `applyScale` repaints
+every skinned node (`repaintSkins`, split out of `applyTheme`). (5)
+`ToriRSChromeScaleQ_Parse` asserts its text. (6) `ToriRSChromeScaleQ_Round`
+and its test lines are gone, replaced by `_Whole`, which has a caller. The
+header now says the model takes q exactly and the tier is
+`ToriRSChrome_ScaleTier`. (7) `ToriRSChrome_TakeDock` and `_TakePopOut`
+assert before they read. (9) A touchscreen pinch over a GRAPH zoomed twice.
+`PlatformSdl_MultiGestureRoute` drops the legacy `TORIRS_CMD_INPUT_PINCH`
+for a DIRECT device while the touch policy makes frames
+(`ToriRS_TouchGestureFrames`, a new getter). (10) The web host's theme says
+`skinTiers: 1`, because the derived GLYPH tiers flatten the marks; `make web`
+still stages them. (12) A TWIST never carries ALSO_LEGACY:
+`gesture_stream_pair` clears it, since no legacy route carries a turn. A
+touchpad's twist now reaches the editor, as the docs said. (13) A twist over
+a MODELVIEW orbits its yaw (`TORIRS_CHROME_EVENT_VIEW_ORBIT` with `value` =
+the radians q16; edpanel_preview turns it into yaw steps with the World's
+sign), in the canvas and through the DOM's GESTURE intent. One departure
+from the design's table is kept: a two-finger pan over the Preview orbits
+rather than panning the well, because the Preview's camera is a turntable
+with no pan. (15) The runtime sets `.tpc-dpr-fractional` on the root when
+devicePixelRatio times the zoom is not whole, and modern.css drops
+`pixelated` under it. (16) New `TORIRS_CMD_INPUT_TOUCH_BEGAN` (115, no
+payload) is pushed by the touch policy on every finger landing.
+`LibToriRS_Input::last_touch` (was `gesture_last_touch`) is set by it and by
+TOUCH frames. It is cleared by an unflagged frame, or by a mouse move,
+click, wheel or scroll that arrives with no finger down (`touch_down`,
+cleared by MOUSE_LEAVE); keys leave it alone. A one-finger tap now shows the
+touch words, and mouse use takes them away. (17)
+`Editor_UiChromeScaleFor(ui, auto_q, touch)` holds a View choice under 2x
+at 2x on a touch device (the choice itself is kept), the rows under 2x say
+"(touch: 200 %)", and a manifest pin is floored the same way. The env pin
+is a developer's override and is not floored, and a lane with no
+`chrome_scale` key keeps its integer density. (18)
+`TORIRSMAPED_STATE_DOCK_PANEL` carries the popped window's panel scroll
+(logical px) and its first list's first row, and `ui_dock_heard` applies
+them; a two-value dock from an older build moves nothing. (19)
+docs/CHROME_SCALE.md says the GLYPH tiers are derived (scale2x / scale3x of
+a two-ink quantisation, no outline, nothing hand-drawn) and lists the check
+and radio marks among the slots that flatten. It also documents the page
+zoom, the zoom-aware tier and `.tpc-dpr-fractional`. (20)
+editor_world_gesture_test's `test_replay` records the frames off the
+command bus and replays the file through `CmdReplay_PumpFrame` and
+`ToriRS_Input_ApplyCmd` into a second camera, bit for bit. (21)
+chrome_widget_sync_glyphs asserts that every slot has all three tiers and is
+sampled from the tier at or above its scale (`ToriRSChrome_ScaleTier`), not
+merely from TierFor over whichever tiers exist. Tests after the fixes (this
+container, build_opt): `make -C src all`, torirsmaped and torirsmapedctl
+build. test-chrome-widgets 924 checks, 0 failed, DOM test ok (new: the page
+scale at DPR 1, 1.5 and 2, the zoom-aware tier, the fractional class, the
+Preview twist). test-debug-overlay-visual passed (the 1x / 2x / 3x goldens
+match). test-chrome-skin-tiers 922 passed; `chrome-skin` passes.
+test-editor-workbench 284, 0 failed (its 1x / 2x / 3x draw-list goldens
+match; new: `_Whole`, the touch floor, the Dock's scroll).
+test-editor-world-gesture 42, 0 failed. test-gesture 191, 0 failures (new:
+the twist's flags, the last pointer). test-touch 47, test-cmdbus 9,
+test-keymap 409. test-sdl-gesture 42 (new: the multigesture routing per
+device; SDL's dummy driver cannot stage fingers). test-sdl-pointer-map 698
+at both densities. test-sdl-chrome-geometry, test-sdl-text-input and
+test-uitree-input-signature ok. test-editor-hotkeys 1784, test-editor-groups
+2080, test-editor-chords 501, test-editor-cmd 62, test-editor-dropdown 36,
+test-editor-areas 136, test-editor-panels-palette 50 and
+test-editor-panels-accounts 48, all 0 failed. test-chrome-surface-sdl,
+test-chrome-browser-exec and test-chrome-web-skin ok. test-uitree passed.
+check-pt-switch and check-tree-walks PASS. bootmanifest_test PASS (against
+build_opt's rscache objects). test-editor-views-web 9 cases ok. The
+plugin_chrome and web node tests are ok except web/test/chrome_layout_test.js
+(`src/Makefile`, as before). test-uitree and the two editor-panels tests
+need `ulimit -s unlimited`: test_panel holds an Editor (10 MB) and a
+ToriRSChrome (5 MB) on its stack. Not checked by eye: the page zoom and the
+fractional class in a real browser, the Preview twist's direction, and a
+touchscreen pinch on hardware.
 
 ## Open issues
 

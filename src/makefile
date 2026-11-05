@@ -1461,8 +1461,10 @@ WEB_PLUGIN_CHROME = $(SRC_DIR)/plugin_chrome/modern.html \
 	$(SRC_DIR)/plugin_chrome/codec-es3.js \
 	$(SRC_DIR)/plugin_chrome/runtime.js
 WEB_PLUGIN_CHROME_SKIN = $(wildcard $(REPO_ROOT)/res/plugin_chrome/skin/*.png)
-# The 2x and 3x tiers (tools/chrome_skin_tiers.py). The web host's theme says
-# skinTiers 3 (web/torirs_chrome.js), so both must be staged beside skin/.
+# The 2x and 3x tiers (tools/chrome_skin_tiers.py), staged beside skin/ for a
+# theme that says skinTiers 3. The web host's says 1 for now
+# (web/torirs_chrome.js: the derived GLYPH tiers flatten the marks), so the
+# page draws skin/ alone; staging both keeps that a one-line switch.
 WEB_PLUGIN_CHROME_SKIN2X = $(wildcard $(REPO_ROOT)/res/plugin_chrome/skin@2x/*.png)
 WEB_PLUGIN_CHROME_SKIN3X = $(wildcard $(REPO_ROOT)/res/plugin_chrome/skin@3x/*.png)
 WEB_PLUGIN_CHROME_FONT = $(wildcard $(REPO_ROOT)/res/plugin_chrome/font/*)

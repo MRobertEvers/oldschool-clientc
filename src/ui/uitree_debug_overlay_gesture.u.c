@@ -10,8 +10,10 @@
  * The rules (one table, every surface):
  *
  *   - a GRAPH well pans and zooms about the gesture, continuously;
- *   - a MODELVIEW orbits on a pan and zooms on a pinch; a twist (a roll)
- *     is nothing a turntable has;
+ *   - a MODELVIEW orbits on a pan, zooms on a pinch and turns its yaw on a
+ *     twist (the design's Turn row, "preview: orbit"); a two-finger pan
+ *     orbits too, where the design's table pans the well: the Preview's
+ *     camera is a turntable with no pan;
  *   - a list, code or text box scrolls by PIXELS under two fingers, the rows
  *     following the fingers, and ignores a pinch (a stray second finger
  *     never jumps a list);
@@ -168,7 +170,11 @@ ToriRSChrome_Gesture(struct ToriRSChrome* ui, struct ToriRSChromeGesture const* 
         return 1;
     }
     if( gesture->kind == TORIRS_CHROME_GESTURE_TWIST )
+    {
+        if( kind == TORIRS_CHROME_W_MODELVIEW && gesture->radians_q16 != 0 )
+            dbg_gesture_view_event(ui, hit, TORIRS_CHROME_EVENT_VIEW_ORBIT, 0, 0, gesture->radians_q16);
         return 1;
+    }
 
     /* PAN. One finger is the pointer's own drag (pressed by the touch
      * layer), so only the MODELVIEW, which has no drag of its own, orbits
@@ -219,7 +225,9 @@ ToriRSChrome_GestureWidget(
                 dbg_q8((double)gesture->dx), dbg_q8((double)gesture->dy), 0);
         else if( gesture->kind == TORIRS_CHROME_GESTURE_PINCH && gesture->scale_q16 > 0 )
             dbg_gesture_view_event(ui, widget, TORIRS_CHROME_EVENT_VIEW_ZOOM, 0, 0, gesture->scale_q16);
-        return gesture->kind != TORIRS_CHROME_GESTURE_TWIST;
+        else if( gesture->kind == TORIRS_CHROME_GESTURE_TWIST && gesture->radians_q16 != 0 )
+            dbg_gesture_view_event(ui, widget, TORIRS_CHROME_EVENT_VIEW_ORBIT, 0, 0, gesture->radians_q16);
+        return 1;
     }
     if( w->kind == TORIRS_CHROME_W_GRAPH )
     {

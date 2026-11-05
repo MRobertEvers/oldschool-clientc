@@ -4423,6 +4423,16 @@ sdl_touch_spread(SDL_TouchID touch, float* out_mid_x, float* out_mid_y)
  * wheel notches for the game camera; `from_wheel` says so, and a GRAPH well
  * that takes the pinch drops those notches.
  */
+int
+PlatformSdl_MultiGestureRoute(
+    SDL_TouchDeviceType type,
+    int touch_frames)
+{
+    if( type != SDL_TOUCH_DEVICE_DIRECT )
+        return PLATFORM_SDL_MULTI_LEGACY_PINCH | PLATFORM_SDL_MULTI_FRAMES;
+    return touch_frames ? 0 : PLATFORM_SDL_MULTI_LEGACY_PINCH;
+}
+
 void
 PlatformSdl_PushMultiGesture(
     struct PlatformWindow* platform,
@@ -4434,6 +4444,7 @@ PlatformSdl_PushMultiGesture(
     float spread;
     int lx = 0;
     int ly = 0;
+    int route;
 
     assert(platform);
     assert(bus);
@@ -4471,8 +4482,15 @@ PlatformSdl_PushMultiGesture(
     }
     else
         sdl_pointer_layout(platform, &lx, &ly);
-    CmdBus_PushPinch(
-        bus, (double)(spread / platform->gesture_spread), (int16_t)lx, (int16_t)ly, 1);
+    /* A touchSCREEN's pinch while the touch policy makes gesture frames is
+     * its PINCH frame's alone (PlatformSdl_MultiGestureRoute): this legacy
+     * pinch as well would reach a GRAPH through ToriRSChrome_WheelFrame and
+     * the frame through ToriRSChrome_Gesture, zooming it twice a step. */
+    route = PlatformSdl_MultiGestureRoute(
+        SDL_GetTouchDeviceType(gesture->touchId), ToriRS_TouchGestureFrames(&platform->touch));
+    if( route & PLATFORM_SDL_MULTI_LEGACY_PINCH )
+        CmdBus_PushPinch(
+            bus, (double)(spread / platform->gesture_spread), (int16_t)lx, (int16_t)ly, 1);
 
     /*
      * The gesture frames, for a touchPAD SDL reports as touches (an indirect
@@ -4489,7 +4507,7 @@ PlatformSdl_PushMultiGesture(
      * is panning, since a touchpad that also scrolls is the same two fingers
      * reported twice.
      */
-    if( SDL_GetTouchDeviceType(gesture->touchId) != SDL_TOUCH_DEVICE_DIRECT )
+    if( route & PLATFORM_SDL_MULTI_FRAMES )
     {
         int window_w = 0;
         int window_h = 0;

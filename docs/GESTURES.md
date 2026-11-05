@@ -17,7 +17,8 @@ carries three phased gesture frames and the old synthesis stays for the game.
 Every payload also has `x`, `y` (the centre the gesture is about, canvas
 pixels: the fingers' centroid, or the pointer on a trackpad), `phase` and
 `flags`. The input range 16..31 is full, so the three sit at 112..114; nothing
-dispatches on ranges.
+dispatches on ranges. Beside them, `TORIRS_CMD_INPUT_TOUCH_BEGAN` (115, no
+payload) marks a finger landing, for the hint strip (below).
 
 * **Phases** (`enum LibToriRS_GesturePhase`): BEGIN, UPDATE..., END, per kind.
   A pan, a pinch and a twist of the same fingers are three gestures that
@@ -27,7 +28,8 @@ dispatches on ranges.
 * **Flags**: `LIBTORIRS_GESTURE_FLAG_ALSO_LEGACY` -- the same motion also
   reached this frame the old way (the integer wheel, `TORIRS_CMD_INPUT_SCROLL`
   or `TORIRS_CMD_INPUT_PINCH`), so a consumer that takes the gesture drops
-  those. `LIBTORIRS_GESTURE_FLAG_TOUCH` -- fingers on a touchscreen (the hint
+  those. Never on a TWIST, which no legacy route carries.
+  `LIBTORIRS_GESTURE_FLAG_TOUCH` -- fingers on a touchscreen (the hint
   strip's "the last input was a touch").
 * **16.16 everywhere**, so a replay decodes to the same floats bit for bit.
   Encoders: `CmdBus_PushGesturePan` / `_Pinch` / `_Twist` (src/cmd/cmdbus.h).
@@ -99,8 +101,16 @@ key synthesised:
 (src/platform/platform_window.h; SDL2, Win32 GDI and Android each forward to
 `ToriRS_TouchSetGestureFrames(&p->touch, on)`). main.c calls it every frame,
 before the poll and beside `PlatformWindow_SetTouchViewport`, with
-`App_EditorOwnsTouch` -- on while the map editor's panel is up, off for the
+`App_EditorOwnsGestureFrames` -- on while the map editor's panel is up AND
+the World's camera is the free one (offline, a cutscene, or unlocked online),
+off for the game and for the editor online with the follow camera locked,
+where the wheel notches and arrow keys turn and zoom that camera as in the
 game. It is compare-then-set, so the per-frame call costs nothing.
+
+Every finger landing also pushes `TORIRS_CMD_INPUT_TOUCH_BEGAN` (115, no
+payload), flag or not: the pointer commands until the touch policy's
+`TORIRS_CMD_INPUT_MOUSE_LEAVE` are the finger's, which is how the input tells
+a finger's tap from a mouse's click (below, the hint strip).
 
 ### SDL2 desktop (src/platform/platform_sdl2.c, the event drain)
 
@@ -124,9 +134,13 @@ game. It is compare-then-set, so the per-frame call costs nothing.
   `TORIRS_CMD_INPUT_PINCH` does), TWIST is `dTheta`, PAN the centroid's travel
   scaled by the window (a touchpad has no position on the canvas). The PAN is
   left out while the wheel is panning: a touchpad that also scrolls is the same
-  two fingers twice. Through `ToriRS_GestureStreamPair`, flagged ALSO_LEGACY,
+  two fingers twice. Through `ToriRS_GestureStreamPair`, the PAN and PINCH
+  flagged ALSO_LEGACY (the TWIST never is: no legacy route carries a turn),
   ENDed when a finger lands or lifts. A *direct* device (a touchscreen) is the
-  touch policy's, never this path's, so a touch is never reported twice.
+  touch policy's: no frames from here, and while the policy makes its own
+  frames no `TORIRS_CMD_INPUT_PINCH` either (`PlatformSdl_MultiGestureRoute`),
+  so a touch is never reported twice. With the flag off its pinch stays the
+  legacy one, beside the policy's wheel notches, as in the game.
 * **macOS**, after the batch: AppKit's magnify is a PINCH (ALSO_LEGACY: the
   `TORIRS_CMD_INPUT_PINCH` it always was carries it too); AppKit's precise
   scroll goes through the same wheel mapping as above.
@@ -205,9 +219,11 @@ the stepping live in src/input/torirs_gesture.c (`ToriRS_SimGestureParse`,
 * `ToriRS_InputGestures(input, &frames)` (src/input/torirs_gesture.h,
   implemented in torirs_input.c) is the one reader: it hands back
   `input->gestures`, the decoded `struct LibToriRS_Gesture` list itself.
-  `ToriRS_InputLastWasTouch(input)` answers from `gesture_last_touch`, which
-  `LibToriRS_Input_PushGesture` sets from the last frame's
-  `LIBTORIRS_GESTURE_FLAG_TOUCH` and Begin leaves alone.
+  `ToriRS_InputLastWasTouch(input)` answers from `last_touch`: set by a
+  finger landing (`TORIRS_CMD_INPUT_TOUCH_BEGAN`, so a one-finger tap counts)
+  and by a TOUCH-flagged frame; cleared by an unflagged frame (a trackpad) and
+  by a mouse move, click, wheel or scroll that arrives with no finger down.
+  Keys leave it alone (a soft keyboard types), and Begin does too.
 * `app_map_editor_gestures` (src/app/app_map_editor.c), once a frame before
   the editor's tick, offers each frame to the chrome (`Editor_UiGesture`,
   which maps the input's kind and phase onto the chrome's own
@@ -218,8 +234,8 @@ the stepping live in src/input/torirs_gesture.c (`ToriRS_SimGestureParse`,
   runs first) and the World through the camera's wheel, so taking the frame
   as well would scroll a list twice and pan the World while the wheel zooms
   it. A trackpad and ctrl+wheel therefore behave as they did in 6.0; the
-  touchscreen's frames (never ALSO_LEGACY) and a touchpad's twist come
-  through. Moving the trackpad onto the frames means dropping the legacy
+  touchscreen's frames (never ALSO_LEGACY) and a touchpad's twist (a TWIST
+  never carries the flag) come through. Moving the trackpad onto the frames means dropping the legacy
   wheel / scroll / pinch for the frame first.
 * Split view: src/app/app_render.c's `app_view_split_command_is_input` does
   not list the gesture types, so under the split view they reach the

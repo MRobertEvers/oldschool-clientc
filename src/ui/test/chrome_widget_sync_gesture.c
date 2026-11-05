@@ -100,7 +100,8 @@ cw_test_gesture(void)
         "a twist over a well is taken and asks nothing of it");
 
     /* MODELVIEW: a pan orbits (dx yaw, dy pitch, logical px in 1/256),
-     * one finger or two; a pinch zooms; a twist (a roll) is nothing. */
+     * one finger or two; a pinch zooms; a twist orbits the yaw by its turn
+     * (the design's Turn row, "preview: orbit"). */
     g = gesture(TORIRS_CHROME_GESTURE_PAN, vx, vy, 12, 3, 1, 0, TORIRS_CHROME_GESTURE_UPDATE);
     CW_CHECK(ToriRSChrome_Gesture(&g_cw_ui, &g) == 1, "a pan over a model view is taken");
     CW_CHECK(ToriRSChrome_TakeEvent(&g_cw_ui, &ev) && ev.kind == TORIRS_CHROME_EVENT_VIEW_ORBIT &&
@@ -111,7 +112,13 @@ cw_test_gesture(void)
                  ev.kind == TORIRS_CHROME_EVENT_VIEW_ZOOM && ev.value == 52429,
         "a model view's pinch is VIEW_ZOOM by its ratio");
     g = gesture(TORIRS_CHROME_GESTURE_TWIST, vx, vy, 0, 0, 2, 0, TORIRS_CHROME_GESTURE_UPDATE);
-    CW_CHECK(ToriRSChrome_Gesture(&g_cw_ui, &g) == 1 && drain() == 0, "a twist is no roll");
+    g.radians_q16 = -6554;
+    CW_CHECK(ToriRSChrome_Gesture(&g_cw_ui, &g) == 1 && ToriRSChrome_TakeEvent(&g_cw_ui, &ev) &&
+                 ev.kind == TORIRS_CHROME_EVENT_VIEW_ORBIT && ev.widget == view && ev.dx == 0 && ev.dy == 0 &&
+                 ev.value == -6554 && drain() == 0,
+        "a model view's twist is VIEW_ORBIT by its turn, in value (radians q16)");
+    g.radians_q16 = 0;
+    CW_CHECK(ToriRSChrome_Gesture(&g_cw_ui, &g) == 1 && drain() == 0, "a twist that turned nothing asks nothing");
 
     /* VLIST: two fingers scroll by PIXELS, the rows under the fingers; the
      * part row waits for the next frame. Fingers up (dy < 0) bring later
@@ -162,6 +169,11 @@ cw_test_gesture(void)
     CW_CHECK(cw_intent(TORIRS_CHROME_INTENT_GESTURE, panel, list, TORIRS_CHROME_GESTURE_PAN, 0, 0,
                  "0 -40 2 65536 0 0") == 1 && g_cw_ui.widgets[list].imin == 40 / row_h,
         "and scrolls a list by pixels");
+    CW_CHECK(cw_intent(TORIRS_CHROME_INTENT_GESTURE, panel, view, TORIRS_CHROME_GESTURE_TWIST, 30, 20,
+                 "0 0 2 65536 13107 1") == 1 &&
+                 ToriRSChrome_TakeEvent(&g_cw_ui, &ev) && ev.kind == TORIRS_CHROME_EVENT_VIEW_ORBIT &&
+                 ev.value == 13107 && ev.dx == 0,
+        "a GESTURE intent's twist over a model view orbits its yaw");
     CW_CHECK(cw_intent(TORIRS_CHROME_INTENT_GESTURE, panel, view, TORIRS_CHROME_GESTURE_PAN, 0, 0,
                  "4 x") == 0 && drain() == 0,
         "a malformed frame is dropped like any unknown intent");

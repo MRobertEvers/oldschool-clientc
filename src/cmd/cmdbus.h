@@ -167,6 +167,14 @@ enum ToriRS_CmdType
     TORIRS_CMD_GESTURE_PAN = 112,   /* struct ToriRS_CmdGesturePan */
     TORIRS_CMD_GESTURE_PINCH = 113, /* struct ToriRS_CmdGesturePinch */
     TORIRS_CMD_GESTURE_TWIST = 114, /* struct ToriRS_CmdGestureTwist */
+    /* No payload. A finger came down on the glass (the touch policy,
+     * ToriRS_TouchEvent's BEGAN): the pointer commands from here until the
+     * next TORIRS_CMD_INPUT_MOUSE_LEAVE (the policy's "the finger left") are
+     * a finger's, and the last pointer input was a touch. A mouse move, a
+     * click, a wheel or a scroll outside such a touch makes it a mouse again
+     * (LibToriRS_Input::last_touch, ToriRS_InputLastWasTouch: the hint
+     * strip's words). */
+    TORIRS_CMD_INPUT_TOUCH_BEGAN = 115,
 };
 
 /** How the platform presents its plugin chrome. @see TORIRS_CMD_PLATFORM_PLUGIN_CHROME. */
@@ -554,6 +562,10 @@ CmdBus_PushGestureTwist(
     double radians,
     int phase,
     unsigned flags);
+
+/** TORIRS_CMD_INPUT_TOUCH_BEGAN. */
+int
+CmdBus_PushTouchBegan(struct ToriRS_CmdBus* bus);
 
 int
 CmdBus_PushWindowResize(

@@ -251,14 +251,23 @@
     return match && SKIN_SIZES[match[1]] ? match[1] : '';
   }
 
+  /* Device pixels per authored CSS pixel: the browser's own ratio times the
+   * chrome's zoom (applyScale), which the shell's images are drawn through
+   * too. The C side already divides the display's density out of the zoom
+   * (ToriRSChrome_SetPageScale), so the two are never the same factor twice. */
+  function deviceScale() {
+    return Math.max(1, Number(global.devicePixelRatio || 1)) * state.scaleQ / state.scaleDen;
+  }
+
   /* The tier for art whose 1x is baseWidth pixels, drawn cssWidth CSS
    * pixels wide: the smallest staged tier whose pixels cover the device
-   * pixels -- the nearest tier at or above the scale, as the native chrome
-   * picks (docs/CHROME_SCALE.md). 1 on the legacy page and on a host that
-   * staged no tiers. */
+   * pixels it lands on (cssWidth times devicePixelRatio times the zoom) --
+   * the nearest tier at or above the scale, as the native chrome picks
+   * (docs/CHROME_SCALE.md). 1 on the legacy page and on a host that staged
+   * no tiers. */
   function skinTier(baseWidth, cssWidth) {
     if (legacy || state.skinTiers <= 1) return 1;
-    const want = cssWidth * Math.max(1, Number(global.devicePixelRatio || 1));
+    const want = cssWidth * deviceScale();
     for (let tier = 1; tier < state.skinTiers; tier++)
       if (baseWidth * tier >= want - 0.01) return tier;
     return state.skinTiers;
@@ -730,6 +739,15 @@
      * under the tpc-skin-tiers name: a host that staged both says skinTiers 3. */
     if (document.documentElement)
       toggleClass(document.documentElement, 'tpc-skin-tiers', state.skinTiers >= 3 && !legacy);
+    repaintSkins();
+  }
+
+  /* Every skinned node at the tier the current device scale wants: the
+   * theme's pieces, the rail, and each widget's content. A theme change and
+   * a zoom change (applyScale) both move the tier. */
+  function repaintSkins() {
+    const next = state.theme;
+    updateDensityClass();
     paintSkin(pane, next.panelBody);
     if (rail.parentNode) paintSkin(rail.parentNode, next.panelBody);
     close.style.backgroundImage = cssUrl(skinUrl(next.close, 16));
@@ -2172,7 +2190,22 @@
     state.scaleQ = q;
     state.scaleDen = d;
     shell.style.zoom = q === d ? '' : String(q / d);
+    /* The device pixels under every image moved: the tiers and the
+     * resampling with them. */
+    if (state.themeRevision) repaintSkins();
+    else updateDensityClass();
     reportLayout();
+  }
+
+  /* image-rendering: pixelated holds the art's pixels at an INTEGER device
+   * scale, where every art pixel is whole device pixels. At a fractional one
+   * (DPR 1.5, or a 1.25x zoom) nearest-neighbour drops and doubles columns,
+   * so the stylesheet lets the browser area-average under
+   * .tpc-dpr-fractional (docs/CHROME_SCALE.md). */
+  function updateDensityClass() {
+    if (legacy || !document.documentElement) return;
+    const s = deviceScale();
+    toggleClass(document.documentElement, 'tpc-dpr-fractional', Math.abs(s - Math.round(s)) > 0.01);
   }
 
   function applyCommand(raw) {
@@ -3048,6 +3081,8 @@
   global.onresize = () => {
     popupHide();
     dropdownHide();
+    /* A move to a display of another ratio arrives as a resize. */
+    updateDensityClass();
     reportLayout();
   };
   sizeLegacyViewport();

@@ -102,6 +102,7 @@ struct MenuBarPanel
      *  scale Auto resolved to, the text size. */
     int view_built_scale;
     int view_built_auto;
+    int view_built_touch;
     int view_built_text;
     int view_built_for;
     int view_built_snap;
@@ -206,6 +207,11 @@ menubar_build_view(
             int const q = ToriRSChromeScaleQ_Step(action - EDITOR_HK_VIEW_SCALE_100);
             snprintf(label, sizeof(label), "Chrome scale: %d %%", ToriRSChromeScaleQ_Percent(q));
             on = ui->prefs.chrome_scale_q == q;
+            /* Held at 2x on a touch device (Editor_UiChromeScaleFor): the
+             * row says what it draws there. */
+            if( ui->scale_touch && q < TORIRS_CHROME_SCALEQ_TOUCH_MIN )
+                snprintf(label, sizeof(label), "Chrome scale: %d %% (touch: %d %%)", ToriRSChromeScaleQ_Percent(q),
+                    ToriRSChromeScaleQ_Percent(TORIRS_CHROME_SCALEQ_TOUCH_MIN));
         }
         else
         {
@@ -245,6 +251,7 @@ menubar_build_view(
     self->view_built_state = menubar_view_state(ui);
     self->view_built_scale = ui->prefs.chrome_scale_q;
     self->view_built_auto = ui->scale_auto_q;
+    self->view_built_touch = ui->scale_touch;
     self->view_built_text = ui->prefs.text_large;
 }
 
@@ -327,7 +334,8 @@ menubar_tick(
     }
     if( self->view_built_for != ui->panel_count || self->view_built_snap != ui->snap
         || self->view_built_state != menubar_view_state(ui) || self->view_built_scale != ui->prefs.chrome_scale_q
-        || self->view_built_auto != ui->scale_auto_q || self->view_built_text != ui->prefs.text_large )
+        || self->view_built_auto != ui->scale_auto_q || self->view_built_touch != ui->scale_touch
+        || self->view_built_text != ui->prefs.text_large )
         menubar_build_view(ui, self);
     /* A level changed behind the row's back -- another window
      * (STATE_EDIT_LEVEL lands in edit_level alone) or a key: the cap follows

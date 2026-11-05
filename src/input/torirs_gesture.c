@@ -201,6 +201,11 @@ gesture_stream_pair(
         }
     }
 
+    /* ALSO_LEGACY never rides a TWIST: no legacy route carries a turn (the
+     * wheel, SCROLL and INPUT_PINCH have no angle), so a pair whose pan and
+     * pinch the old way also delivered (SDL_MULTIGESTURE) still hands its
+     * twist to the consumers that skip the doubled frames. */
+    flags &= ~LIBTORIRS_GESTURE_FLAG_ALSO_LEGACY;
     if( stream->active[LIBTORIRS_GESTURE_TWIST] )
     {
         if( radians != 0.0 )

@@ -273,10 +273,12 @@ ToriRS_InputGestures(
     const struct LibToriRS_Gesture** out);
 
 /**
- * Was the last gesture frame decoded a finger's (LIBTORIRS_GESTURE_FLAG_TOUCH)
- * rather than a trackpad's or a wheel's? It holds across frames with no
- * gesture. The hint strip spells the gestures while it does
- * (Editor_HotkeysHint's `touch`).
+ * Was the last pointer input a finger's -- a finger landing
+ * (TORIRS_CMD_INPUT_TOUCH_BEGAN) or a TOUCH-flagged gesture frame -- rather
+ * than a mouse's (a move, click, wheel or scroll with no finger down) or a
+ * trackpad's (an unflagged gesture frame)? It holds across quiet frames. The
+ * hint strip spells the gestures while it does (Editor_HotkeysHint's
+ * `touch`). @see LibToriRS_Input::last_touch.
  */
 int
 ToriRS_InputLastWasTouch(const struct LibToriRS_Input* input);

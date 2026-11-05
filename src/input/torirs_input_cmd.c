@@ -27,6 +27,12 @@ ToriRS_Input_ApplyCmd(
     const struct ToriRS_CmdHeader* header,
     const uint8_t* payload)
 {
+    /* Which pointer the person last used (the hint strip's words): any of
+     * these off the bus with no finger down is a mouse's. */
+    if( header->type == TORIRS_CMD_INPUT_MOUSE_DOWN || header->type == TORIRS_CMD_INPUT_MOUSE_UP ||
+        header->type == TORIRS_CMD_INPUT_MOUSE_MOVE || header->type == TORIRS_CMD_INPUT_MOUSE_WHEEL ||
+        header->type == TORIRS_CMD_INPUT_SCROLL )
+        LibToriRS_Input_NoteDesktopPointer(input);
     switch( header->type )
     {
     case TORIRS_CMD_INPUT_KEY_DOWN:
@@ -172,6 +178,9 @@ ToriRS_Input_ApplyCmd(
         LibToriRS_Input_PushGesture(input, &gesture);
         return 1;
     }
+    case TORIRS_CMD_INPUT_TOUCH_BEGAN:
+        LibToriRS_Input_PushTouchBegan(input);
+        return 1;
     case TORIRS_CMD_INPUT_CLEAR_KEYS:
         LibToriRS_Input_ClearKeys(input);
         return 1;

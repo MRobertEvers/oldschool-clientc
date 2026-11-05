@@ -10,16 +10,23 @@
  *
  * The scale is in QUARTERS of a device pixel per chrome pixel: 4 is 1x, 5 is
  * 1.25x, 6 is 1.5x, 7 is 1.75x, 8 is 2x, 10 is 2.5x, 12 is 3x -- the device
- * pixel ratios displays report, which ToriRSChrome_SetScaleQ takes. Before the
- * chrome model carries a rational scale, the editor's shim
- * (Editor_ChromeSetScaleQ) rounds a quarter value to the integer scale
- * (q + 2) / 4, so asking for 6 draws at 2x today and at 1.5x once the model
- * can.
+ * pixel ratios displays report. The chrome model takes q exactly
+ * (ToriRSChrome_SetScaleQ, through the editor's shim Editor_ChromeSetScaleQ,
+ * which forwards it unchanged); the baked tier it reads bitmaps from is
+ * ToriRSChrome_ScaleTier(q), the tier at or above it.
+ *
+ * What the NATIVE draw path is handed is another matter, for now: its bridge
+ * registers only the integer tiers' fonts and skin, so a fractional q would
+ * lay text out with quarter metrics and paint it with the next tier's
+ * glyphs. Until the bridge draws ToriRSChromeBake_Face / _Skin at q, main.c
+ * hands the native chrome ToriRSChromeScaleQ_Whole(q) and only the DOM
+ * presentation (which zooms by CSS) the rational q itself.
  *
  * Header-only and dependency-free, so the client, the boot manifest's parser
  * and the tests share one table.
  */
 
+#include <assert.h>
 #include <stddef.h>
 
 /** 1x, and the bounds of every scale asked for: 1x to 3x. */
@@ -110,7 +117,8 @@ ToriRSChromeScaleQ_FromDisplay(
  * per chrome pixel, rounded to the nearest quarter and clamped to 1x..3x (a
  * "4" from an older manifest is 3x, as the integer chrome clamped it). Not a
  * step table: a pin says exactly what it wants. 0 for anything else (empty,
- * negative, zero, trailing junk): the caller says so and ignores it.
+ * negative, zero, trailing junk): the caller says so and ignores it. `text`
+ * is never NULL: "no pin" is the caller's test, made before it asks.
  */
 static inline int
 ToriRSChromeScaleQ_Parse(const char* text)
@@ -122,8 +130,7 @@ ToriRSChromeScaleQ_Parse(const char* text)
     long q;
     const char* p = text;
 
-    if( !p )
-        return 0;
+    assert(text);
     while( *p >= '0' && *p <= '9' )
     {
         if( whole < 100 )
@@ -158,12 +165,21 @@ ToriRSChromeScaleQ_Parse(const char* text)
     return (int)q;
 }
 
-/** The integer scale a quarter value rounds to before the chrome model takes
- *  quarters: (q + 2) / 4, halves up (1.5x -> 2x, 1.25x -> 1x, 2.5x -> 3x). */
+/**
+ * The whole scale, in quarters, that the native draw path draws an asked-for
+ * `q` at while it has only the integer tiers (see the top of this file): q
+ * rounded to a multiple of 4, halves up -- 5 -> 4, 6 and 7 -> 8, 10 -> 12;
+ * 4, 8 and 12 unchanged. Halves up is PlatformWindow_PixelDensity's own
+ * rounding of a display's ratio, so Auto on a 125 / 150 / 175 % display
+ * draws the native chrome at the integer scale that display drew before the
+ * scale became a rational (1x, 2x, 2x).
+ */
 static inline int
-ToriRSChromeScaleQ_Round(int q)
+ToriRSChromeScaleQ_Whole(int q)
 {
-    return (q + TORIRS_CHROME_SCALEQ_ONE / 2) / TORIRS_CHROME_SCALEQ_ONE;
+    assert(q >= TORIRS_CHROME_SCALEQ_MIN);
+    assert(q <= TORIRS_CHROME_SCALEQ_MAX);
+    return (q + TORIRS_CHROME_SCALEQ_ONE / 2) / TORIRS_CHROME_SCALEQ_ONE * TORIRS_CHROME_SCALEQ_ONE;
 }
 
 #endif

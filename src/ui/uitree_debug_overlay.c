@@ -2015,6 +2015,9 @@ ToriRSChrome_Init(struct ToriRSChrome* ui)
      * which draws an empty chrome that looks like a failed boot. */
     ui->scale = 1;
     ui->scale_q = TORIRS_CHROME_SCALE_Q_ONE;
+    /* The page follows scale_q, on a page of no density of its own. */
+    ui->page_scale_q = 0;
+    ui->page_density_percent = 100;
     /* TICK, the settings page's tick/cross: the style every panel in this
      * chrome was authored against. @see enum ToriRSChromeCheckStyle. It is
      * also the memset's value, spelled out because a default nobody can find
@@ -2129,6 +2132,21 @@ ToriRSChrome_SetScaleQ(struct ToriRSChrome* ui, int q)
         if( ui->widgets[i].kind == TORIRS_CHROME_W_CUSTOM )
             dbg_change_widget(ui, i, TORIRS_CHROME_CHANGE_WIDGET_HEIGHT);
     ui->dirty = 1;
+}
+
+void
+ToriRSChrome_SetPageScale(struct ToriRSChrome* ui, int q, int density_percent)
+{
+    assert(ui);
+    assert(q >= TORIRS_CHROME_SCALE_Q_MIN);
+    assert(q <= TORIRS_CHROME_SCALE_Q_MAX);
+    assert(density_percent > 0);
+    if( ui->page_scale_q == q && ui->page_density_percent == density_percent )
+        return;
+    ui->page_scale_q = q;
+    ui->page_density_percent = density_percent;
+    /* Nothing in the canvas moves: only what a DOM is told. */
+    dbg_change_push(ui, TORIRS_CHROME_CHANGE_SCALE, -1, -1, 0, 0);
 }
 
 int
@@ -2508,9 +2526,10 @@ ToriRSChrome_PanelSetPoppable(struct ToriRSChrome* ui, int panel, int poppable)
 int
 ToriRSChrome_TakePopOut(struct ToriRSChrome* ui)
 {
-    int const panel = ui->popout_requested;
+    int panel;
 
     assert(ui);
+    panel = ui->popout_requested;
     ui->popout_requested = -1;
     return panel;
 }
@@ -2597,9 +2616,10 @@ ToriRSChrome_PanelSetDockable(struct ToriRSChrome* ui, int panel, int dockable)
 int
 ToriRSChrome_TakeDock(struct ToriRSChrome* ui)
 {
-    int const panel = ui->dock_requested;
+    int panel;
 
     assert(ui);
+    panel = ui->dock_requested;
     ui->dock_requested = -1;
     return panel;
 }

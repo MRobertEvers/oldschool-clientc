@@ -263,6 +263,11 @@ ToriRS_TouchSetOverlayTest(
 void
 ToriRS_TouchSetGestureFrames(struct ToriRS_Touch* touch, int on);
 
+/** Is the touch policy making gesture frames of two fingers? A producer that
+ *  also sees those fingers (SDL_MULTIGESTURE) leaves them to it. */
+int
+ToriRS_TouchGestureFrames(struct ToriRS_Touch const* touch);
+
 /**
  * One finger event, in CANVAS pixels.
  *

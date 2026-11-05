@@ -217,6 +217,51 @@ cw_test_scale(void)
             }
             CW_CHECK(scale_at >= 0 && open_at > scale_at, "before any panel opens");
         }
+
+        /* The page's own density (ToriRSChrome_SetPageScale): a DOM's CSS
+         * pixel is already devicePixelRatio device pixels, so the zoom it is
+         * told is the scale over that. A 2x chrome on a 2x page is no zoom at
+         * all -- the page is the canvas chrome's physical size, never 4x. */
+        ToriRSChrome_SetScale(&g_cw_ui, 1);
+        ToriRSChrome_SetPageScale(&g_cw_ui, 4, 100);
+        (void)cw_run();
+        ToriRSChrome_SetScale(&g_cw_ui, 2);
+        ToriRSChrome_SetPageScale(&g_cw_ui, 8, 200);
+        (void)cw_run();
+        CW_CHECK(cw_count(TORIRS_CHROME_CMD_SCALE) == 0,
+            "SetScale(2) on a DPR-2 page sends no SCALE: the DOM zoom stays 1, as before the rational scale");
+        CW_CHECK(g_cw_sync.scale_value == g_cw_sync.scale_den, "the executor holds a zoom of 1");
+        {
+            struct ToriRSChromeExec exec;
+            ToriRSChromeRecorder_Init(&g_cw_rec);
+            exec = ToriRSChromeExec_Recorder(&g_cw_rec);
+            (void)ToriRSChromeSync_Init(&g_cw_sync, &exec);
+        }
+        (void)cw_run();
+        CW_CHECK(cw_count(TORIRS_CHROME_CMD_SCALE) == 0,
+            "a fresh executor on a DPR-2 page at Auto hears no SCALE: unzoomed is its default");
+        ToriRSChrome_SetPageScale(&g_cw_ui, 8, 100);
+        (void)cw_run();
+        cmd = cw_find(TORIRS_CHROME_CMD_SCALE, -1);
+        CW_CHECK(cmd && cmd->value == 8 && cmd->w == 4, "on a 1x page the same 2x is 8 / 4, a 2x zoom");
+        ToriRSChrome_SetPageScale(&g_cw_ui, 6, 150);
+        (void)cw_run();
+        cmd = cw_find(TORIRS_CHROME_CMD_SCALE, -1);
+        CW_CHECK(cmd && cmd->value == 12 && cmd->w == 12,
+            "Auto on a 1.5x page is 1.5x over 1.5: no zoom, said once as 12 / 12 after the 2x");
+        /* The page scale is the asked one, finer than the layout's: the
+         * native chrome draws 1.5x at 2x (main.c), the DOM zooms 1.5x. */
+        ToriRSChrome_SetPageScale(&g_cw_ui, 6, 100);
+        (void)cw_run();
+        cmd = cw_find(TORIRS_CHROME_CMD_SCALE, -1);
+        CW_CHECK(cmd && cmd->value == 6 && cmd->w == 4 && ToriRSChrome_ScaleQ(&g_cw_ui) == 8,
+            "a 1.5x page scale over a 2x layout says 6 / 4");
+        ToriRSChrome_SetPageScale(&g_cw_ui, 6, 100);
+        (void)cw_run();
+        CW_CHECK(cw_count(TORIRS_CHROME_CMD_SCALE) == 0, "the same page scale again says nothing");
+        ToriRSChrome_SetScale(&g_cw_ui, 1);
+        ToriRSChrome_SetPageScale(&g_cw_ui, 4, 100);
+        (void)cw_run();
     }
 
     /* ---- every row in a panel is the same height, at every scale ---- */

@@ -301,11 +301,12 @@ test_scale_snap(void)
     for( size_t i = 0; i < sizeof(k_parse) / sizeof(k_parse[0]); i++ )
         CHECK(ToriRSChromeScaleQ_Parse(k_parse[i].text) == k_parse[i].q, "the pin \"%s\" reads %d quarters (got %d)",
             k_parse[i].text, k_parse[i].q, ToriRSChromeScaleQ_Parse(k_parse[i].text));
-    /* The integer scale the chrome draws each step at until it takes quarters. */
-    CHECK(ToriRSChromeScaleQ_Round(4) == 1 && ToriRSChromeScaleQ_Round(5) == 1 && ToriRSChromeScaleQ_Round(6) == 2
-              && ToriRSChromeScaleQ_Round(7) == 2 && ToriRSChromeScaleQ_Round(8) == 2
-              && ToriRSChromeScaleQ_Round(10) == 3 && ToriRSChromeScaleQ_Round(12) == 3,
-        "(q + 2) / 4 rounds 1.25 to 1x, 1.5 and 1.75 to 2x, 2.5 to 3x");
+    /* The whole scale the native draw path draws each step at while its
+     * bridge has only the integer tiers (main.c main_chrome_scale_apply). */
+    CHECK(ToriRSChromeScaleQ_Whole(4) == 4 && ToriRSChromeScaleQ_Whole(5) == 4 && ToriRSChromeScaleQ_Whole(6) == 8
+              && ToriRSChromeScaleQ_Whole(7) == 8 && ToriRSChromeScaleQ_Whole(8) == 8
+              && ToriRSChromeScaleQ_Whole(10) == 12 && ToriRSChromeScaleQ_Whole(12) == 12,
+        "the native chrome draws 1.25 at 1x, 1.5 and 1.75 at 2x, 2.5 at 3x");
     /* The shim, both ways round on one chrome. */
     {
         ToriRSChrome_Init(&g_chrome);
@@ -379,7 +380,7 @@ choose(int row)
 static void
 host_frame(int auto_q)
 {
-    (void)Editor_ChromeSetScaleQ(&g_chrome, Editor_UiChromeScaleFor(&g_ui, auto_q));
+    (void)Editor_ChromeSetScaleQ(&g_chrome, Editor_UiChromeScaleFor(&g_ui, auto_q, 0));
     frame_of(&g_chrome, &g_ui);
 }
 
@@ -469,7 +470,7 @@ test_view_rows(void)
     CHECK(g_ui.prefs.chrome_scale_q == 8, "View > Chrome scale: 200 %% chooses 8 quarters (%d)", g_ui.prefs.chrome_scale_q);
     CHECK(g_ui.prefs_serial != serial, "a choice moves the serial the host saves on");
     CHECK(row_on(view_row("Chrome scale: 200 %")) && !row_on(view_row("Chrome scale: Auto")), "the row says on");
-    CHECK(Editor_UiChromeScaleFor(&g_ui, 4) == 8, "the host is asked for 200 %% whatever Auto says");
+    CHECK(Editor_UiChromeScaleFor(&g_ui, 4, 0) == 8, "the host is asked for 200 %% whatever Auto says");
     for( int i = 0; i < 3; i++ )
         host_frame(4);
     CHECK(ToriRSChrome_Scale(&g_chrome) == 2 && g_ui.layout_scale == 8 && g_ui.laid_out,
@@ -478,6 +479,25 @@ test_view_rows(void)
     /* Through the hotkey action too, and Auto back. */
     CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_SCALE_150) == 1 && g_ui.prefs.chrome_scale_q == 6,
         "view.scale_150 chooses 1.5x");
+    /* A touch device never goes under 2x, whatever the row chosen: the
+     * choice is kept (the prefs file is the device's), the host is asked for
+     * 2x, and the rows under it say so. */
+    CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_SCALE_100) == 1 && g_ui.prefs.chrome_scale_q == 4,
+        "view.scale_100 chooses 1x");
+    CHECK(Editor_UiChromeScaleFor(&g_ui, 8, 1) == 8 && g_ui.prefs.chrome_scale_q == 4,
+        "on a touch device 100 %% is held at 200 %%, the choice kept");
+    CHECK(Editor_UiChromeScaleFor(&g_ui, 8, 1) == 8 && g_ui.scale_touch == 1, "the window knows it is touch");
+    frame_of(&g_chrome, &g_ui);
+    CHECK(view_row("Chrome scale: 125 % (touch: 200 %)") >= 0, "the 125 %% row says what it draws on touch (%s)",
+        view_label(view_row("Chrome scale: 125 %")));
+    CHECK(view_row("Chrome scale: 250 %") >= 0 && view_row("Chrome scale: 250 % (touch") < 0,
+        "a row at or over 2x is unmarked");
+    CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_SCALE_250) == 1 && Editor_UiChromeScaleFor(&g_ui, 8, 1) == 10,
+        "250 %% on touch is 250 %%");
+    CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_SCALE_100) == 1 && Editor_UiChromeScaleFor(&g_ui, 4, 0) == 4,
+        "and 100 %% off touch is 100 %%");
+    frame_of(&g_chrome, &g_ui);
+    CHECK(view_row("Chrome scale: 125 % (touch") < 0, "off touch the rows are unmarked");
     choose(view_row("Chrome scale: Auto"));
     CHECK(g_ui.prefs.chrome_scale_q == EDITOR_PREFS_SCALE_AUTO, "Auto again");
     for( int i = 0; i < 3; i++ )
@@ -579,7 +599,7 @@ test_prefs_file(void)
     prefs.text_large = 1;
     Editor_UiApplyPrefs(&g_ui, &prefs);
     CHECK(g_ui.prefs_serial == 0, "the file's values move no serial");
-    CHECK(Editor_UiChromeScaleFor(&g_ui, 4) == 10 && g_chrome.theme.row_h == EDITOR_UI_LARGE_ROW_H,
+    CHECK(Editor_UiChromeScaleFor(&g_ui, 4, 0) == 10 && g_chrome.theme.row_h == EDITOR_UI_LARGE_ROW_H,
         "and are what the window asks for");
 }
 
@@ -590,6 +610,10 @@ static struct EditorUi g_ui_b;
 static struct Editor g_ed_a;
 static struct Editor g_ed_b;
 
+/* The last DOCK_PANEL either session heard, as the relay carried it. */
+static int32_t g_dock_heard[TORIRSMAPED_STATE_VALUES_MAX];
+static int g_dock_heard_count;
+
 static void
 on_state_ui(
     void* user_data,
@@ -597,7 +621,24 @@ on_state_ui(
     const int32_t* values,
     int count)
 {
+    if( key == TORIRSMAPED_STATE_DOCK_PANEL && count <= TORIRSMAPED_STATE_VALUES_MAX )
+    {
+        memcpy(g_dock_heard, values, sizeof(values[0]) * (size_t)count);
+        g_dock_heard_count = count;
+    }
     Editor_UiApplyState(user_data, key, values, count);
+}
+
+/** The first VLIST on `chrome`'s panel `panel`, or -1. */
+static int
+panel_list(
+    const struct ToriRSChrome* chrome,
+    int panel)
+{
+    for( int i = 0; i < chrome->widget_count; i++ )
+        if( chrome->widgets[i].panel == panel && chrome->widgets[i].kind == TORIRS_CHROME_W_VLIST )
+            return i;
+    return -1;
 }
 
 static int
@@ -714,6 +755,44 @@ test_dock(
     CHECK(Editor_UiPanelInStrip(&g_ui, "catalog") || g_chrome.panels[catalog_a->chrome_panel].visible,
         "in its group's strip, as View > Catalog puts it");
     CHECK(Editor_UiSetSolo(&g_ui_b, "catalog") && g_ui_b.solo_panel >= 0, "the popped window stayed solo");
+    /* Where the reader was rides the relay: the panel's scroll and its
+     * list's first row, as the popped window had them. */
+    {
+        int const list_b = panel_list(&g_chrome_b, catalog_b->chrome_panel);
+        CHECK(g_dock_heard_count == 4, "the dock carries four values (%d)", g_dock_heard_count);
+        CHECK(g_dock_heard_count == 4 && g_dock_heard[0] == catalog_index
+                  && g_dock_heard[2] == ToriRSChrome_PanelScroll(&g_chrome_b, catalog_b->chrome_panel)
+                  && g_dock_heard[3] == (list_b >= 0 ? g_chrome_b.widgets[list_b].imin : -1),
+            "the panel, then the popped window's scroll and first row (%d, %d)", g_dock_heard[2], g_dock_heard[3]);
+    }
+    /* And the leader takes them: a Catalog popped out scrolled 40 px down
+     * its panel and 37 rows down its list docks back there. (The rows this
+     * content-free Catalog lists are none; the list is given some.) */
+    {
+        int const list_a = panel_list(&g_chrome, catalog_a->chrome_panel);
+        int32_t const values[4] = { catalog_index, (int32_t)g_ui_b.dock_serial + 100, 40, 37 };
+        CHECK(list_a >= 0, "the leader's Catalog has its list");
+        if( list_a >= 0 )
+        {
+            ToriRSChrome_PanelSetVisible(&g_chrome, catalog_a->chrome_panel, 0);
+            ToriRSChrome_VListSetCount(&g_chrome, list_a, 300);
+            ToriRSChrome_VListSetScroll(&g_chrome, list_a, 0);
+            ToriRSChrome_PanelSetScroll(&g_chrome, catalog_a->chrome_panel, 0);
+            Editor_UiApplyState(&g_ui, TORIRSMAPED_STATE_DOCK_PANEL, values, 4);
+            CHECK(g_chrome.panels[catalog_a->chrome_panel].visible, "the scrolled dock shows it");
+            CHECK(ToriRSChrome_PanelScroll(&g_chrome, catalog_a->chrome_panel) == 40,
+                "the docked Catalog keeps the panel's scroll (%d)",
+                ToriRSChrome_PanelScroll(&g_chrome, catalog_a->chrome_panel));
+            CHECK(g_chrome.widgets[list_a].imin == 37, "and its list's first row (%d)", g_chrome.widgets[list_a].imin);
+            /* A two-value dock (an older window) docks with no place. */
+            ToriRSChrome_PanelSetVisible(&g_chrome, catalog_a->chrome_panel, 0);
+            ToriRSChrome_VListSetScroll(&g_chrome, list_a, 5);
+            Editor_UiApplyState(&g_ui, TORIRSMAPED_STATE_DOCK_PANEL, values, 2);
+            CHECK(g_chrome.panels[catalog_a->chrome_panel].visible && g_chrome.widgets[list_a].imin == 5,
+                "a dock without a place shows the panel and moves no scroll");
+            frame_of(&g_chrome, &g_ui);
+        }
+    }
 
     /* The same panel docked twice is two requests (the serial). */
     ToriRSChrome_PanelSetVisible(&g_chrome, catalog_a->chrome_panel, 0);

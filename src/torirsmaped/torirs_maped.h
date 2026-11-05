@@ -351,7 +351,9 @@ enum ToriRSMapEdStateKey
     /** A popped-out window's Dock button (workbench 6.0b, design #workbench
      *  "Every panel pops out"): the registry index of the module it showed
      *  (EditorUi::panels order, which every window of one build registers
-     *  alike) and a serial, so docking the same panel twice is two requests.
+     *  alike), a serial, so docking the same panel twice is two requests,
+     *  and where it was scrolled: the panel's scroll in logical px and its
+     *  first list's first row (-1 none), which the docked panel takes.
      *  The window that shows the panel set opens that panel again exactly as
      *  View > <panel> does; the popped-out window then closes (editor_ui.c
      *  Editor_UiDockBack / Editor_UiApplyState). */

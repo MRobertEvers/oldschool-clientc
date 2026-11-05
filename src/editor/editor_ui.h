@@ -765,6 +765,10 @@ struct EditorUi
     struct Editor_Prefs prefs;
     uint32_t prefs_serial;
     int scale_auto_q;
+    /** The host said this is a touch device on the last frame
+     *  (Editor_UiChromeScaleFor): View rows under 2x are held at 2x, and the
+     *  menu says so on them. */
+    int scale_touch;
     /** The theme's own row face, kept while Large wears the Menu face, so
      *  Normal gives it back. */
     int text_face_normal;
@@ -818,11 +822,14 @@ Editor_UiPx(
 
 /** The chrome scale this window wants when the host's Auto is `auto_q`: the
  *  View > Chrome scale choice, or `auto_q` for Auto (remembered for the Auto
- *  row's label). */
+ *  row's label). On a `touch` device a choice under 2x is held at 2x
+ *  (TORIRS_CHROME_SCALEQ_TOUCH_MIN: "a touch device never goes under 2x");
+ *  the host's Auto already is. */
 int
 Editor_UiChromeScaleFor(
     struct EditorUi* ui,
-    int auto_q);
+    int auto_q,
+    int touch);
 
 /** View > Chrome scale: EDITOR_PREFS_SCALE_AUTO or a step
  *  (ToriRSChromeScaleQ_StepIndex >= 0, asserted). The host applies the scale
@@ -852,9 +859,10 @@ Editor_UiApplyPrefs(
 
 /**
  * Dock this popped-out window back into its leader: tell the Client
- * (TORIRSMAPED_STATE_DOCK_PANEL: the module's registry index and a serial) so
- * the window that shows the panel set opens the panel again exactly as View >
- * <panel> does, and set `dock_exit` for the host to close this window. Asserts
+ * (TORIRSMAPED_STATE_DOCK_PANEL: the module's registry index, a serial, the
+ * panel's scroll and its first list's first row) so the window that shows the
+ * panel set opens the panel again exactly as View > <panel> does, scrolled
+ * where this window left it, and set `dock_exit` for the host to close this window. Asserts
  * the window is solo. Returns 1 when the leader was told; 0 (with a console
  * line, the window left open) when there is no session to tell it through.
  * The title-bar Dock button lands here.

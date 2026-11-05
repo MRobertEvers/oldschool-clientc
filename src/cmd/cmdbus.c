@@ -369,6 +369,13 @@ CmdBus_PushGestureTwist(
 }
 
 int
+CmdBus_PushTouchBegan(struct ToriRS_CmdBus* bus)
+{
+    assert(bus);
+    return CmdBus_Push(bus, TORIRS_CMD_INPUT_TOUCH_BEGAN, NULL, 0);
+}
+
+int
 CmdBus_PushWindowResize(
     struct ToriRS_CmdBus* bus,
     int32_t width,

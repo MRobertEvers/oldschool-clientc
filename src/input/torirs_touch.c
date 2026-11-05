@@ -183,6 +183,13 @@ ToriRS_TouchReset(struct ToriRS_Touch* touch)
     ToriRS_GestureStreamReset(&touch->gesture);
 }
 
+int
+ToriRS_TouchGestureFrames(struct ToriRS_Touch const* touch)
+{
+    assert(touch);
+    return touch->gesture_frames;
+}
+
 void
 ToriRS_TouchSetGestureFrames(struct ToriRS_Touch* touch, int on)
 {
@@ -416,6 +423,10 @@ ToriRS_TouchEvent(
     {
         /* The pointer is back before the last one's departure was ever sent. */
         touch->leave_countdown = 0;
+        /* Whatever this finger is about to synthesize -- a click, a drag, a
+         * pair's frames -- is a finger's (TORIRS_CMD_INPUT_TOUCH_BEGAN): the
+         * hint strip's touch words. */
+        CmdBus_PushTouchBegan(bus);
         /* Before this finger is counted: the pair's motion so far belongs to
          * the gesture it ends. A finger the policy will not follow (a ninth,
          * or a repeated BEGAN of one already down) changes no count, but

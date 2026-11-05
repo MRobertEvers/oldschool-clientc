@@ -188,7 +188,7 @@ ToriRSChromeSync_Invalidate(struct ToriRSChromeSync* sync, uint32_t page_epoch)
     sync->restate = 1;
     /* @see ToriRSChromeSync::check_style -- an executor that was re-mounted
      * has not been told the style either. (The scale is the binding's, which
-     * a page boundary does not touch: @see ToriRSChromeSync::scale_q.) */
+     * a page boundary does not touch: @see ToriRSChromeSync::scale_value.) */
     sync->check_style = -1;
 }
 
@@ -202,9 +202,10 @@ ToriRSChromeSync_Init(struct ToriRSChromeSync* sync, struct ToriRSChromeExec con
     sync->exec = *exec;
     /* Not a style any model can hold, so the first Run states the real one --
      * @see ToriRSChromeSync::check_style. The scale is the executor's own
-     * default instead -- @see ToriRSChromeSync::scale_q. */
+     * default instead -- @see ToriRSChromeSync::scale_value. */
     sync->check_style = -1;
-    sync->scale_q = TORIRS_CHROME_SCALE_Q_ONE;
+    sync->scale_value = TORIRS_CHROME_SCALE_Q_ONE;
+    sync->scale_den = TORIRS_CHROME_SCALE_Q_ONE;
     /*
      * A fresh binding is the same fact as an invalidated one -- the executor
      * holds nothing -- so the first transaction says so too. That keeps the
@@ -504,22 +505,46 @@ sync_insert_before(
     return -1;
 }
 
+static int
+sync_gcd(int a, int b)
+{
+    while( b )
+    {
+        int const t = a % b;
+        a = b;
+        b = t;
+    }
+    return a;
+}
+
 /**
- * State the chrome scale, if this executor has not been told it: SCALE with
- * `value` / `w` = the scale as a rational, q / 4. @see TORIRS_CHROME_CMD_SCALE.
+ * State the page zoom, if this executor does not hold it: SCALE with
+ * `value` / `w` = (q * 100) / (4 * density), q the page's scale and density
+ * its own device pixels per CSS pixel (ToriRSChrome_SetPageScale), reduced by
+ * gcd(100, density) -- q / 4 on a page of density 100, as before. Compared
+ * against what the executor holds as a ratio, so a 2x chrome on a 2x page
+ * (8 / 8) is the same no-zoom as the seed (4 / 4) and sends nothing.
+ * @see TORIRS_CHROME_CMD_SCALE.
  */
 static void
 sync_scale(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
 {
     struct ToriRSChromeCmd cmd;
+    int const q = ui->page_scale_q > 0 ? ui->page_scale_q : ui->scale_q;
+    int const density = ui->page_density_percent;
+    int const g = sync_gcd(100, density);
+    int const value = q * (100 / g);
+    int const den = TORIRS_CHROME_SCALE_Q_ONE * (density / g);
 
-    if( sync->scale_q == ui->scale_q )
+    assert(density > 0);
+    if( (long long)value * sync->scale_den == (long long)sync->scale_value * den )
         return;
     cmd_init(&cmd, TORIRS_CHROME_CMD_SCALE, -1, -1);
-    cmd.value = ui->scale_q;
-    cmd.w = TORIRS_CHROME_SCALE_Q_ONE;
+    cmd.value = value;
+    cmd.w = den;
     sync_emit(sync, &cmd);
-    sync->scale_q = ui->scale_q;
+    sync->scale_value = value;
+    sync->scale_den = den;
 }
 
 /**

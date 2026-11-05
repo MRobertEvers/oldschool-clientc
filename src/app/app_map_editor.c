@@ -2001,6 +2001,23 @@ App_EditorOwnsTouch(struct App const* app)
     return app->editor && app->editor_panel.visible;
 }
 
+/** The World's camera is the free one, which the editor's gestures move:
+ *  offline, in a cutscene, or unlocked online -- app_camera.c's own test for
+ *  the free camera's keys. Online and locked it is the follow camera, whose
+ *  anchor is the player's. */
+static int
+app_map_editor_free_camera(struct App const* app)
+{
+    return !app->net || app->cam_script.scripted || (app->frame_view && app->frame_view->camera_unlocked);
+}
+
+int
+App_EditorOwnsGestureFrames(struct App const* app)
+{
+    assert(app);
+    return App_EditorOwnsTouch(app) && app_map_editor_free_camera(app);
+}
+
 /** The ground's height under canvas (x, y) for the World's camera: the
  *  pinned level's (level 0 while Auto), sampled where the pointer's ray
  *  meets the ground under the eye -- one refinement, which on the editor's
@@ -2046,9 +2063,12 @@ app_map_editor_world_gesture(
         return;
     if( app->world->_scene_size <= 0 || app->world_load_inflight )
         return;
-    /* The orbit follow camera's anchor is the player's (online, out of a
-     * cutscene): the World's gestures move the free camera only. */
-    if( app->net && !app->cam_script.scripted )
+    /* The orbit follow camera's anchor is the player's (online, locked, out
+     * of a cutscene): the World's gestures move the free camera only. With
+     * the follow camera up the touch layer is not making these frames
+     * anyway (App_EditorOwnsGestureFrames): its wheel notches and arrow
+     * keys turn and zoom that camera, as they do in the game. */
+    if( !app_map_editor_free_camera(app) )
         return;
     if( app->frame_view->minimenu->visible )
         return;

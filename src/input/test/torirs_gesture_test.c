@@ -410,6 +410,87 @@ test_stream(void)
     ToriRS_GestureStreamPair(&stream, &bus, 50, 50, 0.0, 0.0, 1.0, 0.1, 2, 0, 240);
     drain_frame(&bus, &input, 10, NULL);
     CHECK(input.gesture_count == 0, "and forgets the twist's pending 0.1 rad");
+
+    /* A pair whose pan and pinch the legacy route also carried (a touchpad's
+     * SDL_MULTIGESTURE): those two are flagged ALSO_LEGACY, the twist -- which
+     * no legacy route has -- is not, so a consumer that skips the doubled
+     * frames still gets the turn. */
+    ToriRS_GestureStreamReset(&stream);
+    ToriRS_GestureStreamPair(
+        &stream, &bus, 50, 50, 12.0, 0.0, 1.2, 0.3, 2, LIBTORIRS_GESTURE_FLAG_ALSO_LEGACY, 250);
+    drain_frame(&bus, &input, 11, NULL);
+    {
+        struct LibToriRS_Gesture const* pan = first_of(&input, LIBTORIRS_GESTURE_PAN);
+        struct LibToriRS_Gesture const* pinch = first_of(&input, LIBTORIRS_GESTURE_PINCH);
+        struct LibToriRS_Gesture const* twist = first_of(&input, LIBTORIRS_GESTURE_TWIST);
+        CHECK(pan && (pan->flags & LIBTORIRS_GESTURE_FLAG_ALSO_LEGACY), "the pan keeps ALSO_LEGACY");
+        CHECK(pinch && (pinch->flags & LIBTORIRS_GESTURE_FLAG_ALSO_LEGACY), "the pinch keeps ALSO_LEGACY");
+        CHECK(twist && !(twist->flags & LIBTORIRS_GESTURE_FLAG_ALSO_LEGACY), "the twist never carries it");
+    }
+    ToriRS_GestureStreamEndAll(&stream, &bus);
+    drain_frame(&bus, &input, 12, NULL);
+    {
+        struct LibToriRS_Gesture const* twist = first_of(&input, LIBTORIRS_GESTURE_TWIST);
+        CHECK(twist && twist->phase == LIBTORIRS_GESTURE_END && !(twist->flags & LIBTORIRS_GESTURE_FLAG_ALSO_LEGACY),
+            "nor does its END");
+    }
+}
+
+/* ---- 3b. which pointer was used last (the hint strip's words) --------------- */
+
+static void
+test_last_pointer(void)
+{
+    struct ToriRS_CmdBus bus;
+    struct ToriRS_Touch touch;
+    struct LibToriRS_Input input;
+
+    LibToriRS_Input_Init(&input, 0);
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    CHECK(!ToriRS_InputLastWasTouch(&input), "a fresh input's last pointer is no finger");
+
+    /* A one-finger tap makes no gesture frame, and is still a touch. */
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 100, 80, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 100, 80, 40);
+    drain_frame(&bus, &input, 40, NULL);
+    CHECK(input.gesture_count == 0, "a tap is no gesture frame");
+    CHECK(ToriRS_InputLastWasTouch(&input), "but a finger landing is a touch: its click does not undo it");
+    for( int i = 0; i < 3; i++ )
+        ToriRS_TouchTick(&touch, &bus, 60 + i * 16);
+    drain_frame(&bus, &input, 100, NULL);
+    CHECK(ToriRS_InputLastWasTouch(&input) && input.mouse_pointer_absent,
+        "the finger's departure leaves it a touch");
+    drain_frame(&bus, &input, 120, NULL);
+    CHECK(ToriRS_InputLastWasTouch(&input), "and quiet frames keep it");
+
+    /* The mouse, once the finger is gone: a move is enough. */
+    CmdBus_PushMouseMove(&bus, 300, 200);
+    drain_frame(&bus, &input, 140, NULL);
+    CHECK(!ToriRS_InputLastWasTouch(&input), "a mouse move with no finger down is a mouse again");
+
+    /* A finger down and dragging: its own moves, presses and a two-finger
+     * wheel synthesis are the finger's. */
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 1, 100, 80, 200);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 160, 80, 216);
+    CmdBus_PushMouseWheel(&bus, 1);
+    drain_frame(&bus, &input, 216, NULL);
+    CHECK(ToriRS_InputLastWasTouch(&input), "a drag's synthesized pointer, a wheel among it, stays a touch");
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 160, 80, 240);
+    for( int i = 0; i < 3; i++ )
+        ToriRS_TouchTick(&touch, &bus, 250 + i * 16);
+    drain_frame(&bus, &input, 300, NULL);
+    CmdBus_PushMouseWheel(&bus, -1);
+    drain_frame(&bus, &input, 316, NULL);
+    CHECK(!ToriRS_InputLastWasTouch(&input), "a wheel after the finger left is a mouse's");
+
+    /* Gesture frames say it themselves: TOUCH a finger, unflagged a trackpad. */
+    CmdBus_PushGesturePan(&bus, 10, 10, 4.0, 0.0, 2, LIBTORIRS_GESTURE_BEGIN, LIBTORIRS_GESTURE_FLAG_TOUCH);
+    drain_frame(&bus, &input, 332, NULL);
+    CHECK(ToriRS_InputLastWasTouch(&input), "a TOUCH frame is a touch");
+    CmdBus_PushGesturePan(&bus, 10, 10, 4.0, 0.0, 2, LIBTORIRS_GESTURE_BEGIN, LIBTORIRS_GESTURE_FLAG_ALSO_LEGACY);
+    drain_frame(&bus, &input, 348, NULL);
+    CHECK(!ToriRS_InputLastWasTouch(&input), "a trackpad's frame is not");
 }
 
 /* ---- 4. the touch policy ---------------------------------------------------- */
@@ -742,6 +823,7 @@ main(int argc, char** argv)
     test_record_replay(record_path);
     test_decode_and_list();
     test_stream();
+    test_last_pointer();
     test_touch();
     test_sim();
     remove(record_path);

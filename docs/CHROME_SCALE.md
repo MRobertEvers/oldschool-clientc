@@ -12,8 +12,11 @@ Since the 6.0b integration (2026-11-05) the bake's skin cache
 through `ToriRSChromeSkin_SpriteTier`: at a fractional scale it area-averages
 down from the tier at or above it, at 2x and 3x it uses the tier itself. The
 integer draw path the native client runs today (the scene bridge's fonts and
-skin) still draws 1x art scaled; docs/MAPED_STATUS.md "Workbench steps 6.0b
-and 6.1" lists what is left.
+skin) still draws 1x art scaled, and only at whole scales: until the bridge
+draws the bake's faces and skin, main.c hands the native chrome
+`ToriRSChromeScaleQ_Whole(q)` (125 % draws 1x, 150 % and 175 % 2x, 250 % 3x)
+and only the DOM the fractional scale. docs/MAPED_STATUS.md "Workbench steps
+6.0b and 6.1" lists what is left.
 
 ## What is baked
 
@@ -56,8 +59,11 @@ full. In short:
   plate being one. Each tone is the rounded mean of its pixels. The label
   image is scaled by scale2x (2x) or scale3x (3x), which copies labels and
   never drops a 1-pixel feature, and painted back. A GLYPH tier holds at most
-  three colours: the plate and two inks. That is the design's "1-bit mask plus
-  an outline", drawn as pixel art rather than resampled.
+  three colours: the plate and two inks. Every GLYPH tier is DERIVED: an
+  algorithmic scale2x / scale3x of a two-ink quantisation of the 1x art.
+  Nothing is hand-drawn and no outline is baked, so this is not yet the
+  design's "1-bit mask plus an outline, 2x and 3x drawn as pixel art, not
+  resampled" -- it is the stand-in for it, with the mask kept exact.
 - **TEXTURED, xBR.** libavfilter vf_xbr's 2xBR / 3xBR rules (the 21-pixel
   neighbourhood, YUV distance, four rotated corner filters per pixel),
   extended to alpha: the distance adds |dA| and blends run in premultiplied
@@ -69,12 +75,16 @@ Review the result as crops: `make -C src chrome-skin` writes
 and 3x, side by side on the panel brown).
 
 What the mask route costs, seen in that sheet: a glyph with more than two
-inks loses the third. The arrows, marks, crosses, Run, Error, Warning, Build,
-the tree and scroll arrows and the Close / Popout / Dock buttons read as they
-do at 1x. ToolPlace (logs), ToolDelete (red arrow over a grey bin),
-ToolPaintUnderlay (grass), ToolSmooth, SliderKnob (the blue glass ball) and
-SaveButton flatten to two tones. They are the skin's hand-drawing queue, or
-candidates to reclassify as TEXTURED; either is a one-row change and a rerun.
+inks loses the rest, and the quantisation keeps no outline. The arrows, the
+crosses, Run, Error, Warning, Build, the tree and scroll arrows and the Close /
+Popout / Dock buttons keep their shape. These flatten to two tones and change
+the look: ToolPlace (logs), ToolDelete (red arrow over a grey bin),
+ToolPaintUnderlay (grass), ToolSmooth, SliderKnob (the blue glass ball),
+SaveButton, and the check and radio marks -- CheckOn / CheckOff,
+CheckBoxOn / CheckBoxOff and RadioOn / RadioOff lose their dark ring (CheckOn
+is 52 opaque colours at 1x and 2 in skin@2x). They are the skin's hand-drawing
+queue, or candidates to reclassify as TEXTURED; either is a one-row change and
+a rerun. Until then the web host keeps the tiers off (below).
 
 ## Reaching a tier
 
@@ -86,12 +96,27 @@ size changed) falls back to the 1x image. `ToriRSChromeSkin_ClassOf(slot)`
 says GLYPH or TEXTURED. The arrays are `static const`; nothing allocates.
 
 Web: a host that staged `skin@2x/` and `skin@3x/` beside `skin/` says
-`skinTiers: 3` in its theme (`src/web/torirs_chrome.js` does, and `make web`
-copies both). The runtime then draws a packaged `skin/<Slot>.png` from the
-smallest tier whose pixels cover its CSS size times `devicePixelRatio` (the
-nearest tier at or above the scale) and sizes it back to the authored CSS
-size; the stylesheet's `image-set()` rules, scoped under `.tpc-skin-tiers`,
-do the same for the art it names. A host without tiers is never asked for one.
+`skinTiers: 3` in its theme. The runtime then draws a packaged
+`skin/<Slot>.png` from the smallest tier whose pixels cover the device pixels
+it lands on -- its CSS size times `devicePixelRatio` times the chrome's own
+zoom (TORIRS_CHROME_CMD_SCALE) -- the nearest tier at or above the scale, sizes
+it back to the authored CSS size, and repaints when the zoom changes. The
+stylesheet's `image-set()` rules, scoped under `.tpc-skin-tiers`, do the same
+for the art it names, on `devicePixelRatio` alone (a browser does not count
+CSS `zoom` in image-set). A host without tiers is never asked for one.
+`src/web/torirs_chrome.js` says `skinTiers: 1` for now, though `make web`
+still stages both: the derived GLYPH tiers above would change the marks' look
+at an integer 2x, so the page draws the 1x art, pixelated, as it always did.
+
+The page pins `image-rendering: pixelated` only at an integer device scale
+(`devicePixelRatio` times the zoom). At a fractional one the runtime sets
+`.tpc-dpr-fractional` on the root and the stylesheet lets the browser
+resample instead (nearest-neighbour at 1.5 drops and doubles whole columns).
+
+The DOM zoom itself is the chrome scale over the page's own density
+(`ToriRSChrome_SetPageScale`): a HighDPI page's CSS pixel is already
+`devicePixelRatio` device pixels, so at Auto the page is unzoomed on any
+display, and View > Chrome scale 200 % on a 1x page zooms it 2x.
 
 ## Fonts: the hand-tuned tier hook
 

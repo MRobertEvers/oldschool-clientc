@@ -65,9 +65,14 @@
     protocol: PROTOCOL,
     type: 'theme',
     revision: 1,
-    /* `make web` stages skin@2x/ and skin@3x/ beside skin/
-     * (tools/chrome_skin_tiers.py), so the runtime may draw from them. */
-    skinTiers: 3,
+    /* 1: the page draws the 1x skin, pixelated, at every ratio, as before
+     * the tiers. `make web` still stages skin@2x/ and skin@3x/ beside skin/
+     * (tools/chrome_skin_tiers.py), but the GLYPH slots' tiers are derived
+     * (scale2x / scale3x of a two-ink quantisation, docs/CHROME_SCALE.md) and
+     * flatten the multi-ink marks -- CheckOn's 52 colours come out as 2 -- so
+     * a 2x page would change the look at an integer scale. 3 once those
+     * tiers are drawn by hand or the slots reclassified as TEXTURED. */
+    skinTiers: 1,
     assets: {
       panelBody: 'skin/PanelBody.png',
       pluginIcon: 'skin/PluginIcon.png',

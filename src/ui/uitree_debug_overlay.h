@@ -1158,9 +1158,10 @@ enum ToriRSChromeEventKind
      *  pointer. A mouse wheel never sends this; it stays GRAPH_WHEEL.
      *  @see ToriRSChrome_Scroll. */
     TORIRS_CHROME_EVENT_GRAPH_SCROLL,
-    /** A two-finger pan over a MODELVIEW: orbit the model by `dx` (yaw) and
-     *  `dy` (pitch), 1/256 well logical px, the way the fingers moved.
-     *  @see ToriRSChrome_Gesture. */
+    /** A pan over a MODELVIEW: orbit the model by `dx` (yaw) and `dy`
+     *  (pitch), 1/256 well logical px, the way the fingers moved. A twist
+     *  over it orbits too, by `value`: the turn's yaw, radians x 65536
+     *  (+ clockwise, the fingers' way; dx and dy 0). @see ToriRSChrome_Gesture. */
     TORIRS_CHROME_EVENT_VIEW_ORBIT,
     /** A pinch over a MODELVIEW: `value` / 65536 is the ratio since the last
      *  (> 1 apart, closer). @see ToriRSChrome_Gesture. */
@@ -1786,6 +1787,17 @@ struct ToriRSChrome
      *  sets 4. */
     int scale_q;
     /**
+     * What a DOM presentation zooms its 1x page by: TORIRS_CHROME_CMD_SCALE
+     * says page_scale_q / 4 device pixels per chrome pixel, over the
+     * page_density_percent / 100 device pixels per CSS pixel the page's
+     * browser already applies (its devicePixelRatio). 0 / 100 by Init, which
+     * is "scale_q / 4, on a page with no density of its own" -- the stream a
+     * host that never calls ToriRSChrome_SetPageScale always had.
+     * @see ToriRSChrome_SetPageScale.
+     */
+    int page_scale_q;
+    int page_density_percent;
+    /**
      * enum ToriRSChromeCheckStyle: which boolean art every checkbox and roster
      * switch in this instance wears. Init sets TICK.
      *
@@ -2174,6 +2186,25 @@ ToriRSChrome_SetScale(struct ToriRSChrome* ui, int scale);
  */
 void
 ToriRSChrome_SetScaleQ(struct ToriRSChrome* ui, int q);
+
+/**
+ * Tell a DOM presentation (TORIRS_CHROME_CMD_SCALE) the scale to zoom its 1x
+ * page by: `q` quarters of a device pixel per chrome pixel (the scale asked
+ * for, which may be finer than the one this model lays out at -- the native
+ * draw path rounds to a whole scale, the DOM zooms by CSS), on a page whose
+ * browser already draws `density_percent` / 100 device pixels per CSS pixel.
+ *
+ * The density is the presentation's own: the DOM authors in CSS pixels, and a
+ * HighDPI page's CSS pixel is already devicePixelRatio device pixels, so
+ * zooming it by q / 4 as well would count the display twice (a 2x display
+ * would draw the page at 4x). The executor is told q / (4 * density), which
+ * is 1 -- no zoom -- at Auto on any display.
+ *
+ * q in TORIRS_CHROME_SCALE_Q_MIN..MAX, density_percent > 0. Not called: the
+ * page is zoomed by the layout scale, scale_q / 4, as before.
+ */
+void
+ToriRSChrome_SetPageScale(struct ToriRSChrome* ui, int q, int density_percent);
 
 /** The integer TIER (see `scale`): the scale itself at q = 4, 8, 12. */
 int
@@ -3203,8 +3234,11 @@ struct ToriRSChromeGesture
  *               content following the fingers), PINCH a continuous pinch
  *               about (x, y) through ToriRSChrome_Pinch; TWIST nothing.
  *   MODELVIEW   PAN orbits (TORIRS_CHROME_EVENT_VIEW_ORBIT: dx yaw, dy
- *               pitch), PINCH zooms (TORIRS_CHROME_EVENT_VIEW_ZOOM); TWIST
- *               (a roll) nothing.
+ *               pitch), PINCH zooms (TORIRS_CHROME_EVENT_VIEW_ZOOM), TWIST
+ *               orbits the yaw (VIEW_ORBIT's value, radians q16) -- the
+ *               design's Turn row, "preview: orbit". A two-finger PAN
+ *               orbits rather than panning the well: the Preview's camera
+ *               is a turntable with no pan (MAPED_STATUS records it).
  *   VLIST, CODE a two-finger PAN scrolls by PIXELS (the rows move under the
  *               fingers; a part row is kept for the next frame); TEXTAREA
  *               scrolls its lines the same way when they overflow it.

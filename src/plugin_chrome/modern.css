@@ -914,6 +914,20 @@ button { font-weight: 700; }
 }
 
 /*
+ * image-rendering: pixelated, set on every skinned rule above, is for an
+ * INTEGER device scale (devicePixelRatio times the chrome's zoom), where each
+ * art pixel is whole device pixels. At a fractional one the runtime sets
+ * .tpc-dpr-fractional on the root and the browser resamples smoothly instead:
+ * nearest-neighbour at 1.5 drops and doubles whole columns of the art.
+ */
+.tpc-dpr-fractional, .tpc-dpr-fractional * { image-rendering: auto !important; }
+/* Apart: a browser without the pseudo-elements drops the whole rule. */
+.tpc-dpr-fractional ::-webkit-scrollbar, .tpc-dpr-fractional ::-webkit-scrollbar-button,
+.tpc-dpr-fractional ::-webkit-scrollbar-thumb {
+  image-rendering: auto !important;
+}
+
+/*
  * The 2x and 3x skin tiers (tools/chrome_skin_tiers.py: res/plugin_chrome/skin@2x
  * and skin@3x), for the rules above that name a packaged slot. Scoped under
  * .tpc-skin-tiers, which the runtime sets on the root only when the host's theme

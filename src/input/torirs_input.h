@@ -154,7 +154,8 @@ enum LibToriRS_GesturePhase
  *  TORIRS_CMD_INPUT_SCROLL or TORIRS_CMD_INPUT_PINCH -- so a consumer that
  *  takes the gesture drops those (a trackpad scroll, a ctrl+wheel, a browser
  *  pinch). Clear on a touchscreen's frames under ToriRS_TouchSetGestureFrames,
- *  which replace the synthesis instead of accompanying it. */
+ *  which replace the synthesis instead of accompanying it, and on every
+ *  TWIST: no legacy route carries a turn. */
 #define LIBTORIRS_GESTURE_FLAG_ALSO_LEGACY 0x01u
 /** Fingers on the glass (a touchscreen), not a trackpad or a wheel: the hint
  *  strip's "the last input was a touch". */
@@ -313,11 +314,19 @@ struct LibToriRS_Input
     int gesture_count;
     int gesture_dropped;
     long gesture_dropped_total;
-    /* The last gesture frame pushed carried LIBTORIRS_GESTURE_FLAG_TOUCH: a
-     * finger, not a trackpad or a wheel. Not cleared by Begin -- it is "what
-     * the person last gestured with", which holds across quiet frames
-     * (ToriRS_InputLastWasTouch). */
-    int gesture_last_touch;
+    /* The last POINTER input was a finger (ToriRS_InputLastWasTouch, the
+     * hint strip's words): set by a finger landing
+     * (LibToriRS_Input_PushTouchBegan) and by a gesture frame flagged
+     * LIBTORIRS_GESTURE_FLAG_TOUCH; cleared by a gesture frame without it (a
+     * trackpad, a ctrl+wheel) and by a mouse move, click, wheel or scroll
+     * while no finger is down (LibToriRS_Input_NoteDesktopPointer). Not
+     * cleared by Begin -- it holds across quiet frames. Keys leave it alone:
+     * a phone's soft keyboard types, and the strip names pointer gestures.
+     * `touch_down`: a finger landed and the touch policy has not yet said it
+     * left (TORIRS_CMD_INPUT_MOUSE_LEAVE), so the pointer commands between
+     * are the finger's own. */
+    int last_touch;
+    int touch_down;
 
     /* Key state indexed by OSRS internal code, backing the CS2 KEYHELD and
      * KEYPRESSED opcodes. Updated for character keys too, unlike key_events,
@@ -476,6 +485,16 @@ LibToriRS_Input_PushScroll(
     int px_per_notch,
     int trackpad,
     int flipped);
+
+/** A finger landed (TORIRS_CMD_INPUT_TOUCH_BEGAN): @see last_touch. */
+void
+LibToriRS_Input_PushTouchBegan(struct LibToriRS_Input* input);
+
+/** A mouse move, click, wheel or scroll arrived off the bus: unless a finger
+ *  is down (its own synthesized pointer), the last pointer input is a mouse.
+ *  @see last_touch. */
+void
+LibToriRS_Input_NoteDesktopPointer(struct LibToriRS_Input* input);
 
 /**
  * Append one gesture frame to this frame's list (@see struct

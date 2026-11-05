@@ -57,6 +57,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <string.h>
 
 /** The panel's width at registration (logical px) and the well's natural
@@ -423,6 +424,12 @@ preview_event(
          * down the down arrow's pitch. */
         self->orbit_rem_yaw += event->dx * PREVIEW_ORBIT_YAW_PER_PX;
         self->orbit_rem_pitch += event->dy * PREVIEW_ORBIT_PITCH_PER_PX;
+        /* A twist: its turn in yaw steps (2048 a turn), 1/256 of one, with
+         * the World's sign (EditorWorldGesture_TwistYaw): a clockwise twist
+         * is a positive step. */
+        if( event->value != 0 )
+            self->orbit_rem_yaw +=
+                (int)lround((double)event->value / 65536.0 * 2048.0 / (2.0 * 3.14159265358979323846) * 256.0);
         yaw = preview_steps(&self->orbit_rem_yaw);
         pitch = preview_steps(&self->orbit_rem_pitch);
         if( (yaw != 0 || pitch != 0) && ui->app_services.preview_orbit )

@@ -466,6 +466,42 @@ assert.strictEqual(button.control.innerText, 'Rebuild every collision map in the
   theme(1, 3);
   assert.strictEqual(iconAt(), 'skin/ToolRaise.png', 'skinTiers 1: back to the 1x file');
   assert(!/tpc-skin-tiers/.test(html.className), 'and the tier rules off');
+
+  /* The chrome's zoom is drawn through as well: the tier covers
+   * devicePixelRatio TIMES the zoom, and a zoom change repaints. The C side
+   * has already divided the page's own ratio out of SCALE
+   * (ToriRSChrome_SetPageScale), so the two never count the display twice. */
+  const scale = (v, d) => runtime.receive({ protocol: 1, type: 'page.delta', pageGeneration: 20,
+    commands: [cmd(CMD.SCALE, { p: -1, v, cw: d })] });
+  theme(3, 1);
+  assert.strictEqual(iconAt(), 'skin/ToolRaise.png', 'DPR 1, no zoom: the 1x file');
+  assert(!/tpc-dpr-fractional/.test(html.className), 'DPR 1, no zoom: a whole scale, pixelated');
+  scale(8, 4);
+  assert.strictEqual(shell.style.zoom, '2', 'View 200 % on a 1x page zooms the shell 2x');
+  assert.strictEqual(iconAt(), 'skin@2x/ToolRaise.png', 'and repaints the icon from the 2x tier, not 1x blown up');
+  assert(!/tpc-dpr-fractional/.test(html.className), '2 is a whole scale: pixelated stays');
+  scale(5, 4);
+  assert.strictEqual(iconAt(), 'skin@2x/ToolRaise.png', 'a 1.25x zoom: the tier above it');
+  assert(/tpc-dpr-fractional/.test(html.className), '1.25 is fractional: the page lets the browser resample');
+  /* Auto on a 2x page: the C side says 8 / 8, no zoom, and the page is the
+   * physical size the canvas chrome is -- never 2x on top of DPR 2. */
+  theme(3, 2);
+  scale(8, 8);
+  assert.strictEqual(shell.style.zoom || '', '', 'Auto on a DPR-2 page (SCALE 8 / 8) draws the shell unzoomed');
+  assert.strictEqual(iconAt(), 'skin@2x/ToolRaise.png', 'from the 2x tier, for the browser\'s own 2x');
+  assert(!/tpc-dpr-fractional/.test(html.className), 'DPR 2 unzoomed is whole');
+  /* View 100 % on that 2x page: half the browser's 2x. */
+  scale(4, 8);
+  assert.strictEqual(shell.style.zoom, '0.5', 'View 100 % on a DPR-2 page halves the zoom');
+  assert.strictEqual(iconAt(), 'skin/ToolRaise.png', 'and the 1x art covers it');
+  /* A 1.5x display at Auto: 6 / 6, unzoomed, and fractional all the same. */
+  theme(3, 1.5);
+  scale(6, 6);
+  assert.strictEqual(shell.style.zoom || '', '', 'Auto on a DPR-1.5 page is unzoomed');
+  assert(/tpc-dpr-fractional/.test(html.className), 'but DPR 1.5 is fractional: no pixelated');
+  scale(4, 4);
+  theme(1, 1);
+  assert(!/tpc-dpr-fractional/.test(html.className), 'back to 1x, the class is gone');
   global_.devicePixelRatio = 1;
 }
 

@@ -6,10 +6,14 @@
  * point under the pinch and scales the eye distance by the ratio; a twist
  * keeps the look-at point centred and turns the scene with the fingers; a
  * one-finger pan is never the camera's; a recorded pinch replays to the same
- * pose.
+ * pose -- recorded off the command bus and replayed from the file through the
+ * input's own decode, not merely applied twice.
  */
 
+#include "cmd/cmdbus.h"
 #include "editor/editor_world_gesture.h"
+#include "input/torirs_gesture.h"
+#include "input/torirs_input_cmd.h"
 #include "render/torirs_world_projection.h"
 #include "toridraw_math.h"
 
@@ -240,44 +244,144 @@ test_twist(void)
     CHECK(EditorWorldGesture_Apply(&camera, &eye, &g_view, &f) == 0, "a twist under half a step moves nothing");
 }
 
-/** The 6.1 check "a recorded pinch replays to the same camera pose": the
- *  same frames from the same pose land on the same pose, bit for bit. */
+/** Every frame the input decoded this host frame, through the World camera. */
+static int
+apply_decoded(
+    const struct LibToriRS_Input* input,
+    struct ToriDraw_Camera* camera,
+    struct ToriDraw_Position* eye)
+{
+    const struct LibToriRS_Gesture* frames = NULL;
+    int const count = ToriRS_InputGestures(input, &frames);
+    int moved = 0;
+
+    for( int i = 0; i < count; i++ )
+        moved += EditorWorldGesture_Apply(camera, eye, &g_view, &frames[i]);
+    return moved;
+}
+
+/** The 6.1 check "a recorded pinch replays to the same camera pose", end to
+ *  end: the frames go onto the command bus with the recording on, the live
+ *  run decodes them off the bus (ToriRS_Input_ApplyCmd) into the camera, and
+ *  the replay pumps the recorded file (CmdReplay_PumpFrame) through the same
+ *  decode into a second camera. The two poses are the same bit for bit, and
+ *  every frame moved them. */
 static void
-test_replay(void)
+test_replay(const char* record_path)
 {
     static const struct
     {
         int kind;
         int x;
         int y;
-        int dx;
-        int dy;
-        int scale_q16;
-        int radians_q16;
+        double dx;
+        double dy;
+        double scale;
+        double radians;
     } k_recorded[] = {
-        { LIBTORIRS_GESTURE_PINCH, 512, 300, 0, 0, 70000, 0 },  { LIBTORIRS_GESTURE_PAN, 512, 300, 6, -3, 0, 0 },
-        { LIBTORIRS_GESTURE_PINCH, 518, 297, 0, 0, 71234, 0 },  { LIBTORIRS_GESTURE_TWIST, 518, 297, 0, 0, 0, 3000 },
-        { LIBTORIRS_GESTURE_PINCH, 520, 290, 0, 0, 60000, 0 },  { LIBTORIRS_GESTURE_PAN, 520, 290, -11, 9, 0, 0 },
-        { LIBTORIRS_GESTURE_PINCH, 509, 299, 0, 0, 66000, 0 },  { LIBTORIRS_GESTURE_TWIST, 509, 299, 0, 0, 0, -9000 },
+        { LIBTORIRS_GESTURE_PINCH, 512, 300, 0, 0, 1.0681, 0 },  { LIBTORIRS_GESTURE_PAN, 512, 300, 6.25, -3.5, 1, 0 },
+        { LIBTORIRS_GESTURE_PINCH, 518, 297, 0, 0, 1.0869, 0 },  { LIBTORIRS_GESTURE_TWIST, 518, 297, 0, 0, 1, 0.0458 },
+        { LIBTORIRS_GESTURE_PINCH, 520, 290, 0, 0, 2.0 / 3.0, 0 }, { LIBTORIRS_GESTURE_PAN, 520, 290, -11, 9.75, 1, 0 },
+        { LIBTORIRS_GESTURE_PINCH, 509, 299, 0, 0, 1.0071, 0 },  { LIBTORIRS_GESTURE_TWIST, 509, 299, 0, 0, 1, -0.1373 },
     };
+    int const count = (int)(sizeof(k_recorded) / sizeof(k_recorded[0]));
+    struct ToriRS_CmdBus bus;
+    struct LibToriRS_Input input;
     struct ToriDraw_Camera camera[2];
     struct ToriDraw_Position eye[2];
-    int moved = 0;
+    int moved[2] = { 0, 0 };
+    uint64_t now = 0;
+    FILE* f;
 
-    for( int run = 0; run < 2; run++ )
+    /* Live: two frames a host frame, recorded as they go on the bus. */
+    CmdBus_Init(&bus);
+    CHECK(CmdBus_RecordOpen(&bus, record_path), "the recording opens");
+    for( int i = 0; i < count; i++ )
     {
-        pose_init(&camera[run], &eye[run]);
-        for( size_t i = 0; i < sizeof(k_recorded) / sizeof(k_recorded[0]); i++ )
+        int const phase = i < 4 ? LIBTORIRS_GESTURE_BEGIN : LIBTORIRS_GESTURE_UPDATE;
+        if( i % 2 == 0 )
+            CmdBus_PushFrame(&bus, 1000 + (uint64_t)i * 8);
+        if( k_recorded[i].kind == LIBTORIRS_GESTURE_PAN )
+            CmdBus_PushGesturePan(&bus, (int16_t)k_recorded[i].x, (int16_t)k_recorded[i].y, k_recorded[i].dx,
+                k_recorded[i].dy, 2, phase, LIBTORIRS_GESTURE_FLAG_TOUCH);
+        else if( k_recorded[i].kind == LIBTORIRS_GESTURE_PINCH )
+            CmdBus_PushGesturePinch(&bus, (int16_t)k_recorded[i].x, (int16_t)k_recorded[i].y, k_recorded[i].scale,
+                phase, LIBTORIRS_GESTURE_FLAG_TOUCH);
+        else
+            CmdBus_PushGestureTwist(&bus, (int16_t)k_recorded[i].x, (int16_t)k_recorded[i].y, k_recorded[i].radians,
+                phase, LIBTORIRS_GESTURE_FLAG_TOUCH);
+    }
+    CmdBus_RecordClose(&bus);
+
+    pose_init(&camera[0], &eye[0]);
+    LibToriRS_Input_Init(&input, 0);
+    {
+        struct ToriRS_CmdHeader header;
+        uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
+        int open = 0;
+
+        while( CmdBus_Pop(&bus, &header, payload) )
         {
-            struct LibToriRS_Gesture f = frame(k_recorded[i].kind, k_recorded[i].x, k_recorded[i].y,
-                k_recorded[i].dx, k_recorded[i].dy, 2, k_recorded[i].scale_q16, k_recorded[i].radians_q16);
-            moved += EditorWorldGesture_Apply(&camera[run], &eye[run], &g_view, &f);
+            if( header.type == TORIRS_CMD_FRAME )
+            {
+                if( open )
+                {
+                    moved[0] += apply_decoded(&input, &camera[0], &eye[0]);
+                    LibToriRS_Input_End(&input);
+                }
+                LibToriRS_Input_Begin(&input, now++);
+                open = 1;
+                continue;
+            }
+            (void)ToriRS_Input_ApplyCmd(&input, &header, payload);
+        }
+        if( open )
+        {
+            moved[0] += apply_decoded(&input, &camera[0], &eye[0]);
+            LibToriRS_Input_End(&input);
         }
     }
-    CHECK(moved == 2 * 8, "every recorded frame moved the camera (%d)", moved);
+
+    /* Replay: the file, a host frame at a time, through the same decode. */
+    pose_init(&camera[1], &eye[1]);
+    LibToriRS_Input_Init(&input, 0);
+    f = CmdReplay_Open(record_path);
+    CHECK(f != NULL, "the recording replays");
+    if( !f )
+        return;
+    for( int frames = 0;; frames++ )
+    {
+        struct ToriRS_CmdHeader header;
+        uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
+
+        CmdBus_Init(&bus);
+        if( !CmdReplay_PumpFrame(f, &bus, &now) )
+        {
+            CHECK(frames == count / 2, "the recording holds its %d host frames (%d)", count / 2, frames);
+            break;
+        }
+        LibToriRS_Input_Begin(&input, now);
+        while( CmdBus_Pop(&bus, &header, payload) )
+            (void)ToriRS_Input_ApplyCmd(&input, &header, payload);
+        moved[1] += apply_decoded(&input, &camera[1], &eye[1]);
+        LibToriRS_Input_End(&input);
+    }
+    fclose(f);
+    remove(record_path);
+
+    CHECK(moved[0] == count && moved[1] == count, "every recorded frame moved the camera (live %d, replay %d)",
+        moved[0], moved[1]);
     CHECK(memcmp(&eye[0], &eye[1], sizeof(eye[0])) == 0 && camera[0].yaw == camera[1].yaw &&
               camera[0].pitch == camera[1].pitch,
-        "a recorded pinch replays to the same pose");
+        "a recorded pinch replays to the same pose (eye %d,%d,%d / %d,%d,%d)", eye[0].x, eye[0].y, eye[0].z, eye[1].x,
+        eye[1].y, eye[1].z);
+    {
+        struct ToriDraw_Camera fresh;
+        struct ToriDraw_Position fresh_eye;
+        pose_init(&fresh, &fresh_eye);
+        CHECK(memcmp(&eye[0], &fresh_eye, sizeof(fresh_eye)) != 0 && camera[0].yaw != fresh.yaw,
+            "and that pose is not the one it started from");
+    }
 }
 
 static void
@@ -294,13 +398,15 @@ test_parallel(void)
 }
 
 int
-main(void)
+main(
+    int argc,
+    char** argv)
 {
     ToriDraw_InitMath();
     test_pan();
     test_pinch();
     test_twist();
-    test_replay();
+    test_replay(argc > 1 ? argv[1] : "editor_world_gesture_test.trscmd");
     test_parallel();
     printf("editor_world_gesture_test: %d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;

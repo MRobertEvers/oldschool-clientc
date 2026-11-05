@@ -328,6 +328,25 @@ LibToriRS_Input_PushMouseLeave(struct LibToriRS_Input* input)
 {
     assert(input);
     input->mouse_pointer_absent = 1;
+    /* The touch policy's "the finger left"; a cursor leaving the window is
+     * the same fact for a mouse, which had no finger down. */
+    input->touch_down = 0;
+}
+
+void
+LibToriRS_Input_PushTouchBegan(struct LibToriRS_Input* input)
+{
+    assert(input);
+    input->touch_down = 1;
+    input->last_touch = 1;
+}
+
+void
+LibToriRS_Input_NoteDesktopPointer(struct LibToriRS_Input* input)
+{
+    assert(input);
+    if( !input->touch_down )
+        input->last_touch = 0;
 }
 
 void
@@ -386,7 +405,7 @@ LibToriRS_Input_PushGesture(
     assert(gesture->phase < LIBTORIRS_GESTURE_PHASE_COUNT);
     assert(gesture->scale > 0.0f);
 
-    input->gesture_last_touch = (gesture->flags & LIBTORIRS_GESTURE_FLAG_TOUCH) != 0;
+    input->last_touch = (gesture->flags & LIBTORIRS_GESTURE_FLAG_TOUCH) != 0;
     if( input->gesture_count < LIBTORIRS_GESTURE_MAX )
     {
         input->gestures[input->gesture_count++] = *gesture;
@@ -444,5 +463,5 @@ int
 ToriRS_InputLastWasTouch(const struct LibToriRS_Input* input)
 {
     assert(input);
-    return input->gesture_last_touch;
+    return input->last_touch;
 }

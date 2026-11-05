@@ -307,14 +307,24 @@ cw_test_glyphs(void)
                     if( s && s->w == base->w * t && s->h == base->h * t )
                         tiers |= 1u << t;
                 }
-                if( img->source_tier != ToriRSChromeBake_TierFor(q, tiers) )
+                /* Absolute, not against whatever tiers SpriteTier answers:
+                 * a slot whose 2x went missing would read 1x and still
+                 * match TierFor over the tiers left. Every slot has all
+                 * three (tools/chrome_skin_tiers.py), so each is drawn
+                 * from the tier at or above its scale, and from exactly
+                 * the one TierFor names. */
+                if( tiers != ((1u << 1) | (1u << 2) | (1u << 3)) )
+                    wrong_tier++;
+                else if( img->source_tier < ToriRSChrome_ScaleTier(q) ||
+                         img->source_tier != ToriRSChromeBake_TierFor(q, tiers) )
                     wrong_tier++;
                 if( img->w != ToriRSChrome_ScalePx(q, base->w) ||
                     img->h != ToriRSChrome_ScalePx(q, base->h) )
                     wrong_size++;
                 if( q == 4 && img->argb != base->argb )
                     changed++;
-                /* 2x drawn from 1x, the only tier today: exactly doubled. */
+                /* 2x drawn from 1x (a slot with no 2x tier; none today,
+                 * so this guards the fallback): exactly doubled. */
                 if( q == 8 && img->source_tier == 1 )
                     for( int y = 0; y < img->h; y++ )
                         for( int x = 0; x < img->w; x++ )
@@ -322,7 +332,8 @@ cw_test_glyphs(void)
                                 not_doubled++;
             }
         }
-        CW_CHECK(wrong_tier == 0, "no skin slot is sampled from a tier below its scale");
+        CW_CHECK(wrong_tier == 0,
+            "every skin slot has its 2x and 3x tiers and is sampled from the tier at or above its scale");
         CW_CHECK(wrong_size == 0, "a slot's art is ScalePx of its 1x size");
         CW_CHECK(changed == 0, "at 1x a slot draws the baked pixels themselves");
         CW_CHECK(not_doubled == 0, "2x from the 1x tier is every pixel doubled");

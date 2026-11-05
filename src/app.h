@@ -4797,6 +4797,17 @@ int
 App_EditorOwnsTouch(struct App const* app);
 
 /**
+ * Should two fingers be gesture frames (ToriRS_TouchSetGestureFrames) rather
+ * than the game's wheel notches and arrow keys? While the editor owns the
+ * touch AND the World's camera is the free one (offline, a cutscene, or
+ * unlocked online), which the frames move (EditorWorldGesture_Apply). Online
+ * with the follow camera locked the frames would have no camera to move, so
+ * the legacy synthesis stays on and turns and zooms it as in the game.
+ */
+int
+App_EditorOwnsGestureFrames(struct App const* app);
+
+/**
  * Relayout + CS1 re-evaluate + mark for redraw after an out-of-band tree
  * mutation (slot mounts, packet-driven component changes).
  */

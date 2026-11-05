@@ -1311,15 +1311,24 @@ Editor_UiPx(
 int
 Editor_UiChromeScaleFor(
     struct EditorUi* ui,
-    int auto_q)
+    int auto_q,
+    int touch)
 {
+    int q;
+
     assert(ui);
     assert(auto_q >= TORIRS_CHROME_SCALEQ_MIN);
     assert(auto_q <= TORIRS_CHROME_SCALEQ_MAX);
     ui->scale_auto_q = auto_q;
+    ui->scale_touch = touch ? 1 : 0;
     if( ui->prefs.chrome_scale_q == EDITOR_PREFS_SCALE_AUTO )
         return auto_q;
-    return ui->prefs.chrome_scale_q;
+    q = ui->prefs.chrome_scale_q;
+    /* The choice is kept (the same prefs file on a desk draws it as asked);
+     * this device draws no smaller than a finger needs. */
+    if( touch && q < TORIRS_CHROME_SCALEQ_TOUCH_MIN )
+        q = TORIRS_CHROME_SCALEQ_TOUCH_MIN;
+    return q;
 }
 
 void
@@ -1408,11 +1417,24 @@ Editor_UiModuleNeedsWorld(const char* module)
     return strcmp(module, "world") == 0 || strcmp(module, "preview") == 0;
 }
 
+/** The first VLIST on chrome panel `panel` (the Catalog's rows), or -1. */
+static int
+ui_panel_first_vlist(
+    const struct ToriRSChrome* chrome,
+    int panel)
+{
+    for( int i = 0; i < chrome->widget_count; i++ )
+        if( chrome->widgets[i].panel == panel && chrome->widgets[i].kind == TORIRS_CHROME_W_VLIST )
+            return i;
+    return -1;
+}
+
 int
 Editor_UiDockBack(struct EditorUi* ui)
 {
-    int32_t values[2];
+    int32_t values[4];
     int at = -1;
+    int list;
 
     assert(ui);
     assert(ui->solo_panel >= 0);
@@ -1422,7 +1444,13 @@ Editor_UiDockBack(struct EditorUi* ui)
     assert(at >= 0);
     values[0] = at;
     values[1] = (int32_t)++ui->dock_serial;
-    if( !Editor_UiPublish(ui, TORIRSMAPED_STATE_DOCK_PANEL, values, 2) )
+    /* Where the reader was, so the panel docks back scrolled where it was
+     * left: the panel's own scroll (logical px, the same at either window's
+     * scale) and its list's first row (-1: it has none). */
+    values[2] = ToriRSChrome_PanelScroll(ui->chrome, ui->solo_panel);
+    list = ui_panel_first_vlist(ui->chrome, ui->solo_panel);
+    values[3] = list >= 0 ? ui->chrome->widgets[list].imin : -1;
+    if( !Editor_UiPublish(ui, TORIRSMAPED_STATE_DOCK_PANEL, values, 4) )
     {
         Editor_UiLog(ui, "editor: Dock %s: no session to tell the main window through; close this window and "
                          "use View > %s there", ui->panels[at].title, ui->panels[at].title);
@@ -1456,9 +1484,12 @@ ui_dock_tick(struct EditorUi* ui)
 static void
 ui_dock_heard(
     struct EditorUi* ui,
-    int index)
+    const int32_t* values,
+    int count)
 {
     struct EditorUiPanel const* panel;
+    int const index = values[0];
+    int list;
 
     if( ui->solo_panel >= 0 || !ui->visible )
         return;
@@ -1472,6 +1503,16 @@ ui_dock_heard(
         return;
     if( !ui->chrome->panels[panel->chrome_panel].visible )
         ToriRSChrome_PanelSetVisible(ui->chrome, panel->chrome_panel, 1);
+    /* The popped window's place (a two-value dock from an older build has
+     * none): the panel's scroll, clamped by its next Build, and its list's
+     * first row, clamped to its rows. */
+    if( count >= 4 )
+    {
+        ToriRSChrome_PanelSetScroll(ui->chrome, panel->chrome_panel, values[2] > 0 ? values[2] : 0);
+        list = ui_panel_first_vlist(ui->chrome, panel->chrome_panel);
+        if( list >= 0 && values[3] >= 0 )
+            ToriRSChrome_VListSetScroll(ui->chrome, list, values[3]);
+    }
     Editor_UiLog(ui, "editor: %s docked back from its own window", panel->title);
 }
 
@@ -3535,7 +3576,7 @@ Editor_UiApplyState(
             ui->hooks.open_square(ui->hooks_user, values[0], values[1], storage, values[2] != 0);
     }
     else if( key == TORIRSMAPED_STATE_DOCK_PANEL && count >= 2 )
-        ui_dock_heard(ui, values[0]);
+        ui_dock_heard(ui, values, count);
 
     for( int i = 0; i < ui->panel_count; i++ )
         if( ui->panels[i].on_state )

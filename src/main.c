@@ -2440,6 +2440,7 @@ main_chrome_scale_q(
     int cfg_chrome_scale)
 {
     char const* forced = torirs_env_chrome_scale();
+    int const touch = app->touch_ui || app->touch_camera;
     int q;
 
     if( forced && forced[0] )
@@ -2453,38 +2454,57 @@ main_chrome_scale_q(
         said = 1;
     }
     if( cfg_chrome_scale > 0 )
+    {
         q = cfg_chrome_scale;
+        /* A manifest's pin is a size for the editor's desk, and "a touch
+         * device never goes under 2x" holds for it as it does for Auto. */
+        if( touch && q < TORIRS_CHROME_SCALEQ_TOUCH_MIN )
+            q = TORIRS_CHROME_SCALEQ_TOUCH_MIN;
+    }
     else if( cfg_chrome_scale < 0 )
-        q = main_dynamic_chrome_scale(
-            PlatformWindow_ChromeDensityPercent(platform), app->touch_ui || app->touch_camera);
+        q = main_dynamic_chrome_scale(PlatformWindow_ChromeDensityPercent(platform), touch);
     else
         q = PlatformWindow_PixelDensity(platform) * TORIRS_CHROME_SCALEQ_ONE;
     if( q > TORIRS_CHROME_SCALEQ_MAX )
         q = TORIRS_CHROME_SCALEQ_MAX;
     /* The editor's View > Chrome scale; Auto hands `q` back (and the View
-     * menu's Auto row names it). */
+     * menu's Auto row names it). A View row under 2x on a touch device is
+     * held at 2x there too. */
     if( app->editor && app->editor_panel.built && app->editor_panel.ui )
-        q = Editor_UiChromeScaleFor(app->editor_panel.ui, q);
+        q = Editor_UiChromeScaleFor(app->editor_panel.ui, q, touch);
     return q;
 }
 
 /*
- * Set the chrome to quarter scale `q`: the App's integer scale (the scene
- * fonts the renderer draws the rows with, both chrome instances) and both
- * chrome models through the editor's shim, which hands the rational scale to
- * ToriRSChrome_SetScaleQ (the integer is the tier at or above it, so the two
- * setters never undo each other). @return 1 if anything moved.
+ * Set the chrome to quarter scale `q`, the scale asked for.
+ *
+ * The NATIVE draw path -- the App's integer scale (the scene fonts the
+ * renderer draws the rows with) and both chrome models' layout, through the
+ * editor's shim -- is handed ToriRSChromeScaleQ_Whole(q): its bridge
+ * registers only the integer tiers' fonts and skin (UITreeSceneBridge_
+ * EnsureDebugFont / EnsureChromeSkin), so a fractional q would lay text out
+ * with quarter metrics and paint it with the next tier's wider glyphs. Once
+ * the bridge draws ToriRSChromeBake_Face / _Skin at q this hands q itself.
+ *
+ * A DOM presentation of the plugin window zooms by CSS and can draw q
+ * exactly: it is told q over the window's own density
+ * (ToriRSChrome_SetPageScale), because its CSS pixel is already that many
+ * device pixels -- at Auto it draws unzoomed, at the physical size the
+ * canvas chrome has. @return 1 if anything moved.
  */
 static int
 main_chrome_scale_apply(
     struct App* app,
+    struct PlatformWindow* platform,
     int q)
 {
+    int const drawn = ToriRSChromeScaleQ_Whole(q);
     int changed;
 
-    changed = App_SetChromeScale(app, Editor_ChromeScaleInteger(q));
-    changed |= Editor_ChromeSetScaleQ(&app->dbg_ui, q);
-    changed |= Editor_ChromeSetScaleQ(&app->plugin_ui, q);
+    changed = App_SetChromeScale(app, Editor_ChromeScaleInteger(drawn));
+    changed |= Editor_ChromeSetScaleQ(&app->dbg_ui, drawn);
+    changed |= Editor_ChromeSetScaleQ(&app->plugin_ui, drawn);
+    ToriRSChrome_SetPageScale(&app->plugin_ui, q, PlatformWindow_ChromeDensityPercent(platform));
     return changed;
 }
 
@@ -3950,8 +3970,10 @@ frame_loop_step(void)
                     touch_world ? app.world_emit_desc.h : 0);
                 /* And two fingers are the editor's gesture frames (the World
                  * camera, a GRAPH, a list), not the game's wheel notches and
-                 * arrow keys, which would pan and turn the World at once. */
-                PlatformWindow_SetTouchGestureFrames(platform, App_EditorOwnsTouch(&app));
+                 * arrow keys, which would pan and turn the World at once --
+                 * while the free camera is the World's. The follow camera
+                 * online keeps the notches and keys that turn it. */
+                PlatformWindow_SetTouchGestureFrames(platform, App_EditorOwnsGestureFrames(&app));
                 PlatformWindow_PollCommands(platform, &bus);
                 if( sock )
                 {
@@ -5443,7 +5465,7 @@ frame_loop_step(void)
          * A pin re-derives the same value and changes nothing. */
         {
             int const q = main_chrome_scale_q(&app, platform, app.cfg.chrome_scale);
-            if( main_chrome_scale_apply(&app, q) && getenv("TORIRS_RESIZE_DEBUG") )
+            if( main_chrome_scale_apply(&app, platform, q) && getenv("TORIRS_RESIZE_DEBUG") )
                 TORIRS_LOG(
                     "chrome: scale %d%% (canvas %dx%d, display %d%%)\n",
                     ToriRSChromeScaleQ_Percent(q),
@@ -9563,7 +9585,7 @@ main(
              * The manifest slot is what lets a boot say "this editor draws
              * its chrome at 1.5x" without every launch exporting an env. */
             int const q = main_chrome_scale_q(&app, platform, cfg.chrome_scale);
-            (void)main_chrome_scale_apply(&app, q);
+            (void)main_chrome_scale_apply(&app, platform, q);
             if( getenv("TORIRS_RESIZE_DEBUG") )
                 TORIRS_LOG(
                     "chrome: scale %d%% (display %d%%)\n",
