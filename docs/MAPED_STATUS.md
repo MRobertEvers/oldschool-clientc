@@ -1864,25 +1864,61 @@ catches an edit, narrowing tests only the held hits and answers what a cold
 query answers, a record view reads one block; then the real tree's numbers,
 printed).
 
+**Workbench step 6.2, server half (2026-11-05)** (torirs_maped_catalog.{c,h};
+tests `make -C src test-catalog-perf` and `test-catalog-finder`):
+
+- Filter values narrow as a prefix, tested and ranked whole, then a prefix
+  of a whole word (words split at spaces and commas; the old '_' rule is the
+  first word's case), then a written-out `value*`; a number never stops
+  inside a longer number (`shapes=2` is not 22). Typing on narrows the held
+  hits where the longer value implies the shorter (`cat_value_implies`).
+- `shape=wall|decor|centre|roof|ground` (or a prefix, or a number) resolves
+  server-side against the loc's placeable shapes. A loc row carries
+  `shapes` (the Locs panel's rule, in its offer order), `size` ("WxH") and
+  `layer` (wall, decor, main, ground; world.c's layer per shape).
+- Kind "all" on the wire is scoped: kinds in order (loc, npc, obj, the
+  rest), each capped at the page, stopping once the page is full; a numeric
+  term is probed by id in every kind first. Synthetic 63,003-record tree
+  (this machine, `test-catalog-perf`): '' 4.4 ms / 63,003 tested -> 0.08 ms
+  / 100; 'o' 5.2 -> 0.08 ms; 'oa' 2.5 -> 0.14 ms / 694; 'door' 1.8 -> 0.18
+  ms / 1,277; '700' 1.9 -> 1.6 ms / 50,702 (the hundredth hit is far in);
+  'op=Chop' (nothing matches) 22 ms -> 12 ms, still every record (the
+  derived loc text is formatted only when a filter reads it). The
+  in-process `ToriRSMapEdCatalog_Query` still answers every match.
+- The warm build never waits on one file: configs/all.<type>, its .compack
+  and overlays over 64 KB are parsed in parts of at most 4 MB
+  (`TORIRSMAPED_CATALOG_SLICE_BYTES`) that also stop at the slice's
+  deadline at a block boundary; each source is merged into a live index as
+  soon as it is parsed (no full merge in the warm build), locs first, then
+  npcs, objs and the rest; the derived fields are sliced over records. The
+  synthetic build's longest 2 ms slice went from 27 ms to ~3-4 ms. A
+  CATALOG_QUERY with `TORIRSMAPED_CATALOG_PROGRESS` (server bit
+  `TORIRSMAPED_CAP_CATALOG_PROGRESS`) answers from the partial index with
+  `TORIRSMAPED_CATALOG_PAGE_PARTIAL` and done/total KiB appended after the
+  rows; without the flag the payload is the v2 one and the query finishes
+  the build first, as before. The client half (editor_host_remote.c, the
+  Catalog panel's progress well) is not in this step.
+
 Still slow, with where to start:
 
-- A Catalog opened in the first ~15 s after the editor opens waits for the
-  rest of the warm build (~6 s of work on this tree: scan 0.5-1.8 s, parse
-  2.5-3.6 s -- cs2 935 ms, jm2 951 ms, jl2 527 ms, rs2 357 ms -- merge
-  80-130 ms) at 6 ms a frame (`TORIRSMAPED_CATALOG_WARM_SLICE_MS`). The warm
-  build's own slices cost one ~70 ms frame (configs/all.loc, 86 MB, is one
-  file's parse) and one ~90 ms frame (the merge).
+- Not measured on the owner's tree here (the content submodule is not
+  checked out): the real-tree half of `test-catalog-perf` prints it.
+- A record view (CATALOG_RECORD) or the atlas asked during the warm build
+  still finishes the build first: those requests carry no flag.
 - A sweep that finds a changed file merges the whole index in one step,
-  ~80-100 ms on this tree (`cat_merge`): one hitch per change seen, while
-  the Catalog is being used (sweeps start only from requests). An
-  incremental merge would remove it.
+  ~80-100 ms on this tree (`cat_merge`; ~21-26 ms on the synthetic tree):
+  one hitch per change seen, while the Catalog is being used (sweeps start
+  only from requests). Records point into their sources' pools, so a
+  re-parsed source's records cannot be patched in place; an incremental
+  sweep would need per-source record ownership.
 - A sweep lags: an external edit shows in a query once a sweep has seen it
   (a sweep is ~180-650 ms of 2 ms slices, ~1.5-5 s at 50 fps). A record view
   is always fresh for its own files.
-- Kind "all kinds" queries test every record: 22 ms for '', 17 ms for 'o',
-  12 ms for 'oa' on 405k records (loc: 1-2.5 ms); a key=value filter
-  collects every record's fields: 'op=Chop' 18 ms (loc), 100 ms (all kinds)
-  per keystroke, and a filter value never narrows (it is matched whole).
+- A key=value filter that matches little still collects every record's
+  fields of the kinds it tests ('op=Chop' was 18 ms (loc), 100 ms (all
+  kinds) per keystroke on 405k records before the scoping): no field index.
+- A live merge that outgrows the warm build's hash estimate (id tables'
+  bytes / 16) rehashes in one step.
 - Edit record... 22-45 ms: each layer's CFG document is loaded by reading
   the whole file and scanning it for the block (src/editor/editor_host_local.c
   `local_doc_load` / `cfg_block_extent`; configs/all.loc is 86 MB). The

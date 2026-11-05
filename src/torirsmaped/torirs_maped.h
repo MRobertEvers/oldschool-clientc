@@ -297,6 +297,12 @@ enum ToriRSMapEdCapability
     TORIRSMAPED_CAP_LIVE = 2,
     TORIRSMAPED_CAP_CATALOG = 4,
     TORIRSMAPED_CAP_SPAWN_VIEW = 8,
+    /** CATALOG_QUERY takes TORIRSMAPED_CATALOG_PROGRESS: the answer never
+     *  waits for the catalog's warm build (a partial index while it runs)
+     *  and FACT_CATALOG_PAGE then ends with `u32 page_flags, u32 done,
+     *  u32 total` (torirs_maped_catalog.h). A client sends the flag only to
+     *  a server with this bit; without it the page is the v2 payload. */
+    TORIRSMAPED_CAP_CATALOG_PROGRESS = 16,
 };
 
 /** What a connection is for. Informational today (the server relays every

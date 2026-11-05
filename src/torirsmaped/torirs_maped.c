@@ -128,7 +128,7 @@ ToriRSMapEd_Open(
     /* The catalog reads nothing here: the service pass warm-builds it in
      * slices (ToriRSMapEdCatalog_Service), a request before that finishes it. */
     maped->catalog = ToriRSMapEdCatalog_Create(content_dir);
-    maped->capabilities |= TORIRSMAPED_CAP_CATALOG;
+    maped->capabilities |= TORIRSMAPED_CAP_CATALOG | TORIRSMAPED_CAP_CATALOG_PROGRESS;
 
     /* Builds and the live link: empty until a host binds them, or the
      * environment names a live lane (torirs_maped_live.h). */
