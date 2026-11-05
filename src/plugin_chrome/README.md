@@ -34,6 +34,9 @@ The `font/` directory staged beside each page is generated from the same baked
 cache masks and advances as native ToriRSChrome. Modern engines use Body/Menu
 WOFF with TTF fallback; XP uses direct EOT sources. Small is the authored
 10px/12px badge face. No page fetches a system or network font.
+A second family, the synthesized vector faces (`ToriRS*-Vector`), takes over
+under `.tpc-dpr-fractional` and `.tpc-text-smooth` (the chrome's "smooth
+always", SCALE's `h`); XP has it as EOTs under `.tpc-text-smooth` only.
 
 The real Web client mounts `modern.html` in one persistent app-owned iframe.
 `src/web/torirs_chrome.js` only translates wasm hooks to protocol 1 and owns

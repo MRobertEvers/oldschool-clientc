@@ -64,8 +64,9 @@ enum
 };
 
 /* The view's rows, before the layout's: Chrome scale Auto and its steps,
- * then Text size Normal and Large -- the hotkey actions in that order. */
-#define VIEW_PREF_COUNT (EDITOR_HK_VIEW_TEXT_LARGE - EDITOR_HK_VIEW_SCALE_AUTO + 1)
+ * then Text size Normal and Large, then Text rendering bitmap at whole scales
+ * and smooth always -- the hotkey actions in that order. */
+#define VIEW_PREF_COUNT (EDITOR_HK_VIEW_TEXT_SMOOTH - EDITOR_HK_VIEW_SCALE_AUTO + 1)
 
 #define MENUBAR_VIEW_MAX (EDITOR_UI_PANELS_MAX + VIEW_PREF_COUNT + VIEW_LAYOUT_COUNT)
 
@@ -104,6 +105,7 @@ struct MenuBarPanel
     int view_built_auto;
     int view_built_touch;
     int view_built_text;
+    int view_built_render;
     int view_built_for;
     int view_built_snap;
     /** menubar_view_state() the rows were labelled from: a panel shown,
@@ -193,7 +195,7 @@ menubar_build_view(
     }
     self->view_panel_count = self->view_count;
     /* The view's rows: radio rows, the chosen one marked. */
-    for( int action = EDITOR_HK_VIEW_SCALE_AUTO; action <= EDITOR_HK_VIEW_TEXT_LARGE; action++ )
+    for( int action = EDITOR_HK_VIEW_SCALE_AUTO; action <= EDITOR_HK_VIEW_TEXT_SMOOTH; action++ )
     {
         char label[TORIRS_CHROME_LABEL_MAX];
         int on;
@@ -213,11 +215,18 @@ menubar_build_view(
                 snprintf(label, sizeof(label), "Chrome scale: %d %% (touch: %d %%)", ToriRSChromeScaleQ_Percent(q),
                     ToriRSChromeScaleQ_Percent(TORIRS_CHROME_SCALEQ_TOUCH_MIN));
         }
-        else
+        else if( action <= EDITOR_HK_VIEW_TEXT_LARGE )
         {
             int const large = action == EDITOR_HK_VIEW_TEXT_LARGE;
             snprintf(label, sizeof(label), "Text size: %s", large ? "Large" : "Normal");
             on = ui->prefs.text_large == large;
+        }
+        else
+        {
+            int const smooth = action == EDITOR_HK_VIEW_TEXT_SMOOTH;
+            snprintf(label, sizeof(label), "Text rendering: %s",
+                smooth ? "smooth always" : "bitmap at whole scales");
+            on = ui->prefs.text_smooth == smooth;
         }
         edp_hotkey_row(ui, action, label, self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX);
         if( on )
@@ -253,6 +262,7 @@ menubar_build_view(
     self->view_built_auto = ui->scale_auto_q;
     self->view_built_touch = ui->scale_touch;
     self->view_built_text = ui->prefs.text_large;
+    self->view_built_render = ui->prefs.text_smooth;
 }
 
 /** The File and Edit rows and the Level tips, from the hotkey table. */
@@ -335,7 +345,7 @@ menubar_tick(
     if( self->view_built_for != ui->panel_count || self->view_built_snap != ui->snap
         || self->view_built_state != menubar_view_state(ui) || self->view_built_scale != ui->prefs.chrome_scale_q
         || self->view_built_auto != ui->scale_auto_q || self->view_built_touch != ui->scale_touch
-        || self->view_built_text != ui->prefs.text_large )
+        || self->view_built_text != ui->prefs.text_large || self->view_built_render != ui->prefs.text_smooth )
         menubar_build_view(ui, self);
     /* A level changed behind the row's back -- another window
      * (STATE_EDIT_LEVEL lands in edit_level alone) or a key: the cap follows

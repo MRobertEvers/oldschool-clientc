@@ -19,6 +19,31 @@
   font-weight: 400;
 }
 
+/* The synthesized vector faces (tools/chrome_font_vector.py), as EOTs: used
+ * only under "smooth always" (.tpc-text-smooth on the root, the chrome's text
+ * rendering). XP's page has no fractional device scale, so the bitmap-derived
+ * faces above stay its default. */
+@font-face {
+  font-family: "ToriRS Chrome Vector";
+  src: url("font/ToriRSBody-Vector.eot");
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "ToriRS Chrome Vector";
+  src: url("font/ToriRSMenu-Vector.eot");
+  font-style: normal;
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: "ToriRS Chrome Small Vector";
+  src: url("font/ToriRSSmall-Vector.eot");
+  font-style: normal;
+  font-weight: 400;
+}
+
 html, body {
   width: 100%;
   height: 100%;
@@ -236,3 +261,10 @@ button { font: 700 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
 .tpc-minimenu-list { border-left: 1px solid #000000; border-right: 1px solid #000000; border-bottom: 1px solid #000000; }
 .tpc-minimenu-option { display: block; width: 100%; height: 15px; margin: 0; padding: 0 3px; overflow: hidden; border: 0; background: transparent; color: #ffffff; font-weight: 400; line-height: 15px; text-align: left; text-shadow: 1px 1px #000000; white-space: nowrap; text-overflow: ellipsis; cursor: hand; }
 .tpc-minimenu-option:hover { color: #ffff00; }
+
+/* "Smooth always": the vector family on every rule above that names a face.
+ * Only the family moves; sizes and line boxes are the cell faces'. */
+.tpc-text-smooth body, .tpc-text-smooth input, .tpc-text-smooth textarea,
+.tpc-text-smooth button, .tpc-text-smooth .tpc-minimenu { font-family: "ToriRS Chrome Vector", "Lucida Console", monospace; }
+.tpc-text-smooth .tpc-badge, .tpc-text-smooth .tpc-keycap,
+.tpc-text-smooth .tpc-chord-badge { font-family: "ToriRS Chrome Small Vector", "Lucida Console", monospace; }

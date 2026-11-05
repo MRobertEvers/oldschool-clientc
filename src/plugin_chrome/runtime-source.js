@@ -150,9 +150,12 @@
     panel: -1,
     activeTab: 0,
     checkStyle: 0,
-    /* The chrome scale, scaleQ / scaleDen (TORIRS_CHROME_CMD_SCALE). */
+    /* The chrome scale, scaleQ / scaleDen (TORIRS_CHROME_CMD_SCALE), and
+     * its text-rendering mode (the command's h): 0 bitmap at whole scales,
+     * 1 smooth always. */
     scaleQ: 4,
     scaleDen: 4,
+    scaleText: 0,
     widgets: new Store(),
     widgetsByTab: new Store(),
     checkWidgets: new Store(),
@@ -2182,10 +2185,23 @@
    * its skin is CSS, so nothing else has to change. The chrome's and not the
    * page's: a snapshot without one does not reset it, because the C side
    * tells an executor its scale once, not once per page; the hosts carry the
-   * last one they passed in every snapshot (scaleQ / scaleDen). */
-  function applyScale(value, den) {
+   * last one they passed in every snapshot (scaleQ / scaleDen / scaleText).
+   *
+   * The third argument is the chrome's text rendering: 1 ("smooth always") sets
+   * .tpc-text-smooth on the root, and the stylesheets draw the synthesized
+   * vector faces (font/ToriRS*-Vector) at every scale; 0 keeps the
+   * bitmap-derived faces at an integer device scale and the vector ones under
+   * .tpc-dpr-fractional only. The advances are the same either way, so
+   * nothing reflows. */
+  function applyScale(value, den, text) {
     const q = Math.max(1, value | 0);
     const d = Math.max(1, den | 0);
+    const smooth = text ? 1 : 0;
+    if (smooth !== state.scaleText) {
+      state.scaleText = smooth;
+      if (document.documentElement)
+        toggleClass(document.documentElement, 'tpc-text-smooth', smooth === 1);
+    }
     if (q === state.scaleQ && d === state.scaleDen) return;
     state.scaleQ = q;
     state.scaleDen = d;
@@ -2211,7 +2227,7 @@
   function applyCommand(raw) {
     const command = normalizeCommand(raw);
     if (command.k === CMD.SCALE) {
-      applyScale(command.v, command.cw);
+      applyScale(command.v, command.cw, command.ch);
       return;
     }
     if (command.k === CMD.CHECK_STYLE) {
@@ -2358,7 +2374,7 @@
     /* A snapshot states the chrome scale when its sender knows it; one that
      * does not (an older host) leaves the page at the scale it was told. */
     if (message.scaleQ !== undefined)
-      applyScale(integer(message.scaleQ, 4), integer(message.scaleDen, 4));
+      applyScale(integer(message.scaleQ, 4), integer(message.scaleDen, 4), integer(message.scaleText, 0));
     setText(title, message.title || 'Plugins');
     hidden(pane, false);
     toggleClass(shell, 'tpc-collapsed', false);
@@ -3108,7 +3124,8 @@
         queuedMessages: state.messages.length,
         renderVisits: state.renderVisits,
         scaleQ: state.scaleQ,
-        scaleDen: state.scaleDen
+        scaleDen: state.scaleDen,
+        scaleText: state.scaleText
       };
     },
     constants: { CMD, W, INTENT }

@@ -291,10 +291,67 @@ cw_test_scale(void)
         CW_CHECK(g_cw_ui.widgets[rows[0]].h == ToriRSChrome_ScalePx(q, TORIRS_CHROME_M_ROW_H), what);
     }
 
-    /* ---- the photographs: one Catalog per scale, for review ---- */
-    for( int i = 0; i < (int)(sizeof(photographed) / sizeof(photographed[0])); i++ )
+    /* ---- text rendering: bitmap at whole scales / smooth always ---- */
     {
-        int const q = photographed[i];
+        struct ToriRSChromeCmd const* cmd;
+        int builds;
+
+        sc_setup(4);
+        {
+            struct ToriRSChromeExec exec;
+            ToriRSChromeRecorder_Init(&g_cw_rec);
+            exec = ToriRSChromeExec_Recorder(&g_cw_rec);
+            (void)ToriRSChromeSync_Init(&g_cw_sync, &exec);
+        }
+        (void)cw_run();
+        CW_CHECK(cw_count(TORIRS_CHROME_CMD_SCALE) == 0, "1x with bitmap text sends no SCALE");
+        ToriRSChromeBake_SetTextSmooth(&g_cw_ui, 1);
+        CW_CHECK(ToriRSChrome_TextSmooth(&g_cw_ui) == 1, "the chrome holds smooth always");
+        (void)cw_run();
+        cmd = cw_find(TORIRS_CHROME_CMD_SCALE, -1);
+        CW_CHECK(cmd && cmd->value == 4 && cmd->w == 4 && cmd->h == 1,
+            "smooth always reaches a DOM as SCALE's h, at an unchanged ratio");
+        ToriRSChromeBake_SetTextSmooth(&g_cw_ui, 1);
+        (void)cw_run();
+        CW_CHECK(cw_count(TORIRS_CHROME_CMD_SCALE) == 0, "the same mode again says nothing");
+        ToriRSChromeBake_SetTextSmooth(&g_cw_ui, 0);
+        (void)cw_run();
+        cmd = cw_find(TORIRS_CHROME_CMD_SCALE, -1);
+        CW_CHECK(cmd && cmd->h == 0, "back to bitmap at whole scales");
+
+        /* The atlases are built when the scale or the mode is set -- never by
+         * a frame. */
+        sc_setup(6);
+        {
+            int rows[16];
+            int count = 0;
+            uint32_t* pixels = malloc(sizeof(uint32_t) * 64 * 64);
+            CW_CHECK(pixels != NULL, "frame buffer");
+            (void)sc_build_catalog(&g_cw_ui, rows, &count);
+            builds = ToriRSChromeBake_GlyphAtlasBuilds();
+            for( int frame = 0; frame < 30 && pixels; frame++ )
+            {
+                (void)ToriRSChrome_Build(&g_cw_ui);
+                ToriRSChromeBake_Present(&g_cw_ui, pixels, 64, 64, 64);
+                if( frame == 10 )
+                    ToriRSChromeBake_SetTextSmooth(&g_cw_ui, 1);
+                if( frame == 20 )
+                    ToriRSChromeBake_SetTextSmooth(&g_cw_ui, 0);
+            }
+            CW_CHECK(ToriRSChromeBake_GlyphAtlasBuilds() == builds,
+                "thirty frames at 1.5x, the mode flipped twice, build no atlas");
+            free(pixels);
+        }
+        cw_reset();
+    }
+
+    /* ---- the photographs: one Catalog per scale, for review ---- */
+    for( int i = 0; i < (int)(sizeof(photographed) / sizeof(photographed[0])) + 2; i++ )
+    {
+        /* Then 1x and 2x again under "smooth always". */
+        int const smooth = i >= (int)(sizeof(photographed) / sizeof(photographed[0]));
+        int const q = smooth ? 4 * (i - (int)(sizeof(photographed) / sizeof(photographed[0])) + 1)
+                             : photographed[i];
         int rows[16];
         int count = 0;
         int panel;
@@ -305,6 +362,8 @@ cw_test_scale(void)
         char path[256];
 
         sc_setup(q);
+        if( smooth )
+            ToriRSChromeBake_SetTextSmooth(&g_cw_ui, 1);
         panel = sc_build_catalog(&g_cw_ui, rows, &count);
         (void)ToriRSChrome_Build(&g_cw_ui);
         CW_CHECK(g_cw_ui.overflow == 0, "the Catalog fit the display list");
@@ -318,7 +377,7 @@ cw_test_scale(void)
         for( int k = 0; k < w * h; k++ )
             pixels[k] = 0xFF1E1E1Eu;
         ToriRSChromeBake_Present(&g_cw_ui, pixels, w, h, w);
-        snprintf(path, sizeof(path), "%s/scale_q%d.bmp", CW_OUT_DIR, q);
+        snprintf(path, sizeof(path), "%s/scale_q%d%s.bmp", CW_OUT_DIR, q, smooth ? "_smooth" : "");
         sc_write_bmp(path, pixels, w, h);
         printf("chrome scale: wrote %s (%dx%d)\n", path, w, h);
         free(pixels);

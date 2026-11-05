@@ -1915,6 +1915,7 @@ win32_browser_stage_fonts(
         L"ToriRSBody.eot", L"ToriRSBody.woff", L"ToriRSBody.ttf",
         L"ToriRSMenu.eot", L"ToriRSMenu.woff", L"ToriRSMenu.ttf",
         L"ToriRSSmall.eot", L"ToriRSSmall.woff", L"ToriRSSmall.ttf",
+        L"ToriRSBody-Vector.eot", L"ToriRSMenu-Vector.eot", L"ToriRSSmall-Vector.eot",
         L"manifest.json", L"README.md"
     };
     static WCHAR const* const candidates[] = {

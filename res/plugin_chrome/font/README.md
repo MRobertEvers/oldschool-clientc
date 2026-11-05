@@ -96,3 +96,17 @@ python3 -m venv /tmp/torirs-chrome-fonts
 /tmp/torirs-chrome-fonts/bin/pip install -r tools/torirs_chrome_fonts.requirements.txt
 /tmp/torirs-chrome-fonts/bin/python tools/torirs_chrome_fonts.py
 ```
+
+## The vector faces
+
+`ToriRS{Body,Menu,Small}-Vector.{ttf,woff,eot}` are a second family, "ToriRS
+Chrome Vector" (400 Body, 700 Menu) and "ToriRS Chrome Small Vector",
+synthesized from the same masks by `tools/chrome_font_vector.py` (depixelize,
+Kopf and Lischinski 2011 adapted to 1-bit masks): smooth outlines with the
+same advances (x 64 units), baseline and line box, for a fractional device
+scale and for the chrome's "smooth always" text rendering. The modern page
+selects them under `.tpc-dpr-fractional` and `.tpc-text-smooth`, the XP page
+(EOT) under `.tpc-text-smooth` only. `make -C src chrome-font-vector` checks
+that a rerun reproduces them byte for byte. See docs/CHROME_SCALE.md, "The
+vector face".
+

@@ -537,14 +537,17 @@ sync_scale(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
     int const den = TORIRS_CHROME_SCALE_Q_ONE * (density / g);
 
     assert(density > 0);
-    if( (long long)value * sync->scale_den == (long long)sync->scale_value * den )
+    if( (long long)value * sync->scale_den == (long long)sync->scale_value * den &&
+        sync->scale_text == ui->text_smooth )
         return;
     cmd_init(&cmd, TORIRS_CHROME_CMD_SCALE, -1, -1);
     cmd.value = value;
     cmd.w = den;
+    cmd.h = ui->text_smooth;
     sync_emit(sync, &cmd);
     sync->scale_value = value;
     sync->scale_den = den;
+    sync->scale_text = ui->text_smooth;
 }
 
 /**

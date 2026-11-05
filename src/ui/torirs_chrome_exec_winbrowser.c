@@ -57,6 +57,9 @@ struct WinBrowserExec
      * (a pop-out, a new selection) is still drawn at the chrome's scale. */
     int scale_q;
     int scale_den;
+    /* SCALE's `h`: the text-rendering mode (0 bitmap at whole scales, 1
+     * smooth always), carried in every snapshot like the scale. */
+    int scale_text;
     int preferred_width;
     uint32_t shell_generation;
     uint32_t page_generation;
@@ -454,9 +457,10 @@ static int send_batch(struct WinBrowserExec* s)
             "\"pageGeneration\":%u,\"panel\":%d,\"title\":",
             (unsigned)generation, s->panel);
         json_string(&json, s->title);
-        json_appendf(&json, ",\"checkStyle\":%d,\"scaleQ\":%d,\"scaleDen\":%d,\"commands\":[",
+        json_appendf(&json,
+            ",\"checkStyle\":%d,\"scaleQ\":%d,\"scaleDen\":%d,\"scaleText\":%d,\"commands\":[",
             s->check_style, s->scale_q ? s->scale_q : TORIRS_CHROME_SCALE_Q_ONE,
-            s->scale_den ? s->scale_den : TORIRS_CHROME_SCALE_Q_ONE);
+            s->scale_den ? s->scale_den : TORIRS_CHROME_SCALE_Q_ONE, s->scale_text);
     }
     else
         json_appendf(&json,
@@ -554,6 +558,7 @@ static void browser_apply(void* user, struct ToriRSChromeCmd const* cmd)
     {
         s->scale_q = cmd->value;
         s->scale_den = cmd->w;
+        s->scale_text = cmd->h;
     }
     if( cmd->kind == TORIRS_CHROME_CMD_WIDGET_ADD && cmd->widget >= 0 &&
         cmd->widget < TORIRS_CHROME_MAX_WIDGETS )

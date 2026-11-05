@@ -23,6 +23,7 @@
  *     version = 1
  *     chrome_scale = auto   ; auto | 100 | 125 | 150 | 175 | 200 | 250 | 300
  *     text_size = normal    ; normal | large
+ *     text_rendering = bitmap ; bitmap (at whole scales) | smooth (always)
  */
 
 #define EDITOR_PREFS_VERSION 1
@@ -40,9 +41,13 @@ struct Editor_Prefs
     /** View > Text size: 0 Normal (the Body face, 18 px rows at 1x), 1 Large
      *  (the Menu face as the body face, 22 px rows at 1x). */
     int text_large;
+    /** View > Text rendering: 0 "bitmap at whole scales" (the baked 1x /
+     *  2x / 3x faces at 100, 200 and 300 %, the synthesized vector face
+     *  between), 1 "smooth always" (the vector face at every scale). */
+    int text_smooth;
 };
 
-/** Auto and Normal. */
+/** Auto, Normal and bitmap at whole scales. */
 void
 Editor_PrefsInit(struct Editor_Prefs* prefs);
 

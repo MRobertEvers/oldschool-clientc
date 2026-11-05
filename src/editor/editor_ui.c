@@ -1396,6 +1396,27 @@ Editor_UiSetTextLarge(
 }
 
 void
+Editor_UiSetTextSmooth(
+    struct EditorUi* ui,
+    int smooth)
+{
+    assert(ui);
+    smooth = smooth ? 1 : 0;
+    if( ui->prefs.text_smooth == smooth )
+        return;
+    ui->prefs.text_smooth = smooth;
+    ui->prefs_serial++;
+    Editor_UiLog(ui, "editor: text rendering %s", smooth ? "smooth always" : "bitmap at whole scales");
+}
+
+int
+Editor_UiTextSmooth(const struct EditorUi* ui)
+{
+    assert(ui);
+    return ui->prefs.text_smooth;
+}
+
+void
 Editor_UiApplyPrefs(
     struct EditorUi* ui,
     const struct Editor_Prefs* prefs)
@@ -1405,6 +1426,7 @@ Editor_UiApplyPrefs(
     assert(prefs->chrome_scale_q == EDITOR_PREFS_SCALE_AUTO || ToriRSChromeScaleQ_StepIndex(prefs->chrome_scale_q) >= 0);
     ui->prefs.chrome_scale_q = prefs->chrome_scale_q;
     ui->prefs.text_large = prefs->text_large ? 1 : 0;
+    ui->prefs.text_smooth = prefs->text_smooth ? 1 : 0;
     ui_text_size_follow(ui);
 }
 

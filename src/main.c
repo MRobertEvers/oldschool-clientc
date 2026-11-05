@@ -2499,12 +2499,20 @@ main_chrome_scale_apply(
     int q)
 {
     int const drawn = ToriRSChromeScaleQ_Whole(q);
+    /* View > Text rendering, the device-local setting beside the scale: a
+     * DOM hears it with SCALE and draws the vector web fonts at every scale;
+     * a drawer of the bake reads it per text prim. No metric moves. */
+    int const smooth = app->editor && app->editor_panel.built && app->editor_panel.ui
+                           ? Editor_UiTextSmooth(app->editor_panel.ui)
+                           : 0;
     int changed;
 
     changed = App_SetChromeScale(app, Editor_ChromeScaleInteger(drawn));
     changed |= Editor_ChromeSetScaleQ(&app->dbg_ui, drawn);
     changed |= Editor_ChromeSetScaleQ(&app->plugin_ui, drawn);
     ToriRSChrome_SetPageScale(&app->plugin_ui, q, PlatformWindow_ChromeDensityPercent(platform));
+    ToriRSChrome_SetTextSmooth(&app->dbg_ui, smooth);
+    ToriRSChrome_SetTextSmooth(&app->plugin_ui, smooth);
     return changed;
 }
 

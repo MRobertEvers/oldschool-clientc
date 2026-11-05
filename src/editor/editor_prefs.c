@@ -20,6 +20,7 @@ Editor_PrefsInit(struct Editor_Prefs* prefs)
     memset(prefs, 0, sizeof(*prefs));
     prefs->chrome_scale_q = EDITOR_PREFS_SCALE_AUTO;
     prefs->text_large = 0;
+    prefs->text_smooth = 0;
 }
 
 const char*
@@ -100,6 +101,16 @@ prefs_line(
             return 0;
         return 1;
     }
+    if( prefs_is(key, key_end, "text_rendering") )
+    {
+        if( strcmp(word, "bitmap") == 0 )
+            prefs->text_smooth = 0;
+        else if( strcmp(word, "smooth") == 0 )
+            prefs->text_smooth = 1;
+        else
+            return 0;
+        return 1;
+    }
     /* An unknown key is a newer editor's: ignored, not malformed. */
     return 1;
 }
@@ -174,7 +185,7 @@ Editor_PrefsEncode(
     char scale[16];
     char* text;
     int length;
-    size_t const capacity = 256;
+    size_t const capacity = 384;
 
     assert(prefs);
     assert(out_text);
@@ -189,13 +200,15 @@ Editor_PrefsEncode(
     text = ToriMem_Alloc(ToriMem_Process(), capacity);
     assert(text);
     length = snprintf(text, capacity,
-        "; The map editor's view on this device (editor_prefs.h). View > Chrome scale\n"
-        "; and View > Text size write it; a window popped out of this one reads it.\n"
+        "; The map editor's view on this device (editor_prefs.h). View > Chrome scale,\n"
+        "; Text size and Text rendering write it; a window popped out of this one reads it.\n"
         "[view]\n"
         "version = %d\n"
         "chrome_scale = %s\n"
-        "text_size = %s\n",
-        EDITOR_PREFS_VERSION, scale, prefs->text_large ? "large" : "normal");
+        "text_size = %s\n"
+        "text_rendering = %s\n",
+        EDITOR_PREFS_VERSION, scale, prefs->text_large ? "large" : "normal",
+        prefs->text_smooth ? "smooth" : "bitmap");
     assert(length > 0);
     assert((size_t)length < capacity);
     *out_text = text;

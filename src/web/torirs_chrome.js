@@ -146,6 +146,9 @@
        * page made after the command went past still draws at it. */
       this.scaleQ = 4;
       this.scaleDen = 4;
+      /* SCALE's h: the text rendering (0 bitmap at whole scales, 1 smooth
+       * always), carried in every snapshot with the scale. */
+      this.scaleText = 0;
       this.title = 'Plugins';
       this.lastOutboundSequence = 0;
       this.lastLayoutKey = '';
@@ -338,6 +341,7 @@
         this.checkStyle = integer(message.checkStyle, this.checkStyle);
         this.scaleQ = integer(message.scaleQ, this.scaleQ);
         this.scaleDen = integer(message.scaleDen, this.scaleDen);
+        this.scaleText = integer(message.scaleText, this.scaleText);
       } else if (message.type === 'page.close') {
         const generation = unsigned(message.pageGeneration);
         if (generation && this.pageGeneration && generation !== this.pageGeneration)
@@ -555,12 +559,14 @@
       let checkStyle = this.checkStyle;
       let scaleQ = this.scaleQ;
       let scaleDen = this.scaleDen;
+      let scaleText = this.scaleText;
       for (let i = 0; i < commands.length; i++) {
         const command = commands[i];
         if (command.k === CMD.CHECK_STYLE) checkStyle = command.v;
         else if (command.k === CMD.SCALE) {
           scaleQ = command.v;
           scaleDen = command.cw;
+          scaleText = command.ch;
         }
         else if (command.k === CMD.PANEL_OPEN) {
           containsOpen = true;
@@ -589,6 +595,7 @@
           checkStyle,
           scaleQ,
           scaleDen,
+          scaleText,
           commands: initial
         })) return false;
         this.updateWidgetIdentities(initial, generation, true);
@@ -599,6 +606,7 @@
         this.checkStyle = checkStyle;
         this.scaleQ = scaleQ;
         this.scaleDen = scaleDen;
+        this.scaleText = scaleText;
         return true;
       }
 
@@ -609,6 +617,7 @@
         this.checkStyle = checkStyle;
         this.scaleQ = scaleQ;
         this.scaleDen = scaleDen;
+        this.scaleText = scaleText;
         return true;
       }
       if (!this.send({
@@ -622,6 +631,7 @@
       this.checkStyle = checkStyle;
       this.scaleQ = scaleQ;
       this.scaleDen = scaleDen;
+      this.scaleText = scaleText;
       return true;
     }
 

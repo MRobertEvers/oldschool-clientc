@@ -585,6 +585,24 @@ assert.strictEqual(button.control.innerText, 'Rebuild every collision map in the
     title: 'Editor', checkStyle: 0, scaleQ: 7, scaleDen: 4,
     commands: [cmd(CMD.PANEL_OPEN, { text: 'Editor' })] });
   assert.strictEqual(shell.style.zoom, '1.75', 'a snapshot that carries the scale applies it');
+
+  /* SCALE's h: the chrome's text rendering. Smooth always puts the vector
+   * family on the root at any scale; bitmap at whole scales takes it off. */
+  const root = document.documentElement;
+  assert(!/tpc-text-smooth/.test(root.className), 'bitmap at whole scales is the default');
+  runtime.receive({ protocol: 1, type: 'page.delta', pageGeneration: 22, commands: [
+    cmd(CMD.SCALE, { p: -1, v: 4, cw: 4, ch: 1 })
+  ] });
+  assert(/tpc-text-smooth/.test(root.className), 'h = 1: smooth always, the vector faces at 1x too');
+  assert.strictEqual(runtime.inspect().scaleText, 1, 'and the runtime holds it');
+  assert.strictEqual(shell.style.zoom, '', 'beside the 1x zoom it came with');
+  runtime.receive({ protocol: 1, type: 'page.snapshot', pageGeneration: 23, panel: 3,
+    title: 'Editor', checkStyle: 0, commands: [cmd(CMD.PANEL_OPEN, { text: 'Editor' })] });
+  assert(/tpc-text-smooth/.test(root.className), 'a snapshot that does not state it keeps it');
+  runtime.receive({ protocol: 1, type: 'page.snapshot', pageGeneration: 24, panel: 3,
+    title: 'Editor', checkStyle: 0, scaleQ: 4, scaleDen: 4, scaleText: 0,
+    commands: [cmd(CMD.PANEL_OPEN, { text: 'Editor' })] });
+  assert(!/tpc-text-smooth/.test(root.className), 'a snapshot that says bitmap takes it off');
 }
 
 console.log('chrome widgets dom: ok');

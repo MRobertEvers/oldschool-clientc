@@ -22,6 +22,37 @@
   font-weight: 400;
 }
 
+/*
+ * The second family: the synthesized VECTOR faces (tools/chrome_font_vector.py,
+ * from the same baked masks, the same advances and line boxes), for a
+ * fractional device scale (.tpc-dpr-fractional) and for "smooth always"
+ * (.tpc-text-smooth). At an integer device scale the cell faces above stay the
+ * pixel font exactly; at 1.5 they would draw 1- and 2-pixel stems in turn.
+ */
+@font-face {
+  font-family: "ToriRS Chrome Vector";
+  src: url("font/ToriRSBody-Vector.woff") format("woff"),
+       url("font/ToriRSBody-Vector.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "ToriRS Chrome Vector";
+  src: url("font/ToriRSMenu-Vector.woff") format("woff"),
+       url("font/ToriRSMenu-Vector.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: "ToriRS Chrome Small Vector";
+  src: url("font/ToriRSSmall-Vector.woff") format("woff"),
+       url("font/ToriRSSmall-Vector.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+}
+
 :root {
   color-scheme: dark;
   --tpc-body: #5d5447;
@@ -921,6 +952,19 @@ button { font-weight: 700; }
  * nearest-neighbour at 1.5 drops and doubles whole columns of the art.
  */
 .tpc-dpr-fractional, .tpc-dpr-fractional * { image-rendering: auto !important; }
+/* And the text: the vector family, which the same rules also select under
+ * "smooth always" (the chrome's text rendering, SCALE's h) at any scale. Only
+ * the family moves: sizes, line boxes and advances are the cell faces'. */
+.tpc-dpr-fractional, .tpc-text-smooth,
+.tpc-dpr-fractional .tpc-dropdown-list, .tpc-text-smooth .tpc-dropdown-list,
+.tpc-dpr-fractional .tpc-minimenu, .tpc-text-smooth .tpc-minimenu {
+  font-family: "ToriRS Chrome Vector", "ToriRS Chrome", "Lucida Console", Menlo, Consolas, monospace;
+}
+.tpc-dpr-fractional .tpc-badge, .tpc-text-smooth .tpc-badge,
+.tpc-dpr-fractional .tpc-keycap, .tpc-text-smooth .tpc-keycap,
+.tpc-dpr-fractional .tpc-chord-badge, .tpc-text-smooth .tpc-chord-badge {
+  font-family: "ToriRS Chrome Small Vector", "ToriRS Chrome Small", "Lucida Console", monospace;
+}
 /* Apart: a browser without the pseudo-elements drops the whole rule. */
 .tpc-dpr-fractional ::-webkit-scrollbar, .tpc-dpr-fractional ::-webkit-scrollbar-button,
 .tpc-dpr-fractional ::-webkit-scrollbar-thumb {

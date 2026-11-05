@@ -2149,6 +2149,26 @@ ToriRSChrome_SetPageScale(struct ToriRSChrome* ui, int q, int density_percent)
     dbg_change_push(ui, TORIRS_CHROME_CHANGE_SCALE, -1, -1, 0, 0);
 }
 
+void
+ToriRSChrome_SetTextSmooth(struct ToriRSChrome* ui, int smooth)
+{
+    assert(ui);
+    smooth = smooth ? 1 : 0;
+    if( ui->text_smooth == smooth )
+        return;
+    ui->text_smooth = smooth;
+    /* No metric moves, so no panel is dirtied: a drawer reads the mode per
+     * text prim, and a DOM hears it with the scale. */
+    dbg_change_push(ui, TORIRS_CHROME_CHANGE_SCALE, -1, -1, 0, 0);
+}
+
+int
+ToriRSChrome_TextSmooth(struct ToriRSChrome const* ui)
+{
+    assert(ui);
+    return ui->text_smooth;
+}
+
 int
 ToriRSChrome_Scale(struct ToriRSChrome const* ui)
 {

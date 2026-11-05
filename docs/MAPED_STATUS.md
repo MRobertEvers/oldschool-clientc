@@ -1599,6 +1599,39 @@ ToriRSChrome (5 MB) on its stack. Not checked by eye: the page zoom and the
 fractional class in a real browser, the Preview twist's direction, and a
 touchscreen pinch on hardware.
 
+### Vector face (for the integrator)
+
+Text between the bitmap tiers is a synthesized vector face now, not the 1x
+cells scaled (docs/CHROME_SCALE.md, "The vector face"). The judges' winner,
+depixelize, ships as `tools/chrome_font_vector.py`, with two of their defect
+notes fixed in it before the bake: Menu's x (an hourglass: now two crossing
+strokes with V notches) and Menu's / (bowed into an S: every staircase of two
+or more steps is now one straight line, so /, \\, v, N, k and Body's / are
+straight). It writes `src/engine/fonts/ToriRS{Small,Body,Menu}-Vector.ttf`, the
+web faces `res/plugin_chrome/font/ToriRS*-Vector.{ttf,woff,eot}` and
+`src/engine/torirs_chrome_font_vector_baked.{c,h}`; `make -C src
+chrome-font-vector` fails on any byte of difference (also run by
+`chrome-skin`). `ToriRSChromeGlyphs_Rasterise` now takes `(font_slot, q,
+smooth, out)` and rasterises the vector face (stb_truetype, vendored in
+`3rd/stb/stb_truetype.h`) at a fractional q, with the zones (descender,
+baseline, x-height, cap height, ascender, line box) on the layout's rows,
+horizontal 3x oversampling and a 1.45 stem-darkening gamma; the old cell path is
+`ToriRSChromeGlyphs_RasteriseCells` and still gives 1x, 2x and 3x byte for
+byte (the goldens are unchanged). New: `ToriRSChromeBake_PrepareSmooth`,
+`ToriRSChromeBake_FaceSmooth`, `ToriRSChromeBake_SetTextSmooth`,
+`ToriRSChromeBake_GlyphAtlasBuilds`; `ToriRSChrome_SetTextSmooth` /
+`ToriRSChrome_TextSmooth`; View > "Text rendering: bitmap at whole scales /
+smooth always" (`text_rendering` in editor_prefs.ini, `view.text_bitmap` /
+`view.text_smooth`); SCALE's `h` and the snapshots' `scaleText`;
+`.tpc-text-smooth`. Link `engine/torirs_chrome_font_vector_baked.c` (and
+`-lm`) wherever `ui/torirs_chrome_bake.c` is linked: the client's SRCS and
+test-chrome-widgets have it. Still to do: the scene bridge draws the integer
+tiers only (main.c hands the native chrome `ToriRSChromeScaleQ_Whole(q)`), so
+in the native canvas the face is seen through the bake's raster until the
+bridge draws `ToriRSChromeBake_Face` at q; the DOM pages use it now. Not
+checked in a real browser or on XP: the Vector WOFF/EOT rendering, and that
+IE8 accepts the EOT (built by the same `write_eot` as the bitmap faces).
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.
