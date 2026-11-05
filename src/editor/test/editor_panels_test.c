@@ -1887,7 +1887,7 @@ test_chrome(void)
     /* The Area dropdown switches the area the well draws, fitted. */
     {
         int const area = find_widget(squares_panel, TORIRS_CHROME_W_DROPDOWN, "Area");
-        int const other = picker->tab_count - 2; /* the last area before Unmapped */
+        int const other = picker->tab_count - 3; /* the last area before Instance space and Unmapped */
         CHECK(picker->tabs[1].area == EDITOR_PICKER_TAB_FULL && strcmp(picker->tabs[1].title, "Full map") == 0,
             "the Full map page sits beside the surface");
         ToriRSChrome_DropdownSetSelected(&g_chrome, area, other);
@@ -2082,10 +2082,13 @@ static struct
     int serial;
     int missing;
     int redraws;
+    /* The last poll of the VIEW (a background slice of the rest of the page,
+     * EDITOR_WORLDMAP_SLICE square and aligned, is counted apart). */
     int x0;
     int z0;
     int w;
     int h;
+    int slice_polls;
     double zoom;
     int drawn_pixels;
     int dungeon_pixels;
@@ -2146,10 +2149,16 @@ fake_map_poll(
         return -1;
     g_map.polls++;
     g_map.area = area_id;
-    g_map.x0 = x0;
-    g_map.z0 = z0;
-    g_map.w = w;
-    g_map.h = h;
+    if( w == EDITOR_WORLDMAP_SLICE && h == EDITOR_WORLDMAP_SLICE && x0 % EDITOR_WORLDMAP_SLICE == 0
+        && z0 % EDITOR_WORLDMAP_SLICE == 0 )
+        g_map.slice_polls++;
+    else
+    {
+        g_map.x0 = x0;
+        g_map.z0 = z0;
+        g_map.w = w;
+        g_map.h = h;
+    }
     *out_missing = g_map.missing;
     return g_map.serial;
 }
@@ -2454,6 +2463,9 @@ test_worldmap(void)
         int bh;
         int marks;
         search_field("m50_50");
+        /* The open-here inset is the 40 px band's (Editor_PickerLodAt). */
+        Editor_PickerZoomTo(picker, 48.0, 0, 0);
+        Editor_PickerCentre(picker, 50, 50);
         settle_map(40);
         picker_point(picker, 50, 50, &x, &y);
         push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
@@ -2577,19 +2589,20 @@ test_worldmap(void)
         CHECK(g_map.bad_publishes == 0, "every picture still the one size after %d publishes", g_map.publishes);
     }
 
-    /* Icons and labels: placed at their tiles, fading in with the zoom. */
+    /* Icons and names: the closest band's (from 96 px a square), placed at
+     * their tiles. */
     {
         int gox;
         int goy;
         int cx;
         int cy;
-        Editor_PickerZoomTo(picker, 64.0, x, y);
+        Editor_PickerZoomTo(picker, 128.0, x, y);
         Editor_PickerCentre(picker, 50, 50);
         settle_map(60);
         Editor_PickerGlobalOrigin(picker, &gox, &goy);
         cx = (int)floor((3222 + 0.5) * picker->zoom / 64.0) - gox;
         cy = (int)floor((EDITOR_PICKER_WORLD_SQUARES * 64 - 1 - 3218 + 0.5) * picker->zoom / 64.0) - goy;
-        CHECK(g_map.icon_calls > 0 && picker->underlay.icon_count == 1, "64 px a square: the icon is drawn (%d)",
+        CHECK(g_map.icon_calls > 0 && picker->underlay.icon_count == 1, "128 px a square: the icon is drawn (%d)",
             picker->underlay.icon_count);
         CHECK(picker->underlay.icon_count == 1 && picker->underlay.icons[0].x == cx - 7
                   && picker->underlay.icons[0].y == cy - 7 && picker->underlay.icons[0].trans == 0,
@@ -2599,17 +2612,17 @@ test_worldmap(void)
             "...and the town's label");
         CHECK(graph_items_of(graph, TORIRS_CHROME_GRAPH_IMAGE, 0) == picker->underlay.count + 1,
             "the icon is a GRAPH image over the map's");
-        Editor_PickerZoomTo(picker, 52.0, x, y);
+        Editor_PickerZoomTo(picker, 60.0, x, y);
         Editor_PickerCentre(picker, 50, 50);
         settle_map(60);
-        CHECK(picker->underlay.icon_count == 1 && picker->underlay.icons[0].trans > 0
-                  && picker->underlay.icons[0].trans < 255,
-            "52 px a square: fading in (trans %d)", picker->underlay.icon_count ? picker->underlay.icons[0].trans : -1);
+        CHECK(picker->underlay.icon_count == 0 && picker->underlay.label_count == 0
+                  && graph_items_of(graph, TORIRS_CHROME_GRAPH_IMAGE, 0) == picker->underlay.count,
+            "60 px a square: no icon, no name (the 6.4 photograph check)");
         Editor_PickerZoomTo(picker, 20.0, x, y);
         Editor_PickerCentre(picker, 50, 50);
         settle_map(60);
-        CHECK(picker->underlay.icon_count == 0 && picker->underlay.label_count == 1,
-            "20 px a square: no icons, the large label still");
+        CHECK(picker->underlay.icon_count == 0 && picker->underlay.label_count == 0,
+            "20 px a square: no icons, no labels");
     }
 
     /* A click on an empty square opens New square on it. */
@@ -2671,12 +2684,14 @@ test_worldmap(void)
         CHECK(Editor_PickerVisibleSquares(picker, &vx0, &vz0, &vw, &vh) && vx0 <= min_x && vz0 <= min_z
                   && vx0 + vw > max_x && vz0 + vh > max_z,
             "fitted, the whole grid is in the well ([%d,%d %dx%d])", vx0, vz0, vw, vh);
-        CHECK(g_map.area == EDITOR_UI_MAP_AREA_ALL, "every area is asked for at once");
         dungeon = Editor_PickerFind(picker, 27, 83, -1);
         g_map.dungeon_pixels = 0;
+        /* Fitted the page is under 12 px a square, colours only: the map
+         * is asked for from the picture band. */
         Editor_PickerZoomTo(picker, 48.0, x, y);
         Editor_PickerCentre(picker, 27, 83);
         settle_map(80);
+        CHECK(g_map.area == EDITOR_UI_MAP_AREA_ALL, "every area is asked for at once");
         picker_point(picker, 27, 83, &x, &y);
         CHECK(dungeon >= 0 && Editor_PickerSquareAt(picker, x, y) == dungeon,
             "the Ancient Cavern's m27_83 is on the grid at 27,83");

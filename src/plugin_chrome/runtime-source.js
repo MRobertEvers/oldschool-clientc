@@ -19,6 +19,13 @@
   /* TORIRS_CHROME_PROTOCOL_COMMAND_MAX less SYNC_BEGIN/SYNC_END. */
   const MAX_PAGE_COMMANDS = 49150;
   const MAX_TEXT = 191;
+  /* Pictures a GRAPH IMAGE item may name at once (graph.image): the square
+   * picker's map holds 80 (EDITOR_UI_MAP_IMAGE_SLOTS); room for more wells. */
+  const MAX_GRAPH_IMAGES = 256;
+  /* The largest picture one carries a side, and the largest well a canvas
+   * is made for. */
+  const MAX_GRAPH_IMAGE_SIDE = 1024;
+  const MAX_GRAPH_CANVAS_SIDE = 8192;
   const Codec = global.ToriRSPluginChromeCodec;
   if (!Codec) return null;
 
@@ -158,6 +165,10 @@
     checkWidgets: new Store(),
     tabStrips: new Store(),
     customWidgets: new Store(),
+    /* graph.image pictures by scene id, kept across page snapshots (a
+     * picture is the host's, not the page's): { width, height, version,
+     * bytes, canvas }. */
+    graphImages: new Store(),
     renderQueue: [],
     renderVisits: 0,
     sequence: 0,
@@ -1350,7 +1361,7 @@
     GRAPH_PRESS: 1, GRAPH_DRAG: 2, GRAPH_RELEASE: 3, GRAPH_MENU: 4,
     GRAPH_HOVER: 5, CODE_REPLACE: 7, CODE_SPLIT: 8, CODE_JOIN: 9
   };
-  const GRAPH_ITEM = { RECT: 0, RECT_OUTLINE: 1, LINE: 2, TEXT: 3 };
+  const GRAPH_ITEM = { RECT: 0, RECT_OUTLINE: 1, LINE: 2, TEXT: 3, IMAGE: 4 };
 
   function skinFile(slot) {
     const name = slot >= 0 && slot < SKIN_FILES.length ? SKIN_FILES[slot] : '';
@@ -1771,9 +1782,106 @@
     }
   }
 
+  /* The picture a scene id names, as a canvas drawImage can take: built
+   * from its bytes once per version. */
+  function graphImageSource(image) {
+    if (image.canvas) return image.canvas;
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext && canvas.getContext('2d');
+    if (!context) return null;
+    context.putImageData(new global.ImageData(image.bytes, image.width, image.height), 0, 0);
+    image.canvas = canvas;
+    return canvas;
+  }
+
+  /*
+   * The well's IMAGE items onto one canvas under the item list, in list
+   * order (the map's pictures, then its icons). A picture the page has not
+   * been sent draws nothing until it comes (graph.image re-renders every well
+   * naming it). IE8 has no canvas: it draws no picture, as before.
+   */
+  function renderGraphImages(record, well) {
+    let images = 0;
+    let width = 0;
+    let height = 0;
+    for (let i = 0; i < record.items.length; i++) {
+      const item = record.items[i];
+      if (!item || item.kind !== GRAPH_ITEM.IMAGE) continue;
+      images++;
+      width = Math.max(width, item.x + item.w);
+      height = Math.max(height, item.y + item.h);
+    }
+    record.graphImagesDrawn = 0;
+    if (!images || legacy || !global.ImageData || !global.Uint8ClampedArray) return;
+    const canvas = record.graphCanvas || document.createElement('canvas');
+    record.graphCanvas = canvas;
+    canvas.className = 'tpc-graph-canvas';
+    canvas.width = Math.max(1, Math.min(MAX_GRAPH_CANVAS_SIDE, width));
+    canvas.height = Math.max(1, Math.min(MAX_GRAPH_CANVAS_SIDE, height));
+    canvas.style.width = `${canvas.width}px`;
+    canvas.style.height = `${canvas.height}px`;
+    well.appendChild(canvas);
+    const context = canvas.getContext && canvas.getContext('2d');
+    if (!context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.imageSmoothingEnabled = false;
+    let drawn = 0;
+    for (let i = 0; i < record.items.length; i++) {
+      const item = record.items[i];
+      if (!item || item.kind !== GRAPH_ITEM.IMAGE || item.w <= 0 || item.h <= 0) continue;
+      const image = state.graphImages.get(item.key);
+      if (!image) continue;
+      const source = graphImageSource(image);
+      if (!source) continue;
+      /* The item's colour is its transparency, 0 opaque .. 255 invisible. */
+      context.globalAlpha = Math.max(0, Math.min(255, 255 - (item.color & 255))) / 255;
+      context.drawImage(source, 0, 0, image.width, image.height, item.x, item.y, item.w, item.h);
+      drawn++;
+    }
+    context.globalAlpha = 1;
+    record.graphImagesDrawn = drawn;
+    canvas.setAttribute('data-images', String(drawn));
+  }
+
+  /** graph.image: one picture by scene id, then every well that names it
+   *  drawn again. */
+  function applyGraphImage(message) {
+    const sceneId = integer(message.sceneId, 0);
+    const width = integer(message.width, 0);
+    const height = integer(message.height, 0);
+    const version = unsigned(message.version);
+    if (legacy || sceneId <= 0 || width <= 0 || height <= 0 || width > MAX_GRAPH_IMAGE_SIDE ||
+        height > MAX_GRAPH_IMAGE_SIDE || !global.atob || !global.Uint8ClampedArray) return false;
+    const old = state.graphImages.get(sceneId);
+    if (!old && state.graphImages.count >= MAX_GRAPH_IMAGES) return false;
+    let bytes;
+    try {
+      const binary = global.atob(text(message.rgbaBase64, width * height * 6));
+      if (binary.length !== width * height * 4) return false;
+      bytes = new global.Uint8ClampedArray(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i) & 255;
+    }
+    catch (error) { return false; }
+    state.graphImages.set(sceneId, { width, height, version, bytes, canvas: null });
+    state.widgets.each(record => {
+      if (record.kind !== W.GRAPH || !record.items) return;
+      for (let i = 0; i < record.items.length; i++) {
+        const item = record.items[i];
+        if (item && item.kind === GRAPH_ITEM.IMAGE && item.key === sceneId) {
+          queueWidgetRender(record, RENDER.CONTENT);
+          return;
+        }
+      }
+    });
+    return true;
+  }
+
   function renderGraph(record) {
     const well = record.control;
     clear(well);
+    renderGraphImages(record, well);
     for (let i = 0; i < record.items.length; i++) {
       const item = record.items[i];
       if (!item) continue;
@@ -2486,6 +2594,7 @@
           clearPage();
         break;
       case 'custom.bitmap': applyCustomBitmap(message); break;
+      case 'graph.image': return applyGraphImage(message);
       default: return false;
     }
     return true;

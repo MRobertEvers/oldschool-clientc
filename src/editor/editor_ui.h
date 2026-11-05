@@ -373,6 +373,14 @@ struct EditorUiAppServices
         struct EditorUiMapIcon* out,
         int capacity,
         int* out_pending);
+    /** A monotonic clock, microseconds: what the picker's map times its
+     *  background loads by (EDITOR_WORLDMAP_PREFETCH_US a frame). NULL
+     *  member: one slice a tick, untimed. */
+    uint64_t (*now_us)(void* user_data);
+    /** The last frame's work, microseconds (App_LastFrameUs): what the
+     *  picker's map reports its cold open against. NULL member or 0: not
+     *  measured. */
+    uint64_t (*last_frame_us)(void* user_data);
 };
 
 /* ---- panels ---------------------------------------------------------------- */

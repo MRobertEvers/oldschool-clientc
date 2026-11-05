@@ -33,6 +33,10 @@
 #include <ctype.h>
 #include <time.h>
 
+#if defined(__EMSCRIPTEN__)
+#include "ui/torirs_chrome_exec_web.h"
+#endif
+
 /* Private to this unit, declared up front so definition order is free. */
 static void
 app_map_editor_ghost_forget(struct App* app);
@@ -388,11 +392,13 @@ ui_service_request_redraw(void* user_data)
     app->need_redraw = 1;
 }
 
-#if !defined(__EMSCRIPTEN__)
 /* ---- the square picker's world map (editor/editor_worldmap.h) ----------
  *
  * The overview's bakes live for the process: one App per process, and the
- * App holds no field for them (check-app-boundary). Created on first use. */
+ * App holds no field for them (check-app-boundary). Created on first use.
+ * On the web too since workbench 6.4: every picture also goes to the DOM
+ * executor (ToriRSChromeExecWeb_GraphImage), which draws the well's IMAGE
+ * items from it. */
 
 _Static_assert(
     EDITOR_UI_MAP_IMAGE_SLOTS == UITREE_SCENE_EDITOR_PICKER_MAP_SLOTS,
@@ -674,10 +680,38 @@ ui_service_image_publish(
     if( ToriDraw_SceneSpriteHas(app->scene, id) )
         ToriDraw_SceneSpriteRemove(app->scene, id);
     ToriDraw_SceneSpriteAdd(app->scene, id, sprites, 1);
+#if defined(__EMSCRIPTEN__)
+    {
+        /* The DOM well has no scene: the picture goes to it by id. A page
+         * without the hook keeps the in-canvas sprite only. */
+        static uint32_t versions[UITREE_SCENE_EDITOR_PICKER_MAP_SLOTS];
+        versions[slot]++;
+        (void)ToriRSChromeExecWeb_GraphImage(id, versions[slot], w, h, argb);
+    }
+#endif
     app->need_redraw = 1;
     return id;
 }
-#endif /* !__EMSCRIPTEN__ */
+
+/** A monotonic clock for the picker's background loads. */
+static uint64_t
+ui_service_now_us(void* user_data)
+{
+    struct timespec now;
+    (void)user_data;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    return (uint64_t)now.tv_sec * 1000000u + (uint64_t)now.tv_nsec / 1000u;
+}
+
+/** The last frame's work (App_LastFrameUs), what the picker measures its
+ *  cold open against. */
+static uint64_t
+ui_service_last_frame_us(void* user_data)
+{
+    struct App* app = user_data;
+    assert(app);
+    return App_LastFrameUs(app);
+}
 
 void
 app_map_editor_ui_services(
@@ -699,17 +733,16 @@ app_map_editor_ui_services(
     out->preview_zoom = ui_service_preview_zoom;
     out->world_busy = ui_service_world_busy;
     out->request_redraw = ui_service_request_redraw;
-#if !defined(__EMSCRIPTEN__)
-    /* The square picker's world map. Not on the web: its panels are DOM,
-     * which has no pixels for a GRAPH image (ui/uitree_debug_overlay.h
-     * TORIRS_CHROME_GRAPH_IMAGE), and the picker would trade its cells for a
-     * picture nobody sees. */
+    /* The square picker's world map, native and web: the web's DOM well
+     * draws the pictures image_publish hands the page (graph.image,
+     * src/plugin_chrome/runtime-source.js). */
     out->worldmap_area = ui_service_worldmap_area;
     out->worldmap_poll = ui_service_worldmap_poll;
     out->worldmap_render_tile = ui_service_worldmap_render_tile;
     out->image_publish = ui_service_image_publish;
     out->worldmap_icons = ui_service_worldmap_icons;
-#endif
+    out->now_us = ui_service_now_us;
+    out->last_frame_us = ui_service_last_frame_us;
     /* Pop out (app/app_editor_view.c). */
     out->world_camera = EditorView_AppWorldCamera;
     out->spawn_panel = EditorView_AppSpawnPanel;

@@ -156,6 +156,9 @@
       this.tab = null;
       this.customRevisions = {};
       this.widgetSerials = {};
+      /* The last graph.image of each scene id: pictures outlive pages, so a
+       * replaced iframe is given them again when it attaches. */
+      this.graphImages = {};
       this.rail = {
         protocol: PROTOCOL, type: 'rail.snapshot', registryRevision: 0,
         selectionGeneration: 0, pageGeneration: 0, activePlugin: -1,
@@ -201,6 +204,13 @@
       let accepted = true;
       try { accepted = runtime.receive(copy(THEME)) !== false; }
       catch (error) { accepted = false; }
+      /* Pictures first, so the page snapshot below draws its wells whole.
+       * One the runtime refuses is not a lost transaction. */
+      for (const sceneId in this.graphImages) {
+        if (!Object.prototype.hasOwnProperty.call(this.graphImages, sceneId)) continue;
+        try { runtime.receive(this.graphImages[sceneId]); }
+        catch (error) { /* drawn without it */ }
+      }
       const queued = this.pending;
       this.pending = [];
       this.pendingBytes = 0;
@@ -232,6 +242,7 @@
       else if (message.type === 'rail.icon') key = `rail.icon:${message.pluginIndex}`;
       else if (message.type === 'custom.bitmap')
         key = `custom:${message.pageGeneration}:${message.widget}:${message.widgetSerial}`;
+      else if (message.type === 'graph.image') key = `graph.image:${message.sceneId}`;
       else if (message.type === 'page.snapshot' || message.type === 'page.close') key = 'page';
       else key = `ordered:${++this.pendingSerial}`;
 
@@ -645,6 +656,33 @@
       return this.global.btoa(binary);
     }
 
+    /* One GRAPH image's picture (ToriRSChromeExecWeb_GraphImage): kept by
+     * scene id and sent as graph.image; the runtime draws every IMAGE item
+     * naming the id from it. */
+    graphImage(sceneId, version, width, height, argb) {
+      sceneId = integer(sceneId, 0);
+      width = integer(width, 0);
+      height = integer(height, 0);
+      if (sceneId <= 0 || width <= 0 || height <= 0 || width > 1024 || height > 1024) return false;
+      const rgbaBase64 = this.argbToRgbaBase64(argb, width, height);
+      if (!rgbaBase64) return false;
+      const envelope = {
+        protocol: PROTOCOL,
+        type: 'graph.image',
+        sceneId,
+        version: unsigned(version),
+        width,
+        height,
+        rgbaBase64
+      };
+      this.graphImages[sceneId] = envelope;
+      if (!this.runtime) return this.send(envelope);
+      /* Attached: delivered now, and replayed should the iframe be
+       * replaced; a refusal is the runtime's (a full store), not a loss. */
+      this.send(envelope);
+      return true;
+    }
+
     customFrame(panel, widget, generation, serial, scaleMilli, width, height, argb) {
       panel = integer(panel, -1);
       widget = integer(widget, -1);
@@ -916,6 +954,8 @@
     global.torirsChromeCustom = (panel, widget, generation, serial, scaleMilli,
       width, height, argb) =>
       host.customFrame(panel, widget, generation, serial, scaleMilli, width, height, argb);
+    global.torirsChromeGraphImage = (sceneId, version, width, height, argb) =>
+      host.graphImage(sceneId, version, width, height, argb);
     /* Canonical protocol entry point for new wasm hooks and browser tests. */
     global.torirsChromeReceive = envelope => {
       let message = envelope;

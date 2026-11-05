@@ -142,6 +142,26 @@ EM_JS(int, web_chrome_take_delivery_loss, (void), {
     catch( e ) { return 1; }
 });
 
+/* A GRAPH image's picture, by scene id. The hook converts the call-scoped
+ * HEAPU32 view synchronously (to base64 RGBA), so the caller's buffer is free
+ * again on return. */
+EM_JS(int, web_chrome_graph_image,
+    (int scene_id, unsigned version, int width, int height, uint32_t const* argb), {
+    if( typeof window.torirsChromeGraphImage !== 'function' || width <= 0 || height <= 0 )
+        return 0;
+    try
+    {
+        var count = width * height;
+        var copy = HEAPU32.subarray(argb >> 2, (argb >> 2) + count);
+        return window.torirsChromeGraphImage(scene_id, version >>> 0, width, height, copy) === true ? 1 : 0;
+    }
+    catch( e )
+    {
+        console.warn('[torirs] graph image failed', e);
+        return 0;
+    }
+});
+
 /* A dirty custom well. The hook consumes and converts the call-scoped HEAPU32
  * view synchronously before the App reuses its raster scratch. */
 EM_JS(int, web_chrome_custom_present,
@@ -270,6 +290,21 @@ ToriRSChromeExecWeb_RequestOpen(int open)
 {
     g_chrome_web_open_request = open ? 1 : 0;
     g_chrome_web_open_request_pending = 1;
+}
+
+int
+ToriRSChromeExecWeb_GraphImage(
+    int scene_id,
+    uint32_t version,
+    int width,
+    int height,
+    uint32_t const* argb)
+{
+    assert(scene_id > 0);
+    assert(width > 0);
+    assert(height > 0);
+    assert(argb);
+    return web_chrome_graph_image(scene_id, (unsigned)version, width, height, argb);
 }
 
 int

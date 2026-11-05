@@ -34,6 +34,23 @@ void ToriRSChromeExecWeb_RequestLayout(
     int visible,
     int game_visible);
 
+/**
+ * One picture a GRAPH IMAGE item names (TORIRS_CHROME_GRAPH_IMAGE: the square
+ * picker's world map), keyed by its scene id: `argb` is `width` x `height`
+ * 0xAARRGGBB, copied before this returns. The page's host turns it into a
+ * `graph.image` envelope (rgbaBase64) and the DOM executor draws every IMAGE
+ * item naming `scene_id` from it, on a canvas under the well's other items.
+ * Independent of the bound executor, like the open request: the picture
+ * outlives page snapshots, and a replaced iframe gets the last of each id
+ * again. Returns 1 when the page took it.
+ */
+int ToriRSChromeExecWeb_GraphImage(
+    int scene_id,
+    uint32_t version,
+    int width,
+    int height,
+    uint32_t const* argb);
+
 #ifdef __cplusplus
 }
 #endif
