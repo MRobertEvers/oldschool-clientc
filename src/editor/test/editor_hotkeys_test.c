@@ -454,7 +454,7 @@ test_hint(void)
         int tool;
         int rows;
     } k_counts[] = {
-        { HINT_TOOL(EDITOR_HK_TOOL_SELECT), 9 },  { HINT_TOOL(EDITOR_HK_TOOL_PLACE), 6 },
+        { HINT_TOOL(EDITOR_HK_TOOL_SELECT), 10 }, { HINT_TOOL(EDITOR_HK_TOOL_PLACE), 8 },
         { HINT_TOOL(EDITOR_HK_TOOL_RAISE), 4 },   { HINT_TOOL(EDITOR_HK_TOOL_PAINT_FLAGS), 4 },
         { HINT_TOOL(EDITOR_HK_TOOL_MOVE), 2 },    { HINT_TOOL(EDITOR_HK_TOOL_ROTATE), 1 },
         { HINT_TOOL(EDITOR_HK_TOOL_DELETE), 1 },  { HINT_TOOL(EDITOR_HK_TOOL_RECT), 5 },
@@ -492,20 +492,24 @@ test_hint(void)
 
     /* The fixed order and the default spellings. */
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_SELECT), 0, rows, EDITOR_HK_HINT_MAX);
-    CHECK(count == 9 && strcmp(rows[0].chord, "click") == 0 && strcmp(rows[0].verb, "tile") == 0
+    CHECK(count == 10 && strcmp(rows[0].chord, "click") == 0 && strcmp(rows[0].verb, "tile") == 0
               && strcmp(rows[1].chord, "Shift+click") == 0 && strcmp(rows[2].verb, "marquee") == 0
-              && strcmp(rows[3].chord, HINT_CTRL "+A") == 0 && strcmp(rows[4].chord, "arrows") == 0
-              && strcmp(rows[4].verb, "nudge") == 0 && strcmp(rows[5].chord, "Q") == 0
-              && strcmp(rows[6].chord, "Shift+Q") == 0 && strcmp(rows[7].chord, "E") == 0
-              && strcmp(rows[8].chord, "Del, Backspace") == 0 && strcmp(rows[8].verb, "delete") == 0,
-        "hint: Select's rows in order (row 3 '%s', 4 '%s', 8 '%s')", count > 3 ? rows[3].chord : "",
-        count > 4 ? rows[4].chord : "", count > 8 ? rows[8].chord : "");
+              && strcmp(rows[3].chord, HINT_CTRL "+A") == 0 && strcmp(rows[4].chord, "Alt+A") == 0
+              && strcmp(rows[4].verb, "same") == 0 && strcmp(rows[5].chord, "arrows") == 0
+              && strcmp(rows[5].verb, "nudge") == 0 && strcmp(rows[6].chord, "Q") == 0
+              && strcmp(rows[7].chord, "Shift+Q") == 0 && strcmp(rows[8].chord, "E") == 0
+              && strcmp(rows[9].chord, "Del, Backspace") == 0 && strcmp(rows[9].verb, "delete") == 0,
+        "hint: Select's rows in order (row 3 '%s', 4 '%s', 9 '%s')", count > 3 ? rows[3].chord : "",
+        count > 4 ? rows[4].chord : "", count > 9 ? rows[9].chord : "");
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_PLACE), 0, rows, EDITOR_HK_HINT_MAX);
-    CHECK(count == 6 && strcmp(rows[0].chord, "click/Space, Enter") == 0 && strcmp(rows[0].verb, "place") == 0
-              && rows[0].action == EDITOR_HK_PLACE_HERE && strcmp(rows[1].verb, "turn") == 0
-              && strcmp(rows[3].chord, "G") == 0 && strcmp(rows[5].chord, "Esc") == 0
-              && strcmp(rows[5].verb, "drop") == 0,
-        "hint: Place's rows in order (row 0 '%s')", count > 0 ? rows[0].chord : "");
+    CHECK(count == 8 && strcmp(rows[0].chord, "click/Space, Enter") == 0 && strcmp(rows[0].verb, "place") == 0
+              && rows[0].action == EDITOR_HK_PLACE_HERE && strcmp(rows[1].chord, "drag") == 0
+              && strcmp(rows[1].verb, "wall run") == 0 && strcmp(rows[2].chord, "Shift") == 0
+              && rows[2].action == EDITOR_HK_PLACE_CONSTRAIN && strcmp(rows[2].verb, "one axis") == 0
+              && strcmp(rows[3].verb, "turn") == 0 && strcmp(rows[5].chord, "G") == 0
+              && strcmp(rows[7].chord, "Esc") == 0 && strcmp(rows[7].verb, "drop") == 0,
+        "hint: Place's rows in order (row 0 '%s', 1 '%s', 2 '%s')", count > 0 ? rows[0].chord : "",
+        count > 1 ? rows[1].chord : "", count > 2 ? rows[2].chord : "");
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_SMOOTH), 0, rows, EDITOR_HK_HINT_MAX);
     CHECK(count == 4 && strcmp(rows[0].chord, "drag") == 0 && strcmp(rows[1].chord, "[ ]") == 0
               && strcmp(rows[2].chord, "Shift+[ ]") == 0 && strcmp(rows[3].chord, HINT_CTRL "+[ ]") == 0,
@@ -527,7 +531,7 @@ test_hint(void)
         "hint: Select with no selection drops nudge, delete, swap, square (%d rows)", count);
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_W | EDITOR_HK_CTX_L | EDITOR_HK_CTX_M,
         HINT_TOOL(EDITOR_HK_TOOL_SELECT), 0, rows, EDITOR_HK_HINT_MAX);
-    CHECK(count == 9, "hint: a selection under the pointer brings them back (%d rows)", count);
+    CHECK(count == 10, "hint: a selection under the pointer brings them back (%d rows)", count);
     /* Place with no pick (no P): the click row keeps its mouse word. */
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_N, HINT_TOOL(EDITOR_HK_TOOL_PLACE), 0, rows, EDITOR_HK_HINT_MAX);
     row = hint_row(rows, count, "place");
@@ -566,7 +570,7 @@ test_hint(void)
     Editor_HotkeysSet(&g_hk, EDITOR_HK_PLACE_HERE, NULL, 0);
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_PLACE), 0, rows, EDITOR_HK_HINT_MAX);
     row = hint_row(rows, count, "place");
-    CHECK(count == 5 && !hint_row(rows, count, "reshape") && row && strcmp(row->chord, "click") == 0,
+    CHECK(count == 7 && !hint_row(rows, count, "reshape") && row && strcmp(row->chord, "click") == 0,
         "hint: unbound rows drop, the click stays (%d rows, '%s')", count, row ? row->chord : "");
     Editor_HotkeysResetDefaults(&g_hk);
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_SELECT), 0, rows, EDITOR_HK_HINT_MAX);
@@ -647,7 +651,8 @@ test_gesture_hint(void)
     /* Place, a brush, Rotate: their pointer word, then the same four. */
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_PLACE), 1, rows, EDITOR_HK_HINT_MAX);
     row = hint_row(rows, count, "place");
-    CHECK(count == 5 && row && strcmp(row->chord, "tap") == 0, "touch hint: Place taps (%d rows)", count);
+    CHECK(count == 6 && row && strcmp(row->chord, "tap") == 0 && hint_row(rows, count, "wall run"),
+        "touch hint: Place taps, and drags a run (%d rows)", count);
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_N, HINT_TOOL(EDITOR_HK_TOOL_RAISE), 1, rows, EDITOR_HK_HINT_MAX);
     row = hint_row(rows, count, "paint");
     CHECK(count == 5 && row && strcmp(row->chord, "drag") == 0 && !hint_row(rows, count, "radius"),
@@ -670,7 +675,7 @@ test_gesture_hint(void)
     /* And the mouse strip is the one it was. */
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_SELECT), 0, rows, EDITOR_HK_HINT_MAX);
     row = hint_row(rows, count, "tile");
-    CHECK(count == 9 && row && strcmp(row->chord, "click") == 0 && !hint_row(rows, count, "pan"),
+    CHECK(count == 10 && row && strcmp(row->chord, "click") == 0 && !hint_row(rows, count, "pan"),
         "hint: with a mouse the strip keeps the mouse words (%d rows)", count);
 }
 
@@ -793,6 +798,70 @@ test_contexts_from(void)
 
 #undef HINT_TOOL
 
+/* Workbench 6.3's two chords (design section 7): Alt+A selects every loc of
+ * the hovered loc's id (the double-click's chord), and Shift held keeps a
+ * Place drag to one axis -- a qualifier, beside Fly faster on the same Shift
+ * without a clash, while an EDGE action on a bare Shift still clashes. */
+static void
+test_placement_chords(void)
+{
+    unsigned const OVER_WORLD = EDITOR_HK_CTX_G | EDITOR_HK_CTX_W | EDITOR_HK_CTX_N;
+    unsigned const LOCS = EDITOR_HK_CTX_G | EDITOR_HK_CTX_L | EDITOR_HK_CTX_M;
+    struct Editor_HotkeyFrame frame;
+    struct Editor_Chord chord;
+    int pairs[8];
+
+    Editor_HotkeysInit(&g_hk);
+    CHECK(Editor_HotkeyFind("edit.select_same") == EDITOR_HK_EDIT_SELECT_SAME
+              && Editor_HotkeyFind("place.constrain") == EDITOR_HK_PLACE_CONSTRAIN,
+        "placement chords: the two ids are in the table");
+    CHECK(fire("alt+a", OVER_WORLD) == EDITOR_HK_EDIT_SELECT_SAME,
+        "placement chords: Alt+A over the World is select same");
+    CHECK(fire("alt+a", LOCS) == EDITOR_HK_EDIT_SELECT_SAME,
+        "placement chords: Alt+A with a selection (the primary's id) is select same");
+    CHECK(fire("alt+a", EDITOR_HK_CTX_G | EDITOR_HK_CTX_N) == -1,
+        "placement chords: with no loc to point at or selected, Alt+A is nothing");
+    CHECK(fire("a", OVER_WORLD) == -1 && fire("ctrl+a", OVER_WORLD) == EDITOR_HK_EDIT_SELECT_SQUARE,
+        "placement chords: A alone stays the camera's, Ctrl+A the square's");
+
+    /* Held Shift over the World: both qualifiers active, nothing fired. */
+    input_clear(1000);
+    g_in.held[TORIRSK_SHIFT] = 1;
+    g_in.contexts = OVER_WORLD;
+    Editor_HotkeysResolve(&g_hk, &g_in, &frame);
+    CHECK(frame.active[EDITOR_HK_PLACE_CONSTRAIN] && frame.active[EDITOR_HK_CAM_FAST] && frame.count == 0,
+        "placement chords: Shift held over the World constrains a drag (and is Fly faster), firing nothing");
+    g_in.contexts = EDITOR_HK_CTX_G | EDITOR_HK_CTX_N;
+    Editor_HotkeysResolve(&g_hk, &g_in, &frame);
+    CHECK(!frame.active[EDITOR_HK_PLACE_CONSTRAIN], "placement chords: off the World nothing is constrained");
+    g_in.held[TORIRSK_CTRL] = 1;
+    g_in.contexts = OVER_WORLD;
+    Editor_HotkeysResolve(&g_hk, &g_in, &frame);
+    CHECK(!frame.active[EDITOR_HK_PLACE_CONSTRAIN], "placement chords: Ctrl+Shift is not the constrain chord");
+
+    CHECK(Editor_HotkeyIsQualifier(EDITOR_HK_PLACE_CONSTRAIN) && Editor_HotkeyIsQualifier(EDITOR_HK_CAM_FAST)
+              && Editor_HotkeyIsQualifier(EDITOR_HK_VIEW_SNAP_HOLD) && !Editor_HotkeyIsQualifier(EDITOR_HK_HOLD_PLACE)
+              && !Editor_HotkeyIsQualifier(EDITOR_HK_EDIT_SELECT_SAME),
+        "placement chords: the qualifiers are Fly faster, Snap while dragging and Constrain");
+    CHECK(Editor_HotkeysClash(&g_hk, EDITOR_HK_PLACE_CONSTRAIN) == -1
+              && Editor_HotkeysClash(&g_hk, EDITOR_HK_CAM_FAST) == -1,
+        "placement chords: two qualifiers on Shift do not clash");
+    /* A non-qualifier on bare Shift in a live context still does. */
+    CHECK(Editor_ChordParse("shift", &chord), "placement chords: shift parses");
+    Editor_HotkeysSet(&g_hk, EDITOR_HK_EDIT_SELECT_SAME, &chord, 1);
+    CHECK(Editor_HotkeysClash(&g_hk, EDITOR_HK_EDIT_SELECT_SAME) >= 0
+              && Editor_HotkeysConflicts(&g_hk, pairs, 4) > 0,
+        "placement chords: an edge action rebound to bare Shift clashes with them");
+    /* And a qualifier rebound onto an ordinary chord clashes like any action. */
+    Editor_HotkeysResetDefaults(&g_hk);
+    CHECK(Editor_ChordParse("alt+a", &chord), "placement chords: alt+a parses");
+    Editor_HotkeysSet(&g_hk, EDITOR_HK_PLACE_CONSTRAIN, &chord, 1);
+    CHECK(Editor_HotkeysClash(&g_hk, EDITOR_HK_PLACE_CONSTRAIN) == EDITOR_HK_EDIT_SELECT_SAME,
+        "placement chords: Constrain on Alt+A clashes with select same");
+    Editor_HotkeysResetDefaults(&g_hk);
+    CHECK(Editor_HotkeysConflicts(&g_hk, pairs, 4) == 0, "placement chords: the reset table is conflict-free");
+}
+
 /* Every action's ini id and its row are in the user's reference. */
 static void
 test_doc(const char* path)
@@ -838,6 +907,7 @@ main(
     test_gesture_hint();
     test_join();
     test_contexts_from();
+    test_placement_chords();
     test_doc(argc > 1 ? argv[1] : "../docs/MAPED_HOTKEYS.md");
     printf("editor_hotkeys_test: %d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;

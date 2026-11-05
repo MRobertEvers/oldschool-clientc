@@ -183,6 +183,11 @@ struct EditorUiTools
     /** The Place tool's pose: what the ghost shows and the click stamps. */
     int place_shape;
     int place_rotation;
+    /** Fit walls to neighbours (the G toggle): the Place pose of a wall pick
+     *  joins the walls of its own loc around the tile (Editor_LocFitWall).
+     *  Shared like the pose (design R7: the Client shares Fit), so every
+     *  window's ghost, Locs panel and Catalog pane agree. 1 at boot. */
+    int place_fit;
 
     /** Multi-selection of locs, by document address. */
     struct Editor_LocRef locs[EDITOR_LOC_SELECTION_MAX];
@@ -566,7 +571,7 @@ struct EditorUiViewFrame
 
 /** TORIRSMAPED_TOOLS_VALUES (torirsmaped/torirs_maped.h), asserted equal in
  *  editor_ui.c. */
-#define EDITOR_UI_TOOLS_VALUES 14
+#define EDITOR_UI_TOOLS_VALUES 15
 
 struct EditorUi
 {

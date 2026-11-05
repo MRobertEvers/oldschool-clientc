@@ -5,6 +5,7 @@
 
 #include "editor/editor.h"
 #include "editor/editor_ui.h"
+#include "editor/panels/edpanel_ops.h"
 #include "ui/uitree_debug_overlay.h"
 
 #include <assert.h>
@@ -174,12 +175,16 @@ edp_locs_fit(struct EditorUi* ui);
 
 /** "Fit walls to neighbours" for the Place tool (default on): the place and
  *  the ghost take the fitted shape and rotation where a wall of the picked
- *  loc stands next to the hovered tile. One per window, not relayed. */
+ *  loc stands next to the hovered tile. Shared tool state
+ *  (EditorUiTools::place_fit, STATE_TOOLS): every window of the Client, its
+ *  Locs panel and its Catalog pane read the same bit. */
 int
-edp_place_fit_enabled(void);
+edp_place_fit_enabled(const struct EditorUi* ui);
 
 void
-edp_place_fit_set(int on);
+edp_place_fit_set(
+    struct EditorUi* ui,
+    int on);
 
 /** The pose a place at (world_x, world_z, level) takes: the Place pose, or
  *  with fit on the fitted wall shape and rotation. What the click places and
@@ -214,6 +219,74 @@ edp_locs_place(
     int world_x,
     int world_z,
     int level);
+
+/* ---- the Place drag and the Select tool's sets (workbench 6.3) -------------
+ *
+ * World-free halves of the World's direct manipulation: the App turns the
+ * pointer into absolute tiles (editor_panel.c) and these do the rest, so a
+ * headless test drives exactly what a drag does. */
+
+/** Open a Place drag at (world_x, world_z) on `level` with the catalog's loc
+ *  pick. 0 (and the run left closed) when there is no loc pick: the release
+ *  is then the plain click it always was. */
+int
+edp_run_begin(
+    struct EditorUi* ui,
+    struct Editor_PlaceRun* run,
+    int world_x,
+    int world_z,
+    int level);
+
+/** Carry the drag to (world_x, world_z) (`constrain`: one axis) and re-plan
+ *  when the run changed. The first refused tile of the run is said in the
+ *  status bar, once a run. Returns 1 when the plan changed. */
+int
+edp_run_to(
+    struct EditorUi* ui,
+    struct Editor_PlaceRun* run,
+    int world_x,
+    int world_z,
+    int constrain);
+
+/** Release: a run of two or more tiles is planned afresh against the
+ *  document and placed, one undo step; the placed pieces become the
+ *  selection. Returns the edits applied; -1 when the run was one tile (a
+ *  click: the caller places it the way a click does). The run is closed. */
+int
+edp_run_end(
+    struct EditorUi* ui,
+    struct Editor_PlaceRun* run);
+
+/** Drop a drag without placing anything (Escape, the editor closing). */
+void
+edp_run_cancel(struct Editor_PlaceRun* run);
+
+/** Join `refs` to the loc selection by `mode` and say what changed; `what`
+ *  names the gesture in the console ("marquee", "select same"). Returns the
+ *  selection's new count. */
+int
+edp_select_refs(
+    struct EditorUi* ui,
+    const struct Editor_LocRef* refs,
+    int n,
+    enum Editor_LocSelectMode mode,
+    const char* what);
+
+/** The marquee: every loc on `rect->level` whose footprint (its record's
+ *  size, turned) touches the rectangle, joined by `mode`. */
+int
+edp_select_rect(
+    struct EditorUi* ui,
+    const struct Editor_TileRect* rect,
+    enum Editor_LocSelectMode mode);
+
+/** Select same: every loc `loc_id` on `level` in the open squares. */
+int
+edp_select_same(
+    struct EditorUi* ui,
+    int loc_id,
+    int level,
+    enum Editor_LocSelectMode mode);
 
 /** The rectangle tool's clipboard ops. Paste lands at the rectangle's SW
  *  corner when one is latched, else at (world_x, world_z). */

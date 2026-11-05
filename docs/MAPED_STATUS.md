@@ -1599,6 +1599,168 @@ ToriRSChrome (5 MB) on its stack. Not checked by eye: the page zoom and the
 fractional class in a real browser, the Preview twist's direction, and a
 touchscreen pinch on hardware.
 
+## Workbench step 6.3, part 1: the Place and Select tools' direct manipulation (date 2026-11-05)
+
+Build order 6.3 ("Placement feel"), the first slice: design section 7 "Place
+tool" and "Select tool", section 4 "Selection and ghost drawing" for the run
+preview, R7 (the Client shares Fit) and R8 (a refusal says why). The gizmo,
+Alt-duplicate, the level move, the Locs panel as a selection inspector and
+stamps are the other slice.
+
+What landed:
+
+- **Runs** (src/editor/panels/edpanel_ops.{h,c}, pure). `struct
+  Editor_LocRunPath`, `Editor_LocRunBegin` / `Editor_LocRunTo`: the tiles a
+  Place drag crossed, each one orthogonal step from the last (a diagonal step
+  is two, x then z); going back over the path takes the tail off; `constrain`
+  rebuilds it as the straight line from the first tile along the axis the
+  pointer moved further on; capped at `EDITOR_LOC_RUN_MAX` (256).
+  `Editor_LocRunPlanMake` turns the path into a `struct Editor_LocRunPlan`:
+  with a wall pose (0, 1, 2, 3, 9) and a loc that has the straight wall, a
+  WALL run -- one piece per tile on the side of the path the pose stands on
+  (the left when it stands on neither), the ends straight, a turn away from
+  the wall an L (2), a turn toward it a corner post (3), both at
+  `Editor_LocWallCornerRotation` (the r with {r, r+1} = the two edges; Fit's L
+  now uses the same function); a loc without shape 3 leaves the inside corner
+  empty (`EDITOR_LOC_RUN_NONE`), one without 2 takes the straight piece.
+  Anything else puts the pose on every tile. Each piece is judged against the
+  document: PLACE, KEEP (already there), CLOSED (square not open) or TAKEN
+  (another loc on the key: for a wall the tile's wall layer, shapes 0..3, for
+  the rest the tile and shape); this loc's own piece in another pose is
+  re-posed (`has_holder`: a replace, or a remove and an add when the shape
+  changes). `Editor_LocRunCommands`, `Editor_LocRunRefusal` ("Place refused:
+  tile 3230,3240 L0 holds a centrepiece of that shape (loc 500); press E to
+  swap", "... is in m51_50, which is not open, and 2 more tiles of the run").
+  `Editor_LocShapeLayer` (world.h's `World_LocShapeToLayer`, asserted equal
+  over all 23 shapes by the test: the diagonal wall is ground layer).
+- **The drag** (edpanel_actions.c, declared in edpanel_common.h):
+  `edp_run_begin` / `edp_run_to` / `edp_run_end` / `edp_run_cancel` over a
+  `struct Editor_PlaceRun` the panel holds (`Editor_Panel::run`). The plan is
+  re-made when the path changes, with the ghost's pose at the first tile (Fit
+  applied); the first refusal of a run is said once (`Editor_UiStatus`); the
+  release re-plans against the document, applies the commands as ONE undo
+  step ("wall run" / "place run" in History) and selects what it placed; a
+  press that never left its tile returns -1 and is the click it always was.
+- **Select** (pure: `Editor_LocFootprint`, `Editor_LocsTouchingRect`,
+  `Editor_LocsOfId`, `Editor_LocSelectModeOf`, `Editor_LocSelectionMerge`;
+  actions: `edp_select_rect`, `edp_select_same`, `edp_select_refs`): the
+  marquee selects every loc on the rectangle's level whose footprint (a
+  centrepiece's record size, turned) touches it; Shift adds, Ctrl toggles,
+  Alt subtracts; select same is every loc of an id on a level in the open
+  squares. The selection stays document addresses.
+- **The World** (app_map_editor.c, editor_panel.{h,c}): a Place press with a
+  loc pick opens a run (`Editor_PanelRunBegin`), the drag carries it
+  (`Editor_PanelRunTo`, Shift = the table's `place.constrain`), the release
+  commits it (`Editor_PanelRunEnd`) and the ghost lands as a click's does. A
+  Select press on empty ground (no loc pointed) becomes the marquee once the
+  pointer leaves its tile: it IS the Rect tool's rectangle (`tools.rect`,
+  `rect_dragging`), so copy, fill and clear act on it, and its release
+  selects (`Editor_PanelMarqueeSelect`). A click with Shift / Ctrl / Alt adds,
+  toggles or takes out the pointed loc (`Editor_PanelSelectPointed`; Shift
+  used to toggle); a plain click still latches the tile; a second click on
+  the same loc within 400 ms (the chrome's clock) is select same
+  (`Editor_PanelSelectSameAt`). A press and release in one frame stay a
+  click. Escape drops a run or a pending marquee; the editor closing does too.
+- **The preview** (app_overlay.c `app_overlay_build_editor_run`): while a run
+  is held, every piece of its plan in the ghost colour -- a straight piece as
+  the edge it stands on, an L as both, a post as a small square on its corner,
+  a non-wall pose as its footprint block -- and a refused tile filled and
+  outlined in the footprint red.
+- **Fit per Client.** `EditorUiTools::place_fit` (1 at boot) is value 14 of
+  STATE_TOOLS (`EDITOR_UI_TOOLS_VALUES` = `TORIRSMAPED_TOOLS_VALUES` = 15);
+  `edp_place_fit_enabled(ui)` / `edp_place_fit_set(ui, on)` read and write it,
+  so every window's ghost, Locs panel checkbox and hotkey agree. The file-scope
+  `g_place_fit` is gone. edpanel_locs.c changed only at its three call sites
+  (the signature).
+- **Refusals say why** (R8): place (no pick, a shape the loc lacks, a closed
+  square), nudge / move / rotate / delete / fit with nothing selected, a
+  reshape or duplicate onto a held key, swap with no pick or no selection, a
+  loc still loading, the Rotate / Delete tools on an empty tile, a marquee
+  over 4096 tiles, select same with nothing to name: one sentence each through
+  `Editor_UiStatus`, "<Verb> refused: ...". Successful swaps stay console
+  lines.
+- **Two chords** (editor_hotkeys.{h,c}, docs/MAPED_HOTKEYS.md):
+  `edit.select_same` Alt+A (W, L: the hovered loc's id, else the primary
+  selected loc's -- the menu row's and a button's path, `Editor_HotkeyRun`),
+  and `place.constrain` Shift held (W). Constrain is a QUALIFIER
+  (`Editor_HotkeyIsQualifier`: Fly faster, Snap while dragging, Constrain):
+  two qualifiers on one bare modifier are not a clash, so the default table
+  stays conflict-free with Shift both flying faster and keeping a run
+  straight; an edge action on a bare Shift still clashes, as does a qualifier
+  rebound onto an ordinary chord. The Hotkeys panel captures a bare modifier
+  for every qualifier. Hint strip: Select gains "[Alt+A] same", Place "[drag]
+  wall run" and "[Shift] one axis" (the touch strip "[drag] wall run").
+
+Tests (2026-11-05, this container, build_opt; OPT=0 with asserts as noted):
+**test-editor-placement** (new, content-free: maped/placement.mk; synthetic
+squares under $(OBJ_DIR)/tmp/placement, an embedded ToriRSMapEd, a second
+session for the Client) 118 checks, 0 failed -- the path, the layers against
+world.h, the corner rule, the footprint, the merge's four modes; the 6-tile
+wall run with two corners (post 3 rot 0 inside, L 2 rot 0 outside, straight
+ends rot 1, Fit's own answer for that L agreeing), nothing in the document
+before release, six locs and one undo group after, one undo taking all six
+with the .jl2 byte-identical, redo, the authority's square re-read by a second
+session byte-identical to the mirror (the content-free stand-in for the
+STATIC rebake), the old straight end re-posed as the next run's L and its
+undo, a postless loc's empty inside corner, a cancelled run, a click; a
+centrepiece run refusing the crate's key (said once a run, not again on
+release), keeping its own, one undo; another loc's L refusing a wall piece; a
+closed square named; the marquee by footprint (a 2x3, a turned one, level
+filtered) with replace / add / toggle / subtract and the 4096-tile refusal;
+select same and its Alt+A path; Fit heard by the Client's other window both
+ways; six refusals each said once. test-editor-hotkeys 1824 (1784), 0 failed
+(Alt+A, held Shift's two qualifiers firing nothing, the clash rules, the hint
+rows, the doc rows); test-editor-cmd 66 (62), 0 failed (a run's remove + add
+stroke undone whole, byte-identical); test-editor-groups 2080,
+test-editor-chords 501, test-editor-workbench 284, test-editor-panels-palette
+50, test-editor-panels-accounts 48 (`ulimit -s unlimited`), test-editor-areas
+136, test-editor-world-gesture 42, test-editor-dropdown 36: all 0 failed.
+OPT=0 (asserts on, objects in build/): test-editor-placement 118,
+test-editor-hotkeys 1824, test-editor-cmd 66, test-editor-groups 2080, all 0
+failed. `make -C src all` links; check-tree-walks and check-pt-switch PASS.
+
+edit_world_test gains sequence 14 (content): the 6-tile castlewall run with two
+corners through edp_run_* with the world flushed and held to a STATIC bake
+after the run, its undo (.jl2 byte-identical, nothing left on the corner's
+tile) and redo; a run of a pool centrepiece over a key Q holds; the marquee's
+three modifiers over the placed pieces; select same over every castlewall.
+Its two older window UIs get a chrome (the status sentence's clock) and Fit on.
+It compiles and links here; it cannot run (no OSRS-Content checkout, no
+cache.osrs241), nor can test-editor-panels or test-editor-jm2.
+
+Each new check was seen to fail on a mutant, in this private worktree on
+the committed change, each restored with git checkout and rebuilt before the
+clean runs above: the inside / outside corner test inverted (7 failures), the
+corner rule always the first edge (2), a diagonal step taken whole (3), no
+retrace (2), Shift ignored (6), the footprint not turned (4), Ctrl's toggle
+as an add (3), Fit left out of the STATE_TOOLS pack (2), the refusal said on
+every tile (2), the release one undo group per command (7), the wall run
+judging the shape and not the wall layer (4), a refusal logged and not said
+(3), the qualifier exemption removed (3, test-editor-hotkeys). The two chords'
+and the hint rows' checks name actions the base tree does not have. The
+editor_cmd_test addition pins the command layer's existing behaviour (it
+passes on the base too). The App glue (press / drag / release, the double
+click, Escape) and the overlay's drawing have no content-free test: they
+need an App and a world.
+
+Open:
+
+- The Catalog pane does not show the Fit bit yet: the Catalog panel is 6.2's
+  file. It reads `edp_place_fit_enabled(ui)` (shared) when it does.
+- A plain click on a loc still latches the TILE, not the loc (the design's
+  "Click a loc selects it" changes what every Select click does; the
+  minimenu's rows and Shift / Ctrl / Alt pick locs).
+- The refused-drop red that lasts a second after a single click's refusal
+  (design section 4) is not built; a run's red lasts while it is held.
+- A wall run's ends do not Fit to perpendicular walls already there (they are
+  straight, as the design says); its side follows the first segment's pose
+  only, and a run whose pose stands parallel to the first step goes left.
+- The run preview is drawn with the overlay's segments at the ground's
+  height; the "fitted" chip and the rotation arrow (section 4) are not drawn.
+- The marquee holds 64x64 tiles (4096) at most, the Rect tool's limit; past
+  `EDITOR_LOC_SELECTION_MAX` (256) locs it says how many were left out.
+- No photograph of a run or a marquee was taken (no content checkout).
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.

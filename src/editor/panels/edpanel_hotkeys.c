@@ -238,6 +238,16 @@ hk_run_edit(
         if( Editor_Areas_NewFromRect(ui, NULL) )
             Editor_Areas_Show(ui);
         return 1;
+    case EDITOR_HK_EDIT_SELECT_SAME:
+        /* With no world to point into (a menu row, a button): the primary
+         * selected loc's id. The App's chord takes the hovered loc first. */
+        if( tools->loc_count == 0 )
+        {
+            Editor_UiStatus(ui, "Select same refused: point at a loc or select one first");
+            return 1;
+        }
+        (void)edp_select_same(ui, tools->locs[0].loc_id, tools->locs[0].level, EDITOR_LOC_SELECT_REPLACE);
+        return 1;
     default:
         /* Apply to selection and Select the square's locs need the world. */
         return 0;
@@ -262,8 +272,8 @@ Editor_HotkeyRun(
         return hk_run_edit(ui, action);
     if( action == EDITOR_HK_PLACE_FIT )
     {
-        edp_place_fit_set(!edp_place_fit_enabled());
-        Editor_UiLog(ui, "editor: fit walls to neighbours %s", edp_place_fit_enabled() ? "on" : "off");
+        edp_place_fit_set(ui, !edp_place_fit_enabled(ui));
+        Editor_UiLog(ui, "editor: fit walls to neighbours %s", edp_place_fit_enabled(ui) ? "on" : "off");
         return 1;
     }
     if( action == EDITOR_HK_PLACE_SWAP )
@@ -606,7 +616,7 @@ Editor_Hotkeys_Feed(
         Editor_UiLog(ui, "editor: %s unbound", Editor_HotkeyInfo(action)->name);
     }
     else if( Editor_HotkeysCapture(input,
-                                   action == EDITOR_HK_CAM_FAST || action == EDITOR_HK_VIEW_SNAP_HOLD,
+                                   Editor_HotkeyIsQualifier(action),
                                    &chord) )
     {
         char text[32];

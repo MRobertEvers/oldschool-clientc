@@ -771,7 +771,7 @@ Editor_PanelPlaceLocAt(
         return Editor_Locs_PlaceSpawn(ui, world_x, world_z, level);
     if( ui->tools.pick_kind != 0 )
     {
-        Editor_UiLog(ui, "editor: pick a loc in the catalog first");
+        Editor_UiStatus(ui, "Place refused: pick a loc in the catalog first");
         return 0;
     }
     {
@@ -879,7 +879,7 @@ Editor_PanelDeleteLocByElement(
         scenery->angle & 3);
     if( !Editor_LocOpsDelete(&app->editor->doc, &ref, 1, &command, 1, &result) )
     {
-        Editor_UiLog(panel->ui, "editor: that loc is not in an open square");
+        Editor_UiStatus(panel->ui, "Delete refused: that loc is not in an open square");
         return 0;
     }
     if( !edp_apply(panel->ui, &command, 1, "delete loc") )
@@ -999,7 +999,8 @@ Editor_PanelApplyToolAt(
         struct Editor_LocRef ref;
         if( !panel_loc_ref_pointed(app, scene_x, scene_z, level, &ref) )
         {
-            Editor_UiLog(ui, "editor: no loc on that tile");
+            Editor_UiStatus(
+                ui, "%s refused: no loc on that tile", ui->tools.tool == EDITOR_TOOL_LOC_ROTATE ? "Rotate" : "Delete");
             return 0;
         }
         Editor_UiSelectLoc(ui, &ref);
@@ -1032,6 +1033,113 @@ Editor_PanelApplyToSelection(
         return 0;
     panel->ui->tools.flatten_valid = 0;
     return Editor_PanelApplyToolAt(panel, app, scene_x, scene_z, panel->ui->tools.tile_level);
+}
+
+/* ---- direct manipulation ------------------------------------------------------ */
+
+int
+Editor_PanelRunBegin(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    int world_x;
+    int world_z;
+
+    assert(panel);
+    assert(app);
+    panel->run.active = 0;
+    if( !panel->ui || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+        return 0;
+    /* An armed spawn move takes the click (Editor_PanelApplyToolAt). */
+    if( Editor_Spawns_MoveArmed(panel->ui) )
+        return 0;
+    return edp_run_begin(panel->ui, &panel->run, world_x, world_z, level);
+}
+
+int
+Editor_PanelRunTo(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int constrain)
+{
+    int world_x;
+    int world_z;
+
+    assert(panel);
+    assert(app);
+    assert(panel->ui);
+    if( !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+        return 0;
+    return edp_run_to(panel->ui, &panel->run, world_x, world_z, constrain);
+}
+
+int
+Editor_PanelRunEnd(
+    struct Editor_Panel* panel,
+    struct App* app)
+{
+    assert(panel);
+    assert(app);
+    assert(panel->ui);
+    (void)app;
+    return edp_run_end(panel->ui, &panel->run);
+}
+
+int
+Editor_PanelMarqueeSelect(
+    struct Editor_Panel* panel,
+    struct App* app,
+    enum Editor_LocSelectMode mode)
+{
+    assert(panel);
+    assert(app);
+    (void)app;
+    if( !panel->ui )
+        return 0;
+    return edp_select_rect(panel->ui, &panel->ui->tools.rect, mode);
+}
+
+int
+Editor_PanelSelectPointed(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    enum Editor_LocSelectMode mode)
+{
+    struct Editor_LocRef ref;
+
+    assert(panel);
+    assert(app);
+    if( !panel->ui || !panel_loc_ref_pointed(app, scene_x, scene_z, level, &ref) )
+        return 0;
+    (void)edp_select_refs(panel->ui, &ref, 1, mode, "select");
+    return 1;
+}
+
+int
+Editor_PanelSelectSameAt(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    enum Editor_LocSelectMode mode)
+{
+    struct Editor_LocRef ref;
+
+    assert(panel);
+    assert(app);
+    if( !panel->ui || !panel_loc_ref_pointed(app, scene_x, scene_z, level, &ref) )
+        return 0;
+    (void)edp_select_same(panel->ui, ref.loc_id, level, mode);
+    return 1;
 }
 
 /* ---- the selection relay ---------------------------------------------------- */

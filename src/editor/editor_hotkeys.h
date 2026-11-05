@@ -105,6 +105,9 @@ enum Editor_HotkeyAction
     EDITOR_HK_EDIT_RESHAPE,
     EDITOR_HK_EDIT_APPLY,
     EDITOR_HK_EDIT_SELECT_SQUARE,
+    /** Every loc of the hovered (else the primary selected) loc's id in the
+     *  open squares on the edit level: the double-click's chord. */
+    EDITOR_HK_EDIT_SELECT_SAME,
     EDITOR_HK_EDIT_NUDGE_N,
     EDITOR_HK_EDIT_NUDGE_S,
     EDITOR_HK_EDIT_NUDGE_W,
@@ -119,6 +122,8 @@ enum Editor_HotkeyAction
     EDITOR_HK_PLACE_HERE,
     EDITOR_HK_PLACE_FIT,
     EDITOR_HK_PLACE_SWAP,
+    /** Held: a Place drag (a wall run) keeps to one axis (a qualifier). */
+    EDITOR_HK_PLACE_CONSTRAIN,
     /* Tools: the first EDITOR_TOOL_COUNT follow enum Editor_Tool's order. */
     EDITOR_HK_TOOL_SELECT,
     EDITOR_HK_TOOL_RECT,
@@ -340,8 +345,18 @@ Editor_HotkeysIsDefault(
     const struct Editor_Hotkeys* hk,
     enum Editor_HotkeyAction action);
 
+/**
+ * A QUALIFIER: a held action whose chord may be a modifier key alone (Fly
+ * faster, Snap while dragging, Constrain a drag). It fires nothing of its own;
+ * it changes how the gesture it names goes -- the flight, a panel drag, a
+ * Place drag -- so two qualifiers on the same bare modifier are not a clash:
+ * Shift both speeds the flight and keeps a wall run straight.
+ */
+int
+Editor_HotkeyIsQualifier(enum Editor_HotkeyAction action);
+
 /** The first action that shares a chord with `action` in a context that can
- *  be live with it, or -1. */
+ *  be live with it, or -1 (two qualifiers on one bare modifier excepted). */
 int
 Editor_HotkeysClash(
     const struct Editor_Hotkeys* hk,

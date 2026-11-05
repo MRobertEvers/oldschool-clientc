@@ -29,6 +29,7 @@
 
 #include "editor.h"
 #include "editor_ui.h"
+#include "panels/edpanel_ops.h"
 
 #include <stdint.h>
 
@@ -107,6 +108,27 @@ struct Editor_Panel
     int stroke_last_x;
     int stroke_last_z;
     int rect_dragging;
+
+    /** The Place tool's drag from press to release: a wall run, or the pose
+     *  along the tiles crossed (Editor_PanelRun*; the plan is what the
+     *  overlay previews). Absolute tiles. */
+    struct Editor_PlaceRun run;
+    /** The Select tool's press on empty ground (no loc under the pointer),
+     *  absolute tile and edit level: it becomes the MARQUEE once the pointer
+     *  leaves that tile, and a release on it is the plain click.
+     *  `marquee_active` while the drag is the marquee; it is the Rect tool's
+     *  rectangle (rect_dragging is set with it), so copy, fill and clear act
+     *  on what it drew. */
+    int marquee_pending;
+    int marquee_active;
+    int marquee_x;
+    int marquee_z;
+    int marquee_level;
+    /** The last Select click's loc and when (the chrome's clock), so a
+     *  second click on the same loc soon after is the double-click. */
+    int click_valid;
+    int64_t click_ms;
+    struct Editor_LocRef click_ref;
 
     /** With a level pinned, the tile under the pointer ON THAT PLANE (scene
      *  tiles): the pick meets the first surface drawn, which over an empty
@@ -244,6 +266,69 @@ Editor_PanelClearLocsAt(
     int scene_x,
     int scene_z,
     int level);
+
+/* ---- direct manipulation (workbench 6.3, design #placing) -------------------
+ *
+ * The World's drags, in scene tiles; each crosses to absolute tiles here and
+ * hands the world-free half (panels/edpanel_common.h edp_run_*, edp_select_*)
+ * the rest. */
+
+/** Press with the Place tool: open a drag at the tile (a loc pick only). 0
+ *  when there is none, and the release is the plain click. */
+int
+Editor_PanelRunBegin(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level);
+
+/** The drag reached a tile: the run follows (`constrain`: one axis). */
+int
+Editor_PanelRunTo(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int constrain);
+
+/** Release: the run placed, one undo step. -1 when it never left its first
+ *  tile (a click: the caller places it as a click does). */
+int
+Editor_PanelRunEnd(
+    struct Editor_Panel* panel,
+    struct App* app);
+
+/** The marquee released: the locs whose footprint the rectangle (the shared
+ *  tools' rect) touches on its level, joined to the selection by `mode`. */
+int
+Editor_PanelMarqueeSelect(
+    struct Editor_Panel* panel,
+    struct App* app,
+    enum Editor_LocSelectMode mode);
+
+/** A modifier click with the Select tool: the loc under the pointer (the
+ *  front-most model, Editor_PanelPointedLoc) added, toggled or taken out.
+ *  0 when no loc is there. */
+int
+Editor_PanelSelectPointed(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    enum Editor_LocSelectMode mode);
+
+/** Select same: every loc of the pointed loc's id on `level` in the open
+ *  squares (the double-click, Alt+A). 0 when no loc is under the pointer. */
+int
+Editor_PanelSelectSameAt(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    enum Editor_LocSelectMode mode);
 
 /** The armed brush applied once at the latched tile (the E key). */
 int

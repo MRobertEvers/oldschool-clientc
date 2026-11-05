@@ -1740,31 +1740,6 @@ app_map_editor_drain(struct App* app)
 
 /* ---- the world click ---------------------------------------------------- */
 
-/** A shift-click with the select tool: the loc under the cursor joins (or
- *  leaves) the multi-selection, by document address. */
-static int
-app_map_editor_toggle_loc_at(
-    struct App* app,
-    int scene_x,
-    int scene_z,
-    int level)
-{
-    struct EditorUi* ui = app->editor_panel.ui;
-    struct Editor_LocRef ref;
-
-    if( !app->world || !ui )
-        return 0;
-    /* The loc the pointer is on (the model under it), as Delete takes it --
-     * not the first one filed on the tile, which on a wall line is as often
-     * the flower patch at the wall's foot. */
-    if( !Editor_PanelPointedLoc(&app->editor_panel, app, scene_x, scene_z, level, &ref) )
-        return 0;
-    (void)Editor_UiToggleLoc(ui, &ref);
-    if( ui->hooks.selection_changed )
-        ui->hooks.selection_changed(ui->hooks_user);
-    return 1;
-}
-
 /** The world tile under the cursor, absolute: on the pinned plane when a
  *  level is pinned (Editor_PanelHoverTile). */
 static int
@@ -1936,9 +1911,40 @@ app_map_editor_level_camera(
     g_app_level_camera.framed = level;
 }
 
-/** An open drag -- a brush stroke or a rectangle -- runs to the button's
- *  release wherever the pointer wanders, and closes there. */
+/** How a Select click or marquee joins the selection: the modifiers held
+ *  (Shift adds, Ctrl toggles, Alt subtracts; none replaces). */
+static enum Editor_LocSelectMode
+app_map_editor_select_mode(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    return Editor_LocSelectModeOf(app->editor_panel.ui->shift_held, LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL),
+        LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT));
+}
+
+/** A Place (a click, or a run's release) landed where the ghost stood.
+ *  STATIC: the real add replaced the ghost's element, so the ghost is
+ *  FORGOTTEN, not removed (removing would delete the placed loc). EDIT: the
+ *  placed loc arrives through the flush as its own placement, so the ghost
+ *  is removed and whatever it hid comes back. */
 static void
+app_map_editor_place_landed(struct App* app)
+{
+    if( app_map_editor_ghost_is_edit(app) )
+        app_map_editor_ghost_remove(app);
+    else
+        app_map_editor_ghost_forget(app);
+}
+
+/** A second click on the same loc within this is the double-click. */
+#define APP_EDITOR_DOUBLE_CLICK_MS 400
+
+/** An open drag -- a brush stroke, a rectangle, a marquee, a Place run --
+ *  runs to the button's release wherever the pointer wanders, and closes
+ *  there. Returns 1 when the release ends a press that never became a drag
+ *  (a Place press or a press on empty ground that stayed on its tile): the
+ *  caller then handles it as the click it is. */
+static int
 app_map_editor_drag(
     struct App* app,
     struct LibToriRS_Input* input)
@@ -1947,8 +1953,51 @@ app_map_editor_drag(
     struct EditorUi* ui = panel->ui;
     int const released =
         input->curr.mouse_button_up[TORIRSM_LEFT] || !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
+    int click = 0;
     int world_x;
     int world_z;
+
+    if( panel->run.active )
+    {
+        int hx;
+        int hz;
+        /* Each new tile re-plans the run (the overlay draws the plan); a
+         * frame on the same tile costs nothing. */
+        if( Editor_PanelHoverTile(panel, app, &hx, &hz)
+            && Editor_PanelRunTo(panel, app, hx, hz, app_editor_hotkeys_active(app, EDITOR_HK_PLACE_CONSTRAIN)) )
+            app->need_redraw = 1;
+        if( released )
+        {
+            if( Editor_PanelRunEnd(panel, app) < 0 )
+                click = 1;
+            else
+                app_map_editor_place_landed(app);
+            app->need_redraw = 1;
+        }
+    }
+    if( panel->marquee_pending )
+    {
+        /* Off its first tile, the press on empty ground is a marquee: the
+         * Rect tool's rectangle, dragged from there. */
+        if( app_map_editor_hover_world(app, &world_x, &world_z)
+            && (world_x != panel->marquee_x || world_z != panel->marquee_z) )
+        {
+            ui->tools.rect.valid = 1;
+            ui->tools.rect.x0 = panel->marquee_x;
+            ui->tools.rect.z0 = panel->marquee_z;
+            ui->tools.rect.x1 = world_x;
+            ui->tools.rect.z1 = world_z;
+            ui->tools.rect.level = panel->marquee_level;
+            panel->marquee_pending = 0;
+            panel->marquee_active = 1;
+            panel->rect_dragging = 1;
+        }
+        else if( released )
+        {
+            panel->marquee_pending = 0;
+            click = 1;
+        }
+    }
 
     if( panel->stroke_active )
     {
@@ -1982,7 +2031,14 @@ app_map_editor_drag(
         {
             struct Editor_TileRect r;
             panel->rect_dragging = 0;
-            if( Editor_TileRectNormalise(&ui->tools.rect, &r) )
+            if( panel->marquee_active )
+            {
+                /* The marquee selects what it touches; the rectangle stays
+                 * for copy, fill and clear. */
+                panel->marquee_active = 0;
+                (void)Editor_PanelMarqueeSelect(panel, app, app_map_editor_select_mode(app, input));
+            }
+            else if( Editor_TileRectNormalise(&ui->tools.rect, &r) )
                 Editor_UiLog(ui, "editor: rectangle %dx%d at %d,%d level %d", r.x1 - r.x0 + 1,
                     r.z1 - r.z0 + 1, r.x0, r.z0, r.level);
             else
@@ -1990,6 +2046,7 @@ app_map_editor_drag(
         }
         app->need_redraw = 1;
     }
+    return click && input->curr.mouse_button_up[TORIRSM_LEFT];
 }
 
 /* ---- gesture frames (workbench 6.1, design section 14) -------------------- */
@@ -2136,7 +2193,11 @@ app_map_editor_gestures(
  * tile once per visit, the whole drag one undo step (the stroke opens on
  * press and closes on release). The rectangle tool drags its rectangle the
  * same way. The click tools (select, place, move, rotate, delete) act on the
- * RELEASE, as before.
+ * RELEASE, as before -- except that a Place press with a loc pick opens a
+ * RUN (a wall run, or the pose along the tiles crossed; previewed while
+ * held, placed on release as one undo step), and a Select press on empty
+ * ground becomes the MARQUEE once the pointer leaves its tile (workbench 6.3,
+ * design #placing). A press that stays on its tile is still the click.
  *
  * Gated on `input_frame_consumed` so a click that landed on a panel does not
  * also edit the tile behind it, and on the minimenu owning the gesture: both
@@ -2176,10 +2237,11 @@ app_map_editor_world_click(
     app_map_editor_level_camera(app, ui);
     app_map_editor_pin_hover(app, panel);
 
-    if( panel->stroke_active || panel->rect_dragging )
+    if( panel->stroke_active || panel->rect_dragging || panel->run.active || panel->marquee_pending )
     {
         /* The editor closing mid-drag still closes the stroke: an open
-         * stroke would fold every later edit into one undo step. */
+         * stroke would fold every later edit into one undo step. A run or a
+         * marquee placed nothing yet: it is dropped. */
         if( !panel->visible )
         {
             if( panel->stroke_active )
@@ -2189,10 +2251,14 @@ app_map_editor_world_click(
             }
             panel->stroke_active = 0;
             panel->rect_dragging = 0;
+            panel->marquee_pending = 0;
+            panel->marquee_active = 0;
+            edp_run_cancel(&panel->run);
             return;
         }
-        app_map_editor_drag(app, input);
-        return;
+        /* A press that never left its tile is the click it was: on. */
+        if( !app_map_editor_drag(app, input) )
+            return;
     }
     if( !panel->visible )
         return;
@@ -2237,6 +2303,35 @@ app_map_editor_world_click(
             }
             return;
         }
+        /* The held click accelerators act on the release, on one tile; so
+         * does a click whose press and release land in one frame. */
+        if( !input->curr.mouse_button_up[TORIRSM_LEFT] && !app_editor_hotkeys_active(app, EDITOR_HK_HOLD_PLACE)
+            && !app_editor_hotkeys_active(app, EDITOR_HK_HOLD_DELETE)
+            && !app_editor_hotkeys_active(app, EDITOR_HK_HOLD_CLEAR) )
+        {
+            /* Place with a loc pick: the press opens a run (design #placing,
+             * "Drag along tiles"); a release on the same tile is the click. */
+            if( tool == EDITOR_TOOL_LOC_PLACE && ui->tools.pick_kind == 0
+                && Editor_PanelRunBegin(panel, app, hx, hz, level) )
+                return;
+            /* Select on empty ground: a marquee once the pointer moves off
+             * the tile. Over a loc the press stays a click. */
+            if( tool == EDITOR_TOOL_SELECT )
+            {
+                struct Editor_LocRef under;
+                int world_x;
+                int world_z;
+                if( !Editor_PanelPointedLoc(panel, app, hx, hz, level, &under)
+                    && app_map_editor_hover_world(app, &world_x, &world_z) )
+                {
+                    panel->marquee_pending = 1;
+                    panel->marquee_x = world_x;
+                    panel->marquee_z = world_z;
+                    panel->marquee_level = level < 0 ? 0 : level > 3 ? 3 : level;
+                    return;
+                }
+            }
+        }
     }
     if( !input->curr.mouse_button_up[TORIRSM_LEFT] )
         return;
@@ -2272,12 +2367,33 @@ app_map_editor_world_click(
     {
         /* A plain click latches the TILE (unambiguous where a wall, a decor
          * and a ground loc share it; the minimenu's "Select wall" rows pick
-         * those exactly). Shift-click adds the loc under it to the
-         * multi-selection instead. */
-        if( ui->shift_held )
-            (void)app_map_editor_toggle_loc_at(app, hx, hz, level);
-        else
+         * those exactly). With a modifier the loc under the pointer joins the
+         * selection: Shift adds, Ctrl toggles, Alt takes it out. A second
+         * click on the same loc soon after is the double-click: select same,
+         * every loc of its id on the edit level. */
+        enum Editor_LocSelectMode const mode = app_map_editor_select_mode(app, input);
+        struct Editor_LocRef under;
+        int const pointed = Editor_PanelPointedLoc(panel, app, hx, hz, level, &under);
+        int64_t const now = ui->chrome->now_ms;
+
+        if( pointed && panel->click_valid && now - panel->click_ms <= APP_EDITOR_DOUBLE_CLICK_MS
+            && under.map_x == panel->click_ref.map_x && under.map_z == panel->click_ref.map_z
+            && under.x == panel->click_ref.x && under.z == panel->click_ref.z
+            && under.level == panel->click_ref.level && under.shape == panel->click_ref.shape )
+        {
+            panel->click_valid = 0;
+            (void)Editor_PanelSelectSameAt(panel, app, hx, hz, level, mode);
+            app->need_redraw = 1;
+            return;
+        }
+        panel->click_valid = pointed;
+        panel->click_ms = now;
+        if( pointed )
+            panel->click_ref = under;
+        if( mode == EDITOR_LOC_SELECT_REPLACE )
             Editor_PanelSelectTerrain(panel, app, hx, hz, level);
+        else if( !Editor_PanelSelectPointed(panel, app, hx, hz, level, mode) )
+            Editor_UiLog(ui, "editor: no loc under the pointer to add, toggle or take out");
         app->need_redraw = 1;
         return;
     }
@@ -2314,18 +2430,9 @@ app_map_editor_world_click(
 
     Editor_PanelApplyToolAt(panel, app, hx, hz, level);
 
-    /* A Place or Move landed where the ghost stood. STATIC: the real add
-     * replaced the ghost's element, so the ghost is FORGOTTEN, not removed
-     * (removing would delete the placed loc). EDIT: the placed loc arrives
-     * through the flush as its own placement, so the ghost is removed and
-     * whatever it hid comes back. */
+    /* A Place or Move landed where the ghost stood. */
     if( tool == EDITOR_TOOL_LOC_PLACE || tool == EDITOR_TOOL_LOC_MOVE )
-    {
-        if( app_map_editor_ghost_is_edit(app) )
-            app_map_editor_ghost_remove(app);
-        else
-            app_map_editor_ghost_forget(app);
-    }
+        app_map_editor_place_landed(app);
     app->need_redraw = 1;
 }
 
