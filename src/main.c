@@ -2478,19 +2478,17 @@ main_chrome_scale_q(
 /*
  * Set the chrome to quarter scale `q`, the scale asked for.
  *
- * The NATIVE draw path -- the App's integer scale (the scene fonts the
- * renderer draws the rows with) and both chrome models' layout, through the
- * editor's shim -- is handed ToriRSChromeScaleQ_Whole(q): its bridge
- * registers only the integer tiers' fonts and skin (UITreeSceneBridge_
- * EnsureDebugFont / EnsureChromeSkin), so a fractional q would lay text out
- * with quarter metrics and paint it with the next tier's wider glyphs. Once
- * the bridge draws ToriRSChromeBake_Face / _Skin at q this hands q itself.
+ * The NATIVE draw path takes q exactly: App_SetChromeScaleQ sets both chrome
+ * models' layout and the bridge, which registers the bake's faces and skin
+ * at q (ToriRSChromeBake_Face / _Skin: the tiers at 100, 200 and 300 %, the
+ * hinted atlases and area-averaged images between), so 125, 150 and 175 %
+ * draw at 125, 150 and 175 %.
  *
- * A DOM presentation of the plugin window zooms by CSS and can draw q
- * exactly: it is told q over the window's own density
- * (ToriRSChrome_SetPageScale), because its CSS pixel is already that many
- * device pixels -- at Auto it draws unzoomed, at the physical size the
- * canvas chrome has. @return 1 if anything moved.
+ * A DOM presentation of the plugin window zooms by CSS and draws q too: it
+ * is told q over the window's own density (ToriRSChrome_SetPageScale),
+ * because its CSS pixel is already that many device pixels -- at Auto it
+ * draws unzoomed, at the physical size the canvas chrome has. @return 1 if
+ * anything moved.
  */
 static int
 main_chrome_scale_apply(
@@ -2498,12 +2496,9 @@ main_chrome_scale_apply(
     struct PlatformWindow* platform,
     int q)
 {
-    int const drawn = ToriRSChromeScaleQ_Whole(q);
     int changed;
 
-    changed = App_SetChromeScale(app, Editor_ChromeScaleInteger(drawn));
-    changed |= Editor_ChromeSetScaleQ(&app->dbg_ui, drawn);
-    changed |= Editor_ChromeSetScaleQ(&app->plugin_ui, drawn);
+    changed = App_SetChromeScaleQ(app, q);
     ToriRSChrome_SetPageScale(&app->plugin_ui, q, PlatformWindow_ChromeDensityPercent(platform));
     return changed;
 }

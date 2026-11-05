@@ -34,9 +34,19 @@ struct UITreeSceneBridge
     /** Monotonic version of scene-id bindings published by this bridge. */
     uint64_t asset_revision;
 
-    /** Device pixels per chrome pixel for the baked overlay faces: 1, 2 or 3.
-     *  Init leaves 1; @see UITreeSceneBridge_SetChromeScale. */
+    /** The tier at or above the chrome's scale: 1, 2 or 3. Init leaves 0,
+     *  read as 1; @see UITreeSceneBridge_SetChromeScaleQ. */
     int chrome_scale;
+    /** The chrome's scale in quarters, 4..12 (6 is 1.5x): what the overlay's
+     *  faces and skin resolve at. Init leaves 0, read as 4. */
+    int chrome_scale_q;
+    /** The fractional q whose faces are registered under
+     *  UITREE_SCENE_DEBUG_FONT_Q_ID, or 0 for none; dropped when the scale
+     *  moves off it. */
+    int chrome_faces_q;
+    /** The q UITREE_SCENE_CHROME_SKIN_ID's pixels were built at, or 0 before
+     *  the first EnsureChromeSkin. */
+    int chrome_skin_q;
 
     /** cache_graphic_id → scene_id */
     struct HMap* sprite_map;
@@ -170,7 +180,20 @@ UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id);
 /** @param slot enum ToriRSChromeFontSlot. @param scale >= 2. */
 #define UITREE_SCENE_DEBUG_FONT_SCALED_ID(slot, scale)                                        \
     (UITREE_SCENE_DEBUG_FONT_SCALED_BASE + ((scale) - 2) * 16 + (slot))
-/** The baked chrome skin: one scene entry, one atlas index per skin slot. */
+/**
+ * The three faces at a FRACTIONAL quarter scale q (5, 6, 7, 9, 10, 11): the
+ * bake's hinted atlases, one row of 16 per q. Their own block again, for the
+ * SCALED_BASE reason, and one id per (slot, q) rather than one per slot
+ * replaced in place, so a renderer that is late with an unload still cannot
+ * draw one q's atlas under another's metrics. Only the bridge's own q is ever
+ * registered (UITreeSceneBridge_SetChromeScaleQ drops the last one).
+ */
+#define UITREE_SCENE_DEBUG_FONT_Q_BASE 0x40002000
+/** @param slot enum ToriRSChromeFontSlot. @param q a quarter scale, not a multiple of 4. */
+#define UITREE_SCENE_DEBUG_FONT_Q_ID(slot, q) (UITREE_SCENE_DEBUG_FONT_Q_BASE + (q) * 16 + (slot))
+/** The baked chrome skin at the chrome's scale: one scene entry, one atlas
+ *  index per skin slot, each image ToriRSChromeBake_Skin at the bridge's q
+ *  at its own size. @see UITreeSceneBridge_EnsureChromeSkin. */
 #define UITREE_SCENE_CHROME_SKIN_ID 0x40000009
 /** The editor catalog's model preview: one slot, re-rendered per pick. */
 #define UITREE_SCENE_EDITOR_PREVIEW_ID 0x4000000A
@@ -197,6 +220,10 @@ UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id);
  * baked out of a cache.
  */
 #define UITREE_SCENE_INKWELL_ID 0x4000000D
+/** The baked chrome skin at 1x whatever the chrome's scale, for art named in
+ *  INTERFACE pixels (`[component:] sprite=chrome:<slot>`): the skin's twin of
+ *  EnsureDebugFont1x. @see UITreeSceneBridge_EnsureChromeSkin1x. */
+#define UITREE_SCENE_CHROME_SKIN_1X_ID 0x4000000E
 
 
 /**
@@ -359,13 +386,29 @@ UITreeSceneBridge_EnsureFont(
  * struct itself.
  */
 /**
- * Upload the baked chrome skin (src/engine/torirs_chrome_skin_baked.h) as one
- * multi-frame scene sprite and return its scene id, or -1 when the build has
- * no skin baked in. Idempotent. Registers deep copies, for the same reason
- * EnsureDebugFont does: the scene frees what it holds and these are .rdata.
+ * Upload the baked chrome skin (src/engine/torirs_chrome_skin_baked.h) at the
+ * chrome's scale as one multi-frame scene sprite and return its scene id, or
+ * -1 when the build has no skin baked in.
+ *
+ * Every slot is ToriRSChromeBake_Skin(slot, q) at its own size: at q = 4, 8,
+ * 12 the baked tier's pixels exactly (the 1x bake at 4), between them the
+ * tier above area-averaged down. So a chrome prim that asks for the image at
+ * ToriRSChrome_ScalePx of its 1x size blits it 1:1, and a tiled fill steps by
+ * the image's own size (the host sets skin_tile_w / _h from it). The id is
+ * the same at every scale; SetChromeScaleQ replaces the pixels under it.
+ * Idempotent at one scale. Registers deep copies, for the reason
+ * EnsureDebugFont does: the scene frees what it holds.
  */
 int
 UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge);
+
+/**
+ * The same skin pinned at 1x, under UITREE_SCENE_CHROME_SKIN_1X_ID: for a
+ * component that names a chrome slot in interface pixels, which the
+ * gameframe scales itself (EnsureDebugFont1x's reason).
+ */
+int
+UITreeSceneBridge_EnsureChromeSkin1x(struct UITreeSceneBridge* bridge);
 
 /**
  * Publish one plugin image at `slot` and return its scene id.
@@ -436,19 +479,46 @@ UITreeSceneBridge_ReadSpriteFrame(
     int* out_h);
 
 /**
- * Which chrome scale the debug-overlay faces resolve at: 1, 2 or 3.
+ * Which chrome scale the debug-overlay faces and skin resolve at, in quarters:
+ * 4..12 (ToriRSChrome_SetScaleQ's q; 6 is 1.5x).
  *
  * Held here because this is where slot becomes scene font id, and the whole
  * requirement is that the size the chrome LAID OUT with is the size the
  * renderer DRAWS with. One value, read by every resolve, is what makes the two
  * unable to disagree.
+ *
+ * A move runs ToriRSChromeBake_Prepare(q) (once per q per process), drops the
+ * faces of a fractional q it leaves through the scene's unload events, and
+ * re-uploads the skin entry if one was uploaded. Nothing here runs on a frame
+ * the scale did not move. The host re-resolves the font ids after it
+ * (EnsureDebugFont answers per q); the skin id does not change.
  */
+void
+UITreeSceneBridge_SetChromeScaleQ(struct UITreeSceneBridge* bridge, int q);
+
+/** The bridge's quarter scale; 4 when it was never set. */
+int
+UITreeSceneBridge_ChromeScaleQ(struct UITreeSceneBridge const* bridge);
+
+/** SetChromeScaleQ(bridge, 4 * scale), for an integer tier 1..3. */
 void
 UITreeSceneBridge_SetChromeScale(struct UITreeSceneBridge* bridge, int scale);
 
+/** The tier at or above the bridge's scale: 1, 2 or 3. */
 int
 UITreeSceneBridge_ChromeScale(struct UITreeSceneBridge const* bridge);
 
+/**
+ * The face `font_slot` at the bridge's scale, registered on first ask; its
+ * scene font id.
+ *
+ * At q = 4, 8, 12 the baked tier (ToriRSChromeFont_Tier) under its historic
+ * id. Between them, the bake's hinted atlas at q (ToriRSChromeBake_Face:
+ * whole-pixel stems, every row a whole span from the face's row table,
+ * coverage on the one-row edges, ToriDraw_Font::coverage set) under
+ * UITREE_SCENE_DEBUG_FONT_Q_ID -- its advances exactly the table
+ * ToriRSChrome_MeasureTextQ sums.
+ */
 int
 UITreeSceneBridge_EnsureDebugFont(
     struct UITreeSceneBridge* bridge,

@@ -15,12 +15,10 @@
  * which forwards it unchanged); the baked tier it reads bitmaps from is
  * ToriRSChrome_ScaleTier(q), the tier at or above it.
  *
- * What the NATIVE draw path is handed is another matter, for now: its bridge
- * registers only the integer tiers' fonts and skin, so a fractional q would
- * lay text out with quarter metrics and paint it with the next tier's
- * glyphs. Until the bridge draws ToriRSChromeBake_Face / _Skin at q, main.c
- * hands the native chrome ToriRSChromeScaleQ_Whole(q) and only the DOM
- * presentation (which zooms by CSS) the rational q itself.
+ * The NATIVE draw path takes q exactly too: main.c hands it to
+ * App_SetChromeScaleQ, whose scene bridge registers the bake's faces and
+ * skin at q (ToriRSChromeBake_Face / _Skin), and the DOM presentation zooms
+ * by CSS to the same q.
  *
  * Header-only and dependency-free, so the client, the boot manifest's parser
  * and the tests share one table.
@@ -166,13 +164,13 @@ ToriRSChromeScaleQ_Parse(const char* text)
 }
 
 /**
- * The whole scale, in quarters, that the native draw path draws an asked-for
- * `q` at while it has only the integer tiers (see the top of this file): q
- * rounded to a multiple of 4, halves up -- 5 -> 4, 6 and 7 -> 8, 10 -> 12;
- * 4, 8 and 12 unchanged. Halves up is PlatformWindow_PixelDensity's own
- * rounding of a display's ratio, so Auto on a 125 / 150 / 175 % display
- * draws the native chrome at the integer scale that display drew before the
- * scale became a rational (1x, 2x, 2x).
+ * The nearest whole scale to `q`, in quarters, for a consumer that can only
+ * draw an integer tier: q rounded to a multiple of 4, halves up -- 5 -> 4,
+ * 6 and 7 -> 8, 10 -> 12; 4, 8 and 12 unchanged. Halves up is
+ * PlatformWindow_PixelDensity's own rounding of a display's ratio. The
+ * native chrome no longer goes through this (it draws q itself since the
+ * scene bridge registers the bake at q); nothing in the client calls it
+ * today, and the editor's workbench test pins it.
  */
 static inline int
 ToriRSChromeScaleQ_Whole(int q)

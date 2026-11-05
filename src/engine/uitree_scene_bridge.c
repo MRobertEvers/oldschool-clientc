@@ -13,6 +13,7 @@
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/toridraw_sprite_from_torirs.h"
 #include "engine/torirs_chrome_skin_baked.h"
+#include "ui/torirs_chrome_bake.h"
 #include "ui/torirs_chrome_inkwell.h"
 #include "engine/torirs_chrome_font_tier.h"
 #include "engine/torirs_debug_font_baked.h"
@@ -614,16 +615,52 @@ UITreeSceneBridge_EnsureFont(
     return cache_font_id;
 }
 
+/* Forward: SetChromeScaleQ re-uploads the chrome-scale skin and drops the
+ * fractional faces it moved off. */
+static void
+bridge_upload_chrome_skin(struct UITreeSceneBridge* bridge);
+static void
+bridge_release_fraction_faces(struct UITreeSceneBridge* bridge);
+
 void
 UITreeSceneBridge_SetChromeScale(struct UITreeSceneBridge* bridge, int scale)
 {
     assert(bridge);
     assert(scale >= TORIRS_CHROME_SCALE_MIN);
     assert(scale <= TORIRS_CHROME_SCALE_MAX);
-    /* Fonts already uploaded at the old scale stay in the scene. They cost a
-     * few tens of KB and a display that changed scale once can change back;
-     * dropping them would make that flip a re-upload rather than a lookup. */
-    bridge->chrome_scale = scale;
+    UITreeSceneBridge_SetChromeScaleQ(bridge, scale * TORIRS_CHROME_SCALE_Q_ONE);
+}
+
+void
+UITreeSceneBridge_SetChromeScaleQ(struct UITreeSceneBridge* bridge, int q)
+{
+    assert(bridge);
+    assert(q >= TORIRS_CHROME_SCALE_Q_MIN);
+    assert(q <= TORIRS_CHROME_SCALE_Q_MAX);
+    if( UITreeSceneBridge_ChromeScaleQ(bridge) == q )
+        return;
+
+    bridge->chrome_scale_q = q;
+    /* The integer scale is the tier at or above q: what ToriRSChrome_Scale
+     * answers for the same chrome, so the two never disagree. */
+    bridge->chrome_scale = (q + TORIRS_CHROME_SCALE_Q_ONE - 1) / TORIRS_CHROME_SCALE_Q_ONE;
+    /* Once per q for the life of the process: a scale already visited is a
+     * lookup. This is where the bake runs in the client. */
+    ToriRSChromeBake_Prepare(q);
+
+    /* A fractional scale's faces are dropped when the chrome leaves it -- the
+     * scene's unload events are how a GPU renderer frees their atlases -- and
+     * copied again from the bake's cache if it comes back. The integer tiers'
+     * faces stay, as they always have: EnsureDebugFont1x resolves the 1x ones,
+     * they cost a few tens of KB, and a display that changed scale once can
+     * change back. */
+    if( bridge->chrome_faces_q != 0 && bridge->chrome_faces_q != q )
+        bridge_release_fraction_faces(bridge);
+    /* The skin is one entry whose pixels follow the scale: replaced in place
+     * (the scene unloads the old images and loads the new), so the id every
+     * overlay already holds stays right. Only once something asked for it. */
+    if( bridge->chrome_skin_q != 0 && bridge->chrome_skin_q != q )
+        bridge_upload_chrome_skin(bridge);
 }
 
 int
@@ -635,11 +672,52 @@ UITreeSceneBridge_ChromeScale(struct UITreeSceneBridge const* bridge)
     return bridge->chrome_scale > 0 ? bridge->chrome_scale : 1;
 }
 
+int
+UITreeSceneBridge_ChromeScaleQ(struct UITreeSceneBridge const* bridge)
+{
+    assert(bridge);
+    /* Unset is 1x, as ChromeScale says. */
+    return bridge->chrome_scale_q > 0 ? bridge->chrome_scale_q : TORIRS_CHROME_SCALE_Q_ONE;
+}
+
 /* The font tier accessor numbers its faces as the chrome numbers its font
  * slots; this file sees both, so it pins them. */
 _Static_assert(ToriRSChromeFont_FACE_SMALL == TORIRS_CHROME_FONT_SMALL, "Small face slot");
 _Static_assert(ToriRSChromeFont_FACE_MENU == TORIRS_CHROME_FONT_MENU, "Menu face slot");
 _Static_assert(ToriRSChromeFont_FACE_BODY == TORIRS_CHROME_FONT_BODY, "Body face slot");
+/* The fractional faces' id block holds one row of slots per quarter scale. */
+_Static_assert(
+    TORIRS_CHROME_FONT_SLOT_COUNT <= 16, "UITREE_SCENE_DEBUG_FONT_Q_ID's row is 16 slots");
+
+/* Deep copy, because the scene owns every font it holds and frees it with
+ * TORIDRAW_FREE, and neither source may be freed so: a baked tier is static
+ * and its glyph_alpha rows point into a const blob (see
+ * torirs_debug_font_baked.h), and the bake keeps its fractional atlases for
+ * the life of the process. */
+static struct ToriDraw_Font*
+bridge_font_copy(struct ToriDraw_Font const* src)
+{
+    struct ToriDraw_Font* copy;
+
+    assert(src);
+    copy = TORIDRAW_MALLOC(sizeof(*copy));
+    assert(copy);
+    memcpy(copy, src, sizeof(*copy));
+    for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
+    {
+        size_t bytes;
+        copy->glyph_alpha[i] = NULL;
+        if( !src->glyph_alpha[i] )
+            continue;
+        bytes = (size_t)src->glyph_width[i] * (size_t)src->glyph_height[i];
+        if( bytes == 0 )
+            continue;
+        copy->glyph_alpha[i] = TORIDRAW_MALLOC(bytes);
+        assert(copy->glyph_alpha[i]);
+        memcpy(copy->glyph_alpha[i], src->glyph_alpha[i], bytes);
+    }
+    return copy;
+}
 
 static int
 bridge_ensure_debug_font_at(
@@ -648,7 +726,6 @@ bridge_ensure_debug_font_at(
     int scale)
 {
     struct ToriDraw_Font const* baked;
-    struct ToriDraw_Font* copy;
     int scene_id;
 
     assert(bridge);
@@ -658,8 +735,9 @@ bridge_ensure_debug_font_at(
      * apart: the advance table the overlay measured with and the glyphs drawn
      * here come from the same bake at the same size, or text lays out to one
      * width and paints at another. The glyphs come through the tier accessor,
-     * which is where a hand-tuned tier would be selected; its advances are
-     * the derived tier's, so the overlay's tables still measure it. */
+     * which is where a hand-tuned tier would be selected (and what
+     * ToriRSChromeBake_Face reads at a tier); its advances are the derived
+     * tier's, so the overlay's tables still measure it. */
     switch( font_slot )
     {
     case TORIRS_CHROME_FONT_SMALL:
@@ -684,30 +762,53 @@ bridge_ensure_debug_font_at(
 
     if( ToriDraw_SceneFontHas(bridge->scene, scene_id) )
         return scene_id;
-
-    /* Deep copy: the scene owns every font it holds and frees it at shutdown,
-     * but `baked` is static and its glyph_alpha rows point into a const blob
-     * (see torirs_debug_font_baked.h). Handing the scene the baked struct
-     * would free .rdata. */
-    copy = TORIDRAW_MALLOC(sizeof(*copy));
-    assert(copy);
-    memcpy(copy, baked, sizeof(*copy));
-    for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
-    {
-        size_t bytes;
-        copy->glyph_alpha[i] = NULL;
-        if( !baked->glyph_alpha[i] )
-            continue;
-        bytes = (size_t)baked->glyph_width[i] * (size_t)baked->glyph_height[i];
-        if( bytes == 0 )
-            continue;
-        copy->glyph_alpha[i] = TORIDRAW_MALLOC(bytes);
-        assert(copy->glyph_alpha[i]);
-        memcpy(copy->glyph_alpha[i], baked->glyph_alpha[i], bytes);
-    }
-
-    ToriDraw_SceneFontAdd(bridge->scene, scene_id, copy);
+    ToriDraw_SceneFontAdd(bridge->scene, scene_id, bridge_font_copy(baked));
     return scene_id;
+}
+
+/*
+ * A face at a fractional quarter scale: the bake's hinted atlas
+ * (ToriRSChromeGlyphs_Rasterise, through ToriRSChromeBake_Face), under its own
+ * id per (slot, q). Built once per q -- the bake caches the raster, and the
+ * scene entry is found by id after that -- and dropped by SetChromeScaleQ
+ * when the chrome moves off q.
+ */
+static int
+bridge_ensure_debug_font_fraction(
+    struct UITreeSceneBridge* bridge,
+    int font_slot,
+    int q)
+{
+    int scene_id;
+
+    assert(bridge);
+    assert(bridge->scene);
+    assert(font_slot >= 0);
+    assert(font_slot < TORIRS_CHROME_FONT_SLOT_COUNT);
+    assert(q % TORIRS_CHROME_SCALE_Q_ONE != 0);
+    /* Only the scale the bridge holds: the release tracks one q. */
+    assert(q == UITreeSceneBridge_ChromeScaleQ(bridge));
+
+    scene_id = UITREE_SCENE_DEBUG_FONT_Q_ID(font_slot, q);
+    if( ToriDraw_SceneFontHas(bridge->scene, scene_id) )
+        return scene_id;
+    ToriRSChromeBake_Prepare(q);
+    ToriDraw_SceneFontAdd(
+        bridge->scene, scene_id, bridge_font_copy(ToriRSChromeBake_Face(font_slot, q)));
+    bridge->chrome_faces_q = q;
+    return scene_id;
+}
+
+static void
+bridge_release_fraction_faces(struct UITreeSceneBridge* bridge)
+{
+    assert(bridge);
+    assert(bridge->scene);
+    assert(bridge->chrome_faces_q % TORIRS_CHROME_SCALE_Q_ONE != 0);
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+        ToriDraw_SceneFontRemove(
+            bridge->scene, UITREE_SCENE_DEBUG_FONT_Q_ID(slot, bridge->chrome_faces_q));
+    bridge->chrome_faces_q = 0;
 }
 
 int
@@ -715,8 +816,15 @@ UITreeSceneBridge_EnsureDebugFont(
     struct UITreeSceneBridge* bridge,
     int font_slot)
 {
-    return bridge_ensure_debug_font_at(
-        bridge, font_slot, UITreeSceneBridge_ChromeScale(bridge));
+    int q;
+
+    assert(bridge);
+    q = UITreeSceneBridge_ChromeScaleQ(bridge);
+    /* A tier is the tier's own face under its historic id: the very pixels
+     * ToriRSChromeBake_Face hands out at that q. */
+    if( q % TORIRS_CHROME_SCALE_Q_ONE == 0 )
+        return bridge_ensure_debug_font_at(bridge, font_slot, q / TORIRS_CHROME_SCALE_Q_ONE);
+    return bridge_ensure_debug_font_fraction(bridge, font_slot, q);
 }
 
 int
@@ -727,50 +835,115 @@ UITreeSceneBridge_EnsureDebugFont1x(
     return bridge_ensure_debug_font_at(bridge, font_slot, 1);
 }
 
+/* One skin image as a scene sprite, its pixels copied: the scene frees every
+ * sprite it holds, and these are `static const` or the bake's cache. */
+static struct ToriDraw_Sprite*
+bridge_skin_sprite(int w, int h, uint32_t const* argb)
+{
+    struct ToriDraw_Sprite* spr;
+    size_t const bytes = (size_t)w * (size_t)h * sizeof(uint32_t);
+
+    assert(argb);
+    assert(w > 0);
+    assert(h > 0);
+    spr = TORIDRAW_CALLOC(1, sizeof(*spr));
+    assert(spr);
+    spr->width = w;
+    spr->height = h;
+    spr->crop_width = w;
+    spr->crop_height = h;
+    spr->trim_width = w;
+    /* Baked chrome art carries real coverage (rounded corners, soft
+     * shadows). @see ToriDraw_Sprite::alpha_channel. */
+    spr->alpha_channel = 1;
+    spr->pixels_argb = TORIDRAW_MALLOC(bytes);
+    assert(spr->pixels_argb);
+    memcpy(spr->pixels_argb, argb, bytes);
+    return spr;
+}
+
+/* The skin slots one entry holds: every slot the build baked, in enum order,
+ * so a chrome slot is its own atlas index. */
+static int
+bridge_skin_count(void)
+{
+    int const count = ToriRSChromeSkin_Count();
+    return count < TORIRS_CHROME_SKIN_SLOT_COUNT ? count : TORIRS_CHROME_SKIN_SLOT_COUNT;
+}
+
+/*
+ * (Re)upload UITREE_SCENE_CHROME_SKIN_ID at the bridge's scale: every slot's
+ * ToriRSChromeBake_Skin at q, at its own size -- the tier itself at q = 4, 8,
+ * 12 (at 4 the 1x bake, so 1x draws what it always drew), the area-averaged
+ * image between. Adding over the entry is the scene's unload of the previous
+ * scale's images.
+ */
+static void
+bridge_upload_chrome_skin(struct UITreeSceneBridge* bridge)
+{
+    struct ToriDraw_Sprite** sprites;
+    int const count = bridge_skin_count();
+    int q;
+
+    assert(bridge);
+    assert(bridge->scene);
+    assert(count > 0);
+    q = UITreeSceneBridge_ChromeScaleQ(bridge);
+    ToriRSChromeBake_Prepare(q);
+    sprites = TORIDRAW_CALLOC((size_t)count, sizeof(*sprites));
+    assert(sprites);
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRSChromeBakeImage const* img = ToriRSChromeBake_Skin(i, q);
+        /* The bake has art for every slot the skin module carries. */
+        assert(img);
+        sprites[i] = bridge_skin_sprite(img->w, img->h, img->argb);
+    }
+    ToriDraw_SceneSpriteAdd(bridge->scene, UITREE_SCENE_CHROME_SKIN_ID, sprites, count);
+    bridge->chrome_skin_q = q;
+}
+
 int
 UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge)
 {
+    assert(bridge);
+    assert(bridge->scene);
+
+    if( bridge_skin_count() <= 0 )
+        return -1;
+    /* One scene entry holding every skin image, so a chrome slot is just an
+     * atlas index into it -- the same shape a multi-frame cache sprite already
+     * has, which is why the render command needs no new field to reach these.
+     * Its pixels are the bridge's scale's; SetChromeScaleQ keeps them so. */
+    if( bridge->chrome_skin_q == UITreeSceneBridge_ChromeScaleQ(bridge) &&
+        ToriDraw_SceneSpriteHas(bridge->scene, UITREE_SCENE_CHROME_SKIN_ID) )
+        return UITREE_SCENE_CHROME_SKIN_ID;
+    bridge_upload_chrome_skin(bridge);
+    return UITREE_SCENE_CHROME_SKIN_ID;
+}
+
+int
+UITreeSceneBridge_EnsureChromeSkin1x(struct UITreeSceneBridge* bridge)
+{
     struct ToriDraw_Sprite** sprites;
-    int const count = ToriRSChromeSkin_Count();
+    int const count = bridge_skin_count();
 
     assert(bridge);
     assert(bridge->scene);
 
     if( count <= 0 )
         return -1;
-    if( ToriDraw_SceneSpriteHas(bridge->scene, UITREE_SCENE_CHROME_SKIN_ID) )
-        return UITREE_SCENE_CHROME_SKIN_ID;
-
-    /* One scene entry holding every skin image, so a chrome slot is just an
-     * atlas index into it -- the same shape a multi-frame cache sprite already
-     * has, which is why the render command needs no new field to reach these. */
+    if( ToriDraw_SceneSpriteHas(bridge->scene, UITREE_SCENE_CHROME_SKIN_1X_ID) )
+        return UITREE_SCENE_CHROME_SKIN_1X_ID;
     sprites = TORIDRAW_CALLOC((size_t)count, sizeof(*sprites));
     assert(sprites);
     for( int i = 0; i < count; i++ )
     {
         struct ToriRSChromeSkin_Sprite const* baked = ToriRSChromeSkin_Get(i);
-        struct ToriDraw_Sprite* spr = TORIDRAW_CALLOC(1, sizeof(*spr));
-        size_t const bytes = (size_t)baked->w * (size_t)baked->h * sizeof(uint32_t);
-
-        assert(spr);
-        spr->width = baked->w;
-        spr->height = baked->h;
-        spr->crop_width = baked->w;
-        spr->crop_height = baked->h;
-        spr->trim_width = baked->w;
-        /* Baked chrome art carries real coverage (rounded corners, soft
-         * shadows). @see ToriDraw_Sprite::alpha_channel. */
-        spr->alpha_channel = 1;
-        /* Deep copy, for the reason the font path above deep-copies: the scene
-         * frees every sprite it holds, and these pixels are `static const`. */
-        spr->pixels_argb = TORIDRAW_MALLOC(bytes);
-        assert(spr->pixels_argb);
-        memcpy(spr->pixels_argb, baked->argb, bytes);
-        sprites[i] = spr;
+        sprites[i] = bridge_skin_sprite(baked->w, baked->h, baked->argb);
     }
-
-    ToriDraw_SceneSpriteAdd(bridge->scene, UITREE_SCENE_CHROME_SKIN_ID, sprites, count);
-    return UITREE_SCENE_CHROME_SKIN_ID;
+    ToriDraw_SceneSpriteAdd(bridge->scene, UITREE_SCENE_CHROME_SKIN_1X_ID, sprites, count);
+    return UITREE_SCENE_CHROME_SKIN_1X_ID;
 }
 
 int

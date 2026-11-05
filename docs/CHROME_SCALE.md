@@ -10,13 +10,41 @@ art and one accessor for each kind.
 Since the 6.0b integration (2026-11-05) the bake's skin cache
 (`ToriRSChromeBake_Skin`, src/ui/torirs_chrome_bake.c) reads these tiers
 through `ToriRSChromeSkin_SpriteTier`: at a fractional scale it area-averages
-down from the tier at or above it, at 2x and 3x it uses the tier itself. The
-integer draw path the native client runs today (the scene bridge's fonts and
-skin) still draws 1x art scaled, and only at whole scales: until the bridge
-draws the bake's faces and skin, main.c hands the native chrome
-`ToriRSChromeScaleQ_Whole(q)` (125 % draws 1x, 150 % and 175 % 2x, 250 % 3x)
-and only the DOM the fractional scale. docs/MAPED_STATUS.md "Workbench steps
-6.0b and 6.1" lists what is left.
+down from the tier at or above it, at 2x and 3x it uses the tier itself.
+
+## The native draw path at any scale
+
+The native client draws the scale it is asked for, fractions included
+(2026-11-05, the second half of 6.0b). main.c hands q to
+`App_SetChromeScaleQ`, which sets both chrome models and the scene bridge
+(`UITreeSceneBridge_SetChromeScaleQ`, src/engine/uitree_scene_bridge.c):
+
+- **Faces.** At q = 4, 8, 12 the baked tier (`ToriRSChromeFont_Tier`) under
+  its historic scene id. Between them the bake's hinted atlas
+  (`ToriRSChromeBake_Face`: whole-pixel stems, every row a whole span from
+  the face's row table, `ToriRSChromeGlyphs_Rows`) under
+  `UITREE_SCENE_DEBUG_FONT_Q_ID(slot, q)`, built once per q; leaving a
+  fractional q drops its three faces (`ToriDraw_SceneFontRemove`, a
+  FONT_UNLOAD each). The atlas carries quarter coverage on its one-row edges
+  and says so (`ToriDraw_Font::coverage`): the software blitter blends every
+  glyph byte (a mask's 255 stays solid, so the cache faces draw as before),
+  GL3 reads a coverage atlas in text mode 2 (texel = alpha) where mode 1
+  thresholds a mask, and WebGL1 / D3D9 already sample the atlas as alpha.
+- **Skin.** `UITREE_SCENE_CHROME_SKIN_ID` holds every slot's
+  `ToriRSChromeBake_Skin(slot, q)` at its own size -- at 1x the 1x bake, at
+  2x and 3x the tier, between them the area-averaged image -- and is
+  replaced in place when q moves (the scene unloads the old images). The
+  host tiles the parchment by that image's size (`skin_tile_w / _h`). A
+  component that names a chrome slot in interface pixels gets the 1x skin
+  (`UITREE_SCENE_CHROME_SKIN_1X_ID`, `EnsureChromeSkin1x`).
+
+`ToriRSChromeScaleQ_Whole` stays for a consumer that can only draw a tier;
+the client no longer calls it. Because the native 2x and 3x now draw the
+tiers, the GLYPH slots' derived tiers (below: flattened multi-ink icons and
+marks) show natively at 2x and 3x, where they used to draw 1x doubled; the
+web host still draws the 1x skin (`skinTiers: 1`). `test-scene-bridge-chrome`
+(src/engine/test/uitree_scene_bridge_chrome_test.c) holds the bridge to all of
+this without a cache.
 
 ## What is baked
 
@@ -130,7 +158,8 @@ pixel art, and the hook for it is in place; no glyph is hand-drawn yet.
   re-bake keeps it.
 - `ToriRSChromeFont_Tier(face, tier)` (`src/engine/torirs_chrome_font_tier.h`)
   is the one accessor the draw path reads (`uitree_scene_bridge.c` picks its
-  fonts through it). For a tuned tier it returns
+  tier fonts through it, and `ToriRSChromeBake_Face` at a tier is it). For a
+  tuned tier it returns
   `ToriRSChromeFont_<Face><N>xTuned()`; otherwise the derived tier.
   `ToriRSChromeFont_TierTuned(face, tier)` answers the flag.
 

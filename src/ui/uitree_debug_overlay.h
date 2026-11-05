@@ -2180,9 +2180,9 @@ ToriRSChrome_SetScale(struct ToriRSChrome* ui, int scale);
  * The model itself allocates nothing here: the glyph atlases and the scaled
  * skin a fractional scale draws from are the DRAWER's, built by
  * ToriRSChromeBake_SetScaleQ (torirs_chrome_bake.h), which calls this. A host
- * that draws through the baked tiers (UITreeSceneBridge_EnsureDebugFont) must
- * map the font slots onto the same scale's faces, or the layout and the glyphs
- * disagree.
+ * that draws through the scene bridge (UITreeSceneBridge_EnsureDebugFont,
+ * after UITreeSceneBridge_SetChromeScaleQ) must map the font slots onto the
+ * same scale's faces, or the layout and the glyphs disagree.
  */
 void
 ToriRSChrome_SetScaleQ(struct ToriRSChrome* ui, int q);
@@ -2190,8 +2190,8 @@ ToriRSChrome_SetScaleQ(struct ToriRSChrome* ui, int q);
 /**
  * Tell a DOM presentation (TORIRS_CHROME_CMD_SCALE) the scale to zoom its 1x
  * page by: `q` quarters of a device pixel per chrome pixel (the scale asked
- * for, which may be finer than the one this model lays out at -- the native
- * draw path rounds to a whole scale, the DOM zooms by CSS), on a page whose
+ * for, the one this model lays out at and the native draw path draws; the
+ * DOM reaches it by CSS zoom), on a page whose
  * browser already draws `density_percent` / 100 device pixels per CSS pixel.
  *
  * The density is the presentation's own: the DOM authors in CSS pixels, and a
