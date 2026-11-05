@@ -225,11 +225,17 @@ registry_digest(
  * picker's panes): the Squares panel, docked in that layout, gained its
  * open-set strip and the detail pane's heading, so the dock column's share
  * moved (was 1127817167u; the scenes, and 2x and 3x where Squares is not
- * docked, are untouched). */
+ * docked, are untouched). All three registries were recorded again at the
+ * 6.2-6.4 integration (was 1751176799u, 2175812620u, 3489523192u): the
+ * Catalog's finder rows (6.2: chip strips, Filter and Sort, the cells list)
+ * move 1x and 2x on its own, the Locs inspector and the Catalog's Stamps...
+ * row (6.3 part 2) move all three (3x on its own is exactly 3420398390u at
+ * that slice's tip), and the Squares panes (6.4) move 1x. The scenes -- the
+ * chrome's own draw path at each scale -- are untouched. */
 static const uint32_t k_golden[3][3] = {
-    { 1970238540u, 3840548130u, 1751176799u },
-    { 1606657634u, 3552625563u, 2175812620u },
-    { 1621493878u, 3838641767u, 3489523192u },
+    { 1970238540u, 3840548130u, 2131301703u },
+    { 1606657634u, 3552625563u, 3539872907u },
+    { 1621493878u, 3838641767u, 3420398390u },
 };
 
 static void

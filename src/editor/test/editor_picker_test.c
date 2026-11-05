@@ -725,6 +725,7 @@ test_panel_find_and_keys(void)
         int vw;
         int vh;
         CHECK(picker->storage_filter == -1, "find: the instance space is every storage's");
+        CHECK(picker->active_tab == Editor_PickerInstanceTab(picker), "find: instance: shows the Instance space page");
         /* Framed as far as the page's zoom range allows (the page here ends
          * at z 150), its squares in view. */
         CHECK(Editor_PickerVisibleSquares(picker, &vx, &vz, &vw, &vh) && vx <= EDITOR_PICKER_INSTANCE_X0
@@ -749,6 +750,7 @@ test_panel_area_rows(void)
     const struct ToriRSChromeWidget* w;
     int lane_row = -1;
     int instance_row = -1;
+    int instance_rows = 0;
 
     CHECK(area >= 0, "area: the dropdown");
     if( area < 0 || !picker )
@@ -759,11 +761,17 @@ test_panel_area_rows(void)
         if( strcmp(w->options[i], "lane: mylane") == 0 )
             lane_row = i;
         if( strcmp(w->options[i], "Instance space") == 0 )
+        {
             instance_row = i;
+            instance_rows++;
+        }
     }
     CHECK(lane_row == picker->tab_count, "area: 'lane: mylane' follows the pages (row %d of %d)", lane_row,
         w->option_count);
-    CHECK(instance_row == w->option_count - 1, "area: 'Instance space' is last (row %d)", instance_row);
+    /* The picker's own Instance space page is the row (its tab), once. */
+    CHECK(instance_rows == 1 && instance_row == Editor_PickerInstanceTab(picker),
+        "area: 'Instance space' is the picker's page, listed once (row %d of %d rows, tab %d)", instance_row,
+        instance_rows, Editor_PickerInstanceTab(picker));
     if( lane_row < 0 || instance_row < 0 )
         return;
     ToriRSChrome_DropdownSetSelected(&g_chrome, area, lane_row);
@@ -773,8 +781,9 @@ test_panel_area_rows(void)
         ToriRSChrome_DropdownSelected(&g_chrome, area));
     ToriRSChrome_DropdownSetSelected(&g_chrome, area, instance_row);
     activate(area);
-    CHECK(picker->storage_filter == -1 && ToriRSChrome_DropdownSelected(&g_chrome, area) == instance_row,
-        "area: Instance space leaves the lane and stays chosen");
+    CHECK(picker->storage_filter == -1 && ToriRSChrome_DropdownSelected(&g_chrome, area) == instance_row
+              && picker->active_tab == Editor_PickerInstanceTab(picker),
+        "area: Instance space leaves the lane, shows its page and stays chosen");
     ToriRSChrome_DropdownSetSelected(&g_chrome, area, 0);
     activate(area);
     CHECK(picker->active_tab == 0 && ToriRSChrome_DropdownSelected(&g_chrome, area) == 0, "area: a page again");

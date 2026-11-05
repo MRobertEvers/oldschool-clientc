@@ -64,6 +64,11 @@
 /** Pages held besides the anchor: the prefetched next page and the ones a
  *  scroll back finds again. */
 #define EDITOR_CATALOG_CACHE_PAGES 4
+
+/** While the server's warm build runs, an answer comes from its partial
+ *  index (TORIRSMAPED_CATALOG_PAGE_PARTIAL, workbench 6.2 server half); the
+ *  question in view is asked again this often until a whole answer lands. */
+#define EDITOR_CATALOG_PARTIAL_REASK_MS 250.0
 /** The recent picks a session keeps. */
 #define EDITOR_CATALOG_RECENTS_MAX 20
 /** Shape keycaps a row shows at most (TORIRS_CHROME_CELL_KEYS_MAX). */
@@ -140,6 +145,8 @@ struct Editor_CatalogView
     /** "" when there is none. */
     const char* display;
     const char* category;
+    /** A loc's `layer` field from the server ("wall main"); "" otherwise. */
+    const char* layer;
     uint32_t shape_mask;
     int size_w;
     int size_l;
@@ -176,6 +183,12 @@ struct Editor_CatalogModel
     uint32_t held_page_size;
     enum EditorHost_Status status;
     struct EditorHost_CatalogPage result;
+    /** The anchor answer was the warm build's partial index
+     *  (result.page_flags & TORIRSMAPED_CATALOG_PAGE_PARTIAL): when it was
+     *  asked, and a re-ask in flight replacing every held page without
+     *  counting as a new question. */
+    double partial_asked_ms;
+    int reasking;
 
     /* The picked row's record: which row it is, and the answer. */
     int record_row;
@@ -281,6 +294,13 @@ int
 Editor_CatalogModelRefresh(
     struct Editor_CatalogModel* model,
     struct EditorHost* host);
+
+/** 1 while the held answer came from the server's partial index (its warm
+ *  build is still running): the rows are what is merged so far, the count
+ *  text says how far the build is, and Refresh asks again every
+ *  EDITOR_CATALOG_PARTIAL_REASK_MS until a whole answer lands. */
+int
+Editor_CatalogModelPartial(const struct Editor_CatalogModel* model);
 
 /** The held page's rows (0 when nothing is held). */
 int
@@ -532,7 +552,9 @@ Editor_CatalogSortLabels(void);
 /**
  * The count the search box shows: "1 to 100 of 212" -- the first row of the
  * window to the last held row after it, of the total -- plus the kind, and
- * what the sort is waiting for. Before the first answer it says so.
+ * what the sort is waiting for. Before the first answer it says so; over
+ * the server's partial index it says "so far" and how much is read, and a
+ * scoped total (TORIRSMAPED_CATALOG_PAGE_SCOPED) reads "212+".
  */
 void
 Editor_CatalogModelRangeText(

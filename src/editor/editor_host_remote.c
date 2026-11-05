@@ -1921,6 +1921,10 @@ Editor_HostMapEdCatalogQuery(
     memset(out_page, 0, sizeof(*out_page));
     if( !(remote->capabilities & TORIRSMAPED_CAP_CATALOG) )
         return EDITOR_HOST_UNSUPPORTED;
+    /* PROGRESS goes only to a server that reads it: an older one would
+     * answer the v2 payload, which has no tail to read. */
+    if( !(remote->capabilities & TORIRSMAPED_CAP_CATALOG_PROGRESS) )
+        flags &= ~(uint32_t)TORIRSMAPED_CATALOG_PROGRESS;
 
     memset(&payload, 0, sizeof(payload));
     ToriRSMapEd_PutU32(&payload, kind);
@@ -1981,6 +1985,13 @@ Editor_HostMapEdCatalogQuery(
         }
     }
     out_page->row_count = (int)rows;
+    if( flags & TORIRSMAPED_CATALOG_PROGRESS )
+    {
+        /* The v3 tail (torirs_maped_catalog.h). */
+        out_page->page_flags = ToriRSMapEd_GetU32(&reader);
+        out_page->progress_done = ToriRSMapEd_GetU32(&reader);
+        out_page->progress_total = ToriRSMapEd_GetU32(&reader);
+    }
     frame_done(remote, length);
     if( !ToriRSMapEd_ReaderDone(&reader) )
     {

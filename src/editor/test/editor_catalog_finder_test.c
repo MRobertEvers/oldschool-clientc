@@ -94,8 +94,9 @@ test_chips(void)
     CHECK(chips.count == 1 && strcmp(chips.chip[0].key, "op") == 0, "x removes a chip");
     CHECK(Editor_CatalogChipsAdd(&chips, "shape", "2"), "a shape number is a chip");
     Editor_CatalogChipsCompose(&chips, "", composed, sizeof(composed));
-    CHECK(strcmp(composed, "op=Open shape=2,*") == 0,
-        "a shape number composes to the head of the cache's shapeK=N,model value: '%s'", composed);
+    CHECK(strcmp(composed, "op=Open shape=2") == 0,
+        "a shape number composes as it reads: the server resolves shape= against the placeable shapes: '%s'",
+        composed);
     Editor_CatalogChipLabel(&chips.chip[1], label, sizeof(label));
     CHECK(strcmp(label, "shape: 2") == 0, "its label (%s)", label);
     Editor_CatalogChipsInit(&chips);
@@ -228,6 +229,52 @@ test_rows(void)
         "past eight shapes the last cap says how many more (%s)", text);
     CHECK(Editor_CatalogViewShapeAt(&view, 7) == 9 && Editor_CatalogViewShapeAt(&view, 8) == -1,
         "and that cap is no shape");
+    Editor_CatalogModelFree(&model);
+}
+
+/* The server's derived loc fields and the PROGRESS tail (workbench 6.2, the
+ * two halves joined): `shapes` wins over the shapeK= rows, `size` over
+ * width= / length=, `layer` reaches the view; a partial answer says so in
+ * the count, a scoped total reads "N+". */
+static void
+test_server_fields(void)
+{
+    static const struct EditorHost_CatalogField k_derived[] = {
+        { "shape1", "0,fence_a" },  { "shapes", "0 2 9" }, { "size", "2x3" },
+        { "layer", "wall main" },   { "width", "5" },
+    };
+    static const struct EditorHost_CatalogField k_none[] = { { "shapes", "" }, { "shape1", "10,x" } };
+    struct EditorHost_CatalogRow const derived = row_of(TORIRSMAPED_CATALOG_LOC, 9, "fence_d", "", k_derived, 5);
+    struct EditorHost_CatalogRow const none = row_of(TORIRSMAPED_CATALOG_LOC, 10, "no_model", "", k_none, 2);
+    struct Editor_CatalogModel model;
+    struct Editor_CatalogView view;
+    char text[192];
+    int w;
+    int l;
+
+    CHECK(Editor_CatalogRowShapeMask(&derived) == ((1u << 0) | (1u << 2) | (1u << 9)),
+        "server fields: `shapes` is the mask (%x)", Editor_CatalogRowShapeMask(&derived));
+    CHECK(Editor_CatalogRowShapeMask(&none) == 0, "server fields: an empty `shapes` is no shape, whatever shapeK says");
+    Editor_CatalogRowSize(&derived, &w, &l);
+    CHECK(w == 2 && l == 3, "server fields: `size` wins over width= (%dx%d)", w, l);
+
+    Editor_CatalogModelInit(&model, TORIRSMAPED_CATALOG_LOC, 10);
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "");
+    Editor_CatalogModelFeed(&model, 0, 1, &derived, 1);
+    CHECK(Editor_CatalogModelViewAt(&model, 0, &view) && strcmp(view.layer, "wall main") == 0 && view.size_w == 2
+              && view.size_l == 3,
+        "server fields: the view carries the layer and the size");
+    CHECK(!Editor_CatalogModelPartial(&model), "server fields: a v2 answer is whole");
+    model.result.page_flags = TORIRSMAPED_CATALOG_PAGE_PARTIAL | TORIRSMAPED_CATALOG_PAGE_SCOPED;
+    model.result.progress_done = 512;
+    model.result.progress_total = 2048;
+    CHECK(Editor_CatalogModelPartial(&model), "server fields: PAGE_PARTIAL is a partial answer");
+    Editor_CatalogModelRangeText(&model, 0, text, sizeof(text));
+    CHECK(strstr(text, "of 1+ loc so far, index 25% read") != NULL,
+        "server fields: the count says scoped and how far the build is ('%s')", text);
+    model.result.page_flags = TORIRSMAPED_CATALOG_PAGE_SCOPED;
+    Editor_CatalogModelRangeText(&model, 0, text, sizeof(text));
+    CHECK(strcmp(text, "1 to 1 of 1+ loc") == 0, "server fields: a whole scoped answer ('%s')", text);
     Editor_CatalogModelFree(&model);
 }
 
@@ -842,6 +889,10 @@ test_panels(const char* root)
               && strstr(row_text(list, 0), "oak_tree"),
         "the chip strip shows and the query finds oak_tree (%d)", Editor_CatalogModelViewCount(model));
     CHECK(g_chrome.widgets[list].imin == 0, "a new question scrolls to the top");
+    CHECK(model->result.progress_total >= 1 && model->result.progress_done == model->result.progress_total
+              && !Editor_CatalogModelPartial(model),
+        "the panel asked with PROGRESS and read the server's tail: a built index is whole (%u of %u, flags %u)",
+        model->result.progress_done, model->result.progress_total, model->result.page_flags);
     ToriRSChrome_SetText(&g_chrome, find, "oa category=tree ");
     frames(2);
     CHECK(strcmp(model->filter, "oa category=tree") == 0, "the same chip typed again is not added twice");
@@ -851,7 +902,7 @@ test_panels(const char* root)
         "its x removes it (filter '%s')", model->filter);
     ToriRSChrome_SetText(&g_chrome, find, "shape=2 ");
     frames(3);
-    CHECK(strcmp(model->filter, "shape=2,*") == 0 && Editor_CatalogModelViewCount(model) == 1
+    CHECK(strcmp(model->filter, "shape=2") == 0 && Editor_CatalogModelViewCount(model) == 1
               && strstr(row_text(list, 0), "fence_wood"),
         "shape=2 matches the loc that states shape 2 (filter '%s', %d rows)", model->filter,
         Editor_CatalogModelViewCount(model));
@@ -1013,6 +1064,7 @@ main(
     ToriMem_Init();
     test_chips();
     test_rows();
+    test_server_fields();
     test_window();
     test_local_and_recents();
     test_preview_follow();

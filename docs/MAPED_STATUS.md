@@ -1472,16 +1472,16 @@ Open:
   slots already listed as flattening; reclassify them as TEXTURED or draw
   their tiers by hand. Until then the web host draws the 1x skin
   (`skinTiers: 1`, review fixes below).
-- Engine: `UITreeSceneBridge_EnsureDebugFont` / `EnsureChromeSkin` still
-  load the integer tiers. At a fractional q they must register
-  `ToriRSChromeBake_Face(slot, q)` and draw `ToriRSChromeBake_Skin(slot, q)`
-  at its own size; until then main.c hands the native chrome the whole scale
-  (`ToriRSChromeScaleQ_Whole`, review fixes below), so 125 % draws 1x and
-  150 % / 175 % 2x natively, and only the DOM draws the fraction. Toridraw's font
-  blitter treats any non-zero mask byte as solid, so the atlas's coverage
-  pixels draw solid until it blends.
-- The host does not yet call `ToriRSChromeBake_SetScaleQ`; the bake's caches
-  are only built by the tests.
+- ~~Engine: `UITreeSceneBridge_EnsureDebugFont` / `EnsureChromeSkin` still
+  load the integer tiers~~ **Closed (6.0b scale bridge, integrated with
+  6.2-6.4 below):** the native chrome draws the whole scale.
+  `UITreeSceneBridge_SetChromeScaleQ` registers each face's hinted atlas at
+  q (`UITREE_SCENE_DEBUG_FONT_Q_ID`) and the skin at its own size, main.c
+  passes q straight to `App_SetChromeScaleQ` (`ToriRSChromeScaleQ_Whole` is
+  off the native path), and the Soft3D / GL3 blitters blend coverage.
+- ~~The host does not yet call `ToriRSChromeBake_SetScaleQ`~~ **Closed:**
+  `UITreeSceneBridge_SetChromeScaleQ` runs `ToriRSChromeBake_Prepare(q)`, the
+  one place the client bakes.
 - Editor and app code still compute some layout as
   `ToriRSChrome_Scale(ui) * N` (editor_ui.c, the edpanel_* files beyond
   `edp_px`, live_panel.c, torirs_plugin_panel.u.c, app_chrome.c,
@@ -2353,6 +2353,189 @@ Left open:
 - Escape typed in the Find box itself is the text field's (it lets go of the
   field); Escape clears Find from the well.
 
+## Workbench steps 6.2 to 6.4 (2026-11-05)
+
+The integration of seven slices onto v3-workbench 43c1a4ca, merged with
+`--no-ff` in this order: the native fractional-scale bridge (closes 6.0b),
+the catalog index as a loc finder (6.2, server), the Catalog as a loc finder
+(6.2, client), wall runs / marquee / select same / Fit per Client (6.3 part
+1), the gizmo / level moves / Alt-duplicate / stamps (6.3 part 2), the
+picker's drawing and loading (6.4 part 1) and its navigation and panes (6.4
+part 2). Each slice's own section above says what it built; this one says
+what landed together, how the seams were joined and what was run.
+
+What landed:
+
+- **6.0b closed: the native chrome draws the whole scale.**
+  `UITreeSceneBridge_SetChromeScaleQ` / `_ChromeScaleQ` (the old
+  `SetChromeScale(s)` is `SetChromeScaleQ(4 s)`) run
+  `ToriRSChromeBake_Prepare(q)`, the client's one bake. At q = 4, 8, 12 the
+  faces are the baked tiers under their old ids; at any other q each face is
+  the bake's hinted atlas under `UITREE_SCENE_DEBUG_FONT_Q_ID(slot, q)`,
+  built once per q and unloaded (FONT_UNLOAD) when the scale leaves it. The
+  skin entry `UITREE_SCENE_CHROME_SKIN_ID` holds `ToriRSChromeBake_Skin(slot,
+  q)` at each slot's own size, replaced in place; a component naming a
+  chrome sprite in interface pixels gets `UITREE_SCENE_CHROME_SKIN_1X_ID`.
+  `App_SetChromeScaleQ` sets both chrome models, the bridge, the font ids
+  and the parchment step; `main_chrome_scale_apply` passes q straight to it.
+  `ToriDraw_Font.coverage`, Soft3D's byte-blended glyphs, GL3 text mode 2
+  and `ToriDraw_SceneFontRemove` draw it. Photographs (Soft3D, headless,
+  editor manifest over an empty cache and content dir; scratch files of the
+  scale-bridge slice, not committed): q5.png, q6.png / q6_crop.png, q7.png /
+  q7_crop.png, q8.png. At 1.5x and 1.75x the stems are whole pixels (2 px)
+  and the parchment tiles 132x90; the log reads `chrome: scale q=6 (150%),
+  bridge q=6, tile 132x90`; 1x is byte-identical to the base binary.
+- **6.2, the loc finder.** Server: prefix-narrowing filter values, `shape=`
+  classes and numbers resolved against the placeable shapes, the derived loc
+  fields `shapes`, `size`, `layer`, the scoped "all" query
+  (`TORIRSMAPED_CATALOG_PAGE_SCOPED`), the sliced warm build and
+  `TORIRSMAPED_CATALOG_PROGRESS` / `TORIRSMAPED_CAP_CATALOG_PROGRESS` (16)
+  with its `page_flags, done, total` tail. Client: the cells list (16 px
+  thumbnail, name and dim display name, shape keycaps, id), the continuous
+  window and its prefetch, filter and shortcut chips (`edpanel_chips`),
+  Sort, favourites in the TEXT document `editor:favourites.txt`
+  (`editor/favourites.txt`, `favourite <kind>:<name> [| shape S rot R]`,
+  editor_favourites.h), the shape-key pick, Shift+I (Pick from world) and
+  the Preview that follows the pick or the primary selection.
+- **6.3, placement feel.** Wall runs and centrepiece runs on a Place drag
+  (one undo step), the marquee with Shift / Ctrl / Alt, select same
+  (double-click, Alt+A), Fit in STATE_TOOLS (15 values: every window of a
+  Client must run the same build), refusals said in the status bar; the
+  gizmo (`LocEditorGizmo_*`), `edit.nudge_far_*` (Shift+arrows) and
+  `edit.level_up` / `edit.level_down` (Ctrl+PgUp / PgDn,
+  `Editor_LocOpsLevelMove`, all or nothing), Alt-duplicate, the Locs panel
+  as a selection inspector, and stamps: TEXT documents `stamp:<name>`
+  (`editor/stamps/<name>.stamp`) and `stamps:index`
+  (`editor/stamps/index.txt`), codec editor_stamps.{h,c}, ops
+  edpanel_ops_stamps.{h,c}, the Stamps panel (edpanel_stamps.c), the
+  multi-piece ghost `MapEditorPieceGhost`.
+- **6.4, the picker.** `Editor_PickerLodAt` (under 12 / 12-40 / 40-96 / 96+
+  px a square), the 2600-item budget with the marks' reserve and counted
+  drops (`Editor_Picker.dropped`, `drop_text`), visible-first loads,
+  instance space (`TORIRSMAPED_INSTANCE_*`, `TORIRSMAPED_SQUARE_INSTANCE`,
+  the "Instance space" page `EDITOR_PICKER_TAB_INSTANCE`), atlas rows ending
+  in `u32 loc_count` (client and server from the same tree), GRAPH images on
+  the web (`graph.image`); then Find (edpanel_picker_find), context K and
+  its eight Picker rows (`Editor_HotkeysMatch`), the open-set strip, the
+  detail pane and the Area dropdown's lane rows.
+
+Seams joined at the integration:
+
+- **The Catalog reads the server's derived fields.**
+  `Editor_CatalogRowShapeMask` takes the `shapes` field when the row has it
+  (the server already applied the Locs panel's rule), `Editor_CatalogRowSize`
+  takes `size` ("WxL"), and `Editor_CatalogView.layer` carries `layer`,
+  which the row tooltip says ("door 700, 1x1 wall"). A shape-number chip now
+  composes as `shape=N` (it was `shape=N,*`, a prefix of the `shapeK=` value,
+  which the server's `shape=` resolution would not read): `shape=wall`,
+  `shape=c` and `shape=2` all resolve server-side.
+- **The partial index reaches the panel.** `EditorHost_CatalogPage` gains
+  `page_flags`, `progress_done`, `progress_total`.
+  `Editor_HostMapEdCatalogQuery` sends `TORIRSMAPED_CATALOG_PROGRESS` only to
+  a server with `TORIRSMAPED_CAP_CATALOG_PROGRESS` (it drops the flag
+  otherwise, so the answer is the v2 one) and reads the three-u32 tail. The
+  Catalog model asks with the flag; `Editor_CatalogModelPartial` says the
+  held answer came from the partial index, the count reads "1 to 12 of 40
+  loc so far, index 25% read", and Refresh asks the page in view again every
+  `EDITOR_CATALOG_PARTIAL_REASK_MS` (250 ms) until a whole answer lands (a
+  re-ask replaces every held page but keeps the list's scroll and
+  selection). A scoped total reads "212+".
+- **Fit is the shared bit everywhere.** The Preview's Fit chip (6.2) calls
+  the new `edp_place_fit_enabled(ui)` / `edp_place_fit_set(ui, on)` of 6.3,
+  so the Catalog's pane, the Locs panel and the G key show and set the same
+  STATE_TOOLS value.
+- **The Stamps row sits in the reworked Catalog**, between Kind and Find
+  ("Stamps..." opens the Stamps panel); a press with an armed stamp under
+  the Place tool no longer opens a wall / centrepiece run
+  (`Editor_PanelRunBegin` defers to the stamp, whose drop is one piece).
+  The gizmo is hit-tested before the run and marquee press, and a gizmo
+  drag holds the pointer ahead of the stroke / rect / run / marquee release.
+- **Navigation uses the drawing's instance page.** The Area dropdown lists
+  "Instance space" once, as the picker's own tab (it listed a second row of
+  its own before), and `instance:` / that row show
+  `Editor_PickerInstanceTab`; the nav's own framing stays only for a picker
+  with no atlas. `EDITOR_PICKER_INSTANCE_*` are now the catalog's
+  `TORIRSMAPED_INSTANCE_*`. The Squares readout's tooltip says what the
+  budget dropped ("not drawn: 340 cells, 12 map icons").
+- docs/MAPED_HOTKEYS.md lists `edit.select_same`, the far nudges, the level
+  moves and `place.constrain` together (the doc test passes).
+- The 6.0b open rows "EnsureDebugFont / EnsureChromeSkin still load the
+  integer tiers" and "the host does not yet call ToriRSChromeBake_SetScaleQ"
+  are closed (marked in that section).
+
+Tests (this container, build_opt unless said; all content-free):
+
+- `make -C src all` (client, torirsmaped, torirsmapedctl) builds.
+- New with the slices: test-scene-bridge-chrome 130 PASS;
+  test-catalog-finder 176, test-catalog-perf 133 (synthetic half; the
+  real-tree half skips), test-editor-catalog-finder 149 (140 + 9 for the
+  seams: the derived fields, the count's partial and scoped wording, the
+  PROGRESS tail read from the embedded server); test-editor-placement 118;
+  test-editor-stamps 91, test-editor-stamps-ops 81; test-editor-worldmap
+  161; test-editor-picker 397 (396 + the instance page) -- all 0 failed.
+- test-editor-hotkeys 2005 (doc test included), test-editor-chords 591,
+  test-editor-groups 2190, test-editor-cmd 66, test-editor-dropdown 36,
+  test-editor-palette 97, test-editor-panels-palette 50,
+  test-editor-panels-accounts 48, test-editor-areas 136,
+  test-editor-world-gesture 42 -- all 0 failed.
+- test-chrome-widgets 946, 0 failed, DOM test ok; test-chrome-skin-tiers 922
+  and `chrome-skin` pass; test-debug-overlay-visual passes (the 1x / 2x / 3x
+  chrome goldens match); test-uitree passes (`ulimit -s unlimited`);
+  test-font-markup, test-cache-trim, test-chrome-browser-exec,
+  test-chrome-web-skin, check-app-boundary, check-tree-walks and
+  check-pt-switch pass; test-world-builder passes (its cache half skips).
+  The node tests of test-web-channel pass except web/test/chrome_layout_test.js
+  (`src/Makefile`, as before).
+- test-editor-workbench 284, 0 failed, after its three registry digests were
+  recorded again (1x 1751176799 -> 2131301703, 2x 2175812620 -> 3539872907,
+  3x 3489523192 -> 3420398390). Checked slice by slice: the catalog-rows tip
+  alone moves 1x and 2x, the gizmo-stamps tip alone moves all three (its 3x
+  is exactly the merged 3x), picker-atlas leaves them; the scene digests (the
+  chrome's draw path) are unchanged at every scale.
+- With asserts on (OPT=0, a scratch objdir): test-editor-catalog-finder,
+  -picker, -stamps-ops and -placement pass.
+- Not run here (no OSRS-Content, no dat2 cache): test-editor-panels (builds
+  and links; the copy of its squares fails), test-edit-world (builds; no
+  cache), test-catalog and test-editor-jm2, the real-tree half of
+  test-catalog-perf, maped_embed_test, check-scan-meter (boots the real
+  client), the web build (no emcc), and the native client by eye.
+
+Perf (the catalog slice's synthetic tree, 63,003 records; 'all' before ->
+after the scoping): '' 4.5 ms / 63,003 tested -> 0.08 ms / 100; 'o' 5.2 ->
+0.08 ms; 'oa' 2.6 -> 0.11 ms / 694; 'door' 1.9 -> 0.15 ms / 1,277; '700' 2.2
+-> 1.9 ms / 50,702; 'op=Chop' (nothing matches) ~22 -> 10.6 ms. Warm build:
+the longest 2 ms slice 27 ms -> ~3-4 ms; with 256 KB parts 24-27 parts,
+3,005 sources merged one at a time, ~26 partial answers (slowest ~3.6-4.8
+ms). A sweep that catches an edit still runs one ~21-26 ms full merge. The
+picker's 33 ms cold-open check was not answered (no real frames here).
+
+Open (beyond each slice's own list above):
+
+- The partial re-ask keeps the list's selection by row index: a row picked
+  while the index was still loading can name another record once a whole
+  answer lands. CATALOG_RECORD and CATALOG_SQUARES still finish the warm
+  build first.
+- `spawn=yes` finds nothing (the server's catalog has no spawn field);
+  'most placed' is not offered; sort applies only once every match is held.
+- The Stamps opener is a row ("Stamps..."), not a shortcut chip, and the
+  Locs panel keeps its own shape strip (not yet `edpanel_chips`).
+- The Squares readout's drop tooltip has no test; the picker's design
+  colours (white dashed camera window, yellow open-here) are not applied,
+  and the focused square is the selection outline drawn white.
+- Native 2x / 3x draw the derived GLYPH skin tiers, so the flattened marks
+  (ToolDelete, ToolPlace, the check and radio marks) now show natively; the
+  web keeps `skinTiers: 1`. GL3 text mode 2 is unverified on hardware.
+  torirs_chrome_surface_sdl.c (the plugin window's SDL surface) still draws
+  the 1x skin at an integer scale.
+- Editor layout computed as `ToriRSChrome_Scale(ui) * N` sits tight at
+  fractional q (a slider over "Strength Shift+[]" at 1.5x).
+- src/editor/panels/edpanel_triggers.c:713 (`Editor_Triggers_SetPaths`)
+  passes `realpath` a buffer under PATH_MAX: a Linux _FORTIFY_SOURCE opt
+  build that boots the editor with an existing content dir aborts ("buffer
+  overflow detected"). Not fixed here.
+- Wire: STATE_TOOLS has 15 values and atlas rows carry `loc_count`; client
+  and server must come from the same tree.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.
@@ -2650,8 +2833,9 @@ tests `make -C src test-catalog-perf` and `test-catalog-finder`):
   `TORIRSMAPED_CAP_CATALOG_PROGRESS`) answers from the partial index with
   `TORIRSMAPED_CATALOG_PAGE_PARTIAL` and done/total KiB appended after the
   rows; without the flag the payload is the v2 one and the query finishes
-  the build first, as before. The client half (editor_host_remote.c, the
-  Catalog panel's progress well) is not in this step.
+  the build first, as before. The client half landed with the 6.2-6.4
+  integration (below): editor_host_remote.c sends the flag only to a server
+  with the bit and reads the tail, and the Catalog asks with it.
 
 Still slow, with where to start:
 
@@ -2974,5 +3158,3 @@ Still slow, with where to start:
   rebuilds). It is not on test-editor (boots a whole server).
 - test-torirsserver-embed (21 failures) and test-torirsserver-servpack-boot
   fail identically on the phase-3 HEAD (content and scratch-path causes).
-</content>
-</invoke>

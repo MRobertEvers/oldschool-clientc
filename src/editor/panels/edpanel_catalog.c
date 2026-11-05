@@ -635,6 +635,13 @@ catalog_list_tip(
         snprintf(tip, sizeof(tip), "%.36s \"%.20s\" %d", view.name, view.display, (int)view.id);
     else
         snprintf(tip, sizeof(tip), "%.52s %d", view.name, (int)view.id);
+    /* A loc says its footprint and the layer its shapes go in (the server's
+     * `size` and `layer`). */
+    if( view.kind == TORIRSMAPED_CATALOG_LOC && view.layer[0] && !(cell > 0 && Editor_CatalogViewShapeAt(&view, cell) >= 0) )
+    {
+        size_t const at = strlen(tip);
+        snprintf(tip + at, sizeof(tip) - at, ", %dx%d %.20s", view.size_w, view.size_l, view.layer);
+    }
     ToriRSChrome_SetTooltip(ui->chrome, self->list, tip);
 }
 

@@ -366,7 +366,7 @@ preview_pose_rows(
         (void)edp_chips_push(&self->rotation_strip, label, tip, (ui->tools.place_rotation & 3) == r, 0);
     }
     (void)edp_chips_push(&self->rotation_strip, "Fit", "fit walls to their neighbours (toggle)",
-        edp_place_fit_enabled(), 0);
+        edp_place_fit_enabled(ui), 0);
     edp_chips_end(ui, &self->rotation_strip);
     ToriRSChrome_SetHidden(ui->chrome, self->rotation_strip.graph, !loc);
     edp_chips_hover(ui, &self->rotation_strip);
@@ -497,8 +497,8 @@ preview_pose_press(
             ui->tools.place_rotation = index;
         else if( index == 4 )
         {
-            edp_place_fit_set(!edp_place_fit_enabled());
-            Editor_UiStatus(ui, "fit walls to neighbours %s", edp_place_fit_enabled() ? "on" : "off");
+            edp_place_fit_set(ui, !edp_place_fit_enabled(ui));
+            Editor_UiStatus(ui, "fit walls to neighbours %s", edp_place_fit_enabled(ui) ? "on" : "off");
         }
     }
 }

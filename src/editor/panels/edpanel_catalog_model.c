@@ -324,8 +324,12 @@ model_take(
     struct EditorHost_CatalogPage* page,
     enum EditorHost_Status status)
 {
-    if( !model_question_held(model) )
+    if( !model_question_held(model) || model->reasking )
     {
+        /* A new question, or the same one asked again over a partial index
+         * (the rows can be others now): every held page goes. Only a new
+         * question resets the list's scroll and selection. */
+        int const fresh = !model->reasking;
         if( model->held )
             Editor_HostCatalogPageFree(&model->result);
         drop_record(model);
@@ -337,7 +341,9 @@ model_take(
         model->held_page = page_index;
         model->held_page_size = model->page_size;
         snprintf(model->held_filter, sizeof(model->held_filter), "%s", model->filter);
-        model->key_serial++;
+        model->reasking = 0;
+        if( fresh )
+            model->key_serial++;
     }
     else if( page_index == model->page )
     {
@@ -355,6 +361,8 @@ model_take(
     else
         model_cache_put(model, page_index, page, status);
     memset(page, 0, sizeof(*page));
+    if( model->result.page_flags & TORIRSMAPED_CATALOG_PAGE_PARTIAL )
+        model->partial_asked_ms = Editor_CatalogModelNowMs();
     model->answers++;
     model_order_rebuild(model);
 }
@@ -432,8 +440,11 @@ model_ask(
     memset(&page, 0, sizeof(page));
     {
         double const t0 = Editor_CatalogModelNowMs();
+        /* PROGRESS: while the server's warm build runs the answer comes
+         * from its partial index instead of waiting for the build (the host
+         * drops the flag for a server that does not read it). */
         status = Editor_HostMapEdCatalogQuery(
-            host, model->kind, model->filter, 0, page_index, model->page_size, &page);
+            host, model->kind, model->filter, TORIRSMAPED_CATALOG_PROGRESS, page_index, model->page_size, &page);
         model->last_query_ms = Editor_CatalogModelNowMs() - t0;
     }
     model->queries++;
@@ -481,10 +492,26 @@ Editor_CatalogModelRefresh(
         model->settle--;
         return 0;
     }
+    /* The page in view came from the warm build's partial index: ask it
+     * again until the build is done (Editor_CatalogModelPartial). */
+    if( model_question_held(model) && model->held_page == model->page && Editor_CatalogModelPartial(model)
+        && Editor_CatalogModelNowMs() - model->partial_asked_ms >= EDITOR_CATALOG_PARTIAL_REASK_MS )
+    {
+        model->reasking = 1;
+        return model_ask(model, host, model->page);
+    }
     next = Editor_CatalogModelNextPage(model);
     if( next < 0 )
         return 0;
     return model_ask(model, host, (uint32_t)next);
+}
+
+int
+Editor_CatalogModelPartial(const struct Editor_CatalogModel* model)
+{
+    assert(model);
+    return model->source == EDITOR_CATALOG_SOURCE_INDEX && model->held && model->status == EDITOR_HOST_OK
+           && (model->result.page_flags & TORIRSMAPED_CATALOG_PAGE_PARTIAL) != 0;
 }
 
 int
@@ -831,12 +858,10 @@ Editor_CatalogChipsCompose(
         const struct Editor_CatalogChip* chip = &chips->chip[i];
         char word[EDITOR_CATALOG_CHIP_KEY_MAX + EDITOR_CATALOG_CHIP_VALUE_MAX + 4];
         int length;
-        /* A shape number is the head of the cache's `shapeK=N,<model>`
-         * value: a prefix match. */
-        if( strcmp(chip->key, "shape") == 0 && catalog_shape_number(chip->value) >= 0 )
-            length = snprintf(word, sizeof(word), "shape=%s,*", chip->value);
-        else
-            length = snprintf(word, sizeof(word), "%s=%s", chip->key, chip->value);
+        /* `shape=` (a class or a number) resolves server-side against the
+         * loc's placeable shapes (torirs_maped_catalog.h), so every chip
+         * goes as it reads. */
+        length = snprintf(word, sizeof(word), "%s=%s", chip->key, chip->value);
         catalog_append_word(out, out_size, &at, word, length);
     }
 }
@@ -993,6 +1018,30 @@ Editor_CatalogRowShapeMask(const struct EditorHost_CatalogRow* row)
     assert(row);
     if( row->kind != TORIRSMAPED_CATALOG_LOC )
         return 0;
+    /* The server's derived `shapes` (workbench 6.2, torirs_maped_catalog.h):
+     * the placeable shapes by the Locs panel's rule, already worked out. A
+     * row without it (an older server, a local row) is read from its
+     * `shapeK=` / `models=` rows below. */
+    {
+        const char* shapes = Editor_CatalogRowField(row, "shapes");
+        if( shapes )
+        {
+            for( const char* c = shapes; *c; )
+            {
+                char* end;
+                long const n = strtol(c, &end, 10);
+                if( end == c )
+                {
+                    c++;
+                    continue;
+                }
+                if( n >= 0 && n < EDITOR_LOC_SHAPE_COUNT )
+                    mask |= 1u << n;
+                c = end;
+            }
+            return mask;
+        }
+    }
     for( int i = 0; i < row->field_count; i++ )
     {
         const char* key = row->fields[i].key;
@@ -1034,6 +1083,19 @@ Editor_CatalogRowSize(
     assert(row);
     assert(out_w);
     assert(out_l);
+    /* The server's derived `size` ("WxL", 1 where unstated), else the
+     * config's own width= / length=. */
+    {
+        const char* size = Editor_CatalogRowField(row, "size");
+        int w;
+        int l;
+        if( size && sscanf(size, "%dx%d", &w, &l) == 2 && w > 0 && l > 0 )
+        {
+            *out_w = w;
+            *out_l = l;
+            return;
+        }
+    }
     width = Editor_CatalogRowField(row, "width");
     length = Editor_CatalogRowField(row, "length");
     *out_w = width && atoi(width) > 0 ? atoi(width) : 1;
@@ -1056,7 +1118,13 @@ catalog_view_of_row(
     out->category = category ? category : "";
     out->shape_mask = Editor_CatalogRowShapeMask(row);
     if( row->kind == TORIRSMAPED_CATALOG_LOC )
+    {
+        const char* layer = Editor_CatalogRowField(row, "layer");
         Editor_CatalogRowSize(row, &out->size_w, &out->size_l);
+        out->layer = layer ? layer : "";
+    }
+    else
+        out->layer = "";
     out->shape = -1;
 }
 
@@ -1071,6 +1139,7 @@ catalog_view_of_local(
     out->name = row->name;
     out->display = row->display;
     out->category = row->category;
+    out->layer = "";
     out->shape_mask = row->shape_mask;
     out->size_w = row->size_w;
     out->size_l = row->size_l;
@@ -1514,6 +1583,13 @@ Editor_CatalogModelRangeText(
             return;
         }
     }
+    if( count == 0 && Editor_CatalogModelPartial(model) )
+    {
+        uint32_t const of = model->result.progress_total;
+        snprintf(out, (size_t)out_size, "0 %s so far, index %u%% read", kind_label(model->held_kind),
+            of > 0 ? (unsigned)((uint64_t)model->result.progress_done * 100u / of) : 0u);
+        return;
+    }
     if( count == 0 )
     {
         snprintf(out, (size_t)out_size, "0 of 0 %s",
@@ -1535,7 +1611,18 @@ Editor_CatalogModelRangeText(
     catalog_thousands((uint32_t)first + 1, a, sizeof(a));
     catalog_thousands((uint32_t)last + 1, b, sizeof(b));
     catalog_thousands((uint32_t)count, t, sizeof(t));
-    if( model->source != EDITOR_CATALOG_SOURCE_INDEX )
+    /* An "all" query the server stopped early: the total is what it found. */
+    if( model->source == EDITOR_CATALOG_SOURCE_INDEX && (model->result.page_flags & TORIRSMAPED_CATALOG_PAGE_SCOPED)
+        && strlen(t) + 2 < sizeof(t) )
+        strcat(t, "+");
+    if( model->source == EDITOR_CATALOG_SOURCE_INDEX && Editor_CatalogModelPartial(model) )
+    {
+        uint32_t const done = model->result.progress_done;
+        uint32_t const of = model->result.progress_total;
+        snprintf(out, (size_t)out_size, "%s to %s of %s %s so far, index %u%% read", a, b, t,
+            kind_label(model->held_kind), of > 0 ? (unsigned)((uint64_t)done * 100u / of) : 0u);
+    }
+    else if( model->source != EDITOR_CATALOG_SOURCE_INDEX )
         snprintf(out, (size_t)out_size, "%s to %s of %s %s", a, b, t, catalog_source_label(model->source));
     else if( !Editor_CatalogModelSortApplies(model) && Editor_CatalogModelPageCount(model) > CATALOG_SORT_PAGES )
         snprintf(out, (size_t)out_size, "%s to %s of %s %s, best match: %s sorts %d or fewer", a, b, t,

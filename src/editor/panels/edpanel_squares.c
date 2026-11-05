@@ -332,7 +332,7 @@ squares_area_row(const struct SquaresPanel* self)
     if( self->area_mode == SQUARES_AREA_INSTANCE )
         return self->area_row_count - 1;
     if( self->area_mode == SQUARES_AREA_LANE )
-        for( int row = self->picker.tab_count; row < self->area_row_count - 1; row++ )
+        for( int row = self->picker.tab_count; row < self->area_row_count; row++ )
             if( squares_area_row_lane(self, row) == self->area_lane )
                 return row;
     return self->picker.active_tab;
@@ -386,9 +386,15 @@ squares_point_widgets(
         self->area_rows[n] = self->area_labels[n];
         n++;
     }
-    snprintf(self->area_labels[n], TORIRS_CHROME_LABEL_MAX, "Instance space");
-    self->area_rows[n] = self->area_labels[n];
-    n++;
+    /* The picker's own "Instance space" page is one of the tabs above once
+     * an atlas came (Editor_PickerInstanceTab); the row of its own is only
+     * for a picker without one. */
+    if( Editor_PickerInstanceTab(picker) < 0 )
+    {
+        snprintf(self->area_labels[n], TORIRS_CHROME_LABEL_MAX, "Instance space");
+        self->area_rows[n] = self->area_labels[n];
+        n++;
+    }
     self->area_row_count = n;
     /* A lane the atlas no longer holds: back to its page. */
     if( self->area_mode == SQUARES_AREA_LANE
@@ -671,6 +677,21 @@ squares_readout(
     else
         snprintf(line, sizeof(line), "no squares");
     ToriRSChrome_SetText(ui->chrome, self->row_status, line);
+    /* What the item budget dropped (Editor_Picker.dropped, the drawing
+     * half's count; the whole line goes to the console once per change). */
+    {
+        char tip[TORIRS_CHROME_LABEL_MAX];
+        size_t used = 0;
+        tip[0] = '\0';
+        for( int k = 0; picker->truncated && k < EDITOR_PICKER_DROP_KINDS && used + 1 < sizeof(tip); k++ )
+        {
+            if( !picker->dropped[k] )
+                continue;
+            used += (size_t)snprintf(tip + used, sizeof(tip) - used, "%s%d %s", used ? ", " : "not drawn: ",
+                picker->dropped[k], Editor_PickerDropName((enum Editor_PickerDropKind)k));
+        }
+        ToriRSChrome_SetTooltip(ui->chrome, self->row_status, tip);
+    }
 }
 
 /** Point the picker at collection `self->collection` as the document now
@@ -1193,9 +1214,21 @@ squares_show_instance(
     struct SquaresPanel* self)
 {
     struct Editor_Picker* picker = &self->picker;
+    int const instance_tab = Editor_PickerInstanceTab(picker);
     int count = 0;
 
     squares_leave_area_mode(self);
+    if( instance_tab >= 0 )
+    {
+        /* The picker's Instance space page (workbench 6.4, the drawing
+         * half) frames the whole space and hatches where no square is. */
+        Editor_PickerSetTab(picker, instance_tab);
+        squares_area_show(ui, self);
+        Editor_UiLog(ui, "editor: %s", picker->tabs[picker->active_tab].title);
+        self->user_view = 0;
+        self->dirty = 1;
+        return;
+    }
     if( picker->tab_count > 0 )
         Editor_PickerSetTab(picker, squares_world_tab(picker));
     self->area_mode = SQUARES_AREA_INSTANCE;
@@ -2462,7 +2495,7 @@ squares_activate(
         }
         else if( lane >= 0 )
             squares_show_lane(ui, self, lane);
-        else if( row == self->area_row_count - 1 )
+        else if( row == self->area_row_count - 1 && Editor_PickerInstanceTab(picker) < 0 )
             squares_show_instance(ui, self);
         return 1;
     }

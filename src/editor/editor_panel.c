@@ -1080,6 +1080,10 @@ Editor_PanelRunBegin(
     /* An armed spawn move takes the click (Editor_PanelApplyToolAt). */
     if( Editor_Spawns_MoveArmed(panel->ui) )
         return 0;
+    /* So does an armed stamp: its drop is one piece on one tile
+     * (Editor_PanelPlaceLocAt), never a run of the pick. */
+    if( edp_stamp_armed(panel->ui) )
+        return 0;
     return edp_run_begin(panel->ui, &panel->run, world_x, world_z, level);
 }
 

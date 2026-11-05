@@ -25,14 +25,17 @@
  */
 
 #include "edpanel_picker.h"
+#include "torirsmaped/torirs_maped_catalog.h"
 
 /** The instance space (design section 13: "unmapped space 0..19 x
  *  100..255"): the squares no world-map area claims, where the instance
- *  helper finds room. Inclusive. */
-#define EDITOR_PICKER_INSTANCE_X0 0
-#define EDITOR_PICKER_INSTANCE_X1 19
-#define EDITOR_PICKER_INSTANCE_Z0 100
-#define EDITOR_PICKER_INSTANCE_Z1 255
+ *  helper finds room. Inclusive. One definition, the catalog's
+ *  (TORIRSMAPED_INSTANCE_*, which flags its atlas rows and frames the
+ *  picker's "Instance space" page). */
+#define EDITOR_PICKER_INSTANCE_X0 TORIRSMAPED_INSTANCE_X0
+#define EDITOR_PICKER_INSTANCE_X1 TORIRSMAPED_INSTANCE_X1
+#define EDITOR_PICKER_INSTANCE_Z0 TORIRSMAPED_INSTANCE_Z0
+#define EDITOR_PICKER_INSTANCE_Z1 TORIRSMAPED_INSTANCE_Z1
 
 enum Editor_PickerFindKind
 {

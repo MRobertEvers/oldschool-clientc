@@ -617,14 +617,27 @@ struct EditorHost_CatalogPage
     int row_count;
     struct EditorHost_CatalogRow* rows;
     void* storage;
+    /** TORIRSMAPED_CATALOG_PAGE_* (PARTIAL: answered from the warm build's
+     *  partial index; SCOPED: an "all" query stopped early, so `total` is
+     *  only what was found) and the build's progress in KiB, done of
+     *  `progress_total` (0 of 0 while the tree is scanned, 1 of 1 once
+     *  built). All 0 for a v2 answer: a query without
+     *  TORIRSMAPED_CATALOG_PROGRESS, or a server without
+     *  TORIRSMAPED_CAP_CATALOG_PROGRESS. */
+    uint32_t page_flags;
+    uint32_t progress_done;
+    uint32_t progress_total;
 };
 
 /**
  * CATALOG_QUERY: one page of the records of `kind` (TORIRSMAPED_CATALOG_ANY
  * for every kind) matching `filter` — free terms against name, display name
  * and id, plus `key=value` filters (`op=Open`, `multivar=varb4153`). `flags`
- * TORIRSMAPED_CATALOG_EXACT makes the text one whole name. `page_size` 0 is
- * the server's default. REFUSED for an unknown kind; UNSUPPORTED when the
+ * TORIRSMAPED_CATALOG_EXACT makes the text one whole name;
+ * TORIRSMAPED_CATALOG_PROGRESS asks for an answer that never waits for the
+ * server's warm build (page_flags / progress_* above) and is dropped, the
+ * answer then a v2 one, when the server lacks
+ * TORIRSMAPED_CAP_CATALOG_PROGRESS. `page_size` 0 is the server's default. REFUSED for an unknown kind; UNSUPPORTED when the
  * server has no catalog (capability bit clear).
  */
 enum EditorHost_Status
