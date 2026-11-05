@@ -25,7 +25,8 @@
  *
  * Every source file is parsed on its own and remembered with its mtime and
  * size; a refresh re-stats the tree and re-parses only what changed, then
- * re-merges (the merge is cheap next to reading 190 MB of config text).
+ * re-merges (the merge is cheap next to reading 190 MB of config text). The
+ * warm build merges each source as it is parsed instead (Service).
  *
  * Wire (protocol v2, MAPED_IMPLEMENTATION.md section 3; strings are
  * `u32 length, bytes`, ints little-endian):
@@ -42,12 +43,71 @@
  *     The filter is whitespace-separated terms. A term holding '=' is a
  *     `key=value` filter (`op=Open`, `multivar=varb4153`, `table=1_skeletons`,
  *     `name="Tool Leprechaun"`): the key matches a summary field exactly or
- *     by family (`op` matches op1..op5), the value matches case-insensitively
- *     whole, or as a prefix ending at '_' (so `varb4153` names
- *     `varb4153_x`). Any other term must match the record's name, display
- *     name or decimal id — as a substring, or whole with
- *     TORIRSMAPED_CATALOG_EXACT, where the remaining text is one term and
- *     the lookup is a hash probe rather than a scan.
+ *     by family (`op` matches op1..op5). The value narrows as a prefix, and
+ *     is tested case-insensitively in this order, which is also the order
+ *     the hits rank in (a record whose filters all matched whole comes
+ *     before one that matched a filter only as a prefix, after the terms'
+ *     own rank):
+ *
+ *       1. whole: `op=Open` names "Open";
+ *       2. a prefix of a whole word of the value (words split at spaces
+ *          and commas): `op=Op` names "Open" and "Open door", `shapes=9`
+ *          names "0 2 9", `multivar=varb4153` names "varb4153_x" (the old
+ *          rule, a prefix ending at '_', is this rule's first word) -- but
+ *          a value that is a number never stops inside a longer number:
+ *          `shapes=2` is not "22", `size=1` names "1x1" and not "10x2";
+ *       3. `value*` written out: a prefix of the whole value.
+ *
+ *     Typing on narrows the held hits ("op=Ope" after "op=Op"), except
+ *     where a number grows ("shapes=22" after "shapes=2").
+ *
+ *     Two keys resolve server-side: `id=<n>` (the record's id) and, for
+ *     locs, `shape=<class or number>` against the loc's placeable shapes
+ *     (the `shapes` field below): the classes are `wall` (0, 1, 2, 3, 9),
+ *     `decor` (4..8), `centre` (10, 11), `roof` (12..21) and `ground` (22);
+ *     a prefix names every class it starts (`shape=c` is centre) and a
+ *     number names that shape (`shape=10`).
+ *
+ *     Any other term must match the record's name, display name or decimal
+ *     id — as a substring, or whole with TORIRSMAPED_CATALOG_EXACT, where
+ *     the remaining text is one term and the lookup is a hash probe rather
+ *     than a scan.
+ *
+ *     Kind TORIRSMAPED_CATALOG_ANY is a SCOPED query: the kinds are tested
+ *     in a fixed order (loc, npc, obj, then the rest by number), each
+ *     stopping at `page_size` hits, and no further kind is tested once the
+ *     page asked for is full -- a keystroke costs what its page costs, not
+ *     a test of every record. A numeric term is first looked up by id in
+ *     every kind, so the record it names is on the first page. `total` is
+ *     then what was found; TORIRSMAPED_CATALOG_PAGE_SCOPED says a cap or the
+ *     window cut more. (ToriRSMapEdCatalog_Query in-process answers every
+ *     match.) EXACT queries are hash probes and are never scoped.
+ *
+ *     A loc row carries three derived fields (field names stable):
+ *       `shapes`  the shapes it can be placed as, in the order the Locs
+ *                 panel offers them (centrepiece, ground decor, walls,
+ *                 decor, roofs), space-separated ("10 11", "0 2 9"): a
+ *                 `shape<n>=<shape>,<model>...` row with a model gives that
+ *                 shape, wall decor 5..8 draw shape 4's models and 11 draws
+ *                 10's, and a loc with `models=` and no shape rows is a
+ *                 centrepiece (10, 11). A loc with no model rows has none.
+ *       `size`    "<width>x<length>", 1 where the config states none.
+ *       `layer`   the loc layer of each of its shapes, once each, in that
+ *                 order: `wall` (0-3), `decor` (4-8), `main` (9-21: the
+ *                 diagonal wall, centrepieces, roofs; Client-TS GROUND),
+ *                 `ground` (22, ground decor) -- "wall main" for a fence
+ *                 with a diagonal. Absent with `shapes`.
+ *
+ *     With TORIRSMAPED_CATALOG_PROGRESS in `flags` (a client that saw
+ *     TORIRSMAPED_CAP_CATALOG_PROGRESS) FACT_CATALOG_PAGE ends with
+ *     `u32 page_flags (TORIRSMAPED_CATALOG_PAGE_*), u32 done, u32 total`
+ *     after the rows, and the query never waits for the warm build: while
+ *     it runs the answer comes from the partial index (locs are parsed
+ *     first) with TORIRSMAPED_CATALOG_PAGE_PARTIAL and the build's progress
+ *     as done/total (KiB of source text; total 0 while the tree is still
+ *     being scanned; 1/1 once built). Without the flag the payload ends at
+ *     the last row, as a v2 reader expects, and a query during the build
+ *     finishes it first.
  *
  *   CATALOG_RECORD  u32 kind, i32 id, string name (non-empty name wins;
  *                   otherwise the record with that id)
@@ -171,6 +231,20 @@ enum ToriRSMapEdCatalogQueryFlag
 {
     /** The text (filters aside) is one whole name, display name or id. */
     TORIRSMAPED_CATALOG_EXACT = 1,
+    /** Answer from the partial index while the warm build runs, and end
+     *  FACT_CATALOG_PAGE with the page flags and the build's progress. Only
+     *  to a server with TORIRSMAPED_CAP_CATALOG_PROGRESS. */
+    TORIRSMAPED_CATALOG_PROGRESS = 2,
+};
+
+/** FACT_CATALOG_PAGE's `page_flags` (the PROGRESS tail). */
+enum ToriRSMapEdCatalogPageFlag
+{
+    /** The warm build is still running: the answer is what is merged so far. */
+    TORIRSMAPED_CATALOG_PAGE_PARTIAL = 1,
+    /** A scoped "all" left records untested: a kind reached its cap or a
+     *  later kind was not tested; `total` counts only what was found. */
+    TORIRSMAPED_CATALOG_PAGE_SCOPED = 2,
 };
 
 /** Where a record (or one of its fields) came from. A record's provenance
@@ -302,16 +376,25 @@ ToriRSMapEdCatalog_Built(const struct ToriRSMapEdCatalog* catalog);
 /** Milliseconds one service slice may spend on a freshness sweep, and on
  *  the warm build (the build is ~6 s of work on the owner's tree: at 6 ms a
  *  frame it is done ~20 s after the editor opens; a Catalog opened sooner
- *  waits for the rest). */
+ *  answers from the partial index when it asks with
+ *  TORIRSMAPED_CATALOG_PROGRESS). */
 #define TORIRSMAPED_CATALOG_SLICE_MS 2.0
 #define TORIRSMAPED_CATALOG_WARM_SLICE_MS 6.0
+/** Bytes of one large config or overlay file (configs/all.loc is 86 MB) a
+ *  warm slice reads and parses at most; the parse also stops at the slice's
+ *  deadline, at a block boundary. */
+#define TORIRSMAPED_CATALOG_SLICE_BYTES (4u * 1024u * 1024u)
 
 /**
  * The index's background job, from the server's service pass (every pump):
- * builds the index in slices from the first call (a scan, then the files
- * parsed a few at a time, then the merge), and afterwards advances a
- * freshness sweep a request started. Spends about `budget_ms` per call; one
- * file's parse or the closing merge may run past it. Returns 1 while work
+ * builds the index in slices from the first call -- a scan; then the
+ * sources in a fixed order (locs, npcs, objs, the rest), a large blocks
+ * file in parts of at most TORIRSMAPED_CATALOG_SLICE_BYTES, each source
+ * merged into the index as soon as it is parsed (incrementally: the warm
+ * build runs no full merge); then the derived fields a slice of records at
+ * a time, the areas and the atlas -- and afterwards advances a freshness
+ * sweep a request started. Spends about `budget_ms` per call; a sweep's
+ * closing parse-and-merge is one step (see Refresh). Returns 1 while work
  * remains (the daemon then polls quickly).
  */
 int
@@ -340,14 +423,25 @@ struct ToriRSMapEdCatalogCounters
     long sweeps;
     long slices;
     double slice_max_ms;
-    /** Merges run (each bumps the index revision). */
+    /** Whole merges run: a full re-merge (a sweep that saw a change, a whole
+     *  refresh) or a warm build's end. Each bumps the index revision. */
     long merges;
-    /** Records a query tested; queries that tested every record, that
-     *  narrowed the previous query's hits, that the held hits answered. */
+    /** Sources the warm build merged into the live index one at a time. */
+    long incremental;
+    /** Parts of large blocks files the warm build parsed, and the most
+     *  bytes one part covered (at most TORIRSMAPED_CATALOG_SLICE_BYTES
+     *  unless one block is longer). */
+    long parts;
+    long part_bytes_max;
+    /** Records a query tested; queries that tested every record of the
+     *  kind asked (every record for an unscoped "all"), that narrowed the
+     *  previous query's hits, that the held hits answered, that were
+     *  scoped "all" queries. */
     long examined;
     long full_scans;
     long narrowed;
     long held;
+    long scoped;
     /** Config blocks read back from disk for record views. */
     long block_reads;
 };
@@ -356,6 +450,23 @@ void
 ToriRSMapEdCatalog_Counters(
     const struct ToriRSMapEdCatalog* catalog,
     struct ToriRSMapEdCatalogCounters* out);
+
+/** 1 while the warm build runs (the index is partial), with its progress
+ *  as the PROGRESS tail carries it (KiB done of KiB total; 0/0 while still
+ *  scanning). 0 once built (1/1). */
+int
+ToriRSMapEdCatalog_Progress(
+    const struct ToriRSMapEdCatalog* catalog,
+    uint32_t* out_done_kib,
+    uint32_t* out_total_kib);
+
+/** Bytes per warm-build part of a large blocks file
+ *  (TORIRSMAPED_CATALOG_SLICE_BYTES by default; the perf test lowers it to
+ *  see a small tree's all.loc parsed in parts). At least 4096. */
+void
+ToriRSMapEdCatalog_SetSliceBytes(
+    struct ToriRSMapEdCatalog* catalog,
+    size_t bytes);
 
 /** Seconds between the end of one freshness sweep and the next a request
  *  may start. Default 2. */
@@ -408,8 +519,10 @@ ToriRSMapEdCatalog_EncodeSquares(
 /* ---- direct lookups (the test, and anything in-process) -------------- */
 
 /** The query engine behind CATALOG_QUERY: matching record indices, sorted
- *  (exact name matches first, then by kind, id, name), written into
- *  `out_records` up to `max`. Returns the total match count.
+ *  (exact name matches first, whole filter matches before prefix ones, then
+ *  by kind, id, name), written into `out_records` up to `max`. Returns the
+ *  total match count: every match, kind "all" included (only the wire's
+ *  "all" is scoped). Waits for the index when there is none.
  *
  *  The last query's hits are held, keyed on (kind, text, flags, index
  *  revision): the same query again (the next page) tests nothing, and a
