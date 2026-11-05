@@ -2871,6 +2871,50 @@ PlatformWindow_DisplayDensityPercent(struct PlatformWindow* platform)
     return (drawable_w * 100 + window_w / 2) / window_w;
 }
 
+/*
+ * The display's own scale where the drawable says nothing: Windows.
+ *
+ * Everywhere SDL backs a HighDPI window with a larger drawable (macOS, Wayland,
+ * the web with hidpi on) the drawable-to-window ratio IS the display's device
+ * pixel ratio, 1.5 included. A Windows process gets no such drawable: its
+ * window is in pixels already, and the desktop's 125 % / 150 % lives only in
+ * the monitor's DPI. SDL_GetDisplayDPI answers it there (GetDpiForMonitor, 96
+ * per 100 %). Not on X11, where SDL derives the DPI from the monitor's
+ * reported millimetres and a plain 24-inch panel comes back as 93 or 108 --
+ * a chrome scale picked off that would be a guess.
+ *
+ * Percent, 100 when there is no answer.
+ */
+static int
+sdl_display_dpi_percent(struct PlatformWindow* platform)
+{
+    char const* driver = SDL_GetCurrentVideoDriver();
+    float hdpi = 0.0f;
+    int display;
+
+    if( !driver || strcmp(driver, "windows") != 0 )
+        return 100;
+    display = SDL_GetWindowDisplayIndex(platform->window);
+    if( display < 0 || SDL_GetDisplayDPI(display, NULL, &hdpi, NULL) != 0 || hdpi <= 0.0f )
+        return 100;
+    return (int)(hdpi * 100.0f / 96.0f + 0.5f);
+}
+
+int
+PlatformWindow_ChromeDensityPercent(struct PlatformWindow* platform)
+{
+    int ratio;
+
+    assert(platform);
+    ratio = PlatformWindow_DisplayDensityPercent(platform);
+    /* No HighDPI drawable: the display's DPI, where the platform states one
+     * worth trusting. Only the chrome reads it -- the game's own scaling keeps
+     * DisplayDensityPercent's one coordinate space. */
+    if( ratio == 100 && platform->window )
+        ratio = sdl_display_dpi_percent(platform);
+    return ratio;
+}
+
 bool
 PlatformWindow_QuitRequested(struct PlatformWindow* platform)
 {

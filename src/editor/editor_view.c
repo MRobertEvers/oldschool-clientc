@@ -796,3 +796,18 @@ EditorView_BootPanel(void)
 {
     return g_boot_panel[0] ? g_boot_panel : NULL;
 }
+
+/* The Dock button's exit, one per process like the boot panel. */
+static int g_exit_requested;
+
+void
+EditorView_RequestExit(void)
+{
+    g_exit_requested = 1;
+}
+
+int
+EditorView_ExitRequested(void)
+{
+    return g_exit_requested;
+}

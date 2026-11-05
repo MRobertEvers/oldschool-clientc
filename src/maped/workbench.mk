@@ -10,6 +10,12 @@
 #
 # Included BEFORE OBJ_DIR and CFLAGS exist (see tools-panels.mk): rule lines
 # here name no such variable, recipes use them freely.
+
+# The device-local view preferences (editor_prefs.ini): the pure codec and
+# its two IO queue tasks, linked into every client build like the layout
+# file's (editor-layout.mk).
+MAPED_CLIENT_SRCS += editor/editor_prefs.c editor/task_editor_prefs_io.c
+
 .PHONY: test-editor-workbench
 test-editor-workbench:
 	mkdir -p $(OBJ_DIR)

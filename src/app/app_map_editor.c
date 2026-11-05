@@ -17,6 +17,7 @@
 #include "editor/panels/edpanel_ops.h"
 #include "editor/panels/edpanels.h"
 #include "editor/task_editor_layout_io.h"
+#include "editor/task_editor_prefs_io.h"
 #include "engine/world_builder/edit/world_edit.h"
 #include "game/rs_worldmap_overview.h"
 #include "graphics/pixel_format.h"
@@ -1589,6 +1590,71 @@ app_map_editor_layout_flush(struct App* app)
     g_app_editor_layout.saved_valid = 1;
 }
 
+/*
+ * editor_prefs.ini (editor/editor_prefs.h): View > Chrome scale and View >
+ * Text size, this device's and not the Client's. Read once at boot -- a
+ * window popped out of this one reads the same file at ITS boot, which is how
+ * it inherits the leader's values -- and written whenever the user changes
+ * either (EditorUi::prefs_serial moved), at once: a change is one click, never
+ * a stream, so there is nothing to settle. Same IO queue as the layout file.
+ */
+static struct
+{
+    /* 0 not started, 1 reading, 2 loaded (saving on change), 3 off. */
+    int state;
+    const char* path;
+    struct EditorPrefsLoad load;
+    uint32_t saved_serial;
+} g_app_editor_prefs;
+
+static void
+app_map_editor_prefs_tick(struct App* app)
+{
+    struct EditorUi* ui = app->editor_panel.ui;
+
+    if( !app->editor_panel.built || !ui || g_app_editor_prefs.state == 3 )
+        return;
+    if( g_app_editor_prefs.state == 0 )
+    {
+        g_app_editor_prefs.path = Editor_PrefsPath();
+        if( !g_app_editor_prefs.path || !app->runner.queue )
+        {
+            g_app_editor_prefs.state = 3;
+            return;
+        }
+        ToriRS_TaskQueue_Add(
+            app->runner.queue, CreateTask_EditorPrefsLoad(&g_app_editor_prefs.load, g_app_editor_prefs.path));
+        g_app_editor_prefs.state = 1;
+        return;
+    }
+    if( g_app_editor_prefs.state == 1 )
+    {
+        if( !g_app_editor_prefs.load.done )
+            return;
+        /* A choice the user made while the read was in flight stands. */
+        if( ui->prefs_serial == 0 )
+            Editor_UiApplyPrefs(ui, &g_app_editor_prefs.load.prefs);
+        if( g_app_editor_prefs.load.found )
+        {
+            char scale[16];
+            if( ui->prefs.chrome_scale_q == EDITOR_PREFS_SCALE_AUTO )
+                snprintf(scale, sizeof(scale), "Auto");
+            else
+                snprintf(scale, sizeof(scale), "%d %%", ui->prefs.chrome_scale_q * 100 / EDITOR_UI_SCALEQ_ONE);
+            TORIRS_LOG("editor: view preferences from %s (chrome scale %s, text %s)%s\n", g_app_editor_prefs.path,
+                scale, ui->prefs.text_large ? "Large" : "Normal",
+                g_app_editor_prefs.load.skipped ? "; malformed lines skipped" : "");
+        }
+        g_app_editor_prefs.state = 2;
+        g_app_editor_prefs.saved_serial = 0;
+        return;
+    }
+    if( ui->prefs_serial == g_app_editor_prefs.saved_serial )
+        return;
+    ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_EditorPrefsSave(&ui->prefs, g_app_editor_prefs.path));
+    g_app_editor_prefs.saved_serial = ui->prefs_serial;
+}
+
 void
 app_map_editor_drain(struct App* app)
 {
@@ -1600,6 +1666,7 @@ app_map_editor_drain(struct App* app)
     if( !app->editor )
         return;
     app_map_editor_layout_tick(app);
+    app_map_editor_prefs_tick(app);
     /* EDIT: tile-local edits and one flush per frame. STATIC (the fallback,
      * and every game manifest): the queued squares rebuild through the load
      * path, as before. */

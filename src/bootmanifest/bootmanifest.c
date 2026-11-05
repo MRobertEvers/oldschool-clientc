@@ -1,4 +1,5 @@
 #include "ui/torirs_chrome_exec_kind.h"
+#include "ui/torirs_chrome_scale_q.h"
 #include "mem/torirs_mem.h"
 
 #include "bootmanifest.h"
@@ -919,24 +920,26 @@ bm_set_kv(
         }
         if( strcmp(key, "chrome_scale") == 0 )
         {
-            int scale;
-            /* `dynamic`: follow the CANVAS, not the display -- a fullscreen
-             * canvas at 2x the classic frame gets 2x chrome, so the panels
-             * keep their proportion of the screen instead of shrinking into a
-             * corner of it. Carried as -1; the frame loop derives the value. */
+            int q;
+            /* `dynamic`: follow the DISPLAY's device pixel ratio, 1.25 and
+             * 1.5 included (main.c main_dynamic_chrome_scale). Carried as
+             * -1; the frame loop derives the value. */
             if( strcmp(value, "dynamic") == 0 )
             {
                 bm->chrome_scale = -1;
                 return;
             }
-            scale = atoi(value);
-            if( scale < 1 || scale > 4 )
+            /* A pin: "2", or a decimal, "1.5" -- kept in quarter units
+             * (ui/torirs_chrome_scale_q.h), clamped to 1x..3x. */
+            q = ToriRSChromeScaleQ_Parse(value);
+            if( q <= 0 )
             {
-                TORIRS_LOG("bootmanifest: [ui] chrome_scale must be 1..4 or dynamic, got '%s'\n",
+                TORIRS_LOG("bootmanifest: [ui] chrome_scale must be 1..3, a decimal such as 1.5, or dynamic, "
+                           "got '%s'\n",
                     value);
                 return;
             }
-            bm->chrome_scale = scale;
+            bm->chrome_scale = q;
             return;
         }
         if( strcmp(key, "chrome_checkbox") == 0 )

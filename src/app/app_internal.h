@@ -1053,6 +1053,14 @@ EditorView_AppBoot(struct App* app);
 int
 EditorView_AppIsView(void);
 
+/** 1 when this process is a window popped out to show a panel that draws no
+ *  world (`--editor-panel <module>`, the module neither "world" nor
+ *  "preview": Editor_UiModuleNeedsWorld): the boot's default world load and
+ *  the load around the camera stand down (app_boot.c, EditorView_AppFrame).
+ *  The mirror, the catalog link and the preview raster are untouched. */
+int
+EditorView_AppHoldsNoWorld(void);
+
 /** Per frame, in the editor block: the toolbar's activation (while the
  *  command panels are hidden -- once "Open panels" showed them, their
  *  dispatcher owns the frame's one activation and offers it to

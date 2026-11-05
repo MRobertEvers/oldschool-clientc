@@ -39,6 +39,7 @@
 #include "editor/editor_host.h"
 #include "editor/editor_hotkeys.h"
 #include "editor/editor_layout.h"
+#include "editor/editor_prefs.h"
 
 #include <stdarg.h>
 #include <stdint.h>
@@ -631,8 +632,9 @@ struct EditorUi
      *  sizes); cleared by a surface or scale change and by Reset layout. */
     int laid_out;
     /** The chrome panels the registered modules created, [panel_first,
-     *  panel_end), and the chrome scale their pixel sizes were given in: a
-     *  later scale change (the display's density arrives after boot) scales
+     *  panel_end), and the chrome scale their pixel sizes were given in, in
+     *  quarter units (Editor_ChromeScaleQ): a later scale change (the
+     *  display's density arrives after boot, View > Chrome scale) scales
      *  them to match. */
     int panel_first;
     int panel_end;
@@ -736,7 +738,124 @@ struct EditorUi
     struct EditorUiGroup groups[EDITOR_UI_GROUPS_MAX];
     int group_count;
     unsigned char group_plus1[EDITOR_UI_PANELS_MAX];
+
+    /**
+     * View > Chrome scale and View > Text size (workbench 6.0b): this
+     * device's choices (editor_prefs.h), never shared with the Client.
+     * `prefs_serial` moves on every change the user makes, so the host
+     * writes editor_prefs.ini when it differs from what it last wrote; a
+     * change applied from the file (Editor_UiApplyPrefs) does not move it.
+     * `scale_auto_q` is what the host's Auto resolved to on the last frame
+     * (Editor_UiChromeScaleFor), so the Auto row can name it.
+     */
+    struct Editor_Prefs prefs;
+    uint32_t prefs_serial;
+    int scale_auto_q;
+    /** The theme's own row face, kept while Large wears the Menu face, so
+     *  Normal gives it back. */
+    int text_face_normal;
+
+    /**
+     * The Dock button (design #workbench "Every panel pops out"): this
+     * popped-out window's Dock was pressed and the leader was told
+     * (TORIRSMAPED_STATE_DOCK_PANEL); the host closes the window. And the
+     * serial of the last dock this window asked for.
+     */
+    int dock_exit;
+    uint32_t dock_serial;
 };
+
+/* ---- chrome scale and text size (workbench 6.0b) ---------------------------
+ *
+ * The chrome scale is in QUARTER units (ui/torirs_chrome_scale_q.h: 4 = 1x,
+ * 6 = 1.5x). The chrome model takes a rational scale through
+ * ToriRSChrome_SetScaleQ once it carries one -- a build defines
+ * TORIRS_CHROME_SCALEQ when it links that model -- and until then this shim
+ * rounds the quarter value to the integer scale (q + 2) / 4. Every editor
+ * metric goes through Editor_UiPx (edp_px), so the editor's layout rounds
+ * once, where the chrome rounds its own.
+ */
+#define EDITOR_UI_SCALEQ_ONE 4
+/** View > Text size Large: rows of this many chrome pixels at 1x. */
+#define EDITOR_UI_LARGE_ROW_H 22
+
+/** Set `chrome`'s scale to quarter value `q` (TORIRS_CHROME_SCALEQ_MIN..MAX,
+ *  asserted); 1 when it moved. */
+int
+Editor_ChromeSetScaleQ(
+    struct ToriRSChrome* chrome,
+    int q);
+
+/** `chrome`'s scale in quarter units: exact under TORIRS_CHROME_SCALEQ, 4 x
+ *  the integer scale before. */
+int
+Editor_ChromeScaleQ(const struct ToriRSChrome* chrome);
+
+/** The integer scale App_SetChromeScale is handed beside quarter value `q`:
+ *  the one ToriRSChrome_Scale then answers (the rounded scale before
+ *  TORIRS_CHROME_SCALEQ, the tier at or above it after), so the integer and
+ *  the quarter setter never undo each other. */
+int
+Editor_ChromeScaleInteger(int q);
+
+/** A 1x-authored editor metric in this window's device pixels, rounded once
+ *  (ToriRSChrome_Px under TORIRS_CHROME_SCALEQ). */
+int
+Editor_UiPx(
+    const struct EditorUi* ui,
+    int px);
+
+/** The chrome scale this window wants when the host's Auto is `auto_q`: the
+ *  View > Chrome scale choice, or `auto_q` for Auto (remembered for the Auto
+ *  row's label). */
+int
+Editor_UiChromeScaleFor(
+    struct EditorUi* ui,
+    int auto_q);
+
+/** View > Chrome scale: EDITOR_PREFS_SCALE_AUTO or a step
+ *  (ToriRSChromeScaleQ_StepIndex >= 0, asserted). The host applies the scale
+ *  on its next frame; the layout re-runs when it lands. Moves prefs_serial. */
+void
+Editor_UiSetChromeScalePref(
+    struct EditorUi* ui,
+    int q);
+
+/** View > Text size: 0 Normal (the Body face, 18 px rows), 1 Large (the
+ *  Menu face as the body face, EDITOR_UI_LARGE_ROW_H rows), through the
+ *  chrome's theme (`font_row`, `row_h`); the layout re-runs. Moves
+ *  prefs_serial. */
+void
+Editor_UiSetTextLarge(
+    struct EditorUi* ui,
+    int large);
+
+/** Apply what editor_prefs.ini says (the host's load), without moving
+ *  prefs_serial: nothing to write back. */
+void
+Editor_UiApplyPrefs(
+    struct EditorUi* ui,
+    const struct Editor_Prefs* prefs);
+
+/* ---- the Dock button (design #workbench "Every panel pops out") ------------ */
+
+/**
+ * Dock this popped-out window back into its leader: tell the Client
+ * (TORIRSMAPED_STATE_DOCK_PANEL: the module's registry index and a serial) so
+ * the window that shows the panel set opens the panel again exactly as View >
+ * <panel> does, and set `dock_exit` for the host to close this window. Asserts
+ * the window is solo. Returns 1 when the leader was told; 0 (with a console
+ * line, the window left open) when there is no session to tell it through.
+ * The title-bar Dock button lands here.
+ */
+int
+Editor_UiDockBack(struct EditorUi* ui);
+
+/** Whether a window popped out to show module `module` alone holds a world:
+ *  "world" and "preview" draw one; every other panel loads none
+ *  (app_editor_view.c skips the world load around its camera). */
+int
+Editor_UiModuleNeedsWorld(const char* module);
 
 /** Zero the registry over `chrome`; no panels yet. `editor` may be NULL. */
 void

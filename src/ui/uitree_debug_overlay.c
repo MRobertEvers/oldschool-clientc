@@ -115,7 +115,7 @@ _Static_assert(
  * that genuinely needs more (an open colour picker) grows by an ADDEND below
  * itself rather than by breaking the grid.
  */
-#define DBG_ROW_H DBG_PX(TORIRS_CHROME_M_ROW_H)
+#define DBG_ROW_H DBG_PX(ui->theme.row_h > 0 ? ui->theme.row_h : TORIRS_CHROME_M_ROW_H)
 /** The label column of a labelled row. Fixed -- see TORIRS_CHROME_M_LABEL_W. */
 #define DBG_LABEL_W DBG_PX(TORIRS_CHROME_M_LABEL_W)
 /**
@@ -1897,6 +1897,8 @@ ToriRSChrome_Init(struct ToriRSChrome* ui)
     ui->hover_close_panel = -1;
     ui->hover_popout_panel = -1;
     ui->popout_requested = -1;
+    ui->hover_dock_panel = -1;
+    ui->dock_requested = -1;
     ui->caret_visible = 1;
     dbg_ext_init(ui);
 }
@@ -1941,6 +1943,8 @@ ToriRSChrome_Reset(struct ToriRSChrome* ui)
     ui->hover_close_panel = -1;
     ui->hover_popout_panel = -1;
     ui->popout_requested = -1;
+    ui->hover_dock_panel = -1;
+    ui->dock_requested = -1;
     ui->overflow = 0;
     dbg_ext_init(ui);
     ui->dirty = 1;
@@ -2410,6 +2414,87 @@ ToriRSChrome_PanelPopOutRect(struct ToriRSChrome const* ui, int panel)
     assert(ui);
     assert(dbg_valid_panel(ui, panel));
     return dbg_panel_popout_rect(ui, panel);
+}
+
+void
+ToriRSChrome_PanelSetDockable(struct ToriRSChrome* ui, int panel, int dockable)
+{
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    dockable = dockable ? 1 : 0;
+    if( ui->panels[panel].dockable == dockable )
+        return;
+    ui->panels[panel].dockable = dockable;
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_RECT);
+    dbg_dirty_panel(ui, panel);
+}
+
+int
+ToriRSChrome_TakeDock(struct ToriRSChrome* ui)
+{
+    int const panel = ui->dock_requested;
+
+    assert(ui);
+    ui->dock_requested = -1;
+    return panel;
+}
+
+/**
+ * The Dock button's box: the Close box's size, one box and one pad left of
+ * the Pop out when there is one, else of the Close, else in the Close's
+ * place. Derived from the two boxes it sits beside so none can overlap.
+ */
+static struct ToriRSChromeRect
+dbg_panel_dock_box(
+    struct ToriRSChrome const* ui,
+    struct ToriRSChromePanel const* p,
+    struct ToriRSChromeRect box)
+{
+    struct ToriRSChromeRect out = p->poppable ? dbg_panel_popout_box(ui, p, box) : dbg_panel_close_box(ui, p, box);
+
+    if( out.w > 0 && (p->poppable || p->closable) )
+        out.x -= out.w + DBG_CLOSE_PAD;
+    return out;
+}
+
+static struct ToriRSChromeRect
+dbg_panel_dock_rect(struct ToriRSChrome const* ui, int panel)
+{
+    struct ToriRSChromeRect out = { 0, 0, 0, 0 };
+    struct ToriRSChromePanel const* p;
+
+    if( !dbg_valid_panel(ui, panel) )
+        return out;
+    p = &ui->panels[panel];
+    if( !p->dockable || !p->title[0] )
+        return out;
+    return dbg_panel_dock_box(ui, p, p->last_rect);
+}
+
+/** Panel whose Dock button is under the point, or -1. */
+static int
+dbg_panel_dock_at(struct ToriRSChrome const* ui, int x, int y)
+{
+    int const top = dbg_maximised_over(ui, x, y);
+
+    for( int i = ui->panel_count - 1; i >= 0; i-- )
+    {
+        if( top >= 0 && i != top && !ui->panels[i].modal )
+            continue;
+        if( !ui->panels[i].visible || !ui->panels[i].dockable )
+            continue;
+        if( dbg_point_in_rect(x, y, dbg_panel_dock_rect(ui, i)) )
+            return i;
+    }
+    return -1;
+}
+
+struct ToriRSChromeRect
+ToriRSChrome_PanelDockRect(struct ToriRSChrome const* ui, int panel)
+{
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    return dbg_panel_dock_rect(ui, panel);
 }
 
 void
@@ -5635,6 +5720,41 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             }
         }
     }
+    /*
+     * Dock, when the panel asked for it: beside the Pop out (or the Close),
+     * in the baked DockButton art -- or, with no skin, the flat box with a
+     * bar along its foot for the column it goes back into.
+     */
+    if( p->dockable && p->title[0] )
+    {
+        struct ToriRSChromeRect live;
+        struct ToriRSChromeRect box;
+
+        live.x = p->x;
+        live.y = p->y;
+        live.w = p->w;
+        live.h = p->h;
+        box = dbg_panel_dock_box(ui, p, live);
+        if( box.w > 0 )
+        {
+            int const hot = dbg_point_in_rect(ui->hover_x, ui->hover_y, box);
+            int const slot = hot ? TORIRS_CHROME_SKIN_DOCK_OVER : TORIRS_CHROME_SKIN_DOCK;
+
+            if( th->skin_dropdown && dbg_skin_has(ui, slot) )
+                dbg_push_sprite_box(ui, box.x, box.y, box.w, box.h, slot, clip);
+            else
+            {
+                int const bar = box.h / 4 > DBG_RULE ? box.h / 4 : DBG_RULE;
+                dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->input_bg, 1, clip);
+                dbg_push_rect(ui, box.x + DBG_RULE, box.y + DBG_RULE, box.w - 2 * DBG_RULE,
+                    box.h - 2 * DBG_RULE, th->accent, 1, clip);
+                dbg_push_rect(ui, box.x + 2 * DBG_RULE, box.y + box.h - 2 * DBG_RULE - bar, box.w - 4 * DBG_RULE, bar,
+                    th->input_bg, 1, clip);
+                if( hot )
+                    dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->accent, 0, clip);
+            }
+        }
+    }
     /* Bottom rule and the two side rails: inset a pixel, and running from the
      * separator down, exactly as dbg_build_menu draws them. A titleless panel
      * has no separator to start at, so its rails start at the top border
@@ -8635,6 +8755,16 @@ ToriRSChrome_MouseMove(struct ToriRSChrome* ui, int x, int y)
             dbg_dirty_panel(ui, panel);
         }
     }
+    {
+        int const panel = dbg_panel_dock_at(ui, x, y);
+
+        if( panel != ui->hover_dock_panel )
+        {
+            dbg_dirty_panel(ui, ui->hover_dock_panel);
+            ui->hover_dock_panel = panel;
+            dbg_dirty_panel(ui, panel);
+        }
+    }
 
     /* A panel's own grip, held for as long as the button is: same rule as the
      * dropdown's below it, and checked first for the same reason. */
@@ -8819,7 +8949,7 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
      * at RELEASE like every other clickable thing here, so a press that slides
      * off cancels.
      */
-    if( dbg_panel_close_at(ui, x, y) >= 0 || dbg_panel_popout_at(ui, x, y) >= 0 )
+    if( dbg_panel_close_at(ui, x, y) >= 0 || dbg_panel_popout_at(ui, x, y) >= 0 || dbg_panel_dock_at(ui, x, y) >= 0 )
     {
         dbg_focus_release(ui);
         ui->press = -1;
@@ -9055,6 +9185,16 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
         if( panel >= 0 && !dbg_modal_blocks(ui, x, y) )
         {
             ui->popout_requested = panel;
+            ui->press = -1;
+            return 1;
+        }
+    }
+    /* A dockable panel's Dock: latched for the host, nothing hidden. */
+    {
+        int const panel = dbg_panel_dock_at(ui, x, y);
+        if( panel >= 0 && !dbg_modal_blocks(ui, x, y) )
+        {
+            ui->dock_requested = panel;
             ui->press = -1;
             return 1;
         }

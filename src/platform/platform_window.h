@@ -457,6 +457,17 @@ int
 PlatformWindow_DisplayDensityPercent(struct PlatformWindow* platform);
 
 /**
+ * The display's device pixel ratio as the CHROME should read it, in percent:
+ * DisplayDensityPercent, and where that is 100 because the backend has one
+ * coordinate space, the display's own scale when the platform states one
+ * worth trusting (Windows' per-monitor DPI under SDL). What the chrome's Auto
+ * scale snaps (main.c main_dynamic_chrome_scale, ui/torirs_chrome_scale_q.h).
+ * Never read by the game's own scaling, whose coordinate space it is not.
+ */
+int
+PlatformWindow_ChromeDensityPercent(struct PlatformWindow* platform);
+
+/**
  * Ask the next window for a device-pixel (HighDPI) drawable.
  *
  * Must be called BEFORE PlatformWindow_Init / _InitForOpenGL3: the flag becomes

@@ -10,6 +10,12 @@
  * it when it is the tab in front. Reset groups puts every panel back in its
  * default group.
  *
+ * Between the panel rows and the layout's own, the view's (workbench 6.0b):
+ * Chrome scale (Auto, then 100 % to 300 % in the design's steps) and Text size
+ * (Normal, Large), radio rows -- the chosen one says "on" in its right-hand
+ * column, as a closed panel says "hidden" -- each a hotkey action (unbound by
+ * default), device-local (editor_prefs.ini), never the Client's.
+ *
  * After the menus, the ACTIVE LEVEL row: Auto 0 1 2 3 Above. Always on screen
  * (the bar is), never over the world. The pressed button is the edit level;
  * Above (only while a level is pinned) draws the levels over the pin too. It
@@ -23,6 +29,7 @@
 #include "edpanel_common.h"
 #include "edpanels.h"
 #include "mem/torirs_mem.h"
+#include "ui/torirs_chrome_scale_q.h"
 #include "ui/uitree_layout.h"
 
 #include <stdio.h>
@@ -56,7 +63,11 @@ enum
     VIEW_LAYOUT_COUNT
 };
 
-#define MENUBAR_VIEW_MAX (EDITOR_UI_PANELS_MAX + VIEW_LAYOUT_COUNT)
+/* The view's rows, before the layout's: Chrome scale Auto and its steps,
+ * then Text size Normal and Large -- the hotkey actions in that order. */
+#define VIEW_PREF_COUNT (EDITOR_HK_VIEW_TEXT_LARGE - EDITOR_HK_VIEW_SCALE_AUTO + 1)
+
+#define MENUBAR_VIEW_MAX (EDITOR_UI_PANELS_MAX + VIEW_PREF_COUNT + VIEW_LAYOUT_COUNT)
 
 /* The Level row: Auto, then one button per plane. */
 #define MENUBAR_LEVEL_BUTTONS (EDITOR_SQUARE_LEVELS + 1)
@@ -83,8 +94,15 @@ struct MenuBarPanel
     const char* view_rows[MENUBAR_VIEW_MAX];
     int view_targets[MENUBAR_VIEW_MAX];
     int view_count;
-    /** Rows that are panels; the layout rows follow them. */
+    /** Rows that are panels; the view's rows follow them (at
+     *  view_panel_count), then the layout's (at view_layout_first). */
     int view_panel_count;
+    int view_layout_first;
+    /** What the view's rows were labelled from: the scale choice, the
+     *  scale Auto resolved to, the text size. */
+    int view_built_scale;
+    int view_built_auto;
+    int view_built_text;
     int view_built_for;
     int view_built_snap;
     /** menubar_view_state() the rows were labelled from: a panel shown,
@@ -150,7 +168,8 @@ menubar_build_view(
     struct MenuBarPanel* self)
 {
     self->view_count = 0;
-    for( int i = 0; i < ui->panel_count && self->view_count < MENUBAR_VIEW_MAX - VIEW_LAYOUT_COUNT; i++ )
+    for( int i = 0; i < ui->panel_count && self->view_count < MENUBAR_VIEW_MAX - VIEW_PREF_COUNT - VIEW_LAYOUT_COUNT;
+         i++ )
     {
         const struct EditorUiPanel* panel = &ui->panels[i];
         int action;
@@ -172,6 +191,35 @@ menubar_build_view(
         self->view_count++;
     }
     self->view_panel_count = self->view_count;
+    /* The view's rows: radio rows, the chosen one marked. */
+    for( int action = EDITOR_HK_VIEW_SCALE_AUTO; action <= EDITOR_HK_VIEW_TEXT_LARGE; action++ )
+    {
+        char label[TORIRS_CHROME_LABEL_MAX];
+        int on;
+        if( action == EDITOR_HK_VIEW_SCALE_AUTO )
+        {
+            snprintf(label, sizeof(label), "Chrome scale: Auto (%d %%)", ToriRSChromeScaleQ_Percent(ui->scale_auto_q));
+            on = ui->prefs.chrome_scale_q == EDITOR_PREFS_SCALE_AUTO;
+        }
+        else if( action <= EDITOR_HK_VIEW_SCALE_300 )
+        {
+            int const q = ToriRSChromeScaleQ_Step(action - EDITOR_HK_VIEW_SCALE_100);
+            snprintf(label, sizeof(label), "Chrome scale: %d %%", ToriRSChromeScaleQ_Percent(q));
+            on = ui->prefs.chrome_scale_q == q;
+        }
+        else
+        {
+            int const large = action == EDITOR_HK_VIEW_TEXT_LARGE;
+            snprintf(label, sizeof(label), "Text size: %s", large ? "Large" : "Normal");
+            on = ui->prefs.text_large == large;
+        }
+        edp_hotkey_row(ui, action, label, self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX);
+        if( on )
+            menubar_mark_row(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "on");
+        self->view_rows[self->view_count] = self->view_labels[self->view_count];
+        self->view_targets[self->view_count++] = -1;
+    }
+    self->view_layout_first = self->view_count;
     edp_hotkey_row(ui, EDITOR_HK_VIEW_HIDE_PANELS, "Hide / show panels", self->view_labels[self->view_count],
         TORIRS_CHROME_LABEL_MAX);
     self->view_rows[self->view_count] = self->view_labels[self->view_count];
@@ -195,6 +243,9 @@ menubar_build_view(
     self->view_built_for = ui->panel_count;
     self->view_built_snap = ui->snap;
     self->view_built_state = menubar_view_state(ui);
+    self->view_built_scale = ui->prefs.chrome_scale_q;
+    self->view_built_auto = ui->scale_auto_q;
+    self->view_built_text = ui->prefs.text_large;
 }
 
 /** The File and Edit rows and the Level tips, from the hotkey table. */
@@ -275,7 +326,8 @@ menubar_tick(
         menubar_build_view(ui, self);
     }
     if( self->view_built_for != ui->panel_count || self->view_built_snap != ui->snap
-        || self->view_built_state != menubar_view_state(ui) )
+        || self->view_built_state != menubar_view_state(ui) || self->view_built_scale != ui->prefs.chrome_scale_q
+        || self->view_built_auto != ui->scale_auto_q || self->view_built_text != ui->prefs.text_large )
         menubar_build_view(ui, self);
     /* A level changed behind the row's back -- another window
      * (STATE_EDIT_LEVEL lands in edit_level alone) or a key: the cap follows
@@ -322,16 +374,21 @@ menubar_activate(
         (void)Editor_HotkeyRun(ui, k_file_actions[row]);
     else if( widget == self->menu_edit && row < EDIT_COUNT )
         (void)Editor_HotkeyRun(ui, k_edit_actions[row]);
-    else if( widget == self->menu_view && row == self->view_panel_count + VIEW_HIDE )
+    else if( widget == self->menu_view && row >= self->view_panel_count && row < self->view_layout_first )
+    {
+        (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_SCALE_AUTO + (row - self->view_panel_count));
+        menubar_build_view(ui, self);
+    }
+    else if( widget == self->menu_view && row == self->view_layout_first + VIEW_HIDE )
         (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_HIDE_PANELS);
-    else if( widget == self->menu_view && row == self->view_panel_count + VIEW_RESET_GROUPS )
+    else if( widget == self->menu_view && row == self->view_layout_first + VIEW_RESET_GROUPS )
     {
         Editor_UiResetGroups(ui);
         Editor_UiLog(ui, "editor: every panel back in its default group");
     }
-    else if( widget == self->menu_view && row == self->view_panel_count + VIEW_RESET_LAYOUT )
+    else if( widget == self->menu_view && row == self->view_layout_first + VIEW_RESET_LAYOUT )
         (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_RESET_LAYOUT);
-    else if( widget == self->menu_view && row == self->view_panel_count + VIEW_SNAP )
+    else if( widget == self->menu_view && row == self->view_layout_first + VIEW_SNAP )
     {
         (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_SNAP);
         menubar_build_view(ui, self);

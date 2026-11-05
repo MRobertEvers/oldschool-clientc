@@ -716,6 +716,18 @@ struct ToriRSChromeTheme
     int font_row;
 
     /**
+     * Window-panel row height in chrome pixels at 1x; 0 is the grid's
+     * TORIRS_CHROME_M_ROW_H (18).
+     *
+     * Beside `font_row` because the two move together: the editor's View >
+     * Text size Large makes the Menu face the body face, and its line box
+     * would crowd an 18 px row -- the design gives Large rows of 22
+     * (workbench step 6.0b). Every theme leaves it 0, so no existing panel
+     * moves a pixel.
+     */
+    int row_h;
+
+    /**
      * Draw window-panel bodies as the tiled skin image instead of a flat fill.
      *
      * Off is not a degraded mode, it is the flat look -- and it is also the
@@ -1454,6 +1466,15 @@ struct ToriRSChromePanel
      */
     int poppable;
     /**
+     * The panel carries a Dock button in its title bar: left of its Pop out,
+     * else left of its Close, else at the right end. OPT-IN like `poppable`,
+     * and as inert: what docking means is the host's (a popped-out editor
+     * window asks its leader to show the panel again and exits, workbench
+     * step 6.0b, design #workbench "Every panel pops out"), so the press is
+     * latched for ToriRSChrome_TakeDock and nothing else.
+     */
+    int dockable;
+    /**
      * Draw a resize grip in the bottom-right corner and let it be dragged.
      *
      * Both axes. The origin stays put and the dragged corner follows the
@@ -1854,6 +1875,11 @@ struct ToriRSChrome
     /** A poppable panel's Pop out was clicked: latched at release, drained by
      *  ToriRSChrome_TakePopOut. -1 = none. */
     int popout_requested;
+    /** The panel whose Dock button is under the cursor, or -1, and a
+     *  dockable panel's Dock clicked (ToriRSChrome_TakeDock): as the Pop out
+     *  pair above. */
+    int hover_dock_panel;
+    int dock_requested;
     /** Latched by input, drained by ToriRSChrome_TakeActivated. -1 = none. */
     int activated;
     /** Set beside `activated` when a LISTROW's ACTION zone was what fired it,
@@ -2180,6 +2206,26 @@ ToriRSChrome_PanelCloseRect(struct ToriRSChrome const* ui, int panel);
 
 struct ToriRSChromeRect
 ToriRSChrome_PanelPopOutRect(struct ToriRSChrome const* ui, int panel);
+
+/**
+ * Give a panel a Dock button in its title bar, left of its Pop out (else of
+ * its Close, else at the right end), in the baked DockButton art: a click
+ * latches the panel for ToriRSChrome_TakeDock and does nothing else (the host
+ * decides what docking is). Opt-in. Title-bar furniture, like Close and Pop
+ * out, so it crosses no executor seam: the DOM executor draws no panel title
+ * bar of its own.
+ */
+void
+ToriRSChrome_PanelSetDockable(struct ToriRSChrome* ui, int panel, int dockable);
+
+/** The panel whose Dock was clicked since the last call, or -1. */
+int
+ToriRSChrome_TakeDock(struct ToriRSChrome* ui);
+
+/** Screen box of a panel's title-bar Dock button, as last drawn (a zero rect
+ *  when it has none). */
+struct ToriRSChromeRect
+ToriRSChrome_PanelDockRect(struct ToriRSChrome const* ui, int panel);
 
 /** The edges a press at (x, y) would resize (TORIRS_CHROME_EDGE_* bits) and
  *  which panel, or 0: the border band of a visible, resizable, floating

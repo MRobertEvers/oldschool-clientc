@@ -508,8 +508,10 @@ struct BootManifest
      * display preference, and the client has nowhere else to keep one (there is
      * no settings save, and the cache's own dropdown script is unbound). */
     int window_mode;
-    /** `[ui:boot] chrome_scale=`: pin the ToriRSChrome zoom (1..4). 0 = unset,
-     *  the chrome follows the display's pixel density. */
+    /** `[ui:boot] chrome_scale=`: pin the ToriRSChrome zoom, in QUARTER
+     *  units (ui/torirs_chrome_scale_q.h: "1.5" is 6, "2" is 8); -1 =
+     *  `dynamic`, the display's device pixel ratio; 0 = unset, the chrome
+     *  follows the display's whole pixel density. */
     int chrome_scale;
     /** `[ui:boot] chrome_checkbox=`: which of the interfaces' two booleans the
      *  chrome's checkboxes wear. 0 = unset, 1 = `tick` (the settings page's

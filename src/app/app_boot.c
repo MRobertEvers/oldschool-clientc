@@ -840,7 +840,7 @@ Task_AppBoot_Run(
      * When networked, the server's REBUILD_NORMAL is the sole world-load driver
      * (its region + scene base match the entities); a default region 50,50 load
      * here would race it and clobber the rebuilt scene, so skip it. */
-    if( App_WorldNodeIndex(app) >= 0 && !app->net_enabled )
+    if( App_WorldNodeIndex(app) >= 0 && !app->net_enabled && !EditorView_AppHoldsNoWorld() )
         app_world_load_begin(app, NULL, 0);
 
     /* This stage's place in the profile's own list, where it declares

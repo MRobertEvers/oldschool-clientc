@@ -36,12 +36,17 @@
 #include "editor/panels/edpanels.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
+#include "ui/torirs_chrome_scale_q.h"
 #include "ui/uitree_debug_overlay.h"
 
+#include <rscache.h>
+
+#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 static int g_checks;
 static int g_failed;
@@ -251,6 +256,528 @@ test_golden(void)
     }
 }
 
+/* ---- the scale snap table --------------------------------------------------- */
+
+static void
+test_scale_snap(void)
+{
+    static const int k_snap[][2] = {
+        { 50, 4 },   { 100, 4 },  { 110, 4 },  { 112, 4 },  { 113, 5 },  { 125, 5 },  { 137, 5 },  { 138, 6 },
+        { 150, 6 },  { 160, 6 },  { 175, 7 },  { 187, 7 },  { 188, 8 },  { 200, 8 },  { 224, 8 },  { 225, 10 },
+        { 240, 10 }, { 250, 10 }, { 274, 10 }, { 275, 12 }, { 300, 12 }, { 400, 12 },
+    };
+    static const struct
+    {
+        const char* text;
+        int q;
+    } k_parse[] = {
+        { "1", 4 },    { "2", 8 },     { "3", 12 },  { "4", 12 }, { "1.5", 6 }, { "1.25", 5 }, { "1.75", 7 },
+        { "2.5", 10 }, { "1.125", 5 }, { "0.5", 4 }, { "0", 0 },  { "", 0 },    { "abc", 0 },  { "1.5x", 0 },
+        { "-1", 0 },   { "2.", 8 },
+    };
+
+    for( size_t i = 0; i < sizeof(k_snap) / sizeof(k_snap[0]); i++ )
+        CHECK(ToriRSChromeScaleQ_Snap(k_snap[i][0]) == k_snap[i][1], "a %d %% display snaps to %d quarters (got %d)",
+            k_snap[i][0], k_snap[i][1], ToriRSChromeScaleQ_Snap(k_snap[i][0]));
+    /* The design's steps, in the View menu's order. */
+    {
+        static const int k_steps[TORIRS_CHROME_SCALEQ_STEP_COUNT] = { 4, 5, 6, 7, 8, 10, 12 };
+        for( int i = 0; i < TORIRS_CHROME_SCALEQ_STEP_COUNT; i++ )
+        {
+            CHECK(ToriRSChromeScaleQ_Step(i) == k_steps[i], "step %d is %d quarters", i, k_steps[i]);
+            CHECK(ToriRSChromeScaleQ_StepIndex(k_steps[i]) == i, "%d quarters is step %d", k_steps[i], i);
+            CHECK(ToriRSChromeScaleQ_Snap(ToriRSChromeScaleQ_Percent(k_steps[i])) == k_steps[i],
+                "every step is its own snap");
+        }
+        CHECK(ToriRSChromeScaleQ_StepIndex(9) == -1, "2.25x is no step");
+    }
+    /* Auto on a touch device never goes under 2x. */
+    CHECK(ToriRSChromeScaleQ_FromDisplay(100, 1) == 8, "a 1x touch device gets 2x");
+    CHECK(ToriRSChromeScaleQ_FromDisplay(150, 1) == 8, "a 1.5x touch device gets 2x");
+    CHECK(ToriRSChromeScaleQ_FromDisplay(250, 1) == 10, "a 2.5x touch device keeps 2.5x");
+    CHECK(ToriRSChromeScaleQ_FromDisplay(150, 0) == 6, "a 1.5x laptop gets 1.5x");
+    CHECK(ToriRSChromeScaleQ_FromDisplay(300, 0) == 12, "a 3x phone without touch reported gets 3x");
+    /* TORIRS_CHROME_SCALE and [ui:boot] chrome_scale: integer or decimal. */
+    for( size_t i = 0; i < sizeof(k_parse) / sizeof(k_parse[0]); i++ )
+        CHECK(ToriRSChromeScaleQ_Parse(k_parse[i].text) == k_parse[i].q, "the pin \"%s\" reads %d quarters (got %d)",
+            k_parse[i].text, k_parse[i].q, ToriRSChromeScaleQ_Parse(k_parse[i].text));
+    /* The integer scale the chrome draws each step at until it takes quarters. */
+    CHECK(ToriRSChromeScaleQ_Round(4) == 1 && ToriRSChromeScaleQ_Round(5) == 1 && ToriRSChromeScaleQ_Round(6) == 2
+              && ToriRSChromeScaleQ_Round(7) == 2 && ToriRSChromeScaleQ_Round(8) == 2
+              && ToriRSChromeScaleQ_Round(10) == 3 && ToriRSChromeScaleQ_Round(12) == 3,
+        "(q + 2) / 4 rounds 1.25 to 1x, 1.5 and 1.75 to 2x, 2.5 to 3x");
+    /* The shim, both ways round on one chrome. */
+    {
+        ToriRSChrome_Init(&g_chrome);
+        CHECK(Editor_ChromeSetScaleQ(&g_chrome, 8) == 1 && ToriRSChrome_Scale(&g_chrome) == 2, "2x through the shim");
+        CHECK(Editor_ChromeSetScaleQ(&g_chrome, 8) == 0, "the same scale again moves nothing");
+#if defined(TORIRS_CHROME_SCALEQ)
+        CHECK(Editor_ChromeSetScaleQ(&g_chrome, 6) == 1 && Editor_ChromeScaleQ(&g_chrome) == 6,
+            "1.5x is 1.5x on a chrome that takes quarters");
+#else
+        CHECK(Editor_ChromeSetScaleQ(&g_chrome, 6) == 0 && Editor_ChromeScaleQ(&g_chrome) == 8,
+            "1.5x is drawn at 2x on the integer chrome");
+        CHECK(Editor_ChromeSetScaleQ(&g_chrome, 5) == 1 && ToriRSChrome_Scale(&g_chrome) == 1,
+            "1.25x is drawn at 1x on the integer chrome");
+#endif
+        for( int q = TORIRS_CHROME_SCALEQ_MIN; q <= TORIRS_CHROME_SCALEQ_MAX; q++ )
+        {
+            /* The integer setter beside the quarter one never undoes it. */
+            ToriRSChrome_SetScale(&g_chrome, Editor_ChromeScaleInteger(q));
+            (void)Editor_ChromeSetScaleQ(&g_chrome, q);
+            CHECK(ToriRSChrome_Scale(&g_chrome) == Editor_ChromeScaleInteger(q),
+                "q %d: the integer scale handed to App_SetChromeScale is the one the chrome then answers", q);
+        }
+    }
+}
+
+/* ---- View > Chrome scale and View > Text size ------------------------------------ */
+
+static int
+view_menu(void)
+{
+    for( int i = 0; i < g_chrome.widget_count; i++ )
+        if( g_chrome.widgets[i].kind == TORIRS_CHROME_W_DROPDOWN && g_chrome.widgets[i].menu_mode
+            && strcmp(g_chrome.widgets[i].text, "View") == 0 )
+            return i;
+    return -1;
+}
+
+/** The View row whose label starts with `head`, or -1. */
+static int
+view_row(const char* head)
+{
+    int const view = view_menu();
+    if( view < 0 )
+        return -1;
+    for( int i = 0; i < g_chrome.widgets[view].option_count; i++ )
+        if( strncmp(g_chrome.widgets[view].options[i], head, strlen(head)) == 0 )
+            return i;
+    return -1;
+}
+
+static const char*
+view_label(int row)
+{
+    int const view = view_menu();
+    return view >= 0 && row >= 0 ? g_chrome.widgets[view].options[row] : "";
+}
+
+/** A row's right-hand column says "on". */
+static int
+row_on(int row)
+{
+    const char* tab = strchr(view_label(row), '\t');
+    return tab && strncmp(tab + 1, "on", 2) == 0;
+}
+
+static void
+choose(int row)
+{
+    int const view = view_menu();
+    assert(view >= 0);
+    ToriRSChrome_DropdownSetSelected(&g_chrome, view, row);
+    g_chrome.activated = view;
+    frame_of(&g_chrome, &g_ui);
+}
+
+/** What the host does every frame (main.c main_chrome_scale_q / _apply), the
+ *  display being `auto_q`. */
+static void
+host_frame(int auto_q)
+{
+    (void)Editor_ChromeSetScaleQ(&g_chrome, Editor_UiChromeScaleFor(&g_ui, auto_q));
+    frame_of(&g_chrome, &g_ui);
+}
+
+/** The commonest height of a plain label row in a shown window: one row's
+ *  (a plain label is DBG_ROW_H per wrapped line; the odd one cut at a
+ *  panel's foot or wrapped to two is outvoted). */
+static int
+some_row_height(void)
+{
+    int heights[64];
+    int votes[64];
+    int kinds = 0;
+    int best = 0;
+    for( int i = 0; i < g_chrome.widget_count; i++ )
+    {
+        struct ToriRSChromeWidget const* w = &g_chrome.widgets[i];
+        int k;
+        if( w->kind != TORIRS_CHROME_W_LABEL || w->label_style != TORIRS_CHROME_LABEL_PLAIN || w->hidden
+            || w->panel < 0 || !g_chrome.panels[w->panel].visible
+            || g_chrome.panels[w->panel].style != TORIRS_CHROME_PANEL_WINDOW || w->h <= 0 )
+            continue;
+        for( k = 0; k < kinds && heights[k] != w->h; k++ )
+            ;
+        if( k == kinds )
+        {
+            if( kinds == 64 )
+                continue;
+            heights[kinds] = w->h;
+            votes[kinds++] = 0;
+        }
+        votes[k]++;
+    }
+    for( int k = 0; k < kinds; k++ )
+        if( best == 0 || votes[k] > votes[best - 1] )
+            best = k + 1;
+    return best ? heights[best - 1] : 0;
+}
+
+static void
+test_view_rows(void)
+{
+    static const char* const k_scale_rows[] = { "Chrome scale: 100 %", "Chrome scale: 125 %", "Chrome scale: 150 %",
+        "Chrome scale: 175 %", "Chrome scale: 200 %", "Chrome scale: 250 %", "Chrome scale: 300 %" };
+    int auto_row;
+    int large_row;
+    int normal_row;
+    int row_h;
+    uint32_t serial;
+
+    boot_registry(&g_chrome, &g_ui, NULL, 1530, 1006, 1);
+    CHECK(view_menu() >= 0, "the menu bar has a View menu");
+    auto_row = view_row("Chrome scale: Auto (100 %)");
+    CHECK(auto_row >= 0, "View > Chrome scale: Auto names what the display gives (%s)", view_label(auto_row));
+    CHECK(row_on(auto_row), "Auto is the default and says so");
+    for( int i = 0; i < 7; i++ )
+    {
+        int const row = view_row(k_scale_rows[i]);
+        CHECK(row == auto_row + 1 + i, "%s is the row after the one before it (%d)", k_scale_rows[i], row);
+        CHECK(!row_on(row), "%s is not chosen", k_scale_rows[i]);
+    }
+    normal_row = view_row("Text size: Normal");
+    large_row = view_row("Text size: Large");
+    CHECK(normal_row == auto_row + 8 && large_row == auto_row + 9, "Text size: Normal / Large follow");
+    CHECK(row_on(normal_row) && !row_on(large_row), "Normal is the default");
+    {
+        int const view = view_menu();
+        int const rows = g_chrome.widgets[view].option_count;
+        CHECK(strncmp(view_label(rows - 1), "Snap to grid", 12) == 0 && strncmp(view_label(rows - 2), "Reset layout", 12) == 0,
+            "Reset layout and Snap to grid stay the last two rows");
+        CHECK(strncmp(view_label(auto_row - 1), "Hide / show panels", 18) != 0, "the view's rows sit before the layout's");
+    }
+    /* Every one of them a hotkey action, unbound by default. */
+    for( int a = EDITOR_HK_VIEW_SCALE_AUTO; a <= EDITOR_HK_VIEW_TEXT_LARGE; a++ )
+    {
+        const struct Editor_HotkeyActionInfo* info = Editor_HotkeyInfo(a);
+        CHECK(info->defaults[0] == NULL && info->defaults[1] == NULL, "%s is unbound by default", info->id);
+        CHECK(strcmp(info->group, "View") == 0 && info->panel == NULL, "%s is a View action that toggles no panel",
+            info->id);
+    }
+
+    /* 200 %: the choice is the device's, the host applies it, the layout
+     * re-runs at it. */
+    row_h = some_row_height();
+    CHECK(row_h == 18, "a row is 18 px at 1x (%d)", row_h);
+    serial = g_ui.prefs_serial;
+    choose(view_row("Chrome scale: 200 %"));
+    CHECK(g_ui.prefs.chrome_scale_q == 8, "View > Chrome scale: 200 %% chooses 8 quarters (%d)", g_ui.prefs.chrome_scale_q);
+    CHECK(g_ui.prefs_serial != serial, "a choice moves the serial the host saves on");
+    CHECK(row_on(view_row("Chrome scale: 200 %")) && !row_on(view_row("Chrome scale: Auto")), "the row says on");
+    CHECK(Editor_UiChromeScaleFor(&g_ui, 4) == 8, "the host is asked for 200 %% whatever Auto says");
+    for( int i = 0; i < 3; i++ )
+        host_frame(4);
+    CHECK(ToriRSChrome_Scale(&g_chrome) == 2 && g_ui.layout_scale == 8 && g_ui.laid_out,
+        "the layout re-ran at 2x (scale %d, layout_scale %d)", ToriRSChrome_Scale(&g_chrome), g_ui.layout_scale);
+    CHECK(some_row_height() == 36, "a row is 36 px at 2x (%d)", some_row_height());
+    /* Through the hotkey action too, and Auto back. */
+    CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_SCALE_150) == 1 && g_ui.prefs.chrome_scale_q == 6,
+        "view.scale_150 chooses 1.5x");
+    choose(view_row("Chrome scale: Auto"));
+    CHECK(g_ui.prefs.chrome_scale_q == EDITOR_PREFS_SCALE_AUTO, "Auto again");
+    for( int i = 0; i < 3; i++ )
+        host_frame(4);
+    CHECK(ToriRSChrome_Scale(&g_chrome) == 1 && g_ui.layout_scale == 4 && g_ui.laid_out, "back at 1x and laid out");
+    host_frame(6);
+    CHECK(view_row("Chrome scale: Auto (150 %)") >= 0, "the Auto row names the display's 150 %% (%s)",
+        view_label(view_row("Chrome scale: Auto")));
+    for( int i = 0; i < 3; i++ )
+        host_frame(4);
+
+    /* Text size Large: the Menu face as the body face, rows of 22. */
+    serial = g_ui.prefs_serial;
+    choose(view_row("Text size: Large"));
+    CHECK(g_ui.prefs.text_large == 1 && g_ui.prefs_serial != serial, "View > Text size: Large chooses it");
+    CHECK(g_chrome.theme.font_row == TORIRS_CHROME_FONT_MENU && g_chrome.theme.row_h == EDITOR_UI_LARGE_ROW_H,
+        "the theme rows in the Menu face, %d px", g_chrome.theme.row_h);
+    for( int i = 0; i < 3; i++ )
+        frame_of(&g_chrome, &g_ui);
+    CHECK(g_ui.laid_out && some_row_height() == 22, "the layout re-ran with rows of 22 (%d)", some_row_height());
+    CHECK(row_on(view_row("Text size: Large")) && !row_on(view_row("Text size: Normal")), "Large says on");
+    /* A theme installed under it later wears it too. */
+    ToriRSChrome_SetTheme(&g_chrome, &torirs_chrome_theme_default);
+    frame_of(&g_chrome, &g_ui);
+    CHECK(g_chrome.theme.font_row == TORIRS_CHROME_FONT_MENU && g_chrome.theme.row_h == EDITOR_UI_LARGE_ROW_H,
+        "a theme installed later is worn at the window's text size");
+    choose(view_row("Text size: Normal"));
+    for( int i = 0; i < 3; i++ )
+        frame_of(&g_chrome, &g_ui);
+    CHECK(g_chrome.theme.font_row == torirs_chrome_theme_default.font_row && g_chrome.theme.row_h == 0,
+        "Normal gives the theme its own face back");
+    CHECK(some_row_height() == 18, "rows of 18 again (%d)", some_row_height());
+    {
+        int fresh = 0;
+        CHECK(registry_digest(1, &fresh) == k_golden[0][2], "a fresh 1x boot after all that is still the golden");
+    }
+}
+
+/* ---- editor_prefs.ini -------------------------------------------------------------- */
+
+static void
+test_prefs_file(void)
+{
+    struct Editor_Prefs prefs;
+    struct Editor_Prefs back;
+
+    Editor_PrefsInit(&prefs);
+    CHECK(prefs.chrome_scale_q == EDITOR_PREFS_SCALE_AUTO && prefs.text_large == 0, "the defaults are Auto, Normal");
+    for( int s = -1; s < TORIRS_CHROME_SCALEQ_STEP_COUNT; s++ )
+        for( int large = 0; large <= 1; large++ )
+        {
+            char* text = NULL;
+            int size = 0;
+            prefs.chrome_scale_q = s < 0 ? EDITOR_PREFS_SCALE_AUTO : ToriRSChromeScaleQ_Step(s);
+            prefs.text_large = large;
+            Editor_PrefsEncode(&prefs, &text, &size);
+            CHECK(text && size == (int)strlen(text), "the file encodes");
+            Editor_PrefsInit(&back);
+            back.text_large = !large;
+            CHECK(Editor_PrefsDecode(&back, text, size) == 0, "and decodes with nothing skipped");
+            CHECK(back.chrome_scale_q == prefs.chrome_scale_q && back.text_large == large,
+                "round trip: scale %d text %d (got %d %d)", prefs.chrome_scale_q, large, back.chrome_scale_q,
+                back.text_large);
+            ToriMem_Free(ToriMem_Process(), text);
+        }
+    {
+        static const char k_hand[] = "; edited by hand\n"
+                                     "[other]\n"
+                                     "chrome_scale = 300\n"
+                                     "[view]\n"
+                                     "  chrome_scale = 125   ; a laptop\r\n"
+                                     "text_size = huge\n"
+                                     "no equals sign\n"
+                                     "future_key = 7\n";
+        Editor_PrefsInit(&back);
+        CHECK(Editor_PrefsDecode(&back, k_hand, (int)strlen(k_hand)) == 2, "two malformed lines are skipped");
+        CHECK(back.chrome_scale_q == 5, "125 is read from [view] only, comment and CR cut (%d)", back.chrome_scale_q);
+        CHECK(back.text_large == 0, "a bad text size keeps the default");
+    }
+    {
+        static const char k_odd[] = "[view]\nchrome_scale = 133\n";
+        Editor_PrefsInit(&back);
+        CHECK(Editor_PrefsDecode(&back, k_odd, (int)strlen(k_odd)) == 1 && back.chrome_scale_q == EDITOR_PREFS_SCALE_AUTO,
+            "133 is not a step: skipped, Auto kept");
+    }
+    CHECK(Editor_PrefsDecode(&back, NULL, 0) == 0, "an empty file is the defaults");
+    /* The path: beside the layout file, TORIRS_EDITOR_PREFS overriding it. */
+    unsetenv("TORIRS_EDITOR_PREFS");
+    CHECK(strcmp(Editor_PrefsPath(), EDITOR_PREFS_DEFAULT_PATH) == 0, "editor_prefs.ini by default");
+    setenv("TORIRS_EDITOR_PREFS", "", 1);
+    CHECK(Editor_PrefsPath() == NULL, "an empty TORIRS_EDITOR_PREFS turns the file off");
+    setenv("TORIRS_EDITOR_PREFS", "/tmp/x.ini", 1);
+    CHECK(strcmp(Editor_PrefsPath(), "/tmp/x.ini") == 0, "TORIRS_EDITOR_PREFS names it");
+    unsetenv("TORIRS_EDITOR_PREFS");
+
+    /* Applied from the file: no serial (nothing to write back). */
+    boot_registry(&g_chrome, &g_ui, NULL, 1530, 1006, 1);
+    prefs.chrome_scale_q = 10;
+    prefs.text_large = 1;
+    Editor_UiApplyPrefs(&g_ui, &prefs);
+    CHECK(g_ui.prefs_serial == 0, "the file's values move no serial");
+    CHECK(Editor_UiChromeScaleFor(&g_ui, 4) == 10 && g_chrome.theme.row_h == EDITOR_UI_LARGE_ROW_H,
+        "and are what the window asks for");
+}
+
+/* ---- the Dock button, across two sessions ------------------------------------------ */
+
+static struct ToriRSChrome g_chrome_b;
+static struct EditorUi g_ui_b;
+static struct Editor g_ed_a;
+static struct Editor g_ed_b;
+
+static void
+on_state_ui(
+    void* user_data,
+    uint32_t key,
+    const int32_t* values,
+    int count)
+{
+    Editor_UiApplyState(user_data, key, values, count);
+}
+
+static int
+console_has(
+    const struct EditorUi* ui,
+    const char* needle)
+{
+    for( int i = 0; i < 24; i++ )
+    {
+        const char* line = Editor_UiConsoleLine(ui, i);
+        if( line && strstr(line, needle) )
+            return 1;
+    }
+    return 0;
+}
+
+static void
+press_at(
+    struct ToriRSChrome* chrome,
+    int x,
+    int y)
+{
+    ToriRSChrome_MouseMove(chrome, x, y);
+    (void)ToriRSChrome_MouseDown(chrome, x, y);
+    (void)ToriRSChrome_MouseUp(chrome, x, y);
+}
+
+static void
+test_dock(
+    const char* scratch,
+    const struct RSCache* profile)
+{
+    struct EditorHost host_a;
+    struct EditorHost host_b;
+    struct EditorUiPanel* catalog_a;
+    struct EditorUiPanel* catalog_b;
+    struct ToriRSChromeRect dock;
+    int catalog_index;
+
+    CHECK(Editor_HostOpenMapEdEmbed(&host_a, scratch, NULL), "the embedded server starts");
+    CHECK(Editor_HostOpenMapEdEmbedPeer(&host_b, &host_a, TORIRSMAPED_ROLE_CONTROLLER, 1),
+        "a second session joins the first one's Client");
+    Editor_OpenHost(&g_ed_a, &host_a, "leader", profile);
+    Editor_OpenHost(&g_ed_b, &host_b, "popped", profile);
+
+    /* The leader: the panel set. The popped-out window: Catalog alone. */
+    boot_registry(&g_chrome, &g_ui, &g_ed_a, 1530, 1006, 1);
+    boot_registry(&g_chrome_b, &g_ui_b, &g_ed_b, 640, 480, 1);
+    Editor_SetStateCallback(&g_ed_a, on_state_ui, &g_ui);
+    Editor_SetStateCallback(&g_ed_b, on_state_ui, &g_ui_b);
+    CHECK(Editor_UiSetSolo(&g_ui_b, "catalog"), "the second window shows Catalog alone");
+    for( int i = 0; i < 3; i++ )
+        frame_of(&g_chrome_b, &g_ui_b);
+
+    catalog_a = Editor_UiFindPanel(&g_ui, "catalog");
+    catalog_b = Editor_UiFindPanel(&g_ui_b, "catalog");
+    CHECK(catalog_a && catalog_b && catalog_a->chrome_panel >= 0 && catalog_b->chrome_panel >= 0,
+        "both windows register Catalog");
+    if( !catalog_a || !catalog_b )
+        return;
+    catalog_index = (int)(catalog_a - g_ui.panels);
+    CHECK(catalog_index == (int)(catalog_b - g_ui_b.panels), "at the same registry index in both (%d)", catalog_index);
+
+    /* The popped-out window wears Dock on its title bar, at the right end
+     * where the main window's Close and Pop out sit; the main window wears
+     * none. */
+    dock = ToriRSChrome_PanelDockRect(&g_chrome_b, catalog_b->chrome_panel);
+    {
+        struct ToriRSChromeRect const r = g_chrome_b.panels[catalog_b->chrome_panel].last_rect;
+        CHECK(dock.w > 0 && dock.h > 0, "the popped-out Catalog has a Dock button (%dx%d)", dock.w, dock.h);
+        CHECK(dock.x + dock.w <= r.x + r.w && dock.x > r.x + r.w / 2 && dock.y >= r.y && dock.y + dock.h <= r.y + 30,
+            "at the right end of its title bar (%d,%d in %d,%d %dx%d)", dock.x, dock.y, r.x, r.y, r.w, r.h);
+        CHECK(ToriRSChrome_PanelCloseRect(&g_chrome_b, catalog_b->chrome_panel).w == 0
+                  && ToriRSChrome_PanelPopOutRect(&g_chrome_b, catalog_b->chrome_panel).w == 0,
+            "and no Close or Pop out (the OS window closes it)");
+    }
+    CHECK(ToriRSChrome_PanelDockRect(&g_chrome, catalog_a->chrome_panel).w == 0, "the main window's Catalog has none");
+    /* Its art: the baked DockButton slot. */
+    {
+        int count = 0;
+        int dock_sprites = 0;
+        const struct ToriRSChromePrim* prims = ToriRSChrome_Prims(&g_chrome_b, &count);
+        for( int i = 0; i < count; i++ )
+            if( prims[i].kind == TORIRS_CHROME_PRIM_SPRITE
+                && (prims[i].sprite_slot == TORIRS_CHROME_SKIN_DOCK || prims[i].sprite_slot == TORIRS_CHROME_SKIN_DOCK_OVER) )
+                dock_sprites++;
+        CHECK(dock_sprites == 0 || dock_sprites == 1, "at most one Dock drawn (%d)", dock_sprites);
+    }
+
+    /* The leader pops Catalog out (its window is the one above), scrolled. */
+    ToriRSChrome_PanelSetVisible(&g_chrome, catalog_a->chrome_panel, 1);
+    frame_of(&g_chrome, &g_ui);
+    g_chrome.panels[catalog_a->chrome_panel].scroll_y = 0;
+    CHECK(Editor_UiPanelPopOut(&g_ui, "catalog") == 1, "the leader pops Catalog out");
+    frame_of(&g_chrome, &g_ui);
+    CHECK(!g_chrome.panels[catalog_a->chrome_panel].visible && Editor_UiPanelPoppedOut(&g_ui, "catalog"),
+        "and hides it here");
+
+    /* Dock, pressed. */
+    press_at(&g_chrome_b, dock.x + dock.w / 2, dock.y + dock.h / 2);
+    frame_of(&g_chrome_b, &g_ui_b);
+    CHECK(g_ui_b.dock_exit == 1, "the popped-out window is told to close");
+    CHECK(console_has(&g_ui_b, "docks back into the main window"), "and says so");
+    /* The relay: the leader hears it, as any Client fact. */
+    for( int i = 0; i < 4; i++ )
+    {
+        Editor_PumpFacts(&g_ed_a);
+        Editor_PumpFacts(&g_ed_b);
+    }
+    frame_of(&g_chrome, &g_ui);
+    CHECK(g_chrome.panels[catalog_a->chrome_panel].visible, "the leader shows Catalog again");
+    CHECK(!Editor_UiPanelPoppedOut(&g_ui, "catalog"), "it is no longer popped out there");
+    CHECK(console_has(&g_ui, "Catalog docked back from its own window"), "the leader's console says so");
+    CHECK(Editor_UiPanelInStrip(&g_ui, "catalog") || g_chrome.panels[catalog_a->chrome_panel].visible,
+        "in its group's strip, as View > Catalog puts it");
+    CHECK(Editor_UiSetSolo(&g_ui_b, "catalog") && g_ui_b.solo_panel >= 0, "the popped window stayed solo");
+
+    /* The same panel docked twice is two requests (the serial). */
+    ToriRSChrome_PanelSetVisible(&g_chrome, catalog_a->chrome_panel, 0);
+    frame_of(&g_chrome, &g_ui);
+    g_ui_b.dock_exit = 0;
+    CHECK(Editor_UiDockBack(&g_ui_b) == 1, "a second Dock goes out");
+    for( int i = 0; i < 4; i++ )
+    {
+        Editor_PumpFacts(&g_ed_a);
+        Editor_PumpFacts(&g_ed_b);
+    }
+    frame_of(&g_chrome, &g_ui);
+    CHECK(g_chrome.panels[catalog_a->chrome_panel].visible, "and shows it again");
+    /* A panel already open stays open (a View toggle would have closed it). */
+    g_ui_b.dock_exit = 0;
+    CHECK(Editor_UiDockBack(&g_ui_b) == 1, "a third Dock goes out");
+    for( int i = 0; i < 4; i++ )
+    {
+        Editor_PumpFacts(&g_ed_a);
+        Editor_PumpFacts(&g_ed_b);
+    }
+    frame_of(&g_chrome, &g_ui);
+    CHECK(g_chrome.panels[catalog_a->chrome_panel].visible, "an open panel stays open");
+
+    Editor_UiFree(&g_ui_b);
+    Editor_UiFree(&g_ui);
+    Editor_Close(&g_ed_b);
+    Editor_Close(&g_ed_a);
+
+    /* No session: nobody to tell, the window stays. */
+    boot_registry(&g_chrome_b, &g_ui_b, NULL, 640, 480, 1);
+    CHECK(Editor_UiSetSolo(&g_ui_b, "terrain"), "a session-less window shows Terrain alone");
+    frame_of(&g_chrome_b, &g_ui_b);
+    CHECK(Editor_UiDockBack(&g_ui_b) == 0 && g_ui_b.dock_exit == 0, "Dock with no session leaves the window open");
+    CHECK(console_has(&g_ui_b, "no session to tell the main window through"), "and says why");
+    Editor_UiClearSolo(&g_ui_b);
+    frame_of(&g_chrome_b, &g_ui_b);
+    {
+        struct EditorUiPanel* terrain = Editor_UiFindPanel(&g_ui_b, "terrain");
+        CHECK(terrain && ToriRSChrome_PanelDockRect(&g_chrome_b, terrain->chrome_panel).w == 0,
+            "leaving the solo layout takes the Dock off");
+    }
+    Editor_UiFree(&g_ui_b);
+}
+
+/* ---- panel-only windows -------------------------------------------------------------- */
+
+static void
+test_panel_only(void)
+{
+    static const char* const k_light[] = { "catalog", "squares", "terrain", "locs", "console", "hotkeys" };
+    CHECK(Editor_UiModuleNeedsWorld("world"), "a popped-out World holds a world");
+    CHECK(Editor_UiModuleNeedsWorld("preview"), "a popped-out Preview holds one (its renderer)");
+    for( size_t i = 0; i < sizeof(k_light) / sizeof(k_light[0]); i++ )
+        CHECK(!Editor_UiModuleNeedsWorld(k_light[i]), "a popped-out %s loads no world", k_light[i]);
+}
+
 int
 main(
     int argc,
@@ -260,9 +787,25 @@ main(
     ToriMem_Init();
     /* No layout or prefs another run left behind. */
     setenv("TORIRS_EDITOR_LAYOUT", "", 1);
-    (void)argc;
-    (void)argv;
+    unsetenv("TORIRS_EDITOR_PREFS");
 
+    test_golden();
+    test_scale_snap();
+    test_view_rows();
+    test_prefs_file();
+    test_panel_only();
+    if( argc > 1 )
+    {
+        static struct RSCache profile;
+        char maps[512];
+        CHECK(RSCache_ProfileByName("osrs241", &profile), "the osrs241 cache profile is built in");
+        snprintf(maps, sizeof(maps), "%s/maps", argv[1]);
+        (void)mkdir(maps, 0755);
+        test_dock(argv[1], &profile);
+    }
+    else
+        printf("editor_workbench_test: no scratch dir given, the two-session Dock test is skipped\n");
+    /* The golden again, after everything above ran in this process. */
     test_golden();
 
     printf("editor_workbench_test: %d checks, %d failed\n", g_checks, g_failed);

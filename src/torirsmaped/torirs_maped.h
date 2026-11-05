@@ -348,6 +348,14 @@ enum ToriRSMapEdStateKey
      *  same square asked twice is two requests (editor_ui.c
      *  Editor_UiOpenSquare / Editor_UiApplyState). */
     TORIRSMAPED_STATE_OPEN_SQUARE = 8,
+    /** A popped-out window's Dock button (workbench 6.0b, design #workbench
+     *  "Every panel pops out"): the registry index of the module it showed
+     *  (EditorUi::panels order, which every window of one build registers
+     *  alike) and a serial, so docking the same panel twice is two requests.
+     *  The window that shows the panel set opens that panel again exactly as
+     *  View > <panel> does; the popped-out window then closes (editor_ui.c
+     *  Editor_UiDockBack / Editor_UiApplyState). */
+    TORIRSMAPED_STATE_DOCK_PANEL = 9,
 };
 
 enum

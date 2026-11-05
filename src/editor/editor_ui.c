@@ -10,6 +10,7 @@
 #include "panels/edpanel_common.h"
 #include "panels/edpanels.h"
 #include "torirsmaped/torirs_maped.h"
+#include "ui/torirs_chrome_scale_q.h"
 #include "ui/uitree_debug_overlay.h"
 
 #include <assert.h>
@@ -97,6 +98,9 @@ Editor_UiInit(
     ui->layout_reopened = -1;
     Editor_HotkeysInit(&ui->hotkeys);
     ui->previous_tool = EDITOR_TOOL_SELECT;
+    Editor_PrefsInit(&ui->prefs);
+    ui->scale_auto_q = Editor_ChromeScaleQ(chrome);
+    ui->text_face_normal = chrome->theme.font_row;
 
     /* A read-only session says so, and who holds the tree, before anybody
      * edits and finds out at Save (or RUN). */
@@ -305,7 +309,7 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
      * (they never overlap the one each holds), and each is the next window
      * of the registry's (Editor_UiRegisterGroup). */
     ui_default_groups(ui);
-    ui->layout_scale = ToriRSChrome_Scale(ui->chrome);
+    ui->layout_scale = Editor_ChromeScaleQ(ui->chrome);
     ui_window_furniture(ui);
 }
 
@@ -1253,6 +1257,237 @@ ui_round_down(
     return grid > 0 ? v / grid * grid : v;
 }
 
+/* ---- chrome scale and text size (workbench 6.0b) ----------------------------- */
+
+int
+Editor_ChromeSetScaleQ(
+    struct ToriRSChrome* chrome,
+    int q)
+{
+    assert(chrome);
+    assert(q >= TORIRS_CHROME_SCALEQ_MIN);
+    assert(q <= TORIRS_CHROME_SCALEQ_MAX);
+#if defined(TORIRS_CHROME_SCALEQ)
+    if( ToriRSChrome_ScaleQ(chrome) == q )
+        return 0;
+    ToriRSChrome_SetScaleQ(chrome, q);
+    return 1;
+#else
+    /* The integer chrome: 1.5x is drawn at 2x and 1.25x at 1x until the
+     * model takes quarters. */
+    if( ToriRSChrome_Scale(chrome) == ToriRSChromeScaleQ_Round(q) )
+        return 0;
+    ToriRSChrome_SetScale(chrome, ToriRSChromeScaleQ_Round(q));
+    return 1;
+#endif
+}
+
+int
+Editor_ChromeScaleQ(const struct ToriRSChrome* chrome)
+{
+    assert(chrome);
+#if defined(TORIRS_CHROME_SCALEQ)
+    return ToriRSChrome_ScaleQ(chrome);
+#else
+    return ToriRSChrome_Scale(chrome) * EDITOR_UI_SCALEQ_ONE;
+#endif
+}
+
+int
+Editor_ChromeScaleInteger(int q)
+{
+    assert(q >= TORIRS_CHROME_SCALEQ_MIN);
+    assert(q <= TORIRS_CHROME_SCALEQ_MAX);
+#if defined(TORIRS_CHROME_SCALEQ)
+    /* ToriRSChrome_Scale is the tier the scale reads its bitmaps from, the
+     * nearest at or above: answering anything else would have
+     * App_SetChromeScale reset the quarter scale every frame. */
+    return (q + EDITOR_UI_SCALEQ_ONE - 1) / EDITOR_UI_SCALEQ_ONE;
+#else
+    return ToriRSChromeScaleQ_Round(q);
+#endif
+}
+
+int
+Editor_UiPx(
+    const struct EditorUi* ui,
+    int px)
+{
+    assert(ui);
+#if defined(TORIRS_CHROME_SCALEQ)
+    return ToriRSChrome_Px(ui->chrome, px);
+#else
+    return px * ToriRSChrome_Scale(ui->chrome);
+#endif
+}
+
+int
+Editor_UiChromeScaleFor(
+    struct EditorUi* ui,
+    int auto_q)
+{
+    assert(ui);
+    assert(auto_q >= TORIRS_CHROME_SCALEQ_MIN);
+    assert(auto_q <= TORIRS_CHROME_SCALEQ_MAX);
+    ui->scale_auto_q = auto_q;
+    if( ui->prefs.chrome_scale_q == EDITOR_PREFS_SCALE_AUTO )
+        return auto_q;
+    return ui->prefs.chrome_scale_q;
+}
+
+void
+Editor_UiSetChromeScalePref(
+    struct EditorUi* ui,
+    int q)
+{
+    assert(ui);
+    assert(q == EDITOR_PREFS_SCALE_AUTO || ToriRSChromeScaleQ_StepIndex(q) >= 0);
+    if( ui->prefs.chrome_scale_q == q )
+        return;
+    ui->prefs.chrome_scale_q = q;
+    ui->prefs_serial++;
+    if( q == EDITOR_PREFS_SCALE_AUTO )
+        Editor_UiLog(ui, "editor: chrome scale Auto (the display: %d %%)", ToriRSChromeScaleQ_Percent(ui->scale_auto_q));
+    else
+        Editor_UiLog(ui, "editor: chrome scale %d %%", ToriRSChromeScaleQ_Percent(q));
+}
+
+/** The theme as Text size wants it: the face rows lay out in and their
+ *  height. Asked every frame (two ints), so a theme the App installs later
+ *  (App_SetChromeTheme, a skin change) wears this window's text size too. */
+static void
+ui_text_size_follow(struct EditorUi* ui)
+{
+    struct ToriRSChromeTheme theme = ui->chrome->theme;
+    int const face = ui->prefs.text_large ? TORIRS_CHROME_FONT_MENU : TORIRS_CHROME_FONT_BODY;
+    int const row_h = ui->prefs.text_large ? EDITOR_UI_LARGE_ROW_H : 0;
+
+    /* Normal leaves a theme's own face alone (the flat developer look rows
+     * in Small): only Large has an opinion, and turning it off restores
+     * the face it replaced. */
+    if( !ui->prefs.text_large && theme.row_h == 0 )
+        return;
+    if( ui->prefs.text_large && theme.font_row == face && theme.row_h == row_h )
+        return;
+    if( ui->prefs.text_large )
+    {
+        if( theme.row_h == 0 )
+            ui->text_face_normal = theme.font_row;
+        theme.font_row = face;
+    }
+    else
+        theme.font_row = ui->text_face_normal;
+    theme.row_h = row_h;
+    ToriRSChrome_SetTheme(ui->chrome, &theme);
+    /* Every row changed height: the windows the layout sized to their
+     * content are a different size now. */
+    ui->laid_out = 0;
+}
+
+void
+Editor_UiSetTextLarge(
+    struct EditorUi* ui,
+    int large)
+{
+    assert(ui);
+    large = large ? 1 : 0;
+    if( ui->prefs.text_large == large )
+        return;
+    ui->prefs.text_large = large;
+    ui->prefs_serial++;
+    ui_text_size_follow(ui);
+    Editor_UiLog(ui, "editor: text size %s", large ? "Large" : "Normal");
+}
+
+void
+Editor_UiApplyPrefs(
+    struct EditorUi* ui,
+    const struct Editor_Prefs* prefs)
+{
+    assert(ui);
+    assert(prefs);
+    assert(prefs->chrome_scale_q == EDITOR_PREFS_SCALE_AUTO || ToriRSChromeScaleQ_StepIndex(prefs->chrome_scale_q) >= 0);
+    ui->prefs.chrome_scale_q = prefs->chrome_scale_q;
+    ui->prefs.text_large = prefs->text_large ? 1 : 0;
+    ui_text_size_follow(ui);
+}
+
+/* ---- the Dock button ------------------------------------------------------------ */
+
+int
+Editor_UiModuleNeedsWorld(const char* module)
+{
+    assert(module);
+    return strcmp(module, "world") == 0 || strcmp(module, "preview") == 0;
+}
+
+int
+Editor_UiDockBack(struct EditorUi* ui)
+{
+    int32_t values[2];
+    int at = -1;
+
+    assert(ui);
+    assert(ui->solo_panel >= 0);
+    for( int i = 0; i < ui->panel_count; i++ )
+        if( ui->panels[i].chrome_panel == ui->solo_panel )
+            at = i;
+    assert(at >= 0);
+    values[0] = at;
+    values[1] = (int32_t)++ui->dock_serial;
+    if( !Editor_UiPublish(ui, TORIRSMAPED_STATE_DOCK_PANEL, values, 2) )
+    {
+        Editor_UiLog(ui, "editor: Dock %s: no session to tell the main window through; close this window and "
+                         "use View > %s there", ui->panels[at].title, ui->panels[at].title);
+        return 0;
+    }
+    Editor_UiLog(ui, "editor: %s docks back into the main window; this window closes", ui->panels[at].title);
+    ui->dock_exit = 1;
+    return 1;
+}
+
+/** Per frame: the solo window's title-bar Dock. */
+static void
+ui_dock_tick(struct EditorUi* ui)
+{
+    int const pressed = ToriRSChrome_TakeDock(ui->chrome);
+
+    if( pressed < 0 )
+        return;
+    /* Only a solo window wears it; a press on a stale box is nobody's. */
+    if( ui->solo_panel >= 0 && pressed == ui->solo_panel )
+        (void)Editor_UiDockBack(ui);
+}
+
+/**
+ * Another window of the Client docked registry module `index`. The window
+ * that shows the panel set (not solo, the editor open) shows it again exactly
+ * as View > <panel> does -- the chrome window shown, its group's strip and
+ * the layout following -- and a panel already open stays as it is. A solo
+ * window, or a plain viewer with the panels hidden, is not the one meant.
+ */
+static void
+ui_dock_heard(
+    struct EditorUi* ui,
+    int index)
+{
+    struct EditorUiPanel const* panel;
+
+    if( ui->solo_panel >= 0 || !ui->visible )
+        return;
+    if( index < 0 || index >= ui->panel_count )
+    {
+        Editor_UiLog(ui, "editor: a window docked panel %d, which this window does not have", index);
+        return;
+    }
+    panel = &ui->panels[index];
+    if( !panel->title || panel->chrome_panel < 0 )
+        return;
+    if( !ui->chrome->panels[panel->chrome_panel].visible )
+        ToriRSChrome_PanelSetVisible(ui->chrome, panel->chrome_panel, 1);
+    Editor_UiLog(ui, "editor: %s docked back from its own window", panel->title);
+}
+
 /**
  * The modules size and place their windows in chrome pixels of the scale at
  * registration; the chrome stores those numbers as given. When the scale
@@ -1263,7 +1498,10 @@ ui_round_down(
 static void
 ui_follow_scale(struct EditorUi* ui)
 {
-    int const scale = ToriRSChrome_Scale(ui->chrome);
+    /* In quarter units, so a 1.5x scale scales the windows by 3/2. At the
+     * integer scales the ratio is the same fraction it always was (8/4 is
+     * 2/1) and every truncation lands where it did. */
+    int const scale = Editor_ChromeScaleQ(ui->chrome);
     int const was = ui->layout_scale;
 
     if( was <= 0 || scale == was )
@@ -1484,6 +1722,10 @@ ui_layout_solo(struct EditorUi* ui)
     ToriRSChrome_PanelSetClosable(chrome, solo, 0);
     ToriRSChrome_PanelSetPoppable(chrome, solo, 0);
     ToriRSChrome_PanelSetResizable(chrome, solo, 0);
+    /* The way back in from this side (design #workbench "Every panel pops
+     * out"): the title bar's Dock, at its right end where the main window's
+     * Close and Pop out sit -- the OS window's own close ends it. */
+    ToriRSChrome_PanelSetDockable(chrome, solo, 1);
     ToriRSChrome_PanelSetFixedWidth(chrome, solo, chrome->surface_w);
     ToriRSChrome_PanelSetFixedHeight(chrome, solo, chrome->surface_h);
     ToriRSChrome_PanelSetScrollable(chrome, solo, 1);
@@ -2112,7 +2354,7 @@ Editor_UiLayoutCapture(
     const struct EditorUi* ui,
     struct EditorLayoutFile* out)
 {
-    int const scale = ToriRSChrome_Scale(ui->chrome) > 0 ? ToriRSChrome_Scale(ui->chrome) : 1;
+    int const scale = Editor_ChromeScaleQ(ui->chrome);
 
     assert(ui);
     assert(out);
@@ -2120,7 +2362,7 @@ Editor_UiLayoutCapture(
     out->version = EDITOR_LAYOUT_VERSION;
     out->surface_w = ui->chrome->surface_w;
     out->surface_h = ui->chrome->surface_h;
-    out->scale = scale;
+    out->scale = Editor_ChromeScaleInteger(scale);
     out->has_snap = 1;
     out->snap = ui->snap;
     for( int i = 0; i < ui->panel_count; i++ )
@@ -2145,10 +2387,10 @@ Editor_UiLayoutCapture(
         p->has_user_placed = 1;
         p->user_placed = cp->user_placed ? 1 : 0;
         p->has_x = p->has_y = p->has_w = p->has_h = 1;
-        p->x = cp->x / scale;
-        p->y = cp->y / scale;
-        p->w = cp->fixed_w / scale;
-        p->h = cp->fixed_h / scale;
+        p->x = cp->x * EDITOR_UI_SCALEQ_ONE / scale;
+        p->y = cp->y * EDITOR_UI_SCALEQ_ONE / scale;
+        p->w = cp->fixed_w * EDITOR_UI_SCALEQ_ONE / scale;
+        p->h = cp->fixed_h * EDITOR_UI_SCALEQ_ONE / scale;
         /* Maximised: the box written is the one it restores to. */
         {
             int rx = 0;
@@ -2162,10 +2404,10 @@ Editor_UiLayoutCapture(
             if( p->maximised )
             {
                 p->user_placed = placed ? 1 : 0;
-                p->x = rx / scale;
-                p->y = ry / scale;
-                p->w = rw / scale;
-                p->h = rh / scale;
+                p->x = rx * EDITOR_UI_SCALEQ_ONE / scale;
+                p->y = ry * EDITOR_UI_SCALEQ_ONE / scale;
+                p->w = rw * EDITOR_UI_SCALEQ_ONE / scale;
+                p->h = rh * EDITOR_UI_SCALEQ_ONE / scale;
             }
         }
     }
@@ -2180,10 +2422,10 @@ Editor_UiLayoutCapture(
         gp->has_visible = gp->has_user_placed = gp->has_x = gp->has_y = gp->has_w = gp->has_h = 1;
         gp->visible = frame->visible ? 1 : 0;
         gp->user_placed = frame->user_placed ? 1 : 0;
-        gp->x = frame->x / scale;
-        gp->y = frame->y / scale;
-        gp->w = (g->w > 0 ? g->w : frame->fixed_w) / scale;
-        gp->h = (g->body_h > 0 ? g->frame_h + g->body_h : 0) / scale;
+        gp->x = frame->x * EDITOR_UI_SCALEQ_ONE / scale;
+        gp->y = frame->y * EDITOR_UI_SCALEQ_ONE / scale;
+        gp->w = (g->w > 0 ? g->w : frame->fixed_w) * EDITOR_UI_SCALEQ_ONE / scale;
+        gp->h = (g->body_h > 0 ? g->frame_h + g->body_h : 0) * EDITOR_UI_SCALEQ_ONE / scale;
         gp->has_maximised = 1;
         gp->maximised = 0;
         if( g->shown >= 0 )
@@ -2200,10 +2442,10 @@ Editor_UiLayoutCapture(
                 ui->chrome, ui_group_window(ui, g, g->shown), &rx, &ry, &rw, &rh, &placed);
             if( gp->maximised )
             {
-                gp->x = rx / scale;
-                gp->y = (ry - g->frame_h) / scale;
-                gp->w = rw / scale;
-                gp->h = (rh > 0 ? rh + g->frame_h : 0) / scale;
+                gp->x = rx * EDITOR_UI_SCALEQ_ONE / scale;
+                gp->y = (ry - g->frame_h) * EDITOR_UI_SCALEQ_ONE / scale;
+                gp->w = rw * EDITOR_UI_SCALEQ_ONE / scale;
+                gp->h = (rh > 0 ? rh + g->frame_h : 0) * EDITOR_UI_SCALEQ_ONE / scale;
             }
         }
     }
@@ -2261,7 +2503,7 @@ Editor_UiLayoutApply(
     assert(ui);
     assert(file);
     chrome = ui->chrome;
-    scale = ToriRSChrome_Scale(chrome) > 0 ? ToriRSChrome_Scale(chrome) : 1;
+    scale = Editor_ChromeScaleQ(chrome);
 
     /* The default set first, from what the modules showed: Reset layout must
      * return to the default, not to this file. */
@@ -2285,10 +2527,10 @@ Editor_UiLayoutApply(
         if( sp->has_user_placed && sp->user_placed && sp->has_x && sp->has_y )
         {
             struct ToriRSChromePanel* cp = &chrome->panels[panel];
-            int x = sp->x * scale;
-            int y = sp->y * scale;
-            int w = sp->has_w ? sp->w * scale : cp->fixed_w;
-            int h = sp->has_h ? sp->h * scale : cp->fixed_h;
+            int x = sp->x * scale / EDITOR_UI_SCALEQ_ONE;
+            int y = sp->y * scale / EDITOR_UI_SCALEQ_ONE;
+            int w = sp->has_w ? sp->w * scale / EDITOR_UI_SCALEQ_ONE : cp->fixed_w;
+            int h = sp->has_h ? sp->h * scale / EDITOR_UI_SCALEQ_ONE : cp->fixed_h;
 
             ui_layout_clamp(ui, &x, &y, &w, &h);
             ToriRSChrome_PanelSetFixedWidth(chrome, panel, w);
@@ -2325,7 +2567,7 @@ Editor_UiLayoutApply(
      * the file's boxes too -- the column as the user left it, heights and
      * all, not as a fresh layout would share it out. */
     ui->layout_restore = file->surface_w == chrome->surface_w && file->surface_h == chrome->surface_h
-                         && file->scale == scale;
+                         && file->scale == Editor_ChromeScaleInteger(scale);
     if( ui->layout_restore && file != &ui->layout_saved )
         ui->layout_saved = *file;
     ui->laid_out = 0;
@@ -2388,10 +2630,10 @@ ui_group_apply(
     ui->closed[at] = (unsigned char)(!visible && ui->member[at] ? 1 : 0);
     if( gs && gs->has_user_placed && gs->user_placed && gs->has_x && gs->has_y )
     {
-        int x = gs->x * scale;
-        int y = gs->y * scale;
-        int w = gs->has_w ? gs->w * scale : g->w;
-        int h = gs->has_h ? gs->h * scale : 0;
+        int x = gs->x * scale / EDITOR_UI_SCALEQ_ONE;
+        int y = gs->y * scale / EDITOR_UI_SCALEQ_ONE;
+        int w = gs->has_w ? gs->w * scale / EDITOR_UI_SCALEQ_ONE : g->w;
+        int h = gs->has_h ? gs->h * scale / EDITOR_UI_SCALEQ_ONE : 0;
 
         ui_layout_clamp(ui, &x, &y, &w, &h);
         ToriRSChrome_PanelSetFixedWidth(chrome, g->chrome_panel, w);
@@ -2419,7 +2661,7 @@ static void
 ui_layout_restore_boxes(struct EditorUi* ui)
 {
     struct ToriRSChrome* chrome = ui->chrome;
-    int const scale = ToriRSChrome_Scale(chrome) > 0 ? ToriRSChrome_Scale(chrome) : 1;
+    int const scale = Editor_ChromeScaleQ(chrome);
 
     for( int i = 0; i < ui->panel_count; i++ )
     {
@@ -2437,10 +2679,10 @@ ui_layout_restore_boxes(struct EditorUi* ui)
         if( sp->has_visible && !sp->visible )
             continue;
         if( sp->has_w )
-            ToriRSChrome_PanelSetFixedWidth(chrome, panel, sp->w * scale);
+            ToriRSChrome_PanelSetFixedWidth(chrome, panel, sp->w * scale / EDITOR_UI_SCALEQ_ONE);
         if( sp->has_h )
-            ToriRSChrome_PanelSetFixedHeight(chrome, panel, sp->h * scale);
-        ToriRSChrome_PanelMove(chrome, panel, sp->x * scale, sp->y * scale);
+            ToriRSChrome_PanelSetFixedHeight(chrome, panel, sp->h * scale / EDITOR_UI_SCALEQ_ONE);
+        ToriRSChrome_PanelMove(chrome, panel, sp->x * scale / EDITOR_UI_SCALEQ_ONE, sp->y * scale / EDITOR_UI_SCALEQ_ONE);
     }
     for( int i = 0; i < ui->group_count; i++ )
     {
@@ -2451,12 +2693,12 @@ ui_layout_restore_boxes(struct EditorUi* ui)
             continue;
         if( gs->has_visible && !gs->visible )
             continue;
-        g->x = gs->x * scale;
-        g->y = gs->y * scale;
+        g->x = gs->x * scale / EDITOR_UI_SCALEQ_ONE;
+        g->y = gs->y * scale / EDITOR_UI_SCALEQ_ONE;
         if( gs->has_w )
-            g->w = gs->w * scale;
+            g->w = gs->w * scale / EDITOR_UI_SCALEQ_ONE;
         if( gs->has_h && gs->h > 0 )
-            g->pending_h = gs->h * scale;
+            g->pending_h = gs->h * scale / EDITOR_UI_SCALEQ_ONE;
         g->placed = -1;
         ToriRSChrome_PanelSetFixedWidth(chrome, frame, g->w);
         ToriRSChrome_PanelMove(chrome, frame, g->x, g->y);
@@ -2907,6 +3149,7 @@ Editor_UiClearSolo(struct EditorUi* ui)
     assert(ui->solo_panel >= 0);
     if( ui->solo_panel == ui->world_panel )
         ToriRSChrome_PanelSetTitle(ui->chrome, ui->world_panel, "World");
+    ToriRSChrome_PanelSetDockable(ui->chrome, ui->solo_panel, 0);
     ui->solo_panel = -1;
     ui_window_furniture(ui);
     /* Every titled panel shown, the default layout hiding what the column
@@ -3125,6 +3368,7 @@ Editor_UiTick(struct EditorUi* ui)
         return;
     /* The grid follows the chrome's scale (8 px at 1x, 16 at 2x). */
     Editor_UiSetSnap(ui, ui->snap);
+    ui_text_size_follow(ui);
     ui_follow_scale(ui);
     ui_follow_surface(ui);
     /* The strips first: what showed or hid a member window since the last
@@ -3135,6 +3379,7 @@ Editor_UiTick(struct EditorUi* ui)
         ui_layout_follow(ui);
 
     ui_popout_tick(ui);
+    ui_dock_tick(ui);
     ui_maximise_tick(ui);
 
     /* ONE activation per frame, and it is either one module's or nobody's
@@ -3247,6 +3492,8 @@ Editor_UiApplyState(
         if( ui->hooks.open_square )
             ui->hooks.open_square(ui->hooks_user, values[0], values[1], storage, values[2] != 0);
     }
+    else if( key == TORIRSMAPED_STATE_DOCK_PANEL && count >= 2 )
+        ui_dock_heard(ui, values[0]);
 
     for( int i = 0; i < ui->panel_count; i++ )
         if( ui->panels[i].on_state )
