@@ -42,14 +42,34 @@ CHROME_SKIN_BAKE = engine/torirs_chrome_skin_baked.c
 CHROME_SKIN_RSCACHE = $(REPO_ROOT)/3rd/rscache
 CHROME_SKIN_TOOLS = $(CHROME_SKIN_RSCACHE)/tools
 
-.PHONY: chrome-skin chrome-skin-rebake test-chrome-skin-tiers
+.PHONY: chrome-skin chrome-skin-rebake test-chrome-skin-tiers chrome-font-vector
 chrome-skin:
 	mkdir -p $(OBJ_DIR)/tmp/chrome_skin
 	python3 $(REPO_ROOT)/tools/chrome_skin_tiers.py --check \
 		--sheet $(OBJ_DIR)/tmp/chrome_skin/tiers.png
 	python3 $(REPO_ROOT)/tools/chrome_font_tiers.py --check \
 		--sheet $(OBJ_DIR)/tmp/chrome_skin/font_tiers.png
+	$(MAKE) chrome-font-vector
 	$(MAKE) test-chrome-skin-tiers
+
+# ---- the vector faces --------------------------------------------------------
+#
+# chrome-font-vector (no cache): the synthesized vector faces are reproducible,
+# not a comment, the same way. tools/chrome_font_vector.py re-synthesizes
+# Small, Body and Menu from the 1x masks in engine/torirs_debug_font_baked.c
+# (depixelize: Kopf and Lischinski 2011 adapted to 1-bit masks) and FAILS when
+# any of what it writes differs from what is committed: the TTFs under
+# engine/fonts/, the web faces res/plugin_chrome/font/ToriRS*-Vector.{ttf,woff,
+# eot}, and engine/torirs_chrome_font_vector_baked.{c,h} (the TTF bytes the
+# native rasteriser reads), or when a face fails its own checks (advances equal
+# to the bitmap's x 64, metrics, no source pixel lost). Needs Python 3 with
+# numpy, Pillow and fontTools 4.59.2. To refresh: run the tool without --check
+# and commit what it writes. Review sheets and report.json land in
+# $(OBJ_DIR)/tmp/chrome_font_vector/.
+chrome-font-vector:
+	mkdir -p $(OBJ_DIR)/tmp/chrome_font_vector
+	python3 $(REPO_ROOT)/tools/chrome_font_vector.py --check \
+		--sheets $(OBJ_DIR)/tmp/chrome_font_vector
 
 # Every slot at 1x, 2x and 3x of the right size and kind; the font tiers
 # through their one accessor. Asserts on (-UNDEBUG).
@@ -108,7 +128,8 @@ test-chrome-widgets:
 		$(addprefix ui/test/chrome_widget_sync_,$(addsuffix .c,$(CHROME_WIDGET_TESTS))) \
 		ui/uitree_debug_overlay.c ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c \
 		ui/torirs_chrome_rail.c ui/torirs_chrome_bake.c engine/torirs_chrome_skin_baked.c \
-		engine/torirs_chrome_skin_tiers.c engine/torirs_debug_font_baked.c
+		engine/torirs_chrome_skin_tiers.c engine/torirs_debug_font_baked.c \
+		engine/torirs_chrome_font_vector_baked.c -lm
 	./$(OBJ_DIR)/chrome_widget_sync_test
 	node ui/test/chrome_widgets_dom_test.js
 

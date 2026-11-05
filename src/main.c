@@ -2481,13 +2481,17 @@ main_chrome_scale_q(
  * The NATIVE draw path takes q exactly: App_SetChromeScaleQ sets both chrome
  * models' layout and the bridge, which registers the bake's faces and skin
  * at q (ToriRSChromeBake_Face / _Skin: the tiers at 100, 200 and 300 %, the
- * hinted atlases and area-averaged images between), so 125, 150 and 175 %
- * draw at 125, 150 and 175 %.
+ * vector face's hinted atlases and the area-averaged images between), so
+ * 125, 150 and 175 % draw at 125, 150 and 175 %.
  *
  * A DOM presentation of the plugin window zooms by CSS and draws q too: it
  * is told q over the window's own density (ToriRSChrome_SetPageScale),
  * because its CSS pixel is already that many device pixels -- at Auto it
- * draws unzoomed, at the physical size the canvas chrome has. @return 1 if
+ * draws unzoomed, at the physical size the canvas chrome has.
+ *
+ * The text-rendering mode rides along (App_SetChromeTextSmooth): at a
+ * fractional q the native path draws the vector face either way; at 1x, 2x
+ * and 3x the bitmap tiers unless "smooth always" is on. @return 1 if
  * anything moved.
  */
 static int
@@ -2496,9 +2500,17 @@ main_chrome_scale_apply(
     struct PlatformWindow* platform,
     int q)
 {
+    /* View > Text rendering, the device-local setting beside the scale: the
+     * native path draws the vector face at every scale under "smooth always"
+     * (App_SetChromeTextSmooth: the bridge's faces and the font ids), a DOM
+     * hears it with SCALE and draws the vector web fonts. No metric moves. */
+    int const smooth = app->editor && app->editor_panel.built && app->editor_panel.ui
+                           ? Editor_UiTextSmooth(app->editor_panel.ui)
+                           : 0;
     int changed;
 
     changed = App_SetChromeScaleQ(app, q);
+    changed |= App_SetChromeTextSmooth(app, smooth);
     ToriRSChrome_SetPageScale(&app->plugin_ui, q, PlatformWindow_ChromeDensityPercent(platform));
     return changed;
 }

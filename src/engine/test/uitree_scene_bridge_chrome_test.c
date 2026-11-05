@@ -7,12 +7,16 @@
  * holds the bridge to handing the renderers exactly those pixels:
  *
  *   - TORIRS_CHROME_SCALE's text ("1.5") parsed to q = 6 and set on the
- *     bridge resolves every face to the bake's hinted atlas at q = 6, under
- *     its own id, with the coverage flag a GPU path reads;
- *   - that atlas is as tall as the face's row table says, glyph by glyph and
- *     in total (the GL3 atlas stacks the glyphs, so its height is the sum);
- *   - a stem of a known glyph is a whole number of pixels wide in the
- *     registered pixels: 255 across, nothing partial beside it;
+ *     bridge resolves every face to the bake's VECTOR atlas at q = 6 (the
+ *     synthesized outline, ToriRSChromeGlyphs_Rasterise; not the 1x cells
+ *     scaled), under its own id, with the coverage flag a GPU path reads;
+ *   - its baseline is the face's row table's baseline row, and every glyph
+ *     that stands on the 1x baseline ends on it;
+ *   - a stem of a known glyph is even in the registered pixels: the same
+ *     bytes on every middle row, and ink (the stem darkening);
+ *   - "smooth always" (SetChromeTextSmooth) registers the vector atlas at a
+ *     whole q too, once per q, and turning it off drops it again; at a
+ *     fractional q it changes nothing;
  *   - the skin entry at q = 6 is ToriRSChromeBake_Skin's images, at their
  *     own sizes, and the parchment is ScalePx(6, 88) x ScalePx(6, 60);
  *   - at q = 4, 8, 12 the faces are the baked tiers under their historic ids
@@ -176,8 +180,20 @@ unloads_of(struct ToriDraw_Scene* scene, int font_id)
     return n;
 }
 
+/** Free the masks of a face Rasterise wrote into a caller's struct. */
+static void
+font_masks_free(struct ToriDraw_Font* font)
+{
+    for( int gi = 0; gi < TORIDRAW_FONT_GLYPH_COUNT; gi++ )
+    {
+        free(font->glyph_alpha[gi]);
+        font->glyph_alpha[gi] = NULL;
+    }
+}
+
 /* TORIRS_CHROME_SCALE=1.5 through to the registered faces: the atlas the
- * renderers get at q = 6 is the bake's, and its rows are the row table's. */
+ * renderers get at q = 6 is the bake's vector atlas, on the row table's
+ * baseline. */
 static void
 test_faces_at_one_and_a_half(void)
 {
@@ -201,7 +217,6 @@ test_faces_at_one_and_a_half(void)
         int id = UITreeSceneBridge_EnsureDebugFont(&f.bridge, slot);
         struct ToriDraw_Font const* font = ToriDraw_SceneFontGet(f.scene, id);
         int atlas_h = 0;
-        int table_h = 0;
         int glyph_rows_ok = 1;
 
         CHECK(id == UITREE_SCENE_DEBUG_FONT_Q_ID(slot, 6), "%s at q 6 is under its q 6 id, got 0x%x",
@@ -213,7 +228,21 @@ test_faces_at_one_and_a_half(void)
             continue;
         CHECK(fonts_equal(font, ToriRSChromeBake_Face(slot, 6)),
               "%s: the registered pixels are the bake's q 6 atlas", k_face_name[slot]);
+        CHECK(fonts_equal(font, ToriRSChromeBake_FaceSmooth(slot, 6)),
+              "%s: at a fractional q that is the vector atlas", k_face_name[slot]);
         CHECK(font->coverage == 1, "%s at q 6 says its bytes are coverage", k_face_name[slot]);
+        {
+            struct ToriDraw_Font vector;
+            struct ToriDraw_Font cells;
+            ToriRSChromeGlyphs_Rasterise(slot, 6, 0, &vector);
+            ToriRSChromeGlyphs_RasteriseCells(src, ascent, 6, &cells);
+            CHECK(fonts_equal(font, &vector),
+                  "%s: the registered atlas is Rasterise(q 6), bitmap mode: the vector face",
+                  k_face_name[slot]);
+            CHECK(!fonts_equal(font, &cells), "%s: and not the 1x cells scaled", k_face_name[slot]);
+            font_masks_free(&vector);
+            font_masks_free(&cells);
+        }
 
         ToriRSChromeGlyphs_Rows(ascent, 6, rows, 33);
         CHECK(font->line_height == rows[ascent], "%s: line height %d is the table's baseline row %d",
@@ -222,25 +251,21 @@ test_faces_at_one_and_a_half(void)
         {
             int const oy = src->offset_y[gi];
             int const h = src->glyph_height[gi];
-            if( !src->glyph_alpha[gi] || h <= 0 || src->glyph_width[gi] <= 0 )
+            if( !src->glyph_alpha[gi] || h <= 0 || src->glyph_width[gi] <= 0 || !font->glyph_alpha[gi] )
                 continue;
-            /* The GL3 atlas stacks every glyph, so its height is the sum. */
             atlas_h += font->glyph_height[gi];
-            table_h += rows[oy + h] - rows[oy];
-            if( font->glyph_height[gi] != rows[oy + h] - rows[oy] ||
-                font->offset_y[gi] != rows[oy] )
+            /* Standing on the 1x baseline: ends on the device baseline row. */
+            if( oy + h == ascent && font->offset_y[gi] + font->glyph_height[gi] != rows[ascent] )
                 glyph_rows_ok = 0;
             for( int p = 0; p < font->glyph_width[gi] * font->glyph_height[gi]; p++ )
                 if( font->glyph_alpha[gi][p] != 0 && font->glyph_alpha[gi][p] != 255 )
                     any_coverage = 1;
         }
-        CHECK(glyph_rows_ok, "%s: every glyph spans its 1x rows' device rows from the table",
+        CHECK(glyph_rows_ok, "%s: every glyph on the 1x baseline ends on the baseline row",
               k_face_name[slot]);
-        CHECK(atlas_h == table_h, "%s: the atlas is %d rows tall, the row table's total is %d",
-              k_face_name[slot], atlas_h, table_h);
         CHECK(atlas_h > 0, "%s: the atlas has rows", k_face_name[slot]);
     }
-    CHECK(any_coverage, "the q 6 atlases carry coverage on their one-row edges");
+    CHECK(any_coverage, "the q 6 atlases carry antialiased coverage");
 
     /* The 1x faces a component names stay 1x under any chrome scale. */
     CHECK(UITreeSceneBridge_EnsureDebugFont1x(&f.bridge, TORIRS_CHROME_FONT_BODY) ==
@@ -249,64 +274,49 @@ test_faces_at_one_and_a_half(void)
     fixture_close(&f);
 }
 
-/* A stem is whole pixels: Body's 'l' and 'I' and Small's 'l' are one upright,
- * and every row of it in the registered q 6 pixels is a run of 255 exactly
- * ScalePx(6, its 1x width) wide, with no partial pixel on that row. */
+/* A stem is even: Body's 'l' and 'I' and Small's 'l' are one upright, and in
+ * the registered q pixels every row of its middle third is the same bytes
+ * (the vector face's vertical edges are straight, so the stem is one profile
+ * all the way down), and it reads as ink: its peak is 250 or more where the
+ * stem covers a device column whole (q 6), 200 or more where a 1.25- or
+ * 1.75-pixel stem straddles two (q 5, 7; the stem darkening lifts it). */
 static void
 check_stem(struct ToriDraw_Font const* src, struct ToriDraw_Font const* font, int q, char ch, char const* face)
 {
     int const gi = (unsigned char)src->charcodeset[(unsigned char)ch];
-    int const w1 = src->glyph_width[gi];
-    int const h1 = src->glyph_height[gi];
-    int const mid = h1 / 2;
-    int run1 = 0;
-    int whole_rows = 0;
+    int even_rows = 0;
+    int peak = 0;
     int dw;
     int dh;
+    uint8_t const* first;
 
-    CHECK(gi < TORIDRAW_FONT_GLYPH_COUNT && src->glyph_alpha[gi], "%s '%c' is a glyph", face, ch);
-    if( gi >= TORIDRAW_FONT_GLYPH_COUNT || !src->glyph_alpha[gi] )
+    CHECK(gi < TORIDRAW_FONT_GLYPH_COUNT && font->glyph_alpha[gi], "%s '%c' is a glyph", face, ch);
+    if( gi >= TORIDRAW_FONT_GLYPH_COUNT || !font->glyph_alpha[gi] )
         return;
-    for( int x = 0; x < w1; x++ )
-        if( src->glyph_alpha[gi][mid * w1 + x] )
-            run1++;
     dw = font->glyph_width[gi];
     dh = font->glyph_height[gi];
-    /* The middle third of the device rows: clear of serifs and the
-     * one-row ends. */
+    /* The middle third of the device rows: clear of serifs and the ends. */
+    first = font->glyph_alpha[gi] + (size_t)(dh / 3) * (size_t)dw;
     for( int y = dh / 3; y < dh - dh / 3; y++ )
     {
         uint8_t const* row = font->glyph_alpha[gi] + (size_t)y * (size_t)dw;
-        int solid = 0;
-        int partial = 0;
-        int first = -1;
-        int last = -1;
         for( int x = 0; x < dw; x++ )
-        {
-            if( row[x] == 255 )
-            {
-                solid++;
-                if( first < 0 )
-                    first = x;
-                last = x;
-            }
-            else if( row[x] != 0 )
-                partial++;
-        }
-        if( partial == 0 && solid == ToriRSChrome_ScalePx(q, run1) && last - first + 1 == solid )
-            whole_rows++;
+            if( row[x] > peak )
+                peak = row[x];
+        if( memcmp(row, first, (size_t)dw) == 0 )
+            even_rows++;
         else
-            printf("  %s '%c' q %d row %d: %d solid, %d partial (1x run %d -> %d)\n", face, ch, q, y,
-                   solid, partial, run1, ToriRSChrome_ScalePx(q, run1));
+            printf("  %s '%c' q %d row %d differs from row %d\n", face, ch, q, y, dh / 3);
     }
-    CHECK(run1 > 0, "%s '%c' has an upright at 1x", face, ch);
-    CHECK(whole_rows == dh - 2 * (dh / 3),
-          "%s '%c' at q %d: its stem is %d whole pixels on every middle row (%d of %d rows)", face, ch, q,
-          ToriRSChrome_ScalePx(q, run1), whole_rows, dh - 2 * (dh / 3));
+    CHECK(even_rows == dh - 2 * (dh / 3), "%s '%c' at q %d: its stem is the same pixels on every middle row (%d of %d rows)",
+          face, ch, q, even_rows, dh - 2 * (dh / 3));
+    CHECK(peak >= (q % 2 == 0 ? 250 : 200), "%s '%c' at q %d: its stem reads as ink (peak %d)", face, ch, q,
+          peak);
+    (void)src;
 }
 
 static void
-test_stems_are_whole_pixels(void)
+test_stems_are_even(void)
 {
     struct BridgeFixture f;
 
@@ -433,6 +443,96 @@ test_skin_and_moves(void)
     UITreeSceneBridge_SetChromeScaleQ(&f.bridge, 8);
     CHECK(ToriDraw_SceneEvents(f.scene)->count == 0, "setting q 8 again queues no event, got %d",
           ToriDraw_SceneEvents(f.scene)->count);
+    fixture_close(&f);
+}
+
+/* "Smooth always": the vector atlas at a whole q too, registered once per q
+ * and dropped again when the mode goes back to bitmap; a fractional q draws
+ * the vector face either way. */
+static void
+test_smooth_always(void)
+{
+    struct BridgeFixture f;
+    int builds;
+
+    fixture_open(&f);
+    CHECK(UITreeSceneBridge_ChromeTextSmooth(&f.bridge) == 0, "a new bridge draws bitmap tiers");
+    CHECK(UITreeSceneBridge_EnsureDebugFont(&f.bridge, TORIRS_CHROME_FONT_BODY) ==
+              UITREE_SCENE_DEBUG_FONT_BODY_ID,
+          "q 4, bitmap: Body is the 1x tier");
+    ToriDraw_SceneFrameEnd(f.scene);
+
+    builds = ToriRSChromeBake_GlyphAtlasBuilds();
+    UITreeSceneBridge_SetChromeTextSmooth(&f.bridge, 1);
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+    {
+        int const id = UITreeSceneBridge_EnsureDebugFont(&f.bridge, slot);
+        struct ToriDraw_Font const* font = ToriDraw_SceneFontGet(f.scene, id);
+        CHECK(id == UITREE_SCENE_DEBUG_FONT_Q_ID(slot, 4), "q 4, smooth: %s under its q 4 id, got 0x%x",
+              k_face_name[slot], id);
+        CHECK(font && fonts_equal(font, ToriRSChromeBake_FaceSmooth(slot, 4)),
+              "q 4, smooth: %s is the vector atlas at q 4", k_face_name[slot]);
+        CHECK(font && font->coverage == 1, "q 4, smooth: %s says its bytes are coverage",
+              k_face_name[slot]);
+        CHECK(font && !fonts_equal(font, ToriRSChromeFont_Tier(slot, 1)),
+              "q 4, smooth: %s is not the bitmap tier", k_face_name[slot]);
+    }
+    CHECK(ToriRSChromeBake_GlyphAtlasBuilds() - builds <= TORIRS_CHROME_FONT_SLOT_COUNT,
+          "turning smooth on builds at most one atlas per face (%d)",
+          ToriRSChromeBake_GlyphAtlasBuilds() - builds);
+    ToriDraw_SceneFrameEnd(f.scene);
+
+    /* Setting the same mode again moves nothing. */
+    UITreeSceneBridge_SetChromeTextSmooth(&f.bridge, 1);
+    CHECK(ToriDraw_SceneEvents(f.scene)->count == 0, "smooth again queues no event");
+
+    /* Back to bitmap: q 4's vector faces go by unload events; the tiers answer. */
+    UITreeSceneBridge_SetChromeTextSmooth(&f.bridge, 0);
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+    {
+        int const old_id = UITREE_SCENE_DEBUG_FONT_Q_ID(slot, 4);
+        CHECK(!ToriDraw_SceneFontHas(f.scene, old_id), "smooth -> bitmap: %s at q 4 is dropped",
+              k_face_name[slot]);
+        CHECK(unloads_of(f.scene, old_id) == 1, "smooth -> bitmap: %s at q 4 is unloaded once, got %d",
+              k_face_name[slot], unloads_of(f.scene, old_id));
+    }
+    CHECK(UITreeSceneBridge_EnsureDebugFont(&f.bridge, TORIRS_CHROME_FONT_MENU) ==
+              UITREE_SCENE_DEBUG_FONT_MENU_ID,
+          "smooth -> bitmap: Menu is the 1x tier again");
+    ToriDraw_SceneFrameEnd(f.scene);
+
+    /* On again: the bake's raster is cached, so nothing is rebuilt. */
+    builds = ToriRSChromeBake_GlyphAtlasBuilds();
+    UITreeSceneBridge_SetChromeTextSmooth(&f.bridge, 1);
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+        (void)UITreeSceneBridge_EnsureDebugFont(&f.bridge, slot);
+    CHECK(ToriRSChromeBake_GlyphAtlasBuilds() == builds, "smooth on again rebuilds no atlas");
+
+    /* 2x under smooth: q 8's vector atlas; leaving q 8 drops it. */
+    UITreeSceneBridge_SetChromeScaleQ(&f.bridge, 8);
+    CHECK(!ToriDraw_SceneFontHas(f.scene, UITREE_SCENE_DEBUG_FONT_Q_ID(TORIRS_CHROME_FONT_BODY, 4)),
+          "q 4 -> 8, smooth: q 4's Body is dropped");
+    CHECK(UITreeSceneBridge_EnsureDebugFont(&f.bridge, TORIRS_CHROME_FONT_BODY) ==
+              UITREE_SCENE_DEBUG_FONT_Q_ID(TORIRS_CHROME_FONT_BODY, 8),
+          "q 8, smooth: Body under its q 8 id");
+    CHECK(fonts_equal(
+              ToriDraw_SceneFontGet(
+                  f.scene, UITREE_SCENE_DEBUG_FONT_Q_ID(TORIRS_CHROME_FONT_BODY, 8)),
+              ToriRSChromeBake_FaceSmooth(TORIRS_CHROME_FONT_BODY, 8)),
+          "q 8, smooth: Body is the vector atlas at q 8");
+
+    /* 1.5x: the vector face whatever the mode; a toggle moves nothing. */
+    UITreeSceneBridge_SetChromeScaleQ(&f.bridge, 6);
+    CHECK(UITreeSceneBridge_EnsureDebugFont(&f.bridge, TORIRS_CHROME_FONT_BODY) ==
+              UITREE_SCENE_DEBUG_FONT_Q_ID(TORIRS_CHROME_FONT_BODY, 6),
+          "q 6, smooth: Body under its q 6 id");
+    ToriDraw_SceneFrameEnd(f.scene);
+    UITreeSceneBridge_SetChromeTextSmooth(&f.bridge, 0);
+    CHECK(ToriDraw_SceneEvents(f.scene)->count == 0, "q 6: smooth -> bitmap queues no event, got %d",
+          ToriDraw_SceneEvents(f.scene)->count);
+    CHECK(UITreeSceneBridge_EnsureDebugFont(&f.bridge, TORIRS_CHROME_FONT_BODY) ==
+              UITREE_SCENE_DEBUG_FONT_Q_ID(TORIRS_CHROME_FONT_BODY, 6),
+          "q 6, bitmap: Body is still the vector atlas under its q 6 id");
     fixture_close(&f);
 }
 
@@ -573,7 +673,8 @@ main(void)
 {
     printf("uitree_scene_bridge_chrome_test\n");
     test_faces_at_one_and_a_half();
-    test_stems_are_whole_pixels();
+    test_stems_are_even();
+    test_smooth_always();
     test_tiers_are_the_bake();
     test_skin_and_moves();
     test_soft_blend();

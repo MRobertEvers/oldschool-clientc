@@ -888,6 +888,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	ui/torirs_chrome_inkwell.c \
 	ui/torirs_chrome_mirror.c \
 	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
+	engine/torirs_chrome_font_vector_baked.c \
 	ui/uitree_interact.c ui/uitree_iface_stats.c \
 	varp/varp_manager.c \
 	varc/varc_manager.c \

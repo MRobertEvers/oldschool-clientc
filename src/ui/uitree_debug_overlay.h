@@ -260,8 +260,9 @@ enum ToriRSChromeFontSlot
  * never 27 and 26 on neighbours.
  *
  * Text and art at a fractional scale do not come from stretching a tier: the
- * glyphs are rasterised from the 1x masks with vertical hinting, and a skin
- * slot is area-averaged DOWN from the nearest tier at or above. Both are built
+ * glyphs are rasterised from the synthesized vector face (made from the 1x
+ * masks) with vertical hinting, and a skin slot is area-averaged DOWN from
+ * the nearest tier at or above. Both are built
  * once per scale (torirs_chrome_bake.h), never per frame.
  *
  * The upper bound is the largest tier: a scale above it would have to be drawn
@@ -1806,6 +1807,15 @@ struct ToriRSChrome
     int page_scale_q;
     int page_density_percent;
     /**
+     * Text rendering: 0 = bitmap at whole scales (the baked 1x / 2x / 3x
+     * faces at q = 4, 8, 12; the synthesized vector face between them), 1 =
+     * smooth always (the vector face at every scale). Not a layout input --
+     * every advance is the same either way -- so it dirties nothing; a DOM
+     * hears it with the SCALE command. Init sets 0.
+     * @see ToriRSChrome_SetTextSmooth.
+     */
+    int text_smooth;
+    /**
      * enum ToriRSChromeCheckStyle: which boolean art every checkbox and roster
      * switch in this instance wears. Init sets TICK.
      *
@@ -2213,6 +2223,22 @@ ToriRSChrome_SetScaleQ(struct ToriRSChrome* ui, int q);
  */
 void
 ToriRSChrome_SetPageScale(struct ToriRSChrome* ui, int q, int density_percent);
+
+/**
+ * Text rendering, a device-local setting (the editor's View menu, beside the
+ * chrome scale): 0 = bitmap at whole scales, 1 = smooth always (the vector
+ * face at 1x, 2x and 3x too). Measurement is unchanged -- the vector face's
+ * advances are the bitmap's -- so nothing reflows. A drawer that rasterises
+ * the bake reads it per text prim (ToriRSChromeBake_SetTextSmooth builds the
+ * atlases first); a DOM presentation hears it as SCALE's `h`
+ * (TORIRS_CHROME_CMD_SCALE) and swaps to the vector web fonts.
+ */
+void
+ToriRSChrome_SetTextSmooth(struct ToriRSChrome* ui, int smooth);
+
+/** The text-rendering mode SetTextSmooth last set: 0 or 1. */
+int
+ToriRSChrome_TextSmooth(struct ToriRSChrome const* ui);
 
 /** The integer TIER (see `scale`): the scale itself at q = 4, 8, 12. */
 int

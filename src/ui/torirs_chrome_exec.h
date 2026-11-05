@@ -338,6 +338,11 @@ enum ToriRSChromeCmdKind
      * outlines, so it needs nothing else; its device pixels per chrome pixel
      * are its devicePixelRatio times the ratio. One that draws the display
      * list ignores it: the list is already in device pixels.
+     *
+     * `h` is the text-rendering mode (ToriRSChrome_SetTextSmooth): 0 bitmap
+     * at whole scales, 1 smooth always -- the DOM uses the vector web fonts
+     * at every scale then, not only at a fractional device scale. A change
+     * of either the ratio or the mode resends the command.
      */
     TORIRS_CHROME_CMD_SCALE,
 };
@@ -764,6 +769,9 @@ struct ToriRSChromeSync
      */
     int scale_value;
     int scale_den;
+    /** The text-rendering mode SCALE last carried as `h` (seeded 0, bitmap
+     *  at whole scales, like the zoom). */
+    int scale_text;
     /** Commands emitted since Init, for tests and for a "did anything move"
      *  probe that costs nothing to keep. */
     int cmd_count;

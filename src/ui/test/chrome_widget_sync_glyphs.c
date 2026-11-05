@@ -1,5 +1,6 @@
 #include "chrome_widget_sync.h"
 
+#include "engine/torirs_chrome_font_vector_baked.h"
 #include "engine/torirs_debug_font_baked.h"
 #include "ui/torirs_chrome_bake.h"
 #include "ui/torirs_chrome_skin.h"
@@ -158,24 +159,188 @@ gl_bad_stems(
     return bad;
 }
 
+static int
+gl_index_of(struct ToriDraw_Font const* f, unsigned char c)
+{
+    return (unsigned char)f->charcodeset[c];
+}
+
+/** The largest coverage on row `y` of glyph `gi`. */
+static int
+gl_row_max(struct ToriDraw_Font const* f, int gi, int y)
+{
+    int m = 0;
+    for( int x = 0; x < f->glyph_width[gi]; x++ )
+        if( f->glyph_alpha[gi][y * f->glyph_width[gi] + x] > m )
+            m = f->glyph_alpha[gi][y * f->glyph_width[gi] + x];
+    return m;
+}
+
+/**
+ * The vector atlases (torirs_chrome_bake.h): built once per scale, measuring
+ * exactly as the bitmap faces do, hinted onto the layout's rows, and with
+ * stems that read as ink.
+ */
+static void
+gl_test_vector(void)
+{
+    static int const scales[] = { 4, 5, 6, 7, 8, 9, 10, 11, 12 };
+    static struct ToriRSChromeFontVector const* (*const vector[TORIRS_CHROME_FONT_SLOT_COUNT])(void) = {
+        [TORIRS_CHROME_FONT_SMALL] = ToriRSChromeFontVector_Small,
+        [TORIRS_CHROME_FONT_MENU] = ToriRSChromeFontVector_Menu,
+        [TORIRS_CHROME_FONT_BODY] = ToriRSChromeFontVector_Body,
+    };
+    int bad_advance = 0;
+    int bad_ascent = 0;
+    int bad_zone = 0;
+    int bad_baseline = 0;
+    int bad_stem = 0;
+    int stems = 0;
+    char what[128];
+
+    for( int i = 0; i < (int)(sizeof(scales) / sizeof(scales[0])); i++ )
+    {
+        int const q = scales[i];
+        int const before = ToriRSChromeBake_GlyphAtlasBuilds();
+
+        ToriRSChromeBake_Prepare(q);
+        ToriRSChromeBake_PrepareSmooth(q);
+        ToriRSChromeBake_Prepare(q);
+        ToriRSChromeBake_PrepareSmooth(q);
+        for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+        {
+            struct ToriDraw_Font const* src = gl_face(slot, 1);
+            struct ToriDraw_Font const* dst = ToriRSChromeBake_FaceSmooth(slot, q);
+            struct ToriRSChromeFontVector const* vec = vector[slot]();
+
+            if( q % 4 != 0 )
+                CW_CHECK(ToriRSChromeBake_Face(slot, q) == dst,
+                    "a fractional scale draws the vector atlas");
+            else
+                CW_CHECK(ToriRSChromeBake_Face(slot, q) == gl_face(slot, q / 4),
+                    "a whole scale draws the bitmap tier unless smooth always");
+
+            /* Measurement is the bitmap's: every byte, every glyph. */
+            for( int c = 0; c < 256; c++ )
+                if( dst->draw_width[c] != ToriRSChrome_GlyphAdvanceQ(slot, q, (unsigned char)c) )
+                    bad_advance++;
+            for( int gi = 0; gi < TORIDRAW_FONT_GLYPH_COUNT; gi++ )
+                if( dst->advance[gi] != ToriRSChrome_ScalePx(q, src->advance[gi]) )
+                    bad_advance++;
+            if( dst->line_height != ToriRSChrome_FontLineHeightQ(slot, q) )
+                bad_ascent++;
+
+            /* Vertical hinting: the tops of u and H start on the device row
+             * the layout puts that zone on, and that row is not a faint
+             * partial row (its ink is within 15 % of the row under it). */
+            for( int k = 0; k < 2; k++ )
+            {
+                int const gi = gl_index_of(src, k == 0 ? 'u' : 'H');
+                int const zone = src->line_height - src->offset_y[gi];
+                int const under = gl_row_max(dst, gi, 1);
+                if( dst->offset_y[gi] != dst->line_height - ToriRSChrome_ScalePx(q, zone) ||
+                    gl_row_max(dst, gi, 0) * 100 < under * 85 )
+                {
+                    bad_zone++;
+                    fprintf(stderr, "  q=%d slot %d '%c': top row %d (want %d), max %d\n", q, slot,
+                        k == 0 ? 'u' : 'H', dst->offset_y[gi],
+                        dst->line_height - ToriRSChrome_ScalePx(q, zone), gl_row_max(dst, gi, 0));
+                }
+            }
+            /* Glyphs standing on the baseline at 1x end on the baseline
+             * pixel, solid. */
+            for( int gi = 0; gi < TORIDRAW_FONT_GLYPH_COUNT; gi++ )
+            {
+                if( !src->glyph_alpha[gi] || !dst->glyph_alpha[gi] ||
+                    src->offset_y[gi] + src->glyph_height[gi] != src->line_height )
+                    continue;
+                if( dst->offset_y[gi] + dst->glyph_height[gi] != dst->line_height )
+                {
+                    bad_baseline++;
+                    if( bad_baseline <= 4 )
+                        fprintf(stderr, "  q=%d slot %d glyph %d ends on row %d, baseline %d\n", q,
+                            slot, gi, dst->offset_y[gi] + dst->glyph_height[gi], dst->line_height);
+                }
+            }
+            /* Stem darkening: at mid-height every stroke of l, I, H, n, m, h,
+             * u, 1 reads as ink. A stroke whose width at this scale is 1.5
+             * pixels or more covers one device column whole at any phase the
+             * 1x grid gives it (q = 6, and the whole scales): full ink. At
+             * 1.25x and 1.75x a 1.25-pixel stem can straddle two columns at
+             * 0.75 and 0.5; the gamma lifts that to at least 200 of 255. */
+            for( char const* c = "lIHnmhu1"; *c; c++ )
+            {
+                int const gi = gl_index_of(src, (unsigned char)*c);
+                int const y = dst->glyph_height[gi] / 2;
+                uint8_t const* row = dst->glyph_alpha[gi] + y * dst->glyph_width[gi];
+                for( int x = 0; x < dst->glyph_width[gi]; )
+                {
+                    int peak = 0;
+                    if( row[x] < 32 )
+                    {
+                        x++;
+                        continue;
+                    }
+                    while( x < dst->glyph_width[gi] && row[x] >= 32 )
+                    {
+                        if( row[x] > peak )
+                            peak = row[x];
+                        x++;
+                    }
+                    stems++;
+                    if( peak < ((q % 2 == 0) ? 250 : 200) )
+                    {
+                        bad_stem++;
+                        if( bad_stem <= 4 )
+                            fprintf(stderr, "  q=%d slot %d '%c': a stroke peaks at %d\n", q, slot,
+                                *c, peak);
+                    }
+                }
+            }
+            (void)vec;
+        }
+        snprintf(what, sizeof(what), "q = %d: the vector atlases are built once, three faces", q);
+        CW_CHECK(ToriRSChromeBake_GlyphAtlasBuilds() - before <= TORIRS_CHROME_FONT_SLOT_COUNT, what);
+        {
+            int const again = ToriRSChromeBake_GlyphAtlasBuilds();
+            for( int n = 0; n < 100; n++ )
+                for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+                {
+                    (void)ToriRSChromeBake_Face(slot, q);
+                    (void)ToriRSChromeBake_FaceSmooth(slot, q);
+                }
+            snprintf(what, sizeof(what), "q = %d: reading a face builds nothing", q);
+            CW_CHECK(ToriRSChromeBake_GlyphAtlasBuilds() == again, what);
+        }
+    }
+    CW_CHECK(bad_advance == 0, "the vector atlases advance exactly as the bitmap tables do");
+    CW_CHECK(bad_ascent == 0, "the vector atlases' ascent is the layout's");
+    CW_CHECK(bad_zone == 0, "x-height and cap height land on whole device rows");
+    CW_CHECK(bad_baseline == 0, "vector glyphs on the baseline end on the baseline pixel");
+    CW_CHECK(stems > 200, "the stem-darkening check saw the strokes");
+    CW_CHECK(bad_stem == 0, "every stroke of a stem glyph reads as ink at every scale");
+}
+
 void
 cw_test_glyphs(void)
 {
     static int const fractional[] = { 5, 6, 7, 9, 10, 11 };
 
-    /* At a tier the rasteriser IS the bake: the 1x masks at q = 8 and 12 come
-     * out as the 2x and 3x faces, every metric and every pixel. */
+    /* At a tier the bitmap path IS the bake: the 1x masks at q = 8 and 12
+     * come out as the 2x and 3x faces, every metric and every pixel. */
     for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
         for( int tier = 1; tier <= 3; tier++ )
         {
             struct ToriDraw_Font out;
-            ToriRSChromeGlyphs_Rasterise(
-                gl_face(slot, 1), ToriRSChrome_FontLineHeight(slot, 1), tier * 4, &out);
+            ToriRSChromeGlyphs_Rasterise(slot, tier * 4, 0, &out);
             CW_CHECK(gl_same_face(&out, gl_face(slot, tier)),
                 "an integer scale's atlas is the baked tier, pixel for pixel");
             gl_free(&out);
         }
 
+    /* The cell rasteriser, which the fractional scales drew from before the
+     * vector face and the review photographs still show as the "before":
+     * whole rows, whole stems, quarter-pixel coverage. */
     for( int i = 0; i < (int)(sizeof(fractional) / sizeof(fractional[0])); i++ )
     {
         int const q = fractional[i];
@@ -183,13 +348,15 @@ cw_test_glyphs(void)
         int bad_coverage = 0;
         int bad_baseline = 0;
         int bad_hint = 0;
+        struct ToriDraw_Font cells[TORIRS_CHROME_FONT_SLOT_COUNT];
 
-        ToriRSChromeBake_Prepare(q);
         for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
         {
             struct ToriDraw_Font const* src = gl_face(slot, 1);
-            struct ToriDraw_Font const* dst = ToriRSChromeBake_Face(slot, q);
+            struct ToriDraw_Font const* dst = &cells[slot];
             int const asc = ToriRSChrome_FontLineHeight(slot, 1);
+
+            ToriRSChromeGlyphs_RasteriseCells(src, asc, q, &cells[slot]);
 
             /* The layout measures with the atlas's own pen steps. */
             for( int c = 0; c < 256; c++ )
@@ -247,22 +414,15 @@ cw_test_glyphs(void)
         {
             int seen = 0;
             int const bad = gl_bad_stems(
-                ToriRSChromeFont_Body(), ToriRSChromeBake_Face(TORIRS_CHROME_FONT_BODY, q), q,
-                &seen);
+                ToriRSChromeFont_Body(), &cells[TORIRS_CHROME_FONT_BODY], q, &seen);
             CW_CHECK(seen > 50, "the Body face has stems to check");
             CW_CHECK(bad == 0, "every vertical stem of every Body glyph is whole device pixels");
         }
+        for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+            gl_free(&cells[slot]);
     }
-    {
-        /* The design's own check, at 1.5x and named so. */
-        int seen = 0;
-        ToriRSChromeBake_Prepare(6);
-        CW_CHECK(
-            gl_bad_stems(
-                ToriRSChromeFont_Body(), ToriRSChromeBake_Face(TORIRS_CHROME_FONT_BODY, 6), 6,
-                &seen) == 0,
-            "at q = 6 every vertical stem of every Body glyph is a whole number of pixels");
-    }
+
+    gl_test_vector();
 
     /* Which tier a skin slot is read from: the nearest at or above, never a
      * lower one while a higher exists, the highest there is otherwise. */

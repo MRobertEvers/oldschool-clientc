@@ -3078,6 +3078,18 @@ int
 App_SetChromeScale(struct App* app, int scale);
 
 /**
+ * Text rendering, App_SetChromeScaleQ's sibling: 0 = bitmap at whole scales
+ * (the baked tiers at 1x, 2x, 3x; the vector face between), 1 = smooth always
+ * (the vector face at every scale). Sets both chrome models' mode
+ * (ToriRSChromeBake_SetTextSmooth) and the bridge's
+ * (UITreeSceneBridge_SetChromeTextSmooth), then re-resolves the overlay's
+ * font ids, so the native renderer draws the atlas the mode names. Nothing
+ * moves when the mode did not. @return 1 if it changed.
+ */
+int
+App_SetChromeTextSmooth(struct App* app, int smooth);
+
+/**
  * Choose which of the interfaces' two booleans the chrome's checkboxes wear:
  * enum ToriRSChromeCheckStyle.
  *

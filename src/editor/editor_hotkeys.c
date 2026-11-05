@@ -302,6 +302,12 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                                      "Text size: Normal (the Body face, 18 px rows)", G, EDGE, { NULL }, NULL },
     [EDITOR_HK_VIEW_TEXT_LARGE] = { "view.text_large", "View", "Text size Large",
                                     "Text size: Large (the Menu face, 22 px rows)", G, EDGE, { NULL }, NULL },
+    [EDITOR_HK_VIEW_TEXT_BITMAP] = { "view.text_bitmap", "View", "Text rendering bitmap",
+                                     "Text rendering: the pixel font at 100, 200 and 300 %, smooth between",
+                                     G, EDGE, { NULL }, NULL },
+    [EDITOR_HK_VIEW_TEXT_SMOOTH] = { "view.text_smooth", "View", "Text rendering smooth",
+                                     "Text rendering: the smooth vector face at every scale", G, EDGE,
+                                     { NULL }, NULL },
 };
 
 #undef G

@@ -40,10 +40,15 @@ struct UITreeSceneBridge
     /** The chrome's scale in quarters, 4..12 (6 is 1.5x): what the overlay's
      *  faces and skin resolve at. Init leaves 0, read as 4. */
     int chrome_scale_q;
-    /** The fractional q whose faces are registered under
-     *  UITREE_SCENE_DEBUG_FONT_Q_ID, or 0 for none; dropped when the scale
-     *  moves off it. */
+    /** The q whose vector faces are registered under
+     *  UITREE_SCENE_DEBUG_FONT_Q_ID (a fractional q, or a whole one under
+     *  "smooth always"), or 0 for none; dropped when the scale moves off it
+     *  or a whole q's text mode goes back to bitmap. */
     int chrome_faces_q;
+    /** "Text rendering: smooth always": 1 draws the vector face at a whole q
+     *  too. Init leaves 0 (bitmap tiers at 1x, 2x, 3x).
+     *  @see UITreeSceneBridge_SetChromeTextSmooth. */
+    int chrome_text_smooth;
     /** The q UITREE_SCENE_CHROME_SKIN_ID's pixels were built at, or 0 before
      *  the first EnsureChromeSkin. */
     int chrome_skin_q;
@@ -181,15 +186,16 @@ UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id);
 #define UITREE_SCENE_DEBUG_FONT_SCALED_ID(slot, scale)                                        \
     (UITREE_SCENE_DEBUG_FONT_SCALED_BASE + ((scale) - 2) * 16 + (slot))
 /**
- * The three faces at a FRACTIONAL quarter scale q (5, 6, 7, 9, 10, 11): the
- * bake's hinted atlases, one row of 16 per q. Their own block again, for the
+ * The three faces drawn from the synthesized VECTOR outline at quarter scale
+ * q -- every FRACTIONAL q (5, 6, 7, 9, 10, 11), and a whole one (4, 8, 12)
+ * under "smooth always": the bake's hinted atlases, one row of 16 per q. Their own block again, for the
  * SCALED_BASE reason, and one id per (slot, q) rather than one per slot
  * replaced in place, so a renderer that is late with an unload still cannot
  * draw one q's atlas under another's metrics. Only the bridge's own q is ever
  * registered (UITreeSceneBridge_SetChromeScaleQ drops the last one).
  */
 #define UITREE_SCENE_DEBUG_FONT_Q_BASE 0x40002000
-/** @param slot enum ToriRSChromeFontSlot. @param q a quarter scale, not a multiple of 4. */
+/** @param slot enum ToriRSChromeFontSlot. @param q a quarter scale, 4..12. */
 #define UITREE_SCENE_DEBUG_FONT_Q_ID(slot, q) (UITREE_SCENE_DEBUG_FONT_Q_BASE + (q) * 16 + (slot))
 /** The baked chrome skin at the chrome's scale: one scene entry, one atlas
  *  index per skin slot, each image ToriRSChromeBake_Skin at the bridge's q
@@ -488,7 +494,7 @@ UITreeSceneBridge_ReadSpriteFrame(
  * unable to disagree.
  *
  * A move runs ToriRSChromeBake_Prepare(q) (once per q per process), drops the
- * faces of a fractional q it leaves through the scene's unload events, and
+ * vector faces of the q it leaves through the scene's unload events, and
  * re-uploads the skin entry if one was uploaded. Nothing here runs on a frame
  * the scale did not move. The host re-resolves the font ids after it
  * (EnsureDebugFont answers per q); the skin id does not change.
@@ -499,6 +505,21 @@ UITreeSceneBridge_SetChromeScaleQ(struct UITreeSceneBridge* bridge, int q);
 /** The bridge's quarter scale; 4 when it was never set. */
 int
 UITreeSceneBridge_ChromeScaleQ(struct UITreeSceneBridge const* bridge);
+
+/**
+ * "Text rendering" (the editor's View menu): 0 = bitmap at whole scales, 1 =
+ * smooth always, the vector face at 1x, 2x and 3x too. Fractional scales draw
+ * the vector face either way. A move at a whole q drops that q's vector faces
+ * (off) or lets EnsureDebugFont register them (on, once per q: the bake
+ * caches the raster); the host re-resolves the font ids after it, as after
+ * SetChromeScaleQ. Nothing runs when the mode did not move.
+ */
+void
+UITreeSceneBridge_SetChromeTextSmooth(struct UITreeSceneBridge* bridge, int smooth);
+
+/** The mode SetChromeTextSmooth last set: 0 or 1. */
+int
+UITreeSceneBridge_ChromeTextSmooth(struct UITreeSceneBridge const* bridge);
 
 /** SetChromeScaleQ(bridge, 4 * scale), for an integer tier 1..3. */
 void
@@ -513,10 +534,11 @@ UITreeSceneBridge_ChromeScale(struct UITreeSceneBridge const* bridge);
  * scene font id.
  *
  * At q = 4, 8, 12 the baked tier (ToriRSChromeFont_Tier) under its historic
- * id. Between them, the bake's hinted atlas at q (ToriRSChromeBake_Face:
- * whole-pixel stems, every row a whole span from the face's row table,
- * coverage on the one-row edges, ToriDraw_Font::coverage set) under
- * UITREE_SCENE_DEBUG_FONT_Q_ID -- its advances exactly the table
+ * id. Between them -- and at a tier too under "smooth always"
+ * (SetChromeTextSmooth) -- the vector face's atlas at q (ToriRSChromeBake_
+ * FaceSmooth: the synthesized outline rasterised with vertical hinting, 3x
+ * horizontal oversampling and stem darkening, ToriDraw_Font::coverage set)
+ * under UITREE_SCENE_DEBUG_FONT_Q_ID -- its advances exactly the table
  * ToriRSChrome_MeasureTextQ sums.
  */
 int

@@ -1478,7 +1478,16 @@ Open:
   `UITreeSceneBridge_SetChromeScaleQ` registers each face's hinted atlas at
   q (`UITREE_SCENE_DEBUG_FONT_Q_ID`) and the skin at its own size, main.c
   passes q straight to `App_SetChromeScaleQ` (`ToriRSChromeScaleQ_Whole` is
-  off the native path), and the Soft3D / GL3 blitters blend coverage.
+  off the native path), and the Soft3D / GL3 blitters blend coverage. Since
+  the vector-face merge that atlas is the synthesized vector face's ("Vector
+  face merged (2026-11-05)" under 6.2-6.4).
+- ~~At 1.5x some letters' stems are one pixel and some two, the bowls
+  lumpy~~ **Closed (vector-face merge):** between the tiers the native path
+  draws the vector face, every stem the same profile on every row.
+- ~~View > "Text rendering: smooth always" reaches the web pages only~~
+  **Closed (vector-face merge):** `App_SetChromeTextSmooth` hands it to the
+  scene bridge, which draws the vector face at 1x, 2x and 3x too; the row
+  lost its "(web pages only)".
 - ~~The host does not yet call `ToriRSChromeBake_SetScaleQ`~~ **Closed:**
   `UITreeSceneBridge_SetChromeScaleQ` runs `ToriRSChromeBake_Prepare(q)`, the
   one place the client bakes.
@@ -1598,6 +1607,40 @@ need `ulimit -s unlimited`: test_panel holds an Editor (10 MB) and a
 ToriRSChrome (5 MB) on its stack. Not checked by eye: the page zoom and the
 fractional class in a real browser, the Preview twist's direction, and a
 touchscreen pinch on hardware.
+
+### Vector face (for the integrator)
+
+Text between the bitmap tiers is a synthesized vector face now, not the 1x
+cells scaled (docs/CHROME_SCALE.md, "The vector face"). The judges' winner,
+depixelize, ships as `tools/chrome_font_vector.py`, with two of their defect
+notes fixed in it before the bake: Menu's x (an hourglass: now two crossing
+strokes with V notches) and Menu's / (bowed into an S: every staircase of two
+or more steps is now one straight line, so /, \\, v, N, k and Body's / are
+straight). It writes `src/engine/fonts/ToriRS{Small,Body,Menu}-Vector.ttf`, the
+web faces `res/plugin_chrome/font/ToriRS*-Vector.{ttf,woff,eot}` and
+`src/engine/torirs_chrome_font_vector_baked.{c,h}`; `make -C src
+chrome-font-vector` fails on any byte of difference (also run by
+`chrome-skin`). `ToriRSChromeGlyphs_Rasterise` now takes `(font_slot, q,
+smooth, out)` and rasterises the vector face (stb_truetype, vendored in
+`3rd/stb/stb_truetype.h`) at a fractional q, with the zones (descender,
+baseline, x-height, cap height, ascender, line box) on the layout's rows,
+horizontal 3x oversampling and a 1.45 stem-darkening gamma; the old cell path is
+`ToriRSChromeGlyphs_RasteriseCells` and still gives 1x, 2x and 3x byte for
+byte (the goldens are unchanged). New: `ToriRSChromeBake_PrepareSmooth`,
+`ToriRSChromeBake_FaceSmooth`, `ToriRSChromeBake_SetTextSmooth`,
+`ToriRSChromeBake_GlyphAtlasBuilds`; `ToriRSChrome_SetTextSmooth` /
+`ToriRSChrome_TextSmooth`; View > "Text rendering: bitmap at whole scales /
+smooth always" (`text_rendering` in editor_prefs.ini, `view.text_bitmap` /
+`view.text_smooth`); SCALE's `h` and the snapshots' `scaleText`;
+`.tpc-text-smooth`. Link `engine/torirs_chrome_font_vector_baked.c` (and
+`-lm`) wherever `ui/torirs_chrome_bake.c` is linked: the client's SRCS and
+test-chrome-widgets have it. ~~Still to do: the scene bridge draws the
+integer tiers only~~ **Done by the merge** ("Vector face merged
+(2026-11-05)" under 6.2-6.4): the native canvas draws the face at every
+fractional q, and at 1x / 2x / 3x under "smooth always"; the View row's
+"(web pages only)" is gone. Not
+checked in a real browser or on XP: the Vector WOFF/EOT rendering, and that
+IE8 accepts the EOT (built by the same `write_eot` as the bitmap faces).
 
 ## Workbench step 6.2, the loc finder: the client half (date 2026-11-05)
 
@@ -2624,6 +2667,45 @@ test-world-builder pass; test-web-channel as before (only
 web/test/chrome_layout_test.js fails, on `src/Makefile`; the tests after it
 pass when run by hand). With asserts on (OPT=0, a scratch objdir):
 test-editor-catalog-finder, -picker, -stamps-ops and -placement pass.
+
+### Vector face merged (2026-11-05)
+
+`worktree-wf_2e50ba62-bae-7` (the synthesized vector face, c54b2a5d and
+682c6fe5) merged into v3-workbench over the 6.0b scale bridge. What the
+NATIVE path draws now, per q: at 125, 150, 175, 225, 250 and 275 % the
+vector face's atlas (`ToriRSChromeGlyphs_Rasterise(slot, q, smooth)`: the
+outline with vertical hinting, 3x horizontal oversampling, stem darkening;
+`ToriDraw_Font.coverage` set) under `UITREE_SCENE_DEBUG_FONT_Q_ID(slot, q)`;
+at 100, 200 and 300 % the baked bitmap tiers under their historic ids, unless
+View > "Text rendering: smooth always" is on, in which case the vector atlas
+at that q under the same Q_ID block. The pref reaches the native path through
+`App_SetChromeTextSmooth` (App_SetChromeScaleQ's sibling, called by
+`main_chrome_scale_apply` every frame and a no-op when nothing moved): both
+chrome models' `ToriRSChromeBake_SetTextSmooth`, the bridge's
+`UITreeSceneBridge_SetChromeTextSmooth` (a whole q's vector faces dropped by
+FONT_UNLOAD when it turns off) and the font ids re-resolved. The bake builds
+an atlas once per (face, q) for the process; the bridge copies it once per
+registration; the unload / re-register once per q is as before. The View
+row reads "Text rendering: smooth always". 1x / 2x / 3x with the pref off
+are unchanged: the goldens in src/ui/test/golden are untouched and
+test-debug-overlay-visual compares them byte for byte. Tests:
+test-scene-bridge-chrome (166) now holds the q 6 registration to
+`Rasterise(q 6)` and not the cells, the stems to one profile per row, and
+the smooth-always register / drop / no-rebuild / fractional no-op cycle.
+
+Photographs (Soft3D, SDL dummy drivers, `--window 1280x800`, the mapeditor
+manifest pointed at an empty dat2 cache (empty main_file_cache.dat2 and
+.idx255) and an empty content dir, `TORIRS_PLUGINS=0`,
+`TORIRS_PRESENT_BMP_FRAME=90`; scratch, not committed):
+editor_scale_1.png, editor_scale_1.5.png, editor_scale_1.75.png,
+editor_scale_1.5_panel_crop_2x.png (the Terrain panel, nearest-neighbour)
+and editor_scale_1_smooth_always.png (`TORIRS_EDITOR_PREFS` with
+`text_rendering = smooth`). At 1.5x the text is the vector face: smooth
+bowls on a, e, o, s, and every vertical stem the same profile on every row
+(one solid column and a ~60 % one, since the face hints vertically only);
+the log reads `chrome: scale q=6 (150%), bridge q=6, tile 132x90`. With the
+pref on at 1x it reads `chrome: text rendering smooth always (q=4)` and the
+frame's text is antialiased.
 
 ## Open issues
 

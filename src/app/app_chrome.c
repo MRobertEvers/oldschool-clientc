@@ -307,6 +307,36 @@ App_SetChromeScaleQ(
 }
 
 int
+App_SetChromeTextSmooth(
+    struct App* app,
+    int smooth)
+{
+    assert(app);
+    smooth = smooth ? 1 : 0;
+    if( ToriRSChrome_TextSmooth(&app->dbg_ui) == smooth &&
+        ToriRSChrome_TextSmooth(&app->plugin_ui) == smooth &&
+        UITreeSceneBridge_ChromeTextSmooth(&app->bridge) == smooth )
+        return 0;
+
+    /* Both models (a DOM hears the mode with SCALE; the bake's own drawer
+     * reads it per text prim, and SetTextSmooth builds the chrome's scale's
+     * vector atlases first), and the bridge, whose faces are what the native
+     * renderer draws: at a whole scale the tiers or the vector face, then the
+     * font ids every overlay holds re-resolved. Once per move; the bake builds
+     * an atlas once per (face, q) for the life of the process. */
+    ToriRSChromeBake_SetTextSmooth(&app->dbg_ui, smooth);
+    ToriRSChromeBake_SetTextSmooth(&app->plugin_ui, smooth);
+    UITreeSceneBridge_SetChromeTextSmooth(&app->bridge, smooth);
+    app_chrome_fonts_resolve(app);
+    if( getenv("TORIRS_CHROME_DEBUG") )
+        fprintf(
+            stderr, "chrome: text rendering %s (q=%d)\n",
+            smooth ? "smooth always" : "bitmap at whole scales",
+            UITreeSceneBridge_ChromeScaleQ(&app->bridge));
+    return 1;
+}
+
+int
 App_SetChromeScale(
     struct App* app,
     int scale)

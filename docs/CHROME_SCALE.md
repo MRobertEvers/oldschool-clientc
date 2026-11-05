@@ -20,13 +20,12 @@ The native client draws the scale it is asked for, fractions included
 (`UITreeSceneBridge_SetChromeScaleQ`, src/engine/uitree_scene_bridge.c):
 
 - **Faces.** At q = 4, 8, 12 the baked tier (`ToriRSChromeFont_Tier`) under
-  its historic scene id. Between them the bake's hinted atlas
-  (`ToriRSChromeBake_Face`: whole-pixel stems, every row a whole span from
-  the face's row table, `ToriRSChromeGlyphs_Rows`) under
-  `UITREE_SCENE_DEBUG_FONT_Q_ID(slot, q)`, built once per q; leaving a
-  fractional q drops its three faces (`ToriDraw_SceneFontRemove`, a
-  FONT_UNLOAD each). The atlas carries quarter coverage on its one-row edges
-  and says so (`ToriDraw_Font::coverage`): the software blitter blends every
+  its historic scene id. Between them the vector face's atlas
+  (`ToriRSChromeBake_Face` / `_FaceSmooth`, "The vector face" below) under
+  `UITREE_SCENE_DEBUG_FONT_Q_ID(slot, q)`, built once per q; leaving that q
+  drops its three faces (`ToriDraw_SceneFontRemove`, a FONT_UNLOAD each).
+  The atlas carries antialiased coverage and says so
+  (`ToriDraw_Font::coverage`): the software blitter blends every
   glyph byte (a mask's 255 stays solid, so the cache faces draw as before),
   GL3 reads a coverage atlas in text mode 2 (texel = alpha) where mode 1
   thresholds a mask, and WebGL1 / D3D9 already sample the atlas as alpha.
@@ -145,6 +144,108 @@ The DOM zoom itself is the chrome scale over the page's own density
 (`ToriRSChrome_SetPageScale`): a HighDPI page's CSS pixel is already
 `devicePixelRatio` device pixels, so at Auto the page is unzoomed on any
 display, and View > Chrome scale 200 % on a 1x page zooms it 2x.
+
+## The vector face: smooth text between the tiers
+
+At 150 % the cell rasteriser drew every 1x pixel as 1 or 2 device pixels in
+turn, so stems within one glyph came out 1 or 2 pixels wide at random and the
+bowls of a, e, s and g were lumpy. Text between the tiers now comes from a
+synthesized VECTOR face that looks like the RS font; 1x, 2x and 3x keep the
+authentic bitmap tiers.
+
+**The face.** `tools/chrome_font_vector.py` (approach "depixelize": Kopf and
+Lischinski 2011 adapted to 1-bit masks) synthesizes Small, Body and Menu from
+the baked 1x masks in `src/engine/torirs_debug_font_baked.c` and nothing else:
+a similarity graph with crossings resolved by the paper's votes plus an ink
+prior, a reshaped cell graph, a quadratic B-spline fit that keeps stem edges
+straight at their authentic pixel positions, square terminals, staircases
+smoothed into slanted edges (one straight line from terminal to terminal for
+/, v, N, x), and a check that no source pixel loses more than 60 % of its ink
+and no ink lands more than 0.75 px from the mask. Units per em = 64 x the
+baseline, every advance = the bitmap advance x 64, ascent and descent = the
+baseline and line box: layout is identical. gasp says grey with no grid-fit and
+an empty `prep` keeps FreeType from auto-hinting it.
+
+| Output | Use |
+|---|---|
+| `src/engine/fonts/ToriRS{Small,Body,Menu}-Vector.ttf` | the faces, committed |
+| `src/engine/torirs_chrome_font_vector_baked.{c,h}` | the TTF bytes as `static const` arrays and each face's alignment zones, for the native rasteriser |
+| `res/plugin_chrome/font/ToriRS{Small,Body,Menu}-Vector.{ttf,woff,eot}` | the web pages' second family |
+
+`make -C src chrome-font-vector` re-synthesizes everything and fails when a
+byte differs from what is committed (or a face fails its own checks); it runs
+inside `chrome-skin` too. To refresh: `python3 tools/chrome_font_vector.py`,
+commit what it writes. Review sheets: `src/<objdir>/tmp/chrome_font_vector/`.
+
+**The native rasteriser** (`src/ui/torirs_chrome_bake.c`, stb_truetype v1.26
+vendored as `3rd/stb/stb_truetype.h`, public domain). `ToriRSChromeGlyphs_Rasterise(slot, q, smooth, out)`
+builds the atlas from the vector face at a fractional q (and at any q under
+"smooth always"), from the 1x cells at a whole q, which is the baked tier pixel
+for pixel. The pixel size is (q / 4) x the face's 1x line height.
+
+- **Vertical hinting.** The face's alignment zones -- the bottom of p, the
+  baseline, the tops of x, H and d, and the line box's top and bottom, read off
+  the masks by the tool -- each land on the device row the layout gives them:
+  `ToriRSChrome_ScalePx(q, zone)` above the baseline, the same row table the
+  bitmap faces use, so the baseline is the row's baseline pixel and the
+  x-height, cap height and descender are whole device pixels. Every outline
+  point between two zones is placed linearly between their rows.
+- **Horizontal 3x oversampling**, unhinted: the pen is a whole pixel (the
+  advances are), the outline inside it is not snapped. A 1-pixel stem at
+  1.5x is 1.5 pixels wide wherever it sits.
+- **Stem darkening**: coverage^(1/1.45). At 1.5x a 1x stem always covers one
+  device column whole (the 1x grid puts its edges on halves), so it reads as
+  ink; at 1.25x and 1.75x, where a 1.25-pixel stem can straddle two columns
+  at 0.75 and 0.5, the gamma lifts it to at least 200 of 255.
+- **Advances** are `ToriRSChrome_ScalePx` of the 1x advances, glyph by glyph:
+  the table `ToriRSChrome_MeasureTextQ` sums, equal to the face's hmtx / 64 x
+  q / 4 rounded per glyph. Measurement stays the chrome's.
+
+The atlases are built once per scale -- by `ToriRSChromeBake_Prepare` at a
+fractional q, by `ToriRSChromeBake_PrepareSmooth` (through
+`ToriRSChromeBake_SetScaleQ` / `ToriRSChromeBake_SetTextSmooth`) at a whole
+one -- and never per frame (`ToriRSChromeBake_GlyphAtlasBuilds` counts them;
+chrome_widget_sync_scale asserts thirty frames build none). The cell
+rasteriser stays as `ToriRSChromeGlyphs_RasteriseCells`: it is the integer
+tiers, and the "before" of the photographs.
+
+**The setting.** View > Text rendering, beside the chrome scale: "bitmap at
+whole scales" (the default) or "smooth always", the vector face at 100, 200 and
+300 % too. Device-local: `text_rendering = bitmap | smooth` in
+`editor_prefs.ini`; hotkey actions `view.text_bitmap` / `view.text_smooth`,
+unbound. The host hands it to both chrome models every frame
+(`ToriRSChrome_SetTextSmooth`, main.c `main_chrome_scale_apply`). It is not a
+layout input: the faces measure alike, nothing reflows. The bake's reference
+raster (`ToriRSChromeBake_Present`) reads it per text prim; a DOM hears it as
+`TORIRS_CHROME_CMD_SCALE`'s `h` (snapshots carry it as `scaleText`).
+
+**The web pages.** `modern.css` loads the Vector WOFFs (TTF fallback) as a
+second family, "ToriRS Chrome Vector" (400 Body, 700 Menu) and "ToriRS Chrome
+Small Vector", and selects it under `.tpc-dpr-fractional` (the runtime's
+fractional device scale) and `.tpc-text-smooth` (SCALE's `h` = 1, set on the
+root by the runtime). Only the family moves; sizes, line boxes and advances
+are the cell faces'. The XP page gets the Vector EOTs (`write_eot` from
+`tools/torirs_chrome_fonts.py`; the win32 host stages them) under
+`.tpc-text-smooth` only: it has no fractional device scale, so the
+bitmap-derived faces stay its default.
+
+**In the native path** (since the merge onto the 6.0b scale bridge,
+2026-11-05): the scene bridge registers, at every fractional q, the atlas
+`ToriRSChromeGlyphs_Rasterise(slot, q, smooth)` makes from the vector face
+(`ToriRSChromeBake_FaceSmooth`, which at a fractional q is also what
+`ToriRSChromeBake_Face` answers) under `UITREE_SCENE_DEBUG_FONT_Q_ID(slot,
+q)`, so 125, 150 and 175 % (and 225 to 275 %) draw the vector face in the
+canvas. At 100, 200 and 300 % it registers the bitmap tiers, unless
+"smooth always" is on: `App_SetChromeTextSmooth` (main.c calls it beside
+`App_SetChromeScaleQ` each frame; a no-op when nothing moved) sets both
+chrome models and `UITreeSceneBridge_SetChromeTextSmooth`, after which a
+whole q resolves to its vector atlas under the same Q_ID block, and turning
+it off unloads those three faces and resolves the tiers again. The bake
+builds an atlas once per (face, q) for the process, so a toggle costs one
+re-registration and no rasterising the second time. With the pref off, 1x /
+2x / 3x draw exactly the tiers (the goldens are unchanged).
+`test-scene-bridge-chrome` holds the registration to the vector raster (not
+the cells) and the toggle cycle.
 
 ## Fonts: the hand-tuned tier hook
 

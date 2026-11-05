@@ -875,6 +875,20 @@ Editor_UiSetTextLarge(
     struct EditorUi* ui,
     int large);
 
+/** View > Text rendering: 0 bitmap at whole scales, 1 smooth always (the
+ *  synthesized vector face at 100, 200 and 300 % too). Device-local, beside
+ *  the chrome scale; nothing reflows (the faces measure alike). The host hands
+ *  it to the chrome models on its next frame (Editor_UiTextSmooth). Moves
+ *  prefs_serial. */
+void
+Editor_UiSetTextSmooth(
+    struct EditorUi* ui,
+    int smooth);
+
+/** The text-rendering choice the host hands the chrome: 0 or 1. */
+int
+Editor_UiTextSmooth(const struct EditorUi* ui);
+
 /** Apply what editor_prefs.ini says (the host's load), without moving
  *  prefs_serial: nothing to write back. */
 void

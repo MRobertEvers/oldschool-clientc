@@ -540,6 +540,32 @@ test_view_rows(void)
     CHECK(g_chrome.theme.font_row == torirs_chrome_theme_default.font_row && g_chrome.theme.row_h == 0,
         "Normal gives the theme its own face back");
     CHECK(some_row_height() == 18, "rows of 18 again (%d)", some_row_height());
+
+    /* Text rendering: bitmap at whole scales (the default), or the vector
+     * face at every scale. Device-local like the scale; nothing reflows. */
+    CHECK(row_on(view_row("Text rendering: bitmap at whole scales")) &&
+              !row_on(view_row("Text rendering: smooth always")),
+        "bitmap at whole scales is the default and says on");
+    /* The native canvas draws it too now (the scene bridge registers the
+     * vector face at a whole q), so the row carries no "web pages only". */
+    CHECK(strncmp(view_label(view_row("Text rendering: smooth always")),
+              "Text rendering: smooth always", 29) == 0 &&
+              strstr(view_label(view_row("Text rendering: smooth always")), "web pages") == NULL,
+        "the smooth row names no web-pages-only caveat (%s)",
+        view_label(view_row("Text rendering: smooth always")));
+    serial = g_ui.prefs_serial;
+    choose(view_row("Text rendering: smooth always"));
+    CHECK(g_ui.prefs.text_smooth == 1 && Editor_UiTextSmooth(&g_ui) == 1 && g_ui.prefs_serial != serial,
+        "View > Text rendering: smooth always chooses it");
+    for( int i = 0; i < 3; i++ )
+        frame_of(&g_chrome, &g_ui);
+    CHECK(row_on(view_row("Text rendering: smooth always")) &&
+              !row_on(view_row("Text rendering: bitmap at whole scales")),
+        "smooth always says on");
+    CHECK(some_row_height() == 18, "and nothing reflowed (%d)", some_row_height());
+    CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_TEXT_BITMAP) == 1 && g_ui.prefs.text_smooth == 0,
+        "the hotkey action takes it back to bitmap at whole scales");
+    frame_of(&g_chrome, &g_ui);
     {
         int fresh = 0;
         CHECK(registry_digest(1, &fresh) == k_golden[0][2], "a fresh 1x boot after all that is still the golden");
@@ -586,6 +612,24 @@ test_prefs_file(void)
         CHECK(Editor_PrefsDecode(&back, k_hand, (int)strlen(k_hand)) == 2, "two malformed lines are skipped");
         CHECK(back.chrome_scale_q == 5, "125 is read from [view] only, comment and CR cut (%d)", back.chrome_scale_q);
         CHECK(back.text_large == 0, "a bad text size keeps the default");
+    }
+    {
+        static const char k_smooth[] = "[view]\ntext_rendering = smooth\n";
+        static const char k_bad[] = "[view]\ntext_rendering = blurry\n";
+        char* text = NULL;
+        int size = 0;
+        Editor_PrefsInit(&back);
+        CHECK(back.text_smooth == 0, "text rendering defaults to bitmap at whole scales");
+        CHECK(Editor_PrefsDecode(&back, k_smooth, (int)strlen(k_smooth)) == 0 && back.text_smooth == 1,
+            "text_rendering = smooth reads");
+        Editor_PrefsEncode(&back, &text, &size);
+        CHECK(text && strstr(text, "text_rendering = smooth\n") != NULL, "and is written back");
+        Editor_PrefsInit(&back);
+        CHECK(Editor_PrefsDecode(&back, text, size) == 0 && back.text_smooth == 1, "round trip: smooth");
+        ToriMem_Free(ToriMem_Process(), text);
+        Editor_PrefsInit(&back);
+        CHECK(Editor_PrefsDecode(&back, k_bad, (int)strlen(k_bad)) == 1 && back.text_smooth == 0,
+            "a bad text rendering is skipped and keeps the default");
     }
     {
         static const char k_odd[] = "[view]\nchrome_scale = 133\n";

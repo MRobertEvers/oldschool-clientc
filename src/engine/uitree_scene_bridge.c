@@ -616,11 +616,11 @@ UITreeSceneBridge_EnsureFont(
 }
 
 /* Forward: SetChromeScaleQ re-uploads the chrome-scale skin and drops the
- * fractional faces it moved off. */
+ * vector faces of the q it moved off. */
 static void
 bridge_upload_chrome_skin(struct UITreeSceneBridge* bridge);
 static void
-bridge_release_fraction_faces(struct UITreeSceneBridge* bridge);
+bridge_release_q_faces(struct UITreeSceneBridge* bridge);
 
 void
 UITreeSceneBridge_SetChromeScale(struct UITreeSceneBridge* bridge, int scale)
@@ -648,14 +648,15 @@ UITreeSceneBridge_SetChromeScaleQ(struct UITreeSceneBridge* bridge, int q)
      * lookup. This is where the bake runs in the client. */
     ToriRSChromeBake_Prepare(q);
 
-    /* A fractional scale's faces are dropped when the chrome leaves it -- the
-     * scene's unload events are how a GPU renderer frees their atlases -- and
-     * copied again from the bake's cache if it comes back. The integer tiers'
+    /* A q's vector faces (every fractional q, and a whole one under "smooth
+     * always") are dropped when the chrome leaves it -- the scene's unload
+     * events are how a GPU renderer frees their atlases -- and copied again
+     * from the bake's cache if it comes back. The integer tiers'
      * faces stay, as they always have: EnsureDebugFont1x resolves the 1x ones,
      * they cost a few tens of KB, and a display that changed scale once can
      * change back. */
     if( bridge->chrome_faces_q != 0 && bridge->chrome_faces_q != q )
-        bridge_release_fraction_faces(bridge);
+        bridge_release_q_faces(bridge);
     /* The skin is one entry whose pixels follow the scale: replaced in place
      * (the scene unloads the old images and loads the new), so the id every
      * overlay already holds stays right. Only once something asked for it. */
@@ -678,6 +679,33 @@ UITreeSceneBridge_ChromeScaleQ(struct UITreeSceneBridge const* bridge)
     assert(bridge);
     /* Unset is 1x, as ChromeScale says. */
     return bridge->chrome_scale_q > 0 ? bridge->chrome_scale_q : TORIRS_CHROME_SCALE_Q_ONE;
+}
+
+void
+UITreeSceneBridge_SetChromeTextSmooth(struct UITreeSceneBridge* bridge, int smooth)
+{
+    int q;
+
+    assert(bridge);
+    smooth = smooth ? 1 : 0;
+    if( bridge->chrome_text_smooth == smooth )
+        return;
+    bridge->chrome_text_smooth = smooth;
+    q = UITreeSceneBridge_ChromeScaleQ(bridge);
+    /* At a fractional q the vector face is drawn either way, so what is
+     * registered stays. At a whole q the faces registered under the q block
+     * are the smooth ones: turning smooth off drops them (the tiers answer
+     * again under their historic ids); turning it on registers them on the
+     * next EnsureDebugFont, built once per q by the bake. */
+    if( q % TORIRS_CHROME_SCALE_Q_ONE == 0 && bridge->chrome_faces_q != 0 )
+        bridge_release_q_faces(bridge);
+}
+
+int
+UITreeSceneBridge_ChromeTextSmooth(struct UITreeSceneBridge const* bridge)
+{
+    assert(bridge);
+    return bridge->chrome_text_smooth;
 }
 
 /* The font tier accessor numbers its faces as the chrome numbers its font
@@ -767,14 +795,17 @@ bridge_ensure_debug_font_at(
 }
 
 /*
- * A face at a fractional quarter scale: the bake's hinted atlas
- * (ToriRSChromeGlyphs_Rasterise, through ToriRSChromeBake_Face), under its own
- * id per (slot, q). Built once per q -- the bake caches the raster, and the
- * scene entry is found by id after that -- and dropped by SetChromeScaleQ
- * when the chrome moves off q.
+ * A face drawn from the synthesized VECTOR outline at quarter scale q: every
+ * fractional q, and a whole one under "smooth always". The bake's atlas
+ * (ToriRSChromeGlyphs_Rasterise(slot, q, 1), through ToriRSChromeBake_
+ * FaceSmooth -- at a fractional q the very atlas ToriRSChromeBake_Face hands
+ * out), under its own id per (slot, q). Built once per q -- the bake caches
+ * the raster, and the scene entry is found by id after that -- and dropped by
+ * SetChromeScaleQ when the chrome moves off q, or by SetChromeTextSmooth when
+ * a whole q goes back to its bitmap tier.
  */
 static int
-bridge_ensure_debug_font_fraction(
+bridge_ensure_debug_font_vector(
     struct UITreeSceneBridge* bridge,
     int font_slot,
     int q)
@@ -785,7 +816,6 @@ bridge_ensure_debug_font_fraction(
     assert(bridge->scene);
     assert(font_slot >= 0);
     assert(font_slot < TORIRS_CHROME_FONT_SLOT_COUNT);
-    assert(q % TORIRS_CHROME_SCALE_Q_ONE != 0);
     /* Only the scale the bridge holds: the release tracks one q. */
     assert(q == UITreeSceneBridge_ChromeScaleQ(bridge));
 
@@ -793,18 +823,19 @@ bridge_ensure_debug_font_fraction(
     if( ToriDraw_SceneFontHas(bridge->scene, scene_id) )
         return scene_id;
     ToriRSChromeBake_Prepare(q);
+    ToriRSChromeBake_PrepareSmooth(q);
     ToriDraw_SceneFontAdd(
-        bridge->scene, scene_id, bridge_font_copy(ToriRSChromeBake_Face(font_slot, q)));
+        bridge->scene, scene_id, bridge_font_copy(ToriRSChromeBake_FaceSmooth(font_slot, q)));
     bridge->chrome_faces_q = q;
     return scene_id;
 }
 
 static void
-bridge_release_fraction_faces(struct UITreeSceneBridge* bridge)
+bridge_release_q_faces(struct UITreeSceneBridge* bridge)
 {
     assert(bridge);
     assert(bridge->scene);
-    assert(bridge->chrome_faces_q % TORIRS_CHROME_SCALE_Q_ONE != 0);
+    assert(bridge->chrome_faces_q != 0);
     for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
         ToriDraw_SceneFontRemove(
             bridge->scene, UITREE_SCENE_DEBUG_FONT_Q_ID(slot, bridge->chrome_faces_q));
@@ -821,10 +852,11 @@ UITreeSceneBridge_EnsureDebugFont(
     assert(bridge);
     q = UITreeSceneBridge_ChromeScaleQ(bridge);
     /* A tier is the tier's own face under its historic id: the very pixels
-     * ToriRSChromeBake_Face hands out at that q. */
-    if( q % TORIRS_CHROME_SCALE_Q_ONE == 0 )
+     * ToriRSChromeBake_Face hands out at that q. Between the tiers, and at a
+     * tier under "smooth always", the vector face. */
+    if( q % TORIRS_CHROME_SCALE_Q_ONE == 0 && !bridge->chrome_text_smooth )
         return bridge_ensure_debug_font_at(bridge, font_slot, q / TORIRS_CHROME_SCALE_Q_ONE);
-    return bridge_ensure_debug_font_fraction(bridge, font_slot, q);
+    return bridge_ensure_debug_font_vector(bridge, font_slot, q);
 }
 
 int

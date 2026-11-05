@@ -257,7 +257,8 @@ enum Editor_HotkeyAction
     EDITOR_HK_VIEW_CLOSE_PANEL,
     /** View > Chrome scale (workbench 6.0b): Auto, then the design's steps
      *  in order (ui/torirs_chrome_scale_q.h); View > Text size Normal /
-     *  Large. Unbound by default. */
+     *  Large; View > Text rendering bitmap at whole scales / smooth always.
+     *  Unbound by default. */
     EDITOR_HK_VIEW_SCALE_AUTO,
     EDITOR_HK_VIEW_SCALE_100,
     EDITOR_HK_VIEW_SCALE_125,
@@ -268,6 +269,8 @@ enum Editor_HotkeyAction
     EDITOR_HK_VIEW_SCALE_300,
     EDITOR_HK_VIEW_TEXT_NORMAL,
     EDITOR_HK_VIEW_TEXT_LARGE,
+    EDITOR_HK_VIEW_TEXT_BITMAP,
+    EDITOR_HK_VIEW_TEXT_SMOOTH,
     EDITOR_HK_COUNT
 };
 

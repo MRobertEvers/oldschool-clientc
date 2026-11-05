@@ -394,6 +394,13 @@ Editor_HotkeyRun(
         Editor_UiSetTextLarge(ui, action == EDITOR_HK_VIEW_TEXT_LARGE);
         return 1;
     }
+    /* View > Text rendering: the host hands it to the chrome on its next
+     * frame (main.c main_chrome_scale_apply), beside the scale. */
+    if( action == EDITOR_HK_VIEW_TEXT_BITMAP || action == EDITOR_HK_VIEW_TEXT_SMOOTH )
+    {
+        Editor_UiSetTextSmooth(ui, action == EDITOR_HK_VIEW_TEXT_SMOOTH);
+        return 1;
+    }
     /* The camera, the eyedroppers and the click accelerators: the App's. */
     return 0;
 }

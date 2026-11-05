@@ -9,9 +9,11 @@
 #include "torirs_chrome_skin.h"
 
 #include "engine/torirs_chrome_font_tier.h"
+#include "engine/torirs_chrome_font_vector_baked.h"
 #include "engine/torirs_debug_font_baked.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -19,6 +21,24 @@
 _Static_assert(ToriRSChromeFont_FACE_SMALL == TORIRS_CHROME_FONT_SMALL, "Small face slot");
 _Static_assert(ToriRSChromeFont_FACE_MENU == TORIRS_CHROME_FONT_MENU, "Menu face slot");
 _Static_assert(ToriRSChromeFont_FACE_BODY == TORIRS_CHROME_FONT_BODY, "Body face slot");
+
+/* stb_truetype (public domain, 3rd/stb), private to this file: it parses the
+ * vector faces' TrueType bytes and rasterises their quadratic outlines. */
+#define STBTT_STATIC
+#define STB_TRUETYPE_IMPLEMENTATION
+#define STBTT_assert(x) assert(x)
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#endif
+#include "../../3rd/stb/stb_truetype.h"
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 /* Quarter-pixel arithmetic: every edge the rasteriser places is a multiple of
  * a quarter device pixel (a 1x edge times q / 4, or a whole pixel), so the
@@ -33,7 +53,10 @@ _Static_assert(ToriRSChromeFont_FACE_BODY == TORIRS_CHROME_FONT_BODY, "Body face
 struct BakeScale
 {
     int built;
-    /* Fractional scales only; a tier reads the bake's face. */
+    /* The vector atlases of this scale: built by Prepare at a fractional
+     * scale, and at a whole one only when "smooth always" asks for them
+     * (ToriRSChromeBake_PrepareSmooth). A tier's bitmap face is the bake's. */
+    int smooth_built;
     struct ToriDraw_Font faces[TORIRS_CHROME_FONT_SLOT_COUNT];
     struct ToriRSChromeBakeImage skin[TORIRS_CHROME_SKIN_SLOT_COUNT];
     /* The pixels each `skin` entry owns, NULL where it points at the bake. */
@@ -41,6 +64,8 @@ struct BakeScale
 };
 
 static struct BakeScale g_bake[TORIRS_CHROME_SCALE_Q_MAX + 1];
+/* Glyph atlases built since the process started: ToriRSChromeBake_GlyphAtlasBuilds. */
+static int g_atlas_builds;
 
 /* ---- quarter-pixel helpers ------------------------------------------------ */
 
@@ -234,7 +259,7 @@ ToriRSChromeGlyphs_Rows(int ascent, int q, int* rows, int count)
 }
 
 void
-ToriRSChromeGlyphs_Rasterise(
+ToriRSChromeGlyphs_RasteriseCells(
     struct ToriDraw_Font const* src, int ascent, int q, struct ToriDraw_Font* out)
 {
     int rows[BAKE_GLYPH_MAX_H + 1];
@@ -373,6 +398,290 @@ bake_tier_face(int font_slot, int tier)
     assert(font_slot >= 0);
     assert(font_slot < TORIRS_CHROME_FONT_SLOT_COUNT);
     return ToriRSChromeFont_Tier(font_slot, tier);
+}
+
+/* ---- the vector face ------------------------------------------------------ */
+
+/*
+ * The vector faces (engine/torirs_chrome_font_vector_baked.h): TrueType
+ * outlines synthesized from the 1x masks (tools/chrome_font_vector.py), drawn
+ * here by stb_truetype's scanline rasteriser with three rules of our own:
+ *
+ *   - VERTICAL HINTING. The face's alignment zones -- the bottom of p, the
+ *     baseline, the tops of x, H and d, and the line box's top and bottom --
+ *     land on the device rows the layout puts them on (ToriRSChrome_ScalePx
+ *     of their 1x height above the baseline, the row table the bitmap faces
+ *     use), and every outline point between two zones is placed linearly
+ *     between their device rows. So the x-height, the cap height and the
+ *     descender are whole device pixels at every scale, and the baseline is
+ *     the row's baseline pixel.
+ *   - Horizontal 3x OVERSAMPLING, unhinted: the pen is a whole pixel (the
+ *     advances are), the outline inside it is not snapped, and coverage is
+ *     the mean of three sub-columns. A stem keeps its true 1.5-pixel width
+ *     at 1.5x instead of alternating 1 and 2.
+ *   - STEM DARKENING: coverage goes through a gamma, so the inside of a
+ *     1.5-pixel stem reads as ink rather than grey.
+ *
+ * Advances, draw widths and the ascent are the bitmap path's
+ * (ToriRSChrome_ScalePx of the 1x tables, glyph by glyph), which is what the
+ * layout measures with: the vector face's own hmtx says the same, x 64.
+ */
+
+/** Coverage = (c / 255) ^ (1 / BAKE_STEM_GAMMA). */
+#define BAKE_STEM_GAMMA 1.45
+#define BAKE_OVERSAMPLE_X 3
+/* Outline coordinates handed to stb_truetype are in 1/64 of a (sub)pixel. */
+#define BAKE_SUBUNITS 64
+#define BAKE_ZONE_KNOTS (TORIRS_CHROME_FONT_VECTOR_ZONES_MAX + 2)
+
+static struct ToriRSChromeFontVector const*
+bake_vector_face(int font_slot)
+{
+    switch( font_slot )
+    {
+    case TORIRS_CHROME_FONT_MENU:
+        return ToriRSChromeFontVector_Menu();
+    case TORIRS_CHROME_FONT_BODY:
+        return ToriRSChromeFontVector_Body();
+    case TORIRS_CHROME_FONT_SMALL:
+        return ToriRSChromeFontVector_Small();
+    default:
+        assert(0 && "unknown chrome font slot");
+        return NULL;
+    }
+}
+
+/** The hinting knots: 1x heights above the baseline, ascending, and the
+ *  device heights they land on. */
+struct BakeZones
+{
+    int n;
+    int z[BAKE_ZONE_KNOTS];
+    int d[BAKE_ZONE_KNOTS];
+};
+
+static void
+bake_zones(struct ToriRSChromeFontVector const* vec, int q, struct BakeZones* out)
+{
+    int all[BAKE_ZONE_KNOTS];
+    int n = 0;
+
+    assert(vec->zone_count <= TORIRS_CHROME_FONT_VECTOR_ZONES_MAX);
+    for( int i = 0; i < vec->zone_count; i++ )
+        all[n++] = vec->zones[i];
+    /* The line box itself: its top is the ascent, its bottom the descent. */
+    all[n++] = vec->baseline_px;
+    all[n++] = vec->baseline_px - vec->line_box_px;
+    /* Sort and drop duplicates (a handful of ints). */
+    for( int i = 1; i < n; i++ )
+        for( int j = i; j > 0 && all[j - 1] > all[j]; j-- )
+        {
+            int const t = all[j];
+            all[j] = all[j - 1];
+            all[j - 1] = t;
+        }
+    out->n = 0;
+    for( int i = 0; i < n; i++ )
+    {
+        if( out->n > 0 && out->z[out->n - 1] == all[i] )
+            continue;
+        out->z[out->n] = all[i];
+        out->d[out->n] = ToriRSChrome_ScalePx(q, all[i]);
+        out->n++;
+    }
+}
+
+/** Device height above the baseline of a 1x height `z`: linear between the
+ *  knots, the plain scale beyond them. */
+static double
+bake_zone_map(struct BakeZones const* k, int q, double z)
+{
+    double const s = (double)q / BAKE_Q;
+
+    if( z <= k->z[0] )
+        return k->d[0] + (z - k->z[0]) * s;
+    for( int i = 0; i + 1 < k->n; i++ )
+        if( z <= k->z[i + 1] )
+            return k->d[i] + (z - k->z[i]) * (double)(k->d[i + 1] - k->d[i]) /
+                                 (double)(k->z[i + 1] - k->z[i]);
+    return k->d[k->n - 1] + (z - k->z[k->n - 1]) * s;
+}
+
+/** The code point the 1x face draws glyph `gi` for, or -1. */
+static int
+bake_glyph_codepoint(struct ToriDraw_Font const* src, int gi)
+{
+    for( int c = 0x21; c < 256; c++ )
+    {
+        if( c > 0x7E && c != 0xA3 )
+            continue;
+        if( (unsigned char)src->charcodeset[c] == gi )
+            return c;
+    }
+    return -1;
+}
+
+void
+ToriRSChromeGlyphs_RasteriseVector(
+    struct ToriRSChromeFontVector const* vec,
+    struct ToriDraw_Font const* src,
+    int q,
+    struct ToriDraw_Font* out)
+{
+    stbtt_fontinfo info;
+    struct BakeZones zones;
+    uint8_t gamma[256];
+    double const s = (double)q / BAKE_Q;
+    int ascent_dev;
+    int ok;
+
+    assert(vec);
+    assert(src);
+    assert(out);
+    assert(q >= TORIRS_CHROME_SCALE_Q_MIN);
+    assert(q <= TORIRS_CHROME_SCALE_Q_MAX);
+    assert(src->line_height == vec->baseline_px);
+
+    ok = stbtt_InitFont(&info, vec->ttf, 0);
+    assert(ok);
+    bake_zones(vec, q, &zones);
+    for( int i = 0; i < 256; i++ )
+        gamma[i] = (uint8_t)(255.0 * pow(i / 255.0, 1.0 / BAKE_STEM_GAMMA) + 0.5);
+
+    memset(out, 0, sizeof(*out));
+    memcpy(out->charcodeset, src->charcodeset, sizeof(out->charcodeset));
+    /* Antialiased outlines: a renderer that thresholds a mask must read these
+     * bytes as alpha. */
+    out->coverage = 1;
+    ascent_dev = ToriRSChrome_ScalePx(q, vec->baseline_px);
+    out->line_height = ascent_dev;
+    for( int c = 0; c < 256; c++ )
+        out->draw_width[c] = ToriRSChrome_ScalePx(q, src->draw_width[c]);
+    out->advance[TORIDRAW_FONT_GLYPH_COUNT] =
+        ToriRSChrome_ScalePx(q, src->advance[TORIDRAW_FONT_GLYPH_COUNT]);
+    out->offset_x[TORIDRAW_FONT_GLYPH_COUNT] =
+        ToriRSChrome_ScalePx(q, src->offset_x[TORIDRAW_FONT_GLYPH_COUNT]);
+    out->offset_y[TORIDRAW_FONT_GLYPH_COUNT] =
+        ToriRSChrome_ScalePx(q, src->offset_y[TORIDRAW_FONT_GLYPH_COUNT]);
+
+    for( int gi = 0; gi < TORIDRAW_FONT_GLYPH_COUNT; gi++ )
+    {
+        int const cp = bake_glyph_codepoint(src, gi);
+        stbtt_vertex* v = NULL;
+        int nv;
+        double min_x = 0.0;
+        double max_x = 0.0;
+        double min_y = 0.0;
+        double max_y = 0.0;
+        int left = 0;
+        int top = 0;
+        int dw = 1;
+        int dh = 1;
+        stbtt__bitmap bm;
+        uint8_t* wide;
+        uint8_t* mask;
+
+        out->advance[gi] = ToriRSChrome_ScalePx(q, src->advance[gi]);
+        out->offset_x[gi] = ToriRSChrome_ScalePx(q, src->offset_x[gi]);
+        out->offset_y[gi] = 0;
+        if( !src->glyph_alpha[gi] || cp < 0 )
+            continue;
+        nv = stbtt_GetGlyphShape(&info, stbtt_FindGlyphIndex(&info, cp), &v);
+        if( nv <= 0 )
+            continue;
+
+        /* Font units -> device pixels from the pen (x) and from the top of
+         * the line box (y, down), hinted vertically. Done twice: once for
+         * the box, once into the raster's sub-units. */
+        for( int pass = 0; pass < 2; pass++ )
+        {
+            for( int i = 0; i < nv; i++ )
+            {
+                double px[2];
+                double py[2];
+                int const pts = v[i].type == STBTT_vcurve ? 2 : 1;
+                px[0] = v[i].x / (double)vec->units_per_px * s;
+                py[0] = ascent_dev - bake_zone_map(&zones, q, v[i].y / (double)vec->units_per_px);
+                px[1] = v[i].cx / (double)vec->units_per_px * s;
+                py[1] = ascent_dev - bake_zone_map(&zones, q, v[i].cy / (double)vec->units_per_px);
+                if( pass == 0 )
+                {
+                    for( int k = 0; k < pts; k++ )
+                    {
+                        if( (i == 0 && k == 0) || px[k] < min_x )
+                            min_x = px[k];
+                        if( (i == 0 && k == 0) || px[k] > max_x )
+                            max_x = px[k];
+                        if( (i == 0 && k == 0) || py[k] < min_y )
+                            min_y = py[k];
+                        if( (i == 0 && k == 0) || py[k] > max_y )
+                            max_y = py[k];
+                    }
+                    continue;
+                }
+                v[i].x = (stbtt_vertex_type)lround((px[0] - left) * BAKE_OVERSAMPLE_X * BAKE_SUBUNITS);
+                v[i].y = (stbtt_vertex_type)lround((py[0] - top) * BAKE_SUBUNITS);
+                v[i].cx = (stbtt_vertex_type)lround((px[1] - left) * BAKE_OVERSAMPLE_X * BAKE_SUBUNITS);
+                v[i].cy = (stbtt_vertex_type)lround((py[1] - top) * BAKE_SUBUNITS);
+            }
+            if( pass == 0 )
+            {
+                /* A sliver under 1/64 of a pixel is the outline sitting ON a
+                 * pixel edge, not crossing it. */
+                left = (int)floor(min_x + 1.0 / BAKE_SUBUNITS);
+                top = (int)floor(min_y + 1.0 / BAKE_SUBUNITS);
+                dw = (int)ceil(max_x - 1.0 / BAKE_SUBUNITS) - left;
+                dh = (int)ceil(max_y - 1.0 / BAKE_SUBUNITS) - top;
+                if( dw < 1 )
+                    dw = 1;
+                if( dh < 1 )
+                    dh = 1;
+                assert(dw * BAKE_OVERSAMPLE_X * BAKE_SUBUNITS < 32767);
+                assert(dh * BAKE_SUBUNITS < 32767);
+            }
+        }
+
+        wide = calloc((size_t)dw * BAKE_OVERSAMPLE_X * (size_t)dh, 1);
+        mask = calloc((size_t)dw * (size_t)dh, 1);
+        assert(wide);
+        assert(mask);
+        bm.w = dw * BAKE_OVERSAMPLE_X;
+        bm.h = dh;
+        bm.stride = bm.w;
+        bm.pixels = wide;
+        stbtt_Rasterize(
+            &bm, 0.25f, v, nv, 1.0f / BAKE_SUBUNITS, 1.0f / BAKE_SUBUNITS, 0.0f, 0.0f, 0, 0, 0,
+            NULL);
+        stbtt_FreeShape(&info, v);
+        for( int y = 0; y < dh; y++ )
+            for( int x = 0; x < dw; x++ )
+            {
+                uint8_t const* sub = wide + y * bm.stride + x * BAKE_OVERSAMPLE_X;
+                int const sum = sub[0] + sub[1] + sub[2];
+                mask[y * dw + x] = gamma[(sum + BAKE_OVERSAMPLE_X / 2) / BAKE_OVERSAMPLE_X];
+            }
+        free(wide);
+        out->glyph_alpha[gi] = mask;
+        out->glyph_width[gi] = dw;
+        out->glyph_height[gi] = dh;
+        out->offset_x[gi] = left;
+        out->offset_y[gi] = top;
+    }
+    g_atlas_builds++;
+}
+
+void
+ToriRSChromeGlyphs_Rasterise(int font_slot, int q, int smooth, struct ToriDraw_Font* out)
+{
+    struct ToriDraw_Font const* src = bake_tier_face(font_slot, 1);
+
+    if( q % BAKE_Q != 0 || smooth )
+        ToriRSChromeGlyphs_RasteriseVector(bake_vector_face(font_slot), src, q, out);
+    else
+    {
+        ToriRSChromeGlyphs_RasteriseCells(src, ToriRSChrome_FontLineHeight(font_slot, 1), q, out);
+        g_atlas_builds++;
+    }
 }
 
 /* ---- skin ----------------------------------------------------------------- */
@@ -603,13 +912,31 @@ ToriRSChromeBake_Prepare(int q)
     if( b->built )
         return;
     if( q % BAKE_Q != 0 )
-        for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
-            ToriRSChromeGlyphs_Rasterise(
-                bake_tier_face(slot, 1), ToriRSChrome_FontLineHeight(slot, 1), q,
-                &b->faces[slot]);
+        ToriRSChromeBake_PrepareSmooth(q);
     for( int slot = 0; slot < TORIRS_CHROME_SKIN_SLOT_COUNT; slot++ )
         bake_skin_slot(b, slot, q);
     b->built = 1;
+}
+
+void
+ToriRSChromeBake_PrepareSmooth(int q)
+{
+    struct BakeScale* b;
+
+    assert(q >= TORIRS_CHROME_SCALE_Q_MIN);
+    assert(q <= TORIRS_CHROME_SCALE_Q_MAX);
+    b = &g_bake[q];
+    if( b->smooth_built )
+        return;
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+        ToriRSChromeGlyphs_Rasterise(slot, q, 1, &b->faces[slot]);
+    b->smooth_built = 1;
+}
+
+int
+ToriRSChromeBake_GlyphAtlasBuilds(void)
+{
+    return g_atlas_builds;
 }
 
 int
@@ -625,7 +952,18 @@ ToriRSChromeBake_SetScaleQ(struct ToriRSChrome* ui, int q)
 {
     assert(ui);
     ToriRSChromeBake_Prepare(q);
+    if( ToriRSChrome_TextSmooth(ui) )
+        ToriRSChromeBake_PrepareSmooth(q);
     ToriRSChrome_SetScaleQ(ui, q);
+}
+
+void
+ToriRSChromeBake_SetTextSmooth(struct ToriRSChrome* ui, int smooth)
+{
+    assert(ui);
+    if( smooth )
+        ToriRSChromeBake_PrepareSmooth(ui->scale_q);
+    ToriRSChrome_SetTextSmooth(ui, smooth);
 }
 
 struct ToriDraw_Font const*
@@ -636,6 +974,17 @@ ToriRSChromeBake_Face(int font_slot, int q)
     assert(ToriRSChromeBake_Prepared(q));
     if( q % BAKE_Q == 0 )
         return bake_tier_face(font_slot, q / BAKE_Q);
+    return &g_bake[q].faces[font_slot];
+}
+
+struct ToriDraw_Font const*
+ToriRSChromeBake_FaceSmooth(int font_slot, int q)
+{
+    assert(font_slot >= 0);
+    assert(font_slot < TORIRS_CHROME_FONT_SLOT_COUNT);
+    assert(q >= TORIRS_CHROME_SCALE_Q_MIN);
+    assert(q <= TORIRS_CHROME_SCALE_Q_MAX);
+    assert(g_bake[q].smooth_built);
     return &g_bake[q].faces[font_slot];
 }
 
@@ -855,7 +1204,8 @@ ToriRSChromeBake_Present(
             struct ToriDraw_Font const* face;
             if( !p->text || p->font_slot < 0 || p->font_slot >= TORIRS_CHROME_FONT_SLOT_COUNT )
                 break;
-            face = ToriRSChromeBake_Face(p->font_slot, q);
+            face = ToriRSChrome_TextSmooth(ui) ? ToriRSChromeBake_FaceSmooth(p->font_slot, q)
+                                               : ToriRSChromeBake_Face(p->font_slot, q);
             /* The renderers' drop shadow: one device pixel down and right,
              * at every scale. */
             if( p->shadowed )

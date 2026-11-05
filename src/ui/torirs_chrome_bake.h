@@ -8,15 +8,22 @@
  * at scale q.
  *
  *   - A GLYPH ATLAS per (face, q). At a tier (q = 4, 8, 12) it is the bake's
- *     own face, unchanged. Between tiers it is rasterised from the 1x mask:
- *     every glyph row maps to a whole span of device rows from one table per
- *     face per scale, so bars are whole pixels and the baseline is the row's
- *     baseline pixel; vertical edges that run for two rows or more (stems)
- *     snap to whole device columns at a width that is one rounding of their
- *     1x width, and only the edges left between them -- the ends of bars, the
- *     steps of a diagonal -- carry coverage, in quarter-pixel steps. Advances
- *     are ToriRSChrome_ScalePx of the 1x advances, glyph by glyph: exactly the
- *     table ToriRSChrome_MeasureTextQ sums.
+ *     own bitmap face, unchanged. Between tiers it is the face's synthesized
+ *     VECTOR outline (engine/torirs_chrome_font_vector_baked.h, made from the
+ *     1x masks by tools/chrome_font_vector.py) rasterised at (q / 4) x the 1x
+ *     line height, with vertical hinting -- the alignment zones (descender,
+ *     baseline, x-height, cap height, ascender, the line box) on the device
+ *     rows the layout gives them, linear in between -- horizontal 3x
+ *     oversampling and a stem-darkening gamma. Advances are
+ *     ToriRSChrome_ScalePx of the 1x advances, glyph by glyph: exactly the
+ *     table ToriRSChrome_MeasureTextQ sums (the vector face's hmtx is the
+ *     bitmap advance x 64, so the two agree).
+ *
+ *     "Text rendering: smooth always" (ToriRSChrome_SetTextSmooth, the
+ *     editor's View menu) draws the vector atlas at a whole scale too; it is
+ *     built for that scale the first time it is asked for
+ *     (ToriRSChromeBake_PrepareSmooth). The default keeps the authentic
+ *     bitmap tiers at 1x, 2x and 3x.
  *
  *   - A SCALED SKIN per (slot, q): the slot's art from the nearest baked tier
  *     at or above the scale (ToriRSChromeSkin_SpriteTier), area-averaged DOWN
@@ -55,26 +62,55 @@ struct ToriRSChromeBakeImage
 };
 
 /**
- * Rasterise the 1x face `src` at scale `q` into `out`, as described above.
+ * Rasterise face `font_slot` (enum ToriRSChromeFontSlot) at scale `q` into
+ * `out`: from the vector face at a fractional q, or at any q when `smooth`;
+ * otherwise (a whole q, bitmap text) from the 1x cells, which at q = 4, 8, 12
+ * is the bake's own tier pixel for pixel.
  *
  * `out` is overwritten; its glyph masks are allocated here and belong to the
- * caller (ToriDraw_FontFree releases them), and its `coverage` flag is set.
- * Coverage is 0..255 per pixel --
- * 0, 64, 128, 191 or 255, since every edge sits on a quarter pixel -- where the
- * source holds only 0 and 255. At q a multiple of 4 the result is `src`
- * scaled by q / 4 with every pixel repeated, which is what the bake's 2x and
- * 3x faces are.
- *
- * `ascent` is the face's 1x baseline offset from the top of its line box
- * (ToriRSChrome_FontLineHeight(slot, 1)): the row the vertical hinting is
- * anchored on.
+ * caller (ToriDraw_FontFree releases them), and its `coverage` flag is set
+ * (coverage is 0..255 per pixel). Each call counts one atlas build
+ * (ToriRSChromeBake_GlyphAtlasBuilds).
  */
 void
-ToriRSChromeGlyphs_Rasterise(
+ToriRSChromeGlyphs_Rasterise(int font_slot, int q, int smooth, struct ToriDraw_Font* out);
+
+/**
+ * The vector face `vec` at scale `q`, as described above, for the bitmap face
+ * `src` (its charcodeset, advances and draw widths, converted with
+ * ToriRSChrome_ScalePx; `src` is the 1x face whose masks `vec` was made from).
+ * Coverage is 0..255; the baseline is device row ScalePx(q, ascent) from the
+ * top of the line box, and every zone row is whole.
+ */
+struct ToriRSChromeFontVector;
+void
+ToriRSChromeGlyphs_RasteriseVector(
+    struct ToriRSChromeFontVector const* vec,
+    struct ToriDraw_Font const* src,
+    int q,
+    struct ToriDraw_Font* out);
+
+/**
+ * The 1x face `src` scaled as axis-aligned cells (the atlas fractional scales
+ * drew from before the vector face; kept for the integer tiers, which it
+ * reproduces exactly, and as the "before" of the review photographs).
+ *
+ * Every glyph row maps to a whole span of device rows from one table per face
+ * per scale, so bars are whole pixels and the baseline is the row's baseline
+ * pixel; vertical edges that run for two rows or more (stems) snap to whole
+ * device columns at a width that is one rounding of their 1x width, and only
+ * the edges left between them carry coverage, in quarter-pixel steps -- 0,
+ * 64, 128, 191 or 255. At q a multiple of 4 the result is `src` scaled by
+ * q / 4 with every pixel repeated, which is what the bake's 2x and 3x faces
+ * are. `ascent` is the face's 1x baseline offset from the top of its line box
+ * (ToriRSChrome_FontLineHeight(slot, 1)).
+ */
+void
+ToriRSChromeGlyphs_RasteriseCells(
     struct ToriDraw_Font const* src, int ascent, int q, struct ToriDraw_Font* out);
 
 /**
- * The hinting table ToriRSChromeGlyphs_Rasterise lays a face's rows out by:
+ * The hinting table ToriRSChromeGlyphs_RasteriseCells lays a face's rows out by:
  * `rows[y]` is the device row, from the top of the line box, of 1x row
  * boundary y (y = 0 .. count - 1), so 1x row y spans rows[y + 1] - rows[y]
  * device rows and a glyph of 1x rows [oy, oy + h) is rows[oy + h] - rows[oy]
@@ -96,11 +132,31 @@ int
 ToriRSChromeBake_Prepared(int q);
 
 /**
+ * Build the vector atlases of scale `q`, once (Prepare does at a fractional
+ * q; "smooth always" needs them at a whole one too). A second call does
+ * nothing.
+ */
+void
+ToriRSChromeBake_PrepareSmooth(int q);
+
+/** Glyph atlases built since the process started: one per face per
+ *  Rasterise. A frame that changed no scale and no text mode adds none. */
+int
+ToriRSChromeBake_GlyphAtlasBuilds(void);
+
+/**
  * ToriRSChrome_SetScaleQ, and Prepare for the scale it sets: the one call a
  * host that draws through this module makes when the display's ratio moves.
  */
 void
 ToriRSChromeBake_SetScaleQ(struct ToriRSChrome* ui, int q);
+
+/**
+ * ToriRSChrome_SetTextSmooth, and PrepareSmooth for the chrome's scale when it
+ * turns on: the one call a host makes when the text-rendering setting moves.
+ */
+void
+ToriRSChromeBake_SetTextSmooth(struct ToriRSChrome* ui, int smooth);
 
 /**
  * The tier a skin slot is read from at scale `q`, given the tiers the bake
@@ -111,10 +167,16 @@ ToriRSChromeBake_SetScaleQ(struct ToriRSChrome* ui, int q);
 int
 ToriRSChromeBake_TierFor(int q, unsigned tiers);
 
-/** The face `font_slot` (enum ToriRSChromeFontSlot) at scale `q`. Asserts that
- *  Prepare built `q`. */
+/** The face `font_slot` (enum ToriRSChromeFontSlot) at scale `q` under
+ *  "bitmap at whole scales": the tier at q = 4, 8, 12, the vector atlas
+ *  between. Asserts that Prepare built `q`. */
 struct ToriDraw_Font const*
 ToriRSChromeBake_Face(int font_slot, int q);
+
+/** The vector atlas of `font_slot` at scale `q` ("smooth always"). Asserts
+ *  that PrepareSmooth (or Prepare, at a fractional q) built it. */
+struct ToriDraw_Font const*
+ToriRSChromeBake_FaceSmooth(int font_slot, int q);
 
 /** Skin slot `slot` at scale `q`, or NULL when this build baked no art for it.
  *  Asserts that Prepare built `q`. */
@@ -127,7 +189,8 @@ ToriRSChromeBake_Skin(int slot, int q);
  * atlases and skin of the chrome's own scale -- which Prepare must have built.
  *
  * The reference raster of the chrome at ANY scale: rects (with `trans`),
- * coverage-blended text, skin slots, lines, all clipped. A prim with a scene
+ * coverage-blended text (from the vector atlas when the chrome's text mode is
+ * smooth always), skin slots, lines, all clipped. A prim with a scene
  * sprite (a MODELVIEW preview, a GRAPH image) has no pixels here and draws
  * nothing. Draws over what is in `argb`; clear it first for a fresh frame.
  */
