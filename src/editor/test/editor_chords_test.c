@@ -267,6 +267,8 @@ static const struct
     { "locs", "Duplicate", EDITOR_HK_EDIT_DUPLICATE },
     { "locs", "Delete", EDITOR_HK_EDIT_DELETE },
     { "locs", "Swap to catalog pick", EDITOR_HK_PLACE_SWAP },
+    { "locs", "Up a level", EDITOR_HK_EDIT_LEVEL_UP },
+    { "locs", "Down a level", EDITOR_HK_EDIT_LEVEL_DOWN },
     { "spawns", "Duplicate", EDITOR_HK_EDIT_DUPLICATE },
     { "spawns", "Delete / suppress", EDITOR_HK_EDIT_DELETE },
     { "rect", "Copy", EDITOR_HK_EDIT_COPY },

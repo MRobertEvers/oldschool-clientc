@@ -8,6 +8,7 @@
 
 #include "app/app_internal.h"
 #include "editor/editor_doc.h"
+#include "editor/loc_editor_selection.h"
 #include "editor/panels/edpanels.h"
 
 /**
@@ -1930,6 +1931,71 @@ app_overlay_build_editor_areas(struct App* app)
  * panel_refresh (editor_panel.c) is reading for the readout at the same time.
  */
 void
+app_overlay_build_editor_selection(struct App* app);
+
+/* ---- the move gizmo and the multi-piece ghost (workbench 6.3) ---------------
+ *
+ * What app_map_editor.c computed this frame, drawn: the multi-piece ghost's
+ * footprints (an armed stamp at the hover, a gizmo drag's destinations),
+ * yellow, orange where the key is taken; and the gizmo on the primary
+ * selected loc -- the N/S arrows green, W/E red, the ring and the centre
+ * yellow, the handle under the pointer (or being dragged) white and wider.
+ * The points are App_MapEditorGizmoScreen's, the same the click tests, so
+ * what is drawn is what a press hits.
+ */
+#define APP_GIZMO_COLOR_NS 0xFF40D040u
+#define APP_GIZMO_COLOR_WE 0xFFE04040u
+#define APP_GIZMO_COLOR_RING 0xFFFFD040u
+#define APP_GIZMO_COLOR_HOT 0xFFFFFFFFu
+#define APP_GIZMO_COLOR_TAKEN 0xFFFF8020u
+
+static void
+app_overlay_build_editor_gizmo(struct App* app)
+{
+    struct MapEditorPieceGhost const* ghost = &app->map_ghost.pieces;
+    struct LocEditorGizmoScreen screen;
+    int hot;
+
+    for( int i = 0; i < ghost->count; i++ )
+    {
+        struct MapEditorPieceGhostPiece const* p = &ghost->pieces[i];
+        app_overlay_editor_block(app, p->scene_x, p->scene_z, p->size_x, p->size_z, p->level,
+            p->taken ? APP_GIZMO_COLOR_TAKEN : APP_OUTLINE_COLOR_EDITOR_SELECT, APP_OUTLINE_FILL_TRANS);
+    }
+    if( !App_MapEditorGizmoScreen(app, &screen, &hot) )
+        return;
+    for( int a = 0; a < 4; a++ )
+    {
+        int const handle = LOC_EDITOR_GIZMO_ARROW_N + a;
+        uint32_t const color = hot == handle ? APP_GIZMO_COLOR_HOT : a < 2 ? APP_GIZMO_COLOR_NS : APP_GIZMO_COLOR_WE;
+        int const width = hot == handle ? APP_OVERLAY_SEGMENT_WIDTH + 2 : APP_OVERLAY_SEGMENT_WIDTH + 1;
+        int const dx = screen.arrow_x1[a] - screen.arrow_x0[a];
+        int const dy = screen.arrow_y1[a] - screen.arrow_y0[a];
+        if( !screen.arrow_ok[a] )
+            continue;
+        app_overlay_push_segment(
+            app, screen.arrow_x0[a], screen.arrow_y0[a], screen.arrow_x1[a], screen.arrow_y1[a], color, width);
+        /* The head: two strokes back from the tip, a third of the shaft,
+         * turned out either side. */
+        app_overlay_push_segment(app, screen.arrow_x1[a], screen.arrow_y1[a],
+            screen.arrow_x1[a] - dx / 3 - dy / 4, screen.arrow_y1[a] - dy / 3 + dx / 4, color, width);
+        app_overlay_push_segment(app, screen.arrow_x1[a], screen.arrow_y1[a],
+            screen.arrow_x1[a] - dx / 3 + dy / 4, screen.arrow_y1[a] - dy / 3 - dx / 4, color, width);
+    }
+    app_overlay_push_polygon(app, screen.ring_x, screen.ring_y, screen.ring_count,
+        hot == LOC_EDITOR_GIZMO_RING ? APP_GIZMO_COLOR_HOT : APP_GIZMO_COLOR_RING,
+        hot == LOC_EDITOR_GIZMO_RING ? APP_OVERLAY_SEGMENT_WIDTH + 1 : APP_OVERLAY_SEGMENT_WIDTH);
+    {
+        int const r = hot == LOC_EDITOR_GIZMO_CENTRE ? 6 : 4;
+        int const cx[4] = { screen.centre_x - r, screen.centre_x + r, screen.centre_x + r, screen.centre_x - r };
+        int const cy[4] = { screen.centre_y - r, screen.centre_y - r, screen.centre_y + r, screen.centre_y + r };
+        uint32_t const color = hot == LOC_EDITOR_GIZMO_CENTRE ? APP_GIZMO_COLOR_HOT : APP_GIZMO_COLOR_RING;
+        app_overlay_push_polygon_filled(app, cx, cy, 4, color, 64);
+        app_overlay_push_polygon(app, cx, cy, 4, color, APP_OVERLAY_SEGMENT_WIDTH);
+    }
+}
+
+void
 app_overlay_build_editor_selection(struct App* app)
 {
     struct Editor_Panel const* panel = &app->editor_panel;
@@ -1948,6 +2014,8 @@ app_overlay_build_editor_selection(struct App* app)
     app_overlay_build_editor_ghosts(app);
     /* The named areas (Areas panel). */
     app_overlay_build_editor_areas(app);
+    /* The move gizmo and the multi-piece ghost (workbench 6.3). */
+    app_overlay_build_editor_gizmo(app);
 
     /* The Place-loc ghost's FOOTPRINT: the translucent model says what it
      * looks like, this says which tiles it will own -- the question that

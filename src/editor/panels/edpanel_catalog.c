@@ -37,6 +37,7 @@
 
 #include "edpanel_catalog_model.h"
 #include "edpanel_common.h"
+#include "edpanel_ops_stamps.h"
 #include "edpanels.h"
 #include "editor/editor_cfg.h"
 #include "engine/cache_provider.h"
@@ -1126,6 +1127,9 @@ Editor_Catalog_Register(struct EditorUi* ui)
     assert(self->panel >= 0);
     self->dropdown_kind = ToriRSChrome_Dropdown(chrome, self->panel, "Kind", Editor_CatalogModelKindLabels(),
         Editor_CatalogModelKindCount(), 0);
+    /* The Stamps kind (workbench 6.3): a chip beside Kind that opens the
+     * Stamps panel, which owns it (edpanel_stamps.c). */
+    Editor_Stamps_CatalogChip(ui, self->panel);
     self->input_search = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
     ToriRSChrome_SetTooltip(chrome, self->input_search, "name, display name, id, or key=value (op=Open)");
     self->row_count = ToriRSChrome_Label(chrome, self->panel, "");
@@ -1181,6 +1185,8 @@ Editor_Catalog_Register(struct EditorUi* ui)
     /* The record editor travels with the catalog it opens records from. */
     if( !Editor_UiPanelSelf(ui, "record") )
         Editor_Record_Register(ui);
+    if( !Editor_UiPanelSelf(ui, "stamps") )
+        Editor_Stamps_Register(ui);
 }
 
 

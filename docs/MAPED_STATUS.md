@@ -1599,6 +1599,139 @@ ToriRSChrome (5 MB) on its stack. Not checked by eye: the page zoom and the
 fractional class in a real browser, the Preview twist's direction, and a
 touchscreen pinch on hardware.
 
+## Workbench step 6.3, part 2: the gizmo, level moves, Alt-duplicate, stamps (date 2026-11-05)
+
+The second half of build-order step 6.3 ("Placement feel"; design section
+7, "Move, rotate, delete", "The Locs panel as a selection inspector",
+"Stamps"). Wall runs, the marquee and per-Client Fit are part 1's.
+
+What landed:
+
+- **The move gizmo** (pure: src/editor/loc_editor_selection.{h,c},
+  `LocEditorGizmo_*`; glue: app_map_editor.c's gizmo section; drawing:
+  app_overlay.c `app_overlay_build_editor_gizmo`). On the primary selected
+  loc under Select or Move: four arrows (N/S green, W/E red), a ring and a
+  centre handle (yellow), computed in world units around the loc's placed
+  footprint and projected through the World panel's camera every frame
+  (`App_MapEditorGizmoScreen`), so it follows the panel. A press is
+  hit-tested against the same points BEFORE the world click (centre, then
+  arrows, then ring; 6 px slop), so a handle never also latches the tile.
+  An arrow proposes whole tiles passed along its axis, never backwards (a
+  click is one step); the ring the pointer's sweep about the centre, a
+  quarter per 90 degrees clockwise (a click is a quarter, a whole turn is
+  none); the centre the tile under the pointer. Nothing moves until the
+  release: then ONE action, one undo step -- `edp_locs_nudge` for an arrow
+  or the centre (the whole selection; the swap rule of 2026-11-02 applies),
+  `edp_locs_duplicate_by` with Alt held on an arrow (the copies become the
+  selection), `edp_locs_rotate_by` for the ring. While held, the multi-piece
+  ghost draws each selected loc's destination footprint, orange where the
+  key is held by a loc the move does not carry along (the swap shown before
+  release); a ring drag says "Turn 180 degrees: release to apply". The
+  handle under the pointer is drawn white and wider and named in the status
+  bar (R5).
+- **Level moves and far nudges** (hotkey table, docs/MAPED_HOTKEYS.md):
+  `edit.level_up` / `edit.level_down` Ctrl+PageUp / Ctrl+PageDown (context
+  L) move the selection a level, each loc keeping its tile, shape and
+  rotation (a stack moves top first); ALL OR NOTHING, refused with a status
+  sentence where a loc would leave levels 0..3, its square is not open, or
+  the key above / below holds a loc the selection does not
+  (`Editor_LocOpsLevelMove`, `LocEditorSelection_LevelTarget`).
+  `edit.nudge_far_*` Shift+arrows (context M) nudge by 8 tiles, the same
+  swap rule.
+- **The Locs panel as a selection inspector** (edpanel_locs.c): a Find box
+  over the list (R3; loc id, shape name or tile), the primary first and
+  marked "> ", Follow (a row's click or Enter puts the camera on that loc,
+  `camera_to_tile`), the footprint row ("Footprint 2x1 | ground layer |
+  blocks: no", the placed size from the App's record, turned with the loc),
+  the Multiloc row ("shell of 3 (varbit 4153)" / "no shell"), Up a level /
+  Down a level (wearing Ctrl+PgUp / Ctrl+PgDn), Find same (every loc of the
+  primary's id on its level in the open squares, primary first), Stamp name
+  + "with the terrain under it" / "with the spawns on it" / Overwrite + Save
+  as stamp.... The shape strip is a GRAPH now (it was a MODELVIEW): the App
+  hands back its rendered picture (`Editor_Locs_ShapeStripSprite`) and the
+  panel draws it under a keyed slot per shape, so a THUMBNAIL click reshapes
+  (or sets the Place pose) as its button does; the hovered slot brightens
+  and the tooltip says "Reshape to 11 centrepiece diagonal" with Shift+Q.
+  The strip and pose arrays hold all 23 shapes (they were 16 and
+  `Editor_LocShapeList` could write past them).
+- **Stamps** (src/editor/editor_stamps.{h,c}, the codec; panels/
+  edpanel_ops_stamps.{h,c}, the ops and actions; panels/edpanel_stamps.c,
+  the list). A stamp is `editor/stamps/<name>.stamp`, a line-preserving TEXT
+  document (key `stamp:<name>`; the list is `editor/stamps/index.txt`, key
+  `stamps:index`; `Editor_DocKeyValid` and `Editor_HostDocPath` know both):
+  `stamp <name> [| note]`, then `loc dx dz dlevel id shape rot [WxH]`,
+  `tile dx dz dlevel [h u o/s/r f]`, `spawn npc|obj name dx dz dlevel
+  [count]`, relative to the primary's tile and level. Parse -> emit is byte
+  exact; a stamp is written as TEXT_SPLICE commands planned from the old
+  text to the new (`Editor_StampSplices`, the common head and tail kept,
+  chunked to the command's 1024 bytes), the stamp and its index line in ONE
+  undo step, then saved. The Catalog wears a "Stamps..." chip beside Kind
+  (its one hunk, in `Editor_Catalog_Register`) that opens module "stamps":
+  a Find box, "3 of 12 stamps", a VLIST whose Enter / click (or Place) arms
+  the stamp for the Place tool. Armed, the multi-piece ghost shows every loc
+  piece's footprint at the hovered tile (orange where it would replace a
+  loc), Q turns the whole stamp a quarter about its origin (each offset
+  (x, z) -> (z, -x), a footprint's SW corner following, its size swapping,
+  each loc's and overlay's rotation stepping), a click or Space drops it as
+  ONE undo step (tiles, then locs -- a replace onto a taken key, as Place
+  --, then spawns) and the placed locs become the selection; another tool
+  or another catalog pick disarms it, Esc drops the ghost.
+- **The unnamed stamp**: Ctrl+C on the rectangle also copies its locs on its
+  level (`Editor_StampCaptureRect`) and Ctrl+V pastes them AFTER the tile
+  commands, which are exactly the tile paste's, in the same undo step.
+- **The multi-piece ghost** (map_editor_ghost.h `MapEditorPieceGhost`, a
+  sibling in `struct MapEditorGhost`): footprints with a taken flag, keyed
+  on what built them so a quiet frame rebuilds nothing; drawn, not placed.
+
+Tests (2026-11-05, this container, objects in build_opt; the ops test also
+at OPT=0 with asserts in build_w63): **test-editor-stamps** (new, pure) 91
+checks, 0 failed; **test-editor-stamps-ops** (new, content-free: an
+embedded ToriRSMapEd over a synthetic tree it writes -- one hand-written
+square, faked loc records; save, arm, turn, drop as one step, undo back to
+the .jl2 and .jm2 byte for byte, paste with locs, the level move and its
+refusals, Alt-copy and ring turn, Find same, the inspector rows, Follow,
+the strip's thumbnail click, the Catalog chip and the Stamps list) 81, 0
+failed; test-loc-editor-selection (the gizmo's geometry, hit test, arrow,
+Alt, ring and centre semantics, the level target) all passed;
+test-editor-ghost OK (the piece ghost); test-editor-chords 537 (501), 0
+failed (Up / Down a level wear their chords; no new string is cut);
+test-editor-hotkeys 1832 (1734), test-editor-groups 2212, test-editor-cmd
+62, test-editor-palette 97, test-editor-areas 136, test-editor-dropdown 36,
+test-editor-panels-palette 50, test-editor-panels-accounts 48,
+test-editor-world-gesture 42, all 0 failed; check-tree-walks and
+check-pt-switch PASS; `make all` links. Each new check was seen to fail on
+a mutant in this private worktree, restored with git checkout and its
+objects deleted before the clean runs: an arrow allowed backwards (1), the
+ring truncating (1), the turn ignoring a footprint (2), the splice keeping
+no tail (1), the piece ghost ignoring the turn (1), the level move without
+its taken check (1), paste without its locs (2), the strip without its
+event hook (1), Up a level wearing another chord (3).
+
+Could not run here: test-editor-panels, test-editor-jm2 and the content
+half of test-catalog-perf (no OSRS-Content checkout), and nothing was
+photographed (no running client with content): the gizmo's look, its hit
+slop at 2x and the stamp ghost are unchecked by eye.
+
+Open:
+
+- The stamp ghost draws footprints, not the translucent models the one-loc
+  ghost places; a drag's preview likewise.
+- The Multiloc row says whether the primary is a shell; "N shells use it"
+  needs the server catalog to index multiloc children (it counts a block's
+  `multiloc` slots only), so the count is not shown.
+- A stamp's tile heights drop verbatim (the tile paste shifts them by the
+  anchor difference); the rectangle's unnamed stamp carries only locs on its
+  level; stamp spawns are the edited files' rows only.
+- No delete / rename of a stamp; the Stamps panel registers with the
+  Catalog, so a window without App services (a controller) has no list.
+  Save as stamp also writes the files at once: its undo reverts the
+  documents, and the files follow on the next save.
+- The gizmo keeps its place during a drag, its slop is not scaled by the
+  chrome scale, and it has no touch spelling beyond a one-finger drag
+  (which is a left drag). "Refuse where the tile above is not open" is read
+  as no level / square not open / key held; there is no floor-presence test.
+- The hint strip does not list Shift+arrows, Ctrl+PgUp / PgDn or the gizmo.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.

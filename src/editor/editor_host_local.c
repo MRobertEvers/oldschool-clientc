@@ -811,6 +811,10 @@ Editor_HostDocPath(
             written = snprintf(out, out_size, "configs/all.%s.compack", key + 8);
         else if( strncmp(key, "fields:", 7) == 0 )
             written = snprintf(out, out_size, "fields/%s", key + 7);
+        else if( strncmp(key, "stamp:", 6) == 0 )
+            written = snprintf(out, out_size, "editor/stamps/%s.stamp", key + 6);
+        else if( strcmp(key, "stamps:index") == 0 )
+            written = snprintf(out, out_size, "editor/stamps/index.txt");
         else
             return 0;
         break;

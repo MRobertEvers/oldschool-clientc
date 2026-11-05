@@ -236,3 +236,73 @@ MapEditorWander_RectTiles(struct MapEditorWanderRect const* rect)
     assert(rect);
     return (rect->x1 - rect->x0 + 1) * (rect->z1 - rect->z0 + 1);
 }
+
+/* ---- the multi-piece ghost ---------------------------------------------------- */
+
+void
+MapEditorPieceGhost_Clear(struct MapEditorPieceGhost* ghost)
+{
+    assert(ghost);
+    ghost->source = MAP_EDITOR_PIECE_GHOST_NONE;
+    ghost->count = 0;
+    ghost->taken_count = 0;
+    ghost->dropped = 0;
+}
+
+bool
+MapEditorPieceGhost_Matches(
+    struct MapEditorPieceGhost const* ghost,
+    enum MapEditorPieceGhostSource source,
+    int key_x,
+    int key_z,
+    int key_level,
+    int key_turn,
+    unsigned key_serial)
+{
+    assert(ghost);
+    return ghost->source != MAP_EDITOR_PIECE_GHOST_NONE && ghost->source == source && ghost->key_x == key_x
+           && ghost->key_z == key_z && ghost->key_level == key_level && ghost->key_turn == key_turn
+           && ghost->key_serial == key_serial;
+}
+
+void
+MapEditorPieceGhost_Begin(
+    struct MapEditorPieceGhost* ghost,
+    enum MapEditorPieceGhostSource source,
+    int key_x,
+    int key_z,
+    int key_level,
+    int key_turn,
+    unsigned key_serial)
+{
+    assert(ghost);
+    assert(source != MAP_EDITOR_PIECE_GHOST_NONE);
+    MapEditorPieceGhost_Clear(ghost);
+    ghost->source = source;
+    ghost->key_x = key_x;
+    ghost->key_z = key_z;
+    ghost->key_level = key_level;
+    ghost->key_turn = key_turn;
+    ghost->key_serial = key_serial;
+}
+
+bool
+MapEditorPieceGhost_Add(
+    struct MapEditorPieceGhost* ghost,
+    struct MapEditorPieceGhostPiece const* piece)
+{
+    assert(ghost);
+    assert(piece);
+    assert(ghost->source != MAP_EDITOR_PIECE_GHOST_NONE);
+    assert(piece->size_x >= 1);
+    assert(piece->size_z >= 1);
+    if( ghost->count >= MAP_EDITOR_PIECE_GHOST_MAX )
+    {
+        ghost->dropped++;
+        return false;
+    }
+    ghost->pieces[ghost->count++] = *piece;
+    if( piece->taken )
+        ghost->taken_count++;
+    return true;
+}

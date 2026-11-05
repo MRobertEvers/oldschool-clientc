@@ -1412,6 +1412,19 @@ app_map_editor_ghost_update(struct App* app);
 void
 app_map_editor_preview_update(struct App* app);
 
+struct LocEditorGizmoScreen;
+/** The move gizmo (workbench 6.3) on the primary selected loc, projected
+ *  through the World panel's camera this frame: 0 (and `out` not valid)
+ *  while there is none -- no selection, a tool other than Select or Move,
+ *  the primary off the scene. `*out_hot` the handle under the pointer (or
+ *  being dragged), LOC_EDITOR_GIZMO_NONE when none. The overlay draws it;
+ *  the world click hit-tests the same points. */
+int
+App_MapEditorGizmoScreen(
+    struct App* app,
+    struct LocEditorGizmoScreen* out,
+    int* out_hot);
+
 
 /* ---- app_minimap.c ---- */
 int

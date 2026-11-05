@@ -82,8 +82,10 @@ turn the camera even with locs selected) ·
 | Apply the armed tool to the selection | Return | L |
 | Select every loc of the hovered tile's square on the edit level | Ctrl+A | W |
 | Nudge selection N / S / W / E one tile (onto a tile holding a loc of that shape: the two swap) | Up / Down / Left / Right | M |
-| Copy tiles | Ctrl+C | R |
-| Paste tiles at the hovered tile | Ctrl+V | W |
+| Nudge selection 8 tiles N / S / W / E (a zone; the same swap rule) | Shift+Up / Shift+Down / Shift+Left / Shift+Right | M |
+| Move the selected locs a level up / down (each keeps its tile; refused, with the reason in the status bar, where a loc would leave levels 0..3, its square is not open, or the key above / below holds another loc) | Ctrl+PageUp / Ctrl+PageDown | L |
+| Copy tiles (and the rectangle's locs on its level: the unnamed stamp) | Ctrl+C | R |
+| Paste tiles at the hovered tile (then the copied locs, in the same undo step) | Ctrl+V | W |
 | Fill tiles | Ctrl+Shift+F | R |
 | Clear tiles | Shift+Delete | R |
 | Mark area from rect | Ctrl+Shift+M | R |
@@ -245,7 +247,7 @@ N: ...`); the rest of the file still applies. The ids, in the order of the
 tables (the Hotkeys panel calls them by the name after the id):
 
 - **File**: `file.new` New square..., `file.save_all` Save all, `file.save_as` Save square as new..., `file.bake` Bake cache (slow), `file.close` Close editor, `file.check_scripts` Check scripts, `file.run` Run (save, build, reload), `file.publish` Publish...
-- **Edit**: `edit.undo` Undo, `edit.redo` Redo, `edit.deselect` Deselect / cancel, `edit.delete` Delete selection, `edit.duplicate` Duplicate, `edit.rotate` Rotate, `edit.reshape` Reshape, `edit.apply` Apply tool to selection, `edit.select_square` Select the square's locs, `edit.nudge_n` Nudge north, `edit.nudge_s` Nudge south, `edit.nudge_w` Nudge west, `edit.nudge_e` Nudge east, `edit.copy` Copy tiles, `edit.paste` Paste tiles, `edit.fill` Fill tiles, `edit.clear` Clear tiles, `edit.mark_area` Mark area from rect
+- **Edit**: `edit.undo` Undo, `edit.redo` Redo, `edit.deselect` Deselect / cancel, `edit.delete` Delete selection, `edit.duplicate` Duplicate, `edit.rotate` Rotate, `edit.reshape` Reshape, `edit.apply` Apply tool to selection, `edit.select_square` Select the square's locs, `edit.nudge_n` Nudge north, `edit.nudge_s` Nudge south, `edit.nudge_w` Nudge west, `edit.nudge_e` Nudge east, `edit.nudge_far_n` Nudge north 8, `edit.nudge_far_s` Nudge south 8, `edit.nudge_far_w` Nudge west 8, `edit.nudge_far_e` Nudge east 8, `edit.level_up` Selection up a level, `edit.level_down` Selection down a level, `edit.copy` Copy tiles, `edit.paste` Paste tiles, `edit.fill` Fill tiles, `edit.clear` Clear tiles, `edit.mark_area` Mark area from rect
 - **Place**: `place.here` Place at the hovered tile, `place.fit` Fit walls to neighbours (toggle), `place.swap` Swap to catalog pick
 - **Palette**: `palette.slot_1` Palette slot 1, `palette.slot_2` Palette slot 2, `palette.slot_3` Palette slot 3, `palette.slot_4` Palette slot 4, `palette.slot_5` Palette slot 5, `palette.slot_6` Palette slot 6, `palette.slot_7` Palette slot 7, `palette.slot_8` Palette slot 8, `palette.slot_9` Palette slot 9, `palette.slot_10` Palette slot 10, `palette.add_pick` Add the pick to the palette, `palette.next` Next palette, `palette.previous` Previous palette
 - **Tools**: `tool.select` Select, `tool.rect` Rectangle, `tool.raise` Raise, `tool.lower` Lower, `tool.flatten` Flatten, `tool.smooth` Smooth, `tool.paint_underlay` Paint underlay, `tool.paint_overlay` Paint overlay, `tool.paint_flags` Paint flags, `tool.place` Place loc, `tool.move` Move loc, `tool.rotate` Rotate loc (tool), `tool.delete` Delete loc (tool), `tool.place_player` Place player, `tool.previous` Previous tool, `tool.pick_paint` Pick the tile's paint, `tool.pick_loc` Pick the hovered loc, `hold.place` Click places a loc (hold), `hold.delete` Click deletes a loc (hold), `hold.clear` Click clears the tile (hold)

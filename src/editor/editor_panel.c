@@ -23,6 +23,7 @@
 #include "mem/torirs_mem.h"
 #include "panels/edpanel_common.h"
 #include "panels/edpanel_ops.h"
+#include "panels/edpanel_ops_stamps.h"
 #include "panels/edpanels.h"
 #include "torirsmaped/torirs_maped.h"
 #include "ui/uitree_debug_overlay.h"
@@ -767,6 +768,10 @@ Editor_PanelPlaceLocAt(
     ui = panel->ui;
     if( !ui || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
         return 0;
+    /* A stamp armed from the Stamps list drops whole, whatever the pick
+     * (edpanel_ops_stamps.h): the click and Space both land here. */
+    if( edp_stamp_armed(ui) )
+        return edp_stamp_drop(ui, world_x, world_z, level);
     if( ui->tools.pick_kind == 1 || ui->tools.pick_kind == 2 )
         return Editor_Locs_PlaceSpawn(ui, world_x, world_z, level);
     if( ui->tools.pick_kind != 0 )

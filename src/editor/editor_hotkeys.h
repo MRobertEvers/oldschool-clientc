@@ -109,6 +109,14 @@ enum Editor_HotkeyAction
     EDITOR_HK_EDIT_NUDGE_S,
     EDITOR_HK_EDIT_NUDGE_W,
     EDITOR_HK_EDIT_NUDGE_E,
+    /** Workbench 6.3: the nudges by a zone (8 tiles), and the selection a
+     *  level up / down (refused where it cannot land). */
+    EDITOR_HK_EDIT_NUDGE_FAR_N,
+    EDITOR_HK_EDIT_NUDGE_FAR_S,
+    EDITOR_HK_EDIT_NUDGE_FAR_W,
+    EDITOR_HK_EDIT_NUDGE_FAR_E,
+    EDITOR_HK_EDIT_LEVEL_UP,
+    EDITOR_HK_EDIT_LEVEL_DOWN,
     EDITOR_HK_EDIT_COPY,
     EDITOR_HK_EDIT_PASTE,
     EDITOR_HK_EDIT_FILL,
