@@ -31,7 +31,7 @@ BUILDER_TEST_SRCS = $(BUILDER_CORE_SRCS) editor/builder/builder_panels.c \
 	torirsmaped/torirs_maped_embed.c editor/editor_host_local.c editor/editor_host_remote.c \
 	editor/editor_doc.c editor/editor_cmd.c editor/editor_spawn.c \
 	editor/editor_jm2.c ui/uitree_debug_overlay.c ui/torirs_chrome_exec.c \
-	ui/torirs_chrome_exec_kind.c ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+	ui/torirs_chrome_exec_kind.c ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 	editor/test/builder_test.c
 .PHONY: test-builder
 test-builder: sscompile

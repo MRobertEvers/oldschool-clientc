@@ -158,8 +158,17 @@ Host-owned local image URLs. Recognized names are `panelBody`, `pluginIcon`,
 `frameBottomLeft`, `frameBottom`, and `frameBottomRight`. IE8 tiles/stretches
 these through ordinary table/absolute elements; modern CSS uses the same URLs.
 
+Optional `skinTiers` (1, 2 or 3, default 1) says the host staged the skin's
+2x and 3x tiers beside `skin/` as `skin@2x/` and `skin@3x/`
+(`tools/chrome_skin_tiers.py`). A packaged `skin/<Slot>.png` URL is then drawn
+from the smallest tier whose pixels cover its CSS size times
+`devicePixelRatio`, sized back to the authored CSS size; with 3 the stylesheet's
+`image-set()` rules (scoped under `.tpc-skin-tiers` on the root) do the same
+for the art it names. A host that staged only `skin/` omits it and nothing
+asks for a tier.
+
 ```js
-{ protocol: 1, type: "theme", revision: 2, assets: { /* name: local URL */ } }
+{ protocol: 1, type: "theme", revision: 2, skinTiers: 3, assets: { /* name: local URL */ } }
 ```
 
 ### `page.snapshot`

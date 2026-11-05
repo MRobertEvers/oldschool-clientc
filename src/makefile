@@ -887,7 +887,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	ui/torirs_chrome_rail.c \
 	ui/torirs_chrome_inkwell.c \
 	ui/torirs_chrome_mirror.c \
-	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
+	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 	ui/uitree_interact.c ui/uitree_iface_stats.c \
 	varp/varp_manager.c \
 	varc/varc_manager.c \
@@ -1461,6 +1461,10 @@ WEB_PLUGIN_CHROME = $(SRC_DIR)/plugin_chrome/modern.html \
 	$(SRC_DIR)/plugin_chrome/codec-es3.js \
 	$(SRC_DIR)/plugin_chrome/runtime.js
 WEB_PLUGIN_CHROME_SKIN = $(wildcard $(REPO_ROOT)/res/plugin_chrome/skin/*.png)
+# The 2x and 3x tiers (tools/chrome_skin_tiers.py). The web host's theme says
+# skinTiers 3 (web/torirs_chrome.js), so both must be staged beside skin/.
+WEB_PLUGIN_CHROME_SKIN2X = $(wildcard $(REPO_ROOT)/res/plugin_chrome/skin@2x/*.png)
+WEB_PLUGIN_CHROME_SKIN3X = $(wildcard $(REPO_ROOT)/res/plugin_chrome/skin@3x/*.png)
 WEB_PLUGIN_CHROME_FONT = $(wildcard $(REPO_ROOT)/res/plugin_chrome/font/*)
 ifeq ($(MEMTRACE),1)
 WEB_ASSETS += $(REPO_ROOT)/tools/memtrace/viewer.html
@@ -1504,6 +1508,9 @@ web: servers
 	@mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/skin
 	@cp $(WEB_PLUGIN_CHROME) $(REPO_ROOT)/build-web/plugin_chrome/
 	@cp $(WEB_PLUGIN_CHROME_SKIN) $(REPO_ROOT)/build-web/plugin_chrome/skin/
+	@mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/skin@2x $(REPO_ROOT)/build-web/plugin_chrome/skin@3x
+	@cp $(WEB_PLUGIN_CHROME_SKIN2X) $(REPO_ROOT)/build-web/plugin_chrome/skin@2x/
+	@cp $(WEB_PLUGIN_CHROME_SKIN3X) $(REPO_ROOT)/build-web/plugin_chrome/skin@3x/
 	@if test -n "$(WEB_PLUGIN_CHROME_FONT)"; then \
 		mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/font; \
 		cp $(WEB_PLUGIN_CHROME_FONT) $(REPO_ROOT)/build-web/plugin_chrome/font/; \
@@ -1517,6 +1524,9 @@ web-debug: servers
 	@mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/skin
 	@cp $(WEB_PLUGIN_CHROME) $(REPO_ROOT)/build-web/plugin_chrome/
 	@cp $(WEB_PLUGIN_CHROME_SKIN) $(REPO_ROOT)/build-web/plugin_chrome/skin/
+	@mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/skin@2x $(REPO_ROOT)/build-web/plugin_chrome/skin@3x
+	@cp $(WEB_PLUGIN_CHROME_SKIN2X) $(REPO_ROOT)/build-web/plugin_chrome/skin@2x/
+	@cp $(WEB_PLUGIN_CHROME_SKIN3X) $(REPO_ROOT)/build-web/plugin_chrome/skin@3x/
 	@if test -n "$(WEB_PLUGIN_CHROME_FONT)"; then \
 		mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/font; \
 		cp $(WEB_PLUGIN_CHROME_FONT) $(REPO_ROOT)/build-web/plugin_chrome/font/; \
@@ -3903,7 +3913,7 @@ test-sdl-chrome-geometry: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_chrome_geometry_test $(TORIMEM_SRCS) \
 		platform/test/sdl_chrome_geometry_test.c platform/platform_sdl2.c \
 		$(PLATFORM_OBJC_SRCS) \
-		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
 		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
 	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_chrome_geometry_test
@@ -3922,7 +3932,7 @@ test-sdl-gesture: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/sdl_gesture_test $(TORIMEM_SRCS) \
 		platform/test/sdl_gesture_test.c platform/platform_sdl2.c \
 		$(PLATFORM_OBJC_SRCS) \
-		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
 		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
 	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_gesture_test
@@ -3940,7 +3950,7 @@ test-chrome-surface-sdl: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -DTORIRS_CHROME_SURFACE_SDL=1 -UNDEBUG \
 		-o $(OBJ_DIR)/chrome_surface_sdl_test $(TORIMEM_SRCS) \
 		ui/test/torirs_chrome_surface_sdl_test.c ui/torirs_chrome_surface_sdl.c \
-		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		$(REPO_ROOT)/3rd/bmp/bmp.c
 	./$(OBJ_DIR)/chrome_surface_sdl_test
 
@@ -3955,7 +3965,7 @@ test-sdl-pointer-map: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_pointer_map_test $(TORIMEM_SRCS) \
 		platform/test/sdl_pointer_map_test.c platform/platform_sdl2.c \
 		$(PLATFORM_OBJC_SRCS) \
-		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
 		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
 	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_pointer_map_test
@@ -3974,7 +3984,7 @@ test-sdl-text-input: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_text_input_test $(TORIMEM_SRCS) \
 		platform/test/sdl_text_input_test.c platform/platform_sdl2.c \
 		$(PLATFORM_OBJC_SRCS) \
-		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
 		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
 	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_text_input_test
@@ -4022,7 +4032,7 @@ test-chrome-browser-exec: $(OBJ_DIR)
 test-chrome-web-skin: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -Wno-unused-parameter -o $(OBJ_DIR)/chrome_web_skin_test $(TORIMEM_SRCS) \
 		ui/test/uitree_test_chrome_web_skin.c \
-		ui/torirs_chrome_mirror.c engine/torirs_chrome_skin_baked.c
+		ui/torirs_chrome_mirror.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c
 	./$(OBJ_DIR)/chrome_web_skin_test
 
 # The web panel channel: the wire codec, and a two-tab handshake driven through
@@ -4063,7 +4073,7 @@ test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 	$(CC) $(CFLAGS) -I$(BMP_DIR) -o $(OBJ_DIR)/debug_overlay_visual $(TORIMEM_SRCS) \
 		ui/test/uitree_debug_overlay_visual.c \
 		ui/uitree_debug_overlay.c engine/torirs_debug_font_baked.c \
-		engine/torirs_chrome_skin_baked.c \
+		engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		render/torirs_frame.c render/torirs_pick.c \
 		render/torirs_polygon.c render/torirs_arc.c \
 		platform/platform_renderer_soft3d.c \
