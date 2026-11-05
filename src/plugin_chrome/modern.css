@@ -912,3 +912,106 @@ button { font-weight: 700; }
   content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0;
   background: rgba(0, 0, 0, 0.5); z-index: 10;
 }
+
+/*
+ * The 2x and 3x skin tiers (tools/chrome_skin_tiers.py: res/plugin_chrome/skin@2x
+ * and skin@3x), for the rules above that name a packaged slot. Scoped under
+ * .tpc-skin-tiers, which the runtime sets on the root only when the host's theme
+ * says it staged both tiers (skinTiers 3), so a host that ships skin/ alone is
+ * never asked for a file it lacks. The resolution descriptors are art pixels per
+ * CSS pixel: the button plates' 1x art is already twice their drawn size. A
+ * browser without image-set keeps the 1x url() above. .tpc-close itself is
+ * absent: its image is the theme's, set inline by the runtime at its tier.
+ */
+.tpc-skin-tiers .tpc-close:hover {
+  background-image: -webkit-image-set(url("skin/CloseButtonOver.png") 1x, url("skin@2x/CloseButtonOver.png") 2x, url("skin@3x/CloseButtonOver.png") 3x);
+  background-image: image-set(url("skin/CloseButtonOver.png") 1x, url("skin@2x/CloseButtonOver.png") 2x, url("skin@3x/CloseButtonOver.png") 3x);
+}
+.tpc-skin-tiers .tpc-popout {
+  background-image: -webkit-image-set(url("skin/PopoutButton.png") 1x, url("skin@2x/PopoutButton.png") 2x, url("skin@3x/PopoutButton.png") 3x);
+  background-image: image-set(url("skin/PopoutButton.png") 1x, url("skin@2x/PopoutButton.png") 2x, url("skin@3x/PopoutButton.png") 3x);
+}
+.tpc-skin-tiers .tpc-popout:hover {
+  background-image: -webkit-image-set(url("skin/PopoutButtonOver.png") 1x, url("skin@2x/PopoutButtonOver.png") 2x, url("skin@3x/PopoutButtonOver.png") 3x);
+  background-image: image-set(url("skin/PopoutButtonOver.png") 1x, url("skin@2x/PopoutButtonOver.png") 2x, url("skin@3x/PopoutButtonOver.png") 3x);
+}
+.tpc-skin-tiers .tpc-popout.tpc-dock {
+  background-image: -webkit-image-set(url("skin/DockButton.png") 1x, url("skin@2x/DockButton.png") 2x, url("skin@3x/DockButton.png") 3x);
+  background-image: image-set(url("skin/DockButton.png") 1x, url("skin@2x/DockButton.png") 2x, url("skin@3x/DockButton.png") 3x);
+}
+.tpc-skin-tiers .tpc-popout.tpc-dock:hover {
+  background-image: -webkit-image-set(url("skin/DockButtonOver.png") 1x, url("skin@2x/DockButtonOver.png") 2x, url("skin@3x/DockButtonOver.png") 3x);
+  background-image: image-set(url("skin/DockButtonOver.png") 1x, url("skin@2x/DockButtonOver.png") 2x, url("skin@3x/DockButtonOver.png") 3x);
+}
+.tpc-skin-tiers .tpc-key-value {
+  background-image: -webkit-image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+  background-image: image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+}
+.tpc-skin-tiers .tpc-progress {
+  background-image: -webkit-image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+  background-image: image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+}
+.tpc-skin-tiers .tpc-check {
+  background-image: -webkit-image-set(url("skin/CheckOff.png") 1x, url("skin@2x/CheckOff.png") 2x, url("skin@3x/CheckOff.png") 3x);
+  background-image: image-set(url("skin/CheckOff.png") 1x, url("skin@2x/CheckOff.png") 2x, url("skin@3x/CheckOff.png") 3x);
+}
+.tpc-skin-tiers .tpc-check:checked {
+  background-image: -webkit-image-set(url("skin/CheckOn.png") 1x, url("skin@2x/CheckOn.png") 2x, url("skin@3x/CheckOn.png") 3x);
+  background-image: image-set(url("skin/CheckOn.png") 1x, url("skin@2x/CheckOn.png") 2x, url("skin@3x/CheckOn.png") 3x);
+}
+.tpc-skin-tiers .tpc-button, .tpc-skin-tiers .tpc-menu {
+  background-image: -webkit-image-set(url("skin/ButtonLeft.png") 2x, url("skin@2x/ButtonLeft.png") 4x, url("skin@3x/ButtonLeft.png") 6x), -webkit-image-set(url("skin/ButtonRight.png") 2x, url("skin@2x/ButtonRight.png") 4x, url("skin@3x/ButtonRight.png") 6x), -webkit-image-set(url("skin/ButtonMid.png") 2x, url("skin@2x/ButtonMid.png") 4x, url("skin@3x/ButtonMid.png") 6x);
+  background-image: image-set(url("skin/ButtonLeft.png") 2x, url("skin@2x/ButtonLeft.png") 4x, url("skin@3x/ButtonLeft.png") 6x), image-set(url("skin/ButtonRight.png") 2x, url("skin@2x/ButtonRight.png") 4x, url("skin@3x/ButtonRight.png") 6x), image-set(url("skin/ButtonMid.png") 2x, url("skin@2x/ButtonMid.png") 4x, url("skin@3x/ButtonMid.png") 6x);
+}
+.tpc-skin-tiers .tpc-action-row {
+  background-image: -webkit-image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+  background-image: image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+}
+.tpc-skin-tiers .tpc-row-well {
+  background-image: -webkit-image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+  background-image: image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+}
+.tpc-skin-tiers .tpc-row input[type="text"], .tpc-skin-tiers .tpc-row textarea {
+  background-image: -webkit-image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+  background-image: image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+}
+.tpc-skin-tiers .tpc-dropdown {
+  background-image: -webkit-image-set(url("skin/PanelBody.png") 1x, url("skin@2x/PanelBody.png") 2x, url("skin@3x/PanelBody.png") 3x);
+  background-image: image-set(url("skin/PanelBody.png") 1x, url("skin@2x/PanelBody.png") 2x, url("skin@3x/PanelBody.png") 3x);
+}
+.tpc-skin-tiers .tpc-dropdown-arrow {
+  background-image: -webkit-image-set(url("skin/ScrollDown.png") 1x, url("skin@2x/ScrollDown.png") 2x, url("skin@3x/ScrollDown.png") 3x);
+  background-image: image-set(url("skin/ScrollDown.png") 1x, url("skin@2x/ScrollDown.png") 2x, url("skin@3x/ScrollDown.png") 3x);
+}
+.tpc-skin-tiers .tpc-dropdown-open .tpc-dropdown-arrow {
+  background-image: -webkit-image-set(url("skin/ScrollUp.png") 1x, url("skin@2x/ScrollUp.png") 2x, url("skin@3x/ScrollUp.png") 3x);
+  background-image: image-set(url("skin/ScrollUp.png") 1x, url("skin@2x/ScrollUp.png") 2x, url("skin@3x/ScrollUp.png") 3x);
+}
+.tpc-skin-tiers .tpc-dropdown-list {
+  background-image: -webkit-image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+  background-image: image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+}
+.tpc-skin-tiers ::-webkit-scrollbar {
+  background-image: -webkit-image-set(url("skin/ScrollTrack.png") 1x, url("skin@2x/ScrollTrack.png") 2x, url("skin@3x/ScrollTrack.png") 3x);
+  background-image: image-set(url("skin/ScrollTrack.png") 1x, url("skin@2x/ScrollTrack.png") 2x, url("skin@3x/ScrollTrack.png") 3x);
+}
+.tpc-skin-tiers ::-webkit-scrollbar-button:vertical:decrement {
+  background-image: -webkit-image-set(url("skin/ScrollUp.png") 1x, url("skin@2x/ScrollUp.png") 2x, url("skin@3x/ScrollUp.png") 3x);
+  background-image: image-set(url("skin/ScrollUp.png") 1x, url("skin@2x/ScrollUp.png") 2x, url("skin@3x/ScrollUp.png") 3x);
+}
+.tpc-skin-tiers ::-webkit-scrollbar-button:vertical:increment {
+  background-image: -webkit-image-set(url("skin/ScrollDown.png") 1x, url("skin@2x/ScrollDown.png") 2x, url("skin@3x/ScrollDown.png") 3x);
+  background-image: image-set(url("skin/ScrollDown.png") 1x, url("skin@2x/ScrollDown.png") 2x, url("skin@3x/ScrollDown.png") 3x);
+}
+.tpc-skin-tiers ::-webkit-scrollbar-thumb:vertical {
+  background-image: -webkit-image-set(url("skin/ScrollGripTop.png") 1x, url("skin@2x/ScrollGripTop.png") 2x, url("skin@3x/ScrollGripTop.png") 3x), -webkit-image-set(url("skin/ScrollGripBottom.png") 1x, url("skin@2x/ScrollGripBottom.png") 2x, url("skin@3x/ScrollGripBottom.png") 3x), -webkit-image-set(url("skin/ScrollGripMid.png") 1x, url("skin@2x/ScrollGripMid.png") 2x, url("skin@3x/ScrollGripMid.png") 3x);
+  background-image: image-set(url("skin/ScrollGripTop.png") 1x, url("skin@2x/ScrollGripTop.png") 2x, url("skin@3x/ScrollGripTop.png") 3x), image-set(url("skin/ScrollGripBottom.png") 1x, url("skin@2x/ScrollGripBottom.png") 2x, url("skin@3x/ScrollGripBottom.png") 3x), image-set(url("skin/ScrollGripMid.png") 1x, url("skin@2x/ScrollGripMid.png") 2x, url("skin@3x/ScrollGripMid.png") 3x);
+}
+.tpc-skin-tiers .tpc-radio {
+  background-image: -webkit-image-set(url("skin/RadioOff.png") 1x, url("skin@2x/RadioOff.png") 2x, url("skin@3x/RadioOff.png") 3x);
+  background-image: image-set(url("skin/RadioOff.png") 1x, url("skin@2x/RadioOff.png") 2x, url("skin@3x/RadioOff.png") 3x);
+}
+.tpc-skin-tiers .tpc-radio:checked {
+  background-image: -webkit-image-set(url("skin/RadioOn.png") 1x, url("skin@2x/RadioOn.png") 2x, url("skin@3x/RadioOn.png") 3x);
+  background-image: image-set(url("skin/RadioOn.png") 1x, url("skin@2x/RadioOn.png") 2x, url("skin@3x/RadioOn.png") 3x);
+}

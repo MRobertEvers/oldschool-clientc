@@ -64,6 +64,9 @@
     protocol: PROTOCOL,
     type: 'theme',
     revision: 1,
+    /* `make web` stages skin@2x/ and skin@3x/ beside skin/
+     * (tools/chrome_skin_tiers.py), so the runtime may draw from them. */
+    skinTiers: 3,
     assets: {
       panelBody: 'skin/PanelBody.png',
       pluginIcon: 'skin/PluginIcon.png',

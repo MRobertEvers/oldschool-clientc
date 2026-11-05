@@ -14,6 +14,7 @@
 #include "engine/toridraw_sprite_from_torirs.h"
 #include "engine/torirs_chrome_skin_baked.h"
 #include "ui/torirs_chrome_inkwell.h"
+#include "engine/torirs_chrome_font_tier.h"
 #include "engine/torirs_debug_font_baked.h"
 #include "engine/torirs_types.h"
 #include "hmap.h"
@@ -634,6 +635,12 @@ UITreeSceneBridge_ChromeScale(struct UITreeSceneBridge const* bridge)
     return bridge->chrome_scale > 0 ? bridge->chrome_scale : 1;
 }
 
+/* The font tier accessor numbers its faces as the chrome numbers its font
+ * slots; this file sees both, so it pins them. */
+_Static_assert(ToriRSChromeFont_FACE_SMALL == TORIRS_CHROME_FONT_SMALL, "Small face slot");
+_Static_assert(ToriRSChromeFont_FACE_MENU == TORIRS_CHROME_FONT_MENU, "Menu face slot");
+_Static_assert(ToriRSChromeFont_FACE_BODY == TORIRS_CHROME_FONT_BODY, "Body face slot");
+
 static int
 bridge_ensure_debug_font_at(
     struct UITreeSceneBridge* bridge,
@@ -650,24 +657,23 @@ bridge_ensure_debug_font_at(
     /* One switch over (slot, scale), because the two must not be resolvable
      * apart: the advance table the overlay measured with and the glyphs drawn
      * here come from the same bake at the same size, or text lays out to one
-     * width and paints at another. */
+     * width and paints at another. The glyphs come through the tier accessor,
+     * which is where a hand-tuned tier would be selected; its advances are
+     * the derived tier's, so the overlay's tables still measure it. */
     switch( font_slot )
     {
     case TORIRS_CHROME_FONT_SMALL:
-        baked = scale == 3 ? ToriRSChromeFont_Small3x() : scale == 2 ? ToriRSChromeFont_Small2x()
-                                                                : ToriRSChromeFont_Small();
+        baked = ToriRSChromeFont_Tier(ToriRSChromeFont_FACE_SMALL, scale);
         scene_id = scale == 1 ? UITREE_SCENE_DEBUG_FONT_SMALL_ID
                               : UITREE_SCENE_DEBUG_FONT_SCALED_ID(TORIRS_CHROME_FONT_SMALL, scale);
         break;
     case TORIRS_CHROME_FONT_MENU:
-        baked = scale == 3 ? ToriRSChromeFont_Menu3x() : scale == 2 ? ToriRSChromeFont_Menu2x()
-                                                               : ToriRSChromeFont_Menu();
+        baked = ToriRSChromeFont_Tier(ToriRSChromeFont_FACE_MENU, scale);
         scene_id = scale == 1 ? UITREE_SCENE_DEBUG_FONT_MENU_ID
                               : UITREE_SCENE_DEBUG_FONT_SCALED_ID(TORIRS_CHROME_FONT_MENU, scale);
         break;
     case TORIRS_CHROME_FONT_BODY:
-        baked = scale == 3 ? ToriRSChromeFont_Body3x() : scale == 2 ? ToriRSChromeFont_Body2x()
-                                                               : ToriRSChromeFont_Body();
+        baked = ToriRSChromeFont_Tier(ToriRSChromeFont_FACE_BODY, scale);
         scene_id = scale == 1 ? UITREE_SCENE_DEBUG_FONT_BODY_ID
                               : UITREE_SCENE_DEBUG_FONT_SCALED_ID(TORIRS_CHROME_FONT_BODY, scale);
         break;

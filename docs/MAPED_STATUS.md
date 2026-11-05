@@ -1009,6 +1009,71 @@ Open:
 - `make -C src torirsmaped` fails to link here (pow / floor: its recipe links
   no `-lm`); the same objects link with `-lm` added. Not from this change.
 
+## Workbench step 6.0b, part 2: skin and font tiers (date 2026-11-05)
+
+The skin and the fonts baked at 1x, 2x and 3x, reproducibly (design section 2
+"R1 in full", section 16 step 6.0b). The whole of it is in
+docs/CHROME_SCALE.md; which tier the native draw path picks at which scale is
+the scale-core slice's.
+
+- **One class table** (src/engine/torirs_chrome_skin_class.h, read by the C and
+  the tools): 37 GLYPH slots (tool icons, marks and boxes, scroll and tree
+  arrows, Close / Popout / Dock and their Over states, Run / Stop / Save /
+  Build, Warning, Error, SplitterGrip, SliderKnob, SearchGlass) and 21
+  TEXTURED (bodies, frame, button plates, scroll track and grips, slider
+  tracks, PluginIcon), with the axes each tiles along.
+- **tools/chrome_skin_tiers.py** derives src/engine/torirs_chrome_skin_tiers.{c,h}
+  and res/plugin_chrome/skin@2x, skin@3x from the 1x bake, no cache: GLYPH
+  through a mask route (alpha mask, two inks by k-means, scale2x / scale3x;
+  at most three colours), TEXTURED through xBR (integer, alpha-aware,
+  wrapping tiled axes). Byte-identical on a rerun; the recipe is in the
+  generated header. `ToriRSChromeSkin_SpriteTier(slot, tier)` and
+  `ToriRSChromeSkin_ClassOf(slot)` in ui/torirs_chrome_skin.h; tier 1 is the
+  bake itself, a slot the tiers do not cover falls back to 1x.
+- **Font tier hook**: `ToriRSChromeFont_<Face><N>x_TUNED` in the metrics header
+  (0 everywhere; fontbake writes it from a new `--tuned` recipe argument) and
+  `ToriRSChromeFont_Tier(face, tier)` (engine/torirs_chrome_font_tier.h), which
+  uitree_scene_bridge.c now picks its fonts through. **tools/chrome_font_tiers.py**
+  checks every 2x and 3x font tier is the 1x masks multiplied and writes the
+  hand-tuning queue (glyphs whose scale2x / scale3x form differs, 1-pixel
+  counters first: p12's a, e, s are there) into docs/CHROME_SCALE.md. No glyph
+  is hand-drawn.
+- **make -C src chrome-skin** now runs both tools with --check and
+  test-chrome-skin-tiers, needs no cache, and fails on a stale tier, PNG or
+  queue. The cache re-bake it used to be is **chrome-skin-rebake**, which then
+  rewrites the tiers.
+- **Web**: the theme's new `skinTiers` (web/torirs_chrome.js says 3; `make
+  web` stages both tier directories) lets the runtime draw a packaged slot
+  from the smallest tier covering its CSS size times devicePixelRatio, sized
+  back to the authored size; modern.css carries `image-set()` rules under
+  `.tpc-skin-tiers`. A host that says nothing gets 1x, as before. The
+  runtime's SKIN_FILES gained SliderTrackLeft / Right.
+
+Tests (2026-11-05, this container, build_opt): test-chrome-skin-tiers 922
+checks passed; chrome-skin passes on a clean tree; test-chrome-widgets 340
+checks, 0 failed, dom ok (with the new tier-selection block); runtime,
+legacy and compat node tests ok; test-uitree, test-debug-overlay-visual,
+test-chrome-surface-sdl, test-chrome-browser-exec, test-chrome-web-skin,
+test-sdl-chrome-geometry, test-sdl-gesture, test-sdl-pointer-map pass;
+`make -C src all` builds the client (torirsmaped fails to link for a
+missing -lm, which this change does not touch). Each new check was seen to
+fail on a mutated scratch copy (16 mutations: stale 1x pixel, edited PNG,
+reclassified slot, a fourth colour, a wrong size, a class hole, a frayed
+texture, a wrong font tier, a non-derived font mask, a stale queue, a tuned
+1x face, a DPR-blind runtime, a wrong size table, tiers without a host).
+
+Open:
+
+- The native draw path does not read the tiers yet (scale-core slice); 1x,
+  2x and 3x draw exactly as before.
+- GLYPH slots with more than two inks flatten in the mask route (ToolPlace,
+  ToolDelete, ToolPaintUnderlay, ToolSmooth, SliderKnob, SaveButton): the
+  skin's hand-drawing queue, or candidates to reclassify.
+- Only the web host stages and announces the tiers; the macOS WKWebView,
+  WebView2 and MSHTML hosts stage skin/ alone and stay at 1x. The runtime
+  picks the tier when it paints, not again when devicePixelRatio changes.
+- web/test/chrome_layout_test.js still opens `src/Makefile` (case).
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.

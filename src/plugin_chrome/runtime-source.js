@@ -108,6 +108,29 @@
    */
   const pageView = !!(global.location && String(global.location.hash || '') === '#page');
 
+  /* Each packaged slot's 1x size, as the bake has it: a 2x or 3x tier file is
+   * that times the tier, drawn back at this size (chrome_widgets_dom_test.js
+   * reads the PNGs and pins it). */
+  const SKIN_SIZES = {
+    PanelBody: [88, 60], ScrollUp: [16, 16], ScrollDown: [16, 16], ScrollTrack: [16, 5],
+    ScrollGripTop: [16, 5], ScrollGripMid: [16, 5], ScrollGripBottom: [16, 5],
+    DropdownBody: [88, 60], PluginIcon: [33, 36], CheckOn: [17, 17], CheckOff: [17, 17],
+    FrameTopLeft: [32, 32], FrameTop: [32, 6], FrameTopRight: [32, 32], FrameLeft: [6, 32],
+    FrameRight: [6, 32], FrameBottomLeft: [32, 32], FrameBottom: [32, 6],
+    FrameBottomRight: [32, 32], CloseButton: [16, 16], CloseButtonOver: [16, 16],
+    PopoutButton: [16, 16], PopoutButtonOver: [16, 16], DockButton: [16, 16],
+    DockButtonOver: [16, 16], CheckBoxOn: [18, 18], CheckBoxOff: [18, 18],
+    ButtonLeft: [36, 36], ButtonMid: [20, 36], ButtonRight: [36, 36], ToolSelect: [15, 15],
+    ToolRaise: [16, 16], ToolLower: [16, 16], ToolFlatten: [15, 15], ToolSmooth: [15, 15],
+    ToolPaintUnderlay: [15, 15], ToolPaintOverlay: [15, 15], ToolFlags: [15, 15],
+    ToolPlace: [15, 15], ToolMove: [15, 15], ToolRotate: [15, 15], ToolDelete: [29, 22],
+    SearchGlass: [29, 22], TreeClosed: [16, 16], TreeOpen: [16, 16], RadioOn: [17, 17],
+    RadioOff: [17, 17], SliderTrack: [16, 14], SliderKnob: [16, 16], SplitterGrip: [7, 11],
+    WarningGlyph: [7, 18], ErrorGlyph: [16, 16], RunButton: [25, 25], StopButton: [19, 19],
+    BuildButton: [19, 17], SaveButton: [16, 16], SliderTrackLeft: [8, 14],
+    SliderTrackRight: [8, 14]
+  };
+
   const state = {
     rail: {
       registryRevision: 0, selectionGeneration: 0, pageGeneration: 0,
@@ -118,6 +141,10 @@
     icons: new Store(),
     themeRevision: 0,
     theme: {},
+    /* The highest skin tier the host staged beside skin/ (skin@2x/, skin@3x/;
+     * tools/chrome_skin_tiers.py), from the theme. 1 until a host says more,
+     * so a host that ships only skin/ is never asked for a file it lacks. */
+    skinTiers: 1,
     pageGeneration: 0,
     panel: -1,
     activeTab: 0,
@@ -216,13 +243,61 @@
     return url ? `url("${url.replace(/["\\]/g, '\\$&')}")` : 'none';
   }
 
+  /* A packaged skin slot's name when the URL is one ('skin/Name.png'), else ''.
+   * Only the packaged slots have tiers; a host's own URL is drawn as given. */
+  function skinName(url) {
+    const match = /^skin\/([A-Za-z]+)\.png$/.exec(url || '');
+    return match && SKIN_SIZES[match[1]] ? match[1] : '';
+  }
+
+  /* The tier for art whose 1x is baseWidth pixels, drawn cssWidth CSS
+   * pixels wide: the smallest staged tier whose pixels cover the device
+   * pixels -- the nearest tier at or above the scale, as the native chrome
+   * picks (docs/CHROME_SCALE.md). 1 on the legacy page and on a host that
+   * staged no tiers. */
+  function skinTier(baseWidth, cssWidth) {
+    if (legacy || state.skinTiers <= 1) return 1;
+    const want = cssWidth * Math.max(1, Number(global.devicePixelRatio || 1));
+    for (let tier = 1; tier < state.skinTiers; tier++)
+      if (baseWidth * tier >= want - 0.01) return tier;
+    return state.skinTiers;
+  }
+
+  /* The URL at the tier for drawing it cssWidth CSS pixels wide (its 1x width
+   * when omitted): 'skin@2x/Name.png' for 'skin/Name.png' on a 2x display.
+   * The caller states the drawn size (background-size) whenever it draws a
+   * tier, or a 2x file paints at twice its size. */
+  function skinUrl(url, cssWidth) {
+    const name = skinName(url);
+    if (!name) return url;
+    const size = SKIN_SIZES[name];
+    const tier = skinTier(size[0], cssWidth === undefined ? size[0] : cssWidth);
+    return tier > 1 ? `skin@${tier}x/${name}.png` : url;
+  }
+
+  /* Paint the node with a skin URL at its 1x size (or width x height): the
+   * tiered file, sized to the authored CSS size -- always, so a node drawn
+   * from a 2x tier on one theme and the 1x file on the next never keeps a
+   * stale size. At 1x that size is the image's own, which draws as before.
+   * A URL that is not a packaged slot (a host's own art) is drawn as given. */
+  function paintSkin(node, url, width, height) {
+    const name = skinName(url);
+    node.style.backgroundImage = cssUrl(skinUrl(url, width));
+    if (name) {
+      const size = SKIN_SIZES[name];
+      node.style.backgroundSize =
+        `${width === undefined ? size[0] : width}px ${height === undefined ? size[1] : height}px`;
+    }
+  }
+
   function skinButton(button) {
     if (!button || legacy) return;
     const left = safeUrl(state.theme.buttonLeft);
     const middle = safeUrl(state.theme.buttonMiddle);
     const right = safeUrl(state.theme.buttonRight);
     if (left && middle && right) {
-      button.style.backgroundImage = `${cssUrl(left)},${cssUrl(right)},${cssUrl(middle)}`;
+      button.style.backgroundImage =
+        `${cssUrl(skinUrl(left, 18))},${cssUrl(skinUrl(right, 18))},${cssUrl(skinUrl(middle, 10))}`;
       button.style.backgroundRepeat = 'no-repeat,no-repeat,repeat-x';
       button.style.backgroundPosition = 'left center,right center,left center';
       /* The source art is the 2x (36px-high) bake. Chrome geometry is in the
@@ -262,7 +337,7 @@
       button.style.lineHeight = '16px';
       button.style.overflow = 'hidden';
     } else if (middle) {
-      button.style.backgroundImage = cssUrl(middle);
+      button.style.backgroundImage = cssUrl(skinUrl(middle, 10));
       button.style.backgroundRepeat = 'repeat-x';
       button.style.backgroundPosition = 'left center';
       button.style.backgroundSize = '10px 18px';
@@ -297,13 +372,13 @@
     control.style.height = `${side}px`;
     control.style.minWidth = `${side}px`;
     control.style.backgroundSize = `${side}px ${side}px`;
-    control.style.backgroundImage = cssUrl(checked ? on : off);
+    control.style.backgroundImage = cssUrl(skinUrl(checked ? on : off, side));
   }
 
   function skinField(control) {
     if (!control || legacy) return;
     const body = safeUrl(state.theme.dropdownBody) || 'skin/DropdownBody.png';
-    control.style.backgroundImage = cssUrl(body);
+    paintSkin(control, body);
     control.style.backgroundRepeat = 'repeat';
   }
 
@@ -317,8 +392,9 @@
     const arrow = open
       ? safeUrl(state.theme.scrollUp) || 'skin/ScrollUp.png'
       : safeUrl(state.theme.scrollDown) || 'skin/ScrollDown.png';
-    record.control.style.backgroundImage = cssUrl(body);
-    record.arrow.style.backgroundImage = cssUrl(arrow);
+    paintSkin(record.control, body);
+    /* The arrow is the 16px art drawn at 14 (DROP_ARROW). */
+    record.arrow.style.backgroundImage = cssUrl(skinUrl(arrow, 14));
   }
 
   function setTabsVisible(visible) {
@@ -647,9 +723,15 @@
     for (let i = 0; i < allowed.length; i++) next[allowed[i]] = safeUrl(assets[allowed[i]]);
     state.theme = next;
     state.themeRevision = revision;
-    pane.style.backgroundImage = cssUrl(next.panelBody);
-    if (rail.parentNode) rail.parentNode.style.backgroundImage = cssUrl(next.panelBody);
-    close.style.backgroundImage = cssUrl(next.close);
+    const tiers = integer(message.skinTiers, 1);
+    state.skinTiers = tiers >= 3 ? 3 : (tiers === 2 ? 2 : 1);
+    /* The stylesheet's image-set rules ask for skin@2x/ and skin@3x/ only
+     * under the tpc-skin-tiers name: a host that staged both says skinTiers 3. */
+    if (document.documentElement)
+      toggleClass(document.documentElement, 'tpc-skin-tiers', state.skinTiers >= 3 && !legacy);
+    paintSkin(pane, next.panelBody);
+    if (rail.parentNode) paintSkin(rail.parentNode, next.panelBody);
+    close.style.backgroundImage = cssUrl(skinUrl(next.close, 16));
     const frameIds = ['tl', 't', 'tr', 'l', 'r', 'bl', 'b', 'br'];
     const frameAssets = ['frameTopLeft', 'frameTop', 'frameTopRight', 'frameLeft',
       'frameRight', 'frameBottomLeft', 'frameBottom', 'frameBottomRight'];
@@ -660,7 +742,7 @@
     for (let p = 0; p < framePrefixes.length; p++) {
       for (let i = 0; i < frameIds.length; i++) {
         const node = document.getElementById(framePrefixes[p] + frameIds[i]);
-        if (node) node.style.backgroundImage = cssUrl(next[frameAssets[i]]);
+        if (node) paintSkin(node, next[frameAssets[i]]);
       }
     }
     updateRailNodes();
@@ -1232,7 +1314,8 @@
     'ToolFlags', 'ToolPlace', 'ToolMove', 'ToolRotate', 'ToolDelete',
     'SearchGlass', 'TreeClosed', 'TreeOpen', 'RadioOn', 'RadioOff',
     'SliderTrack', 'SliderKnob', 'SplitterGrip', 'WarningGlyph', 'ErrorGlyph',
-    'RunButton', 'StopButton', 'BuildButton', 'SaveButton'
+    'RunButton', 'StopButton', 'BuildButton', 'SaveButton', 'SliderTrackLeft',
+    'SliderTrackRight'
   ];
   const TREE_LEAF = 0;
   const TREE_OPEN = 2;
@@ -1680,8 +1763,9 @@
         toggleClass(record.row, 'tpc-selected', !!record.checked);
         hidden(record.expander, record.value === TREE_LEAF);
         toggleClass(record.expander, 'tpc-tree-open', record.value === TREE_OPEN);
-        if (!legacy) record.expander.style.backgroundImage =
-          cssUrl(record.value === TREE_OPEN ? 'skin/TreeOpen.png' : 'skin/TreeClosed.png');
+        if (!legacy)
+          paintSkin(record.expander,
+            record.value === TREE_OPEN ? 'skin/TreeOpen.png' : 'skin/TreeClosed.png');
         if (record.color) record.caption.style.color = cssColor(record.color);
         record.row.setAttribute('aria-expanded',
           record.value === TREE_LEAF ? 'false' : (record.value === TREE_OPEN ? 'true' : 'false'));
@@ -1693,7 +1777,7 @@
         break;
       case W.ICONBUTTON: {
         const file = skinFile(record.value);
-        if (!legacy && file) record.icon.style.backgroundImage = cssUrl(file);
+        if (!legacy && file) paintSkin(record.icon, file);
         setText(record.icon, file ? '' : (record.label || '?').slice(0, 2));
         record.control.setAttribute('aria-label', text(record.label || 'Tool', 63));
         record.control.setAttribute('aria-pressed', record.checked ? 'true' : 'false');
@@ -1713,8 +1797,7 @@
         record.control.checked = !!record.checked;
         setText(record.caption, record.label || record.text);
         if (!legacy) {
-          record.control.style.backgroundImage =
-            cssUrl(record.checked ? 'skin/RadioOn.png' : 'skin/RadioOff.png');
+          paintSkin(record.control, record.checked ? 'skin/RadioOn.png' : 'skin/RadioOff.png');
         }
         break;
       case W.GRAPH:
@@ -2757,8 +2840,7 @@
     box.className = 'tpc-dropdown-list';
     box.setAttribute('role', 'listbox');
     if (!legacy)
-      box.style.backgroundImage = cssUrl(safeUrl(state.theme.dropdownBody) ||
-        'skin/DropdownBody.png');
+      paintSkin(box, safeUrl(state.theme.dropdownBody) || 'skin/DropdownBody.png');
     const scroller = document.createElement('div');
     scroller.className = 'tpc-dropdown-scroller';
     const rows = [];

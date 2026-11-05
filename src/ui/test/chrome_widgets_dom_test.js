@@ -325,6 +325,100 @@ assert.strictEqual(button.control.innerText, 'Rebuild every collision map in the
   }
 }
 
+/* SKIN TIERS. The runtime draws a packaged slot from skin@2x/ or skin@3x/
+ * (tools/chrome_skin_tiers.py) when the host staged them (theme.skinTiers)
+ * and the display needs them: the smallest tier whose pixels cover the drawn
+ * CSS size times devicePixelRatio, sized back to the authored CSS size. The
+ * sizes it sizes back to are pinned to the PNGs the tools wrote. */
+{
+  const fs = require('fs');
+  const res = path.join(__dirname, '..', '..', '..', 'res', 'plugin_chrome');
+  const pngSize = (dir, name) => {
+    const bytes = fs.readFileSync(path.join(res, dir, `${name}.png`));
+    return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
+  };
+  const html = document.documentElement;
+  const button = byHandle(9);
+  const radio = byHandle(5);
+  const iconAt = () => /"([^"]+)"/.exec(icon.icon.style.backgroundImage)[1];
+  let revision = 40;
+  const theme = (skinTiers, ratio) => {
+    global_.devicePixelRatio = ratio;
+    const message = { protocol: 1, type: 'theme', revision: ++revision, assets: {
+      panelBody: 'skin/PanelBody.png', buttonLeft: 'skin/ButtonLeft.png',
+      buttonMiddle: 'skin/ButtonMid.png', buttonRight: 'skin/ButtonRight.png',
+      checkOn: 'skin/CheckOn.png', checkOff: 'skin/CheckOff.png', close: 'skin/CloseButton.png',
+      frameTop: 'skin/FrameTop.png' } };
+    if (skinTiers !== undefined) message.skinTiers = skinTiers;
+    runtime.receive(message);
+  };
+
+  /* A host that staged no tiers: the 1x files at every ratio, no tier class. */
+  theme(undefined, 3);
+  assert.strictEqual(iconAt(), 'skin/ToolRaise.png', 'no skinTiers: the 1x file even at DPR 3');
+  assert(!/tpc-skin-tiers/.test(html.className), 'no skinTiers: the stylesheet asks for no tier');
+  assert.match(button.control.style.backgroundImage, /^url\("skin\/ButtonLeft\.png"\)/,
+    'no skinTiers: the button caps stay 1x');
+
+  /* Staged: the tier follows the ratio, the nearest at or above it. */
+  const cases = [[1, 'skin/'], [1.25, 'skin@2x/'], [1.5, 'skin@2x/'], [2, 'skin@2x/'],
+    [2.5, 'skin@3x/'], [3, 'skin@3x/'], [4, 'skin@3x/']];
+  for (const [ratio, dir] of cases) {
+    theme(3, ratio);
+    assert.strictEqual(iconAt(), `${dir}ToolRaise.png`, `DPR ${ratio} draws the icon from ${dir}`);
+    assert.strictEqual(icon.icon.style.backgroundSize, '16px 16px',
+      `DPR ${ratio}: the icon is sized back to its 16px 1x size`);
+    assert.match(radio.control.style.backgroundImage, new RegExp(`"${dir}RadioOn\\.png"`),
+      `DPR ${ratio}: the radio mark too`);
+    assert.match(tree.expander.style.backgroundImage, new RegExp(`"${dir}Tree(?:Open|Closed)\\.png"`),
+      `DPR ${ratio}: the tree arrow too`);
+  }
+  assert(/tpc-skin-tiers/.test(html.className), 'skinTiers 3 turns on the image-set rules');
+  assert.match(ids['tpc-pane'].style.backgroundImage, /"skin@3x\/PanelBody\.png"/,
+    'the pane tile is drawn from its tier');
+  assert.strictEqual(ids['tpc-pane'].style.backgroundSize, '88px 60px',
+    'and tiles at its 1x size');
+
+  /* The button caps are 36px art drawn at 18: 1x art covers DPR 2, the 2x
+   * tier covers DPR 3, and nothing draws 1x art stretched past its pixels. */
+  theme(3, 2);
+  assert.match(button.control.style.backgroundImage,
+    /^url\("skin\/ButtonLeft\.png"\),url\("skin\/ButtonRight\.png"\),url\("skin\/ButtonMid\.png"\)$/,
+    'DPR 2: the 36px caps already cover an 18px cap');
+  theme(3, 3);
+  assert.match(button.control.style.backgroundImage,
+    /^url\("skin@2x\/ButtonLeft\.png"\),url\("skin@2x\/ButtonRight\.png"\),url\("skin@2x\/ButtonMid\.png"\)$/,
+    'DPR 3: the caps come from the 2x tier');
+  assert.strictEqual(button.control.style.backgroundSize, '18px 18px,18px 18px,10px 18px',
+    'at their authored size');
+
+  /* Every slot: an ICONBUTTON per slot, its drawn size the 1x PNG's, and the
+   * tier files exactly twice and three times it. */
+  const slots = [];
+  for (let slot = 0; slot < 58; slot++) {
+    slots.push(cmd(CMD.WIDGET_ADD, { w: 500 + slot, v: W.ICONBUTTON, label: 'S', cw: slot, s: 600 + slot }));
+    slots.push(cmd(CMD.WIDGET_VALUE, { w: 500 + slot, v: slot }));
+  }
+  runtime.receive({ protocol: 1, type: 'page.delta', pageGeneration: 20, commands: slots });
+  theme(3, 1.5);
+  for (let slot = 0; slot < 58; slot++) {
+    const record = byHandle(500 + slot);
+    const file = /"skin@2x\/([A-Za-z]+)\.png"/.exec(record.icon.style.backgroundImage);
+    assert(file, `slot ${slot} is drawn from the 2x tier at DPR 1.5`);
+    const [w, h] = pngSize('skin', file[1]);
+    assert.strictEqual(record.icon.style.backgroundSize, `${w}px ${h}px`,
+      `slot ${slot} (${file[1]}) is sized back to its 1x PNG`);
+    assert.deepStrictEqual(pngSize('skin@2x', file[1]), [w * 2, h * 2], `${file[1]} 2x is twice 1x`);
+    assert.deepStrictEqual(pngSize('skin@3x', file[1]), [w * 3, h * 3], `${file[1]} 3x is three times`);
+  }
+
+  /* A later theme without tiers takes them all back. */
+  theme(1, 3);
+  assert.strictEqual(iconAt(), 'skin/ToolRaise.png', 'skinTiers 1: back to the 1x file');
+  assert(!/tpc-skin-tiers/.test(html.className), 'and the tier rules off');
+  global_.devicePixelRatio = 1;
+}
+
 /* The downlevel page has no flex: the caption keeps clear of the absolutely
  * placed key by padding sized from the key itself, not a fixed 40px. */
 {

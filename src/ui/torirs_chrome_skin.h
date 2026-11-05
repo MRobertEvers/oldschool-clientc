@@ -31,7 +31,10 @@
 #include "uitree_debug_overlay.h"
 
 #include "engine/torirs_chrome_skin_baked.h"
+#include "engine/torirs_chrome_skin_class.h"
+#include "engine/torirs_chrome_skin_tiers.h"
 
+#include <assert.h>
 #include <stddef.h>
 
 /* The pin. One per slot, so a failure names the slot that moved rather than
@@ -234,31 +237,51 @@ ToriRSChromeSkin_ForSlot(int slot)
     return ToriRSChromeSkin_Get(slot);
 }
 
-/**
- * The slot's art at integer density `tier` (TORIRS_CHROME_SCALE_MIN..MAX), or
- * its 1x art when the bake carries no such tier -- so a caller tells which it
- * got from the size (`w` is the 1x width times the tier it really is).
- *
- * This is the stand-in until the bake grows tiers: today every slot is 1x
- * only, so every tier answers with the 1x image. A bake that carries tiers
- * defines TORIRS_CHROME_SKIN_TIERS and its own ToriRSChromeSkin_SpriteTier
- * with this contract, and this one steps aside.
- */
-#ifndef TORIRS_CHROME_SKIN_TIERS
-static inline struct ToriRSChromeSkin_Sprite const*
-ToriRSChromeSkin_SpriteTier(int slot, int tier)
-{
-    (void)tier;
-    return ToriRSChromeSkin_ForSlot(slot);
-}
-#endif
-
 /** Did this build bake a skin at all? One question, asked by every executor
  *  that has a flat fallback to fall back to. */
 static inline int
 ToriRSChromeSkin_Available(void)
 {
     return ToriRSChromeSkin_ForSlot(TORIRS_CHROME_SKIN_PANEL_BODY) != NULL;
+}
+
+/**
+ * The image for a semantic slot at tier `tier` (1..TORIRS_CHROME_SKIN_TIER_MAX):
+ * `tier` times the 1x size on each axis, drawn at that size rather than
+ * stretched (engine/torirs_chrome_skin_tiers.h has the recipe, and
+ * engine/torirs_chrome_skin_class.h which route each slot takes).
+ *
+ * Tier 1 is the bake itself, the very sprite ToriRSChromeSkin_ForSlot returns,
+ * so a 1x draw through this is the 1x draw it always was. A slot the tier bake
+ * does not cover -- one spritebake gained after the tiers were last baked, or
+ * one whose 1x size changed since -- falls back to the 1x image, which the
+ * caller then scales as it does today; `make -C src chrome-skin` is what keeps
+ * that from shipping. NULL exactly when ToriRSChromeSkin_ForSlot is NULL.
+ */
+static inline struct ToriRSChromeSkin_Sprite const*
+ToriRSChromeSkin_SpriteTier(int slot, int tier)
+{
+    struct ToriRSChromeSkin_Sprite const* base;
+    struct ToriRSChromeSkin_Sprite const* tiered;
+
+    assert(tier >= 1);
+    assert(tier <= TORIRS_CHROME_SKIN_TIER_MAX);
+    base = ToriRSChromeSkin_ForSlot(slot);
+    if( !base || tier == 1 )
+        return base;
+    tiered = ToriRSChromeSkin_TierGet(slot, tier);
+    if( !tiered || tiered->w != base->w * tier || tiered->h != base->h * tier )
+        return base;
+    return tiered;
+}
+
+/** GLYPH or TEXTURED (engine/torirs_chrome_skin_class.h) for a semantic slot. */
+static inline int
+ToriRSChromeSkin_ClassOf(int slot)
+{
+    assert(slot >= 0);
+    assert(slot < TORIRS_CHROME_SKIN_SLOT_COUNT);
+    return ToriRSChromeSkin_SlotClass(slot);
 }
 
 #endif

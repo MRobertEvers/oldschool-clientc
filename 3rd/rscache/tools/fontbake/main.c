@@ -16,6 +16,7 @@
  * Usage:
  *   fontbake --rev NAME <cache_dir> --list [--probe name,name,...]
  *   fontbake --rev NAME <cache_dir> --font ARCHIVE=Symbol[@N] [--font ...]
+ *            [--tuned Symbol ...]
  *            --out out.c [--header out.h] [--metrics metrics.h] [--prefix Prefix]
  *
  * `@N` bakes the font at N times its cache size, which is how one face serves
@@ -30,6 +31,14 @@
  * `--metrics` writes a second header carrying only the advance tables, as
  * plain `static const int` with nothing included. That is what lets the module
  * doing the layout measure its own text without linking a font implementation.
+ *
+ * `--tuned Symbol` records that an `@N` tier has hand-tuned pixel art: the
+ * metrics header says `<Prefix>_<Symbol>_TUNED 1` (every other font 0), and the
+ * chrome's tier accessor (src/engine/torirs_chrome_font_tier.h) then draws
+ * `<Prefix>_<Symbol>Tuned()`, which lives in a hand-kept file this tool never
+ * writes. The derived tier is still baked beside it, and the recipe below keeps
+ * the flag, so a re-bake does not quietly throw the tuning away. A 1x font is
+ * the source of its tiers and cannot be tuned.
  *
  * --list prints every archive in the fonts table with its metrics size, ascent
  * and glyph-pack count. `--probe` hashes each comma-separated name with the
@@ -80,6 +89,8 @@ struct BakeFont
     int advance_only;
     int line_height;  /* metrics ascent */
     int line_box;     /* max(offset_y + height), what the minimenu sizes from */
+    /** 1 when --tuned names this font: its tier draws hand-tuned masks. */
+    int tuned;
     unsigned char* blob;
     int blob_size;
     int blob_cap;
@@ -95,9 +106,11 @@ usage(const char* argv0)
         "Usage:\n"
         "  %s --rev NAME <cache_dir> --list [--probe name,name,...]\n"
         "  %s --rev NAME <cache_dir> --font ARCHIVE=Symbol[@N] [--font ...]\n"
+        "         [--tuned Symbol ...]\n"
         "         --out out.c [--header out.h] [--metrics metrics.h] [--prefix Prefix]\n"
         "\n"
         "  --font     @N bakes an N-times nearest-neighbour upscale (integer only)\n"
+        "  --tuned    the @N font Symbol has hand-tuned masks (<Symbol>Tuned)\n"
         "  --out      the struct ToriDraw_Font bake (needs toridraw_font.h)\n"
         "  --header   its accessors\n"
         "  --metrics  advance tables only: no includes, no types, no linkage\n",
@@ -601,6 +614,8 @@ emit_metrics_header(
             "#define %s_%s_LINE_HEIGHT %d\n"
             "/** Row pitch: the tallest glyph's bottom edge. */\n"
             "#define %s_%s_LINE_BOX %d\n"
+            "/** 1: this tier draws hand-tuned masks (%s_%sTuned), 0: the derived ones. */\n"
+            "#define %s_%s_TUNED %d\n"
             "\n"
             "static const int %s_%s_advance_px[256] = {\n",
             fonts[i].symbol,
@@ -612,6 +627,11 @@ emit_metrics_header(
             prefix,
             fonts[i].symbol,
             fonts[i].line_box,
+            prefix,
+            fonts[i].symbol,
+            prefix,
+            fonts[i].symbol,
+            fonts[i].tuned,
             prefix,
             fonts[i].symbol);
         for( int c = 0; c < 256; c++ )
@@ -740,6 +760,8 @@ main(int argc, char** argv)
     const char* prefix = "ToriRSChromeFont";
     const char* probe = NULL;
     int do_list = 0;
+    const char* tuned[MAX_FONTS];
+    int tuned_count = 0;
     struct RSCache profile;
     struct Tool_Dat2Cache cache;
     struct BakeFont fonts[MAX_FONTS];
@@ -770,6 +792,15 @@ main(int argc, char** argv)
             probe = argv[++i];
         else if( strcmp(argv[i], "--list") == 0 )
             do_list = 1;
+        else if( strcmp(argv[i], "--tuned") == 0 && i + 1 < argc )
+        {
+            if( tuned_count >= MAX_FONTS )
+            {
+                fprintf(stderr, "too many --tuned\n");
+                return 2;
+            }
+            tuned[tuned_count++] = argv[++i];
+        }
         else if( strcmp(argv[i], "--font") == 0 && i + 1 < argc )
         {
             const char* spec = argv[++i];
@@ -817,6 +848,29 @@ main(int argc, char** argv)
     {
         usage(argv[0]);
         return 2;
+    }
+    /* A --tuned that names no --font, or names the 1x source, is a recipe
+     * typo: refuse it rather than bake a header whose flag points nowhere. */
+    for( int t = 0; t < tuned_count; t++ )
+    {
+        int found = 0;
+        for( int i = 0; i < font_count; i++ )
+        {
+            if( strcmp(fonts[i].symbol, tuned[t]) != 0 )
+                continue;
+            if( fonts[i].scale < 2 )
+            {
+                fprintf(stderr, "--tuned %s: a 1x font is the source, not a tier\n", tuned[t]);
+                return 2;
+            }
+            fonts[i].tuned = 1;
+            found = 1;
+        }
+        if( !found )
+        {
+            fprintf(stderr, "--tuned %s names no --font\n", tuned[t]);
+            return 2;
+        }
     }
     if( !tool_resolve_profile(rev, NULL, NULL, NULL, NULL, &profile) )
         return 2;
@@ -917,6 +971,9 @@ main(int argc, char** argv)
             fprintf(
                 out, " *                   --font %d=%s \\\n", fonts[i].archive_id, fonts[i].symbol);
     }
+    for( int i = 0; i < font_count; i++ )
+        if( fonts[i].tuned )
+            fprintf(out, " *                   --tuned %s \\\n", fonts[i].symbol);
     fprintf(
         out,
         " *                   --out %s --header %s\n"
