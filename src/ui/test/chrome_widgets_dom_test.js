@@ -587,4 +587,55 @@ assert.strictEqual(button.control.innerText, 'Rebuild every collision map in the
   assert.strictEqual(shell.style.zoom, '1.75', 'a snapshot that carries the scale applies it');
 }
 
+/* VLIST cells (workbench 6.2): WIDGET_ADD's shape says the rows are cells;
+ * each row draws a picture well, the name, the dim part, its keycaps and the
+ * id, the caption is a header in the same columns, and a keycap's click is a
+ * PICK whose x is the cell (the row body's click stays x 0). */
+{
+  const US = '\x1f';
+  runtime.receive({ protocol: 1, type: 'page.snapshot', pageGeneration: 23, panel: 3,
+    title: 'Catalog', checkStyle: 0, commands: [
+      cmd(CMD.PANEL_OPEN, { text: 'Catalog' }),
+      cmd(CMD.WIDGET_ADD, { w: 1, v: W.VLIST, label: `${US}name${US}${US}shapes${US}id`, cw: 1, ch: 4, s: 301 }),
+      cmd(CMD.WIDGET_VALUE, { w: 1, v: -1, x: 0, y: 212 }),
+      cmd(CMD.WIDGET_ROW, { w: 1, v: 0, text: `9${US}fence_wood${US}Fence${US}0 2 9${US}980` }),
+      cmd(CMD.WIDGET_ROW, { w: 1, v: 1, text: `${US}fence_wood_corner${US}${US}3${US}981` }),
+      cmd(CMD.WIDGET_ADD, { w: 2, v: W.VLIST, label: 'Plain', ch: 2, s: 302 }),
+      cmd(CMD.WIDGET_VALUE, { w: 2, v: -1, x: 0, y: 2 }),
+      cmd(CMD.WIDGET_ROW, { w: 2, v: 0, text: `a${US}b` })
+    ] });
+  const cellRows = ids['tpc-content'].children;
+  const cellHandle = h => cellRows.find(r => r._tpcRecord && r._tpcRecord.handle === h)._tpcRecord;
+  const cells = cellHandle(1);
+  const plainList = cellHandle(2);
+  assert(cells.cells && !plainList.cells, 'the shape bit makes a cells list, and only that one');
+  const head = cells.row.children.find(c => /tpc-vlist-head/.test(c.className));
+  assert(head, 'a cells caption is a header row');
+  assert.deepStrictEqual(head.children.map(c => c.className),
+    ['tpc-cell-names', 'tpc-cell-keys', 'tpc-cell-right'], 'the header has the columns, no picture');
+  assert.strictEqual(textOf(head), 'nameshapesid', 'the header says the columns');
+  const first = cells.lineNodes[0];
+  assert(/tpc-cells/.test(first.className), 'a row is a cells row');
+  assert.deepStrictEqual(first.children.map(c => c.className),
+    ['tpc-cell-thumb', 'tpc-cell-names', 'tpc-cell-keys', 'tpc-cell-right'],
+    'picture, names, keycaps, id');
+  assert.strictEqual(textOf(first.children[1]), 'fence_wood Fence', 'the name, then the display name');
+  assert.strictEqual(first.children[1].children[1].className, 'tpc-cell-dim', 'the display name is dimmed');
+  assert.strictEqual(first.title, 'fence_wood Fence', 'the title says the name whole (R2)');
+  const keys = first.children[2].children;
+  assert.deepStrictEqual(keys.map(k => [k.tagName, k.innerText]), [['KBD', '0'], ['KBD', '2'], ['KBD', '9']],
+    'the shapes are keycaps');
+  assert.strictEqual(textOf(first.children[3]), '980', 'the id');
+  assert.strictEqual(cells.lineNodes[1].children[1].children.length, 1, 'no display name, no dim part');
+  let stopped = false;
+  keys[1].fire('click', { stopPropagation() { stopped = true; } });
+  assert.deepStrictEqual([typed[typed.length - 1].k, typed[typed.length - 1].v, typed[typed.length - 1].x],
+    [INTENT.PICK, 0, 2], 'keycap 2 picks row 0 at cell 2');
+  assert(stopped, 'and does not reach the row body\'s click');
+  cells.control.fire('click', { clientY: 30 });
+  assert.deepStrictEqual([typed[typed.length - 1].k, typed[typed.length - 1].v, typed[typed.length - 1].x],
+    [INTENT.PICK, 1, 0], 'the row body picks at cell 0');
+  assert.strictEqual(plainList.lineNodes[0].innerText, `a${US}b`, 'a plain list shows its text as it is');
+}
+
 console.log('chrome widgets dom: ok');

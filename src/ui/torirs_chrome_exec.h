@@ -79,6 +79,8 @@
  */
 #define TORIRS_CHROME_ROW_ACTION 0x1
 #define TORIRS_CHROME_ROW_LOCKED 0x2
+/** WIDGET_ADD `w` of a VLIST: its rows are cells (ToriRSChrome_VListCells). */
+#define TORIRS_CHROME_VLIST_CELLS 0x1
 
 /**
  * What one command says.

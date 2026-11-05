@@ -1432,6 +1432,9 @@ struct ToriRSChromeWidget
     int iaux;
     /** VLIST/CODE: the first of this widget's `rows` pool slots, -1 none. */
     int vrow_first;
+    /** VLIST cells (ToriRSChrome_VListCells): the cell the last pick landed
+     *  on, 0 the row body, n the n-th keycap. */
+    int vlist_cell;
     /** VLIST/CODE/TEXTAREA: the part of a row a two-finger pan has moved and
      *  no whole row has taken yet, surface px (ToriRSChrome_Gesture). Model
      *  state only: nothing draws it. */
@@ -3459,6 +3462,43 @@ ToriRSChrome_VListNeedsRows(struct ToriRSChrome const* ui, int widget);
 /** Text of absolute row `row`, compare-then-set; ignored when off screen. */
 void
 ToriRSChrome_VListSetRow(struct ToriRSChrome* ui, int widget, int row, char const* text);
+
+/**
+ * VLIST CELLS (workbench 6.2, the Catalog as a loc finder): a VLIST whose rows
+ * are cells, not one string. Same window, pool and commands as a VLIST; only
+ * the reading of a row's text differs. A row is up to five fields split by
+ * TORIRS_CHROME_CELL_SEP:
+ *
+ *   sprite  decimal scene sprite id of a 16 x 16 picture the host rendered;
+ *           "" or 0 draws the empty cell (a picture still to come, the web)
+ *   name    the row ink, ellipsised to what the keycaps and the right field
+ *           leave (never clipped, rule R2)
+ *   dim     dimmed after the name, ellipsised first, dropped when no room
+ *   keys    keycap captions split by spaces, at most TORIRS_CHROME_CELL_KEYS_MAX,
+ *           in a column of their own; each is a CELL a click picks (1-based;
+ *           the row body is cell 0). Keys that do not fit end in "+n", which
+ *           is no cell
+ *   right   right-aligned and dimmed in a column wide enough for six digits
+ *
+ * The label is the header row in the same format (its sprite ignored): each
+ * field drawn dimmed at its column. Cells is SHAPE: decided at the add, it
+ * rides WIDGET_ADD (`w` = TORIRS_CHROME_VLIST_CELLS), and a PICK intent's `x`
+ * carries the cell.
+ */
+#define TORIRS_CHROME_CELL_SEP '\x1f'
+#define TORIRS_CHROME_CELL_SEP_STR "\x1f"
+#define TORIRS_CHROME_CELL_KEYS_MAX 8
+int
+ToriRSChrome_VListCells(
+    struct ToriRSChrome* ui, int panel, char const* label, int rows, int row_count);
+/** The cell the last pick of a cells list landed on: 0 the row body, n the
+ *  n-th keycap (1-based). 0 for a plain list. */
+int
+ToriRSChrome_VListPickedCell(struct ToriRSChrome const* ui, int widget);
+/** The row under the pointer (-1 none) and, for a cells list, the cell
+ *  there (0 the body, n the n-th keycap): what a host's hover tooltip says. */
+int
+ToriRSChrome_VListHoverRow(struct ToriRSChrome const* ui, int widget, int* out_cell);
 
 /* ICONBUTTON */
 int

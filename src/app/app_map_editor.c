@@ -679,6 +679,14 @@ ui_service_image_publish(
 }
 #endif /* !__EMSCRIPTEN__ */
 
+#if !defined(__EMSCRIPTEN__)
+static int
+ui_service_loc_thumbnail(
+    void* user_data,
+    int loc_id,
+    int shape);
+#endif
+
 void
 app_map_editor_ui_services(
     struct App* app,
@@ -709,6 +717,9 @@ app_map_editor_ui_services(
     out->worldmap_render_tile = ui_service_worldmap_render_tile;
     out->image_publish = ui_service_image_publish;
     out->worldmap_icons = ui_service_worldmap_icons;
+    /* The Catalog's row thumbnails: scene sprites, which a DOM page has no
+     * pixels for (its cells list draws the empty cell). */
+    out->loc_thumbnail = ui_service_loc_thumbnail;
 #endif
     /* Pop out (app/app_editor_view.c). */
     out->world_camera = EditorView_AppWorldCamera;
@@ -3142,7 +3153,8 @@ app_preview_raster(
 
 /** Raster `count` models (one placement's parts) into the slot
  *  [slot_x, slot_x + slot_w) of an ARGB strip `stride` wide, framed by their
- *  joint bounds, from the Preview's default angle (+ `yaw`). */
+ *  joint bounds, from the Preview's default angle (+ `yaw`) at `pitch` (the
+ *  Preview's default, or straight down for the Catalog's thumbnails). */
 static void
 app_shape_thumb_raster(
     struct App* app,
@@ -3153,7 +3165,8 @@ app_shape_thumb_raster(
     int slot_x,
     int slot_w,
     int slot_h,
-    int yaw)
+    int yaw,
+    int pitch)
 {
     struct ToriDraw_ViewPort view_port;
     struct ToriDraw_Camera camera;
@@ -3196,7 +3209,7 @@ app_shape_thumb_raster(
     view_port.stride = stride;
 
     memset(&camera, 0, sizeof(camera));
-    camera.pitch = EDITOR_PREVIEW_DEFAULT_PITCH;
+    camera.pitch = pitch;
     camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
     camera.projection_scale = EditorPreviewCamera_ProjectionScale(slot_w, slot_h);
     camera.near_plane_z = 1;
@@ -3209,6 +3222,227 @@ app_shape_thumb_raster(
         ToriDraw_RenderModelWithTable(
             parts[i], app->scene, &position, &view_port, &camera, pixels, ToriDraw_KernelGetSpriteBaker());
 }
+
+#if !defined(__EMSCRIPTEN__)
+/* ---- the Catalog's row thumbnails (workbench 6.2) -----------------------------
+ *
+ * A 16 x 16 top-down picture of one loc at one shape, rastered through the
+ * Preview's pipeline (app_shape_thumb_raster, looking straight down) and
+ * registered as a scene sprite in a block of its own. Cached by (id, shape)
+ * for the process (the App holds no field for them: check-app-boundary);
+ * the Catalog asks for the rows on screen only, so rows past the viewport
+ * never raster. A loc whose config or models are still loading is asked for
+ * once and answers 0 until they land; at most APP_EDITOR_THUMB_PER_SLICE are
+ * rastered per 16 ms, so a fast scroll spreads its pictures over frames. */
+
+#define APP_EDITOR_THUMB_SPRITE_BASE 0x40002000
+#define APP_EDITOR_THUMB_SLOTS 256
+#define APP_EDITOR_THUMB_PX 16
+#define APP_EDITOR_THUMB_PER_SLICE 4
+/** Straight down: the yaw's quarter turn of pitch (2048 a turn). */
+#define APP_EDITOR_THUMB_PITCH 512
+
+enum AppLocThumbState
+{
+    APP_THUMB_FREE = 0,
+    /** Its config or a model was asked for. */
+    APP_THUMB_LOADING,
+    APP_THUMB_READY,
+    /** No model at that shape: the empty cell, remembered. */
+    APP_THUMB_NONE,
+};
+
+struct AppLocThumb
+{
+    int loc_id;
+    int shape;
+    enum AppLocThumbState state;
+    /** The config / the models were asked for: once, not once a frame. */
+    int config_asked;
+    int models_asked;
+    uint32_t used;
+};
+
+static struct AppLocThumb g_loc_thumbs[APP_EDITOR_THUMB_SLOTS];
+static uint32_t g_loc_thumb_clock;
+static double g_loc_thumb_slice_ms;
+static int g_loc_thumb_slice_count;
+
+static double
+app_thumb_now_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
+}
+
+/** The slot for (loc_id, shape): its own, a free one, or the least recently
+ *  asked that is not loading. */
+static struct AppLocThumb*
+app_thumb_slot(
+    int loc_id,
+    int shape,
+    int* out_index)
+{
+    int found = -1;
+    int oldest = -1;
+
+    for( int i = 0; i < APP_EDITOR_THUMB_SLOTS; i++ )
+    {
+        struct AppLocThumb* t = &g_loc_thumbs[i];
+        if( t->state != APP_THUMB_FREE && t->loc_id == loc_id && t->shape == shape )
+        {
+            *out_index = i;
+            return t;
+        }
+        if( t->state == APP_THUMB_FREE && found < 0 )
+            found = i;
+        if( t->state != APP_THUMB_LOADING && (oldest < 0 || t->used < g_loc_thumbs[oldest].used) )
+            oldest = i;
+    }
+    if( found < 0 )
+        found = oldest >= 0 ? oldest : 0;
+    memset(&g_loc_thumbs[found], 0, sizeof(g_loc_thumbs[found]));
+    g_loc_thumbs[found].loc_id = loc_id;
+    g_loc_thumbs[found].shape = shape;
+    g_loc_thumbs[found].state = APP_THUMB_LOADING;
+    *out_index = found;
+    return &g_loc_thumbs[found];
+}
+
+static int
+ui_service_loc_thumbnail(
+    void* user_data,
+    int loc_id,
+    int shape)
+{
+    struct App* app = user_data;
+    struct AppLocThumb* thumb;
+    struct ToriRS_Location* cfg;
+    struct ToriDraw_ModelHandle parts[10];
+    struct ToriDraw_Model* models[10];
+    int const model_shape = shape >= 0 && shape < EDITOR_LOC_SHAPE_COUNT ? Editor_LocShapeModelShape(shape) : 10;
+    int const id_base = APP_EDITOR_THUMB_SPRITE_BASE;
+    toripixel_t* pixels;
+    uint32_t* argb;
+    int index;
+    int n = 0;
+    int missing = 0;
+
+    assert(app);
+    assert(loc_id >= 0);
+    if( !app->provider || !app->scene )
+        return 0;
+    thumb = app_thumb_slot(loc_id, shape, &index);
+    thumb->used = ++g_loc_thumb_clock;
+    if( thumb->state == APP_THUMB_READY )
+        return id_base + index;
+    if( thumb->state == APP_THUMB_NONE )
+        return 0;
+
+    cfg = CacheProvider_LocationGet(app->provider, loc_id);
+    if( !cfg )
+    {
+        if( !thumb->config_asked )
+        {
+            struct ToriRS_Task* task = CreateTask_LocLoad(app->provider, loc_id);
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+            thumb->config_asked = 1;
+        }
+        return 0;
+    }
+    for( int row = 0; row < cfg->shapes_and_model_count; row++ )
+    {
+        if( cfg->shapes ? cfg->shapes[row] != model_shape : row != 0 )
+            continue;
+        for( int k = 0; cfg->models && cfg->lengths && k < cfg->lengths[row]; k++ )
+            if( cfg->models[row][k] > 0 && !CacheProvider_ModelHas(app->provider, cfg->models[row][k]) )
+            {
+                if( !thumb->models_asked )
+                {
+                    struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, cfg->models[row][k]);
+                    if( task )
+                        ToriRS_TaskQueue_Add(app->runner.queue, task);
+                }
+                missing = 1;
+            }
+    }
+    if( missing )
+    {
+        thumb->models_asked = 1;
+        return 0;
+    }
+    {
+        double const now = app_thumb_now_ms();
+        if( now - g_loc_thumb_slice_ms > 16.0 )
+        {
+            g_loc_thumb_slice_ms = now;
+            g_loc_thumb_slice_count = 0;
+        }
+        if( g_loc_thumb_slice_count >= APP_EDITOR_THUMB_PER_SLICE )
+            return 0;
+        g_loc_thumb_slice_count++;
+    }
+
+    /* The shape's own models, as the shape strip builds them. */
+    for( int row = 0; row < cfg->shapes_and_model_count; row++ )
+    {
+        if( cfg->shapes ? cfg->shapes[row] != model_shape : row != 0 )
+            continue;
+        for( int k = 0; cfg->models && cfg->lengths && k < cfg->lengths[row] && n < 10; k++ )
+        {
+            struct ToriRS_Model* rs_model;
+            if( cfg->models[row][k] <= 0 )
+                continue;
+            rs_model = CacheProvider_ModelGet(app->provider, cfg->models[row][k]);
+            assert(rs_model);
+            models[n] = ToriDraw_ModelFromToriRS(rs_model);
+            assert(models[n]);
+            for( int c = 0; c < cfg->recolor_count; c++ )
+                ToriDraw_ModelRecolor(models[n], cfg->recolors_from[c], cfg->recolors_to[c]);
+            ToriDraw_ModelSetBoundsCylinder(models[n]);
+            ToriDraw_ModelDropNonSdTextures(app->provider, models[n]);
+            memset(&parts[n], 0, sizeof(parts[n]));
+            parts[n].kind = TORIDRAWMK_MODEL;
+            parts[n].u.model.model = models[n];
+            ToriDraw_LightModelScene(parts[n], cfg->contrast, cfg->ambient);
+            n++;
+        }
+    }
+    if( n == 0 )
+    {
+        thumb->state = APP_THUMB_NONE;
+        return 0;
+    }
+    pixels = TORIDRAW_CALLOC((size_t)APP_EDITOR_THUMB_PX * APP_EDITOR_THUMB_PX, sizeof(toripixel_t));
+    assert(pixels);
+    app_shape_thumb_raster(app, parts, n, pixels, APP_EDITOR_THUMB_PX, 0, APP_EDITOR_THUMB_PX, APP_EDITOR_THUMB_PX,
+        shape == 11 ? 256 : 0, APP_EDITOR_THUMB_PITCH);
+    for( int k = 0; k < n; k++ )
+        ToriDraw_ModelFree(models[k]);
+    argb = TORIDRAW_MALLOC((size_t)APP_EDITOR_THUMB_PX * APP_EDITOR_THUMB_PX * sizeof(uint32_t));
+    assert(argb);
+    for( int i = 0; i < APP_EDITOR_THUMB_PX * APP_EDITOR_THUMB_PX; i++ )
+    {
+        uint32_t const rgb = toripixel_to_argb8888(pixels[i]) & 0xFFFFFFu;
+        argb[i] = rgb ? (rgb | 0xFF000000u) : 0u;
+    }
+    TORIDRAW_FREE(pixels);
+    {
+        struct ToriDraw_Sprite** sprites = TORIDRAW_MALLOC(sizeof(*sprites)); /* SceneSpriteAdd frees it */
+        assert(sprites);
+        sprites[0] = ToriDraw_SpriteNewFromArgbOwned(argb, APP_EDITOR_THUMB_PX, APP_EDITOR_THUMB_PX);
+        assert(sprites[0]);
+        if( ToriDraw_SceneSpriteHas(app->scene, id_base + index) )
+            ToriDraw_SceneSpriteRemove(app->scene, id_base + index);
+        ToriDraw_SceneSpriteAdd(app->scene, id_base + index, sprites, 1);
+    }
+    thumb->state = APP_THUMB_READY;
+    app->need_redraw = 1;
+    return id_base + index;
+}
+#endif /* !__EMSCRIPTEN__ */
 
 /**
  * The strip's thumbnails: each shape's own models (wall decor 5..8 shape 4's,
@@ -3305,7 +3539,7 @@ app_map_editor_shape_strip_update(struct App* app)
             }
         }
         app_shape_thumb_raster(app, parts, n, pixels, strip_w, i * slot_w, slot_w, APP_EDITOR_SHAPE_THUMB_H,
-            shapes[i] == 11 ? 256 : 0);
+            shapes[i] == 11 ? 256 : 0, EDITOR_PREVIEW_DEFAULT_PITCH);
         for( int k = 0; k < n; k++ )
             ToriDraw_ModelFree(models[k]);
     }

@@ -1599,6 +1599,164 @@ ToriRSChrome (5 MB) on its stack. Not checked by eye: the page zoom and the
 fractional class in a real browser, the Preview twist's direction, and a
 touchscreen pinch on hardware.
 
+## Workbench step 6.2, the loc finder: the client half (date 2026-11-05)
+
+Build-order step 6.2 ("Catalog as loc finder"; design section 6, "Finding
+locs"), the panel's half. The server's half (shape classes and size as
+filter keys, prefix matching, scoped "all", the sliced warm build) is
+another slice; this one codes against CATALOG_QUERY and the summary fields
+it already returns (`shapeK=N,<model>`, `models=`, `width=`, `length=`,
+`category=`, `op*`, `multivar*`, `dialogue`).
+
+What landed:
+
+- **VLIST cells** (src/ui; the one chrome change): `ToriRSChrome_VListCells`
+  makes a VLIST whose rows are five fields split by `TORIRS_CHROME_CELL_SEP`
+  (0x1f): a 16 px scene-sprite thumbnail, the name, a dimmed part, up to
+  `TORIRS_CHROME_CELL_KEYS_MAX` (8) keycaps in a column a third of the row
+  wide (96 px at most), and a right field six digits wide. Name and dim part
+  are measured and ellipsised (R2); keys that do not fit end in "+n". The
+  label is the header row in the same columns. A click on a keycap is a CELL
+  (`ToriRSChrome_VListPickedCell`, 1-based; the body is 0);
+  `ToriRSChrome_VListHoverRow` says the row and cell under the pointer. Cells
+  is shape: `WIDGET_ADD` carries `w = TORIRS_CHROME_VLIST_CELLS`, a PICK
+  intent's `x` is the cell. The DOM runtime renders the same cells
+  (`renderCells`: a picture well, name and dim spans that ellipsise in CSS
+  with the row's title saying them whole, `<kbd>` keycaps whose click posts
+  PICK with `x`, the right span; modern and IE8 CSS); runtime.js /
+  runtime-ie8.js regenerated with tsc 6.0.2. A page has no pixels for a scene
+  sprite, so the DOM's picture well stays empty.
+- **The model** (edpanel_catalog_model.{c,h}, pure): filter chips
+  (`Editor_CatalogChipsTake / Add / Remove / Compose / ChipLabel / ChipTip`;
+  a shape NUMBER composes to `shape=N,*`, the head of the cache's
+  `shapeK=N,model`, which matches today; a shape CLASS, `size=`, `spawn=`
+  pass through for the server slice), the "+ filter" menu
+  (`Editor_CatalogFilterMenu*`), shape classes (`Editor_CatalogShapeClass`),
+  a row's placeable shapes and size from its summary fields
+  (`Editor_CatalogRowShapeMask`, widened as `Editor_LocShapeMask` widens a
+  config), the continuous window (`Editor_CatalogModelWantWindow`: the anchor
+  page, the next page prefetched a quarter page before the window's end,
+  `EDITOR_CATALOG_CACHE_PAGES` 4 held besides the anchor, a window moving
+  onto a held page swaps it in with no round trip; `Editor_CatalogModelNextPage`
+  says what Refresh asks next; `answers` / `key_serial` tell a landed page
+  from a new list), sources (the index, or a local list filtered by Find's
+  words and the shape chips), the sort (best match, name, id, category, size;
+  over the index once every match is held, gathered while it is five pages
+  or fewer, else the count says best match), `Editor_CatalogModelRangeText`
+  ("1 to 100 of 212 loc"), `Editor_CatalogCellsText`,
+  `Editor_CatalogViewShapeAt` (the keycap's shape), `Editor_CatalogRecentsPush`
+  (20, newest first, a repeat moves to the front), `Editor_CatalogPreviewFollow`,
+  and `Editor_CatalogModelFeed` (a test gives the model rows).
+- **The FAVOURITES document** (src/editor/editor_favourites.{c,h}):
+  `editor/favourites.txt`, `favourite <kind>:<name> [| shape S rot R]`, one
+  person's, in the AREAS family's line-preserving style (parse -> emit byte
+  for byte; an add appends one line, the header lines into an empty file; a
+  remove takes its line, the header with the last one; a re-pose rewrites the
+  line in place). Not a new document kind: a TEXT document under key
+  `editor:favourites.txt` (editor_doc.c's key check, editor_host_local.c's
+  path), every edit one TEXT_SPLICE through the authority, so nothing on the
+  server or the wire changed and an undo is the splice's own inverse.
+- **The Catalog panel** (edpanel_catalog.c): Kind, Find (a `key=value` word
+  becomes a chip once a space ends it, a duplicate leaves the box too), the
+  count row, the filter chip strip (each with its x; tooltips list a class's
+  numbers), "+ filter" (a dropdown whose title row reads "+ filter": a whole
+  chip, or `key=` put in Find for category / op), Sort, the shortcut chips
+  (favourites (N), recent (N), in square (N), same category (the pick's)),
+  and the cells list: 12 rows of 100-row pages, thumbnails asked for the rows
+  on screen only, the row tooltip saying the row whole or what a keycap's
+  click does. A row click picks (a favourite's or recent pick's pose comes
+  with it); a keycap click picks at that shape and arms Place. Refusals go
+  through `Editor_UiStatus`. The chip strips are one helper,
+  src/editor/panels/edpanel_chips.{c,h}: chips over one GRAPH well (keyed
+  rects, so the canvas and the DOM draw the same), wrapping onto its lines,
+  captions measured and ellipsised, overflow as a "+n" chip whose tooltip
+  names the rest, an optional x key and keycap, per-chip hover tooltips,
+  restated only when the labels or the width moved.
+- **The Preview pane** (edpanel_preview.c): the subject follows
+  `Editor_CatalogPreviewFollow` -- the pick while placing, the primary
+  selected loc while selecting (fix: the old fallback looked at the selection
+  only until the first pick), the multiloc rung the Shell editor's readout
+  chose (`Editor_Catalog_PreviewRung`). Under the well: the pick's shapes as
+  chips (the current one lit, a click sets Place's shape), the rotation row
+  (0 1 2 3 and Fit, the walls-to-neighbours toggle) -- the Locs panel's
+  Place pose, the same tools state, through the chip helper -- the facts
+  (size, layer, ops), and the actions as two lines of chips, each bound one
+  wearing its chord as a keycap from the live table (tool.place,
+  palette.add_pick, view.triggers): Place, the favourite star (lit while
+  the pick is one), Palette, Record, Triggers, Find in world (every
+  placement in the open squares selected, the camera over the first), Copy
+  to new (to the Catalog's New name). Chips, not seven rows of buttons: the
+  buttons made the floating Preview 417 px tall, over the bottom group at
+  1530x1006 (test-editor-groups caught it). The panel scrolls when a dock
+  gives it less than all of that.
+- **Pick from world** (Shift+I, app_editor_hotkeys.c):
+  `Editor_Catalog_PickFromWorld` makes the hovered placement's loc the pick
+  at its exact shape and rotation, arms Place, sets Find to its record name
+  (the chips off), and selects and scrolls its row into view once it lands.
+- **Thumbnails** (app_map_editor.c, `app_services.loc_thumbnail`): one loc at
+  one shape rastered straight down through the Preview's pipeline
+  (`app_shape_thumb_raster`, now given its pitch) into a 16 x 16 scene sprite
+  in its own id block (0x40002000 + slot), 256 slots cached by (id, shape),
+  least recently asked evicted; a config or model still loading is asked for
+  once and answers 0 until it lands; at most 4 rasters per 16 ms. Not on the
+  web (no scene sprites in a page).
+
+Tests (2026-11-05, this container, objects in build_opt; OPT=0 for the new
+test too): **test-editor-catalog-finder** (new, content-free: the model fed
+synthetic rows, the favourites codec, then the Catalog and the Preview over an
+embedded ToriRSMapEd on a synthetic 150-loc tree with shape lines) 140
+checks, 0 failed, at OPT=1 and OPT=0; test-chrome-widgets 941 (924 on 43c1a4ca), 0 failed, dom
+ok (the cells list's add, its rows, the drawn picture, keycaps and
+ellipsis, nothing past the list, a keycap click and hover, PICK's cell; the
+DOM's cells row, header, keycap PICK and a plain list untouched);
+test-editor-chords 501, test-editor-groups 2080, test-editor-hotkeys 1784,
+test-editor-panels-palette 50, test-editor-panels-accounts 48,
+test-editor-areas 136, test-editor-cmd 62, test-editor-dropdown 36,
+test-editor-palette 97, all 0 failed; check-tree-walks and check-pt-switch
+PASS; `make all` links. test-editor-panels needs the OSRS-Content squares:
+its content-free cases plus test_catalog_model, test_catalog_panel and
+test_preview ran from a scratch copy of its main against a fixture-only
+content dir: 1359 checks, 5 failed, the same five as 43c1a4ca run the same
+way (opening m50_50 and m50_51, and the three underlay-paging checks that
+need configs/all.underlay). Not run here (they read the content tree):
+test-editor-jm2, test-catalog-perf's real-tree half, the square round trips,
+test-catalog.
+
+Each new check was seen to fail on a mutant, in a scratch worktree at this
+change (restored by copy and touched): the old Preview rule (2 failures), no
+prefetch (5), the keycap's cell ignored (6), the last favourite leaving its
+header (1), a duplicate chip word kept in the box (2), a shape number
+composed without its prefix (2), favourites not resolved from the catalog
+(2); in the chrome a keycap click read as the body (2), the name drawn
+unelided (2), PICK's x dropped (1); and the DOM test against the runtime.js
+of 43c1a4ca (fails at the cells list's first check).
+
+Open:
+
+- The count sits on the row under Find, not in the box's right end: a
+  TEXTINPUT has no right-end slot, and this slice's chrome change was the
+  cells list only.
+- "+ filter" is a dropdown whose first row reads "+ filter", not a chip that
+  opens one; its rows say a class's numbers in the label (dropdown rows have
+  no tooltips).
+- Waiting on the server slice: `shape=<class>`, `size=WxL` and `spawn=yes`
+  match nothing until CATALOG_QUERY learns them (a shape NUMBER chip works
+  today); a value is still matched whole, not as a prefix; the sort orders
+  the index's rows only once they are all held (five pages), the server has
+  no sort key; "most placed" is not offered.
+- The Locs panel still has its own shape strip and Place pose dropdowns; the
+  Preview's pose rows use the new chip helper, and moving Locs onto it is
+  the placement slice's (6.3) file.
+- In-square names cost one CATALOG_RECORD per distinct loc when the list is
+  shown (128 at most, the rest by id); favourites one per favourite on each
+  change of the file.
+- The thumbnail raster is compiled and linked but checked by no test here
+  (no cache in this container); its framing at 16 px is not looked at by eye.
+- editor_panels_test's count-row check now reads "1 to 2 of 2 loc"; its
+  content-only parts were not run here.
+- Favourites are per user by being one file the tree does not share
+  (`editor/favourites.txt`); no per-account file name.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.

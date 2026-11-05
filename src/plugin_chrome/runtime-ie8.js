@@ -1384,6 +1384,12 @@
     var TREE_LEAF = 0;
     var TREE_OPEN = 2;
     var VROW_H = 20;
+    /* A cells VLIST (TORIRS_CHROME_VLIST_CELLS in WIDGET_ADD's shape): a row's
+     * text is five fields split by the unit separator -- sprite, name, dim,
+     * keys, right (ui/uitree_debug_overlay.h ToriRSChrome_VListCells). */
+    var VLIST_CELLS = 1;
+    var CELL_SEP = '\x1f';
+    var CELL_KEYS_MAX = 8;
     var CODE_LINE_H = 17;
     var EV = {
         GRAPH_PRESS: 1, GRAPH_DRAG: 2, GRAPH_RELEASE: 3, GRAPH_MENU: 4,
@@ -1564,7 +1570,15 @@
                 var code = record.kind === W.CODE;
                 var lineH_1 = code ? CODE_LINE_H : VROW_H;
                 row.className += ' tpc-tall-row';
-                if (record.label)
+                record.cells = !code && (record.shape & VLIST_CELLS) !== 0;
+                if (record.label && record.cells) {
+                    /* A cells list's caption is its header row, in the rows' columns. */
+                    var head = document.createElement('div');
+                    head.className = 'tpc-vlist-head';
+                    renderCells(head, record.label, record, -1, true);
+                    row.appendChild(head);
+                }
+                else if (record.label)
                     row.appendChild(labelNode(record.label));
                 var list_1 = document.createElement('div');
                 list_1.className = code ? 'tpc-vlist tpc-code' : 'tpc-vlist';
@@ -1775,6 +1789,66 @@
         });
         return input;
     }
+    /**
+     * One cells row (or the header): a 16px picture well (a scene sprite has no
+     * pixels in a page, so it is the empty cell the canvas draws before its
+     * picture comes), the name, the dim part, the keycaps -- each a cell a click
+     * picks, x = its 1-based index -- and the right field. The name and dim part
+     * ellipsise in CSS and the row's title says them whole (rule R2).
+     */
+    function renderCells(line, value, record, index, header) {
+        var fields = String(value === undefined ? '' : value).split(CELL_SEP);
+        var field = function (at) { return (fields[at] === undefined ? '' : fields[at]); };
+        line.className += header ? ' tpc-cells tpc-cells-head' : ' tpc-cells';
+        if (!header) {
+            var thumb = document.createElement('span');
+            thumb.className = 'tpc-cell-thumb';
+            line.appendChild(thumb);
+        }
+        var names = document.createElement('span');
+        names.className = 'tpc-cell-names';
+        var name = document.createElement('span');
+        name.className = 'tpc-cell-name';
+        setText(name, field(1));
+        names.appendChild(name);
+        if (field(2)) {
+            var dim = document.createElement('span');
+            dim.className = 'tpc-cell-dim';
+            setText(dim, " ".concat(field(2)));
+            names.appendChild(dim);
+        }
+        line.appendChild(names);
+        var keys = document.createElement('span');
+        keys.className = 'tpc-cell-keys';
+        if (header)
+            setText(keys, field(3));
+        else {
+            var caps = field(3).split(' ').filter(function (cap) { return cap.length > 0; }).slice(0, CELL_KEYS_MAX);
+            var _loop_2 = function (k) {
+                var cap = document.createElement('kbd');
+                cap.className = 'tpc-cell-key';
+                setText(cap, caps[k]);
+                var cell = k + 1;
+                bind(cap, 'click', function (event) {
+                    if (event && event.stopPropagation)
+                        event.stopPropagation();
+                    postWidget(record, INTENT.PICK, index, '', cell);
+                });
+                keys.appendChild(cap);
+            };
+            for (var k = 0; k < caps.length; k++) {
+                _loop_2(k);
+            }
+        }
+        line.appendChild(keys);
+        var right = document.createElement('span');
+        right.className = 'tpc-cell-right';
+        setText(right, field(4));
+        line.appendChild(right);
+        var whole = field(2) ? "".concat(field(1), " ").concat(field(2)) : field(1);
+        if (whole)
+            line.title = whole;
+    }
     function renderListRows(record) {
         var code = record.kind === W.CODE;
         var lineH = code ? CODE_LINE_H : VROW_H;
@@ -1785,7 +1859,7 @@
                 record.lineNodes[i].parentNode.removeChild(record.lineNodes[i]);
         record.lineNodes = [];
         var last = Math.min(record.count, record.first + Math.max(1, record.rows));
-        var _loop_2 = function (index) {
+        var _loop_3 = function (index) {
             var text_1 = record.rowText.get(index);
             var line = document.createElement('div');
             line.className = code ? 'tpc-code-line' : 'tpc-vlist-row';
@@ -1812,6 +1886,10 @@
                     });
                 }
             }
+            else if (record.cells) {
+                if (text_1 !== undefined)
+                    renderCells(line, text_1, record, index, false);
+            }
             else {
                 setText(line, text_1 === undefined ? '' : text_1);
             }
@@ -1819,7 +1897,7 @@
             record.lineNodes.push(line);
         };
         for (var index = record.first; index < last; index++) {
-            _loop_2(index);
+            _loop_3(index);
         }
         if (Math.floor(list.scrollTop / lineH) !== record.first) {
             record.settingScroll = true;
@@ -2134,7 +2212,7 @@
         }
         else if (record.kind === W.TABSTRIP) {
             clear(tabs);
-            var _loop_3 = function (index) {
+            var _loop_4 = function (index) {
                 var button = document.createElement('button');
                 button.type = 'button';
                 setText(button, record.options[index]);
@@ -2143,7 +2221,7 @@
                 tabs.appendChild(button);
             };
             for (var index = 0; index < record.options.length; index++) {
-                _loop_3(index);
+                _loop_4(index);
             }
             setTabsVisible(record.options.length !== 0);
         }
@@ -2916,7 +2994,7 @@
         box.appendChild(separator);
         var list = document.createElement('div');
         list.className = 'tpc-minimenu-list';
-        var _loop_4 = function (i) {
+        var _loop_5 = function (i) {
             var entry = rows[i];
             var option = document.createElement('button');
             option.type = 'button';
@@ -2930,7 +3008,7 @@
             list.appendChild(option);
         };
         for (var i = 0; i < rows.length; i++) {
-            _loop_4(i);
+            _loop_5(i);
         }
         box.appendChild(list);
         back.appendChild(box);
@@ -3163,7 +3241,7 @@
         var scroller = document.createElement('div');
         scroller.className = 'tpc-dropdown-scroller';
         var rows = [];
-        var _loop_5 = function (index) {
+        var _loop_6 = function (index) {
             var row = document.createElement('div');
             var enabled = optionEnabled(record, index);
             /* The bands alternate on the OPTION index, so they scroll with the text. */
@@ -3193,7 +3271,7 @@
             rows.push(row);
         };
         for (var index = 0; index < record.options.length; index++) {
-            _loop_5(index);
+            _loop_6(index);
         }
         box.appendChild(scroller);
         back.appendChild(box);
