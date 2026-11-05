@@ -62,7 +62,7 @@ chrome-skin:
 # the real model and the real executor seam (ToriRSChromeSync over a recorder).
 # Asserts on (-UNDEBUG), like the other chrome seam tests.
 CHROME_WIDGET_TESTS = main tree vlist iconbutton slider radio modal tooltip code graph \
-	splitter skin capacity button truncation
+	splitter skin capacity button truncation gesture
 
 .PHONY: test-chrome-widgets
 test-chrome-widgets:

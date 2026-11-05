@@ -2,6 +2,7 @@
 
 #include "editor.h"
 #include "editor_view.h"
+#include "input/torirs_gesture.h"
 #include "builder/builder_panels.h"
 #include "iface/iface_panels.h"
 #include "live/live_panel.h"
@@ -3112,6 +3113,50 @@ ui_truncations_drain(struct EditorUi* ui)
         Editor_UiLog(ui, "chrome: %d more cut string(s) were not kept (the ring holds %d)", dropped,
             TORIRS_CHROME_TRUNCATION_RING);
 }
+
+/* ---- gesture frames (workbench 6.1, design section 14) -------------------- */
+
+int
+Editor_UiGesture(
+    struct EditorUi* ui,
+    const struct ToriRS_GestureFrame* frame)
+{
+    struct ToriRSChromeGesture gesture;
+
+    assert(ui);
+    assert(frame);
+    assert(frame->kind >= TORIRS_GESTURE_PAN);
+    assert(frame->kind <= TORIRS_GESTURE_TWIST);
+    /* Any panel of the instance, not only the editor's: the loc editor's
+     * windows share it, and a frame over one must not reach the World. */
+    if( !ToriRSChrome_HasVisiblePanel(ui->chrome) )
+        return 0;
+    /* The bus's numbering is the chrome's (ToriRSChromeGestureKind). */
+    gesture.kind = frame->kind;
+    gesture.x = frame->x;
+    gesture.y = frame->y;
+    gesture.dx = frame->dx;
+    gesture.dy = frame->dy;
+    gesture.fingers = frame->fingers;
+    gesture.scale_q16 = frame->scale_q16;
+    gesture.radians_q16 = frame->radians_q16;
+    gesture.phase = frame->phase;
+    return ToriRSChrome_Gesture(ui->chrome, &gesture);
+}
+
+void
+Editor_UiSetTouchInput(
+    struct EditorUi* ui,
+    int touch)
+{
+    assert(ui);
+    ui->input_touch = touch != 0;
+}
+
+_Static_assert((int)TORIRS_GESTURE_PAN == (int)TORIRS_CHROME_GESTURE_PAN, "gesture kinds agree");
+_Static_assert((int)TORIRS_GESTURE_PINCH == (int)TORIRS_CHROME_GESTURE_PINCH, "gesture kinds agree");
+_Static_assert((int)TORIRS_GESTURE_TWIST == (int)TORIRS_CHROME_GESTURE_TWIST, "gesture kinds agree");
+_Static_assert((int)TORIRS_GESTURE_END == (int)TORIRS_CHROME_GESTURE_END, "gesture phases agree");
 
 void
 Editor_UiTick(struct EditorUi* ui)

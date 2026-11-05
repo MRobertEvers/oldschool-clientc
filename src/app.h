@@ -4785,6 +4785,17 @@ int
 App_PointerOwnedByUi(struct App* app, int x, int y);
 
 /**
+ * Is the map editor's panel open, so a finger's one-finger drag is the armed
+ * tool's (the marquee, a brush stroke) and never the camera's? The host then
+ * gives the touch layer no world viewport (ToriRS_TouchSetViewport w = 0):
+ * the drag is a LEFT-button drag, the camera's middle-button synthesis is
+ * bypassed, and the World pans under two fingers (workbench 6.1). The game
+ * keeps the synthesis whenever the editor is closed.
+ */
+int
+App_EditorOwnsTouch(struct App const* app);
+
+/**
  * Relayout + CS1 re-evaluate + mark for redraw after an out-of-band tree
  * mutation (slot mounts, packet-driven component changes).
  */

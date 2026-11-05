@@ -141,20 +141,20 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                                 NULL },
 
     [EDITOR_HK_CAM_FORWARD] = { "camera.forward", "Camera", "Fly forward", "Fly forward / back / left / right", G,
-                                HELD, { "w" }, NULL },
+                                HELD, { "w" }, NULL, "2 fingers" },
     [EDITOR_HK_CAM_BACK] = { "camera.back", "Camera", "Fly back", "Fly forward / back / left / right", G, HELD,
-                             { "s" }, NULL },
+                             { "s" }, NULL, "2 fingers" },
     [EDITOR_HK_CAM_LEFT] = { "camera.left", "Camera", "Fly left", "Fly forward / back / left / right", G, HELD,
-                             { "a" }, NULL },
+                             { "a" }, NULL, "2 fingers" },
     [EDITOR_HK_CAM_RIGHT] = { "camera.right", "Camera", "Fly right", "Fly forward / back / left / right", G, HELD,
-                              { "d" }, NULL },
-    [EDITOR_HK_CAM_DOWN] = { "camera.down", "Camera", "Fly down", "Fly down / up", G, HELD, { "f" }, NULL },
-    [EDITOR_HK_CAM_UP] = { "camera.up", "Camera", "Fly up", "Fly down / up", G, HELD, { "r" }, NULL },
+                              { "d" }, NULL, "2 fingers" },
+    [EDITOR_HK_CAM_DOWN] = { "camera.down", "Camera", "Fly down", "Fly down / up", G, HELD, { "f" }, NULL, "pinch" },
+    [EDITOR_HK_CAM_UP] = { "camera.up", "Camera", "Fly up", "Fly down / up", G, HELD, { "r" }, NULL, "pinch" },
     [EDITOR_HK_CAM_FAST] = { "camera.fast", "Camera", "Fly faster", "Fly faster", G, HELD, { "shift" }, NULL },
     [EDITOR_HK_CAM_TURN_LEFT] = { "camera.turn_left", "Camera", "Turn left", "Turn left / right, tilt up / down", N,
-                                  HELD, { "left" }, NULL },
+                                  HELD, { "left" }, NULL, "twist" },
     [EDITOR_HK_CAM_TURN_RIGHT] = { "camera.turn_right", "Camera", "Turn right", "Turn left / right, tilt up / down",
-                                   N, HELD, { "right" }, NULL },
+                                   N, HELD, { "right" }, NULL, "twist" },
     [EDITOR_HK_CAM_TILT_UP] = { "camera.tilt_up", "Camera", "Tilt up", "Turn left / right, tilt up / down", N, HELD,
                                 { "up" }, NULL },
     [EDITOR_HK_CAM_TILT_DOWN] = { "camera.tilt_down", "Camera", "Tilt down", "Turn left / right, tilt up / down", N,
@@ -882,11 +882,78 @@ Editor_HotkeysJoin(
     hk_hint_join(hk, actions, count, out, out_size);
 }
 
+/** A row's mouse word as a finger says it ("click" is a tap; a drag is a
+ *  drag), NULL when a finger has none (Shift+click). */
+static const char*
+hk_touch_word(const char* mouse)
+{
+    if( !mouse )
+        return NULL;
+    if( strcmp(mouse, "click") == 0 )
+        return "tap";
+    if( strcmp(mouse, "drag") == 0 )
+        return "drag";
+    return NULL;
+}
+
+/** The camera's rows on a touch strip, each read off its table action's
+ *  gesture spelling, then the long press (the minimenu). */
+static const struct
+{
+    int action;
+    const char* verb;
+} k_touch_camera[] = {
+    { EDITOR_HK_CAM_FORWARD, "pan" },
+    { EDITOR_HK_CAM_UP, "zoom" },
+    { EDITOR_HK_CAM_TURN_LEFT, "turn" },
+};
+
+static int
+hk_hint_touch(
+    int tool,
+    struct Editor_HotkeyHint* out_rows,
+    int max)
+{
+    const struct hk_hint_row* row;
+    int count = 0;
+
+    for( row = k_hint_rows[tool]; row->verb && count < max; row++ )
+    {
+        const char* word = hk_touch_word(row->mouse);
+        if( !word )
+            continue;
+        snprintf(out_rows[count].chord, sizeof(out_rows[count].chord), "%s", word);
+        out_rows[count].verb = row->verb;
+        out_rows[count].action = row->action_count > 0 ? row->actions[0] : -1;
+        count++;
+    }
+    for( size_t i = 0; i < sizeof(k_touch_camera) / sizeof(k_touch_camera[0]) && count < max; i++ )
+    {
+        const char* gesture = k_actions[k_touch_camera[i].action].gesture;
+        if( !gesture )
+            continue;
+        snprintf(out_rows[count].chord, sizeof(out_rows[count].chord), "%s", gesture);
+        out_rows[count].verb = k_touch_camera[i].verb;
+        out_rows[count].action = k_touch_camera[i].action;
+        count++;
+    }
+    if( count < max )
+    {
+        /* The long press: the minimenu, as a right click (input/torirs_touch.h). */
+        snprintf(out_rows[count].chord, sizeof(out_rows[count].chord), "%s", "hold");
+        out_rows[count].verb = "menu";
+        out_rows[count].action = -1;
+        count++;
+    }
+    return count;
+}
+
 int
 Editor_HotkeysHint(
     const struct Editor_Hotkeys* hk,
     unsigned contexts,
     int tool,
+    int touch,
     struct Editor_HotkeyHint* out_rows,
     int max)
 {
@@ -898,6 +965,8 @@ Editor_HotkeysHint(
     assert(tool < EDITOR_HK_HINT_TOOLS);
     assert(out_rows);
     assert(max > 0);
+    if( touch )
+        return hk_hint_touch(tool, out_rows, max);
     contexts |= EDITOR_HK_CTX_G;
     for( row = k_hint_rows[tool]; row->verb && count < max; row++ )
     {

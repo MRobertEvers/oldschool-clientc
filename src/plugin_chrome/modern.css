@@ -593,7 +593,7 @@ button { font-weight: 700; }
 .tpc-row-well:hover .tpc-dot { background: #ffff00; background: var(--tpc-accent); }
 .tpc-toggle-cell { width: 24px; text-align: right; }
 .tpc-toggle-cell .tpc-check { display: block; margin: 0 0 0 auto; }
-.tpc-model { width: 100%; min-height: 100px; border: 1px solid #474745; border-color: var(--tpc-inset); background: #372e22; color: #ff981f; color: var(--tpc-label); text-align: center; }
+.tpc-model { width: 100%; min-height: 100px; border: 1px solid #474745; border-color: var(--tpc-inset); background: #372e22; color: #ff981f; color: var(--tpc-label); text-align: center; touch-action: none; }
 /*
  * No fill of its own: a CUSTOM well is the one place the panel's PIXELS are
  * somebody else's, drawn by a plugin that leaves its own gaps transparent on

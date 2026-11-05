@@ -170,6 +170,17 @@ remembered shape and rotation (docs/MAPED_STATUS.md row 3d).
 The manifest's `[debug:hotkeys]` flight (Ctrl+W/A/S/D/R/F) keeps working
 where the editor claims no chord; Ctrl+S, Ctrl+D and Ctrl+A are claimed.
 
+Gestures (trackpad and touch, workbench 6.1; the table's gesture spelling,
+`Editor_HotkeyActionInfo::gesture`): the fly moves are **2 fingers** (the
+look-at point slides along the ground, yaw and pitch kept), fly down / up is
+**pinch** (the eye distance, about the ground under the pinch), turn left /
+right is **twist** (about the look-at point). With the editor open a
+one-finger drag is the armed tool's (the marquee, a brush stroke), never the
+camera's. The Squares picker pans under two fingers and zooms about a pinch;
+the Preview orbits under a drag and zooms on a pinch. While the last input
+was a finger the status bar's hint strip says the gestures instead of the
+mouse words: "[tap] tile", "[2 fingers] pan", "[pinch] zoom", "[hold] menu".
+
 ### View
 | Action | Chord | Ctx |
 |---|---|---|

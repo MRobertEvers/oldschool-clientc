@@ -56,7 +56,8 @@
   const INTENT = {
     ACTIVATE: 1, ACTION: 2, TOGGLE: 3, TEXT: 4, PICK: 5, TAB: 6,
     CLOSE: 7, CUSTOM_ACTIVATE: 8, CUSTOM_MENU: 9, EXPAND: 10, SCROLL: 11,
-    VALUE: 12, SPLIT: 13, CODE_EDIT: 14, GRAPH: 15, GRAPH_WHEEL: 16
+    VALUE: 12, SPLIT: 13, CODE_EDIT: 14, GRAPH: 15, GRAPH_WHEEL: 16,
+    GESTURE: 17
   };
 
   const THEME = {
@@ -676,7 +677,7 @@
          * (TORIRS_CHROME_INTENT_KIND_MAX). CUSTOM_MENU used to fall past an
          * older bound here and every secondary click on a well was dropped. */
         if (!this.pageOpen || normalized.k < INTENT.ACTIVATE ||
-            normalized.k > INTENT.GRAPH_WHEEL ||
+            normalized.k > INTENT.GESTURE ||
             normalized.g !== this.pageGeneration || normalized.p !== this.pagePanel)
           return false;
         if (normalized.k === INTENT.CLOSE || normalized.k === INTENT.SPLIT) {

@@ -13,6 +13,9 @@
 #include "editor/editor_derive.h"
 #include "editor/accounts/accounts_panel.h"
 #include "editor/editor_view.h"
+#include "app/app_camera_clamp.h"
+#include "editor/editor_world_gesture.h"
+#include "input/torirs_gesture.h"
 #include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanel_ops.h"
 #include "editor/panels/edpanels.h"
@@ -345,6 +348,29 @@ ui_service_preview_invalidate(void* user_data)
     EditorPreviewCamera_Invalidate(&app->preview_camera, false);
 }
 
+static void
+ui_service_preview_orbit(
+    void* user_data,
+    int pitch_step,
+    int yaw_step)
+{
+    struct App* app = user_data;
+    assert(app);
+    EditorPreviewCamera_Orbit(&app->preview_camera, pitch_step, yaw_step);
+    app->need_redraw = 1;
+}
+
+static void
+ui_service_preview_zoom(
+    void* user_data,
+    int ratio_q16)
+{
+    struct App* app = user_data;
+    assert(app);
+    EditorPreviewCamera_ZoomBy(&app->preview_camera, ratio_q16);
+    app->need_redraw = 1;
+}
+
 static int
 ui_service_world_busy(void* user_data)
 {
@@ -668,6 +694,8 @@ app_map_editor_ui_services(
     out->select_terrain = ui_service_select_terrain;
     out->camera_to_tile = ui_service_camera_to_tile;
     out->preview_invalidate = ui_service_preview_invalidate;
+    out->preview_orbit = ui_service_preview_orbit;
+    out->preview_zoom = ui_service_preview_zoom;
     out->world_busy = ui_service_world_busy;
     out->request_redraw = ui_service_request_redraw;
 #if !defined(__EMSCRIPTEN__)
@@ -1894,6 +1922,113 @@ app_map_editor_drag(
                 Editor_UiLog(ui, "editor: that rectangle is larger than 64x64 tiles");
         }
         app->need_redraw = 1;
+    }
+}
+
+/* ---- gesture frames (workbench 6.1, design section 14) -------------------- */
+
+int
+App_EditorOwnsTouch(struct App const* app)
+{
+    assert(app);
+    return app->editor && app->editor_panel.visible;
+}
+
+/** The ground's height under canvas (x, y) for the World's camera: the
+ *  pinned level's (level 0 while Auto), sampled where the pointer's ray
+ *  meets the ground under the eye -- one refinement, which on the editor's
+ *  hills is within a few units of the true hit. */
+static int
+app_map_editor_gesture_ground(
+    struct App* app,
+    int x,
+    int y)
+{
+    struct App_WorldView* view = app->frame_view;
+    int const extent = app->world->_scene_size * 128;
+    int const level = app->editor_panel.ui && app->editor_panel.ui->tools.edit_level >= 0
+                          ? app->editor_panel.ui->tools.edit_level
+                          : 0;
+    int ground;
+    double hit_x;
+    double hit_z;
+
+    assert(extent > 0);
+    ground = app_world_height(app, app_camera_clamp_axis(view->world_camera_pos.x, 0, extent - 1),
+        app_camera_clamp_axis(view->world_camera_pos.z, 0, extent - 1), level);
+    if( ToriRS_WorldUnprojectPlane(&view->world_camera, &view->world_camera_pos, app->world_emit_desc.x,
+            app->world_emit_desc.y, app->world_emit_desc.w, app->world_emit_desc.h, x, y, ground, &hit_x, &hit_z) )
+    {
+        int const fx = app_camera_clamp_axis((int)hit_x, 0, extent - 1);
+        int const fz = app_camera_clamp_axis((int)hit_z, 0, extent - 1);
+        ground = app_world_height(app, fx, fz, level);
+    }
+    return ground;
+}
+
+/** The World's share of a frame the chrome did not take: the free camera,
+ *  over the scene, with the editor's panels up. */
+static void
+app_map_editor_world_gesture(
+    struct App* app,
+    const struct ToriRS_GestureFrame* frame)
+{
+    struct EditorWorldGestureView view;
+
+    if( !app->editor_panel.visible || !app->world || !app->world_view_valid || !app->frame_view )
+        return;
+    if( app->world->_scene_size <= 0 || app->world_load_inflight )
+        return;
+    /* The orbit follow camera's anchor is the player's (online, out of a
+     * cutscene): the World's gestures move the free camera only. */
+    if( app->net && !app->cam_script.scripted )
+        return;
+    if( app->frame_view->minimenu->visible )
+        return;
+    if( !app_world_mouse_gate(app, frame->x, frame->y) )
+        return;
+    view.viewport_x = app->world_emit_desc.x;
+    view.viewport_y = app->world_emit_desc.y;
+    view.viewport_w = app->world_emit_desc.w;
+    view.viewport_h = app->world_emit_desc.h;
+    if( view.viewport_w <= 0 || view.viewport_h <= 0 )
+        return;
+    view.ground_y = app_map_editor_gesture_ground(app, frame->x, frame->y);
+    if( EditorWorldGesture_Apply(&app->frame_view->world_camera, &app->frame_view->world_camera_pos, &view, frame) )
+        app->need_redraw = 1;
+}
+
+void
+app_map_editor_gestures(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    const struct ToriRS_GestureFrame* frames = NULL;
+    struct EditorUi* ui;
+    int count;
+
+    assert(app);
+    assert(input);
+    if( !app->editor || !app->editor_panel.ui )
+        return;
+    ui = app->editor_panel.ui;
+    /* The touch flag: the hint strip spells gestures while it is up. */
+    Editor_UiSetTouchInput(ui, ToriRS_InputLastWasTouch(input));
+    count = ToriRS_InputGestures(input, &frames);
+    if( count <= 0 )
+        return;
+    assert(frames);
+    /* Chrome first, then the World: a pinch over the picker's well zooms
+     * the picker and never the camera behind it. */
+    for( int i = 0; i < count; i++ )
+    {
+        if( Editor_UiGesture(ui, &frames[i]) )
+        {
+            app->input_frame_consumed = 1;
+            app->need_redraw = 1;
+            continue;
+        }
+        app_map_editor_world_gesture(app, &frames[i]);
     }
 }
 

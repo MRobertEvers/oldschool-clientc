@@ -99,9 +99,10 @@ assert(runtime, 'runtime boots');
 const CMD = { PANEL_OPEN: 3, WIDGET_ADD: 8, WIDGET_CHECKED: 12, PANEL_MODE: 21,
   WIDGET_VALUE: 22, WIDGET_ROW: 23, WIDGET_SPAN: 24, WIDGET_GRAPH: 25,
   WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27, WIDGET_CHORD: 28 };
-const W = { BUTTON: 7, TREE: 13, VLIST: 14, ICONBUTTON: 15, SLIDER: 16, RADIO: 17, CODE: 18, GRAPH: 19 };
+const W = { MODELVIEW: 6, BUTTON: 7, TREE: 13, VLIST: 14, ICONBUTTON: 15, SLIDER: 16, RADIO: 17, CODE: 18, GRAPH: 19 };
 const INTENT = { ACTIVATE: 1, TOGGLE: 3, PICK: 5, EXPAND: 10, SCROLL: 11, VALUE: 12,
-  CODE_EDIT: 14, GRAPH: 15, GRAPH_WHEEL: 16 };
+  CODE_EDIT: 14, GRAPH: 15, GRAPH_WHEEL: 16, GESTURE: 17 };
+const GESTURE = { PAN: 1, PINCH: 2, TWIST: 3 };
 function cmd(k, values) {
   return Object.assign({ k, p: 3, w: -1, tab: -1, v: 0, c: 0, x: 0, y: 0, cw: 0, ch: 0,
     label: '', text: '', detail: '', s: 0, b: -1 }, values || {});
@@ -144,13 +145,14 @@ const commands = [
   cmd(CMD.WIDGET_GRAPH_ITEM, { w: 8, tab: 3, x: 2, y: 30, c: 0xffffff, label: 'm50_50' }),
   cmd(CMD.WIDGET_ADD, { w: 9, v: W.BUTTON, text: 'Build the lane', s: 209 }),
   cmd(CMD.WIDGET_CHORD, { w: 9, label: 'Ctrl+B' }),
-  cmd(CMD.WIDGET_TOOLTIP, { w: 9, label: 'Pack the scripts', text: 'F5' })
+  cmd(CMD.WIDGET_TOOLTIP, { w: 9, label: 'Pack the scripts', text: 'F5' }),
+  cmd(CMD.WIDGET_ADD, { w: 10, v: W.MODELVIEW, cw: 120, ch: 96, s: 210 })
 ];
 runtime.receive({ protocol: 1, type: 'page.snapshot', pageGeneration: 20, panel: 3,
   title: 'Editor', checkStyle: 0, commands });
 const rows = ids['tpc-content'].children;
 const byHandle = h => rows.find(r => r._tpcRecord && r._tpcRecord.handle === h)._tpcRecord;
-assert.strictEqual(runtime.inspect().widgetCount, 9, 'every editor kind is retained');
+assert.strictEqual(runtime.inspect().widgetCount, 10, 'every editor kind is retained');
 assert(/tpc-modal/.test(shell.className), 'PANEL_MODE modal puts the page over a veil');
 
 /* TREE */
@@ -256,6 +258,41 @@ graph.control.fire('wheel', { clientX: 5, clientY: 5, deltaY: 120 });
 assert.deepStrictEqual([typed[typed.length - 1].k, typed[typed.length - 1].v], [INTENT.GRAPH_WHEEL, 1],
   'the wheel reports GRAPH_WHEEL');
 
+/* Gesture frames (workbench 6.1): ctrl+wheel is a continuous pinch about the
+ * pointer, a touch pair pans, pinches and twists -- GESTURE intents the model
+ * routes by the canvas's own rules, "dx dy fingers scale_q16 radians_q16 phase". */
+const gestureNumbers = intent => intent.text.split(' ').map(Number);
+graph.control.fire('wheel', { clientX: 5, clientY: 6, deltaY: -100, ctrlKey: true });
+last = typed[typed.length - 1];
+assert.deepStrictEqual([last.k, last.v, last.x, last.y], [INTENT.GESTURE, GESTURE.PINCH, 5, 6],
+  'ctrl+wheel over a well is a PINCH about the pointer');
+assert.strictEqual(gestureNumbers(last)[3], Math.round(1.25 * 65536), 'a notch is x1.25, as on the canvas');
+graph.control.fire('touchstart', { touches: [{ clientX: 10, clientY: 10 }, { clientX: 30, clientY: 10 }] });
+const touchesBefore = typed.length;
+graph.control.fire('touchmove', { touches: [{ clientX: 10, clientY: 10 }, { clientX: 30, clientY: 10 }] });
+assert.strictEqual(typed.length, touchesBefore, 'the first pair only sets the baseline');
+graph.control.fire('touchmove', { touches: [{ clientX: 14, clientY: 14 }, { clientX: 54, clientY: 14 }] });
+const pairFrames = typed.slice(touchesBefore);
+assert.deepStrictEqual(pairFrames.map(i => [i.k, i.v]),
+  [[INTENT.GESTURE, GESTURE.PAN], [INTENT.GESTURE, GESTURE.PINCH], [INTENT.GESTURE, GESTURE.TWIST]],
+  'a moving pair is a PAN, a PINCH and a TWIST');
+assert.deepStrictEqual(gestureNumbers(pairFrames[0]).slice(0, 3), [14, 4, 2],
+  'the pan is the midpoint\'s travel, two fingers');
+assert.deepStrictEqual([pairFrames[1].x, pairFrames[1].y], [34, 14], 'about the midpoint');
+assert.strictEqual(gestureNumbers(pairFrames[1])[3], 2 * 65536, 'the spread doubled: x2');
+graph.control.fire('touchend', { touches: [] });
+assert.strictEqual(gestureNumbers(typed[typed.length - 1])[5], 2, 'lifting ends the gesture');
+{
+  /* A tap stays the browser's click: one finger's start and end are not
+   * swallowed, and post nothing. */
+  let prevented = 0;
+  const tapBefore = typed.length;
+  graph.control.fire('touchstart', { touches: [{ clientX: 5, clientY: 5 }], preventDefault() { prevented++; } });
+  graph.control.fire('touchend', { touches: [], preventDefault() { prevented++; } });
+  assert.strictEqual(prevented, 0, 'a tap is not swallowed: the browser still clicks');
+  assert.strictEqual(typed.length, tapBefore, 'and a tap posts no gesture');
+}
+
 /* BUTTON + chord: a caption span and a KBD keycap inside the button. */
 const button = byHandle(9);
 assert(/tpc-has-chord/.test(button.control.className), 'a button with a chord says so');
@@ -269,6 +306,19 @@ assert.strictEqual(button.row.title, 'Pack the scripts  [F5]', 'its own tooltip 
 button.control.fire('click');
 assert.deepStrictEqual([typed[typed.length - 1].k, typed[typed.length - 1].w], [INTENT.ACTIVATE, 9],
   'a button with a key still activates');
+
+/* MODELVIEW: one finger orbits (a PAN the model turns into VIEW_ORBIT). */
+const model = byHandle(10);
+model.control.fire('touchstart', { touches: [{ clientX: 20, clientY: 20 }] });
+model.control.fire('touchmove', { touches: [{ clientX: 20, clientY: 20 }] });
+model.control.fire('touchmove', { touches: [{ clientX: 26, clientY: 17 }] });
+last = typed[typed.length - 1];
+assert.deepStrictEqual([last.k, last.w, last.v], [INTENT.GESTURE, 10, GESTURE.PAN],
+  'a finger on a model view is a PAN');
+assert.deepStrictEqual(gestureNumbers(last).slice(0, 3), [6, -3, 1], 'by its travel, one finger');
+model.control.fire('wheel', { clientX: 20, clientY: 20, deltaY: 100, ctrlKey: true });
+last = typed[typed.length - 1];
+assert.deepStrictEqual([last.k, last.v], [INTENT.GESTURE, GESTURE.PINCH], 'ctrl+wheel zooms a model view');
 
 /* Deltas update in place. */
 runtime.receive({ protocol: 1, type: 'page.delta', pageGeneration: 20, commands: [

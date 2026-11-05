@@ -1009,6 +1009,132 @@ Open:
 - `make -C src torirsmaped` fails to link here (pow / floor: its recipe links
   no `-lm`); the same objects link with `-lm` added. Not from this change.
 
+## Workbench step 6.1, the consumers (date 2026-11-05)
+
+The second half of build-order step 6.1 ("Gesture frames"; design section
+14, "Mouse, trackpad, touch"): everything that CONSUMES the bus's
+PAN / PINCH / TWIST. The producers (SDL2, Win32, the web; TORIRS_SIM_GESTURE)
+are the other slice. Until the two are joined, src/input/torirs_gesture.h is
+the contract (struct ToriRS_GestureFrame: kind, x, y, dx, dy, fingers,
+scale_q16, radians_q16, phase; `ToriRS_InputGestures`,
+`ToriRS_InputLastWasTouch`) and src/input/torirs_gesture_stub.c answers "no
+frames, never a touch", so the client behaves as before; the integrator
+deletes the stub and points the two functions at the decoded list.
+
+What landed:
+
+- **Chrome routing** (src/ui/uitree_debug_overlay_gesture.u.c, a third
+  unity fragment; `ToriRSChrome_Gesture`, `struct ToriRSChromeGesture`):
+  over a GRAPH a two-finger PAN is GRAPH_SCROLL (the content follows the
+  fingers) and a PINCH goes through `ToriRSChrome_Pinch` about its point;
+  over a MODELVIEW a PAN is the new `TORIRS_CHROME_EVENT_VIEW_ORBIT` (dx yaw,
+  dy pitch, 1/256 logical px) and a PINCH `TORIRS_CHROME_EVENT_VIEW_ZOOM`, a
+  TWIST (a roll) nothing; over a VLIST / CODE two fingers scroll by PIXELS
+  (whole rows taken, the part row kept in `ToriRSChromeWidget::pan_rem`), a
+  TEXTAREA scrolls its lines the same way when they overflow, anything else
+  on a panel (TREE rows, a SLIDER) scrolls the panel; a PINCH or TWIST
+  anywhere else, and a one-finger PAN, is taken and ignored. Returns whether
+  the chrome took it; over no panel it is the World's. No change to the
+  draw path.
+- **Executor and DOM** (one look): `TORIRS_CHROME_INTENT_GESTURE` (17, the
+  new KIND_MAX; `ToriRSChrome_GestureWidget` applies it by the same rules,
+  numbers in `text`: "dx dy fingers scale_q16 radians_q16 phase"). The DOM
+  runtime posts it from a GRAPH well's and a MODELVIEW's touch pairs (pan,
+  pinch, twist), a MODELVIEW's one-finger drag (orbit), ctrl+wheel (a 1.25 a
+  notch pinch, as the canvas) and Safari's gesturechange; a tap is left to
+  the browser's click. runtime.js / runtime-ie8.js regenerated with tsc
+  6.0.2; web/torirs_chrome.js fences on GESTURE; modern.css gives the model
+  well `touch-action: none` as the graph already had.
+- **World** (src/editor/editor_world_gesture.{h,c}, pure; glue
+  `app_map_editor_gestures` in app_map_editor.c, called from app_frame.c
+  before the editor's tick): the frames are offered to the chrome first
+  (`Editor_UiGesture`), the rest to the free camera. Two-finger PAN moves
+  the eye by the ground-plane difference under the fingers (the ground point
+  stays under them; yaw, pitch and height kept); PINCH moves the eye along
+  the ray of the ground point under the pinch by the ratio (clamped 64 ..
+  12800 fine units from it); TWIST turns yaw about the ground under the
+  viewport's centre, the scene turning with the fingers. All through
+  `ToriRS_WorldUnprojectPlane`, the projection's own inverse; the ground is
+  the pinned level's height sampled where the ray meets it. Free camera and
+  perspective only (the follow cam's anchor is the player's).
+- **One finger is the tool's**: while the editor panel is open main.c hands
+  the touch layer no world viewport (`App_EditorOwnsTouch`), so a one-finger
+  drag is a LEFT drag (the marquee, a brush stroke), never the middle-button
+  camera synthesis. With the editor closed the game's touch input is
+  untouched.
+- **Picker and Preview**: the picker already zoomed on GRAPH_PINCH and
+  panned on GRAPH_SCROLL; the frame path now reaches both. The Preview takes
+  VIEW_ORBIT (the middle drag's gearing: 4 yaw, 2 pitch a logical px, a q8
+  remainder so a slow finger still turns it) and VIEW_ZOOM through the new
+  `preview_orbit` / `preview_zoom` services (`EditorPreviewCamera_ZoomBy`,
+  continuous). Its tooltip says "or drag to orbit, pinch to zoom".
+- **Gesture spelling** (section 15's column): `Editor_HotkeyActionInfo::gesture`,
+  "2 fingers" on the four fly moves, "pinch" on fly down / up, "twist" on turn
+  left / right. `Editor_HotkeysHint` takes `touch`; with it the tool's
+  pointer rows say the finger's word ("[tap] tile", "[drag] marquee";
+  Shift+click and the keyboard rows drop out), then "[2 fingers] pan",
+  "[pinch] zoom", "[twist] turn", "[hold] menu". The status bar passes the
+  touch flag (`EditorUi::input_touch`, `Editor_UiSetTouchInput`, set each
+  frame from `ToriRS_InputLastWasTouch`). docs/MAPED_HOTKEYS.md says so under
+  Camera.
+
+Tests (2026-11-05, this container, objects in build_w61*):
+test-chrome-widgets 370 checks (340 before), 0 failed, dom ok (gesture
+routing over a GRAPH, a MODELVIEW and a VLIST, over nothing not taken, the
+part row, a modal, the GESTURE intent and a malformed one, 2x; the DOM's
+touch pair, ctrl+wheel, a tap left alone, the model's one-finger orbit);
+**test-editor-world-gesture** (new, pure) 38, 0 failed (pan keeps the ground
+under the fingers within a px, pinch keeps its point and halves the
+distance, the clamps, twist keeps the look-at centred and turns clockwise,
+one finger is not the camera, a recorded pinch replays bit for bit);
+test-editor-hotkeys 1734 (1696), 0 failed; test-editor-groups 2080 (2068), 0
+failed (the touch strip, Editor_UiGesture over a panel and over the World);
+test-editor-chords 501, test-editor-dropdown 36, test-editor-cmd 62,
+test-uitree, test-chrome-browser-exec, test-chrome-web-skin,
+test-chrome-surface-sdl all pass; check-tree-walks and check-pt-switch PASS;
+the web channel's node tests pass but chrome_layout_test.js (src/Makefile
+case, as before). test-editor-panels needs the OSRS-Content squares; its
+content-free tests plus test_picker and test_preview ran from a scratch copy
+of its main against an empty content dir: 1311 checks, 3 failed, the three
+storage checks of test_picker that list maps/ and the lanes (content); the
+Preview's new orbit, slow-orbit and pinch checks pass. The picker's new
+frame checks live in test_chrome (test_picker_gestures), which needs the
+squares: run against zero-byte square files they pass (a PINCH frame zooms
+by its ratio about its centre within a pixel, a PAN frame pans with the
+fingers), beside 11 content failures and a crash further on in
+test_chrome's content-only part.
+
+Each new check was seen to fail on a mutant: in a scratch worktree for the
+chrome routing (Gesture returning 0: 17 failures; no part row: 5; the
+graph pan's x unflipped: 1; the GESTURE intent dropped: 3; the model view's
+pinch dropped: 1; the DOM's graph gestures unbound: the dom test asserts),
+the World helper (pan the wrong way, the pinch ratio inverted, the twist
+without the eye's turn, one finger let through: 1, 1, 1, 2), the hotkeys
+(touch ignored: 15), the status bar (touch not passed: 5) and Editor_UiGesture
+(returning 0: 1); in this private worktree, temporarily, for the Preview's
+event hook (3) and the picker's pan sign and pinch (2), each restored with
+git checkout and rebuilt before the clean runs above. test-touch fails 7 of 45 here exactly as on
+64310269 (not this change). `make all` links the client; torirsmaped's link
+fails on Linux for want of -lm, as on 64310269.
+
+Open:
+
+- The bus half (the other slice): until it lands no frame reaches any of
+  this in the running client, and `ToriRS_InputLastWasTouch` is 0, so the
+  touch strip only shows under a test. The two-finger arrow-key synthesis
+  in torirs_touch.c still runs with the editor open; once PAN frames flow,
+  the integrator should stop it there too, or the World pans and turns at
+  once.
+- Three-finger drag (pitch) and the HUD chip "one finger pans" are not
+  built; the tilt actions have no gesture spelling.
+- Picker zoom and Preview orbit have no table action, so their gesture
+  words are in the Preview's tooltip only, not the table; the Hotkeys panel
+  shows no gesture column yet.
+- The follow camera (online, out of a cutscene) and a parallel projection
+  take no World gestures.
+- The Preview's orbit direction follows its keys (right is the right
+  arrow's yaw, down the down arrow's pitch); not checked by eye.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.

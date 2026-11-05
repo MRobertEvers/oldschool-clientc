@@ -1389,6 +1389,15 @@ app_map_editor_world_click(
     struct App* app,
     struct LibToriRS_Input* input);
 
+/** This frame's gesture frames (input/torirs_gesture.h), editor open: each
+ *  offered to the chrome first (Editor_UiGesture), the rest to the World's
+ *  free camera (editor/editor_world_gesture.h). Sets the editor's touch
+ *  flag from the input's last-event kind. */
+void
+app_map_editor_gestures(
+    struct App* app,
+    struct LibToriRS_Input* input);
+
 void
 app_map_editor_ghost_update(struct App* app);
 
