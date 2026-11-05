@@ -1009,6 +1009,137 @@ Open:
 - `make -C src torirsmaped` fails to link here (pow / floor: its recipe links
   no `-lm`); the same objects link with `-lm` added. Not from this change.
 
+## Workbench step 6.0b, part 3: scale selection and the two window features (date 2026-11-05)
+
+Design section 2 "R1 in full" (the Controls row), section 3 "Every panel pops
+out" (the Dock button, lighter panel windows), section 16 step 6.0b. Built on
+v3-workbench `64310269`; the chrome model's rational scale
+(`ToriRSChrome_SetScaleQ`) is another slice's, so this one codes against it
+behind a shim and builds alone.
+
+What landed:
+
+- **Scale from the display.** `main_dynamic_chrome_scale` (main.c) returns
+  the display's device pixel ratio in quarter units, snapped to the design's
+  steps 4, 5, 6, 7, 8, 10, 12 (1x .. 3x; a tie goes to the larger step) and
+  never under 8 on a touch device (`touch_ui` or `touch_camera`). The ratio is
+  the new `PlatformWindow_ChromeDensityPercent`: the drawable-to-window ratio
+  (devicePixelRatio on the web), or, where the backend has one coordinate
+  space, Windows' per-monitor DPI under SDL (`SDL_GetDisplayDPI` on the
+  "windows" driver only: X11's DPI comes from the monitor's millimetres and
+  is not trusted). `PlatformWindow_DisplayDensityPercent`, which the game's
+  own scaling reads, is unchanged. The ladder no longer steps up by 500
+  points of window height: a tall window on a 1x display used to get 2x
+  chrome under `chrome_scale=dynamic`, and now gets 1x unless View > Chrome
+  scale says otherwise. A manifest that never sets `chrome_scale` keeps the
+  integer display density exactly as before.
+- **Pins take decimals.** `TORIRS_CHROME_SCALE` and `[ui:boot] chrome_scale=`
+  read "2" or "1.5" (`ToriRSChromeScaleQ_Parse`, src/ui/torirs_chrome_scale_q.h,
+  header-only, shared by main.c, the boot manifest and the tests); the
+  manifest field and `AppConfig.chrome_scale` are now quarter units (-1
+  dynamic, 0 unset). Precedence: env, View > Chrome scale (when not Auto),
+  manifest, display.
+- **The shim** (editor_ui.c): `Editor_ChromeSetScaleQ`, `Editor_ChromeScaleQ`,
+  `Editor_ChromeScaleInteger`, `Editor_UiPx`. Under `TORIRS_CHROME_SCALEQ`
+  (the integrator defines it when the rational model is linked) they call
+  `ToriRSChrome_SetScaleQ` / `ToriRSChrome_ScaleQ` / `ToriRSChrome_Px`, and
+  the integer handed to `App_SetChromeScale` is the tier at or above the
+  scale (so the two setters never undo each other); without it a quarter value
+  rounds to `(q + 2) / 4`. `edp_px` goes through `Editor_UiPx`;
+  `ui_follow_scale` and the layout file's capture / apply / restore convert
+  in quarters (exactly the old arithmetic at the integer scales).
+- **View > Chrome scale** (Auto, 100 %, 125 %, 150 %, 175 %, 200 %, 250 %,
+  300 %) and **View > Text size** (Normal, Large): radio rows between the
+  panel rows and Hide / show panels (Reset layout and Snap to grid stay the
+  last two), the chosen one "on" in its right-hand column, Auto naming what
+  the display gives ("Chrome scale: Auto (150 %)"). Each is a hotkey action,
+  unbound (`view.scale_auto`, `view.scale_100` .. `view.scale_300`,
+  `view.text_normal`, `view.text_large`; docs/MAPED_HOTKEYS.md). Large is the
+  chrome theme's body-face setting (`font_row` = Menu) plus the smallest
+  additive theme change, **`ToriRSChromeTheme.row_h`** (0 = the grid's 18;
+  Large 22), read by `DBG_ROW_H`; the editor re-asserts it every frame, so a
+  theme installed later wears it. Both re-run the layout.
+- **editor_prefs.ini** (src/editor/editor_prefs.{c,h},
+  task_editor_prefs_io.{c,h}; `TORIRS_EDITOR_PREFS`, empty = off): `[view]
+  chrome_scale = auto|100..300`, `text_size = normal|large`, read at boot and
+  written on each change (`EditorUi.prefs_serial`), through the IO queue like
+  the layout file. Device-local, never on a Client state key; a popped-out
+  window reads the same file at its boot, which is how it inherits the
+  leader's values.
+- **Dock button.** `ToriRSChrome_PanelSetDockable` / `ToriRSChrome_TakeDock`
+  / `ToriRSChrome_PanelDockRect` (left of Pop out, else of Close, else at the
+  right end; the baked DockButton / DockButtonOver slots, a flat box with a
+  foot bar without skin). The solo layout wears it (where the main window's
+  Close and Pop out sit); pressing it is `Editor_UiDockBack`: it publishes
+  the new **`TORIRSMAPED_STATE_DOCK_PANEL = 9`** (registry index, serial;
+  documented in torirs_maped.h's key registry), sets `dock_exit`, and the
+  window ends (`EditorView_RequestExit`, main.c's frame loop; `window.close()`
+  on the web). The window that shows the panel set (not solo, editor open)
+  shows that panel exactly as View > panel does, leaving an open one open;
+  its pop-in bookkeeping and console line follow as for any pop-in. No
+  session: a console line, the window stays.
+- **Panel-only windows load no world.** `--editor-panel <module>` for a
+  module other than world / preview (`Editor_UiModuleNeedsWorld`) sets
+  `EditorView_AppHoldsNoWorld`: the boot's default load (app_boot.c, one
+  added condition), the first-sight load (world_load_attempted) and the
+  camera's load (view_apply_or_load) stand down; the console and the editor
+  console say what was skipped. World and Preview windows are unchanged.
+
+Tests (2026-11-05, this container, objects in src/build_opt of the private
+worktree):
+
+- **test-editor-workbench** (new, content-free; maped/workbench.mk) 270
+  checks, 0 failed: the draw-list golden (every primitive of a widget scene in
+  both themes and of the whole registry at 1530x1006, at 1x, 2x and 3x,
+  digested and compared with the values recorded at 64310269 before any draw
+  path change; committed first, alone), the snap table, the touch floor, the
+  decimal pins, the shim both ways, the View rows (order, "on", relayout at
+  2x, Large's 22 px rows and back to 18, a fresh boot still the golden), the
+  prefs codec round trip for every combination plus a hand-edited file, and
+  Dock across two sessions of one embedded ToriRSMapEd (the popped window's
+  button where it belongs, the press, the relay, the leader showing Catalog,
+  the serial, an open panel left open, the session-less refusal).
+- test-editor-hotkeys 1746 (the doc rows of the ten new actions included),
+  test-editor-groups 2068, test-editor-chords 501, test-chrome-widgets 340 and
+  the DOM test, test-editor-dropdown 36, test-editor-cmd 62,
+  test-editor-areas 136, test-editor-panels-palette 50, -accounts 48 (with
+  `ulimit -s unlimited`), test-editor-views-web 9 cases: all 0 failed.
+  bootmanifest_test PASS with a new decimal fixture (linked against
+  build_opt's rscache objects: 3rd/rscache/build is not built here).
+  check-tree-walks and check-pt-switch PASS. The content-free subset of
+  editor_panels_test (layout, world panel, popout, shared tools, open relay,
+  layout codec, saved layout, maximise, hotkeys, status bar) from a scratch
+  copy against an empty content dir: 1273 checks, 0 failed. The client
+  (`torirs`) links; `torirsmaped` does not link here (undefined pow / floor in
+  torirs_maped_accounts.c under LTO, no -lm on its line; not from this
+  change).
+- Each new check was seen to fail on a mutant before being kept green, the
+  mutants applied temporarily in this private worktree (no other build reads
+  it) and restored from git: the golden (row height 18 -> 19 fails every
+  digest), Large rows (DBG_ROW_H ignoring row_h), the solo Dock, the leader's
+  show (a toggle closes an open panel), the snap tie, the prefs comment cut,
+  the "on" mark, a missing doc row, and the boot manifest's decimal parse.
+- Not run: test-editor-panels and test-editor-views in full (they read the
+  OSRS-Content squares, not checked out here); no photograph (no cache).
+
+Open:
+
+- The rational scale itself (glyph and skin tiers, hinted outlines) is the
+  chrome slice's; until `TORIRS_CHROME_SCALEQ` is defined, 125 % draws at 1x
+  and 150 % / 175 % at 2x. The bridge fonts (`App_SetChromeScale`'s
+  `UITreeSceneBridge_SetChromeScale`) still follow the integer tier.
+- The layout file's `scale` key stays an integer (the tier), so a layout saved
+  at 150 % restores as "same scale" at 200 % on the integer chrome.
+- Docking does not carry the popped window's scroll position back: the
+  leader's panel was hidden, not torn down, so it comes back where it was in
+  the leader, not where the popped window was scrolled.
+- Text size is the editor's chrome only; the plugin window (the DOM executor)
+  has no theme command, and neither Dock nor Text size crosses the executor
+  seam -- the editor's title bars and rows are drawn by the in-canvas chrome on
+  every lane, the web included.
+- A touchscreen laptop under SDL is not counted as touch (no platform call
+  for it yet): only `touch_ui` / `touch_camera` raise the 2x floor.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.
