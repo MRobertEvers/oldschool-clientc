@@ -544,6 +544,7 @@ ToriRSChromeGlyphs_RasteriseVector(
 
     ok = stbtt_InitFont(&info, vec->ttf, 0);
     assert(ok);
+    (void)ok;
     bake_zones(vec, q, &zones);
     for( int i = 0; i < 256; i++ )
         gamma[i] = (uint8_t)(255.0 * pow(i / 255.0, 1.0 / BAKE_STEM_GAMMA) + 0.5);

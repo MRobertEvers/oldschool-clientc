@@ -48,6 +48,7 @@
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
 
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -708,11 +709,22 @@ Editor_Triggers_SetPaths(
     self = triggers_self(ui);
     if( !self )
         return 0;
-    /* Absolute: the editor the path is handed to has its own cwd. */
+    /* Absolute: the editor the path is handed to has its own cwd. realpath
+     * writes up to PATH_MAX bytes whatever the buffer is, so it resolves into
+     * one of that size (a smaller one is an overflow, which _FORTIFY_SOURCE
+     * aborts on at boot with any content dir); a root that does not exist
+     * yet is kept as given. The result must fit the panel's own buffer:
+     * truncating it would point every script path at another directory. */
+    {
+        char const* absolute = content_root;
 #if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
-    if( !realpath(content_root, self->content_root) )
+        char resolved[PATH_MAX];
+        if( realpath(content_root, resolved) )
+            absolute = resolved;
 #endif
-        snprintf(self->content_root, sizeof(self->content_root), "%s", content_root);
+        assert(strlen(absolute) < sizeof(self->content_root));
+        snprintf(self->content_root, sizeof(self->content_root), "%s", absolute);
+    }
     /* No compiler named: keep what TORIRS_BUILDER_* set up, if anything. */
     if( sscompile && work_dir )
         self->ssc_ready = Builder_SscInit(&self->ssc, sscompile, content_root, work_dir);

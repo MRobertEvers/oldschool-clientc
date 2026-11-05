@@ -2577,10 +2577,10 @@ Open (beyond each slice's own list above):
   the 1x skin at an integer scale.
 - Editor layout computed as `ToriRSChrome_Scale(ui) * N` sits tight at
   fractional q (a slider over "Strength Shift+[]" at 1.5x).
-- src/editor/panels/edpanel_triggers.c:713 (`Editor_Triggers_SetPaths`)
-  passes `realpath` a buffer under PATH_MAX: a Linux _FORTIFY_SOURCE opt
-  build that boots the editor with an existing content dir aborts ("buffer
-  overflow detected"). Not fixed here.
+- ~~src/editor/panels/edpanel_triggers.c:713 (`Editor_Triggers_SetPaths`)
+  passes `realpath` a buffer under PATH_MAX~~ **Fixed** with the vector-face
+  merge (below): it resolves into a PATH_MAX buffer and asserts the result
+  fits the panel's own.
 - Wire: STATE_TOOLS has 15 values; client and server must come from the
   same tree for it. (The atlas rows' `loc_count` no longer needs that: see
   the review fixes.)
@@ -2706,6 +2706,12 @@ bowls on a, e, o, s, and every vertical stem the same profile on every row
 the log reads `chrome: scale q=6 (150%), bridge q=6, tile 132x90`. With the
 pref on at 1x it reads `chrome: text rendering smooth always (q=4)` and the
 frame's text is antialiased.
+
+The editor's boot with a content dir no longer aborts:
+`Editor_Triggers_SetPaths` (edpanel_triggers.c) resolved `realpath` into
+the panel's 1024-byte buffer, which _FORTIFY_SOURCE stops as an overflow; it
+now resolves into a PATH_MAX buffer, keeps the given path when the root does
+not exist yet, and asserts the result fits.
 
 ## Open issues
 
