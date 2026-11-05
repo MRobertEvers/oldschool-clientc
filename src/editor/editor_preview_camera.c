@@ -63,6 +63,26 @@ EditorPreviewCamera_Zoom(
     EditorPreviewCamera_Invalidate(camera, true);
 }
 
+void
+EditorPreviewCamera_ZoomBy(
+    struct EditorPreviewCamera* camera,
+    int ratio_q16)
+{
+    long long zoom;
+
+    assert(camera);
+    assert(ratio_q16 > 0);
+    zoom = ((long long)camera->zoom * 65536 + ratio_q16 / 2) / ratio_q16;
+    if( zoom < EDITOR_PREVIEW_ZOOM_MIN )
+        zoom = EDITOR_PREVIEW_ZOOM_MIN;
+    if( zoom > EDITOR_PREVIEW_ZOOM_MAX )
+        zoom = EDITOR_PREVIEW_ZOOM_MAX;
+    if( zoom == camera->zoom )
+        return;
+    camera->zoom = (int)zoom;
+    EditorPreviewCamera_Invalidate(camera, true);
+}
+
 bool
 EditorPreviewCamera_TakeRender(struct EditorPreviewCamera* camera)
 {

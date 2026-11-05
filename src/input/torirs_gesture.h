@@ -256,4 +256,29 @@ ToriRS_SimGestureStep(
     struct ToriRS_CmdBus* bus,
     long frame);
 
+/*
+ * The consumers' half: the decoded list (struct LibToriRS_Gesture,
+ * input/torirs_input.h) as the editor and the chrome read it. One struct,
+ * one list -- the frames ToriRS_Input_ApplyCmd decoded this frame -- and
+ * these two readers over it.
+ */
+
+/**
+ * This frame's gesture frames, oldest first, into `*out` (borrowed: valid
+ * until the input's next Begin). Returns how many; 0 leaves `*out` NULL.
+ */
+int
+ToriRS_InputGestures(
+    const struct LibToriRS_Input* input,
+    const struct LibToriRS_Gesture** out);
+
+/**
+ * Was the last gesture frame decoded a finger's (LIBTORIRS_GESTURE_FLAG_TOUCH)
+ * rather than a trackpad's or a wheel's? It holds across frames with no
+ * gesture. The hint strip spells the gestures while it does
+ * (Editor_HotkeysHint's `touch`).
+ */
+int
+ToriRS_InputLastWasTouch(const struct LibToriRS_Input* input);
+
 #endif

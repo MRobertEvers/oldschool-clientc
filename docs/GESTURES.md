@@ -95,14 +95,12 @@ key synthesised:
 * tap, long press and the one-finger drag are unchanged either way;
 * turning the flag off mid-gesture ends that gesture on the next event or tick.
 
-**For the consumers slice**: the editor turns this on while its panel is open.
-Each backend's `PlatformWindow` owns its `struct ToriRS_Touch` (SDL2, Win32
-GDI, Android), so the call wanted is a `PlatformWindow_SetTouchGestureFrames
-(platform, on)` beside `PlatformWindow_SetTouchOverlayTest` in
-src/platform/platform_window.h, each backend forwarding to
-`ToriRS_TouchSetGestureFrames(&p->touch, on)`, and main.c (where it already
-calls `PlatformWindow_SetTouchOverlayTest`) calling it when the editor panel
-opens and closes. This slice did not add it: it owns only the SDL event drain.
+**Who turns it on**: `PlatformWindow_SetTouchGestureFrames(platform, on)`
+(src/platform/platform_window.h; SDL2, Win32 GDI and Android each forward to
+`ToriRS_TouchSetGestureFrames(&p->touch, on)`). main.c calls it every frame,
+before the poll and beside `PlatformWindow_SetTouchViewport`, with
+`App_EditorOwnsTouch` -- on while the map editor's panel is up, off for the
+game. It is compare-then-set, so the per-frame call costs nothing.
 
 ### SDL2 desktop (src/platform/platform_sdl2.c, the event drain)
 
@@ -202,16 +200,31 @@ the stepping live in src/input/torirs_gesture.c (`ToriRS_SimGestureParse`,
   runtime check.
 * **Android**: the touch policy, as on any touchscreen; no trackpad path.
 
-## Not this slice (the consumers', or the integrator's)
+## The consumers (workbench 6.1, integrated)
 
-* The consumers: the World camera, GRAPH wells, MODELVIEW, VLIST, SLIDER,
-  the hint strip's touch words, the gesture column of the hotkey table, and
-  `PlatformWindow_SetTouchGestureFrames` (above).
-* src/app/app_render.c's `app_view_split_command_is_input` lists the input
-  command types the split view routes to the game's physical input; the
-  gesture types are not in it, so under the split view they reach the
-  editor's input and not the game's. That is the right default for an editor
-  gesture, but the integrator should decide it explicitly.
+* `ToriRS_InputGestures(input, &frames)` (src/input/torirs_gesture.h,
+  implemented in torirs_input.c) is the one reader: it hands back
+  `input->gestures`, the decoded `struct LibToriRS_Gesture` list itself.
+  `ToriRS_InputLastWasTouch(input)` answers from `gesture_last_touch`, which
+  `LibToriRS_Input_PushGesture` sets from the last frame's
+  `LIBTORIRS_GESTURE_FLAG_TOUCH` and Begin leaves alone.
+* `app_map_editor_gestures` (src/app/app_map_editor.c), once a frame before
+  the editor's tick, offers each frame to the chrome (`Editor_UiGesture`,
+  which maps the input's kind and phase onto the chrome's own
+  `struct ToriRSChromeGesture`) and then to the World camera
+  (`EditorWorldGesture_Apply`).
+* **ALSO_LEGACY frames are skipped there.** Their motion already reached the
+  chrome through `ToriRSChrome_WheelFrame` (in `app_loc_editor_tick`, which
+  runs first) and the World through the camera's wheel, so taking the frame
+  as well would scroll a list twice and pan the World while the wheel zooms
+  it. A trackpad and ctrl+wheel therefore behave as they did in 6.0; the
+  touchscreen's frames (never ALSO_LEGACY) and a touchpad's twist come
+  through. Moving the trackpad onto the frames means dropping the legacy
+  wheel / scroll / pinch for the frame first.
+* Split view: src/app/app_render.c's `app_view_split_command_is_input` does
+  not list the gesture types, so under the split view they reach the
+  editor's input and not the game's physical input. That is kept on purpose:
+  every consumer of a gesture frame is the editor's.
 
 ## Tests
 

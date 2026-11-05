@@ -109,6 +109,7 @@ main(void)
     cw_test_truncation();
     cw_test_scale();
     cw_test_glyphs();
+    cw_test_gesture();
     printf("chrome_widget_sync_test: %d checks, %d failed\n", g_cw_checks, g_cw_failed);
     return g_cw_failed ? 1 : 0;
 }

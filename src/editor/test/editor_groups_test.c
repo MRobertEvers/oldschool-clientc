@@ -14,6 +14,7 @@
  * editor_panels_test.c drives the modules themselves over a content tree.
  */
 
+#include "input/torirs_gesture.h"
 #include "editor/editor_layout.h"
 #include "editor/editor_ui.h"
 #include "editor/editor_view.h"
@@ -733,6 +734,69 @@ test_spawns_behind_tab(void)
         statusbar_text());
 }
 
+/* The touch flag (workbench 6.1): while the last input was a finger the
+ * hint strip says the gestures, "[2 fingers] pan", "[pinch] zoom",
+ * "[hold] menu", and none of the mouse words; a mouse puts them back. And
+ * Editor_UiGesture offers a frame to the chrome: over a panel it is taken,
+ * over the World's body it is not (the World takes it). */
+static void
+test_touch_strip(void)
+{
+    struct LibToriRS_Gesture f;
+    struct ToriRSChromeRect body;
+
+    boot(2560, 1006, 1);
+    frame();
+    CHECK(statusbar_hint_ending("] tile") && strstr(statusbar_text(), "[click] tile"),
+        "touch strip: a mouse's strip says click ('%s')", statusbar_text());
+    CHECK(!statusbar_hint_ending("] pan"), "touch strip: and names no gesture");
+    Editor_UiSetTouchInput(&g_ui, 1);
+    frame();
+    CHECK(strstr(statusbar_text(), "[tap] tile") != NULL, "touch strip: a finger taps ('%s')", statusbar_text());
+    CHECK(strstr(statusbar_text(), "[2 fingers] pan") != NULL, "touch strip: 2 fingers pan ('%s')",
+        statusbar_text());
+    CHECK(strstr(statusbar_text(), "[pinch] zoom") != NULL, "touch strip: pinch zooms");
+    CHECK(strstr(statusbar_text(), "[hold] menu") != NULL, "touch strip: hold opens the menu ('%s')",
+        statusbar_text());
+    CHECK(!strstr(statusbar_text(), "click") && !strstr(statusbar_text(), "[Q]"),
+        "touch strip: no mouse word and no key ('%s')", statusbar_text());
+    Editor_UiSetTouchInput(&g_ui, 0);
+    frame();
+    CHECK(strstr(statusbar_text(), "[click] tile") != NULL && !strstr(statusbar_text(), "[2 fingers]"),
+        "touch strip: a mouse again, the mouse words again ('%s')", statusbar_text());
+
+    /* The frame route's first stop. */
+    memset(&f, 0, sizeof(f));
+    f.kind = LIBTORIRS_GESTURE_PINCH;
+    f.scale = 2.0f;
+    f.fingers = 2;
+    f.phase = LIBTORIRS_GESTURE_UPDATE;
+    {
+        struct ToriRSChromeRect const status = g_chrome.panels[window_of("statusbar")].last_rect;
+        f.x = status.x + status.w / 2;
+        f.y = status.y + status.h / 2;
+    }
+    CHECK(Editor_UiGesture(&g_ui, &f) == 1, "gesture: a pinch over a panel is the chrome's");
+    /* A point of the World's hollow body no other window covers. */
+    body = g_chrome.panels[window_of("world")].last_rect;
+    CHECK(body.w > 0, "gesture: the World is laid out");
+    {
+        int found = 0;
+        for( int y = body.y + body.h / 4; y < body.y + body.h && !found; y += 16 )
+            for( int x = body.x + body.w / 4; x < body.x + body.w && !found; x += 16 )
+                if( !ToriRSChrome_WantsPointer(&g_chrome, x, y) )
+                {
+                    f.x = x;
+                    f.y = y;
+                    found = 1;
+                }
+        CHECK(found, "gesture: some of the World's body is the world's ('%d,%d %dx%d')", body.x, body.y, body.w,
+            body.h);
+        if( found )
+            CHECK(Editor_UiGesture(&g_ui, &f) == 0, "gesture: over the World's body it is the World's");
+    }
+}
+
 static void
 test_reset_groups(void)
 {
@@ -1054,6 +1118,7 @@ main(void)
     test_default_groups();
     test_strip_follows();
     test_spawns_behind_tab();
+    test_touch_strip();
     test_reset_groups();
     test_layout_file();
 

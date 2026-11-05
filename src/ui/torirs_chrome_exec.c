@@ -1262,6 +1262,57 @@ intent_widget_is(
            ui->widgets[intent->widget].kind == kind;
 }
 
+/**
+ * A GESTURE intent's numbers, "dx dy fingers scale_q16 radians_q16 phase":
+ * six decimal ints, single spaces or more. 0 when the text is not that --
+ * the browser's word, so a bad one is dropped like any unknown intent.
+ */
+static int
+intent_gesture_numbers(char const* text, struct ToriRSChromeGesture* out)
+{
+    long values[6];
+    char const* at = text;
+
+    for( int i = 0; i < 6; i++ )
+    {
+        long v = 0;
+        int negative = 0;
+        int digits = 0;
+        while( *at == ' ' )
+            at++;
+        if( *at == '-' )
+        {
+            negative = 1;
+            at++;
+        }
+        while( *at >= '0' && *at <= '9' && digits < 10 )
+        {
+            v = v * 10 + (*at - '0');
+            at++;
+            digits++;
+        }
+        if( digits == 0 || (*at >= '0' && *at <= '9') )
+            return 0;
+        values[i] = negative ? -v : v;
+        if( values[i] > 2147483000L || values[i] < -2147483000L )
+            return 0;
+    }
+    while( *at == ' ' )
+        at++;
+    if( *at != '\0' )
+        return 0;
+    if( values[5] < TORIRS_CHROME_GESTURE_BEGIN || values[5] > TORIRS_CHROME_GESTURE_END )
+        return 0;
+    memset(out, 0, sizeof(*out));
+    out->dx = (int)values[0];
+    out->dy = (int)values[1];
+    out->fingers = (int)values[2];
+    out->scale_q16 = (int)values[3];
+    out->radians_q16 = (int)values[4];
+    out->phase = (int)values[5];
+    return 1;
+}
+
 int
 ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent const* intent)
 {
@@ -1557,6 +1608,26 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
         ev.y = intent->y;
         ev.key = ToriRSChrome_GraphKeyAt(ui, intent->widget, intent->x, intent->y);
         return ToriRSChrome_PushEvent(ui, &ev);
+    }
+
+    case TORIRS_CHROME_INTENT_GESTURE:
+    {
+        struct ToriRSChromeGesture gesture;
+        int kind;
+        if( intent->widget < 0 || intent->widget >= ui->widget_count ||
+            ui->widgets[intent->widget].kind == TORIRS_CHROME_W_FREE ||
+            intent->value < TORIRS_CHROME_GESTURE_PAN || intent->value > TORIRS_CHROME_GESTURE_TWIST )
+            return 0;
+        kind = ui->widgets[intent->widget].kind;
+        if( kind != TORIRS_CHROME_W_GRAPH && kind != TORIRS_CHROME_W_MODELVIEW &&
+            kind != TORIRS_CHROME_W_VLIST && kind != TORIRS_CHROME_W_CODE )
+            return 0;
+        if( !intent_gesture_numbers(intent->text, &gesture) )
+            return 0;
+        gesture.kind = intent->value;
+        gesture.x = intent->x;
+        gesture.y = intent->y;
+        return ToriRSChrome_GestureWidget(ui, intent->widget, &gesture);
     }
 
     default:

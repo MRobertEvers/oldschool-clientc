@@ -5124,7 +5124,7 @@ TORIRSMAPED_SRCS = torirsmaped/torirs_maped_main.c torirsmaped/torirs_maped.c \
 	$(MAPED_SERVER_SRCS)
 
 torirsmaped: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsmaped $(TORIMEM_SRCS) $(TORIRSMAPED_SRCS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsmaped $(TORIMEM_SRCS) $(TORIRSMAPED_SRCS) -lm
 	@echo "built $(OBJ_DIR)/torirsmaped"
 
 # The controller client: a ToriRSMapEd connection in its own process with no

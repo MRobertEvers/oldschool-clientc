@@ -107,6 +107,16 @@ EditorPreviewCamera_Zoom(
     int direction);
 
 /**
+ * Zoom by a pinch's ratio, continuously: `ratio_q16` / 65536 since the last
+ * frame (> 1 fingers apart, closer), so a 2x spread halves the distance.
+ * Clamped like a key step; a ratio that moves nothing renders nothing.
+ */
+void
+EditorPreviewCamera_ZoomBy(
+    struct EditorPreviewCamera* camera,
+    int ratio_q16);
+
+/**
  * Take the pending render.
  *
  * Returns false when nothing needs rendering. Call it once where the render

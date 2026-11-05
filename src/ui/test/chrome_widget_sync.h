@@ -67,5 +67,6 @@ void cw_test_button(void);
 void cw_test_truncation(void);
 void cw_test_scale(void);
 void cw_test_glyphs(void);
+void cw_test_gesture(void);
 
 #endif

@@ -2708,6 +2708,13 @@ PlatformWindow_SetTouchOverlayTest(struct PlatformWindow* p, ToriRS_TouchOverlay
 }
 
 void
+PlatformWindow_SetTouchGestureFrames(struct PlatformWindow* p, int on)
+{
+    assert(p);
+    ToriRS_TouchSetGestureFrames(&p->touch, on);
+}
+
+void
 PlatformWindow_SetCanvasFollowsWindow(
     struct PlatformWindow* p, struct ToriRS_CmdBus* bus, bool follow, int min_w, int min_h)
 {

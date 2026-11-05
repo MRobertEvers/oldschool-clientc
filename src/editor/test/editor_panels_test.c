@@ -1662,6 +1662,61 @@ test_picker_gestures(
     CHECK(fabs(picker->zoom / (zoom * 1.5) - 1.0) < 1e-4, "a browser pinch zooms by its scale only (%.3f -> %.3f)", zoom,
         picker->zoom);
 
+    /* The bus's gesture frames (workbench 6.1) reach the same picker through
+     * ToriRSChrome_Gesture: a PINCH frame zooms by its exact ratio about its
+     * centre, the map point there within a pixel of where it was; a
+     * two-finger PAN frame pans the map with the fingers and never zooms. */
+    {
+        struct ToriRSChromeGesture g;
+        double px;
+        double pz;
+
+        frame();
+        zoom = picker->zoom;
+        map_x = picker->origin_x + (double)(lx - EDITOR_PICKER_LEFT) / picker->zoom;
+        map_z = picker->origin_z - (double)(ly - EDITOR_PICKER_TOP) / picker->zoom;
+        memset(&g, 0, sizeof(g));
+        g.kind = TORIRS_CHROME_GESTURE_PINCH;
+        g.x = sx;
+        g.y = sy;
+        g.fingers = 2;
+        g.scale_q16 = 3 * 65536 / 2;
+        g.phase = TORIRS_CHROME_GESTURE_UPDATE;
+        CHECK(ToriRSChrome_Gesture(&g_chrome, &g) == 1, "a PINCH frame over the well is taken");
+        frame();
+        CHECK(fabs(picker->zoom / (zoom * 1.5) - 1.0) < 1e-4, "a 1.5 PINCH frame is a 1.5 zoom (%.3f -> %.3f)", zoom,
+            picker->zoom);
+        /* Where the map point that was under the pinch is drawn now, in well px. */
+        px = (map_x - picker->origin_x) * picker->zoom + EDITOR_PICKER_LEFT;
+        pz = (picker->origin_z - map_z) * picker->zoom + EDITOR_PICKER_TOP;
+        CHECK(fabs(px - (double)lx) <= 1.0 && fabs(pz - (double)ly) <= 1.0,
+            "the picker zooms about the pinch within one pixel (%.2f,%.2f vs %d,%d)", px, pz, lx, ly);
+
+        zoom = picker->zoom;
+        {
+            double const origin_x = picker->origin_x;
+            double const origin_z = picker->origin_z;
+            int const scale = g_chrome.scale > 0 ? g_chrome.scale : 1;
+            memset(&g, 0, sizeof(g));
+            g.kind = TORIRS_CHROME_GESTURE_PAN;
+            g.x = sx;
+            g.y = sy;
+            g.dx = 30 * scale;
+            g.dy = 20 * scale;
+            g.fingers = 2;
+            g.phase = TORIRS_CHROME_GESTURE_UPDATE;
+            CHECK(ToriRSChrome_Gesture(&g_chrome, &g) == 1, "a PAN frame over the well is taken");
+            frame();
+            CHECK(picker->zoom == zoom, "a PAN frame never zooms");
+            /* Fingers right and down carry the map with them: the origin goes
+             * west by dx and north by dy, as a drag would. */
+            CHECK(fabs(picker->origin_x - (origin_x - 30.0 / zoom)) < 1e-6
+                      && fabs(picker->origin_z - (origin_z + 20.0 / zoom)) < 1e-6,
+                "a PAN frame pans the map with the fingers (%.4f,%.4f -> %.4f,%.4f)", origin_x, origin_z,
+                picker->origin_x, picker->origin_z);
+        }
+    }
+
     /* Off every panel nothing is taken: the game keeps its wheel, and an
      * unclaimed pinch is the caller's to drop. */
     memset(&f, 0, sizeof(f));
@@ -3654,6 +3709,33 @@ fake_preview_invalidate(void* user)
     g_preview_resets++;
 }
 
+/* What the Preview's gestures asked of the App (workbench 6.1). */
+static int g_preview_orbit_pitch;
+static int g_preview_orbit_yaw;
+static int g_preview_orbits;
+static int g_preview_zoom_q16;
+
+static void
+fake_preview_orbit(
+    void* user,
+    int pitch_step,
+    int yaw_step)
+{
+    (void)user;
+    g_preview_orbit_pitch += pitch_step;
+    g_preview_orbit_yaw += yaw_step;
+    g_preview_orbits++;
+}
+
+static void
+fake_preview_zoom(
+    void* user,
+    int ratio_q16)
+{
+    (void)user;
+    g_preview_zoom_q16 = ratio_q16;
+}
+
 /** layout_boot with services standing in for an App: the Catalog, and with
  *  it the Preview and Record panels, register. */
 static void
@@ -3673,6 +3755,8 @@ layout_boot_catalog(
     g_ui.hooks.selection_changed = fake_selection_changed;
     g_ui.app_services.user_data = &g_preview_app_stand_in;
     g_ui.app_services.preview_invalidate = fake_preview_invalidate;
+    g_ui.app_services.preview_orbit = fake_preview_orbit;
+    g_ui.app_services.preview_zoom = fake_preview_zoom;
     g_ui.app_services.world_camera = fake_world_camera;
     g_ui.app_services.spawn_panel = fake_spawn_panel;
     Editor_UiRegisterToolsPanels(&g_ui);
@@ -3847,6 +3931,51 @@ test_preview(void)
     /* Reset view: the App's camera back to the default pose. */
     activate(reset);
     CHECK(g_preview_resets == 1, "preview: Reset view asks the App for the default pose (%d)", g_preview_resets);
+
+    /* Gestures over the well (workbench 6.1), no focus needed: a pan orbits
+     * at the middle-drag's gearing (4 yaw, 2 pitch a logical px), a slow one
+     * still turns it, and a pinch zooms by its ratio. */
+    {
+        struct ToriRSChromeWidget const* w = &g_chrome.widgets[view];
+        struct ToriRSChromeGesture g;
+        int const scale = g_chrome.scale > 0 ? g_chrome.scale : 1;
+
+        g_preview_orbit_pitch = g_preview_orbit_yaw = g_preview_orbits = g_preview_zoom_q16 = 0;
+        memset(&g, 0, sizeof(g));
+        g.kind = TORIRS_CHROME_GESTURE_PAN;
+        g.x = w->x + w->w / 2;
+        g.y = w->y + w->h / 2;
+        g.dx = 10 * scale;
+        g.dy = -3 * scale;
+        g.fingers = 1;
+        g.phase = TORIRS_CHROME_GESTURE_UPDATE;
+        CHECK(ToriRSChrome_Gesture(&g_chrome, &g) == 1, "preview: a pan over the well is the chrome's");
+        frame();
+        CHECK(g_preview_orbit_yaw == 40 && g_preview_orbit_pitch == -6,
+            "preview: a pan orbits, 4 yaw and 2 pitch a px (%d, %d)", g_preview_orbit_yaw, g_preview_orbit_pitch);
+        /* A quarter px of yaw a frame: four frames make one step. */
+        g.dx = 0;
+        g.dy = 0;
+        g_preview_orbit_yaw = 0;
+        for( int i = 0; i < 4; i++ )
+        {
+            struct ToriRSChromeEvent ev;
+            memset(&ev, 0, sizeof(ev));
+            ev.kind = TORIRS_CHROME_EVENT_VIEW_ORBIT;
+            ev.widget = view;
+            ev.serial = g_chrome.widgets[view].serial;
+            ev.dx = 64;
+            (void)ToriRSChrome_PushEvent(&g_chrome, &ev);
+            frame();
+        }
+        CHECK(g_preview_orbit_yaw == 4, "preview: a slow finger still turns it (%d)", g_preview_orbit_yaw);
+        g.kind = TORIRS_CHROME_GESTURE_PINCH;
+        g.scale_q16 = 3 * 65536 / 2;
+        g.fingers = 2;
+        CHECK(ToriRSChrome_Gesture(&g_chrome, &g) == 1, "preview: a pinch over the well is the chrome's");
+        frame();
+        CHECK(g_preview_zoom_q16 == 3 * 65536 / 2, "preview: a pinch zooms by its ratio (%d)", g_preview_zoom_q16);
+    }
 
     /* The well fills the body, and grows with the panel. */
     (void)ToriRSChrome_ModelViewBox(&g_chrome, view, &box_w, &box_h, &well_w, &well_h);

@@ -627,6 +627,17 @@ PlatformWindow_SetTouchOverlayTest(
     struct PlatformWindow* platform, ToriRS_TouchOverlayFn fn, void* user);
 
 /**
+ * Whether two or more fingers on a touchscreen become gesture frames
+ * (TORIRS_CMD_GESTURE_PAN / _PINCH / _TWIST) instead of the game's wheel
+ * notches and arrow keys: ToriRS_TouchSetGestureFrames on this window's touch
+ * state. Off by default, so the game is unchanged; the client turns it on
+ * while the map editor owns the touch (App_EditorOwnsTouch). Compare-then-set,
+ * so it is safe to call every frame. A no-op on a backend with no touch state.
+ */
+void
+PlatformWindow_SetTouchGestureFrames(struct PlatformWindow* platform, int on);
+
+/**
  * Whether the canvas tracks the window, with the game area's floor in points.
  *
  * `min_w`/`min_h` is the window's minimum size in both modes, and in FIXED

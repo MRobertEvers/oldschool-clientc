@@ -1,4 +1,5 @@
 #include "input/torirs_input.h"
+#include "input/torirs_gesture.h"
 #include "mem/torirs_mem.h"
 
 #include <assert.h>
@@ -385,6 +386,7 @@ LibToriRS_Input_PushGesture(
     assert(gesture->phase < LIBTORIRS_GESTURE_PHASE_COUNT);
     assert(gesture->scale > 0.0f);
 
+    input->gesture_last_touch = (gesture->flags & LIBTORIRS_GESTURE_FLAG_TOUCH) != 0;
     if( input->gesture_count < LIBTORIRS_GESTURE_MAX )
     {
         input->gestures[input->gesture_count++] = *gesture;
@@ -418,4 +420,29 @@ LibToriRS_Input_PushGesture(
     }
     input->gesture_dropped++;
     input->gesture_dropped_total++;
+}
+
+int
+ToriRS_InputGestures(
+    const struct LibToriRS_Input* input,
+    const struct LibToriRS_Gesture** out)
+{
+    assert(input);
+    assert(out);
+    assert(input->gesture_count >= 0);
+    assert(input->gesture_count <= LIBTORIRS_GESTURE_MAX);
+    if( input->gesture_count == 0 )
+    {
+        *out = NULL;
+        return 0;
+    }
+    *out = input->gestures;
+    return input->gesture_count;
+}
+
+int
+ToriRS_InputLastWasTouch(const struct LibToriRS_Input* input)
+{
+    assert(input);
+    return input->gesture_last_touch;
 }

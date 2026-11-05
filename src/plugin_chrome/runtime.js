@@ -43,7 +43,8 @@
     var INTENT = {
         ACTIVATE: 1, ACTION: 2, TOGGLE: 3, TEXT: 4, PICK: 5, TAB: 6,
         CLOSE: 7, CUSTOM_ACTIVATE: 8, CUSTOM_MENU: 9, EXPAND: 10, SCROLL: 11,
-        VALUE: 12, SPLIT: 13, CODE_EDIT: 14, GRAPH: 15, GRAPH_WHEEL: 16
+        VALUE: 12, SPLIT: 13, CODE_EDIT: 14, GRAPH: 15, GRAPH_WHEEL: 16,
+        GESTURE: 17
     };
     var ROW_ACTION = 0x1;
     var ROW_LOCKED = 0x2;
@@ -1119,10 +1120,18 @@
                 break;
             }
             case W.MODELVIEW: {
-                var model = document.createElement('div');
-                model.className = 'tpc-model';
-                row.appendChild(model);
-                record.control = model;
+                var model_1 = document.createElement('div');
+                model_1.className = 'tpc-model';
+                row.appendChild(model_1);
+                record.control = model_1;
+                /* One finger orbits, two pinch: the canvas well's rules. */
+                bindGestures(model_1, record, true);
+                bind(model_1, 'wheel', function (event) {
+                    if (!wheelPinch(model_1, record, event))
+                        return;
+                    if (event.preventDefault)
+                        event.preventDefault();
+                });
                 break;
             }
             case W.TABSTRIP:
@@ -1396,6 +1405,108 @@
         }
         return 0;
     }
+    /* Gesture frames from the browser's own events (design section 14, the
+     * web's row: touch pairs, ctrl+wheel as a pinch, Safari's gesturechange),
+     * posted as GESTURE intents the model routes by its own rules
+     * (ToriRSChrome_GestureWidget). One finger on a model view orbits; two
+     * fingers pan, pinch and twist. Numbers are logical px and q16. */
+    var GESTURE = { PAN: 1, PINCH: 2, TWIST: 3 };
+    var GESTURE_PHASE = { BEGIN: 0, UPDATE: 1, END: 2 };
+    function postGesture(record, kind, point, dx, dy, fingers, scale, radians, phase) {
+        var q16 = function (value) { return Math.round(value * 65536); };
+        postWidget(record, INTENT.GESTURE, kind, "".concat(Math.round(dx), " ").concat(Math.round(dy), " ").concat(fingers, " ").concat(q16(scale), " ").concat(q16(radians), " ").concat(phase), point.x, point.y);
+    }
+    function touchPair(node, event) {
+        var touches = event.touches || [];
+        if (touches.length < 2)
+            return null;
+        var a = editorPoint(node, touches[0]);
+        var b = editorPoint(node, touches[1]);
+        var dx = b.x - a.x;
+        var dy = b.y - a.y;
+        return {
+            x: (a.x + b.x) / 2, y: (a.y + b.y) / 2,
+            distance: Math.sqrt(dx * dx + dy * dy), angle: Math.atan2(dy, dx)
+        };
+    }
+    function bindGestures(node, record, oneFingerPans) {
+        var last = null;
+        var phase = GESTURE_PHASE.BEGIN;
+        var gestureScale = 1;
+        var stop = function (event) {
+            if (event.preventDefault)
+                event.preventDefault();
+            else
+                event.returnValue = false;
+        };
+        var point = function (at) { return ({ x: Math.floor(at.x), y: Math.floor(at.y) }); };
+        /* A single finger's start and end are left to the browser, so a tap is
+         * still the click it synthesises (a square picked, a well focused);
+         * only a moving finger, and a second one, are the gesture's. */
+        bind(node, 'touchstart', function (event) {
+            last = null;
+            phase = GESTURE_PHASE.BEGIN;
+            if ((event.touches || []).length >= 2)
+                stop(event);
+        });
+        bind(node, 'touchmove', function (event) {
+            var touches = event.touches || [];
+            stop(event);
+            if (touches.length >= 2) {
+                var pair = touchPair(node, event);
+                if (last && last.fingers === 2) {
+                    postGesture(record, GESTURE.PAN, point(pair), pair.x - last.x, pair.y - last.y, 2, 1, 0, phase);
+                    if (last.distance > 0 && pair.distance > 0)
+                        postGesture(record, GESTURE.PINCH, point(pair), 0, 0, 2, pair.distance / last.distance, 0, phase);
+                    var turn = pair.angle - last.angle;
+                    if (turn > Math.PI)
+                        turn -= 2 * Math.PI;
+                    if (turn < -Math.PI)
+                        turn += 2 * Math.PI;
+                    postGesture(record, GESTURE.TWIST, point(pair), 0, 0, 2, 1, turn, phase);
+                    phase = GESTURE_PHASE.UPDATE;
+                }
+                last = { fingers: 2, x: pair.x, y: pair.y, distance: pair.distance, angle: pair.angle };
+                return;
+            }
+            if (touches.length !== 1 || !oneFingerPans)
+                return;
+            var at = editorPoint(node, touches[0]);
+            if (last && last.fingers === 1) {
+                postGesture(record, GESTURE.PAN, at, at.x - last.x, at.y - last.y, 1, 1, 0, phase);
+                phase = GESTURE_PHASE.UPDATE;
+            }
+            last = { fingers: 1, x: at.x, y: at.y, distance: 0, angle: 0 };
+        });
+        bind(node, 'touchend', function () {
+            if (last && phase !== GESTURE_PHASE.BEGIN)
+                postGesture(record, GESTURE.PAN, point(last), 0, 0, last.fingers, 1, 0, GESTURE_PHASE.END);
+            last = null;
+        });
+        /* Safari's trackpad pinch: its scale is the gesture's total, so each
+         * change posts its ratio to the last. */
+        bind(node, 'gesturestart', function (event) { gestureScale = 1; stop(event); });
+        bind(node, 'gesturechange', function (event) {
+            var scale = Number(event.scale) || 1;
+            stop(event);
+            if (gestureScale > 0)
+                postGesture(record, GESTURE.PINCH, editorPoint(node, event), 0, 0, 2, scale / gestureScale, 0, GESTURE_PHASE.UPDATE);
+            gestureScale = scale;
+        });
+    }
+    /** ctrl+wheel (a browser's trackpad pinch, or ctrl held over a mouse
+     *  wheel) as a continuous pinch: 1.25 a notch, as the canvas's
+     *  TORIRS_CHROME_PINCH_WHEEL_STEP, a fraction of a notch the same
+     *  fraction of the ratio. @return true when it was one. */
+    function wheelPinch(node, record, event) {
+        if (!event.ctrlKey)
+            return false;
+        var notches = -(event.deltaY || -(event.wheelDelta || 0)) / 100;
+        if (!notches)
+            return false;
+        postGesture(record, GESTURE.PINCH, editorPoint(node, event), 0, 0, 2, Math.pow(1.25, notches), 0, GESTURE_PHASE.UPDATE);
+        return true;
+    }
     function createEditorWidget(record, row) {
         record.value = 0;
         record.first = 0;
@@ -1569,10 +1680,13 @@
                         event.preventDefault();
                     else
                         event.returnValue = false;
+                    if (wheelPinch(well_1, record, event))
+                        return;
                     postWidget(record, INTENT.GRAPH_WHEEL, delta, '', point.x, point.y);
                 };
                 bind(well_1, 'wheel', wheel);
                 bind(well_1, 'mousewheel', wheel);
+                bindGestures(well_1, record, false);
                 row.appendChild(well_1);
                 record.control = well_1;
                 record.hoverKey = 0;

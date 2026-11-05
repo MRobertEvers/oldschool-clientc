@@ -10088,3 +10088,5 @@ ToriRSChrome_ActivationWasCustom(
 /* The map editor's widgets: this file's second half. @see the forward
  * declarations at the top. */
 #include "uitree_debug_overlay_widgets.u.c"
+/* Gesture frames into the widgets above (workbench 6.1). */
+#include "uitree_debug_overlay_gesture.u.c"

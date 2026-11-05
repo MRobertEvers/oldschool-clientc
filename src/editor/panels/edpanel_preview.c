@@ -15,6 +15,12 @@
  *              has the focus WASD / arrows orbit and E / F zoom
  *              (app_loc_editor.c), and the editor's hotkeys stand aside
  *              (app_editor_hotkeys.c: a focused model view gates them).
+ *              Gestures need no focus (workbench 6.1): a pan over the well
+ *              orbits it (TORIRS_CHROME_EVENT_VIEW_ORBIT, the middle-drag's
+ *              gearing: 4 yaw and 2 pitch a logical px, the way the orbit
+ *              keys turn it) and a pinch zooms by its ratio
+ *              (TORIRS_CHROME_EVENT_VIEW_ZOOM), through
+ *              app_services.preview_orbit / preview_zoom.
  *   Reset view the camera back to the default pose and a fresh fit
  *              (EditorUiAppServices.preview_invalidate).
  *   Add to palette  the pick into the Catalog palette's first free slot
@@ -60,6 +66,10 @@
 #define PREVIEW_WELL_MIN_H 64
 /** TORIRS_EDITOR_PREVIEW entries. */
 #define PREVIEW_ENV_MAX 4
+/** A pan's orbit per logical px: the World's middle-drag gearing
+ *  (APP_WORLD_MMB_YAW_PER_PX / _PITCH_PER_PX). */
+#define PREVIEW_ORBIT_YAW_PER_PX 4
+#define PREVIEW_ORBIT_PITCH_PER_PX 2
 
 struct PreviewEnvPick
 {
@@ -91,6 +101,10 @@ struct PreviewPanel
     int user_closed;
     /** How many times it opened itself (the tests read it). */
     int auto_opens;
+    /** The part of an orbit step a pan has moved and no whole step has
+     *  taken yet, 1/256 steps: a slow finger still turns the model. */
+    int orbit_rem_yaw;
+    int orbit_rem_pitch;
 
     /* TORIRS_EDITOR_PREVIEW */
     int env_read;
@@ -381,6 +395,49 @@ preview_activate(
     return widget == self->view;
 }
 
+/** Whole steps out of a q8 accumulator, the rest kept. */
+static int
+preview_steps(int* rem_q8)
+{
+    int const steps = *rem_q8 / 256;
+    *rem_q8 -= steps * 256;
+    return steps;
+}
+
+static int
+preview_event(
+    struct EditorUi* ui,
+    void* opaque,
+    const struct ToriRSChromeEvent* event)
+{
+    struct PreviewPanel* self = opaque;
+
+    if( event->widget != self->view )
+        return 0;
+    if( event->kind == TORIRS_CHROME_EVENT_VIEW_ORBIT )
+    {
+        int yaw;
+        int pitch;
+
+        /* The fingers' way, as the keys: right is the right arrow's yaw,
+         * down the down arrow's pitch. */
+        self->orbit_rem_yaw += event->dx * PREVIEW_ORBIT_YAW_PER_PX;
+        self->orbit_rem_pitch += event->dy * PREVIEW_ORBIT_PITCH_PER_PX;
+        yaw = preview_steps(&self->orbit_rem_yaw);
+        pitch = preview_steps(&self->orbit_rem_pitch);
+        if( (yaw != 0 || pitch != 0) && ui->app_services.preview_orbit )
+            ui->app_services.preview_orbit(ui->app_services.user_data, pitch, yaw);
+        return 1;
+    }
+    if( event->kind == TORIRS_CHROME_EVENT_VIEW_ZOOM )
+    {
+        if( event->value > 0 && ui->app_services.preview_zoom )
+            ui->app_services.preview_zoom(ui->app_services.user_data, event->value);
+        return 1;
+    }
+    return 0;
+}
+
 static void
 preview_destroy(
     struct EditorUi* ui,
@@ -416,7 +473,7 @@ Editor_Preview_Register(struct EditorUi* ui)
      * fits it to the panel from the first Build on. */
     self->view = ToriRSChrome_ModelView(chrome, self->panel, well_w, well_w * 4 / 5);
     assert(self->view >= 0);
-    ToriRSChrome_SetTooltip(chrome, self->view, "click, then WASD / arrows orbit, E / F zoom");
+    ToriRSChrome_SetTooltip(chrome, self->view, "click: WASD orbit, E/F zoom; or drag to orbit, pinch to zoom");
     self->item_reset = ToriRSChrome_MenuItem(chrome, self->panel, "Reset view");
     self->item_add_palette = ToriRSChrome_MenuItem(chrome, self->panel, "Add to palette");
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);
@@ -429,6 +486,7 @@ Editor_Preview_Register(struct EditorUi* ui)
     desc.chrome_panel = self->panel;
     desc.tick = preview_tick;
     desc.activate = preview_activate;
+    desc.event = preview_event;
     desc.destroy = preview_destroy;
     desc.stretch = preview_stretch;
     Editor_UiAddPanel(ui, &desc);

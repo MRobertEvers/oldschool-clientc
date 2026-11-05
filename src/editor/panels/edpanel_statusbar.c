@@ -12,7 +12,10 @@
  *                   Editor_HotkeysHint over the contexts the shared tools make
  *                   live now (Editor_HotkeyContextsFrom: the same rules the
  *                   key dispatcher resolves by), so the strip lists what a key
- *                   does this frame and a rebind relabels it the next;
+ *                   does this frame and a rebind relabels it the next; while
+ *                   the last input was a finger (EditorUi::input_touch) the
+ *                   gestures instead, "[2 fingers] pan", "[pinch] zoom",
+ *                   "[hold] menu";
  *   the hover       the tile under the pointer, the level edits go to and the
  *                   square ("3222,3218 L1 | m50_50"), from
  *                   app_services.hover_tile; empty when nothing is hovered;
@@ -69,6 +72,7 @@ struct StatusBarPanel
     int hint_tool;
     unsigned hint_contexts;
     uint32_t hint_serial;
+    int hint_touch;
     /* The width and scale the runs were last fitted to; `refit` set when a
      * track's text changed since. */
     int fit_w;
@@ -281,12 +285,17 @@ statusbar_tick(
         facts.rect_valid = ui->tools.rect.valid;
         contexts = Editor_HotkeyContextsFrom(&facts);
     }
-    if( facts.tool != self->hint_tool || contexts != self->hint_contexts || ui->hotkeys.serial != self->hint_serial )
+    /* The touch flag (Editor_UiSetTouchInput, the input's last-event kind):
+     * a finger's strip names the gestures, not the mouse. */
+    if( facts.tool != self->hint_tool || contexts != self->hint_contexts || ui->hotkeys.serial != self->hint_serial ||
+        ui->input_touch != self->hint_touch )
     {
         self->hint_tool = facts.tool;
         self->hint_contexts = contexts;
         self->hint_serial = ui->hotkeys.serial;
-        self->hint_count = Editor_HotkeysHint(&ui->hotkeys, contexts, facts.tool, self->hints, EDITOR_HK_HINT_MAX);
+        self->hint_touch = ui->input_touch;
+        self->hint_count = Editor_HotkeysHint(
+            &ui->hotkeys, contexts, facts.tool, ui->input_touch, self->hints, EDITOR_HK_HINT_MAX);
         self->refit = 1;
     }
 

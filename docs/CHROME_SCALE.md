@@ -7,6 +7,14 @@ once-rounded metrics, area-averaging down from the tier at or above the
 scale) is the draw path's business and another slice's; this part gives it the
 art and one accessor for each kind.
 
+Since the 6.0b integration (2026-11-05) the bake's skin cache
+(`ToriRSChromeBake_Skin`, src/ui/torirs_chrome_bake.c) reads these tiers
+through `ToriRSChromeSkin_SpriteTier`: at a fractional scale it area-averages
+down from the tier at or above it, at 2x and 3x it uses the tier itself. The
+integer draw path the native client runs today (the scene bridge's fonts and
+skin) still draws 1x art scaled; docs/MAPED_STATUS.md "Workbench steps 6.0b
+and 6.1" lists what is left.
+
 ## What is baked
 
 | Art | 1x | 2x and 3x | Tool |

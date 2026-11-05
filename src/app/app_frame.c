@@ -810,6 +810,9 @@ App_RunOnce(
         /* A viewer window's toolbar, camera read-back and broadcast; it takes
          * the frame's activation only while the command panels are hidden. */
         EditorView_AppFrame(app);
+        /* The gesture frames before the editor's tick: the chrome's events
+         * they queue (a picker zoom, a Preview orbit) drain in it. */
+        app_map_editor_gestures(app, input);
         Editor_PanelTick(&app->editor_panel, app);
         /* Interface editor pick: with picking armed, a left press in the view
          * selects the edited interface's component under it. Ahead of the

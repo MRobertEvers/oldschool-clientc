@@ -263,6 +263,12 @@ struct Editor_HotkeyActionInfo
     const char* defaults[EDITOR_HK_CHORDS];
     /** View actions: the registry module the action shows / hides. */
     const char* panel;
+    /** The gesture that does the same on a trackpad or a touchscreen (design
+     *  section 14's table, section 15's "gesture" column): "2 fingers" (the
+     *  World's pan: the fly moves), "pinch" (the eye distance), "twist" (the
+     *  turn); NULL where none does. The hint strip spells it while the last
+     *  input was a finger. */
+    const char* gesture;
 };
 
 struct Editor_HotkeyBinding
@@ -425,7 +431,8 @@ struct Editor_HotkeyHint
 {
     /** What to press, as the strip prints it: the mouse word ("click",
      *  "drag"), then the live chords ("click/Space, Enter", "Shift+[ ]",
-     *  "arrows" for the four nudges on the arrow keys). */
+     *  "arrows" for the four nudges on the arrow keys). With `touch`, the
+     *  finger's word alone ("tap", "drag", "2 fingers", "pinch", "hold"). */
     char chord[EDITOR_HK_HINT_CHORD_MAX];
     /** What it does, one short word or two ("rotate", "add loc"). Static. */
     const char* verb;
@@ -439,6 +446,13 @@ struct Editor_HotkeyHint
  * implied), in the tool's fixed order, into `out_rows` (at most `max`).
  * A row whose actions are unbound or not live keeps only its mouse word, and
  * is dropped when it has none. Returns how many were written.
+ *
+ * `touch` (the last input was a finger): the gesture words replace the
+ * mouse words. The tool's pointer rows say the finger's ("tap tile", "drag
+ * marquee"; a row with no finger spelling, Shift+click, is dropped, and so
+ * are the keyboard's), then the camera's from the table's gesture spellings
+ * and the long press: "2 fingers" pan, "pinch" zoom, "twist" turn, "hold"
+ * menu. A camera action with no gesture spelling keeps its row out.
  *
  * The rows, per tool (chords are the defaults; the table decides):
  *
@@ -460,6 +474,7 @@ Editor_HotkeysHint(
     const struct Editor_Hotkeys* hk,
     unsigned contexts,
     int tool,
+    int touch,
     struct Editor_HotkeyHint* out_rows,
     int max);
 

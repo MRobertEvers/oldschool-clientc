@@ -2,6 +2,7 @@
 
 #include "editor.h"
 #include "editor_view.h"
+#include "input/torirs_gesture.h"
 #include "builder/builder_panels.h"
 #include "iface/iface_panels.h"
 #include "live/live_panel.h"
@@ -14,6 +15,7 @@
 #include "ui/uitree_debug_overlay.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -3340,6 +3342,61 @@ ui_truncations_drain(struct EditorUi* ui)
         Editor_UiLog(ui, "chrome: %d more cut string(s) were not kept (the ring holds %d)", dropped,
             TORIRS_CHROME_TRUNCATION_RING);
 }
+
+/* ---- gesture frames (workbench 6.1, design section 14) -------------------- */
+
+int
+Editor_UiGesture(
+    struct EditorUi* ui,
+    const struct LibToriRS_Gesture* frame)
+{
+    static int const k_kind[LIBTORIRS_GESTURE_KIND_COUNT] = {
+        [LIBTORIRS_GESTURE_PAN] = TORIRS_CHROME_GESTURE_PAN,
+        [LIBTORIRS_GESTURE_PINCH] = TORIRS_CHROME_GESTURE_PINCH,
+        [LIBTORIRS_GESTURE_TWIST] = TORIRS_CHROME_GESTURE_TWIST,
+    };
+    static int const k_phase[LIBTORIRS_GESTURE_PHASE_COUNT] = {
+        [LIBTORIRS_GESTURE_BEGIN] = TORIRS_CHROME_GESTURE_BEGIN,
+        [LIBTORIRS_GESTURE_UPDATE] = TORIRS_CHROME_GESTURE_UPDATE,
+        [LIBTORIRS_GESTURE_END] = TORIRS_CHROME_GESTURE_END,
+    };
+    struct ToriRSChromeGesture gesture;
+
+    assert(ui);
+    assert(frame);
+    assert(frame->kind < LIBTORIRS_GESTURE_KIND_COUNT);
+    assert(frame->phase < LIBTORIRS_GESTURE_PHASE_COUNT);
+    assert(frame->scale > 0.0f);
+    /* Any panel of the instance, not only the editor's: the loc editor's
+     * windows share it, and a frame over one must not reach the World. */
+    if( !ToriRSChrome_HasVisiblePanel(ui->chrome) )
+        return 0;
+    /* The decoded frame (input/torirs_input.h) in the chrome's own copy of
+     * it: ui/ includes nothing of input/. The chrome keeps its own part-pixel
+     * remainders (pan_rem), so whole pixels are what it is handed. */
+    gesture.kind = k_kind[frame->kind];
+    gesture.x = frame->x;
+    gesture.y = frame->y;
+    gesture.dx = (int)lroundf(frame->dx);
+    gesture.dy = (int)lroundf(frame->dy);
+    gesture.fingers = frame->fingers;
+    gesture.scale_q16 = (int)lroundf(frame->scale * 65536.0f);
+    if( gesture.scale_q16 < 1 )
+        gesture.scale_q16 = 1;
+    gesture.radians_q16 = (int)lroundf(frame->radians * 65536.0f);
+    gesture.phase = k_phase[frame->phase];
+    return ToriRSChrome_Gesture(ui->chrome, &gesture);
+}
+
+void
+Editor_UiSetTouchInput(
+    struct EditorUi* ui,
+    int touch)
+{
+    assert(ui);
+    ui->input_touch = touch != 0;
+}
+
 
 void
 Editor_UiTick(struct EditorUi* ui)

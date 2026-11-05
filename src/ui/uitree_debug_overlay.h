@@ -1158,6 +1158,13 @@ enum ToriRSChromeEventKind
      *  pointer. A mouse wheel never sends this; it stays GRAPH_WHEEL.
      *  @see ToriRSChrome_Scroll. */
     TORIRS_CHROME_EVENT_GRAPH_SCROLL,
+    /** A two-finger pan over a MODELVIEW: orbit the model by `dx` (yaw) and
+     *  `dy` (pitch), 1/256 well logical px, the way the fingers moved.
+     *  @see ToriRSChrome_Gesture. */
+    TORIRS_CHROME_EVENT_VIEW_ORBIT,
+    /** A pinch over a MODELVIEW: `value` / 65536 is the ratio since the last
+     *  (> 1 apart, closer). @see ToriRSChrome_Gesture. */
+    TORIRS_CHROME_EVENT_VIEW_ZOOM,
 };
 
 /** One queued GRAPH gesture or CODE edit. @see ToriRSChrome_TakeEvent. */
@@ -1424,6 +1431,10 @@ struct ToriRSChromeWidget
     int iaux;
     /** VLIST/CODE: the first of this widget's `rows` pool slots, -1 none. */
     int vrow_first;
+    /** VLIST/CODE/TEXTAREA: the part of a row a two-finger pan has moved and
+     *  no whole row has taken yet, surface px (ToriRSChrome_Gesture). Model
+     *  state only: nothing draws it. */
+    int pan_rem;
     /** GRAPH: this well's items are graph_items[first .. first + count). */
     int graph_first;
     int graph_count;
@@ -3140,6 +3151,89 @@ struct ToriRSChromeWheelFrame
  */
 int
 ToriRSChrome_WheelFrame(struct ToriRSChrome* ui, struct ToriRSChromeWheelFrame const* frame);
+
+/** enum ToriRSChromeGestureKind: struct ToriRSChromeGesture::kind, and the
+ *  executor's TORIRS_CHROME_INTENT_GESTURE numbering. Not the input's
+ *  enum LibToriRS_GestureKind (PAN is 0 there): Editor_UiGesture maps it. */
+enum ToriRSChromeGestureKind
+{
+    TORIRS_CHROME_GESTURE_PAN = 1,
+    TORIRS_CHROME_GESTURE_PINCH = 2,
+    TORIRS_CHROME_GESTURE_TWIST = 3,
+};
+
+/** enum ToriRSChromeGesturePhase (the input's enum LibToriRS_GesturePhase
+ *  in the same order; Editor_UiGesture maps it). */
+enum ToriRSChromeGesturePhase
+{
+    TORIRS_CHROME_GESTURE_BEGIN = 0,
+    TORIRS_CHROME_GESTURE_UPDATE = 1,
+    TORIRS_CHROME_GESTURE_END = 2,
+};
+
+/**
+ * One gesture frame (workbench design section 14: TORIRS_CMD_GESTURE_PAN /
+ * PINCH / TWIST), surface pixels. The chrome's own copy of the bus's struct
+ * LibToriRS_Gesture (in whole pixels and q16), as ToriRSChromeWheelFrame is of the
+ * input's wheel: ui/ includes nothing of input/.
+ */
+struct ToriRSChromeGesture
+{
+    /** enum ToriRSChromeGestureKind. */
+    int kind;
+    int x;
+    int y;
+    /** PAN: surface px since the last frame, and the fingers. */
+    int dx;
+    int dy;
+    int fingers;
+    /** PINCH: the ratio since the last frame, 65536 = 1, > 1 apart. */
+    int scale_q16;
+    /** TWIST: radians since the last frame, 65536 = 1. */
+    int radians_q16;
+    /** enum ToriRSChromeGesturePhase. */
+    int phase;
+};
+
+/**
+ * Route one gesture frame to the widget under (x, y) (design section 14's
+ * table and its touch rules):
+ *
+ *   GRAPH       PAN is a scroll (TORIRS_CHROME_EVENT_GRAPH_SCROLL, the
+ *               content following the fingers), PINCH a continuous pinch
+ *               about (x, y) through ToriRSChrome_Pinch; TWIST nothing.
+ *   MODELVIEW   PAN orbits (TORIRS_CHROME_EVENT_VIEW_ORBIT: dx yaw, dy
+ *               pitch), PINCH zooms (TORIRS_CHROME_EVENT_VIEW_ZOOM); TWIST
+ *               (a roll) nothing.
+ *   VLIST, CODE a two-finger PAN scrolls by PIXELS (the rows move under the
+ *               fingers; a part row is kept for the next frame); TEXTAREA
+ *               scrolls its lines the same way when they overflow it.
+ *   anything    else on a panel (a TREE's rows, a SLIDER, the panel body):
+ *               a two-finger PAN scrolls the panel by pixels.
+ *
+ * A PINCH or TWIST anywhere but a GRAPH or MODELVIEW is ignored -- a list
+ * zooms nothing, and a stray second finger must never jump it -- and a
+ * one-finger PAN is the pointer's (the touch layer drags it already); both
+ * still count as taken over a panel, so the World behind stays still. An
+ * open modal swallows every frame.
+ *
+ * @return 1 when the chrome took the frame (it was over chrome), 0 when it
+ * is the caller's (the World's).
+ */
+int
+ToriRSChrome_Gesture(struct ToriRSChrome* ui, struct ToriRSChromeGesture const* gesture);
+
+/**
+ * The same, addressed at `widget` by an executor that hit-tested it itself
+ * (TORIRS_CHROME_INTENT_GESTURE: a browser's touch or gesture events on the
+ * DOM well). `gesture`'s x, y are WIDGET-local logical units, dx, dy logical
+ * px. @return 1 when the widget's kind takes that gesture.
+ */
+int
+ToriRSChrome_GestureWidget(
+    struct ToriRSChrome* ui,
+    int widget,
+    struct ToriRSChromeGesture const* gesture);
 
 /**
  * Move model focus to `widget` and place its caret, compare-then-set.

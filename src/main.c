@@ -3939,12 +3939,19 @@ frame_loop_step(void)
                  * the camera gesture a box that is no longer on the canvas --
                  * every other reader of the desc guards it the same way.
                  */
+                /* With the map editor open a one-finger drag is the armed
+                 * tool's, never the camera's (App_EditorOwnsTouch). */
+                int const touch_world = app.world_view_valid && !App_EditorOwnsTouch(&app);
                 PlatformWindow_SetTouchViewport(
                     platform,
-                    app.world_view_valid ? app.world_emit_desc.x : 0,
-                    app.world_view_valid ? app.world_emit_desc.y : 0,
-                    app.world_view_valid ? app.world_emit_desc.w : 0,
-                    app.world_view_valid ? app.world_emit_desc.h : 0);
+                    touch_world ? app.world_emit_desc.x : 0,
+                    touch_world ? app.world_emit_desc.y : 0,
+                    touch_world ? app.world_emit_desc.w : 0,
+                    touch_world ? app.world_emit_desc.h : 0);
+                /* And two fingers are the editor's gesture frames (the World
+                 * camera, a GRAPH, a list), not the game's wheel notches and
+                 * arrow keys, which would pan and turn the World at once. */
+                PlatformWindow_SetTouchGestureFrames(platform, App_EditorOwnsTouch(&app));
                 PlatformWindow_PollCommands(platform, &bus);
                 if( sock )
                 {

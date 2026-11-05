@@ -313,6 +313,11 @@ struct LibToriRS_Input
     int gesture_count;
     int gesture_dropped;
     long gesture_dropped_total;
+    /* The last gesture frame pushed carried LIBTORIRS_GESTURE_FLAG_TOUCH: a
+     * finger, not a trackpad or a wheel. Not cleared by Begin -- it is "what
+     * the person last gestured with", which holds across quiet frames
+     * (ToriRS_InputLastWasTouch). */
+    int gesture_last_touch;
 
     /* Key state indexed by OSRS internal code, backing the CS2 KEYHELD and
      * KEYPRESSED opcodes. Updated for character keys too, unlike key_events,

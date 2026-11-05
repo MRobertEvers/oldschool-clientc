@@ -294,6 +294,13 @@ struct EditorUiAppServices
     /** Put the catalog's model preview back at its default pose. NULL
      *  member: nothing happens. */
     void (*preview_invalidate)(void* user_data);
+    /** Orbit the catalog's model preview by these steps (2048 a turn), as
+     *  its orbit keys do: a gesture over the Preview's well. NULL member:
+     *  nothing happens. */
+    void (*preview_orbit)(void* user_data, int pitch_step, int yaw_step);
+    /** Zoom it by a pinch's ratio, 65536 = 1 (> 1 closer). NULL member:
+     *  nothing happens. */
+    void (*preview_zoom)(void* user_data, int ratio_q16);
     /** 1 while the world is busy: a load in flight, or a square open still
      *  pending. NULL member: never busy. */
     int (*world_busy)(void* user_data);
@@ -598,6 +605,13 @@ struct EditorUi
      */
     unsigned hotkey_contexts;
     int hotkey_contexts_valid;
+    /**
+     * The last pointer input was a finger (Editor_UiSetTouchInput, from the
+     * input's last-event kind each frame): the hint strip then spells the
+     * gestures ("2 fingers: pan, pinch: zoom, hold: menu") instead of the
+     * mouse words. 0 in a headless test and on a mouse.
+     */
+    int input_touch;
 
     /** Set while a received fact is applied, so a module's own latching does
      *  not publish back what the server just said. */
@@ -990,6 +1004,27 @@ Editor_UiSetVisible(
  */
 void
 Editor_UiTick(struct EditorUi* ui);
+
+struct LibToriRS_Gesture;
+
+/**
+ * Offer one gesture frame (input/torirs_gesture.h) to the chrome the editor
+ * draws on (ToriRSChrome_Gesture: a GRAPH pans and zooms, a MODELVIEW
+ * orbits and zooms, a list scrolls by pixels), whenever any of its panels
+ * is up. Returns 1 when the chrome took it; 0 leaves it to the World.
+ * The events it queues are the modules' on the next Editor_UiTick.
+ */
+int
+Editor_UiGesture(
+    struct EditorUi* ui,
+    const struct LibToriRS_Gesture* frame);
+
+/** The touch flag: whether the last pointer input was a finger (@see
+ *  EditorUi::input_touch). The host sets it each frame from its input. */
+void
+Editor_UiSetTouchInput(
+    struct EditorUi* ui,
+    int touch);
 
 /**
  * The default layout, for the surface the chrome has now: the menu bar

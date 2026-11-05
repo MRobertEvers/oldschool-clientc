@@ -437,10 +437,20 @@ enum ToriRSChromeIntentKind
     TORIRS_CHROME_INTENT_GRAPH,
     /** The wheel over a GRAPH well: `value` = the delta, `x`/`y` as above. */
     TORIRS_CHROME_INTENT_GRAPH_WHEEL,
+    /**
+     * A gesture frame over a GRAPH, MODELVIEW or VLIST/CODE the browser
+     * hit-tested itself (its touch pairs, ctrl+wheel, Safari's
+     * gesturechange): `value` = enum ToriRSChromeGestureKind, `x`/`y` the
+     * gesture's centre in widget-local logical units, `text` the frame's
+     * numbers "dx dy fingers scale_q16 radians_q16 phase" (decimal, logical
+     * px). Applied through ToriRSChrome_GestureWidget, so the DOM's wells
+     * pan, zoom and orbit by the very rules the canvas's do.
+     */
+    TORIRS_CHROME_INTENT_GESTURE,
 };
 
 /** The highest intent kind; executors fence what they accept against it. */
-#define TORIRS_CHROME_INTENT_KIND_MAX TORIRS_CHROME_INTENT_GRAPH_WHEEL
+#define TORIRS_CHROME_INTENT_KIND_MAX TORIRS_CHROME_INTENT_GESTURE
 
 /*
  * There was a CONFIRM here -- "the Ok beside the close box was used" -- and it
