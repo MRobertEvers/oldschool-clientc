@@ -31,7 +31,8 @@
         WIDGET_SELECTED: 15, WIDGET_FOCUS: 16, WIDGET_OPTIONS: 17,
         WIDGET_OPTION: 18, CHECK_STYLE: 19, WIDGET_HEIGHT: 20,
         PANEL_MODE: 21, WIDGET_VALUE: 22, WIDGET_ROW: 23, WIDGET_SPAN: 24,
-        WIDGET_GRAPH: 25, WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27, WIDGET_CHORD: 28
+        WIDGET_GRAPH: 25, WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27, WIDGET_CHORD: 28,
+        SCALE: 29
     };
     var W = {
         LABEL: 0, CHECKBOX: 1, TEXTINPUT: 2, SEPARATOR: 3, MENUITEM: 4,
@@ -123,6 +124,9 @@
         panel: -1,
         activeTab: 0,
         checkStyle: 0,
+        /* The chrome scale, scaleQ / scaleDen (TORIRS_CHROME_CMD_SCALE). */
+        scaleQ: 4,
+        scaleDen: 4,
         widgets: new Store(),
         widgetsByTab: new Store(),
         checkWidgets: new Store(),
@@ -2076,8 +2080,29 @@
     function customHeightPx(rows) {
         return "".concat(Math.max(48, Math.min(512, rows || 120)), "px");
     }
+    /* The chrome scale (TORIRS_CHROME_CMD_SCALE): value / den device pixels
+     * per chrome pixel, 1.25x as 5 / 4. The page keeps authoring in 1x chrome
+     * pixels and zooms the whole shell by the ratio; its fonts are outlines and
+     * its skin is CSS, so nothing else has to change. The chrome's and not the
+     * page's: a snapshot without one does not reset it, because the C side
+     * tells an executor its scale once, not once per page; the hosts carry the
+     * last one they passed in every snapshot (scaleQ / scaleDen). */
+    function applyScale(value, den) {
+        var q = Math.max(1, value | 0);
+        var d = Math.max(1, den | 0);
+        if (q === state.scaleQ && d === state.scaleDen)
+            return;
+        state.scaleQ = q;
+        state.scaleDen = d;
+        shell.style.zoom = q === d ? '' : String(q / d);
+        reportLayout();
+    }
     function applyCommand(raw) {
         var command = normalizeCommand(raw);
+        if (command.k === CMD.SCALE) {
+            applyScale(command.v, command.cw);
+            return;
+        }
         if (command.k === CMD.CHECK_STYLE) {
             state.checkStyle = command.v;
             toggleClass(shell, 'tpc-check-square', command.v === 1);
@@ -2227,6 +2252,10 @@
         state.panel = panel;
         state.activeTab = 0;
         state.checkStyle = integer(message.checkStyle, 0);
+        /* A snapshot states the chrome scale when its sender knows it; one that
+         * does not (an older host) leaves the page at the scale it was told. */
+        if (message.scaleQ !== undefined)
+            applyScale(integer(message.scaleQ, 4), integer(message.scaleDen, 4));
         setText(title, message.title || 'Plugins');
         hidden(pane, false);
         toggleClass(shell, 'tpc-collapsed', false);
@@ -2312,7 +2341,10 @@
                 if (!customWidth && record.kind === W.CUSTOM && !record.hidden && record.control)
                     customWidth = Math.max(0, integer(record.control.clientWidth, 0));
             });
-        var scaleMilli = Math.max(1, Math.round(Number(global.devicePixelRatio || 1) * 1000));
+        /* Device pixels per chrome pixel: the display's ratio times the chrome's
+         * own zoom, so a custom well's bitmap is painted for the pixels it lands
+         * on. The pane's box is unzoomed CSS pixels, i.e. chrome pixels. */
+        var scaleMilli = Math.max(1, Math.round(Number(global.devicePixelRatio || 1) * state.scaleQ / state.scaleDen * 1000));
         var sizeClass = width < 320 ? 0 : (width >= 480 ? 2 : 1);
         var key = [state.rail.selectionGeneration, state.pageGeneration, width, height,
             customWidth, scaleMilli, sizeClass, visible ? 1 : 0, state.rail.railHidden ? 1 : 0].join(':');
@@ -3032,7 +3064,9 @@
                 panel: state.panel,
                 widgetCount: state.widgets.count,
                 queuedMessages: state.messages.length,
-                renderVisits: state.renderVisits
+                renderVisits: state.renderVisits,
+                scaleQ: state.scaleQ,
+                scaleDen: state.scaleDen
             };
         },
         constants: { CMD: CMD, W: W, INTENT: INTENT }

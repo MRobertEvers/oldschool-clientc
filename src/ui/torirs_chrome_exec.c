@@ -187,7 +187,8 @@ ToriRSChromeSync_Invalidate(struct ToriRSChromeSync* sync, uint32_t page_epoch)
      * two frames. @see TORIRS_CHROME_CMD_SYNC_BEGIN. */
     sync->restate = 1;
     /* @see ToriRSChromeSync::check_style -- an executor that was re-mounted
-     * has not been told the style either. */
+     * has not been told the style either. (The scale is the binding's, which
+     * a page boundary does not touch: @see ToriRSChromeSync::scale_q.) */
     sync->check_style = -1;
 }
 
@@ -200,8 +201,10 @@ ToriRSChromeSync_Init(struct ToriRSChromeSync* sync, struct ToriRSChromeExec con
     memset(sync, 0, sizeof(*sync));
     sync->exec = *exec;
     /* Not a style any model can hold, so the first Run states the real one --
-     * @see ToriRSChromeSync::check_style. */
+     * @see ToriRSChromeSync::check_style. The scale is the executor's own
+     * default instead -- @see ToriRSChromeSync::scale_q. */
     sync->check_style = -1;
+    sync->scale_q = TORIRS_CHROME_SCALE_Q_ONE;
     /*
      * A fresh binding is the same fact as an invalidated one -- the executor
      * holds nothing -- so the first transaction says so too. That keeps the
@@ -256,7 +259,7 @@ sync_add_shape(
     case TORIRS_CHROME_W_CUSTOM:
     case TORIRS_CHROME_W_GRAPH:
         *out_w = 0;
-        *out_h = w->view_h / (ui->scale > 0 ? ui->scale : 1);
+        *out_h = ToriRSChrome_UnscalePx(ui->scale_q, w->view_h);
         return;
     case TORIRS_CHROME_W_TREE:
     case TORIRS_CHROME_W_RADIO:
@@ -502,6 +505,24 @@ sync_insert_before(
 }
 
 /**
+ * State the chrome scale, if this executor has not been told it: SCALE with
+ * `value` / `w` = the scale as a rational, q / 4. @see TORIRS_CHROME_CMD_SCALE.
+ */
+static void
+sync_scale(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
+{
+    struct ToriRSChromeCmd cmd;
+
+    if( sync->scale_q == ui->scale_q )
+        return;
+    cmd_init(&cmd, TORIRS_CHROME_CMD_SCALE, -1, -1);
+    cmd.value = ui->scale_q;
+    cmd.w = TORIRS_CHROME_SCALE_Q_ONE;
+    sync_emit(sync, &cmd);
+    sync->scale_q = ui->scale_q;
+}
+
+/**
  * A CUSTOM well's height in the LOGICAL units a command carries.
  *
  * One formula, used by the ADD that first states it and by the comparison that
@@ -512,7 +533,7 @@ static int
 sync_custom_logical_h(
     struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
 {
-    return w->view_h / (ui->scale > 0 ? ui->scale : 1);
+    return ToriRSChrome_UnscalePx(ui->scale_q, w->view_h);
 }
 
 /** Full catch-up only: initial bind, explicit rebind, or lost change queue. */
@@ -545,6 +566,8 @@ sync_snapshot(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
         sync_emit(sync, &cmd);
         sync->check_style = ui->check_style;
     }
+    /* The scale, for the same reason and in the same place. */
+    sync_scale(sync, ui);
 
     /*
      * Panels first, and closes before opens.
@@ -1155,7 +1178,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui)
         if( ui->changes[i].kind == 0 )
             continue;
         else if( ui->changes[i].kind < TORIRS_CHROME_CHANGE_PANEL ||
-                 ui->changes[i].kind > TORIRS_CHROME_CHANGE_CHECK_STYLE )
+                 ui->changes[i].kind > TORIRS_CHROME_CHANGE_SCALE )
             ui->change_lost = 1;
     }
     if( ui->change_lost )
@@ -1178,6 +1201,8 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui)
             sync_emit(sync, &cmd);
             sync->check_style = ui->check_style;
         }
+        else if( ui->changes[i].kind == TORIRS_CHROME_CHANGE_SCALE )
+            sync_scale(sync, ui);
     }
     for( int i = 0; i < ui->change_count; i++ )
     {

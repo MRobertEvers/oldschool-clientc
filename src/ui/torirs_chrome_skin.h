@@ -234,6 +234,25 @@ ToriRSChromeSkin_ForSlot(int slot)
     return ToriRSChromeSkin_Get(slot);
 }
 
+/**
+ * The slot's art at integer density `tier` (TORIRS_CHROME_SCALE_MIN..MAX), or
+ * its 1x art when the bake carries no such tier -- so a caller tells which it
+ * got from the size (`w` is the 1x width times the tier it really is).
+ *
+ * This is the stand-in until the bake grows tiers: today every slot is 1x
+ * only, so every tier answers with the 1x image. A bake that carries tiers
+ * defines TORIRS_CHROME_SKIN_TIERS and its own ToriRSChromeSkin_SpriteTier
+ * with this contract, and this one steps aside.
+ */
+#ifndef TORIRS_CHROME_SKIN_TIERS
+static inline struct ToriRSChromeSkin_Sprite const*
+ToriRSChromeSkin_SpriteTier(int slot, int tier)
+{
+    (void)tier;
+    return ToriRSChromeSkin_ForSlot(slot);
+}
+#endif
+
 /** Did this build bake a skin at all? One question, asked by every executor
  *  that has a flat fallback to fall back to. */
 static inline int

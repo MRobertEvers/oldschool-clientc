@@ -58,21 +58,25 @@ chrome-skin:
 #
 # TREE, VLIST, ICONBUTTON/TOOLBAR, SLIDER, RADIO, MODAL, TOOLTIP, CODE, GRAPH,
 # SPLITTER/docking, the baked slots, the raised capacities, BUTTON (its chord
-# keycap) and the truncation ring: each drives
+# keycap), the truncation ring, the rational chrome scale (its SCALE command,
+# equal rows, and the photographs $(OBJ_DIR)/scale_q<4..12>.bmp) and the bake
+# at every scale (glyph atlases, stems, skin tiers): each drives
 # the real model and the real executor seam (ToriRSChromeSync over a recorder).
 # Asserts on (-UNDEBUG), like the other chrome seam tests.
 CHROME_WIDGET_TESTS = main tree vlist iconbutton slider radio modal tooltip code graph \
-	splitter skin capacity button truncation
+	splitter skin capacity button truncation scale glyphs
 
 .PHONY: test-chrome-widgets
 test-chrome-widgets:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -UNDEBUG -UTORIRS_CHROME_EXEC_WEB_AVAILABLE \
 		-UTORIRS_CHROME_EXEC_BROWSER_AVAILABLE -UTORIRS_CHROME_SURFACE_SDL \
+		-DCW_OUT_DIR='"$(OBJ_DIR)"' \
 		-o $(OBJ_DIR)/chrome_widget_sync_test $(TORIMEM_SRCS) \
 		$(addprefix ui/test/chrome_widget_sync_,$(addsuffix .c,$(CHROME_WIDGET_TESTS))) \
 		ui/uitree_debug_overlay.c ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c \
-		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c
+		ui/torirs_chrome_rail.c ui/torirs_chrome_bake.c engine/torirs_chrome_skin_baked.c \
+		engine/torirs_debug_font_baked.c
 	./$(OBJ_DIR)/chrome_widget_sync_test
 	node ui/test/chrome_widgets_dom_test.js
 

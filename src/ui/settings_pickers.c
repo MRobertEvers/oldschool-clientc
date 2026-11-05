@@ -134,7 +134,6 @@ settings_colour_place(
     struct UITree const* tree,
     int component_id)
 {
-    int scale;
     int width;
     int32_t idx;
     struct UITreeComponent const* anchor = NULL;
@@ -142,8 +141,7 @@ settings_colour_place(
 
     assert(pickers);
     assert(chrome);
-    scale = ToriRSChrome_Scale(chrome);
-    width = 230 * scale;
+    width = ToriRSChrome_Px(chrome, 230);
     idx = tree && component_id >= 0 ? UITree_FindByComponentId(tree, component_id) : -1;
     if( idx >= 0 )
         anchor = &tree->components[idx];
@@ -157,7 +155,7 @@ settings_colour_place(
         anchor != NULL,
         anchor ? anchor->position.abs_x : 0,
         anchor ? anchor->position.abs_y : 0,
-        8 * scale,
+        ToriRSChrome_Px(chrome, 8),
         2,
         3);
 
@@ -410,7 +408,6 @@ settings_number_place(
     struct UITree const* tree,
     int component_id)
 {
-    int scale;
     int width;
     int32_t idx;
     struct UITreeComponent const* anchor = NULL;
@@ -418,8 +415,7 @@ settings_number_place(
 
     assert(pickers);
     assert(chrome);
-    scale = ToriRSChrome_Scale(chrome);
-    width = 200 * scale;
+    width = ToriRSChrome_Px(chrome, 200);
     idx = tree && component_id >= 0 ? UITree_FindByComponentId(tree, component_id) : -1;
     if( idx >= 0 )
         anchor = &tree->components[idx];
@@ -433,7 +429,7 @@ settings_number_place(
         anchor != NULL,
         anchor ? anchor->position.abs_x : 0,
         anchor ? anchor->position.abs_y : 0,
-        8 * scale,
+        ToriRSChrome_Px(chrome, 8),
         3,
         4);
 

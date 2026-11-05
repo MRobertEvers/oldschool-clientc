@@ -98,7 +98,7 @@ assert(runtime, 'runtime boots');
  * numbers are the C header's; chrome_enum_sync_test.js pins the runtime to it. */
 const CMD = { PANEL_OPEN: 3, WIDGET_ADD: 8, WIDGET_CHECKED: 12, PANEL_MODE: 21,
   WIDGET_VALUE: 22, WIDGET_ROW: 23, WIDGET_SPAN: 24, WIDGET_GRAPH: 25,
-  WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27, WIDGET_CHORD: 28 };
+  WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27, WIDGET_CHORD: 28, SCALE: 29 };
 const W = { BUTTON: 7, TREE: 13, VLIST: 14, ICONBUTTON: 15, SLIDER: 16, RADIO: 17, CODE: 18, GRAPH: 19 };
 const INTENT = { ACTIVATE: 1, TOGGLE: 3, PICK: 5, EXPAND: 10, SCROLL: 11, VALUE: 12,
   CODE_EDIT: 14, GRAPH: 15, GRAPH_WHEEL: 16 };
@@ -378,6 +378,33 @@ assert.strictEqual(button.control.innerText, 'Rebuild every collision map in the
     cmd(CMD.WIDGET_CHORD, { w: 1, label: '' })
   ] });
   assert.strictEqual(redo.control.style.paddingRight, '', 'a cleared chord gives the padding back');
+}
+
+/* SCALE: the chrome scale as a rational; the page zooms its shell by it,
+ * keeps it across a page snapshot, and drops the zoom again at 1x. */
+{
+  assert.strictEqual(shell.style.zoom || '', '', 'a page never told its scale is at 1x');
+  runtime.receive({ protocol: 1, type: 'page.delta', pageGeneration: 20, commands: [
+    cmd(CMD.SCALE, { p: -1, v: 6, cw: 4 })
+  ] });
+  assert.strictEqual(shell.style.zoom, '1.5', 'SCALE 6 / 4 zooms the shell to 1.5');
+  assert.strictEqual(runtime.inspect().scaleQ, 6, 'and the runtime holds the rational');
+  assert.strictEqual(runtime.inspect().scaleDen, 4, 'over its denominator');
+  runtime.receive({ protocol: 1, type: 'page.snapshot', pageGeneration: 21, panel: 3,
+    title: 'Editor', checkStyle: 0, commands: [cmd(CMD.PANEL_OPEN, { text: 'Editor' })] });
+  assert.strictEqual(shell.style.zoom, '1.5', 'a new page keeps the chrome scale');
+  runtime.receive({ protocol: 1, type: 'page.delta', pageGeneration: 21, commands: [
+    cmd(CMD.SCALE, { p: -1, v: 5, cw: 4 })
+  ] });
+  assert.strictEqual(shell.style.zoom, '1.25', '5 / 4 is 1.25');
+  runtime.receive({ protocol: 1, type: 'page.delta', pageGeneration: 21, commands: [
+    cmd(CMD.SCALE, { p: -1, v: 4, cw: 4 })
+  ] });
+  assert.strictEqual(shell.style.zoom, '', 'back at 1x the zoom is gone');
+  runtime.receive({ protocol: 1, type: 'page.snapshot', pageGeneration: 22, panel: 3,
+    title: 'Editor', checkStyle: 0, scaleQ: 7, scaleDen: 4,
+    commands: [cmd(CMD.PANEL_OPEN, { text: 'Editor' })] });
+  assert.strictEqual(shell.style.zoom, '1.75', 'a snapshot that carries the scale applies it');
 }
 
 console.log('chrome widgets dom: ok');
