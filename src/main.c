@@ -11,6 +11,7 @@
 #include "game/rs_chat.h"
 #include "game/rs_cs2_dispatch.h"
 #include "game/rs_ui_slots.h"
+#include "input/torirs_gesture.h"
 #include "input/torirs_input.h"
 #include "input/torirs_keymap.h"
 #include "log/torirs_log.h"
@@ -4677,6 +4678,46 @@ frame_loop_step(void)
                 }
                 if( hk_count > 0 )
                     sim_hotkey_step(&bus, hk_entries, hk_count, &hk_mods_held, frame_count);
+            }
+
+            /* TORIRS_SIM_GESTURE="<frame>,<kind>,<x>,<y>,<a>[,<b>][;...]": the
+             * gesture frames (TORIRS_CMD_GESTURE_PAN / _PINCH / _TWIST) at
+             * main-loop frames, for photographs of the editor's gestures. The
+             * grammar, the phases a run of entries makes and the log line are
+             * input/torirs_gesture.h's (ToriRS_SimGestureParse / _Step), where
+             * a test holds them. Keyed on frame_count like SIM_HOTKEY above,
+             * so a held frame does not push twice; a malformed entry stops the
+             * run for the reason a bad chord does. */
+            {
+                static struct ToriRS_SimGesture* sg_entries = NULL;
+                static int sg_count = 0;
+                static int sg_init = 0;
+                static struct ToriRS_SimGestureState sg_state;
+                if( !sg_init )
+                {
+                    char const* env = getenv("TORIRS_SIM_GESTURE");
+                    sg_init = 1;
+                    ToriRS_SimGestureStateInit(&sg_state);
+                    if( env && *env )
+                    {
+                        char err[192];
+                        int const cap = ToriRS_SimGestureCapacity(env);
+                        sg_entries = calloc((size_t)cap, sizeof(*sg_entries));
+                        assert(sg_entries);
+                        sg_count = ToriRS_SimGestureParse(env, sg_entries, cap, err, sizeof(err));
+                        if( sg_count < 0 )
+                        {
+                            TORIRS_ERR("sim_gesture: %s\n", err);
+                            TORIRS_ERR(
+                                "sim_gesture: grammar is <frame>,<pan|pan<N>|pinch|twist>,<x>,<y>,"
+                                "<a>[,<b>][;...] (pan: dx,dy; pinch: ratio; twist: radians; "
+                                "touch-<kind> flags a touchscreen)\n");
+                            exit(2);
+                        }
+                    }
+                }
+                if( sg_count > 0 )
+                    ToriRS_SimGestureStep(sg_entries, sg_count, &sg_state, &bus, frame_count);
             }
 
             /* TORIRS_SIM_CMD="frame,text[;frame,text...]": send a `::` command at

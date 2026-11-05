@@ -1,6 +1,8 @@
 #ifndef TORIRS_TOUCH_H
 #define TORIRS_TOUCH_H
 
+#include "input/torirs_gesture.h"
+
 #include <stdint.h>
 
 struct ToriRS_CmdBus;
@@ -52,6 +54,18 @@ struct ToriRS_CmdBus;
  *   two-finger   two fingers moving together: arrow keys, which is the camera.
  *                Held down while the pan continues and released with the
  *                fingers, so a long swing turns as far as it is swung.
+ *
+ * ## Gesture frames instead (ToriRS_TouchSetGestureFrames)
+ *
+ * The last two are notches and keys because that is all the game's camera
+ * reads. The editor wants the continuous values, so under the opt-in flag two
+ * or more fingers are TORIRS_CMD_GESTURE_* frames instead (input/
+ * torirs_gesture.h): their centroid's travel a PAN (fingers = how many are
+ * down, so three fingers are a pan of three), their spread a PINCH, the turn
+ * of the first two a TWIST -- each beginning once its own motion passes its
+ * start threshold, measured once a tick (ToriRS_TouchTick), ended when a
+ * finger lifts or lands. No wheel notch and no arrow key is synthesised for
+ * them. Tap, long press and the one-finger drag are unchanged either way.
  */
 
 /** Fingers tracked at once. Two gestures need two; the rest are followed so
@@ -169,6 +183,24 @@ struct ToriRS_Touch
      *  ToriRS_TouchSetOverlayTest. */
     ToriRS_TouchOverlayFn overlay;
     void* overlay_user;
+
+    /** @see ToriRS_TouchSetGestureFrames. 0, the default, is the game's
+     *  synthesis above. */
+    int gesture_frames;
+    /** The flag went off while a gesture was open: the next event or tick
+     *  ends it, since turning it off has no bus to say so on. */
+    int gesture_end_pending;
+    struct ToriRS_GestureStream gesture;
+    /** The pair as the last tick measured it, valid when `gesture_have`;
+     *  cleared whenever the finger count changes, so the next tick takes a
+     *  new baseline instead of reading the change as motion. */
+    int gesture_have;
+    /** A finger of the pair moved since that measurement. */
+    int gesture_moved;
+    double gesture_cx;
+    double gesture_cy;
+    double gesture_spread;
+    double gesture_angle;
 };
 
 void
@@ -218,6 +250,20 @@ ToriRS_TouchSetOverlayTest(
     struct ToriRS_Touch* touch, ToriRS_TouchOverlayFn fn, void* user);
 
 /**
+ * Two and more fingers as gesture frames (on != 0) instead of wheel notches
+ * and arrow keys -- @see "Gesture frames instead" above.
+ *
+ * Off by default, and off it is the game exactly as it was. The editor turns
+ * it on while its panel is open, through the platform that owns the touch
+ * (each backend's PlatformWindow wraps its ToriRS_Touch; the consumers add the
+ * PlatformWindow_SetTouchGestureFrames call beside
+ * PlatformWindow_SetTouchOverlayTest -- docs/GESTURES.md). Turning it off in
+ * the middle of a gesture ends that gesture on the next event or tick.
+ */
+void
+ToriRS_TouchSetGestureFrames(struct ToriRS_Touch* touch, int on);
+
+/**
  * One finger event, in CANVAS pixels.
  *
  * `id` is the backend's, and only has to be stable from BEGAN to ENDED for one
@@ -240,6 +286,10 @@ ToriRS_TouchEvent(
  * A long press has to become a right click while the finger is still STILL,
  * and a finger that is not moving generates no events -- so without this the
  * menu would only ever open on the next twitch. Call once a frame.
+ *
+ * Under ToriRS_TouchSetGestureFrames this is also where the pair is measured:
+ * one PAN, PINCH and TWIST at most per tick, carrying the motion since the
+ * last, so a 240 Hz touchscreen costs the bus no more than a 60 Hz one.
  */
 void
 ToriRS_TouchTick(
