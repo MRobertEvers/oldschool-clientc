@@ -3054,18 +3054,26 @@ App_SetCanvasSize(
     int height);
 
 /**
- * Set the chrome scale: device pixels per ToriRSChrome pixel, 1..3.
+ * Set the chrome scale in quarters of a device pixel per ToriRSChrome pixel,
+ * 4..12 (6 is 1.5x), fractions included.
  *
- * One call, because the three things it touches must never disagree: the
- * overlay's LAYOUT (which measures against a baked font), the scene FONTS the
- * renderer draws those rows with, and the tree components that name them. Set
- * two of the three and the chrome lays out at one size and paints at another
- * -- which reads as a broken font rather than as a missed call.
+ * One call, because the things it touches must never disagree: the
+ * overlay's LAYOUT (both chrome models, ToriRSChrome_SetScaleQ, which measure
+ * against the quarter metrics), the scene FONTS and SKIN the renderer draws
+ * those rows with (UITreeSceneBridge_SetChromeScaleQ registers the bake's
+ * atlases and images at q), the tree components that name the fonts, and the
+ * step the parchment tiles by. Set some and not the others and the chrome
+ * lays out at one size and paints at another -- which reads as a broken font
+ * rather than as a missed call.
  *
- * The caller is whoever knows the display: on the desktop shell that is
- * PlatformWindow_PixelDensity, so a Retina window gets 2x chrome authored at 2x
- * rather than 1x chrome stretched onto it. @return 1 if the scale changed.
+ * The caller is whoever knows the display: main.c's main_chrome_scale_q,
+ * from the display's density, a pin or the editor's View row.
+ * @return 1 if the scale changed.
  */
+int
+App_SetChromeScaleQ(struct App* app, int q);
+
+/** App_SetChromeScaleQ(app, 4 * scale), for an integer scale 1..3. */
 int
 App_SetChromeScale(struct App* app, int scale);
 

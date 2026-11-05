@@ -338,6 +338,16 @@ ToriDraw_SceneFontAdd(
     int font_id,
     struct ToriDraw_Font* font);
 
+/** Drop a font entry: frees the font and emits the unload event, as
+ *  ToriDraw_SceneSpriteRemove does for a sprite. Adding over an id already
+ *  does this; this is for evicting without a replacement (the chrome's faces
+ *  at a fractional scale the chrome has left). An id the scene does not hold
+ *  is no entry to drop, and nothing happens. */
+void
+ToriDraw_SceneFontRemove(
+    struct ToriDraw_Scene* scene,
+    int font_id);
+
 struct ToriDraw_Font*
 ToriDraw_SceneFontGet(
     struct ToriDraw_Scene* scene,

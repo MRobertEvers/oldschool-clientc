@@ -8,11 +8,17 @@
 #include "torirs_chrome_metrics.h"
 #include "torirs_chrome_skin.h"
 
+#include "engine/torirs_chrome_font_tier.h"
 #include "engine/torirs_debug_font_baked.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* The tier accessor numbers its faces as the chrome numbers its font slots. */
+_Static_assert(ToriRSChromeFont_FACE_SMALL == TORIRS_CHROME_FONT_SMALL, "Small face slot");
+_Static_assert(ToriRSChromeFont_FACE_MENU == TORIRS_CHROME_FONT_MENU, "Menu face slot");
+_Static_assert(ToriRSChromeFont_FACE_BODY == TORIRS_CHROME_FONT_BODY, "Body face slot");
 
 /* Quarter-pixel arithmetic: every edge the rasteriser places is a multiple of
  * a quarter device pixel (a 1x edge times q / 4, or a whole pixel), so the
@@ -212,6 +218,22 @@ bake_face_rows(int ascent, int q, int* rows)
 }
 
 void
+ToriRSChromeGlyphs_Rows(int ascent, int q, int* rows, int count)
+{
+    int all[BAKE_GLYPH_MAX_H + 1];
+
+    assert(rows);
+    assert(q >= TORIRS_CHROME_SCALE_Q_MIN);
+    assert(q <= TORIRS_CHROME_SCALE_Q_MAX);
+    assert(ascent > 0);
+    assert(ascent < BAKE_GLYPH_MAX_H);
+    assert(count > 0);
+    assert(count <= BAKE_GLYPH_MAX_H + 1);
+    bake_face_rows(ascent, q, all);
+    memcpy(rows, all, sizeof(rows[0]) * (size_t)count);
+}
+
+void
 ToriRSChromeGlyphs_Rasterise(
     struct ToriDraw_Font const* src, int ascent, int q, struct ToriDraw_Font* out)
 {
@@ -226,6 +248,9 @@ ToriRSChromeGlyphs_Rasterise(
 
     memset(out, 0, sizeof(*out));
     memcpy(out->charcodeset, src->charcodeset, sizeof(out->charcodeset));
+    /* The one-row edges carry quarter coverage: a renderer that thresholds a
+     * mask must read these bytes as alpha. */
+    out->coverage = 1;
     bake_face_rows(ascent, q, rows);
     out->line_height = rows[ascent];
     for( int c = 0; c < 256; c++ )
@@ -337,27 +362,17 @@ ToriRSChromeGlyphs_Rasterise(
     }
 }
 
+/* The face at an integer tier, through the tier accessor: the one door the
+ * draw path reads a tier by (engine/torirs_chrome_font_tier.h), so a
+ * hand-tuned tier is what the bake hands out and what the scene bridge
+ * registers. The 1x face, which the fractional atlases are rasterised from,
+ * is never tuned. */
 static struct ToriDraw_Font const*
 bake_tier_face(int font_slot, int tier)
 {
-    switch( font_slot )
-    {
-    case TORIRS_CHROME_FONT_MENU:
-        return tier == 3   ? ToriRSChromeFont_Menu3x()
-               : tier == 2 ? ToriRSChromeFont_Menu2x()
-                           : ToriRSChromeFont_Menu();
-    case TORIRS_CHROME_FONT_BODY:
-        return tier == 3   ? ToriRSChromeFont_Body3x()
-               : tier == 2 ? ToriRSChromeFont_Body2x()
-                           : ToriRSChromeFont_Body();
-    case TORIRS_CHROME_FONT_SMALL:
-        return tier == 3   ? ToriRSChromeFont_Small3x()
-               : tier == 2 ? ToriRSChromeFont_Small2x()
-                           : ToriRSChromeFont_Small();
-    default:
-        assert(0 && "unknown chrome font slot");
-        return NULL;
-    }
+    assert(font_slot >= 0);
+    assert(font_slot < TORIRS_CHROME_FONT_SLOT_COUNT);
+    return ToriRSChromeFont_Tier(font_slot, tier);
 }
 
 /* ---- skin ----------------------------------------------------------------- */

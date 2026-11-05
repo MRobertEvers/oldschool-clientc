@@ -288,7 +288,10 @@ resolve_chrome_sprite(struct UITreeBuilder* builder, char const* ref, int* out_a
             continue;
         if( !builder->bridge )
             return -1;
-        scene_id = UITreeSceneBridge_EnsureChromeSkin(builder->bridge);
+        /* At 1x: a component is laid out in interface pixels, which the
+         * gameframe scales itself. The chrome-scale entry would be scaled
+         * twice (EnsureDebugFont1x's giant-text bug, for art). */
+        scene_id = UITreeSceneBridge_EnsureChromeSkin1x(builder->bridge);
         /* -1 is a real answer: a lane can be built with the skin module
          * stubbed out, and a component that asked for one draws nothing rather
          * than the client refusing to boot. */

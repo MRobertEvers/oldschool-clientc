@@ -877,6 +877,30 @@ ToriDraw_SceneFontAdd(
     td_scene_ui_assets_changed(scene);
 }
 
+void
+ToriDraw_SceneFontRemove(
+    struct ToriDraw_Scene* scene,
+    int font_id)
+{
+    assert(scene);
+
+    struct MapEntry_Font* entry =
+        (struct MapEntry_Font*)ToriDraw_MapSearch(scene->fonts_hmap, &font_id, TORIDRAW_MAP_FIND);
+    if( !entry )
+        return;
+
+    /* The teardown SceneFontAdd does when it replaces an entry: the unload
+     * event is what lets a renderer drop its atlas texture. */
+    if( entry->font )
+    {
+        td_scene_emit_font(scene, TORIDRAW_EVENT_FONT_UNLOAD, font_id, entry->font);
+        ToriDraw_FontFree(entry->font);
+    }
+    entry->font = NULL;
+    ToriDraw_MapSearch(scene->fonts_hmap, &font_id, TORIDRAW_MAP_REMOVE);
+    td_scene_ui_assets_changed(scene);
+}
+
 /* --- sound assets --------------------------------------------------------- */
 
 struct ToriDraw_Sound*

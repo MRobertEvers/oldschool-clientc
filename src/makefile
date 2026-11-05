@@ -2720,6 +2720,17 @@ test-cache-trim: $(OBJ_DIR) $(CACHE_TRIM_TEST_OBJS)
 		engine/test/cache_trim_test.c $(CACHE_TRIM_TEST_OBJS) $(LDFLAGS)
 	./$(OBJ_DIR)/cache_trim_test
 
+# The scene bridge registers the chrome at its rational scale: the bake's
+# hinted faces and area-averaged skin at a fractional q, the baked tiers at
+# 4 / 8 / 12, the unloads when the scale moves, and the software blitter's
+# coverage blend. Content-free (the faces and skin are compiled in); links
+# the client's objects, as test-cache-trim does.
+.PHONY: test-scene-bridge-chrome
+test-scene-bridge-chrome: $(OBJ_DIR) $(CACHE_TRIM_TEST_OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/scene_bridge_chrome_test \
+		engine/test/uitree_scene_bridge_chrome_test.c $(CACHE_TRIM_TEST_OBJS) $(LDFLAGS)
+	./$(OBJ_DIR)/scene_bridge_chrome_test
+
 # DB_* opcode integration test: reuse the main link set minus main.o.
 DB_TEST_OBJS = $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 test-db: $(OBJ_DIR) $(DB_TEST_OBJS)

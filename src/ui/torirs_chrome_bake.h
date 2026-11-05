@@ -58,7 +58,8 @@ struct ToriRSChromeBakeImage
  * Rasterise the 1x face `src` at scale `q` into `out`, as described above.
  *
  * `out` is overwritten; its glyph masks are allocated here and belong to the
- * caller (ToriDraw_FontFree releases them). Coverage is 0..255 per pixel --
+ * caller (ToriDraw_FontFree releases them), and its `coverage` flag is set.
+ * Coverage is 0..255 per pixel --
  * 0, 64, 128, 191 or 255, since every edge sits on a quarter pixel -- where the
  * source holds only 0 and 255. At q a multiple of 4 the result is `src`
  * scaled by q / 4 with every pixel repeated, which is what the bake's 2x and
@@ -71,6 +72,17 @@ struct ToriRSChromeBakeImage
 void
 ToriRSChromeGlyphs_Rasterise(
     struct ToriDraw_Font const* src, int ascent, int q, struct ToriDraw_Font* out);
+
+/**
+ * The hinting table ToriRSChromeGlyphs_Rasterise lays a face's rows out by:
+ * `rows[y]` is the device row, from the top of the line box, of 1x row
+ * boundary y (y = 0 .. count - 1), so 1x row y spans rows[y + 1] - rows[y]
+ * device rows and a glyph of 1x rows [oy, oy + h) is rows[oy + h] - rows[oy]
+ * tall. `ascent` as for Rasterise; `count` at most 33 (the tallest line box,
+ * 32 rows, and its bottom edge). For the tests, which hold the atlas to it.
+ */
+void
+ToriRSChromeGlyphs_Rows(int ascent, int q, int* rows, int count);
 
 /**
  * Build every face's atlas and every slot's scaled art for scale `q`, once.
