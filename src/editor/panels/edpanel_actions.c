@@ -9,6 +9,7 @@
 #include "edpanel_common.h"
 #include "edpanel_ops.h"
 #include "engine/torirs_types.h"
+#include "edpanel_ops_stamps.h"
 #include "mem/torirs_mem.h"
 
 #include <stdio.h>
@@ -882,7 +883,12 @@ edp_rect_copy(struct EditorUi* ui)
     if( !actions_need_rect(ui, "copy") )
         return 0;
     copied = Editor_TileClipCopy(&ui->editor->doc, &ui->tools.rect, actions_clip());
-    Editor_UiLog(ui, "editor: copied %d tile(s)", copied);
+    /* The marquee is the unnamed stamp (design #placing): its locs travel
+     * with its tiles, pasted after them in the same step. */
+    {
+        int const locs = edp_stamp_clip_copy(ui, &ui->tools.rect);
+        Editor_UiLog(ui, "editor: copied %d tile(s) and %d loc(s)", copied, locs);
+    }
     return copied;
 }
 
@@ -926,8 +932,15 @@ edp_rect_paste_at(
         return 0;
     }
     count = Editor_TileClipPaste(&ui->editor->doc, g_clip, world_x, world_z, level, commands, capacity);
-    applied = edp_apply(ui, commands, count, "paste");
-    Editor_UiLog(ui, "editor: pasted %dx%d, %d tile(s) changed", g_clip->w, g_clip->h, applied);
+    /* The tile commands exactly as before; the copied locs after them, one
+     * place (a replace onto a taken key) each, in the same undo step. */
+    {
+        int const tiles = count;
+        count += edp_stamp_clip_paste(ui, world_x, world_z, level, commands + count, capacity - count);
+        applied = edp_apply(ui, commands, count, "paste");
+        Editor_UiLog(ui, "editor: pasted %dx%d, %d tile(s) and %d loc(s) changed", g_clip->w, g_clip->h,
+            applied < tiles ? applied : tiles, applied > tiles ? applied - tiles : 0);
+    }
     return applied;
 }
 
@@ -1029,6 +1042,7 @@ edp_actions_free(void)
 {
     ToriMem_Free(ToriMem_Editor(), g_clip);
     g_clip = NULL;
+    edp_stamps_free();
 }
 
 int

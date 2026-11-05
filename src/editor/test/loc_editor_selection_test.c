@@ -11,6 +11,7 @@
 
 #include "editor/loc_editor_selection.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -366,9 +367,211 @@ test_the_hover_memo_outlives_a_selection(void)
     TEST_ASSERT(x == 20 && z == 30, "unchanged");
 }
 
+/* ---- the move gizmo (workbench 6.3) ----------------------------------------- */
+
+/** A gizmo drawn flat on the screen: world fine units / 4, z up the screen
+ *  (screen y = 1000 - z / 4), the way a camera looking straight down from
+ *  the south projects it. */
+static void
+flat_screen(
+    const struct LocEditorGizmoWorld* world,
+    struct LocEditorGizmoScreen* screen)
+{
+    memset(screen, 0, sizeof(*screen));
+    screen->valid = 1;
+    screen->centre_x = world->centre_x / 4;
+    screen->centre_y = 1000 - world->centre_z / 4;
+    for( int a = 0; a < 4; a++ )
+    {
+        screen->arrow_ok[a] = 1;
+        screen->arrow_x0[a] = world->arrow_base_x[a] / 4;
+        screen->arrow_y0[a] = 1000 - world->arrow_base_z[a] / 4;
+        screen->arrow_x1[a] = world->arrow_tip_x[a] / 4;
+        screen->arrow_y1[a] = 1000 - world->arrow_tip_z[a] / 4;
+    }
+    screen->ring_count = LOC_EDITOR_GIZMO_RING_POINTS;
+    for( int i = 0; i < LOC_EDITOR_GIZMO_RING_POINTS; i++ )
+    {
+        double const a = 2.0 * 3.14159265358979323846 * i / LOC_EDITOR_GIZMO_RING_POINTS;
+        screen->ring_x[i] = screen->centre_x + (int)(world->ring_radius / 4 * cos(a));
+        screen->ring_y[i] = screen->centre_y + (int)(world->ring_radius / 4 * sin(a));
+    }
+}
+
+static void
+test_the_gizmo_stands_around_the_footprint(void)
+{
+    struct LocEditorGizmoWorld world;
+    int dx;
+    int dz;
+
+    LocEditorGizmo_World(10, 20, 2, 1, &world);
+    TEST_ASSERT(world.centre_x == 10 * 128 + 128 && world.centre_z == 20 * 128 + 64, "centred on the 2x1 footprint");
+    TEST_ASSERT(world.arrow_base_z[0] > 20 * 128 + 128 && world.arrow_tip_z[0] == world.arrow_base_z[0] + 128,
+        "the north arrow starts outside the footprint and is a tile long");
+    TEST_ASSERT(world.arrow_base_x[3] > 12 * 128 && world.arrow_tip_x[3] == world.arrow_base_x[3] + 128,
+        "the east arrow clears the footprint's two tiles");
+    TEST_ASSERT(world.ring_radius > 128 && world.ring_radius < 128 + 32, "the ring sits between footprint and arrows");
+    LocEditorGizmo_ArrowAxis(LOC_EDITOR_GIZMO_ARROW_W, &dx, &dz);
+    TEST_ASSERT(dx == -1 && dz == 0, "west is -x");
+    LocEditorGizmo_ArrowAxis(LOC_EDITOR_GIZMO_ARROW_N, &dx, &dz);
+    TEST_ASSERT(dx == 0 && dz == 1, "north is +z");
+}
+
+static void
+test_the_gizmo_hit_test_names_each_handle(void)
+{
+    struct LocEditorGizmoWorld world;
+    struct LocEditorGizmoScreen screen;
+    int const slop = LOC_EDITOR_GIZMO_SLOP;
+
+    LocEditorGizmo_World(10, 20, 1, 1, &world);
+    flat_screen(&world, &screen);
+    TEST_ASSERT(LocEditorGizmo_HitTest(&screen, screen.centre_x + 2, screen.centre_y - 1, slop)
+                    == LOC_EDITOR_GIZMO_CENTRE,
+        "the middle is the centre handle");
+    for( int a = 0; a < 4; a++ )
+    {
+        int const mx = (screen.arrow_x0[a] + screen.arrow_x1[a]) / 2;
+        int const my = (screen.arrow_y0[a] + screen.arrow_y1[a]) / 2;
+        TEST_ASSERT((int)LocEditorGizmo_HitTest(&screen, mx + 1, my + 1, slop) == (int)LOC_EDITOR_GIZMO_ARROW_N + a,
+            "each arrow's middle is that arrow");
+    }
+    TEST_ASSERT(LocEditorGizmo_HitTest(&screen, screen.ring_x[2], screen.ring_y[2] + 1, slop) == LOC_EDITOR_GIZMO_RING,
+        "a point on the ring is the ring");
+    TEST_ASSERT(LocEditorGizmo_HitTest(&screen, screen.centre_x + 200, screen.centre_y + 200, slop)
+                    == LOC_EDITOR_GIZMO_NONE,
+        "far away is nothing");
+    screen.arrow_ok[1] = 0;
+    TEST_ASSERT(LocEditorGizmo_HitTest(&screen, (screen.arrow_x0[1] + screen.arrow_x1[1]) / 2,
+                    (screen.arrow_y0[1] + screen.arrow_y1[1]) / 2, slop)
+                    != LOC_EDITOR_GIZMO_ARROW_S,
+        "an arrow the projection could not place is not hit");
+    screen.valid = 0;
+    TEST_ASSERT(LocEditorGizmo_HitTest(&screen, screen.centre_x, screen.centre_y, slop) == LOC_EDITOR_GIZMO_NONE,
+        "no gizmo, no handle");
+}
+
+static void
+test_an_arrow_steps_a_tile_at_a_time(void)
+{
+    struct LocEditorGizmoDrag drag;
+    struct LocEditorGizmoResult result;
+
+    LocEditorGizmo_DragBegin(&drag, LOC_EDITOR_GIZMO_ARROW_E, 100, 200, 50, 50, 60, 50, 0);
+    TEST_ASSERT(!LocEditorGizmo_DragUpdate(&drag, 100, 201, 61, 49), "still in the first tile: nothing proposed");
+    TEST_ASSERT(drag.dx == 0 && drag.dz == 0, "and the sideways tile is ignored");
+    TEST_ASSERT(LocEditorGizmo_DragUpdate(&drag, 101, 201, 70, 49), "into the next tile: one step");
+    TEST_ASSERT(drag.dx == 1 && drag.dz == 0, "east by one, the north wobble dropped");
+    TEST_ASSERT(LocEditorGizmo_DragUpdate(&drag, 103, 200, 90, 50), "two tiles further");
+    TEST_ASSERT(drag.dx == 3, "three steps");
+    TEST_ASSERT(LocEditorGizmo_DragUpdate(&drag, 97, 200, 20, 50), "dragged back past the start");
+    TEST_ASSERT(drag.dx == 0, "an arrow never goes backwards");
+    LocEditorGizmo_DragUpdate(&drag, 102, 200, 80, 50);
+    LocEditorGizmo_DragResult(&drag, &result);
+    TEST_ASSERT(result.action == LOC_EDITOR_GIZMO_DO_MOVE && result.dx == 2 && result.dz == 0,
+        "the release moves the selection two tiles east");
+
+    LocEditorGizmo_DragBegin(&drag, LOC_EDITOR_GIZMO_ARROW_S, 100, 200, 50, 50, 50, 60, 0);
+    LocEditorGizmo_DragResult(&drag, &result);
+    TEST_ASSERT(result.action == LOC_EDITOR_GIZMO_DO_MOVE && result.dx == 0 && result.dz == -1,
+        "a click on the south arrow is one step south");
+}
+
+static void
+test_alt_on_an_arrow_duplicates(void)
+{
+    struct LocEditorGizmoDrag drag;
+    struct LocEditorGizmoResult result;
+
+    LocEditorGizmo_DragBegin(&drag, LOC_EDITOR_GIZMO_ARROW_N, 5, 5, 0, 0, 0, -10, 1);
+    LocEditorGizmo_DragResult(&drag, &result);
+    TEST_ASSERT(result.action == LOC_EDITOR_GIZMO_DO_DUPLICATE && result.dx == 0 && result.dz == 1,
+        "Alt-click on the north arrow copies one tile north");
+    LocEditorGizmo_DragUpdate(&drag, 5, 9, 0, -50);
+    LocEditorGizmo_DragResult(&drag, &result);
+    TEST_ASSERT(result.action == LOC_EDITOR_GIZMO_DO_DUPLICATE && result.dz == 4, "Alt-drag copies where it ends");
+
+    LocEditorGizmo_DragBegin(&drag, LOC_EDITOR_GIZMO_RING, 5, 5, 0, 0, 10, 0, 1);
+    TEST_ASSERT(!drag.duplicate, "Alt on the ring is a plain turn");
+    LocEditorGizmo_DragBegin(&drag, LOC_EDITOR_GIZMO_CENTRE, 5, 5, 0, 0, 0, 0, 1);
+    TEST_ASSERT(!drag.duplicate, "Alt on the centre is a plain move");
+}
+
+static void
+test_the_ring_turns_by_quarters(void)
+{
+    struct LocEditorGizmoDrag drag;
+    struct LocEditorGizmoResult result;
+
+    TEST_ASSERT(LocEditorGizmo_RingQuarters(0.7) == 0, "40 degrees is no quarter");
+    TEST_ASSERT(LocEditorGizmo_RingQuarters(0.9) == 1, "52 degrees rounds to one");
+    TEST_ASSERT(LocEditorGizmo_RingQuarters(-1.6) == -1, "anticlockwise is negative");
+
+    /* A click: one quarter. */
+    LocEditorGizmo_DragBegin(&drag, LOC_EDITOR_GIZMO_RING, 3, 3, 100, 100, 140, 100, 0);
+    LocEditorGizmo_DragResult(&drag, &result);
+    TEST_ASSERT(result.action == LOC_EDITOR_GIZMO_DO_ROTATE && result.quarters == 1, "a click on the ring is a quarter");
+
+    /* East to south on screen (y down) is clockwise: a quarter; on to west,
+     * two; on round to north, three. */
+    TEST_ASSERT(!LocEditorGizmo_DragUpdate(&drag, 3, 3, 135, 120), "30 degrees: nothing yet");
+    TEST_ASSERT(LocEditorGizmo_DragUpdate(&drag, 3, 3, 100, 140), "90 degrees: a quarter");
+    LocEditorGizmo_DragUpdate(&drag, 3, 3, 60, 100);
+    LocEditorGizmo_DragUpdate(&drag, 3, 3, 100, 60);
+    LocEditorGizmo_DragResult(&drag, &result);
+    TEST_ASSERT(result.action == LOC_EDITOR_GIZMO_DO_ROTATE && result.quarters == 3,
+        "three quarters clockwise round the ring");
+    /* ...and on to where it began: a whole turn is no turn. */
+    LocEditorGizmo_DragUpdate(&drag, 3, 3, 140, 100);
+    LocEditorGizmo_DragResult(&drag, &result);
+    TEST_ASSERT(result.action == LOC_EDITOR_GIZMO_DO_NOTHING, "a whole turn turns nothing");
+
+    /* Anticlockwise a quarter is three clockwise. */
+    LocEditorGizmo_DragBegin(&drag, LOC_EDITOR_GIZMO_RING, 3, 3, 100, 100, 140, 100, 0);
+    LocEditorGizmo_DragUpdate(&drag, 3, 3, 100, 60);
+    LocEditorGizmo_DragResult(&drag, &result);
+    TEST_ASSERT(result.quarters == 3, "a quarter anticlockwise is three clockwise");
+    /* The centre point itself does not reset the sweep. */
+    LocEditorGizmo_DragUpdate(&drag, 3, 3, 100, 100);
+    LocEditorGizmo_DragResult(&drag, &result);
+    TEST_ASSERT(result.quarters == 3, "passing over the centre keeps the sweep");
+}
+
+static void
+test_the_centre_drags_freely(void)
+{
+    struct LocEditorGizmoDrag drag;
+    struct LocEditorGizmoResult result;
+
+    LocEditorGizmo_DragBegin(&drag, LOC_EDITOR_GIZMO_CENTRE, 40, 40, 0, 0, 0, 0, 0);
+    LocEditorGizmo_DragResult(&drag, &result);
+    TEST_ASSERT(result.action == LOC_EDITOR_GIZMO_DO_NOTHING, "a click on the centre moves nothing");
+    LocEditorGizmo_DragUpdate(&drag, 43, 38, 0, 0);
+    LocEditorGizmo_DragResult(&drag, &result);
+    TEST_ASSERT(result.action == LOC_EDITOR_GIZMO_DO_MOVE && result.dx == 3 && result.dz == -2,
+        "the centre takes both axes");
+}
+
+static void
+test_a_level_move_stays_inside_the_planes(void)
+{
+    TEST_ASSERT(LocEditorSelection_LevelTarget(0, 1) == 1, "0 up is 1");
+    TEST_ASSERT(LocEditorSelection_LevelTarget(3, -1) == 2, "3 down is 2");
+    TEST_ASSERT(LocEditorSelection_LevelTarget(3, 1) == -1, "there is no level 4");
+    TEST_ASSERT(LocEditorSelection_LevelTarget(0, -1) == -1, "nor a level -1");
+}
+
 int
 main(void)
 {
+    test_the_gizmo_stands_around_the_footprint();
+    test_the_gizmo_hit_test_names_each_handle();
+    test_an_arrow_steps_a_tile_at_a_time();
+    test_alt_on_an_arrow_duplicates();
+    test_the_ring_turns_by_quarters();
+    test_the_centre_drags_freely();
+    test_a_level_move_stays_inside_the_planes();
     test_a_fresh_selection_is_pointed_at_nothing();
     test_selecting_a_loc_takes_its_whole_placement();
     test_an_unnamed_loc_selects_without_a_name();

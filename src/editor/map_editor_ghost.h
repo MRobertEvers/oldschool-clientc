@@ -93,6 +93,94 @@ struct MapEditorHover
     int level;
 };
 
+/* ---- the multi-piece ghost (workbench 6.3) ------------------------------------
+ *
+ * A set of footprints the next action would land: an armed STAMP's pieces at
+ * the hovered tile (turned as the stamp is), or a gizmo DRAG's destination
+ * for every selected loc. Each piece is a footprint on the ground, TAKEN when
+ * its tile+shape is held by a loc the action does not carry along -- a stamp
+ * replaces that loc, a moved loc swaps with it -- which the overlay draws
+ * orange before the release.
+ *
+ * Drawn, not placed: unlike the one-loc ghost nothing enters the scene, so
+ * there is no occupant to remember and taking it down is forgetting it. It is
+ * rebuilt only when what it was built from moves (the key below); a quiet
+ * frame keeps it as it is.
+ */
+#define MAP_EDITOR_PIECE_GHOST_MAX 256
+
+enum MapEditorPieceGhostSource
+{
+    MAP_EDITOR_PIECE_GHOST_NONE = 0,
+    /** An armed stamp at the hovered tile. */
+    MAP_EDITOR_PIECE_GHOST_STAMP,
+    /** The gizmo drag's destinations. */
+    MAP_EDITOR_PIECE_GHOST_DRAG,
+};
+
+struct MapEditorPieceGhostPiece
+{
+    /** SW scene tile, level, footprint. */
+    int scene_x;
+    int scene_z;
+    int level;
+    int size_x;
+    int size_z;
+    /** The landing key holds a loc the action does not carry: orange. */
+    bool taken;
+};
+
+struct MapEditorPieceGhost
+{
+    enum MapEditorPieceGhostSource source;
+    /** What it was built from: an origin tile and level, a turn (or a drag
+     *  offset packed by the caller), and the caller's serial (the document's
+     *  revision, the selection's). */
+    int key_x;
+    int key_z;
+    int key_level;
+    int key_turn;
+    unsigned key_serial;
+    int count;
+    int taken_count;
+    /** Pieces past MAP_EDITOR_PIECE_GHOST_MAX: not drawn, but counted. */
+    int dropped;
+    struct MapEditorPieceGhostPiece pieces[MAP_EDITOR_PIECE_GHOST_MAX];
+};
+
+/** Nothing shown. */
+void
+MapEditorPieceGhost_Clear(struct MapEditorPieceGhost* ghost);
+
+/** Whether the ghost is built from exactly this (and not NONE). */
+bool
+MapEditorPieceGhost_Matches(
+    struct MapEditorPieceGhost const* ghost,
+    enum MapEditorPieceGhostSource source,
+    int key_x,
+    int key_z,
+    int key_level,
+    int key_turn,
+    unsigned key_serial);
+
+/** Start again from `source` (not NONE) and its key; no pieces yet. */
+void
+MapEditorPieceGhost_Begin(
+    struct MapEditorPieceGhost* ghost,
+    enum MapEditorPieceGhostSource source,
+    int key_x,
+    int key_z,
+    int key_level,
+    int key_turn,
+    unsigned key_serial);
+
+/** One footprint (sizes below 1 assert). False when the ghost is full: the
+ *  piece is counted in `dropped` instead. */
+bool
+MapEditorPieceGhost_Add(
+    struct MapEditorPieceGhost* ghost,
+    struct MapEditorPieceGhostPiece const* piece);
+
 struct MapEditorGhost
 {
     bool active;
@@ -111,6 +199,8 @@ struct MapEditorGhost
      * field. */
     struct MapEditorSpawnGhost spawn;
     struct MapEditorHover hover;
+    /** The multi-piece ghost (a stamp, a gizmo drag). */
+    struct MapEditorPieceGhost pieces;
 };
 
 /** Clear everything: the loc ghost, the spawn ghost, the hover. */

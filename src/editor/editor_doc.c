@@ -335,6 +335,16 @@ Editor_DocKeyValid(
          * one per content tree, a text document edited by splices. */
         if( strcmp(key, "editor:favourites.txt") == 0 )
             return 1;
+        /* A stamp and the stamps' list (editor_stamps.h): editor/stamps/
+         * <name>.stamp and editor/stamps/index.txt. Names are [A-Za-z0-9_-]
+         * under 48 bytes, so "index" can never be confused with the list. */
+        if( strncmp(key, "stamp:", 6) == 0 )
+        {
+            size_t const length = strlen(key + 6);
+            return length > 0 && length < 48 && name_valid(key + 6) && !strchr(key + 6, '.');
+        }
+        if( strcmp(key, "stamps:index") == 0 )
+            return 1;
         return 0;
     }
     return 0;

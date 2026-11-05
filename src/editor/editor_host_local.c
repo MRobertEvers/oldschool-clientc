@@ -815,6 +815,10 @@ Editor_HostDocPath(
             /* editor/favourites.txt, outside every pack input like the
              * areas and the palettes (editor_favourites.h). */
             written = snprintf(out, out_size, "editor/%s", key + 7);
+        else if( strncmp(key, "stamp:", 6) == 0 )
+            written = snprintf(out, out_size, "editor/stamps/%s.stamp", key + 6);
+        else if( strcmp(key, "stamps:index") == 0 )
+            written = snprintf(out, out_size, "editor/stamps/index.txt");
         else
             return 0;
         break;

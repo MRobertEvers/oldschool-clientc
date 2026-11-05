@@ -23,6 +23,7 @@
 
 #include "edpanel_common.h"
 #include "edpanel_ops.h"
+#include "edpanel_ops_stamps.h"
 #include "edpanels.h"
 #include "editor/live/live_panel.h"
 #include "mem/torirs_mem.h"
@@ -196,7 +197,10 @@ hk_run_edit(
         /* The selection; else the Place ghost's pose. */
         /* The Place tool's ghost while Place is armed, whatever is
          * selected; else the selection; else the pose. */
-        if( tools->loc_count > 0 && tools->tool != EDITOR_TOOL_LOC_PLACE )
+        /* An armed stamp turns as a unit (edpanel_ops_stamps.h). */
+        if( edp_stamp_armed(ui) )
+            edp_stamp_turn(ui, 1);
+        else if( tools->loc_count > 0 && tools->tool != EDITOR_TOOL_LOC_PLACE )
             (void)edp_locs_rotate(ui);
         else
             edp_place_rotate(ui);
@@ -219,6 +223,26 @@ hk_run_edit(
         return 1;
     case EDITOR_HK_EDIT_NUDGE_E:
         (void)edp_locs_nudge(ui, 1, 0);
+        return 1;
+    /* A zone at a time (design #placing): the swap rule as a one-tile
+     * nudge. */
+    case EDITOR_HK_EDIT_NUDGE_FAR_N:
+        (void)edp_locs_nudge(ui, 0, 8);
+        return 1;
+    case EDITOR_HK_EDIT_NUDGE_FAR_S:
+        (void)edp_locs_nudge(ui, 0, -8);
+        return 1;
+    case EDITOR_HK_EDIT_NUDGE_FAR_W:
+        (void)edp_locs_nudge(ui, -8, 0);
+        return 1;
+    case EDITOR_HK_EDIT_NUDGE_FAR_E:
+        (void)edp_locs_nudge(ui, 8, 0);
+        return 1;
+    case EDITOR_HK_EDIT_LEVEL_UP:
+        (void)edp_locs_level_move(ui, 1);
+        return 1;
+    case EDITOR_HK_EDIT_LEVEL_DOWN:
+        (void)edp_locs_level_move(ui, -1);
         return 1;
     case EDITOR_HK_EDIT_COPY:
         (void)edp_rect_copy(ui);

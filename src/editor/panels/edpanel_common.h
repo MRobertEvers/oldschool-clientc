@@ -208,6 +208,19 @@ Editor_Locs_ShapeStrip(
     int out_shapes[23],
     int* out_view);
 
+/** The App rendered the strip: scene sprite `scene_id` (`version` bumps per
+ *  picture), `strip_w` x `strip_h`, `slot_w` wide per shape. The strip is a
+ *  GRAPH (workbench 6.3): the panel draws the picture and keys each slot, so
+ *  a click on a thumbnail reshapes (or sets the pose) as its button does. */
+void
+Editor_Locs_ShapeStripSprite(
+    struct EditorUi* ui,
+    int scene_id,
+    int strip_w,
+    int strip_h,
+    int slot_w,
+    uint32_t version);
+
 /** Place `loc_id` at a world tile; the placed loc becomes the selection. A
  *  shape the loc has no model for is refused with a console line. */
 int

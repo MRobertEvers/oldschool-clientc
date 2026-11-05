@@ -18,6 +18,8 @@
 #include "input/torirs_gesture.h"
 #include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanel_ops.h"
+#include "editor/panels/edpanel_ops_stamps.h"
+#include "editor/loc_editor_selection.h"
 #include "editor/panels/edpanels.h"
 #include "editor/task_editor_layout_io.h"
 #include "editor/task_editor_prefs_io.h"
@@ -42,6 +44,25 @@ static int
 app_map_editor_ghost_is_edit(struct App const* app);
 static void
 app_map_editor_spawn_ghost_remove(struct App* app);
+/* The move gizmo's press and drag (workbench 6.3, the gizmo section). */
+static struct AppMapEditorGizmo
+{
+    int active;
+    struct LocEditorGizmoDrag drag;
+    /** The handle under the pointer (R5: hover tells), and the one the
+     *  status bar last named; the quarters it last said for a ring drag. */
+    int hot;
+    int said;
+    int said_quarters;
+} g_app_gizmo;
+static int
+app_map_editor_gizmo_press(
+    struct App* app,
+    struct LibToriRS_Input* input);
+static void
+app_map_editor_gizmo_drag(
+    struct App* app,
+    struct LibToriRS_Input* input);
 static int
 app_map_editor_hover_env_tile(
     int* out_world_x,
@@ -2248,6 +2269,19 @@ app_map_editor_world_click(
     app_map_editor_level_camera(app, ui);
     app_map_editor_pin_hover(app, panel);
 
+    /* A gizmo drag holds the pointer until its release (workbench 6.3). */
+    if( g_app_gizmo.active )
+    {
+        if( !panel->visible )
+        {
+            g_app_gizmo.active = 0;
+            MapEditorPieceGhost_Clear(&app->map_ghost.pieces);
+            return;
+        }
+        app_map_editor_gizmo_drag(app, input);
+        return;
+    }
+
     if( panel->stroke_active || panel->rect_dragging || panel->run.active || panel->marquee_pending )
     {
         /* The editor closing mid-drag still closes the stroke: an open
@@ -2276,6 +2310,11 @@ app_map_editor_world_click(
     if( app->frame_view->minimenu->visible || app->interact.swallow_left_click )
         return;
     if( app->input_frame_consumed )
+        return;
+    /* The gizmo is hit-tested before the world click: a press on one of
+     * its handles is the gizmo's, never also a tile latch or a marquee. */
+    if( input->curr.mouse_button_down[TORIRSM_LEFT] && !app->chrome_pointer_owned
+        && app_map_editor_gizmo_press(app, input) )
         return;
 
     tool = ui->tools.tool;
@@ -3003,6 +3042,348 @@ app_map_editor_spawn_ghost_update(
     app_map_editor_spawn_ghost_fade(app);
 }
 
+/* ---- the move gizmo and the multi-piece ghost (workbench 6.3) ----------------
+ *
+ * The gizmo (editor/loc_editor_selection.h) stands on the primary selected
+ * loc under Select or Move: its points are computed in world units there and
+ * projected through this window's camera every frame, the overlay draws what
+ * this projects, and a press is hit-tested against the same points BEFORE
+ * the world click, so a handle never also latches the tile under it. A drag
+ * proposes; the release is one action, one undo step (edp_locs_nudge for an
+ * arrow or the centre -- the swap rule applies --, edp_locs_duplicate_by for
+ * Alt on an arrow, edp_locs_rotate_by for the ring). While it is held the
+ * multi-piece ghost shows each selected loc's destination, orange where its
+ * key is held by a loc the move does not carry.
+ *
+ * The same ghost shows an armed stamp at the hovered tile (its LOC pieces,
+ * turned as Q left it), orange where a piece would replace a loc.
+ */
+
+/* (g_app_gizmo is declared at the top of this unit: the world click reads
+ * it.) */
+
+/** A loc's PLACED footprint from the cache: centrepieces only (a wall or a
+ *  decor is one tile), turned with the loc; 1x1 while it is not resident. */
+static void
+app_gizmo_loc_size(
+    struct App* app,
+    const struct Editor_LocRef* ref,
+    int* out_x,
+    int* out_z)
+{
+    struct ToriRS_Location* cfg;
+
+    *out_x = 1;
+    *out_z = 1;
+    if( ref->shape != 10 && ref->shape != 11 )
+        return;
+    cfg = app->provider ? CacheProvider_LocationGet(app->provider, ref->loc_id) : NULL;
+    if( !cfg )
+        return;
+    *out_x = (ref->rotation & 1) ? cfg->size_z : cfg->size_x;
+    *out_z = (ref->rotation & 1) ? cfg->size_x : cfg->size_z;
+    if( *out_x < 1 )
+        *out_x = 1;
+    if( *out_z < 1 )
+        *out_z = 1;
+}
+
+static int
+app_gizmo_project(
+    struct App* app,
+    int fine_x,
+    int fine_z,
+    int level,
+    int* out_x,
+    int* out_y)
+{
+    return app_world_project_at(app, fine_x, fine_z, app_world_height(app, fine_x, fine_z, level), out_x, out_y);
+}
+
+int
+App_MapEditorGizmoScreen(
+    struct App* app,
+    struct LocEditorGizmoScreen* out,
+    int* out_hot)
+{
+    struct Editor_Panel* panel;
+    struct EditorUi* ui;
+    struct LocEditorGizmoWorld world;
+    const struct Editor_LocRef* ref;
+    int size_x;
+    int size_z;
+    int sx;
+    int sz;
+
+    assert(app);
+    assert(out);
+    assert(out_hot);
+    memset(out, 0, sizeof(*out));
+    *out_hot = g_app_gizmo.active ? (int)g_app_gizmo.drag.handle : g_app_gizmo.hot;
+    panel = &app->editor_panel;
+    ui = panel->ui;
+    if( !panel->visible || !ui || !app->world || ui->tools.loc_count == 0 )
+        return 0;
+    if( ui->tools.tool != EDITOR_TOOL_SELECT && ui->tools.tool != EDITOR_TOOL_LOC_MOVE )
+        return 0;
+    ref = &ui->tools.locs[0];
+    sx = ref->map_x * 64 + ref->x - app->world->_base_tile_x;
+    sz = ref->map_z * 64 + ref->z - app->world->_base_tile_z;
+    if( sx < 0 || sz < 0 )
+        return 0;
+    app_gizmo_loc_size(app, ref, &size_x, &size_z);
+    LocEditorGizmo_World(sx, sz, size_x, size_z, &world);
+    if( !app_gizmo_project(app, world.centre_x, world.centre_z, ref->level, &out->centre_x, &out->centre_y) )
+        return 0;
+    for( int a = 0; a < 4; a++ )
+        out->arrow_ok[a] = app_gizmo_project(app, world.arrow_base_x[a], world.arrow_base_z[a], ref->level,
+                               &out->arrow_x0[a], &out->arrow_y0[a])
+                           && app_gizmo_project(app, world.arrow_tip_x[a], world.arrow_tip_z[a], ref->level,
+                               &out->arrow_x1[a], &out->arrow_y1[a]);
+    for( int i = 0; i < LOC_EDITOR_GIZMO_RING_POINTS; i++ )
+    {
+        /* 2048 a turn, the engine's own sine table. */
+        int const angle = i * 2048 / LOC_EDITOR_GIZMO_RING_POINTS;
+        int const fx = world.centre_x + ((ToriDraw_Cos(angle) * world.ring_radius) >> 16);
+        int const fz = world.centre_z + ((ToriDraw_Sin(angle) * world.ring_radius) >> 16);
+        if( app_gizmo_project(app, fx, fz, ref->level, &out->ring_x[out->ring_count], &out->ring_y[out->ring_count]) )
+            out->ring_count++;
+    }
+    out->valid = 1;
+    return 1;
+}
+
+/** The status sentence for the handle under the pointer, once per change. */
+static void
+app_gizmo_say_hot(
+    struct EditorUi* ui,
+    int hot)
+{
+    static const char* const k_arrow[4] = { "north", "south", "west", "east" };
+
+    if( hot == g_app_gizmo.said )
+        return;
+    g_app_gizmo.said = hot;
+    if( hot >= LOC_EDITOR_GIZMO_ARROW_N && hot <= LOC_EDITOR_GIZMO_ARROW_E )
+        Editor_UiStatus(ui, "Gizmo: drag to move the selection %s a tile at a time; Alt+drag copies it",
+            k_arrow[hot - LOC_EDITOR_GIZMO_ARROW_N]);
+    else if( hot == LOC_EDITOR_GIZMO_RING )
+        Editor_UiStatus(ui, "Gizmo: click to turn the selection a quarter; drag round for more");
+    else if( hot == LOC_EDITOR_GIZMO_CENTRE )
+        Editor_UiStatus(ui, "Gizmo: drag to move the selection to the tile under the pointer");
+}
+
+/** The drag's destinations as the multi-piece ghost. */
+static void
+app_gizmo_preview(
+    struct App* app,
+    struct EditorUi* ui)
+{
+    struct LocEditorGizmoResult result;
+    struct MapEditorPieceGhost* ghost = &app->map_ghost.pieces;
+
+    LocEditorGizmo_DragResult(&g_app_gizmo.drag, &result);
+    if( result.action != LOC_EDITOR_GIZMO_DO_MOVE && result.action != LOC_EDITOR_GIZMO_DO_DUPLICATE )
+    {
+        MapEditorPieceGhost_Clear(ghost);
+        if( result.action == LOC_EDITOR_GIZMO_DO_ROTATE && result.quarters != g_app_gizmo.said_quarters )
+        {
+            g_app_gizmo.said_quarters = result.quarters;
+            Editor_UiStatus(ui, "Turn %d degrees: release to apply", result.quarters * 90);
+        }
+        return;
+    }
+    if( MapEditorPieceGhost_Matches(ghost, MAP_EDITOR_PIECE_GHOST_DRAG, result.dx, result.dz, 0,
+            (int)result.action, (unsigned)ui->tools.loc_count) )
+        return;
+    MapEditorPieceGhost_Begin(
+        ghost, MAP_EDITOR_PIECE_GHOST_DRAG, result.dx, result.dz, 0, (int)result.action, (unsigned)ui->tools.loc_count);
+    for( int i = 0; i < ui->tools.loc_count; i++ )
+    {
+        const struct Editor_LocRef* ref = &ui->tools.locs[i];
+        struct MapEditorPieceGhostPiece piece;
+        struct Editor_Square* square;
+        int const wx = ref->map_x * 64 + ref->x + result.dx;
+        int const wz = ref->map_z * 64 + ref->z + result.dz;
+        int held = -1;
+
+        if( wx < 0 || wz < 0 )
+            continue;
+        memset(&piece, 0, sizeof(piece));
+        piece.scene_x = wx - app->world->_base_tile_x;
+        piece.scene_z = wz - app->world->_base_tile_z;
+        piece.level = ref->level;
+        app_gizmo_loc_size(app, ref, &piece.size_x, &piece.size_z);
+        square = Editor_DocFindSquare(&app->editor->doc, wx / 64, wz / 64);
+        if( square && square->loaded )
+            held = Editor_SquareLocFind(square, ref->level, wx % 64, wz % 64, ref->shape);
+        /* Held by a loc the move carries along is free: it leaves first. */
+        if( held >= 0 && result.action == LOC_EDITOR_GIZMO_DO_MOVE )
+        {
+            struct Editor_LocRef at;
+            Editor_LocRefAt(&at, wx, wz, ref->level, ref->shape, -1, 0);
+            if( Editor_UiFindLoc(ui, &at) >= 0 )
+                held = -1;
+        }
+        piece.taken = held >= 0 || !square || !square->loaded;
+        (void)MapEditorPieceGhost_Add(ghost, &piece);
+    }
+    app->need_redraw = 1;
+}
+
+/** A press on a handle starts its drag (and takes the press from the world
+ *  click). 0 when the press is not on the gizmo. */
+static int
+app_map_editor_gizmo_press(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    struct Editor_Panel* panel = &app->editor_panel;
+    struct LocEditorGizmoScreen screen;
+    enum LocEditorGizmoHandle handle;
+    int hot;
+    int hx;
+    int hz;
+
+    if( !App_MapEditorGizmoScreen(app, &screen, &hot) )
+        return 0;
+    handle = LocEditorGizmo_HitTest(
+        &screen, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y, LOC_EDITOR_GIZMO_SLOP);
+    if( handle == LOC_EDITOR_GIZMO_NONE )
+        return 0;
+    if( !Editor_PanelHoverTile(panel, app, &hx, &hz) )
+    {
+        hx = panel->ui->tools.locs[0].map_x * 64 + panel->ui->tools.locs[0].x - app->world->_base_tile_x;
+        hz = panel->ui->tools.locs[0].map_z * 64 + panel->ui->tools.locs[0].z - app->world->_base_tile_z;
+    }
+    LocEditorGizmo_DragBegin(&g_app_gizmo.drag, handle, hx, hz, screen.centre_x, screen.centre_y,
+        app->frame_view->world_mouse_x, app->frame_view->world_mouse_y,
+        LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT));
+    g_app_gizmo.active = 1;
+    g_app_gizmo.said_quarters = -1;
+    app_gizmo_preview(app, panel->ui);
+    app->need_redraw = 1;
+    return 1;
+}
+
+/** The held drag: follow the pointer; on the release, act once. */
+static void
+app_map_editor_gizmo_drag(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    struct Editor_Panel* panel = &app->editor_panel;
+    struct EditorUi* ui = panel->ui;
+    int const released =
+        input->curr.mouse_button_up[TORIRSM_LEFT] || !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
+    struct LocEditorGizmoResult result;
+    int hx;
+    int hz;
+
+    /* Off the world (the sky, a panel) the tile stays where it was; the
+     * ring still follows the pointer. */
+    if( !Editor_PanelHoverTile(panel, app, &hx, &hz) )
+    {
+        hx = g_app_gizmo.drag.start_x + g_app_gizmo.drag.dx;
+        hz = g_app_gizmo.drag.start_z + g_app_gizmo.drag.dz;
+    }
+    if( LocEditorGizmo_DragUpdate(
+            &g_app_gizmo.drag, hx, hz, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y) )
+        app_gizmo_preview(app, ui);
+    if( !released )
+        return;
+    g_app_gizmo.active = 0;
+    MapEditorPieceGhost_Clear(&app->map_ghost.pieces);
+    app->need_redraw = 1;
+    /* The selection may have gone while the button was held (an undo from
+     * another window): nothing to act on is not an edit. */
+    if( ui->tools.loc_count == 0 )
+        return;
+    LocEditorGizmo_DragResult(&g_app_gizmo.drag, &result);
+    if( result.action == LOC_EDITOR_GIZMO_DO_MOVE )
+        (void)edp_locs_nudge(ui, result.dx, result.dz);
+    else if( result.action == LOC_EDITOR_GIZMO_DO_DUPLICATE )
+        (void)edp_locs_duplicate_by(ui, result.dx, result.dz);
+    else if( result.action == LOC_EDITOR_GIZMO_DO_ROTATE )
+        (void)edp_locs_rotate_by(ui, result.quarters);
+}
+
+/** The armed stamp's pieces at the hovered tile, and the handle under the
+ *  pointer; once per frame. */
+static void
+app_map_editor_piece_ghost_update(
+    struct App* app,
+    struct EditorUi* ui)
+{
+    struct Editor_Panel* panel = &app->editor_panel;
+    struct MapEditorPieceGhost* ghost = &app->map_ghost.pieces;
+    const struct Editor_Stamp* stamp = edp_stamp_armed(ui);
+    const struct Editor_History* history = Editor_GetHistory(app->editor);
+    unsigned serial;
+    int wx;
+    int wz;
+    int level;
+
+    /* The hover tells (R5): which handle a click would take. */
+    if( !g_app_gizmo.active )
+    {
+        struct LocEditorGizmoScreen screen;
+        int hot = LOC_EDITOR_GIZMO_NONE;
+        if( App_MapEditorGizmoScreen(app, &screen, &hot) && !app->chrome_pointer_owned )
+            hot = (int)LocEditorGizmo_HitTest(
+                &screen, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y, LOC_EDITOR_GIZMO_SLOP);
+        else
+            hot = LOC_EDITOR_GIZMO_NONE;
+        if( hot != g_app_gizmo.hot )
+        {
+            g_app_gizmo.hot = hot;
+            app->need_redraw = 1;
+        }
+        app_gizmo_say_hot(ui, hot);
+        if( ghost->source == MAP_EDITOR_PIECE_GHOST_DRAG )
+            MapEditorPieceGhost_Clear(ghost);
+    }
+    if( g_app_gizmo.active )
+        return;
+    if( !stamp || !panel->visible || !app->map_ghost.hover.valid || !app->world )
+    {
+        if( ghost->source == MAP_EDITOR_PIECE_GHOST_STAMP )
+        {
+            MapEditorPieceGhost_Clear(ghost);
+            app->need_redraw = 1;
+        }
+        return;
+    }
+    wx = app->world->_base_tile_x + app->map_ghost.hover.scene_x;
+    wz = app->world->_base_tile_z + app->map_ghost.hover.scene_z;
+    level = Editor_PanelEditLevel(panel, app);
+    /* Rebuilt when the tile, the turn or the document moves. */
+    serial = (unsigned)history->applied * 2654435761u ^ (unsigned)history->count;
+    if( MapEditorPieceGhost_Matches(ghost, MAP_EDITOR_PIECE_GHOST_STAMP, wx, wz, level, stamp->turned, serial) )
+        return;
+    MapEditorPieceGhost_Begin(ghost, MAP_EDITOR_PIECE_GHOST_STAMP, wx, wz, level, stamp->turned, serial);
+    for( int i = 0; i < stamp->count; i++ )
+    {
+        struct MapEditorPieceGhostPiece piece;
+        int px;
+        int pz;
+        int pl;
+        int holder;
+        if( stamp->pieces[i].kind != EDITOR_STAMP_LOC
+            || !Editor_StampPieceLanding(&app->editor->doc, stamp, i, wx, wz, level, &px, &pz, &pl, &holder) )
+            continue;
+        memset(&piece, 0, sizeof(piece));
+        piece.scene_x = px - app->world->_base_tile_x;
+        piece.scene_z = pz - app->world->_base_tile_z;
+        piece.level = pl;
+        piece.size_x = stamp->pieces[i].size_x;
+        piece.size_z = stamp->pieces[i].size_z;
+        piece.taken = holder >= 0;
+        (void)MapEditorPieceGhost_Add(ghost, &piece);
+    }
+    app->need_redraw = 1;
+}
+
 /**
  * Keep the Place / Move hover ghost current. Once per frame, with the other
  * editor drains.
@@ -3028,14 +3409,16 @@ app_map_editor_ghost_update(struct App* app)
     app_map_editor_hover_env_arm(ui);
     app_map_editor_level_env(app, ui);
     app_map_editor_spawn_ghost_update(app, ui);
+    app_map_editor_piece_ghost_update(app, ui);
 
     /* Place previews the CATALOG pick; Move previews the first selected loc
      * at the tile it would land on (not on its own tile: a translucent double
-     * of itself reads as flicker). */
+     * of itself reads as flicker). An armed stamp is the multi-piece ghost's,
+     * and so is a gizmo drag. */
     {
-        int const hover_ok = app->map_ghost.hover.valid;
+        int const hover_ok = app->map_ghost.hover.valid && !g_app_gizmo.active;
 
-        if( panel->visible && hover_ok && ui->tools.tool == EDITOR_TOOL_LOC_PLACE
+        if( panel->visible && hover_ok && ui->tools.tool == EDITOR_TOOL_LOC_PLACE && !edp_stamp_armed(ui)
             && ui->tools.pick_kind == CACHEPROVIDER_CATALOG_LOC && ui->tools.pick_id >= 0 )
         {
             want = 1;
@@ -3666,8 +4049,14 @@ app_map_editor_shape_strip_update(struct App* app)
         if( ToriDraw_SceneSpriteHas(app->scene, APP_EDITOR_SHAPE_STRIP_SPRITE_ID) )
             ToriDraw_SceneSpriteRemove(app->scene, APP_EDITOR_SHAPE_STRIP_SPRITE_ID);
         ToriDraw_SceneSpriteAdd(app->scene, APP_EDITOR_SHAPE_STRIP_SPRITE_ID, sprites, 1);
-        ToriRSChrome_ModelViewSetSprite(
-            &app->dbg_ui, view, APP_EDITOR_SHAPE_STRIP_SPRITE_ID, strip_w, APP_EDITOR_SHAPE_THUMB_H);
+        /* The strip is a GRAPH now (workbench 6.3): the panel draws the
+         * picture under a keyed slot per shape, so a thumbnail clicks. */
+        (void)view;
+        {
+            static uint32_t version;
+            Editor_Locs_ShapeStripSprite(app->editor_panel.ui, APP_EDITOR_SHAPE_STRIP_SPRITE_ID, strip_w,
+                APP_EDITOR_SHAPE_THUMB_H, slot_w, ++version);
+        }
     }
     last_loc = loc_id;
     last_count = count;
