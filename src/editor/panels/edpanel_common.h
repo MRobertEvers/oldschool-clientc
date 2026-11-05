@@ -41,14 +41,15 @@
 #define EDP_RAIL_W 38
 #define EDP_RAIL_PITCH 34
 
-/** A 1x-authored layout constant at the chrome's current scale. */
+/** A 1x-authored layout constant at the chrome's current scale, rounded once
+ *  to device pixels where the chrome rounds its own (Editor_UiPx). */
 static inline int
 edp_px(
     const struct EditorUi* ui,
     int px)
 {
     assert(ui);
-    return px * ToriRSChrome_Scale(ui->chrome);
+    return Editor_UiPx(ui, px);
 }
 
 /** The surface's width in chrome pixels (0 before the first SetSurface). */

@@ -391,5 +391,15 @@ EditorView_SetBootPanel(const char* module);
 const char*
 EditorView_BootPanel(void);
 
+/** This viewer process should end: its Dock button docked the panel back
+ *  into the leader (Editor_UiDockBack). One per process, like the boot
+ *  panel; main.c's frame loop ends on the frame after it is set. */
+void
+EditorView_RequestExit(void);
+
+/** 1 once EditorView_RequestExit ran. */
+int
+EditorView_ExitRequested(void);
+
 
 #endif

@@ -599,7 +599,8 @@ struct AppConfig
      * window it is given; resizable lays the gameframe out at the window size.
      * --windowmode overrides. */
     int window_mode;
-    /** Manifest-pinned chrome zoom; 0 follows the display density. The env
+    /** Manifest-pinned chrome zoom in quarter units (bootmanifest.h), -1
+     *  `dynamic`; 0 follows the display density. The env
      *  TORIRS_CHROME_SCALE outranks both. */
     int chrome_scale;
     /** `[ui:boot] chrome_checkbox` -- enum ToriRSChromeCheckStyle: which of the

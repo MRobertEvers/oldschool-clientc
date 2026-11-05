@@ -4,6 +4,7 @@
 #include "cmd/cmdbus.h"
 #include "engine/uitree_scene_bridge.h"
 #include "engine/world_builder/world_builder.h"
+#include "editor/editor_ui.h"
 #include "editor/editor_view.h"
 #include "executor_config.h"
 #include "game/content_test.h"
@@ -118,6 +119,7 @@ struct ToriPlatformAndroid_Renderer_GLES3;
 #include "toridraw_model.h"
 #include "ui/torirs_chrome_exec.h"
 #include "ui/torirs_chrome_inkwell.h"
+#include "ui/torirs_chrome_scale_q.h"
 #include "ui/uitree_hover.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_snapshot.h"
@@ -2389,38 +2391,100 @@ static int paced_value = -1;
 static int input_frame_pending;
 
 /*
- * The `chrome_scale=dynamic` ladder: device pixels per ToriRSChrome pixel.
+ * The `chrome_scale=dynamic` ladder: the display's device pixel ratio, as the
+ * chrome scale in quarter units (ui/torirs_chrome_scale_q.h: 4 = 1x, 6 = 1.5x).
  *
- * Two questions live in here, and conflating them is what makes a HighDPI boot
- * silently resize its own panels. HOW BIG the chrome should be is a question
- * about ROOM, and room is measured in POINTS -- 500 rows of window per step,
- * so the classic 503-row frame is one step and a window twice that is two. How
- * many pixels one chrome pixel spans is a question about the DISPLAY, and that
- * is the density. The scale is the product of the two.
+ * Workbench step 6.0b (design section 2, "R1 in full"): the scale follows the
+ * DPR exactly -- 1, 1.25, 1.5, 1.75, 2, 2.5, 3 -- rather than an integer ladder
+ * a 1.5x laptop had to be rounded onto, and a touch device never goes under 2x.
+ * The ratio is `density_percent`, PlatformWindow_ChromeDensityPercent: the
+ * drawable-to-window ratio (devicePixelRatio on the web, which SDL reports
+ * the same way), or where the backend has one coordinate space, the display's
+ * own DPI when the platform states one worth trusting.
  *
- * Reading the ladder off the raw canvas instead counts density twice: on a 2x
- * display a 733-point window is a 1466-row canvas, which reads as two steps
- * and then gets drawn at 2x anyway -- panels half again as large as the same
- * window gets on an ordinary display, purely for being drawn sharply. Turning
- * HighDPI on is supposed to change the RESOLUTION of the chrome and nothing
- * else about it.
+ * What it is NOT any more is a function of the canvas. The ladder this
+ * replaces stepped the chrome up by 500 points of window height, so a tall
+ * window on a 1x display drew 2x chrome; that was room, and room is the
+ * user's to spend: View > Chrome scale (editor_ui.h) asks for 200 % on such
+ * a window, and Auto is the display. Counting density from the raw canvas is
+ * still the failure to avoid -- the ratio is read from the platform, never
+ * divided out of a canvas size.
  *
- * No upper clamp: App_SetChromeScale holds it to what the bake carries
- * (TORIRS_CHROME_SCALE_MAX), which is the one place that knows.
+ * Clamped to what the chrome can draw (TORIRS_CHROME_SCALEQ_MIN..MAX) by the
+ * snap itself.
  */
 static int
 main_dynamic_chrome_scale(
-    int canvas_h,
-    int density)
+    int density_percent,
+    int touch)
 {
-    int steps;
+    assert(density_percent > 0);
+    return ToriRSChromeScaleQ_FromDisplay(density_percent, touch);
+}
 
-    assert(canvas_h > 0);
-    assert(density > 0);
-    steps = canvas_h / density / 500;
-    if( steps < 1 )
-        steps = 1;
-    return steps * density;
+/*
+ * The chrome scale this frame asks for, in quarter units. Precedence: the env
+ * pin (a dev working on scaled chrome from a 1x display; integer or decimal,
+ * "1.5"), then the map editor's View > Chrome scale when it is not Auto (a
+ * device-local preference, editor_prefs.ini), then the manifest's pin
+ * (`[ui:boot] chrome_scale=`, quarter units since the boot manifest parsed
+ * it), then `dynamic` (the display's ratio, above), then -- a manifest that
+ * never asked -- the display's whole density as before, so a game lane's
+ * chrome stays on the integer scales it has always drawn at.
+ */
+static int
+main_chrome_scale_q(
+    struct App* app,
+    struct PlatformWindow* platform,
+    int cfg_chrome_scale)
+{
+    char const* forced = torirs_env_chrome_scale();
+    int q;
+
+    if( forced && forced[0] )
+    {
+        static int said;
+        q = ToriRSChromeScaleQ_Parse(forced);
+        if( q > 0 )
+            return q;
+        if( !said )
+            TORIRS_LOG("chrome: TORIRS_CHROME_SCALE must be 1..3 or a decimal such as 1.5, got '%s'\n", forced);
+        said = 1;
+    }
+    if( cfg_chrome_scale > 0 )
+        q = cfg_chrome_scale;
+    else if( cfg_chrome_scale < 0 )
+        q = main_dynamic_chrome_scale(
+            PlatformWindow_ChromeDensityPercent(platform), app->touch_ui || app->touch_camera);
+    else
+        q = PlatformWindow_PixelDensity(platform) * TORIRS_CHROME_SCALEQ_ONE;
+    if( q > TORIRS_CHROME_SCALEQ_MAX )
+        q = TORIRS_CHROME_SCALEQ_MAX;
+    /* The editor's View > Chrome scale; Auto hands `q` back (and the View
+     * menu's Auto row names it). */
+    if( app->editor && app->editor_panel.built && app->editor_panel.ui )
+        q = Editor_UiChromeScaleFor(app->editor_panel.ui, q);
+    return q;
+}
+
+/*
+ * Set the chrome to quarter scale `q`: the App's integer scale (the scene
+ * fonts the renderer draws the rows with, both chrome instances) and both
+ * chrome models through the editor's shim, which hands the rational scale to
+ * ToriRSChrome_SetScaleQ (the integer is the tier at or above it, so the two
+ * setters never undo each other). @return 1 if anything moved.
+ */
+static int
+main_chrome_scale_apply(
+    struct App* app,
+    int q)
+{
+    int changed;
+
+    changed = App_SetChromeScale(app, Editor_ChromeScaleInteger(q));
+    changed |= Editor_ChromeSetScaleQ(&app->dbg_ui, q);
+    changed |= Editor_ChromeSetScaleQ(&app->plugin_ui, q);
+    return changed;
 }
 
 /*
@@ -3459,7 +3523,9 @@ frame_loop_step(void)
         }
     }
 #endif
-    if( PlatformWindow_QuitRequested(platform) )
+    /* A popped-out editor window's Dock button ends it as its OS close box
+     * would (editor_view.h EditorView_RequestExit). */
+    if( PlatformWindow_QuitRequested(platform) || EditorView_ExitRequested() )
     {
         /* Both dumps are no-ops unless their env knob asked for them, and
          * both are idempotent, so the two exits below can each call them
@@ -5323,27 +5389,19 @@ frame_loop_step(void)
         /* Cheap and unconditional: a window dragged from a Retina display to
          * an ordinary one changes density with no event that says so, and
          * App_SetChromeScale returns immediately when nothing moved. */
-        if( !torirs_env_chrome_scale() )
+        /* Every frame, whatever pinned it: a drag onto a display of a
+         * different ratio re-picks the scale (dynamic, unset), and the
+         * editor's View > Chrome scale lands the frame after it was chosen.
+         * A pin re-derives the same value and changes nothing. */
         {
-            if( app.cfg.chrome_scale < 0 )
-            {
-                /* dynamic: re-derive from the canvas every frame, so a drag
-                 * to fullscreen steps the chrome up as the canvas grows -- and
-                 * so a drag onto a display of a different density re-picks the
-                 * baked face for it, which raises no event of its own. */
-                int const density = PlatformWindow_PixelDensity(platform);
-                int const scale = main_dynamic_chrome_scale(UITREE_LAYOUT_ROOT_H, density);
-                if( App_SetChromeScale(&app, scale) && getenv("TORIRS_RESIZE_DEBUG") )
-                    TORIRS_LOG(
-                        "chrome: scale %d (canvas %dx%d, density %d)\n",
-                        App_ChromeScale(&app),
-                        UITREE_LAYOUT_ROOT_W,
-                        UITREE_LAYOUT_ROOT_H,
-                        density);
-            }
-            else if( app.cfg.chrome_scale == 0 )
-                App_SetChromeScale(&app, PlatformWindow_PixelDensity(platform));
-            /* > 0: pinned by the manifest; set once at boot, never followed. */
+            int const q = main_chrome_scale_q(&app, platform, app.cfg.chrome_scale);
+            if( main_chrome_scale_apply(&app, q) && getenv("TORIRS_RESIZE_DEBUG") )
+                TORIRS_LOG(
+                    "chrome: scale %d%% (canvas %dx%d, display %d%%)\n",
+                    ToriRSChromeScaleQ_Percent(q),
+                    UITREE_LAYOUT_ROOT_W,
+                    UITREE_LAYOUT_ROOT_H,
+                    PlatformWindow_ChromeDensityPercent(platform));
         }
         /*
          * The layout is the pointer's space and the frame's shape; the
@@ -9451,28 +9509,18 @@ main(
          * ordinary display (and for pinning the size a screenshot test wants).
          */
         {
-            int density = PlatformWindow_PixelDensity(platform);
-            char const* forced = torirs_env_chrome_scale();
-            /* Precedence: the env pin (a dev working on scaled chrome from a
-             * 1x display), then the manifest's stated size, then the display
-             * itself. The manifest slot is what lets a boot say "this editor
-             * draws its chrome at 2x" without every launch exporting an env. */
-            if( forced && forced[0] )
-                density = atoi(forced);
-            else if( cfg.chrome_scale > 0 )
-                density = cfg.chrome_scale;
-            else if( cfg.chrome_scale < 0 )
-                /* dynamic: proportional to the canvas, 500 POINTS per step,
-                 * times the density -- the classic 503-row frame is one step,
-                 * a window twice that is two, and each step is drawn at the
-                 * display's own resolution. */
-                density = main_dynamic_chrome_scale(UITREE_LAYOUT_ROOT_H, density);
-            App_SetChromeScale(&app, density);
+            /* Precedence (main_chrome_scale_q): the env pin, the editor's
+             * View > Chrome scale (not loaded yet at boot: the frame loop
+             * applies it), the manifest's stated size, the display itself.
+             * The manifest slot is what lets a boot say "this editor draws
+             * its chrome at 1.5x" without every launch exporting an env. */
+            int const q = main_chrome_scale_q(&app, platform, cfg.chrome_scale);
+            (void)main_chrome_scale_apply(&app, q);
             if( getenv("TORIRS_RESIZE_DEBUG") )
                 TORIRS_LOG(
-                    "chrome: scale %d (display density %d)\n",
-                    App_ChromeScale(&app),
-                    PlatformWindow_PixelDensity(platform));
+                    "chrome: scale %d%% (display %d%%)\n",
+                    ToriRSChromeScaleQ_Percent(q),
+                    PlatformWindow_ChromeDensityPercent(platform));
         }
 
         {

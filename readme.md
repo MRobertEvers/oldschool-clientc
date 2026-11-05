@@ -697,12 +697,14 @@ than any one of them being wrong.
 | Renderer | device option 36, in-client and saved; a renderer flag (`--opengl3[-zbuffer]`, `--d3d9[-zbuffer]`, `--gles2[-zbuffer]`, `--soft3d[-zbuffer|-rszbuffer]`, on the command line or in the manifest) always wins at launch | the renderers this build and window can start | Swapped live between two frames: the old renderer is freed, the window changes how it presents, the new one starts and is handed the scene again. The game, network and plugins keep running. Desktop SDL: Software / Software (depth buffer) / OpenGL / OpenGL (depth buffer). Windows XP: Software (GDI) / Software (depth buffer) / Direct3D 9 / Direct3D 9 (depth buffer). Every lane that offers Software offers Software (depth buffer), and on XRGB8888 lanes Software (OSRS z-buffer), the rev-241 client's own depth buffer (docs/toridraw_rszbuffer.md). Android and the browser keep the renderer they launched with. With no renderer flag, the saved pick is applied once preferences load. A pick that cannot start falls back and the page says so |
 | Integer scaling | device option 30 = 1, in-client toggle beside interface scaling | on/off | Interface scaling rounded to whole multiples so every buffer pixel covers a whole number of window pixels |
 | Stretch mode | device option 30 = 0/2, in-client, shown only when it can matter | keep aspect / stretch to fill | Placing a buffer that is NOT the window's shape: a fixed frame, or a resizable one the window could not hold. A resizable buffer is otherwise the window's own shape and both modes draw the same picture |
-| `chrome_scale` | `[ui:boot]`, env `TORIRS_CHROME_SCALE` | `1..4`, `dynamic`, unset | Device pixels per ToriRSChrome pixel |
+| `chrome_scale` | `[ui:boot]`, env `TORIRS_CHROME_SCALE` | `1..3` or a decimal (`1.5`, `1.25`), `dynamic`, unset | Device pixels per ToriRSChrome pixel, kept in quarters (`src/ui/torirs_chrome_scale_q.h`); the map editor's View > Chrome scale outranks the manifest |
 | `windowmode` | `[ui:boot]`, `--windowmode` | `fixed`/`resizable` | Whether the canvas tracks the window at all |
 | Interface scaling | device option 27, in-client | percent | The interface's layout size (buffer / percent); every 2D element is drawn scaled into the buffer. Never the 3D world |
 
 Precedence for `hidpi` and `chrome_scale` is env, then manifest, then the
-platform default.
+platform default; for `chrome_scale` the map editor's View > Chrome scale
+(a device-local `editor_prefs.ini`) sits between env and manifest when it is
+not Auto.
 
 Off the web the window is always created with `SDL_WINDOW_ALLOW_HIGHDPI`
 (`TORIRS_HIDPI=0` still declines it), so the client can always **detect** the
@@ -757,14 +759,20 @@ canvas, so geometry keeps its physical size and merely gains resolution. Turn
 
 ### `chrome_scale=dynamic`
 
-    scale = canvas_h / density / 500 * density
+    scale = snap(display ratio) to 1, 1.25, 1.5, 1.75, 2, 2.5, 3   (never under 2 on touch)
 
-Two questions, deliberately separated. *How big* the chrome should be is a
-question about room, and room is measured in **points** — 500 per step, so the
-classic 503-row frame is one step. *How many pixels* one chrome pixel spans is
-a question about the display, and that is the density. Stepping off the raw
-canvas instead counts density twice: on a 2x display a 733-point window is a
-1466-row canvas, reads as two steps, and then gets drawn at 2x anyway.
+The display's device pixel ratio, exactly (workbench step 6.0b): the
+drawable-to-window ratio (`devicePixelRatio` on the web), or where the backend
+has one coordinate space, the display's own DPI when the platform states one
+worth trusting (Windows under SDL; `PlatformWindow_ChromeDensityPercent`).
+Before 6.0b the ladder also stepped up by 500 points of window height, so a
+tall window on a 1x display drew 2x chrome; that was room, and room is the
+user's to spend now: the map editor's View > Chrome scale picks 100 % to 300 %
+per device, and Auto is the display. Until the chrome model takes quarter
+scales (`ToriRSChrome_SetScaleQ`, built with `TORIRS_CHROME_SCALEQ`) a
+fractional scale is drawn at the integer scale `(q + 2) / 4`. The ratio is
+still read from the platform, never divided out of a canvas size, so density
+is never counted twice.
 
 ### Points vs pixels
 

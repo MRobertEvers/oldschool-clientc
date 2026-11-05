@@ -2616,6 +2616,13 @@ PlatformWindow_DisplayDensityPercent(struct PlatformWindow* p)
     return 100;
 }
 
+int
+PlatformWindow_ChromeDensityPercent(struct PlatformWindow* p)
+{
+    /* Not DPI aware: Windows scales the finished window, chrome included. */
+    return PlatformWindow_DisplayDensityPercent(p);
+}
+
 void
 PlatformWindow_SetWantHighDPI(bool want)
 {

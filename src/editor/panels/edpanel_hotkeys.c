@@ -26,6 +26,7 @@
 #include "edpanels.h"
 #include "editor/live/live_panel.h"
 #include "mem/torirs_mem.h"
+#include "ui/torirs_chrome_scale_q.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -341,6 +342,20 @@ Editor_HotkeyRun(
     if( action == EDITOR_HK_VIEW_SNAP )
     {
         Editor_UiSetSnap(ui, !ui->snap);
+        return 1;
+    }
+    /* View > Chrome scale: Auto, then the steps in order. The host applies
+     * the scale on its next frame (main.c main_chrome_scale_q). */
+    if( action >= EDITOR_HK_VIEW_SCALE_AUTO && action <= EDITOR_HK_VIEW_SCALE_300 )
+    {
+        int const step = action - EDITOR_HK_VIEW_SCALE_100;
+        Editor_UiSetChromeScalePref(
+            ui, action == EDITOR_HK_VIEW_SCALE_AUTO ? EDITOR_PREFS_SCALE_AUTO : ToriRSChromeScaleQ_Step(step));
+        return 1;
+    }
+    if( action == EDITOR_HK_VIEW_TEXT_NORMAL || action == EDITOR_HK_VIEW_TEXT_LARGE )
+    {
+        Editor_UiSetTextLarge(ui, action == EDITOR_HK_VIEW_TEXT_LARGE);
         return 1;
     }
     /* The camera, the eyedroppers and the click accelerators: the App's. */

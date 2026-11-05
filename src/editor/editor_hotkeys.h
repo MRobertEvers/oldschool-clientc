@@ -220,6 +220,19 @@ enum Editor_HotkeyAction
      *  over none); hide the panel under the pointer. */
     EDITOR_HK_VIEW_POPOUT,
     EDITOR_HK_VIEW_CLOSE_PANEL,
+    /** View > Chrome scale (workbench 6.0b): Auto, then the design's steps
+     *  in order (ui/torirs_chrome_scale_q.h); View > Text size Normal /
+     *  Large. Unbound by default. */
+    EDITOR_HK_VIEW_SCALE_AUTO,
+    EDITOR_HK_VIEW_SCALE_100,
+    EDITOR_HK_VIEW_SCALE_125,
+    EDITOR_HK_VIEW_SCALE_150,
+    EDITOR_HK_VIEW_SCALE_175,
+    EDITOR_HK_VIEW_SCALE_200,
+    EDITOR_HK_VIEW_SCALE_250,
+    EDITOR_HK_VIEW_SCALE_300,
+    EDITOR_HK_VIEW_TEXT_NORMAL,
+    EDITOR_HK_VIEW_TEXT_LARGE,
     EDITOR_HK_COUNT
 };
 

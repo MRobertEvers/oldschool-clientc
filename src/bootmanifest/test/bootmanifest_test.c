@@ -635,6 +635,21 @@ test_hotkey_key_names(void)
     CHECK(BootManifest_LoadFile(&bm, "bootmanifest/test/fixture_hotkey_unknown.ini") != 0);
 }
 
+/* [ui:boot] chrome_scale=: a decimal pin in quarter units, `dynamic` as -1
+ * (workbench 6.0b). */
+static void
+test_chrome_scale(void)
+{
+    struct BootManifest bm;
+    struct AppConfig cfg = { 0 };
+    CHECK(BootManifest_LoadFile(&bm, "bootmanifest/test/fixture_chrome_scale.ini") == 0);
+    CHECK(bm.chrome_scale == 6);
+    BootManifest_ApplyToConfig(&bm, &cfg);
+    CHECK(cfg.chrome_scale == 6);
+    CHECK(BootManifest_LoadFile(&bm, "../manifests/manifest_osrs241_mapeditor.ini") == 0);
+    CHECK(bm.chrome_scale == -1);
+}
+
 int
 main(void)
 {
@@ -650,6 +665,7 @@ main(void)
     test_cache_dir_default();
     test_backslash_manifest_path();
     test_hotkey_key_names();
+    test_chrome_scale();
 
     if( g_fail )
     {
