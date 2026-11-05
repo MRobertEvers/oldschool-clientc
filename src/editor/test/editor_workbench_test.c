@@ -221,9 +221,13 @@ registry_digest(
 
 /* Recorded at v3-workbench 64310269, before step 6.0b changed the draw path:
  * scene in the default theme, scene in the osrs theme, the registry; at
- * scales 1, 2, 3. */
+ * scales 1, 2, 3. The 1x registry was recorded again at workbench 6.4 (the
+ * picker's panes): the Squares panel, docked in that layout, gained its
+ * open-set strip and the detail pane's heading, so the dock column's share
+ * moved (was 1127817167u; the scenes, and 2x and 3x where Squares is not
+ * docked, are untouched). */
 static const uint32_t k_golden[3][3] = {
-    { 1970238540u, 3840548130u, 1127817167u },
+    { 1970238540u, 3840548130u, 1751176799u },
     { 1606657634u, 3552625563u, 2175812620u },
     { 1621493878u, 3838641767u, 3489523192u },
 };

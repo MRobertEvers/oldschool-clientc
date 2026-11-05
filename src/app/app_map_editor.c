@@ -402,7 +402,7 @@ ui_service_world_busy(void* user_data)
 {
     struct App* app = user_data;
     assert(app);
-    return app->world_load_inflight || app->editor_panel.sq_open_pending;
+    return app->world_load_inflight || app->editor_panel.sq_open_pending || app->editor_panel.sq_close_pending;
 }
 
 static void
@@ -919,6 +919,67 @@ app_map_editor_shadow_seed(
 #define APP_MAP_EDITOR_OPEN_MAX 16
 
 /**
+ * Close one square of the window's world (the picker's open-set strip,
+ * Shift+click, past the save guard): the world reloads with every other
+ * square it shows now. The document keeps the square -- its unsaved edits stay
+ * in the session until saved or undone -- it is only no longer in this
+ * window's world. Refused, with the reason in the status bar, when it is the
+ * only square shown (a window always shows one) or not shown at all.
+ */
+static void
+app_map_editor_close_square(
+    struct App* app,
+    struct Editor_Panel* panel)
+{
+    struct Editor_Doc* doc = &app->editor->doc;
+    int chunks[APP_MAP_EDITOR_OPEN_MAX * 2];
+    int count = 0;
+    int shown = 0;
+
+    if( !app->world_builder )
+    {
+        if( panel->ui )
+            Editor_UiStatus(panel->ui, "Close refused: this window has no world yet");
+        return;
+    }
+    for( int i = 0; i < doc->square_count && count < APP_MAP_EDITOR_OPEN_MAX; i++ )
+    {
+        struct Editor_Square const* square = &doc->squares[i];
+        if( !square->loaded || !WorldEdit_SquareInWindow(app->world_builder, square->map_x, square->map_z) )
+            continue;
+        if( square->map_x == panel->sq_close_x && square->map_z == panel->sq_close_z )
+        {
+            shown = 1;
+            continue;
+        }
+        chunks[count * 2] = square->map_x;
+        chunks[count * 2 + 1] = square->map_z;
+        count++;
+    }
+    if( !shown )
+    {
+        if( panel->ui )
+            Editor_UiStatus(panel->ui, "Close refused: m%d_%d is not in this window's world", panel->sq_close_x,
+                panel->sq_close_z);
+        return;
+    }
+    if( count == 0 )
+    {
+        if( panel->ui )
+            Editor_UiStatus(panel->ui, "Close refused: m%d_%d is the only square this window shows; open another first",
+                panel->sq_close_x, panel->sq_close_z);
+        return;
+    }
+    TORIRS_LOG("editor: closing m%d_%d (%d square%s left)\n", panel->sq_close_x, panel->sq_close_z, count,
+        count == 1 ? "" : "s");
+    if( panel->ui )
+        Editor_UiStatus(panel->ui, "Closed m%d_%d: %d square%s left in this window", panel->sq_close_x,
+            panel->sq_close_z, count, count == 1 ? "" : "s");
+    app->world_load_attempted = 0;
+    app_world_load_begin(app, chunks, count);
+}
+
+/**
  * Start a load the square picker asked for. Runs on the frame boundary with
  * the other editor drains, so a panel click never loads a world mid-tick.
  *
@@ -951,6 +1012,13 @@ app_map_editor_open_pending_square(struct App* app)
         else if( panel->ui )
             Editor_UiLog(panel->ui, "editor: m%d_%d is not in the scene after its open", panel->sq_goto_x / 64,
                 panel->sq_goto_z / 64);
+    }
+    /* A close waits for the load in flight and for an open asked before it. */
+    if( panel->sq_close_pending && !panel->sq_open_pending && !app->world_load_inflight )
+    {
+        panel->sq_close_pending = 0;
+        app_map_editor_close_square(app, panel);
+        return;
     }
     if( !panel->sq_open_pending )
         return;

@@ -1633,6 +1633,17 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
             ev.kind = TORIRS_CHROME_EVENT_GRAPH_WHEEL;
             ev.value = intent->value;
         }
+        else if( intent->value == TORIRS_CHROME_EVENT_GRAPH_KEY )
+        {
+            /* A key on the focused well (the DOM's keydown): `x` the key as
+             * the event's value says it, `y` the modifier bits. No point. */
+            ev.kind = TORIRS_CHROME_EVENT_GRAPH_KEY;
+            ev.widget = intent->widget;
+            ev.serial = ui->widgets[intent->widget].serial;
+            ev.value = intent->x;
+            ev.col = intent->y;
+            return ToriRSChrome_PushEvent(ui, &ev);
+        }
         else
         {
             if( intent->value < TORIRS_CHROME_EVENT_GRAPH_PRESS ||

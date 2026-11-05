@@ -2191,6 +2191,168 @@ Not done here / open:
 - The design's "white dashed" camera window and "yellow: open here" colours
   are not applied (the selection keeps yellow, open-here its cyan inset).
 
+## Workbench step 6.4, part 2: the picker's navigation and panes (date 2026-11-05)
+
+Design section 5 ("Navigation", the open-set strip, the detail pane, the Area
+dropdown's lanes), section 2 (R2 text never clips, R5 hover tells, R8 nothing
+without a word), section 16 step 6.4 in part. The picker's drawing
+(edpanel_picker.c: level of detail, visible-first pictures, GRAPH images on
+the web) is the other half of 6.4 and is not touched here; this half only
+calls it.
+
+What landed:
+
+- **Find** (src/editor/panels/edpanel_picker_find.{h,c}, pure).
+  `Editor_PickerFindParse` reads the text alone: `m50_50`, `50 50` / `50,50`,
+  `3222 3218 [level]` (a tile: the square holding it, PINNED), a name,
+  `lane:<name>`, `instance:` / `instance:<name>`; it refuses `m50`, a square
+  past 255, a level past 3, `lane:` alone, four numbers, one number.
+  `Editor_PickerFindResolve` answers it against an atlas and the AREAS
+  document's collection names: a cell (an empty one is where New makes it;
+  from a lane's page the lane's copy first), an Area page (title, internal or
+  display name, exact then contained), a collection (likewise), a lane's
+  storage, the instance space (`EDITOR_PICKER_INSTANCE_X0..X1 x Z0..Z1`,
+  0..19 x 100..255, design section 13). The Squares panel applies the match:
+  a cell is shown at least `EDITOR_PICKER_ZOOM_SHOW` (24) px a square,
+  centred, focused, and the well takes the keyboard; a page switches the
+  Area dropdown; a collection is `Editor_SquarePicker_SetCollection`; a lane
+  filters to its storage on the Full map page and frames its squares; the
+  instance space is framed (as far as the page's zoom range lets it). A miss
+  says why in the status bar. The tile pin is shown in the detail pane's
+  Tiles row ("pin 3222,3218 L0"); drawing a marker on the atlas is the
+  drawing half's.
+- **Keyboard: context K** (editor_hotkeys.{h,c}, docs/MAPED_HOTKEYS.md
+  "Picker"). `EDITOR_HK_CTX_K` (bit 8; `EDITOR_HK_CTX_COUNT` 9, `_ALL`
+  0x1ff) is "the picker has focus"; it excludes every other context, G
+  included, because while the Squares well holds the keyboard it is a field
+  (the App's dispatcher gates on `app_chrome_holds_keyboard` and resolves
+  nothing). The Picker rows: `picker.north/south/west/east` (arrows,
+  repeat), `picker.open` (Return), `picker.add` (Shift+Return),
+  `picker.back` (Backspace), `picker.clear_find` (Escape). The well resolves
+  its own keys against the K rows with the new `Editor_HotkeysMatch(hk,
+  chord, contexts)` (a clash goes to the later binding, as the resolver's),
+  so a rebind re-routes them and relabels the pane's Open / Add keycaps on
+  the next frame. `Editor_HotkeyRun` sends a Picker action to
+  `Editor_SquarePicker_Key`. The Hotkeys panel gained the "Picker" group.
+- **The chrome hands the well its keys.** The focused GRAPH now forwards
+  Enter, Backspace and Escape as GRAPH_KEY (negated `ToriRSChromeKey`, as the
+  arrows were) and Escape still lets go of the focus afterwards; a GRAPH_KEY
+  event's `col` carries modifier bits (1 Ctrl, 2 Shift, 4 Alt) when the
+  presentation knows them. The DOM executor (runtime-source.js; runtime.js
+  and runtime-ie8.js regenerated with tsc 6.0.2) binds `keydown` on the well
+  and posts `TORIRS_CHROME_INTENT_GRAPH` with value GRAPH_KEY (10), x the key,
+  y the modifiers; torirs_chrome_exec.c accepts it. The native host uses its
+  own shift (`ui->shift_held`).
+- **Focus** (edpanel_picker_nav.{h,c}, pure). `Editor_PickerFocusCell`,
+  `Editor_PickerFocusSet` (the square there, the page's storage first, else
+  the empty cell), `Editor_PickerFocusStep` (north is +z, clamped to the
+  world; from nothing it starts at the well's middle) and
+  `Editor_PickerKeepInView` (the least pan that brings the cell in). The
+  Squares panel draws the focus with the selection outline in white
+  (`EDITOR_SQUARES_FOCUS_RGB`, `colors.selected`); the arrows no longer pan
+  (they move the focus, and the view follows it).
+- **The open-set strip** (a second GRAPH, under the well so the well stays
+  the panel's first). `struct Editor_PickerOpenSet` follows the picker's
+  OPEN_HERE / DIRTY_HERE flags in open order, by full key
+  (`Editor_PickerOpenSetSync`, `_Find`, `_Move`); one chip per square
+  ("m50_50", "mylane/m16_101" by `Editor_PickerChipText`), a dot on an
+  unsaved one, its text fitted to 120 px. `Editor_PickerStripLay` is the
+  collapse rule: every chip while they fit, else as many as fit beside a
+  "+N" chip, never a chip past the track; "+N"'s tooltip names the rest.
+  Click goes to the square (focus, and `camera_to_tile` to its centre; one
+  not in this window's world is added first); Shift+click closes it through
+  the save guard (new `EDITOR_UI_GUARD_CLOSE_SQUARE`, the new
+  `EditorUiHooks::close_square`, the App's `sq_close_pending` drained in
+  `app_map_editor_open_pending_square`: the world reloads with every other
+  square `WorldEdit_SquareInWindow` says it shows; the only square, or one
+  not shown, is refused with the reason); a drag reorders. Backspace goes to
+  the open square before the focused one, wrapping.
+- **The detail pane** (under the atlas): a heading ("area - key - state") and
+  six key / value rows, Square (key and storage), Area (most specific, "and
+  more"; unmapped, instance space), Tiles (and the pin), Contents (from this
+  window's mirror when it holds the square: locs, npc and obj spawns from its
+  spawn file, levels used; else the atlas's spawn count), State (open in
+  this window, unsaved, created, in another window, on disk), Collections.
+  It answers for the focused cell, else the hovered one, and is made again
+  only when what it reads moved (a hash). Every row is fitted to its track
+  (`Editor_PickerFitText`: the widget's laid-out width less the KEY_VALUE
+  row's pads, key and name gap, in device px of the row face), and a cut
+  row's tooltip is the whole text. Actions: Open and Add to open set
+  (wearing picker.open's and picker.add's keycaps), Open in new view, Copy
+  to..., Instance... (a stand-in: the New square dialog with its storage
+  question, and the status bar says the wizard is step 6.5), Clear... (the
+  existing confirm), Delete... (refused with the reason: the server has no
+  square delete); a Recent dropdown of the last 8 squares opened
+  (`Editor_PickerRecentPush`), which goes to the one chosen. When the
+  layout gives the panel a height that would leave the atlas under 200 px,
+  the rows past the heading (and the five actions past Open and Add, and
+  Recent) fold away; content-sized they are open.
+- **The Area dropdown** lists the atlas's pages, then "lane: <name>" per lane
+  storage, then "Instance space" (rows built with the atlas; the dropdown
+  borrows them). A lane row filters to the lane on the Full map page; a page
+  row afterwards drops the lane's filter.
+- Entry points for a headless window and the tests:
+  `Editor_SquarePicker_TakeAtlas`, `_Find`, `_Key`, `_PaneRow`, `_Strip`,
+  `_Recent`.
+
+Tests (content-free):
+
+- `make -C src test-editor-picker` (new, src/maped/picker.mk,
+  src/editor/test/editor_picker_test.c; 396 checks): the parser over every
+  form and the refusals; the resolver over a synthetic atlas (the surface
+  m48..53 x 48..53, a dungeon with a 60-character name, Unmapped, a square in
+  instance space, a lane with two squares); focus over that atlas, pure and
+  through the registered panel's well (the chrome's own key path): arrows,
+  Enter, Shift+Enter (host shift and the DOM's `col`), Enter on an empty cell
+  (New square), Backspace, Escape (clears Find and the pin, lets go of the
+  keyboard), the white outline; the collapse rule (exact fit, a pixel short,
+  all folded, 64 chips at 70 widths never past the track); the strip's chips
+  in open order, the dot, click / Shift+click / drag, "+N" and its tooltip
+  with 37 open; every pane row measured against its track at the default
+  width, on an empty cell, in a narrow panel and a tall one, folding; the
+  pane's refusals; Recent; the Area dropdown's lane and instance rows.
+- test-editor-hotkeys: `test_picker_context` (K excludes every context and
+  itself only, the K rows resolve through `Editor_HotkeysMatch` and nowhere
+  else, a rebind re-routes, the World keeps its chords) and the doc test over
+  the new rows. test-chrome-widgets: the GRAPH_KEY intent and the native
+  well's Enter / Backspace / Escape, and the DOM's keydown in
+  chrome_widgets_dom_test.js. test-editor-chords: the pane's Open / Add and
+  New square wear their keycaps.
+- test-editor-workbench: the 1x registry golden was recorded again (the
+  Squares panel docked in that layout gained the strip and the pane's
+  heading; the column's shares moved). Probed against the base tree's build:
+  only the dock column and the Preview beside it moved.
+
+Seen to fail before their fix, in a scratch copy of the tree (five
+mutations in one build: the strip never folds, the pane's rows set unfitted,
+no `lane:` form, the focused well keeping Enter, K not exclusive):
+test-editor-picker 101 of 384 failed (the parser's and resolver's lane rows,
+the collapse rule, Enter / Shift+Enter / New square on an empty cell, every
+too-long pane row, "+N" and its tooltip), test-editor-hotkeys 11 (12
+clashes, K overlapping every context), test-chrome-widgets 1 (Enter not
+handed on).
+
+Not run here: test-editor-panels (needs the OSRS-Content tree; two of its
+checks were updated to this step: the arrows now move the focus, and the
+selection outline is `EDITOR_SQUARES_FOCUS_RGB`).
+
+Left open:
+
+- The pane sits UNDER the atlas at every width: the chrome lays a panel's
+  widgets in one column, so the design's "340 px right of the atlas" form
+  needs a two-column row (or the pane drawn inside the well, which is the
+  drawing half's file). The fold rule above is the narrow form.
+- A plain click on a square still opens it (design: click focuses,
+  double-click opens) and the right-click minimenu is the old one; the
+  pointer rows are not in this slice.
+- The tile pin has no marker on the atlas (drawing half).
+- Closing a square keeps it loaded in the document mirror, so a later Add
+  (which reopens every loaded square, as before this step) brings it back.
+- Delete... refuses: there is no authority command that removes a square's
+  files.
+- Escape typed in the Find box itself is the text field's (it lets go of the
+  field); Escape clears Find from the well.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.

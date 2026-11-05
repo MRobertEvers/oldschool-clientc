@@ -218,6 +218,24 @@ hook_open_square(
 }
 
 static void
+hook_close_square(
+    void* user,
+    int map_x,
+    int map_z,
+    const char* storage)
+{
+    struct App* app = user;
+    struct Editor_Panel* panel = &app->editor_panel;
+
+    assert(app);
+    assert(storage);
+    panel->sq_close_pending = 1;
+    panel->sq_close_x = map_x;
+    panel->sq_close_z = map_z;
+    snprintf(panel->sq_close_storage, sizeof(panel->sq_close_storage), "%s", storage);
+}
+
+static void
 hook_open_in_new_view(
     void* user,
     int map_x,
@@ -354,6 +372,7 @@ Editor_PanelInit(
     panel->ui->app = app;
     panel->ui->hooks_user = app;
     panel->ui->hooks.open_square = hook_open_square;
+    panel->ui->hooks.close_square = hook_close_square;
     panel->ui->hooks.open_in_new_view = hook_open_in_new_view;
     panel->ui->hooks.floor_rgb = hook_floor_rgb;
     panel->ui->hooks.close_editor = hook_close_editor;

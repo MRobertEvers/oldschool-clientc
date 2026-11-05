@@ -26,6 +26,7 @@
 #include "editor/panels/edpanel_newform.h"
 #include "editor/panels/edpanel_ops.h"
 #include "editor/panels/edpanel_picker.h"
+#include "editor/panels/edpanel_picker_nav.h"
 #include "editor/panels/edpanel_shapes.h"
 #include "editor/panels/edpanels.h"
 #include "editor/editor_spawn.h"
@@ -2340,6 +2341,8 @@ test_worldmap(void)
     int y;
 
     Editor_PickerDefaultColors(&colors);
+    /* The Squares panel outlines the focused square white (workbench 6.4). */
+    colors.selected = EDITOR_SQUARES_FOCUS_RGB;
     ToriRSChrome_Init(&g_chrome);
     ToriRSChrome_SetSurface(&g_chrome, 1280, 800);
     Editor_UiInit(&g_ui, &g_chrome, &g_editor);
@@ -2541,9 +2544,18 @@ test_worldmap(void)
         frame();
         CHECK(fabs(picker->zoom - zoom) < 1e-9, "'-' zooms back out (%.2f)", picker->zoom);
         origin = picker->origin_x;
-        CHECK(ToriRSChrome_KeyEdit(&g_chrome, TORIRS_CHROME_KEY_LEFT), "...and Left");
-        frame();
-        CHECK(picker->origin_x < origin, "Left shows the squares west (%.2f -> %.2f)", origin, picker->origin_x);
+        {
+            int fx = -1;
+            int fz = -1;
+            int gx = -1;
+            int gz = -1;
+            (void)origin;
+            CHECK(Editor_PickerFocusCell(picker, &fx, &fz), "...a square is focused");
+            CHECK(ToriRSChrome_KeyEdit(&g_chrome, TORIRS_CHROME_KEY_LEFT), "...and Left");
+            frame();
+            CHECK(Editor_PickerFocusCell(picker, &gx, &gz) && gx == fx - 1 && gz == fz,
+                "Left moves the focus a square west (m%d_%d -> m%d_%d)", fx, fz, gx, gz);
+        }
         CHECK(!ToriRSChrome_KeyChar(&g_chrome, 'q'), "a letter is not the well's");
         ToriRSChrome_FocusWidget(&g_chrome, -1, 0);
     }

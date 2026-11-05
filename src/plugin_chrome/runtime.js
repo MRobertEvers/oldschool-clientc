@@ -1404,7 +1404,13 @@
     var CODE_LINE_H = 17;
     var EV = {
         GRAPH_PRESS: 1, GRAPH_DRAG: 2, GRAPH_RELEASE: 3, GRAPH_MENU: 4,
-        GRAPH_HOVER: 5, CODE_REPLACE: 7, CODE_SPLIT: 8, CODE_JOIN: 9
+        GRAPH_HOVER: 5, CODE_REPLACE: 7, CODE_SPLIT: 8, CODE_JOIN: 9, GRAPH_KEY: 10
+    };
+    /* enum ToriRSChromeKey: what a focused well's keydown reports, negated. */
+    var CHROME_KEY = { BACKSPACE: 1, LEFT: 3, RIGHT: 4, ENTER: 7, ESCAPE: 8, UP: 9, DOWN: 10 };
+    var GRAPH_KEYCODES = {
+        8: CHROME_KEY.BACKSPACE, 13: CHROME_KEY.ENTER, 27: CHROME_KEY.ESCAPE, 37: CHROME_KEY.LEFT,
+        38: CHROME_KEY.UP, 39: CHROME_KEY.RIGHT, 40: CHROME_KEY.DOWN
     };
     var GRAPH_ITEM = { RECT: 0, RECT_OUTLINE: 1, LINE: 2, TEXT: 3, IMAGE: 4 };
     function skinFile(slot) {
@@ -1727,6 +1733,27 @@
                 };
                 bind(well_1, 'wheel', wheel);
                 bind(well_1, 'mousewheel', wheel);
+                /* The keys the native well hands its host (the arrows, Enter,
+                 * Backspace, Escape, + and -), with the modifiers the native host
+                 * reads from its own key state: 1 Ctrl, 2 Shift, 4 Alt. */
+                bind(well_1, 'keydown', function (event) {
+                    var code = event.keyCode || event.which || 0;
+                    var mods = (event.ctrlKey || event.metaKey ? 1 : 0) | (event.shiftKey ? 2 : 0) | (event.altKey ? 4 : 0);
+                    var value = 0;
+                    if (GRAPH_KEYCODES[code])
+                        value = -GRAPH_KEYCODES[code];
+                    else if (event.key === '+' || event.key === '-' || event.key === '=' || event.key === '_')
+                        value = event.key.charCodeAt(0);
+                    if (!value)
+                        return;
+                    if (event.preventDefault)
+                        event.preventDefault();
+                    else
+                        event.returnValue = false;
+                    postWidget(record, INTENT.GRAPH, EV.GRAPH_KEY, '', value, mods);
+                    if (value === -CHROME_KEY.ESCAPE && well_1.blur)
+                        well_1.blur();
+                });
                 bindGestures(well_1, record, false);
                 row.appendChild(well_1);
                 record.control = well_1;

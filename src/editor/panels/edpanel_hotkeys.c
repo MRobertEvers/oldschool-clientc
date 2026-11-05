@@ -36,7 +36,7 @@
 /** The table's groups, in the order the action enum runs through them
  * (editor_hotkeys.h): Register walks the actions and opens the next group
  * at each change, so this is the enum's order, Palette after Camera. */
-static const char* const k_groups[] = { "File", "Edit", "Place", "Tools", "Brush", "Level", "Camera", "Palette", "View" };
+static const char* const k_groups[] = { "File", "Edit", "Place", "Tools", "Brush", "Level", "Camera", "Picker", "Palette", "View" };
 #define HOTKEYS_GROUPS ((int)(sizeof(k_groups) / sizeof(k_groups[0])))
 
 #define HOTKEYS_CLASH_RGB 0xFF5555u
@@ -355,6 +355,8 @@ Editor_HotkeyRun(
             (void)edp_level_show_above(ui, !edp_level_showing_above(ui));
         return 1;
     }
+    if( action >= EDITOR_HK_PICKER_NORTH && action <= EDITOR_HK_PICKER_CLEAR_FIND )
+        return Editor_SquarePicker_Key(ui, (int)action);
     if( info->panel )
     {
         int const open = Editor_UiTogglePanel(ui, info->panel);

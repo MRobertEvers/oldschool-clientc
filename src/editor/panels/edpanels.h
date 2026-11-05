@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 struct EditorUi;
+struct EditorHost_CatalogSquares;
 
 /** Output console: the registry's log ring as a VLIST. "console" */
 void
@@ -611,6 +612,70 @@ Editor_SquarePicker_SetCollection(
 /** The collection the picker is filtered to ("" when none). */
 const char*
 Editor_SquarePicker_Collection(struct EditorUi* ui);
+
+/* ---- the picker's navigation and panes (workbench 6.4, edpanel_squares.c) ---- */
+
+/** The focused square's outline: white (design section 5, "Navigation"). */
+#define EDITOR_SQUARES_FOCUS_RGB 0xffffffu
+
+/**
+ * Run a Picker action (EDITOR_HK_PICKER_*: the focus N / S / W / E, open,
+ * add, back, clear Find) as the well's key does. The Squares well resolves
+ * its own keys against the K rows (Editor_HotkeysMatch); Editor_HotkeyRun
+ * ends here for a dispatcher that fires one. Returns 1 when the window has a
+ * picker (a refusal says why in the status bar), 0 when it has none.
+ */
+int
+Editor_SquarePicker_Key(
+    struct EditorUi* ui,
+    int action);
+
+/** Hand the picker an atlas, as CATALOG_SQUARES would (a headless window, a
+ *  test's synthetic one). */
+void
+Editor_SquarePicker_TakeAtlas(
+    struct EditorUi* ui,
+    const struct EditorHost_CatalogSquares* atlas);
+
+/** Run Find on `text` as Enter in the Find box does. Returns 1 when it
+ *  matched. */
+int
+Editor_SquarePicker_Find(
+    struct EditorUi* ui,
+    const char* text);
+
+/** Rows of the detail pane (the heading first, then Square, Area, Tiles,
+ *  Contents, State, Collections). */
+#define EDITOR_SQUARES_PANE_ROWS 7
+
+/**
+ * Detail pane row `row` as shown: its chrome widget, its full text (what the
+ * tooltip says when it was cut), and the track the shown text was measured
+ * against (device px, the font the row draws in). 0 past the last row.
+ */
+int
+Editor_SquarePicker_PaneRow(
+    struct EditorUi* ui,
+    int row,
+    int* out_widget,
+    const char** out_full,
+    int* out_track);
+
+/** The open-set strip: its GRAPH, how many chips it holds, how many show
+ *  (the rest are its "+N"). 0 without a picker. */
+int
+Editor_SquarePicker_Strip(
+    struct EditorUi* ui,
+    int* out_graph,
+    int* out_count,
+    int* out_shown);
+
+/** The Recent list, newest first: `count` keys. */
+int
+Editor_SquarePicker_Recent(
+    struct EditorUi* ui,
+    const char** out_keys,
+    int max);
 
 /* ---- the Triggers panel (edpanel_triggers.c) --------------------------------- */
 

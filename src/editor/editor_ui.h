@@ -224,6 +224,10 @@ struct EditorUiHooks
     /** Open square (map_x, map_z) from `storage` ("" = maps/) in this window:
      *  `add` 0 replaces what the window shows, 1 adds it to the open set. */
     void (*open_square)(void* user, int map_x, int map_z, const char* storage, int add);
+    /** Close square (map_x, map_z) of `storage` in this window: the world
+     *  reloads with the rest of what it shows (workbench 6.4, the picker's
+     *  open-set strip). The save guard has already asked. */
+    void (*close_square)(void* user, int map_x, int map_z, const char* storage);
     /** Open the square in a NEW view window (design #windows). */
     void (*open_in_new_view)(void* user, int map_x, int map_z);
     /** A floor config's colour (0xRRGGBB): `is_overlay` 0 underlay, 1 overlay.
@@ -557,6 +561,9 @@ enum EditorUi_Guarded
     EDITOR_UI_GUARD_OPEN_SQUARE,
     /** Close the editor. */
     EDITOR_UI_GUARD_CLOSE,
+    /** Close one square of this window's open set (the picker's strip,
+     *  Shift+click): the world reloads without it. */
+    EDITOR_UI_GUARD_CLOSE_SQUARE,
 };
 
 struct EditorUiGuard

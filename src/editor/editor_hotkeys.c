@@ -22,6 +22,7 @@
 #define N EDITOR_HK_CTX_N
 #define M EDITOR_HK_CTX_M
 #define P EDITOR_HK_CTX_P
+#define K EDITOR_HK_CTX_K
 #define EDGE EDITOR_HK_EDGE
 #define REPEAT EDITOR_HK_REPEAT
 #define HELD EDITOR_HK_HELD
@@ -182,6 +183,23 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_CAM_FRAME_SQUARE] = { "camera.frame_square", "Camera", "Frame the square's centre",
                                      "Frame the current square's centre", G, EDGE, { "ctrl+home" }, NULL },
 
+    [EDITOR_HK_PICKER_NORTH] = { "picker.north", "Picker", "Focus north", "Move the focused square N / S / W / E",
+                                 K, REPEAT, { "up" }, NULL },
+    [EDITOR_HK_PICKER_SOUTH] = { "picker.south", "Picker", "Focus south", "Move the focused square N / S / W / E",
+                                 K, REPEAT, { "down" }, NULL },
+    [EDITOR_HK_PICKER_WEST] = { "picker.west", "Picker", "Focus west", "Move the focused square N / S / W / E", K,
+                                REPEAT, { "left" }, NULL },
+    [EDITOR_HK_PICKER_EAST] = { "picker.east", "Picker", "Focus east", "Move the focused square N / S / W / E", K,
+                                REPEAT, { "right" }, NULL },
+    [EDITOR_HK_PICKER_OPEN] = { "picker.open", "Picker", "Open the focused square",
+                                "Open the focused square (an empty one: New square)", K, EDGE, { "return" }, NULL },
+    [EDITOR_HK_PICKER_ADD] = { "picker.add", "Picker", "Add the focused square",
+                               "Add the focused square to the open set", K, EDGE, { "shift+return" }, NULL },
+    [EDITOR_HK_PICKER_BACK] = { "picker.back", "Picker", "Previous open square",
+                                "Go to the previous square of the open set", K, EDGE, { "backspace" }, NULL },
+    [EDITOR_HK_PICKER_CLEAR_FIND] = { "picker.clear_find", "Picker", "Clear Find",
+                                      "Clear Find (and its pin)", K, EDGE, { "escape" }, NULL },
+
     [EDITOR_HK_PALETTE_SLOT_1] = { "palette.slot_1", "Palette", "Palette slot 1", "Palette slot 1", G, EDGE,
                                    { "shift+1" }, NULL },
     [EDITOR_HK_PALETTE_SLOT_2] = { "palette.slot_2", "Palette", "Palette slot 2", "Palette slot 2", G, EDGE,
@@ -292,6 +310,7 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
 #undef R
 #undef S
 #undef N
+#undef K
 #undef EDGE
 #undef REPEAT
 #undef HELD
@@ -333,7 +352,7 @@ Editor_HotkeyContextText(
     int out_size)
 {
     static const char* const k_names[EDITOR_HK_CTX_COUNT] = { "G", "W", "L", "R", "S", "no loc / not Select-Move",
-        "M", "P" };
+        "M", "P", "K" };
     int used = 0;
 
     assert(out);
@@ -349,12 +368,15 @@ Editor_HotkeyContextText(
     }
 }
 
-/* L excludes S and P (no loc selected); M excludes N, S and P. */
+/* L excludes S and P (no loc selected); M excludes N, S and P; K (the
+ * picker holds the keyboard) excludes every other context, G too. */
 static int
 hk_ctx_exclusive_one(
     unsigned a,
     unsigned b)
 {
+    if( a == EDITOR_HK_CTX_K )
+        return b != EDITOR_HK_CTX_K;
     if( a == EDITOR_HK_CTX_L )
         return b == EDITOR_HK_CTX_S || b == EDITOR_HK_CTX_P;
     if( a == EDITOR_HK_CTX_M )
@@ -513,6 +535,34 @@ Editor_HotkeysClash(
             && Editor_HotkeyContextsOverlap(k_actions[action].contexts, k_actions[b].contexts) )
             return b;
     return -1;
+}
+
+int
+Editor_HotkeysMatch(
+    const struct Editor_Hotkeys* hk,
+    struct Editor_Chord chord,
+    unsigned contexts)
+{
+    int best = -1;
+
+    assert(hk);
+    if( chord.key == TORIRSK_UNKNOWN )
+        return -1;
+    for( int a = 0; a < EDITOR_HK_COUNT; a++ )
+    {
+        if( !(k_actions[a].contexts & contexts) )
+            continue;
+        for( int c = 0; c < EDITOR_HK_CHORDS; c++ )
+        {
+            struct Editor_Chord const bound = hk->bind[a].chord[c];
+            if( bound.key != chord.key || bound.mods != chord.mods )
+                continue;
+            /* A clash goes to the later binding, as in the resolver. */
+            if( best < 0 || hk->bind[a].stamp > hk->bind[best].stamp )
+                best = a;
+        }
+    }
+    return best;
 }
 
 int
