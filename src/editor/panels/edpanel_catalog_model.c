@@ -1264,8 +1264,126 @@ model_order_rebuild(struct Editor_CatalogModel* model)
     model->order_count = total;
 }
 
-/** A local row passes Find's free words (each in its name or display name,
- *  any case) and the shape chips (one of its shapes in the class). */
+/* ---- the local lists' filter: what the server's filters would say ---- */
+
+static int
+local_lower(char c)
+{
+    return c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c;
+}
+
+static int
+local_ieq(
+    const char* a,
+    const char* b)
+{
+    while( *a && *b && local_lower(*a) == local_lower(*b) )
+        a++, b++;
+    return *a == '\0' && *b == '\0';
+}
+
+/** `text` starts with `prefix`, any case. */
+static int
+local_iprefix(
+    const char* text,
+    const char* prefix)
+{
+    while( *prefix && local_lower(*text) == local_lower(*prefix) )
+        text++, prefix++;
+    return *prefix == '\0';
+}
+
+static int
+local_is_digit(char c)
+{
+    return c >= '0' && c <= '9';
+}
+
+static int
+local_word_sep(char c)
+{
+    return c == ' ' || c == '\t' || c == ',';
+}
+
+/** The server's key=value test (torirs_maped_catalog.c cat_value_match):
+ *  the whole field, a prefix of a whole word of it (a number never stops
+ *  inside a longer one: `size=1` is "1x1", not "10x2"), or `value*` a
+ *  prefix of the whole field. Any case. */
+static int
+local_value_match(
+    const char* field,
+    const char* wanted)
+{
+    size_t const length = strlen(wanted);
+    int numeric = length > 0;
+    if( length > 0 && wanted[length - 1] == '*' )
+    {
+        char prefix[EDITOR_CATALOG_CHIP_VALUE_MAX];
+        snprintf(prefix, sizeof(prefix), "%.*s", (int)(length - 1), wanted);
+        return local_iprefix(field, prefix);
+    }
+    if( local_ieq(field, wanted) )
+        return 1;
+    if( length == 0 )
+        return 0;
+    for( const char* c = wanted; *c; c++ )
+        numeric &= local_is_digit(*c);
+    for( const char* w = field; *w; )
+    {
+        if( local_iprefix(w, wanted) && !(numeric && local_is_digit(w[length])) )
+            return 1;
+        while( *w && !local_word_sep(*w) )
+            w++;
+        while( *w && local_word_sep(*w) )
+            w++;
+    }
+    return 0;
+}
+
+/** `shape=<value>` as the server resolves it (cat_shape_filter_mask): a
+ *  number names itself, a word every class it names whole or as a prefix
+ *  (`shape=c` is centre), `*` allowed. 0 names nothing. */
+static uint32_t
+local_shape_mask(const char* value)
+{
+    char word[EDITOR_CATALOG_CHIP_VALUE_MAX];
+    size_t length;
+    int const number = catalog_shape_number(value);
+    uint32_t mask = 0;
+
+    if( number >= 0 )
+        return 1u << number;
+    snprintf(word, sizeof(word), "%s", value);
+    if( strchr(word, ',') )
+        *strchr(word, ',') = '\0';
+    length = strlen(word);
+    if( length > 0 && word[length - 1] == '*' )
+        word[--length] = '\0';
+    if( length == 0 )
+        return 0;
+    for( int i = 0; i < CATALOG_SHAPE_CLASSES; i++ )
+        if( local_iprefix(k_shape_classes[i].name, word) )
+            mask |= k_shape_classes[i].mask;
+    return mask;
+}
+
+/** 1 when a local row can answer `key=` (the fields it holds). */
+static int
+local_key_answerable(const char* key)
+{
+    return strcmp(key, "shape") == 0 || strcmp(key, "category") == 0 || strcmp(key, "size") == 0
+           || strcmp(key, "name") == 0 || strcmp(key, "id") == 0;
+}
+
+/**
+ * A local row passes Find's free words (each in its name or display name,
+ * any case) and the chips it can answer, tested as the server tests them
+ * (filters compose): `shape=` against its placeable shapes, `category=`
+ * and `size=` ("WxL") as values, `name=` and `id=`. What the row does not
+ * know yet passes (a favourite not yet asked: id -1, no mask, no size), as
+ * the list cannot say otherwise. Keys no local row holds (op, multivar,
+ * ...) filter nothing; catalog_local_unchecked names them for the count.
+ */
 static int
 catalog_local_match(
     const struct Editor_CatalogLocalRow* row,
@@ -1290,26 +1408,54 @@ catalog_local_match(
         eq = strchr(word, '=');
         if( eq )
         {
-            uint32_t mask;
-            char value[EDITOR_CATALOG_CHIP_VALUE_MAX];
-            if( strncmp(word, "shape=", 6) != 0 )
-                continue; /* the index's fields: a local row does not hold them */
-            snprintf(value, sizeof(value), "%s", eq + 1);
-            if( strchr(value, ',') )
-                *strchr(value, ',') = '\0';
-            if( Editor_CatalogShapeClass(value, &mask) && row->shape_mask && !(row->shape_mask & mask) )
-                return 0;
+            char key[EDITOR_CATALOG_CHIP_KEY_MAX];
+            const char* value = eq + 1;
+            int const known = row->id >= 0;
+            snprintf(key, sizeof(key), "%.*s", (int)(eq - word), word);
+            if( strcmp(key, "shape") == 0 )
+            {
+                uint32_t const mask = local_shape_mask(value);
+                if( row->shape_mask ? !(row->shape_mask & mask) : known && row->kind != TORIRSMAPED_CATALOG_LOC )
+                    return 0;
+            }
+            else if( strcmp(key, "category") == 0 )
+            {
+                if( (row->category[0] || known) && !local_value_match(row->category, value) )
+                    return 0;
+            }
+            else if( strcmp(key, "size") == 0 )
+            {
+                char size[24];
+                if( row->size_w > 0 && row->size_l > 0 )
+                {
+                    snprintf(size, sizeof(size), "%dx%d", row->size_w, row->size_l);
+                    if( !local_value_match(size, value) )
+                        return 0;
+                }
+                else if( known && row->kind != TORIRSMAPED_CATALOG_LOC )
+                    return 0;
+            }
+            else if( strcmp(key, "name") == 0 )
+            {
+                if( !local_value_match(row->name, value) && !(row->display[0] && local_value_match(row->display, value)) )
+                    return 0;
+            }
+            else if( strcmp(key, "id") == 0 )
+            {
+                char id[16];
+                snprintf(id, sizeof(id), "%d", (int)row->id);
+                if( known && !local_ieq(id, value) )
+                    return 0;
+            }
             continue;
         }
         for( char* c = word; *c; c++ )
-            if( *c >= 'A' && *c <= 'Z' )
-                *c = (char)(*c - 'A' + 'a');
+            *c = (char)local_lower(*c);
         {
             char hay[2 * EDITOR_CATALOG_LOCAL_NAME_MAX + 2];
             snprintf(hay, sizeof(hay), "%s %s", row->name, row->display);
             for( char* c = hay; *c; c++ )
-                if( *c >= 'A' && *c <= 'Z' )
-                    *c = (char)(*c - 'A' + 'a');
+                *c = (char)local_lower(*c);
             if( !strstr(hay, word) )
                 return 0;
         }
@@ -1317,9 +1463,46 @@ catalog_local_match(
     return 1;
 }
 
+/** The filter's keys a local row cannot answer, space-separated, into
+ *  `out` ("" when every chip applies to a local list). */
+static void
+catalog_local_unchecked(
+    const char* filter,
+    char* out,
+    size_t out_size)
+{
+    size_t at = 0;
+    out[0] = '\0';
+    for( const char* p = filter; *p; )
+    {
+        const char* end;
+        const char* eq;
+        char key[EDITOR_CATALOG_CHIP_KEY_MAX];
+        while( *p == ' ' )
+            p++;
+        end = p;
+        while( *end && *end != ' ' )
+            end++;
+        eq = memchr(p, '=', (size_t)(end - p));
+        if( eq && eq > p && (size_t)(eq - p) < sizeof(key) )
+        {
+            snprintf(key, sizeof(key), "%.*s", (int)(eq - p), p);
+            if( !local_key_answerable(key) && !strstr(out, key) )
+            {
+                int const n = snprintf(out + at, out_size - at, "%s%s=", at ? " " : "", key);
+                if( n > 0 && at + (size_t)n < out_size )
+                    at += (size_t)n;
+            }
+        }
+        p = end;
+    }
+}
+
+
 static void
 model_local_rebuild(struct Editor_CatalogModel* model)
 {
+    catalog_local_unchecked(model->filter, model->local_unchecked, sizeof(model->local_unchecked));
     model->local_shown = 0;
     for( int i = 0; i < model->local_count; i++ )
         if( catalog_local_match(&model->local[i], model->filter) )
@@ -1592,9 +1775,13 @@ Editor_CatalogModelRangeText(
     }
     if( count == 0 )
     {
-        snprintf(out, (size_t)out_size, "0 of 0 %s",
+        snprintf(out, (size_t)out_size, "0 of 0 %s%s%s%s",
             model->source == EDITOR_CATALOG_SOURCE_INDEX ? kind_label(model->held_kind)
-                                                         : catalog_source_label(model->source));
+                                                         : catalog_source_label(model->source),
+            model->source != EDITOR_CATALOG_SOURCE_INDEX && model->local_unchecked[0] ? "; " : "",
+            model->source != EDITOR_CATALOG_SOURCE_INDEX ? model->local_unchecked : "",
+            model->source != EDITOR_CATALOG_SOURCE_INDEX && model->local_unchecked[0] ? " not checked in this list"
+                                                                                       : "");
         return;
     }
     if( first < 0 )
@@ -1622,6 +1809,9 @@ Editor_CatalogModelRangeText(
         snprintf(out, (size_t)out_size, "%s to %s of %s %s so far, index %u%% read", a, b, t,
             kind_label(model->held_kind), of > 0 ? (unsigned)((uint64_t)done * 100u / of) : 0u);
     }
+    else if( model->source != EDITOR_CATALOG_SOURCE_INDEX && model->local_unchecked[0] )
+        snprintf(out, (size_t)out_size, "%s to %s of %s %s; %s not checked in this list", a, b, t,
+            catalog_source_label(model->source), model->local_unchecked);
     else if( model->source != EDITOR_CATALOG_SOURCE_INDEX )
         snprintf(out, (size_t)out_size, "%s to %s of %s %s", a, b, t, catalog_source_label(model->source));
     else if( !Editor_CatalogModelSortApplies(model) && Editor_CatalogModelPageCount(model) > CATALOG_SORT_PAGES )

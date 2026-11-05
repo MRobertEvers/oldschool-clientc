@@ -63,7 +63,9 @@ edp_chips_push(
     chip->active = active;
     chip->has_x = has_x;
     chip->chord[0] = '\0';
-    chip->x = -1;
+    /* x, y, w stay as the last layout placed them: edp_chips_end lays the
+     * strip out again only when it changed, and the hover reads them on
+     * every frame in between. */
     return strip->count++;
 }
 
@@ -114,6 +116,28 @@ chips_elide(
     snprintf(out, out_size, "...");
 }
 
+/** The factor between a well's device pixels and its items' coordinates:
+ *  the integer tier the chrome draws GRAPH items at (dbg_draw_graph), which
+ *  at a fractional q is not q -- laid out at q, chips past the edge were
+ *  drawn and clipped instead of folding into "+n". */
+static int
+chips_tier(const struct ToriRSChrome* chrome)
+{
+    int const tier = ToriRSChrome_Scale(chrome);
+    return tier > 0 ? tier : 1;
+}
+
+/** Device px `device` from the well's inner corner, in item coordinates. */
+static int
+chips_unscale(
+    const struct ToriRSChrome* chrome,
+    int device)
+{
+    int const tier = chips_tier(chrome);
+    /* Floors, so a point left of or above the corner is never chip 0's. */
+    return device >= 0 ? device / tier : -((-device + tier - 1) / tier);
+}
+
 static uint64_t
 chips_hash(
     const struct Edp_ChipStrip* strip,
@@ -133,6 +157,78 @@ chips_hash(
     return hash;
 }
 
+/** Where each chip goes in `width` logical px over the strip's lines, what
+ *  it shows, and which are folded into the "+n" chip. `reserve` keeps the
+ *  "+n" chip's room on the last line for the line's FIRST chip too, which is
+ *  otherwise elided against the whole line (a later chip may still fit). */
+static void
+chips_place(
+    struct Edp_ChipStrip* strip,
+    int font,
+    int width,
+    int reserve,
+    char (*shown)[EDP_CHIP_LABEL_MAX + 4])
+{
+    int const x_w = chips_measure(font, "x") + CHIP_PAD;
+    int const more_w = chips_measure(font, "+99") + 2 * CHIP_PAD;
+    size_t tip_at = 0;
+    int x = 0;
+    int line = 0;
+
+    strip->hidden = 0;
+    strip->more_x = -1;
+    strip->more_tip[0] = '\0';
+    for( int i = 0; i < strip->count; i++ )
+        strip->chips[i].x = -1;
+    for( int i = 0; i < strip->count; i++ )
+    {
+        struct Edp_Chip* chip = &strip->chips[i];
+        int const cap_w = chip->chord[0] ? chips_measure(font, chip->chord) + 2 * CHIP_CAP_PAD + CHIP_PAD : 0;
+        int const extra = (chip->has_x ? x_w : 0) + cap_w;
+        int const last_line = line == strip->lines - 1;
+        /* The last line keeps room for a "+n" chip when more follow. */
+        int const room = width - (last_line && i + 1 < strip->count ? more_w + EDP_CHIP_GAP : 0);
+        int w;
+
+        chips_elide(font, chip->label, (reserve && x == 0 ? room : width) - 2 * CHIP_PAD - extra, shown[i],
+            sizeof(shown[i]));
+        w = chips_measure(font, shown[i]) + 2 * CHIP_PAD + extra;
+        if( x > 0 && x + w > room )
+        {
+            if( last_line )
+            {
+                /* Every chip from here on is the "+n" chip's. */
+                strip->hidden = strip->count - i;
+                for( int j = i; j < strip->count; j++ )
+                {
+                    int const n = snprintf(strip->more_tip + tip_at, sizeof(strip->more_tip) - tip_at, "%s%s",
+                        tip_at ? ", " : "", strip->chips[j].label);
+                    if( n > 0 && tip_at + (size_t)n < sizeof(strip->more_tip) )
+                        tip_at += (size_t)n;
+                }
+                break;
+            }
+            line++;
+            x = 0;
+            /* the line below has its own room; measure this chip there */
+            i--;
+            continue;
+        }
+        chip->x = x;
+        chip->y = line * (EDP_CHIP_H + EDP_CHIP_GAP);
+        chip->w = w;
+        x += w + EDP_CHIP_GAP;
+    }
+    if( strip->hidden > 0 )
+    {
+        char more[8];
+        snprintf(more, sizeof(more), "+%d", strip->hidden);
+        strip->more_x = x;
+        strip->more_y = line * (EDP_CHIP_H + EDP_CHIP_GAP);
+        strip->more_w = chips_measure(font, more) + 2 * CHIP_PAD;
+    }
+}
+
 void
 edp_chips_end(
     struct EditorUi* ui,
@@ -141,76 +237,50 @@ edp_chips_end(
     struct ToriRSChrome* chrome;
     int font;
     int width;
-    int x = 0;
-    int line = 0;
     uint64_t hash;
+    char shown[EDP_CHIPS_MAX][EDP_CHIP_LABEL_MAX + 4];
 
     assert(ui);
     assert(strip);
     chrome = ui->chrome;
     font = chrome->theme.font_row;
+    /* The well's inner width (inside its two rules) in item coordinates. */
     width = chrome->widgets[strip->graph].w > 0
-                ? ToriRSChrome_UnscalePx(ToriRSChrome_ScaleQ(chrome), chrome->widgets[strip->graph].w) - 2
+                ? chips_unscale(chrome, chrome->widgets[strip->graph].w - 2 * ToriRSChrome_Px(chrome, 1))
                 : 200;
     hash = chips_hash(strip, width);
     if( hash == strip->hash )
         return;
     strip->hash = hash;
 
+    chips_place(strip, font, width, 0, shown);
+    /* A first chip on the last line that took the whole line leaves the "+n"
+     * chip past the edge (R2): place again with its room kept. */
+    if( strip->hidden > 0 && strip->more_x + strip->more_w > width )
+        chips_place(strip, font, width, 1, shown);
+
     {
         int const ascent = ToriRSChrome_FontLineHeightQ(font, 4);
         int const box = ToriRSChrome_FontLineBoxQ(font, 4);
         int const x_w = chips_measure(font, "x") + CHIP_PAD;
-        int const more_w = chips_measure(font, "+99") + 2 * CHIP_PAD;
-        size_t tip_at = 0;
 
-        strip->hidden = 0;
-        strip->more_x = -1;
-        strip->more_tip[0] = '\0';
         ToriRSChrome_GraphBegin(chrome, strip->graph);
         for( int i = 0; i < strip->count; i++ )
         {
-            struct Edp_Chip* chip = &strip->chips[i];
+            const struct Edp_Chip* chip = &strip->chips[i];
             int const cap_w = chip->chord[0] ? chips_measure(font, chip->chord) + 2 * CHIP_CAP_PAD + CHIP_PAD : 0;
-            int const extra = (chip->has_x ? x_w : 0) + cap_w;
-            int const last_line = line == strip->lines - 1;
-            /* The last line keeps room for a "+n" chip when more follow. */
-            int const room = width - (last_line && i + 1 < strip->count ? more_w + EDP_CHIP_GAP : 0);
-            char shown[EDP_CHIP_LABEL_MAX + 4];
-            int w;
+            int const w = chip->w;
             int baseline;
 
-            chips_elide(font, chip->label, width - 2 * CHIP_PAD - extra, shown, sizeof(shown));
-            w = chips_measure(font, shown) + 2 * CHIP_PAD + extra;
-            if( x > 0 && x + w > room )
-            {
-                if( last_line )
-                {
-                    /* Every chip from here on is the "+n" chip's. */
-                    strip->hidden = strip->count - i;
-                    for( int j = i; j < strip->count; j++ )
-                    {
-                        int const n = snprintf(strip->more_tip + tip_at, sizeof(strip->more_tip) - tip_at, "%s%s",
-                            tip_at ? ", " : "", strip->chips[j].label);
-                        strip->chips[j].x = -1;
-                        if( n > 0 && tip_at + (size_t)n < sizeof(strip->more_tip) )
-                            tip_at += (size_t)n;
-                    }
-                    break;
-                }
-                line++;
-                x = 0;
-            }
-            chip->x = x;
-            chip->y = line * (EDP_CHIP_H + EDP_CHIP_GAP);
-            chip->w = w;
+            if( chip->x < 0 )
+                continue;
             baseline = chip->y + (EDP_CHIP_H - box) / 2 + ascent;
             ToriRSChrome_GraphRect(chrome, strip->graph, chip->x, chip->y, w, EDP_CHIP_H,
                 chip->active ? CHIP_FILL_ACTIVE : CHIP_FILL, 1, EDP_CHIP_KEY_BASE + i);
             ToriRSChrome_GraphRect(chrome, strip->graph, chip->x, chip->y, w, EDP_CHIP_H,
                 chip->active ? CHIP_RULE_ACTIVE : CHIP_RULE, 0, 0);
             ToriRSChrome_GraphText(chrome, strip->graph, chip->x + CHIP_PAD, baseline,
-                chip->active ? CHIP_INK_ACTIVE : CHIP_INK, shown);
+                chip->active ? CHIP_INK_ACTIVE : CHIP_INK, shown[i]);
             if( cap_w > 0 )
             {
                 /* The keycap: a dark key set into the chip, the chord on it. */
@@ -229,16 +299,12 @@ edp_chips_end(
                     EDP_CHIP_X_BASE + i);
                 ToriRSChrome_GraphText(chrome, strip->graph, at + 1, baseline, CHIP_X_INK, "x");
             }
-            x += w + EDP_CHIP_GAP;
         }
         if( strip->hidden > 0 )
         {
             char more[8];
-            int const baseline = line * (EDP_CHIP_H + EDP_CHIP_GAP) + (EDP_CHIP_H - box) / 2 + ascent;
+            int const baseline = strip->more_y + (EDP_CHIP_H - box) / 2 + ascent;
             snprintf(more, sizeof(more), "+%d", strip->hidden);
-            strip->more_x = x;
-            strip->more_y = line * (EDP_CHIP_H + EDP_CHIP_GAP);
-            strip->more_w = chips_measure(font, more) + 2 * CHIP_PAD;
             ToriRSChrome_GraphRect(chrome, strip->graph, strip->more_x, strip->more_y, strip->more_w, EDP_CHIP_H,
                 CHIP_FILL, 1, EDP_CHIP_MORE_KEY);
             ToriRSChrome_GraphRect(chrome, strip->graph, strip->more_x, strip->more_y, strip->more_w, EDP_CHIP_H,
@@ -276,7 +342,6 @@ edp_chips_hover(
     struct ToriRSChrome* chrome;
     const struct ToriRSChromeWidget* w;
     const char* tip = "";
-    int q;
     int lx;
     int ly;
 
@@ -286,9 +351,8 @@ edp_chips_hover(
     if( chrome->hover != strip->graph )
         return;
     w = &chrome->widgets[strip->graph];
-    q = ToriRSChrome_ScaleQ(chrome);
-    lx = ToriRSChrome_UnscalePx(q, chrome->hover_x - (w->x + edp_px(ui, 1)));
-    ly = ToriRSChrome_UnscalePx(q, chrome->hover_y - (w->y + edp_px(ui, 1)));
+    lx = chips_unscale(chrome, chrome->hover_x - (w->x + edp_px(ui, 1)));
+    ly = chips_unscale(chrome, chrome->hover_y - (w->y + edp_px(ui, 1)));
     for( int i = 0; i < strip->count; i++ )
     {
         const struct Edp_Chip* chip = &strip->chips[i];

@@ -220,6 +220,10 @@ struct Editor_CatalogModel
     int local_count;
     int* local_order;
     int local_shown;
+    /** The filter keys a local row cannot answer (`op`, `multivar`, ...;
+     *  space-separated, "" when every chip applies): they filter nothing in
+     *  a local list, and the count row says so. */
+    char local_unchecked[64];
     /** The index's held rows in sort order, once every match is held:
      *  absolute row -> held row; `order_count` 0 when the sort does not
      *  apply. Rebuilt when `answers` moves past `order_answers`. */

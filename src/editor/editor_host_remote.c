@@ -2131,10 +2131,11 @@ decode_catalog_squares(
     struct EditorHost_CatalogSquare* squares;
     int* area_ids;
     int area_at = 0;
-    /* a storage is >= 4 bytes, an area >= 12, a square >= 36, an area id 4 */
+    /* a storage is >= 4 bytes, an area >= 12, a square >= 32 (36 with its
+     * loc_count), an area id 4 */
     size_t storage_bound = length / 4;
     size_t area_bound = length / 12;
-    size_t square_bound = length / 36;
+    size_t square_bound = length / 32;
     size_t id_bound = length / 4;
 
     memset(out, 0, sizeof(*out));
@@ -2202,7 +2203,16 @@ decode_catalog_squares(
                 reader.bad = 1;
             area_ids[area_at++] = (int)area;
         }
-        sq->loc_count = (int)ToriRSMapEd_GetU32(&reader);
+        /* The row says whether it carries the count (a server with
+         * TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS that was asked for it); the
+         * bit is wire framing, not a square fact, so it does not reach
+         * `flags`. A v2 row leaves loc_count 0. */
+        sq->loc_count = 0;
+        if( sq->flags & TORIRSMAPED_SQUARE_LOC_COUNT )
+        {
+            sq->flags &= ~(uint32_t)TORIRSMAPED_SQUARE_LOC_COUNT;
+            sq->loc_count = (int)ToriRSMapEd_GetU32(&reader);
+        }
     }
     out->square_count = (int)count;
     out->storages = storages;
@@ -2234,6 +2244,10 @@ Editor_HostMapEdCatalogSquares(
         return EDITOR_HOST_UNSUPPORTED;
 
     memset(&payload, 0, sizeof(payload));
+    /* The loc counts go only to a server that reads the flag: an older one
+     * takes an empty body and ends a session that sends anything else. */
+    if( remote->capabilities & TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS )
+        ToriRSMapEd_PutU32(&payload, TORIRSMAPED_CATALOG_SQUARES_LOCS);
     fact = catalog_rpc(remote, TORIRSMAPED_REQ_CATALOG_SQUARES, &payload,
         TORIRSMAPED_FACT_CATALOG_SQUARES, &length);
     if( !fact )

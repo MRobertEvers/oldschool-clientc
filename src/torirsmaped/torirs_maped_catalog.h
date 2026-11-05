@@ -125,7 +125,8 @@
  *     come back whole (every line, `default` included), read from disk at
  *     the indexed offset.
  *
- *   CATALOG_SQUARES (empty)
+ *   CATALOG_SQUARES (empty, or u32 flags: TORIRSMAPED_CATALOG_SQUARES_LOCS,
+ *                    only to a server with TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS)
  *       -> FACT_CATALOG_SQUARES u32 status,
  *                               u32 storage_count, storage_count * string
  *                               ("maps", "ported/<lane>/maps" — every lane
@@ -138,10 +139,17 @@
  *                               u32 rgb (0xRRGGBB), u32 primary_area
  *                               (TORIRSMAPED_CATALOG_NO_AREA = unmapped),
  *                               u32 area_n, area_n * u32 area,
- *                               u32 loc_count (the locs its .jl2 places;
- *                               appended 2026-11-05, workbench 6.4))
+ *                               [u32 loc_count: the locs its .jl2 places,
+ *                               present exactly when `flags` holds
+ *                               TORIRSMAPED_SQUARE_LOC_COUNT])
  *
- *   FACT_CATALOG_SQUARES_CHANGED, same payload, is BROADCAST to every v2
+ *     A connection that asked with TORIRSMAPED_CATALOG_SQUARES_LOCS gets
+ *     every row flagged TORIRSMAPED_SQUARE_LOC_COUNT, with the count; any
+ *     other gets the v2 rows. The flag rides in the row so a reader never
+ *     has to know which form a broadcast that crossed its request is in.
+ *
+ *   FACT_CATALOG_SQUARES_CHANGED, same payload (in the form that connection
+ *   asked for; the v2 rows until it asks), is BROADCAST to every v2
  *   connection when the atlas changes under it: a DOC_CREATE (the new
  *   square appears with TORIRSMAPED_SQUARE_CREATED before anything is on
  *   disk) or a save that wrote squares. A mirror replaces its atlas.
@@ -291,6 +299,18 @@ enum ToriRSMapEdSquareFlag
     /** No world-map area claims it and it lies in instance space
      *  (TORIRSMAPED_INSTANCE_*): what the instance helper makes. */
     TORIRSMAPED_SQUARE_INSTANCE = 64,
+    /** The row ends with `u32 loc_count` (the connection asked with
+     *  TORIRSMAPED_CATALOG_SQUARES_LOCS). Wire only: says how to read the
+     *  row, not anything about the square. */
+    TORIRSMAPED_SQUARE_LOC_COUNT = 128,
+};
+
+/** CATALOG_SQUARES request flags (the optional `u32 flags` body). */
+enum ToriRSMapEdCatalogSquaresFlag
+{
+    /** End every row with its loc count (TORIRSMAPED_SQUARE_LOC_COUNT).
+     *  Only to a server with TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS. */
+    TORIRSMAPED_CATALOG_SQUARES_LOCS = 1,
 };
 
 /** Instance space: the unmapped high-coordinate squares the instance helper
@@ -523,22 +543,28 @@ ToriRSMapEdCatalog_HandleRecord(
 
 /** The atlas, with the authority's open documents folded in: squares that
  *  exist only in `doc` (DOC_CREATE, unsaved) appear flagged CREATED, open
- *  and dirty squares are flagged. */
+ *  and dirty squares are flagged. The body is empty (the v2 rows) or one
+ *  `u32 flags`; `*inout_locs` is set to whether the rows carry loc_count,
+ *  which the caller remembers for its broadcasts. 0 for a malformed body. */
 int
 ToriRSMapEdCatalog_HandleSquares(
     struct ToriRSMapEdCatalog* catalog,
     const struct Editor_Doc* doc,
     const uint8_t* body,
     uint32_t length,
+    int* inout_locs,
     struct ToriRSMapEdBuf* out);
 
 /** The same payload without the refresh: what the server broadcasts as
  *  FACT_CATALOG_SQUARES_CHANGED right after a DOC_CREATE or a maps refresh,
- *  where a full stat sweep of the tree would be wasted. */
+ *  where a full stat sweep of the tree would be wasted. `with_locs` picks
+ *  the rows flagged TORIRSMAPED_SQUARE_LOC_COUNT (a connection that asked
+ *  with TORIRSMAPED_CATALOG_SQUARES_LOCS) or the v2 rows. */
 void
 ToriRSMapEdCatalog_EncodeSquares(
     struct ToriRSMapEdCatalog* catalog,
     const struct Editor_Doc* doc,
+    int with_locs,
     struct ToriRSMapEdBuf* out);
 
 /* ---- direct lookups (the test, and anything in-process) -------------- */

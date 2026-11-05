@@ -143,6 +143,100 @@ test_chips(void)
     }
 }
 
+/* ==== the chip strip on a real chrome (review fixes) ============================= */
+
+static const char* const k_strip_labels[3] = { "shape: wall", "category: fence", "size: 2x2" };
+static const char* const k_strip_tips[3] = { "shape wall: 0 1 2 3 9", "TIP-B", "TIP-C" };
+
+static void
+strip_frame(
+    struct EditorUi* ui,
+    struct Edp_ChipStrip* strip)
+{
+    edp_chips_begin(strip);
+    for( int i = 0; i < 3; i++ )
+        (void)edp_chips_push(strip, k_strip_labels[i], k_strip_tips[i], 0, i == 0);
+    edp_chips_end(ui, strip);
+    edp_chips_hover(ui, strip);
+    ToriRSChrome_Build(ui->chrome);
+}
+
+/* The strip restated every frame, as every caller does: a chip's tooltip
+ * shows on every frame the pointer rests on it (not only the frame it was
+ * laid out on), at 1x and at 150 %; the chips are laid out in the units the
+ * chrome draws GRAPH items in, so those past the well's edge fold into "+n"
+ * and the pointer over a drawn chip names that chip -- to the strip's own
+ * hover and to the chrome's GRAPH_HOVER key alike. */
+static void
+test_chip_strip(
+    int q,
+    int panel_w)
+{
+    static struct ToriRSChrome chrome;
+    static struct EditorUi ui;
+    struct Edp_ChipStrip strip;
+    struct ToriRSChromeEvent ev;
+    const struct ToriRSChromeWidget* w;
+    int panel;
+    int tier;
+    int rule;
+    int laid = 0;
+
+    memset(&ui, 0, sizeof(ui));
+    ToriRSChrome_Init(&chrome);
+    ToriRSChrome_SetScaleQ(&chrome, q);
+    ToriRSChrome_SetSurface(&chrome, 1600, 1000);
+    ui.chrome = &chrome;
+    panel = ToriRSChrome_PanelAdd(&chrome, TORIRS_CHROME_PANEL_WINDOW, 20, 20, panel_w, "Chips");
+    assert(panel >= 0);
+    ToriRSChrome_PanelSetVisible(&chrome, panel, 1);
+    edp_chips_init(&ui, &strip, panel, 1);
+    strip_frame(&ui, &strip);
+    strip_frame(&ui, &strip);
+    w = &chrome.widgets[strip.graph];
+    tier = ToriRSChrome_Scale(&chrome);
+    rule = ToriRSChrome_Px(&chrome, 1);
+    for( int i = 0; i < 3; i++ )
+    {
+        const struct Edp_Chip* chip = &strip.chips[i];
+        int cx;
+        int cy;
+        char tip[TORIRS_CHROME_LABEL_MAX];
+        if( chip->x < 0 )
+            continue;
+        laid++;
+        CHECK(w->x + rule + (chip->x + chip->w) * tier <= w->x + w->w - rule,
+            "q=%d: chip %d is drawn inside the well (right edge %d of %d)", q, i,
+            w->x + rule + (chip->x + chip->w) * tier, w->x + w->w - rule);
+        cx = w->x + rule + (chip->x + chip->w / 2) * tier;
+        cy = w->y + rule + (chip->y + EDP_CHIP_H / 2) * tier;
+        while( ToriRSChrome_TakeEvent(&chrome, &ev) )
+            ;
+        ToriRSChrome_MouseMove(&chrome, cx, cy);
+        {
+            int key = -1;
+            while( ToriRSChrome_TakeEvent(&chrome, &ev) )
+                if( ev.kind == TORIRS_CHROME_EVENT_GRAPH_HOVER && ev.widget == strip.graph )
+                    key = ev.key;
+            CHECK(key == EDP_CHIP_KEY_BASE + i || (i == 0 && key == EDP_CHIP_X_BASE + i),
+                "q=%d: the chrome's GRAPH_HOVER over drawn chip %d names it (key %d)", q, i, key);
+        }
+        for( int f = 0; f < 3; f++ )
+        {
+            strip_frame(&ui, &strip);
+            (void)ToriRSChrome_TooltipText(&chrome, strip.graph, tip, (int)sizeof(tip));
+            CHECK(strcmp(tip, k_strip_tips[i]) == 0 && strip.chips[i].x >= 0,
+                "q=%d frame %d: hovering chip %d shows its tooltip ('%s', x %d)", q, f, i, tip, strip.chips[i].x);
+        }
+    }
+    CHECK(laid + strip.hidden == 3, "q=%d: every chip is laid out or counted in '+n' (%d + %d)", q, laid,
+        strip.hidden);
+    if( strip.hidden > 0 )
+        CHECK(w->x + rule + (strip.more_x + strip.more_w) * tier <= w->x + w->w - rule,
+            "q=%d: the '+%d' chip is drawn inside the well (at %d..%d, chip 0 %d wide, well %d)", q, strip.hidden,
+            strip.more_x, strip.more_x + strip.more_w, strip.chips[0].w, (w->w - 2 * rule) / tier);
+}
+
 /* Synthetic rows, as CATALOG_QUERY returns them. */
 static const struct EditorHost_CatalogField k_fence_fields[] = {
     { "shape1", "0,100" }, { "shape2", "2,101" }, { "shape3", "9,102" }, { "category", "fence" }, { "width", "1" },
@@ -416,6 +510,12 @@ test_local_and_recents(void)
     snprintf(rows[2].name, sizeof(rows[2].name), "oak_door");
     snprintf(rows[2].display, sizeof(rows[2].display), "Door");
     rows[2].shape_mask = 1u << 0;
+    snprintf(rows[0].category, sizeof(rows[0].category), "tree");
+    rows[0].size_w = rows[0].size_l = 2;
+    snprintf(rows[1].category, sizeof(rows[1].category), "fence");
+    rows[1].size_w = rows[1].size_l = 1;
+    snprintf(rows[2].category, sizeof(rows[2].category), "door");
+    rows[2].size_w = rows[2].size_l = 1;
 
     Editor_CatalogModelInit(&model, TORIRSMAPED_CATALOG_LOC, 10);
     Editor_CatalogModelSetLocal(&model, rows, 3);
@@ -430,6 +530,34 @@ test_local_and_recents(void)
         "a shape chip keeps the rows with a shape in the class");
     Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "door");
     CHECK(Editor_CatalogModelViewCount(&model) == 1, "a display name matches too");
+    /* The chips compose with a local list as with the index (review fix):
+     * category= and size= read the row's fields, shape= resolves a class
+     * prefix as the server does; a key no local row holds filters nothing
+     * and the count says so. */
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "category=fence");
+    CHECK(Editor_CatalogModelViewCount(&model) == 1 && Editor_CatalogModelViewAt(&model, 0, &view)
+              && strcmp(view.name, "fence_wood") == 0,
+        "category=fence keeps the fence (%d)", Editor_CatalogModelViewCount(&model));
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "category=fen");
+    CHECK(Editor_CatalogModelViewCount(&model) == 1, "category= narrows as a prefix, as the server does");
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "size=2x2");
+    CHECK(Editor_CatalogModelViewCount(&model) == 1 && Editor_CatalogModelViewAt(&model, 0, &view)
+              && strcmp(view.name, "oak_tree") == 0,
+        "size=2x2 keeps the 2x2 tree (%d)", Editor_CatalogModelViewCount(&model));
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "size=1");
+    CHECK(Editor_CatalogModelViewCount(&model) == 2, "size=1 is 1x1, not 2x2 (%d)", Editor_CatalogModelViewCount(&model));
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "shape=c");
+    CHECK(Editor_CatalogModelViewCount(&model) == 1 && Editor_CatalogModelViewAt(&model, 0, &view)
+              && strcmp(view.name, "oak_tree") == 0,
+        "shape=c resolves to centre (%d)", Editor_CatalogModelViewCount(&model));
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "shape=wall size=1x1 oak");
+    CHECK(Editor_CatalogModelViewCount(&model) == 1 && Editor_CatalogModelViewAt(&model, 0, &view)
+              && strcmp(view.name, "oak_door") == 0,
+        "the chips and the words compose (%d)", Editor_CatalogModelViewCount(&model));
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "op=Chop");
+    Editor_CatalogModelRangeText(&model, 0, text, sizeof(text));
+    CHECK(Editor_CatalogModelViewCount(&model) == 3 && strstr(text, "op= not checked in this list"),
+        "a key a local row cannot answer filters nothing, and the count says so: %s", text);
     Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "");
     Editor_CatalogModelSetSort(&model, EDITOR_CATALOG_SORT_ID);
     CHECK(Editor_CatalogModelViewAt(&model, 0, &view) && view.id == 10 && view.shape == 2 && view.rotation == 3,
@@ -1046,6 +1174,86 @@ test_panels(const char* root)
     Editor_UiFree(&g_ui);
 }
 
+/* ==== part 4: the atlas rows' loc counts, gated (review fix) ===================== */
+
+static const struct EditorHost_CatalogSquare*
+atlas_square_at(
+    const struct EditorHost_CatalogSquares* atlas,
+    int map_x,
+    int map_z)
+{
+    for( int i = 0; i < atlas->square_count; i++ )
+        if( atlas->squares[i].map_x == map_x && atlas->squares[i].map_z == map_z )
+            return &atlas->squares[i];
+    return NULL;
+}
+
+/* A client that saw TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS asks CATALOG_SQUARES
+ * for the loc counts and reads them; a connection that never asked (what an
+ * older client is) gets the v2 rows, in the answer and in the _CHANGED
+ * broadcast both, and still decodes the whole atlas. */
+static void
+test_atlas_locs(const char* base)
+{
+    char root[2048];
+    struct EditorHost host;
+    struct EditorHost peer;
+    struct EditorHost_CatalogSquares atlas;
+    struct EditorHostMapEdFacts sink;
+    struct EditorHost_DocCreate create;
+    const struct EditorHost_CatalogSquare* sq;
+
+    snprintf(root, sizeof(root), "%s_atlas", base);
+    make_dir(root, "");
+    make_dir(root, "configs");
+    make_dir(root, "maps");
+    make_dir(root, "pack");
+    write_text(root, "configs/all.loc", "[fence_wood]\nname=Fence\nshape1=0,100\n");
+    write_text(root, "configs/all.loc.compack", "0=fence_wood\n");
+    write_text(root, "maps/m50_50.jl2", "==== LOC ====\n0 1 2: 0 0 0\n0 3 4: 0 0 1\n");
+    memset(&host, 0, sizeof(host));
+    memset(&peer, 0, sizeof(peer));
+    memset(&sink, 0, sizeof(sink));
+    if( !Editor_HostOpenMapEdEmbed(&host, root, NULL) )
+    {
+        CHECK(0, "the embedded server opens %s", root);
+        return;
+    }
+    CHECK((Editor_HostMapEdCapabilities(&host) & TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS) != 0,
+        "FACT_HELLO advertises CATALOG_SQUARE_LOCS");
+    CHECK(Editor_HostOpenMapEdEmbedPeer(&peer, &host, TORIRSMAPED_ROLE_CONTROLLER, 0), "a second connection");
+
+    CHECK(Editor_HostMapEdCatalogSquares(&host, &atlas) == EDITOR_HOST_OK, "CATALOG_SQUARES answers");
+    sq = atlas_square_at(&atlas, 50, 50);
+    CHECK(sq && sq->loc_count == 2 && !(sq->flags & TORIRSMAPED_SQUARE_LOC_COUNT),
+        "the asking client reads m50_50's 2 locs, and the wire bit stays out of flags (%d, flags %u)",
+        sq ? sq->loc_count : -1, sq ? sq->flags : 0u);
+    Editor_HostCatalogSquaresFree(&atlas);
+
+    /* The peer has not asked: a broadcast reaches it in the v2 form. */
+    memset(&create, 0, sizeof(create));
+    create.kind = EDITOR_DOC_SQUARE;
+    snprintf(create.key, sizeof(create.key), "m51_50");
+    create.template_kind = EDITOR_DOC_TEMPLATE_EMPTY;
+    CHECK(Editor_HostMapEdDocCreate(&host, &create) == EDITOR_HOST_OK, "DOC_CREATE");
+    Editor_HostMapEdDrainFacts(&host, &sink);
+    Editor_HostMapEdDrainFacts(&peer, &sink);
+    CHECK(Editor_HostMapEdCatalogSquaresChanged(&host, &atlas) == 1, "the asking client gets the broadcast");
+    sq = atlas_square_at(&atlas, 50, 50);
+    CHECK(sq && sq->loc_count == 2 && atlas_square_at(&atlas, 51, 50) != NULL,
+        "...with the loc counts (%d)", sq ? sq->loc_count : -1);
+    Editor_HostCatalogSquaresFree(&atlas);
+    CHECK(Editor_HostMapEdCatalogSquaresChanged(&peer, &atlas) == 1,
+        "the connection that never asked decodes its broadcast too");
+    sq = atlas_square_at(&atlas, 50, 50);
+    CHECK(sq && sq->loc_count == 0 && atlas.square_count == 2 && atlas_square_at(&atlas, 51, 50) != NULL,
+        "...in the v2 form: both rows, no counts (%d rows, %d)", atlas.square_count, sq ? sq->loc_count : -1);
+    Editor_HostCatalogSquaresFree(&atlas);
+
+    Editor_HostClose(&peer);
+    Editor_HostClose(&host);
+}
+
 int
 main(
     int argc,
@@ -1063,6 +1271,11 @@ main(
     setvbuf(stdout, NULL, _IONBF, 0);
     ToriMem_Init();
     test_chips();
+    /* wide: all three fit; narrow: the third folds into "+1" */
+    test_chip_strip(4, 400);
+    test_chip_strip(6, 400);
+    test_chip_strip(4, 230);
+    test_chip_strip(6, 230);
     test_rows();
     test_server_fields();
     test_window();
@@ -1083,6 +1296,7 @@ main(
     Editor_OpenHost(&g_editor, &host, root, &g_profile);
     test_panels(root);
     Editor_Close(&g_editor);
+    test_atlas_locs(root);
     printf("editor_catalog_finder_test: %d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;
 }

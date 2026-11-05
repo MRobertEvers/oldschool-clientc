@@ -303,6 +303,13 @@ enum ToriRSMapEdCapability
      *  u32 total` (torirs_maped_catalog.h). A client sends the flag only to
      *  a server with this bit; without it the page is the v2 payload. */
     TORIRSMAPED_CAP_CATALOG_PROGRESS = 16,
+    /** CATALOG_SQUARES takes a `u32 flags` body with
+     *  TORIRSMAPED_CATALOG_SQUARES_LOCS: every row of that connection's
+     *  FACT_CATALOG_SQUARES and _CHANGED is then flagged
+     *  TORIRSMAPED_SQUARE_LOC_COUNT and ends with `u32 loc_count`
+     *  (torirs_maped_catalog.h). A client sends the body only to a server
+     *  with this bit; without it every row is the v2 one. */
+    TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS = 32,
 };
 
 /** What a connection is for. Informational today (the server relays every
@@ -753,6 +760,9 @@ struct ToriRSMapEdSession
     /** The protocol this peer speaks: TORIRSMAPED_PROTO_VERSION_V1 or
      *  TORIRSMAPED_PROTO_VERSION, from HELLO. Facts are encoded per peer. */
     uint32_t version;
+    /** The peer asked CATALOG_SQUARES with TORIRSMAPED_CATALOG_SQUARES_LOCS:
+     *  its atlas rows (answers and _CHANGED broadcasts) carry loc_count. */
+    int catalog_square_locs;
 };
 
 /**

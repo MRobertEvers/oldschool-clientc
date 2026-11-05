@@ -1770,13 +1770,24 @@ dbg_graph_region(
     return 1;
 }
 
+/** The scale (quarter units) a GRAPH well's items are drawn at: the integer
+ *  tier (dbg_draw_graph's `ui->scale`), so a well's pointer maps back to
+ *  item coordinates at the same factor its items were drawn at. At a
+ *  fractional q this is not q: mapping with q made a press, hover, drag or
+ *  key land on another item than the one under the pointer. */
+static int
+dbg_graph_q(struct ToriRSChrome const* ui)
+{
+    return ui->scale * TORIRS_CHROME_SCALE_Q_ONE;
+}
+
 static int
 dbg_graph_push(struct ToriRSChrome* ui, int widget, int kind, int x, int y, int value)
 {
     struct ToriRSChromeRect region;
     struct ToriRSChromeRect clip;
     struct ToriRSChromeEvent ev;
-    int const scale = ui->scale_q;
+    int const scale = dbg_graph_q(ui);
 
     if( !dbg_graph_region(ui, widget, &region, &clip) )
         return 0;
@@ -3531,7 +3542,7 @@ dbg_ext_hover(struct ToriRSChrome* ui, int hit, int x, int y)
         struct ToriRSChromeRect region;
         struct ToriRSChromeRect clip;
         int key = 0;
-        int const scale = ui->scale_q;
+        int const scale = dbg_graph_q(ui);
 
         if( dbg_graph_region(ui, hit, &region, &clip) && dbg_point_in_rect(x, y, clip) )
             key = ToriRSChrome_GraphKeyAt(
@@ -3754,7 +3765,7 @@ ToriRSChrome_Scroll(struct ToriRSChrome* ui, int x, int y, double dx, double dy)
     struct ToriRSChromeEvent ev;
 
     assert(ui);
-    scale = ui->scale_q;
+    scale = dbg_graph_q(ui);
     if( dbg_modal_blocks(ui, x, y) )
         return 1;
     if( ui->dropdown_open >= 0 || ui->colorpick_open >= 0 )

@@ -963,53 +963,84 @@ test_atlas(const char* root)
               && !(square.flags & TORIRSMAPED_SQUARE_HAS_LOCS),
         "m40_40: a header and no locs (%d)", square.loc_count);
 
-    /* The wire: every row ends with its loc count. */
+    /* The wire, in both forms: the v2 request (empty body) gets the v2
+     * rows, which carry no count; a request with
+     * TORIRSMAPED_CATALOG_SQUARES_LOCS gets every row flagged
+     * TORIRSMAPED_SQUARE_LOC_COUNT and ending with its count. */
     Editor_DocInit(&doc, NULL);
-    memset(&answer, 0, sizeof(answer));
-    ToriRSMapEdCatalog_EncodeSquares(catalog, &doc, &answer);
-    ToriRSMapEd_ReaderInit(&reader, ToriRSMapEd_BufPeek(&answer), (uint32_t)ToriRSMapEd_BufAvailable(&answer));
-    CHECK(ToriRSMapEd_GetU32(&reader) == 0, "CATALOG_SQUARES answers OK");
-    count = ToriRSMapEd_GetU32(&reader);
-    for( uint32_t i = 0; i < count && !reader.bad; i++ )
+    for( int form = 0; form < 2; form++ )
     {
-        char name[256];
-        ToriRSMapEd_GetString(&reader, name, sizeof(name));
-    }
-    count = ToriRSMapEd_GetU32(&reader);
-    for( uint32_t i = 0; i < count && !reader.bad; i++ )
-    {
-        char name[256];
-        ToriRSMapEd_GetString(&reader, name, sizeof(name));
-        ToriRSMapEd_GetString(&reader, name, sizeof(name));
-        (void)ToriRSMapEd_GetU32(&reader);
-    }
-    count = ToriRSMapEd_GetU32(&reader);
-    CHECK(count == 3, "three rows (%u)", count);
-    for( uint32_t i = 0; i < count && !reader.bad; i++ )
-    {
-        int32_t const x = (int32_t)ToriRSMapEd_GetU32(&reader);
-        int32_t const z = (int32_t)ToriRSMapEd_GetU32(&reader);
-        uint32_t flags;
-        uint32_t area_n;
-        uint32_t locs;
-        (void)ToriRSMapEd_GetU32(&reader);
-        flags = ToriRSMapEd_GetU32(&reader);
-        (void)ToriRSMapEd_GetU32(&reader);
-        (void)ToriRSMapEd_GetU32(&reader);
-        (void)ToriRSMapEd_GetU32(&reader);
-        area_n = ToriRSMapEd_GetU32(&reader);
-        for( uint32_t a = 0; a < area_n && !reader.bad; a++ )
+        uint8_t body[4];
+        int with_locs = -1;
+        int flagged = 0;
+        seen = 0;
+        ToriRSMapEd_WriteU32(body, TORIRSMAPED_CATALOG_SQUARES_LOCS);
+        memset(&answer, 0, sizeof(answer));
+        CHECK(ToriRSMapEdCatalog_HandleSquares(catalog, &doc, body, form ? 4 : 0, &with_locs, &answer)
+                  && with_locs == form,
+            "CATALOG_SQUARES with %s body answers, rows %s loc counts", form ? "a LOCS" : "an empty",
+            form ? "with" : "without");
+        ToriRSMapEd_ReaderInit(
+            &reader, ToriRSMapEd_BufPeek(&answer), (uint32_t)ToriRSMapEd_BufAvailable(&answer));
+        CHECK(ToriRSMapEd_GetU32(&reader) == 0, "CATALOG_SQUARES answers OK");
+        count = ToriRSMapEd_GetU32(&reader);
+        for( uint32_t i = 0; i < count && !reader.bad; i++ )
+        {
+            char name[256];
+            ToriRSMapEd_GetString(&reader, name, sizeof(name));
+        }
+        count = ToriRSMapEd_GetU32(&reader);
+        for( uint32_t i = 0; i < count && !reader.bad; i++ )
+        {
+            char name[256];
+            ToriRSMapEd_GetString(&reader, name, sizeof(name));
+            ToriRSMapEd_GetString(&reader, name, sizeof(name));
             (void)ToriRSMapEd_GetU32(&reader);
-        locs = ToriRSMapEd_GetU32(&reader);
-        if( x == 50 && z == 50 )
-            seen += locs == 3;
-        if( x == 5 && z == 120 )
-            seen += locs == 1 && (flags & TORIRSMAPED_SQUARE_INSTANCE);
-        if( x == 40 && z == 40 )
-            seen += locs == 0;
+        }
+        count = ToriRSMapEd_GetU32(&reader);
+        CHECK(count == 3, "three rows (%u)", count);
+        for( uint32_t i = 0; i < count && !reader.bad; i++ )
+        {
+            int32_t const x = (int32_t)ToriRSMapEd_GetU32(&reader);
+            int32_t const z = (int32_t)ToriRSMapEd_GetU32(&reader);
+            uint32_t flags;
+            uint32_t area_n;
+            uint32_t locs = 0;
+            (void)ToriRSMapEd_GetU32(&reader);
+            flags = ToriRSMapEd_GetU32(&reader);
+            (void)ToriRSMapEd_GetU32(&reader);
+            (void)ToriRSMapEd_GetU32(&reader);
+            (void)ToriRSMapEd_GetU32(&reader);
+            area_n = ToriRSMapEd_GetU32(&reader);
+            for( uint32_t a = 0; a < area_n && !reader.bad; a++ )
+                (void)ToriRSMapEd_GetU32(&reader);
+            flagged += (flags & TORIRSMAPED_SQUARE_LOC_COUNT) != 0;
+            if( flags & TORIRSMAPED_SQUARE_LOC_COUNT )
+                locs = ToriRSMapEd_GetU32(&reader);
+            if( x == 50 && z == 50 )
+                seen += locs == (form ? 3u : 0u);
+            if( x == 5 && z == 120 )
+                seen += locs == (form ? 1u : 0u) && (flags & TORIRSMAPED_SQUARE_INSTANCE);
+            if( x == 40 && z == 40 )
+                seen += locs == 0;
+        }
+        CHECK(!reader.bad && ToriRSMapEd_ReaderDone(&reader), "the rows read to the end, nothing left over");
+        CHECK(flagged == (form ? 3 : 0), "%d of 3 rows flagged LOC_COUNT", flagged);
+        CHECK(seen == 3, "each row carries its loc count or none, the instance row its flag (%d of 3)", seen);
+        ToriRSMapEd_BufFree(&answer);
     }
-    CHECK(!reader.bad && ToriRSMapEd_ReaderDone(&reader), "the rows read to the end, nothing left over");
-    CHECK(seen == 3, "each row carries its loc count, the instance row its flag (%d of 3)", seen);
+    {
+        /* an unknown request flag, or a body that is not one u32, ends the
+         * session (0), as any malformed frame does */
+        uint8_t body[8] = { 0 };
+        int with_locs = 0;
+        ToriRSMapEd_WriteU32(body, 2);
+        memset(&answer, 0, sizeof(answer));
+        CHECK(!ToriRSMapEdCatalog_HandleSquares(catalog, &doc, body, 4, &with_locs, &answer),
+            "an unknown CATALOG_SQUARES flag is refused");
+        CHECK(!ToriRSMapEdCatalog_HandleSquares(catalog, &doc, body, 8, &with_locs, &answer),
+            "a CATALOG_SQUARES body that is not one u32 is refused");
+    }
     ToriRSMapEd_BufFree(&answer);
     Editor_DocFree(&doc);
     ToriRSMapEdCatalog_Free(catalog);

@@ -219,6 +219,35 @@ edp_locs_duplicate(struct EditorUi* ui)
     return applied;
 }
 
+void
+edp_locs_say_deleted(
+    struct EditorUi* ui,
+    const struct Editor_LocRef* ref,
+    int applied)
+{
+    struct ToriRS_Location* cfg = NULL;
+    char name[64];
+    int wx;
+    int wz;
+
+    assert(ui);
+    assert(ref);
+    assert(applied > 0);
+    if( applied > 1 )
+    {
+        Editor_UiStatus(ui, "Deleted %d locs; Ctrl+Z undoes it", applied);
+        return;
+    }
+    if( ui->app_services.loc_record )
+        cfg = ui->app_services.loc_record(ui->app_services.user_data, ref->loc_id);
+    if( cfg && cfg->name[0] )
+        snprintf(name, sizeof(name), "%s", cfg->name);
+    else
+        snprintf(name, sizeof(name), "loc %d", ref->loc_id);
+    Editor_LocRefWorld(ref, &wx, &wz);
+    Editor_UiStatus(ui, "Deleted %s at %d,%d L%d; Ctrl+Z undoes it", name, wx, wz, ref->level);
+}
+
 int
 edp_locs_delete(struct EditorUi* ui)
 {
@@ -244,6 +273,7 @@ edp_locs_delete(struct EditorUi* ui)
     if( applied > 0 )
     {
         Editor_UiLog(ui, "editor: deleted %d loc(s)", applied);
+        edp_locs_say_deleted(ui, &ui->tools.locs[0], applied);
         ui->tools.loc_count = 0;
         if( ui->hooks.selection_changed )
             ui->hooks.selection_changed(ui->hooks_user);

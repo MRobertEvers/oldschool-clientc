@@ -2119,8 +2119,10 @@ What landed:
   `u32 loc_count` (the locs the `.jl2` places, one a line after the header;
   `cat_parse_jl2` now counts instead of stopping at the first);
   `EditorHost_CatalogSquare.loc_count`, `Editor_PickerSquare.loc_count`,
-  `ToriRSMapEdCatalogSquare.loc_count`. A client and a server must be built
-  from the same tree (the reader checks it consumed the whole fact).
+  `ToriRSMapEdCatalogSquare.loc_count`. ~~A client and a server must be built
+  from the same tree~~ **Closed (6.2-6.4 review fixes, below):** gated by
+  `TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS`; a row carries the count only when
+  flagged `TORIRSMAPED_SQUARE_LOC_COUNT`.
 - **The web shows the map** (design: "the web shows no map today"): the
   worldmap services are no longer compiled out under `__EMSCRIPTEN__`;
   `ui_service_image_publish` also hands each 128x128 picture to
@@ -2414,7 +2416,8 @@ What landed:
   drops (`Editor_Picker.dropped`, `drop_text`), visible-first loads,
   instance space (`TORIRSMAPED_INSTANCE_*`, `TORIRSMAPED_SQUARE_INSTANCE`,
   the "Instance space" page `EDITOR_PICKER_TAB_INSTANCE`), atlas rows ending
-  in `u32 loc_count` (client and server from the same tree), GRAPH images on
+  in `u32 loc_count` (gated by a capability bit since the review fixes below),
+  GRAPH images on
   the web (`graph.image`); then Find (edpanel_picker_find), context K and
   its eight Picker rows (`Editor_HotkeysMatch`), the open-set strip, the
   detail pane and the Area dropdown's lane rows.
@@ -2503,7 +2506,9 @@ Tests (this container, build_opt unless said; all content-free):
 Perf (the catalog slice's synthetic tree, 63,003 records; 'all' before ->
 after the scoping): '' 4.5 ms / 63,003 tested -> 0.08 ms / 100; 'o' 5.2 ->
 0.08 ms; 'oa' 2.6 -> 0.11 ms / 694; 'door' 1.9 -> 0.15 ms / 1,277; '700' 2.2
--> 1.9 ms / 50,702; 'op=Chop' (nothing matches) ~22 -> 10.6 ms. Warm build:
+-> 1.9 ms / 50,702; 'op=Chop' (nothing matches) ~11 -> ~11 ms / 63,003, no
+gain: scoped or not, every record is tested (review fix: the "~22 ->" figure
+was not this test's before/after; see the Review fixes below). Warm build:
 the longest 2 ms slice 27 ms -> ~3-4 ms; with 256 KB parts 24-27 parts,
 3,005 sources merged one at a time, ~26 partial answers (slowest ~3.6-4.8
 ms). A sweep that catches an edit still runs one ~21-26 ms full merge. The
@@ -2533,8 +2538,92 @@ Open (beyond each slice's own list above):
   passes `realpath` a buffer under PATH_MAX: a Linux _FORTIFY_SOURCE opt
   build that boots the editor with an existing content dir aborts ("buffer
   overflow detected"). Not fixed here.
-- Wire: STATE_TOOLS has 15 values and atlas rows carry `loc_count`; client
-  and server must come from the same tree.
+- Wire: STATE_TOOLS has 15 values; client and server must come from the
+  same tree for it. (The atlas rows' `loc_count` no longer needs that: see
+  the review fixes.)
+
+Review fixes (2026-11-05, the 6.2-6.4 review; each finding checked against
+the code and a test before it was changed):
+
+- **The atlas loc counts are gated.** A new client against an older daemon
+  (or the reverse) read a square's next field as `loc_count` and dropped the
+  whole atlas. Now the server advertises
+  `TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS` (32); `Editor_HostMapEdCatalogSquares`
+  sends CATALOG_SQUARES a `u32 flags` body (`TORIRSMAPED_CATALOG_SQUARES_LOCS`)
+  only to a server with the bit (an older one ends a session that sends a
+  body); the server remembers the ask per connection
+  (`ToriRSMapEdSession.catalog_square_locs`) and gives that connection, in its
+  answer and in every `_CHANGED` broadcast, rows flagged
+  `TORIRSMAPED_SQUARE_LOC_COUNT` (128) that end with the count, and every
+  other connection the v2 rows (`catalog_atlas_changed` encodes each form at
+  most once). The flag rides in the row, so a broadcast that crossed the
+  request decodes either way; the client strips it from `flags` and leaves
+  `loc_count` 0 without it. HELLO stays version 2. Tests: catalog_perf_test
+  reads both forms and refuses an unknown flag or a long body (143);
+  editor_catalog_finder_test over the embedded server: the asking connection
+  reads m50_50's 2 locs, a peer that never asked decodes its `_CHANGED` in
+  the v2 form.
+- **op=Chop's perf row restated**: about 11 ms unscoped and 11 ms scoped
+  (63,003 tested both ways, three runs 10.8-11.9 ms); "~22 -> 10.6" and
+  "22 ms -> 12 ms" were not this test's before/after and no pre-branch run is
+  recorded. Fixed above and under Catalog performance; the other rows match.
+- **Picker pictures keep their canvas on the web.** `renderGraphImages`
+  (runtime-source.js, regenerated runtime.js / runtime-ie8.js with
+  `tsc ... --ignoreDeprecations 6.0 --alwaysStrict false`, byte-identical to
+  the committed output before the change) assigns `canvas.width` / `height`
+  only when the size changed, and skips the redraw when the IMAGE items and
+  the pictures they name are the ones on the canvas, so a hover-outline or
+  pan frame no longer reallocates a well-sized bitmap. chrome_widgets_dom_test
+  counts the side assignments (fails on the old runtime).
+- **Chip tooltips on every frame.** `edp_chips_push` reset each chip's
+  layout and `edp_chips_end` skips an unchanged strip, so from the second
+  frame no chip had a box and every tooltip was "". Push now keeps the
+  layout; End clears it only when it lays out again.
+- **Chips at 125/150/175 %.** The chrome draws GRAPH items at the integer
+  tier (`dbg_draw_graph`, `ui->scale`) but the strip laid out and
+  hit-tested at q, and so did the chrome's own GRAPH pointer mapping
+  (`dbg_graph_push`, the hover key, `ToriRSChrome_Scroll`): at q=6 a chip past
+  the edge was drawn and clipped and a press or hover named another item.
+  Both now use the draw's factor (`chips_unscale`; `dbg_graph_q` in the
+  chrome), which every other GRAPH host already assumed
+  (`edpanel_squares.c`); integer scales are unchanged (workbench digests
+  equal). The first chip on the last line is now elided to leave the "+n"
+  chip its room when more follow (it could push "+n" past the edge at any
+  scale). editor_catalog_finder_test `test_chip_strip` at q=4 and q=6, wide
+  and narrow: each drawn chip inside the well, the chrome's GRAPH_HOVER key
+  and the strip's tooltip naming the chip under the pointer on three
+  consecutive frames (fails on the old edpanel_chips.c).
+- **Filters compose with favourites / recent / in square.** A local row now
+  answers `category=` and `size=` ("WxL") the way the server's
+  `cat_value_match` does (prefix of a whole word, a number not stopping
+  inside a longer one), `shape=` with class prefixes and `*`
+  (`shape=c` is centre), `name=` and `id=`; what a row does not know yet
+  (a favourite not asked: id -1) passes. Keys no local row holds (op,
+  multivar, ...) filter nothing and the count says so: "1 to 3 of 3
+  favourites; op= not checked in this list". Greying such a chip is not done.
+- **Delete says it in the status bar** (design section 7): "Deleted Oak tree
+  at 3245,3210 L0; Ctrl+Z undoes it" (the cache name once resident, else
+  "loc <id>"), "Deleted N locs; Ctrl+Z undoes it" for a set, from both
+  `edp_locs_delete` and `Editor_PanelDeleteLocAt` (the Delete tool and K).
+  editor_placement_test `test_delete_said`.
+- **The Select tool's empty Shift/Ctrl/Alt click** says "Select refused: no
+  loc under the pointer to add, toggle or take out" in the status bar (R8),
+  not only the console (app_map_editor.c; no test drives the App click).
+
+Rerun after the fixes (this container, build_opt): `make -C src all`;
+test-scene-bridge-chrome 130, test-catalog-finder 176, test-catalog-perf 143,
+test-editor-catalog-finder 202, test-editor-placement 123, test-editor-stamps
+91, -stamps-ops 81, -worldmap 161, -picker 397, -hotkeys 2005, -chords 591,
+-groups 2190, -cmd 66, -dropdown 36, -palette 97, -panels-palette 50,
+-panels-accounts 48, -areas 136, -world-gesture 42, test-editor-workbench 284
+(digests unchanged) -- all 0 failed; test-chrome-widgets 946 and the DOM
+test, test-chrome-skin-tiers 922, chrome-skin, test-debug-overlay-visual,
+test-uitree, test-font-markup, test-cache-trim, test-chrome-browser-exec,
+test-chrome-web-skin, check-app-boundary, check-tree-walks, check-pt-switch,
+test-world-builder pass; test-web-channel as before (only
+web/test/chrome_layout_test.js fails, on `src/Makefile`; the tests after it
+pass when run by hand). With asserts on (OPT=0, a scratch objdir):
+test-editor-catalog-finder, -picker, -stamps-ops and -placement pass.
 
 ## Open issues
 
@@ -2819,8 +2908,11 @@ tests `make -C src test-catalog-perf` and `test-catalog-finder`):
   (this machine, `test-catalog-perf`): '' 4.4 ms / 63,003 tested -> 0.08 ms
   / 100; 'o' 5.2 -> 0.08 ms; 'oa' 2.5 -> 0.14 ms / 694; 'door' 1.8 -> 0.18
   ms / 1,277; '700' 1.9 -> 1.6 ms / 50,702 (the hundredth hit is far in);
-  'op=Chop' (nothing matches) 22 ms -> 12 ms, still every record (the
-  derived loc text is formatted only when a filter reads it). The
+  'op=Chop' (nothing matches) ~11 ms -> ~11 ms, no gain: scoping still
+  tests every record when nothing matches (the derived loc text is
+  formatted only when a filter reads it). This read "22 ms -> 12 ms" until
+  the 6.2-6.4 review; the test's own before/after never showed it and no
+  run of a pre-branch build is recorded. The
   in-process `ToriRSMapEdCatalog_Query` still answers every match.
 - The warm build never waits on one file: configs/all.<type>, its .compack
   and overlays over 64 KB are parsed in parts of at most 4 MB

@@ -128,7 +128,8 @@ ToriRSMapEd_Open(
     /* The catalog reads nothing here: the service pass warm-builds it in
      * slices (ToriRSMapEdCatalog_Service), a request before that finishes it. */
     maped->catalog = ToriRSMapEdCatalog_Create(content_dir);
-    maped->capabilities |= TORIRSMAPED_CAP_CATALOG | TORIRSMAPED_CAP_CATALOG_PROGRESS;
+    maped->capabilities
+        |= TORIRSMAPED_CAP_CATALOG | TORIRSMAPED_CAP_CATALOG_PROGRESS | TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS;
 
     /* Builds and the live link: empty until a host binds them, or the
      * environment names a live lane (torirs_maped_live.h). */
@@ -1673,7 +1674,8 @@ handle_catalog(
     }
     else
     {
-        ok = ToriRSMapEdCatalog_HandleSquares(catalog, &maped->doc, body, length, &out);
+        ok = ToriRSMapEdCatalog_HandleSquares(
+            catalog, &maped->doc, body, length, &session->catalog_square_locs, &out);
         fact = TORIRSMAPED_FACT_CATALOG_SQUARES;
     }
     if( ok )
@@ -1695,22 +1697,33 @@ catalog_atlas_changed(
     int disk_changed)
 {
     struct ToriRSMapEdCatalog* catalog = maped->catalog;
-    struct ToriRSMapEdBuf payload;
+    /* [0] the v2 rows, [1] the rows with loc_count: each connection gets the
+     * form it asked CATALOG_SQUARES for, encoded only if someone wants it. */
+    struct ToriRSMapEdBuf payload[2];
+    int encoded[2] = { 0, 0 };
 
     assert(catalog);
     if( !ToriRSMapEdCatalog_Built(catalog) )
         return;
     if( disk_changed && !ToriRSMapEdCatalog_RefreshMaps(catalog) )
         return;
-    memset(&payload, 0, sizeof(payload));
-    ToriRSMapEdCatalog_EncodeSquares(catalog, &maped->doc, &payload);
+    memset(payload, 0, sizeof(payload));
     for( int i = 0; i < TORIRSMAPED_SESSION_MAX; i++ )
     {
         struct ToriRSMapEdSession* session = maped->sessions[i];
-        if( session && session->alive && session->version >= TORIRSMAPED_PROTO_VERSION )
-            send_buf(session, TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED, &payload);
+        int form;
+        if( !session || !session->alive || session->version < TORIRSMAPED_PROTO_VERSION )
+            continue;
+        form = session->catalog_square_locs ? 1 : 0;
+        if( !encoded[form] )
+        {
+            ToriRSMapEdCatalog_EncodeSquares(catalog, &maped->doc, form, &payload[form]);
+            encoded[form] = 1;
+        }
+        send_buf(session, TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED, &payload[form]);
     }
-    ToriRSMapEd_BufFree(&payload);
+    ToriRSMapEd_BufFree(&payload[0]);
+    ToriRSMapEd_BufFree(&payload[1]);
 }
 
 static void

@@ -1898,23 +1898,48 @@
     let images = 0;
     let width = 0;
     let height = 0;
+    /* What the canvas would show: each IMAGE item's place and alpha and the
+     * picture it names (an image record is replaced whole by graph.image). */
+    const signature = [];
+    const pictures = [];
     for (let i = 0; i < record.items.length; i++) {
       const item = record.items[i];
       if (!item || item.kind !== GRAPH_ITEM.IMAGE) continue;
       images++;
       width = Math.max(width, item.x + item.w);
       height = Math.max(height, item.y + item.h);
+      signature.push(item.key, item.x, item.y, item.w, item.h, item.color);
+      pictures.push(state.graphImages.get(item.key) || null);
     }
-    record.graphImagesDrawn = 0;
-    if (!images || legacy || !global.ImageData || !global.Uint8ClampedArray) return;
+    if (!images || legacy || !global.ImageData || !global.Uint8ClampedArray) {
+      record.graphImagesDrawn = 0;
+      record.graphImageSignature = null;
+      return;
+    }
     const canvas = record.graphCanvas || document.createElement('canvas');
     record.graphCanvas = canvas;
     canvas.className = 'tpc-graph-canvas';
-    canvas.width = Math.max(1, Math.min(MAX_GRAPH_CANVAS_SIDE, width));
-    canvas.height = Math.max(1, Math.min(MAX_GRAPH_CANVAS_SIDE, height));
+    /* Assigning width or height throws the backing bitmap away even when
+     * the value is the same, so only a changed size is assigned. */
+    const sideW = Math.max(1, Math.min(MAX_GRAPH_CANVAS_SIDE, width));
+    const sideH = Math.max(1, Math.min(MAX_GRAPH_CANVAS_SIDE, height));
+    let resized = false;
+    if (canvas.width !== sideW) { canvas.width = sideW; resized = true; }
+    if (canvas.height !== sideH) { canvas.height = sideH; resized = true; }
     canvas.style.width = `${canvas.width}px`;
     canvas.style.height = `${canvas.height}px`;
     well.appendChild(canvas);
+    /* A render that changed only the well's other items (the picker's hover
+     * outline, a mark) keeps the pictures already on the canvas. */
+    const signatureText = signature.join(',');
+    let same = !resized && record.graphImageSignature === signatureText && record.graphImagePictures &&
+      record.graphImagePictures.length === pictures.length;
+    for (let i = 0; same && i < pictures.length; i++) {
+      if (record.graphImagePictures[i] !== pictures[i]) same = false;
+    }
+    if (same) return;
+    record.graphImagesDrawn = 0;
+    record.graphImageSignature = null;
     const context = canvas.getContext && canvas.getContext('2d');
     if (!context) return;
     context.clearRect(0, 0, canvas.width, canvas.height);
@@ -1934,6 +1959,8 @@
     }
     context.globalAlpha = 1;
     record.graphImagesDrawn = drawn;
+    record.graphImageSignature = signatureText;
+    record.graphImagePictures = pictures;
     canvas.setAttribute('data-images', String(drawn));
   }
 

@@ -739,6 +739,35 @@ test_refusals(void)
         g_ui.status_serial - serial);
 }
 
+/* ---- Delete says it (design section 7, review fix) ------------------------------------ */
+
+static void
+test_delete_said(void)
+{
+    struct Editor_TileRect rect;
+    int const x = BASE_X + 30;
+    int const z = BASE_Z + 60;
+    char want[128];
+
+    snprintf(g_crate.name, sizeof(g_crate.name), "Crate");
+    seed(LOC_CRATE, 10, 0, x, z, 0);
+    seed(LOC_WALL, 0, 0, x + 6, z, 0);
+    seed(LOC_WALL, 0, 0, x + 7, z, 0);
+    g_ui.tools.tool = EDITOR_TOOL_SELECT;
+    g_ui.tools.loc_count = 0;
+    rect = (struct Editor_TileRect){ 1, x, z, x, z, 0 };
+    CHECK(edp_select_rect(&g_ui, &rect, EDITOR_LOC_SELECT_REPLACE) == 1, "delete: the crate is selected");
+    CHECK(edp_locs_delete(&g_ui) == 1 && !loc_at(LOC_CRATE, x, z, 0, 10), "delete: the crate is gone");
+    snprintf(want, sizeof(want), "Deleted Crate at %d,%d L0; Ctrl+Z undoes it", x, z);
+    CHECK(strcmp(Editor_UiStatusText(&g_ui), want) == 0, "delete: the status bar names it and the undo (\"%s\")",
+        Editor_UiStatusText(&g_ui));
+    rect = (struct Editor_TileRect){ 1, x + 6, z, x + 7, z, 0 };
+    CHECK(edp_select_rect(&g_ui, &rect, EDITOR_LOC_SELECT_REPLACE) == 2, "delete: two walls selected");
+    CHECK(edp_locs_delete(&g_ui) == 2
+              && strcmp(Editor_UiStatusText(&g_ui), "Deleted 2 locs; Ctrl+Z undoes it") == 0,
+        "delete: a set is counted (\"%s\")", Editor_UiStatusText(&g_ui));
+}
+
 int
 main(
     int argc,
@@ -786,6 +815,7 @@ main(
     test_marquee();
     test_fit_shared();
     test_refusals();
+    test_delete_said();
     Editor_UiFree(&g_peer_ui);
     Editor_UiFree(&g_ui);
     Editor_Close(&g_peer);

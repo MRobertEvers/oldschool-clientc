@@ -824,7 +824,10 @@ Editor_PanelDeleteLocAt(
         return 0;
     if( !Editor_LocOpsDelete(&app->editor->doc, &ref, 1, &command, 1, &result) )
         return 0;
-    return edp_apply(panel->ui, &command, 1, "delete loc");
+    if( !edp_apply(panel->ui, &command, 1, "delete loc") )
+        return 0;
+    edp_locs_say_deleted(panel->ui, &ref, 1);
+    return 1;
 }
 
 int

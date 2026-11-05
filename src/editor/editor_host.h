@@ -728,7 +728,8 @@ struct EditorHost_CatalogSquare
     /** TORIRSMAPED_SQUARE_* bits. */
     uint32_t flags;
     int spawn_count;
-    /** The locs its .jl2 places on disk. */
+    /** The locs its .jl2 places on disk; 0 from a server without
+     *  TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS (the row did not say). */
     int loc_count;
     /** 0xRRGGBB averaged over the level-0 floors; 0 when it has none. */
     uint32_t rgb;

@@ -5648,19 +5648,21 @@ cat_put_square(
     uint32_t rgb,
     const int* areas,
     int area_n,
+    int with_locs,
     int loc_count)
 {
     ToriRSMapEd_PutU32(out, (uint32_t)x);
     ToriRSMapEd_PutU32(out, (uint32_t)z);
     ToriRSMapEd_PutU32(out, (uint32_t)storage);
-    ToriRSMapEd_PutU32(out, flags);
+    ToriRSMapEd_PutU32(out, with_locs ? flags | TORIRSMAPED_SQUARE_LOC_COUNT : flags);
     ToriRSMapEd_PutU32(out, (uint32_t)spawn_count);
     ToriRSMapEd_PutU32(out, rgb);
     ToriRSMapEd_PutU32(out, area_n > 0 ? (uint32_t)areas[0] : TORIRSMAPED_CATALOG_NO_AREA);
     ToriRSMapEd_PutU32(out, (uint32_t)area_n);
     for( int i = 0; i < area_n; i++ )
         ToriRSMapEd_PutU32(out, (uint32_t)areas[i]);
-    ToriRSMapEd_PutU32(out, (uint32_t)loc_count);
+    if( with_locs )
+        ToriRSMapEd_PutU32(out, (uint32_t)loc_count);
 }
 
 /** The storage index of a document's storage ("" = maps/), or -1. */
@@ -5685,16 +5687,28 @@ ToriRSMapEdCatalog_HandleSquares(
     const struct Editor_Doc* doc,
     const uint8_t* body,
     uint32_t length,
+    int* inout_locs,
     struct ToriRSMapEdBuf* out)
 {
+    uint32_t flags = 0;
     assert(catalog);
     assert(doc);
+    assert(inout_locs);
     assert(out);
-    (void)body;
-    if( length != 0 )
+    /* Empty is the v2 request; a `u32 flags` body comes only from a client
+     * that saw TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS. */
+    if( length == 4 )
+    {
+        assert(body);
+        flags = ToriRSMapEd_ReadU32(body);
+        if( flags & ~(uint32_t)TORIRSMAPED_CATALOG_SQUARES_LOCS )
+            return 0;
+    }
+    else if( length != 0 )
         return 0;
+    *inout_locs = (flags & TORIRSMAPED_CATALOG_SQUARES_LOCS) != 0;
     cat_request_index(catalog);
-    ToriRSMapEdCatalog_EncodeSquares(catalog, doc, out);
+    ToriRSMapEdCatalog_EncodeSquares(catalog, doc, *inout_locs, out);
     return 1;
 }
 
@@ -5702,6 +5716,7 @@ void
 ToriRSMapEdCatalog_EncodeSquares(
     struct ToriRSMapEdCatalog* catalog,
     const struct Editor_Doc* doc,
+    int with_locs,
     struct ToriRSMapEdBuf* out)
 {
     uint32_t* doc_flags;
@@ -5775,7 +5790,8 @@ ToriRSMapEdCatalog_EncodeSquares(
     {
         const struct cat_square* sq = &catalog->squares[s];
         cat_put_square(out, sq->map_x, sq->map_z, sq->storage, sq->flags | doc_flags[s],
-            sq->spawn_count, sq->rgb, catalog->square_areas + sq->area_first, sq->area_n, sq->loc_count);
+            sq->spawn_count, sq->rgb, catalog->square_areas + sq->area_first, sq->area_n, with_locs,
+            sq->loc_count);
     }
     for( int i = 0; i < doc->square_count; i++ )
     {
@@ -5797,7 +5813,7 @@ ToriRSMapEdCatalog_EncodeSquares(
         /* Nothing of a created square is on disk: its locs are the
          * document's, not the index's. */
         cat_put_square(
-            out, square->map_x, square->map_z, doc_storage[i], flags, spawns, 0, areas, area_n, 0);
+            out, square->map_x, square->map_z, doc_storage[i], flags, spawns, 0, areas, area_n, with_locs, 0);
     }
     ToriMem_Free(ToriMem_Editor(), doc_flags);
 }

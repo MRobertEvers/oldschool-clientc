@@ -116,6 +116,16 @@ edp_locs_duplicate(struct EditorUi* ui);
 int
 edp_locs_delete(struct EditorUi* ui);
 
+/** The status bar's confirmation of a delete that applied (design section
+ *  7): "Deleted Oak tree at 3245,3210 L0; Ctrl+Z undoes it" for one loc (its
+ *  cache name once resident, else "loc <id>"), "Deleted N locs; ..." for a
+ *  set. `ref` is the first deleted loc. */
+void
+edp_locs_say_deleted(
+    struct EditorUi* ui,
+    const struct Editor_LocRef* ref,
+    int applied);
+
 /* ---- a loc's shapes (edpanel_actions.c) -------------------------------------
  *
  * What the App's cache says loc `loc_id` can be placed as

@@ -2546,7 +2546,7 @@ app_map_editor_world_click(
         if( mode == EDITOR_LOC_SELECT_REPLACE )
             Editor_PanelSelectTerrain(panel, app, hx, hz, level);
         else if( !Editor_PanelSelectPointed(panel, app, hx, hz, level, mode) )
-            Editor_UiLog(ui, "editor: no loc under the pointer to add, toggle or take out");
+            Editor_UiStatus(ui, "Select refused: no loc under the pointer to add, toggle or take out");
         app->need_redraw = 1;
         return;
     }

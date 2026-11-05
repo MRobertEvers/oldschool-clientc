@@ -672,8 +672,15 @@ assert.strictEqual(button.control.innerText, 'Rebuild every collision map in the
   const { PluginChromeHost } = require(path.join(__dirname, '..', '..', 'web', 'torirs_chrome.js'));
   function canvasNode() {
     const c = node('canvas');
-    c.width = 0;
-    c.height = 0;
+    /* As a real canvas: assigning a side, even the same value, throws the
+     * bitmap away. `_sized` counts the assignments. */
+    let side = { width: 0, height: 0 };
+    c._sized = 0;
+    for (const key of ['width', 'height'])
+      Object.defineProperty(c, key, {
+        get() { return side[key]; },
+        set(v) { side[key] = v; c._sized++; c._px = null; }
+      });
     c.getContext = () => {
       if (c._ctx) return c._ctx;
       c._ctx = {
@@ -811,6 +818,34 @@ assert.strictEqual(button.control.innerText, 'Rebuild every collision map in the
   /* A picture outlives the page: a new snapshot draws it at once. */
   imageRuntime.receive(page(41));
   assert.strictEqual(well().children[0].getAttribute('data-images'), '2', 'a new page draws the kept pictures');
+
+  /* The hover outline moves (the picker's pointer crossing cells): the well
+   * renders again, but the canvas keeps its bitmap and its pictures -- no
+   * side assigned, no redraw. A changed IMAGE item draws again. */
+  {
+    const items = (outlineX, alpha) => ({ protocol: 1, type: 'page.delta', pageGeneration: 41, commands: [
+      cmd(CMD.WIDGET_GRAPH, { w: 1, v: 4 }),
+      cmd(CMD.WIDGET_GRAPH_ITEM, { w: 1, tab: 0, x: 0, y: 0, cw: 300, ch: 300, c: 0x1a1712 }),
+      cmd(CMD.WIDGET_GRAPH_ITEM, { w: 1, tab: 4, x: 22, y: 12, cw: 128, ch: 128, c: 0, v: SCENE }),
+      cmd(CMD.WIDGET_GRAPH_ITEM, { w: 1, tab: 4, x: 150, y: 12, cw: 128, ch: 128, c: alpha, v: SCENE + 1 }),
+      cmd(CMD.WIDGET_GRAPH_ITEM, { w: 1, tab: 1, x: outlineX, y: 12, cw: 60, ch: 60, c: 0xffff00, v: 0 })
+    ] });
+    canvas = well().children[0];
+    const sized = canvas._sized;
+    const px = canvas._px;
+    const draws = canvas._ctx.drawn.length;
+    assert.strictEqual(imageRuntime.receive(items(150, 128)), true, 'the outline moves');
+    assert.strictEqual(well().children[0], canvas, 'the same canvas, under the moved outline');
+    assert.strictEqual(well().children[2].style.left, '150px', 'the outline node moved');
+    assert.strictEqual(canvas._sized, sized, 'no side assigned: the bitmap is kept');
+    assert.strictEqual(canvas._px, px, 'the same pixels');
+    assert.strictEqual(canvas._ctx.drawn.length, draws, 'and nothing drawn again');
+    assert.strictEqual(canvas.getAttribute('data-images'), '2', 'both pictures still shown');
+    assert.strictEqual(imageRuntime.receive(items(150, 64)), true, 'a picture\'s alpha changes');
+    assert.strictEqual(canvas._sized, sized, 'same size: still no side assigned');
+    assert.strictEqual(canvas._ctx.drawn.length, 2, 'both pictures drawn again');
+    assert(Math.abs(canvas._ctx.drawn[1].alpha - 191 / 255) < 1e-9, 'at the new alpha');
+  }
 
   /* Refused: a bad size, a bad id, a short payload. */
   assert.strictEqual(imageRuntime.receive({ protocol: 1, type: 'graph.image', sceneId: 7, width: 2, height: 2,
