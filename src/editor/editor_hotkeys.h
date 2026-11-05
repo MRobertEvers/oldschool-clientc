@@ -43,6 +43,13 @@
  *
  * With the Place tool (or a brush, Rect, Rotate, Delete) armed and locs
  * selected, the arrows turn the camera: only Select and Move nudge.
+ *
+ *   K (the picker has focus) excludes every other context, G included:
+ *   while the Squares well holds the keyboard it is a field, the App's
+ *   dispatcher resolves nothing (the text-field gate) and the panel resolves
+ *   the well's keys against the K rows alone (Editor_HotkeysMatch). So the
+ *   arrows, Return, Shift+Return, Backspace and Escape are the picker's
+ *   there and the World's everywhere else.
  */
 #define EDITOR_HK_CTX_G (1u << 0)
 /** The pointer is over the World panel's body. */
@@ -59,8 +66,11 @@
 #define EDITOR_HK_CTX_M (1u << 6)
 /** The Place tool is armed with a loc pick and no loc is selected. */
 #define EDITOR_HK_CTX_P (1u << 7)
-#define EDITOR_HK_CTX_COUNT 8
-#define EDITOR_HK_CTX_ALL 0xffu
+/** The Squares picker has focus (its well holds the keyboard; workbench
+ *  6.4). Never set by Editor_HotkeyContextsFrom: the panel resolves it. */
+#define EDITOR_HK_CTX_K (1u << 8)
+#define EDITOR_HK_CTX_COUNT 9
+#define EDITOR_HK_CTX_ALL 0x1ffu
 
 /** Modifier bits of a chord. */
 #define EDITOR_HK_MOD_CTRL 1u
@@ -170,6 +180,18 @@ enum Editor_HotkeyAction
     EDITOR_HK_CAM_TILT_DOWN,
     EDITOR_HK_CAM_FRAME,
     EDITOR_HK_CAM_FRAME_SQUARE,
+    /* Picker (context K, workbench 6.4): the focused cell north / south /
+     * west / east, open it, add it to the open set, back to the previous
+     * square of the open set, clear Find. Run by the Squares panel
+     * (Editor_SquarePicker_Key), in this order. */
+    EDITOR_HK_PICKER_NORTH,
+    EDITOR_HK_PICKER_SOUTH,
+    EDITOR_HK_PICKER_WEST,
+    EDITOR_HK_PICKER_EAST,
+    EDITOR_HK_PICKER_OPEN,
+    EDITOR_HK_PICKER_ADD,
+    EDITOR_HK_PICKER_BACK,
+    EDITOR_HK_PICKER_CLEAR_FIND,
     /* View: one per View-menu panel module, then the layout rows. */
     /** The Catalog palette's slots (Shift+1..9, Shift+0), add the pick,
      *  next / previous palette (src/editor/panels/edpanel_catalog_palette.c). */
@@ -311,7 +333,8 @@ Editor_HotkeyContextText(
     char* out,
     int out_size);
 
-/** Can a state make both masks live at once? (L excludes S and N.) */
+/** Can a state make both masks live at once? (L excludes S and N; K
+ *  excludes every other.) */
 int
 Editor_HotkeyContextsOverlap(
     unsigned a,
@@ -346,6 +369,15 @@ int
 Editor_HotkeysClash(
     const struct Editor_Hotkeys* hk,
     enum Editor_HotkeyAction action);
+
+/** The action `chord` fires in `contexts` (G is NOT implied: the picker
+ *  asks with K alone), or -1. The first chord or the second, as the
+ *  resolver reads them; a clash goes to the later binding. */
+int
+Editor_HotkeysMatch(
+    const struct Editor_Hotkeys* hk,
+    struct Editor_Chord chord,
+    unsigned contexts);
 
 /** Every clashing pair (a < b) into out[2*i], out[2*i+1]; returns how many. */
 int

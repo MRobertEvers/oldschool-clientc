@@ -55,7 +55,13 @@ Context: **G** always (editor open) · **W** pointer over the World panel ·
 **N** no loc selected, or a tool other than Select / Move armed (the camera's
 arrows: with the Place tool, a brush, Rect, Rotate or Delete armed the arrows
 turn the camera even with locs selected) ·
-**P** the Place tool armed with a loc pick and no loc selected.
+**P** the Place tool armed with a loc pick and no loc selected ·
+**K** the picker has focus (the Squares well holds the keyboard: a press in
+it, or a Find that matched a square, gives it; Escape in the well, or a click
+elsewhere, takes it away). K excludes every other context, G included: while the well holds the
+keyboard it is a field, nothing else resolves, and its keys are the K rows
+alone (the Squares panel reads them from the table, so a rebind relabels and
+re-routes them).
 
 ### File
 | Action | Chord | Ctx |
@@ -181,6 +187,19 @@ the Preview orbits under a drag and zooms on a pinch. While the last input
 was a finger the status bar's hint strip says the gestures instead of the
 mouse words: "[tap] tile", "[2 fingers] pan", "[pinch] zoom", "[hold] menu".
 
+### Picker
+| Action | Chord | Ctx |
+|---|---|---|
+| Move the focused square N / S / W / E (an empty cell too; the view follows) | Up / Down / Left / Right | K |
+| Open the focused square (an empty one: New square) | Return | K |
+| Add the focused square to the open set | Shift+Return | K |
+| Go to the previous square of the open set (its chip, the camera to its centre) | Backspace | K |
+| Clear Find (and its pin); the well then lets go of the keyboard | Escape | K |
+
+The focused square has the white outline and the detail pane under the atlas
+follows it. `+` and `-` zoom about the well's middle as before (the well's
+own keys, not the table's).
+
 ### View
 | Action | Chord | Ctx |
 |---|---|---|
@@ -252,6 +271,7 @@ tables (the Hotkeys panel calls them by the name after the id):
 - **Brush**: `brush.radius_down` Radius -, `brush.radius_up` Radius +, `brush.strength_down` Strength -, `brush.strength_up` Strength +, `brush.step_down` Step -, `brush.step_up` Step +
 - **Level**: `level.down` Level down, `level.up` Level up, `level.pin0` Pin level 0, `level.pin1` Pin level 1, `level.pin2` Pin level 2, `level.pin3` Pin level 3, `level.auto` Level Auto, `level.above` Show above
 - **Camera**: `camera.forward` Fly forward, `camera.back` Fly back, `camera.left` Fly left, `camera.right` Fly right, `camera.down` Fly down, `camera.up` Fly up, `camera.fast` Fly faster, `camera.turn_left` Turn left, `camera.turn_right` Turn right, `camera.tilt_up` Tilt up, `camera.tilt_down` Tilt down, `camera.frame` Frame the selection, `camera.frame_square` Frame the square's centre
+- **Picker**: `picker.north` Focus north, `picker.south` Focus south, `picker.west` Focus west, `picker.east` Focus east, `picker.open` Open the focused square, `picker.add` Add the focused square, `picker.back` Previous open square, `picker.clear_find` Clear Find
 - **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.catalog_palette` Catalog palette, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC builder, `view.shelleditor` Shell editor, `view.iface` Interface editor, `view.cs2` CS2, `view.live` Live, `view.accounts` Accounts, `view.triggers` Triggers, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel, `view.scale_auto` Chrome scale Auto, `view.scale_100` Chrome scale 100 %, `view.scale_125` Chrome scale 125 %, `view.scale_150` Chrome scale 150 %, `view.scale_175` Chrome scale 175 %, `view.scale_200` Chrome scale 200 %, `view.scale_250` Chrome scale 250 %, `view.scale_300` Chrome scale 300 %, `view.text_normal` Text size Normal, `view.text_large` Text size Large
 
 Example:

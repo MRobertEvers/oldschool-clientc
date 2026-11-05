@@ -3847,6 +3847,13 @@ Editor_UiRunGuarded(
         if( ui->hooks.close_editor )
             ui->hooks.close_editor(ui->hooks_user);
         break;
+    case EDITOR_UI_GUARD_CLOSE_SQUARE:
+        if( ui->hooks.close_square && Editor_UiWorldShown(ui) )
+            ui->hooks.close_square(ui->hooks_user, guard->map_x, guard->map_z, guard->storage);
+        else
+            Editor_UiStatus(ui, "Close refused: this window shows no world to close m%d_%d in", guard->map_x,
+                guard->map_z);
+        break;
     case EDITOR_UI_GUARD_NONE:
         break;
     }

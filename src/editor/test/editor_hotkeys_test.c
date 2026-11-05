@@ -793,6 +793,72 @@ test_contexts_from(void)
 
 #undef HINT_TOOL
 
+/* The picker context (workbench 6.4): K is "the picker has focus", and
+ * while it is the well's keys are the K rows alone -- the arrows move the
+ * focus, Return opens, Shift+Return adds, Backspace goes back, Escape clears
+ * Find -- with no clash against the nudges, the camera's arrows, Apply,
+ * Place, Delete or Deselect, which share those chords in the World. */
+static void
+test_picker_context(void)
+{
+    static const struct
+    {
+        const char* chord;
+        int action;
+    } k_picker[] = {
+        { "up", EDITOR_HK_PICKER_NORTH },     { "down", EDITOR_HK_PICKER_SOUTH },
+        { "left", EDITOR_HK_PICKER_WEST },    { "right", EDITOR_HK_PICKER_EAST },
+        { "return", EDITOR_HK_PICKER_OPEN },  { "shift+return", EDITOR_HK_PICKER_ADD },
+        { "backspace", EDITOR_HK_PICKER_BACK }, { "escape", EDITOR_HK_PICKER_CLEAR_FIND },
+    };
+    struct Editor_Chord chord;
+    char text[64];
+    int pairs[64];
+
+    Editor_HotkeysInit(&g_hk);
+    CHECK(Editor_HotkeysConflicts(&g_hk, pairs, 32) == 0, "picker: the K rows clash with nothing");
+    for( unsigned bit = 0; bit < EDITOR_HK_CTX_COUNT; bit++ )
+        CHECK(!Editor_HotkeyContextsOverlap(EDITOR_HK_CTX_K, 1u << bit) == ((1u << bit) != EDITOR_HK_CTX_K),
+            "picker: K overlaps context bit %u only when it is K", bit);
+    CHECK(EDITOR_HK_CTX_ALL & EDITOR_HK_CTX_K, "picker: ALL holds K");
+    Editor_HotkeyContextText(EDITOR_HK_CTX_K, text, (int)sizeof(text));
+    CHECK(strcmp(text, "K") == 0, "picker: the panel prints K ('%s')", text);
+    for( size_t i = 0; i < sizeof(k_picker) / sizeof(k_picker[0]); i++ )
+    {
+        const struct Editor_HotkeyActionInfo* info = Editor_HotkeyInfo((enum Editor_HotkeyAction)k_picker[i].action);
+        CHECK(info->contexts == EDITOR_HK_CTX_K, "picker: %s lives in K alone", info->id);
+        CHECK(strcmp(info->group, "Picker") == 0, "picker: %s is in the Picker table", info->id);
+        CHECK(Editor_ChordParse(k_picker[i].chord, &chord), "picker: %s parses", k_picker[i].chord);
+        CHECK(Editor_HotkeysMatch(&g_hk, chord, EDITOR_HK_CTX_K) == k_picker[i].action,
+            "picker: %s is %s in K (%d)", k_picker[i].chord, info->id, Editor_HotkeysMatch(&g_hk, chord, EDITOR_HK_CTX_K));
+        CHECK(Editor_HotkeysMatch(&g_hk, chord, EDITOR_HK_CTX_ALL & ~EDITOR_HK_CTX_K) != k_picker[i].action,
+            "picker: %s is not the picker's outside K", k_picker[i].chord);
+        /* The App's resolver never sees K: the World keeps its chords. */
+        CHECK(fire(k_picker[i].chord, EDITOR_HK_CTX_G | EDITOR_HK_CTX_N) != k_picker[i].action,
+            "picker: %s resolves to the World's action in G N", k_picker[i].chord);
+    }
+    CHECK(Editor_ChordParse("up", &chord), "picker: up parses");
+    CHECK(Editor_HotkeysMatch(&g_hk, chord, EDITOR_HK_CTX_G | EDITOR_HK_CTX_M) == EDITOR_HK_EDIT_NUDGE_N,
+        "picker: up still nudges in M");
+    CHECK(Editor_ChordParse("return", &chord), "picker: return parses");
+    CHECK(Editor_HotkeysMatch(&g_hk, chord, EDITOR_HK_CTX_G | EDITOR_HK_CTX_L) == EDITOR_HK_EDIT_APPLY,
+        "picker: Return still applies the tool in L");
+    /* A rebind re-routes the well: Enter moves to O. */
+    CHECK(Editor_ChordParse("o", &chord), "picker: o parses");
+    Editor_HotkeysSet(&g_hk, EDITOR_HK_PICKER_OPEN, &chord, 1);
+    CHECK(Editor_HotkeysMatch(&g_hk, chord, EDITOR_HK_CTX_K) == EDITOR_HK_PICKER_OPEN, "picker: rebound to O");
+    CHECK(Editor_ChordParse("return", &chord), "picker: return parses again");
+    CHECK(Editor_HotkeysMatch(&g_hk, chord, EDITOR_HK_CTX_K) == -1, "picker: Return no longer opens");
+    Editor_HotkeysResetDefaults(&g_hk);
+    {
+        unsigned contexts;
+        struct Editor_HotkeyContextFacts facts;
+        memset(&facts, 0, sizeof(facts));
+        contexts = Editor_HotkeyContextsFrom(&facts);
+        CHECK(!(contexts & EDITOR_HK_CTX_K), "picker: the App's facts never make K (%#x)", contexts);
+    }
+}
+
 /* Every action's ini id and its row are in the user's reference. */
 static void
 test_doc(const char* path)
@@ -838,6 +904,7 @@ main(
     test_gesture_hint();
     test_join();
     test_contexts_from();
+    test_picker_context();
     test_doc(argc > 1 ? argv[1] : "../docs/MAPED_HOTKEYS.md");
     printf("editor_hotkeys_test: %d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;

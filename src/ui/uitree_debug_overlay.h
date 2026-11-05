@@ -1145,7 +1145,10 @@ enum ToriRSChromeEventKind
     TORIRS_CHROME_EVENT_CODE_JOIN,
     /** A key while the well has focus (it takes it on a press): `value` is
      *  the printable character ('+', '-', '=', '_') or, negated, the enum
-     *  ToriRSChromeKey (arrows). Escape releases the focus instead. */
+     *  ToriRSChromeKey (the arrows, Enter, Backspace, Escape -- Escape then
+     *  releases the focus). `col` holds EDITOR_HK_MOD_-style modifier bits
+     *  (1 Ctrl, 2 Shift, 4 Alt) when the presentation knows them (the DOM's
+     *  keydown does), 0 when it does not (the host's own shift state says). */
     TORIRS_CHROME_EVENT_GRAPH_KEY,
     /** A pinch over the well (a trackpad's magnify, a touch spread, a
      *  browser's ctrl+wheel, or ctrl+wheel itself): the content under `x`,

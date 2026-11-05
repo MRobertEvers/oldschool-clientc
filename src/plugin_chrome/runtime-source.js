@@ -1348,7 +1348,13 @@
   const CODE_LINE_H = 17;
   const EV = {
     GRAPH_PRESS: 1, GRAPH_DRAG: 2, GRAPH_RELEASE: 3, GRAPH_MENU: 4,
-    GRAPH_HOVER: 5, CODE_REPLACE: 7, CODE_SPLIT: 8, CODE_JOIN: 9
+    GRAPH_HOVER: 5, CODE_REPLACE: 7, CODE_SPLIT: 8, CODE_JOIN: 9, GRAPH_KEY: 10
+  };
+  /* enum ToriRSChromeKey: what a focused well's keydown reports, negated. */
+  const CHROME_KEY = { BACKSPACE: 1, LEFT: 3, RIGHT: 4, ENTER: 7, ESCAPE: 8, UP: 9, DOWN: 10 };
+  const GRAPH_KEYCODES = {
+    8: CHROME_KEY.BACKSPACE, 13: CHROME_KEY.ENTER, 27: CHROME_KEY.ESCAPE, 37: CHROME_KEY.LEFT,
+    38: CHROME_KEY.UP, 39: CHROME_KEY.RIGHT, 40: CHROME_KEY.DOWN
   };
   const GRAPH_ITEM = { RECT: 0, RECT_OUTLINE: 1, LINE: 2, TEXT: 3 };
 
@@ -1648,6 +1654,22 @@
         };
         bind(well, 'wheel', wheel);
         bind(well, 'mousewheel', wheel);
+        /* The keys the native well hands its host (the arrows, Enter,
+         * Backspace, Escape, + and -), with the modifiers the native host
+         * reads from its own key state: 1 Ctrl, 2 Shift, 4 Alt. */
+        bind(well, 'keydown', event => {
+          const code = event.keyCode || event.which || 0;
+          const mods = (event.ctrlKey || event.metaKey ? 1 : 0) | (event.shiftKey ? 2 : 0) | (event.altKey ? 4 : 0);
+          let value = 0;
+          if (GRAPH_KEYCODES[code]) value = -GRAPH_KEYCODES[code];
+          else if (event.key === '+' || event.key === '-' || event.key === '=' || event.key === '_')
+            value = event.key.charCodeAt(0);
+          if (!value) return;
+          if (event.preventDefault) event.preventDefault();
+          else event.returnValue = false;
+          postWidget(record, INTENT.GRAPH, EV.GRAPH_KEY, '', value, mods);
+          if (value === -CHROME_KEY.ESCAPE && well.blur) well.blur();
+        });
         bindGestures(well, record, false);
         row.appendChild(well);
         record.control = well;

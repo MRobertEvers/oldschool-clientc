@@ -258,6 +258,29 @@ graph.control.fire('wheel', { clientX: 5, clientY: 5, deltaY: 120 });
 assert.deepStrictEqual([typed[typed.length - 1].k, typed[typed.length - 1].v], [INTENT.GRAPH_WHEEL, 1],
   'the wheel reports GRAPH_WHEEL');
 
+/* Keys on the focused well (workbench 6.4: the square picker's arrows,
+ * Enter, Shift+Enter, Backspace, Escape): GRAPH intents of kind GRAPH_KEY
+ * (10), x the negated ToriRSChromeKey, y the modifier bits (2 Shift). */
+{
+  const keyBefore = typed.length;
+  graph.control.fire('keydown', { keyCode: 39 });
+  last = typed[typed.length - 1];
+  assert.deepStrictEqual([last.k, last.v, last.x, last.y], [INTENT.GRAPH, 10, -4, 0], 'Right is GRAPH_KEY -RIGHT');
+  graph.control.fire('keydown', { keyCode: 13, shiftKey: true });
+  last = typed[typed.length - 1];
+  assert.deepStrictEqual([last.v, last.x, last.y], [10, -7, 2], 'Shift+Enter carries Shift');
+  graph.control.fire('keydown', { keyCode: 8 });
+  assert.strictEqual(typed[typed.length - 1].x, -1, 'Backspace');
+  graph.control.fire('keydown', { keyCode: 27 });
+  assert.strictEqual(typed[typed.length - 1].x, -8, 'Escape');
+  graph.control.fire('keydown', { keyCode: 187, key: '+' });
+  assert.strictEqual(typed[typed.length - 1].x, 43, '+ is its character');
+  const counted = typed.length;
+  graph.control.fire('keydown', { keyCode: 81, key: 'q' });
+  assert.strictEqual(typed.length, counted, 'a letter is not the well\'s');
+  assert.strictEqual(typed.length - keyBefore, 5, 'five keys, five intents');
+}
+
 /* Gesture frames (workbench 6.1): ctrl+wheel is a continuous pinch about the
  * pointer, a touch pair pans, pinches and twists -- GESTURE intents the model
  * routes by the canvas's own rules, "dx dy fingers scale_q16 radians_q16 phase". */

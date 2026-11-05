@@ -99,6 +99,13 @@ struct Editor_Panel
     int sq_goto_pending;
     int sq_goto_x;
     int sq_goto_z;
+    /** A square the picker's strip closed (Shift+click, past the save
+     *  guard): the world reloads with every other square it shows. Drained
+     *  with the opens, after them. */
+    int sq_close_pending;
+    int sq_close_x;
+    int sq_close_z;
+    char sq_close_storage[EDITOR_DOC_STORAGE_MAX];
 
     /** The brush stroke the world click opened on press (a drag is one undo
      *  step), and the last tile it painted, so a drag paints each tile once

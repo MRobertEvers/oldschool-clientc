@@ -281,6 +281,9 @@ static const struct
     { "live", "RUN", EDITOR_HK_FILE_RUN },
     { "triggers", "Check", EDITOR_HK_FILE_CHECK_SCRIPTS },
     { "triggers", "Run", EDITOR_HK_FILE_RUN },
+    { "squares", "Open", EDITOR_HK_PICKER_OPEN },
+    { "squares", "Add to open set", EDITOR_HK_PICKER_ADD },
+    { "squares", "New square...", EDITOR_HK_FILE_NEW },
 };
 #define BUTTON_COUNT ((int)(sizeof(k_buttons) / sizeof(k_buttons[0])))
 

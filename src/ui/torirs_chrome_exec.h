@@ -438,7 +438,10 @@ enum ToriRSChromeIntentKind
     /**
      * A gesture over a GRAPH well: `value` = enum ToriRSChromeEventKind
      * (GRAPH_PRESS .. GRAPH_HOVER), `x`/`y` well-local logical units. The
-     * model resolves the hit key from its own item list.
+     * model resolves the hit key from its own item list. `value` GRAPH_KEY
+     * is a key on the focused well instead: `x` the key (a printable
+     * character, or a negated enum ToriRSChromeKey), `y` the modifier bits
+     * (1 Ctrl, 2 Shift, 4 Alt).
      */
     TORIRS_CHROME_INTENT_GRAPH,
     /** The wheel over a GRAPH well: `value` = the delta, `x`/`y` as above. */
