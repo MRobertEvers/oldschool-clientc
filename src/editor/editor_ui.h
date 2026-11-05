@@ -291,6 +291,13 @@ struct EditorUiAppServices
      *  yaw and pitch. 0 when that tile is not in the loaded scene (the caller
      *  opens its square and retries). NULL member: always 0. */
     int (*camera_to_tile)(void* user_data, int tile_x, int tile_z, int level);
+    /** A 16 x 16 top-down picture of loc `loc_id` at `shape` (workbench
+     *  6.2, the Catalog's row thumbnails), rastered through the Preview's
+     *  pipeline and registered as a scene sprite: its id, or 0 while it is
+     *  still to come (the config or a model loading: asked for, ask again
+     *  next frame). Cached by (id, shape); the Catalog asks for the rows on
+     *  screen only. NULL member: the rows draw the empty cell. */
+    int (*loc_thumbnail)(void* user_data, int loc_id, int shape);
     /** Put the catalog's model preview back at its default pose. NULL
      *  member: nothing happens. */
     void (*preview_invalidate)(void* user_data);

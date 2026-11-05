@@ -1060,6 +1060,19 @@ ToriRSChrome_VList(
 }
 
 int
+ToriRSChrome_VListCells(
+    struct ToriRSChrome* ui, int panel, char const* label, int rows, int row_count)
+{
+    int h;
+
+    assert(ui);
+    h = dbg_vlist_add(ui, panel, TORIRS_CHROME_W_VLIST, label, rows, row_count);
+    if( h >= 0 )
+        ui->widgets[h].iaux = 1; /* TORIRS_CHROME_VLIST_CELLS: shape, never changed */
+    return h;
+}
+
+int
 ToriRSChrome_Code(
     struct ToriRSChrome* ui, int panel, char const* label, int rows, int line_count)
 {
@@ -2543,6 +2556,363 @@ dbg_list_on_bar(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* 
            dbg_point_in(x, y, box.x, box.y, box.w, box.h);
 }
 
+/* ---- VLIST cells (ToriRSChrome_VListCells) ---------------------------------------- */
+
+/** The five fields of a cells row, and its keycaps: pointers into the text
+ *  with lengths (the text is the row's pool slot or the widget's label, both
+ *  alive until the end of the build). */
+struct dbg_cells
+{
+    char const* field[5];
+    int len[5];
+    int key_count;
+    char const* key[TORIRS_CHROME_CELL_KEYS_MAX];
+    int key_len[TORIRS_CHROME_CELL_KEYS_MAX];
+};
+
+enum
+{
+    DBG_CELL_SPRITE = 0,
+    DBG_CELL_NAME,
+    DBG_CELL_DIM,
+    DBG_CELL_KEYS,
+    DBG_CELL_RIGHT,
+};
+
+static void
+dbg_cells_split(char const* text, struct dbg_cells* out)
+{
+    char const* at = text;
+
+    memset(out, 0, sizeof(*out));
+    for( int f = 0; f < 5; f++ )
+    {
+        char const* end = strchr(at, TORIRS_CHROME_CELL_SEP);
+        out->field[f] = at;
+        out->len[f] = end ? (int)(end - at) : (int)strlen(at);
+        if( !end )
+        {
+            for( int g = f + 1; g < 5; g++ )
+                out->field[g] = at + out->len[f];
+            break;
+        }
+        at = end + 1;
+    }
+    {
+        char const* k = out->field[DBG_CELL_KEYS];
+        char const* stop = k + out->len[DBG_CELL_KEYS];
+        while( k < stop && out->key_count < TORIRS_CHROME_CELL_KEYS_MAX )
+        {
+            char const* space;
+            while( k < stop && *k == ' ' )
+                k++;
+            if( k >= stop )
+                break;
+            space = k;
+            while( space < stop && *space != ' ' )
+                space++;
+            out->key[out->key_count] = k;
+            out->key_len[out->key_count] = (int)(space - k);
+            out->key_count++;
+            k = space;
+        }
+    }
+}
+
+/** Where a cells row's parts sit in its line (one row's box in the list). */
+struct dbg_cells_layout
+{
+    int thumb_x;
+    int name_x;
+    int name_w;
+    int keys_x;
+    int keys_w;
+    /** Keycaps shown and their boxes; `more` the ones that did not fit (drawn
+     *  as one "+n" cap after them, which is no cell). */
+    int key_shown;
+    int key_x[TORIRS_CHROME_CELL_KEYS_MAX];
+    int key_w[TORIRS_CHROME_CELL_KEYS_MAX];
+    int more;
+    int more_x;
+    int more_w;
+    int cap_y;
+    int cap_h;
+    int right_x;
+    int right_w;
+};
+
+/** A cell's text as its own string, from the build's wrap pool (NULL when
+ *  it is empty or the pool is full). */
+static char const*
+dbg_cells_text(struct ToriRSChrome* ui, char const* text, int len)
+{
+    return len > 0 ? dbg_wrap_line(ui, text, len) : NULL;
+}
+
+static int
+dbg_cells_key_w(struct ToriRSChrome const* ui, char const* key, int len)
+{
+    char buffer[32];
+    int const n = len < (int)sizeof(buffer) - 1 ? len : (int)sizeof(buffer) - 1;
+    memcpy(buffer, key, (size_t)n);
+    buffer[n] = '\0';
+    return dbg_keycap_width(ui, buffer);
+}
+
+/**
+ * The columns: a 16 px thumbnail, the name, the keycaps in a column a third
+ * of the row wide (at most 96 px), the right field in a column six digits
+ * wide. The same numbers for every row and the header, so the columns line
+ * up; the name takes what is left.
+ */
+static void
+dbg_cells_layout(
+    struct ToriRSChrome const* ui,
+    struct dbg_cells const* cells,
+    struct ToriRSChromeRect line,
+    struct dbg_cells_layout* out)
+{
+    int const pad = DBG_INPUT_PAD_X;
+    int const gap = DBG_PX(3);
+    int const thumb = DBG_PX(16);
+    int const right_w = ToriRSChrome_MeasureTextQ(ui->theme.font_row, ui->scale_q, "000000");
+    int const line_box = ToriRSChrome_FontLineBoxQ(TORIRS_CHROME_FONT_SMALL, ui->scale_q);
+    int keys_w = line.w / 3;
+    int x;
+
+    memset(out, 0, sizeof(*out));
+    if( keys_w > DBG_PX(96) )
+        keys_w = DBG_PX(96);
+    out->thumb_x = line.x + pad;
+    out->right_w = right_w;
+    out->right_x = line.x + line.w - pad - right_w;
+    out->keys_w = keys_w;
+    out->keys_x = out->right_x - gap - keys_w;
+    out->name_x = out->thumb_x + thumb + gap;
+    out->name_w = out->keys_x - gap - out->name_x;
+    if( out->name_w < 0 )
+        out->name_w = 0;
+    out->cap_h = line_box + DBG_PX(2);
+    if( out->cap_h > line.h )
+        out->cap_h = line.h;
+    out->cap_y = line.y + (line.h - out->cap_h) / 2;
+
+    x = out->keys_x;
+    for( int k = 0; k < cells->key_count; k++ )
+    {
+        int const w = dbg_cells_key_w(ui, cells->key[k], cells->key_len[k]);
+        int const left = cells->key_count - k - 1;
+        /* Room for this cap, and for a "+n" after it when more follow. */
+        int const tail = left > 0 ? gap + dbg_keycap_width(ui, "+9") : 0;
+        if( x + w + tail > out->keys_x + keys_w )
+        {
+            out->more = cells->key_count - k;
+            break;
+        }
+        out->key_x[k] = x;
+        out->key_w[k] = w;
+        out->key_shown++;
+        x += w + gap;
+    }
+    if( out->more > 0 )
+    {
+        char more[8];
+        snprintf(more, sizeof(more), "+%d", out->more);
+        out->more_x = x;
+        out->more_w = dbg_keycap_width(ui, more);
+    }
+}
+
+/** The line box of visible row `row` of a VLIST. */
+static struct ToriRSChromeRect
+dbg_cells_line(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w, int row)
+{
+    struct ToriRSChromeRect const box = dbg_list_box(ui, w);
+    struct ToriRSChromeRect line;
+    line.x = box.x + DBG_RULE;
+    line.y = box.y + DBG_RULE + (row - w->imin) * DBG_VROW_H;
+    line.w = box.w - 2 * DBG_RULE - (w->imax > w->rows ? DBG_SCROLL_W : 0);
+    line.h = DBG_VROW_H;
+    return line;
+}
+
+/** The cell of a cells row under surface `x`: n for the n-th keycap, else 0. */
+static int
+dbg_cells_cell_at(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w, int row, int x)
+{
+    struct dbg_cells cells;
+    struct dbg_cells_layout lay;
+    char const* text = dbg_vrow_text(ui, w, row);
+
+    if( !text )
+        return 0;
+    dbg_cells_split(text, &cells);
+    dbg_cells_layout(ui, &cells, dbg_cells_line(ui, w, row), &lay);
+    for( int k = 0; k < lay.key_shown; k++ )
+        if( x >= lay.key_x[k] && x < lay.key_x[k] + lay.key_w[k] )
+            return k + 1;
+    return 0;
+}
+
+/** One cells row, or (`header` 1) the header: every field dimmed, no
+ *  thumbnail, the keys field one caption at the keys column. */
+static void
+dbg_draw_cells(
+    struct ToriRSChrome* ui,
+    char const* text,
+    struct ToriRSChromeRect line,
+    int header,
+    struct ToriRSChromeRect clip)
+{
+    struct ToriRSChromeTheme const* th = &ui->theme;
+    int const font = ui->theme.font_row;
+    int const baseline = line.y + (line.h - ToriRSChrome_FontLineBoxQ(font, ui->scale_q)) / 2 +
+                         ToriRSChrome_FontLineHeightQ(font, ui->scale_q);
+    struct dbg_cells cells;
+    struct dbg_cells_layout lay;
+    char const* name;
+    int name_used = 0;
+
+    dbg_cells_split(text, &cells);
+    dbg_cells_layout(ui, &cells, line, &lay);
+
+    /* The thumbnail: an empty well until the host has a picture for it. */
+    if( !header )
+    {
+        int const thumb = DBG_PX(16);
+        int const ty = line.y + (line.h - thumb) / 2;
+        int sprite = 0;
+        for( int i = 0; i < cells.len[DBG_CELL_SPRITE]; i++ )
+        {
+            char const c = cells.field[DBG_CELL_SPRITE][i];
+            if( c < '0' || c > '9' )
+            {
+                sprite = 0;
+                break;
+            }
+            sprite = sprite * 10 + (c - '0');
+        }
+        dbg_push_rect(ui, lay.thumb_x, ty, thumb, thumb, th->input_bg, 1, clip);
+        if( sprite > 0 )
+        {
+            struct ToriRSChromePrim* p = dbg_prim_push(ui);
+            if( p )
+            {
+                struct ToriRSChromeRect well;
+                well.x = lay.thumb_x;
+                well.y = ty;
+                well.w = thumb;
+                well.h = thumb;
+                p->kind = TORIRS_CHROME_PRIM_SPRITE;
+                p->x = well.x;
+                p->y = well.y;
+                p->w = thumb;
+                p->h = thumb;
+                p->sprite_scene_id = sprite;
+                p->clip = dbg_rect_clip(clip, well);
+            }
+        }
+    }
+
+    /* The name, then the dim part in what the name leaves: measured and
+     * ellipsised, never clipped (R2). */
+    name = dbg_cells_text(ui, cells.field[DBG_CELL_NAME], cells.len[DBG_CELL_NAME]);
+    if( name && lay.name_w > 0 )
+    {
+        name = dbg_elide_text(ui, font, name, lay.name_w);
+        dbg_push_text(ui, lay.name_x, baseline, name, header ? th->text_dim : th->text, font, 0, clip);
+        name_used = ToriRSChrome_MeasureTextQ(font, ui->scale_q, name);
+    }
+    {
+        char const* dim = dbg_cells_text(ui, cells.field[DBG_CELL_DIM], cells.len[DBG_CELL_DIM]);
+        int const space = ToriRSChrome_MeasureTextQ(font, ui->scale_q, " ");
+        int const room = lay.name_w - name_used - (name_used ? space : 0);
+        int const least = ToriRSChrome_MeasureTextQ(font, ui->scale_q, "a...");
+        if( dim && room >= least )
+            dbg_push_text(
+                ui, lay.name_x + name_used + (name_used ? space : 0), baseline,
+                dbg_elide_text(ui, font, dim, room), th->text_dim, font, 0, clip);
+    }
+
+    /* The keycaps; the header's is one caption at the column. */
+    if( header )
+    {
+        char const* caption = dbg_cells_text(ui, cells.field[DBG_CELL_KEYS], cells.len[DBG_CELL_KEYS]);
+        if( caption )
+            dbg_push_text(
+                ui, lay.keys_x, baseline, dbg_elide_text(ui, font, caption, lay.keys_w), th->text_dim, font, 0,
+                clip);
+    }
+    else
+    {
+        for( int k = 0; k < lay.key_shown; k++ )
+        {
+            struct ToriRSChromeRect cap;
+            char const* key = dbg_cells_text(ui, cells.key[k], cells.key_len[k]);
+            if( !key )
+                break;
+            cap.x = lay.key_x[k];
+            cap.y = lay.cap_y;
+            cap.w = lay.key_w[k];
+            cap.h = lay.cap_h;
+            dbg_push_keycap(ui, cap, key, th->accent, clip);
+        }
+        if( lay.more > 0 )
+        {
+            char more[8];
+            struct ToriRSChromeRect cap;
+            int const n = snprintf(more, sizeof(more), "+%d", lay.more);
+            char const* label = dbg_wrap_line(ui, more, n);
+            cap.x = lay.more_x;
+            cap.y = lay.cap_y;
+            cap.w = lay.more_w;
+            cap.h = lay.cap_h;
+            if( label )
+                dbg_push_keycap(ui, cap, label, th->text_dim, clip);
+        }
+    }
+
+    /* The right field, right-aligned in its column. */
+    {
+        char const* right = dbg_cells_text(ui, cells.field[DBG_CELL_RIGHT], cells.len[DBG_CELL_RIGHT]);
+        if( right )
+        {
+            right = dbg_elide_text(ui, font, right, lay.right_w);
+            dbg_push_text(
+                ui, lay.right_x + lay.right_w - ToriRSChrome_MeasureTextQ(font, ui->scale_q, right), baseline,
+                right, th->text_dim, font, 0, clip);
+        }
+    }
+}
+
+int
+ToriRSChrome_VListPickedCell(struct ToriRSChrome const* ui, int widget)
+{
+    assert(ui);
+    if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].kind != TORIRS_CHROME_W_VLIST )
+        return 0;
+    return ui->widgets[widget].vlist_cell;
+}
+
+int
+ToriRSChrome_VListHoverRow(struct ToriRSChrome const* ui, int widget, int* out_cell)
+{
+    struct ToriRSChromeWidget const* w;
+    int row;
+
+    assert(ui);
+    if( out_cell )
+        *out_cell = 0;
+    if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].kind != TORIRS_CHROME_W_VLIST ||
+        ui->hover != widget )
+        return -1;
+    w = &ui->widgets[widget];
+    row = dbg_list_row_at(ui, w, ui->hover_x, ui->hover_y);
+    if( row >= 0 && w->iaux && out_cell )
+        *out_cell = dbg_cells_cell_at(ui, w, row, ui->hover_x);
+    return row;
+}
+
 static void
 dbg_draw_list(
     struct ToriRSChrome* ui,
@@ -2566,11 +2936,21 @@ dbg_draw_list(
 
     (void)row_x;
     (void)row_y;
-    if( w->label[0] )
+    box = dbg_list_box(ui, w);
+    if( w->label[0] && !code && w->iaux )
+    {
+        /* A cells list's caption is its header row, in the rows' columns. */
+        struct ToriRSChromeRect head;
+        head.x = box.x + DBG_RULE;
+        head.y = w->y;
+        head.w = box.w - 2 * DBG_RULE - bar;
+        head.h = DBG_ROW_H;
+        dbg_draw_cells(ui, w->label, head, 1, clip);
+    }
+    else if( w->label[0] )
         dbg_push_text(
             ui, w->x, dbg_row_text_baseline(ui, w->y, DBG_ROW_H), w->label,
             w->color ? w->color : th->text_dim, ui->theme.font_row, 0, clip);
-    box = dbg_list_box(ui, w);
     dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->textarea_bg, 1, clip);
     dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->dropdown_border, 0, clip);
     dbg_push_rect(
@@ -2629,6 +3009,16 @@ dbg_draw_list(
         text = dbg_vrow_text(ui, w, r);
         if( !text )
             continue;
+        if( !code && w->iaux )
+        {
+            struct ToriRSChromeRect line;
+            line.x = inner.x;
+            line.y = ly;
+            line.w = inner.w;
+            line.h = line_h;
+            dbg_draw_cells(ui, text, line, 0, text_clip);
+            continue;
+        }
         {
             struct ToriRSChromeRect line_clip = text_clip;
             int const left = inner.x + gutter;
@@ -3249,6 +3639,8 @@ dbg_ext_click(struct ToriRSChrome* ui, int hit, int x, int y)
         int const row = dbg_list_row_at(ui, w, x, y);
         if( row >= 0 )
         {
+            /* A cells list says which keycap the click was on (0: the body). */
+            w->vlist_cell = w->iaux ? dbg_cells_cell_at(ui, w, row, x) : 0;
             ToriRSChrome_VListSetSelected(ui, hit, row);
             ui->activated = hit;
         }
@@ -3558,6 +3950,7 @@ dbg_ext_key_edit(struct ToriRSChrome* ui, int key)
             row = w->imax - 1;
         else if( key == TORIRS_CHROME_KEY_ENTER )
         {
+            w->vlist_cell = 0;
             if( w->ivalue >= 0 )
                 ui->activated = focus;
             return 1;
@@ -3571,6 +3964,7 @@ dbg_ext_key_edit(struct ToriRSChrome* ui, int key)
             return 0;
         if( row < 0 )
             return 1;
+        w->vlist_cell = 0;
         ToriRSChrome_VListSetSelected(ui, focus, row);
         if( row < w->imin )
             ToriRSChrome_VListSetScroll(ui, focus, row);

@@ -1345,6 +1345,12 @@
   const TREE_LEAF = 0;
   const TREE_OPEN = 2;
   const VROW_H = 20;
+  /* A cells VLIST (TORIRS_CHROME_VLIST_CELLS in WIDGET_ADD's shape): a row's
+   * text is five fields split by the unit separator -- sprite, name, dim,
+   * keys, right (ui/uitree_debug_overlay.h ToriRSChrome_VListCells). */
+  const VLIST_CELLS = 1;
+  const CELL_SEP = '\x1f';
+  const CELL_KEYS_MAX = 8;
   const CODE_LINE_H = 17;
   const EV = {
     GRAPH_PRESS: 1, GRAPH_DRAG: 2, GRAPH_RELEASE: 3, GRAPH_MENU: 4,
@@ -1523,7 +1529,14 @@
         const code = record.kind === W.CODE;
         const lineH = code ? CODE_LINE_H : VROW_H;
         row.className += ' tpc-tall-row';
-        if (record.label) row.appendChild(labelNode(record.label));
+        record.cells = !code && (record.shape & VLIST_CELLS) !== 0;
+        if (record.label && record.cells) {
+          /* A cells list's caption is its header row, in the rows' columns. */
+          const head = document.createElement('div');
+          head.className = 'tpc-vlist-head';
+          renderCells(head, record.label, record, -1, true);
+          row.appendChild(head);
+        } else if (record.label) row.appendChild(labelNode(record.label));
         const list = document.createElement('div');
         list.className = code ? 'tpc-vlist tpc-code' : 'tpc-vlist';
         list.style.height = `${Math.max(1, record.rows) * lineH}px`;
@@ -1717,6 +1730,61 @@
     return input;
   }
 
+  /**
+   * One cells row (or the header): a 16px picture well (a scene sprite has no
+   * pixels in a page, so it is the empty cell the canvas draws before its
+   * picture comes), the name, the dim part, the keycaps -- each a cell a click
+   * picks, x = its 1-based index -- and the right field. The name and dim part
+   * ellipsise in CSS and the row's title says them whole (rule R2).
+   */
+  function renderCells(line, value, record, index, header) {
+    const fields = String(value === undefined ? '' : value).split(CELL_SEP);
+    const field = at => (fields[at] === undefined ? '' : fields[at]);
+    line.className += header ? ' tpc-cells tpc-cells-head' : ' tpc-cells';
+    if (!header) {
+      const thumb = document.createElement('span');
+      thumb.className = 'tpc-cell-thumb';
+      line.appendChild(thumb);
+    }
+    const names = document.createElement('span');
+    names.className = 'tpc-cell-names';
+    const name = document.createElement('span');
+    name.className = 'tpc-cell-name';
+    setText(name, field(1));
+    names.appendChild(name);
+    if (field(2)) {
+      const dim = document.createElement('span');
+      dim.className = 'tpc-cell-dim';
+      setText(dim, ` ${field(2)}`);
+      names.appendChild(dim);
+    }
+    line.appendChild(names);
+    const keys = document.createElement('span');
+    keys.className = 'tpc-cell-keys';
+    if (header) setText(keys, field(3));
+    else {
+      const caps = field(3).split(' ').filter(cap => cap.length > 0).slice(0, CELL_KEYS_MAX);
+      for (let k = 0; k < caps.length; k++) {
+        const cap = document.createElement('kbd');
+        cap.className = 'tpc-cell-key';
+        setText(cap, caps[k]);
+        const cell = k + 1;
+        bind(cap, 'click', event => {
+          if (event && event.stopPropagation) event.stopPropagation();
+          postWidget(record, INTENT.PICK, index, '', cell);
+        });
+        keys.appendChild(cap);
+      }
+    }
+    line.appendChild(keys);
+    const right = document.createElement('span');
+    right.className = 'tpc-cell-right';
+    setText(right, field(4));
+    line.appendChild(right);
+    const whole = field(2) ? `${field(1)} ${field(2)}` : field(1);
+    if (whole) line.title = whole;
+  }
+
   function renderListRows(record) {
     const code = record.kind === W.CODE;
     const lineH = code ? CODE_LINE_H : VROW_H;
@@ -1750,6 +1818,8 @@
             queueWidgetRender(record, RENDER.CONTENT);
           });
         }
+      } else if (record.cells) {
+        if (text !== undefined) renderCells(line, text, record, index, false);
       } else {
         setText(line, text === undefined ? '' : text);
       }

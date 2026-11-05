@@ -811,6 +811,10 @@ Editor_HostDocPath(
             written = snprintf(out, out_size, "configs/all.%s.compack", key + 8);
         else if( strncmp(key, "fields:", 7) == 0 )
             written = snprintf(out, out_size, "fields/%s", key + 7);
+        else if( strncmp(key, "editor:", 7) == 0 )
+            /* editor/favourites.txt, outside every pack input like the
+             * areas and the palettes (editor_favourites.h). */
+            written = snprintf(out, out_size, "editor/%s", key + 7);
         else
             return 0;
         break;

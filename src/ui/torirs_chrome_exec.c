@@ -271,6 +271,12 @@ sync_add_shape(
         *out_w = w->ivalue;
         *out_h = 0;
         return;
+    case TORIRS_CHROME_W_VLIST:
+        /* A cells list (ToriRSChrome_VListCells) is shape: its rows read as
+         * cells from the add on. */
+        *out_w = w->iaux ? TORIRS_CHROME_VLIST_CELLS : 0;
+        *out_h = w->rows;
+        return;
     default:
         *out_w = (w->row_action ? TORIRS_CHROME_ROW_ACTION : 0) |
                  (w->row_locked ? TORIRS_CHROME_ROW_LOCKED : 0);
@@ -1403,6 +1409,13 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
         {
             if( intent->value < 0 || intent->value >= ui->widgets[intent->widget].imax )
                 return 0;
+            /* A cells list's PICK names its cell in `x`: 0 the row body, n
+             * the n-th keycap (ToriRSChrome_VListPickedCell). Wire data: a
+             * cell past the keycaps a row can hold is the body. */
+            ui->widgets[intent->widget].vlist_cell =
+                ui->widgets[intent->widget].iaux && intent->x > 0 && intent->x <= TORIRS_CHROME_CELL_KEYS_MAX
+                    ? intent->x
+                    : 0;
             ToriRSChrome_VListSetSelected(ui, intent->widget, intent->value);
             ui->activated = intent->widget;
             return 1;

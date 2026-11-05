@@ -862,6 +862,32 @@ button { font-weight: 700; }
 }
 .tpc-vlist-row:hover { background: rgba(0, 0, 0, 0.06); }
 .tpc-vlist-row.tpc-selected { background: rgba(255, 255, 0, 0.35); color: #ffff00; color: var(--tpc-accent); }
+/* A cells list (ToriRSChrome_VListCells): picture, name and dim part,
+ * keycaps in a column, the id right-aligned in a column six figures wide. */
+.tpc-cells { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; }
+.tpc-vlist-head { position: relative; height: 18px; line-height: 18px; padding: 0 5px; color: #9f9f9f; }
+.tpc-cell-thumb {
+  -webkit-flex: 0 0 16px; flex: 0 0 16px; width: 16px; height: 16px; margin-right: 3px;
+  background: #000; background: var(--tpc-field);
+}
+.tpc-cells-head .tpc-cell-names { margin-left: 19px; }
+.tpc-cell-names {
+  -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tpc-cell-dim, .tpc-cell-right, .tpc-cells-head { color: #9f9f9f; }
+.tpc-cell-keys {
+  -webkit-flex: 0 0 33%; flex: 0 0 33%; max-width: 96px; margin-left: 3px;
+  overflow: hidden; white-space: nowrap;
+}
+.tpc-cell-key {
+  display: inline-block; height: 12px; margin-right: 3px; padding: 0 2px;
+  border: 1px solid #474745; border-color: var(--tpc-inset);
+  background: #000; background: var(--tpc-field);
+  color: #ffff00; color: var(--tpc-accent);
+  font: 400 10px/10px "ToriRS Chrome Small", "Lucida Console", monospace; cursor: pointer;
+}
+.tpc-cell-right { -webkit-flex: 0 0 42px; flex: 0 0 42px; margin-left: 3px; text-align: right; }
 .tpc-code { font-weight: 700; }
 .tpc-code-line { height: 17px; line-height: 17px; padding: 0; }
 .tpc-code-gutter {

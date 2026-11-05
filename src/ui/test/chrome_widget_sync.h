@@ -53,6 +53,7 @@ int cw_intent(int kind, int panel, int widget, int value, int x, int y, char con
 
 void cw_test_tree(void);
 void cw_test_vlist(void);
+void cw_test_vlist_cells(void);
 void cw_test_iconbutton(void);
 void cw_test_slider(void);
 void cw_test_radio(void);

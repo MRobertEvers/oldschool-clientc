@@ -181,6 +181,63 @@ Editor_SquarePicker_EmptyCell(
 int
 Editor_Catalog_PreviewId(struct EditorUi* ui);
 
+/** The multiloc rung the Catalog's variant dropdown (the Shell editor's
+ *  readout) chose for a loc pick: its loc id, -2 for a value with nothing at
+ *  it, -1 when none is chosen (or no catalog). */
+int
+Editor_Catalog_PreviewRung(struct EditorUi* ui);
+
+/**
+ * Pick from world (Shift+I, tool.pick_loc; design section 6): the hovered
+ * placement's loc becomes the pick AT ITS EXACT POSE (`shape`, `rotation`
+ * become Place's), Place is armed, Find is set to its record name (its id
+ * without a catalog) with the chips off, and its row is selected and
+ * scrolled into view once the page holding it lands. 0 (said in the status
+ * bar) without a catalog.
+ */
+int
+Editor_Catalog_PickFromWorld(
+    struct EditorUi* ui,
+    int loc_id,
+    int shape,
+    int rotation);
+
+/** The pick is in editor/favourites.txt (editor_favourites.h). */
+int
+Editor_Catalog_IsFavourite(struct EditorUi* ui);
+
+/** The favourite star: the pick into editor/favourites.txt (a loc with
+ *  Place's pose), or out of it when it is there; one TEXT_SPLICE through the
+ *  authority, one undo step. 1 a favourite now, 0 not, -1 refused (said). */
+int
+Editor_Catalog_ToggleFavourite(struct EditorUi* ui);
+
+/** Find in world: every placement of the loc pick in the open squares
+ *  selected (the first EDITOR_LOC_SELECTION_MAX), the camera over the first.
+ *  Returns how many there are; 0 is said. */
+int
+Editor_Catalog_FindInWorld(struct EditorUi* ui);
+
+/** The pick's record in the Record panel. 0 when refused (said). */
+int
+Editor_Catalog_EditPick(struct EditorUi* ui);
+
+/** Copy the pick to the Catalog's New name (Editor_Catalog_CopyRecord). */
+int
+Editor_Catalog_CopyPick(struct EditorUi* ui);
+
+/** The loc pick's placeable shapes: its resident config's, else the
+ *  catalog's summary fields'. 0 for no loc pick. */
+uint32_t
+Editor_Catalog_PickShapes(struct EditorUi* ui);
+
+struct Editor_CatalogRecents;
+
+/** The session's recent picks (the tests read them), NULL without a
+ *  catalog. */
+const struct Editor_CatalogRecents*
+Editor_Catalog_Recents(struct EditorUi* ui);
+
 /**
  * Make record `name` of `kind` (TORIRSMAPED_CATALOG_LOC..OBJ) the pick, as a
  * click on its row does (published to the Client; a loc arms Place), and show

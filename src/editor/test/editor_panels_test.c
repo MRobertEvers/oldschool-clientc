@@ -1038,8 +1038,8 @@ test_catalog_panel(void)
     cat_frame();
     model = Editor_Catalog_Model(&g_cat_ui);
     CHECK(model && model->queries == 1, "catalog: opening asks once");
-    Editor_CatalogModelCountText(model, text, sizeof(text));
-    CHECK(strcmp(text, "2 of 2 loc") == 0 && cat_widget(panel, TORIRS_CHROME_W_LABEL, text) >= 0,
+    Editor_CatalogModelRangeText(model, 0, text, sizeof(text));
+    CHECK(strcmp(text, "1 to 2 of 2 loc") == 0 && cat_widget(panel, TORIRS_CHROME_W_LABEL, text) >= 0,
         "catalog: the count row reads %s from the server's total, not the provider's", text);
     for( int i = 0; i < 3; i++ )
         cat_frame();

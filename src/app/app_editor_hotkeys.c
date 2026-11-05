@@ -189,7 +189,7 @@ app_hk_pick_loc(
 
     if( !app->world || !Editor_PanelHoverTile(&app->editor_panel, app, &scene_x, &scene_z) )
     {
-        Editor_UiLog(ui, "editor: no tile under the pointer to pick from");
+        Editor_UiStatus(ui, "Pick refused: no tile under the pointer to pick from");
         return;
     }
     level = Editor_PanelEditLevel(&app->editor_panel, app);
@@ -197,16 +197,16 @@ app_hk_pick_loc(
     scenery = idx >= 0 ? World_EntityPoolGet(&app->world->entities.scenery, idx) : NULL;
     if( !scenery )
     {
-        Editor_UiLog(ui, "editor: no loc on the hovered tile");
+        Editor_UiStatus(ui, "Pick refused: no loc on the hovered tile");
         return;
     }
     if( !Editor_UiFindPanel(ui, "catalog") )
     {
-        Editor_UiLog(ui, "editor: this window has no catalog to pick into");
+        Editor_UiStatus(ui, "Pick refused: this window has no catalog to pick into");
         return;
     }
-    Editor_Catalog_Adopt(ui, scenery->loc_id);
-    Editor_UiLog(ui, "editor: picked loc %s", ui->tools.pick_name);
+    /* Its exact pose, Find set to its name, its row in view (workbench 6.2). */
+    (void)Editor_Catalog_PickFromWorld(ui, scenery->loc_id, scenery->shape, scenery->angle & 3);
 }
 
 /** Ctrl+A: every loc of the hovered tile's square on the edit level. */

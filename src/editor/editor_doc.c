@@ -331,6 +331,10 @@ Editor_DocKeyValid(
             return length > 4 && strcmp(key + 7 + length - 4, ".ini") == 0
                    && config_type_valid(key + 7, length - 4);
         }
+        /* The catalog favourites, editor/favourites.txt (editor_favourites.h):
+         * one per content tree, a text document edited by splices. */
+        if( strcmp(key, "editor:favourites.txt") == 0 )
+            return 1;
         return 0;
     }
     return 0;

@@ -3,10 +3,14 @@
  * model view of what the Catalog picked, a dock panel of its own beside the
  * Catalog rather than a small well at the bottom of it (owner, 2026-11-02).
  *
- *   Subject    one row naming what the well shows: the Catalog's pick (a loc,
- *              npc or obj; for a multiloc, the rung the Catalog's variant
- *              dropdown chose -- Editor_Catalog_PreviewId), else, while nothing
- *              has been picked, the primary selected loc (ui->tools.locs[0]).
+ *   Subject    one row naming what the well shows, by the follow rule
+ *              (Editor_CatalogPreviewFollow, workbench 6.2): the Catalog's
+ *              pick while placing; the primary selected loc
+ *              (ui->tools.locs[0]) while selecting -- whatever was picked
+ *              before (the old rule looked at the selection only until the
+ *              first pick, then never again); with no selection the pick.
+ *              A multiloc pick shows the rung the Catalog's variant dropdown
+ *              (the Shell editor's readout) chose.
  *   Well       the MODELVIEW, filling the body: the panel's width, and every
  *              pixel of its height the other two rows leave when the layout or
  *              a resize gave the panel one. The App renders the subject into
@@ -23,8 +27,17 @@
  *              app_services.preview_orbit / preview_zoom.
  *   Reset view the camera back to the default pose and a fresh fit
  *              (EditorUiAppServices.preview_invalidate).
- *   Add to palette  the pick into the Catalog palette's first free slot
- *              (edpanel_catalog_palette.c).
+ *   Pose       the loc pick's shapes as chips ("0 wall", "2 wall L"; the
+ *              current one lit, a click sets Place's shape) and the rotation
+ *              row (0 1 2 3, and Fit, the walls-to-neighbours toggle): the
+ *              Locs panel's Place pose, the same tools state, as chips
+ *              (edpanel_chips.c). Then the pick's size, layer and ops.
+ *   Actions    Place (arms the Place tool), the favourite star
+ *              (editor/favourites.txt), Palette (the pick into the Catalog
+ *              palette's first free slot), Record (the Record panel),
+ *              Triggers, Find in world (every placement in the open squares
+ *              selected), Copy to new (to the Catalog's New name). A refusal
+ *              says why in the status bar.
  *
  * It follows the SHARED pick, so a popped-out Preview (its own process, solo
  * layout) shows what the main window's Catalog picks: the Catalog publishes
@@ -47,7 +60,10 @@
  * npc, obj) as a row click would (Editor_Catalog_PickRecord).
  */
 
+#include "edpanel_catalog_model.h"
+#include "edpanel_chips.h"
 #include "edpanel_common.h"
+#include "edpanel_ops.h"
 #include "edpanels.h"
 #include "engine/cache_provider.h"
 #include "mem/torirs_mem.h"
@@ -85,8 +101,17 @@ struct PreviewPanel
     int row_subject;
     int view;
     int item_reset;
-    /** The pick into the Catalog palette's first free slot. */
-    int item_add_palette;
+    /* The pose: the pick's shapes, the rotation row, the facts. */
+    struct Edp_ChipStrip shape_strip;
+    struct Edp_ChipStrip rotation_strip;
+    int row_facts;
+    /** The shapes the strip shows, in its order. */
+    int shapes[EDITOR_LOC_SHAPE_COUNT];
+    int shape_count;
+    /** The pick's actions, a chip each (enum PreviewAction), their chords
+     *  as keycaps: two lines of chips, not seven rows of buttons, so the
+     *  pane stays the height a column gives it. */
+    struct Edp_ChipStrip action_strip;
 
     /** The subject the row last named (kind, id, the pick's name). */
     int shown_kind;
@@ -131,21 +156,17 @@ Editor_Preview_Subject(
     assert(out_kind);
     assert(out_id);
 
-    *out_kind = -1;
-    *out_id = -1;
-    if( ui->tools.pick_kind >= 0 && ui->tools.pick_id >= 0 )
     {
-        *out_kind = ui->tools.pick_kind;
-        *out_id = Editor_Catalog_PreviewId(ui);
-        return *out_id >= 0;
+        struct Editor_CatalogPreviewInput input;
+        memset(&input, 0, sizeof(input));
+        input.placing = ui->tools.tool == EDITOR_TOOL_LOC_PLACE;
+        input.pick_kind = ui->tools.pick_kind;
+        input.pick_id = ui->tools.pick_id;
+        input.rung_id = Editor_Catalog_PreviewRung(ui);
+        input.selection_count = ui->tools.loc_count;
+        input.selection_loc_id = ui->tools.loc_count > 0 ? ui->tools.locs[0].loc_id : -1;
+        return Editor_CatalogPreviewFollow(&input, out_kind, out_id);
     }
-    if( ui->tools.loc_count > 0 && ui->tools.locs[0].loc_id >= 0 )
-    {
-        *out_kind = CACHEPROVIDER_CATALOG_LOC;
-        *out_id = ui->tools.locs[0].loc_id;
-        return 1;
-    }
-    return 0;
 }
 
 int
@@ -180,7 +201,10 @@ preview_subject_row(
     int kind;
     int id;
     int const has = Editor_Preview_Subject(ui, &kind, &id);
-    int const picked = ui->tools.pick_kind >= 0 && ui->tools.pick_id >= 0;
+    int const selection = has && ui->tools.loc_count > 0 && kind == CACHEPROVIDER_CATALOG_LOC
+                          && id == ui->tools.locs[0].loc_id
+                          && !(ui->tools.tool == EDITOR_TOOL_LOC_PLACE && ui->tools.pick_id >= 0);
+    int const picked = ui->tools.pick_kind >= 0 && ui->tools.pick_id >= 0 && !selection;
 
     if( kind == self->shown_kind && id == self->shown_id && strcmp(self->shown_name, ui->tools.pick_name) == 0 )
         return;
@@ -262,6 +286,221 @@ preview_stretch(
     *out_natural_h = edp_px(ui, PREVIEW_WELL_H);
     (void)ToriRSChrome_ModelViewBox(ui->chrome, self->view, &box_w, &box_h, &well_w, &well_h);
     return box_h;
+}
+
+/* ---- the pose and the pick's actions --------------------------------------------- */
+
+/** The action chips, in their order. */
+enum PreviewAction
+{
+    PREVIEW_ACTION_PLACE = 0,
+    PREVIEW_ACTION_STAR,
+    PREVIEW_ACTION_PALETTE,
+    PREVIEW_ACTION_RECORD,
+    PREVIEW_ACTION_TRIGGERS,
+    PREVIEW_ACTION_FIND,
+    PREVIEW_ACTION_COPY,
+};
+
+/** The layer a loc of `shape` stands in (the world's four per tile). */
+static const char*
+preview_layer_name(int shape)
+{
+    if( shape >= 4 && shape <= 8 )
+        return "wall decor layer";
+    if( shape <= 3 || shape == 9 )
+        return "wall layer";
+    if( shape == 22 )
+        return "ground decor layer";
+    return "scenery layer";
+}
+
+/** `action`'s first chord as the table spells it ("" unbound). */
+static void
+preview_chord(
+    const struct EditorUi* ui,
+    enum Editor_HotkeyAction action,
+    char* out,
+    int out_size)
+{
+    int const one = (int)action;
+    Editor_HotkeysJoin(&ui->hotkeys, &one, 1, out, out_size);
+}
+
+/** The shape chips (a loc pick's shapes, the current one lit), the rotation
+ *  row, the facts line and the star: restated each frame the panel shows,
+ *  recorded only when they moved (the strips hash, the setters compare). */
+static void
+preview_pose_rows(
+    struct EditorUi* ui,
+    struct PreviewPanel* self)
+{
+    int const loc = ui->tools.pick_kind == CACHEPROVIDER_CATALOG_LOC && ui->tools.pick_id >= 0;
+    uint32_t const mask = loc ? Editor_Catalog_PickShapes(ui) : 0;
+    char line[TORIRS_CHROME_LABEL_MAX];
+    int star;
+
+    self->shape_count = Editor_LocShapeList(mask, self->shapes);
+    edp_chips_begin(&self->shape_strip);
+    for( int i = 0; i < self->shape_count; i++ )
+    {
+        char label[EDP_CHIP_LABEL_MAX];
+        char tip[EDP_CHIP_TIP_MAX];
+        int const shape = self->shapes[i];
+        snprintf(label, sizeof(label), "%d %s", shape, Editor_LocShapeName(shape));
+        snprintf(tip, sizeof(tip), "Place at shape %d, %s (%s)", shape, Editor_LocShapeName(shape),
+            Editor_CatalogShapeClassOf(shape));
+        (void)edp_chips_push(&self->shape_strip, label, tip, shape == ui->tools.place_shape, 0);
+    }
+    edp_chips_end(ui, &self->shape_strip);
+    ToriRSChrome_SetHidden(ui->chrome, self->shape_strip.graph, self->shape_count == 0);
+    edp_chips_hover(ui, &self->shape_strip);
+
+    edp_chips_begin(&self->rotation_strip);
+    for( int r = 0; r < 4; r++ )
+    {
+        char label[8];
+        char tip[EDP_CHIP_TIP_MAX];
+        snprintf(label, sizeof(label), "%d", r);
+        snprintf(tip, sizeof(tip), "Place turned %d quarter%s (Q turns it)", r, r == 1 ? "" : "s");
+        (void)edp_chips_push(&self->rotation_strip, label, tip, (ui->tools.place_rotation & 3) == r, 0);
+    }
+    (void)edp_chips_push(&self->rotation_strip, "Fit", "fit walls to their neighbours (toggle)",
+        edp_place_fit_enabled(), 0);
+    edp_chips_end(ui, &self->rotation_strip);
+    ToriRSChrome_SetHidden(ui->chrome, self->rotation_strip.graph, !loc);
+    edp_chips_hover(ui, &self->rotation_strip);
+
+    line[0] = '\0';
+    if( loc )
+    {
+        const struct EditorUiAppServices* services = &ui->app_services;
+        struct ToriRS_Location* cfg =
+            services->loc_record ? services->loc_record(services->user_data, ui->tools.pick_id) : NULL;
+        int const shape = ui->tools.place_shape >= 0 && ui->tools.place_shape < EDITOR_LOC_SHAPE_COUNT
+                              ? ui->tools.place_shape
+                              : 10;
+        if( cfg )
+        {
+            int ops = 0;
+            for( int i = 0; i < TORIRS_MENU_ACTION_SLOTS; i++ )
+                ops += cfg->actions[i][0] != '\0';
+            snprintf(line, sizeof(line), "Size %dx%d, %s; %d op%s", cfg->size_x, cfg->size_z,
+                preview_layer_name(shape), ops, ops == 1 ? "" : "s");
+        }
+        else
+            snprintf(line, sizeof(line), "%s at shape %d", preview_layer_name(shape), shape);
+    }
+    ToriRSChrome_SetText(ui->chrome, self->row_facts, line);
+    ToriRSChrome_SetHidden(ui->chrome, self->row_facts, !loc);
+
+    /* The actions; the star lit while the pick is a favourite. */
+    star = ui->tools.pick_kind >= 0 && ui->tools.pick_id >= 0 && Editor_Catalog_IsFavourite(ui);
+    {
+        char chord[EDP_CHIP_LABEL_MAX];
+        int at;
+        edp_chips_begin(&self->action_strip);
+        at = edp_chips_push(&self->action_strip, "Place", "arm the Place tool with the pick", 0, 0);
+        preview_chord(ui, EDITOR_HK_TOOL_PLACE, chord, sizeof(chord));
+        edp_chips_set_chord(&self->action_strip, at, chord);
+        (void)edp_chips_push(&self->action_strip, star ? "* favourite" : "* star",
+            star ? "in favourites.txt; click takes it out" : "star the pick into editor/favourites.txt", star, 0);
+        at = edp_chips_push(&self->action_strip, "Palette", "the pick into the Catalog palette", 0, 0);
+        preview_chord(ui, EDITOR_HK_PALETTE_ADD_PICK, chord, sizeof(chord));
+        edp_chips_set_chord(&self->action_strip, at, chord);
+        (void)edp_chips_push(&self->action_strip, "Record", "every field of the pick, in the Record panel", 0, 0);
+        at = edp_chips_push(&self->action_strip, "Triggers", "the pick's script triggers", 0, 0);
+        preview_chord(ui, EDITOR_HK_VIEW_TRIGGERS, chord, sizeof(chord));
+        edp_chips_set_chord(&self->action_strip, at, chord);
+        (void)edp_chips_push(&self->action_strip, "Find in world", "select every placement in the open squares", 0, 0);
+        (void)edp_chips_push(&self->action_strip, "Copy to new...", "copy the pick to the Catalog's New name", 0, 0);
+        edp_chips_end(ui, &self->action_strip);
+        edp_chips_hover(ui, &self->action_strip);
+    }
+}
+
+/** One action chip pressed. A refusal says why (the callee's status). */
+static void
+preview_action(
+    struct EditorUi* ui,
+    int action)
+{
+    int const picked = ui->tools.pick_kind >= 0 && ui->tools.pick_id >= 0;
+
+    switch( action )
+    {
+    case PREVIEW_ACTION_PLACE:
+        if( !picked )
+            Editor_UiStatus(ui, "Place refused: pick a loc, npc or obj in the Catalog first");
+        else
+            Editor_UiSetTool(ui, EDITOR_TOOL_LOC_PLACE);
+        break;
+    case PREVIEW_ACTION_STAR:
+        (void)Editor_Catalog_ToggleFavourite(ui);
+        break;
+    case PREVIEW_ACTION_PALETTE:
+        if( !picked )
+            Editor_UiStatus(ui, "Palette refused: pick a loc, npc or obj first");
+        else
+            (void)Editor_CatalogPalette_AddPick(ui, 0);
+        break;
+    case PREVIEW_ACTION_RECORD:
+        (void)Editor_Catalog_EditPick(ui);
+        break;
+    case PREVIEW_ACTION_TRIGGERS:
+        if( !Editor_UiPanelSelf(ui, "triggers") )
+            Editor_UiStatus(ui, "Triggers refused: this window has no Triggers panel");
+        else if( Editor_Catalog_EditPick(ui) )
+            Editor_Triggers_Follow(ui);
+        break;
+    case PREVIEW_ACTION_FIND:
+        (void)Editor_Catalog_FindInWorld(ui);
+        break;
+    case PREVIEW_ACTION_COPY:
+        (void)Editor_Catalog_CopyPick(ui);
+        break;
+    default:
+        break;
+    }
+}
+
+/** A press on a shape chip sets Place's shape; on a rotation chip its
+ *  rotation; on Fit the toggle. */
+static void
+preview_pose_press(
+    struct EditorUi* ui,
+    struct PreviewPanel* self,
+    const struct ToriRSChromeEvent* event)
+{
+    int on_x = 0;
+
+    if( event->widget == self->action_strip.graph )
+    {
+        int const index = edp_chips_key_of(&self->action_strip, event->key, &on_x);
+        if( index >= 0 )
+            preview_action(ui, index);
+        return;
+    }
+    if( event->widget == self->shape_strip.graph )
+    {
+        int const index = edp_chips_key_of(&self->shape_strip, event->key, &on_x);
+        if( index >= 0 && index < self->shape_count )
+        {
+            ui->tools.place_shape = self->shapes[index];
+            Editor_UiStatus(ui, "Place shape %d %s", self->shapes[index], Editor_LocShapeName(self->shapes[index]));
+        }
+        return;
+    }
+    {
+        int const index = edp_chips_key_of(&self->rotation_strip, event->key, &on_x);
+        if( index >= 0 && index < 4 )
+            ui->tools.place_rotation = index;
+        else if( index == 4 )
+        {
+            edp_place_fit_set(!edp_place_fit_enabled());
+            Editor_UiStatus(ui, "fit walls to neighbours %s", edp_place_fit_enabled() ? "on" : "off");
+        }
+    }
 }
 
 /* ---- opening beside the Catalog -------------------------------------------- */
@@ -370,6 +609,7 @@ preview_tick(
     if( !ui->chrome->panels[self->panel].visible )
         return;
     preview_subject_row(ui, self);
+    preview_pose_rows(ui, self);
     preview_size_well(ui, self);
 }
 
@@ -381,11 +621,6 @@ preview_activate(
 {
     struct PreviewPanel* self = opaque;
 
-    if( widget == self->item_add_palette )
-    {
-        (void)Editor_CatalogPalette_AddPick(ui, 0);
-        return 1;
-    }
     if( widget == self->item_reset )
     {
         if( ui->app_services.preview_invalidate )
@@ -413,6 +648,13 @@ preview_event(
 {
     struct PreviewPanel* self = opaque;
 
+    if( event->widget == self->shape_strip.graph || event->widget == self->rotation_strip.graph
+        || event->widget == self->action_strip.graph )
+    {
+        if( event->kind == TORIRS_CHROME_EVENT_GRAPH_PRESS )
+            preview_pose_press(ui, self, event);
+        return 1;
+    }
     if( event->widget != self->view )
         return 0;
     if( event->kind == TORIRS_CHROME_EVENT_VIEW_ORBIT )
@@ -482,8 +724,16 @@ Editor_Preview_Register(struct EditorUi* ui)
     assert(self->view >= 0);
     ToriRSChrome_SetTooltip(chrome, self->view, "click: WASD orbit, E/F zoom; or drag to orbit, pinch to zoom");
     self->item_reset = ToriRSChrome_MenuItem(chrome, self->panel, "Reset view");
-    self->item_add_palette = ToriRSChrome_MenuItem(chrome, self->panel, "Add to palette");
+    /* The pose: the Locs panel's Place pose as chips. */
+    edp_chips_init(ui, &self->shape_strip, self->panel, 2);
+    edp_chips_init(ui, &self->rotation_strip, self->panel, 1);
+    self->row_facts = ToriRSChrome_Label(chrome, self->panel, "");
+    /* The pick's actions. */
+    edp_chips_init(ui, &self->action_strip, self->panel, 2);
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);
+    /* The pose and action rows under the well: a dock that gives the panel
+     * less than all of them scrolls it rather than growing it. */
+    ToriRSChrome_PanelSetScrollable(chrome, self->panel, 1);
     ToriRSChrome_PanelSetVisible(chrome, self->panel, 0);
 
     memset(&desc, 0, sizeof(desc));
