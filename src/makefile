@@ -883,7 +883,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
 	ui/uitree_hovertext.c ui/uitree_debug_overlay.c ui/uitree_snapshot.c \
 	ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c ui/torirs_chrome_shell.c \
-	ui/torirs_chrome_panel_draw.c \
+	ui/torirs_chrome_panel_draw.c ui/torirs_chrome_bake.c \
 	ui/torirs_chrome_rail.c \
 	ui/torirs_chrome_inkwell.c \
 	ui/torirs_chrome_mirror.c \

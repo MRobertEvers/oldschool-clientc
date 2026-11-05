@@ -320,6 +320,18 @@ enum ToriRSChromeCmdKind
      * presentations read too.
      */
     TORIRS_CHROME_CMD_WIDGET_CHORD,
+    /**
+     * The chrome scale, as a rational: `value` / `w` device pixels per chrome
+     * pixel (`w` is 4 today: 5/4 is 1.25x, 6/4 is 1.5x, 8/4 is 2x). A
+     * property of the whole chrome, like CHECK_STYLE: sent before any panel on
+     * the first Run and again whenever it changes.
+     *
+     * A presentation that lays itself out from the commands (the DOM) keeps
+     * authoring in 1x chrome pixels and zooms by the ratio -- its fonts are
+     * outlines, so it needs nothing else. One that draws the display list
+     * ignores it: the list is already in device pixels.
+     */
+    TORIRS_CHROME_CMD_SCALE,
 };
 
 /**
@@ -715,6 +727,18 @@ struct ToriRSChromeSync
      * shadow was zeroed to" is not being told.
      */
     int check_style;
+    /**
+     * The chrome scale (quarter units) this executor holds.
+     *
+     * Seeded to 1x (TORIRS_CHROME_SCALE_Q_ONE) by Init, UNLIKE
+     * `check_style`: 1x is what a presentation that was never told draws at
+     * -- a DOM page with no zoom -- so a 1x chrome sends no SCALE at all and
+     * its stream is the one it always was. Neither a page boundary
+     * (Invalidate) nor a full catch-up over a lost journal reseeds it: the
+     * binding is the same executor, and it holds the scale it was last told
+     * (the DOM keeps its zoom across page snapshots for exactly this).
+     */
+    int scale_q;
     /** Commands emitted since Init, for tests and for a "did anything move"
      *  probe that costs nothing to keep. */
     int cmd_count;

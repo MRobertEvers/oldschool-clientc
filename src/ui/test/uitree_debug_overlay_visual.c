@@ -38,7 +38,10 @@
 
 #include "bmp.h"
 
+#include <assert.h>
+#include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2667,6 +2670,8 @@ visual_panel_close(void)
     ToriRSChrome_Init(&g_ui);
 }
 
+#include "uitree_debug_overlay_visual_scale.u.c"
+
 int
 main(void)
 {
@@ -2736,6 +2741,7 @@ main(void)
     visual_colorpick();
     visual_panel_close();
     visual_scaled();
+    visual_scale_golden();
 
     if( g_failures )
     {

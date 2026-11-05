@@ -45,7 +45,8 @@
     WIDGET_SELECTED: 15, WIDGET_FOCUS: 16, WIDGET_OPTIONS: 17,
     WIDGET_OPTION: 18, CHECK_STYLE: 19, WIDGET_HEIGHT: 20,
     PANEL_MODE: 21, WIDGET_VALUE: 22, WIDGET_ROW: 23, WIDGET_SPAN: 24,
-    WIDGET_GRAPH: 25, WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27, WIDGET_CHORD: 28
+    WIDGET_GRAPH: 25, WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27, WIDGET_CHORD: 28,
+    SCALE: 29
   };
   const W = {
     LABEL: 0, CHECKBOX: 1, TEXTINPUT: 2, SEPARATOR: 3, MENUITEM: 4,
@@ -132,6 +133,10 @@
       this.pagePanel = -1;
       this.pageGeneration = 0;
       this.checkStyle = 0;
+      /* The chrome scale (CMD.SCALE), carried in every page snapshot so a
+       * page made after the command went past still draws at it. */
+      this.scaleQ = 4;
+      this.scaleDen = 4;
       this.title = 'Plugins';
       this.lastOutboundSequence = 0;
       this.lastLayoutKey = '';
@@ -322,6 +327,8 @@
         this.pagePanel = panel;
         this.title = boundedText(message.title || 'Plugins', 191);
         this.checkStyle = integer(message.checkStyle, this.checkStyle);
+        this.scaleQ = integer(message.scaleQ, this.scaleQ);
+        this.scaleDen = integer(message.scaleDen, this.scaleDen);
       } else if (message.type === 'page.close') {
         const generation = unsigned(message.pageGeneration);
         if (generation && this.pageGeneration && generation !== this.pageGeneration)
@@ -537,9 +544,15 @@
       let panel = this.pagePanel;
       let title = this.title;
       let checkStyle = this.checkStyle;
+      let scaleQ = this.scaleQ;
+      let scaleDen = this.scaleDen;
       for (let i = 0; i < commands.length; i++) {
         const command = commands[i];
         if (command.k === CMD.CHECK_STYLE) checkStyle = command.v;
+        else if (command.k === CMD.SCALE) {
+          scaleQ = command.v;
+          scaleDen = command.cw;
+        }
         else if (command.k === CMD.PANEL_OPEN) {
           containsOpen = true;
           panel = command.p;
@@ -565,6 +578,8 @@
           panel,
           title: title || 'Plugins',
           checkStyle,
+          scaleQ,
+          scaleDen,
           commands: initial
         })) return false;
         this.updateWidgetIdentities(initial, generation, true);
@@ -573,6 +588,8 @@
         this.pageGeneration = generation;
         this.title = title || 'Plugins';
         this.checkStyle = checkStyle;
+        this.scaleQ = scaleQ;
+        this.scaleDen = scaleDen;
         return true;
       }
 
@@ -581,6 +598,8 @@
           return false;
         this.resetPage();
         this.checkStyle = checkStyle;
+        this.scaleQ = scaleQ;
+        this.scaleDen = scaleDen;
         return true;
       }
       if (!this.send({
@@ -592,6 +611,8 @@
       this.updateWidgetIdentities(commands, generation, false);
       this.title = title;
       this.checkStyle = checkStyle;
+      this.scaleQ = scaleQ;
+      this.scaleDen = scaleDen;
       return true;
     }
 

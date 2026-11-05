@@ -231,26 +231,75 @@ enum ToriRSChromeFontSlot
 };
 
 /**
- * Integer chrome zoom. 1 is the baked fonts' native size; higher scales
- * multiply every metric and glyph, so the layout reflows rather than blurs.
+ * The baked TIERS: the integer densities a face or a skin slot exists at. 1 is
+ * the baked fonts' native size; fontbake wrote Small/Body/Menu at @2 and @3
+ * (src/engine/torirs_debug_font_baked.h), and those are pixel art the chrome
+ * draws unchanged at exactly that density.
  *
- * The upper bound is what the BAKE carries, not a taste: fontbake wrote
- * Small/Body/Menu at @2 and @3 (src/engine/torirs_debug_font_baked.h), and a
- * scale with no font behind it would lay rows out at a size nothing can draw.
- * Raising it means baking that size first, in the one fontbake run that writes
- * both generated files.
- *
- * Integer only, and that is the renderer's property rather than a shortcut:
- * the glyph blitter tests a mask byte for non-zero instead of blending it
- * (toridraw_font.c), so there is no half-covered pixel for a 1.5x glyph to
- * resample onto. A display at 1.5x picks the nearer baked size; nothing is
- * ever stretched, which is the whole point of authoring the sizes.
+ * Not the chrome's SCALE any more (workbench step 6.0b, design section 2 "R1
+ * in full"). The scale is a rational in quarter units -- see
+ * TORIRS_CHROME_SCALE_Q_* below -- and a tier is what the scale reads its
+ * bitmaps from: `ToriRSChrome_ScaleTier(q)`, the nearest tier at or above.
+ * At q = 4, 8 and 12 the scale IS a tier and every number and pixel is the
+ * one the integer chrome always produced.
  */
 #define TORIRS_CHROME_SCALE_MIN 1
 #define TORIRS_CHROME_SCALE_MAX 3
 
-/** Pixel width of a NUL-terminated string in `font_slot` at `scale`, from the
- *  baked advance tables. Plain bytes only — no markup tokens. */
+/**
+ * The chrome scale, in QUARTERS of a device pixel per chrome pixel: 4 is 1x,
+ * 5 is 1.25x, 6 is 1.5x, 7 is 1.75x, 8 is 2x, 10 is 2.5x, 12 is 3x -- the
+ * device pixel ratios a display actually reports, rather than the integer
+ * ladder a 1.5x laptop had to be rounded onto.
+ *
+ * Layout stays in 1x chrome pixels. Every METRIC (a row height, a gap, a pad,
+ * the label column, the scrollbar, a tab, the frame rail) is converted to
+ * device pixels once, through ToriRSChrome_ScalePx, and positions are sums of
+ * converted metrics -- never a converted sum. That is what keeps a column of
+ * rows on one device-pixel grid at 1.5x: every row is ScalePx(18) = 27 tall,
+ * never 27 and 26 on neighbours.
+ *
+ * Text and art at a fractional scale do not come from stretching a tier: the
+ * glyphs are rasterised from the 1x masks with vertical hinting, and a skin
+ * slot is area-averaged DOWN from the nearest tier at or above. Both are built
+ * once per scale (torirs_chrome_bake.h), never per frame.
+ *
+ * The upper bound is the largest tier: a scale above it would have to be drawn
+ * UP from a bitmap, which is the speckling this whole scheme exists to avoid.
+ */
+#define TORIRS_CHROME_SCALE_Q_ONE 4
+#define TORIRS_CHROME_SCALE_Q_MIN (TORIRS_CHROME_SCALE_MIN * TORIRS_CHROME_SCALE_Q_ONE)
+#define TORIRS_CHROME_SCALE_Q_MAX (TORIRS_CHROME_SCALE_MAX * TORIRS_CHROME_SCALE_Q_ONE)
+
+/**
+ * `px` chrome pixels at scale `q`, in device pixels: px * q / 4 rounded to the
+ * nearest, halves away from zero, so ScalePx(q, -a) == -ScalePx(q, a).
+ *
+ * THE rounding function. Every chrome metric goes through it exactly once, and
+ * so must every presentation that lays itself out beside the chrome (the
+ * editor's panels, its dock, the bake) -- two roundings of one metric are two
+ * grids. At q a multiple of 4 it is the plain integer multiply.
+ */
+int
+ToriRSChrome_ScalePx(int q, int px);
+
+/**
+ * Device pixels back to chrome pixels: the chrome cell `device_px` falls in,
+ * i.e. the largest c with ScalePx(q, c) <= device_px.
+ *
+ * At q a multiple of 4 this is exactly `device_px / (q / 4)` -- C's
+ * truncating division, which is what every pointer mapping did before -- so a
+ * negative coordinate (a point left of a region) maps the way it always did.
+ */
+int
+ToriRSChrome_UnscalePx(int q, int device_px);
+
+/** The nearest baked tier at or above scale `q`: ceil(q / 4). */
+int
+ToriRSChrome_ScaleTier(int q);
+
+/** Pixel width of a NUL-terminated string in `font_slot` at integer `scale`.
+ *  Exactly ToriRSChrome_MeasureTextQ(font_slot, 4 * scale, text). */
 int
 ToriRSChrome_MeasureText(int font_slot, int scale, char const* text);
 
@@ -261,6 +310,32 @@ ToriRSChrome_FontLineHeight(int font_slot, int scale);
 /** Row pitch for `font_slot` (the tallest glyph's bottom edge). */
 int
 ToriRSChrome_FontLineBox(int font_slot, int scale);
+
+/**
+ * Pixel width of a NUL-terminated string in `font_slot` at scale `q`, from the
+ * per-glyph advance table of that scale. Plain bytes only -- no markup tokens.
+ *
+ * At a tier (q = 4, 8, 12) the table is the bake's; between tiers every
+ * glyph's 1x advance is converted with ToriRSChrome_ScalePx on its own, which
+ * is exactly the advance the glyph atlas for that scale carries
+ * (torirs_chrome_bake.c builds it with the same call), so text measures to
+ * the width it paints at.
+ */
+int
+ToriRSChrome_MeasureTextQ(int font_slot, int q, char const* text);
+
+/** One byte's advance at scale `q`: the entry MeasureTextQ sums. */
+int
+ToriRSChrome_GlyphAdvanceQ(int font_slot, int q, unsigned char c);
+
+/** Ascent at scale `q`: ScalePx of the 1x ascent, so the baseline is a whole
+ *  device row the hinted glyphs are snapped to. */
+int
+ToriRSChrome_FontLineHeightQ(int font_slot, int q);
+
+/** Line box at scale `q`: ScalePx of the 1x line box. */
+int
+ToriRSChrome_FontLineBoxQ(int font_slot, int q);
 
 enum ToriRSChromePrimKind
 {
@@ -1604,6 +1679,8 @@ enum ToriRSChromeChangeKind
     TORIRS_CHROME_CHANGE_WIDGET_REMOVE,
     TORIRS_CHROME_CHANGE_PANEL_CLOSE,
     TORIRS_CHROME_CHANGE_CHECK_STYLE,
+    /** The chrome scale moved (ToriRSChrome_SetScaleQ): TORIRS_CHROME_CMD_SCALE. */
+    TORIRS_CHROME_CHANGE_SCALE,
 };
 
 /* Property masks recorded with PANEL events. */
@@ -1664,9 +1741,18 @@ struct ToriRSChromeChange
 struct ToriRSChrome
 {
     struct ToriRSChromeTheme theme;
-    /** Integer chrome zoom, TORIRS_CHROME_SCALE_MIN..MAX. Every layout metric and
-     *  glyph multiplies by it; Init sets 1. */
+    /**
+     * The baked TIER the scale reads its bitmaps from,
+     * TORIRS_CHROME_SCALE_MIN..MAX: ToriRSChrome_ScaleTier(scale_q). Equal to
+     * the scale itself at q = 4, 8, 12, which is every value it had before the
+     * scale became a rational; between them it is the tier ABOVE, never a
+     * multiplier. Layout reads `scale_q`. Init sets 1.
+     */
     int scale;
+    /** The chrome scale in quarter units, TORIRS_CHROME_SCALE_Q_MIN..MAX: every
+     *  layout metric goes through ToriRSChrome_ScalePx(scale_q, ...). Init
+     *  sets 4. */
+    int scale_q;
     /**
      * enum ToriRSChromeCheckStyle: which boolean art every checkbox and roster
      * switch in this instance wears. Init sets TICK.
@@ -1712,6 +1798,7 @@ struct ToriRSChrome
     int change_pending_panel[TORIRS_CHROME_MAX_PANELS];
     int change_pending_widget[TORIRS_CHROME_MAX_WIDGETS];
     int change_pending_check_style;
+    int change_pending_scale;
     /** Per-panel journal chains, again as indexes plus one. */
     int change_panel_head[TORIRS_CHROME_MAX_PANELS];
     /**
@@ -2023,24 +2110,47 @@ void
 ToriRSChrome_ChangeJournalAcknowledge(struct ToriRSChrome* ui);
 
 /**
- * Set the device pixels per chrome pixel: TORIRS_CHROME_SCALE_MIN..TORIRS_CHROME_SCALE_MAX.
- *
- * A relayout, not a transform: every panel is remeasured against the fonts
- * baked at that size, so rows grow with the text in them instead of text
- * overflowing boxes sized for a smaller face. Panel ORIGINS are left alone --
- * whoever placed a panel knows whether it meant a device pixel or a chrome
- * one, and this module does not.
- *
- * The host must map the font slots onto the same scale's baked fonts or the
- * layout and the glyphs disagree; UITreeSceneBridge_EnsureDebugFont takes the
- * scale for exactly that reason.
+ * Set the device pixels per chrome pixel to the integer `scale`,
+ * TORIRS_CHROME_SCALE_MIN..TORIRS_CHROME_SCALE_MAX: exactly
+ * ToriRSChrome_SetScaleQ(ui, 4 * scale).
  */
 void
 ToriRSChrome_SetScale(struct ToriRSChrome* ui, int scale);
 
-/** Device pixels per chrome pixel. */
+/**
+ * Set the device pixels per chrome pixel to q / 4, q in
+ * TORIRS_CHROME_SCALE_Q_MIN..TORIRS_CHROME_SCALE_Q_MAX (5 = 1.25x, 6 = 1.5x,
+ * 7 = 1.75x, 10 = 2.5x; the multiples of 4 are the integer scales).
+ *
+ * A relayout, not a transform: every panel is remeasured against the faces at
+ * that scale, so rows grow with the text in them instead of text overflowing
+ * boxes sized for a smaller face. Panel ORIGINS are left alone -- whoever
+ * placed a panel knows whether it meant a device pixel or a chrome one, and
+ * this module does not.
+ *
+ * The model itself allocates nothing here: the glyph atlases and the scaled
+ * skin a fractional scale draws from are the DRAWER's, built by
+ * ToriRSChromeBake_SetScaleQ (torirs_chrome_bake.h), which calls this. A host
+ * that draws through the baked tiers (UITreeSceneBridge_EnsureDebugFont) must
+ * map the font slots onto the same scale's faces, or the layout and the glyphs
+ * disagree.
+ */
+void
+ToriRSChrome_SetScaleQ(struct ToriRSChrome* ui, int q);
+
+/** The integer TIER (see `scale`): the scale itself at q = 4, 8, 12. */
 int
 ToriRSChrome_Scale(struct ToriRSChrome const* ui);
+
+/** The scale in quarter units. */
+int
+ToriRSChrome_ScaleQ(struct ToriRSChrome const* ui);
+
+/** `px` chrome pixels in this chrome's device pixels:
+ *  ToriRSChrome_ScalePx(ui->scale_q, px). The converter the editor's own
+ *  layout uses, so its metrics land on the chrome's grid. */
+int
+ToriRSChrome_Px(struct ToriRSChrome const* ui, int px);
 
 /**
  * The surface this chrome is drawn onto, so a POPUP can stay inside it.
@@ -2388,6 +2498,18 @@ int
 ToriRSChrome_WrapText(
     int font_slot,
     int scale,
+    char const* text,
+    int width,
+    int* out_start,
+    int* out_len,
+    int max_lines);
+
+/** ToriRSChrome_WrapText at scale `q` (quarter units); WrapText is this at
+ *  4 * scale. */
+int
+ToriRSChrome_WrapTextQ(
+    int font_slot,
+    int q,
     char const* text,
     int width,
     int* out_start,
