@@ -2120,10 +2120,10 @@ decode_catalog_squares(
     struct EditorHost_CatalogSquare* squares;
     int* area_ids;
     int area_at = 0;
-    /* a storage is >= 4 bytes, an area >= 12, a square >= 32, an area id 4 */
+    /* a storage is >= 4 bytes, an area >= 12, a square >= 36, an area id 4 */
     size_t storage_bound = length / 4;
     size_t area_bound = length / 12;
-    size_t square_bound = length / 32;
+    size_t square_bound = length / 36;
     size_t id_bound = length / 4;
 
     memset(out, 0, sizeof(*out));
@@ -2191,6 +2191,7 @@ decode_catalog_squares(
                 reader.bad = 1;
             area_ids[area_at++] = (int)area;
         }
+        sq->loc_count = (int)ToriRSMapEd_GetU32(&reader);
     }
     out->square_count = (int)count;
     out->storages = storages;

@@ -932,6 +932,10 @@ button { font-weight: 700; }
   touch-action: none; cursor: crosshair;
 }
 .tpc-graph-item { position: absolute; box-sizing: border-box; pointer-events: none; }
+/* The well's pictures (graph.image), under every other item. */
+.tpc-graph-canvas {
+  position: absolute; left: 0; top: 0; pointer-events: none; image-rendering: pixelated;
+}
 .tpc-graph-text { white-space: pre; line-height: 16px; }
 #tpc-shell.tpc-modal #tpc-pane { z-index: 20; }
 #tpc-shell.tpc-modal::before {

@@ -137,7 +137,9 @@
  *                               (TORIRSMAPED_SQUARE_*), u32 spawn_count,
  *                               u32 rgb (0xRRGGBB), u32 primary_area
  *                               (TORIRSMAPED_CATALOG_NO_AREA = unmapped),
- *                               u32 area_n, area_n * u32 area)
+ *                               u32 area_n, area_n * u32 area,
+ *                               u32 loc_count (the locs its .jl2 places;
+ *                               appended 2026-11-05, workbench 6.4))
  *
  *   FACT_CATALOG_SQUARES_CHANGED, same payload, is BROADCAST to every v2
  *   connection when the atlas changes under it: a DOC_CREATE (the new
@@ -286,7 +288,30 @@ enum ToriRSMapEdSquareFlag
     TORIRSMAPED_SQUARE_DIRTY = 16,
     /** Made by DOC_CREATE and not yet saved: nothing of it is on disk. */
     TORIRSMAPED_SQUARE_CREATED = 32,
+    /** No world-map area claims it and it lies in instance space
+     *  (TORIRSMAPED_INSTANCE_*): what the instance helper makes. */
+    TORIRSMAPED_SQUARE_INSTANCE = 64,
 };
+
+/** Instance space: the unmapped high-coordinate squares the instance helper
+ *  fills (the workbench design's section 13, "unmapped space 0..19 x
+ *  100..255"), map_x in [X0, X1] and map_z in [Z0, Z1]. The picker draws it
+ *  hatched where no square exists. */
+#define TORIRSMAPED_INSTANCE_X0 0
+#define TORIRSMAPED_INSTANCE_X1 19
+#define TORIRSMAPED_INSTANCE_Z0 100
+#define TORIRSMAPED_INSTANCE_Z1 255
+
+/** Whether square (map_x, map_z) is in instance space. Inline so the picker
+ *  links no catalog code. */
+static inline int
+ToriRSMapEdCatalog_InInstanceSpace(
+    int map_x,
+    int map_z)
+{
+    return map_x >= TORIRSMAPED_INSTANCE_X0 && map_x <= TORIRSMAPED_INSTANCE_X1
+           && map_z >= TORIRSMAPED_INSTANCE_Z0 && map_z <= TORIRSMAPED_INSTANCE_Z1;
+}
 
 /** The tab label of a kind ("loc", "npc", ...); "?" past the end. Inline so
  *  a client that links no catalog code can still name the tabs. */
@@ -574,6 +599,7 @@ struct ToriRSMapEdCatalogSquare
     const char* storage;
     uint32_t flags;
     int spawn_count;
+    int loc_count;
     uint32_t rgb;
     const char* area;
     int area_count;

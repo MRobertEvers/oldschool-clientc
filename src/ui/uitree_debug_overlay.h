@@ -1228,7 +1228,9 @@ enum ToriRSChromeGraphItemKind
      * scene sprite the host registered (the square picker's world map). The
      * chrome stays a non-rasteriser, as with MODELVIEW: it emits a SPRITE
      * prim carrying the id. Never hit-tested. The DOM executor receives the
-     * id in the item's value and, having no pixels for it, draws nothing.
+     * id in the item's value and draws it from the `graph.image` envelope
+     * the host sent under that id (src/plugin_chrome/HOST_BRIDGE.md), on a
+     * canvas under the well's other items; nothing until one came.
      */
     TORIRS_CHROME_GRAPH_IMAGE,
 };

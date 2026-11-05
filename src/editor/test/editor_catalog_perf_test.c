@@ -31,9 +31,13 @@
  * argv[1]. Then, given the real content tree as argv[2], the same requests
  * timed on it and printed (not checked).
  *
+ * Content-free too: the square atlas of a three-square tree (each row's loc
+ * count on the wire, the instance-space flag).
+ *
  * usage: catalog_perf_test <scratch-dir> [<content-dir>]
  */
 
+#include "editor/editor_doc.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_buf.h"
 #include "torirsmaped/torirs_maped_catalog.h"
@@ -923,6 +927,94 @@ test_partial_build(const char* root)
     ToriRSMapEdCatalog_Free(warm);
 }
 
+/* ---- the square atlas, content-free (workbench 6.4) ---- */
+
+/* A tree of three .jl2 squares: the atlas row's loc count is the locs each
+ * places (one a line after the header), the wire carries it after the row's
+ * areas, and an unmapped square in instance space (0..19 x 100..255) is
+ * flagged TORIRSMAPED_SQUARE_INSTANCE while one outside it is not. */
+static void
+test_atlas(const char* root)
+{
+    static struct Editor_Doc doc;
+    struct ToriRSMapEdCatalog* catalog;
+    struct ToriRSMapEdCatalogSquare square;
+    struct ToriRSMapEdBuf answer;
+    struct ToriRSMapEdReader reader;
+    uint32_t count;
+    int seen = 0;
+
+    mkdir(root, 0755);
+    make_dir(root, "maps");
+    write_text(root, "maps/m50_50.jl2", "==== LOC ====\n0 1 2: 100 10 0\n0 3 4: 101 10 1\n1 5 6: 102 22 2\n");
+    write_text(root, "maps/m5_120.jl2", "==== LOC ====\n0 8 8: 7 10 0\n");
+    write_text(root, "maps/m40_40.jl2", "==== LOC ====\n");
+    catalog = ToriRSMapEdCatalog_Create(root);
+    service_until_idle(catalog, TORIRSMAPED_CATALOG_SLICE_MS);
+
+    CHECK(ToriRSMapEdCatalog_Square(catalog, "m50_50", &square) && square.loc_count == 3
+              && (square.flags & TORIRSMAPED_SQUARE_HAS_LOCS),
+        "m50_50 places 3 locs (%d)", square.loc_count);
+    CHECK(!(square.flags & TORIRSMAPED_SQUARE_INSTANCE), "...and is not in instance space");
+    CHECK(ToriRSMapEdCatalog_Square(catalog, "m5_120", &square) && square.loc_count == 1
+              && (square.flags & TORIRSMAPED_SQUARE_INSTANCE),
+        "m5_120: 1 loc, unmapped in instance space, flagged (flags %u)", square.flags);
+    CHECK(ToriRSMapEdCatalog_Square(catalog, "m40_40", &square) && square.loc_count == 0
+              && !(square.flags & TORIRSMAPED_SQUARE_HAS_LOCS),
+        "m40_40: a header and no locs (%d)", square.loc_count);
+
+    /* The wire: every row ends with its loc count. */
+    Editor_DocInit(&doc, NULL);
+    memset(&answer, 0, sizeof(answer));
+    ToriRSMapEdCatalog_EncodeSquares(catalog, &doc, &answer);
+    ToriRSMapEd_ReaderInit(&reader, ToriRSMapEd_BufPeek(&answer), (uint32_t)ToriRSMapEd_BufAvailable(&answer));
+    CHECK(ToriRSMapEd_GetU32(&reader) == 0, "CATALOG_SQUARES answers OK");
+    count = ToriRSMapEd_GetU32(&reader);
+    for( uint32_t i = 0; i < count && !reader.bad; i++ )
+    {
+        char name[256];
+        ToriRSMapEd_GetString(&reader, name, sizeof(name));
+    }
+    count = ToriRSMapEd_GetU32(&reader);
+    for( uint32_t i = 0; i < count && !reader.bad; i++ )
+    {
+        char name[256];
+        ToriRSMapEd_GetString(&reader, name, sizeof(name));
+        ToriRSMapEd_GetString(&reader, name, sizeof(name));
+        (void)ToriRSMapEd_GetU32(&reader);
+    }
+    count = ToriRSMapEd_GetU32(&reader);
+    CHECK(count == 3, "three rows (%u)", count);
+    for( uint32_t i = 0; i < count && !reader.bad; i++ )
+    {
+        int32_t const x = (int32_t)ToriRSMapEd_GetU32(&reader);
+        int32_t const z = (int32_t)ToriRSMapEd_GetU32(&reader);
+        uint32_t flags;
+        uint32_t area_n;
+        uint32_t locs;
+        (void)ToriRSMapEd_GetU32(&reader);
+        flags = ToriRSMapEd_GetU32(&reader);
+        (void)ToriRSMapEd_GetU32(&reader);
+        (void)ToriRSMapEd_GetU32(&reader);
+        (void)ToriRSMapEd_GetU32(&reader);
+        area_n = ToriRSMapEd_GetU32(&reader);
+        for( uint32_t a = 0; a < area_n && !reader.bad; a++ )
+            (void)ToriRSMapEd_GetU32(&reader);
+        locs = ToriRSMapEd_GetU32(&reader);
+        if( x == 50 && z == 50 )
+            seen += locs == 3;
+        if( x == 5 && z == 120 )
+            seen += locs == 1 && (flags & TORIRSMAPED_SQUARE_INSTANCE);
+        if( x == 40 && z == 40 )
+            seen += locs == 0;
+    }
+    CHECK(!reader.bad && ToriRSMapEd_ReaderDone(&reader), "the rows read to the end, nothing left over");
+    CHECK(seen == 3, "each row carries its loc count, the instance row its flag (%d of 3)", seen);
+    ToriRSMapEd_BufFree(&answer);
+    Editor_DocFree(&doc);
+    ToriRSMapEdCatalog_Free(catalog);
+}
+
 /* ---- the real tree, printed ---- */
 
 static void
@@ -991,6 +1083,8 @@ main(
     snprintf(root, sizeof(root), "%s/content", argv[1]);
     test_synthetic(root);
     test_partial_build(root);
+    snprintf(root, sizeof(root), "%s/atlas", argv[1]);
+    test_atlas(root);
     if( argc > 2 && argv[2][0] )
     {
         struct stat st;

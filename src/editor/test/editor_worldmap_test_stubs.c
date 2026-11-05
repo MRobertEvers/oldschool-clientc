@@ -1,9 +1,11 @@
 /*
  * What editor_worldmap_test links instead of the client: the pure halves it
- * tests (the overview's mapping, the picture's composition) never reach
- * these, so each aborts if one is ever called.
+ * tests (the overview's mapping, the picture's composition, the picker's
+ * level of detail and budget, the polling order against fake services) never
+ * reach these, so each aborts if one is ever called.
  */
 
+#include "editor/editor_doc.h"
 #include "editor/panels/edpanel_picker.h"
 #include "game/rs_worldmap_render.h"
 
@@ -91,56 +93,27 @@ RS_WorldMapRender_RegionPixels(
     STUB("RS_WorldMapRender_RegionPixels");
 }
 
-int
-Editor_PickerSquareVisible(
-    const struct Editor_Picker* picker,
-    int index)
-{
-    (void)picker;
-    (void)index;
-    STUB("Editor_PickerSquareVisible");
-}
+/* The picker itself is linked (edpanel_picker.c: the level of detail, the
+ * budget, instance space), and only its document fold reaches these. */
 
-void
-Editor_PickerCellOrigin(
-    const struct Editor_Picker* picker,
+struct Editor_Square*
+Editor_DocFindSquare(
+    struct Editor_Doc* doc,
     int map_x,
-    int map_z,
-    int* out_x,
-    int* out_y)
+    int map_z)
 {
-    (void)picker;
+    (void)doc;
     (void)map_x;
     (void)map_z;
-    (void)out_x;
-    (void)out_y;
-    STUB("Editor_PickerCellOrigin");
+    STUB("Editor_DocFindSquare");
 }
 
-void
-Editor_PickerGlobalOrigin(
-    const struct Editor_Picker* picker,
-    int* out_x,
-    int* out_y)
+const char*
+Editor_DocSquareStorage(
+    const struct Editor_Doc* doc,
+    const struct Editor_Square* square)
 {
-    (void)picker;
-    (void)out_x;
-    (void)out_y;
-    STUB("Editor_PickerGlobalOrigin");
-}
-
-int
-Editor_PickerVisibleSquares(
-    const struct Editor_Picker* picker,
-    int* out_x0,
-    int* out_z0,
-    int* out_w,
-    int* out_h)
-{
-    (void)picker;
-    (void)out_x0;
-    (void)out_z0;
-    (void)out_w;
-    (void)out_h;
-    STUB("Editor_PickerVisibleSquares");
+    (void)doc;
+    (void)square;
+    STUB("Editor_DocSquareStorage");
 }

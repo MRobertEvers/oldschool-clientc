@@ -3,6 +3,7 @@
 #include "editor/editor_doc.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped_catalog.h"
+#include "log/torirs_log.h"
 #include "ui/uitree_debug_overlay.h"
 
 #include <assert.h>
@@ -141,6 +142,8 @@ Editor_PickerSquareOnTab(
     area = picker->tabs[tab].area;
     if( area == EDITOR_PICKER_TAB_FULL )
         return 1;
+    if( area == EDITOR_PICKER_TAB_INSTANCE )
+        return square->primary_area < 0 && Editor_PickerInInstanceSpace(square->map_x, square->map_z);
     if( area < 0 )
         return square->primary_area < 0;
     for( int i = 0; i < square->area_count; i++ )
@@ -170,6 +173,24 @@ Editor_PickerTabOfSquare(
     return 0;
 }
 
+int
+Editor_PickerInInstanceSpace(
+    int map_x,
+    int map_z)
+{
+    return ToriRSMapEdCatalog_InInstanceSpace(map_x, map_z);
+}
+
+int
+Editor_PickerInstanceTab(const struct Editor_Picker* picker)
+{
+    assert(picker);
+    for( int t = 0; t < picker->tab_count; t++ )
+        if( picker->tabs[t].area == EDITOR_PICKER_TAB_INSTANCE )
+            return t;
+    return -1;
+}
+
 struct PickerTabSort
 {
     const struct Editor_Picker* picker;
@@ -186,13 +207,15 @@ picker_tab_cmp(
     const struct Editor_PickerTab* tb = b;
     const struct Editor_Picker* picker = g_sort_picker;
     /* The surface first, the Full map beside it, the other areas by what the
-     * world map calls them, Unmapped last. */
+     * world map calls them, Instance space, Unmapped last. */
     int const rank_a = ta->area == EDITOR_PICKER_TAB_FULL       ? 1
-                       : ta->area == EDITOR_PICKER_TAB_UNMAPPED ? 3
+                       : ta->area == EDITOR_PICKER_TAB_INSTANCE ? 3
+                       : ta->area == EDITOR_PICKER_TAB_UNMAPPED ? 4
                        : picker->areas[ta->area].is_main        ? 0
                                                                 : 2;
     int const rank_b = tb->area == EDITOR_PICKER_TAB_FULL       ? 1
-                       : tb->area == EDITOR_PICKER_TAB_UNMAPPED ? 3
+                       : tb->area == EDITOR_PICKER_TAB_INSTANCE ? 3
+                       : tb->area == EDITOR_PICKER_TAB_UNMAPPED ? 4
                        : picker->areas[tb->area].is_main        ? 0
                                                                 : 2;
 
@@ -224,7 +247,7 @@ picker_rebuild_tabs(struct Editor_Picker* picker)
             claimed[picker->area_refs[square->area_first + k]] = 1;
     }
 
-    tabs = ToriMem_Calloc(group, (size_t)(picker->area_count + 2), sizeof(*tabs));
+    tabs = ToriMem_Calloc(group, (size_t)(picker->area_count + 3), sizeof(*tabs));
     assert(tabs);
     for( int a = 0; a < picker->area_count; a++ )
     {
@@ -249,6 +272,11 @@ picker_rebuild_tabs(struct Editor_Picker* picker)
         snprintf(tabs[count].title, sizeof(tabs[count].title), "Full map");
         count++;
     }
+    /* Always: an empty instance space is where the instance helper and New
+     * square make one. */
+    tabs[count].area = EDITOR_PICKER_TAB_INSTANCE;
+    snprintf(tabs[count].title, sizeof(tabs[count].title), "Instance space");
+    count++;
     ToriMem_Free(group, claimed);
 
     g_sort_picker = picker;
@@ -288,7 +316,15 @@ picker_rebuild_tabs(struct Editor_Picker* picker)
         }
     }
     for( int t = 0; t < count; t++ )
-        if( tabs[t].count == 0 )
+        if( tabs[t].area == EDITOR_PICKER_TAB_INSTANCE )
+        {
+            /* The whole space, whatever is in it: Fit frames all of it. */
+            tabs[t].min_x = TORIRSMAPED_INSTANCE_X0;
+            tabs[t].max_x = TORIRSMAPED_INSTANCE_X1;
+            tabs[t].min_z = TORIRSMAPED_INSTANCE_Z0;
+            tabs[t].max_z = TORIRSMAPED_INSTANCE_Z1;
+        }
+        else if( tabs[t].count == 0 )
         {
             tabs[t].min_x = tabs[t].max_x = 50;
             tabs[t].min_z = tabs[t].max_z = 50;
@@ -402,6 +438,7 @@ Editor_PickerSetAtlas(
                 (from->storage >= 0 && from->storage < atlas->storage_count) ? from->storage : 0;
             to->flags = from->flags;
             to->spawn_count = from->spawn_count;
+            to->loc_count = from->loc_count;
             to->rgb = from->rgb;
             to->primary_area =
                 (from->primary_area >= 0 && from->primary_area < atlas->area_count)
@@ -1223,6 +1260,10 @@ Editor_PickerDefaultColors(struct Editor_PickerColors* colors)
     colors->created = 0x6fd06f;
     colors->frame = 0x4fa8ff;
     colors->self_frame = 0xff4fd0;
+    colors->lane = 0x3f6fff;
+    colors->hatch = 0x3a352b;
+    colors->zone = 0x302c24;
+    colors->spawn = 0xf0e0a0;
 }
 
 /** Cell rectangle of map square (x, z) in well pixels: the global pixel
@@ -1330,72 +1371,492 @@ Editor_PickerLabelEvery(
     return 100;
 }
 
-int
-Editor_PickerDraw(
+/* ---- the budget ------------------------------------------------------------------------ */
+
+/*
+ * One draw is run twice. The first run counts what the essentials cost
+ * (`counting`, nothing emitted, decoration skipped); the second draws. Three
+ * tiers share the budget: the user's own marks (the selection, the hover and
+ * its label, the empty cell for New, the view frames) are kept room for
+ * whatever else is listed before them; the rest of the essentials (cells,
+ * pictures, outlines, axis labels) take what the marks leave; decoration --
+ * spawn dots, loc counts, zone lines, the map's icons and names, hatching --
+ * only what the first run left over. So a crowded close zoom loses dots
+ * before it loses an outline, a huge well loses far cells before it loses the
+ * selection, and whatever is lost is counted by kind.
+ */
+struct PickerPaint
+{
+    struct ToriRSChrome* chrome;
+    int graph;
+    int counting;
+    /** Items emitted (or, counting, that would be). */
+    int items;
+    /** Of them, decoration. */
+    int decor;
+    /** What decoration may spend: the budget less the essentials. */
+    int decor_room;
+    /** The marks (counted by the first run): the room kept for them. */
+    int marks;
+    int marks_reserve;
+    int dropped[EDITOR_PICKER_DROP_KINDS];
+};
+
+/** Room for one more essential item, leaving the marks' room; counts it,
+ *  or the drop. */
+static int
+paint_room(
+    struct PickerPaint* paint,
+    enum Editor_PickerDropKind kind)
+{
+    if( paint->counting )
+    {
+        paint->items++;
+        return 0;
+    }
+    if( paint->items + (paint->marks_reserve - paint->marks) >= EDITOR_PICKER_ITEMS_BUDGET )
+    {
+        paint->dropped[kind]++;
+        return 0;
+    }
+    paint->items++;
+    return 1;
+}
+
+/** Room for one more of the user's marks: the room kept for them. */
+static int
+paint_mark(
+    struct PickerPaint* paint,
+    enum Editor_PickerDropKind kind)
+{
+    if( paint->counting )
+    {
+        paint->items++;
+        paint->marks++;
+        return 0;
+    }
+    if( paint->items >= EDITOR_PICKER_ITEMS_BUDGET )
+    {
+        paint->dropped[kind]++;
+        return 0;
+    }
+    paint->items++;
+    paint->marks++;
+    return 1;
+}
+
+/** Room for one more decoration item: never asked while counting. */
+static int
+paint_decor(
+    struct PickerPaint* paint,
+    enum Editor_PickerDropKind kind)
+{
+    if( paint->counting )
+        return 0;
+    if( paint->decor >= paint->decor_room || paint->items >= EDITOR_PICKER_ITEMS_BUDGET )
+    {
+        paint->dropped[kind]++;
+        return 0;
+    }
+    paint->decor++;
+    paint->items++;
+    return 1;
+}
+
+const char*
+Editor_PickerDropName(enum Editor_PickerDropKind kind)
+{
+    static const char* const k_names[EDITOR_PICKER_DROP_KINDS] = {
+        "cells",         "outlines",   "pictures",     "map icons",    "map names",
+        "spawn dots",    "loc counts", "zone lines",   "hatch lines",  "labels",
+    };
+    assert(kind >= 0);
+    assert(kind < EDITOR_PICKER_DROP_KINDS);
+    return k_names[kind];
+}
+
+void
+Editor_PickerLodAt(
+    double zoom,
+    struct Editor_PickerLod* out)
+{
+    assert(zoom > 0);
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    out->band = zoom < EDITOR_PICKER_LOD_PICTURE_FROM  ? EDITOR_PICKER_LOD_COLOUR
+                : zoom < EDITOR_PICKER_LOD_DETAIL_FROM ? EDITOR_PICKER_LOD_PICTURE
+                : zoom < EDITOR_PICKER_LOD_CLOSE_FROM  ? EDITOR_PICKER_LOD_DETAIL
+                                                       : EDITOR_PICKER_LOD_CLOSE;
+    out->colour_cells = out->band == EDITOR_PICKER_LOD_COLOUR;
+    out->page_outline = out->band == EDITOR_PICKER_LOD_COLOUR;
+    out->pictures = out->band >= EDITOR_PICKER_LOD_PICTURE;
+    out->lane_inset = out->band >= EDITOR_PICKER_LOD_PICTURE;
+    out->state_outlines = out->band >= EDITOR_PICKER_LOD_DETAIL;
+    out->spawn_dots = out->band >= EDITOR_PICKER_LOD_DETAIL;
+    out->hover_label = out->band >= EDITOR_PICKER_LOD_DETAIL;
+    out->icons = out->band >= EDITOR_PICKER_LOD_CLOSE;
+    out->names = out->band >= EDITOR_PICKER_LOD_CLOSE;
+    out->loc_count = out->band >= EDITOR_PICKER_LOD_CLOSE;
+    out->zone_grid = out->band >= EDITOR_PICKER_LOD_CLOSE;
+}
+
+/** `text` cut to `width` logical px with "..." where it had to cut, measured
+ *  in the face GRAPH text draws in. 0 when not even the ellipsis fits. */
+static int
+picker_fit_text(
+    const struct ToriRSChrome* chrome,
+    const char* text,
+    int width,
+    char out[TORIRS_CHROME_GRAPH_TEXT_MAX])
+{
+    int const face = chrome->theme.font_row;
+    int kept;
+
+    snprintf(out, TORIRS_CHROME_GRAPH_TEXT_MAX, "%s", text);
+    if( ToriRSChrome_MeasureTextQ(face, 4, out) <= width )
+        return 1;
+    for( kept = (int)strlen(out); kept > 0; kept-- )
+    {
+        char cut[TORIRS_CHROME_GRAPH_TEXT_MAX + 4];
+        memcpy(cut, out, (size_t)kept);
+        memcpy(cut + kept, "...", 4);
+        if( kept + 3 < TORIRS_CHROME_GRAPH_TEXT_MAX && ToriRSChrome_MeasureTextQ(face, 4, cut) <= width )
+        {
+            memcpy(out, cut, (size_t)kept + 4);
+            return 1;
+        }
+    }
+    out[0] = '\0';
+    return 0;
+}
+
+/** Whether the active page shows instance space hatched (where no square
+ *  is): the pages instance space belongs to. */
+static int
+picker_page_hatches(const struct Editor_Picker* picker)
+{
+    int area;
+    if( picker->tab_count == 0 || picker->filter_on )
+        return 0;
+    area = picker->tabs[picker->active_tab].area;
+    return area == EDITOR_PICKER_TAB_INSTANCE || area == EDITOR_PICKER_TAB_UNMAPPED
+           || area == EDITOR_PICKER_TAB_FULL;
+}
+
+/** The well box of the map squares [x0, x1] x [z0, z1], clipped to the grid
+ *  area; 0 when none of it is in the well. */
+static int
+picker_squares_box(
+    const struct Editor_Picker* picker,
+    int x0,
+    int x1,
+    int z0,
+    int z1,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    int x;
+    int y;
+    int w;
+    int h;
+    int bx;
+    int by;
+    int bw;
+    int bh;
+    picker_cell_rect(picker, x0, z1, &x, &y, &w, &h);
+    picker_cell_rect(picker, x1, z0, &bx, &by, &bw, &bh);
+    w = bx + bw - x;
+    h = by + bh - y;
+    if( !picker_clip(picker, &x, &y, &w, &h) )
+        return 0;
+    *out_x = x;
+    *out_y = y;
+    *out_w = w;
+    *out_h = h;
+    return 1;
+}
+
+/** Instance space, hatched: "/" lines EDITOR_PICKER_HATCH_PX apart, anchored
+ *  to the global pixel space so a pan does not make them swim. The squares
+ *  that exist are filled over them. */
+#define EDITOR_PICKER_HATCH_PX 8
+
+static void
+paint_hatch(
+    const struct Editor_Picker* picker,
+    const struct Editor_PickerColors* colors,
+    struct PickerPaint* paint)
+{
+    int x;
+    int y;
+    int w;
+    int h;
+    int gox;
+    int goy;
+    int c0;
+
+    if( paint->counting || !picker_page_hatches(picker) )
+        return;
+    if( !picker_squares_box(picker, TORIRSMAPED_INSTANCE_X0, TORIRSMAPED_INSTANCE_X1, TORIRSMAPED_INSTANCE_Z0,
+            TORIRSMAPED_INSTANCE_Z1, &x, &y, &w, &h) )
+        return;
+    Editor_PickerGlobalOrigin(picker, &gox, &goy);
+    /* x + y = c along a line; c a multiple of the spacing in global px. */
+    c0 = x + y + gox + goy;
+    c0 = c0 - ((c0 % EDITOR_PICKER_HATCH_PX) + EDITOR_PICKER_HATCH_PX) % EDITOR_PICKER_HATCH_PX - gox - goy;
+    for( int c = c0; c <= x + w - 1 + y + h - 1; c += EDITOR_PICKER_HATCH_PX )
+    {
+        int ax = c - (y + h - 1);
+        int bx = c - y;
+        if( ax < x )
+            ax = x;
+        if( bx > x + w - 1 )
+            bx = x + w - 1;
+        if( bx < ax )
+            continue;
+        if( !paint_decor(paint, EDITOR_PICKER_DROP_HATCH) )
+            continue;
+        ToriRSChrome_GraphLine(paint->chrome, paint->graph, ax, c - ax, bx, c - bx, colors->hatch);
+    }
+}
+
+/** The 8x8 zone lines across the grid, faint: every eighth of a square that
+ *  is not a square's own edge. */
+static void
+paint_zone_grid(
+    const struct Editor_Picker* picker,
+    const struct Editor_PickerColors* colors,
+    struct PickerPaint* paint)
+{
+    int vx0;
+    int vz0;
+    int vw;
+    int vh;
+    int gox;
+    int goy;
+    double const k = picker->zoom / 64.0;
+
+    if( paint->counting || !Editor_PickerVisibleSquares(picker, &vx0, &vz0, &vw, &vh) )
+        return;
+    Editor_PickerGlobalOrigin(picker, &gox, &goy);
+    for( int m = vx0; m < vx0 + vw; m++ )
+        for( int z = 1; z < 8; z++ )
+        {
+            int const x = (int)floor((double)(m * 64 + z * 8) * k) - gox;
+            if( x < EDITOR_PICKER_LEFT || x >= picker->well_w )
+                continue;
+            if( !paint_decor(paint, EDITOR_PICKER_DROP_ZONE_LINES) )
+                continue;
+            ToriRSChrome_GraphLine(
+                paint->chrome, paint->graph, x, EDITOR_PICKER_TOP, x, picker->well_h - 1, colors->zone);
+        }
+    for( int mz = vz0; mz < vz0 + vh; mz++ )
+    {
+        int const row = EDITOR_PICKER_WORLD_SQUARES - 1 - mz;
+        for( int z = 1; z < 8; z++ )
+        {
+            int const y = (int)floor((double)(row * 64 + z * 8) * k) - goy;
+            if( y < EDITOR_PICKER_TOP || y >= picker->well_h )
+                continue;
+            if( !paint_decor(paint, EDITOR_PICKER_DROP_ZONE_LINES) )
+                continue;
+            ToriRSChrome_GraphLine(
+                paint->chrome, paint->graph, EDITOR_PICKER_LEFT, y, picker->well_w - 1, y, colors->zone);
+        }
+    }
+}
+
+/** The page's squares' bounds (a collection's when one is the page). */
+static void
+picker_page_bounds(
+    const struct Editor_Picker* picker,
+    int* min_x,
+    int* max_x,
+    int* min_z,
+    int* max_z)
+{
+    const struct Editor_PickerTab* tab = &picker->tabs[picker->active_tab];
+    *min_x = tab->min_x;
+    *max_x = tab->max_x;
+    *min_z = tab->min_z;
+    *max_z = tab->max_z;
+    if( !picker->filter_on || picker->filter_shown <= 0 )
+        return;
+    *min_x = *min_z = 1 << 30;
+    *max_x = *max_z = -(1 << 30);
+    for( int i = 0; i < picker->square_count; i++ )
+    {
+        const struct Editor_PickerSquare* square = &picker->squares[i];
+        if( !picker->filter_mask[i] )
+            continue;
+        *min_x = square->map_x < *min_x ? square->map_x : *min_x;
+        *max_x = square->map_x > *max_x ? square->map_x : *max_x;
+        *min_z = square->map_z < *min_z ? square->map_z : *min_z;
+        *max_z = square->map_z > *max_z ? square->map_z : *max_z;
+    }
+}
+
+/** One square's decoration at the close bands: a dot per ten spawns along
+ *  its top, its loc count along its foot. */
+static void
+paint_square_detail(
+    const struct Editor_Picker* picker,
+    const struct Editor_PickerSquare* square,
+    const struct Editor_PickerLod* lod,
+    const struct Editor_PickerColors* colors,
+    int x,
+    int y,
+    int w,
+    int h,
+    struct PickerPaint* paint)
+{
+    if( paint->counting )
+        return;
+    if( lod->spawn_dots && square->spawn_count >= EDITOR_PICKER_SPAWNS_PER_DOT && w >= 12 && h >= 12 )
+    {
+        int const size = w >= 96 ? 3 : 2;
+        int const per_row = (w - 6) / (size + 2);
+        int dots = square->spawn_count / EDITOR_PICKER_SPAWNS_PER_DOT;
+        if( dots > EDITOR_PICKER_DOTS_MAX )
+            dots = EDITOR_PICKER_DOTS_MAX;
+        for( int d = 0; d < dots && per_row > 0; d++ )
+        {
+            int dx = x + 3 + (d % per_row) * (size + 2);
+            int dy = y + 3 + (d / per_row) * (size + 2);
+            int dw = size;
+            int dh = size;
+            /* The cell's own room is a cap like EDITOR_PICKER_DOTS_MAX (at
+             * 40 px a square it holds more than the cap). */
+            if( dy + size > y + h - 3 )
+                break;
+            if( !picker_clip(picker, &dx, &dy, &dw, &dh) )
+                continue;
+            if( !paint_decor(paint, EDITOR_PICKER_DROP_DOTS) )
+                continue;
+            ToriRSChrome_GraphRect(paint->chrome, paint->graph, dx, dy, dw, dh, colors->spawn, 1, 0);
+        }
+    }
+    if( lod->loc_count && square->loc_count > 0 && w >= 24 && h >= 24 )
+    {
+        char text[TORIRS_CHROME_GRAPH_TEXT_MAX];
+        char fitted[TORIRS_CHROME_GRAPH_TEXT_MAX];
+        int const baseline = y + h - 4;
+        snprintf(text, sizeof(text), "%d locs", square->loc_count);
+        if( baseline - 10 < EDITOR_PICKER_TOP || baseline > picker->well_h || x + 3 < EDITOR_PICKER_LEFT
+            || x + 3 >= picker->well_w )
+            return;
+        if( !picker_fit_text(paint->chrome, text, w - 6, fitted) )
+            return;
+        if( !paint_decor(paint, EDITOR_PICKER_DROP_LOC_COUNTS) )
+            return;
+        ToriRSChrome_GraphText(paint->chrome, paint->graph, x + 3, baseline, colors->text, fitted);
+    }
+}
+
+/** The hovered cell's coordinates, on a dark plate so the map cannot hide
+ *  them. Ellipsised to the cell, never clipped. */
+static void
+paint_hover_label(
+    const struct Editor_Picker* picker,
+    const struct Editor_PickerColors* colors,
+    struct PickerPaint* paint)
+{
+    char text[TORIRS_CHROME_GRAPH_TEXT_MAX];
+    char fitted[TORIRS_CHROME_GRAPH_TEXT_MAX];
+    int x;
+    int y;
+    int w;
+    int h;
+    int tw;
+
+    picker_cell_rect(picker, picker->hover_map_x, picker->hover_map_z, &x, &y, &w, &h);
+    if( x + 3 < EDITOR_PICKER_LEFT || y + 2 < EDITOR_PICKER_TOP || x + 3 >= picker->well_w
+        || y + 15 > picker->well_h )
+        return;
+    snprintf(text, sizeof(text), "m%d_%d", picker->hover_map_x, picker->hover_map_z);
+    if( !picker_fit_text(paint->chrome, text, w - 8, fitted) )
+        return;
+    tw = ToriRSChrome_MeasureTextQ(paint->chrome->theme.font_row, 4, fitted);
+    if( paint_mark(paint, EDITOR_PICKER_DROP_LABELS) )
+        ToriRSChrome_GraphRect(paint->chrome, paint->graph, x + 2, y + 2, tw + 4, 13, colors->background, 1, 0);
+    if( paint_mark(paint, EDITOR_PICKER_DROP_LABELS) )
+        ToriRSChrome_GraphText(paint->chrome, paint->graph, x + 4, y + 12, colors->text, fitted);
+}
+
+/** One run over the picture (see struct PickerPaint). */
+static void
+picker_paint(
     struct Editor_Picker* picker,
-    struct ToriRSChrome* chrome,
-    int graph,
-    int well_w,
-    int well_h,
     const struct Editor_PickerColors* colors,
     const struct EditorUiViewFrame* frames,
     int frame_count,
-    int self_slot)
+    int self_slot,
+    struct PickerPaint* paint)
 {
-    int items = 0;
-    int budget = EDITOR_PICKER_ITEMS_BUDGET;
-    int truncated = 0;
-    int gap;
-    const struct Editor_PickerUnderlay* map;
+    struct ToriRSChrome* chrome = paint->chrome;
+    int const graph = paint->graph;
+    int const well_w = picker->well_w;
+    int const well_h = picker->well_h;
+    int const gap = picker->zoom >= 8.0 ? 1 : 0;
+    const struct Editor_PickerUnderlay* map = &picker->underlay;
+    struct Editor_PickerLod lod;
+    int pictures;
+    int hatches;
+    int counting = paint->counting;
 
-    assert(picker);
-    assert(chrome);
-    assert(colors);
-    assert(frames || frame_count == 0);
-    assert(well_w > 0);
-    assert(well_h > 0);
+    Editor_PickerLodAt(picker->zoom, &lod);
+    /* No picture below 12 px a square, nor without the App's map (the
+     * headless harness): the cells are the atlas row's colour then. */
+    pictures = map->active && lod.pictures;
+    hatches = picker_page_hatches(picker);
 
-    picker->well_w = well_w;
-    picker->well_h = well_h;
-    map = &picker->underlay;
-    gap = picker->zoom >= 8.0 ? 1 : 0;
-
-    ToriRSChrome_GraphBegin(chrome, graph);
-    ToriRSChrome_GraphRect(chrome, graph, 0, 0, well_w, well_h, colors->background, 1, 0);
-    items++;
+    if( paint_room(paint, EDITOR_PICKER_DROP_CELLS) )
+        ToriRSChrome_GraphRect(chrome, graph, 0, 0, well_w, well_h, colors->background, 1, 0);
 
     /* The world map under the grid: its pictures, then what 595 draws over
-     * it (icons, labels), then the label margins painted over whatever of
-     * it strays into them. */
-    if( map->active )
+     * it at this zoom (icons, names), then the label margins painted over
+     * whatever of it strays into them. */
+    if( pictures )
     {
-        ToriRSChrome_GraphRect(
-            chrome, graph, EDITOR_PICKER_LEFT, EDITOR_PICKER_TOP, well_w - EDITOR_PICKER_LEFT,
-            well_h - EDITOR_PICKER_TOP, 0x000000, 1, 0);
-        items++;
-        for( int i = 0; i < map->count && items < budget; i++ )
+        if( paint_room(paint, EDITOR_PICKER_DROP_PICTURES) )
+            ToriRSChrome_GraphRect(chrome, graph, EDITOR_PICKER_LEFT, EDITOR_PICKER_TOP, well_w - EDITOR_PICKER_LEFT,
+                well_h - EDITOR_PICKER_TOP, 0x000000, 1, 0);
+        for( int i = 0; i < map->count; i++ )
         {
             const struct Editor_PickerImage* image = &map->items[i];
-            ToriRSChrome_GraphImage(
-                chrome, graph, image->x, image->y, image->w, image->h, image->scene_id, image->trans, image->version);
-            items++;
+            if( paint_room(paint, EDITOR_PICKER_DROP_PICTURES) )
+                ToriRSChrome_GraphImage(chrome, graph, image->x, image->y, image->w, image->h, image->scene_id,
+                    image->trans, image->version);
         }
-        for( int i = 0; i < map->icon_count && items < budget; i++ )
+    }
+    if( hatches )
+        paint_hatch(picker, colors, paint);
+    if( pictures && lod.zone_grid )
+        paint_zone_grid(picker, colors, paint);
+    if( pictures && lod.icons )
+        for( int i = 0; i < map->icon_count && !counting; i++ )
         {
             const struct Editor_PickerImage* icon = &map->icons[i];
-            ToriRSChrome_GraphImage(
-                chrome, graph, icon->x, icon->y, icon->w, icon->h, icon->scene_id, icon->trans, icon->version);
-            items++;
+            if( paint_decor(paint, EDITOR_PICKER_DROP_ICONS) )
+                ToriRSChrome_GraphImage(
+                    chrome, graph, icon->x, icon->y, icon->w, icon->h, icon->scene_id, icon->trans, icon->version);
         }
-        for( int i = 0; i < map->label_count && items < budget; i++ )
+    if( pictures && lod.names )
+        for( int i = 0; i < map->label_count && !counting; i++ )
         {
             const struct Editor_PickerLabel* label = &map->labels[i];
-            ToriRSChrome_GraphText(chrome, graph, label->x, label->y, label->color, label->text);
-            items++;
+            if( paint_decor(paint, EDITOR_PICKER_DROP_NAMES) )
+                ToriRSChrome_GraphText(chrome, graph, label->x, label->y, label->color, label->text);
         }
-        ToriRSChrome_GraphRect(chrome, graph, 0, 0, EDITOR_PICKER_LEFT, well_h, colors->background, 1, 0);
-        ToriRSChrome_GraphRect(chrome, graph, 0, 0, well_w, EDITOR_PICKER_TOP, colors->background, 1, 0);
-        items += 2;
+    if( pictures )
+    {
+        if( paint_room(paint, EDITOR_PICKER_DROP_PICTURES) )
+            ToriRSChrome_GraphRect(chrome, graph, 0, 0, EDITOR_PICKER_LEFT, well_h, colors->background, 1, 0);
+        if( paint_room(paint, EDITOR_PICKER_DROP_PICTURES) )
+            ToriRSChrome_GraphRect(chrome, graph, 0, 0, well_w, EDITOR_PICKER_TOP, colors->background, 1, 0);
     }
 
     /* Axis labels: map x across the top, map z down the left, thinned so
@@ -1409,8 +1870,7 @@ Editor_PickerDraw(
         int const last_z = (int)floor(picker->origin_z - picker_avail_h(picker) / picker->zoom) - 1;
         char text[16];
 
-        for( int mx = first_x - (first_x % every_x + every_x) % every_x; mx <= last_x && items < budget;
-             mx += every_x )
+        for( int mx = first_x - (first_x % every_x + every_x) % every_x; mx <= last_x; mx += every_x )
         {
             int px;
             int py;
@@ -1421,12 +1881,12 @@ Editor_PickerDraw(
             picker_cell_rect(picker, mx, 0, &px, &py, &pw, &ph);
             if( px < EDITOR_PICKER_LEFT || px >= well_w - 8 )
                 continue;
+            if( !paint_room(paint, EDITOR_PICKER_DROP_LABELS) )
+                continue;
             snprintf(text, sizeof(text), "%d", mx);
             ToriRSChrome_GraphText(chrome, graph, px, EDITOR_PICKER_TOP - 2, colors->text, text);
-            items++;
         }
-        for( int mz = first_z - (first_z % every_z + every_z) % every_z; mz >= last_z && items < budget;
-             mz -= every_z )
+        for( int mz = first_z - (first_z % every_z + every_z) % every_z; mz >= last_z; mz -= every_z )
         {
             int px;
             int py;
@@ -1437,9 +1897,10 @@ Editor_PickerDraw(
             picker_cell_rect(picker, 0, mz, &px, &py, &pw, &ph);
             if( py < EDITOR_PICKER_TOP || py >= well_h - 4 )
                 continue;
+            if( !paint_room(paint, EDITOR_PICKER_DROP_LABELS) )
+                continue;
             snprintf(text, sizeof(text), "%d", mz);
             ToriRSChrome_GraphText(chrome, graph, 1, py + (ph < 10 ? ph : 10), colors->text, text);
-            items++;
         }
     }
 
@@ -1454,7 +1915,7 @@ Editor_PickerDraw(
         if( pass == 2 )
         {
             /* Every view's window, this window's in its own colour. */
-            for( int f = 0; f < frame_count && items < budget; f++ )
+            for( int f = 0; f < frame_count; f++ )
             {
                 int x;
                 int y;
@@ -1472,14 +1933,16 @@ Editor_PickerDraw(
                 h = y1 + h1 - y;
                 if( !picker_clip(picker, &x, &y, &w, &h) )
                     continue;
+                if( !paint_mark(paint, EDITOR_PICKER_DROP_OUTLINES) )
+                    continue;
                 ToriRSChrome_GraphRect(
                     chrome, graph, x, y, w, h, frames[f].slot == self_slot ? colors->self_frame : colors->frame, 0, 0);
-                items++;
             }
         }
         for( int i = 0; i < picker->square_count; i++ )
         {
             const struct Editor_PickerSquare* square = &picker->squares[i];
+            int const is_maps = picker_storage_is_maps(picker, square->storage);
             int x;
             int y;
             int w;
@@ -1487,7 +1950,7 @@ Editor_PickerDraw(
             uint32_t outline = 0;
             int has_outline = 0;
 
-            if( !picker_visible(picker, i) || picker_storage_is_maps(picker, square->storage) != want_maps )
+            if( !picker_visible(picker, i) || is_maps != want_maps )
                 continue;
             picker_cell_rect(picker, square->map_x, square->map_z, &x, &y, &w, &h);
             if( x + w <= EDITOR_PICKER_LEFT || y + h <= EDITOR_PICKER_TOP || x >= well_w || y >= well_h )
@@ -1495,97 +1958,190 @@ Editor_PickerDraw(
 
             if( pass < 2 )
             {
-                /* The map is the fill: a square's own colour would hide it. */
-                if( map->active )
+                int fx = x;
+                int fy = y;
+                int fw = w - gap;
+                int fh = h - gap;
+                /* The map is the fill from 12 px a square: a square's own
+                 * colour would hide it. A square in hatched instance space
+                 * is filled all the same (no area maps it), over the
+                 * hatching. */
+                if( pictures
+                    && !(hatches && Editor_PickerInInstanceSpace(square->map_x, square->map_z)) )
                     continue;
-                if( items >= budget )
-                {
-                    truncated = 1;
-                    continue;
-                }
-                w -= gap;
-                h -= gap;
-                if( w <= 0 || h <= 0 || !picker_clip(picker, &x, &y, &w, &h) )
-                    continue;
-                ToriRSChrome_GraphRect(
-                    chrome, graph, x, y, w, h, square->rgb ? square->rgb : colors->empty, 1,
-                    EDITOR_PICKER_KEY_SQUARE(i));
-                items++;
+                if( fw > 0 && fh > 0 && picker_clip(picker, &fx, &fy, &fw, &fh)
+                    && paint_room(paint, EDITOR_PICKER_DROP_CELLS) )
+                    ToriRSChrome_GraphRect(chrome, graph, fx, fy, fw, fh, square->rgb ? square->rgb : colors->empty,
+                        1, EDITOR_PICKER_KEY_SQUARE(i));
+                paint_square_detail(picker, square, &lod, colors, x, y, w, h, paint);
                 continue;
             }
 
-            /* The selection (yellow), unsaved (accent) and created (green)
-             * squares: the whole cell. The squares in this window's own world
-             * (EDITOR_PICKER_OPEN_HERE): an inset in their own colour, so the
-             * open set never reads as a selection. */
+            /* Under a picture the fill passes skipped the square: its detail
+             * goes on here (each square is visited by one outline pass). */
+            if( pictures && !(hatches && Editor_PickerInInstanceSpace(square->map_x, square->map_z)) )
+                paint_square_detail(picker, square, &lod, colors, x, y, w, h, paint);
+
+            /* The selection (yellow) at every zoom; from 40 px a square
+             * unsaved (accent) and created (green), the whole cell. A lane's
+             * square: a blue 1 px inset. The squares in this window's own
+             * world (EDITOR_PICKER_OPEN_HERE): an inset in their own colour,
+             * so the open set never reads as a selection. */
             if( picker->selected[i] )
             {
                 outline = colors->selected;
                 has_outline = 1;
             }
-            else if( square->flags & (TORIRSMAPED_SQUARE_DIRTY | EDITOR_PICKER_DIRTY_HERE) )
+            else if( lod.state_outlines && (square->flags & (TORIRSMAPED_SQUARE_DIRTY | EDITOR_PICKER_DIRTY_HERE)) )
             {
                 outline = colors->dirty;
                 has_outline = 1;
             }
-            else if( square->flags & TORIRSMAPED_SQUARE_CREATED )
+            else if( lod.state_outlines && (square->flags & TORIRSMAPED_SQUARE_CREATED) )
             {
                 outline = colors->created;
                 has_outline = 1;
             }
-            if( (square->flags & EDITOR_PICKER_OPEN_HERE) && w >= 7 && h >= 7 && items < budget )
+            if( lod.lane_inset && !is_maps && w >= 5 && h >= 5 )
             {
-                int ix = x + 2;
-                int iy = y + 2;
-                int iw = w - 4;
-                int ih = h - 4;
-                if( picker_clip(picker, &ix, &iy, &iw, &ih) )
-                {
-                    ToriRSChrome_GraphRect(chrome, graph, ix, iy, iw, ih, colors->open, 0, 0);
-                    items++;
-                }
+                int ix = x + 1;
+                int iy = y + 1;
+                int iw = w - 2;
+                int ih = h - 2;
+                if( picker_clip(picker, &ix, &iy, &iw, &ih) && paint_room(paint, EDITOR_PICKER_DROP_OUTLINES) )
+                    ToriRSChrome_GraphRect(chrome, graph, ix, iy, iw, ih, colors->lane, 0, 0);
             }
-            if( !has_outline || items >= budget )
+            if( lod.state_outlines && (square->flags & EDITOR_PICKER_OPEN_HERE) && w >= 9 && h >= 9 )
+            {
+                int ix = x + 3;
+                int iy = y + 3;
+                int iw = w - 6;
+                int ih = h - 6;
+                if( picker_clip(picker, &ix, &iy, &iw, &ih) && paint_room(paint, EDITOR_PICKER_DROP_OUTLINES) )
+                    ToriRSChrome_GraphRect(chrome, graph, ix, iy, iw, ih, colors->open, 0, 0);
+            }
+            if( !has_outline || !picker_clip(picker, &x, &y, &w, &h) )
                 continue;
-            if( !picker_clip(picker, &x, &y, &w, &h) )
-                continue;
-            ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, outline, 0, 0);
-            items++;
+            if( picker->selected[i] ? paint_mark(paint, EDITOR_PICKER_DROP_OUTLINES)
+                                    : paint_room(paint, EDITOR_PICKER_DROP_OUTLINES) )
+                ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, outline, 0, 0);
         }
     }
 
+    /* Below 12 px a square the page's outline, once: where the page is when
+     * every cell is a pixel or two. */
+    if( lod.page_outline && picker->tab_count > 0 )
+    {
+        int min_x;
+        int max_x;
+        int min_z;
+        int max_z;
+        int x;
+        int y;
+        int w;
+        int h;
+        picker_page_bounds(picker, &min_x, &max_x, &min_z, &max_z);
+        if( min_x <= max_x && min_z <= max_z && picker_squares_box(picker, min_x, max_x, min_z, max_z, &x, &y, &w, &h)
+            && paint_mark(paint, EDITOR_PICKER_DROP_OUTLINES) )
+            ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, colors->text, 0, 0);
+    }
+
     /* The empty cell a click (or search) chose for New. */
-    if( picker->empty_valid && items < budget )
+    if( picker->empty_valid )
     {
         int x;
         int y;
         int w;
         int h;
         picker_cell_rect(picker, picker->empty_map_x, picker->empty_map_z, &x, &y, &w, &h);
-        if( picker_clip(picker, &x, &y, &w, &h) )
-        {
+        if( picker_clip(picker, &x, &y, &w, &h) && paint_mark(paint, EDITOR_PICKER_DROP_OUTLINES) )
             ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, colors->created, 0, 0);
-            items++;
-        }
     }
 
-    /* Hover on top of everything but the frames. */
-    if( picker->hover_valid && items < budget )
+    /* Hover on top of everything but the frames; from 40 px a square its
+     * coordinates in the cell (the axes carry them otherwise). */
+    if( picker->hover_valid )
     {
         int x;
         int y;
         int w;
         int h;
         picker_cell_rect(picker, picker->hover_map_x, picker->hover_map_z, &x, &y, &w, &h);
-        if( picker_clip(picker, &x, &y, &w, &h) )
-        {
+        if( picker_clip(picker, &x, &y, &w, &h) && paint_mark(paint, EDITOR_PICKER_DROP_OUTLINES) )
             ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, colors->text, 0, 0);
-            items++;
+        if( lod.hover_label )
+            paint_hover_label(picker, colors, paint);
+    }
+}
+
+int
+Editor_PickerDraw(
+    struct Editor_Picker* picker,
+    struct ToriRSChrome* chrome,
+    int graph,
+    int well_w,
+    int well_h,
+    const struct Editor_PickerColors* colors,
+    const struct EditorUiViewFrame* frames,
+    int frame_count,
+    int self_slot)
+{
+    struct PickerPaint paint;
+    int any = 0;
+
+    assert(picker);
+    assert(chrome);
+    assert(colors);
+    assert(frames || frame_count == 0);
+    assert(well_w > 0);
+    assert(well_h > 0);
+
+    picker->well_w = well_w;
+    picker->well_h = well_h;
+
+    /* What the essentials cost, then the picture. */
+    memset(&paint, 0, sizeof(paint));
+    paint.chrome = chrome;
+    paint.graph = graph;
+    paint.counting = 1;
+    picker_paint(picker, colors, frames, frame_count, self_slot, &paint);
+    {
+        int const essentials = paint.items;
+        int const marks = paint.marks;
+        memset(&paint, 0, sizeof(paint));
+        paint.chrome = chrome;
+        paint.graph = graph;
+        paint.decor_room = essentials < EDITOR_PICKER_ITEMS_BUDGET ? EDITOR_PICKER_ITEMS_BUDGET - essentials : 0;
+        paint.marks_reserve = marks;
+    }
+    ToriRSChrome_GraphBegin(chrome, graph);
+    picker_paint(picker, colors, frames, frame_count, self_slot, &paint);
+    ToriRSChrome_GraphEnd(chrome, graph);
+
+    /* Never silently: what was dropped, once per change. */
+    for( int k = 0; k < EDITOR_PICKER_DROP_KINDS; k++ )
+        any |= paint.dropped[k] > 0;
+    if( memcmp(paint.dropped, picker->dropped, sizeof(paint.dropped)) != 0 )
+    {
+        memcpy(picker->dropped, paint.dropped, sizeof(paint.dropped));
+        picker->drop_text[0] = '\0';
+        if( any )
+        {
+            size_t used = (size_t)snprintf(picker->drop_text, sizeof(picker->drop_text),
+                "picker: %d-item budget at %.1f px a square, dropped", EDITOR_PICKER_ITEMS_BUDGET, picker->zoom);
+            int first = 1;
+            for( int k = 0; k < EDITOR_PICKER_DROP_KINDS && used < sizeof(picker->drop_text); k++ )
+            {
+                if( !paint.dropped[k] )
+                    continue;
+                used += (size_t)snprintf(picker->drop_text + used, sizeof(picker->drop_text) - used, "%s %d %s",
+                    first ? "" : ",", paint.dropped[k], Editor_PickerDropName((enum Editor_PickerDropKind)k));
+                first = 0;
+            }
+            TORIRS_LOG("%s\n", picker->drop_text);
         }
     }
-
-    ToriRSChrome_GraphEnd(chrome, graph);
-    picker->items_drawn = items;
-    picker->truncated = truncated;
-    return items;
+    picker->items_drawn = paint.items;
+    picker->truncated = any;
+    return paint.items;
 }

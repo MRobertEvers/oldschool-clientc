@@ -638,4 +638,169 @@ assert.strictEqual(button.control.innerText, 'Rebuild every collision map in the
   assert.strictEqual(plainList.lineNodes[0].innerText, `a${US}b`, 'a plain list shows its text as it is');
 }
 
+/* GRAPH images (workbench 6.4): the square picker's world map on the web. The
+ * native picture -- 128x128 0xAARRGGBB words, what image_publish hands the
+ * scene and ToriRSChromeExecWeb_GraphImage hands the page -- goes through the
+ * real host (web/torirs_chrome.js) as a graph.image envelope keyed by its
+ * scene id, and the runtime draws every IMAGE item naming that id onto one
+ * canvas under the well's other items. The canvas's pixels over the item hash
+ * to the native sprite's. Fresh page and runtime, a fake 2D canvas. */
+{
+  const { PluginChromeHost } = require(path.join(__dirname, '..', '..', 'web', 'torirs_chrome.js'));
+  function canvasNode() {
+    const c = node('canvas');
+    c.width = 0;
+    c.height = 0;
+    c.getContext = () => {
+      if (c._ctx) return c._ctx;
+      c._ctx = {
+        globalAlpha: 1, imageSmoothingEnabled: true, drawn: [],
+        buffer() {
+          if (!c._px || c._px.length !== c.width * c.height * 4)
+            c._px = new Uint8ClampedArray(c.width * c.height * 4);
+          return c._px;
+        },
+        clearRect() { this.buffer().fill(0); this.drawn = []; },
+        putImageData(image, x, y) {
+          const b = this.buffer();
+          for (let r = 0; r < image.height; r++)
+            for (let q = 0; q < image.width; q++)
+              for (let k = 0; k < 4; k++)
+                b[((y + r) * c.width + x + q) * 4 + k] = image.data[(r * image.width + q) * 4 + k];
+        },
+        drawImage(src, sx, sy, sw, sh, dx, dy, dw, dh) {
+          this.drawn.push({ alpha: this.globalAlpha, dx, dy, dw, dh, smooth: this.imageSmoothingEnabled });
+          const b = this.buffer();
+          const s = src._px;
+          for (let r = 0; r < dh; r++)
+            for (let q = 0; q < dw; q++) {
+              const tx = dx + q;
+              const ty = dy + r;
+              if (tx < 0 || ty < 0 || tx >= c.width || ty >= c.height) continue;
+              const ux = sx + Math.floor(q * sw / dw);
+              const uy = sy + Math.floor(r * sh / dh);
+              for (let k = 0; k < 4; k++) b[(ty * c.width + tx) * 4 + k] = s[(uy * src.width + ux) * 4 + k];
+            }
+        }
+      };
+      return c._ctx;
+    };
+    return c;
+  }
+  const imageIds = {};
+  const imageDocument = {
+    documentElement: node('html'), activeElement: null,
+    createElement: tag => (String(tag).toLowerCase() === 'canvas' ? canvasNode() : node(tag)),
+    createTextNode(t) { const n = node('#text'); n.nodeText = String(t); return n; },
+    getElementById(id) { return imageIds[id] || null; }
+  };
+  const put = (id, tag, parent) => {
+    const item = node(tag); item.id = id; imageIds[id] = item;
+    if (parent) parent.appendChild(item);
+    return item;
+  };
+  const imageShell = put('tpc-shell', 'div');
+  const imagePane = put('tpc-pane', 'section', imageShell);
+  put('tpc-title', 'h1', imagePane);
+  put('tpc-close', 'button', imagePane);
+  put('tpc-tabs', 'nav', imagePane).hidden = true;
+  put('tpc-content', 'main', imagePane);
+  const imageRail = node('nav');
+  imageShell.appendChild(imageRail);
+  put('tpc-rail-list', 'div', imageRail);
+  put('tpc-status', 'div');
+  class FakeImageData {
+    constructor(data, width, height) { this.data = data; this.width = width; this.height = height; }
+  }
+  const imageGlobal = {
+    document: imageDocument, ToriRSPluginChromeCodec: codec, devicePixelRatio: 1,
+    torirsPluginChromePostMessage() { return true; },
+    setTimeout() { return 1; }, addEventListener() {},
+    atob: s => Buffer.from(String(s), 'base64').toString('latin1'),
+    Uint8ClampedArray, ImageData: FakeImageData
+  };
+  const imageRuntime = createRuntime(imageGlobal, imageDocument);
+  const host = new PluginChromeHost({
+    btoa: s => Buffer.from(String(s), 'latin1').toString('base64'), Uint8Array, addEventListener() {}
+  }, null);
+  assert(host.attachRuntime(imageRuntime, null), 'the host attaches the runtime');
+
+  /* A native picture: every pixel its own colour, alpha included. */
+  const SCENE = 0x4C000003;
+  const argb = new Uint32Array(128 * 128);
+  for (let i = 0; i < argb.length; i++)
+    argb[i] = ((0xC0 + (i & 63)) << 24 | ((i * 2654435761) & 0xFFFFFF)) >>> 0;
+  const fnv = bytes => {
+    let h = 2166136261;
+    for (let i = 0; i < bytes.length; i++) h = Math.imul(h ^ bytes[i], 16777619) >>> 0;
+    return h;
+  };
+  const native = new Uint8Array(argb.length * 4);
+  for (let i = 0; i < argb.length; i++) {
+    native[i * 4] = (argb[i] >>> 16) & 255;
+    native[i * 4 + 1] = (argb[i] >>> 8) & 255;
+    native[i * 4 + 2] = argb[i] & 255;
+    native[i * 4 + 3] = argb[i] >>> 24;
+  }
+  const page = generation => ({
+    protocol: 1, type: 'page.snapshot', pageGeneration: generation, panel: 3, title: 'Squares',
+    checkStyle: 0, commands: [
+      cmd(CMD.PANEL_OPEN, { text: 'Squares' }),
+      cmd(CMD.WIDGET_ADD, { w: 1, v: W.GRAPH, label: 'Surface', ch: 300, s: 301 }),
+      cmd(CMD.WIDGET_GRAPH, { w: 1, v: 4 }),
+      cmd(CMD.WIDGET_GRAPH_ITEM, { w: 1, tab: 0, x: 0, y: 0, cw: 300, ch: 300, c: 0x1a1712 }),
+      cmd(CMD.WIDGET_GRAPH_ITEM, { w: 1, tab: 4, x: 22, y: 12, cw: 128, ch: 128, c: 0, v: SCENE }),
+      cmd(CMD.WIDGET_GRAPH_ITEM, { w: 1, tab: 4, x: 150, y: 12, cw: 128, ch: 128, c: 128, v: SCENE + 1 }),
+      cmd(CMD.WIDGET_GRAPH_ITEM, { w: 1, tab: 1, x: 22, y: 12, cw: 60, ch: 60, c: 0xffff00, v: 0 })
+    ]
+  });
+  const imageRows = imageIds['tpc-content'].children;
+  const well = () => imageRows.find(r => r._tpcRecord && r._tpcRecord.handle === 1)._tpcRecord.control;
+
+  imageRuntime.receive(page(40));
+  let canvas = well().children[0];
+  assert.strictEqual(canvas.tagName, 'CANVAS', 'the well\'s first child is its picture canvas');
+  assert.strictEqual(canvas.className, 'tpc-graph-canvas', 'drawn under the items');
+  assert.strictEqual(canvas.getAttribute('data-images'), '0', 'no picture sent yet: nothing drawn');
+  assert.strictEqual(well().children.length, 3, 'the canvas, then one node per rect (images are not nodes)');
+  assert.strictEqual(canvas.width, 278, 'the canvas spans the images (150 + 128)');
+
+  assert.strictEqual(host.graphImage(SCENE, 1, 128, 128, argb), true, 'the host takes the picture');
+  canvas = well().children[0];
+  assert.strictEqual(canvas.getAttribute('data-images'), '1', 'the picture landing redraws the well');
+  {
+    const region = new Uint8Array(128 * 128 * 4);
+    for (let r = 0; r < 128; r++)
+      for (let q = 0; q < 128; q++)
+        for (let k = 0; k < 4; k++)
+          region[(r * 128 + q) * 4 + k] = canvas._px[((12 + r) * canvas.width + 22 + q) * 4 + k];
+    assert.strictEqual(fnv(region), fnv(native), 'the canvas over the item hashes to the native sprite');
+  }
+  assert.strictEqual(canvas._ctx.drawn.length, 1, 'one drawImage, the unsent id draws nothing');
+  assert.strictEqual(canvas._ctx.drawn[0].smooth, false, 'drawn sharp, never smoothed');
+
+  /* The item's colour is its transparency. */
+  assert.strictEqual(host.graphImage(SCENE + 1, 1, 128, 128, argb), true, 'a second picture');
+  canvas = well().children[0];
+  assert.strictEqual(canvas.getAttribute('data-images'), '2', 'both drawn');
+  assert(Math.abs(canvas._ctx.drawn[1].alpha - 127 / 255) < 1e-9, 'trans 128 draws at alpha 127/255');
+
+  /* A picture outlives the page: a new snapshot draws it at once. */
+  imageRuntime.receive(page(41));
+  assert.strictEqual(well().children[0].getAttribute('data-images'), '2', 'a new page draws the kept pictures');
+
+  /* Refused: a bad size, a bad id, a short payload. */
+  assert.strictEqual(imageRuntime.receive({ protocol: 1, type: 'graph.image', sceneId: 7, width: 2, height: 2,
+    rgbaBase64: 'AAAA' }), false, 'a payload shorter than its size is refused');
+  assert.strictEqual(imageRuntime.receive({ protocol: 1, type: 'graph.image', sceneId: 0, width: 1, height: 1,
+    rgbaBase64: 'AAAAAA==' }), false, 'scene id 0 is refused');
+  assert.strictEqual(host.graphImage(9, 1, 2048, 2, argb), false, 'a picture over 1024 a side is refused');
+
+  /* A replaced iframe is given the pictures again when it attaches. */
+  const replayed = [];
+  host.attachRuntime({ receive(message) { replayed.push(message); return true; } }, null);
+  assert(replayed.some(m => m.type === 'graph.image' && m.sceneId === SCENE && m.width === 128),
+    'the kept pictures replay to a new runtime');
+}
+
 console.log('chrome widgets dom: ok');

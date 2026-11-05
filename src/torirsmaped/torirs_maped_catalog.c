@@ -141,8 +141,9 @@ struct cat_source
     /* JM2: level-0 (overlay << 8 | underlay) -> tile count, as pairs. */
     uint32_t* hist;
     int hist_count;
-    /* JL2 */
+    /* JL2: the locs it places (one a line after the header). */
     int has_locs;
+    int loc_count;
     /* WMA / WMC */
     struct cat_area_src* areas;
     int area_count;
@@ -196,6 +197,7 @@ struct cat_square
     int storage;
     uint32_t flags;
     int spawn_count;
+    int loc_count;
     uint32_t rgb;
     int primary_area;
     int area_first;
@@ -730,6 +732,7 @@ cat_source_clear(struct cat_source* src)
     src->pool_len = 0;
     src->hist_count = 0;
     src->has_locs = 0;
+    src->loc_count = 0;
     src->area_count = 0;
     src->claim_count = 0;
 }
@@ -1694,7 +1697,8 @@ cat_parse_jm2(
     }
 }
 
-/** A .jl2: does it place anything after its `==== LOC ====` header? */
+/** A .jl2: how many locs it places after its `==== LOC ====` header (one
+ *  a line, each starting with its level). */
 static void
 cat_parse_jl2(
     struct cat_source* src,
@@ -1711,12 +1715,10 @@ cat_parse_jl2(
         const char* le;
         const char* next = cat_next_line(p, end, &le);
         if( p < le && p[0] >= '0' && p[0] <= '9' )
-        {
-            src->has_locs = 1;
-            return;
-        }
+            src->loc_count++;
         p = next;
     }
+    src->has_locs = src->loc_count > 0;
 }
 
 static int
@@ -3013,10 +3015,13 @@ cat_merge_atlas(struct ToriRSMapEdCatalog* catalog)
                 sq->flags |= TORIRSMAPED_SQUARE_HAS_JL2;
                 if( src->has_locs )
                     sq->flags |= TORIRSMAPED_SQUARE_HAS_LOCS;
+                sq->loc_count = src->loc_count;
             }
         }
         area_n = cat_square_area_list(catalog, x, z, areas, 64);
         sq->primary_area = area_n > 0 ? areas[0] : -1;
+        if( area_n == 0 && ToriRSMapEdCatalog_InInstanceSpace(x, z) )
+            sq->flags |= TORIRSMAPED_SQUARE_INSTANCE;
         sq->area_first = catalog->square_area_count;
         sq->area_n = area_n;
         catalog->square_areas = cat_grow(catalog->square_areas, &area_list_cap,
@@ -5642,7 +5647,8 @@ cat_put_square(
     int spawn_count,
     uint32_t rgb,
     const int* areas,
-    int area_n)
+    int area_n,
+    int loc_count)
 {
     ToriRSMapEd_PutU32(out, (uint32_t)x);
     ToriRSMapEd_PutU32(out, (uint32_t)z);
@@ -5654,6 +5660,7 @@ cat_put_square(
     ToriRSMapEd_PutU32(out, (uint32_t)area_n);
     for( int i = 0; i < area_n; i++ )
         ToriRSMapEd_PutU32(out, (uint32_t)areas[i]);
+    ToriRSMapEd_PutU32(out, (uint32_t)loc_count);
 }
 
 /** The storage index of a document's storage ("" = maps/), or -1. */
@@ -5768,7 +5775,7 @@ ToriRSMapEdCatalog_EncodeSquares(
     {
         const struct cat_square* sq = &catalog->squares[s];
         cat_put_square(out, sq->map_x, sq->map_z, sq->storage, sq->flags | doc_flags[s],
-            sq->spawn_count, sq->rgb, catalog->square_areas + sq->area_first, sq->area_n);
+            sq->spawn_count, sq->rgb, catalog->square_areas + sq->area_first, sq->area_n, sq->loc_count);
     }
     for( int i = 0; i < doc->square_count; i++ )
     {
@@ -5785,7 +5792,12 @@ ToriRSMapEdCatalog_EncodeSquares(
             && square->map_z >= 0 && square->map_z < CAT_REGION_SPAN )
             spawns = catalog->spawn_counts[square->map_x * CAT_REGION_SPAN + square->map_z];
         area_n = cat_square_area_list(catalog, square->map_x, square->map_z, areas, 64);
-        cat_put_square(out, square->map_x, square->map_z, doc_storage[i], flags, spawns, 0, areas, area_n);
+        if( area_n == 0 && ToriRSMapEdCatalog_InInstanceSpace(square->map_x, square->map_z) )
+            flags |= TORIRSMAPED_SQUARE_INSTANCE;
+        /* Nothing of a created square is on disk: its locs are the
+         * document's, not the index's. */
+        cat_put_square(
+            out, square->map_x, square->map_z, doc_storage[i], flags, spawns, 0, areas, area_n, 0);
     }
     ToriMem_Free(ToriMem_Editor(), doc_flags);
 }
@@ -5810,6 +5822,7 @@ ToriRSMapEdCatalog_Square(
     out->storage = catalog->storages[sq->storage];
     out->flags = sq->flags;
     out->spawn_count = sq->spawn_count;
+    out->loc_count = sq->loc_count;
     out->rgb = sq->rgb;
     out->area = sq->primary_area >= 0 ? catalog->areas[sq->primary_area].internal : "none";
     out->area_count = sq->area_n;

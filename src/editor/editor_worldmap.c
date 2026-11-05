@@ -1,5 +1,6 @@
 #include "editor/editor_worldmap.h"
 
+#include "log/torirs_log.h"
 #include "mem/torirs_mem.h"
 
 #include <assert.h>
@@ -180,6 +181,9 @@ worldmap_clear(
     memset(&picker->underlay, 0, sizeof(picker->underlay));
     map->polled_valid = 0;
     map->missing = 0;
+    /* What comes next is a cold open again: the middle first. */
+    map->full_valid = 0;
+    map->core_valid = 0;
 }
 
 /** The kept tile (area, zoom, tx, ty), or -1. */
@@ -363,9 +367,12 @@ worldmap_place_icons(
     double const k = zoom / 64.0;
     int gox;
     int goy;
-    int const icon_trans = Editor_WorldMapFade(zoom, EDITOR_WORLDMAP_ICON_FROM, EDITOR_WORLDMAP_ICON_FULL);
+    struct Editor_PickerLod lod;
 
-    if( !services->worldmap_icons || zoom < EDITOR_WORLDMAP_LABEL_LARGE_FROM )
+    /* Icons and names belong to the closest band only: below it a crowd of
+     * icons is what hid the map (the design's "icons wait"). */
+    Editor_PickerLodAt(zoom, &lod);
+    if( !services->worldmap_icons || !(lod.icons || lod.names) )
         return;
     /* Asked once per window, again while some were cold. */
     if( !map->icons_valid || map->icons_area != map->area_id || map->icons_x0 != vx0 || map->icons_z0 != vz0
@@ -396,7 +403,7 @@ worldmap_place_icons(
         if( icon->scene_id > 0 )
         {
             struct Editor_PickerImage* image;
-            if( icon_trans >= 255 || next->icon_count >= EDITOR_PICKER_MAP_ICONS_MAX )
+            if( !lod.icons || next->icon_count >= EDITOR_PICKER_MAP_ICONS_MAX )
                 continue;
             if( cx + icon->w < EDITOR_PICKER_LEFT || cy + icon->h < EDITOR_PICKER_TOP
                 || cx - icon->w > picker->well_w || cy - icon->h > picker->well_h )
@@ -408,7 +415,7 @@ worldmap_place_icons(
             /* Centred on its tile, like every icon in the reference. */
             image->x = cx - icon->w / 2;
             image->y = cy - icon->h / 2;
-            image->trans = icon_trans;
+            image->trans = 0;
             image->version = 0;
         }
         else if( icon->label[0] )
@@ -416,11 +423,11 @@ worldmap_place_icons(
             double const from = icon->text_size >= 2   ? EDITOR_WORLDMAP_LABEL_LARGE_FROM
                                 : icon->text_size == 1 ? EDITOR_WORLDMAP_LABEL_MEDIUM_FROM
                                                        : EDITOR_WORLDMAP_LABEL_SMALL_FROM;
-            int const fade = Editor_WorldMapFade(zoom, from, from * 1.6);
+            int const fade = Editor_WorldMapFade(zoom, from * 0.75, from);
             int const width = (int)strlen(icon->label) * 6;
             struct Editor_PickerLabel* label;
             uint32_t level;
-            if( fade >= 255 || next->label_count >= EDITOR_PICKER_MAP_LABELS_MAX )
+            if( !lod.names || fade >= 255 || next->label_count >= EDITOR_PICKER_MAP_LABELS_MAX )
                 continue;
             if( cx + width / 2 < EDITOR_PICKER_LEFT || cx - width / 2 > picker->well_w || cy < EDITOR_PICKER_TOP
                 || cy - 12 > picker->well_h )
@@ -434,6 +441,203 @@ worldmap_place_icons(
             snprintf(label->text, sizeof(label->text), "%s", icon->label);
         }
     }
+}
+
+/* ---- visible first ------------------------------------------------------------------- */
+
+void
+Editor_WorldMapCore(
+    int x0,
+    int z0,
+    int w,
+    int h,
+    int* out_x0,
+    int* out_z0,
+    int* out_w,
+    int* out_h)
+{
+    assert(w > 0);
+    assert(h > 0);
+    assert(out_x0);
+    assert(out_z0);
+    assert(out_w);
+    assert(out_h);
+    *out_w = w / 2 > 0 ? w / 2 : 1;
+    *out_h = h / 2 > 0 ? h / 2 : 1;
+    *out_x0 = x0 + (w - *out_w) / 2;
+    *out_z0 = z0 + (h - *out_h) / 2;
+}
+
+int
+Editor_WorldMapNextSlice(
+    const uint32_t* slices,
+    uint32_t tick,
+    int min_x,
+    int max_x,
+    int min_z,
+    int max_z,
+    int vx0,
+    int vz0,
+    int vw,
+    int vh)
+{
+    int best = -1;
+    long best_distance = 0;
+    int sx0;
+    int sx1;
+    int sz0;
+    int sz1;
+    /* Twice the window's middle, so the distances stay whole. */
+    long const mid_x2 = 2L * vx0 + vw;
+    long const mid_z2 = 2L * vz0 + vh;
+
+    assert(slices);
+    if( min_x > max_x || min_z > max_z )
+        return -1;
+    sx0 = min_x < 0 ? 0 : min_x / EDITOR_WORLDMAP_SLICE;
+    sz0 = min_z < 0 ? 0 : min_z / EDITOR_WORLDMAP_SLICE;
+    sx1 = max_x / EDITOR_WORLDMAP_SLICE;
+    sz1 = max_z / EDITOR_WORLDMAP_SLICE;
+    if( sx1 >= EDITOR_WORLDMAP_SLICES )
+        sx1 = EDITOR_WORLDMAP_SLICES - 1;
+    if( sz1 >= EDITOR_WORLDMAP_SLICES )
+        sz1 = EDITOR_WORLDMAP_SLICES - 1;
+    for( int sz = sz0; sz <= sz1; sz++ )
+        for( int sx = sx0; sx <= sx1; sx++ )
+        {
+            uint32_t const asked = slices[sx + sz * EDITOR_WORLDMAP_SLICES];
+            int const x = sx * EDITOR_WORLDMAP_SLICE;
+            int const z = sz * EDITOR_WORLDMAP_SLICE;
+            long dx;
+            long dz;
+            long distance;
+            if( asked == EDITOR_WORLDMAP_SLICE_DONE )
+                continue;
+            if( asked != 0 && tick - asked < EDITOR_WORLDMAP_PREFETCH_RETRY_TICKS )
+                continue;
+            /* Wholly in view: the visible poll has it. */
+            if( x >= vx0 && x + EDITOR_WORLDMAP_SLICE <= vx0 + vw && z >= vz0
+                && z + EDITOR_WORLDMAP_SLICE <= vz0 + vh )
+                continue;
+            dx = 2L * x + EDITOR_WORLDMAP_SLICE - mid_x2;
+            dz = 2L * z + EDITOR_WORLDMAP_SLICE - mid_z2;
+            distance = dx * dx + dz * dz;
+            if( best < 0 || distance < best_distance )
+            {
+                best = sx + sz * EDITOR_WORLDMAP_SLICES;
+                best_distance = distance;
+            }
+        }
+    return best;
+}
+
+/** Whether window (x0, z0, w, h) shares at least half its squares with the
+ *  last whole window polled: a pan (the edges come with the whole window)
+ *  rather than a jump (the middle first). */
+static int
+worldmap_overlaps_last(
+    const struct Editor_WorldMap* map,
+    int x0,
+    int z0,
+    int w,
+    int h)
+{
+    int ox;
+    int oz;
+    if( !map->full_valid )
+        return 0;
+    ox = (x0 + w < map->full_x0 + map->full_w ? x0 + w : map->full_x0 + map->full_w)
+         - (x0 > map->full_x0 ? x0 : map->full_x0);
+    oz = (z0 + h < map->full_z0 + map->full_h ? z0 + h : map->full_z0 + map->full_h)
+         - (z0 > map->full_z0 ? z0 : map->full_z0);
+    if( ox <= 0 || oz <= 0 )
+        return 0;
+    return 2L * ox * oz >= (long)w * h;
+}
+
+/** One background slice of the page, when the view is in and the frame has
+ *  room: at one pixel a tile (no close-up bakes for what is not seen). */
+static void
+worldmap_prefetch(
+    struct Editor_WorldMap* map,
+    const struct EditorUiAppServices* services,
+    const struct Editor_Picker* picker,
+    uint32_t content,
+    int vx0,
+    int vz0,
+    int vw,
+    int vh)
+{
+    const struct Editor_PickerTab* tab = &picker->tabs[picker->active_tab];
+    uint64_t t0 = 0;
+    int missing = 0;
+    int slice;
+    int serial;
+
+    if( !map->slices_valid || map->slices_area != map->area_id || map->slices_content != content )
+    {
+        memset(map->slices, 0, sizeof(map->slices));
+        map->slices_valid = 1;
+        map->slices_area = map->area_id;
+        map->slices_content = content;
+        map->prefetch_wait = 0;
+    }
+    if( map->prefetch_wait > 0 )
+    {
+        map->prefetch_wait--;
+        return;
+    }
+    slice = Editor_WorldMapNextSlice(map->slices, (uint32_t)map->tick, tab->min_x, tab->max_x, tab->min_z,
+        tab->max_z, vx0, vz0, vw, vh);
+    if( slice < 0 )
+        return;
+    if( services->now_us )
+        t0 = services->now_us(services->user_data);
+    serial = services->worldmap_poll(services->user_data, map->area_id,
+        (slice % EDITOR_WORLDMAP_SLICES) * EDITOR_WORLDMAP_SLICE,
+        (slice / EDITOR_WORLDMAP_SLICES) * EDITOR_WORLDMAP_SLICE, EDITOR_WORLDMAP_SLICE, EDITOR_WORLDMAP_SLICE,
+        picker->zoom < 64.0 ? picker->zoom : 64.0, &missing);
+    map->polls++;
+    map->prefetch_polls++;
+    /* Its serial is not the view's: the view's tiles were drawn complete. */
+    (void)serial;
+    map->slices[slice] = missing > 0 ? (uint32_t)map->tick : EDITOR_WORLDMAP_SLICE_DONE;
+    if( services->now_us )
+    {
+        uint64_t const spent = services->now_us(services->user_data) - t0;
+        /* Over the frame's share: sit out the excess, a share a tick. */
+        if( spent > EDITOR_WORLDMAP_PREFETCH_US )
+            map->prefetch_wait = (int)(spent / EDITOR_WORLDMAP_PREFETCH_US);
+    }
+    if( services->request_redraw )
+        services->request_redraw(services->user_data);
+}
+
+/** The cold open, measured: every frame from the first poll of a cold area
+ *  to the view's last region, against the frame budget. */
+static void
+worldmap_measure(
+    struct Editor_WorldMap* map,
+    const struct EditorUiAppServices* services)
+{
+    uint64_t frame;
+    if( !map->cold_active || !services->last_frame_us )
+        return;
+    frame = services->last_frame_us(services->user_data);
+    if( frame == 0 )
+        return;
+    map->cold_frames++;
+    if( frame > map->cold_slowest_us )
+        map->cold_slowest_us = frame;
+    if( frame > EDITOR_WORLDMAP_FRAME_US_MAX )
+        map->cold_over++;
+    if( map->missing > 0 || !map->polled_valid )
+        return;
+    map->cold_active = 0;
+    /* TORIRS_WORLDMAP_STATS=1: the 6.4 check, asked for. */
+    if( getenv("TORIRS_WORLDMAP_STATS") )
+        TORIRS_REPORT("worldmap picker: cold open %d frames, slowest %.1f ms, %d over %d ms\n", map->cold_frames,
+            (double)map->cold_slowest_us / 1000.0, map->cold_over, EDITOR_WORLDMAP_FRAME_US_MAX / 1000);
 }
 
 int
@@ -466,12 +670,25 @@ Editor_WorldMapUpdate(
     assert(picker);
 
     map->tick++;
+    worldmap_measure(map, services);
     if( !Editor_WorldMapAvailable(services) || picker->tab_count == 0
-        || picker->tabs[picker->active_tab].area == EDITOR_PICKER_TAB_UNMAPPED )
+        || picker->tabs[picker->active_tab].area == EDITOR_PICKER_TAB_UNMAPPED
+        || picker->tabs[picker->active_tab].area == EDITOR_PICKER_TAB_INSTANCE )
     {
-        /* No map for this page: the Unmapped page has no area. */
+        /* No map for this page: Unmapped and Instance space have no area. */
         worldmap_clear(map, picker, &changed);
         return changed;
+    }
+    {
+        /* Below 12 px a square the picker draws the atlas colours: nothing
+         * to ask for (and nothing kept drawing a picture it would hide). */
+        struct Editor_PickerLod lod;
+        Editor_PickerLodAt(picker->zoom, &lod);
+        if( !lod.pictures )
+        {
+            worldmap_clear(map, picker, &changed);
+            return changed;
+        }
     }
 
     /* The page's area, asked once per page (and again while the cache's
@@ -484,6 +701,8 @@ Editor_WorldMapUpdate(
         snprintf(map->area_name, sizeof(map->area_name), "%s", name);
         map->area_id = EDITOR_WORLDMAP_AREA_UNASKED;
         map->area_retry = 0;
+        map->full_valid = 0;
+        map->core_valid = 0;
     }
     if( map->area_id == EDITOR_WORLDMAP_AREA_UNASKED
         || (map->area_id == EDITOR_WORLDMAP_AREA_PENDING && --map->area_retry <= 0) )
@@ -506,35 +725,91 @@ Editor_WorldMapUpdate(
     }
 
     /* Poll the visible squares as soon as they change, then every tick
-     * while regions are still arriving. */
+     * while regions are still arriving. A jump (a cold open, a search, a
+     * zoom out) polls the window's middle half first, so its loads queue
+     * ahead of the edges'; a pan polls the whole window at once. One poll a
+     * tick: the renderer's frame budget is per poll. */
+    content = worldmap_content(picker);
     if( !map->polled_valid || map->polled_area != map->area_id || map->polled_x0 != vx0 || map->polled_z0 != vz0
         || map->polled_w != vw || map->polled_h != vh || map->polled_scale != worldmap_bake_scale(picker->zoom)
         || (map->missing > 0 && --map->poll_wait <= 0) )
     {
         int missing = 0;
-        int const serial = services->worldmap_poll(
-            services->user_data, map->area_id, vx0, vz0, vw, vh, picker->zoom, &missing);
-        map->polls++;
-        if( serial < 0 )
+        int serial;
+        int const window_new = !map->polled_valid || map->polled_area != map->area_id || map->polled_x0 != vx0
+                               || map->polled_z0 != vz0 || map->polled_w != vw || map->polled_h != vh;
+        int const core_done = map->core_valid && map->core_area == map->area_id && map->core_x0 == vx0
+                              && map->core_z0 == vz0 && map->core_w == vw && map->core_h == vh;
+        if( window_new && !core_done && vw * vh > 4 && !worldmap_overlaps_last(map, vx0, vz0, vw, vh) )
         {
-            map->area_id = EDITOR_WORLDMAP_AREA_NONE;
-            worldmap_clear(map, picker, &changed);
-            return changed;
+            int cx0;
+            int cz0;
+            int cw;
+            int ch;
+            Editor_WorldMapCore(vx0, vz0, vw, vh, &cx0, &cz0, &cw, &ch);
+            serial = services->worldmap_poll(
+                services->user_data, map->area_id, cx0, cz0, cw, ch, picker->zoom, &missing);
+            map->polls++;
+            map->core_polls++;
+            map->core_valid = 1;
+            map->core_area = map->area_id;
+            map->core_x0 = vx0;
+            map->core_z0 = vz0;
+            map->core_w = vw;
+            map->core_h = vh;
+            if( !map->full_valid )
+            {
+                map->cold_active = 1;
+                map->cold_frames = 0;
+                map->cold_slowest_us = 0;
+                map->cold_over = 0;
+            }
+            if( serial < 0 )
+            {
+                map->area_id = EDITOR_WORLDMAP_AREA_NONE;
+                worldmap_clear(map, picker, &changed);
+                return changed;
+            }
+            /* The edges are still to be asked for: the window is not
+             * polled yet, and is again next tick. */
+            map->serial = serial;
+            map->missing = missing > 0 ? missing : 1;
+            map->polled_valid = 0;
         }
-        map->serial = serial;
-        map->missing = missing;
-        map->polled_valid = 1;
-        map->polled_area = map->area_id;
-        map->polled_x0 = vx0;
-        map->polled_z0 = vz0;
-        map->polled_w = vw;
-        map->polled_h = vh;
-        map->polled_scale = worldmap_bake_scale(picker->zoom);
-        map->poll_wait = EDITOR_WORLDMAP_POLL_TICKS;
+        else
+        {
+            serial = services->worldmap_poll(
+                services->user_data, map->area_id, vx0, vz0, vw, vh, picker->zoom, &missing);
+            map->polls++;
+            if( serial < 0 )
+            {
+                map->area_id = EDITOR_WORLDMAP_AREA_NONE;
+                worldmap_clear(map, picker, &changed);
+                return changed;
+            }
+            map->serial = serial;
+            map->missing = missing;
+            map->polled_valid = 1;
+            map->polled_area = map->area_id;
+            map->polled_x0 = vx0;
+            map->polled_z0 = vz0;
+            map->polled_w = vw;
+            map->polled_h = vh;
+            map->polled_scale = worldmap_bake_scale(picker->zoom);
+            map->poll_wait = EDITOR_WORLDMAP_POLL_TICKS;
+            map->full_valid = 1;
+            map->full_x0 = vx0;
+            map->full_z0 = vz0;
+            map->full_w = vw;
+            map->full_h = vh;
+        }
     }
+    else if( map->polled_valid && map->missing == 0 )
+        /* The view is in and nothing else asked this tick: the rest of the
+         * page, a slice. */
+        worldmap_prefetch(map, services, picker, content, vx0, vz0, vw, vh);
 
     /* The tiles the well shows at this zoom. */
-    content = worldmap_content(picker);
     Editor_PickerGlobalOrigin(picker, &gox, &goy);
     tx0 = worldmap_floor_div(gox + EDITOR_PICKER_LEFT, EDITOR_WORLDMAP_TILE);
     tx1 = worldmap_floor_div(gox + picker->well_w - 1, EDITOR_WORLDMAP_TILE);

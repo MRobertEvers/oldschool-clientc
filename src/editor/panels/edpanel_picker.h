@@ -25,6 +25,7 @@
 
 struct ToriRSChrome;
 struct Editor_Doc;
+struct Editor_Picker;
 
 /* The global pixel space of a zoom (game/rs_worldmap_overview.h), which the
  * grid and the world map's pictures share: square column (or north-based
@@ -86,6 +87,111 @@ Editor_PickerSquareOfPixel(
  *  says so. */
 #define EDITOR_PICKER_ITEMS_BUDGET 2600
 
+/* ---- level of detail by zoom (the workbench design, section 5) ----------------------
+ *
+ *   under 12 px   the atlas row's average colour, the page's outline once;
+ *                 no pictures, no labels
+ *   12 to 40      the world-map picture; no icons, no labels
+ *   40 to 96      the picture, open / dirty outlines, a dot per 10 spawns,
+ *                 the coordinate label on hover only
+ *   96 and up     the picture with the map's icons and names, the loc count,
+ *                 the 8x8 zone grid faint
+ *
+ * Each band keeps what the bands below it draw (an outline at 40 is still
+ * one at 200), except that the colour fill gives way to the picture at 12.
+ * What the user did -- the selection, the hover, the empty cell New would
+ * make, the view frames -- is drawn at every zoom. */
+#define EDITOR_PICKER_LOD_PICTURE_FROM 12.0
+#define EDITOR_PICKER_LOD_DETAIL_FROM 40.0
+#define EDITOR_PICKER_LOD_CLOSE_FROM 96.0
+
+enum Editor_PickerLodBand
+{
+    EDITOR_PICKER_LOD_COLOUR = 0,
+    EDITOR_PICKER_LOD_PICTURE,
+    EDITOR_PICKER_LOD_DETAIL,
+    EDITOR_PICKER_LOD_CLOSE,
+};
+
+/** What a zoom draws (Editor_PickerLodAt). */
+struct Editor_PickerLod
+{
+    enum Editor_PickerLodBand band;
+    /** Cells filled with the atlas row's colour (no picture under them). */
+    int colour_cells;
+    /** The page's outline, one rect around its squares. */
+    int page_outline;
+    /** The world-map pictures under the grid. */
+    int pictures;
+    /** A lane's squares: the blue inset. */
+    int lane_inset;
+    /** Open here / unsaved / created outlines. */
+    int state_outlines;
+    /** A dot per EDITOR_PICKER_SPAWNS_PER_DOT spawns. */
+    int spawn_dots;
+    /** "m50_50" in the hovered cell. */
+    int hover_label;
+    /** The map's element icons. */
+    int icons;
+    /** The map's area names. */
+    int names;
+    /** "61 locs" in each cell. */
+    int loc_count;
+    /** The 8x8 zone lines, faint. */
+    int zone_grid;
+};
+
+/** Spawns a dot stands for, and the most dots a cell carries. */
+#define EDITOR_PICKER_SPAWNS_PER_DOT 10
+#define EDITOR_PICKER_DOTS_MAX 12
+
+/** What zoom `zoom` (logical px a square, > 0) draws. Pure. */
+void
+Editor_PickerLodAt(
+    double zoom,
+    struct Editor_PickerLod* out);
+
+/** What the item budget dropped on the last draw, by kind: never silent (the
+ *  readout says "not all drawn", the console gets one line per change). */
+enum Editor_PickerDropKind
+{
+    EDITOR_PICKER_DROP_CELLS = 0,
+    EDITOR_PICKER_DROP_OUTLINES,
+    EDITOR_PICKER_DROP_PICTURES,
+    EDITOR_PICKER_DROP_ICONS,
+    EDITOR_PICKER_DROP_NAMES,
+    EDITOR_PICKER_DROP_DOTS,
+    EDITOR_PICKER_DROP_LOC_COUNTS,
+    EDITOR_PICKER_DROP_ZONE_LINES,
+    EDITOR_PICKER_DROP_HATCH,
+    EDITOR_PICKER_DROP_LABELS,
+    EDITOR_PICKER_DROP_KINDS,
+};
+
+/** What a drop kind is called in the log line ("spawn dots"). */
+const char*
+Editor_PickerDropName(enum Editor_PickerDropKind kind);
+
+/* ---- instance space ------------------------------------------------------------------
+ *
+ * The unmapped high-coordinate space the instance helper fills (the design's
+ * section 13: "unmapped space 0..19 x 100..255"): TORIRSMAPED_INSTANCE_* in
+ * torirsmaped/torirs_maped_catalog.h, the atlas rows in it flagged
+ * TORIRSMAPED_SQUARE_INSTANCE. The picker draws it hatched where no square
+ * exists, and its own page (EDITOR_PICKER_TAB_INSTANCE, "Instance space",
+ * the Area dropdown's entry) frames all of it. */
+
+/** Whether (map_x, map_z) is in instance space. Pure. */
+int
+Editor_PickerInInstanceSpace(
+    int map_x,
+    int map_z);
+
+/** The Instance space page's tab: there always is one once an atlas came
+ *  (-1 before). */
+int
+Editor_PickerInstanceTab(const struct Editor_Picker* picker);
+
 /** GRAPH keys: a square cell is 1 + its index; 0 is the background. */
 #define EDITOR_PICKER_KEY_SQUARE(index) ((index) + 1)
 
@@ -135,6 +241,8 @@ struct Editor_PickerSquare
     int storage;
     uint32_t flags;
     int spawn_count;
+    /** Locs the square's .jl2 places (the atlas row's loc_count). */
+    int loc_count;
     uint32_t rgb;
     /** Index into the model's areas, -1 unmapped. */
     int primary_area;
@@ -155,6 +263,9 @@ struct Editor_PickerArea
 #define EDITOR_PICKER_TAB_FULL (-2)
 /** ...and of the Unmapped page. */
 #define EDITOR_PICKER_TAB_UNMAPPED (-1)
+/** ...and of the Instance space page: the whole instance rectangle, its
+ *  squares where they are and hatching where none is. No world-map area. */
+#define EDITOR_PICKER_TAB_INSTANCE (-3)
 
 struct Editor_PickerTab
 {
@@ -234,6 +345,11 @@ struct Editor_Picker
     /** What the last draw spent, and whether it ran out of budget. */
     int items_drawn;
     int truncated;
+    /** What the budget dropped on the last draw, by Editor_PickerDropKind,
+     *  and the line that said so ("" when nothing was). Logged once per
+     *  change, not once per frame. */
+    int dropped[EDITOR_PICKER_DROP_KINDS];
+    char drop_text[192];
     /** The collection filter (Editor_PickerSetFilter): when on, only the
      *  squares whose keys are listed are shown -- on every Area page, the
      *  collection being the page -- and Fit frames them. `filter_mask` is
@@ -527,16 +643,28 @@ struct Editor_PickerColors
     uint32_t created;
     uint32_t frame;
     uint32_t self_frame;
+    /** A lane's square: the inset. */
+    uint32_t lane;
+    /** Instance space where no square is: the hatching. */
+    uint32_t hatch;
+    /** The zone lines at close zooms, and the spawn dots. */
+    uint32_t zone;
+    uint32_t spawn;
 };
 
 void
 Editor_PickerDefaultColors(struct Editor_PickerColors* colors);
 
 /**
- * Restate the GRAPH well's picture: the active tab's cells (thumbnail
- * colour; grey for a square with no floors), open squares outlined, dirty
- * ones in the accent, the selection, axis labels, and every view window in
- * `frames` (`self_slot` drawn as this window's). Returns the items drawn.
+ * Restate the GRAPH well's picture at the zoom's level of detail
+ * (Editor_PickerLodAt): the active tab's cells (thumbnail colour below 12 px
+ * a square, else the map under them), a lane's inset, open squares outlined,
+ * dirty ones in the accent, the selection, axis labels, instance space
+ * hatched, and every view window in `frames` (`self_slot` drawn as this
+ * window's). Never more than EDITOR_PICKER_ITEMS_BUDGET items: what the user
+ * did and the cells are drawn first in the budget's account, decoration
+ * takes what is left, and whatever was dropped is counted in `dropped` and
+ * logged. Returns the items drawn.
  */
 int
 Editor_PickerDraw(

@@ -27,23 +27,38 @@
  *              whose tiles were all in is drawn scaled under them -- the
  *              transition -- so a zoom never flashes black and never stalls
  *              a frame.
- *   loading    the visible squares are polled every tick while regions are
- *              still arriving; a tile drawn before then is redrawn when the
- *              serial moves (at most every EDITOR_WORLDMAP_LOADING_TICKS).
+ *   loading    visible first: a window the view jumped to (a cold open, a
+ *              search, a zoom out) is polled middle half first, so its loads
+ *              queue ahead of the edges', then whole; then every tick while
+ *              regions are still arriving; a tile drawn before then is
+ *              redrawn when the serial moves (at most every
+ *              EDITOR_WORLDMAP_LOADING_TICKS). Once the view is in, the rest
+ *              of the page is polled a EDITOR_WORLDMAP_SLICE square slice a
+ *              tick, nearest the view first, at one pixel a tile, within
+ *              EDITOR_WORLDMAP_PREFETCH_US a frame (services->now_us), so a
+ *              pan finds it baked.
+ *   detail     nothing is asked for below EDITOR_PICKER_LOD_PICTURE_FROM px a
+ *              square (the picker draws the atlas colours there), and icons
+ *              and names only from EDITOR_PICKER_LOD_CLOSE_FROM
+ *              (Editor_PickerLodAt).
  *   picture    the map; squares the page does not show (no map in any
  *              storage, another page, filtered out) dimmed, black where the
  *              map has nothing, a faint grid from EDITOR_WORLDMAP_GRID_CELL px
  *              a square.
- *   icons      from EDITOR_WORLDMAP_ICON_FROM px a square the map element
- *              icons fade in (fully drawn from EDITOR_WORLDMAP_ICON_FULL);
- *              labels by their text size, large ones first.
+ *   icons      from EDITOR_PICKER_LOD_CLOSE_FROM px a square the map element
+ *              icons, opaque; names by their text size, large and medium
+ *              ones at once, small ones fading in to
+ *              EDITOR_WORLDMAP_LABEL_SMALL_FROM.
  *
  * The pictures are rendered at LOGICAL pixels and drawn at the chrome's
  * scale: a renderer's sprite atlas (2048 square on GL3, shared by every UI
  * sprite) cannot hold a device-pixel map of a large well.
  *
- * Without the services (the headless harness, the web) nothing is drawn and
- * the picker fills its cells as before.
+ * Without the services (the headless harness) nothing is drawn and the
+ * picker fills its cells as before. On the web every picture also goes to the
+ * DOM executor as a `graph.image` envelope keyed by its scene id
+ * (src/plugin_chrome/runtime-source.js), drawn on a canvas under the well's
+ * items.
  */
 
 #include "editor/editor_ui.h"
@@ -66,15 +81,23 @@
 #define EDITOR_WORLDMAP_AREA_RETRY_TICKS 30
 /** Ticks before asking again for icons whose config or sprite was cold. */
 #define EDITOR_WORLDMAP_ICON_RETRY_TICKS 6
-/** Map element icons: from this zoom faint, fully drawn from one pixel a
- *  tile (595's farthest zoom). */
-#define EDITOR_WORLDMAP_ICON_FROM 40.0
-#define EDITOR_WORLDMAP_ICON_FULL 64.0
-/** Area labels by text size (0 small, 1 medium, 2 large): the zoom each
- *  starts at; fully drawn at 1.6 times it. */
-#define EDITOR_WORLDMAP_LABEL_LARGE_FROM 6.0
-#define EDITOR_WORLDMAP_LABEL_MEDIUM_FROM 16.0
-#define EDITOR_WORLDMAP_LABEL_SMALL_FROM 40.0
+/** Area names by text size (0 small, 1 medium, 2 large): the zoom each is
+ *  fully drawn from, fading in from three quarters of it; none is drawn
+ *  below EDITOR_PICKER_LOD_CLOSE_FROM (the design's 96 px band). */
+#define EDITOR_WORLDMAP_LABEL_LARGE_FROM 96.0
+#define EDITOR_WORLDMAP_LABEL_MEDIUM_FROM 96.0
+#define EDITOR_WORLDMAP_LABEL_SMALL_FROM 128.0
+/** The rest of the page: squares a background slice polls (a side). */
+#define EDITOR_WORLDMAP_SLICE 8
+#define EDITOR_WORLDMAP_SLICES (EDITOR_PICKER_WORLD_SQUARES / EDITOR_WORLDMAP_SLICE)
+/** What background slices may take of a frame, microseconds (the design's
+ *  2 ms): a slice that took longer waits out the excess in ticks. */
+#define EDITOR_WORLDMAP_PREFETCH_US 2000
+/** Ticks before a slice whose regions were still loading is asked again. */
+#define EDITOR_WORLDMAP_PREFETCH_RETRY_TICKS 15
+/** A frame slower than this during a cold open is reported (the design's
+ *  "no frame over 33 ms"). */
+#define EDITOR_WORLDMAP_FRAME_US_MAX 33000
 /** Icons asked for at once. */
 #define EDITOR_WORLDMAP_ICONS_MAX 1200
 
@@ -133,6 +156,36 @@ struct Editor_WorldMap
     int serial;
     int missing;
     int poll_wait;
+    /** The visible window's middle half was polled first (the window it was
+     *  polled for); the last whole window polled, for the jump test. */
+    int core_valid;
+    int core_area;
+    int core_x0;
+    int core_z0;
+    int core_w;
+    int core_h;
+    int full_valid;
+    int full_x0;
+    int full_z0;
+    int full_w;
+    int full_h;
+
+    /** The rest of the page, a slice a tick: per slice (x / SLICE, z /
+     *  SLICE) the tick it was last asked on, EDITOR_WORLDMAP_SLICE_DONE once
+     *  it reported nothing missing; for the page and area it was kept for. */
+    uint32_t slices[EDITOR_WORLDMAP_SLICES * EDITOR_WORLDMAP_SLICES];
+    int slices_area;
+    uint32_t slices_content;
+    int slices_valid;
+    /** Ticks a slow slice waits out before the next one. */
+    int prefetch_wait;
+
+    /** The cold open, measured against services->last_frame_us: from the
+     *  first poll of a cold area until its view reported nothing missing. */
+    int cold_active;
+    int cold_frames;
+    uint64_t cold_slowest_us;
+    int cold_over;
 
     /** The icons of the squares last asked about. */
     struct EditorUiMapIcon* icons;
@@ -152,11 +205,51 @@ struct Editor_WorldMap
     /** The underlay being built this tick (compared with the picker's). */
     struct Editor_PickerUnderlay next;
 
-    /** Calls made, for the tests. */
+    /** Calls made, for the tests: polls in all, of them the middle-half
+     *  ones and the background slices. */
     int polls;
+    int core_polls;
+    int prefetch_polls;
     int renders;
     int icon_asks;
 };
+
+/** EDITOR_WORLDMAP slices[] value of a slice that reported nothing missing. */
+#define EDITOR_WORLDMAP_SLICE_DONE 0xFFFFFFFFu
+
+/** The middle half of window (x0, z0, w, h), at least a square across: what
+ *  a jump polls first. Pure. */
+void
+Editor_WorldMapCore(
+    int x0,
+    int z0,
+    int w,
+    int h,
+    int* out_x0,
+    int* out_z0,
+    int* out_w,
+    int* out_h);
+
+/**
+ * The next background slice (pure; tested): of the slices meeting the page's
+ * squares [min_x, max_x] x [min_z, max_z] and not wholly inside the visible
+ * window (vx0, vz0, vw, vh), the one not done and not asked within
+ * EDITOR_WORLDMAP_PREFETCH_RETRY_TICKS of `tick` whose middle is nearest the
+ * window's; its index into `slices` (sx + sz * EDITOR_WORLDMAP_SLICES), -1
+ * when none is left.
+ */
+int
+Editor_WorldMapNextSlice(
+    const uint32_t* slices,
+    uint32_t tick,
+    int min_x,
+    int max_x,
+    int min_z,
+    int max_z,
+    int vx0,
+    int vz0,
+    int vw,
+    int vh);
 
 void
 Editor_WorldMapInit(struct Editor_WorldMap* map);

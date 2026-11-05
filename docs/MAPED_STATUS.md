@@ -2052,6 +2052,145 @@ Open:
   as no level / square not open / key held; there is no floor-presence test.
 - The hint strip does not list Shift+arrows, Ctrl+PgUp / PgDn or the gizmo.
 
+## Workbench step 6.4, part 1: the picker's drawing and loading (date 2026-11-05)
+
+Build-order step 6.4 (design section 5, "Square picker"), the half that is
+what the atlas DRAWS and when its pictures LOAD. Navigation (keyboard, the
+open-set strip, the detail pane, the Area dropdown itself) is the other
+slice's, in src/editor/panels/edpanel_squares.c, which this part does not
+touch.
+
+What landed:
+
+- **Level of detail by zoom** (src/editor/panels/edpanel_picker.h
+  `Editor_PickerLodAt`, a pure zoom -> what-draws table, `struct
+  Editor_PickerLod`): under 12 px a square the atlas row's average colour and
+  the page's outline once (no picture, no label, nothing asked of the map);
+  12 to 40 the world-map picture, no icons, no labels (a lane's square gets a
+  blue 1 px inset, `Editor_PickerColors.lane`); 40 to 96 the picture, the
+  open-here / unsaved / created outlines, a dot per 10 spawns (at most 12 a
+  cell), the coordinate label in the hovered cell only (on a plate,
+  measured and ellipsised to the cell, never clipped); 96 and up the map's
+  icons (opaque) and names (large and medium at once, small fading in to 128),
+  "61 locs" in each cell, the 8x8 zone lines faint. The selection, hover, the
+  empty cell New would make and the view frames draw at every zoom. The map
+  (src/editor/editor_worldmap.c) follows the same table: below 12 it asks for
+  nothing and clears its underlay; icons and names are asked for from 96.
+  The old 40-64 icon fade and the 6 / 16 / 40 label thresholds are gone (the
+  design's "icons wait"), so a 60 px photograph shows no icon.
+- **The item budget** (`EDITOR_PICKER_ITEMS_BUDGET` 2600): `Editor_PickerDraw`
+  runs twice, counting then drawing. The user's marks (selection, hover and
+  its label, the empty cell, frames, the page outline) have room kept for
+  them; the rest of the essentials (cells, pictures, outlines, axis labels)
+  take what the marks leave; decoration (spawn dots, loc counts, zone lines,
+  the map's icons and names, hatching) only what is left over. Whatever is
+  dropped is counted by kind (`Editor_Picker.dropped[]`, `Editor_PickerDropName`)
+  and said once per change: `drop_text` ("picker: 2600-item budget at 40.0 px
+  a square, dropped 14924 spawn dots") on stderr through TORIRS_LOG, and
+  `truncated` keeps the readout's "zoom in: not all drawn".
+- **Visible first** (editor_worldmap.c): a window the view JUMPED to (a cold
+  open, a search, a zoom out: less than half of it shared with the last whole
+  window polled) is polled middle half first (`Editor_WorldMapCore`), so its
+  geography loads queue ahead of the edges', and whole the next tick; a pan
+  polls the whole window at once. One poll a tick (the renderer's bake and
+  load budget is per poll). Once the view reports nothing missing, the rest
+  of the page follows a `EDITOR_WORLDMAP_SLICE` (8) square slice a tick,
+  nearest the view first (`Editor_WorldMapNextSlice`, pure), at one pixel a
+  tile, a slice still loading asked again after 15 ticks; a slice that took
+  more than `EDITOR_WORLDMAP_PREFETCH_US` (2 ms, the new optional
+  `EditorUiAppServices.now_us`) waits its excess out in ticks. The geography
+  load task is unchanged: the order its loads are QUEUED in is what changed.
+- **The cold open, measured**: from the first (middle-half) poll of a cold
+  area until its view reports nothing missing, every frame's work
+  (`EditorUiAppServices.last_frame_us` = `App_LastFrameUs`) is counted
+  against 33 ms; `TORIRS_WORLDMAP_STATS=1` prints "worldmap picker: cold open
+  N frames, slowest X ms, K over 33 ms".
+- **Instance space** (torirs_maped_catalog.h `TORIRSMAPED_INSTANCE_X0..Z1` =
+  0..19 x 100..255, `ToriRSMapEdCatalog_InInstanceSpace`; the design's section
+  13): atlas rows with no area there are flagged
+  `TORIRSMAPED_SQUARE_INSTANCE` (64, a flag bit: no wire change). The picker
+  always has an "Instance space" page (`EDITOR_PICKER_TAB_INSTANCE`,
+  `Editor_PickerInstanceTab`), just before Unmapped, framing the whole space;
+  since the Area dropdown lists the tab titles it is reachable from there.
+  On the Instance space, Unmapped and Full map pages instance space is
+  hatched ("/" lines 8 px apart, anchored to the global pixel space) where no
+  square is, its squares filled over the hatching.
+- **Loc count** (additive, on the wire): FACT_CATALOG_SQUARES rows end with
+  `u32 loc_count` (the locs the `.jl2` places, one a line after the header;
+  `cat_parse_jl2` now counts instead of stopping at the first);
+  `EditorHost_CatalogSquare.loc_count`, `Editor_PickerSquare.loc_count`,
+  `ToriRSMapEdCatalogSquare.loc_count`. A client and a server must be built
+  from the same tree (the reader checks it consumed the whole fact).
+- **The web shows the map** (design: "the web shows no map today"): the
+  worldmap services are no longer compiled out under `__EMSCRIPTEN__`;
+  `ui_service_image_publish` also hands each 128x128 picture to
+  `ToriRSChromeExecWeb_GraphImage` (src/ui/torirs_chrome_exec_web.h), which
+  calls `window.torirsChromeGraphImage`; the host (src/web/torirs_chrome.js
+  `graphImage`) sends a `graph.image` envelope keyed by scene id (RGBA base64)
+  and keeps the last one per id, replayed to a replaced iframe; the runtime
+  (src/plugin_chrome/runtime-source.js `applyGraphImage`,
+  `renderGraphImages`) draws every IMAGE item (GRAPH item kind 4: scene id in
+  `v`, transparency in `c`) onto one `canvas.tpc-graph-canvas`, the well's
+  first child, under its other items, unsmoothed. Pictures outlive page
+  snapshots. Envelope documented in src/plugin_chrome/HOST_BRIDGE.md.
+  runtime.js and runtime-ie8.js regenerated with tsc 6.0.2.
+
+Tests, content-free (this checkout has no OSRS-Content):
+
+- `make -C src test-editor-worldmap`: 161 checks (31 before). It now links the
+  picker and the real chrome: the LOD table at every band edge; each band's
+  picture from a synthetic atlas (colours and the page outline at 8, the
+  picture and the lane inset and no outline at 24, the unsaved outline / two
+  dots for 25 spawns / the hover label and no icon at 60, the icon / name /
+  "61 locs" / zone lines at 128, an ellipsised label within its 32 px at 40);
+  the budget at 14 zooms of an 81x81 atlas with 200 spawns and 1000 locs a
+  square in an 1800x1200 well (never past 2600, the selection kept, every drop
+  said), dots dropped and no cell at 40, cells dropped but the selection and
+  hover kept at 12 in a 3000x2400 well; the Instance space page, its bounds,
+  hatching inside the grid, its square filled over it, none on the surface;
+  the pure slice order and core; and visible first against fake services (the
+  middle half then the whole window, the view alone while it loads, the cold
+  open measured with one 41 ms frame, one poll a tick, slices nearest first,
+  a 5 ms slice sitting out two ticks, every slice once then quiet, a pan
+  whole, a jump middle first, nothing at 8 px, nothing on Instance space).
+- `make -C src test-catalog-perf` (synthetic half): 67 checks (59 before):
+  a three-square `.jl2` tree's loc counts, the instance flag, and every
+  CATALOG_SQUARES row ending with its loc count.
+- `make -C src test-chrome-widgets`: dom ok, with the graph.image case: the
+  native 128x128 ARGB words through the real host and runtime onto the
+  canvas, whose pixels over the item hash (FNV-1a) to the native sprite's;
+  trans 128 at alpha 127/255; pictures kept across a page snapshot; bad
+  envelopes refused; the replay to a new runtime.
+- Seen to fail before the fix (a throwaway worktree, its own objdir): icons
+  in the 40 band; no budget reserve (the selection dropped at 10 zooms); no
+  middle-half poll; no slow-slice wait; no prefetch; no LOD gate in the map;
+  no hatching; the old first-loc jl2 parse and no instance flag; the old
+  runtime.js under the new DOM test.
+- editor_panels_test's `test_worldmap` / `test_picker` cases were updated to
+  the new bands (icons at 128, none at 60 or 20; the open-here mark checked at
+  48; the Full map's area asked once zoomed in; the fake's view poll kept apart
+  from the background slices; the Area dropdown's last area is tab_count - 3)
+  and compile, but cannot run here (they copy squares from the content tree).
+
+Not done here / open:
+
+- No frame was measured over a real cold open: the OSRS cache and content are
+  not in this checkout. The measurement is in (`TORIRS_WORLDMAP_STATS=1`), the
+  33 ms check is not yet answered.
+- Under 12 px a page of more than ~2500 squares (the surface at Fit in a large
+  well) still cannot draw every cell within the 2600 items, as before; it is
+  now counted and said. A one-image colour atlas (a pixel a square) would
+  remove that.
+- The web: no emscripten toolchain here, so the wasm side
+  (`ToriRSChromeExecWeb_GraphImage`, the services enabled under
+  `__EMSCRIPTEN__`) is compiled natively only; the map's element ICONS are
+  scene sprites with no pixels sent, so the web map has no icons yet.
+- The squares panel's readout shows "not all drawn" but not `drop_text`; the
+  Area dropdown's "lane: name" entries, Find's `instance:` and the "New or
+  Instance can make one" action on a hatched cell are the navigation slice's.
+- The design's "white dashed" camera window and "yellow: open here" colours
+  are not applied (the selection keeps yellow, open-here its cyan inset).
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.
