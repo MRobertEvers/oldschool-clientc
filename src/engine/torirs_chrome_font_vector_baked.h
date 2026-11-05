@@ -10,7 +10,9 @@
  * units per em = 64 x the face's baseline, one 1x pixel = 64 units, every
  * advance = the bitmap advance x 64, ascent and descent = the baseline and
  * the line box. src/ui/torirs_chrome_bake.c rasterises them (stb_truetype)
- * at a fractional chrome scale, and at every scale under "smooth always".
+ * at a fractional chrome scale, and at every scale under "smooth always",
+ * hinted by the tables beside them: each face's alignment zones (vertical)
+ * and each glyph's stems (horizontal), read off the same masks.
  *
  * The arrays are `static const` and live for the life of the process.
  */
@@ -19,6 +21,28 @@
 
 /** The most alignment zones a face carries. */
 #define TORIRS_CHROME_FONT_VECTOR_ZONES_MAX 5
+/** The most vertical stems one glyph carries. */
+#define TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX 8
+
+/**
+ * One vertical stem of one glyph, read off its 1x mask and its outline by
+ * the tool (`face_stems`): a run of ink columns [x, x + width), 1x pixels
+ * from the pen, that is the whole ink run of two or more consecutive rows
+ * and that the outline draws with a straight vertical edge. The rasteriser
+ * lands its left edge on a whole device pixel and gives it a whole number of
+ * device pixels (horizontal hinting).
+ */
+struct ToriRSChromeFontVectorStem
+{
+    unsigned char codepoint;
+    signed char x;
+    unsigned char width;
+    /** The heights, font units above the baseline, over which the outline
+     *  is exactly this stem's rectangle (both edges straight): what a test
+     *  reads the hinted atlas over. The rasteriser does not need them. */
+    short y_low;
+    short y_high;
+};
 
 struct ToriRSChromeFontVector
 {
@@ -38,6 +62,13 @@ struct ToriRSChromeFontVector
      */
     int zone_count;
     int zones[TORIRS_CHROME_FONT_VECTOR_ZONES_MAX];
+    /**
+     * Every glyph's vertical stems, ordered by code point and then by x,
+     * disjoint within a glyph, inside its advance. The TTF itself carries no
+     * hinting: this table is the horizontal half of it.
+     */
+    int stem_count;
+    struct ToriRSChromeFontVectorStem const* stems;
 };
 
 struct ToriRSChromeFontVector const*

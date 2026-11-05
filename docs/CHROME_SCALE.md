@@ -169,7 +169,7 @@ an empty `prep` keeps FreeType from auto-hinting it.
 | Output | Use |
 |---|---|
 | `src/engine/fonts/ToriRS{Small,Body,Menu}-Vector.ttf` | the faces, committed |
-| `src/engine/torirs_chrome_font_vector_baked.{c,h}` | the TTF bytes as `static const` arrays and each face's alignment zones, for the native rasteriser |
+| `src/engine/torirs_chrome_font_vector_baked.{c,h}` | the TTF bytes as `static const` arrays, each face's alignment zones and each glyph's stem table, for the native rasteriser's hinting |
 | `res/plugin_chrome/font/ToriRS{Small,Body,Menu}-Vector.{ttf,woff,eot}` | the web pages' second family |
 
 `make -C src chrome-font-vector` re-synthesizes everything and fails when a
@@ -190,13 +190,36 @@ for pixel. The pixel size is (q / 4) x the face's 1x line height.
   bitmap faces use, so the baseline is the row's baseline pixel and the
   x-height, cap height and descender are whole device pixels. Every outline
   point between two zones is placed linearly between their rows.
-- **Horizontal 3x oversampling**, unhinted: the pen is a whole pixel (the
-  advances are), the outline inside it is not snapped. A 1-pixel stem at
-  1.5x is 1.5 pixels wide wherever it sits.
-- **Stem darkening**: coverage^(1/1.45). At 1.5x a 1x stem always covers one
-  device column whole (the 1x grid puts its edges on halves), so it reads as
-  ink; at 1.25x and 1.75x, where a 1.25-pixel stem can straddle two columns
-  at 0.75 and 0.5, the gamma lifts it to at least 200 of 255.
+- **Horizontal hinting** (2026-11-05, after the merge). Every glyph was
+  derived from a 1x mask, so its vertical stems are known exactly: the tool
+  (`face_stems`) bakes, per face and glyph, a stem table beside the TTF bytes
+  -- a run of ink columns `[x, x + width)` that is the whole ink run of two
+  or more consecutive mask rows (no fewer rows than it is wide) and that the
+  outline draws with straight vertical edges on BOTH sides over a pixel or
+  more of the same rows, plus those rows' heights. The TTFs are unchanged:
+  the web faces and the fonts' reproducibility are untouched. Before
+  rasterising a glyph at q, the rasteriser warps its outline in x,
+  piecewise-linearly: knots at the pen (0), at each stem's two edges and at
+  the advance; each stem's left edge on a whole device pixel (the one
+  nearest the plain scale's stem centre that keeps every 1x gap -- to the
+  pen, the next stem, the advance -- at least one device pixel; a stem that
+  touches the pen, the advance or its neighbour at 1x touches it here) and
+  its width max(1, round(q / 4 x width)) pixels; linear in between, ending
+  exactly at the advance. The counters take the slack, never the stems.
+  `ToriRSChromeGlyphs_VectorStems` answers where each stem lands. A glyph
+  too tight for its stems at some q gives up its side bearings (Menu's Y at
+  1.25x); no face needs more, and that is asserted. The outline is flattened
+  and split at every knot of both warps, so a vertical stem edge, which sits
+  on a knot, lands exactly on its device column. Result: at 1.25x a 1x stem
+  is one column of 255, at 1.5x and 1.75x two, Menu's 2-pixel stems three
+  or four; the column beside it is 0 wherever the 1x glyph has a counter.
+- **Horizontal 3x oversampling** for what the warp does not snap: the bowls
+  and diagonals between the stems (coverage is the mean of three
+  sub-columns).
+- **A light gamma**, coverage^(1/1.2), for those bowls and diagonals. It
+  does not touch a stem (255 and 0 stay put); the old stem darkening
+  (1/1.45), which lifted a straddling 1.25-pixel stem to 200, is gone with
+  the straddling.
 - **Advances** are `ToriRSChrome_ScalePx` of the 1x advances, glyph by glyph:
   the table `ToriRSChrome_MeasureTextQ` sums, equal to the face's hmtx / 64 x
   q / 4 rounded per glyph. Measurement stays the chrome's.

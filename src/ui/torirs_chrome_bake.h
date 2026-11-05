@@ -13,8 +13,11 @@
  *     1x masks by tools/chrome_font_vector.py) rasterised at (q / 4) x the 1x
  *     line height, with vertical hinting -- the alignment zones (descender,
  *     baseline, x-height, cap height, ascender, the line box) on the device
- *     rows the layout gives them, linear in between -- horizontal 3x
- *     oversampling and a stem-darkening gamma. Advances are
+ *     rows the layout gives them, linear in between -- horizontal hinting
+ *     -- every vertical stem (a table baked beside the outlines) on a whole
+ *     device pixel, a whole number of pixels wide, linear in between and
+ *     ending at the advance -- horizontal 3x oversampling for the bowls and
+ *     diagonals, and a light gamma. Advances are
  *     ToriRSChrome_ScalePx of the 1x advances, glyph by glyph: exactly the
  *     table ToriRSChrome_MeasureTextQ sums (the vector face's hmtx is the
  *     bitmap advance x 64, so the two agree).
@@ -89,6 +92,30 @@ ToriRSChromeGlyphs_RasteriseVector(
     struct ToriDraw_Font const* src,
     int q,
     struct ToriDraw_Font* out);
+
+/**
+ * The horizontal hinting of one vector glyph at scale `q`: its vertical stems
+ * (the face's baked stem table for `codepoint`, ascending) as 1x left edges
+ * `out_x` and widths `out_width`, pen-relative, and where the rasteriser puts
+ * them -- `out_left`, a whole device pixel from the pen, and `out_device_width`
+ * = max(1, round(q / 4 x width)). Each left edge is the one closest to the
+ * plain scale's centre of the stem that keeps every 1x gap (to the pen, to
+ * the next stem, to the advance) at least one device pixel, and the last
+ * right edge inside ToriRSChrome_ScalePx(q, advance_1x). Returns the number
+ * of stems (at most TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX; each array must
+ * hold that many). A pure function of (face, glyph, q): the same glyph at the
+ * same scale is warped the same way wherever it is drawn.
+ */
+int
+ToriRSChromeGlyphs_VectorStems(
+    struct ToriRSChromeFontVector const* vec,
+    int codepoint,
+    int advance_1x,
+    int q,
+    int* out_x,
+    int* out_width,
+    int* out_left,
+    int* out_device_width);
 
 /**
  * The 1x face `src` scaled as axis-aligned cells (the atlas fractional scales

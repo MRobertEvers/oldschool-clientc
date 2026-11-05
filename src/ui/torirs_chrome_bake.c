@@ -405,7 +405,7 @@ bake_tier_face(int font_slot, int tier)
 /*
  * The vector faces (engine/torirs_chrome_font_vector_baked.h): TrueType
  * outlines synthesized from the 1x masks (tools/chrome_font_vector.py), drawn
- * here by stb_truetype's scanline rasteriser with three rules of our own:
+ * here by stb_truetype's scanline rasteriser with four rules of our own:
  *
  *   - VERTICAL HINTING. The face's alignment zones -- the bottom of p, the
  *     baseline, the tops of x, H and d, and the line box's top and bottom --
@@ -415,24 +415,41 @@ bake_tier_face(int font_slot, int tier)
  *     between their device rows. So the x-height, the cap height and the
  *     descender are whole device pixels at every scale, and the baseline is
  *     the row's baseline pixel.
- *   - Horizontal 3x OVERSAMPLING, unhinted: the pen is a whole pixel (the
- *     advances are), the outline inside it is not snapped, and coverage is
- *     the mean of three sub-columns. A stem keeps its true 1.5-pixel width
- *     at 1.5x instead of alternating 1 and 2.
- *   - STEM DARKENING: coverage goes through a gamma, so the inside of a
- *     1.5-pixel stem reads as ink rather than grey.
+ *   - HORIZONTAL HINTING. Every glyph's vertical stems are known exactly (the
+ *     tool reads them off the mask and the outline and bakes a table beside
+ *     the TTF bytes). Before rasterising, the outline goes through a
+ *     piecewise-linear x warp (bake_glyph_warp) whose knots put each stem's
+ *     left edge on a whole device pixel and give it max(1, round(q / 4 x
+ *     width)) device pixels; between the stems, and between the pen, the
+ *     stems and the advance, it is linear, and it ends exactly at the
+ *     advance. The counters take the slack; the stems never do. So a stem
+ *     is a whole number of columns of ink at every scale and every phase,
+ *     and the same number wherever it sits in the row.
+ *   - Horizontal 3x OVERSAMPLING, for what the warp does not snap: the
+ *     diagonals and the bowls between the stems. Coverage is the mean of
+ *     three sub-columns.
+ *   - A LIGHT GAMMA on that coverage, so a bowl's thin side reads as a
+ *     stroke rather than a smudge. It does not touch a stem: a stem's columns
+ *     are 255 and its neighbours' 0 before it.
+ *
+ * The outline is flattened (stbtt_FlattenCurves) and every segment split
+ * where it crosses a knot of either warp, so both warps are applied exactly:
+ * a straight edge inside one piece stays straight, and a vertical stem edge,
+ * which sits ON a knot, lands on its device column.
  *
  * Advances, draw widths and the ascent are the bitmap path's
  * (ToriRSChrome_ScalePx of the 1x tables, glyph by glyph), which is what the
  * layout measures with: the vector face's own hmtx says the same, x 64.
  */
 
-/** Coverage = (c / 255) ^ (1 / BAKE_STEM_GAMMA). */
-#define BAKE_STEM_GAMMA 1.45
+/** Coverage = (c / 255) ^ (1 / BAKE_GAMMA): a light lift for the bowls. */
+#define BAKE_GAMMA 1.2
 #define BAKE_OVERSAMPLE_X 3
-/* Outline coordinates handed to stb_truetype are in 1/64 of a (sub)pixel. */
-#define BAKE_SUBUNITS 64
+/** Curves are flattened to within this much of a device pixel. */
+#define BAKE_FLATNESS_PX 0.05
 #define BAKE_ZONE_KNOTS (TORIRS_CHROME_FONT_VECTOR_ZONES_MAX + 2)
+/* The stems' two edges, and the pen and the advance. */
+#define BAKE_WARP_KNOTS (2 * TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX + 2)
 
 static struct ToriRSChromeFontVector const*
 bake_vector_face(int font_slot)
@@ -491,20 +508,201 @@ bake_zones(struct ToriRSChromeFontVector const* vec, int q, struct BakeZones* ou
     }
 }
 
-/** Device height above the baseline of a 1x height `z`: linear between the
- *  knots, the plain scale beyond them. */
-static double
-bake_zone_map(struct BakeZones const* k, int q, double z)
+/**
+ * A piecewise-linear map from 1x units to device pixels: knots `z`
+ * ascending, landing on `d` (non-decreasing), slope `s` beyond the ends.
+ * The vertical warp (the zones) and the horizontal one (the stems) are both
+ * one of these.
+ */
+struct BakeWarp
 {
-    double const s = (double)q / BAKE_Q;
+    int n;
+    double s;
+    int z[BAKE_WARP_KNOTS];
+    int d[BAKE_WARP_KNOTS];
+};
 
+static double
+bake_warp_map(struct BakeWarp const* k, double z)
+{
     if( z <= k->z[0] )
-        return k->d[0] + (z - k->z[0]) * s;
+        return k->d[0] + (z - k->z[0]) * k->s;
     for( int i = 0; i + 1 < k->n; i++ )
         if( z <= k->z[i + 1] )
             return k->d[i] + (z - k->z[i]) * (double)(k->d[i + 1] - k->d[i]) /
                                  (double)(k->z[i + 1] - k->z[i]);
-    return k->d[k->n - 1] + (z - k->z[k->n - 1]) * s;
+    return k->d[k->n - 1] + (z - k->z[k->n - 1]) * k->s;
+}
+
+static void
+bake_zone_warp(struct BakeZones const* zones, int q, struct BakeWarp* out)
+{
+    assert(zones->n <= BAKE_WARP_KNOTS);
+    out->n = zones->n;
+    out->s = (double)q / BAKE_Q;
+    for( int i = 0; i < zones->n; i++ )
+    {
+        out->z[i] = zones->z[i];
+        out->d[i] = zones->d[i];
+    }
+}
+
+/** The device width of a 1x stem `width` pixels wide: max(1, round(q / 4 x
+ *  width)), halves away from zero (ToriRSChrome_ScalePx). */
+static int
+bake_stem_width(int q, int width)
+{
+    int const w = ToriRSChrome_ScalePx(q, width);
+    return w < 1 ? 1 : w;
+}
+
+int
+ToriRSChromeGlyphs_VectorStems(
+    struct ToriRSChromeFontVector const* vec,
+    int codepoint,
+    int advance_1x,
+    int q,
+    int* out_x,
+    int* out_width,
+    int* out_left,
+    int* out_device_width)
+{
+    int const adv = ToriRSChrome_ScalePx(q, advance_1x);
+    int n = 0;
+    int need;
+    /* gap[i]: the room before stem i (i == n: after the last one) at least
+     * one device pixel where the 1x glyph has any; touch[i]: none at 1x, so
+     * none here either -- the stem sits on the pen, on the advance, or on its
+     * neighbour (Menu's Y: the arms on the stem; Small's #). */
+    int gap[TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX + 1] = { 0 };
+    int touch[TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX + 1] = { 0 };
+
+    assert(vec);
+    assert(out_x);
+    assert(out_width);
+    assert(out_left);
+    assert(out_device_width);
+    assert(q >= TORIRS_CHROME_SCALE_Q_MIN);
+    assert(q <= TORIRS_CHROME_SCALE_Q_MAX);
+    for( int i = 0; i < vec->stem_count; i++ )
+    {
+        struct ToriRSChromeFontVectorStem const* st = &vec->stems[i];
+        if( st->codepoint != codepoint )
+            continue;
+        assert(n < TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX);
+        /* The tool's contract: ascending, disjoint, inside the advance. */
+        assert(st->x >= 0);
+        assert(st->width > 0);
+        assert(st->x + st->width <= advance_1x);
+        assert(n == 0 || st->x >= out_x[n - 1] + out_width[n - 1]);
+        out_x[n] = st->x;
+        out_width[n] = st->width;
+        out_device_width[n] = bake_stem_width(q, st->width);
+        n++;
+    }
+    if( n == 0 )
+        return 0;
+
+    for( int i = 0; i <= n; i++ )
+    {
+        int const from = i == 0 ? 0 : out_x[i - 1] + out_width[i - 1];
+        int const to = i == n ? advance_1x : out_x[i];
+        touch[i] = to == from;
+        gap[i] = to > from ? 1 : 0;
+    }
+    /* What the stems and their gaps need. A glyph too tight for them at this
+     * q gives up its side bearings (Menu's Y at 1.25x: three 2-pixel stems
+     * side by side, each 3 device pixels, in an advance of 10); the stems
+     * keep their widths, and the faces never need more than the advance
+     * (asserted: a re-synthesized face that does is seen at its first
+     * build). */
+    need = 0;
+    for( int i = 0; i < n; i++ )
+        need += out_device_width[i];
+    for( int i = 0; i <= n; i++ )
+        need += gap[i];
+    if( need > adv )
+    {
+        need -= gap[0] + gap[n];
+        gap[0] = 0;
+        gap[n] = 0;
+    }
+    assert(need <= adv);
+
+    /* The ideal: the stem's centre where the plain scale puts it, the left
+     * edge rounded to a whole pixel from there (halves up). In eighths:
+     * centre x 8 = (2x + w) x q; minus W / 2 x 8; plus a half. */
+    for( int i = 0; i < n; i++ )
+        out_left[i] = bake_floor_div(
+            (2 * out_x[i] + out_width[i]) * q - 4 * out_device_width[i] + 4, 2 * BAKE_Q);
+    /* Pushed right off the pen and each other, then pulled back left off the
+     * advance: the left edges closest to the ideal that keep every gap. */
+    for( int i = 0; i < n; i++ )
+    {
+        int const floor_x = (i == 0 ? 0 : out_left[i - 1] + out_device_width[i - 1]) + gap[i];
+        if( out_left[i] < floor_x || touch[i] )
+            out_left[i] = floor_x;
+    }
+    for( int i = n - 1; i >= 0; i-- )
+    {
+        int const ceil_x = (i == n - 1 ? adv : out_left[i + 1]) - gap[i + 1] - out_device_width[i];
+        if( out_left[i] > ceil_x || touch[i + 1] )
+            out_left[i] = ceil_x;
+    }
+    for( int i = 0; i < n; i++ )
+    {
+        int const prev = i == 0 ? 0 : out_left[i - 1] + out_device_width[i - 1];
+        assert(out_left[i] >= prev + gap[i]);
+        assert(!touch[i] || out_left[i] == prev);
+        (void)prev;
+    }
+    assert(out_left[n - 1] + out_device_width[n - 1] + gap[n] <= adv);
+    assert(!touch[n] || out_left[n - 1] + out_device_width[n - 1] == adv);
+    return n;
+}
+
+/** The horizontal warp of one glyph: the pen, every stem's two edges, the
+ *  advance. */
+static void
+bake_glyph_warp(
+    struct ToriRSChromeFontVector const* vec,
+    int codepoint,
+    int advance_1x,
+    int q,
+    struct BakeWarp* out)
+{
+    int x[TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX];
+    int w[TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX];
+    int left[TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX];
+    int dw[TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX];
+    int const n = ToriRSChromeGlyphs_VectorStems(vec, codepoint, advance_1x, q, x, w, left, dw);
+
+    out->n = 0;
+    out->s = (double)q / BAKE_Q;
+    /* Knots in 1x pixels; a knot that repeats the last one (a stem on the
+     * pen, a stem that touches the next) is dropped -- it lands on the same
+     * device pixel by construction. */
+#define BAKE_KNOT(zz, dd)                                                                          \
+    do                                                                                             \
+    {                                                                                              \
+        if( out->n > 0 && out->z[out->n - 1] == (zz) )                                             \
+        {                                                                                          \
+            assert(out->d[out->n - 1] == (dd));                                                    \
+            break;                                                                                 \
+        }                                                                                          \
+        assert(out->n < BAKE_WARP_KNOTS);                                                          \
+        out->z[out->n] = (zz);                                                                     \
+        out->d[out->n] = (dd);                                                                     \
+        out->n++;                                                                                  \
+    } while( 0 )
+    BAKE_KNOT(0, 0);
+    for( int i = 0; i < n; i++ )
+    {
+        BAKE_KNOT(x[i], left[i]);
+        BAKE_KNOT(x[i] + w[i], left[i] + dw[i]);
+    }
+    BAKE_KNOT(advance_1x, ToriRSChrome_ScalePx(q, advance_1x));
+#undef BAKE_KNOT
 }
 
 /** The code point the 1x face draws glyph `gi` for, or -1. */
@@ -521,6 +719,72 @@ bake_glyph_codepoint(struct ToriDraw_Font const* src, int gi)
     return -1;
 }
 
+/**
+ * Split each closed polyline of `pts` (font units; `lens[c]` points in
+ * contour c) wherever a segment crosses a knot of `xw` (in x) or `yw` (in
+ * y), so the piecewise-linear warps can be applied point by point exactly.
+ * Returns the new points (malloc'd; `lens` is rewritten in place).
+ */
+static stbtt__point*
+bake_split_at_knots(
+    stbtt__point const* pts,
+    int* lens,
+    int contours,
+    double upp,
+    struct BakeWarp const* xw,
+    struct BakeWarp const* yw)
+{
+    int total = 0;
+    int at = 0;
+    int w = 0;
+    stbtt__point* out;
+
+    for( int c = 0; c < contours; c++ )
+        total += lens[c];
+    out = malloc(sizeof(*out) * (size_t)total * (size_t)(xw->n + yw->n + 1));
+    assert(out);
+    for( int c = 0; c < contours; c++ )
+    {
+        int const n = lens[c];
+        int const first = w;
+        for( int i = 0; i < n; i++ )
+        {
+            stbtt__point const p0 = pts[at + i];
+            stbtt__point const p1 = pts[at + (i + 1) % n];
+            double const x0 = p0.x / upp;
+            double const y0 = p0.y / upp;
+            double const x1 = p1.x / upp;
+            double const y1 = p1.y / upp;
+            double t[BAKE_WARP_KNOTS * 2];
+            int nt = 0;
+
+            for( int k = 0; k < xw->n; k++ )
+                if( (xw->z[k] - x0) * (xw->z[k] - x1) < 0.0 )
+                    t[nt++] = (xw->z[k] - x0) / (x1 - x0);
+            for( int k = 0; k < yw->n; k++ )
+                if( (yw->z[k] - y0) * (yw->z[k] - y1) < 0.0 )
+                    t[nt++] = (yw->z[k] - y0) / (y1 - y0);
+            for( int a = 1; a < nt; a++ )
+                for( int b = a; b > 0 && t[b - 1] > t[b]; b-- )
+                {
+                    double const tmp = t[b];
+                    t[b] = t[b - 1];
+                    t[b - 1] = tmp;
+                }
+            out[w++] = p0;
+            for( int k = 0; k < nt; k++ )
+            {
+                out[w].x = (float)(p0.x + (p1.x - p0.x) * t[k]);
+                out[w].y = (float)(p0.y + (p1.y - p0.y) * t[k]);
+                w++;
+            }
+        }
+        lens[c] = w - first;
+        at += n;
+    }
+    return out;
+}
+
 void
 ToriRSChromeGlyphs_RasteriseVector(
     struct ToriRSChromeFontVector const* vec,
@@ -530,8 +794,10 @@ ToriRSChromeGlyphs_RasteriseVector(
 {
     stbtt_fontinfo info;
     struct BakeZones zones;
+    struct BakeWarp yw;
     uint8_t gamma[256];
     double const s = (double)q / BAKE_Q;
+    double const upp = (double)vec->units_per_px;
     int ascent_dev;
     int ok;
 
@@ -546,8 +812,9 @@ ToriRSChromeGlyphs_RasteriseVector(
     assert(ok);
     (void)ok;
     bake_zones(vec, q, &zones);
+    bake_zone_warp(&zones, q, &yw);
     for( int i = 0; i < 256; i++ )
-        gamma[i] = (uint8_t)(255.0 * pow(i / 255.0, 1.0 / BAKE_STEM_GAMMA) + 0.5);
+        gamma[i] = (uint8_t)(255.0 * pow(i / 255.0, 1.0 / BAKE_GAMMA) + 0.5);
 
     memset(out, 0, sizeof(*out));
     memcpy(out->charcodeset, src->charcodeset, sizeof(out->charcodeset));
@@ -568,16 +835,22 @@ ToriRSChromeGlyphs_RasteriseVector(
     for( int gi = 0; gi < TORIDRAW_FONT_GLYPH_COUNT; gi++ )
     {
         int const cp = bake_glyph_codepoint(src, gi);
+        struct BakeWarp xw;
         stbtt_vertex* v = NULL;
+        stbtt__point* flat;
+        stbtt__point* pts;
+        int* lens = NULL;
+        int contours = 0;
+        int total = 0;
         int nv;
         double min_x = 0.0;
         double max_x = 0.0;
         double min_y = 0.0;
         double max_y = 0.0;
-        int left = 0;
-        int top = 0;
-        int dw = 1;
-        int dh = 1;
+        int left;
+        int top;
+        int dw;
+        int dh;
         stbtt__bitmap bm;
         uint8_t* wide;
         uint8_t* mask;
@@ -591,55 +864,49 @@ ToriRSChromeGlyphs_RasteriseVector(
         if( nv <= 0 )
             continue;
 
-        /* Font units -> device pixels from the pen (x) and from the top of
-         * the line box (y, down), hinted vertically. Done twice: once for
-         * the box, once into the raster's sub-units. */
-        for( int pass = 0; pass < 2; pass++ )
+        bake_glyph_warp(vec, cp, src->advance[gi], q, &xw);
+        flat = stbtt_FlattenCurves(
+            v, nv, (float)(BAKE_FLATNESS_PX * upp / s), &lens, &contours, NULL);
+        stbtt_FreeShape(&info, v);
+        assert(flat);
+        assert(lens);
+        pts = bake_split_at_knots(flat, lens, contours, upp, &xw, &yw);
+        free(flat);
+
+        /* Font units -> device pixels from the pen (x, the stem warp) and
+         * from the top of the line box (y, down, the zone warp). */
+        for( int c = 0; c < contours; c++ )
+            total += lens[c];
+        for( int i = 0; i < total; i++ )
         {
-            for( int i = 0; i < nv; i++ )
-            {
-                double px[2];
-                double py[2];
-                int const pts = v[i].type == STBTT_vcurve ? 2 : 1;
-                px[0] = v[i].x / (double)vec->units_per_px * s;
-                py[0] = ascent_dev - bake_zone_map(&zones, q, v[i].y / (double)vec->units_per_px);
-                px[1] = v[i].cx / (double)vec->units_per_px * s;
-                py[1] = ascent_dev - bake_zone_map(&zones, q, v[i].cy / (double)vec->units_per_px);
-                if( pass == 0 )
-                {
-                    for( int k = 0; k < pts; k++ )
-                    {
-                        if( (i == 0 && k == 0) || px[k] < min_x )
-                            min_x = px[k];
-                        if( (i == 0 && k == 0) || px[k] > max_x )
-                            max_x = px[k];
-                        if( (i == 0 && k == 0) || py[k] < min_y )
-                            min_y = py[k];
-                        if( (i == 0 && k == 0) || py[k] > max_y )
-                            max_y = py[k];
-                    }
-                    continue;
-                }
-                v[i].x = (stbtt_vertex_type)lround((px[0] - left) * BAKE_OVERSAMPLE_X * BAKE_SUBUNITS);
-                v[i].y = (stbtt_vertex_type)lround((py[0] - top) * BAKE_SUBUNITS);
-                v[i].cx = (stbtt_vertex_type)lround((px[1] - left) * BAKE_OVERSAMPLE_X * BAKE_SUBUNITS);
-                v[i].cy = (stbtt_vertex_type)lround((py[1] - top) * BAKE_SUBUNITS);
-            }
-            if( pass == 0 )
-            {
-                /* A sliver under 1/64 of a pixel is the outline sitting ON a
-                 * pixel edge, not crossing it. */
-                left = (int)floor(min_x + 1.0 / BAKE_SUBUNITS);
-                top = (int)floor(min_y + 1.0 / BAKE_SUBUNITS);
-                dw = (int)ceil(max_x - 1.0 / BAKE_SUBUNITS) - left;
-                dh = (int)ceil(max_y - 1.0 / BAKE_SUBUNITS) - top;
-                if( dw < 1 )
-                    dw = 1;
-                if( dh < 1 )
-                    dh = 1;
-                assert(dw * BAKE_OVERSAMPLE_X * BAKE_SUBUNITS < 32767);
-                assert(dh * BAKE_SUBUNITS < 32767);
-            }
+            double const px = bake_warp_map(&xw, pts[i].x / upp);
+            double const py = ascent_dev - bake_warp_map(&yw, pts[i].y / upp);
+            pts[i].x = (float)px;
+            pts[i].y = (float)py;
+            if( i == 0 || px < min_x )
+                min_x = px;
+            if( i == 0 || px > max_x )
+                max_x = px;
+            if( i == 0 || py < min_y )
+                min_y = py;
+            if( i == 0 || py > max_y )
+                max_y = py;
+        }
+        /* A sliver under 1/64 of a pixel is the outline sitting ON a pixel
+         * edge, not crossing it. */
+        left = (int)floor(min_x + 1.0 / 64);
+        top = (int)floor(min_y + 1.0 / 64);
+        dw = (int)ceil(max_x - 1.0 / 64) - left;
+        dh = (int)ceil(max_y - 1.0 / 64) - top;
+        if( dw < 1 )
+            dw = 1;
+        if( dh < 1 )
+            dh = 1;
+        /* Into the raster's own pixels: x oversampled, both from the box. */
+        for( int i = 0; i < total; i++ )
+        {
+            pts[i].x = (pts[i].x - (float)left) * BAKE_OVERSAMPLE_X;
+            pts[i].y = pts[i].y - (float)top;
         }
 
         wide = calloc((size_t)dw * BAKE_OVERSAMPLE_X * (size_t)dh, 1);
@@ -650,10 +917,9 @@ ToriRSChromeGlyphs_RasteriseVector(
         bm.h = dh;
         bm.stride = bm.w;
         bm.pixels = wide;
-        stbtt_Rasterize(
-            &bm, 0.25f, v, nv, 1.0f / BAKE_SUBUNITS, 1.0f / BAKE_SUBUNITS, 0.0f, 0.0f, 0, 0, 0,
-            NULL);
-        stbtt_FreeShape(&info, v);
+        stbtt__rasterize(&bm, pts, lens, contours, 1.0f, 1.0f, 0.0f, 0.0f, 0, 0, 0, NULL);
+        free(pts);
+        free(lens);
         for( int y = 0; y < dh; y++ )
             for( int x = 0; x < dw; x++ )
             {

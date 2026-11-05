@@ -2707,6 +2707,34 @@ the log reads `chrome: scale q=6 (150%), bridge q=6, tile 132x90`. With the
 pref on at 1x it reads `chrome: text rendering smooth always (q=4)` and the
 frame's text is antialiased.
 
+**Stems hinted horizontally (2026-11-05).** The note above (one solid
+column and a ~60 % one at 1.5x) is fixed: the vector bake carries a stem table
+per face and glyph (`tools/chrome_font_vector.py` `face_stems`, emitted beside
+the unchanged TTF bytes in `src/engine/torirs_chrome_font_vector_baked.c`:
+Small 98 stems, Body 110, Menu 108), and
+`ToriRSChromeGlyphs_RasteriseVector` warps each glyph's flattened outline in
+x so every stem's left edge is a whole device pixel and its width
+max(1, round(q / 4 x width)), linear between the stems, ending at the
+advance (docs/CHROME_SCALE.md, "Horizontal hinting"). The stem-darkening
+gamma (1/1.45) became a light one (1/1.2) for the bowls and diagonals.
+Tests: test-chrome-widgets (1099) reads every stem of every Small, Body and
+Menu glyph at q 5, 6, 7, 9, 10, 11 back from the atlas -- its columns 255
+over the rows where the outline is its rectangle, the column beside it under
+40 where the 1x glyph has a counter there, its width the rounded one, never
+shrunk -- and builds each atlas twice to the same bytes; test-scene-bridge-
+chrome (187) holds the registered q 5..7 faces' l and I (Body, Small, Menu)
+to exactly their rounded width of 255 columns and nothing grey beside them.
+Both fail with the stem knots taken out of the warp (checked in a scratch
+copy). 1x / 2x / 3x and the goldens are unchanged (the vector path is off at
+a whole q unless "smooth always"); `chrome-font-vector` reproduces. The
+photographs (scratch): the Catalog panel through the test rasteriser at
+q 5, 6, 7, before and after, and the native Soft3D recipe above at
+TORIRS_CHROME_SCALE=1.5. Open: the web pages draw the same TTFs through the
+browser's rasteriser, which knows nothing of the stem table; a hinted web
+face would need the table baked into the TTF as TrueType instructions, which
+this slice did not do. Short stem rectangles (one 1x pixel, the arms of {
+and }) hold no whole device row at 1.25x, so the test reads them from 1.5x.
+
 The editor's boot with a content dir no longer aborts:
 `Editor_Triggers_SetPaths` (edpanel_triggers.c) resolved `realpath` into
 the panel's 1024-byte buffer, which _FORTIFY_SOURCE stops as an overflow; it
