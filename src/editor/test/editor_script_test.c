@@ -14,6 +14,7 @@
  */
 
 #include "editor/builder/builder_ssc.h"
+#include "platform/launch_sessions.h"
 #include "editor/editor_open_cmd.h"
 #include "editor/editor_script.h"
 #include "mem/torirs_mem.h"
@@ -293,6 +294,18 @@ test_open_command(void)
     size_t n;
 
     n = Editor_OpenCommandLine("code --goto {path}:{line}", "/a/b/hans.rs2", 17, out, sizeof(out));
+#ifdef _WIN32
+    /* cmd.exe's quoting (editor_open_cmd.h): "..." around the path. */
+    CHECK(n == strlen(out) && strcmp(out, "code --goto \"/a/b/hans.rs2\":17") == 0, "open: VS Code's form (%s)", out);
+    Editor_OpenCommandLine("code --goto {path}:{line}", "C:/my dir/it's.rs2", 3, out, sizeof(out));
+    CHECK(strcmp(out, "code --goto \"C:/my dir/it's.rs2\":3") == 0,
+        "open: a space and a ' stay inside the double quotes (%s)", out);
+    Editor_OpenCommandLine("open {path}", "C:/x&del x.rs2", 9, out, sizeof(out));
+    CHECK(strcmp(out, "open \"C:/x&del x.rs2\"") == 0, "open: cmd syntax in a path is inert inside the quotes");
+    CHECK(strcmp(Editor_OpenCommandDefaultWindows(1), "code --goto {path}:{line}") == 0
+              && strcmp(Editor_OpenCommandDefaultWindows(0), "start \"\" {path}") == 0,
+        "open: Windows' defaults (code on PATH, else the associated program)");
+#else
     CHECK(n == strlen(out) && strcmp(out, "code --goto '/a/b/hans.rs2':17") == 0, "open: VS Code's form (%s)", out);
     Editor_OpenCommandLine("code --goto {path}:{line}", "/my dir/it's.rs2", 3, out, sizeof(out));
     CHECK(strcmp(out, "code --goto '/my dir/it'\\''s.rs2':3") == 0,
@@ -301,6 +314,7 @@ test_open_command(void)
     CHECK(strcmp(out, "subl '/x.rs2':1 # 1") == 0, "open: every placeholder, a line below 1 is 1 (%s)", out);
     Editor_OpenCommandLine("open {path}", "/x;rm -rf ~.rs2", 9, out, sizeof(out));
     CHECK(strcmp(out, "open '/x;rm -rf ~.rs2'") == 0, "open: shell syntax in a path is inert inside the quotes");
+#endif
     Editor_OpenCommandLine("vim +{line} {pathx}", "/x.rs2", 2, out, sizeof(out));
     CHECK(strcmp(out, "vim +2 {pathx}") == 0, "open: only the exact placeholders are replaced");
     CHECK(Editor_OpenCommandLine("code {path}", "/a/very/long/path.rs2", 1, out, 10) == 0 && out[0] == '\0',
@@ -380,6 +394,8 @@ main(
 {
     setvbuf(stdout, NULL, _IONBF, 0);
     ToriMem_Init();
+    /* sscompile starts through the host's spawner (builder_ssc.h). */
+    Builder_SscSetSpawner(LaunchSessions_SystemSpawner());
     test_parse();
     test_kinds();
     test_paths();

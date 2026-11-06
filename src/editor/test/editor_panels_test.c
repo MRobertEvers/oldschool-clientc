@@ -6885,7 +6885,13 @@ test_triggers(void)
     /* Open in editor writes to a file here, never starts an editor. */
     snprintf(opened_log, sizeof(opened_log), "%s/opened.txt", g_tmp_root);
     remove(opened_log);
+#ifdef _WIN32
+    /* cmd.exe runs it there (Editor_HostLocalOpenInEditor): echo writes the
+     * path as the command line quoted it, "<path>":<line>. */
+    snprintf(open_cmd, sizeof(open_cmd), "echo {path}:{line}>>\"%s\"", opened_log);
+#else
     snprintf(open_cmd, sizeof(open_cmd), "printf '%%s\\n' {path}:{line} >> '%s'", opened_log);
+#endif
     setenv("TORIRS_EDITOR_OPEN_CMD", open_cmd, 1);
 
     cat_ui_open();
@@ -6930,12 +6936,20 @@ test_triggers(void)
     cat_activate(cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Open in editor"));
     {
         char expect[2300];
+#ifdef _WIN32
+        /* The absolute path, quoted by the template, then the line. */
+        CHECK(wait_file_has(opened_log, "test.rs2\":2", got, sizeof(got)) && got[0] == '"'
+                  && strstr(got, "/server/scripts/areas/test/scripts/test.rs2\":2") != NULL,
+            "triggers: Open in editor ran TORIRS_EDITOR_OPEN_CMD with the path and line (%s)", got);
+        (void)expect;
+#else
         char root_abs[2048];
         if( !realpath(g_tmp_root, root_abs) )
             snprintf(root_abs, sizeof(root_abs), "%s", g_tmp_root);
         snprintf(expect, sizeof(expect), "%s/server/scripts/areas/test/scripts/test.rs2:2\n", root_abs);
         CHECK(wait_file_has(opened_log, "test.rs2:2", got, sizeof(got)) && strcmp(got, expect) == 0,
             "triggers: Open in editor ran TORIRS_EDITOR_OPEN_CMD with the path and line (%s)", got);
+#endif
         CHECK(cat_console_has("open in editor: printf"), "triggers: the command line is in the Console");
     }
 

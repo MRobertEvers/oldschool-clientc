@@ -1255,7 +1255,7 @@ Editor_HostLocalLockHolder(const struct EditorHost* host)
 
 /* ---- open in the user's editor ---------------------------------------------- */
 
-#if defined(_WIN32) || defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__)
 
 enum EditorHost_Status
 Editor_HostLocalOpenInEditor(
@@ -1269,6 +1269,46 @@ Editor_HostLocalOpenInEditor(
     if( out_cmdline && out_size > 0 )
         out_cmdline[0] = '\0';
     return EDITOR_HOST_UNSUPPORTED;
+}
+
+#elif defined(_WIN32)
+
+enum EditorHost_Status
+Editor_HostLocalOpenInEditor(
+    const char* path,
+    int line,
+    char* out_cmdline,
+    size_t out_size)
+{
+    const char* tmpl = getenv("TORIRS_EDITOR_OPEN_CMD");
+    char command[2048];
+    char cmd_line[2200];
+    char found[MAX_PATH];
+    STARTUPINFOA startup;
+    PROCESS_INFORMATION process;
+
+    assert(path);
+    if( out_cmdline && out_size > 0 )
+        out_cmdline[0] = '\0';
+    /* VS Code's launcher on PATH is code.cmd. */
+    if( !tmpl || !tmpl[0] )
+        tmpl = Editor_OpenCommandDefaultWindows(SearchPathA(NULL, "code.cmd", NULL, sizeof(found), found, NULL) != 0);
+    if( Editor_OpenCommandLine(tmpl, path, line, command, sizeof(command)) == 0 )
+        return EDITOR_HOST_REFUSED;
+    if( out_cmdline && out_size > 0 )
+        snprintf(out_cmdline, out_size, "%s", command);
+    /* Through cmd.exe, as the user's own command line (start, a .cmd), with
+     * no console and not waited on: the editor is never this process's. */
+    snprintf(cmd_line, sizeof(cmd_line), "cmd.exe /d /c %s", command);
+    memset(&startup, 0, sizeof(startup));
+    startup.cb = sizeof(startup);
+    memset(&process, 0, sizeof(process));
+    if( !CreateProcessA(NULL, cmd_line, NULL, NULL, FALSE, CREATE_NO_WINDOW | DETACHED_PROCESS, NULL, NULL, &startup,
+            &process) )
+        return EDITOR_HOST_IO_ERROR;
+    CloseHandle(process.hThread);
+    CloseHandle(process.hProcess);
+    return EDITOR_HOST_OK;
 }
 
 #else
