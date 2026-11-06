@@ -1327,6 +1327,7 @@ Editor_CfgValueIssue(
 {
     long long number;
 
+    assert(field);
     assert(value);
     if( kind == EDITOR_CFG_FIELD_NUMBER )
     {
@@ -1334,13 +1335,13 @@ Editor_CfgValueIssue(
         long long hi;
         if( !cfg_integer(value, &number) )
             return EDITOR_CFG_ISSUE_NOT_NUMBER;
-        if( field && Editor_CfgRegisterRange(field, &lo, &hi) && (number < lo || number > hi) )
+        if( Editor_CfgRegisterRange(field, &lo, &hi) && (number < lo || number > hi) )
             return EDITOR_CFG_ISSUE_OUT_OF_RANGE;
         return EDITOR_CFG_ISSUE_NONE;
     }
     if( kind == EDITOR_CFG_FIELD_BOOL )
         return cfg_bool_word(value) ? EDITOR_CFG_ISSUE_NONE : EDITOR_CFG_ISSUE_NOT_BOOL;
-    if( kind == EDITOR_CFG_FIELD_ENUM && field )
+    if( kind == EDITOR_CFG_FIELD_ENUM )
     {
         char words[16][32];
         int const count = Editor_CfgRegisterWords(field, words, 16);

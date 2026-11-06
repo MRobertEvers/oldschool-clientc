@@ -429,6 +429,8 @@ ToriRSMapEd_BuildCommand(
             build_arg(out, "MAPED_CS2_SCRIPT=%s%s", job->quest, "");
             build_arg(out, "MAPED_CS2_CACHE=%s%s", lane->base_cache, "");
             build_arg(out, "MAPED_CACHE_REV=%s%s", lane->rev, "");
+            /* The content's script names for --names (maped_cs2_names). */
+            build_arg(out, "MAPED_CS2_SCRIPTS=%s/scripts%s", lane->content_dir, "");
         }
         build_arg(out, "OBJVERIFY_SKIP=1%s%s", "", "");
         return 1;
@@ -1795,10 +1797,41 @@ jobs_write_file(
     return ok;
 }
 
+#if TORIRSMAPED_JOBS_NATIVE
+/** Everything under `dir`, recursively, `dir` itself kept (absent is fine).
+ *  Symlinks are removed, never followed. */
+static void
+jobs_empty_dir(const char* dir)
+{
+    DIR* handle = opendir(dir);
+    struct dirent* entry;
+
+    if( !handle )
+        return;
+    while( (entry = readdir(handle)) != NULL )
+    {
+        char path[TORIRSMAPED_LANE_PATH_MAX + 1024];
+        struct stat st;
+        if( strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 )
+            continue;
+        snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
+        if( lstat(path, &st) == 0 && S_ISDIR(st.st_mode) )
+        {
+            jobs_empty_dir(path);
+            (void)rmdir(path);
+        }
+        else
+            (void)unlink(path);
+    }
+    closedir(handle);
+}
+#endif
+
 /**
  * CHECK: every `rs2:` document with unsaved edits into <live>/check/puts/
  * <path under server/scripts> (the job writes each over its stage and
- * deletes it). CS2: the `cs2:<name>` document's text -- else the script on
+ * deletes it), over an emptied puts/: a put a failed Check left behind
+ * would otherwise be staged again over a document since saved or reverted. CS2: the `cs2:<name>` document's text -- else the script on
  * disk -- into <live>/cs2/src/<name>.cs2, alone (the compiler takes the
  * directory). Returns OK, ABSENT for a CS2 script nobody has, IO_ERROR
  * when a file cannot be written.
@@ -1815,6 +1848,10 @@ jobs_build_prepare(
         return EDITOR_HOST_OK;
     if( job->what == TORIRSMAPED_BUILD_CHECK )
     {
+#if TORIRSMAPED_JOBS_NATIVE
+        snprintf(path, sizeof(path), "%s/check/puts", jobs->lane.live_dir);
+        jobs_empty_dir(path);
+#endif
         for( int i = 0; i < maped->doc.text_count; i++ )
         {
             const struct Editor_TextDoc* doc = maped->doc.texts[i];

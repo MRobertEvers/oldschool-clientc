@@ -36,6 +36,7 @@
  */
 
 #include "app/app_internal.h"
+#include "editor/builder/builder_panels.h"
 #include "editor/editor_hotkeys.h"
 #include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanel_ops.h"
@@ -97,8 +98,9 @@ app_hk_snapshot(
     facts.spawn_count = Editor_Spawns_SelectionCount(ui);
     facts.loc_pick = ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0;
     facts.rect_valid = ui->tools.rect.valid;
-    /* Q: a GRAPH well (the builders' dialogue graph) has the keyboard. */
-    facts.graph_focus = ui->chrome->focus >= 0 && ui->chrome->widgets[ui->chrome->focus].kind == TORIRS_CHROME_W_GRAPH;
+    /* Q: the NPC builder's dialogue graph has the keyboard -- that well
+     * only: a palette's, a chip strip's or the picker's GRAPH is not it. */
+    facts.graph_focus = Builder_GraphFocused(ui);
     out->contexts = Editor_HotkeyContextsFrom(&facts);
     ui->hotkey_contexts = out->contexts;
     ui->hotkey_contexts_valid = 1;
@@ -652,6 +654,33 @@ app_editor_hotkeys_frame(
         g_app_hk.valid = 1;
         if( any )
         {
+            app->input_frame_consumed = 1;
+            app->need_redraw = 1;
+        }
+        Editor_HotkeySnapHold(ui, 0);
+        return;
+    }
+
+    /* The dialogue graph's well holds the keyboard. That is a chrome focus,
+     * so the text-field gate below would shut everything; the graph's own
+     * rows (context Q: N, Ctrl+L) resolve against it instead, and nothing
+     * else does. */
+    if( Builder_GraphFocused(ui) && app->plugin_ui.focus < 0 && !app_text_input_focused_outside_chrome(app)
+        && !app_modelview_focused(app) && ui->chrome->dropdown_open < 0 && !app->frame_view->minimenu->visible )
+    {
+        memset(ui->hotkeys.repeat_held, 0, sizeof(ui->hotkeys.repeat_held));
+        (void)Builder_GraphKeys(ui, &snapshot, &g_app_hk.frame);
+        g_app_hk.valid = 1;
+        g_app_hk.mouse_x = input->curr.mouse_x;
+        g_app_hk.mouse_y = input->curr.mouse_y;
+        for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
+            if( g_app_hk.frame.consumed[k] )
+                app_hk_consume_key(app, k);
+        for( int i = 0; i < g_app_hk.frame.count; i++ )
+        {
+            char text[32];
+            Editor_ChordDisplay(g_app_hk.frame.fired_chord[i], text, (int)sizeof(text));
+            Editor_UiLog(ui, "editor: %s (%s)", Editor_HotkeyInfo(g_app_hk.frame.fired[i])->name, text);
             app->input_frame_consumed = 1;
             app->need_redraw = 1;
         }

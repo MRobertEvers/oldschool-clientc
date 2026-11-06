@@ -117,17 +117,6 @@ Builder_ShellPanelRegister(
     struct EditorUi* ui,
     const struct Builder_Services* services);
 
-/** The compile check's paths (builder_ssc.h): the sscompile binary, the
- *  content root it reads, and a work directory outside it. Applies to every
- *  builder panel registered on `ui`; until set, Check says where to set it.
- *  Returns 1 when the runner accepted the paths. */
-int
-Builder_PanelsSetCompile(
-    struct EditorUi* ui,
-    const char* sscompile,
-    const char* content_root,
-    const char* work_dir);
-
 /* ---- the client binding (builder_session.c) ------------------------------- */
 
 void
@@ -222,6 +211,29 @@ int
 Builder_GraphHotkey(
     struct EditorUi* ui,
     enum Editor_HotkeyAction action);
+
+/** 1 while the NPC builder's dialogue graph well holds the chrome's
+ *  keyboard: context Q (editor_hotkeys.h). Any other GRAPH well (the
+ *  palettes, the chip strips, the Locs strip, the square picker) is not. */
+int
+Builder_GraphFocused(struct EditorUi* ui);
+
+/**
+ * The frame's keys while the dialogue graph holds the keyboard. A focused
+ * well is a chrome focus, so the App's text-field gate keeps
+ * Editor_HotkeysResolve shut and the chrome keeps letters away from the
+ * well: this is the one way N and Ctrl+L reach the graph from the keyboard.
+ * Each down edge of `in` (with the held modifiers) that is a context-Q row
+ * runs through Builder_GraphHotkey; `out` is filled as the resolver fills
+ * it (the fired actions and chords, their keys claimed and consumed).
+ * Returns the count fired; 0 and an empty `out` when the graph is not
+ * focused.
+ */
+int
+Builder_GraphKeys(
+    struct EditorUi* ui,
+    const struct Editor_HotkeyInput* in,
+    struct Editor_HotkeyFrame* out);
 
 /** Select dialogue node `index` (-1 none) on the NPC builder, as a click on
  *  its GRAPH item or its outline row does. Returns 0 without one. */

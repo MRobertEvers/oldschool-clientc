@@ -289,19 +289,6 @@ session_services(
     out->name_known = session_name_known;
 }
 
-/** TORIRS_BUILDER_SSCOMPILE / _CONTENT / _WORK: the compile check's paths
- *  when the host has not set them (Builder_PanelsSetCompile). */
-static void
-compile_from_env(struct EditorUi* ui)
-{
-    const char* sscompile = getenv("TORIRS_BUILDER_SSCOMPILE");
-    const char* content = getenv("TORIRS_BUILDER_CONTENT");
-    const char* work = getenv("TORIRS_BUILDER_WORK");
-
-    if( sscompile && content && work )
-        Builder_PanelsSetCompile(ui, sscompile, content, work);
-}
-
 void
 Editor_LocBuilder_Register(struct EditorUi* ui)
 {
@@ -310,7 +297,6 @@ Editor_LocBuilder_Register(struct EditorUi* ui)
     assert(ui);
     session_services(ui, &services);
     Builder_LocPanelRegister(ui, &services);
-    compile_from_env(ui);
 }
 
 void
@@ -321,7 +307,6 @@ Editor_NpcBuilder_Register(struct EditorUi* ui)
     assert(ui);
     session_services(ui, &services);
     Builder_NpcPanelRegister(ui, &services);
-    compile_from_env(ui);
 }
 
 void

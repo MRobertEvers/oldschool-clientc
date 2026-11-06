@@ -169,11 +169,11 @@ test_register(void)
     at = Editor_CfgRegisterFind(g_fields, g_field_count, "hitpoints");
     CHECK(Editor_CfgValueIssue(&g_fields[at], EDITOR_CFG_FIELD_NUMBER, "12") == EDITOR_CFG_ISSUE_NONE
               && Editor_CfgValueIssue(&g_fields[at], EDITOR_CFG_FIELD_NUMBER, "1.5") == EDITOR_CFG_ISSUE_NOT_NUMBER
-              && Editor_CfgValueIssue(&g_fields[at], EDITOR_CFG_FIELD_NUMBER, "-1") == EDITOR_CFG_ISSUE_OUT_OF_RANGE
-              && Editor_CfgValueIssue(NULL, EDITOR_CFG_FIELD_NUMBER, "-1") == EDITOR_CFG_ISSUE_NONE,
-        "register: a number's issues (no register row: no range)");
-    CHECK(Editor_CfgValueIssue(NULL, EDITOR_CFG_FIELD_BOOL, "yes") == EDITOR_CFG_ISSUE_NONE
-              && Editor_CfgValueIssue(NULL, EDITOR_CFG_FIELD_BOOL, "on") == EDITOR_CFG_ISSUE_NOT_BOOL,
+              && Editor_CfgValueIssue(&g_fields[at], EDITOR_CFG_FIELD_NUMBER, "-1") == EDITOR_CFG_ISSUE_OUT_OF_RANGE,
+        "register: a number's issues");
+    at = Editor_CfgRegisterFind(g_fields, g_field_count, "nomove");
+    CHECK(Editor_CfgValueIssue(&g_fields[at], EDITOR_CFG_FIELD_BOOL, "yes") == EDITOR_CFG_ISSUE_NONE
+              && Editor_CfgValueIssue(&g_fields[at], EDITOR_CFG_FIELD_BOOL, "on") == EDITOR_CFG_ISSUE_NOT_BOOL,
         "register: a bool's issues");
     at = Editor_CfgRegisterFind(g_fields, g_field_count, "huntmode");
     CHECK(Editor_CfgValueIssue(&g_fields[at], EDITOR_CFG_FIELD_ENUM, "cowardly") == EDITOR_CFG_ISSUE_NONE

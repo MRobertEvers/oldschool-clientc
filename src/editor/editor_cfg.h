@@ -547,8 +547,10 @@ enum Editor_CfgRowIssue
 const char*
 Editor_CfgRowIssueText(int issue);
 
-/** The issue `value` has as a value of `kind` under `field` (NULL: no
- *  register row). NONE for TEXT and NAME (a name is the catalog's to say). */
+/** The issue `value` has as a value of `kind` under its register row
+ *  `field` (never NULL: a key the register lacks has no value issue, and
+ *  the caller, who knows whether it has a row, does not ask). NONE for TEXT
+ *  and NAME (a name is the catalog's to say). */
 int
 Editor_CfgValueIssue(
     const struct Editor_CfgRegisterField* field,

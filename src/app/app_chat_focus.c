@@ -146,8 +146,10 @@ app_iface_text_input_focused(struct App const* app)
     return VarCManager_GetInt(&app->varcs, ids->interface_input_active) == 1;
 }
 
-int
-app_text_input_focused(struct App const* app)
+static int
+app_text_input_owned(
+    struct App const* app,
+    int count_chrome)
 {
     struct UIKeyboardOwners owners;
     struct VarCIds const* ids;
@@ -164,9 +166,24 @@ app_text_input_focused(struct App const* app)
             ? VarCManager_GetInt((struct VarCManager*)&app->varcs, ids->interface_input_active)
             : -1;
     owners.tree_input_focus_id = app->tree ? UITree_InputFocusId(app->tree) : -1;
-    owners.chrome_field_focused = app_chrome_holds_keyboard(app) != 0;
+    owners.chrome_field_focused = count_chrome && app_chrome_holds_keyboard(app) != 0;
 
     return UIKeyboard_TextInputFocused(&owners) ? 1 : 0;
+}
+
+int
+app_text_input_focused(struct App const* app)
+{
+    return app_text_input_owned(app, 1);
+}
+
+/* The same owners with the chrome's focus left out: the game's chat line, its
+ * dialogs and an IF3 field. For a host that knows the chrome's focused widget
+ * is not a text field (the dialogue graph's well, app_editor_hotkeys.c). */
+int
+app_text_input_focused_outside_chrome(struct App const* app)
+{
+    return app_text_input_owned(app, 0);
 }
 
 /*

@@ -57,6 +57,7 @@
 #include "editor/panels/edpanels.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
+#include "torirsmaped/torirs_maped_build.h"
 #include "ui/uitree_debug_overlay.h"
 
 #include <assert.h>
@@ -1301,6 +1302,73 @@ Editor_Problems_Clear(
     return removed;
 }
 
+/* The BUILD job helper (edpanels.h, edpanel_problems.c): stood in the same
+ * way. A send is recorded; the test queues the job's lines and its end, and
+ * the next poll hands them over. */
+static int g_job_sends;
+static uint32_t g_job_what;
+static const char* g_job_lines[8];
+static int g_job_line_count;
+static int g_job_ended;
+
+int
+Editor_BuildJobSend(
+    struct EditorUi* ui,
+    struct Editor_BuildJob* job,
+    uint32_t what,
+    const char* arg,
+    char* why,
+    size_t why_size)
+{
+    (void)ui;
+    (void)arg;
+    assert(why);
+    assert(why_size > 0);
+    why[0] = '\0';
+    if( job->active )
+    {
+        snprintf(why, why_size, "its job is still running");
+        return 0;
+    }
+    memset(job, 0, sizeof(*job));
+    job->what = what;
+    job->active = 1;
+    g_job_sends++;
+    g_job_what = what;
+    g_job_line_count = 0;
+    g_job_ended = 0;
+    return 1;
+}
+
+const char*
+Editor_BuildJobWhy(uint32_t status)
+{
+    return status == EDITOR_HOST_OK ? "ok" : "the server refused it";
+}
+
+int
+Editor_BuildJobPoll(
+    struct EditorUi* ui,
+    struct Editor_BuildJob* job,
+    void (*line)(void* user, const char* text),
+    void* user)
+{
+    (void)ui;
+    if( !job->active )
+        return 0;
+    for( int i = 0; i < g_job_line_count; i++ )
+        if( line )
+            line(user, g_job_lines[i]);
+    job->lines += g_job_line_count;
+    g_job_line_count = 0;
+    if( !g_job_ended )
+        return 0;
+    job->active = 0;
+    job->status = EDITOR_HOST_OK;
+    job->seconds = 0.5;
+    return 1;
+}
+
 static const char*
 mirror_text(
     struct mirror* mirror,
@@ -1593,6 +1661,38 @@ test_authority(const char* tmp)
                 sp->tick(&ui, sp->self);
                 check(ToriRSChrome_SliderValue(&chrome, slider) == 0 && g_state_key == 0,
                       "another window's preview moves the knob without echoing it back");
+            }
+            /* The preview does not outlive the editor: Stop preview, and a
+             * close, publish the list without this var. */
+            {
+                int stop = find_widget(&chrome, sp->chrome_panel, "Stop preview");
+                ToriRSChrome_PanelSetVisible(&chrome, sp->chrome_panel, 1);
+                sp->tick(&ui, sp->self);
+                ToriRSChrome_SliderSet(&chrome, slider, 1);
+                sp->tick(&ui, sp->self);
+                g_state_key = 0;
+                check(stop >= 0 && sp->activate(&ui, sp->self, stop) && g_state_key == TORIRSMAPED_STATE_VAR_PREVIEW
+                          && Builder_PreviewDecode(g_state_values, g_state_count, vars, BUILDER_PREVIEW_MAX) == 0,
+                      "Stop preview publishes the preview without the shell's var");
+                g_state_key = 0;
+                check(sp->activate(&ui, sp->self, stop) && g_state_key == 0, "...once: a second Stop publishes nothing");
+                ToriRSChrome_SliderSet(&chrome, slider, 2);
+                sp->tick(&ui, sp->self);
+                check(g_state_key == TORIRSMAPED_STATE_VAR_PREVIEW
+                          && Builder_PreviewDecode(g_state_values, g_state_count, vars, BUILDER_PREVIEW_MAX) == 1,
+                      "scrubbing again previews again");
+                g_state_key = 0;
+                ToriRSChrome_PanelSetVisible(&chrome, sp->chrome_panel, 0);
+                sp->tick(&ui, sp->self);
+                check(g_state_key == TORIRSMAPED_STATE_VAR_PREVIEW
+                          && Builder_PreviewDecode(g_state_values, g_state_count, vars, BUILDER_PREVIEW_MAX) == 0,
+                      "closing the Shell editor takes its var out of the preview");
+                ToriRSChrome_SliderSet(&chrome, slider, 1);
+                sp->tick(&ui, sp->self);
+                g_state_key = 0;
+                check(sp->activate(&ui, sp->self, open_widget) && g_state_key == TORIRSMAPED_STATE_VAR_PREVIEW
+                          && Builder_PreviewDecode(g_state_values, g_state_count, vars, BUILDER_PREVIEW_MAX) == 0,
+                      "opening a shell takes the last one's var out of the preview first");
             }
         }
         for( int i = 0; i < ui.panel_count; i++ )
@@ -2198,6 +2298,25 @@ test_graph_panel(const char* tmp)
             snprintf(want, sizeof(want), "pos=%d,%d\n", jx + 40, Builder_ModelNodeConst(view.model, "job")->y);
             check(text && strstr(text, want) != NULL, "the moved positions are in the .interaction as pos=");
         }
+        /* Escape mid-drag puts the nodes back: nothing the authority never
+         * got rides the next commit. */
+        {
+            int const jy = Builder_ModelNodeConst(view.model, "job")->y;
+            ui.shift_held = 1;
+            graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, wx + 30, wy + 10, 0);
+            ui.shift_held = 0;
+            graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_DRAG, wx + 30 + 60, wy + 10 + 20, 0);
+            Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+            check(Builder_ModelNodeConst(view.model, "work")->x == wx + 60, "a subtree drag moves the nodes as it goes");
+            graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_KEY, 0, 0, -TORIRS_CHROME_KEY_ESCAPE);
+            graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, wx + 30 + 60, wy + 10 + 20, 0);
+            Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+            check(Builder_ModelNodeConst(view.model, "work")->x == wx && Builder_ModelNodeConst(view.model, "work")->y == wy
+                      && Builder_ModelNodeConst(view.model, "job")->x == jx + 40
+                      && Builder_ModelNodeConst(view.model, "job")->y == jy,
+                  "Escape mid-drag puts every dragged node back");
+            check(strstr(g_status, "Move cancelled") != NULL, "...and says the move was cancelled");
+        }
     }
 
     /* Ctrl+L: the hotkey lays the graph out (it refused before 6.6). */
@@ -2381,6 +2500,91 @@ test_graph_panel(const char* tmp)
         check(Builder_GraphHotkey(&ui, EDITOR_HK_GRAPH_NEW_NODE), "N is the graph's");
         Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
         check(view.model->node_count == count + 1 && view.sel_node == count, "...and adds a selected node");
+    }
+
+    /* The keyboard path, as the App's hotkey tick takes it: a focused well
+     * is a chrome focus, so the text-field gate shuts Editor_HotkeysResolve
+     * and the chrome hands the letter back; Builder_GraphKeys resolves the
+     * frame's keys against the graph's rows only, and only while the
+     * dialogue graph itself is focused. */
+    {
+        struct Editor_HotkeyInput in;
+        struct Editor_HotkeyFrame frame;
+        int count;
+
+        memset(&in, 0, sizeof(in));
+        in.down[TORIRSK_N] = 1;
+        in.held[TORIRSK_N] = 1;
+        /* Another GRAPH well (the pages strip here; a palette's or the
+         * Locs strip's in the client) has the keyboard: N is not the graph's. */
+        ToriRSChrome_FocusWidget(&chrome, view.w_pages, 0);
+        count = view.model->node_count;
+        check(chrome.widgets[view.w_pages].kind == TORIRS_CHROME_W_GRAPH && !Builder_GraphFocused(&ui),
+              "another GRAPH well's focus is not the dialogue graph's (context Q stays shut)");
+        check(Builder_GraphKeys(&ui, &in, &frame) == 0 && frame.count == 0 && !frame.consumed[TORIRSK_N],
+              "...so N there fires nothing");
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(view.model->node_count == count, "...and the dialogue is unchanged");
+
+        ToriRSChrome_FocusWidget(&chrome, graph, 0);
+        check(Builder_GraphFocused(&ui), "a focused dialogue graph is context Q");
+        check(ToriRSChrome_KeyChar(&chrome, 'n') == 0, "the chrome hands N back to the host");
+        check(Builder_GraphKeys(&ui, &in, &frame) == 1 && frame.fired[0] == EDITOR_HK_GRAPH_NEW_NODE
+                  && frame.consumed[TORIRSK_N],
+              "N on the focused graph fires graph.new_node and takes the key");
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(view.model->node_count == count + 1 && view.sel_node == count, "...and adds a selected node");
+
+        memset(&in, 0, sizeof(in));
+        in.down[TORIRSK_L] = 1;
+        in.held[TORIRSK_L] = 1;
+        in.held[TORIRSK_CTRL] = 1;
+        g_status[0] = '\0';
+        check(Builder_GraphKeys(&ui, &in, &frame) == 1 && frame.fired[0] == EDITOR_HK_GRAPH_AUTO_LAYOUT
+                  && strstr(g_status, "Auto-layout:") != NULL,
+              "Ctrl+L on the focused graph lays it out");
+        memset(&in, 0, sizeof(in));
+        in.down[TORIRSK_W] = 1;
+        in.held[TORIRSK_W] = 1;
+        check(Builder_GraphKeys(&ui, &in, &frame) == 0 && !frame.consumed[TORIRSK_W],
+              "...and a key no graph row binds is not taken");
+        ToriRSChrome_FocusWidget(&chrome, -1, 0);
+    }
+
+    /* Check: the editor server's CHECK job; the window compiles nothing. */
+    {
+        int found = 0;
+        g_job_sends = 0;
+        check(Builder_PanelCheck(&ui, BUILDER_PANEL_NPC) == 1 && g_job_sends == 1
+                  && g_job_what == TORIRSMAPED_BUILD_CHECK,
+              "Check sends the CHECK job");
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(view.check->status == BUILDER_SSC_NOT_RUN && strstr(view.status, "running on the editor server") != NULL,
+              "...and returns at once, with nothing compiled in the window");
+        check(Builder_PanelCheck(&ui, BUILDER_PANEL_NPC) == 0 && g_job_sends == 1 && strstr(view.status, "refused"),
+              "a second Check while the first runs is refused");
+        g_job_lines[0] = "check: staging server/scripts (copied 3, dropped 0, kept 40)";
+        g_job_lines[1] = "edited/graph_npc/scripts/graph_npc.rs2:12: unknown command `mes2`";
+        g_job_lines[2] = "areas/lumbridge/scripts/hans.rs2:19: unknown command `mes3`";
+        g_job_line_count = 3;
+        panel->tick(&ui, panel->self);
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(view.check->diag_count == 2 && strstr(view.status, "running") != NULL,
+              "the job's lines arrive while it runs, and it is still running");
+        g_job_lines[0] = "check: 2 error(s), 0 warning(s), 0.4 s";
+        g_job_line_count = 1;
+        g_job_ended = 1;
+        ToriRSChrome_PanelSetVisible(&chrome, panel->chrome_panel, 0);
+        panel->tick(&ui, panel->self);
+        ToriRSChrome_PanelSetVisible(&chrome, panel->chrome_panel, 1);
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(view.check->status == BUILDER_SSC_FAILED
+                  && strstr(view.status, "1 error(s) here (more in Problems)") != NULL,
+              "the end lands while the builder is hidden, counting this subject's errors");
+        for( int i = 0; i < view.issues->count; i++ )
+            found += strstr(view.issues->items[i].message, "sscompile: unknown command `mes2`") != NULL
+                     && strcmp(view.issues->items[i].where, "line 12") == 0;
+        check(found == 1, "...and its diagnostic is one of the builder's issues, at its line");
     }
 
     panel->destroy(&ui, panel->self);

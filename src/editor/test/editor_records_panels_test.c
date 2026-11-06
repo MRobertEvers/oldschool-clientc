@@ -780,6 +780,10 @@ test_jobs(void)
         CHECK(strstr(status(), "check: 1 error(s)") != NULL, "check: so does the status bar (%s)", status());
     }
 
+    /* A put a failed Check left behind (the tool never got to it) is not
+     * staged again: the next Check empties puts/ first. */
+    write_at(g_live, "check/puts/areas/old/stale.rs2", "[opnpc1,nobody]\nmes2(\"gone\");\n");
+
     /* A clean Check clears the kind's rows. */
     g_mock->scripts[TORIRSMAPED_BUILD_CHECK].lines = k_clean_lines;
     g_mock->scripts[TORIRSMAPED_BUILD_CHECK].line_count = 2;
@@ -799,6 +803,12 @@ test_jobs(void)
     CHECK(Editor_Problems_CountOf(&g_ui, "check", -1) == 0, "check: a clean one clears its rows (%d)",
         Editor_Problems_CountOf(&g_ui, "check", -1));
     CHECK(strstr(status(), "check: ok, 0.2 s") != NULL, "check: and says ok (%s)", status());
+    text = read_at(g_live, "check/puts/areas/old/stale.rs2");
+    CHECK(text == NULL, "check: a put an earlier Check left behind is gone before the next one");
+    free(text);
+    text = read_at(g_live, "check/puts/edited/goblin/scripts/goblin.rs2");
+    CHECK(text && strstr(text, "[opnpc3,goblin]"), "check: ...and the still-unsaved script is put again");
+    free(text);
 
     /* A failed build that said nothing a row reads: its DONE line. */
     g_mock->scripts[TORIRSMAPED_BUILD_PACKS].lines = k_packs_lines;
@@ -825,6 +835,9 @@ test_jobs(void)
               && strstr(g_mock->commands[commands], "MAPED_CS2_SCRIPT=bank_sort"),
         "cs2: the job is make maped-cs2-compile for the script (%s)",
         g_mock->command_count > commands ? g_mock->commands[commands] : "-");
+    CHECK(g_mock->command_count > commands && strstr(g_mock->commands[commands], "MAPED_CS2_SCRIPTS=")
+              && strstr(g_mock->commands[commands], "/scripts"),
+        "cs2: the job names the content's scripts, for the names the compile resolves a ~call through");
     text = read_at(g_live, "cs2/src/bank_sort.cs2");
     CHECK(text && strcmp(text, "// 5\n[clientscript,bank_sort]\nreturn;\n") == 0, "cs2: the disk's text, written for it");
     free(text);

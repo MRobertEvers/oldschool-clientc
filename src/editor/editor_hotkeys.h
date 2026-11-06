@@ -670,7 +670,8 @@ struct Editor_HotkeyContextFacts
     int loc_pick;
     /** The Rect tool holds a rectangle. */
     int rect_valid;
-    /** The chrome's keyboard focus is a GRAPH well (context Q). */
+    /** The chrome's keyboard focus is the NPC builder's dialogue graph
+     *  (context Q; Builder_GraphFocused), not any other GRAPH well. */
     int graph_focus;
 };
 

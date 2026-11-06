@@ -7,6 +7,7 @@
 #include "editor/panels/edpanels.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
+#include "torirsmaped/torirs_maped_build.h"
 #include "ui/uitree_debug_overlay.h"
 
 #include <assert.h>
@@ -133,8 +134,6 @@ struct builder_panel
 {
     enum Builder_Subject subject;
     struct Builder_Services services;
-    struct Builder_Ssc ssc;
-    int ssc_ready;
 
     struct Builder_Model* model;
     int has_model;
@@ -142,6 +141,8 @@ struct builder_panel
     struct Builder_RecordInfo record;
     struct Builder_Issues issues;
     struct Builder_SscResult* check;
+    /** Check's BUILD job on the editor server (bp_check). */
+    struct Editor_BuildJob check_job;
     char status[192];
 
     int sel_trigger;
@@ -1573,14 +1574,22 @@ bp_open(
     return 1;
 }
 
+/**
+ * Check: the editor server's CHECK job (TORIRSMAPED_BUILD_CHECK, `make
+ * maped-script-check`), so the window never waits on a stage copy or a
+ * compiler. The job compiles the server's tree with every unsaved `rs2:`
+ * document written over its stage, and the builder's generated files ARE
+ * such documents (Builder_FileKey): each edit regenerates them, and Check
+ * regenerates once more first, so what compiles is the model as shown.
+ * bp_watch_check takes the job's lines as they arrive. Returns 1 sent, 0
+ * refused (the reason in the status).
+ */
 static int
 bp_check(
     struct EditorUi* ui,
     struct builder_panel* self)
 {
-    struct Builder_Buf texts[BUILDER_FILE_COUNT];
-    struct Builder_Issues scratch;
-    int errors = 0;
+    char why[160];
     char line[192];
 
     if( !self->has_model )
@@ -1588,57 +1597,106 @@ bp_check(
         bp_status(ui, self, "open a subject first");
         return 0;
     }
-    if( !self->ssc_ready )
+    if( !self->read_only && self->services.submit.apply )
     {
-        bp_status(ui, self, "Check needs the compile paths (Builder_PanelsSetCompile)");
+        /* The issues start again from the model's own (a Check before this
+         * one's sscompile rows go). */
+        enum Builder_SyncResult result;
+        Builder_IssuesClear(&self->issues);
+        result = Builder_Regenerate(self->model, &self->services.submit, &self->issues);
+        if( result == BUILDER_SYNC_REFUSED )
+        {
+            bp_status(ui, self, "Check refused: the files changed under the builder; re-open");
+            return 0;
+        }
+        if( result == BUILDER_SYNC_APPLIED )
+            bp_refresh(ui, self);
+    }
+    if( !Editor_BuildJobSend(ui, &self->check_job, TORIRSMAPED_BUILD_CHECK, NULL, why, sizeof(why)) )
+    {
+        snprintf(line, sizeof(line), "Check refused: %s", why);
+        bp_status(ui, self, line);
         return 0;
     }
-    Builder_IssuesClear(&scratch);
-    for( int f = 0; f < BUILDER_FILE_COUNT; f++ )
-        Builder_BufInit(&texts[f]);
-    Builder_EmitScript(self->model, &texts[BUILDER_FILE_SCRIPT], &scratch);
-    Builder_EmitConfig(self->model, &texts[BUILDER_FILE_CONFIG], &scratch);
-    Builder_EmitDbrow(self->model, &texts[BUILDER_FILE_DBROW], &scratch);
-    for( int f = BUILDER_FILE_SCRIPT; f < BUILDER_FILE_COUNT; f++ )
-    {
-        char path[EDITOR_DOC_KEY_MAX];
-        Builder_FilePath(self->subject, self->model->name, (enum Builder_File)f, path, sizeof(path));
-        Builder_SscPut(&self->ssc, path, Builder_BufText(&texts[f]), texts[f].length);
-        Builder_BufFree(&texts[f]);
-    }
-    Builder_SscStage(&self->ssc);
-    Builder_SscRun(&self->ssc, BUILDER_SSC_COMPILE, self->check);
+    memset(self->check, 0, sizeof(*self->check));
+    self->check->status = BUILDER_SSC_NOT_RUN;
+    bp_status(ui, self, "check: running on the editor server...");
+    bp_show_issues(ui, self);
+    return 1;
+}
 
+static void
+bp_check_line(
+    void* user,
+    const char* text)
+{
+    struct builder_panel* self = user;
+    (void)Builder_SscTakeLine(self->check, text);
+}
+
+/** Check's job, every frame, shown or not (a Check that ends while the
+ *  builder is hidden still lands): the end files this subject's diagnostics
+ *  as the builder's issues and says how it went. */
+static void
+bp_watch_check(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    int errors = 0;
+    int elsewhere = 0;
+    char line[192];
+
+    if( !self->check_job.active )
+        return;
+    if( !Editor_BuildJobPoll(ui, &self->check_job, bp_check_line, self) )
+        return;
+    if( !self->check->summary[0] && self->check->diag_count == 0 && self->check_job.status != EDITOR_HOST_OK )
     {
-        char script[EDITOR_DOC_KEY_MAX];
-        Builder_FilePath(self->subject, self->model->name, BUILDER_FILE_SCRIPT, script, sizeof(script));
+        /* The server never ran it: say why, not "it compiles". */
+        snprintf(line, sizeof(line), "Check: %s", Editor_BuildJobWhy(self->check_job.status));
+        bp_status(ui, self, line);
+        Editor_UiStatus(ui, "%s", line);
+        return;
+    }
+    if( self->check->status == BUILDER_SSC_NOT_RUN && self->check_job.status == EDITOR_HOST_OK )
+        self->check->status = BUILDER_SSC_OK;
+    else if( self->check->status == BUILDER_SSC_NOT_RUN && self->check->diag_count > 0 )
+        self->check->status = BUILDER_SSC_FAILED;
+    if( self->check->seconds <= 0.0 )
+        self->check->seconds = self->check_job.seconds;
+    if( !self->has_model )
+        return;
+    {
+        char prefix[EDITOR_DOC_KEY_MAX];
+        size_t prefix_length;
+        snprintf(prefix, sizeof(prefix), "edited/%s/", self->model->name);
+        prefix_length = strlen(prefix);
         for( int i = 0; i < self->check->diag_count; i++ )
         {
             const struct Builder_SscDiag* diag = &self->check->diags[i];
             char where[64];
-            if( strncmp(diag->file, "edited/", 7) != 0
-                || strncmp(diag->file + 7, self->model->name, strlen(self->model->name)) != 0 )
+            if( strncmp(diag->file, prefix, prefix_length) != 0 )
+            {
+                elsewhere += !diag->warning;
                 continue;
+            }
             snprintf(where, sizeof(where), "line %d", diag->line);
-            Builder_IssueAdd(&self->issues, diag->warning ? BUILDER_ISSUE_WARNING : BUILDER_ISSUE_ERROR,
-                             where, "sscompile: %s", diag->message);
+            Builder_IssueAdd(&self->issues, diag->warning ? BUILDER_ISSUE_WARNING : BUILDER_ISSUE_ERROR, where,
+                             "sscompile: %s", diag->message);
             if( !diag->warning )
                 errors++;
         }
-        (void)script;
     }
     if( self->check->status == BUILDER_SSC_OK )
         snprintf(line, sizeof(line), "compiles (%.1f s)", self->check->seconds);
     else if( self->check->status == BUILDER_SSC_FAILED )
-        snprintf(line, sizeof(line), "sscompile failed: %d error(s) in %s's files; log %s", errors,
-                 self->model->name, self->check->log_path);
+        snprintf(line, sizeof(line), "sscompile failed: %d error(s) here%s", errors,
+                 elsewhere ? " (more in Problems)" : "");
     else
         snprintf(line, sizeof(line), "sscompile could not run (%s)",
-                 self->check->status == BUILDER_SSC_UNSUPPORTED ? "not on this platform"
-                                                               : "no binary or stage");
+                 self->check->status == BUILDER_SSC_UNSUPPORTED ? "not on this platform" : "no binary or stage");
     bp_status(ui, self, line);
     bp_show_issues(ui, self);
-    return self->check->status == BUILDER_SSC_OK;
 }
 
 static int
@@ -2203,7 +2261,25 @@ bp_graph_event(
         memset(&chord, 0, sizeof(chord));
         if( event->value == -TORIRS_CHROME_KEY_ESCAPE )
         {
-            if( self->chips_open || self->drag_mode != BP_DRAG_NONE )
+            if( self->drag_mode == BP_DRAG_NODE || self->drag_mode == BP_DRAG_SUBTREE )
+            {
+                /* The drag wrote the positions as it went; the authority has
+                 * none of them, so they go back rather than ride the next
+                 * commit. */
+                int count = 0;
+                for( int i = 0; i < model->node_count; i++ )
+                {
+                    if( !self->drag_mask[i] )
+                        continue;
+                    model->nodes[i].x = self->drag_orig_x[i];
+                    model->nodes[i].y = self->drag_orig_y[i];
+                    count++;
+                }
+                self->drag_mode = BP_DRAG_NONE;
+                Editor_UiStatus(ui, "Move cancelled: %d node(s) back where they were", count);
+                bp_redraw_graph(ui, self);
+            }
+            else if( self->chips_open || self->drag_mode != BP_DRAG_NONE )
             {
                 self->chips_open = 0;
                 self->drag_mode = BP_DRAG_NONE;
@@ -2569,6 +2645,7 @@ bp_tick(
     struct builder_panel* self = opaque;
     int visible = ui->visible && ui->chrome->panels[self->p_main].visible;
 
+    bp_watch_check(ui, self);
     /* The outline and the dialogue follow the form's window. */
     if( ui->chrome->panels[self->p_outline].visible != visible )
         ToriRSChrome_PanelSetVisible(ui->chrome, self->p_outline, visible);
@@ -2865,6 +2942,14 @@ struct shell_panel
      *  STATE_VAR_PREVIEW live, every value it passes through while it is
      *  dragged, not only on the release. */
     int preview_published;
+    /** The var this panel's slider put in the published preview (kind 0:
+     *  none), so closing the editor or opening another shell takes it out
+     *  again: the preview changes every world view, not only this window's. */
+    int published_kind;
+    int published_id;
+    int w_preview_stop;
+    /** p_main's visibility last tick (a close stops the preview). */
+    int shown;
 };
 
 static void
@@ -2937,6 +3022,11 @@ sp_rebuild(
 }
 
 static int
+sp_stop_preview(
+    struct EditorUi* ui,
+    struct shell_panel* self);
+
+static int
 sp_open(
     struct EditorUi* ui,
     struct shell_panel* self)
@@ -2959,6 +3049,8 @@ sp_open(
         sp_status(ui, self, "no session");
         return 0;
     }
+    /* The last shell's preview does not outlive it. */
+    (void)sp_stop_preview(ui, self);
     snprintf(self->doc_key, sizeof(self->doc_key), "%s:%s",
              subject == BUILDER_SUBJECT_NPC ? "npc" : "loc", name);
     text = self->services.submit.current(self->services.user_data, EDITOR_DOC_CFG, self->doc_key,
@@ -3097,9 +3189,47 @@ sp_publish_preview(
     count = Builder_PreviewEncode(self->preview, self->preview_count, values,
                                   TORIRSMAPED_STATE_VALUES_MAX);
     self->preview_published = ToriRSChrome_SliderValue(ui->chrome, self->w_preview);
+    self->published_kind = kind;
+    self->published_id = id;
     if( self->services.state_set )
         self->services.state_set(self->services.user_data, TORIRSMAPED_STATE_VAR_PREVIEW, values,
                                  count);
+}
+
+/** Take this panel's var out of the published preview (the rest of the
+ *  list stays): every view resolves that var from its real value again.
+ *  Returns 1 when there was one to take out. */
+static int
+sp_stop_preview(
+    struct EditorUi* ui,
+    struct shell_panel* self)
+{
+    int32_t values[TORIRSMAPED_STATE_VALUES_MAX];
+    int count;
+    int kept = 0;
+    int had = 0;
+
+    (void)ui;
+    if( self->published_kind == 0 )
+        return 0;
+    for( int i = 0; i < self->preview_count; i++ )
+    {
+        if( self->preview[i].kind == self->published_kind && self->preview[i].id == self->published_id )
+        {
+            had = 1;
+            continue;
+        }
+        self->preview[kept++] = self->preview[i];
+    }
+    self->preview_count = kept;
+    self->published_kind = 0;
+    self->published_id = 0;
+    if( !had )
+        return 0;
+    count = Builder_PreviewEncode(self->preview, self->preview_count, values, TORIRSMAPED_STATE_VALUES_MAX);
+    if( self->services.state_set )
+        self->services.state_set(self->services.user_data, TORIRSMAPED_STATE_VAR_PREVIEW, values, count);
+    return 1;
 }
 
 static int
@@ -3141,6 +3271,12 @@ sp_activate(
     {
         sp_preview_label(ui, self);
         sp_publish_preview(ui, self);
+        return 1;
+    }
+    if( widget == self->w_preview_stop )
+    {
+        sp_status(ui, self, sp_stop_preview(ui, self) ? "preview stopped: the world shows the var's real value"
+                                                      : "no preview to stop");
         return 1;
     }
     if( widget != self->w_set && widget != self->w_hidden && widget != self->w_insert
@@ -3258,6 +3394,10 @@ sp_tick(
 
     if( ui->chrome->panels[self->p_slots].visible != visible )
         ToriRSChrome_PanelSetVisible(ui->chrome, self->p_slots, visible);
+    /* Closed: the world goes back to the var's real value. */
+    if( self->shown && !ui->chrome->panels[self->p_main].visible )
+        (void)sp_stop_preview(ui, self);
+    self->shown = ui->chrome->panels[self->p_main].visible;
     /* Scrubbing: the knob's value while it is dragged (the slider itself
      * activates only on the release) is published as it changes, so every
      * view resolves the shell through each state the knob passes. */
@@ -3342,6 +3482,9 @@ Builder_ShellPanelRegister(
     self->w_preview_label = ToriRSChrome_Label(chrome, p, "");
     ToriRSChrome_SetTooltip(chrome, self->w_preview,
                             "Every view resolves shells on this var with it");
+    self->w_preview_stop = ToriRSChrome_Button(chrome, p, "Stop preview");
+    ToriRSChrome_SetTooltip(chrome, self->w_preview_stop,
+                            "Back to the var's real value in every view (as a close does)");
 
     self->p_slots = ToriRSChrome_PanelAdd(chrome, TORIRS_CHROME_PANEL_WINDOW, 690, 80, 240, "Shell slots");
     assert(self->p_slots >= 0);
@@ -3382,31 +3525,6 @@ find_builder(
     if( strcmp(name, BUILDER_PANEL_LOC) != 0 && strcmp(name, BUILDER_PANEL_NPC) != 0 )
         return NULL;
     return Editor_UiPanelSelf(ui, name);
-}
-
-int
-Builder_PanelsSetCompile(
-    struct EditorUi* ui,
-    const char* sscompile,
-    const char* content_root,
-    const char* work_dir)
-{
-    int ok = 1;
-    const char* names[2] = { BUILDER_PANEL_LOC, BUILDER_PANEL_NPC };
-
-    assert(ui);
-    assert(sscompile);
-    assert(content_root);
-    assert(work_dir);
-    for( int i = 0; i < 2; i++ )
-    {
-        struct builder_panel* self = find_builder(ui, names[i]);
-        if( !self )
-            continue;
-        self->ssc_ready = Builder_SscInit(&self->ssc, sscompile, content_root, work_dir);
-        ok = ok && self->ssc_ready;
-    }
-    return ok;
 }
 
 int
@@ -3561,6 +3679,57 @@ Builder_GraphHotkey(
                           NULL, 0, x, y);
     }
     return 1;
+}
+
+int
+Builder_GraphFocused(struct EditorUi* ui)
+{
+    struct builder_panel* self;
+
+    assert(ui);
+    assert(ui->chrome);
+    self = find_builder(ui, BUILDER_PANEL_NPC);
+    return self && self->w_graph >= 0 && ui->chrome->focus == self->w_graph;
+}
+
+int
+Builder_GraphKeys(
+    struct EditorUi* ui,
+    const struct Editor_HotkeyInput* in,
+    struct Editor_HotkeyFrame* out)
+{
+    unsigned held_mods;
+
+    assert(ui);
+    assert(in);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    if( !Builder_GraphFocused(ui) )
+        return 0;
+    held_mods = Editor_HotkeyHeldMods(in);
+    for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT && out->count < EDITOR_HK_FIRED_MAX; k++ )
+    {
+        struct Editor_Chord chord;
+        int action;
+
+        if( !in->down[k] || Editor_HotkeyKeyIsModifier(k) )
+            continue;
+        memset(&chord, 0, sizeof(chord));
+        chord.key = (uint8_t)k;
+        chord.mods = (uint8_t)held_mods;
+        /* Only the graph's own rows: G and every other context stay shut
+         * while the well holds the keyboard, as they do for a text field. */
+        action = Editor_HotkeysMatch(&ui->hotkeys, chord, EDITOR_HK_CTX_Q);
+        if( action < 0 )
+            continue;
+        out->fired[out->count] = action;
+        out->fired_chord[out->count] = chord;
+        out->count++;
+        out->claimed[k] = 1;
+        out->consumed[k] = 1;
+        (void)Builder_GraphHotkey(ui, (enum Editor_HotkeyAction)action);
+    }
+    return out->count;
 }
 
 int

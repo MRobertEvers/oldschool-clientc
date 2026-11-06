@@ -24,14 +24,20 @@ MAPED_CLIENT_SRCS += editor/panels/edpanel_problems.c
 #       `check: ...` summary. Nothing is written in the content tree (the
 #       tool refuses a MAPED_CHECK_DIR inside it).
 #   make -C src maped-cs2-compile MAPED_CS2_DIR=<live>/cs2 MAPED_CS2_SCRIPT=<name> \
-#       MAPED_CS2_CACHE=<cache> MAPED_CACHE_REV=osrs241
+#       MAPED_CS2_CACHE=<cache> MAPED_CACHE_REV=osrs241 MAPED_CS2_SCRIPTS=<tree>/scripts
 #       `cs2 compile` of the one script the server wrote to
-#       MAPED_CS2_DIR/src/<name>.cs2, into MAPED_CS2_DIR/out; --names is
-#       RuneStar's tables (RUNESTAR_CS2_NAMES) when they are on this machine.
+#       MAPED_CS2_DIR/src/<name>.cs2, into MAPED_CS2_DIR/out. --names is
+#       MAPED_CS2_DIR/names, which maped_cs2_names
+#       (editor/iface/iface_cs2_names_main.c) writes first: RuneStar's tables
+#       (RUNESTAR_CS2_NAMES, when they are on this machine) linked, and
+#       script-names.tsv from MAPED_CS2_SCRIPTS' .cs2 headers, so a ~call to a
+#       content-named script resolves. Without MAPED_CS2_SCRIPTS, RuneStar's
+#       tables alone.
 MAPED_CHECK_DIR ?=
 MAPED_CS2_DIR ?=
 MAPED_CS2_SCRIPT ?=
 MAPED_CS2_CACHE ?=
+MAPED_CS2_SCRIPTS ?=
 .PHONY: maped-script-check maped-cs2-compile
 maped-script-check: sscompile
 	@[ -n "$(MAPED_CHECK_DIR)" ] || { echo "maped-script-check: MAPED_CHECK_DIR=<dir> is required" >&2; exit 2; }
@@ -51,11 +57,20 @@ maped-cs2-compile:
 		echo "error: maped-cs2-compile: $(MAPED_CS2_DIR)/src/$(MAPED_CS2_SCRIPT).cs2 was not written" >&2; exit 2; }
 	@$(SUBMAKE) --no-print-directory -C $(RSCACHE_DIR)/tools cs2 > /dev/null
 	@mkdir -p $(MAPED_CS2_DIR)/out
+ifneq ($(MAPED_CS2_SCRIPTS),)
+	@mkdir -p $(OBJ_DIR)
+	@[ $(OBJ_DIR)/maped_cs2_names -nt editor/iface/iface_model.c ] \
+		&& [ $(OBJ_DIR)/maped_cs2_names -nt editor/iface/iface_cs2_names_main.c ] \
+		|| $(CC) $(CFLAGS) -o $(OBJ_DIR)/maped_cs2_names $(TORIMEM_SRCS) editor/iface/iface_model.c \
+			editor/iface/iface_cs2_names_main.c
+	@$(abspath $(OBJ_DIR))/maped_cs2_names $(MAPED_CS2_SCRIPTS) "$(wildcard $(RUNESTAR_CS2_NAMES))" \
+		$(MAPED_CS2_DIR)/names
+endif
 	@echo "cs2: compiling $(MAPED_CS2_SCRIPT).cs2"
 	$(CS2_BIN) compile --src $(MAPED_CS2_DIR)/src \
 		--cache $(if $(MAPED_CS2_CACHE),$(MAPED_CS2_CACHE),$(REPO_ROOT)/cache.$(if $(MAPED_CACHE_REV),$(MAPED_CACHE_REV),osrs241)) \
 		--rev $(if $(MAPED_CACHE_REV),$(MAPED_CACHE_REV),osrs241) \
-		$(if $(wildcard $(RUNESTAR_CS2_NAMES)),--names $(RUNESTAR_CS2_NAMES),) \
+		$(if $(MAPED_CS2_SCRIPTS),--names $(MAPED_CS2_DIR)/names,$(if $(wildcard $(RUNESTAR_CS2_NAMES)),--names $(RUNESTAR_CS2_NAMES),)) \
 		--out $(MAPED_CS2_DIR)/out
 
 # ---------------------------------------------------------------------------
@@ -88,6 +103,35 @@ test-maped-script-check:
 		$(abspath $(OBJ_DIR))/tmp/maped_script_check
 
 test-editor: test-maped-script-check
+
+# The CS2 job's names step (editor/iface/iface_cs2_names_main.c), on a
+# synthetic scripts dir and a synthetic RuneStar table: the content's script
+# names in script-names.tsv, RuneStar's other tables linked beside it, its own
+# script-names.tsv not.
+.PHONY: test-maped-cs2-names
+test-maped-cs2-names:
+	mkdir -p $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/maped_cs2_names $(TORIMEM_SRCS) editor/iface/iface_model.c \
+		editor/iface/iface_cs2_names_main.c
+	rm -rf $(OBJ_DIR)/tmp/maped_cs2_names
+	mkdir -p $(OBJ_DIR)/tmp/maped_cs2_names/scripts $(OBJ_DIR)/tmp/maped_cs2_names/runestar
+	printf '// 5344\n[proc,openurl_raw_handle_event_5344](int $$a)\nreturn;\n' \
+		> $(OBJ_DIR)/tmp/maped_cs2_names/scripts/openurl_raw_handle_event_5344.cs2
+	printf '// 12\n[clientscript,bank_sort]\nreturn;\n' > $(OBJ_DIR)/tmp/maped_cs2_names/scripts/bank_sort.cs2
+	printf '1\tobj_one\n' > $(OBJ_DIR)/tmp/maped_cs2_names/runestar/obj-names.tsv
+	printf '5344\t[proc,script5344]\n' > $(OBJ_DIR)/tmp/maped_cs2_names/runestar/script-names.tsv
+	./$(OBJ_DIR)/maped_cs2_names $(OBJ_DIR)/tmp/maped_cs2_names/scripts $(OBJ_DIR)/tmp/maped_cs2_names/runestar \
+		$(OBJ_DIR)/tmp/maped_cs2_names/names
+	grep -qx '5344	\[proc,openurl_raw_handle_event_5344\]' $(OBJ_DIR)/tmp/maped_cs2_names/names/script-names.tsv
+	grep -qx '12	\[clientscript,bank_sort\]' $(OBJ_DIR)/tmp/maped_cs2_names/names/script-names.tsv
+	! grep -q script5344 $(OBJ_DIR)/tmp/maped_cs2_names/names/script-names.tsv
+	[ -L $(OBJ_DIR)/tmp/maped_cs2_names/names/obj-names.tsv ]
+	./$(OBJ_DIR)/maped_cs2_names $(OBJ_DIR)/tmp/maped_cs2_names/scripts "" $(OBJ_DIR)/tmp/maped_cs2_names/names_only
+	[ -f $(OBJ_DIR)/tmp/maped_cs2_names/names_only/script-names.tsv ] \
+		&& [ ! -e $(OBJ_DIR)/tmp/maped_cs2_names/names_only/obj-names.tsv ]
+	@echo "test-maped-cs2-names: ok"
+
+test-editor: test-maped-cs2-names
 
 # The panels and the jobs, headless, against the real chrome model and an
 # embedded ToriRSMapEd whose catalog indexes a SYNTHETIC content tree and

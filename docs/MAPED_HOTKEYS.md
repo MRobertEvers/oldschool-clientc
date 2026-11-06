@@ -67,8 +67,12 @@ elsewhere, takes it away). K excludes every other context, G included: while the
 keyboard it is a field, nothing else resolves, and its keys are the K rows
 alone (the Squares panel reads them from the table, so a rebind relabels and
 re-routes them) ·
-**Q** a GRAPH well (the builders' dialogue graph) holds the keyboard focus
-(workbench 6.8: Ctrl+L lays it out there; Ctrl+L is free everywhere else).
+**Q** the NPC builder's dialogue graph holds the keyboard focus (a press in
+the well gives it; any other GRAPH well, a palette's, a chip strip's, the
+Locs strip's or the picker's, is not Q). Like K it is a chrome focus, so the
+text-field gate holds every other row back: the App resolves the frame's keys
+against the Q rows alone (`Builder_GraphKeys`). Workbench 6.8: Ctrl+L lays it
+out there; Ctrl+L is free everywhere else.
 
 ### File
 | Action | Chord | Ctx |
@@ -327,7 +331,9 @@ adds a node of the Node kind dropdown's kind after the selected one. With the
 graph's well holding the keyboard, Delete (`edit.delete`'s chord, so a rebind
 moves it too) deletes the selected node, and the status bar names the nodes
 it orphaned. Escape closes the new-node chip row a port dropped on empty
-space opens. Away from the graph, Delete is the World's again.
+space opens, and mid-drag puts the dragged nodes back. Away from the graph,
+Delete is the World's again; N and Ctrl+L from the command palette or the
+menu still act on the open dialogue graph.
 
 Every other panel the View menu lists (Record, New, builders, Live, Accounts,
 Scenes, Encounters, the Shop builder, the Quest board, Problems, ...) is an action too, unbound by default. The Chrome scale and Text size rows

@@ -668,6 +668,9 @@ int
 app_text_input_focused(struct App const* app);
 
 int
+app_text_input_focused_outside_chrome(struct App const* app);
+
+int
 app_chrome_holds_keyboard(struct App const* app);
 
 /* The runner camera split's drain steps (app_render.c; struct App_ViewSplit):

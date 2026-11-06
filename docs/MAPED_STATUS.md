@@ -4485,8 +4485,10 @@ with `--no-ff` in this order: records and problems (part 1,
 and the shell preview (part 2, `worktree-wf_e50eb21e-54f-2` d04523f2). The
 two parts' sections above say what each built; this one says what landed
 together, how the seams were joined and what was run. With it, design
-sections 9 ("Records and triggers") and 10 ("Graph ergonomics", "Steps and
-shells") are built, minus what "What is open" lists.
+section 9 ("Records and triggers") and, of section 10, "Graph ergonomics"
+and the Shell preview of "Steps and shells" are built, minus what "What is
+open" lists (the step list's drag reordering, op sections and templates are
+not: see there).
 
 What landed:
 
@@ -4656,12 +4658,20 @@ unlimited'):
 
 What is open:
 
-- The builder panel's Check (NPC and loc) still runs `Builder_SscRun`
-  synchronously. The CHECK job compiles the server's unsaved `rs2:`
-  documents, so once the builder's generated script is in its document the
-  panel needs `Editor_BuildJobSend(ui, &job, TORIRSMAPED_BUILD_CHECK, ...)`
-  and `Builder_SscTakeLine` per line (part 1's seam note). Its sscompile
-  diagnostics are the builder's issues list, not Problems rows.
+- ~~The builder panel's Check (NPC and loc) still runs `Builder_SscRun`
+  synchronously.~~ Now the CHECK job (Review fixes below). Its sscompile
+  diagnostics are the builder's issues list; the Problems panel files the
+  same job lines under "check" by itself.
+- Design section 10's step list is not built: steps still move with Move up
+  / Move down (no drag reordering), op1-op5 / ap1-ap5 / use-on are not
+  collapsible sections, and there is no + menu of templates ("door",
+  "ladder", "require level then give", "teleport with anim").
+- The shell preview changes every world view of the App, not only the EDIT
+  world, while it lasts: the Shell editor takes its var out of the preview
+  on Stop preview, on a close and on opening another shell (Review fixes),
+  but a window that quits with a preview published leaves it with the other
+  windows until one of them clears it or enters a scene with an empty
+  preview list.
 - The loc builder runs no lint; only the NPC builder reports to Problems.
 - The chat-box numbers (380 px, 4 lines a page, p12_full) are the editor's
   reading: replace them with ~chatnpc's `split_init` arguments from
@@ -4670,9 +4680,9 @@ What is open:
 - The node Text field is a one-line input capped at 191 bytes; the graph
   has no zoom or pan of its own; a subtree move includes loops back to
   ancestors.
-- The server-side CS2 job passes only RuneStar's names tables, so a script
-  calling a content proc by name may not compile, and the client is not told
-  where the lane put the compiled script (`output_path` is empty).
+- ~~The server-side CS2 job passes only RuneStar's names tables~~ (the job
+  now writes the content's script names first: Review fixes). The client is
+  not told where the lane put the compiled script (`output_path` is empty).
 - Where used reads files rather than an index (a cold search of the full
   tree is unmeasured, likely ~10 s of 4 ms frames); configs/all.<type> is
   never read; unsaved locs in open squares are not counted.
@@ -4686,6 +4696,107 @@ What is open:
 - Nothing that needs OSRS-Content or the cache ran (list above);
   maped-script-check and maped-cs2-compile have never run for real; no
   generated .rs2 was compiled; no photographs.
+
+Review fixes (2026-11-06). Nine findings on the integration; each was checked
+against the code before it was fixed or recorded, and the four panel fixes'
+new checks were each shown to fail with that fix taken back out, in a scratch
+worktree (never this checkout):
+
+- **N and Ctrl+L never reached the dialogue graph from the keyboard** (real,
+  fixed). A press on the graph's well is a chrome focus (`dbg_ui.focus`), so
+  `app_text_input_focused` was true and the App's hotkey tick returned before
+  `Editor_HotkeysResolve` every time context Q could be live; the chrome
+  hands letters back (`dbg_ext_key_char`) and the well's GRAPH_KEY carries
+  only Escape / Delete / Backspace. builder_test only ever called
+  `Builder_GraphHotkey` directly. Now `Builder_GraphKeys(ui, in, out)`
+  (builder_panels.h) resolves the frame's down edges, with the held
+  modifiers, against the Q rows alone (`Editor_HotkeysMatch`) while the
+  dialogue graph holds the keyboard, and runs each through
+  `Builder_GraphHotkey`. `app_hk_tick` calls it ahead of the text-field gate
+  when the graph is focused, no plugin field or game text field
+  (`app_text_input_focused_outside_chrome`, new) or model view holds the
+  keyboard and no menu drop or minimenu is open; it logs and consumes as the
+  resolver's path does. The App half has no harness; builder_test drives the
+  rest through the real chrome model: the well focused, `ToriRSChrome_KeyChar
+  ('n')` handed back, N and Ctrl+L from an `Editor_HotkeyInput`, a key no Q
+  row binds left alone. The menu / palette path (`Editor_HotkeyRun`) is
+  unchanged, and its EDIT_DELETE -> `Builder_GraphHotkey` branch stays (it
+  answers 0 without the graph's focus); the well's own GRAPH_KEY is what
+  deletes.
+- **Any GRAPH well's focus made context Q live** (real, fixed with the
+  above). The facts now set `graph_focus` from `Builder_GraphFocused(ui)`:
+  the NPC builder's `w_graph`, not a palette's, a chip strip's, the Locs
+  strip's or the picker's well (a press on the Palette and then N would have
+  added a dialogue node, had the keys reached the resolver). New check: the
+  pages well (another GRAPH) focused, N fires nothing and the dialogue is
+  unchanged. MAPED_HOTKEYS.md's Q and Graph text and editor_hotkeys.h say so.
+- **The NPC and loc builders' Check compiled on the UI thread** (real,
+  fixed). `bp_check` regenerates the model's files into their `rs2:`
+  documents (an unchanged model applies nothing) and sends
+  `Editor_BuildJobSend(TORIRSMAPED_BUILD_CHECK)`; the server writes every
+  unsaved `rs2:` document, the builder's generated ones among them, over the
+  job's stage. `bp_watch_check` runs every tick, shown or not, takes the
+  lines with `Builder_SscTakeLine`, and at the end files this subject's
+  diagnostics (`edited/<name>/...`) as the builder's issues and counts the
+  rest as "(more in Problems)"; the status lines fit the chrome's 64-byte label. A second Check while one runs is
+  refused. The panels' own compile paths are gone (`Builder_PanelsSetCompile`,
+  the panel's `Builder_Ssc`, the TORIRS_BUILDER_* fallback in
+  builder_session.c and editor_panel.c's call); so builder_ssc.h's and
+  torirs_maped_build.c's "no window calls Builder_SscRun" now hold.
+  builder_test stands in for the job helper (`Editor_BuildJobSend` / `_Poll`
+  / `_Why`, as it does for Problems) and checks the send, the immediate
+  return, the refusal, lines arriving mid-job and the end landing while the
+  builder is hidden.
+- **The CS2 job lost the content's script names** (real, fixed). The job's
+  argv now carries `MAPED_CS2_SCRIPTS=<tree>/scripts`; the
+  `maped-cs2-compile` recipe first runs a new tool, `maped_cs2_names`
+  (editor/iface/iface_cs2_names_main.c, built on demand like
+  maped_script_check), which is `EditorCs2Catalog_Load` +
+  `EditorCs2Catalog_WriteNamesDir` into `MAPED_CS2_DIR/names`: RuneStar's
+  tables linked when `RUNESTAR_CS2_NAMES` exists, script-names.tsv from the
+  content's .cs2 headers. `--names` is that directory; without
+  `MAPED_CS2_SCRIPTS` it is RuneStar's alone, as before. Done in the job's
+  process rather than in `jobs_build_prepare`, so the server's pump never
+  walks the scripts directory and torirs_maped.c's many link lines take no
+  new source. New: test-maped-cs2-names (a test-editor member, content-free)
+  and a records-panels check that the job names the scripts directory.
+  `cs2 compile` itself still has never run here.
+- **Escape mid-drag left the dragged positions in the model** (real, fixed).
+  Escape with a node or subtree drag in progress puts every dragged node back
+  at `drag_orig_x/y`, says "Move cancelled: N node(s) back where they were"
+  and redraws; the release then commits nothing. New builder_test check.
+- **A failed Check's puts were staged again** (real, fixed).
+  `jobs_build_prepare` empties `<live>/check/puts` recursively (symlinks
+  removed, never followed) before it writes the dirty documents.
+  records-panels: a planted stale put is gone after the next Check, the
+  still-unsaved script is put again.
+- **`Editor_CfgValueIssue` took a NULL field** (real, fixed). It asserts
+  `field`; both production callers already test for a register row first.
+  The NULL-pinning lines in editor_records_test are gone; the bool check uses
+  the register's `nomove` row.
+- **The integration claimed design section 10's "Steps and shells"** (real,
+  fixed in this doc): the claim is narrowed above and the step list's
+  missing drag reordering, op sections and templates are an open item.
+- **The shell preview outlived the Shell editor** (real, fixed in part). The
+  panel remembers the var it published; Stop preview (new button), closing
+  the Shell editor and opening another shell publish the preview list
+  without it, so every world view resolves that var from its real value
+  again. builder_test: Stop, a second Stop publishing nothing, a close, an
+  open. What still lingers is in "What is open".
+
+Tests after the fixes (same container and flags as above): `make -C src all
+torirsmaped torirsmapedctl` builds with no new warning; test-builder 266
+(243 + 23: the keyboard path 9, Escape 3, Check 6, the preview 5),
+test-editor-records 78 (the two NULL checks gone, the bool one on a register
+row), test-editor-records-panels 128 (+3), test-maped-cs2-names (new),
+test-editor-hotkeys 2301, test-editor-chords 591 (it caught the first Stop
+preview tooltip at 84 bytes, cut to 63; shortened). `make -C src test-editor`
+passes (exit 0) with the same 19 content members named as skipped, and every
+other member at the integration's count. Also passing: test-varp,
+test-debug-overlay-visual, chrome-skin 922, check-pt-switch,
+check-tree-walks, check-app-boundary. Not run, as before: the content and
+cache members, builder_test's shell sweep and compile section, and any real
+`maped-script-check` / `maped-cs2-compile` run.
 
 ## Open issues
 

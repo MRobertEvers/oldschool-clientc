@@ -382,18 +382,15 @@ Editor_PanelInit(
     /* What the App-bound modules ask of the App, before they register. */
     app_map_editor_ui_services(app, &panel->ui->app_services);
     Editor_UiRegisterToolsPanels(panel->ui);
-    /* The builders' Check button compiles against a stage of the content
-     * tree's scripts with this checkout's sscompile (builder_ssc.h); the
-     * TORIRS_BUILDER_* env vars do the same where the manifest names neither. */
+    /* The builders' Check is the editor server's CHECK job (builder_ssc.h),
+     * so they take no compile paths here. */
     if( app->cfg.editor_content_dir && app->cfg.editor_content_dir[0] && app->cfg.editor_repo_root
         && app->cfg.editor_repo_root[0] )
     {
         char ssc[1024];
         char work[1024];
         snprintf(ssc, sizeof(ssc), "%s/src/build_opt/sscompile", app->cfg.editor_repo_root);
-        snprintf(work, sizeof(work), "%s/src/build_opt/tmp/builders", app->cfg.editor_repo_root);
-        Builder_PanelsSetCompile(panel->ui, ssc, app->cfg.editor_content_dir, work);
-        /* The Triggers panel's Check: the same compiler, its own stage. */
+        /* The Triggers panel's paths (its Check is the CHECK job too). */
         snprintf(work, sizeof(work), "%s/src/build_opt/tmp/triggers_check", app->cfg.editor_repo_root);
         (void)Editor_Triggers_SetPaths(panel->ui, app->cfg.editor_content_dir, ssc, work);
         /* The quest board reads test/quests and build/quest_gate beside it. */
