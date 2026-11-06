@@ -818,11 +818,61 @@ Editor_Triggers_ShowResult(
 
 /* ---- hotkeys (edpanel_hotkeys.c, docs/MAPED_HOTKEYS.md) -------------------- */
 
-/** The Hotkeys panel: every action's group, name, context and chord, a
- *  search box, click a chord to rebind it, clashes in red, Reset to
- *  defaults. Hidden until View > Hotkeys panel (F1). "hotkeys" */
+/** The Hotkeys panel (workbench 6.8, design section 15 figure 5): every
+ *  action's group, name, context, two chords and gesture in one sortable
+ *  list, a search box, Group / Context filters, changed / conflicts chips,
+ *  two capture cells per row, clashes in the alert ink, Reset all. Hidden
+ *  until View > Hotkeys panel (F1). "hotkeys" */
 void
 Editor_Hotkeys_Register(struct EditorUi* ui);
+
+/** The Hotkeys panel's columns, in the figure's order (its Sort chips). */
+enum Editor_HotkeysColumn
+{
+    EDITOR_HOTKEYS_COL_GROUP = 0,
+    EDITOR_HOTKEYS_COL_ACTION,
+    EDITOR_HOTKEYS_COL_CONTEXT,
+    EDITOR_HOTKEYS_COL_CHORD1,
+    EDITOR_HOTKEYS_COL_CHORD2,
+    EDITOR_HOTKEYS_COL_GESTURE,
+    EDITOR_HOTKEYS_COLUMNS
+};
+
+/** Sort the list by `column` (a Sort chip; `reverse` the second press). By
+ *  group is the table's order; any other column by its text, case-blind,
+ *  the empty ones (unbound, no gesture) last either way, ties in table
+ *  order. */
+void
+Editor_Hotkeys_SetSort(
+    struct EditorUi* ui,
+    int column,
+    int reverse);
+
+/** The filters: `group` a table group ("Edit"; NULL any), `context` one
+ *  EDITOR_HK_CTX_* bit (0 any), only the rebound, only the clashing. */
+void
+Editor_Hotkeys_SetFilter(
+    struct EditorUi* ui,
+    const char* group,
+    unsigned context,
+    int changed,
+    int conflicts);
+
+/** The listed actions in their order (up to `max` into `out`); returns how
+ *  many are listed. */
+int
+Editor_Hotkeys_Rows(
+    struct EditorUi* ui,
+    int* out,
+    int max);
+
+/** The panel's list (a wide cells VLIST), -1 without the panel. */
+int
+Editor_Hotkeys_ListWidget(struct EditorUi* ui);
+
+/** "Reset all": every action back to its default chords. */
+void
+Editor_Hotkeys_ResetAll(struct EditorUi* ui);
 
 /**
  * Run `action` the way its menu row or button does: the ONE entry point the
@@ -857,20 +907,236 @@ Editor_Squares_StorageName(
 int
 Editor_Hotkeys_Capturing(struct EditorUi* ui);
 
-/** Start capturing a chord for `action` (a click on its row). */
+/** Start capturing a chord for `action`'s first slot. */
 void
 Editor_Hotkeys_BeginCapture(
     struct EditorUi* ui,
     enum Editor_HotkeyAction action);
 
+/** Start capturing a chord for slot `slot` (0 or 1) of `action` alone (a
+ *  click on that chord cell of its row); the other slot is kept. */
+void
+Editor_Hotkeys_BeginCaptureSlot(
+    struct EditorUi* ui,
+    enum Editor_HotkeyAction action,
+    int slot);
+
+/** The slot being captured, -1 when not capturing. */
+int
+Editor_Hotkeys_CaptureSlot(struct EditorUi* ui);
+
 /**
  * While capturing: this frame's keys go to the capture, not the table. Esc
- * cancels, Backspace unbinds, any other chord (a modifier alone only for Fly
- * faster) binds and the capture ends. Returns 1 while capturing (the frame's
- * keys are the panel's), 0 when not capturing.
+ * cancels, Backspace unbinds the captured slot, any other chord (a modifier
+ * alone only for a qualifier) binds that slot (Editor_HotkeysSetSlot) and the
+ * capture ends. Returns 1 while capturing (the frame's keys are the
+ * panel's), 0 when not capturing.
  */
 int
 Editor_Hotkeys_Feed(
+    struct EditorUi* ui,
+    const struct Editor_HotkeyInput* input);
+
+/* ---- the command palette (edpanel_palette_cmd.c, workbench 6.8) ------------
+ *
+ * Design section 3 "Command palette": Ctrl+K opens one search over what the
+ * editor can name, a MODAL over a search box and one cells VLIST grouped
+ * under headers -- Actions (the hotkey table; the right column is the chord,
+ * or the panel the action opens), Panels (the View menu's), Squares (the
+ * catalog's squares, and a tile typed as "x z"), Records (CATALOG_QUERY over
+ * locs, npcs and objs; "loc:" "npc:" "obj:" narrow it to one kind) and
+ * Accounts (the Accounts panel's list). Scenes and Lanes are workbench 6.5's
+ * and are not groups here. The arrows move (skipping headers), Tab goes to the
+ * next group, Enter runs the row, Escape closes. A group shows at most
+ * EDITOR_CMDPAL_GROUP_MAX rows and ends with a footer row "and N more".
+ *
+ * The list is a pure model (Editor_CmdPalList), so the grouping and the
+ * footer are tested over any table; the module fills it from the sources.
+ */
+#define EDITOR_CMDPAL_GROUP_MAX 100
+#define EDITOR_CMDPAL_LABEL_MAX 64
+#define EDITOR_CMDPAL_TEXT_MAX 40
+
+enum Editor_CmdPalGroup
+{
+    EDITOR_CMDPAL_ACTIONS = 0,
+    EDITOR_CMDPAL_PANELS,
+    EDITOR_CMDPAL_SQUARES,
+    EDITOR_CMDPAL_RECORDS,
+    EDITOR_CMDPAL_ACCOUNTS,
+    EDITOR_CMDPAL_GROUPS
+};
+
+/** What running an item does. */
+enum Editor_CmdPalKind
+{
+    /** `target` an enum Editor_HotkeyAction. */
+    EDITOR_CMDPAL_KIND_ACTION = 0,
+    /** `target` a registry index: show the panel (its tab to the front). */
+    EDITOR_CMDPAL_KIND_PANEL,
+    /** `label` a square or a tile for the picker's Find. */
+    EDITOR_CMDPAL_KIND_SQUARE,
+    /** `target` a TORIRSMAPED_CATALOG_* kind, `name` the record: the pick. */
+    EDITOR_CMDPAL_KIND_RECORD,
+    /** `name` an account: the Accounts panel shows it. */
+    EDITOR_CMDPAL_KIND_ACCOUNT,
+};
+
+struct Editor_CmdPalItem
+{
+    int group;
+    int kind;
+    int target;
+    /** What the row says ("Fit walls to neighbours", "loc:oaktree"). */
+    char label[EDITOR_CMDPAL_LABEL_MAX];
+    /** The record's or account's own name (the label without its prefix). */
+    char name[EDITOR_CMDPAL_LABEL_MAX];
+    /** Dimmed after the label ("Place", "square"). */
+    char dim[EDITOR_CMDPAL_TEXT_MAX];
+    /** The chord, drawn as a keycap ("" none). */
+    char chord[EDITOR_CMDPAL_TEXT_MAX];
+    /** The right column: the owning panel, an id ("" none). */
+    char right[EDITOR_CMDPAL_TEXT_MAX];
+};
+
+/** A flattened row: a group's header, an item, or a group's footer. */
+enum Editor_CmdPalRowKind
+{
+    EDITOR_CMDPAL_ROW_HEADER = 0,
+    EDITOR_CMDPAL_ROW_ITEM,
+    EDITOR_CMDPAL_ROW_FOOTER,
+};
+
+struct Editor_CmdPalList
+{
+    struct Editor_CmdPalItem* items;
+    int item_count;
+    int item_cap;
+    /** Per group: the matches in all (a server's total included) and the
+     *  items kept (at most EDITOR_CMDPAL_GROUP_MAX). */
+    int total[EDITOR_CMDPAL_GROUPS];
+    int kept[EDITOR_CMDPAL_GROUPS];
+    /** The rows, after Finish: kind and, for an item, its index; the group. */
+    unsigned char* row_kind;
+    int* row_item;
+    unsigned char* row_group;
+    int row_count;
+    int row_cap;
+};
+
+void
+Editor_CmdPalListInit(struct Editor_CmdPalList* list);
+
+/** NULL-tolerant. */
+void
+Editor_CmdPalListFree(struct Editor_CmdPalList* list);
+
+/** Empty it (the allocations kept). */
+void
+Editor_CmdPalListClear(struct Editor_CmdPalList* list);
+
+/** Count one match of `item->group`; keep it while the group holds fewer
+ *  than EDITOR_CMDPAL_GROUP_MAX. Returns 1 when kept. */
+int
+Editor_CmdPalListAdd(
+    struct Editor_CmdPalList* list,
+    const struct Editor_CmdPalItem* item);
+
+/** Matches of `group` the list did not see one by one (a catalog page's
+ *  total beyond its rows): counted, never kept. */
+void
+Editor_CmdPalListAddUnseen(
+    struct Editor_CmdPalList* list,
+    int group,
+    int count);
+
+/** Lay the rows out: each group with matches, in the enum's order, as its
+ *  header, its kept items in the order added, and -- when it had more than it
+ *  kept -- a footer. Returns the row count. */
+int
+Editor_CmdPalListFinish(struct Editor_CmdPalList* list);
+
+/** Row `row` as a cells row (no picture well; a header's label is its
+ *  group's name and its right the count, a footer reads "and N more"). */
+void
+Editor_CmdPalRowText(
+    const struct Editor_CmdPalList* list,
+    int row,
+    char* out,
+    int out_size);
+
+/** The group's name, "Actions" ... "Accounts". */
+const char*
+Editor_CmdPalGroupName(int group);
+
+/** The item row after (`delta` 1) or before (-1) `row`, headers and footers
+ *  skipped, clamped to the first and last items; -1 when there is none. */
+int
+Editor_CmdPalStep(
+    const struct Editor_CmdPalList* list,
+    int row,
+    int delta);
+
+/** Tab: the first item row of the group after `row`'s, wrapping to the first
+ *  group; -1 when there is no item. */
+int
+Editor_CmdPalNextGroup(
+    const struct Editor_CmdPalList* list,
+    int row);
+
+/** Does `text` hold every space-separated word of `query`, case-blind? An
+ *  empty query matches everything. */
+int
+Editor_CmdPalMatches(
+    const char* text,
+    const char* query);
+
+/** Register the palette ("cmdpalette", a modal, off the View menu). */
+void
+Editor_CmdPalette_Register(struct EditorUi* ui);
+
+/** Ctrl+K: show the palette, the search emptied and focused. 0 without the
+ *  module. */
+int
+Editor_CmdPalette_Open(struct EditorUi* ui);
+
+int
+Editor_CmdPalette_IsOpen(struct EditorUi* ui);
+
+/** Close it (Escape; after a row ran). */
+void
+Editor_CmdPalette_Close(struct EditorUi* ui);
+
+/** Put `query` in the search box and rebuild the list now (a test, a host
+ *  that types for the user). */
+void
+Editor_CmdPalette_SetQuery(
+    struct EditorUi* ui,
+    const char* query);
+
+/** The list as last built (NULL without the module). */
+const struct Editor_CmdPalList*
+Editor_CmdPalette_List(struct EditorUi* ui);
+
+/** The selected row, -1 none. */
+int
+Editor_CmdPalette_Selected(struct EditorUi* ui);
+
+/** Run row `row`'s item (Enter, a click) and close; 0 for a header, a
+ *  footer, or an item that could not run (the status bar says why). */
+int
+Editor_CmdPalette_RunRow(
+    struct EditorUi* ui,
+    int row);
+
+/**
+ * While the palette is open, the frame's navigation keys are its: Up / Down
+ * move the selection (headers skipped), PageUp / PageDown by the window, Tab
+ * the next group, Enter runs the selected row, Escape closes. Returns 1
+ * while open (the dispatcher resolves no chord), 0 when closed.
+ */
+int
+Editor_CmdPalette_Feed(
     struct EditorUi* ui,
     const struct Editor_HotkeyInput* input);
 

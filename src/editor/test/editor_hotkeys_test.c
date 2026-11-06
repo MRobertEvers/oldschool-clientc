@@ -260,7 +260,7 @@ test_resolve(void)
     CHECK(fire("ctrl+shift+z", G) == EDITOR_HK_EDIT_REDO && fire("ctrl+y", G) == EDITOR_HK_EDIT_REDO,
         "both Redo chords");
     CHECK(fire("3", G) == EDITOR_HK_TOOL_RAISE, "3 arms Raise");
-    CHECK(fire("ctrl+3", G) == EDITOR_HK_LEVEL_PIN3, "Ctrl+3 pins level 3");
+    CHECK(fire("alt+3", G) == EDITOR_HK_LEVEL_PIN3, "Alt+3 pins level 3 (workbench 6.8)");
     CHECK(fire("delete", LOCS) == EDITOR_HK_EDIT_DELETE, "Delete with locs selected");
     CHECK(fire("delete", SPAWNS) == EDITOR_HK_EDIT_DELETE, "Delete with a spawn selection");
     CHECK(fire("delete", G) == -1, "Delete with neither does nothing");
@@ -928,6 +928,175 @@ test_picker_context(void)
     }
 }
 
+/* Workbench 6.8's chord moves (design section 15 "Resolved collisions"): the
+ * level pins on Alt+0..5 with Ctrl+0 and Ctrl+5 kept one release and a note
+ * when they fire, the workspaces on Ctrl+1..4, Ctrl+K, Ctrl+Shift+K,
+ * Ctrl+Shift+N, Ctrl+L in the graph's context Q, the reserved Alt layer keys,
+ * the keycap spelling, and the one-slot rebind -- the defaults still free of
+ * any clash with every new id and both aliases. */
+static void
+test_workbench68(void)
+{
+    static const struct
+    {
+        int action;
+        const char* id;
+        const char* first;
+        const char* second;
+        unsigned contexts;
+    } k_new[] = {
+        { EDITOR_HK_LEVEL_PIN0, "level.pin0", "alt+0", "ctrl+0", EDITOR_HK_CTX_G },
+        { EDITOR_HK_LEVEL_PIN1, "level.pin1", "alt+1", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_LEVEL_PIN2, "level.pin2", "alt+2", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_LEVEL_PIN3, "level.pin3", "alt+3", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_LEVEL_AUTO, "level.auto", "alt+4", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_LEVEL_ABOVE, "level.above", "alt+5", "ctrl+5", EDITOR_HK_CTX_G },
+        { EDITOR_HK_VIEW_WORKSPACE_BUILD, "view.workspace_build", "ctrl+1", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_VIEW_WORKSPACE_TERRAIN, "view.workspace_terrain", "ctrl+2", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_VIEW_WORKSPACE_SCRIPT, "view.workspace_script", "ctrl+3", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_VIEW_WORKSPACE_PLAYTEST, "view.workspace_playtest", "ctrl+4", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_VIEW_COMMAND_PALETTE, "view.command_palette", "ctrl+k", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_SCENE_SAVE, "scene.save", "ctrl+shift+k", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_LANE_SCRATCH, "lane.scratch", "ctrl+shift+n", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_GRAPH_AUTO_LAYOUT, "graph.auto_layout", "ctrl+l", NULL, EDITOR_HK_CTX_Q },
+        { EDITOR_HK_VIEW_LAYER_LOCS, "view.layer_locs", "alt+l", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_VIEW_LAYER_NPCS, "view.layer_npcs", "alt+n", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_VIEW_LAYER_OBJS, "view.layer_objs", "alt+o", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_VIEW_LAYER_COLLISION, "view.layer_collision", "alt+c", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_VIEW_LAYER_GRID, "view.layer_grid", "alt+g", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_EDIT_LEVEL_UP, "edit.level_up", "ctrl+pageup", NULL, EDITOR_HK_CTX_L },
+        { EDITOR_HK_EDIT_LEVEL_DOWN, "edit.level_down", "ctrl+pagedown", NULL, EDITOR_HK_CTX_L },
+    };
+    unsigned const G = EDITOR_HK_CTX_G;
+    unsigned const W = EDITOR_HK_CTX_W;
+    unsigned const L = EDITOR_HK_CTX_L;
+    unsigned const S = EDITOR_HK_CTX_S;
+    unsigned const N = EDITOR_HK_CTX_N;
+    int pairs[64];
+    char note[160];
+    char text[64];
+    struct Editor_Chord chord;
+
+    Editor_HotkeysInit(&g_hk);
+    for( size_t i = 0; i < sizeof(k_new) / sizeof(k_new[0]); i++ )
+    {
+        const struct Editor_HotkeyActionInfo* info = Editor_HotkeyInfo(k_new[i].action);
+        CHECK(Editor_HotkeyFind(k_new[i].id) == k_new[i].action, "6.8: %s is in the table", k_new[i].id);
+        CHECK(info->defaults[0] && strcmp(info->defaults[0], k_new[i].first) == 0, "6.8: %s defaults to %s (%s)",
+            k_new[i].id, k_new[i].first, info->defaults[0] ? info->defaults[0] : "none");
+        CHECK(k_new[i].second ? info->defaults[1] && strcmp(info->defaults[1], k_new[i].second) == 0
+                              : info->defaults[1] == NULL,
+            "6.8: %s's second chord is %s", k_new[i].id, k_new[i].second ? k_new[i].second : "none");
+        CHECK(info->contexts == k_new[i].contexts, "6.8: %s lives in its context", k_new[i].id);
+        CHECK(Editor_HotkeysClash(&g_hk, k_new[i].action) < 0, "6.8: %s clashes with nothing", k_new[i].id);
+    }
+    CHECK(Editor_HotkeysConflicts(&g_hk, pairs, 32) == 0, "6.8: the defaults, new ids and aliases included, are clash-free");
+
+    /* What fires where. */
+    CHECK(fire("ctrl+1", G) == EDITOR_HK_VIEW_WORKSPACE_BUILD, "6.8: Ctrl+1 is the Build workspace, not a pin");
+    CHECK(fire("ctrl+4", G) == EDITOR_HK_VIEW_WORKSPACE_PLAYTEST, "6.8: Ctrl+4 is Playtest, not Level Auto");
+    CHECK(fire("alt+1", G) == EDITOR_HK_LEVEL_PIN1, "6.8: Alt+1 pins level 1");
+    CHECK(fire("alt+4", G) == EDITOR_HK_LEVEL_AUTO, "6.8: Alt+4 is Level Auto");
+    CHECK(fire("ctrl+0", G) == EDITOR_HK_LEVEL_PIN0, "6.8: the old Ctrl+0 still pins level 0");
+    CHECK(fire("ctrl+5", G) == EDITOR_HK_LEVEL_ABOVE, "6.8: the old Ctrl+5 still shows above");
+    CHECK(fire("ctrl+k", G) == EDITOR_HK_VIEW_COMMAND_PALETTE, "6.8: Ctrl+K opens the palette");
+    CHECK(fire("ctrl+shift+k", G) == EDITOR_HK_SCENE_SAVE && fire("ctrl+shift+n", G) == EDITOR_HK_LANE_SCRATCH,
+        "6.8: Ctrl+Shift+K saves the scene, Ctrl+Shift+N a scratch lane");
+    CHECK(fire("ctrl+n", G) == EDITOR_HK_FILE_NEW, "6.8: Ctrl+N is still New square");
+    CHECK(fire("ctrl+l", G | W | N) == -1, "6.8: Ctrl+L does nothing outside the graph");
+    CHECK(fire("ctrl+l", G | EDITOR_HK_CTX_Q) == EDITOR_HK_GRAPH_AUTO_LAYOUT, "6.8: Ctrl+L lays the graph out in Q");
+    CHECK(fire("l", G | W) == EDITOR_HK_HOLD_PLACE || fire("l", G | W) == -1, "6.8: a bare L is still the hold key's");
+    CHECK(fire("alt+g", G) == EDITOR_HK_VIEW_LAYER_GRID && fire("g", G) == EDITOR_HK_PLACE_FIT,
+        "6.8: Alt+G is the Grid layer, G still Fit");
+    CHECK(fire("ctrl+pageup", G | L) == EDITOR_HK_EDIT_LEVEL_UP, "6.8: Ctrl+PgUp moves the selection up a level");
+
+    /* Q from the facts: a GRAPH holds the focus. */
+    {
+        struct Editor_HotkeyContextFacts facts;
+        memset(&facts, 0, sizeof(facts));
+        CHECK(!(Editor_HotkeyContextsFrom(&facts) & EDITOR_HK_CTX_Q), "6.8: no graph focus, no Q");
+        facts.graph_focus = 1;
+        CHECK(Editor_HotkeyContextsFrom(&facts) & EDITOR_HK_CTX_Q, "6.8: a focused graph is Q");
+        CHECK(!Editor_HotkeyContextsOverlap(EDITOR_HK_CTX_Q, EDITOR_HK_CTX_K)
+                  && Editor_HotkeyContextsOverlap(EDITOR_HK_CTX_Q, G),
+            "6.8: Q overlaps G but not the picker's K");
+    }
+
+    /* The console note of a retired chord. */
+    (void)Editor_ChordParse("ctrl+0", &chord);
+    CHECK(Editor_HotkeyRetiredNote(&g_hk, EDITOR_HK_LEVEL_PIN0, chord, note, (int)sizeof(note)) == 1
+              && strstr(note, "Ctrl+0") && strstr(note, "Alt+0") && strstr(note, "next release"),
+        "6.8: Ctrl+0 firing says it is the old chord and names Alt+0 (%s)", note);
+    (void)Editor_ChordParse("alt+0", &chord);
+    CHECK(Editor_HotkeyRetiredNote(&g_hk, EDITOR_HK_LEVEL_PIN0, chord, note, (int)sizeof(note)) == 0 && !note[0],
+        "6.8: the new chord says nothing");
+    (void)Editor_ChordParse("ctrl+5", &chord);
+    CHECK(Editor_HotkeyRetiredNote(&g_hk, EDITOR_HK_LEVEL_ABOVE, chord, note, (int)sizeof(note)) == 1
+              && strstr(note, "Alt+5"),
+        "6.8: so does Ctrl+5 for Show above");
+    CHECK(Editor_HotkeyRetiredNote(&g_hk, EDITOR_HK_LEVEL_PIN0, chord, note, (int)sizeof(note)) == 0,
+        "6.8: another action's retired chord is not this one's");
+    {
+        struct Editor_Chord rebound;
+        (void)Editor_ChordParse("alt+9", &rebound);
+        Editor_HotkeysSetSlot(&g_hk, EDITOR_HK_LEVEL_PIN0, 0, rebound);
+        (void)Editor_ChordParse("ctrl+0", &chord);
+        CHECK(Editor_HotkeyRetiredNote(&g_hk, EDITOR_HK_LEVEL_PIN0, chord, note, (int)sizeof(note)) == 1
+                  && strstr(note, "Alt+9"),
+            "6.8: the note names the chord the first slot holds now (%s)", note);
+        Editor_HotkeysResetDefaults(&g_hk);
+    }
+
+    /* One slot at a time. */
+    {
+        struct Editor_Chord y;
+        struct Editor_Chord none = { 0, 0 };
+        (void)Editor_ChordParse("ctrl+alt+y", &y);
+        Editor_HotkeysSetSlot(&g_hk, EDITOR_HK_EDIT_REDO, 1, y);
+        Editor_ChordFormat(g_hk.bind[EDITOR_HK_EDIT_REDO].chord[0], text, (int)sizeof(text));
+        CHECK(strcmp(text, "ctrl+shift+z") == 0, "6.8: binding slot 2 keeps slot 1");
+        Editor_ChordFormat(g_hk.bind[EDITOR_HK_EDIT_REDO].chord[1], text, (int)sizeof(text));
+        CHECK(strcmp(text, "ctrl+alt+y") == 0, "6.8: and slot 2 is the new chord");
+        Editor_HotkeysSetSlot(&g_hk, EDITOR_HK_EDIT_REDO, 0, y);
+        CHECK(g_hk.bind[EDITOR_HK_EDIT_REDO].chord[0].key == y.key && g_hk.bind[EDITOR_HK_EDIT_REDO].chord[1].key == 0,
+            "6.8: the same chord in the other slot is one copy");
+        Editor_HotkeysSetSlot(&g_hk, EDITOR_HK_EDIT_DELETE, 0, none);
+        Editor_ChordFormat(g_hk.bind[EDITOR_HK_EDIT_DELETE].chord[0], text, (int)sizeof(text));
+        CHECK(strcmp(text, "backspace") == 0 && g_hk.bind[EDITOR_HK_EDIT_DELETE].chord[1].key == 0,
+            "6.8: unbinding slot 1 moves slot 2 up (%s)", text);
+        Editor_HotkeysResetDefaults(&g_hk);
+    }
+
+    /* The keycap spelling. */
+    (void)Editor_ChordParse("ctrl+shift+z", &chord);
+    Editor_ChordSpell(chord, 0, 0, text, (int)sizeof(text));
+    CHECK(strcmp(text, "Ctrl+Shift+Z") == 0, "6.8: words elsewhere (%s)", text);
+    Editor_ChordSpell(chord, 1, 0, text, (int)sizeof(text));
+    CHECK(strcmp(text, "Cmd+Shift+Z") == 0, "6.8: Apple words without the glyphs (%s)", text);
+    Editor_ChordSpell(chord, 1, 1, text, (int)sizeof(text));
+    CHECK(strcmp(text, "\xe2\x87\xa7\xe2\x8c\x98Z") == 0, "6.8: Apple symbols run together (%s)", text);
+    (void)Editor_ChordParse("alt+up", &chord);
+    Editor_ChordSpell(chord, 0, 1, text, (int)sizeof(text));
+    CHECK(strcmp(text, "Alt+\xe2\x86\x91") == 0, "6.8: an arrow as its glyph (%s)", text);
+    Editor_ChordSpell(chord, 1, 1, text, (int)sizeof(text));
+    CHECK(strcmp(text, "\xe2\x8c\xa5\xe2\x86\x91") == 0, "6.8: Option, then the arrow (%s)", text);
+    (void)Editor_ChordParse("backspace", &chord);
+    Editor_ChordSpell(chord, 0, 1, text, (int)sizeof(text));
+    CHECK(strcmp(text, "\xe2\x8c\xab") == 0, "6.8: Backspace as its glyph");
+    Editor_ChordSpell(chord, 0, 0, text, (int)sizeof(text));
+    CHECK(strcmp(text, "Backspace") == 0, "6.8: and its word without");
+    (void)Editor_ChordParse("ctrl+shift+z", &chord);
+    Editor_ChordDisplay(chord, text, (int)sizeof(text));
+    CHECK(EDITOR_HK_SMALL_FACE_GLYPHS == 0 && strstr(text, "Shift+Z") != NULL,
+        "6.8: the build's keycaps keep the words (the Small face has no symbols) (%s)", text);
+
+    /* The doc's letters. */
+    Editor_HotkeyContextLetters(L | S, text, (int)sizeof(text));
+    CHECK(strcmp(text, "L, S") == 0, "6.8: the context letters (%s)", text);
+    Editor_HotkeyContextLetters(EDITOR_HK_CTX_Q, text, (int)sizeof(text));
+    CHECK(strcmp(text, "Q") == 0, "6.8: Q's letter");
+}
+
 /* Every action's ini id and its row are in the user's reference. */
 static void
 test_doc(const char* path)
@@ -975,6 +1144,7 @@ main(
     test_contexts_from();
     test_placement_chords();
     test_picker_context();
+    test_workbench68();
     test_doc(argc > 1 ? argv[1] : "../docs/MAPED_HOTKEYS.md");
     printf("editor_hotkeys_test: %d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;

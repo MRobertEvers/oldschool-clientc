@@ -267,6 +267,9 @@ button { font: 700 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
 .tpc-cell-thumb { float: left; width: 16px; height: 16px; margin: 2px 3px 0 0; background: #000000; }
 .tpc-cell-right { float: right; width: 42px; text-align: right; color: #9f9f9f; }
 .tpc-cell-keys { float: right; width: 96px; overflow: hidden; white-space: nowrap; }
+.tpc-cells-wide .tpc-cell-keys { width: 50%; }
+.tpc-cell-alert .tpc-cell-names, .tpc-cell-alert .tpc-cell-dim, .tpc-cell-alert .tpc-cell-key { color: #ff5555; }
+.tpc-cell-accent .tpc-cell-name { color: #ffff00; }
 .tpc-cell-key { margin-right: 3px; padding: 0 2px; border: 1px solid #474745; background: #000000; color: #ffff00; font: 400 10px/10px "ToriRS Chrome Small", "Lucida Console", monospace; cursor: pointer; }
 .tpc-cell-names { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .tpc-cell-dim, .tpc-vlist-head { color: #9f9f9f; }

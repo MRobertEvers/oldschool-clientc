@@ -679,6 +679,41 @@ assert.strictEqual(button.control.innerText, 'Rebuild every collision map in the
   assert.strictEqual(plainList.lineNodes[0].innerText, `a${US}b`, 'a plain list shows its text as it is');
 }
 
+/* Workbench 6.8's cells: the WIDE shape bit widens the keycap column, a "-"
+ * sprite field is a row with no picture well, and the sixth field's "!" marks
+ * the row in the alert ink, "*" its name in the accent. */
+{
+  const US = '\x1f';
+  runtime.receive({ protocol: 1, type: 'page.snapshot', pageGeneration: 25, panel: 3,
+    title: 'Hotkeys', checkStyle: 0, commands: [
+      cmd(CMD.PANEL_OPEN, { text: 'Hotkeys' }),
+      cmd(CMD.WIDGET_ADD, { w: 1, v: W.VLIST, label: '', cw: 3, ch: 4, s: 401 }),
+      cmd(CMD.WIDGET_VALUE, { w: 1, v: -1, x: 0, y: 3 }),
+      cmd(CMD.WIDGET_ROW, { w: 1, v: 0, text: `-${US}Redo${US}Edit${US}Ctrl+Shift+Z Ctrl+Y${US}${US}!` }),
+      cmd(CMD.WIDGET_ROW, { w: 1, v: 1, text: `-${US}Undo${US}Edit${US}Ctrl+Z -${US}${US}*` }),
+      cmd(CMD.WIDGET_ROW, { w: 1, v: 2, text: `${US}Welled${US}${US}Q` }),
+      cmd(CMD.WIDGET_ADD, { w: 2, v: W.VLIST, label: '', cw: 1, ch: 2, s: 402 })
+    ] });
+  const rows6 = ids['tpc-content'].children;
+  const handle6 = h => rows6.find(r => r._tpcRecord && r._tpcRecord.handle === h)._tpcRecord;
+  const wide = handle6(1);
+  const narrow = handle6(2);
+  assert(wide.cellsWide && /tpc-cells-wide/.test(wide.row.className), 'the WIDE bit makes a wide cells list');
+  assert(narrow.cells && !narrow.cellsWide && !/tpc-cells-wide/.test(narrow.row.className),
+    'a plain cells list is not wide');
+  const redo = wide.lineNodes[0];
+  assert.deepStrictEqual(redo.children.map(c => c.className), ['tpc-cell-names', 'tpc-cell-keys', 'tpc-cell-right'],
+    'a "-" row has no picture well');
+  assert(/tpc-cells-nowell/.test(redo.className), 'and says so');
+  assert(/tpc-cell-alert/.test(redo.className), 'the "!" mark is the alert row');
+  assert.deepStrictEqual(redo.children[1].children.map(k => k.innerText), ['Ctrl+Shift+Z', 'Ctrl+Y'],
+    'both chords are keycaps, each a cell');
+  assert(/tpc-cell-accent/.test(wide.lineNodes[1].className) && !/tpc-cell-alert/.test(wide.lineNodes[1].className),
+    'the "*" mark is the accent row');
+  assert.strictEqual(wide.lineNodes[2].children[0].className, 'tpc-cell-thumb', 'a row without "-" keeps its well');
+  assert(!/tpc-cell-alert|tpc-cell-accent/.test(wide.lineNodes[2].className), 'and no mark, no mark class');
+}
+
 /* GRAPH images (workbench 6.4): the square picker's world map on the web. The
  * native picture -- 128x128 0xAARRGGBB words, what image_publish hands the
  * scene and ToriRSChromeExecWeb_GraphImage hands the page -- goes through the

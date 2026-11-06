@@ -274,7 +274,7 @@ sync_add_shape(
     case TORIRS_CHROME_W_VLIST:
         /* A cells list (ToriRSChrome_VListCells) is shape: its rows read as
          * cells from the add on. */
-        *out_w = w->iaux ? TORIRS_CHROME_VLIST_CELLS : 0;
+        *out_w = w->iaux ? TORIRS_CHROME_VLIST_CELLS | (w->iaux & TORIRS_CHROME_VLIST_CELLS_WIDE) : 0;
         *out_h = w->rows;
         return;
     default:

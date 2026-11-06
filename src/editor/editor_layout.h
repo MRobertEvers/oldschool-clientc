@@ -46,6 +46,24 @@
  *     maximised = 0
  *     shown = catalog       ; the module whose tab is in front
  *
+ * Workspaces (workbench 6.8, design section 3 "Workspaces"): `[layout]` says
+ * which one is current (`workspace = build`), and each workspace's own layout
+ * is a section of one line per panel and per group, the same fields in a
+ * row (a "-" for a field the capture did not state):
+ *
+ *     [workspace terrain]
+ *     surface = 1530 1006 1  ; the surface and scale it was made on
+ *     ; panel.<module> = visible user_placed x y w h maximised
+ *     panel.squares = 1 0 1224 330 306 300 0
+ *     ; group.<name> = visible user_placed x y w h maximised shown
+ *     group.right-mid = 1 0 1224 22 306 300 0 terrain
+ *
+ * The [panel] and [group] sections above are the CURRENT workspace's live
+ * layout, as before workspaces (a file from before them has no [workspace]
+ * section and is the Build workspace's); its [workspace] section, written
+ * beside them, holds the same. A workspace with no section starts from its
+ * default (editor_ui.h, Editor_UiSetWorkspace).
+ *
  * A module that is in a group keeps its [panel] section, with only `visible`
  * in it: whether it is open in its group's strip. Its geometry is the
  * group's. A file written before groups existed (no [group] sections, every
@@ -82,6 +100,9 @@
 #define EDITOR_LAYOUT_PANELS_MAX 48
 /** Groups one file holds (the registry's own cap, EDITOR_UI_GROUPS_MAX). */
 #define EDITOR_LAYOUT_GROUPS_MAX 8
+/** [workspace] sections one file holds (the editor's four, room for more a
+ *  later build may name; a section past it is skipped). */
+#define EDITOR_LAYOUT_WORKSPACES_MAX 8
 #define EDITOR_LAYOUT_NAME_MAX 32
 /** `TORIRS_EDITOR_LAYOUT` unset: this name, resolved by the platform the way
  *  `preferences.ini` is (the working directory, or IndexedDB on the web). */
@@ -135,6 +156,21 @@ struct EditorLayoutGroup
     char shown[EDITOR_LAYOUT_NAME_MAX];
 };
 
+/** A [workspace <name>] section: one workspace's layout, the panels and
+ *  groups as the top-level sections hold them, and the surface and scale it
+ *  was made for (0 when unstated). */
+struct EditorLayoutWorkspace
+{
+    char name[EDITOR_LAYOUT_NAME_MAX];
+    int surface_w;
+    int surface_h;
+    int scale;
+    struct EditorLayoutPanel panels[EDITOR_LAYOUT_PANELS_MAX];
+    int panel_count;
+    struct EditorLayoutGroup groups[EDITOR_LAYOUT_GROUPS_MAX];
+    int group_count;
+};
+
 struct EditorLayoutFile
 {
     int version;
@@ -149,6 +185,11 @@ struct EditorLayoutFile
     int panel_count;
     struct EditorLayoutGroup groups[EDITOR_LAYOUT_GROUPS_MAX];
     int group_count;
+    /** `workspace =` in [layout]: the current workspace's name. */
+    int has_workspace;
+    char workspace[EDITOR_LAYOUT_NAME_MAX];
+    struct EditorLayoutWorkspace workspaces[EDITOR_LAYOUT_WORKSPACES_MAX];
+    int workspace_count;
 };
 
 /**
@@ -211,5 +252,33 @@ struct EditorLayoutGroup*
 EditorLayout_AddGroup(
     struct EditorLayoutFile* file,
     const char* name);
+
+/** The workspace named `name`, or NULL when the file has no section for it. */
+const struct EditorLayoutWorkspace*
+EditorLayout_FindWorkspace(
+    const struct EditorLayoutFile* file,
+    const char* name);
+
+/** The workspace named `name`, appended (empty) when absent. Asserts on a
+ *  full file. */
+struct EditorLayoutWorkspace*
+EditorLayout_AddWorkspace(
+    struct EditorLayoutFile* file,
+    const char* name);
+
+/** The file's top-level panels and groups (the live layout) as workspace
+ *  `ws`'s section, with the file's surface and scale. */
+void
+EditorLayout_WorkspaceFromTop(
+    struct EditorLayoutWorkspace* ws,
+    const struct EditorLayoutFile* file);
+
+/** Workspace `ws`'s layout as a file's top-level panels and groups, its
+ *  surface and scale, ready for Editor_UiLayoutApply; `out` is cleared
+ *  first and carries no workspace. */
+void
+EditorLayout_TopFromWorkspace(
+    struct EditorLayoutFile* out,
+    const struct EditorLayoutWorkspace* ws);
 
 #endif

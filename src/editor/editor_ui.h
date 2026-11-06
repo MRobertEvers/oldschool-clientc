@@ -544,6 +544,10 @@ struct EditorUiGroup
     /** The default membership, in strip order: what Reset groups restores. */
     int home[EDITOR_UI_GROUP_MEMBERS_MAX];
     int home_count;
+    /** The strip as the first layout found it (which members were open, which
+     *  was in front, -1 none): the Build workspace's default gives it back. */
+    unsigned char boot_open[EDITOR_UI_GROUP_MEMBERS_MAX];
+    int boot_shown;
 };
 
 /** Lines the output console keeps, and their width. */
@@ -808,7 +812,82 @@ struct EditorUi
      */
     int dock_exit;
     uint32_t dock_serial;
+
+    /**
+     * Workspaces (workbench 6.8, design section 3): the current one
+     * (EDITOR_UI_WS_*), each one's layout as it was left -- `has` 0 until it
+     * was captured or read from the layout file, when switching to it gives
+     * its default instead -- and a serial that moves on every switch (the
+     * host saves the layout file when the fingerprint moves).
+     */
+    int workspace;
+    struct EditorLayoutWorkspace workspace_saved[4];
+    unsigned char workspace_has[4];
+    uint32_t workspace_serial;
 };
+
+/* ---- workspaces (workbench 6.8, design section 3 "Workspaces") ------------
+ *
+ * Four named layouts. A workspace is the panels it shows, their boxes, and
+ * which tab of each group is in front; the dock column takes the
+ * workspace's own panels first (the default layout's order, per workspace).
+ *
+ *   Build     the modules' default set (the editor's boot layout): Catalog,
+ *             Locs, Spawns, Inspector; Preview; Palette slots; Console,
+ *             History
+ *   Terrain   Terrain, Palette (Terrain in front); Squares; Inspector;
+ *             Console, History
+ *   Script    Record, Triggers, Vars; Loc builder, NPC builder; Shell;
+ *             Problems, Console, Dialogue preview
+ *   Playtest  Live, Accounts, Scenes; Encounter; Live log, Console
+ *
+ * A panel the table names that this window has not registered (Vars,
+ * Problems, Dialogue preview, Scenes, Encounter, Live log in this tree) is
+ * skipped, and the switch says which in one console line.
+ *
+ * Switching captures the workspace being left (Editor_UiLayoutCapture's
+ * panels and groups), then gives the target its saved layout when it has
+ * one, else its default. Reset layout resets the current workspace to its
+ * default. The layout file keeps every workspace's layout (editor_layout.h,
+ * [workspace <name>]).
+ */
+enum Editor_UiWorkspace
+{
+    EDITOR_UI_WS_BUILD = 0,
+    EDITOR_UI_WS_TERRAIN,
+    EDITOR_UI_WS_SCRIPT,
+    EDITOR_UI_WS_PLAYTEST,
+    EDITOR_UI_WORKSPACES
+};
+
+/** "build", "terrain", "script", "playtest": the layout file's section. */
+const char*
+Editor_UiWorkspaceName(int workspace);
+
+/** "Build", "Terrain", ...: the menu bar's chip and the palette's row. */
+const char*
+Editor_UiWorkspaceTitle(int workspace);
+
+/** The workspace named `name` (its section name), or -1. */
+int
+Editor_UiWorkspaceFind(const char* name);
+
+/** The registry modules the design's table names for `workspace`, in the
+ *  column's order (NULL-terminated; Build's is NULL: the default set), the
+ *  ones this tree has not got included -- what a switch skips. */
+const char* const*
+Editor_UiWorkspacePanels(int workspace);
+
+/**
+ * Switch to `workspace` (EDITOR_UI_WS_*): the current one's layout captured
+ * first, then the target's saved layout or its default, a console line, and
+ * the layout run again. The same workspace again: nothing. Returns the
+ * number of the table's panels this window skipped (absent).
+ */
+int
+Editor_UiSetWorkspace(
+    struct EditorUi* ui,
+    int workspace);
 
 /* ---- chrome scale and text size (workbench 6.0b) ---------------------------
  *
@@ -1099,7 +1178,8 @@ void
 Editor_UiLayout(struct EditorUi* ui);
 
 /** View > Reset layout: every module window back in the default layout for
- *  the current surface, the default set shown again, drags forgotten. */
+ *  the current surface, the default set shown again, drags forgotten. The
+ *  default set is the current WORKSPACE's (Build's is the modules' own). */
 void
 Editor_UiResetLayout(struct EditorUi* ui);
 

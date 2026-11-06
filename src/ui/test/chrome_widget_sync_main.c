@@ -96,6 +96,7 @@ main(void)
     cw_test_tree();
     cw_test_vlist();
     cw_test_vlist_cells();
+    cw_test_vlist_cells_marks();
     cw_test_iconbutton();
     cw_test_slider();
     cw_test_radio();

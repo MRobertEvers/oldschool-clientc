@@ -3519,8 +3519,31 @@ ToriRSChrome_VListSetRow(struct ToriRSChrome* ui, int widget, int row, char cons
 #define TORIRS_CHROME_CELL_SEP '\x1f'
 #define TORIRS_CHROME_CELL_SEP_STR "\x1f"
 #define TORIRS_CHROME_CELL_KEYS_MAX 8
+/*
+ * Workbench 6.8 (the command palette, the Hotkeys panel):
+ *   - a sprite field of "-" is a row with no picture well at all (the name
+ *     starts where the well would): a list of actions has no pictures;
+ *   - a SIXTH field, the mark: "!" draws the name, the dim part and the
+ *     keycaps' captions in TORIRS_CHROME_CELL_MARK_INK (a clash, a refusal),
+ *     "*" the name in the accent (the row being captured); anything else, or
+ *     none, the usual inks.
+ */
+/** The shape bits (WIDGET_ADD `w` of a VLIST): its rows are cells; and,
+ *  with CELLS, the keycap column is half the row, uncapped
+ *  (ToriRSChrome_VListCellsWide; the Hotkeys panel's two chord cells). */
+#define TORIRS_CHROME_VLIST_CELLS 0x1
+#define TORIRS_CHROME_VLIST_CELLS_WIDE 0x2
+#define TORIRS_CHROME_CELL_NO_SPRITE "-"
+#define TORIRS_CHROME_CELL_MARK_ALERT '!'
+#define TORIRS_CHROME_CELL_MARK_ACCENT '*'
+#define TORIRS_CHROME_CELL_MARK_INK 0xFF5555u
 int
 ToriRSChrome_VListCells(
+    struct ToriRSChrome* ui, int panel, char const* label, int rows, int row_count);
+/** A cells list whose keycap column is half the row, not capped at 96 px:
+ *  rows of whole chords (TORIRS_CHROME_VLIST_CELLS_WIDE rides WIDGET_ADD). */
+int
+ToriRSChrome_VListCellsWide(
     struct ToriRSChrome* ui, int panel, char const* label, int rows, int row_count);
 /** The cell the last pick of a cells list landed on: 0 the row body, n the
  *  n-th keycap (1-based). 0 for a plain list. */

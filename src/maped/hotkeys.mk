@@ -7,7 +7,7 @@
 # OBJ_DIR and CFLAGS exist: rule lines here name no such variable, recipes
 # use them freely.
 MAPED_CLIENT_SRCS += editor/editor_hotkeys.c editor/task_editor_hotkeys_io.c \
-	editor/panels/edpanel_hotkeys.c app/app_editor_hotkeys.c
+	editor/panels/edpanel_hotkeys.c editor/panels/edpanel_palette_cmd.c app/app_editor_hotkeys.c
 
 # The pure half on its own: every default chord parses and formats back, the
 # defaults are conflict-free per context, the ini roundtrip (unbound and
@@ -39,3 +39,21 @@ test-editor-chords:
 	./$(OBJ_DIR)/editor_chords_test
 
 test-editor: test-editor-chords
+
+# Workbench 6.8 (design section 3 "Workspaces" and "Command palette", section
+# 15): the four workspaces (defaults, a drag kept per workspace, the layout
+# file's [workspace] sections byte-exact, a restart, Reset layout per
+# workspace, an old file), the command palette's model over a synthetic table
+# (the groups, the 100-row footer, Up / Down / Tab) and the module (Ctrl+K,
+# its keys, rows that run), and the Hotkeys panel (its list, the sort, the
+# filters, the two-slot capture, the clash marks, Reset all). Content-free,
+# like test-editor-groups.
+.PHONY: test-editor-workspaces
+test-editor-workspaces:
+	mkdir -p $(OBJ_DIR)
+	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_workspaces_test editor/test/editor_workspaces_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/editor_workspaces_test
+
+test-editor: test-editor-workspaces

@@ -2713,6 +2713,190 @@ the panel's 1024-byte buffer, which _FORTIFY_SOURCE stops as an overflow; it
 now resolves into a PATH_MAX buffer, keeps the given path when the root does
 not exist yet, and asserts the result fits.
 
+## Workbench step 6.8: workspaces, the command palette, the Hotkeys panel, the chord moves (date 2026-11-06)
+
+Design section 3 ("Workspaces", "Command palette"), section 15 (figure 5,
+"Chord spelling", "Resolved collisions"), section 16 step 6.8. Built on
+v3-workbench `40ca3878` (6.0 to 6.4); the 6.5 to 6.7 slices are other
+sessions', so nothing here calls their APIs.
+
+What landed:
+
+- **Workspaces** (editor_ui.{c,h}, editor_layout.{c,h}). `enum
+  Editor_UiWorkspace` Build, Terrain, Script, Playtest;
+  `Editor_UiSetWorkspace`, `Editor_UiWorkspaceName` / `Title` / `Find`,
+  `Editor_UiWorkspacePanels` (the design table as module names). Build is
+  the modules' own default set (the boot layout, unchanged); Terrain shows
+  Terrain and Palette (Terrain in front), Squares, the Inspector (the front
+  tab of right-top), Console and History; Script Record, Triggers, the Loc
+  and NPC builders, the Shell editor and the Console; Playtest Live, Accounts
+  and the Console. A table panel this window has not registered is skipped
+  with one console line ("editor: workspace Script: no vars, problems,
+  dialogue_preview panel in this window, skipped"). The dock column takes the
+  workspace's own panels first (`ui_dock_order`, per workspace; Build's is the
+  old `k_dock_order`, so the boot layout and its golden did not move). A
+  switch captures the workspace being left (`EditorUi.workspace_saved[]`),
+  gives the target its saved layout when it has one (the console says "(as
+  you left it)") else its default; View > Reset layout resets the CURRENT
+  workspace to its default (Build's as before). The strips' boot state is kept
+  (`EditorUiGroup.boot_open` / `boot_shown`) so Build's default gives it back.
+- **The layout file** gains `workspace = <name>` in `[layout]` and one
+  `[workspace <name>]` section per workspace: `surface = W H S` and a line per
+  panel (`panel.<module> = visible user_placed x y w h maximised`) and per
+  group (`group.<name> = ... shown`), "-" for an unstated field, a trailing
+  comment cut (`EditorLayoutWorkspace`, `EditorLayout_FindWorkspace` /
+  `AddWorkspace` / `WorkspaceFromTop` / `TopFromWorkspace`). The top-level
+  `[panel]` / `[group]` sections stay the current workspace's live layout, so
+  a file from before workspaces is Build's and applies as before; an unknown
+  workspace name is kept. Byte-exact through decode and encode. The
+  fingerprint includes the workspace and a switch serial, so the host saves
+  after a switch.
+- **Menu bar chips**: "Workspace" Build, Terrain, Script, Playtest after the
+  Level row, the current one pressed, each tooltip naming its chord. They are
+  NOT at the bar's right end: the MENUBAR lays its items out left to right and
+  has no right-aligned run.
+- **The command palette** (new src/editor/panels/edpanel_palette_cmd.c,
+  module "cmdpalette", a MODAL, off the View menu; Ctrl+K). A search box over
+  one cells VLIST grouped under headers: Actions (every edge / repeat action
+  of the table, the chord as a keycap, an unbound View action's panel in the
+  right column), Panels (the View menu's; the View chord), Squares (CATALOG
+  kind SQUARE, plus a typed tile "3222 3218" for the picker's Find), Records
+  (CATALOG_QUERY over loc, npc and obj with `TORIRSMAPED_CATALOG_PROGRESS`,
+  so a warm build answers from its partial index and never makes the frame
+  wait; `loc:` `npc:` `obj:` narrow to one kind; the id in the right column),
+  Accounts (the Accounts panel's list). **Scenes and Lanes are left out**: the
+  6.5 hook `Editor_ScenesList` is not in this base. The model is pure
+  (`Editor_CmdPalList`: `Add`, `AddUnseen` for a page's total, `Finish`,
+  `RowText`, `Step`, `NextGroup`, `Matches`): a group keeps at most
+  `EDITOR_CMDPAL_GROUP_MAX` (100) rows and ends with a footer row "Actions:
+  and N more (type to narrow)". The catalog is asked once per change of the
+  search, never per frame. While open the App's dispatcher hands it the
+  navigation keys (`Editor_CmdPalette_Feed`, beside the Hotkeys capture):
+  Up / Down skip headers and footers, PageUp / PageDown by the window, Tab the
+  next group (wrapping), Enter runs the row, Escape closes; no chord resolves
+  under it. A click on a row runs it. A World-bound action (the camera, Place
+  at the hovered tile) is refused with the reason in the status bar.
+- **The Hotkeys panel** (edpanel_hotkeys.c, design section 15 figure 5): the
+  TREE rows are gone; one wide cells VLIST (20 rows, search above) of every
+  action: name, "<group> <context letters>" dimmed, the two chords as two
+  keycap CELLS ("-" an empty slot, "press..." the one being captured), the
+  gesture spelling in the right column (`Editor_HotkeyActionInfo::gesture`).
+  A summary ("161 actions, 0 rebound, 0 conflicts (161 shown)"), Group and
+  Context dropdowns, the changed / conflicts chips (an x on a lit one), Sort
+  chips over the six columns (group = the table's order; a second press
+  reverses; empty values last either way), Reset all. Clicking chord cell n
+  captures into slot n ALONE (`Editor_HotkeysSetSlot`; Backspace unbinds that
+  slot, a first slot left empty takes the second): the one-chord rebind of
+  6.0 is closed. A clash in a context that can be live at once marks both
+  rows "!" (the alert ink), the captured row "*". New API:
+  `Editor_Hotkeys_SetSort`, `SetFilter`, `Rows`, `ListWidget`, `ResetAll`,
+  `BeginCaptureSlot`, `CaptureSlot`; the row's tooltip names the action and
+  its id, or what it clashes with.
+- **Chrome: three cells-row behaviours** (uitree_debug_overlay, the executor
+  shape, the DOM runtime, modern and IE8 CSS): `ToriRSChrome_VListCellsWide`
+  (`TORIRS_CHROME_VLIST_CELLS_WIDE` 0x2 in WIDGET_ADD's shape: the keycap
+  column half the row, uncapped, so "Ctrl+Shift+Z Ctrl+Y" are two whole
+  cells); a sprite field of "-" draws no picture well; a sixth field, the
+  mark, "!" draws name, dim part and keycaps in `TORIRS_CHROME_CELL_MARK_INK`
+  and "*" the name in the accent. The shape bits moved beside
+  `ToriRSChrome_VListCells` in uitree_debug_overlay.h (the model reads them).
+  runtime.js and runtime-ie8.js regenerated with tsc 6.0.2 (the recipe
+  reproduces the old runtime.js byte for byte from the old source).
+- **The chord moves** (editor_hotkeys.{c,h}, docs/MAPED_HOTKEYS.md): the level
+  pins on Alt+0..3, Level Auto Alt+4, Show above Alt+5; Ctrl+0 and Ctrl+5 stay
+  as Pin level 0's and Show above's second chord for one release, and when
+  one fires the console says so (`Editor_HotkeyRetiredNote`: "editor: Ctrl+0
+  is the old chord of Pin level 0: Alt+0 from now on; the old one goes next
+  release"). Ctrl+1..4 could not stay as aliases: they are the workspaces
+  (`view.workspace_build` .. `_playtest`). New ids: `view.command_palette`
+  Ctrl+K, `scene.save` Ctrl+Shift+K and `lane.scratch` Ctrl+Shift+N (both
+  refuse with the reason: the Scenes and Lanes panels are 6.5's),
+  `graph.auto_layout` Ctrl+L in the new context **Q** (a GRAPH well holds the
+  chrome's focus: `Editor_HotkeyContextFacts.graph_focus`, set by the App;
+  refuses: auto-layout is 6.6's), and the RESERVED layer toggles
+  `view.layer_locs` / `_npcs` / `_objs` / `_collision` / `_grid` on
+  Alt+L/N/O/C/G (the World HUD is not in this tree; they say so). Ctrl+PgUp /
+  PgDn were already 6.3's `edit.level_up` / `level_down`. New groups "Scene"
+  and "Graph"; `Editor_HotkeyContextLetters`.
+- **Keycap spelling**: `Editor_ChordSpell(chord, apple, glyphs)` writes the
+  symbol spelling (⌥⇧⌘Z on Apple, the arrows, ↵ ⌦ ⌫ ⇥) and the words without
+  the glyphs; `Editor_ChordDisplay` is it with `EDITOR_HK_APPLE` and
+  `EDITOR_HK_SMALL_FACE_GLYPHS`, which is 0: the Small face is the cache's
+  p11 and adding the glyphs is a bake from the cache, which this container
+  does not have (tools/fontbake_atlas.py, chrome-skin-rebake). The keycaps
+  keep the words.
+
+Tests (2026-11-06, this container, build_opt; the editor tests with
+`ulimit -s unlimited`):
+
+- **test-editor-workspaces** (new, content-free; maped/hotkeys.mk) 395
+  checks, 0 failed: each workspace's panels, front tabs and dock (nothing the
+  layout docked covers the World), the skip line, the chips, a drag kept per
+  workspace across switches, the layout file's sections and a byte-exact
+  re-encode, a restart from the file, Reset layout per workspace, a file from
+  before workspaces, a hand-edited row; the palette model over a synthetic
+  table (250 actions, 3 panels, a record page with 40 unseen: the headers,
+  the 100-row cap, "and 150 more", "and 40 more", Up / Down / Tab), the
+  module (Ctrl+K, an empty search's footer, 'fit walls' with its G keycap,
+  Tab to Panels, Enter runs and closes, an action row switching workspace, a
+  World-bound refusal, nothing to run, Escape); the Hotkeys panel (every
+  action listed, the row's cells, sort by action both ways and by chord 2,
+  the Group / Context / changed / conflicts filters, the two-slot capture by
+  a click on cell 2, Backspace on slot 1, Esc, both rows of a clash marked,
+  Reset all).
+- test-editor-hotkeys 2268 (was 2015; `test_workbench68`: every new id's
+  defaults and context, zero conflicts with the aliases, what fires where,
+  Q from the facts, the retired note, one-slot binds, the spelling; the doc
+  test over the new rows), test-editor-groups 2190, test-editor-chords 591,
+  test-editor-workbench 295 (its three registry digests recorded again for the
+  menu bar's chips alone: 1x 2131301703 -> 1167870673, 2x 3539872907 ->
+  444441760, 3x 3420398390 -> 129691160; the scenes unchanged; with every 6.8
+  change but the chips the old digests held), test-chrome-widgets 1019 (was
+  1009) and the DOM test, the runtime / legacy / compat node tests:
+  all 0 failed. check-tree-walks and check-pt-switch PASS. `make -C src all`
+  builds.
+- editor_panels_test's `test_hotkeys` was rewritten for the list. Its
+  content-free subset (layout, world panel, popout, shared tools, open relay,
+  layout codec, saved layout, maximise, hotkeys, status bar), from a scratch
+  copy against an empty content dir: 1292 checks, 3 failed -- the two square
+  opens the empty dir cannot serve, and "Reset layout after a saved layout
+  returns to the default set" (line 4590), which fails the same way on the
+  base `40ca3878` (scratch worktree, 1279 checks, the same 3 failed): not
+  from this change.
+- Each new check was seen to fail on a mutant in this private worktree, the
+  file restored byte for byte after each (scratchpad py/mutate.py): an alias
+  that clashes (Ctrl+1 kept on Pin level 1), the pin defaults, the retired
+  note, SetSlot clearing the other slot, the glyph spelling, a doc row
+  removed, the cells mark ink, the wide column, the DOM's alert and wide
+  classes; the workspace not saved on leaving, the default ignoring its list,
+  Reset layout going to Build's set, the layout encoder writing 0 for an
+  unstated field (it survived the first test set; the hand-edited row's
+  re-encode was added for it), the palette's footer, its 100-row cap and
+  Tab, the sort's reverse, a capture binding both slots, and the clash
+  mark. Every mutant failed its test.
+- Not run: test-editor-panels in full and every test reading the content
+  tree (OSRS-Content is not checked out); the web build (no emcc); no
+  photograph of each workspace (section 16's check; no cache, no display).
+
+Open:
+
+- Scenes and Lanes groups of the palette wait for the 6.5 slice's
+  `Editor_ScenesList` (and a lanes list); Ctrl+Shift+K / Ctrl+Shift+N refuse
+  until its panels exist; Ctrl+L refuses until 6.6's auto-layout; the
+  Alt+L/N/O/C/G layer keys are reserved for a World HUD this tree lacks.
+- Groups do not change per workspace: Script's Record and Triggers are two
+  windows of the column, not one tab strip with Vars (the three 6.0 groups
+  stay, test-editor-groups asserts them). The Record panel shows only once a
+  record is open (its own rule), so a fresh Script workspace has no Record
+  window yet. The builders open their own outline and dialogue windows over
+  the world, as they do from the View menu.
+- The workspace chips sit after the Level row, not at the bar's right end.
+- Sorting is by chips; the list's header row is drawn, not pressed.
+- The palette asks the catalog synchronously, once per keystroke (as the
+  Catalog's own model does); with PROGRESS it never waits for the warm build.
+  A Square row runs the picker's Find, which needs the Squares panel.
+- Keycap symbols wait for the Small face's bake (a cache).
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.
