@@ -55,6 +55,7 @@ IFACE_EDITOR_CACHE ?= $(REPO_ROOT)/cache.osrs241
 .PHONY: test-iface-editor
 test-iface-editor:
 	mkdir -p $(OBJ_DIR)
+	@$(SUBMAKE) --no-print-directory -C $(RSCACHE_DIR)/tools cs2 > /dev/null
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_iface_test editor/test/editor_iface_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
