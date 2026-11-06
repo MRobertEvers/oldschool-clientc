@@ -305,6 +305,9 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     Editor_History_Register(ui);
     /* Named areas and square collections (the AREAS document). */
     Editor_Areas_Register(ui);
+    /* Encounter sets and their npcs (the ENCOUNTERS document, workbench
+     * 6.7): hidden until View > Encounters or Spawns' Group... opens it. */
+    Editor_Encounter_Register(ui);
     /* The hotkey table and its editor (View > Hotkeys panel, F1). */
     Editor_Hotkeys_Register(ui);
     ui->panel_end = ui->chrome->panel_count;

@@ -956,4 +956,118 @@ Editor_Publish_Register(struct EditorUi* ui);
 int
 Editor_Publish_Open(struct EditorUi* ui);
 
+/* ---- the encounter builder (edpanel_encounter.c; workbench 6.7) ------------ */
+
+/** Named sets of spawns, their npcs' combat fields, stats, ai template,
+ *  drops and a test loop on RUN (design #encounter). "encounter" */
+void
+Editor_Encounter_Register(struct EditorUi* ui);
+
+/** The Spawns panel's Group...: show the panel beside Spawns and put the
+ *  Spawns selection into the shown set (a new group_<n> when none is shown),
+ *  one undo step. Returns the spawns that joined; 0 with a status sentence
+ *  when none did. */
+int
+Editor_Encounter_GroupSelection(struct EditorUi* ui);
+
+/** Show set `name` (the panel opens when closed). 0 when there is none. */
+int
+Editor_Encounter_Show(
+    struct EditorUi* ui,
+    const char* name);
+
+/** One ring the world overlay draws: a square of ABSOLUTE tiles (inclusive)
+ *  about a spawn -- its wanderrange, or its huntrange. */
+struct Editor_EncounterRing
+{
+    int x0;
+    int z0;
+    int x1;
+    int z1;
+    int level;
+    /** 1 the hunt ring, 0 the wander ring. */
+    int hunt;
+    /** The set's colour. */
+    uint32_t rgb;
+    /** The shown set's: drawn brighter. */
+    int current;
+};
+
+#define EDITOR_ENCOUNTER_RINGS_MAX 256
+
+/** Every set's rings, for the npcs whose records the panel holds (the shown
+ *  set's; no catalog request is made from a draw); none while the panel is
+ *  closed or Show rings is off. Returns the count (at most `max`). */
+int
+Editor_Encounter_Rings(
+    struct EditorUi* ui,
+    struct Editor_EncounterRing* out,
+    int max);
+
+struct Editor_LiveModel;
+
+/**
+ * The Test tab's fight log: indexes into `model`'s log (newest first) of the
+ * lines that name a hit (the server's "HIT " line) or a hunt, matching
+ * `find`; `*out_fight` 1. When the link carries none of those, the lines that
+ * name one of `names` instead, `*out_fight` 0 -- what the row then says.
+ * Returns the count (at most `max`).
+ */
+int
+Editor_Encounter_FightLog(
+    const struct Editor_LiveModel* model,
+    const char (*names)[64],
+    int name_count,
+    const char* find,
+    int* out_rows,
+    int max,
+    int* out_fight);
+
+/** The panel's widgets, for the tests. */
+struct Editor_EncounterWidgets
+{
+    int panel;
+    int tabs;
+    int row_title;
+    int dropdown_set;
+    int input_name;
+    int button_new;
+    int button_save;
+    int input_spawn;
+    int button_add_name;
+    int button_add_selection;
+    int dropdown_colour;
+    int list_spawns;
+    int row_selected;
+    /** respawnrate, wanderrange, maxrange, huntrange, attackrate, damagetype. */
+    int input_fields[6];
+    int dropdown_huntmode;
+    int button_apply_fields;
+    int row_rings;
+    int row_ledger;
+    int input_levels[6];
+    int input_bonuses[13];
+    int button_apply_stats;
+    int row_melee;
+    int row_ranged;
+    int row_magic;
+    int row_level;
+    int dropdown_template;
+    int row_combat;
+    int button_open_builder;
+    int row_drops;
+    int list_drops;
+    int button_run;
+    int button_place;
+    int row_log;
+    int list_log;
+    int row_status;
+};
+
+/** 0 when the panel is not registered. */
+int
+Editor_Encounter_Widgets(
+    struct EditorUi* ui,
+    struct Editor_EncounterWidgets* out);
+
 #endif

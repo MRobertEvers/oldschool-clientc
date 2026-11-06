@@ -100,6 +100,8 @@ struct SpawnsPanel
     int button_delete;
     int button_restore;
     int button_duplicate;
+    /** Group...: the selection into the encounter builder's set (6.7). */
+    int button_group;
     /** ui->hotkeys.serial the tips were labelled from. */
     uint32_t hint_serial;
     int input_name;
@@ -1305,6 +1307,8 @@ spawns_activate(
     }
     if( widget == self->button_duplicate )
         (void)spawns_duplicate(ui, self);
+    else if( widget == self->button_group )
+        (void)Editor_Encounter_GroupSelection(ui);
     else if( widget == self->button_delete )
         (void)spawns_delete(ui, self);
     else if( widget == self->button_restore )
@@ -1365,6 +1369,8 @@ Editor_Spawns_Register(struct EditorUi* ui)
         "Edited rows go; generated ones are suppressed (-name x z level)");
     self->button_restore = ToriRSChrome_Button(chrome, self->panel, "Restore");
     self->button_duplicate = ToriRSChrome_Button(chrome, self->panel, "Duplicate");
+    self->button_group = ToriRSChrome_Button(chrome, self->panel, "Group...");
+    ToriRSChrome_SetTooltip(chrome, self->button_group, "the selection into an encounter set");
     ToriRSChrome_Separator(chrome, self->panel);
     {
         static const char* const tabs[] = { "Edit", "Place" };

@@ -268,6 +268,8 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                                   EDGE, { NULL }, "accounts" },
     [EDITOR_HK_VIEW_TRIGGERS] = { "view.triggers", "View", "Triggers", "| Triggers |", G, EDGE, { "ctrl+e" },
                                   "triggers" },
+    [EDITOR_HK_VIEW_ENCOUNTER] = { "view.encounter", "View", "Encounters", "Every other panel the View menu lists",
+                                   G, EDGE, { NULL }, "encounter" },
     [EDITOR_HK_VIEW_HIDE_PANELS] = { "view.hide_panels", "View", "Hide / show panels",
                                      "Hide / show every panel but World", G, EDGE, { "tab" }, NULL },
     [EDITOR_HK_VIEW_RESET_LAYOUT] = { "view.reset_layout", "View", "Reset layout", "Reset layout", G, EDGE,
