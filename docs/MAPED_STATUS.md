@@ -511,7 +511,7 @@ real play client `make -C src maped-live-e2e-play` (run_play.sh, below).
 | 9b | Square picker and New square | atlas (storages, world-map areas incl. Unmapped instance regions, colour, spawns, flags), picker GRAPH with area tabs, zoom, hover, search, open/shift-open/right-click; New modal (coordinates, storage maps/ or a lane with lane creation, template empty/copy/flat) -> DOC_CREATE. **World map under the grid, zoomed like 595** (2026-11-02, reworked the same day after the owner's notes): the page's area drawn as the CS2 world map draws it, by the client's own renderer (game/rs_worldmap_render.c `RS_WorldMapRender_RegionPixels`: a region baked into a caller buffer with the icons its locs carry, same loads/waits/request table as `RegionSprite`; `SetFrameBudget`; a used-up geography request is forgotten so the next bake of that region asks again at once). game/rs_worldmap_overview.{h,c} keeps every region at one pixel per tile for the process (~16 KB each, never evicted) plus a pool of close-up bakes at the zoom's own 2..8 px a tile (`RS_WorldMapOverview_BakeScale` = ceil(px/64), 595's range; 96 slots, 64 MB, least recently used out, four 8 px regions a poll), and cuts pictures of a zoom's GLOBAL pixel space (struct RS_WorldMapOverviewTile: square column m starts at floor(m*64*zoom/64), rows from the world's north edge) through each area's compositemap records -- box-filtered below one pixel a tile, the close-up bake pixel for pixel above it. **Zoom**: continuous (`Editor_Picker.zoom`, logical px a square) from the whole page in the well (`Editor_PickerZoomMin`; 4 px for a small page, never below 0.25) to one square filling it (at least 256, `Editor_PickerZoomMax`); the wheel is x1.25 a notch about the cursor (the map point under it stays put); left-drag pans (past 3 px it is a pan, never a click); a still click selects and opens (shift adds); a double-click opens in place; with the well focused (a press focuses it) `+`/`=` and `-`/`_` zoom about its middle and the arrows pan an eighth of it (new `TORIRS_CHROME_EVENT_GRAPH_KEY`; Escape releases); Fit frames the page's squares edge to edge; axis labels thin to 1/2/5/10/20/50/100 so neighbours never touch; the grid and the map share the global pixel space so they agree to the pixel at every zoom. **Tiles** (editor/editor_worldmap.{h,c}): the well is drawn as 128x128 logical-px pictures, each rendered once per zoom, area and page into one of 80 scene sprites (`UITREE_SCENE_EDITOR_PICKER_MAP_BASE` 0x4C000000 + slot, least recently drawn reused) -- every picture the same size. THAT was the owner's "blanks out when I zoom in": the old single picture changed size on every zoom, and the GL3 renderer packs sprites into its shared 2048-square 2D atlas and reuses a sprite's place only for the same size, so after a few zooms the inserts failed and the map silently stopped drawing (src/platform/platform_sdl2_renderer_gl3.c `gl3_sprite_upload_rgba`); pictures are logical px (stretched by the chrome scale) for the same reason. A pan renders only the tiles it brings in; tiles render nearest the middle first, 3M source tiles of work a tick (at least one); until a zoom's tiles are in, the last complete zoom is drawn scaled under them (the transition), so a zoom never flashes black and never stalls a frame. Regions still loading: polled every tick, tiles drawn meanwhile redrawn when the bake serial moves (at most every 10 ticks). **Over the map**: the map element icons (the bakes' loc icons and the compositemap's own list, the latter first so labels survive a crowded view) through `app_mapfunction_scene_id` (config and sprite loaded on demand, like 595), fading in from 40 to 64 px a square, and area labels by text size (large from 6, medium 16, small 40, a grey-to-white fade); outlines: the selection (yellow, the whole cell; a plain click replaces it, shift adds), unsaved (accent), created (green), and the squares in THIS window's world (`EDITOR_PICKER_OPEN_HERE` = loaded and inside the window's own view frame, a cyan 2 px inset) -- the owner's "small selection squares that persist" were the old white open-set outline of every square the mirror had ever opened; the server's open flag no longer draws one, and the view frames are drawn under the selection so a frame never hides it. Squares the page does not show are dimmed; a shown square no area maps keeps its own colour; black elsewhere; a faint grid from 8 px a square. **Full map** page (beside the surface in the Area dropdown, `EDITOR_PICKER_TAB_FULL`): every square of the atlas at its true coordinate, every world-map area composed onto that one grid (worldmap_area("*") = `EDITOR_UI_MAP_AREA_ALL`; `RS_WorldMapOverview_PollAll` / `RenderTileAll` / `IconsAll`, the main area first, where two areas place a region the first keeps it), so dungeons, caves and instance regions show their imagery where their squares are; same search, open, New square and selection. Services on `EditorUiAppServices`: `worldmap_area`, `worldmap_poll` (with the zoom), `worldmap_render_tile`, `image_publish`, `worldmap_icons` (src/app/app_map_editor.c, not filled under `__EMSCRIPTEN__`). A click on an EMPTY square opens New square prefilled with it. No services (headless harness, web): the picker as before; Unmapped page: no map. Timing (osrs241, this Mac, private OPT build): cold full surface 0.73-0.80 s first ask to last bake (about 0.4 s of it one frame reading the 1632 regions' tiles); Lumbridge at 595's 100% (256 px a square) 80 ms; the Full map's whole grid ~1 s cold. `TORIRS_WORLDMAP_STATS=1` prints each poll's regions to come and elapsed ms (stderr). `TORIRS_EDITOR_PICKER=<area>[,fit][,zoom=<px>][,at=<x>:<z>][,click=<x>:<z>]...[,new]` (applied 20 ticks in, after the layout; the short `<area>,<zoom>,<x>,<z>` still works) sets a page, zoom, centre and clicks for photographs. Tests: editor_worldmap_test (31: whole region and chunk records, box filter, 48 px a square drawn exactly over its square, 512 px sharp blocks, close-up bake pixel for pixel, the map's edges equal the picker's at real zooms, composition incl. a shown square's own colour), editor_panels_test `test_worldmap` (fake App: area asked once then after the retry, the poll is the visible squares, every picture 128x128 in a slot below 80, quiet ticks reuse pictures, stale tiles redrawn when regions land, slop vs drag-pan vs click, click A then B leaves one selection mark at B drawn over the frame, the open-here mark gone when the world moves, shift-click then double-click opens in place, `+`/`-`/Left on the focused well, the zoom transition keeps the map under the cursor then leaves no stand-in, 48 px a square has pictures with map in them, icon centred on its tile and opaque at 64, fading at 52, gone at 20 with the large label kept, empty-square click -> New square, Full map extent = every atlas square and m27_83 drawn at 27,83, Unmapped and no-services fall back) and `test_picker` (wheel x1.25 about the cursor, zoom range ends, Fit framing, label spacing). Photographed 2026-11-02 at 1x with the Squares panel enlarged: whole surface Fit, Lumbridge at 256 px a square with icons and labels, one square filling the well, the owner's 48 px view at 49,43, two successive plain clicks, the Full map whole and its underground band (z 140-159) at 40 px **Trackpad gestures** (2026-11-02): the world map takes a pinch and a two-finger scroll. A pinch zooms continuously by its exact ratio about its centre (a 2x spread is 2x, no 1.25 steps); a two-finger scroll pans in the platform's own direction (natural scrolling kept) and never zooms; ctrl+wheel (Cmd on a Mac) zooms continuously by 1.25^(fraction of a notch); a mouse wheel still steps x1.25 about the cursor, and the keys still work. The input layer carries a per-frame pinch (`pinch_scale`/`pinch_x`/`pinch_y`/`pinch_from_wheel`) and the wheel's exact deltas (`scroll_dx`/`scroll_dy`/`scroll_px_per_notch`/`scroll_trackpad`/`scroll_flipped`) as `TORIRS_CMD_INPUT_PINCH` (29) and `TORIRS_CMD_INPUT_SCROLL` (30). Sources: macOS through an AppKit monitor (`platform_macos_gesture.m`: magnify, plus hasPreciseScrollingDeltas scrolls in points, because sdl2-compat does not forward SDL3's pinch); the web through a page listener (ctrl+wheel as exp(-deltaY/100), Safari gesturechange); SDL multi-finger gestures measured from the fingers' spread; fractional SDL and Win32 wheel deltas. The chrome routes them in `ToriRSChrome_WheelFrame` (new `TORIRS_CHROME_EVENT_GRAPH_PINCH` / `GRAPH_SCROLL`); only a GRAPH well takes a pinch or a precise scroll, everything else and the game get the integer wheel they always got, an unclaimed desktop pinch is dropped. Sims: `TORIRS_SIM_PINCH="f,scale,x,y"`, `TORIRS_SIM_SCROLL="f,dx,dy[,trackpad]"`. Tests: editor_panels_test `test_picker_gestures`, sdl_gesture_test (18). **Maximise**: a double-click on any editor panel's title (400 ms / 4 px on the chrome clock) fills everything below the menu bar, drawn over every other panel; another restores the box; a title drag or edge resize past 4 px restores first; Reset layout unmaximises; the layout file records `maximised = 1` with x/y/w/h as the restore box (editor_panels_test `test_maximise`). | picker Delete only clears the square (no DOC_DELETE); a NEW square has no `pack/5_maps.pack` line, so BUILD client cache cannot import it yet; see open issues (Square picker world map) |
 | 10 | Placement tools | loc multi-select, nudge (cross-border as one undo), rotate, reshape, duplicate; spawn place/delete/suppress, spawn multi-select and Duplicate (Ctrl+D); translucent npc/obj placement ghost with footprint (`map_editor_ghost.c` spawn ghost, Place click writes the spawn row via `Editor_Locs_PlaceSpawn`); Move tool outlines every selected loc's destination; **spawn edit form** (Spawns > Edit tab: kind, name -- pack symbol, `#<id>`, or a display name the catalog resolves, refused when unknown -- abs X/Z, level, count, Suppressed; Apply = one undo step "edit spawn"/"move spawn" via `Editor_SpawnEditPlan`: SPAWN_EDIT in place, delete+add across a square or kind, suppress+add for a generated row; a multi-selection takes each changed field, X/Z/Level as an offset); **spawn move** typed or "Move: click a tile" (the next world click, `editor_panel.c`), the destination footprint and wander square previewed under the pointer; **wander preview** ("Show wander range", default on: each selected npc's wanderrange square filled and maxrange leash outlined on its level, also around the npc spawn ghost; values from the Record panel when it holds the npc, else the catalog's merged record, else 5/7; `MapEditorWander_Rects`, drawn in `app_overlay.c`); orphan `-name` rows listed and editable; ctl `spawn-edit`/`spawn-move` | arrow nudges commit per press (no preview); the move preview is footprint + wander square, not a translucent npc model; a delete+add edit's undo re-adds the row at its section's end |
 | 11 | Loc interaction builder | `.interaction` model, loc emitter (oploc/oplocu/aploc), step templates, sscompile Check | Check runs synchronously on the UI thread |
-| 12 | NPC interaction and dialogue builder | npc emitter, dialogue graph to nested if/else, multiloc/multinpc shell editor; **Record panel** (Catalog > Edit record..., Spawns > Edit npc record...): one loc/npc/obj record over every file that states it -- `configs/all.<type>` and each server overlay the catalog lists, as block-scoped CFG documents -- every field resolved to the layer that wins it (rank 0/1/2, path order, `param=<name>,..` per name), plus every key of `fields/<type>.ini` the record states nowhere; Set field writes where the field is stated or "override in <layer>" (opening the block there with CFG_BLOCK if needed), Remove field shows the layer beneath; one undo step "edit record"; `editor_cfg.h` Editor_CfgRecord; ctl `cfg-set` | STATE_VAR_PREVIEW not honoured by the world's multiloc resolve |
+| 12 | NPC interaction and dialogue builder | npc emitter, dialogue graph to nested if/else, multiloc/multinpc shell editor; **Record panel** (Catalog > Edit record..., Spawns > Edit npc record...): one loc/npc/obj record over every file that states it -- `configs/all.<type>` and each server overlay the catalog lists, as block-scoped CFG documents -- every field resolved to the layer that wins it (rank 0/1/2, path order, `param=<name>,..` per name), plus every key of `fields/<type>.ini` the record states nowhere; Set field writes where the field is stated or "override in <layer>" (opening the block there with CFG_BLOCK if needed), Remove field shows the layer beneath; one undo step "edit record"; `editor_cfg.h` Editor_CfgRecord; ctl `cfg-set` | (6.6) STATE_VAR_PREVIEW is honoured by every multiloc / multinpc resolve (VarPManager_SetPreview); the dialogue graph's head model in the chat-box preview is unbound |
 | 13 | Varp and varbit editor | editor_vars bit map, overlap check, naming; editor_alloc mirrors ss_allocate.py | allocator and vars not wired to the protocol or a panel; constants; live ::getvar/::setvar |
 | 14 | CS2 and the interface editor | `.if`/`.compack` codec (982 interfaces byte exact), component tree, inspector, hooks, CS2 run/trace/watch, CODE editor with `cs2 compile`, App mount/pick/refill | IF1 type 8 not mountable; IF_FIELD values over 190 bytes read only; cs2 compile synchronous |
 | 15 | Save, save as new, export, pack | atomic text saves, FACT_SAVED; SAVE_AS of a loc/npc/obj record (fresh id in pack/<type>.alloc, .client line, every field; one undo step; catalog and shell editor "Copy to new...", `torirsmapedctl cfg-copy`); BUILD packs (`make torirsserver-packs` into the live dir); BUILD client cache (`cachepack pack --incremental`, only changed archives written, reference table bumped, plus saved squares by archive) | Save as new for squares (DOC_CREATE copy covers it), interfaces and builder subjects; export/import lane; incremental repack of interfaces, CS2 and other assets in BUILD client cache; scripts lint and cs2 compile as BUILD kinds |
@@ -4069,6 +4069,211 @@ Tests after the fixes (same container, build_opt, 'ulimit -s unlimited'):
 - check-pt-switch and check-tree-walks pass.
 - Not run, for the same reasons as above: the content-tree tests.
 
+## Workbench step 6.6, part 2: the dialogue graph, the chat box, the shell preview in the world (date 2026-11-06)
+
+Design section 10 ("Graph ergonomics", "Steps and shells"), section 2 (R2
+text measured, R8 refusals say why, R3 lists over 20 rows), section 16 step
+6.6 in part. Built from 03a006ed. Part 1 (records, the Problems panel, the
+`check` / `cs2` BUILD kinds) was built in parallel; the seam between the two
+is the Problems API below.
+
+What is built:
+
+- **Graph ports and links** (builder_panels.c, builder_model.{h,c}). A
+  node's out-ports are keyed GRAPH items on its foot (`Builder_NodePortCount`
+  / `Builder_NodePortNext`: a choice's options, a branch's arms then its
+  default, none on an End, `next` on the rest); a filled port is linked. A
+  press on a port and a drag draws the link to the pointer; released on a
+  node (its body or a port) it links (`Builder_ModelLink`, one regeneration,
+  "Linked bye port 1 to thanks"); released on empty space it opens the
+  **new-node chip row** there, drawn in the well itself (one keyed chip per
+  kind: NPC, Player, Mesbox, Objbox, Choice, Branch, Step, Quest, End), so the
+  DOM executor shows it with no new entry point; a chip makes the node at the
+  drop and links it; Escape or a press elsewhere closes the row. A drag on a
+  node moves it; **Shift+drag** moves it with everything it reaches
+  (`Builder_ModelReach`), as one piece clamped at the well's edge; a drag is
+  one regeneration on release, a press without movement none. Right-click on
+  empty space still adds a node of the dropdown's kind.
+- **Auto-layout** (`Builder_ModelAutoLayout`, Ctrl+L, the Auto-layout button
+  with its keycap): left to right by depth -- a breadth-first walk from the
+  start, ports in port order, a column per depth (150 px) and a row per node
+  in reading order (44 px); the orphans follow as roots of their own walks in
+  model order. A pure function of the links (a shuffled layout lays out to
+  the same picture; a second Ctrl+L moves nothing). `graph.auto_layout` no
+  longer refuses: `Builder_GraphHotkey` runs it on the NPC builder's graph
+  (focused, or its window open), or says why it cannot.
+- **pos=**: positions were already written and read per node; they now
+  survive every gesture (each drag and Ctrl+L is a regeneration of the
+  .interaction through the authority), and a damaged `pos=` is refused with
+  its line.
+- **Delete and New node.** Delete with the graph's well holding the keyboard
+  deletes the selected node; the chrome now hands Delete to a focused GRAPH
+  well (natively in `dbg_ext_key_edit`, in the DOM as keyCode 46 ->
+  GRAPH_KEY -DELETE) and the panel matches it against `edit.delete`'s own
+  chords (a rebind moves it; `edit.delete` lives in L | S, which a focused
+  well is in neither of, so no new chord clashes). The sentence names what
+  lost its last way in from the start: "Deleted work (Branch on var): job,
+  start and nowork have no way in from the start now (orphaned; Undo brings
+  it back)", or "nothing was orphaned". `edit.delete` from the App
+  (Builder_GraphHotkey first, only with the well's focus) does the same.
+  New action **`graph.new_node`** (N, context Q, MAPED_HOTKEYS.md): a node of
+  the Node kind dropdown's kind after the selected one; the New node and
+  Delete node buttons wear N and Delete.
+- **The outline is the same model.** Its node rows select the node (graph,
+  form, pages and preview follow) and the graph's press selects the row
+  (`bp_select_node`); orphans now have rows too, under "Orphans (not reached
+  from the start)".
+- **The chat box's line rule** (builder_chat.{h,c}, new): the client's
+  splitter as torirs_server_split.c's `find_split` has it (`|` and `<br>`
+  hard, tags widthless, `<lt>`/`<gt>` their glyphs, the last space once the
+  width passes the box, a hyphen breaking after itself), lines filling pages
+  `page_lines` at a time, each line's source offset kept so a page break
+  points into the node's own text. **The numbers are the editor's, not the
+  content's**: the dialogue procs page through `split_init(text, width, lines,
+  p12_full)` in OSRS-Content, which is not checked out here, so the width
+  (380 px) and lines a page (4) are this tree's reading of the chat box, and
+  the advances are the BAKED p12_full metrics (archive 495, the chrome's Body
+  face at 1x, `Builder_ChatMetricsBaked`), not the cache's fontmetrics.
+  `{player}` lays out as a twelve-character stand-in (the widest name), so
+  the breaks shown are the earliest any player sees. The uitree's chatview
+  (src/ui/uitree_chatview.h) is the message ring, not the chatnpc layout,
+  and the chatnpc interface needs the cache, so this is the fallback the
+  slice names.
+- **Pages and the preview.** Under the node's Text field a GRAPH well shows
+  the text as the chat box breaks it, a line a row, a thin rule and "page N"
+  where the client starts the next page, the box's right edge marked; it
+  follows the field as it is typed (the tick re-lays it when the text
+  changes; a field at its 191-byte cap shows the model's longer page). A
+  click on a page selects it. The **chat box preview** (a GRAPH well) draws
+  that page as the client would: the parchment box, the speaker in dark red
+  over the text column (the record's name, the speaker override, or the
+  stand-in for a player line), the page's lines centred, "Click here to
+  continue"; a choice is its title and options. Text in both wells goes out
+  as measured 31-byte runs, so nothing is cut; a node caption that does not
+  fit its box drops the kind, then ends in an ellipsis (the full id is in the
+  outline and the form). The **head** is a nullable service,
+  `Builder_Services.chat_head` (a host-rendered scene sprite drawn as a
+  GRAPH_IMAGE); nothing binds it yet, so the box is drawn empty and the label
+  says "no head: no preview pipeline is bound".
+- **Lint rows** (builder_lint.{h,c}, new): literal player name (a U+00A0, or
+  the session's own name as a whole word), orphan node, a choice with fewer
+  than two options, unknown var (a branch, a quest start, an if / set step),
+  unknown proc (a CALL step), each with the node (or trigger and step) it
+  names. Vars and procs are asked of the catalog (`Builder_Services.name_known`,
+  bound in builder_session.c to exact CATALOG_QUERYs: VARP then VARBIT, and
+  TRIGGER `proc,<name>`), once per name per subject; "cannot say" (no
+  catalog) leaves the kind unchecked and the label says so. The dialogue
+  window has a Problems section: a find box and a VLIST (R3) of the rows; a
+  click or Enter selects what the row names. Every lint run reports the rows
+  to Problems when they changed.
+- **The Problems seam** (src/editor/panels/edpanel_problems_api.h, new):
+  `Editor_Problems_Report(ui, source, rows, count, open, user)` and
+  `Editor_Problems_Clear(ui, source)` did not exist in this base, so they are
+  declared there with a WEAK default in builder_panels.c that writes each
+  row to the console (and, on a compiler without weak symbols, unless
+  `EDITOR_HAVE_PROBLEMS_PANEL` is defined). Part 1's panel joins by defining
+  the two; the source is `npcbuilder:<npc>`, `open` selects the row's node.
+  builder_test defines them strongly, which is how the seam is checked.
+- **The shell preview, live and in the world.** The Shell editor's slider
+  now publishes STATE_VAR_PREVIEW as it is dragged (the tick, every value it
+  passes; the release still does too), opening a shell publishes nothing,
+  and another window's preview moves the knob without echoing back.
+  `VarPManager_SetPreview` (varp_manager.{h,c}) holds up to five previewed
+  vars; `VarPManager_ResolveTransform` resolves a table keyed on exactly a
+  previewed var with its value (a varbit preview does not move a shell keyed
+  on its base varp, or the reverse), so every multiloc and multinpc resolve
+  in the client honours it -- the EDIT world's placements, the runtime loc
+  refresh, the npc multi resolve -- while every other reader sees the
+  player's values. Setting it announces each old and new var's base varp
+  through the change callback, so `app_varp_change` re-resolves the placed
+  locs and npcs that depend on it: scrubbing changes the placed multiloc's
+  child. The client feeds it from `app_editor_on_state`
+  (`app_map_editor_var_preview`, App-free) and clears it at the editor's
+  shutdown. `WorldBuilder_ResolveLocId` exposes the placement's own resolve
+  for the test.
+- builder_emit.c is unchanged: the emitter writes a page's text verbatim but
+  `{player}` (as `<displayname>`, which the stand-in measures for), so the
+  script breaks where the pages well shows; a test pins it.
+
+Tests (this container, build_opt, content-free; 'ulimit -s unlimited'):
+
+- `make -C src all` builds (client, torirsmaped, torirsmapedctl).
+- test-builder: its recipe gains `-lm` (it did not link here) and the
+  editor_hotkeys / keymap / edpanel_common sources; without the content tree
+  the sweep over every real shell and the compile section skip and say so.
+  243 checks, 0 failed: the sections that ran before (ini, golden, dialogue,
+  lint, conflicts, splices, shell's synthetic half, preview, authority, all
+  passing here once linked) plus 4 new sections -- graph (ports,
+  link, reach, orphans, the auto-layout's exact grid for the fixture,
+  stability, a shuffled layout's identity, an orphan as a root, pos= round
+  trip and its refusal), chat (the line rule by hand at synthetic metrics,
+  page-break offsets, `|` / `<br>` / tags / hyphen / `{player}`, the baked
+  p12_full against an independent greedy wrap, emit fidelity), lintrows (each
+  of the five kinds at its node or step; unchecked without a catalog and on
+  "cannot say"), graphpanel (the NPC builder driven by GRAPH events over an
+  embedded authority: chords on the buttons, port drag to a node links and
+  regenerates, drop on empty space opens the keyed chip row and a chip makes
+  and links the node, Escape closes it, Shift+drag moves the subtree and a
+  plain drag the node, pos= in the document, Ctrl+L, outline <-> graph
+  selection, the pages well's rule and page click, the preview's page, a
+  long caption fitted, lint rows to Problems and a click back to the node,
+  Delete only with the well's focus and its orphan sentence, Undo, N) -- and
+  3 new checks in the shell editor's preview (live scrub, no publish on a
+  still knob, no echo).
+- test-varp: the new `test_resolve_preview` passes with the rest.
+- test-edit-world-shell (new; `edit_world_test --synthetic-shell`, also
+  run at the end of the full test-edit-world): a synthetic multiloc in a
+  cache-less provider, STATE_VAR_PREVIEW through `app_map_editor_var_preview`
+  into the varps of an EDIT builder: 12 checks, 0 failed.
+- test-chrome-widgets 1135 (1134 + "...and Delete") and its DOM test
+  (Delete is GRAPH_KEY -DELETE); runtime.js and runtime-ie8.js regenerated
+  with tsc 6.0.2 (the three-line diff of the source); the plugin_chrome node
+  tests pass.
+- test-editor-hotkeys 2296 with the doc test, zero conflicts;
+  test-editor-workspaces 396 (the Q filter's check now expects both graph
+  rows); test-editor-chords 591; test-editor-groups 2190;
+  test-editor-workbench 295 (its digests unchanged); test-editor-picker 407; test-editor-scenes-ops 91;
+  test-editor-encounters 121; test-editor-shop-quest 115 / 54 / 86;
+  test-editor-catalog-finder 202; test-debug-overlay-visual; test-uitree;
+  check-tree-walks and check-pt-switch pass.
+- Seen to fail before the fix (mutations in this private worktree, each
+  restored byte for byte): the preview loop removed (test-varp 5 checks,
+  test-edit-world-shell 3), Delete not handed on (chrome widgets 1, the DOM
+  test with the base runtime.js), and fifteen builder mutations each failing
+  its own checks (ports walked in reverse, pos= not written, the rule at >=,
+  a page per line, one-arm and orphan rows off, a drop that does not link,
+  Shift ignored, Ctrl+L refusing, no orphan names, the slider only on
+  release, no Problems report, the outline not selecting, no page rule, a
+  caption not fitted).
+- Not run, for want of the OSRS-Content checkout: builder_test's shell
+  sweep and compile section (so no generated .rs2 was compiled by sscompile
+  here: section 16's "the generated .rs2 compiles" check is open), the full
+  test-edit-world, test-editor-panels and the other content-tree tests. No
+  photograph (section 16's "a preview slider value changes the multiloc
+  child in a photograph"): no cache, no display.
+
+What is open:
+
+- The head model in the preview: `chat_head` is not bound (it wants the
+  npc's chathead models and an expression seq rendered to a scene sprite,
+  the catalog preview's raster path).
+- The chat box's numbers (380 px, 4 lines, p12_full) are the editor's until
+  someone reads `~chatnpc`'s `split_init` in OSRS-Content; the line rule
+  itself is the client's.
+- The Problems seam is a stand-in: the integrator joins it to part 1's panel
+  (and may move the header); the loc builder runs no lint (it has no graph
+  and no lint list), so only the NPC builder reports.
+- The node's Text field is a one-line input (191 bytes, pre-existing); the
+  pages well shows the model's longer page when the field is at its cap but
+  such a page cannot be edited in the form.
+- The graph has no zoom or pan of its own (a graph bigger than the well
+  scrolls with the panel); port drags are the chrome's existing GRAPH events,
+  so no new executor command was needed.
+- A subtree move takes everything a node reaches, a loop back to an
+  ancestor included.
+- Check still runs sscompile synchronously (part 1's BUILD kinds are where
+  that moves).
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.
@@ -4192,8 +4397,10 @@ Every issue the phase reports left open, by area, with where to start.
   src/editor/map_editor_ghost.c.
 - Layer toggles are not read by the painter: src/editor/editor_view.c:359
   (`EditorView_LayerShown` has no caller in src/app/app_world_paint.c).
-- STATE_VAR_PREVIEW is published (src/editor/builder/) but not honoured by the
-  world's multiloc/multinpc resolve.
+- (resolved 2026-11-06, workbench 6.6 part 2) STATE_VAR_PREVIEW is honoured
+  by the world's multiloc/multinpc resolve: src/varp/varp_manager.c
+  `VarPManager_SetPreview`, fed by src/app/app_map_editor.c
+  `app_map_editor_var_preview`.
 - The embedded editor server still answers SPAWN_VIEW UNSUPPORTED (no
   launch binding inside it): Open in new view and Pop out go through the
   client's own launch service and the embed's loopback listener instead

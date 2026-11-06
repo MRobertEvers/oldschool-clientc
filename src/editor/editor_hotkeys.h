@@ -307,6 +307,9 @@ enum Editor_HotkeyAction
      * workbench 6.5). */
     /* Graph (context Q): lay the focused dialogue graph out. */
     EDITOR_HK_GRAPH_AUTO_LAYOUT,
+    /** A new node of the Node kind dropdown's kind, after the selected one
+     *  (workbench 6.6). Delete on the graph is edit.delete's chord. */
+    EDITOR_HK_GRAPH_NEW_NODE,
     EDITOR_HK_COUNT
 };
 

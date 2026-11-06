@@ -28,6 +28,10 @@
  * the client's EDIT flush path (app_map_editor_edit_step, the App-free core of
  * app_map_editor.c) carries them to the world. Writes only under tmp-dir.
  *
+ * It also checks the shell editor's var preview against the world's multiloc
+ * resolve on a synthetic shell (synthetic_shell_phase): `edit_world_test
+ * --synthetic-shell` runs that case alone, with no content tree or cache.
+ *
  * With -DEDIT_WORLD_TEST_FINGERPRINT_ONLY it builds against a tree without the
  * EDIT layout and only prints the STATIC fingerprint of the unedited window --
  * how the STATIC refactor is checked against the commit before it.
@@ -2657,6 +2661,138 @@ mirror_phase(
 
 /* ---- main ----------------------------------------------------------------- */
 
+#ifndef EDIT_WORLD_TEST_FINGERPRINT_ONLY
+/* ---- the var preview honoured by the world's resolve (workbench 6.6) ------- */
+
+/* app/app_map_editor.c: STATE_VAR_PREVIEW into the varps the world reads. */
+int
+app_map_editor_var_preview(
+    struct VarPManager* varps,
+    const int32_t* values,
+    int count);
+
+static int g_shell_announced[8];
+static int g_shell_announced_count;
+
+static void
+shell_change(
+    void* userdata,
+    int varp_id)
+{
+    (void)userdata;
+    if( g_shell_announced_count < 8 )
+        g_shell_announced[g_shell_announced_count++] = varp_id;
+}
+
+static struct ToriRS_Location*
+shell_loc(
+    int id,
+    int varbit,
+    const int* transforms,
+    int transform_count)
+{
+    struct ToriRS_Location* loc = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*loc));
+    assert(loc);
+    loc->id = id;
+    loc->size_x = 1;
+    loc->size_z = 1;
+    loc->seq_id = -1;
+    loc->transform_varbit = transform_count > 0 ? varbit : -1;
+    loc->transform_varp = -1;
+    if( transform_count > 0 )
+    {
+        loc->transforms = ToriMem_Alloc(ToriMem_Assets(), sizeof(int) * (size_t)transform_count);
+        assert(loc->transforms);
+        memcpy(loc->transforms, transforms, sizeof(int) * (size_t)transform_count);
+        loc->transform_count = transform_count;
+    }
+    return loc;
+}
+
+/*
+ * A synthetic shell, no cache: loc 90000 is a multiloc on varbit 3 (bits
+ * 4..6 of varp 11) whose slots are 90001, hidden, 90002 and, past the list,
+ * 90003. The shell editor's STATE_VAR_PREVIEW goes through the client's own
+ * path (app_map_editor_var_preview) into the varps an EDIT-layout builder
+ * resolves placements with, and the child the builder would draw follows
+ * the slider while the player's varbit stays 0.
+ */
+static void
+synthetic_shell_phase(void)
+{
+    static const int k_slots[] = { 90001, -1, 90002, 90003 };
+    struct ToriDraw_Scene* scene;
+    struct World* world;
+    struct VarPManager varp;
+    struct WorldBuilder* builder;
+    struct Dat2BuildCache* bc = dat2_buildcache_new();
+    struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
+    struct VarPType types[12];
+    struct VarBitType varbits[4];
+    int32_t values[TORIRSMAPED_STATE_VALUES_MAX];
+
+    CacheProvider_LocationAdd(provider, 90000, shell_loc(90000, 3, k_slots, 4));
+    for( int i = 1; i <= 3; i++ )
+        CacheProvider_LocationAdd(provider, 90000 + i, shell_loc(90000 + i, -1, NULL, 0));
+
+    VarPManager_Init(&varp);
+    memset(types, 0, sizeof(types));
+    memset(varbits, 0, sizeof(varbits));
+    varbits[3].basevar = 11;
+    varbits[3].startbit = 4;
+    varbits[3].endbit = 6;
+    CHECK(VarPManager_SetVarpTypes(&varp, types, 12) && VarPManager_SetVarbitTypes(&varp, varbits, 4),
+        "shell: the synthetic varp and varbit tables load");
+    VarPManager_SetChangeCallback(&varp, shell_change, NULL);
+
+    scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    world = World_New();
+    builder = WorldBuilder_New(world, provider, scene, &varp);
+    WorldBuilder_SetLayout(builder, WORLD_BUILDER_LAYOUT_EDIT);
+
+    CHECK(WorldBuilder_ResolveLocId(builder, 90000) == 90001, "shell: the player's varbit 0 places the first child");
+    CHECK(WorldBuilder_ResolveLocId(builder, 90001) == 90001, "shell: a plain loc is itself");
+    CHECK(WorldBuilder_ResolveLocId(builder, 12345) == WORLD_BUILDER_LOC_NOT_RESIDENT,
+        "shell: a loc whose config is not resident says so");
+
+    /* The shell editor's slider: varbit 3 = 2. */
+    values[0] = 1;
+    values[1] = 2; /* BUILDER_PREVIEW_VARBIT */
+    values[2] = 3;
+    values[3] = 2;
+    g_shell_announced_count = 0;
+    CHECK(app_map_editor_var_preview(&varp, values, 4) == 1, "shell: STATE_VAR_PREVIEW lists one var");
+    CHECK(g_shell_announced_count == 1 && g_shell_announced[0] == 11,
+        "shell: the client hears varp 11 change, so its placed locs re-resolve");
+    CHECK(WorldBuilder_ResolveLocId(builder, 90000) == 90002, "shell: preview 2 places the third slot's child");
+    CHECK(VarPManager_GetVarbit(&varp, 3) == 0, "shell: the player's own varbit is still 0");
+    /* Scrubbing: each value the knob passes. */
+    values[3] = 1;
+    app_map_editor_var_preview(&varp, values, 4);
+    CHECK(WorldBuilder_ResolveLocId(builder, 90000) == -1, "shell: preview 1 is the hidden slot");
+    values[3] = 6;
+    app_map_editor_var_preview(&varp, values, 4);
+    CHECK(WorldBuilder_ResolveLocId(builder, 90000) == 90003, "shell: past the list, the last slot (the default)");
+    /* Another var's preview leaves this shell alone. */
+    values[2] = 2;
+    values[3] = 2;
+    app_map_editor_var_preview(&varp, values, 4);
+    CHECK(WorldBuilder_ResolveLocId(builder, 90000) == 90001, "shell: a preview of another varbit is not this shell's");
+    /* Cleared (n = 0): the player's value again. */
+    values[0] = 0;
+    CHECK(app_map_editor_var_preview(&varp, values, 1) == 0
+              && WorldBuilder_ResolveLocId(builder, 90000) == 90001,
+        "shell: a cleared preview resolves with the player's varbit");
+
+    WorldBuilder_Free(builder);
+    World_Free(world);
+    ToriDraw_SceneFree(scene);
+    VarPManager_Free(&varp);
+    dat2_buildcache_free(bc);
+}
+
+#endif
+
 int
 main(
     int argc,
@@ -2671,6 +2807,17 @@ main(
 
     /* Unbuffered: a crash mid-run still shows how far it got. */
     setvbuf(stdout, NULL, _IONBF, 0);
+#ifndef EDIT_WORLD_TEST_FINGERPRINT_ONLY
+    /* --synthetic-shell: the var preview's case alone, on a synthetic shell
+     * -- no content tree, no cache (make test-edit-world-shell). The full
+     * run below does it too. */
+    if( argc == 2 && strcmp(argv[1], "--synthetic-shell") == 0 )
+    {
+        synthetic_shell_phase();
+        printf("edit_world_test --synthetic-shell: %d checks, %d failed\n", g_checks, g_failed);
+        return g_failed == 0 ? 0 : 1;
+    }
+#endif
     if( argc < 3 )
     {
         fprintf(stderr, "usage: edit_world_test <content-dir> <cache-dir> [seed] [strokes]\n");
@@ -2933,6 +3080,7 @@ main(
 
     if( argc > 6 )
         mirror_phase(&h, content_dir, argv[6], seed, strokes);
+    synthetic_shell_phase();
 
     printf("edit_world_test: %d checks, %d failed\n", g_checks, g_failed);
     return g_failed == 0 ? 0 : 1;

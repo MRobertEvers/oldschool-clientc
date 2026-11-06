@@ -118,6 +118,10 @@ cw_test_graph(void)
     CW_CHECK(ToriRSChrome_KeyEdit(&g_cw_ui, TORIRS_CHROME_KEY_BACKSPACE) && ToriRSChrome_TakeEvent(&g_cw_ui, &ev) &&
                  ev.value == -TORIRS_CHROME_KEY_BACKSPACE,
         "...and Backspace");
+    /* Workbench 6.6: the dialogue graph deletes its selected node on it. */
+    CW_CHECK(ToriRSChrome_KeyEdit(&g_cw_ui, TORIRS_CHROME_KEY_DELETE) && ToriRSChrome_TakeEvent(&g_cw_ui, &ev) &&
+                 ev.kind == TORIRS_CHROME_EVENT_GRAPH_KEY && ev.value == -TORIRS_CHROME_KEY_DELETE,
+        "...and Delete");
     CW_CHECK(ToriRSChrome_KeyEdit(&g_cw_ui, TORIRS_CHROME_KEY_ESCAPE) && ToriRSChrome_TakeEvent(&g_cw_ui, &ev) &&
                  ev.value == -TORIRS_CHROME_KEY_ESCAPE && g_cw_ui.focus != graph,
         "...and Escape, then lets go of the focus");

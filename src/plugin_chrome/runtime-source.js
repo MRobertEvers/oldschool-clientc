@@ -1380,10 +1380,10 @@
     GRAPH_HOVER: 5, CODE_REPLACE: 7, CODE_SPLIT: 8, CODE_JOIN: 9, GRAPH_KEY: 10
   };
   /* enum ToriRSChromeKey: what a focused well's keydown reports, negated. */
-  const CHROME_KEY = { BACKSPACE: 1, LEFT: 3, RIGHT: 4, ENTER: 7, ESCAPE: 8, UP: 9, DOWN: 10 };
+  const CHROME_KEY = { BACKSPACE: 1, DELETE: 2, LEFT: 3, RIGHT: 4, ENTER: 7, ESCAPE: 8, UP: 9, DOWN: 10 };
   const GRAPH_KEYCODES = {
     8: CHROME_KEY.BACKSPACE, 13: CHROME_KEY.ENTER, 27: CHROME_KEY.ESCAPE, 37: CHROME_KEY.LEFT,
-    38: CHROME_KEY.UP, 39: CHROME_KEY.RIGHT, 40: CHROME_KEY.DOWN
+    38: CHROME_KEY.UP, 39: CHROME_KEY.RIGHT, 40: CHROME_KEY.DOWN, 46: CHROME_KEY.DELETE
   };
   const GRAPH_ITEM = { RECT: 0, RECT_OUTLINE: 1, LINE: 2, TEXT: 3, IMAGE: 4 };
 
@@ -1693,7 +1693,7 @@
         bind(well, 'wheel', wheel);
         bind(well, 'mousewheel', wheel);
         /* The keys the native well hands its host (the arrows, Enter,
-         * Backspace, Escape, + and -), with the modifiers the native host
+         * Backspace, Delete, Escape, + and -), with the modifiers the native host
          * reads from its own key state: 1 Ctrl, 2 Shift, 4 Alt. */
         bind(well, 'keydown', event => {
           const code = event.keyCode || event.which || 0;

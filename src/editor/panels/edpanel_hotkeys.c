@@ -28,6 +28,7 @@
 #include "edpanel_ops.h"
 #include "edpanel_ops_stamps.h"
 #include "edpanels.h"
+#include "editor/builder/builder_panels.h"
 #include "editor/live/live_panel.h"
 #include "mem/torirs_mem.h"
 #include "ui/torirs_chrome_scale_q.h"
@@ -166,7 +167,10 @@ hk_run_edit(
             ui->hooks.selection_changed(ui->hooks_user);
         return 1;
     case EDITOR_HK_EDIT_DELETE:
-        /* The locs; else the Spawns panel's selection. */
+        /* The dialogue graph's selected node while its well holds the
+         * keyboard; else the locs; else the Spawns panel's selection. */
+        if( Builder_GraphHotkey(ui, EDITOR_HK_EDIT_DELETE) )
+            return 1;
         if( tools->loc_count == 0 && Editor_Spawns_SelectionCount(ui) > 0 )
             (void)Editor_Spawns_DeleteSelected(ui);
         else
@@ -361,9 +365,11 @@ Editor_HotkeyRun(
             info->name);
         return 1;
     }
-    if( action == EDITOR_HK_GRAPH_AUTO_LAYOUT )
+    /* The dialogue graph's (workbench 6.6): Builder_GraphHotkey runs them
+     * on the NPC builder's graph, or says why it cannot. */
+    if( action == EDITOR_HK_GRAPH_AUTO_LAYOUT || action == EDITOR_HK_GRAPH_NEW_NODE )
     {
-        Editor_UiStatus(ui, "Auto-layout refused: the dialogue graph's auto-layout is workbench 6.6's");
+        (void)Builder_GraphHotkey(ui, action);
         return 1;
     }
     if( info->panel )

@@ -23,8 +23,26 @@
  *              ToriRSMapEd, and the panels driven over the real chrome
  *   compile    a generated Talk-to compiles under sscompile against a stage
  *              copy of the scripts tree; a broken one names its line
+ *   graph      (workbench 6.6) ports, links, reach and orphans; auto-layout
+ *              by depth, stable and a pure function of the links; pos=
+ *              round-trips
+ *   chat       the chat box's line rule: page breaks at synthetic metrics
+ *              by hand, and at the baked p12_full against a greedy wrap
+ *   lintrows   the dialogue lint: literal player name, orphan, one-arm
+ *              choice, unknown var, unknown proc, each at its node or step
+ *   graphpanel the NPC builder's graph driven by GRAPH events: a port
+ *              dragged to a node links, dropped on empty space opens the
+ *              chip row, Shift+drag moves a subtree, Ctrl+L, the outline
+ *              and the graph select together, the pages and the preview,
+ *              lint rows to Problems and back, Delete names the orphans
+ *
+ * Without the content tree (OSRS-Content not checked out) the sweep over
+ * every real shell and the compile section are skipped and say so; the
+ * rest is content-free.
  */
+#include "editor/builder/builder_chat.h"
 #include "editor/builder/builder_emit.h"
+#include "editor/builder/builder_lint.h"
 #include "editor/builder/builder_model.h"
 #include "editor/builder/builder_panels.h"
 #include "editor/builder/builder_shell.h"
@@ -34,7 +52,9 @@
 #include "editor/editor_cmd.h"
 #include "editor/editor_doc.h"
 #include "editor/editor_host.h"
+#include "editor/editor_hotkeys.h"
 #include "editor/editor_ui.h"
+#include "editor/panels/edpanel_problems_api.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "ui/uitree_debug_overlay.h"
@@ -50,6 +70,8 @@
 
 static int g_checks;
 static int g_failed;
+/** The content dir holds configs/all.loc (OSRS-Content is checked out). */
+static int g_have_content;
 
 static void
 check(
@@ -932,8 +954,15 @@ test_shell(const char* content)
     check(shell_roundtrip(doc, "loc:ed_plain", k_plain, strlen(k_plain), &edited, &count) && count == 4,
           "a plain loc becomes a shell (var, two slots, the bare multiloc line goes) and back");
 
-    shell_sweep(content, BUILDER_SUBJECT_LOC, doc);
-    shell_sweep(content, BUILDER_SUBJECT_NPC, doc);
+    /* Every real shell needs the content tree; a checkout without
+     * OSRS-Content runs the synthetic half above alone. */
+    if( g_have_content )
+    {
+        shell_sweep(content, BUILDER_SUBJECT_LOC, doc);
+        shell_sweep(content, BUILDER_SUBJECT_NPC, doc);
+    }
+    else
+        printf("  shell: the sweep over all.loc / all.npc skipped (no content tree at %s)\n", content);
     Editor_DocFree(doc);
     free(doc);
 }
@@ -1199,6 +1228,62 @@ Editor_UiLog(
     vfprintf(stderr, format, args);
     fputc('\n', stderr);
     va_end(args);
+}
+
+/* The status sentence (editor_ui.h): the last one, for the checks. */
+static char g_status[512];
+
+void
+Editor_UiStatus(
+    struct EditorUi* ui,
+    const char* format,
+    ...)
+{
+    va_list args;
+    (void)ui;
+    va_start(args, format);
+    vsnprintf(g_status, sizeof(g_status), format, args);
+    va_end(args);
+    if( getenv("BUILDER_TEST_VERBOSE") )
+        fprintf(stderr, "status: %s\n", g_status);
+}
+
+/* The Problems seam (edpanel_problems_api.h): strong definitions here
+ * replace builder_panels.c's weak console default, as the Problems panel's
+ * will, so the test sees what the builder reports. */
+static int g_problem_count;
+static char g_problem_source[EDITOR_PROBLEM_SOURCE_MAX];
+static Editor_ProblemOpenFn g_problem_open;
+static void* g_problem_user;
+
+void
+Editor_Problems_Report(
+    struct EditorUi* ui,
+    const char* source,
+    const struct Editor_Problem* rows,
+    int count,
+    Editor_ProblemOpenFn open,
+    void* user)
+{
+    (void)ui;
+    (void)rows;
+    snprintf(g_problem_source, sizeof(g_problem_source), "%s", source);
+    g_problem_count = count;
+    g_problem_open = open;
+    g_problem_user = user;
+}
+
+void
+Editor_Problems_Clear(
+    struct EditorUi* ui,
+    const char* source)
+{
+    (void)ui;
+    if( strcmp(source, g_problem_source) == 0 )
+    {
+        g_problem_count = 0;
+        g_problem_open = NULL;
+    }
 }
 
 static const char*
@@ -1476,11 +1561,814 @@ test_authority(const char* tmp)
                       && Builder_PreviewDecode(g_state_values, g_state_count, vars, BUILDER_PREVIEW_MAX) == 1
                       && vars[0].kind == BUILDER_PREVIEW_VARBIT && vars[0].id == 346 && vars[0].value == 1,
                   "moving the preview publishes STATE_VAR_PREVIEW for the shell's varbit");
+            /* Live: a drag's value (no release yet) goes out on the tick. */
+            g_state_key = 0;
+            sp->tick(&ui, sp->self);
+            check(g_state_key == 0, "a tick with the knob where it was publishes nothing");
+            ToriRSChrome_SliderSet(&chrome, slider, 2);
+            sp->tick(&ui, sp->self);
+            check(g_state_key == TORIRSMAPED_STATE_VAR_PREVIEW
+                      && Builder_PreviewDecode(g_state_values, g_state_count, vars, BUILDER_PREVIEW_MAX) == 1
+                      && vars[0].value == 2,
+                  "scrubbing the knob publishes each value it passes, before the release");
+            {
+                int32_t heard[4] = { 1, BUILDER_PREVIEW_VARBIT, 346, 0 };
+                sp->on_state(&ui, sp->self, TORIRSMAPED_STATE_VAR_PREVIEW, heard, 4);
+                g_state_key = 0;
+                sp->tick(&ui, sp->self);
+                check(ToriRSChrome_SliderValue(&chrome, slider) == 0 && g_state_key == 0,
+                      "another window's preview moves the knob without echoing it back");
+            }
         }
         for( int i = 0; i < ui.panel_count; i++ )
             ui.panels[i].destroy(&ui, ui.panels[i].self);
     }
 
+    Editor_HostClose(&host);
+    Editor_DocFree(mirror.doc);
+    free(mirror.doc);
+    free(model);
+}
+
+/* ---- graph: ports, links, layout, pos= (workbench 6.6) ------------------- */
+
+static void
+test_graph(void)
+{
+    struct Builder_Model* model = model_new();
+    struct Builder_Model* back = model_new();
+    struct Builder_Model* shuffled = model_new();
+    unsigned char mask[BUILDER_NODES_MAX];
+    char error[160];
+    size_t length;
+    char* ini;
+    /* Breadth-first from `hello`, ports in order, a column per depth. */
+    static const struct
+    {
+        const char* id;
+        int column;
+        int row;
+    } k_layout[] = {
+        { "hello", 0, 0 }, { "ask", 1, 0 },    { "beer", 2, 0 },  { "work", 2, 1 },   { "bye", 2, 2 },
+        { "pay", 3, 0 },   { "job", 3, 1 },    { "nowork", 3, 2 }, { "end", 3, 3 },  { "served", 4, 0 },
+        { "start", 4, 1 }, { "thanks", 5, 0 },
+    };
+
+    fixture_npc(model, "graph_npc");
+
+    /* Ports: a choice's options, a branch's arms then its default, none on
+     * an End, one (next) on the rest. */
+    check(Builder_NodePortCount(Builder_ModelNode(model, "ask")) == 3, "a 3-option choice has 3 ports");
+    check(Builder_NodePortCount(Builder_ModelNode(model, "work")) == 2, "a 1-arm branch has its arm and its default");
+    check(Builder_NodePortCount(Builder_ModelNode(model, "end")) == 0, "an End has no port");
+    check(Builder_NodePortCount(Builder_ModelNode(model, "hello")) == 1, "a line has one port, its next");
+    check(strcmp(Builder_NodePortNextConst(Builder_ModelNode(model, "work"), 1), "nowork") == 0,
+          "a branch's last port is its default (next)");
+    check(Builder_ModelLink(model, "bye", 0, "thanks") && strcmp(Builder_ModelNode(model, "bye")->next, "thanks") == 0,
+          "linking a port writes the target's id");
+    check(!Builder_ModelLink(model, "bye", 0, "nobody") && strcmp(Builder_ModelNode(model, "bye")->next, "thanks") == 0,
+          "a link to no node is refused and changes nothing");
+    check(Builder_ModelLink(model, "bye", 0, "end"), "...and links back");
+
+    /* Reach and orphans. */
+    check(Builder_ModelReach(model, "work", mask) == 11 && mask[Builder_ModelNodeIndex(model, "job")]
+              && !mask[Builder_ModelNodeIndex(model, "hello")],
+          "the reach of a node is everything after it, and not what is before");
+    check(Builder_ModelOrphans(model, mask) == 0, "the fixture has no orphan");
+    check(Builder_ModelLink(model, "ask", 1, ""), "unlinking a port");
+    check(Builder_ModelOrphans(model, mask) == 4 && mask[Builder_ModelNodeIndex(model, "work")]
+              && mask[Builder_ModelNodeIndex(model, "job")] && !mask[Builder_ModelNodeIndex(model, "thanks")],
+          "...orphans the branch and what only it reaches, not the tail reached another way");
+    check(Builder_ModelLink(model, "ask", 1, "work"), "relinked");
+
+    /* Auto-layout: left to right by depth, the rows in the order a reader
+     * meets the nodes, whatever the positions were. */
+    check(Builder_ModelAutoLayout(model) > 0, "auto-layout moves the fixture's nodes");
+    {
+        int all = 1;
+        for( size_t i = 0; i < sizeof(k_layout) / sizeof(k_layout[0]); i++ )
+        {
+            const struct Builder_Node* n = Builder_ModelNodeConst(model, k_layout[i].id);
+            int const x = BUILDER_LAYOUT_ORIGIN + k_layout[i].column * BUILDER_LAYOUT_COL_W;
+            int const y = BUILDER_LAYOUT_ORIGIN + k_layout[i].row * BUILDER_LAYOUT_ROW_H;
+            if( !n || n->x != x || n->y != y )
+            {
+                all = 0;
+                fprintf(stderr, "      %s at %d,%d, want %d,%d\n", k_layout[i].id, n ? n->x : -1, n ? n->y : -1, x, y);
+            }
+        }
+        check(all, "every node sits at its depth's column and its reading order's row");
+    }
+    check(Builder_ModelAutoLayout(model) == 0, "a second auto-layout moves nothing (stable)");
+    *shuffled = *model;
+    g_rng = 99;
+    for( int i = 0; i < shuffled->node_count; i++ )
+    {
+        shuffled->nodes[i].x = (int)(rng() % 900);
+        shuffled->nodes[i].y = (int)(rng() % 400);
+    }
+    Builder_ModelAutoLayout(shuffled);
+    {
+        int same = 1;
+        for( int i = 0; i < model->node_count; i++ )
+            same &= shuffled->nodes[i].x == model->nodes[i].x && shuffled->nodes[i].y == model->nodes[i].y;
+        check(same, "a hand layout lays out to the same picture (a pure function of the links)");
+    }
+    /* An orphan follows as a root of its own, below its depth's column. */
+    {
+        struct Builder_Node* lone = node(shuffled, "lone", BUILDER_NODE_NPC, "Who said that?", "end");
+        (void)lone;
+        Builder_ModelAutoLayout(shuffled);
+        lone = Builder_ModelNode(shuffled, "lone");
+        check(lone->x == BUILDER_LAYOUT_ORIGIN && lone->y == BUILDER_LAYOUT_ORIGIN + BUILDER_LAYOUT_ROW_H,
+              "an orphan is a root: column 0, under the start");
+        check(Builder_ModelNode(shuffled, "hello")->x == BUILDER_LAYOUT_ORIGIN
+                  && Builder_ModelNode(shuffled, "end")->x == BUILDER_LAYOUT_ORIGIN + 3 * BUILDER_LAYOUT_COL_W,
+              "...and the start's walk keeps every column it had");
+    }
+
+    /* pos= round-trips: the hand layout survives a save and a re-open. */
+    model->nodes[3].x = 517;
+    model->nodes[3].y = 0;
+    ini = emit_ini(model, &length);
+    check(strstr(ini, "pos=517,0\n") != NULL, "the .interaction file carries pos= per node");
+    check(Builder_ModelParseIni(back, ini, length, error, sizeof(error)), "...and reads back");
+    {
+        int same = back->node_count == model->node_count;
+        for( int i = 0; same && i < model->node_count; i++ )
+            same = strcmp(back->nodes[i].id, model->nodes[i].id) == 0 && back->nodes[i].x == model->nodes[i].x
+                   && back->nodes[i].y == model->nodes[i].y;
+        check(same, "every node's position is the one it was saved at");
+    }
+    free(ini);
+    {
+        static const char k_bad[] = "[interaction]\nversion=1\nsubject=npc\nname=x\n[dialogue]\nstart=a\n"
+                                    "[node,a]\nkind=end\npos=10\n";
+        check(!Builder_ModelParseIni(back, k_bad, sizeof(k_bad) - 1, error, sizeof(error))
+                  && strstr(error, "pos") != NULL,
+              "a damaged pos= is refused with its line");
+    }
+    free(model);
+    free(back);
+    free(shuffled);
+}
+
+/* ---- chat: the line rule and its page breaks ------------------------------ */
+
+/** An independent greedy wrap (words by single spaces, a line as wide as
+ *  its words and the spaces between them), for text with no tags,
+ *  hyphens or hard breaks and no word wider than the box. Returns the
+ *  source offsets where each line starts. */
+static int
+greedy_lines(
+    const char* text,
+    const struct Builder_ChatMetrics* metrics,
+    int* starts,
+    int max)
+{
+    int count = 0;
+    int width = 0;
+    int at = 0;
+
+    starts[count++] = 0;
+    while( text[at] )
+    {
+        int end = at;
+        int word = 0;
+        while( text[end] && text[end] != ' ' )
+            word += metrics->advance[(unsigned char)text[end++]];
+        if( width > 0 && width + metrics->advance[' '] + word > metrics->width && count < max )
+        {
+            starts[count++] = at;
+            width = word;
+        }
+        else
+            width += (width > 0 ? metrics->advance[' '] : 0) + word;
+        at = text[end] ? end + 1 : end;
+    }
+    return count;
+}
+
+static void
+test_chat(void)
+{
+    static struct Builder_ChatLayout layout;
+    struct Builder_ChatMetrics m;
+    int breaks[8];
+    char line[BUILDER_CHAT_TEXT_MAX];
+
+    /* A synthetic face: letters 6 px, a space 3, the box 30 px (five
+     * letters), two lines a page. */
+    memset(&m, 0, sizeof(m));
+    for( int c = 0; c < 256; c++ )
+        m.advance[c] = 6;
+    m.advance[' '] = 3;
+    m.width = 30;
+    m.page_lines = 2;
+    m.player = "Bob";
+
+    Builder_ChatLayoutText("aaa aaa aaa aaa aaa", &m, &layout);
+    check(layout.line_count == 5 && layout.page_count == 3, "a word per line: five lines, three pages of two");
+    check(Builder_ChatPageBreaks(&layout, breaks, 8) == 2 && breaks[0] == 8 && breaks[1] == 16,
+          "the client pages at the third and fifth words (source offsets 8 and 16)");
+    Builder_ChatLineText(&layout, 0, line, sizeof(line));
+    check(strcmp(line, "aaa") == 0 && layout.lines[0].width == 18, "a line ends before the space it breaks at");
+
+    Builder_ChatLayoutText("aa aa aa", &m, &layout);
+    check(layout.line_count == 2 && layout.lines[1].source_start == 6 && layout.lines[0].width == 27,
+          "two words fit a line (6+6+3+6+6 = 27 <= 30); the third breaks");
+    Builder_ChatLayoutText("aaaaa", &m, &layout);
+    check(layout.line_count == 1, "a line exactly the box's width is one line");
+    Builder_ChatLayoutText("aa|aa<br>aa", &m, &layout);
+    check(layout.line_count == 3 && layout.lines[1].source_start == 3 && layout.lines[2].source_start == 9,
+          "| and <br> break hard");
+    Builder_ChatLayoutText("<col=ff0000>aaaaa</col>", &m, &layout);
+    check(layout.line_count == 1, "tags are widthless");
+    Builder_ChatLayoutText("aa-aaaa", &m, &layout);
+    check(layout.line_count == 2 && layout.lines[1].source_start == 3, "a hyphen breaks after itself");
+    Builder_ChatLayoutText("{player} aa aa", &m, &layout);
+    check(layout.line_count == 2 && layout.lines[1].source_start == 9,
+          "{player} measures as the stand-in name; the break maps back to the source");
+    Builder_ChatLayoutText("", &m, &layout);
+    check(layout.line_count == 1 && layout.page_count == 1, "an empty text is one empty line, as split_init has it");
+
+    /* Fidelity: the script carries the page exactly as it was laid out --
+     * hard breaks kept, {player} as <displayname> (which the compiler makes
+     * the name the stand-in measured for) -- and the model keeps it too. */
+    {
+        struct Builder_Model* model = model_new();
+        struct Builder_Model* back = model_new();
+        struct Builder_Issues issues;
+        struct Builder_Buf script;
+        char error[160];
+        size_t length;
+        char* ini;
+        static const char k_page[] = "{player}, look.|The tower.<br>Go on.";
+
+        fixture_npc(model, "page_npc");
+        snprintf(Builder_ModelNode(model, "hello")->text, BUILDER_TEXT_MAX, "%s", k_page);
+        Builder_IssuesClear(&issues);
+        Builder_BufInit(&script);
+        Builder_EmitScript(model, &script, &issues);
+        check(strstr(Builder_BufText(&script), "\"<displayname>, look.|The tower.<br>Go on.\"") != NULL,
+              "the emitted page keeps its hard breaks where the layout put them");
+        Builder_BufFree(&script);
+        ini = emit_ini(model, &length);
+        check(Builder_ModelParseIni(back, ini, length, error, sizeof(error))
+                  && strcmp(Builder_ModelNode(back, "hello")->text, k_page) == 0,
+              "...and the .interaction keeps the page byte for byte");
+        free(ini);
+        free(model);
+        free(back);
+    }
+    check(Builder_ChatPageBreaks(&layout, breaks, 8) == 0, "...and no page break");
+
+    /* The baked p12_full face, the editor's chat box: the page breaks fall
+     * where an independent greedy wrap over the same advances puts the
+     * fifth, ninth, ... line. */
+    Builder_ChatMetricsBaked(&m);
+    check(m.width == BUILDER_CHAT_WIDTH_DEFAULT && m.page_lines == BUILDER_CHAT_PAGE_LINES_DEFAULT
+              && m.advance['a'] > 0 && m.advance['W'] > m.advance['i'],
+          "the baked metrics are p12_full's advances in the chat box");
+    {
+        static const char k_text[] =
+            "The guards say the old tower north of the river has been empty for years, but every night "
+            "somebody lights a lamp in its top window and every morning the lamp is out again. Nobody in "
+            "the village will go near it. Would you take a look, and tell me what you find there? I will "
+            "make it worth your while, I promise you that much at least.";
+        int starts[BUILDER_CHAT_LINES_MAX];
+        int count = greedy_lines(k_text, &m, starts, BUILDER_CHAT_LINES_MAX);
+        int n;
+        int same;
+
+        Builder_ChatLayoutText(k_text, &m, &layout);
+        same = layout.line_count == count;
+        for( int i = 0; same && i < count; i++ )
+            same = layout.lines[i].source_start == starts[i];
+        check(same, "the line rule breaks where a greedy word wrap does at 380 px of p12_full");
+        check(layout.page_count >= 2, "...and this page runs onto a second");
+        n = Builder_ChatPageBreaks(&layout, breaks, 8);
+        check(n == layout.page_count - 1 && breaks[0] == starts[m.page_lines],
+              "the first page break is the fifth line's start");
+        for( int i = 0; i < layout.line_count; i++ )
+            check(layout.lines[i].width <= m.width, "no line is wider than the box");
+    }
+}
+
+/* ---- lint ----------------------------------------------------------------- */
+
+static int
+lint_var_known(
+    void* user_data,
+    const char* name)
+{
+    (void)user_data;
+    return strcmp(name, "varp7_mock_quest_progress") == 0;
+}
+
+static int
+lint_proc_known(
+    void* user_data,
+    const char* name)
+{
+    (void)user_data;
+    return strcmp(name, "chatplayer") == 0;
+}
+
+static int
+lint_cannot_say(
+    void* user_data,
+    const char* name)
+{
+    (void)user_data;
+    (void)name;
+    return -1;
+}
+
+static int
+lint_find(
+    const struct Builder_LintRows* rows,
+    enum Builder_LintKind kind,
+    int node,
+    int trigger)
+{
+    for( int i = 0; i < rows->count; i++ )
+    {
+        if( rows->rows[i].kind == kind && rows->rows[i].node == node && rows->rows[i].trigger == trigger )
+            return i;
+    }
+    return -1;
+}
+
+static void
+test_lint_rows(void)
+{
+    struct Builder_Model* model = model_new();
+    struct Builder_LintRows* rows = malloc(sizeof(*rows));
+    struct Builder_LintNames names;
+    struct Builder_Node* n;
+    int at;
+
+    assert(rows);
+    fixture_npc(model, "lint_npc");
+    memset(&names, 0, sizeof(names));
+    names.var_known = lint_var_known;
+    names.proc_known = lint_proc_known;
+    names.player_name = "Zezima";
+    check(Builder_Lint(model, &names, rows) == 0 && rows->unchecked == 0, "the fixture lints clean");
+
+    snprintf(Builder_ModelNode(model, "hello")->text, BUILDER_TEXT_MAX, "%s", "Welcome back, zezima!");
+    snprintf(Builder_ModelNode(model, "job")->text, BUILDER_TEXT_MAX, "%s", "Thanks\xc2\xa0Zezima.");
+    Builder_ModelNode(model, "ask")->arm_count = 1;
+    snprintf(Builder_ModelNode(model, "work")->obj, BUILDER_NAME_MAX, "%s", "varp8_no_such_var");
+    n = node(model, "lost", BUILDER_NODE_STEP, "", "");
+    Builder_StepInit(&n->step, BUILDER_STEP_CALL);
+    snprintf(n->step.a, sizeof(n->step.a), "%s", "no_such_proc");
+    {
+        struct Builder_Trigger* t = Builder_ModelTriggerAdd(model, 2, 0, "");
+        step(t, BUILDER_STEP_SET_VAR, "varb9_nope", "1", "", "");
+    }
+    Builder_Lint(model, &names, rows);
+    at = lint_find(rows, BUILDER_LINT_PLAYER_NAME, Builder_ModelNodeIndex(model, "hello"), -1);
+    check(at >= 0 && rows->rows[at].error && strcmp(rows->rows[at].where, "node hello") == 0,
+          "the session's own name in a line is a literal player name, at its node");
+    check(lint_find(rows, BUILDER_LINT_PLAYER_NAME, Builder_ModelNodeIndex(model, "job"), -1) >= 0,
+          "a U+00A0 (a recorded display name) is one too");
+    check(lint_find(rows, BUILDER_LINT_ONE_ARM, Builder_ModelNodeIndex(model, "ask"), -1) >= 0,
+          "a one-option choice is flagged");
+    check(lint_find(rows, BUILDER_LINT_UNKNOWN_VAR, Builder_ModelNodeIndex(model, "work"), -1) >= 0,
+          "a branch on a var no record names is flagged");
+    at = lint_find(rows, BUILDER_LINT_UNKNOWN_VAR, -1, model->trigger_count - 1);
+    check(at >= 0 && rows->rows[at].step == 0 && strcmp(rows->rows[at].where, "op2 step 1") == 0,
+          "...and so is a trigger step's, at its step");
+    check(lint_find(rows, BUILDER_LINT_UNKNOWN_PROC, Builder_ModelNodeIndex(model, "lost"), -1) >= 0,
+          "a call to a proc the tree does not declare is flagged");
+    at = lint_find(rows, BUILDER_LINT_ORPHAN, Builder_ModelNodeIndex(model, "lost"), -1);
+    check(at >= 0 && !rows->rows[at].error, "an unreached node is an orphan (a warning)");
+    check(lint_find(rows, BUILDER_LINT_ORPHAN, Builder_ModelNodeIndex(model, "beer"), -1) < 0,
+          "the one-arm choice still reaches its option");
+    check(lint_find(rows, BUILDER_LINT_ORPHAN, Builder_ModelNodeIndex(model, "work"), -1) >= 0,
+          "...and what it no longer leads to is orphaned");
+
+    memset(&names, 0, sizeof(names));
+    Builder_Lint(model, &names, rows);
+    check(rows->unchecked == ((1u << BUILDER_LINT_UNKNOWN_VAR) | (1u << BUILDER_LINT_UNKNOWN_PROC))
+              && lint_find(rows, BUILDER_LINT_UNKNOWN_VAR, Builder_ModelNodeIndex(model, "work"), -1) < 0,
+          "without a catalog the var and proc rows are not checked, and the lint says so");
+    names.var_known = lint_cannot_say;
+    names.proc_known = lint_proc_known;
+    Builder_Lint(model, &names, rows);
+    check(rows->unchecked == (1u << BUILDER_LINT_UNKNOWN_VAR)
+              && lint_find(rows, BUILDER_LINT_UNKNOWN_VAR, Builder_ModelNodeIndex(model, "work"), -1) < 0
+              && lint_find(rows, BUILDER_LINT_UNKNOWN_PROC, Builder_ModelNodeIndex(model, "lost"), -1) >= 0,
+          "a catalog that cannot say (-1) leaves vars unchecked, not unknown; procs still checked");
+    free(rows);
+    free(model);
+}
+
+/* ---- the dialogue graph on the NPC builder (workbench 6.6) ---------------- */
+
+/** One GRAPH event to the panel, as the chrome would queue it. */
+static void
+graph_send(
+    struct EditorUi* ui,
+    struct EditorUiPanel* panel,
+    int widget,
+    int kind,
+    int x,
+    int y,
+    int value)
+{
+    struct ToriRSChromeEvent event;
+
+    memset(&event, 0, sizeof(event));
+    event.kind = kind;
+    event.widget = widget;
+    event.x = x;
+    event.y = y;
+    event.value = value;
+    if( kind != TORIRS_CHROME_EVENT_GRAPH_KEY )
+        event.key = ToriRSChrome_GraphKeyAt(ui->chrome, widget, x, y);
+    panel->event(ui, panel->self, &event);
+}
+
+/** The well's items of `kind` with `color`, counted. */
+static int
+graph_items(
+    const struct ToriRSChrome* chrome,
+    int widget,
+    int kind,
+    uint32_t color)
+{
+    const struct ToriRSChromeWidget* w = &chrome->widgets[widget];
+    int count = 0;
+    for( int i = 0; i < w->graph_count; i++ )
+    {
+        const struct ToriRSChromeGraphItem* item = &chrome->graph_items[w->graph_first + i];
+        count += item->kind == kind && item->color == color;
+    }
+    return count;
+}
+
+static int
+name_known_fake(
+    void* user_data,
+    int kind,
+    const char* name)
+{
+    (void)user_data;
+    if( kind == BUILDER_NAME_VAR )
+        return strcmp(name, "varp7_mock_quest_progress") == 0;
+    return strcmp(name, "chatplayer") == 0;
+}
+
+static void
+test_graph_panel(const char* tmp)
+{
+    char content[1024];
+    char path[1200];
+    struct EditorHost host;
+    struct mirror mirror;
+    struct Builder_Submit submit;
+    struct Builder_Model* model = model_new();
+    struct Builder_PanelView view;
+    static struct ToriRSChrome chrome;
+    static struct EditorUi ui;
+    struct Builder_Services services;
+    struct EditorUiPanel* panel;
+    char key[EDITOR_DOC_KEY_MAX];
+    const char* text;
+    size_t length = 0;
+    int graph;
+
+    snprintf(content, sizeof(content), "%s/content_graph", tmp);
+    snprintf(path, sizeof(path), "%s/maps", content);
+    mkdir_p(path);
+    snprintf(path, sizeof(path), "%s/server/scripts", content);
+    mkdir_p(path);
+    snprintf(path, sizeof(path), "%s/configs", content);
+    mkdir_p(path);
+    memset(&host, 0, sizeof(host));
+    check(Editor_HostOpenMapEdEmbed(&host, content, NULL) == 1, "the embedded authority opens the graph's tree");
+    memset(&mirror, 0, sizeof(mirror));
+    mirror.host = &host;
+    mirror.doc = doc_new();
+    submit.user_data = &mirror;
+    submit.apply = mirror_apply;
+    submit.stroke = mirror_stroke;
+    submit.current = mirror_current;
+
+    ToriRSChrome_Init(&chrome);
+    ToriRSChrome_SetSurface(&chrome, 1280, 900);
+    memset(&ui, 0, sizeof(ui));
+    ui.chrome = &chrome;
+    ui.visible = 1;
+    Editor_HotkeysInit(&ui.hotkeys);
+    memset(&services, 0, sizeof(services));
+    services.user_data = &mirror;
+    services.submit = submit;
+    services.save = mirror_save;
+    services.record = fake_record;
+    services.triggers = fake_triggers;
+    services.name_known = name_known_fake;
+    Builder_NpcPanelRegister(&ui, &services);
+    panel = Editor_UiFindPanel(&ui, BUILDER_PANEL_NPC);
+    ToriRSChrome_Build(&chrome);
+
+    check(Builder_PanelOpenSubject(&ui, BUILDER_PANEL_NPC, "graph_npc"), "the npc builder opens graph_npc");
+    fixture_npc(model, "graph_npc");
+    check(Builder_PanelSetModel(&ui, BUILDER_PANEL_NPC, model), "...and takes the fixture's dialogue");
+    Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+    graph = view.w_graph;
+    check(graph >= 0 && view.w_pages >= 0 && view.w_preview >= 0, "the dialogue has its graph, pages and preview wells");
+    ToriRSChrome_PanelSetVisible(&chrome, panel->chrome_panel, 1);
+    panel->tick(&ui, panel->self);
+    ToriRSChrome_Build(&chrome);
+
+    /* The buttons wear their chords. */
+    {
+        int dialogue = chrome.widgets[graph].panel;
+        int layout = find_widget(&chrome, dialogue, "Auto-layout");
+        int add = find_widget(&chrome, dialogue, "New node");
+        int del = find_widget(&chrome, dialogue, "Delete node");
+        check(layout >= 0 && strstr(chrome.widgets[layout].chord, "L") != NULL
+                  && strstr(chrome.widgets[layout].chord, "trl") != NULL,
+              "Auto-layout wears Ctrl+L");
+        check(add >= 0 && strcmp(chrome.widgets[add].chord, "N") == 0, "New node wears N");
+        check(del >= 0 && strstr(chrome.widgets[del].chord, "Del") != NULL, "Delete node wears Delete");
+    }
+
+    /* A port dragged onto a node links it: bye's port to thanks. */
+    {
+        const struct Builder_Node* bye = Builder_ModelNodeConst(view.model, "bye");
+        const struct Builder_Node* thanks = Builder_ModelNodeConst(view.model, "thanks");
+        int const px = bye->x + 60;
+        int const py = bye->y + 26;
+        check(ToriRSChrome_GraphKeyAt(&chrome, graph, px, py) >= 1000, "a node's port is a keyed item of the well");
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, px, py, 0);
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_DRAG, thanks->x + 10, thanks->y + 10, 0);
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(graph_items(&chrome, graph, TORIRS_CHROME_GRAPH_LINE, 0xffd24a) == 1, "the link follows the pointer");
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, thanks->x + 10, thanks->y + 10, 0);
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(strcmp(Builder_ModelNodeConst(view.model, "bye")->next, "thanks") == 0, "dropping it on a node links the port");
+        check(strstr(g_status, "Linked bye port 1 to thanks") != NULL, "...and says so");
+        Builder_FileKey(BUILDER_SUBJECT_NPC, "graph_npc", BUILDER_FILE_SCRIPT, key, sizeof(key));
+        text = mirror_text(&mirror, key, &length);
+        check(text && strstr(text, "~mesbox(\"The patron goes back to polishing a glass.\");") != NULL,
+              "the link regenerates the script through the authority");
+    }
+
+    /* Dropped on empty space: the chip row opens there; a chip makes the
+     * node and links it. */
+    {
+        const struct Builder_Node* bye = Builder_ModelNodeConst(view.model, "bye");
+        int const px = bye->x + 60;
+        int const py = bye->y + 26;
+        int count = view.model->node_count;
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, px, py, 0);
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_DRAG, 20, 230, 0);
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, 20, 230, 0);
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(view.chips_open && view.model->node_count == count, "a port dropped on empty space opens the chip row");
+        check(ToriRSChrome_GraphKeyAt(&chrome, graph, 20 + 4 * 54 + 5, 235) == 5000 + BUILDER_NODE_CHOICE,
+              "the chips are keyed by kind, at the drop");
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, 20 + 2 * 54 + 5, 235, 0);
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, 20 + 2 * 54 + 5, 235, 0);
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(!view.chips_open && view.model->node_count == count + 1
+                  && view.model->nodes[count].kind == BUILDER_NODE_MESBOX && view.model->nodes[count].x == 20
+                  && view.model->nodes[count].y == 230,
+              "the Mesbox chip makes a mesbox where the port was dropped");
+        check(strcmp(Builder_ModelNodeConst(view.model, "bye")->next, view.model->nodes[count].id) == 0
+                  && view.sel_node == count,
+              "...linked from that port, and selected");
+        /* Escape closes an open row. */
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, px, py, 0);
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_DRAG, 400, 230, 0);
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, 400, 230, 0);
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_KEY, 0, 0, -TORIRS_CHROME_KEY_ESCAPE);
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(!view.chips_open && view.model->node_count == count + 1, "Escape closes the chip row, making nothing");
+    }
+
+    /* Shift+drag moves the subtree; a plain drag the node alone. */
+    {
+        const struct Builder_Node* work = Builder_ModelNodeConst(view.model, "work");
+        int const wx = work->x;
+        int const wy = work->y;
+        int const jx = Builder_ModelNodeConst(view.model, "job")->x;
+        int const hx = Builder_ModelNodeConst(view.model, "hello")->x;
+        ui.shift_held = 1;
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, wx + 30, wy + 10, 0);
+        ui.shift_held = 0;
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_DRAG, wx + 30 + 40, wy + 10 + 7, 0);
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, wx + 30 + 40, wy + 10 + 7, 0);
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(Builder_ModelNodeConst(view.model, "work")->x == wx + 40
+                  && Builder_ModelNodeConst(view.model, "work")->y == wy + 7
+                  && Builder_ModelNodeConst(view.model, "job")->x == jx + 40,
+              "Shift+drag moves the node and everything after it");
+        check(Builder_ModelNodeConst(view.model, "hello")->x == hx, "...and not what comes before it");
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, wx + 40 + 30, wy + 7 + 10, 0);
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_DRAG, wx + 30, wy + 10, 0);
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, wx + 30, wy + 10, 0);
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(Builder_ModelNodeConst(view.model, "work")->x == wx && Builder_ModelNodeConst(view.model, "job")->x == jx + 40,
+              "a plain drag moves the node alone");
+        Builder_FileKey(BUILDER_SUBJECT_NPC, "graph_npc", BUILDER_FILE_MODEL, key, sizeof(key));
+        text = mirror_text(&mirror, key, &length);
+        {
+            char want[32];
+            snprintf(want, sizeof(want), "pos=%d,%d\n", jx + 40, Builder_ModelNodeConst(view.model, "job")->y);
+            check(text && strstr(text, want) != NULL, "the moved positions are in the .interaction as pos=");
+        }
+    }
+
+    /* Ctrl+L: the hotkey lays the graph out (it refused before 6.6). */
+    {
+        struct Builder_Model* expect = model_new();
+        int same = 1;
+        ToriRSChrome_FocusWidget(&chrome, graph, 0);
+        check(Builder_GraphHotkey(&ui, EDITOR_HK_GRAPH_AUTO_LAYOUT), "Ctrl+L is the graph's");
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        *expect = *view.model;
+        Builder_ModelAutoLayout(expect);
+        for( int i = 0; i < expect->node_count; i++ )
+            same &= expect->nodes[i].x == view.model->nodes[i].x && expect->nodes[i].y == view.model->nodes[i].y;
+        check(same && strstr(g_status, "Auto-layout:") != NULL, "...and lays it out by depth, saying how");
+        free(expect);
+    }
+
+    /* The tree is the same model: a row selects the node, a node its row. */
+    {
+        int row = -1;
+        int index = Builder_ModelNodeIndex(view.model, "job");
+        for( int i = 0; i < chrome.widget_count && row < 0; i++ )
+            if( chrome.widgets[i].kind == TORIRS_CHROME_W_TREE && strncmp(chrome.widgets[i].label, "job ", 4) == 0 )
+                row = i;
+        check(row >= 0 && panel->activate(&ui, panel->self, row), "the outline has a row for every node");
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(view.sel_node == index, "selecting the row selects the node in the graph");
+        check(graph_items(&chrome, graph, TORIRS_CHROME_GRAPH_RECT_OUTLINE, 0xffd24a) == 1,
+              "...which draws its selection ring");
+        Builder_PanelSelectNode(&ui, Builder_ModelNodeIndex(view.model, "nowork"));
+        row = -1;
+        for( int i = 0; i < chrome.widget_count && row < 0; i++ )
+            if( chrome.widgets[i].kind == TORIRS_CHROME_W_TREE && chrome.widgets[i].checked
+                && strncmp(chrome.widgets[i].label, "nowork ", 7) == 0 )
+                row = i;
+        check(row >= 0, "selecting the node selects its outline row");
+    }
+
+    /* The selected page: the text wraps at the line rule, a page break is
+     * a thin rule, and the preview shows the page. */
+    {
+        int node_text = -1;
+        int index = Builder_ModelNodeIndex(view.model, "hello");
+        struct EditorUiPanel* p = panel;
+        for( int i = 0; i < chrome.widget_count && node_text < 0; i++ )
+            if( strncmp(chrome.widgets[i].label, "Text ({player}", 14) == 0 )
+                node_text = i;
+        Builder_PanelSelectNode(&ui, index);
+        ToriRSChrome_SetText(&chrome, node_text,
+                             "The guards say the old tower north of the river has been empty for years, but "
+                             "every night somebody lights a lamp up there, and every morning it is out again.");
+        p->tick(&ui, p->self);
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(view.layout->line_count >= 2, "the typed text is laid out at the chat box's line rule as it is typed");
+        /* A one-line field holds 191 bytes, under a page at 380 px; hard
+         * breaks make the fifth line. */
+        ToriRSChrome_SetText(&chrome, node_text,
+                             "{player}, the old tower is empty.|Yet a lamp burns there each night.|"
+                             "And each morning it is out.|Go and look.|Tell me what you find there.");
+        p->tick(&ui, p->self);
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(view.layout->line_count == 5 && view.layout->page_count == 2, "a fifth line runs onto a second page");
+        check(graph_items(&chrome, view.w_pages, TORIRS_CHROME_GRAPH_RECT, 0x7a8ad8) == 1,
+              "...and the pages well draws one page-break rule");
+        graph_send(&ui, panel, view.w_pages, TORIRS_CHROME_EVENT_GRAPH_PRESS, 10, 2 + 4 * 16 + 4, 0);
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(view.sel_page == 1, "a click on the second page selects it");
+        {
+            int second = 0;
+            int first = 0;
+            const struct ToriRSChromeWidget* w = &chrome.widgets[view.w_preview];
+            for( int i = 0; i < w->graph_count; i++ )
+            {
+                const struct ToriRSChromeGraphItem* item = &chrome.graph_items[w->graph_first + i];
+                if( item->kind != TORIRS_CHROME_GRAPH_TEXT || item->color != 0x000000 )
+                    continue;
+                second += strcmp(item->text, "Tell me what you find there.") == 0;
+                first += strncmp(item->text, BUILDER_CHAT_PLAYER_STANDIN, 12) == 0;
+            }
+            check(second == 1 && first == 0, "the preview draws that page's line, not the first page's");
+        }
+    }
+
+    /* Lint rows: they flow to Problems, and a click goes to the node. */
+    {
+        struct Builder_Model* edited = model_new();
+        int lost;
+        struct Builder_Node* n;
+        *edited = *view.model;
+        n = Builder_ModelNodeAdd(edited, BUILDER_NODE_STEP);
+        Builder_StepInit(&n->step, BUILDER_STEP_CALL);
+        snprintf(n->step.a, sizeof(n->step.a), "%s", "no_such_proc");
+        /* The longest id a node may have: its caption must still fit. */
+        snprintf(n->id, sizeof(n->id), "%s", "stray_call_with_a_long_name_xyz");
+        n->x = 600;
+        n->y = 200;
+        lost = edited->node_count - 1;
+        g_problem_count = -1;
+        check(Builder_PanelSetModel(&ui, BUILDER_PANEL_NPC, edited), "an edit with a stray call");
+        free(edited);
+        {
+            const struct ToriRSChromeWidget* w = &chrome.widgets[graph];
+            int found = 0;
+            for( int i = 0; i < w->graph_count; i++ )
+            {
+                const struct ToriRSChromeGraphItem* item = &chrome.graph_items[w->graph_first + i];
+                if( item->kind != TORIRS_CHROME_GRAPH_TEXT || item->x != 604 || item->y != 217 )
+                    continue;
+                found = 1;
+                check(ToriRSChrome_MeasureText(chrome.theme.font_row, 1, item->text) <= 120 - 8
+                          && strstr(item->text, "...") != NULL,
+                      "a caption wider than its node is measured and ends in an ellipsis inside the box");
+            }
+            check(found, "the long-named node has its caption");
+        }
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        {
+            int orphan_row = -1;
+            int proc_row = -1;
+            for( int i = 0; i < view.lint->count; i++ )
+            {
+                if( view.lint->rows[i].node == lost && view.lint->rows[i].kind == BUILDER_LINT_ORPHAN )
+                    orphan_row = i;
+                if( view.lint->rows[i].node == lost && view.lint->rows[i].kind == BUILDER_LINT_UNKNOWN_PROC )
+                    proc_row = i;
+            }
+            /* `end` is an orphan too: the chip's mesbox took bye's port and
+             * leads nowhere. */
+            check(orphan_row >= 0 && proc_row >= 0 && view.lint->count == 3 && g_problem_count == 3
+                      && strcmp(g_problem_source, "npcbuilder:graph_npc") == 0,
+                  "its lint rows (the stray node's orphan and proc, end's orphan) go to Problems as the subject's "
+                  "source");
+            check(g_problem_open != NULL, "...with a click-to-node");
+            Builder_PanelSelectNode(&ui, -1);
+            if( g_problem_open )
+                g_problem_open(&ui, g_problem_user, orphan_row);
+            Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+            check(view.sel_node == lost, "a Problems row's click selects its node");
+            Builder_PanelSelectNode(&ui, -1);
+            check(Builder_PanelOpenLint(&ui, proc_row), "the builder's own lint list opens a row too");
+        }
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(view.sel_node == lost, "...at the same node");
+    }
+
+    /* Delete: from the focused well; the sentence names the orphans. */
+    {
+        int count;
+        Builder_PanelSelectNode(&ui, Builder_ModelNodeIndex(view.model, "work"));
+        count = view.model->node_count;
+        ToriRSChrome_FocusWidget(&chrome, -1, 0);
+        check(!Builder_GraphHotkey(&ui, EDITOR_HK_EDIT_DELETE),
+              "Delete without the graph's focus is not the graph's (the World's delete runs)");
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(view.model->node_count == count, "...and no node was deleted");
+        {
+            struct Editor_Chord chord;
+            memset(&chord, 0, sizeof(chord));
+            chord.key = TORIRSK_DELETE;
+            check(Editor_HotkeysMatch(&ui.hotkeys, chord, EDITOR_HK_CTX_L) == EDITOR_HK_EDIT_DELETE,
+                  "Delete is edit.delete's chord (the graph takes the chord from that row)");
+        }
+        graph_send(&ui, panel, graph, TORIRS_CHROME_EVENT_GRAPH_KEY, 0, 0, -TORIRS_CHROME_KEY_DELETE);
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(view.model->node_count == count - 1 && !Builder_ModelNodeConst(view.model, "work"),
+              "Delete in the well deletes the selected node");
+        check(strstr(g_status, "Deleted work (Branch on var)") != NULL && strstr(g_status, "job") != NULL
+                  && strstr(g_status, "nowork") != NULL && strstr(g_status, "orphaned") != NULL,
+              "...and the sentence names what it orphaned");
+        check(Editor_HostMapEdUndo(&host) > 0, "the delete undoes as one step");
+        mirror_drain(&mirror);
+        check(Builder_PanelOpenSubject(&ui, BUILDER_PANEL_NPC, "graph_npc"), "re-opened after the undo");
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(Builder_ModelNodeConst(view.model, "work") && view.model->node_count == count,
+              "...the node is back, with its links");
+    }
+
+    /* N: a new node from the hotkey; the loc builder has no graph. */
+    {
+        int count = view.model->node_count;
+        check(Builder_GraphHotkey(&ui, EDITOR_HK_GRAPH_NEW_NODE), "N is the graph's");
+        Builder_PanelInspect(&ui, BUILDER_PANEL_NPC, &view);
+        check(view.model->node_count == count + 1 && view.sel_node == count, "...and adds a selected node");
+    }
+
+    panel->destroy(&ui, panel->self);
     Editor_HostClose(&host);
     Editor_DocFree(mirror.doc);
     free(mirror.doc);
@@ -1628,6 +2516,14 @@ main(
     golden_dir = argv[4];
     only = getenv("BUILDER_TEST_ONLY");
     mkdir_p(tmp);
+    {
+        char probe[1200];
+        struct stat st;
+        snprintf(probe, sizeof(probe), "%s/configs/all.loc", content);
+        g_have_content = stat(probe, &st) == 0;
+        if( !g_have_content )
+            printf("no content tree at %s: the shell sweep and the compile section are skipped\n", content);
+    }
 
 #define SECTION(name, call)                                                                        \
     do                                                                                             \
@@ -1649,7 +2545,14 @@ main(
     SECTION("shell", test_shell(content));
     SECTION("preview", test_preview());
     SECTION("authority", test_authority(tmp));
-    SECTION("compile", test_compile(content, tmp, sscompile));
+    SECTION("graph", test_graph());
+    SECTION("chat", test_chat());
+    SECTION("lintrows", test_lint_rows());
+    SECTION("graphpanel", test_graph_panel(tmp));
+    if( g_have_content )
+        SECTION("compile", test_compile(content, tmp, sscompile));
+    else
+        printf("%-10s skipped (no content tree)\n", "compile");
 #undef SECTION
 
     printf("builder_test: %d checks, %d failed\n", g_checks, g_failed);

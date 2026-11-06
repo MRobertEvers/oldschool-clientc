@@ -421,6 +421,84 @@ Builder_ModelNodeRemove(
     struct Builder_Model* model,
     const char* id);
 
+/* ---- the graph (workbench 6.6: ports, links, layout) ---------------------
+ *
+ * A node's OUT-PORTS, in the order the GRAPH well draws them left to right:
+ *
+ *   CHOICE      one per option (0 .. arm_count-1); `next` is not a port
+ *   BRANCH      one per arm, then the default (port arm_count = `next`)
+ *   END         none
+ *   any other   one: port 0 = `next`
+ *
+ * Linking writes the target's id into that port; an empty target unlinks.
+ */
+
+/** How many out-ports `node` has. */
+int
+Builder_NodePortCount(const struct Builder_Node* node);
+
+/** The port's target field (an id, "" = the dialogue ends). `port` must be
+ *  below Builder_NodePortCount. */
+char*
+Builder_NodePortNext(
+    struct Builder_Node* node,
+    int port);
+
+const char*
+Builder_NodePortNextConst(
+    const struct Builder_Node* node,
+    int port);
+
+/** Link `from`'s port to node `to` ("" unlinks). Returns 1, or 0 when `to`
+ *  names no node (nothing changes). */
+int
+Builder_ModelLink(
+    struct Builder_Model* model,
+    const char* from,
+    int port,
+    const char* to);
+
+/** The index of node `id`, or -1. */
+int
+Builder_ModelNodeIndex(
+    const struct Builder_Model* model,
+    const char* id);
+
+/**
+ * Mark every node reachable from `id` through out-ports, `id` included:
+ * mask[i] = 1 for node i (BUILDER_NODES_MAX bytes, cleared here). Returns
+ * how many were marked; 0 when `id` names no node.
+ */
+int
+Builder_ModelReach(
+    const struct Builder_Model* model,
+    const char* id,
+    unsigned char* mask);
+
+/** Mark the ORPHANS -- the nodes the start cannot reach (every node when
+ *  there is no start). Returns how many. */
+int
+Builder_ModelOrphans(
+    const struct Builder_Model* model,
+    unsigned char* mask);
+
+/** The auto-layout's grid: a column per depth, a row per node in it. */
+#define BUILDER_LAYOUT_ORIGIN 10
+#define BUILDER_LAYOUT_COL_W 150
+#define BUILDER_LAYOUT_ROW_H 44
+
+/**
+ * Lay the graph out left to right by depth (Ctrl+L): a breadth-first walk
+ * from the start, ports in port order, puts each node in the column of the
+ * depth it is first reached at and the next free row of that column. The
+ * orphans follow as roots of their own walks, in model order, below what is
+ * already in each column. A pure function of the links: the same graph lays
+ * out the same way whatever its current positions (stable), so a hand
+ * layout survives only until the next Ctrl+L. Returns how many nodes moved.
+ */
+int
+Builder_ModelAutoLayout(struct Builder_Model* model);
+
 /* ---- names --------------------------------------------------------------- */
 
 /** "mes", "if_var", ... -- the token the INI writes. */

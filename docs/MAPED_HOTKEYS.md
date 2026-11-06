@@ -319,9 +319,15 @@ how many more there are ("and 212 more").
 | Action | Chord | Ctx |
 |---|---|---|
 | Lay the focused dialogue graph out | Ctrl+L | Q |
+| New dialogue node after the selected one | N | Q |
 
-The graph's auto-layout is workbench 6.6's; until it is in the tree the chord
-says so in the status bar.
+Workbench 6.6: Ctrl+L lays the NPC builder's dialogue graph out left to right
+by depth (the positions are saved as `pos=` in the `.interaction` file); N
+adds a node of the Node kind dropdown's kind after the selected one. With the
+graph's well holding the keyboard, Delete (`edit.delete`'s chord, so a rebind
+moves it too) deletes the selected node, and the status bar names the nodes
+it orphaned. Escape closes the new-node chip row a port dropped on empty
+space opens. Away from the graph, Delete is the World's again.
 
 Every other panel the View menu lists (Record, New, builders, Live, Accounts,
 Scenes, Encounters, the Shop builder, the Quest board, ...) is an action too, unbound by default. The Chrome scale and Text size rows
@@ -370,7 +376,7 @@ tables (the Hotkeys panel calls them by the name after the id):
 - **Level**: `level.down` Level down, `level.up` Level up, `level.pin0` Pin level 0, `level.pin1` Pin level 1, `level.pin2` Pin level 2, `level.pin3` Pin level 3, `level.auto` Level Auto, `level.above` Show above
 - **Camera**: `camera.forward` Fly forward, `camera.back` Fly back, `camera.left` Fly left, `camera.right` Fly right, `camera.down` Fly down, `camera.up` Fly up, `camera.fast` Fly faster, `camera.turn_left` Turn left, `camera.turn_right` Turn right, `camera.tilt_up` Tilt up, `camera.tilt_down` Tilt down, `camera.frame` Frame the selection, `camera.frame_square` Frame the square's centre
 - **Picker**: `picker.north` Focus north, `picker.south` Focus south, `picker.west` Focus west, `picker.east` Focus east, `picker.open` Open the focused square, `picker.add` Add the focused square, `picker.back` Previous open square, `picker.clear_find` Clear Find
-- **Graph**: `graph.auto_layout` Auto-layout the graph
+- **Graph**: `graph.auto_layout` Auto-layout the graph, `graph.new_node` New node
 - **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.catalog_palette` Catalog palette, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC builder, `view.shelleditor` Shell editor, `view.iface` Interface editor, `view.cs2` CS2, `view.live` Live, `view.accounts` Accounts, `view.triggers` Triggers, `view.scenes` Scenes, `view.encounter` Encounters, `view.shop` Shop builder, `view.quest` Quest board, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel, `view.scale_auto` Chrome scale Auto, `view.scale_100` Chrome scale 100 %, `view.scale_125` Chrome scale 125 %, `view.scale_150` Chrome scale 150 %, `view.scale_175` Chrome scale 175 %, `view.scale_200` Chrome scale 200 %, `view.scale_250` Chrome scale 250 %, `view.scale_300` Chrome scale 300 %, `view.text_normal` Text size Normal, `view.text_large` Text size Large, `view.text_bitmap` Text rendering bitmap, `view.text_smooth` Text rendering smooth, `view.workspace_build` Workspace Build, `view.workspace_terrain` Workspace Terrain, `view.workspace_script` Workspace Script, `view.workspace_playtest` Workspace Playtest, `view.command_palette` Command palette, `view.layer_locs` Layer Locs (reserved), `view.layer_npcs` Layer NPCs (reserved), `view.layer_objs` Layer Objs (reserved), `view.layer_collision` Layer Collision (reserved), `view.layer_grid` Layer Grid (reserved)
 
 Example:

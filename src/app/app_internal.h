@@ -1378,6 +1378,16 @@ App_MapEditorWorldSignature(struct App const* app);
 void
 app_map_editor_free(struct App* app);
 
+/** STATE_VAR_PREVIEW's values into `varps` (VarPManager_SetPreview): the
+ *  world's multiloc / multinpc resolve then honours the shell editor's
+ *  preview. App-free (edit_world_test drives it). Returns how many vars are
+ *  previewed. */
+int
+app_map_editor_var_preview(
+    struct VarPManager* varps,
+    const int32_t* values,
+    int count);
+
 /** The editor's whole shutdown (App_Shutdown): the layout and hotkeys files,
  *  Editor_PanelFree, then app_map_editor_free. Needs app->editor. */
 void

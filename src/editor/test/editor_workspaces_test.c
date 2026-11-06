@@ -746,7 +746,9 @@ test_hotkeys_panel(void)
     CHECK(n == EDITOR_HK_LEVEL_ABOVE - EDITOR_HK_LEVEL_DOWN + 1, "the Level group alone (%d)", n);
     Editor_Hotkeys_SetFilter(&g_ui, NULL, EDITOR_HK_CTX_Q, 0, 0);
     n = Editor_Hotkeys_Rows(&g_ui, rows, EDITOR_HK_COUNT);
-    CHECK(n == 1 && rows[0] == EDITOR_HK_GRAPH_AUTO_LAYOUT, "context Q: the graph's auto-layout alone");
+    /* Workbench 6.6 added N (graph.new_node) beside Ctrl+L. */
+    CHECK(n == 2 && rows[0] == EDITOR_HK_GRAPH_AUTO_LAYOUT && rows[1] == EDITOR_HK_GRAPH_NEW_NODE,
+        "context Q: the graph's auto-layout and new node alone");
     Editor_Hotkeys_SetFilter(&g_ui, NULL, 0, 1, 0);
     CHECK(Editor_Hotkeys_Rows(&g_ui, rows, EDITOR_HK_COUNT) == 0, "changed: nothing is rebound yet");
 

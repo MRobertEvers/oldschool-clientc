@@ -454,6 +454,200 @@ Builder_ModelNodeRemove(
         copy_field(model->start, sizeof(model->start), model->node_count ? model->nodes[0].id : "");
 }
 
+/* ---- the graph ------------------------------------------------------------ */
+
+int
+Builder_NodePortCount(const struct Builder_Node* node)
+{
+    assert(node);
+    switch( node->kind )
+    {
+    case BUILDER_NODE_CHOICE:
+        return node->arm_count;
+    case BUILDER_NODE_BRANCH:
+        return node->arm_count + 1;
+    case BUILDER_NODE_END:
+        return 0;
+    default:
+        return 1;
+    }
+}
+
+const char*
+Builder_NodePortNextConst(
+    const struct Builder_Node* node,
+    int port)
+{
+    assert(node);
+    assert(port >= 0);
+    assert(port < Builder_NodePortCount(node));
+    if( node->kind == BUILDER_NODE_CHOICE )
+        return node->arms[port].next;
+    if( node->kind == BUILDER_NODE_BRANCH && port < node->arm_count )
+        return node->arms[port].next;
+    return node->next;
+}
+
+char*
+Builder_NodePortNext(
+    struct Builder_Node* node,
+    int port)
+{
+    return (char*)Builder_NodePortNextConst(node, port);
+}
+
+int
+Builder_ModelNodeIndex(
+    const struct Builder_Model* model,
+    const char* id)
+{
+    assert(model);
+    assert(id);
+    for( int i = 0; i < model->node_count; i++ )
+    {
+        if( strcmp(model->nodes[i].id, id) == 0 )
+            return i;
+    }
+    return -1;
+}
+
+int
+Builder_ModelLink(
+    struct Builder_Model* model,
+    const char* from,
+    int port,
+    const char* to)
+{
+    struct Builder_Node* node;
+
+    assert(model);
+    assert(from);
+    assert(to);
+    node = Builder_ModelNode(model, from);
+    assert(node);
+    if( to[0] && !Builder_ModelNode(model, to) )
+        return 0;
+    copy_field(Builder_NodePortNext(node, port), BUILDER_NODE_ID_MAX, to);
+    return 1;
+}
+
+int
+Builder_ModelReach(
+    const struct Builder_Model* model,
+    const char* id,
+    unsigned char* mask)
+{
+    int queue[BUILDER_NODES_MAX];
+    int head = 0;
+    int tail = 0;
+    int first;
+
+    assert(model);
+    assert(id);
+    assert(mask);
+    memset(mask, 0, BUILDER_NODES_MAX);
+    first = Builder_ModelNodeIndex(model, id);
+    if( first < 0 )
+        return 0;
+    mask[first] = 1;
+    queue[tail++] = first;
+    while( head < tail )
+    {
+        const struct Builder_Node* node = &model->nodes[queue[head++]];
+        int ports = Builder_NodePortCount(node);
+        for( int p = 0; p < ports; p++ )
+        {
+            const char* next = Builder_NodePortNextConst(node, p);
+            int to = next[0] ? Builder_ModelNodeIndex(model, next) : -1;
+            if( to < 0 || mask[to] )
+                continue;
+            mask[to] = 1;
+            queue[tail++] = to;
+        }
+    }
+    return tail;
+}
+
+int
+Builder_ModelOrphans(
+    const struct Builder_Model* model,
+    unsigned char* mask)
+{
+    unsigned char reach[BUILDER_NODES_MAX];
+    int count = 0;
+
+    assert(model);
+    assert(mask);
+    if( model->start[0] )
+        (void)Builder_ModelReach(model, model->start, reach);
+    else
+        memset(reach, 0, sizeof(reach));
+    memset(mask, 0, BUILDER_NODES_MAX);
+    for( int i = 0; i < model->node_count; i++ )
+    {
+        if( reach[i] )
+            continue;
+        mask[i] = 1;
+        count++;
+    }
+    return count;
+}
+
+int
+Builder_ModelAutoLayout(struct Builder_Model* model)
+{
+    int depth[BUILDER_NODES_MAX];
+    int rows[BUILDER_NODES_MAX];
+    int queue[BUILDER_NODES_MAX];
+    int moved = 0;
+
+    assert(model);
+    for( int i = 0; i < BUILDER_NODES_MAX; i++ )
+    {
+        depth[i] = -1;
+        rows[i] = 0;
+    }
+    /* Roots: the start first, then every node no earlier walk reached, in
+     * model order. Each walk is breadth-first, ports in port order, so the
+     * columns are depths and the rows the order a reader meets the nodes. */
+    for( int pass = -1; pass < model->node_count; pass++ )
+    {
+        int root = pass < 0 ? (model->start[0] ? Builder_ModelNodeIndex(model, model->start) : -1) : pass;
+        int head = 0;
+        int tail = 0;
+
+        if( root < 0 || depth[root] >= 0 )
+            continue;
+        depth[root] = 0;
+        queue[tail++] = root;
+        while( head < tail )
+        {
+            int at = queue[head++];
+            struct Builder_Node* node = &model->nodes[at];
+            int ports = Builder_NodePortCount(node);
+            int x = BUILDER_LAYOUT_ORIGIN + depth[at] * BUILDER_LAYOUT_COL_W;
+            int y = BUILDER_LAYOUT_ORIGIN + rows[depth[at]] * BUILDER_LAYOUT_ROW_H;
+
+            rows[depth[at]]++;
+            if( node->x != x || node->y != y )
+                moved++;
+            node->x = x;
+            node->y = y;
+            for( int p = 0; p < ports; p++ )
+            {
+                const char* next = Builder_NodePortNextConst(node, p);
+                int to = next[0] ? Builder_ModelNodeIndex(model, next) : -1;
+                if( to < 0 || depth[to] >= 0 )
+                    continue;
+                /* A walk of N nodes is at most N - 1 deep: rows[] holds it. */
+                depth[to] = depth[at] + 1;
+                queue[tail++] = to;
+            }
+        }
+    }
+    return moved;
+}
+
 /* ---- paths --------------------------------------------------------------- */
 
 int
