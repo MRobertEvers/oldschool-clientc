@@ -5186,6 +5186,10 @@ else
 MAPED_TEST_LDFLAGS :=
 endif
 
+# Phony: `torirsmaped` is also the sources' directory, and with only the
+# objdir as a prerequisite make took that directory for the target and never
+# relinked, so test-torirsmaped-daemon ran whatever server was built last.
+.PHONY: torirsmaped torirsmapedctl
 torirsmaped: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsmaped $(TORIMEM_SRCS) $(TORIRSMAPED_SRCS) -lm $(TORIRSMAPED_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/torirsmaped"
