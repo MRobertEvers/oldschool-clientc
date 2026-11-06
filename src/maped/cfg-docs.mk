@@ -41,7 +41,7 @@ test-editor-cfg:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_cfg_test $(TORIMEM_SRCS) \
 		editor/editor_cfg.c editor/editor_doc.c editor/editor_cmd.c editor/editor_jm2.c \
-		editor/editor_spawn.c editor/test/editor_cfg_test.c
+		editor/editor_spawn.c editor/test/editor_cfg_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_cfg_test $(EDITOR_CONTENT_DIR)
 
 EDITOR_TREE_TESTS += test-editor-cfg
@@ -63,7 +63,7 @@ test-editor-alloc:
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_alloc_test $(TORIMEM_SRCS) \
 		editor/editor_alloc.c editor/editor_cfg.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/editor_jm2.c editor/editor_spawn.c content/content_register.c $(INI_SRC) \
-		editor/test/editor_alloc_test.c
+		editor/test/editor_alloc_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_alloc_test $(EDITOR_CONTENT_DIR) $(OBJ_DIR)/tmp/editor_alloc/oracle.txt \
 		$(OBJ_DIR)/tmp/editor_alloc
 
@@ -77,7 +77,7 @@ test-editor-vars:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_vars_test $(TORIMEM_SRCS) \
 		editor/editor_vars.c editor/editor_cfg.c editor/editor_doc.c editor/editor_cmd.c \
-		editor/editor_jm2.c editor/editor_spawn.c editor/test/editor_vars_test.c
+		editor/editor_jm2.c editor/editor_spawn.c editor/test/editor_vars_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_vars_test $(EDITOR_CONTENT_DIR)
 
 EDITOR_TREE_TESTS += test-editor-vars

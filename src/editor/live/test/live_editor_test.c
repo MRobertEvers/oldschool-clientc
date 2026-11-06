@@ -42,6 +42,8 @@
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_build.h"
 #include "torirsmaped/torirs_maped_live.h"
+#include "platform/launch_sessions.h"
+#include "torirsmaped/torirs_maped_build.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -548,6 +550,9 @@ main(
     play_script = argv[5];
     signal(SIGPIPE, SIG_IGN);
     ToriMem_Init();
+    /* The editor server starts its children through the host's spawner, as
+     * the client and torirsmaped hand it theirs (torirs_maped_build.h). */
+    ToriRSMapEd_SetSpawner(LaunchSessions_SystemSpawner());
     snprintf(content, sizeof(content), "%s/content", scratch);
     snprintf(live, sizeof(live), "%s/live", scratch);
     snprintf(g_peer_log, sizeof(g_peer_log), "%s/peer.log", scratch);

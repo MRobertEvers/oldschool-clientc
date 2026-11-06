@@ -36,7 +36,7 @@ test-editor-encounters:
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_encounters_test $(TORIMEM_SRCS) editor/editor_encounters.c \
 		editor/editor_npcstats.c editor/editor_stamps.c editor/builder/builder_model.c \
 		editor/builder/builder_text.c editor/builder/builder_emit.c editor/editor_cfg.c \
-		editor/test/editor_encounters_test.c
+		editor/test/editor_encounters_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_encounters_test
 
 test-editor: test-editor-encounters
@@ -61,7 +61,7 @@ test-editor-encounter-panel:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_encounter_panel_test editor/test/editor_encounter_panel_test.c \
-		torirsmaped/torirs_mapedctl_encounters.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		torirsmaped/torirs_mapedctl_encounters.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/editor_encounter
 	mkdir -p $(OBJ_DIR)/tmp
 	./$(OBJ_DIR)/editor_encounter_panel_test $(OBJ_DIR)/tmp/editor_encounter

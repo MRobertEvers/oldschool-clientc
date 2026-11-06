@@ -21,7 +21,7 @@ test-editor-workbench:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_workbench_test editor/test/editor_workbench_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/workbench
 	mkdir -p $(OBJ_DIR)/tmp/workbench
 	./$(OBJ_DIR)/editor_workbench_test $(abspath $(OBJ_DIR)/tmp/workbench)

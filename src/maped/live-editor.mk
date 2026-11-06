@@ -106,11 +106,15 @@ maped-run-build: maped-lane-seed
 # player list (start, reloaded-in-place, logged out, died, Play/Stop, browser).
 # One square copied under $(OBJ_DIR)/tmp/live_editor; the tree is read only.
 .PHONY: test-live-editor
+ifeq ($(OS),Windows_NT)
+test-live-editor:
+	@echo "test-live-editor: SKIPPED on Windows: a POSIX test harness (fork, BSD sockets, /bin/sh fakes for the client and the game server): run it on Linux or macOS; on Windows the paths it covers were run by hand (docs/MAPED_STATUS.md, Windows run)"
+else
 test-live-editor:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/live_editor_test $(TORIMEM_SRCS) \
 		$(filter-out torirsmaped/torirs_maped_main.c,$(TORIRSMAPED_SRCS)) \
-		editor/live/live_client.c editor/live/test/live_editor_test.c -lm
+		editor/live/live_client.c editor/live/test/live_editor_test.c -lm $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/live_editor
 	mkdir -p $(OBJ_DIR)/tmp/live_editor/content/maps \
 		$(OBJ_DIR)/tmp/live_editor/content/server/scripts/areas/edited/configs
@@ -124,6 +128,7 @@ test-live-editor:
 		$(abspath $(OBJ_DIR)/tmp/live_editor/mock_control_peer.py) \
 		$(abspath $(OBJ_DIR)/tmp/live_editor/fake_server.sh) $(REPO_ROOT) \
 		$(abspath $(OBJ_DIR)/tmp/live_editor/fake_play.sh)
+endif
 
 EDITOR_TREE_TESTS += test-live-editor
 
@@ -142,7 +147,7 @@ test-cp-incremental:
 	$(MAKE) $(addprefix $(OBJ_DIR)/,$(CP_INCREMENTAL_TEST_OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cp_incremental_test $(TORIMEM_SRCS) \
 		editor/live/test/cp_incremental_test.c \
-		$(addprefix $(OBJ_DIR)/,$(CP_INCREMENTAL_TEST_OBJS)) -lm
+		$(addprefix $(OBJ_DIR)/,$(CP_INCREMENTAL_TEST_OBJS)) -lm $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/cp_incremental
 	mkdir -p $(OBJ_DIR)/tmp/cp_incremental/src/configs
 	cp $(EDITOR_CONTENT_DIR)/meta.ini $(EDITOR_CONTENT_DIR)/content.ini $(OBJ_DIR)/tmp/cp_incremental/src/
@@ -164,11 +169,15 @@ EDITOR_TREE_TESTS += test-cp-incremental
 # another window, Detach. Links the client's objects minus main.o, as
 # test-editor-panels does. Writes only under $(OBJ_DIR)/tmp/live_panel.
 .PHONY: test-live-panel
+ifeq ($(OS),Windows_NT)
+test-live-panel:
+	@echo "test-live-panel: SKIPPED on Windows: a POSIX test harness (fork, BSD sockets, /bin/sh fakes for the client and the game server): run it on Linux or macOS; on Windows the paths it covers were run by hand (docs/MAPED_STATUS.md, Windows run)"
+else
 test-live-panel:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/live_panel_test editor/live/test/live_panel_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/live_panel
 	mkdir -p $(OBJ_DIR)/tmp/live_panel/content/maps
 	cp $(EDITOR_CONTENT_DIR)/maps/m50_50.jm2 $(EDITOR_CONTENT_DIR)/maps/m50_50.jl2 \
@@ -176,5 +185,6 @@ test-live-panel:
 	cp editor/live/test/mock_control_peer.py $(OBJ_DIR)/tmp/live_panel/
 	./$(OBJ_DIR)/live_panel_test $(abspath $(OBJ_DIR)/tmp/live_panel) \
 		$(abspath $(OBJ_DIR)/tmp/live_panel/mock_control_peer.py) $(REPO_ROOT)
+endif
 
 EDITOR_TREE_TESTS += test-live-panel

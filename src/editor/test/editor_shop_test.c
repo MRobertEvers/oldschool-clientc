@@ -24,6 +24,7 @@
  *             and unresolved rows skipped and counted, other shops ignored
  */
 
+#include "editor/test/editor_test_text.h"
 #include "editor/editor_shop.h"
 #include "mem/torirs_mem.h"
 
@@ -79,6 +80,7 @@ read_file(
     text[size] = '\0';
     fclose(f);
     *out_length = (size_t)size;
+    editor_test_text_lf(text, out_length);
     return text;
 }
 

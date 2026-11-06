@@ -38,6 +38,7 @@
 #include "editor/editor_ui.h"
 #include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanel_ops.h"
+#include "editor/panels/edpanels.h"
 #include "engine/torirs_types.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"

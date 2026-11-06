@@ -20,7 +20,7 @@ test-editor-groups:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_groups_test editor/test/editor_groups_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_groups_test
 
 test-editor: test-editor-groups

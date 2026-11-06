@@ -24,7 +24,7 @@ MAPED_CLIENT_SRCS += editor/editor_instance.c editor/editor_wma.c editor/panels/
 test-editor-instance:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_instance_test $(TORIMEM_SRCS) editor/editor_instance.c \
-		editor/editor_wma.c editor/editor_spawn.c editor/test/editor_instance_test.c
+		editor/editor_wma.c editor/editor_spawn.c editor/test/editor_instance_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_instance_test
 
 test-editor: test-editor-instance
@@ -46,7 +46,7 @@ test-editor-instance-ops:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_instance_ops_test editor/test/editor_instance_ops_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/editor_instance
 	mkdir -p $(OBJ_DIR)/tmp
 	./$(OBJ_DIR)/editor_instance_ops_test $(OBJ_DIR)/tmp/editor_instance

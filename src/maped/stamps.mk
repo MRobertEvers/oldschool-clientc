@@ -23,7 +23,7 @@ MAPED_CLIENT_SRCS += editor/editor_stamps.c editor/panels/edpanel_ops_stamps.c e
 test-editor-stamps:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_stamps_test $(TORIMEM_SRCS) editor/editor_stamps.c \
-		editor/test/editor_stamps_test.c
+		editor/test/editor_stamps_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_stamps_test
 
 test-editor: test-editor-stamps
@@ -47,7 +47,7 @@ test-editor-stamps-ops:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_stamps_ops_test editor/test/editor_stamps_ops_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/editor_stamps
 	mkdir -p $(OBJ_DIR)/tmp
 	./$(OBJ_DIR)/editor_stamps_ops_test $(OBJ_DIR)/tmp/editor_stamps

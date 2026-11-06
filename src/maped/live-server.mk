@@ -25,7 +25,7 @@ test-live-reload:
 		torirsserver/test/live_reload_test.c editor/builder/builder_ssc.c \
 		$(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
-		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm $(MAPED_TEST_LDFLAGS)
 	mkdir -p $(OBJ_DIR)/tmp/live_reload
 	./$(OBJ_DIR)/live_reload_test $(EDITOR_CONTENT_DIR) $(LIVE_SERVER_CACHE_DIR) \
 		$(abspath $(SSC_BIN)) $(abspath $(OBJ_DIR)/tmp/live_reload)

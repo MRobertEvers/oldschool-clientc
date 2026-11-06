@@ -21,16 +21,21 @@ MAPED_CLIENT_SRCS += editor/accounts/accounts_client.c editor/accounts/accounts_
 # flushes after the login, a checkpoint file becomes the view's snapshot.
 # Writes only under $(OBJ_DIR)/tmp/accounts; the tree is not read.
 .PHONY: test-accounts
+ifeq ($(OS),Windows_NT)
+test-accounts:
+	@echo "test-accounts: SKIPPED on Windows: a POSIX test harness (fork, BSD sockets, /bin/sh fakes for the client and the game server): run it on Linux or macOS; on Windows the paths it covers were run by hand (docs/MAPED_STATUS.md, Windows run)"
+else
 test-accounts:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/accounts_test $(TORIMEM_SRCS) \
 		$(filter-out torirsmaped/torirs_maped_main.c,$(TORIRSMAPED_SRCS)) \
-		torirsmaped/test/accounts_test.c -lm
+		torirsmaped/test/accounts_test.c -lm $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/accounts
 	mkdir -p $(OBJ_DIR)/tmp/accounts
 	cp editor/live/test/mock_control_peer.py $(OBJ_DIR)/tmp/accounts/
 	./$(OBJ_DIR)/accounts_test $(abspath $(OBJ_DIR)/tmp/accounts) \
 		$(abspath $(OBJ_DIR)/tmp/accounts/mock_control_peer.py) $(REPO_ROOT)
+endif
 
 test-torirsmaped-daemon: test-accounts
 test-editor: test-accounts
@@ -58,7 +63,7 @@ test-editor-panels-accounts:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_panels_accounts_test editor/test/editor_panels_accounts_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/editor_panels_accounts
 	mkdir -p $(OBJ_DIR)/tmp
 	./$(OBJ_DIR)/editor_panels_accounts_test $(abspath $(OBJ_DIR)/tmp/editor_panels_accounts) $(REPO_ROOT)

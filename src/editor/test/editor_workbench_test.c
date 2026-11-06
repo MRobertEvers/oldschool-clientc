@@ -244,11 +244,15 @@ registry_digest(
  * track; the column now widens to hold it (dbg_slider_label_w). Workbench
  * 6.6 part 1 moved the 1x registry (was 2691440990u): the bottom strip's
  * group gained its third tab, Problems, which the 1x surface draws; the 2x
- * and 3x registries and the scenes did not move. */
+ * and 3x registries and the scenes did not move. The Windows run (2026-11-06)
+ * moved all three registries (was 2593871087u, 4031613255u, 2905863413u):
+ * since 6.3 part 2 the Stamps panel opened with the editor and the digests
+ * drew it; it now opens on demand (edpanel_stamps.c, stamps_set_visible).
+ * The same digests on Linux and Windows; the scenes did not move. */
 static const uint32_t k_golden[3][3] = {
-    { 1970238540u, 3840548130u, 2593871087u },
-    { 1606657634u, 3552625563u, 4031613255u },
-    { 1621493878u, 3838641767u, 2905863413u },
+    { 1970238540u, 3840548130u, 584349543u },
+    { 1606657634u, 3552625563u, 2229059899u },
+    { 1621493878u, 3838641767u, 2715795737u },
 };
 
 static void
@@ -654,8 +658,13 @@ test_prefs_file(void)
     /* The path: beside the layout file, TORIRS_EDITOR_PREFS overriding it. */
     unsetenv("TORIRS_EDITOR_PREFS");
     CHECK(strcmp(Editor_PrefsPath(), EDITOR_PREFS_DEFAULT_PATH) == 0, "editor_prefs.ini by default");
+#ifndef _WIN32
+    /* Windows' C runtime holds no empty variable: setting one to "" removes
+     * it (_putenv("NAME=")), so there the convention cannot be spelled and
+     * the variable reads as unset. */
     setenv("TORIRS_EDITOR_PREFS", "", 1);
     CHECK(Editor_PrefsPath() == NULL, "an empty TORIRS_EDITOR_PREFS turns the file off");
+#endif
     setenv("TORIRS_EDITOR_PREFS", "/tmp/x.ini", 1);
     CHECK(strcmp(Editor_PrefsPath(), "/tmp/x.ini") == 0, "TORIRS_EDITOR_PREFS names it");
     unsetenv("TORIRS_EDITOR_PREFS");

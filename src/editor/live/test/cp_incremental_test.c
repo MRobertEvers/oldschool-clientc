@@ -26,6 +26,7 @@
  */
 
 #include "archive.h"
+#include "editor/test/editor_test_text.h"
 #include "dat2disk.h"
 #include "filelist.h"
 #include "mem/torirs_mem.h"
@@ -96,6 +97,30 @@ file_hash(const char* path)
     return h ^ size;
 }
 
+/** `command`, a POSIX shell line (quoting, cd, redirections), as system()
+ *  runs it on Linux and macOS. Windows' system() is cmd.exe, so there the
+ *  line goes to Git's sh.exe, which the make recipes run under and which is
+ *  on PATH whenever the suite runs. Returns the exit status (0 = success). */
+static int
+run_shell(const char* command)
+{
+#ifdef _WIN32
+    char wrapped[8192];
+    size_t at = (size_t)snprintf(wrapped, sizeof(wrapped), "sh -c \"");
+
+    for( const char* c = command; *c && at + 4 < sizeof(wrapped); c++ )
+    {
+        if( *c == '"' || *c == '\\' )
+            wrapped[at++] = '\\';
+        wrapped[at++] = *c;
+    }
+    snprintf(wrapped + at, sizeof(wrapped) - at, "\"");
+    return system(wrapped);
+#else
+    return system(command);
+#endif
+}
+
 /** Run cachepack in the scratch dir; its output lands in <scratch>/<log>. */
 static int
 cachepack(
@@ -104,7 +129,7 @@ cachepack(
 {
     char command[4096];
     snprintf(command, sizeof(command), "cd '%s' && '%s' %s > '%s' 2>&1", g_scratch, g_cachepack, args, log);
-    return system(command);
+    return run_shell(command);
 }
 
 static int
@@ -251,6 +276,9 @@ edit_file(
         fprintf(stderr, "cannot read %s\n", path);
         exit(2);
     }
+    /* A CRLF checkout of the content (Git for Windows) edits as LF: the
+     * needles are LF, and the packer reads either. */
+    editor_test_text_lf(text, &size);
     f = fopen(path, "wb");
     at = find ? strstr(text, find) : NULL;
     if( find && !at )
@@ -361,17 +389,17 @@ main(
         "'%s' --no-print-directory -C '%s' maped-client-cache TORIRSSERVER_CONTENT_DIR='%s/src' "
         "MAPED_LIVE_CACHE='%s/live' TORIRSSERVER_CACHE_BASE='%s/no_base' > '%s/make.log' 2>&1",
         make, src_dir, g_scratch, g_scratch, g_scratch, g_scratch);
-    check(system(command) == 0, "make maped-client-cache runs the incremental pack");
+    check(run_shell(command) == 0, "make maped-client-cache runs the incremental pack");
     /* The tree is named by an absolute path now, a global input: every type
      * repacks, and still nothing differs. */
     check(log_has("make.log", "0 archive(s) changed"), "make maped-client-cache: nothing differs, nothing written");
-    check(system(command) == 0 && log_has("make.log", "0 type(s) repacked, 20 reused"),
+    check(run_shell(command) == 0 && log_has("make.log", "0 type(s) repacked, 20 reused"),
         "make maped-client-cache again: all reused");
     snprintf(command, sizeof(command),
         "'%s' --no-print-directory -C '%s' maped-client-cache TORIRSSERVER_CONTENT_DIR='%s/src' "
         "MAPED_LIVE_CACHE='%s/src/cache_in_tree' > '%s/make_refuse.log' 2>&1",
         make, src_dir, g_scratch, g_scratch, g_scratch);
-    check(system(command) != 0 && log_has("make_refuse.log", "is inside the content tree"),
+    check(run_shell(command) != 0 && log_has("make_refuse.log", "is inside the content tree"),
         "make maped-client-cache refuses a live cache inside the content tree");
     {
         struct stat info;

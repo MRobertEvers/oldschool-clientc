@@ -77,7 +77,7 @@ test-chrome-skin-tiers:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/chrome_skin_tiers_test \
 		ui/test/chrome_skin_tiers_test.c engine/torirs_chrome_skin_baked.c \
-		engine/torirs_chrome_skin_tiers.c engine/torirs_debug_font_baked.c
+		engine/torirs_chrome_skin_tiers.c engine/torirs_debug_font_baked.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/chrome_skin_tiers_test
 
 chrome-skin-rebake:
@@ -129,7 +129,7 @@ test-chrome-widgets:
 		ui/uitree_debug_overlay.c ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c \
 		ui/torirs_chrome_rail.c ui/torirs_chrome_bake.c engine/torirs_chrome_skin_baked.c \
 		engine/torirs_chrome_skin_tiers.c engine/torirs_debug_font_baked.c \
-		engine/torirs_chrome_font_vector_baked.c -lm
+		engine/torirs_chrome_font_vector_baked.c -lm $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/chrome_widget_sync_test
 	node ui/test/chrome_widgets_dom_test.js
 

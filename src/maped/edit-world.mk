@@ -23,7 +23,7 @@ test-edit-world:
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/edit_world_test \
 		engine/world_builder/test/edit_world_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/edit_world
 	mkdir -p $(OBJ_DIR)/tmp/edit_world
 	./$(OBJ_DIR)/edit_world_test $(EDITOR_CONTENT_DIR) $(EDITOR_CACHE_DIR) \
@@ -43,7 +43,7 @@ test-edit-world-shell:
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/edit_world_test \
 		engine/world_builder/test/edit_world_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/edit_world_test --synthetic-shell
 
 test-editor: test-edit-world-shell

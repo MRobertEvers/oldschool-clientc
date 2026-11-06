@@ -31,7 +31,7 @@ test-editor-palette:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_palette_test $(TORIMEM_SRCS) editor/editor_palette.c \
 		torirsmaped/torirs_maped_cmdwire.c torirsmaped/torirs_maped_buf.c \
-		editor/test/editor_palette_test.c
+		editor/test/editor_palette_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_palette_test
 
 test-editor: test-editor-palette
@@ -49,7 +49,7 @@ test-editor-panels-palette:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_panels_palette_test editor/test/editor_panels_palette_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/editor_panels_palette
 	mkdir -p $(OBJ_DIR)/tmp
 	./$(OBJ_DIR)/editor_panels_palette_test $(OBJ_DIR)/tmp/editor_panels_palette

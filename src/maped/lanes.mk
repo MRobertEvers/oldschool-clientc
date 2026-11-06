@@ -16,7 +16,7 @@ MAPED_CLIENT_SRCS += editor/panels/edpanel_publish.c
 test-lanes:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/lanes_test $(TORIMEM_SRCS) torirsmaped/torirs_maped_lanes.c \
-		torirsmaped/test/lanes_test.c
+		torirsmaped/test/lanes_test.c $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/lanes
 	mkdir -p $(OBJ_DIR)/tmp/lanes
 	./$(OBJ_DIR)/lanes_test $(abspath $(OBJ_DIR)/tmp/lanes)

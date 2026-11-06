@@ -22,7 +22,7 @@ test-editor-shop:
 	python3 -I editor/test/editor_shop_oracle.py $(REPO_ROOT)/tools editor/test/shop_samples.tsv \
 		$(OBJ_DIR)/tmp/editor_shop_oracle
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_shop_test $(TORIMEM_SRCS) editor/editor_shop.c \
-		editor/test/editor_shop_test.c
+		editor/test/editor_shop_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_shop_test editor/test/shop_samples.tsv $(OBJ_DIR)/tmp/editor_shop_oracle
 
 test-editor: test-editor-shop
@@ -37,7 +37,7 @@ test-editor: test-editor-shop
 test-editor-quest:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_quest_test $(TORIMEM_SRCS) editor/editor_quest.c \
-		editor/test/editor_quest_test.c
+		editor/test/editor_quest_test.c $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/editor_quest
 	mkdir -p $(OBJ_DIR)/tmp
 	./$(OBJ_DIR)/editor_quest_test $(OBJ_DIR)/tmp/editor_quest
@@ -59,7 +59,7 @@ test-editor-shop-quest-panels:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_shop_quest_panels_test editor/test/editor_shop_quest_panels_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/editor_shop_quest
 	mkdir -p $(OBJ_DIR)/tmp/editor_shop_quest
 	./$(OBJ_DIR)/editor_shop_quest_panels_test $(abspath $(OBJ_DIR)/tmp/editor_shop_quest)

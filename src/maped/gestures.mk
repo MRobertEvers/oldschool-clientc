@@ -24,7 +24,7 @@ test-editor-world-gesture:
 	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/editor_world_gesture_test editor/editor_world_gesture.c \
 		editor/test/editor_world_gesture_test.c $(TORIDRAW_DIR)/graphics/shared_tables.c \
 		$(TORIDRAW_DIR)/toridraw_math.c $(TORIMEM_SRCS) input/torirs_input.c input/torirs_input_cmd.c \
-		cmd/cmdbus.c cmd/cmdring.c $(LDFLAGS) -lm
+		cmd/cmdbus.c cmd/cmdring.c $(LDFLAGS) -lm $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_world_gesture_test $(OBJ_DIR)/editor_world_gesture_test.trscmd
 
 test-editor: test-editor-world-gesture

@@ -53,7 +53,7 @@ test-editor-panels:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_panels_test editor/test/editor_panels_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/editor_panels
 	mkdir -p $(OBJ_DIR)/tmp/editor_panels/maps $(OBJ_DIR)/tmp/editor_panels/configs \
 		$(OBJ_DIR)/tmp/editor_panels/worldmap \

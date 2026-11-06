@@ -45,7 +45,7 @@ maped-script-check: sscompile
 	@[ $(OBJ_DIR)/maped_script_check -nt editor/builder/builder_ssc.c ] \
 		&& [ $(OBJ_DIR)/maped_script_check -nt editor/builder/builder_ssc_main.c ] \
 		|| $(CC) $(CFLAGS) -o $(OBJ_DIR)/maped_script_check $(TORIMEM_SRCS) editor/builder/builder_ssc.c \
-			editor/builder/builder_ssc_main.c platform/launch_sessions.c
+			editor/builder/builder_ssc_main.c platform/launch_sessions.c $(MAPED_TEST_LDFLAGS)
 	@$(abspath $(OBJ_DIR))/maped_script_check $(abspath $(SSC_BIN)) $(TORIRSSERVER_CONTENT_DIR) \
 		$(abspath $(MAPED_CHECK_DIR))
 
@@ -62,7 +62,7 @@ ifneq ($(MAPED_CS2_SCRIPTS),)
 	@[ $(OBJ_DIR)/maped_cs2_names -nt editor/iface/iface_model.c ] \
 		&& [ $(OBJ_DIR)/maped_cs2_names -nt editor/iface/iface_cs2_names_main.c ] \
 		|| $(CC) $(CFLAGS) -o $(OBJ_DIR)/maped_cs2_names $(TORIMEM_SRCS) editor/iface/iface_model.c \
-			editor/iface/iface_cs2_names_main.c
+			editor/iface/iface_cs2_names_main.c $(MAPED_TEST_LDFLAGS)
 	@$(abspath $(OBJ_DIR))/maped_cs2_names $(MAPED_CS2_SCRIPTS) "$(wildcard $(RUNESTAR_CS2_NAMES))" \
 		$(MAPED_CS2_DIR)/names
 endif
@@ -86,7 +86,7 @@ endif
 test-editor-records:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/editor_records_test $(TORIMEM_SRCS) editor/editor_cfg.c \
-		editor/builder/builder_ssc.c editor/test/editor_records_test.c
+		editor/builder/builder_ssc.c editor/test/editor_records_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_records_test
 
 test-editor: test-editor-records
@@ -95,12 +95,17 @@ test-editor: test-editor-records
 # synthetic tree and a stand-in sscompile; an unsaved put staged and its error
 # a job line, the put gone, a clean rerun, a work dir in the tree refused.
 .PHONY: test-maped-script-check
+ifeq ($(OS),Windows_NT)
+test-maped-script-check:
+	@echo "test-maped-script-check: SKIPPED on Windows: a POSIX test harness (fork, BSD sockets, /bin/sh fakes for the client and the game server): run it on Linux or macOS; on Windows the paths it covers were run by hand (docs/MAPED_STATUS.md, Windows run)"
+else
 test-maped-script-check:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/maped_script_check $(TORIMEM_SRCS) editor/builder/builder_ssc.c \
-		editor/builder/builder_ssc_main.c platform/launch_sessions.c
+		editor/builder/builder_ssc_main.c platform/launch_sessions.c $(MAPED_TEST_LDFLAGS)
 	sh editor/test/maped_script_check_test.sh $(abspath $(OBJ_DIR))/maped_script_check \
 		$(abspath $(OBJ_DIR))/tmp/maped_script_check
+endif
 
 test-editor: test-maped-script-check
 
@@ -112,7 +117,7 @@ test-editor: test-maped-script-check
 test-maped-cs2-names:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/maped_cs2_names $(TORIMEM_SRCS) editor/iface/iface_model.c \
-		editor/iface/iface_cs2_names_main.c
+		editor/iface/iface_cs2_names_main.c $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/maped_cs2_names
 	mkdir -p $(OBJ_DIR)/tmp/maped_cs2_names/scripts $(OBJ_DIR)/tmp/maped_cs2_names/runestar
 	printf '// 5344\n[proc,openurl_raw_handle_event_5344](int $$a)\nreturn;\n' \
@@ -124,8 +129,8 @@ test-maped-cs2-names:
 		$(OBJ_DIR)/tmp/maped_cs2_names/names
 	grep -qx '5344	\[proc,openurl_raw_handle_event_5344\]' $(OBJ_DIR)/tmp/maped_cs2_names/names/script-names.tsv
 	grep -qx '12	\[clientscript,bank_sort\]' $(OBJ_DIR)/tmp/maped_cs2_names/names/script-names.tsv
-	! grep -q script5344 $(OBJ_DIR)/tmp/maped_cs2_names/names/script-names.tsv
-	[ -L $(OBJ_DIR)/tmp/maped_cs2_names/names/obj-names.tsv ]
+	if grep -q script5344 $(OBJ_DIR)/tmp/maped_cs2_names/names/script-names.tsv; then exit 1; fi
+	[ -L $(OBJ_DIR)/tmp/maped_cs2_names/names/obj-names.tsv ] || { [ "$(OS)" = "Windows_NT" ] && [ -f $(OBJ_DIR)/tmp/maped_cs2_names/names/obj-names.tsv ]; }
 	./$(OBJ_DIR)/maped_cs2_names $(OBJ_DIR)/tmp/maped_cs2_names/scripts "" $(OBJ_DIR)/tmp/maped_cs2_names/names_only
 	[ -f $(OBJ_DIR)/tmp/maped_cs2_names/names_only/script-names.tsv ] \
 		&& [ ! -e $(OBJ_DIR)/tmp/maped_cs2_names/names_only/obj-names.tsv ]
@@ -153,7 +158,7 @@ test-editor-records-panels:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_records_panels_test editor/test/editor_records_panels_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/editor_records
 	mkdir -p $(OBJ_DIR)/tmp/editor_records
 	./$(OBJ_DIR)/editor_records_panels_test $(abspath $(OBJ_DIR)/tmp/editor_records)

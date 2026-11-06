@@ -27,7 +27,7 @@ test-editor-catalog-finder:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_catalog_finder_test editor/test/editor_catalog_finder_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/editor_catalog_finder
 	mkdir -p $(OBJ_DIR)/tmp
 	./$(OBJ_DIR)/editor_catalog_finder_test $(OBJ_DIR)/tmp/editor_catalog_finder

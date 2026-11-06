@@ -25,7 +25,7 @@ MAPED_CLIENT_SRCS += editor/editor_script.c editor/panels/edpanel_triggers.c
 test-editor-script: sscompile
 	mkdir -p $(OBJ_DIR)/tmp/editor_script
 	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/editor_script_test $(TORIMEM_SRCS) editor/editor_script.c \
-		editor/builder/builder_ssc.c editor/test/editor_script_test.c
+		editor/builder/builder_ssc.c editor/test/editor_script_test.c platform/launch_sessions.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_script_test $(abspath $(SSC_BIN)) $(EDITOR_CONTENT_DIR) \
 		$(abspath $(OBJ_DIR)/tmp/editor_script)
 

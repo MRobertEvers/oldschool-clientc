@@ -16,7 +16,7 @@ test-editor-placement:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_placement_test editor/test/editor_placement_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/placement
 	mkdir -p $(OBJ_DIR)/tmp
 	./$(OBJ_DIR)/editor_placement_test $(abspath $(OBJ_DIR)/tmp/placement)

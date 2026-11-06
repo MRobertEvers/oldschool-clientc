@@ -18,7 +18,7 @@ MAPED_CLIENT_SRCS += editor/editor_hotkeys.c editor/task_editor_hotkeys_io.c \
 test-editor-hotkeys:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_hotkeys_test $(TORIMEM_SRCS) editor/editor_hotkeys.c \
-		input/torirs_keymap.c editor/test/editor_hotkeys_test.c
+		input/torirs_keymap.c editor/test/editor_hotkeys_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_hotkeys_test ../docs/MAPED_HOTKEYS.md
 
 test-editor: test-editor-hotkeys
@@ -35,7 +35,7 @@ test-editor-chords:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_chords_test editor/test/editor_chords_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_chords_test
 
 test-editor: test-editor-chords
@@ -53,7 +53,7 @@ test-editor-workspaces:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_workspaces_test editor/test/editor_workspaces_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_workspaces_test
 
 test-editor: test-editor-workspaces

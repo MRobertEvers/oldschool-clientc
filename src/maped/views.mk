@@ -36,16 +36,21 @@ MAPED_CLIENT_SRCS += torirsmaped/torirs_maped_net.c
 # read only. Links the client's objects minus main.o, as test-edit-world does.
 # TORIRSMAPED_VIEWS_TEST_PORT overrides the daemon's port (43619).
 .PHONY: test-editor-views
+ifeq ($(OS),Windows_NT)
+test-editor-views:
+	@echo "test-editor-views: SKIPPED on Windows: a POSIX test harness (fork, BSD sockets, /bin/sh fakes for the client and the game server): run it on Linux or macOS; on Windows the paths it covers were run by hand (docs/MAPED_STATUS.md, Windows run)"
+else
 test-editor-views: torirsmaped
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/views_embed_test \
 		torirsmaped/test/views_embed_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/views
 	mkdir -p $(OBJ_DIR)/tmp/views
 	./$(OBJ_DIR)/views_embed_test $(EDITOR_CONTENT_DIR) $(abspath $(OBJ_DIR)/tmp/views) \
 		$(abspath $(OBJ_DIR)/torirsmaped) $(abspath ../manifests/manifest_osrs241_mapeditor.ini)
+endif
 
 EDITOR_TREE_TESTS += test-editor-views
 

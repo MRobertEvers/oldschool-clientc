@@ -34,7 +34,7 @@ test-editor-scenes:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_scenes_test $(TORIMEM_SRCS) editor/editor_scenes.c \
 		torirsmaped/torirs_maped_cmdwire.c torirsmaped/torirs_maped_buf.c \
-		editor/test/editor_scenes_test.c
+		editor/test/editor_scenes_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_scenes_test
 
 test-editor: test-editor-scenes
@@ -61,7 +61,7 @@ test-editor-scenes-ops:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_scenes_ops_test editor/test/editor_scenes_ops_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/editor_scenes
 	mkdir -p $(OBJ_DIR)/tmp
 	./$(OBJ_DIR)/editor_scenes_ops_test $(abspath $(OBJ_DIR)/tmp/editor_scenes)

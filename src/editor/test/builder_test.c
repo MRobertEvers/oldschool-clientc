@@ -41,6 +41,8 @@
  * rest is content-free.
  */
 #include "editor/builder/builder_chat.h"
+#include "editor/test/editor_test_text.h"
+#include "platform/launch_sessions.h"
 #include "editor/builder/builder_emit.h"
 #include "editor/builder/builder_lint.h"
 #include "editor/builder/builder_model.h"
@@ -113,6 +115,7 @@ slurp(
     data[size] = '\0';
     fclose(file);
     *out_size = (size_t)size;
+    editor_test_text_lf(data, out_size);
     return data;
 }
 
@@ -2734,6 +2737,9 @@ main(
     sscompile = argv[3];
     golden_dir = argv[4];
     only = getenv("BUILDER_TEST_ONLY");
+    /* sscompile starts through the host's spawner, as maped_script_check's
+     * main hands it in. */
+    Builder_SscSetSpawner(LaunchSessions_SystemSpawner());
     mkdir_p(tmp);
     {
         char probe[1200];

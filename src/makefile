@@ -2035,7 +2035,7 @@ test-world-camera: $(OBJ_DIR)
 test-editor-ghost: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_ghost_preview_test$(PLATFORM_EXE_SUFFIX) \
 		editor/test/editor_ghost_preview_test.c editor/map_editor_ghost.c \
-		editor/editor_preview_camera.c $(LDFLAGS)
+		editor/editor_preview_camera.c $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_ghost_preview_test$(PLATFORM_EXE_SUFFIX)
 
 # Two small containers App used to hold inline: the frame-time ring, whose mean
@@ -2096,7 +2096,7 @@ test-overlay-stage: $(OBJ_DIR)
 .PHONY: test-loc-editor-selection
 test-loc-editor-selection: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/loc_editor_selection_test$(PLATFORM_EXE_SUFFIX) \
-		editor/test/loc_editor_selection_test.c editor/loc_editor_selection.c $(LDFLAGS)
+		editor/test/loc_editor_selection_test.c editor/loc_editor_selection.c $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/loc_editor_selection_test$(PLATFORM_EXE_SUFFIX)
 
 # Which regions of the world map are on screen, and in what order. The set
@@ -3325,7 +3325,7 @@ test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/edito
 		editor/editor_spawn.c editor/test/editor_cmd_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_cmd_test $(TORIMEM_SRCS) \
 		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c editor/editor_spawn.c \
-		editor/test/editor_cmd_test.c
+		editor/test/editor_cmd_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_cmd_test
 
 # Codec fidelity over the whole content tree: every .jm2/.jl2 must survive
@@ -3336,7 +3336,7 @@ test-editor-jm2: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/edito
 		editor/test/editor_jm2_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_jm2_test $(TORIMEM_SRCS) \
 		editor/editor_jm2.c editor/editor_doc.c editor/editor_spawn.c \
-		editor/test/editor_jm2_test.c
+		editor/test/editor_jm2_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_jm2_test $(EDITOR_CONTENT_DIR)
 
 # The editor renders what the game renders: a square loaded from text derives
@@ -3350,7 +3350,7 @@ test-editor-derive: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		editor/editor_jm2.c editor/editor_doc.c editor/editor_derive.c editor/editor_spawn.c \
 		editor/test/editor_derive_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
-		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_derive_test $(EDITOR_CONTENT_DIR) $(EDITOR_CACHE_DIR) 600
 
 # The save path through the real host: only the dirty half is written, the
@@ -3360,7 +3360,7 @@ test-editor-save: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/edit
 		editor/editor_spawn.c editor/editor_host_local.c editor/test/editor_save_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_save_test $(TORIMEM_SRCS) \
 		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c editor/editor_spawn.c \
-		editor/editor_host_local.c editor/test/editor_save_test.c
+		editor/editor_host_local.c editor/test/editor_save_test.c $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/editor_save_scratch/maps
 	mkdir -p $(OBJ_DIR)/editor_save_scratch/maps
 	./$(OBJ_DIR)/editor_save_test $(OBJ_DIR)/editor_save_scratch \
@@ -3381,7 +3381,8 @@ test-torirsmaped-embed: $(OBJ_DIR) torirsmaped/torirs_maped.c torirsmaped/torirs
 		torirsmaped/torirs_maped_cmdwire.c \
 		torirsmaped/torirs_maped_embed.c editor/editor_host_local.c \
 		editor/editor_host_remote.c editor/editor_doc.c editor/editor_cmd.c \
-		editor/editor_spawn.c editor/editor_jm2.c torirsmaped/test/maped_embed_test.c -lm
+		editor/editor_spawn.c editor/editor_jm2.c platform/launch_sessions.c \
+		torirsmaped/test/maped_embed_test.c -lm $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/maped_scratch
 	mkdir -p $(OBJ_DIR)/maped_scratch/maps
 	./$(OBJ_DIR)/maped_embed_test $(OBJ_DIR)/maped_scratch \
@@ -3393,11 +3394,16 @@ test-torirsmaped-embed: $(OBJ_DIR) torirsmaped/torirs_maped.c torirsmaped/torirs
 # that one Client's selection never reaches another's.
 #
 # TORIRSMAPED_TEST_PORT overrides the port when 43611 is busy.
+ifeq ($(OS),Windows_NT)
+test-torirsmaped-daemon:
+	@echo "test-torirsmaped-daemon: SKIPPED on Windows: a POSIX test harness (fork, BSD sockets, /bin/sh fakes for the client and the game server): run it on Linux or macOS; on Windows the paths it covers were run by hand (docs/MAPED_STATUS.md, Windows run)"
+else
 test-torirsmaped-daemon: torirsmaped torirsmapedctl
 	sh torirsmaped/test/maped_daemon_test.sh \
 		$(OBJ_DIR)/torirsmaped $(OBJ_DIR)/torirsmapedctl \
 		$(OBJ_DIR)/maped_daemon_scratch \
 		$(EDITOR_CONTENT_DIR)/maps/m50_50.jm2 $(EDITOR_CONTENT_DIR)/maps/m50_50.jl2
+endif
 
 # Convex hull (ToriDraw): the silhouette a loc highlight is drawn from, plus the
 # degenerate shapes real footprints produce -- edge-on, collinear, duplicated
@@ -5167,6 +5173,17 @@ ifeq ($(OS),Windows_NT)
 TORIRSMAPED_SOCKET_LIBS := -lws2_32
 else
 TORIRSMAPED_SOCKET_LIBS :=
+endif
+
+# Every editor test binary's link ends with this (src/maped/*.mk). On Windows:
+# winsock, which the editor server's live link and listener use, and the
+# stack the suites run with elsewhere ('ulimit -s unlimited'; Windows gives
+# a process 1 MB and test-editor-panels-accounts overflowed it, 0xC00000FD).
+# A 64-bit reservation costs address space only until it is touched.
+ifeq ($(OS),Windows_NT)
+MAPED_TEST_LDFLAGS := -lws2_32 -Wl,--stack,268435456
+else
+MAPED_TEST_LDFLAGS :=
 endif
 
 torirsmaped: $(OBJ_DIR)

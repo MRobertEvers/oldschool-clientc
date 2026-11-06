@@ -40,7 +40,7 @@ test-builder: sscompile
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -UNDEBUG -UTORIRS_CHROME_EXEC_WEB_AVAILABLE \
 		-UTORIRS_CHROME_EXEC_BROWSER_AVAILABLE -UTORIRS_CHROME_SURFACE_SDL \
-		-o $(OBJ_DIR)/builder_test $(TORIMEM_SRCS) $(BUILDER_TEST_SRCS) $(MAPED_SERVER_SRCS) -lm
+		-o $(OBJ_DIR)/builder_test $(TORIMEM_SRCS) $(BUILDER_TEST_SRCS) $(MAPED_SERVER_SRCS) -lm $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/builder/content $(OBJ_DIR)/tmp/builder/content_graph
 	mkdir -p $(OBJ_DIR)/tmp/builder
 	./$(OBJ_DIR)/builder_test $(EDITOR_CONTENT_DIR) $(abspath $(OBJ_DIR)/tmp/builder) \
