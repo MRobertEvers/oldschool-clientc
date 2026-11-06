@@ -3038,7 +3038,7 @@ main_launch_init(char const* argv0, char const* manifest_path)
     static char binary[LAUNCH_SESSIONS_PATH_MAX];
     static char manifest[LAUNCH_SESSIONS_PATH_MAX];
     struct LaunchSessions_Config config;
-    char const* reason = LaunchSessions_UnsupportedReason();
+    char const* reason = LaunchSessions_PartyUnsupportedReason();
 
     assert(argv0);
     memset(&config, 0, sizeof(config));
@@ -3070,7 +3070,7 @@ main_launch_init(char const* argv0, char const* manifest_path)
     atexit(main_launch_free);
     TORIRS_REPORT("launch: the embedded IO server's launch service is up (members run %s%s%s)%s%s\n",
                   binary, manifest_path ? " --manifest " : "", manifest_path ? manifest_path : "",
-                  reason ? "; it answers unsupported: " : "", reason ? reason : "");
+                  reason ? "; its party verbs answer unsupported: " : "", reason ? reason : "");
 }
 #endif /* MAIN_LAUNCH_SERVICE */
 
