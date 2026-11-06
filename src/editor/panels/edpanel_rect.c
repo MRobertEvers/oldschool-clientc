@@ -23,6 +23,7 @@ struct RectPanel
     int button_paste;
     int button_fill;
     int button_clear;
+    int button_plateau;
     int button_mark_area;
     struct Editor_TileRect shown;
     int shown_clip_w;
@@ -109,6 +110,8 @@ rect_activate(
         (void)edp_rect_fill(ui);
     else if( widget == self->button_clear )
         (void)edp_rect_clear(ui);
+    else if( widget == self->button_plateau )
+        (void)edp_rect_plateau(ui);
     else if( widget == self->button_mark_area )
     {
         /* Named in the Areas panel, where it is then selected for Rename. */
@@ -169,6 +172,9 @@ Editor_RectSelect_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(ui->chrome, self->button_paste,
         "Paste at the SW corner; authored heights follow the new ground");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_clear, "Every tile back to no tokens");
+    self->button_plateau = ToriRSChrome_Button(ui->chrome, self->panel, "Plateau");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_plateau,
+        "Flatten the rectangle to the latched tile's height, a smoothed skirt around it (Terrain: skirt)");
     self->button_mark_area = ToriRSChrome_Button(ui->chrome, self->panel, "Mark area from rect");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_mark_area, "Name this rectangle as an area (Areas panel)");
     rect_chords(ui, self);

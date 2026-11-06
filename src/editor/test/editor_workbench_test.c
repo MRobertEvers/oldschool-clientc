@@ -258,9 +258,9 @@ registry_digest(
  * 2229059899u, 2715795737u): the tool rail's Paint path button, four
  * primitives at each scale; Linux and Windows agree. */
 static const uint32_t k_golden[3][3] = {
-    { 1970238540u, 3840548130u, 4151824108u },
-    { 1606657634u, 3552625563u, 2947083847u },
-    { 1621493878u, 3838641767u, 2486953790u },
+    { 1970238540u, 3840548130u, 1199327579u },
+    { 1606657634u, 3552625563u, 1252539268u },
+    { 1621493878u, 3838641767u, 2734818940u },
 };
 
 static void

@@ -2272,8 +2272,12 @@ app_map_editor_drag(
         int hz;
         /* Each new tile re-plans the run (the overlay draws the plan); a
          * frame on the same tile costs nothing. */
-        if( Editor_PanelHoverTile(panel, app, &hx, &hz)
-            && Editor_PanelRunTo(panel, app, hx, hz, app_editor_hotkeys_active(app, EDITOR_HK_PLACE_CONSTRAIN)) )
+        /* Shift keeps the run to one axis; with the diagonal wall picked it
+         * keeps it to a diagonal instead (a diagonal fence, corner to corner). */
+        int const constrain = app_editor_hotkeys_active(app, EDITOR_HK_PLACE_CONSTRAIN)
+                                  ? (ui->tools.place_shape == 9 ? 2 : 1)
+                                  : 0;
+        if( Editor_PanelHoverTile(panel, app, &hx, &hz) && Editor_PanelRunTo(panel, app, hx, hz, constrain) )
             app->need_redraw = 1;
         if( released )
         {
@@ -2630,6 +2634,14 @@ app_map_editor_world_click(
             Editor_HistoryName(app->editor, Editor_ToolName(tool));
             ui->tools.stroke_open = 1;
             ui->tools.flatten_valid = 0;
+            /* Scatter with Alt held erases; every Roughen and Scatter stroke
+             * draws from a fresh seed, so a second drag over the same ground
+             * is not the first one again. */
+            panel->scatter_erase = tool == EDITOR_TOOL_SCATTER && LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT);
+            if( tool == EDITOR_TOOL_NOISE )
+                ui->tools.noise_seed = ui->tools.noise_seed * 1664525u + 1013904223u;
+            if( tool == EDITOR_TOOL_SCATTER && !panel->scatter_erase )
+                ui->tools.scatter_seed = ui->tools.scatter_seed * 1664525u + 1013904223u;
             panel->stroke_active = 1;
             panel->stroke_last_x = hx;
             panel->stroke_last_z = hz;

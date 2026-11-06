@@ -82,6 +82,20 @@ enum Editor_Tool
     /** Drag a path: the palette's overlay along the drag, its edges shaped to
      *  the line (editor/editor_path.h), one undo step on release. */
     EDITOR_TOOL_PAINT_PATH,
+    /** Roughen: seeded height noise under the brush, the step its amplitude,
+     *  the falloff fading it to the rim (ground that is not a plane). */
+    EDITOR_TOOL_NOISE,
+    /** Scatter: locs from a set (the selection's ids, else the catalog's
+     *  pick) dropped on the brush's free tiles at a density, each turned at
+     *  random; Alt-drag takes the set's locs off (edpanel_ops.h
+     *  Editor_ScatterCommands). */
+    EDITOR_TOOL_SCATTER,
+    /** Plateau: the brush's disc flattened to the height of the tile the
+     *  stroke began on, and a skirt of `plateau_skirt` tiles around it eased
+     *  from that height down (or up) to the ground as it is -- a mound or a
+     *  hole with a flat top for a building (edpanel_ops.h
+     *  Editor_PlateauCommands; the Rect panel's Plateau does a rectangle). */
+    EDITOR_TOOL_PLATEAU,
     EDITOR_TOOL_COUNT
 };
 
@@ -222,7 +236,25 @@ struct EditorUiTools
     int path_width_halves;
     int path_roughness;
     uint32_t path_seed;
+
+    /** The Roughen brush: the seed its noise is drawn from, moved on at
+     *  every stroke so the same drag twice does not undo itself. */
+    uint32_t noise_seed;
+    /** The Scatter brush (edpanel_ops.h Editor_ScatterCommands): the share
+     *  of the brush's tiles that take a loc (1..100 %, scaled by the
+     *  falloff), whether each is turned at random, and the seed the choices
+     *  are drawn from (New seed draws another; each stroke moves it on). */
+    int scatter_density;
+    int scatter_rotate;
+    uint32_t scatter_seed;
+    /** The Plateau tool and the Rect panel's Plateau: the skirt's width in
+     *  tiles (0..EDITOR_PLATEAU_SKIRT_MAX) eased from the flat top to the
+     *  ground around it. */
+    int plateau_skirt;
 };
+
+/** The widest plateau skirt, in tiles. */
+#define EDITOR_PLATEAU_SKIRT_MAX 8
 
 /* ---- hooks ---------------------------------------------------------------
  *

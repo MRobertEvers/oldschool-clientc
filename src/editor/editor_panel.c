@@ -960,6 +960,49 @@ Editor_PanelRecordLocEdit(
     return edp_apply(panel->ui, commands, count, "loc edit") > 0;
 }
 
+/** The Scatter set: the distinct ids of the selected locs, else the
+ *  catalog's loc pick; each with its record's size and first shape (one
+ *  tile and a centrepiece until the record is resident). */
+static void
+panel_scatter_set(
+    struct EditorUi* ui,
+    struct Editor_ScatterSet* set)
+{
+    set->count = 0;
+    for( int i = 0; i < ui->tools.loc_count && set->count < EDITOR_SCATTER_SET_MAX; i++ )
+    {
+        int const id = ui->tools.locs[i].loc_id;
+        int seen = 0;
+        if( id < 0 )
+            continue;
+        for( int k = 0; k < set->count; k++ )
+            if( set->loc_id[k] == id )
+                seen = 1;
+        if( !seen )
+            set->loc_id[set->count++] = id;
+    }
+    if( set->count == 0 && ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0 )
+        set->loc_id[set->count++] = ui->tools.pick_id;
+    for( int k = 0; k < set->count; k++ )
+    {
+        struct ToriRS_Location* cfg = NULL;
+        set->shape[k] = 10;
+        set->size_x[k] = 1;
+        set->size_z[k] = 1;
+        if( ui->app_services.loc_record )
+            cfg = ui->app_services.loc_record(ui->app_services.user_data, set->loc_id[k]);
+        if( !cfg )
+        {
+            if( ui->app_services.loc_request )
+                ui->app_services.loc_request(ui->app_services.user_data, set->loc_id[k]);
+            continue;
+        }
+        set->shape[k] = Editor_LocShapeFirst(Editor_LocShapeMask(cfg));
+        set->size_x[k] = cfg->size_x > 0 ? cfg->size_x : 1;
+        set->size_z[k] = cfg->size_z > 0 ? cfg->size_z : 1;
+    }
+}
+
 int
 Editor_PanelApplyToolAt(
     struct Editor_Panel* panel,
@@ -978,6 +1021,54 @@ Editor_PanelApplyToolAt(
     if( !ui || !app->editor || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
         return 0;
 
+    if( ui->tools.tool == EDITOR_TOOL_SCATTER )
+    {
+        int capacity;
+        struct Editor_Cmd* commands = edp_scratch(&capacity);
+        struct Editor_ScatterOp op;
+        int count;
+
+        memset(&op, 0, sizeof(op));
+        op.world_x = world_x;
+        op.world_z = world_z;
+        op.level = level < 0 ? 0 : level > 3 ? 3 : level;
+        op.brush = ui->tools.brush;
+        op.density = ui->tools.scatter_density < 1 ? 1 : ui->tools.scatter_density > 100 ? 100 : ui->tools.scatter_density;
+        op.rotate = ui->tools.scatter_rotate;
+        op.seed = ui->tools.scatter_seed;
+        op.erase = panel->scatter_erase;
+        panel_scatter_set(ui, &op.set);
+        if( op.set.count == 0 )
+        {
+            Editor_UiStatus(ui, "Scatter refused: select locs to scatter, or pick one in the catalog");
+            return 0;
+        }
+        count = Editor_ScatterCommands(&app->editor->doc, &op, commands, capacity);
+        if( count == 0 && !Editor_DocFindSquare(&app->editor->doc, world_x / 64, world_z / 64) )
+            Editor_UiLog(ui, "editor: m%d_%d is not open in the editor", world_x / 64, world_z / 64);
+        return edp_apply(ui, commands, count, op.erase ? "scatter erase" : "scatter");
+    }
+    if( ui->tools.tool == EDITOR_TOOL_PLATEAU )
+    {
+        int capacity;
+        struct Editor_Cmd* commands = edp_scratch(&capacity);
+        int const l = level < 0 ? 0 : level > 3 ? 3 : level;
+        int count;
+
+        /* The top is the height of the tile the stroke began on, held over
+         * the drag as Flatten holds its target. */
+        if( !ui->tools.flatten_valid
+            && Editor_OpsDerivedHeight(&app->editor->doc, world_x, world_z, l, &ui->tools.flatten_height) )
+            ui->tools.flatten_valid = 1;
+        if( !ui->tools.flatten_valid )
+        {
+            Editor_UiLog(ui, "editor: m%d_%d is not open in the editor", world_x / 64, world_z / 64);
+            return 0;
+        }
+        count = Editor_PlateauBrushCommands(&app->editor->doc, l, ui->tools.flatten_height, ui->tools.plateau_skirt,
+            &ui->tools.brush, world_x, world_z, commands, capacity);
+        return edp_apply(ui, commands, count, "plateau");
+    }
     if( Editor_ToolIsBrush(ui->tools.tool) )
     {
         int capacity;
@@ -986,6 +1077,7 @@ Editor_PanelApplyToolAt(
         int count;
 
         memset(&op, 0, sizeof(op));
+        op.noise_seed = ui->tools.noise_seed;
         op.tool = ui->tools.tool;
         op.world_x = world_x;
         op.world_z = world_z;

@@ -131,6 +131,9 @@ struct Editor_Panel
         int xs[EDITOR_PATH_POINTS_MAX];
         int zs[EDITOR_PATH_POINTS_MAX];
     } path;
+    /** The Scatter stroke in progress erases (Alt was held at the press)
+     *  rather than drops; read by every application of the stroke. */
+    int scatter_erase;
     /** The Select tool's press on empty ground (no loc under the pointer),
      *  absolute tile and edit level: it becomes the MARQUEE once the pointer
      *  leaves that tile, and a release on it is the plain click.

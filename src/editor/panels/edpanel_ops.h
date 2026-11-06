@@ -54,7 +54,7 @@ Editor_OpsRawForHeight(
 struct Editor_BrushOp
 {
     /** RAISE, LOWER, FLATTEN, SMOOTH, PAINT_UNDERLAY, PAINT_OVERLAY,
-     *  PAINT_FLAGS. */
+     *  PAINT_FLAGS, NOISE. */
     enum Editor_Tool tool;
     int world_x;
     int world_z;
@@ -62,6 +62,12 @@ struct Editor_BrushOp
     struct Editor_Brush brush;
     /** FLATTEN: the derived height every tile in the brush goes to. */
     int flatten_height;
+    /** NOISE: the seed. Each tile's offset is a hash of the seed and its
+     *  world tile, -step..+step scaled by the falloff: one seed is one
+     *  relief, so a plan can be remade (the preview) and a tile revisited
+     *  in a stroke takes the same offset again, as Raise would; the caller
+     *  moves the seed on per stroke so the next drag is another relief. */
+    uint32_t noise_seed;
     int underlay_id;
     int overlay_id;
     int overlay_none;
@@ -113,6 +119,118 @@ Editor_PathCommands(
     struct Editor_Cmd* out,
     int max,
     int* out_closed);
+
+/* ---- scatter: locs by the brushful --------------------------------------------- */
+
+/** Kinds one scatter set holds. */
+#define EDITOR_SCATTER_SET_MAX 32
+
+/** The locs Scatter drops: ids with their record sizes (one tile until the
+ *  record is resident), and the shape each is placed as (the record's first
+ *  shape; a centrepiece for most). */
+struct Editor_ScatterSet
+{
+    int count;
+    int loc_id[EDITOR_SCATTER_SET_MAX];
+    int shape[EDITOR_SCATTER_SET_MAX];
+    int size_x[EDITOR_SCATTER_SET_MAX];
+    int size_z[EDITOR_SCATTER_SET_MAX];
+};
+
+/** One Scatter application at one centre tile. */
+struct Editor_ScatterOp
+{
+    int world_x;
+    int world_z;
+    int level;
+    struct Editor_Brush brush;
+    /** The share of tiles that take a loc, 1..100, scaled by the brush's
+     *  weight at the tile. */
+    int density;
+    /** 1: each loc turned at random (0..3); 0: rotation 0. */
+    int rotate;
+    uint32_t seed;
+    /** 1: take the set's locs off the brush's tiles instead. */
+    int erase;
+    struct Editor_ScatterSet set;
+};
+
+/**
+ * The LOC commands one Scatter application makes. Every tile under the brush
+ * draws a number from (seed, tile): below density x weight the tile takes a
+ * loc of the set (which one, and its turn, drawn the same way), placed at
+ * its shape with the tile as the footprint's south-west corner -- unless any
+ * tile of that footprint is in a closed square or already holds a loc in
+ * that layer (a centrepiece on any of its tiles; so a drag never stacks and
+ * revisiting a tile adds nothing). `erase`: every loc of the set standing on
+ * a brush tile (at any shape) is removed. `out` needs one slot per tile.
+ * Returns the count.
+ */
+int
+Editor_ScatterCommands(
+    struct Editor_Doc* doc,
+    const struct Editor_ScatterOp* op,
+    struct Editor_Cmd* out,
+    int max);
+
+/* ---- plateau: a flat top with a smoothed skirt ---------------------------------- */
+
+/**
+ * The TILE commands that flatten a region to `height` (derived, negative
+ * up) on `level` and ease a skirt of `skirt` tiles around it to the ground
+ * as it is: a tile `d` tiles outside the region (1..skirt, by the larger
+ * axis distance) goes to its own height plus (height - own) x s, s the
+ * smoothstep of (skirt + 1 - d) / (skirt + 1), so the slope leaves the top
+ * and meets the ground tangentially -- a mound where the ground is lower, a
+ * hole where it is higher. `inside` says whether a world tile is in the
+ * region; the skirt is the tiles within `skirt` of one that is. The region
+ * must lie in `x0..x1`, `z0..z1` (the brush's disc, the rectangle). A tile
+ * within half a step of where it goes is left alone. Returns the count (at
+ * most `max`).
+ */
+typedef int (*Editor_PlateauInsideFn)(
+    void* user,
+    int world_x,
+    int world_z);
+
+int
+Editor_PlateauCommands(
+    struct Editor_Doc* doc,
+    int level,
+    int height,
+    int skirt,
+    int x0,
+    int z0,
+    int x1,
+    int z1,
+    Editor_PlateauInsideFn inside,
+    void* user,
+    struct Editor_Cmd* out,
+    int max);
+
+/** The Plateau brush at one centre: the disc of `brush->radius` (its
+ *  falloff ignored: the top is flat) flattened to `height` with `skirt`. */
+int
+Editor_PlateauBrushCommands(
+    struct Editor_Doc* doc,
+    int level,
+    int height,
+    int skirt,
+    const struct Editor_Brush* brush,
+    int world_x,
+    int world_z,
+    struct Editor_Cmd* out,
+    int max);
+
+/** The rectangle (normalised, clamped) flattened to `height` with `skirt`. */
+int
+Editor_TileRectPlateau(
+    struct Editor_Doc* doc,
+    const struct Editor_TileRect* rect,
+    int height,
+    int skirt,
+    struct Editor_Cmd* out,
+    int max);
 
 /* ---- the rectangle ------------------------------------------------------------ */
 
@@ -442,8 +560,12 @@ Editor_LocRunBegin(
  * (the longer axis first), retracing where a step returns to a tile already
  * on it. `constrain` (Shift held): the run is instead the straight line from
  * its first tile along the axis the pointer has moved further on, to the
- * pointer's projection on that axis. A run of EDITOR_LOC_RUN_MAX tiles stops
- * growing. Returns 1 when the run changed.
+ * pointer's projection on that axis. `constrain` 2 (Shift with a diagonal
+ * pose): the staircase from the first tile along the diagonal the pointer
+ * is nearest, one tile along x then one along z per diagonal step, as far
+ * as the pointer's projection on it -- what a diagonal wall run is laid on.
+ * A run of EDITOR_LOC_RUN_MAX tiles stops growing. Returns 1 when the run
+ * changed.
  */
 int
 Editor_LocRunTo(
@@ -484,6 +606,11 @@ struct Editor_LocRunPlan
     int level;
     /** 1: a wall run (corners and ends); 0: the pose on every tile. */
     int wall;
+    /** 1: a diagonal wall run (shape 9 on every second tile). */
+    int diagonal;
+    /** The Fit toggle and the loc's shapes, as the plan was made. */
+    int fit;
+    uint32_t mask;
     int count;
     struct Editor_LocRunPiece pieces[EDITOR_LOC_RUN_MAX];
     int place_count;
@@ -529,6 +656,22 @@ Editor_LocWallCornerRotation(
  * `level`, with the pose (`shape`, `rotation`) the ghost shows at the run's
  * first tile. A wall run when `shape` is a wall shape and the loc has the
  * straight wall (0); otherwise the pose on every tile.
+ *
+ * `fit` (the Fit toggle): a straight piece of the run landing on a tile
+ * where this loc already stands as a straight wall on a PERPENDICULAR edge
+ * becomes the L (2) of the two edges, so a run's end meets a wall already
+ * there (and a crossing keeps both); one landing on its own L that already
+ * carries the run's edge is kept as it is. Without `fit` the piece replaces
+ * what is there, as before.
+ *
+ * A DIAGONAL run: the pose is the diagonal wall (9) and the path is a
+ * staircase (each tile one step along x then one along z, or the reverse,
+ * the same way throughout -- what Editor_LocRunTo builds with `constrain`
+ * 2). Then every second tile, the ones on the diagonal, takes shape 9 turned
+ * to that diagonal (rotation 1 for north-west / south-east, 0 for
+ * south-west / north-east, as Editor_LocFitWall reads them) and the tiles
+ * between take nothing (EDITOR_LOC_RUN_NONE). A diagonal pose on any other
+ * path is the wall run it always was.
  */
 void
 Editor_LocRunPlanMake(
@@ -539,6 +682,7 @@ Editor_LocRunPlanMake(
     int shape,
     int rotation,
     int level,
+    int fit,
     struct Editor_LocRunPlan* plan);
 
 /** The plan's PLACE pieces as LOC commands: an add, a replace (same key), or

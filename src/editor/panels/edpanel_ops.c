@@ -54,6 +54,28 @@ ops_square_at(
     return square;
 }
 
+/** A number in [0, 1) drawn from a seed, a world tile and a lane (which
+ *  of several draws at one tile): the same every time, so a stroke that
+ *  revisits a tile decides the same thing about it. */
+static double
+ops_hash_unit(
+    uint32_t seed,
+    int world_x,
+    int world_z,
+    int lane)
+{
+    uint32_t h = seed * 0x9E3779B1u;
+    h ^= (uint32_t)world_x * 0x85EBCA77u;
+    h ^= (uint32_t)world_z * 0xC2B2AE3Du;
+    h ^= (uint32_t)lane * 0x27D4EB2Fu;
+    h ^= h >> 15;
+    h *= 0x2C1B3C6Du;
+    h ^= h >> 12;
+    h *= 0x297A2D39u;
+    h ^= h >> 15;
+    return (double)(h >> 8) / 16777216.0;
+}
+
 /* ---- heights ---------------------------------------------------------------- */
 
 int
@@ -278,6 +300,20 @@ Editor_BrushCommands(
                     ops_units_step(ops_tile_units(square, x, z, op->level), delta));
                 break;
             }
+            case EDITOR_TOOL_NOISE:
+            {
+                /* -1..1 from the seed and the tile, the step the amplitude,
+                 * the falloff fading it to the rim; under a unit, nothing. */
+                double const r = ops_hash_unit(op->noise_seed, world_x, world_z, 0) * 2.0 - 1.0;
+                double const amount = (double)op->brush.step * weight * r;
+                int const delta = (int)floor(amount + (amount < 0 ? -0.5 : 0.5));
+                if( delta == 0 )
+                    continue;
+                after.has_height = 1;
+                after.height = (uint8_t)ops_raw_of_units(
+                    ops_units_step(ops_tile_units(square, x, z, op->level), delta));
+                break;
+            }
             case EDITOR_TOOL_FLATTEN:
                 after.has_height = 1;
                 after.height = (uint8_t)Editor_OpsRawForHeight(
@@ -447,6 +483,344 @@ Editor_PathCommands(
     if( out_closed )
         *out_closed = closed;
     return written;
+}
+
+/* ---- scatter ------------------------------------------------------------------- */
+
+/** A loc of the set stands on world tile (x, z) on `level`: its index in the
+ *  square's list, or -1. */
+static int
+ops_scatter_set_loc_at(
+    struct Editor_Doc* doc,
+    const struct Editor_ScatterSet* set,
+    int world_x,
+    int world_z,
+    int level,
+    struct Editor_Square** out_square)
+{
+    struct Editor_Square* square;
+    int x;
+    int z;
+
+    *out_square = NULL;
+    square = ops_square_at(doc, world_x, world_z, &x, &z);
+    if( !square )
+        return -1;
+    *out_square = square;
+    for( int i = 0; i < square->loc_count; i++ )
+    {
+        const struct Editor_Loc* loc = &square->locs[i];
+        if( loc->level != level || loc->x != x || loc->z != z )
+            continue;
+        for( int k = 0; k < set->count; k++ )
+            if( loc->loc_id == set->loc_id[k] )
+                return i;
+    }
+    return -1;
+}
+
+/** The tiles one application may touch: the disc, and footprints spilling
+ *  past it to the north and east. */
+#define OPS_SCATTER_SPILL 16
+#define OPS_SCATTER_GRID (2 * EDITOR_BRUSH_RADIUS_MAX + 1 + OPS_SCATTER_SPILL)
+
+/** What this application has already planned, so two pieces of one call
+ *  never share a tile (they are all judged against the document before any
+ *  applies). Indexed from the disc's south-west corner. */
+struct OpsScatterTaken
+{
+    int origin_x;
+    int origin_z;
+    unsigned char tile[OPS_SCATTER_GRID][OPS_SCATTER_GRID];
+};
+
+/** The footprint of a loc of the set placed with (world_x, world_z) as its
+ *  south-west tile is free: every tile in an open square, not planned by
+ *  this call, and holding no loc in the piece's layer (a centrepiece on any
+ *  tile of it, any shape of the same layer on the tile itself). Marks the
+ *  footprint taken when it is. */
+static int
+ops_scatter_free(
+    struct Editor_Doc* doc,
+    const struct Editor_ScatterSet* set,
+    int k,
+    int rotation,
+    int world_x,
+    int world_z,
+    int level,
+    struct OpsScatterTaken* taken)
+{
+    int const layer = Editor_LocShapeLayer(set->shape[k]);
+    int w;
+    int h;
+
+    Editor_LocFootprint(set->shape[k], rotation, set->size_x[k], set->size_z[k], &w, &h);
+    for( int dz = 0; dz < h; dz++ )
+        for( int dx = 0; dx < w; dx++ )
+        {
+            struct Editor_Square* square;
+            int const gx = world_x + dx - taken->origin_x;
+            int const gz = world_z + dz - taken->origin_z;
+            int x;
+            int z;
+            if( gx < 0 || gz < 0 || gx >= OPS_SCATTER_GRID || gz >= OPS_SCATTER_GRID || taken->tile[gz][gx] )
+                return 0;
+            square = ops_square_at(doc, world_x + dx, world_z + dz, &x, &z);
+            if( !square )
+                return 0;
+            for( int i = 0; i < square->loc_count; i++ )
+            {
+                /* A loc is recorded on its south-west tile; a centrepiece
+                 * covers its footprint from there -- the set's sizes for its
+                 * own ids, one tile for any other (its record is not here). */
+                const struct Editor_Loc* loc = &square->locs[i];
+                int lw = 1;
+                int lh = 1;
+                if( loc->level != level )
+                    continue;
+                if( loc->shape == 10 || loc->shape == 11 )
+                    for( int s = 0; s < set->count; s++ )
+                        if( set->loc_id[s] == loc->loc_id )
+                            Editor_LocFootprint(loc->shape, loc->rotation, set->size_x[s], set->size_z[s], &lw, &lh);
+                if( x < loc->x || x >= loc->x + lw || z < loc->z || z >= loc->z + lh )
+                    continue;
+                if( loc->shape == 10 || loc->shape == 11 || Editor_LocShapeLayer(loc->shape) == layer )
+                    return 0;
+            }
+        }
+    for( int dz = 0; dz < h; dz++ )
+        for( int dx = 0; dx < w; dx++ )
+            taken->tile[world_z + dz - taken->origin_z][world_x + dx - taken->origin_x] = 1;
+    return 1;
+}
+
+int
+Editor_ScatterCommands(
+    struct Editor_Doc* doc,
+    const struct Editor_ScatterOp* op,
+    struct Editor_Cmd* out,
+    int max)
+{
+    int const radius = op ? op->brush.radius : 0;
+    struct OpsScatterTaken* taken;
+    int count = 0;
+
+    assert(doc);
+    assert(op);
+    assert(out);
+    assert(op->level >= 0);
+    assert(op->level < EDITOR_SQUARE_LEVELS);
+    assert(radius >= 0);
+    assert(radius <= EDITOR_BRUSH_RADIUS_MAX);
+    assert(op->density >= 1);
+    assert(op->density <= 100);
+    assert(op->set.count >= 0);
+    assert(op->set.count <= EDITOR_SCATTER_SET_MAX);
+    if( op->set.count == 0 )
+        return 0;
+    taken = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*taken));
+    assert(taken);
+    taken->origin_x = op->world_x - radius;
+    taken->origin_z = op->world_z - radius;
+
+    for( int dz = -radius; dz <= radius; dz++ )
+        for( int dx = -radius; dx <= radius; dx++ )
+        {
+            double const weight = Editor_BrushWeight(&op->brush, dx, dz);
+            int const world_x = op->world_x + dx;
+            int const world_z = op->world_z + dz;
+            struct Editor_Square* square;
+            int at;
+            int map_x = 0;
+            int map_z = 0;
+            int x;
+            int z;
+
+            if( weight <= 0.0 || count >= max )
+                continue;
+            if( op->erase )
+            {
+                at = ops_scatter_set_loc_at(doc, &op->set, world_x, world_z, op->level, &square);
+                if( at < 0 )
+                    continue;
+                (void)ops_split(world_x, world_z, &map_x, &map_z, &x, &z);
+                Editor_CmdInitSquare(&out[count], EDITOR_CMD_LOC, map_x, map_z);
+                out[count].has_before = 1;
+                out[count].u.loc.before = square->locs[at];
+                count++;
+                continue;
+            }
+            if( ops_hash_unit(op->seed, world_x, world_z, 0) * 100.0 >= (double)op->density * weight )
+                continue;
+            {
+                int const k = (int)(ops_hash_unit(op->seed, world_x, world_z, 1) * op->set.count) % op->set.count;
+                int const rotation = op->rotate ? (int)(ops_hash_unit(op->seed, world_x, world_z, 2) * 4.0) & 3 : 0;
+                struct Editor_Loc after;
+                if( !ops_scatter_free(doc, &op->set, k, rotation, world_x, world_z, op->level, taken) )
+                    continue;
+                (void)ops_split(world_x, world_z, &map_x, &map_z, &after.x, &after.z);
+                after.loc_id = op->set.loc_id[k];
+                after.shape = op->set.shape[k];
+                after.rotation = rotation;
+                after.level = op->level;
+                Editor_CmdInitSquare(&out[count], EDITOR_CMD_LOC, map_x, map_z);
+                out[count].has_after = 1;
+                out[count].u.loc.after = after;
+                count++;
+            }
+        }
+    ToriMem_Free(ToriMem_Editor(), taken);
+    return count;
+}
+
+/* ---- plateau ------------------------------------------------------------------- */
+
+int
+Editor_PlateauCommands(
+    struct Editor_Doc* doc,
+    int level,
+    int height,
+    int skirt,
+    int x0,
+    int z0,
+    int x1,
+    int z1,
+    Editor_PlateauInsideFn inside,
+    void* user,
+    struct Editor_Cmd* out,
+    int max)
+{
+    int count = 0;
+
+    assert(doc);
+    assert(inside);
+    assert(out);
+    assert(level >= 0);
+    assert(level < EDITOR_SQUARE_LEVELS);
+    assert(skirt >= 0);
+    assert(skirt <= EDITOR_PLATEAU_SKIRT_MAX);
+    assert(x0 <= x1);
+    assert(z0 <= z1);
+
+    for( int world_z = z0 - skirt; world_z <= z1 + skirt; world_z++ )
+        for( int world_x = x0 - skirt; world_x <= x1 + skirt; world_x++ )
+        {
+            struct Editor_Square* square;
+            struct Editor_Tile after;
+            double share = 1.0;
+            double target;
+            int own = 0;
+            int x;
+            int z;
+
+            if( world_x < 0 || world_z < 0 || count >= max )
+                continue;
+            if( !inside(user, world_x, world_z) )
+            {
+                /* The nearest tile of the region, by the larger axis
+                 * distance: 1..skirt is the skirt, further is nothing. */
+                int best = skirt + 1;
+                for( int dz = -skirt; dz <= skirt && best > 1; dz++ )
+                    for( int dx = -skirt; dx <= skirt; dx++ )
+                    {
+                        int const d = (dx < 0 ? -dx : dx) > (dz < 0 ? -dz : dz) ? (dx < 0 ? -dx : dx) : (dz < 0 ? -dz : dz);
+                        if( d == 0 || d >= best || world_x + dx < x0 || world_x + dx > x1 || world_z + dz < z0
+                            || world_z + dz > z1 )
+                            continue;
+                        if( inside(user, world_x + dx, world_z + dz) )
+                            best = d;
+                    }
+                if( best > skirt )
+                    continue;
+                {
+                    double const t = (double)(skirt + 1 - best) / (double)(skirt + 1);
+                    share = t * t * (3.0 - 2.0 * t);
+                }
+            }
+            square = ops_square_at(doc, world_x, world_z, &x, &z);
+            if( !square )
+                continue;
+            (void)Editor_OpsDerivedHeight(doc, world_x, world_z, level, &own);
+            target = (double)own + ((double)height - (double)own) * share;
+            if( fabs(target - (double)own) < OPS_UNIT / 2.0 )
+                continue;
+            after = square->tiles[Editor_TileIndex(x, z, level)];
+            after.has_height = 1;
+            after.height = (uint8_t)Editor_OpsRawForHeight(ops_base(square, x, z, level), (int)floor(target + 0.5));
+            ops_emit_tile(square, x, z, level, &after, out, &count, max);
+        }
+    return count;
+}
+
+struct OpsPlateauDisc
+{
+    int world_x;
+    int world_z;
+    int radius;
+};
+
+static int
+ops_plateau_in_disc(
+    void* user,
+    int world_x,
+    int world_z)
+{
+    struct OpsPlateauDisc const* disc = user;
+    int const dx = world_x - disc->world_x;
+    int const dz = world_z - disc->world_z;
+    return dx * dx + dz * dz <= disc->radius * disc->radius + disc->radius;
+}
+
+int
+Editor_PlateauBrushCommands(
+    struct Editor_Doc* doc,
+    int level,
+    int height,
+    int skirt,
+    const struct Editor_Brush* brush,
+    int world_x,
+    int world_z,
+    struct Editor_Cmd* out,
+    int max)
+{
+    struct OpsPlateauDisc disc;
+
+    assert(brush);
+    assert(brush->radius >= 0);
+    assert(brush->radius <= EDITOR_BRUSH_RADIUS_MAX);
+    disc.world_x = world_x;
+    disc.world_z = world_z;
+    disc.radius = brush->radius;
+    return Editor_PlateauCommands(doc, level, height, skirt, world_x - brush->radius, world_z - brush->radius,
+        world_x + brush->radius, world_z + brush->radius, ops_plateau_in_disc, &disc, out, max);
+}
+
+static int
+ops_plateau_in_rect(
+    void* user,
+    int world_x,
+    int world_z)
+{
+    struct Editor_TileRect const* rect = user;
+    return world_x >= rect->x0 && world_x <= rect->x1 && world_z >= rect->z0 && world_z <= rect->z1;
+}
+
+int
+Editor_TileRectPlateau(
+    struct Editor_Doc* doc,
+    const struct Editor_TileRect* rect,
+    int height,
+    int skirt,
+    struct Editor_Cmd* out,
+    int max)
+{
+    struct Editor_TileRect r;
+
+    assert(rect);
+    if( !Editor_TileRectNormalise(rect, &r) )
+        return 0;
+    return Editor_PlateauCommands(
+        doc, r.level, height, skirt, r.x0, r.z0, r.x1, r.z1, ops_plateau_in_rect, &r, out, max);
 }
 
 /* ---- the rectangle ------------------------------------------------------------ */
@@ -1712,6 +2086,28 @@ Editor_LocRunTo(
     old_count = path->count;
     old_x = path->x[old_count - 1];
     old_z = path->z[old_count - 1];
+    if( constrain == 2 )
+    {
+        /* The staircase along the diagonal from the first tile, as far as
+         * the pointer reaches along it: a step along x then one along z per
+         * diagonal tile, rebuilt from the first tile each time. */
+        int const dx = world_x - path->x[0];
+        int const dz = world_z - path->z[0];
+        int const n = (dx < 0 ? -dx : dx) < (dz < 0 ? -dz : dz) ? (dx < 0 ? -dx : dx) : (dz < 0 ? -dz : dz);
+        int const sx = dx < 0 ? -1 : 1;
+        int const sz = dz < 0 ? -1 : 1;
+        path->count = 1;
+        for( int i = 1; i <= n && path->count + 2 <= EDITOR_LOC_RUN_MAX; i++ )
+        {
+            path->x[path->count] = path->x[0] + i * sx;
+            path->z[path->count] = path->z[0] + (i - 1) * sz;
+            path->count++;
+            path->x[path->count] = path->x[0] + i * sx;
+            path->z[path->count] = path->z[0] + i * sz;
+            path->count++;
+        }
+        return path->count != old_count || path->x[path->count - 1] != old_x || path->z[path->count - 1] != old_z;
+    }
     if( constrain )
     {
         int const dx = world_x - path->x[0];
@@ -1810,6 +2206,26 @@ run_judge(
     piece->state = EDITOR_LOC_RUN_PLACE;
     if( own < 0 )
         return;
+    if( plan->fit && plan->wall && piece->shape == 0 )
+    {
+        /* Fit at a tile this loc already walls: a straight wall on the
+         * perpendicular edge makes the L of the two (the run's end meets
+         * it, a crossing keeps both); an L already carrying the run's edge
+         * stays. A wall on the same or the opposite edge is replaced as
+         * before (no piece holds two opposite edges). */
+        const struct Editor_Loc* there = &square->locs[own];
+        int const edge = piece->rotation & 3;
+        if( there->shape == 0 && ((there->rotation - edge) & 1) && (plan->mask & (1u << 2)) )
+        {
+            piece->shape = 2;
+            piece->rotation = Editor_LocWallCornerRotation(there->rotation & 3, edge);
+        }
+        else if( there->shape == 2 && (run_pose_edges(2, there->rotation) & (1u << edge)) )
+        {
+            piece->shape = 2;
+            piece->rotation = there->rotation & 3;
+        }
+    }
     if( square->locs[own].shape == piece->shape && (square->locs[own].rotation & 3) == piece->rotation )
     {
         piece->state = EDITOR_LOC_RUN_KEEP;
@@ -1817,6 +2233,36 @@ run_judge(
     }
     piece->has_holder = 1;
     piece->holder = square->locs[own];
+}
+
+/** The path is the staircase a diagonal drag makes: every step turns, the
+ *  x steps all one way and the z steps all one way, starting along x. */
+static int
+run_is_staircase(const struct Editor_LocRunPath* path)
+{
+    int sx = 0;
+    int sz = 0;
+
+    if( path->count < 3 || (path->count & 1) == 0 )
+        return 0;
+    for( int i = 0; i + 1 < path->count; i++ )
+    {
+        int const dx = path->x[i + 1] - path->x[i];
+        int const dz = path->z[i + 1] - path->z[i];
+        if( (i & 1) == 0 )
+        {
+            if( dz != 0 || (sx && dx != sx) )
+                return 0;
+            sx = dx;
+        }
+        else
+        {
+            if( dx != 0 || (sz && dz != sz) )
+                return 0;
+            sz = dz;
+        }
+    }
+    return 1;
 }
 
 /** The wall piece for run tile `i`: straight at the ends and along a
@@ -1881,9 +2327,11 @@ Editor_LocRunPlanMake(
     int shape,
     int rotation,
     int level,
+    int fit,
     struct Editor_LocRunPlan* plan)
 {
     int left = 1;
+    int diagonal_rotation = 0;
 
     assert(doc);
     assert(path);
@@ -1900,10 +2348,25 @@ Editor_LocRunPlanMake(
     plan->level = level;
     plan->count = path->count;
     plan->wall = Editor_LocShapeIsWall(shape) && (mask & 1u) && path->count > 1;
+    plan->diagonal = shape == 9 && (mask & (1u << 9)) && run_is_staircase(path);
+    plan->fit = fit ? 1 : 0;
+    plan->mask = mask;
     plan->place_count = 0;
     plan->refused_count = 0;
     plan->first_refused = -1;
-    if( plan->wall )
+    if( plan->diagonal )
+    {
+        /* The diagonal's turn: north-west / south-east (an x step and a z
+         * step of opposite signs) is rotation 1, the other 0 -- as Fit
+         * reads a diagonal neighbour. The diagonal stands in the ground
+         * layer, so the run is no wall run (one wall a tile is the wall
+         * layer's rule, not the diagonal's). */
+        int const dx = path->x[1] - path->x[0];
+        int const dz = path->z[2] - path->z[1];
+        diagonal_rotation = dx * dz < 0 ? 1 : 0;
+        plan->wall = 0;
+    }
+    else if( plan->wall )
     {
         /* The side the pose stands on, read against the first segment. */
         int const heading = run_heading(path, 0);
@@ -1915,7 +2378,13 @@ Editor_LocRunPlanMake(
         struct Editor_LocRunPiece* piece = &plan->pieces[i];
         piece->world_x = path->x[i];
         piece->world_z = path->z[i];
-        if( plan->wall )
+        if( plan->diagonal )
+        {
+            piece->state = (i & 1) ? EDITOR_LOC_RUN_NONE : EDITOR_LOC_RUN_PLACE;
+            piece->shape = 9;
+            piece->rotation = diagonal_rotation;
+        }
+        else if( plan->wall )
             run_wall_piece(path, i, left, mask, piece);
         else
         {

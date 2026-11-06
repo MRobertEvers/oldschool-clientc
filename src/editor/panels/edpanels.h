@@ -34,6 +34,11 @@ Editor_MenuBar_Register(struct EditorUi* ui);
 void
 Editor_ToolRail_Register(struct EditorUi* ui);
 
+/** How many icon buttons the rail holds (the tools, Save, New square,
+ *  Squares): what the default layout wraps into columns. */
+int
+Editor_ToolRail_ButtonCount(void);
+
 /** Brush radius / falloff / step / strength SLIDERs, flags, level RADIO,
  *  vis cap. "terrain" */
 void

@@ -33,6 +33,11 @@ static const int k_tool_icons[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_PLACE_PLAYER] = TORIRS_CHROME_SKIN_PLUGIN_ICON,
     /* A path is the overlay brush's paint laid along a line. */
     [EDITOR_TOOL_PAINT_PATH] = TORIRS_CHROME_SKIN_TOOL_PAINT_OVERLAY,
+    /* Roughen is the height brushes' kin; Scatter is Place by the brushful. */
+    [EDITOR_TOOL_NOISE] = TORIRS_CHROME_SKIN_TOOL_SMOOTH,
+    [EDITOR_TOOL_SCATTER] = TORIRS_CHROME_SKIN_TOOL_PLACE,
+    /* A plateau is Flatten with a skirt. */
+    [EDITOR_TOOL_PLATEAU] = TORIRS_CHROME_SKIN_TOOL_FLATTEN,
 };
 
 /* What the next click does. The chord is not part of the text: the badge in
@@ -54,6 +59,9 @@ static const char* const k_tool_tips[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_LOC_DELETE] = "Delete the clicked loc",
     [EDITOR_TOOL_PLACE_PLAYER] = "Place the play account on the tile",
     [EDITOR_TOOL_PAINT_PATH] = "Lay a path of the palette's overlay (Terrain: dirt or pavement)",
+    [EDITOR_TOOL_NOISE] = "Roughen the terrain (seeded noise, the step its amplitude)",
+    [EDITOR_TOOL_SCATTER] = "Scatter the selected locs (else the pick); Alt-drag erases",
+    [EDITOR_TOOL_PLATEAU] = "Plateau: a flat top at the first tile, a smoothed skirt",
 };
 
 struct ToolRailPanel
@@ -179,6 +187,12 @@ toolrail_destroy(
 {
     (void)ui;
     ToriMem_Free(ToriMem_Editor(), opaque);
+}
+
+int
+Editor_ToolRail_ButtonCount(void)
+{
+    return EDITOR_TOOL_COUNT + 3;
 }
 
 void

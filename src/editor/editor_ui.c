@@ -31,7 +31,8 @@ static const char* const k_tool_names[EDITOR_TOOL_COUNT] = {
     "Select",       "Rectangle select", "Raise",        "Lower",
     "Flatten",      "Smooth",           "Paint underlay", "Paint overlay",
     "Paint flags",  "Place",            "Move",         "Rotate",
-    "Delete",       "Place player",     "Paint path",
+    "Delete",       "Place player",     "Paint path",   "Roughen",
+    "Scatter",      "Plateau",
 };
 
 /* The hotkey table arms the tools in enum Editor_Tool's order, and its hint
@@ -44,6 +45,9 @@ _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_RECT_SELECT == EDITOR_HK_TOOL
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_PLACE_PLAYER == EDITOR_HK_TOOL_PLACE_PLAYER,
     "the tool orders agree");
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_PAINT_PATH == EDITOR_HK_TOOL_PAINT_PATH, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_NOISE == EDITOR_HK_TOOL_NOISE, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_SCATTER == EDITOR_HK_TOOL_SCATTER, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_PLATEAU == EDITOR_HK_TOOL_PLATEAU, "the tool orders agree");
 
 const char*
 Editor_ToolName(enum Editor_Tool tool)
@@ -58,7 +62,8 @@ Editor_ToolIsBrush(enum Editor_Tool tool)
 {
     return tool == EDITOR_TOOL_RAISE || tool == EDITOR_TOOL_LOWER || tool == EDITOR_TOOL_FLATTEN
            || tool == EDITOR_TOOL_SMOOTH || tool == EDITOR_TOOL_PAINT_UNDERLAY
-           || tool == EDITOR_TOOL_PAINT_OVERLAY || tool == EDITOR_TOOL_PAINT_FLAGS;
+           || tool == EDITOR_TOOL_PAINT_OVERLAY || tool == EDITOR_TOOL_PAINT_FLAGS || tool == EDITOR_TOOL_NOISE
+           || tool == EDITOR_TOOL_SCATTER || tool == EDITOR_TOOL_PLATEAU;
 }
 
 void
@@ -91,6 +96,11 @@ Editor_UiInit(
     ui->tools.path_width_halves = 4;
     ui->tools.path_roughness = 50;
     ui->tools.path_seed = 1;
+    ui->tools.noise_seed = 1;
+    ui->tools.scatter_density = 20;
+    ui->tools.scatter_rotate = 1;
+    ui->tools.scatter_seed = 1;
+    ui->tools.plateau_skirt = 3;
 
     /* Any number other views are unlikely to pick: the address of this
      * window's registry mixed with the clock. Positive, never 0 (0 is what a
@@ -2021,10 +2031,19 @@ Editor_UiLayout(struct EditorUi* ui)
         int const one_w = edp_px(ui, EDP_RAIL_W);
         int const pitch = edp_px(ui, EDP_RAIL_PITCH);
         int const columns_now = p->fixed_w > one_w ? 1 + (p->fixed_w - one_w) / pitch : 1;
-        int const one_h = ToriRSChrome_PanelRect(chrome, rail).h * columns_now;
+        /* The rail's height at c columns: its rows (the buttons wrapped)
+         * at the button pitch, plus the strip's own padding, which the
+         * measured rect gives once the rows it holds now are taken off.
+         * (Dividing the one-column height by c undercounts the padding,
+         * and at 2x the last row then overlapped the console.) */
+        int const buttons = Editor_ToolRail_ButtonCount();
+        int const rows_now = (buttons + columns_now - 1) / columns_now;
+        int pad = ToriRSChrome_PanelRect(chrome, rail).h - rows_now * pitch;
         int columns = 1;
 
-        while( columns < 4 && one_h / columns > avail )
+        if( pad < 0 )
+            pad = 0;
+        while( columns < 4 && ((buttons + columns - 1) / columns) * pitch + pad > avail )
             columns++;
         ToriRSChrome_PanelSetFixedWidth(chrome, rail, one_w + (columns - 1) * pitch);
         ToriRSChrome_PanelMove(chrome, rail, 0, top);

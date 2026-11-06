@@ -338,6 +338,11 @@ edp_rect_fill(struct EditorUi* ui);
 int
 edp_rect_clear(struct EditorUi* ui);
 
+/** The rectangle flattened to the latched tile's height (else its first
+ *  corner's) with the Plateau skirt (Editor_TileRectPlateau). */
+int
+edp_rect_plateau(struct EditorUi* ui);
+
 /** Whether the clipboard holds tiles, and its size. */
 int
 edp_rect_clip_size(

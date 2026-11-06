@@ -519,6 +519,337 @@ test_wall_run(void)
     free(before);
 }
 
+/* ---- fitted ends, diagonal runs (walls and fences) -------------------------------- */
+
+static void
+test_fit_run(void)
+{
+    static struct Editor_PlaceRun run;
+    struct Editor_Square* sq = square(&g_editor, 50, 50);
+    int const x0 = BASE_X + 30;
+    int const z0 = BASE_Z + 4;
+    int count_before;
+
+    assert(sq);
+    /* A wall already there, along the north edge of (x0, z0 + 3). A run
+     * north from (x0, z0), the pose on the west edge, ends on that tile: with
+     * Fit its end is the L of west and north; without, the straight piece. */
+    seed(LOC_WALL, 0, 1, x0, z0 + 3, 0);
+    count_before = sq->loc_count;
+    arm_place(LOC_WALL, 0, 0);
+    edp_place_fit_set(&g_ui, 0);
+    CHECK(edp_run_begin(&g_ui, &run, x0, z0, 0) == 1, "fit run: opens");
+    (void)edp_run_to(&g_ui, &run, x0, z0 + 3, 0);
+    CHECK(run.plan.wall && run.plan.count == 4 && run.plan.pieces[3].shape == 0 && run.plan.pieces[3].has_holder,
+        "fit run: without Fit the end replaces the wall there (shape %d holder %d)", run.plan.pieces[3].shape,
+        run.plan.pieces[3].has_holder);
+    edp_run_cancel(&run);
+    edp_place_fit_set(&g_ui, 1);
+    CHECK(edp_run_begin(&g_ui, &run, x0, z0, 0) == 1, "fit run: opens again");
+    (void)edp_run_to(&g_ui, &run, x0, z0 + 3, 0);
+    CHECK(run.plan.count == 4 && run.plan.pieces[3].shape == 2 && run.plan.pieces[3].rotation == 0
+              && run.plan.pieces[3].state == EDITOR_LOC_RUN_PLACE && run.plan.pieces[0].shape == 0
+              && run.plan.pieces[0].rotation == 0,
+        "fit run: with Fit the end is the L of west and north, rot 0 (shape %d rot %d state %d)",
+        run.plan.pieces[3].shape, run.plan.pieces[3].rotation, run.plan.pieces[3].state);
+    CHECK(edp_run_end(&g_ui, &run) == 5 && sq->loc_count == count_before + 3,
+        "fit run: the release re-poses the end (a remove and an add) and places three (%d locs)", sq->loc_count);
+    CHECK(loc_at(LOC_WALL, x0, z0 + 3, 0, 2) && !loc_at(LOC_WALL, x0, z0 + 3, 0, 0),
+        "fit run: the L stands where the straight wall was");
+    /* The same run again: the L already carries the west edge, so it is kept. */
+    CHECK(edp_run_begin(&g_ui, &run, x0, z0, 0) == 1, "fit run: a third run");
+    (void)edp_run_to(&g_ui, &run, x0, z0 + 3, 0);
+    CHECK(run.plan.pieces[3].state == EDITOR_LOC_RUN_KEEP && run.plan.pieces[3].shape == 2
+              && run.plan.place_count == 0,
+        "fit run: an L already carrying the run's edge is kept, nothing to place (state %d place %d)",
+        run.plan.pieces[3].state, run.plan.place_count);
+    edp_run_cancel(&run);
+    CHECK(Editor_Undo(&g_editor) > 0 && loc_at(LOC_WALL, x0, z0 + 3, 0, 0) && sq->loc_count == count_before,
+        "fit run: one undo puts the straight wall back and takes the three off (%d locs)", sq->loc_count);
+}
+
+static void
+test_diagonal_run(void)
+{
+    static struct Editor_PlaceRun run;
+    struct Editor_Square* sq = square(&g_editor, 50, 50);
+    int const x0 = BASE_X + 40;
+    int const z0 = BASE_Z + 4;
+    int count_before;
+
+    assert(sq);
+    count_before = sq->loc_count;
+    arm_place(LOC_WALL, 9, 0);
+    CHECK(edp_run_begin(&g_ui, &run, x0, z0, 0) == 1, "diagonal run: opens");
+    /* Shift with the diagonal picked: constrain 2, the staircase to (+3, +3). */
+    CHECK(edp_run_to(&g_ui, &run, x0 + 3, z0 + 3, 2) == 1 && run.path.count == 7 && run.path.x[1] == x0 + 1
+              && run.path.z[1] == z0 && run.path.x[2] == x0 + 1 && run.path.z[2] == z0 + 1,
+        "diagonal run: the staircase has seven tiles, x first (%d)", run.path.count);
+    CHECK(run.plan.diagonal && !run.plan.wall && run.plan.place_count == 4 && run.plan.refused_count == 0,
+        "diagonal run: four diagonal pieces planned (diagonal %d wall %d place %d)", run.plan.diagonal,
+        run.plan.wall, run.plan.place_count);
+    for( int i = 0; i < run.plan.count; i++ )
+        CHECK((i & 1) ? run.plan.pieces[i].state == EDITOR_LOC_RUN_NONE
+                      : run.plan.pieces[i].state == EDITOR_LOC_RUN_PLACE && run.plan.pieces[i].shape == 9
+                            && run.plan.pieces[i].rotation == 0,
+            "diagonal run: piece %d is %s (state %d shape %d rot %d)", i, (i & 1) ? "nothing" : "shape 9 rot 0",
+            run.plan.pieces[i].state, run.plan.pieces[i].shape, run.plan.pieces[i].rotation);
+    CHECK(edp_run_end(&g_ui, &run) == 4 && sq->loc_count == count_before + 4 && loc_at(LOC_WALL, x0 + 2, z0 + 2, 0, 9)
+              && !loc_at(LOC_WALL, x0 + 1, z0, 0, 9),
+        "diagonal run: the release lays the four on the diagonal (%d locs)", sq->loc_count);
+    /* North-west / south-east (an x step and a z step of opposite signs): rotation 1. */
+    CHECK(edp_run_begin(&g_ui, &run, x0 + 10, z0 + 3, 0) == 1, "diagonal run: a second, toward the south-east");
+    (void)edp_run_to(&g_ui, &run, x0 + 12, z0, 2);
+    CHECK(run.plan.diagonal && run.plan.place_count == 3 && run.plan.pieces[0].rotation == 1,
+        "diagonal run: south-east is rotation 1 (diagonal %d place %d rot %d)", run.plan.diagonal,
+        run.plan.place_count, run.plan.pieces[0].rotation);
+    edp_run_cancel(&run);
+    /* The diagonal pose on a plain path: the wall run it always was. */
+    CHECK(edp_run_begin(&g_ui, &run, x0 + 10, z0 + 8, 0) == 1, "diagonal run: a straight drag");
+    (void)edp_run_to(&g_ui, &run, x0 + 13, z0 + 8, 0);
+    CHECK(!run.plan.diagonal && run.plan.wall, "diagonal run: a straight drag with the diagonal picked is a wall run");
+    edp_run_cancel(&run);
+    CHECK(Editor_Undo(&g_editor) > 0 && sq->loc_count == count_before, "diagonal run: one undo takes the four off");
+}
+
+/* ---- the brushes: roughen, scatter, plateau ------------------------------------- */
+
+static int
+derived(
+    int world_x,
+    int world_z)
+{
+    int h = 0;
+    (void)Editor_OpsDerivedHeight(&g_editor.doc, world_x, world_z, 0, &h);
+    return h;
+}
+
+static void
+apply_all(
+    const struct Editor_Cmd* commands,
+    int count,
+    const char* name)
+{
+    Editor_StrokeBegin(&g_editor);
+    Editor_HistoryName(&g_editor, name);
+    for( int i = 0; i < count; i++ )
+        (void)Editor_Apply(&g_editor, &commands[i]);
+    Editor_StrokeEnd(&g_editor);
+}
+
+static void
+test_noise(void)
+{
+    static struct Editor_Cmd first[EDITOR_BRUSH_TILES_MAX];
+    static struct Editor_Cmd again[EDITOR_BRUSH_TILES_MAX];
+    struct Editor_BrushOp op;
+    int const cx = BASE_X + 20;
+    int const cz = BASE_Z + 40;
+    int before[5][5];
+    int n;
+    int m;
+    int moved = 0;
+    int within = 1;
+    int same = 1;
+
+    memset(&op, 0, sizeof(op));
+    op.tool = EDITOR_TOOL_NOISE;
+    op.world_x = cx;
+    op.world_z = cz;
+    op.level = 0;
+    op.brush.radius = 2;
+    op.brush.falloff = EDITOR_BRUSH_FALLOFF_FLAT;
+    op.brush.step = 3;
+    op.noise_seed = 7;
+    for( int dz = -2; dz <= 2; dz++ )
+        for( int dx = -2; dx <= 2; dx++ )
+            before[dz + 2][dx + 2] = derived(cx + dx, cz + dz);
+    n = Editor_BrushCommands(&g_editor.doc, &op, first, EDITOR_BRUSH_TILES_MAX);
+    m = Editor_BrushCommands(&g_editor.doc, &op, again, EDITOR_BRUSH_TILES_MAX);
+    CHECK(n > 3 && n == m, "noise: the brush moves tiles, and the same seed plans the same (%d, %d)", n, m);
+    for( int i = 0; i < n && i < m; i++ )
+        if( first[i].u.tile.x != again[i].u.tile.x || first[i].u.tile.z != again[i].u.tile.z
+            || first[i].u.tile.after.height != again[i].u.tile.after.height )
+            same = 0;
+    CHECK(same, "noise: tile for tile");
+    apply_all(first, n, "roughen");
+    for( int dz = -2; dz <= 2; dz++ )
+        for( int dx = -2; dx <= 2; dx++ )
+        {
+            int const d = derived(cx + dx, cz + dz) - before[dz + 2][dx + 2];
+            if( d != 0 )
+                moved++;
+            /* The step in units of 8, plus the ladder's snap: an absent
+             * (generated) tile first lands on a representable height. */
+            if( d < -(3 * 8 + 16) || d > 3 * 8 + 16 )
+                within = 0;
+        }
+    CHECK(moved == n && within, "noise: %d tiles moved, none past the step (moved %d within %d)", n, moved, within);
+    op.noise_seed = 8;
+    m = Editor_BrushCommands(&g_editor.doc, &op, again, EDITOR_BRUSH_TILES_MAX);
+    same = m == n;
+    for( int i = 0; same && i < n; i++ )
+        if( first[i].u.tile.after.height != again[i].u.tile.after.height )
+            same = 0;
+    CHECK(!same, "noise: another seed is another relief");
+    CHECK(Editor_Undo(&g_editor) == n && derived(cx, cz) == before[2][2], "noise: one undo levels it again");
+}
+
+static void
+test_scatter(void)
+{
+    static struct Editor_Cmd commands[EDITOR_BRUSH_TILES_MAX];
+    struct Editor_Square* sq = square(&g_editor, 50, 50);
+    struct Editor_ScatterOp op;
+    int const cx = BASE_X + 44;
+    int const cz = BASE_Z + 44;
+    int count_before;
+    int n;
+    int m;
+    int in_set = 1;
+    int in_disc = 1;
+    int overlap = 0;
+    int turned = 0;
+
+    assert(sq);
+    count_before = sq->loc_count;
+    memset(&op, 0, sizeof(op));
+    op.world_x = cx;
+    op.world_z = cz;
+    op.level = 0;
+    op.brush.radius = 3;
+    op.brush.falloff = EDITOR_BRUSH_FALLOFF_FLAT;
+    op.density = 100;
+    op.rotate = 1;
+    op.seed = 11;
+    op.set.count = 2;
+    op.set.loc_id[0] = LOC_TREE;
+    op.set.shape[0] = 10;
+    op.set.size_x[0] = 1;
+    op.set.size_z[0] = 1;
+    op.set.loc_id[1] = LOC_CRATE;
+    op.set.shape[1] = 10;
+    op.set.size_x[1] = 2;
+    op.set.size_z[1] = 3;
+    n = Editor_ScatterCommands(&g_editor.doc, &op, commands, EDITOR_BRUSH_TILES_MAX);
+    CHECK(n >= 6 && n <= 37, "scatter: at 100%% the disc fills as far as footprints allow (%d)", n);
+    for( int i = 0; i < n; i++ )
+    {
+        const struct Editor_Loc* loc = &commands[i].u.loc.after;
+        int const dx = BASE_X + loc->x - cx;
+        int const dz = BASE_Z + loc->z - cz;
+        if( !commands[i].has_after || commands[i].has_before
+            || (loc->loc_id != LOC_TREE && loc->loc_id != LOC_CRATE) || loc->shape != 10 )
+            in_set = 0;
+        if( dx * dx + dz * dz > 3 * 3 + 3 )
+            in_disc = 0;
+        if( loc->rotation )
+            turned++;
+        for( int j = 0; j < i; j++ )
+        {
+            const struct Editor_Loc* other = &commands[j].u.loc.after;
+            int w;
+            int h;
+            int ow;
+            int oh;
+            Editor_LocFootprint(10, loc->rotation, loc->loc_id == LOC_CRATE ? 2 : 1,
+                loc->loc_id == LOC_CRATE ? 3 : 1, &w, &h);
+            Editor_LocFootprint(10, other->rotation, other->loc_id == LOC_CRATE ? 2 : 1,
+                other->loc_id == LOC_CRATE ? 3 : 1, &ow, &oh);
+            if( loc->x < other->x + ow && other->x < loc->x + w && loc->z < other->z + oh
+                && other->z < loc->z + h )
+                overlap++;
+        }
+    }
+    CHECK(in_set && in_disc && overlap == 0 && turned > 0,
+        "scatter: every piece an add of the set, in the disc, no two footprints crossing, some turned "
+        "(set %d disc %d overlap %d turned %d)",
+        in_set, in_disc, overlap, turned);
+    apply_all(commands, n, "scatter");
+    CHECK(sq->loc_count == count_before + n, "scatter: applied (%d locs)", sq->loc_count);
+    m = Editor_ScatterCommands(&g_editor.doc, &op, commands, EDITOR_BRUSH_TILES_MAX);
+    CHECK(m == 0, "scatter: the same stroke over it again adds nothing (%d)", m);
+    op.erase = 1;
+    m = Editor_ScatterCommands(&g_editor.doc, &op, commands, EDITOR_BRUSH_TILES_MAX);
+    CHECK(m == n, "scatter: erase takes exactly what was dropped (%d of %d)", m, n);
+    apply_all(commands, m, "scatter erase");
+    CHECK(sq->loc_count == count_before, "scatter: erased (%d locs)", sq->loc_count);
+    CHECK(Editor_Undo(&g_editor) == m && sq->loc_count == count_before + n && Editor_Undo(&g_editor) == n
+              && sq->loc_count == count_before,
+        "scatter: each stroke one undo step");
+    op.erase = 0;
+    op.rotate = 0;
+    op.density = 10;
+    op.brush.falloff = EDITOR_BRUSH_FALLOFF_LINEAR;
+    m = Editor_ScatterCommands(&g_editor.doc, &op, commands, EDITOR_BRUSH_TILES_MAX);
+    turned = 0;
+    for( int i = 0; i < m; i++ )
+        if( commands[i].u.loc.after.rotation )
+            turned++;
+    CHECK(m < n && turned == 0, "scatter: a tenth of the density is far fewer, none turned (%d of %d)", m, n);
+}
+
+static void
+test_plateau(void)
+{
+    static struct Editor_Cmd commands[EDITOR_BRUSH_TILES_MAX * 4];
+    struct Editor_Brush brush;
+    int const cx = BASE_X + 10;
+    int const cz = BASE_Z + 50;
+    int const top = -64;
+    int own[4];
+    int centre;
+    int n;
+    int flat = 1;
+    int eased = 1;
+
+    memset(&brush, 0, sizeof(brush));
+    brush.radius = 1;
+    centre = derived(cx, cz);
+    for( int d = 0; d < 4; d++ )
+        own[d] = derived(cx + 1 + d, cz);
+    n = Editor_PlateauBrushCommands(&g_editor.doc, 0, top, 2, &brush, cx, cz, commands, EDITOR_BRUSH_TILES_MAX * 4);
+    CHECK(n >= 9 && n <= 49, "plateau: the disc and its skirt (%d tiles)", n);
+    apply_all(commands, n, "plateau");
+    for( int dz = -1; dz <= 1; dz++ )
+        for( int dx = -1; dx <= 1; dx++ )
+            if( derived(cx + dx, cz + dz) != top )
+                flat = 0;
+    CHECK(flat, "plateau: the nine tiles of the top are at the height (%d %d)", derived(cx, cz), derived(cx + 1, cz + 1));
+    /* East of the top: distance 1 nearest the top, 2 further, 3 untouched. */
+    {
+        int const h1 = derived(cx + 2, cz);
+        int const h2 = derived(cx + 3, cz);
+        int const h3 = derived(cx + 4, cz);
+        int const g1 = top - h1 < 0 ? h1 - top : top - h1;
+        int const g2 = top - h2 < 0 ? h2 - top : top - h2;
+        int const g3 = top - own[2] < 0 ? own[2] - top : top - own[2];
+        if( !(g1 < g2 && g2 < g3) || h3 != own[3] )
+            eased = 0;
+        CHECK(eased, "plateau: the skirt eases from the top to the ground and stops at it (%d %d %d / own %d %d)",
+            h1, h2, h3, own[1], own[2]);
+    }
+    CHECK(Editor_Undo(&g_editor) == n && derived(cx, cz) == centre && derived(cx + 2, cz) == own[1],
+        "plateau: one undo puts the ground back (%d, %d)", derived(cx, cz), derived(cx + 2, cz));
+    /* The rectangle: the same through the Rect op, with the skirt. */
+    {
+        struct Editor_TileRect rect;
+        int m;
+        rect.valid = 1;
+        rect.x0 = cx - 2;
+        rect.z0 = cz - 2;
+        rect.x1 = cx + 2;
+        rect.z1 = cz + 2;
+        rect.level = 0;
+        m = Editor_TileRectPlateau(&g_editor.doc, &rect, top, 1, commands, EDITOR_BRUSH_TILES_MAX * 4);
+        CHECK(m >= 25 && m <= 49, "plateau: a 5x5 rectangle and its one-tile skirt (%d)", m);
+        apply_all(commands, m, "plateau");
+        CHECK(derived(cx - 2, cz + 2) == top && derived(cx + 2, cz - 2) == top && derived(cx + 4, cz) == own[3],
+            "plateau: the rectangle's corners are on top, two tiles out is untouched");
+        CHECK(Editor_Undo(&g_editor) == m, "plateau: one undo for the rectangle");
+    }
+}
+
 static void
 test_refused_runs(void)
 {
@@ -812,6 +1143,11 @@ main(
     g_ui.app_services.user_data = &g_app_stand_in;
     g_ui.app_services.loc_record = test_loc_record;
     test_wall_run();
+    test_fit_run();
+    test_diagonal_run();
+    test_noise();
+    test_scatter();
+    test_plateau();
     test_refused_runs();
     test_marquee();
     test_fit_shared();

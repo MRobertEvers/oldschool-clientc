@@ -318,6 +318,25 @@ Editor_HotkeyRun(
         Editor_UiLog(ui, "editor: path width %d.%d tiles", halves / 2, halves % 2 ? 5 : 0);
         return 1;
     }
+    /* With Plateau up, Shift+[ and Shift+] are its skirt, a tile a step. */
+    if( (action == EDITOR_HK_BRUSH_STRENGTH_DOWN || action == EDITOR_HK_BRUSH_STRENGTH_UP)
+        && ui->tools.tool == EDITOR_TOOL_PLATEAU )
+    {
+        int skirt = ui->tools.plateau_skirt + (action == EDITOR_HK_BRUSH_STRENGTH_UP ? 1 : -1);
+        ui->tools.plateau_skirt = skirt < 0 ? 0 : skirt > EDITOR_PLATEAU_SKIRT_MAX ? EDITOR_PLATEAU_SKIRT_MAX : skirt;
+        Editor_UiLog(ui, "editor: plateau skirt %d tile%s", ui->tools.plateau_skirt,
+            ui->tools.plateau_skirt == 1 ? "" : "s");
+        return 1;
+    }
+    /* With Scatter up, Shift+[ and Shift+] are its density, five points a step. */
+    if( (action == EDITOR_HK_BRUSH_STRENGTH_DOWN || action == EDITOR_HK_BRUSH_STRENGTH_UP)
+        && ui->tools.tool == EDITOR_TOOL_SCATTER )
+    {
+        int density = ui->tools.scatter_density + (action == EDITOR_HK_BRUSH_STRENGTH_UP ? 5 : -5);
+        ui->tools.scatter_density = density < 1 ? 1 : density > 100 ? 100 : density;
+        Editor_UiLog(ui, "editor: scatter density %d%%", ui->tools.scatter_density);
+        return 1;
+    }
     if( action >= EDITOR_HK_BRUSH_RADIUS_DOWN && action <= EDITOR_HK_BRUSH_STEP_UP )
     {
         static const enum Edp_BrushField k_field[6] = { EDP_BRUSH_RADIUS, EDP_BRUSH_RADIUS, EDP_BRUSH_STRENGTH,

@@ -51,6 +51,17 @@ struct TerrainPanel
     int shown_path_style;
     int shown_path_width;
     int shown_path_rough;
+    /** The Scatter tool's section (shown while it is armed, under the
+     *  radius and falloff): the density, random rotation, New seed. */
+    int label_scatter;
+    int slider_scatter_density;
+    int check_scatter_rotate;
+    int button_scatter_seed;
+    int shown_scatter_density;
+    int shown_scatter_rotate;
+    /** The Plateau tool's skirt (shown while it is armed). */
+    int slider_plateau_skirt;
+    int shown_plateau_skirt;
     /** What the readout and the radios were last set from. */
     enum Editor_Tool shown_tool;
     int shown_level;
@@ -162,8 +173,16 @@ terrain_readout(
     const struct Editor_Brush* brush = &ui->tools.brush;
 
     int const path = ui->tools.tool == EDITOR_TOOL_PAINT_PATH;
+    int const scatter = ui->tools.tool == EDITOR_TOOL_SCATTER;
+    int const plateau = ui->tools.tool == EDITOR_TOOL_PLATEAU;
 
-    if( Editor_ToolIsBrush(ui->tools.tool) )
+    if( scatter )
+        snprintf(line, sizeof(line), "%s  r%d %s %d%%", Editor_ToolName(ui->tools.tool), brush->radius,
+            k_falloff_names[brush->falloff], ui->tools.scatter_density);
+    else if( plateau )
+        snprintf(line, sizeof(line), "%s  r%d skirt %d", Editor_ToolName(ui->tools.tool), brush->radius,
+            ui->tools.plateau_skirt);
+    else if( Editor_ToolIsBrush(ui->tools.tool) )
         snprintf(line, sizeof(line), "%s  r%d %s", Editor_ToolName(ui->tools.tool), brush->radius,
             k_falloff_names[brush->falloff]);
     else if( path )
@@ -179,8 +198,18 @@ terrain_readout(
     ToriRSChrome_SetHidden(ui->chrome, self->slider_radius, path);
     for( int i = 0; i < EDITOR_BRUSH_FALLOFF_COUNT; i++ )
         ToriRSChrome_SetHidden(ui->chrome, self->radio_falloff[i], path);
-    ToriRSChrome_SetHidden(ui->chrome, self->slider_step, path);
-    ToriRSChrome_SetHidden(ui->chrome, self->slider_strength, path);
+    /* Scatter and Plateau keep the radius (and Scatter the falloff: the
+     * density fades with it) and show their own rows instead of the step
+     * and strength, which neither reads. */
+    for( int i = 0; i < EDITOR_BRUSH_FALLOFF_COUNT; i++ )
+        ToriRSChrome_SetHidden(ui->chrome, self->radio_falloff[i], path || plateau);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_step, path || scatter || plateau);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_strength, path || scatter || plateau);
+    ToriRSChrome_SetHidden(ui->chrome, self->label_scatter, !scatter);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_scatter_density, !scatter);
+    ToriRSChrome_SetHidden(ui->chrome, self->check_scatter_rotate, !scatter);
+    ToriRSChrome_SetHidden(ui->chrome, self->button_scatter_seed, !scatter);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_plateau_skirt, !plateau);
     ToriRSChrome_SetHidden(ui->chrome, self->label_path, !path);
     for( int i = 0; i < EDITOR_PATH_STYLE_COUNT; i++ )
         ToriRSChrome_SetHidden(ui->chrome, self->radio_path[i], !path);
@@ -235,6 +264,18 @@ terrain_tick(
         self->shown_path_rough = ui->tools.path_roughness;
         terrain_readout(ui, self);
     }
+    if( self->shown_scatter_density != ui->tools.scatter_density
+        || self->shown_scatter_rotate != ui->tools.scatter_rotate
+        || self->shown_plateau_skirt != ui->tools.plateau_skirt )
+    {
+        ToriRSChrome_SliderSet(ui->chrome, self->slider_scatter_density, ui->tools.scatter_density);
+        ToriRSChrome_SetChecked(ui->chrome, self->check_scatter_rotate, ui->tools.scatter_rotate ? 1 : 0);
+        ToriRSChrome_SliderSet(ui->chrome, self->slider_plateau_skirt, ui->tools.plateau_skirt);
+        self->shown_scatter_density = ui->tools.scatter_density;
+        self->shown_scatter_rotate = ui->tools.scatter_rotate;
+        self->shown_plateau_skirt = ui->tools.plateau_skirt;
+        terrain_readout(ui, self);
+    }
     if( self->shown_flags != ui->tools.flags_value )
     {
         for( int i = 0; i < 4; i++ )
@@ -268,6 +309,21 @@ terrain_activate(
         Editor_UiStatus(ui, "Path: new edges for the next dirt path");
         return 1;
     }
+    else if( widget == self->slider_scatter_density )
+        self->shown_scatter_density = tools->scatter_density = ToriRSChrome_SliderValue(ui->chrome, widget);
+    else if( widget == self->check_scatter_rotate )
+    {
+        self->shown_scatter_rotate = tools->scatter_rotate = ToriRSChrome_Checked(ui->chrome, widget) ? 1 : 0;
+        return 1;
+    }
+    else if( widget == self->button_scatter_seed )
+    {
+        tools->scatter_seed = tools->scatter_seed * 1664525u + 1013904223u;
+        Editor_UiStatus(ui, "Scatter: another spread for the next stroke");
+        return 1;
+    }
+    else if( widget == self->slider_plateau_skirt )
+        self->shown_plateau_skirt = tools->plateau_skirt = ToriRSChrome_SliderValue(ui->chrome, widget);
     else if( widget == self->check_solo )
     {
         tools->vis_solo = ToriRSChrome_Checked(ui->chrome, widget) ? 1 : 0;
@@ -388,6 +444,28 @@ Editor_Terrain_Register(struct EditorUi* ui)
     ToriRSChrome_SetHidden(chrome, self->slider_path_width, 1);
     ToriRSChrome_SetHidden(chrome, self->slider_path_rough, 1);
     ToriRSChrome_SetHidden(chrome, self->button_path_seed, 1);
+    /* The Scatter tool (B) and the Plateau tool (V): hidden until armed. */
+    self->label_scatter = ToriRSChrome_Label(chrome, self->panel, "Scatter");
+    self->slider_scatter_density =
+        ToriRSChrome_Slider(chrome, self->panel, "Density (%)", 1, 100, ui->tools.scatter_density, 1);
+    ToriRSChrome_SetTooltip(chrome, self->slider_scatter_density,
+        "The share of the brush's free tiles that take a loc, fading with the falloff");
+    self->check_scatter_rotate =
+        ToriRSChrome_Checkbox(chrome, self->panel, "Random rotation", ui->tools.scatter_rotate ? 1 : 0);
+    self->button_scatter_seed = ToriRSChrome_Button(chrome, self->panel, "New seed");
+    ToriRSChrome_SetTooltip(chrome, self->button_scatter_seed, "Another spread for the next stroke");
+    self->slider_plateau_skirt = ToriRSChrome_Slider(
+        chrome, self->panel, "Skirt (tiles)", 0, EDITOR_PLATEAU_SKIRT_MAX, ui->tools.plateau_skirt, 1);
+    ToriRSChrome_SetTooltip(chrome, self->slider_plateau_skirt,
+        "How many tiles around the flat top ease down (or up) to the ground; the Rect panel's Plateau uses it too");
+    self->shown_scatter_density = ui->tools.scatter_density;
+    self->shown_scatter_rotate = ui->tools.scatter_rotate;
+    self->shown_plateau_skirt = ui->tools.plateau_skirt;
+    ToriRSChrome_SetHidden(chrome, self->label_scatter, 1);
+    ToriRSChrome_SetHidden(chrome, self->slider_scatter_density, 1);
+    ToriRSChrome_SetHidden(chrome, self->check_scatter_rotate, 1);
+    ToriRSChrome_SetHidden(chrome, self->button_scatter_seed, 1);
+    ToriRSChrome_SetHidden(chrome, self->slider_plateau_skirt, 1);
 
     ToriRSChrome_Separator(chrome, self->panel);
     ToriRSChrome_Label(chrome, self->panel, "Flags brush");

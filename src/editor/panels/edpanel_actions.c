@@ -597,7 +597,8 @@ actions_run_plan(
     if( shape < 0 || shape >= EDITOR_LOC_SHAPE_COUNT )
         return 0;
     Editor_LocRunPlanMake(
-        &ui->editor->doc, &run->path, ui->tools.pick_id, mask, shape, rotation, run->level, &run->plan);
+        &ui->editor->doc, &run->path, ui->tools.pick_id, mask, shape, rotation, run->level, ui->tools.place_fit,
+        &run->plan);
     return 1;
 }
 
@@ -1005,6 +1006,36 @@ edp_rect_clear(struct EditorUi* ui)
     count = Editor_TileRectClear(&ui->editor->doc, &ui->tools.rect, commands, capacity);
     applied = edp_apply(ui, commands, count, "clear");
     Editor_UiLog(ui, "editor: cleared %d tile(s)", applied);
+    return applied;
+}
+
+int
+edp_rect_plateau(struct EditorUi* ui)
+{
+    int capacity;
+    struct Editor_Cmd* commands = edp_scratch(&capacity);
+    int height;
+    int count;
+    int applied;
+
+    assert(ui);
+    if( !actions_need_rect(ui, "plateau") )
+        return 0;
+    /* The top: the latched tile's height (Select's click), else the
+     * rectangle's first corner's. */
+    if( !(ui->tools.tile_valid
+            && Editor_OpsDerivedHeight(
+                &ui->editor->doc, ui->tools.tile_x, ui->tools.tile_z, ui->tools.tile_level, &height))
+        && !Editor_OpsDerivedHeight(&ui->editor->doc, ui->tools.rect.x0, ui->tools.rect.z0, ui->tools.rect.level,
+            &height) )
+    {
+        Editor_UiStatus(ui, "Plateau refused: latch a tile at the height you want (Select), in an open square");
+        return 0;
+    }
+    count = Editor_TileRectPlateau(
+        &ui->editor->doc, &ui->tools.rect, height, ui->tools.plateau_skirt, commands, capacity);
+    applied = edp_apply(ui, commands, count, "plateau");
+    Editor_UiLog(ui, "editor: plateau over %d tile(s), skirt %d", applied, ui->tools.plateau_skirt);
     return applied;
 }
 
