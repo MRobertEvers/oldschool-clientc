@@ -1118,17 +1118,17 @@ Editor_Publish_Register(struct EditorUi* ui)
     self->input_new = ToriRSChrome_TextInput(ui->chrome, self->panel, "New lane name", "");
     self->check_keep = ToriRSChrome_Checkbox(ui->chrome, self->panel, "Keep the changes here after publishing", 0);
     ToriRSChrome_SetTooltip(ui->chrome, self->check_keep,
-        "Unticked: publishing into this lane's base leaves the lane clean (its files are the base's again)");
+        "Unticked: publishing into the base leaves this lane clean");
     self->button_publish = ToriRSChrome_Button(ui->chrome, self->panel, "Publish to...");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_publish,
-        "Save every dirty document, then write this lane's changes into the target");
+        "Save every dirty document, then write this lane's changes in");
     self->button_scratch = ToriRSChrome_Button(ui->chrome, self->panel, "Scratch lane");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_scratch, "A dated lane from main; the next boot serves it");
     self->button_switch = ToriRSChrome_Button(ui->chrome, self->panel, "Switch...");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_switch, "The lane picked above: the next editor boot serves it");
     self->button_discard = ToriRSChrome_Button(ui->chrome, self->panel, "Discard...");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_discard,
-        "Every change back to the base, unsaved edits included (press twice)");
+        "Every change back to the base, unsaved ones too (press twice)");
     self->button_create = ToriRSChrome_Button(ui->chrome, self->panel, "New lane");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_create, "A lane mirrored from the main tree, nothing published");
     self->button_refresh = ToriRSChrome_Button(ui->chrome, self->panel, "Refresh");

@@ -50,6 +50,10 @@ struct StampsPanel
     int index_tried;
     /** The armed stamp's summary as last shown. */
     char armed_text[TORIRS_CHROME_LABEL_MAX];
+    /** Open at the last tick the editor showed (stamps_set_visible): what
+     *  showing it again restores. 0 at boot, so the panel opens from the Catalog's
+     *  "Stamps..." or the View menu, not with the editor. */
+    int open_when_hidden;
 };
 
 /** The Catalog's chip (Editor_Stamps_CatalogChip), claimed by this module. */
@@ -131,6 +135,10 @@ stamps_tick(
     int first;
     int shown;
 
+    /* What showing the editor again restores (stamps_set_visible): read here,
+     * while the editor shows, because hiding it hides this panel first. */
+    if( ui->visible )
+        self->open_when_hidden = ui->chrome->panels[self->panel].visible;
     armed = edp_stamp_armed(ui);
     if( armed )
     {
@@ -226,6 +234,23 @@ stamps_activate(
     return 0;
 }
 
+/* Showing the editor shows every titled panel (Editor_UiSetVisible), and the
+ * first layout hides only the default column's: an on-demand panel keeps
+ * itself closed, as Record and Triggers do. Hiding the editor (Tab) and
+ * showing it again leaves it as the user had it. */
+static void
+stamps_set_visible(
+    struct EditorUi* ui,
+    void* opaque,
+    int visible)
+{
+    struct StampsPanel* self = opaque;
+
+    if( !visible )
+        return;
+    ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, self->open_when_hidden);
+}
+
 static void
 stamps_destroy(
     struct EditorUi* ui,
@@ -286,6 +311,7 @@ Editor_Stamps_Register(struct EditorUi* ui)
     desc.chrome_panel = self->panel;
     desc.tick = stamps_tick;
     desc.activate = stamps_activate;
+    desc.set_visible = stamps_set_visible;
     desc.destroy = stamps_destroy;
     Editor_UiAddPanel(ui, &desc);
 }

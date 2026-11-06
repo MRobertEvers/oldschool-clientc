@@ -571,6 +571,41 @@ test_truncation(void)
     shutdown_ui();
 }
 
+/* An on-demand panel is not opened by showing the editor (Windows run,
+ * 2026-11-06: Stamps opened at every boot, floating over the World, because
+ * Editor_UiSetVisible shows every titled panel and Stamps had no set_visible
+ * to keep itself closed, as Record and Triggers do). Opened by the user, a
+ * hide and show of the editor (Tab) brings it back as it was. */
+static void
+test_on_demand_closed(void)
+{
+    int panel;
+
+    boot(1558, 1000, 1);
+    panel = window_of("stamps");
+    CHECK(panel >= 0, "the Stamps panel is registered");
+    if( panel >= 0 )
+    {
+        CHECK(!g_chrome.panels[panel].visible, "boot: Stamps is closed (it opens from the Catalog's Stamps...)");
+        (void)Editor_UiTogglePanel(&g_ui, "stamps");
+        frame();
+        CHECK(g_chrome.panels[panel].visible, "View > Stamps opens it");
+        Editor_UiSetVisible(&g_ui, 0);
+        frame();
+        Editor_UiSetVisible(&g_ui, 1);
+        frame();
+        CHECK(g_chrome.panels[panel].visible, "hiding and showing the editor keeps it open");
+        (void)Editor_UiTogglePanel(&g_ui, "stamps");
+        frame();
+        Editor_UiSetVisible(&g_ui, 0);
+        frame();
+        Editor_UiSetVisible(&g_ui, 1);
+        frame();
+        CHECK(!g_chrome.panels[panel].visible, "closed by the user, it stays closed after a hide and show");
+    }
+    shutdown_ui();
+}
+
 int
 main(void)
 {
@@ -578,6 +613,7 @@ main(void)
     test_rail();
     test_sliders();
     test_truncation();
+    test_on_demand_closed();
     printf("editor_chords_test: %d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;
 }
