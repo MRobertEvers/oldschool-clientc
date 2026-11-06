@@ -21,6 +21,7 @@
 #include "builder_ssc.h"
 
 #include "mem/torirs_mem.h"
+#include "platform/launch_sessions.h"
 
 #include <assert.h>
 #include <dirent.h>
@@ -126,6 +127,8 @@ main(
     }
     setvbuf(stdout, NULL, _IOLBF, 0);
     ToriMem_Init();
+    /* sscompile starts through this platform's spawner. */
+    Builder_SscSetSpawner(LaunchSessions_SystemSpawner());
     ssc = calloc(1, sizeof(*ssc));
     assert(ssc);
     result = calloc(1, sizeof(*result));

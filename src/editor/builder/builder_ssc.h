@@ -120,6 +120,16 @@ struct Builder_Ssc
  * `work_dir` is inside `content_root` (the content tree is never written) or
  * a path does not fit. Creates nothing yet.
  */
+struct LaunchSessions_Spawner;
+
+/**
+ * Who starts sscompile for Builder_SscRun: a host's
+ * LaunchSessions_SystemSpawner() (platform/launch_sessions.h). Unset (NULL,
+ * the default), Builder_SscRun answers BUILDER_SSC_NOT_RUN, as on the web.
+ */
+void
+Builder_SscSetSpawner(const struct LaunchSessions_Spawner* spawner);
+
 int
 Builder_SscInit(
     struct Builder_Ssc* ssc,

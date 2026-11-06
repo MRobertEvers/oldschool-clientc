@@ -13,15 +13,34 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+/* The compiler starts through the spawner the host hands in
+ * (EditorCs2_SetSpawner; platform/launch_sessions.h: posix_spawn on Linux and
+ * macOS, CreateProcess on Windows). The web has none. */
+#if !defined(__EMSCRIPTEN__)
 #define EDITOR_CS2_CAN_SPAWN 1
-#include <spawn.h>
-#include <sys/wait.h>
+#include "platform/launch_sessions.h"
 #include <unistd.h>
+#ifdef _WIN32
+#include <direct.h>
+#define cs2_mkdir(path) _mkdir(path)
+#else
+#define cs2_mkdir(path) mkdir(path, 0755)
 extern char** environ;
+#endif
+static const struct LaunchSessions_Spawner* g_cs2_spawner;
 #else
 #define EDITOR_CS2_CAN_SPAWN 0
 #endif
+
+void
+EditorCs2_SetSpawner(const struct LaunchSessions_Spawner* spawner)
+{
+#if EDITOR_CS2_CAN_SPAWN
+    g_cs2_spawner = spawner;
+#else
+    (void)spawner;
+#endif
+}
 
 /* ---- compile ------------------------------------------------------------- */
 
@@ -94,7 +113,7 @@ EditorCs2_CompileEnd(
 static int
 make_dir(const char* path)
 {
-    return mkdir(path, 0755) == 0 || errno == EEXIST;
+    return cs2_mkdir(path) == 0 || errno == EEXIST;
 }
 
 /** Remove every `.cs2` in `dir`: the compiler takes the whole directory. */
@@ -138,17 +157,27 @@ EditorCs2_Compile(
         char src_dir[1200];
         char out_dir[1200];
         char path[1400];
+        char log_path[1400];
         FILE* f;
-        int pipe_fd[2];
-        posix_spawn_file_actions_t actions;
-        pid_t pid;
+        int pid = 0;
+        int group = 0;
+        int exit_code = -1;
+        int signal_number = 0;
         const char* argv[16];
         int argc = 0;
         char pending[EDITOR_CS2_COMPILE_LINE_MAX];
         size_t pending_length = 0;
-        int status = 0;
 
+        if( !g_cs2_spawner )
+        {
+            EditorCs2_CompileTakeLine(result, "cs2: no process spawner in this host");
+            return result->status;
+        }
+#ifdef _WIN32
+        if( access(job->cs2_bin, F_OK) != 0 ) /* Windows has no execute bit */
+#else
         if( access(job->cs2_bin, X_OK) != 0 )
+#endif
         {
             EditorCs2_CompileTakeLine(result, "cs2: the compiler binary is not built");
             return result->status;
@@ -189,34 +218,24 @@ EditorCs2_Compile(
         argv[argc++] = out_dir;
         argv[argc] = NULL;
 
-        if( pipe(pipe_fd) != 0 )
+        /* The compiler's output to a log beside the scratch sources, read
+         * once it ends (this call waits for it anyway). */
+        snprintf(log_path, sizeof(log_path), "%s/cs2.log", job->work_dir);
+        if( g_cs2_spawner->spawn(g_cs2_spawner->context, (char* const*)argv, environ, log_path, 0, &pid, &group)
+            != 0 )
         {
-            EditorCs2_CompileTakeLine(result, "cs2: no pipe");
-            return result->status;
-        }
-        posix_spawn_file_actions_init(&actions);
-        posix_spawn_file_actions_adddup2(&actions, pipe_fd[1], 1);
-        posix_spawn_file_actions_adddup2(&actions, pipe_fd[1], 2);
-        posix_spawn_file_actions_addclose(&actions, pipe_fd[0]);
-        if( posix_spawn(&pid, job->cs2_bin, &actions, NULL, (char* const*)argv, environ) != 0 )
-        {
-            posix_spawn_file_actions_destroy(&actions);
-            close(pipe_fd[0]);
-            close(pipe_fd[1]);
             EditorCs2_CompileTakeLine(result, "cs2: could not start the compiler");
             return result->status;
         }
-        posix_spawn_file_actions_destroy(&actions);
-        close(pipe_fd[1]);
+        g_cs2_spawner->reap_child(g_cs2_spawner->context, pid, 1, &exit_code, &signal_number);
+        f = fopen(log_path, "rb");
         for( ;; )
         {
             char chunk[1024];
-            ssize_t got = read(pipe_fd[0], chunk, sizeof(chunk));
-            if( got < 0 && errno == EINTR )
-                continue;
-            if( got <= 0 )
+            size_t got = f ? fread(chunk, 1, sizeof(chunk), f) : 0;
+            if( got == 0 )
                 break;
-            for( ssize_t i = 0; i < got; i++ )
+            for( size_t i = 0; i < got; i++ )
             {
                 if( chunk[i] == '\n' || pending_length + 1 >= sizeof(pending) )
                 {
@@ -234,10 +253,9 @@ EditorCs2_Compile(
             pending[pending_length] = '\0';
             EditorCs2_CompileTakeLine(result, pending);
         }
-        close(pipe_fd[0]);
-        while( waitpid(pid, &status, 0) < 0 && errno == EINTR )
-            ;
-        EditorCs2_CompileEnd(result, 1, WIFEXITED(status) ? WEXITSTATUS(status) : -1, out_dir);
+        if( f )
+            fclose(f);
+        EditorCs2_CompileEnd(result, 1, signal_number ? -1 : exit_code, out_dir);
         if( result->status == EDITOR_CS2_NOT_RUN )
             result->status = EDITOR_CS2_DECLINED;
     }

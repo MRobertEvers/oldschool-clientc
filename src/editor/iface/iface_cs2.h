@@ -90,6 +90,14 @@ struct EditorCs2CompileResult
  * EditorCs2_CompileTakeLine between EditorCs2_CompileBegin and
  * EditorCs2_CompileEnd, so the result reads the same either way.
  */
+struct LaunchSessions_Spawner;
+
+/** Who starts the compiler for EditorCs2_Compile: a host's
+ *  LaunchSessions_SystemSpawner() (platform/launch_sessions.h). Unset (NULL,
+ *  the default), a compile reports that it cannot start one. */
+void
+EditorCs2_SetSpawner(const struct LaunchSessions_Spawner* spawner);
+
 enum EditorCs2CompileStatus
 EditorCs2_Compile(
     const struct EditorCs2CompileJob* job,

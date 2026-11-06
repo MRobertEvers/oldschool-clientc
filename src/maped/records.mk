@@ -45,7 +45,7 @@ maped-script-check: sscompile
 	@[ $(OBJ_DIR)/maped_script_check -nt editor/builder/builder_ssc.c ] \
 		&& [ $(OBJ_DIR)/maped_script_check -nt editor/builder/builder_ssc_main.c ] \
 		|| $(CC) $(CFLAGS) -o $(OBJ_DIR)/maped_script_check $(TORIMEM_SRCS) editor/builder/builder_ssc.c \
-			editor/builder/builder_ssc_main.c
+			editor/builder/builder_ssc_main.c platform/launch_sessions.c
 	@$(abspath $(OBJ_DIR))/maped_script_check $(abspath $(SSC_BIN)) $(TORIRSSERVER_CONTENT_DIR) \
 		$(abspath $(MAPED_CHECK_DIR))
 
@@ -98,7 +98,7 @@ test-editor: test-editor-records
 test-maped-script-check:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/maped_script_check $(TORIMEM_SRCS) editor/builder/builder_ssc.c \
-		editor/builder/builder_ssc_main.c
+		editor/builder/builder_ssc_main.c platform/launch_sessions.c
 	sh editor/test/maped_script_check_test.sh $(abspath $(OBJ_DIR))/maped_script_check \
 		$(abspath $(OBJ_DIR))/tmp/maped_script_check
 
