@@ -825,6 +825,10 @@ Editor_HostDocPath(
             written = snprintf(out, out_size, "editor/stamps/%s.stamp", key + 6);
         else if( strcmp(key, "stamps:index") == 0 )
             written = snprintf(out, out_size, "editor/stamps/index.txt");
+        else if( strncmp(key, "wma:", 4) == 0 )
+            /* A world-map area file (editor_wma.h), where the catalog's
+             * atlas reader looks for every .wma. */
+            written = snprintf(out, out_size, "worldmap/areas/%s.wma", key + 4);
         else
             return 0;
         break;

@@ -173,6 +173,12 @@
  *                  string source_key,          in that storage)
  *                  i32 fill_height,
  *                  i32 fill_underlay
+ *                  (`template` may carry TORIRSMAPED_DOC_CREATE_IN_STROKE,
+ *                   to a server with TORIRSMAPED_CAP_DOC_CREATE_STROKE: the
+ *                   fill then JOINS the stroke a client has open instead of
+ *                   being its own undo step -- the instance helper's many
+ *                   squares, spawns and files as one step. A server without
+ *                   the bit refuses the template.)
  *
  * Strings are `u32 length, bytes`, never NUL-terminated on the wire.
  *
@@ -315,7 +321,24 @@ enum ToriRSMapEdCapability
      *  fields of FACT_LANE_INFO and FACT_LANE_LIST. A client sends a body to
      *  LANE_CHANGES, or LANE_SWITCH at all, only to a server with this bit. */
     TORIRSMAPED_CAP_LANES_V2 = 64,
+    /** DOC_CREATE takes TORIRSMAPED_DOC_CREATE_IN_STROKE in its template
+     *  word: the fill joins an open stroke (workbench 6.5, the instance
+     *  helper's one undo step). A client sets the flag only to a server with
+     *  this bit. */
+    TORIRSMAPED_CAP_DOC_CREATE_STROKE = 128,
+    /** The lane's GAME server takes the map_instance_* script commands
+     *  (ss_opcode.h 11009..11014, docs/map_instances.md) for an editor-made
+     *  trigger to build a runtime instance with. RESERVED: nothing sets it.
+     *  The commands exist in this tree's torirsserver, but the live link's
+     *  CTL_FACT_HELLO (torirs_maped_live.h) carries no capability word, so
+     *  the editor server cannot learn it of an attached server; the instance
+     *  dialog's "runtime map instance" chip stays disabled and says so. */
+    TORIRSMAPED_CAP_MAP_INSTANCE = 256,
 };
+
+/** DOC_CREATE's template word: OR'ed onto the template, the fill joins the
+ *  stroke a client has open (TORIRSMAPED_CAP_DOC_CREATE_STROKE). */
+#define TORIRSMAPED_DOC_CREATE_IN_STROKE 0x100u
 
 /** What a connection is for. Informational today (the server relays every
  *  broadcast to every session); the seam where per-role filtering would go. */

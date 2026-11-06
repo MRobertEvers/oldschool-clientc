@@ -495,6 +495,11 @@ struct EditorHost_DocCreate
     char source_key[EDITOR_DOC_KEY_MAX];
     int fill_height;
     int fill_underlay;
+    /** 1: the fill joins the stroke this client has open instead of being
+     *  its own undo step (the instance helper's squares, spawns and files
+     *  as one step). Only to a server with TORIRSMAPED_CAP_DOC_CREATE_STROKE;
+     *  outside a stroke it changes nothing. */
+    int join_stroke;
 };
 
 /**

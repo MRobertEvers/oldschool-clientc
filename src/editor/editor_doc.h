@@ -184,8 +184,8 @@ Editor_SquareLocFindExact(
  * 1 when `key` can name a document of `kind`: a square key for SQUARE and
  * SPAWN, "<type>:<record>" for CFG, "if:<name>" for IFACE, "rs2:<path>" /
  * "cs2:<name>" / "pack:<ns>.{alloc,client,server,pack}" / "compack:<type>"
- * for TEXT (the last two are what an id allocation appends to,
- * editor_alloc.h); printable, under EDITOR_DOC_KEY_MAX, no "..", no
+ * (the last two are what an id allocation appends to, editor_alloc.h) /
+ * "wma:<name>" (a world-map area file, editor_wma.h) for TEXT; printable, under EDITOR_DOC_KEY_MAX, no "..", no
  * absolute or backslashed path. Keys arrive off the wire, so this is a
  * validity test, not an assertion.
  */

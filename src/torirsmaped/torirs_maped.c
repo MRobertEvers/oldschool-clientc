@@ -132,6 +132,8 @@ ToriRSMapEd_Open(
         |= TORIRSMAPED_CAP_CATALOG | TORIRSMAPED_CAP_CATALOG_PROGRESS | TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS;
     /* The lanes' workbench frames are the wire half's (torirs_maped_lanes_wire.c). */
     maped->capabilities |= TORIRSMAPED_CAP_LANES_V2;
+    /* DOC_CREATE joins an open stroke when asked (the instance helper). */
+    maped->capabilities |= TORIRSMAPED_CAP_DOC_CREATE_STROKE;
 
     /* Builds and the live link: empty until a host binds them, or the
      * environment names a live lane (torirs_maped_live.h). */
@@ -1321,6 +1323,7 @@ handle_doc_create(
     struct Editor_Square* square;
     int index;
     int was_in_stroke;
+    int join_stroke;
     int filled = 0;
 
     ToriRSMapEd_ReaderInit(&reader, body, length);
@@ -1328,6 +1331,8 @@ handle_doc_create(
     ToriRSMapEd_GetString(&reader, key, sizeof(key));
     ToriRSMapEd_GetString(&reader, storage, sizeof(storage));
     template_kind = ToriRSMapEd_GetU32(&reader);
+    join_stroke = (template_kind & TORIRSMAPED_DOC_CREATE_IN_STROKE) != 0;
+    template_kind &= ~TORIRSMAPED_DOC_CREATE_IN_STROKE;
     ToriRSMapEd_GetString(&reader, source_key, sizeof(source_key));
     fill_height = (int)ToriRSMapEd_GetU32(&reader);
     fill_underlay = (int)ToriRSMapEd_GetU32(&reader);
@@ -1401,9 +1406,13 @@ handle_doc_create(
     square->dirty_map = 1;
     square->dirty_loc = 1;
 
-    /* The fill is its own undo step, whatever stroke a client has open. */
+    /* The fill is its own undo step, whatever stroke a client has open --
+     * unless the client asked it to join that stroke (the instance helper,
+     * TORIRSMAPED_DOC_CREATE_IN_STROKE). */
     was_in_stroke = maped->undo.in_stroke;
-    Editor_UndoStrokeBegin(&maped->undo);
+    join_stroke = join_stroke && was_in_stroke;
+    if( !join_stroke )
+        Editor_UndoStrokeBegin(&maped->undo);
     if( template_kind == EDITOR_DOC_TEMPLATE_FLAT )
     {
         for( int x = 0; x < EDITOR_SQUARE_X; x++ )
@@ -1458,9 +1467,12 @@ handle_doc_create(
             filled++;
         }
     }
-    Editor_UndoStrokeEnd(&maped->undo);
-    if( was_in_stroke )
-        Editor_UndoStrokeBegin(&maped->undo);
+    if( !join_stroke )
+    {
+        Editor_UndoStrokeEnd(&maped->undo);
+        if( was_in_stroke )
+            Editor_UndoStrokeBegin(&maped->undo);
+    }
 
     TORIRS_LOG("torirsmaped: created %s (%d fill commands)\n", file_key, filled);
     send_status_extra(session, TORIRSMAPED_REQ_DOC_CREATE, EDITOR_HOST_OK, (uint32_t)filled);

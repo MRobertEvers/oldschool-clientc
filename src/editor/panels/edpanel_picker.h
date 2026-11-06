@@ -338,6 +338,13 @@ struct Editor_Picker
     int empty_valid;
     int empty_map_x;
     int empty_map_z;
+    /** A rectangle of squares marked for the instance helper (its Find free
+     *  answer, workbench 6.5): [mark_x, mark_x + mark_w) x [mark_z,
+     *  mark_z + mark_h); mark_w 0 = none. Drawn at every zoom. */
+    int mark_x;
+    int mark_z;
+    int mark_w;
+    int mark_h;
 
     /** Storage filter: -1 every storage, else one index. */
     int storage_filter;

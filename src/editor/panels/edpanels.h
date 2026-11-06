@@ -87,6 +87,61 @@ Editor_Spawns_Selection(
 void
 Editor_NewSquare_Register(struct EditorUi* ui);
 
+/** The instance helper (design section 13, edpanel_instance.c): source
+ *  squares, what to copy, a free destination, storage, name, map area,
+ *  entry trigger; Create as one undo step. A modal. "instance" */
+void
+Editor_Instance_Register(struct EditorUi* ui);
+
+/** Open it over the picker's selection (the picker's Instance...). */
+void
+Editor_Instance_Open(struct EditorUi* ui);
+
+/** Find free...: the lowest free box of the source's size in instance
+ *  space, typed into Destination and marked in the picker. 1 when found;
+ *  a refusal says why in the status bar. */
+int
+Editor_Instance_FindFree(struct EditorUi* ui);
+
+/** Create, as the button does. 1 when the instance was made (one undo
+ *  step); 0 refused, the reason in the dialog and the status bar. */
+int
+Editor_Instance_Create(struct EditorUi* ui);
+
+/** The dialog's widgets, for a headless driver. */
+enum Editor_InstanceWidget
+{
+    EDITOR_INSTANCE_W_PANEL = 0,
+    EDITOR_INSTANCE_W_SOURCE,
+    EDITOR_INSTANCE_W_SOURCE_ROW,
+    EDITOR_INSTANCE_W_TERRAIN,
+    EDITOR_INSTANCE_W_LOCS,
+    EDITOR_INSTANCE_W_SPAWNS,
+    EDITOR_INSTANCE_W_AREAS,
+    EDITOR_INSTANCE_W_LEVELS,
+    EDITOR_INSTANCE_W_DEST,
+    EDITOR_INSTANCE_W_FIND,
+    EDITOR_INSTANCE_W_FREE,
+    EDITOR_INSTANCE_W_STORAGE,
+    EDITOR_INSTANCE_W_LANE,
+    EDITOR_INSTANCE_W_NAME,
+    EDITOR_INSTANCE_W_MAP_ADD,
+    EDITOR_INSTANCE_W_MAP_NONE,
+    EDITOR_INSTANCE_W_ENTRY_TELEPORT,
+    EDITOR_INSTANCE_W_ENTRY_RUNTIME,
+    EDITOR_INSTANCE_W_ENTRY_NONE,
+    EDITOR_INSTANCE_W_LOC,
+    EDITOR_INSTANCE_W_COORD,
+    EDITOR_INSTANCE_W_CHECK,
+    EDITOR_INSTANCE_W_CREATE,
+    EDITOR_INSTANCE_W_CANCEL,
+};
+
+int
+Editor_Instance_Widget(
+    struct EditorUi* ui,
+    enum Editor_InstanceWidget which);
+
 /** The unsaved-edit guard: Save / Discard / Cancel. "save_guard" */
 void
 Editor_SaveGuard_Register(struct EditorUi* ui);
@@ -676,6 +731,35 @@ Editor_SquarePicker_Recent(
     struct EditorUi* ui,
     const char** out_keys,
     int max);
+
+/* ---- what the instance helper reads and marks (workbench 6.5) ---------------- */
+
+enum Editor_SquarePickerSources
+{
+    /** The shift-clicked squares, else the focused one. */
+    EDITOR_SQUARE_PICKER_SELECTION = 0,
+    /** The open-set strip, in its order. */
+    EDITOR_SQUARE_PICKER_OPEN_SET,
+};
+
+/** Up to `max` full square keys of `which` into `out`; returns how many. 0
+ *  without a picker or an atlas. */
+int
+Editor_SquarePicker_Sources(
+    struct EditorUi* ui,
+    enum Editor_SquarePickerSources which,
+    char (*out)[EDITOR_DOC_KEY_MAX],
+    int max);
+
+/** Mark squares [x, x + w) x [z, z + h) in the picker (outlined at every
+ *  zoom) and centre the view on them; w 0 clears the mark. */
+void
+Editor_SquarePicker_Mark(
+    struct EditorUi* ui,
+    int map_x,
+    int map_z,
+    int w,
+    int h);
 
 /* ---- the Triggers panel (edpanel_triggers.c) --------------------------------- */
 

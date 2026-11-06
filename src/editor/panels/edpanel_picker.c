@@ -2058,6 +2058,19 @@ picker_paint(
             ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, colors->created, 0, 0);
     }
 
+    /* The instance helper's destination (its Find free), outlined. */
+    if( picker->mark_w > 0 && picker->mark_h > 0 )
+    {
+        int x;
+        int y;
+        int w;
+        int h;
+        if( picker_squares_box(picker, picker->mark_x, picker->mark_x + picker->mark_w - 1, picker->mark_z,
+                picker->mark_z + picker->mark_h - 1, &x, &y, &w, &h)
+            && paint_mark(paint, EDITOR_PICKER_DROP_OUTLINES) )
+            ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, colors->created, 0, 0);
+    }
+
     /* Hover on top of everything but the frames; from 40 px a square its
      * coordinates in the cell (the axes carry them otherwise). */
     if( picker->hover_valid )
