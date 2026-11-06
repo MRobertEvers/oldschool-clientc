@@ -70,25 +70,26 @@ write_text(
     fclose(file);
 }
 
+/* A link as the lanes code means it: on Windows a hard link or a junction can
+ * stand for a symbolic link (an account without Developer Mode). */
 static int
 is_link(const char* path)
 {
-    struct stat st;
-    return lstat(path, &st) == 0 && S_ISLNK(st.st_mode);
+    return ToriRSMapEdLanes_IsLink(path);
 }
 
 static int
 is_regular(const char* path)
 {
     struct stat st;
-    return lstat(path, &st) == 0 && S_ISREG(st.st_mode);
+    return !is_link(path) && stat(path, &st) == 0 && S_ISREG(st.st_mode);
 }
 
 static int
 exists(const char* path)
 {
     struct stat st;
-    return lstat(path, &st) == 0;
+    return is_link(path) || stat(path, &st) == 0;
 }
 
 static int

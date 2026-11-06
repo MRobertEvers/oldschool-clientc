@@ -39,6 +39,7 @@
 #define NOMINMAX
 #include <direct.h>
 #include <windows.h>
+#include <winioctl.h> /* FSCTL_SET_REPARSE_POINT: WIN32_LEAN_AND_MEAN leaves it out */
 
 #ifndef S_IFLNK
 #define S_IFLNK 0120000
@@ -294,6 +295,15 @@ kill(
 #else
 #define lanes_mkdir(path) mkdir(path, 0755)
 #endif
+
+int
+ToriRSMapEdLanes_IsLink(const char* path)
+{
+    struct stat st;
+
+    assert(path);
+    return lstat(path, &st) == 0 && S_ISLNK(st.st_mode);
+}
 
 int
 ToriRSMapEdLanes_LinkDirectory(

@@ -234,6 +234,12 @@ ToriRSMapEdLanes_List(
     struct ToriRSMapEdLaneDef* out,
     int max);
 
+/** 1 when the mirror entry at `path` is still a link to its base, by the rule
+ *  the changes scan uses: a symbolic link, or on Windows also a junction or a
+ *  file with more than one hard link (ToriRSMapEdLanes_Mirror's fallbacks). */
+int
+ToriRSMapEdLanes_IsLink(const char* path);
+
 /** `link_path` made a link to the directory `target` the way a mirror links
  *  one: a symbolic link, or on Windows where the account may not make one
  *  (Developer Mode off) a directory junction. 1 on success, 0 with errno. */
