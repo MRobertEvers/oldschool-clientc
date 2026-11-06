@@ -177,6 +177,11 @@ struct EditorIfacePanels
     struct EditorCs2Code code_model;
     char code_key[EDITOR_DOC_KEY_MAX];
     struct EditorCs2CompileResult* compile;
+    /** Workbench 6.6: Compile asks for the editor server's CS2 job; the
+     *  registry glue (iface_register.c) sends it, feeds its lines to
+     *  `compile` and shows the end (EditorIfacePanels_ShowCompile). */
+    int compile_pending;
+    int compile_running;
 
     struct EditorIfaceRequest requests[EDITOR_IFACE_REQUEST_QUEUE];
     int request_count;
@@ -274,6 +279,12 @@ EditorIfacePanels_OnEvent(
     struct ToriRSChrome* ui,
     struct Editor* editor,
     const struct ToriRSChromeEvent* event);
+
+/** `compile` into the output list: the head line, then every compiler line. */
+void
+EditorIfacePanels_ShowCompile(
+    struct EditorIfacePanels* panels,
+    struct ToriRSChrome* ui);
 
 /** The next request for the App, or 0 when none is queued. */
 int

@@ -150,6 +150,81 @@ Builder_SscParseOutput(
     }
 }
 
+void
+Builder_SscFormatDiag(
+    const struct Builder_SscDiag* diag,
+    char* out,
+    size_t out_size)
+{
+    assert(diag);
+    assert(out);
+    assert(out_size > 0);
+    snprintf(out, out_size, "%s:%d: %s%s", diag->file, diag->line, diag->warning ? "warning: " : "", diag->message);
+}
+
+void
+Builder_SscFormatSummary(
+    const struct Builder_SscResult* result,
+    char* out,
+    size_t out_size)
+{
+    int errors = 0;
+    int warnings = 0;
+
+    assert(result);
+    assert(out);
+    assert(out_size > 0);
+    for( int i = 0; i < result->diag_count; i++ )
+    {
+        errors += !result->diags[i].warning;
+        warnings += result->diags[i].warning;
+    }
+    if( result->status == BUILDER_SSC_OK && errors == 0 )
+        snprintf(out, out_size, "check: ok, %.1f s", result->seconds);
+    else if( result->status == BUILDER_SSC_OK || result->status == BUILDER_SSC_FAILED )
+        snprintf(out, out_size, "check: %d error(s), %d warning(s), %.1f s", errors + result->diags_dropped, warnings,
+            result->seconds);
+    else
+        snprintf(out, out_size, "check: sscompile could not run (%s)",
+            result->status == BUILDER_SSC_UNSUPPORTED ? "not on this platform" : "no binary or stage");
+}
+
+int
+Builder_SscTakeLine(
+    struct Builder_SscResult* result,
+    const char* line)
+{
+    int errors = 0;
+    int warnings = 0;
+    double seconds = 0.0;
+    int const before = result->diag_count;
+
+    assert(result);
+    assert(line);
+    if( strncmp(line, "check: ", 7) == 0 )
+    {
+        const char* rest = line + 7;
+        if( sscanf(rest, "ok, %lf s", &seconds) == 1 )
+        {
+            result->status = BUILDER_SSC_OK;
+            result->seconds = seconds;
+        }
+        else if( sscanf(rest, "%d error(s), %d warning(s), %lf s", &errors, &warnings, &seconds) == 3 )
+        {
+            result->status = errors ? BUILDER_SSC_FAILED : BUILDER_SSC_OK;
+            result->seconds = seconds;
+        }
+        else if( strncmp(rest, "sscompile could not run", 23) == 0 )
+            result->status = strstr(rest, "platform") ? BUILDER_SSC_UNSUPPORTED : BUILDER_SSC_NOT_RUN;
+        else
+            return 0;
+        snprintf(result->summary, sizeof(result->summary), "%s", rest);
+        return 2;
+    }
+    Builder_SscParseOutput("", line, strlen(line), result);
+    return result->diag_count > before;
+}
+
 int
 Builder_SscErrorsFor(
     const struct Builder_SscResult* result,

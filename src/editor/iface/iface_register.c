@@ -17,6 +17,8 @@
 
 #include "app/app_iface_editor.h"
 #include "editor/editor_ui.h"
+#include "editor/panels/edpanels.h"
+#include "torirsmaped/torirs_maped_build.h"
 #include "mem/torirs_mem.h"
 #include "ui/uitree_debug_overlay.h"
 
@@ -29,7 +31,65 @@ struct EditorIfaceModule
     struct EditorIfacePanels panels;
     /** Registry entries pointing at this state; freed at the last. */
     int owners;
+    /** Compile's CS2 job (workbench 6.6). */
+    struct Editor_BuildJob compile_job;
 };
+
+static void
+module_compile_line(
+    void* user,
+    const char* text)
+{
+    struct EditorIfacePanels* panels = user;
+    EditorCs2_CompileTakeLine(panels->compile, text);
+}
+
+/** Compile's job: sent when the panel asked, its lines into the result as
+ *  they arrive, the result shown at its end. Every frame, shown or not. */
+static void
+module_compile(
+    struct EditorUi* ui,
+    struct EditorIfaceModule* module)
+{
+    struct EditorIfacePanels* panels = &module->panels;
+
+    if( panels->compile_pending )
+    {
+        char why[160];
+        panels->compile_pending = 0;
+        if( strncmp(panels->code_key, "cs2:", 4) != 0
+            || !Editor_BuildJobSend(ui, &module->compile_job, TORIRSMAPED_BUILD_CS2, panels->code_key + 4, why,
+                sizeof(why)) )
+        {
+            if( strncmp(panels->code_key, "cs2:", 4) != 0 )
+                snprintf(why, sizeof(why), "the CODE view holds no cs2 script");
+            EditorCs2_CompileTakeLine(panels->compile, why);
+            EditorIfacePanels_ShowCompile(panels, ui->chrome);
+            Editor_UiStatus(ui, "Compile refused: %s", why);
+            return;
+        }
+        panels->compile_running = 1;
+    }
+    if( !panels->compile_running )
+        return;
+    if( !Editor_BuildJobPoll(ui, &module->compile_job, module_compile_line, panels) )
+        return;
+    panels->compile_running = 0;
+    if( module->compile_job.status != EDITOR_HOST_OK && panels->compile->line_count == 0 )
+    {
+        /* The server never ran the compiler: say why. */
+        EditorCs2_CompileTakeLine(panels->compile, Editor_BuildJobWhy(module->compile_job.status));
+        EditorIfacePanels_ShowCompile(panels, ui->chrome);
+        Editor_UiStatus(ui, "Compile refused: %s", Editor_BuildJobWhy(module->compile_job.status));
+        return;
+    }
+    EditorCs2_CompileEnd(panels->compile, module->compile_job.status == EDITOR_HOST_OK,
+        module->compile_job.status == EDITOR_HOST_OK ? 0 : 1, "");
+    EditorIfacePanels_ShowCompile(panels, ui->chrome);
+    Editor_UiStatus(ui, "cs2 compile %s: compiled %d, failed %d, %d declined (%.1f s)", panels->code_key + 4,
+        panels->compile->compiled, panels->compile->failed, panels->compile->decline_count,
+        module->compile_job.seconds);
+}
 
 struct EditorIfacePanels*
 Editor_Iface_PanelsOf(void* self)
@@ -53,6 +113,7 @@ module_tick(
 
     /* The companions follow the Interface panel, which the View menu toggles
      * without telling anyone. */
+    module_compile(ui, module);
     iface_visible = ui->chrome->panels[panels->panel_iface].visible;
     cs2_visible = ui->chrome->panels[panels->panel_cs2].visible;
     if( iface_visible != panels->shown )

@@ -49,6 +49,47 @@ EditorCs2_CompileTakeLine(
     result->line_count++;
 }
 
+void
+EditorCs2_CompileBegin(
+    struct EditorCs2CompileResult* result,
+    const char* source,
+    size_t source_length)
+{
+    size_t i = 0;
+
+    assert(result);
+    assert(source || source_length == 0);
+    memset(result, 0, sizeof(*result));
+    result->script_id = -1;
+    result->status = EDITOR_CS2_NOT_RUN;
+    while( i < source_length && (source[i] == ' ' || source[i] == '\n' || source[i] == '\r') )
+        i++;
+    if( i + 2 < source_length && source[i] == '/' && source[i + 1] == '/' )
+        result->script_id = atoi(source + i + 2);
+}
+
+void
+EditorCs2_CompileEnd(
+    struct EditorCs2CompileResult* result,
+    int ran,
+    int exit_code,
+    const char* out_dir)
+{
+    assert(result);
+    assert(out_dir);
+    result->exit_code = exit_code;
+    if( ran && exit_code == 0 && result->failed == 0 && result->compiled > 0 && result->decline_count == 0 )
+    {
+        result->status = EDITOR_CS2_COMPILED;
+        if( result->script_id >= 0 && out_dir[0] )
+            snprintf(result->output_path, sizeof(result->output_path), "%s/%d", out_dir, result->script_id);
+    }
+    else if( result->line_count == 0 )
+        result->status = EDITOR_CS2_NOT_RUN;
+    else
+        result->status = EDITOR_CS2_DECLINED;
+}
+
 #if EDITOR_CS2_CAN_SPAWN
 static int
 make_dir(const char* path)
@@ -90,17 +131,7 @@ EditorCs2_Compile(
     assert(job->script_name);
     assert(job->source || job->source_length == 0);
 
-    memset(result, 0, sizeof(*result));
-    result->script_id = -1;
-    result->status = EDITOR_CS2_NOT_RUN;
-    {
-        const char* p = job->source;
-        size_t i = 0;
-        while( i < job->source_length && (p[i] == ' ' || p[i] == '\n' || p[i] == '\r') )
-            i++;
-        if( i + 2 < job->source_length && p[i] == '/' && p[i + 1] == '/' )
-            result->script_id = atoi(p + i + 2);
-    }
+    EditorCs2_CompileBegin(result, job->source, job->source_length);
 
 #if EDITOR_CS2_CAN_SPAWN
     {
@@ -206,15 +237,8 @@ EditorCs2_Compile(
         close(pipe_fd[0]);
         while( waitpid(pid, &status, 0) < 0 && errno == EINTR )
             ;
-        result->exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-        if( result->exit_code == 0 && result->failed == 0 && result->compiled > 0
-            && result->decline_count == 0 )
-        {
-            result->status = EDITOR_CS2_COMPILED;
-            if( result->script_id >= 0 )
-                snprintf(result->output_path, sizeof(result->output_path), "%s/%d", out_dir, result->script_id);
-        }
-        else
+        EditorCs2_CompileEnd(result, 1, WIFEXITED(status) ? WEXITSTATUS(status) : -1, out_dir);
+        if( result->status == EDITOR_CS2_NOT_RUN )
             result->status = EDITOR_CS2_DECLINED;
     }
 #else

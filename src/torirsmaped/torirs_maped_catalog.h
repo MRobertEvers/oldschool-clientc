@@ -153,6 +153,43 @@
  *   connection when the atlas changes under it: a DOC_CREATE (the new
  *   square appears with TORIRSMAPED_SQUARE_CREATED before anything is on
  *   disk) or a save that wrote squares. A mirror replaces its atlas.
+ *
+ *   CATALOG_USES    u32 kind, string name, u32 cursor (0: start)
+ *                   (workbench 6.6, the Record panel's Where used tab; only
+ *                   to a server with TORIRSMAPED_CAP_CATALOG_USES)
+ *       -> FACT_CATALOG_USES u32 status, u32 kind, string name,
+ *                            u32 next_cursor (0: the search is done),
+ *                            u32 files_done, u32 files_total,
+ *                            u32 row_count, row_count * (u32 use
+ *                            (TORIRSMAPED_USE_*), string path (content-
+ *                            relative), u32 line (1-based, 0 none),
+ *                            u32 count, string text)
+ *
+ *     Where the record is NAMED, read from the files the index lists -- a
+ *     search, not an index: the tree's words are not kept. One request
+ *     reads sources from `cursor` on for about
+ *     TORIRSMAPED_CATALOG_USES_SLICE_MS (at least one source) and at most
+ *     TORIRSMAPED_CATALOG_USES_ROWS rows, then answers with the cursor to
+ *     ask from next; the client asks again on a later frame until it is 0,
+ *     so no request holds the window for longer than a slice. What counts:
+ *
+ *       SPAWN      a .spawn row of the record (npc, obj), one row per square
+ *                  with its count
+ *       PLACEMENT  a loc's placements in a square's .jl2 (by id), one row per
+ *                  square with its count: the atlas's loc counts, per loc
+ *       TRIGGER    an .rs2 header `[<trigger>,<name>]`
+ *       SCRIPT     any other .rs2 line naming it as a word
+ *       INTERFACE  an .if line naming it
+ *       CS2        a .cs2 line naming it
+ *       CONFIG     a server overlay field naming it (another record's
+ *                  `next_loc_stage=<name>`, a shop's stock)
+ *       PALETTE    an editor/palettes.txt slot `<kind>:<name>`
+ *       STAMP      an editor/stamps/<s>.stamp loc row of its id
+ *
+ *     A file says at most TORIRSMAPED_CATALOG_USES_PER_FILE lines; the row
+ *     after them counts the rest (USE_MORE). configs/all.<type> (the cache
+ *     half, 86 MB of locs) is not read. ABSENT when the index has no such
+ *     record (a palette or a stamp may still name it: they are read too).
  */
 
 #include <stddef.h>
@@ -171,7 +208,43 @@ enum ToriRSMapEdCatalogFrame
     TORIRSMAPED_FACT_CATALOG_SQUARES = 163,
     /** Broadcast form of FACT_CATALOG_SQUARES: the atlas changed. */
     TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED = 164,
+    /** Where a record is used (workbench 6.6; TORIRSMAPED_CAP_CATALOG_USES). */
+    TORIRSMAPED_REQ_CATALOG_USES = 44,
+    TORIRSMAPED_FACT_CATALOG_USES = 165,
 };
+
+/** A FACT_CATALOG_USES row's `use`. */
+enum ToriRSMapEdCatalogUse
+{
+    TORIRSMAPED_USE_SPAWN = 1,
+    TORIRSMAPED_USE_PLACEMENT,
+    TORIRSMAPED_USE_TRIGGER,
+    TORIRSMAPED_USE_SCRIPT,
+    TORIRSMAPED_USE_INTERFACE,
+    TORIRSMAPED_USE_CS2,
+    TORIRSMAPED_USE_CONFIG,
+    TORIRSMAPED_USE_PALETTE,
+    TORIRSMAPED_USE_STAMP,
+    /** The row after a file's TORIRSMAPED_CATALOG_USES_PER_FILE lines: its
+     *  count is the lines not listed. */
+    TORIRSMAPED_USE_MORE,
+};
+
+#define TORIRSMAPED_CATALOG_USES_SLICE_MS 4.0
+#define TORIRSMAPED_CATALOG_USES_ROWS 256
+#define TORIRSMAPED_CATALOG_USES_PER_FILE 8
+
+/** "spawn", "placement", "trigger", "script", "interface", "cs2", "config",
+ *  "palette", "stamp", "more"; "?" past the end. Inline for the client. */
+static inline const char*
+ToriRSMapEdCatalog_UseName(uint32_t use)
+{
+    static const char* const names[] = { "?", "spawn", "placement", "trigger", "script", "interface", "cs2",
+        "config", "palette", "stamp", "more" };
+    if( use > TORIRSMAPED_USE_MORE )
+        return "?";
+    return names[use];
+}
 
 /** What a record is. The wire carries the number; the names below are the
  *  panel's tab labels and the `kind` a query result reports. */
@@ -536,6 +609,15 @@ ToriRSMapEdCatalog_HandleQuery(
 
 int
 ToriRSMapEdCatalog_HandleRecord(
+    struct ToriRSMapEdCatalog* catalog,
+    const uint8_t* body,
+    uint32_t length,
+    struct ToriRSMapEdBuf* out);
+
+/** CATALOG_USES (the header comment): one slice of the search. 0 for a
+ *  malformed body. */
+int
+ToriRSMapEdCatalog_HandleUses(
     struct ToriRSMapEdCatalog* catalog,
     const uint8_t* body,
     uint32_t length,

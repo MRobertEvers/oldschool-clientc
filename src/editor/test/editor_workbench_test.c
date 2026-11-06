@@ -241,9 +241,12 @@ registry_digest(
  * caption column alone (the merged tree drew the old digests; with that one
  * file changed it draws these): the Terrain panel's "Strength  Shift+[ ]"
  * was longer than the fixed column at every scale and ran on under its
- * track; the column now widens to hold it (dbg_slider_label_w). */
+ * track; the column now widens to hold it (dbg_slider_label_w). Workbench
+ * 6.6 part 1 moved the 1x registry (was 2691440990u): the bottom strip's
+ * group gained its third tab, Problems, which the 1x surface draws; the 2x
+ * and 3x registries and the scenes did not move. */
 static const uint32_t k_golden[3][3] = {
-    { 1970238540u, 3840548130u, 2691440990u },
+    { 1970238540u, 3840548130u, 2593871087u },
     { 1606657634u, 3552625563u, 4031613255u },
     { 1621493878u, 3838641767u, 2905863413u },
 };

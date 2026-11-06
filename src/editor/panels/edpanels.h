@@ -16,6 +16,7 @@
 
 #include "editor/editor_hotkeys.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 struct EditorUi;
@@ -521,6 +522,243 @@ struct Editor_CfgRecord;
 const struct Editor_CfgRecord*
 Editor_Record_Current(struct EditorUi* ui);
 
+/* Workbench 6.6 (design section 9): the Record panel's tabs, its typed
+ * editor, the search inside the record, "changed only" and Where used. */
+
+/** The Record panel's tabs: Cache block, one Server overlay tab per overlay
+ *  file that states the record (named by its file), Triggers, Shell, Where
+ *  used. Editor_Record_TabCount / _TabTitle say what this record has. */
+enum Editor_RecordTab
+{
+    EDITOR_RECORD_TAB_CACHE = 0,
+    EDITOR_RECORD_TAB_OVERLAY,
+    EDITOR_RECORD_TAB_TRIGGERS,
+    EDITOR_RECORD_TAB_SHELL,
+    EDITOR_RECORD_TAB_USES,
+};
+
+/** How many tabs the open record has (0 when none is open). */
+int
+Editor_Record_TabCount(struct EditorUi* ui);
+
+/** Tab `tab`'s title ("Cache block", "Server overlay lumbridge.npc", ...)
+ *  and, through `out_role`, its enum Editor_RecordTab. */
+const char*
+Editor_Record_TabTitle(
+    struct EditorUi* ui,
+    int tab,
+    int* out_role);
+
+/** Show tab `tab` (the panel's tab strip does the same). Returns 1. */
+int
+Editor_Record_ShowTab(
+    struct EditorUi* ui,
+    int tab);
+
+/** The rows the field list shows now, after the tab (a layer tab lists the
+ *  fields that layer states, plus the register's for the top one), the
+ *  search and "changed only": their indices into Editor_Record_Current's
+ *  rows, into `out` (up to `max`). Returns the count. */
+int
+Editor_Record_VisibleRows(
+    struct EditorUi* ui,
+    int* out,
+    int max);
+
+/** The search inside the record and the "changed only" chip, as typed and
+ *  clicked. */
+void
+Editor_Record_SetFind(
+    struct EditorUi* ui,
+    const char* text,
+    int changed_only);
+
+/** The number of fields changed since the record was opened or last clean
+ *  ("dirty, 2 fields"). */
+int
+Editor_Record_ChangedCount(struct EditorUi* ui);
+
+/** 1 when a changed field is one the client reads (the "needs a client
+ *  pack" chip is up). */
+int
+Editor_Record_NeedsClientPack(struct EditorUi* ui);
+
+/** The typed editor's kind for the selected row (enum Editor_CfgFieldKind),
+ *  -1 when no row is selected. */
+int
+Editor_Record_EditorKind(struct EditorUi* ui);
+
+/** The NAME picker's candidates as last answered (the catalog's records of
+ *  the field's kind matching what was typed): count, and row `index`. */
+int
+Editor_Record_PickCount(struct EditorUi* ui);
+
+const char*
+Editor_Record_PickRow(
+    struct EditorUi* ui,
+    int index);
+
+/** Where used: the rows the catalog's CATALOG_USES answered so far, and
+ *  whether the search is still running. */
+struct EditorHost_CatalogUse;
+
+int
+Editor_Record_UsesCount(
+    struct EditorUi* ui,
+    int* out_searching);
+
+const struct EditorHost_CatalogUse*
+Editor_Record_UsesRow(
+    struct EditorUi* ui,
+    int index);
+
+/* ---- problems (edpanel_problems.c, workbench 6.6) ---------------------------
+ *
+ * The Problems panel: every finding that names a place, one list, in the
+ * bottom strip's group with Console and History. Builds' diagnostic lines
+ * arrive on their own (the Live model's line stream); everything else is
+ * pushed through Editor_Problems_Report / _ReportRecord and taken back with
+ * _Clear. "problems" */
+
+#define EDITOR_PROBLEMS_MAX 512
+
+enum Editor_ProblemSeverity
+{
+    EDITOR_PROBLEM_ERROR = 0,
+    EDITOR_PROBLEM_WARNING,
+    EDITOR_PROBLEM_NOTE,
+};
+
+struct Editor_ProblemRow
+{
+    /** Who said it: a build's name ("check", "cs2 compile", "packs"), or the
+     *  pushing panel's ("record", "shop", "quest", "lint"). */
+    char source[32];
+    /** Relative to server/scripts for a script ("" when it names none). */
+    char file[256];
+    /** 1-based, 0 when it names none. */
+    int line;
+    int severity;
+    char text[256];
+    /** A record's finding (click-to-record): "npc", the name, the field
+     *  ("param:huntrange2", "category"); "" for any other. */
+    char record_type[16];
+    char record_name[64];
+    char record_field[64];
+};
+
+void
+Editor_Problems_Register(struct EditorUi* ui);
+
+/** Add a row (a duplicate of a row already listed is one row). A window
+ *  without the panel drops it. */
+void
+Editor_Problems_Report(
+    struct EditorUi* ui,
+    const char* source,
+    const char* file,
+    int line,
+    int severity,
+    const char* text);
+
+/** Add a row about a record's field: a click opens the record there. */
+void
+Editor_Problems_ReportRecord(
+    struct EditorUi* ui,
+    const char* source,
+    const char* type,
+    const char* name,
+    const char* field,
+    const char* file,
+    int line,
+    int severity,
+    const char* text);
+
+/** Take back every row `source` reported (NULL: every row). Returns how
+ *  many went. */
+int
+Editor_Problems_Clear(
+    struct EditorUi* ui,
+    const char* source);
+
+int
+Editor_Problems_Count(struct EditorUi* ui);
+
+const struct Editor_ProblemRow*
+Editor_Problems_Row(
+    struct EditorUi* ui,
+    int index);
+
+/** Rows of `source` of `severity` (-1: any severity). */
+int
+Editor_Problems_CountOf(
+    struct EditorUi* ui,
+    const char* source,
+    int severity);
+
+/** What a click on row `index` does: open its record at its field, else its
+ *  file in the user's editor (the Triggers panel's Open in editor). 1 when
+ *  it did; 0 with the reason in the status bar. */
+int
+Editor_Problems_Activate(
+    struct EditorUi* ui,
+    int index);
+
+/** One build line read as a row: `<file>:<line>: [error: |warning: |note: ]
+ *  <message>` (sscompile's, with or without its "sscompile: " prefix),
+ *  `FAIL <name>: <why>` (cs2: file "scripts/<name>.cs2"), `error: ...` /
+ *  `warning: ...`. 0 for a line that is none of those. */
+int
+Editor_ProblemsParseLine(
+    const char* line,
+    struct Editor_ProblemRow* out);
+
+/** A BUILD job a panel sent (Check, CS2 compile): what it was, and once
+ *  Editor_BuildJobPoll answers 1, how it ended. */
+struct Editor_BuildJob
+{
+    uint32_t what;
+    int active;
+    int build_serial;
+    int log_serial;
+    /** enum EditorHost_Status, once ended. */
+    uint32_t status;
+    /** Lines of its own the poll handed over. */
+    int lines;
+    int64_t started_ms;
+    double seconds;
+};
+
+/**
+ * Send BUILD `what` (with `arg` for a kind that takes one,
+ * ToriRSMapEd_BuildWhatTakesArg) to the editor server: the job runs on the
+ * server's pump, its lines arrive as FACT_BUILD_LINE and this window never
+ * waits. 1 sent; 0 refused, with the reason (one clause) in `why`: no server,
+ * no runner, an older server, no Live panel, a build or RUN in flight.
+ */
+int
+Editor_BuildJobSend(
+    struct EditorUi* ui,
+    struct Editor_BuildJob* job,
+    uint32_t what,
+    const char* arg,
+    char* why,
+    size_t why_size);
+
+/** One clause for how a job ended (its EditorHost_Status). */
+const char*
+Editor_BuildJobWhy(uint32_t status);
+
+/** Once a frame: hands each new line of the job to `line` (may be NULL),
+ *  oldest first, and answers 1 on the frame it ended (`job->status`,
+ *  `job->seconds` set), else 0. */
+int
+Editor_BuildJobPoll(
+    struct EditorUi* ui,
+    struct Editor_BuildJob* job,
+    void (*line)(void* user, const char* text),
+    void* user);
+
 /* ---- named areas and square collections (edpanel_areas.c) -----------------
  *
  * The Areas panel over the AREAS document (editor/editor_areas.h) every
@@ -902,10 +1140,17 @@ Editor_Triggers_Refresh(struct EditorUi* ui);
 int
 Editor_Triggers_ReloadFromDisk(struct EditorUi* ui);
 
-/** sscompile over the scripts ON DISK (synchronous; unsaved documents are
- *  not in it). Returns the errors, -1 when it could not run. */
+/** Check (workbench 6.6): the editor server's BUILD check job -- sscompile
+ *  over the scripts on disk with the server's unsaved script documents over
+ *  them, on the server's pump. Returns at once: 1 sent (the rows and the
+ *  status come as its lines do), 0 refused (the status bar says why), -1
+ *  when this window has no Triggers panel. */
 int
 Editor_Triggers_Check(struct EditorUi* ui);
+
+/** 1 while Check's job is in flight. */
+int
+Editor_Triggers_CheckRunning(struct EditorUi* ui);
 
 /** Show a compile result as Check does (the Problems rows, the status). */
 void

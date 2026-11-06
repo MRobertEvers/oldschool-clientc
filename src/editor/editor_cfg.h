@@ -429,7 +429,131 @@ struct Editor_CfgRegisterField
     int text_indexed;
     /** `values = a:0, b:1`, verbatim ("" when none). */
     char values[EDITOR_CMD_VALUE_MAX];
+    /* Workbench 6.6 (design section 9, the typed rows): the rest of the
+     * register's grammar (3rd/rscache/src/rscache_register.h), verbatim. */
+    /** `type = int` / `boolean` / `obj` / `coord,obj,int` ("" when none). */
+    char type[64];
+    /** `ref = <config type>`: the namespace a symbolic value names. */
+    char ref[32];
+    /** `client = drop | native | error | param:<p>` ("" = drop). */
+    char client[48];
+    /** `server = opcode:<n>:<u1|u2|u4|string|list> | drop` ("" when none). */
+    char server[48];
+    /** `param = <p>`: its runtime param binding. */
+    char param[48];
 };
+
+/**
+ * What a row of the Record panel is edited with (design section 9: "a number
+ * gets a field with step buttons, a bool a checkbox, a name a catalog-backed
+ * picker, a param a two-column row"), from the register row:
+ *
+ *   ENUM    `values = ...` lists the words: a dropdown of them.
+ *   BOOL    `type = boolean`.
+ *   NAME    `ref = <type>`, or a `type` that is a config type (obj, npc,
+ *           loc, seq, ...): a picker over the catalog's records of that kind.
+ *   NUMBER  `type = int`, or a band home of width u1 / u2 / u4: step buttons,
+ *           the range from the width.
+ *   TEXT    anything else (`type = string`, a list's tuple, no type).
+ *
+ * A `text = param` field is spelled `param=<key>,<value>`: the row is the
+ * two-column PARAM row (param name, value) and its VALUE has the kind above.
+ * A key the register does not list is typed by its value (an integer is a
+ * NUMBER with no range, yes / no / true / false a BOOL, else TEXT): the cache
+ * half states dozens of opcodes the register never names.
+ */
+enum Editor_CfgFieldKind
+{
+    EDITOR_CFG_FIELD_TEXT = 0,
+    EDITOR_CFG_FIELD_NUMBER,
+    EDITOR_CFG_FIELD_BOOL,
+    EDITOR_CFG_FIELD_NAME,
+    EDITOR_CFG_FIELD_ENUM,
+    EDITOR_CFG_FIELD_PARAM,
+};
+
+/** "text", "number", "bool", "name", "enum", "param". */
+const char*
+Editor_CfgFieldKindName(int kind);
+
+/** The register field for `key`, or -1. */
+int
+Editor_CfgRegisterFind(
+    const struct Editor_CfgRegisterField* fields,
+    int field_count,
+    const char* key);
+
+/** The VALUE kind of a register field (never PARAM: a param field's value
+ *  has its own kind). */
+int
+Editor_CfgRegisterValueKind(const struct Editor_CfgRegisterField* field);
+
+/** The catalog kind name a NAME field picks from ("obj"); "" for any other
+ *  kind. */
+const char*
+Editor_CfgRegisterRefType(const struct Editor_CfgRegisterField* field);
+
+/** A NUMBER field's range: 1 with [*out_min, *out_max] when the register
+ *  bounds it (u1 0..255, u2 0..65535, u4 0..4294967295, int the int32
+ *  range), 0 when it says nothing. */
+int
+Editor_CfgRegisterRange(
+    const struct Editor_CfgRegisterField* field,
+    long long* out_min,
+    long long* out_max);
+
+/** An ENUM field's words, in register order, into `out` (each at most 31
+ *  bytes); returns the count (at most `max`). */
+int
+Editor_CfgRegisterWords(
+    const struct Editor_CfgRegisterField* field,
+    char out[][32],
+    int max);
+
+/** 1 when changing the field changes what the CLIENT reads: `scope =
+ *  client`, `client = native` or `client = param:<p>` (cachepack writes it
+ *  into the client cache), so a RUN needs a client pack. */
+int
+Editor_CfgRegisterClientSide(const struct Editor_CfgRegisterField* field);
+
+/**
+ * What is wrong with a row, as the Record panel marks it and the Problems
+ * panel lists it (design section 9: "a field unknown to the register is
+ * marked and listed in Problems"):
+ *
+ *   UNKNOWN_KEY    a SERVER OVERLAY states a key fields/<type>.ini does not
+ *                  list (the cache half's own opcodes are never this: the
+ *                  register declares what lies beyond them)
+ *   UNKNOWN_PARAM  an overlay's `param=<p>,...` names a param the register
+ *                  does not list and the caller's known params do not hold
+ *   NOT_NUMBER     a NUMBER row whose value is not an integer
+ *   OUT_OF_RANGE   a NUMBER row outside its width's range
+ *   NOT_BOOL       a BOOL row that is not yes / no / true / false / 1 / 0
+ *   NOT_WORD       an ENUM row that is none of its words (nor a number)
+ */
+enum Editor_CfgRowIssue
+{
+    EDITOR_CFG_ISSUE_NONE = 0,
+    EDITOR_CFG_ISSUE_UNKNOWN_KEY,
+    EDITOR_CFG_ISSUE_UNKNOWN_PARAM,
+    EDITOR_CFG_ISSUE_NOT_NUMBER,
+    EDITOR_CFG_ISSUE_OUT_OF_RANGE,
+    EDITOR_CFG_ISSUE_NOT_BOOL,
+    EDITOR_CFG_ISSUE_NOT_WORD,
+};
+
+/** "unknown key", "unknown param", "not a number", "out of range",
+ *  "not yes or no", "not one of its words"; "" for NONE. */
+const char*
+Editor_CfgRowIssueText(int issue);
+
+/** The issue `value` has as a value of `kind` under `field` (NULL: no
+ *  register row). NONE for TEXT and NAME (a name is the catalog's to say). */
+int
+Editor_CfgValueIssue(
+    const struct Editor_CfgRegisterField* field,
+    int kind,
+    const char* value);
 
 /** Parse a field register for `type` ("npc"): every `[<type>.<key>]`
  *  section, merged by key in first-seen order. Returns the field count
@@ -472,6 +596,21 @@ struct Editor_CfgRecordRow
     int shadowed;
     /** From the register: its scope ("" when the register has no row). */
     char scope[16];
+    /* Workbench 6.6: the typed row (Editor_CfgRecordResolve fills these). */
+    /** The register field it is (Editor_CfgRegisterFind), -1 for none. For
+     *  an indexed key (patrol2) the `patrol` field. */
+    int reg;
+    /** enum Editor_CfgFieldKind of the row (PARAM for a param row), and of
+     *  its value. */
+    unsigned char kind;
+    unsigned char value_kind;
+    /** Changing it needs a client pack: the winning layer is the cache half,
+     *  or the register says the client reads it. */
+    unsigned char client_side;
+    /** Some server overlay (rank 1 or 2) states it. */
+    unsigned char in_overlay;
+    /** enum Editor_CfgRowIssue. */
+    unsigned char issue;
 };
 
 struct Editor_CfgRecord
@@ -528,6 +667,71 @@ Editor_CfgRecordResolve(
     struct Editor_CfgRecord* record,
     const struct Editor_CfgRegisterField* fields,
     int field_count);
+
+/**
+ * The typed half of a resolve: every row's register field, kinds, client
+ * side and issue. Editor_CfgRecordResolve calls it with no known params;
+ * call it again with the params the catalog knows (`known_params`, which
+ * may be NULL with count 0) so an overlay's `param=<p>` that names a real
+ * param is not UNKNOWN_PARAM. Returns the rows with an issue.
+ */
+int
+Editor_CfgRecordType(
+    struct Editor_CfgRecord* record,
+    const struct Editor_CfgRegisterField* fields,
+    int field_count,
+    const char* const* known_params,
+    int known_count);
+
+/** The field name a row is addressed by: "param:<p>", "key#N" or "key". */
+void
+Editor_CfgRecordRowName(
+    const struct Editor_CfgRecordRow* row,
+    char* out,
+    size_t out_size);
+
+/**
+ * The search inside a record (design section 9: "a loc record can hold forty
+ * lines"): 1 when every whitespace-separated term of `query` is found,
+ * case-insensitively, in the row's field name, its value, its layer's file
+ * name or its kind's name. An empty query matches every row.
+ */
+int
+Editor_CfgRecordRowMatches(
+    const struct Editor_CfgRecord* record,
+    int row,
+    const char* query);
+
+/**
+ * "Changed only": 1 when row `row` of `record` differs from what `base` (the
+ * same record resolved earlier -- when it was opened, or last clean) says
+ * for the same (key, sub, occurrence): another value, another winning layer
+ * (compared by document key), stated now and not then, or the reverse.
+ */
+int
+Editor_CfgRecordRowChanged(
+    const struct Editor_CfgRecord* record,
+    int row,
+    const struct Editor_CfgRecord* base);
+
+/** Fields `base` states that `record` no longer has a row for (a removed
+ *  field the register does not list): what "dirty, N fields" adds. */
+int
+Editor_CfgRecordRemovedSince(
+    const struct Editor_CfgRecord* record,
+    const struct Editor_CfgRecord* base);
+
+/** Does layer `layer` state row `row`'s field? Its line in the block (the
+ *  header is 0) and its value (as the row's value is spelled: no param
+ *  name, no trailing comment) into `out_value`; -1 when it does not. What a
+ *  layer's tab lists, and the line a Problems row opens. */
+int
+Editor_CfgRecordLayerStates(
+    const struct Editor_CfgRecord* record,
+    int layer,
+    int row,
+    char* out_value,
+    size_t value_size);
 
 /** The row for (key, sub, occurrence), or -1. */
 int

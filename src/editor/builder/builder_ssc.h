@@ -29,6 +29,24 @@
  * Native only: on the web and on Windows Builder_SscRun answers
  * BUILDER_SSC_UNSUPPORTED (the live editor's BuildRunner owns builds there,
  * MAPED_IMPLEMENTATION.md phase 4).
+ *
+ * AS A BUILD JOB (workbench 6.6, design section 9: "Check and CS2 compile run
+ * on the server pump as BUILD jobs with progress lines, so the window never
+ * waits"). Builder_SscRun waits for the compiler, so no window calls it any
+ * more: the editor server's TORIRSMAPED_BUILD_CHECK job runs `make -C src
+ * maped-script-check` (src/maped/records.mk), whose tool
+ * (builder_ssc_main.c) is this module in its own process -- Stage, the
+ * unsaved documents the server put under <work>/puts written over the stage,
+ * Run -- and prints what it found in the job's line stream:
+ *
+ *   check: staging server/scripts (copied 3, dropped 0, kept 4180)
+ *   check: 2 unsaved script(s) over the stage
+ *   areas/lumbridge/scripts/hans.rs2:19: unknown command `mes2`
+ *   check: 1 error(s), 0 warning(s), 0.6 s
+ *
+ * The diagnostics are Builder_SscFormatDiag's, the last line
+ * Builder_SscFormatSummary's; a window reads them back with
+ * Builder_SscTakeLine into a Builder_SscResult, as it arrives.
  */
 
 #include <stddef.h>
@@ -140,6 +158,33 @@ Builder_SscParseOutput(
     const char* output,
     size_t length,
     struct Builder_SscResult* result);
+
+/** One diagnostic as the job prints it: `<file>:<line>: [warning: ]<msg>`
+ *  (what Builder_SscParseOutput reads back). */
+void
+Builder_SscFormatDiag(
+    const struct Builder_SscDiag* diag,
+    char* out,
+    size_t out_size);
+
+/** The job's last line: "check: ok, 0.6 s", "check: 2 error(s), 1
+ *  warning(s), 0.6 s", or "check: sscompile could not run (<why>)". */
+void
+Builder_SscFormatSummary(
+    const struct Builder_SscResult* result,
+    char* out,
+    size_t out_size);
+
+/**
+ * One line of a check job's stream into `result` (which starts zeroed): a
+ * diagnostic is a diag; the summary line sets status, seconds and summary
+ * and returns 2; the job's own progress lines ("check: staging ...") are
+ * taken as nothing. Returns 1 for a diagnostic, 2 for the summary, 0 else.
+ */
+int
+Builder_SscTakeLine(
+    struct Builder_SscResult* result,
+    const char* line);
 
 /** The errors (not warnings) about `rel_path`. */
 int

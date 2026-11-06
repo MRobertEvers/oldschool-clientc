@@ -348,7 +348,8 @@ test_default_groups(void)
     } k_want[] = {
         { "right-top", { "catalog", "locs", "spawns", "inspector" }, 4 },
         { "right-mid", { "terrain", "palette", "catalog_palette" }, 3 },
-        { "bottom", { "console", "history" }, 2 },
+        /* Workbench 6.6 part 1: Problems joins the bottom strip. */
+        { "bottom", { "console", "history", "problems" }, 3 },
     };
 
     boot(1530, 1006, 1);

@@ -130,7 +130,8 @@ ToriRSMapEd_Open(
      * slices (ToriRSMapEdCatalog_Service), a request before that finishes it. */
     maped->catalog = ToriRSMapEdCatalog_Create(content_dir);
     maped->capabilities
-        |= TORIRSMAPED_CAP_CATALOG | TORIRSMAPED_CAP_CATALOG_PROGRESS | TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS;
+        |= TORIRSMAPED_CAP_CATALOG | TORIRSMAPED_CAP_CATALOG_PROGRESS | TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS
+           | TORIRSMAPED_CAP_CATALOG_USES;
     /* The lanes' workbench frames are the wire half's (torirs_maped_lanes_wire.c). */
     maped->capabilities |= TORIRSMAPED_CAP_LANES_V2;
     /* DOC_CREATE joins an open stroke when asked (the instance helper). */
@@ -1687,6 +1688,11 @@ handle_catalog(
         ok = ToriRSMapEdCatalog_HandleRecord(catalog, body, length, &out);
         fact = TORIRSMAPED_FACT_CATALOG_RECORD;
     }
+    else if( type == TORIRSMAPED_REQ_CATALOG_USES )
+    {
+        ok = ToriRSMapEdCatalog_HandleUses(catalog, body, length, &out);
+        fact = TORIRSMAPED_FACT_CATALOG_USES;
+    }
     else
     {
         ok = ToriRSMapEdCatalog_HandleSquares(
@@ -2014,7 +2020,7 @@ handle_frame(
     }
     if( v2
         && (type == TORIRSMAPED_REQ_CATALOG_QUERY || type == TORIRSMAPED_REQ_CATALOG_RECORD
-            || type == TORIRSMAPED_REQ_CATALOG_SQUARES) )
+            || type == TORIRSMAPED_REQ_CATALOG_SQUARES || type == TORIRSMAPED_REQ_CATALOG_USES) )
     {
         handle_catalog(session, maped, type, body, length);
         return;

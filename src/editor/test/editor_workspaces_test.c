@@ -223,15 +223,16 @@ test_workspace_defaults(void)
     skipped = Editor_UiSetWorkspace(&g_ui, EDITOR_UI_WS_SCRIPT);
     frame();
     frame();
-    CHECK(skipped == 3 + !Editor_UiFindPanel(&g_ui, "shop") + !Editor_UiFindPanel(&g_ui, "quest"),
-        "Script skips the three panels this tree lacks (%d)", skipped);
+    /* Workbench 6.6 part 1 built Problems: two of the design's are left. */
+    CHECK(skipped == 2 + !Editor_UiFindPanel(&g_ui, "shop") + !Editor_UiFindPanel(&g_ui, "quest"),
+        "Script skips the two panels this tree lacks (%d)", skipped);
     {
         /* The Shop builder and the Quest board are Script's (workbench 6.7);
          * they register only with an editor session. */
         int const shop = Editor_UiFindPanel(&g_ui, "shop") != NULL;
         int const quest = Editor_UiFindPanel(&g_ui, "quest") != NULL;
         char line[128];
-        snprintf(line, sizeof(line), "workspace Script: no vars, %s%sproblems, dialogue_preview panel",
+        snprintf(line, sizeof(line), "workspace Script: no vars, %s%sdialogue_preview panel",
             shop ? "" : "shop, ", quest ? "" : "quest, ");
         CHECK(console_says(line, 4), "the console names what was skipped (%s)", line);
     }
