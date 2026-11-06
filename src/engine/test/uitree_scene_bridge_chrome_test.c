@@ -13,7 +13,8 @@
  *   - its baseline is the face's row table's baseline row, and every glyph
  *     that stands on the 1x baseline ends on it;
  *   - a stem of a known glyph is even in the registered pixels: the same
- *     bytes on every middle row, and ink (the stem darkening);
+ *     bytes on every middle row, and whole columns of ink -- its 1x width
+ *     rounded, every one 255, nothing beside it (horizontal hinting);
  *   - "smooth always" (SetChromeTextSmooth) registers the vector atlas at a
  *     whole q too, once per q, and turning it off drops it again; at a
  *     fractional q it changes nothing;
@@ -274,18 +275,25 @@ test_faces_at_one_and_a_half(void)
     fixture_close(&f);
 }
 
-/* A stem is even: Body's 'l' and 'I' and Small's 'l' are one upright, and in
- * the registered q pixels every row of its middle third is the same bytes
- * (the vector face's vertical edges are straight, so the stem is one profile
- * all the way down), and it reads as ink: its peak is 250 or more where the
- * stem covers a device column whole (q 6), 200 or more where a 1.25- or
- * 1.75-pixel stem straddles two (q 5, 7; the stem darkening lifts it). */
+/* A stem is even: Body's 'l' and 'I', Small's 'l' and Menu's 'l' are one
+ * upright, and in the registered q pixels every row of its middle third is
+ * the same bytes (the vector face's vertical edges are straight, so the stem
+ * is one profile all the way down), and it is ink: horizontal hinting puts
+ * it on whole device columns, `width` (its 1x width, rounded at q) of them at
+ * 255 side by side, and every other byte of the row under 40 -- not a solid
+ * column and a 60 % one. */
 static void
-check_stem(struct ToriDraw_Font const* src, struct ToriDraw_Font const* font, int q, char ch, char const* face)
+check_stem(
+    struct ToriDraw_Font const* src, struct ToriDraw_Font const* font, int q, char ch, int width,
+    char const* face)
 {
     int const gi = (unsigned char)src->charcodeset[(unsigned char)ch];
     int even_rows = 0;
     int peak = 0;
+    int solid = 0;
+    int grey = 0;
+    int first_solid = -1;
+    int last_solid = -1;
     int dw;
     int dh;
     uint8_t const* first;
@@ -310,9 +318,22 @@ check_stem(struct ToriDraw_Font const* src, struct ToriDraw_Font const* font, in
     }
     CHECK(even_rows == dh - 2 * (dh / 3), "%s '%c' at q %d: its stem is the same pixels on every middle row (%d of %d rows)",
           face, ch, q, even_rows, dh - 2 * (dh / 3));
-    CHECK(peak >= (q % 2 == 0 ? 250 : 200), "%s '%c' at q %d: its stem reads as ink (peak %d)", face, ch, q,
-          peak);
-    (void)src;
+    CHECK(peak == 255, "%s '%c' at q %d: its stem reads as ink (peak %d)", face, ch, q, peak);
+    for( int x = 0; x < dw; x++ )
+    {
+        if( first[x] == 255 )
+        {
+            solid++;
+            if( first_solid < 0 )
+                first_solid = x;
+            last_solid = x;
+        }
+        else if( first[x] >= 40 )
+            grey++;
+    }
+    CHECK(solid == width && last_solid - first_solid + 1 == width && grey == 0,
+          "%s '%c' at q %d: its stem is %d whole column(s) of ink and nothing beside it (%d solid, %d grey)",
+          face, ch, q, width, solid, grey);
 }
 
 static void
@@ -325,17 +346,24 @@ test_stems_are_even(void)
     {
         struct ToriDraw_Font const* body;
         struct ToriDraw_Font const* small;
+        struct ToriDraw_Font const* menu;
+        /* 1x stems are 1 pixel (Body, Small) and 2 (Menu, the bold). */
+        int const one = ToriRSChrome_ScalePx(q, 1);
+        int const two = ToriRSChrome_ScalePx(q, 2);
         UITreeSceneBridge_SetChromeScaleQ(&f.bridge, q);
         body = ToriDraw_SceneFontGet(
             f.scene, UITreeSceneBridge_EnsureDebugFont(&f.bridge, TORIRS_CHROME_FONT_BODY));
         small = ToriDraw_SceneFontGet(
             f.scene, UITreeSceneBridge_EnsureDebugFont(&f.bridge, TORIRS_CHROME_FONT_SMALL));
-        CHECK(body && small, "q %d: Body and Small registered", q);
-        if( !body || !small )
+        menu = ToriDraw_SceneFontGet(
+            f.scene, UITreeSceneBridge_EnsureDebugFont(&f.bridge, TORIRS_CHROME_FONT_MENU));
+        CHECK(body && small && menu, "q %d: Body, Small and Menu registered", q);
+        if( !body || !small || !menu )
             continue;
-        check_stem(ToriRSChromeFont_Tier(TORIRS_CHROME_FONT_BODY, 1), body, q, 'l', "Body");
-        check_stem(ToriRSChromeFont_Tier(TORIRS_CHROME_FONT_BODY, 1), body, q, 'I', "Body");
-        check_stem(ToriRSChromeFont_Tier(TORIRS_CHROME_FONT_SMALL, 1), small, q, 'l', "Small");
+        check_stem(ToriRSChromeFont_Tier(TORIRS_CHROME_FONT_BODY, 1), body, q, 'l', one, "Body");
+        check_stem(ToriRSChromeFont_Tier(TORIRS_CHROME_FONT_BODY, 1), body, q, 'I', one, "Body");
+        check_stem(ToriRSChromeFont_Tier(TORIRS_CHROME_FONT_SMALL, 1), small, q, 'l', one, "Small");
+        check_stem(ToriRSChromeFont_Tier(TORIRS_CHROME_FONT_MENU, 1), menu, q, 'l', two, "Menu");
     }
     fixture_close(&f);
 }

@@ -76,8 +76,9 @@ Outputs (committed; `--check` writes nothing and fails on any difference,
   src/engine/fonts/ToriRS{Small,Body,Menu}-Vector.ttf
   res/plugin_chrome/font/ToriRS{Small,Body,Menu}-Vector.{ttf,woff,eot}
   src/engine/torirs_chrome_font_vector_baked.{c,h}  (the TTF bytes as static
-      const arrays and each face's alignment zones, for the native rasteriser
-      in src/ui/torirs_chrome_bake.c)
+      const arrays, each face's alignment zones and each glyph's vertical
+      stems (face_stems), for the native rasteriser's hinting in
+      src/ui/torirs_chrome_bake.c; the TTFs carry no hinting of their own)
 Review sheets (not committed; --sheets, default src/build_opt/fontsynth/final/):
   sheet_compare_<face>.png, sheet_glyphs_<face>.png, sheet_panel.png,
   report.json
@@ -120,6 +121,9 @@ IRLS_ITERATIONS = 12
 HOT_RADIUS = 1.6
 HOT_BOOST = 4.0
 HOT_ROUNDS = 5
+
+# The most vertical stems one glyph may carry (Menu's # has five).
+STEMS_MAX = 8
 
 FACE_TTF = {"Small": "ToriRSSmall-Vector.ttf", "Body": "ToriRSBody-Vector.ttf", "Menu": "ToriRSMenu-Vector.ttf"}
 FACE_FAMILY = {
@@ -1206,6 +1210,118 @@ def face_zones(font: base.SourceFont) -> dict[str, int]:
     }
 
 
+# ---------------------------------------------------------------- stems
+
+
+def outline_vertical_edges(ttf: Path) -> dict[int, list[tuple[int, float, float, int]]]:
+    """Per code point, the outline's straight vertical edges of 2 or more 1x
+    pixels on a whole 1x column: (x, y_low, y_high, side), x pen-relative in
+    1x pixels, y above the baseline, side +1 for a left edge (the contour runs
+    up it, ink to its right) and -1 for a right edge."""
+    from fontTools.ttLib import TTFont
+
+    tt = TTFont(str(ttf))
+    glyf = tt["glyf"]
+    out: dict[int, list[tuple[int, float, float, int]]] = {}
+    for cp, name in sorted(tt.getBestCmap().items()):
+        g = glyf[name]
+        edges: list[tuple[int, float, float, int]] = []
+        if g.numberOfContours > 0:
+            coords, ends, flags = g.getCoordinates(glyf)
+            start = 0
+            for end in ends:
+                n = end - start + 1
+                for k in range(n):
+                    i, j = start + k, start + (k + 1) % n
+                    if not (flags[i] & 1 and flags[j] & 1):
+                        continue
+                    (x0, y0), (x1, y1) = coords[i], coords[j]
+                    if x0 != x1 or x0 % U or abs(y1 - y0) < 2 * U:
+                        continue
+                    edges.append((x0 // U, min(y0, y1) / U, max(y0, y1) / U, 1 if y1 > y0 else -1))
+                start = end + 1
+        out[cp] = sorted(edges)
+    return out
+
+
+def face_stems(font: base.SourceFont, ttf: Path) -> dict[int, list[tuple[int, int, int, int]]]:
+    """Every glyph's vertical stems, (x, width) in 1x pixels from the pen,
+    ascending and disjoint, for the native rasteriser's horizontal hinting
+    (src/ui/torirs_chrome_bake.c): it lands each stem's left edge on a whole
+    device pixel and gives it a whole number of device pixels.  Each stem
+    also carries the heights (font units above the baseline, y_low and
+    y_high) over which the outline is exactly its rectangle, which the
+    client's test reads the atlas over.
+
+    A stem is a run of ink columns [x, x + width) that is the WHOLE ink run
+    of its rows on two or more consecutive mask rows (no fewer rows than it
+    is wide: a 2-row bar is not a stem), and that the outline draws as a
+    stem -- straight vertical edges on BOTH sides, at x and x + width, over
+    one pixel or more of the same rows, so the outline is a rectangle there.
+    The second test drops the staircases of /, v and N, which the mask shows
+    as short vertical runs but the outline draws slanted, and the sides of
+    bowls the outline rounds on one side (the inside of e, the tail of ').
+    Where two candidates overlap, the taller wins."""
+    masks = base._source_masks(font)
+    edges = outline_vertical_edges(ttf)
+    stems: dict[int, list[tuple[int, int, int, int]]] = {}
+    for i, cp in enumerate(base.SOURCE_CODEPOINTS):
+        w, h = font.widths[i], font.heights[i]
+        found: list[tuple[int, int, int, float, float]] = []  # (x, width, rows, y_low, y_high)
+        if w and h:
+            mask = np.frombuffer(masks[i], dtype=np.uint8).reshape(h, w) > 0
+            runs: dict[tuple[int, int], list[int]] = {}
+            for y in range(h):
+                x = 0
+                while x < w:
+                    if not mask[y, x]:
+                        x += 1
+                        continue
+                    a = x
+                    while x < w and mask[y, x]:
+                        x += 1
+                    runs.setdefault((a, x), []).append(y)
+            for (a, e), rows in sorted(runs.items()):
+                # The longest stretch of consecutive rows.
+                best, top = 0, 0
+                k = 0
+                while k < len(rows):
+                    j = k
+                    while j + 1 < len(rows) and rows[j + 1] == rows[j] + 1:
+                        j += 1
+                    if j - k + 1 > best:
+                        best, top = j - k + 1, rows[k]
+                    k = j + 1
+                width = e - a
+                if best < 2 or best < width:
+                    continue
+                x0 = font.offset_x[i] + a
+                y_hi = font.line_height - (font.offset_y[i] + top)
+                y_lo = y_hi - best
+                # Both sides straight over one 1x pixel or more of the same
+                # rows: the outline is a rectangle there.
+                sides = [
+                    [(max(lo, y_lo), min(hi, y_hi)) for ex, lo, hi, sd in edges.get(cp, ()) if ex == at and sd == want]
+                    for at, want in ((x0, 1), (x0 + width, -1))
+                ]
+                both = sorted(
+                    ((min(h0, h1) - max(l0, l1), max(l0, l1), min(h0, h1)) for l0, h0 in sides[0] for l1, h1 in sides[1]),
+                    reverse=True,
+                )
+                if both and both[0][0] >= 1.0:
+                    found.append((x0, width, best, both[0][1], both[0][2]))
+        kept: list[tuple[int, int, int, float, float]] = []
+        for cand in sorted(found, key=lambda s: (-s[2], s[0], s[1])):
+            if all(cand[0] + cand[1] <= k[0] or k[0] + k[1] <= cand[0] for k in kept):
+                kept.append(cand)
+        kept.sort()
+        for x0, width, *_ in kept:
+            if x0 < 0 or x0 + width > font.advances[i]:
+                raise AssertionError(f"{font.symbol} {chr(cp)!r}: stem {x0},{width} outside the advance")
+        stems[cp] = [(x0, width, round(lo * U), round(hi * U)) for x0, width, _, lo, hi in kept]
+    return stems
+
+
 # ---------------------------------------------------------------- the bake
 
 C_FACES = ("Small", "Body", "Menu")
@@ -1228,7 +1344,9 @@ def c_header() -> str:
  * units per em = 64 x the face's baseline, one 1x pixel = 64 units, every
  * advance = the bitmap advance x 64, ascent and descent = the baseline and
  * the line box. src/ui/torirs_chrome_bake.c rasterises them (stb_truetype)
- * at a fractional chrome scale, and at every scale under "smooth always".
+ * at a fractional chrome scale, and at every scale under "smooth always",
+ * hinted by the tables beside them: each face's alignment zones (vertical)
+ * and each glyph's stems (horizontal), read off the same masks.
  *
  * The arrays are `static const` and live for the life of the process.
  */
@@ -1237,6 +1355,28 @@ def c_header() -> str:
 
 /** The most alignment zones a face carries. */
 #define TORIRS_CHROME_FONT_VECTOR_ZONES_MAX 5
+/** The most vertical stems one glyph carries. */
+#define TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX {STEMS_MAX}
+
+/**
+ * One vertical stem of one glyph, read off its 1x mask and its outline by
+ * the tool (`face_stems`): a run of ink columns [x, x + width), 1x pixels
+ * from the pen, that is the whole ink run of two or more consecutive rows
+ * and that the outline draws with a straight vertical edge. The rasteriser
+ * lands its left edge on a whole device pixel and gives it a whole number of
+ * device pixels (horizontal hinting).
+ */
+struct ToriRSChromeFontVectorStem
+{{
+    unsigned char codepoint;
+    signed char x;
+    unsigned char width;
+    /** The heights, font units above the baseline, over which the outline
+     *  is exactly this stem's rectangle (both edges straight): what a test
+     *  reads the hinted atlas over. The rasteriser does not need them. */
+    short y_low;
+    short y_high;
+}};
 
 struct ToriRSChromeFontVector
 {{
@@ -1256,6 +1396,13 @@ struct ToriRSChromeFontVector
      */
     int zone_count;
     int zones[TORIRS_CHROME_FONT_VECTOR_ZONES_MAX];
+    /**
+     * Every glyph's vertical stems, ordered by code point and then by x,
+     * disjoint within a glyph, inside its advance. The TTF itself carries no
+     * hinting: this table is the horizontal half of it.
+     */
+    int stem_count;
+    struct ToriRSChromeFontVectorStem const* stems;
 }};
 
 struct ToriRSChromeFontVector const*
@@ -1269,7 +1416,7 @@ ToriRSChromeFontVector_Menu(void);
 """
 
 
-def c_source(fonts, ttf_bytes) -> str:
+def c_source(fonts, ttf_bytes, stems) -> str:
     out = [
         "/*",
         " * GENERATED by tools/chrome_font_vector.py -- do not edit. See",
@@ -1287,13 +1434,33 @@ def c_source(fonts, ttf_bytes) -> str:
         out.append("};")
         out.append("")
     for sym in C_FACES:
+        rows = [(cp, *stem) for cp, glyph in sorted(stems[sym].items()) for stem in glyph]
+        assert all(len(glyph) <= STEMS_MAX for glyph in stems[sym].values())
+        assert all(cp < 256 and -128 <= x < 128 and 0 < w < 256 and -32768 <= lo < hi < 32768 for cp, x, w, lo, hi in rows)
+        out.append(f"/* {sym}: {len(rows)} stems: code point, x and width in 1x pixels from the pen, the")
+        out.append(" * heights the outline is the stem's rectangle over, in font units. */")
+        out.append(f"static const struct ToriRSChromeFontVectorStem k_{sym.lower()}_stems[{len(rows)}] = {{")
+        line = ""
+        for cp, x, w, lo, hi in rows:
+            cell = f"{{ 0x{cp:02x}, {x}, {w}, {lo}, {hi} }},"
+            if len(line) + 1 + len(cell) > 96:
+                out.append(line)
+                line = ""
+            line = f"{line} {cell}" if line else f"    {cell}"
+        if line:
+            out.append(line)
+        out.append("};")
+        out.append("")
+    for sym in C_FACES:
         f = fonts[sym]
         z = sorted(set(face_zones(f).values()))
         assert len(z) <= 5
         zs = ", ".join(str(v) for v in z)
+        n = sum(len(glyph) for glyph in stems[sym].values())
         out += [
             f"static const struct ToriRSChromeFontVector k_{sym.lower()} = {{",
-            f"    k_{sym.lower()}_ttf, (int)sizeof(k_{sym.lower()}_ttf), {U}, {f.line_height}, {f.line_box}, {len(z)}, {{ {zs} }}",
+            f"    k_{sym.lower()}_ttf, (int)sizeof(k_{sym.lower()}_ttf), {U}, {f.line_height}, {f.line_box}, {len(z)}, {{ {zs} }},",
+            f"    {n}, k_{sym.lower()}_stems",
             "};",
             "",
             "struct ToriRSChromeFontVector const*",
@@ -1359,6 +1526,7 @@ def main(argv=None) -> int:
     }
     outputs: dict[str, bytes] = {}
     ttf_bytes: dict[str, bytes] = {}
+    stems: dict[str, dict[int, list[tuple[int, int, int, int]]]] = {}
     failed = False
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
@@ -1368,6 +1536,7 @@ def main(argv=None) -> int:
             notes = build_vector_ttf(font, ttf, digest)
             ttfs[sym] = ttf
             v = verify_ttf(font, ttf, metrics_text)
+            stems[sym] = face_stems(font, ttf)
             fidelity = glyph_fidelity(font, ttf)
             unclean = {}
             for ch, n in notes.items():
@@ -1390,6 +1559,7 @@ def main(argv=None) -> int:
                 "archive": font.archive_id,
                 "ttf": ttf.name,
                 "zones_px": face_zones(font),
+                "stems": {chr(cp): [stem[:2] for stem in glyph] for cp, glyph in sorted(stems[sym].items()) if glyph},
                 "glyph_count": sum(1 for i in range(len(base.SOURCE_CODEPOINTS)) if font.widths[i] and font.heights[i]),
                 "cmap_entries": v["advances_checked"],
                 **v,
@@ -1416,7 +1586,7 @@ def main(argv=None) -> int:
             outputs[f"{WEB_DIR}/{stem}.ttf"] = ttf_bytes[sym]
             outputs[f"{WEB_DIR}/{stem}.woff"] = woff.read_bytes()
             outputs[f"{WEB_DIR}/{stem}.eot"] = eot.read_bytes()
-        outputs[C_PATH] = c_source(fonts, ttf_bytes).encode("utf-8")
+        outputs[C_PATH] = c_source(fonts, ttf_bytes, stems).encode("utf-8")
         outputs[H_PATH] = c_header().encode("utf-8")
         if not args.no_sheets:
             label = BitmapFace(fonts["Small"])

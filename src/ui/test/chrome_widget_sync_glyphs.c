@@ -5,6 +5,7 @@
 #include "ui/torirs_chrome_bake.h"
 #include "ui/torirs_chrome_skin.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -262,12 +263,10 @@ gl_test_vector(void)
                             slot, gi, dst->offset_y[gi] + dst->glyph_height[gi], dst->line_height);
                 }
             }
-            /* Stem darkening: at mid-height every stroke of l, I, H, n, m, h,
-             * u, 1 reads as ink. A stroke whose width at this scale is 1.5
-             * pixels or more covers one device column whole at any phase the
-             * 1x grid gives it (q = 6, and the whole scales): full ink. At
-             * 1.25x and 1.75x a 1.25-pixel stem can straddle two columns at
-             * 0.75 and 0.5; the gamma lifts that to at least 200 of 255. */
+            /* At mid-height every stroke of l, I, H, n, m, h, u, 1 reads as
+             * ink. Since horizontal hinting every stem is whole columns of
+             * 255 (gl_test_hinting reads each one); this coarser floor holds
+             * for every stroke the scan meets, the stems' and the rest. */
             for( char const* c = "lIHnmhu1"; *c; c++ )
             {
                 int const gi = gl_index_of(src, (unsigned char)*c);
@@ -317,8 +316,179 @@ gl_test_vector(void)
     CW_CHECK(bad_ascent == 0, "the vector atlases' ascent is the layout's");
     CW_CHECK(bad_zone == 0, "x-height and cap height land on whole device rows");
     CW_CHECK(bad_baseline == 0, "vector glyphs on the baseline end on the baseline pixel");
-    CW_CHECK(stems > 200, "the stem-darkening check saw the strokes");
+    CW_CHECK(stems > 200, "the stroke check saw the strokes");
     CW_CHECK(bad_stem == 0, "every stroke of a stem glyph reads as ink at every scale");
+}
+
+/** The mask bit of 1x glyph `gi` at pen-relative column `x`, row `y` of the
+ *  glyph box; 0 outside it. */
+static int
+gl_pen_cell(struct ToriDraw_Font const* f, int gi, int x, int y)
+{
+    return gl_cell(f, gi, x - f->offset_x[gi], y);
+}
+
+/**
+ * Horizontal hinting (torirs_chrome_bake.c, "HORIZONTAL HINTING"): every stem
+ * the face's table names for a glyph of `slot`, read back from the atlas
+ * `dst` at scale `q`. Over the device rows that lie wholly inside the heights
+ * where the outline is the stem's rectangle (the table's y_low..y_high, half
+ * a device pixel in from each end, which the vertical zones may move it by),
+ * the stem's columns are 255 -- a whole number of fully inked columns -- and
+ * the column on either side is under 40 wherever the 1x glyph has a counter
+ * two pixels wide or more beside the stem (no ink in the column beside it or
+ * the one beyond, on that row and the rows next to it: a one-pixel counter
+ * or a diagonal that meets the stem, as in N, may touch it). The width is
+ * max(1, round(q / 4 x width)) and the stems lie inside the advance. Returns
+ * the stems that fail; counts the stems, the device rows read, and the stems
+ * whose rectangle is too short at this q to hold a whole device row.
+ */
+static int
+gl_bad_hinted_stems(
+    int slot, int q, struct ToriDraw_Font const* dst, int* out_stems, int* out_rows,
+    int* out_unread)
+{
+    static struct ToriRSChromeFontVector const* (*const vector[TORIRS_CHROME_FONT_SLOT_COUNT])(void) = {
+        [TORIRS_CHROME_FONT_SMALL] = ToriRSChromeFontVector_Small,
+        [TORIRS_CHROME_FONT_MENU] = ToriRSChromeFontVector_Menu,
+        [TORIRS_CHROME_FONT_BODY] = ToriRSChromeFontVector_Body,
+    };
+    struct ToriRSChromeFontVector const* vec = vector[slot]();
+    struct ToriDraw_Font const* src = gl_face(slot, 1);
+    double const s = q / 4.0;
+    int bad = 0;
+
+    for( int c = 0x21; c < 256; c++ )
+    {
+        int const gi = gl_index_of(src, (unsigned char)c);
+        int x[TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX];
+        int w[TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX];
+        int left[TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX];
+        int dw[TORIRS_CHROME_FONT_VECTOR_GLYPH_STEMS_MAX];
+        struct ToriRSChromeFontVectorStem const* row = NULL;
+        int n;
+
+        if( (c > 0x7E && c != 0xA3) || !src->glyph_alpha[gi] || !dst->glyph_alpha[gi] )
+            continue;
+        n = ToriRSChromeGlyphs_VectorStems(vec, c, src->advance[gi], q, x, w, left, dw);
+        for( int i = 0; i < vec->stem_count && !row; i++ )
+            if( vec->stems[i].codepoint == c )
+                row = &vec->stems[i];
+        for( int k = 0; k < n; k++ )
+        {
+            int const want = ToriRSChrome_ScalePx(q, w[k]) < 1 ? 1 : ToriRSChrome_ScalePx(q, w[k]);
+            double const y_high = row[k].y_high / (double)vec->units_per_px;
+            double const y_low = row[k].y_low / (double)vec->units_per_px;
+            int const top = (int)ceil(dst->line_height - y_high * s + 0.5);
+            int const bottom = (int)floor(dst->line_height - y_low * s - 0.5);
+            int rows = 0;
+            int ok = 1;
+
+            (*out_stems)++;
+            if( row[k].codepoint != c || row[k].x != x[k] || row[k].width != w[k] )
+                ok = 0;
+            if( dw[k] != want )
+                ok = 0;
+            if( left[k] < 0 || left[k] + dw[k] > dst->advance[gi] )
+                ok = 0;
+            for( int r = top; r + 1 <= bottom; r++ )
+            {
+                int const ar = r - dst->offset_y[gi];
+                /* The 1x row this device row samples. */
+                int const my = (int)floor((r + 0.5) / s) - src->offset_y[gi];
+                uint8_t const* line;
+                if( ar < 0 || ar >= dst->glyph_height[gi] )
+                {
+                    ok = 0;
+                    break;
+                }
+                line = dst->glyph_alpha[gi] + ar * dst->glyph_width[gi];
+                rows++;
+                (*out_rows)++;
+                for( int col = left[k]; col < left[k] + dw[k]; col++ )
+                {
+                    int const ac = col - dst->offset_x[gi];
+                    if( ac < 0 || ac >= dst->glyph_width[gi] || line[ac] != 255 )
+                        ok = 0;
+                }
+                for( int side = 0; side < 2; side++ )
+                {
+                    int const step = side == 0 ? -1 : 1;
+                    int const mx = side == 0 ? x[k] - 1 : x[k] + w[k];
+                    int const ac = (side == 0 ? left[k] - 1 : left[k] + dw[k]) - dst->offset_x[gi];
+                    int near = 0;
+                    for( int dy = -1; dy <= 1; dy++ )
+                        near |= gl_pen_cell(src, gi, mx, my + dy) |
+                                gl_pen_cell(src, gi, mx + step, my + dy);
+                    if( near )
+                        continue;
+                    if( ac >= 0 && ac < dst->glyph_width[gi] && line[ac] >= 40 )
+                        ok = 0;
+                }
+            }
+            if( rows == 0 )
+                (*out_unread)++;
+            if( !ok )
+            {
+                bad++;
+                if( bad <= 6 )
+                    fprintf(stderr,
+                        "  q=%d slot %d '%c': stem %d+%d -> %d+%d (want width %d), %d rows read\n",
+                        q, slot, c, x[k], w[k], left[k], dw[k], want, rows);
+            }
+        }
+    }
+    return bad;
+}
+
+/**
+ * Horizontal hinting at the fractional scales (1.25x, 1.5x and 1.75x, and
+ * 2.25x to 2.75x): every stem of every Body, Menu and Small glyph is whole
+ * columns of ink of its own rounded width; the same glyph at the same q is
+ * the same bitmap however often it is built.
+ */
+static void
+gl_test_hinting(void)
+{
+    static int const scales[] = { 5, 6, 7, 9, 10, 11 };
+    char what[160];
+
+    for( int i = 0; i < (int)(sizeof(scales) / sizeof(scales[0])); i++ )
+    {
+        int const q = scales[i];
+        for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+        {
+            struct ToriDraw_Font a;
+            struct ToriDraw_Font b;
+            int stems = 0;
+            int rows = 0;
+            int unread = 0;
+            int bad;
+
+            /* The atlas is per (face, q), so one glyph draws one bitmap on
+             * every row; and building it again draws the same one. */
+            ToriRSChromeGlyphs_Rasterise(slot, q, 1, &a);
+            ToriRSChromeGlyphs_Rasterise(slot, q, 1, &b);
+            snprintf(what, sizeof(what),
+                "q = %d slot %d: the same glyph at the same scale is the same bitmap", q, slot);
+            CW_CHECK(gl_same_face(&a, &b), what);
+            CW_CHECK(gl_same_face(&a, ToriRSChromeBake_FaceSmooth(slot, q)), what);
+
+            bad = gl_bad_hinted_stems(slot, q, &a, &stems, &rows, &unread);
+            snprintf(what, sizeof(what), "q = %d slot %d: the stem table has stems to read", q, slot);
+            CW_CHECK(stems >= 90 && rows > 2 * stems, what);
+            snprintf(what, sizeof(what),
+                "q = %d slot %d: every stem is whole columns of ink, nothing beside it", q, slot);
+            CW_CHECK(bad == 0, what);
+            /* At 1.25x a rectangle of one or one and a half 1x pixels (the
+             * arms of { and }, the bowls of 5 and @) holds no whole device
+             * row inside its half-pixel margins; from 1.5x every stem does. */
+            snprintf(what, sizeof(what), "q = %d slot %d: every stem is read on a row", q, slot);
+            CW_CHECK(q == 5 ? unread * 10 <= stems : unread == 0, what);
+            gl_free(&a);
+            gl_free(&b);
+        }
+    }
 }
 
 void
@@ -423,6 +593,7 @@ cw_test_glyphs(void)
     }
 
     gl_test_vector();
+    gl_test_hinting();
 
     /* Which tier a skin slot is read from: the nearest at or above, never a
      * lower one while a higher exists, the highest there is otherwise. */
