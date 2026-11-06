@@ -37,6 +37,24 @@ extern char** environ;
 #else
 #define TORIRSMAPED_JOBS_NATIVE 0
 #endif
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+/* Replace `path` with `temp` in one step. POSIX rename does; Win32's rename
+ * refuses an existing target, so MoveFileEx with REPLACE_EXISTING (as
+ * platform_x_io.c and torirs_server_savefile.c do it). 0 on success. */
+static int
+build_replace_file(
+    const char* temp,
+    const char* path)
+{
+#ifdef _WIN32
+    return MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) ? 0 : -1;
+#else
+    return rename(temp, path);
+#endif
+}
 
 enum
 {
@@ -562,7 +580,7 @@ ToriRSMapEd_BuildWriteMapList(
     }
     if( fclose(file) != 0 )
         ok = 0;
-    return ok && rename(temporary, path) == 0;
+    return ok && build_replace_file(temporary, path) == 0;
 }
 
 int

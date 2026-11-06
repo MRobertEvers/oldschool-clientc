@@ -35,10 +35,29 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <windows.h>
 #define editor_mkdir(path) _mkdir(path)
 #else
 #define editor_mkdir(path) mkdir(path, 0755)
 #endif
+
+/* Replace `path` with `temp` in one step. POSIX rename does; Win32's rename
+ * refuses an existing target, so MoveFileEx with REPLACE_EXISTING (as
+ * platform_x_io.c and torirs_server_savefile.c do it). 0 on success. */
+static int
+editor_replace_file(
+    const char* temp,
+    const char* path)
+{
+#ifdef _WIN32
+    if( MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) )
+        return 0;
+    errno = EACCES;
+    return -1;
+#else
+    return rename(temp, path);
+#endif
+}
 
 struct local_host
 {
@@ -160,7 +179,7 @@ write_file_atomic(
         remove(temp_path);
         return EDITOR_HOST_IO_ERROR;
     }
-    if( rename(temp_path, path) != 0 )
+    if( editor_replace_file(temp_path, path) != 0 )
     {
         TORIRS_ERR("editor: cannot rename onto %s: %s\n", path, strerror(errno));
         remove(temp_path);
