@@ -2713,6 +2713,187 @@ the panel's 1024-byte buffer, which _FORTIFY_SOURCE stops as an overflow; it
 now resolves into a PATH_MAX buffer, keeps the given path when the root does
 not exist yet, and asserts the result fits.
 
+## Workbench step 6.5, part 2: the instance helper (date 2026-11-06)
+
+Build-order step 6.5's instance half (design section 13 "Instance helper";
+section 5 "New, Copy, Instance"; section 2 R2, R8). Scenes, scratch lanes and
+the Lanes panel are the other part's.
+
+What landed:
+
+- **The planner** (src/editor/editor_instance.{h,c}, pure). A plan is up to
+  16 source squares (full keys, storage kept), ordered south-west first (z,
+  then x), their bounding box, the levels copied and the destination box.
+  `Editor_InstanceFindFree` scans instance space (0..19 x 100..255, equal to
+  `TORIRSMAPED_INSTANCE_*`, statically asserted) for the first w x h box with
+  no square of ANY storage in it, from the lowest coordinates: z rows from
+  100 upward, x from 0 within a row; `Editor_InstanceFreeCount` says how
+  many squares are free. Rebasing moves a key, an absolute tile, a spawn row
+  (a suppression row, a row outside every source square or on a level not
+  copied is dropped) by the whole-square offset, so a tile keeps its local
+  x, z and level. `Editor_InstanceCopyCommands` turns a DOC_CREATE'd square
+  into what the Copy row asked: with terrain the COPY template, then the
+  other levels' tiles cleared and (locs off, or on another level) the locs
+  removed; without terrain the EMPTY template and the source's locs added on
+  the copied levels. Coords both ways ("0_16_101_32_32", "x z [level]").
+  The trigger text (`Editor_InstanceTriggerText`): a header naming the file
+  and its writer, `[oploc1,<loc>]`, `p_telejump(<coord>);` -- or, for the
+  runtime entry, `map_instance_alloc(w*8, h*8)`, a setchunk per zone per
+  level from the destination's own static squares, `map_instance_build`,
+  `p_telejump(map_instance_coord(...))` (at most 2x2 squares, the
+  commands' 16x16 zones).
+- **The .wma codec** (src/editor/editor_wma.{h,c}; TEXT key "wma:<name>",
+  `worldmap/areas/<name>.wma`, in `Editor_DocKeyValid` and
+  `Editor_HostDocPath`). The shape the catalog's atlas reader parses
+  (`cat_parse_worldmap`: `[name]`, `external=`, `main=yes|no`,
+  `section<N>=` 18 integers whose type-0 source rectangle claims squares) in
+  the field order cachepack writes (`worldmap_emit_area`). Line-preserving:
+  parse -> emit byte-identical (comments, CRLF, no final newline); refused
+  with its line: a header without a name or named twice, a section that is
+  not exactly 18 integers, `main=` neither yes nor no. `Editor_WmaNewAreaText`
+  writes a new area: a header comment naming the writer, the block, one
+  type-0 section claiming and drawn at the destination box, the origin the
+  box's middle tile packed.
+- **One undo step for DOC_CREATE + the rest.** DOC_CREATE was always its own
+  undo step ("whatever stroke a client has open"). Its template word now
+  takes `TORIRSMAPED_DOC_CREATE_IN_STROKE` (0x100), sent only to a server
+  with the new `TORIRSMAPED_CAP_DOC_CREATE_STROKE` (64, set by every
+  ToriRSMapEd built from this tree; an older server refuses the template, it
+  does not drop the session): the fill then joins the open stroke.
+  `EditorHost_DocCreate.join_stroke`; `Editor_CreateSquare` asserts the
+  capability and an open stroke, and keeps the History row the caller's.
+- **The dialog** (src/editor/panels/edpanel_instance.{h,c}, module
+  "instance", a modal registered after New square). The picker's detail pane
+  Instance... now opens it (the stub's body replaced; the stand-in that
+  opened New square is gone). Rows: Source (Picker selection (N): the
+  shift-clicked squares, else the focus; Open set (N); "collection: <name>"
+  per AREAS collection) and the keys it names; Copy terrain / locs / spawns /
+  named areas; Levels (0..3, or one); Destination (typed "m16_101", "16
+  101") and Find free..., which types the box's south-west square, says
+  "instance space 0..19 x 100..255 has N free" and marks the box in the
+  picker (`Editor_Picker.mark_*`, outlined at every zoom in the created
+  colour; `Editor_SquarePicker_Mark`, `Editor_SquarePicker_Sources`);
+  Stored in (maps/, every lane, New lane...); Name; Map area (add a .wma /
+  none); Entry (teleport trigger / runtime map instance / none); Trigger loc;
+  Lands at (empty: the first square's middle). Every change re-checks the
+  form (`Editor_InstanceValidate`, chrome-free) and the check row says why
+  not, or what Create makes ("creates 2 squares at m16_101 in maps/, a .wma,
+  a trigger to 0_16_101_32_32; unsaved until Save"); Create is disabled until
+  it is good. Refused, with the reason: no source, more than 16, a key named
+  twice, no destination, a box past 255, a destination square taken in any
+  storage ("m0_100 is taken (ported/testlane/maps, unmapped)"), a lane with
+  no name, a name not [a-z0-9_], no loc, a bad or outside landing coord, the
+  runtime entry without the capability or past 2x2; at Create, a .wma or a
+  trigger file that already has text, a collection of that name, a server
+  without DOC_CREATE_STROKE, an open stroke.
+- **Create**: ONE stroke, one undo step, one History row ("instance
+  <name>"): a DOC_CREATE per square (the copy template, `join_stroke`), the
+  trim commands, a SPAWN batch rebased to the new tiles (the edited file's
+  rows and the generated file's that no edited suppression removes), the
+  AREAS areas lying in one source square moved and named "<name>: <area>"
+  (Copy named areas), a collection `<name>` of the new squares (what Find
+  "instance:<name>" finds while there is no .wma), the .wma and the .rs2
+  (`rs2:edited/<name>/scripts/<name>.rs2`) through `Builder_TextSync` inside
+  the stroke (the builders' text path). Nothing is written until Save. A
+  refusal mid-way undoes the half-made step whole. The first square opens in
+  the world; the picker refreshes and keeps the box marked.
+- **Runtime map instance** (design: "when the lane's server reports the
+  capability (FACT_HELLO bit)"). The server side exists: `ss_opcode.h`
+  11009..11014, `map_instance_alloc/setchunk/build/coord/free/find`, reached
+  from content (docs/map_instances.md; `[debugproc,mapinstance]`). What does
+  not exist is the report: the live link's CTL_FACT_HELLO carries no
+  capability word, so the editor server cannot learn it of the game server
+  it attaches to. `TORIRSMAPED_CAP_MAP_INSTANCE` (128) is defined and set by
+  nothing; the chip is disabled, its tooltip says "The lane's server reports
+  no map instances", picking it anyway says so in the status bar and falls
+  back to the teleport. The runtime trigger text is written and tested as
+  text, never compiled (no sscompile content here).
+- **Scenes**: the SCENES document is not in this base. `instance_scene_hook`
+  in edpanel_instance.c is the TODO the integrator fills (a scene "instance:
+  <name>" through that document's SET inside the same stroke); until then the
+  collection is what finds the instance again.
+
+Tests (2026-11-06, this container, objects in build_opt):
+
+- **test-editor-instance** (new, pure; src/maped/instance.mk) 76 checks, 0
+  failed: the free box over synthetic atlases (an empty space, a taken
+  square in the way, a full row, a one-square hole, too wide), the free
+  count, the south-west order, rebasing (keys with storage, tiles, spawn
+  rows, a level range, suppressions, outside rows), coords both ways and
+  their refusals, the copy commands for every Copy choice over hand-built
+  squares, both trigger texts, the .wma codec (byte-identical round trip,
+  six refusals with their lines, a new area parsed back to what it claims).
+- **test-editor-instance-ops** (new, content-free: an embedded ToriRSMapEd
+  over a synthetic tree it writes -- two squares with locs on two levels, an
+  edited and a generated spawn file, a lane square at m0_100, an AREAS file
+  with an area and a collection, a .wma already named taken_area) 78 checks,
+  0 failed: Instance... over the picker's selection; every refusal above
+  through the real chrome (the check row, the disabled Create, the status
+  bar); the runtime chip disabled and why; Find free landing beside the
+  lane's square at m1_100 and marking it; Create as ONE History group whose
+  two squares equal their sources level by level, three spawns rebased, the
+  area moved and the spanning one not, the collection, the .wma and the
+  trigger texts; nothing on disk; Undo emptying every document; Redo; Save
+  writing the files (the .wma byte for byte); the catalog's atlas reader
+  over the saved tree putting m1_100 and m1_101 in area tutorial_cave and
+  out of instance space; a second instance from the collection, level 0
+  only, no locs, no .wma, no trigger, one group, undone.
+- Run again, 0 failed: test-editor-picker 398 (its Instance... check now
+  asserts the instance helper opens over the focused square, not New
+  square), test-editor-stamps-ops 81, test-editor-workbench 295 (the 1x
+  registry golden unchanged: the dialog is a hidden modal),
+  test-editor-chords 591, test-editor-hotkeys 2015 (no hotkey row added),
+  test-editor-cmd 66, test-catalog-perf 143 (synthetic half),
+  test-editor-catalog-finder 202, test-editor-areas 136, test-editor-groups
+  2190, test-chrome-widgets 1009 + dom ok, test-lanes 63,
+  test-editor-panels-accounts 48, test-editor-stamps 91, test-editor-worldmap
+  161, test-editor-placement 123; check-pt-switch and check-tree-walks PASS;
+  `make all`, torirsmaped and torirsmapedctl link.
+- Do not link here, at this base too (checked in a detached worktree of
+  40ca3878): test-catalog, test-torirsmaped-embed, test-builder and
+  test-live-editor stop at `pow` / `floor` undefined from the accounts module
+  (`acct_values_stat`), a missing -lm unrelated to this slice; the
+  DOC_CREATE wire change is covered by test-editor-instance-ops' embedded
+  authority instead.
+
+Seen to fail before their fix, in a throwaway worktree of this commit with
+its own objdir (build_mut), two builds of mutations, removed afterwards:
+test-editor-instance 8 of 76 failed under five (the free box checking only
+its corner square, no south-west order, a spawn of an uncopied level kept,
+the codec always ending with a newline, the uncopied levels not cleared);
+test-editor-instance-ops 11 of 78 under five (the server ignoring
+DOC_CREATE_IN_STROKE: the mirror's History still shows one row, but Undo
+takes back only the last of the authority's groups -- caught by the Undo,
+"squares empty again", Redo and the trim's Undo checks; no taken-destination
+refusal; Find free not marking the picker; the new area's section a
+one-square type: m1_101 not claimed by the reader; the generated spawn file
+not read).
+
+Could not run here: test-editor-panels and the content half of
+test-catalog-perf (no OSRS-Content checkout); section 16's check for 6.5
+("an instance created from two squares packs and the play client teleports
+into it on RUN") needs the content tree, the cache and a live lane, none of
+which are here; the trigger was not compiled by sscompile; nothing was
+photographed.
+
+Open:
+
+- The .wma reaches the catalog's atlas and the picker's Area pages, not the
+  game's world map: cachepack packs the details archive from `details.wma`
+  (with ids in details.compack), so a separate `<name>.wma` is not packed.
+  Merging the block into details.wma under a fresh id is the packer's half.
+- The runtime map instance chip waits on a capability word in the live
+  link's CTL_FACT_HELLO (a torirsserver control-protocol change).
+- The scene "instance: <name>" waits on the SCENES document (the TODO hook).
+- The marked box cannot be dragged elsewhere in the picker yet (type the
+  destination instead); Create / Cancel wear no keycaps (the chrome's modal
+  has no default-button Enter / Escape binding, and no hotkey action was
+  added); no torirsmapedctl verb for the .wma document.
+- Levels are copied in place or trimmed to one; a trimmed level is not moved
+  to level 0.
+- Spawns come from the source squares' edited and generated files only; an
+  area copies only when each of its rectangles lies in one source square.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.

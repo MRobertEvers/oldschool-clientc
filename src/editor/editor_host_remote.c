@@ -1501,7 +1501,8 @@ Editor_HostMapEdDocCreate(
     ToriRSMapEd_PutU32(&payload, (uint32_t)request->kind);
     ToriRSMapEd_PutString(&payload, request->key);
     ToriRSMapEd_PutString(&payload, request->storage);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)request->template_kind);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)request->template_kind
+                                     | (request->join_stroke ? TORIRSMAPED_DOC_CREATE_IN_STROKE : 0u));
     ToriRSMapEd_PutString(&payload, request->source_key);
     ToriRSMapEd_PutU32(&payload, (uint32_t)request->fill_height);
     ToriRSMapEd_PutU32(&payload, (uint32_t)request->fill_underlay);

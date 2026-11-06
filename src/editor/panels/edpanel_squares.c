@@ -2366,22 +2366,10 @@ squares_pane_activate(
     }
     if( widget == self->button_instance )
     {
-        int map_x = -1;
-        int map_z = -1;
-        /* A stand-in until the instance wizard (workbench step 6.5): the New
-         * square dialog with its storage question, a copy of the focused
-         * square, else a new one on the focused cell. */
-        Editor_UiStatus(ui, "Instance: the instance wizard is workbench step 6.5; New square asks the storage for now");
-        if( picker->focus >= 0 )
-        {
-            Editor_PickerSquareKey(picker, picker->focus, key);
-            Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_COPY_TO, key, -1, -1);
-        }
-        else
-        {
-            (void)Editor_PickerFocusCell(picker, &map_x, &map_z);
-            Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_NEW, NULL, map_x, map_z);
-        }
+        /* The instance helper (design section 13, edpanel_instance.c), its
+         * source the selection (the shift-clicked squares, else the focus). */
+        (void)picker;
+        Editor_Instance_Open(ui);
         return 1;
     }
     if( widget == self->button_clear )
@@ -2689,6 +2677,66 @@ Editor_SquarePicker_Key(
     }
     squares_key(ui, self, action);
     return 1;
+}
+
+int
+Editor_SquarePicker_Sources(
+    struct EditorUi* ui,
+    enum Editor_SquarePickerSources which,
+    char (*out)[EDITOR_DOC_KEY_MAX],
+    int max)
+{
+    struct SquaresPanel* self;
+    const struct Editor_Picker* picker;
+    int n = 0;
+
+    assert(ui);
+    assert(out);
+    assert(max > 0);
+    self = squares_self(ui);
+    if( !self || !self->fetched )
+        return 0;
+    picker = &self->picker;
+    if( which == EDITOR_SQUARE_PICKER_OPEN_SET )
+    {
+        for( int i = 0; i < self->open_set.count && n < max; i++ )
+            snprintf(out[n++], EDITOR_DOC_KEY_MAX, "%s", self->open_set.items[i].key);
+        return n;
+    }
+    for( int i = 0; i < picker->square_count && n < max; i++ )
+        if( picker->selected[i] )
+            Editor_PickerSquareKey(picker, i, out[n++]);
+    if( n == 0 && picker->focus >= 0 && picker->focus < picker->square_count )
+        Editor_PickerSquareKey(picker, picker->focus, out[n++]);
+    return n;
+}
+
+void
+Editor_SquarePicker_Mark(
+    struct EditorUi* ui,
+    int map_x,
+    int map_z,
+    int w,
+    int h)
+{
+    struct SquaresPanel* self;
+
+    assert(ui);
+    assert(w >= 0);
+    assert(h >= 0);
+    self = squares_self(ui);
+    if( !self )
+        return;
+    self->picker.mark_x = map_x;
+    self->picker.mark_z = map_z;
+    self->picker.mark_w = w;
+    self->picker.mark_h = h;
+    if( w > 0 && h > 0 && self->fetched )
+    {
+        Editor_PickerCentre(&self->picker, map_x + w / 2, map_z + h / 2);
+        self->user_view = 1;
+    }
+    self->dirty = 1;
 }
 
 void

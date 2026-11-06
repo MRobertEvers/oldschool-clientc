@@ -878,9 +878,13 @@ test_panel_pane(void)
     activate(widget_in(panel, TORIRS_CHROME_W_BUTTON, "Delete..."));
     CHECK(status_says("Delete refused"), "pane: Delete says why ('%s')", Editor_UiStatusText(&g_ui));
     activate(widget_in(panel, TORIRS_CHROME_W_BUTTON, "Instance..."));
-    CHECK(status_says("6.5") && g_chrome.panels[window_of("new_square")].visible,
-        "pane: Instance opens New square and says the wizard is step 6.5 ('%s')", Editor_UiStatusText(&g_ui));
-    ToriRSChrome_PanelSetVisible(&g_chrome, window_of("new_square"), 0);
+    CHECK(g_chrome.panels[window_of("instance")].visible && !g_chrome.panels[window_of("new_square")].visible,
+        "pane: Instance... opens the instance helper (workbench 6.5), not New square");
+    CHECK(strcmp(ToriRSChrome_Text(&g_chrome, Editor_Instance_Widget(&g_ui, EDITOR_INSTANCE_W_SOURCE_ROW)), "m50_50")
+              == 0,
+        "pane: its source is the focused square ('%s')",
+        ToriRSChrome_Text(&g_chrome, Editor_Instance_Widget(&g_ui, EDITOR_INSTANCE_W_SOURCE_ROW)));
+    ToriRSChrome_PanelSetVisible(&g_chrome, window_of("instance"), 0);
     /* Given a short height, the rows past the heading fold away and the
      * atlas keeps its room; Open and Add stay; given room, they come back. */
     {

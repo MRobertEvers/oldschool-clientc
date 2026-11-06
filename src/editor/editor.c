@@ -13,6 +13,7 @@
 #include "editor_areas.h"
 #include "editor_palette.h"
 #include "log/torirs_log.h"
+#include "torirsmaped/torirs_maped.h"
 
 int
 Editor_OpenHost(
@@ -289,7 +290,21 @@ Editor_CreateSquare(
 
     assert(editor);
     assert(request);
+    /* Joining a stroke is asked only of a server that can, inside one. */
+    assert(!request->join_stroke || (editor->capabilities & TORIRSMAPED_CAP_DOC_CREATE_STROKE));
+    assert(!request->join_stroke || editor->history_stroke);
 
+    if( request->join_stroke )
+    {
+        /* Inside the caller's stroke: one row, the caller's. */
+        editor->history_intent++;
+        status = Editor_HostMapEdDocCreate(&editor->host, request);
+        Editor_HistoryOwnEdit(&editor->history, 1);
+        Editor_PumpFacts(editor);
+        Editor_HistoryOwnEdit(&editor->history, 0);
+        editor->history_intent--;
+    }
+    else
     {
         char label[EDITOR_HISTORY_LABEL_MAX];
         if( request->template_kind == EDITOR_DOC_TEMPLATE_COPY )
@@ -299,14 +314,14 @@ Editor_CreateSquare(
                 request->template_kind == EDITOR_DOC_TEMPLATE_FLAT ? "flat" : "empty");
         editor->history_intent++;
         Editor_HistoryBreak(&editor->history, label);
+        status = Editor_HostMapEdDocCreate(&editor->host, request);
+        /* The fill's FACT_CMDs went out before the ack; this mirror does not
+         * hold the square yet, so they applied to nothing — opening it now
+         * receives the filled text in one answer. */
+        Editor_PumpFacts(editor);
+        editor->history_intent--;
+        Editor_HistoryBreak(&editor->history, NULL);
     }
-    status = Editor_HostMapEdDocCreate(&editor->host, request);
-    /* The fill's FACT_CMDs went out before the ack; this mirror does not
-     * hold the square yet, so they applied to nothing — opening it now
-     * receives the filled text in one answer. */
-    Editor_PumpFacts(editor);
-    editor->history_intent--;
-    Editor_HistoryBreak(&editor->history, NULL);
     if( status != EDITOR_HOST_OK )
         return status;
     if( request->storage[0] && strcmp(request->storage, "maps") != 0 )

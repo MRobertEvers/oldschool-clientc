@@ -345,6 +345,22 @@ Editor_DocKeyValid(
         }
         if( strcmp(key, "stamps:index") == 0 )
             return 1;
+        /* A world-map area file, worldmap/areas/<name>.wma (editor_wma.h;
+         * the instance helper writes one): [a-z0-9_] under 48 bytes, the
+         * name the catalog's reader keys the file by. */
+        if( strncmp(key, "wma:", 4) == 0 )
+        {
+            size_t const length = strlen(key + 4);
+            if( length == 0 || length >= 48 )
+                return 0;
+            for( size_t i = 0; i < length; i++ )
+            {
+                char const c = key[4 + i];
+                if( !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') )
+                    return 0;
+            }
+            return 1;
+        }
         return 0;
     }
     return 0;

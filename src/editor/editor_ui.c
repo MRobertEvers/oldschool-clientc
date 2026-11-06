@@ -280,6 +280,8 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
         Editor_CatalogPalette_Register(ui);
     }
     Editor_NewSquare_Register(ui);
+    /* The instance helper, the picker's Instance... (design section 13). */
+    Editor_Instance_Register(ui);
     Editor_SaveGuard_Register(ui);
     /* The other phase-3 owners' modules: the interaction builders and the
      * shell editor (editor/builder/), the interface editor and the CS2 tools

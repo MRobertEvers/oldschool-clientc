@@ -185,7 +185,10 @@ Editor_SaveDoc(
  * New square (design #squares): DOC_CREATE on the authority with the storage
  * and template the New dialog chose, then open the created square in this
  * mirror. EDITOR_HOST_REFUSED when the key already exists in that storage.
- * Nothing is written to disk until a save.
+ * Nothing is written to disk until a save. A request with `join_stroke`
+ * (between StrokeBegin and StrokeEnd, to a server with
+ * TORIRSMAPED_CAP_DOC_CREATE_STROKE; both asserted) puts the fill in that
+ * stroke's undo step and History row.
  */
 enum EditorHost_Status
 Editor_CreateSquare(
