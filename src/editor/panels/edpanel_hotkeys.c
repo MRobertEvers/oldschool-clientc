@@ -40,7 +40,7 @@
  * (editor_hotkeys.h): Register walks the actions and opens the next group
  * at each change, so this is the enum's order, Palette after Camera. */
 static const char* const k_groups[] = { "File", "Edit", "Place", "Tools", "Brush", "Level", "Camera", "Picker",
-    "Palette", "View", "Scene", "Graph" };
+    "Palette", "View", "Graph" };
 #define HOTKEYS_GROUPS ((int)(sizeof(k_groups) / sizeof(k_groups[0])))
 
 #define HOTKEYS_CLASH_RGB 0xFF5555u

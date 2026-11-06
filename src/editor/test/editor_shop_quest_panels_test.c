@@ -36,6 +36,7 @@
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_build.h"
+#include "torirsmaped/torirs_maped_live.h"
 #include "ui/uitree_debug_overlay.h"
 
 #include <rscache.h>
@@ -490,8 +491,7 @@ test_shop(void)
         CHECK(strstr(status(), "Test: RUN stopped at reload: this server has no live link") != NULL,
             "shop: Test says how RUN ended (%s)", status());
         /* A RUN that lands well: the model as FACT_RUN_DONE ok and a play
-         * account leave it (this harness has no live server to say so), and
-         * the panel sends the account to the owner and says to Trade. */
+         * account leave it (this harness has no live server to say so). */
         g_mock->scripts[TORIRSMAPED_BUILD_RUN].idle_polls = 1000000;
         CHECK(Editor_Shop_Test(&g_ui) == 1, "shop: Test again (%s)", status());
         if( live )
@@ -502,10 +502,15 @@ test_shop(void)
             snprintf(faked->play_account, sizeof(faked->play_account), "%s", "maped43620");
         }
         frame();
+        /* The ::goto goes through the Live panel, which sends a cheat only to
+         * an attached lane; this harness has no live server, so the panel
+         * says where to go instead (the sentence with the Trade hint needs a
+         * real lane: section 16's in-game check). */
         CHECK(strcmp(status(),
-                  "Test: maped43620 is beside shop_keeper_lumbridge at 3222,3218; right-click them and choose Trade")
+                  "Test: RUN done, but the live lane is not attached (Live: Attach); teleport maped43620 by hand "
+                  "to 3222,3218")
                   == 0,
-            "shop: a landed RUN sends the play account to the owner (%s)", status());
+            "shop: a landed RUN on a lane that is not attached says where to go (%s)", status());
         /* Let the real RUN finish before the quest board's job. */
         g_mock->scripts[TORIRSMAPED_BUILD_RUN].idle_polls = 0;
         for( int i = 0; i < 400 && live && (live->building || live->run_step != TORIRSMAPED_RUN_STEP_IDLE); i++ )

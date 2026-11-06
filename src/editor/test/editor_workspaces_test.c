@@ -223,9 +223,18 @@ test_workspace_defaults(void)
     skipped = Editor_UiSetWorkspace(&g_ui, EDITOR_UI_WS_SCRIPT);
     frame();
     frame();
-    CHECK(skipped == 3, "Script skips three panels this tree lacks (%d)", skipped);
-    CHECK(console_says("workspace Script: no vars, problems, dialogue_preview panel", 4),
-        "the console names what was skipped");
+    CHECK(skipped == 3 + !Editor_UiFindPanel(&g_ui, "shop") + !Editor_UiFindPanel(&g_ui, "quest"),
+        "Script skips the three panels this tree lacks (%d)", skipped);
+    {
+        /* The Shop builder and the Quest board are Script's (workbench 6.7);
+         * they register only with an editor session. */
+        int const shop = Editor_UiFindPanel(&g_ui, "shop") != NULL;
+        int const quest = Editor_UiFindPanel(&g_ui, "quest") != NULL;
+        char line[128];
+        snprintf(line, sizeof(line), "workspace Script: no vars, %s%sproblems, dialogue_preview panel",
+            shop ? "" : "shop, ", quest ? "" : "quest, ");
+        CHECK(console_says(line, 4), "the console names what was skipped (%s)", line);
+    }
     /* The Record panel shows only once a record is open (its own rule,
      * edpanel_catalog.c record_tick): with none, the workspace's show of it
      * is withdrawn on its next tick. */
@@ -248,8 +257,9 @@ test_workspace_defaults(void)
     frame();
     frame();
     /* Live and Accounts need a session; the harness has none. */
-    CHECK(skipped == 3 + !Editor_UiFindPanel(&g_ui, "live") + !Editor_UiFindPanel(&g_ui, "accounts"),
-        "Playtest skips scenes, encounter, live_log and what needs a session (%d)", skipped);
+    CHECK(skipped == 1 + !Editor_UiFindPanel(&g_ui, "live") + !Editor_UiFindPanel(&g_ui, "accounts")
+                         + !Editor_UiFindPanel(&g_ui, "scenes") + !Editor_UiFindPanel(&g_ui, "encounter"),
+        "Playtest skips live_log and what needs a session (%d)", skipped);
     for( const char* const* name = Editor_UiWorkspacePanels(EDITOR_UI_WS_PLAYTEST); *name; name++ )
         if( Editor_UiFindPanel(&g_ui, *name) )
             CHECK(open_now(*name), "Playtest shows %s", *name);

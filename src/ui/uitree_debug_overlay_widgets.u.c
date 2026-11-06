@@ -52,6 +52,9 @@
  *  panel's track 40 px long). */
 #define DBG_SLIDER_LABEL_PERCENT 30
 #define DBG_SLIDER_LABEL_GAP DBG_PX(6)
+/* The least track a slider keeps beside a long label: the knob and two of its
+ * widths to travel. */
+#define DBG_SLIDER_TRACK_MIN (3 * DBG_KNOB)
 /** A docked panel's splitter band, on its inner edge. */
 #define DBG_SPLIT DBG_PX(5)
 /** Smallest a splitter drag may make a docked panel. */
@@ -1485,7 +1488,9 @@ ToriRSChrome_SliderValue(struct ToriRSChrome const* ui, int widget)
 /**
  * A slider's caption column: the row's fixed label column, narrowed to
  * DBG_SLIDER_LABEL_PERCENT of the row, but never narrower than the caption
- * itself plus a gap. Stacked and unlabelled rows keep what every row gets.
+ * itself plus a gap; a caption longer than the fixed column widens it as far
+ * as the row keeps DBG_SLIDER_TRACK_MIN of track, and is ellipsised past
+ * that. Stacked and unlabelled rows keep what every row gets.
  */
 static int
 dbg_slider_label_w(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
@@ -1493,13 +1498,29 @@ dbg_slider_label_w(struct ToriRSChrome const* ui, struct ToriRSChromeWidget cons
     int const fixed = dbg_row_box_offset(ui, w);
     int const share = w->w * DBG_SLIDER_LABEL_PERCENT / 100;
     int text;
+    int column;
+    int room;
 
-    if( fixed <= 0 || w->w <= 0 || share >= fixed )
+    if( fixed <= 0 || w->w <= 0 )
         return fixed;
+    /* The label as drawn, a chord suffix included (the Terrain panel's
+     * "Strength  Shift+[ ]"), measured at the chrome's own scale. */
     text = ToriRSChrome_MeasureTextQ(ui->theme.font_row, ui->scale_q, w->label) + DBG_SLIDER_LABEL_GAP;
-    if( text > fixed )
-        return fixed;
-    return share > text ? share : text;
+    if( share >= fixed || text > fixed )
+        column = fixed;
+    else
+        column = share > text ? share : text;
+    if( text <= column )
+        return column;
+    /* Longer than the column -- a chord suffix, most of all at 125/150/175 %,
+     * where text is a few device pixels wider than the column's 1x share --
+     * it was drawn on under the track. Take what the row can spare past the
+     * least track instead; what is still too long is ellipsised where it is
+     * drawn (R2), never clipped by the track. */
+    room = w->w - DBG_SLIDER_VALUE_W - DBG_SLIDER_TRACK_MIN;
+    if( room <= column )
+        return column;
+    return text < room ? text : room;
 }
 
 /** The track's box in a laid-out slider row. */
@@ -3319,7 +3340,8 @@ dbg_ext_draw(
 
         if( w->label[0] )
             dbg_push_text(
-                ui, row_x, dbg_row_text_baseline(ui, row_y, row_h), w->label,
+                ui, row_x, dbg_row_text_baseline(ui, row_y, row_h),
+                dbg_elide_text(ui, ui->theme.font_row, w->label, t.x - row_x - DBG_SLIDER_LABEL_GAP),
                 w->color ? w->color : th->text_dim, ui->theme.font_row, 0, clip);
         if( th->skin_dropdown && dbg_skin_has(ui, TORIRS_CHROME_SKIN_SLIDER_TRACK)
             && dbg_skin_has(ui, TORIRS_CHROME_SKIN_SLIDER_TRACK_LEFT)

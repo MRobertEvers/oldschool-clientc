@@ -91,8 +91,10 @@ statusbar_advance(
     const struct EditorUi* ui,
     const char* text)
 {
-    int const scale = ToriRSChrome_Scale(ui->chrome);
-    return ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_MENU, scale, text) + 2 * edp_px(ui, TORIRS_CHROME_M_PAD);
+    /* At the chrome's quarter scale, as dbg_build_menubar measures it: the
+     * integer tier is a size too big at 125 % and too small at 150 %. */
+    return ToriRSChrome_MeasureTextQ(TORIRS_CHROME_FONT_MENU, ToriRSChrome_ScaleQ(ui->chrome), text)
+           + 2 * edp_px(ui, TORIRS_CHROME_M_PAD);
 }
 
 /**
@@ -238,7 +240,7 @@ statusbar_fit(
     statusbar_set(ui, self->label_status, run, tip);
 
     self->fit_w = width;
-    self->fit_scale = ToriRSChrome_Scale(ui->chrome);
+    self->fit_scale = ToriRSChrome_ScaleQ(ui->chrome);
     self->refit = 0;
 }
 
@@ -346,7 +348,7 @@ statusbar_tick(
         }
     }
 
-    if( self->refit || self->fit_w != ui->chrome->surface_w || self->fit_scale != ToriRSChrome_Scale(ui->chrome) )
+    if( self->refit || self->fit_w != ui->chrome->surface_w || self->fit_scale != ToriRSChrome_ScaleQ(ui->chrome) )
         statusbar_fit(ui, self);
 }
 

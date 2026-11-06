@@ -57,6 +57,7 @@ void cw_test_vlist_cells(void);
 void cw_test_vlist_cells_marks(void);
 void cw_test_iconbutton(void);
 void cw_test_slider(void);
+void cw_test_slider_long_label(void);
 void cw_test_radio(void);
 void cw_test_modal(void);
 void cw_test_tooltip(void);

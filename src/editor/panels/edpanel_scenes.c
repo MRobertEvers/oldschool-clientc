@@ -995,6 +995,34 @@ Editor_ScenesList(
     return out->count;
 }
 
+int
+Editor_Scenes_AddInStroke(
+    struct EditorUi* ui,
+    const struct Editor_Scene* scene)
+{
+    struct Editor_DocHandle handle;
+    struct Editor_ScenesFile file;
+    struct Editor_Cmd commands[EDITOR_SCENE_PLAN_MAX];
+    int n = 0;
+    int applied = 0;
+
+    assert(ui);
+    assert(scene);
+    assert(ui->editor);
+    /* The caller's stroke is what makes this one step with its own edits. */
+    assert(ui->editor->history_stroke);
+    if( !Editor_DocFind(&ui->editor->doc, EDITOR_DOC_SCENES, EDITOR_SCENES_DOC_KEY, &handle) || !handle.text
+        || !handle.text->loaded )
+        return 0;
+    Editor_ScenesInit(&file);
+    if( Editor_ScenesParse(&file, handle.text->text, handle.text->length).ok && !Editor_ScenesHas(&file, scene->name) )
+        n = Editor_ScenePlanSave(commands, EDITOR_SCENE_PLAN_MAX, &file, scene);
+    Editor_ScenesFree(&file);
+    for( int i = 0; i < n; i++ )
+        applied += Editor_Apply(ui->editor, &commands[i]) ? 1 : 0;
+    return n > 0 && applied == n;
+}
+
 /* ---- the module ------------------------------------------------------------------ */
 
 static void

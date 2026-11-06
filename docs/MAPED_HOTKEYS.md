@@ -297,10 +297,11 @@ Ctrl+4, the chips at the right end of the menu bar, or the command palette.
 A workspace is the panels it shows, where they sit and which tab of each
 group is in front. Build is the editor's default set; Terrain shows Terrain
 and Palette (Terrain in front), Squares and the Inspector; Script shows
-Record, Triggers, the Loc and NPC builders and the Shell editor; Playtest
-shows Live and Accounts; the Console strip stays in all four. A panel the
-design names that this build has not got (Vars, Problems, Dialogue preview,
-Scenes, Encounter, Live log) is skipped with a console line. Switching saves
+Record, Triggers, the Loc and NPC builders, the Shell editor, the Shop
+builder and the Quest board; Playtest shows Live, Accounts, Scenes and the
+encounter builder; the Console strip stays in all four. A panel the design
+names that this build has not got (Vars, Problems, Dialogue preview, Live
+log) is skipped with a console line. Switching saves
 the workspace you leave first, so coming back finds it as you left it; the
 layout file keeps each one in its own `[workspace <name>]` section. View >
 Reset layout resets the workspace you are in.
@@ -308,7 +309,9 @@ Reset layout resets the workspace you are in.
 **The command palette** (Ctrl+K, module `cmdpalette`): one search over the
 actions (each with its chord in the right column), the panels, the squares
 the picker knows, the catalog's records (`loc:`, `npc:`, `obj:` narrow to one
-kind) and the lane's accounts. The arrows move, Tab goes to the next group,
+kind), the scenes (Enter enters one, through the save guard), the lanes the
+Lanes panel knows (Enter stages a switch for the next boot) and the lane's
+accounts. The arrows move, Tab goes to the next group,
 Enter runs the row, Escape closes it. A group shows at most 100 rows and says
 how many more there are ("and 212 more").
 

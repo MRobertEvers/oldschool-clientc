@@ -1495,7 +1495,9 @@ Open:
   `ToriRSChrome_Scale(ui) * N` (editor_ui.c, the edpanel_* files beyond
   `edp_px`, live_panel.c, torirs_plugin_panel.u.c, app_chrome.c,
   app_editor_view.c, `ToriRSChromePanelDraw_Transform`): at a fractional q
-  that is the tier.
+  that is the tier. **Editor half closed** at the 6.5-6.8 integration (see
+  "Workbench steps 6.5 to 6.8"); torirs_plugin_panel.u.c and
+  `App_ChromeScale` remain.
 - The layout file's `scale` key stays an integer tier.
 - Trackpad frames (ALSO_LEGACY) are not consumed (above); moving the
   trackpad onto them means dropping the legacy wheel / scroll / pinch for
@@ -2575,8 +2577,9 @@ Open (beyond each slice's own list above):
   web keeps `skinTiers: 1`. GL3 text mode 2 is unverified on hardware.
   torirs_chrome_surface_sdl.c (the plugin window's SDL surface) still draws
   the 1x skin at an integer scale.
-- Editor layout computed as `ToriRSChrome_Scale(ui) * N` sits tight at
-  fractional q (a slider over "Strength Shift+[]" at 1.5x).
+- ~~Editor layout computed as `ToriRSChrome_Scale(ui) * N` sits tight at
+  fractional q (a slider over "Strength Shift+[]" at 1.5x).~~ **Fixed** at
+  the 6.5-6.8 integration (see "Workbench steps 6.5 to 6.8").
 - ~~src/editor/panels/edpanel_triggers.c:713 (`Editor_Triggers_SetPaths`)
   passes `realpath` a buffer under PATH_MAX~~ **Fixed** with the vector-face
   merge (below): it resolves into a PATH_MAX buffer and asserts the result
@@ -3724,6 +3727,239 @@ Open:
   Catalog's own model does); with PROGRESS it never waits for the warm build.
   A Square row runs the picker's Find, which needs the Squares panel.
 - Keycap symbols wait for the Small face's bake (a cache).
+
+## Workbench steps 6.5 to 6.8 (2026-11-05)
+
+The integration of the slices of build-order steps 6.5 to 6.8 onto
+v3-workbench 40ca3878, merged with `--no-ff` in this order: the vector chrome
+face's horizontal stem hinting (6.0b), scenes and the Lanes panel (6.5 part
+1), the instance helper (6.5 part 2), the records-and-problems slice (6.6
+part 1: only its first commit exists, see below), the encounter builder (6.7
+part 1), the shop builder and the quest board (6.7 part 2), and workspaces /
+the command palette / the Hotkeys panel / the chord moves (6.8). The
+builders-and-graph slice (6.6 part 2) has no branch: its worktree was gone
+before it ran. Each slice's own section above says what it built; this one
+says what landed together, how the seams were joined, the fractional-scale
+fix, and what was run.
+
+What landed:
+
+- **6.0b, stems hinted horizontally.** `face_stems` in
+  tools/chrome_font_vector.py bakes a stem table per face and glyph beside
+  the TTF bytes (src/engine/torirs_chrome_font_vector_baked.{c,h}: Small 98,
+  Body 110, Menu 108 stems; the TTF / WOFF / EOT bytes unchanged);
+  `ToriRSChromeGlyphs_RasteriseVector` warps x so every stem's edges land on
+  whole device pixels (width `max(1, ScalePx(q, w))`), and
+  `ToriRSChromeGlyphs_VectorStems` says where each lands. The stem-darkening
+  gamma is now 1/1.2.
+- **6.5, scenes.** The SCENES document (`EDITOR_DOC_SCENES`, key `scenes`,
+  `editor/scenes.txt`, editor_scenes.{h,c}; commands `SCENE_SET` /
+  `SCENE_REMOVE`), the Scenes panel (module `scenes`, edpanel_scenes.c:
+  Find, Name, the Holds chips, Save scene Ctrl+Shift+K, Enter through the
+  save guard `EDITOR_UI_GUARD_ENTER_SCENE`, Update, Rename, Delete),
+  `Editor_Live_Teleport`, the `world_camera_set` app service, and
+  `Editor_ScenesList` for the palette.
+- **6.5, lanes.** The Lanes panel (module still `publish`, title "Lanes"):
+  every lane with its change count and lock holder, M/A/D chips, Publish
+  to... (Ctrl+Shift+U), Scratch lane (Ctrl+Shift+N,
+  `scratch-<yymmdd><letter>`), Switch..., Discard...; `LANE_SWITCH` (87)
+  stages the switch in `build/lanes/lane.ini` for the next boot
+  (`ToriRSMapEdLanes_BootLane`); a count-only `LANE_CHANGES` answered by
+  `FACT_LANE_COUNT` (205) keeps the status bar's lane chip current. The new
+  frames and the trailing fields of FACT_LANE_INFO / FACT_LANE_LIST are
+  gated by `TORIRSMAPED_CAP_LANES_V2` (64).
+- **6.5, instances.** editor_instance.{h,c} (the planner:
+  `Editor_InstanceFindFree`, rebasing, `Editor_InstanceCopyCommands`, the
+  trigger text), the .wma codec editor_wma.{h,c} (TEXT key `wma:<name>`,
+  `worldmap/areas/<name>.wma`), the Instance dialog (module `instance`,
+  edpanel_instance.{h,c}) behind the picker's Instance..., and DOC_CREATE
+  inside an open stroke (`TORIRSMAPED_DOC_CREATE_IN_STROKE` 0x100,
+  `EditorHost_DocCreate.join_stroke`).
+- **6.6 part 1, the Record panel's own file.** The one commit of
+  workbench-6.6a: the Record half of edpanel_catalog.c moved whole to
+  edpanel_record.c (`record_host`); no behaviour changed. The Problems
+  panel, the Record rework (tabs, typed editor, Where used) and the
+  `check` / `cs2` BUILD kinds of that slice were not built.
+- **6.7, encounters.** The ENCOUNTERS text document `editor:encounters.txt`
+  (editor_encounters.{h,c}), the stats ledger `stats:<shard>/<name>`
+  (`npc_stats/<shard>/<name>.stats`, editor_npcstats.{h,c}), the encounter
+  builder (module `encounter`, edpanel_encounter.c: Set, Stats, Combat,
+  Drops, Test), the step builder's `[ai,<trigger>]` type, rings in
+  app_overlay.c, and Spawns' Group....
+- **6.7, shops and quests.** editor_shop.{h,c} (the .rs2 + .inv pair
+  tools/gen_shop_scripts.py writes, prices by calc_shop_value; that tool's
+  `owner_note` NameError fixed), the Shop builder (module `shop`), the
+  quest board reader editor_quest.{h,c} and panel (module `quest`), BUILD
+  kinds `TORIRSMAPED_BUILD_QUEST_SCAFFOLD` (16) / `_QUEST_GATE` (17) with
+  make targets maped-quest-scaffold / maped-quest-gate, and the native
+  `png_publish` app service.
+- **6.8.** Four workspaces (`Editor_UiSetWorkspace`, Ctrl+1..4, the menu
+  bar's chips, `[workspace <name>]` sections in the layout file), the
+  command palette (module `cmdpalette`, Ctrl+K), the Hotkeys panel's sorted
+  list with two capture cells a row, the level pins on Alt+0..5 (Ctrl+0 and
+  Ctrl+5 kept as second chords), `graph.auto_layout` (Ctrl+L, context Q),
+  the reserved World HUD layer chords Alt+L/N/O/C/G, and the cells list's
+  keycap column and row marks natively and in runtime.js / runtime-ie8.js.
+
+Conflicts and how they were resolved:
+
+- **Capability bits.** Scenes took 64 for `TORIRSMAPED_CAP_LANES_V2`, the
+  instance slice 64 for `TORIRSMAPED_CAP_DOC_CREATE_STROKE` and 128 for
+  `TORIRSMAPED_CAP_MAP_INSTANCE`. They are now LANES_V2 = 64,
+  DOC_CREATE_STROKE = 128, MAP_INSTANCE = 256 (still set by nothing); the
+  server sets the first two (torirs_maped.c), and the instance section above
+  says the new numbers.
+- **The hotkey table** (editor_hotkeys.{c,h}, MAPED_HOTKEYS.md): the View
+  rows are `view.scenes`, `view.encounter`, `view.shop`, `view.quest` in
+  that order, then 6.8's. 6.8 had added `scene.save` (Ctrl+Shift+K) and
+  `lane.scratch` (Ctrl+Shift+N) in a new Scene group as stand-ins that
+  refused until 6.5 landed; 6.5's `file.save_scene` and `file.scratch_lane`
+  already own those chords, run the real panels and sit in the File menu, so
+  the stand-ins are gone (the enum entries, their refusals in
+  edpanel_hotkeys.c, the Hotkeys panel's "Scene" group, the doc's Scene
+  table and list line). 6.8's hotkey test checks the File ids on those
+  chords instead. Zero conflicts in the table (the doc test passes).
+- **edpanels.h, torirs_mapedctl_main.c, editor_host_local.c and the
+  status doc** took both sides (each slice's declarations, verbs, document
+  paths and section).
+
+Seams joined at the integration:
+
+- **The instance's scene.** `instance_scene_hook` (edpanel_instance.c) now
+  records the scene `instance:<name>` -- the new squares, the landing tile's
+  level pinned, the camera on the landing tile (the World's yaw, pitch and
+  zoom when the window has one) and the note "made by the instance helper"
+  -- through the new `Editor_Scenes_AddInStroke` (edpanel_scenes.c), INSIDE
+  the Create's stroke: it undoes with the rest, and unlike Save scene it is
+  not written at once (Save all writes it with the instance's other
+  documents). The status line says ", a scene".
+- **The palette's Scenes and Lanes groups.** `EDITOR_CMDPAL_SCENES` and
+  `EDITOR_CMDPAL_LANES` (between Records and Accounts), kinds
+  `EDITOR_CMDPAL_KIND_SCENE` (Enter runs `Editor_Scenes_Enter`, the save
+  guard included) and `EDITOR_CMDPAL_KIND_LANE` (Enter runs
+  `Editor_Lanes_Switch`: staged for the next boot). Scenes come from
+  `Editor_ScenesList` (the summary is the dim text); lanes from the new
+  `Editor_LanesList` (edpanel_publish.c: what the Lanes panel last heard,
+  its row text as the dim text, "this lane" / "switch (next boot)" on the
+  right).
+- **Test through the Live panel.** New `Editor_Live_Cheat(ui, player, line)`
+  (live_panel.{h,c}) sends a LIVE_CHEAT through the panel's transport, only
+  to an attached lane, and logs it in the console as the panel's own cheats;
+  `Editor_Live_Teleport` is now that with `tele <coord>`. The Shop builder's
+  Test sends its `::goto` that way (it went straight to the host before, to
+  a lane that may not be attached) and, on a lane that is not attached,
+  says where to go instead. The encounter builder's Test already ran RUN
+  through `Editor_Live_Run` and placed the player through the Accounts
+  panel's ACCOUNT_PLACE (online `::tele`, offline the save); unchanged.
+- **Every new module in its workspace.** Script now also shows the Shop
+  builder and the Quest board; Playtest shows Scenes and the encounter
+  builder (they were skipped as "not in this tree"); both columns dock them
+  (`k_dock_script`, `k_dock_playtest`). Only Vars, Problems, Dialogue
+  preview (6.6) and Live log are still skipped with a console line. The
+  three panel groups are unchanged: no slice added a member to them, and the
+  bottom strip's Problems / Live log members do not exist.
+- **Not joined: the builder's Problems rows.** There is no Problems panel
+  (6.6 part 1 built only its first commit) and no graph builder (6.6 part 2
+  has no branch), so there is nothing to join.
+
+Fractional-scale layout (the open row of 6.2-6.4):
+
+- **The slider row measures its caption with the chord suffix.** The
+  Terrain panel's sliders carry "Strength  Shift+[ ]" as their label;
+  `dbg_slider_label_w` (uitree_debug_overlay_widgets.u.c) capped the column
+  at the row's fixed label column, so at 1.5x the caption ran on under the
+  track. A caption longer than the column now widens it as far as the row
+  keeps `DBG_SLIDER_TRACK_MIN` (three knobs) of track, and what is still too
+  long is ellipsised where it is drawn (`dbg_elide_text`, R2). A caption that
+  fits lays out exactly as before, so the 1x / 2x / 3x goldens are
+  unchanged.
+- **Panel code on the quarter scale.** The Live panel's and RUN strip's
+  origins and the strip's placement (live_panel.c), the Lanes panel's
+  origin (edpanel_publish.c) and the popped-out World toolbar's pad
+  (app_editor_view.c) go through `edp_px` / `ToriRSChrome_Px`; the status
+  bar measures its runs with `ToriRSChrome_MeasureTextQ` at
+  `ToriRSChrome_ScaleQ` (as the menu bar draws them) and refits when q
+  changes; `Editor_UiLayoutFingerprint` hashes q, so 125 % and 150 % (one
+  tier) are different layouts to save.
+- **Left on the tier, on purpose:** edpanel_squares.c, edpanel_catalog_palette.c
+  and edpanel_chips.c divide and multiply by `ToriRSChrome_Scale` for GRAPH
+  item coordinates, which the chrome draws and hit-tests at the integer tier
+  (`dbg_draw_graph`'s `ui->scale`; see "Chips at 125/150/175 %" above).
+  torirs_plugin_panel.u.c (not editor code) and `App_ChromeScale` keep the
+  tier too.
+
+torirsmapedctl verbs added by the slices: `scenes`, `scene-set <scene>
+[squares ...] [camera ...] [level ...] [lane ...] [preview ...] [account
+...] [note ...]` (`<segment> -` drops one; `scene-set <scene> rename
+<new>`), `scene-remove`, `lane-switch <name>` (and `lane` shows the next
+boot's lane), `encounters`, `encounter-set`, `encounter-remove`.
+
+Tests (this container, build_opt, all content-free; 'ulimit -s unlimited'):
+
+- `make -C src all` (client, torirsmaped, torirsmapedctl) builds; the
+  `torirsmaped` and `torirsmapedctl` targets build on their own too.
+- Chrome and the face: test-chrome-widgets 1134 (the slices' 1099 + 10, and
+  25 new in `cw_test_slider_long_label`: at q = 4, 5, 6, 7, 8 the Terrain
+  panel's "Strength  Shift+[ ]" is drawn whole and ends before the track,
+  and a caption no row holds is ellipsised, ends before the track and leaves
+  three knobs of travel; 14 of them fail on the old column rule) plus the
+  DOM test; test-scene-bridge-chrome 187 PASS; test-debug-overlay-visual
+  passes (1x / 2x / 3x goldens unchanged); chrome-font-vector reproduces 14
+  files; test-chrome-skin-tiers 922; chrome-skin.
+- 6.5: test-editor-scenes 507; test-editor-scenes-ops 85 (80 + 5: the
+  palette's Scenes group lists the scene and Enter runs from it, the palette
+  closes, the Lanes group lists main, work and the scratch lane);
+  test-lanes 76; test-editor-instance 76; test-editor-instance-ops 83 (78 +
+  5: the scene `instance:tutorial_cave` in the Create's step with the two
+  squares and the camera on the landing tile, not on disk before Save, gone
+  on Undo).
+- 6.7: test-editor-encounters 121; test-editor-encounter-panel 91;
+  test-editor-shop-quest: editor_shop_test 115, editor_quest_test 54,
+  editor_shop_quest_panels_test 79 (the landed-RUN check now expects the
+  not-attached sentence; see Seams).
+- 6.8 and the table: test-editor-workspaces 396 (the Script and Playtest
+  skip counts follow which panels the harness registers);
+  test-editor-hotkeys 2288 with the doc test, zero conflicts;
+  test-editor-chords 591; test-editor-groups 2190; test-editor-workbench 295
+  (the three registry digests recorded again, for the slider column alone:
+  the merged tree without it drew the old ones; the scene digests did not
+  move).
+- Also: test-editor-cmd 66, test-editor-palette 97, test-editor-areas 136,
+  test-editor-stamps 91, test-editor-stamps-ops 81,
+  test-editor-panels-palette 50, test-editor-panels-accounts 48,
+  test-editor-catalog-finder 202, test-editor-placement 123,
+  test-editor-picker 398, test-editor-worldmap 161, test-catalog-finder 176,
+  test-catalog-perf 143 (synthetic half), test-editor-ghost OK,
+  test-editor-dropdown 36, test-uitree passes, test-editor-world-gesture 42,
+  test-gesture 191, test-touch 47, test-sdl-gesture 42; check-pt-switch and
+  check-tree-walks PASS.
+- Not run here, for want of the OSRS-Content checkout: test-live-panel (it
+  copies maps/m50_50 from the tree), test-editor-panels, test-editor-views,
+  test-editor-cfg / alloc / vars / if / script, test-editor-save,
+  test-editor-jm2, test-torirsmaped-embed / -daemon. test-builder does not
+  link here (no `-lm` in its recipe; known before this change).
+
+What is open:
+
+- **6.6 is not built.** Records and problems (the Problems panel, the Record
+  panel's tabs / typed editor / search / changed-only / Where used, the
+  `check` and `cs2` BUILD kinds) and builders and graph (the dialogue graph,
+  its auto-layout -- Ctrl+L still refuses with its reason -- and the
+  builder's Problems rows) need their own runs from this commit.
+- Everything each slice lists as open in its own section, in particular:
+  the lane change count is a synchronous scan on the embedded server's
+  thread; lane switching is staged for the next boot, never live; the .wma
+  reaches the catalog's atlas but not the game's world map; the runtime map
+  instance chip stays disabled (nothing sets `TORIRSMAPED_CAP_MAP_INSTANCE`);
+  the live link carries no HIT / hunt lines, so the encounter's fight log
+  falls back to npc names; Save runs the shop's catalog Check synchronously;
+  web faces are not hinted horizontally.
+- The Shop builder's "beside the owner, choose Trade" sentence now needs an
+  attached lane, which the panel test cannot fake (its live status fact
+  resets the state each frame); it checks the not-attached sentence instead.
+  Section 16's in-game shop check covers the rest.
+- No photographs here (no cache, no display, no OSRS-Content), and no web
+  build (no emcc).
 
 ## Open issues
 

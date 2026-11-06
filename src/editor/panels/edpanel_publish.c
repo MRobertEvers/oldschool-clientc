@@ -1073,7 +1073,6 @@ Editor_Publish_Register(struct EditorUi* ui)
 {
     struct PublishPanel* self;
     struct EditorUiPanel desc;
-    int const scale = ToriRSChrome_Scale(ui->chrome);
     static const char* const k_first_options[] = { "New lane..." };
 
     assert(ui);
@@ -1090,7 +1089,7 @@ Editor_Publish_Register(struct EditorUi* ui)
         self->show_kind[i] = 1;
 
     self->panel = ToriRSChrome_PanelAdd(
-        ui->chrome, TORIRS_CHROME_PANEL_WINDOW, 300 * scale, 28 * scale, 300 * scale, "Lanes");
+        ui->chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, 300), edp_px(ui, 28), edp_px(ui, 300), "Lanes");
     assert(self->panel >= 0);
     self->label_lane = ToriRSChrome_Label(ui->chrome, self->panel, "Lane: asking the editor server...");
     self->label_base = ToriRSChrome_Label(ui->chrome, self->panel, "");
@@ -1165,6 +1164,29 @@ Editor_Lanes_Show(struct EditorUi* ui)
     if( !ui->chrome->panels[self->panel].visible )
         (void)Editor_UiTogglePanel(ui, "publish");
     return 1;
+}
+
+int
+Editor_LanesList(
+    struct EditorUi* ui,
+    struct Editor_LaneList* out)
+{
+    struct PublishPanel* self;
+
+    assert(ui);
+    assert(out);
+    out->count = 0;
+    self = publish_self(ui);
+    if( !self || !self->list_known )
+        return 0;
+    for( int i = 0; i < self->lane_count && out->count < EDITOR_LANES_LIST_MAX; i++ )
+    {
+        struct Editor_LaneListRow* row = &out->rows[out->count++];
+        snprintf(row->name, sizeof(row->name), "%s", self->lanes[i].name);
+        row->is_this = self->lanes[i].is_this;
+        publish_lane_row_text(&self->lanes[i], row->summary, sizeof(row->summary));
+    }
+    return out->count;
 }
 
 int

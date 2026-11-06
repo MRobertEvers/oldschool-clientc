@@ -228,10 +228,10 @@ live_refresh(
         /* Bottom centre of the window, above nothing: the dock's columns
          * leave the middle of the foot free. */
         struct ToriRSChromeRect const rect = ToriRSChrome_PanelRect(ui->chrome, self->float_panel);
-        int const w = rect.w > 0 ? rect.w : 420 * ToriRSChrome_Scale(ui->chrome);
-        int const h = rect.h > 0 ? rect.h : 56 * ToriRSChrome_Scale(ui->chrome);
+        int const w = rect.w > 0 ? rect.w : edp_px(ui, 420);
+        int const h = rect.h > 0 ? rect.h : edp_px(ui, 56);
         ToriRSChrome_PanelMove(ui->chrome, self->float_panel, (ui->chrome->surface_w - w) / 2,
-            ui->chrome->surface_h - h - 12 * ToriRSChrome_Scale(ui->chrome));
+            ui->chrome->surface_h - h - edp_px(ui, 12));
     }
     if( self->shown_play_serial != m->play_serial || self->shown_run_serial != m->run_serial )
     {
@@ -569,7 +569,6 @@ Editor_Live_RegisterWith(
 {
     struct LivePanel* self;
     struct EditorUiPanel desc;
-    int const scale = ToriRSChrome_Scale(ui->chrome);
 
     assert(ui);
     assert(transport);
@@ -589,7 +588,7 @@ Editor_Live_RegisterWith(
     self->log_follow = 1;
 
     self->panel = ToriRSChrome_PanelAdd(
-        ui->chrome, TORIRS_CHROME_PANEL_WINDOW, 260 * scale, 28 * scale, 300 * scale, "Live");
+        ui->chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, 260), edp_px(ui, 28), edp_px(ui, 300), "Live");
     assert(self->panel >= 0);
     self->label_status = ToriRSChrome_Label(ui->chrome, self->panel, "detached");
     self->label_run = ToriRSChrome_Label(ui->chrome, self->panel, "");
@@ -631,7 +630,7 @@ Editor_Live_RegisterWith(
     ToriRSChrome_PanelSetResizable(ui->chrome, self->panel, 1);
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
 
-    self->float_panel = ToriRSChrome_PanelAdd(ui->chrome, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 420 * scale, "RUN");
+    self->float_panel = ToriRSChrome_PanelAdd(ui->chrome, TORIRS_CHROME_PANEL_WINDOW, 0, 0, edp_px(ui, 420), "RUN");
     assert(self->float_panel >= 0);
     self->float_label = ToriRSChrome_Label(ui->chrome, self->float_panel, "");
     self->float_progress = ToriRSChrome_Progress(ui->chrome, self->float_panel, "", "", 0);
@@ -675,6 +674,35 @@ Editor_Live_Busy(struct EditorUi* ui)
 }
 
 int
+Editor_Live_Cheat(
+    struct EditorUi* ui,
+    const char* player,
+    const char* line)
+{
+    struct LivePanel* self;
+    struct ToriRSMapEdBuf payload;
+    uint32_t type;
+
+    assert(ui);
+    assert(player);
+    assert(line);
+    self = Editor_UiPanelSelf(ui, "live");
+    if( !self )
+        return -1;
+    if( self->model.state != TORIRSMAPED_LIVE_ATTACHED )
+    {
+        Editor_UiLog(ui, "live: ::%s for %s refused: the live lane is not attached", line, player);
+        return 0;
+    }
+    memset(&payload, 0, sizeof(payload));
+    type = Editor_LiveEncodeCheat(&payload, player, line);
+    if( !live_send(ui, self, type, &payload) )
+        return 0;
+    Editor_UiLog(ui, "live: ::%s for %s", line, player);
+    return 1;
+}
+
+int
 Editor_Live_Teleport(
     struct EditorUi* ui,
     const char* player,
@@ -682,27 +710,16 @@ Editor_Live_Teleport(
     int z,
     int level)
 {
-    struct LivePanel* self;
-    struct ToriRSMapEdBuf payload;
     char coord[64];
     char line[96];
-    uint32_t type;
 
     assert(ui);
     assert(player);
-    self = Editor_UiPanelSelf(ui, "live");
-    if( !self )
+    if( !Editor_UiPanelSelf(ui, "live") )
         return -1;
-    if( self->model.state != TORIRSMAPED_LIVE_ATTACHED )
-        return 0;
     Editor_LiveTeleCoord(x, z, level < 0 ? 0 : level, coord, sizeof(coord));
     snprintf(line, sizeof(line), "tele %s", coord);
-    memset(&payload, 0, sizeof(payload));
-    type = Editor_LiveEncodeCheat(&payload, player, line);
-    if( !live_send(ui, self, type, &payload) )
-        return 0;
-    Editor_UiLog(ui, "live: ::%s for %s", line, player);
-    return 1;
+    return Editor_Live_Cheat(ui, player, line);
 }
 
 int

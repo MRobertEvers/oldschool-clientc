@@ -28,6 +28,7 @@
 #include "editor/editor_doc.h"
 #include "editor/editor_host.h"
 #include "editor/editor_instance.h"
+#include "editor/editor_scenes.h"
 #include "editor/editor_spawn.h"
 #include "editor/editor_ui.h"
 #include "editor/editor_wma.h"
@@ -252,6 +253,25 @@ text_doc(
         return NULL;
     *out_length = handle.text->length;
     return handle.text->text ? handle.text->text : "";
+}
+
+/** Scene `name` of the window's SCENES document into `out`; 0 when the
+ *  document has no such scene. */
+static int
+scene_get(
+    const char* name,
+    struct Editor_Scene* out)
+{
+    struct Editor_DocHandle handle;
+    struct Editor_ScenesFile file;
+    int found = 0;
+    if( !Editor_DocFind(&g_editor.doc, EDITOR_DOC_SCENES, EDITOR_SCENES_DOC_KEY, &handle) || !handle.text )
+        return 0;
+    Editor_ScenesInit(&file);
+    if( Editor_ScenesParse(&file, handle.text->text, handle.text->length).ok )
+        found = Editor_ScenesGet(&file, name, out);
+    Editor_ScenesFree(&file);
+    return found;
 }
 
 static int
@@ -508,6 +528,19 @@ test_create_undo_save(const char* root)
     CHECK(text && strstr(text, "[oploc1,cave_entrance]\np_telejump(0_1_100_32_32);\n") != NULL,
         "the trigger teleports to the middle of m1_100");
 
+    /* The scene "instance:<name>", in the same step (the 6.5 seam). */
+    {
+        struct Editor_Scene scene;
+        CHECK(scene_get("instance:tutorial_cave", &scene), "the SCENES document holds instance:tutorial_cave");
+        CHECK(scene.square_count == 2 && strcmp(scene.squares[0], "m1_100") == 0
+                  && strcmp(scene.squares[1], "m1_101") == 0,
+            "the scene opens the two new squares (%d: %s)", scene.square_count, scene.squares[0]);
+        CHECK((scene.segments & EDITOR_SCENE_SEG_CAMERA) && scene.camera.x == (64 + 32) * 128 + 64
+                  && scene.camera.z == (100 * 64 + 32) * 128 + 64 && scene.camera.level == 0,
+            "its camera looks at the landing tile (%d,%d)", scene.camera.x / 128, scene.camera.z / 128);
+        CHECK(!exists(root, "editor/scenes.txt"), "the scene is not written before Save");
+    }
+
     /* Nothing written until Save. */
     CHECK(!exists(root, "maps/m1_100.jm2") && !exists(root, "worldmap/areas/tutorial_cave.wma")
               && !exists(root, "server/scripts/edited/tutorial_cave/scripts/tutorial_cave.rs2")
@@ -527,6 +560,10 @@ test_create_undo_save(const char* root)
     CHECK(areas && Editor_AreasFindCollection(areas, "tutorial_cave") < 0
               && Editor_AreasFindArea(areas, "tutorial_cave: smithy") < 0,
         "the collection and the copied area are gone");
+    {
+        struct Editor_Scene scene;
+        CHECK(!scene_get("instance:tutorial_cave", &scene), "and the scene");
+    }
     Editor_Redo(&g_editor);
     CHECK(groups() == g0 + 1 && tiles_equal(1, 100, 50, 50, 0) && spawn_rows(1, 101, rows, 8) == 2,
         "Redo brings it all back");

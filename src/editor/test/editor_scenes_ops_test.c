@@ -56,6 +56,13 @@
 #include <sys/stat.h>
 #include <time.h>
 
+static int
+palette_row(
+    struct EditorUi* ui,
+    int group,
+    int kind,
+    const char* name);
+
 static int g_checks;
 static int g_failed;
 
@@ -523,7 +530,16 @@ test_second_window(void)
      * are in, so the camera waits for them. */
     g_b.busy = 1;
     edp_level_set(&g_b.ui, 0);
-    CHECK(Editor_Scenes_Enter(&g_b.ui, "smithy"), "Enter: %s", status(&g_b));
+    /* Through the command palette's Scenes group (workbench 6.8's seam). */
+    {
+        int row;
+        CHECK(Editor_CmdPalette_Open(&g_b.ui), "the second window has a command palette");
+        Editor_CmdPalette_SetQuery(&g_b.ui, "smithy");
+        row = palette_row(&g_b.ui, EDITOR_CMDPAL_SCENES, EDITOR_CMDPAL_KIND_SCENE, "smithy");
+        CHECK(row >= 0, "the palette's Scenes group lists smithy");
+        CHECK(row >= 0 && Editor_CmdPalette_RunRow(&g_b.ui, row), "Enter from the palette: %s", status(&g_b));
+        CHECK(!Editor_CmdPalette_IsOpen(&g_b.ui), "the palette closes once the row runs");
+    }
     CHECK(g_b.opened_count == 2 && strcmp(g_b.opened[0], "m50_50") == 0 && strcmp(g_b.opened[1], "m50_51") == 0,
         "its squares are opened (%d)", g_b.opened_count);
     pump(1);
@@ -771,6 +787,21 @@ test_lanes_and_chip(void)
             row_text(&g_a, list, 1), row_text(&g_a, list, 2));
     }
 
+    /* The command palette's Lanes group lists the same three; Enter on one
+     * stages a switch, as the panel's Switch... does. */
+    {
+        int row_work;
+        int row_main;
+        CHECK(Editor_CmdPalette_Open(&g_a.ui), "the window has a command palette");
+        Editor_CmdPalette_SetQuery(&g_a.ui, "lane");
+        row_work = palette_row(&g_a.ui, EDITOR_CMDPAL_LANES, EDITOR_CMDPAL_KIND_LANE, "work");
+        row_main = palette_row(&g_a.ui, EDITOR_CMDPAL_LANES, EDITOR_CMDPAL_KIND_LANE, "main");
+        CHECK(row_work >= 0 && row_main >= 0
+                  && palette_row(&g_a.ui, EDITOR_CMDPAL_LANES, EDITOR_CMDPAL_KIND_LANE, today) >= 0,
+            "the palette's Lanes group lists main, work and %s", today);
+        Editor_CmdPalette_Close(&g_a.ui);
+    }
+
     /* The next boot serves the scratch lane. */
     window_close(&g_a);
     if( !window_open(&g_a, "work") )
@@ -784,6 +815,29 @@ test_lanes_and_chip(void)
     snprintf(name, sizeof(name), "%s | clean", today);
     CHECK(strcmp(chip, name) == 0, "its chip: %s", chip);
     CHECK(strcmp(doc_text(&g_a), "") == 0, "a scratch lane is made from main: no scenes in it");
+}
+
+/** The palette's row for an item of `kind` named `name` in `group`, -1. */
+static int
+palette_row(
+    struct EditorUi* ui,
+    int group,
+    int kind,
+    const char* name)
+{
+    const struct Editor_CmdPalList* pal = Editor_CmdPalette_List(ui);
+    if( !pal )
+        return -1;
+    for( int r = 0; r < pal->row_count; r++ )
+    {
+        const struct Editor_CmdPalItem* item;
+        if( pal->row_kind[r] != EDITOR_CMDPAL_ROW_ITEM || pal->row_group[r] != group )
+            continue;
+        item = &pal->items[pal->row_item[r]];
+        if( item->kind == kind && strcmp(item->name, name) == 0 )
+            return r;
+    }
+    return -1;
 }
 
 int

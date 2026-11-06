@@ -1264,11 +1264,11 @@ static const char* const k_dock_terrain[] = {
     "catalog", "preview", "history", NULL,
 };
 static const char* const k_dock_script[] = {
-    "record", "triggers", "locbuilder", "npcbuilder", "shelleditor", "terrain", "palette", "locs", "spawns",
+    "record", "triggers", "locbuilder", "npcbuilder", "shelleditor", "shop", "quest", "terrain", "palette", "locs", "spawns",
     "rect", "inspector", "squares", "areas", "catalog", "preview", "catalog_palette", "history", NULL,
 };
 static const char* const k_dock_playtest[] = {
-    "live", "accounts", "terrain", "palette", "locs", "spawns", "rect", "inspector", "squares", "areas",
+    "live", "accounts", "scenes", "encounter", "terrain", "palette", "locs", "spawns", "rect", "inspector", "squares", "areas",
     "catalog", "preview", "catalog_palette", "history", NULL,
 };
 /** Most entries one workspace's column order holds. */
@@ -2923,7 +2923,7 @@ Editor_UiLayoutFingerprint(const struct EditorUi* ui)
     assert(ui);
     h = ui_fnv(h, ui->chrome->surface_w);
     h = ui_fnv(h, ui->chrome->surface_h);
-    h = ui_fnv(h, ToriRSChrome_Scale(ui->chrome));
+    h = ui_fnv(h, ToriRSChrome_ScaleQ(ui->chrome));
     h = ui_fnv(h, ui->snap);
     h = ui_fnv(h, ui->workspace);
     h = ui_fnv(h, (int)ui->workspace_serial);
@@ -2986,13 +2986,16 @@ static const char* const k_workspace_names[EDITOR_UI_WORKSPACES] = { "build", "t
 static const char* const k_workspace_titles[EDITOR_UI_WORKSPACES] = { "Build", "Terrain", "Script", "Playtest" };
 
 /* The design table's panels per workspace, as registry module names; the
- * first listed member of a group is its front tab. "vars", "problems",
- * "dialogue_preview", "scenes", "encounter" and "live_log" are other slices'
- * modules (and the Live log is the Live panel's own list today). */
+ * first listed member of a group is its front tab. Script also takes the
+ * Shop builder and the Quest board (workbench 6.7: both write scripts);
+ * Playtest the Scenes panel and the encounter builder (6.5, 6.7). "vars",
+ * "problems", "dialogue_preview" (workbench 6.6) and "live_log" are not
+ * built in this tree (the Live log is the Live panel's own list today) and
+ * are skipped with a console line. */
 static const char* const k_ws_terrain[] = { "terrain", "palette", "squares", "inspector", "console", "history",
     NULL };
 static const char* const k_ws_script[] = { "record", "triggers", "vars", "locbuilder", "npcbuilder",
-    "shelleditor", "problems", "console", "dialogue_preview", NULL };
+    "shelleditor", "shop", "quest", "problems", "console", "dialogue_preview", NULL };
 static const char* const k_ws_playtest[] = { "live", "accounts", "scenes", "encounter", "live_log", "console",
     NULL };
 

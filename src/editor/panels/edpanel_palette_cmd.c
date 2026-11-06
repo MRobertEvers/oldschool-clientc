@@ -34,7 +34,7 @@
 /* ---- the model ------------------------------------------------------------------ */
 
 static const char* const k_group_names[EDITOR_CMDPAL_GROUPS] = { "Actions", "Panels", "Squares", "Records",
-    "Accounts" };
+    "Scenes", "Lanes", "Accounts" };
 
 const char*
 Editor_CmdPalGroupName(int group)
@@ -474,6 +474,65 @@ cmdpal_gather_accounts(
     }
 }
 
+static void
+cmdpal_gather_scenes(
+    struct EditorUi* ui,
+    struct Editor_CmdPalList* model,
+    const char* query)
+{
+    struct Editor_SceneList* list = ToriMem_Alloc(ToriMem_Editor(), sizeof(*list));
+
+    assert(list);
+    (void)Editor_ScenesList(ui, list);
+    for( int i = 0; i < list->count; i++ )
+    {
+        struct Editor_CmdPalItem item;
+        char haystack[EDITOR_CMDPAL_LABEL_MAX + 200];
+        snprintf(haystack, sizeof(haystack), "%s %s scene", list->rows[i].name, list->rows[i].summary);
+        if( !Editor_CmdPalMatches(haystack, query) )
+            continue;
+        memset(&item, 0, sizeof(item));
+        item.group = EDITOR_CMDPAL_SCENES;
+        item.kind = EDITOR_CMDPAL_KIND_SCENE;
+        cmdpal_copy(item.label, (int)sizeof(item.label), list->rows[i].name);
+        cmdpal_copy(item.name, (int)sizeof(item.name), list->rows[i].name);
+        cmdpal_copy(item.dim, (int)sizeof(item.dim), list->rows[i].summary);
+        cmdpal_copy(item.right, (int)sizeof(item.right), "enter");
+        (void)Editor_CmdPalListAdd(model, &item);
+    }
+    Editor_CmdPalListAddUnseen(model, EDITOR_CMDPAL_SCENES, list->more);
+    ToriMem_Free(ToriMem_Editor(), list);
+}
+
+static void
+cmdpal_gather_lanes(
+    struct EditorUi* ui,
+    struct Editor_CmdPalList* model,
+    const char* query)
+{
+    struct Editor_LaneList* list = ToriMem_Alloc(ToriMem_Editor(), sizeof(*list));
+
+    assert(list);
+    (void)Editor_LanesList(ui, list);
+    for( int i = 0; i < list->count; i++ )
+    {
+        struct Editor_CmdPalItem item;
+        char haystack[EDITOR_CMDPAL_LABEL_MAX + 200];
+        snprintf(haystack, sizeof(haystack), "%s lane", list->rows[i].summary);
+        if( !Editor_CmdPalMatches(haystack, query) )
+            continue;
+        memset(&item, 0, sizeof(item));
+        item.group = EDITOR_CMDPAL_LANES;
+        item.kind = EDITOR_CMDPAL_KIND_LANE;
+        cmdpal_copy(item.label, (int)sizeof(item.label), list->rows[i].name);
+        cmdpal_copy(item.name, (int)sizeof(item.name), list->rows[i].name);
+        cmdpal_copy(item.dim, (int)sizeof(item.dim), list->rows[i].summary + strlen(list->rows[i].name));
+        cmdpal_copy(item.right, (int)sizeof(item.right), list->rows[i].is_this ? "this lane" : "switch (next boot)");
+        (void)Editor_CmdPalListAdd(model, &item);
+    }
+    ToriMem_Free(ToriMem_Editor(), list);
+}
+
 /** The model for `query`. A kind prefix ("loc:", "npc:", "obj:") asks the
  *  catalog for that kind alone; otherwise every group, the catalog's only
  *  once two letters are typed (an empty query is the table and the panels,
@@ -519,6 +578,8 @@ cmdpal_build(
                 cmdpal_gather_catalog(
                     ui, &self->model, k_kinds[k].kind, k_kinds[k].prefix, EDITOR_CMDPAL_RECORDS, query);
         }
+        cmdpal_gather_scenes(ui, &self->model, query);
+        cmdpal_gather_lanes(ui, &self->model, query);
         cmdpal_gather_accounts(ui, &self->model, query);
     }
     (void)Editor_CmdPalListFinish(&self->model);
@@ -641,6 +702,10 @@ cmdpal_run_item(
     }
     if( item->kind == EDITOR_CMDPAL_KIND_RECORD )
         return Editor_Catalog_PickRecord(ui, (uint32_t)item->target, item->name);
+    if( item->kind == EDITOR_CMDPAL_KIND_SCENE )
+        return Editor_Scenes_Enter(ui, item->name);
+    if( item->kind == EDITOR_CMDPAL_KIND_LANE )
+        return Editor_Lanes_Switch(ui, item->name);
     assert(item->kind == EDITOR_CMDPAL_KIND_ACCOUNT);
     if( !Editor_Accounts_Show(ui, item->name) )
     {
@@ -863,7 +928,8 @@ Editor_CmdPalette_Register(struct EditorUi* ui)
     self->panel = ToriRSChrome_ModalAdd(chrome, "Command palette", edp_px(ui, 420));
     assert(self->panel >= 0);
     self->input_search = ToriRSChrome_TextInput(chrome, self->panel, ">", "");
-    ToriRSChrome_SetTooltip(chrome, self->input_search, "Actions, panels, squares, loc: npc: obj: records, accounts");
+    /* Under TORIRS_CHROME_LABEL_MAX (63 bytes): a longer tooltip is cut. */
+    ToriRSChrome_SetTooltip(chrome, self->input_search, "Actions, panels, squares, loc: npc: obj:, scenes, lanes, accts");
     self->list = ToriRSChrome_VListCells(chrome, self->panel, "", CMDPAL_ROWS, 0);
     assert(self->list >= 0);
     /* The keys in words: the Small face has no arrow glyphs. */

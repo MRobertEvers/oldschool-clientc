@@ -1024,8 +1024,6 @@ shop_test_landed(
     struct ShopPanel* self,
     const struct Editor_LiveModel* live)
 {
-    struct ToriRSMapEdBuf payload;
-    uint32_t type;
     char line[96];
     const char* owner = self->shop.owner_count ? self->shop.owners[0].npc : "the owner";
 
@@ -1044,18 +1042,20 @@ shop_test_landed(
     /* ::goto is the engine's own teleport (torirs_server_world.c); one tile
      * east of the spawn, so the owner is the npc in reach. */
     snprintf(line, sizeof(line), "goto %d %d %d", self->test_x + 1, self->test_z, self->test_level);
-    memset(&payload, 0, sizeof(payload));
-    type = Editor_LiveEncodeCheat(&payload, live->play_account, line);
-    if( !ui->editor
-        || !Editor_HostMapEdLiveSend(&ui->editor->host, type, payload.data ? payload.data + payload.head : NULL,
-            (uint32_t)ToriRSMapEd_BufAvailable(&payload)) )
+    /* Through the Live panel (its console logs the cheat, as its own); it
+     * sends one only to an attached lane. */
+    if( live->state != TORIRSMAPED_LIVE_ATTACHED )
     {
-        ToriRSMapEd_BufFree(&payload);
+        shop_say(ui, self, "Test: RUN done, but the live lane is not attached (Live: Attach); teleport %s by hand to %d,%d",
+            live->play_account, self->test_x, self->test_z);
+        return;
+    }
+    if( Editor_Live_Cheat(ui, live->play_account, line) <= 0 )
+    {
         shop_say(ui, self, "Test: RUN done, but the live link is gone; teleport by hand to %d,%d", self->test_x,
             self->test_z);
         return;
     }
-    ToriRSMapEd_BufFree(&payload);
     shop_say(ui, self, "Test: %s is beside %s at %d,%d; right-click them and choose %s", live->play_account, owner,
         self->test_x, self->test_z, self->shop.op == 3 ? "Trade" : self->op_text[self->shop.op - 1]);
 }

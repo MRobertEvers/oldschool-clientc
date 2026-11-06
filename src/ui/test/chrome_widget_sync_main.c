@@ -99,6 +99,7 @@ main(void)
     cw_test_vlist_cells_marks();
     cw_test_iconbutton();
     cw_test_slider();
+    cw_test_slider_long_label();
     cw_test_radio();
     cw_test_modal();
     cw_test_tooltip();

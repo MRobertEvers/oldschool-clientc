@@ -432,7 +432,7 @@ EditorView_AppFrame(struct App* app)
         && app->editor_panel.ui->solo_panel == app->editor_panel.ui->world_panel )
     {
         struct ToriRSChromeRect const body = ToriRSChrome_PanelBodyRect(&app->dbg_ui, app->editor_panel.ui->world_panel);
-        int const pad = 8 * ToriRSChrome_Scale(&app->dbg_ui);
+        int const pad = ToriRSChrome_Px(&app->dbg_ui, 8);
         struct ToriRSChromePanel const* bar = &app->dbg_ui.panels[g_app_view.toolbar.panel];
         if( body.w > 0 && (bar->x != body.x + pad || bar->y != body.y + pad) )
             ToriRSChrome_PanelMove(&app->dbg_ui, g_app_view.toolbar.panel, body.x + pad, body.y + pad);

@@ -36,6 +36,8 @@
 #include "editor/editor.h"
 #include "editor/editor_areas.h"
 #include "editor/editor_doc.h"
+#include "editor/editor_scenes.h"
+#include "editor/editor_view.h"
 #include "editor/editor_wma.h"
 #include "edpanel_ops.h"
 #include "mem/torirs_mem.h"
@@ -111,6 +113,8 @@ struct InstancePanel
     /** The last Create's tally, for the status line and the tests. */
     int created_squares;
     int created_spawns;
+    /** The scene "instance:<name>" went into the step. */
+    int created_scene;
 };
 
 static struct InstancePanel*
@@ -906,23 +910,69 @@ instance_areas(
     return applied;
 }
 
-/* TODO(workbench 6.5, scenes): the SCENES document (editor/scenes.txt,
- * design section 12) is another slice's and is not in this tree yet. When it
- * lands, this records a scene "instance: <name>" holding the new squares, the
- * camera at the landing tile and its level, through that document's SET
- * command, inside the Create's stroke (so it undoes with the rest). Until
- * then it records nothing, and the collection `name` is what finds the
- * instance again (the picker's Find "instance:<name>"). */
+/* The scene "instance:<name>" (the SCENES document, editor_scenes.h): the new
+ * squares, the pinned level and the camera on the landing tile (the
+ * trigger's, else Editor_InstanceEntryTile's default), inside the Create's stroke so it undoes with the
+ * rest. The view's yaw, pitch and zoom are the World's when the window has
+ * one, else the editor's own defaults. Unsaved until Save, like every other
+ * document of the instance. 1 recorded; 0 when the window has no scenes
+ * document or the name is taken (the collection `name` still finds the
+ * instance: the picker's Find "instance:<name>"). */
 static int
 instance_scene_hook(
     struct EditorUi* ui,
     const struct Editor_InstanceCheck* check,
     const char* name)
 {
-    (void)ui;
-    (void)check;
-    (void)name;
-    return 0;
+    struct Editor_Scene scene;
+    char scene_name[EDITOR_SCENE_NAME_MAX];
+    const struct Editor_InstancePlan* plan = &check->plan;
+    int level = check->entry_level;
+    int const x = check->entry_x;
+    int const z = check->entry_z;
+
+    if( snprintf(scene_name, sizeof(scene_name), "instance:%s", name) >= (int)sizeof(scene_name) )
+        return 0;
+    Editor_SceneInitRow(&scene, scene_name);
+    for( int i = 0; i < plan->count && scene.square_count < EDITOR_SCENE_SQUARES_MAX; i++ )
+    {
+        char bare[EDITOR_DOC_KEY_MAX];
+        int mx;
+        int mz;
+        Editor_InstanceDest(plan, i, &mx, &mz);
+        Editor_SquareKey(bare, mx, mz);
+        if( check->storage[0] )
+            snprintf(scene.squares[scene.square_count], sizeof(scene.squares[0]), "%s/%s", check->storage, bare);
+        else
+            snprintf(scene.squares[scene.square_count], sizeof(scene.squares[0]), "%s", bare);
+        scene.square_count++;
+    }
+    if( scene.square_count > 0 )
+        scene.segments |= EDITOR_SCENE_SEG_SQUARES;
+    if( level < 0 || level > 3 )
+        level = 0;
+    scene.level = level;
+    scene.segments |= EDITOR_SCENE_SEG_LEVEL;
+    if( x >= 0 && z >= 0 && x <= EDITOR_SCENE_TILE_MAX && z <= EDITOR_SCENE_TILE_MAX )
+    {
+        struct EditorViewCamera view;
+        memset(&view, 0, sizeof(view));
+        view.yaw = 0;
+        view.pitch = 400;
+        view.zoom = 1800;
+        if( ui->app_services.world_camera )
+            (void)ui->app_services.world_camera(ui->app_services.user_data, level, &view);
+        scene.camera.x = x * 128 + 64;
+        scene.camera.z = z * 128 + 64;
+        scene.camera.level = level;
+        scene.camera.yaw = view.yaw & 2047;
+        scene.camera.pitch = view.pitch & 2047;
+        scene.camera.zoom = view.zoom < 0 ? 0 : view.zoom > EDITOR_SCENE_ZOOM_MAX ? EDITOR_SCENE_ZOOM_MAX : view.zoom;
+        scene.segments |= EDITOR_SCENE_SEG_CAMERA;
+    }
+    snprintf(scene.note, sizeof(scene.note), "made by the instance helper");
+    scene.segments |= EDITOR_SCENE_SEG_NOTE;
+    return Editor_Scenes_AddInStroke(ui, &scene);
 }
 
 /** Refusals that need the documents: a .wma or trigger file that already
@@ -1077,6 +1127,7 @@ Editor_Instance_Create(struct EditorUi* ui)
     Editor_HistoryName(ui->editor, verb);
     self->created_squares = 0;
     self->created_spawns = 0;
+    self->created_scene = 0;
 
     /* The squares: DOC_CREATE (the copy template) inside the stroke, then
      * what trims each to the Copy row. */
@@ -1186,7 +1237,7 @@ Editor_Instance_Create(struct EditorUi* ui)
         }
     }
     if( !failed )
-        (void)instance_scene_hook(ui, &check, form.name);
+        self->created_scene = instance_scene_hook(ui, &check, form.name);
     Editor_StrokeEnd(ui->editor);
 
     if( failed )
@@ -1199,10 +1250,11 @@ Editor_Instance_Create(struct EditorUi* ui)
         return 0;
     }
 
-    Editor_UiStatus(ui, "Created instance %s: %d square%s at m%d_%d, %d spawn%s%s%s (unsaved until Save); Ctrl+Z undoes it",
+    Editor_UiStatus(ui,
+        "Created instance %s: %d square%s at m%d_%d, %d spawn%s%s%s%s (unsaved until Save); Ctrl+Z undoes it",
         form.name, self->created_squares, self->created_squares == 1 ? "" : "s", check.plan.dst_x0, check.plan.dst_z0,
         self->created_spawns, self->created_spawns == 1 ? "" : "s", form.map_area ? ", a .wma" : "",
-        form.entry != EDITOR_INSTANCE_ENTRY_NONE ? ", a trigger" : "");
+        form.entry != EDITOR_INSTANCE_ENTRY_NONE ? ", a trigger" : "", self->created_scene ? ", a scene" : "");
     instance_close(ui, self);
     Editor_SquarePicker_Refresh(ui);
     Editor_SquarePicker_Mark(ui, check.plan.dst_x0, check.plan.dst_z0, check.plan.w, check.plan.h);

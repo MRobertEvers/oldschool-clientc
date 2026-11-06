@@ -53,6 +53,17 @@ Editor_Live_Teleport(
     int z,
     int level);
 
+/** The cheat `line` ("goto 3222 3218 0", no "::") for `player` through the
+ *  live link (LIVE_CHEAT), logged in the console as the panel's own cheats
+ *  are: the shop builder's and the encounter builder's Test go this way.
+ *  1 sent, 0 refused (the live lane is not attached, or the connection is
+ *  gone; the console says which), -1 when this window has no Live panel. */
+int
+Editor_Live_Cheat(
+    struct EditorUi* ui,
+    const char* player,
+    const char* line);
+
 /** 1 while a RUN or a build is in flight (RUN is disabled), 0 when idle,
  *  -1 without a Live panel. */
 int

@@ -1029,8 +1029,9 @@ Editor_Hotkeys_Feed(
  * or the panel the action opens), Panels (the View menu's), Squares (the
  * catalog's squares, and a tile typed as "x z"), Records (CATALOG_QUERY over
  * locs, npcs and objs; "loc:" "npc:" "obj:" narrow it to one kind) and
- * Accounts (the Accounts panel's list). Scenes and Lanes are workbench 6.5's
- * and are not groups here. The arrows move (skipping headers), Tab goes to the
+ * Scenes (the SCENES document: Enter enters the scene through the save
+ * guard), Lanes (the Lanes panel's list: Enter stages the switch for the
+ * next boot) and Accounts (the Accounts panel's list). The arrows move (skipping headers), Tab goes to the
  * next group, Enter runs the row, Escape closes. A group shows at most
  * EDITOR_CMDPAL_GROUP_MAX rows and ends with a footer row "and N more".
  *
@@ -1047,6 +1048,8 @@ enum Editor_CmdPalGroup
     EDITOR_CMDPAL_PANELS,
     EDITOR_CMDPAL_SQUARES,
     EDITOR_CMDPAL_RECORDS,
+    EDITOR_CMDPAL_SCENES,
+    EDITOR_CMDPAL_LANES,
     EDITOR_CMDPAL_ACCOUNTS,
     EDITOR_CMDPAL_GROUPS
 };
@@ -1064,6 +1067,10 @@ enum Editor_CmdPalKind
     EDITOR_CMDPAL_KIND_RECORD,
     /** `name` an account: the Accounts panel shows it. */
     EDITOR_CMDPAL_KIND_ACCOUNT,
+    /** `name` a scene: Editor_Scenes_Enter. */
+    EDITOR_CMDPAL_KIND_SCENE,
+    /** `name` a lane: Editor_Lanes_Switch (staged for the next boot). */
+    EDITOR_CMDPAL_KIND_LANE,
 };
 
 struct Editor_CmdPalItem
@@ -1363,6 +1370,32 @@ Editor_Lanes_ScratchNameFor(
     char* out,
     int out_size);
 
+/** One lane for the command palette (workbench 6.8's Lanes group). */
+#define EDITOR_LANES_LIST_MAX 64
+struct Editor_LaneListRow
+{
+    char name[64];
+    /** 1 the lane this server serves. */
+    int is_this;
+    /** The Lanes panel's row text: "work (this) | 3 changed". */
+    char summary[160];
+};
+
+struct Editor_LaneList
+{
+    int count;
+    struct Editor_LaneListRow rows[EDITOR_LANES_LIST_MAX];
+};
+
+/** The command palette's lane group: every lane the Lanes panel last heard
+ *  of (LANE_LIST), in its order (Enter runs Editor_Lanes_Switch with the
+ *  row's name). Returns the count; 0 without a Lanes panel or before the
+ *  list is known. */
+int
+Editor_LanesList(
+    struct EditorUi* ui,
+    struct Editor_LaneList* out);
+
 /* ---- Scenes (edpanel_scenes.c, workbench 6.5) -------------------------------- */
 
 /** Register the Scenes panel (module "scenes"): the SCENES document
@@ -1415,6 +1448,20 @@ int
 Editor_Scenes_EnterNow(
     struct EditorUi* ui,
     const char* name);
+
+struct Editor_Scene;
+
+/** A new scene `scene` (its name not yet taken) added inside the stroke the
+ *  caller holds open (Editor_StrokeBegin), so it undoes with the rest of the
+ *  caller's step -- the instance helper's Create records "instance:<name>".
+ *  Unlike Save scene, the document is NOT written at once: Save all writes it
+ *  with the caller's other documents. Needs no Scenes panel. 1 added; 0 when
+ *  the window has no scenes document, the name is taken, or the scene does
+ *  not fit a line (nothing is applied then). */
+int
+Editor_Scenes_AddInStroke(
+    struct EditorUi* ui,
+    const struct Editor_Scene* scene);
 
 /** One scene for the command palette (workbench 6.8's scene group). */
 #define EDITOR_SCENES_LIST_MAX 128

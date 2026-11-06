@@ -236,11 +236,16 @@ registry_digest(
  * 3420398390u): the menu bar gained its workspace chips ("Workspace", Build,
  * Terrain, Script, Playtest after the Level row); with them alone added the
  * rest of 6.8 (the Hotkeys panel's list, the hidden palette) drew the old
- * digests. The scenes are untouched. */
+ * digests. The scenes are untouched. The 6.5-6.8 integration moved all three
+ * again (was 1167870673u, 444441760u, 129691160u), with the slider row's
+ * caption column alone (the merged tree drew the old digests; with that one
+ * file changed it draws these): the Terrain panel's "Strength  Shift+[ ]"
+ * was longer than the fixed column at every scale and ran on under its
+ * track; the column now widens to hold it (dbg_slider_label_w). */
 static const uint32_t k_golden[3][3] = {
-    { 1970238540u, 3840548130u, 1167870673u },
-    { 1606657634u, 3552625563u, 444441760u },
-    { 1621493878u, 3838641767u, 129691160u },
+    { 1970238540u, 3840548130u, 2691440990u },
+    { 1606657634u, 3552625563u, 4031613255u },
+    { 1621493878u, 3838641767u, 2905863413u },
 };
 
 static void
