@@ -724,6 +724,19 @@ EditorView_AppWorldCamera(
 }
 
 int
+EditorView_AppWorldCameraSet(
+    void* user_data,
+    const struct EditorViewCamera* pose)
+{
+    struct App* app = user_data;
+
+    assert(app);
+    assert(pose);
+    assert(pose->level >= 0 && pose->level <= 3);
+    return view_apply_to_app(app, pose);
+}
+
+int
 EditorView_AppSpawnPanel(
     void* user_data,
     const char* module,

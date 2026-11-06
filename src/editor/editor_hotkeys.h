@@ -105,6 +105,10 @@ enum Editor_HotkeyAction
     EDITOR_HK_FILE_CHECK_SCRIPTS,
     EDITOR_HK_FILE_RUN,
     EDITOR_HK_FILE_PUBLISH,
+    /* Workbench 6.5: save the session's state as a scene (the Scenes panel),
+     * make a scratch lane from main and switch to it (the Lanes panel). */
+    EDITOR_HK_FILE_SAVE_SCENE,
+    EDITOR_HK_FILE_SCRATCH_LANE,
     /* Edit */
     EDITOR_HK_EDIT_UNDO,
     EDITOR_HK_EDIT_REDO,
@@ -246,6 +250,7 @@ enum Editor_HotkeyAction
     EDITOR_HK_VIEW_LIVE,
     EDITOR_HK_VIEW_ACCOUNTS,
     EDITOR_HK_VIEW_TRIGGERS,
+    EDITOR_HK_VIEW_SCENES,
     EDITOR_HK_VIEW_HIDE_PANELS,
     EDITOR_HK_VIEW_RESET_LAYOUT,
     EDITOR_HK_VIEW_SNAP,

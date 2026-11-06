@@ -90,6 +90,8 @@ saveguard_tick(
             snprintf(line, sizeof(line), "before opening m%d_%d", ui->guard.map_x, ui->guard.map_z);
         else if( ui->guard.action == EDITOR_UI_GUARD_CLOSE_SQUARE )
             snprintf(line, sizeof(line), "before closing m%d_%d", ui->guard.map_x, ui->guard.map_z);
+        else if( ui->guard.action == EDITOR_UI_GUARD_ENTER_SCENE )
+            snprintf(line, sizeof(line), "before entering scene %.48s", ui->guard.scene);
         else
             snprintf(line, sizeof(line), "before closing the editor");
         ToriRSChrome_SetText(ui->chrome, self->row_detail, line);

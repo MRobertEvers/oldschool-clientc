@@ -1144,3 +1144,154 @@ ToriRSMapEdLanes_Discard(
     ToriMem_Free(ToriMem_Editor(), changes);
     return 1;
 }
+
+/* ---- the next boot's lane (workbench 6.5) ----------------------------------- */
+
+static void
+boot_file_path(
+    const char* repo_root,
+    char* out,
+    size_t out_size)
+{
+    char repo[TORIRSMAPED_LANE_PATH];
+
+    resolve_abs(repo_root, repo, sizeof(repo));
+    snprintf(out, out_size, "%s/build/lanes/lane.ini", repo);
+}
+
+int
+ToriRSMapEdLanes_BootName(
+    const char* repo_root,
+    char* out,
+    size_t out_size)
+{
+    char path[TORIRSMAPED_LANE_PATH + 32];
+    char line[256];
+    FILE* file;
+
+    assert(repo_root);
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    boot_file_path(repo_root, path, sizeof(path));
+    file = fopen(path, "rb");
+    if( !file )
+        return 0;
+    while( fgets(line, sizeof(line), file) )
+    {
+        char* end = line + strlen(line);
+        while( end > line && (end[-1] == '\n' || end[-1] == '\r' || end[-1] == ' ') )
+            *--end = '\0';
+        if( strncmp(line, "lane = ", 7) == 0 )
+            snprintf(out, out_size, "%s", line + 7);
+    }
+    fclose(file);
+    return out[0] != '\0';
+}
+
+int
+ToriRSMapEdLanes_SetBoot(
+    const char* repo_root,
+    const char* base_tree,
+    const char* name,
+    char* why,
+    size_t why_size)
+{
+    char path[TORIRSMAPED_LANE_PATH + 32];
+    char temp[TORIRSMAPED_LANE_PATH + 48];
+    char dir[TORIRSMAPED_LANE_PATH + 16];
+    char repo[TORIRSMAPED_LANE_PATH];
+    struct ToriRSMapEdLaneDef lane;
+    FILE* file;
+
+    assert(repo_root);
+    assert(base_tree);
+    assert(name);
+    assert(why);
+    why[0] = '\0';
+    if( strcmp(name, "main") != 0 && !ToriRSMapEdLanes_NameValid(name) )
+    {
+        snprintf(why, why_size, "'%s' is not a lane name", name);
+        return 0;
+    }
+    if( !ToriRSMapEdLanes_Lookup(repo_root, base_tree, name, &lane) )
+    {
+        snprintf(why, why_size, "there is no lane '%s' (build/lanes/%s/lane.ini)", name, name);
+        return 0;
+    }
+    resolve_abs(repo_root, repo, sizeof(repo));
+    snprintf(dir, sizeof(dir), "%s/build/lanes", repo);
+    if( !mkdir_p(dir) )
+    {
+        snprintf(why, why_size, "cannot create %s: %s", dir, strerror(errno));
+        return 0;
+    }
+    boot_file_path(repo_root, path, sizeof(path));
+    snprintf(temp, sizeof(temp), "%s.tmp", path);
+    file = fopen(temp, "wb");
+    if( !file )
+    {
+        snprintf(why, why_size, "cannot write %s: %s", temp, strerror(errno));
+        return 0;
+    }
+    fprintf(file,
+        "; The lane every editor boot on this repo serves (torirsmaped/torirs_maped_lanes.h),\n"
+        "; whatever its manifest or --lane asks: written by the Lanes panel's Switch and\n"
+        "; Scratch lane (LANE_SWITCH). Delete this file to boot as the manifest says.\n"
+        "lane = %s\n",
+        name);
+    if( fclose(file) != 0 )
+    {
+        snprintf(why, why_size, "cannot write %s: %s", temp, strerror(errno));
+        remove(temp);
+        return 0;
+    }
+#ifdef _WIN32
+    /* Win32's rename does not replace. */
+    remove(path);
+#endif
+    if( rename(temp, path) != 0 )
+    {
+        snprintf(why, why_size, "cannot rename onto %s: %s", path, strerror(errno));
+        remove(temp);
+        return 0;
+    }
+    return 1;
+}
+
+int
+ToriRSMapEdLanes_BootLane(
+    const char* repo_root,
+    const char* base_tree,
+    const char* configured,
+    char* out,
+    size_t out_size,
+    char* note,
+    size_t note_size)
+{
+    char named[TORIRSMAPED_LANE_NAME_MAX + 8];
+    const char* asked = configured && configured[0] ? configured : "main";
+    struct ToriRSMapEdLaneDef lane;
+
+    assert(repo_root);
+    assert(base_tree);
+    assert(out);
+    assert(note);
+    note[0] = '\0';
+    snprintf(out, out_size, "%s", asked);
+    if( !ToriRSMapEdLanes_BootName(repo_root, named, sizeof(named)) )
+        return 0;
+    if( !ToriRSMapEdLanes_Lookup(repo_root, base_tree, named, &lane) )
+    {
+        snprintf(note, note_size, "build/lanes/lane.ini names lane '%s', which does not exist; serving '%s'", named,
+            asked);
+        return 0;
+    }
+    snprintf(out, out_size, "%s", named);
+    if( strcmp(named, asked) == 0 )
+        snprintf(note, note_size, "lane '%s' (build/lanes/lane.ini, as the boot asked)", named);
+    else
+        snprintf(note, note_size, "lane '%s' (build/lanes/lane.ini, switched in the editor; the boot asked for '%s')",
+            named, asked);
+    return 1;
+}

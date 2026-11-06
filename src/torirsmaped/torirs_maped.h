@@ -310,6 +310,11 @@ enum ToriRSMapEdCapability
      *  (torirs_maped_catalog.h). A client sends the body only to a server
      *  with this bit; without it every row is the v2 one. */
     TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS = 32,
+    /** The lanes' workbench frames (torirs_maped_lanes.h): LANE_SWITCH,
+     *  LANE_CHANGES' count-only body and FACT_LANE_COUNT, and the trailing
+     *  fields of FACT_LANE_INFO and FACT_LANE_LIST. A client sends a body to
+     *  LANE_CHANGES, or LANE_SWITCH at all, only to a server with this bit. */
+    TORIRSMAPED_CAP_LANES_V2 = 64,
 };
 
 /** What a connection is for. Informational today (the server relays every

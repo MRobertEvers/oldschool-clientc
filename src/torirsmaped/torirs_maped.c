@@ -130,6 +130,8 @@ ToriRSMapEd_Open(
     maped->catalog = ToriRSMapEdCatalog_Create(content_dir);
     maped->capabilities
         |= TORIRSMAPED_CAP_CATALOG | TORIRSMAPED_CAP_CATALOG_PROGRESS | TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS;
+    /* The lanes' workbench frames are the wire half's (torirs_maped_lanes_wire.c). */
+    maped->capabilities |= TORIRSMAPED_CAP_LANES_V2;
 
     /* Builds and the live link: empty until a host binds them, or the
      * environment names a live lane (torirs_maped_live.h). */
@@ -1149,7 +1151,7 @@ save_doc(
             handle->text->key,
             0,
             (handle->kind == EDITOR_DOC_TEXT || handle->kind == EDITOR_DOC_AREAS
-                || handle->kind == EDITOR_DOC_PALETTES)
+                || handle->kind == EDITOR_DOC_PALETTES || handle->kind == EDITOR_DOC_SCENES)
                     && handle->text->length == 0
                 ? NULL
                 : handle->text->text,

@@ -12,6 +12,7 @@
 #include <string.h>
 #include "editor_areas.h"
 #include "editor_palette.h"
+#include "editor_scenes.h"
 #include "log/torirs_log.h"
 
 int
@@ -57,6 +58,10 @@ Editor_OpenHost(
      * Catalog palette panel of every window shows the same strips. */
     if( !Editor_OpenDoc(editor, EDITOR_DOC_PALETTES, EDITOR_PALETTES_DOC_KEY) )
         TORIRS_LOG("editor: %s serves no palettes document; catalog palettes are off\n", label);
+    /* The scenes (editor_scenes.h): the Scenes panel, Ctrl+Shift+K and the
+     * command palette read them in every window of the Client. */
+    if( !Editor_OpenDoc(editor, EDITOR_DOC_SCENES, EDITOR_SCENES_DOC_KEY) )
+        TORIRS_LOG("editor: %s serves no scenes document; scenes are off\n", label);
 
     return 1;
 }

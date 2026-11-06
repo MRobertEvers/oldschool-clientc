@@ -79,6 +79,8 @@ re-routes them).
 | Check the scripts on disk (sscompile) | Ctrl+Shift+B | G |
 | Run: save all, build, reload live | Ctrl+Return | G |
 | Publish the lane's changes to a lane | Ctrl+Shift+U | G |
+| Save the session's state as a scene (the open squares, the World's camera, the pinned level and Above, the lane, the var preview, the live account; the Scenes panel's Holds chips choose; one undo step, saved at once) | Ctrl+Shift+K | G |
+| Make a scratch lane from main and switch to it (`scratch-<yymmdd><letter>`; the switch waits for the next editor boot: a running server cannot re-point its lane) | Ctrl+Shift+N | G |
 
 ### Edit
 | Action | Chord | Ctx |
@@ -267,7 +269,7 @@ own keys, not the table's).
 | Text rendering: the smooth vector face at every scale | unbound | G |
 
 Every other panel the View menu lists (Record, New, builders, Live, Accounts,
-...) is an action too, unbound by default. The Chrome scale and Text size rows
+Scenes, ...) is an action too, unbound by default. The Chrome scale and Text size rows
 (workbench 6.0b) are radio rows between the panel rows and Hide / show panels:
 the chosen one says "on" in its right-hand column, Auto names the scale the
 display gives ("Chrome scale: Auto (150 %)"), and both are kept per device in
@@ -294,7 +296,7 @@ chords is skipped and named in the console (`editor: editor_hotkeys.ini: line
 N: ...`); the rest of the file still applies. The ids, in the order of the
 tables (the Hotkeys panel calls them by the name after the id):
 
-- **File**: `file.new` New square..., `file.save_all` Save all, `file.save_as` Save square as new..., `file.bake` Bake cache (slow), `file.close` Close editor, `file.check_scripts` Check scripts, `file.run` Run (save, build, reload), `file.publish` Publish...
+- **File**: `file.new` New square..., `file.save_all` Save all, `file.save_as` Save square as new..., `file.bake` Bake cache (slow), `file.close` Close editor, `file.check_scripts` Check scripts, `file.run` Run (save, build, reload), `file.publish` Publish..., `file.save_scene` Save scene, `file.scratch_lane` Scratch lane
 - **Edit**: `edit.undo` Undo, `edit.redo` Redo, `edit.deselect` Deselect / cancel, `edit.delete` Delete selection, `edit.duplicate` Duplicate, `edit.rotate` Rotate, `edit.reshape` Reshape, `edit.apply` Apply tool to selection, `edit.select_square` Select the square's locs, `edit.select_same` Select same, `edit.nudge_n` Nudge north, `edit.nudge_s` Nudge south, `edit.nudge_w` Nudge west, `edit.nudge_e` Nudge east, `edit.nudge_far_n` Nudge north 8, `edit.nudge_far_s` Nudge south 8, `edit.nudge_far_w` Nudge west 8, `edit.nudge_far_e` Nudge east 8, `edit.level_up` Selection up a level, `edit.level_down` Selection down a level, `edit.copy` Copy tiles, `edit.paste` Paste tiles, `edit.fill` Fill tiles, `edit.clear` Clear tiles, `edit.mark_area` Mark area from rect
 - **Place**: `place.here` Place at the hovered tile, `place.fit` Fit walls to neighbours (toggle), `place.swap` Swap to catalog pick, `place.constrain` Constrain a drag to one axis (hold)
 - **Palette**: `palette.slot_1` Palette slot 1, `palette.slot_2` Palette slot 2, `palette.slot_3` Palette slot 3, `palette.slot_4` Palette slot 4, `palette.slot_5` Palette slot 5, `palette.slot_6` Palette slot 6, `palette.slot_7` Palette slot 7, `palette.slot_8` Palette slot 8, `palette.slot_9` Palette slot 9, `palette.slot_10` Palette slot 10, `palette.add_pick` Add the pick to the palette, `palette.next` Next palette, `palette.previous` Previous palette
@@ -303,7 +305,7 @@ tables (the Hotkeys panel calls them by the name after the id):
 - **Level**: `level.down` Level down, `level.up` Level up, `level.pin0` Pin level 0, `level.pin1` Pin level 1, `level.pin2` Pin level 2, `level.pin3` Pin level 3, `level.auto` Level Auto, `level.above` Show above
 - **Camera**: `camera.forward` Fly forward, `camera.back` Fly back, `camera.left` Fly left, `camera.right` Fly right, `camera.down` Fly down, `camera.up` Fly up, `camera.fast` Fly faster, `camera.turn_left` Turn left, `camera.turn_right` Turn right, `camera.tilt_up` Tilt up, `camera.tilt_down` Tilt down, `camera.frame` Frame the selection, `camera.frame_square` Frame the square's centre
 - **Picker**: `picker.north` Focus north, `picker.south` Focus south, `picker.west` Focus west, `picker.east` Focus east, `picker.open` Open the focused square, `picker.add` Add the focused square, `picker.back` Previous open square, `picker.clear_find` Clear Find
-- **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.catalog_palette` Catalog palette, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC builder, `view.shelleditor` Shell editor, `view.iface` Interface editor, `view.cs2` CS2, `view.live` Live, `view.accounts` Accounts, `view.triggers` Triggers, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel, `view.scale_auto` Chrome scale Auto, `view.scale_100` Chrome scale 100 %, `view.scale_125` Chrome scale 125 %, `view.scale_150` Chrome scale 150 %, `view.scale_175` Chrome scale 175 %, `view.scale_200` Chrome scale 200 %, `view.scale_250` Chrome scale 250 %, `view.scale_300` Chrome scale 300 %, `view.text_normal` Text size Normal, `view.text_large` Text size Large, `view.text_bitmap` Text rendering bitmap, `view.text_smooth` Text rendering smooth
+- **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.catalog_palette` Catalog palette, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC builder, `view.shelleditor` Shell editor, `view.iface` Interface editor, `view.cs2` CS2, `view.live` Live, `view.accounts` Accounts, `view.triggers` Triggers, `view.scenes` Scenes, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel, `view.scale_auto` Chrome scale Auto, `view.scale_100` Chrome scale 100 %, `view.scale_125` Chrome scale 125 %, `view.scale_150` Chrome scale 150 %, `view.scale_175` Chrome scale 175 %, `view.scale_200` Chrome scale 200 %, `view.scale_250` Chrome scale 250 %, `view.scale_300` Chrome scale 300 %, `view.text_normal` Text size Normal, `view.text_large` Text size Large, `view.text_bitmap` Text rendering bitmap, `view.text_smooth` Text rendering smooth
 
 Example:
 

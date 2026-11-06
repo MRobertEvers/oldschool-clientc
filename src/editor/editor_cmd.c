@@ -4,6 +4,7 @@
 #include "editor_doc.h"
 #include "editor_if.h"
 #include "editor_palette.h"
+#include "editor_scenes.h"
 #include "editor_spawn.h"
 #include "mem/torirs_mem.h"
 
@@ -333,6 +334,39 @@ apply_palettes(
     return changed;
 }
 
+/** SCENE_* on the SCENES document: held as text, applied through the
+ *  line-preserving codec exactly as apply_palettes does. */
+static int
+apply_scenes(
+    struct Editor_Doc* doc,
+    const struct Editor_Cmd* command,
+    enum Editor_CmdDirection direction)
+{
+    struct Editor_DocHandle handle;
+    struct Editor_ScenesFile file;
+    struct Editor_ScenesParseResult parsed;
+    int changed;
+
+    if( !Editor_DocFind(doc, command->doc_kind, command->doc_key, &handle) || !handle.text
+        || !handle.text->loaded )
+        return 0;
+    Editor_ScenesInit(&file);
+    parsed = Editor_ScenesParse(&file, handle.text->text, handle.text->length);
+    changed = parsed.ok && Editor_ScenesApply(&file, command, direction == EDITOR_CMD_INVERSE);
+    if( changed )
+    {
+        size_t const size = Editor_ScenesEmit(&file, NULL, 0);
+        char* text = ToriMem_Alloc(ToriMem_Editor(), size + 1);
+        assert(text);
+        Editor_ScenesEmit(&file, text, size + 1);
+        Editor_TextDocSet(handle.text, text, size);
+        handle.text->dirty = 1;
+        ToriMem_Free(ToriMem_Editor(), text);
+    }
+    Editor_ScenesFree(&file);
+    return changed;
+}
+
 int
 Editor_CmdApply(
     struct Editor_Doc* doc,
@@ -374,6 +408,9 @@ Editor_CmdApply(
     case EDITOR_CMD_PALETTE_SET:
     case EDITOR_CMD_PALETTE_REMOVE:
         return apply_palettes(doc, command, direction);
+    case EDITOR_CMD_SCENE_SET:
+    case EDITOR_CMD_SCENE_REMOVE:
+        return apply_scenes(doc, command, direction);
     }
     return 0;
 }
@@ -870,6 +907,14 @@ history_tally(
             && group->kinds[EDITOR_CMD_PALETTE_SET] + group->kinds[EDITOR_CMD_PALETTE_REMOVE] == 1 )
             Editor_PalettesCmdLabel(command, group->label, sizeof(group->label));
         break;
+    case EDITOR_CMD_SCENE_SET:
+    case EDITOR_CMD_SCENE_REMOVE:
+        /* A verb of several lines is named by the window (Editor_HistoryName,
+         * "Save scene X"); a lone line by the codec. */
+        if( group->label[0] == '\0' && group->verb[0] == '\0'
+            && group->kinds[EDITOR_CMD_SCENE_SET] + group->kinds[EDITOR_CMD_SCENE_REMOVE] == 1 )
+            Editor_ScenesCmdLabel(command, group->label, sizeof(group->label));
+        break;
     }
 }
 
@@ -1343,6 +1388,11 @@ Editor_HistoryGroupName(
     case EDITOR_CMD_PALETTE_REMOVE:
         snprintf(verb, sizeof(verb), "Edit");
         snprintf(what, sizeof(what), "%d palette line%s", group->cmd_count, group->cmd_count == 1 ? "" : "s");
+        break;
+    case EDITOR_CMD_SCENE_SET:
+    case EDITOR_CMD_SCENE_REMOVE:
+        snprintf(verb, sizeof(verb), "Edit");
+        snprintf(what, sizeof(what), "%d scene line%s", group->cmd_count, group->cmd_count == 1 ? "" : "s");
         break;
     case EDITOR_CMD_TEXT_SPLICE:
         snprintf(verb, sizeof(verb), "Edit text");

@@ -798,6 +798,12 @@ Editor_HostDocPath(
             return 0;
         written = snprintf(out, out_size, "editor/palettes.txt");
         break;
+    case EDITOR_DOC_SCENES:
+        /* The scenes: beside the areas and the palettes (editor_scenes.h). */
+        if( part != 0 || !Editor_DocKeyValid(kind, key) )
+            return 0;
+        written = snprintf(out, out_size, "editor/scenes.txt");
+        break;
     case EDITOR_DOC_TEXT:
         if( part != 0 || !Editor_DocKeyValid(kind, key) )
             return 0;
