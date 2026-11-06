@@ -10,6 +10,7 @@
 #include "mem/torirs_mem.h"
 #include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
+#include "editor/builder/builder_shell.h"
 #include "editor/editor_derive.h"
 #include "editor/accounts/accounts_panel.h"
 #include "editor/editor_view.h"
@@ -140,7 +141,46 @@ app_editor_on_state(
      * answers 0 here, so the panels still get it. */
     if( EditorView_AppOnState(app, key, values, count) )
         return;
+    /* The var preview is the world's too: every shell keyed on a listed var
+     * resolves with its value (the panels still hear it below). */
+    if( key == TORIRSMAPED_STATE_VAR_PREVIEW )
+        (void)app_map_editor_var_preview(&app->varps, values, count);
     Editor_PanelApplySharedState(&app->editor_panel, app, key, values, count);
+}
+
+/*
+ * STATE_VAR_PREVIEW (the shell editor's layout, builder_shell.h) into the
+ * varps the world resolves multilocs and multinpcs with, App-free so
+ * edit_world_test drives it: VarPManager_SetPreview takes the listed vars,
+ * and its change callback (app_varp_change in the client) re-resolves every
+ * placed loc and npc that depends on one, so scrubbing the shell editor's
+ * slider changes the placed multiloc's child. A malformed field clears the
+ * preview rather than leave a stale one. Returns how many vars are
+ * previewed now.
+ */
+int
+app_map_editor_var_preview(
+    struct VarPManager* varps,
+    const int32_t* values,
+    int count)
+{
+    struct Builder_PreviewVar vars[BUILDER_PREVIEW_MAX];
+    struct VarPManagerPreview preview[VARP_MANAGER_PREVIEW_MAX];
+    int n;
+
+    assert(varps);
+    assert(values || count == 0);
+    n = Builder_PreviewDecode(values, count, vars, BUILDER_PREVIEW_MAX);
+    if( n > VARP_MANAGER_PREVIEW_MAX )
+        n = VARP_MANAGER_PREVIEW_MAX;
+    for( int i = 0; i < n; i++ )
+    {
+        preview[i].is_varbit = vars[i].kind == BUILDER_PREVIEW_VARBIT;
+        preview[i].id = vars[i].id;
+        preview[i].value = vars[i].value;
+    }
+    (void)VarPManager_SetPreview(varps, preview, n);
+    return n;
 }
 
 /* ---- the EDIT world's flush path ---------------------------------------- */
@@ -220,6 +260,9 @@ app_map_editor_shutdown(struct App* app)
     assert(app);
     assert(app->editor);
     app_map_editor_layout_flush(app);
+    /* The var preview is the editor's: the world resolves with the
+     * player's vars again once it closes. */
+    (void)VarPManager_SetPreview(&app->varps, NULL, 0);
     /* The embedded server's loopback listener, before the session it serves
      * goes (app/app_editor_view.c). */
     EditorView_AppShutdown(app);

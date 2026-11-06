@@ -3986,11 +3986,12 @@ dbg_ext_key_edit(struct ToriRSChrome* ui, int key)
     {
     case TORIRS_CHROME_W_GRAPH:
         /* The arrows, Enter and Backspace are the host's (the square picker
-         * moves, opens and goes back with them: workbench 6.4); Escape is
-         * the host's too, and then releases the well. */
+         * moves, opens and goes back with them: workbench 6.4); so is Delete
+         * (the dialogue graph deletes its selected node: workbench 6.6);
+         * Escape is the host's too, and then releases the well. */
         if( key == TORIRS_CHROME_KEY_LEFT || key == TORIRS_CHROME_KEY_RIGHT || key == TORIRS_CHROME_KEY_UP ||
             key == TORIRS_CHROME_KEY_DOWN || key == TORIRS_CHROME_KEY_ENTER || key == TORIRS_CHROME_KEY_BACKSPACE ||
-            key == TORIRS_CHROME_KEY_ESCAPE )
+            key == TORIRS_CHROME_KEY_DELETE || key == TORIRS_CHROME_KEY_ESCAPE )
             dbg_graph_key(ui, focus, -key);
         if( key == TORIRS_CHROME_KEY_ESCAPE )
             (void)ToriRSChrome_FocusWidget(ui, -1, 0);

@@ -25,7 +25,7 @@ test-accounts:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/accounts_test $(TORIMEM_SRCS) \
 		$(filter-out torirsmaped/torirs_maped_main.c,$(TORIRSMAPED_SRCS)) \
-		torirsmaped/test/accounts_test.c
+		torirsmaped/test/accounts_test.c -lm
 	rm -rf $(OBJ_DIR)/tmp/accounts
 	mkdir -p $(OBJ_DIR)/tmp/accounts
 	cp editor/live/test/mock_control_peer.py $(OBJ_DIR)/tmp/accounts/

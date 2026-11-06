@@ -17,9 +17,11 @@
  *                                  a failed build that said nothing a row
  *                                  reads leaves its DONE line as one.
  *                the push API      Editor_Problems_Report / _ReportRecord /
- *                                  _Clear: the Record panel's unknown keys,
- *                                  the builders' lint, the quest board's and
- *                                  the shop builder's Check.
+ *                                  _ReportOpen / _Clear: the Record
+ *                                  panel's unknown keys, the builders'
+ *                                  lint (a click selects the node), the
+ *                                  quest board's gate findings and the
+ *                                  shop builder's Check.
  *   Find       filters as you type (file, text, source); "errors only".
  *   click      a row with a record opens it in the Record panel at the field
  *              (click-to-record); a row with a script file runs the Triggers
@@ -187,6 +189,39 @@ Editor_Problems_ReportRecord(
     snprintf(row->record_type, sizeof(row->record_type), "%s", type);
     snprintf(row->record_name, sizeof(row->record_name), "%s", name);
     snprintf(row->record_field, sizeof(row->record_field), "%s", field);
+}
+
+void
+Editor_Problems_ReportOpen(
+    struct EditorUi* ui,
+    const char* source,
+    const char* file,
+    int line,
+    int severity,
+    const char* text,
+    Editor_ProblemOpenFn open,
+    void* user,
+    int index)
+{
+    struct ProblemsPanel* self;
+    struct Editor_ProblemRow* row;
+
+    assert(ui);
+    assert(source);
+    assert(file);
+    assert(text);
+    assert(open);
+    assert(severity >= EDITOR_PROBLEM_ERROR);
+    assert(severity <= EDITOR_PROBLEM_NOTE);
+    self = problems_self(ui);
+    if( !self )
+        return;
+    row = problems_add(self, source, file, line, severity, text);
+    if( !row )
+        return;
+    row->open = open;
+    row->open_user = user;
+    row->open_index = index;
 }
 
 int
@@ -596,6 +631,11 @@ Editor_Problems_Activate(
     assert(index >= 0);
     assert(index < self->row_count);
     row = &self->rows[index];
+    if( row->open )
+    {
+        row->open(ui, row->open_user, row->open_index);
+        return 1;
+    }
     if( row->record_name[0] )
     {
         int const kind = problems_record_kind(row->record_type);

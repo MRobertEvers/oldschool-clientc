@@ -275,10 +275,14 @@ assert.deepStrictEqual([typed[typed.length - 1].k, typed[typed.length - 1].v], [
   assert.strictEqual(typed[typed.length - 1].x, -8, 'Escape');
   graph.control.fire('keydown', { keyCode: 187, key: '+' });
   assert.strictEqual(typed[typed.length - 1].x, 43, '+ is its character');
+  /* Workbench 6.6: Delete is the well's too (the dialogue graph deletes its
+   * selected node), as the native well hands it over. */
+  graph.control.fire('keydown', { keyCode: 46 });
+  assert.strictEqual(typed[typed.length - 1].x, -2, 'Delete is GRAPH_KEY -DELETE');
   const counted = typed.length;
   graph.control.fire('keydown', { keyCode: 81, key: 'q' });
   assert.strictEqual(typed.length, counted, 'a letter is not the well\'s');
-  assert.strictEqual(typed.length - keyBefore, 5, 'five keys, five intents');
+  assert.strictEqual(typed.length - keyBefore, 6, 'six keys, six intents');
 }
 
 /* Gesture frames (workbench 6.1): ctrl+wheel is a continuous pinch about the

@@ -3,11 +3,14 @@
 #include "builder_shell.h"
 #include "editor/editor_cfg.h"
 #include "editor/editor_ui.h"
+#include "editor/panels/edpanel_common.h"
+#include "editor/panels/edpanels.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "ui/uitree_debug_overlay.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,6 +22,37 @@
 #define BP_NODE_W 120
 #define BP_NODE_H 26
 #define BP_GRAPH_H 260
+
+/* The dialogue graph's hit keys: a node's body is its index + 1, its ports
+ * BP_KEY_PORT + index * BP_PORTS_STRIDE + port, the new-node chip row's
+ * chips BP_KEY_CHIP + kind. */
+#define BP_KEY_PORT 1000
+#define BP_PORTS_STRIDE 8
+#define BP_KEY_CHIP 5000
+#define BP_PORT_W 10
+#define BP_PORT_H 8
+#define BP_CHIP_W 52
+#define BP_CHIP_H 18
+/** A press that moves less than this is a click, not a drag. */
+#define BP_DRAG_SLOP 3
+
+enum
+{
+    BP_DRAG_NONE = 0,
+    BP_DRAG_NODE,
+    BP_DRAG_SUBTREE,
+    BP_DRAG_PORT,
+};
+
+/* The text's pages and the chat box preview (design section 10). */
+#define BP_PAGE_LINE_H 16
+#define BP_PAGE_RULE_COLOR 0x7a8ad8
+#define BP_CHAT_W 500
+#define BP_CHAT_H 128
+#define BP_CHAT_HEAD 46
+#define BP_CHAT_TEXT_X 96
+#define BP_LINT_VISIBLE 6
+#define BP_NAME_CACHE 32
 
 /* Borrowed by the dropdowns for the widgets' whole life: static. */
 static const char* const k_trigger_options[] = {
@@ -85,6 +119,16 @@ copy_text(
 
 /* ---- the builder panel ---------------------------------------------------- */
 
+/** One lint row as the Problems panel hears it (edpanels.h,
+ *  Editor_Problems_ReportOpen): kept so a regeneration that changed none of
+ *  them reports nothing. */
+struct bp_problem
+{
+    int severity;
+    char where[64];
+    char message[192];
+};
+
 struct builder_panel
 {
     enum Builder_Subject subject;
@@ -127,9 +171,55 @@ struct builder_panel
     int w_node_text, w_node_expr, w_node_next, w_node_speaker_npc, w_node_speaker_name, w_node_obj,
         w_node_row, w_node_quest, w_node_apply;
     int w_node_arm[BUILDER_ARMS_MAX];
-    int dragging;
-    int drag_dx;
-    int drag_dy;
+    int w_graph_hint, w_layout;
+
+    /* The graph's gesture: what the press grabbed and where it went. */
+    int drag_mode;
+    int drag_moved;
+    int press_x;
+    int press_y;
+    int drag_x;
+    int drag_y;
+    int drag_port_node;
+    int drag_port;
+    unsigned char drag_mask[BUILDER_NODES_MAX];
+    int drag_orig_x[BUILDER_NODES_MAX];
+    int drag_orig_y[BUILDER_NODES_MAX];
+
+    /* The new-node chip row a port dropped on empty space opens, at the
+     * drop; the node it makes is linked from that port. */
+    int chips_open;
+    char chip_from[BUILDER_NODE_ID_MAX];
+    int chip_port;
+    int chip_x;
+    int chip_y;
+
+    /* The selected node's text at the chat box's line rule. */
+    int w_pages, w_preview, w_preview_label;
+    struct Builder_ChatMetrics chat;
+    struct Builder_ChatLayout layout;
+    char layout_text[BUILDER_TEXT_MAX];
+    int layout_node;
+    int sel_page;
+
+    /* The lint (builder_lint.h): the rows, the find box, the VLIST. */
+    int w_lint_find, w_lint_list, w_lint_label;
+    struct Builder_LintRows lint;
+    int lint_shown[BUILDER_LINT_ROWS_MAX];
+    int lint_shown_count;
+    char lint_find[TORIRS_CHROME_INPUT_MAX];
+    struct bp_problem problems[BUILDER_LINT_ROWS_MAX];
+    char problems_source[EDITOR_PROBLEM_SOURCE_MAX];
+    uint32_t problems_hash;
+    int problems_reported;
+    struct
+    {
+        char name[BUILDER_NAME_MAX];
+        int kind;
+        int known;
+    } names[BP_NAME_CACHE];
+    int name_count;
+    uint32_t hotkeys_serial;
 };
 
 static void
@@ -190,6 +280,7 @@ bp_set_editable(
         ToriRSChrome_SetDisabled(ui->chrome, self->w_node_add, off);
         ToriRSChrome_SetDisabled(ui->chrome, self->w_node_remove, off);
         ToriRSChrome_SetDisabled(ui->chrome, self->w_node_start, off);
+        ToriRSChrome_SetDisabled(ui->chrome, self->w_layout, off);
     }
 }
 
@@ -369,6 +460,23 @@ bp_rebuild_outline(
         memset(seen, 0, sizeof(seen));
         outline_push(ui, self, "Dialogue", 0, TORIRS_CHROME_TREE_OPEN, -1, -1, -1);
         outline_dialogue(ui, self, self->model->start, 1, seen);
+        /* The tree is the graph's model: what the start cannot reach is in
+         * it too, under its own row, so every node has a row to select. */
+        {
+            int heading = 0;
+            for( int n = 0; n < self->model->node_count; n++ )
+            {
+                if( seen[n] )
+                    continue;
+                if( !heading )
+                {
+                    outline_push(ui, self, "Orphans (not reached from the start)", 0, TORIRS_CHROME_TREE_OPEN, -1,
+                                 -1, -1);
+                    heading = 1;
+                }
+                outline_dialogue(ui, self, self->model->nodes[n].id, 1, seen);
+            }
+        }
     }
 }
 
@@ -381,26 +489,130 @@ node_color(enum Builder_NodeKind kind)
     return k_colors[kind];
 }
 
-static void
-graph_edge(
-    struct EditorUi* ui,
-    struct builder_panel* self,
-    const struct Builder_Node* from,
-    const char* to_id,
-    int port,
-    int ports)
+/** Where port `port` of `node` sits: its centre on the node's foot. */
+static int
+port_x(
+    const struct Builder_Node* node,
+    int port)
 {
-    const struct Builder_Node* to;
-    int x0;
+    int const ports = Builder_NodePortCount(node);
+    return node->x + (BP_NODE_W * (port + 1)) / (ports + 1);
+}
 
-    if( !to_id[0] )
+static int
+port_y(const struct Builder_Node* node)
+{
+    return node->y + BP_NODE_H;
+}
+
+/**
+ * A caption of any length on a GRAPH well: an item holds 31 bytes, so the
+ * text goes as runs of them, each placed after the last one's width in the
+ * face the chrome draws GRAPH text in (the theme's row font). Measured, so
+ * the runs meet; nothing is cut. Returns the width drawn.
+ */
+static int
+graph_text_run(
+    struct EditorUi* ui,
+    int widget,
+    int x,
+    int baseline,
+    uint32_t color,
+    const char* text)
+{
+    int const font = ui->chrome->theme.font_row;
+    int width = 0;
+    size_t length = strlen(text);
+    size_t at = 0;
+
+    while( at < length )
+    {
+        char run[TORIRS_CHROME_GRAPH_TEXT_MAX];
+        size_t take = length - at;
+        if( take > sizeof(run) - 1 )
+            take = sizeof(run) - 1;
+        memcpy(run, text + at, take);
+        run[take] = '\0';
+        ToriRSChrome_GraphText(ui->chrome, widget, x + width, baseline, color, run);
+        width += ToriRSChrome_MeasureText(font, 1, run);
+        at += take;
+    }
+    return width;
+}
+
+static int
+graph_text_width(
+    struct EditorUi* ui,
+    const char* text)
+{
+    return ToriRSChrome_MeasureText(ui->chrome->theme.font_row, 1, text);
+}
+
+/** A chat line's bytes as the box shows them: tags dropped, <lt> / <gt>
+ *  as their glyphs. */
+static void
+chat_visible_text(
+    const char* line,
+    char* out,
+    size_t out_size)
+{
+    size_t length = 0;
+
+    for( const char* at = line; *at && length + 1 < out_size; at++ )
+    {
+        if( *at == '<' )
+        {
+            const char* end = strchr(at, '>');
+            if( end )
+            {
+                if( end - at == 3 && strncmp(at, "<lt>", 4) == 0 )
+                    out[length++] = '<';
+                else if( end - at == 3 && strncmp(at, "<gt>", 4) == 0 )
+                    out[length++] = '>';
+                at = end;
+                continue;
+            }
+        }
+        out[length++] = *at;
+    }
+    out[length] = '\0';
+}
+
+/**
+ * A node's caption, measured against its box: "id kind", else the id alone,
+ * else the id cut to fit with an ellipsis (the whole id is the outline's
+ * row and the form's). Never wider than the box.
+ */
+static void
+graph_node_label(
+    struct EditorUi* ui,
+    const struct Builder_Node* node,
+    char* out,
+    size_t out_size)
+{
+    int const room = BP_NODE_W - 8;
+    size_t length;
+
+    snprintf(out, out_size, "%s %s", node->id, Builder_NodeKindToken(node->kind));
+    if( strlen(node->id) + 1 + strlen(Builder_NodeKindToken(node->kind)) < out_size
+        && graph_text_width(ui, out) <= room )
         return;
-    to = Builder_ModelNodeConst(self->model, to_id);
-    if( !to )
+    snprintf(out, out_size, "%s", node->id);
+    if( strlen(node->id) < out_size && graph_text_width(ui, out) <= room )
         return;
-    x0 = from->x + (BP_NODE_W * (port + 1)) / (ports + 1);
-    ToriRSChrome_GraphLine(ui->chrome, self->w_graph, x0, from->y + BP_NODE_H, to->x + BP_NODE_W / 2,
-                           to->y, 0xc8c8c8);
+    length = strlen(out);
+    while( length > 0 )
+    {
+        char cut[TORIRS_CHROME_GRAPH_TEXT_MAX + 4];
+        snprintf(cut, sizeof(cut), "%.*s...", (int)length, node->id);
+        if( strlen(cut) < out_size && graph_text_width(ui, cut) <= room )
+        {
+            snprintf(out, out_size, "%s", cut);
+            return;
+        }
+        length--;
+    }
+    out[0] = '\0';
 }
 
 static void
@@ -408,42 +620,312 @@ bp_redraw_graph(
     struct EditorUi* ui,
     struct builder_panel* self)
 {
+    struct ToriRSChrome* chrome = ui->chrome;
+
     if( self->w_graph < 0 )
         return;
-    ToriRSChrome_GraphBegin(ui->chrome, self->w_graph);
+    ToriRSChrome_GraphBegin(chrome, self->w_graph);
     if( self->has_model )
     {
         const struct Builder_Model* model = self->model;
+        unsigned char orphans[BUILDER_NODES_MAX];
+
+        (void)Builder_ModelOrphans(model, orphans);
+        /* Links first, under the nodes: port to the target's head. */
         for( int n = 0; n < model->node_count; n++ )
         {
             const struct Builder_Node* node = &model->nodes[n];
-            int ports = node->kind == BUILDER_NODE_CHOICE || node->kind == BUILDER_NODE_BRANCH
-                            ? node->arm_count + (node->kind == BUILDER_NODE_BRANCH ? 1 : 0)
-                            : 1;
-            for( int a = 0; a < node->arm_count && node->kind != BUILDER_NODE_STEP; a++ )
-                graph_edge(ui, self, node, node->arms[a].next, a, ports);
-            if( node->kind != BUILDER_NODE_CHOICE && node->kind != BUILDER_NODE_END )
-                graph_edge(ui, self, node, node->next, ports - 1, ports);
+            int const ports = Builder_NodePortCount(node);
+            for( int p = 0; p < ports; p++ )
+            {
+                const char* next = Builder_NodePortNextConst(node, p);
+                const struct Builder_Node* to = next[0] ? Builder_ModelNodeConst(model, next) : NULL;
+                if( !to )
+                    continue;
+                ToriRSChrome_GraphLine(chrome, self->w_graph, port_x(node, p), port_y(node),
+                                       to->x + BP_NODE_W / 2, to->y, 0xc8c8c8);
+            }
         }
         for( int n = 0; n < model->node_count; n++ )
         {
             const struct Builder_Node* node = &model->nodes[n];
+            int const ports = Builder_NodePortCount(node);
             char label[TORIRS_CHROME_GRAPH_TEXT_MAX];
 
-            ToriRSChrome_GraphRect(ui->chrome, self->w_graph, node->x, node->y, BP_NODE_W, BP_NODE_H,
+            ToriRSChrome_GraphRect(chrome, self->w_graph, node->x, node->y, BP_NODE_W, BP_NODE_H,
                                    node_color(node->kind), 1, n + 1);
+            if( orphans[n] )
+                ToriRSChrome_GraphRect(chrome, self->w_graph, node->x, node->y, BP_NODE_W, BP_NODE_H,
+                                       0xd86a4a, 0, 0);
             if( n == self->sel_node )
-                ToriRSChrome_GraphRect(ui->chrome, self->w_graph, node->x - 2, node->y - 2,
-                                       BP_NODE_W + 4, BP_NODE_H + 4, 0xffd24a, 0, 0);
+                ToriRSChrome_GraphRect(chrome, self->w_graph, node->x - 2, node->y - 2, BP_NODE_W + 4,
+                                       BP_NODE_H + 4, 0xffd24a, 0, 0);
             if( strcmp(node->id, model->start) == 0 )
-                ToriRSChrome_GraphRect(ui->chrome, self->w_graph, node->x - 4, node->y + 4, 3,
-                                       BP_NODE_H - 8, 0x4aff7a, 1, 0);
-            snprintf(label, sizeof(label), "%s %s", node->id, Builder_NodeKindToken(node->kind));
-            ToriRSChrome_GraphText(ui->chrome, self->w_graph, node->x + 4, node->y + 17, 0xffffff,
-                                   label);
+                ToriRSChrome_GraphRect(chrome, self->w_graph, node->x - 4, node->y + 4, 3, BP_NODE_H - 8,
+                                       0x4aff7a, 1, 0);
+            graph_node_label(ui, node, label, sizeof(label));
+            ToriRSChrome_GraphText(chrome, self->w_graph, node->x + 4, node->y + 17, 0xffffff, label);
+            /* The out-ports, keyed so a press on one starts a link. A linked
+             * port is filled; an open one (the dialogue ends there) is not. */
+            for( int p = 0; p < ports && p < BP_PORTS_STRIDE; p++ )
+            {
+                int const linked = Builder_NodePortNextConst(node, p)[0] != '\0';
+                int const px = port_x(node, p) - BP_PORT_W / 2;
+                int const py = port_y(node) - BP_PORT_H / 2;
+                ToriRSChrome_GraphRect(chrome, self->w_graph, px, py, BP_PORT_W, BP_PORT_H,
+                                       linked ? 0xe8e8e8 : 0x303030, 1,
+                                       BP_KEY_PORT + n * BP_PORTS_STRIDE + p);
+                ToriRSChrome_GraphRect(chrome, self->w_graph, px, py, BP_PORT_W, BP_PORT_H, 0xe8e8e8, 0, 0);
+            }
+        }
+        /* The link being drawn: from the grabbed port to the pointer. */
+        if( self->drag_mode == BP_DRAG_PORT && self->drag_port_node >= 0
+            && self->drag_port_node < model->node_count )
+        {
+            const struct Builder_Node* from = &model->nodes[self->drag_port_node];
+            ToriRSChrome_GraphLine(chrome, self->w_graph, port_x(from, self->drag_port), port_y(from),
+                                   self->drag_x, self->drag_y, 0xffd24a);
+        }
+        /* The new-node chip row, at the drop: one chip per kind. */
+        if( self->chips_open )
+        {
+            int const row_w = BUILDER_NODE_KIND_COUNT * (BP_CHIP_W + 2) + 2;
+            ToriRSChrome_GraphRect(chrome, self->w_graph, self->chip_x - 1, self->chip_y - 1, row_w,
+                                   BP_CHIP_H + 2, 0x101010, 1, 0);
+            for( int k = 0; k < BUILDER_NODE_KIND_COUNT; k++ )
+            {
+                char chip[TORIRS_CHROME_GRAPH_TEXT_MAX];
+                char* space;
+                int const x = self->chip_x + k * (BP_CHIP_W + 2);
+                int text_w;
+
+                ToriRSChrome_GraphRect(chrome, self->w_graph, x, self->chip_y, BP_CHIP_W, BP_CHIP_H,
+                                       node_color((enum Builder_NodeKind)k), 1, BP_KEY_CHIP + k);
+                /* The chip is narrow: the kind's first word ("NPC", "Player",
+                 * ...), every one of which fits it. */
+                snprintf(chip, sizeof(chip), "%s", Builder_NodeKindLabel((enum Builder_NodeKind)k));
+                space = strchr(chip, ' ');
+                if( space )
+                    *space = '\0';
+                text_w = graph_text_width(ui, chip);
+                assert(text_w <= BP_CHIP_W);
+                ToriRSChrome_GraphText(chrome, self->w_graph, x + (BP_CHIP_W - text_w) / 2,
+                                       self->chip_y + 13, 0xffffff, chip);
+            }
         }
     }
-    ToriRSChrome_GraphEnd(ui->chrome, self->w_graph);
+    ToriRSChrome_GraphEnd(chrome, self->w_graph);
+}
+
+/* ---- the text's pages and the chat-box preview ----------------------------- */
+
+static const struct Builder_Node*
+bp_selected_node(const struct builder_panel* self)
+{
+    if( !self->has_model || self->sel_node < 0 || self->sel_node >= self->model->node_count )
+        return NULL;
+    return &self->model->nodes[self->sel_node];
+}
+
+/**
+ * The text the pages lay out: what the node form's Text field holds now, so
+ * the pages follow the typing -- unless the field is full and the model's
+ * page is longer (a one-line field holds TORIRS_CHROME_INPUT_MAX - 1 bytes,
+ * a page BUILDER_TEXT_MAX - 1), when the model's text is the one shown.
+ */
+static const char*
+bp_layout_source(
+    struct EditorUi* ui,
+    const struct builder_panel* self)
+{
+    const struct Builder_Node* node = bp_selected_node(self);
+    const char* field;
+    const char* model;
+
+    if( !node || !Builder_ChatNodeText(node) || self->w_node_text < 0 )
+        return "";
+    field = ToriRSChrome_Text(ui->chrome, self->w_node_text);
+    model = Builder_ChatNodeText(node);
+    if( strlen(field) >= TORIRS_CHROME_INPUT_MAX - 1 && strlen(model) > strlen(field) )
+        return model;
+    return field;
+}
+
+static void
+bp_layout_text(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    copy_text(self->layout_text, sizeof(self->layout_text), bp_layout_source(ui, self));
+    self->layout_node = self->sel_node;
+    Builder_ChatLayoutText(self->layout_text, &self->chat, &self->layout);
+    if( self->sel_page >= self->layout.page_count )
+        self->sel_page = self->layout.page_count - 1;
+    if( self->sel_page < 0 )
+        self->sel_page = 0;
+}
+
+/** The Text field as the chat box breaks it: a row per line, a thin rule
+ *  where the client starts the next page, each page keyed (a click shows
+ *  it in the preview). */
+static void
+bp_redraw_pages(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    const struct Builder_Node* node = bp_selected_node(self);
+    int const lines = self->layout.line_count > 0 ? self->layout.line_count : 1;
+
+    if( self->w_pages < 0 )
+        return;
+    ToriRSChrome_SetCustomHeight(chrome, self->w_pages, lines * BP_PAGE_LINE_H + 4);
+    ToriRSChrome_GraphBegin(chrome, self->w_pages);
+    if( node && Builder_ChatNodeText(node) )
+    {
+        for( int page = 0; page < self->layout.page_count; page++ )
+        {
+            int const first = page * self->chat.page_lines;
+            int count = self->layout.line_count - first;
+            if( count > self->chat.page_lines )
+                count = self->chat.page_lines;
+            ToriRSChrome_GraphRect(chrome, self->w_pages, 0, 2 + first * BP_PAGE_LINE_H, self->chat.width + 8,
+                                   count * BP_PAGE_LINE_H, page == self->sel_page ? 0x34404e : 0x2a2a2a, 1,
+                                   page + 1);
+        }
+        /* The box's right edge: where the rule breaks a line. */
+        ToriRSChrome_GraphRect(chrome, self->w_pages, self->chat.width + 4, 2, 1, lines * BP_PAGE_LINE_H, 0x505050,
+                               1, 0);
+        for( int i = 0; i < self->layout.line_count; i++ )
+        {
+            char line[BUILDER_CHAT_TEXT_MAX];
+            char shown[BUILDER_CHAT_TEXT_MAX];
+            int const y = 2 + i * BP_PAGE_LINE_H;
+
+            if( i > 0 && self->layout.lines[i].page != self->layout.lines[i - 1].page )
+            {
+                char caption[TORIRS_CHROME_GRAPH_TEXT_MAX];
+                snprintf(caption, sizeof(caption), "page %d", self->layout.lines[i].page + 1);
+                ToriRSChrome_GraphRect(chrome, self->w_pages, 0, y, self->chat.width + 8, 1, BP_PAGE_RULE_COLOR, 1,
+                                       0);
+                ToriRSChrome_GraphText(chrome, self->w_pages, self->chat.width + 10, y + 12, BP_PAGE_RULE_COLOR,
+                                       caption);
+            }
+            Builder_ChatLineText(&self->layout, i, line, sizeof(line));
+            chat_visible_text(line, shown, sizeof(shown));
+            graph_text_run(ui, self->w_pages, 4, y + 12, 0xe8e8e8, shown);
+        }
+    }
+    ToriRSChrome_GraphEnd(chrome, self->w_pages);
+}
+
+/** The selected page as the chat box draws it: the head beside the text,
+ *  the speaker over it, the page's lines centred under it and the continue
+ *  line; a choice is its title and options. */
+static void
+bp_redraw_preview(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    const struct Builder_Node* node = bp_selected_node(self);
+    int const column = BP_CHAT_W - BP_CHAT_TEXT_X - 8;
+    int const centre = BP_CHAT_TEXT_X + column / 2;
+    char line[TORIRS_CHROME_INPUT_MAX];
+
+    if( self->w_preview < 0 )
+        return;
+    ToriRSChrome_GraphBegin(chrome, self->w_preview);
+    ToriRSChrome_GraphRect(chrome, self->w_preview, 0, 0, BP_CHAT_W, BP_CHAT_H, 0xc9b98f, 1, 0);
+    ToriRSChrome_GraphRect(chrome, self->w_preview, 0, 0, BP_CHAT_W, BP_CHAT_H, 0x5a4a2a, 0, 0);
+    if( !node )
+    {
+        ToriRSChrome_GraphText(chrome, self->w_preview, 8, 20, 0x3a2a1a, "Select a node to see its page.");
+        ToriRSChrome_SetText(chrome, self->w_preview_label, "");
+    }
+    else if( node->kind == BUILDER_NODE_CHOICE )
+    {
+        const char* title = node->text[0] ? node->text : "Select an option";
+        int const title_w = graph_text_width(ui, title);
+        graph_text_run(ui, self->w_preview, BP_CHAT_W / 2 - title_w / 2, 18, 0x800000, title);
+        for( int a = 0; a < node->arm_count; a++ )
+        {
+            char shown[TORIRS_CHROME_INPUT_MAX];
+            int width;
+            chat_visible_text(node->arms[a].text, shown, sizeof(shown));
+            width = graph_text_width(ui, shown);
+            graph_text_run(ui, self->w_preview, BP_CHAT_W / 2 - width / 2, 38 + a * 16, 0x000000, shown);
+        }
+        snprintf(line, sizeof(line), "chat box preview: %s, %d option(s)", node->id, node->arm_count);
+        ToriRSChrome_SetText(chrome, self->w_preview_label, line);
+    }
+    else if( !Builder_ChatNodeText(node) )
+    {
+        snprintf(line, sizeof(line), "A %s shows no page.", Builder_NodeKindLabel(node->kind));
+        ToriRSChrome_GraphText(chrome, self->w_preview, 8, 20, 0x3a2a1a, line);
+        ToriRSChrome_SetText(chrome, self->w_preview_label, "");
+    }
+    else
+    {
+        int const head = node->kind == BUILDER_NODE_NPC || node->kind == BUILDER_NODE_PLAYER;
+        int const first = self->sel_page * self->chat.page_lines;
+        const char* speaker = "";
+        int head_drawn = 0;
+
+        if( node->kind == BUILDER_NODE_NPC )
+            speaker = node->speaker_name[0] ? node->speaker_name
+                      : self->record.display[0] ? self->record.display
+                                                : self->model->name;
+        else if( node->kind == BUILDER_NODE_PLAYER )
+            speaker = self->chat.player ? self->chat.player : BUILDER_CHAT_PLAYER_STANDIN;
+        if( head )
+        {
+            /* The npc's head left of the text, the player's right of it, as
+             * the chat box sets them. */
+            int const head_x = node->kind == BUILDER_NODE_NPC ? 24 : BP_CHAT_W - 24 - BP_CHAT_HEAD;
+            int scene_id = 0;
+            uint32_t version = 0;
+            const char* npc = node->speaker_npc[0] ? node->speaker_npc : self->model->name;
+            if( node->kind == BUILDER_NODE_NPC && self->services.chat_head
+                && self->services.chat_head(self->services.user_data, npc, node->expr, &scene_id, &version) )
+            {
+                ToriRSChrome_GraphImage(chrome, self->w_preview, head_x, 24, BP_CHAT_HEAD, BP_CHAT_HEAD, scene_id, 0,
+                                        version);
+                head_drawn = 1;
+            }
+            else
+            {
+                ToriRSChrome_GraphRect(chrome, self->w_preview, head_x, 24, BP_CHAT_HEAD, BP_CHAT_HEAD, 0x8a7a5a, 0,
+                                       0);
+                ToriRSChrome_GraphText(chrome, self->w_preview, head_x + 8, 52, 0x5a4a2a, "head");
+            }
+        }
+        if( speaker[0] )
+        {
+            int const width = graph_text_width(ui, speaker);
+            graph_text_run(ui, self->w_preview, centre - width / 2, 18, 0x800000, speaker);
+        }
+        for( int i = 0; i < self->chat.page_lines && first + i < self->layout.line_count; i++ )
+        {
+            char raw[BUILDER_CHAT_TEXT_MAX];
+            char shown[BUILDER_CHAT_TEXT_MAX];
+            int width;
+            Builder_ChatLineText(&self->layout, first + i, raw, sizeof(raw));
+            chat_visible_text(raw, shown, sizeof(shown));
+            width = graph_text_width(ui, shown);
+            graph_text_run(ui, self->w_preview, centre - width / 2, 38 + i * 16, 0x000000, shown);
+        }
+        {
+            static const char k_more[] = "Click here to continue";
+            int const width = graph_text_width(ui, k_more);
+            ToriRSChrome_GraphText(chrome, self->w_preview, centre - width / 2, BP_CHAT_H - 10, 0x0000ff, k_more);
+        }
+        snprintf(line, sizeof(line), "chat box preview: page %d of %d%s%s", self->sel_page + 1,
+                 self->layout.page_count, head && !head_drawn ? " (no head: no preview pipeline is bound)" : "",
+                 self->layout.truncated ? "; the text is longer than the preview lays out" : "");
+        ToriRSChrome_SetText(chrome, self->w_preview_label, line);
+    }
+    ToriRSChrome_GraphEnd(chrome, self->w_preview);
 }
 
 static void
@@ -662,6 +1144,232 @@ bp_read_node(
     return 1;
 }
 
+/* ---- the lint and its Problems rows ---------------------------------------- */
+
+/** One name the lint asks about, asked of the tree once per open subject. */
+static int
+bp_name_known(
+    struct builder_panel* self,
+    int kind,
+    const char* name)
+{
+    int known;
+
+    for( int i = 0; i < self->name_count; i++ )
+    {
+        if( self->names[i].kind == kind && strcmp(self->names[i].name, name) == 0 )
+            return self->names[i].known;
+    }
+    known = self->services.name_known(self->services.user_data, kind, name);
+    /* "Cannot say" (no catalog yet) is asked again next time. */
+    if( known >= 0 && self->name_count < BP_NAME_CACHE )
+    {
+        copy_text(self->names[self->name_count].name, sizeof(self->names[0].name), name);
+        self->names[self->name_count].kind = kind;
+        self->names[self->name_count].known = known;
+        self->name_count++;
+    }
+    return known;
+}
+
+static int
+bp_lint_var_known(
+    void* user_data,
+    const char* name)
+{
+    return bp_name_known(user_data, BUILDER_NAME_VAR, name);
+}
+
+static int
+bp_lint_proc_known(
+    void* user_data,
+    const char* name)
+{
+    return bp_name_known(user_data, BUILDER_NAME_PROC, name);
+}
+
+/** A case-insensitive substring test, for the find box. */
+static int
+bp_contains(
+    const char* text,
+    const char* find)
+{
+    size_t const length = strlen(find);
+
+    if( length == 0 )
+        return 1;
+    for( const char* at = text; *at; at++ )
+    {
+        size_t i;
+        for( i = 0; i < length && at[i]; i++ )
+        {
+            if( tolower((unsigned char)at[i]) != tolower((unsigned char)find[i]) )
+                break;
+        }
+        if( i == length )
+            return 1;
+    }
+    return 0;
+}
+
+static void
+bp_lint_row_text(
+    const struct Builder_LintRow* row,
+    char* out,
+    size_t out_size)
+{
+    snprintf(out, out_size, "%s  %s  %s: %s", row->error ? "error" : "warning", row->where,
+             Builder_LintKindLabel(row->kind), row->message);
+}
+
+/** The lint list's rows: the find box's filter over the lint. */
+static void
+bp_fill_lint(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    int first;
+    int shown;
+
+    if( self->w_lint_list < 0 )
+        return;
+    self->lint_shown_count = 0;
+    for( int i = 0; i < self->lint.count; i++ )
+    {
+        char text[TORIRS_CHROME_INPUT_MAX];
+        bp_lint_row_text(&self->lint.rows[i], text, sizeof(text));
+        if( bp_contains(text, self->lint_find) )
+            self->lint_shown[self->lint_shown_count++] = i;
+    }
+    ToriRSChrome_VListSetCount(ui->chrome, self->w_lint_list, self->lint_shown_count);
+    if( ToriRSChrome_VListWindow(ui->chrome, self->w_lint_list, &first, &shown) )
+    {
+        for( int r = first; r < first + shown && r < self->lint_shown_count; r++ )
+        {
+            char text[TORIRS_CHROME_INPUT_MAX];
+            bp_lint_row_text(&self->lint.rows[self->lint_shown[r]], text, sizeof(text));
+            ToriRSChrome_VListSetRow(ui->chrome, self->w_lint_list, r, text);
+        }
+    }
+    {
+        char line[TORIRS_CHROME_INPUT_MAX];
+        int errors = 0;
+        for( int i = 0; i < self->lint.count; i++ )
+            errors += self->lint.rows[i].error;
+        if( !self->has_model )
+            line[0] = '\0';
+        else if( self->lint.count == 0 )
+            snprintf(line, sizeof(line), "lint: clean%s",
+                     self->lint.unchecked ? " (vars and procs not checked: no catalog)" : "");
+        else
+            snprintf(line, sizeof(line), "lint: %d error(s), %d warning(s); %d of %d shown%s%s", errors,
+                     self->lint.count - errors, self->lint_shown_count, self->lint.count,
+                     self->lint.dropped ? ", more past the cap" : "",
+                     self->lint.unchecked ? "; vars and procs not checked: no catalog" : "");
+        ToriRSChrome_SetText(ui->chrome, self->w_lint_label, line);
+    }
+}
+
+static void bp_select_node(struct EditorUi* ui, struct builder_panel* self, int index);
+
+/** What a click on a lint row (here or in Problems) does: select what the
+ *  row names. */
+static void
+bp_open_lint(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    int index)
+{
+    const struct Builder_LintRow* row;
+
+    if( index < 0 || index >= self->lint.count )
+        return;
+    row = &self->lint.rows[index];
+    if( row->node >= 0 )
+        bp_select_node(ui, self, row->node);
+    else if( row->trigger >= 0 && row->trigger < self->model->trigger_count )
+    {
+        self->sel_trigger = row->trigger;
+        self->sel_step = row->step;
+        bp_load_step(ui, self);
+        bp_rebuild_outline(ui, self);
+    }
+    Editor_UiStatus(ui, "%s: %s", row->where, row->message);
+}
+
+static void
+bp_problem_open(
+    struct EditorUi* ui,
+    void* user,
+    int index)
+{
+    bp_open_lint(ui, user, index);
+}
+
+/** Lint the model, show the rows, and hand them to Problems as this
+ *  subject's source. */
+static void
+bp_run_lint(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    struct Builder_LintNames names;
+
+    if( self->w_graph < 0 )
+        return;
+    memset(&self->lint, 0, sizeof(self->lint));
+    if( self->has_model )
+    {
+        memset(&names, 0, sizeof(names));
+        names.user_data = self;
+        if( self->services.name_known )
+        {
+            names.var_known = bp_lint_var_known;
+            names.proc_known = bp_lint_proc_known;
+        }
+        (void)Builder_Lint(self->model, &names, &self->lint);
+        memset(self->problems, 0, sizeof(self->problems));
+        for( int i = 0; i < self->lint.count; i++ )
+        {
+            struct bp_problem* problem = &self->problems[i];
+            problem->severity = self->lint.rows[i].error ? EDITOR_PROBLEM_ERROR : EDITOR_PROBLEM_WARNING;
+            copy_text(problem->where, sizeof(problem->where), self->lint.rows[i].where);
+            snprintf(problem->message, sizeof(problem->message), "%s: %s",
+                     Builder_LintKindLabel(self->lint.rows[i].kind), self->lint.rows[i].message);
+        }
+        snprintf(self->problems_source, sizeof(self->problems_source), "%s:%s",
+                 self->subject == BUILDER_SUBJECT_NPC ? BUILDER_PANEL_NPC : BUILDER_PANEL_LOC, self->model->name);
+        /* Problems hears a source again only when its rows changed: a
+         * drag's regeneration that moved nothing in them says nothing. */
+        {
+            uint32_t hash = 2166136261u;
+            const unsigned char* bytes = (const unsigned char*)self->problems;
+            size_t const size = sizeof(self->problems[0]) * (size_t)self->lint.count;
+            for( size_t i = 0; i < size; i++ )
+                hash = (hash ^ bytes[i]) * 16777619u;
+            for( const char* at = self->problems_source; *at; at++ )
+                hash = (hash ^ (unsigned char)*at) * 16777619u;
+            hash ^= (uint32_t)self->lint.count;
+            if( !self->problems_reported || hash != self->problems_hash )
+            {
+                /* The source's rows are these and only these: the old
+                 * ones go, each row's click selects its node. */
+                (void)Editor_Problems_Clear(ui, self->problems_source);
+                for( int i = 0; i < self->lint.count; i++ )
+                {
+                    char text[EDITOR_PROBLEM_SOURCE_MAX + 64 + 192];
+                    snprintf(text, sizeof(text), "%s: %s", self->problems[i].where, self->problems[i].message);
+                    Editor_Problems_ReportOpen(ui, self->problems_source, "", 0, self->problems[i].severity, text,
+                                               bp_problem_open, self, i);
+                }
+                self->problems_hash = hash;
+                self->problems_reported = 1;
+            }
+        }
+    }
+    bp_fill_lint(ui, self);
+}
+
 static void
 bp_refresh(
     struct EditorUi* ui,
@@ -671,6 +1379,31 @@ bp_refresh(
     bp_redraw_graph(ui, self);
     bp_show_issues(ui, self);
     bp_set_editable(ui, self);
+    bp_run_lint(ui, self);
+    if( self->w_graph >= 0 )
+    {
+        bp_layout_text(ui, self);
+        bp_redraw_pages(ui, self);
+        bp_redraw_preview(ui, self);
+    }
+}
+
+/** Select node `index` (-1 none) everywhere it shows: the graph, the
+ *  outline, the form, the pages and the preview. */
+static void
+bp_select_node(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    int index)
+{
+    self->sel_node = self->has_model && index >= 0 && index < self->model->node_count ? index : -1;
+    self->sel_page = 0;
+    bp_load_node(ui, self);
+    bp_rebuild_outline(ui, self);
+    bp_redraw_graph(ui, self);
+    bp_layout_text(ui, self);
+    bp_redraw_pages(ui, self);
+    bp_redraw_preview(ui, self);
 }
 
 /** The model changed: regenerate every derived file through the authority,
@@ -740,11 +1473,22 @@ bp_open(
         return 0;
     }
 
+    /* Another subject: the last one's Problems rows and name answers go. */
+    if( self->problems_source[0] )
+    {
+        (void)Editor_Problems_Clear(ui, self->problems_source);
+        self->problems_source[0] = '\0';
+    }
+    self->problems_reported = 0;
+    self->name_count = 0;
     self->has_model = 1;
     self->read_only = 0;
     self->sel_trigger = -1;
     self->sel_step = -1;
     self->sel_node = -1;
+    self->sel_page = 0;
+    self->chips_open = 0;
+    self->drag_mode = BP_DRAG_NONE;
     Builder_IssuesClear(&self->issues);
     Builder_FileKey(self->subject, name, BUILDER_FILE_MODEL, key, sizeof(key));
     if( self->services.submit.current )
@@ -1027,6 +1771,493 @@ bp_rename_op(
     return 1;
 }
 
+/* ---- the graph's edits ------------------------------------------------------ */
+
+/** A dialogue edit can be made: a subject is open and it is not read-only.
+ *  Otherwise the refusal is said, naming `what`, and 0 returned. */
+static int
+bp_graph_editable(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    const char* what)
+{
+    if( self->w_graph < 0 )
+    {
+        Editor_UiStatus(ui, "%s refused: the loc builder has no dialogue graph", what);
+        return 0;
+    }
+    if( !self->has_model )
+    {
+        Editor_UiStatus(ui, "%s refused: open an npc in the NPC builder first", what);
+        return 0;
+    }
+    if( self->read_only )
+    {
+        Editor_UiStatus(ui, "%s refused: %s is read-only (see its issues)", what, self->model->name);
+        return 0;
+    }
+    return 1;
+}
+
+/** "n4, n5 and n7" into `out`: the ids `mask` marks, at most a line. */
+static void
+bp_id_list(
+    const struct Builder_Model* model,
+    const unsigned char* mask,
+    char* out,
+    size_t out_size)
+{
+    int count = 0;
+    int total = 0;
+    size_t length = 0;
+
+    out[0] = '\0';
+    for( int i = 0; i < model->node_count; i++ )
+        total += mask[i] != 0;
+    for( int i = 0; i < model->node_count && length + 1 < out_size; i++ )
+    {
+        if( !mask[i] )
+            continue;
+        count++;
+        length += (size_t)snprintf(out + length, out_size - length, "%s%s",
+                                   count == 1         ? ""
+                                   : count == total ? " and "
+                                                    : ", ",
+                                   model->nodes[i].id);
+    }
+}
+
+/** Delete the selected node; the sentence names what lost its last way
+ *  in from the start. */
+static int
+bp_delete_node(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    unsigned char before[BUILDER_NODES_MAX];
+    unsigned char after[BUILDER_NODES_MAX];
+    unsigned char fresh[BUILDER_NODES_MAX];
+    char before_ids[BUILDER_NODES_MAX][BUILDER_NODE_ID_MAX];
+    int before_count;
+    char id[BUILDER_NODE_ID_MAX];
+    char kind[64];
+    char list[160];
+    int orphaned = 0;
+    const struct Builder_Node* node;
+
+    if( !bp_graph_editable(ui, self, "Delete node") )
+        return 0;
+    node = bp_selected_node(self);
+    if( !node )
+    {
+        Editor_UiStatus(ui, "Delete node refused: no node is selected (click one in the graph or the outline)");
+        return 0;
+    }
+    copy_text(id, sizeof(id), node->id);
+    copy_text(kind, sizeof(kind), Builder_NodeKindLabel(node->kind));
+    (void)Builder_ModelOrphans(self->model, before);
+    before_count = self->model->node_count;
+    for( int i = 0; i < before_count; i++ )
+        copy_text(before_ids[i], sizeof(before_ids[0]), before[i] ? self->model->nodes[i].id : "");
+    Builder_ModelNodeRemove(self->model, id);
+    (void)Builder_ModelOrphans(self->model, after);
+    /* Newly orphaned: an orphan now that was not one before. */
+    memset(fresh, 0, sizeof(fresh));
+    for( int i = 0; i < self->model->node_count; i++ )
+    {
+        int was = 0;
+        if( !after[i] )
+            continue;
+        for( int j = 0; j < before_count; j++ )
+            was |= before_ids[j][0] && strcmp(before_ids[j], self->model->nodes[i].id) == 0;
+        if( was )
+            continue;
+        fresh[i] = 1;
+        orphaned++;
+    }
+    bp_id_list(self->model, fresh, list, sizeof(list));
+    self->sel_node = -1;
+    bp_commit(ui, self);
+    if( orphaned )
+        Editor_UiStatus(ui, "Deleted %s (%s): %s %s no way in from the start now (orphaned; Undo brings it back)",
+                        id, kind, list, orphaned == 1 ? "has" : "have");
+    else
+        Editor_UiStatus(ui, "Deleted %s (%s); nothing was orphaned", id, kind);
+    bp_select_node(ui, self, -1);
+    return 1;
+}
+
+static int
+bp_auto_layout(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    int moved;
+    int columns = 0;
+
+    if( !bp_graph_editable(ui, self, "Auto-layout") )
+        return 0;
+    if( self->model->node_count == 0 )
+    {
+        Editor_UiStatus(ui, "Auto-layout refused: the dialogue has no nodes");
+        return 0;
+    }
+    moved = Builder_ModelAutoLayout(self->model);
+    for( int i = 0; i < self->model->node_count; i++ )
+    {
+        int const column = (self->model->nodes[i].x - BUILDER_LAYOUT_ORIGIN) / BUILDER_LAYOUT_COL_W + 1;
+        if( column > columns )
+            columns = column;
+    }
+    if( moved == 0 )
+    {
+        Editor_UiStatus(ui, "Auto-layout: %s is laid out already (%d column(s))", self->model->name, columns);
+        bp_redraw_graph(ui, self);
+        return 1;
+    }
+    bp_commit(ui, self);
+    Editor_UiStatus(ui, "Auto-layout: %d node(s) moved into %d column(s) by depth (saved as pos=)", moved, columns);
+    return 1;
+}
+
+/** A new node of `kind` at (x, y); linked from `from`'s `port` when `from`
+ *  is a node, else after the selected node as Add node does. */
+static int
+bp_new_node(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    enum Builder_NodeKind kind,
+    const char* from,
+    int port,
+    int x,
+    int y)
+{
+    struct Builder_Node* node;
+    char id[BUILDER_NODE_ID_MAX];
+
+    if( !bp_graph_editable(ui, self, "New node") )
+        return 0;
+    node = Builder_ModelNodeAdd(self->model, kind);
+    if( !node )
+    {
+        Editor_UiStatus(ui, "New node refused: the dialogue holds %d nodes, the most the builder keeps",
+                        BUILDER_NODES_MAX);
+        return 0;
+    }
+    node->x = x < 0 ? 0 : x;
+    node->y = y < 0 ? 0 : y;
+    copy_text(id, sizeof(id), node->id);
+    if( from && from[0] )
+    {
+        int const linked = Builder_ModelLink(self->model, from, port, id);
+        assert(linked);
+        (void)linked;
+        Editor_UiStatus(ui, "New %s %s, linked from %s port %d", Builder_NodeKindLabel(kind), id, from, port + 1);
+    }
+    else
+    {
+        const struct Builder_Node* selected = bp_selected_node(self);
+        if( selected && selected->kind != BUILDER_NODE_CHOICE && selected->kind != BUILDER_NODE_END
+            && selected->next[0] == '\0' && strcmp(selected->id, id) != 0 )
+        {
+            char after[BUILDER_NODE_ID_MAX];
+            copy_text(after, sizeof(after), selected->id);
+            (void)Builder_ModelLink(self->model, after, Builder_NodePortCount(selected) - 1, id);
+            Editor_UiStatus(ui, "New %s %s, after %s", Builder_NodeKindLabel(kind), id, after);
+        }
+        else
+            Editor_UiStatus(ui, "New %s %s (not linked: drag a port to it)", Builder_NodeKindLabel(kind), id);
+    }
+    self->chips_open = 0;
+    self->sel_node = Builder_ModelNodeIndex(self->model, id);
+    bp_load_node(ui, self);
+    bp_commit(ui, self);
+    return 1;
+}
+
+/** The free spot for a node added from the keyboard: under the selected
+ *  node, else the next cell of a four-wide grid. */
+static void
+bp_new_node_spot(
+    const struct builder_panel* self,
+    int* out_x,
+    int* out_y)
+{
+    const struct Builder_Node* selected = bp_selected_node(self);
+    int const k = self->model->node_count;
+
+    if( selected )
+    {
+        *out_x = selected->x;
+        *out_y = selected->y + BUILDER_LAYOUT_ROW_H;
+        return;
+    }
+    *out_x = 10 + k % 4 * (BP_NODE_W + 16);
+    *out_y = 10 + k / 4 * (BP_NODE_H + 30);
+}
+
+/** The node a well-local point is over (its body or a port), or -1. */
+static int
+bp_node_at(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    int x,
+    int y)
+{
+    int const key = ToriRSChrome_GraphKeyAt(ui->chrome, self->w_graph, x, y);
+
+    if( key >= 1 && key <= self->model->node_count )
+        return key - 1;
+    if( key >= BP_KEY_PORT && key < BP_KEY_PORT + BUILDER_NODES_MAX * BP_PORTS_STRIDE )
+        return (key - BP_KEY_PORT) / BP_PORTS_STRIDE;
+    return -1;
+}
+
+/** The port drag ended at (x, y): on a node, link; on empty space, open
+ *  the chip row there. */
+static void
+bp_port_drop(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    int x,
+    int y)
+{
+    int const target = bp_node_at(ui, self, x, y);
+    const struct Builder_Node* from = &self->model->nodes[self->drag_port_node];
+    char from_id[BUILDER_NODE_ID_MAX];
+
+    copy_text(from_id, sizeof(from_id), from->id);
+    if( target >= 0 )
+    {
+        char to_id[BUILDER_NODE_ID_MAX];
+        copy_text(to_id, sizeof(to_id), self->model->nodes[target].id);
+        if( strcmp(Builder_NodePortNextConst(from, self->drag_port), to_id) == 0 )
+        {
+            Editor_UiStatus(ui, "%s port %d already leads to %s", from_id, self->drag_port + 1, to_id);
+            bp_redraw_graph(ui, self);
+            return;
+        }
+        (void)Builder_ModelLink(self->model, from_id, self->drag_port, to_id);
+        bp_commit(ui, self);
+        Editor_UiStatus(ui, "Linked %s port %d to %s", from_id, self->drag_port + 1, to_id);
+        return;
+    }
+    self->chips_open = 1;
+    copy_text(self->chip_from, sizeof(self->chip_from), from_id);
+    self->chip_port = self->drag_port;
+    self->chip_x = x;
+    self->chip_y = y;
+    Editor_UiStatus(ui, "New node from %s port %d: pick its kind (Escape cancels)", from_id, self->drag_port + 1);
+    bp_redraw_graph(ui, self);
+}
+
+/** The dialogue graph's gestures (GRAPH events of the well). */
+static int
+bp_graph_event(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    const struct ToriRSChromeEvent* event)
+{
+    struct Builder_Model* model = self->model;
+
+    switch( event->kind )
+    {
+    case TORIRS_CHROME_EVENT_GRAPH_PRESS:
+        self->press_x = self->drag_x = event->x;
+        self->press_y = self->drag_y = event->y;
+        self->drag_moved = 0;
+        self->drag_mode = BP_DRAG_NONE;
+        if( self->chips_open )
+        {
+            /* A chip makes the node; anywhere else closes the row. */
+            self->chips_open = 0;
+            if( event->key >= BP_KEY_CHIP && event->key < BP_KEY_CHIP + BUILDER_NODE_KIND_COUNT
+                && Builder_ModelNode(model, self->chip_from) )
+            {
+                (void)bp_new_node(ui, self, (enum Builder_NodeKind)(event->key - BP_KEY_CHIP), self->chip_from,
+                                  self->chip_port, self->chip_x, self->chip_y);
+                return 1;
+            }
+            bp_redraw_graph(ui, self);
+        }
+        if( event->key >= BP_KEY_PORT && event->key < BP_KEY_PORT + model->node_count * BP_PORTS_STRIDE )
+        {
+            int const node = (event->key - BP_KEY_PORT) / BP_PORTS_STRIDE;
+            int const port = (event->key - BP_KEY_PORT) % BP_PORTS_STRIDE;
+            if( port < Builder_NodePortCount(&model->nodes[node]) && !self->read_only )
+            {
+                self->drag_mode = BP_DRAG_PORT;
+                self->drag_port_node = node;
+                self->drag_port = port;
+            }
+            bp_select_node(ui, self, node);
+            return 1;
+        }
+        if( event->key > 0 && event->key <= model->node_count )
+        {
+            int const node = event->key - 1;
+            if( !self->read_only )
+            {
+                /* Shift+drag takes the node's subtree along. */
+                if( ui->shift_held )
+                {
+                    (void)Builder_ModelReach(model, model->nodes[node].id, self->drag_mask);
+                    self->drag_mode = BP_DRAG_SUBTREE;
+                }
+                else
+                {
+                    memset(self->drag_mask, 0, sizeof(self->drag_mask));
+                    self->drag_mask[node] = 1;
+                    self->drag_mode = BP_DRAG_NODE;
+                }
+                for( int i = 0; i < model->node_count; i++ )
+                {
+                    self->drag_orig_x[i] = model->nodes[i].x;
+                    self->drag_orig_y[i] = model->nodes[i].y;
+                }
+            }
+            bp_select_node(ui, self, node);
+            return 1;
+        }
+        bp_select_node(ui, self, -1);
+        return 1;
+    case TORIRS_CHROME_EVENT_GRAPH_DRAG:
+        if( self->drag_mode == BP_DRAG_NONE )
+            return 1;
+        if( abs(event->x - self->press_x) > BP_DRAG_SLOP || abs(event->y - self->press_y) > BP_DRAG_SLOP )
+            self->drag_moved = 1;
+        self->drag_x = event->x;
+        self->drag_y = event->y;
+        if( self->drag_mode == BP_DRAG_NODE || self->drag_mode == BP_DRAG_SUBTREE )
+        {
+            int dx = event->x - self->press_x;
+            int dy = event->y - self->press_y;
+            /* The group stops at the well's top-left edge as one piece. */
+            for( int i = 0; i < model->node_count; i++ )
+            {
+                if( !self->drag_mask[i] )
+                    continue;
+                if( self->drag_orig_x[i] + dx < 0 )
+                    dx = -self->drag_orig_x[i];
+                if( self->drag_orig_y[i] + dy < 0 )
+                    dy = -self->drag_orig_y[i];
+            }
+            for( int i = 0; i < model->node_count; i++ )
+            {
+                if( !self->drag_mask[i] )
+                    continue;
+                model->nodes[i].x = self->drag_orig_x[i] + dx;
+                model->nodes[i].y = self->drag_orig_y[i] + dy;
+            }
+        }
+        bp_redraw_graph(ui, self);
+        return 1;
+    case TORIRS_CHROME_EVENT_GRAPH_RELEASE:
+    {
+        int const mode = self->drag_mode;
+        self->drag_mode = BP_DRAG_NONE;
+        if( mode == BP_DRAG_NONE )
+            return 1;
+        /* The release carries where the pointer came up (both the native
+         * well and the DOM's send it). */
+        self->drag_x = event->x;
+        self->drag_y = event->y;
+        if( abs(event->x - self->press_x) > BP_DRAG_SLOP || abs(event->y - self->press_y) > BP_DRAG_SLOP )
+            self->drag_moved = 1;
+        if( !self->drag_moved )
+        {
+            bp_redraw_graph(ui, self);
+            return 1;
+        }
+        if( mode == BP_DRAG_PORT )
+        {
+            bp_port_drop(ui, self, self->drag_x, self->drag_y);
+            return 1;
+        }
+        /* The layout is part of the model: one regeneration per drag. */
+        bp_commit(ui, self);
+        if( mode == BP_DRAG_SUBTREE )
+        {
+            int count = 0;
+            for( int i = 0; i < model->node_count; i++ )
+                count += self->drag_mask[i] != 0;
+            Editor_UiStatus(ui, "Moved %d node(s): the subtree under %s", count,
+                            self->sel_node >= 0 ? model->nodes[self->sel_node].id : "?");
+        }
+        return 1;
+    }
+    case TORIRS_CHROME_EVENT_GRAPH_MENU:
+        if( event->key == 0 && !self->read_only )
+        {
+            int const kind = ToriRSChrome_DropdownSelected(ui->chrome, self->w_node_kind);
+            (void)bp_new_node(ui, self,
+                              kind >= 0 && kind < BUILDER_NODE_KIND_COUNT ? (enum Builder_NodeKind)kind
+                                                                           : BUILDER_NODE_NPC,
+                              NULL, 0, event->x, event->y);
+        }
+        return 1;
+    case TORIRS_CHROME_EVENT_GRAPH_KEY:
+    {
+        struct Editor_Chord chord;
+
+        memset(&chord, 0, sizeof(chord));
+        if( event->value == -TORIRS_CHROME_KEY_ESCAPE )
+        {
+            if( self->chips_open || self->drag_mode != BP_DRAG_NONE )
+            {
+                self->chips_open = 0;
+                self->drag_mode = BP_DRAG_NONE;
+                Editor_UiStatus(ui, "New node cancelled");
+                bp_redraw_graph(ui, self);
+            }
+            return 1;
+        }
+        /* Delete (and its rebinds) from the well itself: the chrome keeps
+         * the editing keys of a focused well, so the App never sees it. */
+        if( event->value == -TORIRS_CHROME_KEY_DELETE )
+            chord.key = TORIRSK_DELETE;
+        else if( event->value == -TORIRS_CHROME_KEY_BACKSPACE )
+            chord.key = TORIRSK_BACKSPACE;
+        chord.mods = (uint8_t)((event->col & (int)(EDITOR_HK_MOD_CTRL | EDITOR_HK_MOD_SHIFT | EDITOR_HK_MOD_ALT))
+                               | (ui->shift_held ? (int)EDITOR_HK_MOD_SHIFT : 0));
+        /* edit.delete's own chords (its contexts are the World's selections,
+         * L and S, which a focused well is in neither of): a rebind of
+         * Delete moves the graph's with it. */
+        if( chord.key == TORIRSK_UNKNOWN )
+            return 1;
+        for( int c = 0; c < EDITOR_HK_CHORDS; c++ )
+        {
+            struct Editor_Chord const bound = ui->hotkeys.bind[EDITOR_HK_EDIT_DELETE].chord[c];
+            if( bound.key == chord.key && bound.mods == chord.mods )
+            {
+                (void)bp_delete_node(ui, self);
+                break;
+            }
+        }
+        return 1;
+    }
+    default:
+        return 1;
+    }
+}
+
+/** The text's pages: a click on a page shows it in the preview. */
+static int
+bp_pages_event(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    const struct ToriRSChromeEvent* event)
+{
+    if( event->kind != TORIRS_CHROME_EVENT_GRAPH_PRESS || event->key <= 0 )
+        return 1;
+    self->sel_page = event->key - 1;
+    if( self->sel_page >= self->layout.page_count )
+        self->sel_page = self->layout.page_count - 1;
+    bp_redraw_pages(ui, self);
+    bp_redraw_preview(ui, self);
+    return 1;
+}
+
 static int
 bp_activate(
     struct EditorUi* ui,
@@ -1092,9 +2323,10 @@ bp_activate(
             continue;
         if( self->outline_node[i] >= 0 )
         {
-            self->sel_node = self->outline_node[i];
-            bp_load_node(ui, self);
-            bp_redraw_graph(ui, self);
+            /* The tree and the graph are one model: the row selects the
+             * node, and the outline is rebuilt with its row selected. */
+            bp_select_node(ui, self, self->outline_node[i]);
+            return 1;
         }
         else if( self->outline_trigger[i] >= 0 )
         {
@@ -1108,6 +2340,27 @@ bp_activate(
     if( widget == self->w_node_kind || widget == self->w_trigger_kind || widget == self->w_door
         || widget == self->w_ladder )
         return 1;
+    if( self->w_lint_list >= 0 && widget == self->w_lint_list )
+    {
+        int const row = ToriRSChrome_VListSelected(chrome, self->w_lint_list);
+        if( row >= 0 && row < self->lint_shown_count )
+            bp_open_lint(ui, self, self->lint_shown[row]);
+        return 1;
+    }
+    if( self->w_lint_find >= 0 && widget == self->w_lint_find )
+    {
+        copy_text(self->lint_find, sizeof(self->lint_find), ToriRSChrome_Text(chrome, self->w_lint_find));
+        bp_fill_lint(ui, self);
+        /* Enter in the box opens the first row it leaves. */
+        if( self->lint_shown_count > 0 )
+            bp_open_lint(ui, self, self->lint_shown[0]);
+        return 1;
+    }
+    if( self->w_layout >= 0 && widget == self->w_layout )
+    {
+        (void)bp_auto_layout(ui, self);
+        return 1;
+    }
 
     /* Everything below edits the model. */
     if( !self->has_model )
@@ -1252,44 +2505,27 @@ bp_activate(
     }
     if( widget == self->w_node_add )
     {
-        int kind = ToriRSChrome_DropdownSelected(chrome, self->w_node_kind);
-        struct Builder_Node* node;
-        if( kind < 0 || kind >= BUILDER_NODE_KIND_COUNT )
-            kind = BUILDER_NODE_NPC;
-        node = Builder_ModelNodeAdd(self->model, (enum Builder_NodeKind)kind);
-        if( !node )
-        {
-            bp_status(ui, self, "the dialogue has as many nodes as the builder holds");
-            return 1;
-        }
-        node->x = 10 + (self->model->node_count - 1) % 4 * (BP_NODE_W + 16);
-        node->y = 10 + (self->model->node_count - 1) / 4 * (BP_NODE_H + 30);
-        if( self->sel_node >= 0 && self->sel_node < self->model->node_count - 1 )
-        {
-            struct Builder_Node* from = &self->model->nodes[self->sel_node];
-            if( from->kind != BUILDER_NODE_CHOICE && from->kind != BUILDER_NODE_END
-                && from->next[0] == '\0' )
-                copy_text(from->next, sizeof(from->next), node->id);
-        }
-        self->sel_node = self->model->node_count - 1;
-        bp_load_node(ui, self);
-        bp_commit(ui, self);
+        int const kind = ToriRSChrome_DropdownSelected(chrome, self->w_node_kind);
+        int x;
+        int y;
+        bp_new_node_spot(self, &x, &y);
+        (void)bp_new_node(ui, self,
+                          kind >= 0 && kind < BUILDER_NODE_KIND_COUNT ? (enum Builder_NodeKind)kind : BUILDER_NODE_NPC,
+                          NULL, 0, x, y);
         return 1;
     }
-    if( widget == self->w_node_remove || widget == self->w_node_apply || widget == self->w_node_start )
+    if( widget == self->w_node_remove )
+    {
+        (void)bp_delete_node(ui, self);
+        return 1;
+    }
+    if( widget == self->w_node_apply || widget == self->w_node_start )
     {
         struct Builder_Node* node;
         if( self->sel_node < 0 || self->sel_node >= self->model->node_count )
             return 1;
         node = &self->model->nodes[self->sel_node];
-        if( widget == self->w_node_remove )
-        {
-            char id[BUILDER_NODE_ID_MAX];
-            copy_text(id, sizeof(id), node->id);
-            Builder_ModelNodeRemove(self->model, id);
-            self->sel_node = -1;
-        }
-        else if( widget == self->w_node_start )
+        if( widget == self->w_node_start )
             copy_text(self->model->start, sizeof(self->model->start), node->id);
         else
         {
@@ -1312,69 +2548,17 @@ bp_event(
 {
     struct builder_panel* self = opaque;
 
-    if( self->w_graph < 0 || event->widget != self->w_graph )
+    if( self->w_graph < 0 )
+        return 0;
+    if( event->widget != self->w_graph && event->widget != self->w_pages && event->widget != self->w_preview )
         return 0;
     if( !self->has_model )
         return 1;
-    switch( event->kind )
-    {
-    case TORIRS_CHROME_EVENT_GRAPH_PRESS:
-        if( event->key > 0 && event->key <= self->model->node_count )
-        {
-            const struct Builder_Node* node = &self->model->nodes[event->key - 1];
-            self->sel_node = event->key - 1;
-            self->dragging = !self->read_only;
-            self->drag_dx = event->x - node->x;
-            self->drag_dy = event->y - node->y;
-            bp_load_node(ui, self);
-            bp_rebuild_outline(ui, self);
-        }
-        else
-            self->sel_node = -1;
-        bp_redraw_graph(ui, self);
+    if( event->widget == self->w_pages )
+        return bp_pages_event(ui, self, event);
+    if( event->widget == self->w_preview )
         return 1;
-    case TORIRS_CHROME_EVENT_GRAPH_DRAG:
-        if( self->dragging && self->sel_node >= 0 && self->sel_node < self->model->node_count )
-        {
-            struct Builder_Node* node = &self->model->nodes[self->sel_node];
-            node->x = event->x - self->drag_dx;
-            node->y = event->y - self->drag_dy;
-            if( node->x < 0 )
-                node->x = 0;
-            if( node->y < 0 )
-                node->y = 0;
-            bp_redraw_graph(ui, self);
-        }
-        return 1;
-    case TORIRS_CHROME_EVENT_GRAPH_RELEASE:
-        /* The layout is part of the model: one regeneration per drag. */
-        if( self->dragging )
-        {
-            self->dragging = 0;
-            bp_commit(ui, self);
-        }
-        return 1;
-    case TORIRS_CHROME_EVENT_GRAPH_MENU:
-        if( !self->read_only && event->key == 0 )
-        {
-            int kind = ToriRSChrome_DropdownSelected(ui->chrome, self->w_node_kind);
-            struct Builder_Node* node =
-                Builder_ModelNodeAdd(self->model, kind >= 0 && kind < BUILDER_NODE_KIND_COUNT
-                                                      ? (enum Builder_NodeKind)kind
-                                                      : BUILDER_NODE_NPC);
-            if( node )
-            {
-                node->x = event->x;
-                node->y = event->y;
-                self->sel_node = self->model->node_count - 1;
-                bp_load_node(ui, self);
-                bp_commit(ui, self);
-            }
-        }
-        return 1;
-    default:
-        return 1;
-    }
+    return bp_graph_event(ui, self, event);
 }
 
 static void
@@ -1390,6 +2574,33 @@ bp_tick(
         ToriRSChrome_PanelSetVisible(ui->chrome, self->p_outline, visible);
     if( self->p_dialogue >= 0 && ui->chrome->panels[self->p_dialogue].visible != visible )
         ToriRSChrome_PanelSetVisible(ui->chrome, self->p_dialogue, visible);
+    if( self->w_graph < 0 )
+        return;
+    /* A rebind relabels the graph's buttons. */
+    if( self->hotkeys_serial != ui->hotkeys.serial )
+    {
+        self->hotkeys_serial = ui->hotkeys.serial;
+        edp_button_chord(ui, self->w_layout, EDITOR_HK_GRAPH_AUTO_LAYOUT);
+        edp_button_chord(ui, self->w_node_add, EDITOR_HK_GRAPH_NEW_NODE);
+        edp_button_chord(ui, self->w_node_remove, EDITOR_HK_EDIT_DELETE);
+    }
+    if( !visible )
+        return;
+    /* The pages and the preview follow the Text field as it is typed. */
+    if( self->layout_node != self->sel_node || strcmp(self->layout_text, bp_layout_source(ui, self)) != 0 )
+    {
+        bp_layout_text(ui, self);
+        bp_redraw_pages(ui, self);
+        bp_redraw_preview(ui, self);
+    }
+    /* The find box filters as it is typed; the list fills what scrolled in. */
+    if( strcmp(self->lint_find, ToriRSChrome_Text(ui->chrome, self->w_lint_find)) != 0 )
+    {
+        copy_text(self->lint_find, sizeof(self->lint_find), ToriRSChrome_Text(ui->chrome, self->w_lint_find));
+        bp_fill_lint(ui, self);
+    }
+    else if( ToriRSChrome_VListNeedsRows(ui->chrome, self->w_lint_list) )
+        bp_fill_lint(ui, self);
 }
 
 static void
@@ -1416,7 +2627,8 @@ bp_destroy(
     void* opaque)
 {
     struct builder_panel* self = opaque;
-    (void)ui;
+    if( self->problems_source[0] )
+        (void)Editor_Problems_Clear(ui, self->problems_source);
     ToriMem_Free(ToriMem_Editor(), self->check);
     ToriMem_Free(ToriMem_Editor(), self->model);
     ToriMem_Free(ToriMem_Editor(), self);
@@ -1505,6 +2717,13 @@ bp_build(
     self->w_graph = -1;
     self->w_node_kind = self->w_node_add = self->w_node_remove = self->w_node_start = -1;
     self->w_node_apply = -1;
+    self->w_node_text = -1;
+    self->w_graph_hint = self->w_layout = -1;
+    self->w_pages = self->w_preview = self->w_preview_label = -1;
+    self->w_lint_find = self->w_lint_list = self->w_lint_label = -1;
+    self->layout_node = -2;
+    self->drag_port_node = -1;
+    Builder_ChatMetricsBaked(&self->chat);
     if( npc )
     {
         self->p_dialogue =
@@ -1513,12 +2732,24 @@ bp_build(
         p = self->p_dialogue;
         ToriRSChrome_PanelSetScrollable(chrome, p, 1);
         self->w_graph = ToriRSChrome_Graph(chrome, p, "Dialogue graph", BP_GRAPH_H);
+        self->w_graph_hint = ToriRSChrome_Paragraph(
+            chrome, p,
+            "Drag a port (the box on a node's foot) to a node to link it; drop it on empty space for a new "
+            "node. Shift+drag moves a node with everything after it.");
+        self->w_layout = ToriRSChrome_Button(chrome, p, "Auto-layout");
+        ToriRSChrome_SetTooltip(chrome, self->w_layout, "Lay the graph out left to right by depth (saved as pos=)");
         self->w_node_kind =
             ToriRSChrome_Dropdown(chrome, p, "Node kind", k_node_options, BUILDER_NODE_KIND_COUNT, 0);
-        self->w_node_add = ToriRSChrome_Button(chrome, p, "Add node (after the selected one)");
-        self->w_node_remove = ToriRSChrome_Button(chrome, p, "Remove node");
+        self->w_node_add = ToriRSChrome_Button(chrome, p, "New node");
+        ToriRSChrome_SetTooltip(chrome, self->w_node_add, "A node of the kind above, after the selected one");
+        self->w_node_remove = ToriRSChrome_Button(chrome, p, "Delete node");
+        ToriRSChrome_SetTooltip(chrome, self->w_node_remove, "Delete the selected node; says what it orphans");
         self->w_node_start = ToriRSChrome_Button(chrome, p, "Make it the start");
         self->w_node_text = ToriRSChrome_TextInput(chrome, p, "Text ({player} = the player's name)", "");
+        /* The Text field as the chat box breaks it, and the page it shows. */
+        self->w_pages = ToriRSChrome_Graph(chrome, p, "Text at the chat box's line rule", BP_PAGE_LINE_H + 4);
+        self->w_preview = ToriRSChrome_Graph(chrome, p, "Chat box preview", BP_CHAT_H + 2);
+        self->w_preview_label = ToriRSChrome_Label(chrome, p, "");
         self->w_node_expr = ToriRSChrome_TextInput(chrome, p, "Expression (^chat_...)", "neutral");
         self->w_node_next = ToriRSChrome_TextInput(chrome, p, "Next node (or default arm)", "");
         self->w_node_speaker_npc = ToriRSChrome_TextInput(chrome, p, "Speaker npc (override)", "");
@@ -1533,6 +2764,16 @@ bp_build(
             self->w_node_arm[a] = ToriRSChrome_TextInput(chrome, p, label, "");
         }
         self->w_node_apply = ToriRSChrome_Button(chrome, p, "Apply to node");
+        /* The lint, the dialogue's own Problems rows: a click selects. */
+        ToriRSChrome_Heading(chrome, p, "Problems");
+        self->w_lint_label = ToriRSChrome_Label(chrome, p, "");
+        self->w_lint_find = ToriRSChrome_TextInput(chrome, p, "Find in problems", "");
+        self->w_lint_list = ToriRSChrome_VList(chrome, p, "Lint", BP_LINT_VISIBLE, 0);
+        assert(self->w_lint_list >= 0);
+        self->hotkeys_serial = ui->hotkeys.serial;
+        edp_button_chord(ui, self->w_layout, EDITOR_HK_GRAPH_AUTO_LAYOUT);
+        edp_button_chord(ui, self->w_node_add, EDITOR_HK_GRAPH_NEW_NODE);
+        edp_button_chord(ui, self->w_node_remove, EDITOR_HK_EDIT_DELETE);
     }
     ToriRSChrome_PanelSetVisible(chrome, self->p_main, 0);
     ToriRSChrome_PanelSetVisible(chrome, self->p_outline, 0);
@@ -1620,6 +2861,10 @@ struct shell_panel
     int w_preview, w_preview_label;
     int slot_rows[BUILDER_SHELL_SLOTS_MAX];
     int slot_row_count;
+    /** The slider value last published (or heard): the slider publishes
+     *  STATE_VAR_PREVIEW live, every value it passes through while it is
+     *  dragged, not only on the release. */
+    int preview_published;
 };
 
 static void
@@ -1687,6 +2932,7 @@ sp_rebuild(
     ToriRSChrome_SetText(ui->chrome, self->w_summary, summary);
     ToriRSChrome_SliderSetRange(ui->chrome, self->w_preview, 0,
                                 self->shell.slot_count > 0 ? self->shell.slot_count : 1, 1);
+    self->preview_published = ToriRSChrome_SliderValue(ui->chrome, self->w_preview);
     sp_preview_label(ui, self);
 }
 
@@ -1850,6 +3096,7 @@ sp_publish_preview(
                                              ToriRSChrome_SliderValue(ui->chrome, self->w_preview));
     count = Builder_PreviewEncode(self->preview, self->preview_count, values,
                                   TORIRSMAPED_STATE_VALUES_MAX);
+    self->preview_published = ToriRSChrome_SliderValue(ui->chrome, self->w_preview);
     if( self->services.state_set )
         self->services.state_set(self->services.user_data, TORIRSMAPED_STATE_VAR_PREVIEW, values,
                                  count);
@@ -1995,6 +3242,7 @@ sp_on_state(
         if( vars[i].kind == kind && vars[i].id == id )
         {
             ToriRSChrome_SliderSet(ui->chrome, self->w_preview, vars[i].value);
+            self->preview_published = ToriRSChrome_SliderValue(ui->chrome, self->w_preview);
             sp_preview_label(ui, self);
         }
     }
@@ -2010,6 +3258,15 @@ sp_tick(
 
     if( ui->chrome->panels[self->p_slots].visible != visible )
         ToriRSChrome_PanelSetVisible(ui->chrome, self->p_slots, visible);
+    /* Scrubbing: the knob's value while it is dragged (the slider itself
+     * activates only on the release) is published as it changes, so every
+     * view resolves the shell through each state the knob passes. */
+    if( self->has_shell && self->shell.slot_count > 0
+        && ToriRSChrome_SliderValue(ui->chrome, self->w_preview) != self->preview_published )
+    {
+        sp_preview_label(ui, self);
+        sp_publish_preview(ui, self);
+    }
 }
 
 static void
@@ -2169,6 +3426,14 @@ Builder_PanelInspect(
     out->issues = &self->issues;
     out->check = self->check;
     out->status = self->status;
+    out->lint = &self->lint;
+    out->sel_node = self->sel_node;
+    out->sel_page = self->sel_page;
+    out->layout = &self->layout;
+    out->chips_open = self->chips_open;
+    out->w_graph = self->w_graph;
+    out->w_pages = self->w_pages;
+    out->w_preview = self->w_preview;
     return 1;
 }
 
@@ -2228,4 +3493,98 @@ Builder_PanelDetach(
 {
     struct builder_panel* self = find_builder(ui, name);
     return self ? bp_detach(ui, self) : 0;
+}
+
+/* ---- the dialogue graph's hotkeys and the test surface ---------------------- */
+
+void
+Builder_ChatMetricsBaked(struct Builder_ChatMetrics* metrics)
+{
+    assert(metrics);
+    memset(metrics, 0, sizeof(*metrics));
+    /* p12_full at 1x, as the chrome bakes it (archive 495: the Body face). */
+    for( int c = 0; c < 256; c++ )
+        metrics->advance[c] = ToriRSChrome_GlyphAdvanceQ(TORIRS_CHROME_FONT_BODY, TORIRS_CHROME_SCALE_Q_ONE,
+                                                         (unsigned char)c);
+    metrics->width = BUILDER_CHAT_WIDTH_DEFAULT;
+    metrics->page_lines = BUILDER_CHAT_PAGE_LINES_DEFAULT;
+    metrics->player = BUILDER_CHAT_PLAYER_STANDIN;
+}
+
+int
+Builder_GraphHotkey(
+    struct EditorUi* ui,
+    enum Editor_HotkeyAction action)
+{
+    struct builder_panel* self;
+    int focused;
+
+    assert(ui);
+    assert(ui->chrome);
+    self = find_builder(ui, BUILDER_PANEL_NPC);
+    focused = self && self->w_graph >= 0 && ui->chrome->focus == self->w_graph;
+    if( action == EDITOR_HK_EDIT_DELETE )
+    {
+        /* Delete is the graph's only while its well holds the keyboard;
+         * anywhere else it is the World's. */
+        if( !focused )
+            return 0;
+        (void)bp_delete_node(ui, self);
+        return 1;
+    }
+    if( action != EDITOR_HK_GRAPH_AUTO_LAYOUT && action != EDITOR_HK_GRAPH_NEW_NODE )
+        return 0;
+    if( !self )
+    {
+        Editor_UiStatus(ui, "%s refused: this window has no NPC builder",
+                        action == EDITOR_HK_GRAPH_AUTO_LAYOUT ? "Auto-layout" : "New node");
+        return 1;
+    }
+    if( !focused && (!ui->chrome->panels[self->p_dialogue].visible || !ui->visible) )
+    {
+        Editor_UiStatus(ui, "%s refused: no dialogue graph is open (View > NPC builder, then click its graph)",
+                        action == EDITOR_HK_GRAPH_AUTO_LAYOUT ? "Auto-layout" : "New node");
+        return 1;
+    }
+    if( action == EDITOR_HK_GRAPH_AUTO_LAYOUT )
+        (void)bp_auto_layout(ui, self);
+    else
+    {
+        int const kind = ToriRSChrome_DropdownSelected(ui->chrome, self->w_node_kind);
+        int x = 0;
+        int y = 0;
+        if( !bp_graph_editable(ui, self, "New node") )
+            return 1;
+        bp_new_node_spot(self, &x, &y);
+        (void)bp_new_node(ui, self,
+                          kind >= 0 && kind < BUILDER_NODE_KIND_COUNT ? (enum Builder_NodeKind)kind : BUILDER_NODE_NPC,
+                          NULL, 0, x, y);
+    }
+    return 1;
+}
+
+int
+Builder_PanelSelectNode(
+    struct EditorUi* ui,
+    int index)
+{
+    struct builder_panel* self = find_builder(ui, BUILDER_PANEL_NPC);
+
+    if( !self || !self->has_model )
+        return 0;
+    bp_select_node(ui, self, index);
+    return 1;
+}
+
+int
+Builder_PanelOpenLint(
+    struct EditorUi* ui,
+    int row)
+{
+    struct builder_panel* self = find_builder(ui, BUILDER_PANEL_NPC);
+
+    if( !self || !self->has_model || row < 0 || row >= self->lint_shown_count )
+        return 0;
+    bp_open_lint(ui, self, self->lint_shown[row]);
+    return 1;
 }

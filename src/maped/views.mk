@@ -47,7 +47,7 @@ test-editor-views: torirsmaped
 	./$(OBJ_DIR)/views_embed_test $(EDITOR_CONTENT_DIR) $(abspath $(OBJ_DIR)/tmp/views) \
 		$(abspath $(OBJ_DIR)/torirsmaped) $(abspath ../manifests/manifest_osrs241_mapeditor.ini)
 
-test-editor: test-editor-views
+EDITOR_TREE_TESTS += test-editor-views
 
 # The web half: what ?editor_view=1&maped=...&group=N boots as (the same
 # command line the launch service starts natively) and the URL "spawn view"

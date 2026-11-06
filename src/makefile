@@ -3381,7 +3381,7 @@ test-torirsmaped-embed: $(OBJ_DIR) torirsmaped/torirs_maped.c torirsmaped/torirs
 		torirsmaped/torirs_maped_cmdwire.c \
 		torirsmaped/torirs_maped_embed.c editor/editor_host_local.c \
 		editor/editor_host_remote.c editor/editor_doc.c editor/editor_cmd.c \
-		editor/editor_spawn.c editor/editor_jm2.c torirsmaped/test/maped_embed_test.c
+		editor/editor_spawn.c editor/editor_jm2.c torirsmaped/test/maped_embed_test.c -lm
 	rm -rf $(OBJ_DIR)/maped_scratch
 	mkdir -p $(OBJ_DIR)/maped_scratch/maps
 	./$(OBJ_DIR)/maped_embed_test $(OBJ_DIR)/maped_scratch \
@@ -3424,9 +3424,27 @@ test-editor-dropdown: $(OBJ_DIR) ui/uitree_debug_overlay.c ui/test/uitree_test_d
 		ui/uitree_debug_overlay.c ui/test/uitree_test_dropdown.c
 	./$(OBJ_DIR)/uitree_test_dropdown
 
-test-editor: test-editor-cmd test-editor-jm2 test-editor-derive test-editor-dropdown \
-	test-convex-hull test-polygon-fill test-editor-save test-torirsmaped-embed \
-	test-torirsmaped-daemon
+test-editor: test-editor-cmd test-editor-dropdown test-convex-hull test-polygon-fill
+EDITOR_TREE_TESTS += test-editor-jm2 test-editor-save test-torirsmaped-embed test-torirsmaped-daemon
+EDITOR_CACHE_TESTS += test-editor-derive
+
+# The aggregate's members that read the OSRS-Content tree (EDITOR_TREE_TESTS)
+# or the tree and the dat2 cache (EDITOR_CACHE_TESTS), collected from every
+# src/maped/*.mk fragment (included above, so the lists are whole here). In a
+# checkout without them the aggregate runs every content-free member and
+# names each content member as skipped instead of failing on a missing file.
+# Each stays a target of its own: `make test-editor-panels` runs it (and
+# fails) wherever it is asked for.
+EDITOR_TREE_READY := $(wildcard $(EDITOR_CONTENT_DIR)/maps/m50_50.jm2)
+EDITOR_CACHE_READY := $(and $(EDITOR_TREE_READY),$(wildcard $(EDITOR_CACHE_DIR)))
+test-editor: $(if $(EDITOR_TREE_READY),$(EDITOR_TREE_TESTS),test-editor-skip-tree)
+test-editor: $(if $(EDITOR_CACHE_READY),$(EDITOR_CACHE_TESTS),test-editor-skip-cache)
+
+.PHONY: test-editor-skip-tree test-editor-skip-cache
+test-editor-skip-tree:
+	@$(foreach t,$(EDITOR_TREE_TESTS),echo "test-editor: SKIPPED $(t) (needs the OSRS-Content tree: no $(EDITOR_CONTENT_DIR)/maps/m50_50.jm2)";)
+test-editor-skip-cache:
+	@$(foreach t,$(EDITOR_CACHE_TESTS),echo "test-editor: SKIPPED $(t) (needs the OSRS-Content tree and the cache at $(EDITOR_CACHE_DIR))";)
 
 # NpcType.multiNpc (opcode 106) decode -> ToriRS_Npctype.transform_* -- pure
 # struct plumbing, no cache file or App needed.

@@ -29,4 +29,4 @@ test-editor-script: sscompile
 	./$(OBJ_DIR)/editor_script_test $(abspath $(SSC_BIN)) $(EDITOR_CONTENT_DIR) \
 		$(abspath $(OBJ_DIR)/tmp/editor_script)
 
-test-editor: test-editor-script
+EDITOR_TREE_TESTS += test-editor-script

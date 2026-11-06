@@ -21,7 +21,8 @@
  *   Run gate       run.py --no-build then gate.py as a BUILD job (refused
  *                  without the tools, the test file, the content tree's
  *                  scripts or the quest client); the job's lines stream into
- *                  the board, and when it lands the board reads again
+ *                  the board, its findings are Problems rows (source
+ *                  "quest:<id>"), and when it lands the board reads again
  *   Ledger...      the ledger's rows in a VLIST with a search box; the picked
  *                  row's first screenshot as a MODELVIEW sprite when the App
  *                  decodes PNGs (EditorUiAppServices png_publish), else its path
@@ -107,6 +108,10 @@ struct QuestPanel
     uint32_t job_what;
     int job_build_serial;
     int job_log_serial;
+    /** The Problems source this board's job reports under ("quest:<id>")
+     *  and how many rows it has reported since the send. */
+    char problems_source[EDITOR_PROBLEM_SOURCE_MAX];
+    int job_rows;
 
     /** The CODE view's file and its lines (offsets into `code_text`). */
     char* code_text;
@@ -663,6 +668,12 @@ quest_send_job(
     self->job_what = what;
     self->job_build_serial = live->build_serial;
     self->job_log_serial = live->log_serial;
+    /* This quest's findings are the job's from now on: the last run's go. */
+    if( self->problems_source[0] )
+        (void)Editor_Problems_Clear(ui, self->problems_source);
+    snprintf(self->problems_source, sizeof(self->problems_source), "quest:%s", self->board.id);
+    (void)Editor_Problems_Clear(ui, self->problems_source);
+    self->job_rows = 0;
     ToriRSChrome_SetText(ui->chrome, self->label_job, "started...");
     quest_say(ui, self, "%s started for %s (the editor server runs it)", ToriRSMapEd_BuildWhatName(what),
         self->board.id);
@@ -731,6 +742,56 @@ quest_hints(
     self->hint_serial = ui->hotkeys.serial;
 }
 
+/** A Problems row's click: the board in front, the row's finding said. */
+static void
+quest_problem_open(
+    struct EditorUi* ui,
+    void* user,
+    int index)
+{
+    struct QuestPanel* self = user;
+
+    assert(self);
+    (void)index;
+    ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 1);
+    quest_say(ui, self, "Quest %s: the gate's findings are in Live; Ledger... has the shots", self->board.id);
+}
+
+/** One line of this board's job, as Problems hears it: gate.py's findings
+ *  ("    - <finding>" under a RED quest, "    ~ blocked: <row>") are rows of
+ *  the quest's own source. Located diagnostics (`<file>:<line>: ...`) the
+ *  Problems panel's own line stream already files under the build's name,
+ *  so they are not reported twice. */
+static void
+quest_job_line(
+    struct EditorUi* ui,
+    struct QuestPanel* self,
+    const char* line)
+{
+    const char* at = line;
+    char text[EDITOR_QUEST_ID_MAX + 320];
+    int severity;
+
+    while( *at == ' ' || *at == '\t' )
+        at++;
+    if( strncmp(at, "- ", 2) == 0 )
+    {
+        severity = EDITOR_PROBLEM_ERROR;
+        at += 2;
+    }
+    else if( strncmp(at, "~ blocked: ", 11) == 0 )
+    {
+        severity = EDITOR_PROBLEM_WARNING;
+        at += 2;
+    }
+    else
+        return;
+    snprintf(text, sizeof(text), "quest %s: %s", self->board.id, at);
+    Editor_Problems_ReportOpen(ui, self->problems_source, "", 0, severity, text, quest_problem_open, self,
+        self->job_rows);
+    self->job_rows++;
+}
+
 /** The job this board sent: its newest line, then its end. Run every frame,
  *  shown or not: the Live model keeps only the LAST build's what, so a
  *  board that looked only while visible missed its job's end whenever
@@ -754,6 +815,18 @@ quest_watch_job(
     if( live->log_serial != self->job_log_serial )
     {
         const char* line = Editor_LiveLogLine(live, 0);
+        int fresh = live->log_serial - self->job_log_serial;
+        if( fresh > live->log_count )
+            fresh = live->log_count;
+        /* Oldest first: each of this job's own lines (its build mark) that
+         * reads as a gate finding is a Problems row. */
+        for( int i = fresh - 1; i >= 0; i-- )
+        {
+            uint32_t const mark = Editor_LiveLogWhat(live, i);
+            const char* text = Editor_LiveLogLine(live, i);
+            if( text && mark == self->job_what )
+                quest_job_line(ui, self, text);
+        }
         self->job_log_serial = live->log_serial;
         if( line )
             ToriRSChrome_SetText(ui->chrome, self->label_job, line);
@@ -785,6 +858,17 @@ quest_watch_job(
     else
         quest_say(ui, self, "%s for %s failed (%s); its lines are in Live", ToriRSMapEd_BuildWhatName(what), id,
             live->last_build_status == EDITOR_HOST_REFUSED ? "refused" : "see the log");
+    /* A gate that ended red or blocked without a finding line still says
+     * so in Problems. */
+    if( what == TORIRSMAPED_BUILD_QUEST_GATE && self->job_rows == 0
+        && (self->board.verdict == EDITOR_QUEST_RED || self->board.verdict == EDITOR_QUEST_BLOCKED) )
+    {
+        char text[EDITOR_QUEST_ID_MAX + 64];
+        snprintf(text, sizeof(text), "quest %s: the gate says %s", id, Editor_QuestStateWord(self->board.verdict));
+        Editor_Problems_ReportOpen(ui, self->problems_source, "", 0,
+            self->board.verdict == EDITOR_QUEST_RED ? EDITOR_PROBLEM_ERROR : EDITOR_PROBLEM_WARNING, text,
+            quest_problem_open, self, 0);
+    }
 }
 
 static void
@@ -911,7 +995,9 @@ quest_destroy(
     void* opaque)
 {
     struct QuestPanel* self = opaque;
-    (void)ui;
+    /* Its rows' clicks name this board. */
+    if( self->problems_source[0] )
+        (void)Editor_Problems_Clear(ui, self->problems_source);
     Editor_QuestBoardFree(&self->board);
     ToriMem_Free(ToriMem_Editor(), self->ledger_filtered);
     ToriMem_Free(ToriMem_Editor(), self->code_text);

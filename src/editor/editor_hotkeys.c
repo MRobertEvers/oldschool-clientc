@@ -355,6 +355,8 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                                     "World layer Grid on/off (reserved)", G, EDGE, { "alt+g" }, NULL },
     [EDITOR_HK_GRAPH_AUTO_LAYOUT] = { "graph.auto_layout", "Graph", "Auto-layout the graph",
                                       "Lay the focused dialogue graph out", Q, EDGE, { "ctrl+l" }, NULL },
+    [EDITOR_HK_GRAPH_NEW_NODE] = { "graph.new_node", "Graph", "New node",
+                                   "New dialogue node after the selected one", Q, EDGE, { "n" }, NULL },
 };
 
 #undef G

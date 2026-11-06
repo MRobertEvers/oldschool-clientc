@@ -42,7 +42,7 @@ test-editor-if:
 		$(addprefix $(OBJ_DIR)/,$(IFACE_TEST_RSCACHE_OBJS)) -lm
 	./$(OBJ_DIR)/editor_if_test $(EDITOR_CONTENT_DIR)
 
-test-editor: test-editor-if
+EDITOR_TREE_TESTS += test-editor-if
 
 # The interface editor's modules, headless, linked against the client's own
 # objects (like test-edit-world): the model over bankmain, every interface's
@@ -64,4 +64,4 @@ test-iface-editor:
 		$(if $(wildcard $(IFACE_EDITOR_RUNESTAR)),$(IFACE_EDITOR_RUNESTAR),-) \
 		$(abspath $(OBJ_DIR)/tmp/iface_editor)
 
-test-editor: test-iface-editor
+EDITOR_TREE_TESTS += test-iface-editor

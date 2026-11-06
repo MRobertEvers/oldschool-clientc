@@ -74,4 +74,4 @@ test-editor-panels:
 		$(OBJ_DIR)/tmp/editor_panels/server/scripts/areas/world/configs/
 	./$(OBJ_DIR)/editor_panels_test $(OBJ_DIR)/tmp/editor_panels
 
-test-editor: test-editor-panels
+EDITOR_TREE_TESTS += test-editor-panels

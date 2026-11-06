@@ -27,7 +27,8 @@
  *   Check       the model's refusals plus what the catalog says: the owner
  *               and every obj exist, the inv is the cache's and big enough
  *               and no other .inv stocks it, no other file declares the
- *               owner's op trigger
+ *               owner's op trigger; each is a Problems row too (source
+ *               "shop", a click comes back to the row here)
  *   Save        both TEXT documents through the authority as ONE stroke (one
  *               undo step), then saved; never a generated pair
  *
@@ -518,6 +519,44 @@ shop_fill_problems(
         ToriRSChrome_VListSetRow(ui->chrome, self->list_problems, r, self->problems[r]);
 }
 
+/** A Problems row's click: the Shop builder in front, its row picked. */
+static void
+shop_problem_open(
+    struct EditorUi* ui,
+    void* user,
+    int index)
+{
+    struct ShopPanel* self = user;
+
+    assert(self);
+    ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 1);
+    if( index < 0 || index >= self->problem_count )
+    {
+        shop_say(ui, self, "Shop %s: that problem is gone (Check again)", self->shop.key);
+        return;
+    }
+    ToriRSChrome_VListSetSelected(ui->chrome, self->list_problems, index);
+    shop_say(ui, self, "Shop %s: %s", self->shop.key, self->problems[index]);
+}
+
+/** The panel's problems are the Problems panel's "shop" rows too (design
+ *  section 10: one list of every finding); a click comes back here. */
+static void
+shop_report_problems(
+    struct EditorUi* ui,
+    struct ShopPanel* self)
+{
+    (void)Editor_Problems_Clear(ui, "shop");
+    for( int i = 0; i < self->problem_count; i++ )
+    {
+        char text[EDITOR_SHOP_TEXT_MAX + EDITOR_SHOP_KEY_MAX + 16];
+        int const note = strncmp(self->problems[i], "No catalog:", 11) == 0;
+        snprintf(text, sizeof(text), "shop %s: %s", self->shop.key, self->problems[i]);
+        Editor_Problems_ReportOpen(ui, "shop", self->rs2_key[0] ? self->rs2_key + 4 : "", 0,
+            note ? EDITOR_PROBLEM_NOTE : EDITOR_PROBLEM_ERROR, text, shop_problem_open, self, i);
+    }
+}
+
 /* ---- the owner's ops ------------------------------------------------------------------ */
 
 static void
@@ -688,6 +727,7 @@ Editor_Shop_Open(
     }
     self->open = 1;
     self->problem_count = 0;
+    (void)Editor_Problems_Clear(ui, "shop");
     shop_to_widgets(ui, self);
     if( self->shop.origin == EDITOR_SHOP_ORIGIN_GENERATOR )
         shop_say(ui, self, "Opened %s read-only: %s", key, Editor_ShopSaveRefusal(&self->shop));
@@ -836,6 +876,7 @@ Editor_Shop_Check(struct EditorUi* ui)
     }
     count = shop_check(ui, self);
     shop_fill_problems(ui, self);
+    shop_report_problems(ui, self);
     if( count == 0 )
         shop_say(ui, self, "Check: shop %s is ready (%d stock rows)", self->shop.key, self->shop.stock_count);
     else
@@ -883,6 +924,7 @@ Editor_Shop_Save(struct EditorUi* ui)
     if( shop_check(ui, self) > 0 && !(self->problem_count == 1 && !shop_catalog(ui)) )
     {
         shop_fill_problems(ui, self);
+        shop_report_problems(ui, self);
         shop_say(ui, self, "Save refused: %s", self->problems[0]);
         return 0;
     }
@@ -928,6 +970,7 @@ Editor_Shop_Save(struct EditorUi* ui)
     self->inv_revision = shop_doc_revision(ui, self->inv_key);
     self->problem_count = 0;
     shop_fill_problems(ui, self);
+    (void)Editor_Problems_Clear(ui, "shop");
     shop_title(ui, self);
     if( rs2_result == BUILDER_SYNC_UNCHANGED && inv_result == BUILDER_SYNC_UNCHANGED && saved == 0 )
         shop_say(ui, self, "Save: shop %s is already what is on disk", self->shop.key);
@@ -1450,7 +1493,8 @@ shop_destroy(
     struct EditorUi* ui,
     void* opaque)
 {
-    (void)ui;
+    /* Its rows' clicks name this panel. */
+    (void)Editor_Problems_Clear(ui, "shop");
     ToriMem_Free(ToriMem_Editor(), opaque);
 }
 

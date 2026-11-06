@@ -110,7 +110,7 @@ test-live-editor:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/live_editor_test $(TORIMEM_SRCS) \
 		$(filter-out torirsmaped/torirs_maped_main.c,$(TORIRSMAPED_SRCS)) \
-		editor/live/live_client.c editor/live/test/live_editor_test.c
+		editor/live/live_client.c editor/live/test/live_editor_test.c -lm
 	rm -rf $(OBJ_DIR)/tmp/live_editor
 	mkdir -p $(OBJ_DIR)/tmp/live_editor/content/maps \
 		$(OBJ_DIR)/tmp/live_editor/content/server/scripts/areas/edited/configs
@@ -125,7 +125,7 @@ test-live-editor:
 		$(abspath $(OBJ_DIR)/tmp/live_editor/fake_server.sh) $(REPO_ROOT) \
 		$(abspath $(OBJ_DIR)/tmp/live_editor/fake_play.sh)
 
-test-editor: test-live-editor
+EDITOR_TREE_TESTS += test-live-editor
 
 # ---------------------------------------------------------------------------
 # The incremental client pack (cp_incremental.h) on a miniature tree copied
@@ -154,7 +154,7 @@ test-cp-incremental:
 	./$(OBJ_DIR)/cp_incremental_test $(abspath $(OBJ_DIR)/tmp/cp_incremental) $(CACHEPACK_BIN) \
 		$(MAKE) $(SRC_DIR)
 
-test-editor: test-cp-incremental
+EDITOR_TREE_TESTS += test-cp-incremental
 
 # ---------------------------------------------------------------------------
 # The Live panel on the real chrome model over a raw connection to a real
@@ -177,4 +177,4 @@ test-live-panel:
 	./$(OBJ_DIR)/live_panel_test $(abspath $(OBJ_DIR)/tmp/live_panel) \
 		$(abspath $(OBJ_DIR)/tmp/live_panel/mock_control_peer.py) $(REPO_ROOT)
 
-test-editor: test-live-panel
+EDITOR_TREE_TESTS += test-live-panel

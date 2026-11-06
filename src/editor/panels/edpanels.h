@@ -621,6 +621,8 @@ Editor_Record_UsesRow(
  * _Clear. "problems" */
 
 #define EDITOR_PROBLEMS_MAX 512
+/** A source's name, NUL included ("npcbuilder:<npc>", "quest:<id>"). */
+#define EDITOR_PROBLEM_SOURCE_MAX 96
 
 enum Editor_ProblemSeverity
 {
@@ -629,11 +631,21 @@ enum Editor_ProblemSeverity
     EDITOR_PROBLEM_NOTE,
 };
 
+/** What a click on a pushed row runs instead of opening a record or a file
+ *  (the NPC builder selects the lint row's node): called with the `user`
+ *  and `index` the row was reported with. The reporter keeps `user` valid
+ *  until it clears its source. */
+typedef void (*Editor_ProblemOpenFn)(
+    struct EditorUi* ui,
+    void* user,
+    int index);
+
 struct Editor_ProblemRow
 {
     /** Who said it: a build's name ("check", "cs2 compile", "packs"), or the
-     *  pushing panel's ("record", "shop", "quest", "lint"). */
-    char source[32];
+     *  pushing panel's ("record", "shop", "quest:<id>",
+     *  "npcbuilder:<npc>"). */
+    char source[EDITOR_PROBLEM_SOURCE_MAX];
     /** Relative to server/scripts for a script ("" when it names none). */
     char file[256];
     /** 1-based, 0 when it names none. */
@@ -645,6 +657,10 @@ struct Editor_ProblemRow
     char record_type[16];
     char record_name[64];
     char record_field[64];
+    /** A pushed row's own click (Editor_Problems_ReportOpen), else NULL. */
+    Editor_ProblemOpenFn open;
+    void* open_user;
+    int open_index;
 };
 
 void
@@ -674,6 +690,20 @@ Editor_Problems_ReportRecord(
     int severity,
     const char* text);
 
+/** Add a row whose click runs `open(ui, user, index)` (the builders' lint:
+ *  click-to-node). `file` may be "" when the row names no script. */
+void
+Editor_Problems_ReportOpen(
+    struct EditorUi* ui,
+    const char* source,
+    const char* file,
+    int line,
+    int severity,
+    const char* text,
+    Editor_ProblemOpenFn open,
+    void* user,
+    int index);
+
 /** Take back every row `source` reported (NULL: every row). Returns how
  *  many went. */
 int
@@ -696,7 +726,8 @@ Editor_Problems_CountOf(
     const char* source,
     int severity);
 
-/** What a click on row `index` does: open its record at its field, else its
+/** What a click on row `index` does: its reporter's own open (ReportOpen),
+ *  else open its record at its field, else its
  *  file in the user's editor (the Triggers panel's Open in editor). 1 when
  *  it did; 0 with the reason in the status bar. */
 int

@@ -36,4 +36,5 @@ test-spawn-suppress:
 	./$(OBJ_DIR)/spawn_suppress_test $(OBJ_DIR)/tmp/spawn_suppress
 
 # Both run with the rest of the editor's tests.
-test-editor: test-spawn-codec test-spawn-suppress
+EDITOR_TREE_TESTS += test-spawn-codec
+test-editor: test-spawn-suppress

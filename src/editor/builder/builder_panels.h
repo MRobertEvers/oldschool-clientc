@@ -24,8 +24,11 @@
  * model without linking the client.
  */
 
+#include "builder_chat.h"
 #include "builder_emit.h"
+#include "builder_lint.h"
 #include "builder_ssc.h"
+#include "editor/editor_hotkeys.h"
 
 #include <stdint.h>
 
@@ -80,7 +83,22 @@ struct Builder_Services
      *  (SAVE_AS, one undo step). 1 when the copy was made. May be NULL
      *  (Copy then says it is unavailable). */
     int (*copy_record)(void* user_data, enum Builder_Subject subject, const char* name, const char* new_name);
+    /** The lint's names (builder_lint.h): 1 when the tree names a var
+     *  (`kind` BUILDER_NAME_VAR: a varp or varbit record) or a proc
+     *  (BUILDER_NAME_PROC: a [proc,<name>] trigger), 0 when it does not, -1
+     *  when it cannot say (no catalog). May be NULL. Either way the unknown
+     *  var / proc rows are then not checked, and the panel says so. Asked
+     *  once per name per open subject. */
+    int (*name_known)(void* user_data, int kind, const char* name);
+    /** The chat-box preview's head: a scene sprite the host rendered of
+     *  `npc`'s chathead with expression `expr` (GRAPH_IMAGE's id, its
+     *  version in `out_version`), 1 when there is one. May be NULL: the
+     *  preview draws the head's box and says no preview pipeline is bound. */
+    int (*chat_head)(void* user_data, const char* npc, const char* expr, int* out_scene_id, uint32_t* out_version);
 };
+
+#define BUILDER_NAME_VAR 0
+#define BUILDER_NAME_PROC 1
 
 /** Register the panels over explicit services (what the tests call). The
  *  services are copied. */
@@ -138,6 +156,20 @@ struct Builder_PanelView
     const struct Builder_SscResult* check;
     /** The panel's status line. */
     const char* status;
+    /** The dialogue (NPC builder; zero for the loc builder): the lint rows,
+     *  the selected node (-1 none) and chat page, the selected node's text
+     *  laid out at the chat box's line rule, and whether the new-node chip
+     *  row is open (a port dropped on empty space). */
+    const struct Builder_LintRows* lint;
+    int sel_node;
+    int sel_page;
+    const struct Builder_ChatLayout* layout;
+    int chips_open;
+    /** The GRAPH wells: the graph, the text's pages, the chat-box preview
+     *  (-1 on the loc builder). */
+    int w_graph;
+    int w_pages;
+    int w_preview;
 };
 
 /** What a builder panel registered as `name` currently shows; 0 when there
@@ -178,6 +210,32 @@ int
 Builder_PanelDetach(
     struct EditorUi* ui,
     const char* name);
+
+/**
+ * The dialogue graph's hotkeys (editor_hotkeys.h, context Q): Auto-layout
+ * (Ctrl+L), New node (N) and Delete (edit.delete while the graph holds the
+ * keyboard) on the NPC builder's graph. Returns 1 when the action was the
+ * graph's -- done, or refused with the reason in the status bar -- and 0
+ * when it is not (Delete without the graph's focus: the World's delete runs).
+ */
+int
+Builder_GraphHotkey(
+    struct EditorUi* ui,
+    enum Editor_HotkeyAction action);
+
+/** Select dialogue node `index` (-1 none) on the NPC builder, as a click on
+ *  its GRAPH item or its outline row does. Returns 0 without one. */
+int
+Builder_PanelSelectNode(
+    struct EditorUi* ui,
+    int index);
+
+/** Activate lint row `row` (as shown, after the find box) as a click on it
+ *  does: the node (or trigger step) it names is selected. */
+int
+Builder_PanelOpenLint(
+    struct EditorUi* ui,
+    int row);
 
 /** The shell editor's current shell, or NULL before one is open. */
 const struct Builder_Shell*

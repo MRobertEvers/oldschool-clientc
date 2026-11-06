@@ -357,6 +357,21 @@ visible_names(
     }
 }
 
+/* A pushed row's own click (Editor_Problems_ReportOpen). */
+static int g_open_calls;
+static int g_open_index;
+
+static void
+test_problem_open(
+    struct EditorUi* ui,
+    void* user,
+    int index)
+{
+    (void)ui;
+    (*(int*)user)++;
+    g_open_index = index;
+}
+
 static int
 problem_index(
     const char* source,
@@ -662,6 +677,21 @@ test_problems(void)
     CHECK(Editor_Problems_Clear(&g_ui, "lint") == 1 && Editor_Problems_Clear(&g_ui, "shop") == 1
               && Editor_Problems_Count(&g_ui) == before,
         "push: Clear takes back one source's rows");
+
+    /* A row with its reporter's own click (the builders' lint selects the
+     * node), under a source longer than a build's name. */
+    g_open_calls = 0;
+    Editor_Problems_ReportOpen(&g_ui, "npcbuilder:a_rather_long_npc_name_for_a_source", "", 0, EDITOR_PROBLEM_ERROR,
+        "node n4: unknown proc: ~nosuch", test_problem_open, &g_open_calls, 7);
+    CHECK(Editor_Problems_CountOf(&g_ui, "npcbuilder:a_rather_long_npc_name_for_a_source", -1) == 1,
+        "push: a long source keeps its whole name");
+    CHECK(Editor_Problems_Activate(&g_ui, problem_index("npcbuilder:a_rather_long_npc_name_for_a_source", "~nosuch"))
+                  == 1
+              && g_open_calls == 1 && g_open_index == 7,
+        "click: a pushed row's own open runs, with its index (%d, %d)", g_open_calls, g_open_index);
+    CHECK(Editor_Problems_Clear(&g_ui, "npcbuilder:a_rather_long_npc_name_for_a_source") == 1
+              && Editor_Problems_Count(&g_ui) == before,
+        "push: and its source's Clear takes it back");
     frame();
 }
 
@@ -755,7 +785,15 @@ test_jobs(void)
     g_mock->scripts[TORIRSMAPED_BUILD_CHECK].line_count = 2;
     g_mock->scripts[TORIRSMAPED_BUILD_CHECK].status = EDITOR_HOST_OK;
     g_mock->scripts[TORIRSMAPED_BUILD_CHECK].idle_polls = 0;
-    CHECK(Editor_Triggers_Check(&g_ui) == 1, "check: again");
+    /* Again, from the Record panel's Triggers tab: the Triggers panel's own
+     * Check job. */
+    CHECK(Editor_Record_Open(&g_ui, TORIRSMAPED_CATALOG_NPC, "goblin") == 1, "check: goblin's record");
+    commands = g_mock->command_count;
+    Editor_Record_ShowTab(&g_ui, 3);
+    press("record", "Check");
+    CHECK(g_mock->command_count == commands + 1 && strstr(g_mock->commands[commands], " maped-script-check "),
+        "check: the Record panel's Check sends the Triggers panel's job (%s; %s)",
+        g_mock->command_count > commands ? g_mock->commands[commands] : "-", status());
     for( int i = 0; i < 30 && Editor_Triggers_CheckRunning(&g_ui); i++ )
         frame();
     CHECK(Editor_Problems_CountOf(&g_ui, "check", -1) == 0, "check: a clean one clears its rows (%d)",

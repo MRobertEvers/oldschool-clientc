@@ -444,6 +444,23 @@ test_shop(void)
         CHECK(trigger, "shop: another file's [opnpc3,other_keeper] is named with its line");
         CHECK(missing, "shop: an obj the tree lacks is named");
     }
+    CHECK(Editor_Problems_CountOf(&g_ui, "shop", -1) == Editor_Shop_ProblemCount(&g_ui),
+        "shop: each Check problem is a Problems row (%d of %d)", Editor_Problems_CountOf(&g_ui, "shop", -1),
+        Editor_Shop_ProblemCount(&g_ui));
+    {
+        int const shop_panel = module_panel("shop");
+        int at = -1;
+        for( int i = 0; i < Editor_Problems_Count(&g_ui); i++ )
+            if( strcmp(Editor_Problems_Row(&g_ui, i)->source, "shop") == 0
+                && strstr(Editor_Problems_Row(&g_ui, i)->text, "unobtainium is not an obj") )
+                at = i;
+        CHECK(at >= 0 && strstr(Editor_Problems_Row(&g_ui, at)->text, "shop lumbridge_general: "),
+            "shop: the row names the shop");
+        ToriRSChrome_PanelSetVisible(&g_chrome, shop_panel, 0);
+        CHECK(at >= 0 && Editor_Problems_Activate(&g_ui, at) == 1 && g_chrome.panels[shop_panel].visible
+                  && strstr(status(), "unobtainium is not an obj"),
+            "shop: a Problems row's click comes back to the Shop builder (%s)", status());
+    }
     groups = history_applied();
     CHECK(!Editor_Shop_Save(&g_ui) && strstr(status(), "Save refused: ") && history_applied() == groups,
         "shop: Save refuses what Check refuses and writes nothing (%s)", status());
@@ -452,6 +469,8 @@ test_shop(void)
 
     /* The generator's pair: read-only, Save refused with the reason. */
     CHECK(Editor_Shop_Open(&g_ui, "lumbridge_general_store"), "shop: the generator's shop opens");
+    CHECK(Editor_Problems_CountOf(&g_ui, "shop", -1) == 0, "shop: another shop takes the last one's rows back (%d)",
+        Editor_Problems_CountOf(&g_ui, "shop", -1));
     shop = Editor_Shop_Model(&g_ui);
     CHECK(shop && shop->origin == EDITOR_SHOP_ORIGIN_GENERATOR && strcmp(shop->inv, "generalshop1") == 0,
         "shop: through the catalog's [label,lumbridge_general_store_open]");
@@ -628,6 +647,16 @@ test_quest(void)
     write_at(g_repo, "src/torirs_questtest", "stand-in\n");
     {
         int const commands = g_mock->command_count;
+        /* gate.py's findings, as it prints them under a RED quest: Problems
+         * rows of the quest's own source (workbench 6.6). */
+        static const char* const gate_lines[] = {
+            "cooks_assistant          RED",
+            "    - stage 2 is never reached",
+            "    ~ blocked: row 3 waits on a cutscene",
+            "gate: 1 finding(s) across 1 quest(s)",
+        };
+        g_mock->scripts[TORIRSMAPED_BUILD_QUEST_GATE].lines = gate_lines;
+        g_mock->scripts[TORIRSMAPED_BUILD_QUEST_GATE].line_count = 4;
         CHECK(Editor_Quest_RunGate(&g_ui), "quest: Run gate starts (%s)", status());
         /* The job's verdict, as maped-quest-gate leaves it. */
         write_at(g_repo, "build/maped_quest_board/cooks_assistant.gate",
@@ -653,6 +682,24 @@ test_quest(void)
         CHECK(Editor_Quest_Board(&g_ui)->verdict == EDITOR_QUEST_GREEN && strstr(status(), "quest gate for cooks_assistant finished: the test is green"),
             "quest: the job's end reads gate.py's verdict back (%s, %s)",
             Editor_QuestStateWord(Editor_Quest_Board(&g_ui)->verdict), status());
+        CHECK(Editor_Problems_CountOf(&g_ui, "quest:cooks_assistant", EDITOR_PROBLEM_ERROR) == 1
+                  && Editor_Problems_CountOf(&g_ui, "quest:cooks_assistant", EDITOR_PROBLEM_WARNING) == 1,
+            "quest: the gate's finding and its blocked row are Problems rows (%d)",
+            Editor_Problems_CountOf(&g_ui, "quest:cooks_assistant", -1));
+        {
+            int const quest = module_panel("quest");
+            int at = -1;
+            for( int i = 0; i < Editor_Problems_Count(&g_ui); i++ )
+                if( strcmp(Editor_Problems_Row(&g_ui, i)->source, "quest:cooks_assistant") == 0
+                    && strstr(Editor_Problems_Row(&g_ui, i)->text, "stage 2 is never reached") )
+                    at = i;
+            ToriRSChrome_PanelSetVisible(&g_chrome, quest, 0);
+            CHECK(at >= 0 && Editor_Problems_Activate(&g_ui, at) == 1 && g_chrome.panels[quest].visible
+                      && strstr(status(), "Quest cooks_assistant"),
+                "quest: a finding's click brings the board to the front (%s)", status());
+        }
+        g_mock->scripts[TORIRSMAPED_BUILD_QUEST_GATE].lines = NULL;
+        g_mock->scripts[TORIRSMAPED_BUILD_QUEST_GATE].line_count = 0;
     }
     CHECK(!Editor_Quest_Scaffold(&g_ui) && strstr(status(), "refuses to clobber"),
         "quest: Scaffold refused over a test file (%s)", status());
@@ -666,6 +713,9 @@ test_quest(void)
         int const commands = g_mock->command_count;
         int run_serial;
         CHECK(Editor_Quest_RunGate(&g_ui), "quest: Run gate starts again (%s)", status());
+        CHECK(Editor_Problems_CountOf(&g_ui, "quest:cooks_assistant", -1) == 0,
+            "quest: a new gate run takes the last run's findings back (%d)",
+            Editor_Problems_CountOf(&g_ui, "quest:cooks_assistant", -1));
         ToriRSChrome_PanelSetVisible(&g_chrome, quest, 0);
         for( int i = 0; i < 200 && live && (g_mock->command_count == commands || live->building); i++ )
             frame();

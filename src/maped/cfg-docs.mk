@@ -44,7 +44,7 @@ test-editor-cfg:
 		editor/editor_spawn.c editor/test/editor_cfg_test.c
 	./$(OBJ_DIR)/editor_cfg_test $(EDITOR_CONTENT_DIR)
 
-test-editor: test-editor-cfg
+EDITOR_TREE_TESTS += test-editor-cfg
 
 # Id allocation against tools/ss_allocate.py itself: the oracle imports the
 # script and prints, per namespace, what it would allocate and the ledger bytes
@@ -67,7 +67,7 @@ test-editor-alloc:
 	./$(OBJ_DIR)/editor_alloc_test $(EDITOR_CONTENT_DIR) $(OBJ_DIR)/tmp/editor_alloc/oracle.txt \
 		$(OBJ_DIR)/tmp/editor_alloc
 
-test-editor: test-editor-alloc
+EDITOR_TREE_TESTS += test-editor-alloc
 
 # Varps and varbits: names, the bit map, the overlap check, the new-varbit
 # commands, and the real tree's varbits (overlaps the cache really has are
@@ -80,4 +80,4 @@ test-editor-vars:
 		editor/editor_jm2.c editor/editor_spawn.c editor/test/editor_vars_test.c
 	./$(OBJ_DIR)/editor_vars_test $(EDITOR_CONTENT_DIR)
 
-test-editor: test-editor-vars
+EDITOR_TREE_TESTS += test-editor-vars
