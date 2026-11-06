@@ -793,8 +793,9 @@ ToriRSMapEd_BuildServPackDiff(
     return changed;
 }
 
-#if TORIRSMAPED_JOBS_NATIVE
-/* `path` read whole into a malloc'd buffer (NUL-terminated), or NULL. */
+/* `path` read whole into a malloc'd buffer (NUL-terminated), or NULL. Plain
+ * stdio, so every platform has it: the CS2 job's prepare reads the content's
+ * script with it on Windows and the web too. */
 static char*
 build_read_whole(
     const char* path,
@@ -825,7 +826,6 @@ build_read_whole(
     *out_length = (size_t)size;
     return text;
 }
-#endif /* TORIRSMAPED_JOBS_NATIVE */
 
 /** `needle` in `text`, ignoring ASCII case. */
 static int
