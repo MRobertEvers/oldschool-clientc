@@ -87,6 +87,33 @@ square_path(
     snprintf(out, out_size, "%s/maps/m%d_%d.%s", host->content_dir, map_x, map_z, extension);
 }
 
+/*
+ * Line endings. Every file this host reads and writes is a text document, and
+ * a content tree may be CRLF: Git for Windows checks text out that way by
+ * default (core.autocrlf), and a tree copied from such a checkout keeps it.
+ * The parsers and the documents work in "\n" only, so a CRLF file is read as
+ * LF, and a save writes "\r\n" again when the file it replaces is CRLF. An
+ * untouched document then writes back byte for byte, and a one-tile edit is a
+ * one-line change on every checkout, not a rewrite of every line.
+ */
+
+/** Every "\r\n" in `blob` becomes "\n", in place (a lone '\r' is data). */
+static void
+text_crlf_to_lf(struct EditorHost_Blob* blob)
+{
+    size_t out = 0;
+
+    assert(blob);
+    for( size_t at = 0; at < blob->size; at++ )
+    {
+        if( blob->data[at] == '\r' && at + 1 < blob->size && blob->data[at + 1] == '\n' )
+            continue;
+        blob->data[out++] = blob->data[at];
+    }
+    blob->data[out] = '\0';
+    blob->size = out;
+}
+
 static enum EditorHost_Status
 read_whole_file(
     const char* path,
@@ -132,7 +159,26 @@ read_whole_file(
     data[size] = '\0';
     out_blob->data = data;
     out_blob->size = (size_t)size;
+    text_crlf_to_lf(out_blob);
     return EDITOR_HOST_OK;
+}
+
+/** 1 when `path` exists and its first line ends "\r\n": the file is a CRLF
+ *  file and its rewrite keeps that. */
+static int
+file_is_crlf(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char head[4096];
+    size_t got;
+    char const* newline;
+
+    if( !file )
+        return 0;
+    got = fread(head, 1, sizeof(head), file);
+    fclose(file);
+    newline = memchr(head, '\n', got);
+    return newline && newline > head && newline[-1] == '\r';
 }
 
 /**
@@ -154,19 +200,38 @@ write_file_atomic(
 {
     char temp_path[1200];
     FILE* file;
+    int written_ok = 1;
 
     assert(path);
     assert(text || length == 0);
 
     snprintf(temp_path, sizeof(temp_path), "%s.tmp", path);
 
+    /* Read before the temporary exists: the target's own line ending. */
+    int const crlf = file_is_crlf(path);
     file = fopen(temp_path, "wb");
     if( !file )
     {
         TORIRS_ERR("editor: cannot open %s: %s\n", temp_path, strerror(errno));
         return EDITOR_HOST_IO_ERROR;
     }
-    if( length > 0 && fwrite(text, 1, length, file) != length )
+    if( crlf )
+    {
+        /* Each "\n" goes out as "\r\n" (one already preceded by '\r' as is). */
+        size_t run = 0;
+        for( size_t at = 0; at < length && written_ok; at++ )
+        {
+            if( text[at] != '\n' || (at > 0 && text[at - 1] == '\r') )
+                continue;
+            written_ok = fwrite(text + run, 1, at - run, file) == at - run && fwrite("\r\n", 1, 2, file) == 2;
+            run = at + 1;
+        }
+        if( written_ok && run < length )
+            written_ok = fwrite(text + run, 1, length - run, file) == length - run;
+    }
+    else if( length > 0 )
+        written_ok = fwrite(text, 1, length, file) == length;
+    if( !written_ok )
     {
         TORIRS_LOG("editor: short write to %s\n", temp_path);
         fclose(file);
@@ -403,6 +468,9 @@ lock_own_command(
             out[got] = '\0';
         }
     }
+#elif defined(_WIN32)
+    (void)at;
+    snprintf(out, out_size, "%s", GetCommandLineA());
 #else
     (void)at;
     (void)out_size;
@@ -445,6 +513,17 @@ lock_process_command(
                     out[i] = ' ';
             }
             out[got] = '\0';
+        }
+    }
+#elif defined(_WIN32)
+    {
+        HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pid);
+        if( process )
+        {
+            DWORD length = (DWORD)out_size;
+            if( !QueryFullProcessImageNameA(process, 0, out, &length) )
+                out[0] = '\0';
+            CloseHandle(process);
         }
     }
 #else
@@ -509,7 +588,20 @@ lock_read(
 static int
 lock_pid_alive(long pid)
 {
-#if defined(_WIN32) || defined(__EMSCRIPTEN__)
+#if defined(_WIN32)
+    HANDLE process;
+    DWORD code = 0;
+    int alive;
+
+    if( pid <= 0 )
+        return 1; /* names nobody: not ours to judge */
+    process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pid);
+    if( !process )
+        return GetLastError() == ERROR_ACCESS_DENIED; /* runs, as another user */
+    alive = !GetExitCodeProcess(process, &code) || code == STILL_ACTIVE;
+    CloseHandle(process);
+    return alive;
+#elif defined(__EMSCRIPTEN__)
     (void)pid;
     return 1; /* no way to ask: never call a lock stale */
 #else
