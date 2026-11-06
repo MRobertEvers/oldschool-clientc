@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "log/torirs_log.h"
 
 /* Views (torirs_maped_view.c, compiled into this unit at its end). */
@@ -1740,6 +1741,23 @@ catalog_atlas_changed(
     ToriRSMapEd_BufFree(&payload[1]);
 }
 
+/** The lane change counts' cache (torirs_maped_lanes_wire.c) holds until a
+ *  request that can write a tree arrives: note it before it runs. */
+static void
+note_lane_writes(
+    struct ToriRSMapEd* maped,
+    uint32_t type)
+{
+    if( type == TORIRSMAPED_REQ_SQUARE_SAVE || type == TORIRSMAPED_REQ_SPAWN_SAVE || type == TORIRSMAPED_REQ_BAKE
+        || type == TORIRSMAPED_REQ_SAVE_ALL || type == TORIRSMAPED_REQ_SAVE || type == TORIRSMAPED_REQ_SAVE_AS
+        || type == TORIRSMAPED_REQ_DOC_CREATE || type == TORIRSMAPED_REQ_BUILD || type == TORIRSMAPED_REQ_RUN
+        || (type >= TORIRSMAPED_REQ_ACCOUNTS_RANGE_FIRST && type <= TORIRSMAPED_REQ_ACCOUNTS_RANGE_LAST) )
+        maped->lane_writes_own++;
+    else if( type == TORIRSMAPED_REQ_LANE_PUBLISH || type == TORIRSMAPED_REQ_LANE_DISCARD
+             || type == TORIRSMAPED_REQ_LANE_CREATE )
+        maped->lane_writes_all++;
+}
+
 static void
 handle_frame(
     struct ToriRSMapEdSession* session,
@@ -1754,6 +1772,7 @@ handle_frame(
     assert(maped);
     assert(maped->open);
 
+    note_lane_writes(maped, type);
     switch( type )
     {
     case TORIRSMAPED_REQ_HELLO:

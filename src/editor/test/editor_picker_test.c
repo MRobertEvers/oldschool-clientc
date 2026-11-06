@@ -741,6 +741,51 @@ test_panel_find_and_keys(void)
     CHECK(picker->tabs[picker->active_tab].area == 0, "find: the surface's page");
 }
 
+/* The command palette's Squares group finds a square by area as well as by
+ * key or tile (design section 3): the picker's areas by internal or display
+ * name, Enter opening the area's page. */
+static void
+test_palette_areas(void)
+{
+    const struct Editor_CmdPalList* list;
+    const struct Editor_Picker* picker = picker_of();
+    int row = -1;
+
+    CHECK(Editor_CmdPalette_Open(&g_ui), "palette: the window has one");
+    Editor_CmdPalette_SetQuery(&g_ui, "cellar");
+    frame();
+    list = Editor_CmdPalette_List(&g_ui);
+    for( int r = 0; list && r < list->row_count; r++ )
+    {
+        const struct Editor_CmdPalItem* item;
+        if( list->row_kind[r] != EDITOR_CMDPAL_ROW_ITEM )
+            continue;
+        item = &list->items[list->row_item[r]];
+        if( item->group == EDITOR_CMDPAL_SQUARES && item->kind == EDITOR_CMDPAL_KIND_SQUARE
+            && strcmp(item->name, "lumbridge_cellar") == 0 )
+            row = r;
+    }
+    CHECK(row >= 0, "palette: 'cellar' finds the area lumbridge_cellar in Squares");
+    if( row >= 0 )
+        CHECK(strstr(list->items[list->row_item[row]].dim, "area, 1 square") != NULL, "palette: its dim text (%s)",
+            list->items[list->row_item[row]].dim);
+    Editor_CmdPalette_SetQuery(&g_ui, "gielinor surf");
+    frame();
+    list = Editor_CmdPalette_List(&g_ui);
+    CHECK(list && list->total[EDITOR_CMDPAL_SQUARES] == 1, "palette: by display name, one row (%d)",
+        list ? list->total[EDITOR_CMDPAL_SQUARES] : -1);
+    /* From the surface's page, so the run is what moves it. */
+    CHECK(Editor_SquarePicker_Find(&g_ui, "Gielinor"), "palette: the picker on the surface's page first");
+    frame();
+    CHECK(picker && picker->tabs[picker->active_tab].area == 0, "palette: (the surface's page)");
+    Editor_CmdPalette_SetQuery(&g_ui, "cellar");
+    frame();
+    CHECK(row >= 0 && Editor_CmdPalette_RunRow(&g_ui, row), "palette: Enter on it runs (%s)", Editor_UiStatusText(&g_ui));
+    frame();
+    CHECK(picker && picker->tabs[picker->active_tab].area == 1, "palette: the picker shows the cellar's page");
+    CHECK(!Editor_CmdPalette_IsOpen(&g_ui), "palette: and closes");
+}
+
 static void
 test_panel_area_rows(void)
 {
@@ -1118,6 +1163,7 @@ main(void)
     test_panel_area_rows();
     test_panel_pane();
     test_panel_strip();
+    test_palette_areas();
     Editor_UiFree(&g_ui);
     printf("editor_picker_test: %d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;

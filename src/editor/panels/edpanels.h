@@ -699,6 +699,19 @@ Editor_SquarePicker_Find(
     struct EditorUi* ui,
     const char* text);
 
+/** World-map area `index` of the picker's pages (0 ..): its internal name
+ *  (what Find takes), its display name and how many squares its page holds.
+ *  0 past the last area. The command palette's Squares group lists them by
+ *  name. A window whose picker has never fetched its atlas (the panel never
+ *  shown) asks CATALOG_SQUARES once, here. */
+int
+Editor_SquarePicker_Area(
+    struct EditorUi* ui,
+    int index,
+    const char** out_name,
+    const char** out_display,
+    int* out_squares);
+
 /** Rows of the detail pane (the heading first, then Square, Area, Tiles,
  *  Contents, State, Collections). */
 #define EDITOR_SQUARES_PANE_ROWS 7

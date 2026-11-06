@@ -2769,6 +2769,42 @@ Editor_SquarePicker_Find(
 }
 
 int
+Editor_SquarePicker_Area(
+    struct EditorUi* ui,
+    int index,
+    const char** out_name,
+    const char** out_display,
+    int* out_squares)
+{
+    struct SquaresPanel* self;
+    const struct Editor_Picker* picker;
+    int seen = 0;
+
+    assert(ui);
+    assert(out_name);
+    assert(out_display);
+    assert(out_squares);
+    self = squares_self(ui);
+    assert(self);
+    if( !self->fetched && index == 0 )
+        squares_fetch(ui, self);
+    picker = &self->picker;
+    for( int t = 0; t < picker->tab_count; t++ )
+    {
+        int const a = picker->tabs[t].area;
+        if( a < 0 || a >= picker->area_count )
+            continue;
+        if( seen++ != index )
+            continue;
+        *out_name = picker->areas[a].internal_name;
+        *out_display = picker->areas[a].display_name;
+        *out_squares = picker->tabs[t].count;
+        return 1;
+    }
+    return 0;
+}
+
+int
 Editor_SquarePicker_PaneRow(
     struct EditorUi* ui,
     int row,

@@ -787,6 +787,40 @@ test_lanes_and_chip(void)
             row_text(&g_a, list, 1), row_text(&g_a, list, 2));
     }
 
+    /* The counts are the server's cache of each lane's last walk: the chip's
+     * periodic ask walks nothing (a file written outside every editor does
+     * not show), Refresh walks every lane again. */
+    {
+        int const list = find_widget(&g_a, lanes_panel, TORIRS_CHROME_W_VLIST, "Lanes");
+        int const refresh = find_widget(&g_a, lanes_panel, TORIRS_CHROME_W_BUTTON, "Refresh");
+        int work_row = 0;
+        snprintf(path, sizeof(path), "%s/build/lanes/work/content/editor/outside.txt", g_repo);
+        write_text(path, "written outside every editor\n");
+        CHECK(lane_changes("work") == 2, "a file written outside the editor is a second change");
+        g_a.chrome.now_ms += EDITOR_UI_LANE_COUNT_MS + 1;
+        pump(4);
+        Editor_Lanes_ChipText(&g_a.ui, chip, (int)sizeof(chip));
+        CHECK(strncmp(chip, "work | 1 changed", 16) == 0, "the chip's periodic ask answers from the cache (%s)", chip);
+        CHECK(refresh >= 0, "the Lanes panel has Refresh");
+        if( refresh >= 0 )
+            activate(&g_a, refresh);
+        pump(4);
+        Editor_Lanes_ChipText(&g_a.ui, chip, (int)sizeof(chip));
+        CHECK(strncmp(chip, "work | 2 changed", 16) == 0, "Refresh walks the mirror again (%s)", chip);
+        for( int r = 0; list >= 0 && r < g_a.chrome.widgets[list].imax && r < 8; r++ )
+        {
+            if( strncmp(row_text(&g_a, list, r), "work (this) | 2 changed", 23) == 0 )
+                work_row = 1;
+        }
+        CHECK(work_row, "and the list's row for this lane says so");
+        remove(path);
+        if( refresh >= 0 )
+            activate(&g_a, refresh);
+        pump(4);
+        Editor_Lanes_ChipText(&g_a.ui, chip, (int)sizeof(chip));
+        CHECK(strncmp(chip, "work | 1 changed", 16) == 0, "and again once it is gone (%s)", chip);
+    }
+
     /* The command palette's Lanes group lists the same three; Enter on one
      * stages a switch, as the panel's Switch... does. */
     {

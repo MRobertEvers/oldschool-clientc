@@ -408,6 +408,42 @@ cmdpal_gather_tile(
     (void)Editor_CmdPalListAdd(model, &item);
 }
 
+/** The picker's world-map areas whose internal or display name the query
+ *  matches, as Squares rows (design section 3: a square by "m50_50", a tile
+ *  or an area). Enter runs the picker's Find on the internal name, which
+ *  opens the area's page. A catalog SQUARE record is named by its file key
+ *  alone, so these are the only rows an area name finds. */
+static void
+cmdpal_gather_areas(
+    struct EditorUi* ui,
+    struct Editor_CmdPalList* model,
+    const char* query)
+{
+    const char* name;
+    const char* display;
+    int squares;
+
+    if( !Editor_UiFindPanel(ui, "squares") )
+        return;
+    for( int i = 0; Editor_SquarePicker_Area(ui, i, &name, &display, &squares); i++ )
+    {
+        struct Editor_CmdPalItem item;
+        char haystack[EDITOR_CMDPAL_LABEL_MAX * 2 + 8];
+        snprintf(haystack, sizeof(haystack), "%s %s", name, display);
+        if( !Editor_CmdPalMatches(haystack, query) )
+            continue;
+        memset(&item, 0, sizeof(item));
+        item.group = EDITOR_CMDPAL_SQUARES;
+        item.kind = EDITOR_CMDPAL_KIND_SQUARE;
+        item.target = -1;
+        cmdpal_copy(item.label, (int)sizeof(item.label), display[0] ? display : name);
+        cmdpal_copy(item.name, (int)sizeof(item.name), name);
+        snprintf(item.dim, sizeof(item.dim), "area, %d square%s", squares, squares == 1 ? "" : "s");
+        cmdpal_copy(item.right, (int)sizeof(item.right), name);
+        (void)Editor_CmdPalListAdd(model, &item);
+    }
+}
+
 /** One CATALOG_QUERY page of `kind` into `group`: its rows as items, the
  *  rest of its total counted. */
 static void
@@ -571,6 +607,8 @@ cmdpal_build(
         cmdpal_gather_panels(ui, &self->model, query);
         if( query[0] )
             cmdpal_gather_tile(&self->model, query);
+        if( strlen(query) >= 2 )
+            cmdpal_gather_areas(ui, &self->model, query);
         if( catalog && strlen(query) >= 2 )
         {
             cmdpal_gather_catalog(ui, &self->model, TORIRSMAPED_CATALOG_SQUARE, "", EDITOR_CMDPAL_SQUARES, query);

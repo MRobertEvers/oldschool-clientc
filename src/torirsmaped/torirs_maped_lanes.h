@@ -73,6 +73,10 @@
  *                       held)`, in the rows' order: each lane's change count
  *                       against its base (-1 not counted) and who holds its
  *                       tree's editor lock ("pid N (cmd)", "" nobody).
+ *                       The counts are the server's cache of each lane's
+ *                       last walk unless the LANE_LIST carries `u32 flags`
+ *                       with TORIRSMAPED_LANE_LIST_RESCAN (an older server
+ *                       reads no body and walks every time).
  *   LANE_CHANGES  u32 flags (TORIRSMAPED_LANE_CHANGES_COUNT_ONLY) ->
  *          FACT_LANE_COUNT  string name, u32 is_main, u32 modified, u32
  *                           added, u32 deleted, string next_boot: the count
@@ -112,6 +116,10 @@ enum
     TORIRSMAPED_LANE_PUBLISHED_SWITCH = 4,
     /** LANE_CHANGES' flags: answer FACT_LANE_COUNT, no rows. */
     TORIRSMAPED_LANE_CHANGES_COUNT_ONLY = 1,
+    /** LANE_LIST's optional u32 flags (an empty body is 0): walk every
+     *  lane's mirror again instead of answering the counts from the
+     *  server's cache (the Lanes panel's Refresh). */
+    TORIRSMAPED_LANE_LIST_RESCAN = 1,
     TORIRSMAPED_LANE_CHANGE_ROWS_MAX = 1024,
 };
 

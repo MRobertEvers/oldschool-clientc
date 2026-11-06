@@ -369,6 +369,24 @@ enc_stroke_end(
         Editor_StrokeEnd(ui->editor);
 }
 
+/** A refusal partway through a step this panel opened (`was_open` 0): the
+ *  step goes back whole, as the instance helper's does, since half a
+ *  record edit (or a record without its ledger) is not what was applied.
+ *  Inside a stroke someone else opened the edits stay in that step. 1 when
+ *  nothing of it is left applied. */
+static int
+enc_stroke_abandon(
+    struct EditorUi* ui,
+    int was_open,
+    int applied_before)
+{
+    if( was_open )
+        return 0;
+    if( Editor_HistoryAppliedCommands(Editor_GetHistory(ui->editor)) > applied_before )
+        (void)Editor_Undo(ui->editor);
+    return 1;
+}
+
 /** Write `set` in place of `old_name` (NULL: a new set). 1 when it landed. */
 static int
 enc_write_set(
@@ -1022,6 +1040,7 @@ enc_add_spawns(
     struct Editor_Encounter* set;
     int added = 0;
     int was_open;
+    int applied_before;
     int ok = 1;
     int is_new = 0;
 
@@ -1061,12 +1080,15 @@ enc_add_spawns(
         ToriMem_Free(ToriMem_Editor(), set);
         return 0;
     }
+    applied_before = Editor_HistoryAppliedCommands(Editor_GetHistory(ui->editor));
     was_open = enc_stroke_begin(ui, verb);
     if( extra_count > 0 && edp_apply(ui, extra, extra_count, verb) != extra_count )
         ok = 0;
     if( ok && !enc_write_set(ui, self, is_new ? NULL : set->name, set, verb) )
         ok = 0;
     enc_stroke_end(ui, was_open);
+    if( !ok )
+        (void)enc_stroke_abandon(ui, was_open, applied_before);
     if( ok )
     {
         enc_select_set(self, set->name);
@@ -1266,6 +1288,7 @@ enc_apply_fields(
     int changed = 0;
     int applied = 0;
     int was_open;
+    int applied_before;
     int ok = 1;
 
     if( !self->npc[0] )
@@ -1302,6 +1325,7 @@ enc_apply_fields(
     }
     /* ONE undo step, each field planned against the edit before it (two
      * inserts into one block, a removal's line). */
+    applied_before = Editor_HistoryAppliedCommands(Editor_GetHistory(ui->editor));
     was_open = enc_stroke_begin(ui, "encounter fields");
     for( int f = 0; f <= ENC_SET_FIELDS && ok; f++ )
     {
@@ -1317,8 +1341,11 @@ enc_apply_fields(
     if( ok )
         Editor_UiStatus(ui, "%s: %d field%s set (unsaved; File > Save writes them, RUN builds them)", self->npc, applied,
             applied == 1 ? "" : "s");
+    else if( enc_stroke_abandon(ui, was_open, applied_before) )
+        Editor_UiStatus(ui, "Apply fields refused: the authority did not take every edit; nothing was applied");
     else
-        Editor_UiStatus(ui, "Apply fields refused: the authority did not take every edit (Ctrl+Z undoes the rest)");
+        Editor_UiStatus(ui, "Apply fields refused: the authority did not take every edit (the ones before it stay in "
+                            "the open step)");
     self->filled = 0;
 }
 
@@ -1358,6 +1385,7 @@ enc_apply_stats(
     int record_edits = 0;
     int generated_only = 0;
     int was_open;
+    int applied_before;
     int ok = 1;
 
     if( !self->npc[0] || !Editor_NpcStatsNameValid(self->npc) )
@@ -1427,6 +1455,7 @@ enc_apply_stats(
     if( ok )
     {
         /* The record and the ledger in ONE undo step. */
+        applied_before = Editor_HistoryAppliedCommands(Editor_GetHistory(ui->editor));
         was_open = enc_stroke_begin(ui, "encounter stats");
         for( int i = 0; i < EDITOR_NPCSTATS_LEVELS + EDITOR_NPCSTATS_BONUSES && ok; i++ )
         {
@@ -1463,8 +1492,11 @@ enc_apply_stats(
                 changed, changed == 1 ? "" : "s", record_edits,
                 generated_only ? "; generated-only ones wait for gen_npc_stats.py" : "");
         }
+        else if( enc_stroke_abandon(ui, was_open, applied_before) )
+            Editor_UiStatus(ui, "Apply stats refused: the authority did not take every edit; nothing was applied");
         else
-            Editor_UiStatus(ui, "Apply stats refused: the authority did not take every edit (Ctrl+Z undoes the rest)");
+            Editor_UiStatus(ui, "Apply stats refused: the authority did not take every edit (the ones before it stay in "
+                                "the open step)");
     }
     ToriMem_Free(ToriMem_Editor(), text);
     self->filled = 0;

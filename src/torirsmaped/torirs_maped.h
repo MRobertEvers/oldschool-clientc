@@ -669,6 +669,29 @@ enum
  * The file layer is the same EditorHost local binding a desktop session used
  * to call directly — the server owns it now, and the wire is the only way in.
  */
+/** One lane's change counts as a walk of its mirror last found them
+ *  (torirs_maped_lanes_wire.c): FACT_LANE_COUNT and FACT_LANE_LIST answer
+ *  from here, and walk again only when a request that can write a tree has
+ *  arrived since, or (another lane, or this one while another server holds
+ *  it) the entry is older than TORIRSMAPED_LANE_COUNT_STALE_S, or the Lanes
+ *  panel's Refresh asks (TORIRSMAPED_LANE_LIST_RESCAN). */
+struct ToriRSMapEdLaneCountCache
+{
+    char name[TORIRSMAPED_LANE_NAME_MAX + 8];
+    int used;
+    int total;
+    struct ToriRSMapEdLaneCounts counts;
+    /** `lane_writes_own` / `lane_writes_all` when it was walked. */
+    uint32_t writes_own;
+    uint32_t writes_all;
+    long long walked_at;
+};
+
+enum
+{
+    TORIRSMAPED_LANE_COUNT_STALE_S = 60,
+};
+
 struct ToriRSMapEd
 {
     struct EditorHost files;
@@ -730,6 +753,15 @@ struct ToriRSMapEd
      *  (torirs_maped_build.h, torirs_maped_live.h). Created at Open; the
      *  bindings stay empty until a host sets them (capabilities build/live). */
     struct ToriRSMapEdJobs* jobs;
+
+    /** The lanes' change counts (above). `lane_writes_own` bumps on every
+     *  request that can write this server's tree (a save, a bake, a create,
+     *  a BUILD or RUN and its end, an accounts frame); `lane_writes_all` on
+     *  a publish, a discard or a lane made (they change other lanes, or the
+     *  base every lane is counted against). */
+    struct ToriRSMapEdLaneCountCache lane_counts[TORIRSMAPED_LANES_MAX];
+    uint32_t lane_writes_own;
+    uint32_t lane_writes_all;
 };
 
 /**

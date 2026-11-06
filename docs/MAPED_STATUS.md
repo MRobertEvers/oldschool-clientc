@@ -3961,6 +3961,114 @@ What is open:
 - No photographs here (no cache, no display, no OSRS-Content), and no web
   build (no emcc).
 
+Review fixes (2026-11-06). Six findings on the integration; each was checked
+against the code (and, where a test can reach it, by the new test failing on
+ca53a114 in a scratch worktree) before it was fixed or recorded:
+
+- **The Quest board lost a job that ended while it was hidden** (real, fixed).
+  `quest_tick` returned before its job block when the panel was hidden, and
+  the Live model keeps only the last build's `what`, so a Run gate that
+  finished while Playtest showed, followed by a Ctrl+Return RUN, left
+  `job_what` set: Scaffold and Run gate stayed disabled and refused ("a build
+  or a RUN is in flight") until a restart. `quest_watch_job` now runs every
+  frame, shown or not. The job ends on a DONE of its own kind; a single DONE
+  of another kind since the send is a build queued before it, so the board
+  keeps waiting; two or more DONEs mean its own is among them, since the
+  server runs one build at a time, and the board says it ended and points at
+  Live. The board is read again on the end without being shown
+  (`quest_open(..., show 0)`; `Editor_Quest_Open` still shows it).
+  test-editor-shop-quest-panels: 7 new checks (Run gate, hide the board, the
+  gate ends, a RUN ends after it, show the board: Run gate is enabled and
+  runs again). 3 of them fail on ca53a114.
+- **The lane change count walked the mirror on the UI thread on a timer**
+  (real, fixed). The server now caches each lane's counts
+  (`struct ToriRSMapEdLaneCountCache`, `ToriRSMapEd.lane_counts`). COUNT_ONLY
+  and the LIST's counts answer from the cache. An entry holds until a request
+  that can write a tree arrives (`note_lane_writes` in torirs_maped.c: the
+  saves, a bake, DOC_CREATE, BUILD / RUN and their DONE, an accounts frame;
+  a publish, a discard or a lane made invalidates every lane). Another lane's
+  entry, or this lane's while another server holds it, also expires after
+  `TORIRSMAPED_LANE_COUNT_STALE_S` (60 s). The rows' LANE_CHANGES walk stores
+  this lane's counts too. The panel now asks for it before the LIST, so a
+  panel open costs one walk of this lane, not two. The Lanes panel's Refresh
+  sends the new optional LANE_LIST flags `TORIRSMAPED_LANE_LIST_RESCAN`,
+  which walks every lane again; an older server ignores the body. So the
+  status bar's 15 s ask, and every popped-out window's, costs no walk unless
+  a write came first. The cost of the walk itself is still unmeasured on
+  OSRS-Content, and it still happens once after each save. An edit made
+  outside every editor (a text editor, git) shows on the next save or
+  Refresh, not within 15 s. test-editor-scenes-ops: 6 new checks (a file
+  written into the work mirror behind the server's back is not in the chip
+  after the periodic ask; Refresh shows it in the chip and the list row;
+  removing it and pressing Refresh again shows it gone). 1 of them fails on
+  ca53a114.
+- **Shop Save, the encounter builder's Apply fields / Apply stats / Add to
+  set, and scenes_submit left half a step applied on a refusal** (real,
+  fixed). Each now uses the instance helper's pattern. It records
+  `Editor_HistoryAppliedCommands` before the stroke, and on a refusal undoes
+  the step once after StrokeEnd when it applied anything, so the .rs2 / .inv
+  pair, the record, the ledger or scenes.txt is left as it was. The status
+  sentence then says "nothing was applied". Inside a stroke another caller
+  opened (the encounter panel's `was_open`, `ui->tools.stroke_open` for
+  scenes), the edits stay in that step and the sentence says so.
+  `scenes_submit` also stops at the first refused command. No harness here
+  can make the authority refuse partway through (one window, an embedded
+  server, no fault hook), so these paths have no test. The existing shop,
+  encounter, scenes and instance tests pass.
+- **The palette's Squares group could not find a square by area** (real,
+  fixed). A new function, `Editor_SquarePicker_Area` (edpanels.h), returns
+  the picker's world-map areas. A window whose picker never fetched its
+  atlas asks CATALOG_SQUARES once there. `cmdpal_gather_areas` lists the
+  areas whose internal or display name matches the query as Squares rows
+  ("area, N squares"). Enter runs the picker's Find on the internal name,
+  which opens the area's page. test-editor-picker: 9 new checks (`cellar`
+  and `gielinor surf` find their areas; Enter moves the picker from the
+  surface's page to the cellar's and closes the palette). 4 of them fail on
+  ca53a114; the page-move check was made to start from the surface's page
+  after it passed there.
+- **6.6 is not built** (real, not fixed here: it is a build step, not a
+  review fix). The branch does not cover design sections 9 and 10: no typed
+  record rows from fields/<type>.ini, no per-field provenance badge, no
+  in-record search, no Where used tab, no Problems panel, no graph ports,
+  page-break lines, chat-box preview or auto-layout (Ctrl+L refuses). The
+  only 6.6 commit moves the Record panel to its own file and changes no
+  behaviour. "What is open" above already says so. 6.6 (records and
+  problems, then builders and graph) still needs its own runs from this
+  branch.
+- **The shop builder's Test did not open the shop** (real, fixed). After the
+  `::goto`, Test sends a second LIVE_CHEAT, `::talk <owner> <op>`: the
+  engine's own way (torirs_server_world.c) to fire `[opnpc<op>]` on an npc
+  without the right-click. That is the trigger the builder wrote to open the
+  shop. The status sentence becomes "Test: <account> is beside <owner> at
+  x,z and its Trade opened the shop (::talk <owner> 3)". If that cheat
+  cannot be sent, Test falls back to the right-click sentence. Like the
+  `::goto`, it needs an attached lane, which the panel test cannot fake, so
+  section 16's in-game shop check is what covers it.
+
+Tests after the fixes (same container, build_opt, 'ulimit -s unlimited'):
+- `make -C src all` builds, and the `torirsmaped` and `torirsmapedctl`
+  targets build on their own.
+- The changed counts: test-editor-shop-quest-panels 86 (79 + 7),
+  test-editor-scenes-ops 91 (85 + 6), test-editor-picker 407 (398 + 9).
+- Everything else the integration ran, with the same counts as before:
+  test-chrome-widgets 1134 plus the DOM test; test-scene-bridge-chrome 187;
+  test-debug-overlay-visual passes; chrome-font-vector reproduces 14 files;
+  test-chrome-skin-tiers 922; chrome-skin; test-editor-scenes 507;
+  test-lanes 76; test-editor-instance 76; test-editor-instance-ops 83;
+  test-editor-encounters 121; test-editor-encounter-panel 91;
+  editor_shop_test 115; editor_quest_test 54; test-editor-workspaces 396;
+  test-editor-hotkeys 2288; test-editor-chords 591; test-editor-groups 2190;
+  test-editor-workbench 295; test-editor-cmd 66; test-editor-palette 97;
+  test-editor-areas 136; test-editor-stamps 91; test-editor-stamps-ops 81;
+  test-editor-panels-palette 50; test-editor-panels-accounts 48;
+  test-editor-catalog-finder 202; test-editor-placement 123;
+  test-editor-worldmap 161; test-catalog-finder 176; test-catalog-perf 143;
+  test-editor-ghost OK; test-editor-dropdown 36; test-uitree passes;
+  test-editor-world-gesture 42; test-gesture 191; test-touch 47;
+  test-sdl-gesture 42.
+- check-pt-switch and check-tree-walks pass.
+- Not run, for the same reasons as above: the content-tree tests.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.

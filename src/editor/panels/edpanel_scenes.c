@@ -244,22 +244,32 @@ scenes_submit(
     int count,
     const char* label)
 {
+    int const own_stroke = !ui->tools.stroke_open;
+    int const applied_before = Editor_HistoryAppliedCommands(Editor_GetHistory(ui->editor));
     int applied = 0;
 
     assert(commands);
     assert(count > 0);
-    if( !ui->tools.stroke_open )
+    if( own_stroke )
     {
         Editor_StrokeBegin(ui->editor);
         Editor_HistoryBreak(&ui->editor->history, label);
     }
-    for( int i = 0; i < count; i++ )
+    /* Stop at the first refusal: the commands after it were planned against
+     * the text it would have left. */
+    for( int i = 0; i < count && applied == i; i++ )
         applied += Editor_Apply(ui->editor, &commands[i]) ? 1 : 0;
-    if( !ui->tools.stroke_open )
+    if( own_stroke )
         Editor_StrokeEnd(ui->editor);
     if( applied < count )
     {
-        Editor_UiStatus(ui, "%s refused: the authority took %d of %d edits", label, applied, count);
+        /* Half a rename (the new row without the old one gone) is not a
+         * scene edit: the step goes back whole, as the instance helper's
+         * does. Inside someone else's stroke the edits stay in that step. */
+        if( own_stroke && Editor_HistoryAppliedCommands(Editor_GetHistory(ui->editor)) > applied_before )
+            (void)Editor_Undo(ui->editor);
+        Editor_UiStatus(ui, "%s refused: the authority refused edit %d of %d%s", label, applied + 1, count,
+            own_stroke ? "; nothing was applied" : "");
         return 0;
     }
     /* A scene is session state: it survives a restart without Save all. */

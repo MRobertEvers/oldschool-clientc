@@ -1782,6 +1782,9 @@ jobs_build_send_done(
         ToriRSMapEd_PutU32(&payload, 0);
         ToriRSMapEd_PutU32(&payload, 0);
     }
+    /* What the job wrote (a scaffolded test, a RUN's save) may be in this
+     * server's tree: the lane counts' cache walks again on its next ask. */
+    maped->lane_writes_own++;
     jobs_broadcast(maped, TORIRSMAPED_FACT_BUILD_DONE, &payload);
     ToriRSMapEd_BufFree(&payload);
 }
@@ -2276,6 +2279,7 @@ jobs_run_finish(
         ToriRSMapEd_RunStepName(step),
         message && message[0] ? ": " : "",
         message ? message : "");
+    maped->lane_writes_own++;
     jobs_broadcast(maped, TORIRSMAPED_FACT_RUN_DONE, &payload);
     ToriRSMapEd_BufFree(&payload);
     jobs_live_broadcast_status(maped);

@@ -464,18 +464,18 @@ quest_show_shot(
 
 /* ---- reading --------------------------------------------------------------------- */
 
-int
-Editor_Quest_Open(
+/** Read quest `id` onto the board; `show` 0 leaves the panel as it is (a
+ *  job that ends while the board is hidden reads it again without popping
+ *  it up in a workspace that does not list it). */
+static int
+quest_open(
     struct EditorUi* ui,
-    const char* id)
+    struct QuestPanel* self,
+    const char* id,
+    int show)
 {
-    struct QuestPanel* self;
     struct Editor_QuestCatalog catalog;
 
-    assert(ui);
-    assert(id);
-    self = quest_self(ui);
-    assert(self);
     if( !Editor_QuestIdValid(id) )
     {
         quest_say(ui, self, "Open refused: '%s' is not a QUEUE.tsv test_id (a-z, 0-9 and _)", id);
@@ -486,7 +486,8 @@ Editor_Quest_Open(
         quest_say(ui, self, "Open refused: the board knows no repository or content tree (manifest repo_root)");
         return 0;
     }
-    ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 1);
+    if( show )
+        ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 1);
     catalog.user = ui;
     catalog.record = quest_catalog_on(ui) ? quest_catalog_record : NULL;
     catalog.triggers = quest_catalog_on(ui) ? quest_catalog_triggers : NULL;
@@ -504,6 +505,20 @@ Editor_Quest_Open(
         quest_say(ui, self, "Quest %s: %d parts, the test %s", id, self->board.row_count,
             Editor_QuestStateWord(self->board.verdict));
     return 1;
+}
+
+int
+Editor_Quest_Open(
+    struct EditorUi* ui,
+    const char* id)
+{
+    struct QuestPanel* self;
+
+    assert(ui);
+    assert(id);
+    self = quest_self(ui);
+    assert(self);
+    return quest_open(ui, self, id, 1);
 }
 
 const struct Editor_QuestBoard*
@@ -716,6 +731,62 @@ quest_hints(
     self->hint_serial = ui->hotkeys.serial;
 }
 
+/** The job this board sent: its newest line, then its end. Run every frame,
+ *  shown or not: the Live model keeps only the LAST build's what, so a
+ *  board that looked only while visible missed its job's end whenever
+ *  another build finished first (a Ctrl+Return in Playtest), and Scaffold
+ *  and Run gate stayed refused until a restart. */
+static void
+quest_watch_job(
+    struct EditorUi* ui,
+    struct QuestPanel* self)
+{
+    const struct Editor_LiveModel* live;
+    uint32_t what;
+    char id[EDITOR_QUEST_ID_MAX];
+    int seen;
+
+    if( !self->job_what )
+        return;
+    live = Editor_LivePanelModel(ui);
+    if( !live )
+        return;
+    if( live->log_serial != self->job_log_serial )
+    {
+        const char* line = Editor_LiveLogLine(live, 0);
+        self->job_log_serial = live->log_serial;
+        if( line )
+            ToriRSChrome_SetText(ui->chrome, self->label_job, line);
+    }
+    if( live->build_serial == self->job_build_serial || live->building )
+        return;
+    /* One DONE since the send, for another kind: a build already queued when
+     * this one was sent (the send refuses one whose lines have arrived)
+     * ended first; ours is still to come. Two or more: ours is among them
+     * (the server runs one build at a time), whatever the last one was. */
+    seen = live->last_build_what == self->job_what;
+    if( !seen && live->build_serial - self->job_build_serial < 2 )
+    {
+        self->job_build_serial = live->build_serial;
+        return;
+    }
+    what = self->job_what;
+    self->job_what = 0;
+    /* What the job wrote (the test file, the ledger, the verdict) is on disk
+     * now: read the board again, then say how it ended. */
+    snprintf(id, sizeof(id), "%s", self->board.id);
+    (void)quest_open(ui, self, id, 0);
+    if( !seen )
+        quest_say(ui, self, "%s for %s ended (another build finished after it); its lines are in Live",
+            ToriRSMapEd_BuildWhatName(what), id);
+    else if( live->last_build_status == EDITOR_HOST_OK )
+        quest_say(ui, self, "%s for %s finished: the test is %s", ToriRSMapEd_BuildWhatName(what), id,
+            Editor_QuestStateWord(self->board.verdict));
+    else
+        quest_say(ui, self, "%s for %s failed (%s); its lines are in Live", ToriRSMapEd_BuildWhatName(what), id,
+            live->last_build_status == EDITOR_HOST_REFUSED ? "refused" : "see the log");
+}
+
 static void
 quest_tick(
     struct EditorUi* ui,
@@ -726,38 +797,9 @@ quest_tick(
 
     if( self->hint_serial != ui->hotkeys.serial )
         quest_hints(ui, self);
+    quest_watch_job(ui, self);
     if( !ui->chrome->panels[self->panel].visible )
         return;
-
-    /* The job this board sent: its newest line, then its end. */
-    if( self->job_what )
-    {
-        const struct Editor_LiveModel* live = Editor_LivePanelModel(ui);
-        if( live && live->log_serial != self->job_log_serial )
-        {
-            const char* line = Editor_LiveLogLine(live, 0);
-            self->job_log_serial = live->log_serial;
-            if( line )
-                ToriRSChrome_SetText(ui->chrome, self->label_job, line);
-        }
-        if( live && live->build_serial != self->job_build_serial && !live->building
-            && live->last_build_what == self->job_what )
-        {
-            uint32_t const what = self->job_what;
-            char id[EDITOR_QUEST_ID_MAX];
-            self->job_what = 0;
-            /* What the job wrote (the test file, the ledger, the verdict) is
-             * on disk now: read the board again, then say how it ended. */
-            snprintf(id, sizeof(id), "%s", self->board.id);
-            (void)Editor_Quest_Open(ui, id);
-            if( live->last_build_status == EDITOR_HOST_OK )
-                quest_say(ui, self, "%s for %s finished: the test is %s", ToriRSMapEd_BuildWhatName(what), id,
-                    Editor_QuestStateWord(self->board.verdict));
-            else
-                quest_say(ui, self, "%s for %s failed (%s); its lines are in Live", ToriRSMapEd_BuildWhatName(what), id,
-                    live->last_build_status == EDITOR_HOST_REFUSED ? "refused" : "see the log");
-        }
-    }
 
     find = ToriRSChrome_Text(ui->chrome, self->input_find);
     if( self->rows_dirty || strcmp(find ? find : "", self->shown_find) != 0 )

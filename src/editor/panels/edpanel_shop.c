@@ -21,8 +21,9 @@
  *               tree has none)
  *   Test        Save, the Live panel's RUN, then a LIVE_CHEAT ::goto that
  *               puts the play account beside the owner's spawn (the Spawns
- *               selection, else an open square's spawn file) and a status
- *               sentence telling the user to Trade
+ *               selection, else an open square's spawn file), then a
+ *               LIVE_CHEAT ::talk <owner> <op> that fires the owner's
+ *               [opnpc<op>] and so opens the shop (design section 11)
  *   Check       the model's refusals plus what the catalog says: the owner
  *               and every obj exist, the inv is the cache's and big enough
  *               and no other .inv stocks it, no other file declares the
@@ -854,6 +855,7 @@ Editor_Shop_Save(struct EditorUi* ui)
     enum Builder_SyncResult inv_result = BUILDER_SYNC_UNCHANGED;
     size_t length;
     int saved = 0;
+    int applied_before;
     const char* refusal;
 
     assert(ui);
@@ -893,6 +895,7 @@ Editor_Shop_Save(struct EditorUi* ui)
     text = ToriMem_Alloc(ToriMem_Editor(), SHOP_TEXT_MAX);
     assert(text);
     /* Both files in ONE stroke: one History row, one undo. */
+    applied_before = Editor_HistoryAppliedCommands(Editor_GetHistory(ui->editor));
     submit.stroke(ui, 1);
     length = Editor_ShopEmitRs2(&self->shop, EDITOR_SHOP_MARK, text, SHOP_TEXT_MAX);
     assert(length < SHOP_TEXT_MAX);
@@ -907,7 +910,13 @@ Editor_Shop_Save(struct EditorUi* ui)
     ToriMem_Free(ToriMem_Editor(), text);
     if( rs2_result == BUILDER_SYNC_REFUSED || inv_result == BUILDER_SYNC_REFUSED )
     {
-        shop_say(ui, self, "Save refused: another window changed %s first; Open it again", self->shop.key);
+        /* Half a splice plan is not a shop (Save all would write it, and
+         * Open cannot read it back as the pair): the step goes back whole,
+         * as the instance helper's does. */
+        if( Editor_HistoryAppliedCommands(Editor_GetHistory(ui->editor)) > applied_before )
+            (void)Editor_Undo(ui->editor);
+        shop_say(ui, self, "Save refused: another window changed %s first; nothing was applied; Open it again",
+            self->shop.key);
         return 0;
     }
     Editor_PumpFacts(ui->editor);
@@ -1017,7 +1026,7 @@ Editor_Shop_Test(struct EditorUi* ui)
     return 1;
 }
 
-/** RUN landed: put the play account beside the owner. */
+/** RUN landed: put the play account beside the owner, then open the shop. */
 static void
 shop_test_landed(
     struct EditorUi* ui,
@@ -1055,6 +1064,21 @@ shop_test_landed(
         shop_say(ui, self, "Test: RUN done, but the live link is gone; teleport by hand to %d,%d", self->test_x,
             self->test_z);
         return;
+    }
+    /* Then open the shop (design section 11: "RUN and open the shop"):
+     * ::talk <npc> <op> is the engine's own way to fire [opnpc<op>] on an
+     * npc without the right-click (torirs_server_world.c), and the owner's
+     * [opnpc<op>] is the trigger this builder wrote to open the shop. */
+    if( self->shop.owner_count && self->shop.op >= 1 && self->shop.op <= 5 )
+    {
+        snprintf(line, sizeof(line), "talk %s %d", owner, self->shop.op);
+        if( Editor_Live_Cheat(ui, live->play_account, line) > 0 )
+        {
+            shop_say(ui, self, "Test: %s is beside %s at %d,%d and its %s opened the shop (::%s)", live->play_account,
+                owner, self->test_x, self->test_z, self->shop.op == 3 ? "Trade" : self->op_text[self->shop.op - 1],
+                line);
+            return;
+        }
     }
     shop_say(ui, self, "Test: %s is beside %s at %d,%d; right-click them and choose %s", live->play_account, owner,
         self->test_x, self->test_z, self->shop.op == 3 ? "Trade" : self->op_text[self->shop.op - 1]);

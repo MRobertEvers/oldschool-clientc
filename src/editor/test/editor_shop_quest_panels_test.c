@@ -657,6 +657,38 @@ test_quest(void)
     CHECK(!Editor_Quest_Scaffold(&g_ui) && strstr(status(), "refuses to clobber"),
         "quest: Scaffold refused over a test file (%s)", status());
 
+    /* A job that ends while the board is hidden, with another build ending
+     * before the board is shown again (Run gate in Script, then Playtest and
+     * Ctrl+Return): the board still sees its job end, and is not popped up. */
+    {
+        const struct Editor_LiveModel* live = Editor_LivePanelModel(&g_ui);
+        int const quest = module_panel("quest");
+        int const commands = g_mock->command_count;
+        int run_serial;
+        CHECK(Editor_Quest_RunGate(&g_ui), "quest: Run gate starts again (%s)", status());
+        ToriRSChrome_PanelSetVisible(&g_chrome, quest, 0);
+        for( int i = 0; i < 200 && live && (g_mock->command_count == commands || live->building); i++ )
+            frame();
+        frames(2);
+        CHECK(!g_chrome.panels[quest].visible, "quest: the job's end does not show a hidden board");
+        CHECK(strstr(status(), "quest gate for cooks_assistant finished") != NULL,
+            "quest: a hidden board sees its job end (%s)", status());
+        run_serial = live ? live->run_serial : -1;
+        CHECK(Editor_Live_Run(&g_ui) == 1, "quest: a RUN after it (%s)", status());
+        for( int i = 0; i < 400 && live && (live->run_serial == run_serial || live->building); i++ )
+            frame();
+        frames(2);
+        CHECK(live && live->last_build_what != TORIRSMAPED_BUILD_QUEST_GATE, "quest: another build ended last");
+        ToriRSChrome_PanelSetVisible(&g_chrome, quest, 1);
+        frame();
+        CHECK(!g_chrome.widgets[widget_in("quest", TORIRS_CHROME_W_BUTTON, "Run gate")].disabled,
+            "quest: Run gate is enabled again once the board is shown");
+        CHECK(Editor_Quest_RunGate(&g_ui), "quest: and is not refused as in flight (%s)", status());
+        for( int i = 0; i < 200 && live && (g_mock->command_count == commands + 1 || live->building); i++ )
+            frame();
+        frames(4);
+    }
+
     /* The ledger and its screenshot. */
     press("quest", "Ledger...");
     {

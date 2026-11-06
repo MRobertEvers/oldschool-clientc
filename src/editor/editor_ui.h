@@ -613,7 +613,9 @@ struct EditorUiGuard
  * The editor lane this window's server serves (torirsmaped/
  * torirs_maped_lanes.h), as the Lanes module last heard it (workbench 6.5):
  * FACT_LANE_INFO, then a FACT_LANE_COUNT every EDITOR_UI_LANE_COUNT_MS and
- * after every save, publish and discard. The status bar's lane chip reads it
+ * after every save, publish and discard (the server answers it from its
+ * count cache: no walk of the mirror unless a write came since). The status
+ * bar's lane chip reads it
  * ("working | 3 changed", Editor_Lanes_ChipText); the Scenes panel saves its
  * name into a scene and compares a scene's lane with it.
  */

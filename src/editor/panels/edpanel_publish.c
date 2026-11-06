@@ -48,7 +48,12 @@
  * (Editor_Lanes_ChipText). It asks LANE_INFO once, and the count alone
  * (LANE_CHANGES with TORIRSMAPED_LANE_CHANGES_COUNT_ONLY, FACT_LANE_COUNT)
  * every EDITOR_UI_LANE_COUNT_MS, after a save and after a publish, whether
- * the panel shows or not; the full lists only while it shows. A server
+ * the panel shows or not; the full lists only while it shows. The server
+ * answers the count and the LIST's counts from its cache of each lane's
+ * last walk (torirs_maped_lanes_wire.c), walking again only after a request
+ * that can write a tree, so the periodic ask costs no walk of the mirror on
+ * the embedded server's (the UI's) thread; Refresh walks every lane again
+ * (TORIRSMAPED_LANE_LIST_RESCAN). A server
  * without TORIRSMAPED_CAP_LANES_V2 hears no frame it does not know.
  *
  * A server on the main tree has nothing to publish: the panel says so and
@@ -288,14 +293,19 @@ publish_ask_info(
         self->info_pending = 1;
 }
 
+/** `rescan` (Refresh): every lane's mirror walked again rather than the
+ *  server's cached counts (TORIRSMAPED_LANE_LIST_RESCAN). */
 static void
 publish_ask_list(
     struct EditorUi* ui,
-    struct PublishPanel* self)
+    struct PublishPanel* self,
+    int rescan)
 {
     struct ToriRSMapEdBuf payload;
 
     memset(&payload, 0, sizeof(payload));
+    if( rescan )
+        ToriRSMapEd_PutU32(&payload, TORIRSMAPED_LANE_LIST_RESCAN);
     if( publish_send(ui, TORIRSMAPED_REQ_LANE_LIST, &payload) )
         self->list_pending = 1;
 }
@@ -303,15 +313,18 @@ publish_ask_list(
 static void
 publish_ask(
     struct EditorUi* ui,
-    struct PublishPanel* self)
+    struct PublishPanel* self,
+    int rescan)
 {
     struct ToriRSMapEdBuf payload;
 
     publish_ask_info(ui, self);
-    publish_ask_list(ui, self);
+    /* The rows first: their walk of this lane is what the server's count
+     * cache then answers the LIST's row for this lane (and the chip) from. */
     memset(&payload, 0, sizeof(payload));
     if( publish_send(ui, TORIRSMAPED_REQ_LANE_CHANGES, &payload) )
         self->changes_pending = 1;
+    publish_ask_list(ui, self, rescan);
     self->refresh_wanted = 0;
 }
 
@@ -868,7 +881,7 @@ publish_tick(
         && (!self->count_ever_asked || ui->chrome->now_ms - self->count_asked_ms >= EDITOR_UI_LANE_COUNT_MS) )
         publish_ask_count(ui, self);
     if( self->refresh_wanted && visible )
-        publish_ask(ui, self);
+        publish_ask(ui, self, 0);
     if( self->discard_armed && ui->chrome->now_ms - self->discard_armed_ms >= PUBLISH_DISCARD_CONFIRM_MS )
     {
         self->discard_armed = 0;
@@ -942,7 +955,7 @@ publish_activate(
     if( widget == self->button_refresh )
     {
         self->changes_known = 0;
-        publish_ask(ui, self);
+        publish_ask(ui, self, 1);
         publish_ask_count(ui, self);
         publish_refresh_widgets(ui, self);
         return 1;
@@ -1237,7 +1250,7 @@ Editor_Lanes_Scratch(struct EditorUi* ui)
     }
     /* The letters taken are the list's: ask it afresh, then make the lane. */
     self->scratch_wanted = 1;
-    publish_ask_list(ui, self);
+    publish_ask_list(ui, self, 0);
     Editor_UiStatus(ui, "Scratch lane: reading the lanes for a free name...");
     return 1;
 }
