@@ -319,6 +319,8 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     Editor_Encounter_Register(ui);
     /* The hotkey table and its editor (View > Hotkeys panel, F1). */
     Editor_Hotkeys_Register(ui);
+    /* The command palette (Ctrl+K), a modal over every panel above. */
+    Editor_CmdPalette_Register(ui);
     ui->panel_end = ui->chrome->panel_count;
     /* The panel groups last: their frames draw over the modules' windows
      * (they never overlap the one each holds), and each is the next window
@@ -1248,9 +1250,50 @@ _Static_assert(EDITOR_UI_LAYOUT_PANELS_MAX >= TORIRS_CHROME_MAX_PANELS,
  *  column. */
 static const char* const k_dock_order[] = {
     "terrain", "palette", "locs", "spawns", "rect", "inspector", "squares", "areas", "catalog", "preview",
-    "catalog_palette", "history",
+    "catalog_palette", "history", NULL,
 };
-#define UI_DOCK_COUNT ((int)(sizeof(k_dock_order) / sizeof(k_dock_order[0])))
+#define UI_DOCK_COUNT ((int)(sizeof(k_dock_order) / sizeof(k_dock_order[0])) - 1)
+
+/* The column per workspace (workbench 6.8): its own panels first, in the
+ * design table's order, then the Build column's for whatever else is opened
+ * there. A group takes the place of its first member in the order. Build's
+ * is the default layout's own (k_dock_order), so the boot layout is the one
+ * it always was. */
+static const char* const k_dock_terrain[] = {
+    "terrain", "palette", "squares", "inspector", "catalog_palette", "locs", "spawns", "rect", "areas",
+    "catalog", "preview", "history", NULL,
+};
+static const char* const k_dock_script[] = {
+    "record", "triggers", "locbuilder", "npcbuilder", "shelleditor", "terrain", "palette", "locs", "spawns",
+    "rect", "inspector", "squares", "areas", "catalog", "preview", "catalog_palette", "history", NULL,
+};
+static const char* const k_dock_playtest[] = {
+    "live", "accounts", "terrain", "palette", "locs", "spawns", "rect", "inspector", "squares", "areas",
+    "catalog", "preview", "catalog_palette", "history", NULL,
+};
+/** Most entries one workspace's column order holds. */
+#define UI_DOCK_MAX 24
+
+static const char* const*
+ui_dock_order(
+    const struct EditorUi* ui,
+    int* out_count)
+{
+    static const char* const* const k_orders[EDITOR_UI_WORKSPACES] = {
+        k_dock_order, k_dock_terrain, k_dock_script, k_dock_playtest,
+    };
+    const char* const* order;
+    int n = 0;
+
+    assert(ui->workspace >= 0);
+    assert(ui->workspace < EDITOR_UI_WORKSPACES);
+    order = k_orders[ui->workspace];
+    while( order[n] )
+        n++;
+    assert(n <= UI_DOCK_MAX);
+    *out_count = n;
+    return order;
+}
 
 /** The chrome panel of registry module `name`, or -1. */
 static int
@@ -1674,6 +1717,23 @@ ui_capture_boot(struct EditorUi* ui)
             any |= chrome->panels[ui_group_window(ui, g, slot)].visible;
         ui->member[at] = ui->boot_member[at] = (unsigned char)(any ? 1 : 0);
     }
+    /* The strips as they booted, for the Build workspace's default. */
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup* g = &ui->groups[i];
+        g->boot_shown = g->shown >= 0 && g->shown < g->member_count ? g->shown : -1;
+        for( int slot = 0; slot < g->member_count; slot++ )
+        {
+            g->boot_open[slot] =
+                (unsigned char)(g->open[slot] || chrome->panels[ui_group_window(ui, g, slot)].visible ? 1 : 0);
+            if( g->boot_shown < 0 && g->boot_open[slot] && chrome->panels[ui_group_window(ui, g, slot)].visible )
+                g->boot_shown = slot;
+        }
+        if( g->boot_shown < 0 )
+            for( int slot = 0; slot < g->member_count && g->boot_shown < 0; slot++ )
+                if( g->boot_open[slot] )
+                    g->boot_shown = slot;
+    }
     ui->booted_layout = 1;
 }
 
@@ -1811,8 +1871,10 @@ void
 Editor_UiLayout(struct EditorUi* ui)
 {
     struct ToriRSChrome* chrome;
-    struct UiDockSlot slots[UI_DOCK_COUNT];
+    struct UiDockSlot slots[UI_DOCK_MAX];
     int slot_count = 0;
+    int dock_count = 0;
+    const char* const* dock_order = ui_dock_order(ui, &dock_count);
     int const grid = edp_px(ui, EDP_GRID);
     int surface_w;
     int surface_h;
@@ -1876,10 +1938,10 @@ Editor_UiLayout(struct EditorUi* ui)
     /* Who is in the column: the default set (and anything open now), minus
      * what the user closed or dragged out. The first layout fixes the
      * default set as what the modules showed with the editor. */
-    for( int d = 0; d < UI_DOCK_COUNT; d++ )
+    for( int d = 0; d < dock_count; d++ )
     {
-        struct EditorUiPanel* module = Editor_UiFindPanel(ui, k_dock_order[d]);
-        int const panel = ui_chrome_panel(ui, k_dock_order[d]);
+        struct EditorUiPanel* module = Editor_UiFindPanel(ui, dock_order[d]);
+        int const panel = ui_chrome_panel(ui, dock_order[d]);
         int at;
 
         if( panel < 0 )
@@ -1986,8 +2048,8 @@ Editor_UiLayout(struct EditorUi* ui)
         columns = (surface_w - left) / dock_w;
         if( columns < 1 )
             columns = 1;
-        if( columns > UI_DOCK_COUNT )
-            columns = UI_DOCK_COUNT;
+        if( columns > dock_count )
+            columns = dock_count;
         dock_w = ui_round_down((surface_w - left) / columns, grid);
     }
     dock_x = surface_w - dock_w * columns;
@@ -2327,10 +2389,28 @@ ui_layout_follow(struct EditorUi* ui)
     }
 }
 
+static void
+ui_workspace_default(
+    struct EditorUi* ui,
+    int workspace,
+    int log);
+static void
+ui_default_layout(struct EditorUi* ui);
+
 void
 Editor_UiResetLayout(struct EditorUi* ui)
 {
     assert(ui);
+    /* Another workspace's reset is to ITS default; Build's is the modules'
+     * own set, below. */
+    if( ui->workspace != EDITOR_UI_WS_BUILD )
+    {
+        ui->workspace_has[ui->workspace] = 0;
+        ui_workspace_default(ui, ui->workspace, 0);
+        if( ui->chrome->surface_w > 0 && ui->chrome->surface_h > 0 )
+            Editor_UiLayout(ui);
+        return;
+    }
     for( int i = ui->panel_first; i < ui->panel_end && i < ui->chrome->panel_count; i++ )
     {
         int const at = i - ui->panel_first;
@@ -2512,6 +2592,24 @@ Editor_UiLayoutCapture(
             }
         }
     }
+    /* The workspaces: the current one is the live layout just captured, the
+     * others as they were left (or as the file had them). */
+    out->has_workspace = 1;
+    snprintf(out->workspace, sizeof(out->workspace), "%s", Editor_UiWorkspaceName(ui->workspace));
+    for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
+    {
+        struct EditorLayoutWorkspace* ws;
+        if( w != ui->workspace && !ui->workspace_has[w] )
+            continue;
+        ws = EditorLayout_AddWorkspace(out, Editor_UiWorkspaceName(w));
+        if( w == ui->workspace )
+            EditorLayout_WorkspaceFromTop(ws, out);
+        else
+        {
+            *ws = ui->workspace_saved[w];
+            snprintf(ws->name, sizeof(ws->name), "%s", Editor_UiWorkspaceName(w));
+        }
+    }
 }
 
 /** Pull a saved box back onto the surface: at least a title bar's worth of
@@ -2571,6 +2669,20 @@ Editor_UiLayoutApply(
     /* The default set first, from what the modules showed: Reset layout must
      * return to the default, not to this file. */
     ui_capture_boot(ui);
+    /* A file that names its workspace (the layout file; a switch's own
+     * file names none): the current one and every one's saved layout. */
+    if( file->has_workspace )
+    {
+        int const current = Editor_UiWorkspaceFind(file->workspace);
+        ui->workspace = current >= 0 ? current : EDITOR_UI_WS_BUILD;
+        for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
+        {
+            struct EditorLayoutWorkspace const* ws = EditorLayout_FindWorkspace(file, Editor_UiWorkspaceName(w));
+            ui->workspace_has[w] = ws != NULL;
+            if( ws )
+                ui->workspace_saved[w] = *ws;
+        }
+    }
     if( file->has_snap )
         Editor_UiSetSnap(ui, file->snap);
     for( int i = 0; i < ui->panel_count; i++ )
@@ -2813,6 +2925,8 @@ Editor_UiLayoutFingerprint(const struct EditorUi* ui)
     h = ui_fnv(h, ui->chrome->surface_h);
     h = ui_fnv(h, ToriRSChrome_Scale(ui->chrome));
     h = ui_fnv(h, ui->snap);
+    h = ui_fnv(h, ui->workspace);
+    h = ui_fnv(h, (int)ui->workspace_serial);
     for( int i = 0; i < ui->panel_count; i++ )
     {
         struct ToriRSChromePanel const* cp;
@@ -2861,6 +2975,265 @@ Editor_UiLayoutBusy(const struct EditorUi* ui)
     chrome = ui->chrome;
     return !ui->visible || !ui->laid_out || ui->layout_hold || ui->layout_pending || chrome->drag_panel >= 0
            || chrome->resize_panel >= 0 || chrome->split_panel >= 0;
+}
+
+/* ---- workspaces (editor_ui.h has the table) --------------------------------- */
+
+_Static_assert(EDITOR_UI_WORKSPACES == 4, "EditorUi's workspace arrays hold the four");
+_Static_assert(EDITOR_HK_WORKSPACES == EDITOR_UI_WORKSPACES, "one workspace action per workspace, in order");
+
+static const char* const k_workspace_names[EDITOR_UI_WORKSPACES] = { "build", "terrain", "script", "playtest" };
+static const char* const k_workspace_titles[EDITOR_UI_WORKSPACES] = { "Build", "Terrain", "Script", "Playtest" };
+
+/* The design table's panels per workspace, as registry module names; the
+ * first listed member of a group is its front tab. "vars", "problems",
+ * "dialogue_preview", "scenes", "encounter" and "live_log" are other slices'
+ * modules (and the Live log is the Live panel's own list today). */
+static const char* const k_ws_terrain[] = { "terrain", "palette", "squares", "inspector", "console", "history",
+    NULL };
+static const char* const k_ws_script[] = { "record", "triggers", "vars", "locbuilder", "npcbuilder",
+    "shelleditor", "problems", "console", "dialogue_preview", NULL };
+static const char* const k_ws_playtest[] = { "live", "accounts", "scenes", "encounter", "live_log", "console",
+    NULL };
+
+const char*
+Editor_UiWorkspaceName(int workspace)
+{
+    assert(workspace >= 0);
+    assert(workspace < EDITOR_UI_WORKSPACES);
+    return k_workspace_names[workspace];
+}
+
+const char*
+Editor_UiWorkspaceTitle(int workspace)
+{
+    assert(workspace >= 0);
+    assert(workspace < EDITOR_UI_WORKSPACES);
+    return k_workspace_titles[workspace];
+}
+
+int
+Editor_UiWorkspaceFind(const char* name)
+{
+    assert(name);
+    for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
+        if( strcmp(k_workspace_names[w], name) == 0 )
+            return w;
+    return -1;
+}
+
+const char* const*
+Editor_UiWorkspacePanels(int workspace)
+{
+    static const char* const* const k_lists[EDITOR_UI_WORKSPACES] = { NULL, k_ws_terrain, k_ws_script,
+        k_ws_playtest };
+    assert(workspace >= 0);
+    assert(workspace < EDITOR_UI_WORKSPACES);
+    return k_lists[workspace];
+}
+
+/** Is module `name` on the NULL-terminated `list`? */
+static int
+ui_name_listed(
+    const char* const* list,
+    const char* name)
+{
+    for( int i = 0; list[i]; i++ )
+        if( strcmp(list[i], name) == 0 )
+            return 1;
+    return 0;
+}
+
+/**
+ * Workspace `workspace`'s default: Build is the modules' own set (Reset
+ * layout's); another shows the table's panels and hides every other panel
+ * of the View menu but the World and the tool rail, every box placed afresh
+ * by the next layout. With `log`, a console line names what was skipped.
+ */
+static void
+ui_workspace_default(
+    struct EditorUi* ui,
+    int workspace,
+    int log)
+{
+    const char* const* list = Editor_UiWorkspacePanels(workspace);
+    struct EditorLayoutFile* file;
+    char skipped[EDITOR_UI_CONSOLE_LINE_MAX];
+    int skipped_count = 0;
+    int used = 0;
+
+    skipped[0] = '\0';
+    for( int i = ui->panel_first; i < ui->panel_end && i < ui->chrome->panel_count; i++ )
+    {
+        int const at = i - ui->panel_first;
+        if( ToriRSChrome_PanelIsMaximised(ui->chrome, i) )
+            ToriRSChrome_PanelRestore(ui->chrome, i);
+        ui->maximise_pending[at] = 0;
+        ui->chrome->panels[i].user_placed = 0;
+        ui->closed[at] = 0;
+        ui->docked[at] = 0;
+        ui->flown[at] = 0;
+    }
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        ui->groups[i].placed = -1;
+        ui->groups[i].pending_h = 0;
+    }
+    if( !list )
+    {
+        /* Build: the boot set, as Reset layout gives it in Build. */
+        ui_capture_boot(ui);
+        for( int i = ui->panel_first; i < ui->panel_end && i < ui->chrome->panel_count; i++ )
+        {
+            int const at = i - ui->panel_first;
+            ui->member[at] = ui->boot_member[at];
+        }
+        for( int i = 0; i < ui->panel_count; i++ )
+        {
+            int const panel = ui->panels[i].chrome_panel;
+            int at;
+            if( !ui_layout_saves(ui, i) || strcmp(ui->panels[i].name, "world") == 0
+                || strcmp(ui->panels[i].name, "toolrail") == 0 )
+                continue;
+            at = panel - ui->panel_first;
+            ToriRSChrome_PanelSetVisible(ui->chrome, panel, ui->boot_member[at] ? 1 : 0);
+        }
+        /* Each strip as it booted. */
+        for( int i = 0; i < ui->group_count; i++ )
+        {
+            struct EditorUiGroup* g = &ui->groups[i];
+            int const at = g->chrome_panel - ui->panel_first;
+            int const shown = ui->boot_member[at] ? g->boot_shown : -1;
+            for( int slot = 0; slot < g->member_count; slot++ )
+                g->open[slot] = (unsigned char)(shown >= 0 && g->boot_open[slot]);
+            for( int slot = 0; slot < g->member_count; slot++ )
+                ToriRSChrome_PanelSetVisible(ui->chrome, ui_group_window(ui, g, slot), slot == shown);
+            g->shown = shown;
+            g->prev_shown = -1;
+            g->parked = 0;
+            g->tabs_built = 0;
+            ToriRSChrome_PanelSetVisible(ui->chrome, g->chrome_panel, shown >= 0);
+        }
+        ui->layout_restore = 0;
+        ui->laid_out = 0;
+        return;
+    }
+    for( int i = 0; list[i]; i++ )
+        if( !Editor_UiFindPanel(ui, list[i]) )
+        {
+            used += snprintf(skipped + used, sizeof(skipped) - (size_t)used, "%s%s", skipped_count ? ", " : "",
+                list[i]);
+            if( used >= (int)sizeof(skipped) )
+                used = (int)sizeof(skipped) - 1;
+            skipped_count++;
+        }
+    if( log && skipped_count > 0 )
+        Editor_UiLog(ui, "editor: workspace %s: no %s panel in this window, skipped", Editor_UiWorkspaceTitle(workspace),
+            skipped);
+    /* The default as a file: every saved panel shown or hidden, each group's
+     * front tab its first listed member. Applied like any file (visibility,
+     * the strips), with no boxes: the layout places everything. */
+    file = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*file));
+    assert(file);
+    file->version = EDITOR_LAYOUT_VERSION;
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        struct EditorLayoutPanel* p;
+        if( !ui_layout_saves(ui, i) || strcmp(ui->panels[i].name, "world") == 0
+            || strcmp(ui->panels[i].name, "toolrail") == 0 )
+            continue;
+        p = EditorLayout_Add(file, ui->panels[i].name);
+        p->has_visible = 1;
+        p->visible = ui_name_listed(list, ui->panels[i].name);
+    }
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup const* g = &ui->groups[i];
+        struct EditorLayoutGroup* gs;
+        if( g->member_count == 0 )
+            continue;
+        gs = EditorLayout_AddGroup(file, g->name);
+        gs->has_visible = 1;
+        gs->visible = 0;
+        for( int l = 0; list[l] && !gs->has_shown; l++ )
+            if( ui_group_slot(g, ui_registry_index(ui, list[l])) >= 0 )
+            {
+                gs->has_shown = 1;
+                gs->visible = 1;
+                snprintf(gs->shown, sizeof(gs->shown), "%s", list[l]);
+            }
+    }
+    for( int i = ui->panel_first; i < ui->panel_end && i < ui->chrome->panel_count; i++ )
+        ui->member[i - ui->panel_first] = 0;
+    Editor_UiLayoutApply(ui, file);
+    /* The default set of this workspace is what it shows. */
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        int const panel = ui->panels[i].chrome_panel;
+        if( ui_layout_saves(ui, i) && !ui->group_plus1[i] )
+            ui->member[panel - ui->panel_first] = (unsigned char)(ui->chrome->panels[panel].visible ? 1 : 0);
+    }
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup const* g = &ui->groups[i];
+        ui->member[g->chrome_panel - ui->panel_first] =
+            (unsigned char)(ui->chrome->panels[g->chrome_panel].visible ? 1 : 0);
+    }
+    ToriMem_Free(ToriMem_Editor(), file);
+}
+
+int
+Editor_UiSetWorkspace(
+    struct EditorUi* ui,
+    int workspace)
+{
+    const char* const* list;
+    int skipped = 0;
+
+    assert(ui);
+    assert(workspace >= 0);
+    assert(workspace < EDITOR_UI_WORKSPACES);
+    list = Editor_UiWorkspacePanels(workspace);
+    for( int i = 0; list && list[i]; i++ )
+        if( !Editor_UiFindPanel(ui, list[i]) )
+            skipped++;
+    if( workspace == ui->workspace )
+    {
+        Editor_UiStatus(ui, "Workspace %s is already the one shown", Editor_UiWorkspaceTitle(workspace));
+        return skipped;
+    }
+    /* The one being left first, as it is now. */
+    {
+        struct EditorLayoutFile* now = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*now));
+        assert(now);
+        Editor_UiLayoutCapture(ui, now);
+        EditorLayout_WorkspaceFromTop(&ui->workspace_saved[ui->workspace], now);
+        snprintf(ui->workspace_saved[ui->workspace].name, sizeof(ui->workspace_saved[ui->workspace].name), "%s",
+            Editor_UiWorkspaceName(ui->workspace));
+        ui->workspace_has[ui->workspace] = 1;
+        ToriMem_Free(ToriMem_Editor(), now);
+    }
+    ui->workspace = workspace;
+    ui->workspace_serial++;
+    /* Its default first, so a panel its saved layout does not name (one
+     * registered since) is where the default puts it. */
+    ui_workspace_default(ui, workspace, 1);
+    if( ui->workspace_has[workspace] )
+    {
+        struct EditorLayoutFile* file = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*file));
+        assert(file);
+        EditorLayout_TopFromWorkspace(file, &ui->workspace_saved[workspace]);
+        file->has_snap = 1;
+        file->snap = ui->snap;
+        Editor_UiLayoutApply(ui, file);
+        ToriMem_Free(ToriMem_Editor(), file);
+    }
+    Editor_UiLog(ui, "editor: workspace %s%s", Editor_UiWorkspaceTitle(workspace),
+        ui->workspace_has[workspace] ? " (as you left it)" : "");
+    ui->laid_out = 0;
+    if( ui->chrome->surface_w > 0 && ui->chrome->surface_h > 0 )
+        ui_default_layout(ui);
+    return skipped;
 }
 
 static void

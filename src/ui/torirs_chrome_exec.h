@@ -79,8 +79,9 @@
  */
 #define TORIRS_CHROME_ROW_ACTION 0x1
 #define TORIRS_CHROME_ROW_LOCKED 0x2
-/** WIDGET_ADD `w` of a VLIST: its rows are cells (ToriRSChrome_VListCells). */
-#define TORIRS_CHROME_VLIST_CELLS 0x1
+/* WIDGET_ADD `w` of a VLIST: TORIRS_CHROME_VLIST_CELLS (its rows are cells)
+ * and TORIRS_CHROME_VLIST_CELLS_WIDE, defined beside ToriRSChrome_VListCells
+ * (uitree_debug_overlay.h), which the model reads too. */
 
 /**
  * What one command says.

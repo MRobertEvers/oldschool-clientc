@@ -1363,7 +1363,16 @@
    * text is five fields split by the unit separator -- sprite, name, dim,
    * keys, right (ui/uitree_debug_overlay.h ToriRSChrome_VListCells). */
   const VLIST_CELLS = 1;
+  /* With CELLS: the keycap column is half the row, uncapped (workbench 6.8:
+   * ToriRSChrome_VListCellsWide, the Hotkeys panel's two chord cells). */
+  const VLIST_CELLS_WIDE = 2;
   const CELL_SEP = '\x1f';
+  /* A sprite field of "-" is a row with no picture well; the sixth field is
+   * the row's mark: "!" the alert ink on name, dim part and keycaps, "*" the
+   * name in the accent (TORIRS_CHROME_CELL_MARK_*). */
+  const CELL_NO_SPRITE = '-';
+  const CELL_MARK_ALERT = '!';
+  const CELL_MARK_ACCENT = '*';
   const CELL_KEYS_MAX = 8;
   const CODE_LINE_H = 17;
   const EV = {
@@ -1550,6 +1559,8 @@
         const lineH = code ? CODE_LINE_H : VROW_H;
         row.className += ' tpc-tall-row';
         record.cells = !code && (record.shape & VLIST_CELLS) !== 0;
+        record.cellsWide = record.cells && (record.shape & VLIST_CELLS_WIDE) !== 0;
+        if (record.cellsWide) row.className += ' tpc-cells-wide';
         if (record.label && record.cells) {
           /* A cells list's caption is its header row, in the rows' columns. */
           const head = document.createElement('div');
@@ -1777,11 +1788,14 @@
     const fields = String(value === undefined ? '' : value).split(CELL_SEP);
     const field = at => (fields[at] === undefined ? '' : fields[at]);
     line.className += header ? ' tpc-cells tpc-cells-head' : ' tpc-cells';
-    if (!header) {
+    const mark = header ? '' : field(5).charAt(0);
+    if (mark === CELL_MARK_ALERT) line.className += ' tpc-cell-alert';
+    else if (mark === CELL_MARK_ACCENT) line.className += ' tpc-cell-accent';
+    if (!header && field(0) !== CELL_NO_SPRITE) {
       const thumb = document.createElement('span');
       thumb.className = 'tpc-cell-thumb';
       line.appendChild(thumb);
-    }
+    } else if (!header) line.className += ' tpc-cells-nowell';
     const names = document.createElement('span');
     names.className = 'tpc-cell-names';
     const name = document.createElement('span');

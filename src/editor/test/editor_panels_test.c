@@ -6277,23 +6277,67 @@ menu_row(
     return NULL;
 }
 
-/** The Hotkeys panel's TREE row for `action`: its label starts with the
- *  action's name and " (". */
+/** The Hotkeys panel's list row of `action` (workbench 6.8: one wide cells
+ *  VLIST, editor_workspaces_test.c drives its sort and filters), -1 when the
+ *  search or a filter hides it. */
 static int
 hotkeys_row(
     int panel,
     int action)
 {
-    const char* name = Editor_HotkeyInfo(action)->name;
-    size_t const n = strlen(name);
-    for( int i = 0; i < g_chrome.widget_count; i++ )
-    {
-        const struct ToriRSChromeWidget* w = &g_chrome.widgets[i];
-        if( w->panel == panel && w->kind == TORIRS_CHROME_W_TREE && strncmp(w->label, name, n) == 0
-            && strncmp(w->label + n, " (", 2) == 0 )
+    static int rows[EDITOR_HK_COUNT];
+    int const n = Editor_Hotkeys_Rows(&g_ui, rows, EDITOR_HK_COUNT);
+    (void)panel;
+    for( int i = 0; i < n; i++ )
+        if( rows[i] == action )
             return i;
-    }
     return -1;
+}
+
+/** Field `field` of the list's row of `action` as the VLIST holds it (the
+ *  row brought on screen first), "" when not listed. */
+static const char*
+hotkeys_cell(
+    int action,
+    int field)
+{
+    static char out[96];
+    int const list = Editor_Hotkeys_ListWidget(&g_ui);
+    int const row = hotkeys_row(-1, action);
+    const char* text = NULL;
+
+    out[0] = '\0';
+    if( row < 0 || list < 0 )
+        return out;
+    ToriRSChrome_VListSetScroll(&g_chrome, list, row);
+    frame();
+    for( int i = 0; i < TORIRS_CHROME_VROW_POOL; i++ )
+        if( g_chrome.vrows[i].owner == list && g_chrome.vrows[i].index == row )
+            text = g_chrome.vrows[i].text;
+    for( int f = 0; f < field && text; f++ )
+    {
+        text = strchr(text, TORIRS_CHROME_CELL_SEP);
+        if( text )
+            text++;
+    }
+    if( text )
+    {
+        const char* end = strchr(text, TORIRS_CHROME_CELL_SEP);
+        snprintf(out, sizeof(out), "%.*s", end ? (int)(end - text) : (int)strlen(text), text);
+    }
+    return out;
+}
+
+/** A click on chord cell `cell` (1 or 2) of `action`'s row. */
+static void
+hotkeys_click_cell(
+    int action,
+    int cell)
+{
+    int const list = Editor_Hotkeys_ListWidget(&g_ui);
+    ToriRSChrome_VListSetSelected(&g_chrome, list, hotkeys_row(-1, action));
+    g_chrome.widgets[list].vlist_cell = cell;
+    activate(list);
 }
 
 /** Feed the Hotkeys panel one frame with `chord_text` pressed (NULL: only
@@ -6356,19 +6400,17 @@ test_hotkeys(void)
     /* One row per action, every action. */
     for( int a = 0; a < EDITOR_HK_COUNT; a++ )
     {
-        int const w = hotkeys_row(panel, a);
-        CHECK(w >= 0, "hotkeys: a row for %s", Editor_HotkeyInfo(a)->id);
-        if( w >= 0 )
+        int const r = hotkeys_row(panel, a);
+        CHECK(r >= 0, "hotkeys: a row for %s", Editor_HotkeyInfo(a)->id);
+        if( r >= 0 )
             rows++;
     }
     CHECK(rows == EDITOR_HK_COUNT, "hotkeys: %d rows for %d actions", rows, EDITOR_HK_COUNT);
-    {
-        int const undo = hotkeys_row(panel, EDITOR_HK_EDIT_UNDO);
-        Editor_HotkeyDisplay(&g_ui.hotkeys, EDITOR_HK_EDIT_UNDO, chord, (int)sizeof(chord));
-        snprintf(expect, sizeof(expect), "Undo (G)\t%s", chord);
-        CHECK(undo >= 0 && strcmp(g_chrome.widgets[undo].label, expect) == 0, "hotkeys: Undo's row reads '%s' (%s)",
-            expect, undo >= 0 ? g_chrome.widgets[undo].label : "-");
-    }
+    Editor_HotkeyDisplay(&g_ui.hotkeys, EDITOR_HK_EDIT_UNDO, chord, (int)sizeof(chord));
+    snprintf(expect, sizeof(expect), "%s -", chord);
+    CHECK(strcmp(hotkeys_cell(EDITOR_HK_EDIT_UNDO, 1), "Undo") == 0
+              && strcmp(hotkeys_cell(EDITOR_HK_EDIT_UNDO, 3), expect) == 0,
+        "hotkeys: Undo's row has its chord and an empty second cell (%s)", hotkeys_cell(EDITOR_HK_EDIT_UNDO, 3));
 
     /* Search filters by any column. */
     search = find_widget(panel, TORIRS_CHROME_W_TEXTINPUT, "Search");
@@ -6377,24 +6419,23 @@ test_hotkeys(void)
     {
         ToriRSChrome_SetText(&g_chrome, search, "redo");
         frame();
-        CHECK(!g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_REDO)].hidden
-                  && g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_UNDO)].hidden
-                  && g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_TOOL_RAISE)].hidden,
+        CHECK(hotkeys_row(panel, EDITOR_HK_EDIT_REDO) >= 0 && hotkeys_row(panel, EDITOR_HK_EDIT_UNDO) < 0
+                  && hotkeys_row(panel, EDITOR_HK_TOOL_RAISE) < 0,
             "hotkeys: 'redo' leaves Redo and hides Undo and Raise");
         ToriRSChrome_SetText(&g_chrome, search, "F12");
         frame();
-        CHECK(!g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_VIEW_WORLD)].hidden
-                  && g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_REDO)].hidden,
+        CHECK(hotkeys_row(panel, EDITOR_HK_VIEW_WORLD) >= 0 && hotkeys_row(panel, EDITOR_HK_EDIT_REDO) < 0,
             "hotkeys: a chord finds its action (F12 -> World)");
         ToriRSChrome_SetText(&g_chrome, search, "");
         frame();
-        CHECK(!g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_UNDO)].hidden, "hotkeys: an empty search shows all");
+        CHECK(hotkeys_row(panel, EDITOR_HK_EDIT_UNDO) >= 0, "hotkeys: an empty search shows all");
     }
 
-    /* Click Bake's chord, press Ctrl+Z: Bake is bound, the File row says so,
-     * and Bake and Undo clash in red on both rows. */
-    activate(hotkeys_row(panel, EDITOR_HK_FILE_BAKE));
-    CHECK(Editor_Hotkeys_Capturing(&g_ui) == EDITOR_HK_FILE_BAKE, "hotkeys: a click on a row captures for it");
+    /* Click Bake's first chord cell, press Ctrl+Z: Bake is bound, the File
+     * row says so, and Bake and Undo clash, marked on both rows. */
+    hotkeys_click_cell(EDITOR_HK_FILE_BAKE, 1);
+    CHECK(Editor_Hotkeys_Capturing(&g_ui) == EDITOR_HK_FILE_BAKE && Editor_Hotkeys_CaptureSlot(&g_ui) == 0,
+        "hotkeys: a click on a chord cell captures for it");
     CHECK(hotkeys_feed("shift") == 1 && Editor_Hotkeys_Capturing(&g_ui) == EDITOR_HK_FILE_BAKE,
         "hotkeys: a modifier alone never binds");
     CHECK(hotkeys_feed("ctrl+z") == 1 && Editor_Hotkeys_Capturing(&g_ui) < 0, "hotkeys: Ctrl+Z ends the capture");
@@ -6406,13 +6447,12 @@ test_hotkeys(void)
         snprintf(expect, sizeof(expect), "Bake cache (slow)\t%s", chord);
         CHECK(row && strcmp(row, expect) == 0, "hotkeys: the File row re-labels at once (%s)", row ? row : "-");
     }
-    CHECK(g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_FILE_BAKE)].color == 0xFF5555u
-              && g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_UNDO)].color == 0xFF5555u,
-        "hotkeys: the clash is red on both rows");
-    CHECK(g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_REDO)].color == 0, "hotkeys: Redo is not");
+    CHECK(strcmp(hotkeys_cell(EDITOR_HK_FILE_BAKE, 5), "!") == 0 && strcmp(hotkeys_cell(EDITOR_HK_EDIT_UNDO, 5), "!") == 0,
+        "hotkeys: the clash is marked on both rows");
+    CHECK(strcmp(hotkeys_cell(EDITOR_HK_EDIT_REDO, 5), "") == 0, "hotkeys: Redo is not");
 
     /* Rebind Undo away: the clash clears; the Edit row follows. */
-    activate(hotkeys_row(panel, EDITOR_HK_EDIT_UNDO));
+    hotkeys_click_cell(EDITOR_HK_EDIT_UNDO, 1);
     (void)hotkeys_feed("ctrl+u");
     frame();
     (void)Editor_ChordParse("ctrl+u", &parsed);
@@ -6422,19 +6462,18 @@ test_hotkeys(void)
         snprintf(expect, sizeof(expect), "Undo\t%s", chord);
         CHECK(row && strcmp(row, expect) == 0, "hotkeys: Edit > Undo shows the new chord (%s)", row ? row : "-");
     }
-    CHECK(g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_FILE_BAKE)].color == 0, "hotkeys: no clash left");
+    CHECK(strcmp(hotkeys_cell(EDITOR_HK_FILE_BAKE, 5), "") == 0, "hotkeys: no clash left");
 
-    /* Esc cancels; Backspace unbinds. */
-    activate(hotkeys_row(panel, EDITOR_HK_TOOL_RAISE));
+    /* Esc cancels; Backspace unbinds the slot. */
+    hotkeys_click_cell(EDITOR_HK_TOOL_RAISE, 1);
     (void)hotkeys_feed("escape");
     CHECK(Editor_Hotkeys_Capturing(&g_ui) < 0 && Editor_HotkeysIsDefault(&g_ui.hotkeys, EDITOR_HK_TOOL_RAISE),
         "hotkeys: Esc cancels and keeps the chord");
-    activate(hotkeys_row(panel, EDITOR_HK_TOOL_RAISE));
+    hotkeys_click_cell(EDITOR_HK_TOOL_RAISE, 1);
     (void)hotkeys_feed("backspace");
     frame();
     CHECK(g_ui.hotkeys.bind[EDITOR_HK_TOOL_RAISE].chord[0].key == TORIRSK_UNKNOWN, "hotkeys: Backspace unbinds");
-    CHECK(strstr(g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_TOOL_RAISE)].label, "\tunbound") != NULL,
-        "hotkeys: the row says unbound");
+    CHECK(strcmp(hotkeys_cell(EDITOR_HK_TOOL_RAISE, 3), "- -") == 0, "hotkeys: the row says unbound in both cells");
     {
         struct EditorUiPanel* rail = Editor_UiFindPanel(&g_ui, "toolrail");
         int const raise = rail ? find_widget(rail->chrome_panel, TORIRS_CHROME_W_ICONBUTTON, "Raise") : -1;
@@ -6444,14 +6483,14 @@ test_hotkeys(void)
             raise >= 0 ? g_chrome.widgets[raise].tooltip : "-", raise >= 0 ? g_chrome.widgets[raise].chord : "-");
     }
 
-    /* Reset to defaults. */
-    activate(find_widget(panel, TORIRS_CHROME_W_BUTTON, "Reset to defaults"));
+    /* Reset all. */
+    activate(find_widget(panel, TORIRS_CHROME_W_BUTTON, "Reset all"));
     frame();
     {
         int all = 1;
         for( int a = 0; a < EDITOR_HK_COUNT; a++ )
             all &= Editor_HotkeysIsDefault(&g_ui.hotkeys, a);
-        CHECK(all, "hotkeys: Reset to defaults restores the table");
+        CHECK(all, "hotkeys: Reset all restores the table");
     }
     {
         struct EditorUiPanel* rail = Editor_UiFindPanel(&g_ui, "toolrail");

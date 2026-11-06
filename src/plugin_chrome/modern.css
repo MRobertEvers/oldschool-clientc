@@ -919,6 +919,13 @@ button { font-weight: 700; }
   font: 400 10px/10px "ToriRS Chrome Small", "Lucida Console", monospace; cursor: pointer;
 }
 .tpc-cell-right { -webkit-flex: 0 0 42px; flex: 0 0 42px; margin-left: 3px; text-align: right; }
+/* Workbench 6.8: the wide keycap column (half the row, uncapped), a row with
+ * no picture well, and the marks: alert ink on the whole row, the accent on
+ * the name. */
+.tpc-cells-wide .tpc-cell-keys { -webkit-flex: 0 0 50%; flex: 0 0 50%; max-width: none; }
+.tpc-cells-nowell .tpc-cell-names, .tpc-cells-head.tpc-cells-nowell .tpc-cell-names { margin-left: 0; }
+.tpc-cell-alert .tpc-cell-names, .tpc-cell-alert .tpc-cell-dim, .tpc-cell-alert .tpc-cell-key { color: #ff5555; }
+.tpc-cell-accent .tpc-cell-name { color: #ffff00; color: var(--tpc-accent); }
 .tpc-code { font-weight: 700; }
 .tpc-code-line { height: 17px; line-height: 17px; padding: 0; }
 .tpc-code-gutter {

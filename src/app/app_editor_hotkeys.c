@@ -97,6 +97,8 @@ app_hk_snapshot(
     facts.spawn_count = Editor_Spawns_SelectionCount(ui);
     facts.loc_pick = ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0;
     facts.rect_valid = ui->tools.rect.valid;
+    /* Q: a GRAPH well (the builders' dialogue graph) has the keyboard. */
+    facts.graph_focus = ui->chrome->focus >= 0 && ui->chrome->widgets[ui->chrome->focus].kind == TORIRS_CHROME_W_GRAPH;
     out->contexts = Editor_HotkeyContextsFrom(&facts);
     ui->hotkey_contexts = out->contexts;
     ui->hotkey_contexts_valid = 1;
@@ -438,8 +440,13 @@ app_hk_run(
     {
         int const before = ui->tools.edit_level;
         level = edp_level_step(ui, action == EDITOR_HK_LEVEL_UP ? 1 : -1, Editor_PanelEditLevel(panel, app));
-        if( level != before )
-            Editor_UiLog(ui, "editor: level %d pinned (Ctrl+%d again: Auto)", level, level);
+        if( level != before && level >= 0 && level <= EDITOR_HK_LEVEL_PIN3 - EDITOR_HK_LEVEL_PIN0 )
+        {
+            char again[32];
+            Editor_HotkeyDisplay(
+                &ui->hotkeys, (enum Editor_HotkeyAction)(EDITOR_HK_LEVEL_PIN0 + level), again, (int)sizeof(again));
+            Editor_UiLog(ui, "editor: level %d pinned (%s again: Auto)", level, again[0] ? again : "its pin");
+        }
         break;
     }
     case EDITOR_HK_CAM_FRAME:
@@ -623,6 +630,35 @@ app_editor_hotkeys_frame(
         return;
     }
 
+    /* The command palette (Ctrl+K) holds the keyboard while open: its search
+     * box takes the characters through the chrome, its list the navigation
+     * keys here, and no chord resolves under it. */
+    if( Editor_CmdPalette_IsOpen(ui) )
+    {
+        static const int k_nav[] = { TORIRSK_UP, TORIRSK_DOWN, TORIRSK_TAB, TORIRSK_PAGE_UP, TORIRSK_PAGE_DOWN,
+            TORIRSK_RETURN, TORIRSK_ESCAPE };
+        int any = 0;
+        (void)Editor_CmdPalette_Feed(ui, &snapshot);
+        memset(&g_app_hk.frame, 0, sizeof(g_app_hk.frame));
+        memset(ui->hotkeys.repeat_held, 0, sizeof(ui->hotkeys.repeat_held));
+        for( size_t i = 0; i < sizeof(k_nav) / sizeof(k_nav[0]); i++ )
+        {
+            if( !snapshot.held[k_nav[i]] )
+                continue;
+            g_app_hk.frame.claimed[k_nav[i]] = 1;
+            app_hk_consume_key(app, k_nav[i]);
+            any |= snapshot.down[k_nav[i]];
+        }
+        g_app_hk.valid = 1;
+        if( any )
+        {
+            app->input_frame_consumed = 1;
+            app->need_redraw = 1;
+        }
+        Editor_HotkeySnapHold(ui, 0);
+        return;
+    }
+
     if( app_text_input_focused(app) || app_modelview_focused(app) || ui->chrome->dropdown_open >= 0
         || app->frame_view->minimenu->visible )
     {
@@ -650,8 +686,12 @@ app_editor_hotkeys_frame(
         if( snapshot.down[chord.key] )
         {
             char text[32];
+            char note[EDITOR_UI_CONSOLE_LINE_MAX];
             Editor_ChordDisplay(chord, text, (int)sizeof(text));
             Editor_UiLog(ui, "editor: %s (%s)", Editor_HotkeyInfo(action)->name, text);
+            /* A chord the 6.8 moves retired, kept one release: say so. */
+            if( Editor_HotkeyRetiredNote(&ui->hotkeys, action, chord, note, (int)sizeof(note)) )
+                Editor_UiLog(ui, "%s", note);
         }
         app_hk_run(app, ui, action);
         app->input_frame_consumed = 1;

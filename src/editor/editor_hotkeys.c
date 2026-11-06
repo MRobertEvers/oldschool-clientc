@@ -23,6 +23,7 @@
 #define M EDITOR_HK_CTX_M
 #define P EDITOR_HK_CTX_P
 #define K EDITOR_HK_CTX_K
+#define Q EDITOR_HK_CTX_Q
 #define EDGE EDITOR_HK_EDGE
 #define REPEAT EDITOR_HK_REPEAT
 #define HELD EDITOR_HK_HELD
@@ -156,13 +157,17 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_LEVEL_DOWN] = { "level.down", "Level", "Level down", "Level down / up", G, EDGE, { "pagedown" },
                                NULL },
     [EDITOR_HK_LEVEL_UP] = { "level.up", "Level", "Level up", "Level down / up", G, EDGE, { "pageup" }, NULL },
-    [EDITOR_HK_LEVEL_PIN0] = { "level.pin0", "Level", "Pin level 0", "Pin level 0..3", G, EDGE, { "ctrl+0" }, NULL },
-    [EDITOR_HK_LEVEL_PIN1] = { "level.pin1", "Level", "Pin level 1", "Pin level 0..3", G, EDGE, { "ctrl+1" }, NULL },
-    [EDITOR_HK_LEVEL_PIN2] = { "level.pin2", "Level", "Pin level 2", "Pin level 0..3", G, EDGE, { "ctrl+2" }, NULL },
-    [EDITOR_HK_LEVEL_PIN3] = { "level.pin3", "Level", "Pin level 3", "Pin level 0..3", G, EDGE, { "ctrl+3" }, NULL },
-    [EDITOR_HK_LEVEL_AUTO] = { "level.auto", "Level", "Level Auto", "Level Auto", G, EDGE, { "ctrl+4" }, NULL },
-    [EDITOR_HK_LEVEL_ABOVE] = { "level.above", "Level", "Show above", "Show above on/off", G, EDGE, { "ctrl+5" },
-                                NULL },
+    /* Workbench 6.8: the pins moved to Alt+0..5 (Ctrl+1..4 are the
+     * workspaces). Ctrl+0 and Ctrl+5, which nothing took, stay as the second
+     * chord for one release (Editor_HotkeyRetiredNote). */
+    [EDITOR_HK_LEVEL_PIN0] = { "level.pin0", "Level", "Pin level 0", "Pin level 0..3", G, EDGE,
+                               { "alt+0", "ctrl+0" }, NULL },
+    [EDITOR_HK_LEVEL_PIN1] = { "level.pin1", "Level", "Pin level 1", "Pin level 0..3", G, EDGE, { "alt+1" }, NULL },
+    [EDITOR_HK_LEVEL_PIN2] = { "level.pin2", "Level", "Pin level 2", "Pin level 0..3", G, EDGE, { "alt+2" }, NULL },
+    [EDITOR_HK_LEVEL_PIN3] = { "level.pin3", "Level", "Pin level 3", "Pin level 0..3", G, EDGE, { "alt+3" }, NULL },
+    [EDITOR_HK_LEVEL_AUTO] = { "level.auto", "Level", "Level Auto", "Level Auto", G, EDGE, { "alt+4" }, NULL },
+    [EDITOR_HK_LEVEL_ABOVE] = { "level.above", "Level", "Show above", "Show above on/off", G, EDGE,
+                                { "alt+5", "ctrl+5" }, NULL },
 
     [EDITOR_HK_CAM_FORWARD] = { "camera.forward", "Camera", "Fly forward", "Fly forward / back / left / right", G,
                                 HELD, { "w" }, NULL, "2 fingers" },
@@ -321,6 +326,33 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_VIEW_TEXT_SMOOTH] = { "view.text_smooth", "View", "Text rendering smooth",
                                      "Text rendering: the smooth vector face at every scale", G, EDGE,
                                      { NULL }, NULL },
+    [EDITOR_HK_VIEW_WORKSPACE_BUILD] = { "view.workspace_build", "View", "Workspace Build",
+                                         "Workspace: Build (placing locs and spawns; the default)", G, EDGE,
+                                         { "ctrl+1" }, NULL },
+    [EDITOR_HK_VIEW_WORKSPACE_TERRAIN] = { "view.workspace_terrain", "View", "Workspace Terrain",
+                                           "Workspace: Terrain (heights, colours, shapes, flags)", G, EDGE,
+                                           { "ctrl+2" }, NULL },
+    [EDITOR_HK_VIEW_WORKSPACE_SCRIPT] = { "view.workspace_script", "View", "Workspace Script",
+                                          "Workspace: Script (records, triggers, builders)", G, EDGE,
+                                          { "ctrl+3" }, NULL },
+    [EDITOR_HK_VIEW_WORKSPACE_PLAYTEST] = { "view.workspace_playtest", "View", "Workspace Playtest",
+                                            "Workspace: Playtest (RUN, live, accounts)", G, EDGE, { "ctrl+4" },
+                                            NULL },
+    [EDITOR_HK_VIEW_COMMAND_PALETTE] = { "view.command_palette", "View", "Command palette",
+                                         "Command palette (actions, panels, squares, records, accounts)", G,
+                                         EDGE, { "ctrl+k" }, "cmdpalette" },
+    [EDITOR_HK_VIEW_LAYER_LOCS] = { "view.layer_locs", "View", "Layer Locs (reserved)",
+                                    "World layer Locs on/off (reserved)", G, EDGE, { "alt+l" }, NULL },
+    [EDITOR_HK_VIEW_LAYER_NPCS] = { "view.layer_npcs", "View", "Layer NPCs (reserved)",
+                                    "World layer NPCs on/off (reserved)", G, EDGE, { "alt+n" }, NULL },
+    [EDITOR_HK_VIEW_LAYER_OBJS] = { "view.layer_objs", "View", "Layer Objs (reserved)",
+                                    "World layer Objs on/off (reserved)", G, EDGE, { "alt+o" }, NULL },
+    [EDITOR_HK_VIEW_LAYER_COLLISION] = { "view.layer_collision", "View", "Layer Collision (reserved)",
+                                         "World layer Collision on/off (reserved)", G, EDGE, { "alt+c" }, NULL },
+    [EDITOR_HK_VIEW_LAYER_GRID] = { "view.layer_grid", "View", "Layer Grid (reserved)",
+                                    "World layer Grid on/off (reserved)", G, EDGE, { "alt+g" }, NULL },
+    [EDITOR_HK_GRAPH_AUTO_LAYOUT] = { "graph.auto_layout", "Graph", "Auto-layout the graph",
+                                      "Lay the focused dialogue graph out", Q, EDGE, { "ctrl+l" }, NULL },
 };
 
 #undef G
@@ -330,6 +362,7 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
 #undef S
 #undef N
 #undef K
+#undef Q
 #undef EDGE
 #undef REPEAT
 #undef HELD
@@ -371,7 +404,7 @@ Editor_HotkeyContextText(
     int out_size)
 {
     static const char* const k_names[EDITOR_HK_CTX_COUNT] = { "G", "W", "L", "R", "S", "no loc / not Select-Move",
-        "M", "P", "K" };
+        "M", "P", "K", "Q" };
     int used = 0;
 
     assert(out);
@@ -382,6 +415,28 @@ Editor_HotkeyContextText(
         if( !(contexts & (1u << i)) )
             continue;
         used += snprintf(out + used, (size_t)(out_size - used), "%s%s", used ? ", " : "", k_names[i]);
+        if( used >= out_size )
+            return;
+    }
+}
+
+void
+Editor_HotkeyContextLetters(
+    unsigned contexts,
+    char* out,
+    int out_size)
+{
+    static const char k_letters[EDITOR_HK_CTX_COUNT + 1] = "GWLRSNMPKQ";
+    int used = 0;
+
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    for( int i = 0; i < EDITOR_HK_CTX_COUNT; i++ )
+    {
+        if( !(contexts & (1u << i)) )
+            continue;
+        used += snprintf(out + used, (size_t)(out_size - used), "%s%c", used ? ", " : "", k_letters[i]);
         if( used >= out_size )
             return;
     }
@@ -482,6 +537,39 @@ Editor_HotkeysSet(
     for( int c = 0; c < count; c++ )
         hk->bind[action].chord[c] = chords[c];
     hk->bind[action].stamp = hk->stamp_next++;
+    hk->repeat_held[action] = 0;
+    hk->serial++;
+}
+
+void
+Editor_HotkeysSetSlot(
+    struct Editor_Hotkeys* hk,
+    enum Editor_HotkeyAction action,
+    int slot,
+    struct Editor_Chord chord)
+{
+    struct Editor_HotkeyBinding* bind;
+    int const other = 1 - slot;
+
+    assert(hk);
+    assert((int)action >= 0);
+    assert(action < EDITOR_HK_COUNT);
+    assert(slot >= 0);
+    assert(slot < EDITOR_HK_CHORDS);
+    bind = &hk->bind[action];
+    if( chord.key == TORIRSK_UNKNOWN )
+        chord.mods = 0;
+    bind->chord[slot] = chord;
+    /* One copy of a chord: the other slot holding the same is emptied. */
+    if( chord.key != TORIRSK_UNKNOWN && bind->chord[other].key == chord.key && bind->chord[other].mods == chord.mods )
+        bind->chord[other].key = bind->chord[other].mods = 0;
+    /* Never a second chord without a first. */
+    if( bind->chord[0].key == TORIRSK_UNKNOWN && bind->chord[1].key != TORIRSK_UNKNOWN )
+    {
+        bind->chord[0] = bind->chord[1];
+        bind->chord[1].key = bind->chord[1].mods = 0;
+    }
+    bind->stamp = hk->stamp_next++;
     hk->repeat_held[action] = 0;
     hk->serial++;
 }
@@ -729,15 +817,10 @@ Editor_ChordFormat(
         (chord.mods & EDITOR_HK_MOD_SHIFT) ? "shift+" : "", (chord.mods & EDITOR_HK_MOD_ALT) ? "alt+" : "", name);
 }
 
-#if defined(__APPLE__)
-#define HK_CTRL_TEXT "Cmd"
-#else
-#define HK_CTRL_TEXT "Ctrl"
-#endif
-
 static void
 hk_key_display(
     int key,
+    int glyphs,
     char* out,
     int out_size)
 {
@@ -748,7 +831,7 @@ hk_key_display(
     } k_names[] = {
         { TORIRSK_ESCAPE, "Esc" },     { TORIRSK_RETURN, "Enter" },   { TORIRSK_BACKSPACE, "Backspace" },
         { TORIRSK_INSERT, "Ins" },     { TORIRSK_DELETE, "Del" },     { TORIRSK_SHIFT, "Shift" },
-        { TORIRSK_CTRL, HK_CTRL_TEXT }, { TORIRSK_ALT, "Alt" },       { TORIRSK_TAB, "Tab" },
+        { TORIRSK_CTRL, "Ctrl" },      { TORIRSK_ALT, "Alt" },        { TORIRSK_TAB, "Tab" },
         { TORIRSK_SPACE, "Space" },    { TORIRSK_LEFT, "Left" },      { TORIRSK_RIGHT, "Right" },
         { TORIRSK_UP, "Up" },          { TORIRSK_DOWN, "Down" },      { TORIRSK_PAGE_UP, "PgUp" },
         { TORIRSK_PAGE_DOWN, "PgDn" }, { TORIRSK_COMMA, "," },        { TORIRSK_PERIOD, "." },
@@ -757,8 +840,26 @@ hk_key_display(
         { TORIRSK_GRAVE, "`" },        { TORIRSK_SLASH, "/" },        { TORIRSK_BACKSLASH, "\\" },
         { TORIRSK_HOME, "Home" },      { TORIRSK_END, "End" },
     };
+    /* The keyboard's own symbols, where the keycap's face has them. */
+    static const struct
+    {
+        int key;
+        const char* text;
+    } k_glyphs[] = {
+        { TORIRSK_UP, "\xe2\x86\x91" },        { TORIRSK_DOWN, "\xe2\x86\x93" },
+        { TORIRSK_LEFT, "\xe2\x86\x90" },      { TORIRSK_RIGHT, "\xe2\x86\x92" },
+        { TORIRSK_RETURN, "\xe2\x86\xb5" },    { TORIRSK_DELETE, "\xe2\x8c\xa6" },
+        { TORIRSK_BACKSPACE, "\xe2\x8c\xab" }, { TORIRSK_TAB, "\xe2\x87\xa5" },
+    };
     const char* name;
 
+    if( glyphs )
+        for( size_t i = 0; i < sizeof(k_glyphs) / sizeof(k_glyphs[0]); i++ )
+            if( k_glyphs[i].key == key )
+            {
+                snprintf(out, (size_t)out_size, "%s", k_glyphs[i].text);
+                return;
+            }
     for( size_t i = 0; i < sizeof(k_names) / sizeof(k_names[0]); i++ )
         if( k_names[i].key == key )
         {
@@ -774,8 +875,10 @@ hk_key_display(
 }
 
 void
-Editor_ChordDisplay(
+Editor_ChordSpell(
     struct Editor_Chord chord,
+    int apple,
+    int glyphs,
     char* out,
     int out_size)
 {
@@ -786,9 +889,81 @@ Editor_ChordDisplay(
     out[0] = '\0';
     if( chord.key == TORIRSK_UNKNOWN )
         return;
-    hk_key_display(chord.key, key, (int)sizeof(key));
-    snprintf(out, (size_t)out_size, "%s%s%s%s", (chord.mods & EDITOR_HK_MOD_CTRL) ? HK_CTRL_TEXT "+" : "",
+    hk_key_display(chord.key, glyphs, key, (int)sizeof(key));
+    /* A modifier alone (Fly faster on Shift) is its key's name. */
+    if( apple && chord.key == TORIRSK_CTRL )
+        snprintf(key, sizeof(key), "%s", glyphs ? "\xe2\x8c\x98" : "Cmd");
+    else if( glyphs && apple && chord.key == TORIRSK_SHIFT )
+        snprintf(key, sizeof(key), "%s", "\xe2\x87\xa7");
+    else if( glyphs && apple && chord.key == TORIRSK_ALT )
+        snprintf(key, sizeof(key), "%s", "\xe2\x8c\xa5");
+    if( apple && glyphs )
+    {
+        /* The Mac's order, run together: Option, Shift, Command. */
+        snprintf(out, (size_t)out_size, "%s%s%s%s", (chord.mods & EDITOR_HK_MOD_ALT) ? "\xe2\x8c\xa5" : "",
+            (chord.mods & EDITOR_HK_MOD_SHIFT) ? "\xe2\x87\xa7" : "",
+            (chord.mods & EDITOR_HK_MOD_CTRL) ? "\xe2\x8c\x98" : "", key);
+        return;
+    }
+    snprintf(out, (size_t)out_size, "%s%s%s%s",
+        (chord.mods & EDITOR_HK_MOD_CTRL) ? (apple ? "Cmd+" : "Ctrl+") : "",
         (chord.mods & EDITOR_HK_MOD_SHIFT) ? "Shift+" : "", (chord.mods & EDITOR_HK_MOD_ALT) ? "Alt+" : "", key);
+}
+
+void
+Editor_ChordDisplay(
+    struct Editor_Chord chord,
+    char* out,
+    int out_size)
+{
+    Editor_ChordSpell(chord, EDITOR_HK_APPLE, EDITOR_HK_SMALL_FACE_GLYPHS, out, out_size);
+}
+
+/* The chords the 6.8 moves retired, kept as the second default for one
+ * release (the doc's Level table says so). */
+static const struct
+{
+    enum Editor_HotkeyAction action;
+    const char* chord;
+} k_retired[] = {
+    { EDITOR_HK_LEVEL_PIN0, "ctrl+0" },
+    { EDITOR_HK_LEVEL_ABOVE, "ctrl+5" },
+};
+
+int
+Editor_HotkeyRetiredNote(
+    const struct Editor_Hotkeys* hk,
+    enum Editor_HotkeyAction action,
+    struct Editor_Chord chord,
+    char* out,
+    int out_size)
+{
+    assert(hk);
+    assert((int)action >= 0);
+    assert(action < EDITOR_HK_COUNT);
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    for( size_t i = 0; i < sizeof(k_retired) / sizeof(k_retired[0]); i++ )
+    {
+        struct Editor_Chord old;
+        char old_text[32];
+        char now_text[32];
+        int const ok = Editor_ChordParse(k_retired[i].chord, &old);
+        assert(ok);
+        (void)ok;
+        if( k_retired[i].action != action || old.key != chord.key || old.mods != chord.mods )
+            continue;
+        Editor_ChordDisplay(old, old_text, (int)sizeof(old_text));
+        Editor_ChordDisplay(hk->bind[action].chord[0], now_text, (int)sizeof(now_text));
+        /* Rebound onto the old chord itself: it is the user's now. */
+        if( hk->bind[action].chord[0].key == old.key && hk->bind[action].chord[0].mods == old.mods )
+            return 0;
+        snprintf(out, (size_t)out_size, "editor: %s is the old chord of %s: %s from now on; the old one goes next release",
+            old_text, k_actions[action].name, now_text[0] ? now_text : "unbound");
+        return 1;
+    }
+    return 0;
 }
 
 void
@@ -1148,6 +1323,8 @@ Editor_HotkeyContextsFrom(const struct Editor_HotkeyContextFacts* facts)
     }
     if( facts->rect_valid )
         contexts |= EDITOR_HK_CTX_R;
+    if( facts->graph_focus )
+        contexts |= EDITOR_HK_CTX_Q;
     return contexts;
 }
 

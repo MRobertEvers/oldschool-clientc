@@ -69,8 +69,12 @@
 /** The Squares picker has focus (its well holds the keyboard; workbench
  *  6.4). Never set by Editor_HotkeyContextsFrom: the panel resolves it. */
 #define EDITOR_HK_CTX_K (1u << 8)
-#define EDITOR_HK_CTX_COUNT 9
-#define EDITOR_HK_CTX_ALL 0x1ffu
+/** A GRAPH well (the builders' dialogue graph) holds the chrome's keyboard
+ *  focus (workbench 6.8: Ctrl+L lays the graph out). Overlaps every context
+ *  but K. */
+#define EDITOR_HK_CTX_Q (1u << 9)
+#define EDITOR_HK_CTX_COUNT 10
+#define EDITOR_HK_CTX_ALL 0x3ffu
 
 /** Modifier bits of a chord. */
 #define EDITOR_HK_MOD_CTRL 1u
@@ -280,8 +284,34 @@ enum Editor_HotkeyAction
     EDITOR_HK_VIEW_TEXT_LARGE,
     EDITOR_HK_VIEW_TEXT_BITMAP,
     EDITOR_HK_VIEW_TEXT_SMOOTH,
+    /** Workspaces (workbench 6.8, design section 3 "Workspaces"): Build,
+     *  Terrain, Script, Playtest, in Editor_UiWorkspace order (editor_ui.h
+     *  asserts it); Ctrl+1..4 since the level pins moved to Alt. */
+    EDITOR_HK_VIEW_WORKSPACE_BUILD,
+    EDITOR_HK_VIEW_WORKSPACE_TERRAIN,
+    EDITOR_HK_VIEW_WORKSPACE_SCRIPT,
+    EDITOR_HK_VIEW_WORKSPACE_PLAYTEST,
+    /** The command palette (module "cmdpalette", Ctrl+K). */
+    EDITOR_HK_VIEW_COMMAND_PALETTE,
+    /** The World HUD's layer toggles (design section 4): Locs, NPCs, Objs,
+     *  Collision, Grid on Alt+L/N/O/C/G. RESERVED: the HUD is not built in
+     *  this tree, so they say so in the status bar and claim their chords so
+     *  nothing else takes them. */
+    EDITOR_HK_VIEW_LAYER_LOCS,
+    EDITOR_HK_VIEW_LAYER_NPCS,
+    EDITOR_HK_VIEW_LAYER_OBJS,
+    EDITOR_HK_VIEW_LAYER_COLLISION,
+    EDITOR_HK_VIEW_LAYER_GRID,
+    /* Scene (design section 12): save the scene and a scratch lane are the
+     * File group's (EDITOR_HK_FILE_SAVE_SCENE, EDITOR_HK_FILE_SCRATCH_LANE,
+     * workbench 6.5). */
+    /* Graph (context Q): lay the focused dialogue graph out. */
+    EDITOR_HK_GRAPH_AUTO_LAYOUT,
     EDITOR_HK_COUNT
 };
+
+/** The workspace actions, in order. */
+#define EDITOR_HK_WORKSPACES (EDITOR_HK_VIEW_WORKSPACE_PLAYTEST - EDITOR_HK_VIEW_WORKSPACE_BUILD + 1)
 
 /** Chords one action may carry. */
 #define EDITOR_HK_CHORDS 2
@@ -351,9 +381,18 @@ Editor_HotkeyFind(const char* id);
 int
 Editor_HotkeyForPanel(const char* panel);
 
-/** "G", "W", "L, S", "no loc": the context mask as the panel prints it. */
+/** "G", "W", "L, S", "no loc": the context mask as the panel prints it
+ *  (the panel's long spelling). */
 void
 Editor_HotkeyContextText(
+    unsigned contexts,
+    char* out,
+    int out_size);
+
+/** The context mask as the letters the doc's tables use ("G", "L, S",
+ *  "N"): the Hotkeys panel's narrow context column. */
+void
+Editor_HotkeyContextLetters(
     unsigned contexts,
     char* out,
     int out_size);
@@ -381,6 +420,21 @@ Editor_HotkeysSet(
     enum Editor_HotkeyAction action,
     const struct Editor_Chord* chords,
     int count);
+
+/**
+ * The Hotkeys panel's capture of ONE cell (workbench 6.8: two capture cells
+ * per row): slot `slot` (0 or 1) of `action` becomes `chord` and the other
+ * slot is kept; `chord.key` 0 unbinds that slot alone (Backspace). A first
+ * slot left empty beside a second chord takes it (the table never holds a
+ * second chord without a first). A chord equal to the other slot's leaves
+ * one copy. Stamped now; bumps the serial.
+ */
+void
+Editor_HotkeysSetSlot(
+    struct Editor_Hotkeys* hk,
+    enum Editor_HotkeyAction action,
+    int slot,
+    struct Editor_Chord chord);
 
 /** Same chords as the default (order included). */
 int
@@ -444,6 +498,36 @@ Editor_ChordDisplay(
     char* out,
     int out_size);
 
+/**
+ * The keycap spelling (design section 15 "Chord spelling"): with `apple`,
+ * the modifiers as the symbols a Mac keyboard shows (Ctrl as Command "⌘",
+ * Shift "⇧", Alt "⌥", run together: "⌘⇧Z"); elsewhere the words
+ * ("Ctrl+Shift+Z"). With `glyphs` (the face the keycap is drawn in carries
+ * the symbols) the keys too: the arrows "↑ ↓ ← →", Return "↵", Delete "⌦",
+ * Backspace "⌫", Tab "⇥"; without, their words, and on Apple the
+ * modifiers' words as well ("Cmd+Shift+Z"), so nothing is drawn as a box.
+ * Editor_ChordDisplay is this with the build's own answers
+ * (EDITOR_HK_APPLE, EDITOR_HK_SMALL_FACE_GLYPHS). UTF-8.
+ */
+void
+Editor_ChordSpell(
+    struct Editor_Chord chord,
+    int apple,
+    int glyphs,
+    char* out,
+    int out_size);
+
+/** Whether the chrome's Small face (the keycaps' face) carries the symbol
+ *  glyphs. 0: the face is the cache's p11 (94 ASCII glyphs), and adding the
+ *  symbols is a bake from the cache (tools/fontbake_atlas.py), which this
+ *  tree cannot run without one; the keycaps keep the words. */
+#define EDITOR_HK_SMALL_FACE_GLYPHS 0
+#if defined(__APPLE__)
+#define EDITOR_HK_APPLE 1
+#else
+#define EDITOR_HK_APPLE 0
+#endif
+
 /** Every chord of `action` for a hint, ", "-separated; "" when unbound. */
 void
 Editor_HotkeyDisplay(
@@ -466,6 +550,25 @@ Editor_HotkeysJoin(
     const struct Editor_Hotkeys* hk,
     const int* actions,
     int count,
+    char* out,
+    int out_size);
+
+/**
+ * A RETIRED chord (workbench 6.8, design section 15 "Resolved collisions"):
+ * the level pins moved from Ctrl+0..5 to Alt+0..5 and Ctrl+1..4 became the
+ * workspaces; Pin level 0's Ctrl+0 and Show above's Ctrl+5, which nothing
+ * took, stay as each one's second default for one release. When `chord` is
+ * one of those and `action` fired on it, `out` gets the console line that
+ * says so ("Ctrl+0 is the old chord of Pin level 0: Alt+0 from now on; the
+ * old one goes next release") and 1 is returned; 0 for any other chord.
+ * The chord now in the action's first slot is the one named, so a rebind is
+ * followed.
+ */
+int
+Editor_HotkeyRetiredNote(
+    const struct Editor_Hotkeys* hk,
+    enum Editor_HotkeyAction action,
+    struct Editor_Chord chord,
     char* out,
     int out_size);
 
@@ -562,6 +665,8 @@ struct Editor_HotkeyContextFacts
     int loc_pick;
     /** The Rect tool holds a rectangle. */
     int rect_valid;
+    /** The chrome's keyboard focus is a GRAPH well (context Q). */
+    int graph_focus;
 };
 
 /** The EDITOR_HK_CTX_* mask `facts` make live (G always): the rules at the

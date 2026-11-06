@@ -224,3 +224,85 @@ cw_test_vlist_cells(void)
         "a plain list has no cells");
     (void)ToriRSChrome_TakeActivated(&g_cw_ui);
 }
+
+/*
+ * Workbench 6.8's cells: a "-" sprite field draws no picture well (the name
+ * starts where the well would), the sixth field "!" draws the name, the dim
+ * part and the keycap captions in the alert ink (the Hotkeys panel's clash),
+ * and a WIDE list's keycap column is half the row, so two whole chords fit
+ * where the Catalog's 96 px column cuts the second to "+1".
+ */
+void
+cw_test_vlist_cells_marks(void)
+{
+    struct ToriRSChromeCmd const* cmd;
+    struct ToriRSChromePrim const* prims;
+    int panel;
+    int wide;
+    int narrow;
+    int n = 0;
+    int wells = 0;
+    int alert_name = 0;
+    int alert_key = 0;
+    int plain_name = 0;
+    int wide_caps = 0;
+    int narrow_more = 0;
+    int name_x_well = -1;
+    int name_x_bare = -1;
+
+    cw_reset();
+    panel = ToriRSChrome_PanelAdd(&g_cw_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 420, "Hotkeys");
+    wide = ToriRSChrome_VListCellsWide(&g_cw_ui, panel, "", 4, 4);
+    narrow = ToriRSChrome_VListCells(&g_cw_ui, panel, "", 2, 2);
+    CW_CHECK(wide >= 0 && narrow >= 0, "a wide cells list is a VLIST");
+    ToriRSChrome_VListSetRow(&g_cw_ui, wide, 0,
+        "-" TORIRS_CHROME_CELL_SEP_STR "Redo" TORIRS_CHROME_CELL_SEP_STR "Edit" TORIRS_CHROME_CELL_SEP_STR
+        "Ctrl+Shift+Z Ctrl+Y" TORIRS_CHROME_CELL_SEP_STR TORIRS_CHROME_CELL_SEP_STR "!");
+    ToriRSChrome_VListSetRow(&g_cw_ui, wide, 1,
+        "-" TORIRS_CHROME_CELL_SEP_STR "Undo" TORIRS_CHROME_CELL_SEP_STR "Edit" TORIRS_CHROME_CELL_SEP_STR
+        "Ctrl+Z -");
+    ToriRSChrome_VListSetRow(&g_cw_ui, wide, 2,
+        TORIRS_CHROME_CELL_SEP_STR "Welled" TORIRS_CHROME_CELL_SEP_STR TORIRS_CHROME_CELL_SEP_STR "Q");
+    ToriRSChrome_VListSetRow(&g_cw_ui, narrow, 0,
+        "-" TORIRS_CHROME_CELL_SEP_STR "Redo" TORIRS_CHROME_CELL_SEP_STR TORIRS_CHROME_CELL_SEP_STR
+        "Ctrl+Shift+Z Ctrl+Shift+Y");
+    cw_run();
+    cmd = cw_find(TORIRS_CHROME_CMD_WIDGET_ADD, wide);
+    CW_CHECK(cmd && cmd->w == (TORIRS_CHROME_VLIST_CELLS | TORIRS_CHROME_VLIST_CELLS_WIDE),
+        "WIDGET_ADD says the list is cells and wide");
+    cmd = cw_find(TORIRS_CHROME_CMD_WIDGET_ADD, narrow);
+    CW_CHECK(cmd && cmd->w == TORIRS_CHROME_VLIST_CELLS, "a plain cells list's add says cells alone");
+
+    (void)ToriRSChrome_Build(&g_cw_ui);
+    prims = ToriRSChrome_Prims(&g_cw_ui, &n);
+    for( int i = 0; i < n; i++ )
+    {
+        struct ToriRSChromePrim const* p = &prims[i];
+        if( p->kind == TORIRS_CHROME_PRIM_RECT && p->w == 16 && p->h == 16 && p->filled )
+            wells++;
+        if( p->kind != TORIRS_CHROME_PRIM_TEXT || !p->text )
+            continue;
+        if( strcmp(p->text, "Redo") == 0 && p->color == TORIRS_CHROME_CELL_MARK_INK )
+            alert_name++;
+        if( strcmp(p->text, "Undo") == 0 && p->color == g_cw_ui.theme.text )
+        {
+            plain_name++;
+            name_x_bare = p->x;
+        }
+        if( strcmp(p->text, "Welled") == 0 )
+            name_x_well = p->x;
+        if( strcmp(p->text, "Ctrl+Y") == 0 && p->color == TORIRS_CHROME_CELL_MARK_INK )
+            alert_key++;
+        if( strcmp(p->text, "Ctrl+Shift+Z") == 0 || strcmp(p->text, "Ctrl+Y") == 0 || strcmp(p->text, "-") == 0 )
+            wide_caps++;
+        if( strcmp(p->text, "+1") == 0 )
+            narrow_more++;
+    }
+    CW_CHECK(wells == 1, "only the row without \"-\" draws a picture well");
+    CW_CHECK(name_x_bare >= 0 && name_x_well > name_x_bare, "a row with no well starts its name where the well was");
+    CW_CHECK(alert_name == 1, "the \"!\" row's name is in the alert ink");
+    CW_CHECK(alert_key == 1, "and so are its keycaps' captions");
+    CW_CHECK(plain_name == 1, "a row with no mark keeps the text ink");
+    CW_CHECK(wide_caps >= 4, "the wide column holds both chords of each row whole");
+    CW_CHECK(narrow_more == 1, "the 96 px column cuts the second long chord to +1");
+}

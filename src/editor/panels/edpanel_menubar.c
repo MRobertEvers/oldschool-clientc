@@ -24,6 +24,12 @@
  * follows them back -- a level pinned by a key, the terrain panel or another
  * window (STATE_EDIT_LEVEL) presses here on the next tick, and the World
  * panel's title names it ("World - level 2").
+ *
+ * Last, the WORKSPACE chips (workbench 6.8, design section 3): Build,
+ * Terrain, Script, Playtest, the current one pressed, each a hotkey action
+ * (Ctrl+1..4) whose tooltip names its chord. They follow the row: the
+ * MENUBAR lays its items out left to right, so they sit after the Level row
+ * rather than against the bar's right end.
  */
 
 #include "edpanel_common.h"
@@ -85,6 +91,13 @@ static const enum Editor_HotkeyAction k_level_actions[MENUBAR_LEVEL_BUTTONS] = {
     EDITOR_HK_LEVEL_AUTO, EDITOR_HK_LEVEL_PIN0, EDITOR_HK_LEVEL_PIN1, EDITOR_HK_LEVEL_PIN2, EDITOR_HK_LEVEL_PIN3,
 };
 
+static const char* const k_workspace_tips[EDITOR_UI_WORKSPACES] = {
+    "Build: placing locs and spawns (the default layout)",
+    "Terrain: heights, colours, shapes, flags",
+    "Script: records, triggers, builders",
+    "Playtest: RUN, live, accounts",
+};
+
 struct MenuBarPanel
 {
     int panel;
@@ -123,6 +136,10 @@ struct MenuBarPanel
     int label_level;
     int level_buttons[MENUBAR_LEVEL_BUTTONS];
     int button_above;
+    /** The workspace chips, and the workspace they last pressed (-1 never). */
+    int label_workspace;
+    int workspace_buttons[EDITOR_UI_WORKSPACES];
+    int shown_workspace;
     /** What the row and the World title were last set from; -2 = never. */
     int shown_level;
     int shown_vis;
@@ -301,6 +318,12 @@ menubar_hints(
         edp_hotkey_tip(ui, EDITOR_HK_LEVEL_ABOVE, "Pinned: also draw the levels above", tip, (int)sizeof(tip));
         ToriRSChrome_SetTooltip(ui->chrome, self->button_above, tip);
     }
+    for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
+    {
+        char tip[TORIRS_CHROME_LABEL_MAX];
+        edp_hotkey_tip(ui, EDITOR_HK_VIEW_WORKSPACE_BUILD + w, k_workspace_tips[w], tip, (int)sizeof(tip));
+        ToriRSChrome_SetTooltip(ui->chrome, self->workspace_buttons[w], tip);
+    }
     self->hint_serial = ui->hotkeys.serial;
 }
 
@@ -361,6 +384,12 @@ menubar_tick(
             edp_level_follow_vis(self->shown_level, ui->tools.vis_level, ui->tools.edit_level);
     if( self->shown_level != ui->tools.edit_level || self->shown_vis != ui->tools.vis_level )
         menubar_level_show(ui, self);
+    if( self->shown_workspace != ui->workspace )
+    {
+        for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
+            ToriRSChrome_SetChecked(ui->chrome, self->workspace_buttons[w], w == ui->workspace);
+        self->shown_workspace = ui->workspace;
+    }
     /* The bar spans whatever the screen is now. */
     if( ui->chrome->panels[self->panel].fixed_w != width )
         ToriRSChrome_PanelSetFixedWidth(ui->chrome, self->panel, width);
@@ -388,6 +417,12 @@ menubar_activate(
         menubar_level_show(ui, self);
         return 1;
     }
+    for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
+        if( widget == self->workspace_buttons[w] )
+        {
+            (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_WORKSPACE_BUILD + w);
+            return 1;
+        }
     if( widget != self->menu_file && widget != self->menu_edit && widget != self->menu_view )
         return 0;
     row = ToriRSChrome_DropdownSelected(ui->chrome, widget);
@@ -465,6 +500,10 @@ Editor_MenuBar_Register(struct EditorUi* ui)
     for( int i = 0; i < MENUBAR_LEVEL_BUTTONS; i++ )
         self->level_buttons[i] = ToriRSChrome_MenuItem(ui->chrome, self->panel, k_level_buttons[i]);
     self->button_above = ToriRSChrome_MenuItem(ui->chrome, self->panel, "Above");
+    self->label_workspace = ToriRSChrome_Label(ui->chrome, self->panel, "   Workspace");
+    for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
+        self->workspace_buttons[w] = ToriRSChrome_MenuItem(ui->chrome, self->panel, Editor_UiWorkspaceTitle(w));
+    self->shown_workspace = -1;
     menubar_hints(ui, self);
     self->shown_level = -2;
     self->shown_vis = -2;

@@ -66,7 +66,9 @@ it, or a Find that matched a square, gives it; Escape in the well, or a click
 elsewhere, takes it away). K excludes every other context, G included: while the well holds the
 keyboard it is a field, nothing else resolves, and its keys are the K rows
 alone (the Squares panel reads them from the table, so a rebind relabels and
-re-routes them).
+re-routes them) ·
+**Q** a GRAPH well (the builders' dialogue graph) holds the keyboard focus
+(workbench 6.8: Ctrl+L lays it out there; Ctrl+L is free everywhere else).
 
 ### File
 | Action | Chord | Ctx |
@@ -170,9 +172,17 @@ The pointer (workbench 6.3, design section 7):
 | Action | Chord | Ctx |
 |---|---|---|
 | Level down / up | PageDown / PageUp | G |
-| Pin level 0..3 (again: Auto) | Ctrl+0 .. Ctrl+3 | G |
-| Level Auto | Ctrl+4 | G |
-| Show above on/off | Ctrl+5 | G |
+| Pin level 0..3 (again: Auto) | Alt+0 .. Alt+3 (Pin level 0 also Ctrl+0, for one release) | G |
+| Level Auto | Alt+4 | G |
+| Show above on/off | Alt+5 (also Ctrl+5, for one release) | G |
+
+Workbench 6.8 moved the level pins from Ctrl+0..5 to Alt+0..5 (design
+section 15, "Resolved collisions"): Ctrl+1..4 are the workspaces now. The two
+old chords nothing took, Ctrl+0 and Ctrl+5, stay as the second chord of Pin
+level 0 and Show above for one release, and the console says so each time
+they fire ("editor: Ctrl+0 is the old chord of Pin level 0: Alt+0 from now
+on; the old one goes next release"). Ctrl+1, Ctrl+2, Ctrl+3 and Ctrl+4 could
+not stay as aliases: they would clash with the workspaces in G.
 
 ### Catalog palette
 | Action | Chord | Ctx |
@@ -267,6 +277,48 @@ own keys, not the table's).
 | Text size: Large (the Menu face, 22 px rows) | unbound | G |
 | Text rendering: the pixel font at 100, 200 and 300 %, smooth between | unbound | G |
 | Text rendering: the smooth vector face at every scale | unbound | G |
+| Workspace: Build (placing locs and spawns; the default) | Ctrl+1 | G |
+| Workspace: Terrain (heights, colours, shapes, flags) | Ctrl+2 | G |
+| Workspace: Script (records, triggers, builders) | Ctrl+3 | G |
+| Workspace: Playtest (RUN, live, accounts) | Ctrl+4 | G |
+| Command palette (actions, panels, squares, records, accounts) | Ctrl+K | G |
+| World layer Locs on/off (reserved) | Alt+L | G |
+| World layer NPCs on/off (reserved) | Alt+N | G |
+| World layer Objs on/off (reserved) | Alt+O | G |
+| World layer Collision on/off (reserved) | Alt+C | G |
+| World layer Grid on/off (reserved) | Alt+G | G |
+
+The five layer toggles are the World HUD's (design section 4), which this
+tree does not have yet: the chords are claimed so nothing else takes them,
+and pressing one says so in the status bar.
+
+**Workspaces** (design section 3): four named layouts, switched with Ctrl+1 to
+Ctrl+4, the chips at the right end of the menu bar, or the command palette.
+A workspace is the panels it shows, where they sit and which tab of each
+group is in front. Build is the editor's default set; Terrain shows Terrain
+and Palette (Terrain in front), Squares and the Inspector; Script shows
+Record, Triggers, the Loc and NPC builders and the Shell editor; Playtest
+shows Live and Accounts; the Console strip stays in all four. A panel the
+design names that this build has not got (Vars, Problems, Dialogue preview,
+Scenes, Encounter, Live log) is skipped with a console line. Switching saves
+the workspace you leave first, so coming back finds it as you left it; the
+layout file keeps each one in its own `[workspace <name>]` section. View >
+Reset layout resets the workspace you are in.
+
+**The command palette** (Ctrl+K, module `cmdpalette`): one search over the
+actions (each with its chord in the right column), the panels, the squares
+the picker knows, the catalog's records (`loc:`, `npc:`, `obj:` narrow to one
+kind) and the lane's accounts. The arrows move, Tab goes to the next group,
+Enter runs the row, Escape closes it. A group shows at most 100 rows and says
+how many more there are ("and 212 more").
+
+### Graph
+| Action | Chord | Ctx |
+|---|---|---|
+| Lay the focused dialogue graph out | Ctrl+L | Q |
+
+The graph's auto-layout is workbench 6.6's; until it is in the tree the chord
+says so in the status bar.
 
 Every other panel the View menu lists (Record, New, builders, Live, Accounts,
 Scenes, Encounters, the Shop builder, the Quest board, ...) is an action too, unbound by default. The Chrome scale and Text size rows
@@ -280,10 +332,20 @@ browser; rebind them there.
 
 ## The Hotkeys panel (F1)
 
-One row per action: group, name, context, chord. A search box filters by any
-of them. Clicking a row's chord enters capture ("press a chord... Esc cancels,
-Backspace unbinds"); the next chord pressed binds, a clash in the same context
-is shown in red on both rows. "Reset to defaults" restores the table above.
+A list of every action: its name, its group and context (dimmed), chord 1 and
+chord 2 as two keycap cells ("-" for an empty slot), and the gesture (the
+trackpad or touch gesture that does the same, from the table's gesture
+spelling). The summary above it reads "161 actions, 2 rebound, 0 conflicts
+(161 shown)". A search box filters by any column; under it, a **Group** and a
+**Context** dropdown, and the **changed** (only what differs from the
+defaults) and **conflicts** (only clashing rows) chips, a lit chip's x
+turning it off. **Sort** chips order the list by group (the tables' order),
+action, context, chord 1, chord 2 or gesture (a second press reverses it; an
+empty cell sorts last either way). Clicking a chord cell captures the next
+chord into THAT slot alone (the cell says "press..."), keeping the other;
+Backspace unbinds that slot; Esc cancels. A clash with an action in a context
+that can be live at once turns both rows red. Hovering a row names the action
+and its id, or what it clashes with. **Reset all** restores the table above.
 Rebinds take effect at once: the menu rows, the keycaps and badges, the tool
 tips and the status bar's hints re-label on the next frame.
 
@@ -305,7 +367,8 @@ tables (the Hotkeys panel calls them by the name after the id):
 - **Level**: `level.down` Level down, `level.up` Level up, `level.pin0` Pin level 0, `level.pin1` Pin level 1, `level.pin2` Pin level 2, `level.pin3` Pin level 3, `level.auto` Level Auto, `level.above` Show above
 - **Camera**: `camera.forward` Fly forward, `camera.back` Fly back, `camera.left` Fly left, `camera.right` Fly right, `camera.down` Fly down, `camera.up` Fly up, `camera.fast` Fly faster, `camera.turn_left` Turn left, `camera.turn_right` Turn right, `camera.tilt_up` Tilt up, `camera.tilt_down` Tilt down, `camera.frame` Frame the selection, `camera.frame_square` Frame the square's centre
 - **Picker**: `picker.north` Focus north, `picker.south` Focus south, `picker.west` Focus west, `picker.east` Focus east, `picker.open` Open the focused square, `picker.add` Add the focused square, `picker.back` Previous open square, `picker.clear_find` Clear Find
-- **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.catalog_palette` Catalog palette, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC builder, `view.shelleditor` Shell editor, `view.iface` Interface editor, `view.cs2` CS2, `view.live` Live, `view.accounts` Accounts, `view.triggers` Triggers, `view.scenes` Scenes, `view.encounter` Encounters, `view.shop` Shop builder, `view.quest` Quest board, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel, `view.scale_auto` Chrome scale Auto, `view.scale_100` Chrome scale 100 %, `view.scale_125` Chrome scale 125 %, `view.scale_150` Chrome scale 150 %, `view.scale_175` Chrome scale 175 %, `view.scale_200` Chrome scale 200 %, `view.scale_250` Chrome scale 250 %, `view.scale_300` Chrome scale 300 %, `view.text_normal` Text size Normal, `view.text_large` Text size Large, `view.text_bitmap` Text rendering bitmap, `view.text_smooth` Text rendering smooth
+- **Graph**: `graph.auto_layout` Auto-layout the graph
+- **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.catalog_palette` Catalog palette, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC builder, `view.shelleditor` Shell editor, `view.iface` Interface editor, `view.cs2` CS2, `view.live` Live, `view.accounts` Accounts, `view.triggers` Triggers, `view.scenes` Scenes, `view.encounter` Encounters, `view.shop` Shop builder, `view.quest` Quest board, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel, `view.scale_auto` Chrome scale Auto, `view.scale_100` Chrome scale 100 %, `view.scale_125` Chrome scale 125 %, `view.scale_150` Chrome scale 150 %, `view.scale_175` Chrome scale 175 %, `view.scale_200` Chrome scale 200 %, `view.scale_250` Chrome scale 250 %, `view.scale_300` Chrome scale 300 %, `view.text_normal` Text size Normal, `view.text_large` Text size Large, `view.text_bitmap` Text rendering bitmap, `view.text_smooth` Text rendering smooth, `view.workspace_build` Workspace Build, `view.workspace_terrain` Workspace Terrain, `view.workspace_script` Workspace Script, `view.workspace_playtest` Workspace Playtest, `view.command_palette` Command palette, `view.layer_locs` Layer Locs (reserved), `view.layer_npcs` Layer NPCs (reserved), `view.layer_objs` Layer Objs (reserved), `view.layer_collision` Layer Collision (reserved), `view.layer_grid` Layer Grid (reserved)
 
 Example:
 
@@ -317,11 +380,11 @@ Example:
 
 ## Where the build differs from the plan above
 
-- **Rebinding from the panel binds ONE chord.** A capture replaces every chord
-  of the action with the one pressed (Redo, Delete selection then have one);
-  the second chord comes back with "Reset to defaults", or can be stated in
-  the file (`edit.redo = ctrl+shift+z, ctrl+y`). Capturing a second slot would
-  need a second click target per row the TREE rows do not have.
+- **Capture binds the clicked slot** (workbench 6.8; before, a capture
+  replaced both chords). Unbinding the first slot of an action that has two
+  moves the second up: the table never holds a second chord without a first.
+- **Sorting is by chips**, not by clicking a column header: the list's header
+  row is drawn, not pressed.
 - **Claims follow the context.** A chord is withheld from `[debug:hotkeys]`
   only while it is bound in a LIVE context, as the rules say; so Ctrl+A is
   claimed over the World panel only and Ctrl+D only while a loc or spawn
@@ -371,8 +434,12 @@ Example:
 - **A Spawns selection behind a tab** of its group is still the keys': Del,
   Ctrl+D and the strip act on it while Catalog, Locs or the Inspector is in
   front. Closing the Spawns tab takes it from them.
-- **Chord spelling** is the word form ("Ctrl+Shift+Z", "Del"): the chrome's
-  Small face has no ⌃ ⇧ ⌥ glyphs yet.
+- **Chord spelling** is the word form ("Ctrl+Shift+Z", "Del"; "Cmd" for
+  Ctrl on Apple): the chrome's Small face is the cache's p11, with no ⌘ ⇧ ⌥
+  or arrow glyphs, and adding them is a bake from the cache this tree's
+  build machine does not have. The symbol spelling is written
+  (`Editor_ChordSpell`: "⌥⇧⌘Z" on Apple, the arrows, ↵ ⌦ ⌫ ⇥) and waits for
+  the face (`EDITOR_HK_SMALL_FACE_GLYPHS`).
 - **Check and Run** (Triggers panel, docs/MAPED_STATUS.md row 7d) are File
   rows too. Check compiles the scripts ON DISK (the user edits them in their
   own editor; unsaved script documents are not in it) and runs synchronously:
