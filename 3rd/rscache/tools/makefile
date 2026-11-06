@@ -34,6 +34,17 @@ CFLAGS     += -D_GNU_SOURCE
 DEP_CFLAGS += -D_GNU_SOURCE
 endif
 
+# The linker writes cachepack.exe on Windows. A rule named for `cachepack`
+# finds no such file, relinks on every make, and under the editor's RUN
+# (src/maped/live-editor.mk, -j2) relinks while the other branch runs it,
+# which Windows refuses ("cannot open output file"). The targets the src
+# makefile runs carry the suffix it names them by (CACHEPACK_BIN, CS2_BIN).
+ifeq ($(OS),Windows_NT)
+EXE := .exe
+else
+EXE :=
+endif
+
 # Header dependency tracking. Without it a stale object keeps the struct layout
 # it was compiled against while the rest of the build moves on, and every field
 # past the changed one is read at the wrong offset — which reads as a decoder
@@ -212,9 +223,9 @@ $(TOOLS)/map_port/map_port: $(TOOLS)/map_port/main.c $(COMMON_OBJS) $(LIB_OBJS)
 $(TOOLS)/packfile/packfile: $(PACKFILE_SRCS)
 	$(CC) $(CFLAGS) -I$(TOOLS)/port_lostcity -o $@ $^
 
-cachepack: $(TOOLS)/cachepack/cachepack
+cachepack: $(TOOLS)/cachepack/cachepack$(EXE)
 
-$(TOOLS)/cachepack/cachepack: $(CACHEPACK_SRCS) $(COMMON_OBJS) $(LIB_OBJS)
+$(TOOLS)/cachepack/cachepack$(EXE): $(CACHEPACK_SRCS) $(COMMON_OBJS) $(LIB_OBJS)
 	$(CC) $(CFLAGS) -I$(TOOLS)/cachepack -I$(TOOLS)/port_lostcity -o $@ $^ -lm -lpthread
 
 clean:
@@ -225,9 +236,9 @@ clean:
 
 # cs2 — the CS2 decompiler/compiler front end. Links the library only; the
 # language layer lives inside the unity TU.
-cs2: $(TOOLS)/cs2/cs2
+cs2: $(TOOLS)/cs2/cs2$(EXE)
 
-$(TOOLS)/cs2/cs2: $(TOOLS)/cs2/main.c $(COMMON_OBJS) $(LIB_OBJS)
+$(TOOLS)/cs2/cs2$(EXE): $(TOOLS)/cs2/main.c $(COMMON_OBJS) $(LIB_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ -lm -lpthread
 
 # poser-gl — the animation editor. SDL2 + OpenGL 3.3 core.

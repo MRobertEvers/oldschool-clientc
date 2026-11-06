@@ -633,20 +633,39 @@ ctl_conn_free(struct CtlConn* c)
     ToriMem_Free(ToriMem_ServerNet(), c);
 }
 
-#if defined(_WIN32) || defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__)
 int
 ToriRSServer_ControlAdopt(
     int fd,
     int gated)
 {
-    /* No descriptor to keep: winsock sockets cannot be dup()ed, and a browser
-     * server accepts no TCP. Not a link on these lanes. */
+    /* A browser server accepts no TCP: not a link on this lane. */
     (void)fd;
     (void)gated;
     fprintf(stderr, "torirsserver: control link refused: not supported on this platform\n");
     return 0;
 }
 #else
+/** A second descriptor for the connection `fd`, so the connection layer's
+ *  close of its own ends nothing: dup() on POSIX; on Windows, where a socket
+ *  cannot be dup()ed, WSADuplicateSocket into this same process, which winsock
+ *  reference-counts the same way. -1 when it cannot be made. */
+static int
+ctl_dup_socket(int fd)
+{
+#if defined(_WIN32)
+    WSAPROTOCOL_INFOA info;
+    SOCKET copy;
+
+    if( WSADuplicateSocketA((SOCKET)fd, GetCurrentProcessId(), &info) != 0 )
+        return -1;
+    copy = WSASocketA(FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, &info, 0, 0);
+    return copy == INVALID_SOCKET ? -1 : (int)copy;
+#else
+    return dup(fd);
+#endif
+}
+
 static int
 ctl_peer_is_loopback(int fd)
 {
@@ -699,10 +718,10 @@ ToriRSServer_ControlAdopt(
         fprintf(stderr, "torirsserver: control link refused: %d already open\n", CTL_CONN_MAX);
         return 0;
     }
-    mine = dup(fd);
+    mine = ctl_dup_socket(fd);
     if( mine < 0 )
     {
-        perror("torirsserver: control link: dup");
+        fprintf(stderr, "torirsserver: control link: cannot keep the connection's socket\n");
         return 0;
     }
     sock_set_nonblocking(mine);
@@ -741,7 +760,7 @@ ctl_listen_now_ms(void)
     return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
-#if defined(_WIN32) || defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__)
 int
 ToriRSServer_ControlListenOpen(int port)
 {
