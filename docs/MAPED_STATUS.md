@@ -4798,6 +4798,287 @@ check-tree-walks, check-app-boundary. Not run, as before: the content and
 cache members, builder_test's shell sweep and compile section, and any real
 `maped-script-check` / `maped-cs2-compile` run.
 
+## Windows run (2026-11-06)
+
+The first run of the workbench on a real machine with the content tree and
+the dat2 cache: Windows 11 Pro (26200), 2560x1080 at 100 %, a precision
+touchpad and no touchscreen, OSRS-Content at 426eb88 checked out by Git for
+Windows (core.autocrlf=true, so the tree is CRLF), the win64 lane
+(`build_windows.ps1 -Opt`, MinGW-w64 GCC 16.1, D3D9). Photographs are in
+`build/photos/` (not committed; `w*.png` the editor, `p*.png` the play
+client, `v*.png` a popped-out window).
+
+### The owner's direction
+
+The editor must run on modern Linux, macOS, Windows (x86_64) and the web,
+through the platform layers the repository already has, not beside them. On
+this branch the editor server called POSIX directly behind a
+TORIRSMAPED_JOBS_NATIVE that meant "not Windows", so on Windows it compiled
+to "not available": RUN, BUILD, Check, the live link, the play client, Pop
+out and the torirsmaped daemon. It now uses:
+
+- **Processes**: `LaunchSessions_Spawner` (platform/launch_sessions.h:
+  posix_spawn on Linux and macOS, CreateProcess in a job object on Windows),
+  handed in by the host (`ToriRSMapEd_SetSpawner`, `Builder_SscSetSpawner`,
+  `EditorCs2_SetSpawner`). A test or the web that sets none binds no native
+  runner, as before.
+- **Sockets**: the game server's pattern (torirsserver/torirs_server_host.c):
+  winsock beside BSD sockets in the same file, a socket an int either way.
+- **Files**: MoveFileEx(REPLACE_EXISTING) for an atomic replace, as
+  platform_x_io.c and the server's savefile already did.
+- The web is unchanged: a page is a client of the daemon.
+
+### What was found, and fixed
+
+Each was found by running the editor or a RUN, reproduced, fixed at the
+cause, and is in the commit named.
+
+- **The win64 lane did not compile** (torirs_maped_build.c: `build_read_whole`
+  behind the POSIX-only guard). e77a6895e.
+- **The editor disabled itself at boot**: a lane is symbolic links, which an
+  ordinary Windows account may not make (Developer Mode off), so the
+  working lane came up empty. The mirror now falls back to a directory
+  junction and a hard link; lstat reads a junction, and a file with more than
+  one link, as a link, so the changes scan is unchanged. The hard-link
+  difference: a publish that replaces a base file leaves other lanes' links
+  on the old bytes. 8595b7956.
+- **Every save of an existing file failed** (rename onto an existing target,
+  which Win32 refuses): the host's document and square saves, the accounts
+  file, the build's map list, the lane's file copies. 8595b7956.
+- **A save rewrote every line of a CRLF file**: a one-tile brush on
+  m50_50.jm2 went from 121244 bytes CRLF to 115020 LF. The host now reads
+  CRLF as LF and writes CRLF back when the file it replaces is CRLF; the same
+  brush is a 39-line change of the same size. This holds on every platform
+  (a tree copied from a Windows checkout is CRLF anywhere). 0c04ddbf2.
+- **A dead editor's lock left every later session read-only on Windows**
+  (`lock_pid_alive` answered "alive" for every pid). 0c04ddbf2.
+- **The lane's live dir was 'C:\repo/C:/repo/build/lanes/working/live'**: a
+  drive-letter path was read as relative. 233820ecd.
+- **RUN's build died in the Python step** ('The handle is invalid'): the
+  Windows spawner gave children a NULL stdin. e241b09f5.
+- **cachepack relinked on every make** (its rule named no .exe) and, under
+  RUN's -j2, while the other branch was running it. 0c495d046.
+- **build_packs.py could not start sscompile** (a relative '/' path,
+  WinError 2), **sscompile overflowed Windows' 1 MB stack** (0xC00000FD),
+  and **a '\'-separated --src made the base pack take the lanes' scripts**
+  (100 units failed). 0c495d046.
+- **The lane's game server refused the control link** ("not supported on
+  this platform": winsock cannot dup()); it keeps a WSADuplicateSocket copy.
+  0c495d046.
+- **Pop out answered 'unsupported'**: the launch service refused every verb on
+  Windows because the party link is not ported; only the party verbs need it.
+  e241b09f5.
+- **The eight job-object slots were never freed** (a long-lived editor
+  server would stop spawning at its ninth build). e241b09f5.
+- **The Lanes panel's three tooltips were cut at 63 bytes** (the console said
+  so at every boot); shortened. 266e13351.
+- **The Stamps panel was open at every boot**, floating over the World:
+  Editor_UiSetVisible shows every titled panel and Stamps had no set_visible
+  hook to keep itself closed (Record, Triggers, Lanes have one). Found with a
+  headless probe of the chords test's boot; editor_chords_test now checks it,
+  and editor_workbench_test's three registry digests, recorded with Stamps
+  open since 6.3 part 2, were recorded again (Linux and Windows agree).
+  266e13351.
+- **"Open in editor" (Triggers, Record) answered unsupported on Windows.** It
+  now runs the template through cmd.exe, detached: `{path}` is "..." there,
+  and the default without VS Code is `start "" {path}`. 1fa728e75.
+- **`make` recipes and Windows**: GNU make on Windows runs a line with no shell
+  metacharacter itself, so `! grep ...` (records.mk) was "file not found";
+  written as `if ...; then exit 1; fi`. d72684cd6.
+- **Windows displays above 100 %**: the backend was not DPI aware, so Windows
+  stretched the finished frame and every glyph blurred, whatever the vector
+  face did. It is now per-monitor DPI aware (looked up at run time; the XP
+  lane unchanged): the window opens at points x DPI, the density reports the
+  monitor's scale, WM_DPICHANGED takes Windows' suggested size. Not seen at
+  125-175 % here (see below). c597cf202.
+- **Every object rebuilt on every make, on Windows**: tools/objverify.py split
+  a .d at its first colon, which on Windows is the drive's (`C:/.../x.o:`), so
+  each object was its own missing prerequisite and was deleted. The tools'
+  cachepack then read as a new binary each run and the incremental client
+  pack repacked every type (test-cp-incremental, "all reused"). c404d7d6e.
+- **The CS2 compile saw no obj/npc/loc names on Windows** (the names
+  directory's RuneStar links were POSIX-only; a link, a hard link, else a
+  copy now), and **the checked-in cs2.exe predated the osrs241 profile**
+  ("Unknown revision profile"). 5ab706f2f.
+- **Prebuilt binaries were checked in**: 127 build outputs (the rscache tools,
+  tests, benchmarks, servers), mostly macOS arm64 builds. On any other OS a
+  checkout restores a wrong-format file stamped newer than its objects, so
+  make never relinks it: Linux ran a Mach-O cachepack ("Exec format error"),
+  Windows the stale cs2.exe. Untracked and ignored (the vendored third-party
+  DLLs, the JDK installer and blobs/ stay); test-iface-editor, the one rule
+  that ran cs2 without building it, builds it. 10d8e48d9, 4e137c76a.
+- **editor_panels_test had never passed with content**: 94 failures and a
+  glibc abort on Linux, 99 on Windows, at the pushed tip. Two editor bugs
+  under most of them: **Problems opened as a floating window with every
+  editor show**, over the World panel's title bar (its Pop out and drag
+  landed on Problems; it now opens on demand, as Stamps), and **the default
+  layout hid the square picker at 1280x800** (its least height counted the
+  detail pane that folds, and the well's least left it 31 px over the 758 px
+  column under Terrain and Palette; the folding rows count with the well and
+  the well's least is 88). The rest were checks behind deliberate changes
+  (the Area dropdown's lane rows, Publish titled Lanes, Check as a BUILD
+  job), the picker checks' assumptions about a tall well, and a `realpath`
+  into 2048 bytes that glibc's fortify aborts. 4f577f8f2.
+- **A killed play client read "exited (status -1)"**: the spawner port lost
+  the signal (the live code's contract is minus the signal). 76b66da0a.
+- **cfg-copy (Copy to new) crashed the editor server** in any tree with no
+  `ported/` lanes: the allocator sorted a NULL lane list with qsort, whose
+  base is declared nonnull, and under LTO GCC dropped the NULL test in the
+  inlined ToriMem_Free after it (a crash at -O3, fine at -O0; found with an
+  ASan build of the daemon). The same shape in editor_vars.c. And **make
+  never relinked torirsmaped**: the target shares its name with the sources'
+  directory, so the daemon test ran whatever server was built last; phony
+  now. 5df2288ec.
+
+### What now runs on Windows, seen in the window
+
+- Boot: the working lane mirrors (the first time, while the window waits:
+  about three minutes for ~150 k links here), the world renders, the catalog
+  indexes (63,307 locs), every panel group draws.
+- F1 (Hotkeys, 167 actions, 0 conflicts), the brush tools (Raise r2 with its
+  footprint), Ctrl+S, the picker's Find "3222 3218" (pins the tile, Enter
+  opens it), the Squares atlas.
+- RUN (Ctrl+Return): save, the packs (base and lanes script packs, the
+  server pack) and the client cache, then the lane's torirsserver and
+  js5_server launched, the control link opened, the play client logged in as
+  maped43620 and in the world. A second RUN after a brush edit: "reload: 1
+  square(s) current, 1 player(s) owed a REBUILD; client cache: 1 archive(s)
+  invalidated, 1 send(s)", in the same play client, no relog.
+- Pop out (the Catalog group): a view process on the loopback listener,
+  "a popped-out catalog panel of Client 1", the whole catalog in its window.
+- torirsserver, torirsmaped and torirsmapedctl build; Linux still builds the
+  same sources (checked in a WSL clone).
+
+### Open, from this run
+
+- **Display scales 125-175 %** were not tried: this machine's display is at
+  100 %, and changing the Windows display setting is not something this
+  session does. View > Chrome scale works in-app; the OS-scale pass is the
+  owner's.
+- **A floating panel draws under a docked group's title bar and tab strip**
+  (the Hotkeys panel over the Console group: its rows behind the strip are
+  hidden). The chrome draws, and hit-tests, panels in array order, and a
+  group's frame is created at layout time, after the floating panel. A fix
+  is one z-order list shared by Build and the eight reverse hit-test walks
+  in uitree_debug_overlay.c (and the web executor), with a raise on open and
+  on press.
+- **The first lane mirror blocks the window** for minutes on Windows (hard
+  links one at a time, the UI thread).
+- **The game server's party link** (ToriRSServer_EmbedPartyListen) is still
+  POSIX-only; only the launch service's party verbs refuse.
+- **An empty environment variable cannot be set on Windows** (the C runtime
+  removes a variable set to ""), so the "set but empty = off" convention
+  (TORIRS_EDITOR_PREFS, TORIRS_EDITOR_LAYOUT, TORIRSMAPED_LIVE_DIR, ...)
+  cannot be spelled there; such a variable reads as unset.
+- **The test suites on Windows**: below.
+
+### Built from the "What is open" lists
+
+- **The Record panel's Triggers and Shell lists have a Find box** (6.6): one
+  input over whichever list shows, case-insensitive over the row's text (a
+  trigger's kind, subject, file; a slot's value or child), with a shown-row
+  map so Open in editor still opens the trigger picked.
+- **The Record panel's "Find in world" and "Copy to new..."** (6.6): in its
+  header on every tab, on the open record. Find makes the record the pick
+  (Editor_Catalog_PickRecord) and runs the Catalog's Find in world, leaving
+  the tool as it was; Copy is Editor_Catalog_CopyRecord to New name.
+  editor_records_panels_test covers both and the Find (140 checks). 762031b25.
+
+### The path painter (the owner's request, 2026-11-06)
+
+"A terrain painter tool that helps paint paths ... dirt paths (irregular
+shapes) and more straight pavement like paths ... put the overlay shape so it
+doesn't look jagged."
+
+**What the content's paths are.** Every surface square's level 0 was read
+and the overlays ranked by how path-like they are (many tiles whose short
+run is 1..6 tiles across with a long run well past it); the water overlays
+lead (rivers are paths too), then the browns (jm2 ids 14, 22, 26, 80, 106:
+dirt tracks) and the greys (10, Lumbridge's stone road). Rendered top-down
+with the client's own tile geometry (each shape's overlay faces from
+world_decode_tile.c, rotated as the client rotates them), the road is two to
+three tiles across, its bends made of half diagonals, the 1:2 slopes (shapes
+2-5) and fans; a trail is under a tile across, half squares and diagonals.
+About a third of a track's tiles are edge shapes; every shape but 11 (the
+trapezium) is used on them, the half diagonal most.
+
+**The planner** (src/editor/editor_path.{h,c}, no document access): the
+path is a region in continuous tile space -- a centreline and a width --
+and every tile it touches is sampled on an 8 x 8 grid and given the overlay
+shape and rotation whose coverage matches best (or left bare). Then a few
+passes let each tile change to the shape that both covers it and carries its
+neighbours' edges on (the sample rows along each shared side compared,
+weighted 2.5 against coverage, chosen by eye: whole tiles stop sticking out
+of a sloping edge, and a heavier weight starts to spike edges out). A tile
+that already holds the overlay is joined: its coverage and the new coverage
+are fitted together, so a second stroke or a fork meets the first with no
+seam.
+
+- **Dirt**: the drag's tiles, corner-cut three times (Chaikin) into a curve,
+  resampled every quarter tile; the centre drifts sideways and each side's
+  half width breathes on its own (seeded two-octave value noise along the
+  arc, Roughness 0-100 %); every shape 0-10.
+- **Pavement**: the drag's corners (Douglas-Peucker, one tile), each leg
+  turned to the nearest 45 degrees and stepped in whole tiles from a start
+  whose edges sit on whole tiles across the first leg; a diagonal leg's width
+  rounded so its edges run corner to corner; bends mitred; the ends square to
+  the far edge of the tiles clicked. Only shapes 0, 1, 6, 7, 8: a straight
+  road is whole rows (a half width ends in a row of half squares), a
+  diagonal one half diagonals round whole tiles.
+
+**The tool**: Paint path (`tool.paint_path`, H, on the rail). The drag
+collects the tiles crossed (a jump between frames is filled in); the overlay
+previews the plan (edge tiles stronger); release lays it with the palette's
+overlay as one undo step; Escape drops it. The Terrain panel shows its
+section while it is armed, in the brush's place: dirt / pavement, Width in
+half tiles (`[` `]` step it), Roughness, New edges (another seed; each laid
+path also moves the seed on). Tiles in squares not open are left out and
+counted in the status line.
+
+Tests: editor_path_test (`make -C src test-editor-path`, 249 checks: every
+shape's coverage and its turn, each style's shapes fit themselves, pavement's
+3-wide / 2-wide / 1.5-wide / diagonal roads and a mitred bend, a dirt track
+continuous with a third of its tiles edge shapes, seeded, a one-wide trail,
+the same stroke again changing nothing and a fork taking nothing from the
+track; `PATH_PLANS=<file>` writes the plans out). By hand on m50_50: the
+road's overlay picked with I, H, a drag from the road to the river: "Path:
+35 tiles laid, dirt 2.0 wide", joined to the road without a seam, one
+Ctrl+Z restoring all 35 tiles.
+
+### The test suites
+
+`make -C src test-editor` on Windows (win64, OPT=1) and on Linux (a WSL clone
+of the same commit, gcc 15). The editor tests now build on Windows:
+
+- Every editor test binary links `$(MAPED_TEST_LDFLAGS)` (src/makefile):
+  ws2_32 and a 256 MB stack on Windows, nothing elsewhere. The suites run
+  with `ulimit -s unlimited` on Linux; Windows' 1 MB overflowed
+  editor_panels_accounts and editor_panels_palette (0xC00000FD).
+- The tests that read the tree, a Python oracle's output or the repository's
+  goldens directly and compare bytes with the editor's emit read through
+  editor/test/editor_test_text.h, the host's own CRLF rule: the content tree,
+  the oracles' text-mode files and this checkout's goldens are all CRLF on a
+  Windows checkout. editor_jm2_test went from 5898 of 5898 files failing to
+  none; editor_if_test, editor_alloc_test, editor_shop_test, builder_test's
+  goldens likewise.
+- The tests that drive the editor server's native runner, sscompile or the
+  CS2 compiler hand them the system spawner, as the hosts do.
+- lanes_test asks the lanes code whether an entry is a link
+  (ToriRSMapEdLanes_IsLink): a hard link or a junction is one on Windows.
+- **POSIX harnesses, named skipped on Windows**: test-accounts,
+  test-live-editor, test-live-panel, test-editor-views,
+  test-torirsmaped-daemon and test-maped-script-check start /bin/sh scripts
+  as fake programs (the client, the game server, sscompile) and fork()
+  daemons; Windows cannot start a script as a program. They run on Linux
+  (results below); on Windows the paths they cover -- RUN, the live link,
+  the play client, Pop out, the daemon -- were run by hand above.
+- **Results**: Windows, every member passes but those six (60 passing
+  members, test_win_full3); Linux, every member passes (65, with the two DOM
+  tests run on the Windows node through WSL interop, as WSL here has none).
+  At the pushed tip before this run, Linux failed editor_panels (an abort),
+  the daemon's cfg-copy (8), live-editor (1), cp-incremental, iface-editor
+  and the embed test's link.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.
