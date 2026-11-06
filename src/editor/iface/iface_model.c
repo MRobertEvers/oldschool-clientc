@@ -8,6 +8,13 @@
 #include <sys/stat.h>
 #if defined(_WIN32)
 #include <direct.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 #endif
 #if !defined(_WIN32)
 #include <unistd.h>
@@ -595,6 +602,25 @@ EditorCs2Catalog_Free(struct EditorCs2Catalog* catalog)
     memset(catalog, 0, sizeof(*catalog));
 }
 
+/** `path` made to read as the RuneStar table `target`: a symbolic link; on
+ *  Windows, where an account without Developer Mode may not make one, a hard
+ *  link, else a copy (the table is only read). 1 on success. */
+static int
+names_link(
+    const char* target,
+    const char* path)
+{
+#if defined(_WIN32)
+    if( CreateSymbolicLinkA(path, target, SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE) )
+        return 1;
+    if( CreateHardLinkA(path, target, NULL) )
+        return 1;
+    return CopyFileA(target, path, FALSE) != 0;
+#else
+    return symlink(target, path) == 0;
+#endif
+}
+
 int
 EditorCs2Catalog_WriteNamesDir(
     const struct EditorCs2Catalog* catalog,
@@ -607,10 +633,6 @@ EditorCs2Catalog_WriteNamesDir(
     assert(catalog);
     assert(out_dir);
 
-#if defined(_WIN32)
-    if( mkdir(out_dir) != 0 && errno != EEXIST )
-        return 0;
-#else
     if( mkdir(out_dir, 0755) != 0 && errno != EEXIST )
         return 0;
     if( runestar_dir && runestar_dir[0] )
@@ -628,8 +650,8 @@ EditorCs2Catalog_WriteNamesDir(
                 continue;
             snprintf(target, sizeof(target), "%s/%s", runestar_dir, entry->d_name);
             snprintf(path, sizeof(path), "%s/%s", out_dir, entry->d_name);
-            unlink(path);
-            if( symlink(target, path) != 0 )
+            remove(path);
+            if( !names_link(target, path) )
             {
                 closedir(dir);
                 return 0;
@@ -638,7 +660,6 @@ EditorCs2Catalog_WriteNamesDir(
         if( dir )
             closedir(dir);
     }
-#endif
     snprintf(path, sizeof(path), "%s/script-names.tsv", out_dir);
     f = fopen(path, "wb");
     if( !f )
