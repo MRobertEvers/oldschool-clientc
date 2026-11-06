@@ -54,6 +54,7 @@
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
 
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,6 +139,12 @@ struct RecordPanel
     int button_set;
     int button_remove;
     int row_hint;
+    /* The record's own actions, on every tab. */
+    int button_find_world;
+    int input_copy_name;
+    int button_copy;
+    /* Triggers and Shell: one Find over whichever list shows. */
+    int input_list_find;
     /* Triggers */
     int list_triggers;
     int button_trigger_open;
@@ -218,9 +225,18 @@ struct RecordPanel
     /* Triggers */
     struct Editor_ScriptRef triggers[RECORD_TRIGGERS_MAX];
     int trigger_count;
+    /** The triggers the Find leaves, as indices into `triggers`: row r of the
+     *  list is triggers[trigger_shown[r]]. */
+    int trigger_shown[RECORD_TRIGGERS_MAX];
+    int trigger_shown_count;
     /* Shell */
     struct Builder_Shell* shell;
     int is_shell;
+    /** The slots the Find leaves, as indices into shell->slots. */
+    int shell_shown[BUILDER_SHELL_SLOTS_MAX];
+    int shell_shown_count;
+    /** The Find text the Triggers / Shell rows were last built from. */
+    char list_find[TORIRS_CHROME_INPUT_MAX];
     /* Where used */
     struct RecordUse* uses;
     int use_count;
@@ -656,6 +672,8 @@ record_layout(
     ToriRSChrome_SetHidden(chrome, self->button_remove, !fields);
     ToriRSChrome_SetHidden(chrome, self->row_hint, !fields);
 
+    ToriRSChrome_SetHidden(chrome, self->input_list_find,
+        role != EDITOR_RECORD_TAB_TRIGGERS && role != EDITOR_RECORD_TAB_SHELL);
     ToriRSChrome_SetHidden(chrome, self->list_triggers, role != EDITOR_RECORD_TAB_TRIGGERS);
     ToriRSChrome_SetHidden(chrome, self->button_trigger_open, role != EDITOR_RECORD_TAB_TRIGGERS);
     ToriRSChrome_SetHidden(chrome, self->button_check, role != EDITOR_RECORD_TAB_TRIGGERS);
@@ -1020,7 +1038,96 @@ record_step(
     ToriRSChrome_SetText(ui->chrome, self->input_value, out);
 }
 
+/* ---- the record's actions --------------------------------------------------------------- */
+
+/** Find in world for the open record: the Catalog's (every placement of the
+ *  loc in the open squares, selected, the camera on the first), with the
+ *  record made the pick first. The pick would arm the Place tool; Find
+ *  selects, so the tool is left as it was. */
+static void
+record_find_in_world(
+    struct EditorUi* ui,
+    struct RecordPanel* self)
+{
+    enum Editor_Tool const tool = ui->tools.tool;
+
+    if( !self->open )
+    {
+        Editor_UiStatus(ui, "Find in world refused: open a record first");
+        return;
+    }
+    if( self->kind != TORIRSMAPED_CATALOG_LOC )
+    {
+        Editor_UiStatus(ui, "Find in world refused: %s:%s is not a loc (spawns are in the Spawns panel)", self->type,
+            self->name);
+        return;
+    }
+    if( !Editor_Catalog_PickRecord(ui, self->kind, self->name) )
+        return;
+    if( ui->tools.tool != tool )
+        Editor_UiSetTool(ui, tool);
+    (void)Editor_Catalog_FindInWorld(ui);
+}
+
 /* ---- Triggers, Shell, Where used ------------------------------------------------------ */
+
+/** 1 when `find` is empty or a part of `text`, ignoring ASCII case. */
+static int
+record_list_matches(
+    const char* text,
+    const char* find)
+{
+    size_t const length = strlen(find);
+
+    if( length == 0 )
+        return 1;
+    for( const char* at = text; *at; at++ )
+    {
+        size_t i = 0;
+        while( i < length && at[i] && tolower((unsigned char)at[i]) == tolower((unsigned char)find[i]) )
+            i++;
+        if( i == length )
+            return 1;
+    }
+    return 0;
+}
+
+static void
+record_trigger_row(
+    const struct Editor_ScriptRef* ref,
+    char* out,
+    size_t out_size)
+{
+    snprintf(out, out_size, "[%s,%s]  %s:%d%s", ref->kind, ref->subject, record_basename(ref->rel), ref->line,
+        ref->unsaved ? " (unsaved)" : "");
+}
+
+/** The Triggers list: the triggers the Find leaves. */
+static void
+record_triggers_show(
+    struct EditorUi* ui,
+    struct RecordPanel* self)
+{
+    const char* find = ToriRSChrome_Text(ui->chrome, self->input_list_find);
+
+    find = find ? find : "";
+    self->trigger_shown_count = 0;
+    for( int r = 0; r < self->trigger_count; r++ )
+    {
+        char row[TORIRS_CHROME_INPUT_MAX];
+        record_trigger_row(&self->triggers[r], row, sizeof(row));
+        if( record_list_matches(row, find) )
+            self->trigger_shown[self->trigger_shown_count++] = r;
+    }
+    ToriRSChrome_VListSetCount(ui->chrome, self->list_triggers, self->trigger_shown_count);
+    for( int v = 0; v < self->trigger_shown_count; v++ )
+    {
+        char row[TORIRS_CHROME_INPUT_MAX];
+        record_trigger_row(&self->triggers[self->trigger_shown[v]], row, sizeof(row));
+        ToriRSChrome_VListSetRow(ui->chrome, self->list_triggers, v, row);
+    }
+    snprintf(self->list_find, sizeof(self->list_find), "%s", find);
+}
 
 static void
 record_triggers_fill(
@@ -1030,14 +1137,50 @@ record_triggers_fill(
     self->trigger_count =
         Editor_UiPanelSelf(ui, "triggers") ? Editor_Triggers_ForSubject(ui, self->name, self->triggers, RECORD_TRIGGERS_MAX)
                                            : 0;
-    ToriRSChrome_VListSetCount(ui->chrome, self->list_triggers, self->trigger_count);
-    for( int r = 0; r < self->trigger_count; r++ )
+    record_triggers_show(ui, self);
+}
+
+static void
+record_shell_row(
+    const struct Builder_Shell* shell,
+    int slot,
+    char* out,
+    size_t out_size)
+{
+    char value[32];
+
+    Builder_ShellSlotValueLabel(shell, slot, value, sizeof(value));
+    snprintf(out, out_size, "%-12s %s", value,
+        Builder_ShellSlotHidden(&shell->slots[slot]) ? "(hidden)" : shell->slots[slot].child);
+}
+
+/** The Shell list: the slots the Find leaves (a shell can have 520 slots;
+ *  the Find matches a slot's value or its child's name). */
+static void
+record_shell_show(
+    struct EditorUi* ui,
+    struct RecordPanel* self)
+{
+    const char* find = ToriRSChrome_Text(ui->chrome, self->input_list_find);
+
+    find = find ? find : "";
+    self->shell_shown_count = 0;
+    if( self->is_shell )
+        for( int s = 0; s < self->shell->slot_count; s++ )
+        {
+            char row[TORIRS_CHROME_INPUT_MAX];
+            record_shell_row(self->shell, s, row, sizeof(row));
+            if( record_list_matches(row, find) )
+                self->shell_shown[self->shell_shown_count++] = s;
+        }
+    ToriRSChrome_VListSetCount(ui->chrome, self->list_shell, self->shell_shown_count);
+    for( int v = 0; v < self->shell_shown_count; v++ )
     {
         char row[TORIRS_CHROME_INPUT_MAX];
-        snprintf(row, sizeof(row), "[%s,%s]  %s:%d%s", self->triggers[r].kind, self->triggers[r].subject,
-            record_basename(self->triggers[r].rel), self->triggers[r].line, self->triggers[r].unsaved ? " (unsaved)" : "");
-        ToriRSChrome_VListSetRow(ui->chrome, self->list_triggers, r, row);
+        record_shell_row(self->shell, self->shell_shown[v], row, sizeof(row));
+        ToriRSChrome_VListSetRow(ui->chrome, self->list_shell, v, row);
     }
+    snprintf(self->list_find, sizeof(self->list_find), "%s", find);
 }
 
 static void
@@ -1070,16 +1213,7 @@ record_shell_fill(
             self->shell->var, self->shell->slot_count, self->shell->slot_count == 1 ? "" : "s", summary);
         ToriRSChrome_SetText(ui->chrome, self->label_shell, line);
     }
-    ToriRSChrome_VListSetCount(ui->chrome, self->list_shell, self->shell->slot_count);
-    for( int s = 0; s < self->shell->slot_count; s++ )
-    {
-        char value[32];
-        char row[TORIRS_CHROME_INPUT_MAX];
-        Builder_ShellSlotValueLabel(self->shell, s, value, sizeof(value));
-        snprintf(row, sizeof(row), "%-12s %s", value,
-            Builder_ShellSlotHidden(&self->shell->slots[s]) ? "(hidden)" : self->shell->slots[s].child);
-        ToriRSChrome_VListSetRow(ui->chrome, self->list_shell, s, row);
-    }
+    record_shell_show(ui, self);
 }
 
 static void
@@ -1300,6 +1434,17 @@ record_tick(
         }
         record_layout(ui, self);
     }
+    if( role == EDITOR_RECORD_TAB_TRIGGERS || role == EDITOR_RECORD_TAB_SHELL )
+    {
+        const char* find = ToriRSChrome_Text(ui->chrome, self->input_list_find);
+        if( strcmp(self->list_find, find ? find : "") != 0 )
+        {
+            if( role == EDITOR_RECORD_TAB_TRIGGERS )
+                record_triggers_show(ui, self);
+            else
+                record_shell_show(ui, self);
+        }
+    }
     if( role == EDITOR_RECORD_TAB_USES )
     {
         const char* find = ToriRSChrome_Text(ui->chrome, self->input_uses_find);
@@ -1399,10 +1544,27 @@ record_activate(
         (void)Editor_Triggers_Check(ui);
         return 1;
     }
+    if( widget == self->button_find_world )
+    {
+        record_find_in_world(ui, self);
+        return 1;
+    }
+    if( widget == self->button_copy )
+    {
+        const char* new_name = ToriRSChrome_Text(ui->chrome, self->input_copy_name);
+        if( !self->open )
+            Editor_UiStatus(ui, "Copy refused: open a record first");
+        else if( self->kind > TORIRSMAPED_CATALOG_OBJ )
+            Editor_UiStatus(ui, "Copy refused: only a loc, npc or obj copies (this is a %s)", self->type);
+        else
+            (void)Editor_Catalog_CopyRecord(ui, self->kind, self->name, new_name ? new_name : "");
+        return 1;
+    }
     if( widget == self->list_triggers || widget == self->button_trigger_open )
     {
-        int const r = ToriRSChrome_VListSelected(ui->chrome, self->list_triggers);
-        if( widget == self->button_trigger_open && (r < 0 || r >= self->trigger_count) )
+        int const v = ToriRSChrome_VListSelected(ui->chrome, self->list_triggers);
+        int const r = v >= 0 && v < self->trigger_shown_count ? self->trigger_shown[v] : -1;
+        if( widget == self->button_trigger_open && r < 0 )
             Editor_UiStatus(ui, "Open refused: pick a trigger first");
         else if( widget == self->button_trigger_open )
             (void)Editor_Triggers_OpenInEditor(ui, self->triggers[r].rel, self->triggers[r].line);
@@ -1494,6 +1656,11 @@ Editor_Record_Register(struct EditorUi* ui)
     assert(self->panel >= 0);
     ToriRSChrome_PanelBeginTab(chrome, self->panel, -1);
     self->row_title = ToriRSChrome_Label(chrome, self->panel, "open a record: Catalog > Edit record, or Spawns");
+    self->button_find_world = ToriRSChrome_Button(chrome, self->panel, "Find in world");
+    ToriRSChrome_SetTooltip(chrome, self->button_find_world, "Select this loc's placements in the open squares");
+    self->input_copy_name = ToriRSChrome_TextInput(chrome, self->panel, "New name", "");
+    self->button_copy = ToriRSChrome_Button(chrome, self->panel, "Copy to new...");
+    ToriRSChrome_SetTooltip(chrome, self->button_copy, "This record under New name with a fresh id: one undo step");
     self->tabs = ToriRSChrome_Tabs(chrome, self->panel, k_first_tabs, 4, 0);
     assert(self->tabs >= 0);
     /* The field tabs. */
@@ -1529,6 +1696,9 @@ Editor_Record_Register(struct EditorUi* ui)
     self->button_remove = ToriRSChrome_Button(chrome, self->panel, "Remove field");
     ToriRSChrome_SetTooltip(chrome, self->button_remove, "Take the statement out of that file: a lower one shows through");
     self->row_hint = ToriRSChrome_Label(chrome, self->panel, "");
+    /* Triggers and Shell. */
+    self->input_list_find = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_list_find, "Filter the rows: a trigger, a file, a slot value or child");
     /* Triggers. */
     self->list_triggers = ToriRSChrome_VList(chrome, self->panel, "", 8, 0);
     self->button_trigger_open = ToriRSChrome_Button(chrome, self->panel, "Open in editor");

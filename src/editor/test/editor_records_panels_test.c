@@ -258,6 +258,26 @@ widget_in(
     return -1;
 }
 
+/** The widget of `kind` labelled `label` in `module` that is not hidden: two
+ *  of a panel's widgets can share a label when only one shows at a time
+ *  (the Record panel's two Finds). -1 when none shows. */
+static int
+shown_widget(
+    const char* module,
+    int kind,
+    const char* label)
+{
+    int const panel = module_panel(module);
+    for( int i = 0; i < g_chrome.widget_count; i++ )
+    {
+        const struct ToriRSChromeWidget* w = &g_chrome.widgets[i];
+        if( w->panel == panel && w->kind == kind && !w->hidden
+            && (strcmp(w->label, label) == 0 || strcmp(w->text, label) == 0) )
+            return i;
+    }
+    return -1;
+}
+
 static void
 type_into(
     const char* module,
@@ -610,6 +630,62 @@ test_record(void)
         int const triggers = widget_in("record", TORIRS_CHROME_W_VLIST, "");
         CHECK(!hidden("record", TORIRS_CHROME_W_BUTTON, "Check"), "triggers: Check is on the Triggers tab");
         (void)triggers;
+    }
+
+    /* One Find over the Triggers and Shell lists; the fields' own Find is
+     * put away with the field editor. */
+    {
+        int const list = shown_widget("record", TORIRS_CHROME_W_VLIST, "");
+        int const find = shown_widget("record", TORIRS_CHROME_W_TEXTINPUT, "Find");
+        int const all = list >= 0 ? g_chrome.widgets[list].imax : -1;
+        CHECK(find >= 0 && all == 1, "triggers: a Find shows over goblin's one trigger (%d rows)", all);
+        if( find >= 0 && list >= 0 )
+        {
+            ToriRSChrome_SetText(&g_chrome, find, "nothing-matches");
+            frame();
+            CHECK(g_chrome.widgets[list].imax == 0, "triggers: a Find that matches nothing leaves no rows");
+            ToriRSChrome_SetText(&g_chrome, find, "GOBLIN.RS2");
+            frame();
+            CHECK(g_chrome.widgets[list].imax == 1 && vrow(list, 0) && strstr(vrow(list, 0), "[opnpc1,goblin]"),
+                "triggers: the Find ignores case and matches the file (%s)", vrow(list, 0) ? vrow(list, 0) : "-");
+            ToriRSChrome_SetText(&g_chrome, find, "");
+            frame();
+            CHECK(g_chrome.widgets[list].imax == 1, "triggers: an empty Find shows every row again");
+        }
+        Editor_Record_ShowTab(&g_ui, 0);
+        frame();
+        CHECK(shown_widget("record", TORIRS_CHROME_W_TEXTINPUT, "Find") >= 0
+                  && shown_widget("record", TORIRS_CHROME_W_TEXTINPUT, "Find") != find,
+            "fields: back on a layer, the fields' Find shows instead");
+    }
+
+    /* The header's actions, on every tab. */
+    {
+        enum Editor_Tool const tool = g_ui.tools.tool;
+        press("record", "Find in world");
+        CHECK(strstr(status(), "Find in world refused") && strstr(status(), "is not a loc"),
+            "find in world: an npc is refused, spawns are elsewhere (%s)", status());
+        type_into("record", "New name", "Goblin Two");
+        press("record", "Copy to new...");
+        CHECK(strstr(status(), "Copy refused: the new name must be [a-z0-9_]") != NULL,
+            "copy: a name that is not one is refused (%s)", status());
+        type_into("record", "New name", "goblin_copy");
+        press("record", "Copy to new...");
+        CHECK(strncmp(g_ui.tools.pick_name, "goblin_copy (", 13) == 0,
+            "copy: goblin is copied to goblin_copy with a fresh id, and picked (%s)", g_ui.tools.pick_name);
+        (void)Editor_Undo(&g_editor);
+        frame();
+
+        CHECK(Editor_Record_Open(&g_ui, TORIRSMAPED_CATALOG_LOC, "fence_gate") == 1, "record: fence_gate opens");
+        frames(2);
+        press("record", "Find in world");
+        CHECK(strncmp(status(), "Find in world", 13) == 0 && !strstr(status(), "is not a loc")
+                  && !strstr(status(), "pick a loc first") && strstr(g_ui.tools.pick_name, "fence_gate"),
+            "find in world: a loc is made the pick and looked for (%s; pick %s)", status(), g_ui.tools.pick_name);
+        CHECK(g_ui.tools.tool == tool, "find in world: the tool is left as it was");
+        /* Goblin again, as the Problems tests expect the panel. */
+        CHECK(Editor_Record_Open(&g_ui, TORIRSMAPED_CATALOG_NPC, "goblin") == 1, "record: goblin again");
+        frames(2);
     }
 }
 
