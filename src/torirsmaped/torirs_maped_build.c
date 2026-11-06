@@ -1221,7 +1221,8 @@ jobs_process_start(
 }
 
 /** 1 once `process` has ended (reaped: its pid is 0 after), with its exit
- *  status in *out_exit_code (-1 when a signal ended it); 0 while it runs. */
+ *  status in *out_exit_code (minus the signal when one ended it); 0 while it
+ *  runs. */
 static int
 jobs_process_ended(
     struct jobs_process* process,
@@ -1235,7 +1236,7 @@ jobs_process_ended(
     assert(process->pid > 0);
     if( !g_jobs_spawner->reap_child(g_jobs_spawner->context, process->pid, 0, &code, &signal_number) )
         return 0;
-    *out_exit_code = signal_number ? -1 : code;
+    *out_exit_code = signal_number ? -signal_number : code;
     process->pid = 0;
     return 1;
 }
