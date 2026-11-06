@@ -1096,10 +1096,489 @@ Editor_CfgRegisterParse(
                 else if( (size_t)(ke - kb) == 6 && memcmp(kb, "values", 6) == 0
                          && (size_t)(ve - vb) < sizeof(out[0].values) )
                     snprintf(out[current].values, sizeof(out[current].values), "%.*s", (int)(ve - vb), vb);
+                else if( (size_t)(ke - kb) == 4 && memcmp(kb, "type", 4) == 0 && (size_t)(ve - vb) < sizeof(out[0].type) )
+                    snprintf(out[current].type, sizeof(out[current].type), "%.*s", (int)(ve - vb), vb);
+                else if( (size_t)(ke - kb) == 3 && memcmp(kb, "ref", 3) == 0 && (size_t)(ve - vb) < sizeof(out[0].ref) )
+                    snprintf(out[current].ref, sizeof(out[current].ref), "%.*s", (int)(ve - vb), vb);
+                else if( (size_t)(ke - kb) == 6 && memcmp(kb, "client", 6) == 0
+                         && (size_t)(ve - vb) < sizeof(out[0].client) )
+                    snprintf(out[current].client, sizeof(out[current].client), "%.*s", (int)(ve - vb), vb);
+                else if( (size_t)(ke - kb) == 6 && memcmp(kb, "server", 6) == 0
+                         && (size_t)(ve - vb) < sizeof(out[0].server) )
+                    snprintf(out[current].server, sizeof(out[current].server), "%.*s", (int)(ve - vb), vb);
+                else if( (size_t)(ke - kb) == 5 && memcmp(kb, "param", 5) == 0
+                         && (size_t)(ve - vb) < sizeof(out[0].param) )
+                    snprintf(out[current].param, sizeof(out[current].param), "%.*s", (int)(ve - vb), vb);
             }
         }
         p = nl ? nl + 1 : end;
     }
+    return count;
+}
+
+/* ---- the register's types (workbench 6.6) ---------------------------------- */
+
+const char*
+Editor_CfgFieldKindName(int kind)
+{
+    static const char* const k_names[] = { "text", "number", "bool", "name", "enum", "param" };
+    assert(kind >= 0);
+    assert(kind <= EDITOR_CFG_FIELD_PARAM);
+    return k_names[kind];
+}
+
+int
+Editor_CfgRegisterFind(
+    const struct Editor_CfgRegisterField* fields,
+    int field_count,
+    const char* key)
+{
+    assert(fields || field_count == 0);
+    assert(key);
+    for( int i = 0; i < field_count; i++ )
+        if( strcmp(fields[i].key, key) == 0 )
+            return i;
+    return -1;
+}
+
+/** The config types a `type =` (or `ref =`) may name that the catalog
+ *  indexes as records (torirs_maped_catalog.h's config kinds). */
+static int
+cfg_config_type(const char* type)
+{
+    static const char* const k_types[] = { "loc", "npc", "obj", "seq", "spotanim", "varp", "varbit", "varc", "varn",
+        "vars", "struct", "enum", "param", "inv", "dbrow", "dbtable", "idk", "underlay", "overlay", "hitsplat",
+        "healthbar", "mapelement", "category", "model", "synth", "interface", "stat" };
+    for( size_t i = 0; i < sizeof(k_types) / sizeof(k_types[0]); i++ )
+        if( strcmp(type, k_types[i]) == 0 )
+            return 1;
+    return 0;
+}
+
+const char*
+Editor_CfgRegisterRefType(const struct Editor_CfgRegisterField* field)
+{
+    assert(field);
+    if( field->ref[0] && cfg_config_type(field->ref) )
+        return field->ref;
+    if( field->type[0] && !strchr(field->type, ',') && cfg_config_type(field->type) )
+        return field->type;
+    return "";
+}
+
+/** The band width of `server = opcode:<n>:<w>`: 1, 2, 4, or 0. */
+static int
+cfg_server_width(const char* server)
+{
+    const char* last;
+
+    if( strncmp(server, "opcode:", 7) != 0 )
+        return 0;
+    last = strrchr(server, ':');
+    if( strcmp(last, ":u1") == 0 )
+        return 1;
+    if( strcmp(last, ":u2") == 0 )
+        return 2;
+    if( strcmp(last, ":u4") == 0 )
+        return 4;
+    return 0;
+}
+
+int
+Editor_CfgRegisterValueKind(const struct Editor_CfgRegisterField* field)
+{
+    assert(field);
+    if( field->values[0] )
+        return EDITOR_CFG_FIELD_ENUM;
+    if( strcmp(field->type, "boolean") == 0 )
+        return EDITOR_CFG_FIELD_BOOL;
+    if( Editor_CfgRegisterRefType(field)[0] )
+        return EDITOR_CFG_FIELD_NAME;
+    if( strcmp(field->type, "int") == 0 || cfg_server_width(field->server) )
+        return EDITOR_CFG_FIELD_NUMBER;
+    return EDITOR_CFG_FIELD_TEXT;
+}
+
+int
+Editor_CfgRegisterRange(
+    const struct Editor_CfgRegisterField* field,
+    long long* out_min,
+    long long* out_max)
+{
+    int width;
+
+    assert(field);
+    assert(out_min);
+    assert(out_max);
+    width = cfg_server_width(field->server);
+    *out_min = 0;
+    if( width == 1 )
+        *out_max = 255;
+    else if( width == 2 )
+        *out_max = 65535;
+    else if( width == 4 )
+        *out_max = 4294967295LL;
+    else if( strcmp(field->type, "int") == 0 )
+    {
+        *out_min = -2147483648LL;
+        *out_max = 2147483647LL;
+    }
+    else
+        return 0;
+    return 1;
+}
+
+int
+Editor_CfgRegisterWords(
+    const struct Editor_CfgRegisterField* field,
+    char out[][32],
+    int max)
+{
+    const char* p;
+    int count = 0;
+
+    assert(field);
+    assert(out || max == 0);
+    p = field->values;
+    while( *p && count < max )
+    {
+        const char* b = p;
+        const char* e;
+        const char* comma = strchr(p, ',');
+        const char* colon;
+
+        e = comma ? comma : p + strlen(p);
+        p = comma ? comma + 1 : e;
+        trim_span(&b, &e);
+        colon = b < e ? memchr(b, ':', (size_t)(e - b)) : NULL;
+        if( colon )
+            e = colon;
+        trim_span(&b, &e);
+        if( b < e && (size_t)(e - b) < 32 )
+        {
+            memcpy(out[count], b, (size_t)(e - b));
+            out[count][e - b] = '\0';
+            count++;
+        }
+    }
+    return count;
+}
+
+int
+Editor_CfgRegisterClientSide(const struct Editor_CfgRegisterField* field)
+{
+    assert(field);
+    return strcmp(field->scope, "client") == 0 || strcmp(field->client, "native") == 0
+           || strncmp(field->client, "param:", 6) == 0;
+}
+
+const char*
+Editor_CfgRowIssueText(int issue)
+{
+    static const char* const k_texts[] = { "", "unknown key", "unknown param", "not a number", "out of range",
+        "not yes or no", "not one of its words" };
+    assert(issue >= 0);
+    assert(issue <= EDITOR_CFG_ISSUE_NOT_WORD);
+    return k_texts[issue];
+}
+
+/** `text` is a whole decimal integer (an optional '-'). */
+static int
+cfg_integer(
+    const char* text,
+    long long* out)
+{
+    const char* p = text;
+    long long value = 0;
+    int negative = 0;
+
+    if( *p == '-' )
+    {
+        negative = 1;
+        p++;
+    }
+    if( *p < '0' || *p > '9' )
+        return 0;
+    while( *p >= '0' && *p <= '9' )
+    {
+        if( value > 999999999999LL )
+            return 0;
+        value = value * 10 + (*p - '0');
+        p++;
+    }
+    if( *p )
+        return 0;
+    *out = negative ? -value : value;
+    return 1;
+}
+
+static int
+cfg_bool_word(const char* text)
+{
+    return strcmp(text, "yes") == 0 || strcmp(text, "no") == 0 || strcmp(text, "true") == 0
+           || strcmp(text, "false") == 0 || strcmp(text, "1") == 0 || strcmp(text, "0") == 0;
+}
+
+int
+Editor_CfgValueIssue(
+    const struct Editor_CfgRegisterField* field,
+    int kind,
+    const char* value)
+{
+    long long number;
+
+    assert(value);
+    if( kind == EDITOR_CFG_FIELD_NUMBER )
+    {
+        long long lo;
+        long long hi;
+        if( !cfg_integer(value, &number) )
+            return EDITOR_CFG_ISSUE_NOT_NUMBER;
+        if( field && Editor_CfgRegisterRange(field, &lo, &hi) && (number < lo || number > hi) )
+            return EDITOR_CFG_ISSUE_OUT_OF_RANGE;
+        return EDITOR_CFG_ISSUE_NONE;
+    }
+    if( kind == EDITOR_CFG_FIELD_BOOL )
+        return cfg_bool_word(value) ? EDITOR_CFG_ISSUE_NONE : EDITOR_CFG_ISSUE_NOT_BOOL;
+    if( kind == EDITOR_CFG_FIELD_ENUM && field )
+    {
+        char words[16][32];
+        int const count = Editor_CfgRegisterWords(field, words, 16);
+        if( cfg_integer(value, &number) )
+            return EDITOR_CFG_ISSUE_NONE;
+        for( int i = 0; i < count; i++ )
+            if( strcmp(words[i], value) == 0 )
+                return EDITOR_CFG_ISSUE_NONE;
+        return EDITOR_CFG_ISSUE_NOT_WORD;
+    }
+    return EDITOR_CFG_ISSUE_NONE;
+}
+
+/** The register field an INDEXED key (patrol2) belongs to, or -1. */
+static int
+cfg_indexed_field(
+    const struct Editor_CfgRegisterField* fields,
+    int field_count,
+    const char* key)
+{
+    size_t length = strlen(key);
+    size_t digits = 0;
+
+    while( digits < length && key[length - 1 - digits] >= '0' && key[length - 1 - digits] <= '9' )
+        digits++;
+    if( digits == 0 || digits == length )
+        return -1;
+    for( int i = 0; i < field_count; i++ )
+        if( fields[i].text_indexed && strlen(fields[i].key) == length - digits
+            && memcmp(fields[i].key, key, length - digits) == 0 )
+            return i;
+    return -1;
+}
+
+/** The register field that names param `sub`: a field of that key, or one
+ *  whose param binding (`param = p`, `client = param:p`) is `sub`. */
+static int
+cfg_param_field(
+    const struct Editor_CfgRegisterField* fields,
+    int field_count,
+    const char* sub)
+{
+    int at = Editor_CfgRegisterFind(fields, field_count, sub);
+    if( at >= 0 )
+        return at;
+    for( int i = 0; i < field_count; i++ )
+        if( strcmp(fields[i].param, sub) == 0
+            || (strncmp(fields[i].client, "param:", 6) == 0 && strcmp(fields[i].client + 6, sub) == 0) )
+            return i;
+    return -1;
+}
+
+/** A value typed by what it holds (a key the register does not list). */
+static int
+cfg_guess_kind(const char* value)
+{
+    long long number;
+
+    if( cfg_integer(value, &number) )
+        return EDITOR_CFG_FIELD_NUMBER;
+    if( strcmp(value, "yes") == 0 || strcmp(value, "no") == 0 || strcmp(value, "true") == 0
+        || strcmp(value, "false") == 0 )
+        return EDITOR_CFG_FIELD_BOOL;
+    return EDITOR_CFG_FIELD_TEXT;
+}
+
+int
+Editor_CfgRecordType(
+    struct Editor_CfgRecord* record,
+    const struct Editor_CfgRegisterField* fields,
+    int field_count,
+    const char* const* known_params,
+    int known_count)
+{
+    int issues = 0;
+
+    assert(record);
+    assert(fields || field_count == 0);
+    assert(known_params || known_count == 0);
+    for( int r = 0; r < record->row_count; r++ )
+    {
+        struct Editor_CfgRecordRow* row = &record->rows[r];
+        const struct Editor_CfgRegisterField* field;
+        int const param = row->sub[0] != '\0';
+
+        row->reg = param ? cfg_param_field(fields, field_count, row->sub)
+                         : Editor_CfgRegisterFind(fields, field_count, row->key);
+        if( row->reg < 0 && !param )
+            row->reg = cfg_indexed_field(fields, field_count, row->key);
+        field = row->reg >= 0 ? &fields[row->reg] : NULL;
+        if( field )
+            row->value_kind = (unsigned char)Editor_CfgRegisterValueKind(field);
+        else
+            row->value_kind = (unsigned char)(row->layer < 0 ? EDITOR_CFG_FIELD_TEXT : cfg_guess_kind(row->value));
+        row->kind = param ? (unsigned char)EDITOR_CFG_FIELD_PARAM : row->value_kind;
+        row->client_side = (row->layer >= 0 && record->layers[row->layer].rank == 0)
+                           || (field && Editor_CfgRegisterClientSide(field));
+        row->issue = EDITOR_CFG_ISSUE_NONE;
+        if( row->in_overlay && !field && !param )
+            row->issue = EDITOR_CFG_ISSUE_UNKNOWN_KEY;
+        else if( row->in_overlay && !field )
+        {
+            int known = 0;
+            for( int k = 0; k < known_count && !known; k++ )
+                known = strcmp(known_params[k], row->sub) == 0;
+            if( !known )
+                row->issue = EDITOR_CFG_ISSUE_UNKNOWN_PARAM;
+        }
+        else if( row->layer >= 0 && field )
+            row->issue = (unsigned char)Editor_CfgValueIssue(field, row->value_kind, row->value);
+        issues += row->issue != EDITOR_CFG_ISSUE_NONE;
+    }
+    return issues;
+}
+
+void
+Editor_CfgRecordRowName(
+    const struct Editor_CfgRecordRow* row,
+    char* out,
+    size_t out_size)
+{
+    assert(row);
+    assert(out);
+    assert(out_size > 0);
+    if( row->sub[0] )
+        snprintf(out, out_size, "param:%s", row->sub);
+    else if( row->occurrence > 0 )
+        snprintf(out, out_size, "%s#%d", row->key, row->occurrence);
+    else
+        snprintf(out, out_size, "%s", row->key);
+}
+
+/** Case-insensitive: the `length` bytes at `needle` somewhere in `hay`. */
+static int
+cfg_contains_ci(
+    const char* hay,
+    const char* needle,
+    size_t length)
+{
+    for( const char* h = hay; *h; h++ )
+    {
+        size_t i = 0;
+        while( i < length && h[i] )
+        {
+            char a = h[i];
+            char b = needle[i];
+            if( a >= 'A' && a <= 'Z' )
+                a = (char)(a - 'A' + 'a');
+            if( b >= 'A' && b <= 'Z' )
+                b = (char)(b - 'A' + 'a');
+            if( a != b )
+                break;
+            i++;
+        }
+        if( i == length )
+            return 1;
+    }
+    return 0;
+}
+
+int
+Editor_CfgRecordRowMatches(
+    const struct Editor_CfgRecord* record,
+    int row,
+    const char* query)
+{
+    const struct Editor_CfgRecordRow* r;
+    char name[EDITOR_CMD_NAME_MAX * 2];
+    const char* layer = "";
+    const char* p;
+
+    assert(record);
+    assert(row >= 0);
+    assert(row < record->row_count);
+    assert(query);
+    r = &record->rows[row];
+    Editor_CfgRecordRowName(r, name, sizeof(name));
+    if( r->layer >= 0 )
+    {
+        const char* slash = strrchr(record->layers[r->layer].label, '/');
+        layer = slash ? slash + 1 : record->layers[r->layer].label;
+    }
+    p = query;
+    for( ;; )
+    {
+        const char* b;
+        size_t length;
+
+        while( *p == ' ' || *p == '\t' )
+            p++;
+        if( !*p )
+            return 1;
+        b = p;
+        while( *p && *p != ' ' && *p != '\t' )
+            p++;
+        length = (size_t)(p - b);
+        if( !cfg_contains_ci(name, b, length) && !cfg_contains_ci(r->value, b, length)
+            && !cfg_contains_ci(layer, b, length) && !cfg_contains_ci(Editor_CfgFieldKindName(r->kind), b, length) )
+            return 0;
+    }
+}
+
+int
+Editor_CfgRecordRowChanged(
+    const struct Editor_CfgRecord* record,
+    int row,
+    const struct Editor_CfgRecord* base)
+{
+    const struct Editor_CfgRecordRow* r;
+    int at;
+
+    assert(record);
+    assert(base);
+    assert(row >= 0);
+    assert(row < record->row_count);
+    r = &record->rows[row];
+    at = Editor_CfgRecordFindRow(base, r->key, r->sub, r->occurrence);
+    if( at < 0 || base->rows[at].layer < 0 )
+        return r->layer >= 0;
+    if( r->layer < 0 )
+        return 1;
+    return strcmp(base->rows[at].value, r->value) != 0
+           || strcmp(base->layers[base->rows[at].layer].doc_key, record->layers[r->layer].doc_key) != 0;
+}
+
+int
+Editor_CfgRecordRemovedSince(
+    const struct Editor_CfgRecord* record,
+    const struct Editor_CfgRecord* base)
+{
+    int count = 0;
+
+    assert(record);
+    assert(base);
+    for( int i = 0; i < base->row_count; i++ )
+        if( base->rows[i].layer >= 0
+            && Editor_CfgRecordFindRow(record, base->rows[i].key, base->rows[i].sub, base->rows[i].occurrence) < 0 )
+            count++;
     return count;
 }
 
@@ -1330,6 +1809,7 @@ Editor_CfgRecordResolve(
                 row->occurrence = occurrence;
                 snprintf(row->value, sizeof(row->value), "%s", value);
                 row->layer = l;
+                row->in_overlay = record->layers[l].rank > 0;
             }
             else
             {
@@ -1339,6 +1819,7 @@ Editor_CfgRecordResolve(
                 if( row->layer != l )
                     row->shadowed++;
                 row->layer = l;
+                row->in_overlay |= record->layers[l].rank > 0;
             }
         }
     }
@@ -1375,6 +1856,7 @@ Editor_CfgRecordResolve(
         }
         snprintf(record->rows[at].scope, sizeof(record->rows[at].scope), "%s", field->scope);
     }
+    (void)Editor_CfgRecordType(record, fields, field_count, NULL, 0);
 }
 
 int
@@ -1426,6 +1908,45 @@ record_find_line(
         key_index++;
     }
     *out_key_index = key_index;
+    return -1;
+}
+
+int
+Editor_CfgRecordLayerStates(
+    const struct Editor_CfgRecord* record,
+    int layer,
+    int row,
+    char* out_value,
+    size_t value_size)
+{
+    const struct Editor_CfgRecordRow* r;
+    const struct Editor_CfgBlock* block;
+    int seen = 0;
+
+    assert(record);
+    assert(layer >= 0);
+    assert(layer < record->layer_count);
+    assert(row >= 0);
+    assert(row < record->row_count);
+    assert(out_value || value_size == 0);
+    r = &record->rows[row];
+    if( !record->layers[layer].present )
+        return -1;
+    block = &record->layers[layer].block;
+    for( int i = 0; i < block->line_count; i++ )
+    {
+        char k[EDITOR_CMD_NAME_MAX];
+        char s[EDITOR_CMD_NAME_MAX];
+        char v[EDITOR_CMD_VALUE_MAX];
+        if( block->lines[i].kind != EDITOR_CFG_LINE_FIELD )
+            continue;
+        record_line_parts(block, i, k, s, v);
+        if( strcmp(k, r->key) != 0 || strcmp(s, r->sub) != 0 || seen++ != r->occurrence )
+            continue;
+        if( value_size > 0 )
+            snprintf(out_value, value_size, "%s", v);
+        return i - (Editor_CfgBlockHeader(block) > 0 ? Editor_CfgBlockHeader(block) : 0);
+    }
     return -1;
 }
 

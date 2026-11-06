@@ -5851,3 +5851,421 @@ ToriRSMapEdCatalog_SquareCount(const struct ToriRSMapEdCatalog* catalog)
     assert(catalog);
     return catalog->square_count;
 }
+
+/* ------------------------------------------------------------------ */
+/* Where used (workbench 6.6)                                          */
+/* ------------------------------------------------------------------ */
+
+/* CATALOG_USES (torirs_maped_catalog.h): a search over the files the index
+ * lists, a slice per request. The index keeps no words, so this reads the
+ * files; a slice is a few milliseconds of them, and the client asks again
+ * with the cursor it was given. */
+
+struct cat_uses
+{
+    const char* name;
+    size_t name_length;
+    uint32_t kind;
+    int32_t id;
+    struct ToriRSMapEdBuf* rows;
+    uint32_t row_count;
+};
+
+/** `needle` anywhere in the `size` bytes at `hay` (memmem is not portable). */
+static int
+cat_memmem(
+    const char* hay,
+    size_t size,
+    const char* needle,
+    size_t length)
+{
+    const char* at = hay;
+    const char* end = hay + size;
+
+    if( length == 0 )
+        return 1;
+    while( at + length <= end )
+    {
+        const char* hit = memchr(at, needle[0], (size_t)(end - at));
+        if( !hit || hit + length > end )
+            return 0;
+        if( memcmp(hit, needle, length) == 0 )
+            return 1;
+        at = hit + 1;
+    }
+    return 0;
+}
+
+static int
+cat_word_char(char c)
+{
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+/** `name` as a whole word in [s, e). */
+static int
+cat_names_word(
+    const char* s,
+    const char* e,
+    const char* name,
+    size_t length)
+{
+    const char* at = s;
+
+    while( at + length <= e )
+    {
+        const char* hit = memchr(at, name[0], (size_t)(e - at));
+        if( !hit || hit + length > e )
+            return 0;
+        if( memcmp(hit, name, length) == 0 && (hit == s || !cat_word_char(hit[-1]))
+            && (hit + length == e || !cat_word_char(hit[length])) )
+            return 1;
+        at = hit + 1;
+    }
+    return 0;
+}
+
+static void
+cat_uses_row(
+    struct cat_uses* uses,
+    uint32_t use,
+    const char* path,
+    uint32_t line,
+    uint32_t count,
+    const char* text,
+    size_t text_length)
+{
+    char clip[192];
+    size_t const n = text_length < sizeof(clip) - 1 ? text_length : sizeof(clip) - 1;
+
+    memcpy(clip, text, n);
+    clip[n] = '\0';
+    ToriRSMapEd_PutU32(uses->rows, use);
+    ToriRSMapEd_PutString(uses->rows, path);
+    ToriRSMapEd_PutU32(uses->rows, line);
+    ToriRSMapEd_PutU32(uses->rows, count);
+    ToriRSMapEd_PutString(uses->rows, clip);
+    uses->row_count++;
+}
+
+/** Text files: every line naming the record as a word (an .rs2 header of it
+ *  is a TRIGGER), at most TORIRSMAPED_CATALOG_USES_PER_FILE, then one MORE. */
+static void
+cat_uses_lines(
+    struct cat_uses* uses,
+    const char* path,
+    const char* text,
+    size_t size,
+    uint32_t use)
+{
+    const char* p = text;
+    const char* end = text + size;
+    uint32_t line = 0;
+    uint32_t listed = 0;
+    uint32_t more = 0;
+
+    /* Most files never name it: one pass for the bytes first. */
+    if( !cat_memmem(text, size, uses->name, uses->name_length) )
+        return;
+    while( p < end )
+    {
+        const char* le;
+        const char* next = cat_next_line(p, end, &le);
+        const char* s = p;
+        line++;
+        p = next;
+        if( !cat_names_word(s, le, uses->name, uses->name_length) )
+            continue;
+        if( use == TORIRSMAPED_USE_CONFIG && s < le && s[0] == '[' )
+            continue; /* a block's own header: the record itself */
+        if( listed >= TORIRSMAPED_CATALOG_USES_PER_FILE )
+        {
+            more++;
+            continue;
+        }
+        cat_trim(&s, &le);
+        cat_uses_row(uses,
+            use == TORIRSMAPED_USE_SCRIPT && s < le && s[0] == '[' ? (uint32_t)TORIRSMAPED_USE_TRIGGER : use, path,
+            line, 1, s, (size_t)(le - s));
+        listed++;
+    }
+    if( more )
+        cat_uses_row(uses, TORIRSMAPED_USE_MORE, path, 0, more, "", 0);
+}
+
+/** A .spawn file: `name x z level [count]` rows of the record, per square. */
+static void
+cat_uses_spawns(
+    struct cat_uses* uses,
+    const char* path,
+    const char* text,
+    size_t size)
+{
+    int32_t keys[64];
+    uint32_t counts[64];
+    uint32_t lines[64];
+    int key_count = 0;
+    const char* p = text;
+    const char* end = text + size;
+    uint32_t line = 0;
+
+    if( !cat_memmem(text, size, uses->name, uses->name_length) )
+        return;
+    while( p < end )
+    {
+        const char* le;
+        const char* next = cat_next_line(p, end, &le);
+        const char* s = p;
+        line++;
+        p = next;
+        if( (size_t)(le - s) > uses->name_length && memcmp(s, uses->name, uses->name_length) == 0
+            && (s[uses->name_length] == ' ' || s[uses->name_length] == '\t') )
+        {
+            int x = atoi(s + uses->name_length + 1);
+            const char* z_at = s + uses->name_length + 1;
+            int32_t key;
+            int found = -1;
+            while( z_at < le && (*z_at == ' ' || *z_at == '\t') )
+                z_at++;
+            while( z_at < le && *z_at != ' ' && *z_at != '\t' )
+                z_at++;
+            key = ((x >> 6) << 8) | (atoi(z_at) >> 6);
+            for( int k = 0; k < key_count; k++ )
+                if( keys[k] == key )
+                    found = k;
+            if( found < 0 && key_count < 64 )
+            {
+                found = key_count++;
+                keys[found] = key;
+                counts[found] = 0;
+                lines[found] = line;
+            }
+            if( found >= 0 )
+                counts[found]++;
+        }
+    }
+    for( int k = 0; k < key_count; k++ )
+    {
+        char text_out[64];
+        int const n = snprintf(text_out, sizeof(text_out), "m%d_%d: %u spawn%s", keys[k] >> 8, keys[k] & 0xFF,
+            counts[k], counts[k] == 1 ? "" : "s");
+        cat_uses_row(uses, TORIRSMAPED_USE_SPAWN, path, lines[k], counts[k], text_out, (size_t)n);
+    }
+}
+
+/** A square's .jl2: `<level> <x> <z>: <loc> <shape> <rot>` rows of the loc. */
+static void
+cat_uses_placements(
+    struct cat_uses* uses,
+    const char* path,
+    const char* text,
+    size_t size)
+{
+    const char* p = text;
+    const char* end = text + size;
+    uint32_t count = 0;
+    uint32_t first = 0;
+    uint32_t line = 0;
+
+    while( p < end )
+    {
+        const char* le;
+        const char* next = cat_next_line(p, end, &le);
+        const char* colon = memchr(p, ':', (size_t)(le - p));
+        line++;
+        if( colon && p[0] >= '0' && p[0] <= '9' && atoi(colon + 1) == uses->id )
+        {
+            if( count++ == 0 )
+                first = line;
+        }
+        p = next;
+    }
+    if( count )
+    {
+        const char* base = strrchr(path, '/');
+        char text_out[96];
+        int const n = snprintf(text_out, sizeof(text_out), "%.*s: %u placement%s",
+            (int)strcspn(base ? base + 1 : path, "."), base ? base + 1 : path, count, count == 1 ? "" : "s");
+        cat_uses_row(uses, TORIRSMAPED_USE_PLACEMENT, path, first, count, text_out, (size_t)n);
+    }
+}
+
+/** editor/palettes.txt and editor/stamps/: not catalog sources, read last. */
+static void
+cat_uses_editor_files(
+    struct ToriRSMapEdCatalog* catalog,
+    struct cat_uses* uses)
+{
+    char* text;
+    size_t size = 0;
+    char slot[96];
+    int const slot_length =
+        snprintf(slot, sizeof(slot), "%s:%s", ToriRSMapEdCatalog_KindName(uses->kind), uses->name);
+
+    text = cat_read(catalog, "editor/palettes.txt", 0, 0, &size);
+    if( text && slot_length > 0 && (size_t)slot_length < sizeof(slot) )
+    {
+        const char* p = text;
+        const char* end = text + size;
+        uint32_t line = 0;
+        while( p < end )
+        {
+            const char* le;
+            const char* next = cat_next_line(p, end, &le);
+            const char* s = p;
+            line++;
+            p = next;
+            if( cat_names_word(s, le, slot, (size_t)slot_length) || (s < le && s[0] != '#'
+                && cat_memmem(s, (size_t)(le - s), slot, (size_t)slot_length)
+                && cat_names_word(s, le, uses->name, uses->name_length)) )
+            {
+                cat_trim(&s, &le);
+                cat_uses_row(uses, TORIRSMAPED_USE_PALETTE, "editor/palettes.txt", line, 1, s, (size_t)(le - s));
+            }
+        }
+    }
+    if( uses->kind != TORIRSMAPED_CATALOG_LOC || uses->id < 0 )
+        return;
+    {
+        char dir_path[CAT_PATH_MAX * 2];
+        DIR* dir;
+        struct dirent* entry;
+        snprintf(dir_path, sizeof(dir_path), "%s/editor/stamps", catalog->content_dir);
+        dir = opendir(dir_path);
+        while( dir && (entry = readdir(dir)) != NULL )
+        {
+            char rel[CAT_PATH_MAX];
+            size_t const n = strlen(entry->d_name);
+            const char* p;
+            const char* end;
+            uint32_t count = 0;
+            uint32_t first = 0;
+            uint32_t line = 0;
+
+            if( n < 7 || strcmp(entry->d_name + n - 6, ".stamp") != 0 )
+                continue;
+            snprintf(rel, sizeof(rel), "editor/stamps/%s", entry->d_name);
+            text = cat_read(catalog, rel, 0, 0, &size);
+            if( !text )
+                continue;
+            p = text;
+            end = text + size;
+            while( p < end )
+            {
+                const char* le;
+                const char* next = cat_next_line(p, end, &le);
+                int dx;
+                int dz;
+                int dlevel;
+                int loc = -1;
+                line++;
+                /* loc <dx> <dz> <dlevel> <loc> <shape> <rot> [<w>x<h>] */
+                if( le - p > 4 && memcmp(p, "loc ", 4) == 0 && sscanf(p + 4, "%d %d %d %d", &dx, &dz, &dlevel, &loc) == 4
+                    && loc == uses->id && count++ == 0 )
+                    first = line;
+                p = next;
+            }
+            if( count )
+            {
+                char text_out[96];
+                int const k = snprintf(text_out, sizeof(text_out), "stamp %.*s: %u loc%s", (int)(n - 6), entry->d_name,
+                    count, count == 1 ? "" : "s");
+                cat_uses_row(uses, TORIRSMAPED_USE_STAMP, rel, first, count, text_out, (size_t)k);
+            }
+        }
+        if( dir )
+            closedir(dir);
+    }
+}
+
+int
+ToriRSMapEdCatalog_HandleUses(
+    struct ToriRSMapEdCatalog* catalog,
+    const uint8_t* body,
+    uint32_t length,
+    struct ToriRSMapEdBuf* out)
+{
+    struct ToriRSMapEdReader reader;
+    struct ToriRSMapEdBuf rows;
+    struct cat_uses uses;
+    char name[256];
+    uint32_t kind;
+    uint32_t cursor;
+    uint32_t total;
+    uint32_t at;
+    int record;
+    double deadline;
+
+    assert(catalog);
+    assert(out);
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    kind = ToriRSMapEd_GetU32(&reader);
+    ToriRSMapEd_GetString(&reader, name, sizeof(name));
+    cursor = ToriRSMapEd_GetU32(&reader);
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+        return 0;
+
+    cat_request_index(catalog);
+    record = name[0] ? cat_record_lookup(catalog, kind, -1, name) : -1;
+    memset(&rows, 0, sizeof(rows));
+    memset(&uses, 0, sizeof(uses));
+    uses.name = name;
+    uses.name_length = strlen(name);
+    uses.kind = kind;
+    uses.id = record >= 0 ? catalog->records[record].id : -1;
+    uses.rows = &rows;
+    /* The sources, then one step for the editor's own files. */
+    total = (uint32_t)catalog->source_count + 1;
+    at = cursor < total ? cursor : total;
+    deadline = cat_now_ms() + TORIRSMAPED_CATALOG_USES_SLICE_MS;
+    while( name[0] && at < total && uses.row_count < TORIRSMAPED_CATALOG_USES_ROWS
+           && (at == cursor || cat_now_ms() < deadline) )
+    {
+        const struct cat_source* src;
+        uint32_t use = 0;
+        char* text;
+        size_t size = 0;
+
+        if( at == (uint32_t)catalog->source_count )
+        {
+            cat_uses_editor_files(catalog, &uses);
+            at++;
+            continue;
+        }
+        src = &catalog->sources[at++];
+        if( src->type == CAT_SRC_RS2 )
+            use = TORIRSMAPED_USE_SCRIPT;
+        else if( src->type == CAT_SRC_SPAWN && (kind == TORIRSMAPED_CATALOG_NPC || kind == TORIRSMAPED_CATALOG_OBJ) )
+            use = TORIRSMAPED_USE_SPAWN;
+        else if( src->type == CAT_SRC_JL2 && kind == TORIRSMAPED_CATALOG_LOC && uses.id >= 0 )
+            use = TORIRSMAPED_USE_PLACEMENT;
+        else if( src->type == CAT_SRC_IF )
+            use = TORIRSMAPED_USE_INTERFACE;
+        else if( src->type == CAT_SRC_CS2 )
+            use = TORIRSMAPED_USE_CS2;
+        else if( src->type == CAT_SRC_OVERLAY )
+            use = TORIRSMAPED_USE_CONFIG;
+        if( !use )
+            continue;
+        text = cat_read(catalog, src->path, (size_t)src->size, 0, &size);
+        if( !text )
+            continue;
+        if( use == TORIRSMAPED_USE_SPAWN )
+            cat_uses_spawns(&uses, src->path, text, size);
+        else if( use == TORIRSMAPED_USE_PLACEMENT )
+            cat_uses_placements(&uses, src->path, text, size);
+        else
+            cat_uses_lines(&uses, src->path, text, size, use);
+    }
+    ToriRSMapEd_PutU32(out, record >= 0 ? EDITOR_HOST_OK : EDITOR_HOST_ABSENT);
+    ToriRSMapEd_PutU32(out, kind);
+    ToriRSMapEd_PutString(out, name);
+    ToriRSMapEd_PutU32(out, name[0] && at < total ? at : 0);
+    ToriRSMapEd_PutU32(out, at);
+    ToriRSMapEd_PutU32(out, total);
+    ToriRSMapEd_PutU32(out, uses.row_count);
+    if( rows.data )
+        ToriRSMapEd_BufWrite(out, rows.data + rows.head, (int)ToriRSMapEd_BufAvailable(&rows));
+    ToriRSMapEd_BufFree(&rows);
+    return 1;
+}

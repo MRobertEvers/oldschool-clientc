@@ -64,6 +64,7 @@ live_log(
         size_t const take = length < room ? length : room;
         snprintf(model->log[model->log_head], EDITOR_LIVE_LOG_LINE_MAX, "%s%.*s", first ? "" : "    ", (int)take,
             at);
+        model->log_what[model->log_head] = 0;
         at += take;
         first = 0;
         model->log_head = (model->log_head + 1) % EDITOR_LIVE_LOG_LINES;
@@ -82,6 +83,17 @@ Editor_LiveLogLine(
     if( index < 0 || index >= model->log_count )
         return NULL;
     return model->log[(model->log_head - 1 - index + 2 * EDITOR_LIVE_LOG_LINES) % EDITOR_LIVE_LOG_LINES];
+}
+
+uint32_t
+Editor_LiveLogWhat(
+    const struct Editor_LiveModel* model,
+    int index)
+{
+    assert(model);
+    if( index < 0 || index >= model->log_count )
+        return 0;
+    return model->log_what[(model->log_head - 1 - index + 2 * EDITOR_LIVE_LOG_LINES) % EDITOR_LIVE_LOG_LINES];
 }
 
 int
@@ -193,6 +205,8 @@ Editor_LiveModelApply(
         model->building = 1;
         model->build_what = what;
         live_log(model, "%s", line);
+        /* One row: the line is cut to a row's width above. */
+        model->log_what[(model->log_head - 1 + EDITOR_LIVE_LOG_LINES) % EDITOR_LIVE_LOG_LINES] = what;
         return 1;
     }
     if( type == TORIRSMAPED_FACT_BUILD_DONE )
@@ -220,6 +234,8 @@ Editor_LiveModelApply(
         model->build_serial++;
         live_log(model, "build %s: %s (%u unit(s), %u archive(s))", ToriRSMapEd_BuildWhatName(what),
             status == 0 ? "ok" : "FAILED", units, archives);
+        model->log_what[(model->log_head - 1 + EDITOR_LIVE_LOG_LINES) % EDITOR_LIVE_LOG_LINES] =
+            what | EDITOR_LIVE_LOG_DONE;
         return 1;
     }
     if( type == TORIRSMAPED_FACT_RUN_DONE )
@@ -406,6 +422,21 @@ Editor_LiveEncodeBuildQuest(
     assert(ToriRSMapEd_BuildQuestValid(quest));
     ToriRSMapEd_PutU32(out, what);
     ToriRSMapEd_PutString(out, quest);
+    return TORIRSMAPED_REQ_BUILD;
+}
+
+uint32_t
+Editor_LiveEncodeBuildArg(
+    struct ToriRSMapEdBuf* out,
+    uint32_t what,
+    const char* arg)
+{
+    assert(out);
+    assert(arg);
+    assert(ToriRSMapEd_BuildWhatTakesArg(what));
+    assert(ToriRSMapEd_BuildArgValid(what, arg));
+    ToriRSMapEd_PutU32(out, what);
+    ToriRSMapEd_PutString(out, arg);
     return TORIRSMAPED_REQ_BUILD;
 }
 

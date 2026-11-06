@@ -286,6 +286,8 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                               { NULL }, "shop" },
     [EDITOR_HK_VIEW_QUEST] = { "view.quest", "View", "Quest board", "Every other panel the View menu lists", G, EDGE,
                                { NULL }, "quest" },
+    [EDITOR_HK_VIEW_PROBLEMS] = { "view.problems", "View", "Problems", "Every other panel the View menu lists", G,
+                                  EDGE, { NULL }, "problems" },
     [EDITOR_HK_VIEW_HIDE_PANELS] = { "view.hide_panels", "View", "Hide / show panels",
                                      "Hide / show every panel but World", G, EDGE, { "tab" }, NULL },
     [EDITOR_HK_VIEW_RESET_LAYOUT] = { "view.reset_layout", "View", "Reset layout", "Reset layout", G, EDGE,

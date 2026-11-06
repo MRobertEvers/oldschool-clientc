@@ -312,6 +312,9 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     Editor_Shop_Register(ui);
     Editor_Quest_Register(ui);
     Editor_History_Register(ui);
+    /* Workbench 6.6: every build's, Check's and CS2 compile's findings and
+     * the builders' lint, one list; the bottom strip's third member. */
+    Editor_Problems_Register(ui);
     /* Named areas and square collections (the AREAS document). */
     Editor_Areas_Register(ui);
     /* Encounter sets and their npcs (the ENCOUNTERS document, workbench
@@ -1218,7 +1221,7 @@ ui_default_groups(struct EditorUi* ui)
     } k_groups[] = {
         { "right-top", "Catalog / Locs / Spawns / Inspector", { "catalog", "locs", "spawns", "inspector" } },
         { "right-mid", "Terrain / Palette / Catalog palette", { "terrain", "palette", "catalog_palette", NULL } },
-        { "bottom", "Console / History", { "console", "history", NULL, NULL } },
+        { "bottom", "Console / History / Problems", { "console", "history", "problems", NULL } },
     };
 
     for( int i = 0; i < (int)(sizeof(k_groups) / sizeof(k_groups[0])); i++ )
@@ -2988,10 +2991,10 @@ static const char* const k_workspace_titles[EDITOR_UI_WORKSPACES] = { "Build", "
 /* The design table's panels per workspace, as registry module names; the
  * first listed member of a group is its front tab. Script also takes the
  * Shop builder and the Quest board (workbench 6.7: both write scripts);
- * Playtest the Scenes panel and the encounter builder (6.5, 6.7). "vars",
- * "problems", "dialogue_preview" (workbench 6.6) and "live_log" are not
- * built in this tree (the Live log is the Live panel's own list today) and
- * are skipped with a console line. */
+ * Playtest the Scenes panel and the encounter builder (6.5, 6.7); Script the
+ * Problems panel (6.6, part 1). "vars", "dialogue_preview" (workbench 6.6)
+ * and "live_log" are not built in this tree (the Live log is the Live
+ * panel's own list today) and are skipped with a console line. */
 static const char* const k_ws_terrain[] = { "terrain", "palette", "squares", "inspector", "console", "history",
     NULL };
 static const char* const k_ws_script[] = { "record", "triggers", "vars", "locbuilder", "npcbuilder",

@@ -22,9 +22,13 @@
  *              is read from disk; a document of one open here whose text
  *              differs is "edited outside", and Reload from disk splices the
  *              document to the disk's text (undoable).
- *   Check      sscompile over the scripts on disk (synchronous, like the
- *              builders' Check; unsaved documents are not in it), the
- *              Problems list with Open in editor.
+ *   Check      the editor server's BUILD check job (workbench 6.6,
+ *              torirs_maped_build.h TORIRSMAPED_BUILD_CHECK): sscompile over
+ *              the scripts on disk with every unsaved script document the
+ *              server holds written over them, on the server's pump -- the
+ *              window never waits. Its lines fill the Problems list here as
+ *              they arrive (and the Problems panel), with Open in editor;
+ *              the status says "check: ok, 0.6 s" or the first error.
  *   Run        the Live panel's RUN (Ctrl+Return).
  *
  * TORIRS_EDITOR_TRIGGERS=<subject>[,file][,check][,record][,add=<kind>[:<op
@@ -46,6 +50,7 @@
 #include "editor/editor_spawn.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
+#include "torirsmaped/torirs_maped_build.h"
 #include "torirsmaped/torirs_maped_catalog.h"
 
 #include <limits.h>
@@ -115,6 +120,9 @@ struct TriggersPanel
     int ssc_ready;
     struct Builder_SscResult* check;
     int check_valid;
+    /** Check's job in flight, and what its lines said so far. */
+    struct Editor_BuildJob check_job;
+    struct Builder_SscResult* check_stream;
 
     int run_shown;
     uint32_t hint_serial;
@@ -768,10 +776,18 @@ Editor_Triggers_ShowResult(
             for( int r = first; r < first + shown; r++ )
                 ToriRSChrome_VListSetRow(ui->chrome, self->list_diags, r, "");
     }
-    if( self->check->status == BUILDER_SSC_OK )
-        snprintf(line, sizeof(line), "Check: the scripts on disk compile (synchronous, %.1f s)", self->check->seconds);
-    else if( self->check->status == BUILDER_SSC_FAILED )
-        snprintf(line, sizeof(line), "Check: %d error(s) (synchronous, %.1f s)", errors, self->check->seconds);
+    if( self->check->status == BUILDER_SSC_OK && errors == 0 )
+        snprintf(line, sizeof(line), "check: ok, %.1f s", self->check->seconds);
+    else if( self->check->status == BUILDER_SSC_OK || self->check->status == BUILDER_SSC_FAILED )
+    {
+        /* The first error is the sentence; the rest are in the list. */
+        const struct Builder_SscDiag* first = self->check->diag_count ? &self->check->diags[0] : NULL;
+        if( first && !first->warning )
+            snprintf(line, sizeof(line), "check: %d error(s), %.1f s; first %s:%d: %s", errors, self->check->seconds,
+                first->file, first->line, first->message);
+        else
+            snprintf(line, sizeof(line), "check: %d error(s), %.1f s", errors, self->check->seconds);
+    }
     else
         snprintf(line, sizeof(line), "Check: sscompile could not run (%s)",
             self->check->status == BUILDER_SSC_UNSUPPORTED ? "not on this platform" : "no binary or stage");
@@ -783,42 +799,95 @@ int
 Editor_Triggers_Check(struct EditorUi* ui)
 {
     struct TriggersPanel* self;
-    struct Builder_SscResult* result;
+    char why[160];
     int unsaved = 0;
-    int errors = 0;
 
     assert(ui);
     self = triggers_self(ui);
     if( !self )
     {
-        Editor_UiLog(ui, "editor: this window has no Triggers panel");
+        Editor_UiStatus(ui, "Check refused: this window has no Triggers panel");
         return -1;
     }
-    if( !self->ssc_ready )
+    if( !Editor_BuildJobSend(ui, &self->check_job, TORIRSMAPED_BUILD_CHECK, NULL, why, sizeof(why)) )
     {
-        triggers_status(ui, self, "Check needs sscompile and a work dir (manifest repo_root, or TORIRS_BUILDER_*)");
-        Editor_UiLog(ui, "editor: Check: no compile paths for the Triggers panel");
-        return -1;
+        char line[TORIRS_CHROME_LABEL_MAX];
+        snprintf(line, sizeof(line), "Check refused: %s", why);
+        triggers_status(ui, self, line);
+        Editor_UiStatus(ui, "%s", line);
+        return 0;
     }
     if( ui->editor )
         for( int i = 0; i < ui->editor->doc.text_count; i++ )
             unsaved += ui->editor->doc.texts[i]->dirty && strncmp(ui->editor->doc.texts[i]->key, "rs2:", 4) == 0;
-    if( unsaved )
-        Editor_UiLog(ui, "editor: Check reads the disk: %d script document(s) with unsaved edits are not in it",
-            unsaved);
-    (void)Builder_SscStage(&self->ssc);
-    result = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*result));
-    assert(result);
-    (void)Builder_SscRun(&self->ssc, BUILDER_SSC_COMPILE, result);
-    Editor_Triggers_ShowResult(ui, result);
-    for( int i = 0; i < result->diag_count; i++ )
-        errors += !result->diags[i].warning;
+    memset(self->check_stream, 0, sizeof(*self->check_stream));
+    self->check_stream->status = BUILDER_SSC_NOT_RUN;
+    triggers_status(ui, self, "check: running on the editor server...");
+    Editor_UiLog(ui, "editor: Check sent to the editor server%s", unsaved ? " (with the unsaved scripts)" : "");
     self->wanted = 1;
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 1);
-    if( result->status != BUILDER_SSC_OK && result->status != BUILDER_SSC_FAILED )
-        errors = -1;
-    ToriMem_Free(ToriMem_Editor(), result);
-    return errors;
+    return 1;
+}
+
+int
+Editor_Triggers_CheckRunning(struct EditorUi* ui)
+{
+    struct TriggersPanel* self;
+
+    assert(ui);
+    self = triggers_self(ui);
+    return self && self->check_job.active;
+}
+
+static void
+triggers_check_line(
+    void* user,
+    const char* text)
+{
+    struct TriggersPanel* self = user;
+    (void)Builder_SscTakeLine(self->check_stream, text);
+}
+
+/** Check's job: its lines into the stream as they arrive, then its end. Run
+ *  every frame, shown or not, so a Check that ends while the panel is
+ *  hidden still lands (the quest board's lesson, 6.7). */
+static void
+triggers_watch_check(
+    struct EditorUi* ui,
+    struct TriggersPanel* self)
+{
+    int const before = self->check_stream->diag_count;
+
+    if( !self->check_job.active )
+        return;
+    if( !Editor_BuildJobPoll(ui, &self->check_job, triggers_check_line, self) )
+    {
+        if( self->check_stream->diag_count != before )
+        {
+            char line[TORIRS_CHROME_LABEL_MAX];
+            snprintf(line, sizeof(line), "check: running... %d problem(s) so far", self->check_stream->diag_count);
+            triggers_status(ui, self, line);
+        }
+        return;
+    }
+    if( !self->check_stream->summary[0] && self->check_stream->diag_count == 0
+        && self->check_job.status != EDITOR_HOST_OK )
+    {
+        /* The server never ran it: say why, not "it compiles". */
+        char line[TORIRS_CHROME_LABEL_MAX];
+        snprintf(line, sizeof(line), "Check: %s", Editor_BuildJobWhy(self->check_job.status));
+        triggers_status(ui, self, line);
+        Editor_UiStatus(ui, "%s", line);
+        return;
+    }
+    if( self->check_stream->status == BUILDER_SSC_NOT_RUN && self->check_job.status == EDITOR_HOST_OK )
+        self->check_stream->status = BUILDER_SSC_OK;
+    else if( self->check_stream->status == BUILDER_SSC_NOT_RUN && self->check_stream->diag_count > 0 )
+        self->check_stream->status = BUILDER_SSC_FAILED;
+    if( self->check_stream->seconds <= 0.0 )
+        self->check_stream->seconds = self->check_job.seconds;
+    Editor_Triggers_ShowResult(ui, self->check_stream);
+    Editor_UiStatus(ui, "%s", ToriRSChrome_Text(ui->chrome, self->label_status));
 }
 
 /* ---- add a trigger ------------------------------------------------------------------ */
@@ -1092,7 +1161,8 @@ triggers_hints(
 {
     /* The chords are keycaps (design section 15 surface 3); the tips say
      * what the click does, and end with the chord the button wears. */
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_check, "sscompile over the scripts on disk (synchronous)");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_check,
+        "sscompile on the editor server, unsaved scripts included");
     edp_button_chord(ui, self->button_check, EDITOR_HK_FILE_CHECK_SCRIPTS);
     ToriRSChrome_SetTooltip(ui->chrome, self->button_run, "The Live panel's RUN: save all, build, reload");
     edp_button_chord(ui, self->button_run, EDITOR_HK_FILE_RUN);
@@ -1254,6 +1324,7 @@ triggers_tick(
     int busy;
 
     triggers_env(ui, self);
+    triggers_watch_check(ui, self);
     /* Hidden or not, so the keycaps and tips are right the frame it opens. */
     if( self->hint_serial != ui->hotkeys.serial )
         triggers_hints(ui, self);
@@ -1381,6 +1452,7 @@ triggers_destroy(
     struct TriggersPanel* self = opaque;
     (void)ui;
     ToriMem_Free(ToriMem_Editor(), self->check);
+    ToriMem_Free(ToriMem_Editor(), self->check_stream);
     ToriMem_Free(ToriMem_Editor(), self);
 }
 
@@ -1397,6 +1469,8 @@ Editor_Triggers_Register(struct EditorUi* ui)
     assert(self);
     self->check = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*self->check));
     assert(self->check);
+    self->check_stream = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*self->check_stream));
+    assert(self->check_stream);
     self->run_shown = -2;
     self->hint_serial = UINT32_MAX;
     self->follow_key = -1;

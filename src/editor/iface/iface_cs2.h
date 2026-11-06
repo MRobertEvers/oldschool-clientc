@@ -81,13 +81,40 @@ struct EditorCs2CompileResult
 };
 
 /**
- * Run the compiler on `job`. Heap-allocate the result (it is ~33 KB).
- * Returns the status (also in `result->status`).
+ * Run the compiler on `job`, WAITING for it. Heap-allocate the result (it is
+ * ~33 KB). Returns the status (also in `result->status`).
+ *
+ * Tests and tools only (workbench 6.6): a window's Compile is the editor
+ * server's BUILD job TORIRSMAPED_BUILD_CS2 (torirs_maped_build.h), which runs
+ * the same compiler on the server's pump. Its lines are fed to
+ * EditorCs2_CompileTakeLine between EditorCs2_CompileBegin and
+ * EditorCs2_CompileEnd, so the result reads the same either way.
  */
 enum EditorCs2CompileStatus
 EditorCs2_Compile(
     const struct EditorCs2CompileJob* job,
     struct EditorCs2CompileResult* result);
+
+/** A compile about to run over `source` (the script's text: the header's
+ *  `// <id>` names the script): `result` emptied, its script id read. */
+void
+EditorCs2_CompileBegin(
+    struct EditorCs2CompileResult* result,
+    const char* source,
+    size_t source_length);
+
+/** The compile ended: `ran` 1 when the compiler ran to its end (exit 0 or a
+ *  job that reported OK), with `exit_code`; `out_dir` where it wrote, for
+ *  the output path ("" when this process cannot see it: the editor
+ *  server's lane, for a BUILD job). The status is COMPILED only for a clean run with
+ *  something compiled and nothing declined; NOT_RUN when no compiler line
+ *  ever came; DECLINED otherwise. */
+void
+EditorCs2_CompileEnd(
+    struct EditorCs2CompileResult* result,
+    int ran,
+    int exit_code,
+    const char* out_dir);
 
 /** Parse one line of compiler output into `result` (exposed for the test). */
 void

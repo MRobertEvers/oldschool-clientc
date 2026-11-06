@@ -3945,7 +3945,8 @@ What is open:
   panel's tabs / typed editor / search / changed-only / Where used, the
   `check` and `cs2` BUILD kinds) and builders and graph (the dialogue graph,
   its auto-layout -- Ctrl+L still refuses with its reason -- and the
-  builder's Problems rows) need their own runs from this commit.
+  builder's Problems rows) need their own runs from this commit. (Part 1,
+  records and problems, is now built: "Workbench step 6.6, part 1".)
 - Everything each slice lists as open in its own section, in particular:
   the lane change count is a synchronous scan on the embedded server's
   thread; lane switching is staged for the next boot, never live; the .wma
@@ -4068,6 +4069,217 @@ Tests after the fixes (same container, build_opt, 'ulimit -s unlimited'):
   test-sdl-gesture 42.
 - check-pt-switch and check-tree-walks pass.
 - Not run, for the same reasons as above: the content-tree tests.
+
+## Workbench step 6.6, part 1: typed record rows, Where used, async checks, the Problems panel (date 2026-11-06)
+
+Design section 9 ("Records and triggers"), section 2 (the contract), section
+16 step 6.6. Built on v3-workbench `03a006ed` (6.0 to 6.5, 6.7, 6.8 and the
+6.6a move of the Record panel into edpanel_record.c). Part 2 (the builders'
+graph, page breaks, chat-box preview, auto-layout, the shell preview slider
+in the world's resolve) is another session's; this part leaves the seams it
+needs (below).
+
+What landed:
+
+- **The register's types** (editor_cfg.{c,h}). `Editor_CfgRegisterField`
+  now keeps the rest of the register's grammar (`type`, `ref`, `client`,
+  `server`, `param`, verbatim). `enum Editor_CfgFieldKind` TEXT / NUMBER /
+  BOOL / NAME / ENUM / PARAM; `Editor_CfgRegisterValueKind` (values = ->
+  enum, `type = boolean` -> bool, a `ref` or a config-type `type` -> name, `type
+  = int` or a u1 / u2 / u4 band home -> number, else text),
+  `Editor_CfgRegisterRange` (u1 0..255, u2 0..65535, u4, int32),
+  `_Words`, `_RefType`, `_ClientSide` (`scope = client`, `client = native`,
+  `client = param:<p>`), `Editor_CfgValueIssue`. A key the register does
+  not list is typed by its value (an integer a number, yes / no a bool).
+- **Typed rows.** `Editor_CfgRecordRow` gained `reg`, `kind`, `value_kind`,
+  `client_side` (the winning layer is the cache half, or the register says
+  the client reads it), `in_overlay` and `issue`; `Editor_CfgRecordType`
+  (run by Resolve; run again with the params the catalog knows) sets them.
+  Issues: UNKNOWN_KEY (a SERVER OVERLAY states a key the register lacks --
+  the cache half's own opcodes never are), UNKNOWN_PARAM, NOT_NUMBER,
+  OUT_OF_RANGE, NOT_BOOL, NOT_WORD. Also `Editor_CfgRecordRowName`,
+  `_RowMatches` (the search), `_RowChanged` / `_RemovedSince` ("changed
+  only" against an earlier resolve) and `_LayerStates` (does a layer state a
+  row, at which line).
+- **The Record panel** (edpanel_record.c), rebuilt over that model. Tabs:
+  Cache block, one "Server overlay <file>" per overlay that states the
+  record, Triggers, Shell, Where used (`Editor_Record_TabCount` / `_TabTitle`
+  / `_ShowTab`). A layer's tab lists what that layer states (the top layer's
+  adds the register's unstated fields, where Set puts them) as a cells VLIST:
+  field, value, source badge (cache / generated / overlay, "shadowed" with
+  the winner's file and value), "!" for an issue, "*" for a changed field.
+  Above it Find (the search inside the record), the "changed only" chip and
+  "dirty, N fields   needs a client pack on RUN". The typed editor for the
+  picked row: a number's -1 / +1 step buttons with the range as their
+  tooltip (and a Set past the range refused with the range), a bool's
+  checkbox (keeping the record's true / false spelling), an enum's dropdown
+  of its words, a param's two columns (name, value), a name picker -- a
+  cells VLIST the catalog fills with records of the kind the field names as
+  you type (a param's name picks from the catalog's params); Write to, Set
+  field, Remove field as before, one undo step each. Triggers tab: the
+  subject's triggers (`Editor_Triggers_ForSubject`), Open in editor, Check
+  (wears Ctrl+Shift+B), Triggers... (Ctrl+E). Shell tab: the cache block's
+  multivar / multiloc table and `Builder_ShellSummary`, and Shell editor...
+  (`Builder_PanelOpenSubject` on the shell editor). Where used tab (below).
+  Every issue is a Problems row (source "record") with the overlay's file
+  and line; its click opens the record at the field, on its layer's tab.
+  An overlay's `param=<p>` the register lacks is asked of the catalog once
+  at open (an exact param query); a param the tree defines is not unknown.
+- **CATALOG_USES** (torirs_maped_catalog.{c,h}, request 44, fact 165,
+  `TORIRSMAPED_CAP_CATALOG_USES` 512, set with the catalog; client
+  `Editor_HostMapEdCatalogUses` / `_CatalogUsesFree`). Where a record is
+  named, read from the files the index lists: SPAWN (.spawn rows per
+  square), PLACEMENT (a loc's .jl2 rows by id, per square: the atlas's loc
+  counts per loc), TRIGGER (an .rs2 header), SCRIPT, INTERFACE, CS2, CONFIG
+  (another overlay record's field; a block's own header is not a use),
+  PALETTE (editor/palettes.txt), STAMP (editor/stamps/*.stamp), MORE (a
+  file's lines past 8). A search, not an index: one request reads for about
+  4 ms (at least one file) and at most 256 rows and answers with the cursor
+  to go on from; the Record panel asks once a frame while the tab shows, so
+  no frame holds more than a slice. The tab's list has its own Find.
+- **Check and CS2 compile are BUILD jobs** (torirs_maped_build.{c,h}).
+  `TORIRSMAPED_BUILD_CHECK` (3, was the never-offered SCRIPTS_LINT) runs
+  `make -C src maped-script-check` (src/maped/records.mk): the new tool
+  maped_script_check (editor/builder/builder_ssc_main.c) stages
+  server/scripts under `<live>/check` with builder_ssc.c, writes the
+  server's unsaved `rs2:` documents (the server puts them in
+  `<live>/check/puts` just before the job) over the stage, runs sscompile and
+  prints `<file>:<line>: [warning: ]<message>` lines and a `check: ok, 0.6 s`
+  / `check: N error(s), M warning(s), 0.6 s` summary
+  (`Builder_SscFormatDiag` / `_FormatSummary`; `Builder_SscTakeLine` reads
+  them back). `TORIRSMAPED_BUILD_CS2` (4) takes the script name
+  (`ToriRSMapEd_BuildWhatTakesArg` / `_BuildArgValid`: [A-Za-z0-9_.-], not
+  starting with '.' or '-') and runs `make -C src maped-cs2-compile`: `cs2
+  compile` of the one script the server wrote to `<live>/cs2/src` -- its
+  `cs2:<name>` document with unsaved edits, else scripts/<name>.cs2 on disk;
+  ABSENT when neither exists. `TORIRSMAPED_CAP_BUILD_CHECK` (1024) rides
+  with the runner. The Live model tags each log row with the build it came
+  from (`Editor_LiveLogWhat`, `EDITOR_LIVE_LOG_DONE`) and
+  `Editor_LiveEncodeBuildArg` sends a kind with an argument.
+- **The client never waits.** `Editor_BuildJobSend` / `_Poll` / `_Why`
+  (edpanel_problems.c): send a job, hear its own lines, oldest first, and its
+  end on a later frame. The Triggers panel's Check is a job now
+  (`Editor_Triggers_Check` returns at once; `Editor_Triggers_CheckRunning`),
+  its lines fill its Problems list as they arrive, and the status says
+  "check: ok, 0.6 s" or "check: 1 error(s), 0.6 s; first <file>:<line>:
+  <message>". The interface editor's Compile asks (iface_panels.c
+  `compile_pending`) and iface_register.c sends the CS2 job and shows the
+  result when it ends (`EditorCs2_CompileBegin` / `_End`, so a job's lines
+  read like the old synchronous run's). `EditorCs2_Compile` and
+  `Builder_SscRun` stay for tests and the tool.
+- **The Problems panel** (module "problems", edpanel_problems.c), the bottom
+  strip's third member (group "Console / History / Problems"), in front in
+  the Script workspace, View > Problems (`view.problems`, unbound). Rows
+  (source, file, line, severity, text, and for a record its type, name and
+  field) from the Live model's line stream -- every build line that reads as
+  a diagnostic (`Editor_ProblemsParseLine`: sscompile's located lines, cs2's
+  `FAIL <name>: <why>`, `error:` / `warning:` lines; make's own lines are
+  not), filed under the build's name ("check", "cs2 compile", "packs"); a
+  new build of a kind clears that kind's rows; a failed build that said
+  nothing a row reads leaves its DONE line -- and from the push API
+  `Editor_Problems_Report(ui, source, file, line, severity, text)`,
+  `_ReportRecord`, `_Clear(ui, source)` (a duplicate is one row). Errors
+  list first; Find filters as you type; "errors only"; a click opens a
+  record at its field, else the script in your editor at the line (the
+  Triggers panel's Open in editor); Open in editor, Open record, Clear.
+
+The seams for part 2 and the other builders:
+
+- The builder panel's Check (builder_panels.c, part 2's file) still calls
+  `Builder_SscRun` synchronously, over text it emits from the model and puts
+  on its own stage. As a job: the CHECK job writes every unsaved `rs2:`
+  document the server holds over its stage, so once the panel's generated
+  script is in its document (`Builder_FileKey`, what Regenerate edits) the
+  panel needs only `Editor_BuildJobSend(ui, &job, TORIRSMAPED_BUILD_CHECK,
+  NULL, ...)`, `Builder_SscTakeLine` on each line and its rows from the
+  result. Text not in a document (an un-regenerated model, the generated
+  .npc / .dbrow, which are not `rs2:`) is not in the job. Its lint rows go
+  to `Editor_Problems_Report(ui, "lint", ...)`.
+- The quest board's and the shop builder's Check can report their issues
+  with `Editor_Problems_Report(ui, "quest" / "shop", ...)`; neither does yet
+  (their files were not this slice's).
+
+Tests (this container, build_opt, content-free; 'ulimit -s unlimited'):
+
+- New: `make -C src test-editor-records` (editor/test/editor_records_test.c)
+  78 checks: the register's kinds, ranges, words, ref types and client
+  side over a synthetic fields/npc.ini; a synthetic record over a cache block
+  and two overlays (every row's field, kind, client side and issue; the
+  cache half never unknown; typed guesses; a known param); the search;
+  "changed only"; Check's job lines formatted and read back.
+- New: `make -C src test-editor-records-panels`
+  (editor/test/editor_records_panels_test.c) 121 checks, over an embedded
+  server, a synthetic tree and the test BUILD runner: the Record panel's six
+  tabs, rows and badges, issues, the typed editor per kind, Set and its
+  range refusal, the name picker filtering as you type, the client-pack
+  chip, the search and "changed only", undo back to clean; Problems from the
+  record, a click back to the field, the push API, Find and "errors only",
+  the View action and the group; Check returning before any line and its
+  slow job still running a frame later, the unsaved script the server wrote
+  for it, its rows, a clean Check clearing them, a silent failed build's
+  DONE row, CS2 of the disk's script and of the open document, the
+  refusals; Where used over the tree a slice a frame (trigger, script,
+  spawns per square, an overlay, a palette; a loc's placements and stamp;
+  320 lines past one answer's rows; a longer word is not a use).
+- New: `make -C src test-maped-script-check`
+  (editor/test/maped_script_check_test.sh) 10 checks: the Check job's tool
+  over a synthetic tree with a stand-in sscompile -- an unsaved put staged
+  and its error a job line with the stage-relative path, the put gone, the
+  next run clean, a work dir inside the content tree refused and nothing
+  written there.
+- Seen to fail before their fix (mutations in this private worktree, the
+  panels test built into its own object base, build_mut): dropping the
+  unknown-key rule fails the records test ("an overlay key the register
+  lacks is an unknown key"); a new build that does not clear its kind's
+  rows fails the panels test ("a clean one clears its rows"); a Where used
+  match inside a longer word fails it twice ("goblins" counted as a CONFIG
+  use; "[proc,goblin_helper]" a TRIGGER use).
+- Changed because the tree changed: test-editor-groups 2192 (the bottom
+  group's three members), test-editor-workspaces 397 (Script skips two
+  panels now, not three), test-editor-workbench 295 (the 1x registry golden
+  re-recorded: 2691440990 -> 2593871087, the bottom strip's third tab; the
+  2x and 3x registries and every scene unchanged).
+- Unchanged and passing: test-editor-chords 591, test-editor-hotkeys 2293
+  (with the doc test; `view.problems` added to the table and
+  docs/MAPED_HOTKEYS.md), test-editor-shop-quest-panels 86,
+  test-editor-scenes-ops 91, test-editor-instance-ops 83,
+  test-editor-encounter-panel 91, test-editor-picker 407,
+  test-editor-catalog-finder 202, test-catalog-finder 176, test-catalog-perf
+  143, test-editor-cmd 66, test-editor-palette 97, test-editor-panels-palette
+  50, test-editor-panels-accounts 48, test-editor-stamps-ops 81,
+  test-editor-placement 123, test-editor-dropdown 36, test-chrome-widgets
+  1134; `make -C src` (client and torirsmaped) builds.
+- Not run here, for want of the OSRS-Content checkout: test-editor-panels
+  (its Record and Triggers sections; `Editor_Triggers_Check` now answers 1
+  for "sent", not an error count), test-iface-editor, test-editor-script,
+  test-live-editor (its CS2 command expectation was updated: CS2 now has a
+  make line), test-builder (not touched; its recipe still lacks -lm).
+  The make targets `maped-script-check` and `maped-cs2-compile` themselves
+  were not run here (no content tree to stage, no cache for cs2); the
+  check tool is run by test-maped-script-check.
+
+What is open:
+
+- The builder panel's Check is synchronous (part 2's file; the seam above).
+- The CS2 job's `--names` is RuneStar's tables when they are on the machine;
+  the panel's old run wrote the content's own script names over them
+  (`EditorCs2Catalog_WriteNamesDir`), which the server-side job does not, so
+  a script calling a content proc by name may decline where the old run
+  compiled. The compiled script's path is the lane's, which the client does
+  not name (`output_path` is empty after a job).
+- Where used reads files, it does not index them: a cold search of the
+  owner's tree (~41,000 sources) at 4 ms a frame takes on the order of 10 s
+  of frames to finish (unmeasured here), and configs/all.<type> is never
+  read (another cache record naming it is not found). Placements are the
+  .jl2 files on disk; an open square's unsaved locs are not counted.
+- Not added to the DOM executor: nothing new needed it (the rows are cells
+  VLISTs, the tabs a TABSTRIP, the editors existing widgets shown and
+  hidden), so runtime.js / runtime-ie8.js were not regenerated.
+- The Record panel's Triggers and Shell lists have no search box; a shell
+  can hold 257 slots (rule R3 wants one past 20 rows).
+- The quest board and the shop builder do not push their Check rows into
+  Problems yet; "Copy to new..." and "Find in world" from the figure are not
+  built.
 
 ## Open issues
 
@@ -4254,9 +4466,10 @@ Every issue the phase reports left open, by area, with where to start.
   hover for photographs (documented in src/app/app_map_editor.c); there is still
   no pointer injection for a scripted click.
 - IF1 type 8 (peng_emote) cannot be mounted: src/app/app_iface_editor.c.
-- Builder Check (sscompile) and CS2 compile run synchronously on the UI
-  thread: src/editor/builder/builder_ssc.c:624 `Builder_SscRun`,
-  src/editor/iface/iface_cs2.c:112.
+- The builder panel's Check (sscompile) runs synchronously on the UI thread:
+  src/editor/builder/builder_panels.c `Builder_SscRun`. The Triggers panel's
+  Check and the interface editor's CS2 compile are the editor server's
+  BUILD jobs since workbench 6.6 part 1 (see its section for the seam).
 - builder_test uses stand-ins for parts of the tree: src/editor/test/builder_test.c.
 - test-bootmanifest cannot run in this worktree (symlinked content root);
   test-world's 19 edge-band failures predate phase 2.
@@ -4574,8 +4787,9 @@ Still slow, with where to start:
   hash changed (resolved 2026-11-01). The diff is taken from the lane's
   `servpack/pack.manifest`; a build that rewrites the manifest without changing
   an archive's hash sends nothing, by design.
-- BUILD "scripts lint" (3) and "cs2 compile" (4) answer UNSUPPORTED:
-  src/torirsmaped/torirs_maped_build.c:151.
+- (resolved 2026-11-06, workbench 6.6 part 1) BUILD "check" (3, was
+  "scripts lint") and "cs2 compile" (4) are jobs: `maped-script-check` and
+  `maped-cs2-compile` (src/maped/records.mk).
 - The client cache build is incremental for config types only
   (3rd/rscache/tools/cachepack/cp_incremental.c:1988
   `cp_pack_client_incremental`), plus saved squares by archive. Interfaces,

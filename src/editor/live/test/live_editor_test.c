@@ -629,7 +629,12 @@ main(
                   && strstr(line, "MAPED_MAP_ARCHIVES=") && strstr(line, " OBJVERIFY_SKIP=1"),
             "command: RUN's build names both halves' outputs and skips the object verifier");
         job.what = TORIRSMAPED_BUILD_CS2;
-        check(!ToriRSMapEd_BuildCommand(&lane, &job, &command), "command: cs2 has none (UNSUPPORTED)");
+        snprintf(job.quest, sizeof(job.quest), "%s", "bank_sort");
+        check(ToriRSMapEd_BuildCommand(&lane, &job, &command), "command: cs2 compiles one script (workbench 6.6)");
+        ToriRSMapEd_BuildCommandFormat(&command, line, sizeof(line));
+        check(strstr(line, " maped-cs2-compile ") && strstr(line, "MAPED_CS2_SCRIPT=bank_sort"),
+            "command: the cs2 target names its script");
+        job.quest[0] = '\0';
 
         mkdir(live, 0755);
         job.what = TORIRSMAPED_BUILD_CLIENT_CACHE;

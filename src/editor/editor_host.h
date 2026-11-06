@@ -714,6 +714,49 @@ Editor_HostMapEdCatalogRecord(
 void
 Editor_HostCatalogRecordFree(struct EditorHost_CatalogRecord* record);
 
+/** One FACT_CATALOG_USES row (torirs_maped_catalog.h): TORIRSMAPED_USE_*. */
+struct EditorHost_CatalogUse
+{
+    uint32_t use;
+    /** Relative to the content root. */
+    const char* path;
+    uint32_t line;
+    uint32_t count;
+    const char* text;
+};
+
+struct EditorHost_CatalogUses
+{
+    uint32_t kind;
+    /** 0: the search is done; else ask again from here. */
+    uint32_t next_cursor;
+    uint32_t files_done;
+    uint32_t files_total;
+    int row_count;
+    struct EditorHost_CatalogUse* rows;
+    void* storage;
+};
+
+/**
+ * CATALOG_USES (workbench 6.6): one slice of the search for where record
+ * `name` of `kind` is named, from `cursor` (0 to start). The server reads
+ * for a few milliseconds and answers with the cursor to go on from, so the
+ * caller asks again on a later frame until `next_cursor` is 0. ABSENT when
+ * the index has no such record (palettes and stamps are still read);
+ * UNSUPPORTED without TORIRSMAPED_CAP_CATALOG_USES.
+ */
+enum EditorHost_Status
+Editor_HostMapEdCatalogUses(
+    struct EditorHost* host,
+    uint32_t kind,
+    const char* name,
+    uint32_t cursor,
+    struct EditorHost_CatalogUses* out_uses);
+
+/** NULL-tolerant. */
+void
+Editor_HostCatalogUsesFree(struct EditorHost_CatalogUses* uses);
+
 /** A world-map area: the surface, a dungeon map, an instance map. */
 struct EditorHost_CatalogArea
 {

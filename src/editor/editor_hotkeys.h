@@ -259,6 +259,8 @@ enum Editor_HotkeyAction
     /** Workbench 6.7: the Shop builder and the Quest board. */
     EDITOR_HK_VIEW_SHOP,
     EDITOR_HK_VIEW_QUEST,
+    /** Workbench 6.6: the Problems panel (the bottom strip's group). */
+    EDITOR_HK_VIEW_PROBLEMS,
     EDITOR_HK_VIEW_HIDE_PANELS,
     EDITOR_HK_VIEW_RESET_LAYOUT,
     EDITOR_HK_VIEW_SNAP,

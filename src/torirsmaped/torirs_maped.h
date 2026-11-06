@@ -334,6 +334,15 @@ enum ToriRSMapEdCapability
      *  the editor server cannot learn it of an attached server; the instance
      *  dialog's "runtime map instance" chip stays disabled and says so. */
     TORIRSMAPED_CAP_MAP_INSTANCE = 256,
+    /** CATALOG_USES / FACT_CATALOG_USES (workbench 6.6, the Record panel's
+     *  Where used tab; torirs_maped_catalog.h). A client sends CATALOG_USES
+     *  only to a server with this bit. Set with TORIRSMAPED_CAP_CATALOG. */
+    TORIRSMAPED_CAP_CATALOG_USES = 512,
+    /** BUILD offers TORIRSMAPED_BUILD_CHECK and TORIRSMAPED_BUILD_CS2
+     *  (workbench 6.6, torirs_maped_build.h): the Triggers panel's Check and
+     *  the interface editor's compile go to the server as jobs. Set with
+     *  TORIRSMAPED_CAP_BUILD; an older server answers either UNSUPPORTED. */
+    TORIRSMAPED_CAP_BUILD_CHECK = 1024,
 };
 
 /** DOC_CREATE's template word: OR'ed onto the template, the fill joins the
