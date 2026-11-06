@@ -105,6 +105,14 @@
  *   lane-switch <name>     the lane the next editor boot serves
  *                          (build/lanes/lane.ini): a running server cannot
  *                          re-point its lane, so the switch is staged
+ *   encounters             the encounter sets (editor/encounters.txt), one
+ *                          line each
+ *   encounter-set <name> [colour <0..7|->] [note <text|->] [rename <new>]
+ *                 [clear] [spawn|unspawn <npc|obj>:<name> <x> <z> <level> [count]]...
+ *                          create or change a set (torirs_mapedctl_encounters.h):
+ *                          one stroke of TEXT_SPLICE, one undo step, unsaved
+ *                          until save
+ *   encounter-remove <name>
  *   live-attach launch|<host:port> [ticket]
  *                          attach the editor server's live link (launch
  *                          starts the lane's servers) and wait for the answer
@@ -162,6 +170,7 @@
 #include "editor/editor_areas.h"
 #include "editor/editor_palette.h"
 #include "editor/editor_scenes.h"
+#include "torirsmaped/torirs_mapedctl_encounters.h"
 #include "torirsmaped/torirs_maped_accounts.h"
 #include "editor/editor_host.h"
 #include "mem/torirs_mem.h"
@@ -2500,6 +2509,8 @@ main(
             "            [lane <name>] [preview <var>=<v>...] [account <name> at <x>,<z>,<l>] [note <text>]\n"
             "  lane | lanes | changes | publish <target> [keep] [force] | publish-new <name> | discard\n"
             "  lane-create <name> | lane-switch <name>\n"
+            "  encounters | encounter-remove <name> | encounter-set <name> [colour <n|->] [note <text|->]\n"
+            "    [rename <new>] [clear] [spawn|unspawn <npc|obj>:<name> <x> <z> <level> [count]]...\n"
             "  live-attach launch|<host:port> [ticket] | live-detach | live-cheat <player> <line>\n"
             "  accounts | account-view <name> | account-new <name> <password> [fixture]\n"
             "  account-dup <name> <new> <password> | account-delete <name> | account-use <name>\n"
@@ -2616,6 +2627,12 @@ main(
         result = cmd_scene_set(&host, args, arg_count);
     else if( strcmp(command, "scene-remove") == 0 && arg_count >= 1 )
         result = cmd_scene_remove(&host, args[0]);
+    else if( strcmp(command, "encounters") == 0 )
+        result = ToriRSMapEdCtl_Encounters(&host);
+    else if( strcmp(command, "encounter-set") == 0 )
+        result = ToriRSMapEdCtl_EncounterSet(&host, args, arg_count);
+    else if( strcmp(command, "encounter-remove") == 0 && arg_count >= 1 )
+        result = ToriRSMapEdCtl_EncounterRemove(&host, args[0]);
     else if( strcmp(command, "areas") == 0 )
         result = cmd_areas(&host);
     else if( strcmp(command, "area-set") == 0 )

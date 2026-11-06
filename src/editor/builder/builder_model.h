@@ -31,6 +31,8 @@
  *   [op<N>]  [ap<N>]              one trigger, N 1..5: label=, dialogue=1,
  *                                 step=<kind>|<field>|... (repeated, in order)
  *   [opu,<obj>]  [apu,<obj>]      a use-on entry; "*" for any held obj
+ *   [ai,<trigger>]                an npc ai trigger (ai_opplayer2, ...): the
+ *                                 encounter builder's Combat templates (6.7)
  *   [dialogue]                    start=<node id>
  *   [node,<id>]                   one dialogue node (Builder_NodeKind)
  *
@@ -56,6 +58,10 @@
 #define BUILDER_MAPLINKS_MAX 8
 /** Node ids: [a-z0-9_], what a label name is made of. */
 #define BUILDER_NODE_ID_MAX 32
+/** An ai trigger's name ("ai_opplayer2"), the terminator included. */
+#define BUILDER_AI_NAME_MAX 32
+/** Builder_Trigger.op of an ai trigger. */
+#define BUILDER_OP_AI 6
 
 enum Builder_Subject
 {
@@ -135,8 +141,11 @@ struct Builder_Step
  */
 struct Builder_Trigger
 {
-    /** 1..5, or 0 for a use-on entry. */
+    /** 1..5, 0 for a use-on entry, BUILDER_OP_AI for an ai trigger
+     *  (`[<ai>,<npc>]`, its steps the body; approach and use_obj unused). */
     int op;
+    /** BUILDER_OP_AI: the trigger, "ai_opplayer2", "ai_applayer2", ... */
+    char ai[BUILDER_AI_NAME_MAX];
     /** 1 = ap (approach), 0 = op (operate when adjacent). */
     int approach;
     /** Use-on: the held obj, "*" = any. */
@@ -340,6 +349,23 @@ Builder_ModelTriggerAdd(
     int op,
     int approach,
     const char* use_obj);
+
+/** 1 for an npc ai trigger name: "ai_" then [a-z0-9_], under
+ *  BUILDER_AI_NAME_MAX bytes. */
+int
+Builder_AiTriggerValid(const char* ai);
+
+/** The ai trigger `ai` (Builder_AiTriggerValid), or NULL. */
+struct Builder_Trigger*
+Builder_ModelAiTrigger(
+    struct Builder_Model* model,
+    const char* ai);
+
+/** The ai trigger, added (empty) when the model has none. NULL when full. */
+struct Builder_Trigger*
+Builder_ModelAiTriggerAdd(
+    struct Builder_Model* model,
+    const char* ai);
 
 void
 Builder_ModelTriggerRemove(

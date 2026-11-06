@@ -1737,6 +1737,39 @@ app_overlay_build_editor_ghosts(struct App* app)
                     APP_OUTLINE_FILL_TRANS, APP_OVERLAY_SEGMENT_WIDTH);
         }
     }
+    /* The encounter builder's rings (Editor_Encounter_Rings, workbench 6.7):
+     * each set's wander squares washed and its hunt squares outlined in the
+     * set's colour, the shown set's brighter; drawn as the wander preview is. */
+    if( panel->ui )
+    {
+        static struct Editor_EncounterRing rings[EDITOR_ENCOUNTER_RINGS_MAX];
+        static int row_x0[2 * MAP_EDITOR_WANDER_RANGE_MAX + 2];
+        static int row_x1[2 * MAP_EDITOR_WANDER_RANGE_MAX + 2];
+        int const bx = app->world->_base_tile_x;
+        int const bz = app->world->_base_tile_z;
+        int const n = Editor_Encounter_Rings(panel->ui, rings, EDITOR_ENCOUNTER_RINGS_MAX);
+
+        for( int i = 0; i < n; i++ )
+        {
+            const struct Editor_EncounterRing* r = &rings[i];
+            uint32_t const color = 0xFF000000u | (r->current ? r->rgb : ((r->rgb >> 1) & 0x7F7F7Fu) + 0x404040u);
+            int const x0 = r->x0 - bx < 0 ? 0 : r->x0 - bx;
+            int const z0 = r->z0 - bz < 0 ? 0 : r->z0 - bz;
+            int const x1 = r->x1 - bx;
+            int rows = r->z1 - bz - z0 + 1;
+
+            if( x1 < x0 || rows <= 0 )
+                continue;
+            if( rows > (int)(sizeof(row_x0) / sizeof(row_x0[0])) )
+                rows = (int)(sizeof(row_x0) / sizeof(row_x0[0]));
+            for( int k = 0; k < rows; k++ )
+                row_x0[k] = row_x1[k] = -1;
+            row_x0[0] = row_x0[rows - 1] = x0;
+            row_x1[0] = row_x1[rows - 1] = x1;
+            app_overlay_editor_rows_hull(app, z0, rows, row_x0, row_x1, r->level, color,
+                r->hunt ? -1 : APP_OUTLINE_FILL_TRANS, APP_OVERLAY_SEGMENT_WIDTH + (r->hunt && r->current ? 1 : 0));
+        }
+    }
     if( panel->ui && hover->valid && panel->ui->tools.tool == EDITOR_TOOL_LOC_MOVE
         && panel->sel_kind == EDITOR_SELECTION_LOC && panel->ui->tools.loc_count > 1 )
     {

@@ -228,7 +228,9 @@ trigger_label(
 {
     const char* word = self->subject == BUILDER_SUBJECT_NPC ? "npc" : "loc";
 
-    if( trigger->op == 0 )
+    if( trigger->op == BUILDER_OP_AI )
+        snprintf(out, out_size, "[%s] combat", trigger->ai);
+    else if( trigger->op == 0 )
         snprintf(out, out_size, "[%s%su] with %s%s", trigger->approach ? "ap" : "op", word,
                  trigger->use_obj, trigger->dialogue ? " -> dialogue" : "");
     else
@@ -975,7 +977,7 @@ bp_rename_op(
     int line;
     int ok;
 
-    if( !trigger || trigger->op == 0 )
+    if( !trigger || trigger->op == 0 || trigger->op == BUILDER_OP_AI )
     {
         bp_status(ui, self, "select an op trigger (op1..op5 / ap1..ap5) first");
         return 0;

@@ -338,6 +338,24 @@ Editor_DocKeyValid(
          * one per content tree, a text document edited by splices. */
         if( strcmp(key, "editor:favourites.txt") == 0 )
             return 1;
+        /* The encounter sets, editor/encounters.txt (editor_encounters.h). */
+        if( strcmp(key, "editor:encounters.txt") == 0 )
+            return 1;
+        /* An npc's stats ledger, npc_stats/<shard>/<gameval>.stats
+         * (editor_npcstats.h): one shard byte, a slash, a gameval. */
+        if( strncmp(key, "stats:", 6) == 0 )
+        {
+            const char* name = key + 8;
+            size_t const length = strlen(key + 6);
+            if( length < 3 || key[7] != '/' )
+                return 0;
+            for( const char* at = name; *at; at++ )
+                if( !isalnum((unsigned char)*at) && *at != '_' )
+                    return 0;
+            /* The shard is the name's: gen_npc_stats.py's shard_of. */
+            return strlen(name) < 64
+                   && key[6] == (isalnum((unsigned char)name[0]) ? (char)tolower((unsigned char)name[0]) : '_');
+        }
         /* A stamp and the stamps' list (editor_stamps.h): editor/stamps/
          * <name>.stamp and editor/stamps/index.txt. Names are [A-Za-z0-9_-]
          * under 48 bytes, so "index" can never be confused with the list. */

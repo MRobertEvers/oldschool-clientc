@@ -327,7 +327,9 @@ trigger_where(
     char* out,
     size_t out_size)
 {
-    if( trigger->op == 0 )
+    if( trigger->op == BUILDER_OP_AI )
+        snprintf(out, out_size, "%s", trigger->ai);
+    else if( trigger->op == 0 )
         snprintf(out, out_size, "%su %s", trigger->approach ? "ap" : "op", trigger->use_obj);
     else
         snprintf(out, out_size, "%s%d", trigger->approach ? "ap" : "op", trigger->op);
@@ -461,6 +463,8 @@ Builder_Validate(
         trigger_where(trigger, where, sizeof(where));
         if( trigger->op == 0 && strcmp(trigger->use_obj, "*") != 0 )
             check_identifier(issues, where, "held obj", trigger->use_obj);
+        if( trigger->op == BUILDER_OP_AI && model->subject != BUILDER_SUBJECT_NPC )
+            Builder_IssueAdd(issues, BUILDER_ISSUE_ERROR, where, "an ai trigger is an npc's; a loc has none");
         if( trigger->dialogue )
         {
             dialogue_ops++;
@@ -1167,6 +1171,19 @@ Builder_EmitScript(
         wrote = 1;
         emit_use_trigger(&e, approach);
     }
+    /* The ai triggers (the encounter builder's Combat templates): their
+     * steps are the npc's swing. */
+    for( int t = 0; t < model->trigger_count; t++ )
+    {
+        const struct Builder_Trigger* trigger = &model->triggers[t];
+        if( trigger->op != BUILDER_OP_AI )
+            continue;
+        if( !wrote )
+            put_header(model, out);
+        wrote = 1;
+        Builder_BufPrintf(out, "\n[%s,%s]\n", trigger->ai, model->name);
+        emit_steps(&e, trigger);
+    }
 
     if( model->node_count > 0 && node_index(model, model->start) >= 0 )
     {
@@ -1342,6 +1359,11 @@ Builder_ScriptTriggerNames(
     {
         if( has_use_entries(model, approach) )
             NAME_PUSH("%s%su,%s", approach ? "ap" : "op", word, model->name);
+    }
+    for( int t = 0; t < model->trigger_count; t++ )
+    {
+        if( model->triggers[t].op == BUILDER_OP_AI )
+            NAME_PUSH("%s,%s", model->triggers[t].ai, model->name);
     }
     if( model->node_count > 0 )
     {

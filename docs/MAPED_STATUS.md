@@ -3165,6 +3165,177 @@ Open:
 - Spawns come from the source squares' edited and generated files only; an
   area copies only when each of its rectangles lies in one source square.
 
+## Workbench step 6.7, part 1: the encounter builder (date 2026-11-06)
+
+The first slice of build-order step 6.7 ("Encounters, shops, quests"; design
+section 11, "Encounter builder": the Set / Stats / Combat / Drops / Test
+tabs). The shop builder and the quest board are part 2's.
+
+What landed:
+
+- **The ENCOUNTERS document** (src/editor/editor_encounters.{h,c}):
+  `<content_dir>/editor/encounters.txt`, TEXT key `editor:encounters.txt`
+  (`Editor_DocKeyValid` knows it; `Editor_HostDocPath` already maps
+  `editor:<file>`). `encounter <name> [| colour <0..7>] [| spawn
+  <npc|obj>:<name> <x> <z> <level> [<count>]]... [| note <text>]`, segments
+  in any order, spawn repeated, names unique. Line-preserving like AREAS,
+  PALETTES and STAMPS: parse -> emit byte-identical (comments, blank lines,
+  CRLF, no final newline); a refused line is kept as text and named. A verb
+  is the document's new text (`Editor_EncountersTextWith` / `Without`; the
+  first record brings the two header lines, removing the last takes them
+  back) written as TEXT_SPLICE commands (`Editor_StampSplices`), ONE undo
+  step. `Editor_EncounterCentre` (rounded mean, the majority level),
+  `Editor_EncounterNpcNames`.
+- **The stats ledger codec** (src/editor/editor_npcstats.{h,c}):
+  `npc_stats/<shard>/<gameval>.stats` as docs/NPC_WIKI_STATS_PLAN.md section 4
+  and tools/gen_npc_stats.py (read_ledger, shard_of, write_ledger) define it,
+  TEXT key `stats:<shard>/<gameval>` (`Editor_DocKeyValid` checks the shard
+  is the name's; `Editor_HostDocPath` maps it). Parse -> emit byte-identical;
+  `Editor_NpcStatsTextSet` rewrites only a value's bytes (the key column and
+  a trailing `// note` kept, the note's column too where the width allows),
+  adds a missing key after the last stat line before "// Checks" in that
+  line's key column, removes a line for "", and sets `source = authored` --
+  the pin that makes the generator leave the file. A ledger the generator
+  never wrote starts with a header naming its writer.
+- **The derived cells** (editor_npcstats.h): `Editor_NpcMaxHit` ((level + 9)
+  * (bonus + 64) + 320) / 640 and `Editor_NpcCombatLevel` (ToriRSServer_
+  CombatLevel's integers, no prayer). Not "read from torirs_server_combat.c":
+  that file says the swing's formulas are content (`skill_combat/
+  combat_stats.rs2`, not in this checkout), so the max hit restates the rule
+  as the tree's own worked figures state it
+  (tools/generate_quest_combat_manifest.py: Sourhog 30 / 0 -> 4, the Arzinian
+  Avatar of Ranging 110 / 10 -> 14; the goblin's 1 / -15 -> 1 agrees with the
+  wiki), and each cell's tooltip names the proc and the formula (under 64
+  bytes, so none is cut). The cache's vislevel is the record's own field
+  (SS_OP_NC_VISLEVEL), shown beside the computed level.
+- **The panel** (src/editor/panels/edpanel_encounter.c, module "encounter",
+  View > Encounters (`view.encounter`, unbound), Spawns' Group...). Header:
+  Set, Name, New set / Rename / Delete set / Save set (writes the set file and
+  the ledgers the panel edited; records save with File > Save; saving never
+  bakes). Set tab: the set's spawns as a VLIST with Find; Add at latched tile
+  (a SPAWN and the set's line, one undo step), From Spawns selection, Remove
+  from set, Colour; the selected row's npc: respawnrate, wanderrange,
+  maxrange, huntmode and the params huntrange, attackrate, damagetype from its
+  record's layers (catalog sources -> CFG documents -> `Editor_CfgRecord`, the
+  Record panel's path), Apply fields (one undo step, each field planned
+  against the edit before it), Record... (the Record panel on it), Show rings.
+  A field whose winning layer is GENERATED is written into the record's top
+  authored overlay as an override; with no authored overlay the edit is
+  refused with a sentence and nothing is written. Stats tab: the six levels
+  and thirteen bonus params from the record, the ledger named with its
+  source, Apply stats (the ledger with `source = authored` and the record in
+  ONE undo step; a generated-only stat goes to the ledger alone, for
+  gen_npc_stats.py to carry, and the status says so), the derived cells
+  following the inputs as typed. Combat tab: melee (`~npc_meleeattack;`),
+  caster (the body of npc/scripts/dark_wizard.rs2's first `[ai_opplayer2]` /
+  `[ai_applayer2]`, read from the tree -- refused, never invented, when the
+  file is absent), ranger (`~npc_rangeattack;`), healer (the default swing
+  then `npc_statheal(hitpoints, 2, 0);`); Open in step builder opens the NPC
+  builder on the npc and adds the template as its `[ai_opplayer2]` trigger's
+  RAW steps (server/scripts/edited/<npc>/scripts/<npc>.rs2, the builder's own
+  file, written by its own commit). Drops tab: READ-ONLY rows -- the tree has
+  no drop-table document (docs/NPC_DROPTABLES_TODO.md: drops are the npc's
+  `[ai_queue3,<npc>]` RuneScript); `Editor_DropsRead` reads the shape
+  tools/wiki_droptable.py writes (Always lines, one `random(<den>)` and its
+  cumulative `if ($dropint < k)` walk, the guarded `npc_param(death_drop)`),
+  follows a `@label` / `~proc` call in the same file or through the catalog's
+  trigger index, counts what it does not recognise, and the row says where
+  the rows came from. Test tab: RUN (`Editor_Live_Run`, wearing file.run's
+  chord), Place player at set (`Editor_Accounts_PlacePlayer` at the set's
+  centre, wearing tool.place_player's), Follow the play account (the World's
+  camera to the live model's play tile when it moves), and the fight log: the
+  live link's lines naming a hit (the server's `HIT tick=` line) or a hunt,
+  else -- the row says so -- its lines naming the set's npcs
+  (`Editor_Encounter_FightLog`). Every refusal is an `Editor_UiStatus`
+  sentence. Starts closed; opens with the editor again only if it was open.
+- **The step builder's ai trigger** (builder_model.{h,c}, builder_emit.c,
+  builder_panels.c): `Builder_Trigger.op == BUILDER_OP_AI` with `ai`
+  ("ai_opplayer2"); the .interaction INI section `[ai,<trigger>]`; the
+  emitter writes `[<trigger>,<npc>]` and its steps after the use-on
+  triggers; its name joins `Builder_ScriptTriggerNames` (the conflict check);
+  a loc's is an error; the trigger list reads "[ai_opplayer2] combat".
+- **Rings** (app_overlay.c, one hunk): `Editor_Encounter_Rings` -- each set's
+  wander square washed and hunt square outlined in the set's colour, the
+  shown set's brighter, for the npcs whose records the panel holds (no
+  catalog request from a draw), drawn like the wander preview.
+- **Spawns' Group...** (edpanel_spawns.c: the button, its field and its
+  activate line -- three small hunks, not the one asked for: the panel's
+  struct is private, so the field and the dispatch need their own): `Editor_Encounter_GroupSelection` opens the panel beside
+  Spawns and puts the selection into the shown set (a new `group_<n>` when
+  none is shown), one undo step.
+- **torirsmapedctl** (src/torirsmaped/torirs_mapedctl_encounters.{h,c}, wired
+  in torirs_mapedctl_main.c): `encounters`, `encounter-set <name> [colour
+  <0..7|->] [note <text|->] [rename <new>] [clear] [spawn|unspawn
+  <npc|obj>:<name> <x> <z> <level> [count]]...`, `encounter-remove <name>`;
+  one stroke of splices each, unsaved until `save`. Split out of the main file
+  so the test drives the verbs over an embedded server.
+
+Tests (2026-11-06, this container; objects in build_opt, and at OPT=0 with
+asserts in build): **test-editor-encounters** (new, pure) 121 checks, 0 failed;
+**test-editor-encounter-panel** (new, content-free: an embedded ToriRSMapEd
+over a synthetic tree -- an npc with a cache block, a generated and an
+authored overlay, its ledger, a death-drop script, a set; the panel's rows,
+fields, rings, Apply fields and its refusal, Add at latched tile, Group...,
+Colour, the Stats tab's cells and tooltips, Apply stats and its undo byte for
+byte, Save set, the Drops rows, the caster's refusal, the melee template
+into the NPC builder and its script, the Test tab's chords and the fight
+log, and the ctl verbs over a second connection: refusals, undo, save byte
+for byte) 91 checks, 0 failed (both builds). Regressions, all 0 failed: test-editor-hotkeys 2020 (the doc
+test lists `view.encounter`), test-editor-groups 2190, test-editor-chords 591,
+test-editor-stamps 91, test-editor-stamps-ops 81, test-editor-panels-palette
+50, test-editor-panels-accounts 48, test-editor-cmd 66, test-editor-areas
+136, test-editor-palette 97, test-editor-workbench 295, test-editor-picker
+397, test-editor-catalog-finder 202, test-editor-world-gesture 42,
+test-editor-ghost OK, test-loc-editor-selection all passed; check-tree-walks
+and check-pt-switch PASS; `make all` links (torirsmapedctl with the verbs).
+Every new check family was seen to fail on a mutant in a throwaway copy of
+src/ and 3rd/ under the session scratchpad, never this tree (each restored
+from the commit before the next): the emit always ending in a newline (1),
+a taken name not refused (2), the ledger edit keeping the old gap so the note
+moves (1), the max hit floored instead of rounded (3), a prayer term in the
+combat level (1; the third hand case, 3.975 -> 3, was added because the
+first two survived it), the drop walk reading cumulative thresholds as
+shares (1), the emitter dropping ai triggers (1), the panel writing a
+generated layer (5), Apply fields without its stroke (26), the ctl verb
+without its stroke (4).
+
+Could not run here: test-editor-cfg (3 of 110) and test-editor-vars (5 of 48)
+fail only their content checks (every configs/all.* file read, the tree's
+varbits), as on the base; test-builder (it reads OSRS-Content's all.npc before any
+of its content-free checks, and sscompile does not link at OPT=0 without
+-lm), test-editor-panels, test-torirsmaped-embed and -daemon (the sample
+square), and nothing was photographed (no running client with content): the
+rings' look and the panel's layout are unchecked by eye. No content-tree
+npc was edited, so the 6.7 check ("an encounter set saved and RUN spawns the
+npcs with the edited huntrange; the fight log shows the hunt") is not run:
+it needs the content and a lane.
+
+Open:
+
+- The design's "DPS against the play account's current gear (from
+  Accounts)" cell is not built: the defence roll is content
+  (`~player_defence_roll`), not in this checkout to restate.
+- The max hit restates combat_stats.rs2's rule from the tree's worked
+  figures; nothing compiles it against the script, so a change there drifts
+  silently from the cell.
+- The fight log reads what the live link carries: the server prints its
+  `HIT` line to stderr only under its debug switch and sends no hunt line,
+  so on a normal lane the tab shows the npc-name fallback (and says so).
+  Wiring those lines onto the link is the server's half.
+- Rings show for npcs whose records the panel holds (the shown set's, and
+  any looked at); another set's spawns ring once their npc is selected.
+  `huntrange` with no statement draws no hunt ring (the engine default lives
+  in content).
+- The Set dropdown is a dropdown, not a VLIST with a search box, past 20
+  sets.
+- A generated-only field with no authored overlay is refused rather than
+  creating one (which file, and its pack/npc.server membership, is a
+  decision the Record panel's "override in" makes by hand).
+- The caster template copies dark_wizard.rs2's first swing verbatim, its
+  trigger kept; a swing longer than four step texts (2 KB) is refused.
+- Group rows ("goblin x4, 3246..3252") are per spawn ("(1 of 4)"), not one
+  row per npc.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.

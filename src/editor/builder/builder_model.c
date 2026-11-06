@@ -201,6 +201,54 @@ Builder_ModelTriggerAdd(
     return trigger;
 }
 
+int
+Builder_AiTriggerValid(const char* ai)
+{
+    size_t length;
+
+    assert(ai);
+    length = strlen(ai);
+    if( length <= 3 || length >= BUILDER_AI_NAME_MAX || strncmp(ai, "ai_", 3) != 0 )
+        return 0;
+    for( size_t i = 3; i < length; i++ )
+        if( !((ai[i] >= 'a' && ai[i] <= 'z') || (ai[i] >= '0' && ai[i] <= '9') || ai[i] == '_') )
+            return 0;
+    return 1;
+}
+
+struct Builder_Trigger*
+Builder_ModelAiTrigger(
+    struct Builder_Model* model,
+    const char* ai)
+{
+    assert(model);
+    assert(ai);
+    assert(Builder_AiTriggerValid(ai));
+
+    for( int i = 0; i < model->trigger_count; i++ )
+        if( model->triggers[i].op == BUILDER_OP_AI && strcmp(model->triggers[i].ai, ai) == 0 )
+            return &model->triggers[i];
+    return NULL;
+}
+
+struct Builder_Trigger*
+Builder_ModelAiTriggerAdd(
+    struct Builder_Model* model,
+    const char* ai)
+{
+    struct Builder_Trigger* trigger = Builder_ModelAiTrigger(model, ai);
+
+    if( trigger )
+        return trigger;
+    if( model->trigger_count >= BUILDER_TRIGGERS_MAX )
+        return NULL;
+    trigger = &model->triggers[model->trigger_count++];
+    memset(trigger, 0, sizeof(*trigger));
+    trigger->op = BUILDER_OP_AI;
+    copy_field(trigger->ai, sizeof(trigger->ai), ai);
+    return trigger;
+}
+
 void
 Builder_ModelTriggerRemove(
     struct Builder_Model* model,
@@ -580,7 +628,9 @@ Builder_ModelEmitIni(
     {
         const struct Builder_Trigger* trigger = &model->triggers[t];
 
-        if( trigger->op == 0 )
+        if( trigger->op == BUILDER_OP_AI )
+            Builder_BufPrintf(&buf, "\n[ai,%s]\n", trigger->ai);
+        else if( trigger->op == 0 )
         {
             Builder_BufPrintf(&buf, "\n[%s,", trigger->approach ? "apu" : "opu");
             put_escaped(&buf, trigger->use_obj);
@@ -842,6 +892,17 @@ Builder_ModelParseIni(
                 copy_field(node->id, sizeof(node->id), name + 5);
                 node->kind = BUILDER_NODE_KIND_COUNT;
                 section = SECTION_NODE;
+            }
+            else if( strncmp(name, "ai,", 3) == 0 )
+            {
+                if( !Builder_AiTriggerValid(name + 3) )
+                    FAIL("bad ai trigger [%s]", name);
+                if( Builder_ModelAiTrigger(model, name + 3) )
+                    FAIL("[%s] stated twice", name);
+                trigger = Builder_ModelAiTriggerAdd(model, name + 3);
+                if( !trigger )
+                    FAIL("more than %d triggers", BUILDER_TRIGGERS_MAX);
+                section = SECTION_TRIGGER;
             }
             else
             {

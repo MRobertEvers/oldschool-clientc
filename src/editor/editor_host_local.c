@@ -829,6 +829,9 @@ Editor_HostDocPath(
             /* A world-map area file (editor_wma.h), where the catalog's
              * atlas reader looks for every .wma. */
             written = snprintf(out, out_size, "worldmap/areas/%s.wma", key + 4);
+        else if( strncmp(key, "stats:", 6) == 0 )
+            /* An npc's stats ledger (editor_npcstats.h). */
+            written = snprintf(out, out_size, "npc_stats/%s.stats", key + 6);
         else
             return 0;
         break;
