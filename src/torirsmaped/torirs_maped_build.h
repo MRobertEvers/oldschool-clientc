@@ -21,7 +21,9 @@
  *
  * Frames (requests 53..64, facts 173..190 are this owner's):
  *
- *   BUILD  u32 what (enum ToriRSMapEdBuildWhat)
+ *   BUILD  u32 what (enum ToriRSMapEdBuildWhat) [, string quest]
+ *          (the quest kinds name their quest, a QUEUE.tsv test_id
+ *          (ToriRSMapEd_BuildQuestValid); the other kinds take none)
  *          -> broadcast FACT_BUILD_LINE  u32 what, string line   (0+)
  *             then FACT_BUILD_DONE       u32 what, u32 status (EditorHost_Status),
  *                                        u32 unit_count, unit_count * string unit,
@@ -107,7 +109,45 @@ enum ToriRSMapEdBuildWhat
      *  -j2 (src/maped/live-editor.mk), RUN's own build. One job, one
      *  FACT_BUILD_* stream, both builds' units and archives. */
     TORIRSMAPED_BUILD_RUN = 5,
+    /* 16..: the quest board's jobs (workbench 6.7; src/maped/shop-quest.mk).
+     * Each names one quest; neither touches the lane's packs or cache, and
+     * neither is a RUN step. */
+    /** `make -C src maped-quest-scaffold MAPED_QUEST=<id>`:
+     *  tools/quest_gate/new_quest.py <id> writes test/quests/<id>.lua. */
+    TORIRSMAPED_BUILD_QUEST_SCAFFOLD = 16,
+    /** `make -C src maped-quest-gate MAPED_QUEST=<id>`: run.py <id>
+     *  --no-build, then gate.py <id>, whose verdict lands in
+     *  build/maped_quest_board/<id>.gate (the board reads it). */
+    TORIRSMAPED_BUILD_QUEST_GATE = 17,
+    /** The last `what`; the test runner keeps a script per value. */
+    TORIRSMAPED_BUILD_WHAT_LAST = TORIRSMAPED_BUILD_QUEST_GATE,
 };
+
+/** A quest kind's argument: 1..63 bytes of [a-z0-9_] (a QUEUE.tsv test_id),
+ *  which is also all a make variable on the command line may hold here.
+ *  Inline, like ToriRSMapEdCatalog_KindName, so a client that links no
+ *  server code (the web) can check what it sends. */
+static inline int
+ToriRSMapEd_BuildQuestValid(const char* quest)
+{
+    size_t length = 0;
+
+    while( quest[length] )
+    {
+        char const c = quest[length];
+        if( !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') )
+            return 0;
+        length++;
+    }
+    return length > 0 && length < 64;
+}
+
+/** 1 for the `what`s that name a quest. */
+static inline int
+ToriRSMapEd_BuildWhatTakesQuest(uint32_t what)
+{
+    return what == TORIRSMAPED_BUILD_QUEST_SCAFFOLD || what == TORIRSMAPED_BUILD_QUEST_GATE;
+}
 
 /** RUN's steps, in order; FACT_RUN_DONE's `step`. */
 enum ToriRSMapEdRunStep
@@ -240,6 +280,8 @@ struct ToriRSMapEdBuildJob
      *  build, as (map_x, map_z) pairs; their map archives are repacked. */
     const int32_t* squares;
     int square_count;
+    /** The quest kinds: the quest (ToriRSMapEd_BuildQuestValid). */
+    char quest[64];
 };
 
 /** Where a running build reports. */
@@ -442,7 +484,7 @@ enum
 struct ToriRSMapEdBuildMock
 {
     struct ToriRSMapEdLane lane;
-    struct ToriRSMapEdBuildMockScript scripts[TORIRSMAPED_BUILD_RUN + 1];
+    struct ToriRSMapEdBuildMockScript scripts[TORIRSMAPED_BUILD_WHAT_LAST + 1];
     char commands[TORIRSMAPED_BUILD_MOCK_COMMANDS_MAX][4096];
     uint32_t command_whats[TORIRSMAPED_BUILD_MOCK_COMMANDS_MAX];
     /** The squares each recorded CLIENT_CACHE job named, as text "x_z x_z". */

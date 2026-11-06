@@ -2713,6 +2713,211 @@ the panel's 1024-byte buffer, which _FORTIFY_SOURCE stops as an overflow; it
 now resolves into a PATH_MAX buffer, keeps the given path when the root does
 not exist yet, and asserts the result fits.
 
+## Workbench step 6.7, part 2: the shop builder and the quest board (date 2026-11-06)
+
+Design section 11 ("Shop builder", "Quest board"), section 2 (R2 text never
+clips, R3 lists over 20 rows, R4 chords at the action, R8 nothing without a
+word), section 16 step 6.7 in part. The encounter builder is part 1 and is
+not touched here.
+
+What landed:
+
+- **The shop model** (src/editor/editor_shop.{h,c}, pure). A shop is the pair
+  tools/gen_shop_scripts.py writes and nothing else: one `.rs2` (the citation
+  header, `[opnpc<op>,<owner>] @<key>_open;` per owner, `[label,<key>_open]`
+  and `~openshop(<inv>, <buy>, <sell>, <delta>, "<title>");`) and one `.inv`
+  (`[<cache inv>]`, scope / restock / stackall, `allstock=yes` for a general
+  store, `stock<N>=<obj>,<count>,<rate>`). The multipliers are passed inline
+  to `~openshop` as the generator does (SHOPS_PLAN 4.1), not as npc params.
+  `Editor_ShopEmitRs2` / `_EmitInv` are render_rs2 / render_inv line for line
+  (the owner line's quirk "`// Owner: x. .`" for a shop with no `special`,
+  the patched-stub note sorted, the blank line in place of no triggers, `"`
+  in the title written `'`); `Editor_ShopParse` reads back exactly what
+  either mark's emitter wrote and refuses the rest with its line;
+  `Editor_ShopSaveRefusal` refuses the generator's own pair ("change the wiki
+  catalogue and regenerate"). Prices are LostCity's calc_shop_value
+  (`Editor_ShopValue`: scale(max(100, m - clamp(-5000, 1000, d * delta)),
+  1000, cost), truncated; `Editor_ShopSellsAt` floors at 1, `_BuysAt` does
+  not). `Editor_ShopCheck` says what the model alone can (key, owners, op,
+  inv name, the three multipliers' ranges, buy over sell, each row, a
+  repeated obj, no stock). `Editor_ShopWikiStock` reads one shop's rows of
+  wiki/shop_stock.csv (RFC 4180, review / unresolved rows skipped and
+  counted). The builder writes into its own directory,
+  `server/scripts/shop/edited/<key>/{scripts,configs}/` (TEXT documents
+  `rs2:shop/edited/<key>/...`), under its own mark (`EDITOR_SHOP_MARK`).
+- **tools/gen_shop_scripts.py fixed**: the owner line's `owner_note` had been
+  written into render_inv (which has no owners), so render_inv raised
+  NameError on `owner_gamevals` and render_rs2 on `owner_note`, and `--write`
+  could not run. It is computed in render_rs2 now; render_inv lost the dead
+  lines. Its output is otherwise unchanged.
+- **The Shop builder** (module "shop", src/editor/panels/edpanel_shop.c, View
+  > Shop builder, `view.shop` unbound): Shop key + Open (the builder's pair,
+  else the generator's found through the catalog's
+  `[label,<key>_open]` TRIGGER row and shown read-only, else a new shop) and
+  New; Owner npc (space-separated) + Pick owner (the Spawns selection's npc,
+  else the Catalog's npc pick); the op dropdown named from the owner's record
+  (`op3 Trade` by default); Sell / Buy / Delta per mille, general store,
+  members, Cache inv, Title; the stock VLIST under a Find box ("N · obj ·
+  count · rate  sells at X gp · buys at Y gp", the obj's `cost` asked of the
+  catalog four records a frame, 1 when the record states none), the row
+  editor (obj + Pick obj, count, rate, Set row, Remove row), + stock, From
+  wiki catalogue... (disabled with the reason when the content tree has no
+  wiki/shop_stock.csv); Test, Check, Save wearing `file.run`,
+  `file.check_scripts` and `file.save_all`'s keycaps; a Problems VLIST.
+  Check adds the catalog's refusals: the owner is an npc and has the op's
+  menu text, every obj exists, the inv is a cache inv with room for the rows
+  (SHOPS_PLAN 2.4) that no other `.inv` stocks, and no other file declares
+  `[opnpc<op>,<owner>]` (named with its file and line). Save runs Check, then
+  both documents through the authority as ONE stroke (Builder_TextSync, one
+  History row), then saves them; an undo or a redo of it is followed (the
+  panel re-reads the pair when either document's revision moves). Test:
+  Save, the Live panel's RUN, and once RUN lands a LIVE_CHEAT `::goto` (the
+  engine's own teleport) one tile east of the owner's spawn -- the Spawns
+  selection's row of it, else a row of an open square's spawn file -- for
+  the lane's play account, and the status sentence "Test: <account> is
+  beside <owner> at x,z; right-click them and choose Trade"; a RUN that
+  stopped says where. Every refusal is a status sentence.
+- **The quest board's reader** (src/editor/editor_quest.{h,c}, file reads
+  only). Editor_QuestRead fills the rows of design section 11's figure from
+  test/quests/QUEUE.tsv (test_id -> quest_dir), tools/quest_gate/
+  quest_inventory.tsv (display name, `%varp...` var, the constants' prefix),
+  the catalog (a `struct Editor_QuestCatalog` the caller binds: the DBROW
+  record named quest_dir, the TRIGGER rows under server/scripts/quests/
+  <dir>/), the quest's `.constant` file, its scripts (the catalog's files and
+  its scripts/ directory): **start** is the block that sets the first stage
+  after not_started, walked up its `@label` / `~proc` callers to the op
+  trigger ("start: opnpc1 cook"), its dialogue the npc builder's node count
+  when edited/<npc>/<npc>.interaction exists, else the dialogue calls it and
+  the labels it jumps to make; **each stage** between not_started and
+  complete is the first block that tests it (a comparison, or a
+  `case ^c` under `switch_int (%var)`), "ok" when the test file names it
+  (`expect_stage("<s>")`, `quest.stage.<s>`) else "no test row";
+  **complete** the block that sets it; **journal** a `[questjournal,...]`
+  block or a `*_journal` proc and its string lines; **test** the Lua's row
+  and shot call sites (t.exec / t.expect / t.check / t.step / t.blocked,
+  expect_complete's four rows and its scroll shot), the ledger
+  (build/quest_gate/<id>/ledger.tsv: rows, SUMMARY, shots) and gate.py's word
+  from build/maped_quest_board/<id>.gate. The state words: ok, missing, not
+  indexed (no catalog), no test row, not run, not gated (a ledger and no
+  gate run), stale (the gate's word older than the ledger), green, red,
+  blocked. `Editor_QuestShotPath` cuts a long shot name as gate.py's
+  shot_file_stem does (FNV-1a). `Editor_QuestCanScaffold` / `_CanGate` say
+  why the tools cannot run here.
+- **Quest BUILD jobs** (torirsmaped/torirs_maped_build.{h,c},
+  src/maped/shop-quest.mk). `TORIRSMAPED_BUILD_QUEST_SCAFFOLD` (16) and
+  `_QUEST_GATE` (17), numbered past the reserved kinds; the BUILD frame takes
+  an optional `string quest` after `what` (`Editor_LiveEncodeBuildQuest`);
+  a quest kind without one, another kind with one, or a quest that is not
+  `[a-z0-9_]` (`ToriRSMapEd_BuildQuestValid`, inline so the web can check
+  it) is answered REFUSED. `ToriRSMapEd_BuildCommand` spells `make -C
+  <repo>/src --no-print-directory maped-quest-scaffold|maped-quest-gate
+  MAPED_QUEST=<id> TORIRSSERVER_CONTENT_DIR=... OBJVERIFY_SKIP=1`. The make
+  targets: maped-quest-scaffold runs new_quest.py (`--qh-root` from
+  MAPED_QUEST_HELPER_ROOT / TORIRS_QUEST_HELPER_ROOT); maped-quest-gate runs
+  run.py --no-build (its exit is not the verdict), then gate.py into
+  build/maped_quest_board/<id>.gate under a header naming the target (the
+  directory is the target's), and fails only when gate.py printed no verdict.
+- **The Quest board** (module "quest", src/editor/panels/edpanel_quest.c,
+  View > Quest board, `view.quest` unbound): Quest id + Open + Refresh; a
+  cells VLIST of the parts (part, where, state) under a Find box; Open part
+  (the NPC builder on the start npc, Triggers on a script file, the Record
+  panel for a loc / npc / obj record; a read-only CODE view under the board
+  for what no panel here edits: the dbrow's block, the constants -- there is
+  no Vars panel in this build -- and the test's Lua); Scaffold test and Run
+  gate as BUILD jobs (refused with the reason; the job's newest line streams
+  into the board and its end reads the board again, "quest gate for <id>
+  finished: the test is green"); Ledger... (the rows in a VLIST under a Find
+  box; a picked row's first screenshot as a MODELVIEW sprite through the new
+  `EditorUiAppServices.png_publish` -- engine/png_decode.h, box-filtered to
+  fit, scene ids `UITREE_SCENE_EDITOR_SHOT_BASE` 0x4D000000 + slot, native
+  only -- else its path); RUN wearing `file.run`'s keycap.
+- Both panels are registered after Triggers, hidden until the View menu
+  opens them; `TORIRS_EDITOR_SHOP=<key>` / `TORIRS_EDITOR_QUEST=<id>` open
+  them with the editor (photographs). editor_panel.c gives the board the
+  manifest's content dir and repo_root, the shop builder the content dir.
+
+Tests (this container, content-free; OPT and OPT=0 with asserts):
+
+- `make -C src test-editor-shop` (new, src/maped/shop-quest.mk; 115 checks):
+  editor/test/editor_shop_oracle.py imports gen_shop_scripts and calls its
+  own render_rs2 / render_inv on the four shops of
+  editor/test/shop_samples.tsv (SHOPS_PLAN 4.3's Lumbridge General Store with
+  its 15 rows and two owners; a members' specialty shop whose title holds `"`
+  and two of whose three owners are patched stubs; a quest-gated shop with no
+  owner; a shop with no `special`), and editor_shop.c must emit the same
+  bytes for the same rows; the generator's pairs parse back and re-emit, the
+  builder's own pair round-trips, damaged text is refused with its line;
+  prices by hand (a pot, cost 1, at 1300 / 400 sells for 1 and buys for 0;
+  bread, cost 12, sells for 15 and buys for 4; the floor; 115 off baseline;
+  the clamps); the model's refusals; the wiki rows.
+- `make -C src test-editor-quest` (new; 54 checks): the reader over a
+  synthetic repository and content tree (Cook's Assistant by hand): every
+  row's text, file:line and state word, the switch_int stage, the journal in
+  a file only the catalog names, the counts; green, stale, red, not gated,
+  not run, missing in turn; the shot stems against gate.py's for an 84-byte
+  name; the Scaffold / Run gate refusals; no index.
+- `make -C src test-editor-shop-quest-panels` (new; 79 checks): both panels
+  over an embedded ToriRSMapEd (its catalog indexing a synthetic tree, its
+  BUILD runner the test runner): a shop typed in and priced from the
+  catalog's costs, Check clean, Save one undo step whose files are the
+  emitter's bytes, undo / redo followed; Check's refusals (an inv too small,
+  another file's `[opnpc3,...]` with its line, an unknown obj) and Save
+  refusing them; the generated shop read-only; the wiki rows; Test refused
+  with no spawn, RUN sent and "stopped at reload" said, a landed RUN sending
+  the account; the keycaps; the board's rows through the catalog, Open part
+  into Triggers / the CODE view, Run gate's refusal, its make line and its
+  verdict read back, Scaffold's refusal, the ledger and the shot through
+  png_publish or its path; the BUILD frame's three refusals and the
+  scaffold's make line; the two View actions.
+- Regression, all 0 failed: test-editor-hotkeys 2025 (the doc test over the
+  two new rows), test-editor-chords 591, test-editor-groups 2190,
+  test-editor-stamps 91, test-editor-stamps-ops 81, test-editor-workbench
+  295, check-tree-walks and check-pt-switch PASS; test-live-editor 172 and
+  test-live-panel 34 (both run with a synthetic m50_50 for the square they
+  copy, and test-live-editor linked with `-lm` by hand: its recipe links
+  none, as torirsmaped's, not from this change). `make -C src all` links.
+
+Seen to fail before their fix, each in a scratch worktree: the base tree's
+gen_shop_scripts.py (the oracle dies on NameError); the emitter writing
+allstock for every shop (4 of 115), the patched note unsorted (2), prices
+rounded instead of truncated (2), no floor of 1 (1); the gate's word never
+stale (1 of 54), a switch_int case not a test (1), the start not walked up
+to its op trigger (2); Save without its stroke (2 of 79: two undo steps),
+Save without the catalog's Check (7), the board not read again when its job
+lands (1), the BUILD frame running a quest kind with no quest or a bad one
+(3).
+
+Not run here: test-editor-panels (needs the OSRS-Content squares), and any
+real quest run (run.py needs the content tree, the quest client and a
+quest-helper checkout; the board's job is exercised through the test
+runner). Section 16's checks for 6.7 that need the play client -- a shop
+built from the panel opening in game at the computed prices, the board's
+gate row matching a real gate.py run -- are not done here.
+
+Left open:
+
+- Save runs the catalog's Check synchronously (a few record requests per
+  stock row it has not priced yet); a 40-row shop asked cold is ~45
+  requests on the click. The stock list itself asks four a frame.
+- The Test teleport needs the owner's spawn in the Spawns selection or an
+  open square's EDITED spawn file: the catalog counts spawn rows per square
+  and does not say where an npc stands, so a shop whose keeper is only in
+  the generated areas/world spawns needs its square opened (or Spawns) first.
+- A new shop's inv must be a cache inv (Check refuses another); allocating
+  one in pack/inv.alloc from the panel is not offered.
+- The shop builder edits one owner op for all owners; per-owner Talk-to
+  dialogue (SHOPS_PLAN 4.3's `_talk` label) is the NPC builder's.
+- The board finds stages by the var's assignments and comparisons in the
+  quest's own files; a quest that moves its var only through a shared proc
+  (`~set_quest_stage(...)`) shows those stages as "no trigger reads or sets
+  it". The journal is found by name (`[questjournal,...]`, `*_journal`).
+- No Vars panel exists to open (the constants are shown in the CODE view);
+  the Record panel takes loc / npc / obj only (the dbrow's block is shown).
+- Decoding a screenshot runs on the click that picks the row (one PNG,
+  native only); the web board lists paths.
+- The dbrow row quotes no column: the catalog's record holds a repeated
+  `data=` key once, so the points shown are the .constant's.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.

@@ -182,6 +182,14 @@ Editor_LiveEncodeBuild(
     struct ToriRSMapEdBuf* out,
     uint32_t what);
 
+/** BUILD of a quest kind (TORIRSMAPED_BUILD_QUEST_SCAFFOLD / _GATE) for
+ *  `quest`, which must be ToriRSMapEd_BuildQuestValid. */
+uint32_t
+Editor_LiveEncodeBuildQuest(
+    struct ToriRSMapEdBuf* out,
+    uint32_t what,
+    const char* quest);
+
 uint32_t
 Editor_LiveEncodeRun(struct ToriRSMapEdBuf* out);
 

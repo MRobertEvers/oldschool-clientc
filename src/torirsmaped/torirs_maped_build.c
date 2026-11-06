@@ -243,8 +243,13 @@ ToriRSMapEd_BuildWhatName(uint32_t what)
         return "cs2 compile";
     if( what == TORIRSMAPED_BUILD_RUN )
         return "packs and client cache";
+    if( what == TORIRSMAPED_BUILD_QUEST_SCAFFOLD )
+        return "quest scaffold";
+    if( what == TORIRSMAPED_BUILD_QUEST_GATE )
+        return "quest gate";
     return "?";
 }
+
 
 /* ------------------------------------------------------------------ */
 /* The lane                                                            */
@@ -380,6 +385,23 @@ ToriRSMapEd_BuildCommand(
     int const client = job->what == TORIRSMAPED_BUILD_CLIENT_CACHE || job->what == TORIRSMAPED_BUILD_RUN;
 
     memset(out, 0, sizeof(*out));
+    if( ToriRSMapEd_BuildWhatTakesQuest(job->what) )
+    {
+        /* src/maped/shop-quest.mk: the quest board's targets run the quest
+         * gate's own tools from the repository root. The quest lands on
+         * make's command line, so only a valid one gets this far. */
+        assert(ToriRSMapEd_BuildQuestValid(job->quest));
+        build_arg(out, "%s%s", lane->make[0] ? lane->make : "make", "");
+        build_arg(out, "-C%s%s", "", "");
+        build_arg(out, "%s/src%s", lane->repo_root, "");
+        build_arg(out, "--no-print-directory%s%s", "", "");
+        build_arg(out, "%s%s",
+            job->what == TORIRSMAPED_BUILD_QUEST_SCAFFOLD ? "maped-quest-scaffold" : "maped-quest-gate", "");
+        build_arg(out, "MAPED_QUEST=%s%s", job->quest, "");
+        build_arg(out, "TORIRSSERVER_CONTENT_DIR=%s%s", lane->content_dir, "");
+        build_arg(out, "OBJVERIFY_SKIP=1%s%s", "", "");
+        return 1;
+    }
     if( !packs && !client )
         return 0;
 
@@ -1404,7 +1426,7 @@ build_mock_poll(
     assert(sink);
     assert(out_status);
     assert(mock->running);
-    assert(mock->what <= TORIRSMAPED_BUILD_RUN);
+    assert(mock->what <= TORIRSMAPED_BUILD_WHAT_LAST);
 
     script = &mock->scripts[mock->what];
     if( mock->polls++ < script->idle_polls )
@@ -1693,6 +1715,7 @@ static enum EditorHost_Status
 jobs_build_start(
     struct ToriRSMapEd* maped,
     uint32_t what,
+    const char* quest,
     int for_run)
 {
     struct ToriRSMapEdJobs* jobs = maped->jobs;
@@ -1700,8 +1723,10 @@ jobs_build_start(
     enum EditorHost_Status status;
 
     assert(!jobs->building);
+    assert(quest);
     memset(&job, 0, sizeof(job));
     job.what = (enum ToriRSMapEdBuildWhat)what;
+    snprintf(job.quest, sizeof(job.quest), "%s", quest);
     if( what == TORIRSMAPED_BUILD_CLIENT_CACHE || what == TORIRSMAPED_BUILD_RUN )
     {
         job.squares = jobs->pending_squares;
@@ -1929,17 +1954,37 @@ handle_build(
     struct ToriRSMapEdJobs* jobs = maped->jobs;
     uint32_t what;
     enum EditorHost_Status status;
+    char quest[128] = "";
+    int has_quest = 0;
 
-    if( length != 4 )
+    if( length < 4 )
     {
         session->alive = 0;
         return;
     }
     what = ToriRSMapEd_ReadU32(body);
+    if( length > 4 )
+    {
+        /* u32 what, string quest: what the quest kinds carry. */
+        struct ToriRSMapEdReader reader;
+        ToriRSMapEd_ReaderInit(&reader, body + 4, length - 4);
+        ToriRSMapEd_GetString(&reader, quest, sizeof(quest));
+        if( reader.bad || reader.at != reader.length )
+        {
+            session->alive = 0;
+            return;
+        }
+        has_quest = 1;
+    }
     if( jobs->building || jobs->run_step != TORIRSMAPED_RUN_STEP_IDLE )
         status = EDITOR_HOST_REFUSED;
+    /* A quest kind without its quest, or another kind with one, or a quest
+     * no make command line should carry, is answered, never run. */
+    else if( ToriRSMapEd_BuildWhatTakesQuest(what) != has_quest
+             || (has_quest && !ToriRSMapEd_BuildQuestValid(quest)) )
+        status = EDITOR_HOST_REFUSED;
     else
-        status = jobs_build_start(maped, what, 0);
+        status = jobs_build_start(maped, what, quest, 0);
     if( status != EDITOR_HOST_OK )
     {
         jobs_build_send_done(maped, what, status, 0);
@@ -2343,7 +2388,7 @@ handle_run(
         return;
     }
     jobs_run_step_enter(maped, TORIRSMAPED_RUN_STEP_BUILD);
-    status = jobs_build_start(maped, TORIRSMAPED_BUILD_RUN, 1);
+    status = jobs_build_start(maped, TORIRSMAPED_BUILD_RUN, "", 1);
     if( status != EDITOR_HOST_OK )
     {
         jobs_build_send_done(maped, TORIRSMAPED_BUILD_RUN, status, 0);

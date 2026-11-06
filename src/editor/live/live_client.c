@@ -395,6 +395,21 @@ Editor_LiveEncodeBuild(
 }
 
 uint32_t
+Editor_LiveEncodeBuildQuest(
+    struct ToriRSMapEdBuf* out,
+    uint32_t what,
+    const char* quest)
+{
+    assert(out);
+    assert(quest);
+    assert(ToriRSMapEd_BuildWhatTakesQuest(what));
+    assert(ToriRSMapEd_BuildQuestValid(quest));
+    ToriRSMapEd_PutU32(out, what);
+    ToriRSMapEd_PutString(out, quest);
+    return TORIRSMAPED_REQ_BUILD;
+}
+
+uint32_t
 Editor_LiveEncodeRun(struct ToriRSMapEdBuf* out)
 {
     assert(out);

@@ -246,6 +246,9 @@ enum Editor_HotkeyAction
     EDITOR_HK_VIEW_LIVE,
     EDITOR_HK_VIEW_ACCOUNTS,
     EDITOR_HK_VIEW_TRIGGERS,
+    /** Workbench 6.7: the Shop builder and the Quest board. */
+    EDITOR_HK_VIEW_SHOP,
+    EDITOR_HK_VIEW_QUEST,
     EDITOR_HK_VIEW_HIDE_PANELS,
     EDITOR_HK_VIEW_RESET_LAYOUT,
     EDITOR_HK_VIEW_SNAP,

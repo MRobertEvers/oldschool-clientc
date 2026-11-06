@@ -714,6 +714,132 @@ ui_service_image_publish(
     return id;
 }
 
+#if !defined(__EMSCRIPTEN__)
+/** The quest board's screenshot: the PNG decoded (engine/png_decode.h) and
+ *  box-filtered down to fit max_w x max_h, as scene sprite
+ *  UITREE_SCENE_EDITOR_SHOT_BASE + slot. One decode a click: the board asks
+ *  only when a ledger row is picked. */
+static int
+ui_service_png_publish(
+    void* user_data,
+    int slot,
+    const char* path,
+    int max_w,
+    int max_h,
+    int* out_w,
+    int* out_h)
+{
+    struct App* app = user_data;
+    int const id = UITREE_SCENE_EDITOR_SHOT_BASE + slot;
+    FILE* f;
+    long size;
+    uint8_t* data;
+    uint32_t* pixels = NULL;
+    uint32_t* fitted;
+    int w = 0;
+    int h = 0;
+    int fw;
+    int fh;
+    struct ToriDraw_Sprite* sprite;
+    struct ToriDraw_Sprite** sprites;
+
+    assert(app);
+    assert(path);
+    assert(slot >= 0);
+    assert(slot < UITREE_SCENE_EDITOR_SHOT_SLOTS);
+    assert(max_w > 0);
+    assert(max_h > 0);
+    assert(out_w);
+    assert(out_h);
+    if( !app->scene )
+        return 0;
+    f = fopen(path, "rb");
+    if( !f )
+        return 0;
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if( size <= 0 || size > 64L * 1024 * 1024 )
+    {
+        fclose(f);
+        return 0;
+    }
+    data = ToriMem_Alloc(ToriMem_Editor(), (size_t)size);
+    assert(data);
+    if( fread(data, 1, (size_t)size, f) != (size_t)size )
+    {
+        fclose(f);
+        ToriMem_Free(ToriMem_Editor(), data);
+        return 0;
+    }
+    fclose(f);
+    if( !PngDecode_Argb(ToriMem_Editor(), data, (int)size, &w, &h, &pixels) )
+    {
+        ToriMem_Free(ToriMem_Editor(), data);
+        return 0;
+    }
+    ToriMem_Free(ToriMem_Editor(), data);
+    /* Fit, never enlarge: a source pixel box per target pixel, averaged. */
+    fw = w;
+    fh = h;
+    if( fw > max_w || fh > max_h )
+    {
+        if( (long)w * max_h > (long)h * max_w )
+        {
+            fw = max_w;
+            fh = (int)((long)h * max_w / w);
+        }
+        else
+        {
+            fh = max_h;
+            fw = (int)((long)w * max_h / h);
+        }
+        if( fw < 1 )
+            fw = 1;
+        if( fh < 1 )
+            fh = 1;
+    }
+    fitted = TORIDRAW_MALLOC((size_t)fw * (size_t)fh * sizeof(*fitted)); /* the sprite owns it */
+    assert(fitted);
+    for( int y = 0; y < fh; y++ )
+    {
+        int const y0 = (int)((long)y * h / fh);
+        int const y1 = (int)((long)(y + 1) * h / fh) > y0 ? (int)((long)(y + 1) * h / fh) : y0 + 1;
+        for( int x = 0; x < fw; x++ )
+        {
+            int const x0 = (int)((long)x * w / fw);
+            int const x1 = (int)((long)(x + 1) * w / fw) > x0 ? (int)((long)(x + 1) * w / fw) : x0 + 1;
+            uint32_t sum[4] = { 0, 0, 0, 0 };
+            uint32_t n = 0;
+            for( int sy = y0; sy < y1; sy++ )
+                for( int sx = x0; sx < x1; sx++ )
+                {
+                    uint32_t const p = pixels[sy * w + sx];
+                    sum[0] += p >> 24;
+                    sum[1] += (p >> 16) & 0xFF;
+                    sum[2] += (p >> 8) & 0xFF;
+                    sum[3] += p & 0xFF;
+                    n++;
+                }
+            fitted[y * fw + x] = ((sum[0] / n) << 24) | ((sum[1] / n) << 16) | ((sum[2] / n) << 8) | (sum[3] / n);
+        }
+    }
+    ToriMem_Free(ToriMem_Editor(), pixels);
+    sprite = ToriDraw_SpriteNewFromArgbOwned(fitted, fw, fh);
+    assert(sprite);
+    sprites = TORIDRAW_MALLOC(sizeof(*sprites)); /* SceneSpriteAdd frees it */
+    assert(sprites);
+    sprites[0] = sprite;
+    if( ToriDraw_SceneSpriteHas(app->scene, id) )
+        ToriDraw_SceneSpriteRemove(app->scene, id);
+    ToriDraw_SceneSpriteAdd(app->scene, id, sprites, 1);
+    app->need_redraw = 1;
+    *out_w = fw;
+    *out_h = fh;
+    return id;
+}
+#endif
+
 /** A monotonic clock for the picker's background loads. */
 static uint64_t
 ui_service_now_us(void* user_data)
@@ -776,6 +902,9 @@ app_map_editor_ui_services(
     /* The Catalog's row thumbnails: scene sprites, which a DOM page has no
      * pixels for (its cells list draws the empty cell). */
     out->loc_thumbnail = ui_service_loc_thumbnail;
+    /* The quest board's screenshots: decoded from disk, which a page has no
+     * path to (its board lists the paths). */
+    out->png_publish = ui_service_png_publish;
 #endif
     /* Pop out (app/app_editor_view.c). */
     out->world_camera = EditorView_AppWorldCamera;
