@@ -5045,6 +5045,108 @@ road's overlay picked with I, H, a drag from the road to the river: "Path:
 35 tiles laid, dirt 2.0 wide", joined to the road without a seam, one
 Ctrl+Z restoring all 35 tiles.
 
+### Walls, fences, scatter, roughen, plateau (the owner's request, 2026-11-06)
+
+"Make sure this editor supports other common features in game editors like
+the Warcraft 3 editor ... walls, fences builder, etc." and "a tool for
+creating flat areas for buildings ... a mound or hole that creates a flat
+area with smoothed mounding on the edges."
+
+What the editor already had against that list: terrain brushes (raise,
+lower, flatten, smooth, with radius, falloff, step, strength), the paint
+brushes and the path painter, the rectangle (copy, paste, fill, clear,
+stamps that turn), the Place tool's WALL RUN (a drag lays one wall piece a
+tile, corners at the turns), loc multi-select with nudge, rotate, reshape,
+duplicate and swap-to-pick, spawns, areas (regions), scenes (camera
+bookmarks), the catalog palette (a doodad palette), triggers, the object
+editor (Record panel), the interface editor, undo and history. What it
+lacked, built here:
+
+- **Fences and walls meet what is there** (edpanel_ops.c, the wall run's
+  judge): with Fit on (G), a straight piece landing on a tile where the same
+  loc already stands as a straight wall on a perpendicular edge becomes the
+  L of the two edges -- a run's end joins a wall already built, and a run
+  crossing one keeps both -- and a piece landing on its own L that already
+  carries the run's edge is kept. Without Fit the piece replaces, as before.
+  `Editor_LocRunPlanMake` takes `fit`; the plan records `fit`, `mask`.
+- **Diagonal fences** (`constrain` 2): with the diagonal wall (shape 9)
+  picked, Shift keeps the drag to a diagonal -- `Editor_LocRunTo` builds
+  the staircase from the first tile -- and the plan lays shape 9 on every
+  second tile, turned to the diagonal (rotation 1 north-west / south-east,
+  0 south-west / north-east, as Fit reads diagonal neighbours), nothing on
+  the tiles between. The same pick on a plain drag is the wall run it was.
+- **Roughen** (`tool.noise`, U; `EDITOR_TOOL_NOISE`): seeded height noise
+  under the brush, the step its amplitude, the falloff fading it to the rim;
+  one seed is one relief (the same plan twice is the same relief), and each
+  stroke draws a new seed (`tools.noise_seed`), so a second drag is not the
+  first undone. Rides in `Editor_BrushCommands` as the other brushes do.
+- **Scatter** (`tool.scatter`, B; `EDITOR_TOOL_SCATTER`;
+  `Editor_ScatterCommands`): the doodad brush. The SET is the selected locs'
+  distinct ids (select a few trees, then paint a mix of them), else the
+  catalog's pick; each tile under the brush draws from (seed, tile) and
+  below Density x falloff takes a loc of the set, turned at random when
+  "Random rotation" is on, placed as the record's first shape with the tile
+  as its footprint's south-west corner -- unless the footprint touches a
+  closed square, a tile this stroke already planned, or a loc there (a
+  centrepiece covers its footprint, read with the set's sizes). So a drag
+  never stacks, and the same stroke over it again adds nothing. Alt-drag
+  ERASES: every loc of the set on the brush's tiles. Terrain shows Density,
+  Random rotation and New seed while it is armed (Shift+[ ] step the
+  density); the status line says when there is nothing to scatter.
+- **Plateau** (`tool.plateau`, V; `EDITOR_TOOL_PLATEAU`;
+  `Editor_PlateauCommands`): the owner's flat area for a building. The
+  brush's disc goes to the height of the tile the stroke began on (held over
+  the drag, as Flatten's target is), and a SKIRT of N tiles around it (0..8,
+  Terrain's "Skirt (tiles)", Shift+[ ]) is eased from that height to the
+  ground as it is: a tile d tiles out goes to own + (top - own) x
+  smoothstep((N + 1 - d) / (N + 1)), so the slope leaves the top flat and
+  meets the ground tangentially -- a mound where the ground is lower, a
+  hole where it is higher. The Rect panel's **Plateau** button does the same
+  for the rectangle, to the latched tile's height (Select's click; else the
+  rectangle's first corner). So the workflow asked for: raise or lower a
+  tile to the level wanted, latch it, Plateau the rectangle (or drag the
+  brush from it).
+
+Tests (editor_placement_test, 169 checks): a run ending on a perpendicular
+wall becomes the L with Fit and the straight piece without, a third run
+keeps the L, one undo restores the wall; a Shift diagonal drag plans seven
+tiles with four shape-9 pieces at rotation 0, the south-east one rotation 1,
+a plain drag with the diagonal picked stays a wall run; Roughen moves every
+tile of the disc within the step (plus the ladder's snap), the same seed
+plans the same and another seed another relief; Scatter at 100 % fills the
+disc as far as footprints allow with adds of the set, none crossing, some
+turned, a second pass adds nothing, erase takes exactly what was dropped,
+each stroke one undo step, a tenth of the density far fewer and none turned
+with rotation off; Plateau puts the nine tiles of the top at the height, the
+skirt eases to the ground and stops at it, one undo, and the rectangle's
+corners are on top with the tile two out untouched. editor_hotkeys_test
+(2504) covers the three actions, their chords and their doc rows;
+editor_panels_test (1933) and editor_workbench_test (294, the registry's
+goldens re-baselined for the three new rail buttons) pass on Windows; on
+Linux the same four pass (169, 2504, 1934, 295). c8403a210.
+
+By hand on m50_50 (dist/win64/torirs.exe, 1280x800): the Terrain panel
+shows "Scatter r2 smooth 20%" with Density, Random rotation and New seed
+while B is armed, and "Plateau r2 skirt 3" with the Skirt slider while V
+is; oaktree picked in the Catalog, a Scatter drag over the grass dropped
+oaks (3x3 footprints, none crossing) along it, one undo step; a Plateau
+press on a raised hill applied (the top-down camera hides the relief --
+the skirt's shape is the planner's test). With nothing selected or picked
+the status line reads "Scatter refused: select locs to scatter, or pick
+one in the catalog".
+
+Found on the way: with 21 buttons the rail's default layout at 2x
+overlapped the console strip at 1280x800 (editor_panels_test) -- the
+column count was chosen from the one-column height divided by the columns,
+which undercounts the strip's padding. The layout now counts the rows the
+buttons wrap into (`Editor_ToolRail_ButtonCount`) at the button pitch plus
+the measured padding.
+
+Open: the brush footprint drawn under the pointer shows the radius, not
+the Plateau's skirt; Scatter reads a loc's size from its record only once
+it is resident (one tile until then); a Scatter set is the window's
+selection, not shared with other windows.
+
 ### The test suites
 
 `make -C src test-editor` on Windows (win64, OPT=1) and on Linux (a WSL clone
