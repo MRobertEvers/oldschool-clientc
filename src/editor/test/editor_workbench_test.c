@@ -253,11 +253,14 @@ registry_digest(
  * the default column at 1280x800 hid the square picker (its least height
  * counted the detail pane that folds, and the well's least left it 31 px
  * short; edpanel_squares.c, squares_stretch), and Problems opened floating
- * with every editor show (it opens on demand now, problems_set_visible). */
+ * with every editor show (it opens on demand now, problems_set_visible).
+ * The path painter moved all three registries again (was 2335556997u,
+ * 2229059899u, 2715795737u): the tool rail's Paint path button, four
+ * primitives at each scale; Linux and Windows agree. */
 static const uint32_t k_golden[3][3] = {
-    { 1970238540u, 3840548130u, 2335556997u },
-    { 1606657634u, 3552625563u, 2229059899u },
-    { 1621493878u, 3838641767u, 2715795737u },
+    { 1970238540u, 3840548130u, 4151824108u },
+    { 1606657634u, 3552625563u, 2947083847u },
+    { 1621493878u, 3838641767u, 2486953790u },
 };
 
 static void

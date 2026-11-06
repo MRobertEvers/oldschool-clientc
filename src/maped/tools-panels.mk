@@ -7,7 +7,7 @@
 # The panel registry and its modules link into every client build (src/makefile
 # appends MAPED_CLIENT_SRCS to SRCS). Object names are basenames, so every
 # module is edpanel_<name>.c.
-TOOLS_PANELS_SRCS = editor/editor_ui.c \
+TOOLS_PANELS_SRCS = editor/editor_ui.c editor/editor_path.c \
 	editor/panels/edpanel_common.c editor/panels/edpanel_actions.c \
 	editor/panels/edpanel_ops.c editor/panels/edpanel_picker.c \
 	editor/panels/edpanel_newform.c editor/panels/edpanel_shapes.c \

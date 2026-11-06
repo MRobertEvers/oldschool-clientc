@@ -31,7 +31,7 @@ static const char* const k_tool_names[EDITOR_TOOL_COUNT] = {
     "Select",       "Rectangle select", "Raise",        "Lower",
     "Flatten",      "Smooth",           "Paint underlay", "Paint overlay",
     "Paint flags",  "Place",            "Move",         "Rotate",
-    "Delete",       "Place player",
+    "Delete",       "Place player",     "Paint path",
 };
 
 /* The hotkey table arms the tools in enum Editor_Tool's order, and its hint
@@ -43,6 +43,7 @@ _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_LOC_MOVE == EDITOR_HK_TOOL_MO
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_RECT_SELECT == EDITOR_HK_TOOL_RECT, "the tool orders agree");
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_PLACE_PLAYER == EDITOR_HK_TOOL_PLACE_PLAYER,
     "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_PAINT_PATH == EDITOR_HK_TOOL_PAINT_PATH, "the tool orders agree");
 
 const char*
 Editor_ToolName(enum Editor_Tool tool)
@@ -86,6 +87,10 @@ Editor_UiInit(
     ui->tools.place_fit = 1;
     ui->tools.pick_kind = -1;
     ui->tools.pick_id = -1;
+    ui->tools.path_style = 0;
+    ui->tools.path_width_halves = 4;
+    ui->tools.path_roughness = 50;
+    ui->tools.path_seed = 1;
 
     /* Any number other views are unlikely to pick: the address of this
      * window's registry mixed with the clock. Positive, never 0 (0 is what a

@@ -120,6 +120,17 @@ struct Editor_Panel
      *  along the tiles crossed (Editor_PanelRun*; the plan is what the
      *  overlay previews). Absolute tiles. */
     struct Editor_PlaceRun run;
+    /** The Path tool's drag from press to release: the absolute tiles it
+     *  crossed (a jump between frames is filled in), laid on release as one
+     *  undo step; the overlay previews the plan meanwhile. */
+    struct
+    {
+        int active;
+        int level;
+        int count;
+        int xs[EDITOR_PATH_POINTS_MAX];
+        int zs[EDITOR_PATH_POINTS_MAX];
+    } path;
     /** The Select tool's press on empty ground (no loc under the pointer),
      *  absolute tile and edit level: it becomes the MARQUEE once the pointer
      *  leaves that tile, and a release on it is the plain click.
@@ -305,6 +316,45 @@ int
 Editor_PanelRunEnd(
     struct Editor_Panel* panel,
     struct App* app);
+
+/* ---- the Path tool (editor/editor_path.h) ---------------------------------------- */
+
+/** The shared tools' path settings as the planner takes them. */
+void
+Editor_PanelPathParams(
+    const struct EditorUi* ui,
+    struct Editor_PathParams* out);
+
+/** Press with the Path tool: the drag opens at the tile. 0 off the world. */
+int
+Editor_PanelPathBegin(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level);
+
+/** The drag reached a tile: 1 when the path gained one (the preview moves). */
+int
+Editor_PanelPathTo(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z);
+
+/** Release: the path laid as one undo step; the tiles changed (0 with a
+ *  status line saying why, e.g. no overlay picked). */
+int
+Editor_PanelPathEnd(
+    struct Editor_Panel* panel,
+    struct App* app);
+
+/** The open drag's plan, for the overlay: up to `max` tiles, absolute. */
+int
+Editor_PanelPathPreview(
+    const struct Editor_Panel* panel,
+    struct Editor_PathTile* out,
+    int max);
 
 /** The marquee released: the locs whose footprint the rectangle (the shared
  *  tools' rect) touches on its level, joined to the selection by `mode`. */

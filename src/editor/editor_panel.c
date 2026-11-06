@@ -32,6 +32,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -1061,6 +1062,183 @@ Editor_PanelApplyToSelection(
         return 0;
     panel->ui->tools.flatten_valid = 0;
     return Editor_PanelApplyToolAt(panel, app, scene_x, scene_z, panel->ui->tools.tile_level);
+}
+
+/* ---- the Path tool ------------------------------------------------------------- */
+
+void
+Editor_PanelPathParams(
+    const struct EditorUi* ui,
+    struct Editor_PathParams* out)
+{
+    assert(ui);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->style = ui->tools.path_style == EDITOR_PATH_PAVED ? EDITOR_PATH_PAVED : EDITOR_PATH_DIRT;
+    out->width = ui->tools.path_width_halves / 2.0;
+    if( out->width < 0.5 )
+        out->width = 0.5;
+    if( out->width > EDITOR_PATH_WIDTH_MAX )
+        out->width = EDITOR_PATH_WIDTH_MAX;
+    out->roughness = ui->tools.path_roughness / 100.0;
+    out->seed = ui->tools.path_seed;
+}
+
+/* One tile onto the drag; the tiles between it and the last one too, so a
+ * pointer that skipped tiles between frames leaves no gap (a Bresenham line). */
+static int
+panel_path_add(
+    struct Editor_Panel* panel,
+    int world_x,
+    int world_z)
+{
+    int x;
+    int z;
+    int dx;
+    int dz;
+    int sx;
+    int sz;
+    int err;
+    int added = 0;
+
+    if( panel->path.count == 0 )
+    {
+        panel->path.xs[0] = world_x;
+        panel->path.zs[0] = world_z;
+        panel->path.count = 1;
+        return 1;
+    }
+    x = panel->path.xs[panel->path.count - 1];
+    z = panel->path.zs[panel->path.count - 1];
+    dx = abs(world_x - x);
+    dz = -abs(world_z - z);
+    sx = x < world_x ? 1 : -1;
+    sz = z < world_z ? 1 : -1;
+    err = dx + dz;
+    while( (x != world_x || z != world_z) && panel->path.count < EDITOR_PATH_POINTS_MAX )
+    {
+        int const e2 = 2 * err;
+        if( e2 >= dz )
+        {
+            err += dz;
+            x += sx;
+        }
+        if( e2 <= dx )
+        {
+            err += dx;
+            z += sz;
+        }
+        panel->path.xs[panel->path.count] = x;
+        panel->path.zs[panel->path.count] = z;
+        panel->path.count++;
+        added = 1;
+    }
+    return added;
+}
+
+int
+Editor_PanelPathBegin(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    int world_x;
+    int world_z;
+
+    assert(panel);
+    assert(app);
+    if( !panel->ui || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+        return 0;
+    panel->path.active = 1;
+    panel->path.level = level < 0 ? 0 : level > 3 ? 3 : level;
+    panel->path.count = 0;
+    (void)panel_path_add(panel, world_x, world_z);
+    return 1;
+}
+
+int
+Editor_PanelPathTo(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z)
+{
+    int world_x;
+    int world_z;
+
+    assert(panel);
+    assert(app);
+    if( !panel->path.active || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+        return 0;
+    if( panel->path.count == EDITOR_PATH_POINTS_MAX )
+    {
+        Editor_UiStatus(panel->ui, "Path: %d tiles is as long as one drag lays; release, then drag on",
+            EDITOR_PATH_POINTS_MAX);
+        return 0;
+    }
+    return panel_path_add(panel, world_x, world_z);
+}
+
+int
+Editor_PanelPathPreview(
+    const struct Editor_Panel* panel,
+    struct Editor_PathTile* out,
+    int max)
+{
+    struct Editor_PathParams params;
+
+    assert(panel);
+    assert(out);
+    if( !panel->path.active || !panel->ui || panel->path.count == 0 )
+        return 0;
+    Editor_PanelPathParams(panel->ui, &params);
+    return Editor_PathPlan(&params, panel->path.xs, panel->path.zs, panel->path.count, NULL, NULL, out, max);
+}
+
+int
+Editor_PanelPathEnd(
+    struct Editor_Panel* panel,
+    struct App* app)
+{
+    struct EditorUi* ui;
+    struct Editor_PathParams params;
+    struct Editor_Cmd* commands;
+    int capacity;
+    int closed = 0;
+    int count;
+    int applied;
+
+    assert(panel);
+    assert(app);
+    ui = panel->ui;
+    if( !panel->path.active )
+        return 0;
+    panel->path.active = 0;
+    if( !ui || !app->editor )
+        return 0;
+    if( ui->tools.overlay_none )
+    {
+        Editor_UiStatus(ui, "Path refused: pick the path's overlay in the Palette first");
+        return 0;
+    }
+    Editor_PanelPathParams(ui, &params);
+    commands = edp_scratch(&capacity);
+    count = Editor_PathCommands(&app->editor->doc, panel->path.level, &params, ui->tools.overlay_id, panel->path.xs,
+        panel->path.zs, panel->path.count, commands, capacity, &closed);
+    applied = edp_apply(ui, commands, count, Editor_ToolName(EDITOR_TOOL_PAINT_PATH));
+    if( closed > 0 )
+        Editor_UiStatus(ui, "Path: %d tile%s in squares not open here were left out", closed, closed == 1 ? "" : "s");
+    else if( count == 0 )
+        Editor_UiStatus(ui, "Path: nothing to change (the tiles already carry it)");
+    else
+        Editor_UiStatus(ui, "Path: %d tile%s laid, %s %d.%d wide", applied, applied == 1 ? "" : "s",
+            params.style == EDITOR_PATH_PAVED ? "pavement" : "dirt", ui->tools.path_width_halves / 2,
+            ui->tools.path_width_halves % 2 ? 5 : 0);
+    /* The next path wanders its own way (the preview drew this seed's). */
+    ui->tools.path_seed = ui->tools.path_seed * 1664525u + 1013904223u;
+    return applied;
 }
 
 /* ---- direct manipulation ------------------------------------------------------ */

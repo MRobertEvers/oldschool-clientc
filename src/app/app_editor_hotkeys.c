@@ -353,6 +353,13 @@ app_hk_deselect(
         panel->stroke_active = 0;
         return;
     }
+    /* A Path drag lays nothing until release: Escape drops it. */
+    if( panel->path.active )
+    {
+        panel->path.active = 0;
+        Editor_UiStatus(ui, "Path dropped");
+        return;
+    }
     if( panel->rect_dragging )
     {
         /* A marquee too: it is the rectangle, and selects nothing now. */

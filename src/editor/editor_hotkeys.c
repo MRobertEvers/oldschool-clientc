@@ -128,6 +128,9 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_TOOL_PLACE_PLAYER] = { "tool.place_player", "Tools", "Place player",
                                       "Place player (the lane's play account onto the clicked tile)", G, EDGE,
                                       { "p" }, NULL },
+    [EDITOR_HK_TOOL_PAINT_PATH] = { "tool.paint_path", "Tools", "Paint path",
+                                    "Paint path (the palette's overlay laid along a drag)", G, EDGE,
+                                    { "h" }, NULL },
     [EDITOR_HK_TOOL_PREVIOUS] = { "tool.previous", "Tools", "Previous tool", "Previous tool", G, EDGE, { "grave" },
                                   NULL },
     [EDITOR_HK_TOOL_PICK_PAINT] = { "tool.pick_paint", "Tools", "Pick the tile's paint",
@@ -1082,6 +1085,12 @@ static const struct hk_hint_row k_hint_player[] = {
     { NULL, { 0 }, 0, NULL },
 };
 
+static const struct hk_hint_row k_hint_path[] = {
+    { "drag", { 0 }, 0, "lay path" },
+    { NULL, { EDITOR_HK_BRUSH_RADIUS_DOWN, EDITOR_HK_BRUSH_RADIUS_UP }, 2, "width" },
+    { NULL, { 0 }, 0, NULL },
+};
+
 #undef HK_NUDGES
 
 static const struct hk_hint_row* const k_hint_rows[EDITOR_HK_HINT_TOOLS] = {
@@ -1099,6 +1108,7 @@ static const struct hk_hint_row* const k_hint_rows[EDITOR_HK_HINT_TOOLS] = {
     [HK_TOOL(EDITOR_HK_TOOL_ROTATE)] = k_hint_rotate,
     [HK_TOOL(EDITOR_HK_TOOL_DELETE)] = k_hint_delete,
     [HK_TOOL(EDITOR_HK_TOOL_PLACE_PLAYER)] = k_hint_player,
+    [HK_TOOL(EDITOR_HK_TOOL_PAINT_PATH)] = k_hint_path,
 };
 
 /**

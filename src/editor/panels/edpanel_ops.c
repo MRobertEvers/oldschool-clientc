@@ -2,6 +2,7 @@
 
 #include "editor/editor_derive.h"
 #include "engine/torirs_types.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <math.h>
@@ -351,6 +352,101 @@ Editor_BrushCommands(
         }
     }
     return count;
+}
+
+/* ---- the path ------------------------------------------------------------------ */
+
+struct OpsPathExisting
+{
+    struct Editor_Doc* doc;
+    int level;
+    int overlay_id;
+};
+
+/* Editor_PathExistingFn: the tile already holds the overlay being laid. */
+static int
+ops_path_existing(
+    void* user,
+    int world_x,
+    int world_z,
+    int* out_shape,
+    int* out_rotation)
+{
+    struct OpsPathExisting const* ctx = user;
+    struct Editor_Square* square;
+    const struct Editor_Tile* tile;
+    int x;
+    int z;
+
+    square = ops_square_at(ctx->doc, world_x, world_z, &x, &z);
+    if( !square )
+        return 0;
+    tile = &square->tiles[Editor_TileIndex(x, z, ctx->level)];
+    if( !tile->has_overlay || tile->overlay_id != ctx->overlay_id || tile->shape > 11 )
+        return 0;
+    *out_shape = tile->shape;
+    *out_rotation = tile->rotation & 3;
+    return 1;
+}
+
+int
+Editor_PathCommands(
+    struct Editor_Doc* doc,
+    int level,
+    const struct Editor_PathParams* params,
+    int overlay_id,
+    const int* xs,
+    const int* zs,
+    int count,
+    struct Editor_Cmd* out,
+    int max,
+    int* out_closed)
+{
+    struct OpsPathExisting ctx;
+    struct Editor_PathTile* plan;
+    int planned;
+    int written = 0;
+    int closed = 0;
+
+    assert(doc);
+    assert(params);
+    assert(level >= 0);
+    assert(level < 4);
+    assert(overlay_id >= 0);
+    assert(overlay_id <= 0xffff);
+    assert(out);
+    assert(max > 0);
+
+    ctx.doc = doc;
+    ctx.level = level;
+    ctx.overlay_id = overlay_id;
+    plan = ToriMem_Alloc(ToriMem_Editor(), sizeof(*plan) * (size_t)max);
+    assert(plan);
+    planned = Editor_PathPlan(params, xs, zs, count, ops_path_existing, &ctx, plan, max);
+    for( int i = 0; i < planned; i++ )
+    {
+        struct Editor_Square* square;
+        struct Editor_Tile after;
+        int x;
+        int z;
+
+        square = ops_square_at(doc, plan[i].world_x, plan[i].world_z, &x, &z);
+        if( !square )
+        {
+            closed++;
+            continue;
+        }
+        after = square->tiles[Editor_TileIndex(x, z, level)];
+        after.has_overlay = 1;
+        after.overlay_id = (uint16_t)overlay_id;
+        after.shape = (uint8_t)plan[i].shape;
+        after.rotation = (uint8_t)plan[i].rotation;
+        ops_emit_tile(square, x, z, level, &after, out, &written, max);
+    }
+    ToriMem_Free(ToriMem_Editor(), plan);
+    if( out_closed )
+        *out_closed = closed;
+    return written;
 }
 
 /* ---- the rectangle ------------------------------------------------------------ */

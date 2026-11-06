@@ -79,6 +79,9 @@ enum Editor_Tool
     /** Put the lane's play account on the clicked tile (the Accounts panel:
      *  ::tele online, the save offline; editor/accounts/accounts_panel.h). */
     EDITOR_TOOL_PLACE_PLAYER,
+    /** Drag a path: the palette's overlay along the drag, its edges shaped to
+     *  the line (editor/editor_path.h), one undo step on release. */
+    EDITOR_TOOL_PAINT_PATH,
     EDITOR_TOOL_COUNT
 };
 
@@ -211,6 +214,14 @@ struct EditorUiTools
      *  press): panel edits made meanwhile join it instead of opening their
      *  own. */
     int stroke_open;
+
+    /** The Path tool (editor/editor_path.h): dirt or pavement, the width in
+     *  half tiles (1..16), dirt's roughness in percent, and the seed its
+     *  wander is drawn from (New edges draws another). */
+    int path_style;
+    int path_width_halves;
+    int path_roughness;
+    uint32_t path_seed;
 };
 
 /* ---- hooks ---------------------------------------------------------------

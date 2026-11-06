@@ -19,11 +19,13 @@ enum
     TERRAIN_GROUP_FALLOFF = 1,
     TERRAIN_GROUP_LEVEL = 2,
     TERRAIN_GROUP_VIS = 3,
+    TERRAIN_GROUP_PATH = 4,
 };
 
 static const char* const k_falloff_names[EDITOR_BRUSH_FALLOFF_COUNT] = { "linear", "smooth", "flat" };
 static const char* const k_level_names[5] = { "auto", "0", "1", "2", "3" };
 static const char* const k_vis_names[5] = { "all", "0", "1", "2", "3" };
+static const char* const k_path_names[EDITOR_PATH_STYLE_COUNT] = { "dirt", "pavement" };
 static const char* const k_flag_names[4] = { "block", "link below (bridge)", "remove roof",
                                              "vis below" };
 
@@ -39,6 +41,16 @@ struct TerrainPanel
     int radio_vis[5];
     int check_solo;
     int check_flags[4];
+    /** The Path tool's section (shown while it is armed): the style, the
+     *  width in half tiles, dirt's roughness, New edges (another seed). */
+    int label_path;
+    int radio_path[EDITOR_PATH_STYLE_COUNT];
+    int slider_path_width;
+    int slider_path_rough;
+    int button_path_seed;
+    int shown_path_style;
+    int shown_path_width;
+    int shown_path_rough;
     /** What the readout and the radios were last set from. */
     enum Editor_Tool shown_tool;
     int shown_level;
@@ -149,12 +161,32 @@ terrain_readout(
     char line[TORIRS_CHROME_LABEL_MAX];
     const struct Editor_Brush* brush = &ui->tools.brush;
 
+    int const path = ui->tools.tool == EDITOR_TOOL_PAINT_PATH;
+
     if( Editor_ToolIsBrush(ui->tools.tool) )
         snprintf(line, sizeof(line), "%s  r%d %s", Editor_ToolName(ui->tools.tool), brush->radius,
             k_falloff_names[brush->falloff]);
+    else if( path )
+        snprintf(line, sizeof(line), "%s  %s %d.%d wide", Editor_ToolName(ui->tools.tool),
+            k_path_names[ui->tools.path_style == EDITOR_PATH_PAVED], ui->tools.path_width_halves / 2,
+            ui->tools.path_width_halves % 2 ? 5 : 0);
     else
         snprintf(line, sizeof(line), "%s (not a brush)", Editor_ToolName(ui->tools.tool));
     ToriRSChrome_SetText(ui->chrome, self->row_tool, line);
+    /* The path's section only while the Path tool is up, and then in the
+     * brush's place (a path has no radius, falloff, step or strength), so it
+     * is at the top of the panel rather than under the fold. */
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_radius, path);
+    for( int i = 0; i < EDITOR_BRUSH_FALLOFF_COUNT; i++ )
+        ToriRSChrome_SetHidden(ui->chrome, self->radio_falloff[i], path);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_step, path);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_strength, path);
+    ToriRSChrome_SetHidden(ui->chrome, self->label_path, !path);
+    for( int i = 0; i < EDITOR_PATH_STYLE_COUNT; i++ )
+        ToriRSChrome_SetHidden(ui->chrome, self->radio_path[i], !path);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_path_width, !path);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_path_rough, !path || ui->tools.path_style == EDITOR_PATH_PAVED);
+    ToriRSChrome_SetHidden(ui->chrome, self->button_path_seed, !path || ui->tools.path_style == EDITOR_PATH_PAVED);
     self->shown_tool = ui->tools.tool;
 }
 
@@ -192,6 +224,17 @@ terrain_tick(
         self->shown_brush = ui->tools.brush;
         terrain_readout(ui, self);
     }
+    if( self->shown_path_style != ui->tools.path_style || self->shown_path_width != ui->tools.path_width_halves
+        || self->shown_path_rough != ui->tools.path_roughness )
+    {
+        ToriRSChrome_RadioSelect(ui->chrome, self->radio_path[ui->tools.path_style == EDITOR_PATH_PAVED]);
+        ToriRSChrome_SliderSet(ui->chrome, self->slider_path_width, ui->tools.path_width_halves);
+        ToriRSChrome_SliderSet(ui->chrome, self->slider_path_rough, ui->tools.path_roughness);
+        self->shown_path_style = ui->tools.path_style;
+        self->shown_path_width = ui->tools.path_width_halves;
+        self->shown_path_rough = ui->tools.path_roughness;
+        terrain_readout(ui, self);
+    }
     if( self->shown_flags != ui->tools.flags_value )
     {
         for( int i = 0; i < 4; i++ )
@@ -215,6 +258,16 @@ terrain_activate(
         self->shown_brush.step = tools->brush.step = ToriRSChrome_SliderValue(ui->chrome, widget);
     else if( widget == self->slider_strength )
         self->shown_brush.strength = tools->brush.strength = ToriRSChrome_SliderValue(ui->chrome, widget);
+    else if( widget == self->slider_path_width )
+        self->shown_path_width = tools->path_width_halves = ToriRSChrome_SliderValue(ui->chrome, widget);
+    else if( widget == self->slider_path_rough )
+        self->shown_path_rough = tools->path_roughness = ToriRSChrome_SliderValue(ui->chrome, widget);
+    else if( widget == self->button_path_seed )
+    {
+        tools->path_seed = tools->path_seed * 1664525u + 1013904223u;
+        Editor_UiStatus(ui, "Path: new edges for the next dirt path");
+        return 1;
+    }
     else if( widget == self->check_solo )
     {
         tools->vis_solo = ToriRSChrome_Checked(ui->chrome, widget) ? 1 : 0;
@@ -226,6 +279,13 @@ terrain_activate(
             if( widget == self->radio_falloff[i] )
             {
                 self->shown_brush.falloff = tools->brush.falloff = (enum Editor_BrushFalloff)i;
+                terrain_readout(ui, self);
+                return 1;
+            }
+        for( int i = 0; i < EDITOR_PATH_STYLE_COUNT; i++ )
+            if( widget == self->radio_path[i] )
+            {
+                self->shown_path_style = tools->path_style = i;
                 terrain_readout(ui, self);
                 return 1;
             }
@@ -305,6 +365,29 @@ Editor_Terrain_Register(struct EditorUi* ui)
     self->slider_strength =
         ToriRSChrome_Slider(chrome, self->panel, "Strength", 0, 100, ui->tools.brush.strength, 5);
     terrain_hints(ui, self);
+
+    /* The Path tool (H): hidden until it is armed (terrain_readout). */
+    self->label_path = ToriRSChrome_Label(chrome, self->panel, "Path");
+    for( int i = 0; i < EDITOR_PATH_STYLE_COUNT; i++ )
+        self->radio_path[i] = ToriRSChrome_Radio(chrome, self->panel, k_path_names[i], TERRAIN_GROUP_PATH,
+            i == (ui->tools.path_style == EDITOR_PATH_PAVED));
+    ToriRSChrome_SetTooltip(chrome, self->radio_path[0], "Edges that wander, the width breathing (the content's tracks)");
+    ToriRSChrome_SetTooltip(chrome, self->radio_path[1], "Straight runs and 45-degree bends, a steady width (roads)");
+    self->slider_path_width = ToriRSChrome_Slider(chrome, self->panel, "Width (half tiles)", 1,
+        (int)(EDITOR_PATH_WIDTH_MAX * 2), ui->tools.path_width_halves, 1);
+    self->slider_path_rough =
+        ToriRSChrome_Slider(chrome, self->panel, "Roughness", 0, 100, ui->tools.path_roughness, 5);
+    self->button_path_seed = ToriRSChrome_Button(chrome, self->panel, "New edges");
+    ToriRSChrome_SetTooltip(chrome, self->button_path_seed, "Another wander for the next dirt path");
+    self->shown_path_style = ui->tools.path_style;
+    self->shown_path_width = ui->tools.path_width_halves;
+    self->shown_path_rough = ui->tools.path_roughness;
+    ToriRSChrome_SetHidden(chrome, self->label_path, 1);
+    for( int i = 0; i < EDITOR_PATH_STYLE_COUNT; i++ )
+        ToriRSChrome_SetHidden(chrome, self->radio_path[i], 1);
+    ToriRSChrome_SetHidden(chrome, self->slider_path_width, 1);
+    ToriRSChrome_SetHidden(chrome, self->slider_path_rough, 1);
+    ToriRSChrome_SetHidden(chrome, self->button_path_seed, 1);
 
     ToriRSChrome_Separator(chrome, self->panel);
     ToriRSChrome_Label(chrome, self->panel, "Flags brush");

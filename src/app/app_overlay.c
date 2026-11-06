@@ -1853,6 +1853,38 @@ app_overlay_editor_wall_edge(
  * tile the release would not fill in red. The same plan the release commits
  * (edp_run_end re-plans it against the document), so they cannot disagree.
  */
+/* The Path drag's plan (Editor_PanelPathPreview): the tiles the release will
+ * pave, edge-shaped ones stronger so the edge the planner chose reads. At
+ * most this many washes; a longer path shows its edge tiles first. */
+#define APP_EDITOR_PATH_PREVIEW_TILES 240
+
+static void
+app_overlay_build_editor_path(struct App* app)
+{
+    static struct Editor_PathTile tiles[EDITOR_PATH_SPAN_MAX * 8];
+    struct Editor_Panel const* panel = &app->editor_panel;
+    int count;
+    int drawn = 0;
+
+    if( !app->world || !panel->path.active )
+        return;
+    count = Editor_PanelPathPreview(panel, tiles, (int)(sizeof(tiles) / sizeof(tiles[0])));
+    for( int pass = 0; pass < 2; pass++ )
+        for( int i = 0; i < count && drawn < APP_EDITOR_PATH_PREVIEW_TILES; i++ )
+        {
+            int const edge = tiles[i].shape != 0;
+            int const sx = tiles[i].world_x - app->world->_base_tile_x;
+            int const sz = tiles[i].world_z - app->world->_base_tile_z;
+            /* Edges first, then the whole tiles while the budget lasts. */
+            if( edge != (pass == 0) )
+                continue;
+            if( sx < 0 || sz < 0 || sx >= app->world->_scene_size || sz >= app->world->_scene_size )
+                continue;
+            app_overlay_editor_tile(app, sx, sz, panel->path.level, APP_EDITOR_BRUSH_COLOR, edge ? 150 : 200, 0);
+            drawn++;
+        }
+}
+
 static void
 app_overlay_build_editor_run(struct App* app)
 {
@@ -2174,6 +2206,8 @@ app_overlay_build_editor_selection(struct App* app)
     app_overlay_build_editor_ghosts(app);
     /* A Place drag's run: every footprint it will place, before release. */
     app_overlay_build_editor_run(app);
+    /* A Path drag: the tiles the release will pave. */
+    app_overlay_build_editor_path(app);
     /* The named areas (Areas panel). */
     app_overlay_build_editor_areas(app);
     /* The move gizmo and the multi-piece ghost (workbench 6.3). */

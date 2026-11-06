@@ -31,6 +31,8 @@ static const int k_tool_icons[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_LOC_DELETE] = TORIRS_CHROME_SKIN_TOOL_DELETE,
     /* No player glyph in the cache: the plugin icon (a figure) stands in. */
     [EDITOR_TOOL_PLACE_PLAYER] = TORIRS_CHROME_SKIN_PLUGIN_ICON,
+    /* A path is the overlay brush's paint laid along a line. */
+    [EDITOR_TOOL_PAINT_PATH] = TORIRS_CHROME_SKIN_TOOL_PAINT_OVERLAY,
 };
 
 /* What the next click does. The chord is not part of the text: the badge in
@@ -51,6 +53,7 @@ static const char* const k_tool_tips[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_LOC_ROTATE] = "Rotate the clicked loc",
     [EDITOR_TOOL_LOC_DELETE] = "Delete the clicked loc",
     [EDITOR_TOOL_PLACE_PLAYER] = "Place the play account on the tile",
+    [EDITOR_TOOL_PAINT_PATH] = "Lay a path of the palette's overlay (Terrain: dirt or pavement)",
 };
 
 struct ToolRailPanel

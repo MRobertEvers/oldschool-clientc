@@ -165,6 +165,7 @@ enum Editor_HotkeyAction
     EDITOR_HK_TOOL_ROTATE,
     EDITOR_HK_TOOL_DELETE,
     EDITOR_HK_TOOL_PLACE_PLAYER,
+    EDITOR_HK_TOOL_PAINT_PATH,
     EDITOR_HK_TOOL_PREVIOUS,
     EDITOR_HK_TOOL_PICK_PAINT,
     EDITOR_HK_TOOL_PICK_LOC,
@@ -595,7 +596,7 @@ Editor_HotkeyKeyIsModifier(int key);
  * header; it asserts the two orders agree): the first EDITOR_HK_HINT_TOOLS
  * EDITOR_HK_TOOL_* actions arm the tools in that order.
  */
-#define EDITOR_HK_HINT_TOOLS (EDITOR_HK_TOOL_PLACE_PLAYER - EDITOR_HK_TOOL_SELECT + 1)
+#define EDITOR_HK_HINT_TOOLS (EDITOR_HK_TOOL_PAINT_PATH - EDITOR_HK_TOOL_SELECT + 1)
 /** Rows one tool's strip holds at most (Select's nine). */
 #define EDITOR_HK_HINT_MAX 10
 /** Actions one row reads its chords from at most (the four nudges). */

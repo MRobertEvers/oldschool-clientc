@@ -2284,6 +2284,18 @@ app_map_editor_drag(
             app->need_redraw = 1;
         }
     }
+    if( panel->path.active )
+    {
+        int hx;
+        int hz;
+        if( Editor_PanelHoverTile(panel, app, &hx, &hz) && Editor_PanelPathTo(panel, app, hx, hz) )
+            app->need_redraw = 1;
+        if( released )
+        {
+            (void)Editor_PanelPathEnd(panel, app);
+            app->need_redraw = 1;
+        }
+    }
     if( panel->marquee_pending )
     {
         /* Off its first tile, the press on empty ground is a marquee: the
@@ -2559,7 +2571,8 @@ app_map_editor_world_click(
         return;
     }
 
-    if( panel->stroke_active || panel->rect_dragging || panel->run.active || panel->marquee_pending )
+    if( panel->stroke_active || panel->rect_dragging || panel->run.active || panel->marquee_pending
+        || panel->path.active )
     {
         /* The editor closing mid-drag still closes the stroke: an open
          * stroke would fold every later edit into one undo step. A run or a
@@ -2575,6 +2588,7 @@ app_map_editor_world_click(
             panel->rect_dragging = 0;
             panel->marquee_pending = 0;
             panel->marquee_active = 0;
+            panel->path.active = 0;
             edp_run_cancel(&panel->run);
             return;
         }
@@ -2602,6 +2616,13 @@ app_map_editor_world_click(
     /* The press opens a drag for the brushes and the rectangle. */
     if( input->curr.mouse_button_down[TORIRSM_LEFT] )
     {
+        /* The Path tool: the drag is the path, laid on release. */
+        if( tool == EDITOR_TOOL_PAINT_PATH )
+        {
+            if( Editor_PanelPathBegin(panel, app, hx, hz, level) )
+                app->need_redraw = 1;
+            return;
+        }
         if( Editor_ToolIsBrush(tool) )
         {
             Editor_StrokeBegin(app->editor);

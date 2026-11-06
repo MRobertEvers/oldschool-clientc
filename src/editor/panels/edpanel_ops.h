@@ -24,6 +24,7 @@
 
 #include "editor/editor_cmd.h"
 #include "editor/editor_doc.h"
+#include "editor/editor_path.h"
 #include "editor/editor_spawn.h"
 #include "editor/editor_ui.h"
 
@@ -89,6 +90,29 @@ Editor_BrushCommands(
     const struct Editor_BrushOp* op,
     struct Editor_Cmd* out,
     int max);
+
+/* ---- the path ------------------------------------------------------------------ */
+
+/**
+ * The TILE commands a path makes (editor/editor_path.h): overlay `overlay_id`
+ * (as the .jm2 holds it) on every tile Editor_PathPlan covers at `level`,
+ * with the shape and rotation it chose. A tile already carrying that overlay
+ * is joined, not replaced; a tile whose square is not open is left out, and
+ * counted in *out_closed when that is given. Returns the count (at most
+ * `max`); none for tiles it would leave as they are.
+ */
+int
+Editor_PathCommands(
+    struct Editor_Doc* doc,
+    int level,
+    const struct Editor_PathParams* params,
+    int overlay_id,
+    const int* xs,
+    const int* zs,
+    int count,
+    struct Editor_Cmd* out,
+    int max,
+    int* out_closed);
 
 /* ---- the rectangle ------------------------------------------------------------ */
 
