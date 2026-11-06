@@ -396,9 +396,13 @@ Editor_PanelInit(
         /* The Triggers panel's Check: the same compiler, its own stage. */
         snprintf(work, sizeof(work), "%s/src/build_opt/tmp/triggers_check", app->cfg.editor_repo_root);
         (void)Editor_Triggers_SetPaths(panel->ui, app->cfg.editor_content_dir, ssc, work);
+        /* The quest board reads test/quests and build/quest_gate beside it. */
+        Editor_Quest_SetPaths(panel->ui, app->cfg.editor_content_dir, app->cfg.editor_repo_root);
     }
     else if( app->cfg.editor_content_dir && app->cfg.editor_content_dir[0] )
         (void)Editor_Triggers_SetPaths(panel->ui, app->cfg.editor_content_dir, NULL, NULL);
+    if( app->cfg.editor_content_dir && app->cfg.editor_content_dir[0] )
+        Editor_Shop_SetPaths(panel->ui, app->cfg.editor_content_dir);
     panel->built = 1;
 }
 

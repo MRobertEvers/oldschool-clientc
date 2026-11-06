@@ -261,6 +261,8 @@ struct EditorViewCamera;
 #define EDITOR_UI_MAP_AREA_ALL 0x10000
 /** Scene sprite slots the picker's map may hold at once (image_publish). */
 #define EDITOR_UI_MAP_IMAGE_SLOTS 80
+/** Screenshots the quest board shows at once (png_publish). */
+#define EDITOR_UI_SHOT_SLOTS 4
 #define EDITOR_UI_MAP_LABEL_MAX 32
 
 /** One map element for the picker (EditorUiAppServices worldmap_icons): an
@@ -381,6 +383,21 @@ struct EditorUiAppServices
      *  EDITOR_UI_MAP_IMAGE_SLOTS - 1) for a GRAPH image item; returns its
      *  scene sprite id, 0 when it cannot. */
     int (*image_publish)(void* user_data, int slot, const uint32_t* argb, int w, int h);
+    /** The quest board's screenshots (workbench 6.7): decode the PNG at
+     *  `path` (absolute) into shot slot `slot` (0 ..
+     *  EDITOR_UI_SHOT_SLOTS - 1), box-filtered down to fit `max_w` x
+     *  `max_h` (never up), and return its scene sprite id with the size it
+     *  was drawn at; 0 when it cannot (no such file, not a PNG the client's
+     *  decoder reads, no scene). NULL member (a headless harness, the web):
+     *  the board shows the shot's path. */
+    int (*png_publish)(
+        void* user_data,
+        int slot,
+        const char* path,
+        int max_w,
+        int max_h,
+        int* out_w,
+        int* out_h);
     /** The map elements on squares [x0, x0+w) x [z0, z0+h) of area
      *  `area_id`, what 595 draws over the map: up to `capacity` into `out`.
      *  An element whose config or sprite is not resident yet is asked for

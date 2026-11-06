@@ -523,6 +523,12 @@ generator never opened.
 * **Never overwrite hand-edited content.** Same contract as
   [[exporter-owns-generated-configs]]: the generator owns the generated block;
   hand edits live in a separate file or a marked section.
+* **The editor's Shop builder writes the same pair, elsewhere.** ToriRSEd's
+  Shop builder (src/editor/editor_shop.c, docs/MAPED_STATUS.md "Workbench
+  step 6.7, part 2") emits this generator's `.rs2` and `.inv` byte for byte
+  for the same rows (test-editor-shop runs `render_rs2` / `render_inv`
+  against it), under its own directory `shop/edited/<key>/` and its own
+  mark; it opens a generated pair read-only and never saves over one.
 * **Emit the dialogue by shop type.** `Infobox Shop|special=` gives
   `General store` / `Weapon shop` / … and the greeting differs per family; the
   neutral variant (`khazard_shopkeeper`, `dwarven_shopkeeper`) is the exception

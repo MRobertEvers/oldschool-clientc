@@ -270,11 +270,6 @@ def patch_stub(path: str, start: int, end: int, inline: bool, replacement_call: 
 
 
 def render_inv(shop_key: str, shop: dict, stock_rows: list[dict], cache_inv: str) -> str:
-    owner_note = (
-        f"Owner: {', '.join(owner_gamevals)}."
-        if owner_gamevals
-        else "Owner access: quest-gated by hand-authored dialogue."
-    )
     lines = [
         GENERATED_MARK,
         f"// {shop['shop_name']}",
@@ -324,6 +319,16 @@ def render_rs2(
     silently resolves by last-compiled-wins, not a state to ship)."""
     label = f"{shop_key}_open"
     title = shop["shop_name"].replace('"', "'")
+    # The owner line of the citation header. It sat in render_inv, which has
+    # no owners and never used it, so both renderers raised NameError
+    # (render_inv on `owner_gamevals`, this one on `owner_note`) and --write
+    # could not run; the ToriRSEd shop builder (src/editor/editor_shop.c)
+    # matches this output byte for byte (test-editor-shop-quest).
+    owner_note = (
+        f"Owner: {', '.join(owner_gamevals)}."
+        if owner_gamevals
+        else "Owner access: quest-gated by hand-authored dialogue."
+    )
     triggers = "\n".join(f"[opnpc3,{g}] @{label};" for g in fresh_gamevals)
     patched_note = (
         f"// {', '.join(sorted(set(owner_gamevals) - set(fresh_gamevals)))} already had an "

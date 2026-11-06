@@ -1287,5 +1287,104 @@ int
 Editor_Encounter_Widgets(
     struct EditorUi* ui,
     struct Editor_EncounterWidgets* out);
+/* ---- the Shop builder (edpanel_shop.c, workbench 6.7) -------------------------
+ *
+ * One coin shop as the tree writes it: the .rs2 and the .inv
+ * tools/gen_shop_scripts.py would write (editor/editor_shop.h), under
+ * server/scripts/shop/edited/<key>/. Hidden until View > Shop builder. */
+
+struct Editor_Shop;
+
+/** Register the Shop builder (module "shop"); needs ui->editor. */
+void
+Editor_Shop_Register(struct EditorUi* ui);
+
+/** The content root "From wiki catalogue..." reads wiki/shop_stock.csv
+ *  under (and says whether it can). */
+void
+Editor_Shop_SetPaths(
+    struct EditorUi* ui,
+    const char* content_root);
+
+/** Open shop `key`: the builder's own pair, else the generator's
+ *  (read-only), else a new shop. Shows the panel. 1 when a shop is open;
+ *  0 with the reason in the status bar. */
+int
+Editor_Shop_Open(
+    struct EditorUi* ui,
+    const char* key);
+
+/** Check: the model's refusals and the catalog's (the owner, the objs, the
+ *  inv, another op trigger). Returns the problem count, -1 with no shop. */
+int
+Editor_Shop_Check(struct EditorUi* ui);
+
+/** Save both files through the authority as one undo step. 1 when saved
+ *  (or already on disk); 0 refused, the reason in the status bar. */
+int
+Editor_Shop_Save(struct EditorUi* ui);
+
+/** Test: Save, the Live panel's RUN, then the play account to the owner's
+ *  spawn once RUN lands. 1 when RUN was sent. */
+int
+Editor_Shop_Test(struct EditorUi* ui);
+
+/** The shop shown, NULL when none (tests). */
+const struct Editor_Shop*
+Editor_Shop_Model(struct EditorUi* ui);
+
+/** The problems the last Check or Save listed. */
+int
+Editor_Shop_ProblemCount(struct EditorUi* ui);
+
+const char*
+Editor_Shop_Problem(
+    struct EditorUi* ui,
+    int index);
+
+/* ---- the Quest board (edpanel_quest.c, workbench 6.7) ---------------------------
+ *
+ * One quest's parts, where each lives and its state (editor/editor_quest.h);
+ * Scaffold test and Run gate are BUILD jobs on the editor server. Hidden
+ * until View > Quest board. */
+
+struct Editor_QuestBoard;
+
+/** Register the Quest board (module "quest"); needs ui->editor. */
+void
+Editor_Quest_Register(struct EditorUi* ui);
+
+/** The content tree (server/scripts) and the repository (test/quests,
+ *  tools/quest_gate, build/) the board reads. */
+void
+Editor_Quest_SetPaths(
+    struct EditorUi* ui,
+    const char* content_root,
+    const char* repo_root);
+
+/** Read quest `id` (a QUEUE.tsv test_id) into the board and show it. 1 when
+ *  read; 0 with the reason in the status bar. */
+int
+Editor_Quest_Open(
+    struct EditorUi* ui,
+    const char* id);
+
+/** The board shown, NULL when none (tests). */
+const struct Editor_QuestBoard*
+Editor_Quest_Board(struct EditorUi* ui);
+
+/** Open part: the panel that edits board row `row` (a CODE view below the
+ *  board for what no panel here edits). 1 when something opened. */
+int
+Editor_Quest_OpenPart(
+    struct EditorUi* ui,
+    int row);
+
+/** Scaffold test / Run gate: the BUILD job, or 0 with the reason. */
+int
+Editor_Quest_Scaffold(struct EditorUi* ui);
+
+int
+Editor_Quest_RunGate(struct EditorUi* ui);
 
 #endif

@@ -307,6 +307,10 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     /* The script triggers of a record or a file (View > Triggers, Ctrl+E):
      * Add trigger, Open in editor, Refresh, Check, Run. */
     Editor_Triggers_Register(ui);
+    /* Workbench 6.7: the Shop builder and the Quest board, hidden until the
+     * View menu opens them. */
+    Editor_Shop_Register(ui);
+    Editor_Quest_Register(ui);
     Editor_History_Register(ui);
     /* Named areas and square collections (the AREAS document). */
     Editor_Areas_Register(ui);

@@ -268,6 +268,14 @@ UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id);
 #define UITREE_SCENE_EDITOR_PICKER_MAP_BASE 0x4C000000
 #define UITREE_SCENE_EDITOR_PICKER_MAP_SLOTS 80
 
+/**
+ * The quest board's screenshots (editor/panels/edpanel_quest.c): one scene
+ * sprite per shot slot, base + slot, slot < EDITOR_UI_SHOT_SLOTS (4), each a
+ * ledger row's PNG fitted to the board's MODELVIEW.
+ */
+#define UITREE_SCENE_EDITOR_SHOT_BASE 0x4D000000
+#define UITREE_SCENE_EDITOR_SHOT_SLOTS 4
+
 void
 UITreeSceneBridge_Init(
     struct UITreeSceneBridge* bridge,

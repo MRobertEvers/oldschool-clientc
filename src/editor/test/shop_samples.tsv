@@ -1,0 +1,37 @@
+# Shops both emitters render for test-editor-shop-quest: editor_shop_oracle.py
+# feeds them to tools/gen_shop_scripts.py, editor_shop_test.c to editor_shop.c,
+# and the bytes must agree. Tab-separated:
+#   shop  <key> <shop_name> <page_title> <revid> <fetch_date> <special> <members> <buy> <sell> <delta> <cache_inv>
+#   owner <npc> <1: declared here | 0: a patched stub elsewhere>
+#   stock <obj> <count> <rate>
+# Lumbridge General Store is SHOPS_PLAN.md section 4.3, row for row.
+shop	lumbridge_general_store	Lumbridge General Store	Lumbridge General Store	15231736	2026-08-13	General store	No	400	1300	30	generalshop1
+owner	generalassistant1	1
+owner	generalshopkeeper1	1
+stock	pot_empty	5	10
+stock	jug_empty	2	100
+stock	pack_jug_empty	5	20
+stock	shears	2	100
+stock	knife	5	100
+stock	bucket_empty	3	10
+stock	pack_bucket	15	10
+stock	bowl_empty	2	50
+stock	cake_tin	2	50
+stock	tinderbox	2	100
+stock	chisel	2	100
+stock	spade	5	100
+stock	hammer	5	100
+stock	newcomer_map	5	100
+stock	sos_security_book	5	100
+shop	bobs_brilliant_axes	Bob's "Brilliant" Axes	Bob's Brilliant Axes	14990021	2026-08-13	Axe shop	Yes	600	1000	20	axeshop
+owner	bob	1
+owner	bob_assistant	0
+owner	aaron_axes	0
+stock	bronze_axe	10	100
+stock	iron_axe	5	200
+stock	steel_axe	2	1000
+shop	razmire_general_store	Razmire's General Store	Razmire Keelgan	15002277	2026-08-13	General store	Yes	400	1300	30	razmire_shop
+stock	hammer	5	100
+shop	plain_stall	Plain stall	Plain stall	1	2026-08-13		No	550	1100	25	plainstall
+owner	stall_keeper	1
+stock	cabbage	8	40
