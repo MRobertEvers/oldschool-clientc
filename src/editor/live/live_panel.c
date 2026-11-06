@@ -675,6 +675,37 @@ Editor_Live_Busy(struct EditorUi* ui)
 }
 
 int
+Editor_Live_Teleport(
+    struct EditorUi* ui,
+    const char* player,
+    int x,
+    int z,
+    int level)
+{
+    struct LivePanel* self;
+    struct ToriRSMapEdBuf payload;
+    char coord[64];
+    char line[96];
+    uint32_t type;
+
+    assert(ui);
+    assert(player);
+    self = Editor_UiPanelSelf(ui, "live");
+    if( !self )
+        return -1;
+    if( self->model.state != TORIRSMAPED_LIVE_ATTACHED )
+        return 0;
+    Editor_LiveTeleCoord(x, z, level < 0 ? 0 : level, coord, sizeof(coord));
+    snprintf(line, sizeof(line), "tele %s", coord);
+    memset(&payload, 0, sizeof(payload));
+    type = Editor_LiveEncodeCheat(&payload, player, line);
+    if( !live_send(ui, self, type, &payload) )
+        return 0;
+    Editor_UiLog(ui, "live: ::%s for %s", line, player);
+    return 1;
+}
+
+int
 Editor_Live_Run(struct EditorUi* ui)
 {
     struct LivePanel* self;

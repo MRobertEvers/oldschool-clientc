@@ -779,6 +779,8 @@ app_map_editor_ui_services(
 #endif
     /* Pop out (app/app_editor_view.c). */
     out->world_camera = EditorView_AppWorldCamera;
+    /* A scene's Enter (editor/panels/edpanel_scenes.c). */
+    out->world_camera_set = EditorView_AppWorldCameraSet;
     out->spawn_panel = EditorView_AppSpawnPanel;
 }
 

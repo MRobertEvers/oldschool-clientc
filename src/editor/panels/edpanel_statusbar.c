@@ -21,9 +21,10 @@
  *                   app_services.hover_tile; empty when nothing is hovered;
  *   the status      the last Editor_UiStatus sentence, for its 6 s;
  *   the server      "read-only" when FACT_HELLO said the server cannot save
- *                   its tree (the reason is the tooltip). FACT_HELLO carries
- *                   no lane name, and the Publish panel keeps its lane to
- *                   itself, so the bar names no lane rather than guess one.
+ *                   its tree (the reason is the tooltip);
+ *   the lane chip   (workbench 6.5) "working | 3 changed", from ui->lane,
+ *                   which the Lanes module keeps (Editor_Lanes_ChipText);
+ *                   a click on it opens the Lanes panel.
  *
  * Every run is measured against its track (rule R2): hint rows that do not fit
  * the hint track are left out whole, the hover and the status end in "..." with
@@ -51,6 +52,7 @@
 #define STATUSBAR_HOVER_SHARE 20
 #define STATUSBAR_HOVER_MAX 64
 #define STATUSBAR_SERVER_MAX 32
+#define STATUSBAR_LANE_MAX 96
 
 struct StatusBarPanel
 {
@@ -59,6 +61,7 @@ struct StatusBarPanel
     int label_hover;
     int label_status;
     int label_server;
+    int label_lane;
 
     /* What the tracks hold, as last composed. */
     struct Editor_HotkeyHint hints[EDITOR_HK_HINT_MAX];
@@ -66,6 +69,7 @@ struct StatusBarPanel
     char hover[STATUSBAR_HOVER_MAX];
     char status[EDITOR_UI_CONSOLE_LINE_MAX];
     char server[STATUSBAR_SERVER_MAX];
+    char lane[STATUSBAR_LANE_MAX];
 
     /* The hint's inputs last frame: the rows are composed again when one
      * moves (a tool armed, a selection made, a rebind). */
@@ -218,6 +222,17 @@ statusbar_fit(
     ToriRSChrome_SetText(ui->chrome, self->label_server, run);
     ToriRSChrome_SetHidden(ui->chrome, self->label_server, run[0] == '\0');
 
+    /* The lane chip: whole, or its name alone, or not at all. */
+    run[0] = '\0';
+    if( self->lane[0] && used + statusbar_advance(ui, self->lane) <= budget )
+        snprintf(run, sizeof(run), "%s", self->lane);
+    else if( self->lane[0] && ui->lane.known && used + statusbar_advance(ui, ui->lane.name) <= budget )
+        snprintf(run, sizeof(run), "%s", ui->lane.name);
+    if( run[0] )
+        used += statusbar_advance(ui, run);
+    ToriRSChrome_SetText(ui->chrome, self->label_lane, run);
+    ToriRSChrome_SetHidden(ui->chrome, self->label_lane, run[0] == '\0');
+
     shortened = statusbar_fit_text(ui, self->status, budget - used, run, (int)sizeof(run));
     statusbar_tip_text(shortened, self->status, tip, (int)sizeof(tip));
     statusbar_set(ui, self->label_status, run, tip);
@@ -314,6 +329,23 @@ statusbar_tick(
         self->refit = 1;
     }
 
+    /* The lane chip (the Lanes module keeps ui->lane); the tip says what a
+     * click does and what the next boot serves. */
+    {
+        char chip[STATUSBAR_LANE_MAX];
+        Editor_Lanes_ChipText(ui, chip, (int)sizeof(chip));
+        if( statusbar_track(self->lane, (int)sizeof(self->lane), chip) )
+        {
+            char tip[TORIRS_CHROME_LABEL_MAX];
+            if( ui->lane.next_boot[0] )
+                snprintf(tip, sizeof(tip), "Lanes panel; the next boot serves %.20s", ui->lane.next_boot);
+            else
+                snprintf(tip, sizeof(tip), "Click: the Lanes panel (publish, scratch, switch)");
+            ToriRSChrome_SetTooltip(ui->chrome, self->label_lane, tip);
+            self->refit = 1;
+        }
+    }
+
     if( self->refit || self->fit_w != ui->chrome->surface_w || self->fit_scale != ToriRSChrome_Scale(ui->chrome) )
         statusbar_fit(ui, self);
 }
@@ -328,7 +360,11 @@ statusbar_activate(
 {
     struct StatusBarPanel* self = opaque;
 
-    (void)ui;
+    if( widget == self->label_lane )
+    {
+        (void)Editor_Lanes_Show(ui);
+        return 1;
+    }
     if( widget == self->label_hover || widget == self->label_status || widget == self->label_server )
         return 1;
     for( int i = 0; i < EDITOR_HK_HINT_MAX; i++ )
@@ -386,6 +422,9 @@ Editor_StatusBar_Register(struct EditorUi* ui)
     assert(self->label_status >= 0);
     self->label_server = ToriRSChrome_Label(ui->chrome, self->panel, "");
     assert(self->label_server >= 0);
+    self->label_lane = ToriRSChrome_Label(ui->chrome, self->panel, "");
+    assert(self->label_lane >= 0);
+    ToriRSChrome_SetHidden(ui->chrome, self->label_lane, 1);
     ToriRSChrome_SetHidden(ui->chrome, self->label_hover, 1);
     ToriRSChrome_SetHidden(ui->chrome, self->label_status, 1);
     ToriRSChrome_SetHidden(ui->chrome, self->label_server, 1);

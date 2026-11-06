@@ -337,6 +337,47 @@ main(
     check(ToriRSMapEdLanes_Changes(&work, rows, 16, &counts) == 0, "discard: clean");
     check(!ToriRSMapEdLanes_Discard(&main_lane, &counts, why, sizeof(why)), "discard: main has no base");
 
+    /* ---- the next boot's lane (workbench 6.5) ---------------------------- */
+    {
+        char lane_name[64];
+        char note[300];
+        char name[64];
+        check(!ToriRSMapEdLanes_BootName(repo, name, sizeof(name)) && name[0] == '\0', "boot: no lane.ini, no name");
+        check(!ToriRSMapEdLanes_BootLane(repo, tree, "working", lane_name, sizeof(lane_name), note, sizeof(note))
+                  && strcmp(lane_name, "working") == 0 && note[0] == '\0',
+            "boot: without the file the boot's own lane is served, silently");
+        check(!ToriRSMapEdLanes_BootLane(repo, tree, NULL, lane_name, sizeof(lane_name), note, sizeof(note))
+                  && strcmp(lane_name, "main") == 0,
+            "boot: no lane asked is main");
+        check(!ToriRSMapEdLanes_SetBoot(repo, tree, "nowhere", why, sizeof(why)) && strstr(why, "no lane 'nowhere'"),
+            "switch: refused for a lane that does not exist");
+        check(!ToriRSMapEdLanes_SetBoot(repo, tree, "Bad Name", why, sizeof(why)), "switch: refused for a bad name");
+        check(ToriRSMapEdLanes_SetBoot(repo, tree, "review", why, sizeof(why)), "switch: to review");
+        snprintf(path, sizeof(path), "%s/build/lanes/lane.ini", repo);
+        check(is_regular(path), "switch: build/lanes/lane.ini written");
+        snprintf(path, sizeof(path), "%s/build/lanes/lane.ini.tmp", repo);
+        check(!exists(path), "switch: no temporary left behind");
+        check(ToriRSMapEdLanes_BootName(repo, name, sizeof(name)) && strcmp(name, "review") == 0,
+            "boot: the file names review");
+        check(ToriRSMapEdLanes_BootLane(repo, tree, "working", lane_name, sizeof(lane_name), note, sizeof(note))
+                  && strcmp(lane_name, "review") == 0 && strstr(note, "switched in the editor")
+                  && strstr(note, "'working'"),
+            "boot: the switched lane wins over the boot's, and says so");
+        count = ToriRSMapEdLanes_List(repo, tree, list, 8);
+        check(count == 3, "list: the lanes directory's own lane.ini is no lane");
+        check(ToriRSMapEdLanes_SetBoot(repo, tree, "main", why, sizeof(why))
+                  && ToriRSMapEdLanes_BootLane(repo, tree, "working", lane_name, sizeof(lane_name), note, sizeof(note))
+                  && strcmp(lane_name, "main") == 0,
+            "switch: back to main");
+        /* A lane the file names that has gone: the boot's own, said. */
+        snprintf(path, sizeof(path), "%s/build/lanes/lane.ini", repo);
+        write_text(path, "lane = gone\n");
+        check(!ToriRSMapEdLanes_BootLane(repo, tree, "working", lane_name, sizeof(lane_name), note, sizeof(note))
+                  && strcmp(lane_name, "working") == 0 && strstr(note, "does not exist"),
+            "boot: a vanished lane falls back to the boot's, and says so");
+        unlink(path);
+    }
+
     printf("lanes_test: %d checks, %d failed\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

@@ -2713,6 +2713,249 @@ the panel's 1024-byte buffer, which _FORTIFY_SOURCE stops as an overflow; it
 now resolves into a PATH_MAX buffer, keeps the given path when the root does
 not exist yet, and asserts the result fits.
 
+## Workbench step 6.5, part 1: scenes and the Lanes panel (date 2026-11-06)
+
+The first half of build-order step 6.5 ("Scenes, scratch lanes, instance
+helper"; design section 12, "Lanes, scenes, stamps"). The instance helper
+(section 13) is part 2's.
+
+What landed:
+
+- **The SCENES document** (src/editor/editor_scenes.{h,c}, pure; EDITOR_DOC
+  kind `EDITOR_DOC_SCENES` = 7, key "scenes", `<content_dir>/editor/scenes.txt`;
+  commands `EDITOR_CMD_SCENE_SET` / `_REMOVE` = 16 / 17, riding in `u.area`
+  as the AREAS and PALETTES commands do, so the v2 wire form is theirs). The
+  grammar is section 12's: `scene <name> | squares <key>... | camera
+  <x>,<z>,<level>,<yaw>,<pitch>,<zoom>`, `| level <0..3|auto> [above] | lane
+  <name> | preview <var>=<value>... | account <name> at <x>,<z>,<level>`, `|
+  note <text>`. A scene is the union of its lines; each segment kind is held
+  by at most one line of a scene (a bare `scene <name>` header at most once),
+  which is the key a command finds a line by. The camera's x / z are tiles
+  with a fraction held as fine units (128 a tile) and written with the fewest
+  decimals that read back exactly (3222.5; at most seven). Line-preserving
+  like the palettes: parse -> emit byte-identical, a new line of a scene goes
+  after its last, a removed one comes back at its index, the four header
+  lines come with the first record and go with the last. The editor writes a
+  scene as up to three lines (where it looks, what it pins, the note).
+  Plans: `Editor_ScenePlanSave` (new: lines at the end; existing: its first
+  line keeps its place, a line already as the editor writes it is kept, the
+  rest are rewritten after the first; nothing to do is 0),
+  `Editor_ScenePlanRename`, `Editor_ScenePlanDelete`, each applied as ONE
+  stroke. `Editor_SceneMerge` / `_Clear` are a partial edit's halves.
+  Shared by the Client through the authority: editor.c opens it with the
+  AREAS and PALETTES documents in every window.
+- **The Scenes panel** (src/editor/panels/edpanel_scenes.c, module "scenes",
+  View > Scenes, hidden until opened; `TORIRS_EDITOR_SCENES=show` for
+  photographs): "editor/scenes.txt | 5 scenes", Find over a VLIST (R3) of
+  "name | m50_50 m50_51 | L1 above | working", the Name box, the Holds chips
+  (squares, camera, level, var preview, account, lane: what Save and Update
+  capture; an `edpanel_chips` strip, so the DOM draws it as the GRAPH it
+  is), Save scene (wearing Ctrl+Shift+K), Enter, Update, Rename, Delete. A
+  click picks a row (its name to Name); a second activation of the picked
+  row (Enter, a double-click) enters it.
+  - **Save scene** (`Editor_Scenes_Save`, Ctrl+Shift+K `file.save_scene`):
+    the window's state -- the squares loaded in its mirror, the World's
+    camera (`app_services.world_camera`), `edit_level` and Above, the lane
+    (`ui->lane`), STATE_VAR_PREVIEW as last heard (decoded to `varp<id>` /
+    `varb<id>`), the Live model's play account and tile -- as a new scene
+    named in Name, else `scene-<n>`. Refused, saying why, for a taken or bad
+    name, a read-only session, a line too long (never cut). **Update**
+    rewrites the picked scene from the held parts the window has (the rest
+    stay); **Rename** takes Name; **Delete**. Each verb is ONE undo step
+    named by the verb ("Save scene smithy", "Update scene smithy", "Rename
+    scene smithy to forge", "Delete scene forge") and the document is saved
+    at once: a scene is session state and survives a restart without Save
+    all (an undo leaves the document dirty, as a stamp's does). Saving never
+    bakes.
+  - **Enter** (`Editor_Scenes_Enter`): through the save guard
+    (`EDITOR_UI_GUARD_ENTER_SCENE`, the modal says "before entering scene
+    X") when the scene has squares, then `Editor_Scenes_EnterNow`: opens its
+    squares (the first replacing the open set, the others added; a lane
+    storage resolved to the picker's index), pins the level and Above
+    (`edp_level_set`, `edp_level_show_above`, Above re-asserted for three
+    ticks because the menu bar follows a pin made behind its back from the
+    old cap first), publishes STATE_VAR_PREVIEW from its preview list
+    (`Builder_PreviewEncode`), switches the lane when it names another
+    (`Editor_Lanes_Switch`: staged, see below), teleports its account
+    through the live link when the lane is attached (new
+    `Editor_Live_Teleport`, the Live panel's `::tele`; otherwise "bob not
+    moved (the live lane is down)"), and puts the World's camera at its
+    orbit pose through the new `app_services.world_camera_set`
+    (`EditorView_AppWorldCameraSet`, app_editor_view.c's `view_apply_to_app`)
+    once the world is not busy and every square of the scene is loaded in
+    the mirror (15 s, then a status sentence). One status sentence says what
+    it did: "Entered smithy: 2 squares, level 1 above, preview of 1 var,
+    camera".
+  - **The command palette's hook**: `Editor_ScenesList(ui, out)` fills
+    `struct Editor_SceneList` (name, summary; 128 rows, `more` past them)
+    from the mirror's document, panel or not; Enter on a row is
+    `Editor_Scenes_Enter(ui, row->name)`.
+- **The Lanes panel** (edpanel_publish.c widened; module still "publish" so
+  saved layouts and File > Publish... keep working, title "Lanes"): "Lane:
+  working | 3 changed", its base, Find over a VLIST of every lane with its
+  change count and, for a tree another editor holds, the holder ("main | the
+  tree | locked: pid 43893"), the M / A / D chips filtering the change list
+  (lit: shown), the change list, Publish to... (wearing Ctrl+Shift+U),
+  Scratch lane (Ctrl+Shift+N), Switch... (the lane picked in the list),
+  Discard... (a second press within 4 s confirms; the first says what it will
+  drop), New lane, Refresh. Refusals go through `Editor_UiStatus`.
+- **Lane switching is staged.** The daemon cannot re-point its lane without a
+  restart: its tree lock, documents and undo history, catalog, live dir
+  (`TORIRSMAPED_LIVE_DIR`) and launched servers are the lane's, every session
+  mirrors them, and `ToriRSMapEd_Open` memsets the whole server. So
+  `LANE_SWITCH` (request 87) writes `<repo>/build/lanes/lane.ini` (`lane =
+  <name>`, `ToriRSMapEdLanes_SetBoot`: the lanes directory's own descriptor,
+  which no lane name can be), and every boot reads it
+  (`ToriRSMapEdLanes_BootLane`, in torirsmaped's main and in
+  `ToriRSMapEd_EmbedStartLane`): the lane it names wins over the manifest's
+  `lane=` / `--lane`, the log says so ("lane 'x' (build/lanes/lane.ini,
+  switched in the editor; the boot asked for 'working')"), a lane it names
+  that is gone falls back to the boot's with a line. It persists until the
+  next switch (switching back writes the boot's lane; deleting the file
+  restores the manifest's rule). The answer is FACT_LANE_PUBLISHED kind 4
+  (`TORIRSMAPED_LANE_PUBLISHED_SWITCH`); the status bar says "Switched to X
+  for the next editor boot (build/lanes/lane.ini); this session stays on Y: a
+  running server cannot re-point its lane".
+- **Scratch lane** (`Editor_Lanes_Scratch`, Ctrl+Shift+N
+  `file.scratch_lane`): asks the lane list afresh, names the lane
+  `scratch-<yymmdd><letter>` (`Editor_LanesScratchName`, pure: the first
+  letter a..z no lane holds, local date; 0 when the day's 26 exist), makes
+  it from main through LANE_CREATE, and on its answer switches to it
+  (staged). The panel then lists it with its count.
+- **The lane chip.** `ui->lane` (`struct EditorUiLane`: name, is_main,
+  writable, change count, next boot, serial) is kept by the Lanes module in
+  every window whether its panel shows or not: one LANE_INFO on the first
+  frame, then the count alone -- LANE_CHANGES with a `u32 flags` body,
+  `TORIRSMAPED_LANE_CHANGES_COUNT_ONLY`, answered by the new FACT_LANE_COUNT
+  (205: name, is_main, modified, added, deleted, next boot) -- every
+  `EDITOR_UI_LANE_COUNT_MS` (15 s), after a save (the document going
+  clean) and after a publish, discard, create or switch. The status bar
+  (edpanel_statusbar.c) shows `Editor_Lanes_ChipText`, "working | 3
+  changed", "working | clean", "main", with " | next: <lane>" while a switch
+  waits, at its right end (whole, else the lane name alone, else not at
+  all); its tooltip says what a click does or what the next boot serves, and
+  a click opens the Lanes panel (`Editor_Lanes_Show`). The baked face has no
+  middle dot, so the design's "working · 3 changed" is spelled with " | ",
+  the bar's own separator.
+- **Wire, gated**: `TORIRSMAPED_CAP_LANES_V2` (64) in FACT_HELLO. FACT_LANE_INFO
+  ends with `string next_boot`; FACT_LANE_LIST ends with `u32 n, n * (i32
+  changes, string held)` (each non-main lane's count is one changes scan, on
+  the ask only); a client sends LANE_SWITCH or a LANE_CHANGES body only to a
+  server with the bit (an older one ends a session on either) and reads both
+  tails as optional.
+- **torirsmapedctl**: `scenes`, `scene-set <scene> [squares ...] [camera
+  ...] [level <n|auto> [above]] [lane ...] [preview <var>=<v>...] [account
+  <name> at <x>,<z>,<l>] [note ...]` (the segments given replace the scene's
+  own, `<segment> -` drops one, one undo step), `scene-set <scene> rename
+  <new>`, `scene-remove <scene>`, `lane-switch <name>`; `lane` prints the next
+  boot's lane. The doc-kind and command-kind name tables grew
+  ("scenes", "sceneset", "scenerm").
+- **Hotkeys** (editor_hotkeys.{h,c}, docs/MAPED_HOTKEYS.md): `file.save_scene`
+  Ctrl+Shift+K and `file.scratch_lane` Ctrl+Shift+N (File, context G; both
+  File menu rows), `view.scenes` (unbound, panel "scenes"). The table has no
+  conflict with them (the hotkeys test's conflict pass).
+
+Tests (2026-11-06, this container, objects in build_opt):
+
+- **test-editor-scenes** (new, pure) 507 checks, 0 failed: the design's
+  example and hand-written shapes byte-identical, 22 refusals at their line,
+  every fine unit 0..383 written and read back, the editor's three lines,
+  a too-long scene refused not cut, Save into an empty file (the header) and
+  beside others, Update in place (the first line kept, an unchanged line
+  kept), a hand-written scene's update, Rename, Delete (the last scene takes
+  the header), each applied and undone byte for byte, stale and clashing
+  commands refused, the History labels, both kinds over the v2 wire.
+- **test-editor-scenes-ops** (new, content-free: an embedded ToriRSMapEd on
+  lane `work` of a synthetic tree, a repo root with build/lanes, two windows
+  of one Client with the full registry and a faked App) 80 checks, 0
+  failed: Save scene (both lines, the History row, the status sentence, the
+  file in the lane's tree at once, the base untouched, one undo / redo, a
+  taken and a bad name refused); the second window lists it through
+  `Editor_ScenesList` and enters it (its squares opened, level 1 Above, the
+  status sentence, no camera while its world is busy then the exact pose,
+  STATE_VAR_PREVIEW heard by the first window, an account not moved while
+  the live lane is down, an unknown scene refused); Update (first line in
+  place, nothing-to-do said), Rename, Delete, their undos; Ctrl+Shift+K's
+  `scene-1`; the Save button's keycap; the list's click, then Enter through
+  the save guard's modal ("before entering scene smithy") and Don't save;
+  the editor closed and reopened on the lane: the scene there and entered to
+  the same squares, camera, level, Above and preview; the scratch name rule
+  (a, the first free letter, all 26 taken, the next day); the status bar's
+  chip "work | 1 changed" (the lane's own scenes.txt is its change; the
+  count is the lane module's own) and its click opening the Lanes panel;
+  Ctrl+Shift+N making scratch-<today>a and staging it in
+  build/lanes/lane.ini, the session staying on work, the chip "work | 1
+  changed | next: scratch-<today>a", the Lanes list's three rows with
+  their counts; and the next boot serving the scratch lane ("... | clean",
+  no scenes in it: it was made from main).
+- test-lanes 76 (63 + 13: the boot lane, SetBoot's refusals and its file, the
+  list ignoring build/lanes/lane.ini, back to main, a vanished lane), 0
+  failed.
+- test-editor-hotkeys 2036 (the doc test included), test-editor-chords 591,
+  test-editor-groups 2190, test-editor-workbench 295 (the registry digests
+  unchanged: the new panel starts hidden), test-editor-cmd 66,
+  test-editor-palette 97, test-editor-areas 136, test-editor-stamps 91,
+  test-editor-stamps-ops 81, test-editor-panels-palette 50,
+  test-editor-panels-accounts 48 (`ulimit -s unlimited`),
+  test-editor-catalog-finder 202, test-editor-placement 123,
+  test-editor-picker 397, test-editor-world-gesture 42,
+  test-editor-worldmap 161, test-catalog-finder 176, test-catalog-perf 143
+  (synthetic half), test-chrome-widgets 1009, test-editor-ghost OK -- all 0
+  failed; check-tree-walks and check-pt-switch PASS; `make -C src all`
+  links.
+- Each new check was seen to fail on a mutant in this private worktree (the
+  file restored and its object deleted after each): an Update keeping no unchanged line (4), no segment-kind clash (4), the
+  camera's fraction dropped (every fractional fine unit), Enter without its
+  Above follow-up (5), the camera put while the world is busy (1), no save at
+  once (1), no lane chip (5), the scratch lane made but not switched (6), the
+  embedded server ignoring build/lanes/lane.ini (3), no LANE_LIST tail (1),
+  Enter skipping the save guard (1), BootLane ignoring the file (3 in
+  test-lanes), the Save scene row missing from MAPED_HOTKEYS.md (1 in
+  test-editor-hotkeys).
+- torirsmapedctl against a real daemon on a synthetic tree (`--lane work`,
+  a scratch repo root; by hand, not a make target): scene-set (save, a
+  partial update with `note -`, rename, an unknown segment refused), scenes,
+  save writing the lane's editor/scenes.txt, scene-remove (and again,
+  refused), lane-create, lane-switch (staged, the sentence; an unknown lane
+  refused), `lane` naming the next boot, and the restarted daemon serving
+  scratch-x with its log line.
+- Could not run here (no OSRS-Content): test-editor-cfg (3 failed),
+  test-editor-alloc (133), test-editor-vars (5), test-editor-if (2) and
+  test-editor-script (asserts in Builder_SscStage) fail with the same counts
+  on the base commit 40ca3878 (checked in a scratch worktree); test-builder
+  does not link here (pow / floor: its recipe links no `-lm`, as
+  torirsmaped's did in 6.0); test-editor-views, test-editor-panels,
+  test-torirsmaped-embed, test-torirsmaped-daemon, test-editor-jm2,
+  test-editor-save need the content tree's squares. No photograph: there is
+  no running client with content here.
+
+Open:
+
+- The changes count is a scan of the lane's mirror (`ToriRSMapEdLanes_Changes`,
+  an lstat walk) done synchronously in the server's handler; with the
+  embedded server that is the client's main thread, every 15 s and after a
+  save. It is cheap on the synthetic tree; on the real OSRS-Content mirror it
+  is unmeasured and may exceed a frame -- the next step is a server-side
+  cache invalidated by the saves the server itself makes, or a BUILD-style
+  job.
+- Switching is staged, never live; Enter's lane switch and Scratch lane say
+  so. A live re-point (close the documents, re-open the tree, move the live
+  dir, tell every session to reload) is not built.
+- Enter puts the camera through `world_camera_set` only in a window that
+  shows a world; a panel-only window relays its squares (STATE_OPEN_SQUARE)
+  but not the pose. The pose read back by `world_camera` is the App's
+  reconstruction (`EditorView_PoseFromEye` with the previous zoom), so a
+  scene's zoom is the reconstruction's.
+- The command palette itself is 6.8's: only its hook exists. The Scenes list
+  rows are "name | summary" text, not the design's two-column rows with the
+  age ("now", "2 h").
+- Holds is a chip strip (as the Catalog's filters), not the design's
+  checkbox row; Note has no box in the panel (ctl's `scene-set ... note`
+  writes one; Update keeps it).
+- A scene's account is the Live model's play account and tile only when the
+  live link reported them; there is no picker for another account.
+- The status bar's RUN chip and the design's lane chip glyph are not built.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.

@@ -139,6 +139,10 @@ hk_run_file(
         (void)Editor_Live_Run(ui);
     else if( action == EDITOR_HK_FILE_PUBLISH )
         (void)Editor_Publish_Open(ui);
+    else if( action == EDITOR_HK_FILE_SAVE_SCENE )
+        (void)Editor_Scenes_Save(ui, NULL);
+    else if( action == EDITOR_HK_FILE_SCRATCH_LANE )
+        (void)Editor_Lanes_Scratch(ui);
     else
     {
         struct EditorUiGuard guard;
@@ -287,7 +291,7 @@ Editor_HotkeyRun(
 
     assert(ui);
     info = Editor_HotkeyInfo(action);
-    if( action <= EDITOR_HK_FILE_PUBLISH )
+    if( action <= EDITOR_HK_FILE_SCRATCH_LANE )
     {
         hk_run_file(ui, action);
         return 1;

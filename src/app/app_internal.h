@@ -1131,6 +1131,14 @@ EditorView_AppWorldCamera(
     int level,
     struct EditorViewCamera* out);
 
+/** EditorUiAppServices::world_camera_set (user_data = the App): the free
+ *  camera put at `pose` (a scene's Enter, workbench 6.5); 0 while the point
+ *  is outside the loaded scene. */
+int
+EditorView_AppWorldCameraSet(
+    void* user_data,
+    const struct EditorViewCamera* pose);
+
 /** EditorUiAppServices::spawn_panel (user_data = the App). */
 int
 EditorView_AppSpawnPanel(

@@ -296,6 +296,9 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     /* The editor lane and its publish (editor/panels/edpanel_publish.c,
      * File > Publish...): hidden until opened. */
     Editor_Publish_Register(ui);
+    /* Scenes (workbench 6.5): the SCENES document's list, Save scene
+     * (Ctrl+Shift+K), Enter; hidden until the View menu opens it. */
+    Editor_Scenes_Register(ui);
     /* The lane's accounts (editor/accounts/), hidden until the View menu
      * opens it; after the Live panel, whose log it echoes. */
     Editor_Accounts_Register(ui);
@@ -3867,6 +3870,9 @@ Editor_UiRunGuarded(
     {
     case EDITOR_UI_GUARD_OPEN_SQUARE:
         Editor_UiOpenSquare(ui, guard->map_x, guard->map_z, guard->storage, guard->storage_index, 0);
+        break;
+    case EDITOR_UI_GUARD_ENTER_SCENE:
+        (void)Editor_Scenes_EnterNow(ui, guard->scene);
         break;
     case EDITOR_UI_GUARD_CLOSE:
         if( ui->hooks.close_editor )

@@ -326,6 +326,12 @@ struct EditorUiAppServices
      *  point looked at, its level, yaw, pitch, distance), read on `level`'s
      *  ground. 0 when the window has no world. NULL member: no camera. */
     int (*world_camera)(void* user_data, int level, struct EditorViewCamera* out);
+    /** Put the World panel's camera at `camera` (the orbit pose world_camera
+     *  reads: the point looked at, its level, yaw, pitch, distance), as a
+     *  scene's Enter does (workbench 6.5). 0 when the point is not in the
+     *  loaded scene yet (the caller opens its squares and asks again once
+     *  the world is not busy). NULL member: no camera to put. */
+    int (*world_camera_set)(void* user_data, const struct EditorViewCamera* camera);
     /** Open a window of this session that shows registry module `module`
      *  alone, filling it ("world" = the 3D view) -- a popped-out panel --
      *  looking at `camera`. 1 when the window was asked for; 0 when it
@@ -564,6 +570,9 @@ enum EditorUi_Guarded
     /** Close one square of this window's open set (the picker's strip,
      *  Shift+click): the world reloads without it. */
     EDITOR_UI_GUARD_CLOSE_SQUARE,
+    /** Enter a scene (workbench 6.5, edpanel_scenes.c): its squares replace
+     *  the open set, so unsaved edits are asked about first. */
+    EDITOR_UI_GUARD_ENTER_SCENE,
 };
 
 struct EditorUiGuard
@@ -575,6 +584,36 @@ struct EditorUiGuard
     /** The picker's index of `storage`, what a relayed open carries (every
      *  window mirrors the same atlas, so the index names the same storage). */
     int storage_index;
+    /** ENTER_SCENE: the scene's name (editor_scenes.h's EDITOR_SCENE_NAME_MAX). */
+    char scene[64];
+};
+
+/**
+ * The editor lane this window's server serves (torirsmaped/
+ * torirs_maped_lanes.h), as the Lanes module last heard it (workbench 6.5):
+ * FACT_LANE_INFO, then a FACT_LANE_COUNT every EDITOR_UI_LANE_COUNT_MS and
+ * after every save, publish and discard. The status bar's lane chip reads it
+ * ("working | 3 changed", Editor_Lanes_ChipText); the Scenes panel saves its
+ * name into a scene and compares a scene's lane with it.
+ */
+#define EDITOR_UI_LANE_NAME_MAX 48
+#define EDITOR_UI_LANE_COUNT_MS 15000
+
+struct EditorUiLane
+{
+    /** FACT_LANE_INFO (or a FACT_LANE_COUNT) heard. */
+    int known;
+    char name[EDITOR_UI_LANE_NAME_MAX];
+    int is_main;
+    int writable;
+    /** The change count against the base: modified + added + deleted. */
+    int changes_known;
+    int changes;
+    /** The lane build/lanes/lane.ini names for the next boot ("" none):
+     *  a Switch this server could not make while it runs. */
+    char next_boot[EDITOR_UI_LANE_NAME_MAX];
+    /** Moves whenever any field above does. */
+    uint32_t serial;
 };
 
 /** Other views' windows, as the picker frames them (STATE_VIEW_SQUARE). */
@@ -646,6 +685,8 @@ struct EditorUi
 
     /** The pending action the save guard is asking about. */
     struct EditorUiGuard guard;
+    /** The lane, for every module (the Lanes module fills it). */
+    struct EditorUiLane lane;
     /** Serial of the last TORIRSMAPED_STATE_OPEN_SQUARE this window asked. */
     uint32_t open_square_serial;
 

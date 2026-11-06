@@ -41,6 +41,18 @@ Editor_LivePanelModel(struct EditorUi* ui);
 int
 Editor_Live_Run(struct EditorUi* ui);
 
+/** ::tele `player` to ABSOLUTE tile (x, z) on `level` through the live link,
+ *  as the panel's "Teleport to selection" does (a scene's Enter). 1 sent, 0
+ *  refused (the live lane is not attached, or the connection is gone; the
+ *  console says which), -1 when this window has no Live panel. */
+int
+Editor_Live_Teleport(
+    struct EditorUi* ui,
+    const char* player,
+    int x,
+    int z,
+    int level);
+
 /** 1 while a RUN or a build is in flight (RUN is disabled), 0 when idle,
  *  -1 without a Live panel. */
 int

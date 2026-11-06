@@ -62,6 +62,29 @@
  *                 goes back to the base.
  *   LANE_CREATE   string name -> FACT_LANE_PUBLISHED (kind 3): a new lane
  *                 mirrored from the main tree, nothing published into it.
+ *
+ * Workbench 6.5 (the Lanes panel, the status bar's lane chip), behind
+ * TORIRSMAPED_CAP_LANES_V2 -- a client sends none of this to a server
+ * without the bit, which would end the session on an unknown request:
+ *
+ *   FACT_LANE_INFO      gains a trailing `string next_boot`: the lane
+ *                       build/lanes/lane.ini names for the next boot ("" none).
+ *   FACT_LANE_LIST      gains a trailing `u32 n, n * (i32 changes, string
+ *                       held)`, in the rows' order: each lane's change count
+ *                       against its base (-1 not counted) and who holds its
+ *                       tree's editor lock ("pid N (cmd)", "" nobody).
+ *   LANE_CHANGES  u32 flags (TORIRSMAPED_LANE_CHANGES_COUNT_ONLY) ->
+ *          FACT_LANE_COUNT  string name, u32 is_main, u32 modified, u32
+ *                           added, u32 deleted, string next_boot: the count
+ *                           alone, for the status bar's periodic ask (an
+ *                           empty body is the v1 ask: FACT_LANE_CHANGES).
+ *   LANE_SWITCH   string name -> FACT_LANE_PUBLISHED (kind 4, reload 0):
+ *                 the lane the NEXT boot serves, written to
+ *                 <repo>/build/lanes/lane.ini (ToriRSMapEdLanes_SetBoot).
+ *                 A server cannot re-point its lane while it runs -- its
+ *                 tree lock, documents and history, catalog, live dir and
+ *                 launched servers are all the lane's, and every session
+ *                 mirrors them -- so the switch is staged and said so.
  */
 enum
 {
@@ -71,6 +94,7 @@ enum
     TORIRSMAPED_REQ_LANE_PUBLISH = 84,
     TORIRSMAPED_REQ_LANE_DISCARD = 85,
     TORIRSMAPED_REQ_LANE_CREATE = 86,
+    TORIRSMAPED_REQ_LANE_SWITCH = 87,
     TORIRSMAPED_REQ_LANES_RANGE_FIRST = 81,
     TORIRSMAPED_REQ_LANES_RANGE_LAST = 90,
 
@@ -78,12 +102,16 @@ enum
     TORIRSMAPED_FACT_LANE_LIST = 202,
     TORIRSMAPED_FACT_LANE_CHANGES = 203,
     TORIRSMAPED_FACT_LANE_PUBLISHED = 204,
+    TORIRSMAPED_FACT_LANE_COUNT = 205,
     TORIRSMAPED_FACT_LANES_RANGE_FIRST = 201,
     TORIRSMAPED_FACT_LANES_RANGE_LAST = 210,
 
     TORIRSMAPED_LANE_PUBLISHED_PUBLISH = 1,
     TORIRSMAPED_LANE_PUBLISHED_DISCARD = 2,
     TORIRSMAPED_LANE_PUBLISHED_CREATE = 3,
+    TORIRSMAPED_LANE_PUBLISHED_SWITCH = 4,
+    /** LANE_CHANGES' flags: answer FACT_LANE_COUNT, no rows. */
+    TORIRSMAPED_LANE_CHANGES_COUNT_ONLY = 1,
     TORIRSMAPED_LANE_CHANGE_ROWS_MAX = 1024,
 };
 
@@ -243,6 +271,51 @@ ToriRSMapEdLanes_Discard(
     struct ToriRSMapEdLaneCounts* counts,
     char* why,
     size_t why_size);
+
+/* ---- the next boot's lane (workbench 6.5) -------------------------------------
+ *
+ * <repo>/build/lanes/lane.ini, the lanes directory's own descriptor (not a
+ * lane: its name is no lane name), holds `lane = <name>`: the lane every
+ * editor boot on this repo serves from now on, whatever its manifest or
+ * --lane asked, until it is switched again. The Lanes panel's Switch and
+ * Scratch lane write it (LANE_SWITCH); the daemon's main and the embedded
+ * server read it at boot (ToriRSMapEdLanes_BootLane) and say which they
+ * served and why. */
+
+/** Name the lane the next boot serves ("main" or an existing lane). 0 with
+ *  `why` on a bad name, a lane that does not exist, or a write that failed. */
+int
+ToriRSMapEdLanes_SetBoot(
+    const char* repo_root,
+    const char* base_tree,
+    const char* name,
+    char* why,
+    size_t why_size);
+
+/** The lane build/lanes/lane.ini names, "" (returns 0) when none. */
+int
+ToriRSMapEdLanes_BootName(
+    const char* repo_root,
+    char* out,
+    size_t out_size);
+
+/**
+ * The lane a boot serves: the one build/lanes/lane.ini names when it exists,
+ * else `configured` (NULL, "" or "main" are the tree itself). `out` gets the
+ * name ("main" for the tree); `note` (one line, "" when the file named
+ * nothing) says what the file did: "lane 'x' (build/lanes/lane.ini, switched
+ * in the editor; the boot asked for 'working')", or that the lane it names is
+ * gone. Returns 1 when the file chose the lane.
+ */
+int
+ToriRSMapEdLanes_BootLane(
+    const char* repo_root,
+    const char* base_tree,
+    const char* configured,
+    char* out,
+    size_t out_size,
+    char* note,
+    size_t note_size);
 
 /** Who holds `tree`'s editor-session lock, when a live process does:
  *  "pid N (<command>)". 0 when nobody. */

@@ -945,9 +945,12 @@ Editor_CatalogPalette_ThumbDone(
     int slot,
     int scene_id);
 
-/* ---- Publish (edpanel_publish.c): the editor lane and where its changes go ---- */
+/* ---- Lanes (edpanel_publish.c): the editor lane and where its changes go ---- */
 
-/** Register the Publish panel (module "publish"); needs ui->editor. */
+/** Register the Lanes panel (module "publish", titled "Lanes" since workbench
+ *  6.5: every lane with its change count, the changes, Publish to...,
+ *  Scratch lane, Switch..., Discard...); needs ui->editor. It also keeps
+ *  ui->lane, which the status bar's chip reads. */
 void
 Editor_Publish_Register(struct EditorUi* ui);
 
@@ -955,5 +958,137 @@ Editor_Publish_Register(struct EditorUi* ui);
  *  Editor_UiTogglePanel does; 0 with a log line when there is none. */
 int
 Editor_Publish_Open(struct EditorUi* ui);
+
+/** Show the Lanes panel (the status bar's lane chip): opened when hidden,
+ *  left open when shown. 0 with a status sentence when there is none. */
+int
+Editor_Lanes_Show(struct EditorUi* ui);
+
+/** Ctrl+Shift+N, the panel's Scratch lane: a lane named
+ *  "scratch-<yymmdd><letter>" (ToriRSMapEdLanes_ScratchName, today's date,
+ *  the first free letter) made from main through LANE_CREATE, then the
+ *  session switched to it -- staged for the next boot, since a running
+ *  server cannot re-point its lane; the status bar says which. 1 asked, 0
+ *  refused with a status sentence. */
+int
+Editor_Lanes_Scratch(struct EditorUi* ui);
+
+/** Switch the session to lane `name` (LANE_SWITCH): what the next boot
+ *  serves (build/lanes/lane.ini); the server's answer is said in the status
+ *  bar. 1 asked, 0 refused with a status sentence (no such server frame, the
+ *  lane it serves already). */
+int
+Editor_Lanes_Switch(
+    struct EditorUi* ui,
+    const char* name);
+
+/** The status bar's lane chip: "working | 3 changed", "working | clean",
+ *  "main", with " | next: <lane>" when a switch waits for the next boot; ""
+ *  before the lane is known. */
+void
+Editor_Lanes_ChipText(
+    const struct EditorUi* ui,
+    char* out,
+    int out_size);
+
+/** The scratch lane's name rule (design #lanes): "scratch-<yymmdd><letter>",
+ *  the first letter a..z that no lane in `taken` (`count` names) holds; 0
+ *  when the day's 26 are taken. `yymmdd` is the day as six digits
+ *  ("261105"). Pure: the web window, which links no lane module, names one
+ *  too. */
+int
+Editor_LanesScratchName(
+    const char* yymmdd,
+    const char* const* taken,
+    int count,
+    char* out,
+    int out_size);
+
+/** Editor_LanesScratchName for the local day of `when` (seconds) among the
+ *  lanes the panel last heard of. */
+int
+Editor_Lanes_ScratchNameFor(
+    struct EditorUi* ui,
+    long long when,
+    char* out,
+    int out_size);
+
+/* ---- Scenes (edpanel_scenes.c, workbench 6.5) -------------------------------- */
+
+/** Register the Scenes panel (module "scenes"): the SCENES document
+ *  (editor_scenes.h) in a VLIST with Find, the Holds chips, Save scene
+ *  (Ctrl+Shift+K), Enter, Update, Rename, Delete. Needs ui->editor. */
+void
+Editor_Scenes_Register(struct EditorUi* ui);
+
+/** Ctrl+Shift+K, Save scene: the window's state as a new scene named `name`
+ *  (NULL: the panel's Name box, else "scene-<n>"), the parts the Holds chips
+ *  keep: the open squares, the World's camera, the pinned level and Above,
+ *  the lane, the var preview, the live account and where it stands. One
+ *  undo step, saved at once; the status bar confirms. 1 saved, 0 refused
+ *  with a status sentence. */
+int
+Editor_Scenes_Save(
+    struct EditorUi* ui,
+    const char* name);
+
+/** Update: scene `name` rewritten from the window's state (the parts the
+ *  Holds chips keep; the others stay as they are). */
+int
+Editor_Scenes_Update(
+    struct EditorUi* ui,
+    const char* name);
+
+int
+Editor_Scenes_Rename(
+    struct EditorUi* ui,
+    const char* name,
+    const char* new_name);
+
+int
+Editor_Scenes_Delete(
+    struct EditorUi* ui,
+    const char* name);
+
+/** Enter scene `name` through the save guard (its squares replace the open
+ *  set). 1 entered or the guard asked, 0 refused with a status sentence. */
+int
+Editor_Scenes_Enter(
+    struct EditorUi* ui,
+    const char* name);
+
+/** Enter without the guard (the guard's answer): open the squares, pin the
+ *  level and Above, publish STATE_VAR_PREVIEW, switch the lane (staged),
+ *  teleport the account when the live lane is up, and put the camera once
+ *  the squares have loaded. */
+int
+Editor_Scenes_EnterNow(
+    struct EditorUi* ui,
+    const char* name);
+
+/** One scene for the command palette (workbench 6.8's scene group). */
+#define EDITOR_SCENES_LIST_MAX 128
+struct Editor_SceneListRow
+{
+    char name[64];
+    /** Editor_SceneSummary's line. */
+    char summary[160];
+};
+
+struct Editor_SceneList
+{
+    int count;
+    /** Scenes past EDITOR_SCENES_LIST_MAX that were not listed. */
+    int more;
+    struct Editor_SceneListRow rows[EDITOR_SCENES_LIST_MAX];
+};
+
+/** The command palette's scene group hook: every scene of the document, in
+ *  file order (Enter runs Editor_Scenes_Enter with the row's name). Returns
+ *  the count; 0 without a scenes document. */
+int
+Editor_ScenesList(
+    struct EditorUi* ui,
+    struct Editor_SceneList* out);
 
 #endif

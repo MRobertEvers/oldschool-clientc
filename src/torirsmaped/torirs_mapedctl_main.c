@@ -90,6 +90,21 @@
  *   palette-remove <palette> [<slot>]
  *                          PALETTE_REMOVE: the slot, or with no slot every
  *                          line of the palette, one undo step
+ *   scenes                 the scenes (editor/scenes.txt), one line each
+ *   scene-set <scene> [squares <key>...] [camera <x>,<z>,<level>,<yaw>,<pitch>,<zoom>]
+ *             [level <0..3|auto> [above]] [lane <name>] [preview <var>=<value>...]
+ *             [account <name> at <x>,<z>,<level>] [note <text>]
+ *                          save (or update) the scene: the segments given
+ *                          replace the scene's own, the rest are kept;
+ *                          `<segment> -` drops one. The scene's lines are
+ *                          rewritten as the editor writes them, one undo
+ *                          step. Unsaved until save.
+ *   scene-set <scene> rename <new name>
+ *                          every line of the scene renamed, one undo step
+ *   scene-remove <scene>   every line of the scene, one undo step
+ *   lane-switch <name>     the lane the next editor boot serves
+ *                          (build/lanes/lane.ini): a running server cannot
+ *                          re-point its lane, so the switch is staged
  *   live-attach launch|<host:port> [ticket]
  *                          attach the editor server's live link (launch
  *                          starts the lane's servers) and wait for the answer
@@ -146,6 +161,7 @@
 
 #include "editor/editor_areas.h"
 #include "editor/editor_palette.h"
+#include "editor/editor_scenes.h"
 #include "torirsmaped/torirs_maped_accounts.h"
 #include "editor/editor_host.h"
 #include "mem/torirs_mem.h"
@@ -198,7 +214,7 @@ selection_kind_name(int32_t kind)
 
 static char const* const k_cmd_kind_names[] = {
     "tile", "loc", "spawn", "suppress", "cfgfield", "cfgblock", "iffield", "ifcomp", "splice", "spawnedit",
-    "areaset", "arearm", "collset", "collrm", "palset", "palrm",
+    "areaset", "arearm", "collset", "collrm", "palset", "palrm", "sceneset", "scenerm",
 };
 _Static_assert(sizeof(k_cmd_kind_names) / sizeof(k_cmd_kind_names[0]) == EDITOR_CMD_KIND_COUNT,
     "a name per command kind");
@@ -373,7 +389,8 @@ cmd_open(
 static int
 parse_kind(char const* name)
 {
-    static char const* const names[] = { "square", "spawn", "cfg", "iface", "text", "areas", "palettes" };
+    static char const* const names[] = { "square", "spawn", "cfg", "iface", "text", "areas", "palettes",
+        "scenes" };
     _Static_assert(sizeof(names) / sizeof(names[0]) == EDITOR_DOC_KIND_COUNT, "a name per document kind");
     for( int i = 0; i < EDITOR_DOC_KIND_COUNT; i++ )
     {
@@ -1484,6 +1501,202 @@ cmd_palette_remove(
     return result;
 }
 
+/* ---- the scenes (editor_scenes.h) ----------------------------------------- */
+
+/** DOC_OPEN the SCENES document and parse it. 0 (said why) when it cannot. */
+static int
+ctl_scenes_load(
+    struct EditorHost* host,
+    struct Editor_ScenesFile* out)
+{
+    struct EditorHost_DocText text;
+    struct Editor_ScenesParseResult parsed;
+
+    Editor_ScenesInit(out);
+    memset(&text, 0, sizeof(text));
+    if( Editor_HostMapEdDocOpen(host, EDITOR_DOC_SCENES, EDITOR_SCENES_DOC_KEY, &text) != EDITOR_HOST_OK )
+    {
+        fprintf(stderr, "torirsmapedctl: the server has no scenes document\n");
+        Editor_HostDocTextFree(&text);
+        return 0;
+    }
+    parsed = Editor_ScenesParse(out, text.part_count > 0 ? (char const*)text.parts[0].data : NULL,
+        text.part_count > 0 && text.parts[0].data ? text.parts[0].size : 0);
+    Editor_HostDocTextFree(&text);
+    if( !parsed.ok )
+    {
+        fprintf(stderr, "torirsmapedctl: %s line %d does not parse\n", EDITOR_SCENES_FILE_PATH, parsed.line);
+        Editor_ScenesFree(out);
+        return 0;
+    }
+    return 1;
+}
+
+/** Send one verb's commands as ONE stroke named `label`. */
+static int
+ctl_scenes_send(
+    struct EditorHost* host,
+    struct Editor_Cmd const* commands,
+    int count,
+    char const* label)
+{
+    int refused = 0;
+
+    Editor_HostMapEdStroke(host, 1);
+    for( int i = 0; i < count; i++ )
+    {
+        enum EditorHost_Status const status = Editor_HostMapEdCmd(host, &commands[i]);
+        if( status != EDITOR_HOST_OK )
+            refused++;
+    }
+    Editor_HostMapEdStroke(host, 0);
+    if( refused )
+    {
+        fprintf(stderr, "torirsmapedctl: %s: %d of %d edits were refused\n", label, refused, count);
+        return 1;
+    }
+    printf("%s (%d line edit%s, unsaved until save)\n", label, count, count == 1 ? "" : "s");
+    return 0;
+}
+
+static int
+cmd_scenes(struct EditorHost* host)
+{
+    struct Editor_ScenesFile file;
+
+    if( !ctl_scenes_load(host, &file) )
+        return 1;
+    printf("%d scene(s)\n", Editor_ScenesCount(&file));
+    for( int i = 0; i < file.line_count; i++ )
+        if( file.lines[i].kind != EDITOR_SCENES_LINE_TEXT )
+            printf("%s\n", file.lines[i].text);
+    Editor_ScenesFree(&file);
+    return 0;
+}
+
+static int
+ctl_scene_keyword(char const* word)
+{
+    static char const* const k_words[] = { "squares", "camera", "level", "lane", "preview", "account", "note" };
+    for( int i = 0; i < (int)(sizeof(k_words) / sizeof(k_words[0])); i++ )
+        if( strcmp(word, k_words[i]) == 0 )
+            return i;
+    return -1;
+}
+
+static int
+cmd_scene_set(
+    struct EditorHost* host,
+    char const* const* args,
+    int count)
+{
+    struct Editor_ScenesFile file;
+    struct Editor_Scene scene;
+    struct Editor_Scene given;
+    struct Editor_Cmd* commands;
+    char line[EDITOR_CMD_SPLICE_MAX];
+    char label[EDITOR_HISTORY_LABEL_MAX];
+    unsigned cleared = 0;
+    int at = 1;
+    int planned;
+    int result;
+    int existed;
+
+    if( !ctl_scenes_load(host, &file) )
+        return 1;
+    commands = calloc(EDITOR_SCENE_PLAN_MAX, sizeof(*commands));
+    assert(commands);
+    if( count == 3 && strcmp(args[1], "rename") == 0 )
+    {
+        planned = Editor_ScenePlanRename(commands, EDITOR_SCENE_PLAN_MAX, &file, args[0], args[2]);
+        Editor_ScenesFree(&file);
+        snprintf(label, sizeof(label), "Rename scene %s to %s", args[0], args[2]);
+        result = planned ? ctl_scenes_send(host, commands, planned, label) : 1;
+        if( !planned )
+            fprintf(stderr, "torirsmapedctl: no scene '%s', or '%s' is taken or not a name\n", args[0], args[2]);
+        free(commands);
+        return result;
+    }
+    /* The given segments as one line, then parsed by the codec's grammar:
+     * a keyword starts a segment, its words follow it. */
+    {
+        size_t used = (size_t)snprintf(line, sizeof(line), "scene %s", args[0]);
+        while( at < count && used < sizeof(line) )
+        {
+            int const keyword = ctl_scene_keyword(args[at]);
+            if( keyword < 0 )
+            {
+                fprintf(stderr, "torirsmapedctl: '%s' is not a scene segment (squares camera level lane preview "
+                                "account note)\n", args[at]);
+                Editor_ScenesFree(&file);
+                free(commands);
+                return 1;
+            }
+            if( at + 1 < count && strcmp(args[at + 1], "-") == 0 )
+            {
+                cleared |= 1u << keyword;
+                at += 2;
+                continue;
+            }
+            used += (size_t)snprintf(line + used, sizeof(line) - used, " | %s", args[at]);
+            for( at++; at < count && ctl_scene_keyword(args[at]) < 0 && used < sizeof(line); at++ )
+                used += (size_t)snprintf(line + used, sizeof(line) - used, " %s", args[at]);
+        }
+    }
+    if( Editor_ScenesParseLine(line, &given) != EDITOR_SCENES_LINE_RECORD )
+    {
+        fprintf(stderr, "torirsmapedctl: does not read as a scene: %s\n", line);
+        Editor_ScenesFree(&file);
+        free(commands);
+        return 1;
+    }
+    existed = Editor_ScenesGet(&file, given.name, &scene);
+    Editor_SceneMerge(&scene, &given);
+    Editor_SceneClear(&scene, cleared);
+    planned = Editor_ScenePlanSave(commands, EDITOR_SCENE_PLAN_MAX, &file, &scene);
+    Editor_ScenesFree(&file);
+    if( planned == 0 )
+    {
+        fprintf(stderr, "torirsmapedctl: scene '%s' is not one the file can hold (a line too long?), or nothing "
+                        "changes\n", scene.name);
+        free(commands);
+        return 1;
+    }
+    snprintf(label, sizeof(label), "%s scene %s", existed ? "Update" : "Save", scene.name);
+    result = ctl_scenes_send(host, commands, planned, label);
+    free(commands);
+    return result;
+}
+
+static int
+cmd_scene_remove(
+    struct EditorHost* host,
+    char const* name)
+{
+    struct Editor_ScenesFile file;
+    struct Editor_Cmd* commands;
+    char label[EDITOR_HISTORY_LABEL_MAX];
+    int planned;
+    int result;
+
+    if( !ctl_scenes_load(host, &file) )
+        return 1;
+    commands = calloc(EDITOR_SCENE_PLAN_MAX, sizeof(*commands));
+    assert(commands);
+    planned = Editor_ScenePlanDelete(commands, EDITOR_SCENE_PLAN_MAX, &file, name);
+    Editor_ScenesFree(&file);
+    if( planned == 0 )
+    {
+        fprintf(stderr, "torirsmapedctl: there is no scene '%s'\n", name);
+        free(commands);
+        return 1;
+    }
+    snprintf(label, sizeof(label), "Delete scene %s", name);
+    result = ctl_scenes_send(host, commands, planned, label);
+    free(commands);
+    return result;
+}
+
 static int
 cmd_cfg_set(
     struct EditorHost* host,
@@ -2063,6 +2276,11 @@ lanes_print(
             writable ? "" : " [read-only]", content, live);
         if( !is_main )
             printf("  base    %s\n", base);
+        /* The workbench tail (TORIRSMAPED_CAP_LANES_V2). */
+        ToriRSMapEd_GetString(&reader, text, sizeof(text));
+        if( !reader.bad && text[0] )
+            printf("  next boot serves lane %s (build/lanes/lane.ini)\n", text);
+        reader.bad = 0;
     }
     else if( type == TORIRSMAPED_FACT_LANE_LIST )
     {
@@ -2114,7 +2332,10 @@ lanes_print(
         removed = ToriRSMapEd_GetU32(&reader);
         reload = ToriRSMapEd_GetU32(&reader);
         printf("%s %s: %s (%u written, %u removed%s)\n",
-            kind == TORIRSMAPED_LANE_PUBLISHED_PUBLISH ? "publish" : kind == TORIRSMAPED_LANE_PUBLISHED_DISCARD ? "discard" : "create",
+            kind == TORIRSMAPED_LANE_PUBLISHED_PUBLISH   ? "publish"
+            : kind == TORIRSMAPED_LANE_PUBLISHED_DISCARD ? "discard"
+            : kind == TORIRSMAPED_LANE_PUBLISHED_SWITCH  ? "switch"
+                                                         : "create",
             status == EDITOR_HOST_OK ? "done" : "failed", text, written, removed,
             reload ? "; every window reopens its square" : "");
         if( wait->want_fact == type )
@@ -2274,6 +2495,11 @@ main(
             "  collection-set <name> [<square key>...] [note <text|->] [rename <new>]\n"
             "  palettes | palette-remove <palette> [<slot>] | palette-set <palette> rename <new>\n"
             "  palette-set <palette> <slot|0> <loc|npc|obj>:<record> [shape <s> rot <r>]\n"
+            "  scenes | scene-remove <scene> | scene-set <scene> rename <new>\n"
+            "  scene-set <scene> [squares <key>...] [camera <x>,<z>,<l>,<yaw>,<pitch>,<zoom>] [level <n|auto> [above]]\n"
+            "            [lane <name>] [preview <var>=<v>...] [account <name> at <x>,<z>,<l>] [note <text>]\n"
+            "  lane | lanes | changes | publish <target> [keep] [force] | publish-new <name> | discard\n"
+            "  lane-create <name> | lane-switch <name>\n"
             "  live-attach launch|<host:port> [ticket] | live-detach | live-cheat <player> <line>\n"
             "  accounts | account-view <name> | account-new <name> <password> [fixture]\n"
             "  account-dup <name> <new> <password> | account-delete <name> | account-use <name>\n"
@@ -2384,6 +2610,12 @@ main(
         result = cmd_palette_set(&host, args, arg_count);
     else if( strcmp(command, "palette-remove") == 0 && arg_count >= 1 )
         result = cmd_palette_remove(&host, args, arg_count);
+    else if( strcmp(command, "scenes") == 0 )
+        result = cmd_scenes(&host);
+    else if( strcmp(command, "scene-set") == 0 && arg_count >= 1 )
+        result = cmd_scene_set(&host, args, arg_count);
+    else if( strcmp(command, "scene-remove") == 0 && arg_count >= 1 )
+        result = cmd_scene_remove(&host, args[0]);
     else if( strcmp(command, "areas") == 0 )
         result = cmd_areas(&host);
     else if( strcmp(command, "area-set") == 0 )
@@ -2528,6 +2760,21 @@ main(
         struct ToriRSMapEdBuf payload = { 0 };
         struct lanes_wait wait = { TORIRSMAPED_FACT_LANE_PUBLISHED, 0, 0 };
         result = lanes_request(&host, TORIRSMAPED_REQ_LANE_DISCARD, &payload, &wait, 600);
+    }
+    else if( strcmp(command, "lane-switch") == 0 && arg_count >= 1 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct lanes_wait wait = { TORIRSMAPED_FACT_LANE_PUBLISHED, 0, 0 };
+        if( !(Editor_HostMapEdCapabilities(&host) & TORIRSMAPED_CAP_LANES_V2) )
+        {
+            fprintf(stderr, "torirsmapedctl: this editor server predates lane switching\n");
+            result = 1;
+        }
+        else
+        {
+            ToriRSMapEd_PutString(&payload, args[0]);
+            result = lanes_request(&host, TORIRSMAPED_REQ_LANE_SWITCH, &payload, &wait, 60);
+        }
     }
     else if( strcmp(command, "lane-create") == 0 && arg_count >= 1 )
     {

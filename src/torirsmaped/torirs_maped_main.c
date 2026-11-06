@@ -266,6 +266,19 @@ main(
      * and the live link, everything a build writes under that dir. */
     if( live_dir )
         setenv("TORIRSMAPED_LIVE_DIR", live_dir, 1);
+    /* A lane switched in the editor (build/lanes/lane.ini, the Lanes
+     * panel's Switch and Scratch lane) wins over --lane: this daemon cannot
+     * re-point its lane while it runs, so the switch waits for this boot. */
+    if( repo_root )
+    {
+        static char boot_lane[TORIRSMAPED_LANE_NAME_MAX + 8];
+        char note[256];
+        if( ToriRSMapEdLanes_BootLane(repo_root, content_dir, lane_name, boot_lane, sizeof(boot_lane), note,
+                sizeof(note)) )
+            lane_name = boot_lane;
+        if( note[0] )
+            fprintf(stderr, "torirsmaped: %s\n", note);
+    }
     /* --lane <name> (or $TORIRSMAPED_LANE): serve the lane's mirror of
      * --content-dir and build into the lane's live dir (torirs_maped_lanes.h);
      * "main" is --content-dir itself. */
