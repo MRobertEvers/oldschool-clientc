@@ -248,9 +248,14 @@ registry_digest(
  * moved all three registries (was 2593871087u, 4031613255u, 2905863413u):
  * since 6.3 part 2 the Stamps panel opened with the editor and the digests
  * drew it; it now opens on demand (edpanel_stamps.c, stamps_set_visible).
- * The same digests on Linux and Windows; the scenes did not move. */
+ * The same digests on Linux and Windows; the scenes did not move. The same
+ * run moved the 1x registry again (was 584349543u) with two layout fixes:
+ * the default column at 1280x800 hid the square picker (its least height
+ * counted the detail pane that folds, and the well's least left it 31 px
+ * short; edpanel_squares.c, squares_stretch), and Problems opened floating
+ * with every editor show (it opens on demand now, problems_set_visible). */
 static const uint32_t k_golden[3][3] = {
-    { 1970238540u, 3840548130u, 584349543u },
+    { 1970238540u, 3840548130u, 2335556997u },
     { 1606657634u, 3552625563u, 2229059899u },
     { 1621493878u, 3838641767u, 2715795737u },
 };

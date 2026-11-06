@@ -81,6 +81,10 @@ struct ProblemsPanel
     uint32_t stream_what;
     int stream_rows;
     int stream_open;
+    /** Open at the last tick the editor showed (problems_set_visible): what
+     *  showing it again restores. 0 at boot, so the panel opens from a build,
+     *  a Check or the View menu, not with the editor over the world. */
+    int open_when_hidden;
 };
 
 static struct ProblemsPanel*
@@ -586,6 +590,10 @@ problems_tick(
     int first;
     int shown;
 
+    /* What showing the editor again restores (problems_set_visible): read
+     * here, while the editor shows, because hiding it hides this panel first. */
+    if( ui->visible )
+        self->open_when_hidden = ui->chrome->panels[self->panel].visible;
     /* Hidden or not: a build's lines are only in the Live log's ring. */
     problems_stream(ui, self);
     if( !ui->chrome->panels[self->panel].visible )
@@ -734,6 +742,23 @@ problems_activate(
     return widget == self->input_find || widget == self->check_errors;
 }
 
+/* Showing the editor shows every titled panel (Editor_UiSetVisible), and the
+ * first layout hides only the default column's: a floating Problems window
+ * would open over the world's title bar at every boot. Like Stamps, it keeps
+ * itself closed until asked, and Tab out and back leaves it as it was. */
+static void
+problems_set_visible(
+    struct EditorUi* ui,
+    void* opaque,
+    int visible)
+{
+    struct ProblemsPanel* self = opaque;
+
+    if( !visible )
+        return;
+    ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, self->open_when_hidden);
+}
+
 static void
 problems_destroy(
     struct EditorUi* ui,
@@ -792,6 +817,7 @@ Editor_Problems_Register(struct EditorUi* ui)
     desc.chrome_panel = self->panel;
     desc.tick = problems_tick;
     desc.activate = problems_activate;
+    desc.set_visible = problems_set_visible;
     desc.destroy = problems_destroy;
     Editor_UiAddPanel(ui, &desc);
 }

@@ -26,6 +26,7 @@
 #include "editor/panels/edpanel_newform.h"
 #include "editor/panels/edpanel_ops.h"
 #include "editor/panels/edpanel_picker.h"
+#include "editor/panels/edpanel_picker_find.h"
 #include "editor/panels/edpanel_picker_nav.h"
 #include "editor/panels/edpanel_shapes.h"
 #include "editor/panels/edpanels.h"
@@ -40,6 +41,7 @@
 #include <rscache.h>
 
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1801,8 +1803,16 @@ test_chrome(void)
         int const area = find_widget(squares_panel, TORIRS_CHROME_W_DROPDOWN, "Area");
         CHECK(find_widget(squares_panel, TORIRS_CHROME_W_TABSTRIP, NULL) < 0,
             "no tab strip: ~50 area labels in one row cannot be read");
-        CHECK(area >= 0 && g_chrome.widgets[area].option_count == picker->tab_count,
-            "the Area dropdown lists every area plus Unmapped (%d)", picker->tab_count);
+        /* Every area plus Unmapped, then a "lane: <name>" row per lane
+         * storage (workbench 6.4), then Instance space when no tab is it. */
+        int lanes = 0;
+        char lane[EDITOR_PICKER_NAME_MAX];
+        for( int s = 0; s < picker->storage_count; s++ )
+            lanes += Editor_PickerLaneName(picker->storages[s], lane) ? 1 : 0;
+        int const rows = picker->tab_count + lanes + (Editor_PickerInstanceTab(picker) < 0 ? 1 : 0);
+        CHECK(lanes >= 1 && area >= 0 && g_chrome.widgets[area].option_count == rows,
+            "the Area dropdown lists every area plus Unmapped, then the lanes (%d of %d, %d lanes)",
+            area >= 0 ? g_chrome.widgets[area].option_count : -1, rows, lanes);
         (void)search;
         search_field("m50_50");
         CHECK(picker->items_drawn > 4, "the well was drawn (%d items)", picker->items_drawn);
@@ -1829,13 +1839,20 @@ test_chrome(void)
     frame();
     CHECK(g_window.open_calls == 1 && g_window.open_x == 50 && g_window.open_z == 50 && !g_window.open_add,
         "a click opens m50_50 in place (%d calls)", g_window.open_calls);
+    /* m50_51 is the cell above; in the 1280x800 column's short well it can
+     * sit under the top ruler, so Find brings it into view first (Find
+     * centres, it opens nothing). */
+    search_field("m50_51");
+    CHECK(picker_point(picker, 50, 51, &x, &y), "m50_51 is in view");
     g_ui.shift_held = 1;
-    push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y - (int)picker->zoom, 0);
-    push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y - (int)picker->zoom, 0);
+    push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+    push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y, 0);
     frame();
     g_ui.shift_held = 0;
     CHECK(g_window.open_calls == 2 && g_window.open_z == 51 && g_window.open_add,
-        "shift-click adds m50_51 to the open set");
+        "shift-click adds m50_51 to the open set (%d calls, m%d_%d, add %d; m50_50 at %d,%d, well %d,%d %dx%d)",
+        g_window.open_calls, g_window.open_x, g_window.open_z, g_window.open_add, x, y, g_chrome.widgets[graph].x,
+        g_chrome.widgets[graph].y, g_chrome.widgets[graph].w, g_chrome.widgets[graph].h);
 
     /* A drag pans, and does not open. */
     {
@@ -1844,7 +1861,9 @@ test_chrome(void)
         push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_DRAG, x + 40, y, 0);
         push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x + 40, y, 0);
         frame();
-        CHECK(picker->origin_x < origin && g_window.open_calls == 2, "a drag pans the map and opens nothing");
+        CHECK(picker->origin_x < origin && g_window.open_calls == 2,
+            "a drag pans the map and opens nothing (origin %.3f -> %.3f, %d calls)", origin, picker->origin_x,
+            g_window.open_calls);
     }
     {
         double const cell = picker->zoom;
@@ -2728,8 +2747,15 @@ test_worldmap(void)
         int const area = find_widget(squares_panel, TORIRS_CHROME_W_DROPDOWN, "Area");
         ToriRSChrome_DropdownSetSelected(&g_chrome, area, 0);
         activate(area);
+        /* The page fits its squares; in the 1280x800 column's short well that
+         * can be under 12 px a square, colours only. The map is the picture
+         * band's: zoom into it, on m50_50 so squares are in view. */
+        Editor_PickerZoomTo(picker, 32.0, picker->well_w / 2, picker->well_h / 2);
+        Editor_PickerCentre(picker, 50, 50);
         settle_map(60);
-        CHECK(picker->underlay.active, "back on the surface: the map again");
+        CHECK(picker->underlay.active, "back on the surface: the map again (page %d, %.2f px a square, area %d, %d renders, well %dx%d, widget %dx%d)",
+            picker->active_tab, picker->zoom, g_map.area, g_map.renders, picker->well_w, picker->well_h,
+            g_chrome.widgets[graph].w, g_chrome.widgets[graph].h);
         g_ui.app_services.worldmap_render_tile = NULL;
         frame();
         CHECK(!picker->underlay.active && graph_items_of(graph, TORIRS_CHROME_GRAPH_RECT, 1) > 0,
@@ -3828,8 +3854,10 @@ test_publish(void)
     struct ToriRSChromeRect r;
 
     layout_boot(1280, 800, 1);
-    publish = find_panel("Publish");
-    CHECK(publish >= 0, "publish: the panel registers (module \"publish\")");
+    /* Titled Lanes since workbench 6.5 (the lanes' switch, publish and
+     * discard in one panel); the module is still "publish". */
+    publish = find_panel("Lanes");
+    CHECK(publish >= 0, "publish: the panel registers (module \"publish\", titled Lanes)");
     if( publish < 0 )
     {
         Editor_UiFree(&g_ui);
@@ -4466,8 +4494,12 @@ test_layout_codec(void)
         snprintf(saved, sizeof(saved), "%s", was ? was : "");
         unsetenv("TORIRS_EDITOR_LAYOUT");
         CHECK(strcmp(EditorLayout_Path(), EDITOR_LAYOUT_DEFAULT_PATH) == 0, "unset: the default name");
+#ifndef _WIN32
+        /* The Windows CRT holds no empty variable (setting one to "" deletes
+         * it), so there "empty" cannot be said; the unset case is above. */
         setenv("TORIRS_EDITOR_LAYOUT", "", 1);
         CHECK(EditorLayout_Path() == NULL, "empty: persistence off");
+#endif
         setenv("TORIRS_EDITOR_LAYOUT", "/x/y.ini", 1);
         CHECK(strcmp(EditorLayout_Path(), "/x/y.ini") == 0, "set: that path");
         if( was )
@@ -6584,6 +6616,15 @@ read_file_text(
     return 1;
 }
 
+/* What the fake editor (TORIRS_EDITOR_OPEN_CMD, test_triggers) logs for
+ * `file` at `line`: printf's `<path>:<line>` and a newline; on Windows cmd's
+ * echo, the path as the template quoted it, `"<path>":<line>`. */
+#ifdef _WIN32
+#define OPENED_AT(file, line) file "\":" line
+#else
+#define OPENED_AT(file, line) file ":" line "\n"
+#endif
+
 /** The editor command runs in the background: wait (up to 3 s) until the
  *  file holds `needle`. */
 static int
@@ -6935,7 +6976,7 @@ test_triggers(void)
     cat_activate(list);
     cat_activate(cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Open in editor"));
     {
-        char expect[2300];
+        char expect[PATH_MAX + 64];
 #ifdef _WIN32
         /* The absolute path, quoted by the template, then the line. */
         CHECK(wait_file_has(opened_log, "test.rs2\":2", got, sizeof(got)) && got[0] == '"'
@@ -6943,14 +6984,20 @@ test_triggers(void)
             "triggers: Open in editor ran TORIRS_EDITOR_OPEN_CMD with the path and line (%s)", got);
         (void)expect;
 #else
-        char root_abs[2048];
+        /* realpath writes up to PATH_MAX (glibc's fortify aborts a smaller
+         * buffer). */
+        char root_abs[PATH_MAX];
         if( !realpath(g_tmp_root, root_abs) )
             snprintf(root_abs, sizeof(root_abs), "%s", g_tmp_root);
         snprintf(expect, sizeof(expect), "%s/server/scripts/areas/test/scripts/test.rs2:2\n", root_abs);
         CHECK(wait_file_has(opened_log, "test.rs2:2", got, sizeof(got)) && strcmp(got, expect) == 0,
             "triggers: Open in editor ran TORIRS_EDITOR_OPEN_CMD with the path and line (%s)", got);
 #endif
+#ifdef _WIN32
+        CHECK(cat_console_has("open in editor: echo"), "triggers: the command line is in the Console");
+#else
         CHECK(cat_console_has("open in editor: printf"), "triggers: the command line is in the Console");
+#endif
     }
 
     /* File mode: every trigger of one file. */
@@ -7028,7 +7075,7 @@ test_triggers(void)
             CHECK(read_file_text(disk, got, sizeof(got)) && strcmp(got, text_of(k_edited)) == 0
                       && cat_console_has("saved edited/test_crate/scripts/test_crate.rs2 first"),
                 "triggers: Open in editor saved the edited script before handing it over");
-            CHECK(wait_file_has(opened_log, "test_crate.rs2:3\n", got, sizeof(got)),
+            CHECK(wait_file_has(opened_log, OPENED_AT("test_crate.rs2", "3"), got, sizeof(got)),
                 "triggers: and handed over line 3");
 
             /* Edited outside: the disk changes under the open document. */
@@ -7090,10 +7137,15 @@ test_triggers(void)
         ToriRSChrome_VListSetSelected(&g_cat_chrome, diags, 0);
         cat_activate(diags);
         cat_activate(cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Open problem"));
-        CHECK(wait_file_has(opened_log, "areas/test/scripts/test.rs2:3\n", got, sizeof(got)),
+        CHECK(wait_file_has(opened_log, OPENED_AT("areas/test/scripts/test.rs2", "3"), got, sizeof(got)),
             "triggers: Open problem hands over its file and line (errors listed before warnings)");
-        CHECK(Editor_HotkeyRun(&g_cat_ui, EDITOR_HK_FILE_CHECK_SCRIPTS) == 1 && cat_console_has("no compile paths"),
-            "triggers: the Check hotkey reaches the panel (no compile paths here)");
+        /* Check is the editor server's BUILD job (workbench 6.6), heard
+         * through the Live panel; this window has no such link, and the
+         * panel says why. */
+        CHECK(Editor_HotkeyRun(&g_cat_ui, EDITOR_HK_FILE_CHECK_SCRIPTS) == 1
+                  && strncmp(Editor_UiStatusText(&g_cat_ui), "Check refused: ", 15) == 0,
+            "triggers: the Check hotkey reaches the panel, which says why it cannot (%s)",
+            Editor_UiStatusText(&g_cat_ui));
         CHECK(Editor_HotkeyRun(&g_cat_ui, EDITOR_HK_FILE_RUN) == 1 && cat_console_has("no Live panel"),
             "triggers: the Run hotkey says why it cannot");
         CHECK(ToriRSChrome_Disabled(&g_cat_chrome, cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Run")),

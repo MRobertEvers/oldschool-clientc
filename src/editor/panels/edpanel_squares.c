@@ -62,9 +62,14 @@
 #include <string.h>
 
 /* The well's height when the panel is content-sized, and the least it shrinks
- * to when the layout gives the panel a height to fill (1x pixels). */
+ * to when the layout gives the panel a height to fill (1x pixels). The least
+ * is what lets the picker into the 1280x800 column under Terrain and Palette
+ * (758 px between the menu bar and the status bar, 160 each): the rows above
+ * the well and the folded pane take 349, and at 120 the picker asked for 31 px
+ * more than was left and the layout hid it. 88 is eleven grid rows; the
+ * spare height the layout shares out goes to the well first. */
 #define SQUARES_WELL_H 300
-#define SQUARES_WELL_MIN_H 120
+#define SQUARES_WELL_MIN_H 88
 /* A press that moves further than this is a pan and never a click. */
 #define SQUARES_DRAG_SLOP 3
 /* Two clicks on one square this close are a double-click. */
@@ -604,7 +609,12 @@ squares_size_well(
         ToriRSChrome_SetCustomHeight(ui->chrome, self->graph, want);
 }
 
-/** EditorUiPanel::stretch: the well is the part that fills. */
+/** EditorUiPanel::stretch: the well is the part that fills, and the detail
+ *  pane's folding rows go with it (squares_size_well folds them when the
+ *  height is short). So the least is the well's least with the pane folded,
+ *  and the asking height has the pane open: measured with the pane open, the
+ *  picker's least was taller than the 1280x800 column could give after
+ *  Terrain and Palette, and the default layout hid the picker. */
 static int
 squares_stretch(
     struct EditorUi* ui,
@@ -613,12 +623,13 @@ squares_stretch(
     int* out_natural_h)
 {
     struct SquaresPanel* self = opaque;
+    int const pane = edp_px(ui, SQUARES_PANE_FOLD_H);
 
     assert(out_min_h);
     assert(out_natural_h);
     *out_min_h = edp_px(ui, SQUARES_WELL_MIN_H);
-    *out_natural_h = edp_px(ui, SQUARES_WELL_H);
-    return ui->chrome->widgets[self->graph].view_h;
+    *out_natural_h = edp_px(ui, SQUARES_WELL_H) + pane;
+    return ui->chrome->widgets[self->graph].view_h + (self->pane_open ? pane : 0);
 }
 
 static uint32_t
