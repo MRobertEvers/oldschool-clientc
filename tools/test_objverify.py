@@ -142,6 +142,17 @@ def main():
         run(objdir)
         check(os.path.exists(nodep_obj), "object without a .d is left alone")
 
+        # A Windows .d names its target by drive (`C:/b/x.o: C:/s/x.c`). The
+        # drive's colon is not the rule's: split there and the object reads as
+        # its own missing prerequisite, and every object rebuilds every run.
+        sys.path.insert(0, HERE)
+        import objverify
+        win_dep = os.path.join(root, "win.d")
+        write(win_dep, "C:/b/win.o: C:/s/win.c \\\n C:/s/win.h\nC:/s/win.h:\n")
+        check(objverify.parse_depfile(win_dep) == ["C:/s/win.c", "C:/s/win.h"],
+              "a drive-letter target splits at the rule's colon (%r)"
+              % (objverify.parse_depfile(win_dep),))
+
         # A missing objdir is not an error -- make runs this before mkdir.
         out = run(os.path.join(root, "no-such-dir"))
         check(out == "", "missing objdir is a silent no-op")
