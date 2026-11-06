@@ -14,22 +14,68 @@
 #include <assert.h>
 #include <stddef.h>
 
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#if !defined(__EMSCRIPTEN__)
 
 #include "torirs_maped.h"
 #include "torirs_maped_buf.h"
 #include "platform/net_transport_ws_frame.h"
 #include "platform/net_transport_ws_handshake.h"
 
-#include <arpa/inet.h>
 #include <errno.h>
-#include <fcntl.h>
-#include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
+
+/* Sockets as the game server has them (torirsserver/torirs_server_host.c):
+ * winsock on Windows, BSD sockets elsewhere, a socket an int either way. The
+ * names below are this file's only differences between the two. */
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#define close(fd) closesocket((SOCKET)(fd))
+#define net_errno() WSAGetLastError()
+/* Nothing to read or room to write now; come back next poll. */
+#define NET_RETRY(error) ((error) == WSAEWOULDBLOCK || (error) == WSAEINTR)
+#else
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <netinet/in.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#define net_errno() errno
+#define NET_RETRY(error) ((error) == EAGAIN || (error) == EWOULDBLOCK || (error) == EINTR)
+#endif
+
+/** A poll with no timeout must never block in accept() or recv(). */
+static void
+net_nonblocking(int fd)
+{
+#ifdef _WIN32
+    u_long on = 1;
+    ioctlsocket((SOCKET)fd, FIONBIO, &on);
+#else
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+#endif
+}
+
+/** The last socket error, for a person ("10048" means little). */
+static const char*
+net_why(void)
+{
+#ifdef _WIN32
+    static char text[160];
+    int const error = WSAGetLastError();
+    if( !FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, (DWORD)error, 0, text,
+            sizeof(text), NULL) )
+        snprintf(text, sizeof(text), "winsock error %d", error);
+    for( char* scan = text; *scan; scan++ )
+        if( *scan == '\r' || *scan == '\n' )
+            *scan = '\0';
+    return text;
+#else
+    return strerror(errno);
+#endif
+}
 
 /** Outbound backlog one connection may accumulate before the daemon gives
  *  up on it. Generous — a square's text is ~200KB — because the point is to
@@ -215,20 +261,20 @@ fd_recv(
 {
     struct fd_ctx* c = ctx;
     uint8_t chunk[16384];
-    ssize_t taken;
+    int taken;
 
     if( c->dead )
         return -1;
 
-    taken = recv(c->fd, chunk, sizeof(chunk), 0);
+    taken = (int)recv(c->fd, (char*)chunk, (int)sizeof(chunk), 0);
     if( taken > 0 )
     {
-        ToriRSMapEd_BufWrite(&c->raw_in, chunk, (int)taken);
+        ToriRSMapEd_BufWrite(&c->raw_in, chunk, taken);
         promote_inbound(c);
     }
     else if( taken == 0 )
         c->dead = 1; /* orderly close */
-    else if( !(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) )
+    else if( !NET_RETRY(net_errno()) )
         c->dead = 1;
 
     /* Drain what the modes produced before reporting the peer gone: a client
@@ -253,17 +299,15 @@ fd_flush(struct fd_ctx* c)
     while( ToriRSMapEd_BufAvailable(&c->out) > 0 )
     {
         int pending = ToriRSMapEd_BufAvailable(&c->out);
-        ssize_t sent = send(c->fd, ToriRSMapEd_BufPeek(&c->out), (size_t)pending, 0);
+        int sent = (int)send(c->fd, (const char*)ToriRSMapEd_BufPeek(&c->out), pending, 0);
 
         if( sent > 0 )
         {
-            ToriRSMapEd_BufConsume(&c->out, (int)sent);
+            ToriRSMapEd_BufConsume(&c->out, sent);
             continue;
         }
-        if( sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) )
-            return 1; /* the socket is full; the reactor will come back */
-        if( sent < 0 && errno == EINTR )
-            continue;
+        if( sent < 0 && NET_RETRY(net_errno()) )
+            return 1; /* the socket is full (or interrupted); the reactor will come back */
         c->dead = 1;
         return 0;
     }
@@ -379,37 +423,53 @@ ToriRSMapEd_ListenerOpen(
     assert(port >= 0);
     assert(port <= 65535);
 
-    fd = socket(AF_INET, SOCK_STREAM, 0);
+#ifdef _WIN32
+    {
+        /* Counted by winsock: whoever else in this process started it too. */
+        WSADATA data;
+        if( WSAStartup(MAKEWORD(2, 2), &data) != 0 )
+        {
+            TORIRS_REPORT("%s: WSAStartup failed\n", who);
+            return NULL;
+        }
+    }
+#endif
+    fd = (int)socket(AF_INET, SOCK_STREAM, 0);
     if( fd < 0 )
     {
-        TORIRS_REPORT("%s: socket: %s\n", who, strerror(errno));
+        TORIRS_REPORT("%s: socket: %s\n", who, net_why());
         return NULL;
     }
+#ifdef _WIN32
+    /* Windows' SO_REUSEADDR lets a second process take a port that is in use;
+     * EXCLUSIVEADDRUSE is the POSIX meaning (a busy port refuses the bind). */
+    setsockopt(fd, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char*)&reuse, sizeof(reuse));
+#else
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+#endif
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = htons((uint16_t)port);
     if( bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0 )
     {
-        TORIRS_REPORT("%s: bind 127.0.0.1:%d: %s\n", who, port, strerror(errno));
+        TORIRS_REPORT("%s: bind 127.0.0.1:%d: %s\n", who, port, net_why());
         close(fd);
         return NULL;
     }
     if( listen(fd, 4) < 0 )
     {
-        TORIRS_REPORT("%s: listen: %s\n", who, strerror(errno));
+        TORIRS_REPORT("%s: listen: %s\n", who, net_why());
         close(fd);
         return NULL;
     }
     if( getsockname(fd, (struct sockaddr*)&addr, &addr_len) < 0 )
     {
-        TORIRS_REPORT("%s: getsockname: %s\n", who, strerror(errno));
+        TORIRS_REPORT("%s: getsockname: %s\n", who, net_why());
         close(fd);
         return NULL;
     }
-    /* A poll with no timeout must never block in accept(). */
-    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+    net_nonblocking(fd);
 
     listener = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*listener));
     assert(listener);
@@ -444,14 +504,14 @@ listener_accept(struct ToriRSMapEdListener* listener)
     for( ;; )
     {
         int slot = -1;
-        int fd = accept(listener->fd, NULL, NULL);
+        int fd = (int)accept(listener->fd, NULL, NULL);
         struct ToriRSMapEdTransport transport;
         struct conn* conn;
 
         if( fd < 0 )
         {
-            if( errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK )
-                TORIRS_REPORT("%s: accept: %s\n", listener->who, strerror(errno));
+            if( !NET_RETRY(net_errno()) )
+                TORIRS_REPORT("%s: accept: %s\n", listener->who, net_why());
             return;
         }
         for( int i = 0; i < TORIRSMAPED_SESSION_MAX && slot < 0; i++ )
@@ -467,7 +527,7 @@ listener_accept(struct ToriRSMapEdListener* listener)
             continue;
         }
         conn = &listener->conns[slot];
-        fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+        net_nonblocking(fd);
         memset(&conn->ctx, 0, sizeof(conn->ctx));
         conn->ctx.fd = fd;
         conn->ctx.who = listener->who;
@@ -515,9 +575,9 @@ ToriRSMapEd_ListenerPoll(
     timeout.tv_usec = (timeout_ms % 1000) * 1000;
     if( select(top + 1, &readable, &writable, NULL, &timeout) < 0 )
     {
-        if( errno == EINTR )
+        if( NET_RETRY(net_errno()) )
             return ToriRSMapEd_ListenerConnections(listener);
-        TORIRS_REPORT("%s: select: %s\n", listener->who, strerror(errno));
+        TORIRS_REPORT("%s: select: %s\n", listener->who, net_why());
         return -1;
     }
 
@@ -567,7 +627,7 @@ ToriRSMapEd_ListenerClose(struct ToriRSMapEdListener* listener)
     ToriMem_Free(ToriMem_Editor(), listener);
 }
 
-#else /* _WIN32 || __EMSCRIPTEN__ */
+#else /* __EMSCRIPTEN__ */
 
 struct ToriRSMapEdListener
 {

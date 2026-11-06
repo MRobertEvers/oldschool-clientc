@@ -185,10 +185,23 @@
 #include <string.h>
 #include <time.h>
 
-#if !defined(_WIN32)
 #include <signal.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include <windows.h>
 #endif
+
+/* The waits between polls (Windows' usleep is the CRT's, which spins on some
+ * runtimes: Sleep yields the CPU everywhere). */
+static void
+ctl_sleep_ms(int ms)
+{
+#ifdef _WIN32
+    Sleep((DWORD)ms);
+#else
+    usleep((useconds_t)ms * 1000);
+#endif
+}
 
 static volatile sig_atomic_t g_stop;
 
@@ -506,9 +519,7 @@ cmd_watch(
         Editor_HostMapEdDrainFacts(host, &k_printing_sink);
         if( seconds > 0 && difftime(time(NULL), started) >= seconds )
             break;
-#if !defined(_WIN32)
-        usleep(50 * 1000);
-#endif
+        ctl_sleep_ms(50);
     }
     return 0;
 }
@@ -2040,9 +2051,7 @@ live_request(
             fprintf(stderr, "torirsmapedctl: no answer in %d s\n", seconds);
             return 1;
         }
-#if !defined(_WIN32)
-        usleep(20 * 1000);
-#endif
+        ctl_sleep_ms(20);
     }
     return wait->ok ? 0 : 1;
 }
@@ -2398,9 +2407,7 @@ lanes_request(
             fprintf(stderr, "torirsmapedctl: no answer in %d s\n", seconds);
             return 1;
         }
-#if !defined(_WIN32)
-        usleep(20 * 1000);
-#endif
+        ctl_sleep_ms(20);
     }
     return wait->ok ? 0 : 1;
 }
@@ -2445,9 +2452,7 @@ accounts_request(
             fprintf(stderr, "torirsmapedctl: no answer in %d s\n", seconds);
             return 1;
         }
-#if !defined(_WIN32)
-        usleep(20 * 1000);
-#endif
+        ctl_sleep_ms(20);
     }
     return wait->ok ? 0 : 1;
 }
@@ -2520,9 +2525,9 @@ main(
         return 1;
     }
 
-#if !defined(_WIN32)
     signal(SIGINT, on_interrupt);
-    signal(SIGPIPE, SIG_IGN);
+#ifdef SIGPIPE
+    signal(SIGPIPE, SIG_IGN); /* Windows has no SIGPIPE: a send to a gone peer fails */
 #endif
 
     if( !Editor_HostOpenMapEdTcp(

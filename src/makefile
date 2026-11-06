@@ -3555,6 +3555,13 @@ test-ss-verify: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_verify_test.c
 # is the accident (a debug client build slowing the content loop), not the
 # deliberate choice.
 SSC_CFLAGS = $(CFLAGS) -O3
+# The compiler recurses deep on large scripts: Linux and macOS runs give it
+# an unlimited (or 8+ MB) stack, Windows a 1 MB one, which it overflows on
+# the base script pack (exit 0xC00000FD). A 64-bit reservation costs address
+# space only until it is touched.
+ifeq ($(OS),Windows_NT)
+SSC_CFLAGS += -Wl,--stack,268435456
+endif
 
 # A file target behind the phony name: an unchanged compiler is not relinked on
 # every pack build. That relink (-O3, LTO) cost more than an incremental
@@ -5155,8 +5162,15 @@ TORIRSMAPED_SRCS = torirsmaped/torirs_maped_main.c torirsmaped/torirs_maped.c \
 	editor/editor_doc.c editor/editor_cmd.c editor/editor_jm2.c editor/editor_spawn.c \
 	$(MAPED_SERVER_SRCS)
 
+# Winsock is ws2_32, not the CRT, on Windows (as IO_SERVER_SOCKET_LIBS).
+ifeq ($(OS),Windows_NT)
+TORIRSMAPED_SOCKET_LIBS := -lws2_32
+else
+TORIRSMAPED_SOCKET_LIBS :=
+endif
+
 torirsmaped: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsmaped $(TORIMEM_SRCS) $(TORIRSMAPED_SRCS) -lm
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsmaped $(TORIMEM_SRCS) $(TORIRSMAPED_SRCS) -lm $(TORIRSMAPED_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/torirsmaped"
 
 # The controller client: a ToriRSMapEd connection in its own process with no
@@ -5176,7 +5190,7 @@ TORIRSMAPEDCTL_SRCS = torirsmaped/torirs_mapedctl_main.c torirsmaped/torirs_mape
 	torirsmaped/torirs_maped_cmdwire.c editor/editor_host_remote.c
 
 torirsmapedctl: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -DTORIRS_MAPED_NO_EMBED=1 -o $(OBJ_DIR)/torirsmapedctl $(TORIMEM_SRCS) $(TORIRSMAPEDCTL_SRCS)
+	$(CC) $(CFLAGS) -DTORIRS_MAPED_NO_EMBED=1 -o $(OBJ_DIR)/torirsmapedctl $(TORIMEM_SRCS) $(TORIRSMAPEDCTL_SRCS) $(TORIRSMAPED_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/torirsmapedctl"
 
 # A second binary from the same sources, listening on 43597 rather than 43595.

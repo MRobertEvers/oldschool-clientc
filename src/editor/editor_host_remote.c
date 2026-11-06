@@ -60,14 +60,23 @@
 #include <emscripten.h>
 #endif
 
-#if !defined(_WIN32)
+/* Sockets as the game server has them (torirsserver/torirs_server_host.c):
+ * winsock on Windows, BSD sockets elsewhere, a socket an int either way. */
 #include <errno.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#define remote_socket_close(fd) closesocket((SOCKET)(fd))
+#define remote_interrupted() (WSAGetLastError() == WSAEINTR)
+#else
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#define remote_socket_close(fd) close(fd)
+#define remote_interrupted() (errno == EINTR)
 #endif
 
 /** Loopback round trips are milliseconds; a minute means the daemon is gone. */
@@ -296,27 +305,22 @@ link_send(
         return ToriRSMapEd_EmbedWrite(remote->embed, remote->embed_client, data, len) == len;
 #endif
 
-#if !defined(_WIN32)
     {
         int sent_total = 0;
         while( sent_total < len )
         {
-            ssize_t sent =
-                send(remote->fd, data + sent_total, (size_t)(len - sent_total), 0);
+            int sent = (int)send(remote->fd, (const char*)data + sent_total, len - sent_total, 0);
             if( sent > 0 )
             {
-                sent_total += (int)sent;
+                sent_total += sent;
                 continue;
             }
-            if( sent < 0 && errno == EINTR )
+            if( sent < 0 && remote_interrupted() )
                 continue;
             return 0;
         }
         return 1;
     }
-#else
-    return 0;
-#endif
 }
 
 /**
@@ -385,11 +389,10 @@ link_fill(
     }
 #endif
 
-#if !defined(_WIN32)
     {
         fd_set readable;
         struct timeval timeout;
-        ssize_t taken;
+        int taken;
         int ready;
 
         FD_ZERO(&readable);
@@ -398,19 +401,15 @@ link_fill(
         timeout.tv_usec = (timeout_ms % 1000) * 1000;
         ready = select(remote->fd + 1, &readable, NULL, NULL, &timeout);
         if( ready < 0 )
-            return errno == EINTR ? 0 : -1;
+            return remote_interrupted() ? 0 : -1;
         if( ready == 0 )
             return 0;
-        taken = recv(remote->fd, chunk, sizeof(chunk), 0);
+        taken = (int)recv(remote->fd, (char*)chunk, (int)sizeof(chunk), 0);
         if( taken <= 0 )
             return -1;
-        ToriRSMapEd_BufWrite(&remote->in, chunk, (int)taken);
+        ToriRSMapEd_BufWrite(&remote->in, chunk, taken);
         return 1;
     }
-#else
-    (void)timeout_ms;
-    return -1;
-#endif
 }
 
 /** One whole frame off the buffer, header consumed, or NULL if none is
@@ -900,10 +899,8 @@ remote_free(void* user_data)
     }
     ToriRSMapEd_BufFree(&remote->web_out);
 #endif
-#if !defined(_WIN32)
     if( remote->fd >= 0 )
-        close(remote->fd);
-#endif
+        remote_socket_close(remote->fd);
     free_stash(remote);
     ToriMem_Free(ToriMem_Editor(), remote->atlas_changed);
     while( remote->live_head )
@@ -1210,7 +1207,6 @@ Editor_HostOpenMapEdTcp(
     int role,
     uint32_t join_group)
 {
-#if !defined(_WIN32)
     struct maped_remote* remote;
     struct addrinfo hints;
     struct addrinfo* found = NULL;
@@ -1256,6 +1252,17 @@ Editor_HostOpenMapEdTcp(
     }
 #endif
 
+#ifdef _WIN32
+    {
+        /* Counted by winsock: whoever else in this process started it too. */
+        WSADATA data;
+        if( WSAStartup(MAKEWORD(2, 2), &data) != 0 )
+        {
+            TORIRS_ERR("editor: WSAStartup failed: no maped connection\n");
+            return 0;
+        }
+    }
+#endif
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
@@ -1267,12 +1274,12 @@ Editor_HostOpenMapEdTcp(
     }
     for( struct addrinfo* cursor = found; cursor; cursor = cursor->ai_next )
     {
-        fd = socket(cursor->ai_family, cursor->ai_socktype, cursor->ai_protocol);
+        fd = (int)socket(cursor->ai_family, cursor->ai_socktype, cursor->ai_protocol);
         if( fd < 0 )
             continue;
-        if( connect(fd, cursor->ai_addr, cursor->ai_addrlen) == 0 )
+        if( connect(fd, cursor->ai_addr, (int)cursor->ai_addrlen) == 0 )
             break;
-        close(fd);
+        remote_socket_close(fd);
         fd = -1;
     }
     freeaddrinfo(found);
@@ -1287,7 +1294,7 @@ Editor_HostOpenMapEdTcp(
 
     if( !hello(remote, (uint32_t)role, join_group) )
     {
-        close(fd);
+        remote_socket_close(fd);
         ToriRSMapEd_BufFree(&remote->in);
         ToriMem_Free(ToriMem_Editor(), remote);
         return 0;
@@ -1296,15 +1303,6 @@ Editor_HostOpenMapEdTcp(
     host->vtable = &remote_vtable;
     host->user_data = remote;
     return 1;
-#else
-    (void)host;
-    (void)server_host;
-    (void)port;
-    (void)role;
-    (void)join_group;
-    TORIRS_LOG("editor: server=tcp is not built for this platform yet\n");
-    return 0;
-#endif
 }
 
 /* ------------------------------------------------------------------ */

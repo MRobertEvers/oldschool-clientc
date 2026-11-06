@@ -270,6 +270,10 @@ struct ToriRSMapEdLane
     char rev[16];
     /** The `make` to run; "" = "make". */
     char make[TORIRSMAPED_LANE_PATH_MAX];
+    /** Directories put in front of PATH for a build ("" = none): on Windows
+     *  the repository's MinGW toolchain and the directory of the sh.exe that
+     *  src/makefile's POSIX recipes run under, as build_windows.ps1 sets. */
+    char build_path[TORIRSMAPED_LANE_PATH_MAX * 2];
 
     /* What LIVE_ATTACH launch starts (torirs_maped_live.h). "" binaries are
      * not started; the game server is required. */
@@ -496,12 +500,27 @@ ToriRSMapEd_BuildLineUnit(
 
 /* ---- bindings --------------------------------------------------------------- */
 
+struct LaunchSessions_Spawner;
+
 /**
- * The native runner: spawns ToriRSMapEd_BuildCommand's command with stdout
- * and stderr on one non-blocking pipe and reads it line by line. CLIENT_CACHE
- * writes the map list first and reports `<live_dir>/cache/client.changed`'s
- * archives plus the squares' map archives once make succeeds. Returns 0 on
- * a platform with no process spawning (web, Windows), binding nothing.
+ * Who starts the editor server's children -- the builds, the lane's game
+ * server, js5_server and io_server, the play client -- for every server in
+ * this process: the host's LaunchSessions_SystemSpawner()
+ * (platform/launch_sessions.h; posix_spawn on Linux and macOS, CreateProcess
+ * in a job object on Windows). Set it before ToriRSMapEd_Open. With none
+ * (NULL, the default) the native runner, the live link's launch and the play
+ * launcher bind nothing, as on the web.
+ */
+void
+ToriRSMapEd_SetSpawner(const struct LaunchSessions_Spawner* spawner);
+
+/**
+ * The native runner: starts ToriRSMapEd_BuildCommand's command through the
+ * spawner with stdout and stderr in `<live_dir>/logs/build.log`, and reads
+ * that log line by line as it grows. CLIENT_CACHE writes the map list first
+ * and reports `<live_dir>/cache/client.changed`'s archives plus the squares'
+ * map archives once make succeeds. Returns 0 with no spawner set (the web,
+ * or a host that set none), binding nothing.
  */
 int
 ToriRSMapEd_BuildRunnerNative(

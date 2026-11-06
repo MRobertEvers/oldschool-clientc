@@ -234,6 +234,14 @@ ToriRSMapEdLanes_List(
     struct ToriRSMapEdLaneDef* out,
     int max);
 
+/** `link_path` made a link to the directory `target` the way a mirror links
+ *  one: a symbolic link, or on Windows where the account may not make one
+ *  (Developer Mode off) a directory junction. 1 on success, 0 with errno. */
+int
+ToriRSMapEdLanes_LinkDirectory(
+    const char* target,
+    const char* link_path);
+
 /** The mirror itself (mirror.py's rules). `dst` must not exist. Returns the
  *  number of files mirrored, -1 with `why`. */
 int

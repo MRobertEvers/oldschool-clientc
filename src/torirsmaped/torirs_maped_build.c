@@ -19,27 +19,107 @@
 #include <string.h>
 #include <time.h>
 
-/* Processes and sockets: everywhere but the web and Windows. The bindings
- * that need them compile to "not available" there. */
-#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+/* Processes and sockets: on every desktop platform. A child goes through the
+ * host's spawner (platform/launch_sessions.h: posix_spawn on Linux and macOS,
+ * CreateProcess in a job object on Windows), handed in by
+ * ToriRSMapEd_SetSpawner; the sockets follow the game server's pattern
+ * (torirsserver/torirs_server_host.c). The web has neither: there the
+ * bindings that need them compile to "not available". */
+#if !defined(__EMSCRIPTEN__)
 #define TORIRSMAPED_JOBS_NATIVE 1
+#include "platform/launch_sessions.h"
 #include <dirent.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
-#include <spawn.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include <direct.h>
+#define jobs_mkdir(path) _mkdir(path)
+#else
+#define jobs_mkdir(path) mkdir(path, 0755)
 extern char** environ;
+#endif
+/* Windows has no SIGKILL: its spawner ends a process (or a job) the same
+ * way whatever the signal, so the number only has to exist. */
+#ifndef SIGKILL
+#define SIGKILL 9
+#endif
 #else
 #define TORIRSMAPED_JOBS_NATIVE 0
 #endif
 #ifdef _WIN32
+/* winsock2.h before windows.h, or windows.h brings the old winsock.h and
+ * torirs_maped_live.c's winsock2.h (this unit) collides with it. */
+#include <winsock2.h>
 #include <windows.h>
 #endif
+
+#if TORIRSMAPED_JOBS_NATIVE
+/* Who starts the children (ToriRSMapEd_SetSpawner); NULL: no native runner. */
+static const struct LaunchSessions_Spawner* g_jobs_spawner;
+
+/** POSIX realpath into a PATH_MAX buffer, '/' separators on Windows too (the
+ *  callers compare and join paths with '/'). NULL when `path` is absent. */
+static char*
+jobs_realpath(
+    const char* path,
+    char* resolved)
+{
+#ifdef _WIN32
+    if( GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES )
+    {
+        errno = ENOENT;
+        return NULL;
+    }
+    if( !_fullpath(resolved, path, PATH_MAX) )
+        return NULL;
+    for( char* scan = resolved; *scan; scan++ )
+        if( *scan == '\\' )
+            *scan = '/';
+    return resolved;
+#else
+    return realpath(path, resolved);
+#endif
+}
+
+/** 1 when `path` is a directory itself, never through a link (a junction or a
+ *  symbolic link answers 0, so a recursive empty never follows one). */
+static int
+jobs_is_real_dir(const char* path)
+{
+#ifdef _WIN32
+    DWORD const attrs = GetFileAttributesA(path);
+    return attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY)
+           && !(attrs & FILE_ATTRIBUTE_REPARSE_POINT);
+#else
+    struct stat st;
+    return lstat(path, &st) == 0 && S_ISDIR(st.st_mode);
+#endif
+}
+
+static void
+jobs_sleep_ms(int ms)
+{
+#ifdef _WIN32
+    Sleep((DWORD)ms);
+#else
+    usleep((useconds_t)ms * 1000);
+#endif
+}
+#endif /* TORIRSMAPED_JOBS_NATIVE */
+
+void
+ToriRSMapEd_SetSpawner(const struct LaunchSessions_Spawner* spawner)
+{
+#if TORIRSMAPED_JOBS_NATIVE
+    g_jobs_spawner = spawner;
+#else
+    (void)spawner;
+#endif
+}
 
 /* Replace `path` with `temp` in one step. POSIX rename does; Win32's rename
  * refuses an existing target, so MoveFileEx with REPLACE_EXISTING (as
@@ -274,6 +354,42 @@ ToriRSMapEd_BuildWhatName(uint32_t what)
 /* The lane                                                            */
 /* ------------------------------------------------------------------ */
 
+#ifdef _WIN32
+/** The PATH directories a Windows build needs (struct ToriRSMapEdLane
+ *  build_path): the repository's toolchain, and the directory of sh.exe --
+ *  found on PATH, else where Git for Windows installs it, the places
+ *  scripts/windows_toolchain.ps1 looks. */
+static void
+build_windows_path(
+    const char* repo_root,
+    char* out,
+    size_t out_size)
+{
+    static const char* const k_git_bins[] = { "C:/Program Files/Git/usr/bin", "C:/Program Files (x86)/Git/usr/bin",
+        NULL };
+    char sh[MAX_PATH];
+    char* file_part = NULL;
+    size_t at;
+
+    at = (size_t)snprintf(out, out_size, "%s/toolchains/mingw64/bin", repo_root);
+    if( SearchPathA(NULL, "sh.exe", NULL, sizeof(sh), sh, &file_part) && file_part )
+    {
+        file_part[0] = '\0';
+        snprintf(out + at, out_size - at, ";%s", sh);
+        return;
+    }
+    for( int i = 0; k_git_bins[i]; i++ )
+    {
+        snprintf(sh, sizeof(sh), "%s/sh.exe", k_git_bins[i]);
+        if( GetFileAttributesA(sh) != INVALID_FILE_ATTRIBUTES )
+        {
+            snprintf(out + at, out_size - at, ";%s", k_git_bins[i]);
+            return;
+        }
+    }
+}
+#endif
+
 void
 ToriRSMapEd_LaneDefaults(
     struct ToriRSMapEdLane* lane,
@@ -292,15 +408,34 @@ ToriRSMapEd_LaneDefaults(
     snprintf(lane->live_dir, sizeof(lane->live_dir), "%s", live_dir);
     snprintf(lane->rev, sizeof(lane->rev), "osrs241");
     snprintf(lane->base_cache, sizeof(lane->base_cache), "%s/cache.%s", repo_root, lane->rev);
+#ifdef _WIN32
+    /* The Windows lane's names (build_windows.ps1, src/platform/platform.mk:
+     * PLATFORM=win64, objects under build_win64*, .exe), and the toolchain
+     * the repository carries rather than a `make` on PATH. */
+    snprintf(lane->make, sizeof(lane->make), "%s/toolchains/mingw64/bin/mingw32-make.exe", repo_root);
+    if( GetFileAttributesA(lane->make) == INVALID_FILE_ATTRIBUTES )
+        snprintf(lane->make, sizeof(lane->make), "mingw32-make");
+    build_windows_path(repo_root, lane->build_path, sizeof(lane->build_path));
+    snprintf(lane->server_bin, sizeof(lane->server_bin), "%s/src/build_win64_opt/torirsserver.exe", repo_root);
+    snprintf(lane->js5_bin, sizeof(lane->js5_bin), "%s/src/build_win64_opt/js5_server.exe", repo_root);
+    snprintf(lane->io_bin, sizeof(lane->io_bin), "%s/src/build_win64/io_server.exe", repo_root);
+#else
     snprintf(lane->make, sizeof(lane->make), "make");
     snprintf(lane->server_bin, sizeof(lane->server_bin), "%s/src/build_opt/torirsserver", repo_root);
     snprintf(lane->js5_bin, sizeof(lane->js5_bin), "%s/src/build_opt/js5_server", repo_root);
     snprintf(lane->io_bin, sizeof(lane->io_bin), "%s/src/build/io_server", repo_root);
+#endif
     snprintf(lane->io_root, sizeof(lane->io_root), "%s/build-web", repo_root);
     lane->game_port = 43620;
     lane->js5_port = 43621;
     lane->io_port = 43622;
+#ifdef _WIN32
+    /* The editor is the game client: the play client is this binary. */
+    if( !GetModuleFileNameA(NULL, lane->play_bin, sizeof(lane->play_bin)) )
+        snprintf(lane->play_bin, sizeof(lane->play_bin), "%s/dist/win64/torirs.exe", repo_root);
+#else
     snprintf(lane->play_bin, sizeof(lane->play_bin), "%s/src/torirs", repo_root);
+#endif
     snprintf(lane->play_manifest, sizeof(lane->play_manifest), "%s/manifests/manifest_%s.ini", repo_root,
         lane->rev);
     snprintf(lane->play_fixture, sizeof(lane->play_fixture), "%s/test/quests/fixtures/fresh_lumbridge.ini",
@@ -317,7 +452,7 @@ build_resolve(
 {
 #if TORIRSMAPED_JOBS_NATIVE
     char resolved[PATH_MAX];
-    if( realpath(path, resolved) )
+    if( jobs_realpath(path, resolved) )
     {
         snprintf(out, out_size, "%s", resolved);
         return;
@@ -328,7 +463,7 @@ build_resolve(
         if( slash && slash != path )
         {
             snprintf(parent, sizeof(parent), "%.*s", (int)(slash - path), path);
-            if( realpath(parent, resolved) )
+            if( jobs_realpath(parent, resolved) )
             {
                 snprintf(out, out_size, "%s%s", resolved, slash);
                 return;
@@ -1020,123 +1155,117 @@ jobs_env_build(
     return env;
 }
 
-/** Spawn `argv` (PATH-searched when argv[0] has no '/') with environment
- *  `envp`. stdout and stderr go: with `out_fd`, to one non-blocking pipe
- *  whose read end is returned there; else with `log_path`, to that file
- *  (truncated); else to /dev/null. Returns the pid, or -1 with errno. */
+/** A child the editor server started: its pid and its process group (the
+ *  spawner's group, a job object on Windows), so a stop ends what it started
+ *  too (make's compilers, a server's helpers). */
+struct jobs_process
+{
+    int pid;
+    int group;
+};
+
+/** Where a child's output goes when nobody reads it. */
+#ifdef _WIN32
+#define JOBS_NULL_DEVICE "NUL"
+#else
+#define JOBS_NULL_DEVICE "/dev/null"
+#endif
+
+/** Start `argv` (PATH-searched when argv[0] names no directory) with
+ *  environment `envp`, stdin from the null device, stdout and stderr to
+ *  `log_path` (truncated; NULL or "" for the null device), in a process
+ *  group of its own. 1 started, 0 not (errno says why). */
 static int
-jobs_spawn_envp(
+jobs_process_start_envp(
     char* const* argv,
     char* const* envp,
     const char* log_path,
-    int* out_fd)
+    struct jobs_process* out)
 {
-    posix_spawn_file_actions_t actions;
-    int pipe_fds[2] = { -1, -1 };
-    pid_t pid = -1;
     int rc;
 
     assert(argv);
     assert(argv[0]);
     assert(envp);
-
-    posix_spawn_file_actions_init(&actions);
-    if( out_fd )
-    {
-        if( pipe(pipe_fds) != 0 )
-        {
-            posix_spawn_file_actions_destroy(&actions);
-            return -1;
-        }
-        posix_spawn_file_actions_addclose(&actions, pipe_fds[0]);
-        posix_spawn_file_actions_adddup2(&actions, pipe_fds[1], 1);
-        posix_spawn_file_actions_adddup2(&actions, pipe_fds[1], 2);
-        posix_spawn_file_actions_addclose(&actions, pipe_fds[1]);
-    }
-    else if( log_path && log_path[0] )
-    {
-        posix_spawn_file_actions_addopen(&actions, 1, log_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-        posix_spawn_file_actions_adddup2(&actions, 1, 2);
-    }
-    else
-    {
-        posix_spawn_file_actions_addopen(&actions, 1, "/dev/null", O_WRONLY, 0);
-        posix_spawn_file_actions_addopen(&actions, 2, "/dev/null", O_WRONLY, 0);
-    }
-    posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0);
-
-    if( strchr(argv[0], '/') )
-        rc = posix_spawn(&pid, argv[0], &actions, NULL, argv, envp);
-    else
-        rc = posix_spawnp(&pid, argv[0], &actions, NULL, argv, envp);
-    posix_spawn_file_actions_destroy(&actions);
-
-    if( out_fd )
-        close(pipe_fds[1]);
+    assert(out);
+    assert(g_jobs_spawner);
+    out->pid = 0;
+    out->group = 0;
+    rc = g_jobs_spawner->spawn(g_jobs_spawner->context, argv, envp,
+        log_path && log_path[0] ? log_path : JOBS_NULL_DEVICE, 0, &out->pid, &out->group);
     if( rc != 0 )
     {
-        if( out_fd )
-            close(pipe_fds[0]);
+        out->pid = 0;
         errno = rc;
-        return -1;
+        return 0;
     }
-    if( out_fd )
-    {
-        fcntl(pipe_fds[0], F_SETFL, fcntl(pipe_fds[0], F_GETFL, 0) | O_NONBLOCK);
-        fcntl(pipe_fds[0], F_SETFD, FD_CLOEXEC);
-        *out_fd = pipe_fds[0];
-    }
-    return (int)pid;
+    return 1;
 }
 
-/** Spawn `argv` (PATH-searched when argv[0] has no '/'), `extra_env` (NULL
- *  or "K=V" strings, NULL-terminated) layered over this process's
- *  environment. Output as jobs_spawn_envp (`out_fd`, else `log_path`, else
- *  /dev/null). Returns the pid, or -1 with errno. */
+/** As jobs_process_start_envp, the environment this process's with
+ *  `extra_env` (NULL or "K=V" strings, NULL-terminated) layered over it. */
 static int
-jobs_spawn_logged(
+jobs_process_start(
     char* const* argv,
     const char* const* extra_env,
     const char* log_path,
-    int* out_fd)
+    struct jobs_process* out)
 {
     char** env = jobs_env_build(extra_env, NULL);
-    int const pid = jobs_spawn_envp(argv, env, log_path, out_fd);
+    int const ok = jobs_process_start_envp(argv, env, log_path, out);
     int const saved = errno;
 
     free(env);
     errno = saved;
-    return pid;
+    return ok;
 }
 
+/** 1 once `process` has ended (reaped: its pid is 0 after), with its exit
+ *  status in *out_exit_code (-1 when a signal ended it); 0 while it runs. */
 static int
-jobs_spawn(
-    char* const* argv,
-    const char* const* extra_env,
-    int* out_fd)
+jobs_process_ended(
+    struct jobs_process* process,
+    int* out_exit_code)
 {
-    return jobs_spawn_logged(argv, extra_env, NULL, out_fd);
+    int code = -1;
+    int signal_number = 0;
+
+    assert(process);
+    assert(out_exit_code);
+    assert(process->pid > 0);
+    if( !g_jobs_spawner->reap_child(g_jobs_spawner->context, process->pid, 0, &code, &signal_number) )
+        return 0;
+    *out_exit_code = signal_number ? -1 : code;
+    process->pid = 0;
+    return 1;
 }
 
-/** SIGTERM, up to `grace_ms` for it to go, then SIGKILL; always reaped. */
+/** SIGTERM to its group, up to `grace_ms` for it to go, then SIGKILL; always
+ *  reaped. A process that has ended (pid 0) is left alone. */
 static void
-jobs_stop_process(
-    int pid,
+jobs_process_stop(
+    struct jobs_process* process,
     int grace_ms)
 {
-    int status;
+    int code;
+    int signal_number;
 
-    if( pid <= 0 )
+    assert(process);
+    if( process->pid <= 0 )
         return;
-    kill((pid_t)pid, SIGTERM);
+    g_jobs_spawner->signal_group(g_jobs_spawner->context, process->group, SIGTERM);
     for( int waited = 0; waited < grace_ms; waited += 20 )
     {
-        if( waitpid((pid_t)pid, &status, WNOHANG) == (pid_t)pid )
+        if( g_jobs_spawner->reap_child(g_jobs_spawner->context, process->pid, 0, &code, &signal_number) )
+        {
+            process->pid = 0;
             return;
-        usleep(20 * 1000);
+        }
+        jobs_sleep_ms(20);
     }
-    kill((pid_t)pid, SIGKILL);
-    waitpid((pid_t)pid, &status, 0);
+    g_jobs_spawner->signal_group(g_jobs_spawner->context, process->group, SIGKILL);
+    g_jobs_spawner->reap_child(g_jobs_spawner->context, process->pid, 1, &code, &signal_number);
+    process->pid = 0;
 }
 
 /* ---- the native runner ---------------------------------------------------- */
@@ -1146,11 +1275,18 @@ struct build_native
     struct ToriRSMapEdLane lane;
     struct ToriRSMapEdBuildJob job;
     int32_t squares[2 * TORIRSMAPED_BUILD_SQUARES_MAX];
-    int pid;
-    int fd;
-    int eof;
+    /** The job's make, while it runs. */
+    struct jobs_process process;
+    /** Its output, <live>/logs/build.log: the child writes it, each poll reads
+     *  on from where the last stopped (no pipe: one path on every platform). */
+    char log_path[TORIRSMAPED_LANE_PATH_MAX + 32];
+    FILE* log;
+    int running;
     int exited;
     int exit_ok;
+    /** "PATH=<lane build_path><sep><this process's PATH>" for the build, when
+     *  the lane names a build_path. */
+    char* path_env;
     char partial[TORIRSMAPED_BUILD_LINE_MAX];
     size_t partial_length;
     /** A packs build: `<live>/servpack/pack.manifest` as it was before the
@@ -1167,11 +1303,12 @@ build_native_start(
     struct build_native* native = ctx;
     struct ToriRSMapEdBuildCommand command;
     char* argv[TORIRSMAPED_BUILD_ARGV_MAX + 1];
-    int fd = -1;
+    char logs[TORIRSMAPED_LANE_PATH_MAX + 32];
+    const char* extra_env[2] = { NULL, NULL };
 
     assert(native);
     assert(job);
-    assert(native->pid <= 0);
+    assert(!native->running);
 
     if( !ToriRSMapEd_BuildCommand(&native->lane, job, &command) )
         return EDITOR_HOST_UNSUPPORTED;
@@ -1182,7 +1319,10 @@ build_native_start(
         memcpy(native->squares, job->squares, (size_t)native->job.square_count * 2 * sizeof(int32_t));
     native->job.squares = native->squares;
 
-    mkdir(native->lane.live_dir, 0755);
+    jobs_mkdir(native->lane.live_dir);
+    snprintf(logs, sizeof(logs), "%s/logs", native->lane.live_dir);
+    jobs_mkdir(logs);
+    snprintf(native->log_path, sizeof(native->log_path), "%s/logs/build.log", native->lane.live_dir);
     free(native->servpack_before);
     native->servpack_before = NULL;
     native->servpack_before_length = 0;
@@ -1201,15 +1341,29 @@ build_native_start(
     for( int i = 0; i < command.argc; i++ )
         argv[i] = command.argv[i];
     argv[command.argc] = NULL;
-    native->pid = jobs_spawn(argv, NULL, &fd);
-    if( native->pid < 0 )
+    if( native->lane.build_path[0] )
+    {
+        const char* path = getenv("PATH");
+#ifdef _WIN32
+        char const separator = ';';
+#else
+        char const separator = ':';
+#endif
+        size_t const size = strlen(native->lane.build_path) + (path ? strlen(path) : 0) + 8;
+        free(native->path_env);
+        native->path_env = malloc(size);
+        assert(native->path_env);
+        snprintf(native->path_env, size, "PATH=%s%c%s", native->lane.build_path, separator, path ? path : "");
+        extra_env[0] = native->path_env;
+    }
+    if( !jobs_process_start(argv, extra_env, native->log_path, &native->process) )
     {
         TORIRS_ERR("torirsmaped: cannot start %s: %s\n", argv[0], strerror(errno));
-        native->pid = 0;
         return EDITOR_HOST_IO_ERROR;
     }
-    native->fd = fd;
-    native->eof = 0;
+    /* The spawner made the log before the child ran: follow it from here. */
+    native->log = fopen(native->log_path, "rb");
+    native->running = 1;
     native->exited = 0;
     native->exit_ok = 0;
     native->partial_length = 0;
@@ -1286,13 +1440,23 @@ build_native_poll(
     assert(out_status);
 
     /* Polled only between a start and the poll that reported it done. */
-    assert(native->pid > 0);
-    while( !native->eof )
+    assert(native->running);
+    /* Ended before this read, so the read below takes the last of the log. */
+    if( !native->exited )
     {
-        ssize_t got = read(native->fd, chunk, sizeof(chunk));
+        int exit_code = -1;
+        if( jobs_process_ended(&native->process, &exit_code) )
+        {
+            native->exited = 1;
+            native->exit_ok = exit_code == 0;
+        }
+    }
+    while( native->log )
+    {
+        size_t got = fread(chunk, 1, sizeof(chunk), native->log);
         if( got > 0 )
         {
-            for( ssize_t i = 0; i < got; i++ )
+            for( size_t i = 0; i < got; i++ )
             {
                 char c = chunk[i];
                 if( c == '\n' )
@@ -1308,37 +1472,23 @@ build_native_poll(
             }
             continue;
         }
-        if( got == 0 )
-        {
-            native->eof = 1;
-            close(native->fd);
-            native->fd = -1;
-            if( native->partial_length > 0 )
-            {
-                native->partial[native->partial_length] = '\0';
-                build_native_line(native, sink, native->partial);
-                native->partial_length = 0;
-            }
-            break;
-        }
-        if( errno == EINTR )
-            continue;
-        break; /* EAGAIN: nothing more this pass */
+        /* The end of what the child has written so far: read on next poll. */
+        clearerr(native->log);
+        break;
     }
     if( !native->exited )
-    {
-        int status = 0;
-        pid_t done = waitpid((pid_t)native->pid, &status, WNOHANG);
-        if( done == (pid_t)native->pid )
-        {
-            native->exited = 1;
-            native->exit_ok = WIFEXITED(status) && WEXITSTATUS(status) == 0;
-        }
-    }
-    if( !native->eof || !native->exited )
         return 1;
 
-    native->pid = 0;
+    if( native->log )
+        fclose(native->log);
+    native->log = NULL;
+    if( native->partial_length > 0 )
+    {
+        native->partial[native->partial_length] = '\0';
+        build_native_line(native, sink, native->partial);
+        native->partial_length = 0;
+    }
+    native->running = 0;
     if( !native->exit_ok )
     {
         *out_status = EDITOR_HOST_BAKE_FAILED;
@@ -1378,12 +1528,12 @@ build_native_cancel(void* ctx)
     struct build_native* native = ctx;
 
     assert(native);
-    if( native->fd >= 0 )
-        close(native->fd);
-    native->fd = -1;
-    if( native->pid > 0 && !native->exited )
-        jobs_stop_process(native->pid, 2000);
-    native->pid = 0;
+    if( native->log )
+        fclose(native->log);
+    native->log = NULL;
+    if( native->running && !native->exited )
+        jobs_process_stop(&native->process, 2000);
+    native->running = 0;
 }
 
 static void
@@ -1394,6 +1544,7 @@ build_native_free(void* ctx)
         return;
     build_native_cancel(native);
     free(native->servpack_before);
+    free(native->path_env);
     free(native);
 }
 
@@ -1409,11 +1560,13 @@ ToriRSMapEd_BuildRunnerNative(
 
     memset(out, 0, sizeof(*out));
 #if TORIRSMAPED_JOBS_NATIVE
+    /* No spawner, no children (a test that binds no host's). */
+    if( !g_jobs_spawner )
+        return 0;
     {
         struct build_native* native = calloc(1, sizeof(*native));
         assert(native);
         native->lane = *lane;
-        native->fd = -1;
         out->ctx = native;
         out->start = build_native_start;
         out->poll = build_native_poll;
@@ -1784,7 +1937,7 @@ jobs_make_parents(const char* path)
         if( *p != '/' )
             continue;
         *p = '\0';
-        if( mkdir(buffer, 0755) != 0 && errno != EEXIST )
+        if( jobs_mkdir(buffer) != 0 && errno != EEXIST && !jobs_is_real_dir(buffer) )
             return 0;
         *p = '/';
     }
@@ -1829,11 +1982,10 @@ jobs_empty_dir(const char* dir)
     while( (entry = readdir(handle)) != NULL )
     {
         char path[TORIRSMAPED_LANE_PATH_MAX + 1024];
-        struct stat st;
         if( strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 )
             continue;
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        if( lstat(path, &st) == 0 && S_ISDIR(st.st_mode) )
+        if( jobs_is_real_dir(path) )
         {
             jobs_empty_dir(path);
             (void)rmdir(path);

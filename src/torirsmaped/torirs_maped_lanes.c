@@ -295,6 +295,16 @@ kill(
 #define lanes_mkdir(path) mkdir(path, 0755)
 #endif
 
+int
+ToriRSMapEdLanes_LinkDirectory(
+    const char* target,
+    const char* link_path)
+{
+    assert(target);
+    assert(link_path);
+    return symlink(target, link_path) == 0;
+}
+
 /* ---- mirror.py's rules ---------------------------------------------------- */
 
 /** Pure inputs nothing in a build or a save writes: one directory symlink
@@ -640,6 +650,19 @@ ToriRSMapEdLanes_NameValid(const char* name)
     return 1;
 }
 
+/** 1 when `path` is absolute: "/x", and on Windows "C:/x", "C:\x" or "\x"
+ *  too (a drive-letter path read as relative gets the working directory
+ *  glued in front of it: "C:\repo/C:/repo/build/..."). */
+static int
+lanes_path_absolute(const char* path)
+{
+#ifdef _WIN32
+    if( path[0] == '\\' || (((path[0] | 0x20) >= 'a' && (path[0] | 0x20) <= 'z') && path[1] == ':') )
+        return 1;
+#endif
+    return path[0] == '/';
+}
+
 static void
 resolve_abs(
     const char* path,
@@ -649,7 +672,7 @@ resolve_abs(
     char real[PATH_MAX];
     if( realpath(path, real) )
         snprintf(out, out_size, "%s", real);
-    else if( path[0] == '/' )
+    else if( lanes_path_absolute(path) )
         snprintf(out, out_size, "%s", path);
     else
     {

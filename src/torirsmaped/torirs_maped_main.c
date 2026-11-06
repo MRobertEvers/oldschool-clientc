@@ -46,18 +46,28 @@
 #include "mem/torirs_mem.h"
 #include "platform/launch_sessions.h"
 
-#include <arpa/inet.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <limits.h>
-#include <netinet/in.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/select.h>
-#include <sys/socket.h>
 #include <unistd.h>
+
+#ifdef _WIN32
+/* POSIX realpath over Win32: absent paths fail as there. */
+static char*
+realpath(
+    const char* path,
+    char* resolved)
+{
+    FILE* probe = fopen(path, "rb");
+    if( !probe )
+        return NULL;
+    fclose(probe);
+    return _fullpath(resolved, path, PATH_MAX);
+}
+#endif
 
 
 /* ---- SPAWN_VIEW: the launch service's `view` verb ------------------------ */
@@ -252,7 +262,9 @@ main(
     if( repo_root[0] == '\0' )
         repo_root = NULL;
 
-    signal(SIGPIPE, SIG_IGN);
+#ifdef SIGPIPE
+    signal(SIGPIPE, SIG_IGN); /* Windows has no SIGPIPE: a send to a gone peer fails */
+#endif
     signal(SIGTERM, daemon_on_stop);
     signal(SIGINT, daemon_on_stop);
 
@@ -279,6 +291,9 @@ main(
         if( note[0] )
             fprintf(stderr, "torirsmaped: %s\n", note);
     }
+    /* Builds, the lane's servers and the play client start through this
+     * platform's spawner (posix_spawn, or CreateProcess in a job object). */
+    ToriRSMapEd_SetSpawner(LaunchSessions_SystemSpawner());
     /* --lane <name> (or $TORIRSMAPED_LANE): serve the lane's mirror of
      * --content-dir and build into the lane's live dir (torirs_maped_lanes.h);
      * "main" is --content-dir itself. */
