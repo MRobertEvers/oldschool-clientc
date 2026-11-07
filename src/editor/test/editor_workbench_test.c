@@ -265,9 +265,11 @@ registry_digest(
  * 180134579u with the square map alone): two buttons in the docked Palette;
  * 2x and 3x and the scenes did not move. The Height brush moved all three
  * registries (was 2329356403u, 3485951951u, 3425378636u): Raise and Lower
- * are one tool, so the rail lost a button; the scenes did not move. */
+ * are one tool, so the rail lost a button; the scenes did not move. The
+ * tool discs moved the 1x registry (was 2260660493u): every rail button
+ * names its own skin slot now; 2x, 3x and the scenes did not move. */
 static const uint32_t k_golden[3][3] = {
-    { 1970238540u, 3840548130u, 2260660493u },
+    { 1970238540u, 3840548130u, 2251776434u },
     { 1606657634u, 3552625563u, 1406059493u },
     { 1621493878u, 3838641767u, 2103401179u },
 };

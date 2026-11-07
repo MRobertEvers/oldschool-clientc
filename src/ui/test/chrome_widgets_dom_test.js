@@ -472,13 +472,13 @@ assert.strictEqual(button.control.innerText, 'Rebuild every collision map in the
   /* Every slot: an ICONBUTTON per slot, its drawn size the 1x PNG's, and the
    * tier files exactly twice and three times it. */
   const slots = [];
-  for (let slot = 0; slot < 58; slot++) {
+  for (let slot = 0; slot < 69; slot++) {
     slots.push(cmd(CMD.WIDGET_ADD, { w: 500 + slot, v: W.ICONBUTTON, label: 'S', cw: slot, s: 600 + slot }));
     slots.push(cmd(CMD.WIDGET_VALUE, { w: 500 + slot, v: slot }));
   }
   runtime.receive({ protocol: 1, type: 'page.delta', pageGeneration: 20, commands: slots });
   theme(3, 1.5);
-  for (let slot = 0; slot < 58; slot++) {
+  for (let slot = 0; slot < 69; slot++) {
     const record = byHandle(500 + slot);
     const file = /"skin@2x\/([A-Za-z]+)\.png"/.exec(record.icon.style.backgroundImage);
     assert(file, `slot ${slot} is drawn from the 2x tier at DPR 1.5`);

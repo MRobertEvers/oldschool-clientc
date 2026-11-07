@@ -403,7 +403,7 @@ flowchart LR
 <h3>The baking pipeline for a new visual element</h3>
 <ol>
   <li>Find the source sprite: <code>3rd/rscache/tools/spritebake/spritebake --rev osrs241 cache.osrs241 --list</code> and <code>--probe name,...</code>. Per the memory note, probe the full name; frame names with commas split.</li>
-  <li>If no cache sprite fits, synthesise from one that does: <code>tools/chrome_button_stamp.py</code> stamps a glyph onto a borrowed plate (that is how the pop-out and dock buttons exist today).</li>
+  <li>If no cache sprite fits, synthesise from one that does: <code>tools/chrome_button_stamp.py</code> stamps a glyph onto a borrowed plate (that is how the pop-out and dock buttons exist today); <code>spritebake --disc Plate=Symbol:glyph</code> draws a named 15&times;15 glyph table (<code>k_disc_glyphs</code> in spritebake/main.c) on a world-map disc's plate, in inks sampled from the cache's own discs, with the ring-ink strokes carrying the shape so the 2&times; mask route keeps it (that is how the tool rail's marquee, chevrons, ground profiles, figure, road, crates, stroke, loop, broom and the Palette's pipette exist, 2026-11-07).</li>
   <li>Append <code>--sprite ARCHIVE[.FRAME]=Symbol[@x,y,w,h]</code> to the recipe in the baked file's header and re-run with <code>--out src/engine/torirs_chrome_skin_baked.c --header … --sheet sheet.bmp</code>. Order is slot index.</li>
   <li>Add the slot to <code>enum ToriRSChromeSkinSlot</code> at the same index, bump the count, add the pin in <code>src/ui/torirs_chrome_skin.h</code> (the static asserts catch a wrong order).</li>
   <li>Regenerate the web skin: <code>tools/spritebake_png.py</code> into <code>res/plugin_chrome/skin/</code>. Fonts are unchanged unless a size is added.</li>

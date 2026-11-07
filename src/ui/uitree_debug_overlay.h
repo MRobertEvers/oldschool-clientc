@@ -542,8 +542,12 @@ enum ToriRSChromeSkinSlot
      * header, beside its size.
      *
      * Tool rail icons: the world map's 15x15 function discs where one reads
-     * as the tool (crosshair, spade, flag, curved arrow, ...), the 16x16
-     * chevrons for raise/lower, and the bank's own bin for delete.
+     * as the tool (crosshair, flag, arrow, curved arrow, crate), the 16x16
+     * chevrons for raise/lower (the Levels button), and -- since the rail
+     * outgrew the world map's vocabulary -- discs DRAWN on the crosshair's
+     * plate by spritebake's `--disc` (Flatten, Smooth, the two paints,
+     * Delete here; the eleven at the end of the enum). The design and the
+     * shape rules: docs/MAPED_DESIGN.html #chrome.
      */
     TORIRS_CHROME_SKIN_TOOL_SELECT,
     TORIRS_CHROME_SKIN_TOOL_RAISE,
@@ -584,6 +588,24 @@ enum ToriRSChromeSkinSlot
      *  than placed beside SLIDER_TRACK so no earlier slot changes index. */
     TORIRS_CHROME_SKIN_SLIDER_TRACK_LEFT,
     TORIRS_CHROME_SKIN_SLIDER_TRACK_RIGHT,
+    /**
+     * The rest of the tool rail, one disc per tool, appended so no earlier
+     * slot moves: a dashed marquee, up/down chevrons (Height raises and
+     * lowers in one), a standing figure, a road, a jagged and a flat-topped
+     * ground profile, three scattered crates, a brush stroke, a rope loop, a
+     * broom, and the pipette the Palette panel's eyedropper buttons wear.
+     */
+    TORIRS_CHROME_SKIN_TOOL_RECT,
+    TORIRS_CHROME_SKIN_TOOL_HEIGHT,
+    TORIRS_CHROME_SKIN_TOOL_PLACE_PLAYER,
+    TORIRS_CHROME_SKIN_TOOL_PAINT_PATH,
+    TORIRS_CHROME_SKIN_TOOL_ROUGHEN,
+    TORIRS_CHROME_SKIN_TOOL_SCATTER,
+    TORIRS_CHROME_SKIN_TOOL_PLATEAU,
+    TORIRS_CHROME_SKIN_TOOL_REGION,
+    TORIRS_CHROME_SKIN_TOOL_LASSO,
+    TORIRS_CHROME_SKIN_TOOL_TIDY,
+    TORIRS_CHROME_SKIN_TOOL_EYEDROPPER,
     TORIRS_CHROME_SKIN_SLOT_COUNT
 };
 

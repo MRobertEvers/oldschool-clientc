@@ -38,7 +38,7 @@
 /** The highest tier baked. Tier n is n times the 1x size on each axis. */
 #define TORIRS_CHROME_SKIN_TIER_MAX 3
 /** How many slots (from 0) these tiers were baked for. */
-#define TORIRS_CHROME_SKIN_TIERS_BAKED 58
+#define TORIRS_CHROME_SKIN_TIERS_BAKED 69
 
 /**
  * Tier `tier` (2..TORIRS_CHROME_SKIN_TIER_MAX) of `slot`, or NULL when the

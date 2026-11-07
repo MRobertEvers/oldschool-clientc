@@ -1224,13 +1224,15 @@ Editor_Palette_Register(struct EditorUi* ui)
     self->graph_underlay = ToriRSChrome_Graph(chrome, self->panel, "", PALETTE_CELL * 2 + 2);
     self->input_underlay = ToriRSChrome_TextInput(chrome, self->panel, "id", "");
     ToriRSChrome_SetTooltip(chrome, self->input_underlay, "Type an underlay id and press Enter");
-    self->button_drop_underlay = ToriRSChrome_Button(chrome, self->panel, k_dropper_captions[0]);
+    self->button_drop_underlay =
+        ToriRSChrome_IconButton(chrome, self->panel, TORIRS_CHROME_SKIN_TOOL_EYEDROPPER, k_dropper_captions[0]);
     ToriRSChrome_SetTooltip(chrome, self->button_drop_underlay, "The next click on the ground picks its underlay");
     self->row_overlay = ToriRSChrome_Label(chrome, self->panel, "Overlay");
     self->graph_overlay = ToriRSChrome_Graph(chrome, self->panel, "", PALETTE_CELL * 2 + 2);
     self->input_overlay = ToriRSChrome_TextInput(chrome, self->panel, "id", "");
     ToriRSChrome_SetTooltip(chrome, self->input_overlay, "Type an overlay id and press Enter");
-    self->button_drop_overlay = ToriRSChrome_Button(chrome, self->panel, k_dropper_captions[1]);
+    self->button_drop_overlay =
+        ToriRSChrome_IconButton(chrome, self->panel, TORIRS_CHROME_SKIN_TOOL_EYEDROPPER, k_dropper_captions[1]);
     ToriRSChrome_SetTooltip(chrome, self->button_drop_overlay, "The next click on the ground picks its overlay and shape");
     self->row_shape = ToriRSChrome_Label(chrome, self->panel, "Shape");
     self->graph_shape = ToriRSChrome_Graph(

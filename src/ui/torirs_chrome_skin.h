@@ -216,6 +216,39 @@ _Static_assert(
     (int)TORIRS_CHROME_SKIN_SLIDER_TRACK_RIGHT == (int)ToriRSChromeSkin_SLOT_SliderTrackRight,
     "chrome skin: SLIDER_TRACK_RIGHT is not the baked SliderTrackRight");
 _Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_RECT == (int)ToriRSChromeSkin_SLOT_ToolRect,
+    "chrome skin: TOOL_RECT is not the baked ToolRect");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_HEIGHT == (int)ToriRSChromeSkin_SLOT_ToolHeight,
+    "chrome skin: TOOL_HEIGHT is not the baked ToolHeight");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_PLACE_PLAYER == (int)ToriRSChromeSkin_SLOT_ToolPlacePlayer,
+    "chrome skin: TOOL_PLACE_PLAYER is not the baked ToolPlacePlayer");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_PAINT_PATH == (int)ToriRSChromeSkin_SLOT_ToolPaintPath,
+    "chrome skin: TOOL_PAINT_PATH is not the baked ToolPaintPath");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_ROUGHEN == (int)ToriRSChromeSkin_SLOT_ToolRoughen,
+    "chrome skin: TOOL_ROUGHEN is not the baked ToolRoughen");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_SCATTER == (int)ToriRSChromeSkin_SLOT_ToolScatter,
+    "chrome skin: TOOL_SCATTER is not the baked ToolScatter");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_PLATEAU == (int)ToriRSChromeSkin_SLOT_ToolPlateau,
+    "chrome skin: TOOL_PLATEAU is not the baked ToolPlateau");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_REGION == (int)ToriRSChromeSkin_SLOT_ToolRegion,
+    "chrome skin: TOOL_REGION is not the baked ToolRegion");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_LASSO == (int)ToriRSChromeSkin_SLOT_ToolLasso,
+    "chrome skin: TOOL_LASSO is not the baked ToolLasso");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_TIDY == (int)ToriRSChromeSkin_SLOT_ToolTidy,
+    "chrome skin: TOOL_TIDY is not the baked ToolTidy");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_TOOL_EYEDROPPER == (int)ToriRSChromeSkin_SLOT_ToolEyedropper,
+    "chrome skin: TOOL_EYEDROPPER is not the baked ToolEyedropper");
+_Static_assert(
     (int)TORIRS_CHROME_SKIN_SLOT_COUNT == (int)ToriRSChromeSkin_SLOT_COUNT,
     "chrome skin: the semantic slots and the bake disagree on how many there are");
 

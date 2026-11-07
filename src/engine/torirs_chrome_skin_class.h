@@ -112,7 +112,18 @@ enum ToriRSChromeSkin_Wrap
     ROW(BuildButton, GLYPH, NONE)                \
     ROW(SaveButton, GLYPH, NONE)                 \
     ROW(SliderTrackLeft, TEXTURED, NONE)         \
-    ROW(SliderTrackRight, TEXTURED, NONE)
+    ROW(SliderTrackRight, TEXTURED, NONE)        \
+    ROW(ToolRect, GLYPH, NONE)                      \
+    ROW(ToolHeight, GLYPH, NONE)                    \
+    ROW(ToolPlacePlayer, GLYPH, NONE)               \
+    ROW(ToolPaintPath, GLYPH, NONE)                 \
+    ROW(ToolRoughen, GLYPH, NONE)                   \
+    ROW(ToolScatter, GLYPH, NONE)                   \
+    ROW(ToolPlateau, GLYPH, NONE)                   \
+    ROW(ToolRegion, GLYPH, NONE)                    \
+    ROW(ToolLasso, GLYPH, NONE)                     \
+    ROW(ToolTidy, GLYPH, NONE)                      \
+    ROW(ToolEyedropper, GLYPH, NONE)               
 
 #define TORIRS_CHROME_SKIN_CLASS_ROW_(name, cls, wrap) \
     [ToriRSChromeSkin_SLOT_##name] = ToriRSChromeSkin_CLASS_##cls,
