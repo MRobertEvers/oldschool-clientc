@@ -27,6 +27,7 @@
 #include "editor/editor_jm2.h"
 #include "editor/editor_spawn.h"
 #include "torirsmaped/torirs_maped.h"
+#include "torirsmaped/torirs_maped_live.h"
 #include "torirsmaped/torirs_maped_build.h"
 
 #include <stdio.h>
@@ -428,6 +429,15 @@ test_v1_peer(char const* scratch)
         check(ToriRSMapEd_ReadU32(body + 4) == 0 && strstr(reason, want) != NULL,
             "a read-only server's v2 HELLO names who holds the tree (pid)");
     }
+    /* The greeting is followed by the lane as it is (ToriRSMapEd_LiveWelcome):
+     * no lane here, so detached and no play client. A v1 peer gets neither. */
+    check(raw_take(v2, &type, &length, &body) && type == TORIRSMAPED_FACT_LIVE_STATUS
+              && ToriRSMapEd_ReadU32(body) == TORIRSMAPED_LIVE_DETACHED,
+        "a v2 HELLO is followed by the live status (detached)");
+    check(raw_take(v2, &type, &length, &body) && type == TORIRSMAPED_FACT_LIVE_PLAY
+              && ToriRSMapEd_ReadU32(body) == TORIRSMAPED_PLAY_NONE,
+        "and by the play state (none)");
+    check(!raw_take(v1, &type, &length, &body), "the v1 peer is not told the lane (it cannot read the facts)");
 
     {
         uint8_t coords[8];

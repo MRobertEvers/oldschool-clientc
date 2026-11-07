@@ -259,6 +259,10 @@ struct ToriRSMapEdJobs
      *  (the client's boot needs JS5 at once), or give up at the deadline. */
     int play_wait_lane;
     time_t play_wait_deadline;
+    /** When the lane's ports were last probed for it (live_now_ms): the
+     *  probe is a connect() per port, a few a second, not one per pump --
+     *  an embed pumps every frame. */
+    int64_t play_probe_ms;
     /** The login it holds once seen: (slot, generation) changes on a relog. */
     uint32_t play_slot;
     uint32_t play_generation;

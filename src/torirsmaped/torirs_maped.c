@@ -1823,13 +1823,17 @@ handle_frame(
             ToriRSMapEd_PutString(&hello, maped->read_only_reason);
             send_buf(session, TORIRSMAPED_FACT_HELLO, &hello);
             ToriRSMapEd_BufFree(&hello);
-            return;
         }
-        send_frame(
-            session,
-            TORIRSMAPED_FACT_HELLO,
-            payload,
-            session->version >= TORIRSMAPED_PROTO_VERSION ? 16 : 12);
+        else
+            send_frame(
+                session,
+                TORIRSMAPED_FACT_HELLO,
+                payload,
+                session->version >= TORIRSMAPED_PROTO_VERSION ? 16 : 12);
+        /* The lane's state follows the greeting (torirs_maped_live.h
+         * ToriRSMapEd_LiveWelcome): the host keeps the facts for the panels
+         * that take them once they exist. */
+        ToriRSMapEd_LiveWelcome(maped, session);
         return;
     }
     case TORIRSMAPED_REQ_SQUARE_LIST:

@@ -76,8 +76,10 @@ Editor_Accounts_Show(
 /**
  * The Place player tool's click: put the lane's PLAY account on absolute tile
  * (x, z, level) -- ACCOUNT_PLACE, which the server applies as ::tele when the
- * account is online and as the save's position when it is not; the answer
- * is logged ("accounts: ... online: ::tele ..." / "offline: wrote ..."). 1
+ * account is online and as the save's position when it is not (an account
+ * that has never logged in gets its first save from the lane's fixture);
+ * the answer is logged ("accounts: ... online: ::tele ..." / "offline:
+ * wrote ..."). 1
  * when sent; 0 with a console line when this window has no Accounts panel,
  * the server has no lane, or the play account is not known yet.
  */

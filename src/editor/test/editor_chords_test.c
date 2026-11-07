@@ -429,6 +429,18 @@ test_rail(void)
             "rail: Save says its chord in the tooltip only ('%s')",
             save >= 0 ? g_chrome.widgets[save].tooltip_chord : "-");
     }
+    {
+        /* RUN sits in the rail like a debugger's run button, under Save. */
+        int const save = widget_in("toolrail", TORIRS_CHROME_W_ICONBUTTON, "Save");
+        int const run = widget_in("toolrail", TORIRS_CHROME_W_ICONBUTTON, "Run");
+        char chord_run[EDITOR_HK_HINT_CHORD_MAX];
+        Editor_HotkeyDisplay(&g_ui.hotkeys, EDITOR_HK_FILE_RUN, chord_run, (int)sizeof(chord_run));
+        CHECK(run >= 0 && save >= 0 && run == save + 1 && g_chrome.widgets[run].chord[0] == ' '
+                  && strcmp(g_chrome.widgets[run].tooltip_chord, chord_run) == 0
+                  && strncmp(g_chrome.widgets[run].tooltip, "RUN:", 4) == 0,
+            "rail: Run follows Save and says its chord in the tooltip only ('%s')",
+            run >= 0 ? g_chrome.widgets[run].tooltip_chord : "-");
+    }
 
     /* A rebind relabels the badge, the panel buttons and the sliders on the
      * next frame; an unbind clears them; Reset brings the defaults back. */
