@@ -95,7 +95,7 @@ chrome-skin-rebake:
 		$(REPO_ROOT)/3rd/bmp/bmp.c $(REPO_ROOT)/3rd/xteas/xteas.c $(REPO_ROOT)/3rd/ini/ini.c \
 		-lm -lpthread
 	sed -n '/Regenerate with:/,/--out/p' $(CHROME_SKIN_BAKE) \
-		| grep -oE -- '--(sprite|stamp) [^ ]+' > $(OBJ_DIR)/tmp/chrome_skin/recipe.txt
+		| grep -oE -- '--(sprite|stamp|disc) [^ ]+' > $(OBJ_DIR)/tmp/chrome_skin/recipe.txt
 	test -s $(OBJ_DIR)/tmp/chrome_skin/recipe.txt
 	cd $(REPO_ROOT) && $(SRC_DIR)/$(OBJ_DIR)/tmp/chrome_skin/spritebake \
 		--rev $(CHROME_SKIN_REV) $(CHROME_SKIN_CACHE) \

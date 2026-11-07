@@ -131,12 +131,16 @@
     ButtonLeft: [36, 36], ButtonMid: [20, 36], ButtonRight: [36, 36], ToolSelect: [15, 15],
     ToolRaise: [16, 16], ToolLower: [16, 16], ToolFlatten: [15, 15], ToolSmooth: [15, 15],
     ToolPaintUnderlay: [15, 15], ToolPaintOverlay: [15, 15], ToolFlags: [15, 15],
-    ToolPlace: [15, 15], ToolMove: [15, 15], ToolRotate: [15, 15], ToolDelete: [29, 22],
+    ToolPlace: [15, 15], ToolMove: [15, 15], ToolRotate: [15, 15], ToolDelete: [15, 15],
     SearchGlass: [29, 22], TreeClosed: [16, 16], TreeOpen: [16, 16], RadioOn: [17, 17],
     RadioOff: [17, 17], SliderTrack: [16, 14], SliderKnob: [16, 16], SplitterGrip: [7, 11],
     WarningGlyph: [7, 18], ErrorGlyph: [16, 16], RunButton: [25, 25], StopButton: [19, 19],
     BuildButton: [19, 17], SaveButton: [16, 16], SliderTrackLeft: [8, 14],
-    SliderTrackRight: [8, 14]
+    SliderTrackRight: [8, 14],
+    ToolRect: [15, 15], ToolHeight: [15, 15], ToolPlacePlayer: [15, 15],
+    ToolPaintPath: [15, 15], ToolRoughen: [15, 15], ToolScatter: [15, 15],
+    ToolPlateau: [15, 15], ToolRegion: [15, 15], ToolLasso: [15, 15], ToolTidy: [15, 15],
+    ToolEyedropper: [15, 15]
   };
 
   const state = {
@@ -1354,7 +1358,9 @@
     'SearchGlass', 'TreeClosed', 'TreeOpen', 'RadioOn', 'RadioOff',
     'SliderTrack', 'SliderKnob', 'SplitterGrip', 'WarningGlyph', 'ErrorGlyph',
     'RunButton', 'StopButton', 'BuildButton', 'SaveButton', 'SliderTrackLeft',
-    'SliderTrackRight'
+    'SliderTrackRight', 'ToolRect', 'ToolHeight', 'ToolPlacePlayer', 'ToolPaintPath',
+    'ToolRoughen', 'ToolScatter', 'ToolPlateau', 'ToolRegion',
+    'ToolLasso', 'ToolTidy', 'ToolEyedropper'
   ];
   const TREE_LEAF = 0;
   const TREE_OPEN = 2;

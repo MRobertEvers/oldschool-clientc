@@ -48,6 +48,16 @@
  * Glyphs: `arrow_ne` (out, to a window of its own) and `arrow_sw` (back where
  * it came from), the second being the first turned around.
  *
+ * --disc SYNTHESIZES a world-map disc the same way: `Plate=Symbol:glyph`
+ * borrows an earlier 15x15 disc's PLATE -- its ring and its face, the mark on
+ * it cleared -- and draws the named glyph table over it, in inks sampled from
+ * discs the cache has, with the drop shadow the hand-drawn discs carry. It
+ * exists because the editor's tool rail is drawn with the world map's function
+ * discs and the world map has no word for a marquee, a plateau or an
+ * eyedropper: a glyph on the cache's own plate reads as one of the set where a
+ * sprite from any other family reads as a stranger. The tables are in
+ * k_disc_glyphs; the inks and the shape rules are in docs/MAPED_DESIGN.html.
+ *
  * --list prints every archive in the sprites table with its frame count and
  * first-frame geometry. `--probe` hashes each comma-separated name with the
  * dat2 archive-name hash and reports which archive it resolves to — which is
@@ -70,8 +80,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/** Baked sprites per run. Chrome needs a frame set and a few glyphs. */
-#define BAKE_MAX_SPRITES 64
+/** Baked sprites per run. Chrome needs a frame set, the editor's tool discs
+ *  and a few glyphs: 69 as of the eyedropper. */
+#define BAKE_MAX_SPRITES 96
 
 struct BakeSprite
 {
@@ -87,6 +98,8 @@ struct BakeSprite
      */
     char from[64];
     char glyph[24];
+    /** 1 when `from`/`glyph` name a --disc rather than a --stamp. */
+    int disc;
     /** `@X,Y,W,H` sub-rectangle, or w/h 0 for the whole frame. */
     int crop_x;
     int crop_y;
@@ -107,9 +120,12 @@ usage(const char* argv0)
         "\n"
         "  %s --rev NAME <cache_dir> --list [--probe name,name,...]\n"
         "  %s --rev NAME <cache_dir> --sprite ARCHIVE[.FRAME]=Symbol [--sprite ...]\n"
+        "         [--stamp Source=Symbol:glyph ...] [--disc Plate=Symbol:glyph ...]\n"
         "         --out out.c [--header out.h] [--sheet sheet.bmp] [--prefix Prefix]\n"
         "\n"
         "  --sprite   also accepts name:NAME[.FRAME]=Symbol\n"
+        "  --stamp    a 16x16 button plate with an 8x8 glyph stamped in its mark's ink\n"
+        "  --disc     a 15x15 world-map disc plate with a drawn glyph (k_disc_glyphs)\n"
         "  --out      the ARGB bake (needs stdint.h only)\n"
         "  --header   its accessors\n"
         "  --sheet    a contact sheet BMP of everything baked, to eyeball it\n",
@@ -416,6 +432,471 @@ stamp_in_place(struct BakeSprite* s, const struct BakeSprite* src, const char* g
     return 1;
 }
 
+
+/* ---- discs ------------------------------------------------------------------
+ *
+ * A world-map disc the cache does not have, drawn on the plate of one it does.
+ * See --disc in the usage note above for why this is a bake-time operation.
+ */
+
+#define BAKE_DISC_SIDE 15
+
+/**
+ * One ink a disc glyph may be spelled with: the letter the tables use and the
+ * colour. Every colour is sampled from a disc the sprites table has (named
+ * beside it), so a drawn disc shares its neighbours' palette rather than
+ * bringing one of its own. '#' is the ring's own near-black, which is also
+ * what the discs draw their dark strokes in.
+ */
+struct BakeDiscInk
+{
+    char ch;
+    unsigned int argb;
+};
+
+static const struct BakeDiscInk k_disc_inks[] = {
+    { '#', 0xFF000001 }, /* ring ink, every disc */
+    { 'y', 0xFFFDFD0A }, /* yellow, 1491 crosshair */
+    { 'o', 0xFFE46415 }, /* orange, 1504 arrow */
+    { 'g', 0xFF019A33 }, /* green, 1518 curved arrow */
+    { 'r', 0xFFEF2A2A }, /* red, 1460 balloon */
+    { 'b', 0xFF625138 }, /* dark brown, 1519 crate */
+    { 't', 0xFF997F55 }, /* tan, 1519 crate */
+    { 'T', 0xFFB69967 }, /* light tan, 1519 crate */
+    { 'd', 0xFFB3A244 }, /* sand, 1521 mound */
+    { 'D', 0xFF955C1C }, /* dark sand, 1521 mound */
+    { 'e', 0xFF5E9129 }, /* grass, 1468 herb */
+    { 'k', 0xFF7C7F7F }, /* stone, 1494 rock */
+    { 'u', 0xFF257CF4 }, /* blue, 1094 figure */
+};
+
+/** The drop shadow every hand-drawn disc lays one pixel down and right of a
+ *  dark stroke (1491, 1507): the face darkened, not an alpha. */
+#define BAKE_DISC_SHADOW 0xFF9FA09F
+
+/**
+ * A glyph table: 15 rows of 15. '.' leaves the plate as it is, anything else
+ * is a letter of k_disc_inks. A glyph pixel may only land on the plate's
+ * FACE, never on its ring or outside it; the bake stops on one that does.
+ *
+ * Drawn so the '#' strokes alone carry the shape: the 2x and 3x skin tiers
+ * (tools/chrome_skin_tiers.py) keep two inks per glyph and the accent is the
+ * one that goes, so a shape said only in colour would vanish at 2x.
+ */
+struct BakeDiscGlyph
+{
+    const char* name;
+    const char* rows[BAKE_DISC_SIDE];
+};
+
+static const struct BakeDiscGlyph k_disc_glyphs[] = {
+    { "marquee",
+      { "...............",
+        "...............",
+        "...............",
+        "...y.##.##.y...",
+        "...............",
+        "...#.......#...",
+        "...#.......#...",
+        "...............",
+        "...#.......#...",
+        "...#.......#...",
+        "...............",
+        "...y.##.##.y...",
+        "...............",
+        "...............",
+        "..............." } },
+    { "updown",
+      { "...............",
+        "...............",
+        ".......#.......",
+        "......#g#......",
+        ".....#ggg#.....",
+        "....#ggggg#....",
+        "...#########...",
+        "...............",
+        "...#########...",
+        "....#rrrrr#....",
+        ".....#rrr#.....",
+        "......#r#......",
+        ".......#.......",
+        "...............",
+        "..............." } },
+    { "level",
+      { "...............",
+        "...............",
+        "...............",
+        "...............",
+        "...............",
+        "...............",
+        "...............",
+        ".#############.",
+        ".DDDDDDDDDDDDD.",
+        ".ddddddddddddd.",
+        "..ddddddddddd..",
+        "...............",
+        "...............",
+        "...............",
+        "..............." } },
+    { "wave",
+      { "...............",
+        "...............",
+        "...............",
+        "...............",
+        "...............",
+        "...............",
+        "...####........",
+        "..##DD##....##.",
+        ".##dddD##..##D.",
+        ".DdddddD####dd.",
+        "..d...ddDDDdd..",
+        ".......ddddd...",
+        "........ddd....",
+        "...............",
+        "..............." } },
+    { "tile",
+      { "...............",
+        "...............",
+        "...............",
+        "...............",
+        "......###......",
+        "....##eee##....",
+        "..##eeeeeee##..",
+        ".#eeeeeeeeeee#.",
+        "..##eeeeeee##..",
+        "....##eee##....",
+        "......###......",
+        "...............",
+        "...............",
+        "...............",
+        "..............." } },
+    { "paving",
+      { "...............",
+        "...............",
+        "...............",
+        "...............",
+        "......###......",
+        "....##k#k##....",
+        "..##kkk#kkk##..",
+        ".#############.",
+        "..##kkk#kkk##..",
+        "....##k#k##....",
+        "......###......",
+        "...............",
+        "...............",
+        "...............",
+        "..............." } },
+    { "road",
+      { "...............",
+        "...............",
+        "...............",
+        ".......#dDd#...",
+        "........#ddd#..",
+        "........#dDd#..",
+        ".......#ddd#...",
+        "......#dDd#....",
+        ".....#ddd#.....",
+        "....#dDd#......",
+        "...#ddd#.......",
+        "...#dDd#.......",
+        "...............",
+        "...............",
+        "..............." } },
+    { "cross",
+      { "...............",
+        "...............",
+        "...............",
+        "..#r#.....#r#..",
+        "...#r#...#r#...",
+        "....#r#.#r#....",
+        ".....#r#r#.....",
+        "......#r#......",
+        ".....#r#r#.....",
+        "....#r#.#r#....",
+        "...#r#...#r#...",
+        "..#r#.....#r#..",
+        "...............",
+        "...............",
+        "..............." } },
+    { "figure",
+      { "...............",
+        "...............",
+        "......###......",
+        ".....#TTT#.....",
+        ".....#TTT#.....",
+        "......###......",
+        "...##uuuuu##...",
+        "..#.#uuuuu#.#..",
+        "..#.#uuuuu#.#..",
+        "..#.#######.#..",
+        "....#uu#uu#....",
+        "....#uu#uu#....",
+        "....###.###....",
+        "...............",
+        "..............." } },
+    { "jagged",
+      { "...............",
+        "...............",
+        "...............",
+        "...............",
+        "...............",
+        "....##..##.....",
+        "..############.",
+        "..############.",
+        ".#############.",
+        ".Dd##Dd##Dd##D.",
+        "...D.d.D.d.D...",
+        "...d.d.d.d.d...",
+        "...d...d...d...",
+        "...............",
+        "..............." } },
+    { "crates",
+      { "...............",
+        "...............",
+        "...............",
+        "..####.........",
+        "..#bt#..####...",
+        "..#tt#..#bt#...",
+        "..####..#tt#...",
+        "........####...",
+        ".....####......",
+        ".....#bt#......",
+        ".....#tt#......",
+        ".....####......",
+        "...............",
+        "...............",
+        "..............." } },
+    { "mesa",
+      { "...............",
+        "...............",
+        "...............",
+        "...............",
+        "...............",
+        ".....######....",
+        "....##DDDD##...",
+        "...##dddddD##..",
+        "..##dddddddD##.",
+        ".##dd.....ddD#.",
+        "..dd.......dd..",
+        "..d.........d..",
+        "...............",
+        "...............",
+        "..............." } },
+    { "stroke",
+      { "...............",
+        "...............",
+        "...###.........",
+        "..#kkk#........",
+        "..#kkkk#.......",
+        "..#kkkkk#......",
+        "...#kkkkk#.....",
+        "....#kkkkk#....",
+        ".....#kkkkk#...",
+        "......#kkkkk#..",
+        ".......#kkkk#..",
+        "........#kkk#..",
+        ".........###...",
+        "...............",
+        "..............." } },
+    { "loop",
+      { "...............",
+        "...............",
+        "...............",
+        ".....#####.....",
+        "...##.....##...",
+        "..#.........#..",
+        "..#.........#..",
+        "...##.....##...",
+        ".....###.##....",
+        ".......##......",
+        "......#........",
+        ".....#.........",
+        "....#..........",
+        "...............",
+        "..............." } },
+    { "broom",
+      { "...............",
+        "...............",
+        "..........##...",
+        ".........##....",
+        "........##.....",
+        ".......##......",
+        "......##.......",
+        ".....###.......",
+        "....#ddd#......",
+        "...#ddddd#.....",
+        "..#ddddddd#....",
+        "..#########....",
+        "...............",
+        "...............",
+        "..............." } },
+    { "pipette",
+      { "...............",
+        "...............",
+        "......###......",
+        ".....#####.....",
+        ".....#####.....",
+        "......###......",
+        ".....#####.....",
+        "......#.#......",
+        "......#.#......",
+        ".......#.......",
+        "....##e#e##....",
+        "..##eeeeeee##..",
+        "....##eee##....",
+        "......###......",
+        "..............." } },
+};
+
+static const struct BakeDiscGlyph*
+disc_glyph_named(const char* name)
+{
+    for( int i = 0; i < (int)(sizeof(k_disc_glyphs) / sizeof(k_disc_glyphs[0])); i++ )
+        if( strcmp(k_disc_glyphs[i].name, name) == 0 )
+            return &k_disc_glyphs[i];
+    return NULL;
+}
+
+static int
+disc_ink(char ch, unsigned int* out_argb)
+{
+    for( int i = 0; i < (int)(sizeof(k_disc_inks) / sizeof(k_disc_inks[0])); i++ )
+        if( k_disc_inks[i].ch == ch )
+        {
+            *out_argb = k_disc_inks[i].argb;
+            return 1;
+        }
+    return 0;
+}
+
+/**
+ * Borrow `src`'s plate and draw `glyph_name` on it.
+ *
+ * The RING is every ring-ink pixel with a transparent 4-neighbour (or on the
+ * sprite's edge); the FACE is the commonest opaque colour off the ring. Every
+ * other opaque pixel is the source's own mark, and is cleared to the face
+ * before the glyph goes down -- so the result carries the cache's ring, face
+ * and alpha, and only the glyph is ours.
+ *
+ * @return 0 having said why, when the plate is not a disc this can draw on
+ *         or the glyph leaves it.
+ */
+static int
+disc_in_place(struct BakeSprite* s, const struct BakeSprite* src, const char* glyph_name)
+{
+    const struct BakeDiscGlyph* glyph = disc_glyph_named(glyph_name);
+    const int side = BAKE_DISC_SIDE;
+    unsigned int const ring_ink = k_disc_inks[0].argb;
+    unsigned int* out;
+    unsigned char ring[BAKE_DISC_SIDE * BAKE_DISC_SIDE];
+    unsigned int face = 0;
+    int face_n = 0;
+    int ring_n = 0;
+
+    if( !glyph )
+    {
+        fprintf(stderr, "unknown --disc glyph '%s'\n", glyph_name);
+        return 0;
+    }
+    if( src->w != side || src->h != side )
+    {
+        fprintf(
+            stderr, "--disc plate %s is %dx%d; the glyphs are drawn for %dx%d\n", src->symbol,
+            src->w, src->h, side, side);
+        return 0;
+    }
+
+    for( int y = 0; y < side; y++ )
+        for( int x = 0; x < side; x++ )
+        {
+            unsigned int const c = src->argb[y * side + x];
+            int edge = x == 0 || y == 0 || x == side - 1 || y == side - 1;
+            if( !edge )
+                edge = (src->argb[y * side + x - 1] >> 24) == 0 ||
+                       (src->argb[y * side + x + 1] >> 24) == 0 ||
+                       (src->argb[(y - 1) * side + x] >> 24) == 0 ||
+                       (src->argb[(y + 1) * side + x] >> 24) == 0;
+            ring[y * side + x] = (c >> 24) != 0 && c == ring_ink && edge;
+            ring_n += ring[y * side + x];
+        }
+    if( ring_n == 0 )
+    {
+        fprintf(stderr, "--disc plate %s has no ring in the disc ink\n", src->symbol);
+        return 0;
+    }
+    for( int i = 0; i < side * side; i++ )
+    {
+        unsigned int const c = src->argb[i];
+        int n = 0;
+        if( (c >> 24) == 0 || ring[i] )
+            continue;
+        for( int j = 0; j < side * side; j++ )
+            n += !ring[j] && src->argb[j] == c;
+        if( n > face_n )
+        {
+            face_n = n;
+            face = c;
+        }
+    }
+    if( face_n == 0 )
+    {
+        fprintf(stderr, "--disc plate %s has no face\n", src->symbol);
+        return 0;
+    }
+
+    out = malloc((size_t)side * (size_t)side * sizeof(*out));
+    assert(out);
+    for( int i = 0; i < side * side; i++ )
+    {
+        unsigned int const c = src->argb[i];
+        out[i] = ((c >> 24) == 0 || ring[i]) ? c : face;
+    }
+    for( int y = 0; y < side; y++ )
+    {
+        if( strlen(glyph->rows[y]) != (size_t)side )
+        {
+            fprintf(stderr, "--disc glyph %s row %d is not %d wide\n", glyph_name, y, side);
+            free(out);
+            return 0;
+        }
+        for( int x = 0; x < side; x++ )
+        {
+            char const ch = glyph->rows[y][x];
+            unsigned int ink;
+            if( ch == '.' )
+                continue;
+            if( !disc_ink(ch, &ink) )
+            {
+                fprintf(stderr, "--disc glyph %s: no ink '%c'\n", glyph_name, ch);
+                free(out);
+                return 0;
+            }
+            if( out[y * side + x] != face )
+            {
+                fprintf(
+                    stderr, "--disc glyph %s: pixel %d,%d is off the plate's face\n", glyph_name,
+                    x, y);
+                free(out);
+                return 0;
+            }
+            out[y * side + x] = ink;
+        }
+    }
+    /* The shadow, by rule: under every dark stroke that lands on bare face. */
+    for( int y = 0; y < side - 1; y++ )
+        for( int x = 0; x < side - 1; x++ )
+            if( glyph->rows[y][x] == '#' && glyph->rows[y + 1][x + 1] == '.' &&
+                out[(y + 1) * side + x + 1] == face )
+                out[(y + 1) * side + x + 1] = BAKE_DISC_SHADOW;
+
+    s->argb = out;
+    s->w = side;
+    s->h = side;
+    s->archive_id = src->archive_id;
+    s->frame = src->frame;
+    return 1;
+}
+
 /* ---- list ---------------------------------------------------------------- */
 
 static void
@@ -533,9 +1014,9 @@ emit_source(
         if( sprites[i].from[0] )
         {
             fprintf(
-                out, " *   %-20s synthesized from %s, marked %s  %dx%d\n",
-                sprites[i].symbol, sprites[i].from, sprites[i].glyph, sprites[i].w,
-                sprites[i].h);
+                out, " *   %-20s synthesized from %s, %s %s  %dx%d\n",
+                sprites[i].symbol, sprites[i].from, sprites[i].disc ? "drawn" : "marked",
+                sprites[i].glyph, sprites[i].w, sprites[i].h);
             continue;
         }
         fprintf(
@@ -569,8 +1050,8 @@ emit_source(
                 sprites[i].crop_w, sprites[i].crop_h);
         if( sprites[i].from[0] )
             fprintf(
-                out, " *       --stamp %s=%s:%s \\\n", sprites[i].from, sprites[i].symbol,
-                sprites[i].glyph);
+                out, " *       --%s %s=%s:%s \\\n", sprites[i].disc ? "disc" : "stamp",
+                sprites[i].from, sprites[i].symbol, sprites[i].glyph);
         else if( sprites[i].by_name[0] )
             fprintf(
                 out, " *       --sprite name:%s.%d=%s%s \\\n", sprites[i].by_name,
@@ -824,11 +1305,13 @@ main(int argc, char** argv)
             else
                 s->archive_id = atoi(spec);
         }
-        else if( strcmp(argv[i], "--stamp") == 0 && i + 1 < argc )
+        else if( (strcmp(argv[i], "--stamp") == 0 || strcmp(argv[i], "--disc") == 0) &&
+                 i + 1 < argc )
         {
             /* Source=Symbol:glyph -- the source must already have been named
              * by a --sprite to its left, because it is that sprite's decoded
-             * plate this borrows. */
+             * plate this borrows. --disc is the same spelling on a disc. */
+            int const disc = strcmp(argv[i], "--disc") == 0;
             char spec[192];
             char* eq;
             char* colon;
@@ -844,13 +1327,16 @@ main(int argc, char** argv)
             colon = eq ? strchr(eq + 1, ':') : NULL;
             if( !eq || !colon )
             {
-                fprintf(stderr, "bad --stamp %s (want Source=Symbol:glyph)\n", argv[i]);
+                fprintf(
+                    stderr, "bad --%s %s (want Source=Symbol:glyph)\n", disc ? "disc" : "stamp",
+                    argv[i]);
                 return 1;
             }
             *eq = '\0';
             *colon = '\0';
             s = &sprites[sprite_count++];
             s->archive_id = -1;
+            s->disc = disc;
             snprintf(s->from, sizeof(s->from), "%s", spec);
             snprintf(s->symbol, sizeof(s->symbol), "%s", eq + 1);
             snprintf(s->glyph, sizeof(s->glyph), "%s", colon + 1);
@@ -914,15 +1400,17 @@ main(int argc, char** argv)
             if( src < 0 )
             {
                 fprintf(
-                    stderr, "--stamp %s: no sprite named '%s' was baked before it\n",
-                    sprites[i].symbol, sprites[i].from);
+                    stderr, "--%s %s: no sprite named '%s' was baked before it\n",
+                    sprites[i].disc ? "disc" : "stamp", sprites[i].symbol, sprites[i].from);
                 return 1;
             }
-            if( !stamp_in_place(&sprites[i], &sprites[src], sprites[i].glyph) )
+            if( sprites[i].disc ? !disc_in_place(&sprites[i], &sprites[src], sprites[i].glyph)
+                                : !stamp_in_place(&sprites[i], &sprites[src], sprites[i].glyph) )
                 return 1;
             printf(
-                "stamped %-19s from %s with %s: %dx%d\n", sprites[i].symbol,
-                sprites[i].from, sprites[i].glyph, sprites[i].w, sprites[i].h);
+                "%s %-19s from %s with %s: %dx%d\n", sprites[i].disc ? "drew" : "stamped",
+                sprites[i].symbol, sprites[i].from, sprites[i].glyph, sprites[i].w,
+                sprites[i].h);
             continue;
         }
 

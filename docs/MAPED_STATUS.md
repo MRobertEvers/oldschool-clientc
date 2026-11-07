@@ -1464,7 +1464,9 @@ docs/CHROME_SCALE.md; which tier the native draw path picks at which scale is
 the scale-core slice's.
 
 - **One class table** (src/engine/torirs_chrome_skin_class.h, read by the C and
-  the tools): 37 GLYPH slots (tool icons, marks and boxes, scroll and tree
+  the tools): 48 GLYPH slots (tool icons -- sixteen of them 15x15 world-map
+  discs drawn by `spritebake --disc` on the crosshair's plate, 2026-11-07 --,
+  marks and boxes, scroll and tree
   arrows, Close / Popout / Dock and their Over states, Run / Stop / Save /
   Build, Warning, Error, SplitterGrip, SliderKnob, SearchGlass) and 21
   TEXTURED (bodies, frame, button plates, scroll track and grips, slider
@@ -1513,9 +1515,11 @@ Open:
 
 - The native draw path does not read the tiers yet (scale-core slice); 1x,
   2x and 3x draw exactly as before.
-- GLYPH slots with more than two inks flatten in the mask route (ToolPlace,
-  ToolDelete, ToolPaintUnderlay, ToolSmooth, SliderKnob, SaveButton): the
-  skin's hand-drawing queue, or candidates to reclassify.
+- GLYPH slots with more than two inks flatten in the mask route (the cache's
+  colour discs -- ToolSelect's yellow crosshair goes into the plate at 2x --
+  SliderKnob, SaveButton): the skin's hand-drawing queue, or candidates to
+  reclassify. The drawn tool discs (2026-11-07) are made for the route: their
+  ring-ink strokes carry the shape and the one accent colour is allowed to go.
 - Only the web host stages and announces the tiers; the macOS WKWebView,
   WebView2 and MSHTML hosts stage skin/ alone and stay at 1x. The runtime
   picks the tier when it paints, not again when devicePixelRatio changes.
@@ -1808,7 +1812,7 @@ What landed:
   `ToriRSChromeBake_Present`.
 - **Skin and font tiers.** `ToriRSChromeSkin_SpriteTier(slot, tier)` and
   `ToriRSChromeSkin_ClassOf(slot)` over src/engine/torirs_chrome_skin_tiers.c
-  (58 slots, 37 GLYPH / 21 TEXTURED, tools/chrome_skin_tiers.py),
+  (69 slots, 48 GLYPH / 21 TEXTURED, tools/chrome_skin_tiers.py),
   `ToriRSChromeFont_Tier(face, tier)`, tools/chrome_font_tiers.py, the web's
   `skinTiers` and res/plugin_chrome/skin@2x, skin@3x. `make -C src
   chrome-skin` checks it all without a cache; `chrome-skin-rebake` re-bakes.

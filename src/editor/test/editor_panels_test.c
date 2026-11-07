@@ -7395,8 +7395,8 @@ test_palette_colour(void)
     /* The eyedroppers: a button arms one, the next ground pick takes that
      *  layer only (the overlay with its shape and rotation) and disarms. */
     {
-        int const w_drop_under = find_widget(palette, TORIRS_CHROME_W_BUTTON, "Eyedropper: pick a tile's underlay");
-        int const w_drop_over = find_widget(palette, TORIRS_CHROME_W_BUTTON, "Eyedropper: pick a tile's overlay");
+        int const w_drop_under = find_widget(palette, TORIRS_CHROME_W_ICONBUTTON, "Eyedropper: pick a tile's underlay");
+        int const w_drop_over = find_widget(palette, TORIRS_CHROME_W_ICONBUTTON, "Eyedropper: pick a tile's overlay");
         struct Editor_Tile* tile;
 
         if( !square_of(50, 50) || !square_of(50, 50)->loaded )

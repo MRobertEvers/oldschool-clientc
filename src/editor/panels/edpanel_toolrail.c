@@ -16,12 +16,13 @@
 #include <stdio.h>
 #include <string.h>
 
+/* One disc per tool, no two alike: the world map's own where it has a word
+ * for the tool, a disc drawn on its plate where it does not (spritebake
+ * --disc; docs/MAPED_DESIGN.html #chrome). */
 static const int k_tool_icons[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_SELECT] = TORIRS_CHROME_SKIN_TOOL_SELECT,
-    /* No rectangle glyph in the cache; the splitter's grip reads as a
-     * marquee handle beside the select crosshair. */
-    [EDITOR_TOOL_RECT_SELECT] = TORIRS_CHROME_SKIN_SPLITTER_GRIP,
-    [EDITOR_TOOL_HEIGHT] = TORIRS_CHROME_SKIN_TOOL_RAISE,
+    [EDITOR_TOOL_RECT_SELECT] = TORIRS_CHROME_SKIN_TOOL_RECT,
+    [EDITOR_TOOL_HEIGHT] = TORIRS_CHROME_SKIN_TOOL_HEIGHT,
     [EDITOR_TOOL_FLATTEN] = TORIRS_CHROME_SKIN_TOOL_FLATTEN,
     [EDITOR_TOOL_SMOOTH] = TORIRS_CHROME_SKIN_TOOL_SMOOTH,
     [EDITOR_TOOL_PAINT_UNDERLAY] = TORIRS_CHROME_SKIN_TOOL_PAINT_UNDERLAY,
@@ -31,15 +32,11 @@ static const int k_tool_icons[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_LOC_MOVE] = TORIRS_CHROME_SKIN_TOOL_MOVE,
     [EDITOR_TOOL_LOC_ROTATE] = TORIRS_CHROME_SKIN_TOOL_ROTATE,
     [EDITOR_TOOL_LOC_DELETE] = TORIRS_CHROME_SKIN_TOOL_DELETE,
-    /* No player glyph in the cache: the plugin icon (a figure) stands in. */
-    [EDITOR_TOOL_PLACE_PLAYER] = TORIRS_CHROME_SKIN_PLUGIN_ICON,
-    /* A path is the overlay brush's paint laid along a line. */
-    [EDITOR_TOOL_PAINT_PATH] = TORIRS_CHROME_SKIN_TOOL_PAINT_OVERLAY,
-    /* Roughen is the height brushes' kin; Scatter is Place by the brushful. */
-    [EDITOR_TOOL_NOISE] = TORIRS_CHROME_SKIN_TOOL_SMOOTH,
-    [EDITOR_TOOL_SCATTER] = TORIRS_CHROME_SKIN_TOOL_PLACE,
-    /* A plateau is Flatten with a skirt. */
-    [EDITOR_TOOL_PLATEAU] = TORIRS_CHROME_SKIN_TOOL_FLATTEN,
+    [EDITOR_TOOL_PLACE_PLAYER] = TORIRS_CHROME_SKIN_TOOL_PLACE_PLAYER,
+    [EDITOR_TOOL_PAINT_PATH] = TORIRS_CHROME_SKIN_TOOL_PAINT_PATH,
+    [EDITOR_TOOL_NOISE] = TORIRS_CHROME_SKIN_TOOL_ROUGHEN,
+    [EDITOR_TOOL_SCATTER] = TORIRS_CHROME_SKIN_TOOL_SCATTER,
+    [EDITOR_TOOL_PLATEAU] = TORIRS_CHROME_SKIN_TOOL_PLATEAU,
 };
 
 /* What the next click does. The chord is not part of the text: the badge in
