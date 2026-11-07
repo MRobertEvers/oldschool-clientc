@@ -5147,6 +5147,119 @@ the Plateau's skirt; Scatter reads a loc's size from its record only once
 it is resident (one tile until then); a Scatter set is the window's
 selection, not shared with other windows.
 
+### Underlay blending: the colour picker, the blend strip, the mix (the owner's request, 2026-11-06)
+
+"Do you have a color picker for overlay and underlays to help with
+blending underlays? Look at the underlay painter in other editors for
+games and the LostCity map editor."
+
+What blending IS here. An underlay record is one colour
+(configs/all.underlay `colour=0xRRGGBB`, no name in the OSRS content), but
+the ground is never that colour: the world builder averages the HSL of
+every underlay within five tiles (engine/world_builder/blendmap.c, an
+11x11 window, the hue as a chroma / luminance ratio), packs the average to
+the client's HSL16 (64 hues, 8 saturations, 128 lightnesses) and draws it
+through the palette table at brightness 0.8. So two underlays "blend" when
+that average walks a short, even path between them; a seam between a
+green and a purple is a muddy band five tiles wide. The painter's work is
+choosing records whose packed colours sit close, and laying the seam so
+the average has room. LostCity's own editor is not public (its
+organisation lists no map editor), so the comparison is with the Warcraft
+3 / Hammer-style texture painters: a palette of every tile type with
+thumbnails, a soft brush that blends one type into another, and a
+readout of what is under the pointer. What the Palette had: the open
+squares' underlay and overlay ids as colour swatches, the shape thumbnails,
+an id field, and the eyedropper (I).
+
+What was built (`workbench 6.10`, src/editor/editor_floorcolor.{h,c},
+src/editor/panels/edpanel_palette.c):
+
+- **The floor colour maths, headless.** `Editor_FloorHslOfRgb` (the
+  client's HSL24), `Editor_FloorHsl16` (its packing), `Editor_FloorRgbOf
+  Hsl16` (the palette table's colour, with the gamma), `Editor_FloorShown`
+  (a record's colour as a plane of it is drawn: through the blend, whose
+  hue is the chroma / luminance ratio, a unit off the HSL24 hue now and
+  then), `Editor_FloorDistance` (lightness double, hue by the lesser
+  saturation) and `Editor_FloorBlendStrip` (the ground across a straight
+  seam between two planes, tile by tile, the exact window sums). Copied
+  from the client rather than linked so the panel needs no palette table;
+  editor_panels_test checks the HSL24 and HSL16 against palette.c's.
+- **Hover readouts.** A hover over any swatch names it in the tooltip:
+  "underlay 12  #807048  hue 12 sat 3 light 44" -- the id, the record's
+  bytes, and the hue / sat / light the client packs it to (the RuneScape
+  wiki's 0..63 / 0..7 / 0..127 scale).
+- **Every id** (checkbox) lists every record, not only the open squares'
+  ones: ids probed to 256 underlays and 1024 overlays (a hash lookup
+  each), and the ones the window has not loaded asked for through a new
+  hook, `hooks.floor_request` (64 of each kind a tick; the App queues the
+  provider's per-id load task, whose first run decodes the whole config
+  group, so the rest are lookups), the wells rebuilt every 15 ticks while
+  the answers land; **Sort** (by id / by hue / by lightness) orders a
+  well, so by hue a well reads as a colour wheel and a swatch's neighbours
+  are the records that blend with it (greys sorted last, by lightness; a
+  record not loaded last, by id).
+- **The blend strip.** Under the wells: 23 cells of the ground across a
+  seam between the pick before and the pick now, as the client draws it,
+  the seam marked, and a row "Blend 12 -> 40  hue 3 sat 0 light 12 apart"
+  in packed units. The workflow: I over the ground, then click a
+  candidate: the strip is the join you would get. The "from" id stays
+  listed in the well so the two can be swapped back and forth.
+- **The colour picker.** Hue / Sat / Light sliders (degrees and percent)
+  or a hex field (#rrggbb, Enter); a tall swatch of that colour, and the
+  nine nearest underlays (top row) and overlays (bottom row), each a
+  swatch that picks on a click, the ids listed under. A pick from a well,
+  a match or the eyedropper sets the picker to the pick's colour, so the
+  matches are then the records nearest what is on the ground; a record of
+  the exact colour ranks first ahead of any the client packs alike.
+- **Mix** for Paint underlay (Terrain panel's slider, 10..100 by 10;
+  Shift+[ / Shift+] with the brush armed): under 100 the brush paints that
+  share of its tiles, thinning with the falloff, drawn from a seed moved
+  on per stroke (`Editor_BrushOp.paint_mix`, the noise seed's lane 3), a
+  dither the client's five-tile average turns into a gradient between the
+  underlay there and the one painted -- the soft texture brush of the
+  other editors. The readout says "Paint underlay  r4 Linear mix 50%".
+- **Textured overlays** show the texture's average colour in their swatch
+  once the texture is resident (the record's own `colour` is a
+  placeholder, often magenta) -- `hook_floor_rgb` in editor_panel.c.
+
+Found on the way: eleven tooltips (five new, six older) ran past the
+chrome's 63-byte cut; all trimmed. The first by-hand run of Every id
+listed only the open squares' records after all -- the provider holds a
+floor record only once a square needed it, so a probe of the rest found
+nothing; hence the request hook above. A load task for an id past the
+records used to log "Failed to load dat2 underlay N" as an error; it is a
+lookup miss now (TORIRS_LOG), since the palette probes past the end on
+purpose.
+
+By hand (win64, osrs241, 2026-11-06): I over the grass picked underlay
+65, the picker took #654d0b, the match rows filled (the overlay row shows
+magenta for textured overlays whose textures are not resident, as the
+minimap would); a click on a green swatch gave "Blend 65 -> 48  hue 9 sat
+0 light 3 apart" with the strip running brown to green; the hover tooltip
+read "underlay 48  #35720a  hue 16 sat 6 light 31"; Every id + by hue
+re-ordered the wells brown, yellow, green, blue, grey. Mix: the Terrain
+slider at 50 read "Paint underlay  r2 smooth mix 50%"; the river bank's
+underlay (64) dragged over the grass left a mottled band the client
+blended (build/photos/blend_*.png).
+
+Tests: editor_panels_test `test_palette_colour` (the maths against
+palette.c, the strip's ends and middle and its climb, the distance order,
+the two picks as the strip's ends, the hex field and the matches, the
+hover tooltip, a swatch press arming the brush, Every id and both sorts,
+the sliders and the hex following each other, the Mix slider shown for
+Paint underlay only and the chord stepping it); editor_placement_test
+`test_mix` (100 paints the disc, 50 about half of it and only its tiles,
+the same seed the same tiles, another seed another dither, the falloff
+thinning it, one undo). Windows: placement 176, panels 1965, hotkeys 2504,
+workbench 294 (goldens re-baselined for the new rows), all 0 failed;
+Linux (the WSL clone) 176, 1966, 2504, 295, all 0 failed; check-pt-switch
+and check-tree-walks PASS.
+
+Open: the picker matches by the record's colour, not the ground's
+(a blend of it with its neighbours); the match rows show at most nine of
+each kind; no names for the records (the OSRS content has none); the
+blend strip models a straight seam, not a corner or a one-tile speck.
+
 ### The test suites
 
 `make -C src test-editor` on Windows (win64, OPT=1) and on Linux (a WSL clone

@@ -300,6 +300,24 @@ hook_floor_rgb(
 }
 
 static void
+hook_floor_request(
+    void* user,
+    int is_overlay,
+    int id)
+{
+    struct App* app = user;
+    struct ToriRS_Task* task;
+
+    assert(app);
+    if( !app->provider || id <= 0 )
+        return;
+    task = is_overlay ? CreateTask_FlotypeLoad(app->provider, id - 1)
+                      : CreateTask_UnderlayLoad(app->provider, id - 1);
+    if( task )
+        ToriRS_TaskQueue_Add(app->runner.queue, task);
+}
+
+static void
 hook_close_editor(void* user)
 {
     struct App* app = user;
@@ -389,6 +407,7 @@ Editor_PanelInit(
     panel->ui->hooks.close_square = hook_close_square;
     panel->ui->hooks.open_in_new_view = hook_open_in_new_view;
     panel->ui->hooks.floor_rgb = hook_floor_rgb;
+    panel->ui->hooks.floor_request = hook_floor_request;
     panel->ui->hooks.close_editor = hook_close_editor;
     panel->ui->hooks.bake = hook_bake;
     panel->ui->hooks.view_window = hook_view_window;

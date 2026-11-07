@@ -250,8 +250,26 @@ fake_floor_rgb(
     uint32_t* out)
 {
     (void)user;
+    /* Overlays past 700 are "not loaded": Every id asks for them. */
+    if( is_overlay && id > 700 )
+        return 0;
     *out = is_overlay ? 0x8040c0u + (uint32_t)id : 0x40a040u + (uint32_t)id;
     return 1;
+}
+
+static int g_floor_requests;
+static int g_floor_request_first;
+
+static void
+fake_floor_request(
+    void* user,
+    int is_overlay,
+    int id)
+{
+    (void)user;
+    if( g_floor_requests == 0 )
+        g_floor_request_first = is_overlay ? id : -id;
+    g_floor_requests++;
 }
 
 static int
@@ -1770,6 +1788,7 @@ test_chrome(void)
     g_ui.hooks.open_square = fake_open_square;
     g_ui.hooks.open_in_new_view = fake_open_in_new_view;
     g_ui.hooks.floor_rgb = fake_floor_rgb;
+    g_ui.hooks.floor_request = fake_floor_request;
     g_ui.hooks.view_window = fake_view_window;
     g_ui.hooks.selection_changed = fake_selection_changed;
     Editor_UiRegisterToolsPanels(&g_ui);
@@ -2802,6 +2821,7 @@ layout_boot(
     g_ui.hooks.open_square = fake_open_square;
     g_ui.hooks.open_in_new_view = fake_open_in_new_view;
     g_ui.hooks.floor_rgb = fake_floor_rgb;
+    g_ui.hooks.floor_request = fake_floor_request;
     g_ui.hooks.view_window = fake_view_window;
     g_ui.hooks.selection_changed = fake_selection_changed;
     Editor_UiRegisterToolsPanels(&g_ui);
@@ -4527,6 +4547,7 @@ layout_boot_saved(
     g_ui.hooks.open_square = fake_open_square;
     g_ui.hooks.open_in_new_view = fake_open_in_new_view;
     g_ui.hooks.floor_rgb = fake_floor_rgb;
+    g_ui.hooks.floor_request = fake_floor_request;
     g_ui.hooks.view_window = fake_view_window;
     g_ui.hooks.selection_changed = fake_selection_changed;
     Editor_UiRegisterToolsPanels(&g_ui);
@@ -6909,11 +6930,17 @@ test_palette_colour(void)
 
     /* Every id lists the window's whole set (the fake answers every id). */
     CHECK(!Editor_Palette_SwatchAt(&g_ui, 0, 200, &x, &y), "palette: an unused id is not listed by default");
+    CHECK(g_floor_requests == 0, "palette: nothing asked of the window before Every id (%d)", g_floor_requests);
     ToriRSChrome_SetChecked(&g_chrome, w_all, 1);
     activate(w_all);
     CHECK(Editor_Palette_SwatchAt(&g_ui, 0, 200, &x, &y) && Editor_Palette_SwatchAt(&g_ui, 1, 700, &x, &y)
               && !Editor_Palette_SwatchAt(&g_ui, 0, 257, &x, &y),
         "palette: Every id lists underlay 200 and overlay 700, not an underlay past 256");
+    for( int i = 0; i < 20; i++ )
+        frame();
+    CHECK(g_floor_requests == 1024 - 700 && g_floor_request_first == 701,
+        "palette: Every id asks the window for the overlays it has not loaded, 701 first (%d asked, first %d)",
+        g_floor_requests, g_floor_request_first);
 
     /* By lightness: along the well the light never falls; by hue, the
      *  hue-then-light key never falls. */

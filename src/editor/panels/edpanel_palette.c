@@ -125,6 +125,11 @@ struct PalettePanel
     /** "Every id" and the sort the lists were built with. */
     int list_all;
     enum PaletteSort sort;
+    /** Every id asks the window for the records it has not loaded, a batch
+     *  a tick: the next id to ask per kind, and the ticks left to rebuild
+     *  the wells on while answers land. */
+    int all_asked[2];
+    int all_settle;
     /** The underlay the blend strip runs from: the pick before the current
      *  one. 0 until two have been picked. */
     int blend_from;
@@ -702,6 +707,43 @@ palette_tooltip(
     ToriRSChrome_SetTooltip(ui->chrome, graph, text);
 }
 
+/** Every id: ask the window for the records it has not loaded yet, up to
+ *  PALETTE_REQUEST_BATCH of each kind a tick (the loads are a hash lookup
+ *  each once the group is decoded), then rebuild the wells now and then
+ *  while the answers land. A window without the hook lists what it has. */
+#define PALETTE_REQUEST_BATCH 64
+#define PALETTE_SETTLE_TICKS 150
+
+static void
+palette_request_all(
+    struct EditorUi* ui,
+    struct PalettePanel* self)
+{
+    int asked = 0;
+
+    for( int kind = 0; kind < 2; kind++ )
+    {
+        int const probe = kind ? PALETTE_OVERLAY_PROBE : PALETTE_UNDERLAY_PROBE;
+        int budget = PALETTE_REQUEST_BATCH;
+        if( !ui->hooks.floor_request )
+        {
+            self->all_asked[kind] = probe;
+            continue;
+        }
+        while( self->all_asked[kind] < probe && budget-- > 0 )
+        {
+            uint32_t rgb;
+            int const id = ++self->all_asked[kind];
+            if( palette_rgb(ui, kind, id, &rgb) )
+                continue;
+            ui->hooks.floor_request(ui->hooks_user, kind, id);
+            asked++;
+        }
+    }
+    if( asked )
+        self->all_settle = PALETTE_SETTLE_TICKS;
+}
+
 static void
 palette_tick(
     struct EditorUi* ui,
@@ -718,6 +760,13 @@ palette_tick(
     }
     if( self->built_signature != palette_signature(ui) || self->underlays.count == 0 )
         palette_rebuild(ui, self);
+    if( self->list_all )
+    {
+        if( self->all_asked[0] < PALETTE_UNDERLAY_PROBE || self->all_asked[1] < PALETTE_OVERLAY_PROBE )
+            palette_request_all(ui, self);
+        if( self->all_settle > 0 && --self->all_settle % 15 == 0 )
+            palette_rebuild(ui, self);
+    }
     if( !self->dirty_draw )
         return;
     palette_draw_list(ui, self->graph_underlay, &self->underlays, 0, ui->tools.underlay_id);

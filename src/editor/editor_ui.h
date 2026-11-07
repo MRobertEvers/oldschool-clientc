@@ -281,6 +281,10 @@ struct EditorUiHooks
     /** A floor config's colour (0xRRGGBB): `is_overlay` 0 underlay, 1 overlay.
      *  0 when the record is not resident. */
     int (*floor_rgb)(void* user, int is_overlay, int id, uint32_t* out_rgb);
+    /** Ask for floor config `id`'s record to be loaded (the window loads
+     *  them one id at a time, as its squares need them); floor_rgb answers
+     *  once it is resident. An id past the records is a quiet miss. */
+    void (*floor_request)(void* user, int is_overlay, int id);
     /** Close the editor's chrome (File > Close, after the save guard). */
     void (*close_editor)(void* user);
     /** Bake the cache (File > Bake). */
