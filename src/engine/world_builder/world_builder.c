@@ -1549,8 +1549,14 @@ world_builder_apply_loc_change(
              * replacement loc below, so the new model draws twice at two
              * different depths. See painter_release_scenery. */
             if( world->painter )
+            {
                 painter_release_scenery(
                     world->painter, scene_x, scene_z, paint_level, old->element_id);
+                /* And the decor slots, for the same reason (wall decor and
+                 * ground decor are single slots, not chains). */
+                painter_release_decor(
+                    world->painter, scene_x, scene_z, paint_level, old->element_id);
+            }
         }
         World_SceneryRemove(world, idx);
     }

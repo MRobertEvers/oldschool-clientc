@@ -1273,6 +1273,8 @@ we_remove_entity(
                 sc->element_id);
         painter_release_scenery(
             world->painter, sc->grid_position.x, sc->grid_position.z, paint_level, sc->element_id);
+        painter_release_decor(
+            world->painter, sc->grid_position.x, sc->grid_position.z, paint_level, sc->element_id);
     }
     World_SceneryRemove(world, pool_index);
 }
@@ -1913,9 +1915,9 @@ we_raw_light(
     dx = heightmap_get(hm, x + 1, z, level) - heightmap_get(hm, x - 1, z, level);
     dz = heightmap_get(hm, x, z + 1, level) - heightmap_get(hm, x, z - 1, level);
     len = (int)sqrt((double)(dz * dz + dx * dx + WE_LIGHT_HEIGHT_SCALE));
-    nx = (dx << 8) / len;
+    nx = dx * 256 / len;
     ny = WE_LIGHT_HEIGHT_SCALE / len;
-    nz = (dz << 8) / len;
+    nz = dz * 256 / len;
     dot = nx * WE_LIGHT_DIR_X + ny * WE_LIGHT_DIR_Y + nz * WE_LIGHT_DIR_Z;
     sunlight = dot / intensity + WE_LIGHT_AMBIENT;
     if( sunlight < 0 )

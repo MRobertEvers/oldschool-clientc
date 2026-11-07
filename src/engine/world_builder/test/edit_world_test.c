@@ -64,6 +64,7 @@
 #endif
 #include "mem/torirs_mem.h"
 #include "painters/painters.h"
+#include "painters/painters_i.h"
 #include "platform/platform_x_io.h"
 #include "task_runner.h"
 #include "torirsmaped/torirs_maped.h"
@@ -460,6 +461,90 @@ scene_fingerprint(struct TestWorld* w)
     return hash;
 }
 
+/* One painter slot's element: the loc it draws must be live, on this paint
+ * level, anchored at (ax, az). A slot naming a freed scene element draws
+ * whatever loc the id is handed to next -- on another level, the loc the
+ * level row was meant to hide. */
+static void
+painter_ref_check(
+    struct World* world,
+    const struct PaintersElement* el,
+    int entity,
+    int ax,
+    int az,
+    int paint_level,
+    const char* slot,
+    int* bad)
+{
+    struct WorldEntity_Scenery* sc;
+    int level;
+
+    if( ElementId_Kind(ElementId_FromRaw(entity)) != TORIDRAW_ELEMENT_KIND_SCENERY )
+        return;
+    sc = World_SceneryGetByElementId(world, entity);
+    level = sc ? World_LocPaintLevel(world, sc->grid_position.x, sc->grid_position.z, sc->grid_position.level) : -1;
+    if( sc && level == paint_level && sc->grid_position.x == ax && sc->grid_position.z == az )
+        return;
+    if( *bad < 5 )
+    {
+        if( sc )
+            printf("    %s at %d,%d paint L%d draws loc %d of %d,%d L%d (paint L%d)\n", slot, el->sx, el->sz,
+                paint_level, sc->loc_id, sc->grid_position.x, sc->grid_position.z, sc->grid_position.level, level);
+        else
+            printf("    %s at %d,%d paint L%d names element %d, which no live loc holds\n", slot, el->sx, el->sz,
+                paint_level, entity);
+    }
+    (*bad)++;
+}
+
+/* Every static painter slot -- walls, wall decor, ground decor, the scenery
+ * chains -- names a live loc standing there on that paint level. Elements past
+ * the static count are this frame's (a re-placed loc's registration at its
+ * cache level among them): painter_reset_to_static drops them and the frame's
+ * pass registers the loc again at its paint level, so they are not held here. */
+static void
+check_painter_refs(
+    const char* what,
+    struct TestWorld* t)
+{
+    struct Painter* p = t->world->painter;
+    int bad = 0;
+
+    if( !p )
+        return;
+    for( int g = 0; g < painter_max_levels(p); g++ )
+        for( int z = 0; z < p->height; z++ )
+            for( int x = 0; x < p->width; x++ )
+            {
+                const struct PaintersTile* tile = painter_tile_at(p, x, z, g);
+                const int16_t singles[5] = { tile->wall_a, tile->wall_b, tile->wall_decor_a, tile->wall_decor_b,
+                    tile->ground_decor };
+                static const char* const k_slot[5] = { "wall_a", "wall_b", "wall_decor_a", "wall_decor_b",
+                    "ground_decor" };
+                for( int s = 0; s < 5; s++ )
+                {
+                    const struct PaintersElement* el;
+                    int entity;
+                    if( singles[s] < 0 || singles[s] >= p->static_element_count )
+                        continue;
+                    el = &p->elements[singles[s]];
+                    entity = s < 2 ? (int)el->_wall.entity
+                             : s < 4 ? (int)el->_wall_decor.entity
+                                     : el->_ground_decor.entity;
+                    painter_ref_check(t->world, el, entity, x, z, g, k_slot[s], &bad);
+                }
+                for( int32_t n = tile->scenery_head; n != -1; n = p->scenery_pool[n].next )
+                {
+                    const struct PaintersElement* el = &p->elements[p->scenery_pool[n].element_idx];
+                    if( p->scenery_pool[n].element_idx >= p->static_element_count || el->kind != PNTRELEM_SCENERY
+                        || el->_scenery.flags != 0 )
+                        continue;
+                    painter_ref_check(t->world, el, (int)el->_scenery.entity, el->sx, el->sz, g, "scenery", &bad);
+                }
+            }
+    CHECK(bad == 0, "%s: %d painter slots draw a loc that is not theirs", what, bad);
+}
+
 static void
 compare_worlds(
     const char* what,
@@ -486,6 +571,13 @@ compare_worlds(
         wb->_scene_size);
     if( wa->_scene_size != wb->_scene_size )
         return;
+    {
+        char side[160];
+        snprintf(side, sizeof(side), "%s (first)", what);
+        check_painter_refs(side, a);
+        snprintf(side, sizeof(side), "%s (second)", what);
+        check_painter_refs(side, b);
+    }
 
     for( int l = 0; l < 4; l++ )
     {

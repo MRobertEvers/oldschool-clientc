@@ -1567,6 +1567,12 @@ painter_release_scenery(
             matches[match_count++] = element;
     }
 
+    /* Every level of each footprint tile, not el->source_level: the bridge
+     * push-down (painter_tile_copyto) moves a link-below column's chains a
+     * level down and leaves source_level at the cache level, so on such a
+     * column the element is linked one level off it -- and a footprint can
+     * straddle bridge and plain columns. An element is linked at most once
+     * per tile, and a tile that does not hold it is left as it was. */
     for( int m = 0; m < match_count; m++ )
     {
         struct PaintersElement const* el = &painter->elements[matches[m]];
@@ -1578,13 +1584,49 @@ painter_release_scenery(
                 int tz = (int)el->sz + z;
                 if( tx < 0 || tz < 0 || tx >= painter->width || tz >= painter->height )
                     continue;
-                tile_unlink_scenery_element(
-                    painter,
-                    painter_tile_at(painter, tx, tz, el->source_level),
-                    matches[m],
-                    painter->static_scenery_pool_count);
+                for( int g = 0; g < painter->levels; g++ )
+                    tile_unlink_scenery_element(
+                        painter,
+                        painter_tile_at(painter, tx, tz, g),
+                        matches[m],
+                        painter->static_scenery_pool_count);
             }
         }
+    }
+}
+
+void
+painter_release_decor(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity)
+{
+    struct PaintersTile* tile = painter_tile_at(painter, sx, sz, slevel);
+    int at;
+    int above = -1;
+
+    painter->static_generation++;
+    if( tile->wall_decor_a >= 0 && (int)painter->elements[tile->wall_decor_a]._wall_decor.entity == entity )
+        tile->wall_decor_a = -1;
+    if( tile->wall_decor_b >= 0 && (int)painter->elements[tile->wall_decor_b]._wall_decor.entity == entity )
+        tile->wall_decor_b = -1;
+
+    /* The baked ground decor may sit under this frame's dynamic ones (each
+     * holds what it displaced in prev_slot, painter_reset_to_static hands it
+     * back): unlink it from wherever it is in that chain, or the reset puts
+     * the dead slot back. */
+    for( at = tile->ground_decor; at >= 0; above = at, at = painter->elements[at]._ground_decor.prev_slot )
+    {
+        struct PaintersElement const* el = &painter->elements[at];
+        if( at >= painter->static_element_count || el->_ground_decor.entity != entity )
+            continue;
+        if( above < 0 )
+            tile->ground_decor = (int16_t)el->_ground_decor.prev_slot;
+        else
+            painter->elements[above]._ground_decor.prev_slot = el->_ground_decor.prev_slot;
+        break;
     }
 }
 

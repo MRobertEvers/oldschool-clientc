@@ -101,9 +101,9 @@ lightmap_build(
                     (double)(height_delta_z * height_delta_z + height_delta_x * height_delta_x +
                              HEIGHT_SCALE));
 
-                int normalized_tile_normal_x = (height_delta_x << 8) / tile_normal_length;
+                int normalized_tile_normal_x = height_delta_x * 256 / tile_normal_length;
                 int normalized_tile_normal_y = HEIGHT_SCALE / tile_normal_length;
-                int normalized_tile_normal_z = (height_delta_z << 8) / tile_normal_length;
+                int normalized_tile_normal_z = height_delta_z * 256 / tile_normal_length;
 
                 int dot = normalized_tile_normal_x * LIGHT_DIR_X +
                           normalized_tile_normal_y * LIGHT_DIR_Y +

@@ -922,6 +922,20 @@ painter_release_scenery(
     int slevel,
     int entity);
 
+/** The decoration counterpart: clear `(sx, sz, slevel)`'s baked wall decor
+ *  and ground decor slots that render `entity`. Same reason as
+ *  painter_release_scenery -- a slot left naming a freed scene element draws
+ *  whichever loc that id is handed to next, wherever it stands, on the level
+ *  of THIS tile (the editor's level row then shows another level's loc). The
+ *  baked ground decor is unlinked even from under this frame's dynamic ones. */
+void
+painter_release_decor(
+    struct Painter* painter,
+    int sx,
+    int sz,
+    int slevel,
+    int entity);
+
 int
 painter_add_wall(
     struct Painter* painter, //

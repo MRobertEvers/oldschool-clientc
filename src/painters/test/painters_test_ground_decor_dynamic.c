@@ -316,6 +316,46 @@ test_reset_clears_a_slot_that_was_empty(void)
     painter_free(p);
 }
 
+/*
+ * A loc removed at run time (a loc change, the map editor taking a loc down)
+ * gives back its baked decor slots. The scene element id it held is handed to
+ * the next loc made; a slot still naming it draws that loc here, on this tile's
+ * level -- the editor's level row then shows another level's loc. Released
+ * while a spawn sits on top, the baked one leaves the chain too, so the reset
+ * hands back -1, not the dead slot.
+ */
+static void
+test_release_decor_gives_back_baked_slots(void)
+{
+    struct Painter* p = make_painter();
+    const int wall_decor = 830;
+    const int floor_decor = 831;
+    struct PaintersBuffer* buf = make_buffer();
+
+    printf("released decor leaves its baked slots, even under a spawn\n");
+
+    painter_add_wall_decor(p, 8, 8, 0, wall_decor, WALL_A, 0, 0, 0);
+    painter_add_ground_decor(p, 8, 8, 0, floor_decor);
+    painter_mark_static_count(p);
+    painter_reset_to_static(p);
+    painter_add_ground_decor_dynamic(p, 8, 8, 0, 832);
+
+    painter_release_decor(p, 8, 8, 0, wall_decor);
+    painter_release_decor(p, 8, 8, 0, floor_decor);
+    expect(painter_tile_at(p, 8, 8, 0)->wall_decor_a == -1, "the wall decor slot is free");
+    expect(painter_tile_at(p, 8, 8, 0)->ground_decor >= 0, "the spawn keeps the floor slot for the frame");
+
+    painter_reset_to_static(p);
+    expect(painter_tile_at(p, 8, 8, 0)->ground_decor == -1,
+           "and the reset leaves it empty, not on the released baked decor");
+    painter_paint_bucket(p, buf, 0, 0, 0);
+    expect(entity_emits(buf, wall_decor, NULL) == 0 && entity_emits(buf, floor_decor, NULL) == 0,
+           "neither released decor draws");
+
+    free_buffer(buf);
+    painter_free(p);
+}
+
 int
 main(void)
 {
@@ -325,6 +365,7 @@ main(void)
     test_reset_restores_a_displaced_static_decor();
     test_reset_unwinds_a_chain_newest_first();
     test_reset_clears_a_slot_that_was_empty();
+    test_release_decor_gives_back_baked_slots();
 
     if( g_failures )
     {
