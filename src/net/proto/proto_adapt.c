@@ -1723,6 +1723,35 @@ adapt_zone_loc_add_change_v2(MsgLocAddChangeV2 const* m, struct PktZoneSubPacket
     return 1;
 }
 
+void
+prep_loc_add_change_v3(MsgLocAddChangeV3* m)
+{
+    static Rsprot_MsgLocAddChangeV3_opsElem ops[256];
+
+    m->ops = ops;
+}
+
+/* LOC_ADD_CHANGE_V2 with a three-byte loc id (rev 242). */
+int
+adapt_zone_loc_add_change_v3(MsgLocAddChangeV3 const* m, struct PktZoneSubPacket* out)
+{
+    out->name = PKT_NAME_LOC_ADD_CHANGE;
+    out->_loc_add_change.info = m->loc_properties_packed;
+    out->_loc_add_change.pos = m->coord_in_zone_packed;
+    out->_loc_add_change.loc_id = m->id;
+    out->_loc_add_change.op_flags = m->op_flags;
+    for( int i = 0; i < m->ops_count; i++ )
+    {
+        int slot = m->ops[i].key - 1;
+
+        if( slot < 0 || slot >= 5 || !m->ops[i].value )
+            continue;
+        snprintf(out->_loc_add_change.ops[slot], sizeof(out->_loc_add_change.ops[slot]), "%s",
+                 m->ops[i].value);
+    }
+    return 1;
+}
+
 int
 adapt_zone_loc_del(MsgLocDel const* m, struct PktZoneSubPacket* out)
 {
