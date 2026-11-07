@@ -2638,7 +2638,7 @@ app_map_editor_world_click(
              * draws from a fresh seed, so a second drag over the same ground
              * is not the first one again. */
             panel->scatter_erase = tool == EDITOR_TOOL_SCATTER && LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT);
-            if( tool == EDITOR_TOOL_NOISE )
+            if( tool == EDITOR_TOOL_NOISE || (tool == EDITOR_TOOL_PAINT_UNDERLAY && ui->tools.paint_mix < 100) )
                 ui->tools.noise_seed = ui->tools.noise_seed * 1664525u + 1013904223u;
             if( tool == EDITOR_TOOL_SCATTER && !panel->scatter_erase )
                 ui->tools.scatter_seed = ui->tools.scatter_seed * 1664525u + 1013904223u;

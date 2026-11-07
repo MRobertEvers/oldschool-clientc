@@ -173,7 +173,7 @@ The pointer (workbench 6.3, design section 7):
 | Action | Chord | Ctx |
 |---|---|---|
 | Radius - / + | [ / ] | G |
-| Strength - / + | Shift+[ / Shift+] | G |
+| Strength - / + (Scatter: density by 5; Plateau: skirt by 1; Paint underlay: mix by 10) | Shift+[ / Shift+] | G |
 | Step - / + | Ctrl+[ / Ctrl+] | G |
 
 ### Level

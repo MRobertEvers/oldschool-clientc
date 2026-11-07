@@ -62,6 +62,10 @@ struct TerrainPanel
     /** The Plateau tool's skirt (shown while it is armed). */
     int slider_plateau_skirt;
     int shown_plateau_skirt;
+    /** Paint underlay's mix (shown while it is armed): the share of the
+     *  brush's tiles painted, the dither the client blends. */
+    int slider_mix;
+    int shown_mix;
     /** What the readout and the radios were last set from. */
     enum Editor_Tool shown_tool;
     int shown_level;
@@ -113,8 +117,9 @@ terrain_hints(
         EDITOR_HK_BRUSH_RADIUS_UP);
     terrain_slider_chords(ui, self->slider_step, "Step", "Raise / lower: steps per click", EDITOR_HK_BRUSH_STEP_DOWN,
         EDITOR_HK_BRUSH_STEP_UP);
-    terrain_slider_chords(ui, self->slider_strength, "Strength", "Smooth: toward the neighbours",
-        EDITOR_HK_BRUSH_STRENGTH_DOWN, EDITOR_HK_BRUSH_STRENGTH_UP);
+    terrain_slider_chords(ui, self->slider_strength, "Strength",
+        "Smooth's pull; Shift+[ ] also steps density, skirt and mix", EDITOR_HK_BRUSH_STRENGTH_DOWN,
+        EDITOR_HK_BRUSH_STRENGTH_UP);
     self->hint_serial = ui->hotkeys.serial;
 }
 
@@ -175,10 +180,14 @@ terrain_readout(
     int const path = ui->tools.tool == EDITOR_TOOL_PAINT_PATH;
     int const scatter = ui->tools.tool == EDITOR_TOOL_SCATTER;
     int const plateau = ui->tools.tool == EDITOR_TOOL_PLATEAU;
+    int const underlay = ui->tools.tool == EDITOR_TOOL_PAINT_UNDERLAY;
 
     if( scatter )
         snprintf(line, sizeof(line), "%s  r%d %s %d%%", Editor_ToolName(ui->tools.tool), brush->radius,
             k_falloff_names[brush->falloff], ui->tools.scatter_density);
+    else if( underlay && ui->tools.paint_mix < 100 )
+        snprintf(line, sizeof(line), "%s  r%d %s mix %d%%", Editor_ToolName(ui->tools.tool), brush->radius,
+            k_falloff_names[brush->falloff], ui->tools.paint_mix);
     else if( plateau )
         snprintf(line, sizeof(line), "%s  r%d skirt %d", Editor_ToolName(ui->tools.tool), brush->radius,
             ui->tools.plateau_skirt);
@@ -210,6 +219,7 @@ terrain_readout(
     ToriRSChrome_SetHidden(ui->chrome, self->check_scatter_rotate, !scatter);
     ToriRSChrome_SetHidden(ui->chrome, self->button_scatter_seed, !scatter);
     ToriRSChrome_SetHidden(ui->chrome, self->slider_plateau_skirt, !plateau);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_mix, !underlay);
     ToriRSChrome_SetHidden(ui->chrome, self->label_path, !path);
     for( int i = 0; i < EDITOR_PATH_STYLE_COUNT; i++ )
         ToriRSChrome_SetHidden(ui->chrome, self->radio_path[i], !path);
@@ -266,14 +276,16 @@ terrain_tick(
     }
     if( self->shown_scatter_density != ui->tools.scatter_density
         || self->shown_scatter_rotate != ui->tools.scatter_rotate
-        || self->shown_plateau_skirt != ui->tools.plateau_skirt )
+        || self->shown_plateau_skirt != ui->tools.plateau_skirt || self->shown_mix != ui->tools.paint_mix )
     {
         ToriRSChrome_SliderSet(ui->chrome, self->slider_scatter_density, ui->tools.scatter_density);
         ToriRSChrome_SetChecked(ui->chrome, self->check_scatter_rotate, ui->tools.scatter_rotate ? 1 : 0);
         ToriRSChrome_SliderSet(ui->chrome, self->slider_plateau_skirt, ui->tools.plateau_skirt);
+        ToriRSChrome_SliderSet(ui->chrome, self->slider_mix, ui->tools.paint_mix);
         self->shown_scatter_density = ui->tools.scatter_density;
         self->shown_scatter_rotate = ui->tools.scatter_rotate;
         self->shown_plateau_skirt = ui->tools.plateau_skirt;
+        self->shown_mix = ui->tools.paint_mix;
         terrain_readout(ui, self);
     }
     if( self->shown_flags != ui->tools.flags_value )
@@ -324,6 +336,12 @@ terrain_activate(
     }
     else if( widget == self->slider_plateau_skirt )
         self->shown_plateau_skirt = tools->plateau_skirt = ToriRSChrome_SliderValue(ui->chrome, widget);
+    else if( widget == self->slider_mix )
+    {
+        self->shown_mix = tools->paint_mix = ToriRSChrome_SliderValue(ui->chrome, widget);
+        terrain_readout(ui, self);
+        return 1;
+    }
     else if( widget == self->check_solo )
     {
         tools->vis_solo = ToriRSChrome_Checked(ui->chrome, widget) ? 1 : 0;
@@ -449,7 +467,7 @@ Editor_Terrain_Register(struct EditorUi* ui)
     self->slider_scatter_density =
         ToriRSChrome_Slider(chrome, self->panel, "Density (%)", 1, 100, ui->tools.scatter_density, 1);
     ToriRSChrome_SetTooltip(chrome, self->slider_scatter_density,
-        "The share of the brush's free tiles that take a loc, fading with the falloff");
+        "Share of free tiles that take a loc, fading with the falloff");
     self->check_scatter_rotate =
         ToriRSChrome_Checkbox(chrome, self->panel, "Random rotation", ui->tools.scatter_rotate ? 1 : 0);
     self->button_scatter_seed = ToriRSChrome_Button(chrome, self->panel, "New seed");
@@ -457,10 +475,15 @@ Editor_Terrain_Register(struct EditorUi* ui)
     self->slider_plateau_skirt = ToriRSChrome_Slider(
         chrome, self->panel, "Skirt (tiles)", 0, EDITOR_PLATEAU_SKIRT_MAX, ui->tools.plateau_skirt, 1);
     ToriRSChrome_SetTooltip(chrome, self->slider_plateau_skirt,
-        "How many tiles around the flat top ease down (or up) to the ground; the Rect panel's Plateau uses it too");
+        "Tiles around the flat top that ease to the ground (Rect too)");
+    /* Paint underlay (7): its mix, hidden until armed. */
+    self->slider_mix = ToriRSChrome_Slider(chrome, self->panel, "Mix (%)", 10, 100, ui->tools.paint_mix, 10);
+    ToriRSChrome_SetTooltip(chrome, self->slider_mix, "Share of tiles painted under 100: a dither the ground blends");
     self->shown_scatter_density = ui->tools.scatter_density;
     self->shown_scatter_rotate = ui->tools.scatter_rotate;
     self->shown_plateau_skirt = ui->tools.plateau_skirt;
+    self->shown_mix = ui->tools.paint_mix;
+    ToriRSChrome_SetHidden(chrome, self->slider_mix, 1);
     ToriRSChrome_SetHidden(chrome, self->label_scatter, 1);
     ToriRSChrome_SetHidden(chrome, self->slider_scatter_density, 1);
     ToriRSChrome_SetHidden(chrome, self->check_scatter_rotate, 1);

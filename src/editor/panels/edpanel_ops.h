@@ -69,6 +69,11 @@ struct Editor_BrushOp
      *  moves the seed on per stroke so the next drag is another relief. */
     uint32_t noise_seed;
     int underlay_id;
+    /** PAINT_UNDERLAY: the share of the brush's tiles painted, 1..100 %
+     *  (0 reads as 100: a zeroed op paints every tile), each tile's draw a
+     *  hash of noise_seed and the tile scaled by the falloff -- the dither
+     *  the client's blend smooths into a gradient. */
+    int paint_mix;
     int overlay_id;
     int overlay_none;
     int overlay_shape;

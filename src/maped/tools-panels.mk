@@ -24,6 +24,9 @@ TOOLS_PANELS_SRCS += editor/panels/edpanel_history.c
 # The status bar along the foot (design #workbench): the hint strip, the
 # hover readout, the status sentence.
 TOOLS_PANELS_SRCS += editor/panels/edpanel_statusbar.c
+# The floor colours as the client blends and draws them (the Palette's
+# picker, blend strip and swatch readouts), headless.
+TOOLS_PANELS_SRCS += editor/editor_floorcolor.c
 MAPED_CLIENT_SRCS += $(TOOLS_PANELS_SRCS)
 
 # The panels, headless, against the real chrome model and an embedded

@@ -177,6 +177,11 @@ struct EditorUiTools
 
     /** Paint picks: the palette writes them, the brushes read them. */
     int underlay_id;
+    /** Paint underlay's mix, 1..100 %: under 100 the brush paints that
+     *  share of its tiles (scaled by the falloff, drawn from noise_seed,
+     *  moved on per stroke), a dither the client's five-tile blend turns
+     *  into a gradient between the underlay there and the one painted. */
+    int paint_mix;
     /** has_overlay 0 with overlay "none" clears the overlay. */
     int overlay_id;
     int overlay_none;

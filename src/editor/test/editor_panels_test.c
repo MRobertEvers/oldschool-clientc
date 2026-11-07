@@ -15,6 +15,7 @@
 #include "editor/editor_cfg.h"
 #include "editor/editor_cmd.h"
 #include "editor/editor_doc.h"
+#include "editor/editor_floorcolor.h"
 #include "editor/editor_script.h"
 #include "editor/builder/builder_ssc.h"
 #include "editor/editor_host.h"
@@ -38,6 +39,7 @@
 #include "ui/torirs_chrome_metrics.h"
 #include "ui/uitree_debug_overlay.h"
 
+#include "osrs/palette.h"
 #include <rscache.h>
 
 #include <assert.h>
@@ -6735,6 +6737,266 @@ statusbar_check_fits(
     }
 }
 
+/** The first label of `panel` whose text holds `needle`, or -1. */
+static int
+label_with(
+    int panel,
+    const char* needle)
+{
+    for( int i = 0; i < g_chrome.widget_count; i++ )
+    {
+        const struct ToriRSChromeWidget* w = &g_chrome.widgets[i];
+        if( w->panel == panel && w->kind == TORIRS_CHROME_W_LABEL && strstr(w->text, needle) )
+            return i;
+    }
+    return -1;
+}
+
+/** The well's cell index of the swatch Editor_Palette_SwatchAt places at
+ *  (x, y): 13 cells of 14 px a row. */
+static int
+swatch_index(
+    int x,
+    int y)
+{
+    return ((y - 1) / 14) * 13 + (x - 1) / 14;
+}
+
+/* The Palette's blending aids (the owner's request, 2026-11-06): the floor
+ * colour maths against the client's own, the blend strip across a seam,
+ * the last two picks as the strip's ends, the hover readout, a swatch
+ * press, Every id and the sorts, the colour picker's matches by hex and by
+ * slider, and the Terrain panel's Mix slider for Paint underlay. */
+static void
+test_palette_colour(void)
+{
+    static const uint32_t k_colours[] = { 0x282820u, 0xB7D49Au, 0xFC49AAu, 0x604040u, 0x7296B7u,
+                                          0x191919u, 0xffffffu, 0x000000u, 0x40a04cu, 0x29380Fu };
+    uint32_t strip[23];
+    int ids[9];
+    int palette;
+    int terrain;
+    int graph_under;
+    int w_all;
+    int w_sort;
+    int w_hue;
+    int w_sat;
+    int w_light;
+    int w_hex;
+    int w_mix;
+    int x = 0;
+    int y = 0;
+    int n;
+    int same = 1;
+
+    /* The maths: HSL24 and HSL16 as 3rd/toridraw/osrs/palette.c has them. */
+    for( size_t i = 0; i < sizeof(k_colours) / sizeof(k_colours[0]); i++ )
+    {
+        struct HSL const h = palette_rgb_to_hsl24((int)k_colours[i]);
+        struct Editor_FloorHsl e;
+        Editor_FloorHslOfRgb(k_colours[i], &e);
+        if( e.hue != h.hue || e.sat != h.sat || e.light != h.light || e.luminance != h.luminance
+            || e.chroma != h.chroma )
+            same = 0;
+        if( Editor_FloorHsl16(h.hue, h.sat, h.light) != palette_hsl24_to_hsl16(h.hue, h.sat, h.light) )
+            same = 0;
+    }
+    CHECK(same, "floorcolor: HSL24 and HSL16 as palette.c packs them");
+    {
+        uint32_t const white = Editor_FloorRgbOfHsl16(127);
+        uint32_t const green = Editor_FloorRgbOfHsl16((21 << 10) | (7 << 7) | 64);
+        CHECK(Editor_FloorRgbOfHsl16(0) == 0 && (white >> 16) >= 0xf0 && ((white >> 8) & 0xff) >= 0xf0
+                  && (white & 0xff) >= 0xf0 && ((green >> 8) & 0xff) > 0xc0 && ((green >> 8) & 0xff) > (green >> 16)
+                  && ((green >> 8) & 0xff) > (green & 0xff),
+            "floorcolor: the palette's black, near-white and the green of hue 21 (#%06x #%06x #%06x)",
+            (unsigned)Editor_FloorRgbOfHsl16(0), (unsigned)white, (unsigned)green);
+    }
+    {
+        struct Editor_FloorHsl e;
+        uint32_t const back = Editor_FloorRgbOfHsl(85, 128, 96);
+        Editor_FloorHslOfRgb(back, &e);
+        CHECK(abs(e.hue - 85) <= 2 && abs(e.sat - 128) <= 3 && abs(e.light - 96) <= 2,
+            "floorcolor: the sliders' HSL comes back from its colour (#%06x: %d %d %d)", (unsigned)back, e.hue,
+            e.sat, e.light);
+    }
+    Editor_FloorBlendStrip(0x40a040u, 0x40a040u, strip, 23);
+    same = 1;
+    for( int i = 0; i < 23; i++ )
+        if( strip[i] != Editor_FloorShown(0x40a040u) )
+            same = 0;
+    CHECK(same, "blend strip: one underlay each side is that underlay's ground everywhere");
+    Editor_FloorBlendStrip(0x282820u, 0xB7D49Au, strip, 23);
+    CHECK(strip[0] == Editor_FloorShown(0x282820u) && strip[22] == Editor_FloorShown(0xB7D49Au)
+              && strip[11] != strip[0] && strip[11] != strip[22] && strip[5] == strip[0] && strip[17] == strip[22],
+        "blend strip: the planes' own ground beyond five tiles, the average between (#%06x #%06x #%06x)",
+        (unsigned)strip[0], (unsigned)strip[11], (unsigned)strip[22]);
+    {
+        struct Editor_FloorHsl before;
+        struct Editor_FloorHsl after;
+        int rising = 1;
+        Editor_FloorHslOfRgb(strip[5], &before);
+        for( int i = 6; i <= 17; i++ )
+        {
+            Editor_FloorHslOfRgb(strip[i], &after);
+            if( after.light < before.light - 2 )
+                rising = 0;
+            before = after;
+        }
+        CHECK(rising, "blend strip: the lightness climbs from the dark side to the light one");
+    }
+    CHECK(Editor_FloorDistance(0x282820u, 0x282820u) == 0
+              && Editor_FloorDistance(0x282820u, 0x2a2a22u) < Editor_FloorDistance(0x282820u, 0xB7D49Au),
+        "floorcolor: a near colour is nearer than a far one (%d < %d)", Editor_FloorDistance(0x282820u, 0x2a2a22u),
+        Editor_FloorDistance(0x282820u, 0xB7D49Au));
+
+    layout_boot(1920, 1080, 1);
+    palette = find_panel("Palette");
+    terrain = find_panel("Terrain");
+    CHECK(palette >= 0 && terrain >= 0, "palette: the Palette and Terrain panels exist");
+    if( palette < 0 || terrain < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    ToriRSChrome_PanelSetVisible(&g_chrome, palette, 1);
+    frame();
+    graph_under = find_widget(palette, TORIRS_CHROME_W_GRAPH, NULL);
+    w_all = find_widget(palette, TORIRS_CHROME_W_CHECKBOX, "Every id");
+    w_sort = find_widget(palette, TORIRS_CHROME_W_DROPDOWN, "Sort");
+    w_hue = find_widget(palette, TORIRS_CHROME_W_SLIDER, "Hue");
+    w_sat = find_widget(palette, TORIRS_CHROME_W_SLIDER, "Sat (%)");
+    w_light = find_widget(palette, TORIRS_CHROME_W_SLIDER, "Light (%)");
+    w_hex = find_widget(palette, TORIRS_CHROME_W_TEXTINPUT, "#");
+    CHECK(graph_under >= 0 && w_all >= 0 && w_sort >= 0 && w_hue >= 0 && w_sat >= 0 && w_light >= 0 && w_hex >= 0,
+        "palette: the wells, Every id, Sort, the three sliders and the hex field (%d %d %d %d %d %d %d)",
+        graph_under, w_all, w_sort, w_hue, w_sat, w_light, w_hex);
+    if( graph_under < 0 || w_all < 0 || w_sort < 0 || w_hue < 0 || w_hex < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+
+    /* Two picks: the strip runs from the first to the second, the picker
+     *  takes the second's colour, and that record is its own nearest. */
+    g_ui.tools.underlay_id = 12;
+    frame();
+    g_ui.tools.underlay_id = 40;
+    frame();
+    CHECK(Editor_Palette_BlendFrom(&g_ui) == 12, "palette: the strip runs from the pick before (%d)",
+        Editor_Palette_BlendFrom(&g_ui));
+    CHECK(label_with(palette, "Blend 12 -> 40") >= 0, "palette: the blend row names both picks and their distance");
+    CHECK(strcmp(ToriRSChrome_Text(&g_chrome, w_hex), "#40a068") == 0, "palette: the hex field shows the pick's colour (%s)",
+        ToriRSChrome_Text(&g_chrome, w_hex));
+    n = Editor_Palette_Matches(&g_ui, 0, ids, 9);
+    CHECK(n == 9 && ids[0] == 40, "palette: the pick's record is the nearest underlay to its colour (%d: %d)", n,
+        n > 0 ? ids[0] : -1);
+    CHECK(label_with(palette, "Underlays: 40") >= 0, "palette: the match row lists the nearest first");
+
+    /* A hover names the swatch; a press picks it and arms the brush. */
+    CHECK(Editor_Palette_SwatchAt(&g_ui, 0, 40, &x, &y), "palette: the pick has a swatch");
+    push_graph(graph_under, TORIRS_CHROME_EVENT_GRAPH_HOVER, x, y, 0);
+    frame();
+    CHECK(strstr(g_chrome.widgets[graph_under].tooltip, "underlay 40") && strstr(g_chrome.widgets[graph_under].tooltip, "#40a068"),
+        "palette: the hover names the swatch's id and colour (%s)", g_chrome.widgets[graph_under].tooltip);
+    CHECK(Editor_Palette_SwatchAt(&g_ui, 0, 12, &x, &y), "palette: the earlier pick is still listed");
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+    push_graph(graph_under, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+    frame();
+    CHECK(g_ui.tools.underlay_id == 12 && g_ui.tools.tool == EDITOR_TOOL_PAINT_UNDERLAY
+              && Editor_Palette_BlendFrom(&g_ui) == 40,
+        "palette: the press picks 12, arms Paint underlay and the strip now runs from 40 (%d %d %d)",
+        g_ui.tools.underlay_id, (int)g_ui.tools.tool, Editor_Palette_BlendFrom(&g_ui));
+
+    /* Every id lists the window's whole set (the fake answers every id). */
+    CHECK(!Editor_Palette_SwatchAt(&g_ui, 0, 200, &x, &y), "palette: an unused id is not listed by default");
+    ToriRSChrome_SetChecked(&g_chrome, w_all, 1);
+    activate(w_all);
+    CHECK(Editor_Palette_SwatchAt(&g_ui, 0, 200, &x, &y) && Editor_Palette_SwatchAt(&g_ui, 1, 700, &x, &y)
+              && !Editor_Palette_SwatchAt(&g_ui, 0, 257, &x, &y),
+        "palette: Every id lists underlay 200 and overlay 700, not an underlay past 256");
+
+    /* By lightness: along the well the light never falls; by hue, the
+     *  hue-then-light key never falls. */
+    for( int sort = 1; sort <= 2; sort++ )
+    {
+        struct Editor_FloorHsl hsl;
+        int order[257];
+        int ordered = 1;
+        int seen = 0;
+        ToriRSChrome_DropdownSetSelected(&g_chrome, w_sort, sort);
+        activate(w_sort);
+        memset(order, 0, sizeof(order));
+        for( int id = 1; id <= 256; id++ )
+            if( Editor_Palette_SwatchAt(&g_ui, 0, id, &x, &y) && swatch_index(x, y) < 257 )
+            {
+                order[swatch_index(x, y)] = id;
+                seen++;
+            }
+        for( int i = 2, last = -1; i < 257; i++ )
+        {
+            uint32_t rgb;
+            int key;
+            if( !order[i] )
+                continue;
+            fake_floor_rgb(NULL, 0, order[i], &rgb);
+            Editor_FloorHslOfRgb(rgb, &hsl);
+            key = sort == 2 ? hsl.light * 256 + hsl.hue : hsl.sat < 24 ? (1 << 16) + hsl.light : hsl.hue * 256 + hsl.light;
+            if( key < last )
+                ordered = 0;
+            last = key;
+        }
+        CHECK(seen == 256 && ordered, "palette: sort %d orders the 256 swatches by its key (%d seen)", sort, seen);
+    }
+    ToriRSChrome_DropdownSetSelected(&g_chrome, w_sort, 0);
+    activate(w_sort);
+    ToriRSChrome_SetChecked(&g_chrome, w_all, 0);
+    activate(w_all);
+
+    /* The hex finds the record of that exact colour; the sliders follow. */
+    ToriRSChrome_SetText(&g_chrome, w_hex, "#40a04c");
+    activate(w_hex);
+    n = Editor_Palette_Matches(&g_ui, 0, ids, 9);
+    CHECK(n == 9 && ids[0] == 12, "palette: #40a04c's nearest underlay is 12 (%d)", n > 0 ? ids[0] : -1);
+    CHECK(ToriRSChrome_SliderValue(&g_chrome, w_hue) > 100 && ToriRSChrome_SliderValue(&g_chrome, w_hue) < 150
+              && ToriRSChrome_SliderValue(&g_chrome, w_light) > 30 && ToriRSChrome_SliderValue(&g_chrome, w_light) < 60,
+        "palette: the sliders show the hex's hue and lightness (%d, %d)", ToriRSChrome_SliderValue(&g_chrome, w_hue),
+        ToriRSChrome_SliderValue(&g_chrome, w_light));
+    n = Editor_Palette_Matches(&g_ui, 1, ids, 9);
+    CHECK(n == 9, "palette: nine overlays matched too (%d)", n);
+    /* A slider: the colour and the hex follow, the matches move. */
+    ToriRSChrome_SliderSet(&g_chrome, w_light, 90);
+    activate(w_light);
+    n = Editor_Palette_Matches(&g_ui, 0, ids, 9);
+    CHECK(ToriRSChrome_Text(&g_chrome, w_hex)[0] == '#' && strcmp(ToriRSChrome_Text(&g_chrome, w_hex), "#40a04c") != 0
+              && label_with(palette, ToriRSChrome_Text(&g_chrome, w_hex)) >= 0 && n == 9 && ids[0] != 12,
+        "palette: a lighter colour by slider shows in the hex and the row, and matches elsewhere (%s, %d)",
+        ToriRSChrome_Text(&g_chrome, w_hex), n > 0 ? ids[0] : -1);
+
+    /* The Terrain panel's Mix: shown for Paint underlay only, in the readout
+     *  under 100, the hotkey's chord steps it by ten. */
+    w_mix = find_widget(terrain, TORIRS_CHROME_W_SLIDER, "Mix (%)");
+    CHECK(w_mix >= 0, "terrain: a Mix slider");
+    if( w_mix >= 0 )
+    {
+        Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+        frame();
+        CHECK(g_chrome.widgets[w_mix].hidden, "terrain: Mix is hidden under Raise");
+        Editor_UiSetTool(&g_ui, EDITOR_TOOL_PAINT_UNDERLAY);
+        frame();
+        CHECK(!g_chrome.widgets[w_mix].hidden && g_ui.tools.paint_mix == 100, "terrain: Mix shows under Paint underlay, at 100");
+        ToriRSChrome_SliderSet(&g_chrome, w_mix, 50);
+        activate(w_mix);
+        CHECK(g_ui.tools.paint_mix == 50 && label_with(terrain, "mix 50%") >= 0,
+            "terrain: the slider sets the mix and the readout says so (%d)", g_ui.tools.paint_mix);
+        CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_BRUSH_STRENGTH_UP) && g_ui.tools.paint_mix == 60,
+            "terrain: Shift+] steps the mix by ten under Paint underlay (%d)", g_ui.tools.paint_mix);
+        frame();
+        CHECK(ToriRSChrome_SliderValue(&g_chrome, w_mix) == 60, "terrain: the slider follows the hotkey");
+        g_ui.tools.paint_mix = 100;
+    }
+    Editor_UiFree(&g_ui);
+}
+
 static void
 test_statusbar(void)
 {
@@ -7225,6 +7487,7 @@ main(
     test_active_level();
     test_hotkeys();
     test_statusbar();
+    test_palette_colour();
     test_triggers();
     Editor_PickerFree(&g_picker);
     Editor_Close(&g_editor);

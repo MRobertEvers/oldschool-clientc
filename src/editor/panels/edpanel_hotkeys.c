@@ -328,6 +328,16 @@ Editor_HotkeyRun(
             ui->tools.plateau_skirt == 1 ? "" : "s");
         return 1;
     }
+    /* With Paint underlay up, Shift+[ and Shift+] are its mix, ten points a step. */
+    if( (action == EDITOR_HK_BRUSH_STRENGTH_DOWN || action == EDITOR_HK_BRUSH_STRENGTH_UP)
+        && ui->tools.tool == EDITOR_TOOL_PAINT_UNDERLAY )
+    {
+        int mix = ui->tools.paint_mix + (action == EDITOR_HK_BRUSH_STRENGTH_UP ? 10 : -10);
+        ui->tools.paint_mix = mix < 10 ? 10 : mix > 100 ? 100 : mix;
+        Editor_UiLog(ui, "editor: underlay mix %d%%%s", ui->tools.paint_mix,
+            ui->tools.paint_mix == 100 ? " (every tile)" : "");
+        return 1;
+    }
     /* With Scatter up, Shift+[ and Shift+] are its density, five points a step. */
     if( (action == EDITOR_HK_BRUSH_STRENGTH_DOWN || action == EDITOR_HK_BRUSH_STRENGTH_UP)
         && ui->tools.tool == EDITOR_TOOL_SCATTER )

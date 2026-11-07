@@ -356,6 +356,12 @@ Editor_BrushCommands(
             case EDITOR_TOOL_PAINT_UNDERLAY:
                 assert(op->underlay_id >= 0);
                 assert(op->underlay_id <= 0xff);
+                /* A mix under 100 paints a seeded share of the tiles,
+                 * thinning with the falloff; at 100 every tile, whatever
+                 * the falloff, as the flat paint always did. */
+                if( op->paint_mix > 0 && op->paint_mix < 100
+                    && ops_hash_unit(op->noise_seed, world_x, world_z, 3) * 100.0 >= (double)op->paint_mix * weight )
+                    continue;
                 after.underlay_id = (uint8_t)op->underlay_id;
                 break;
             case EDITOR_TOOL_PAINT_OVERLAY:

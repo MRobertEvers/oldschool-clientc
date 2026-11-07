@@ -695,6 +695,67 @@ test_noise(void)
     CHECK(Editor_Undo(&g_editor) == n && derived(cx, cz) == before[2][2], "noise: one undo levels it again");
 }
 
+/* Paint underlay's mix: under 100 the brush paints a seeded share of its
+ * tiles (the dither the client's blend smooths); 100 is the flat paint. */
+static void
+test_mix(void)
+{
+    static struct Editor_Cmd full[EDITOR_BRUSH_TILES_MAX];
+    static struct Editor_Cmd half[EDITOR_BRUSH_TILES_MAX];
+    static struct Editor_Cmd again[EDITOR_BRUSH_TILES_MAX];
+    struct Editor_BrushOp op;
+    int n;
+    int m;
+    int k;
+    int same = 1;
+    int subset = 1;
+
+    memset(&op, 0, sizeof(op));
+    op.tool = EDITOR_TOOL_PAINT_UNDERLAY;
+    op.world_x = BASE_X + 30;
+    op.world_z = BASE_Z + 30;
+    op.level = 0;
+    op.brush.radius = 4;
+    op.brush.falloff = EDITOR_BRUSH_FALLOFF_FLAT;
+    op.underlay_id = 200;
+    op.noise_seed = 5;
+    op.paint_mix = 100;
+    n = Editor_BrushCommands(&g_editor.doc, &op, full, EDITOR_BRUSH_TILES_MAX);
+    CHECK(n >= 45, "mix: at 100 the whole disc is painted (%d)", n);
+    op.paint_mix = 50;
+    m = Editor_BrushCommands(&g_editor.doc, &op, half, EDITOR_BRUSH_TILES_MAX);
+    CHECK(m > n / 5 && m < n * 4 / 5, "mix: at 50 about half of it (%d of %d)", m, n);
+    for( int i = 0; i < m; i++ )
+    {
+        int found = 0;
+        for( int j = 0; j < n; j++ )
+            if( full[j].u.tile.x == half[i].u.tile.x && full[j].u.tile.z == half[i].u.tile.z )
+                found = 1;
+        if( !found || half[i].u.tile.after.underlay_id != 200 )
+            subset = 0;
+    }
+    CHECK(subset, "mix: every tile painted is one of the disc's, with the underlay");
+    k = Editor_BrushCommands(&g_editor.doc, &op, again, EDITOR_BRUSH_TILES_MAX);
+    same = k == m;
+    for( int i = 0; same && i < m; i++ )
+        if( again[i].u.tile.x != half[i].u.tile.x || again[i].u.tile.z != half[i].u.tile.z )
+            same = 0;
+    CHECK(same, "mix: the same seed paints the same tiles (%d, %d)", m, k);
+    op.noise_seed = 6;
+    k = Editor_BrushCommands(&g_editor.doc, &op, again, EDITOR_BRUSH_TILES_MAX);
+    same = k == m;
+    for( int i = 0; same && i < m; i++ )
+        if( again[i].u.tile.x != half[i].u.tile.x || again[i].u.tile.z != half[i].u.tile.z )
+            same = 0;
+    CHECK(!same, "mix: another seed is another dither");
+    op.brush.falloff = EDITOR_BRUSH_FALLOFF_LINEAR;
+    op.noise_seed = 5;
+    k = Editor_BrushCommands(&g_editor.doc, &op, again, EDITOR_BRUSH_TILES_MAX);
+    CHECK(k < m, "mix: the falloff thins the dither toward the rim (%d < %d)", k, m);
+    apply_all(half, m, "paint underlay");
+    CHECK(Editor_Undo(&g_editor) == m, "mix: one undo takes the dither off");
+}
+
 static void
 test_scatter(void)
 {
@@ -1148,6 +1209,7 @@ main(
     test_noise();
     test_scatter();
     test_plateau();
+    test_mix();
     test_refused_runs();
     test_marquee();
     test_fit_shared();

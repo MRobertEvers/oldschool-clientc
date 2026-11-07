@@ -17,6 +17,7 @@
 #include "app.h"
 #include "app/app_internal.h"
 #include "builder/builder_panels.h"
+#include "editor_floorcolor.h"
 #include "editor_view.h"
 #include "engine/world_builder/world_builder.h"
 #include "log/torirs_log.h"
@@ -282,6 +283,18 @@ hook_floor_rgb(
                      : CacheProvider_UnderlayGet(app->provider, id - 1);
     if( !flo )
         return 0;
+    /* A textured overlay's `colour` is a placeholder (often magenta); the
+     * ground shows the texture, and the minimap its average, so the swatch
+     * does too once the texture is resident. */
+    if( is_overlay && flo->texture >= 0 )
+    {
+        struct ToriRS_Texture const* texture = CacheProvider_TextureGet(app->provider, flo->texture);
+        if( texture && texture->average_hsl != 0 )
+        {
+            *out_rgb = Editor_FloorRgbOfHsl16(texture->average_hsl & 0xffff);
+            return 1;
+        }
+    }
     *out_rgb = (uint32_t)flo->rgb_color & 0xffffff;
     return 1;
 }
@@ -1078,6 +1091,7 @@ Editor_PanelApplyToolAt(
 
         memset(&op, 0, sizeof(op));
         op.noise_seed = ui->tools.noise_seed;
+        op.paint_mix = ui->tools.paint_mix;
         op.tool = ui->tools.tool;
         op.world_x = world_x;
         op.world_z = world_z;

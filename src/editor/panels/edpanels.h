@@ -44,10 +44,37 @@ Editor_ToolRail_ButtonCount(void);
 void
 Editor_Terrain_Register(struct EditorUi* ui);
 
-/** Underlay and overlay swatches, overlay shape thumbnails and rotation.
- *  "palette" */
+/** Underlay and overlay swatches (the open squares' ids or every resident
+ *  one, by id, hue or lightness), overlay shape thumbnails and rotation,
+ *  the blend strip (the ground across a seam between the last two underlay
+ *  picks, as the client blends it) and the colour picker (hue / sat /
+ *  light sliders or a hex, the nearest underlays and overlays). "palette" */
 void
 Editor_Palette_Register(struct EditorUi* ui);
+
+/** The well-local centre of `id`'s swatch in the palette's underlay (0) or
+ *  overlay (1) well, for a test's hover or press. 0 when not listed. */
+int
+Editor_Palette_SwatchAt(
+    struct EditorUi* ui,
+    int is_overlay,
+    int id,
+    int* out_x,
+    int* out_y);
+
+/** The ids the picker's colour matched, nearest first: underlays or
+ *  overlays. Returns the count (at most `max`). */
+int
+Editor_Palette_Matches(
+    struct EditorUi* ui,
+    int is_overlay,
+    int* out_ids,
+    int max);
+
+/** The underlay the blend strip runs from (the pick before the current
+ *  one), 0 when there is none yet. */
+int
+Editor_Palette_BlendFrom(struct EditorUi* ui);
 
 /** The rectangle select's copy / paste / fill / clear. "rect" */
 void

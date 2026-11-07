@@ -97,6 +97,7 @@ Editor_UiInit(
     ui->tools.path_roughness = 50;
     ui->tools.path_seed = 1;
     ui->tools.noise_seed = 1;
+    ui->tools.paint_mix = 100;
     ui->tools.scatter_density = 20;
     ui->tools.scatter_rotate = 1;
     ui->tools.scatter_seed = 1;
