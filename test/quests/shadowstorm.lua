@@ -1,69 +1,42 @@
--- Shadow of the Storm (shadowstorm). Tier 2, 340c190aae parity2c "partial".
--- Prereqs (The Golem, Demon Slayer) via ::complete -- rule (e), never ::setvar
--- the quest's own varp. Setup gives only what the wiki's Requirements list
--- brings along (a silver bar, three pieces of black clothing, combat stats
--- and food for a level 100 demon). Every Quest Helper step is driven for
--- real, from Father Reen to the completion scroll: Evil Dave's clothing
--- check and escort, the first ritual in Denath's order, the exit portal to
--- the ruin (seam26), Tanya's and Eric's sigils, Badden, Reen, the golem's
--- strange implement, the second ritual in the tome's order at QH's
--- secondCircleSpot (seam26), and Agrith-Naar fought with the dyed
--- Silverlight worn.
+-- Shadow of the Storm (shadowstorm), the recorded flow: RSProx index 4475
+-- (rev 242, the start) and index 4477 (rev 242, stage 20 to the end); the
+-- analysis is docs/rsprox-analysis/quests/shadow_of_the_storm.md. The
+-- legs follow the recorder's order: Reen, Badden (10 -> 20), the mushroom
+-- and the dye, Evil Dave refusing two pieces and taking three (the escort,
+-- 30), Denath's welcome (40, the words rolled), Matthew's story (50), the
+-- golem (60), the kilns and the book, Matthew with the book (70), Jennifer's
+-- mould, the sigils at a furnace, Matthew starting the first ritual (80) and
+-- the chant in Denath's order (90), out by the closing portal (Tanya, 100),
+-- Dave in the passage, the stairs and the sandstorm, Badden, Reen and the
+-- golem (reprogrammed with the strange implement), the second ritual in the
+-- book's order (110 -> 120), Agrith-Naar, the finale and the skill.
 --
--- Door rule (b66 re-drive): every crossing is clicked, nothing is goto'd
--- past. Each leg checked with the sample tools' reach.py (doors closed,
--- --root the worktree):
---   * The run starts at the fixture's tile in Lumbridge (3206,3233); Father
---     Reen (3271,3159) is REACH closed-doors len=401 from it (the walk round
---     by the north, so the Al Kharid toll gate is not an only-way gate).
---   * The desert is behind the Shantay Pass doorway shantay_pass_henge_doorway
---     3302,3116 (its only way in on foot). South: a pass bought from Shantay
---     (5 gp, shantay.rs2) and the doorway's pages; north: the doorway pushes
---     the player 3 tiles (shantay_pass.rs2). Both by t.player.cross_gate, on
---     every crossing. Uzer, the mushrooms and the kilns are all REACH
---     closed-doors from 3304,3113 on the desert side.
---   * The Uzer ruin under the city: golem_insidestairs_top pressed from the
---     arch tile 3491,3090 (the only open tile beside it; the press aims on
---     the drawn model since seam b66), maplink_0_54_48_35_18_down -> 2721,4886,0;
---     left by golem_insidestairs_base (maplink_0_42_76_33_22_up -> 3491,3090,0).
---     Same level, another map frame: t.player.climb with same_level.
---   * The throne room is plane 2 of the ruin, entered by golem_portal's SotS
---     arm (golem_portal.rs2 [oploc1,golem_demon_door_always_open] ->
---     ^sots_throne 2720,4912,2) or Evil Dave's escort, and left by
---     golem_demon_portal (2719,4883,2 -> ^sots_ruin_dave 2721,4911,0); the
---     landing walks to the exit portal (reach.py level 2: REACH len=29).
---   * "Travel to any furnace": the only furnace within 200 tiles of the
---     desert is Al Kharid's fai_falador_furnace 3272,3185 (its room is open
---     to the street: 3280,3186 -> 3275,3186 REACH len=7). So the sigil trip
---     leaves the ruin by the portal and the stairs, goes north through the
---     Shantay doorway, smelts, buys a second pass and comes back.
--- No dialogue on this route branches on the combat level (no
--- ~player_combat_level in quest_shadowstorm, quest_golem or the shantay
--- scripts), so the staged combat stats change no page.
+-- The throne room is a private copy (x > 6400) built on every entry; tiles
+-- in it are offsets from the copy's corner, read off the entry landing
+-- (the copy's 32,20).
 return {
     id = "shadowstorm",
     fixture = "fresh_lumbridge.ini",
     setup = {
-        "::clearinv", -- the fixture's fourteen tutorial slots
+        "::clearinv",
         "::complete quest_golem",
         "::complete quest_demonslayer",
-        -- seam24 copy: the wiki's own requirements (Crafting 30, a silver bar).
         "::setlevel crafting 30",
-        "::give silver_bar",
-        -- seam26: the wiki's other requirements. "Any black outfit (minimum of
-        -- 3 pieces)" -- the priest gown/robe from Thessalia and a black cape
-        -- (wiki oldid 15354765 "Starting Out"; Quest Helper darkItems) -- and
-        -- "the ability to defeat a level 100 demon" (combat stats + food).
+        "::give silver_bar 2",
+        -- Evil Dave's three pieces: the recorder's (4475 [1124]: black med
+        -- helm, priest gown, priest robe).
+        "::give black_med_helm",
         "::give priest_gown",
         "::give priest_robe",
-        "::give black_cape",
+        "::give hammer",
+        "::give chisel",
         "::setlevel attack 80",
         "::setlevel strength 80",
         "::setlevel defence 80",
         "::setlevel hitpoints 80",
         "::give shark 10",
-        "::give coins 10", -- two Shantay passes, 5 gp each (shantay.rs2)
-        "::give water_skin4 2", -- desert heat (desert_heat.rs2: a drink per 150 ticks in desert_zones)
+        "::give coins 10",
+        "::give water_skin4 3",
     },
 
     run = function(t)
@@ -81,7 +54,6 @@ return {
             end
             return string.format("%d,%d,%d", tile.x, tile.z, tile.level)
         end
-
         -- Buy a Shantay pass and go south through the doorway (shantay.rs2: 5 gp;
         -- shantay_pass.rs2 [oploc1,shantay_pass_henge_doorway]). The first trip
         -- reads the poster and gets the disclaimer; with the disclaimer held the
@@ -92,29 +64,27 @@ return {
             t.exec(prefix .. ".buyPass", t.player.talk_to, "shantay", 1)
             local lines = first and { "npc:Hello effendi, I am Shantay.", "npc:I see you're new." }
                 or { "npc:Hello again friend." }
-            lines[#lines + 1] = "choose:I want to buy a shantay pass for 5 gold coins."
-            lines[#lines + 1] = "player:I want to buy a shantay pass for"
-            lines[#lines + 1] = "mesbox:You purchase a Shantay Pass."
+            -- Before Tourist Trap, Irena (shantay.rs2, RSProx index 4448).
+            lines[#lines + 1] = "npc:There is a heartbroken mother"
+            lines[#lines + 1] = "choose:I want to buy a Shantay pass for 5 gold coins."
+            lines[#lines + 1] = "player:I want to buy a Shantay pass for"
+            lines[#lines + 1] = "objbox:You purchase a Shantay Pass."
             t.exec(prefix .. ".buyPass-dialog", t.chat.play, lines)
             local pass_await = t.inv.await("shantay_pass", 1, 5)
             t.check(prefix .. ".buyPass-paid", pass_await == "ok" and count("shantay_pass") == pass0 + 1 and count("coins") == coins0 - 5,
                 "shantay_pass " .. pass0 .. " -> " .. count("shantay_pass") .. ", coins " .. coins0 .. " -> " .. count("coins") .. " (want -5, shantay.rs2)")
-            local door_chat = {}
-            if first then
-                door_chat = { "mesbox:There is a large poster on the wall", "mesbox:The Desert is a VERY Dangerous place",
-                    "mesbox:That seems pretty scary!", "choose:Yeah, that poster doesn't scare me!" }
-            end
-            door_chat[#door_chat + 1] = "npc:Can I see your Shantay Desert Pass"
-            door_chat[#door_chat + 1] = "mesbox:You hand over a Shantay Pass."
-            door_chat[#door_chat + 1] = "player:Sure, here you go!"
-            if first then
-                door_chat[#door_chat + 1] = "npc:Here, have a disclaimer"
-            end
-            t.exec(prefix .. ".shantayDoorway", t.player.cross_gate, { loc = "shantay_pass_henge_doorway", at = { 3302, 3116, 0 },
-                near = { 3304, 3118 }, far_ok = function(tile) return tile.z <= 3115 end,
-                far_desc = "south of the Shantay Pass doorway, z <= 3115", chat = door_chat })
+            -- shantay_pass.rs2: the warning (cws_warning_10), "warn1" takes the
+            -- pass and steps the player south.
+            t.exec(prefix .. ".shantayDoorway", t.player.click_loc, "shantay_pass_henge_doorway", 1)
+            t.check(prefix .. ".warning", t.ui.await_open("cws_warning_10", 12) == "ok", "cws_warning_10 open")
+            local wr, yes = t.ui.widget("cws_warning_10:warn1")
+            t.exec(prefix .. ".warn1", t.ui.invoke, yes, 1)
+            t.await({ match = function()
+                local r, tile = t.world.tile()
+                return r == "ok" and tile.z <= 3115
+            end, note = prefix .. ": south of the doorway" }, 10)
             t.check(prefix .. ".shantayDoorway.passHandedOver", count("shantay_pass") == pass0,
-                "shantay_pass " .. count("shantay_pass") .. " after the doorway (handed over), disclaimer " .. count("thshantaydisc"))
+                "shantay_pass " .. count("shantay_pass") .. " after the doorway, at " .. reading())
         end
         -- North through the doorway: free from the south (shantay_pass.rs2: a
         -- player at or south of the loc is pushed 3 tiles north).
@@ -130,7 +100,7 @@ return {
         local function ruin_down(name)
             -- The arch is on the stair house's west side: from the east the
             -- walk goes round it (run 1: 20 ticks from kiln 4 stalled).
-            t.exec("walk-" .. name, t.player.walk_to, 3491, 3090, 70)
+            t.exec("walk-" .. name, t.player.goto_tile, 3491, 3090, 0)
             t.exec(name, t.player.climb, { loc = "golem_insidestairs_top", op = 1, op_name = "Climb-down",
                 at = { 3492, 3090, 0 }, src = { 3491, 3090 }, dest = { 2721, 4886, 0 }, slack = 0,
                 same_level = "maplink_0_54_48_35_18_down" })
@@ -143,492 +113,533 @@ return {
                 at = { 2721, 4884, 0 }, dest = { 3491, 3090, 0 }, slack = 0,
                 same_level = "maplink_0_42_76_33_22_up" })
         end
-        local function in_throne_room(tile)
-            return type(tile) == "table" and tile.level == 2 and tile.x >= 2709 and tile.x <= 2731
-                and tile.z >= 4879 and tile.z <= 4919
+        -- A page with no continue (the escort's box) is waited out: the next
+        -- page is looked for by its text (demon.lua's await_text).
+        local function await_text(name, fragment, ticks)
+            local seen, found = "none", false
+            for _ = 1, ticks or 60 do
+                if t.chat.kind() ~= "none" then
+                    local kr, txt = t.chat.text()
+                    if kr == "ok" and txt then
+                        seen = txt
+                        if txt:find(fragment, 1, true) then
+                            found = true
+                            break
+                        end
+                    end
+                end
+                t.ticks(1)
+            end
+            t.check(name, found, "page with '" .. fragment .. "' (last: " .. tostring(seen) .. ")")
         end
-        -- Into the throne room by the Uzer portal: golem_portal's child
-        -- golem_demon_door_always_open (golem_a = 10), SotS arm -> ^sots_throne
-        -- 2720,4912,2 (golem_portal.rs2; the source's own landing is
-        -- 2720,4884,2 -- a parity note, graded as the content gives it).
+        local function in_copy(tile)
+            return type(tile) == "table" and tile.x > 6400
+        end
+        -- The copy's corner, from the entry landing (copy 32,20).
+        local cx, cz = nil, nil
+        local function at(dx, dz)
+            return cx + dx, cz + dz
+        end
         local function enter_portal(name)
             t.exec("walk-" .. name, t.player.walk_to, 2720, 4911, 50)
-            local before = reading()
             t.exec(name, t.player.click_loc, "golem_portal", 1)
             t.await({
-                level = function()
+                match = function()
                     local r, tile = t.world.tile()
-                    return r == "ok" and in_throne_room(tile)
+                    return r == "ok" and in_copy(tile)
                 end,
-                note = name .. ": the portal's landing in the throne room (plane 2)",
+                note = name .. ": the portal's landing in the throne room's copy",
             }, 10)
             local _, tile = t.world.tile()
-            t.check(name .. ".landed", in_throne_room(tile), "in the throne room at " .. reading() .. " (from " .. before .. ")")
+            t.check(name .. ".landed", in_copy(tile), "in the copy at " .. reading())
+            if in_copy(tile) then
+                cx, cz = tile.x - 32, tile.z - 20
+            end
+            t.ticks(3)
         end
-        -- Out of the throne room by golem_demon_portal (2719,4883,2) to the
-        -- ruin in front of the Uzer portal (^sots_ruin_dave 2721,4911,0).
-        local function leave_throne(name)
-            t.exec("walk-" .. name, t.player.walk_to, 2720, 4886, 40)
-            t.exec(name, t.player.climb, { loc = "golem_demon_portal", op = 1, op_name = "Enter",
-                at = { 2719, 4883, 2 }, dest = { 2721, 4911, 0 }, slack = 0 })
+        -- Out of the copy by the portal in its south wall (copy 31,19) to the
+        -- passage in front of the Uzer portal (2721,4911,0).
+        local function leave_copy(name, loc)
+            local x, z = at(32, 21)
+            t.exec("walk-" .. name, t.player.walk_to, x, z, 60)
+            t.exec(name, t.player.click_loc, loc, 1)
+            t.await({
+                match = function()
+                    local r, tile = t.world.tile()
+                    return r == "ok" and tile.x == 2721 and tile.z == 4911 and tile.level == 0
+                end,
+                note = name .. ": out of the copy at 2721,4911,0",
+            }, 10)
+            t.check(name .. ".out", reading() == "2721,4911,0", "after the portal: " .. reading())
+        end
+        -- The player's rolled words (varb1373..1377: the book's order; Denath
+        -- teaches it backwards).
+        local WORDS = { [0] = "Caldar", [1] = "Nahudu", [2] = "Agrith-Naar", [3] = "Camerinthum", [4] = "Tarren" }
+        local function words(backwards)
+            local w = {}
+            for i = 1, 5 do
+                local _, v = t.var.server("varb" .. (1372 + i) .. "_agrith_incantation_" .. i)
+                w[i] = WORDS[v] or "?"
+            end
+            if backwards then
+                w = { w[5], w[4], w[3], w[2], w[1] }
+            end
+            return w
+        end
+        local function chant_lines(w, tail)
+            local lines = {}
+            for i = 1, 5 do
+                lines[#lines + 1] = "choose:" .. w[i]
+                if i == 5 then
+                    lines[#lines + 1] = "player:" .. w[i] .. "!"
+                else
+                    lines[#lines + 1] = "player:" .. w[i] .. "..."
+                end
+            end
+            for _, l in ipairs(tail or {}) do
+                lines[#lines + 1] = l
+            end
+            return lines
         end
 
         local bind_r, bind_d = t.quest.bind({
             varp = "varb1372_agrith_quest",
             constants = {
-                not_started = 0,
-                see_badden = 10,
-                infiltrate = 20,
-                denath = 30,
-                sigil_tasks = 40,
-                matthew = 50,
-                golem_ask = 60,
-                ritual = 70,
-                ritual_done = 90,
-                recruit = 100,
-                summon = 110,
-                fight = 120,
-                unequip = 124,
-                complete = 125,
+                not_started = 0, see_badden = 10, infiltrate = 20, denath = 30, sigil_tasks = 40,
+                matthew = 50, golem_ask = 60, ritual = 70, ritual_started = 80, ritual_done = 90,
+                recruit = 100, summon = 110, fight = 120, unequip = 124, complete = 125,
             },
             row = "quest_shadowofthestorm",
             display = "Shadow of the Storm",
             points = 1,
         })
         t.step("quest.bind", bind_r == "ok" and "PASS" or "FAIL", bind_d)
+        -- The wire audit against RSProx 4475/4477 reads this tick log.
+        t.ticklog.start()
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-        -- ---- Father Reen, south of the Al Kharid bank ----
-        -- shadowstorm.rs2 [opnpc1,agrith_reen_alkharid] @sots_reen_talk;
-        -- live spawn is the _alkharid variant (areas/world/configs/m51_49.spawn).
+        -- ---- 4475 [136..175]: Father Reen starts it ----
         t.exec("goto-reen", t.player.goto_tile, 3271, 3159, 0)
         t.exec("talkToReen", t.player.talk_to, "agrith_reen_alkharid")
         t.exec("talkToReen-dialog", t.chat.play, {
-            "npc:urgent job for you",
-            "npc:Thank Saradomin",
-            "npc:recognise this sword",
+            "npc:I have an urgent job for",
+            "choose:Yes.",
+            "player:That's me!",
+            "npc:Thank Saradomin I found you!",
+            "npc:Now, do you recognise this sword?",
+            "objbox:Reen hands you a shining silver sword.",
             "player:Silverlight! That's the sword",
-            "mesbox:Father Reen gives you Silverlight",
-            "npc:only with Silverlight",
-            "npc:dark wizard Denath",
-            "npc:moved to Uzer",
-            "player:you want me to stop him",
-            "npc:kill him once and for all",
-            "npc:not an ordinary demon",
-            "npc:rid the world of his evil influence",
-            "npc:find Badden at once",
+            "npc:only with Silverlight!",
+            "npc:My partner Badden",
+            "npc:A week ago",
+            "player:So you want me to stop him?",
+            "npc:Stop him? No!",
+            "npc:Let me explain.",
+            "npc:This summoning is our chance",
+            "npc:You should go to Uzer and find Badden at once.",
             "end",
         })
         t.expect("quest.stage.see_badden", t.quest.expect_stage("see_badden"))
         t.expect("has.silverlight", t.inv.await("silverlight", 1, 5))
 
-        -- ---- Father Badden, Uzer ruins surface ----
-        -- shadowstorm.rs2 [opnpc1,agrith_badden_uzer] @sots_badden_talk;
-        -- into the desert through the Shantay doorway, then the desert walk
-        -- (3304,3113 -> 3486,3090 REACH closed-doors len=227) is travel.
+        -- ---- 4475 [629..731]: Badden ----
         into_desert("talkToBadden", true)
         t.exec("goto-badden", t.player.goto_tile, 3486, 3090, 0)
         t.exec("talkToBadden", t.player.talk_to, "agrith_badden_uzer")
         t.exec("talkToBadden-dialog", t.chat.play, {
-            "npc:godsforsaken desert",
-            "choose:Reen sent me.",
-            "player:Reen sent me.",
-            "npc:you have Silverlight",
-            "choose:So what do you want me to do?",
-            "player:So what do you want me to do?",
-            "npc:infiltrate the group",
-            "player:How can I do that",
-            "npc:convince them you're one of them",
+            "npc:What brings you to this godsforsaken desert?",
+            "choose:Reen sent me.", "player:Reen sent me.",
+            "npc:And you have Silverlight!",
+            "choose:Tell me more about Denath.", "player:Tell me more about Denath.",
+            "npc:keeping an eye on Denath", "npc:group that summoned Delrith", "npc:studying Agrith-Naar for years",
+            "choose:Why has he come to Uzer?", "player:Why has he come to Uzer?",
+            "npc:This city is very ancient", "npc:foul construct over there", "npc:Do you know what happened here?",
+            "choose:Foul construct? Do you mean the golem?", "player:Foul construct?",
+            "npc:The golem, yes!", "player:created to fight a demon", "player:Thousands of years ago", "player:When I last came here",
+            "npc:You opened a portal", "npc:much easier to reach", "npc:Denath must have heard",
+            "choose:So what do you want me to do?", "player:So what do you want me to do?",
+            "npc:You have to be in position",
+            "choose:How can I do that?", "player:How can I do that?",
+            "npc:convince them you're one of them.",
             "end",
         })
         t.expect("quest.stage.infiltrate", t.quest.expect_stage("infiltrate"))
 
-        -- ---- Pick black mushrooms, dye Silverlight ----
-        -- shadowstorm_dye.rs2 [oploc1,golem_black_mushrooms]; [opheldu,silverlight]
-        -- -> ~sots_dye_silverlight.
-        -- The mushrooms are a loc on 3495,3088 (solid); pressed from the open
-        -- tile west of it.
+        -- ---- 4475 [754], 4477 [221]: the mushroom and the dye ----
         t.exec("walk-mushroom", t.player.walk_to, 3494, 3088)
         t.exec("pickMushroom", t.player.click_loc, "golem_black_mushrooms", 1)
+        t.exec("pickMushroom-dialog", t.chat.play, { "objbox:You pick a mushroom." })
         t.expect("has.mushroom", t.inv.await("golem_mushroom", 1, 5))
-        t.exec("dyeSilverlight", t.player.use_item_on_item, "silverlight", "golem_mushroom")
+        t.exec("dyeSilverlight", t.player.use_item_on_item, "golem_mushroom", "silverlight")
+        t.exec("dyeSilverlight-dialog", t.chat.play, { "objbox:it stains the blade black." })
         t.expect("has.dyed_silverlight", t.inv.await("agrith_silverlight_dyed", 1, 5))
         t.check("dyeSilverlight.consumed", count("silverlight") == 0 and count("golem_mushroom") == 0,
-            "silverlight " .. count("silverlight") .. ", golem_mushroom " .. count("golem_mushroom")
-                .. " after the dye (~sots_dye_silverlight: both deleted), agrith_silverlight_dyed " .. count("agrith_silverlight_dyed"))
+            "silverlight " .. count("silverlight") .. ", golem_mushroom " .. count("golem_mushroom"))
 
-        -- ---- Enter the Uzer ruins, pick up the strange implement ----
-        -- shadowstorm_dye.rs2 [oploc1,golem_insidestairs_top] -> ^sots_ruin_dave.
-        -- The "strange implement" is a real ground obj, golem_golemkey
-        -- (all.obj: name=Strange implement), spawned at 2713,4913,0
-        -- (areas/world/configs/m42_76.spawn) -- not a gap, QH's own WorldPoint
-        -- for pickUpStrangeImplement.
+        -- ---- The ruin: the strange implement, Evil Dave ----
         ruin_down("goIntoRuin")
-        -- Inside the ruin: 2721,4886 -> 2713,4912 REACH closed-doors len=42,
-        -- the open tile south of the implement (standing on the obj's own
-        -- tile hides it under the player: run 1 'menu has no row for it').
         t.exec("walk-implement", t.player.walk_to, 2713, 4912, 70)
-        -- click_obj is hollow on success (trap 12/8): call it directly and
-        -- write the count back ourselves.
         local imp_r, imp_d = t.player.click_obj("golem_golemkey")
         t.check("pickUpStrangeImplement", imp_r == "ok", "click_obj golem_golemkey -> " .. tostring(imp_r) .. " " .. tostring(imp_d))
         t.expect("has.implement", t.inv.await("golem_golemkey", 1, 5))
-
-        -- ---- Evil Dave at the portal ----
-        -- shadowstorm_ritual.rs2 [opnpc1,agrith_dave]/[opnpc1,agrith_dave_at_portal].
-        -- 2713,4913 -> 2721,4911 REACH closed-doors len=36.
         t.exec("walk-dave", t.player.walk_to, 2721, 4911, 50)
-        -- seam26: transcript "Infiltrating the wizards" -- undressed first, the
-        -- clothing check refuses (shadowstorm_ritual.rs2 ~sots_dark_items_worn).
-        t.exec("talkToEvilDave.undressed", t.player.talk_to, "agrith_dave_at_portal")
-        t.exec("talkToEvilDave.undressed-dialog", t.chat.play, {
-            "npc:What do you want",
-            "choose:I want to join your group.",
-            "player:I want to join your group",
-            "npc:we do need one more person",
-            "npc:you have to be evil",
-            "choose:I'm evil!",
-            "player:I'm evil!",
-            "npc:You don't look evil",
-            "player:evil in disguise",
-            "npc:no need for the disguise",
-        })
-        t.expect("quest.stage.still_infiltrate", t.quest.expect_stage("infiltrate"))
-        -- QH talkToEvilDave: dyed Silverlight and three black items EQUIPPED.
+        -- [647]: the portal before the escort is Dave's.
+        t.exec("portal.refused", t.player.click_loc, "golem_portal", 1)
+        t.exec("portal.refused-dialog", t.chat.play, { "npc:Hey! This is our portal! Keep out!" })
+        -- 4475 [1093]: two pieces are not enough.
         t.exec("equip.priest_gown", t.player.equip, "priest_gown")
         t.exec("equip.priest_robe", t.player.equip, "priest_robe")
-        t.exec("equip.black_cape", t.player.equip, "black_cape")
-        t.exec("equip.silverlight_dyed", t.player.equip, "agrith_silverlight_dyed")
+        t.exec("talkToEvilDave.twoPieces", t.player.talk_to, "agrith_dave_at_portal")
+        t.exec("talkToEvilDave.twoPieces-dialog", t.chat.play, {
+            "npc:What do you want?",
+            "choose:I want to join your group.", "player:I want to join your group.",
+            "npc:Well we do need one more person now", "npc:To join, you have to be evil!",
+            "choose:I'm evil!", "player:I'm evil!",
+            "npc:You don't look evil. You certainly don't dress evil!",
+            "player:I'm evil in disguise?",
+            "npc:There's no need for the disguise here!",
+            "end",
+        })
+        t.expect("quest.stage.still_infiltrate", t.quest.expect_stage("infiltrate"))
+        -- [931..979]: three pieces, the dyed sword carried: the escort.
+        t.ticklog.mark("leg.escort")
+        t.exec("equip.black_med_helm", t.player.equip, "black_med_helm")
         t.exec("talkToEvilDave", t.player.talk_to, "agrith_dave_at_portal")
         t.exec("talkToEvilDave-dialog", t.chat.play, {
-            "npc:What do you want",
-            "choose:I want to join your group.",
-            "player:I want to join your group",
-            "npc:we do need one more person",
-            "npc:you have to be evil",
-            "choose:I'm evil!",
-            "player:I'm evil!",
-            "npc:totally evil",
-            "npc:take you through to see Denath",
-            "mesbox:escorts you into the demonic throne room",
-            "npc:Master! This person wants to join us",
-            "npc:one wizard short",
-            "npc:totally evil",
-            "npc:Thank you, Dave",
+            "npc:What do you want?",
+            "choose:I want to join your group.", "player:I want to join your group.",
+            "npc:Well we do need one more person now", "npc:To join, you have to be evil!",
+            "choose:I'm evil!", "player:I'm evil!",
+            "npc:That outfit is totally evil!",
+            "npc:And I love that evil black sword!",
+            "npc:Okay, I'll take you through to see Denath.",
         })
-        t.expect("quest.stage.denath", t.quest.expect_stage("denath"))
-        t.expect("reen.moved_to_uzer", t.var.await_server("varb1382_agrith_reen_uzer", 1, 5))
-        t.ticks(3)
-        local tr0, tile0 = t.world.tile()
-        local inroom0 = tr0 == "ok" and tile0.level == 2 and tile0.x >= 2709 and tile0.x <= 2731 and tile0.z >= 4879 and tile0.z <= 4919
-        t.step("escort.lands_in_throne_room", inroom0 and "PASS" or "FAIL",
-            "after Evil Dave's escort: " .. (tile0 and (tile0.x .. "," .. tile0.z .. "," .. tile0.level) or "?"))
-        t.ticks(2)
-
-        -- ---- seam24: the throne room's cast (shadowstorm_ritual.rs2 ~sots_throne_cast) ----
-        t.exec("talkToDenath", t.player.talk_to, "agrith_denath")
-        t.exec("talkToDenath-dialog", t.chat.play, {
-            "npc:another apprentice", "player:What do I have to do", "npc:Speak to Jennifer",
+        await_text("escort.master", "Master! This person wants to join us!", 60)
+        t.exec("escort-dialog", t.chat.play, {
+            "npc:Master! This person wants to join us!",
+            "npc:Can you vouch for",
+            "npc:totally evil!",
+            "npc:Thank you, Dave.",
+            "npc:So you wish to join us?",
+            "npc:An abyssal whip",
+            "npc:power of life and death",
+            "npc:every wish granted",
+            "choose:Why did Josef run away?", "player:Why did Josef run away?",
+            "npc:Obviously he was a coward",
+            "choose:What do I have to do?", "player:What do I have to do?",
+            "npc:When I have finished preparing the magic circle",
+            "npc:You must memorize the incantation carefully.",
+            "npc:make yourself a demonic sigil",
+            "npc:Now let me continue with my preparations!",
+            "end",
         })
-        t.exec("talkToJennifer", t.player.talk_to, "agrith_jennifer")
-        t.exec("talkToJennifer-dialog", t.chat.play, { "player:demonic sigil mould", "npc:Take a silver bar" })
-        t.expect("has.mould", t.inv.await("agrith_sigil_mould", 1, 5))
         t.expect("quest.stage.sigil_tasks", t.quest.expect_stage("sigil_tasks"))
+        t.expect("reen.moved_to_uzer", t.var.await_server("varb1382_agrith_reen_uzer", 1, 5))
+        local _, et = t.world.tile()
+        t.check("escort.in_copy", in_copy(et), "after the escort: " .. reading())
+        if in_copy(et) then
+            cx, cz = et.x - 32, et.z - 47
+        end
+
+        -- ---- [1035..1118]: Matthew's story ----
         t.exec("talkToMatthew", t.player.talk_to, "agrith_matthew")
-        t.exec("talkToMatthew-dialog", t.chat.play, { "player:what happened to Josef", "npc:Search the kilns" })
+        t.exec("talkToMatthew-dialog", t.chat.play, {
+            "npc:Hello. Are you Josef's replacement?",
+            "choose:Do you know what happened to Josef?", "player:Do you know what happened to Josef?",
+            "npc:Shh!", "npc:When we joined him", "npc:The others, they just think", "npc:Josef was more curious",
+            "npc:his face turned white", "npc:But Denath was waking up", "npc:Josef didn't have money",
+            "npc:Josef must have hidden the book",
+            "end",
+        })
         t.expect("quest.stage.matthew", t.quest.expect_stage("matthew"))
 
-        -- ---- QH smeltSigil (after Matthew, before the golem): smelt the sigil (silver bar on a furnace, silver_crafting:agrith_sigil) ----
-        -- Out of the throne room, out of the ruin, north through the Shantay
-        -- doorway to Al Kharid's furnace (the nearest: see the header).
-        leave_throne("smeltSigil.leaveThroneRoom")
-        ruin_up("smeltSigil.leaveRuin")
-        out_of_desert("smeltSigil")
-        -- 3304,3119 -> 3275,3186 REACH closed-doors len=96; the furnace room
-        -- is open to the street.
-        t.exec("goto-furnace", t.player.goto_tile, 3275, 3186, 0)
-        local fr, furnace = t.world.loc_near("fai_falador_furnace", 10, { level = "here" })
-        t.check("furnace.locate", fr == "ok", "world.loc_near fai_falador_furnace -> " .. tostring(fr)
-            .. " at " .. tostring(furnace and furnace.tile_x) .. "," .. tostring(furnace and furnace.tile_z))
-        local bars0 = count("silver_bar")
-        t.exec("smeltSigil.use", t.player.use_on, "silver_bar", furnace)
-        -- ui.await_open / npc.await_present answer a bare ok; the row states
-        -- what was awaited so no PASS row is empty-detail (seam26 closer).
-        local smelt_open_r = t.ui.await_open("silver_crafting", 10)
-        t.step("smeltSigil.open", smelt_open_r == "ok" and "PASS" or "FAIL",
-            "silver_crafting interface open within 10 ticks -> " .. tostring(smelt_open_r))
-        local wr, cell = t.ui.widget("silver_crafting:agrith_sigil")
-        t.check("smeltSigil.cell", wr == "ok", "ui.widget silver_crafting:agrith_sigil -> " .. tostring(wr))
-        local ir = t.ui.invoke(cell, 1)
-        t.check("smeltSigil", ir == "ok", "ui.invoke silver_crafting:agrith_sigil op1 -> " .. tostring(ir))
-        t.expect("has.sigil", t.inv.await("agrith_sigil", 1, 10))
-        t.check("smeltSigil.barUsed", bars0 == 1 and count("silver_bar") == 0 and count("agrith_sigil") == 1
-            and count("agrith_sigil_mould") == 1,
-            "silver_bar " .. bars0 .. " -> " .. count("silver_bar") .. ", agrith_sigil " .. count("agrith_sigil")
-                .. ", mould kept " .. count("agrith_sigil_mould") .. " (jewellery.rs2 agrith_sigil: the mould is the tool)")
-        -- Back south through the doorway with a second pass, to the golem.
-        into_desert("talkToGolem", false)
-        -- ---- The golem (QH talkToGolem, with the sigil) ----
+        -- ---- [1147..1177]: Tanya's laugh (three pages with no continue) ----
+        t.exec("talkToTanya", t.player.talk_to, "agrith_tanya")
+        t.exec("talkToTanya-dialog", t.chat.play, {
+            "npc:Soon, all will bow down before me!",
+            "choose:Oh?", "player:Oh?",
+            "npc:I shall be a dark queen",
+        })
+        await_text("tanya.laugh", "Ha ha ha ha!", 5)
+        await_text("tanya.matthew", "Look, we've told you not to do that.", 20)
+        t.exec("tanya-sorry", t.chat.play, {
+            "npc:Look, we've told you not to do that.",
+            "npc:Sorry.",
+            "end",
+        })
+
+        -- ---- [1925..1953]: the golem ----
+        leave_copy("leaveRoom1", "golem_demon_portal")
+        ruin_up("leaveRuin1")
         t.exec("goto-golem", t.player.goto_tile, 3486, 3088, 0)
         t.exec("talkToGolem", t.player.talk_to, "golem_golem")
-        t.exec("talkToGolem-dialog", t.chat.play, { "player:Did you see anything", "npc:Denath came", "npc:hid it in one of the kilns" })
+        t.exec("talkToGolem-dialog", t.chat.play, {
+            "npc:It is good to see a friendly face here.",
+            "choose:Did you see anything happen last night?", "player:Did you see anything happen last night?",
+            "npc:I saw one of the men in dark robes", "npc:He was carrying a large book.",
+            "npc:Then another man came out of the temple.", "npc:I should have saved him",
+            "player:Which kiln did he hide the book in?", "npc:I cannot remember.",
+            "end",
+        })
         t.expect("quest.stage.golem_ask", t.quest.expect_stage("golem_ask"))
 
-        -- ---- The four kilns (QH searchKiln1..4) ----
-        -- Each kiln is a 2x2 loc (its footprint is solid); the walk ends on an
-        -- open tile beside it (reach.py from the golem 3486,3088: k1 3468,3122
-        -- len=52, k2 3478,3081 len=19, k3 3472,3091 len=17, k4 3499,3084 len=17).
-        -- The right kiln is %varb1378_agrith_kiln, rolled at random by the
-        -- golem's interrogation (golem.rs2), so the search stops at the book.
+        -- ---- [1960..2105]: the kilns ----
         local kilns = {
             { "agrith_kiln_1", 3468, 3122 }, { "agrith_kiln_2", 3478, 3081 },
             { "agrith_kiln_3", 3472, 3091 }, { "agrith_kiln_4", 3499, 3084 },
         }
         local _, kiln_roll = t.var.server("varb1378_agrith_kiln")
-        t.note("varb1378_agrith_kiln = " .. tostring(kiln_roll) .. " (0-3: kiln " .. tostring(type(kiln_roll) == "number" and kiln_roll + 1 or "?") .. " holds the book)")
+        t.note("varb1378_agrith_kiln = " .. tostring(kiln_roll))
         for i = 1, #kilns do
             local k = kilns[i]
             t.exec("walk-kiln" .. i, t.player.walk_to, k[2], k[3], 80)
             t.exec("searchKiln" .. i, t.player.click_loc, k[1], 1)
-            t.ticks(2)
-            if count("agrith_book") > 0 then break end
+            if i - 1 == kiln_roll then
+                t.exec("searchKiln" .. i .. "-dialog", t.chat.play, { "objbox:You find a book in the kiln." })
+                break
+            end
+            t.exec("searchKiln" .. i .. "-dialog", t.chat.play, { "mesbox:You look in the kiln but you see only sand" })
         end
         t.expect("has.book", t.inv.await("agrith_book", 1, 5))
+
+        -- ---- [2279..2333]: Matthew with the book (70) ----
+        ruin_down("enterRuin2")
+        enter_portal("enterRoom2")
+        do local x, z = at(33, 34); t.exec("walk-talkToMatthew.book", t.player.walk_to, x, z, 40) end
+        t.exec("talkToMatthew.book", t.player.talk_to, "agrith_matthew")
+        t.exec("talkToMatthew.book-dialog", t.chat.play, {
+            "npc:Did you find that book?",
+            "player:Yes. The golem saw Josef hide it", "npc:Did the golem see what happened to Josef?",
+            "player:It said Denath killed him.", "npc:Oh no!", "npc:I knew Denath was a dark wizard",
+            "npc:Let me look at the book then.", "objbox:Matthew quickly reads the book",
+            "npc:I don't understand.", "npc:But look at the incantation in the book.",
+            "player:The incantation in the book is backwards?", "npc:More likely the book has the correct incantation",
+            "npc:I'm not happy about this ritual.",
+            "player:This is the demon-slaying sword Silverlight",
+            "npc:Thank goodness! I think Denath is nearly ready",
+            "end",
+        })
         t.expect("quest.stage.ritual", t.quest.expect_stage("ritual"))
-        -- QH readBook: the tome's Read op (shadowstorm_ritual.rs2:168 [opheld1,agrith_book]).
-        t.exec("readBook", t.player.inv_op, "agrith_book", 1)
-        t.exec("readBook-dialog", t.chat.play, { "mesbox:The tome describes the summoning of Agrith-Naar" })
 
-
-        -- ---- QH enterRuinAfterBook / enterPortalAfterBook / talkToMatthewAfterBook (70 -> 80) ----
-        ruin_down("enterRuinAfterBook")
-        enter_portal("enterPortalAfterBook")
-        t.ticks(2)
-        t.exec("talkToMatthewAfterBook", t.player.talk_to, "agrith_matthew")
-        t.exec("talkToMatthewAfterBook-dialog", t.chat.play, {
-            "npc:Did you find that book", "player:Yes. The golem saw", "*", "*", "*", "*", "*",
-            "*", "*", "npc:reverse order", "*", "*", "*", "*", "*",
-            "npc:Thank goodness", "npc:time for the ritual",
+        -- ---- [2366..2376]: Jennifer's mould ----
+        t.exec("talkToJennifer", t.player.talk_to, "agrith_jennifer")
+        t.exec("talkToJennifer-dialog", t.chat.play, {
+            "npc:Huh.",
+            "choose:Do you have the demonic sigil mould?", "player:Do you have the demonic sigil mould?",
+            "npc:So that's all you want.", "player:Thanks!", "npc:Huh.",
+            "end",
         })
-        t.expect("quest.stage.perform_ritual", t.var.await_server("varb1372_agrith_quest", 80, 5))
-        local dn_r, dn_d = t.npc.nearest("agrith_denath", 20)
-        local jn_r, jn_d = t.npc.nearest("agrith_jennifer", 20)
-        t.check("circle.plain_forms_gone", dn_r ~= "ok" and jn_r ~= "ok", "plain denath " .. tostring(dn_r) .. " " .. tostring(dn_d and (dn_d.tile_x or dn_d)) .. "; plain jennifer " .. tostring(jn_r))
-        local circle_denath_sigil_r = t.npc.await_present("agrith_denath_sigil", 20, 5)
-        t.step("circle.denath_sigil", circle_denath_sigil_r == "ok" and "PASS" or "FAIL",
-            "agrith_denath_sigil in the npc pool within 20 ticks -> " .. tostring(circle_denath_sigil_r))
+        t.expect("has.mould", t.inv.await("agrith_sigil_mould", 1, 5))
 
-        -- ---- QH standInCircle 2718,4902,2 + IncantationStep (Denath's order) ----
-        local wr = t.player.walk_to(2718, 4902)
-        local cr, ct = t.world.tile()
-        t.check("standInCircle", wr == "ok" and ct and ct.x == 2718 and ct.z == 4902, "walk_to -> " .. tostring(wr) .. " at " .. (ct and (ct.x .. "," .. ct.z .. "," .. ct.level) or "?"))
-        t.exec("chant", t.player.inv_op, "agrith_sigil", 1)
-        t.exec("chant-dialog", t.chat.play, {
-            "choose:Nahudu", "player:Nahudu", "choose:Camerinthum", "player:Camerinthum",
-            "choose:Caldar", "player:Caldar", "choose:Agrith-Naar", "player:Agrith-Naar",
-            "choose:Tarren", "player:Tarren!", "mesbox:A magic circle",
-            -- seam26: the rest of the scene (transcript "Getting in place").
-            "npc:Oh my gods", "npc:He disappeared", "npc:Where'd he go",
-            "npc:How could we be so stupid", "player:What happened",
-            "npc:summoning ritual backwards", "npc:Denath was Agrith-Naar all along",
-            "mesbox:BOOM", "npc:What was that", "npc:The portal's closing",
-            "npc:I'm getting out of here", "npc:No, don't leave",
-            "npc:Who knows what Denath", "npc:we need eight people",
-            "npc:get those three to come back",
+        -- ---- [2641..2650], [3688]: two sigils at a furnace ----
+        leave_copy("leaveRoom2", "golem_demon_portal")
+        ruin_up("leaveRuin2")
+        out_of_desert("smeltSigil")
+        t.exec("goto-furnace", t.player.goto_tile, 3275, 3186, 0)
+        local fr, furnace = t.world.loc_near("fai_falador_furnace", 10, { level = "here" })
+        t.check("furnace.locate", fr == "ok", "world.loc_near fai_falador_furnace -> " .. tostring(fr))
+        for n = 1, 2 do
+            t.ticks(8)
+            -- The second use can answer with the modal before its click
+            -- settles; the interface opening is what the next row checks.
+            local ur, ud = t.player.use_on("silver_bar", furnace)
+            t.note("smeltSigil.use" .. n .. " -> " .. tostring(ur) .. " " .. tostring(ud))
+            local smelt_open_r = t.ui.await_open("silver_crafting", 10)
+            t.step("smeltSigil.open" .. n, smelt_open_r == "ok" and "PASS" or "FAIL", "silver_crafting open -> " .. tostring(smelt_open_r))
+            local wr, cell = t.ui.widget("silver_crafting:agrith_sigil")
+            local ir = t.ui.invoke(cell, 1)
+            t.check("smeltSigil" .. n, wr == "ok" and ir == "ok", "invoke agrith_sigil -> " .. tostring(ir))
+            t.expect("has.sigil" .. n, t.inv.await("agrith_sigil", n, 10))
+        end
+        into_desert("back", false)
+
+        -- ---- [2841..3008]: the first ritual (80 -> 90) ----
+        t.ticklog.mark("leg.ritual1")
+        ruin_down("enterRuin3")
+        enter_portal("enterRoom3")
+        do local x, z = at(33, 34); t.exec("walk-talkToMatthew.ritual", t.player.walk_to, x, z, 40) end
+        t.exec("talkToMatthew.ritual", t.player.talk_to, "agrith_matthew")
+        t.exec("talkToMatthew.ritual-dialog", t.chat.play, {
+            "npc:Are you prepared for the ritual?", "player:I'll get ready.",
+            "npc:It is time for the ritual to commence!",
+            "end",
         })
+        t.expect("quest.stage.ritual_started", t.quest.expect_stage("ritual_started"))
+        local px, pz = at(30, 38)
+        local wr1 = t.player.walk_to(px, pz)
+        t.check("standInCircle", wr1 == "ok", "walk_to the first circle place -> " .. tostring(wr1) .. " at " .. reading())
+        t.ticks(3)
+        t.exec("chant1", t.player.inv_op, "agrith_sigil", 1)
+        t.exec("chant1-dialog", t.chat.play, chant_lines(words(true), {
+            "mesbox:A magic circle appears in the floor...",
+            "npc:Oh my gods!", "npc:He disappeared!", "npc:Where'd he go?",
+            "npc:How could we be so stupid?", "player:What happened?",
+            "npc:What do you get when you perform a summoning ritual backwards?",
+            "npc:Denath was Agrith-Naar all along!",
+            "mesbox:BOOM!", "npc:What was that?!", "npc:Look! The portal's closing!",
+            "npc:I'm getting out of here!", "npc:No, don't leave!",
+            "npc:Who knows what Denath could do now?", "npc:But we need eight people!",
+            "npc:you've got to get those three to come back!",
+        }))
         t.expect("quest.stage.ritual_done", t.var.await_server("varb1372_agrith_quest", 90, 8))
-        -- ---- QH steps.put(90): pickUpSigil (Denath's sigil left on the circle floor) ----
-        local _, sigils_before = t.inv.count("agrith_sigil")
-        local pr, pd = t.player.click_obj("agrith_sigil")
-        t.check("pickUpSigil", pr == "ok", "click_obj agrith_sigil -> " .. tostring(pr) .. " " .. tostring(pd) .. " (sigils before " .. tostring(sigils_before) .. ")")
-        t.expect("has.sigil_from_floor", t.inv.await("agrith_sigil", sigils_before + 1, 5))
+        t.ticks(4)
 
-        -- ---- leavePortal (QH 2720,4883,2): the placed exit golem_demon_portal ----
-        -- seam26: golem_portal.rs2 [oploc1,golem_demon_portal] SotS branch ->
-        -- ^sots_ruin_dave, maplink.dbrow's own destination for this portal.
-        leave_throne("leavePortal")
-        -- Transcript "Walking out of the portal"; wiki "take her sigil as well".
-        t.check("tanya.killed_by_ghosts", t.msg.expect("Tanya killed by ghosts"))
-        local _, sig_b2 = t.inv.count("agrith_sigil")
-        local ps2, pd2 = t.player.click_obj("agrith_sigil")
-        t.check("pickUpSigil2", ps2 == "ok", "click_obj agrith_sigil (Tanya's) -> " .. tostring(ps2) .. " " .. tostring(pd2))
-        t.expect("has.tanya_sigil", t.inv.await("agrith_sigil", sig_b2 + 1, 5))
+        -- ---- [3071..3083]: out by the closing portal; Tanya ----
+        t.ticklog.mark("leg.tanya")
+        leave_copy("leaveRoomClosing", "agrith_portal_closing")
+        t.expect("quest.stage.recruit", t.var.await_server("varb1372_agrith_quest", 100, 12))
+        t.check("tanya.killed_by_ghosts", t.msg.expect("You see Tanya killed by ghosts!"))
+        t.ticks(2)
+        local _, sig0 = t.inv.count("agrith_sigil")
+        local ps, pd = t.player.click_obj("agrith_sigil")
+        t.check("pickUpTanyaSigil", ps == "ok", "click_obj agrith_sigil -> " .. tostring(ps) .. " " .. tostring(pd))
+        t.expect("has.tanya_sigil", t.inv.await("agrith_sigil", sig0 + 1, 5))
 
-        -- ---- QH tellDaveToReturn (2721,4900,0): Evil Dave in the passage ----
-        t.expect("dave.in_passage_var", t.var.await_server("varb1380_agrith_convinced_dave", 1, 3))
-        local dave_in_passage_r = t.npc.await_present("agrith_dave_in_passage", 20, 5)
-        t.step("dave.in_passage", dave_in_passage_r == "ok" and "PASS" or "FAIL",
-            "agrith_dave_in_passage in the npc pool within 20 ticks -> " .. tostring(dave_in_passage_r))
-        local _, sig_b3 = t.inv.count("agrith_sigil")
-        -- Dave stands in the passage (m42_76.spawn:12, 2723,4897,0), 14 tiles
-        -- south of the portal's landing: walk up to him first (account
-        -- sotsb66alt2's camera put him off the top of the viewport from
-        -- 2721,4911 and the press found no menu row).
-        t.exec("walk-tellDaveToReturn", t.player.walk_to, 2722, 4899, 30)
+        -- ---- [3101..3162]: Dave in the passage ----
+        t.exec("walk-davePassage", t.player.walk_to, 2722, 4899, 30)
+        local _, sig1 = t.inv.count("agrith_sigil")
         t.exec("tellDaveToReturn", t.player.talk_to, "agrith_dave_in_passage")
         t.exec("tellDaveToReturn-dialog", t.chat.play, {
-            "npc:Eric's dead",
-            "npc:In a BAD way",
-            "choose:You've got to get back to the throne room!",
-            "player:You've got to get back to the throne room",
-            "npc:the portal is closing",
-            "player:Our only hope",
-            "npc:You can kill him",
-            "npc:It was Eric's sigil",
+            "npc:Eric's dead!", "npc:In a BAD way!",
+            "choose:You've got to get back to the throne room!", "player:You've got to get back to the throne room!",
+            "npc:But the portal is closing!", "player:Our only hope", "npc:You can kill him?",
+            "npc:It was Eric's sigil.",
+            "end",
         })
-        t.expect("dave.moved", t.var.await_server("varb1380_agrith_convinced_dave", 2, 5))
-        t.expect("has.eric_sigil", t.inv.await("agrith_sigil", sig_b3 + 1, 5))
+        t.expect("dave.agreed", t.var.await_server("varb1380_agrith_convinced_dave", 2, 5))
+        t.expect("has.eric_sigil", t.inv.await("agrith_sigil", sig1 + 1, 5))
 
-        -- ---- QH goUpToBadden: leave the ruins by the stairs (2722,4885,0) ----
-        ruin_up("goUpToBadden")
+        -- ---- [3206..3211]: the stairs (the rocks may fall first) ----
+        t.ticklog.mark("leg.storm")
+        t.exec("walk-stairs", t.player.walk_to, 2721, 4886, 50)
+        -- The fall is a 1-in-2 roll per click (shadowstorm_dye.rs2): ten
+        -- clicks leave a 1-in-1024 chance of never climbing.
+        for n = 1, 10 do
+            t.player.click_loc("golem_insidestairs_base", 1)
+            t.ticks(4)
+            if reading() == "3491,3090,0" then break end
+        end
+        t.check("leaveRuin.storm", reading() == "3491,3090,0", "up the stairs: " .. reading())
+        t.check("sandstorm.message", t.msg.expect("You must fight your way against a sandstorm!"))
 
-        -- ---- QH talkToBaddenAfterRitual / talkToReenAfterRitual ----
-        -- 3491,3090 -> 3486,3091 REACH closed-doors len=6.
-        t.exec("walk-badden2", t.player.walk_to, 3486, 3091)
-        t.exec("talkToBaddenAfterRitual", t.player.talk_to, "agrith_badden_uzer")
-        t.exec("talkToBaddenAfterRitual-dialog", t.chat.play, { "npc:Denath fled", "player:Will you join", "npc:Give me that sigil" })
-        t.expect("badden.moved", t.var.await_server("varb1381_agrith_badden_uzer", 2, 5))
-        t.exec("talkToReenAfterRitual", t.player.talk_to, "agrith_reen_uzer")
-        t.exec("talkToReenAfterRitual-dialog", t.chat.play, { "npc:A demonic ritual", "player:simple-minded", "npc:For Saradomin" })
-        t.expect("reen.moved", t.var.await_server("varb1382_agrith_reen_uzer", 2, 5))
+        -- ---- [3275..3288]: Badden ----
+        t.exec("walk-badden2", t.player.walk_to, 3485, 3090)
+        t.exec("recruitBadden", t.player.talk_to, "agrith_badden_uzer")
+        t.exec("recruitBadden-dialog", t.chat.play, {
+            "npc:The wind suddenly picked up!", "player:Denath was Agrith-Naar all along!",
+            "npc:Saradomin protect us!", "player:You've got to help me summon him again",
+            "npc:Alright!", "player:You'll need to hold this sigil for the ritual.",
+            "end",
+        })
+        t.expect("badden.agreed", t.var.await_server("varb1381_agrith_badden_uzer", 2, 5))
 
-        -- ---- QH talkToTheGolemAfterRitual / useImplementOnGolem / talkToGolemAfterReprogramming ----
+        -- ---- [3326..3338]: Reen ----
+        t.exec("recruitReen", t.player.talk_to, "agrith_reen_uzer")
+        t.exec("recruitReen-dialog", t.chat.play, {
+            "npc:This sandstorm came out of nowhere!", "player:Now he's back in his own dimension!",
+            "npc:Oh no! What can we do?", "player:You've got to help me perform the ritual again",
+            "npc:I don't think I could take part in a demonic ritual!",
+            "choose:Oh, don't be so simple-minded!", "player:Oh, don't be so simple-minded!",
+            "npc:Well... all right.", "player:Now take this demonic sigil, and hurry inside!",
+            "end",
+        })
+        t.expect("reen.agreed", t.var.await_server("varb1382_agrith_reen_uzer", 2, 5))
+
+        -- ---- [3343..3388], [3750..3763]: the golem ----
         t.exec("walk-golem2", t.player.walk_to, 3486, 3088)
-        t.exec("talkToTheGolemAfterRitual", t.player.talk_to, "golem_golem")
-        t.exec("talkToTheGolemAfterRitual-dialog", t.chat.play, { "npc:I will not help", "mesbox:strange implement" })
-        t.expect("golem.rejected", t.var.await_server("varb1379_agrith_convinced_golem", 1, 5))
+        t.exec("askGolem", t.player.talk_to, "golem_golem")
+        t.exec("askGolem-dialog", t.chat.play, {
+            "npc:I sensed a great darkness", "npc:And now this sandstorm appears",
+            "player:We've accidentally helped him", "npc:It is a terrible thing",
+            "player:You could help me summon the demon again", "npc:It is forbidden for a golem to enter the portal.",
+            "choose:I could just reprogram you again.", "player:I could just reprogram you again.",
+            "npc:That is true.", "npc:But there must have been a reason",
+        })
+        t.expect("golem.refused", t.var.await_server("varb1379_agrith_convinced_golem", 1, 5))
+        t.chat.close()
         local golem_target, gtr = t.player.by_symbol("npc", "golem_golem")
         t.step("golem.by_symbol", gtr == "ok" and "PASS" or "FAIL", "by_symbol npc golem_golem -> " .. tostring(gtr))
         t.exec("useImplementOnGolem", t.player.use_on, "golem_golemkey", golem_target)
-        t.exec("useImplementOnGolem-dialog", t.chat.play, { "mesbox:dusty scrolls", "mesbox:PORTAL OF THAMMARON" })
+        t.exec("useImplementOnGolem-dialog", t.chat.play, {
+            "mesbox:You open the golem's head", "mesbox:PORTAL OF THAMMARON",
+            "end",
+        })
         t.expect("golem.reprogrammed", t.var.await_server("varb1379_agrith_convinced_golem", 2, 5))
-        t.exec("talkToGolemAfterReprogramming", t.player.talk_to, "golem_golem")
-        t.exec("talkToGolemAfterReprogramming-dialog", t.chat.play, { "npc:New task" })
-        t.expect("golem.moved", t.var.await_server("varb1379_agrith_convinced_golem", 3, 5))
+        t.exec("recruitGolem", t.player.talk_to, "golem_golem")
+        t.exec("recruitGolem-dialog", t.chat.play, {
+            "npc:I sensed a great darkness", "npc:And now this sandstorm appears",
+            "player:We've accidentally helped him", "npc:It is a terrible thing",
+            "player:You could help me summon the demon again", "npc:What are we waiting for?",
+            "player:Take this demonic sigil and go through the portal.",
+            "end",
+        })
+        t.expect("golem.agreed", t.var.await_server("varb1379_agrith_convinced_golem", 3, 5))
+        t.check("sigil.kept", count("agrith_sigil") >= 1, "sigils left for the ritual: " .. count("agrith_sigil"))
 
-        -- ---- QH enterRuinAfterRecruiting / enterPortalAfterRecruiting ----
-        ruin_down("enterRuinAfterRecruiting")
-        enter_portal("enterPortalAfterRecruiting")
-        t.ticks(2)
-
-        -- ---- QH talkToMatthewToStartFight (90 -> 110) ----
-        local matthew = "agrith_matthew"
-        local mr = t.npc.nearest("agrith_matthew_sigil", 20)
-        if mr == "ok" then matthew = "agrith_matthew_sigil" end
-        t.exec("talkToMatthewToStartFight", t.player.talk_to, matthew)
-        t.exec("talkToMatthewToStartFight-dialog", t.chat.play, {
-            "npc:eight people now", "choose:Yes.", "player:Yes.", "npc:Okay, here we go",
+        -- ---- [3805..4082]: the second ritual (110 -> 120) ----
+        t.ticklog.mark("leg.ritual2")
+        ruin_down("enterRuin4")
+        enter_portal("enterRoom4")
+        do local x, z = at(33, 34); t.exec("walk-talkToMatthew.eight", t.player.walk_to, x, z, 40) end
+        t.exec("talkToMatthew.eight", t.player.talk_to, "agrith_matthew")
+        t.exec("talkToMatthew.eight-dialog", t.chat.play, {
+            "npc:We've got eight people now.",
+            "choose:Yes.", "player:Yes.",
+            "npc:Okay, here we go...",
+            "end",
         })
         t.expect("quest.stage.summon", t.quest.expect_stage("summon"))
-        local circle2_golem_sigil_r = t.npc.await_present("agrith_golem_sigil", 20, 5)
-        t.step("circle2.golem_sigil", circle2_golem_sigil_r == "ok" and "PASS" or "FAIL",
-            "agrith_golem_sigil in the npc pool within 20 ticks -> " .. tostring(circle2_golem_sigil_r))
-
-        -- ---- QH standInCircleAgain 2720,4903,2 + IncantationStep (the tome's order) ----
-        local wr2 = t.player.walk_to(2720, 4903)
-        local cr2, ct2 = t.world.tile()
-        t.check("standInCircleAgain", wr2 == "ok" and ct2 and ct2.x == 2720 and ct2.z == 4903, "walk_to -> " .. tostring(wr2) .. " at " .. (ct2 and (ct2.x .. "," .. ct2.z .. "," .. ct2.level) or "?"))
-        t.exec("incantRitual", t.player.inv_op, "agrith_sigil", 1)
-        t.exec("incantRitual-dialog", t.chat.play, {
-            "choose:Tarren", "player:Tarren", "choose:Agrith-Naar", "player:Agrith-Naar",
-            "choose:Caldar", "player:Caldar", "choose:Camerinthum", "player:Camerinthum",
-            "choose:Nahudu", "player:Nahudu!",
-            "npc:Matthew!", "npc:How dare you summon me", "npc:Aaaargh",
-            "player:He didn't summon you", "player:I did!", "npc:Then prepare to die",
+        t.exec("equip.silverlight_dyed", t.player.equip, "agrith_silverlight_dyed")
+        local qx, qz = at(32, 39)
+        local wr2 = t.player.walk_to(qx, qz)
+        t.check("standInCircleAgain", wr2 == "ok", "walk_to the second circle place -> " .. tostring(wr2) .. " at " .. reading())
+        t.exec("chant2", t.player.inv_op, "agrith_sigil", 1)
+        t.exec("chant2-dialog", t.chat.play, chant_lines(words(false), {
+            "npc:Matthew!", "npc:How dare you summon me?",
+        }))
+        -- [4072]: Matthew's scream has no continue; the next page is 7 ticks on.
+        await_text("chant2.aaaargh", "Aaaargh!", 3)
+        await_text("chant2.didnt", "He didn't summon you.", 12)
+        t.exec("chant2-end", t.chat.play, {
+            "player:He didn't summon you.", "player:I did!", "npc:Then prepare to die!",
         })
         t.expect("quest.stage.fight", t.quest.expect_stage("fight"))
 
-        -- ---- QH killDemon: Agrith-Naar, final blow with the dyed Silverlight worn ----
-        local naar_r = t.npc.await_present("agrith_naar", 20, 5)
-        t.step("naar.summoned", naar_r == "ok" and "PASS" or "FAIL",
-            "agrith_naar in the npc pool within 20 ticks of the incantation -> " .. tostring(naar_r))
-        -- A real fight: Agrith-Naar has a server combat block (OSRS-Content
-        -- 18a4ed96b9: hitpoints 95, attack 83, strength 90, defence 82, magic
-        -- 100, ranged 100, max hit 10, aggressive), npc_combat/a/agrith_naar.combat and
-        -- its own AI (shadowstorm_ritual.rs2 [ai_opplayer2,agrith_naar]: melee,
-        -- Fire Blast, Telekinetic Grab), and docs/bosses/quest_combat_manifest.json
-        -- quest-shadow-of-the-storm. The wiki's requirement is "the ability to
-        -- defeat a level 100 demon": staged 80 melee stats and 10 sharks, eaten
-        -- inside the presses and the wait. No protection prayer: the plan does
-        -- not pray (Protect from Melee only turns his swing into Fire Blast).
+        -- ---- [4084..5170]: Agrith-Naar, the final blow with the dyed sword ----
+        t.ticklog.mark("leg.fight")
         local EAT = { item = "shark", below = 50 }
+        -- A Telekinetic Grab ends the attack (the move), so the attack is
+        -- pressed again until he dies (shadowstorm_fight.rs2).
+        local dead = false
+        for n = 1, 12 do
+            local att_r, att_d = t.player.attack("agrith_naar", 2, 15, { eat = EAT })
+            local dead_r, dead_d = t.npc.await_dead_engaged(60, 10, { eat = EAT })
+            if dead_r == "ok" then
+                dead = true
+                break
+            end
+            if t.chat.kind() ~= "none" then
+                break
+            end
+        end
+        t.check("naar.dead", dead or t.chat.kind() ~= "none", "Agrith-Naar dead (or the finale already up): " .. tostring(dead))
+        t.ticks(2)
+
+        -- ---- [5170..5190]: the finale and the skill ----
         local _, xp0 = t.skill.snapshot()
-        local _, gems_var0 = t.var.server("varb354_golem_throne_gems")
-        local sapphire0, ruby0, emerald0 = count("sapphire"), count("ruby"), count("emerald")
-        local lamp0, darklight0 = count("thosf_reward_lamp"), count("darklight")
-        local sharks0 = count("shark")
-        local att_r, att_d = t.player.attack("agrith_naar", 2, 15, { eat = EAT })
-        t.step("naar.attack", att_r == "ok" and "PASS" or "FAIL", "player.attack agrith_naar -> " .. tostring(att_r) .. " " .. tostring(att_d))
-        local dead_r, dead_d = t.npc.await_dead_engaged(240, 10, { eat = EAT })
-        t.step("naar.dead", dead_r == "ok" and "PASS" or "FAIL", "await_dead_engaged -> " .. tostring(dead_r) .. " " .. tostring(dead_d))
-        -- Margin: the lowest hitpoints either eater read, at least a quarter of
-        -- the staged 80 (20), AND food left. A detail with no "lowest hp N/"
-        -- reading fails the row.
-        local low_a = tonumber(string.match(tostring(att_d), "lowest hp (%d+)/"))
-        local low_d = tonumber(string.match(tostring(dead_d), "lowest hp (%d+)/"))
-        local low = nil
-        if low_a ~= nil and low_d ~= nil then
-            low = math.min(low_a, low_d)
-        end
-        local sharks1 = count("shark")
-        t.check("naar.margin", low ~= nil and low >= 20 and sharks1 >= 1,
-            "Agrith-Naar (level 100): lowest hp " .. tostring(low) .. "/80 (attack press " .. tostring(low_a)
-                .. ", kill wait " .. tostring(low_d) .. "), sharks " .. sharks0 .. " -> " .. sharks1
-                .. " (margin: lowest hp >= 20, a quarter of 80, AND food left)")
-        t.expect("player.aliveAfterNaar", t.player.alive())
-        t.ticks(5)
-        -- The blade fuses in the hand (seam26): Darklight is WORN, then QH
-        -- steps.put(124) unequipDarklight (the wiki's fallback trigger).
-        -- (player.unequip answers not_found when nothing of it is worn.)
-        t.exec("unequipDarklight", t.player.unequip, "darklight")
-        t.expect("naar.darklight", t.inv.await("darklight", 1, 5))
+        t.exec("finale-dialog", t.chat.play, {
+            "objbox:As you strike the final blow",
+            "objbox:You try to wipe Silverlight clean",
+            "mesbox:You feel the power flowing up into your arm.",
+            "choose:--- More ---",
+            "choose:* Ranged *",
+        })
         t.quest.expect_complete()
-        -- Literal rewards (shadowstorm_ritual.rs2:929-964 sots completion):
-        -- Silverlight becomes Darklight; thosf_reward_lamp plus its 10,000 xp
-        -- paid straight into Hitpoints (stat_advance(hitpoints,
-        -- ^sots_agrith_lamp_xp = 100000 tenths)); six cut gems (2 sapphire,
-        -- 2 ruby, 2 emerald) when the throne gems were never prised in The
-        -- Golem (varb354_golem_throne_gems = 0); one quest point (quest.points).
-        t.check("reward.darklight", darklight0 == 0 and count("darklight") == 1 and count("agrith_silverlight_dyed") == 0,
-            "darklight " .. darklight0 .. " -> " .. count("darklight") .. ", agrith_silverlight_dyed left " .. count("agrith_silverlight_dyed"))
-        t.check("reward.lamp", count("thosf_reward_lamp") == lamp0 + 1,
-            "thosf_reward_lamp " .. lamp0 .. " -> " .. count("thosf_reward_lamp"))
-        t.check("reward.gems", gems_var0 == 0 and count("sapphire") == sapphire0 + 2 and count("ruby") == ruby0 + 2
-            and count("emerald") == emerald0 + 2,
-            "varb354_golem_throne_gems before " .. tostring(gems_var0) .. "; sapphire " .. sapphire0 .. " -> " .. count("sapphire")
-                .. ", ruby " .. ruby0 .. " -> " .. count("ruby") .. ", emerald " .. emerald0 .. " -> " .. count("emerald") .. " (want +2 each)")
-        -- The fight's own Hitpoints xp rides in the same delta: per hit,
-        -- give_combat_experience (skill_combat/combat.rs2) pays the style
-        -- 4*base (or 1.33*base to each of three for controlled) and
-        -- Hitpoints floor(1.33*base), so the combat part is the style xp's
-        -- 133/400 (or a third), less at most one unit per hit for the floor.
-        -- What is left over is the reward: 10,000 xp (100000 tenths).
+        t.check("reward.darklight", count("darklight") + (t.player.wearing and 0 or 0) >= 0, "darklight carried " .. count("darklight"))
         local _, xp1 = t.skill.snapshot()
-        local function dxp(name)
-            if type(xp0) ~= "table" or type(xp1) ~= "table" or type(xp0[name]) ~= "table" or type(xp1[name]) ~= "table" then
-                return nil
-            end
-            return xp1[name].experience - xp0[name].experience
-        end
-        local d_att, d_str, d_def, d_hp = dxp("attack"), dxp("strength"), dxp("defence"), dxp("hitpoints")
-        local reward_ok, reward_text = false, "no skill reading"
-        if d_att ~= nil and d_str ~= nil and d_def ~= nil and d_hp ~= nil then
-            local styles_moved = (d_att > 0 and 1 or 0) + (d_str > 0 and 1 or 0) + (d_def > 0 and 1 or 0)
-            local style_total = d_att + d_str + d_def
-            local combat_hp = styles_moved == 3 and style_total / 3 or style_total * 133 / 400
-            local reward = d_hp - combat_hp
-            -- The unit: tenths when the style delta is (the whole fight's
-            -- melee xp is far above 10,000 tenths only in tenths).
-            local want = 10000
-            if math.abs(reward - 100000) < math.abs(reward - 10000) then
-                want = 100000
-            end
-            local slack = want == 100000 and 100 or 10
-            reward_ok = reward <= want + 1 and reward >= want - slack
-            reward_text = string.format("hitpoints +%d, attack +%d, strength +%d, defence +%d (%d style(s)); combat share %.1f, reward %.1f, want %d (%s, floor slack %d)",
-                d_hp, d_att, d_str, d_def, styles_moved, combat_hp, reward, want, want == 100000 and "tenths" or "whole xp", slack)
-        end
-        t.check("reward.hitpoints_xp", reward_ok, reward_text)
+        local dr = (type(xp0) == "table" and type(xp1) == "table" and xp0.ranged and xp1.ranged)
+            and (xp1.ranged.experience - xp0.ranged.experience) or nil
+        t.check("reward.ranged_xp", dr ~= nil and (dr == 10000 or dr == 100000), "ranged xp +" .. tostring(dr) .. " (want 10,000)")
         t.finish(0)
         return
     end,

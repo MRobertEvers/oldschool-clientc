@@ -19931,8 +19931,9 @@ ToriRSServer_RegionSquareFor(
 {
     int x;
     int z;
+    int level;
 
-    ToriRSServer_RegionTileFor(player, &x, &z);
+    ToriRSServer_RegionTileFor(player, &x, &z, &level);
     *out_map_x = x >> 6;
     *out_map_z = z >> 6;
 }
@@ -19941,21 +19942,25 @@ void
 ToriRSServer_RegionTileFor(
     struct ToriRSServerPlayer* player,
     int* out_x,
-    int* out_z)
+    int* out_z,
+    int* out_level)
 {
     int handle = ToriRSServer_MapInstanceFind(player->x, player->z);
     int src_x;
     int src_z;
+    int src_level;
 
     *out_x = player->x;
     *out_z = player->z;
+    *out_level = player->level;
     if( handle == 0 )
         return;
     if( !ToriRSServer_MapInstanceSourceTile(handle, player->level, player->x, player->z, &src_x,
-                                         &src_z) )
+                                         &src_z, &src_level) )
         return; /* inside the reservation but on a zone nothing was copied to */
     *out_x = src_x;
     *out_z = src_z;
+    *out_level = src_level;
 }
 
 /*
@@ -20538,15 +20543,16 @@ world_sync_multiway_indicator(
         ToriRSServer_VarbitSetOn(srv, player, id, multi);
 }
 
-/* The music area the player's (template) tile is in, or -1. */
+/* The music area the player's (template) tile and plane are in, or -1. */
 static int
 music_area_here(struct ToriRSServerPlayer* player)
 {
     int x;
     int z;
+    int level;
 
-    ToriRSServer_RegionTileFor(player, &x, &z);
-    return ToriRSServer_MusicAreaAt(x, z, player->level);
+    ToriRSServer_RegionTileFor(player, &x, &z, &level);
+    return ToriRSServer_MusicAreaAt(x, z, level);
 }
 
 /* The region track for where the player stands: its music area's, else its
@@ -20556,9 +20562,10 @@ music_enter_here(struct ToriRSServerPlayer* player)
 {
     int x;
     int z;
+    int level;
 
-    ToriRSServer_RegionTileFor(player, &x, &z);
-    ToriRSServer_MusicEnterTile(player, x, z, player->level);
+    ToriRSServer_RegionTileFor(player, &x, &z, &level);
+    ToriRSServer_MusicEnterTile(player, x, z, level);
 }
 
 static void

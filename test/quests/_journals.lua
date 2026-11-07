@@ -19,6 +19,8 @@
 --   ends at the last text row).
 --   The Dig Site, nine states of stages 1..6: RSProx index 4446, exactly.
 --   The Golem, nine states of stages 1..7: RSProx index 4473, exactly.
+--   Shadow of the Storm, nine states of stages 10..100: RSProx index 4475 and
+--   4477, exactly.
 --   Misthalin Mystery and Vampyre Slayer (the wiki's journal transcripts): every
 --   state opens with its current step.
 -- The driver reads a row's text without its tags, so rows are compared as plain
@@ -1798,6 +1800,43 @@ GOLEM_4473["7"] = rows(G_SPOKE, G_REPAIRED, G_PORTAL_DONE, G_ELISSA, G_NOTES, "<
     "<str>Museum and repaired the puzzle in the temple.", "<str>I have opened the portal.", "<str>I have visited the demon's lair and seen its skeleton.",
     "<str>I told the golem that the demon was dead, but it did not", "<str>believe me!",
     "<col=000080>I should find some way to convince the <col=800000>golem<col=000080> that its task is", "<col=000080>done.")
+-- Shadow of the Storm, RSProx index 4475 ([608] stage 10, [775] 20) and 4477
+-- ([1603] 50, [2547] 70 with the mould, [2741] 70 with a sigil, [3018] 90,
+-- [3231] 100 with Dave, [3297] with Badden too, [3343] with Reen too).
+local S_REEN = { "<str>I talked to Fr. Reen in Al Kharid and Fr. Badden in Uzer and", "<str>agreed to help them slay the demon Agrith-Naar." }
+local S_IN = { "<str>I infiltrated a group of dark wizards that is planning to", "<str>summon the demon Agrith-Naar, so that I can slay the demon", "<str>when it appears." }
+local S_BOOK = { "<str>I found a book that one of the wizards hid in the ruins when he", "<str>tried to run away from the group. Matthew thinks that Denath",
+    "<str>is not telling the wizards his true plans. I told him I was", "<str>planning to slay Agrith-Naar." }
+local S_JOINED = { "<str>I joined a group of dark wizards in Uzer who were going to", "<str>summon the demon Agrith-Naar, so that I could kill the demon",
+    "<str>when it was summoned. But the leader of the group, Denath,", "<str>turned out to be Agrith-Naar in human form, and the",
+    "<str>summoning ritual actually returned him to his own dimension" }
+local S_KILLED = rows(S_JOINED, "<str>where he would be far more powerful! Agrith-Naar has already", "<str>killed two of the wizards.")
+local S_DAVE = { "<str>I convinced Dave (who had tried to run away) to return and", "<str>help with the ritual." }
+local SOTS = {
+    ["10"] = { "<str>I talked to Fr. Reen in Al Kharid. He told me that a group of", "<str>dark wizards led by Denath is planning to summon a demon,",
+        "<str>and he wants me to slay the demon once it is summoned.",
+        "<col=000080>Reen asked me to speak to his partner <col=800000>Badden<col=000080> who is in <col=800000>Uzer<col=000080>." },
+    ["20"] = rows(S_REEN, "<col=000080>I need to infiltrate the group of dark wizards led by <col=800000>Denath<col=000080>,",
+        "<col=000080>so that I can be in position to kill <col=800000>Agrith-Naar<col=000080> when they", "<col=000080>summon him."),
+    ["50"] = rows(S_IN, "<col=800000>Denath<col=000080> told me to make myself a <col=800000>demonic sigil<col=000080> out of silver. I",
+        "<col=000080>should speak to the wizards and find which one has the <col=800000>sigil", "<col=800000>mould<col=000080>.",
+        "<col=800000>Matthew<col=000080> told me that another wizard stole a book from <col=800000>Denath<col=000080>", "<col=000080>and tried to run away. I should look for it."),
+    ["70a"] = rows(S_IN, S_BOOK, "<col=800000>Denath<col=000080> told me to make myself a <col=800000>demonic sigil<col=000080>. I have the <col=800000>sigil",
+        "<col=800000>mould<col=000080>, and now I need to cast the sigil from <col=800000>silver<col=000080>."),
+    ["70b"] = rows(S_IN, S_BOOK, "<str>I made a demonic sigil, which I will need in the summoning", "<str>ritual.",
+        "<col=000080>I should make sure I have <col=800000>Silverlight<col=000080> with me and wait in the", "<col=000080>throne room for the ritual to start."),
+    ["90"] = rows(S_JOINED, "<str>where he would be far more powerful!",
+        "<col=000080>Three of the <col=800000>wizards<col=000080> ran away. I should convince them to come",
+        "<col=000080>back so that we can perform the ritual again and I can kill", "<col=000080><col=800000>Agrith-Naar<col=000080>."),
+    ["100a"] = rows(S_KILLED, S_DAVE, "<col=000080>I need to find <col=800000>three<col=000080> more people to help with the ritual, so",
+        "<col=000080>that I can summon <col=800000>Agrith-Naar<col=000080> again and slay him."),
+    ["100b"] = rows(S_KILLED, S_DAVE, "<str>I convinced Fr. Badden to help me with the ritual.",
+        "<col=000080>I need to find <col=800000>two<col=000080> more people to help with the ritual, so that I",
+        "<col=000080>can summon <col=800000>Agrith-Naar<col=000080> again and slay him."),
+    ["100c"] = rows(S_KILLED, S_DAVE, "<str>I convinced Fr. Badden to help me with the ritual.", "<str>I convinced Fr. Reen to help me with the ritual.",
+        "<col=000080>I need to find <col=800000>one<col=000080> more person to help with the ritual, so that I",
+        "<col=000080>can summon <col=800000>Agrith-Naar<col=000080> again and slay him."),
+}
 return {
     id = "journals",
     fixture = "fresh_lumbridge.ini",
@@ -2059,6 +2098,27 @@ return {
         golem(6, 3, 1) exact("journal.golem.6", "The Golem", GOLEM_4473["6"])
         golem(7, 3, 1) exact("journal.golem.7", "The Golem", GOLEM_4473["7"])
         golem(0, 0, 0)
+
+        local function sots(stage, dave, badden, reen, give)
+            set("::clearinv")
+            set("::setvar varb1372_agrith_quest " .. stage)
+            set("::setvar varb1380_agrith_convinced_dave " .. dave)
+            set("::setvar varb1381_agrith_badden_uzer " .. badden)
+            set("::setvar varb1382_agrith_reen_uzer " .. reen)
+            if give then
+                set("::give " .. give)
+            end
+        end
+        sots(10, 0, 1, 0) exact("journal.sots.10", "Shadow of the Storm", SOTS["10"])
+        sots(20, 0, 1, 0) exact("journal.sots.20", "Shadow of the Storm", SOTS["20"])
+        sots(50, 0, 1, 1) exact("journal.sots.50", "Shadow of the Storm", SOTS["50"])
+        sots(70, 0, 1, 1, "agrith_sigil_mould") exact("journal.sots.70a", "Shadow of the Storm", SOTS["70a"])
+        sots(70, 0, 1, 1, "agrith_sigil") exact("journal.sots.70b", "Shadow of the Storm", SOTS["70b"])
+        sots(90, 1, 1, 1) exact("journal.sots.90", "Shadow of the Storm", SOTS["90"])
+        sots(100, 2, 1, 1) exact("journal.sots.100a", "Shadow of the Storm", SOTS["100a"])
+        sots(100, 2, 2, 1) exact("journal.sots.100b", "Shadow of the Storm", SOTS["100b"])
+        sots(100, 2, 2, 2) exact("journal.sots.100c", "Shadow of the Storm", SOTS["100c"])
+        sots(0, 0, 0, 0)
 
         -- The strip icons carry no server events (cache clickmask=2; Jagex arms
         -- none, RSProx index 4289 [0], [509]) and still switch the body.

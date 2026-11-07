@@ -411,6 +411,10 @@ ToriRSServer_MapInstanceFind(
  * player's own plane has no zone set there, because content routinely builds
  * one storey and leaves the rest void, and a player on the void plane is still
  * standing in the same place.
+ *
+ * `out_level` is the source zone's plane: the throne room under Uzer is
+ * level 2 of its square copied to level 0, and a music area keyed on level 2
+ * must see 2 (RSProx index 4477 [979], [2253]).
  */
 int
 ToriRSServer_MapInstanceSourceTile(
@@ -419,7 +423,8 @@ ToriRSServer_MapInstanceSourceTile(
     int x,
     int z,
     int* out_x,
-    int* out_z);
+    int* out_z,
+    int* out_level);
 
 /**
  * The other way: where a SOURCE tile landed in the instance. The first set

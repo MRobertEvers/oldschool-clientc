@@ -828,14 +828,17 @@ ToriRSServer_MapInstanceSourceTile(
     int x,
     int z,
     int* out_x,
-    int* out_z)
+    int* out_z,
+    int* out_level)
 {
     struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
     const struct ToriRSServerMapInstanceZone* zone;
     int zone_x;
     int zone_z;
 
-    assert(out_x && out_z);
+    assert(out_x);
+    assert(out_z);
+    assert(out_level);
     if( !inst )
         return 0;
     /* Zone index within the instance, from the SW corner. `zone_w`/`zone_h` and
@@ -862,6 +865,7 @@ ToriRSServer_MapInstanceSourceTile(
      * the exact tile wants `ToriRSServer_MapInstanceRotateToSrc`. */
     *out_x = zone->src_zone_x << 3;
     *out_z = zone->src_zone_z << 3;
+    *out_level = zone->src_level;
     return 1;
 }
 

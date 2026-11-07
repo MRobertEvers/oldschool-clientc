@@ -41,6 +41,7 @@
 #include "mem/torirs_mem.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_content.h"
+#include "torirs_server_db.h"
 #include "torirs_server_control.h"
 #include "torirs_server_host.h"
 #include "torirs_server_wire.h"
@@ -4310,12 +4311,68 @@ d_group_present(lua_State* L)
     return 2;
 }
 
+/* The quest list's rows. On the live client clientscript 2633
+ * (questlist_draw_2633) builds one text child per quest under questlist:list,
+ * each child's sub being that quest's `quest:id` and its text the quest's
+ * `quest:displayname` -- the same key `[if_button2,questlist:list]` hands to
+ * `~quest_journal_open_by_id(last_slot)`. This runner has no clientscripts,
+ * so every row read back "" and ui.journal_open found no quest by name. The
+ * text is read off the quest table here instead, for a sub naming a quest,
+ * while the list is mounted. (The clientscript's "MQ: " and " (Beta)"
+ * decorations are left off; the driver matches those by containment.) */
+static char const*
+questlist_row_text(struct ScriptBot const* bot, lua_Integer id)
+{
+    static int list = -2;
+    static int iface = -2;
+    int table_id;
+    const struct ToriRSServerDbTable* table;
+    int id_col;
+    int name_col;
+    int sub = (int)(id >> 32) - 1;
+
+    if( list == -2 )
+        list = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "questlist:list");
+    if( iface == -2 )
+        iface = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "questlist");
+    if( sub < 0 || list < 0 || (int)(id & 0xffffffff) != list )
+        return NULL;
+    if( iface < 0 || !ScriptrunCore_InterfaceOpen(bot->core, iface) )
+        return NULL;
+    table_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_DBTABLE, "quest");
+    table = table_id >= 0 ? ToriRSServer_DbTable(table_id) : NULL;
+    if( !table )
+        return NULL;
+    id_col = ToriRSServer_DbColumnIndex(table, "id");
+    name_col = ToriRSServer_DbColumnIndex(table, "displayname");
+    if( id_col < 0 || name_col < 0 )
+        return NULL;
+    for( int i = 0, rows = ToriRSServer_DbRowCount(table_id); i < rows; i++ )
+    {
+        const struct ToriRSServerDbRow* row = ToriRSServer_DbRowInTable(table_id, i);
+        const struct ToriRSServerDbRowColumn* ids;
+        const struct ToriRSServerDbRowColumn* names;
+
+        if( !row )
+            continue;
+        ids = ToriRSServer_DbRowColumn(row, id_col);
+        if( !ids || ids->count < 1 || ids->values[0].value != sub )
+            continue;
+        names = ToriRSServer_DbRowColumn(row, name_col);
+        return names && names->count >= 1 ? names->values[0].text : NULL;
+    }
+    return NULL;
+}
+
 static int
 d_widget_text(lua_State* L)
 {
     struct ScriptBot* bot = bot_of(L);
-    char const* text = ScriptrunCore_Text(bot->core, (int)luaL_checkinteger(L, 1));
+    lua_Integer id = luaL_checkinteger(L, 1);
+    char const* text = questlist_row_text(bot, id);
 
+    if( !text )
+        text = ScriptrunCore_Text(bot->core, (int)id);
     /* The client: "" if it has none. */
     lua_pushstring(L, "ok");
     lua_pushstring(L, text ? text : "");
