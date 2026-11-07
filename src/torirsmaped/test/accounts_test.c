@@ -930,7 +930,14 @@ test_server(const char* scratch, const char* peer_script, const char* repo_root)
     check(wait_status(&a, TORIRSMAPED_REQ_ACCOUNT_PLACE, &status, 2000) >= 0 && status.status == EDITOR_HOST_OK
               && !strstr(status.message, "fixture") && file_has(path, "x = 3101\nz = 3301\nlevel = 0\n"),
         "place: the second place edits the save it made");
-    (void)remove(path);
+    /* Gone again, password record included, so the registry below starts
+     * from the fixture test's own account. */
+    ToriRSMapEd_PutString(&payload, "maped43620");
+    mark(&a);
+    conn_send(&a, TORIRSMAPED_REQ_ACCOUNT_DELETE, &payload);
+    check(wait_status(&a, TORIRSMAPED_REQ_ACCOUNT_DELETE, &status, 2000) >= 0 && status.status == EDITOR_HOST_OK
+              && access(path, F_OK) != 0,
+        "place: the seeded account deletes like any other");
 
     /* Create: refusals, then the account. */
     ToriRSMapEd_PutString(&payload, "tester");
