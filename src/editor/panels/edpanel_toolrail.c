@@ -2,12 +2,15 @@
  * The tool rail: a vertical TOOLBAR of the baked tool icons, one per
  * enum Editor_Tool. Exclusive: the armed tool's button is PRESSED, and it
  * follows TORIRSMAPED_STATE_TOOL, so a tool armed in another window of the
- * Client presses here too. A command strip (Save, the New square button)
- * hangs under the tools.
+ * Client presses here too. A command strip (Save, RUN, the New square
+ * button, the square picker) hangs under the tools: RUN sits in the rail
+ * the way a debugger's run button sits in its toolbar (the owner, 2026-11-06),
+ * pressed from any workspace without the Live panel open.
  */
 
 #include "edpanel_common.h"
 #include "edpanels.h"
+#include "editor/live/live_panel.h"
 #include "mem/torirs_mem.h"
 
 #include <stdio.h>
@@ -69,9 +72,13 @@ struct ToolRailPanel
     int panel;
     int buttons[EDITOR_TOOL_COUNT];
     int button_save;
+    int button_run;
     int button_new;
     int button_squares;
     enum Editor_Tool shown;
+    /** Editor_Live_Busy as the RUN button last showed it (disabled while a
+     *  RUN or a build is in flight). */
+    int run_busy_shown;
     /** ui->hotkeys.serial the badges and tips were labelled from. */
     uint32_t hint_serial;
 };
@@ -92,6 +99,8 @@ toolrail_hints(
     }
     ToriRSChrome_SetTooltip(ui->chrome, self->button_save, "Save every changed document");
     edp_tooltip_chord(ui, self->button_save, EDITOR_HK_FILE_SAVE_ALL);
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_run, "RUN: save all, build, reload the lane and the play client");
+    edp_tooltip_chord(ui, self->button_run, EDITOR_HK_FILE_RUN);
     ToriRSChrome_SetTooltip(ui->chrome, self->button_new, "New square: coordinates, storage");
     edp_tooltip_chord(ui, self->button_new, EDITOR_HK_FILE_NEW);
     ToriRSChrome_SetTooltip(ui->chrome, self->button_squares, "Show / hide the square picker");
@@ -119,6 +128,16 @@ toolrail_tick(
         toolrail_press(ui, self);
     if( self->hint_serial != ui->hotkeys.serial )
         toolrail_hints(ui, self);
+    {
+        /* A window with no Live panel (no editor server) keeps the button:
+         * its press says so in the console. */
+        int const busy = Editor_Live_Busy(ui) > 0;
+        if( busy != self->run_busy_shown )
+        {
+            ToriRSChrome_SetDisabled(ui->chrome, self->button_run, busy);
+            self->run_busy_shown = busy;
+        }
+    }
 }
 
 static int
@@ -144,6 +163,11 @@ toolrail_activate(
             Editor_UiLog(ui, "editor: read-only session, nothing saved");
         else
             Editor_UiLog(ui, "editor: saved %d document(s) as text", saved);
+        return 1;
+    }
+    if( widget == self->button_run )
+    {
+        (void)Editor_Live_Run(ui);
         return 1;
     }
     if( widget == self->button_new )
@@ -192,7 +216,7 @@ toolrail_destroy(
 int
 Editor_ToolRail_ButtonCount(void)
 {
-    return EDITOR_TOOL_COUNT + 3;
+    return EDITOR_TOOL_COUNT + 4;
 }
 
 void
@@ -224,6 +248,7 @@ Editor_ToolRail_Register(struct EditorUi* ui)
             ToriRSChrome_IconButton(ui->chrome, self->panel, k_tool_icons[t], Editor_ToolName(t));
     }
     self->button_save = ToriRSChrome_IconButton(ui->chrome, self->panel, TORIRS_CHROME_SKIN_SAVE, "Save");
+    self->button_run = ToriRSChrome_IconButton(ui->chrome, self->panel, TORIRS_CHROME_SKIN_RUN, "Run");
     /* The design's New button lives in the picker; it is here too because a
      * new square is the first thing an empty session wants. */
     self->button_new = ToriRSChrome_IconButton(ui->chrome, self->panel, TORIRS_CHROME_SKIN_BUILD, "New square");
