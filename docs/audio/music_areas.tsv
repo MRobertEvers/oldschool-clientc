@@ -10,3 +10,7 @@ x1	z1	x2	z2	level_min	level_max	track_name	source
 # ground and upper floors ([918], [1196], [1203]). The walls: quest-helper's
 # tower zones (1376..1388, 3817..3829).
 1376	3817	1388	3829	0	3	The Forsaken Tower	RSProx 4424
+# The Golem's throne room, level 2 of square 42_76 (level 0 plays Forgotten):
+# RSProx index 4473 starts Throne of the Demon on the portal's step in
+# ([1450]) and Forgotten again on the way out ([1506]).
+2688	4864	2751	4927	2	2	Throne of the Demon	RSProx 4473

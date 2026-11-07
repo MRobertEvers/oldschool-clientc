@@ -520,6 +520,7 @@ static const struct ToriRSServerMusicRegion k_ToriRSServer_MusicRegions[] = {
     { 10822,  278, 311,   0, "Deep Down" },
     { 10823,  278, 311,   0, "Deep Down" },
     { 10827,  146,  25,  12, "Zealot" },
+    { 10828,  378, 414,   8, "Forgotten" },
     { 10831,  393, 414,  19, "Path of Peril" },
     { 10833,  249, 906,   6, "Dorgeshuun Deep" },
     { 10834,  240, 906,   5, "Dorgeshuun City" },
@@ -1045,6 +1046,7 @@ struct ToriRSServerMusicArea
 
 static const struct ToriRSServerMusicArea k_ToriRSServer_MusicAreas[] = {
     { 1376, 3817, 1388, 3829, 0, 3, {  5435,  624, 2065,  10, "Forsaken Tower, The" } },
+    { 2688, 4864, 2751, 4927, 2, 2, { 10828,  379, 414,   9, "Throne of the Demon" } },
 };
 
 static const int k_ToriRSServer_MusicAreaCount =

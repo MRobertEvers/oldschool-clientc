@@ -18,6 +18,7 @@
 --   RSProx index 4429, exactly (stage 90's trailing blank row dropped: a read
 --   ends at the last text row).
 --   The Dig Site, nine states of stages 1..6: RSProx index 4446, exactly.
+--   The Golem, nine states of stages 1..7: RSProx index 4473, exactly.
 --   Misthalin Mystery and Vampyre Slayer (the wiki's journal transcripts): every
 --   state opens with its current step.
 -- The driver reads a row's text without its tags, so rows are compared as plain
@@ -1754,6 +1755,49 @@ local DS_4446 = {
         "<col=000080>shaft. Perhaps someone can help me.",
     },
 }
+-- The Golem, RSProx index 4473: every distinct journal the recorder opened
+-- ([493] stage 1 with the letter read, [622] 2 with it, [824] 2 after Elissa,
+-- [997] 2 with the notes, [1159] 3, [1313] 3 with the statuette, [1392] 5,
+-- [1500] 6, [1754] 7).
+local G_SPOKE = "<str>I have spoken to the golem."
+local G_REPAIRED = "<str>I have repaired the golem."
+local G_PORTAL = { "<col=000080>The golem asked me to open the <col=800000>portal<col=000080> so it can defeat a", "<col=000080><col=800000>demon<col=000080>." }
+local G_PORTAL_DONE = { "<str>The golem asked me to open the portal so it could defeat a", "<str>demon." }
+local G_LETTER = { "<col=000080>Maybe I should speak to <col=800000>Elissa<col=000080> at the <col=800000>Digsite<col=000080> about the letter I", "<col=000080>found in Uzer." }
+local G_ELISSA = "<str>I talked to Elissa about the letter from the desert."
+local G_NOTES = "<str>I took Varmen's notes from the Digsite Exam Centre."
+local function rows(...)
+    local out = {}
+    for _, part in ipairs({ ... }) do
+        if type(part) == "table" then
+            for _, r in ipairs(part) do out[#out + 1] = r end
+        else
+            out[#out + 1] = part
+        end
+    end
+    return out
+end
+local GOLEM_4473 = {
+    ["1"] = rows(G_SPOKE, "<col=000080>The <col=800000>golem<col=000080> asked me to repair him.", G_LETTER),
+    ["2a"] = rows(G_SPOKE, G_REPAIRED, G_PORTAL, "<col=000080>To open the portal I will need to find a missing <col=800000>statuette<col=000080>.", G_LETTER),
+    ["2b"] = rows(G_SPOKE, G_REPAIRED, G_PORTAL, "<col=000080>To open the portal I will need to find a missing <col=800000>statuette<col=000080>.", G_ELISSA,
+        "<col=000080>Elissa told me that <col=800000>Varmen's expedition notes<col=000080> are in the", "<col=000080>library in the <col=800000>Exam Centre<col=000080>."),
+    ["2c"] = rows(G_SPOKE, G_REPAIRED, G_PORTAL, "<col=000080>To open the portal I will need to find a missing <col=800000>statuette<col=000080>.", G_ELISSA, G_NOTES,
+        "<col=000080>According to <col=800000>Varmen's notes<col=000080>, he removed the <col=800000>statuette<col=000080>", "<col=000080>during his expedition."),
+    ["3a"] = rows(G_SPOKE, G_REPAIRED, G_PORTAL, G_ELISSA, G_NOTES,
+        "<col=000080>To open the portal I will need the missing statuette which is in", "<col=000080>the <col=800000>Varrock Museum<col=000080>."),
+    ["3b"] = rows(G_SPOKE, G_REPAIRED, G_PORTAL, G_ELISSA, G_NOTES, "<str>I have retrieved the missing statuette from the Varrock", "<str>Museum.",
+        "<col=000080>I should take the <col=800000>statuette<col=000080> to Uzer and put it back in the", "<col=000080>temple."),
+    ["5"] = rows(G_SPOKE, G_REPAIRED, G_PORTAL_DONE, G_ELISSA, G_NOTES, "<str>I have retrieved the missing statuette from the Varrock",
+        "<str>Museum and repaired the puzzle in the temple.", "<str>I have opened the portal.", "<col=000080>I should find out what happened to the <col=800000>demon<col=000080>."),
+}
+GOLEM_4473["6"] = rows(G_SPOKE, G_REPAIRED, G_PORTAL_DONE, G_ELISSA, G_NOTES, "<str>I have retrieved the missing statuette from the Varrock",
+    "<str>Museum and repaired the puzzle in the temple.", "<str>I have opened the portal.", "<str>I have visited the demon's lair and seen its skeleton.",
+    "<col=000080>I should inform the <col=800000>golem<col=000080> that the <col=800000>demon<col=000080> is dead.")
+GOLEM_4473["7"] = rows(G_SPOKE, G_REPAIRED, G_PORTAL_DONE, G_ELISSA, G_NOTES, "<str>I have retrieved the missing statuette from the Varrock",
+    "<str>Museum and repaired the puzzle in the temple.", "<str>I have opened the portal.", "<str>I have visited the demon's lair and seen its skeleton.",
+    "<str>I told the golem that the demon was dead, but it did not", "<str>believe me!",
+    "<col=000080>I should find some way to convince the <col=800000>golem<col=000080> that its task is", "<col=000080>done.")
 return {
     id = "journals",
     fixture = "fresh_lumbridge.ini",
@@ -1999,6 +2043,22 @@ return {
         ds(5, 0, 1, 1, 0) exact("journal.digsite.5b", "The Dig Site", DS_4446["5b"])
         ds(6, 0, 1, 1, 1) exact("journal.digsite.6", "The Dig Site", DS_4446["6"])
         ds(0, 0, 0, 0, 0)
+
+        local function golem(a, b, statuette)
+            set("::setvar varb346_golem_a " .. a)
+            set("::setvar varb347_golem_b " .. b)
+            set("::setvar varb355_golem_retrieved_statuette " .. statuette)
+        end
+        golem(1, 1, 0) exact("journal.golem.1", "The Golem", GOLEM_4473["1"])
+        golem(2, 1, 0) exact("journal.golem.2a", "The Golem", GOLEM_4473["2a"])
+        golem(2, 2, 0) exact("journal.golem.2b", "The Golem", GOLEM_4473["2b"])
+        golem(2, 3, 0) exact("journal.golem.2c", "The Golem", GOLEM_4473["2c"])
+        golem(3, 3, 0) exact("journal.golem.3a", "The Golem", GOLEM_4473["3a"])
+        golem(3, 3, 1) exact("journal.golem.3b", "The Golem", GOLEM_4473["3b"])
+        golem(5, 3, 1) exact("journal.golem.5", "The Golem", GOLEM_4473["5"])
+        golem(6, 3, 1) exact("journal.golem.6", "The Golem", GOLEM_4473["6"])
+        golem(7, 3, 1) exact("journal.golem.7", "The Golem", GOLEM_4473["7"])
+        golem(0, 0, 0)
 
         -- The strip icons carry no server events (cache clickmask=2; Jagex arms
         -- none, RSProx index 4289 [0], [509]) and still switch the body.

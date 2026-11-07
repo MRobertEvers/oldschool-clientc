@@ -1109,3 +1109,8 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 5276	20	156	1280	9984	The Old Ones	old_ones
 5785	22	153	1408	9792	The Old Ones	old_ones
 5432	21	56	1344	3584	Gill Bill	gill_bill
+#
+# 10828 -- The Golem's ruin under Uzer, level 0: RSProx index 4473 starts
+# Forgotten on every step down the stairs ([389], [1302], [1402]) and on the
+# way back from the throne room ([1506]); level 2 is music_areas.tsv's.
+10828	42	76	2688	4864	Forgotten	forgotten

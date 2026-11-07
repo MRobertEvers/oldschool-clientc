@@ -27,10 +27,11 @@ VARIANTS (each its own RSProx home, so the shared transcripts are untouched):
     --bas          the player's base animation set, worn equipment and overhead/skull icons (filtered out by default)
 
 SERVER: $RSPROX_INDEX_URL, default http://127.0.0.1:8370 (from another machine on
-the LAN: http://192.168.1.148:8370). The transcriber is the build the index server
-runs ($RSPROX_CLASSPATH, default ~/rsprox-index-data/rsprox.classpath: RSProx
-osrs-223..241 plus the local-indexer-fixes branch, see rsprox-index/PATCHES.md)
-under JDK 21 ($RSPROX_JAVA).
+the LAN: http://192.168.1.148:8370). The server indexes with the vendored C RSProt;
+transcripts are made here by rsprox-c, RSProx decoding through that same RSProt
+($RSPROX_CLASSPATH, default ~/rsprox-index-data/rsprox-c.classpath: the build in
+~/Documents/git_repos/rsprox-c, every revision RSProt has, 242 included) under
+JDK 21 ($RSPROX_JAVA).
 """
 import argparse
 import fcntl
@@ -46,7 +47,7 @@ SERVER = os.environ.get("RSPROX_INDEX_URL", "http://127.0.0.1:8370").rstrip("/")
 HOME = os.path.expanduser("~")
 CACHE = os.path.join(HOME, ".rsprox-index-cache")
 SHARED = os.path.join(HOME, ".rsprox")
-CLASSPATH = os.environ.get("RSPROX_CLASSPATH", os.path.join(HOME, "rsprox-index-data", "rsprox.classpath"))
+CLASSPATH = os.environ.get("RSPROX_CLASSPATH", os.path.join(HOME, "rsprox-index-data", "rsprox-c.classpath"))
 JAVA = os.environ.get("RSPROX_JAVA", "/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/bin/java")
 TYPES = ("NPC", "OBJ", "LOC", "MAPSQUARE", "MESSAGE_GAME", "VARP", "VARBIT", "INTERFACE", "SEQ", "SPOTANIM",
          "MIDI", "SYNTH", "JINGLE", "CLIENTSCRIPTS", "TEXT", "AMBIENCE")
