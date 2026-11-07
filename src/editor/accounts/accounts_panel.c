@@ -633,7 +633,7 @@ acct_refresh(
         ToriRSChrome_SetDisabled(ui->chrome, self->button_refresh, !self->account[0]);
         ToriRSChrome_SetDisabled(ui->chrome, self->button_item_remove, online);
         ToriRSChrome_SetTooltip(ui->chrome, self->button_refresh,
-            online ? "Ask the server for a checkpoint of the account (its live values)" : "Read the save again");
+            online ? "Ask the server for a checkpoint (the account's live values)" : "Read the save again");
     }
     if( view_changed || list_changed )
     {

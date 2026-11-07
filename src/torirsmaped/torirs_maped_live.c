@@ -50,7 +50,13 @@ enum
     LIVE_RELOAD_TIMEOUT_S = 180,
     /** A control frame larger than this is a broken peer. */
     LIVE_CTL_PAYLOAD_MAX = 4 * 1024 * 1024,
+    /** Milliseconds between probes of the lane's ports while the play
+     *  client waits for them (play_service). */
+    PLAY_PROBE_PERIOD_MS = 250,
 };
+
+static int64_t
+live_now_ms(void);
 
 /* ------------------------------------------------------------------ */
 /* STATE_LIVE_FOCUS                                                    */
@@ -247,29 +253,39 @@ live_line(
     ToriRSMapEd_BufFree(&payload);
 }
 
+/** FACT_LIVE_STATUS's payload into `payload` (empty on entry). */
+static void
+jobs_live_status_payload(
+    struct ToriRSMapEd* maped,
+    struct ToriRSMapEdBuf* payload)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+
+    ToriRSMapEd_PutU32(payload, jobs->live_state);
+    ToriRSMapEd_PutU32(payload, (uint32_t)jobs->launched);
+    ToriRSMapEd_PutString(payload, jobs->address);
+    ToriRSMapEd_PutString(payload, jobs->server_name);
+    ToriRSMapEd_PutU32(payload, jobs->players);
+    ToriRSMapEd_PutU32(payload, jobs->tick);
+    ToriRSMapEd_PutString(payload, jobs->script_stamp);
+    ToriRSMapEd_PutString(payload, jobs->servpack_stamp);
+    ToriRSMapEd_PutU32(payload, (uint32_t)jobs->stale_count);
+    for( int i = 0; i < jobs->stale_count; i++ )
+        ToriRSMapEd_PutString(payload, jobs->stale[i]);
+    ToriRSMapEd_PutString(payload, jobs->message);
+    ToriRSMapEd_PutU32(payload, jobs->run_step);
+    ToriRSMapEd_PutU32(payload, (uint32_t)jobs->pending_square_count);
+    ToriRSMapEd_PutU32(payload, (uint32_t)jobs->pending_spawn_count);
+    ToriRSMapEd_PutU32(payload, (uint32_t)jobs->pending_archive_count);
+}
+
 static void
 jobs_live_broadcast_status(struct ToriRSMapEd* maped)
 {
-    struct ToriRSMapEdJobs* jobs = maped->jobs;
     struct ToriRSMapEdBuf payload;
 
     memset(&payload, 0, sizeof(payload));
-    ToriRSMapEd_PutU32(&payload, jobs->live_state);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->launched);
-    ToriRSMapEd_PutString(&payload, jobs->address);
-    ToriRSMapEd_PutString(&payload, jobs->server_name);
-    ToriRSMapEd_PutU32(&payload, jobs->players);
-    ToriRSMapEd_PutU32(&payload, jobs->tick);
-    ToriRSMapEd_PutString(&payload, jobs->script_stamp);
-    ToriRSMapEd_PutString(&payload, jobs->servpack_stamp);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->stale_count);
-    for( int i = 0; i < jobs->stale_count; i++ )
-        ToriRSMapEd_PutString(&payload, jobs->stale[i]);
-    ToriRSMapEd_PutString(&payload, jobs->message);
-    ToriRSMapEd_PutU32(&payload, jobs->run_step);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->pending_square_count);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->pending_spawn_count);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->pending_archive_count);
+    jobs_live_status_payload(maped, &payload);
     jobs_broadcast(maped, TORIRSMAPED_FACT_LIVE_STATUS, &payload);
     ToriRSMapEd_BufFree(&payload);
 }
@@ -367,11 +383,13 @@ jobs_play_account(
         ToriRSMapEd_LanePlayAccount(&jobs->lane, user, user_size, pass, pass_size);
 }
 
+/** FACT_LIVE_PLAY's payload into `payload` (empty on entry). */
 static void
-jobs_live_broadcast_play(struct ToriRSMapEd* maped)
+jobs_live_play_payload(
+    struct ToriRSMapEd* maped,
+    struct ToriRSMapEdBuf* payload)
 {
     struct ToriRSMapEdJobs* jobs = maped->jobs;
-    struct ToriRSMapEdBuf payload;
     char user[16];
     char pass[24];
     char url[1024];
@@ -380,31 +398,61 @@ jobs_live_broadcast_play(struct ToriRSMapEd* maped)
     url[0] = '\0';
     if( jobs->have_lane )
         ToriRSMapEd_LaneWebPlayUrl(&jobs->lane, url, sizeof(url));
-    memset(&payload, 0, sizeof(payload));
-    ToriRSMapEd_PutU32(&payload, jobs->play_state);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->play_browser);
-    ToriRSMapEd_PutString(&payload, user);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->play_pid);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->play_exit);
-    ToriRSMapEd_PutString(&payload, jobs->play_message);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->play_x);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->play_z);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->play_level);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->play_starts);
-    ToriRSMapEd_PutString(&payload, url);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->players_known);
-    ToriRSMapEd_PutU32(&payload, jobs->logins);
-    ToriRSMapEd_PutU32(&payload, jobs->players_active);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)jobs->player_row_count);
+    ToriRSMapEd_PutU32(payload, jobs->play_state);
+    ToriRSMapEd_PutU32(payload, (uint32_t)jobs->play_browser);
+    ToriRSMapEd_PutString(payload, user);
+    ToriRSMapEd_PutU32(payload, (uint32_t)jobs->play_pid);
+    ToriRSMapEd_PutU32(payload, (uint32_t)jobs->play_exit);
+    ToriRSMapEd_PutString(payload, jobs->play_message);
+    ToriRSMapEd_PutU32(payload, (uint32_t)jobs->play_x);
+    ToriRSMapEd_PutU32(payload, (uint32_t)jobs->play_z);
+    ToriRSMapEd_PutU32(payload, (uint32_t)jobs->play_level);
+    ToriRSMapEd_PutU32(payload, (uint32_t)jobs->play_starts);
+    ToriRSMapEd_PutString(payload, url);
+    ToriRSMapEd_PutU32(payload, (uint32_t)jobs->players_known);
+    ToriRSMapEd_PutU32(payload, jobs->logins);
+    ToriRSMapEd_PutU32(payload, jobs->players_active);
+    ToriRSMapEd_PutU32(payload, (uint32_t)jobs->player_row_count);
     for( int i = 0; i < jobs->player_row_count; i++ )
     {
         const struct ToriRSMapEdJobsPlayer* row = &jobs->player_rows[i];
-        ToriRSMapEd_PutString(&payload, row->display[0] ? row->display : row->account);
-        ToriRSMapEd_PutU32(&payload, (uint32_t)row->x);
-        ToriRSMapEd_PutU32(&payload, (uint32_t)row->z);
-        ToriRSMapEd_PutU32(&payload, (uint32_t)row->level);
+        ToriRSMapEd_PutString(payload, row->display[0] ? row->display : row->account);
+        ToriRSMapEd_PutU32(payload, (uint32_t)row->x);
+        ToriRSMapEd_PutU32(payload, (uint32_t)row->z);
+        ToriRSMapEd_PutU32(payload, (uint32_t)row->level);
     }
+}
+
+static void
+jobs_live_broadcast_play(struct ToriRSMapEd* maped)
+{
+    struct ToriRSMapEdBuf payload;
+
+    memset(&payload, 0, sizeof(payload));
+    jobs_live_play_payload(maped, &payload);
     jobs_broadcast(maped, TORIRSMAPED_FACT_LIVE_PLAY, &payload);
+    ToriRSMapEd_BufFree(&payload);
+}
+
+void
+ToriRSMapEd_LiveWelcome(
+    struct ToriRSMapEd* maped,
+    struct ToriRSMapEdSession* session)
+{
+    struct ToriRSMapEdBuf payload;
+
+    assert(maped);
+    assert(maped->jobs);
+    assert(session);
+    if( session->version < TORIRSMAPED_PROTO_VERSION )
+        return;
+    memset(&payload, 0, sizeof(payload));
+    jobs_live_status_payload(maped, &payload);
+    send_buf(session, TORIRSMAPED_FACT_LIVE_STATUS, &payload);
+    ToriRSMapEd_BufFree(&payload);
+    memset(&payload, 0, sizeof(payload));
+    jobs_live_play_payload(maped, &payload);
+    send_buf(session, TORIRSMAPED_FACT_LIVE_PLAY, &payload);
     ToriRSMapEd_BufFree(&payload);
 }
 
@@ -571,6 +619,7 @@ jobs_play_start(
     {
         jobs->play_wait_lane = 1;
         jobs->play_wait_deadline = time(NULL) + 60;
+        jobs->play_probe_ms = live_now_ms();
         jobs->play_x = jobs->play_z = jobs->play_level = -1;
         jobs_play_note(jobs, TORIRSMAPED_PLAY_STARTING, "waiting for the lane's game and JS5 ports");
         return EDITOR_HOST_OK;
@@ -1346,8 +1395,9 @@ play_service(struct ToriRSMapEd* maped)
     struct ToriRSMapEdJobs* jobs = maped->jobs;
     int changed = 0;
 
-    if( jobs->have_play && jobs->play_wait_lane )
+    if( jobs->have_play && jobs->play_wait_lane && live_now_ms() - jobs->play_probe_ms >= PLAY_PROBE_PERIOD_MS )
     {
+        jobs->play_probe_ms = live_now_ms();
         if( jobs->play.ready(jobs->play.ctx) )
         {
             char why[256];

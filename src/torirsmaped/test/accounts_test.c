@@ -905,6 +905,33 @@ test_server(const char* scratch, const char* peer_script, const char* repo_root)
             "list: empty, the lane's default play account, not attached");
     }
 
+    /* The play account before its first login: Place player seeds its save
+     * from the lane's fixture and writes the position, instead of "no
+     * save". Another account without a save is still ABSENT (below). */
+    ToriRSMapEd_PutString(&payload, "maped43620");
+    ToriRSMapEd_PutU32(&payload, 3100);
+    ToriRSMapEd_PutU32(&payload, 3300);
+    ToriRSMapEd_PutU32(&payload, 1);
+    mark(&a);
+    conn_send(&a, TORIRSMAPED_REQ_ACCOUNT_PLACE, &payload);
+    snprintf(path, sizeof(path), "%s/saves/maped43620.ini", live);
+    check(wait_status(&a, TORIRSMAPED_REQ_ACCOUNT_PLACE, &status, 2000) >= 0 && status.status == EDITOR_HOST_OK
+              && strstr(status.message, "offline: wrote") && strstr(status.message, "first save, from the lane's fixture"),
+        "place: the play account's first save is made from the fixture (%s)", status.message);
+    check(file_has(path, "name = maped43620\n") && file_has(path, "x = 3100\nz = 3300\nlevel = 1\n")
+              && file_has(path, "281 = 1000\n"),
+        "place: the save carries the fixture's values, the account's name and the placed tile");
+    ToriRSMapEd_PutString(&payload, "maped43620");
+    ToriRSMapEd_PutU32(&payload, 3101);
+    ToriRSMapEd_PutU32(&payload, 3301);
+    ToriRSMapEd_PutU32(&payload, 0);
+    mark(&a);
+    conn_send(&a, TORIRSMAPED_REQ_ACCOUNT_PLACE, &payload);
+    check(wait_status(&a, TORIRSMAPED_REQ_ACCOUNT_PLACE, &status, 2000) >= 0 && status.status == EDITOR_HOST_OK
+              && !strstr(status.message, "fixture") && file_has(path, "x = 3101\nz = 3301\nlevel = 0\n"),
+        "place: the second place edits the save it made");
+    (void)remove(path);
+
     /* Create: refusals, then the account. */
     ToriRSMapEd_PutString(&payload, "tester");
     ToriRSMapEd_PutString(&payload, "short");

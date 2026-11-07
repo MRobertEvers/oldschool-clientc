@@ -893,6 +893,14 @@ hello(
         if( length == 16 )
             *out_caps = ToriRSMapEd_ReadU32(payload + 12);
     }
+    /* A v2 greeting is followed by the lane's state, FACT_LIVE_STATUS then
+     * FACT_LIVE_PLAY (ToriRSMapEd_LiveWelcome); the views below read the
+     * frames in order, so the two are taken here. */
+    if( version >= TORIRSMAPED_PROTO_VERSION )
+    {
+        (void)raw_take(pipe, &type, payload, &length);
+        (void)raw_take(pipe, &type, payload, &length);
+    }
 }
 
 static void
@@ -1403,17 +1411,21 @@ tcp_take(
     }
     *out_type = ToriRSMapEd_ReadU32(header);
     *out_length = ToriRSMapEd_ReadU32(header + 4);
-    if( *out_length > 256 )
-        return 0;
     got = 0;
     while( got < *out_length )
     {
-        ssize_t n = read(fd, out_payload + got, *out_length - got);
+        /* A body past the caller's 256 bytes (a live status with its
+         * message) is read off the socket and dropped, so the next frame
+         * still starts at a header. */
+        uint8_t sink[256];
+        size_t const room = *out_length - got;
+        ssize_t n = got < 256 ? read(fd, out_payload + got, room < 256 - got ? room : 256 - got)
+                              : read(fd, sink, room < sizeof(sink) ? room : sizeof(sink));
         if( n <= 0 )
             return 0;
         got += (size_t)n;
     }
-    return 1;
+    return *out_length <= 256;
 }
 
 static void
@@ -1476,6 +1488,9 @@ test_daemon(
         group = ToriRSMapEd_ReadU32(payload + 8);
         caps = ToriRSMapEd_ReadU32(payload + 12);
     }
+    /* The lane's state follows the greeting (ToriRSMapEd_LiveWelcome). */
+    (void)tcp_take(fd, &type, payload, &length);
+    (void)tcp_take(fd, &type, payload, &length);
     check(group != 0 && (caps & TORIRSMAPED_CAP_SPAWN_VIEW), "the daemon offers SPAWN_VIEW");
 
     put_camera(payload, camera);

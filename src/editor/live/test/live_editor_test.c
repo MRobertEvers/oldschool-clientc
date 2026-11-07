@@ -1545,6 +1545,25 @@ main(
         check(a.model.play_starts == 3 && a.model.play_pid > 0 && a.model.play_pid != pid_before,
             "play: a third start");
 
+        /* A window that connects now is told the lane as it is: the status
+         * and the play state follow its HELLO, with no change to prompt
+         * them (a popped-out panel is a second process on the desktop). */
+        {
+            struct conn b;
+            conn_open(&b, maped);
+            g_conns[g_conn_count++] = &b;
+            mark(&b);
+            hello(&b);
+            check(wait_fact(&b, TORIRSMAPED_FACT_HELLO, 2000) >= 0, "welcome: a second window's HELLO is answered");
+            check(wait_fact(&b, TORIRSMAPED_FACT_LIVE_STATUS, 2000) >= 0 && b.model.state == a.model.state,
+                "welcome: the live status follows the HELLO (state %u)", b.model.state);
+            check(wait_fact(&b, TORIRSMAPED_FACT_LIVE_PLAY, 2000) >= 0 && b.model.play_starts == 3
+                      && b.model.play_pid == a.model.play_pid && b.model.play_state == a.model.play_state,
+                "welcome: the play state follows it (starts %u, pid %d)", b.model.play_starts, b.model.play_pid);
+            g_conn_count--;
+            ToriRSMapEd_SessionFree(&b.session);
+        }
+
         /* (6) Play while it is on its way in changes nothing; Stop stops it */
         pid_before = a.model.play_pid;
         mark(&a);
