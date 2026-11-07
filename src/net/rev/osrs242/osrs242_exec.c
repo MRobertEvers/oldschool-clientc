@@ -2280,6 +2280,29 @@ in_cache_invalidate(uint8_t const* data, int len, struct RevPacket* out)
     return adapt_cache_invalidate(&m, out);
 }
 
+/* LOC_ADD_CHANGE_V3, opcode 52 */
+static int
+in_loc_add_change_v3(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgLocAddChangeV3 m;
+    struct PktZoneSubPacket sub;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    prep_loc_add_change_v3(&m);
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_loc_add_change_v3_osrs242_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    memset(&sub, 0, sizeof(sub));
+    if( adapt_zone_loc_add_change_v3(&m, &sub) != 1 )
+        return 0;
+    proto_adapt_zone_to_packet(&sub, out);
+    return 1;
+}
+
 /* The revision's zone sub-packets, by the ordinal that leads each. */
 static int
 zone_sub(RsprotBuf* c, struct PktZoneSubPacket* out)
@@ -2336,12 +2359,12 @@ zone_sub(RsprotBuf* c, struct PktZoneSubPacket* out)
         RsprotExec x;
 
         memset(&m, 0, sizeof(m));
+        prep_loc_add_change_v3(&m);
         rsprot_exec_decode(&x, c);
         packet_loc_add_change_v3_osrs242_out(&x, &m);
         if( !rsprot_exec_ok(&x) || c->err )
             return 0;
-        (void)m;
-        return 2; /* read; no canonical arm */
+        return adapt_zone_loc_add_change_v3(&m, out);
     }
     case 5: /* MAP_PROJANIM_V2 */
     {
@@ -3816,6 +3839,7 @@ static int (*const k_in[TOP])(uint8_t const* data, int len, struct RevPacket* ou
     [34] = in_packet_group_start,
     [26] = in_unknown_string,
     [237] = in_cache_invalidate,
+    [52] = in_loc_add_change_v3,
 };
 
 static int16_t const k_in_name[TOP] = {
@@ -3940,6 +3964,7 @@ static int16_t const k_in_name[TOP] = {
     [34] = PKT_NAME_PACKET_GROUP_START,
     [26] = PKT_NAME_UNKNOWN_STRING,
     [237] = PKT_NAME_CACHE_INVALIDATE,
+    [52] = PKT_NAME_LOC_ADD_CHANGE,
 };
 
 /* Every opcode's size; NO_PROT where the revision has none. */

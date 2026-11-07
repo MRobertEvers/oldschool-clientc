@@ -1,6 +1,18 @@
 /* CLANCHANNEL_DELTA. Hand-written; see clanchannel_delta.h. */
 #include "clanchannel_delta.h"
 
+/* The user hash RSProx reads by peeking (ClanChannelDeltaDecoder): a lone 255
+ * when there is none, else 8 bytes, which is its lead byte and 7 more. */
+static void
+user_hash(RsprotExec *x, MsgClanchannelDeltaEvent *e)
+{
+    RSPROT_U1(x, e->hash_lead);
+    if (RSPROT_BRANCH(x, e->hash_lead) != 255) {
+        RSPROT_U3_123(x, e->hash_mid);
+        RSPROT_U4_1234(x, e->hash_lo);
+    }
+}
+
 /* v1 -- revs 222-242. */
 void
 packet_clanchannel_delta_v1_out(RsprotExec *x, MsgClanchannelDelta *m)
@@ -21,10 +33,11 @@ packet_clanchannel_delta_v1_out(RsprotExec *x, MsgClanchannelDelta *m)
             RSPROT_REST(x, m->trailing, m->trailing_length);
             return;
         case 1:
-            RSPROT_U1(x, e->skip_a);
+            user_hash(x, e);
             RSPROT_JSTRNULL(x, e->name);
             RSPROT_U2_12(x, e->world);
             RSPROT_U1(x, e->rank);
+            RSPROT_U8_12345678(x, e->join_time);
             break;
         case 2:
             RSPROT_U2_12(x, e->index);
@@ -36,7 +49,7 @@ packet_clanchannel_delta_v1_out(RsprotExec *x, MsgClanchannelDelta *m)
         case 3:
             RSPROT_U2_12(x, e->index);
             RSPROT_U1(x, e->skip_a);
-            RSPROT_U1(x, e->skip_b);
+            user_hash(x, e);
             break;
         case 4:
             RSPROT_JSTRNULL(x, e->name);

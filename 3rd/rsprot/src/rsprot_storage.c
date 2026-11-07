@@ -6,6 +6,7 @@
 #include "../packets/if_resync_v1.h"
 #include "../packets/if_resync_v2.h"
 #include "../packets/loc_add_change_v2.h"
+#include "../packets/loc_add_change_v3.h"
 #include "../packets/runclientscript.h"
 #include "../packets/update_friendlist.h"
 #include "../packets/update_ignorelist.h"
@@ -56,6 +57,8 @@ rsprot_storage_provide(char const* prot, void* msg, int side)
         m->events = POOL_HALF(Rsprot_MsgIfInitialState_eventsElem, side);
     } else if (strcmp(prot, "LOC_ADD_CHANGE_V2") == 0) {
         ((MsgLocAddChangeV2 *)msg)->ops = POOL(Rsprot_MsgLocAddChangeV2_opsElem, side);
+    } else if (strcmp(prot, "LOC_ADD_CHANGE_V3") == 0) {
+        ((MsgLocAddChangeV3 *)msg)->ops = POOL(Rsprot_MsgLocAddChangeV3_opsElem, side);
     } else if (strcmp(prot, "UPDATE_FRIENDLIST") == 0) {
         ((MsgUpdateFriendList *)msg)->entries = POOL(MsgUpdateFriendListEntry, side);
     } else if (strcmp(prot, "UPDATE_IGNORELIST") == 0) {

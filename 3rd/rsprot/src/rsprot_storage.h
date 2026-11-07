@@ -4,7 +4,7 @@
 /*
  * Element storage for the codecs that take their arrays from the CALLER.
  *
- * A handful of packets/ codecs (IF_RESYNC*, IF_INITIALSTATE, LOC_ADD_CHANGE_V2,
+ * A handful of packets/ codecs (IF_RESYNC*, IF_INITIALSTATE, LOC_ADD_CHANGE_V2/V3,
  * the friend / ignore lists, the two inventory updates, RUNCLIENTSCRIPT) write
  * their lists through pointers in the message rather than into it -- a host points
  * them at its own buffers. Anything else that runs a codec over a

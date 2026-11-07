@@ -15,8 +15,8 @@
 
 /**
  * One group variable. Its base type is bits 16-17 of `packed`
- * (GroupVarUpdate: 0 int, 1 long, 2 string); any other type carries the rest of
- * the payload as `data`.
+ * (GroupVarUpdate: 0 int, 1 long, 2 string); any other type carries nothing,
+ * so `data` stays empty (kept for the hosts that read it).
  */
 typedef struct MsgGroupVarUpdate {
 	int32_t index;

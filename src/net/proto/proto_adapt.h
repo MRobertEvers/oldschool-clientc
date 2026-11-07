@@ -111,6 +111,7 @@
 #include "packets/loc_add_change.h"
 #include "packets/loc_add_change_v1.h"
 #include "packets/loc_add_change_v2.h"
+#include "packets/loc_add_change_v3.h"
 #include "packets/loc_anim.h"
 #include "packets/loc_del.h"
 #include "packets/loc_merge.h"
@@ -595,6 +596,11 @@ void
 prep_loc_add_change_v2(MsgLocAddChangeV2* m);
 int
 adapt_zone_loc_add_change_v2(MsgLocAddChangeV2 const* m, struct PktZoneSubPacket* out);
+
+void
+prep_loc_add_change_v3(MsgLocAddChangeV3* m);
+int
+adapt_zone_loc_add_change_v3(MsgLocAddChangeV3 const* m, struct PktZoneSubPacket* out);
 int
 adapt_zone_loc_del(MsgLocDel const* m, struct PktZoneSubPacket* out);
 int
