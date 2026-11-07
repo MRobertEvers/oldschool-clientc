@@ -2772,6 +2772,28 @@ handle_run(
         return;
     }
     jobs_run_step_enter(maped, TORIRSMAPED_RUN_STEP_BUILD);
+    /* A lane's mirror is a snapshot whose links follow the base and whose
+     * pack/ copies do not: one commit to the base and the build sees half of
+     * it (a script calling a proc in a file the mirror never had, a server
+     * field on an npc its stale pack/npc.server does not name). */
+    {
+        struct ToriRSMapEdLaneCounts counts;
+        char why[1024];
+        if( !ToriRSMapEdLanes_Follow(&maped->lane, &counts, why, sizeof(why)) )
+        {
+            snprintf(message, sizeof(message), "lane '%s' cannot follow its base: %s; nothing was built or launched",
+                maped->lane.name, why);
+            jobs_run_finish(maped, EDITOR_HOST_IO_ERROR, TORIRSMAPED_RUN_STEP_BUILD, message, NULL, NULL, 0);
+            return;
+        }
+        if( counts.written + counts.removed > 0 )
+        {
+            snprintf(message, sizeof(message), "lane '%s' followed its base: %d file(s) linked or refreshed, %d dropped",
+                maped->lane.name, counts.written, counts.removed);
+            live_line(maped, message, (uint32_t)strlen(message));
+            maped->lane_writes_own++;
+        }
+    }
     status = jobs_build_start(maped, TORIRSMAPED_BUILD_RUN, "", 1);
     if( status != EDITOR_HOST_OK )
     {

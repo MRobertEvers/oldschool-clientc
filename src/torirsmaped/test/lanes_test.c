@@ -4,7 +4,9 @@
  * asset dirs, skipped pack outputs and locks), create / lookup / list, the
  * change scan (modified, added, deleted; copies compared by content;
  * temporaries ignored), publish into a new lane, into another lane, and into
- * the main tree with reset, the lock refusal and force, and discard.
+ * the main tree with reset, the lock refusal and force, discard, and
+ * following the base (new files and directories, the base's deletions, a
+ * copy taken / kept / refused against its ancestor, a re-linked copy).
  *
  *   ./lanes_test <scratch>
  */
@@ -313,7 +315,7 @@ main(
     snprintf(path, sizeof(path), "%s/maps/m52_50.jm2", work.content);
     check(is_link(path), "reset: the published addition is a link");
     snprintf(path, sizeof(path), "%s/pack/npc.alloc", work.content);
-    check(is_link(path), "reset: the published ledger is a link (a copy again at the next mirror)");
+    check(is_link(path), "reset: the published ledger is a link (a copy again at the next follow)");
     check(ToriRSMapEdLanes_Changes(&work, rows, 16, &counts) == 0, "reset: the working lane is clean");
 
     /* ---- discard ------------------------------------------------------- */
@@ -337,6 +339,72 @@ main(
     check(text_is(path, "[hans]\nname=Hans\n"), "discard: the base never changed");
     check(ToriRSMapEdLanes_Changes(&work, rows, 16, &counts) == 0, "discard: clean");
     check(!ToriRSMapEdLanes_Discard(&main_lane, &counts, why, sizeof(why)), "discard: main has no base");
+
+    /* ---- follow: the mirror catches up with its base -------------------- */
+    snprintf(path, sizeof(path), "%s/ancestor/pack/npc.alloc", fresh.dir);
+    check(is_regular(path), "create: the copied tree's ancestor");
+    snprintf(path, sizeof(path), "%s/meta.ini", work.content);
+    unlink(path);
+    sleep(1);
+    snprintf(path, sizeof(path), "%s/server/scripts/later.rs2", tree);
+    write_text(path, "[proc,later]\n");
+    snprintf(path, sizeof(path), "%s/areas/varrock/configs/varrock.npc", tree);
+    write_text(path, "[zaff]\n");
+    snprintf(path, sizeof(path), "%s/pack/npc.server", tree);
+    write_text(path, "hans\n");
+    snprintf(path, sizeof(path), "%s/server/scripts/hello.rs2", tree);
+    unlink(path);
+    check(ToriRSMapEdLanes_Follow(&work, &counts, why, sizeof(why)) && counts.written == 4 && counts.removed == 1,
+        "follow: 4 linked or copied, 1 dropped");
+    if( why[0] || counts.written != 4 || counts.removed != 1 )
+        fprintf(stderr, "  why: %s (written %d, removed %d)\n", why, counts.written, counts.removed);
+    snprintf(path, sizeof(path), "%s/maps/m99_99.jm2", work.content);
+    check(is_link(path), "follow: a base file younger than the lane is linked");
+    snprintf(path, sizeof(path), "%s/server/scripts/later.rs2", work.content);
+    check(is_link(path), "follow: a new script is linked");
+    snprintf(path, sizeof(path), "%s/areas/varrock/configs/varrock.npc", work.content);
+    check(is_link(path), "follow: a new directory is mirrored");
+    snprintf(path, sizeof(path), "%s/pack/npc.server", work.content);
+    check(is_regular(path) && text_is(path, "hans\n"), "follow: a new copied file is a copy");
+    snprintf(path, sizeof(path), "%s/server/scripts/hello.rs2", work.content);
+    check(!exists(path), "follow: a link the base's deletion left dangling is dropped");
+    snprintf(path, sizeof(path), "%s/meta.ini", work.content);
+    check(!exists(path), "follow: the lane's own deletion stays deleted");
+    snprintf(path, sizeof(path), "%s/pack/npc.alloc", work.content);
+    check(is_regular(path), "follow: a re-linked copy is a copy again");
+    snprintf(path, sizeof(path), "%s/lane.ini", work.dir);
+    {
+        struct ToriRSMapEdLaneDef again;
+        check(ToriRSMapEdLanes_Lookup(repo, tree, "working", &again) && again.created == work.created,
+            "follow: lane.ini's followed is the mirror's new last look");
+    }
+    check(ToriRSMapEdLanes_Changes(&work, rows, 16, &counts) == 1 && counts.deleted == 1,
+        "follow: the lane's one change is its deletion");
+
+    /* The copies against their ancestor. */
+    snprintf(path, sizeof(path), "%s/pack/npc.alloc", tree);
+    write_text(path, "hans=1\nbob=2\nzaff=3\n");
+    snprintf(path, sizeof(path), "%s/pack/npc.server", work.content);
+    write_text(path, "hans\nbob\n");
+    check(ToriRSMapEdLanes_Follow(&work, &counts, why, sizeof(why)) && counts.written == 1,
+        "follow: one copy refreshed");
+    snprintf(path, sizeof(path), "%s/pack/npc.alloc", work.content);
+    check(text_is(path, "hans=1\nbob=2\nzaff=3\n"), "follow: a copy the lane never changed takes the base's");
+    snprintf(path, sizeof(path), "%s/pack/npc.server", work.content);
+    check(text_is(path, "hans\nbob\n"), "follow: the lane's own edit of a copy is kept");
+    snprintf(path, sizeof(path), "%s/pack/npc.server", tree);
+    write_text(path, "hans\nzaff\n");
+    check(!ToriRSMapEdLanes_Follow(&work, &counts, why, sizeof(why)) && strstr(why, "pack/npc.server")
+              && strstr(why, "both"),
+        "follow: a copy both sides changed is refused, named");
+    snprintf(path, sizeof(path), "%s/pack/npc.server", work.content);
+    check(text_is(path, "hans\nbob\n"), "follow: a refused copy is left as the lane had it");
+    write_text(path, "hans\nzaff\n");
+    check(ToriRSMapEdLanes_Follow(&work, &counts, why, sizeof(why)), "follow: agreeing again, it follows");
+    snprintf(path, sizeof(path), "%s/meta.ini", work.content);
+    check(ToriRSMapEdLanes_Discard(&work, &counts, why, sizeof(why)) && is_link(path), "follow: discard after it");
+    check(ToriRSMapEdLanes_Follow(&main_lane, &counts, why, sizeof(why)) && counts.written == 0,
+        "follow: main has nothing to follow");
 
     /* ---- the next boot's lane (workbench 6.5) ---------------------------- */
     {

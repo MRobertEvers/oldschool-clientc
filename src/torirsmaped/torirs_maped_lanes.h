@@ -152,7 +152,8 @@ struct ToriRSMapEdLaneDef
     /** The tree the content mirrors; "" for main. */
     char base[TORIRSMAPED_LANE_PATH];
     int is_main;
-    /** When the mirror was made (lane.ini `created`, seconds): a base file
+    /** When the mirror last looked at its base (lane.ini `created`, or
+     *  `followed` once ToriRSMapEdLanes_Follow has run; seconds): a base file
      *  younger than this is new in the base, not deleted by the lane. */
     long long created;
 };
@@ -299,6 +300,25 @@ ToriRSMapEdLanes_Publish(
 int
 ToriRSMapEdLanes_Discard(
     const struct ToriRSMapEdLaneDef* lane,
+    struct ToriRSMapEdLaneCounts* counts,
+    char* why,
+    size_t why_size);
+
+/** Bring the mirror up to the base's present, keeping the lane's own
+ *  changes: link every file and directory the base gained since the mirror's
+ *  last look, drop links the base's deletions left dangling, and take the
+ *  base's version of each copied (pack/) file the lane never changed -- the
+ *  copy cannot follow on its own the way a link does, and a stale copy is a
+ *  silent revert of the base (packed into RUN's server, published over the
+ *  main tree). A copied file BOTH sides changed is refused, named in `why`.
+ *  The common ancestor of a copy is <lane>/ancestor/<rel>, taken by Create
+ *  and by every follow. RUN and PUBLISH follow first. 1 on success (`created`
+ *  and lane.ini's `followed` move to this look); 0 on a conflict or an IO
+ *  error. counts: written = linked or refreshed, removed = dropped. A no-op
+ *  on the main lane. */
+int
+ToriRSMapEdLanes_Follow(
+    struct ToriRSMapEdLaneDef* lane,
     struct ToriRSMapEdLaneCounts* counts,
     char* why,
     size_t why_size);

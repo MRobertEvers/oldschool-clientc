@@ -640,6 +640,56 @@ ToriRSMapEdLanes_Mirror(
     return files;
 }
 
+/** 1 when `rel` lies under a tree the mirror copies (k_copied). */
+static int
+rel_copied(const char* rel)
+{
+    for( int i = 0; k_copied[i]; i++ )
+    {
+        size_t const length = strlen(k_copied[i]);
+        if( strncmp(rel, k_copied[i], length) == 0 && (rel[length] == '\0' || rel[length] == '/') )
+            return 1;
+    }
+    return 0;
+}
+
+/** <lane>/ancestor/<rel>: the base's copy of a copied file as the mirror last
+ *  took it. A copy cannot follow the base the way a link does, and without
+ *  the common ancestor a lane's own edit of it (the id allocation appending
+ *  to a ledger) and the base moving on under it look the same. */
+static void
+ancestor_path(
+    const struct ToriRSMapEdLaneDef* lane,
+    const char* rel,
+    char* out,
+    size_t out_size)
+{
+    snprintf(out, out_size, "%s/ancestor/%s", lane->dir, rel);
+}
+
+/** A new lane's ancestors: the base's copied trees as the mirror took them. */
+static int
+ancestor_seed(
+    const struct ToriRSMapEdLaneDef* lane,
+    char* why,
+    size_t why_size)
+{
+    for( int i = 0; k_copied[i]; i++ )
+    {
+        char source[TORIRSMAPED_LANE_PATH];
+        char target[TORIRSMAPED_LANE_PATH];
+        struct stat st;
+
+        snprintf(source, sizeof(source), "%s/%s", lane->base, k_copied[i]);
+        if( stat(source, &st) != 0 || !S_ISDIR(st.st_mode) )
+            continue;
+        ancestor_path(lane, k_copied[i], target, sizeof(target));
+        if( mirror_tree(source, target, k_copied[i], 1, why, why_size) < 0 )
+            return 0;
+    }
+    return 1;
+}
+
 /* ---- the registry ---------------------------------------------------------- */
 
 int
@@ -749,7 +799,17 @@ lane_ini_read(struct ToriRSMapEdLaneDef* lane)
         if( strncmp(line, "base = ", 7) == 0 )
             snprintf(lane->base, sizeof(lane->base), "%s", line + 7);
         else if( strncmp(line, "created = ", 10) == 0 )
-            lane->created = strtoll(line + 10, NULL, 10);
+        {
+            long long const created = strtoll(line + 10, NULL, 10);
+            if( created > lane->created )
+                lane->created = created;
+        }
+        else if( strncmp(line, "followed = ", 11) == 0 )
+        {
+            long long const followed = strtoll(line + 11, NULL, 10);
+            if( followed > lane->created )
+                lane->created = followed;
+        }
     }
     fclose(file);
     return lane->base[0] != '\0';
@@ -823,6 +883,8 @@ ToriRSMapEdLanes_Create(
     out->created = (long long)time(NULL);
     files = ToriRSMapEdLanes_Mirror(out->base, out->content, why, why_size);
     if( files < 0 )
+        return 0;
+    if( !ancestor_seed(out, why, why_size) )
         return 0;
     snprintf(path, sizeof(path), "%s/lane.ini", out->dir);
     file = fopen(path, "wb");
@@ -1311,6 +1373,296 @@ ToriRSMapEdLanes_Discard(
         }
     }
     ToriMem_Free(ToriMem_Editor(), changes);
+    return 1;
+}
+
+/* ---- following the base ------------------------------------------------------ */
+
+static int
+mkdir_p_parent(const char* path)
+{
+    char dir[TORIRSMAPED_LANE_PATH + 16];
+    return !parent_dir(path, dir, sizeof(dir)) || mkdir_p(dir);
+}
+
+struct follow_state
+{
+    const struct ToriRSMapEdLaneDef* lane;
+    struct ToriRSMapEdLaneCounts* counts;
+    int conflicts;
+    char* why;
+    size_t why_size;
+};
+
+/** A copied file both sides have: take the base's when the lane never
+ *  changed its copy, keep the lane's when the base never moved, and refuse
+ *  when both did. Returns 0 on an IO error. */
+static int
+follow_copied(
+    struct follow_state* state,
+    const char* rel,
+    const char* lane_path,
+    const char* base_path)
+{
+    char ancestor[TORIRSMAPED_LANE_PATH + 16];
+    struct stat st;
+    int has_ancestor;
+
+    ancestor_path(state->lane, rel, ancestor, sizeof(ancestor));
+    has_ancestor = stat(ancestor, &st) == 0;
+    if( files_equal(lane_path, base_path) )
+    {
+        if( has_ancestor && files_equal(ancestor, base_path) )
+            return 1;
+        return mkdir_p_parent(ancestor) && copy_file(base_path, ancestor, state->why, state->why_size);
+    }
+    if( has_ancestor && files_equal(lane_path, ancestor) )
+    {
+        if( !copy_file(base_path, lane_path, state->why, state->why_size)
+            || !copy_file(base_path, ancestor, state->why, state->why_size) )
+            return 0;
+        state->counts->written++;
+        return 1;
+    }
+    if( has_ancestor && files_equal(base_path, ancestor) )
+        return 1; /* the lane's own edit */
+    if( state->conflicts++ == 0 )
+        snprintf(state->why, state->why_size,
+            "%s changed in both the lane and its base%s; publish or discard the lane's copy", rel,
+            has_ancestor ? "" : " (or the lane has no record of the copy it took)");
+    return 1;
+}
+
+/** A copied file that is a link (a publish with reset or a discard re-links
+ *  it): a copy again, or the next ledger rewrite writes through into the
+ *  base. Not counted: the lane reads the same bytes either way. */
+static int
+follow_recopy(
+    struct follow_state* state,
+    const char* rel,
+    const char* lane_path,
+    const char* base_path)
+{
+    char ancestor[TORIRSMAPED_LANE_PATH + 16];
+
+    ancestor_path(state->lane, rel, ancestor, sizeof(ancestor));
+    return copy_file(base_path, lane_path, state->why, state->why_size) && mkdir_p_parent(ancestor)
+           && copy_file(base_path, ancestor, state->why, state->why_size);
+}
+
+/** A base entry the mirror has nothing for: a file or directory new in the
+ *  base since the mirror's last look is linked (copied, under k_copied); an
+ *  older one is a deletion by the lane and stays deleted. Returns 0 on an IO
+ *  error. */
+static int
+follow_new(
+    struct follow_state* state,
+    const char* rel,
+    const char* lane_path,
+    const char* base_path,
+    const struct stat* bst)
+{
+    char ancestor[TORIRSMAPED_LANE_PATH + 16];
+    int const copied = rel_copied(rel);
+
+    if( !((long long)bst->st_mtime > state->lane->created) )
+        return 1;
+    ancestor_path(state->lane, rel, ancestor, sizeof(ancestor));
+    if( S_ISDIR(bst->st_mode) )
+    {
+        int const files = mirror_tree(base_path, lane_path, rel, copied, state->why, state->why_size);
+        if( files < 0 )
+            return 0;
+        state->counts->written += files;
+        return !copied || mirror_tree(base_path, ancestor, rel, 1, state->why, state->why_size) >= 0;
+    }
+    if( !S_ISREG(bst->st_mode) )
+        return 1;
+    if( copied )
+    {
+        if( !copy_file(base_path, lane_path, state->why, state->why_size) || !mkdir_p_parent(ancestor)
+            || !copy_file(base_path, ancestor, state->why, state->why_size) )
+            return 0;
+    }
+    else if( symlink(base_path, lane_path) != 0 )
+    {
+        snprintf(state->why, state->why_size, "cannot link %s: %s", lane_path, strerror(errno));
+        return 0;
+    }
+    state->counts->written++;
+    return 1;
+}
+
+/** A mirror entry the base no longer has: a link left dangling goes, and so
+ *  does a copy the lane never changed; the lane's own files stay. Returns 0
+ *  on an IO error. */
+static int
+follow_gone(
+    struct follow_state* state,
+    const char* rel,
+    const char* lane_path,
+    const struct stat* lst)
+{
+    char ancestor[TORIRSMAPED_LANE_PATH + 16];
+    struct stat ast;
+
+    ancestor_path(state->lane, rel, ancestor, sizeof(ancestor));
+    if( !S_ISLNK(lst->st_mode)
+        && !(rel_copied(rel) && S_ISREG(lst->st_mode) && stat(ancestor, &ast) == 0 && files_equal(lane_path, ancestor)) )
+        return 1;
+    if( unlink(lane_path) != 0 )
+    {
+        snprintf(state->why, state->why_size, "cannot remove %s: %s", lane_path, strerror(errno));
+        return 0;
+    }
+    if( !S_ISLNK(lst->st_mode) )
+        remove(ancestor);
+    state->counts->removed++;
+    return 1;
+}
+
+/** One real directory of the mirror against the base's: both directions,
+ *  recursing into the directories both have. Returns 0 on an IO error (`why`
+ *  says which). */
+static int
+follow_walk(
+    struct follow_state* state,
+    const char* rel)
+{
+    const struct ToriRSMapEdLaneDef* lane = state->lane;
+    char dirs[2][TORIRSMAPED_LANE_PATH];
+    int ok = 1;
+
+    snprintf(dirs[0], sizeof(dirs[0]), "%s%s%s", lane->base, rel[0] ? "/" : "", rel);
+    snprintf(dirs[1], sizeof(dirs[1]), "%s%s%s", lane->content, rel[0] ? "/" : "", rel);
+    /* Pass 0 walks the base (new entries, copies, subdirectories), pass 1
+     * the mirror (what the base no longer has). */
+    for( int pass = 0; pass < 2 && ok; pass++ )
+    {
+        DIR* dir = opendir(dirs[pass]);
+        struct dirent* entry;
+
+        if( !dir )
+            continue;
+        while( ok && (entry = readdir(dir)) )
+        {
+            char sub_rel[TORIRSMAPED_LANE_PATH];
+            char base_path[TORIRSMAPED_LANE_PATH];
+            char lane_path[TORIRSMAPED_LANE_PATH];
+            struct stat bst;
+            struct stat lst;
+            int has_base;
+            int has_lane;
+
+            if( strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0 )
+                continue;
+            snprintf(sub_rel, sizeof(sub_rel), "%s%s%s", rel, rel[0] ? "/" : "", entry->d_name);
+            if( rel_transient(sub_rel) || (!rel[0] && in_list(k_linked, entry->d_name)) )
+                continue;
+            snprintf(base_path, sizeof(base_path), "%s/%s", dirs[0], entry->d_name);
+            snprintf(lane_path, sizeof(lane_path), "%s/%s", dirs[1], entry->d_name);
+            has_base = stat(base_path, &bst) == 0;
+            has_lane = lstat(lane_path, &lst) == 0;
+            if( pass == 1 )
+                ok = has_base || !has_lane || follow_gone(state, sub_rel, lane_path, &lst);
+            else if( !has_base )
+                continue;
+            else if( !has_lane )
+                ok = follow_new(state, sub_rel, lane_path, base_path, &bst);
+            else if( S_ISDIR(bst.st_mode) && S_ISDIR(lst.st_mode) )
+                ok = follow_walk(state, sub_rel);
+            else if( S_ISREG(bst.st_mode) && S_ISREG(lst.st_mode) && rel_copied(sub_rel) )
+                ok = follow_copied(state, sub_rel, lane_path, base_path);
+            else if( S_ISREG(bst.st_mode) && S_ISLNK(lst.st_mode) && rel_copied(sub_rel) )
+                ok = follow_recopy(state, sub_rel, lane_path, base_path);
+        }
+        closedir(dir);
+    }
+    return ok;
+}
+
+/** lane.ini's `followed` line, replaced (the rest of the file kept). */
+static int
+lane_ini_set_followed(
+    const struct ToriRSMapEdLaneDef* lane,
+    long long followed,
+    char* why,
+    size_t why_size)
+{
+    char path[TORIRSMAPED_LANE_PATH + 16];
+    char temp[TORIRSMAPED_LANE_PATH + 32];
+    char line[TORIRSMAPED_LANE_PATH + 32];
+    FILE* in;
+    FILE* out;
+
+    snprintf(path, sizeof(path), "%s/lane.ini", lane->dir);
+    snprintf(temp, sizeof(temp), "%s.tmp", path);
+    in = fopen(path, "rb");
+    if( !in )
+    {
+        snprintf(why, why_size, "cannot read %s: %s", path, strerror(errno));
+        return 0;
+    }
+    out = fopen(temp, "wb");
+    if( !out )
+    {
+        fclose(in);
+        snprintf(why, why_size, "cannot write %s: %s", temp, strerror(errno));
+        return 0;
+    }
+    while( fgets(line, sizeof(line), in) )
+    {
+        if( strncmp(line, "followed = ", 11) != 0 )
+            fputs(line, out);
+    }
+    fclose(in);
+    fprintf(out, "followed = %lld\n", followed);
+    if( fclose(out) != 0 || rename(temp, path) != 0 )
+    {
+        remove(temp);
+        snprintf(why, why_size, "cannot write %s: %s", path, strerror(errno));
+        return 0;
+    }
+    return 1;
+}
+
+int
+ToriRSMapEdLanes_Follow(
+    struct ToriRSMapEdLaneDef* lane,
+    struct ToriRSMapEdLaneCounts* counts,
+    char* why,
+    size_t why_size)
+{
+    struct follow_state state;
+    /* A base write in the walk's own second is caught by the next follow. */
+    long long const started = (long long)time(NULL) - 1;
+
+    assert(lane);
+    assert(counts);
+    assert(why);
+    why[0] = '\0';
+    memset(counts, 0, sizeof(*counts));
+    if( lane->is_main || !lane->base[0] )
+        return 1;
+    memset(&state, 0, sizeof(state));
+    state.lane = lane;
+    state.counts = counts;
+    state.why = why;
+    state.why_size = why_size;
+    if( !follow_walk(&state, "") )
+        return 0;
+    if( state.conflicts > 0 )
+    {
+        if( state.conflicts > 1 )
+        {
+            size_t const used = strlen(why);
+            snprintf(why + used, why_size - used, " (and %d more)", state.conflicts - 1);
+        }
+        return 0;
+    }
+    if( !lane_ini_set_followed(lane, started, why, why_size) )
+        return 0;
+    lane->created = started;
     return 1;
 }
 

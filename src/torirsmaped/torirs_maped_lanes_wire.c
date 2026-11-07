@@ -330,6 +330,14 @@ handle_lane_publish(
         lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_PUBLISH, EDITOR_HOST_ABSENT, message, target, NULL, 0);
         return;
     }
+    /* A pack/ copy the base has moved past would publish as a revert. */
+    if( !ToriRSMapEdLanes_Follow(&maped->lane, &counts, why, sizeof(why)) )
+    {
+        snprintf(message, sizeof(message), "lane '%s' cannot follow its base: %s; nothing was published",
+            maped->lane.name, why);
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_PUBLISH, EDITOR_HOST_REFUSED, message, target, NULL, 0);
+        return;
+    }
     if( !ToriRSMapEdLanes_Publish(&maped->lane, &to, flags, &counts, why, sizeof(why)) )
     {
         snprintf(message, sizeof(message), "publish to %s stopped: %s (%d written, %d removed before it)", to.name,

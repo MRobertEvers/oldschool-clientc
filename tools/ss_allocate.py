@@ -537,8 +537,14 @@ def write_pack(path, ns, raw, fresh):
         lines.append(MARKER)
     for ident, name in sorted(fresh):
         lines.append(f'{ident}={name}')
-    with open(path, 'w', encoding='utf-8') as handle:
+    # A temporary renamed over the ledger, never a write through the path: in
+    # an editor lane's mirror a ledger can be a link to the main tree's
+    # (torirsmaped/torirs_maped_lanes.h), and the lane's allocation must land
+    # in the lane.
+    temporary = path + '.tmp'
+    with open(temporary, 'w', encoding='utf-8') as handle:
         handle.write('\n'.join(lines) + '\n')
+    os.replace(temporary, path)
 
 
 def main():
