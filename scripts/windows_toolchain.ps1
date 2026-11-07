@@ -29,7 +29,10 @@ function Copy-ToriRSPluginChromeBundle {
     $fontFiles = @(
         "ToriRSBody.eot", "ToriRSBody.woff", "ToriRSBody.ttf",
         "ToriRSMenu.eot", "ToriRSMenu.woff", "ToriRSMenu.ttf",
-        "ToriRSSmall.eot", "ToriRSSmall.woff", "ToriRSSmall.ttf"
+        "ToriRSSmall.eot", "ToriRSSmall.woff", "ToriRSSmall.ttf",
+        "ToriRSBody-Vector.eot", "ToriRSBody-Vector.woff", "ToriRSBody-Vector.ttf",
+        "ToriRSMenu-Vector.eot", "ToriRSMenu-Vector.woff", "ToriRSMenu-Vector.ttf",
+        "ToriRSSmall-Vector.eot", "ToriRSSmall-Vector.woff", "ToriRSSmall-Vector.ttf"
     )
     foreach ($name in $fontFiles) {
         if (-not (Test-Path -LiteralPath (Join-Path $font $name))) {

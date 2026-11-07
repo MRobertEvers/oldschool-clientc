@@ -31,6 +31,23 @@ struct VarBitType
 
 #define VARP_MANAGER_READBIT_MAX 32
 
+/**
+ * The map editor's var preview (TORIRSMAPED_STATE_VAR_PREVIEW; the layout is
+ * the shell editor's, src/editor/builder/builder_shell.h): up to this many
+ * vars whose transform resolve uses a stated value instead of the player's.
+ */
+#define VARP_MANAGER_PREVIEW_MAX 5
+
+/** One previewed var: a varp or a varbit by id, and the value a shell keyed
+ *  on exactly that var resolves with. */
+struct VarPManagerPreview
+{
+    /** 1 = `id` is a varbit, 0 = a varp. */
+    int is_varbit;
+    int id;
+    int value;
+};
+
 /** Callback when a client-visible varp value changes (any source). */
 typedef void (*VarPManager_ChangeFn)(
     void* userdata,
@@ -99,6 +116,12 @@ struct VarPManager
 
     VarPManager_ServerUpdateFn server_update_fn;
     void* server_update_userdata;
+
+    /** The editor's var preview (VarPManager_SetPreview): read by
+     *  VarPManager_ResolveTransform alone. Every other reader -- CS2, the
+     *  wire, the varbit getters -- sees the player's own values. */
+    struct VarPManagerPreview preview[VARP_MANAGER_PREVIEW_MAX];
+    int preview_count;
 };
 
 void
@@ -232,7 +255,28 @@ VarPManager_SetServerUpdateCallback(
     VarPManager_ServerUpdateFn fn,
     void* userdata);
 
-/** Resolve a loc transform target id from transforms[] using varbit/varp state.
+/**
+ * Set the editor's var preview: `count` entries (0 clears it). A multiloc or
+ * multinpc keyed on a previewed var resolves (VarPManager_ResolveTransform)
+ * with the stated value instead of the player's -- exactly that var, as the
+ * shell names it: a varbit preview does not move a shell keyed on the varp
+ * that packs it, nor the other way round. The player's values are untouched.
+ *
+ * Every var the old or the new preview names is then announced through the
+ * change callback (VarPManager_ChangeFn) as the BASE varp the wire would carry
+ * (a varbit's basevar), so whatever re-resolves transforms on a varp change
+ * -- the client's placed locs and npcs -- re-resolves these. A varbit whose
+ * type is not loaded has no base varp to announce; it is skipped there and
+ * still resolves. Returns how many varps were announced.
+ */
+int
+VarPManager_SetPreview(
+    struct VarPManager* mgr,
+    const struct VarPManagerPreview* entries,
+    int count);
+
+/** Resolve a loc transform target id from transforms[] using varbit/varp state
+ * -- and the editor's var preview first (VarPManager_SetPreview).
  * Returns -1 when the loc should be hidden. Requires transform_count > 0. */
 int
 VarPManager_ResolveTransform(

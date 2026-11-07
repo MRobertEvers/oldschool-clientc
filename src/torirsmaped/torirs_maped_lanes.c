@@ -39,6 +39,7 @@
 #define NOMINMAX
 #include <direct.h>
 #include <windows.h>
+#include <winioctl.h> /* FSCTL_SET_REPARSE_POINT: WIN32_LEAN_AND_MEAN leaves it out */
 
 #ifndef S_IFLNK
 #define S_IFLNK 0120000
@@ -62,14 +63,87 @@ lanes_mkdir(const char* path)
     return -1;
 }
 
+/* A directory junction at `link_path` to the absolute directory `target`
+ * (backslashes): the unprivileged directory link, a mount-point reparse
+ * point. 1 on success. */
+static int
+lanes_junction(
+    const char* target,
+    const char* link_path)
+{
+    /* REPARSE_DATA_BUFFER's MountPointReparseBuffer arm (ntifs.h, which
+     * MinGW's headers do not carry). */
+    struct
+    {
+        DWORD tag;
+        WORD data_length;
+        WORD reserved;
+        WORD substitute_offset;
+        WORD substitute_length;
+        WORD print_offset;
+        WORD print_length;
+        WCHAR path[TORIRSMAPED_LANE_PATH * 2 + 8];
+    } buffer;
+    WCHAR wide[TORIRSMAPED_LANE_PATH];
+    HANDLE handle;
+    DWORD returned = 0;
+    int length;
+    int ok;
+
+    length = MultiByteToWideChar(CP_ACP, 0, target, -1, wide, TORIRSMAPED_LANE_PATH);
+    if( length <= 1 )
+        return 0;
+    length--; /* without the NUL */
+    memset(&buffer, 0, sizeof(buffer));
+    buffer.tag = IO_REPARSE_TAG_MOUNT_POINT;
+    /* "\??\C:\dir" then NUL, then the print name "C:\dir" then NUL. */
+    memcpy(buffer.path, L"\\??\\", 4 * sizeof(WCHAR));
+    memcpy(buffer.path + 4, wide, (size_t)length * sizeof(WCHAR));
+    buffer.substitute_length = (WORD)((length + 4) * sizeof(WCHAR));
+    buffer.print_offset = (WORD)(buffer.substitute_length + sizeof(WCHAR));
+    memcpy(buffer.path + length + 5, wide, (size_t)length * sizeof(WCHAR));
+    buffer.print_length = (WORD)(length * sizeof(WCHAR));
+    buffer.data_length = (WORD)(4 * sizeof(WORD) + buffer.print_offset + buffer.print_length + sizeof(WCHAR));
+
+    if( !CreateDirectoryA(link_path, NULL) )
+        return 0;
+    handle = CreateFileA(link_path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+    if( handle == INVALID_HANDLE_VALUE )
+    {
+        RemoveDirectoryA(link_path);
+        return 0;
+    }
+    ok = DeviceIoControl(handle, FSCTL_SET_REPARSE_POINT, &buffer, 8 + buffer.data_length, NULL, 0,
+        &returned, NULL) != 0;
+    CloseHandle(handle);
+    if( !ok )
+        RemoveDirectoryA(link_path);
+    return ok;
+}
+
+/*
+ * A link the way the mirror means it. A symbolic link where the account may
+ * make one (Developer Mode, or elevated); otherwise what Windows lets every
+ * account make: a directory junction for a directory, a hard link for a file.
+ * Either way lstat() below reads it as a link, and a save -- which writes a
+ * temporary and replaces the entry -- turns it into a real file, so the
+ * changes scan sees exactly the edited files on every lane kind.
+ *
+ * The hard-link difference: a publish that replaces a base file leaves the
+ * other lanes' hard links on the old bytes, where a symbolic link would show
+ * the new ones (docs/MAPED_STATUS.md, "Windows run").
+ */
 static int
 symlink(
     const char* target,
     const char* link_path)
 {
+    static int symbolic_refused = 0;
     char native[TORIRSMAPED_LANE_PATH];
     DWORD flags = SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE;
     DWORD attrs;
+    int is_dir;
 
     /* The target is stored verbatim and Windows does not resolve '/' in it. */
     snprintf(native, sizeof(native), "%s", target);
@@ -77,16 +151,31 @@ symlink(
         if( *scan == '/' )
             *scan = '\\';
     attrs = GetFileAttributesA(native);
-    if( attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) )
+    is_dir = attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY);
+    if( is_dir )
         flags |= SYMBOLIC_LINK_FLAG_DIRECTORY;
-    if( CreateSymbolicLinkA(link_path, native, flags) )
+    if( !symbolic_refused )
+    {
+        if( CreateSymbolicLinkA(link_path, native, flags) )
+            return 0;
+        if( GetLastError() != ERROR_PRIVILEGE_NOT_HELD )
+        {
+            errno = EACCES;
+            return -1;
+        }
+        symbolic_refused = 1;
+        fprintf(stderr, "lanes: this account may not make symbolic links (Developer Mode is off); "
+                   "linking directories by junction and files by hard link\n");
+    }
+    if( is_dir ? lanes_junction(native, link_path) : CreateHardLinkA(link_path, native, NULL) != 0 )
         return 0;
-    errno = GetLastError() == ERROR_PRIVILEGE_NOT_HELD ? EPERM : EACCES;
+    errno = EACCES;
     return -1;
 }
 
-/* stat() of the entry itself: a reparse point (symlink) reads as S_IFLNK and
- * is not followed, as POSIX lstat. */
+/* stat() of the entry itself, as POSIX lstat: a reparse point (a symbolic
+ * link or a junction) reads as S_IFLNK and is not followed, and so does a
+ * file with more than one hard link (symlink() above: the mirror's link). */
 static int
 lstat(
     const char* path,
@@ -100,11 +189,59 @@ lstat(
         return -1;
     }
     if( !(data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) )
+    {
+        if( !(data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) )
+        {
+            HANDLE handle = CreateFileA(path, FILE_READ_ATTRIBUTES,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+            BY_HANDLE_FILE_INFORMATION info;
+            int linked = 0;
+            if( handle != INVALID_HANDLE_VALUE )
+            {
+                linked = GetFileInformationByHandle(handle, &info) && info.nNumberOfLinks > 1;
+                CloseHandle(handle);
+            }
+            if( linked )
+            {
+                memset(st, 0, sizeof(*st));
+                st->st_mode = S_IFLNK;
+                return 0;
+            }
+        }
         return stat(path, st);
+    }
     memset(st, 0, sizeof(*st));
     st->st_mode = S_IFLNK;
     return 0;
 }
+
+/* POSIX unlink of a link: a junction is a directory to Win32. */
+static int
+lanes_unlink(const char* path)
+{
+    DWORD const attrs = GetFileAttributesA(path);
+
+    if( attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_REPARSE_POINT)
+        && (attrs & FILE_ATTRIBUTE_DIRECTORY) )
+        return RemoveDirectoryA(path) ? 0 : (errno = EACCES, -1);
+    return unlink(path);
+}
+#define unlink(path) lanes_unlink(path)
+
+/* POSIX rename replaces its target atomically; Win32's rename refuses an
+ * existing one. MoveFileEx with REPLACE_EXISTING is the same swap (as
+ * platform_x_io.c and torirs_server_savefile.c do it). */
+static int
+lanes_rename(
+    const char* from,
+    const char* to)
+{
+    if( MoveFileExA(from, to, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) )
+        return 0;
+    errno = EACCES;
+    return -1;
+}
+#define rename(from, to) lanes_rename(from, to)
 
 /* An absolute path with '/' separators, as the callers compare and join it.
  * NULL when `path` does not exist, as POSIX realpath. */
@@ -158,6 +295,25 @@ kill(
 #else
 #define lanes_mkdir(path) mkdir(path, 0755)
 #endif
+
+int
+ToriRSMapEdLanes_IsLink(const char* path)
+{
+    struct stat st;
+
+    assert(path);
+    return lstat(path, &st) == 0 && S_ISLNK(st.st_mode);
+}
+
+int
+ToriRSMapEdLanes_LinkDirectory(
+    const char* target,
+    const char* link_path)
+{
+    assert(target);
+    assert(link_path);
+    return symlink(target, link_path) == 0;
+}
 
 /* ---- mirror.py's rules ---------------------------------------------------- */
 
@@ -504,6 +660,19 @@ ToriRSMapEdLanes_NameValid(const char* name)
     return 1;
 }
 
+/** 1 when `path` is absolute: "/x", and on Windows "C:/x", "C:\x" or "\x"
+ *  too (a drive-letter path read as relative gets the working directory
+ *  glued in front of it: "C:\repo/C:/repo/build/..."). */
+static int
+lanes_path_absolute(const char* path)
+{
+#ifdef _WIN32
+    if( path[0] == '\\' || (((path[0] | 0x20) >= 'a' && (path[0] | 0x20) <= 'z') && path[1] == ':') )
+        return 1;
+#endif
+    return path[0] == '/';
+}
+
 static void
 resolve_abs(
     const char* path,
@@ -513,7 +682,7 @@ resolve_abs(
     char real[PATH_MAX];
     if( realpath(path, real) )
         snprintf(out, out_size, "%s", real);
-    else if( path[0] == '/' )
+    else if( lanes_path_absolute(path) )
         snprintf(out, out_size, "%s", path);
     else
     {
@@ -1142,5 +1311,152 @@ ToriRSMapEdLanes_Discard(
         }
     }
     ToriMem_Free(ToriMem_Editor(), changes);
+    return 1;
+}
+
+/* ---- the next boot's lane (workbench 6.5) ----------------------------------- */
+
+static void
+boot_file_path(
+    const char* repo_root,
+    char* out,
+    size_t out_size)
+{
+    char repo[TORIRSMAPED_LANE_PATH];
+
+    resolve_abs(repo_root, repo, sizeof(repo));
+    snprintf(out, out_size, "%s/build/lanes/lane.ini", repo);
+}
+
+int
+ToriRSMapEdLanes_BootName(
+    const char* repo_root,
+    char* out,
+    size_t out_size)
+{
+    char path[TORIRSMAPED_LANE_PATH + 32];
+    char line[256];
+    FILE* file;
+
+    assert(repo_root);
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    boot_file_path(repo_root, path, sizeof(path));
+    file = fopen(path, "rb");
+    if( !file )
+        return 0;
+    while( fgets(line, sizeof(line), file) )
+    {
+        char* end = line + strlen(line);
+        while( end > line && (end[-1] == '\n' || end[-1] == '\r' || end[-1] == ' ') )
+            *--end = '\0';
+        if( strncmp(line, "lane = ", 7) == 0 )
+            snprintf(out, out_size, "%s", line + 7);
+    }
+    fclose(file);
+    return out[0] != '\0';
+}
+
+int
+ToriRSMapEdLanes_SetBoot(
+    const char* repo_root,
+    const char* base_tree,
+    const char* name,
+    char* why,
+    size_t why_size)
+{
+    char path[TORIRSMAPED_LANE_PATH + 32];
+    char temp[TORIRSMAPED_LANE_PATH + 48];
+    char dir[TORIRSMAPED_LANE_PATH + 16];
+    char repo[TORIRSMAPED_LANE_PATH];
+    struct ToriRSMapEdLaneDef lane;
+    FILE* file;
+
+    assert(repo_root);
+    assert(base_tree);
+    assert(name);
+    assert(why);
+    why[0] = '\0';
+    if( strcmp(name, "main") != 0 && !ToriRSMapEdLanes_NameValid(name) )
+    {
+        snprintf(why, why_size, "'%s' is not a lane name", name);
+        return 0;
+    }
+    if( !ToriRSMapEdLanes_Lookup(repo_root, base_tree, name, &lane) )
+    {
+        snprintf(why, why_size, "there is no lane '%s' (build/lanes/%s/lane.ini)", name, name);
+        return 0;
+    }
+    resolve_abs(repo_root, repo, sizeof(repo));
+    snprintf(dir, sizeof(dir), "%s/build/lanes", repo);
+    if( !mkdir_p(dir) )
+    {
+        snprintf(why, why_size, "cannot create %s: %s", dir, strerror(errno));
+        return 0;
+    }
+    boot_file_path(repo_root, path, sizeof(path));
+    snprintf(temp, sizeof(temp), "%s.tmp", path);
+    file = fopen(temp, "wb");
+    if( !file )
+    {
+        snprintf(why, why_size, "cannot write %s: %s", temp, strerror(errno));
+        return 0;
+    }
+    fprintf(file,
+        "; The lane every editor boot on this repo serves (torirsmaped/torirs_maped_lanes.h),\n"
+        "; whatever its manifest or --lane asks: written by the Lanes panel's Switch and\n"
+        "; Scratch lane (LANE_SWITCH). Delete this file to boot as the manifest says.\n"
+        "lane = %s\n",
+        name);
+    if( fclose(file) != 0 )
+    {
+        snprintf(why, why_size, "cannot write %s: %s", temp, strerror(errno));
+        remove(temp);
+        return 0;
+    }
+    if( rename(temp, path) != 0 )
+    {
+        snprintf(why, why_size, "cannot rename onto %s: %s", path, strerror(errno));
+        remove(temp);
+        return 0;
+    }
+    return 1;
+}
+
+int
+ToriRSMapEdLanes_BootLane(
+    const char* repo_root,
+    const char* base_tree,
+    const char* configured,
+    char* out,
+    size_t out_size,
+    char* note,
+    size_t note_size)
+{
+    char named[TORIRSMAPED_LANE_NAME_MAX + 8];
+    const char* asked = configured && configured[0] ? configured : "main";
+    struct ToriRSMapEdLaneDef lane;
+
+    assert(repo_root);
+    assert(base_tree);
+    assert(out);
+    assert(note);
+    note[0] = '\0';
+    snprintf(out, out_size, "%s", asked);
+    if( !ToriRSMapEdLanes_BootName(repo_root, named, sizeof(named)) )
+        return 0;
+    if( !ToriRSMapEdLanes_Lookup(repo_root, base_tree, named, &lane) )
+    {
+        snprintf(note, note_size, "build/lanes/lane.ini names lane '%s', which does not exist; serving '%s'", named,
+            asked);
+        return 0;
+    }
+    snprintf(out, out_size, "%s", named);
+    if( strcmp(named, asked) == 0 )
+        snprintf(note, note_size, "lane '%s' (build/lanes/lane.ini, as the boot asked)", named);
+    else
+        snprintf(note, note_size, "lane '%s' (build/lanes/lane.ini, switched in the editor; the boot asked for '%s')",
+            named, asked);
     return 1;
 }

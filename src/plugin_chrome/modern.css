@@ -22,6 +22,37 @@
   font-weight: 400;
 }
 
+/*
+ * The second family: the synthesized VECTOR faces (tools/chrome_font_vector.py,
+ * from the same baked masks, the same advances and line boxes), for a
+ * fractional device scale (.tpc-dpr-fractional) and for "smooth always"
+ * (.tpc-text-smooth). At an integer device scale the cell faces above stay the
+ * pixel font exactly; at 1.5 they would draw 1- and 2-pixel stems in turn.
+ */
+@font-face {
+  font-family: "ToriRS Chrome Vector";
+  src: url("font/ToriRSBody-Vector.woff") format("woff"),
+       url("font/ToriRSBody-Vector.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "ToriRS Chrome Vector";
+  src: url("font/ToriRSMenu-Vector.woff") format("woff"),
+       url("font/ToriRSMenu-Vector.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: "ToriRS Chrome Small Vector";
+  src: url("font/ToriRSSmall-Vector.woff") format("woff"),
+       url("font/ToriRSSmall-Vector.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+}
+
 :root {
   color-scheme: dark;
   --tpc-body: #5d5447;
@@ -440,8 +471,11 @@ button { font-weight: 700; }
    *
    * The inset is 16, the caps' opaque width, NOT their 18px cell: the middle
    * then tucks half a pixel UNDER each cap, which the cap paints over, instead
-   * of stopping half a pixel short of it and leaving a seam. Overflow hides a
-   * caption too long for the span, as the native chrome's clip does.
+   * of stopping half a pixel short of it and leaving a seam. A caption too
+   * long for the span ends in an ellipsis rather than being clipped mid-glyph,
+   * as the native chrome elides it (uitree_debug_overlay.c's BUTTON); the
+   * native tooltip then leads with the caption whole. A button that wears a
+   * chord ellipses its caption span instead (.tpc-button-caption below).
    *
    * The inset is a TRANSPARENT BORDER rather than padding, and that is what
    * frees the padding for the caption nudge below: a border can be excluded
@@ -473,7 +507,7 @@ button { font-weight: 700; }
    * whose whole point is that it lands on the pixel grid.
    */
   padding: 2px 0 0;
-  overflow: hidden;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   background-origin: border-box, border-box, padding-box;
   background-clip: border-box, border-box, padding-box;
   /* White on the red plate, red under the cursor: the pair the interfaces
@@ -504,6 +538,41 @@ button { font-weight: 700; }
 .tpc-button:active, .tpc-menu:active { padding: 3px 0 0 2px !important; }
 .tpc-button { width: 104px; max-width: 100%; }
 .tpc-menu { width: 104px; max-width: 100%; text-align: left; }
+/*
+ * A button that wears its chord: the caption in what the key leaves, ending
+ * in an ellipsis rather than running under it, and the key right-aligned
+ * three pixels inside the plate, as the in-canvas chrome draws it
+ * (torirs_chrome_metrics.h KEYCAP_INSET 3, KEYCAP_GAP 4, KEYCAP_PAD_X 2,
+ * KEYCAP_H 12). The key reaches 13px into the cap border, so the button stops
+ * clipping and the caption clips itself instead.
+ */
+.tpc-button.tpc-has-chord {
+  display: -webkit-flex; display: flex; -webkit-align-items: flex-start; align-items: flex-start;
+  overflow: visible;
+}
+.tpc-button-caption {
+  -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tpc-keycap, .tpc-chord-badge {
+  height: 12px; padding: 0 2px;
+  background: #000; background: var(--tpc-field);
+  color: #ffff00; color: var(--tpc-accent);
+  font: 400 10px/12px "ToriRS Chrome Small", "Lucida Console", monospace;
+  white-space: nowrap; text-shadow: none;
+}
+.tpc-keycap {
+  -webkit-flex: 0 0 auto; flex: 0 0 auto; margin: 1px -13px 0 4px;
+  border: 1px solid #474745; border-color: var(--tpc-inset); line-height: 10px;
+}
+.tpc-button[disabled] .tpc-keycap { color: #ff981f; color: var(--tpc-label); }
+/* An icon button's chord: one pixel in from the box's bottom-right corner
+ * (BADGE_INSET 1; the button's own 1px border is that pixel), over black. */
+.tpc-chord-badge {
+  position: absolute; right: 0; bottom: 0; max-width: 30px; overflow: hidden;
+  text-overflow: ellipsis; pointer-events: none;
+}
+.tpc-iconbutton[disabled] .tpc-chord-badge { color: #ff981f; color: var(--tpc-label); }
 /* A roster row, as the retained chrome draws one: the name in its own column,
  * clipped at the furniture; the settings well (three dots in field chrome,
  * 16px, 5px before the switch); and the tick/cross right-aligned in its 24px
@@ -555,7 +624,7 @@ button { font-weight: 700; }
 .tpc-row-well:hover .tpc-dot { background: #ffff00; background: var(--tpc-accent); }
 .tpc-toggle-cell { width: 24px; text-align: right; }
 .tpc-toggle-cell .tpc-check { display: block; margin: 0 0 0 auto; }
-.tpc-model { width: 100%; min-height: 100px; border: 1px solid #474745; border-color: var(--tpc-inset); background: #372e22; color: #ff981f; color: var(--tpc-label); text-align: center; }
+.tpc-model { width: 100%; min-height: 100px; border: 1px solid #474745; border-color: var(--tpc-inset); background: #372e22; color: #ff981f; color: var(--tpc-label); text-align: center; touch-action: none; }
 /*
  * No fill of its own: a CUSTOM well is the one place the panel's PIXELS are
  * somebody else's, drawn by a plugin that leaves its own gaps transparent on
@@ -824,6 +893,39 @@ button { font-weight: 700; }
 }
 .tpc-vlist-row:hover { background: rgba(0, 0, 0, 0.06); }
 .tpc-vlist-row.tpc-selected { background: rgba(255, 255, 0, 0.35); color: #ffff00; color: var(--tpc-accent); }
+/* A cells list (ToriRSChrome_VListCells): picture, name and dim part,
+ * keycaps in a column, the id right-aligned in a column six figures wide. */
+.tpc-cells { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; }
+.tpc-vlist-head { position: relative; height: 18px; line-height: 18px; padding: 0 5px; color: #9f9f9f; }
+.tpc-cell-thumb {
+  -webkit-flex: 0 0 16px; flex: 0 0 16px; width: 16px; height: 16px; margin-right: 3px;
+  background: #000; background: var(--tpc-field);
+}
+.tpc-cells-head .tpc-cell-names { margin-left: 19px; }
+.tpc-cell-names {
+  -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tpc-cell-dim, .tpc-cell-right, .tpc-cells-head { color: #9f9f9f; }
+.tpc-cell-keys {
+  -webkit-flex: 0 0 33%; flex: 0 0 33%; max-width: 96px; margin-left: 3px;
+  overflow: hidden; white-space: nowrap;
+}
+.tpc-cell-key {
+  display: inline-block; height: 12px; margin-right: 3px; padding: 0 2px;
+  border: 1px solid #474745; border-color: var(--tpc-inset);
+  background: #000; background: var(--tpc-field);
+  color: #ffff00; color: var(--tpc-accent);
+  font: 400 10px/10px "ToriRS Chrome Small", "Lucida Console", monospace; cursor: pointer;
+}
+.tpc-cell-right { -webkit-flex: 0 0 42px; flex: 0 0 42px; margin-left: 3px; text-align: right; }
+/* Workbench 6.8: the wide keycap column (half the row, uncapped), a row with
+ * no picture well, and the marks: alert ink on the whole row, the accent on
+ * the name. */
+.tpc-cells-wide .tpc-cell-keys { -webkit-flex: 0 0 50%; flex: 0 0 50%; max-width: none; }
+.tpc-cells-nowell .tpc-cell-names, .tpc-cells-head.tpc-cells-nowell .tpc-cell-names { margin-left: 0; }
+.tpc-cell-alert .tpc-cell-names, .tpc-cell-alert .tpc-cell-dim, .tpc-cell-alert .tpc-cell-key { color: #ff5555; }
+.tpc-cell-accent .tpc-cell-name { color: #ffff00; color: var(--tpc-accent); }
 .tpc-code { font-weight: 700; }
 .tpc-code-line { height: 17px; line-height: 17px; padding: 0; }
 .tpc-code-gutter {
@@ -868,9 +970,143 @@ button { font-weight: 700; }
   touch-action: none; cursor: crosshair;
 }
 .tpc-graph-item { position: absolute; box-sizing: border-box; pointer-events: none; }
+/* The well's pictures (graph.image), under every other item. */
+.tpc-graph-canvas {
+  position: absolute; left: 0; top: 0; pointer-events: none; image-rendering: pixelated;
+}
 .tpc-graph-text { white-space: pre; line-height: 16px; }
 #tpc-shell.tpc-modal #tpc-pane { z-index: 20; }
 #tpc-shell.tpc-modal::before {
   content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0;
   background: rgba(0, 0, 0, 0.5); z-index: 10;
+}
+
+/*
+ * image-rendering: pixelated, set on every skinned rule above, is for an
+ * INTEGER device scale (devicePixelRatio times the chrome's zoom), where each
+ * art pixel is whole device pixels. At a fractional one the runtime sets
+ * .tpc-dpr-fractional on the root and the browser resamples smoothly instead:
+ * nearest-neighbour at 1.5 drops and doubles whole columns of the art.
+ */
+.tpc-dpr-fractional, .tpc-dpr-fractional * { image-rendering: auto !important; }
+/* And the text: the vector family, which the same rules also select under
+ * "smooth always" (the chrome's text rendering, SCALE's h) at any scale. Only
+ * the family moves: sizes, line boxes and advances are the cell faces'. */
+.tpc-dpr-fractional, .tpc-text-smooth,
+.tpc-dpr-fractional .tpc-dropdown-list, .tpc-text-smooth .tpc-dropdown-list,
+.tpc-dpr-fractional .tpc-minimenu, .tpc-text-smooth .tpc-minimenu {
+  font-family: "ToriRS Chrome Vector", "ToriRS Chrome", "Lucida Console", Menlo, Consolas, monospace;
+}
+.tpc-dpr-fractional .tpc-badge, .tpc-text-smooth .tpc-badge,
+.tpc-dpr-fractional .tpc-keycap, .tpc-text-smooth .tpc-keycap,
+.tpc-dpr-fractional .tpc-chord-badge, .tpc-text-smooth .tpc-chord-badge {
+  font-family: "ToriRS Chrome Small Vector", "ToriRS Chrome Small", "Lucida Console", monospace;
+}
+/* Apart: a browser without the pseudo-elements drops the whole rule. */
+.tpc-dpr-fractional ::-webkit-scrollbar, .tpc-dpr-fractional ::-webkit-scrollbar-button,
+.tpc-dpr-fractional ::-webkit-scrollbar-thumb {
+  image-rendering: auto !important;
+}
+
+/*
+ * The 2x and 3x skin tiers (tools/chrome_skin_tiers.py: res/plugin_chrome/skin@2x
+ * and skin@3x), for the rules above that name a packaged slot. Scoped under
+ * .tpc-skin-tiers, which the runtime sets on the root only when the host's theme
+ * says it staged both tiers (skinTiers 3), so a host that ships skin/ alone is
+ * never asked for a file it lacks. The resolution descriptors are art pixels per
+ * CSS pixel: the button plates' 1x art is already twice their drawn size. A
+ * browser without image-set keeps the 1x url() above. .tpc-close itself is
+ * absent: its image is the theme's, set inline by the runtime at its tier.
+ */
+.tpc-skin-tiers .tpc-close:hover {
+  background-image: -webkit-image-set(url("skin/CloseButtonOver.png") 1x, url("skin@2x/CloseButtonOver.png") 2x, url("skin@3x/CloseButtonOver.png") 3x);
+  background-image: image-set(url("skin/CloseButtonOver.png") 1x, url("skin@2x/CloseButtonOver.png") 2x, url("skin@3x/CloseButtonOver.png") 3x);
+}
+.tpc-skin-tiers .tpc-popout {
+  background-image: -webkit-image-set(url("skin/PopoutButton.png") 1x, url("skin@2x/PopoutButton.png") 2x, url("skin@3x/PopoutButton.png") 3x);
+  background-image: image-set(url("skin/PopoutButton.png") 1x, url("skin@2x/PopoutButton.png") 2x, url("skin@3x/PopoutButton.png") 3x);
+}
+.tpc-skin-tiers .tpc-popout:hover {
+  background-image: -webkit-image-set(url("skin/PopoutButtonOver.png") 1x, url("skin@2x/PopoutButtonOver.png") 2x, url("skin@3x/PopoutButtonOver.png") 3x);
+  background-image: image-set(url("skin/PopoutButtonOver.png") 1x, url("skin@2x/PopoutButtonOver.png") 2x, url("skin@3x/PopoutButtonOver.png") 3x);
+}
+.tpc-skin-tiers .tpc-popout.tpc-dock {
+  background-image: -webkit-image-set(url("skin/DockButton.png") 1x, url("skin@2x/DockButton.png") 2x, url("skin@3x/DockButton.png") 3x);
+  background-image: image-set(url("skin/DockButton.png") 1x, url("skin@2x/DockButton.png") 2x, url("skin@3x/DockButton.png") 3x);
+}
+.tpc-skin-tiers .tpc-popout.tpc-dock:hover {
+  background-image: -webkit-image-set(url("skin/DockButtonOver.png") 1x, url("skin@2x/DockButtonOver.png") 2x, url("skin@3x/DockButtonOver.png") 3x);
+  background-image: image-set(url("skin/DockButtonOver.png") 1x, url("skin@2x/DockButtonOver.png") 2x, url("skin@3x/DockButtonOver.png") 3x);
+}
+.tpc-skin-tiers .tpc-key-value {
+  background-image: -webkit-image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+  background-image: image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+}
+.tpc-skin-tiers .tpc-progress {
+  background-image: -webkit-image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+  background-image: image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+}
+.tpc-skin-tiers .tpc-check {
+  background-image: -webkit-image-set(url("skin/CheckOff.png") 1x, url("skin@2x/CheckOff.png") 2x, url("skin@3x/CheckOff.png") 3x);
+  background-image: image-set(url("skin/CheckOff.png") 1x, url("skin@2x/CheckOff.png") 2x, url("skin@3x/CheckOff.png") 3x);
+}
+.tpc-skin-tiers .tpc-check:checked {
+  background-image: -webkit-image-set(url("skin/CheckOn.png") 1x, url("skin@2x/CheckOn.png") 2x, url("skin@3x/CheckOn.png") 3x);
+  background-image: image-set(url("skin/CheckOn.png") 1x, url("skin@2x/CheckOn.png") 2x, url("skin@3x/CheckOn.png") 3x);
+}
+.tpc-skin-tiers .tpc-button, .tpc-skin-tiers .tpc-menu {
+  background-image: -webkit-image-set(url("skin/ButtonLeft.png") 2x, url("skin@2x/ButtonLeft.png") 4x, url("skin@3x/ButtonLeft.png") 6x), -webkit-image-set(url("skin/ButtonRight.png") 2x, url("skin@2x/ButtonRight.png") 4x, url("skin@3x/ButtonRight.png") 6x), -webkit-image-set(url("skin/ButtonMid.png") 2x, url("skin@2x/ButtonMid.png") 4x, url("skin@3x/ButtonMid.png") 6x);
+  background-image: image-set(url("skin/ButtonLeft.png") 2x, url("skin@2x/ButtonLeft.png") 4x, url("skin@3x/ButtonLeft.png") 6x), image-set(url("skin/ButtonRight.png") 2x, url("skin@2x/ButtonRight.png") 4x, url("skin@3x/ButtonRight.png") 6x), image-set(url("skin/ButtonMid.png") 2x, url("skin@2x/ButtonMid.png") 4x, url("skin@3x/ButtonMid.png") 6x);
+}
+.tpc-skin-tiers .tpc-action-row {
+  background-image: -webkit-image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+  background-image: image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+}
+.tpc-skin-tiers .tpc-row-well {
+  background-image: -webkit-image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+  background-image: image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+}
+.tpc-skin-tiers .tpc-row input[type="text"], .tpc-skin-tiers .tpc-row textarea {
+  background-image: -webkit-image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+  background-image: image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+}
+.tpc-skin-tiers .tpc-dropdown {
+  background-image: -webkit-image-set(url("skin/PanelBody.png") 1x, url("skin@2x/PanelBody.png") 2x, url("skin@3x/PanelBody.png") 3x);
+  background-image: image-set(url("skin/PanelBody.png") 1x, url("skin@2x/PanelBody.png") 2x, url("skin@3x/PanelBody.png") 3x);
+}
+.tpc-skin-tiers .tpc-dropdown-arrow {
+  background-image: -webkit-image-set(url("skin/ScrollDown.png") 1x, url("skin@2x/ScrollDown.png") 2x, url("skin@3x/ScrollDown.png") 3x);
+  background-image: image-set(url("skin/ScrollDown.png") 1x, url("skin@2x/ScrollDown.png") 2x, url("skin@3x/ScrollDown.png") 3x);
+}
+.tpc-skin-tiers .tpc-dropdown-open .tpc-dropdown-arrow {
+  background-image: -webkit-image-set(url("skin/ScrollUp.png") 1x, url("skin@2x/ScrollUp.png") 2x, url("skin@3x/ScrollUp.png") 3x);
+  background-image: image-set(url("skin/ScrollUp.png") 1x, url("skin@2x/ScrollUp.png") 2x, url("skin@3x/ScrollUp.png") 3x);
+}
+.tpc-skin-tiers .tpc-dropdown-list {
+  background-image: -webkit-image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+  background-image: image-set(url("skin/DropdownBody.png") 1x, url("skin@2x/DropdownBody.png") 2x, url("skin@3x/DropdownBody.png") 3x);
+}
+.tpc-skin-tiers ::-webkit-scrollbar {
+  background-image: -webkit-image-set(url("skin/ScrollTrack.png") 1x, url("skin@2x/ScrollTrack.png") 2x, url("skin@3x/ScrollTrack.png") 3x);
+  background-image: image-set(url("skin/ScrollTrack.png") 1x, url("skin@2x/ScrollTrack.png") 2x, url("skin@3x/ScrollTrack.png") 3x);
+}
+.tpc-skin-tiers ::-webkit-scrollbar-button:vertical:decrement {
+  background-image: -webkit-image-set(url("skin/ScrollUp.png") 1x, url("skin@2x/ScrollUp.png") 2x, url("skin@3x/ScrollUp.png") 3x);
+  background-image: image-set(url("skin/ScrollUp.png") 1x, url("skin@2x/ScrollUp.png") 2x, url("skin@3x/ScrollUp.png") 3x);
+}
+.tpc-skin-tiers ::-webkit-scrollbar-button:vertical:increment {
+  background-image: -webkit-image-set(url("skin/ScrollDown.png") 1x, url("skin@2x/ScrollDown.png") 2x, url("skin@3x/ScrollDown.png") 3x);
+  background-image: image-set(url("skin/ScrollDown.png") 1x, url("skin@2x/ScrollDown.png") 2x, url("skin@3x/ScrollDown.png") 3x);
+}
+.tpc-skin-tiers ::-webkit-scrollbar-thumb:vertical {
+  background-image: -webkit-image-set(url("skin/ScrollGripTop.png") 1x, url("skin@2x/ScrollGripTop.png") 2x, url("skin@3x/ScrollGripTop.png") 3x), -webkit-image-set(url("skin/ScrollGripBottom.png") 1x, url("skin@2x/ScrollGripBottom.png") 2x, url("skin@3x/ScrollGripBottom.png") 3x), -webkit-image-set(url("skin/ScrollGripMid.png") 1x, url("skin@2x/ScrollGripMid.png") 2x, url("skin@3x/ScrollGripMid.png") 3x);
+  background-image: image-set(url("skin/ScrollGripTop.png") 1x, url("skin@2x/ScrollGripTop.png") 2x, url("skin@3x/ScrollGripTop.png") 3x), image-set(url("skin/ScrollGripBottom.png") 1x, url("skin@2x/ScrollGripBottom.png") 2x, url("skin@3x/ScrollGripBottom.png") 3x), image-set(url("skin/ScrollGripMid.png") 1x, url("skin@2x/ScrollGripMid.png") 2x, url("skin@3x/ScrollGripMid.png") 3x);
+}
+.tpc-skin-tiers .tpc-radio {
+  background-image: -webkit-image-set(url("skin/RadioOff.png") 1x, url("skin@2x/RadioOff.png") 2x, url("skin@3x/RadioOff.png") 3x);
+  background-image: image-set(url("skin/RadioOff.png") 1x, url("skin@2x/RadioOff.png") 2x, url("skin@3x/RadioOff.png") 3x);
+}
+.tpc-skin-tiers .tpc-radio:checked {
+  background-image: -webkit-image-set(url("skin/RadioOn.png") 1x, url("skin@2x/RadioOn.png") 2x, url("skin@3x/RadioOn.png") 3x);
+  background-image: image-set(url("skin/RadioOn.png") 1x, url("skin@2x/RadioOn.png") 2x, url("skin@3x/RadioOn.png") 3x);
 }

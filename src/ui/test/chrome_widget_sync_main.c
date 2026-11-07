@@ -95,8 +95,11 @@ main(void)
 {
     cw_test_tree();
     cw_test_vlist();
+    cw_test_vlist_cells();
+    cw_test_vlist_cells_marks();
     cw_test_iconbutton();
     cw_test_slider();
+    cw_test_slider_long_label();
     cw_test_radio();
     cw_test_modal();
     cw_test_tooltip();
@@ -105,6 +108,11 @@ main(void)
     cw_test_splitter();
     cw_test_skin();
     cw_test_capacity();
+    cw_test_button();
+    cw_test_truncation();
+    cw_test_scale();
+    cw_test_glyphs();
+    cw_test_gesture();
     printf("chrome_widget_sync_test: %d checks, %d failed\n", g_cw_checks, g_cw_failed);
     return g_cw_failed ? 1 : 0;
 }

@@ -495,6 +495,11 @@ struct EditorHost_DocCreate
     char source_key[EDITOR_DOC_KEY_MAX];
     int fill_height;
     int fill_underlay;
+    /** 1: the fill joins the stroke this client has open instead of being
+     *  its own undo step (the instance helper's squares, spawns and files
+     *  as one step). Only to a server with TORIRSMAPED_CAP_DOC_CREATE_STROKE;
+     *  outside a stroke it changes nothing. */
+    int join_stroke;
 };
 
 /**
@@ -617,14 +622,27 @@ struct EditorHost_CatalogPage
     int row_count;
     struct EditorHost_CatalogRow* rows;
     void* storage;
+    /** TORIRSMAPED_CATALOG_PAGE_* (PARTIAL: answered from the warm build's
+     *  partial index; SCOPED: an "all" query stopped early, so `total` is
+     *  only what was found) and the build's progress in KiB, done of
+     *  `progress_total` (0 of 0 while the tree is scanned, 1 of 1 once
+     *  built). All 0 for a v2 answer: a query without
+     *  TORIRSMAPED_CATALOG_PROGRESS, or a server without
+     *  TORIRSMAPED_CAP_CATALOG_PROGRESS. */
+    uint32_t page_flags;
+    uint32_t progress_done;
+    uint32_t progress_total;
 };
 
 /**
  * CATALOG_QUERY: one page of the records of `kind` (TORIRSMAPED_CATALOG_ANY
  * for every kind) matching `filter` — free terms against name, display name
  * and id, plus `key=value` filters (`op=Open`, `multivar=varb4153`). `flags`
- * TORIRSMAPED_CATALOG_EXACT makes the text one whole name. `page_size` 0 is
- * the server's default. REFUSED for an unknown kind; UNSUPPORTED when the
+ * TORIRSMAPED_CATALOG_EXACT makes the text one whole name;
+ * TORIRSMAPED_CATALOG_PROGRESS asks for an answer that never waits for the
+ * server's warm build (page_flags / progress_* above) and is dropped, the
+ * answer then a v2 one, when the server lacks
+ * TORIRSMAPED_CAP_CATALOG_PROGRESS. `page_size` 0 is the server's default. REFUSED for an unknown kind; UNSUPPORTED when the
  * server has no catalog (capability bit clear).
  */
 enum EditorHost_Status
@@ -696,6 +714,49 @@ Editor_HostMapEdCatalogRecord(
 void
 Editor_HostCatalogRecordFree(struct EditorHost_CatalogRecord* record);
 
+/** One FACT_CATALOG_USES row (torirs_maped_catalog.h): TORIRSMAPED_USE_*. */
+struct EditorHost_CatalogUse
+{
+    uint32_t use;
+    /** Relative to the content root. */
+    const char* path;
+    uint32_t line;
+    uint32_t count;
+    const char* text;
+};
+
+struct EditorHost_CatalogUses
+{
+    uint32_t kind;
+    /** 0: the search is done; else ask again from here. */
+    uint32_t next_cursor;
+    uint32_t files_done;
+    uint32_t files_total;
+    int row_count;
+    struct EditorHost_CatalogUse* rows;
+    void* storage;
+};
+
+/**
+ * CATALOG_USES (workbench 6.6): one slice of the search for where record
+ * `name` of `kind` is named, from `cursor` (0 to start). The server reads
+ * for a few milliseconds and answers with the cursor to go on from, so the
+ * caller asks again on a later frame until `next_cursor` is 0. ABSENT when
+ * the index has no such record (palettes and stamps are still read);
+ * UNSUPPORTED without TORIRSMAPED_CAP_CATALOG_USES.
+ */
+enum EditorHost_Status
+Editor_HostMapEdCatalogUses(
+    struct EditorHost* host,
+    uint32_t kind,
+    const char* name,
+    uint32_t cursor,
+    struct EditorHost_CatalogUses* out_uses);
+
+/** NULL-tolerant. */
+void
+Editor_HostCatalogUsesFree(struct EditorHost_CatalogUses* uses);
+
 /** A world-map area: the surface, a dungeon map, an instance map. */
 struct EditorHost_CatalogArea
 {
@@ -715,6 +776,9 @@ struct EditorHost_CatalogSquare
     /** TORIRSMAPED_SQUARE_* bits. */
     uint32_t flags;
     int spawn_count;
+    /** The locs its .jl2 places on disk; 0 from a server without
+     *  TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS (the row did not say). */
+    int loc_count;
     /** 0xRRGGBB averaged over the level-0 floors; 0 when it has none. */
     uint32_t rgb;
     /** Index into `areas` of the most specific claiming area, or -1 for an

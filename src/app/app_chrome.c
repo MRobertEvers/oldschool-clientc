@@ -9,6 +9,11 @@
 
 #include "app/app_internal.h"
 
+#include "ui/torirs_chrome_bake.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
 /* Private to this unit, declared up front so definition order is free. */
 static int
 app_panel_overlay_to_chrome(
@@ -237,6 +242,100 @@ app_chrome_fonts_resolve(struct App* app)
     UITree_DebugOverlaySetFontIds(app->tree, small, menu, body);
 }
 
+/*
+ * The step the chrome tiles its parchment by: the size of the image the
+ * bridge uploaded for the panel body at the chrome's scale (the tiled fill
+ * blits each copy at its own size, and steps by this). At 1x it is the 1x
+ * tile the init set; at 2x the 2x tier's, which is twice it; at 1.5x the
+ * area-averaged image's, ToriRSChrome_ScalePx of it. A step left at the 1x
+ * size would overdraw every copy with the next and show only each image's
+ * top-left corner.
+ */
+static void
+app_chrome_skin_tile(struct App* app)
+{
+    struct ToriRSChromeBakeImage const* body;
+
+    assert(app);
+    /* A build without the skin draws the flat look and tiles nothing. */
+    if( !(app->dbg_ui.skin_avail & ((uint64_t)1 << TORIRS_CHROME_SKIN_PANEL_BODY)) )
+        return;
+    body = ToriRSChromeBake_Skin(TORIRS_CHROME_SKIN_PANEL_BODY, ToriRSChrome_ScaleQ(&app->dbg_ui));
+    assert(body);
+    app->dbg_ui.skin_tile_w = body->w;
+    app->dbg_ui.skin_tile_h = body->h;
+    app->plugin_ui.skin_tile_w = body->w;
+    app->plugin_ui.skin_tile_h = body->h;
+}
+
+int
+App_SetChromeScaleQ(
+    struct App* app,
+    int q)
+{
+    assert(app);
+    /* Clamped, not asserted: this number comes from the DISPLAY, and a 4x
+     * monitor is a fact about the world rather than a caller's bug. Chrome one
+     * baked size below the display's density is a little small; an assert here
+     * would be a crash on a machine nobody tested on. */
+    if( q < TORIRS_CHROME_SCALE_Q_MIN )
+        q = TORIRS_CHROME_SCALE_Q_MIN;
+    if( q > TORIRS_CHROME_SCALE_Q_MAX )
+        q = TORIRS_CHROME_SCALE_Q_MAX;
+    if( ToriRSChrome_ScaleQ(&app->dbg_ui) == q && ToriRSChrome_ScaleQ(&app->plugin_ui) == q &&
+        UITreeSceneBridge_ChromeScaleQ(&app->bridge) == q )
+        return 0;
+
+    /* The scale exactly, fractions included: the bridge registers the bake's
+     * faces and skin at q (UITreeSceneBridge_SetChromeScaleQ), so what the
+     * model lays out with quarter metrics is what the renderer paints. */
+    ToriRSChrome_SetScaleQ(&app->dbg_ui, q);
+    /* Both instances, because there is one scale: the font ids resolved below
+     * are shared, so a plugin window left at 1x would lay its rows out for a
+     * face the renderer draws at 2x -- text overflowing boxes sized for a
+     * smaller font, which is the exact failure SetScale exists to prevent. */
+    ToriRSChrome_SetScaleQ(&app->plugin_ui, q);
+    UITreeSceneBridge_SetChromeScaleQ(&app->bridge, q);
+    app_chrome_skin_tile(app);
+    app_chrome_fonts_resolve(app);
+    if( getenv("TORIRS_CHROME_DEBUG") )
+        fprintf(
+            stderr, "chrome: scale q=%d (%d%%), bridge q=%d, tile %dx%d\n", q, q * 25,
+            UITreeSceneBridge_ChromeScaleQ(&app->bridge), app->dbg_ui.skin_tile_w,
+            app->dbg_ui.skin_tile_h);
+    return 1;
+}
+
+int
+App_SetChromeTextSmooth(
+    struct App* app,
+    int smooth)
+{
+    assert(app);
+    smooth = smooth ? 1 : 0;
+    if( ToriRSChrome_TextSmooth(&app->dbg_ui) == smooth &&
+        ToriRSChrome_TextSmooth(&app->plugin_ui) == smooth &&
+        UITreeSceneBridge_ChromeTextSmooth(&app->bridge) == smooth )
+        return 0;
+
+    /* Both models (a DOM hears the mode with SCALE; the bake's own drawer
+     * reads it per text prim, and SetTextSmooth builds the chrome's scale's
+     * vector atlases first), and the bridge, whose faces are what the native
+     * renderer draws: at a whole scale the tiers or the vector face, then the
+     * font ids every overlay holds re-resolved. Once per move; the bake builds
+     * an atlas once per (face, q) for the life of the process. */
+    ToriRSChromeBake_SetTextSmooth(&app->dbg_ui, smooth);
+    ToriRSChromeBake_SetTextSmooth(&app->plugin_ui, smooth);
+    UITreeSceneBridge_SetChromeTextSmooth(&app->bridge, smooth);
+    app_chrome_fonts_resolve(app);
+    if( getenv("TORIRS_CHROME_DEBUG") )
+        fprintf(
+            stderr, "chrome: text rendering %s (q=%d)\n",
+            smooth ? "smooth always" : "bitmap at whole scales",
+            UITreeSceneBridge_ChromeScaleQ(&app->bridge));
+    return 1;
+}
+
 int
 App_SetChromeScale(
     struct App* app,
@@ -245,24 +344,10 @@ App_SetChromeScale(
     assert(app);
     if( scale < TORIRS_CHROME_SCALE_MIN )
         scale = TORIRS_CHROME_SCALE_MIN;
-    /* Clamped, not asserted: this number comes from the DISPLAY, and a 4x
-     * monitor is a fact about the world rather than a caller's bug. Chrome one
-     * baked size below the display's density is a little small; an assert here
-     * would be a crash on a machine nobody tested on. */
+    /* Clamped, for App_SetChromeScaleQ's reason. */
     if( scale > TORIRS_CHROME_SCALE_MAX )
         scale = TORIRS_CHROME_SCALE_MAX;
-    if( ToriRSChrome_Scale(&app->dbg_ui) == scale )
-        return 0;
-
-    ToriRSChrome_SetScale(&app->dbg_ui, scale);
-    /* Both instances, because there is one scale: the font ids resolved below
-     * are shared, so a plugin window left at 1x would lay its rows out for a
-     * face the renderer draws at 2x -- text overflowing boxes sized for a
-     * smaller font, which is the exact failure SetScale exists to prevent. */
-    ToriRSChrome_SetScale(&app->plugin_ui, scale);
-    UITreeSceneBridge_SetChromeScale(&app->bridge, scale);
-    app_chrome_fonts_resolve(app);
-    return 1;
+    return App_SetChromeScaleQ(app, scale * TORIRS_CHROME_SCALE_Q_ONE);
 }
 
 int

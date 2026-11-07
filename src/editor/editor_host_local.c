@@ -35,10 +35,29 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <windows.h>
 #define editor_mkdir(path) _mkdir(path)
 #else
 #define editor_mkdir(path) mkdir(path, 0755)
 #endif
+
+/* Replace `path` with `temp` in one step. POSIX rename does; Win32's rename
+ * refuses an existing target, so MoveFileEx with REPLACE_EXISTING (as
+ * platform_x_io.c and torirs_server_savefile.c do it). 0 on success. */
+static int
+editor_replace_file(
+    const char* temp,
+    const char* path)
+{
+#ifdef _WIN32
+    if( MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) )
+        return 0;
+    errno = EACCES;
+    return -1;
+#else
+    return rename(temp, path);
+#endif
+}
 
 struct local_host
 {
@@ -66,6 +85,33 @@ square_path(
     assert(extension);
 
     snprintf(out, out_size, "%s/maps/m%d_%d.%s", host->content_dir, map_x, map_z, extension);
+}
+
+/*
+ * Line endings. Every file this host reads and writes is a text document, and
+ * a content tree may be CRLF: Git for Windows checks text out that way by
+ * default (core.autocrlf), and a tree copied from such a checkout keeps it.
+ * The parsers and the documents work in "\n" only, so a CRLF file is read as
+ * LF, and a save writes "\r\n" again when the file it replaces is CRLF. An
+ * untouched document then writes back byte for byte, and a one-tile edit is a
+ * one-line change on every checkout, not a rewrite of every line.
+ */
+
+/** Every "\r\n" in `blob` becomes "\n", in place (a lone '\r' is data). */
+static void
+text_crlf_to_lf(struct EditorHost_Blob* blob)
+{
+    size_t out = 0;
+
+    assert(blob);
+    for( size_t at = 0; at < blob->size; at++ )
+    {
+        if( blob->data[at] == '\r' && at + 1 < blob->size && blob->data[at + 1] == '\n' )
+            continue;
+        blob->data[out++] = blob->data[at];
+    }
+    blob->data[out] = '\0';
+    blob->size = out;
 }
 
 static enum EditorHost_Status
@@ -113,7 +159,26 @@ read_whole_file(
     data[size] = '\0';
     out_blob->data = data;
     out_blob->size = (size_t)size;
+    text_crlf_to_lf(out_blob);
     return EDITOR_HOST_OK;
+}
+
+/** 1 when `path` exists and its first line ends "\r\n": the file is a CRLF
+ *  file and its rewrite keeps that. */
+static int
+file_is_crlf(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char head[4096];
+    size_t got;
+    char const* newline;
+
+    if( !file )
+        return 0;
+    got = fread(head, 1, sizeof(head), file);
+    fclose(file);
+    newline = memchr(head, '\n', got);
+    return newline && newline > head && newline[-1] == '\r';
 }
 
 /**
@@ -135,19 +200,38 @@ write_file_atomic(
 {
     char temp_path[1200];
     FILE* file;
+    int written_ok = 1;
 
     assert(path);
     assert(text || length == 0);
 
     snprintf(temp_path, sizeof(temp_path), "%s.tmp", path);
 
+    /* Read before the temporary exists: the target's own line ending. */
+    int const crlf = file_is_crlf(path);
     file = fopen(temp_path, "wb");
     if( !file )
     {
         TORIRS_ERR("editor: cannot open %s: %s\n", temp_path, strerror(errno));
         return EDITOR_HOST_IO_ERROR;
     }
-    if( length > 0 && fwrite(text, 1, length, file) != length )
+    if( crlf )
+    {
+        /* Each "\n" goes out as "\r\n" (one already preceded by '\r' as is). */
+        size_t run = 0;
+        for( size_t at = 0; at < length && written_ok; at++ )
+        {
+            if( text[at] != '\n' || (at > 0 && text[at - 1] == '\r') )
+                continue;
+            written_ok = fwrite(text + run, 1, at - run, file) == at - run && fwrite("\r\n", 1, 2, file) == 2;
+            run = at + 1;
+        }
+        if( written_ok && run < length )
+            written_ok = fwrite(text + run, 1, length - run, file) == length - run;
+    }
+    else if( length > 0 )
+        written_ok = fwrite(text, 1, length, file) == length;
+    if( !written_ok )
     {
         TORIRS_LOG("editor: short write to %s\n", temp_path);
         fclose(file);
@@ -160,7 +244,7 @@ write_file_atomic(
         remove(temp_path);
         return EDITOR_HOST_IO_ERROR;
     }
-    if( rename(temp_path, path) != 0 )
+    if( editor_replace_file(temp_path, path) != 0 )
     {
         TORIRS_ERR("editor: cannot rename onto %s: %s\n", path, strerror(errno));
         remove(temp_path);
@@ -384,6 +468,9 @@ lock_own_command(
             out[got] = '\0';
         }
     }
+#elif defined(_WIN32)
+    (void)at;
+    snprintf(out, out_size, "%s", GetCommandLineA());
 #else
     (void)at;
     (void)out_size;
@@ -426,6 +513,17 @@ lock_process_command(
                     out[i] = ' ';
             }
             out[got] = '\0';
+        }
+    }
+#elif defined(_WIN32)
+    {
+        HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pid);
+        if( process )
+        {
+            DWORD length = (DWORD)out_size;
+            if( !QueryFullProcessImageNameA(process, 0, out, &length) )
+                out[0] = '\0';
+            CloseHandle(process);
         }
     }
 #else
@@ -490,7 +588,20 @@ lock_read(
 static int
 lock_pid_alive(long pid)
 {
-#if defined(_WIN32) || defined(__EMSCRIPTEN__)
+#if defined(_WIN32)
+    HANDLE process;
+    DWORD code = 0;
+    int alive;
+
+    if( pid <= 0 )
+        return 1; /* names nobody: not ours to judge */
+    process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)pid);
+    if( !process )
+        return GetLastError() == ERROR_ACCESS_DENIED; /* runs, as another user */
+    alive = !GetExitCodeProcess(process, &code) || code == STILL_ACTIVE;
+    CloseHandle(process);
+    return alive;
+#elif defined(__EMSCRIPTEN__)
     (void)pid;
     return 1; /* no way to ask: never call a lock stale */
 #else
@@ -798,6 +909,12 @@ Editor_HostDocPath(
             return 0;
         written = snprintf(out, out_size, "editor/palettes.txt");
         break;
+    case EDITOR_DOC_SCENES:
+        /* The scenes: beside the areas and the palettes (editor_scenes.h). */
+        if( part != 0 || !Editor_DocKeyValid(kind, key) )
+            return 0;
+        written = snprintf(out, out_size, "editor/scenes.txt");
+        break;
     case EDITOR_DOC_TEXT:
         if( part != 0 || !Editor_DocKeyValid(kind, key) )
             return 0;
@@ -811,6 +928,21 @@ Editor_HostDocPath(
             written = snprintf(out, out_size, "configs/all.%s.compack", key + 8);
         else if( strncmp(key, "fields:", 7) == 0 )
             written = snprintf(out, out_size, "fields/%s", key + 7);
+        else if( strncmp(key, "editor:", 7) == 0 )
+            /* editor/favourites.txt, outside every pack input like the
+             * areas and the palettes (editor_favourites.h). */
+            written = snprintf(out, out_size, "editor/%s", key + 7);
+        else if( strncmp(key, "stamp:", 6) == 0 )
+            written = snprintf(out, out_size, "editor/stamps/%s.stamp", key + 6);
+        else if( strcmp(key, "stamps:index") == 0 )
+            written = snprintf(out, out_size, "editor/stamps/index.txt");
+        else if( strncmp(key, "wma:", 4) == 0 )
+            /* A world-map area file (editor_wma.h), where the catalog's
+             * atlas reader looks for every .wma. */
+            written = snprintf(out, out_size, "worldmap/areas/%s.wma", key + 4);
+        else if( strncmp(key, "stats:", 6) == 0 )
+            /* An npc's stats ledger (editor_npcstats.h). */
+            written = snprintf(out, out_size, "npc_stats/%s.stats", key + 6);
         else
             return 0;
         break;
@@ -1123,7 +1255,7 @@ Editor_HostLocalLockHolder(const struct EditorHost* host)
 
 /* ---- open in the user's editor ---------------------------------------------- */
 
-#if defined(_WIN32) || defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__)
 
 enum EditorHost_Status
 Editor_HostLocalOpenInEditor(
@@ -1137,6 +1269,46 @@ Editor_HostLocalOpenInEditor(
     if( out_cmdline && out_size > 0 )
         out_cmdline[0] = '\0';
     return EDITOR_HOST_UNSUPPORTED;
+}
+
+#elif defined(_WIN32)
+
+enum EditorHost_Status
+Editor_HostLocalOpenInEditor(
+    const char* path,
+    int line,
+    char* out_cmdline,
+    size_t out_size)
+{
+    const char* tmpl = getenv("TORIRS_EDITOR_OPEN_CMD");
+    char command[2048];
+    char cmd_line[2200];
+    char found[MAX_PATH];
+    STARTUPINFOA startup;
+    PROCESS_INFORMATION process;
+
+    assert(path);
+    if( out_cmdline && out_size > 0 )
+        out_cmdline[0] = '\0';
+    /* VS Code's launcher on PATH is code.cmd. */
+    if( !tmpl || !tmpl[0] )
+        tmpl = Editor_OpenCommandDefaultWindows(SearchPathA(NULL, "code.cmd", NULL, sizeof(found), found, NULL) != 0);
+    if( Editor_OpenCommandLine(tmpl, path, line, command, sizeof(command)) == 0 )
+        return EDITOR_HOST_REFUSED;
+    if( out_cmdline && out_size > 0 )
+        snprintf(out_cmdline, out_size, "%s", command);
+    /* Through cmd.exe, as the user's own command line (start, a .cmd), with
+     * no console and not waited on: the editor is never this process's. */
+    snprintf(cmd_line, sizeof(cmd_line), "cmd.exe /d /c %s", command);
+    memset(&startup, 0, sizeof(startup));
+    startup.cb = sizeof(startup);
+    memset(&process, 0, sizeof(process));
+    if( !CreateProcessA(NULL, cmd_line, NULL, NULL, FALSE, CREATE_NO_WINDOW | DETACHED_PROCESS, NULL, NULL, &startup,
+            &process) )
+        return EDITOR_HOST_IO_ERROR;
+    CloseHandle(process.hThread);
+    CloseHandle(process.hProcess);
+    return EDITOR_HOST_OK;
 }
 
 #else

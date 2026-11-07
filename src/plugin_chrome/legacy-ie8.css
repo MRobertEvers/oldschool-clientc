@@ -19,6 +19,31 @@
   font-weight: 400;
 }
 
+/* The synthesized vector faces (tools/chrome_font_vector.py), as EOTs: used
+ * only under "smooth always" (.tpc-text-smooth on the root, the chrome's text
+ * rendering). XP's page has no fractional device scale, so the bitmap-derived
+ * faces above stay its default. */
+@font-face {
+  font-family: "ToriRS Chrome Vector";
+  src: url("font/ToriRSBody-Vector.eot");
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "ToriRS Chrome Vector";
+  src: url("font/ToriRSMenu-Vector.eot");
+  font-style: normal;
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: "ToriRS Chrome Small Vector";
+  src: url("font/ToriRSSmall-Vector.eot");
+  font-style: normal;
+  font-weight: 400;
+}
+
 html, body {
   width: 100%;
   height: 100%;
@@ -178,6 +203,21 @@ button { font: 700 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
 .tpc-button:hover, .tpc-menu:hover { color: #ff0000; }
 .tpc-button, .tpc-menu { width: 104px; }
 .tpc-menu { text-align: left; }
+/* A caption too long for the plate ends in an ellipsis, as the native chrome
+ * elides it, rather than being clipped mid-glyph. */
+.tpc-button, .tpc-menu { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* A button's chord keycap and an icon button's chord badge: the same 12px
+ * Small-face key on the field black under the inset rule, in the accent
+ * (torirs_chrome_metrics.h KEYCAP_*, BADGE_*). No flex here, so the key is
+ * placed absolutely three pixels inside the plate and the caption keeps clear
+ * of it by padding: 40px here until the runtime sizes it from the key's own
+ * width (fitLegacyKeycap), so a wide key never covers the caption, which
+ * ends in an ellipsis in the room the key leaves. */
+.tpc-button.tpc-has-chord { position: relative; padding-right: 40px; text-align: left; }
+.tpc-button-caption { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tpc-keycap { position: absolute; right: 3px; top: 3px; height: 12px; padding: 0 2px; border: 1px solid #474745; background: #000000; color: #ffff00; font: 400 10px/10px "ToriRS Chrome Small", "Lucida Console", monospace; white-space: nowrap; }
+.tpc-iconbutton { position: relative; }
+.tpc-chord-badge { position: absolute; right: 0; bottom: 0; max-width: 30px; height: 12px; padding: 0 2px; overflow: hidden; text-overflow: ellipsis; background: #000000; color: #ffff00; font: 400 10px/12px "ToriRS Chrome Small", "Lucida Console", monospace; white-space: nowrap; }
 .tpc-toggle-cell { width: 24px; text-align: right; }
 .tpc-toggle-cell .tpc-check { margin: 0; vertical-align: middle; }
 .tpc-model, .tpc-custom { position: relative; width: 98%; overflow: hidden; border: 1px solid #474745; color: #ff981f; text-align: center; box-sizing: border-box; }
@@ -221,3 +261,23 @@ button { font: 700 12px/16px "ToriRS Chrome", "Lucida Console", monospace; }
 .tpc-minimenu-list { border-left: 1px solid #000000; border-right: 1px solid #000000; border-bottom: 1px solid #000000; }
 .tpc-minimenu-option { display: block; width: 100%; height: 15px; margin: 0; padding: 0 3px; overflow: hidden; border: 0; background: transparent; color: #ffffff; font-weight: 400; line-height: 15px; text-align: left; text-shadow: 1px 1px #000000; white-space: nowrap; text-overflow: ellipsis; cursor: hand; }
 .tpc-minimenu-option:hover { color: #ffff00; }
+
+/* A cells list (ToriRSChrome_VListCells), without flex: the picture floats
+ * left, the id and the keycaps float right, the name takes the rest. */
+.tpc-cell-thumb { float: left; width: 16px; height: 16px; margin: 2px 3px 0 0; background: #000000; }
+.tpc-cell-right { float: right; width: 42px; text-align: right; color: #9f9f9f; }
+.tpc-cell-keys { float: right; width: 96px; overflow: hidden; white-space: nowrap; }
+.tpc-cells-wide .tpc-cell-keys { width: 50%; }
+.tpc-cell-alert .tpc-cell-names, .tpc-cell-alert .tpc-cell-dim, .tpc-cell-alert .tpc-cell-key { color: #ff5555; }
+.tpc-cell-accent .tpc-cell-name { color: #ffff00; }
+.tpc-cell-key { margin-right: 3px; padding: 0 2px; border: 1px solid #474745; background: #000000; color: #ffff00; font: 400 10px/10px "ToriRS Chrome Small", "Lucida Console", monospace; cursor: pointer; }
+.tpc-cell-names { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tpc-cell-dim, .tpc-vlist-head { color: #9f9f9f; }
+
+/* "Smooth always": the vector family on every rule above that names a face.
+ * Only the family moves; sizes and line boxes are the cell faces'. */
+.tpc-text-smooth body, .tpc-text-smooth input, .tpc-text-smooth textarea,
+.tpc-text-smooth button, .tpc-text-smooth .tpc-dropdown-list,
+.tpc-text-smooth .tpc-minimenu { font-family: "ToriRS Chrome Vector", "Lucida Console", monospace; }
+.tpc-text-smooth .tpc-badge, .tpc-text-smooth .tpc-keycap,
+.tpc-text-smooth .tpc-chord-badge { font-family: "ToriRS Chrome Small Vector", "Lucida Console", monospace; }

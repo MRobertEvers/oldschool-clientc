@@ -6,6 +6,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 static struct Editor_Cmd* g_scratch;
 
@@ -256,4 +257,67 @@ edp_hotkey_tip(
         snprintf(out, (size_t)out_size, "%s  [%s]", text, chords);
     else
         snprintf(out, (size_t)out_size, "%s", text);
+}
+
+/** `action`'s first chord (the keycap) and every chord (the tooltip's); the
+ *  tooltip's is "" when it says no more than the keycap, so the chrome falls
+ *  back to the worn chord. */
+static void
+edp_chord_pair(
+    const struct EditorUi* ui,
+    enum Editor_HotkeyAction action,
+    char* key,
+    int key_size,
+    char* all,
+    int all_size)
+{
+    int const one = (int)action;
+
+    Editor_HotkeysJoin(&ui->hotkeys, &one, 1, key, key_size);
+    Editor_HotkeyDisplay(&ui->hotkeys, action, all, all_size);
+    if( strcmp(all, key) == 0 )
+        all[0] = '\0';
+}
+
+void
+edp_button_chord(
+    struct EditorUi* ui,
+    int widget,
+    enum Editor_HotkeyAction action)
+{
+    char key[EDITOR_HK_HINT_CHORD_MAX];
+    char all[EDITOR_HK_HINT_CHORD_MAX];
+
+    assert(ui);
+    edp_chord_pair(ui, action, key, (int)sizeof(key), all, (int)sizeof(all));
+    ToriRSChrome_ButtonSetChord(ui->chrome, widget, key);
+    ToriRSChrome_SetTooltipChord(ui->chrome, widget, all);
+}
+
+void
+edp_iconbutton_chord(
+    struct EditorUi* ui,
+    int widget,
+    enum Editor_HotkeyAction action)
+{
+    char key[EDITOR_HK_HINT_CHORD_MAX];
+    char all[EDITOR_HK_HINT_CHORD_MAX];
+
+    assert(ui);
+    edp_chord_pair(ui, action, key, (int)sizeof(key), all, (int)sizeof(all));
+    ToriRSChrome_IconButtonSetChord(ui->chrome, widget, key);
+    ToriRSChrome_SetTooltipChord(ui->chrome, widget, all);
+}
+
+void
+edp_tooltip_chord(
+    struct EditorUi* ui,
+    int widget,
+    enum Editor_HotkeyAction action)
+{
+    char all[EDITOR_HK_HINT_CHORD_MAX];
+
+    assert(ui);
+    Editor_HotkeyDisplay(&ui->hotkeys, action, all, (int)sizeof(all));
+    ToriRSChrome_SetTooltipChord(ui->chrome, widget, all);
 }

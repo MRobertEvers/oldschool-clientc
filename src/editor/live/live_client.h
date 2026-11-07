@@ -135,6 +135,10 @@ struct Editor_LiveModel
 
     /* ---- the log: build lines, live lines, outcomes; newest at head-1 ---- */
     char log[EDITOR_LIVE_LOG_LINES][EDITOR_LIVE_LOG_LINE_MAX];
+    /** Per row: the build `what` a FACT_BUILD_LINE row came from, that `what`
+     *  | EDITOR_LIVE_LOG_DONE for its FACT_BUILD_DONE row, 0 for every other
+     *  row (Editor_LiveLogWhat; the Problems panel's line stream). */
+    uint32_t log_what[EDITOR_LIVE_LOG_LINES];
     int log_head;
     int log_count;
     int log_serial;
@@ -159,6 +163,16 @@ Editor_LiveModelApply(
     const uint8_t* body,
     uint32_t length);
 
+/** Editor_LiveModel.log_what's mark on a FACT_BUILD_DONE row. */
+#define EDITOR_LIVE_LOG_DONE 0x80000000u
+
+/** The `index`th newest log line's build mark (Editor_LiveModel.log_what);
+ *  0 past the end. */
+uint32_t
+Editor_LiveLogWhat(
+    const struct Editor_LiveModel* model,
+    int index);
+
 /** The `index`th newest log line (0 newest), or NULL past the end. */
 const char*
 Editor_LiveLogLine(
@@ -181,6 +195,23 @@ uint32_t
 Editor_LiveEncodeBuild(
     struct ToriRSMapEdBuf* out,
     uint32_t what);
+
+/** BUILD of a quest kind (TORIRSMAPED_BUILD_QUEST_SCAFFOLD / _GATE) for
+ *  `quest`, which must be ToriRSMapEd_BuildQuestValid. */
+uint32_t
+Editor_LiveEncodeBuildQuest(
+    struct ToriRSMapEdBuf* out,
+    uint32_t what,
+    const char* quest);
+
+/** BUILD of a kind that carries an argument (ToriRSMapEd_BuildWhatTakesArg:
+ *  the quest kinds, CS2's script name), which must be
+ *  ToriRSMapEd_BuildArgValid. */
+uint32_t
+Editor_LiveEncodeBuildArg(
+    struct ToriRSMapEdBuf* out,
+    uint32_t what,
+    const char* arg);
 
 uint32_t
 Editor_LiveEncodeRun(struct ToriRSMapEdBuf* out);

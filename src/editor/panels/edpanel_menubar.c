@@ -5,7 +5,16 @@
  * next to each other below, and the handler dispatches on the row's index.
  * The View menu lists every registered panel that has a title -- other
  * owners' panels included -- so it is filled on the first tick, after every
- * Register has run.
+ * Register has run. A panel in a group keeps its row and its chord: the row
+ * opens it in its group's strip (or brings its tab to the front), and closes
+ * it when it is the tab in front. Reset groups puts every panel back in its
+ * default group.
+ *
+ * Between the panel rows and the layout's own, the view's (workbench 6.0b):
+ * Chrome scale (Auto, then 100 % to 300 % in the design's steps) and Text size
+ * (Normal, Large), radio rows -- the chosen one says "on" in its right-hand
+ * column, as a closed panel says "hidden" -- each a hotkey action (unbound by
+ * default), device-local (editor_prefs.ini), never the Client's.
  *
  * After the menus, the ACTIVE LEVEL row: Auto 0 1 2 3 Above. Always on screen
  * (the bar is), never over the world. The pressed button is the edit level;
@@ -15,11 +24,18 @@
  * follows them back -- a level pinned by a key, the terrain panel or another
  * window (STATE_EDIT_LEVEL) presses here on the next tick, and the World
  * panel's title names it ("World - level 2").
+ *
+ * Last, the WORKSPACE chips (workbench 6.8, design section 3): Build,
+ * Terrain, Script, Playtest, the current one pressed, each a hotkey action
+ * (Ctrl+1..4) whose tooltip names its chord. They follow the row: the
+ * MENUBAR lays its items out left to right, so they sit after the Level row
+ * rather than against the bar's right end.
  */
 
 #include "edpanel_common.h"
 #include "edpanels.h"
 #include "mem/torirs_mem.h"
+#include "ui/torirs_chrome_scale_q.h"
 #include "ui/uitree_layout.h"
 
 #include <stdio.h>
@@ -31,7 +47,8 @@
  * tab) whenever a binding changes. */
 static const enum Editor_HotkeyAction k_file_actions[] = {
     EDITOR_HK_FILE_NEW, EDITOR_HK_FILE_SAVE_ALL,     EDITOR_HK_FILE_SAVE_AS, EDITOR_HK_FILE_BAKE,
-    EDITOR_HK_FILE_CHECK_SCRIPTS, EDITOR_HK_FILE_RUN, EDITOR_HK_FILE_PUBLISH, EDITOR_HK_FILE_CLOSE,
+    EDITOR_HK_FILE_CHECK_SCRIPTS, EDITOR_HK_FILE_RUN, EDITOR_HK_FILE_PUBLISH, EDITOR_HK_FILE_SCRATCH_LANE,
+    EDITOR_HK_FILE_SAVE_SCENE, EDITOR_HK_FILE_CLOSE,
 };
 #define FILE_COUNT ((int)(sizeof(k_file_actions) / sizeof(k_file_actions[0])))
 
@@ -42,16 +59,23 @@ static const enum Editor_HotkeyAction k_edit_actions[] = {
 };
 #define EDIT_COUNT ((int)(sizeof(k_edit_actions) / sizeof(k_edit_actions[0])))
 
-/* After the panel rows: the layout's own two. */
+/* After the panel rows: the layout's own. Reset groups sits before Reset
+ * layout, so the last two rows stay Reset layout and Snap to grid. */
 enum
 {
     VIEW_HIDE = 0,
+    VIEW_RESET_GROUPS,
     VIEW_RESET_LAYOUT,
     VIEW_SNAP,
     VIEW_LAYOUT_COUNT
 };
 
-#define MENUBAR_VIEW_MAX (EDITOR_UI_PANELS_MAX + VIEW_LAYOUT_COUNT)
+/* The view's rows, before the layout's: Chrome scale Auto and its steps,
+ * then Text size Normal and Large, then Text rendering bitmap at whole scales
+ * and smooth always -- the hotkey actions in that order. */
+#define VIEW_PREF_COUNT (EDITOR_HK_VIEW_TEXT_SMOOTH - EDITOR_HK_VIEW_SCALE_AUTO + 1)
+
+#define MENUBAR_VIEW_MAX (EDITOR_UI_PANELS_MAX + VIEW_PREF_COUNT + VIEW_LAYOUT_COUNT)
 
 /* The Level row: Auto, then one button per plane. */
 #define MENUBAR_LEVEL_BUTTONS (EDITOR_SQUARE_LEVELS + 1)
@@ -67,6 +91,13 @@ static const enum Editor_HotkeyAction k_level_actions[MENUBAR_LEVEL_BUTTONS] = {
     EDITOR_HK_LEVEL_AUTO, EDITOR_HK_LEVEL_PIN0, EDITOR_HK_LEVEL_PIN1, EDITOR_HK_LEVEL_PIN2, EDITOR_HK_LEVEL_PIN3,
 };
 
+static const char* const k_workspace_tips[EDITOR_UI_WORKSPACES] = {
+    "Build: placing locs and spawns (the default layout)",
+    "Terrain: heights, colours, shapes, flags",
+    "Script: records, triggers, builders",
+    "Playtest: RUN, live, accounts",
+};
+
 struct MenuBarPanel
 {
     int panel;
@@ -78,8 +109,17 @@ struct MenuBarPanel
     const char* view_rows[MENUBAR_VIEW_MAX];
     int view_targets[MENUBAR_VIEW_MAX];
     int view_count;
-    /** Rows that are panels; the layout rows follow them. */
+    /** Rows that are panels; the view's rows follow them (at
+     *  view_panel_count), then the layout's (at view_layout_first). */
     int view_panel_count;
+    int view_layout_first;
+    /** What the view's rows were labelled from: the scale choice, the
+     *  scale Auto resolved to, the text size. */
+    int view_built_scale;
+    int view_built_auto;
+    int view_built_touch;
+    int view_built_text;
+    int view_built_render;
     int view_built_for;
     int view_built_snap;
     /** menubar_view_state() the rows were labelled from: a panel shown,
@@ -96,13 +136,18 @@ struct MenuBarPanel
     int label_level;
     int level_buttons[MENUBAR_LEVEL_BUTTONS];
     int button_above;
+    /** The workspace chips, and the workspace they last pressed (-1 never). */
+    int label_workspace;
+    int workspace_buttons[EDITOR_UI_WORKSPACES];
+    int shown_workspace;
     /** What the row and the World title were last set from; -2 = never. */
     int shown_level;
     int shown_vis;
 };
 
-/** A digest of which View-menu panels are open and which popped out: the
- *  rows say both. The registry, not the UI tree. */
+/** A digest of which View-menu panels are open, which popped out and which
+ *  wait behind another tab of their group: the rows say all three. The
+ *  registry, not the UI tree. */
 static uint32_t
 menubar_view_state(const struct EditorUi* ui)
 {
@@ -111,7 +156,8 @@ menubar_view_state(const struct EditorUi* ui)
     {
         int const panel = ui->panels[i].chrome_panel;
         int const open = panel >= 0 && ui->chrome->panels[panel].visible;
-        h = (h ^ (uint32_t)(open | (ui->popped[i] << 1))) * 16777619u;
+        int const tabbed = ui->group_plus1[i] && Editor_UiPanelInStrip(ui, ui->panels[i].name);
+        h = (h ^ (uint32_t)(open | (ui->popped[i] << 1) | (tabbed << 2))) * 16777619u;
     }
     return h;
 }
@@ -143,7 +189,8 @@ menubar_build_view(
     struct MenuBarPanel* self)
 {
     self->view_count = 0;
-    for( int i = 0; i < ui->panel_count && self->view_count < MENUBAR_VIEW_MAX - VIEW_LAYOUT_COUNT; i++ )
+    for( int i = 0; i < ui->panel_count && self->view_count < MENUBAR_VIEW_MAX - VIEW_PREF_COUNT - VIEW_LAYOUT_COUNT;
+         i++ )
     {
         const struct EditorUiPanel* panel = &ui->panels[i];
         int action;
@@ -154,17 +201,68 @@ menubar_build_view(
             edp_hotkey_row(ui, action, panel->title, self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX);
         else
             snprintf(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "%s", panel->title);
+        /* A member behind another tab of its group is open, not hidden: its
+         * row brings its tab to the front. */
         if( ui->popped[i] )
             menubar_mark_row(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "popped out");
-        else if( !ui->chrome->panels[panel->chrome_panel].visible )
+        else if( !ui->chrome->panels[panel->chrome_panel].visible && !Editor_UiPanelInStrip(ui, panel->name) )
             menubar_mark_row(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "hidden");
         self->view_rows[self->view_count] = self->view_labels[self->view_count];
         self->view_targets[self->view_count] = i;
         self->view_count++;
     }
     self->view_panel_count = self->view_count;
+    /* The view's rows: radio rows, the chosen one marked. */
+    for( int action = EDITOR_HK_VIEW_SCALE_AUTO; action <= EDITOR_HK_VIEW_TEXT_SMOOTH; action++ )
+    {
+        char label[TORIRS_CHROME_LABEL_MAX];
+        int on;
+        if( action == EDITOR_HK_VIEW_SCALE_AUTO )
+        {
+            snprintf(label, sizeof(label), "Chrome scale: Auto (%d %%)", ToriRSChromeScaleQ_Percent(ui->scale_auto_q));
+            on = ui->prefs.chrome_scale_q == EDITOR_PREFS_SCALE_AUTO;
+        }
+        else if( action <= EDITOR_HK_VIEW_SCALE_300 )
+        {
+            int const q = ToriRSChromeScaleQ_Step(action - EDITOR_HK_VIEW_SCALE_100);
+            snprintf(label, sizeof(label), "Chrome scale: %d %%", ToriRSChromeScaleQ_Percent(q));
+            on = ui->prefs.chrome_scale_q == q;
+            /* Held at 2x on a touch device (Editor_UiChromeScaleFor): the
+             * row says what it draws there. */
+            if( ui->scale_touch && q < TORIRS_CHROME_SCALEQ_TOUCH_MIN )
+                snprintf(label, sizeof(label), "Chrome scale: %d %% (touch: %d %%)", ToriRSChromeScaleQ_Percent(q),
+                    ToriRSChromeScaleQ_Percent(TORIRS_CHROME_SCALEQ_TOUCH_MIN));
+        }
+        else if( action <= EDITOR_HK_VIEW_TEXT_LARGE )
+        {
+            int const large = action == EDITOR_HK_VIEW_TEXT_LARGE;
+            snprintf(label, sizeof(label), "Text size: %s", large ? "Large" : "Normal");
+            on = ui->prefs.text_large == large;
+        }
+        else
+        {
+            /* Both draw paths honour it: the native scene bridge registers
+             * the vector face at a whole q under "smooth always"
+             * (App_SetChromeTextSmooth), and a DOM swaps to the vector web
+             * fonts. Fractional scales draw the vector face either way. */
+            int const smooth = action == EDITOR_HK_VIEW_TEXT_SMOOTH;
+            snprintf(label, sizeof(label), "Text rendering: %s",
+                smooth ? "smooth always" : "bitmap at whole scales");
+            on = ui->prefs.text_smooth == smooth;
+        }
+        edp_hotkey_row(ui, action, label, self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX);
+        if( on )
+            menubar_mark_row(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "on");
+        self->view_rows[self->view_count] = self->view_labels[self->view_count];
+        self->view_targets[self->view_count++] = -1;
+    }
+    self->view_layout_first = self->view_count;
     edp_hotkey_row(ui, EDITOR_HK_VIEW_HIDE_PANELS, "Hide / show panels", self->view_labels[self->view_count],
         TORIRS_CHROME_LABEL_MAX);
+    self->view_rows[self->view_count] = self->view_labels[self->view_count];
+    self->view_targets[self->view_count++] = -1;
+    /* No chord: the hotkey table has no action for it. */
+    snprintf(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "Reset groups");
     self->view_rows[self->view_count] = self->view_labels[self->view_count];
     self->view_targets[self->view_count++] = -1;
     edp_hotkey_row(
@@ -182,6 +280,11 @@ menubar_build_view(
     self->view_built_for = ui->panel_count;
     self->view_built_snap = ui->snap;
     self->view_built_state = menubar_view_state(ui);
+    self->view_built_scale = ui->prefs.chrome_scale_q;
+    self->view_built_auto = ui->scale_auto_q;
+    self->view_built_touch = ui->scale_touch;
+    self->view_built_text = ui->prefs.text_large;
+    self->view_built_render = ui->prefs.text_smooth;
 }
 
 /** The File and Edit rows and the Level tips, from the hotkey table. */
@@ -214,6 +317,12 @@ menubar_hints(
         char tip[TORIRS_CHROME_LABEL_MAX];
         edp_hotkey_tip(ui, EDITOR_HK_LEVEL_ABOVE, "Pinned: also draw the levels above", tip, (int)sizeof(tip));
         ToriRSChrome_SetTooltip(ui->chrome, self->button_above, tip);
+    }
+    for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
+    {
+        char tip[TORIRS_CHROME_LABEL_MAX];
+        edp_hotkey_tip(ui, EDITOR_HK_VIEW_WORKSPACE_BUILD + w, k_workspace_tips[w], tip, (int)sizeof(tip));
+        ToriRSChrome_SetTooltip(ui->chrome, self->workspace_buttons[w], tip);
     }
     self->hint_serial = ui->hotkeys.serial;
 }
@@ -262,7 +371,9 @@ menubar_tick(
         menubar_build_view(ui, self);
     }
     if( self->view_built_for != ui->panel_count || self->view_built_snap != ui->snap
-        || self->view_built_state != menubar_view_state(ui) )
+        || self->view_built_state != menubar_view_state(ui) || self->view_built_scale != ui->prefs.chrome_scale_q
+        || self->view_built_auto != ui->scale_auto_q || self->view_built_touch != ui->scale_touch
+        || self->view_built_text != ui->prefs.text_large || self->view_built_render != ui->prefs.text_smooth )
         menubar_build_view(ui, self);
     /* A level changed behind the row's back -- another window
      * (STATE_EDIT_LEVEL lands in edit_level alone) or a key: the cap follows
@@ -273,6 +384,12 @@ menubar_tick(
             edp_level_follow_vis(self->shown_level, ui->tools.vis_level, ui->tools.edit_level);
     if( self->shown_level != ui->tools.edit_level || self->shown_vis != ui->tools.vis_level )
         menubar_level_show(ui, self);
+    if( self->shown_workspace != ui->workspace )
+    {
+        for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
+            ToriRSChrome_SetChecked(ui->chrome, self->workspace_buttons[w], w == ui->workspace);
+        self->shown_workspace = ui->workspace;
+    }
     /* The bar spans whatever the screen is now. */
     if( ui->chrome->panels[self->panel].fixed_w != width )
         ToriRSChrome_PanelSetFixedWidth(ui->chrome, self->panel, width);
@@ -300,6 +417,12 @@ menubar_activate(
         menubar_level_show(ui, self);
         return 1;
     }
+    for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
+        if( widget == self->workspace_buttons[w] )
+        {
+            (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_WORKSPACE_BUILD + w);
+            return 1;
+        }
     if( widget != self->menu_file && widget != self->menu_edit && widget != self->menu_view )
         return 0;
     row = ToriRSChrome_DropdownSelected(ui->chrome, widget);
@@ -309,11 +432,21 @@ menubar_activate(
         (void)Editor_HotkeyRun(ui, k_file_actions[row]);
     else if( widget == self->menu_edit && row < EDIT_COUNT )
         (void)Editor_HotkeyRun(ui, k_edit_actions[row]);
-    else if( widget == self->menu_view && row == self->view_panel_count + VIEW_HIDE )
+    else if( widget == self->menu_view && row >= self->view_panel_count && row < self->view_layout_first )
+    {
+        (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_SCALE_AUTO + (row - self->view_panel_count));
+        menubar_build_view(ui, self);
+    }
+    else if( widget == self->menu_view && row == self->view_layout_first + VIEW_HIDE )
         (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_HIDE_PANELS);
-    else if( widget == self->menu_view && row == self->view_panel_count + VIEW_RESET_LAYOUT )
+    else if( widget == self->menu_view && row == self->view_layout_first + VIEW_RESET_GROUPS )
+    {
+        Editor_UiResetGroups(ui);
+        Editor_UiLog(ui, "editor: every panel back in its default group");
+    }
+    else if( widget == self->menu_view && row == self->view_layout_first + VIEW_RESET_LAYOUT )
         (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_RESET_LAYOUT);
-    else if( widget == self->menu_view && row == self->view_panel_count + VIEW_SNAP )
+    else if( widget == self->menu_view && row == self->view_layout_first + VIEW_SNAP )
     {
         (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_SNAP);
         menubar_build_view(ui, self);
@@ -367,6 +500,10 @@ Editor_MenuBar_Register(struct EditorUi* ui)
     for( int i = 0; i < MENUBAR_LEVEL_BUTTONS; i++ )
         self->level_buttons[i] = ToriRSChrome_MenuItem(ui->chrome, self->panel, k_level_buttons[i]);
     self->button_above = ToriRSChrome_MenuItem(ui->chrome, self->panel, "Above");
+    self->label_workspace = ToriRSChrome_Label(ui->chrome, self->panel, "   Workspace");
+    for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
+        self->workspace_buttons[w] = ToriRSChrome_MenuItem(ui->chrome, self->panel, Editor_UiWorkspaceTitle(w));
+    self->shown_workspace = -1;
     menubar_hints(ui, self);
     self->shown_level = -2;
     self->shown_vis = -2;

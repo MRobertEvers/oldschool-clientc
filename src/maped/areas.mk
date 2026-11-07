@@ -31,7 +31,7 @@ test-editor-areas:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_areas_test $(TORIMEM_SRCS) editor/editor_areas.c \
 		torirsmaped/torirs_maped_cmdwire.c torirsmaped/torirs_maped_buf.c \
-		editor/test/editor_areas_test.c
+		editor/test/editor_areas_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_areas_test
 
 test-editor: test-editor-areas

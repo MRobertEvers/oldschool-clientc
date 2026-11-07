@@ -79,6 +79,14 @@ unsetenv(const char* name)
 {
     return torirs_win32_putenv(name, "");
 }
+
+/* POSIX mkdir(path, mode). The CRT's takes the path alone; the mode has no
+ * Windows meaning. Variadic so a one-argument call (Windows-only code) works
+ * too, and defined after <io.h> and <direct.h> have declared the CRT's, which
+ * a function-like macro would otherwise rewrite. */
+#include <direct.h>
+#include <io.h>
+#define mkdir(path, ...) _mkdir(path)
 #endif /* _WIN32 */
 
 #endif /* SRC_PLATFORM_WIN32_COMPAT_H */

@@ -289,6 +289,20 @@ WorldBuilder_LocRemove(
 int
 WorldBuilder_Flush(struct WorldBuilder* builder);
 
+/**
+ * The loc a placement of base loc `loc_id` draws: its multiloc chain walked
+ * the way every placement walks it (VarPManager_ResolveTransform over this
+ * builder's varps, the map editor's var preview included). The base's own id
+ * for a plain loc; -1 when the chain hides it (or a child is not resident
+ * yet, or the chain loops); WORLD_BUILDER_LOC_NOT_RESIDENT when the base's
+ * config is not resident.
+ */
+#define WORLD_BUILDER_LOC_NOT_RESIDENT (-2)
+int
+WorldBuilder_ResolveLocId(
+    struct WorldBuilder* builder,
+    int loc_id);
+
 /** How many placements a multiloc hides in this builder's scene right now. */
 int
 WorldBuilder_HiddenLocCount(struct WorldBuilder const* builder);

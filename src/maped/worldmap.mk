@@ -14,15 +14,21 @@
 MAPED_CLIENT_SRCS += editor/editor_worldmap.c game/rs_worldmap_overview.c
 
 # The pure halves on their own: the region-to-pixels mapping (whole-region
-# and chunk records, the box filter, north up, the window edges) and the
+# and chunk records, the box filter, north up, the window edges), the
 # picture's composition (dimmed squares, black where the map has nothing, the
-# grid).
+# grid), and -- with the picker and the chrome linked, content-free -- the
+# level of detail by zoom, the GRAPH item budget, instance space and lanes,
+# and the visible-first polling against fake services.
 .PHONY: test-editor-worldmap
 test-editor-worldmap:
 	mkdir -p $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_worldmap_test $(TORIMEM_SRCS) game/rs_worldmap_overview.c \
-		editor/editor_worldmap.c editor/test/editor_worldmap_test.c \
-		editor/test/editor_worldmap_test_stubs.c
+	$(CC) $(CFLAGS) -UNDEBUG -UTORIRS_CHROME_EXEC_WEB_AVAILABLE -UTORIRS_CHROME_EXEC_BROWSER_AVAILABLE \
+		-UTORIRS_CHROME_SURFACE_SDL -o $(OBJ_DIR)/editor_worldmap_test $(TORIMEM_SRCS) \
+		game/rs_worldmap_overview.c editor/editor_worldmap.c editor/panels/edpanel_picker.c \
+		editor/test/editor_worldmap_test.c editor/test/editor_worldmap_test_stubs.c \
+		ui/uitree_debug_overlay.c ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c \
+		ui/torirs_chrome_rail.c ui/torirs_chrome_bake.c engine/torirs_chrome_skin_baked.c \
+		engine/torirs_chrome_skin_tiers.c engine/torirs_debug_font_baked.c -lm $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_worldmap_test
 
 test-editor: test-editor-worldmap

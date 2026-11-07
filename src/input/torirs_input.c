@@ -1,4 +1,5 @@
 #include "input/torirs_input.h"
+#include "input/torirs_gesture.h"
 #include "mem/torirs_mem.h"
 
 #include <assert.h>
@@ -118,6 +119,8 @@ LibToriRS_Input_Begin(
     clear_gesture_oneshots(input);
 
     input->key_event_count = 0;
+    input->gesture_count = 0;
+    input->gesture_dropped = 0;
     memset(input->osrs_key_pressed, 0, sizeof(input->osrs_key_pressed));
     memset(input->osrs_key_released, 0, sizeof(input->osrs_key_released));
 }
@@ -325,6 +328,25 @@ LibToriRS_Input_PushMouseLeave(struct LibToriRS_Input* input)
 {
     assert(input);
     input->mouse_pointer_absent = 1;
+    /* The touch policy's "the finger left"; a cursor leaving the window is
+     * the same fact for a mouse, which had no finger down. */
+    input->touch_down = 0;
+}
+
+void
+LibToriRS_Input_PushTouchBegan(struct LibToriRS_Input* input)
+{
+    assert(input);
+    input->touch_down = 1;
+    input->last_touch = 1;
+}
+
+void
+LibToriRS_Input_NoteDesktopPointer(struct LibToriRS_Input* input)
+{
+    assert(input);
+    if( !input->touch_down )
+        input->last_touch = 0;
 }
 
 void
@@ -370,4 +392,76 @@ LibToriRS_Input_PushScroll(
     if( trackpad )
         input->curr.scroll_trackpad = 1;
     input->curr.scroll_flipped = flipped ? 1 : 0;
+}
+
+void
+LibToriRS_Input_PushGesture(
+    struct LibToriRS_Input* input,
+    struct LibToriRS_Gesture const* gesture)
+{
+    assert(input);
+    assert(gesture);
+    assert(gesture->kind < LIBTORIRS_GESTURE_KIND_COUNT);
+    assert(gesture->phase < LIBTORIRS_GESTURE_PHASE_COUNT);
+    assert(gesture->scale > 0.0f);
+
+    input->last_touch = (gesture->flags & LIBTORIRS_GESTURE_FLAG_TOUCH) != 0;
+    if( input->gesture_count < LIBTORIRS_GESTURE_MAX )
+    {
+        input->gestures[input->gesture_count++] = *gesture;
+        return;
+    }
+
+    /* Full. An UPDATE is motion, and motion composes: fold it into the last
+     * frame of its kind, which keeps the sum (a pan's travel, a pinch's
+     * product, a twist's turn) and loses only the steps. A BEGIN or an END is
+     * a boundary, and a boundary cannot be folded into anything. */
+    if( gesture->phase == LIBTORIRS_GESTURE_UPDATE )
+    {
+        for( int i = input->gesture_count - 1; i >= 0; i-- )
+        {
+            struct LibToriRS_Gesture* last = &input->gestures[i];
+            if( last->kind != gesture->kind )
+                continue;
+            if( last->phase == LIBTORIRS_GESTURE_END )
+                break;
+            last->x = gesture->x;
+            last->y = gesture->y;
+            last->dx += gesture->dx;
+            last->dy += gesture->dy;
+            last->scale *= gesture->scale;
+            last->radians += gesture->radians;
+            last->flags |= gesture->flags;
+            if( gesture->fingers > last->fingers )
+                last->fingers = gesture->fingers;
+            return;
+        }
+    }
+    input->gesture_dropped++;
+    input->gesture_dropped_total++;
+}
+
+int
+ToriRS_InputGestures(
+    const struct LibToriRS_Input* input,
+    const struct LibToriRS_Gesture** out)
+{
+    assert(input);
+    assert(out);
+    assert(input->gesture_count >= 0);
+    assert(input->gesture_count <= LIBTORIRS_GESTURE_MAX);
+    if( input->gesture_count == 0 )
+    {
+        *out = NULL;
+        return 0;
+    }
+    *out = input->gestures;
+    return input->gesture_count;
+}
+
+int
+ToriRS_InputLastWasTouch(const struct LibToriRS_Input* input)
+{
+    assert(input);
+    return input->last_touch;
 }

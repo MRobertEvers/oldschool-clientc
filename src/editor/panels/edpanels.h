@@ -16,9 +16,11 @@
 
 #include "editor/editor_hotkeys.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
 struct EditorUi;
+struct EditorHost_CatalogSquares;
 
 /** Output console: the registry's log ring as a VLIST. "console" */
 void
@@ -32,15 +34,47 @@ Editor_MenuBar_Register(struct EditorUi* ui);
 void
 Editor_ToolRail_Register(struct EditorUi* ui);
 
+/** How many icon buttons the rail holds (the tools, Save, New square,
+ *  Squares): what the default layout wraps into columns. */
+int
+Editor_ToolRail_ButtonCount(void);
+
 /** Brush radius / falloff / step / strength SLIDERs, flags, level RADIO,
  *  vis cap. "terrain" */
 void
 Editor_Terrain_Register(struct EditorUi* ui);
 
-/** Underlay and overlay swatches, overlay shape thumbnails and rotation.
- *  "palette" */
+/** Underlay and overlay swatches (the open squares' ids or every resident
+ *  one, by id, hue or lightness), overlay shape thumbnails and rotation,
+ *  the blend strip (the ground across a seam between the last two underlay
+ *  picks, as the client blends it) and the colour picker (hue / sat /
+ *  light sliders or a hex, the nearest underlays and overlays). "palette" */
 void
 Editor_Palette_Register(struct EditorUi* ui);
+
+/** The well-local centre of `id`'s swatch in the palette's underlay (0) or
+ *  overlay (1) well, for a test's hover or press. 0 when not listed. */
+int
+Editor_Palette_SwatchAt(
+    struct EditorUi* ui,
+    int is_overlay,
+    int id,
+    int* out_x,
+    int* out_y);
+
+/** The ids the picker's colour matched, nearest first: underlays or
+ *  overlays. Returns the count (at most `max`). */
+int
+Editor_Palette_Matches(
+    struct EditorUi* ui,
+    int is_overlay,
+    int* out_ids,
+    int max);
+
+/** The underlay the blend strip runs from (the pick before the current
+ *  one), 0 when there is none yet. */
+int
+Editor_Palette_BlendFrom(struct EditorUi* ui);
 
 /** The rectangle select's copy / paste / fill / clear. "rect" */
 void
@@ -57,8 +91,9 @@ Editor_Spawns_Register(struct EditorUi* ui);
 
 struct Editor_SpawnRow;
 
-/** The spawns panel's multi-selection size; 0 while the panel is hidden
- *  (so the D key duplicates locs, or nothing, when it is closed). */
+/** The spawns panel's multi-selection size; 0 while the panel is closed
+ *  (so the D key duplicates locs, or nothing, when it is closed). A Spawns
+ *  tab behind another of its group's strip is open, and counts. */
 int
 Editor_Spawns_SelectionCount(struct EditorUi* ui);
 
@@ -84,6 +119,61 @@ Editor_Spawns_Selection(
 /** The New square / Copy to / Save as new modal. "new_square" */
 void
 Editor_NewSquare_Register(struct EditorUi* ui);
+
+/** The instance helper (design section 13, edpanel_instance.c): source
+ *  squares, what to copy, a free destination, storage, name, map area,
+ *  entry trigger; Create as one undo step. A modal. "instance" */
+void
+Editor_Instance_Register(struct EditorUi* ui);
+
+/** Open it over the picker's selection (the picker's Instance...). */
+void
+Editor_Instance_Open(struct EditorUi* ui);
+
+/** Find free...: the lowest free box of the source's size in instance
+ *  space, typed into Destination and marked in the picker. 1 when found;
+ *  a refusal says why in the status bar. */
+int
+Editor_Instance_FindFree(struct EditorUi* ui);
+
+/** Create, as the button does. 1 when the instance was made (one undo
+ *  step); 0 refused, the reason in the dialog and the status bar. */
+int
+Editor_Instance_Create(struct EditorUi* ui);
+
+/** The dialog's widgets, for a headless driver. */
+enum Editor_InstanceWidget
+{
+    EDITOR_INSTANCE_W_PANEL = 0,
+    EDITOR_INSTANCE_W_SOURCE,
+    EDITOR_INSTANCE_W_SOURCE_ROW,
+    EDITOR_INSTANCE_W_TERRAIN,
+    EDITOR_INSTANCE_W_LOCS,
+    EDITOR_INSTANCE_W_SPAWNS,
+    EDITOR_INSTANCE_W_AREAS,
+    EDITOR_INSTANCE_W_LEVELS,
+    EDITOR_INSTANCE_W_DEST,
+    EDITOR_INSTANCE_W_FIND,
+    EDITOR_INSTANCE_W_FREE,
+    EDITOR_INSTANCE_W_STORAGE,
+    EDITOR_INSTANCE_W_LANE,
+    EDITOR_INSTANCE_W_NAME,
+    EDITOR_INSTANCE_W_MAP_ADD,
+    EDITOR_INSTANCE_W_MAP_NONE,
+    EDITOR_INSTANCE_W_ENTRY_TELEPORT,
+    EDITOR_INSTANCE_W_ENTRY_RUNTIME,
+    EDITOR_INSTANCE_W_ENTRY_NONE,
+    EDITOR_INSTANCE_W_LOC,
+    EDITOR_INSTANCE_W_COORD,
+    EDITOR_INSTANCE_W_CHECK,
+    EDITOR_INSTANCE_W_CREATE,
+    EDITOR_INSTANCE_W_CANCEL,
+};
+
+int
+Editor_Instance_Widget(
+    struct EditorUi* ui,
+    enum Editor_InstanceWidget which);
 
 /** The unsaved-edit guard: Save / Discard / Cancel. "save_guard" */
 void
@@ -179,6 +269,63 @@ Editor_SquarePicker_EmptyCell(
  *  multiloc rung (-1 nothing). -1 without a catalog. */
 int
 Editor_Catalog_PreviewId(struct EditorUi* ui);
+
+/** The multiloc rung the Catalog's variant dropdown (the Shell editor's
+ *  readout) chose for a loc pick: its loc id, -2 for a value with nothing at
+ *  it, -1 when none is chosen (or no catalog). */
+int
+Editor_Catalog_PreviewRung(struct EditorUi* ui);
+
+/**
+ * Pick from world (Shift+I, tool.pick_loc; design section 6): the hovered
+ * placement's loc becomes the pick AT ITS EXACT POSE (`shape`, `rotation`
+ * become Place's), Place is armed, Find is set to its record name (its id
+ * without a catalog) with the chips off, and its row is selected and
+ * scrolled into view once the page holding it lands. 0 (said in the status
+ * bar) without a catalog.
+ */
+int
+Editor_Catalog_PickFromWorld(
+    struct EditorUi* ui,
+    int loc_id,
+    int shape,
+    int rotation);
+
+/** The pick is in editor/favourites.txt (editor_favourites.h). */
+int
+Editor_Catalog_IsFavourite(struct EditorUi* ui);
+
+/** The favourite star: the pick into editor/favourites.txt (a loc with
+ *  Place's pose), or out of it when it is there; one TEXT_SPLICE through the
+ *  authority, one undo step. 1 a favourite now, 0 not, -1 refused (said). */
+int
+Editor_Catalog_ToggleFavourite(struct EditorUi* ui);
+
+/** Find in world: every placement of the loc pick in the open squares
+ *  selected (the first EDITOR_LOC_SELECTION_MAX), the camera over the first.
+ *  Returns how many there are; 0 is said. */
+int
+Editor_Catalog_FindInWorld(struct EditorUi* ui);
+
+/** The pick's record in the Record panel. 0 when refused (said). */
+int
+Editor_Catalog_EditPick(struct EditorUi* ui);
+
+/** Copy the pick to the Catalog's New name (Editor_Catalog_CopyRecord). */
+int
+Editor_Catalog_CopyPick(struct EditorUi* ui);
+
+/** The loc pick's placeable shapes: its resident config's, else the
+ *  catalog's summary fields'. 0 for no loc pick. */
+uint32_t
+Editor_Catalog_PickShapes(struct EditorUi* ui);
+
+struct Editor_CatalogRecents;
+
+/** The session's recent picks (the tests read them), NULL without a
+ *  catalog. */
+const struct Editor_CatalogRecents*
+Editor_Catalog_Recents(struct EditorUi* ui);
 
 /**
  * Make record `name` of `kind` (TORIRSMAPED_CATALOG_LOC..OBJ) the pick, as a
@@ -407,6 +554,274 @@ struct Editor_CfgRecord;
 const struct Editor_CfgRecord*
 Editor_Record_Current(struct EditorUi* ui);
 
+/* Workbench 6.6 (design section 9): the Record panel's tabs, its typed
+ * editor, the search inside the record, "changed only" and Where used. */
+
+/** The Record panel's tabs: Cache block, one Server overlay tab per overlay
+ *  file that states the record (named by its file), Triggers, Shell, Where
+ *  used. Editor_Record_TabCount / _TabTitle say what this record has. */
+enum Editor_RecordTab
+{
+    EDITOR_RECORD_TAB_CACHE = 0,
+    EDITOR_RECORD_TAB_OVERLAY,
+    EDITOR_RECORD_TAB_TRIGGERS,
+    EDITOR_RECORD_TAB_SHELL,
+    EDITOR_RECORD_TAB_USES,
+};
+
+/** How many tabs the open record has (0 when none is open). */
+int
+Editor_Record_TabCount(struct EditorUi* ui);
+
+/** Tab `tab`'s title ("Cache block", "Server overlay lumbridge.npc", ...)
+ *  and, through `out_role`, its enum Editor_RecordTab. */
+const char*
+Editor_Record_TabTitle(
+    struct EditorUi* ui,
+    int tab,
+    int* out_role);
+
+/** Show tab `tab` (the panel's tab strip does the same). Returns 1. */
+int
+Editor_Record_ShowTab(
+    struct EditorUi* ui,
+    int tab);
+
+/** The rows the field list shows now, after the tab (a layer tab lists the
+ *  fields that layer states, plus the register's for the top one), the
+ *  search and "changed only": their indices into Editor_Record_Current's
+ *  rows, into `out` (up to `max`). Returns the count. */
+int
+Editor_Record_VisibleRows(
+    struct EditorUi* ui,
+    int* out,
+    int max);
+
+/** The search inside the record and the "changed only" chip, as typed and
+ *  clicked. */
+void
+Editor_Record_SetFind(
+    struct EditorUi* ui,
+    const char* text,
+    int changed_only);
+
+/** The number of fields changed since the record was opened or last clean
+ *  ("dirty, 2 fields"). */
+int
+Editor_Record_ChangedCount(struct EditorUi* ui);
+
+/** 1 when a changed field is one the client reads (the "needs a client
+ *  pack" chip is up). */
+int
+Editor_Record_NeedsClientPack(struct EditorUi* ui);
+
+/** The typed editor's kind for the selected row (enum Editor_CfgFieldKind),
+ *  -1 when no row is selected. */
+int
+Editor_Record_EditorKind(struct EditorUi* ui);
+
+/** The NAME picker's candidates as last answered (the catalog's records of
+ *  the field's kind matching what was typed): count, and row `index`. */
+int
+Editor_Record_PickCount(struct EditorUi* ui);
+
+const char*
+Editor_Record_PickRow(
+    struct EditorUi* ui,
+    int index);
+
+/** Where used: the rows the catalog's CATALOG_USES answered so far, and
+ *  whether the search is still running. */
+struct EditorHost_CatalogUse;
+
+int
+Editor_Record_UsesCount(
+    struct EditorUi* ui,
+    int* out_searching);
+
+const struct EditorHost_CatalogUse*
+Editor_Record_UsesRow(
+    struct EditorUi* ui,
+    int index);
+
+/* ---- problems (edpanel_problems.c, workbench 6.6) ---------------------------
+ *
+ * The Problems panel: every finding that names a place, one list, in the
+ * bottom strip's group with Console and History. Builds' diagnostic lines
+ * arrive on their own (the Live model's line stream); everything else is
+ * pushed through Editor_Problems_Report / _ReportRecord and taken back with
+ * _Clear. "problems" */
+
+#define EDITOR_PROBLEMS_MAX 512
+/** A source's name, NUL included ("npcbuilder:<npc>", "quest:<id>"). */
+#define EDITOR_PROBLEM_SOURCE_MAX 96
+
+enum Editor_ProblemSeverity
+{
+    EDITOR_PROBLEM_ERROR = 0,
+    EDITOR_PROBLEM_WARNING,
+    EDITOR_PROBLEM_NOTE,
+};
+
+/** What a click on a pushed row runs instead of opening a record or a file
+ *  (the NPC builder selects the lint row's node): called with the `user`
+ *  and `index` the row was reported with. The reporter keeps `user` valid
+ *  until it clears its source. */
+typedef void (*Editor_ProblemOpenFn)(
+    struct EditorUi* ui,
+    void* user,
+    int index);
+
+struct Editor_ProblemRow
+{
+    /** Who said it: a build's name ("check", "cs2 compile", "packs"), or the
+     *  pushing panel's ("record", "shop", "quest:<id>",
+     *  "npcbuilder:<npc>"). */
+    char source[EDITOR_PROBLEM_SOURCE_MAX];
+    /** Relative to server/scripts for a script ("" when it names none). */
+    char file[256];
+    /** 1-based, 0 when it names none. */
+    int line;
+    int severity;
+    char text[256];
+    /** A record's finding (click-to-record): "npc", the name, the field
+     *  ("param:huntrange2", "category"); "" for any other. */
+    char record_type[16];
+    char record_name[64];
+    char record_field[64];
+    /** A pushed row's own click (Editor_Problems_ReportOpen), else NULL. */
+    Editor_ProblemOpenFn open;
+    void* open_user;
+    int open_index;
+};
+
+void
+Editor_Problems_Register(struct EditorUi* ui);
+
+/** Add a row (a duplicate of a row already listed is one row). A window
+ *  without the panel drops it. */
+void
+Editor_Problems_Report(
+    struct EditorUi* ui,
+    const char* source,
+    const char* file,
+    int line,
+    int severity,
+    const char* text);
+
+/** Add a row about a record's field: a click opens the record there. */
+void
+Editor_Problems_ReportRecord(
+    struct EditorUi* ui,
+    const char* source,
+    const char* type,
+    const char* name,
+    const char* field,
+    const char* file,
+    int line,
+    int severity,
+    const char* text);
+
+/** Add a row whose click runs `open(ui, user, index)` (the builders' lint:
+ *  click-to-node). `file` may be "" when the row names no script. */
+void
+Editor_Problems_ReportOpen(
+    struct EditorUi* ui,
+    const char* source,
+    const char* file,
+    int line,
+    int severity,
+    const char* text,
+    Editor_ProblemOpenFn open,
+    void* user,
+    int index);
+
+/** Take back every row `source` reported (NULL: every row). Returns how
+ *  many went. */
+int
+Editor_Problems_Clear(
+    struct EditorUi* ui,
+    const char* source);
+
+int
+Editor_Problems_Count(struct EditorUi* ui);
+
+const struct Editor_ProblemRow*
+Editor_Problems_Row(
+    struct EditorUi* ui,
+    int index);
+
+/** Rows of `source` of `severity` (-1: any severity). */
+int
+Editor_Problems_CountOf(
+    struct EditorUi* ui,
+    const char* source,
+    int severity);
+
+/** What a click on row `index` does: its reporter's own open (ReportOpen),
+ *  else open its record at its field, else its
+ *  file in the user's editor (the Triggers panel's Open in editor). 1 when
+ *  it did; 0 with the reason in the status bar. */
+int
+Editor_Problems_Activate(
+    struct EditorUi* ui,
+    int index);
+
+/** One build line read as a row: `<file>:<line>: [error: |warning: |note: ]
+ *  <message>` (sscompile's, with or without its "sscompile: " prefix),
+ *  `FAIL <name>: <why>` (cs2: file "scripts/<name>.cs2"), `error: ...` /
+ *  `warning: ...`. 0 for a line that is none of those. */
+int
+Editor_ProblemsParseLine(
+    const char* line,
+    struct Editor_ProblemRow* out);
+
+/** A BUILD job a panel sent (Check, CS2 compile): what it was, and once
+ *  Editor_BuildJobPoll answers 1, how it ended. */
+struct Editor_BuildJob
+{
+    uint32_t what;
+    int active;
+    int build_serial;
+    int log_serial;
+    /** enum EditorHost_Status, once ended. */
+    uint32_t status;
+    /** Lines of its own the poll handed over. */
+    int lines;
+    int64_t started_ms;
+    double seconds;
+};
+
+/**
+ * Send BUILD `what` (with `arg` for a kind that takes one,
+ * ToriRSMapEd_BuildWhatTakesArg) to the editor server: the job runs on the
+ * server's pump, its lines arrive as FACT_BUILD_LINE and this window never
+ * waits. 1 sent; 0 refused, with the reason (one clause) in `why`: no server,
+ * no runner, an older server, no Live panel, a build or RUN in flight.
+ */
+int
+Editor_BuildJobSend(
+    struct EditorUi* ui,
+    struct Editor_BuildJob* job,
+    uint32_t what,
+    const char* arg,
+    char* why,
+    size_t why_size);
+
+/** One clause for how a job ended (its EditorHost_Status). */
+const char*
+Editor_BuildJobWhy(uint32_t status);
+
+/** Once a frame: hands each new line of the job to `line` (may be NULL),
+ *  oldest first, and answers 1 on the frame it ended (`job->status`,
+ *  `job->seconds` set), else 0. */
+int
+Editor_BuildJobPoll(
+    struct EditorUi* ui,
+    struct Editor_BuildJob* job,
+    void (*line)(void* user, const char* text),
+    void* user);
+
 /* ---- named areas and square collections (edpanel_areas.c) -----------------
  *
  * The Areas panel over the AREAS document (editor/editor_areas.h) every
@@ -554,6 +969,112 @@ Editor_SquarePicker_SetCollection(
 const char*
 Editor_SquarePicker_Collection(struct EditorUi* ui);
 
+/* ---- the picker's navigation and panes (workbench 6.4, edpanel_squares.c) ---- */
+
+/** The focused square's outline: white (design section 5, "Navigation"). */
+#define EDITOR_SQUARES_FOCUS_RGB 0xffffffu
+
+/**
+ * Run a Picker action (EDITOR_HK_PICKER_*: the focus N / S / W / E, open,
+ * add, back, clear Find) as the well's key does. The Squares well resolves
+ * its own keys against the K rows (Editor_HotkeysMatch); Editor_HotkeyRun
+ * ends here for a dispatcher that fires one. Returns 1 when the window has a
+ * picker (a refusal says why in the status bar), 0 when it has none.
+ */
+int
+Editor_SquarePicker_Key(
+    struct EditorUi* ui,
+    int action);
+
+/** Hand the picker an atlas, as CATALOG_SQUARES would (a headless window, a
+ *  test's synthetic one). */
+void
+Editor_SquarePicker_TakeAtlas(
+    struct EditorUi* ui,
+    const struct EditorHost_CatalogSquares* atlas);
+
+/** Run Find on `text` as Enter in the Find box does. Returns 1 when it
+ *  matched. */
+int
+Editor_SquarePicker_Find(
+    struct EditorUi* ui,
+    const char* text);
+
+/** World-map area `index` of the picker's pages (0 ..): its internal name
+ *  (what Find takes), its display name and how many squares its page holds.
+ *  0 past the last area. The command palette's Squares group lists them by
+ *  name. A window whose picker has never fetched its atlas (the panel never
+ *  shown) asks CATALOG_SQUARES once, here. */
+int
+Editor_SquarePicker_Area(
+    struct EditorUi* ui,
+    int index,
+    const char** out_name,
+    const char** out_display,
+    int* out_squares);
+
+/** Rows of the detail pane (the heading first, then Square, Area, Tiles,
+ *  Contents, State, Collections). */
+#define EDITOR_SQUARES_PANE_ROWS 7
+
+/**
+ * Detail pane row `row` as shown: its chrome widget, its full text (what the
+ * tooltip says when it was cut), and the track the shown text was measured
+ * against (device px, the font the row draws in). 0 past the last row.
+ */
+int
+Editor_SquarePicker_PaneRow(
+    struct EditorUi* ui,
+    int row,
+    int* out_widget,
+    const char** out_full,
+    int* out_track);
+
+/** The open-set strip: its GRAPH, how many chips it holds, how many show
+ *  (the rest are its "+N"). 0 without a picker. */
+int
+Editor_SquarePicker_Strip(
+    struct EditorUi* ui,
+    int* out_graph,
+    int* out_count,
+    int* out_shown);
+
+/** The Recent list, newest first: `count` keys. */
+int
+Editor_SquarePicker_Recent(
+    struct EditorUi* ui,
+    const char** out_keys,
+    int max);
+
+/* ---- what the instance helper reads and marks (workbench 6.5) ---------------- */
+
+enum Editor_SquarePickerSources
+{
+    /** The shift-clicked squares, else the focused one. */
+    EDITOR_SQUARE_PICKER_SELECTION = 0,
+    /** The open-set strip, in its order. */
+    EDITOR_SQUARE_PICKER_OPEN_SET,
+};
+
+/** Up to `max` full square keys of `which` into `out`; returns how many. 0
+ *  without a picker or an atlas. */
+int
+Editor_SquarePicker_Sources(
+    struct EditorUi* ui,
+    enum Editor_SquarePickerSources which,
+    char (*out)[EDITOR_DOC_KEY_MAX],
+    int max);
+
+/** Mark squares [x, x + w) x [z, z + h) in the picker (outlined at every
+ *  zoom) and centre the view on them; w 0 clears the mark. */
+void
+Editor_SquarePicker_Mark(
+    struct EditorUi* ui,
+    int map_x,
+    int map_z,
+    int w,
+    int h);
+
 /* ---- the Triggers panel (edpanel_triggers.c) --------------------------------- */
 
 struct Builder_SscResult;
@@ -682,10 +1203,17 @@ Editor_Triggers_Refresh(struct EditorUi* ui);
 int
 Editor_Triggers_ReloadFromDisk(struct EditorUi* ui);
 
-/** sscompile over the scripts ON DISK (synchronous; unsaved documents are
- *  not in it). Returns the errors, -1 when it could not run. */
+/** Check (workbench 6.6): the editor server's BUILD check job -- sscompile
+ *  over the scripts on disk with the server's unsaved script documents over
+ *  them, on the server's pump. Returns at once: 1 sent (the rows and the
+ *  status come as its lines do), 0 refused (the status bar says why), -1
+ *  when this window has no Triggers panel. */
 int
 Editor_Triggers_Check(struct EditorUi* ui);
+
+/** 1 while Check's job is in flight. */
+int
+Editor_Triggers_CheckRunning(struct EditorUi* ui);
 
 /** Show a compile result as Check does (the Problems rows, the status). */
 void
@@ -695,11 +1223,61 @@ Editor_Triggers_ShowResult(
 
 /* ---- hotkeys (edpanel_hotkeys.c, docs/MAPED_HOTKEYS.md) -------------------- */
 
-/** The Hotkeys panel: every action's group, name, context and chord, a
- *  search box, click a chord to rebind it, clashes in red, Reset to
- *  defaults. Hidden until View > Hotkeys panel (F1). "hotkeys" */
+/** The Hotkeys panel (workbench 6.8, design section 15 figure 5): every
+ *  action's group, name, context, two chords and gesture in one sortable
+ *  list, a search box, Group / Context filters, changed / conflicts chips,
+ *  two capture cells per row, clashes in the alert ink, Reset all. Hidden
+ *  until View > Hotkeys panel (F1). "hotkeys" */
 void
 Editor_Hotkeys_Register(struct EditorUi* ui);
+
+/** The Hotkeys panel's columns, in the figure's order (its Sort chips). */
+enum Editor_HotkeysColumn
+{
+    EDITOR_HOTKEYS_COL_GROUP = 0,
+    EDITOR_HOTKEYS_COL_ACTION,
+    EDITOR_HOTKEYS_COL_CONTEXT,
+    EDITOR_HOTKEYS_COL_CHORD1,
+    EDITOR_HOTKEYS_COL_CHORD2,
+    EDITOR_HOTKEYS_COL_GESTURE,
+    EDITOR_HOTKEYS_COLUMNS
+};
+
+/** Sort the list by `column` (a Sort chip; `reverse` the second press). By
+ *  group is the table's order; any other column by its text, case-blind,
+ *  the empty ones (unbound, no gesture) last either way, ties in table
+ *  order. */
+void
+Editor_Hotkeys_SetSort(
+    struct EditorUi* ui,
+    int column,
+    int reverse);
+
+/** The filters: `group` a table group ("Edit"; NULL any), `context` one
+ *  EDITOR_HK_CTX_* bit (0 any), only the rebound, only the clashing. */
+void
+Editor_Hotkeys_SetFilter(
+    struct EditorUi* ui,
+    const char* group,
+    unsigned context,
+    int changed,
+    int conflicts);
+
+/** The listed actions in their order (up to `max` into `out`); returns how
+ *  many are listed. */
+int
+Editor_Hotkeys_Rows(
+    struct EditorUi* ui,
+    int* out,
+    int max);
+
+/** The panel's list (a wide cells VLIST), -1 without the panel. */
+int
+Editor_Hotkeys_ListWidget(struct EditorUi* ui);
+
+/** "Reset all": every action back to its default chords. */
+void
+Editor_Hotkeys_ResetAll(struct EditorUi* ui);
 
 /**
  * Run `action` the way its menu row or button does: the ONE entry point the
@@ -734,20 +1312,243 @@ Editor_Squares_StorageName(
 int
 Editor_Hotkeys_Capturing(struct EditorUi* ui);
 
-/** Start capturing a chord for `action` (a click on its row). */
+/** Start capturing a chord for `action`'s first slot. */
 void
 Editor_Hotkeys_BeginCapture(
     struct EditorUi* ui,
     enum Editor_HotkeyAction action);
 
+/** Start capturing a chord for slot `slot` (0 or 1) of `action` alone (a
+ *  click on that chord cell of its row); the other slot is kept. */
+void
+Editor_Hotkeys_BeginCaptureSlot(
+    struct EditorUi* ui,
+    enum Editor_HotkeyAction action,
+    int slot);
+
+/** The slot being captured, -1 when not capturing. */
+int
+Editor_Hotkeys_CaptureSlot(struct EditorUi* ui);
+
 /**
  * While capturing: this frame's keys go to the capture, not the table. Esc
- * cancels, Backspace unbinds, any other chord (a modifier alone only for Fly
- * faster) binds and the capture ends. Returns 1 while capturing (the frame's
- * keys are the panel's), 0 when not capturing.
+ * cancels, Backspace unbinds the captured slot, any other chord (a modifier
+ * alone only for a qualifier) binds that slot (Editor_HotkeysSetSlot) and the
+ * capture ends. Returns 1 while capturing (the frame's keys are the
+ * panel's), 0 when not capturing.
  */
 int
 Editor_Hotkeys_Feed(
+    struct EditorUi* ui,
+    const struct Editor_HotkeyInput* input);
+
+/* ---- the command palette (edpanel_palette_cmd.c, workbench 6.8) ------------
+ *
+ * Design section 3 "Command palette": Ctrl+K opens one search over what the
+ * editor can name, a MODAL over a search box and one cells VLIST grouped
+ * under headers -- Actions (the hotkey table; the right column is the chord,
+ * or the panel the action opens), Panels (the View menu's), Squares (the
+ * catalog's squares, and a tile typed as "x z"), Records (CATALOG_QUERY over
+ * locs, npcs and objs; "loc:" "npc:" "obj:" narrow it to one kind) and
+ * Scenes (the SCENES document: Enter enters the scene through the save
+ * guard), Lanes (the Lanes panel's list: Enter stages the switch for the
+ * next boot) and Accounts (the Accounts panel's list). The arrows move (skipping headers), Tab goes to the
+ * next group, Enter runs the row, Escape closes. A group shows at most
+ * EDITOR_CMDPAL_GROUP_MAX rows and ends with a footer row "and N more".
+ *
+ * The list is a pure model (Editor_CmdPalList), so the grouping and the
+ * footer are tested over any table; the module fills it from the sources.
+ */
+#define EDITOR_CMDPAL_GROUP_MAX 100
+#define EDITOR_CMDPAL_LABEL_MAX 64
+#define EDITOR_CMDPAL_TEXT_MAX 40
+
+enum Editor_CmdPalGroup
+{
+    EDITOR_CMDPAL_ACTIONS = 0,
+    EDITOR_CMDPAL_PANELS,
+    EDITOR_CMDPAL_SQUARES,
+    EDITOR_CMDPAL_RECORDS,
+    EDITOR_CMDPAL_SCENES,
+    EDITOR_CMDPAL_LANES,
+    EDITOR_CMDPAL_ACCOUNTS,
+    EDITOR_CMDPAL_GROUPS
+};
+
+/** What running an item does. */
+enum Editor_CmdPalKind
+{
+    /** `target` an enum Editor_HotkeyAction. */
+    EDITOR_CMDPAL_KIND_ACTION = 0,
+    /** `target` a registry index: show the panel (its tab to the front). */
+    EDITOR_CMDPAL_KIND_PANEL,
+    /** `label` a square or a tile for the picker's Find. */
+    EDITOR_CMDPAL_KIND_SQUARE,
+    /** `target` a TORIRSMAPED_CATALOG_* kind, `name` the record: the pick. */
+    EDITOR_CMDPAL_KIND_RECORD,
+    /** `name` an account: the Accounts panel shows it. */
+    EDITOR_CMDPAL_KIND_ACCOUNT,
+    /** `name` a scene: Editor_Scenes_Enter. */
+    EDITOR_CMDPAL_KIND_SCENE,
+    /** `name` a lane: Editor_Lanes_Switch (staged for the next boot). */
+    EDITOR_CMDPAL_KIND_LANE,
+};
+
+struct Editor_CmdPalItem
+{
+    int group;
+    int kind;
+    int target;
+    /** What the row says ("Fit walls to neighbours", "loc:oaktree"). */
+    char label[EDITOR_CMDPAL_LABEL_MAX];
+    /** The record's or account's own name (the label without its prefix). */
+    char name[EDITOR_CMDPAL_LABEL_MAX];
+    /** Dimmed after the label ("Place", "square"). */
+    char dim[EDITOR_CMDPAL_TEXT_MAX];
+    /** The chord, drawn as a keycap ("" none). */
+    char chord[EDITOR_CMDPAL_TEXT_MAX];
+    /** The right column: the owning panel, an id ("" none). */
+    char right[EDITOR_CMDPAL_TEXT_MAX];
+};
+
+/** A flattened row: a group's header, an item, or a group's footer. */
+enum Editor_CmdPalRowKind
+{
+    EDITOR_CMDPAL_ROW_HEADER = 0,
+    EDITOR_CMDPAL_ROW_ITEM,
+    EDITOR_CMDPAL_ROW_FOOTER,
+};
+
+struct Editor_CmdPalList
+{
+    struct Editor_CmdPalItem* items;
+    int item_count;
+    int item_cap;
+    /** Per group: the matches in all (a server's total included) and the
+     *  items kept (at most EDITOR_CMDPAL_GROUP_MAX). */
+    int total[EDITOR_CMDPAL_GROUPS];
+    int kept[EDITOR_CMDPAL_GROUPS];
+    /** The rows, after Finish: kind and, for an item, its index; the group. */
+    unsigned char* row_kind;
+    int* row_item;
+    unsigned char* row_group;
+    int row_count;
+    int row_cap;
+};
+
+void
+Editor_CmdPalListInit(struct Editor_CmdPalList* list);
+
+/** NULL-tolerant. */
+void
+Editor_CmdPalListFree(struct Editor_CmdPalList* list);
+
+/** Empty it (the allocations kept). */
+void
+Editor_CmdPalListClear(struct Editor_CmdPalList* list);
+
+/** Count one match of `item->group`; keep it while the group holds fewer
+ *  than EDITOR_CMDPAL_GROUP_MAX. Returns 1 when kept. */
+int
+Editor_CmdPalListAdd(
+    struct Editor_CmdPalList* list,
+    const struct Editor_CmdPalItem* item);
+
+/** Matches of `group` the list did not see one by one (a catalog page's
+ *  total beyond its rows): counted, never kept. */
+void
+Editor_CmdPalListAddUnseen(
+    struct Editor_CmdPalList* list,
+    int group,
+    int count);
+
+/** Lay the rows out: each group with matches, in the enum's order, as its
+ *  header, its kept items in the order added, and -- when it had more than it
+ *  kept -- a footer. Returns the row count. */
+int
+Editor_CmdPalListFinish(struct Editor_CmdPalList* list);
+
+/** Row `row` as a cells row (no picture well; a header's label is its
+ *  group's name and its right the count, a footer reads "and N more"). */
+void
+Editor_CmdPalRowText(
+    const struct Editor_CmdPalList* list,
+    int row,
+    char* out,
+    int out_size);
+
+/** The group's name, "Actions" ... "Accounts". */
+const char*
+Editor_CmdPalGroupName(int group);
+
+/** The item row after (`delta` 1) or before (-1) `row`, headers and footers
+ *  skipped, clamped to the first and last items; -1 when there is none. */
+int
+Editor_CmdPalStep(
+    const struct Editor_CmdPalList* list,
+    int row,
+    int delta);
+
+/** Tab: the first item row of the group after `row`'s, wrapping to the first
+ *  group; -1 when there is no item. */
+int
+Editor_CmdPalNextGroup(
+    const struct Editor_CmdPalList* list,
+    int row);
+
+/** Does `text` hold every space-separated word of `query`, case-blind? An
+ *  empty query matches everything. */
+int
+Editor_CmdPalMatches(
+    const char* text,
+    const char* query);
+
+/** Register the palette ("cmdpalette", a modal, off the View menu). */
+void
+Editor_CmdPalette_Register(struct EditorUi* ui);
+
+/** Ctrl+K: show the palette, the search emptied and focused. 0 without the
+ *  module. */
+int
+Editor_CmdPalette_Open(struct EditorUi* ui);
+
+int
+Editor_CmdPalette_IsOpen(struct EditorUi* ui);
+
+/** Close it (Escape; after a row ran). */
+void
+Editor_CmdPalette_Close(struct EditorUi* ui);
+
+/** Put `query` in the search box and rebuild the list now (a test, a host
+ *  that types for the user). */
+void
+Editor_CmdPalette_SetQuery(
+    struct EditorUi* ui,
+    const char* query);
+
+/** The list as last built (NULL without the module). */
+const struct Editor_CmdPalList*
+Editor_CmdPalette_List(struct EditorUi* ui);
+
+/** The selected row, -1 none. */
+int
+Editor_CmdPalette_Selected(struct EditorUi* ui);
+
+/** Run row `row`'s item (Enter, a click) and close; 0 for a header, a
+ *  footer, or an item that could not run (the status bar says why). */
+int
+Editor_CmdPalette_RunRow(
+    struct EditorUi* ui,
+    int row);
+
+/**
+ * While the palette is open, the frame's navigation keys are its: Up / Down
+ * move the selection (headers skipped), PageUp / PageDown by the window, Tab
+ * the next group, Enter runs the selected row, Escape closes. Returns 1
+ * while open (the dispatcher resolves no chord), 0 when closed.
+ */
+int
+Editor_CmdPalette_Feed(
     struct EditorUi* ui,
     const struct Editor_HotkeyInput* input);
 
@@ -822,9 +1623,12 @@ Editor_CatalogPalette_ThumbDone(
     int slot,
     int scene_id);
 
-/* ---- Publish (edpanel_publish.c): the editor lane and where its changes go ---- */
+/* ---- Lanes (edpanel_publish.c): the editor lane and where its changes go ---- */
 
-/** Register the Publish panel (module "publish"); needs ui->editor. */
+/** Register the Lanes panel (module "publish", titled "Lanes" since workbench
+ *  6.5: every lane with its change count, the changes, Publish to...,
+ *  Scratch lane, Switch..., Discard...); needs ui->editor. It also keeps
+ *  ui->lane, which the status bar's chip reads. */
 void
 Editor_Publish_Register(struct EditorUi* ui);
 
@@ -832,5 +1636,389 @@ Editor_Publish_Register(struct EditorUi* ui);
  *  Editor_UiTogglePanel does; 0 with a log line when there is none. */
 int
 Editor_Publish_Open(struct EditorUi* ui);
+
+/** Show the Lanes panel (the status bar's lane chip): opened when hidden,
+ *  left open when shown. 0 with a status sentence when there is none. */
+int
+Editor_Lanes_Show(struct EditorUi* ui);
+
+/** Ctrl+Shift+N, the panel's Scratch lane: a lane named
+ *  "scratch-<yymmdd><letter>" (ToriRSMapEdLanes_ScratchName, today's date,
+ *  the first free letter) made from main through LANE_CREATE, then the
+ *  session switched to it -- staged for the next boot, since a running
+ *  server cannot re-point its lane; the status bar says which. 1 asked, 0
+ *  refused with a status sentence. */
+int
+Editor_Lanes_Scratch(struct EditorUi* ui);
+
+/** Switch the session to lane `name` (LANE_SWITCH): what the next boot
+ *  serves (build/lanes/lane.ini); the server's answer is said in the status
+ *  bar. 1 asked, 0 refused with a status sentence (no such server frame, the
+ *  lane it serves already). */
+int
+Editor_Lanes_Switch(
+    struct EditorUi* ui,
+    const char* name);
+
+/** The status bar's lane chip: "working | 3 changed", "working | clean",
+ *  "main", with " | next: <lane>" when a switch waits for the next boot; ""
+ *  before the lane is known. */
+void
+Editor_Lanes_ChipText(
+    const struct EditorUi* ui,
+    char* out,
+    int out_size);
+
+/** The scratch lane's name rule (design #lanes): "scratch-<yymmdd><letter>",
+ *  the first letter a..z that no lane in `taken` (`count` names) holds; 0
+ *  when the day's 26 are taken. `yymmdd` is the day as six digits
+ *  ("261105"). Pure: the web window, which links no lane module, names one
+ *  too. */
+int
+Editor_LanesScratchName(
+    const char* yymmdd,
+    const char* const* taken,
+    int count,
+    char* out,
+    int out_size);
+
+/** Editor_LanesScratchName for the local day of `when` (seconds) among the
+ *  lanes the panel last heard of. */
+int
+Editor_Lanes_ScratchNameFor(
+    struct EditorUi* ui,
+    long long when,
+    char* out,
+    int out_size);
+
+/** One lane for the command palette (workbench 6.8's Lanes group). */
+#define EDITOR_LANES_LIST_MAX 64
+struct Editor_LaneListRow
+{
+    char name[64];
+    /** 1 the lane this server serves. */
+    int is_this;
+    /** The Lanes panel's row text: "work (this) | 3 changed". */
+    char summary[160];
+};
+
+struct Editor_LaneList
+{
+    int count;
+    struct Editor_LaneListRow rows[EDITOR_LANES_LIST_MAX];
+};
+
+/** The command palette's lane group: every lane the Lanes panel last heard
+ *  of (LANE_LIST), in its order (Enter runs Editor_Lanes_Switch with the
+ *  row's name). Returns the count; 0 without a Lanes panel or before the
+ *  list is known. */
+int
+Editor_LanesList(
+    struct EditorUi* ui,
+    struct Editor_LaneList* out);
+
+/* ---- Scenes (edpanel_scenes.c, workbench 6.5) -------------------------------- */
+
+/** Register the Scenes panel (module "scenes"): the SCENES document
+ *  (editor_scenes.h) in a VLIST with Find, the Holds chips, Save scene
+ *  (Ctrl+Shift+K), Enter, Update, Rename, Delete. Needs ui->editor. */
+void
+Editor_Scenes_Register(struct EditorUi* ui);
+
+/** Ctrl+Shift+K, Save scene: the window's state as a new scene named `name`
+ *  (NULL: the panel's Name box, else "scene-<n>"), the parts the Holds chips
+ *  keep: the open squares, the World's camera, the pinned level and Above,
+ *  the lane, the var preview, the live account and where it stands. One
+ *  undo step, saved at once; the status bar confirms. 1 saved, 0 refused
+ *  with a status sentence. */
+int
+Editor_Scenes_Save(
+    struct EditorUi* ui,
+    const char* name);
+
+/** Update: scene `name` rewritten from the window's state (the parts the
+ *  Holds chips keep; the others stay as they are). */
+int
+Editor_Scenes_Update(
+    struct EditorUi* ui,
+    const char* name);
+
+int
+Editor_Scenes_Rename(
+    struct EditorUi* ui,
+    const char* name,
+    const char* new_name);
+
+int
+Editor_Scenes_Delete(
+    struct EditorUi* ui,
+    const char* name);
+
+/** Enter scene `name` through the save guard (its squares replace the open
+ *  set). 1 entered or the guard asked, 0 refused with a status sentence. */
+int
+Editor_Scenes_Enter(
+    struct EditorUi* ui,
+    const char* name);
+
+/** Enter without the guard (the guard's answer): open the squares, pin the
+ *  level and Above, publish STATE_VAR_PREVIEW, switch the lane (staged),
+ *  teleport the account when the live lane is up, and put the camera once
+ *  the squares have loaded. */
+int
+Editor_Scenes_EnterNow(
+    struct EditorUi* ui,
+    const char* name);
+
+struct Editor_Scene;
+
+/** A new scene `scene` (its name not yet taken) added inside the stroke the
+ *  caller holds open (Editor_StrokeBegin), so it undoes with the rest of the
+ *  caller's step -- the instance helper's Create records "instance:<name>".
+ *  Unlike Save scene, the document is NOT written at once: Save all writes it
+ *  with the caller's other documents. Needs no Scenes panel. 1 added; 0 when
+ *  the window has no scenes document, the name is taken, or the scene does
+ *  not fit a line (nothing is applied then). */
+int
+Editor_Scenes_AddInStroke(
+    struct EditorUi* ui,
+    const struct Editor_Scene* scene);
+
+/** One scene for the command palette (workbench 6.8's scene group). */
+#define EDITOR_SCENES_LIST_MAX 128
+struct Editor_SceneListRow
+{
+    char name[64];
+    /** Editor_SceneSummary's line. */
+    char summary[160];
+};
+
+struct Editor_SceneList
+{
+    int count;
+    /** Scenes past EDITOR_SCENES_LIST_MAX that were not listed. */
+    int more;
+    struct Editor_SceneListRow rows[EDITOR_SCENES_LIST_MAX];
+};
+
+/** The command palette's scene group hook: every scene of the document, in
+ *  file order (Enter runs Editor_Scenes_Enter with the row's name). Returns
+ *  the count; 0 without a scenes document. */
+int
+Editor_ScenesList(
+    struct EditorUi* ui,
+    struct Editor_SceneList* out);
+/* ---- the encounter builder (edpanel_encounter.c; workbench 6.7) ------------ */
+
+/** Named sets of spawns, their npcs' combat fields, stats, ai template,
+ *  drops and a test loop on RUN (design #encounter). "encounter" */
+void
+Editor_Encounter_Register(struct EditorUi* ui);
+
+/** The Spawns panel's Group...: show the panel beside Spawns and put the
+ *  Spawns selection into the shown set (a new group_<n> when none is shown),
+ *  one undo step. Returns the spawns that joined; 0 with a status sentence
+ *  when none did. */
+int
+Editor_Encounter_GroupSelection(struct EditorUi* ui);
+
+/** Show set `name` (the panel opens when closed). 0 when there is none. */
+int
+Editor_Encounter_Show(
+    struct EditorUi* ui,
+    const char* name);
+
+/** One ring the world overlay draws: a square of ABSOLUTE tiles (inclusive)
+ *  about a spawn -- its wanderrange, or its huntrange. */
+struct Editor_EncounterRing
+{
+    int x0;
+    int z0;
+    int x1;
+    int z1;
+    int level;
+    /** 1 the hunt ring, 0 the wander ring. */
+    int hunt;
+    /** The set's colour. */
+    uint32_t rgb;
+    /** The shown set's: drawn brighter. */
+    int current;
+};
+
+#define EDITOR_ENCOUNTER_RINGS_MAX 256
+
+/** Every set's rings, for the npcs whose records the panel holds (the shown
+ *  set's; no catalog request is made from a draw); none while the panel is
+ *  closed or Show rings is off. Returns the count (at most `max`). */
+int
+Editor_Encounter_Rings(
+    struct EditorUi* ui,
+    struct Editor_EncounterRing* out,
+    int max);
+
+struct Editor_LiveModel;
+
+/**
+ * The Test tab's fight log: indexes into `model`'s log (newest first) of the
+ * lines that name a hit (the server's "HIT " line) or a hunt, matching
+ * `find`; `*out_fight` 1. When the link carries none of those, the lines that
+ * name one of `names` instead, `*out_fight` 0 -- what the row then says.
+ * Returns the count (at most `max`).
+ */
+int
+Editor_Encounter_FightLog(
+    const struct Editor_LiveModel* model,
+    const char (*names)[64],
+    int name_count,
+    const char* find,
+    int* out_rows,
+    int max,
+    int* out_fight);
+
+/** The panel's widgets, for the tests. */
+struct Editor_EncounterWidgets
+{
+    int panel;
+    int tabs;
+    int row_title;
+    int dropdown_set;
+    int input_name;
+    int button_new;
+    int button_save;
+    int input_spawn;
+    int button_add_name;
+    int button_add_selection;
+    int dropdown_colour;
+    int list_spawns;
+    int row_selected;
+    /** respawnrate, wanderrange, maxrange, huntrange, attackrate, damagetype. */
+    int input_fields[6];
+    int dropdown_huntmode;
+    int button_apply_fields;
+    int row_rings;
+    int row_ledger;
+    int input_levels[6];
+    int input_bonuses[13];
+    int button_apply_stats;
+    int row_melee;
+    int row_ranged;
+    int row_magic;
+    int row_level;
+    int dropdown_template;
+    int row_combat;
+    int button_open_builder;
+    int row_drops;
+    int list_drops;
+    int button_run;
+    int button_place;
+    int row_log;
+    int list_log;
+    int row_status;
+};
+
+/** 0 when the panel is not registered. */
+int
+Editor_Encounter_Widgets(
+    struct EditorUi* ui,
+    struct Editor_EncounterWidgets* out);
+/* ---- the Shop builder (edpanel_shop.c, workbench 6.7) -------------------------
+ *
+ * One coin shop as the tree writes it: the .rs2 and the .inv
+ * tools/gen_shop_scripts.py would write (editor/editor_shop.h), under
+ * server/scripts/shop/edited/<key>/. Hidden until View > Shop builder. */
+
+struct Editor_Shop;
+
+/** Register the Shop builder (module "shop"); needs ui->editor. */
+void
+Editor_Shop_Register(struct EditorUi* ui);
+
+/** The content root "From wiki catalogue..." reads wiki/shop_stock.csv
+ *  under (and says whether it can). */
+void
+Editor_Shop_SetPaths(
+    struct EditorUi* ui,
+    const char* content_root);
+
+/** Open shop `key`: the builder's own pair, else the generator's
+ *  (read-only), else a new shop. Shows the panel. 1 when a shop is open;
+ *  0 with the reason in the status bar. */
+int
+Editor_Shop_Open(
+    struct EditorUi* ui,
+    const char* key);
+
+/** Check: the model's refusals and the catalog's (the owner, the objs, the
+ *  inv, another op trigger). Returns the problem count, -1 with no shop. */
+int
+Editor_Shop_Check(struct EditorUi* ui);
+
+/** Save both files through the authority as one undo step. 1 when saved
+ *  (or already on disk); 0 refused, the reason in the status bar. */
+int
+Editor_Shop_Save(struct EditorUi* ui);
+
+/** Test: Save, the Live panel's RUN, then the play account to the owner's
+ *  spawn once RUN lands. 1 when RUN was sent. */
+int
+Editor_Shop_Test(struct EditorUi* ui);
+
+/** The shop shown, NULL when none (tests). */
+const struct Editor_Shop*
+Editor_Shop_Model(struct EditorUi* ui);
+
+/** The problems the last Check or Save listed. */
+int
+Editor_Shop_ProblemCount(struct EditorUi* ui);
+
+const char*
+Editor_Shop_Problem(
+    struct EditorUi* ui,
+    int index);
+
+/* ---- the Quest board (edpanel_quest.c, workbench 6.7) ---------------------------
+ *
+ * One quest's parts, where each lives and its state (editor/editor_quest.h);
+ * Scaffold test and Run gate are BUILD jobs on the editor server. Hidden
+ * until View > Quest board. */
+
+struct Editor_QuestBoard;
+
+/** Register the Quest board (module "quest"); needs ui->editor. */
+void
+Editor_Quest_Register(struct EditorUi* ui);
+
+/** The content tree (server/scripts) and the repository (test/quests,
+ *  tools/quest_gate, build/) the board reads. */
+void
+Editor_Quest_SetPaths(
+    struct EditorUi* ui,
+    const char* content_root,
+    const char* repo_root);
+
+/** Read quest `id` (a QUEUE.tsv test_id) into the board and show it. 1 when
+ *  read; 0 with the reason in the status bar. */
+int
+Editor_Quest_Open(
+    struct EditorUi* ui,
+    const char* id);
+
+/** The board shown, NULL when none (tests). */
+const struct Editor_QuestBoard*
+Editor_Quest_Board(struct EditorUi* ui);
+
+/** Open part: the panel that edits board row `row` (a CODE view below the
+ *  board for what no panel here edits). 1 when something opened. */
+int
+Editor_Quest_OpenPart(
+    struct EditorUi* ui,
+    int row);
+
+/** Scaffold test / Run gate: the BUILD job, or 0 with the reason. */
+int
+Editor_Quest_Scaffold(struct EditorUi* ui);
+
+int
+Editor_Quest_RunGate(struct EditorUi* ui);
 
 #endif

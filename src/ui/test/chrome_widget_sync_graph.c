@@ -101,6 +101,30 @@ cw_test_graph(void)
     CW_CHECK(cw_intent(TORIRS_CHROME_INTENT_GRAPH_WHEEL, panel, graph, 2, 0, 0, NULL) == 1 &&
                  ToriRSChrome_TakeEvent(&g_cw_ui, &ev) && ev.value == 2,
         "GRAPH_WHEEL carries the delta");
+    /* A key on the focused well from the DOM (workbench 6.4): x the key,
+     * y the modifier bits, as the native well's GRAPH_KEY says them. */
+    CW_CHECK(cw_intent(TORIRS_CHROME_INTENT_GRAPH, panel, graph, TORIRS_CHROME_EVENT_GRAPH_KEY,
+                 -TORIRS_CHROME_KEY_ENTER, 2, NULL) == 1 &&
+                 ToriRSChrome_TakeEvent(&g_cw_ui, &ev) && ev.kind == TORIRS_CHROME_EVENT_GRAPH_KEY &&
+                 ev.value == -TORIRS_CHROME_KEY_ENTER && ev.col == 2 && ev.widget == graph,
+        "a GRAPH_KEY intent is the well's key, Shift with it");
+    CW_CHECK(cw_intent(TORIRS_CHROME_INTENT_GRAPH, panel, graph, TORIRS_CHROME_EVENT_GRAPH_PINCH, 0, 0, NULL) == 0,
+        "a GRAPH intent of any other kind past HOVER is refused");
+    /* The native well hands the arrows, Enter, Backspace and Escape on. */
+    ToriRSChrome_FocusWidget(&g_cw_ui, graph, 0);
+    CW_CHECK(ToriRSChrome_KeyEdit(&g_cw_ui, TORIRS_CHROME_KEY_ENTER) && ToriRSChrome_TakeEvent(&g_cw_ui, &ev) &&
+                 ev.kind == TORIRS_CHROME_EVENT_GRAPH_KEY && ev.value == -TORIRS_CHROME_KEY_ENTER,
+        "the focused well hands Enter on");
+    CW_CHECK(ToriRSChrome_KeyEdit(&g_cw_ui, TORIRS_CHROME_KEY_BACKSPACE) && ToriRSChrome_TakeEvent(&g_cw_ui, &ev) &&
+                 ev.value == -TORIRS_CHROME_KEY_BACKSPACE,
+        "...and Backspace");
+    /* Workbench 6.6: the dialogue graph deletes its selected node on it. */
+    CW_CHECK(ToriRSChrome_KeyEdit(&g_cw_ui, TORIRS_CHROME_KEY_DELETE) && ToriRSChrome_TakeEvent(&g_cw_ui, &ev) &&
+                 ev.kind == TORIRS_CHROME_EVENT_GRAPH_KEY && ev.value == -TORIRS_CHROME_KEY_DELETE,
+        "...and Delete");
+    CW_CHECK(ToriRSChrome_KeyEdit(&g_cw_ui, TORIRS_CHROME_KEY_ESCAPE) && ToriRSChrome_TakeEvent(&g_cw_ui, &ev) &&
+                 ev.value == -TORIRS_CHROME_KEY_ESCAPE && g_cw_ui.focus != graph,
+        "...and Escape, then lets go of the focus");
     while( ToriRSChrome_TakeEvent(&g_cw_ui, &ev) )
         ;
 

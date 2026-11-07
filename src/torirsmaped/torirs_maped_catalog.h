@@ -25,7 +25,8 @@
  *
  * Every source file is parsed on its own and remembered with its mtime and
  * size; a refresh re-stats the tree and re-parses only what changed, then
- * re-merges (the merge is cheap next to reading 190 MB of config text).
+ * re-merges (the merge is cheap next to reading 190 MB of config text). The
+ * warm build merges each source as it is parsed instead (Service).
  *
  * Wire (protocol v2, MAPED_IMPLEMENTATION.md section 3; strings are
  * `u32 length, bytes`, ints little-endian):
@@ -42,12 +43,71 @@
  *     The filter is whitespace-separated terms. A term holding '=' is a
  *     `key=value` filter (`op=Open`, `multivar=varb4153`, `table=1_skeletons`,
  *     `name="Tool Leprechaun"`): the key matches a summary field exactly or
- *     by family (`op` matches op1..op5), the value matches case-insensitively
- *     whole, or as a prefix ending at '_' (so `varb4153` names
- *     `varb4153_x`). Any other term must match the record's name, display
- *     name or decimal id — as a substring, or whole with
- *     TORIRSMAPED_CATALOG_EXACT, where the remaining text is one term and
- *     the lookup is a hash probe rather than a scan.
+ *     by family (`op` matches op1..op5). The value narrows as a prefix, and
+ *     is tested case-insensitively in this order, which is also the order
+ *     the hits rank in (a record whose filters all matched whole comes
+ *     before one that matched a filter only as a prefix, after the terms'
+ *     own rank):
+ *
+ *       1. whole: `op=Open` names "Open";
+ *       2. a prefix of a whole word of the value (words split at spaces
+ *          and commas): `op=Op` names "Open" and "Open door", `shapes=9`
+ *          names "0 2 9", `multivar=varb4153` names "varb4153_x" (the old
+ *          rule, a prefix ending at '_', is this rule's first word) -- but
+ *          a value that is a number never stops inside a longer number:
+ *          `shapes=2` is not "22", `size=1` names "1x1" and not "10x2";
+ *       3. `value*` written out: a prefix of the whole value.
+ *
+ *     Typing on narrows the held hits ("op=Ope" after "op=Op"), except
+ *     where a number grows ("shapes=22" after "shapes=2").
+ *
+ *     Two keys resolve server-side: `id=<n>` (the record's id) and, for
+ *     locs, `shape=<class or number>` against the loc's placeable shapes
+ *     (the `shapes` field below): the classes are `wall` (0, 1, 2, 3, 9),
+ *     `decor` (4..8), `centre` (10, 11), `roof` (12..21) and `ground` (22);
+ *     a prefix names every class it starts (`shape=c` is centre) and a
+ *     number names that shape (`shape=10`).
+ *
+ *     Any other term must match the record's name, display name or decimal
+ *     id — as a substring, or whole with TORIRSMAPED_CATALOG_EXACT, where
+ *     the remaining text is one term and the lookup is a hash probe rather
+ *     than a scan.
+ *
+ *     Kind TORIRSMAPED_CATALOG_ANY is a SCOPED query: the kinds are tested
+ *     in a fixed order (loc, npc, obj, then the rest by number), each
+ *     stopping at `page_size` hits, and no further kind is tested once the
+ *     page asked for is full -- a keystroke costs what its page costs, not
+ *     a test of every record. A numeric term is first looked up by id in
+ *     every kind, so the record it names is on the first page. `total` is
+ *     then what was found; TORIRSMAPED_CATALOG_PAGE_SCOPED says a cap or the
+ *     window cut more. (ToriRSMapEdCatalog_Query in-process answers every
+ *     match.) EXACT queries are hash probes and are never scoped.
+ *
+ *     A loc row carries three derived fields (field names stable):
+ *       `shapes`  the shapes it can be placed as, in the order the Locs
+ *                 panel offers them (centrepiece, ground decor, walls,
+ *                 decor, roofs), space-separated ("10 11", "0 2 9"): a
+ *                 `shape<n>=<shape>,<model>...` row with a model gives that
+ *                 shape, wall decor 5..8 draw shape 4's models and 11 draws
+ *                 10's, and a loc with `models=` and no shape rows is a
+ *                 centrepiece (10, 11). A loc with no model rows has none.
+ *       `size`    "<width>x<length>", 1 where the config states none.
+ *       `layer`   the loc layer of each of its shapes, once each, in that
+ *                 order: `wall` (0-3), `decor` (4-8), `main` (9-21: the
+ *                 diagonal wall, centrepieces, roofs; Client-TS GROUND),
+ *                 `ground` (22, ground decor) -- "wall main" for a fence
+ *                 with a diagonal. Absent with `shapes`.
+ *
+ *     With TORIRSMAPED_CATALOG_PROGRESS in `flags` (a client that saw
+ *     TORIRSMAPED_CAP_CATALOG_PROGRESS) FACT_CATALOG_PAGE ends with
+ *     `u32 page_flags (TORIRSMAPED_CATALOG_PAGE_*), u32 done, u32 total`
+ *     after the rows, and the query never waits for the warm build: while
+ *     it runs the answer comes from the partial index (locs are parsed
+ *     first) with TORIRSMAPED_CATALOG_PAGE_PARTIAL and the build's progress
+ *     as done/total (KiB of source text; total 0 while the tree is still
+ *     being scanned; 1/1 once built). Without the flag the payload ends at
+ *     the last row, as a v2 reader expects, and a query during the build
+ *     finishes it first.
  *
  *   CATALOG_RECORD  u32 kind, i32 id, string name (non-empty name wins;
  *                   otherwise the record with that id)
@@ -65,7 +125,8 @@
  *     come back whole (every line, `default` included), read from disk at
  *     the indexed offset.
  *
- *   CATALOG_SQUARES (empty)
+ *   CATALOG_SQUARES (empty, or u32 flags: TORIRSMAPED_CATALOG_SQUARES_LOCS,
+ *                    only to a server with TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS)
  *       -> FACT_CATALOG_SQUARES u32 status,
  *                               u32 storage_count, storage_count * string
  *                               ("maps", "ported/<lane>/maps" — every lane
@@ -77,12 +138,58 @@
  *                               (TORIRSMAPED_SQUARE_*), u32 spawn_count,
  *                               u32 rgb (0xRRGGBB), u32 primary_area
  *                               (TORIRSMAPED_CATALOG_NO_AREA = unmapped),
- *                               u32 area_n, area_n * u32 area)
+ *                               u32 area_n, area_n * u32 area,
+ *                               [u32 loc_count: the locs its .jl2 places,
+ *                               present exactly when `flags` holds
+ *                               TORIRSMAPED_SQUARE_LOC_COUNT])
  *
- *   FACT_CATALOG_SQUARES_CHANGED, same payload, is BROADCAST to every v2
+ *     A connection that asked with TORIRSMAPED_CATALOG_SQUARES_LOCS gets
+ *     every row flagged TORIRSMAPED_SQUARE_LOC_COUNT, with the count; any
+ *     other gets the v2 rows. The flag rides in the row so a reader never
+ *     has to know which form a broadcast that crossed its request is in.
+ *
+ *   FACT_CATALOG_SQUARES_CHANGED, same payload (in the form that connection
+ *   asked for; the v2 rows until it asks), is BROADCAST to every v2
  *   connection when the atlas changes under it: a DOC_CREATE (the new
  *   square appears with TORIRSMAPED_SQUARE_CREATED before anything is on
  *   disk) or a save that wrote squares. A mirror replaces its atlas.
+ *
+ *   CATALOG_USES    u32 kind, string name, u32 cursor (0: start)
+ *                   (workbench 6.6, the Record panel's Where used tab; only
+ *                   to a server with TORIRSMAPED_CAP_CATALOG_USES)
+ *       -> FACT_CATALOG_USES u32 status, u32 kind, string name,
+ *                            u32 next_cursor (0: the search is done),
+ *                            u32 files_done, u32 files_total,
+ *                            u32 row_count, row_count * (u32 use
+ *                            (TORIRSMAPED_USE_*), string path (content-
+ *                            relative), u32 line (1-based, 0 none),
+ *                            u32 count, string text)
+ *
+ *     Where the record is NAMED, read from the files the index lists -- a
+ *     search, not an index: the tree's words are not kept. One request
+ *     reads sources from `cursor` on for about
+ *     TORIRSMAPED_CATALOG_USES_SLICE_MS (at least one source) and at most
+ *     TORIRSMAPED_CATALOG_USES_ROWS rows, then answers with the cursor to
+ *     ask from next; the client asks again on a later frame until it is 0,
+ *     so no request holds the window for longer than a slice. What counts:
+ *
+ *       SPAWN      a .spawn row of the record (npc, obj), one row per square
+ *                  with its count
+ *       PLACEMENT  a loc's placements in a square's .jl2 (by id), one row per
+ *                  square with its count: the atlas's loc counts, per loc
+ *       TRIGGER    an .rs2 header `[<trigger>,<name>]`
+ *       SCRIPT     any other .rs2 line naming it as a word
+ *       INTERFACE  an .if line naming it
+ *       CS2        a .cs2 line naming it
+ *       CONFIG     a server overlay field naming it (another record's
+ *                  `next_loc_stage=<name>`, a shop's stock)
+ *       PALETTE    an editor/palettes.txt slot `<kind>:<name>`
+ *       STAMP      an editor/stamps/<s>.stamp loc row of its id
+ *
+ *     A file says at most TORIRSMAPED_CATALOG_USES_PER_FILE lines; the row
+ *     after them counts the rest (USE_MORE). configs/all.<type> (the cache
+ *     half, 86 MB of locs) is not read. ABSENT when the index has no such
+ *     record (a palette or a stamp may still name it: they are read too).
  */
 
 #include <stddef.h>
@@ -101,7 +208,43 @@ enum ToriRSMapEdCatalogFrame
     TORIRSMAPED_FACT_CATALOG_SQUARES = 163,
     /** Broadcast form of FACT_CATALOG_SQUARES: the atlas changed. */
     TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED = 164,
+    /** Where a record is used (workbench 6.6; TORIRSMAPED_CAP_CATALOG_USES). */
+    TORIRSMAPED_REQ_CATALOG_USES = 44,
+    TORIRSMAPED_FACT_CATALOG_USES = 165,
 };
+
+/** A FACT_CATALOG_USES row's `use`. */
+enum ToriRSMapEdCatalogUse
+{
+    TORIRSMAPED_USE_SPAWN = 1,
+    TORIRSMAPED_USE_PLACEMENT,
+    TORIRSMAPED_USE_TRIGGER,
+    TORIRSMAPED_USE_SCRIPT,
+    TORIRSMAPED_USE_INTERFACE,
+    TORIRSMAPED_USE_CS2,
+    TORIRSMAPED_USE_CONFIG,
+    TORIRSMAPED_USE_PALETTE,
+    TORIRSMAPED_USE_STAMP,
+    /** The row after a file's TORIRSMAPED_CATALOG_USES_PER_FILE lines: its
+     *  count is the lines not listed. */
+    TORIRSMAPED_USE_MORE,
+};
+
+#define TORIRSMAPED_CATALOG_USES_SLICE_MS 4.0
+#define TORIRSMAPED_CATALOG_USES_ROWS 256
+#define TORIRSMAPED_CATALOG_USES_PER_FILE 8
+
+/** "spawn", "placement", "trigger", "script", "interface", "cs2", "config",
+ *  "palette", "stamp", "more"; "?" past the end. Inline for the client. */
+static inline const char*
+ToriRSMapEdCatalog_UseName(uint32_t use)
+{
+    static const char* const names[] = { "?", "spawn", "placement", "trigger", "script", "interface", "cs2",
+        "config", "palette", "stamp", "more" };
+    if( use > TORIRSMAPED_USE_MORE )
+        return "?";
+    return names[use];
+}
 
 /** What a record is. The wire carries the number; the names below are the
  *  panel's tab labels and the `kind` a query result reports. */
@@ -171,6 +314,20 @@ enum ToriRSMapEdCatalogQueryFlag
 {
     /** The text (filters aside) is one whole name, display name or id. */
     TORIRSMAPED_CATALOG_EXACT = 1,
+    /** Answer from the partial index while the warm build runs, and end
+     *  FACT_CATALOG_PAGE with the page flags and the build's progress. Only
+     *  to a server with TORIRSMAPED_CAP_CATALOG_PROGRESS. */
+    TORIRSMAPED_CATALOG_PROGRESS = 2,
+};
+
+/** FACT_CATALOG_PAGE's `page_flags` (the PROGRESS tail). */
+enum ToriRSMapEdCatalogPageFlag
+{
+    /** The warm build is still running: the answer is what is merged so far. */
+    TORIRSMAPED_CATALOG_PAGE_PARTIAL = 1,
+    /** A scoped "all" left records untested: a kind reached its cap or a
+     *  later kind was not tested; `total` counts only what was found. */
+    TORIRSMAPED_CATALOG_PAGE_SCOPED = 2,
 };
 
 /** Where a record (or one of its fields) came from. A record's provenance
@@ -212,7 +369,42 @@ enum ToriRSMapEdSquareFlag
     TORIRSMAPED_SQUARE_DIRTY = 16,
     /** Made by DOC_CREATE and not yet saved: nothing of it is on disk. */
     TORIRSMAPED_SQUARE_CREATED = 32,
+    /** No world-map area claims it and it lies in instance space
+     *  (TORIRSMAPED_INSTANCE_*): what the instance helper makes. */
+    TORIRSMAPED_SQUARE_INSTANCE = 64,
+    /** The row ends with `u32 loc_count` (the connection asked with
+     *  TORIRSMAPED_CATALOG_SQUARES_LOCS). Wire only: says how to read the
+     *  row, not anything about the square. */
+    TORIRSMAPED_SQUARE_LOC_COUNT = 128,
 };
+
+/** CATALOG_SQUARES request flags (the optional `u32 flags` body). */
+enum ToriRSMapEdCatalogSquaresFlag
+{
+    /** End every row with its loc count (TORIRSMAPED_SQUARE_LOC_COUNT).
+     *  Only to a server with TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS. */
+    TORIRSMAPED_CATALOG_SQUARES_LOCS = 1,
+};
+
+/** Instance space: the unmapped high-coordinate squares the instance helper
+ *  fills (the workbench design's section 13, "unmapped space 0..19 x
+ *  100..255"), map_x in [X0, X1] and map_z in [Z0, Z1]. The picker draws it
+ *  hatched where no square exists. */
+#define TORIRSMAPED_INSTANCE_X0 0
+#define TORIRSMAPED_INSTANCE_X1 19
+#define TORIRSMAPED_INSTANCE_Z0 100
+#define TORIRSMAPED_INSTANCE_Z1 255
+
+/** Whether square (map_x, map_z) is in instance space. Inline so the picker
+ *  links no catalog code. */
+static inline int
+ToriRSMapEdCatalog_InInstanceSpace(
+    int map_x,
+    int map_z)
+{
+    return map_x >= TORIRSMAPED_INSTANCE_X0 && map_x <= TORIRSMAPED_INSTANCE_X1
+           && map_z >= TORIRSMAPED_INSTANCE_Z0 && map_z <= TORIRSMAPED_INSTANCE_Z1;
+}
 
 /** The tab label of a kind ("loc", "npc", ...); "?" past the end. Inline so
  *  a client that links no catalog code can still name the tabs. */
@@ -302,16 +494,25 @@ ToriRSMapEdCatalog_Built(const struct ToriRSMapEdCatalog* catalog);
 /** Milliseconds one service slice may spend on a freshness sweep, and on
  *  the warm build (the build is ~6 s of work on the owner's tree: at 6 ms a
  *  frame it is done ~20 s after the editor opens; a Catalog opened sooner
- *  waits for the rest). */
+ *  answers from the partial index when it asks with
+ *  TORIRSMAPED_CATALOG_PROGRESS). */
 #define TORIRSMAPED_CATALOG_SLICE_MS 2.0
 #define TORIRSMAPED_CATALOG_WARM_SLICE_MS 6.0
+/** Bytes of one large config or overlay file (configs/all.loc is 86 MB) a
+ *  warm slice reads and parses at most; the parse also stops at the slice's
+ *  deadline, at a block boundary. */
+#define TORIRSMAPED_CATALOG_SLICE_BYTES (4u * 1024u * 1024u)
 
 /**
  * The index's background job, from the server's service pass (every pump):
- * builds the index in slices from the first call (a scan, then the files
- * parsed a few at a time, then the merge), and afterwards advances a
- * freshness sweep a request started. Spends about `budget_ms` per call; one
- * file's parse or the closing merge may run past it. Returns 1 while work
+ * builds the index in slices from the first call -- a scan; then the
+ * sources in a fixed order (locs, npcs, objs, the rest), a large blocks
+ * file in parts of at most TORIRSMAPED_CATALOG_SLICE_BYTES, each source
+ * merged into the index as soon as it is parsed (incrementally: the warm
+ * build runs no full merge); then the derived fields a slice of records at
+ * a time, the areas and the atlas -- and afterwards advances a freshness
+ * sweep a request started. Spends about `budget_ms` per call; a sweep's
+ * closing parse-and-merge is one step (see Refresh). Returns 1 while work
  * remains (the daemon then polls quickly).
  */
 int
@@ -340,14 +541,25 @@ struct ToriRSMapEdCatalogCounters
     long sweeps;
     long slices;
     double slice_max_ms;
-    /** Merges run (each bumps the index revision). */
+    /** Whole merges run: a full re-merge (a sweep that saw a change, a whole
+     *  refresh) or a warm build's end. Each bumps the index revision. */
     long merges;
-    /** Records a query tested; queries that tested every record, that
-     *  narrowed the previous query's hits, that the held hits answered. */
+    /** Sources the warm build merged into the live index one at a time. */
+    long incremental;
+    /** Parts of large blocks files the warm build parsed, and the most
+     *  bytes one part covered (at most TORIRSMAPED_CATALOG_SLICE_BYTES
+     *  unless one block is longer). */
+    long parts;
+    long part_bytes_max;
+    /** Records a query tested; queries that tested every record of the
+     *  kind asked (every record for an unscoped "all"), that narrowed the
+     *  previous query's hits, that the held hits answered, that were
+     *  scoped "all" queries. */
     long examined;
     long full_scans;
     long narrowed;
     long held;
+    long scoped;
     /** Config blocks read back from disk for record views. */
     long block_reads;
 };
@@ -356,6 +568,23 @@ void
 ToriRSMapEdCatalog_Counters(
     const struct ToriRSMapEdCatalog* catalog,
     struct ToriRSMapEdCatalogCounters* out);
+
+/** 1 while the warm build runs (the index is partial), with its progress
+ *  as the PROGRESS tail carries it (KiB done of KiB total; 0/0 while still
+ *  scanning). 0 once built (1/1). */
+int
+ToriRSMapEdCatalog_Progress(
+    const struct ToriRSMapEdCatalog* catalog,
+    uint32_t* out_done_kib,
+    uint32_t* out_total_kib);
+
+/** Bytes per warm-build part of a large blocks file
+ *  (TORIRSMAPED_CATALOG_SLICE_BYTES by default; the perf test lowers it to
+ *  see a small tree's all.loc parsed in parts). At least 4096. */
+void
+ToriRSMapEdCatalog_SetSliceBytes(
+    struct ToriRSMapEdCatalog* catalog,
+    size_t bytes);
 
 /** Seconds between the end of one freshness sweep and the next a request
  *  may start. Default 2. */
@@ -385,31 +614,48 @@ ToriRSMapEdCatalog_HandleRecord(
     uint32_t length,
     struct ToriRSMapEdBuf* out);
 
+/** CATALOG_USES (the header comment): one slice of the search. 0 for a
+ *  malformed body. */
+int
+ToriRSMapEdCatalog_HandleUses(
+    struct ToriRSMapEdCatalog* catalog,
+    const uint8_t* body,
+    uint32_t length,
+    struct ToriRSMapEdBuf* out);
+
 /** The atlas, with the authority's open documents folded in: squares that
  *  exist only in `doc` (DOC_CREATE, unsaved) appear flagged CREATED, open
- *  and dirty squares are flagged. */
+ *  and dirty squares are flagged. The body is empty (the v2 rows) or one
+ *  `u32 flags`; `*inout_locs` is set to whether the rows carry loc_count,
+ *  which the caller remembers for its broadcasts. 0 for a malformed body. */
 int
 ToriRSMapEdCatalog_HandleSquares(
     struct ToriRSMapEdCatalog* catalog,
     const struct Editor_Doc* doc,
     const uint8_t* body,
     uint32_t length,
+    int* inout_locs,
     struct ToriRSMapEdBuf* out);
 
 /** The same payload without the refresh: what the server broadcasts as
  *  FACT_CATALOG_SQUARES_CHANGED right after a DOC_CREATE or a maps refresh,
- *  where a full stat sweep of the tree would be wasted. */
+ *  where a full stat sweep of the tree would be wasted. `with_locs` picks
+ *  the rows flagged TORIRSMAPED_SQUARE_LOC_COUNT (a connection that asked
+ *  with TORIRSMAPED_CATALOG_SQUARES_LOCS) or the v2 rows. */
 void
 ToriRSMapEdCatalog_EncodeSquares(
     struct ToriRSMapEdCatalog* catalog,
     const struct Editor_Doc* doc,
+    int with_locs,
     struct ToriRSMapEdBuf* out);
 
 /* ---- direct lookups (the test, and anything in-process) -------------- */
 
 /** The query engine behind CATALOG_QUERY: matching record indices, sorted
- *  (exact name matches first, then by kind, id, name), written into
- *  `out_records` up to `max`. Returns the total match count.
+ *  (exact name matches first, whole filter matches before prefix ones, then
+ *  by kind, id, name), written into `out_records` up to `max`. Returns the
+ *  total match count: every match, kind "all" included (only the wire's
+ *  "all" is scoped). Waits for the index when there is none.
  *
  *  The last query's hits are held, keyed on (kind, text, flags, index
  *  revision): the same query again (the next page) tests nothing, and a
@@ -461,6 +707,7 @@ struct ToriRSMapEdCatalogSquare
     const char* storage;
     uint32_t flags;
     int spawn_count;
+    int loc_count;
     uint32_t rgb;
     const char* area;
     int area_count;

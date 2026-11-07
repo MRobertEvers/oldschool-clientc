@@ -1,4 +1,5 @@
 #include "cmdbus.h"
+#include "input/torirs_input.h"
 #include <assert.h>
 
 #include <string.h>
@@ -267,6 +268,111 @@ CmdBus_PushScroll(
     cmd.trackpad = trackpad ? 1 : 0;
     cmd.flipped = flipped ? 1 : 0;
     return CmdBus_Push(bus, TORIRS_CMD_INPUT_SCROLL, &cmd, sizeof(cmd));
+}
+
+/* 16.16 fixed point, rounded half away from zero, clamped into int32. */
+static int32_t
+cmdbus_q16(double v)
+{
+    double const q = v * 65536.0;
+    if( q > 2147483000.0 )
+        return 2147483000;
+    if( q < -2147483000.0 )
+        return -2147483000;
+    return (int32_t)(q < 0 ? q - 0.5 : q + 0.5);
+}
+
+int
+CmdBus_PushGesturePan(
+    struct ToriRS_CmdBus* bus,
+    int16_t x,
+    int16_t y,
+    double dx,
+    double dy,
+    int fingers,
+    int phase,
+    unsigned flags)
+{
+    struct ToriRS_CmdGesturePan cmd;
+
+    assert(bus);
+    assert(phase >= 0);
+    assert(phase < LIBTORIRS_GESTURE_PHASE_COUNT);
+    assert(fingers >= 1);
+    assert(fingers <= 255);
+    assert(phase != LIBTORIRS_GESTURE_END || dx == 0.0);
+    assert(phase != LIBTORIRS_GESTURE_END || dy == 0.0);
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.x = x;
+    cmd.y = y;
+    cmd.dx_q16 = cmdbus_q16(dx);
+    cmd.dy_q16 = cmdbus_q16(dy);
+    cmd.fingers = (uint8_t)fingers;
+    cmd.phase = (uint8_t)phase;
+    cmd.flags = (uint8_t)flags;
+    return CmdBus_Push(bus, TORIRS_CMD_GESTURE_PAN, &cmd, sizeof(cmd));
+}
+
+int
+CmdBus_PushGesturePinch(
+    struct ToriRS_CmdBus* bus,
+    int16_t x,
+    int16_t y,
+    double scale,
+    int phase,
+    unsigned flags)
+{
+    struct ToriRS_CmdGesturePinch cmd;
+
+    assert(bus);
+    assert(phase >= 0);
+    assert(phase < LIBTORIRS_GESTURE_PHASE_COUNT);
+    assert(scale > 0.0);
+    assert(phase != LIBTORIRS_GESTURE_END || scale == 1.0);
+    /* The same clamp as CmdBus_PushPinch: one frame of a real pinch is far
+     * inside it, and it keeps a runaway ratio inside the fixed point. */
+    if( scale < 1.0 / 64.0 )
+        scale = 1.0 / 64.0;
+    if( scale > 64.0 )
+        scale = 64.0;
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.x = x;
+    cmd.y = y;
+    cmd.scale_q16 = cmdbus_q16(scale);
+    cmd.phase = (uint8_t)phase;
+    cmd.flags = (uint8_t)flags;
+    return CmdBus_Push(bus, TORIRS_CMD_GESTURE_PINCH, &cmd, sizeof(cmd));
+}
+
+int
+CmdBus_PushGestureTwist(
+    struct ToriRS_CmdBus* bus,
+    int16_t x,
+    int16_t y,
+    double radians,
+    int phase,
+    unsigned flags)
+{
+    struct ToriRS_CmdGestureTwist cmd;
+
+    assert(bus);
+    assert(phase >= 0);
+    assert(phase < LIBTORIRS_GESTURE_PHASE_COUNT);
+    assert(phase != LIBTORIRS_GESTURE_END || radians == 0.0);
+    memset(&cmd, 0, sizeof(cmd));
+    cmd.x = x;
+    cmd.y = y;
+    cmd.radians_q16 = cmdbus_q16(radians);
+    cmd.phase = (uint8_t)phase;
+    cmd.flags = (uint8_t)flags;
+    return CmdBus_Push(bus, TORIRS_CMD_GESTURE_TWIST, &cmd, sizeof(cmd));
+}
+
+int
+CmdBus_PushTouchBegan(struct ToriRS_CmdBus* bus)
+{
+    assert(bus);
+    return CmdBus_Push(bus, TORIRS_CMD_INPUT_TOUCH_BEGAN, NULL, 0);
 }
 
 int

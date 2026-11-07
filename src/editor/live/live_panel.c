@@ -7,6 +7,7 @@
 #include "live_panel.h"
 
 #include "editor/editor_ui.h"
+#include "editor/panels/edpanel_common.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped_build.h"
 #include "torirsmaped/torirs_maped_live.h"
@@ -93,6 +94,8 @@ struct LivePanel
     int run_requested;
     /** TORIRS_EDITOR_LIVE=show (photographs): 0 unread, 1 show, 2 done. */
     int env_show;
+    /** ui->hotkeys.serial RUN's keycap was labelled from. */
+    uint32_t chord_serial;
 
     /** Who this window follows ("" nobody), and the varps it asked for. */
     char following[64];
@@ -225,10 +228,10 @@ live_refresh(
         /* Bottom centre of the window, above nothing: the dock's columns
          * leave the middle of the foot free. */
         struct ToriRSChromeRect const rect = ToriRSChrome_PanelRect(ui->chrome, self->float_panel);
-        int const w = rect.w > 0 ? rect.w : 420 * ToriRSChrome_Scale(ui->chrome);
-        int const h = rect.h > 0 ? rect.h : 56 * ToriRSChrome_Scale(ui->chrome);
+        int const w = rect.w > 0 ? rect.w : edp_px(ui, 420);
+        int const h = rect.h > 0 ? rect.h : edp_px(ui, 56);
         ToriRSChrome_PanelMove(ui->chrome, self->float_panel, (ui->chrome->surface_w - w) / 2,
-            ui->chrome->surface_h - h - 12 * ToriRSChrome_Scale(ui->chrome));
+            ui->chrome->surface_h - h - edp_px(ui, 12));
     }
     if( self->shown_play_serial != m->play_serial || self->shown_run_serial != m->run_serial )
     {
@@ -267,6 +270,13 @@ live_tick(
 {
     struct LivePanel* self = opaque;
 
+    /* RUN wears file.run's chord (design section 15 surface 3), relabelled
+     * on the frame after a rebind. */
+    if( self->chord_serial != ui->hotkeys.serial )
+    {
+        edp_button_chord(ui, self->button_run, EDITOR_HK_FILE_RUN);
+        self->chord_serial = ui->hotkeys.serial;
+    }
     Editor_LiveDrain(&self->transport, &self->model);
 #if defined(__EMSCRIPTEN__)
     /* A browser window plays the lane in a tab: tell the editor server once,
@@ -559,7 +569,6 @@ Editor_Live_RegisterWith(
 {
     struct LivePanel* self;
     struct EditorUiPanel desc;
-    int const scale = ToriRSChrome_Scale(ui->chrome);
 
     assert(ui);
     assert(transport);
@@ -579,7 +588,7 @@ Editor_Live_RegisterWith(
     self->log_follow = 1;
 
     self->panel = ToriRSChrome_PanelAdd(
-        ui->chrome, TORIRS_CHROME_PANEL_WINDOW, 260 * scale, 28 * scale, 300 * scale, "Live");
+        ui->chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, 260), edp_px(ui, 28), edp_px(ui, 300), "Live");
     assert(self->panel >= 0);
     self->label_status = ToriRSChrome_Label(ui->chrome, self->panel, "detached");
     self->label_run = ToriRSChrome_Label(ui->chrome, self->panel, "");
@@ -595,17 +604,17 @@ Editor_Live_RegisterWith(
         "Start the lane's game server, JS5 and io servers and connect");
     ToriRSChrome_Separator(ui->chrome, self->panel);
     self->button_run = ToriRSChrome_Button(ui->chrome, self->panel, "RUN");
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_run,
-        "Save all, build packs and client cache, reload the live server, then open (or reload) the play "
-        "client logged into it");
+    /* Tips are 63 bytes (TORIRS_CHROME_LABEL_MAX); a longer one is cut. */
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_run, "Save all, build, reload the server, open the play client");
+    edp_button_chord(ui, self->button_run, EDITOR_HK_FILE_RUN);
+    self->chord_serial = ui->hotkeys.serial;
     self->button_packs = ToriRSChrome_Button(ui->chrome, self->panel, "Build packs");
     self->button_client = ToriRSChrome_Button(ui->chrome, self->panel, "Build client cache");
     ToriRSChrome_Separator(ui->chrome, self->panel);
     self->label_play = ToriRSChrome_Label(ui->chrome, self->panel, "play: not started");
     self->button_play = ToriRSChrome_Button(ui->chrome, self->panel, "Play");
     self->button_play_stop = ToriRSChrome_Button(ui->chrome, self->panel, "Stop");
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_play,
-        "Start the lane's play client logged into the live server (restart it if it exited or logged out)");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_play, "Start (or restart) the play client, logged into the server");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_play_stop, "Stop the lane's play client");
     ToriRSChrome_Separator(ui->chrome, self->panel);
     self->input_player = ToriRSChrome_TextInput(ui->chrome, self->panel, "Player", "");
@@ -621,7 +630,7 @@ Editor_Live_RegisterWith(
     ToriRSChrome_PanelSetResizable(ui->chrome, self->panel, 1);
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
 
-    self->float_panel = ToriRSChrome_PanelAdd(ui->chrome, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 420 * scale, "RUN");
+    self->float_panel = ToriRSChrome_PanelAdd(ui->chrome, TORIRS_CHROME_PANEL_WINDOW, 0, 0, edp_px(ui, 420), "RUN");
     assert(self->float_panel >= 0);
     self->float_label = ToriRSChrome_Label(ui->chrome, self->float_panel, "");
     self->float_progress = ToriRSChrome_Progress(ui->chrome, self->float_panel, "", "", 0);
@@ -662,6 +671,55 @@ Editor_Live_Busy(struct EditorUi* ui)
     if( !self )
         return -1;
     return self->model.run_step != TORIRSMAPED_RUN_STEP_IDLE || self->model.building;
+}
+
+int
+Editor_Live_Cheat(
+    struct EditorUi* ui,
+    const char* player,
+    const char* line)
+{
+    struct LivePanel* self;
+    struct ToriRSMapEdBuf payload;
+    uint32_t type;
+
+    assert(ui);
+    assert(player);
+    assert(line);
+    self = Editor_UiPanelSelf(ui, "live");
+    if( !self )
+        return -1;
+    if( self->model.state != TORIRSMAPED_LIVE_ATTACHED )
+    {
+        Editor_UiLog(ui, "live: ::%s for %s refused: the live lane is not attached", line, player);
+        return 0;
+    }
+    memset(&payload, 0, sizeof(payload));
+    type = Editor_LiveEncodeCheat(&payload, player, line);
+    if( !live_send(ui, self, type, &payload) )
+        return 0;
+    Editor_UiLog(ui, "live: ::%s for %s", line, player);
+    return 1;
+}
+
+int
+Editor_Live_Teleport(
+    struct EditorUi* ui,
+    const char* player,
+    int x,
+    int z,
+    int level)
+{
+    char coord[64];
+    char line[96];
+
+    assert(ui);
+    assert(player);
+    if( !Editor_UiPanelSelf(ui, "live") )
+        return -1;
+    Editor_LiveTeleCoord(x, z, level < 0 ? 0 : level, coord, sizeof(coord));
+    snprintf(line, sizeof(line), "tele %s", coord);
+    return Editor_Live_Cheat(ui, player, line);
 }
 
 int

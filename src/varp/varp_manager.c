@@ -302,6 +302,7 @@ VarPManager_Free(struct VarPManager* mgr)
     mgr->change_userdata = NULL;
     mgr->server_update_fn = NULL;
     mgr->server_update_userdata = NULL;
+    mgr->preview_count = 0;
 }
 
 bool
@@ -750,10 +751,24 @@ VarPManager_ResolveTransform(
     assert(transforms);
 
     int transform_index = -1;
+    int previewed = 0;
 
-    if( transform_varbit != -1 )
+    /* The editor's preview of exactly the var this table is keyed on wins;
+     * the key is the same one the resolve below would read. */
+    for( int i = 0; i < mgr->preview_count; i++ )
+    {
+        const struct VarPManagerPreview* p = &mgr->preview[i];
+        if( transform_varbit != -1 ? (p->is_varbit && p->id == transform_varbit)
+                                   : (transform_varp != -1 && !p->is_varbit && p->id == transform_varp) )
+        {
+            transform_index = p->value;
+            previewed = 1;
+            break;
+        }
+    }
+    if( !previewed && transform_varbit != -1 )
         transform_index = VarPManager_GetVarbit(mgr, transform_varbit);
-    else if( transform_varp != -1 )
+    else if( !previewed && transform_varp != -1 )
         transform_index = VarPManager_GetVarp(mgr, transform_varp);
 
     /* -1 is a real positional entry: it means this loc/NPC is hidden for that
@@ -766,6 +781,65 @@ VarPManager_ResolveTransform(
     return transforms[transform_count - 1];
 }
 
+
+/** The varp the wire carries for a previewed var, or -1 when a varbit's
+ *  type is not loaded. */
+static int
+preview_base_varp(
+    const struct VarPManager* mgr,
+    const struct VarPManagerPreview* entry)
+{
+    if( !entry->is_varbit )
+        return entry->id;
+    if( entry->id < 0 || entry->id >= mgr->varbit_count )
+        return -1;
+    return mgr->varbit_types[entry->id].basevar;
+}
+
+int
+VarPManager_SetPreview(
+    struct VarPManager* mgr,
+    const struct VarPManagerPreview* entries,
+    int count)
+{
+    struct VarPManagerPreview old[VARP_MANAGER_PREVIEW_MAX];
+    int old_count;
+    int announced[2 * VARP_MANAGER_PREVIEW_MAX];
+    int announced_count = 0;
+
+    assert(mgr);
+    assert(count >= 0);
+    assert(count <= VARP_MANAGER_PREVIEW_MAX);
+    assert(entries || count == 0);
+
+    old_count = mgr->preview_count;
+    memcpy(old, mgr->preview, sizeof(old));
+    if( count > 0 )
+        memcpy(mgr->preview, entries, sizeof(entries[0]) * (size_t)count);
+    mgr->preview_count = count;
+
+    /* Announce each base varp once, the old entries' (a var leaving the
+     * preview resolves with the player's value again) and the new ones'. */
+    for( int pass = 0; pass < 2; pass++ )
+    {
+        const struct VarPManagerPreview* list = pass == 0 ? old : mgr->preview;
+        int const n = pass == 0 ? old_count : count;
+        for( int i = 0; i < n; i++ )
+        {
+            int const varp = preview_base_varp(mgr, &list[i]);
+            int seen = 0;
+            if( varp < 0 )
+                continue;
+            for( int j = 0; j < announced_count; j++ )
+                seen |= announced[j] == varp;
+            if( seen )
+                continue;
+            announced[announced_count++] = varp;
+            notify_change(mgr, varp);
+        }
+    }
+    return announced_count;
+}
 
 bool
 VarPManager_TransformDependsOnVarp(

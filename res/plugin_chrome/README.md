@@ -2,6 +2,12 @@
 
 - `skin/` contains the application-owned ToriRSChrome image bake used by every
   browser host.
+- `skin@2x/` and `skin@3x/` are the same slots at twice and three times the
+  size, generated from `skin/`'s source bake by `tools/chrome_skin_tiers.py`
+  (GLYPH slots through a mask and scale2x / scale3x, TEXTURED slots through
+  xBR; docs/CHROME_SCALE.md). A host that stages them beside `skin/` says
+  `skinTiers: 3` in its theme and the runtime picks a tier by
+  `devicePixelRatio`; `make -C src chrome-skin` fails when they are stale.
 - `font/` contains reproducibly converted cache Body, Menu, and Small fonts in
   TTF, WOFF 1, and IE8 EOT formats.
 - `screenshots/` contains real platform runtime captures. They are not design

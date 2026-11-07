@@ -1128,6 +1128,19 @@ font_scale_owner(int p, int buf, int layout)
     return (int)(((long long)(p + 1) * layout + buf - 1) / buf) - 1;
 }
 
+/* One glyph pixel over `dst`: solid where the byte is 255 -- every byte of a
+ * mask, so a cache face draws exactly as it always did -- and blended by it
+ * where it is coverage (a chrome face rasterised at a fractional scale puts
+ * 64, 128 or 191 on the one-row edges between its whole-pixel stems). */
+static inline toripixel_t
+font_glyph_pixel(toripixel_t dst, uint8_t alpha, int color)
+{
+    toripixel_t const ink = toripixel_pack_argb8888((uint32_t)color);
+    if( alpha == 0xFF )
+        return ink;
+    return alpha_blend((int)alpha, dst, ink);
+}
+
 /* One layout-space glyph written into a scaled buffer: every buffer pixel
  * inside the glyph's mapped box samples the texel it came from. The clip is
  * already in buffer pixels. */
@@ -1196,7 +1209,7 @@ font_draw_glyph_pixels_scaled(
             int const c = col < 0 ? 0 : (col >= gw ? gw - 1 : col);
             if( arow[c] == 0 )
                 continue;
-            drow[x] = toripixel_pack_argb8888((uint32_t)color);
+            drow[x] = font_glyph_pixel(drow[x], arow[c], color);
             pixels_written++;
         }
     }
@@ -1256,7 +1269,7 @@ font_draw_glyph_pixels(
         {
             if( arow[col] == 0 )
                 continue;
-            drow[col] = toripixel_pack_argb8888((uint32_t)color);
+            drow[col] = font_glyph_pixel(drow[col], arow[col], color);
             pixels_written++;
         }
     }

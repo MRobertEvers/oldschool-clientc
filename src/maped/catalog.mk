@@ -26,12 +26,12 @@ test-catalog:
 		editor/editor_host_local.c editor/editor_host_remote.c editor/editor_doc.c \
 		editor/editor_cmd.c editor/editor_spawn.c editor/editor_jm2.c \
 		$(filter-out torirsmaped/%,$(MAPED_SERVER_SRCS)) \
-		torirsmaped/test/catalog_test.c
+		torirsmaped/test/catalog_test.c -lm $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/catalog
 	mkdir -p $(OBJ_DIR)/tmp/catalog
 	./$(OBJ_DIR)/catalog_test $(EDITOR_CONTENT_DIR) $(OBJ_DIR)/tmp/catalog
 
-test-editor: test-catalog
+EDITOR_TREE_TESTS += test-catalog
 
 # The catalog's work bounds (docs/MAPED_STATUS.md "Catalog performance"):
 # over a synthetic 60,000-loc tree written under $(OBJ_DIR)/tmp/catalog_perf,
@@ -49,9 +49,29 @@ test-catalog-perf:
 		editor/editor_host_local.c editor/editor_host_remote.c editor/editor_doc.c \
 		editor/editor_cmd.c editor/editor_spawn.c editor/editor_jm2.c \
 		$(filter-out torirsmaped/%,$(MAPED_SERVER_SRCS)) \
-		editor/test/editor_catalog_perf_test.c
+		editor/test/editor_catalog_perf_test.c $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/catalog_perf
 	mkdir -p $(OBJ_DIR)/tmp/catalog_perf
 	./$(OBJ_DIR)/catalog_perf_test $(OBJ_DIR)/tmp/catalog_perf $(EDITOR_CONTENT_DIR)
 
 test-editor: test-catalog-perf
+
+# The catalog as a loc finder (workbench 6.2), over a tiny tree written under
+# $(OBJ_DIR)/tmp/catalog_finder, no content needed: filter values narrow as
+# a prefix in a documented order, `shape=` classes, the derived loc fields
+# (shapes, size, layer), and the PROGRESS tail only when asked for.
+.PHONY: test-catalog-finder
+test-catalog-finder:
+	mkdir -p $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/catalog_finder_test $(TORIMEM_SRCS) \
+		torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
+		torirsmaped/torirs_maped_cmdwire.c torirsmaped/torirs_maped_embed.c \
+		editor/editor_host_local.c editor/editor_host_remote.c editor/editor_doc.c \
+		editor/editor_cmd.c editor/editor_spawn.c editor/editor_jm2.c \
+		$(filter-out torirsmaped/%,$(MAPED_SERVER_SRCS)) \
+		torirsmaped/test/catalog_finder_test.c $(MAPED_TEST_LDFLAGS)
+	rm -rf $(OBJ_DIR)/tmp/catalog_finder
+	mkdir -p $(OBJ_DIR)/tmp/catalog_finder
+	./$(OBJ_DIR)/catalog_finder_test $(OBJ_DIR)/tmp/catalog_finder
+
+test-editor: test-catalog-finder

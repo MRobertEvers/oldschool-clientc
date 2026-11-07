@@ -541,7 +541,11 @@ feed_overlays(
         count++;
     }
     closedir(handle);
-    qsort(names, (size_t)count, sizeof(*names), compare_names);
+    /* Not with nothing read: names is NULL then, and qsort's nonnull base
+     * lets the optimizer drop the NULL test in the ToriMem_Free below
+     * (editor_alloc.c's lanes, the same crash). */
+    if( count > 1 )
+        qsort(names, (size_t)count, sizeof(*names), compare_names);
     for( int i = 0; i < count; i++ )
     {
         char path[4096];

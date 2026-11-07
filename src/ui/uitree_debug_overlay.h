@@ -108,6 +108,26 @@
 /** Label / title bytes, including the terminator. */
 #define TORIRS_CHROME_LABEL_MAX 64
 /**
+ * Bytes of one chord's display spelling, terminator included -- the keycap a
+ * BUTTON wears, an ICONBUTTON's badge, the keycap a tooltip ends with
+ * (docs/MAPED_HOTKEYS.md; the workbench design's section 15).
+ *
+ * 24, which holds both chords of an action in the word spelling --
+ * Ctrl+Shift+Z, a middle dot, Ctrl+Y is 22 bytes of UTF-8 -- and anything the
+ * hotkey table spells for one. Longer is cut like any label, and logged like
+ * one.
+ */
+#define TORIRS_CHROME_CHORD_MAX 24
+/**
+ * Truncation records the host has not drained yet
+ * (ToriRSChrome_TakeTruncation). A ring: one more than this overwrites the
+ * oldest and counts it as dropped, because the newest cut is the one the
+ * person who just opened a panel is looking at.
+ */
+#define TORIRS_CHROME_TRUNCATION_RING 16
+/** Bytes of the cut string a truncation record keeps, for the console line. */
+#define TORIRS_CHROME_TRUNCATION_HEAD 40
+/**
  * Text-input content bytes, including the terminator.
  *
  * 192, which is TORIRS_PLUGIN_CONFIG_VALUE_MAX -- the store these fields edit.
@@ -211,26 +231,76 @@ enum ToriRSChromeFontSlot
 };
 
 /**
- * Integer chrome zoom. 1 is the baked fonts' native size; higher scales
- * multiply every metric and glyph, so the layout reflows rather than blurs.
+ * The baked TIERS: the integer densities a face or a skin slot exists at. 1 is
+ * the baked fonts' native size; fontbake wrote Small/Body/Menu at @2 and @3
+ * (src/engine/torirs_debug_font_baked.h), and those are pixel art the chrome
+ * draws unchanged at exactly that density.
  *
- * The upper bound is what the BAKE carries, not a taste: fontbake wrote
- * Small/Body/Menu at @2 and @3 (src/engine/torirs_debug_font_baked.h), and a
- * scale with no font behind it would lay rows out at a size nothing can draw.
- * Raising it means baking that size first, in the one fontbake run that writes
- * both generated files.
- *
- * Integer only, and that is the renderer's property rather than a shortcut:
- * the glyph blitter tests a mask byte for non-zero instead of blending it
- * (toridraw_font.c), so there is no half-covered pixel for a 1.5x glyph to
- * resample onto. A display at 1.5x picks the nearer baked size; nothing is
- * ever stretched, which is the whole point of authoring the sizes.
+ * Not the chrome's SCALE any more (workbench step 6.0b, design section 2 "R1
+ * in full"). The scale is a rational in quarter units -- see
+ * TORIRS_CHROME_SCALE_Q_* below -- and a tier is what the scale reads its
+ * bitmaps from: `ToriRSChrome_ScaleTier(q)`, the nearest tier at or above.
+ * At q = 4, 8 and 12 the scale IS a tier and every number and pixel is the
+ * one the integer chrome always produced.
  */
 #define TORIRS_CHROME_SCALE_MIN 1
 #define TORIRS_CHROME_SCALE_MAX 3
 
-/** Pixel width of a NUL-terminated string in `font_slot` at `scale`, from the
- *  baked advance tables. Plain bytes only — no markup tokens. */
+/**
+ * The chrome scale, in QUARTERS of a device pixel per chrome pixel: 4 is 1x,
+ * 5 is 1.25x, 6 is 1.5x, 7 is 1.75x, 8 is 2x, 10 is 2.5x, 12 is 3x -- the
+ * device pixel ratios a display actually reports, rather than the integer
+ * ladder a 1.5x laptop had to be rounded onto.
+ *
+ * Layout stays in 1x chrome pixels. Every METRIC (a row height, a gap, a pad,
+ * the label column, the scrollbar, a tab, the frame rail) is converted to
+ * device pixels once, through ToriRSChrome_ScalePx, and positions are sums of
+ * converted metrics -- never a converted sum. That is what keeps a column of
+ * rows on one device-pixel grid at 1.5x: every row is ScalePx(18) = 27 tall,
+ * never 27 and 26 on neighbours.
+ *
+ * Text and art at a fractional scale do not come from stretching a tier: the
+ * glyphs are rasterised from the synthesized vector face (made from the 1x
+ * masks) with vertical hinting, and a skin slot is area-averaged DOWN from
+ * the nearest tier at or above. Both are built
+ * once per scale (torirs_chrome_bake.h), never per frame.
+ *
+ * The upper bound is the largest tier: a scale above it would have to be drawn
+ * UP from a bitmap, which is the speckling this whole scheme exists to avoid.
+ */
+#define TORIRS_CHROME_SCALE_Q_ONE 4
+#define TORIRS_CHROME_SCALE_Q_MIN (TORIRS_CHROME_SCALE_MIN * TORIRS_CHROME_SCALE_Q_ONE)
+#define TORIRS_CHROME_SCALE_Q_MAX (TORIRS_CHROME_SCALE_MAX * TORIRS_CHROME_SCALE_Q_ONE)
+
+/**
+ * `px` chrome pixels at scale `q`, in device pixels: px * q / 4 rounded to the
+ * nearest, halves away from zero, so ScalePx(q, -a) == -ScalePx(q, a).
+ *
+ * THE rounding function. Every chrome metric goes through it exactly once, and
+ * so must every presentation that lays itself out beside the chrome (the
+ * editor's panels, its dock, the bake) -- two roundings of one metric are two
+ * grids. At q a multiple of 4 it is the plain integer multiply.
+ */
+int
+ToriRSChrome_ScalePx(int q, int px);
+
+/**
+ * Device pixels back to chrome pixels: the chrome cell `device_px` falls in,
+ * i.e. the largest c with ScalePx(q, c) <= device_px.
+ *
+ * At q a multiple of 4 this is exactly `device_px / (q / 4)` -- C's
+ * truncating division, which is what every pointer mapping did before -- so a
+ * negative coordinate (a point left of a region) maps the way it always did.
+ */
+int
+ToriRSChrome_UnscalePx(int q, int device_px);
+
+/** The nearest baked tier at or above scale `q`: ceil(q / 4). */
+int
+ToriRSChrome_ScaleTier(int q);
+
+/** Pixel width of a NUL-terminated string in `font_slot` at integer `scale`.
+ *  Exactly ToriRSChrome_MeasureTextQ(font_slot, 4 * scale, text). */
 int
 ToriRSChrome_MeasureText(int font_slot, int scale, char const* text);
 
@@ -241,6 +311,32 @@ ToriRSChrome_FontLineHeight(int font_slot, int scale);
 /** Row pitch for `font_slot` (the tallest glyph's bottom edge). */
 int
 ToriRSChrome_FontLineBox(int font_slot, int scale);
+
+/**
+ * Pixel width of a NUL-terminated string in `font_slot` at scale `q`, from the
+ * per-glyph advance table of that scale. Plain bytes only -- no markup tokens.
+ *
+ * At a tier (q = 4, 8, 12) the table is the bake's; between tiers every
+ * glyph's 1x advance is converted with ToriRSChrome_ScalePx on its own, which
+ * is exactly the advance the glyph atlas for that scale carries
+ * (torirs_chrome_bake.c builds it with the same call), so text measures to
+ * the width it paints at.
+ */
+int
+ToriRSChrome_MeasureTextQ(int font_slot, int q, char const* text);
+
+/** One byte's advance at scale `q`: the entry MeasureTextQ sums. */
+int
+ToriRSChrome_GlyphAdvanceQ(int font_slot, int q, unsigned char c);
+
+/** Ascent at scale `q`: ScalePx of the 1x ascent, so the baseline is a whole
+ *  device row the hinted glyphs are snapped to. */
+int
+ToriRSChrome_FontLineHeightQ(int font_slot, int q);
+
+/** Line box at scale `q`: ScalePx of the 1x line box. */
+int
+ToriRSChrome_FontLineBoxQ(int font_slot, int q);
 
 enum ToriRSChromePrimKind
 {
@@ -696,6 +792,18 @@ struct ToriRSChromeTheme
     int font_row;
 
     /**
+     * Window-panel row height in chrome pixels at 1x; 0 is the grid's
+     * TORIRS_CHROME_M_ROW_H (18).
+     *
+     * Beside `font_row` because the two move together: the editor's View >
+     * Text size Large makes the Menu face the body face, and its line box
+     * would crowd an 18 px row -- the design gives Large rows of 22
+     * (workbench step 6.0b). Every theme leaves it 0, so no existing panel
+     * moves a pixel.
+     */
+    int row_h;
+
+    /**
      * Draw window-panel bodies as the tiled skin image instead of a flat fill.
      *
      * Off is not a degraded mode, it is the flat look -- and it is also the
@@ -1038,7 +1146,10 @@ enum ToriRSChromeEventKind
     TORIRS_CHROME_EVENT_CODE_JOIN,
     /** A key while the well has focus (it takes it on a press): `value` is
      *  the printable character ('+', '-', '=', '_') or, negated, the enum
-     *  ToriRSChromeKey (arrows). Escape releases the focus instead. */
+     *  ToriRSChromeKey (the arrows, Enter, Backspace, Escape -- Escape then
+     *  releases the focus). `col` holds EDITOR_HK_MOD_-style modifier bits
+     *  (1 Ctrl, 2 Shift, 4 Alt) when the presentation knows them (the DOM's
+     *  keydown does), 0 when it does not (the host's own shift state says). */
     TORIRS_CHROME_EVENT_GRAPH_KEY,
     /** A pinch over the well (a trackpad's magnify, a touch spread, a
      *  browser's ctrl+wheel, or ctrl+wheel itself): the content under `x`,
@@ -1051,6 +1162,14 @@ enum ToriRSChromeEventKind
      *  pointer. A mouse wheel never sends this; it stays GRAPH_WHEEL.
      *  @see ToriRSChrome_Scroll. */
     TORIRS_CHROME_EVENT_GRAPH_SCROLL,
+    /** A pan over a MODELVIEW: orbit the model by `dx` (yaw) and `dy`
+     *  (pitch), 1/256 well logical px, the way the fingers moved. A twist
+     *  over it orbits too, by `value`: the turn's yaw, radians x 65536
+     *  (+ clockwise, the fingers' way; dx and dy 0). @see ToriRSChrome_Gesture. */
+    TORIRS_CHROME_EVENT_VIEW_ORBIT,
+    /** A pinch over a MODELVIEW: `value` / 65536 is the ratio since the last
+     *  (> 1 apart, closer). @see ToriRSChrome_Gesture. */
+    TORIRS_CHROME_EVENT_VIEW_ZOOM,
 };
 
 /** One queued GRAPH gesture or CODE edit. @see ToriRSChrome_TakeEvent. */
@@ -1113,7 +1232,9 @@ enum ToriRSChromeGraphItemKind
      * scene sprite the host registered (the square picker's world map). The
      * chrome stays a non-rasteriser, as with MODELVIEW: it emits a SPRITE
      * prim carrying the id. Never hit-tested. The DOM executor receives the
-     * id in the item's value and, having no pixels for it, draws nothing.
+     * id in the item's value and draws it from the `graph.image` envelope
+     * the host sent under that id (src/plugin_chrome/HOST_BRIDGE.md), on a
+     * canvas under the well's other items; nothing until one came.
      */
     TORIRS_CHROME_GRAPH_IMAGE,
 };
@@ -1317,6 +1438,13 @@ struct ToriRSChromeWidget
     int iaux;
     /** VLIST/CODE: the first of this widget's `rows` pool slots, -1 none. */
     int vrow_first;
+    /** VLIST cells (ToriRSChrome_VListCells): the cell the last pick landed
+     *  on, 0 the row body, n the n-th keycap. */
+    int vlist_cell;
+    /** VLIST/CODE/TEXTAREA: the part of a row a two-finger pan has moved and
+     *  no whole row has taken yet, surface px (ToriRSChrome_Gesture). Model
+     *  state only: nothing draws it. */
+    int pan_rem;
     /** GRAPH: this well's items are graph_items[first .. first + count). */
     int graph_first;
     int graph_count;
@@ -1329,9 +1457,66 @@ struct ToriRSChromeWidget
     /** Hover text, shown after TORIRS_CHROME_TOOLTIP_DELAY_MS. "" for none
      *  (an ICONBUTTON falls back to its label). */
     char tooltip[TORIRS_CHROME_LABEL_MAX];
+    /**
+     * BUTTON: the keycap drawn right-aligned inside the plate. ICONBUTTON: the
+     * badge in the icon box's bottom-right corner. "" for none; every other
+     * kind leaves it empty (@see ToriRSChrome_ButtonSetChord).
+     *
+     * One field for the two kinds because it is one thing -- the chord of the
+     * action the control runs -- drawn the way each control has room for.
+     */
+    char chord[TORIRS_CHROME_CHORD_MAX];
+    /**
+     * The chord the tooltip ends with, as a keycap after the text. "" falls
+     * back to `chord` on a BUTTON or ICONBUTTON, so a control that wears its
+     * chord says it in its tooltip too without the host stating it twice.
+     */
+    char tooltip_chord[TORIRS_CHROME_CHORD_MAX];
     /** A string handed to this widget was cut to fit and that was logged --
      *  once per widget serial, so a page rebuilt every frame says it once. */
     int truncation_logged;
+    /**
+     * BUTTON: the last Build drew the caption elided ("Re...") because it did
+     * not fit the plate or the room its keycap leaves. The tooltip then leads
+     * with the caption whole ("Redo: Redo the step undone last"), or is the
+     * caption alone when the button has no tip of its own, so what the plate
+     * cut is always one hover away (@see ToriRSChrome_TooltipText).
+     */
+    int caption_cut;
+};
+
+/** Which of a widget's strings a truncation record is about. */
+enum ToriRSChromeTruncField
+{
+    TORIRS_CHROME_TRUNC_LABEL = 1,
+    TORIRS_CHROME_TRUNC_TEXT,
+    TORIRS_CHROME_TRUNC_TOOLTIP,
+    TORIRS_CHROME_TRUNC_CHORD,
+    TORIRS_CHROME_TRUNC_TOOLTIP_CHORD,
+};
+
+/**
+ * One string a setter cut to fit its buffer (the workbench contract's R2: a
+ * truncation is never silent).
+ *
+ * Recorded once per widget serial, the same once the stderr line is printed,
+ * so a page rebuilt every frame with the same 300-byte label says it once.
+ * The record is a copy: the widget may be gone by the time the host drains
+ * it, which `serial` lets the host tell.
+ */
+struct ToriRSChromeTruncation
+{
+    int widget;
+    int serial;
+    /** enum ToriRSChromeWidgetKind of the widget when it was cut. */
+    int widget_kind;
+    /** enum ToriRSChromeTruncField. */
+    int field;
+    /** Bytes kept (the buffer less its terminator) and bytes handed over. */
+    int kept;
+    int length;
+    /** The first bytes of what was handed over, terminated. */
+    char head[TORIRS_CHROME_TRUNCATION_HEAD];
 };
 
 /** The edges a panel resize moves (ToriRSChrome::resize_edges). */
@@ -1376,6 +1561,15 @@ struct ToriRSChromePanel
      * press is latched for ToriRSChrome_TakePopOut and nothing else.
      */
     int poppable;
+    /**
+     * The panel carries a Dock button in its title bar: left of its Pop out,
+     * else left of its Close, else at the right end. OPT-IN like `poppable`,
+     * and as inert: what docking means is the host's (a popped-out editor
+     * window asks its leader to show the panel again and exits, workbench
+     * step 6.0b, design #workbench "Every panel pops out"), so the press is
+     * latched for ToriRSChrome_TakeDock and nothing else.
+     */
+    int dockable;
     /**
      * Draw a resize grip in the bottom-right corner and let it be dragged.
      *
@@ -1527,6 +1721,8 @@ enum ToriRSChromeChangeKind
     TORIRS_CHROME_CHANGE_WIDGET_REMOVE,
     TORIRS_CHROME_CHANGE_PANEL_CLOSE,
     TORIRS_CHROME_CHANGE_CHECK_STYLE,
+    /** The chrome scale moved (ToriRSChrome_SetScaleQ): TORIRS_CHROME_CMD_SCALE. */
+    TORIRS_CHROME_CHANGE_SCALE,
 };
 
 /* Property masks recorded with PANEL events. */
@@ -1557,8 +1753,11 @@ enum ToriRSChromeChangeKind
 #define TORIRS_CHROME_CHANGE_WIDGET_VALUE (1u << 11)
 /** VLIST/CODE row texts and spans, or GRAPH items (rows_rev moved). */
 #define TORIRS_CHROME_CHANGE_WIDGET_ROWS (1u << 12)
+/** Hover text, or the chord the tooltip ends with. */
 #define TORIRS_CHROME_CHANGE_WIDGET_TOOLTIP (1u << 13)
-#define TORIRS_CHROME_CHANGE_WIDGET_ALL ((1u << 14) - 1u)
+/** A BUTTON's keycap or an ICONBUTTON's badge. */
+#define TORIRS_CHROME_CHANGE_WIDGET_CHORD (1u << 14)
+#define TORIRS_CHROME_CHANGE_WIDGET_ALL ((1u << 15) - 1u)
 
 /**
  * One changed retained node, not a rendered command.
@@ -1584,9 +1783,38 @@ struct ToriRSChromeChange
 struct ToriRSChrome
 {
     struct ToriRSChromeTheme theme;
-    /** Integer chrome zoom, TORIRS_CHROME_SCALE_MIN..MAX. Every layout metric and
-     *  glyph multiplies by it; Init sets 1. */
+    /**
+     * The baked TIER the scale reads its bitmaps from,
+     * TORIRS_CHROME_SCALE_MIN..MAX: ToriRSChrome_ScaleTier(scale_q). Equal to
+     * the scale itself at q = 4, 8, 12, which is every value it had before the
+     * scale became a rational; between them it is the tier ABOVE, never a
+     * multiplier. Layout reads `scale_q`. Init sets 1.
+     */
     int scale;
+    /** The chrome scale in quarter units, TORIRS_CHROME_SCALE_Q_MIN..MAX: every
+     *  layout metric goes through ToriRSChrome_ScalePx(scale_q, ...). Init
+     *  sets 4. */
+    int scale_q;
+    /**
+     * What a DOM presentation zooms its 1x page by: TORIRS_CHROME_CMD_SCALE
+     * says page_scale_q / 4 device pixels per chrome pixel, over the
+     * page_density_percent / 100 device pixels per CSS pixel the page's
+     * browser already applies (its devicePixelRatio). 0 / 100 by Init, which
+     * is "scale_q / 4, on a page with no density of its own" -- the stream a
+     * host that never calls ToriRSChrome_SetPageScale always had.
+     * @see ToriRSChrome_SetPageScale.
+     */
+    int page_scale_q;
+    int page_density_percent;
+    /**
+     * Text rendering: 0 = bitmap at whole scales (the baked 1x / 2x / 3x
+     * faces at q = 4, 8, 12; the synthesized vector face between them), 1 =
+     * smooth always (the vector face at every scale). Not a layout input --
+     * every advance is the same either way -- so it dirties nothing; a DOM
+     * hears it with the SCALE command. Init sets 0.
+     * @see ToriRSChrome_SetTextSmooth.
+     */
+    int text_smooth;
     /**
      * enum ToriRSChromeCheckStyle: which boolean art every checkbox and roster
      * switch in this instance wears. Init sets TICK.
@@ -1632,6 +1860,7 @@ struct ToriRSChrome
     int change_pending_panel[TORIRS_CHROME_MAX_PANELS];
     int change_pending_widget[TORIRS_CHROME_MAX_WIDGETS];
     int change_pending_check_style;
+    int change_pending_scale;
     /** Per-panel journal chains, again as indexes plus one. */
     int change_panel_head[TORIRS_CHROME_MAX_PANELS];
     /**
@@ -1774,6 +2003,11 @@ struct ToriRSChrome
     /** A poppable panel's Pop out was clicked: latched at release, drained by
      *  ToriRSChrome_TakePopOut. -1 = none. */
     int popout_requested;
+    /** The panel whose Dock button is under the cursor, or -1, and a
+     *  dockable panel's Dock clicked (ToriRSChrome_TakeDock): as the Pop out
+     *  pair above. */
+    int hover_dock_panel;
+    int dock_requested;
     /** Latched by input, drained by ToriRSChrome_TakeActivated. -1 = none. */
     int activated;
     /** Set beside `activated` when a LISTROW's ACTION zone was what fired it,
@@ -1913,6 +2147,12 @@ struct ToriRSChrome
     /** Set beside `activated` when a TREE row's expander fired it. */
     int activated_expand;
     int taken_expand;
+    /** Truncations not yet drained, oldest at `truncation_head`; and how many
+     *  the ring overwrote since TakeTruncationsDropped last asked. */
+    struct ToriRSChromeTruncation truncations[TORIRS_CHROME_TRUNCATION_RING];
+    int truncation_head;
+    int truncation_count;
+    int truncation_dropped;
 
     /** Set by Build when a capacity limit truncated the display list. */
     int overflow;
@@ -1937,24 +2177,82 @@ void
 ToriRSChrome_ChangeJournalAcknowledge(struct ToriRSChrome* ui);
 
 /**
- * Set the device pixels per chrome pixel: TORIRS_CHROME_SCALE_MIN..TORIRS_CHROME_SCALE_MAX.
- *
- * A relayout, not a transform: every panel is remeasured against the fonts
- * baked at that size, so rows grow with the text in them instead of text
- * overflowing boxes sized for a smaller face. Panel ORIGINS are left alone --
- * whoever placed a panel knows whether it meant a device pixel or a chrome
- * one, and this module does not.
- *
- * The host must map the font slots onto the same scale's baked fonts or the
- * layout and the glyphs disagree; UITreeSceneBridge_EnsureDebugFont takes the
- * scale for exactly that reason.
+ * Set the device pixels per chrome pixel to the integer `scale`,
+ * TORIRS_CHROME_SCALE_MIN..TORIRS_CHROME_SCALE_MAX: exactly
+ * ToriRSChrome_SetScaleQ(ui, 4 * scale).
  */
 void
 ToriRSChrome_SetScale(struct ToriRSChrome* ui, int scale);
 
-/** Device pixels per chrome pixel. */
+/**
+ * Set the device pixels per chrome pixel to q / 4, q in
+ * TORIRS_CHROME_SCALE_Q_MIN..TORIRS_CHROME_SCALE_Q_MAX (5 = 1.25x, 6 = 1.5x,
+ * 7 = 1.75x, 10 = 2.5x; the multiples of 4 are the integer scales).
+ *
+ * A relayout, not a transform: every panel is remeasured against the faces at
+ * that scale, so rows grow with the text in them instead of text overflowing
+ * boxes sized for a smaller face. Panel ORIGINS are left alone -- whoever
+ * placed a panel knows whether it meant a device pixel or a chrome one, and
+ * this module does not.
+ *
+ * The model itself allocates nothing here: the glyph atlases and the scaled
+ * skin a fractional scale draws from are the DRAWER's, built by
+ * ToriRSChromeBake_SetScaleQ (torirs_chrome_bake.h), which calls this. A host
+ * that draws through the scene bridge (UITreeSceneBridge_EnsureDebugFont,
+ * after UITreeSceneBridge_SetChromeScaleQ) must map the font slots onto the
+ * same scale's faces, or the layout and the glyphs disagree.
+ */
+void
+ToriRSChrome_SetScaleQ(struct ToriRSChrome* ui, int q);
+
+/**
+ * Tell a DOM presentation (TORIRS_CHROME_CMD_SCALE) the scale to zoom its 1x
+ * page by: `q` quarters of a device pixel per chrome pixel (the scale asked
+ * for, the one this model lays out at and the native draw path draws; the
+ * DOM reaches it by CSS zoom), on a page whose
+ * browser already draws `density_percent` / 100 device pixels per CSS pixel.
+ *
+ * The density is the presentation's own: the DOM authors in CSS pixels, and a
+ * HighDPI page's CSS pixel is already devicePixelRatio device pixels, so
+ * zooming it by q / 4 as well would count the display twice (a 2x display
+ * would draw the page at 4x). The executor is told q / (4 * density), which
+ * is 1 -- no zoom -- at Auto on any display.
+ *
+ * q in TORIRS_CHROME_SCALE_Q_MIN..MAX, density_percent > 0. Not called: the
+ * page is zoomed by the layout scale, scale_q / 4, as before.
+ */
+void
+ToriRSChrome_SetPageScale(struct ToriRSChrome* ui, int q, int density_percent);
+
+/**
+ * Text rendering, a device-local setting (the editor's View menu, beside the
+ * chrome scale): 0 = bitmap at whole scales, 1 = smooth always (the vector
+ * face at 1x, 2x and 3x too). Measurement is unchanged -- the vector face's
+ * advances are the bitmap's -- so nothing reflows. A drawer that rasterises
+ * the bake reads it per text prim (ToriRSChromeBake_SetTextSmooth builds the
+ * atlases first); a DOM presentation hears it as SCALE's `h`
+ * (TORIRS_CHROME_CMD_SCALE) and swaps to the vector web fonts.
+ */
+void
+ToriRSChrome_SetTextSmooth(struct ToriRSChrome* ui, int smooth);
+
+/** The text-rendering mode SetTextSmooth last set: 0 or 1. */
+int
+ToriRSChrome_TextSmooth(struct ToriRSChrome const* ui);
+
+/** The integer TIER (see `scale`): the scale itself at q = 4, 8, 12. */
 int
 ToriRSChrome_Scale(struct ToriRSChrome const* ui);
+
+/** The scale in quarter units. */
+int
+ToriRSChrome_ScaleQ(struct ToriRSChrome const* ui);
+
+/** `px` chrome pixels in this chrome's device pixels:
+ *  ToriRSChrome_ScalePx(ui->scale_q, px). The converter the editor's own
+ *  layout uses, so its metrics land on the chrome's grid. */
+int
+ToriRSChrome_Px(struct ToriRSChrome const* ui, int px);
 
 /**
  * The surface this chrome is drawn onto, so a POPUP can stay inside it.
@@ -2094,6 +2392,26 @@ ToriRSChrome_PanelCloseRect(struct ToriRSChrome const* ui, int panel);
 
 struct ToriRSChromeRect
 ToriRSChrome_PanelPopOutRect(struct ToriRSChrome const* ui, int panel);
+
+/**
+ * Give a panel a Dock button in its title bar, left of its Pop out (else of
+ * its Close, else at the right end), in the baked DockButton art: a click
+ * latches the panel for ToriRSChrome_TakeDock and does nothing else (the host
+ * decides what docking is). Opt-in. Title-bar furniture, like Close and Pop
+ * out, so it crosses no executor seam: the DOM executor draws no panel title
+ * bar of its own.
+ */
+void
+ToriRSChrome_PanelSetDockable(struct ToriRSChrome* ui, int panel, int dockable);
+
+/** The panel whose Dock was clicked since the last call, or -1. */
+int
+ToriRSChrome_TakeDock(struct ToriRSChrome* ui);
+
+/** Screen box of a panel's title-bar Dock button, as last drawn (a zero rect
+ *  when it has none). */
+struct ToriRSChromeRect
+ToriRSChrome_PanelDockRect(struct ToriRSChrome const* ui, int panel);
 
 /** The edges a press at (x, y) would resize (TORIRS_CHROME_EDGE_* bits) and
  *  which panel, or 0: the border band of a visible, resizable, floating
@@ -2302,6 +2620,18 @@ int
 ToriRSChrome_WrapText(
     int font_slot,
     int scale,
+    char const* text,
+    int width,
+    int* out_start,
+    int* out_len,
+    int max_lines);
+
+/** ToriRSChrome_WrapText at scale `q` (quarter units); WrapText is this at
+ *  4 * scale. */
+int
+ToriRSChrome_WrapTextQ(
+    int font_slot,
+    int q,
     char const* text,
     int width,
     int* out_start,
@@ -2543,6 +2873,18 @@ ToriRSChrome_MenuDrop(
 /** A pressable box captioned `text`. @see TORIRS_CHROME_W_BUTTON. */
 int
 ToriRSChrome_Button(struct ToriRSChrome* ui, int panel, char const* text);
+
+/**
+ * The chord a BUTTON wears: a keycap right-aligned inside the plate, in the
+ * Small face, with the caption centred in what is left of the plate and
+ * elided when it does not fit there. The row stays one grid row tall.
+ *
+ * `chord` is the hotkey table's display spelling, copied (23 bytes); "" clears
+ * it. `widget` must be a live BUTTON. Compare-then-set, journalled as
+ * TORIRS_CHROME_CMD_WIDGET_CHORD.
+ */
+void
+ToriRSChrome_ButtonSetChord(struct ToriRSChrome* ui, int widget, char const* chord);
 
 /**
  * A tab strip over `titles`, which is BORROWED and must outlive the widget.
@@ -2875,6 +3217,92 @@ struct ToriRSChromeWheelFrame
 int
 ToriRSChrome_WheelFrame(struct ToriRSChrome* ui, struct ToriRSChromeWheelFrame const* frame);
 
+/** enum ToriRSChromeGestureKind: struct ToriRSChromeGesture::kind, and the
+ *  executor's TORIRS_CHROME_INTENT_GESTURE numbering. Not the input's
+ *  enum LibToriRS_GestureKind (PAN is 0 there): Editor_UiGesture maps it. */
+enum ToriRSChromeGestureKind
+{
+    TORIRS_CHROME_GESTURE_PAN = 1,
+    TORIRS_CHROME_GESTURE_PINCH = 2,
+    TORIRS_CHROME_GESTURE_TWIST = 3,
+};
+
+/** enum ToriRSChromeGesturePhase (the input's enum LibToriRS_GesturePhase
+ *  in the same order; Editor_UiGesture maps it). */
+enum ToriRSChromeGesturePhase
+{
+    TORIRS_CHROME_GESTURE_BEGIN = 0,
+    TORIRS_CHROME_GESTURE_UPDATE = 1,
+    TORIRS_CHROME_GESTURE_END = 2,
+};
+
+/**
+ * One gesture frame (workbench design section 14: TORIRS_CMD_GESTURE_PAN /
+ * PINCH / TWIST), surface pixels. The chrome's own copy of the bus's struct
+ * LibToriRS_Gesture (in whole pixels and q16), as ToriRSChromeWheelFrame is of the
+ * input's wheel: ui/ includes nothing of input/.
+ */
+struct ToriRSChromeGesture
+{
+    /** enum ToriRSChromeGestureKind. */
+    int kind;
+    int x;
+    int y;
+    /** PAN: surface px since the last frame, and the fingers. */
+    int dx;
+    int dy;
+    int fingers;
+    /** PINCH: the ratio since the last frame, 65536 = 1, > 1 apart. */
+    int scale_q16;
+    /** TWIST: radians since the last frame, 65536 = 1. */
+    int radians_q16;
+    /** enum ToriRSChromeGesturePhase. */
+    int phase;
+};
+
+/**
+ * Route one gesture frame to the widget under (x, y) (design section 14's
+ * table and its touch rules):
+ *
+ *   GRAPH       PAN is a scroll (TORIRS_CHROME_EVENT_GRAPH_SCROLL, the
+ *               content following the fingers), PINCH a continuous pinch
+ *               about (x, y) through ToriRSChrome_Pinch; TWIST nothing.
+ *   MODELVIEW   PAN orbits (TORIRS_CHROME_EVENT_VIEW_ORBIT: dx yaw, dy
+ *               pitch), PINCH zooms (TORIRS_CHROME_EVENT_VIEW_ZOOM), TWIST
+ *               orbits the yaw (VIEW_ORBIT's value, radians q16) -- the
+ *               design's Turn row, "preview: orbit". A two-finger PAN
+ *               orbits rather than panning the well: the Preview's camera
+ *               is a turntable with no pan (MAPED_STATUS records it).
+ *   VLIST, CODE a two-finger PAN scrolls by PIXELS (the rows move under the
+ *               fingers; a part row is kept for the next frame); TEXTAREA
+ *               scrolls its lines the same way when they overflow it.
+ *   anything    else on a panel (a TREE's rows, a SLIDER, the panel body):
+ *               a two-finger PAN scrolls the panel by pixels.
+ *
+ * A PINCH or TWIST anywhere but a GRAPH or MODELVIEW is ignored -- a list
+ * zooms nothing, and a stray second finger must never jump it -- and a
+ * one-finger PAN is the pointer's (the touch layer drags it already); both
+ * still count as taken over a panel, so the World behind stays still. An
+ * open modal swallows every frame.
+ *
+ * @return 1 when the chrome took the frame (it was over chrome), 0 when it
+ * is the caller's (the World's).
+ */
+int
+ToriRSChrome_Gesture(struct ToriRSChrome* ui, struct ToriRSChromeGesture const* gesture);
+
+/**
+ * The same, addressed at `widget` by an executor that hit-tested it itself
+ * (TORIRS_CHROME_INTENT_GESTURE: a browser's touch or gesture events on the
+ * DOM well). `gesture`'s x, y are WIDGET-local logical units, dx, dy logical
+ * px. @return 1 when the widget's kind takes that gesture.
+ */
+int
+ToriRSChrome_GestureWidget(
+    struct ToriRSChrome* ui,
+    int widget,
+    struct ToriRSChromeGesture const* gesture);
+
 /**
  * Move model focus to `widget` and place its caret, compare-then-set.
  *
@@ -2985,6 +3413,41 @@ ToriRSChrome_Tick(struct ToriRSChrome* ui, int64_t now_ms);
 void
 ToriRSChrome_SetTooltip(struct ToriRSChrome* ui, int widget, char const* text);
 
+/**
+ * The text `widget`'s tooltip shows, without the chord it ends with: its own
+ * tip, else an ICONBUTTON's label; a BUTTON whose caption the last Build
+ * elided leads with the caption whole ("Redo: Redo the step undone last"), or
+ * shows the caption alone when it has no tip. Copied into `out`.
+ * @return 1, or 0 and `out` "" when the widget shows no tooltip.
+ */
+int
+ToriRSChrome_TooltipText(struct ToriRSChrome const* ui, int widget, char* out, int out_size);
+
+/**
+ * The chord `widget`'s tooltip ends with, drawn as a keycap after the text
+ * ("text  [chord]"); the tooltip box widens for it. "" clears it, and a BUTTON
+ * or ICONBUTTON then falls back to the chord it wears. Copied, 23 bytes; sent
+ * as WIDGET_TOOLTIP's `text`. A widget with no tooltip text shows none.
+ */
+void
+ToriRSChrome_SetTooltipChord(struct ToriRSChrome* ui, int widget, char const* chord);
+
+/**
+ * The oldest truncation record the host has not drained: 1 and `*out`, or 0
+ * and `*out` zeroed when there is none. @see struct ToriRSChromeTruncation.
+ */
+int
+ToriRSChrome_TakeTruncation(struct ToriRSChrome* ui, struct ToriRSChromeTruncation* out);
+
+/** Records the ring overwrote before they were drained, since the last call;
+ *  clears the count. */
+int
+ToriRSChrome_TakeTruncationsDropped(struct ToriRSChrome* ui);
+
+/** "label", "text", "tooltip", "chord" or "tooltip chord", for a console line. */
+char const*
+ToriRSChrome_TruncationFieldName(int field);
+
 /** The tooltip currently shown, or -1. */
 int
 ToriRSChrome_TooltipWidget(struct ToriRSChrome const* ui);
@@ -3031,11 +3494,78 @@ ToriRSChrome_VListNeedsRows(struct ToriRSChrome const* ui, int widget);
 void
 ToriRSChrome_VListSetRow(struct ToriRSChrome* ui, int widget, int row, char const* text);
 
+/**
+ * VLIST CELLS (workbench 6.2, the Catalog as a loc finder): a VLIST whose rows
+ * are cells, not one string. Same window, pool and commands as a VLIST; only
+ * the reading of a row's text differs. A row is up to five fields split by
+ * TORIRS_CHROME_CELL_SEP:
+ *
+ *   sprite  decimal scene sprite id of a 16 x 16 picture the host rendered;
+ *           "" or 0 draws the empty cell (a picture still to come, the web)
+ *   name    the row ink, ellipsised to what the keycaps and the right field
+ *           leave (never clipped, rule R2)
+ *   dim     dimmed after the name, ellipsised first, dropped when no room
+ *   keys    keycap captions split by spaces, at most TORIRS_CHROME_CELL_KEYS_MAX,
+ *           in a column of their own; each is a CELL a click picks (1-based;
+ *           the row body is cell 0). Keys that do not fit end in "+n", which
+ *           is no cell
+ *   right   right-aligned and dimmed in a column wide enough for six digits
+ *
+ * The label is the header row in the same format (its sprite ignored): each
+ * field drawn dimmed at its column. Cells is SHAPE: decided at the add, it
+ * rides WIDGET_ADD (`w` = TORIRS_CHROME_VLIST_CELLS), and a PICK intent's `x`
+ * carries the cell.
+ */
+#define TORIRS_CHROME_CELL_SEP '\x1f'
+#define TORIRS_CHROME_CELL_SEP_STR "\x1f"
+#define TORIRS_CHROME_CELL_KEYS_MAX 8
+/*
+ * Workbench 6.8 (the command palette, the Hotkeys panel):
+ *   - a sprite field of "-" is a row with no picture well at all (the name
+ *     starts where the well would): a list of actions has no pictures;
+ *   - a SIXTH field, the mark: "!" draws the name, the dim part and the
+ *     keycaps' captions in TORIRS_CHROME_CELL_MARK_INK (a clash, a refusal),
+ *     "*" the name in the accent (the row being captured); anything else, or
+ *     none, the usual inks.
+ */
+/** The shape bits (WIDGET_ADD `w` of a VLIST): its rows are cells; and,
+ *  with CELLS, the keycap column is half the row, uncapped
+ *  (ToriRSChrome_VListCellsWide; the Hotkeys panel's two chord cells). */
+#define TORIRS_CHROME_VLIST_CELLS 0x1
+#define TORIRS_CHROME_VLIST_CELLS_WIDE 0x2
+#define TORIRS_CHROME_CELL_NO_SPRITE "-"
+#define TORIRS_CHROME_CELL_MARK_ALERT '!'
+#define TORIRS_CHROME_CELL_MARK_ACCENT '*'
+#define TORIRS_CHROME_CELL_MARK_INK 0xFF5555u
+int
+ToriRSChrome_VListCells(
+    struct ToriRSChrome* ui, int panel, char const* label, int rows, int row_count);
+/** A cells list whose keycap column is half the row, not capped at 96 px:
+ *  rows of whole chords (TORIRS_CHROME_VLIST_CELLS_WIDE rides WIDGET_ADD). */
+int
+ToriRSChrome_VListCellsWide(
+    struct ToriRSChrome* ui, int panel, char const* label, int rows, int row_count);
+/** The cell the last pick of a cells list landed on: 0 the row body, n the
+ *  n-th keycap (1-based). 0 for a plain list. */
+int
+ToriRSChrome_VListPickedCell(struct ToriRSChrome const* ui, int widget);
+/** The row under the pointer (-1 none) and, for a cells list, the cell
+ *  there (0 the body, n the n-th keycap): what a host's hover tooltip says. */
+int
+ToriRSChrome_VListHoverRow(struct ToriRSChrome const* ui, int widget, int* out_cell);
+
 /* ICONBUTTON */
 int
 ToriRSChrome_IconButton(struct ToriRSChrome* ui, int panel, int skin_slot, char const* label);
 void
 ToriRSChrome_IconButtonSetIcon(struct ToriRSChrome* ui, int widget, int skin_slot);
+/**
+ * The chord an ICONBUTTON wears as a badge: Small face, over a black plate, in
+ * the icon box's bottom-right corner. "" clears it; copied, 23 bytes;
+ * `widget` must be a live ICONBUTTON. Journalled as WIDGET_CHORD.
+ */
+void
+ToriRSChrome_IconButtonSetChord(struct ToriRSChrome* ui, int widget, char const* chord);
 
 /* SLIDER */
 int

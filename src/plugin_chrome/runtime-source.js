@@ -19,6 +19,13 @@
   /* TORIRS_CHROME_PROTOCOL_COMMAND_MAX less SYNC_BEGIN/SYNC_END. */
   const MAX_PAGE_COMMANDS = 49150;
   const MAX_TEXT = 191;
+  /* Pictures a GRAPH IMAGE item may name at once (graph.image): the square
+   * picker's map holds 80 (EDITOR_UI_MAP_IMAGE_SLOTS); room for more wells. */
+  const MAX_GRAPH_IMAGES = 256;
+  /* The largest picture one carries a side, and the largest well a canvas
+   * is made for. */
+  const MAX_GRAPH_IMAGE_SIDE = 1024;
+  const MAX_GRAPH_CANVAS_SIDE = 8192;
   const Codec = global.ToriRSPluginChromeCodec;
   if (!Codec) return null;
 
@@ -30,7 +37,8 @@
     WIDGET_SELECTED: 15, WIDGET_FOCUS: 16, WIDGET_OPTIONS: 17,
     WIDGET_OPTION: 18, CHECK_STYLE: 19, WIDGET_HEIGHT: 20,
     PANEL_MODE: 21, WIDGET_VALUE: 22, WIDGET_ROW: 23, WIDGET_SPAN: 24,
-    WIDGET_GRAPH: 25, WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27
+    WIDGET_GRAPH: 25, WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27, WIDGET_CHORD: 28,
+    SCALE: 29
   };
   const W = {
     LABEL: 0, CHECKBOX: 1, TEXTINPUT: 2, SEPARATOR: 3, MENUITEM: 4,
@@ -41,7 +49,8 @@
   const INTENT = {
     ACTIVATE: 1, ACTION: 2, TOGGLE: 3, TEXT: 4, PICK: 5, TAB: 6,
     CLOSE: 7, CUSTOM_ACTIVATE: 8, CUSTOM_MENU: 9, EXPAND: 10, SCROLL: 11,
-    VALUE: 12, SPLIT: 13, CODE_EDIT: 14, GRAPH: 15, GRAPH_WHEEL: 16
+    VALUE: 12, SPLIT: 13, CODE_EDIT: 14, GRAPH: 15, GRAPH_WHEEL: 16,
+    GESTURE: 17
   };
   const ROW_ACTION = 0x1;
   const ROW_LOCKED = 0x2;
@@ -107,6 +116,29 @@
    */
   const pageView = !!(global.location && String(global.location.hash || '') === '#page');
 
+  /* Each packaged slot's 1x size, as the bake has it: a 2x or 3x tier file is
+   * that times the tier, drawn back at this size (chrome_widgets_dom_test.js
+   * reads the PNGs and pins it). */
+  const SKIN_SIZES = {
+    PanelBody: [88, 60], ScrollUp: [16, 16], ScrollDown: [16, 16], ScrollTrack: [16, 5],
+    ScrollGripTop: [16, 5], ScrollGripMid: [16, 5], ScrollGripBottom: [16, 5],
+    DropdownBody: [88, 60], PluginIcon: [33, 36], CheckOn: [17, 17], CheckOff: [17, 17],
+    FrameTopLeft: [32, 32], FrameTop: [32, 6], FrameTopRight: [32, 32], FrameLeft: [6, 32],
+    FrameRight: [6, 32], FrameBottomLeft: [32, 32], FrameBottom: [32, 6],
+    FrameBottomRight: [32, 32], CloseButton: [16, 16], CloseButtonOver: [16, 16],
+    PopoutButton: [16, 16], PopoutButtonOver: [16, 16], DockButton: [16, 16],
+    DockButtonOver: [16, 16], CheckBoxOn: [18, 18], CheckBoxOff: [18, 18],
+    ButtonLeft: [36, 36], ButtonMid: [20, 36], ButtonRight: [36, 36], ToolSelect: [15, 15],
+    ToolRaise: [16, 16], ToolLower: [16, 16], ToolFlatten: [15, 15], ToolSmooth: [15, 15],
+    ToolPaintUnderlay: [15, 15], ToolPaintOverlay: [15, 15], ToolFlags: [15, 15],
+    ToolPlace: [15, 15], ToolMove: [15, 15], ToolRotate: [15, 15], ToolDelete: [29, 22],
+    SearchGlass: [29, 22], TreeClosed: [16, 16], TreeOpen: [16, 16], RadioOn: [17, 17],
+    RadioOff: [17, 17], SliderTrack: [16, 14], SliderKnob: [16, 16], SplitterGrip: [7, 11],
+    WarningGlyph: [7, 18], ErrorGlyph: [16, 16], RunButton: [25, 25], StopButton: [19, 19],
+    BuildButton: [19, 17], SaveButton: [16, 16], SliderTrackLeft: [8, 14],
+    SliderTrackRight: [8, 14]
+  };
+
   const state = {
     rail: {
       registryRevision: 0, selectionGeneration: 0, pageGeneration: 0,
@@ -117,15 +149,29 @@
     icons: new Store(),
     themeRevision: 0,
     theme: {},
+    /* The highest skin tier the host staged beside skin/ (skin@2x/, skin@3x/;
+     * tools/chrome_skin_tiers.py), from the theme. 1 until a host says more,
+     * so a host that ships only skin/ is never asked for a file it lacks. */
+    skinTiers: 1,
     pageGeneration: 0,
     panel: -1,
     activeTab: 0,
     checkStyle: 0,
+    /* The chrome scale, scaleQ / scaleDen (TORIRS_CHROME_CMD_SCALE), and
+     * its text-rendering mode (the command's h): 0 bitmap at whole scales,
+     * 1 smooth always. */
+    scaleQ: 4,
+    scaleDen: 4,
+    scaleText: 0,
     widgets: new Store(),
     widgetsByTab: new Store(),
     checkWidgets: new Store(),
     tabStrips: new Store(),
     customWidgets: new Store(),
+    /* graph.image pictures by scene id, kept across page snapshots (a
+     * picture is the host's, not the page's): { width, height, version,
+     * bytes, canvas }. */
+    graphImages: new Store(),
     renderQueue: [],
     renderVisits: 0,
     sequence: 0,
@@ -212,13 +258,70 @@
     return url ? `url("${url.replace(/["\\]/g, '\\$&')}")` : 'none';
   }
 
+  /* A packaged skin slot's name when the URL is one ('skin/Name.png'), else ''.
+   * Only the packaged slots have tiers; a host's own URL is drawn as given. */
+  function skinName(url) {
+    const match = /^skin\/([A-Za-z]+)\.png$/.exec(url || '');
+    return match && SKIN_SIZES[match[1]] ? match[1] : '';
+  }
+
+  /* Device pixels per authored CSS pixel: the browser's own ratio times the
+   * chrome's zoom (applyScale), which the shell's images are drawn through
+   * too. The C side already divides the display's density out of the zoom
+   * (ToriRSChrome_SetPageScale), so the two are never the same factor twice. */
+  function deviceScale() {
+    return Math.max(1, Number(global.devicePixelRatio || 1)) * state.scaleQ / state.scaleDen;
+  }
+
+  /* The tier for art whose 1x is baseWidth pixels, drawn cssWidth CSS
+   * pixels wide: the smallest staged tier whose pixels cover the device
+   * pixels it lands on (cssWidth times devicePixelRatio times the zoom) --
+   * the nearest tier at or above the scale, as the native chrome picks
+   * (docs/CHROME_SCALE.md). 1 on the legacy page and on a host that staged
+   * no tiers. */
+  function skinTier(baseWidth, cssWidth) {
+    if (legacy || state.skinTiers <= 1) return 1;
+    const want = cssWidth * deviceScale();
+    for (let tier = 1; tier < state.skinTiers; tier++)
+      if (baseWidth * tier >= want - 0.01) return tier;
+    return state.skinTiers;
+  }
+
+  /* The URL at the tier for drawing it cssWidth CSS pixels wide (its 1x width
+   * when omitted): 'skin@2x/Name.png' for 'skin/Name.png' on a 2x display.
+   * The caller states the drawn size (background-size) whenever it draws a
+   * tier, or a 2x file paints at twice its size. */
+  function skinUrl(url, cssWidth) {
+    const name = skinName(url);
+    if (!name) return url;
+    const size = SKIN_SIZES[name];
+    const tier = skinTier(size[0], cssWidth === undefined ? size[0] : cssWidth);
+    return tier > 1 ? `skin@${tier}x/${name}.png` : url;
+  }
+
+  /* Paint the node with a skin URL at its 1x size (or width x height): the
+   * tiered file, sized to the authored CSS size -- always, so a node drawn
+   * from a 2x tier on one theme and the 1x file on the next never keeps a
+   * stale size. At 1x that size is the image's own, which draws as before.
+   * A URL that is not a packaged slot (a host's own art) is drawn as given. */
+  function paintSkin(node, url, width, height) {
+    const name = skinName(url);
+    node.style.backgroundImage = cssUrl(skinUrl(url, width));
+    if (name) {
+      const size = SKIN_SIZES[name];
+      node.style.backgroundSize =
+        `${width === undefined ? size[0] : width}px ${height === undefined ? size[1] : height}px`;
+    }
+  }
+
   function skinButton(button) {
     if (!button || legacy) return;
     const left = safeUrl(state.theme.buttonLeft);
     const middle = safeUrl(state.theme.buttonMiddle);
     const right = safeUrl(state.theme.buttonRight);
     if (left && middle && right) {
-      button.style.backgroundImage = `${cssUrl(left)},${cssUrl(right)},${cssUrl(middle)}`;
+      button.style.backgroundImage =
+        `${cssUrl(skinUrl(left, 18))},${cssUrl(skinUrl(right, 18))},${cssUrl(skinUrl(middle, 10))}`;
       button.style.backgroundRepeat = 'no-repeat,no-repeat,repeat-x';
       button.style.backgroundPosition = 'left center,right center,left center';
       /* The source art is the 2x (36px-high) bake. Chrome geometry is in the
@@ -258,7 +361,7 @@
       button.style.lineHeight = '16px';
       button.style.overflow = 'hidden';
     } else if (middle) {
-      button.style.backgroundImage = cssUrl(middle);
+      button.style.backgroundImage = cssUrl(skinUrl(middle, 10));
       button.style.backgroundRepeat = 'repeat-x';
       button.style.backgroundPosition = 'left center';
       button.style.backgroundSize = '10px 18px';
@@ -293,13 +396,13 @@
     control.style.height = `${side}px`;
     control.style.minWidth = `${side}px`;
     control.style.backgroundSize = `${side}px ${side}px`;
-    control.style.backgroundImage = cssUrl(checked ? on : off);
+    control.style.backgroundImage = cssUrl(skinUrl(checked ? on : off, side));
   }
 
   function skinField(control) {
     if (!control || legacy) return;
     const body = safeUrl(state.theme.dropdownBody) || 'skin/DropdownBody.png';
-    control.style.backgroundImage = cssUrl(body);
+    paintSkin(control, body);
     control.style.backgroundRepeat = 'repeat';
   }
 
@@ -313,8 +416,9 @@
     const arrow = open
       ? safeUrl(state.theme.scrollUp) || 'skin/ScrollUp.png'
       : safeUrl(state.theme.scrollDown) || 'skin/ScrollDown.png';
-    record.control.style.backgroundImage = cssUrl(body);
-    record.arrow.style.backgroundImage = cssUrl(arrow);
+    paintSkin(record.control, body);
+    /* The arrow is the 16px art drawn at 14 (DROP_ARROW). */
+    record.arrow.style.backgroundImage = cssUrl(skinUrl(arrow, 14));
   }
 
   function setTabsVisible(visible) {
@@ -643,9 +747,24 @@
     for (let i = 0; i < allowed.length; i++) next[allowed[i]] = safeUrl(assets[allowed[i]]);
     state.theme = next;
     state.themeRevision = revision;
-    pane.style.backgroundImage = cssUrl(next.panelBody);
-    if (rail.parentNode) rail.parentNode.style.backgroundImage = cssUrl(next.panelBody);
-    close.style.backgroundImage = cssUrl(next.close);
+    const tiers = integer(message.skinTiers, 1);
+    state.skinTiers = tiers >= 3 ? 3 : (tiers === 2 ? 2 : 1);
+    /* The stylesheet's image-set rules ask for skin@2x/ and skin@3x/ only
+     * under the tpc-skin-tiers name: a host that staged both says skinTiers 3. */
+    if (document.documentElement)
+      toggleClass(document.documentElement, 'tpc-skin-tiers', state.skinTiers >= 3 && !legacy);
+    repaintSkins();
+  }
+
+  /* Every skinned node at the tier the current device scale wants: the
+   * theme's pieces, the rail, and each widget's content. A theme change and
+   * a zoom change (applyScale) both move the tier. */
+  function repaintSkins() {
+    const next = state.theme;
+    updateDensityClass();
+    paintSkin(pane, next.panelBody);
+    if (rail.parentNode) paintSkin(rail.parentNode, next.panelBody);
+    close.style.backgroundImage = cssUrl(skinUrl(next.close, 16));
     const frameIds = ['tl', 't', 'tr', 'l', 'r', 'bl', 'b', 'br'];
     const frameAssets = ['frameTopLeft', 'frameTop', 'frameTopRight', 'frameLeft',
       'frameRight', 'frameBottomLeft', 'frameBottom', 'frameBottomRight'];
@@ -656,7 +775,7 @@
     for (let p = 0; p < framePrefixes.length; p++) {
       for (let i = 0; i < frameIds.length; i++) {
         const node = document.getElementById(framePrefixes[p] + frameIds[i]);
-        if (node) node.style.backgroundImage = cssUrl(next[frameAssets[i]]);
+        if (node) paintSkin(node, next[frameAssets[i]]);
       }
     }
     updateRailNodes();
@@ -828,6 +947,9 @@
       checked: false, selected: -1, shown: -1, hidden: false, focused: false,
       options: [], structuredOptions: false, optionsRevision: 0,
       customRevision: 0, customScale: 1000,
+      /* WIDGET_CHORD (a BUTTON's keycap, an ICONBUTTON's badge) and the
+       * chord WIDGET_TOOLTIP's text says the tooltip ends with. */
+      chord: '', tooltipChord: '',
       renderFlags: 0, renderQueued: false,
       row, control: null
     };
@@ -1003,6 +1125,12 @@
         model.className = 'tpc-model';
         row.appendChild(model);
         record.control = model;
+        /* One finger orbits, two pinch: the canvas well's rules. */
+        bindGestures(model, record, true);
+        bind(model, 'wheel', event => {
+          if (!wheelPinch(model, record, event)) return;
+          if (event.preventDefault) event.preventDefault();
+        });
         break;
       }
       case W.TABSTRIP:
@@ -1225,17 +1353,39 @@
     'ToolFlags', 'ToolPlace', 'ToolMove', 'ToolRotate', 'ToolDelete',
     'SearchGlass', 'TreeClosed', 'TreeOpen', 'RadioOn', 'RadioOff',
     'SliderTrack', 'SliderKnob', 'SplitterGrip', 'WarningGlyph', 'ErrorGlyph',
-    'RunButton', 'StopButton', 'BuildButton', 'SaveButton'
+    'RunButton', 'StopButton', 'BuildButton', 'SaveButton', 'SliderTrackLeft',
+    'SliderTrackRight'
   ];
   const TREE_LEAF = 0;
   const TREE_OPEN = 2;
   const VROW_H = 20;
+  /* A cells VLIST (TORIRS_CHROME_VLIST_CELLS in WIDGET_ADD's shape): a row's
+   * text is five fields split by the unit separator -- sprite, name, dim,
+   * keys, right (ui/uitree_debug_overlay.h ToriRSChrome_VListCells). */
+  const VLIST_CELLS = 1;
+  /* With CELLS: the keycap column is half the row, uncapped (workbench 6.8:
+   * ToriRSChrome_VListCellsWide, the Hotkeys panel's two chord cells). */
+  const VLIST_CELLS_WIDE = 2;
+  const CELL_SEP = '\x1f';
+  /* A sprite field of "-" is a row with no picture well; the sixth field is
+   * the row's mark: "!" the alert ink on name, dim part and keycaps, "*" the
+   * name in the accent (TORIRS_CHROME_CELL_MARK_*). */
+  const CELL_NO_SPRITE = '-';
+  const CELL_MARK_ALERT = '!';
+  const CELL_MARK_ACCENT = '*';
+  const CELL_KEYS_MAX = 8;
   const CODE_LINE_H = 17;
   const EV = {
     GRAPH_PRESS: 1, GRAPH_DRAG: 2, GRAPH_RELEASE: 3, GRAPH_MENU: 4,
-    GRAPH_HOVER: 5, CODE_REPLACE: 7, CODE_SPLIT: 8, CODE_JOIN: 9
+    GRAPH_HOVER: 5, CODE_REPLACE: 7, CODE_SPLIT: 8, CODE_JOIN: 9, GRAPH_KEY: 10
   };
-  const GRAPH_ITEM = { RECT: 0, RECT_OUTLINE: 1, LINE: 2, TEXT: 3 };
+  /* enum ToriRSChromeKey: what a focused well's keydown reports, negated. */
+  const CHROME_KEY = { BACKSPACE: 1, DELETE: 2, LEFT: 3, RIGHT: 4, ENTER: 7, ESCAPE: 8, UP: 9, DOWN: 10 };
+  const GRAPH_KEYCODES = {
+    8: CHROME_KEY.BACKSPACE, 13: CHROME_KEY.ENTER, 27: CHROME_KEY.ESCAPE, 37: CHROME_KEY.LEFT,
+    38: CHROME_KEY.UP, 39: CHROME_KEY.RIGHT, 40: CHROME_KEY.DOWN, 46: CHROME_KEY.DELETE
+  };
+  const GRAPH_ITEM = { RECT: 0, RECT_OUTLINE: 1, LINE: 2, TEXT: 3, IMAGE: 4 };
 
   function skinFile(slot) {
     const name = slot >= 0 && slot < SKIN_FILES.length ? SKIN_FILES[slot] : '';
@@ -1272,6 +1422,108 @@
     return 0;
   }
 
+  /* Gesture frames from the browser's own events (design section 14, the
+   * web's row: touch pairs, ctrl+wheel as a pinch, Safari's gesturechange),
+   * posted as GESTURE intents the model routes by its own rules
+   * (ToriRSChrome_GestureWidget). One finger on a model view orbits; two
+   * fingers pan, pinch and twist. Numbers are logical px and q16. */
+  const GESTURE = { PAN: 1, PINCH: 2, TWIST: 3 };
+  const GESTURE_PHASE = { BEGIN: 0, UPDATE: 1, END: 2 };
+
+  function postGesture(record, kind, point, dx, dy, fingers, scale, radians, phase) {
+    const q16 = value => Math.round(value * 65536);
+    postWidget(record, INTENT.GESTURE, kind,
+      `${Math.round(dx)} ${Math.round(dy)} ${fingers} ${q16(scale)} ${q16(radians)} ${phase}`,
+      point.x, point.y);
+  }
+
+  function touchPair(node, event) {
+    const touches = event.touches || [];
+    if (touches.length < 2) return null;
+    const a = editorPoint(node, touches[0]);
+    const b = editorPoint(node, touches[1]);
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    return {
+      x: (a.x + b.x) / 2, y: (a.y + b.y) / 2,
+      distance: Math.sqrt(dx * dx + dy * dy), angle: Math.atan2(dy, dx)
+    };
+  }
+
+  function bindGestures(node, record, oneFingerPans) {
+    let last = null;
+    let phase = GESTURE_PHASE.BEGIN;
+    let gestureScale = 1;
+    const stop = event => {
+      if (event.preventDefault) event.preventDefault();
+      else event.returnValue = false;
+    };
+    const point = at => ({ x: Math.floor(at.x), y: Math.floor(at.y) });
+    /* A single finger's start and end are left to the browser, so a tap is
+     * still the click it synthesises (a square picked, a well focused);
+     * only a moving finger, and a second one, are the gesture's. */
+    bind(node, 'touchstart', event => {
+      last = null;
+      phase = GESTURE_PHASE.BEGIN;
+      if ((event.touches || []).length >= 2) stop(event);
+    });
+    bind(node, 'touchmove', event => {
+      const touches = event.touches || [];
+      stop(event);
+      if (touches.length >= 2) {
+        const pair = touchPair(node, event);
+        if (last && last.fingers === 2) {
+          postGesture(record, GESTURE.PAN, point(pair), pair.x - last.x, pair.y - last.y, 2, 1, 0, phase);
+          if (last.distance > 0 && pair.distance > 0)
+            postGesture(record, GESTURE.PINCH, point(pair), 0, 0, 2, pair.distance / last.distance, 0, phase);
+          let turn = pair.angle - last.angle;
+          if (turn > Math.PI) turn -= 2 * Math.PI;
+          if (turn < -Math.PI) turn += 2 * Math.PI;
+          postGesture(record, GESTURE.TWIST, point(pair), 0, 0, 2, 1, turn, phase);
+          phase = GESTURE_PHASE.UPDATE;
+        }
+        last = { fingers: 2, x: pair.x, y: pair.y, distance: pair.distance, angle: pair.angle };
+        return;
+      }
+      if (touches.length !== 1 || !oneFingerPans) return;
+      const at = editorPoint(node, touches[0]);
+      if (last && last.fingers === 1) {
+        postGesture(record, GESTURE.PAN, at, at.x - last.x, at.y - last.y, 1, 1, 0, phase);
+        phase = GESTURE_PHASE.UPDATE;
+      }
+      last = { fingers: 1, x: at.x, y: at.y, distance: 0, angle: 0 };
+    });
+    bind(node, 'touchend', () => {
+      if (last && phase !== GESTURE_PHASE.BEGIN)
+        postGesture(record, GESTURE.PAN, point(last), 0, 0, last.fingers, 1, 0, GESTURE_PHASE.END);
+      last = null;
+    });
+    /* Safari's trackpad pinch: its scale is the gesture's total, so each
+     * change posts its ratio to the last. */
+    bind(node, 'gesturestart', event => { gestureScale = 1; stop(event); });
+    bind(node, 'gesturechange', event => {
+      const scale = Number(event.scale) || 1;
+      stop(event);
+      if (gestureScale > 0)
+        postGesture(record, GESTURE.PINCH, editorPoint(node, event), 0, 0, 2, scale / gestureScale, 0,
+          GESTURE_PHASE.UPDATE);
+      gestureScale = scale;
+    });
+  }
+
+  /** ctrl+wheel (a browser's trackpad pinch, or ctrl held over a mouse
+   *  wheel) as a continuous pinch: 1.25 a notch, as the canvas's
+   *  TORIRS_CHROME_PINCH_WHEEL_STEP, a fraction of a notch the same
+   *  fraction of the ratio. @return true when it was one. */
+  function wheelPinch(node, record, event) {
+    if (!event.ctrlKey) return false;
+    const notches = -(event.deltaY || -(event.wheelDelta || 0)) / 100;
+    if (!notches) return false;
+    postGesture(record, GESTURE.PINCH, editorPoint(node, event), 0, 0, 2,
+      Math.pow(1.25, notches), 0, GESTURE_PHASE.UPDATE);
+    return true;
+  }
+
   function createEditorWidget(record, row) {
     record.value = 0; record.first = 0; record.count = 0; record.step = 1; record.aux = 0;
     record.rowText = new Store();
@@ -1306,7 +1558,16 @@
         const code = record.kind === W.CODE;
         const lineH = code ? CODE_LINE_H : VROW_H;
         row.className += ' tpc-tall-row';
-        if (record.label) row.appendChild(labelNode(record.label));
+        record.cells = !code && (record.shape & VLIST_CELLS) !== 0;
+        record.cellsWide = record.cells && (record.shape & VLIST_CELLS_WIDE) !== 0;
+        if (record.cellsWide) row.className += ' tpc-cells-wide';
+        if (record.label && record.cells) {
+          /* A cells list's caption is its header row, in the rows' columns. */
+          const head = document.createElement('div');
+          head.className = 'tpc-vlist-head';
+          renderCells(head, record.label, record, -1, true);
+          row.appendChild(head);
+        } else if (record.label) row.appendChild(labelNode(record.label));
         const list = document.createElement('div');
         list.className = code ? 'tpc-vlist tpc-code' : 'tpc-vlist';
         list.style.height = `${Math.max(1, record.rows) * lineH}px`;
@@ -1340,10 +1601,17 @@
         const icon = document.createElement('span');
         icon.className = 'tpc-icon';
         button.appendChild(icon);
+        /* The chord badge: in the box's bottom-right corner, over a black
+         * plate, hidden until a WIDGET_CHORD gives it something to say. */
+        const badge = document.createElement('kbd');
+        badge.className = 'tpc-chord-badge';
+        hidden(badge, true);
+        button.appendChild(badge);
         bind(button, 'click', () => postWidget(record, INTENT.ACTIVATE));
         row.appendChild(button);
         record.control = button;
         record.icon = icon;
+        record.badge = badge;
         break;
       }
       case W.SLIDER: {
@@ -1419,10 +1687,28 @@
           const delta = (event.deltaY || -(event.wheelDelta || 0)) > 0 ? 1 : -1;
           if (event.preventDefault) event.preventDefault();
           else event.returnValue = false;
+          if (wheelPinch(well, record, event)) return;
           postWidget(record, INTENT.GRAPH_WHEEL, delta, '', point.x, point.y);
         };
         bind(well, 'wheel', wheel);
         bind(well, 'mousewheel', wheel);
+        /* The keys the native well hands its host (the arrows, Enter,
+         * Backspace, Delete, Escape, + and -), with the modifiers the native host
+         * reads from its own key state: 1 Ctrl, 2 Shift, 4 Alt. */
+        bind(well, 'keydown', event => {
+          const code = event.keyCode || event.which || 0;
+          const mods = (event.ctrlKey || event.metaKey ? 1 : 0) | (event.shiftKey ? 2 : 0) | (event.altKey ? 4 : 0);
+          let value = 0;
+          if (GRAPH_KEYCODES[code]) value = -GRAPH_KEYCODES[code];
+          else if (event.key === '+' || event.key === '-' || event.key === '=' || event.key === '_')
+            value = event.key.charCodeAt(0);
+          if (!value) return;
+          if (event.preventDefault) event.preventDefault();
+          else event.returnValue = false;
+          postWidget(record, INTENT.GRAPH, EV.GRAPH_KEY, '', value, mods);
+          if (value === -CHROME_KEY.ESCAPE && well.blur) well.blur();
+        });
+        bindGestures(well, record, false);
         row.appendChild(well);
         record.control = well;
         record.hoverKey = 0;
@@ -1491,6 +1777,64 @@
     return input;
   }
 
+  /**
+   * One cells row (or the header): a 16px picture well (a scene sprite has no
+   * pixels in a page, so it is the empty cell the canvas draws before its
+   * picture comes), the name, the dim part, the keycaps -- each a cell a click
+   * picks, x = its 1-based index -- and the right field. The name and dim part
+   * ellipsise in CSS and the row's title says them whole (rule R2).
+   */
+  function renderCells(line, value, record, index, header) {
+    const fields = String(value === undefined ? '' : value).split(CELL_SEP);
+    const field = at => (fields[at] === undefined ? '' : fields[at]);
+    line.className += header ? ' tpc-cells tpc-cells-head' : ' tpc-cells';
+    const mark = header ? '' : field(5).charAt(0);
+    if (mark === CELL_MARK_ALERT) line.className += ' tpc-cell-alert';
+    else if (mark === CELL_MARK_ACCENT) line.className += ' tpc-cell-accent';
+    if (!header && field(0) !== CELL_NO_SPRITE) {
+      const thumb = document.createElement('span');
+      thumb.className = 'tpc-cell-thumb';
+      line.appendChild(thumb);
+    } else if (!header) line.className += ' tpc-cells-nowell';
+    const names = document.createElement('span');
+    names.className = 'tpc-cell-names';
+    const name = document.createElement('span');
+    name.className = 'tpc-cell-name';
+    setText(name, field(1));
+    names.appendChild(name);
+    if (field(2)) {
+      const dim = document.createElement('span');
+      dim.className = 'tpc-cell-dim';
+      setText(dim, ` ${field(2)}`);
+      names.appendChild(dim);
+    }
+    line.appendChild(names);
+    const keys = document.createElement('span');
+    keys.className = 'tpc-cell-keys';
+    if (header) setText(keys, field(3));
+    else {
+      const caps = field(3).split(' ').filter(cap => cap.length > 0).slice(0, CELL_KEYS_MAX);
+      for (let k = 0; k < caps.length; k++) {
+        const cap = document.createElement('kbd');
+        cap.className = 'tpc-cell-key';
+        setText(cap, caps[k]);
+        const cell = k + 1;
+        bind(cap, 'click', event => {
+          if (event && event.stopPropagation) event.stopPropagation();
+          postWidget(record, INTENT.PICK, index, '', cell);
+        });
+        keys.appendChild(cap);
+      }
+    }
+    line.appendChild(keys);
+    const right = document.createElement('span');
+    right.className = 'tpc-cell-right';
+    setText(right, field(4));
+    line.appendChild(right);
+    const whole = field(2) ? `${field(1)} ${field(2)}` : field(1);
+    if (whole) line.title = whole;
+  }
+
   function renderListRows(record) {
     const code = record.kind === W.CODE;
     const lineH = code ? CODE_LINE_H : VROW_H;
@@ -1524,6 +1868,8 @@
             queueWidgetRender(record, RENDER.CONTENT);
           });
         }
+      } else if (record.cells) {
+        if (text !== undefined) renderCells(line, text, record, index, false);
       } else {
         setText(line, text === undefined ? '' : text);
       }
@@ -1545,9 +1891,133 @@
     }
   }
 
+  /* The picture a scene id names, as a canvas drawImage can take: built
+   * from its bytes once per version. */
+  function graphImageSource(image) {
+    if (image.canvas) return image.canvas;
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext && canvas.getContext('2d');
+    if (!context) return null;
+    context.putImageData(new global.ImageData(image.bytes, image.width, image.height), 0, 0);
+    image.canvas = canvas;
+    return canvas;
+  }
+
+  /*
+   * The well's IMAGE items onto one canvas under the item list, in list
+   * order (the map's pictures, then its icons). A picture the page has not
+   * been sent draws nothing until it comes (graph.image re-renders every well
+   * naming it). IE8 has no canvas: it draws no picture, as before.
+   */
+  function renderGraphImages(record, well) {
+    let images = 0;
+    let width = 0;
+    let height = 0;
+    /* What the canvas would show: each IMAGE item's place and alpha and the
+     * picture it names (an image record is replaced whole by graph.image). */
+    const signature = [];
+    const pictures = [];
+    for (let i = 0; i < record.items.length; i++) {
+      const item = record.items[i];
+      if (!item || item.kind !== GRAPH_ITEM.IMAGE) continue;
+      images++;
+      width = Math.max(width, item.x + item.w);
+      height = Math.max(height, item.y + item.h);
+      signature.push(item.key, item.x, item.y, item.w, item.h, item.color);
+      pictures.push(state.graphImages.get(item.key) || null);
+    }
+    if (!images || legacy || !global.ImageData || !global.Uint8ClampedArray) {
+      record.graphImagesDrawn = 0;
+      record.graphImageSignature = null;
+      return;
+    }
+    const canvas = record.graphCanvas || document.createElement('canvas');
+    record.graphCanvas = canvas;
+    canvas.className = 'tpc-graph-canvas';
+    /* Assigning width or height throws the backing bitmap away even when
+     * the value is the same, so only a changed size is assigned. */
+    const sideW = Math.max(1, Math.min(MAX_GRAPH_CANVAS_SIDE, width));
+    const sideH = Math.max(1, Math.min(MAX_GRAPH_CANVAS_SIDE, height));
+    let resized = false;
+    if (canvas.width !== sideW) { canvas.width = sideW; resized = true; }
+    if (canvas.height !== sideH) { canvas.height = sideH; resized = true; }
+    canvas.style.width = `${canvas.width}px`;
+    canvas.style.height = `${canvas.height}px`;
+    well.appendChild(canvas);
+    /* A render that changed only the well's other items (the picker's hover
+     * outline, a mark) keeps the pictures already on the canvas. */
+    const signatureText = signature.join(',');
+    let same = !resized && record.graphImageSignature === signatureText && record.graphImagePictures &&
+      record.graphImagePictures.length === pictures.length;
+    for (let i = 0; same && i < pictures.length; i++) {
+      if (record.graphImagePictures[i] !== pictures[i]) same = false;
+    }
+    if (same) return;
+    record.graphImagesDrawn = 0;
+    record.graphImageSignature = null;
+    const context = canvas.getContext && canvas.getContext('2d');
+    if (!context) return;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.imageSmoothingEnabled = false;
+    let drawn = 0;
+    for (let i = 0; i < record.items.length; i++) {
+      const item = record.items[i];
+      if (!item || item.kind !== GRAPH_ITEM.IMAGE || item.w <= 0 || item.h <= 0) continue;
+      const image = state.graphImages.get(item.key);
+      if (!image) continue;
+      const source = graphImageSource(image);
+      if (!source) continue;
+      /* The item's colour is its transparency, 0 opaque .. 255 invisible. */
+      context.globalAlpha = Math.max(0, Math.min(255, 255 - (item.color & 255))) / 255;
+      context.drawImage(source, 0, 0, image.width, image.height, item.x, item.y, item.w, item.h);
+      drawn++;
+    }
+    context.globalAlpha = 1;
+    record.graphImagesDrawn = drawn;
+    record.graphImageSignature = signatureText;
+    record.graphImagePictures = pictures;
+    canvas.setAttribute('data-images', String(drawn));
+  }
+
+  /** graph.image: one picture by scene id, then every well that names it
+   *  drawn again. */
+  function applyGraphImage(message) {
+    const sceneId = integer(message.sceneId, 0);
+    const width = integer(message.width, 0);
+    const height = integer(message.height, 0);
+    const version = unsigned(message.version);
+    if (legacy || sceneId <= 0 || width <= 0 || height <= 0 || width > MAX_GRAPH_IMAGE_SIDE ||
+        height > MAX_GRAPH_IMAGE_SIDE || !global.atob || !global.Uint8ClampedArray) return false;
+    const old = state.graphImages.get(sceneId);
+    if (!old && state.graphImages.count >= MAX_GRAPH_IMAGES) return false;
+    let bytes;
+    try {
+      const binary = global.atob(text(message.rgbaBase64, width * height * 6));
+      if (binary.length !== width * height * 4) return false;
+      bytes = new global.Uint8ClampedArray(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i) & 255;
+    }
+    catch (error) { return false; }
+    state.graphImages.set(sceneId, { width, height, version, bytes, canvas: null });
+    state.widgets.each(record => {
+      if (record.kind !== W.GRAPH || !record.items) return;
+      for (let i = 0; i < record.items.length; i++) {
+        const item = record.items[i];
+        if (item && item.kind === GRAPH_ITEM.IMAGE && item.key === sceneId) {
+          queueWidgetRender(record, RENDER.CONTENT);
+          return;
+        }
+      }
+    });
+    return true;
+  }
+
   function renderGraph(record) {
     const well = record.control;
     clear(well);
+    renderGraphImages(record, well);
     for (let i = 0; i < record.items.length; i++) {
       const item = record.items[i];
       if (!item) continue;
@@ -1582,21 +2052,93 @@
     }
   }
 
+  /**
+   * The hover text the model's tooltip shows: the widget's own, an
+   * ICONBUTTON's label when it has none, and -- after two spaces, in
+   * brackets -- the chord it ends with: its own WIDGET_TOOLTIP chord, else the
+   * chord a BUTTON or ICONBUTTON wears. A title attribute cannot hold a
+   * keycap, so the brackets are what stands for one here.
+   */
+  function tooltipTitle(record) {
+    const tip = record.tooltip || (record.kind === W.ICONBUTTON ? record.label : '') || '';
+    if (!tip) return '';
+    const chord = record.tooltipChord ||
+      (record.kind === W.BUTTON || record.kind === W.ICONBUTTON ? record.chord : '');
+    return chord ? `${text(tip, 63)}  [${text(chord, 23)}]` : text(tip, 63);
+  }
+
+  function renderTooltip(record) {
+    const title = tooltipTitle(record);
+    if (title) record.row.title = title;
+    else if (record.row.removeAttribute) record.row.removeAttribute('title');
+    if (record.chord && record.row.setAttribute) record.row.setAttribute('data-tpc-chord', record.chord);
+    else if (record.row.removeAttribute) record.row.removeAttribute('data-tpc-chord');
+  }
+
+  /**
+   * A BUTTON's caption, and its chord as a keycap after it (the in-canvas
+   * chrome draws the same key right-aligned inside the plate). With no chord
+   * the button holds its caption as text, as it always has; with one it
+   * holds a caption span, which ellipses in the room the key leaves, and a
+   * KBD styled from torirs_chrome_metrics.h's KEYCAP_* numbers.
+   */
+  function renderButtonCaption(record) {
+    const caption = record.text || record.label;
+    if (!record.chord) {
+      if (record.keycap) {
+        clear(record.control);
+        record.keycap = null;
+        record.captionNode = null;
+        toggleClass(record.control, 'tpc-has-chord', false);
+        if (legacy) record.control.style.paddingRight = '';
+      }
+      setText(record.control, caption);
+      return;
+    }
+    if (!record.keycap) {
+      clear(record.control);
+      setText(record.control, '');
+      const span = document.createElement('span');
+      span.className = 'tpc-button-caption';
+      const key = document.createElement('kbd');
+      key.className = 'tpc-keycap';
+      record.control.appendChild(span);
+      record.control.appendChild(key);
+      record.captionNode = span;
+      record.keycap = key;
+      toggleClass(record.control, 'tpc-has-chord', true);
+    }
+    setText(record.captionNode, caption);
+    setText(record.keycap, record.chord);
+    if (legacy) fitLegacyKeycap(record);
+  }
+
+  /**
+   * The downlevel page has no flex: its key is placed absolutely and the
+   * caption keeps clear of it by right padding (legacy-ie8.css). A fixed
+   * padding lets a wide key ("Ctrl+Shift+Z") cover the caption, so the
+   * padding is the key's own width plus KEYCAP_INSET 3 and KEYCAP_GAP 4:
+   * measured once the key is laid out, else estimated from the Small face's
+   * advance (about 6px a character at 10px, plus the key's air and rule).
+   */
+  function fitLegacyKeycap(record) {
+    const measured = integer(record.keycap.offsetWidth, 0);
+    const width = measured > 0 ? measured : record.chord.length * 6 + 2 * 2 + 2;
+    record.control.style.paddingRight = (width + 3 + 4) + 'px';
+  }
+
   function renderEditorContent(record) {
     if (!record.control) return;
-    if (record.tooltip || record.kind === W.ICONBUTTON) {
-      const tip = record.tooltip || record.label || '';
-      if (tip) record.row.title = text(tip, 63);
-      else if (record.row.removeAttribute) record.row.removeAttribute('title');
-    }
+    if (record.tooltip || record.kind === W.ICONBUTTON) renderTooltip(record);
     switch (record.kind) {
       case W.TREE: {
         setText(record.caption, record.label || record.text);
         toggleClass(record.row, 'tpc-selected', !!record.checked);
         hidden(record.expander, record.value === TREE_LEAF);
         toggleClass(record.expander, 'tpc-tree-open', record.value === TREE_OPEN);
-        if (!legacy) record.expander.style.backgroundImage =
-          cssUrl(record.value === TREE_OPEN ? 'skin/TreeOpen.png' : 'skin/TreeClosed.png');
+        if (!legacy)
+          paintSkin(record.expander,
+            record.value === TREE_OPEN ? 'skin/TreeOpen.png' : 'skin/TreeClosed.png');
         if (record.color) record.caption.style.color = cssColor(record.color);
         record.row.setAttribute('aria-expanded',
           record.value === TREE_LEAF ? 'false' : (record.value === TREE_OPEN ? 'true' : 'false'));
@@ -1608,11 +2150,13 @@
         break;
       case W.ICONBUTTON: {
         const file = skinFile(record.value);
-        if (!legacy && file) record.icon.style.backgroundImage = cssUrl(file);
+        if (!legacy && file) paintSkin(record.icon, file);
         setText(record.icon, file ? '' : (record.label || '?').slice(0, 2));
         record.control.setAttribute('aria-label', text(record.label || 'Tool', 63));
         record.control.setAttribute('aria-pressed', record.checked ? 'true' : 'false');
         toggleClass(record.control, 'tpc-pressed', !!record.checked);
+        setText(record.badge, record.chord);
+        hidden(record.badge, !record.chord);
         break;
       }
       case W.SLIDER:
@@ -1626,8 +2170,7 @@
         record.control.checked = !!record.checked;
         setText(record.caption, record.label || record.text);
         if (!legacy) {
-          record.control.style.backgroundImage =
-            cssUrl(record.checked ? 'skin/RadioOn.png' : 'skin/RadioOff.png');
+          paintSkin(record.control, record.checked ? 'skin/RadioOn.png' : 'skin/RadioOff.png');
         }
         break;
       case W.GRAPH:
@@ -1703,11 +2246,14 @@
       case CMD.WIDGET_TOOLTIP:
         if (!record) return;
         record.tooltip = command.label;
+        record.tooltipChord = text(command.text, 23);
         if (isEditorKind(record.kind)) queueWidgetRender(record, RENDER.CONTENT);
-        else if (record.row) {
-          if (command.label) record.row.title = command.label;
-          else if (record.row.removeAttribute) record.row.removeAttribute('title');
-        }
+        else if (record.row) renderTooltip(record);
+        return;
+      case CMD.WIDGET_CHORD:
+        if (!record || (record.kind !== W.BUTTON && record.kind !== W.ICONBUTTON)) return;
+        record.chord = text(command.label, 23);
+        queueWidgetRender(record, RENDER.CONTENT);
         return;
       default:
         return;
@@ -1776,9 +2322,13 @@
         if (record.control.value !== record.text) record.control.value = record.text;
         break;
       case W.MENUITEM:
-      case W.BUTTON:
         skinButton(record.control);
         setText(record.control, record.text || record.label);
+        break;
+      case W.BUTTON:
+        skinButton(record.control);
+        renderButtonCaption(record);
+        renderTooltip(record);
         break;
       case W.DROPDOWN:
         skinDropdown(record);
@@ -1870,8 +2420,57 @@
     return `${Math.max(48, Math.min(512, rows || 120))}px`;
   }
 
+  /* The chrome scale (TORIRS_CHROME_CMD_SCALE): value / den device pixels
+   * per chrome pixel, 1.25x as 5 / 4. The page keeps authoring in 1x chrome
+   * pixels and zooms the whole shell by the ratio; its fonts are outlines and
+   * its skin is CSS, so nothing else has to change. The chrome's and not the
+   * page's: a snapshot without one does not reset it, because the C side
+   * tells an executor its scale once, not once per page; the hosts carry the
+   * last one they passed in every snapshot (scaleQ / scaleDen / scaleText).
+   *
+   * The third argument is the chrome's text rendering: 1 ("smooth always") sets
+   * .tpc-text-smooth on the root, and the stylesheets draw the synthesized
+   * vector faces (font/ToriRS*-Vector) at every scale; 0 keeps the
+   * bitmap-derived faces at an integer device scale and the vector ones under
+   * .tpc-dpr-fractional only. The advances are the same either way, so
+   * nothing reflows. */
+  function applyScale(value, den, text) {
+    const q = Math.max(1, value | 0);
+    const d = Math.max(1, den | 0);
+    const smooth = text ? 1 : 0;
+    if (smooth !== state.scaleText) {
+      state.scaleText = smooth;
+      if (document.documentElement)
+        toggleClass(document.documentElement, 'tpc-text-smooth', smooth === 1);
+    }
+    if (q === state.scaleQ && d === state.scaleDen) return;
+    state.scaleQ = q;
+    state.scaleDen = d;
+    shell.style.zoom = q === d ? '' : String(q / d);
+    /* The device pixels under every image moved: the tiers and the
+     * resampling with them. */
+    if (state.themeRevision) repaintSkins();
+    else updateDensityClass();
+    reportLayout();
+  }
+
+  /* image-rendering: pixelated holds the art's pixels at an INTEGER device
+   * scale, where every art pixel is whole device pixels. At a fractional one
+   * (DPR 1.5, or a 1.25x zoom) nearest-neighbour drops and doubles columns,
+   * so the stylesheet lets the browser area-average under
+   * .tpc-dpr-fractional (docs/CHROME_SCALE.md). */
+  function updateDensityClass() {
+    if (legacy || !document.documentElement) return;
+    const s = deviceScale();
+    toggleClass(document.documentElement, 'tpc-dpr-fractional', Math.abs(s - Math.round(s)) > 0.01);
+  }
+
   function applyCommand(raw) {
     const command = normalizeCommand(raw);
+    if (command.k === CMD.SCALE) {
+      applyScale(command.v, command.cw, command.ch);
+      return;
+    }
     if (command.k === CMD.CHECK_STYLE) {
       state.checkStyle = command.v;
       toggleClass(shell, 'tpc-check-square', command.v === 1);
@@ -2013,6 +2612,10 @@
     state.panel = panel;
     state.activeTab = 0;
     state.checkStyle = integer(message.checkStyle, 0);
+    /* A snapshot states the chrome scale when its sender knows it; one that
+     * does not (an older host) leaves the page at the scale it was told. */
+    if (message.scaleQ !== undefined)
+      applyScale(integer(message.scaleQ, 4), integer(message.scaleDen, 4), integer(message.scaleText, 0));
     setText(title, message.title || 'Plugins');
     hidden(pane, false);
     toggleClass(shell, 'tpc-collapsed', false);
@@ -2086,7 +2689,11 @@
       if (!customWidth && record.kind === W.CUSTOM && !record.hidden && record.control)
         customWidth = Math.max(0, integer(record.control.clientWidth, 0));
     });
-    const scaleMilli = Math.max(1, Math.round(Number(global.devicePixelRatio || 1) * 1000));
+    /* Device pixels per chrome pixel: the display's ratio times the chrome's
+     * own zoom, so a custom well's bitmap is painted for the pixels it lands
+     * on. The pane's box is unzoomed CSS pixels, i.e. chrome pixels. */
+    const scaleMilli = Math.max(1, Math.round(
+      Number(global.devicePixelRatio || 1) * state.scaleQ / state.scaleDen * 1000));
     const sizeClass = width < 320 ? 0 : (width >= 480 ? 2 : 1);
     const key = [state.rail.selectionGeneration, state.pageGeneration, width, height,
       customWidth, scaleMilli, sizeClass, visible ? 1 : 0, state.rail.railHidden ? 1 : 0].join(':');
@@ -2136,6 +2743,7 @@
           clearPage();
         break;
       case 'custom.bitmap': applyCustomBitmap(message); break;
+      case 'graph.image': return applyGraphImage(message);
       default: return false;
     }
     return true;
@@ -2634,8 +3242,7 @@
     box.className = 'tpc-dropdown-list';
     box.setAttribute('role', 'listbox');
     if (!legacy)
-      box.style.backgroundImage = cssUrl(safeUrl(state.theme.dropdownBody) ||
-        'skin/DropdownBody.png');
+      paintSkin(box, safeUrl(state.theme.dropdownBody) || 'skin/DropdownBody.png');
     const scroller = document.createElement('div');
     scroller.className = 'tpc-dropdown-scroller';
     const rows = [];
@@ -2732,6 +3339,8 @@
   global.onresize = () => {
     popupHide();
     dropdownHide();
+    /* A move to a display of another ratio arrives as a resize. */
+    updateDensityClass();
     reportLayout();
   };
   sizeLegacyViewport();
@@ -2755,7 +3364,10 @@
         panel: state.panel,
         widgetCount: state.widgets.count,
         queuedMessages: state.messages.length,
-        renderVisits: state.renderVisits
+        renderVisits: state.renderVisits,
+        scaleQ: state.scaleQ,
+        scaleDen: state.scaleDen,
+        scaleText: state.scaleText
       };
     },
     constants: { CMD, W, INTENT }

@@ -173,6 +173,12 @@
  *                  string source_key,          in that storage)
  *                  i32 fill_height,
  *                  i32 fill_underlay
+ *                  (`template` may carry TORIRSMAPED_DOC_CREATE_IN_STROKE,
+ *                   to a server with TORIRSMAPED_CAP_DOC_CREATE_STROKE: the
+ *                   fill then JOINS the stroke a client has open instead of
+ *                   being its own undo step -- the instance helper's many
+ *                   squares, spawns and files as one step. A server without
+ *                   the bit refuses the template.)
  *
  * Strings are `u32 length, bytes`, never NUL-terminated on the wire.
  *
@@ -297,7 +303,51 @@ enum ToriRSMapEdCapability
     TORIRSMAPED_CAP_LIVE = 2,
     TORIRSMAPED_CAP_CATALOG = 4,
     TORIRSMAPED_CAP_SPAWN_VIEW = 8,
+    /** CATALOG_QUERY takes TORIRSMAPED_CATALOG_PROGRESS: the answer never
+     *  waits for the catalog's warm build (a partial index while it runs)
+     *  and FACT_CATALOG_PAGE then ends with `u32 page_flags, u32 done,
+     *  u32 total` (torirs_maped_catalog.h). A client sends the flag only to
+     *  a server with this bit; without it the page is the v2 payload. */
+    TORIRSMAPED_CAP_CATALOG_PROGRESS = 16,
+    /** CATALOG_SQUARES takes a `u32 flags` body with
+     *  TORIRSMAPED_CATALOG_SQUARES_LOCS: every row of that connection's
+     *  FACT_CATALOG_SQUARES and _CHANGED is then flagged
+     *  TORIRSMAPED_SQUARE_LOC_COUNT and ends with `u32 loc_count`
+     *  (torirs_maped_catalog.h). A client sends the body only to a server
+     *  with this bit; without it every row is the v2 one. */
+    TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS = 32,
+    /** The lanes' workbench frames (torirs_maped_lanes.h): LANE_SWITCH,
+     *  LANE_CHANGES' count-only body and FACT_LANE_COUNT, and the trailing
+     *  fields of FACT_LANE_INFO and FACT_LANE_LIST. A client sends a body to
+     *  LANE_CHANGES, or LANE_SWITCH at all, only to a server with this bit. */
+    TORIRSMAPED_CAP_LANES_V2 = 64,
+    /** DOC_CREATE takes TORIRSMAPED_DOC_CREATE_IN_STROKE in its template
+     *  word: the fill joins an open stroke (workbench 6.5, the instance
+     *  helper's one undo step). A client sets the flag only to a server with
+     *  this bit. */
+    TORIRSMAPED_CAP_DOC_CREATE_STROKE = 128,
+    /** The lane's GAME server takes the map_instance_* script commands
+     *  (ss_opcode.h 11009..11014, docs/map_instances.md) for an editor-made
+     *  trigger to build a runtime instance with. RESERVED: nothing sets it.
+     *  The commands exist in this tree's torirsserver, but the live link's
+     *  CTL_FACT_HELLO (torirs_maped_live.h) carries no capability word, so
+     *  the editor server cannot learn it of an attached server; the instance
+     *  dialog's "runtime map instance" chip stays disabled and says so. */
+    TORIRSMAPED_CAP_MAP_INSTANCE = 256,
+    /** CATALOG_USES / FACT_CATALOG_USES (workbench 6.6, the Record panel's
+     *  Where used tab; torirs_maped_catalog.h). A client sends CATALOG_USES
+     *  only to a server with this bit. Set with TORIRSMAPED_CAP_CATALOG. */
+    TORIRSMAPED_CAP_CATALOG_USES = 512,
+    /** BUILD offers TORIRSMAPED_BUILD_CHECK and TORIRSMAPED_BUILD_CS2
+     *  (workbench 6.6, torirs_maped_build.h): the Triggers panel's Check and
+     *  the interface editor's compile go to the server as jobs. Set with
+     *  TORIRSMAPED_CAP_BUILD; an older server answers either UNSUPPORTED. */
+    TORIRSMAPED_CAP_BUILD_CHECK = 1024,
 };
+
+/** DOC_CREATE's template word: OR'ed onto the template, the fill joins the
+ *  stroke a client has open (TORIRSMAPED_CAP_DOC_CREATE_STROKE). */
+#define TORIRSMAPED_DOC_CREATE_IN_STROKE 0x100u
 
 /** What a connection is for. Informational today (the server relays every
  *  broadcast to every session); the seam where per-role filtering would go. */
@@ -340,7 +390,8 @@ enum ToriRSMapEdStateKey
      *  itself (editor_ui.c ui_tools_pack): brush radius, falloff, step,
      *  strength; underlay id, overlay id, overlay none, overlay shape,
      *  overlay rotation; flags value; place shape, place rotation; view
-     *  level, view solo -- TORIRSMAPED_TOOLS_VALUES in that order. */
+     *  level, view solo; Fit walls to neighbours (workbench 6.3) --
+     *  TORIRSMAPED_TOOLS_VALUES in that order. */
     TORIRSMAPED_STATE_TOOLS = 7,
     /** A window with no world of its own (a popped-out Squares panel) asks
      *  the windows that show one to open a square: map_x, map_z, add (1
@@ -348,11 +399,21 @@ enum ToriRSMapEdStateKey
      *  same square asked twice is two requests (editor_ui.c
      *  Editor_UiOpenSquare / Editor_UiApplyState). */
     TORIRSMAPED_STATE_OPEN_SQUARE = 8,
+    /** A popped-out window's Dock button (workbench 6.0b, design #workbench
+     *  "Every panel pops out"): the registry index of the module it showed
+     *  (EditorUi::panels order, which every window of one build registers
+     *  alike), a serial, so docking the same panel twice is two requests,
+     *  and where it was scrolled: the panel's scroll in logical px and its
+     *  first list's first row (-1 none), which the docked panel takes.
+     *  The window that shows the panel set opens that panel again exactly as
+     *  View > <panel> does; the popped-out window then closes (editor_ui.c
+     *  Editor_UiDockBack / Editor_UiApplyState). */
+    TORIRSMAPED_STATE_DOCK_PANEL = 9,
 };
 
 enum
 {
-    TORIRSMAPED_TOOLS_VALUES = 14,
+    TORIRSMAPED_TOOLS_VALUES = 15,
 };
 
 enum
@@ -617,6 +678,29 @@ enum
  * The file layer is the same EditorHost local binding a desktop session used
  * to call directly — the server owns it now, and the wire is the only way in.
  */
+/** One lane's change counts as a walk of its mirror last found them
+ *  (torirs_maped_lanes_wire.c): FACT_LANE_COUNT and FACT_LANE_LIST answer
+ *  from here, and walk again only when a request that can write a tree has
+ *  arrived since, or (another lane, or this one while another server holds
+ *  it) the entry is older than TORIRSMAPED_LANE_COUNT_STALE_S, or the Lanes
+ *  panel's Refresh asks (TORIRSMAPED_LANE_LIST_RESCAN). */
+struct ToriRSMapEdLaneCountCache
+{
+    char name[TORIRSMAPED_LANE_NAME_MAX + 8];
+    int used;
+    int total;
+    struct ToriRSMapEdLaneCounts counts;
+    /** `lane_writes_own` / `lane_writes_all` when it was walked. */
+    uint32_t writes_own;
+    uint32_t writes_all;
+    long long walked_at;
+};
+
+enum
+{
+    TORIRSMAPED_LANE_COUNT_STALE_S = 60,
+};
+
 struct ToriRSMapEd
 {
     struct EditorHost files;
@@ -678,6 +762,15 @@ struct ToriRSMapEd
      *  (torirs_maped_build.h, torirs_maped_live.h). Created at Open; the
      *  bindings stay empty until a host sets them (capabilities build/live). */
     struct ToriRSMapEdJobs* jobs;
+
+    /** The lanes' change counts (above). `lane_writes_own` bumps on every
+     *  request that can write this server's tree (a save, a bake, a create,
+     *  a BUILD or RUN and its end, an accounts frame); `lane_writes_all` on
+     *  a publish, a discard or a lane made (they change other lanes, or the
+     *  base every lane is counted against). */
+    struct ToriRSMapEdLaneCountCache lane_counts[TORIRSMAPED_LANES_MAX];
+    uint32_t lane_writes_own;
+    uint32_t lane_writes_all;
 };
 
 /**
@@ -736,6 +829,9 @@ struct ToriRSMapEdSession
     /** The protocol this peer speaks: TORIRSMAPED_PROTO_VERSION_V1 or
      *  TORIRSMAPED_PROTO_VERSION, from HELLO. Facts are encoded per peer. */
     uint32_t version;
+    /** The peer asked CATALOG_SQUARES with TORIRSMAPED_CATALOG_SQUARES_LOCS:
+     *  its atlas rows (answers and _CHANGED broadcasts) carry loc_count. */
+    int catalog_square_locs;
 };
 
 /**

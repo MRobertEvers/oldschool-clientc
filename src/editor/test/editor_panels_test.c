@@ -15,6 +15,7 @@
 #include "editor/editor_cfg.h"
 #include "editor/editor_cmd.h"
 #include "editor/editor_doc.h"
+#include "editor/editor_floorcolor.h"
 #include "editor/editor_script.h"
 #include "editor/builder/builder_ssc.h"
 #include "editor/editor_host.h"
@@ -26,6 +27,8 @@
 #include "editor/panels/edpanel_newform.h"
 #include "editor/panels/edpanel_ops.h"
 #include "editor/panels/edpanel_picker.h"
+#include "editor/panels/edpanel_picker_find.h"
+#include "editor/panels/edpanel_picker_nav.h"
 #include "editor/panels/edpanel_shapes.h"
 #include "editor/panels/edpanels.h"
 #include "editor/editor_spawn.h"
@@ -33,11 +36,14 @@
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
+#include "ui/torirs_chrome_metrics.h"
 #include "ui/uitree_debug_overlay.h"
 
+#include "osrs/palette.h"
 #include <rscache.h>
 
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -72,6 +78,22 @@ static struct Editor_Cmd g_cmds[EDITOR_RECT_TILES_MAX];
 static struct Editor_TileClip g_clip;
 
 /* ---- helpers --------------------------------------------------------------------- */
+
+/**
+ * The checks here drive the panels as windows of their own -- dragged by
+ * their title bars, two of one default group shown at once, found by their
+ * titles -- as they were written before panel groups (workbench 6.0). So a
+ * registry from Editor_UiRegisterToolsPanels takes every module out of its
+ * default group first; editor_groups_test.c (test-editor-groups) tests the
+ * groups themselves.
+ */
+static void
+ungroup_all(struct EditorUi* ui)
+{
+    for( int i = 0; i < ui->panel_count; i++ )
+        if( Editor_UiGroupOf(ui, ui->panels[i].name) >= 0 )
+            Editor_UiLeaveGroup(ui, ui->panels[i].name);
+}
 
 static int
 apply_all(
@@ -228,8 +250,26 @@ fake_floor_rgb(
     uint32_t* out)
 {
     (void)user;
+    /* Overlays past 700 are "not loaded": Every id asks for them. */
+    if( is_overlay && id > 700 )
+        return 0;
     *out = is_overlay ? 0x8040c0u + (uint32_t)id : 0x40a040u + (uint32_t)id;
     return 1;
+}
+
+static int g_floor_requests;
+static int g_floor_request_first;
+
+static void
+fake_floor_request(
+    void* user,
+    int is_overlay,
+    int id)
+{
+    (void)user;
+    if( g_floor_requests == 0 )
+        g_floor_request_first = is_overlay ? id : -id;
+    g_floor_requests++;
 }
 
 static int
@@ -1021,8 +1061,8 @@ test_catalog_panel(void)
     cat_frame();
     model = Editor_Catalog_Model(&g_cat_ui);
     CHECK(model && model->queries == 1, "catalog: opening asks once");
-    Editor_CatalogModelCountText(model, text, sizeof(text));
-    CHECK(strcmp(text, "2 of 2 loc") == 0 && cat_widget(panel, TORIRS_CHROME_W_LABEL, text) >= 0,
+    Editor_CatalogModelRangeText(model, 0, text, sizeof(text));
+    CHECK(strcmp(text, "1 to 2 of 2 loc") == 0 && cat_widget(panel, TORIRS_CHROME_W_LABEL, text) >= 0,
         "catalog: the count row reads %s from the server's total, not the provider's", text);
     for( int i = 0; i < 3; i++ )
         cat_frame();
@@ -1645,6 +1685,61 @@ test_picker_gestures(
     CHECK(fabs(picker->zoom / (zoom * 1.5) - 1.0) < 1e-4, "a browser pinch zooms by its scale only (%.3f -> %.3f)", zoom,
         picker->zoom);
 
+    /* The bus's gesture frames (workbench 6.1) reach the same picker through
+     * ToriRSChrome_Gesture: a PINCH frame zooms by its exact ratio about its
+     * centre, the map point there within a pixel of where it was; a
+     * two-finger PAN frame pans the map with the fingers and never zooms. */
+    {
+        struct ToriRSChromeGesture g;
+        double px;
+        double pz;
+
+        frame();
+        zoom = picker->zoom;
+        map_x = picker->origin_x + (double)(lx - EDITOR_PICKER_LEFT) / picker->zoom;
+        map_z = picker->origin_z - (double)(ly - EDITOR_PICKER_TOP) / picker->zoom;
+        memset(&g, 0, sizeof(g));
+        g.kind = TORIRS_CHROME_GESTURE_PINCH;
+        g.x = sx;
+        g.y = sy;
+        g.fingers = 2;
+        g.scale_q16 = 3 * 65536 / 2;
+        g.phase = TORIRS_CHROME_GESTURE_UPDATE;
+        CHECK(ToriRSChrome_Gesture(&g_chrome, &g) == 1, "a PINCH frame over the well is taken");
+        frame();
+        CHECK(fabs(picker->zoom / (zoom * 1.5) - 1.0) < 1e-4, "a 1.5 PINCH frame is a 1.5 zoom (%.3f -> %.3f)", zoom,
+            picker->zoom);
+        /* Where the map point that was under the pinch is drawn now, in well px. */
+        px = (map_x - picker->origin_x) * picker->zoom + EDITOR_PICKER_LEFT;
+        pz = (picker->origin_z - map_z) * picker->zoom + EDITOR_PICKER_TOP;
+        CHECK(fabs(px - (double)lx) <= 1.0 && fabs(pz - (double)ly) <= 1.0,
+            "the picker zooms about the pinch within one pixel (%.2f,%.2f vs %d,%d)", px, pz, lx, ly);
+
+        zoom = picker->zoom;
+        {
+            double const origin_x = picker->origin_x;
+            double const origin_z = picker->origin_z;
+            int const scale = g_chrome.scale > 0 ? g_chrome.scale : 1;
+            memset(&g, 0, sizeof(g));
+            g.kind = TORIRS_CHROME_GESTURE_PAN;
+            g.x = sx;
+            g.y = sy;
+            g.dx = 30 * scale;
+            g.dy = 20 * scale;
+            g.fingers = 2;
+            g.phase = TORIRS_CHROME_GESTURE_UPDATE;
+            CHECK(ToriRSChrome_Gesture(&g_chrome, &g) == 1, "a PAN frame over the well is taken");
+            frame();
+            CHECK(picker->zoom == zoom, "a PAN frame never zooms");
+            /* Fingers right and down carry the map with them: the origin goes
+             * west by dx and north by dy, as a drag would. */
+            CHECK(fabs(picker->origin_x - (origin_x - 30.0 / zoom)) < 1e-6
+                      && fabs(picker->origin_z - (origin_z + 20.0 / zoom)) < 1e-6,
+                "a PAN frame pans the map with the fingers (%.4f,%.4f -> %.4f,%.4f)", origin_x, origin_z,
+                picker->origin_x, picker->origin_z);
+        }
+    }
+
     /* Off every panel nothing is taken: the game keeps its wheel, and an
      * unclaimed pinch is the caller's to drop. */
     memset(&f, 0, sizeof(f));
@@ -1693,9 +1788,11 @@ test_chrome(void)
     g_ui.hooks.open_square = fake_open_square;
     g_ui.hooks.open_in_new_view = fake_open_in_new_view;
     g_ui.hooks.floor_rgb = fake_floor_rgb;
+    g_ui.hooks.floor_request = fake_floor_request;
     g_ui.hooks.view_window = fake_view_window;
     g_ui.hooks.selection_changed = fake_selection_changed;
     Editor_UiRegisterToolsPanels(&g_ui);
+    ungroup_all(&g_ui);
 
     CHECK(Editor_UiFindPanel(&g_ui, "squares") && Editor_UiFindPanel(&g_ui, "new_square")
               && Editor_UiFindPanel(&g_ui, "save_guard") && Editor_UiFindPanel(&g_ui, "toolrail")
@@ -1727,8 +1824,16 @@ test_chrome(void)
         int const area = find_widget(squares_panel, TORIRS_CHROME_W_DROPDOWN, "Area");
         CHECK(find_widget(squares_panel, TORIRS_CHROME_W_TABSTRIP, NULL) < 0,
             "no tab strip: ~50 area labels in one row cannot be read");
-        CHECK(area >= 0 && g_chrome.widgets[area].option_count == picker->tab_count,
-            "the Area dropdown lists every area plus Unmapped (%d)", picker->tab_count);
+        /* Every area plus Unmapped, then a "lane: <name>" row per lane
+         * storage (workbench 6.4), then Instance space when no tab is it. */
+        int lanes = 0;
+        char lane[EDITOR_PICKER_NAME_MAX];
+        for( int s = 0; s < picker->storage_count; s++ )
+            lanes += Editor_PickerLaneName(picker->storages[s], lane) ? 1 : 0;
+        int const rows = picker->tab_count + lanes + (Editor_PickerInstanceTab(picker) < 0 ? 1 : 0);
+        CHECK(lanes >= 1 && area >= 0 && g_chrome.widgets[area].option_count == rows,
+            "the Area dropdown lists every area plus Unmapped, then the lanes (%d of %d, %d lanes)",
+            area >= 0 ? g_chrome.widgets[area].option_count : -1, rows, lanes);
         (void)search;
         search_field("m50_50");
         CHECK(picker->items_drawn > 4, "the well was drawn (%d items)", picker->items_drawn);
@@ -1755,13 +1860,20 @@ test_chrome(void)
     frame();
     CHECK(g_window.open_calls == 1 && g_window.open_x == 50 && g_window.open_z == 50 && !g_window.open_add,
         "a click opens m50_50 in place (%d calls)", g_window.open_calls);
+    /* m50_51 is the cell above; in the 1280x800 column's short well it can
+     * sit under the top ruler, so Find brings it into view first (Find
+     * centres, it opens nothing). */
+    search_field("m50_51");
+    CHECK(picker_point(picker, 50, 51, &x, &y), "m50_51 is in view");
     g_ui.shift_held = 1;
-    push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y - (int)picker->zoom, 0);
-    push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y - (int)picker->zoom, 0);
+    push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+    push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y, 0);
     frame();
     g_ui.shift_held = 0;
     CHECK(g_window.open_calls == 2 && g_window.open_z == 51 && g_window.open_add,
-        "shift-click adds m50_51 to the open set");
+        "shift-click adds m50_51 to the open set (%d calls, m%d_%d, add %d; m50_50 at %d,%d, well %d,%d %dx%d)",
+        g_window.open_calls, g_window.open_x, g_window.open_z, g_window.open_add, x, y, g_chrome.widgets[graph].x,
+        g_chrome.widgets[graph].y, g_chrome.widgets[graph].w, g_chrome.widgets[graph].h);
 
     /* A drag pans, and does not open. */
     {
@@ -1770,7 +1882,9 @@ test_chrome(void)
         push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_DRAG, x + 40, y, 0);
         push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x + 40, y, 0);
         frame();
-        CHECK(picker->origin_x < origin && g_window.open_calls == 2, "a drag pans the map and opens nothing");
+        CHECK(picker->origin_x < origin && g_window.open_calls == 2,
+            "a drag pans the map and opens nothing (origin %.3f -> %.3f, %d calls)", origin, picker->origin_x,
+            g_window.open_calls);
     }
     {
         double const cell = picker->zoom;
@@ -1814,7 +1928,7 @@ test_chrome(void)
     /* The Area dropdown switches the area the well draws, fitted. */
     {
         int const area = find_widget(squares_panel, TORIRS_CHROME_W_DROPDOWN, "Area");
-        int const other = picker->tab_count - 2; /* the last area before Unmapped */
+        int const other = picker->tab_count - 3; /* the last area before Instance space and Unmapped */
         CHECK(picker->tabs[1].area == EDITOR_PICKER_TAB_FULL && strcmp(picker->tabs[1].title, "Full map") == 0,
             "the Full map page sits beside the surface");
         ToriRSChrome_DropdownSetSelected(&g_chrome, area, other);
@@ -2009,10 +2123,13 @@ static struct
     int serial;
     int missing;
     int redraws;
+    /* The last poll of the VIEW (a background slice of the rest of the page,
+     * EDITOR_WORLDMAP_SLICE square and aligned, is counted apart). */
     int x0;
     int z0;
     int w;
     int h;
+    int slice_polls;
     double zoom;
     int drawn_pixels;
     int dungeon_pixels;
@@ -2073,10 +2190,16 @@ fake_map_poll(
         return -1;
     g_map.polls++;
     g_map.area = area_id;
-    g_map.x0 = x0;
-    g_map.z0 = z0;
-    g_map.w = w;
-    g_map.h = h;
+    if( w == EDITOR_WORLDMAP_SLICE && h == EDITOR_WORLDMAP_SLICE && x0 % EDITOR_WORLDMAP_SLICE == 0
+        && z0 % EDITOR_WORLDMAP_SLICE == 0 )
+        g_map.slice_polls++;
+    else
+    {
+        g_map.x0 = x0;
+        g_map.z0 = z0;
+        g_map.w = w;
+        g_map.h = h;
+    }
     *out_missing = g_map.missing;
     return g_map.serial;
 }
@@ -2258,6 +2381,8 @@ test_worldmap(void)
     int y;
 
     Editor_PickerDefaultColors(&colors);
+    /* The Squares panel outlines the focused square white (workbench 6.4). */
+    colors.selected = EDITOR_SQUARES_FOCUS_RGB;
     ToriRSChrome_Init(&g_chrome);
     ToriRSChrome_SetSurface(&g_chrome, 1280, 800);
     Editor_UiInit(&g_ui, &g_chrome, &g_editor);
@@ -2276,6 +2401,7 @@ test_worldmap(void)
     g_ui.app_services.worldmap_icons = fake_map_icons;
     g_ui.app_services.request_redraw = fake_map_redraw;
     Editor_UiRegisterToolsPanels(&g_ui);
+    ungroup_all(&g_ui);
     Editor_UiSetVisible(&g_ui, 1);
     squares_panel = find_panel("Squares");
     g_squares_panel = squares_panel;
@@ -2380,6 +2506,9 @@ test_worldmap(void)
         int bh;
         int marks;
         search_field("m50_50");
+        /* The open-here inset is the 40 px band's (Editor_PickerLodAt). */
+        Editor_PickerZoomTo(picker, 48.0, 0, 0);
+        Editor_PickerCentre(picker, 50, 50);
         settle_map(40);
         picker_point(picker, 50, 50, &x, &y);
         push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
@@ -2455,9 +2584,18 @@ test_worldmap(void)
         frame();
         CHECK(fabs(picker->zoom - zoom) < 1e-9, "'-' zooms back out (%.2f)", picker->zoom);
         origin = picker->origin_x;
-        CHECK(ToriRSChrome_KeyEdit(&g_chrome, TORIRS_CHROME_KEY_LEFT), "...and Left");
-        frame();
-        CHECK(picker->origin_x < origin, "Left shows the squares west (%.2f -> %.2f)", origin, picker->origin_x);
+        {
+            int fx = -1;
+            int fz = -1;
+            int gx = -1;
+            int gz = -1;
+            (void)origin;
+            CHECK(Editor_PickerFocusCell(picker, &fx, &fz), "...a square is focused");
+            CHECK(ToriRSChrome_KeyEdit(&g_chrome, TORIRS_CHROME_KEY_LEFT), "...and Left");
+            frame();
+            CHECK(Editor_PickerFocusCell(picker, &gx, &gz) && gx == fx - 1 && gz == fz,
+                "Left moves the focus a square west (m%d_%d -> m%d_%d)", fx, fz, gx, gz);
+        }
         CHECK(!ToriRSChrome_KeyChar(&g_chrome, 'q'), "a letter is not the well's");
         ToriRSChrome_FocusWidget(&g_chrome, -1, 0);
     }
@@ -2503,19 +2641,20 @@ test_worldmap(void)
         CHECK(g_map.bad_publishes == 0, "every picture still the one size after %d publishes", g_map.publishes);
     }
 
-    /* Icons and labels: placed at their tiles, fading in with the zoom. */
+    /* Icons and names: the closest band's (from 96 px a square), placed at
+     * their tiles. */
     {
         int gox;
         int goy;
         int cx;
         int cy;
-        Editor_PickerZoomTo(picker, 64.0, x, y);
+        Editor_PickerZoomTo(picker, 128.0, x, y);
         Editor_PickerCentre(picker, 50, 50);
         settle_map(60);
         Editor_PickerGlobalOrigin(picker, &gox, &goy);
         cx = (int)floor((3222 + 0.5) * picker->zoom / 64.0) - gox;
         cy = (int)floor((EDITOR_PICKER_WORLD_SQUARES * 64 - 1 - 3218 + 0.5) * picker->zoom / 64.0) - goy;
-        CHECK(g_map.icon_calls > 0 && picker->underlay.icon_count == 1, "64 px a square: the icon is drawn (%d)",
+        CHECK(g_map.icon_calls > 0 && picker->underlay.icon_count == 1, "128 px a square: the icon is drawn (%d)",
             picker->underlay.icon_count);
         CHECK(picker->underlay.icon_count == 1 && picker->underlay.icons[0].x == cx - 7
                   && picker->underlay.icons[0].y == cy - 7 && picker->underlay.icons[0].trans == 0,
@@ -2525,17 +2664,17 @@ test_worldmap(void)
             "...and the town's label");
         CHECK(graph_items_of(graph, TORIRS_CHROME_GRAPH_IMAGE, 0) == picker->underlay.count + 1,
             "the icon is a GRAPH image over the map's");
-        Editor_PickerZoomTo(picker, 52.0, x, y);
+        Editor_PickerZoomTo(picker, 60.0, x, y);
         Editor_PickerCentre(picker, 50, 50);
         settle_map(60);
-        CHECK(picker->underlay.icon_count == 1 && picker->underlay.icons[0].trans > 0
-                  && picker->underlay.icons[0].trans < 255,
-            "52 px a square: fading in (trans %d)", picker->underlay.icon_count ? picker->underlay.icons[0].trans : -1);
+        CHECK(picker->underlay.icon_count == 0 && picker->underlay.label_count == 0
+                  && graph_items_of(graph, TORIRS_CHROME_GRAPH_IMAGE, 0) == picker->underlay.count,
+            "60 px a square: no icon, no name (the 6.4 photograph check)");
         Editor_PickerZoomTo(picker, 20.0, x, y);
         Editor_PickerCentre(picker, 50, 50);
         settle_map(60);
-        CHECK(picker->underlay.icon_count == 0 && picker->underlay.label_count == 1,
-            "20 px a square: no icons, the large label still");
+        CHECK(picker->underlay.icon_count == 0 && picker->underlay.label_count == 0,
+            "20 px a square: no icons, no labels");
     }
 
     /* A click on an empty square opens New square on it. */
@@ -2597,12 +2736,14 @@ test_worldmap(void)
         CHECK(Editor_PickerVisibleSquares(picker, &vx0, &vz0, &vw, &vh) && vx0 <= min_x && vz0 <= min_z
                   && vx0 + vw > max_x && vz0 + vh > max_z,
             "fitted, the whole grid is in the well ([%d,%d %dx%d])", vx0, vz0, vw, vh);
-        CHECK(g_map.area == EDITOR_UI_MAP_AREA_ALL, "every area is asked for at once");
         dungeon = Editor_PickerFind(picker, 27, 83, -1);
         g_map.dungeon_pixels = 0;
+        /* Fitted the page is under 12 px a square, colours only: the map
+         * is asked for from the picture band. */
         Editor_PickerZoomTo(picker, 48.0, x, y);
         Editor_PickerCentre(picker, 27, 83);
         settle_map(80);
+        CHECK(g_map.area == EDITOR_UI_MAP_AREA_ALL, "every area is asked for at once");
         picker_point(picker, 27, 83, &x, &y);
         CHECK(dungeon >= 0 && Editor_PickerSquareAt(picker, x, y) == dungeon,
             "the Ancient Cavern's m27_83 is on the grid at 27,83");
@@ -2627,8 +2768,15 @@ test_worldmap(void)
         int const area = find_widget(squares_panel, TORIRS_CHROME_W_DROPDOWN, "Area");
         ToriRSChrome_DropdownSetSelected(&g_chrome, area, 0);
         activate(area);
+        /* The page fits its squares; in the 1280x800 column's short well that
+         * can be under 12 px a square, colours only. The map is the picture
+         * band's: zoom into it, on m50_50 so squares are in view. */
+        Editor_PickerZoomTo(picker, 32.0, picker->well_w / 2, picker->well_h / 2);
+        Editor_PickerCentre(picker, 50, 50);
         settle_map(60);
-        CHECK(picker->underlay.active, "back on the surface: the map again");
+        CHECK(picker->underlay.active, "back on the surface: the map again (page %d, %.2f px a square, area %d, %d renders, well %dx%d, widget %dx%d)",
+            picker->active_tab, picker->zoom, g_map.area, g_map.renders, picker->well_w, picker->well_h,
+            g_chrome.widgets[graph].w, g_chrome.widgets[graph].h);
         g_ui.app_services.worldmap_render_tile = NULL;
         frame();
         CHECK(!picker->underlay.active && graph_items_of(graph, TORIRS_CHROME_GRAPH_RECT, 1) > 0,
@@ -2673,9 +2821,11 @@ layout_boot(
     g_ui.hooks.open_square = fake_open_square;
     g_ui.hooks.open_in_new_view = fake_open_in_new_view;
     g_ui.hooks.floor_rgb = fake_floor_rgb;
+    g_ui.hooks.floor_request = fake_floor_request;
     g_ui.hooks.view_window = fake_view_window;
     g_ui.hooks.selection_changed = fake_selection_changed;
     Editor_UiRegisterToolsPanels(&g_ui);
+    ungroup_all(&g_ui);
     Editor_UiSetVisible(&g_ui, 1);
     for( int i = 0; i < 4; i++ )
         frame();
@@ -3634,6 +3784,33 @@ fake_preview_invalidate(void* user)
     g_preview_resets++;
 }
 
+/* What the Preview's gestures asked of the App (workbench 6.1). */
+static int g_preview_orbit_pitch;
+static int g_preview_orbit_yaw;
+static int g_preview_orbits;
+static int g_preview_zoom_q16;
+
+static void
+fake_preview_orbit(
+    void* user,
+    int pitch_step,
+    int yaw_step)
+{
+    (void)user;
+    g_preview_orbit_pitch += pitch_step;
+    g_preview_orbit_yaw += yaw_step;
+    g_preview_orbits++;
+}
+
+static void
+fake_preview_zoom(
+    void* user,
+    int ratio_q16)
+{
+    (void)user;
+    g_preview_zoom_q16 = ratio_q16;
+}
+
 /** layout_boot with services standing in for an App: the Catalog, and with
  *  it the Preview and Record panels, register. */
 static void
@@ -3653,9 +3830,12 @@ layout_boot_catalog(
     g_ui.hooks.selection_changed = fake_selection_changed;
     g_ui.app_services.user_data = &g_preview_app_stand_in;
     g_ui.app_services.preview_invalidate = fake_preview_invalidate;
+    g_ui.app_services.preview_orbit = fake_preview_orbit;
+    g_ui.app_services.preview_zoom = fake_preview_zoom;
     g_ui.app_services.world_camera = fake_world_camera;
     g_ui.app_services.spawn_panel = fake_spawn_panel;
     Editor_UiRegisterToolsPanels(&g_ui);
+    ungroup_all(&g_ui);
     if( file )
         Editor_UiLayoutHold(&g_ui);
     Editor_UiSetVisible(&g_ui, 1);
@@ -3696,8 +3876,10 @@ test_publish(void)
     struct ToriRSChromeRect r;
 
     layout_boot(1280, 800, 1);
-    publish = find_panel("Publish");
-    CHECK(publish >= 0, "publish: the panel registers (module \"publish\")");
+    /* Titled Lanes since workbench 6.5 (the lanes' switch, publish and
+     * discard in one panel); the module is still "publish". */
+    publish = find_panel("Lanes");
+    CHECK(publish >= 0, "publish: the panel registers (module \"publish\", titled Lanes)");
     if( publish < 0 )
     {
         Editor_UiFree(&g_ui);
@@ -3826,6 +4008,51 @@ test_preview(void)
     /* Reset view: the App's camera back to the default pose. */
     activate(reset);
     CHECK(g_preview_resets == 1, "preview: Reset view asks the App for the default pose (%d)", g_preview_resets);
+
+    /* Gestures over the well (workbench 6.1), no focus needed: a pan orbits
+     * at the middle-drag's gearing (4 yaw, 2 pitch a logical px), a slow one
+     * still turns it, and a pinch zooms by its ratio. */
+    {
+        struct ToriRSChromeWidget const* w = &g_chrome.widgets[view];
+        struct ToriRSChromeGesture g;
+        int const scale = g_chrome.scale > 0 ? g_chrome.scale : 1;
+
+        g_preview_orbit_pitch = g_preview_orbit_yaw = g_preview_orbits = g_preview_zoom_q16 = 0;
+        memset(&g, 0, sizeof(g));
+        g.kind = TORIRS_CHROME_GESTURE_PAN;
+        g.x = w->x + w->w / 2;
+        g.y = w->y + w->h / 2;
+        g.dx = 10 * scale;
+        g.dy = -3 * scale;
+        g.fingers = 1;
+        g.phase = TORIRS_CHROME_GESTURE_UPDATE;
+        CHECK(ToriRSChrome_Gesture(&g_chrome, &g) == 1, "preview: a pan over the well is the chrome's");
+        frame();
+        CHECK(g_preview_orbit_yaw == 40 && g_preview_orbit_pitch == -6,
+            "preview: a pan orbits, 4 yaw and 2 pitch a px (%d, %d)", g_preview_orbit_yaw, g_preview_orbit_pitch);
+        /* A quarter px of yaw a frame: four frames make one step. */
+        g.dx = 0;
+        g.dy = 0;
+        g_preview_orbit_yaw = 0;
+        for( int i = 0; i < 4; i++ )
+        {
+            struct ToriRSChromeEvent ev;
+            memset(&ev, 0, sizeof(ev));
+            ev.kind = TORIRS_CHROME_EVENT_VIEW_ORBIT;
+            ev.widget = view;
+            ev.serial = g_chrome.widgets[view].serial;
+            ev.dx = 64;
+            (void)ToriRSChrome_PushEvent(&g_chrome, &ev);
+            frame();
+        }
+        CHECK(g_preview_orbit_yaw == 4, "preview: a slow finger still turns it (%d)", g_preview_orbit_yaw);
+        g.kind = TORIRS_CHROME_GESTURE_PINCH;
+        g.scale_q16 = 3 * 65536 / 2;
+        g.fingers = 2;
+        CHECK(ToriRSChrome_Gesture(&g_chrome, &g) == 1, "preview: a pinch over the well is the chrome's");
+        frame();
+        CHECK(g_preview_zoom_q16 == 3 * 65536 / 2, "preview: a pinch zooms by its ratio (%d)", g_preview_zoom_q16);
+    }
 
     /* The well fills the body, and grows with the panel. */
     (void)ToriRSChrome_ModelViewBox(&g_chrome, view, &box_w, &box_h, &well_w, &well_h);
@@ -4049,6 +4276,7 @@ test_maximise(void)
     int terrain;
     int menubar = -1;
     int top;
+    int bottom = 1006;
     int tx;
     int ty;
     char* text = NULL;
@@ -4059,9 +4287,16 @@ test_maximise(void)
     CHECK(terrain >= 0 && g_chrome.panels[terrain].visible, "Terrain is open");
     if( terrain < 0 )
         return;
-    for( int i = 0; i < g_chrome.panel_count; i++ )
-        if( g_chrome.panels[i].style == TORIRS_CHROME_PANEL_MENUBAR && g_chrome.panels[i].visible )
-            menubar = i;
+    /* By module: the status bar is a MENUBAR-style strip too. */
+    {
+        struct EditorUiPanel const* menu_module = Editor_UiFindPanel(&g_ui, "menubar");
+        struct EditorUiPanel const* status_module = Editor_UiFindPanel(&g_ui, "statusbar");
+        if( menu_module && g_chrome.panels[menu_module->chrome_panel].visible )
+            menubar = menu_module->chrome_panel;
+        /* The area stops above the status bar at the foot. */
+        if( status_module )
+            bottom = g_chrome.panels[status_module->chrome_panel].last_rect.y;
+    }
     bar = menubar >= 0 ? g_chrome.panels[menubar].last_rect : (struct ToriRSChromeRect){ 0, 0, 0, 0 };
     top = bar.y + bar.h;
     before = g_chrome.panels[terrain].last_rect;
@@ -4073,14 +4308,15 @@ test_maximise(void)
     title_click(tx, ty, 10000 + TORIRS_CHROME_DOUBLE_CLICK_MS + 50);
     CHECK(!g_chrome.panels[terrain].maximised, "two title clicks further apart than the double-click time do nothing");
 
-    /* Double-click: the whole surface below the menu bar, over the others. */
+    /* Double-click: the whole surface between the menu bar and the status
+     * bar, over the others. */
     title_click(tx, ty, 20000);
     title_click(tx + 1, ty, 20120);
     CHECK(g_chrome.panels[terrain].maximised, "a title double-click maximises the panel");
-    CHECK(rect_is(g_chrome.panels[terrain].last_rect, 0, top, 1530, 1006 - top),
-        "to the dock surface below the menu bar (%d,%d %dx%d, menu bar ends at %d)",
+    CHECK(bottom < 1006 && rect_is(g_chrome.panels[terrain].last_rect, 0, top, 1530, bottom - top),
+        "to the dock surface between the bars (%d,%d %dx%d, menu bar ends at %d, status bar starts at %d)",
         g_chrome.panels[terrain].last_rect.x, g_chrome.panels[terrain].last_rect.y,
-        g_chrome.panels[terrain].last_rect.w, g_chrome.panels[terrain].last_rect.h, top);
+        g_chrome.panels[terrain].last_rect.w, g_chrome.panels[terrain].last_rect.h, top, bottom);
     /* Over the others: a point inside another panel now belongs to it. */
     {
         int const palette = find_panel("Palette");
@@ -4156,7 +4392,7 @@ test_maximise(void)
     terrain = find_panel("Terrain");
     frame();
     CHECK(terrain >= 0 && g_chrome.panels[terrain].maximised, "a boot with that file comes back maximised");
-    CHECK(terrain >= 0 && rect_is(g_chrome.panels[terrain].last_rect, 0, top, 1530, 1006 - top),
+    CHECK(terrain >= 0 && rect_is(g_chrome.panels[terrain].last_rect, 0, top, 1530, bottom - top),
         "over the dock surface");
     if( terrain >= 0 )
     {
@@ -4216,7 +4452,24 @@ test_layout_codec(void)
     p->has_x = p->has_y = 1;
     p->x = -3;
     p->y = 0;
+    /* A panel group's section (workbench 6.0): the panel keys plus its
+     * front tab, by module name. */
+    {
+        struct EditorLayoutGroup* g = EditorLayout_AddGroup(&a, "right-top");
+        g->has_visible = g->has_user_placed = g->has_x = g->has_y = g->has_w = g->has_h = g->has_maximised = 1;
+        g->visible = 1;
+        g->user_placed = 1;
+        g->x = 1194;
+        g->y = 237;
+        g->w = 336;
+        g->h = 217;
+        g->has_shown = 1;
+        snprintf(g->shown, sizeof(g->shown), "%s", "catalog");
+        CHECK(EditorLayout_AddGroup(&a, "right-top") == g && a.group_count == 1, "AddGroup finds a group by name");
+    }
     EditorLayout_Encode(&a, &text, &size);
+    CHECK(text && strstr(text, "\n[group right-top]\n") && strstr(text, "shown = catalog\n"),
+        "the group encodes as a [group] section");
     CHECK(text && size > 0 && (int)strlen(text) == size, "the layout encodes (%d bytes)", size);
     CHECK(EditorLayout_Decode(&b, text, size), "the encoded layout decodes as a layout");
     CHECK(layout_files_equal(&a, &b), "encode -> decode is the identity");
@@ -4249,6 +4502,13 @@ test_layout_codec(void)
             "a file with no [layout] is not a layout");
         CHECK(!EditorLayout_Decode(&b, "", 0), "an empty file is not a layout");
     }
+    /* A file from before groups has none; a member's [panel] stays a panel. */
+    {
+        const char* old = "[layout]\n[panel catalog]\nvisible = 1\nx = 100\n";
+        CHECK(EditorLayout_Decode(&b, old, (int)strlen(old)) && b.group_count == 0 && b.panel_count == 1
+                  && EditorLayout_Find(&b, "catalog")->x == 100,
+            "an old file decodes with no groups");
+    }
     /* TORIRS_EDITOR_LAYOUT: unset = default, empty = off, else the path. */
     {
         const char* was = getenv("TORIRS_EDITOR_LAYOUT");
@@ -4256,8 +4516,12 @@ test_layout_codec(void)
         snprintf(saved, sizeof(saved), "%s", was ? was : "");
         unsetenv("TORIRS_EDITOR_LAYOUT");
         CHECK(strcmp(EditorLayout_Path(), EDITOR_LAYOUT_DEFAULT_PATH) == 0, "unset: the default name");
+#ifndef _WIN32
+        /* The Windows CRT holds no empty variable (setting one to "" deletes
+         * it), so there "empty" cannot be said; the unset case is above. */
         setenv("TORIRS_EDITOR_LAYOUT", "", 1);
         CHECK(EditorLayout_Path() == NULL, "empty: persistence off");
+#endif
         setenv("TORIRS_EDITOR_LAYOUT", "/x/y.ini", 1);
         CHECK(strcmp(EditorLayout_Path(), "/x/y.ini") == 0, "set: that path");
         if( was )
@@ -4283,9 +4547,11 @@ layout_boot_saved(
     g_ui.hooks.open_square = fake_open_square;
     g_ui.hooks.open_in_new_view = fake_open_in_new_view;
     g_ui.hooks.floor_rgb = fake_floor_rgb;
+    g_ui.hooks.floor_request = fake_floor_request;
     g_ui.hooks.view_window = fake_view_window;
     g_ui.hooks.selection_changed = fake_selection_changed;
     Editor_UiRegisterToolsPanels(&g_ui);
+    ungroup_all(&g_ui);
     Editor_UiLayoutHold(&g_ui);
     Editor_UiSetVisible(&g_ui, 1);
     frame();
@@ -6066,23 +6332,67 @@ menu_row(
     return NULL;
 }
 
-/** The Hotkeys panel's TREE row for `action`: its label starts with the
- *  action's name and " (". */
+/** The Hotkeys panel's list row of `action` (workbench 6.8: one wide cells
+ *  VLIST, editor_workspaces_test.c drives its sort and filters), -1 when the
+ *  search or a filter hides it. */
 static int
 hotkeys_row(
     int panel,
     int action)
 {
-    const char* name = Editor_HotkeyInfo(action)->name;
-    size_t const n = strlen(name);
-    for( int i = 0; i < g_chrome.widget_count; i++ )
-    {
-        const struct ToriRSChromeWidget* w = &g_chrome.widgets[i];
-        if( w->panel == panel && w->kind == TORIRS_CHROME_W_TREE && strncmp(w->label, name, n) == 0
-            && strncmp(w->label + n, " (", 2) == 0 )
+    static int rows[EDITOR_HK_COUNT];
+    int const n = Editor_Hotkeys_Rows(&g_ui, rows, EDITOR_HK_COUNT);
+    (void)panel;
+    for( int i = 0; i < n; i++ )
+        if( rows[i] == action )
             return i;
-    }
     return -1;
+}
+
+/** Field `field` of the list's row of `action` as the VLIST holds it (the
+ *  row brought on screen first), "" when not listed. */
+static const char*
+hotkeys_cell(
+    int action,
+    int field)
+{
+    static char out[96];
+    int const list = Editor_Hotkeys_ListWidget(&g_ui);
+    int const row = hotkeys_row(-1, action);
+    const char* text = NULL;
+
+    out[0] = '\0';
+    if( row < 0 || list < 0 )
+        return out;
+    ToriRSChrome_VListSetScroll(&g_chrome, list, row);
+    frame();
+    for( int i = 0; i < TORIRS_CHROME_VROW_POOL; i++ )
+        if( g_chrome.vrows[i].owner == list && g_chrome.vrows[i].index == row )
+            text = g_chrome.vrows[i].text;
+    for( int f = 0; f < field && text; f++ )
+    {
+        text = strchr(text, TORIRS_CHROME_CELL_SEP);
+        if( text )
+            text++;
+    }
+    if( text )
+    {
+        const char* end = strchr(text, TORIRS_CHROME_CELL_SEP);
+        snprintf(out, sizeof(out), "%.*s", end ? (int)(end - text) : (int)strlen(text), text);
+    }
+    return out;
+}
+
+/** A click on chord cell `cell` (1 or 2) of `action`'s row. */
+static void
+hotkeys_click_cell(
+    int action,
+    int cell)
+{
+    int const list = Editor_Hotkeys_ListWidget(&g_ui);
+    ToriRSChrome_VListSetSelected(&g_chrome, list, hotkeys_row(-1, action));
+    g_chrome.widgets[list].vlist_cell = cell;
+    activate(list);
 }
 
 /** Feed the Hotkeys panel one frame with `chord_text` pressed (NULL: only
@@ -6145,19 +6455,17 @@ test_hotkeys(void)
     /* One row per action, every action. */
     for( int a = 0; a < EDITOR_HK_COUNT; a++ )
     {
-        int const w = hotkeys_row(panel, a);
-        CHECK(w >= 0, "hotkeys: a row for %s", Editor_HotkeyInfo(a)->id);
-        if( w >= 0 )
+        int const r = hotkeys_row(panel, a);
+        CHECK(r >= 0, "hotkeys: a row for %s", Editor_HotkeyInfo(a)->id);
+        if( r >= 0 )
             rows++;
     }
     CHECK(rows == EDITOR_HK_COUNT, "hotkeys: %d rows for %d actions", rows, EDITOR_HK_COUNT);
-    {
-        int const undo = hotkeys_row(panel, EDITOR_HK_EDIT_UNDO);
-        Editor_HotkeyDisplay(&g_ui.hotkeys, EDITOR_HK_EDIT_UNDO, chord, (int)sizeof(chord));
-        snprintf(expect, sizeof(expect), "Undo (G)\t%s", chord);
-        CHECK(undo >= 0 && strcmp(g_chrome.widgets[undo].label, expect) == 0, "hotkeys: Undo's row reads '%s' (%s)",
-            expect, undo >= 0 ? g_chrome.widgets[undo].label : "-");
-    }
+    Editor_HotkeyDisplay(&g_ui.hotkeys, EDITOR_HK_EDIT_UNDO, chord, (int)sizeof(chord));
+    snprintf(expect, sizeof(expect), "%s -", chord);
+    CHECK(strcmp(hotkeys_cell(EDITOR_HK_EDIT_UNDO, 1), "Undo") == 0
+              && strcmp(hotkeys_cell(EDITOR_HK_EDIT_UNDO, 3), expect) == 0,
+        "hotkeys: Undo's row has its chord and an empty second cell (%s)", hotkeys_cell(EDITOR_HK_EDIT_UNDO, 3));
 
     /* Search filters by any column. */
     search = find_widget(panel, TORIRS_CHROME_W_TEXTINPUT, "Search");
@@ -6166,24 +6474,23 @@ test_hotkeys(void)
     {
         ToriRSChrome_SetText(&g_chrome, search, "redo");
         frame();
-        CHECK(!g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_REDO)].hidden
-                  && g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_UNDO)].hidden
-                  && g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_TOOL_RAISE)].hidden,
+        CHECK(hotkeys_row(panel, EDITOR_HK_EDIT_REDO) >= 0 && hotkeys_row(panel, EDITOR_HK_EDIT_UNDO) < 0
+                  && hotkeys_row(panel, EDITOR_HK_TOOL_RAISE) < 0,
             "hotkeys: 'redo' leaves Redo and hides Undo and Raise");
         ToriRSChrome_SetText(&g_chrome, search, "F12");
         frame();
-        CHECK(!g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_VIEW_WORLD)].hidden
-                  && g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_REDO)].hidden,
+        CHECK(hotkeys_row(panel, EDITOR_HK_VIEW_WORLD) >= 0 && hotkeys_row(panel, EDITOR_HK_EDIT_REDO) < 0,
             "hotkeys: a chord finds its action (F12 -> World)");
         ToriRSChrome_SetText(&g_chrome, search, "");
         frame();
-        CHECK(!g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_UNDO)].hidden, "hotkeys: an empty search shows all");
+        CHECK(hotkeys_row(panel, EDITOR_HK_EDIT_UNDO) >= 0, "hotkeys: an empty search shows all");
     }
 
-    /* Click Bake's chord, press Ctrl+Z: Bake is bound, the File row says so,
-     * and Bake and Undo clash in red on both rows. */
-    activate(hotkeys_row(panel, EDITOR_HK_FILE_BAKE));
-    CHECK(Editor_Hotkeys_Capturing(&g_ui) == EDITOR_HK_FILE_BAKE, "hotkeys: a click on a row captures for it");
+    /* Click Bake's first chord cell, press Ctrl+Z: Bake is bound, the File
+     * row says so, and Bake and Undo clash, marked on both rows. */
+    hotkeys_click_cell(EDITOR_HK_FILE_BAKE, 1);
+    CHECK(Editor_Hotkeys_Capturing(&g_ui) == EDITOR_HK_FILE_BAKE && Editor_Hotkeys_CaptureSlot(&g_ui) == 0,
+        "hotkeys: a click on a chord cell captures for it");
     CHECK(hotkeys_feed("shift") == 1 && Editor_Hotkeys_Capturing(&g_ui) == EDITOR_HK_FILE_BAKE,
         "hotkeys: a modifier alone never binds");
     CHECK(hotkeys_feed("ctrl+z") == 1 && Editor_Hotkeys_Capturing(&g_ui) < 0, "hotkeys: Ctrl+Z ends the capture");
@@ -6195,13 +6502,12 @@ test_hotkeys(void)
         snprintf(expect, sizeof(expect), "Bake cache (slow)\t%s", chord);
         CHECK(row && strcmp(row, expect) == 0, "hotkeys: the File row re-labels at once (%s)", row ? row : "-");
     }
-    CHECK(g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_FILE_BAKE)].color == 0xFF5555u
-              && g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_UNDO)].color == 0xFF5555u,
-        "hotkeys: the clash is red on both rows");
-    CHECK(g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_REDO)].color == 0, "hotkeys: Redo is not");
+    CHECK(strcmp(hotkeys_cell(EDITOR_HK_FILE_BAKE, 5), "!") == 0 && strcmp(hotkeys_cell(EDITOR_HK_EDIT_UNDO, 5), "!") == 0,
+        "hotkeys: the clash is marked on both rows");
+    CHECK(strcmp(hotkeys_cell(EDITOR_HK_EDIT_REDO, 5), "") == 0, "hotkeys: Redo is not");
 
     /* Rebind Undo away: the clash clears; the Edit row follows. */
-    activate(hotkeys_row(panel, EDITOR_HK_EDIT_UNDO));
+    hotkeys_click_cell(EDITOR_HK_EDIT_UNDO, 1);
     (void)hotkeys_feed("ctrl+u");
     frame();
     (void)Editor_ChordParse("ctrl+u", &parsed);
@@ -6211,40 +6517,44 @@ test_hotkeys(void)
         snprintf(expect, sizeof(expect), "Undo\t%s", chord);
         CHECK(row && strcmp(row, expect) == 0, "hotkeys: Edit > Undo shows the new chord (%s)", row ? row : "-");
     }
-    CHECK(g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_FILE_BAKE)].color == 0, "hotkeys: no clash left");
+    CHECK(strcmp(hotkeys_cell(EDITOR_HK_FILE_BAKE, 5), "") == 0, "hotkeys: no clash left");
 
-    /* Esc cancels; Backspace unbinds. */
-    activate(hotkeys_row(panel, EDITOR_HK_TOOL_RAISE));
+    /* Esc cancels; Backspace unbinds the slot. */
+    hotkeys_click_cell(EDITOR_HK_TOOL_RAISE, 1);
     (void)hotkeys_feed("escape");
     CHECK(Editor_Hotkeys_Capturing(&g_ui) < 0 && Editor_HotkeysIsDefault(&g_ui.hotkeys, EDITOR_HK_TOOL_RAISE),
         "hotkeys: Esc cancels and keeps the chord");
-    activate(hotkeys_row(panel, EDITOR_HK_TOOL_RAISE));
+    hotkeys_click_cell(EDITOR_HK_TOOL_RAISE, 1);
     (void)hotkeys_feed("backspace");
     frame();
     CHECK(g_ui.hotkeys.bind[EDITOR_HK_TOOL_RAISE].chord[0].key == TORIRSK_UNKNOWN, "hotkeys: Backspace unbinds");
-    CHECK(strstr(g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_TOOL_RAISE)].label, "\tunbound") != NULL,
-        "hotkeys: the row says unbound");
+    CHECK(strcmp(hotkeys_cell(EDITOR_HK_TOOL_RAISE, 3), "- -") == 0, "hotkeys: the row says unbound in both cells");
     {
         struct EditorUiPanel* rail = Editor_UiFindPanel(&g_ui, "toolrail");
         int const raise = rail ? find_widget(rail->chrome_panel, TORIRS_CHROME_W_ICONBUTTON, "Raise") : -1;
-        CHECK(raise >= 0 && strcmp(g_chrome.widgets[raise].tooltip, "Raise terrain (brush)") == 0,
-            "hotkeys: the rail tip drops the chord (%s)", raise >= 0 ? g_chrome.widgets[raise].tooltip : "-");
+        CHECK(raise >= 0 && strcmp(g_chrome.widgets[raise].tooltip, "Raise terrain (brush)") == 0
+                  && g_chrome.widgets[raise].chord[0] == '\0' && g_chrome.widgets[raise].tooltip_chord[0] == '\0',
+            "hotkeys: the rail drops the badge and the tip's chord (%s / '%s')",
+            raise >= 0 ? g_chrome.widgets[raise].tooltip : "-", raise >= 0 ? g_chrome.widgets[raise].chord : "-");
     }
 
-    /* Reset to defaults. */
-    activate(find_widget(panel, TORIRS_CHROME_W_BUTTON, "Reset to defaults"));
+    /* Reset all. */
+    activate(find_widget(panel, TORIRS_CHROME_W_BUTTON, "Reset all"));
     frame();
     {
         int all = 1;
         for( int a = 0; a < EDITOR_HK_COUNT; a++ )
             all &= Editor_HotkeysIsDefault(&g_ui.hotkeys, a);
-        CHECK(all, "hotkeys: Reset to defaults restores the table");
+        CHECK(all, "hotkeys: Reset all restores the table");
     }
     {
         struct EditorUiPanel* rail = Editor_UiFindPanel(&g_ui, "toolrail");
         int const raise = rail ? find_widget(rail->chrome_panel, TORIRS_CHROME_W_ICONBUTTON, "Raise") : -1;
-        CHECK(raise >= 0 && strcmp(g_chrome.widgets[raise].tooltip, "Raise terrain (brush)  [3]") == 0,
-            "hotkeys: the rail tip ends with its chord (%s)", raise >= 0 ? g_chrome.widgets[raise].tooltip : "-");
+        /* The badge wears the chord; the tooltip falls back to it. */
+        CHECK(raise >= 0 && strcmp(g_chrome.widgets[raise].tooltip, "Raise terrain (brush)") == 0
+                  && strcmp(g_chrome.widgets[raise].chord, "3") == 0,
+            "hotkeys: the rail badge wears its chord again (%s / '%s')",
+            raise >= 0 ? g_chrome.widgets[raise].tooltip : "-", raise >= 0 ? g_chrome.widgets[raise].chord : "-");
     }
     {
         int const level1 = menubar_item("1");
@@ -6257,7 +6567,7 @@ test_hotkeys(void)
     {
         int const radius = g_ui.tools.brush.radius;
         int const terrain = find_panel("Terrain");
-        int const slider = terrain >= 0 ? find_widget(terrain, TORIRS_CHROME_W_SLIDER, "Radius") : -1;
+        int const slider = terrain >= 0 ? find_widget(terrain, TORIRS_CHROME_W_SLIDER, "Radius  [ ]") : -1;
         (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_BRUSH_RADIUS_UP);
         frame();
         CHECK(g_ui.tools.brush.radius == radius + 1, "hotkeys: ] grows the radius (%d)", g_ui.tools.brush.radius);
@@ -6329,6 +6639,15 @@ read_file_text(
     return 1;
 }
 
+/* What the fake editor (TORIRS_EDITOR_OPEN_CMD, test_triggers) logs for
+ * `file` at `line`: printf's `<path>:<line>` and a newline; on Windows cmd's
+ * echo, the path as the template quoted it, `"<path>":<line>`. */
+#ifdef _WIN32
+#define OPENED_AT(file, line) file "\":" line
+#else
+#define OPENED_AT(file, line) file ":" line "\n"
+#endif
+
 /** The editor command runs in the background: wait (up to 3 s) until the
  *  file holds `needle`. */
 static int
@@ -6358,6 +6677,528 @@ dump_console(int lines)
     }
 }
 
+/* ---- the status bar (edpanel_statusbar.c) ------------------------------------------ */
+
+static struct
+{
+    int on;
+    int x;
+    int z;
+    int level;
+} g_statusbar_hover;
+
+static int
+statusbar_fake_hover(
+    void* user,
+    int* out_world_x,
+    int* out_world_z,
+    int* out_level)
+{
+    (void)user;
+    if( !g_statusbar_hover.on )
+        return 0;
+    *out_world_x = g_statusbar_hover.x;
+    *out_world_z = g_statusbar_hover.z;
+    *out_level = g_statusbar_hover.level;
+    return 1;
+}
+
+#define STATUSBAR_RUNS_MAX 16
+
+/** The bar's shown runs, left to right: their widgets into `out`. */
+static int
+statusbar_runs(
+    int panel,
+    int* out)
+{
+    int count = 0;
+    for( int w = g_chrome.panels[panel].first_widget; w >= 0 && count < STATUSBAR_RUNS_MAX;
+         w = g_chrome.widgets[w].next )
+        if( g_chrome.widgets[w].kind == TORIRS_CHROME_W_LABEL && !g_chrome.widgets[w].hidden )
+            out[count++] = w;
+    return count;
+}
+
+/** The shown run whose text is `text`, or -1. */
+static int
+statusbar_run(
+    int panel,
+    const char* text)
+{
+    int runs[STATUSBAR_RUNS_MAX];
+    int const count = statusbar_runs(panel, runs);
+    for( int i = 0; i < count; i++ )
+        if( strcmp(g_chrome.widgets[runs[i]].text, text) == 0 )
+            return runs[i];
+    return -1;
+}
+
+/** Every shown run lies inside the bar, none cut (rule R2), and none carries a
+ *  cut-off hint row. */
+static void
+statusbar_check_fits(
+    int panel,
+    const char* what)
+{
+    int runs[STATUSBAR_RUNS_MAX];
+    int const count = statusbar_runs(panel, runs);
+    struct ToriRSChromeRect const bar = g_chrome.panels[panel].last_rect;
+    int const pad = TORIRS_CHROME_M_PAD * ToriRSChrome_Scale(&g_chrome);
+
+    for( int i = 0; i < count; i++ )
+    {
+        const struct ToriRSChromeWidget* w = &g_chrome.widgets[runs[i]];
+        int const text_w = ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_MENU, ToriRSChrome_Scale(&g_chrome), w->text);
+        /* The bar draws the text at the run's box + half a pad. */
+        int const text_x = w->x + pad / 2;
+        CHECK(text_x >= bar.x && text_x + text_w <= bar.x + bar.w, "%s: run '%s' (%d..%d) lies inside the bar (%d..%d)",
+            what, w->text, text_x, text_x + text_w, bar.x, bar.x + bar.w);
+        if( w->text[0] == '[' )
+            CHECK(strstr(w->text, "...") == NULL, "%s: hint run '%s' is whole", what, w->text);
+    }
+}
+
+/** The first label of `panel` whose text holds `needle`, or -1. */
+static int
+label_with(
+    int panel,
+    const char* needle)
+{
+    for( int i = 0; i < g_chrome.widget_count; i++ )
+    {
+        const struct ToriRSChromeWidget* w = &g_chrome.widgets[i];
+        if( w->panel == panel && w->kind == TORIRS_CHROME_W_LABEL && strstr(w->text, needle) )
+            return i;
+    }
+    return -1;
+}
+
+/** The well's cell index of the swatch Editor_Palette_SwatchAt places at
+ *  (x, y): 13 cells of 14 px a row. */
+static int
+swatch_index(
+    int x,
+    int y)
+{
+    return ((y - 1) / 14) * 13 + (x - 1) / 14;
+}
+
+/* The Palette's blending aids (the owner's request, 2026-11-06): the floor
+ * colour maths against the client's own, the blend strip across a seam,
+ * the last two picks as the strip's ends, the hover readout, a swatch
+ * press, Every id and the sorts, the colour picker's matches by hex and by
+ * slider, and the Terrain panel's Mix slider for Paint underlay. */
+static void
+test_palette_colour(void)
+{
+    static const uint32_t k_colours[] = { 0x282820u, 0xB7D49Au, 0xFC49AAu, 0x604040u, 0x7296B7u,
+                                          0x191919u, 0xffffffu, 0x000000u, 0x40a04cu, 0x29380Fu };
+    uint32_t strip[23];
+    int ids[9];
+    int palette;
+    int terrain;
+    int graph_under;
+    int w_all;
+    int w_sort;
+    int w_hue;
+    int w_sat;
+    int w_light;
+    int w_hex;
+    int w_mix;
+    int x = 0;
+    int y = 0;
+    int n;
+    int same = 1;
+
+    /* The maths: HSL24 and HSL16 as 3rd/toridraw/osrs/palette.c has them. */
+    for( size_t i = 0; i < sizeof(k_colours) / sizeof(k_colours[0]); i++ )
+    {
+        struct HSL const h = palette_rgb_to_hsl24((int)k_colours[i]);
+        struct Editor_FloorHsl e;
+        Editor_FloorHslOfRgb(k_colours[i], &e);
+        if( e.hue != h.hue || e.sat != h.sat || e.light != h.light || e.luminance != h.luminance
+            || e.chroma != h.chroma )
+            same = 0;
+        if( Editor_FloorHsl16(h.hue, h.sat, h.light) != palette_hsl24_to_hsl16(h.hue, h.sat, h.light) )
+            same = 0;
+    }
+    CHECK(same, "floorcolor: HSL24 and HSL16 as palette.c packs them");
+    {
+        uint32_t const white = Editor_FloorRgbOfHsl16(127);
+        uint32_t const green = Editor_FloorRgbOfHsl16((21 << 10) | (7 << 7) | 64);
+        CHECK(Editor_FloorRgbOfHsl16(0) == 0 && (white >> 16) >= 0xf0 && ((white >> 8) & 0xff) >= 0xf0
+                  && (white & 0xff) >= 0xf0 && ((green >> 8) & 0xff) > 0xc0 && ((green >> 8) & 0xff) > (green >> 16)
+                  && ((green >> 8) & 0xff) > (green & 0xff),
+            "floorcolor: the palette's black, near-white and the green of hue 21 (#%06x #%06x #%06x)",
+            (unsigned)Editor_FloorRgbOfHsl16(0), (unsigned)white, (unsigned)green);
+    }
+    {
+        struct Editor_FloorHsl e;
+        uint32_t const back = Editor_FloorRgbOfHsl(85, 128, 96);
+        Editor_FloorHslOfRgb(back, &e);
+        CHECK(abs(e.hue - 85) <= 2 && abs(e.sat - 128) <= 3 && abs(e.light - 96) <= 2,
+            "floorcolor: the sliders' HSL comes back from its colour (#%06x: %d %d %d)", (unsigned)back, e.hue,
+            e.sat, e.light);
+    }
+    Editor_FloorBlendStrip(0x40a040u, 0x40a040u, strip, 23);
+    same = 1;
+    for( int i = 0; i < 23; i++ )
+        if( strip[i] != Editor_FloorShown(0x40a040u) )
+            same = 0;
+    CHECK(same, "blend strip: one underlay each side is that underlay's ground everywhere");
+    Editor_FloorBlendStrip(0x282820u, 0xB7D49Au, strip, 23);
+    CHECK(strip[0] == Editor_FloorShown(0x282820u) && strip[22] == Editor_FloorShown(0xB7D49Au)
+              && strip[11] != strip[0] && strip[11] != strip[22] && strip[5] == strip[0] && strip[17] == strip[22],
+        "blend strip: the planes' own ground beyond five tiles, the average between (#%06x #%06x #%06x)",
+        (unsigned)strip[0], (unsigned)strip[11], (unsigned)strip[22]);
+    {
+        struct Editor_FloorHsl before;
+        struct Editor_FloorHsl after;
+        int rising = 1;
+        Editor_FloorHslOfRgb(strip[5], &before);
+        for( int i = 6; i <= 17; i++ )
+        {
+            Editor_FloorHslOfRgb(strip[i], &after);
+            if( after.light < before.light - 2 )
+                rising = 0;
+            before = after;
+        }
+        CHECK(rising, "blend strip: the lightness climbs from the dark side to the light one");
+    }
+    CHECK(Editor_FloorDistance(0x282820u, 0x282820u) == 0
+              && Editor_FloorDistance(0x282820u, 0x2a2a22u) < Editor_FloorDistance(0x282820u, 0xB7D49Au),
+        "floorcolor: a near colour is nearer than a far one (%d < %d)", Editor_FloorDistance(0x282820u, 0x2a2a22u),
+        Editor_FloorDistance(0x282820u, 0xB7D49Au));
+
+    layout_boot(1920, 1080, 1);
+    palette = find_panel("Palette");
+    terrain = find_panel("Terrain");
+    CHECK(palette >= 0 && terrain >= 0, "palette: the Palette and Terrain panels exist");
+    if( palette < 0 || terrain < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    ToriRSChrome_PanelSetVisible(&g_chrome, palette, 1);
+    frame();
+    graph_under = find_widget(palette, TORIRS_CHROME_W_GRAPH, NULL);
+    w_all = find_widget(palette, TORIRS_CHROME_W_CHECKBOX, "Every id");
+    w_sort = find_widget(palette, TORIRS_CHROME_W_DROPDOWN, "Sort");
+    w_hue = find_widget(palette, TORIRS_CHROME_W_SLIDER, "Hue");
+    w_sat = find_widget(palette, TORIRS_CHROME_W_SLIDER, "Sat (%)");
+    w_light = find_widget(palette, TORIRS_CHROME_W_SLIDER, "Light (%)");
+    w_hex = find_widget(palette, TORIRS_CHROME_W_TEXTINPUT, "#");
+    CHECK(graph_under >= 0 && w_all >= 0 && w_sort >= 0 && w_hue >= 0 && w_sat >= 0 && w_light >= 0 && w_hex >= 0,
+        "palette: the wells, Every id, Sort, the three sliders and the hex field (%d %d %d %d %d %d %d)",
+        graph_under, w_all, w_sort, w_hue, w_sat, w_light, w_hex);
+    if( graph_under < 0 || w_all < 0 || w_sort < 0 || w_hue < 0 || w_hex < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+
+    /* Two picks: the strip runs from the first to the second, the picker
+     *  takes the second's colour, and that record is its own nearest. */
+    g_ui.tools.underlay_id = 12;
+    frame();
+    g_ui.tools.underlay_id = 40;
+    frame();
+    CHECK(Editor_Palette_BlendFrom(&g_ui) == 12, "palette: the strip runs from the pick before (%d)",
+        Editor_Palette_BlendFrom(&g_ui));
+    CHECK(label_with(palette, "Blend 12 -> 40") >= 0, "palette: the blend row names both picks and their distance");
+    CHECK(strcmp(ToriRSChrome_Text(&g_chrome, w_hex), "#40a068") == 0, "palette: the hex field shows the pick's colour (%s)",
+        ToriRSChrome_Text(&g_chrome, w_hex));
+    n = Editor_Palette_Matches(&g_ui, 0, ids, 9);
+    CHECK(n == 9 && ids[0] == 40, "palette: the pick's record is the nearest underlay to its colour (%d: %d)", n,
+        n > 0 ? ids[0] : -1);
+    CHECK(label_with(palette, "Underlays: 40") >= 0, "palette: the match row lists the nearest first");
+
+    /* A hover names the swatch; a press picks it and arms the brush. */
+    CHECK(Editor_Palette_SwatchAt(&g_ui, 0, 40, &x, &y), "palette: the pick has a swatch");
+    push_graph(graph_under, TORIRS_CHROME_EVENT_GRAPH_HOVER, x, y, 0);
+    frame();
+    CHECK(strstr(g_chrome.widgets[graph_under].tooltip, "underlay 40") && strstr(g_chrome.widgets[graph_under].tooltip, "#40a068"),
+        "palette: the hover names the swatch's id and colour (%s)", g_chrome.widgets[graph_under].tooltip);
+    CHECK(Editor_Palette_SwatchAt(&g_ui, 0, 12, &x, &y), "palette: the earlier pick is still listed");
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+    push_graph(graph_under, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+    frame();
+    CHECK(g_ui.tools.underlay_id == 12 && g_ui.tools.tool == EDITOR_TOOL_PAINT_UNDERLAY
+              && Editor_Palette_BlendFrom(&g_ui) == 40,
+        "palette: the press picks 12, arms Paint underlay and the strip now runs from 40 (%d %d %d)",
+        g_ui.tools.underlay_id, (int)g_ui.tools.tool, Editor_Palette_BlendFrom(&g_ui));
+
+    /* Every id lists the window's whole set (the fake answers every id). */
+    CHECK(!Editor_Palette_SwatchAt(&g_ui, 0, 200, &x, &y), "palette: an unused id is not listed by default");
+    CHECK(g_floor_requests == 0, "palette: nothing asked of the window before Every id (%d)", g_floor_requests);
+    ToriRSChrome_SetChecked(&g_chrome, w_all, 1);
+    activate(w_all);
+    CHECK(Editor_Palette_SwatchAt(&g_ui, 0, 200, &x, &y) && Editor_Palette_SwatchAt(&g_ui, 1, 700, &x, &y)
+              && !Editor_Palette_SwatchAt(&g_ui, 0, 257, &x, &y),
+        "palette: Every id lists underlay 200 and overlay 700, not an underlay past 256");
+    for( int i = 0; i < 20; i++ )
+        frame();
+    CHECK(g_floor_requests == 1024 - 700 && g_floor_request_first == 701,
+        "palette: Every id asks the window for the overlays it has not loaded, 701 first (%d asked, first %d)",
+        g_floor_requests, g_floor_request_first);
+
+    /* By lightness: along the well the light never falls; by hue, the
+     *  hue-then-light key never falls. */
+    for( int sort = 1; sort <= 2; sort++ )
+    {
+        struct Editor_FloorHsl hsl;
+        int order[257];
+        int ordered = 1;
+        int seen = 0;
+        ToriRSChrome_DropdownSetSelected(&g_chrome, w_sort, sort);
+        activate(w_sort);
+        memset(order, 0, sizeof(order));
+        for( int id = 1; id <= 256; id++ )
+            if( Editor_Palette_SwatchAt(&g_ui, 0, id, &x, &y) && swatch_index(x, y) < 257 )
+            {
+                order[swatch_index(x, y)] = id;
+                seen++;
+            }
+        for( int i = 2, last = -1; i < 257; i++ )
+        {
+            uint32_t rgb;
+            int key;
+            if( !order[i] )
+                continue;
+            fake_floor_rgb(NULL, 0, order[i], &rgb);
+            Editor_FloorHslOfRgb(rgb, &hsl);
+            key = sort == 2 ? hsl.light * 256 + hsl.hue : hsl.sat < 24 ? (1 << 16) + hsl.light : hsl.hue * 256 + hsl.light;
+            if( key < last )
+                ordered = 0;
+            last = key;
+        }
+        CHECK(seen == 256 && ordered, "palette: sort %d orders the 256 swatches by its key (%d seen)", sort, seen);
+    }
+    ToriRSChrome_DropdownSetSelected(&g_chrome, w_sort, 0);
+    activate(w_sort);
+    ToriRSChrome_SetChecked(&g_chrome, w_all, 0);
+    activate(w_all);
+
+    /* The hex finds the record of that exact colour; the sliders follow. */
+    ToriRSChrome_SetText(&g_chrome, w_hex, "#40a04c");
+    activate(w_hex);
+    n = Editor_Palette_Matches(&g_ui, 0, ids, 9);
+    CHECK(n == 9 && ids[0] == 12, "palette: #40a04c's nearest underlay is 12 (%d)", n > 0 ? ids[0] : -1);
+    CHECK(ToriRSChrome_SliderValue(&g_chrome, w_hue) > 100 && ToriRSChrome_SliderValue(&g_chrome, w_hue) < 150
+              && ToriRSChrome_SliderValue(&g_chrome, w_light) > 30 && ToriRSChrome_SliderValue(&g_chrome, w_light) < 60,
+        "palette: the sliders show the hex's hue and lightness (%d, %d)", ToriRSChrome_SliderValue(&g_chrome, w_hue),
+        ToriRSChrome_SliderValue(&g_chrome, w_light));
+    n = Editor_Palette_Matches(&g_ui, 1, ids, 9);
+    CHECK(n == 9, "palette: nine overlays matched too (%d)", n);
+    /* A slider: the colour and the hex follow, the matches move. */
+    ToriRSChrome_SliderSet(&g_chrome, w_light, 90);
+    activate(w_light);
+    n = Editor_Palette_Matches(&g_ui, 0, ids, 9);
+    CHECK(ToriRSChrome_Text(&g_chrome, w_hex)[0] == '#' && strcmp(ToriRSChrome_Text(&g_chrome, w_hex), "#40a04c") != 0
+              && label_with(palette, ToriRSChrome_Text(&g_chrome, w_hex)) >= 0 && n == 9 && ids[0] != 12,
+        "palette: a lighter colour by slider shows in the hex and the row, and matches elsewhere (%s, %d)",
+        ToriRSChrome_Text(&g_chrome, w_hex), n > 0 ? ids[0] : -1);
+
+    /* The Terrain panel's Mix: shown for Paint underlay only, in the readout
+     *  under 100, the hotkey's chord steps it by ten. */
+    w_mix = find_widget(terrain, TORIRS_CHROME_W_SLIDER, "Mix (%)");
+    CHECK(w_mix >= 0, "terrain: a Mix slider");
+    if( w_mix >= 0 )
+    {
+        Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+        frame();
+        CHECK(g_chrome.widgets[w_mix].hidden, "terrain: Mix is hidden under Raise");
+        Editor_UiSetTool(&g_ui, EDITOR_TOOL_PAINT_UNDERLAY);
+        frame();
+        CHECK(!g_chrome.widgets[w_mix].hidden && g_ui.tools.paint_mix == 100, "terrain: Mix shows under Paint underlay, at 100");
+        ToriRSChrome_SliderSet(&g_chrome, w_mix, 50);
+        activate(w_mix);
+        CHECK(g_ui.tools.paint_mix == 50 && label_with(terrain, "mix 50%") >= 0,
+            "terrain: the slider sets the mix and the readout says so (%d)", g_ui.tools.paint_mix);
+        CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_BRUSH_STRENGTH_UP) && g_ui.tools.paint_mix == 60,
+            "terrain: Shift+] steps the mix by ten under Paint underlay (%d)", g_ui.tools.paint_mix);
+        frame();
+        CHECK(ToriRSChrome_SliderValue(&g_chrome, w_mix) == 60, "terrain: the slider follows the hotkey");
+        g_ui.tools.paint_mix = 100;
+    }
+    Editor_UiFree(&g_ui);
+}
+
+static void
+test_statusbar(void)
+{
+    struct EditorUiPanel* module;
+    struct ToriRSChromeRect bar;
+    struct EditorUiRect world;
+    struct Editor_Chord chord;
+    int runs[STATUSBAR_RUNS_MAX];
+    int count;
+    int panel;
+    int run;
+    char long_status[160];
+
+    layout_boot(1530, 1006, 1);
+    module = Editor_UiFindPanel(&g_ui, "statusbar");
+    CHECK(module && module->chrome_panel >= 0, "statusbar: the module registers");
+    if( !module )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    panel = module->chrome_panel;
+    CHECK(!module->title && Editor_HotkeyForPanel("statusbar") < 0,
+        "statusbar: no View-menu row and no hotkey: it is always on");
+    CHECK(g_chrome.panels[panel].visible && g_chrome.panels[panel].title[0] == '\0'
+              && !g_chrome.panels[panel].framed && g_chrome.panels[panel].style == TORIRS_CHROME_PANEL_MENUBAR,
+        "statusbar: shown with the editor, no title bar, no frame, one row");
+
+    /* The band at the foot: 20 px at 1x, the surface's width; the world, the
+     * column and the console stop above it. */
+    bar = g_chrome.panels[panel].last_rect;
+    world = Editor_UiWorldRect(&g_ui);
+    CHECK(bar.x == 0 && bar.w == 1530 && bar.h == 20 && bar.y + bar.h == 1006,
+        "statusbar: a 20 px band across the foot (%d,%d %dx%d)", bar.x, bar.y, bar.w, bar.h);
+    CHECK(world.y + world.h <= bar.y && g_ui.world.y + g_ui.world.h <= bar.y && g_ui.dock_bottom <= bar.y,
+        "statusbar: the world (%d..%d) and the column (..%d) stop above it (%d)", world.y, world.y + world.h,
+        g_ui.dock_bottom, bar.y);
+    for( int i = 0; i < g_chrome.panel_count; i++ )
+    {
+        struct ToriRSChromeRect const r = g_chrome.panels[i].last_rect;
+        if( i == panel || !layout_panel(i) )
+            continue;
+        CHECK(r.y + r.h <= bar.y, "statusbar: '%s' (%d..%d) ends above the bar", g_chrome.panels[i].title, r.y,
+            r.y + r.h);
+    }
+    layout_check("with the status bar");
+
+    /* The hint: Select armed, nothing selected, the pointer off the world. */
+    CHECK(g_ui.tools.tool == EDITOR_TOOL_SELECT, "statusbar: Select is armed at boot");
+    count = statusbar_runs(panel, runs);
+    CHECK(count == 5 && strcmp(g_chrome.widgets[runs[0]].text, "[click] tile") == 0
+              && strcmp(g_chrome.widgets[runs[1]].text, "[Shift+click] add loc") == 0
+              && strcmp(g_chrome.widgets[runs[2]].text, "[drag] marquee") == 0
+              && strcmp(g_chrome.widgets[runs[3]].text, "[Q] rotate") == 0
+              && strcmp(g_chrome.widgets[runs[4]].text, "[Shift+Q] reshape") == 0,
+        "statusbar: Select's live chords (%d runs, first '%s')", count,
+        count > 0 ? g_chrome.widgets[runs[0]].text : "");
+    run = statusbar_run(panel, "[Q] rotate");
+    CHECK(run >= 0 && strcmp(g_chrome.widgets[run].tooltip, "Rotate  [Q]") == 0,
+        "statusbar: a hint's tooltip names the action and its chord ('%s')",
+        run >= 0 ? g_chrome.widgets[run].tooltip : "");
+    statusbar_check_fits(panel, "statusbar at boot");
+
+    /* The hover readout, and the pointer over the world brings Ctrl+A. */
+    g_ui.app_services.hover_tile = statusbar_fake_hover;
+    g_statusbar_hover.on = 1;
+    g_statusbar_hover.x = 3222;
+    g_statusbar_hover.z = 3218;
+    g_statusbar_hover.level = 1;
+    frame();
+    CHECK(statusbar_run(panel, "3222,3218 L1 | m50_50") >= 0, "statusbar: the hover reads tile, level and square");
+    CHECK(statusbar_run(panel, "[" "Ctrl" "+A] square") >= 0 || statusbar_run(panel, "[Cmd+A] square") >= 0,
+        "statusbar: over the world Select square appears");
+    g_statusbar_hover.on = 0;
+    frame();
+    count = statusbar_runs(panel, runs);
+    CHECK(count == 5, "statusbar: off the world the hover is gone (%d runs)", count);
+
+    /* The armed tool drives the strip; a pick brings Place's key. */
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_LOC_PLACE);
+    g_ui.tools.pick_kind = -1;
+    g_ui.tools.pick_id = -1;
+    frame();
+    CHECK(statusbar_run(panel, "[click] place") >= 0 && statusbar_run(panel, "[Q] turn") >= 0
+              && statusbar_run(panel, "[Esc] drop") >= 0,
+        "statusbar: Place's rows replace Select's");
+    g_ui.tools.pick_kind = 0;
+    g_ui.tools.pick_id = 1902;
+    frame();
+    CHECK(statusbar_run(panel, "[click/Space, Enter] place") >= 0, "statusbar: with a loc pick, Space places");
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+    frame();
+    CHECK(statusbar_run(panel, "[drag] paint") >= 0 && statusbar_run(panel, "[[ ]] radius") >= 0
+              && statusbar_run(panel, "[Shift+[ ]] strength") >= 0,
+        "statusbar: a brush's rows");
+
+    /* A rebind relabels the strip on the next frame. */
+    CHECK(Editor_ChordParse("minus", &chord), "statusbar: minus parses");
+    Editor_HotkeysSet(&g_ui.hotkeys, EDITOR_HK_BRUSH_RADIUS_DOWN, &chord, 1);
+    frame();
+    CHECK(statusbar_run(panel, "[- ]] radius") >= 0, "statusbar: the rebind shows on the next frame");
+    Editor_HotkeysResetDefaults(&g_ui.hotkeys);
+    frame();
+    CHECK(statusbar_run(panel, "[[ ]] radius") >= 0, "statusbar: Reset all shows the default again");
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_SELECT);
+
+    /* The status sentence: logged, shown for 6 s of the frame clock, gone. */
+    ToriRSChrome_Tick(&g_chrome, 100000);
+    Editor_UiStatus(&g_ui, "Place refused: tile %d,%d holds a wall of that shape; press E to swap", 3222, 3218);
+    frame();
+    CHECK(strcmp(Editor_UiConsoleLine(&g_ui, 0),
+              "Place refused: tile 3222,3218 holds a wall of that shape; press E to swap")
+              == 0,
+        "statusbar: the console keeps the sentence");
+    CHECK(statusbar_run(panel, "Place refused: tile 3222,3218 holds a wall of that shape; press E to swap") >= 0,
+        "statusbar: the bar shows it");
+    ToriRSChrome_Tick(&g_chrome, 100000 + EDITOR_UI_STATUS_MS - 1);
+    frame();
+    CHECK(Editor_UiStatusText(&g_ui)[0] && statusbar_run(panel, Editor_UiStatusText(&g_ui)) >= 0,
+        "statusbar: still shown a moment before 6 s");
+    ToriRSChrome_Tick(&g_chrome, 100000 + EDITOR_UI_STATUS_MS);
+    frame();
+    CHECK(!Editor_UiStatusText(&g_ui)[0] && statusbar_runs(panel, runs) == 5,
+        "statusbar: gone at 6 s, the hint alone again");
+    CHECK(strstr(Editor_UiConsoleLine(&g_ui, 0), "Place refused") != NULL, "statusbar: the console still has it");
+
+    /* Measured, never clipped: a long sentence on a narrow window ends in
+     * "...", the full text its tooltip; hint rows that do not fit are left
+     * out whole. */
+    ToriRSChrome_SetSurface(&g_chrome, 640, 480);
+    frame();
+    frame();
+    bar = g_chrome.panels[panel].last_rect;
+    CHECK(bar.w == 640 && bar.y + bar.h == 480, "statusbar: follows a resize (%d,%d %dx%d)", bar.x, bar.y, bar.w,
+        bar.h);
+    memset(long_status, 0, sizeof(long_status));
+    for( int i = 0; i < 25; i++ )
+        strcat(long_status, "word ");
+    Editor_UiStatus(&g_ui, "%s", long_status);
+    frame();
+    count = statusbar_runs(panel, runs);
+    run = count > 0 ? runs[count - 1] : -1;
+    CHECK(run >= 0 && strlen(g_chrome.widgets[run].text) > 3
+              && strcmp(g_chrome.widgets[run].text + strlen(g_chrome.widgets[run].text) - 3, "...") == 0
+              && strncmp(g_chrome.widgets[run].text, "word word", 9) == 0,
+        "statusbar: a long sentence ends in an ellipsis ('%s')", run >= 0 ? g_chrome.widgets[run].text : "");
+    CHECK(run >= 0 && strncmp(g_chrome.widgets[run].tooltip, "word word word", 14) == 0,
+        "statusbar: and its tooltip is the sentence");
+    statusbar_check_fits(panel, "statusbar at 640 px");
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_LOC_PLACE);
+    frame();
+    statusbar_check_fits(panel, "statusbar at 640 px, Place");
+
+    /* At 2x the band is 40 px and still ends at the foot. */
+    Editor_UiFree(&g_ui);
+    layout_boot(1530, 1006, 2);
+    module = Editor_UiFindPanel(&g_ui, "statusbar");
+    if( module )
+    {
+        bar = g_chrome.panels[module->chrome_panel].last_rect;
+        world = Editor_UiWorldRect(&g_ui);
+        CHECK(bar.h == 40 && bar.y + bar.h == 1006 && world.y + world.h <= bar.y,
+            "statusbar: 40 px at 2x, the world above it (%d,%d %dx%d)", bar.x, bar.y, bar.w, bar.h);
+        statusbar_check_fits(module->chrome_panel, "statusbar at 2x");
+        /* The server's write state, from FACT_HELLO. */
+        g_editor.writable = 0;
+        frame();
+        CHECK(statusbar_run(module->chrome_panel, "read-only") >= 0, "statusbar: a read-only server says so");
+        g_editor.writable = 1;
+        frame();
+        CHECK(statusbar_run(module->chrome_panel, "read-only") < 0, "statusbar: and stops when it can save");
+    }
+    Editor_UiFree(&g_ui);
+}
+
 static void
 test_triggers(void)
 {
@@ -6374,7 +7215,13 @@ test_triggers(void)
     /* Open in editor writes to a file here, never starts an editor. */
     snprintf(opened_log, sizeof(opened_log), "%s/opened.txt", g_tmp_root);
     remove(opened_log);
+#ifdef _WIN32
+    /* cmd.exe runs it there (Editor_HostLocalOpenInEditor): echo writes the
+     * path as the command line quoted it, "<path>":<line>. */
+    snprintf(open_cmd, sizeof(open_cmd), "echo {path}:{line}>>\"%s\"", opened_log);
+#else
     snprintf(open_cmd, sizeof(open_cmd), "printf '%%s\\n' {path}:{line} >> '%s'", opened_log);
+#endif
     setenv("TORIRS_EDITOR_OPEN_CMD", open_cmd, 1);
 
     cat_ui_open();
@@ -6418,14 +7265,28 @@ test_triggers(void)
     cat_activate(list);
     cat_activate(cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Open in editor"));
     {
-        char expect[2300];
-        char root_abs[2048];
+        char expect[PATH_MAX + 64];
+#ifdef _WIN32
+        /* The absolute path, quoted by the template, then the line. */
+        CHECK(wait_file_has(opened_log, "test.rs2\":2", got, sizeof(got)) && got[0] == '"'
+                  && strstr(got, "/server/scripts/areas/test/scripts/test.rs2\":2") != NULL,
+            "triggers: Open in editor ran TORIRS_EDITOR_OPEN_CMD with the path and line (%s)", got);
+        (void)expect;
+#else
+        /* realpath writes up to PATH_MAX (glibc's fortify aborts a smaller
+         * buffer). */
+        char root_abs[PATH_MAX];
         if( !realpath(g_tmp_root, root_abs) )
             snprintf(root_abs, sizeof(root_abs), "%s", g_tmp_root);
         snprintf(expect, sizeof(expect), "%s/server/scripts/areas/test/scripts/test.rs2:2\n", root_abs);
         CHECK(wait_file_has(opened_log, "test.rs2:2", got, sizeof(got)) && strcmp(got, expect) == 0,
             "triggers: Open in editor ran TORIRS_EDITOR_OPEN_CMD with the path and line (%s)", got);
+#endif
+#ifdef _WIN32
+        CHECK(cat_console_has("open in editor: echo"), "triggers: the command line is in the Console");
+#else
         CHECK(cat_console_has("open in editor: printf"), "triggers: the command line is in the Console");
+#endif
     }
 
     /* File mode: every trigger of one file. */
@@ -6503,7 +7364,7 @@ test_triggers(void)
             CHECK(read_file_text(disk, got, sizeof(got)) && strcmp(got, text_of(k_edited)) == 0
                       && cat_console_has("saved edited/test_crate/scripts/test_crate.rs2 first"),
                 "triggers: Open in editor saved the edited script before handing it over");
-            CHECK(wait_file_has(opened_log, "test_crate.rs2:3\n", got, sizeof(got)),
+            CHECK(wait_file_has(opened_log, OPENED_AT("test_crate.rs2", "3"), got, sizeof(got)),
                 "triggers: and handed over line 3");
 
             /* Edited outside: the disk changes under the open document. */
@@ -6565,10 +7426,15 @@ test_triggers(void)
         ToriRSChrome_VListSetSelected(&g_cat_chrome, diags, 0);
         cat_activate(diags);
         cat_activate(cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Open problem"));
-        CHECK(wait_file_has(opened_log, "areas/test/scripts/test.rs2:3\n", got, sizeof(got)),
+        CHECK(wait_file_has(opened_log, OPENED_AT("areas/test/scripts/test.rs2", "3"), got, sizeof(got)),
             "triggers: Open problem hands over its file and line (errors listed before warnings)");
-        CHECK(Editor_HotkeyRun(&g_cat_ui, EDITOR_HK_FILE_CHECK_SCRIPTS) == 1 && cat_console_has("no compile paths"),
-            "triggers: the Check hotkey reaches the panel (no compile paths here)");
+        /* Check is the editor server's BUILD job (workbench 6.6), heard
+         * through the Live panel; this window has no such link, and the
+         * panel says why. */
+        CHECK(Editor_HotkeyRun(&g_cat_ui, EDITOR_HK_FILE_CHECK_SCRIPTS) == 1
+                  && strncmp(Editor_UiStatusText(&g_cat_ui), "Check refused: ", 15) == 0,
+            "triggers: the Check hotkey reaches the panel, which says why it cannot (%s)",
+            Editor_UiStatusText(&g_cat_ui));
         CHECK(Editor_HotkeyRun(&g_cat_ui, EDITOR_HK_FILE_RUN) == 1 && cat_console_has("no Live panel"),
             "triggers: the Run hotkey says why it cannot");
         CHECK(ToriRSChrome_Disabled(&g_cat_chrome, cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Run")),
@@ -6647,6 +7513,8 @@ main(
     test_areas();
     test_active_level();
     test_hotkeys();
+    test_statusbar();
+    test_palette_colour();
     test_triggers();
     Editor_PickerFree(&g_picker);
     Editor_Close(&g_editor);

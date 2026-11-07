@@ -58,6 +58,8 @@
 #define CAT_FIELDS_MAX 96
 #define CAT_QUERY_TERMS_MAX 8
 #define CAT_QUERY_FILTERS_MAX 8
+/** Loc shapes 0..22 (EDITOR_LOC_SHAPE_COUNT). */
+#define CAT_LOC_SHAPES 23
 
 enum cat_src_type
 {
@@ -139,8 +141,9 @@ struct cat_source
     /* JM2: level-0 (overlay << 8 | underlay) -> tile count, as pairs. */
     uint32_t* hist;
     int hist_count;
-    /* JL2 */
+    /* JL2: the locs it places (one a line after the header). */
     int has_locs;
+    int loc_count;
     /* WMA / WMC */
     struct cat_area_src* areas;
     int area_count;
@@ -194,6 +197,7 @@ struct cat_square
     int storage;
     uint32_t flags;
     int spawn_count;
+    int loc_count;
     uint32_t rgb;
     int primary_area;
     int area_first;
@@ -218,6 +222,11 @@ struct cat_held_query
     uint32_t kind;
     uint32_t flags;
     uint32_t revision;
+    /** A scoped "all" (cat_query_scoped): the per-kind cap (0: not scoped),
+     *  the hits it stopped at, and whether a cap or that window cut any. */
+    int scope_cap;
+    int scope_want;
+    int more;
     char filter[1024];
     struct cat_hit* hits;
     int count;
@@ -233,10 +242,16 @@ enum cat_job_phase
     CAT_JOB_IDLE = 0,
     /** Walking the roots, a slice at a time (cat_found marks what changed). */
     CAT_JOB_SCAN,
-    /** The warm build only: parsing the dirty sources a few at a time. A
-     *  sweep parses and merges in one step, since a record's refs index its
-     *  sources' contributions and must not see half a re-parse. */
+    /** The warm build only: the queue's sources (locs first, cat_warm_queue)
+     *  parsed -- a large configs/all.<type> or overlay in byte slices -- and
+     *  each merged into the live index once it is whole, so a query answers
+     *  from what is there. A sweep parses and merges in one step, since a
+     *  record's refs index its sources' contributions and must not see half
+     *  a re-parse. */
     CAT_JOB_PARSE,
+    /** The warm build's end: the derived fields a slice of records at a
+     *  time, then the areas and the atlas, and the index is built. */
+    CAT_JOB_FINISH,
 };
 
 struct cat_job_dir
@@ -258,8 +273,35 @@ struct cat_job
     /** "maps" and the lanes' maps/, in the order the full scan walks them. */
     char** lanes;
     int lane_count;
-    int parse_at;
     struct ToriRSMapEdCatalogStats stats;
+
+    /* The warm build: source indices in the order they are parsed and
+     * merged, the next one, and how far into it the job is. */
+    int* queue;
+    int queue_count;
+    int queue_cap;
+    int parse_at;
+    /** The head's parse is whole; its contributions merged so far. */
+    int parsed;
+    int merge_at;
+    /** A large blocks file part-parsed: the next byte, the lines before it. */
+    int part_started;
+    size_t part_off;
+    uint32_t part_line;
+    /** The window of that file in memory: bytes [win_off, win_end) are whole
+     *  blocks (or lines) not all parsed yet; win_final when it reaches the
+     *  file's end. Freed when the job ends. */
+    char* win;
+    size_t win_cap;
+    size_t win_off;
+    size_t win_end;
+    int win_final;
+    /** CAT_JOB_FINISH: the next record whose derived fields are due. */
+    int finish_at;
+    /** Bytes of the queue's sources, and of those parsed (the progress a
+     *  partial answer reports). */
+    int64_t bytes_total;
+    int64_t bytes_done;
 };
 
 struct ToriRSMapEdCatalog
@@ -287,8 +329,16 @@ struct ToriRSMapEdCatalog
     /* the merge */
     struct cat_record* records;
     int record_count;
+    int records_cap;
     struct cat_ref* refs;
     int ref_count;
+    int refs_cap;
+    /** The warm build merges one source at a time (cat_job_step): each
+     *  contribution joins the display and id chains as it merges. A full
+     *  merge builds them after. */
+    int chains_live;
+    /** A live merge renamed a record into another display chain. */
+    int chains_stale;
     int32_t* name_heads;
     int32_t* display_heads;
     int32_t* id_heads;
@@ -312,11 +362,20 @@ struct ToriRSMapEdCatalog
 
     /** The background job: the warm build and the freshness sweeps. */
     struct cat_job job;
+    /** Bytes of a blocks file one warm slice parses at most
+     *  (TORIRSMAPED_CATALOG_SLICE_BYTES; the test lowers it). */
+    size_t slice_bytes;
     /** Bumped by every merge; the held query is keyed on it. */
     uint32_t revision;
     /** Bumped by a merge of a built index that took in a maps change (a
      *  square file parsed or gone, a lane): the atlas holders want it. */
     uint32_t maps_revision;
+    /** Record indices by kind (cat_kind_index), for `kind_index_revision`. */
+    int32_t* kind_records;
+    int kind_records_cap;
+    int kind_start[TORIRSMAPED_CATALOG_KIND_COUNT + 1];
+    int kind_index_valid;
+    uint32_t kind_index_revision;
     struct cat_held_query held;
     struct ToriRSMapEdCatalogCounters counters;
 };
@@ -460,6 +519,14 @@ cat_parse_int(
     return 1;
 }
 
+static int
+cat_parse_whole_int(
+    const char* text,
+    int* out)
+{
+    return text[0] && cat_parse_int(text, text + strlen(text), out);
+}
+
 /** "m<x>_<z>" (a bare name, no extension). */
 static int
 cat_square_name(
@@ -546,6 +613,52 @@ cat_read(
     return catalog->scratch;
 }
 
+/** Up to `max` bytes of a file from byte `offset` into `*buf` (grown to
+ *  `*cap`), NUL-terminated: one window of a warm build's large config file.
+ *  Returns NULL when it cannot be opened (*out_size 0 at its end). */
+static char*
+cat_read_at(
+    struct ToriRSMapEdCatalog* catalog,
+    const char* rel,
+    size_t offset,
+    size_t max,
+    char** buf,
+    size_t* cap,
+    size_t* out_size)
+{
+    char path[CAT_PATH_MAX * 2];
+    size_t got = 0;
+    int fd;
+
+    assert(max > 0);
+    assert(buf);
+    assert(cap);
+    snprintf(path, sizeof(path), "%s/%s", catalog->content_dir, rel);
+    fd = open(path, O_RDONLY | O_BINARY);
+    if( fd < 0 )
+        return NULL;
+    if( *cap < max + 1 )
+    {
+        *buf = ToriMem_Realloc(ToriMem_Editor(), *buf, max + 1);
+        assert(*buf);
+        *cap = max + 1;
+    }
+    if( lseek(fd, (off_t)offset, SEEK_SET) == (off_t)offset )
+    {
+        while( got < max )
+        {
+            ssize_t n = read(fd, *buf + got, max - got);
+            if( n <= 0 )
+                break;
+            got += (size_t)n;
+        }
+    }
+    close(fd);
+    (*buf)[got] = '\0';
+    *out_size = got;
+    return *buf;
+}
+
 /* ------------------------------------------------------------------ */
 /* Source pools                                                        */
 /* ------------------------------------------------------------------ */
@@ -619,6 +732,7 @@ cat_source_clear(struct cat_source* src)
     src->pool_len = 0;
     src->hist_count = 0;
     src->has_locs = 0;
+    src->loc_count = 0;
     src->area_count = 0;
     src->claim_count = 0;
 }
@@ -824,28 +938,37 @@ cat_trim(
         (*e)--;
 }
 
-/** `id=name[ extra]` tables: pack/<t>.pack, pack/<ns>.alloc, compacks. */
-static void
-cat_parse_idname(
+/** `id=name[ extra]` tables: pack/<t>.pack, pack/<ns>.alloc, compacks.
+ *  A PART of the file, as cat_parse_blocks_at takes one: whole lines, `*line`
+ *  the lines before them; stops at a line start once `deadline_ms` has
+ *  passed (0: never) and returns the bytes consumed. */
+static size_t
+cat_parse_idname_at(
     struct cat_source* src,
     const char* text,
     size_t size,
+    uint32_t* line_io,
     int kind,
     int prov,
-    const char* table)
+    const char* table,
+    double deadline_ms)
 {
     const char* p = text;
     const char* end = text + size;
-    uint32_t line = 0;
+    uint32_t line = *line_io;
+    unsigned lines = 0;
 
     while( p < end )
     {
         const char* le;
-        const char* next = cat_next_line(p, end, &le);
+        const char* next;
         const char* eq;
         const char* name_end;
         int id;
 
+        if( deadline_ms > 0.0 && (++lines & 1023u) == 0 && cat_now_ms() >= deadline_ms )
+            break;
+        next = cat_next_line(p, end, &le);
         line++;
         eq = memchr(p, '=', (size_t)(le - p));
         if( p < le && p[0] != '/' && eq && cat_parse_int(p, eq, &id) )
@@ -882,6 +1005,21 @@ cat_parse_idname(
         }
         p = next;
     }
+    *line_io = line;
+    return (size_t)(p - text);
+}
+
+static void
+cat_parse_idname(
+    struct cat_source* src,
+    const char* text,
+    size_t size,
+    int kind,
+    int prov,
+    const char* table)
+{
+    uint32_t line = 0;
+    (void)cat_parse_idname_at(src, text, size, &line, kind, prov, table, 0.0);
 }
 
 /** pack/<ns>.client|.server: one name per line. */
@@ -961,43 +1099,56 @@ cat_block_close(
  * whitelisted summary fields kept) and the server's overlays (`keep_all`).
  * `default` values say nothing and are dropped; repeated multi slots and
  * per-kind repeated families (seq frames, enum vals, ...) are counted.
+ *
+ * A PART of the file: `text` is the bytes from file offset `base`, `*line`
+ * the lines before them (advanced past what is parsed). The part must end at
+ * a `[` header line or at the file's end, so no block spans two parts. Once
+ * `deadline_ms` has passed (0: never) it stops before the next header and
+ * returns the bytes it consumed; otherwise `size`.
  */
-static void
-cat_parse_blocks(
+static size_t
+cat_parse_blocks_at(
     struct cat_source* src,
     const char* text,
     size_t size,
+    size_t base,
+    uint32_t* line,
     int kind,
     int prov,
-    int keep_all)
+    int keep_all,
+    double deadline_ms)
 {
     const char* const* whitelist = cat_whitelist(kind);
     const char* counted = cat_counted_family(kind);
     size_t counted_len = counted ? strlen(counted) : 0;
     const char* p = text;
     const char* end = text + size;
-    uint32_t line = 0;
     struct cat_block block;
+    unsigned headers = 0;
 
-    assert(size < CAT_NONE);
+    assert(line);
+    assert(base + size < CAT_NONE);
     block.index = -1;
 
     while( p < end )
     {
         const char* le;
         const char* next = cat_next_line(p, end, &le);
-        line++;
 
+        if( p < le && p[0] == '[' && deadline_ms > 0.0 && (++headers & 63u) == 0 && p > text
+            && cat_now_ms() >= deadline_ms )
+            break;
+        (*line)++;
         if( p < le && p[0] == '[' )
         {
             const char* rb = memchr(p, ']', (size_t)(le - p));
-            cat_block_close(src, &block, (uint32_t)(p - text));
+            cat_block_close(src, &block, (uint32_t)(base + (size_t)(p - text)));
             if( rb && rb > p + 1 )
             {
                 struct cat_contrib* c = cat_contrib_add(src, kind, prov);
                 c->name = cat_pool_add(src, p + 1, (size_t)(rb - (p + 1)));
-                c->off = (uint32_t)(p - text);
-                c->line = line;
+                c->off = (uint32_t)(base + (size_t)(p - text));
+                c->line = *line;
                 c->fields = (uint32_t)src->pool_len;
                 block.index = src->contrib_count - 1;
                 block.slots = 0;
@@ -1051,7 +1202,22 @@ cat_parse_blocks(
         }
         p = next;
     }
-    cat_block_close(src, &block, (uint32_t)size);
+    cat_block_close(src, &block, (uint32_t)(base + (size_t)(p - text)));
+    return (size_t)(p - text);
+}
+
+/** A whole blocks file at once. */
+static void
+cat_parse_blocks(
+    struct cat_source* src,
+    const char* text,
+    size_t size,
+    int kind,
+    int prov,
+    int keep_all)
+{
+    uint32_t line = 0;
+    (void)cat_parse_blocks_at(src, text, size, 0, &line, kind, prov, keep_all, 0.0);
 }
 
 /** npc_stats/<x>.stats and npc_combat/<x>.combat: `key = value  // note`
@@ -1531,7 +1697,8 @@ cat_parse_jm2(
     }
 }
 
-/** A .jl2: does it place anything after its `==== LOC ====` header? */
+/** A .jl2: how many locs it places after its `==== LOC ====` header (one
+ *  a line, each starting with its level). */
 static void
 cat_parse_jl2(
     struct cat_source* src,
@@ -1548,12 +1715,10 @@ cat_parse_jl2(
         const char* le;
         const char* next = cat_next_line(p, end, &le);
         if( p < le && p[0] >= '0' && p[0] <= '9' )
-        {
-            src->has_locs = 1;
-            return;
-        }
+            src->loc_count++;
         p = next;
     }
+    src->has_locs = src->loc_count > 0;
 }
 
 static int
@@ -2390,14 +2555,28 @@ cat_cstr(
     return at == CAT_NONE ? NULL : src->pool + at;
 }
 
+static void
+cat_index_rehash(
+    struct ToriRSMapEdCatalog* catalog,
+    uint32_t slots);
+
 static int
 cat_record_new(
     struct ToriRSMapEdCatalog* catalog,
     int kind,
     const char* name)
 {
-    struct cat_record* rec = &catalog->records[catalog->record_count];
+    struct cat_record* rec;
     uint32_t slot;
+    /* A live merge grows as it goes (no caller holds a record pointer
+     * across this), and rehashes once it outgrows the warm build's estimate
+     * (cat_warm_queue): the chains average one record a slot at most. A full
+     * merge sizes both for every contribution and never grows here. */
+    catalog->records = cat_grow(
+        catalog->records, &catalog->records_cap, catalog->record_count + 1, sizeof(*catalog->records));
+    if( (uint32_t)catalog->record_count > catalog->hash_mask )
+        cat_index_rehash(catalog, (catalog->hash_mask + 1) * 2);
+    rec = &catalog->records[catalog->record_count];
     memset(rec, 0, sizeof(*rec));
     rec->name = name;
     rec->display = NULL;
@@ -2458,10 +2637,33 @@ cat_merge_contrib(
     rec = &catalog->records[r];
     rec->prov |= c->prov;
     if( rec->id < 0 && c->id >= 0 )
+    {
         rec->id = c->id;
+        if( catalog->chains_live )
+        {
+            uint32_t slot = ((uint32_t)rec->id * 2654435761u ^ rec->kind * 40503u) & catalog->hash_mask;
+            rec->next_id = catalog->id_heads[slot];
+            catalog->id_heads[slot] = r;
+        }
+    }
     if( c->display != CAT_NONE )
-        rec->display = src->pool + c->display;
+    {
+        const char* display = src->pool + c->display;
+        if( catalog->chains_live )
+        {
+            uint32_t slot = cat_hash_lower(rec->kind, display) & catalog->hash_mask;
+            if( !rec->display )
+            {
+                rec->next_display = catalog->display_heads[slot];
+                catalog->display_heads[slot] = r;
+            }
+            else if( slot != (cat_hash_lower(rec->kind, rec->display) & catalog->hash_mask) )
+                catalog->chains_stale = 1; /* renamed into another chain: rebuilt at the end */
+        }
+        rec->display = display;
+    }
 
+    catalog->refs = cat_grow(catalog->refs, &catalog->refs_cap, catalog->ref_count + 1, sizeof(*catalog->refs));
     ref = &catalog->refs[catalog->ref_count];
     ref->source = source;
     ref->contrib = index;
@@ -2813,10 +3015,13 @@ cat_merge_atlas(struct ToriRSMapEdCatalog* catalog)
                 sq->flags |= TORIRSMAPED_SQUARE_HAS_JL2;
                 if( src->has_locs )
                     sq->flags |= TORIRSMAPED_SQUARE_HAS_LOCS;
+                sq->loc_count = src->loc_count;
             }
         }
         area_n = cat_square_area_list(catalog, x, z, areas, 64);
         sq->primary_area = area_n > 0 ? areas[0] : -1;
+        if( area_n == 0 && ToriRSMapEdCatalog_InInstanceSpace(x, z) )
+            sq->flags |= TORIRSMAPED_SQUARE_INSTANCE;
         sq->area_first = catalog->square_area_count;
         sq->area_n = area_n;
         catalog->square_areas = cat_grow(catalog->square_areas, &area_list_cap,
@@ -2832,64 +3037,88 @@ cat_merge_atlas(struct ToriRSMapEdCatalog* catalog)
 /** Facts that need the whole index: npcs with a Talk-to script, vars read
  *  by multi shells. */
 static void
-cat_merge_derived(struct ToriRSMapEdCatalog* catalog)
+cat_merge_derived_one(
+    struct ToriRSMapEdCatalog* catalog,
+    int r)
 {
-    for( int r = 0; r < catalog->record_count; r++ )
+    struct cat_record* rec = &catalog->records[r];
+    if( rec->kind == TORIRSMAPED_CATALOG_TRIGGER )
     {
-        struct cat_record* rec = &catalog->records[r];
-        if( rec->kind == TORIRSMAPED_CATALOG_TRIGGER )
+        const char* comma = strchr(rec->name, ',');
+        if( comma && (size_t)(comma - rec->name) == 6 && memcmp(rec->name, "opnpc1", 6) == 0 )
         {
-            const char* comma = strchr(rec->name, ',');
-            if( comma && (size_t)(comma - rec->name) == 6 && memcmp(rec->name, "opnpc1", 6) == 0 )
-            {
-                int npc = cat_find_exact(catalog, TORIRSMAPED_CATALOG_NPC, comma + 1);
-                if( npc >= 0 )
-                    catalog->records[npc].flags |= CAT_REC_DIALOGUE;
-            }
+            int npc = cat_find_exact(catalog, TORIRSMAPED_CATALOG_NPC, comma + 1);
+            if( npc >= 0 )
+                catalog->records[npc].flags |= CAT_REC_DIALOGUE;
         }
-        else if( rec->kind == TORIRSMAPED_CATALOG_LOC || rec->kind == TORIRSMAPED_CATALOG_NPC )
+    }
+    else if( rec->kind == TORIRSMAPED_CATALOG_LOC || rec->kind == TORIRSMAPED_CATALOG_NPC )
+    {
+        const char* var = cat_record_field(catalog, r, "multivar");
+        if( var )
         {
-            const char* var = cat_record_field(catalog, r, "multivar");
-            if( var )
-            {
-                int target = cat_find_exact(catalog, TORIRSMAPED_CATALOG_VARBIT, var);
-                if( target < 0 )
-                    target = cat_find_exact(catalog, TORIRSMAPED_CATALOG_VARP, var);
-                if( target >= 0 )
-                    catalog->records[target].users++;
-            }
+            int target = cat_find_exact(catalog, TORIRSMAPED_CATALOG_VARBIT, var);
+            if( target < 0 )
+                target = cat_find_exact(catalog, TORIRSMAPED_CATALOG_VARP, var);
+            if( target >= 0 )
+                catalog->records[target].users++;
         }
     }
 }
 
 static void
-cat_merge(struct ToriRSMapEdCatalog* catalog)
+cat_merge_derived(struct ToriRSMapEdCatalog* catalog)
 {
-    /* Ids first (they name records), then cache blocks, then everything that
-     * overrides or annotates them — the order a field lookup's "last one
-     * wins" relies on. */
-    static const int order[][5] = {
-        { CAT_SRC_COMPACK, CAT_SRC_PACK, CAT_SRC_ALLOC, CAT_SRC_IF_COMPACK, CAT_SRC_CS2 },
-        { CAT_SRC_CONFIG, CAT_SRC_JM2, CAT_SRC_JL2, CAT_SRC_IF, CAT_SRC_CS2B },
-        { CAT_SRC_OVERLAY, CAT_SRC_NPC_STATS, CAT_SRC_NPC_COMBAT, CAT_SRC_MEMBER_CLIENT,
-            CAT_SRC_MEMBER_SERVER },
-        { CAT_SRC_RS2, -1, -1, -1, -1 },
-    };
-    int total = 0;
-    uint32_t slots = 1024;
+    for( int r = 0; r < catalog->record_count; r++ )
+        cat_merge_derived_one(catalog, r);
+}
 
-    for( int s = 0; s < catalog->source_count; s++ )
-        total += catalog->sources[s].contrib_count;
-    while( slots < (uint32_t)total * 2 )
-        slots *= 2;
+/** Ids first (they name records), then cache blocks, then everything that
+ *  overrides or annotates them -- the order a field lookup's "last one
+ *  wins" relies on. Source types in no pass are not merged (spawn counts and
+ *  world-map claims feed the atlas from their sources). */
+static const int k_cat_merge_order[][5] = {
+    { CAT_SRC_COMPACK, CAT_SRC_PACK, CAT_SRC_ALLOC, CAT_SRC_IF_COMPACK, CAT_SRC_CS2 },
+    { CAT_SRC_CONFIG, CAT_SRC_JM2, CAT_SRC_JL2, CAT_SRC_IF, CAT_SRC_CS2B },
+    { CAT_SRC_OVERLAY, CAT_SRC_NPC_STATS, CAT_SRC_NPC_COMBAT, CAT_SRC_MEMBER_CLIENT, CAT_SRC_MEMBER_SERVER },
+    { CAT_SRC_RS2, -1, -1, -1, -1 },
+};
+#define CAT_MERGE_PASSES ((int)(sizeof(k_cat_merge_order) / sizeof(k_cat_merge_order[0])))
 
+/** The merge pass a source type's contributions join in, or
+ *  CAT_MERGE_PASSES when it is not merged. */
+static int
+cat_merge_pass(int type)
+{
+    for( int pass = 0; pass < CAT_MERGE_PASSES; pass++ )
+    {
+        for( int t = 0; t < 5; t++ )
+        {
+            if( k_cat_merge_order[pass][t] == type )
+                return pass;
+        }
+    }
+    return CAT_MERGE_PASSES;
+}
+
+/** An empty index with room for `records` records and refs and `slots`
+ *  hash slots (a power of two). */
+static void
+cat_index_reset(
+    struct ToriRSMapEdCatalog* catalog,
+    int records,
+    uint32_t slots)
+{
+    assert(records > 0);
+    assert(slots > 0);
+    assert((slots & (slots - 1)) == 0);
     ToriMem_Free(ToriMem_Editor(), catalog->records);
     ToriMem_Free(ToriMem_Editor(), catalog->refs);
     ToriMem_Free(ToriMem_Editor(), catalog->name_heads);
     ToriMem_Free(ToriMem_Editor(), catalog->display_heads);
     ToriMem_Free(ToriMem_Editor(), catalog->id_heads);
-    catalog->records = ToriMem_Alloc(ToriMem_Editor(), (size_t)(total + 1) * sizeof(*catalog->records));
-    catalog->refs = ToriMem_Alloc(ToriMem_Editor(), (size_t)(total + 1) * sizeof(*catalog->refs));
+    catalog->records = ToriMem_Alloc(ToriMem_Editor(), (size_t)records * sizeof(*catalog->records));
+    catalog->refs = ToriMem_Alloc(ToriMem_Editor(), (size_t)records * sizeof(*catalog->refs));
     catalog->name_heads = ToriMem_Alloc(ToriMem_Editor(), slots * sizeof(int32_t));
     catalog->display_heads = ToriMem_Alloc(ToriMem_Editor(), slots * sizeof(int32_t));
     catalog->id_heads = ToriMem_Alloc(ToriMem_Editor(), slots * sizeof(int32_t));
@@ -2898,25 +3127,88 @@ cat_merge(struct ToriRSMapEdCatalog* catalog)
     assert(catalog->name_heads);
     assert(catalog->display_heads);
     assert(catalog->id_heads);
+    catalog->records_cap = records;
+    catalog->refs_cap = records;
     catalog->hash_mask = slots - 1;
     catalog->record_count = 0;
     catalog->ref_count = 0;
+    catalog->chains_stale = 0;
     for( uint32_t i = 0; i < slots; i++ )
     {
         catalog->name_heads[i] = -1;
         catalog->display_heads[i] = -1;
         catalog->id_heads[i] = -1;
     }
+}
 
-    for( size_t pass = 0; pass < sizeof(order) / sizeof(order[0]); pass++ )
+/** Rebuild the three hash chains over `slots` slots from the records. */
+static void
+cat_index_rehash(
+    struct ToriRSMapEdCatalog* catalog,
+    uint32_t slots)
+{
+    assert((slots & (slots - 1)) == 0);
+    if( slots != catalog->hash_mask + 1 )
+    {
+        ToriMem_Free(ToriMem_Editor(), catalog->name_heads);
+        ToriMem_Free(ToriMem_Editor(), catalog->display_heads);
+        ToriMem_Free(ToriMem_Editor(), catalog->id_heads);
+        catalog->name_heads = ToriMem_Alloc(ToriMem_Editor(), slots * sizeof(int32_t));
+        catalog->display_heads = ToriMem_Alloc(ToriMem_Editor(), slots * sizeof(int32_t));
+        catalog->id_heads = ToriMem_Alloc(ToriMem_Editor(), slots * sizeof(int32_t));
+        assert(catalog->name_heads);
+        assert(catalog->display_heads);
+        assert(catalog->id_heads);
+        catalog->hash_mask = slots - 1;
+    }
+    for( uint32_t i = 0; i < slots; i++ )
+    {
+        catalog->name_heads[i] = -1;
+        catalog->display_heads[i] = -1;
+        catalog->id_heads[i] = -1;
+    }
+    for( int r = 0; r < catalog->record_count; r++ )
+    {
+        struct cat_record* rec = &catalog->records[r];
+        uint32_t slot = cat_hash_lower(rec->kind, rec->name) & catalog->hash_mask;
+        rec->next_name = catalog->name_heads[slot];
+        catalog->name_heads[slot] = r;
+        rec->next_display = -1;
+        rec->next_id = -1;
+        if( rec->display )
+        {
+            slot = cat_hash_lower(rec->kind, rec->display) & catalog->hash_mask;
+            rec->next_display = catalog->display_heads[slot];
+            catalog->display_heads[slot] = r;
+        }
+        if( rec->id >= 0 )
+        {
+            slot = ((uint32_t)rec->id * 2654435761u ^ rec->kind * 40503u) & catalog->hash_mask;
+            rec->next_id = catalog->id_heads[slot];
+            catalog->id_heads[slot] = r;
+        }
+    }
+    catalog->chains_stale = 0;
+}
+
+static void
+cat_merge(struct ToriRSMapEdCatalog* catalog)
+{
+    int total = 0;
+    uint32_t slots = 1024;
+
+    for( int s = 0; s < catalog->source_count; s++ )
+        total += catalog->sources[s].contrib_count;
+    while( slots < (uint32_t)total * 2 )
+        slots *= 2;
+
+    cat_index_reset(catalog, total + 1, slots);
+    catalog->chains_live = 0;
+    for( int pass = 0; pass < CAT_MERGE_PASSES; pass++ )
     {
         for( int s = 0; s < catalog->source_count; s++ )
         {
-            int type = catalog->sources[s].type;
-            int in_pass = 0;
-            for( int t = 0; t < 5; t++ )
-                in_pass |= order[pass][t] == type;
-            if( !in_pass )
+            if( cat_merge_pass(catalog->sources[s].type) != pass )
                 continue;
             for( int i = 0; i < catalog->sources[s].contrib_count; i++ )
                 cat_merge_contrib(catalog, s, i);
@@ -2958,6 +3250,7 @@ ToriRSMapEdCatalog_Create(const char* content_dir)
     assert(catalog);
     snprintf(catalog->content_dir, sizeof(catalog->content_dir), "%s", content_dir);
     catalog->refresh_interval_s = 2;
+    catalog->slice_bytes = TORIRSMAPED_CATALOG_SLICE_BYTES;
     return catalog;
 }
 
@@ -2971,6 +3264,7 @@ ToriRSMapEdCatalog_Free(struct ToriRSMapEdCatalog* catalog)
         return;
     cat_job_abort(catalog);
     ToriMem_Free(ToriMem_Editor(), catalog->held.hits);
+    ToriMem_Free(ToriMem_Editor(), catalog->kind_records);
     for( int i = 0; i < catalog->source_count; i++ )
         cat_source_free(&catalog->sources[i]);
     for( int i = 0; i < catalog->storage_count; i++ )
@@ -3117,7 +3411,289 @@ cat_job_abort(struct ToriRSMapEdCatalog* catalog)
     cat_lanes_free(job->lanes, job->lane_count);
     job->lanes = NULL;
     job->lane_count = 0;
+    ToriMem_Free(ToriMem_Editor(), job->queue);
+    job->queue = NULL;
+    job->queue_count = 0;
+    job->queue_cap = 0;
+    ToriMem_Free(ToriMem_Editor(), job->win);
+    job->win = NULL;
+    job->win_cap = 0;
+    job->win_off = 0;
+    job->win_end = 0;
+    job->part_started = 0;
     job->phase = CAT_JOB_IDLE;
+    /* A warm build cut short leaves sources half parsed (still dirty: the
+     * whole refresh that follows re-parses them) and a live index the
+     * refresh's full merge replaces. */
+    catalog->chains_live = 0;
+}
+
+/** Which kinds the warm build parses first: locs, npcs, objs, the rest. */
+static int
+cat_warm_group(int kind)
+{
+    if( kind == TORIRSMAPED_CATALOG_LOC || kind == TORIRSMAPED_CATALOG_NPC || kind == TORIRSMAPED_CATALOG_OBJ )
+        return kind;
+    return 3;
+}
+
+struct cat_warm_key
+{
+    int key;
+    int source;
+};
+
+static int
+cat_warm_key_cmp(
+    const void* a,
+    const void* b)
+{
+    const struct cat_warm_key* x = a;
+    const struct cat_warm_key* y = b;
+    if( x->key != y->key )
+        return x->key - y->key;
+    return x->source - y->source;
+}
+
+/**
+ * The warm build's parse order, once the scan is whole: every dirty source,
+ * by kind group (locs first, cat_warm_group), then merge pass, then path
+ * order. A record's contributions all share its kind, so within a group
+ * this is the full merge's pass order, and the live index merged a source
+ * at a time ends as cat_merge would have built it.
+ */
+static void
+cat_warm_queue(struct ToriRSMapEdCatalog* catalog)
+{
+    struct cat_job* job = &catalog->job;
+    struct cat_warm_key* keys;
+    int n = 0;
+    int64_t estimate = 0;
+    uint32_t slots = 4096;
+
+    job->stats.removed = cat_compact(catalog);
+    keys = ToriMem_Alloc(ToriMem_Editor(), (size_t)(catalog->source_count + 1) * sizeof(*keys));
+    assert(keys);
+    job->bytes_total = 0;
+    job->bytes_done = 0;
+    /* Every source: one already parsed (none, unless an earlier build was
+     * cut short) is merged without a parse. */
+    for( int s = 0; s < catalog->source_count; s++ )
+    {
+        const struct cat_source* src = &catalog->sources[s];
+        keys[n].key = cat_warm_group(src->kind) * (CAT_MERGE_PASSES + 1) + cat_merge_pass(src->type);
+        keys[n].source = s;
+        job->bytes_total += src->size;
+        /* Records are mostly named by the id tables (a compack line is ~16
+         * bytes); every other merged file names a few. */
+        if( src->type == CAT_SRC_COMPACK || src->type == CAT_SRC_PACK || src->type == CAT_SRC_ALLOC )
+            estimate += src->size / 16;
+        else if( cat_merge_pass(src->type) < CAT_MERGE_PASSES )
+            estimate += 2;
+        n++;
+    }
+    while( slots < (uint64_t)estimate && slots < (1u << 24) )
+        slots *= 2;
+    qsort(keys, (size_t)n, sizeof(*keys), cat_warm_key_cmp);
+    job->queue = cat_grow(job->queue, &job->queue_cap, n + 1, sizeof(*job->queue));
+    for( int i = 0; i < n; i++ )
+        job->queue[i] = keys[i].source;
+    ToriMem_Free(ToriMem_Editor(), keys);
+    job->queue_count = n;
+    job->parse_at = 0;
+    job->parsed = 0;
+    job->merge_at = 0;
+    job->part_started = 0;
+    job->finish_at = 0;
+    cat_index_reset(catalog, 1024, slots);
+    catalog->chains_live = 1;
+    catalog->revision++;
+}
+
+/** A configs/all.<type>, its .compack or an overlay at least this big is
+ *  parsed in parts, so the slice's deadline holds inside it. */
+#define CAT_PART_MIN_BYTES (64 * 1024)
+
+static int
+cat_warm_parted(
+    const struct cat_source* src,
+    int started)
+{
+    if( src->type != CAT_SRC_CONFIG && src->type != CAT_SRC_OVERLAY && src->type != CAT_SRC_COMPACK )
+        return 0;
+    return started || src->size >= CAT_PART_MIN_BYTES;
+}
+
+/**
+ * One part of a large configs/all.<type>, .compack or overlay: at most
+ * `slice_bytes` from where the last part stopped, cut before the last `[`
+ * header in it (a compack: after the last whole line) so nothing spans two
+ * parts (a block longer than the window widens it), and stopped at the
+ * deadline. Returns 1 once the file is parsed whole.
+ */
+static int
+cat_warm_parse_part(
+    struct ToriRSMapEdCatalog* catalog,
+    struct cat_source* src,
+    double deadline_ms)
+{
+    struct cat_job* job = &catalog->job;
+    size_t window = catalog->slice_bytes;
+    int const overlay = src->type == CAT_SRC_OVERLAY;
+    int const compack = src->type == CAT_SRC_COMPACK;
+
+    const char* text;
+    size_t size;
+    size_t used;
+
+    if( !job->part_started )
+    {
+        cat_source_clear(src);
+        job->part_started = 1;
+        job->part_off = 0;
+        job->part_line = 0;
+        job->win_end = 0;
+    }
+    /* The window read last slice still holds unparsed whole blocks when a
+     * deadline stopped the parse inside it: no second read. */
+    if( !(job->part_off >= job->win_off && job->part_off < job->win_end) )
+    {
+        for( ;; )
+        {
+            size_t got = 0;
+            size_t cut;
+            if( !cat_read_at(catalog, src->path, job->part_off, window, &job->win, &job->win_cap, &got) || got == 0 )
+                return 1;
+            job->win_final = got < window;
+            cut = got;
+            if( !job->win_final )
+            {
+                if( compack )
+                    for( cut = got; cut > 0 && job->win[cut - 1] != '\n'; cut-- )
+                        ;
+                else
+                    for( cut = got - 1; cut > 0 && !(job->win[cut] == '[' && job->win[cut - 1] == '\n'); cut-- )
+                        ;
+                if( cut == 0 )
+                {
+                    window *= 2;
+                    continue;
+                }
+            }
+            job->win_off = job->part_off;
+            job->win_end = job->part_off + cut;
+            break;
+        }
+    }
+    text = job->win + (job->part_off - job->win_off);
+    size = job->win_end - job->part_off;
+    if( compack )
+        used = cat_parse_idname_at(src, text, size, &job->part_line, src->kind, TORIRSMAPED_PROV_COMPACK, NULL,
+            deadline_ms);
+    else
+        used = cat_parse_blocks_at(src, text, size, job->part_off, &job->part_line, src->kind,
+            overlay ? TORIRSMAPED_PROV_OVERLAY : TORIRSMAPED_PROV_CACHE, overlay, deadline_ms);
+    job->part_off += used;
+    catalog->counters.parts++;
+    if( (long)used > catalog->counters.part_bytes_max )
+        catalog->counters.part_bytes_max = (long)used;
+    return job->win_final && job->part_off == job->win_end;
+}
+
+/**
+ * The warm build after its scan, until `deadline_ms` (0: to its end): each
+ * queued source parsed and then merged into the live index, which a
+ * TORIRSMAPED_CATALOG_PROGRESS query answers from meanwhile; then the
+ * derived fields, the areas and the atlas. Returns 1 when the index is built.
+ */
+static int
+cat_warm_step(
+    struct ToriRSMapEdCatalog* catalog,
+    double deadline_ms)
+{
+    struct cat_job* job = &catalog->job;
+
+    while( job->phase == CAT_JOB_PARSE )
+    {
+        int const s = job->queue_count > job->parse_at ? job->queue[job->parse_at] : -1;
+        struct cat_source* src;
+        if( s < 0 )
+        {
+            job->phase = CAT_JOB_FINISH;
+            break;
+        }
+        if( deadline_ms > 0.0 && cat_now_ms() >= deadline_ms )
+            return 0;
+        src = &catalog->sources[s];
+        if( !job->parsed )
+        {
+            if( !src->dirty )
+            {
+                /* parsed already */
+            }
+            else if( cat_warm_parted(src, job->part_started) )
+            {
+                if( !cat_warm_parse_part(catalog, src, deadline_ms) )
+                    continue;
+            }
+            else
+                cat_parse_source(catalog, src);
+            if( src->dirty )
+                job->stats.parsed++;
+            src->dirty = 0;
+            job->parsed = 1;
+            job->merge_at = 0;
+            continue;
+        }
+        if( cat_merge_pass(src->type) < CAT_MERGE_PASSES )
+        {
+            int const start = job->merge_at;
+            while( job->merge_at < src->contrib_count )
+            {
+                cat_merge_contrib(catalog, s, job->merge_at++);
+                if( deadline_ms > 0.0 && (job->merge_at & 1023) == 0 && cat_now_ms() >= deadline_ms )
+                    break;
+            }
+            if( job->merge_at > start )
+                catalog->revision++;
+            if( job->merge_at < src->contrib_count )
+                return 0;
+            catalog->counters.incremental++;
+        }
+        job->bytes_done += src->size;
+        job->parse_at++;
+        job->parsed = 0;
+        job->part_started = 0;
+    }
+
+    /* CAT_JOB_FINISH */
+    while( job->finish_at < catalog->record_count )
+    {
+        cat_merge_derived_one(catalog, job->finish_at++);
+        if( deadline_ms > 0.0 && (job->finish_at & 1023) == 0 && cat_now_ms() >= deadline_ms )
+            return 0;
+    }
+    if( catalog->chains_stale )
+        cat_index_rehash(catalog, catalog->hash_mask + 1);
+    cat_merge_areas(catalog);
+    cat_merge_atlas(catalog);
+    catalog->chains_live = 0;
+    catalog->storages_changed = 0;
+    catalog->built = 1;
+    catalog->invalid = 0;
+    catalog->last_refresh = time(NULL);
+    catalog->revision++;
+    catalog->counters.merges++;
+    job->stats.sources = catalog->source_count;
+    job->stats.records = catalog->record_count;
+    job->stats.squares = catalog->square_count;
+    if( catalog->scratch_cap > 4 * 1024 * 1024 + 1 )
+    {
+        ToriMem_Free(ToriMem_Editor(), catalog->scratch);
+        catalog->scratch = NULL;
+        catalog->scratch_cap = 0;
+    }
+    return 1;
 }
 
 /**
@@ -3235,26 +3811,27 @@ cat_job_step(
                 cat_walk(catalog, rel, 1, classify);
         }
         job->stats.scan_ms += cat_now_ms() - t0;
-        job->phase = catalog->built ? CAT_JOB_IDLE : CAT_JOB_PARSE;
+        if( catalog->built )
+            job->phase = CAT_JOB_IDLE;
+        else
+        {
+            cat_warm_queue(catalog);
+            job->phase = CAT_JOB_PARSE;
+        }
     }
-    if( job->phase == CAT_JOB_PARSE )
+    if( job->phase == CAT_JOB_PARSE || job->phase == CAT_JOB_FINISH )
     {
         double const t1 = cat_now_ms();
-        while( job->parse_at < catalog->source_count )
-        {
-            struct cat_source* src = &catalog->sources[job->parse_at++];
-            if( !src->dirty )
-                continue;
-            cat_parse_source(catalog, src);
-            src->dirty = 0;
-            job->stats.parsed++;
-            if( deadline_ms > 0.0 && cat_now_ms() >= deadline_ms )
-            {
-                job->stats.parse_ms += cat_now_ms() - t1;
-                return 0;
-            }
-        }
+        int const done = cat_warm_step(catalog, deadline_ms);
         job->stats.parse_ms += cat_now_ms() - t1;
+        if( !done )
+            return 0;
+        cat_job_abort(catalog);
+        catalog->counters.sweeps++;
+        if( getenv("TORIRS_CATALOG_TRACE") )
+            fprintf(stderr, "catalog: warm build done: scan %.1f ms, %d parsed and merged (%.1f ms), %d removed\n",
+                job->stats.scan_ms, job->stats.parsed, job->stats.parse_ms, job->stats.removed);
+        return 1;
     }
     /* The scan is whole: drop what it did not see, parse (a sweep's) changes
      * and merge -- one step, so no request sees half of it. */
@@ -3283,8 +3860,17 @@ ToriRSMapEdCatalog_Service(
         cat_job_begin(catalog);
     if( catalog->job.phase == CAT_JOB_IDLE )
         return 0;
-    done = cat_job_step(catalog, t0 + budget_ms);
-    took = cat_now_ms() - t0;
+    {
+        int const phase = catalog->job.phase;
+        int const at = catalog->job.parse_at;
+        done = cat_job_step(catalog, t0 + budget_ms);
+        took = cat_now_ms() - t0;
+        /* TORIRS_CATALOG_TRACE=1: a slice that ran past twice its budget, and
+         * where it was */
+        if( took > budget_ms * 2.0 && getenv("TORIRS_CATALOG_TRACE") )
+            fprintf(stderr, "catalog: slice %.1f ms (budget %.1f) in phase %d at queue %d of %d\n", took, budget_ms,
+                phase, at, catalog->job.queue_count);
+    }
     catalog->counters.slices++;
     if( took > catalog->counters.slice_max_ms )
         catalog->counters.slice_max_ms = took;
@@ -3336,6 +3922,74 @@ cat_request_index(struct ToriRSMapEdCatalog* catalog)
     if( catalog->job.phase == CAT_JOB_IDLE
         && (catalog->invalid || time(NULL) - catalog->last_refresh >= catalog->refresh_interval_s) )
         cat_job_begin(catalog);
+}
+
+/**
+ * What a TORIRSMAPED_CATALOG_PROGRESS query runs first: never the rest of
+ * the warm build. With an index it is cat_request_index; while the warm
+ * build runs the query answers from the live index as it stands (partial);
+ * and when nothing has started it (a process whose service pass has not run
+ * yet) the build begins here with one warm slice, so a small tree is whole
+ * by the time the answer is written.
+ */
+static void
+cat_request_partial(struct ToriRSMapEdCatalog* catalog)
+{
+    if( catalog->built )
+    {
+        cat_request_index(catalog);
+        return;
+    }
+    if( catalog->job.phase == CAT_JOB_IDLE )
+    {
+        cat_job_begin(catalog);
+        if( catalog->job.phase != CAT_JOB_IDLE )
+            (void)cat_job_step(catalog, cat_now_ms() + TORIRSMAPED_CATALOG_WARM_SLICE_MS);
+    }
+}
+
+int
+ToriRSMapEdCatalog_Progress(
+    const struct ToriRSMapEdCatalog* catalog,
+    uint32_t* out_done_kib,
+    uint32_t* out_total_kib)
+{
+    const struct cat_job* job;
+    int64_t done;
+    assert(catalog);
+    assert(out_done_kib);
+    assert(out_total_kib);
+    job = &catalog->job;
+    if( catalog->built )
+    {
+        *out_done_kib = 1;
+        *out_total_kib = 1;
+        return 0;
+    }
+    if( job->phase != CAT_JOB_PARSE && job->phase != CAT_JOB_FINISH )
+    {
+        /* still scanning: the work is not known yet */
+        *out_done_kib = 0;
+        *out_total_kib = 0;
+        return 1;
+    }
+    done = job->bytes_done + (job->part_started ? (int64_t)job->part_off : 0);
+    *out_total_kib = (uint32_t)((job->bytes_total + 1023) / 1024) + 1;
+    /* the last unit is the finish (derived fields, areas, atlas) */
+    *out_done_kib = (uint32_t)(done / 1024);
+    if( *out_done_kib >= *out_total_kib )
+        *out_done_kib = *out_total_kib - 1;
+    return 1;
+}
+
+void
+ToriRSMapEdCatalog_SetSliceBytes(
+    struct ToriRSMapEdCatalog* catalog,
+    size_t bytes)
+{
+    assert(catalog);
+    assert(bytes >= 4096);
+    catalog->slice_bytes = bytes;
 }
 
 int
@@ -3395,6 +4049,11 @@ struct cat_fields
     const char* value[CAT_FIELDS_MAX];
     char scratch[1024];
     size_t scratch_len;
+    /** A loc's placeable shapes (bit s: shape s), what `shapes` lists. */
+    uint32_t loc_shapes;
+    /** Whether the collect writes a loc's `shapes`, `size` and `layer` text
+     *  (a filter on another key needs only the mask: cat_collect_for). */
+    int loc_text;
 };
 
 static void
@@ -3434,12 +4093,130 @@ cat_fields_scratch(
     return at;
 }
 
-/** The record's summary: every contribution's fields, later ones winning,
- *  then the fields only the merge knows. */
+/* ---- a loc's placeable shapes, size and layer ---- */
+
+/** The shape whose models a placement of `shape` draws: wall decor 5..8
+ *  draw shape 4's, the diagonal centrepiece 11 draws 10's
+ *  (edpanel_ops.c Editor_LocShapeModelShape; the server links no panel). */
+static int
+cat_loc_model_shape(int shape)
+{
+    if( shape >= 4 && shape <= 8 )
+        return 4;
+    if( shape == 11 )
+        return 10;
+    return shape;
+}
+
+/** The order a loc's shapes are offered in: what is placed most
+ *  (edpanel_ops.c k_loc_shape_order). `shapes` lists them in it. */
+static const int k_cat_loc_shape_order[CAT_LOC_SHAPES] = {
+    10, 11, 22, 0, 1, 2, 3, 9, 4, 5, 6, 7, 8, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+};
+
+/** The loc layer a shape lands in (world.c World_LocShapeToLayer): wall 0-3,
+ *  decor 4-8, main 9-21 (Client-TS GROUND: the diagonal wall, centrepieces,
+ *  roofs), ground 22 (ground decor). No name is a prefix of another, so
+ *  `layer=wall` is never the decor layer too. */
+static int
+cat_loc_layer(int shape)
+{
+    if( shape <= 3 )
+        return 0;
+    if( shape <= 8 )
+        return 1;
+    if( shape <= 21 )
+        return 2;
+    return 3;
+}
+
+static const char* const k_cat_loc_layer_names[4] = { "wall", "decor", "main", "ground" };
+
+/**
+ * The derived loc summary, from the merged fields (so an overlay's restated
+ * model rows win): `shapes` (the placeable shapes, the Locs panel's rule --
+ * a `shape<n>=<shape>,<model>...` row with a model gives that shape, decor
+ * 5..8 draw 4's models and 11 draws 10's, and a loc with `models=` and no
+ * shape rows is a centrepiece, 10 and 11), `size` ("<width>x<length>",
+ * 1 when unstated) and `layer` (each shape's layer, once, in shape order).
+ * A loc with no model rows has no `shapes` and no `layer`.
+ */
 static void
-cat_collect(
+cat_collect_loc(struct cat_fields* fields)
+{
+    char text[128];
+    size_t at = 0;
+    uint32_t have = 0;
+    uint32_t mask = 0;
+    int listed = 0;
+    int models = 0;
+    int width = 1;
+    int length = 1;
+    int layers = 0;
+
+    for( int i = 0; i < fields->n; i++ )
+    {
+        const char* key = fields->key[i];
+        const char* value = fields->value[i];
+        size_t const klen = strlen(key);
+        if( klen > 5 && cat_family_len(key, klen) == 5 && memcmp(key, "shape", 5) == 0 )
+        {
+            const char* comma = strchr(value, ',');
+            int shape;
+            listed = 1;
+            if( comma && comma[1] && cat_parse_int(value, comma, &shape) && shape >= 0 && shape < CAT_LOC_SHAPES )
+                have |= 1u << shape;
+        }
+        else if( strcmp(key, "models") == 0 || strcmp(key, "model") == 0 )
+            models = value[0] != '\0' && strcmp(value, "-1") != 0;
+        else if( strcmp(key, "width") == 0 )
+            (void)cat_parse_whole_int(value, &width);
+        else if( strcmp(key, "length") == 0 )
+            (void)cat_parse_whole_int(value, &length);
+    }
+    if( !listed && models )
+        have = 1u << 10;
+    for( int s = 0; s < CAT_LOC_SHAPES; s++ )
+    {
+        if( have & (1u << cat_loc_model_shape(s)) )
+            mask |= 1u << s;
+    }
+    fields->loc_shapes = mask;
+    if( !fields->loc_text )
+        return;
+
+    snprintf(text, sizeof(text), "%dx%d", width, length);
+    cat_fields_put(fields, "size", cat_fields_scratch(fields, text));
+    if( !mask )
+        return;
+    for( int i = 0; i < CAT_LOC_SHAPES; i++ )
+    {
+        int const s = k_cat_loc_shape_order[i];
+        if( mask & (1u << s) )
+            at += (size_t)snprintf(text + at, sizeof(text) - at, "%s%d", at ? " " : "", s);
+    }
+    cat_fields_put(fields, "shapes", cat_fields_scratch(fields, text));
+    at = 0;
+    for( int i = 0; i < CAT_LOC_SHAPES; i++ )
+    {
+        int const s = k_cat_loc_shape_order[i];
+        int const layer = cat_loc_layer(s);
+        if( !(mask & (1u << s)) || (layers & (1 << layer)) )
+            continue;
+        layers |= 1 << layer;
+        at += (size_t)snprintf(text + at, sizeof(text) - at, "%s%s", at ? " " : "", k_cat_loc_layer_names[layer]);
+    }
+    cat_fields_put(fields, "layer", cat_fields_scratch(fields, text));
+}
+
+/** The record's summary: every contribution's fields, later ones winning,
+ *  then the fields only the merge knows (a loc's derived text only with
+ *  `loc_text`). */
+static void
+cat_collect_for(
     const struct ToriRSMapEdCatalog* catalog,
     int record,
+    int loc_text,
     struct cat_fields* fields)
 {
     const struct cat_record* rec = &catalog->records[record];
@@ -3447,6 +4224,8 @@ cat_collect(
 
     fields->n = 0;
     fields->scratch_len = 0;
+    fields->loc_shapes = 0;
+    fields->loc_text = loc_text;
     for( int32_t r = rec->first_ref; r >= 0; r = catalog->refs[r].next )
     {
         const struct cat_source* src = &catalog->sources[catalog->refs[r].source];
@@ -3494,6 +4273,18 @@ cat_collect(
         cat_fields_put(fields, "area",
             sq->primary_area >= 0 ? catalog->areas[sq->primary_area].internal : "none");
     }
+    if( rec->kind == TORIRSMAPED_CATALOG_LOC )
+        cat_collect_loc(fields);
+}
+
+/** The whole summary: what a row, a record view and a field lookup show. */
+static void
+cat_collect(
+    const struct ToriRSMapEdCatalog* catalog,
+    int record,
+    struct cat_fields* fields)
+{
+    cat_collect_for(catalog, record, 1, fields);
 }
 
 /* ------------------------------------------------------------------ */
@@ -3595,31 +4386,171 @@ cat_query_parse(
 }
 
 static int
+cat_is_digit(char c)
+{
+    return c >= '0' && c <= '9';
+}
+
+/** Where a field value's words split: a summary list is "0 2 9" or
+ *  "27297,27298". */
+static int
+cat_word_sep(char c)
+{
+    return c == ' ' || c == '\t' || c == ',';
+}
+
+/**
+ * How a `key=value` filter value matched one field value (case-insensitive),
+ * in the order the tests run and the hits rank (torirs_maped_catalog.h):
+ *
+ *   CAT_MATCH_WHOLE   the value is the field: `op=Open` names "Open";
+ *   CAT_MATCH_WORD    a prefix of a whole word of it: `op=Op` names "Open",
+ *                     `multivar=varb4153` names "varb4153_x" (the old
+ *                     prefix-ending-at-'_' rule is this rule's first word),
+ *                     `shapes=9` names "0 2 9" -- but a value that is a
+ *                     number never stops inside a longer number: `shapes=2`
+ *                     is not "22", `size=1` is "1x1" but not "10x2";
+ *   CAT_MATCH_PREFIX  `value*` written out: a prefix of the whole field.
+ */
+enum
+{
+    CAT_MATCH_NONE = 0,
+    CAT_MATCH_WHOLE,
+    CAT_MATCH_WORD,
+    CAT_MATCH_PREFIX,
+};
+
+static int
 cat_value_match(
     const char* field,
     const char* wanted)
 {
     size_t length = strlen(wanted);
+    int numeric;
+    int number;
     if( length > 0 && wanted[length - 1] == '*' )
     {
         char prefix[192];
         snprintf(prefix, sizeof(prefix), "%.*s", (int)(length - 1), wanted);
-        return cat_iprefix(field, prefix);
+        return cat_iprefix(field, prefix) ? CAT_MATCH_PREFIX : CAT_MATCH_NONE;
     }
     if( cat_ieq(field, wanted) )
-        return 1;
-    /* `varb4153` names `varb4153_ics_little_var` */
-    return cat_iprefix(field, wanted) && field[length] == '_';
+        return CAT_MATCH_WHOLE;
+    if( length == 0 )
+        return CAT_MATCH_NONE;
+    numeric = cat_parse_whole_int(wanted, &number);
+    /* Word starts: the field's first byte, and every byte after a run of
+     * separators. */
+    for( const char* w = field; *w; )
+    {
+        if( cat_iprefix(w, wanted) && !(numeric && cat_is_digit(w[length])) )
+            return CAT_MATCH_WORD;
+        while( *w && !cat_word_sep(*w) )
+            w++;
+        while( *w && cat_word_sep(*w) )
+            w++;
+    }
+    return CAT_MATCH_NONE;
 }
 
+/**
+ * 1 when every field value `longer` matches (cat_value_match), `shorter`
+ * matches too: what lets a query typed on from `key=shorter` to
+ * `key=longer` test only the held hits. `longer` must extend `shorter`, and
+ * where `shorter` is a number the next character may not continue it (`2`
+ * names "2 9" but `22` does not imply it, nor does `2*`). A held wildcard is
+ * implied only by a longer wildcard.
+ */
 static int
-cat_parse_whole_int(
-    const char* text,
-    int* out)
+cat_value_implies(
+    const char* longer,
+    const char* shorter)
 {
-    return text[0] && cat_parse_int(text, text + strlen(text), out);
+    size_t const n = strlen(shorter);
+    size_t const m = strlen(longer);
+    int number;
+    if( cat_ieq(longer, shorter) )
+        return 1;
+    if( n == 0 || m <= n )
+        return 0;
+    if( shorter[n - 1] == '*' )
+    {
+        /* "op*" -> "ope*": both prefixes of the whole field */
+        char stem[192];
+        if( longer[m - 1] != '*' || n - 1 >= sizeof(stem) )
+            return 0;
+        memcpy(stem, shorter, n - 1);
+        stem[n - 1] = '\0';
+        return cat_iprefix(longer, stem);
+    }
+    if( !cat_iprefix(longer, shorter) )
+        return 0;
+    if( cat_parse_whole_int(shorter, &number) && (cat_is_digit(longer[n]) || longer[n] == '*') )
+        return 0;
+    return 1;
 }
 
+/* ---- shape classes (design #catalog "Searching by shape") ---- */
+
+/** The five classes `shape=` resolves by name (a value names every class it
+ *  is a prefix of: `shape=c` is centre), and the shapes each holds. */
+static const struct
+{
+    const char* name;
+    uint32_t shapes;
+} k_cat_shape_classes[] = {
+    { "wall", (1u << 0) | (1u << 1) | (1u << 2) | (1u << 3) | (1u << 9) },
+    { "decor", (1u << 4) | (1u << 5) | (1u << 6) | (1u << 7) | (1u << 8) },
+    { "centre", (1u << 10) | (1u << 11) },
+    { "roof", 0x3FF000u /* 12..21 */ },
+    { "ground", 1u << 22 },
+};
+
+/** `shape=<value>` -> the shapes it names: a number names itself (0..22),
+ *  a word the classes it names whole or as a prefix (`*` allowed). Sets
+ *  *out_tier to the CAT_MATCH_* rank of the resolution. */
+static uint32_t
+cat_shape_filter_mask(
+    const char* value,
+    int* out_tier)
+{
+    char word[64];
+    size_t length = strlen(value);
+    uint32_t mask = 0;
+    int number;
+    int whole = 0;
+
+    *out_tier = CAT_MATCH_NONE;
+    if( cat_parse_whole_int(value, &number) )
+    {
+        if( number < 0 || number >= CAT_LOC_SHAPES )
+            return 0;
+        *out_tier = CAT_MATCH_WHOLE;
+        return 1u << number;
+    }
+    if( length > 0 && value[length - 1] == '*' )
+        length--;
+    if( length == 0 || length >= sizeof(word) )
+        return 0;
+    memcpy(word, value, length);
+    word[length] = '\0';
+    for( size_t c = 0; c < sizeof(k_cat_shape_classes) / sizeof(k_cat_shape_classes[0]); c++ )
+    {
+        if( !cat_iprefix(k_cat_shape_classes[c].name, word) )
+            continue;
+        mask |= k_cat_shape_classes[c].shapes;
+        whole |= cat_ieq(k_cat_shape_classes[c].name, word);
+    }
+    if( mask )
+        *out_tier = whole ? CAT_MATCH_WHOLE : CAT_MATCH_WORD;
+    return mask;
+}
+
+/**
+ * Whether the record passes every `key=value` filter: -1 when one fails,
+ * else the worst CAT_MATCH_* tier any filter matched by, less one (0: every
+ * filter matched whole), which ranks the hit (cat_hit_score).
+ */
 static int
 cat_filters_match(
     const struct ToriRSMapEdCatalog* catalog,
@@ -3629,41 +4560,78 @@ cat_filters_match(
     const struct cat_record* rec = &catalog->records[record];
     struct cat_fields fields;
     int collected = 0;
+    int worst = CAT_MATCH_WHOLE;
+    int loc_text = 0;
 
+    /* A loc's derived text costs a few formats a record: only when a filter
+     * reads it (`shape=` needs only the mask). */
+    for( int f = 0; f < query->filter_count && rec->kind == TORIRSMAPED_CATALOG_LOC; f++ )
+        loc_text |= strcmp(query->filter_key[f], "shapes") == 0 || strcmp(query->filter_key[f], "size") == 0
+                    || strcmp(query->filter_key[f], "layer") == 0;
     for( int f = 0; f < query->filter_count; f++ )
     {
         const char* key = query->filter_key[f];
         const char* wanted = query->filter_value[f];
-        int hit = 0;
+        int hit = CAT_MATCH_NONE;
         int number;
 
         if( strcmp(key, "name") == 0 )
-            hit = cat_value_match(rec->name, wanted)
-                  || (rec->display && cat_value_match(rec->display, wanted));
+        {
+            /* the better of the name's and the display name's match */
+            int const display = rec->display ? cat_value_match(rec->display, wanted) : CAT_MATCH_NONE;
+            hit = cat_value_match(rec->name, wanted);
+            if( display && (!hit || display < hit) )
+                hit = display;
+        }
         else if( strcmp(key, "id") == 0 )
-            hit = cat_parse_whole_int(wanted, &number) && rec->id == number;
+            hit = cat_parse_whole_int(wanted, &number) && rec->id == number ? CAT_MATCH_WHOLE : CAT_MATCH_NONE;
+        else if( strcmp(key, "shape") == 0 )
+        {
+            /* Resolved here to the shapes it names, against the loc's
+             * placeable shapes (the `shapes` field); never the config's
+             * shape<n> rows, whose values are "<shape>,<model>...". */
+            int tier;
+            uint32_t const want = cat_shape_filter_mask(wanted, &tier);
+            if( rec->kind == TORIRSMAPED_CATALOG_LOC && want )
+            {
+                if( !collected )
+                {
+                    cat_collect_for(catalog, record, loc_text, &fields);
+                    collected = 1;
+                }
+                if( fields.loc_shapes & want )
+                    hit = tier;
+            }
+        }
         else
         {
             size_t klen = strlen(key);
             if( !collected )
             {
-                cat_collect(catalog, record, &fields);
+                cat_collect_for(catalog, record, loc_text, &fields);
                 collected = 1;
             }
-            for( int i = 0; i < fields.n && !hit; i++ )
+            for( int i = 0; i < fields.n; i++ )
             {
                 const char* fk = fields.key[i];
                 size_t flen = strlen(fk);
+                int got;
                 if( strcmp(fk, key) != 0
                     && !(cat_family_len(fk, flen) == klen && memcmp(fk, key, klen) == 0) )
                     continue;
-                hit = cat_value_match(fields.value[i], wanted);
+                got = cat_value_match(fields.value[i], wanted);
+                if( got && (!hit || got < hit) )
+                    hit = got;
+                if( hit == CAT_MATCH_WHOLE )
+                    break;
             }
         }
         if( !hit )
-            return 0;
+            return -1;
+        if( hit > worst )
+            worst = hit;
     }
-    return 1;
+    return worst - CAT_MATCH_WHOLE;
 }
 
 static int
@@ -3757,12 +4725,23 @@ cat_hit_add(
     hit->record = record;
 }
 
+/** A hit's rank: the terms' score (cat_score) first, then whether every
+ *  filter matched whole (0) or one only as a prefix (1). */
+static int
+cat_hit_score(
+    int term_score,
+    int filter_rank)
+{
+    return term_score * 2 + (filter_rank > 0 ? 1 : 0);
+}
+
 /**
  * 1 when every record `query` matches also matches `held`, so the held hits
- * hold every answer: each held filter is restated exactly (a filter value is
- * matched whole, so "op=Ch" says nothing about "op=Chop"), and each held
- * term is inside a term of `query` that is not a number (a number also
- * matches by id, which says nothing about the name).
+ * hold every answer: each held filter is restated with the same key and a
+ * value that extends it (cat_value_implies: "op=Ope" after "op=Op", but not
+ * "shapes=22" after "shapes=2"), and each held term is inside a term of
+ * `query` that is not a number (a number also matches by id, which says
+ * nothing about the name).
  */
 static int
 cat_query_implies(
@@ -3774,7 +4753,7 @@ cat_query_implies(
         int found = 0;
         for( int g = 0; g < query->filter_count && !found; g++ )
             found = strcmp(query->filter_key[g], held->filter_key[f]) == 0
-                    && strcmp(query->filter_value[g], held->filter_value[f]) == 0;
+                    && cat_value_implies(query->filter_value[g], held->filter_value[f]);
         if( !found )
             return 0;
     }
@@ -3792,11 +4771,152 @@ cat_query_implies(
     return 1;
 }
 
+/** The records of each kind, in record order, for the index revision: what a
+ *  one-kind scan and a scoped any-kind query walk instead of every record.
+ *  Rebuilt by the first query after a merge (a counting sort). */
+static void
+cat_kind_index(struct ToriRSMapEdCatalog* catalog)
+{
+    int at[TORIRSMAPED_CATALOG_KIND_COUNT];
+    if( catalog->kind_index_valid && catalog->kind_index_revision == catalog->revision )
+        return;
+    catalog->kind_records = cat_grow(
+        catalog->kind_records, &catalog->kind_records_cap, catalog->record_count + 1, sizeof(int32_t));
+    memset(catalog->kind_start, 0, sizeof(catalog->kind_start));
+    for( int r = 0; r < catalog->record_count; r++ )
+        catalog->kind_start[catalog->records[r].kind + 1]++;
+    for( int k = 0; k < TORIRSMAPED_CATALOG_KIND_COUNT; k++ )
+    {
+        catalog->kind_start[k + 1] += catalog->kind_start[k];
+        at[k] = catalog->kind_start[k];
+    }
+    for( int r = 0; r < catalog->record_count; r++ )
+        catalog->kind_records[at[catalog->records[r].kind]++] = r;
+    catalog->kind_index_valid = 1;
+    catalog->kind_index_revision = catalog->revision;
+}
+
+static void
+cat_hit_put(
+    struct cat_held_query* held,
+    const struct cat_record* rec,
+    int record,
+    int score)
+{
+    struct cat_hit* hit;
+    held->hits = cat_grow(held->hits, &held->cap, held->count + 1, sizeof(*held->hits));
+    hit = &held->hits[held->count++];
+    hit->score = score;
+    hit->kind = rec->kind;
+    hit->id = rec->id;
+    hit->name = rec->name;
+    hit->record = record;
+}
+
+/** Test one record against the query; a hit goes into the held hits. */
+static int
+cat_test_record(
+    struct ToriRSMapEdCatalog* catalog,
+    int record,
+    const struct cat_query* query)
+{
+    const struct cat_record* rec = &catalog->records[record];
+    int filter_rank;
+    catalog->counters.examined++;
+    if( !cat_terms_match(rec, query) )
+        return 0;
+    filter_rank = cat_filters_match(catalog, record, query);
+    if( filter_rank < 0 )
+        return 0;
+    cat_hit_put(&catalog->held, rec, record, cat_hit_score(cat_score(rec, query), filter_rank));
+    return 1;
+}
+
+/**
+ * Kind "all" on the wire: the kinds are tested in their fixed order (loc,
+ * npc, obj, then the rest by number), each stopping at `cap` hits, and no
+ * further kind is tested once `want` hits are held -- so a keystroke costs
+ * what the page it shows costs, not a test of every record. Before that, a
+ * numeric term is looked up by id in every kind (a hash probe each), so the
+ * record it names is in the first page whatever the caps cut. Sets
+ * held->more when a cap or the window cut anything.
+ */
+static void
+cat_query_scoped(
+    struct ToriRSMapEdCatalog* catalog,
+    const struct cat_query* query,
+    int cap,
+    int want)
+{
+    struct cat_held_query* held = &catalog->held;
+    int probed[CAT_QUERY_TERMS_MAX];
+    int probed_count = 0;
+
+    held->count = 0;
+    held->more = 0;
+    for( int t = 0; t < query->term_count; t++ )
+    {
+        int number;
+        if( !cat_parse_whole_int(query->terms[t], &number) || number < 0 )
+            continue;
+        probed[probed_count++] = number;
+        for( int k = 0; k < TORIRSMAPED_CATALOG_KIND_COUNT; k++ )
+        {
+            uint32_t const slot = ((uint32_t)number * 2654435761u ^ (uint32_t)k * 40503u) & catalog->hash_mask;
+            for( int32_t r = catalog->id_heads[slot]; r >= 0; r = catalog->records[r].next_id )
+            {
+                const struct cat_record* rec = &catalog->records[r];
+                int duplicate = 0;
+                if( rec->kind != k || rec->id != number )
+                    continue;
+                for( int i = 0; i < held->count && !duplicate; i++ )
+                    duplicate = held->hits[i].record == r;
+                if( !duplicate )
+                    (void)cat_test_record(catalog, r, query);
+            }
+        }
+    }
+    cat_kind_index(catalog);
+    for( int k = 0; k < TORIRSMAPED_CATALOG_KIND_COUNT; k++ )
+    {
+        int const begin = catalog->kind_start[k];
+        int const end = catalog->kind_start[k + 1];
+        int found = 0;
+        if( begin == end )
+            continue;
+        if( held->count >= want )
+        {
+            held->more = 1;
+            break;
+        }
+        for( int i = begin; i < end; i++ )
+        {
+            int const r = catalog->kind_records[i];
+            int skip = 0;
+            /* the id probe tested it */
+            for( int p = 0; p < probed_count && !skip; p++ )
+                skip = catalog->records[r].id == probed[p];
+            if( skip || !cat_test_record(catalog, r, query) )
+                continue;
+            if( ++found >= cap )
+            {
+                held->more |= i + 1 < end;
+                break;
+            }
+        }
+    }
+    catalog->counters.scoped++;
+}
+
 /**
  * Every match of (kind, filter, flags), sorted, in the held query's buffer:
  * valid until the next query or merge. The held hits answer the same
  * question again (a page flip) without testing a record, and a question that
  * implies the held one (typing on) is tested against the held hits only.
+ *
+ * `scope_cap` > 0 makes kind "all" a scoped query (cat_query_scoped) whose
+ * answer may be cut (held->more); 0 answers every match, as the in-process
+ * lookups want.
  */
 static int
 cat_query_hits(
@@ -3804,15 +4924,19 @@ cat_query_hits(
     uint32_t kind,
     const char* filter,
     uint32_t flags,
+    int scope_cap,
+    int scope_want,
     const struct cat_hit** out_hits)
 {
     struct cat_held_query* held = &catalog->held;
     struct cat_query query;
+    int const scoped = kind == TORIRSMAPED_CATALOG_ANY && scope_cap > 0 && !(flags & TORIRSMAPED_CATALOG_EXACT);
+    int const cap = scoped ? scope_cap : 0;
     int const same_index = held->valid && held->revision == catalog->revision && held->kind == kind
-                           && held->flags == flags;
+                           && held->flags == flags && held->scope_cap == cap;
 
     *out_hits = held->hits;
-    if( same_index && strcmp(held->filter, filter) == 0 )
+    if( same_index && strcmp(held->filter, filter) == 0 && (!held->more || held->scope_want >= scope_want) )
     {
         catalog->counters.held++;
         return held->count;
@@ -3820,7 +4944,10 @@ cat_query_hits(
     cat_query_parse(filter, &query);
 
     if( catalog->record_count == 0 )
+    {
         held->count = 0;
+        held->more = 0;
+    }
     else if( (flags & TORIRSMAPED_CATALOG_EXACT) && query.term_count > 0 )
     {
         /* Hash probes: by name and display name in every kind asked for,
@@ -3828,9 +4955,11 @@ cat_query_hits(
         int number;
         int numeric = cat_parse_whole_int(query.whole, &number);
         held->count = 0;
+        held->more = 0;
         for( int k = 0; k < TORIRSMAPED_CATALOG_KIND_COUNT; k++ )
         {
             uint32_t slot;
+            int rank;
             if( !cat_kind_ok(kind, k) )
                 continue;
             slot = cat_hash_lower((uint32_t)k, query.whole) & catalog->hash_mask;
@@ -3838,15 +4967,15 @@ cat_query_hits(
             {
                 const struct cat_record* rec = &catalog->records[r];
                 if( rec->kind == k && cat_ieq(rec->name, query.whole)
-                    && cat_filters_match(catalog, r, &query) )
-                    cat_hit_add(&held->hits, &held->count, &held->cap, rec, r, 0);
+                    && (rank = cat_filters_match(catalog, r, &query)) >= 0 )
+                    cat_hit_add(&held->hits, &held->count, &held->cap, rec, r, cat_hit_score(0, rank));
             }
             for( int32_t r = catalog->display_heads[slot]; r >= 0; r = catalog->records[r].next_display )
             {
                 const struct cat_record* rec = &catalog->records[r];
                 if( rec->kind == k && cat_ieq(rec->display, query.whole)
-                    && cat_filters_match(catalog, r, &query) )
-                    cat_hit_add(&held->hits, &held->count, &held->cap, rec, r, 1);
+                    && (rank = cat_filters_match(catalog, r, &query)) >= 0 )
+                    cat_hit_add(&held->hits, &held->count, &held->cap, rec, r, cat_hit_score(1, rank));
             }
             if( numeric && number >= 0 )
             {
@@ -3854,8 +4983,8 @@ cat_query_hits(
                 for( int32_t r = catalog->id_heads[slot]; r >= 0; r = catalog->records[r].next_id )
                 {
                     const struct cat_record* rec = &catalog->records[r];
-                    if( rec->kind == k && rec->id == number && cat_filters_match(catalog, r, &query) )
-                        cat_hit_add(&held->hits, &held->count, &held->cap, rec, r, 1);
+                    if( rec->kind == k && rec->id == number && (rank = cat_filters_match(catalog, r, &query)) >= 0 )
+                        cat_hit_add(&held->hits, &held->count, &held->cap, rec, r, cat_hit_score(1, rank));
                 }
             }
         }
@@ -3864,7 +4993,9 @@ cat_query_hits(
     {
         struct cat_query held_query;
         int narrow = 0;
-        if( same_index && !(held->flags & TORIRSMAPED_CATALOG_EXACT) )
+        /* A cut answer (a scoped "all" that hit a cap) does not hold every
+         * match, so nothing narrows from it. */
+        if( same_index && !(held->flags & TORIRSMAPED_CATALOG_EXACT) && !held->more )
         {
             cat_query_parse(held->filter, &held_query);
             narrow = cat_query_implies(&query, &held_query);
@@ -3877,34 +5008,34 @@ cat_query_hits(
             {
                 int const r = held->hits[i].record;
                 const struct cat_record* rec = &catalog->records[r];
+                int rank;
                 catalog->counters.examined++;
-                if( !cat_terms_match(rec, &query) || !cat_filters_match(catalog, r, &query) )
+                if( !cat_terms_match(rec, &query) || (rank = cat_filters_match(catalog, r, &query)) < 0 )
                     continue;
                 held->hits[kept] = held->hits[i];
-                held->hits[kept].score = cat_score(rec, &query);
+                held->hits[kept].score = cat_hit_score(cat_score(rec, &query), rank);
                 kept++;
             }
             held->count = kept;
             catalog->counters.narrowed++;
         }
+        else if( scoped )
+            cat_query_scoped(catalog, &query, scope_cap, scope_want);
         else
         {
             held->count = 0;
-            for( int r = 0; r < catalog->record_count; r++ )
+            held->more = 0;
+            if( kind == TORIRSMAPED_CATALOG_ANY )
             {
-                const struct cat_record* rec = &catalog->records[r];
-                struct cat_hit* hit;
-                catalog->counters.examined++;
-                if( !cat_kind_ok(kind, rec->kind) || !cat_terms_match(rec, &query)
-                    || !cat_filters_match(catalog, r, &query) )
-                    continue;
-                held->hits = cat_grow(held->hits, &held->cap, held->count + 1, sizeof(*held->hits));
-                hit = &held->hits[held->count++];
-                hit->score = cat_score(rec, &query);
-                hit->kind = rec->kind;
-                hit->id = rec->id;
-                hit->name = rec->name;
-                hit->record = r;
+                for( int r = 0; r < catalog->record_count; r++ )
+                    (void)cat_test_record(catalog, r, &query);
+            }
+            else
+            {
+                assert(kind < TORIRSMAPED_CATALOG_KIND_COUNT);
+                cat_kind_index(catalog);
+                for( int i = catalog->kind_start[kind]; i < catalog->kind_start[kind + 1]; i++ )
+                    (void)cat_test_record(catalog, catalog->kind_records[i], &query);
             }
             catalog->counters.full_scans++;
         }
@@ -3915,6 +5046,8 @@ cat_query_hits(
     held->revision = catalog->revision;
     held->kind = kind;
     held->flags = flags;
+    held->scope_cap = cap;
+    held->scope_want = scope_want;
     snprintf(held->filter, sizeof(held->filter), "%s", filter);
     *out_hits = held->hits;
     return held->count;
@@ -3935,7 +5068,7 @@ ToriRSMapEdCatalog_Query(
     assert(filter);
     assert(out_records || max == 0);
     cat_request_index(catalog);
-    count = cat_query_hits(catalog, kind, filter, flags, &hits);
+    count = cat_query_hits(catalog, kind, filter, flags, 0, 0, &hits);
     for( int i = 0; i < count && i < max; i++ )
         out_records[i] = hits[i].record;
     return count;
@@ -4031,6 +5164,7 @@ ToriRSMapEdCatalog_HandleQuery(
     int total;
     uint32_t first;
     uint32_t rows;
+    int want;
 
     assert(catalog);
     assert(out);
@@ -4047,18 +5181,25 @@ ToriRSMapEdCatalog_HandleQuery(
         ToriRSMapEd_PutU32(out, EDITOR_HOST_REFUSED);
         for( int i = 0; i < 4; i++ )
             ToriRSMapEd_PutU32(out, 0);
+        for( int i = 0; (flags & TORIRSMAPED_CATALOG_PROGRESS) && i < 3; i++ )
+            ToriRSMapEd_PutU32(out, 0);
         return 1;
     }
     if( page_size == 0 )
         page_size = TORIRSMAPED_CATALOG_PAGE_DEFAULT;
     if( page_size > TORIRSMAPED_CATALOG_PAGE_MAX )
         page_size = TORIRSMAPED_CATALOG_PAGE_MAX;
-
-    cat_request_index(catalog);
-    total = cat_query_hits(catalog, kind, filter, flags, &hits);
     first = page * page_size;
     if( page > 0 && first / page != page_size )
         first = UINT32_MAX; /* overflow: past the end */
+    /* A scoped "all" stops once it holds the page asked for. */
+    want = first > (uint32_t)INT32_MAX - page_size ? INT32_MAX : (int)(first + page_size);
+
+    if( flags & TORIRSMAPED_CATALOG_PROGRESS )
+        cat_request_partial(catalog);
+    else
+        cat_request_index(catalog);
+    total = cat_query_hits(catalog, kind, filter, flags, (int)page_size, want, &hits);
     rows = first < (uint32_t)total ? (uint32_t)total - first : 0;
     if( rows > page_size )
         rows = page_size;
@@ -4070,6 +5211,21 @@ ToriRSMapEdCatalog_HandleQuery(
     ToriRSMapEd_PutU32(out, rows);
     for( uint32_t i = 0; i < rows; i++ )
         cat_put_row(catalog, hits[first + i].record, out);
+    if( flags & TORIRSMAPED_CATALOG_PROGRESS )
+    {
+        /* The v3 tail, only for a client that asked for it: a v2 reader
+         * checks the payload ends at the last row. */
+        uint32_t done;
+        uint32_t of;
+        uint32_t page_flags = 0;
+        if( ToriRSMapEdCatalog_Progress(catalog, &done, &of) )
+            page_flags |= TORIRSMAPED_CATALOG_PAGE_PARTIAL;
+        if( catalog->held.more )
+            page_flags |= TORIRSMAPED_CATALOG_PAGE_SCOPED;
+        ToriRSMapEd_PutU32(out, page_flags);
+        ToriRSMapEd_PutU32(out, done);
+        ToriRSMapEd_PutU32(out, of);
+    }
     return 1;
 }
 
@@ -4491,18 +5647,22 @@ cat_put_square(
     int spawn_count,
     uint32_t rgb,
     const int* areas,
-    int area_n)
+    int area_n,
+    int with_locs,
+    int loc_count)
 {
     ToriRSMapEd_PutU32(out, (uint32_t)x);
     ToriRSMapEd_PutU32(out, (uint32_t)z);
     ToriRSMapEd_PutU32(out, (uint32_t)storage);
-    ToriRSMapEd_PutU32(out, flags);
+    ToriRSMapEd_PutU32(out, with_locs ? flags | TORIRSMAPED_SQUARE_LOC_COUNT : flags);
     ToriRSMapEd_PutU32(out, (uint32_t)spawn_count);
     ToriRSMapEd_PutU32(out, rgb);
     ToriRSMapEd_PutU32(out, area_n > 0 ? (uint32_t)areas[0] : TORIRSMAPED_CATALOG_NO_AREA);
     ToriRSMapEd_PutU32(out, (uint32_t)area_n);
     for( int i = 0; i < area_n; i++ )
         ToriRSMapEd_PutU32(out, (uint32_t)areas[i]);
+    if( with_locs )
+        ToriRSMapEd_PutU32(out, (uint32_t)loc_count);
 }
 
 /** The storage index of a document's storage ("" = maps/), or -1. */
@@ -4527,16 +5687,28 @@ ToriRSMapEdCatalog_HandleSquares(
     const struct Editor_Doc* doc,
     const uint8_t* body,
     uint32_t length,
+    int* inout_locs,
     struct ToriRSMapEdBuf* out)
 {
+    uint32_t flags = 0;
     assert(catalog);
     assert(doc);
+    assert(inout_locs);
     assert(out);
-    (void)body;
-    if( length != 0 )
+    /* Empty is the v2 request; a `u32 flags` body comes only from a client
+     * that saw TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS. */
+    if( length == 4 )
+    {
+        assert(body);
+        flags = ToriRSMapEd_ReadU32(body);
+        if( flags & ~(uint32_t)TORIRSMAPED_CATALOG_SQUARES_LOCS )
+            return 0;
+    }
+    else if( length != 0 )
         return 0;
+    *inout_locs = (flags & TORIRSMAPED_CATALOG_SQUARES_LOCS) != 0;
     cat_request_index(catalog);
-    ToriRSMapEdCatalog_EncodeSquares(catalog, doc, out);
+    ToriRSMapEdCatalog_EncodeSquares(catalog, doc, *inout_locs, out);
     return 1;
 }
 
@@ -4544,6 +5716,7 @@ void
 ToriRSMapEdCatalog_EncodeSquares(
     struct ToriRSMapEdCatalog* catalog,
     const struct Editor_Doc* doc,
+    int with_locs,
     struct ToriRSMapEdBuf* out)
 {
     uint32_t* doc_flags;
@@ -4617,7 +5790,8 @@ ToriRSMapEdCatalog_EncodeSquares(
     {
         const struct cat_square* sq = &catalog->squares[s];
         cat_put_square(out, sq->map_x, sq->map_z, sq->storage, sq->flags | doc_flags[s],
-            sq->spawn_count, sq->rgb, catalog->square_areas + sq->area_first, sq->area_n);
+            sq->spawn_count, sq->rgb, catalog->square_areas + sq->area_first, sq->area_n, with_locs,
+            sq->loc_count);
     }
     for( int i = 0; i < doc->square_count; i++ )
     {
@@ -4634,7 +5808,12 @@ ToriRSMapEdCatalog_EncodeSquares(
             && square->map_z >= 0 && square->map_z < CAT_REGION_SPAN )
             spawns = catalog->spawn_counts[square->map_x * CAT_REGION_SPAN + square->map_z];
         area_n = cat_square_area_list(catalog, square->map_x, square->map_z, areas, 64);
-        cat_put_square(out, square->map_x, square->map_z, doc_storage[i], flags, spawns, 0, areas, area_n);
+        if( area_n == 0 && ToriRSMapEdCatalog_InInstanceSpace(square->map_x, square->map_z) )
+            flags |= TORIRSMAPED_SQUARE_INSTANCE;
+        /* Nothing of a created square is on disk: its locs are the
+         * document's, not the index's. */
+        cat_put_square(
+            out, square->map_x, square->map_z, doc_storage[i], flags, spawns, 0, areas, area_n, with_locs, 0);
     }
     ToriMem_Free(ToriMem_Editor(), doc_flags);
 }
@@ -4659,6 +5838,7 @@ ToriRSMapEdCatalog_Square(
     out->storage = catalog->storages[sq->storage];
     out->flags = sq->flags;
     out->spawn_count = sq->spawn_count;
+    out->loc_count = sq->loc_count;
     out->rgb = sq->rgb;
     out->area = sq->primary_area >= 0 ? catalog->areas[sq->primary_area].internal : "none";
     out->area_count = sq->area_n;
@@ -4670,4 +5850,422 @@ ToriRSMapEdCatalog_SquareCount(const struct ToriRSMapEdCatalog* catalog)
 {
     assert(catalog);
     return catalog->square_count;
+}
+
+/* ------------------------------------------------------------------ */
+/* Where used (workbench 6.6)                                          */
+/* ------------------------------------------------------------------ */
+
+/* CATALOG_USES (torirs_maped_catalog.h): a search over the files the index
+ * lists, a slice per request. The index keeps no words, so this reads the
+ * files; a slice is a few milliseconds of them, and the client asks again
+ * with the cursor it was given. */
+
+struct cat_uses
+{
+    const char* name;
+    size_t name_length;
+    uint32_t kind;
+    int32_t id;
+    struct ToriRSMapEdBuf* rows;
+    uint32_t row_count;
+};
+
+/** `needle` anywhere in the `size` bytes at `hay` (memmem is not portable). */
+static int
+cat_memmem(
+    const char* hay,
+    size_t size,
+    const char* needle,
+    size_t length)
+{
+    const char* at = hay;
+    const char* end = hay + size;
+
+    if( length == 0 )
+        return 1;
+    while( at + length <= end )
+    {
+        const char* hit = memchr(at, needle[0], (size_t)(end - at));
+        if( !hit || hit + length > end )
+            return 0;
+        if( memcmp(hit, needle, length) == 0 )
+            return 1;
+        at = hit + 1;
+    }
+    return 0;
+}
+
+static int
+cat_word_char(char c)
+{
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+/** `name` as a whole word in [s, e). */
+static int
+cat_names_word(
+    const char* s,
+    const char* e,
+    const char* name,
+    size_t length)
+{
+    const char* at = s;
+
+    while( at + length <= e )
+    {
+        const char* hit = memchr(at, name[0], (size_t)(e - at));
+        if( !hit || hit + length > e )
+            return 0;
+        if( memcmp(hit, name, length) == 0 && (hit == s || !cat_word_char(hit[-1]))
+            && (hit + length == e || !cat_word_char(hit[length])) )
+            return 1;
+        at = hit + 1;
+    }
+    return 0;
+}
+
+static void
+cat_uses_row(
+    struct cat_uses* uses,
+    uint32_t use,
+    const char* path,
+    uint32_t line,
+    uint32_t count,
+    const char* text,
+    size_t text_length)
+{
+    char clip[192];
+    size_t const n = text_length < sizeof(clip) - 1 ? text_length : sizeof(clip) - 1;
+
+    memcpy(clip, text, n);
+    clip[n] = '\0';
+    ToriRSMapEd_PutU32(uses->rows, use);
+    ToriRSMapEd_PutString(uses->rows, path);
+    ToriRSMapEd_PutU32(uses->rows, line);
+    ToriRSMapEd_PutU32(uses->rows, count);
+    ToriRSMapEd_PutString(uses->rows, clip);
+    uses->row_count++;
+}
+
+/** Text files: every line naming the record as a word (an .rs2 header of it
+ *  is a TRIGGER), at most TORIRSMAPED_CATALOG_USES_PER_FILE, then one MORE. */
+static void
+cat_uses_lines(
+    struct cat_uses* uses,
+    const char* path,
+    const char* text,
+    size_t size,
+    uint32_t use)
+{
+    const char* p = text;
+    const char* end = text + size;
+    uint32_t line = 0;
+    uint32_t listed = 0;
+    uint32_t more = 0;
+
+    /* Most files never name it: one pass for the bytes first. */
+    if( !cat_memmem(text, size, uses->name, uses->name_length) )
+        return;
+    while( p < end )
+    {
+        const char* le;
+        const char* next = cat_next_line(p, end, &le);
+        const char* s = p;
+        line++;
+        p = next;
+        if( !cat_names_word(s, le, uses->name, uses->name_length) )
+            continue;
+        if( use == TORIRSMAPED_USE_CONFIG && s < le && s[0] == '[' )
+            continue; /* a block's own header: the record itself */
+        if( listed >= TORIRSMAPED_CATALOG_USES_PER_FILE )
+        {
+            more++;
+            continue;
+        }
+        cat_trim(&s, &le);
+        cat_uses_row(uses,
+            use == TORIRSMAPED_USE_SCRIPT && s < le && s[0] == '[' ? (uint32_t)TORIRSMAPED_USE_TRIGGER : use, path,
+            line, 1, s, (size_t)(le - s));
+        listed++;
+    }
+    if( more )
+        cat_uses_row(uses, TORIRSMAPED_USE_MORE, path, 0, more, "", 0);
+}
+
+/** A .spawn file: `name x z level [count]` rows of the record, per square. */
+static void
+cat_uses_spawns(
+    struct cat_uses* uses,
+    const char* path,
+    const char* text,
+    size_t size)
+{
+    int32_t keys[64];
+    uint32_t counts[64];
+    uint32_t lines[64];
+    int key_count = 0;
+    const char* p = text;
+    const char* end = text + size;
+    uint32_t line = 0;
+
+    if( !cat_memmem(text, size, uses->name, uses->name_length) )
+        return;
+    while( p < end )
+    {
+        const char* le;
+        const char* next = cat_next_line(p, end, &le);
+        const char* s = p;
+        line++;
+        p = next;
+        if( (size_t)(le - s) > uses->name_length && memcmp(s, uses->name, uses->name_length) == 0
+            && (s[uses->name_length] == ' ' || s[uses->name_length] == '\t') )
+        {
+            int x = atoi(s + uses->name_length + 1);
+            const char* z_at = s + uses->name_length + 1;
+            int32_t key;
+            int found = -1;
+            while( z_at < le && (*z_at == ' ' || *z_at == '\t') )
+                z_at++;
+            while( z_at < le && *z_at != ' ' && *z_at != '\t' )
+                z_at++;
+            key = ((x >> 6) << 8) | (atoi(z_at) >> 6);
+            for( int k = 0; k < key_count; k++ )
+                if( keys[k] == key )
+                    found = k;
+            if( found < 0 && key_count < 64 )
+            {
+                found = key_count++;
+                keys[found] = key;
+                counts[found] = 0;
+                lines[found] = line;
+            }
+            if( found >= 0 )
+                counts[found]++;
+        }
+    }
+    for( int k = 0; k < key_count; k++ )
+    {
+        char text_out[64];
+        int const n = snprintf(text_out, sizeof(text_out), "m%d_%d: %u spawn%s", keys[k] >> 8, keys[k] & 0xFF,
+            counts[k], counts[k] == 1 ? "" : "s");
+        cat_uses_row(uses, TORIRSMAPED_USE_SPAWN, path, lines[k], counts[k], text_out, (size_t)n);
+    }
+}
+
+/** A square's .jl2: `<level> <x> <z>: <loc> <shape> <rot>` rows of the loc. */
+static void
+cat_uses_placements(
+    struct cat_uses* uses,
+    const char* path,
+    const char* text,
+    size_t size)
+{
+    const char* p = text;
+    const char* end = text + size;
+    uint32_t count = 0;
+    uint32_t first = 0;
+    uint32_t line = 0;
+
+    while( p < end )
+    {
+        const char* le;
+        const char* next = cat_next_line(p, end, &le);
+        const char* colon = memchr(p, ':', (size_t)(le - p));
+        line++;
+        if( colon && p[0] >= '0' && p[0] <= '9' && atoi(colon + 1) == uses->id )
+        {
+            if( count++ == 0 )
+                first = line;
+        }
+        p = next;
+    }
+    if( count )
+    {
+        const char* base = strrchr(path, '/');
+        char text_out[96];
+        int const n = snprintf(text_out, sizeof(text_out), "%.*s: %u placement%s",
+            (int)strcspn(base ? base + 1 : path, "."), base ? base + 1 : path, count, count == 1 ? "" : "s");
+        cat_uses_row(uses, TORIRSMAPED_USE_PLACEMENT, path, first, count, text_out, (size_t)n);
+    }
+}
+
+/** editor/palettes.txt and editor/stamps/: not catalog sources, read last. */
+static void
+cat_uses_editor_files(
+    struct ToriRSMapEdCatalog* catalog,
+    struct cat_uses* uses)
+{
+    char* text;
+    size_t size = 0;
+    char slot[96];
+    int const slot_length =
+        snprintf(slot, sizeof(slot), "%s:%s", ToriRSMapEdCatalog_KindName(uses->kind), uses->name);
+
+    text = cat_read(catalog, "editor/palettes.txt", 0, 0, &size);
+    if( text && slot_length > 0 && (size_t)slot_length < sizeof(slot) )
+    {
+        const char* p = text;
+        const char* end = text + size;
+        uint32_t line = 0;
+        while( p < end )
+        {
+            const char* le;
+            const char* next = cat_next_line(p, end, &le);
+            const char* s = p;
+            line++;
+            p = next;
+            if( cat_names_word(s, le, slot, (size_t)slot_length) || (s < le && s[0] != '#'
+                && cat_memmem(s, (size_t)(le - s), slot, (size_t)slot_length)
+                && cat_names_word(s, le, uses->name, uses->name_length)) )
+            {
+                cat_trim(&s, &le);
+                cat_uses_row(uses, TORIRSMAPED_USE_PALETTE, "editor/palettes.txt", line, 1, s, (size_t)(le - s));
+            }
+        }
+    }
+    if( uses->kind != TORIRSMAPED_CATALOG_LOC || uses->id < 0 )
+        return;
+    {
+        char dir_path[CAT_PATH_MAX * 2];
+        DIR* dir;
+        struct dirent* entry;
+        snprintf(dir_path, sizeof(dir_path), "%s/editor/stamps", catalog->content_dir);
+        dir = opendir(dir_path);
+        while( dir && (entry = readdir(dir)) != NULL )
+        {
+            char rel[CAT_PATH_MAX];
+            size_t const n = strlen(entry->d_name);
+            const char* p;
+            const char* end;
+            uint32_t count = 0;
+            uint32_t first = 0;
+            uint32_t line = 0;
+
+            if( n < 7 || strcmp(entry->d_name + n - 6, ".stamp") != 0 )
+                continue;
+            snprintf(rel, sizeof(rel), "editor/stamps/%s", entry->d_name);
+            text = cat_read(catalog, rel, 0, 0, &size);
+            if( !text )
+                continue;
+            p = text;
+            end = text + size;
+            while( p < end )
+            {
+                const char* le;
+                const char* next = cat_next_line(p, end, &le);
+                int dx;
+                int dz;
+                int dlevel;
+                int loc = -1;
+                line++;
+                /* loc <dx> <dz> <dlevel> <loc> <shape> <rot> [<w>x<h>] */
+                if( le - p > 4 && memcmp(p, "loc ", 4) == 0 && sscanf(p + 4, "%d %d %d %d", &dx, &dz, &dlevel, &loc) == 4
+                    && loc == uses->id && count++ == 0 )
+                    first = line;
+                p = next;
+            }
+            if( count )
+            {
+                char text_out[96];
+                int const k = snprintf(text_out, sizeof(text_out), "stamp %.*s: %u loc%s", (int)(n - 6), entry->d_name,
+                    count, count == 1 ? "" : "s");
+                cat_uses_row(uses, TORIRSMAPED_USE_STAMP, rel, first, count, text_out, (size_t)k);
+            }
+        }
+        if( dir )
+            closedir(dir);
+    }
+}
+
+int
+ToriRSMapEdCatalog_HandleUses(
+    struct ToriRSMapEdCatalog* catalog,
+    const uint8_t* body,
+    uint32_t length,
+    struct ToriRSMapEdBuf* out)
+{
+    struct ToriRSMapEdReader reader;
+    struct ToriRSMapEdBuf rows;
+    struct cat_uses uses;
+    char name[256];
+    uint32_t kind;
+    uint32_t cursor;
+    uint32_t total;
+    uint32_t at;
+    int record;
+    double deadline;
+
+    assert(catalog);
+    assert(out);
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    kind = ToriRSMapEd_GetU32(&reader);
+    ToriRSMapEd_GetString(&reader, name, sizeof(name));
+    cursor = ToriRSMapEd_GetU32(&reader);
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+        return 0;
+
+    cat_request_index(catalog);
+    record = name[0] ? cat_record_lookup(catalog, kind, -1, name) : -1;
+    memset(&rows, 0, sizeof(rows));
+    memset(&uses, 0, sizeof(uses));
+    uses.name = name;
+    uses.name_length = strlen(name);
+    uses.kind = kind;
+    uses.id = record >= 0 ? catalog->records[record].id : -1;
+    uses.rows = &rows;
+    /* The sources, then one step for the editor's own files. */
+    total = (uint32_t)catalog->source_count + 1;
+    at = cursor < total ? cursor : total;
+    deadline = cat_now_ms() + TORIRSMAPED_CATALOG_USES_SLICE_MS;
+    while( name[0] && at < total && uses.row_count < TORIRSMAPED_CATALOG_USES_ROWS
+           && (at == cursor || cat_now_ms() < deadline) )
+    {
+        const struct cat_source* src;
+        uint32_t use = 0;
+        char* text;
+        size_t size = 0;
+
+        if( at == (uint32_t)catalog->source_count )
+        {
+            cat_uses_editor_files(catalog, &uses);
+            at++;
+            continue;
+        }
+        src = &catalog->sources[at++];
+        if( src->type == CAT_SRC_RS2 )
+            use = TORIRSMAPED_USE_SCRIPT;
+        else if( src->type == CAT_SRC_SPAWN && (kind == TORIRSMAPED_CATALOG_NPC || kind == TORIRSMAPED_CATALOG_OBJ) )
+            use = TORIRSMAPED_USE_SPAWN;
+        else if( src->type == CAT_SRC_JL2 && kind == TORIRSMAPED_CATALOG_LOC && uses.id >= 0 )
+            use = TORIRSMAPED_USE_PLACEMENT;
+        else if( src->type == CAT_SRC_IF )
+            use = TORIRSMAPED_USE_INTERFACE;
+        else if( src->type == CAT_SRC_CS2 )
+            use = TORIRSMAPED_USE_CS2;
+        else if( src->type == CAT_SRC_OVERLAY )
+            use = TORIRSMAPED_USE_CONFIG;
+        if( !use )
+            continue;
+        text = cat_read(catalog, src->path, (size_t)src->size, 0, &size);
+        if( !text )
+            continue;
+        if( use == TORIRSMAPED_USE_SPAWN )
+            cat_uses_spawns(&uses, src->path, text, size);
+        else if( use == TORIRSMAPED_USE_PLACEMENT )
+            cat_uses_placements(&uses, src->path, text, size);
+        else
+            cat_uses_lines(&uses, src->path, text, size, use);
+    }
+    ToriRSMapEd_PutU32(out, record >= 0 ? EDITOR_HOST_OK : EDITOR_HOST_ABSENT);
+    ToriRSMapEd_PutU32(out, kind);
+    ToriRSMapEd_PutString(out, name);
+    ToriRSMapEd_PutU32(out, name[0] && at < total ? at : 0);
+    ToriRSMapEd_PutU32(out, at);
+    ToriRSMapEd_PutU32(out, total);
+    ToriRSMapEd_PutU32(out, uses.row_count);
+    if( rows.data )
+        ToriRSMapEd_BufWrite(out, rows.data + rows.head, (int)ToriRSMapEd_BufAvailable(&rows));
+    ToriRSMapEd_BufFree(&rows);
+    return 1;
 }

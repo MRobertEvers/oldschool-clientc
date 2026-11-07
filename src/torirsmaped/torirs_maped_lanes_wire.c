@@ -78,6 +78,7 @@ lanes_published(
     TORIRS_LOG("torirsmaped: lane %s: %s\n",
         kind == TORIRSMAPED_LANE_PUBLISHED_PUBLISH  ? "publish"
         : kind == TORIRSMAPED_LANE_PUBLISHED_DISCARD ? "discard"
+        : kind == TORIRSMAPED_LANE_PUBLISHED_SWITCH  ? "switch"
                                                      : "create",
         message);
 }
@@ -216,6 +217,145 @@ handle_lane_discard(
     lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_DISCARD, EDITOR_HOST_OK, message, "", &counts, 1);
 }
 
+/** The lane the next boot serves, "" when build/lanes/lane.ini names none
+ *  (or this server has no repo root). */
+static void
+lanes_next_boot(
+    const struct ToriRSMapEd* maped,
+    char* out,
+    size_t out_size)
+{
+    out[0] = '\0';
+    if( maped->repo_root[0] )
+        (void)ToriRSMapEdLanes_BootName(maped->repo_root, out, out_size);
+}
+
+/** LANE_SWITCH: stage the lane the next boot serves. A running server cannot
+ *  re-point its lane (torirs_maped_lanes.h), so it says so. */
+static void
+handle_lane_switch(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    const uint8_t* body,
+    uint32_t length)
+{
+    struct ToriRSMapEdReader reader;
+    char name[TORIRSMAPED_LANE_NAME_MAX + 8];
+    char why[512];
+    char message[1200];
+
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    ToriRSMapEd_GetString(&reader, name, sizeof(name));
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+    {
+        session->alive = 0;
+        return;
+    }
+    if( !maped->repo_root[0] )
+    {
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_SWITCH, EDITOR_HOST_UNSUPPORTED,
+            "this server has no repo root: no build/lanes to switch in", name, NULL, 0);
+        return;
+    }
+    if( !ToriRSMapEdLanes_SetBoot(maped->repo_root, lanes_base_tree(maped), name, why, sizeof(why)) )
+    {
+        snprintf(message, sizeof(message), "Switch refused: %s", why);
+        lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_SWITCH, EDITOR_HOST_REFUSED, message, name, NULL, 0);
+        return;
+    }
+    if( strcmp(name, maped->lane.name) == 0 )
+        snprintf(message, sizeof(message), "this editor serves lane '%s' now and from every boot on", name);
+    else
+        snprintf(message, sizeof(message),
+            "the next editor boot serves lane '%s' (build/lanes/lane.ini); this one keeps '%s' until it restarts: "
+            "a running server cannot re-point its lane",
+            name, maped->lane.name);
+    lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_SWITCH, EDITOR_HOST_OK, message, name, NULL, 0);
+}
+
+/* ---- the change counts' cache ----------------------------------------------------------
+ *
+ * A count is a walk of the lane's mirror (ToriRSMapEdLanes_Changes: an
+ * lstat per entry of a content tree, and the base again), and the embedded
+ * server runs on the editor's UI thread: a walk is a frame or more. So the
+ * counts are remembered per lane (struct ToriRSMapEdLaneCountCache) and the
+ * status bar's periodic COUNT_ONLY, a LIST on the panel's open or after a
+ * save, and every popped-out window's own asks answer from here. An entry
+ * holds while no request that can write a tree has arrived since it was
+ * walked (note_lane_writes, torirs_maped.c; a BUILD's or RUN's end). This
+ * server's own lane, while it holds the lock, has no other writer the
+ * server would hear of, so it holds until then; another lane (another
+ * editor may be saving there), or this one while another server holds it,
+ * also expires after TORIRSMAPED_LANE_COUNT_STALE_S. An edit made outside
+ * every editor (a text editor, git) shows on the next save or Refresh. */
+
+static struct ToriRSMapEdLaneCountCache*
+lanes_count_slot(
+    struct ToriRSMapEd* maped,
+    const char* name)
+{
+    struct ToriRSMapEdLaneCountCache* oldest = &maped->lane_counts[0];
+    for( int i = 0; i < TORIRSMAPED_LANES_MAX; i++ )
+    {
+        struct ToriRSMapEdLaneCountCache* entry = &maped->lane_counts[i];
+        if( entry->used && strcmp(entry->name, name) == 0 )
+            return entry;
+    }
+    for( int i = 0; i < TORIRSMAPED_LANES_MAX; i++ )
+    {
+        struct ToriRSMapEdLaneCountCache* entry = &maped->lane_counts[i];
+        if( !entry->used )
+            return entry;
+        if( entry->walked_at < oldest->walked_at )
+            oldest = entry;
+    }
+    return oldest;
+}
+
+static void
+lanes_count_store(
+    struct ToriRSMapEd* maped,
+    const struct ToriRSMapEdLaneDef* lane,
+    int total,
+    const struct ToriRSMapEdLaneCounts* counts)
+{
+    struct ToriRSMapEdLaneCountCache* entry = lanes_count_slot(maped, lane->name);
+    memset(entry, 0, sizeof(*entry));
+    snprintf(entry->name, sizeof(entry->name), "%s", lane->name);
+    entry->used = 1;
+    entry->total = total;
+    entry->counts = *counts;
+    entry->writes_own = maped->lane_writes_own;
+    entry->writes_all = maped->lane_writes_all;
+    entry->walked_at = (long long)time(NULL);
+}
+
+/** `lane`'s change count (and its M/A/D in `counts`), from the cache when
+ *  it holds (above), else walked now and remembered; `rescan` walks anyway. */
+static int
+lanes_count(
+    struct ToriRSMapEd* maped,
+    const struct ToriRSMapEdLaneDef* lane,
+    int rescan,
+    struct ToriRSMapEdLaneCounts* counts)
+{
+    struct ToriRSMapEdLaneCountCache* entry = lanes_count_slot(maped, lane->name);
+    int const own = strcmp(lane->name, maped->lane.name) == 0;
+    int total;
+
+    if( !rescan && entry->used && strcmp(entry->name, lane->name) == 0 && entry->writes_all == maped->lane_writes_all
+        && (!own || entry->writes_own == maped->lane_writes_own)
+        && ((own && maped->writable) || (long long)time(NULL) - entry->walked_at < TORIRSMAPED_LANE_COUNT_STALE_S) )
+    {
+        *counts = entry->counts;
+        return entry->total;
+    }
+    memset(counts, 0, sizeof(*counts));
+    total = ToriRSMapEdLanes_Changes(lane, NULL, 0, counts);
+    lanes_count_store(maped, lane, total, counts);
+    return total;
+}
+
 static void
 handle_lanes(
     struct ToriRSMapEdSession* session,
@@ -239,6 +379,11 @@ handle_lanes(
         ToriRSMapEd_PutString(&payload, maped->lane.base);
         ToriRSMapEd_PutU32(&payload, (uint32_t)maped->lane.is_main);
         ToriRSMapEd_PutU32(&payload, (uint32_t)maped->writable);
+        {
+            char next_boot[TORIRSMAPED_LANE_NAME_MAX + 8];
+            lanes_next_boot(maped, next_boot, sizeof(next_boot));
+            ToriRSMapEd_PutString(&payload, next_boot);
+        }
         send_buf(session, TORIRSMAPED_FACT_LANE_INFO, &payload);
     }
     else if( type == TORIRSMAPED_REQ_LANE_LIST )
@@ -253,8 +398,53 @@ handle_lanes(
         ToriRSMapEd_PutU32(&payload, (uint32_t)count);
         for( int i = 0; i < count; i++ )
             lanes_put_def(&payload, &lanes[i], maped);
+        /* The workbench tail (TORIRSMAPED_CAP_LANES_V2): each lane's change
+         * count and its tree's lock holder. A count is the cache's (above);
+         * the panel's Refresh sends TORIRSMAPED_LANE_LIST_RESCAN to walk
+         * every mirror again. */
+        int rescan = 0;
+        if( length >= 4 )
+            rescan = (ToriRSMapEd_ReadU32(body) & TORIRSMAPED_LANE_LIST_RESCAN) != 0;
+        ToriRSMapEd_PutU32(&payload, (uint32_t)count);
+        for( int i = 0; i < count; i++ )
+        {
+            char held[256];
+            int changes = 0;
+            struct ToriRSMapEdLaneCounts counts;
+            if( !lanes[i].is_main )
+                changes = lanes_count(maped, &lanes[i], rescan, &counts);
+            if( !ToriRSMapEdLanes_TreeHeld(lanes[i].content, held, sizeof(held)) )
+                held[0] = '\0';
+            ToriRSMapEd_PutU32(&payload, (uint32_t)changes);
+            ToriRSMapEd_PutString(&payload, held);
+        }
         ToriMem_Free(ToriMem_Editor(), lanes);
         send_buf(session, TORIRSMAPED_FACT_LANE_LIST, &payload);
+    }
+    else if( type == TORIRSMAPED_REQ_LANE_CHANGES && length > 0 )
+    {
+        /* The count alone (the status bar's chip): FACT_LANE_COUNT. */
+        struct ToriRSMapEdReader reader;
+        struct ToriRSMapEdLaneCounts counts;
+        char next_boot[TORIRSMAPED_LANE_NAME_MAX + 8];
+        uint32_t flags;
+        ToriRSMapEd_ReaderInit(&reader, body, length);
+        flags = ToriRSMapEd_GetU32(&reader);
+        if( !ToriRSMapEd_ReaderDone(&reader) || !(flags & TORIRSMAPED_LANE_CHANGES_COUNT_ONLY) )
+        {
+            session->alive = 0;
+            ToriRSMapEd_BufFree(&payload);
+            return;
+        }
+        (void)lanes_count(maped, &maped->lane, 0, &counts);
+        lanes_next_boot(maped, next_boot, sizeof(next_boot));
+        ToriRSMapEd_PutString(&payload, maped->lane.name);
+        ToriRSMapEd_PutU32(&payload, (uint32_t)maped->lane.is_main);
+        ToriRSMapEd_PutU32(&payload, (uint32_t)counts.modified);
+        ToriRSMapEd_PutU32(&payload, (uint32_t)counts.added);
+        ToriRSMapEd_PutU32(&payload, (uint32_t)counts.deleted);
+        ToriRSMapEd_PutString(&payload, next_boot);
+        send_buf(session, TORIRSMAPED_FACT_LANE_COUNT, &payload);
     }
     else if( type == TORIRSMAPED_REQ_LANE_CHANGES )
     {
@@ -264,7 +454,10 @@ handle_lanes(
         int count;
         int shown;
         assert(rows);
+        memset(&counts, 0, sizeof(counts));
         count = ToriRSMapEdLanes_Changes(&maped->lane, rows, TORIRSMAPED_LANE_CHANGE_ROWS_MAX, &counts);
+        /* The rows' walk counts too: the chip and the LIST after it need no walk of their own. */
+        lanes_count_store(maped, &maped->lane, count, &counts);
         shown = count < TORIRSMAPED_LANE_CHANGE_ROWS_MAX ? count : TORIRSMAPED_LANE_CHANGE_ROWS_MAX;
         ToriRSMapEd_PutU32(&payload, (uint32_t)counts.modified);
         ToriRSMapEd_PutU32(&payload, (uint32_t)counts.added);
@@ -283,6 +476,8 @@ handle_lanes(
         handle_lane_publish(session, maped, body, length);
     else if( type == TORIRSMAPED_REQ_LANE_DISCARD )
         handle_lane_discard(maped);
+    else if( type == TORIRSMAPED_REQ_LANE_SWITCH )
+        handle_lane_switch(session, maped, body, length);
     else if( type == TORIRSMAPED_REQ_LANE_CREATE )
     {
         struct ToriRSMapEdReader reader;

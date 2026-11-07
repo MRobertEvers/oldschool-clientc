@@ -18,6 +18,8 @@
 #include "torirsmaped/torirs_maped_build.h"
 #include "torirsmaped/torirs_maped_catalog.h"
 #include "torirsmaped/torirs_maped_live.h"
+#include "platform/launch_sessions.h"
+#include "torirsmaped/torirs_maped_build.h"
 
 #include <arpa/inet.h>
 #include <assert.h>
@@ -1325,6 +1327,9 @@ main(
         return 2;
     }
     setvbuf(stdout, NULL, _IONBF, 0);
+    /* The editor server starts its children through the host's spawner, as
+     * the client and torirsmaped hand it theirs (torirs_maped_build.h). */
+    ToriRSMapEd_SetSpawner(LaunchSessions_SystemSpawner());
     test_pure();
     test_codec();
     test_quests();

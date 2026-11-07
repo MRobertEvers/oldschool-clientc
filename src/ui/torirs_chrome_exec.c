@@ -7,9 +7,11 @@
 /* A full restatement emits one global style command, four commands per panel
  * (OPEN, RECT, TAB, MODE), nine fixed commands per widget (ADD, HIDDEN,
  * CHECKED, FOCUS, SELECTED, the OPTIONS or GRAPH header, VALUE, TOOLTIP, and
- * a spare for HEIGHT), then one command per retained option, visible row,
- * span and graph item -- each bounded by its pool. Include BEGIN/END because
- * WEB's atomic-array ceiling counts its markers too. Keeping this proof beside
+ * one of HEIGHT or CHORD -- HEIGHT is CUSTOM's and GRAPH's, CHORD BUTTON's and
+ * ICONBUTTON's, so no widget sends both), then one command per retained
+ * option, visible row, span and graph item -- each bounded by its pool.
+ * Include BEGIN/END because WEB's atomic-array ceiling counts its markers
+ * too. Keeping this proof beside
  * the serializer makes a future model-cap increase fail the build instead of
  * creating a snapshot that can never recover. */
 _Static_assert(
@@ -185,7 +187,8 @@ ToriRSChromeSync_Invalidate(struct ToriRSChromeSync* sync, uint32_t page_epoch)
      * two frames. @see TORIRS_CHROME_CMD_SYNC_BEGIN. */
     sync->restate = 1;
     /* @see ToriRSChromeSync::check_style -- an executor that was re-mounted
-     * has not been told the style either. */
+     * has not been told the style either. (The scale is the binding's, which
+     * a page boundary does not touch: @see ToriRSChromeSync::scale_value.) */
     sync->check_style = -1;
 }
 
@@ -198,8 +201,11 @@ ToriRSChromeSync_Init(struct ToriRSChromeSync* sync, struct ToriRSChromeExec con
     memset(sync, 0, sizeof(*sync));
     sync->exec = *exec;
     /* Not a style any model can hold, so the first Run states the real one --
-     * @see ToriRSChromeSync::check_style. */
+     * @see ToriRSChromeSync::check_style. The scale is the executor's own
+     * default instead -- @see ToriRSChromeSync::scale_value. */
     sync->check_style = -1;
+    sync->scale_value = TORIRS_CHROME_SCALE_Q_ONE;
+    sync->scale_den = TORIRS_CHROME_SCALE_Q_ONE;
     /*
      * A fresh binding is the same fact as an invalidated one -- the executor
      * holds nothing -- so the first transaction says so too. That keeps the
@@ -254,7 +260,7 @@ sync_add_shape(
     case TORIRS_CHROME_W_CUSTOM:
     case TORIRS_CHROME_W_GRAPH:
         *out_w = 0;
-        *out_h = w->view_h / (ui->scale > 0 ? ui->scale : 1);
+        *out_h = ToriRSChrome_UnscalePx(ui->scale_q, w->view_h);
         return;
     case TORIRS_CHROME_W_TREE:
     case TORIRS_CHROME_W_RADIO:
@@ -264,6 +270,12 @@ sync_add_shape(
     case TORIRS_CHROME_W_ICONBUTTON:
         *out_w = w->ivalue;
         *out_h = 0;
+        return;
+    case TORIRS_CHROME_W_VLIST:
+        /* A cells list (ToriRSChrome_VListCells) is shape: its rows read as
+         * cells from the add on. */
+        *out_w = w->iaux ? TORIRS_CHROME_VLIST_CELLS | (w->iaux & TORIRS_CHROME_VLIST_CELLS_WIDE) : 0;
+        *out_h = w->rows;
         return;
     default:
         *out_w = (w->row_action ? TORIRS_CHROME_ROW_ACTION : 0) |
@@ -374,12 +386,26 @@ sync_emit_editor(
     struct ToriRSChromeCmd cmd;
 
     if( (flags & TORIRS_CHROME_CHANGE_WIDGET_TOOLTIP) &&
-        strcmp(sw->tooltip, w->tooltip) != 0 )
+        (strcmp(sw->tooltip, w->tooltip) != 0 ||
+         strcmp(sw->tooltip_chord, w->tooltip_chord) != 0) )
     {
         cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_TOOLTIP, w->panel, widget);
         chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->tooltip);
+        chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->tooltip_chord);
         sync_emit(sync, &cmd);
         chrome_copy(sw->tooltip, TORIRS_CHROME_LABEL_MAX, w->tooltip);
+        chrome_copy(sw->tooltip_chord, TORIRS_CHROME_CHORD_MAX, w->tooltip_chord);
+    }
+    /* The keycap or badge: BUTTON and ICONBUTTON only, which is also what
+     * keeps the snapshot bound -- neither kind ever sends a HEIGHT. */
+    if( (flags & TORIRS_CHROME_CHANGE_WIDGET_CHORD) &&
+        (w->kind == TORIRS_CHROME_W_BUTTON || w->kind == TORIRS_CHROME_W_ICONBUTTON) &&
+        strcmp(sw->chord, w->chord) != 0 )
+    {
+        cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_CHORD, w->panel, widget);
+        chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->chord);
+        sync_emit(sync, &cmd);
+        chrome_copy(sw->chord, TORIRS_CHROME_CHORD_MAX, w->chord);
     }
     if( !sync_is_editor_kind(w->kind) )
         return;
@@ -485,6 +511,51 @@ sync_insert_before(
     return -1;
 }
 
+static int
+sync_gcd(int a, int b)
+{
+    while( b )
+    {
+        int const t = a % b;
+        a = b;
+        b = t;
+    }
+    return a;
+}
+
+/**
+ * State the page zoom, if this executor does not hold it: SCALE with
+ * `value` / `w` = (q * 100) / (4 * density), q the page's scale and density
+ * its own device pixels per CSS pixel (ToriRSChrome_SetPageScale), reduced by
+ * gcd(100, density) -- q / 4 on a page of density 100, as before. Compared
+ * against what the executor holds as a ratio, so a 2x chrome on a 2x page
+ * (8 / 8) is the same no-zoom as the seed (4 / 4) and sends nothing.
+ * @see TORIRS_CHROME_CMD_SCALE.
+ */
+static void
+sync_scale(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
+{
+    struct ToriRSChromeCmd cmd;
+    int const q = ui->page_scale_q > 0 ? ui->page_scale_q : ui->scale_q;
+    int const density = ui->page_density_percent;
+    int const g = sync_gcd(100, density);
+    int const value = q * (100 / g);
+    int const den = TORIRS_CHROME_SCALE_Q_ONE * (density / g);
+
+    assert(density > 0);
+    if( (long long)value * sync->scale_den == (long long)sync->scale_value * den &&
+        sync->scale_text == ui->text_smooth )
+        return;
+    cmd_init(&cmd, TORIRS_CHROME_CMD_SCALE, -1, -1);
+    cmd.value = value;
+    cmd.w = den;
+    cmd.h = ui->text_smooth;
+    sync_emit(sync, &cmd);
+    sync->scale_value = value;
+    sync->scale_den = den;
+    sync->scale_text = ui->text_smooth;
+}
+
 /**
  * A CUSTOM well's height in the LOGICAL units a command carries.
  *
@@ -496,7 +567,7 @@ static int
 sync_custom_logical_h(
     struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
 {
-    return w->view_h / (ui->scale > 0 ? ui->scale : 1);
+    return ToriRSChrome_UnscalePx(ui->scale_q, w->view_h);
 }
 
 /** Full catch-up only: initial bind, explicit rebind, or lost change queue. */
@@ -529,6 +600,8 @@ sync_snapshot(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
         sync_emit(sync, &cmd);
         sync->check_style = ui->check_style;
     }
+    /* The scale, for the same reason and in the same place. */
+    sync_scale(sync, ui);
 
     /*
      * Panels first, and closes before opens.
@@ -1139,7 +1212,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui)
         if( ui->changes[i].kind == 0 )
             continue;
         else if( ui->changes[i].kind < TORIRS_CHROME_CHANGE_PANEL ||
-                 ui->changes[i].kind > TORIRS_CHROME_CHANGE_CHECK_STYLE )
+                 ui->changes[i].kind > TORIRS_CHROME_CHANGE_SCALE )
             ui->change_lost = 1;
     }
     if( ui->change_lost )
@@ -1162,6 +1235,8 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui)
             sync_emit(sync, &cmd);
             sync->check_style = ui->check_style;
         }
+        else if( ui->changes[i].kind == TORIRS_CHROME_CHANGE_SCALE )
+            sync_scale(sync, ui);
     }
     for( int i = 0; i < ui->change_count; i++ )
     {
@@ -1219,6 +1294,57 @@ intent_widget_is(
 {
     return intent->widget >= 0 && intent->widget < ui->widget_count &&
            ui->widgets[intent->widget].kind == kind;
+}
+
+/**
+ * A GESTURE intent's numbers, "dx dy fingers scale_q16 radians_q16 phase":
+ * six decimal ints, single spaces or more. 0 when the text is not that --
+ * the browser's word, so a bad one is dropped like any unknown intent.
+ */
+static int
+intent_gesture_numbers(char const* text, struct ToriRSChromeGesture* out)
+{
+    long values[6];
+    char const* at = text;
+
+    for( int i = 0; i < 6; i++ )
+    {
+        long v = 0;
+        int negative = 0;
+        int digits = 0;
+        while( *at == ' ' )
+            at++;
+        if( *at == '-' )
+        {
+            negative = 1;
+            at++;
+        }
+        while( *at >= '0' && *at <= '9' && digits < 10 )
+        {
+            v = v * 10 + (*at - '0');
+            at++;
+            digits++;
+        }
+        if( digits == 0 || (*at >= '0' && *at <= '9') )
+            return 0;
+        values[i] = negative ? -v : v;
+        if( values[i] > 2147483000L || values[i] < -2147483000L )
+            return 0;
+    }
+    while( *at == ' ' )
+        at++;
+    if( *at != '\0' )
+        return 0;
+    if( values[5] < TORIRS_CHROME_GESTURE_BEGIN || values[5] > TORIRS_CHROME_GESTURE_END )
+        return 0;
+    memset(out, 0, sizeof(*out));
+    out->dx = (int)values[0];
+    out->dy = (int)values[1];
+    out->fingers = (int)values[2];
+    out->scale_q16 = (int)values[3];
+    out->radians_q16 = (int)values[4];
+    out->phase = (int)values[5];
+    return 1;
 }
 
 int
@@ -1286,6 +1412,13 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
         {
             if( intent->value < 0 || intent->value >= ui->widgets[intent->widget].imax )
                 return 0;
+            /* A cells list's PICK names its cell in `x`: 0 the row body, n
+             * the n-th keycap (ToriRSChrome_VListPickedCell). Wire data: a
+             * cell past the keycaps a row can hold is the body. */
+            ui->widgets[intent->widget].vlist_cell =
+                ui->widgets[intent->widget].iaux && intent->x > 0 && intent->x <= TORIRS_CHROME_CELL_KEYS_MAX
+                    ? intent->x
+                    : 0;
             ToriRSChrome_VListSetSelected(ui, intent->widget, intent->value);
             ui->activated = intent->widget;
             return 1;
@@ -1503,6 +1636,17 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
             ev.kind = TORIRS_CHROME_EVENT_GRAPH_WHEEL;
             ev.value = intent->value;
         }
+        else if( intent->value == TORIRS_CHROME_EVENT_GRAPH_KEY )
+        {
+            /* A key on the focused well (the DOM's keydown): `x` the key as
+             * the event's value says it, `y` the modifier bits. No point. */
+            ev.kind = TORIRS_CHROME_EVENT_GRAPH_KEY;
+            ev.widget = intent->widget;
+            ev.serial = ui->widgets[intent->widget].serial;
+            ev.value = intent->x;
+            ev.col = intent->y;
+            return ToriRSChrome_PushEvent(ui, &ev);
+        }
         else
         {
             if( intent->value < TORIRS_CHROME_EVENT_GRAPH_PRESS ||
@@ -1516,6 +1660,26 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
         ev.y = intent->y;
         ev.key = ToriRSChrome_GraphKeyAt(ui, intent->widget, intent->x, intent->y);
         return ToriRSChrome_PushEvent(ui, &ev);
+    }
+
+    case TORIRS_CHROME_INTENT_GESTURE:
+    {
+        struct ToriRSChromeGesture gesture;
+        int kind;
+        if( intent->widget < 0 || intent->widget >= ui->widget_count ||
+            ui->widgets[intent->widget].kind == TORIRS_CHROME_W_FREE ||
+            intent->value < TORIRS_CHROME_GESTURE_PAN || intent->value > TORIRS_CHROME_GESTURE_TWIST )
+            return 0;
+        kind = ui->widgets[intent->widget].kind;
+        if( kind != TORIRS_CHROME_W_GRAPH && kind != TORIRS_CHROME_W_MODELVIEW &&
+            kind != TORIRS_CHROME_W_VLIST && kind != TORIRS_CHROME_W_CODE )
+            return 0;
+        if( !intent_gesture_numbers(intent->text, &gesture) )
+            return 0;
+        gesture.kind = intent->value;
+        gesture.x = intent->x;
+        gesture.y = intent->y;
+        return ToriRSChrome_GestureWidget(ui, intent->widget, &gesture);
     }
 
     default:

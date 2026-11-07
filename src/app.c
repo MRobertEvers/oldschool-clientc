@@ -12,6 +12,8 @@
 
 #include "perf_audit.h"
 #include "plugin/porcelain/torirs_porcelain.h"
+#include "platform/launch_sessions.h"
+#include "torirsmaped/torirs_maped_build.h"
 
 #if defined(TORIRS_PLATFORM_WEB)
 #include "ui/torirs_chrome_exec_web.h"
@@ -1111,7 +1113,10 @@ App_Init(
                 cfg->editor_content_dir, cfg->editor_lane ? ", lane " : "",
                 cfg->editor_lane ? cfg->editor_lane : "");
             /* [editor:boot] lane= (torirsmaped/torirs_maped_lanes.h): the
-             * edits go to the lane's mirror of the tree, never the tree. */
+             * edits go to the lane's mirror of the tree, never the tree. The
+             * embedded server starts its builds, the lane's servers and the
+             * play client through this platform's spawner. */
+            ToriRSMapEd_SetSpawner(LaunchSessions_SystemSpawner());
             editor_ok = Editor_HostOpenMapEdEmbedLane(
                 &editor_host, cfg->editor_content_dir, cfg->editor_repo_root, cfg->editor_lane);
         }

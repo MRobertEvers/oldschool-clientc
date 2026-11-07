@@ -86,7 +86,7 @@ Done when: `make -C src all torirsmaped torirsmapedctl test-editor test-spawn-co
 | `src/ui/torirs_chrome_exec*.{c,h}`, `torirs_chrome_surface_sdl.c`, `torirs_chrome_shell.{c,h}` | commands and intents for every new kind (the web and browser executors render from the command stream) |
 | `src/plugin_chrome/runtime-source.js`, `runtime.js`, `modern.css`, `src/web/torirs_chrome.js` | DOM rendering of the new kinds |
 | `src/engine/torirs_chrome_skin_baked.{c,h}`, `src/ui/torirs_chrome_skin.h`, `res/plugin_chrome/skin/` | new baked slots (design §7 table): probe with `3rd/rscache/tools/spritebake/spritebake --rev osrs241 cache.osrs241 --list` / `--probe`; synthesize with `tools/chrome_button_stamp.py` where no sprite fits; regenerate the PNGs with `tools/spritebake_png.py` |
-| `src/maped/chrome.mk` | `chrome-skin` (re-runs the recipe from the baked file's header) and a sync test per new widget kind in `src/ui/test/` |
+| `src/maped/chrome.mk` | `chrome-skin` (checks the 2x/3x skin and font tiers are what `tools/chrome_skin_tiers.py` / `tools/chrome_font_tiers.py` bake, no cache needed; docs/CHROME_SCALE.md), `chrome-skin-rebake` (re-runs the recipe from the baked file's header against the cache, then the tiers) and a sync test per new widget kind in `src/ui/test/` |
 
 Rule: a widget never holds a pointer the caller owns beyond the frame (the dropdown options trap, `docs/chrome_executors.md`). Labels 63 bytes, text 191 bytes, unchanged.
 

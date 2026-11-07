@@ -457,6 +457,17 @@ int
 PlatformWindow_DisplayDensityPercent(struct PlatformWindow* platform);
 
 /**
+ * The display's device pixel ratio as the CHROME should read it, in percent:
+ * DisplayDensityPercent, and where that is 100 because the backend has one
+ * coordinate space, the display's own scale when the platform states one
+ * worth trusting (Windows' per-monitor DPI under SDL). What the chrome's Auto
+ * scale snaps (main.c main_dynamic_chrome_scale, ui/torirs_chrome_scale_q.h).
+ * Never read by the game's own scaling, whose coordinate space it is not.
+ */
+int
+PlatformWindow_ChromeDensityPercent(struct PlatformWindow* platform);
+
+/**
  * Ask the next window for a device-pixel (HighDPI) drawable.
  *
  * Must be called BEFORE PlatformWindow_Init / _InitForOpenGL3: the flag becomes
@@ -614,6 +625,17 @@ PlatformWindow_SetTouchViewport(
 void
 PlatformWindow_SetTouchOverlayTest(
     struct PlatformWindow* platform, ToriRS_TouchOverlayFn fn, void* user);
+
+/**
+ * Whether two or more fingers on a touchscreen become gesture frames
+ * (TORIRS_CMD_GESTURE_PAN / _PINCH / _TWIST) instead of the game's wheel
+ * notches and arrow keys: ToriRS_TouchSetGestureFrames on this window's touch
+ * state. Off by default, so the game is unchanged; the client turns it on
+ * while the map editor owns the touch (App_EditorOwnsTouch). Compare-then-set,
+ * so it is safe to call every frame. A no-op on a backend with no touch state.
+ */
+void
+PlatformWindow_SetTouchGestureFrames(struct PlatformWindow* platform, int on);
 
 /**
  * Whether the canvas tracks the window, with the game area's floor in points.

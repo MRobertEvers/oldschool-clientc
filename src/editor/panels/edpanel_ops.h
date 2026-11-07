@@ -24,6 +24,7 @@
 
 #include "editor/editor_cmd.h"
 #include "editor/editor_doc.h"
+#include "editor/editor_path.h"
 #include "editor/editor_spawn.h"
 #include "editor/editor_ui.h"
 
@@ -53,7 +54,7 @@ Editor_OpsRawForHeight(
 struct Editor_BrushOp
 {
     /** RAISE, LOWER, FLATTEN, SMOOTH, PAINT_UNDERLAY, PAINT_OVERLAY,
-     *  PAINT_FLAGS. */
+     *  PAINT_FLAGS, NOISE. */
     enum Editor_Tool tool;
     int world_x;
     int world_z;
@@ -61,7 +62,18 @@ struct Editor_BrushOp
     struct Editor_Brush brush;
     /** FLATTEN: the derived height every tile in the brush goes to. */
     int flatten_height;
+    /** NOISE: the seed. Each tile's offset is a hash of the seed and its
+     *  world tile, -step..+step scaled by the falloff: one seed is one
+     *  relief, so a plan can be remade (the preview) and a tile revisited
+     *  in a stroke takes the same offset again, as Raise would; the caller
+     *  moves the seed on per stroke so the next drag is another relief. */
+    uint32_t noise_seed;
     int underlay_id;
+    /** PAINT_UNDERLAY: the share of the brush's tiles painted, 1..100 %
+     *  (0 reads as 100: a zeroed op paints every tile), each tile's draw a
+     *  hash of noise_seed and the tile scaled by the falloff -- the dither
+     *  the client's blend smooths into a gradient. */
+    int paint_mix;
     int overlay_id;
     int overlay_none;
     int overlay_shape;
@@ -87,6 +99,141 @@ int
 Editor_BrushCommands(
     struct Editor_Doc* doc,
     const struct Editor_BrushOp* op,
+    struct Editor_Cmd* out,
+    int max);
+
+/* ---- the path ------------------------------------------------------------------ */
+
+/**
+ * The TILE commands a path makes (editor/editor_path.h): overlay `overlay_id`
+ * (as the .jm2 holds it) on every tile Editor_PathPlan covers at `level`,
+ * with the shape and rotation it chose. A tile already carrying that overlay
+ * is joined, not replaced; a tile whose square is not open is left out, and
+ * counted in *out_closed when that is given. Returns the count (at most
+ * `max`); none for tiles it would leave as they are.
+ */
+int
+Editor_PathCommands(
+    struct Editor_Doc* doc,
+    int level,
+    const struct Editor_PathParams* params,
+    int overlay_id,
+    const int* xs,
+    const int* zs,
+    int count,
+    struct Editor_Cmd* out,
+    int max,
+    int* out_closed);
+
+/* ---- scatter: locs by the brushful --------------------------------------------- */
+
+/** Kinds one scatter set holds. */
+#define EDITOR_SCATTER_SET_MAX 32
+
+/** The locs Scatter drops: ids with their record sizes (one tile until the
+ *  record is resident), and the shape each is placed as (the record's first
+ *  shape; a centrepiece for most). */
+struct Editor_ScatterSet
+{
+    int count;
+    int loc_id[EDITOR_SCATTER_SET_MAX];
+    int shape[EDITOR_SCATTER_SET_MAX];
+    int size_x[EDITOR_SCATTER_SET_MAX];
+    int size_z[EDITOR_SCATTER_SET_MAX];
+};
+
+/** One Scatter application at one centre tile. */
+struct Editor_ScatterOp
+{
+    int world_x;
+    int world_z;
+    int level;
+    struct Editor_Brush brush;
+    /** The share of tiles that take a loc, 1..100, scaled by the brush's
+     *  weight at the tile. */
+    int density;
+    /** 1: each loc turned at random (0..3); 0: rotation 0. */
+    int rotate;
+    uint32_t seed;
+    /** 1: take the set's locs off the brush's tiles instead. */
+    int erase;
+    struct Editor_ScatterSet set;
+};
+
+/**
+ * The LOC commands one Scatter application makes. Every tile under the brush
+ * draws a number from (seed, tile): below density x weight the tile takes a
+ * loc of the set (which one, and its turn, drawn the same way), placed at
+ * its shape with the tile as the footprint's south-west corner -- unless any
+ * tile of that footprint is in a closed square or already holds a loc in
+ * that layer (a centrepiece on any of its tiles; so a drag never stacks and
+ * revisiting a tile adds nothing). `erase`: every loc of the set standing on
+ * a brush tile (at any shape) is removed. `out` needs one slot per tile.
+ * Returns the count.
+ */
+int
+Editor_ScatterCommands(
+    struct Editor_Doc* doc,
+    const struct Editor_ScatterOp* op,
+    struct Editor_Cmd* out,
+    int max);
+
+/* ---- plateau: a flat top with a smoothed skirt ---------------------------------- */
+
+/**
+ * The TILE commands that flatten a region to `height` (derived, negative
+ * up) on `level` and ease a skirt of `skirt` tiles around it to the ground
+ * as it is: a tile `d` tiles outside the region (1..skirt, by the larger
+ * axis distance) goes to its own height plus (height - own) x s, s the
+ * smoothstep of (skirt + 1 - d) / (skirt + 1), so the slope leaves the top
+ * and meets the ground tangentially -- a mound where the ground is lower, a
+ * hole where it is higher. `inside` says whether a world tile is in the
+ * region; the skirt is the tiles within `skirt` of one that is. The region
+ * must lie in `x0..x1`, `z0..z1` (the brush's disc, the rectangle). A tile
+ * within half a step of where it goes is left alone. Returns the count (at
+ * most `max`).
+ */
+typedef int (*Editor_PlateauInsideFn)(
+    void* user,
+    int world_x,
+    int world_z);
+
+int
+Editor_PlateauCommands(
+    struct Editor_Doc* doc,
+    int level,
+    int height,
+    int skirt,
+    int x0,
+    int z0,
+    int x1,
+    int z1,
+    Editor_PlateauInsideFn inside,
+    void* user,
+    struct Editor_Cmd* out,
+    int max);
+
+/** The Plateau brush at one centre: the disc of `brush->radius` (its
+ *  falloff ignored: the top is flat) flattened to `height` with `skirt`. */
+int
+Editor_PlateauBrushCommands(
+    struct Editor_Doc* doc,
+    int level,
+    int height,
+    int skirt,
+    const struct Editor_Brush* brush,
+    int world_x,
+    int world_z,
+    struct Editor_Cmd* out,
+    int max);
+
+/** The rectangle (normalised, clamped) flattened to `height` with `skirt`. */
+int
+Editor_TileRectPlateau(
+    struct Editor_Doc* doc,
+    const struct Editor_TileRect* rect,
+    int height,
+    int skirt,
     struct Editor_Cmd* out,
     int max);
 
@@ -371,6 +518,275 @@ Editor_LocOpsDelete(
     struct Editor_Cmd* out,
     int max,
     struct Editor_LocOpResult* result);
+
+/* ---- runs: the Place tool's drag (design #placing, "Drag along tiles") -------
+ *
+ * A drag with the Place tool is a RUN: the tiles the pointer crossed, in
+ * order, each one orthogonal step from the one before (a diagonal step is two,
+ * along x and then along z). Going back over the run takes the tiles after
+ * the one returned to off it, so a run never crosses itself and a wrong turn
+ * is unwound by retracing it.
+ *
+ * With a wall pick the run is a WALL: one piece per tile, on the side of the
+ * path the pose names (the edge of the first segment the pose stands on; the
+ * left side when it stands on neither), the two ends a straight piece (0),
+ * and every turn a corner at the rotation Fit computes for the two edges that
+ * meet there (Editor_LocWallCornerRotation): an L (2) on the outside of the
+ * turn, a corner post (3) on the inside, where the two lines only touch at a
+ * point. Any other pick (a centrepiece, ground decor, a roof) puts its pose
+ * on every tile of the run.
+ *
+ * The plan is the preview the overlay draws and what the release commits:
+ * nothing is in the document before the release turns it into commands (one
+ * stroke, one undo step). A tile the plan cannot fill is REFUSED: its square
+ * is not open, or another loc holds its key -- for a wall the tile's wall
+ * layer (shapes 0..3: the world keeps one wall a tile), for anything else the
+ * tile and shape. A piece of the same loc already there is re-posed
+ * (the straight end of an earlier run becomes this run's corner).
+ */
+#define EDITOR_LOC_RUN_MAX 256
+
+struct Editor_LocRunPath
+{
+    int count;
+    int x[EDITOR_LOC_RUN_MAX];
+    int z[EDITOR_LOC_RUN_MAX];
+};
+
+/** A run of one tile, (world_x, world_z). */
+void
+Editor_LocRunBegin(
+    struct Editor_LocRunPath* path,
+    int world_x,
+    int world_z);
+
+/**
+ * Carry the run to (world_x, world_z) in orthogonal steps from its last tile
+ * (the longer axis first), retracing where a step returns to a tile already
+ * on it. `constrain` (Shift held): the run is instead the straight line from
+ * its first tile along the axis the pointer has moved further on, to the
+ * pointer's projection on that axis. `constrain` 2 (Shift with a diagonal
+ * pose): the staircase from the first tile along the diagonal the pointer
+ * is nearest, one tile along x then one along z per diagonal step, as far
+ * as the pointer's projection on it -- what a diagonal wall run is laid on.
+ * A run of EDITOR_LOC_RUN_MAX tiles stops growing. Returns 1 when the run
+ * changed.
+ */
+int
+Editor_LocRunTo(
+    struct Editor_LocRunPath* path,
+    int world_x,
+    int world_z,
+    int constrain);
+
+enum Editor_LocRunState
+{
+    /** Goes into the document: a new loc, or this loc re-posed (has_holder). */
+    EDITOR_LOC_RUN_PLACE = 0,
+    /** Already there as planned: nothing to do. */
+    EDITOR_LOC_RUN_KEEP,
+    /** No piece: an inside corner of a loc with no corner post (shape 3). */
+    EDITOR_LOC_RUN_NONE,
+    /** Refused: the tile's square is not open. */
+    EDITOR_LOC_RUN_CLOSED,
+    /** Refused: another loc holds the key (`holder`). */
+    EDITOR_LOC_RUN_TAKEN,
+};
+
+struct Editor_LocRunPiece
+{
+    int world_x;
+    int world_z;
+    int shape;
+    int rotation;
+    enum Editor_LocRunState state;
+    /** PLACE over this loc's own piece (re-posed), or TAKEN: the loc there. */
+    int has_holder;
+    struct Editor_Loc holder;
+};
+
+struct Editor_LocRunPlan
+{
+    int loc_id;
+    int level;
+    /** 1: a wall run (corners and ends); 0: the pose on every tile. */
+    int wall;
+    /** 1: a diagonal wall run (shape 9 on every second tile). */
+    int diagonal;
+    /** The Fit toggle and the loc's shapes, as the plan was made. */
+    int fit;
+    uint32_t mask;
+    int count;
+    struct Editor_LocRunPiece pieces[EDITOR_LOC_RUN_MAX];
+    int place_count;
+    int refused_count;
+    /** The first refused piece, -1 when none is. */
+    int first_refused;
+};
+
+/** A Place drag in progress, one per window (the panel holds it): the path,
+ *  the plan the overlay draws, and whether its refusal was said (once a run:
+ *  R8, without a sentence a frame). */
+struct Editor_PlaceRun
+{
+    int active;
+    int level;
+    int said;
+    struct Editor_LocRunPath path;
+    struct Editor_LocRunPlan plan;
+};
+
+/** A wall pose: the straight wall, its corners and the diagonal (0, 1, 2, 3,
+ *  9; Fit's family). The diagonal stands in the ground layer, the rest in the
+ *  wall layer (Editor_LocShapeLayer). */
+int
+Editor_LocShapeIsWall(int shape);
+
+/** The world's layer for a placement shape (0 wall, 1 wall decor, 2 ground,
+ *  3 ground decor), as world.h's World_LocShapeToLayer has it. */
+int
+Editor_LocShapeLayer(int shape);
+
+/** The rotation of the corner piece (an L, 2, or a corner post, 3) standing
+ *  where edges `edge_a` and `edge_b` meet (0 west, 1 north, 2 east, 3 south;
+ *  perpendicular): the r with {r, r + 1} = {a, b}. Fit's L uses the same
+ *  rule. */
+int
+Editor_LocWallCornerRotation(
+    int edge_a,
+    int edge_b);
+
+/**
+ * The plan for placing loc `loc_id` (its shapes `mask`) along `path` on
+ * `level`, with the pose (`shape`, `rotation`) the ghost shows at the run's
+ * first tile. A wall run when `shape` is a wall shape and the loc has the
+ * straight wall (0); otherwise the pose on every tile.
+ *
+ * `fit` (the Fit toggle): a straight piece of the run landing on a tile
+ * where this loc already stands as a straight wall on a PERPENDICULAR edge
+ * becomes the L (2) of the two edges, so a run's end meets a wall already
+ * there (and a crossing keeps both); one landing on its own L that already
+ * carries the run's edge is kept as it is. Without `fit` the piece replaces
+ * what is there, as before.
+ *
+ * A DIAGONAL run: the pose is the diagonal wall (9) and the path is a
+ * staircase (each tile one step along x then one along z, or the reverse,
+ * the same way throughout -- what Editor_LocRunTo builds with `constrain`
+ * 2). Then every second tile, the ones on the diagonal, takes shape 9 turned
+ * to that diagonal (rotation 1 for north-west / south-east, 0 for
+ * south-west / north-east, as Editor_LocFitWall reads them) and the tiles
+ * between take nothing (EDITOR_LOC_RUN_NONE). A diagonal pose on any other
+ * path is the wall run it always was.
+ */
+void
+Editor_LocRunPlanMake(
+    struct Editor_Doc* doc,
+    const struct Editor_LocRunPath* path,
+    int loc_id,
+    uint32_t mask,
+    int shape,
+    int rotation,
+    int level,
+    int fit,
+    struct Editor_LocRunPlan* plan);
+
+/** The plan's PLACE pieces as LOC commands: an add, a replace (same key), or
+ *  a remove and an add (the loc's own piece re-shaped). `out` needs 2 a
+ *  piece. Returns the count. */
+int
+Editor_LocRunCommands(
+    const struct Editor_LocRunPlan* plan,
+    struct Editor_Cmd* out,
+    int max);
+
+/** The status sentence for the plan's first refused piece ("Place refused:
+ *  tile 3222,3218 L1 holds a wall of that shape (loc 1902); press E to
+ *  swap"). 0 (and `out` empty) when nothing is refused. */
+int
+Editor_LocRunRefusal(
+    const struct Editor_LocRunPlan* plan,
+    char* out,
+    size_t size);
+
+/* ---- selecting by area and by id (design #placing, "Select tool") ----------- */
+
+/** The tiles a placed loc covers from its SW tile: a centrepiece (10, 11) its
+ *  size, x by z, turned with it (rotation 1 or 3 swaps them); every other
+ *  shape one tile. */
+void
+Editor_LocFootprint(
+    int shape,
+    int rotation,
+    int size_x,
+    int size_z,
+    int* out_w,
+    int* out_h);
+
+/** A loc's size from its record into out_size_x / out_size_z; 0 when the
+ *  record is not resident (the loc then counts as one tile). */
+typedef int (*Editor_LocSizeFn)(
+    void* user,
+    int loc_id,
+    int* out_size_x,
+    int* out_size_z);
+
+/**
+ * Every loc on `rect->level` of the open squares whose footprint touches the
+ * rectangle (normalised: x0 <= x1, z0 <= z1), in the squares' and their
+ * lists' order. Writes the first `max` into `out`; returns how many touch it
+ * (more than `max` when they did not all fit). `size` may be NULL: every loc
+ * then one tile.
+ */
+int
+Editor_LocsTouchingRect(
+    struct Editor_Doc* doc,
+    const struct Editor_TileRect* rect,
+    Editor_LocSizeFn size,
+    void* size_user,
+    struct Editor_LocRef* out,
+    int max);
+
+/** Every loc `loc_id` on `level` in the open squares ("select same"): the
+ *  first `max` into `out`; returns how many there are. */
+int
+Editor_LocsOfId(
+    struct Editor_Doc* doc,
+    int loc_id,
+    int level,
+    struct Editor_LocRef* out,
+    int max);
+
+/** How a set of locs joins the selection: the marquee's and the click's
+ *  modifiers (none replaces, Shift adds, Ctrl toggles, Alt subtracts). */
+enum Editor_LocSelectMode
+{
+    EDITOR_LOC_SELECT_REPLACE = 0,
+    EDITOR_LOC_SELECT_ADD,
+    EDITOR_LOC_SELECT_TOGGLE,
+    EDITOR_LOC_SELECT_SUBTRACT,
+};
+
+/** The modifiers held, as the mode they mean (Alt over Ctrl over Shift). */
+enum Editor_LocSelectMode
+Editor_LocSelectModeOf(
+    int shift,
+    int ctrl,
+    int alt);
+
+/**
+ * Join `refs` (n of them) to `selection` (count, room for max) by `mode`; a
+ * loc is the same loc by its tile, level and shape (its key). Returns the new
+ * count; a loc the selection had no room for is counted in *out_dropped.
+ */
+int
+Editor_LocSelectionMerge(
+    struct Editor_LocRef* selection,
+    int count,
+    int max,
+    const struct Editor_LocRef* refs,
+    int n,
+    enum Editor_LocSelectMode mode,
+    int* out_dropped);
 
 /* ---- spawns ------------------------------------------------------------------- */
 

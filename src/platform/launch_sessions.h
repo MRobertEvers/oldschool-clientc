@@ -143,6 +143,10 @@ void LaunchSessions_Free(struct LaunchSessions* table);
 /* The platform's refusal, or NULL where the service runs. */
 char const* LaunchSessions_UnsupportedReason(void);
 
+/* The party verbs' refusal where the service runs but a party cannot
+ * (Windows: the party link), else NULL. The editor's `view` is served there. */
+char const* LaunchSessions_PartyUnsupportedReason(void);
+
 /*
  * Answers one request. `verb` is the part after `launch/`; `body` holds
  * `body_size` bytes of `key=value` lines (not NUL-terminated; NULL when

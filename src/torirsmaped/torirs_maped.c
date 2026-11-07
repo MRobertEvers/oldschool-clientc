@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "log/torirs_log.h"
 
 /* Views (torirs_maped_view.c, compiled into this unit at its end). */
@@ -128,7 +129,13 @@ ToriRSMapEd_Open(
     /* The catalog reads nothing here: the service pass warm-builds it in
      * slices (ToriRSMapEdCatalog_Service), a request before that finishes it. */
     maped->catalog = ToriRSMapEdCatalog_Create(content_dir);
-    maped->capabilities |= TORIRSMAPED_CAP_CATALOG;
+    maped->capabilities
+        |= TORIRSMAPED_CAP_CATALOG | TORIRSMAPED_CAP_CATALOG_PROGRESS | TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS
+           | TORIRSMAPED_CAP_CATALOG_USES;
+    /* The lanes' workbench frames are the wire half's (torirs_maped_lanes_wire.c). */
+    maped->capabilities |= TORIRSMAPED_CAP_LANES_V2;
+    /* DOC_CREATE joins an open stroke when asked (the instance helper). */
+    maped->capabilities |= TORIRSMAPED_CAP_DOC_CREATE_STROKE;
 
     /* Builds and the live link: empty until a host binds them, or the
      * environment names a live lane (torirs_maped_live.h). */
@@ -1148,7 +1155,7 @@ save_doc(
             handle->text->key,
             0,
             (handle->kind == EDITOR_DOC_TEXT || handle->kind == EDITOR_DOC_AREAS
-                || handle->kind == EDITOR_DOC_PALETTES)
+                || handle->kind == EDITOR_DOC_PALETTES || handle->kind == EDITOR_DOC_SCENES)
                     && handle->text->length == 0
                 ? NULL
                 : handle->text->text,
@@ -1318,6 +1325,7 @@ handle_doc_create(
     struct Editor_Square* square;
     int index;
     int was_in_stroke;
+    int join_stroke;
     int filled = 0;
 
     ToriRSMapEd_ReaderInit(&reader, body, length);
@@ -1325,6 +1333,8 @@ handle_doc_create(
     ToriRSMapEd_GetString(&reader, key, sizeof(key));
     ToriRSMapEd_GetString(&reader, storage, sizeof(storage));
     template_kind = ToriRSMapEd_GetU32(&reader);
+    join_stroke = (template_kind & TORIRSMAPED_DOC_CREATE_IN_STROKE) != 0;
+    template_kind &= ~TORIRSMAPED_DOC_CREATE_IN_STROKE;
     ToriRSMapEd_GetString(&reader, source_key, sizeof(source_key));
     fill_height = (int)ToriRSMapEd_GetU32(&reader);
     fill_underlay = (int)ToriRSMapEd_GetU32(&reader);
@@ -1398,9 +1408,13 @@ handle_doc_create(
     square->dirty_map = 1;
     square->dirty_loc = 1;
 
-    /* The fill is its own undo step, whatever stroke a client has open. */
+    /* The fill is its own undo step, whatever stroke a client has open --
+     * unless the client asked it to join that stroke (the instance helper,
+     * TORIRSMAPED_DOC_CREATE_IN_STROKE). */
     was_in_stroke = maped->undo.in_stroke;
-    Editor_UndoStrokeBegin(&maped->undo);
+    join_stroke = join_stroke && was_in_stroke;
+    if( !join_stroke )
+        Editor_UndoStrokeBegin(&maped->undo);
     if( template_kind == EDITOR_DOC_TEMPLATE_FLAT )
     {
         for( int x = 0; x < EDITOR_SQUARE_X; x++ )
@@ -1455,9 +1469,12 @@ handle_doc_create(
             filled++;
         }
     }
-    Editor_UndoStrokeEnd(&maped->undo);
-    if( was_in_stroke )
-        Editor_UndoStrokeBegin(&maped->undo);
+    if( !join_stroke )
+    {
+        Editor_UndoStrokeEnd(&maped->undo);
+        if( was_in_stroke )
+            Editor_UndoStrokeBegin(&maped->undo);
+    }
 
     TORIRS_LOG("torirsmaped: created %s (%d fill commands)\n", file_key, filled);
     send_status_extra(session, TORIRSMAPED_REQ_DOC_CREATE, EDITOR_HOST_OK, (uint32_t)filled);
@@ -1671,9 +1688,15 @@ handle_catalog(
         ok = ToriRSMapEdCatalog_HandleRecord(catalog, body, length, &out);
         fact = TORIRSMAPED_FACT_CATALOG_RECORD;
     }
+    else if( type == TORIRSMAPED_REQ_CATALOG_USES )
+    {
+        ok = ToriRSMapEdCatalog_HandleUses(catalog, body, length, &out);
+        fact = TORIRSMAPED_FACT_CATALOG_USES;
+    }
     else
     {
-        ok = ToriRSMapEdCatalog_HandleSquares(catalog, &maped->doc, body, length, &out);
+        ok = ToriRSMapEdCatalog_HandleSquares(
+            catalog, &maped->doc, body, length, &session->catalog_square_locs, &out);
         fact = TORIRSMAPED_FACT_CATALOG_SQUARES;
     }
     if( ok )
@@ -1695,22 +1718,50 @@ catalog_atlas_changed(
     int disk_changed)
 {
     struct ToriRSMapEdCatalog* catalog = maped->catalog;
-    struct ToriRSMapEdBuf payload;
+    /* [0] the v2 rows, [1] the rows with loc_count: each connection gets the
+     * form it asked CATALOG_SQUARES for, encoded only if someone wants it. */
+    struct ToriRSMapEdBuf payload[2];
+    int encoded[2] = { 0, 0 };
 
     assert(catalog);
     if( !ToriRSMapEdCatalog_Built(catalog) )
         return;
     if( disk_changed && !ToriRSMapEdCatalog_RefreshMaps(catalog) )
         return;
-    memset(&payload, 0, sizeof(payload));
-    ToriRSMapEdCatalog_EncodeSquares(catalog, &maped->doc, &payload);
+    memset(payload, 0, sizeof(payload));
     for( int i = 0; i < TORIRSMAPED_SESSION_MAX; i++ )
     {
         struct ToriRSMapEdSession* session = maped->sessions[i];
-        if( session && session->alive && session->version >= TORIRSMAPED_PROTO_VERSION )
-            send_buf(session, TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED, &payload);
+        int form;
+        if( !session || !session->alive || session->version < TORIRSMAPED_PROTO_VERSION )
+            continue;
+        form = session->catalog_square_locs ? 1 : 0;
+        if( !encoded[form] )
+        {
+            ToriRSMapEdCatalog_EncodeSquares(catalog, &maped->doc, form, &payload[form]);
+            encoded[form] = 1;
+        }
+        send_buf(session, TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED, &payload[form]);
     }
-    ToriRSMapEd_BufFree(&payload);
+    ToriRSMapEd_BufFree(&payload[0]);
+    ToriRSMapEd_BufFree(&payload[1]);
+}
+
+/** The lane change counts' cache (torirs_maped_lanes_wire.c) holds until a
+ *  request that can write a tree arrives: note it before it runs. */
+static void
+note_lane_writes(
+    struct ToriRSMapEd* maped,
+    uint32_t type)
+{
+    if( type == TORIRSMAPED_REQ_SQUARE_SAVE || type == TORIRSMAPED_REQ_SPAWN_SAVE || type == TORIRSMAPED_REQ_BAKE
+        || type == TORIRSMAPED_REQ_SAVE_ALL || type == TORIRSMAPED_REQ_SAVE || type == TORIRSMAPED_REQ_SAVE_AS
+        || type == TORIRSMAPED_REQ_DOC_CREATE || type == TORIRSMAPED_REQ_BUILD || type == TORIRSMAPED_REQ_RUN
+        || (type >= TORIRSMAPED_REQ_ACCOUNTS_RANGE_FIRST && type <= TORIRSMAPED_REQ_ACCOUNTS_RANGE_LAST) )
+        maped->lane_writes_own++;
+    else if( type == TORIRSMAPED_REQ_LANE_PUBLISH || type == TORIRSMAPED_REQ_LANE_DISCARD
+             || type == TORIRSMAPED_REQ_LANE_CREATE )
+        maped->lane_writes_all++;
 }
 
 static void
@@ -1727,6 +1778,7 @@ handle_frame(
     assert(maped);
     assert(maped->open);
 
+    note_lane_writes(maped, type);
     switch( type )
     {
     case TORIRSMAPED_REQ_HELLO:
@@ -1968,7 +2020,7 @@ handle_frame(
     }
     if( v2
         && (type == TORIRSMAPED_REQ_CATALOG_QUERY || type == TORIRSMAPED_REQ_CATALOG_RECORD
-            || type == TORIRSMAPED_REQ_CATALOG_SQUARES) )
+            || type == TORIRSMAPED_REQ_CATALOG_SQUARES || type == TORIRSMAPED_REQ_CATALOG_USES) )
     {
         handle_catalog(session, maped, type, body, length);
         return;

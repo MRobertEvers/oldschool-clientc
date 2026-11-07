@@ -779,7 +779,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	render/torirs_viewport_projection.c \
 	render/trspk_toridraw.c render/trspk_sprite.c \
 	input/torirs_input.c input/torirs_keymap.c input/torirs_input_cmd.c \
-	input/torirs_touch.c \
+	input/torirs_touch.c input/torirs_gesture.c \
 	game/task_cs2_script_exec.c $(BMP_DIR)/bmp.c \
 	cs2vm2/cs2vm2.c cs2vm2/cs2vm2_script.c cs2vm2/cs2vm2_trigger_args.c \
 	cs2vm2/cs2vm2_strpool.c \
@@ -883,11 +883,12 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_ink.c ui/uitree_minimenu.c \
 	ui/uitree_hovertext.c ui/uitree_debug_overlay.c ui/uitree_snapshot.c \
 	ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c ui/torirs_chrome_shell.c \
-	ui/torirs_chrome_panel_draw.c \
+	ui/torirs_chrome_panel_draw.c ui/torirs_chrome_bake.c \
 	ui/torirs_chrome_rail.c \
 	ui/torirs_chrome_inkwell.c \
 	ui/torirs_chrome_mirror.c \
-	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
+	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
+	engine/torirs_chrome_font_vector_baked.c \
 	ui/uitree_interact.c ui/uitree_iface_stats.c \
 	varp/varp_manager.c \
 	varc/varc_manager.c \
@@ -1461,6 +1462,12 @@ WEB_PLUGIN_CHROME = $(SRC_DIR)/plugin_chrome/modern.html \
 	$(SRC_DIR)/plugin_chrome/codec-es3.js \
 	$(SRC_DIR)/plugin_chrome/runtime.js
 WEB_PLUGIN_CHROME_SKIN = $(wildcard $(REPO_ROOT)/res/plugin_chrome/skin/*.png)
+# The 2x and 3x tiers (tools/chrome_skin_tiers.py), staged beside skin/ for a
+# theme that says skinTiers 3. The web host's says 1 for now
+# (web/torirs_chrome.js: the derived GLYPH tiers flatten the marks), so the
+# page draws skin/ alone; staging both keeps that a one-line switch.
+WEB_PLUGIN_CHROME_SKIN2X = $(wildcard $(REPO_ROOT)/res/plugin_chrome/skin@2x/*.png)
+WEB_PLUGIN_CHROME_SKIN3X = $(wildcard $(REPO_ROOT)/res/plugin_chrome/skin@3x/*.png)
 WEB_PLUGIN_CHROME_FONT = $(wildcard $(REPO_ROOT)/res/plugin_chrome/font/*)
 ifeq ($(MEMTRACE),1)
 WEB_ASSETS += $(REPO_ROOT)/tools/memtrace/viewer.html
@@ -1504,6 +1511,9 @@ web: servers
 	@mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/skin
 	@cp $(WEB_PLUGIN_CHROME) $(REPO_ROOT)/build-web/plugin_chrome/
 	@cp $(WEB_PLUGIN_CHROME_SKIN) $(REPO_ROOT)/build-web/plugin_chrome/skin/
+	@mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/skin@2x $(REPO_ROOT)/build-web/plugin_chrome/skin@3x
+	@cp $(WEB_PLUGIN_CHROME_SKIN2X) $(REPO_ROOT)/build-web/plugin_chrome/skin@2x/
+	@cp $(WEB_PLUGIN_CHROME_SKIN3X) $(REPO_ROOT)/build-web/plugin_chrome/skin@3x/
 	@if test -n "$(WEB_PLUGIN_CHROME_FONT)"; then \
 		mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/font; \
 		cp $(WEB_PLUGIN_CHROME_FONT) $(REPO_ROOT)/build-web/plugin_chrome/font/; \
@@ -1517,6 +1527,9 @@ web-debug: servers
 	@mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/skin
 	@cp $(WEB_PLUGIN_CHROME) $(REPO_ROOT)/build-web/plugin_chrome/
 	@cp $(WEB_PLUGIN_CHROME_SKIN) $(REPO_ROOT)/build-web/plugin_chrome/skin/
+	@mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/skin@2x $(REPO_ROOT)/build-web/plugin_chrome/skin@3x
+	@cp $(WEB_PLUGIN_CHROME_SKIN2X) $(REPO_ROOT)/build-web/plugin_chrome/skin@2x/
+	@cp $(WEB_PLUGIN_CHROME_SKIN3X) $(REPO_ROOT)/build-web/plugin_chrome/skin@3x/
 	@if test -n "$(WEB_PLUGIN_CHROME_FONT)"; then \
 		mkdir -p $(REPO_ROOT)/build-web/plugin_chrome/font; \
 		cp $(WEB_PLUGIN_CHROME_FONT) $(REPO_ROOT)/build-web/plugin_chrome/font/; \
@@ -2022,7 +2035,7 @@ test-world-camera: $(OBJ_DIR)
 test-editor-ghost: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_ghost_preview_test$(PLATFORM_EXE_SUFFIX) \
 		editor/test/editor_ghost_preview_test.c editor/map_editor_ghost.c \
-		editor/editor_preview_camera.c $(LDFLAGS)
+		editor/editor_preview_camera.c $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_ghost_preview_test$(PLATFORM_EXE_SUFFIX)
 
 # Two small containers App used to hold inline: the frame-time ring, whose mean
@@ -2083,7 +2096,7 @@ test-overlay-stage: $(OBJ_DIR)
 .PHONY: test-loc-editor-selection
 test-loc-editor-selection: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/loc_editor_selection_test$(PLATFORM_EXE_SUFFIX) \
-		editor/test/loc_editor_selection_test.c editor/loc_editor_selection.c $(LDFLAGS)
+		editor/test/loc_editor_selection_test.c editor/loc_editor_selection.c $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/loc_editor_selection_test$(PLATFORM_EXE_SUFFIX)
 
 # Which regions of the world map are on screen, and in what order. The set
@@ -2708,6 +2721,17 @@ test-cache-trim: $(OBJ_DIR) $(CACHE_TRIM_TEST_OBJS)
 		engine/test/cache_trim_test.c $(CACHE_TRIM_TEST_OBJS) $(LDFLAGS)
 	./$(OBJ_DIR)/cache_trim_test
 
+# The scene bridge registers the chrome at its rational scale: the bake's
+# hinted faces and area-averaged skin at a fractional q, the baked tiers at
+# 4 / 8 / 12, the unloads when the scale moves, and the software blitter's
+# coverage blend. Content-free (the faces and skin are compiled in); links
+# the client's objects, as test-cache-trim does.
+.PHONY: test-scene-bridge-chrome
+test-scene-bridge-chrome: $(OBJ_DIR) $(CACHE_TRIM_TEST_OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/scene_bridge_chrome_test \
+		engine/test/uitree_scene_bridge_chrome_test.c $(CACHE_TRIM_TEST_OBJS) $(LDFLAGS)
+	./$(OBJ_DIR)/scene_bridge_chrome_test
+
 # DB_* opcode integration test: reuse the main link set minus main.o.
 DB_TEST_OBJS = $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 test-db: $(OBJ_DIR) $(DB_TEST_OBJS)
@@ -3270,12 +3294,25 @@ test-plugin-contract: $(OBJ_DIR)
 test-plugin-contract-native:
 	TORIRS_TEST_CONTRACT_V3=1 $(MAKE) test-uitree
 
-test-touch: $(OBJ_DIR) input/torirs_touch.c input/test/torirs_touch_test.c
+test-touch: $(OBJ_DIR) input/torirs_touch.c input/torirs_gesture.c input/test/torirs_touch_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_touch_test $(TORIMEM_SRCS) \
-		input/torirs_touch.c input/torirs_input.c input/torirs_input_cmd.c \
+		input/torirs_touch.c input/torirs_gesture.c input/torirs_input.c input/torirs_input_cmd.c \
 		cmd/cmdbus.c cmd/cmdring.c \
 		input/test/torirs_touch_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/torirs_touch_test
+
+# The gesture frames (TORIRS_CMD_GESTURE_PAN / _PINCH / _TWIST): recorded and
+# replayed bit for bit, the decode's guards, the per-frame list's lifetime and
+# overflow, the stream's phases and the pair's start thresholds, the touch
+# policy's frames under ToriRS_TouchSetGestureFrames and its unchanged notches
+# and keys without it, and TORIRS_SIM_GESTURE's grammar. -UNDEBUG: the
+# contracts are asserts.
+test-gesture: $(OBJ_DIR) input/torirs_gesture.c input/test/torirs_gesture_test.c
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/torirs_gesture_test $(TORIMEM_SRCS) \
+		input/torirs_gesture.c input/torirs_touch.c input/torirs_input.c input/torirs_input_cmd.c \
+		cmd/cmdbus.c cmd/cmdring.c \
+		input/test/torirs_gesture_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/torirs_gesture_test $(OBJ_DIR)/torirs_gesture_test.trscmd
 
 # enum LibToriRS_KeyCode's config names: every code round-trips, the legacy
 # aliases resolve, case is ignored, an unknown name is TORIRSK_UNKNOWN.
@@ -3288,7 +3325,7 @@ test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/edito
 		editor/editor_spawn.c editor/test/editor_cmd_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_cmd_test $(TORIMEM_SRCS) \
 		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c editor/editor_spawn.c \
-		editor/test/editor_cmd_test.c
+		editor/test/editor_cmd_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_cmd_test
 
 # Codec fidelity over the whole content tree: every .jm2/.jl2 must survive
@@ -3299,7 +3336,7 @@ test-editor-jm2: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/edito
 		editor/test/editor_jm2_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_jm2_test $(TORIMEM_SRCS) \
 		editor/editor_jm2.c editor/editor_doc.c editor/editor_spawn.c \
-		editor/test/editor_jm2_test.c
+		editor/test/editor_jm2_test.c $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_jm2_test $(EDITOR_CONTENT_DIR)
 
 # The editor renders what the game renders: a square loaded from text derives
@@ -3313,7 +3350,7 @@ test-editor-derive: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		editor/editor_jm2.c editor/editor_doc.c editor/editor_derive.c editor/editor_spawn.c \
 		editor/test/editor_derive_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
-		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_derive_test $(EDITOR_CONTENT_DIR) $(EDITOR_CACHE_DIR) 600
 
 # The save path through the real host: only the dirty half is written, the
@@ -3323,7 +3360,7 @@ test-editor-save: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/edit
 		editor/editor_spawn.c editor/editor_host_local.c editor/test/editor_save_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_save_test $(TORIMEM_SRCS) \
 		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c editor/editor_spawn.c \
-		editor/editor_host_local.c editor/test/editor_save_test.c
+		editor/editor_host_local.c editor/test/editor_save_test.c $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/editor_save_scratch/maps
 	mkdir -p $(OBJ_DIR)/editor_save_scratch/maps
 	./$(OBJ_DIR)/editor_save_test $(OBJ_DIR)/editor_save_scratch \
@@ -3344,7 +3381,8 @@ test-torirsmaped-embed: $(OBJ_DIR) torirsmaped/torirs_maped.c torirsmaped/torirs
 		torirsmaped/torirs_maped_cmdwire.c \
 		torirsmaped/torirs_maped_embed.c editor/editor_host_local.c \
 		editor/editor_host_remote.c editor/editor_doc.c editor/editor_cmd.c \
-		editor/editor_spawn.c editor/editor_jm2.c torirsmaped/test/maped_embed_test.c
+		editor/editor_spawn.c editor/editor_jm2.c platform/launch_sessions.c \
+		torirsmaped/test/maped_embed_test.c -lm $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/maped_scratch
 	mkdir -p $(OBJ_DIR)/maped_scratch/maps
 	./$(OBJ_DIR)/maped_embed_test $(OBJ_DIR)/maped_scratch \
@@ -3356,11 +3394,16 @@ test-torirsmaped-embed: $(OBJ_DIR) torirsmaped/torirs_maped.c torirsmaped/torirs
 # that one Client's selection never reaches another's.
 #
 # TORIRSMAPED_TEST_PORT overrides the port when 43611 is busy.
+ifeq ($(OS),Windows_NT)
+test-torirsmaped-daemon:
+	@echo "test-torirsmaped-daemon: SKIPPED on Windows: a POSIX test harness (fork, BSD sockets, /bin/sh fakes for the client and the game server): run it on Linux or macOS; on Windows the paths it covers were run by hand (docs/MAPED_STATUS.md, Windows run)"
+else
 test-torirsmaped-daemon: torirsmaped torirsmapedctl
 	sh torirsmaped/test/maped_daemon_test.sh \
 		$(OBJ_DIR)/torirsmaped $(OBJ_DIR)/torirsmapedctl \
 		$(OBJ_DIR)/maped_daemon_scratch \
 		$(EDITOR_CONTENT_DIR)/maps/m50_50.jm2 $(EDITOR_CONTENT_DIR)/maps/m50_50.jl2
+endif
 
 # Convex hull (ToriDraw): the silhouette a loc highlight is drawn from, plus the
 # degenerate shapes real footprints produce -- edge-on, collinear, duplicated
@@ -3387,9 +3430,27 @@ test-editor-dropdown: $(OBJ_DIR) ui/uitree_debug_overlay.c ui/test/uitree_test_d
 		ui/uitree_debug_overlay.c ui/test/uitree_test_dropdown.c
 	./$(OBJ_DIR)/uitree_test_dropdown
 
-test-editor: test-editor-cmd test-editor-jm2 test-editor-derive test-editor-dropdown \
-	test-convex-hull test-polygon-fill test-editor-save test-torirsmaped-embed \
-	test-torirsmaped-daemon
+test-editor: test-editor-cmd test-editor-dropdown test-convex-hull test-polygon-fill
+EDITOR_TREE_TESTS += test-editor-jm2 test-editor-save test-torirsmaped-embed test-torirsmaped-daemon
+EDITOR_CACHE_TESTS += test-editor-derive
+
+# The aggregate's members that read the OSRS-Content tree (EDITOR_TREE_TESTS)
+# or the tree and the dat2 cache (EDITOR_CACHE_TESTS), collected from every
+# src/maped/*.mk fragment (included above, so the lists are whole here). In a
+# checkout without them the aggregate runs every content-free member and
+# names each content member as skipped instead of failing on a missing file.
+# Each stays a target of its own: `make test-editor-panels` runs it (and
+# fails) wherever it is asked for.
+EDITOR_TREE_READY := $(wildcard $(EDITOR_CONTENT_DIR)/maps/m50_50.jm2)
+EDITOR_CACHE_READY := $(and $(EDITOR_TREE_READY),$(wildcard $(EDITOR_CACHE_DIR)))
+test-editor: $(if $(EDITOR_TREE_READY),$(EDITOR_TREE_TESTS),test-editor-skip-tree)
+test-editor: $(if $(EDITOR_CACHE_READY),$(EDITOR_CACHE_TESTS),test-editor-skip-cache)
+
+.PHONY: test-editor-skip-tree test-editor-skip-cache
+test-editor-skip-tree:
+	@$(foreach t,$(EDITOR_TREE_TESTS),echo "test-editor: SKIPPED $(t) (needs the OSRS-Content tree: no $(EDITOR_CONTENT_DIR)/maps/m50_50.jm2)";)
+test-editor-skip-cache:
+	@$(foreach t,$(EDITOR_CACHE_TESTS),echo "test-editor: SKIPPED $(t) (needs the OSRS-Content tree and the cache at $(EDITOR_CACHE_DIR))";)
 
 # NpcType.multiNpc (opcode 106) decode -> ToriRS_Npctype.transform_* -- pure
 # struct plumbing, no cache file or App needed.
@@ -3500,6 +3561,13 @@ test-ss-verify: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_verify_test.c
 # is the accident (a debug client build slowing the content loop), not the
 # deliberate choice.
 SSC_CFLAGS = $(CFLAGS) -O3
+# The compiler recurses deep on large scripts: Linux and macOS runs give it
+# an unlimited (or 8+ MB) stack, Windows a 1 MB one, which it overflows on
+# the base script pack (exit 0xC00000FD). A 64-bit reservation costs address
+# space only until it is touched.
+ifeq ($(OS),Windows_NT)
+SSC_CFLAGS += -Wl,--stack,268435456
+endif
 
 # A file target behind the phony name: an unchanged compiler is not relinked on
 # every pack build. That relink (-O3, LTO) cost more than an incremental
@@ -3903,9 +3971,9 @@ test-sdl-chrome-geometry: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_chrome_geometry_test $(TORIMEM_SRCS) \
 		platform/test/sdl_chrome_geometry_test.c platform/platform_sdl2.c \
 		$(PLATFORM_OBJC_SRCS) \
-		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
-		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+		input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c $(LDFLAGS)
 	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_chrome_geometry_test
 else
 test-sdl-chrome-geometry:
@@ -3922,9 +3990,9 @@ test-sdl-gesture: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/sdl_gesture_test $(TORIMEM_SRCS) \
 		platform/test/sdl_gesture_test.c platform/platform_sdl2.c \
 		$(PLATFORM_OBJC_SRCS) \
-		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
-		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+		input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c $(LDFLAGS)
 	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_gesture_test
 else
 test-sdl-gesture:
@@ -3940,7 +4008,7 @@ test-chrome-surface-sdl: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -DTORIRS_CHROME_SURFACE_SDL=1 -UNDEBUG \
 		-o $(OBJ_DIR)/chrome_surface_sdl_test $(TORIMEM_SRCS) \
 		ui/test/torirs_chrome_surface_sdl_test.c ui/torirs_chrome_surface_sdl.c \
-		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		$(REPO_ROOT)/3rd/bmp/bmp.c
 	./$(OBJ_DIR)/chrome_surface_sdl_test
 
@@ -3955,9 +4023,9 @@ test-sdl-pointer-map: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_pointer_map_test $(TORIMEM_SRCS) \
 		platform/test/sdl_pointer_map_test.c platform/platform_sdl2.c \
 		$(PLATFORM_OBJC_SRCS) \
-		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
-		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+		input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c $(LDFLAGS)
 	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_pointer_map_test
 	SDL_VIDEODRIVER=dummy TORIRS_SIM_PIXEL_DENSITY=2 ./$(OBJ_DIR)/sdl_pointer_map_test
 else
@@ -3974,9 +4042,9 @@ test-sdl-text-input: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_text_input_test $(TORIMEM_SRCS) \
 		platform/test/sdl_text_input_test.c platform/platform_sdl2.c \
 		$(PLATFORM_OBJC_SRCS) \
-		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
-		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+		input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c $(LDFLAGS)
 	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_text_input_test
 else
 test-sdl-text-input:
@@ -4022,7 +4090,7 @@ test-chrome-browser-exec: $(OBJ_DIR)
 test-chrome-web-skin: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -Wno-unused-parameter -o $(OBJ_DIR)/chrome_web_skin_test $(TORIMEM_SRCS) \
 		ui/test/uitree_test_chrome_web_skin.c \
-		ui/torirs_chrome_mirror.c engine/torirs_chrome_skin_baked.c
+		ui/torirs_chrome_mirror.c engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c
 	./$(OBJ_DIR)/chrome_web_skin_test
 
 # The web panel channel: the wire codec, and a two-tab handshake driven through
@@ -4063,7 +4131,7 @@ test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 	$(CC) $(CFLAGS) -I$(BMP_DIR) -o $(OBJ_DIR)/debug_overlay_visual $(TORIMEM_SRCS) \
 		ui/test/uitree_debug_overlay_visual.c \
 		ui/uitree_debug_overlay.c engine/torirs_debug_font_baked.c \
-		engine/torirs_chrome_skin_baked.c \
+		engine/torirs_chrome_skin_baked.c engine/torirs_chrome_skin_tiers.c \
 		render/torirs_frame.c render/torirs_pick.c \
 		render/torirs_polygon.c render/torirs_arc.c \
 		platform/platform_renderer_soft3d.c \
@@ -5100,8 +5168,30 @@ TORIRSMAPED_SRCS = torirsmaped/torirs_maped_main.c torirsmaped/torirs_maped.c \
 	editor/editor_doc.c editor/editor_cmd.c editor/editor_jm2.c editor/editor_spawn.c \
 	$(MAPED_SERVER_SRCS)
 
+# Winsock is ws2_32, not the CRT, on Windows (as IO_SERVER_SOCKET_LIBS).
+ifeq ($(OS),Windows_NT)
+TORIRSMAPED_SOCKET_LIBS := -lws2_32
+else
+TORIRSMAPED_SOCKET_LIBS :=
+endif
+
+# Every editor test binary's link ends with this (src/maped/*.mk). On Windows:
+# winsock, which the editor server's live link and listener use, and the
+# stack the suites run with elsewhere ('ulimit -s unlimited'; Windows gives
+# a process 1 MB and test-editor-panels-accounts overflowed it, 0xC00000FD).
+# A 64-bit reservation costs address space only until it is touched.
+ifeq ($(OS),Windows_NT)
+MAPED_TEST_LDFLAGS := -lws2_32 -Wl,--stack,268435456
+else
+MAPED_TEST_LDFLAGS :=
+endif
+
+# Phony: `torirsmaped` is also the sources' directory, and with only the
+# objdir as a prerequisite make took that directory for the target and never
+# relinked, so test-torirsmaped-daemon ran whatever server was built last.
+.PHONY: torirsmaped torirsmapedctl
 torirsmaped: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsmaped $(TORIMEM_SRCS) $(TORIRSMAPED_SRCS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsmaped $(TORIMEM_SRCS) $(TORIRSMAPED_SRCS) -lm $(TORIRSMAPED_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/torirsmaped"
 
 # The controller client: a ToriRSMapEd connection in its own process with no
@@ -5121,7 +5211,7 @@ TORIRSMAPEDCTL_SRCS = torirsmaped/torirs_mapedctl_main.c torirsmaped/torirs_mape
 	torirsmaped/torirs_maped_cmdwire.c editor/editor_host_remote.c
 
 torirsmapedctl: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -DTORIRS_MAPED_NO_EMBED=1 -o $(OBJ_DIR)/torirsmapedctl $(TORIMEM_SRCS) $(TORIRSMAPEDCTL_SRCS)
+	$(CC) $(CFLAGS) -DTORIRS_MAPED_NO_EMBED=1 -o $(OBJ_DIR)/torirsmapedctl $(TORIMEM_SRCS) $(TORIRSMAPEDCTL_SRCS) $(TORIRSMAPED_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/torirsmapedctl"
 
 # A second binary from the same sources, listening on 43597 rather than 43595.
@@ -7354,7 +7444,7 @@ test-win32-platform: $(OBJ_DIR)
 		platform/test/win32_browser_backend_fake.c \
 		platform/platform_win32_timing.c platform/platform_app_icon.c \
 		cmd/cmdbus.c cmd/cmdring.c \
-		input/torirs_keymap.c input/torirs_touch.c $(WIN32_PLATFORM_TEST_LDFLAGS)
+		input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c $(WIN32_PLATFORM_TEST_LDFLAGS)
 	./$(OBJ_DIR)/win32_gdi_test$(PLATFORM_EXE_SUFFIX)
 	$(CC) $(WIN32_PLATFORM_TEST_CFLAGS) \
 		-o $(OBJ_DIR)/win32_timing_test$(PLATFORM_EXE_SUFFIX) \
@@ -7377,7 +7467,7 @@ build-win32-plugin-chrome-capture: $(OBJ_DIR)
 		platform/platform_win32gdi.c platform/platform_win32_timing.c \
 		platform/platform_app_icon.c $(WIN32_CHROME_BROWSER_BACKEND) \
 		ui/torirs_chrome_exec_winbrowser.c ui/torirs_chrome_mirror.c \
-		cmd/cmdbus.c cmd/cmdring.c input/torirs_keymap.c input/torirs_touch.c \
+		cmd/cmdbus.c cmd/cmdring.c input/torirs_keymap.c input/torirs_touch.c input/torirs_gesture.c \
 		-lm $(WIN32_PLATFORM_TEST_LDFLAGS)
 
 capture-win32-plugin-chrome: build-win32-plugin-chrome-capture

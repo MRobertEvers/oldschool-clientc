@@ -29,6 +29,8 @@
 #include "torirsmaped/torirs_maped_build.h"
 #include "torirsmaped/torirs_maped_live.h"
 #include "ui/uitree_debug_overlay.h"
+#include "platform/launch_sessions.h"
+#include "torirsmaped/torirs_maped_build.h"
 
 #include <arpa/inet.h>
 #include <assert.h>
@@ -435,6 +437,9 @@ main(
     repo_root = argv[3];
     signal(SIGPIPE, SIG_IGN);
     ToriMem_Init();
+    /* The editor server starts its children through the host's spawner, as
+     * the client and torirsmaped hand it theirs (torirs_maped_build.h). */
+    ToriRSMapEd_SetSpawner(LaunchSessions_SystemSpawner());
     unsetenv("TORIRSMAPED_LIVE_DIR");
     unsetenv("MOCK_PEER_TICKET");
     snprintf(content, sizeof(content), "%s/content", scratch);

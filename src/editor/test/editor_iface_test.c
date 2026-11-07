@@ -23,6 +23,7 @@
  * Writes only under <tmp-dir>.
  */
 
+#include "editor/test/editor_test_text.h"
 #include "datatypes/dat2_component.h"
 #include "dat2disk.h"
 #include "editor/editor.h"
@@ -30,6 +31,7 @@
 #include "editor/editor_doc.h"
 #include "editor/editor_if.h"
 #include "editor/iface/iface_cs2.h"
+#include "platform/launch_sessions.h"
 #include "editor/iface/iface_model.h"
 #include "editor/iface/iface_panels.h"
 #include "engine/torirs_component_from_rscache.h"
@@ -81,6 +83,7 @@ slurp(
     fclose(f);
     data[size] = '\0';
     *out_size = (size_t)size;
+    editor_test_text_lf(data, out_size);
     return data;
 }
 
@@ -615,6 +618,8 @@ main(
         fprintf(stderr, "usage: editor_iface_test <content> <cache> <cs2-bin> <runestar-names|-> <tmp>\n");
         return 2;
     }
+    /* The compiler starts through the host's spawner (iface_cs2.h). */
+    EditorCs2_SetSpawner(LaunchSessions_SystemSpawner());
     test_model(argv[1]);
     test_pack(argv[1], argv[2]);
     test_hooks(argv[1], &catalog);

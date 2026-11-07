@@ -497,16 +497,19 @@ test_chrome_exec_records_dependent_properties(void)
 
     /* The model stores the well in chrome pixels; the web command carries
      * logical units. A scale change must therefore identify the custom node,
-     * not rely on a capacity walk to notice the derived value. */
+     * not rely on a capacity walk to notice the derived value. The scale
+     * itself is journaled first, so an executor hears it (TORIRS_CHROME_CMD_
+     * SCALE) before it re-places anything. */
     ToriRSChrome_SetScale(&g_ui, 2);
     TEST_ASSERT(
-        g_ui.change_count == 2 &&
-            g_ui.changes[0].kind == TORIRS_CHROME_CHANGE_PANEL &&
-            g_ui.changes[0].flags == TORIRS_CHROME_CHANGE_PANEL_RECT &&
-            g_ui.changes[1].kind == TORIRS_CHROME_CHANGE_WIDGET &&
-            g_ui.changes[1].widget == custom &&
-            g_ui.changes[1].flags == TORIRS_CHROME_CHANGE_WIDGET_HEIGHT,
-        "scale names the affected panel and exact custom-height property");
+        g_ui.change_count == 3 &&
+            g_ui.changes[0].kind == TORIRS_CHROME_CHANGE_SCALE &&
+            g_ui.changes[1].kind == TORIRS_CHROME_CHANGE_PANEL &&
+            g_ui.changes[1].flags == TORIRS_CHROME_CHANGE_PANEL_RECT &&
+            g_ui.changes[2].kind == TORIRS_CHROME_CHANGE_WIDGET &&
+            g_ui.changes[2].widget == custom &&
+            g_ui.changes[2].flags == TORIRS_CHROME_CHANGE_WIDGET_HEIGHT,
+        "scale names itself, the affected panel and exact custom-height property");
     ToriRSChrome_Build(&g_ui);
     g_rec.count = 0;
     ToriRSChromeSync_Run(&g_sync, &g_ui);

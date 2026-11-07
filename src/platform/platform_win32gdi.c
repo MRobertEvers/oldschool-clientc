@@ -1100,6 +1100,19 @@ wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         }
         break;
 
+#if defined(WM_DPICHANGED)
+    case WM_DPICHANGED:
+        /* Moved to a monitor of another scale: take the size Windows suggests
+         * (the same apparent size there); WM_SIZE then reports the new
+         * drawable, and the next frame reads the new density. */
+        {
+            RECT const* suggested = (RECT const*)lparam;
+            SetWindowPos(hwnd, NULL, suggested->left, suggested->top, suggested->right - suggested->left,
+                suggested->bottom - suggested->top, SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+        return 0;
+#endif
+
     case WM_SIZE:
         if( p && wparam != SIZE_MINIMIZED )
         {
@@ -1291,6 +1304,62 @@ register_class(void)
     return 1;
 }
 
+/*
+ * Per-monitor DPI (Windows 10 1703 and later; looked up at run time, so the XP
+ * lane, which shares this file, keeps its one coordinate space).
+ *
+ * Without it Windows draws the finished frame at 96 DPI and stretches the
+ * bitmap to the monitor's scale: at 125, 150 or 175 % every glyph the chrome
+ * set crisp is resampled and blurs. Aware, the window and its DIB are device
+ * pixels, like the SDL desktop lanes' drawables, and the client scales the
+ * game and the chrome itself from PlatformWindow_DisplayDensityPercent /
+ * _ChromeDensityPercent (App_SyncClientScale, main_dynamic_chrome_scale).
+ */
+typedef BOOL(WINAPI* win32_set_dpi_context_fn)(HANDLE);
+typedef UINT(WINAPI* win32_dpi_for_window_fn)(HWND);
+typedef UINT(WINAPI* win32_dpi_for_system_fn)(void);
+
+static void
+win32_dpi_aware_once(void)
+{
+    static int done = 0;
+    win32_set_dpi_context_fn set_context;
+
+    if( done )
+        return;
+    done = 1;
+    set_context = (win32_set_dpi_context_fn)(void*)GetProcAddress(GetModuleHandleA("user32.dll"),
+        "SetProcessDpiAwarenessContext");
+    /* DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 ((HANDLE)-4): also scales
+     * the non-client area and sends WM_DPICHANGED when the window moves to a
+     * monitor of another scale. */
+    if( set_context )
+        set_context((HANDLE)(intptr_t)-4);
+}
+
+/** The window's DPI (96 = 100 %); 96 where the system cannot say (XP). */
+static int
+win32_window_dpi(HWND hwnd)
+{
+    static win32_dpi_for_window_fn for_window = NULL;
+    static win32_dpi_for_system_fn for_system = NULL;
+    static int looked = 0;
+    UINT dpi = 0;
+
+    if( !looked )
+    {
+        HMODULE const user32 = GetModuleHandleA("user32.dll");
+        looked = 1;
+        for_window = (win32_dpi_for_window_fn)(void*)GetProcAddress(user32, "GetDpiForWindow");
+        for_system = (win32_dpi_for_system_fn)(void*)GetProcAddress(user32, "GetDpiForSystem");
+    }
+    if( hwnd && for_window )
+        dpi = for_window(hwnd);
+    if( dpi == 0 && for_system )
+        dpi = for_system();
+    return dpi > 0 ? (int)dpi : 96;
+}
+
 bool
 PlatformWindow_Init(struct PlatformWindow* p, int width, int height, char const* title)
 {
@@ -1306,6 +1375,7 @@ PlatformWindow_Init(struct PlatformWindow* p, int width, int height, char const*
 
     if( !register_class() )
         return false;
+    win32_dpi_aware_once();
 
     /* TORIRS_WIN32_FULLSCREEN=1: a borderless window at the desktop origin,
      * so the client area IS the screen.
@@ -1325,6 +1395,15 @@ PlatformWindow_Init(struct PlatformWindow* p, int width, int height, char const*
     fullscreen = getenv("TORIRS_WIN32_FULLSCREEN") ? 1 : 0;
     style = (fullscreen ? WS_POPUP : WS_OVERLAPPEDWINDOW) | WS_CLIPCHILDREN;
 
+    /* The size asked for is in window points: on a 150 % monitor the window
+     * opens as large as it looks at 100 % (the caller's fullscreen size is the
+     * screen's own resolution already). */
+    if( !fullscreen )
+    {
+        int const dpi = win32_window_dpi(NULL);
+        width = MulDiv(width, dpi, 96);
+        height = MulDiv(height, dpi, 96);
+    }
     r.left = 0;
     r.top = 0;
     r.right = width;
@@ -1915,6 +1994,9 @@ win32_browser_stage_fonts(
         L"ToriRSBody.eot", L"ToriRSBody.woff", L"ToriRSBody.ttf",
         L"ToriRSMenu.eot", L"ToriRSMenu.woff", L"ToriRSMenu.ttf",
         L"ToriRSSmall.eot", L"ToriRSSmall.woff", L"ToriRSSmall.ttf",
+        L"ToriRSBody-Vector.eot", L"ToriRSBody-Vector.woff", L"ToriRSBody-Vector.ttf",
+        L"ToriRSMenu-Vector.eot", L"ToriRSMenu-Vector.woff", L"ToriRSMenu-Vector.ttf",
+        L"ToriRSSmall-Vector.eot", L"ToriRSSmall-Vector.woff", L"ToriRSSmall-Vector.ttf",
         L"manifest.json", L"README.md"
     };
     static WCHAR const* const candidates[] = {
@@ -2609,11 +2691,20 @@ PlatformWindow_PixelDensity(struct PlatformWindow* p)
 int
 PlatformWindow_DisplayDensityPercent(struct PlatformWindow* p)
 {
-    /* One coordinate space, as PixelDensity says: the process is not DPI
-     * aware, so Windows scales the finished window itself and every HighDPI
-     * mode lays out alike here. */
-    (void)p;
-    return 100;
+    /* One coordinate space, as PixelDensity says, in device pixels: the
+     * process is per-monitor DPI aware (win32_dpi_aware_once), so the
+     * monitor's scale is the density the client lays the game out at. 100
+     * where the system cannot say (XP). */
+    assert(p);
+    return win32_window_dpi(p->hwnd) * 100 / 96;
+}
+
+int
+PlatformWindow_ChromeDensityPercent(struct PlatformWindow* p)
+{
+    /* The chrome draws at the monitor's scale too (Auto in View > Chrome
+     * scale), its vector face at the fractional ones. */
+    return PlatformWindow_DisplayDensityPercent(p);
 }
 
 void
@@ -2698,6 +2789,13 @@ PlatformWindow_SetTouchOverlayTest(struct PlatformWindow* p, ToriRS_TouchOverlay
 {
     assert(p);
     ToriRS_TouchSetOverlayTest(&p->touch, fn, user);
+}
+
+void
+PlatformWindow_SetTouchGestureFrames(struct PlatformWindow* p, int on)
+{
+    assert(p);
+    ToriRS_TouchSetGestureFrames(&p->touch, on);
 }
 
 void

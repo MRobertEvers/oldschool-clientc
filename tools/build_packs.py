@@ -55,6 +55,11 @@ def main():
     ap.add_argument("--verbose", action="store_true", help="print every unit's line")
     ap.add_argument("--explain", help="why is this file's unit stale? builds nothing")
     args = ap.parse_args()
+    # The tools run as given, and Windows' CreateProcess finds no relative path
+    # written with '/' ("src/build_win64_opt/sscompile.exe": WinError 2, where
+    # the same path with '\' runs). Absolute, normalized: the same everywhere.
+    args.sscompile = os.path.abspath(args.sscompile)
+    args.cachepack = os.path.abspath(args.cachepack)
 
     scripts = os.path.join(args.content, "server", "scripts")
     lanes = args.lanes.split()

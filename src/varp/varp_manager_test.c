@@ -373,6 +373,81 @@ test_resolve_transform(void)
 }
 
 /*
+ * The map editor's var preview (workbench 6.6): a shell keyed on a
+ * previewed var resolves with the stated value, the player's values stay as
+ * they are, and the change callback hears the base varp so the client's
+ * placed locs re-resolve.
+ */
+static int g_preview_announced[8];
+static int g_preview_announced_count;
+
+static void
+preview_change(void* userdata, int varp_id)
+{
+    (void)userdata;
+    if( g_preview_announced_count < 8 )
+        g_preview_announced[g_preview_announced_count++] = varp_id;
+}
+
+static void
+test_resolve_preview(void)
+{
+    printf("TEST: resolve with the editor's var preview\n");
+
+    struct VarPManager mgr;
+    VarPManager_Init(&mgr);
+
+    struct VarPType types[3] = { { 0 }, { 0 }, { 0 } };
+    TEST_ASSERT(VarPManager_SetVarpTypes(&mgr, types, 3), "SetVarpTypes");
+    /* varbit 0 lives in varp 2, bits 0..3. */
+    struct VarBitType vb = { .basevar = 2, .startbit = 0, .endbit = 3 };
+    TEST_ASSERT(VarPManager_SetVarbitTypes(&mgr, &vb, 1), "SetVarbitTypes");
+    VarPManager_SetChangeCallback(&mgr, preview_change, NULL);
+
+    const int shell[] = { 100, -1, 300, 400 };
+    mgr.var[2] = 0;
+    mgr.var[1] = 0;
+    TEST_ASSERT(VarPManager_ResolveTransform(&mgr, shell, 4, 0, -1) == 100, "no preview: the player's value");
+
+    struct VarPManagerPreview preview = { .is_varbit = 1, .id = 0, .value = 2 };
+    g_preview_announced_count = 0;
+    TEST_ASSERT(VarPManager_SetPreview(&mgr, &preview, 1) == 1, "one base varp announced");
+    TEST_ASSERT(g_preview_announced_count == 1 && g_preview_announced[0] == 2,
+        "the change callback hears the varbit's base varp (2)");
+    TEST_ASSERT(VarPManager_ResolveTransform(&mgr, shell, 4, 0, -1) == 300, "the preview value picks slot 2");
+    TEST_ASSERT(VarPManager_GetVarbit(&mgr, 0) == 0 && mgr.var[2] == 0, "the player's own value is untouched");
+    TEST_ASSERT(VarPManager_ResolveTransform(&mgr, shell, 4, -1, 2) == 100,
+        "a shell keyed on the base varp itself is not previewed");
+
+    preview.value = 1;
+    VarPManager_SetPreview(&mgr, &preview, 1);
+    TEST_ASSERT(VarPManager_ResolveTransform(&mgr, shell, 4, 0, -1) == -1, "a hidden slot hides under the preview");
+    preview.value = 9;
+    VarPManager_SetPreview(&mgr, &preview, 1);
+    TEST_ASSERT(VarPManager_ResolveTransform(&mgr, shell, 4, 0, -1) == 400, "past the list: the last slot");
+
+    struct VarPManagerPreview varp = { .is_varbit = 0, .id = 1, .value = 3 };
+    VarPManager_SetPreview(&mgr, &varp, 1);
+    TEST_ASSERT(VarPManager_ResolveTransform(&mgr, shell, 4, -1, 1) == 400, "a varp preview picks slot 3");
+    TEST_ASSERT(VarPManager_ResolveTransform(&mgr, shell, 4, 0, -1) == 100, "...and the varbit's preview is gone");
+
+    g_preview_announced_count = 0;
+    VarPManager_SetPreview(&mgr, NULL, 0);
+    TEST_ASSERT(g_preview_announced_count == 1 && g_preview_announced[0] == 1,
+        "clearing announces the var that left the preview");
+    TEST_ASSERT(VarPManager_ResolveTransform(&mgr, shell, 4, -1, 1) == 100, "cleared: the player's value again");
+
+    /* A varbit whose type is not loaded: it resolves, nothing to announce. */
+    struct VarPManagerPreview unknown = { .is_varbit = 1, .id = 77, .value = 2 };
+    g_preview_announced_count = 0;
+    TEST_ASSERT(VarPManager_SetPreview(&mgr, &unknown, 1) == 0 && g_preview_announced_count == 0,
+        "an unloaded varbit announces no base varp");
+    TEST_ASSERT(VarPManager_ResolveTransform(&mgr, shell, 4, 77, -1) == 300, "...and still resolves previewed");
+
+    VarPManager_Free(&mgr);
+}
+
+/*
  * Untyped mode — the dat1 boot, where varbit.dat loads but no varp type table ever
  * does. The first server VARP grows the var arrays on demand, which moves
  * `varp_count` well past zero while `varp_types` stays NULL. Every accessor bounded
@@ -587,6 +662,7 @@ main(void)
     test_load_varbit_dat();
     test_single_bit_varbit();
     test_resolve_transform();
+    test_resolve_preview();
     test_transform_depends_on_varp();
     test_untyped_mode_accessors();
     test_varp_above_the_type_table();

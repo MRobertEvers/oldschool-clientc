@@ -152,6 +152,29 @@ enum ToriRS_CmdType
      * sidebar of plugin buttons beside the game) or a touch device (a small
      * edge tab that reveals the plugin buttons). */
     TORIRS_CMD_PLATFORM_PLUGIN_CHROME = 96, /* struct ToriRS_CmdPluginChrome */
+
+    /* -> ToriRS_Input, continued: the gesture frames (16..31 is full).
+     *
+     * Continuous, phased motion -- BEGIN, UPDATE..., END -- where the
+     * commands above carry notches and keys: the editor's World camera, GRAPH
+     * wells, the Preview, lists and sliders read the exact ratio and travel,
+     * and the same five verbs on every surface. They land in
+     * LibToriRS_Input::gestures (struct LibToriRS_Gesture has the fields'
+     * meanings and signs; enum LibToriRS_GesturePhase the phases;
+     * LIBTORIRS_GESTURE_FLAG_* the flags). Canvas pixels. On the bus, so a
+     * touch session records and replays like a mouse one; docs/GESTURES.md
+     * has the producers per platform and what each cannot report. */
+    TORIRS_CMD_GESTURE_PAN = 112,   /* struct ToriRS_CmdGesturePan */
+    TORIRS_CMD_GESTURE_PINCH = 113, /* struct ToriRS_CmdGesturePinch */
+    TORIRS_CMD_GESTURE_TWIST = 114, /* struct ToriRS_CmdGestureTwist */
+    /* No payload. A finger came down on the glass (the touch policy,
+     * ToriRS_TouchEvent's BEGAN): the pointer commands from here until the
+     * next TORIRS_CMD_INPUT_MOUSE_LEAVE (the policy's "the finger left") are
+     * a finger's, and the last pointer input was a touch. A mouse move, a
+     * click, a wheel or a scroll outside such a touch makes it a mouse again
+     * (LibToriRS_Input::last_touch, ToriRS_InputLastWasTouch: the hint
+     * strip's words). */
+    TORIRS_CMD_INPUT_TOUCH_BEGAN = 115,
 };
 
 /** How the platform presents its plugin chrome. @see TORIRS_CMD_PLATFORM_PLUGIN_CHROME. */
@@ -233,6 +256,46 @@ struct ToriRS_CmdScroll
     /** 1 when the platform reports its wheel direction inverted ("natural"):
      *  -dy is then the direction the integer wheel reports. */
     uint8_t flipped;
+};
+
+/* The gesture frames. `phase` is enum LibToriRS_GesturePhase, `flags`
+ * LIBTORIRS_GESTURE_FLAG_*; every fraction is 16.16 fixed point, so a replay
+ * decodes to the same floats bit for bit. */
+struct ToriRS_CmdGesturePan
+{
+    /** The gesture's centre, canvas pixels. */
+    int16_t x;
+    int16_t y;
+    /** Content travel since the previous PAN, canvas pixels x65536, +x right,
+     *  +y down. */
+    int32_t dx_q16;
+    int32_t dy_q16;
+    uint8_t fingers;
+    uint8_t phase;
+    uint8_t flags;
+    uint8_t pad;
+};
+
+struct ToriRS_CmdGesturePinch
+{
+    int16_t x;
+    int16_t y;
+    /** Ratio since the previous PINCH, 65536 = 1.0, > 1 fingers apart. */
+    int32_t scale_q16;
+    uint8_t phase;
+    uint8_t flags;
+    uint8_t pad[2];
+};
+
+struct ToriRS_CmdGestureTwist
+{
+    int16_t x;
+    int16_t y;
+    /** Turn since the previous TWIST, radians x65536, + clockwise on screen. */
+    int32_t radians_q16;
+    uint8_t phase;
+    uint8_t flags;
+    uint8_t pad[2];
 };
 
 struct ToriRS_CmdPluginChrome
@@ -463,6 +526,46 @@ CmdBus_PushScroll(
     int px_per_notch,
     int trackpad,
     int flipped);
+
+/**
+ * The gesture frames, @see TORIRS_CMD_GESTURE_PAN. `phase` is enum
+ * LibToriRS_GesturePhase, `flags` LIBTORIRS_GESTURE_FLAG_*. An END carries no
+ * motion (0 travel, scale 1, 0 radians): asserted. Most producers go through
+ * struct ToriRS_GestureStream (input/torirs_gesture.h), which owns the phases.
+ */
+int
+CmdBus_PushGesturePan(
+    struct ToriRS_CmdBus* bus,
+    int16_t x,
+    int16_t y,
+    double dx,
+    double dy,
+    int fingers,
+    int phase,
+    unsigned flags);
+
+/** `scale` > 0, clamped to 1/64..64 like CmdBus_PushPinch. */
+int
+CmdBus_PushGesturePinch(
+    struct ToriRS_CmdBus* bus,
+    int16_t x,
+    int16_t y,
+    double scale,
+    int phase,
+    unsigned flags);
+
+int
+CmdBus_PushGestureTwist(
+    struct ToriRS_CmdBus* bus,
+    int16_t x,
+    int16_t y,
+    double radians,
+    int phase,
+    unsigned flags);
+
+/** TORIRS_CMD_INPUT_TOUCH_BEGAN. */
+int
+CmdBus_PushTouchBegan(struct ToriRS_CmdBus* bus);
 
 int
 CmdBus_PushWindowResize(

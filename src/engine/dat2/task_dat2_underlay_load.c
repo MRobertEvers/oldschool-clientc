@@ -55,7 +55,9 @@ Task_Dat2UnderlayLoad_Run(
     rscache_underlay = dat2_buildcache_underlay_get(task->bc, task->underlay_id);
     if( !rscache_underlay )
     {
-        TORIRS_ERR("Failed to load dat2 underlay %d\n", task->underlay_id);
+        /* Not in the decoded group: a lookup miss (the editor's palette
+         * probes ids past the records), not a load failure. */
+        TORIRS_LOG("dat2 underlay %d: no such record\n", task->underlay_id);
         PT_EXIT(&task->pt);
     }
 

@@ -2,12 +2,37 @@
 
 #include <string.h>
 
+/* A gesture frame's identities: the fields its kind does not carry. */
+static void
+gesture_init(
+    struct LibToriRS_Gesture* gesture,
+    enum LibToriRS_GestureKind kind,
+    uint8_t phase,
+    uint8_t flags,
+    int16_t x,
+    int16_t y)
+{
+    memset(gesture, 0, sizeof(*gesture));
+    gesture->kind = (uint8_t)kind;
+    gesture->phase = phase;
+    gesture->flags = flags;
+    gesture->x = x;
+    gesture->y = y;
+    gesture->scale = 1.0f;
+}
+
 int
 ToriRS_Input_ApplyCmd(
     struct LibToriRS_Input* input,
     const struct ToriRS_CmdHeader* header,
     const uint8_t* payload)
 {
+    /* Which pointer the person last used (the hint strip's words): any of
+     * these off the bus with no finger down is a mouse's. */
+    if( header->type == TORIRS_CMD_INPUT_MOUSE_DOWN || header->type == TORIRS_CMD_INPUT_MOUSE_UP ||
+        header->type == TORIRS_CMD_INPUT_MOUSE_MOVE || header->type == TORIRS_CMD_INPUT_MOUSE_WHEEL ||
+        header->type == TORIRS_CMD_INPUT_SCROLL )
+        LibToriRS_Input_NoteDesktopPointer(input);
     switch( header->type )
     {
     case TORIRS_CMD_INPUT_KEY_DOWN:
@@ -106,6 +131,56 @@ ToriRS_Input_ApplyCmd(
                 cmd.flipped);
         return 1;
     }
+    case TORIRS_CMD_GESTURE_PAN:
+    {
+        struct ToriRS_CmdGesturePan cmd;
+        struct LibToriRS_Gesture gesture;
+        if( header->length < sizeof(cmd) )
+            return 1;
+        memcpy(&cmd, payload, sizeof(cmd));
+        /* A frame from a recording is data, not a call: one no encoder could
+         * have written (CmdBus_PushGesturePan asserts all three) is dropped,
+         * as a short payload is. */
+        if( cmd.phase >= LIBTORIRS_GESTURE_PHASE_COUNT || cmd.fingers == 0 )
+            return 1;
+        gesture_init(&gesture, LIBTORIRS_GESTURE_PAN, cmd.phase, cmd.flags, cmd.x, cmd.y);
+        gesture.fingers = cmd.fingers;
+        gesture.dx = (float)cmd.dx_q16 / 65536.0f;
+        gesture.dy = (float)cmd.dy_q16 / 65536.0f;
+        LibToriRS_Input_PushGesture(input, &gesture);
+        return 1;
+    }
+    case TORIRS_CMD_GESTURE_PINCH:
+    {
+        struct ToriRS_CmdGesturePinch cmd;
+        struct LibToriRS_Gesture gesture;
+        if( header->length < sizeof(cmd) )
+            return 1;
+        memcpy(&cmd, payload, sizeof(cmd));
+        if( cmd.phase >= LIBTORIRS_GESTURE_PHASE_COUNT || cmd.scale_q16 <= 0 )
+            return 1;
+        gesture_init(&gesture, LIBTORIRS_GESTURE_PINCH, cmd.phase, cmd.flags, cmd.x, cmd.y);
+        gesture.scale = (float)cmd.scale_q16 / 65536.0f;
+        LibToriRS_Input_PushGesture(input, &gesture);
+        return 1;
+    }
+    case TORIRS_CMD_GESTURE_TWIST:
+    {
+        struct ToriRS_CmdGestureTwist cmd;
+        struct LibToriRS_Gesture gesture;
+        if( header->length < sizeof(cmd) )
+            return 1;
+        memcpy(&cmd, payload, sizeof(cmd));
+        if( cmd.phase >= LIBTORIRS_GESTURE_PHASE_COUNT )
+            return 1;
+        gesture_init(&gesture, LIBTORIRS_GESTURE_TWIST, cmd.phase, cmd.flags, cmd.x, cmd.y);
+        gesture.radians = (float)cmd.radians_q16 / 65536.0f;
+        LibToriRS_Input_PushGesture(input, &gesture);
+        return 1;
+    }
+    case TORIRS_CMD_INPUT_TOUCH_BEGAN:
+        LibToriRS_Input_PushTouchBegan(input);
+        return 1;
     case TORIRS_CMD_INPUT_CLEAR_KEYS:
         LibToriRS_Input_ClearKeys(input);
         return 1;

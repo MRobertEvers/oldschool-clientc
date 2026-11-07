@@ -79,6 +79,12 @@
 #include <time.h>
 #include <math.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#define scriptrun_mkdir(p) _mkdir(p)
+#else
+#define scriptrun_mkdir(p) mkdir(p, 0755)
+#endif
 
 enum
 {
@@ -5671,7 +5677,7 @@ ToriRSServer_ScriptRun(
             goto out;
         }
         snprintf(saves, sizeof(saves), "%s/saves", run.session_dir);
-        mkdir(saves, 0755);
+        scriptrun_mkdir(saves);
         setenv("TORIRSSERVER_SAVES", saves, 1);
     }
 
