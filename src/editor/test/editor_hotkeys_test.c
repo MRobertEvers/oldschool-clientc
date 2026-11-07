@@ -961,7 +961,7 @@ test_workbench68(void)
         { EDITOR_HK_VIEW_WORKSPACE_TERRAIN, "view.workspace_terrain", "ctrl+2", NULL, EDITOR_HK_CTX_G },
         { EDITOR_HK_VIEW_WORKSPACE_SCRIPT, "view.workspace_script", "ctrl+3", NULL, EDITOR_HK_CTX_G },
         { EDITOR_HK_VIEW_WORKSPACE_PLAYTEST, "view.workspace_playtest", "ctrl+4", NULL, EDITOR_HK_CTX_G },
-        { EDITOR_HK_VIEW_COMMAND_PALETTE, "view.command_palette", "ctrl+k", NULL, EDITOR_HK_CTX_G },
+        { EDITOR_HK_VIEW_COMMAND_PALETTE, "view.command_palette", "ctrl+k", "alt+space", EDITOR_HK_CTX_G },
         { EDITOR_HK_FILE_SAVE_SCENE, "file.save_scene", "ctrl+shift+k", NULL, EDITOR_HK_CTX_G },
         { EDITOR_HK_FILE_SCRATCH_LANE, "file.scratch_lane", "ctrl+shift+n", NULL, EDITOR_HK_CTX_G },
         { EDITOR_HK_GRAPH_AUTO_LAYOUT, "graph.auto_layout", "ctrl+l", NULL, EDITOR_HK_CTX_Q },
@@ -1160,6 +1160,7 @@ test_ergonomics(void)
               && chord.mods == (EDITOR_HK_MOD_CTRL | EDITOR_HK_MOD_SHIFT),
         "Go to tile... is Ctrl+Shift+G (Ctrl+G stays Snap)");
     CHECK(fire("ctrl+k", G) == EDITOR_HK_VIEW_COMMAND_PALETTE, "Ctrl+K fires the palette");
+    CHECK(fire("alt+space", G) == EDITOR_HK_VIEW_COMMAND_PALETTE, "Alt+Space (Option+Space) fires the palette");
     CHECK(fire("ctrl+shift+g", G) == EDITOR_HK_VIEW_GOTO && fire("ctrl+g", G) == EDITOR_HK_VIEW_SNAP,
         "Ctrl+Shift+G is Go to tile, Ctrl+G still Snap");
     CHECK(fire("ctrl+shift+l", G) == EDITOR_HK_EDIT_SELECT_KIND && fire("ctrl+i", G) == EDITOR_HK_EDIT_INVERT,

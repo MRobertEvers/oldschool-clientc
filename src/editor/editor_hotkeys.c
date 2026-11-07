@@ -373,7 +373,7 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                                             NULL },
     [EDITOR_HK_VIEW_COMMAND_PALETTE] = { "view.command_palette", "View", "Command palette",
                                          "Command palette (actions, panels, squares, records, accounts)", G,
-                                         EDGE, { "ctrl+k" }, "cmdpalette" },
+                                         EDGE, { "ctrl+k", "alt+space" }, "cmdpalette" },
     [EDITOR_HK_VIEW_GOTO] = { "view.goto_tile", "View", "Go to tile...",
                               "Go to tile... (the palette prefilled with coordinates)", G, EDGE, { "ctrl+shift+g" },
                               NULL },

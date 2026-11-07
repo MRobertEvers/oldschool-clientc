@@ -320,7 +320,7 @@ own keys, not the table's).
 | Workspace: Terrain (heights, colours, shapes, flags) | Ctrl+2 | G |
 | Workspace: Script (records, triggers, builders) | Ctrl+3 | G |
 | Workspace: Playtest (RUN, live, accounts) | Ctrl+4 | G |
-| Command palette (actions, panels, squares, records, accounts) | Ctrl+K | G |
+| Command palette (actions, panels, squares, records, accounts) | Ctrl+K, Alt+Space (Option+Space on a Mac) | G |
 | Go to tile... (the palette prefilled with coordinates) | Ctrl+Shift+G | G |
 | World layer Locs on/off (reserved) | Alt+L | G |
 | World layer NPCs on/off (reserved) | Alt+N | G |
@@ -346,7 +346,7 @@ the workspace you leave first, so coming back finds it as you left it; the
 layout file keeps each one in its own `[workspace <name>]` section. View >
 Reset layout resets the workspace you are in.
 
-**The command palette** (Ctrl+K, module `cmdpalette`): one search over the
+**The command palette** (Ctrl+K or Alt+Space -- Option+Space on a Mac; module `cmdpalette`): one search over the
 actions (each with its chord in the right column), the panels, the squares
 the picker knows, the catalog's records (`loc:`, `npc:`, `obj:` narrow to one
 kind), the scenes (Enter enters one, through the save guard), the lanes the
