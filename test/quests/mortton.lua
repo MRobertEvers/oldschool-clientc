@@ -395,14 +395,26 @@ return {
         -- advice has no combat-level branch, so the staged combat stats change nothing here.
         t.exec("enterMorytania.talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
         t.exec("enterMorytania.talkToDrezel-dialog", t.chat.play, {
+            -- Priest in Peril's farewell as rebuilt from RSProx index 4459
+            -- [2047..2085] (mausoleum_drezel.rs2 [label,drezel_access_holy_barrier]).
             "player:So can I pass through that barrier now?",
-            "npc:Ah, ",
+            "npc:Into Morytania? Yes, you can.",
             "npc:Morytania is an evil land",
-            "npc:You should take some basic precautions",
-            "npc:In many ways Werewolves",
-            "npc:and it is a holy relic",
-            "npc:wolf form is incredibly powerful",
-            "player:Okay, I will keep it equipped",
+            "npc:Worst of all are the vampyres",
+            "player:I'll be careful.",
+            "npc:The first settlement",
+            "npc:keep that dagger I gave you",
+            "player:I see. Thanks.",
+            "npc:stay alert for any mention of the Myreque",
+            "player:The Myreque?",
+            "npc:freedom fighters",
+            "npc:Veliaf",
+            "player:I'll keep an eye out for them.",
+            "npc:Just the blessing itself now",
+            "mesbox:Drezel blesses you",
+            "npc:Good luck out there.",
+            "choose:And you. See you later.",
+            "player:And you. See you later.",
         })
         t.exec("enterMorytania.drezelAdvice", t.var.await_server, "varp302_priestperil", 61, 8)
         t.exec("enterMorytania.holyBarrier", t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
@@ -423,12 +435,13 @@ return {
         t.expect("haveSerumBook", t.inv.expect_has("serum_book", 1))
         -- The shelf's own mesbox ("You find an interesting looking book on
         -- the shelf.") is still open -- close it before reading the diary.
-        t.exec("searchShelf-dismiss", t.chat.play, {"mesbox:You find an interesting looking book"})
+        t.exec("searchShelf-dismiss", t.chat.play, {"objbox:You find an interesting looking book"})
 
-        -- Read the diary (serum_book.rs2, [opheld1,serum_book]): interface
-        -- 392 (RSProx index 3071 [291..306]); the quest varp lands on the
-        -- last spread, so the book is paged to its end, not skipped.
+        -- Read the diary (serum_book.rs2, [opheld1,serum_book]): the first
+        -- Read asks "Start the Shades of Mort'ton quest?" and "Yes." starts it
+        -- with the book's first spread (RSProx index 4471 [494..497]).
         t.exec("readDiary", t.player.inv_op, "serum_book", 1)
+        t.exec("readDiary-start", t.chat.play, {"choose:Yes."})
         t.exec("readDiary-book", t.ui.read_book, 30)
         t.exec("quest.stage.mortton_read_diary", t.quest.expect_stage, "mortton_read_diary")
 
@@ -646,8 +659,8 @@ return {
         t.exec("razmire.giveRemains-dialogue", t.chat.play, {
             "npc:it's you",
             "npc:have you killed the five shades yet",
-            "player:Yes, I have actually!",
-            "mesbox:Razmire takes two Shade remains.",
+            "player:Yes I have actually!",
+            "objbox:Razmire takes two Shade remains.",
             "npc:I'll experiment on these",
             "npc:Now that you've slayed",
             "choose:Ok, thanks.",
@@ -740,7 +753,7 @@ return {
             "npc:Oh yes, well, that's very nice.",
             "player:I just slayed 5 shades for Razmire",
             "npc:Oh yes, that would be interesting!",
-            "mesbox:You show the shade remains to the priest",
+            "objbox:You show the shade remains to the priest",
         })
         t.exec("quest.stage.mortton_shades_to_ulsquire", t.quest.expect_stage, "mortton_shades_to_ulsquire")
 
@@ -844,6 +857,11 @@ return {
                 "dropped " .. tostring(shark_drops) .. " shark(s), " .. tostring(shark_have)
                     .. " left (kept for trap 26's food requirement)")
 
+            -- The last trip's repairs can earn a Crafting level: its box would
+            -- answer the talk below instead of Razmire. Close it first.
+            if t.levelup and t.levelup.skill and t.levelup.skill() == "ok" then
+                t.note("closing a level-up box: " .. tostring(t.levelup.continue_()))
+            end
             talk_or_recure("razmire.talk" .. trip_suffix, "mixSerum207" .. trip_suffix, "razmire.recure" .. trip_suffix,
                 "razmire_keelgan", "razmire_keelgan_afflicted")
             -- %morttonquest is mortton_rebuild_temple(55) by now (crossed by
@@ -1097,7 +1115,7 @@ return {
             return nil
         end
         local function read_runtime_bit(bit)
-            local rr, rv = t.var.server("varp7427_mortton_runtime")
+            local rr, rv = t.var.server("varp340_morttonmulti")
             if rr == "ok" and type(rv) == "number" then
                 return math.floor(rv / (2 ^ bit)) % 2, rv
             end
@@ -1122,52 +1140,90 @@ return {
         t.exec("temple.sanctifyOil", t.player.use_on, "oliveoil3", altar_target_2)
         t.exec("quest.stage.mortton_created_sacred_oil", t.quest.expect_stage, "mortton_created_sacred_oil")
 
-        -- use207OnFlame: a Serum 207 used on the lit flame becomes Serum 208
-        -- (flamtaer_temple.rs2:432-466, oc_category 108): sanctity >= 600 first, then
-        -- 150 sanctity per dose spent, the vial set to next_obj_stage_temple
-        -- (mort_serum3 -> mort_serum_perm3, quest_mortton.obj:18-21), bit
-        -- player_made_perm_serum (7) of %varp7427_mortton_runtime set, and a mesbox the
-        -- first time. A FRESH 3-dose mix from the reserve pair (the guide's addAshes
-        -- again): three doses of Serum 208 -- Razmire, Ulsquire, and one left in hand for
-        -- Ulsquire's "already used" answer (ulsquire_shauncy.rs2:22-26 consumes nothing).
+        -- use207OnFlame, as index 4469 [763]: op1 on the lit flame with Serum 207s of
+        -- different doses in the pack (there a 4-dose in slot 12 and a 2-dose in slot 2).
+        -- The flame takes the HIGHEST dose first (flamtaer_temple.rs2's
+        -- ~mortton_highest_dose) and makes Serum 208 of the same doses, 5% sanctity
+        -- (150 of 3000) a dose, needing 20% (600) (the wiki, Serum 208), sets
+        -- made_perm_serum (bit 7 of varp340_morttonmulti) and shows the objbox the first
+        -- time. Then, four ticks apart, it takes the rest. A FRESH 3-dose mix from the
+        -- reserve pair is the highest; the re-cures left the lower doses
+        -- (talk_or_recure spends the smallest first).
         local serum3_before_mix = count_of("mort_serum3")
         t.player.use_item_on_item("ashes", "tarrominvial")
         if t.ui.await_open("skillmulti", 3) == "ok" then
             t.exec("mixSerum207-flame", t.ui.make, "a")
         end
         t.ticks(2)
-        local serum3_before = count_of("mort_serum3")
-        local perm3_before = count_of("mort_serum_perm3")
+        local held = {}
+        for n = 1, 4 do
+            held[n] = { serum = count_of("mort_serum" .. n), perm = count_of("mort_serum_perm" .. n) }
+        end
+        local lower_doses = (held[1].serum or 0) * 1 + (held[2].serum or 0) * 2
         local sanctity_before_208 = read_sanctity()
         t.check("mixSerum207-flame.fresh207",
-            serum3_before_mix ~= nil and serum3_before == serum3_before_mix + 1 and perm3_before == 0,
-            "mort_serum3 " .. tostring(serum3_before_mix) .. " -> " .. tostring(serum3_before)
-                .. " (want +1, a fresh 3-dose Serum 207); mort_serum_perm3 held " .. tostring(perm3_before)
-                .. " (want 0 before the flame); sanctity now " .. tostring(sanctity_before_208))
-        local altar_target_3 = t.player.by_symbol("loc", "templefire_altar")
-        t.exec("use207OnFlame", t.player.use_on, "mort_serum3", altar_target_3)
-        t.exec("use207OnFlame-dialogue", t.chat.play, {
-            "mesbox:You sanctify Serum 207 in the sacred flame and turn it into Serum 208.",
-        })
-        t.ticks(1)
-        local serum3_after = count_of("mort_serum3")
-        local perm3_after = count_of("mort_serum_perm3")
-        local sanctity_after_208 = read_sanctity()
-        local made_bit, made_raw = read_runtime_bit(7)
-        local sanctity_spent = nil
-        if sanctity_before_208 ~= nil and sanctity_after_208 ~= nil then
-            sanctity_spent = sanctity_before_208 - sanctity_after_208
+            serum3_before_mix ~= nil and held[3].serum == serum3_before_mix + 1 and held[3].serum == 1
+                and held[4].serum == 0 and held[3].perm == 0 and lower_doses > 0,
+            "mort_serum3 " .. tostring(serum3_before_mix) .. " -> " .. tostring(held[3].serum)
+                .. " (want 0 -> 1, a fresh 3-dose Serum 207, the highest held); mort_serum1 "
+                .. tostring(held[1].serum) .. ", mort_serum2 " .. tostring(held[2].serum)
+                .. " (want at least one lower dose for the flame to pass over); sanctity now "
+                .. tostring(sanctity_before_208))
+        t.exec("use207OnFlame", t.player.click_loc, "templefire_altar", 1)
+        -- The objbox is open: only the 3-dose has gone, the lower doses wait for the loop.
+        local first_serum3 = count_of("mort_serum3")
+        local first_perm3 = count_of("mort_serum_perm3")
+        local first_serum1 = count_of("mort_serum1")
+        local first_serum2 = count_of("mort_serum2")
+        local first_sanctity = read_sanctity()
+        local first_spent = nil
+        if sanctity_before_208 ~= nil and first_sanctity ~= nil then
+            first_spent = sanctity_before_208 - first_sanctity
         end
-        t.check("use207OnFlame.serum208",
-            serum3_before ~= nil and serum3_after == serum3_before - 1 and perm3_after == 1
-                and (sanctity_spent == 450 or sanctity_spent == 480) and made_bit == 1,
-            "USED mort_serum3 " .. tostring(serum3_before) .. " -> " .. tostring(serum3_after)
-                .. "; RESULT mort_serum_perm3 (Serum 208, 3 doses) " .. tostring(perm3_before) .. " -> "
-                .. tostring(perm3_after) .. "; sanctity " .. tostring(sanctity_before_208) .. " -> "
-                .. tostring(sanctity_after_208) .. " (spent " .. tostring(sanctity_spent)
-                .. ", want 450 = 150 x 3 doses, or 480 if a drain tick of 30 fell between)"
-                .. "; mortton_runtime " .. tostring(made_raw) .. " bit 7 player_made_perm_serum = "
-                .. tostring(made_bit))
+        local made_bit, made_raw = read_runtime_bit(7)
+        t.check("use207OnFlame.highestDoseFirst",
+            first_serum3 == 0 and first_perm3 == 1 and first_serum1 == held[1].serum
+                and first_serum2 == held[2].serum and (first_spent == 450 or first_spent == 480)
+                and made_bit == 1,
+            "mort_serum3 1 -> " .. tostring(first_serum3) .. ", mort_serum_perm3 0 -> " .. tostring(first_perm3)
+                .. " (want the 3-dose made Serum 208 (3)); mort_serum1 " .. tostring(held[1].serum) .. " -> "
+                .. tostring(first_serum1) .. ", mort_serum2 " .. tostring(held[2].serum) .. " -> "
+                .. tostring(first_serum2) .. " (want untouched); sanctity " .. tostring(sanctity_before_208)
+                .. " -> " .. tostring(first_sanctity) .. " (spent " .. tostring(first_spent)
+                .. ", want 450 = 150 x 3 doses, or 480 if a drain tick of 30 fell between); varp340 "
+                .. tostring(made_raw) .. " bit 7 made_perm_serum = " .. tostring(made_bit))
+        t.exec("use207OnFlame-dialogue", t.chat.play, {
+            "objbox:You sanctify serum 207 in the sacred flame and rename it to serum 208.",
+        })
+        -- The loop takes the lower doses after the box, four ticks each (no box again).
+        t.ticks(4 * ((held[1].serum or 0) + (held[2].serum or 0)) + 2)
+        local rest = {}
+        for n = 1, 2 do
+            rest[n] = { serum = count_of("mort_serum" .. n), perm = count_of("mort_serum_perm" .. n) }
+        end
+        local rest_sanctity = read_sanctity()
+        local rest_spent = nil
+        if first_sanctity ~= nil and rest_sanctity ~= nil then
+            rest_spent = first_sanctity - rest_sanctity
+        end
+        t.check("use207OnFlame.restPerDose",
+            rest[1].serum == 0 and rest[2].serum == 0 and rest[1].perm == held[1].serum
+                and rest[2].perm == held[2].serum and rest_spent ~= nil and rest_spent >= 150 * lower_doses
+                and rest_spent <= 150 * lower_doses + 60 and (rest_spent - 150 * lower_doses) % 30 == 0,
+            "mort_serum1 -> " .. tostring(rest[1].serum) .. " / perm1 " .. tostring(rest[1].perm)
+                .. ", mort_serum2 -> " .. tostring(rest[2].serum) .. " / perm2 " .. tostring(rest[2].perm)
+                .. " (want each lower Serum 207 made Serum 208 of its doses); sanctity "
+                .. tostring(first_sanctity) .. " -> " .. tostring(rest_sanctity) .. " (spent "
+                .. tostring(rest_spent) .. ", want " .. tostring(150 * lower_doses)
+                .. " = 150 x " .. tostring(lower_doses) .. " doses, plus any drain ticks of 30)")
+        -- The hand-ins below follow the 3-dose vial: drop the lower Serum 208s.
+        for _, perm_name in ipairs({ "mort_serum_perm1", "mort_serum_perm2" }) do
+            local drops = 0
+            while (count_of(perm_name) or 0) > 0 and drops < 4 do
+                t.player.drop(perm_name)
+                drops = drops + 1
+            end
+        end
 
         -- Sacred oil on the logs setup carried (mortton_pyre.rs2's
         -- [opheldu,_sacred_oil], oc_category(logs)=22) -> logs_pyre,
@@ -1337,7 +1393,7 @@ return {
         t.exec("use208OnRazmire", t.player.use_on, "mort_serum_perm3", razmire_208_target)
         t.exec("use208OnRazmire-dialogue", t.chat.play, {
             "npc:Well done - I feel this serum is really working on me.",
-            "mesbox:Razmire gives you",
+            "objbox:Razmire gives you",
             "npc:it's you",
             "player:Hey, I've laid a Shade to rest",
             "npc:Yeah, great job on putting that Shade to rest.",
@@ -1380,7 +1436,7 @@ return {
         t.exec("use208OnUlsquire", t.player.use_on, "mort_serum_perm2", ulsquire_208_target)
         t.exec("talkToUlsquireToFinish", t.chat.play, {
             "npc:Well done - I feel this serum is really working on me.",
-            "mesbox:Ulsquire gives you",
+            "objbox:Ulsquire gives you",
             "npc:hello again",
             "player:I've put the Shade's spirit to rest",
             "npc:Great! Well done my friend!",

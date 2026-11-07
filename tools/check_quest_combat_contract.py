@@ -2928,7 +2928,7 @@ def check_shades_of_mortton() -> None:
         core,
         (
             "[proc,mortton_mix_serum]", "~attempt_brew_potion($ashes_slot, $tarromin_slot)",
-            "%varp339_morttonquest = ^mortton_made_serum;", "[queue,mortton_quest_complete]",
+            "%varp339_morttonquest = ^mortton_made_serum;", "[proc,mortton_quest_complete]",
             "%varp339_morttonquest = ^mortton_quest_complete;", "stat_advance(crafting,20000);",
             "stat_advance(herblore,20000);", "shadekey_silver_purple",
         ),
@@ -3053,7 +3053,7 @@ def check_shades_of_mortton() -> None:
                  "Shades of Mort'ton private coffin storage")
 
     require_text(MORTTON_AFFLICTED.read_text(),
-                 ("[queue,207_cure_affliction_reward]", "[queue,208_cure_affliction_reward]",
+                 ("[proc,207_cure_affliction_reward]", "[proc,208_cure_affliction_reward]",
                   "inv_add(inv, shadekey_bronze_bloodred, 1);"),
                  "Shades of Mort'ton afflicted serum reward tables")
     require_text(MORTTON_RAZMIRE.read_text(),
@@ -3062,7 +3062,7 @@ def check_shades_of_mortton() -> None:
                  "Shades of Mort'ton Razmire route and shops")
     require_text(MORTTON_ULSQUIRE.read_text(),
                  ("%varp339_morttonquest = ^mortton_shades_to_ulsquire;",
-                  "queue(mortton_quest_complete, 0, 0);", "inv_add(inv, oliveoil3, 1);"),
+                  "~mortton_quest_complete;", "inv_add(inv, oliveoil3, 1);"),
                  "Shades of Mort'ton Ulsquire route")
 
 
