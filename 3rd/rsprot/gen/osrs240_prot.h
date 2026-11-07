@@ -172,7 +172,6 @@ static const RsprotProtDef rsprot_osrs240_server[] = {
     { "PACKET_GROUP_START", 57, 2, NULL },
     { "UNKNOWN_STRING", 44, RSPROT_VARU8, NULL },
     { "UNHANDLED", 129, RSPROT_VARU16, NULL },
-    { "CACHE_INVALIDATE", 237, RSPROT_VARU16, NULL },
 };
 static const RsprotProtDef rsprot_osrs240_client[] = {
     { "IF_BUTTON", 11, 4, NULL },

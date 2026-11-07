@@ -58,17 +58,11 @@ static void test_rev239_known_facts(void)
 	if (!t)
 		return;
 
-	/* docs/RSPROT_OSRS239_PORT.md SS3: Jagex's highest server opcode is 148.
-	 * ToriRS's own prots (spec/packets/cache_invalidate.ini) sit above every
-	 * Jagex opcode on purpose and are not part of that fact. */
+	/* docs/RSPROT_OSRS239_PORT.md SS3: Jagex's highest server opcode is 148. */
 	for (i = 0; i < t->server_count; i++)
-		if (strcmp(t->server[i].name, "CACHE_INVALIDATE") != 0 && t->server[i].code > max_code)
+		if (t->server[i].code > max_code)
 			max_code = t->server[i].code;
 	CHECK_EQ_I(max_code, 148, "rev239 highest server opcode is 148");
-	d = rsprot_find_server_prot(t, "CACHE_INVALIDATE");
-	CHECK(d != NULL, "our CACHE_INVALIDATE present at rev239");
-	if (d)
-		CHECK_EQ_I(d->code, 237, "CACHE_INVALIDATE at opcode 237 (0xED)");
 
 	/* docs/RSPROT_OSRS239_PORT.md 5b: IF_OPENTOP op=96 payload=2 at rev239. */
 	d = rsprot_find_server_prot(t, "IF_OPENTOP");
@@ -130,12 +124,39 @@ static void test_no_duplicate_opcodes_within_direction(void)
 	CHECK_EQ_I(dups, 0, "no duplicate server opcodes at rev239");
 }
 
+/* ToriRS's control escape (3draster src/net/torirs_control.h) is the opcode
+ * value 0x7FFF, kept out of every table: a revision whose server prots reached
+ * it would read a control frame as that prot, or that prot as a control frame.
+ * Every table here, the LostCity ones included, must stay below it. */
+#define TORIRS_CONTROL_ESCAPE_VALUE 0x7FFF
+
+static void test_no_table_reaches_the_control_escape(void)
+{
+	int r, i;
+
+	for (r = 0; r < RSPROT_REVISION_COUNT; r++) {
+		const RsprotRevTable *t = &rsprot_all_revisions[r];
+
+		for (i = 0; i < t->server_count; i++) {
+			if (t->server[i].code >= TORIRS_CONTROL_ESCAPE_VALUE)
+				printf("  %s at %d reaches the control escape\n", t->server[i].name,
+				       t->server[i].code);
+			CHECK(t->server[i].code < TORIRS_CONTROL_ESCAPE_VALUE,
+			      "server opcode below the control escape");
+		}
+		for (i = 0; i < t->server_count; i++)
+			CHECK(strcmp(t->server[i].name, "CACHE_INVALIDATE") != 0,
+			      "no ToriRS prot in a Jagex table (the control escape replaced it)");
+	}
+}
+
 int main(void)
 {
 	test_all_revisions_present();
 	test_rev239_known_facts();
 	test_zone_order_nonempty();
 	test_no_duplicate_opcodes_within_direction();
+	test_no_table_reaches_the_control_escape();
 
 	if (g_failures) {
 		printf("%d failures\n", g_failures);

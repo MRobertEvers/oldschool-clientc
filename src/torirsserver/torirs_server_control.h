@@ -356,26 +356,12 @@ ToriRSServer_WorldTakeRebuildReload(struct ToriRSServerPlayer* player);
 
 /* torirs_server_control.c */
 
-/** Archives one CACHE_INVALIDATE names; a longer list is several packets. */
-#define TORIRSSERVER_CACHE_INVALIDATE_PER_PACKET 4096
-
 /**
- * CACHE_INVALIDATE's payload (3rd/rsprot/spec/packets/cache_invalidate.ini:
- * U1 index, U2_12 count, count x U4_1234 archive) for at most
- * TORIRSSERVER_CACHE_INVALIDATE_PER_PACKET archives, into `out` (3 + 4 x
- * count bytes). Returns the length.
- */
-int
-ToriRSServer_CacheInvalidateEncode(
-    int index,
-    const int* archives,
-    int count,
-    uint8_t* out);
-
-/**
- * CACHE_INVALIDATE (our own server prot, 3rd/rsprot/spec/packets/
- * cache_invalidate.ini) to `player`: forget `count` archives of cache index
- * `index`. Returns 0 when the player's revision has no opcode for it.
+ * The control frame CACHE_INVALIDATE (net/torirs_control.h) to `player`:
+ * forget `count` archives of cache index `index`, as many frames as the list
+ * needs. Returns 0 when the player cannot be sent control frames (a stock
+ * client, or a revision without pSmart1Or2 opcodes): it sees the change at its
+ * next login, as an old client would.
  */
 int
 ToriRSServer_SendCacheInvalidate(

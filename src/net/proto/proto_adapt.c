@@ -2922,24 +2922,3 @@ adapt_zone_obj_reveal(MsgObjReveal const* m, struct PktZoneSubPacket* out)
     out->_obj_reveal.receiver = m->receiver;
     return 1;
 }
-
-/*
- * CACHE_INVALIDATE: the index and its archive ids, copied out of the codec's
- * fixed array (the message lives on the executor's stack).
- */
-int
-adapt_cache_invalidate(MsgCacheInvalidate const* m, struct RevPacket* out)
-{
-    struct PktCacheInvalidate* p = &out->_cache_invalidate;
-
-    memset(p, 0, sizeof(*p));
-    p->index = m->index;
-    p->count = m->archive_count;
-    if( p->count > 0 )
-    {
-        p->archives = ToriMem_Alloc(ToriMem_Net(), (size_t)p->count * sizeof(int32_t));
-        assert(p->archives);
-        memcpy(p->archives, m->archives, (size_t)p->count * sizeof(int32_t));
-    }
-    return 1;
-}

@@ -20,7 +20,6 @@
 #include "packets/ambientsound_stop.c"
 #include "packets/anim_specific.c"
 #include "packets/bug_report.c"
-#include "packets/cache_invalidate.c"
 #include "packets/cam_lookat.c"
 #include "packets/cam_lookat_cycles.c"
 #include "packets/cam_lookat_eased_angle_absolute.c"
@@ -536,7 +535,6 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "AMBIENTSOUND_STOP", RSPROT_REG_OUT, rsprot_ambientsound_stop_out, &rsprot_ambientsound_stop_out_count },
     { "ANIM_SPECIFIC", RSPROT_REG_OUT, rsprot_anim_specific_out, &rsprot_anim_specific_out_count },
     { "BUG_REPORT", RSPROT_REG_IN, rsprot_bug_report_in, &rsprot_bug_report_in_count },
-    { "CACHE_INVALIDATE", RSPROT_REG_OUT, rsprot_cache_invalidate_out, &rsprot_cache_invalidate_out_count },
     { "CAM_LOOKAT", RSPROT_REG_OUT, rsprot_cam_lookat_out, &rsprot_cam_lookat_out_count },
     { "CAM_LOOKAT_CYCLES", RSPROT_REG_OUT, rsprot_cam_lookat_cycles_out, &rsprot_cam_lookat_cycles_out_count },
     { "CAM_LOOKAT_EASED_ANGLE_ABSOLUTE", RSPROT_REG_OUT, rsprot_cam_lookat_eased_angle_absolute_out, &rsprot_cam_lookat_eased_angle_absolute_out_count },

@@ -41,7 +41,6 @@
 #include "streams/rsprot_info.h"
 
 #include "packets/ambientsound_start.h"
-#include "packets/cache_invalidate.h"
 #include "packets/ambientsound_stop.h"
 #include "packets/cam_lookat.h"
 #include "packets/cam_lookat_v1.h"
@@ -451,11 +450,6 @@ int
 adapt_logout_transfer(MsgLogoutTransfer const* m, struct RevPacket* out);
 int
 adapt_group_full(uint8_t const* data, int len, struct RevPacket* out);
-
-/* CACHE_INVALIDATE: our own prot (the live reload). Copies the archive list to
- * the heap; gameproto_free releases it. */
-int
-adapt_cache_invalidate(MsgCacheInvalidate const* m, struct RevPacket* out);
 
 /* --- camera ---------------------------------------------------------------- */
 

@@ -162,7 +162,7 @@ Rule: a widget never holds a pointer the caller owns beyond the frame (the dropd
 | `src/torirsserver/torirs_server_servpack.c`, config tables | re-read changed `(index, archive)` groups, replace records at the tick boundary |
 | `src/torirsserver/torirs_server_scene.{c,h}`, `torirs_server_world.c` | `ToriRSServer_SceneReloadSquares(list)` from the test hook; `rebuild_pending` for every player whose window covers them; `reload=1` on the region rebuild |
 | `src/torirsserver/torirs_server_content.c` | spawn reload for the edited lane only: diff and despawn/spawn |
-| `3rd/rsprot` spec INI, `src/net/**`, `src/game/rs_gameproto_exec.c`, cache provider eviction, `src/web/torirs_idb.js` | `CACHE_INVALIDATE(index, count, archives…)` server→client in our own namespace: evict from sparse dat2 and IndexedDB, re-prime the reference table, evict decoded records, re-open mounted interfaces in the list, re-resolve on-screen records, normal rebuild for maps |
+| `3rd/rsprot` spec INI, `src/net/**`, `src/game/rs_gameproto_exec.c`, cache provider eviction, `src/web/torirs_idb.js` | `CACHE_INVALIDATE(index, count, archives…)` server→client (since 2026-11-07 a control frame behind the control escape, `src/net/torirs_control.h`, not an RSProt prot): evict from sparse dat2 and IndexedDB, re-prime the reference table, evict decoded records, re-open mounted interfaces in the list, re-resolve on-screen records, normal rebuild for maps |
 | `src/torirsserver/test/`, `src/maped/live-server.mk` | a player parked in `p_pausebutton` across a reload finishes the old dialogue and gets the new one on the next click; a square reload sends one REBUILD to the covering player |
 
 **`live-editor`** (the editor server and the main window)

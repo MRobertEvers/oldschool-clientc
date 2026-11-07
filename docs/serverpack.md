@@ -223,7 +223,9 @@ it: an editor RUN (torirsmaped `jobs_*`, docs/MAPED_STATUS.md "The live lane end
 to end") builds the packs into the lane and sends one CTL_RELOAD; the game server
 applies it at a tick boundary (`ToriRSServer_Reload`,
 `src/torirsserver/torirs_server_control.c`); the clients are told with
-CACHE_INVALIDATE and, where placed state carries a record, a REBUILD. The RUN
+the CACHE_INVALIDATE control frame (`src/net/torirs_control.h`, through the
+control escape on the game connection) and, where placed state carries a record,
+a REBUILD after it. The RUN
 then checks the lane's play client against the server's player list
 (CTL_PLAYERS -> CTL_FACT_PLAYERS: every login the process took, and per player
 the account, display name, pool slot, login generation and tile): a client still
@@ -299,8 +301,9 @@ launched on the packs the RUN just built instead, so nothing is owed a reload.
    afterwards, or after a square reload); per-instance npc state taken from the
    def at spawn (hitpoints, wander radius) until the npc respawns.
 
-   *Clients:* the editor's client-cache rows `(2, kind)` reach every client as
-   CACHE_INVALIDATE (`src/game/rs_gameproto_exec.c`), and the chain is:
+   *Clients:* the editor's client-cache rows `(2, kind)` reach every ToriRS client
+   as the CACHE_INVALIDATE control frame (`src/net/torirs_control.h`, run by
+   `exec_control` in `src/game/rs_gameproto_exec.c`), and the chain is:
 
    - `CacheProvider_InvalidateArchive` (`src/engine/cache_provider.c`) evicts
      every resident loctype / npctype / objtype for 2/6, 2/9, 2/10 (retired,

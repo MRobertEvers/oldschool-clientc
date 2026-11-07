@@ -4,6 +4,7 @@
 #include "login_lc.h" /* LOGINPROTO_SUCCESS / _ERROR / _AWAIT_* + seed_fn */
 #include "net/net.h"
 #include "net/pow_sha256.h"
+#include "net/torirs_control.h"
 #include "login_osrs_block.h"
 
 #include <assert.h>
@@ -264,7 +265,9 @@ build_login_block(struct LoginOsrs* h)
     int header_len = 4 + 4 + 4 + 1 + 1 + 1;
     p2(&obuf, header_len + 2 + enclen + (int)bbuf.position);
     p4(&obuf, h->net->rev->client_version);
-    p4(&obuf, 0); /* subVersion */
+    /* subVersion: the ToriRS flag (net/torirs_control.h). The server sends
+     * control frames only to a session whose login carried it. */
+    p4(&obuf, TORIRS_CONTROL_LOGIN_SUBVERSION);
     p4(&obuf, 0); /* serverVersion */
     p1(&obuf, h->net->client_type);   /* clientType (LoginClientType) */
     p1(&obuf, h->net->platform_type); /* platformType (LoginPlatformType) */

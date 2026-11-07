@@ -16,6 +16,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* src/net/torirs_control.h */
+struct TorirsControlFrame;
+
 struct PktMapRebuild
 {
     int zonex;
@@ -958,18 +961,6 @@ struct PktRawPayload
     uint8_t* data;
 };
 
-/*
- * CACHE_INVALIDATE (our own prot, 3rd/rsprot/spec/packets/cache_invalidate.ini):
- * forget `count` archives of cache index `index` -- the live reload rebuilt
- * them. `archives` is heap, freed by gameproto_free; NULL when count is 0.
- */
-struct PktCacheInvalidate
-{
-    int index;
-    int count;
-    int32_t* archives;
-};
-
 /* MESSAGE_CLANCHANNEL / MESSAGE_CLANCHANNEL_SYSTEM. `text` is heap, freed by
  * gameproto_free. The system form has no sender and no crown (crown -1). */
 struct PktMessageClanChannel
@@ -1405,6 +1396,15 @@ struct RevPacket
      */
     struct PktRunClientScript* _runclientscript;
 
+    /*
+     * Not a game packet: a control frame the server reached through the
+     * control escape (src/net/torirs_control.h), queued here so it keeps its
+     * place among the packets around it. `packet_type` is PKT_NAME_NONE when
+     * this is set; no opcode and no PKT_NAME stands for it. Owned like
+     * `_runclientscript`, freed by gameproto_free.
+     */
+    struct TorirsControlFrame* _control;
+
     union
     {
         struct PktMapRebuild _map_rebuild;
@@ -1503,7 +1503,6 @@ struct RevPacket
         struct PktWorldEntityInfo _worldentity_info;
         struct PktRebuildWev _rebuild_wev;
         struct PktRawPayload _raw_payload;
-        struct PktCacheInvalidate _cache_invalidate;
         struct PktMessageClanChannel _message_clanchannel;
         struct PktUpdateStockmarketSlot _update_stockmarket_slot;
         struct PktUpdateTradingPost _update_tradingpost;

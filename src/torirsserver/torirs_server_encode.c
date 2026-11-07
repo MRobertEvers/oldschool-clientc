@@ -27,6 +27,7 @@
 #include "mock239_playerinfo.h"
 
 #include "net/isaac.h"
+#include "net/torirs_control.h"
 #include "net/login/login_osrs_block.h"
 #include "net/jbase37.h"
 #include "torirs_server_friends.h"
@@ -396,6 +397,7 @@ ToriRSServer_Send(
             packet->recipient_pid = player->pid;
             packet->opcode = opcode;
             packet->name = pkt_name;
+            packet->control_type = 0;
             packet->len = kept;
             packet->full_len = len;
             packet->truncated = kept != len;
@@ -471,6 +473,86 @@ ToriRSServer_Send(
             ToriRSServer_WirePktName(pkt_name),
             opcode,
             len);
+}
+
+int
+ToriRSServer_SendControl(
+    struct ToriRSServerPlayer* player,
+    int type,
+    const uint8_t* payload,
+    int len)
+{
+    uint8_t frame[2 + TORIRS_CONTROL_HEADER_BYTES + TORIRS_CONTROL_INVALIDATE_BYTES_MAX];
+    struct ToriRSServer* srv;
+    const struct ToriRSServerWire* wire;
+    struct Isaac* cipher;
+    int at = 0;
+
+    assert(player);
+    assert(type > 0);
+    assert(len >= 0);
+    assert(len <= (int)sizeof(frame) - 2 - TORIRS_CONTROL_HEADER_BYTES);
+    if( len > 0 )
+        assert(payload);
+    srv = player->world;
+    wire = (srv && srv->wire) ? srv->wire : ToriRSServer_WireDefault();
+    /* The escape is a two-byte pSmart1Or2 value: a revision that frames
+     * opcodes as one byte cannot carry it (net/torirs_control.h). */
+    if( !wire->opcode_smart2 )
+        return 0;
+
+    if( getenv("TORIRSSERVER_TRACE_OUT") && *getenv("TORIRSSERVER_TRACE_OUT") != '0' )
+        fprintf(stderr, "torirsserver: -> ctl %-28s %d byte(s)\n", torirs_control_type_name(type),
+                len);
+
+    if( srv && srv->capture )
+    {
+        struct ToriRSServerCapture* capture = srv->capture;
+
+        if( capture->count < TORIRSSERVER_CAPTURE_MAX )
+        {
+            struct ToriRSServerCapturedPacket* packet = &capture->packets[capture->count++];
+            int kept = len > TORIRSSERVER_CAPTURE_BYTES ? TORIRSSERVER_CAPTURE_BYTES : len;
+
+            memset(packet, 0, sizeof(*packet));
+            packet->recipient_pid = player->pid;
+            packet->opcode = TORIRS_CONTROL_ESCAPE;
+            packet->name = PKT_NAME_NONE;
+            packet->control_type = type;
+            packet->len = kept;
+            packet->full_len = len;
+            packet->truncated = kept != len;
+            if( kept > 0 )
+                memcpy(packet->data, payload, (size_t)kept);
+        }
+        else
+            capture->overflow = 1;
+    }
+
+    /* A sessionless bot (the script runner) reads it from its sink, as it
+     * reads every packet. */
+    if( srv && srv->control_sink )
+        srv->control_sink(player, type, payload, len, srv->packet_sink_ctx);
+
+    if( !player->session || !ToriRSServer_SessionAlive(player->session) ||
+        !player->session->cipher_out )
+        return srv && srv->control_sink ? 1 : 0;
+    /* A stock client would read the escape as an unknown opcode and lose the
+     * stream: only a login that carried the ToriRS flag is sent one. */
+    if( !player->session->torirs_control )
+        return 0;
+
+    cipher = player->session->cipher_out;
+    frame[at++] = (uint8_t)((((TORIRS_CONTROL_ESCAPE >> 8) | 0x80) + isaac_next(cipher)) & 0xff);
+    frame[at++] = (uint8_t)(((TORIRS_CONTROL_ESCAPE & 0xff) + isaac_next(cipher)) & 0xff);
+    torirs_control_put_header(frame + at, type, len);
+    at += TORIRS_CONTROL_HEADER_BYTES;
+    if( len > 0 )
+        memcpy(frame + at, payload, (size_t)len);
+    at += len;
+    if( ToriRSServer_SessionSend(player->session, frame, at) < 0 )
+        ToriRSServer_SessionKill(player->session);
+    return 1;
 }
 
 

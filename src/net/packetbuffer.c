@@ -1,5 +1,6 @@
 #include "packetbuffer.h"
 #include "mem/torirs_mem.h"
+#include "torirs_control.h"
 
 #include <assert.h>
 #include <rsbuffer.h>
@@ -8,6 +9,10 @@
 
 #define PKTIN_LENGTH_VARU8 (-1)
 #define PKTIN_LENGTH_VARU16 (-2)
+
+_Static_assert(
+    sizeof(((struct PacketBuffer*)0)->control_header) == TORIRS_CONTROL_HEADER_BYTES,
+    "the control header buffer holds magic, type and length");
 
 static inline int
 imin(
@@ -34,6 +39,9 @@ packetbuffer_init(
     packetbuffer->opcode_high = 0;
     packetbuffer->data = NULL;
     packetbuffer->data_size = 0;
+    packetbuffer->control = 0;
+    packetbuffer->control_type = 0;
+    packetbuffer->control_header_read = 0;
 }
 
 int
@@ -69,6 +77,12 @@ packetbuffer_read(
             if( !packetbuffer->rev->opcode_plaintext )
                 packet_type = (packet_type - isaac_next(packetbuffer->random)) & 0xff;
             /*
+             * The control escape (torirs_control.h) is a two-byte pSmart1Or2
+             * value, so it is only ever decided in PKTBUF_READ_OPCODE_LOW. A
+             * revision without `opcode_smart2` -- the LostCity ones, rs245_2,
+             * rs254 and rs289, whose one-byte opcodes run up to 255 and whose
+             * servers never send it -- never looks for it.
+             *
              * pSmart1Or2: a revision whose opcodes reach 0x80 writes the high
              * ones as two cipher bytes. The first carries `(op >> 8) | 0x80`,
              * so a decoded first byte with the top bit set means "one more
@@ -108,6 +122,14 @@ packetbuffer_read(
             if( !packetbuffer->rev->opcode_plaintext )
                 packet_type = (packet_type - isaac_next(packetbuffer->random)) & 0xff;
             packet_type |= packetbuffer->opcode_high << 8;
+            /* Not an opcode: a control frame follows (torirs_control.h). */
+            if( packet_type == TORIRS_CONTROL_ESCAPE )
+            {
+                packetbuffer->control = 1;
+                packetbuffer->control_header_read = 0;
+                packetbuffer->state = PKTBUF_READ_CONTROL_HEADER;
+                break;
+            }
             packet_size = packetbuffer->rev->packetin_size(packet_type);
             packetbuffer->packet_type = packet_type;
             if( packet_size == PKTIN_LENGTH_VARU8 )
@@ -121,6 +143,33 @@ packetbuffer_read(
                 goto step;
             }
             break;
+        case PKTBUF_READ_CONTROL_HEADER:
+        {
+            /* magic, type, length -- a byte at a time when that is all there
+             * is, since the escape's cipher steps are already taken. */
+            int need = TORIRS_CONTROL_HEADER_BYTES - packetbuffer->control_header_read;
+            int take = imin(need, remaining);
+            uint8_t const* header = packetbuffer->control_header;
+            int length;
+
+            memcpy(packetbuffer->control_header + packetbuffer->control_header_read,
+                   buffer.data + buffer.position, (size_t)take);
+            buffer.position += (uint32_t)take;
+            packetbuffer->control_header_read += take;
+            if( packetbuffer->control_header_read < TORIRS_CONTROL_HEADER_BYTES )
+                break;
+            /* An escape without the magic is a stream out of step: every byte
+             * after this would be read as the wrong thing. */
+            assert(torirs_control_magic_ok(header));
+            length = (int)torirs_control_get_u32(header + 8);
+            assert(length >= 0);
+            assert(length <= TORIRS_CONTROL_PAYLOAD_MAX);
+            packetbuffer->control_type = (int)torirs_control_get_u32(header + 4);
+            packetbuffer->packet_type = TORIRS_CONTROL_ESCAPE;
+            packetbuffer->packet_length = length;
+            packetbuffer->state = PKTBUF_PREPARE_RECEIVE;
+            goto step;
+        }
         case PKTBUF_READ_VARLEN_U8:
             varlength = g1(&buffer);
             packetbuffer->packet_length = varlength;
@@ -224,6 +273,28 @@ packetbuffer_data(struct PacketBuffer* packetbuffer)
     return packetbuffer->data;
 }
 
+bool
+packetbuffer_is_control(struct PacketBuffer* packetbuffer)
+{
+    return packetbuffer->control != 0;
+}
+
+int
+packetbuffer_control_type(struct PacketBuffer* packetbuffer)
+{
+    assert(packetbuffer->control);
+    return packetbuffer->control_type;
+}
+
+uint8_t*
+packetbuffer_take_data(struct PacketBuffer* packetbuffer)
+{
+    uint8_t* data = packetbuffer->data;
+
+    packetbuffer->data = NULL;
+    return data;
+}
+
 int
 packetbuffer_amt_recv_cnt(struct PacketBuffer* packetbuffer)
 {
@@ -233,6 +304,8 @@ packetbuffer_amt_recv_cnt(struct PacketBuffer* packetbuffer)
         return 1;
     case PKTBUF_READ_OPCODE_LOW:
         return 1;
+    case PKTBUF_READ_CONTROL_HEADER:
+        return TORIRS_CONTROL_HEADER_BYTES - packetbuffer->control_header_read;
     case PKTBUF_READ_VARLEN_U8:
         return 1;
     case PKTBUF_READ_VARLEN_U16:

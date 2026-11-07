@@ -23,6 +23,7 @@
 #include "torirs_server_varps.h"
 #include "torirs_server_wire.h"
 #include "net/rev/pktnames.h"
+#include "net/torirs_control.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -256,39 +257,8 @@ ToriRSServer_ReloadRestart(
 }
 
 /* ------------------------------------------------------------------ */
-/* CACHE_INVALIDATE                                                    */
+/* CACHE_INVALIDATE, the control frame                                 */
 /* ------------------------------------------------------------------ */
-
-int
-ToriRSServer_CacheInvalidateEncode(
-    int index,
-    const int* archives,
-    int count,
-    uint8_t* out)
-{
-    int len = 0;
-
-    assert(index >= 0);
-    assert(index < 255);
-    assert(count >= 0);
-    assert(count <= TORIRSSERVER_CACHE_INVALIDATE_PER_PACKET);
-    assert(out);
-    if( count > 0 )
-        assert(archives);
-    out[len++] = (uint8_t)index;
-    out[len++] = (uint8_t)((count >> 8) & 0xff);
-    out[len++] = (uint8_t)(count & 0xff);
-    for( int i = 0; i < count; i++ )
-    {
-        uint32_t archive = (uint32_t)archives[i];
-
-        out[len++] = (uint8_t)(archive >> 24);
-        out[len++] = (uint8_t)(archive >> 16);
-        out[len++] = (uint8_t)(archive >> 8);
-        out[len++] = (uint8_t)archive;
-    }
-    return len;
-}
 
 int
 ToriRSServer_SendCacheInvalidate(
@@ -297,30 +267,24 @@ ToriRSServer_SendCacheInvalidate(
     const int* archives,
     int count)
 {
-    static uint8_t payload[3 + 4 * TORIRSSERVER_CACHE_INVALIDATE_PER_PACKET];
-    const struct ToriRSServerWire* wire;
+    static uint8_t payload[TORIRS_CONTROL_INVALIDATE_BYTES_MAX];
     int sent = 0;
 
     assert(player);
-    assert(player->world);
     assert(index >= 0);
     assert(index < 255);
     if( count <= 0 )
         return 1;
     assert(archives);
-    wire = player->world->wire ? player->world->wire : ToriRSServer_WireDefault();
-    /* Our own prot: a revision that does not carry it (230) is told nothing,
-     * and sees the change at its next login, as an old client would. */
-    if( ToriRSServer_WireOpcode(wire, PKT_NAME_CACHE_INVALIDATE) < 0 )
-        return 0;
     while( sent < count )
     {
-        int n = count - sent < TORIRSSERVER_CACHE_INVALIDATE_PER_PACKET
+        int n = count - sent < TORIRS_CONTROL_INVALIDATE_PER_FRAME
                     ? count - sent
-                    : TORIRSSERVER_CACHE_INVALIDATE_PER_PACKET;
-        int len = ToriRSServer_CacheInvalidateEncode(index, archives + sent, n, payload);
+                    : TORIRS_CONTROL_INVALIDATE_PER_FRAME;
+        int len = torirs_control_invalidate_encode(index, archives + sent, n, payload);
 
-        ToriRSServer_Send(player, PKT_NAME_CACHE_INVALIDATE, payload, len, 2);
+        if( !ToriRSServer_SendControl(player, TORIRS_CONTROL_CACHE_INVALIDATE, payload, len) )
+            return 0;
         sent += n;
     }
     return 1;

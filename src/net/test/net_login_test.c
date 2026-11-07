@@ -8,6 +8,9 @@
 #include "net/packetbuffer.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/revpacket.h"
+#include "net/rev/rev_list.h"
+#include "net/torirs_control.h"
+#include "mem/torirs_mem.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -486,6 +489,127 @@ test_lc_inv_partial_slot_is_smart(void)
     printf("ok - classic UPDATE_INV_PARTIAL slot index is a smart\n");
 }
 
+/* One opcode as the server writes it: pSmart1Or2 on a revision that has it. */
+static int
+put_opcode(
+    struct Isaac* enc,
+    struct GameProtoRevTable const* rev,
+    int code,
+    uint8_t* out)
+{
+    if( rev->opcode_smart2 && code >= 0x80 )
+    {
+        out[0] = (uint8_t)((((code >> 8) | 0x80) + isaac_next(enc)) & 0xff);
+        out[1] = (uint8_t)(((code & 0xff) + isaac_next(enc)) & 0xff);
+        return 2;
+    }
+    out[0] = (uint8_t)((code + isaac_next(enc)) & 0xff);
+    return 1;
+}
+
+/*
+ * The control escape (net/torirs_control.h) between two packets, as
+ * torirs_server_encode.c writes it: VARP_SMALL, a CACHE_INVALIDATE control
+ * frame, then SERVER_TICK_END (no payload). Fed in chunks of every size from
+ * one byte up, the reader yields the three in order, the frame's payload
+ * intact, the zero-length packet without waiting for a byte after it, and the
+ * cipher stepped exactly as often as the writer stepped it.
+ */
+static void
+test_control_escape(void)
+{
+    int32_t seed[4] = { 41, 42, 43, 44 };
+    struct GameProtoRevTable const* rev = GameProtoRev_OSRS241();
+    int const archives[3] = { 7, 70000, 123456789 };
+    uint8_t payload[TORIRS_CONTROL_INVALIDATE_BYTES_MAX];
+    uint8_t wire[256];
+    int varp_code = rev->packetin_wire(PKT_NAME_VARP_SMALL);
+    int tick_code = rev->packetin_wire(PKT_NAME_SERVER_TICK_END);
+    int payload_len = torirs_control_invalidate_encode(5, archives, 3, payload);
+    int total = 0;
+
+    assert(rev->opcode_smart2);
+    assert(rev->packetin_size(varp_code) == 3);
+    assert(rev->packetin_size(tick_code) == 0);
+
+    for( int chunk = 1; chunk <= 64; chunk++ )
+    {
+        struct Isaac* enc = isaac_new(seed, 4);
+        struct Isaac* dec = isaac_new(seed, 4);
+        struct PacketBuffer pb;
+        int seen = 0;
+        int fed = 0;
+
+        total = 0;
+        total += put_opcode(enc, rev, varp_code, wire + total);
+        wire[total++] = 0x00;
+        wire[total++] = 0x2A;
+        wire[total++] = 0x05;
+        total += put_opcode(enc, rev, TORIRS_CONTROL_ESCAPE, wire + total);
+        torirs_control_put_header(wire + total, TORIRS_CONTROL_CACHE_INVALIDATE, payload_len);
+        total += TORIRS_CONTROL_HEADER_BYTES;
+        memcpy(wire + total, payload, (size_t)payload_len);
+        total += payload_len;
+        total += put_opcode(enc, rev, tick_code, wire + total);
+
+        packetbuffer_init(&pb, dec, rev);
+        while( fed < total )
+        {
+            int n = total - fed < chunk ? total - fed : chunk;
+
+            /* The reader stops at a complete item, so a read yields at most one. */
+            fed += packetbuffer_read(&pb, wire + fed, n);
+            if( packetbuffer_ready(&pb) )
+            {
+                if( seen == 0 )
+                {
+                    assert(!packetbuffer_is_control(&pb));
+                    assert(packetbuffer_packet_type(&pb) == varp_code);
+                    assert(packetbuffer_size(&pb) == 3);
+                }
+                else if( seen == 1 )
+                {
+                    struct TorirsControlFrame frame;
+                    int index;
+                    int count;
+
+                    assert(packetbuffer_is_control(&pb));
+                    assert(packetbuffer_control_type(&pb) == TORIRS_CONTROL_CACHE_INVALIDATE);
+                    frame.type = packetbuffer_control_type(&pb);
+                    frame.length = packetbuffer_size(&pb);
+                    frame.payload = packetbuffer_data(&pb);
+                    assert(torirs_control_invalidate_decode(&frame, &index, &count));
+                    assert(index == 5);
+                    assert(count == 3);
+                    for( int i = 0; i < 3; i++ )
+                        assert(torirs_control_invalidate_archive(&frame, i) == archives[i]);
+                }
+                else
+                {
+                    assert(seen == 2);
+                    assert(!packetbuffer_is_control(&pb));
+                    assert(packetbuffer_packet_type(&pb) == tick_code);
+                    assert(packetbuffer_size(&pb) == 0);
+                }
+                seen++;
+                packetbuffer_reset(&pb);
+            }
+        }
+        /* The last packet has no payload: it is complete with its opcode. */
+        if( packetbuffer_ready(&pb) )
+        {
+            assert(seen == 2);
+            seen++;
+            packetbuffer_reset(&pb);
+        }
+        assert(seen == 3);
+        assert(isaac_next(enc) == isaac_next(dec));
+        isaac_free(enc);
+        isaac_free(dec);
+    }
+    printf("ok - control escape between packets, every chunk size (%d bytes)\n", total);
+}
+
 int
 main(void)
 {
@@ -497,6 +621,7 @@ main(void)
     test_reconnect_opcode_none();
     test_packet_framing();
     test_packet_varu16();
+    test_control_escape();
     test_osrs239_partial_empty_slot();
     test_lc_inv_full_size_is_two_bytes();
     test_lc_inv_partial_slot_is_smart();

@@ -35,11 +35,13 @@
 #include "torirsserver/torirs_server_ws.h"
 #include "torirsserver/torirs_server_auth.h"
 #include "editor/builder/builder_ssc.h"
+#include "platform/launch_sessions.h"
 #include "mem/torirs_mem.h"
 #include "net/rev/pktnames.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/rev_list.h"
 #include "net/rev/revpacket.h"
+#include "net/torirs_control.h"
 
 #include <datatypes/dat2_configs.h>
 
@@ -389,19 +391,47 @@ test_square_reload(
     for( int i = 0; i < 4; i++ )
         tick(srv, player);
 
-    /* CACHE_INVALIDATE is transcribed on this wire (k_transcribed_osrs239)
-     * and resolves to an opcode (wire/osrs239/packetin.h): it is sent. */
+    /* CACHE_INVALIDATE is a control frame (net/torirs_control.h), not a
+     * packet: no opcode and no packet name. The reload sends it at the tick
+     * boundary, before the REBUILD it owes goes out in the same tick, and on
+     * the same connection that order is the order the client applies them. */
     {
         int archives[2] = { 16, 17 };
-        int sent;
+        int frame_at = -1;
+        int rebuild_at = -1;
 
         ToriRSServer_CaptureReset(&g_capture);
         ToriRSServer_CaptureBegin(srv, &g_capture);
-        sent = ToriRSServer_SendCacheInvalidate(player, 2, archives, 2);
-        tick(srv, player);
+        (void)ToriRSServer_WorldReloadSquares(srv, &sx, &sz, 1);
+        (void)ToriRSServer_SendCacheInvalidate(player, 5, archives, 2);
+        for( int i = 0; i < 4; i++ )
+            tick(srv, player);
         ToriRSServer_CaptureEnd(srv);
-        check(sent == 1, "the server sends CACHE_INVALIDATE on this wire");
-        check(count_named(PKT_NAME_CACHE_INVALIDATE) == 1, "one CACHE_INVALIDATE reaches the player");
+        for( int i = 0; i < g_capture.count; i++ )
+        {
+            const struct ToriRSServerCapturedPacket* p = &g_capture.packets[i];
+
+            if( p->control_type == TORIRS_CONTROL_CACHE_INVALIDATE && frame_at < 0 )
+            {
+                struct TorirsControlFrame frame = { p->control_type, p->len, (uint8_t*)p->data };
+                int index = -1;
+                int count = -1;
+
+                frame_at = i;
+                check(p->name == PKT_NAME_NONE, "a control frame has no packet name");
+                check(p->opcode == TORIRS_CONTROL_ESCAPE, "it goes out under the escape");
+                check(torirs_control_invalidate_decode(&frame, &index, &count) && index == 5 &&
+                          count == 2 && torirs_control_invalidate_archive(&frame, 0) == 16 &&
+                          torirs_control_invalidate_archive(&frame, 1) == 17,
+                      "its payload is index 5 and the two archives");
+            }
+            if( (p->name == PKT_NAME_REBUILD_NORMAL || p->name == PKT_NAME_REBUILD_REGION) &&
+                rebuild_at < 0 )
+                rebuild_at = i;
+        }
+        check(frame_at >= 0, "one CACHE_INVALIDATE control frame reaches the player");
+        check(rebuild_at >= 0, "the reloaded square still owes its REBUILD");
+        check(frame_at >= 0 && rebuild_at > frame_at, "the control frame goes out ahead of the REBUILD");
     }
 }
 
@@ -857,46 +887,6 @@ test_control_link(
     }
 }
 
-/*
- * CACHE_INVALIDATE end to end at the byte level: the server's encoder, then
- * the CLIENT's own executor for each revision that carries the prot (the
- * generated osrs239/241 exec, the codec from 3rd/rsprot/spec/packets/
- * cache_invalidate.ini, proto_adapt's adapter). Sending it to a player also
- * needs the server's wire tables and transcribed lists to name the prot (the
- * cross-owner requests of this change); this half needs nothing of theirs.
- */
-static void
-test_cache_invalidate_codec(void)
-{
-    static uint8_t payload[3 + 4 * TORIRSSERVER_CACHE_INVALIDATE_PER_PACKET];
-    const int archives[3] = { 7, 70000, 123456789 };
-    struct GameProtoRevTable const* revs[2] = { GameProtoRev_OSRS239(), GameProtoRev_OSRS241() };
-    int len = ToriRSServer_CacheInvalidateEncode(5, archives, 3, payload);
-
-    check(len == 3 + 12, "the encoder writes index, count and three archives");
-    for( int r = 0; r < 2; r++ )
-    {
-        struct RevPacket packet;
-        char what[96];
-        int parsed;
-
-        memset(&packet, 0, sizeof(packet));
-        snprintf(what, sizeof(what), "%s frames opcode 237 as VARU16", revs[r]->name);
-        check(revs[r]->packetin_size(237) == PKTIN_LENGTH_VARU16, what);
-        parsed = revs[r]->parse_wire(revs[r], 237, payload, len, &packet);
-        snprintf(what, sizeof(what), "%s's client decodes it as CACHE_INVALIDATE", revs[r]->name);
-        check(parsed > 0 && packet.packet_type == PKT_NAME_CACHE_INVALIDATE, what);
-        snprintf(what, sizeof(what), "%s: index 5, the three archives in order", revs[r]->name);
-        check(packet._cache_invalidate.index == 5 && packet._cache_invalidate.count == 3 &&
-                  packet._cache_invalidate.archives &&
-                  packet._cache_invalidate.archives[0] == 7 &&
-                  packet._cache_invalidate.archives[1] == 70000 &&
-                  packet._cache_invalidate.archives[2] == 123456789,
-              what);
-        gameproto_free(&packet);
-    }
-}
-
 /* Does any line of the reload's answer contain `text`? */
 static int
 reload_said(
@@ -1050,6 +1040,9 @@ main(
     mkdir(saves, 0755);
     setenv("TORIRSSERVER_SAVES", saves, 1);
 
+    /* sscompile runs through the host's spawner (builder_ssc.c, since the
+     * workbench's BUILD jobs); without one Builder_SscRun answers NOT_RUN. */
+    Builder_SscSetSpawner(LaunchSessions_SystemSpawner());
     if( !build_packs(argv[1], argv[3], argv[4], pack_a, pack_b, sizeof(pack_a)) )
     {
         check(0, "packs A and B compile from the staged tree");
@@ -1076,7 +1069,6 @@ main(
     ToriRSServer_WorldSetDisplayName(player, "livereload");
     check(ToriRSServer_ScriptsLoad(srv, pack_a) > 0, "pack A loads");
 
-    test_cache_invalidate_codec();
     test_pausebutton_across_reload(srv, player, pack_a, pack_b);
     test_square_reload(srv, player);
     test_spawn_reload(srv, player, argv[4]);

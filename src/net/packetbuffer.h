@@ -19,6 +19,9 @@ enum PacketBufferState
     PKTBUF_AWAITING_PACKET,
     /** Second byte of a pSmart1Or2 opcode (revisions with `opcode_smart2`). */
     PKTBUF_READ_OPCODE_LOW,
+    /** A control frame's magic, type and length, after the escape
+     *  (torirs_control.h). */
+    PKTBUF_READ_CONTROL_HEADER,
     PKTBUF_READ_VARLEN_U8,
     PKTBUF_READ_VARLEN_U16,
     PKTBUF_PREPARE_RECEIVE,
@@ -40,6 +43,12 @@ struct PacketBuffer
     int length_partial;
     /** High 7 bits of a two-byte opcode, held while its low byte is in flight. */
     int opcode_high;
+    /** The item being read is a control frame, not a packet (torirs_control.h):
+     *  `packet_type` is TORIRS_CONTROL_ESCAPE and `data` its payload. */
+    int control;
+    int control_type;
+    int control_header_read;
+    uint8_t control_header[12];
 
     uint8_t* data;
     int data_size;
@@ -73,6 +82,19 @@ packetbuffer_packet_type(struct PacketBuffer* packetbuffer);
 
 void*
 packetbuffer_data(struct PacketBuffer* packetbuffer);
+
+/** The completed item is a control frame (torirs_control.h), not a packet. */
+bool
+packetbuffer_is_control(struct PacketBuffer* packetbuffer);
+
+/** The control frame's type. Only for a control frame. */
+int
+packetbuffer_control_type(struct PacketBuffer* packetbuffer);
+
+/** Hand the payload to the caller, who frees it (ToriMem_Net); reset then
+ *  frees nothing. */
+uint8_t*
+packetbuffer_take_data(struct PacketBuffer* packetbuffer);
 
 int
 packetbuffer_amt_recv_cnt(struct PacketBuffer* packetbuffer);

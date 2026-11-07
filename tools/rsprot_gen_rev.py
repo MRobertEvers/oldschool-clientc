@@ -36,8 +36,6 @@ import rsprot_spec  # noqa: E402
 #
 # Unmapped prots are emitted as PKT_NAME_NONE: framed and dropped.
 CANON_IN = {
-    # ToriRS's own prot (3rd/rsprot/spec/packets/cache_invalidate.ini).
-    "CACHE_INVALIDATE": "CACHE_INVALIDATE",
     "UPDATE_FRIENDCHAT_CHANNEL_FULL_V2": "UPDATE_FRIENDCHAT_CHANNEL_FULL",
     "UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER": "UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER",
     "VARCLAN": "VARCLAN",

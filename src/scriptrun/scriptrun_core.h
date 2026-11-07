@@ -417,6 +417,15 @@ ScriptrunCore_Packet(
     const uint8_t* payload,
     int len);
 
+/** A control frame the server addressed to this bot (net/torirs_control.h),
+ *  in its place among the packets. */
+void
+ScriptrunCore_Control(
+    struct ScriptrunCore* core,
+    int type,
+    const uint8_t* payload,
+    int len);
+
 /** The instance template zone holding absolute tile (x, z) on `level`, from
  *  the kept REBUILD_REGION grid: the template's tile x/z (a zone's south-west
  *  corner) and level, and the zone's clockwise turn. 0 when the scene is not
@@ -559,7 +568,7 @@ ScriptrunCore_LocOpName(
 /**
  * Forget every decoded loc config (scriptrun_collision.c), shared by every bot:
  * the next lookup decodes the server's current client record. The bot's half of
- * a CACHE_INVALIDATE for the loc config group (index 2, archive 6), what the
+ * a CACHE_INVALIDATE control frame for the loc config group (index 2, archive 6), what the
  * client's CacheProvider_InvalidateArchive does with its own copies. Returns
  * how many were dropped.
  */

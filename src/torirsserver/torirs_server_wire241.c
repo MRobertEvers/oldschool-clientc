@@ -1282,9 +1282,6 @@ static const int k_transcribed_osrs241[] = {
     PKT_NAME_TRIGGER_ONDIALOGABORT,
     /* SetPlayerOpDecoder at 241 is written by its send site (241 branch). */
     PKT_NAME_SET_PLAYER_OP,
-    /* ToriRS's own prot (3rd/rsprot/spec/packets/cache_invalidate.ini),
-     * written by ToriRSServer_CacheInvalidateEncode. */
-    PKT_NAME_CACHE_INVALIDATE,
 };
 
 static const struct ToriRSServerWire k_wire_osrs241 = {

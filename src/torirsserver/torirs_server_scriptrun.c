@@ -5463,6 +5463,22 @@ scriptrun_sink(
     }
 }
 
+/* A control frame (net/torirs_control.h), to the bot it was addressed to. */
+static void
+scriptrun_control_sink(
+    struct ToriRSServerPlayer* player,
+    int type,
+    const uint8_t* payload,
+    int len,
+    void* ctx)
+{
+    struct ScriptRun* run = (struct ScriptRun*)ctx;
+
+    for( int i = 0; i < run->count; i++ )
+        if( run->bots[i].player == player && run->bots[i].core )
+            ScriptrunCore_Control(run->bots[i].core, type, payload, len);
+}
+
 /* ------------------------------------------------------------ the run */
 
 /* Copy the seat's fixture to the bot's save path. The path is taken as given,
@@ -5683,6 +5699,7 @@ ToriRSServer_ScriptRun(
 
     /* The feed first: the login burst is the first thing a client decodes. */
     srv->packet_sink = scriptrun_sink;
+    srv->control_sink = scriptrun_control_sink;
     srv->packet_sink_ctx = &run;
 
     /*
@@ -5930,6 +5947,7 @@ out:
         ToriRSServer_ControlCloseAll();
     }
     srv->packet_sink = NULL;
+    srv->control_sink = NULL;
     srv->packet_sink_ctx = NULL;
     for( int i = 0; i < run.count; i++ )
     {

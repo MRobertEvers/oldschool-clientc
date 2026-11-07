@@ -6,6 +6,7 @@
 #include "net/jbase37.h"
 #include "net/net.h"
 #include "net/rev/revpacket.h"
+#include "net/torirs_control.h"
 #include "rs_attack_option.h"
 #include "rs_audio.h"
 #include "rs_chat.h"
@@ -1523,12 +1524,84 @@ exec_message_clanchannel(
     exec_chat_add(ctx, message->clan_type >= 0 ? RS_CHAT_TYPE_CLAN_CHAT : RS_CHAT_TYPE_CLAN_GUEST_CHAT, name, channel->name, escaped);
 }
 
+/*
+ * CACHE_INVALIDATE, the live reload's control frame (net/torirs_control.h): it
+ * rebuilt these archives. What is resident and can be dropped without pulling
+ * it from under live state is dropped (CacheProvider_InvalidateArchive):
+ * interface packs (3), the loc, npc and obj records (2/6, 2/9, 2/10) and the
+ * map squares (5), whose IO-layer copies go through the provider's archive
+ * hook. Placed scenery needs nothing more: the server owes a REBUILD after a
+ * square or a loc-record reload, sent after this frame on the same connection,
+ * and the rebuilt scene re-reads the squares and every placed loc's record.
+ */
+static void
+exec_control_cache_invalidate(
+    struct RS_GameProtoCtx const* ctx,
+    struct TorirsControlFrame const* frame)
+{
+    int index;
+    int count;
+    int evicted = 0;
+    int deferred = 0;
+
+    if( !ctx->app || !ctx->app->provider )
+        return;
+    if( !torirs_control_invalidate_decode(frame, &index, &count) )
+    {
+        TORIRS_ERR("control: CACHE_INVALIDATE of %d bytes does not decode -- dropped\n",
+                   frame->length);
+        return;
+    }
+    for( int i = 0; i < count; i++ )
+    {
+        enum CacheProviderInvalidate done = CacheProvider_InvalidateArchive(
+            ctx->app->provider, index, torirs_control_invalidate_archive(frame, i));
+
+        evicted += done == CACHE_PROVIDER_INVALIDATE_EVICTED;
+        deferred += done == CACHE_PROVIDER_INVALIDATE_DEFERRED;
+    }
+    /* The REBUILD the server owes after a square or loc-record reload names
+     * the zone the client already holds, and the same-zone early-out
+     * (task_gameproto_exec.c, deob method3310) would skip it: force it, so the
+     * scene is built again from the rebuilt squares and the re-decoded loc
+     * records. */
+    if( index == 5 || (index == 2 && evicted > 0) )
+        ctx->app->net_force_rebuild = 1;
+    if( getenv("TORIRS_CACHE_INVALIDATE_DEBUG") )
+        TORIRS_REPORT("cache invalidate: index %d, %d archive(s): %d dropped, %d until the next "
+                      "login\n",
+                      index, count, evicted, deferred);
+    else
+        TORIRS_LOG("cache invalidate: index %d, %d archive(s): %d dropped, %d until the next "
+                   "login\n",
+                   index, count, evicted, deferred);
+}
+
+/* A control frame (net/torirs_control.h), in its place among the packets. */
+static void
+exec_control(
+    struct RS_GameProtoCtx const* ctx,
+    struct TorirsControlFrame const* frame)
+{
+    if( frame->type == TORIRS_CONTROL_CACHE_INVALIDATE )
+        exec_control_cache_invalidate(ctx, frame);
+    else
+        TORIRS_LOG("control: unknown frame type %d (%d bytes) -- dropped\n", frame->type,
+                   frame->length);
+}
+
 void
 RS_GameProto_Exec(
     struct RS_GameProtoCtx const* ctx,
     struct RevPacket* packet)
 {
     assert(ctx && packet);
+
+    if( packet->_control )
+    {
+        exec_control(ctx, packet->_control);
+        return;
+    }
 
     switch( packet->packet_type )
     {
@@ -2784,52 +2857,6 @@ RS_GameProto_Exec(
             ctx->app->hint_arrow.target = packet->_hint_arrow.id;
             ctx->app->hint_arrow.tile_z = packet->_hint_arrow.z;
             ctx->app->hint_arrow.height = packet->_hint_arrow.height;
-        }
-        break;
-    case PKT_NAME_CACHE_INVALIDATE:
-        /*
-         * Our own prot (3rd/rsprot/spec/packets/cache_invalidate.ini): the
-         * live reload rebuilt these archives. What is resident and can be
-         * dropped without pulling it from under live state is dropped
-         * (CacheProvider_InvalidateArchive): interface packs (3), the loc,
-         * npc and obj records (2/6, 2/9, 2/10) and the map squares (5), whose
-         * IO-layer copies go through the provider's archive hook. Placed
-         * scenery needs nothing more: the server owes a REBUILD after a
-         * square or a loc-record reload, sent after this packet, and the
-         * rebuilt scene re-reads the squares and every placed loc's record.
-         */
-        if( ctx->app && ctx->app->provider )
-        {
-            int evicted = 0;
-            int deferred = 0;
-
-            for( int i = 0; i < packet->_cache_invalidate.count; i++ )
-            {
-                enum CacheProviderInvalidate done = CacheProvider_InvalidateArchive(
-                    ctx->app->provider, packet->_cache_invalidate.index,
-                    packet->_cache_invalidate.archives[i]);
-
-                evicted += done == CACHE_PROVIDER_INVALIDATE_EVICTED;
-                deferred += done == CACHE_PROVIDER_INVALIDATE_DEFERRED;
-            }
-            /* The REBUILD the server owes after a square or loc-record reload
-             * names the zone the client already holds, and the same-zone
-             * early-out (task_gameproto_exec.c, deob method3310) would skip
-             * it: force it, so the scene is built again from the rebuilt
-             * squares and the re-decoded loc records. */
-            if( packet->_cache_invalidate.index == 5 ||
-                (packet->_cache_invalidate.index == 2 && evicted > 0) )
-                ctx->app->net_force_rebuild = 1;
-            if( getenv("TORIRS_CACHE_INVALIDATE_DEBUG") )
-                TORIRS_REPORT("cache invalidate: index %d, %d archive(s): %d dropped, %d until "
-                              "the next login\n",
-                              packet->_cache_invalidate.index, packet->_cache_invalidate.count,
-                              evicted, deferred);
-            else
-                TORIRS_LOG("cache invalidate: index %d, %d archive(s): %d dropped, %d until the "
-                           "next login\n",
-                           packet->_cache_invalidate.index, packet->_cache_invalidate.count,
-                           evicted, deferred);
         }
         break;
     case PKT_NAME_RESET_ANIMS:

@@ -6,6 +6,7 @@
 
 #include "mem/torimem_rscache.h"
 #include "mem/torirs_mem.h"
+#include "net/torirs_control.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -108,6 +109,13 @@ gameproto_free(struct RevPacket* p)
     if( !p )
         return;
 
+    if( p->_control )
+    {
+        ToriMem_Free(ToriMem_Net(), p->_control->payload);
+        ToriMem_Free(ToriMem_Net(), p->_control);
+        p->_control = NULL;
+    }
+
     switch( p->packet_type )
     {
     case PKT_NAME_RUNCLIENTSCRIPT:
@@ -156,11 +164,6 @@ gameproto_free(struct RevPacket* p)
         ToriMem_Free(ToriMem_Net(), p->_raw_payload.data);
         p->_raw_payload.data = NULL;
         p->_raw_payload.length = 0;
-        break;
-    case PKT_NAME_CACHE_INVALIDATE:
-        ToriMem_Free(ToriMem_Net(), p->_cache_invalidate.archives);
-        p->_cache_invalidate.archives = NULL;
-        p->_cache_invalidate.count = 0;
         break;
     case PKT_NAME_UPDATE_TRADINGPOST:
         ToriMem_Free(ToriMem_Net(), p->_update_tradingpost.offers);

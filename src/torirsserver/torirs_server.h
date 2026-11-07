@@ -2101,6 +2101,10 @@ struct ToriRSServerCapturedPacket
      * the assertions keep their numbers and stop being about one revision.
      */
     int name;
+    /** Nonzero for a control frame (ToriRSServer_SendControl,
+     *  net/torirs_control.h): its type. `opcode` is then the escape and `name`
+     *  PKT_NAME_NONE -- a control frame has no packet name. */
+    int control_type;
     int len;
     uint8_t data[TORIRSSERVER_CAPTURE_BYTES];
 };
@@ -5640,6 +5644,13 @@ struct ToriRSServer
         int len,
         void* ctx);
     void* packet_sink_ctx;
+    /** The same feed for control frames (ToriRSServer_SendControl). */
+    void (*control_sink)(
+        struct ToriRSServerPlayer* player,
+        int type,
+        const uint8_t* payload,
+        int len,
+        void* ctx);
 
     /**
      * Which revision's bytes this world writes. See torirs_server_wire.h.
@@ -9220,6 +9231,21 @@ ToriRSServer_Send(
     const uint8_t* payload,
     int len,
     int var);
+
+/**
+ * A control frame (net/torirs_control.h) to `player`: the escape through the
+ * session's cipher, then magic, type, length and `payload`, in the same output
+ * stream as the packets, so it arrives exactly where it was sent among them.
+ * Written only to a session whose login carried the ToriRS flag and whose
+ * revision frames opcodes as pSmart1Or2; returns 1 when it was written (or
+ * handed to a sessionless bot's sink), 0 otherwise.
+ */
+int
+ToriRSServer_SendControl(
+    struct ToriRSServerPlayer* player,
+    int type,
+    const uint8_t* payload,
+    int len);
 
 /**
  * LoginResponse.ReconnectOk — the answer to GAMERECONNECT.

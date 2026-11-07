@@ -169,7 +169,6 @@ static const RsprotProtDef rsprot_osrs239_server[] = {
     { "HISCORE_REPLY", 126, RSPROT_VARU16, NULL },
     { "PACKET_GROUP_START", 93, 2, NULL },
     { "UNKNOWN_STRING", 24, RSPROT_VARU8, NULL },
-    { "CACHE_INVALIDATE", 237, RSPROT_VARU16, NULL },
 };
 static const RsprotProtDef rsprot_osrs239_client[] = {
     { "IF_BUTTON", 51, 4, NULL },

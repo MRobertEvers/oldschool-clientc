@@ -1760,9 +1760,6 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_SERVER_TICK_END, PKT_NAME_VARP_RESET, PKT_NAME_VARP_SYNC,
     PKT_NAME_CAM_RESET,       PKT_NAME_RESET_ANIMS,
     PKT_NAME_TRIGGER_ONDIALOGABORT,
-    /* ToriRS's own prot (3rd/rsprot/spec/packets/cache_invalidate.ini),
-     * written by ToriRSServer_CacheInvalidateEncode. */
-    PKT_NAME_CACHE_INVALIDATE,
 };
 
 static const struct ToriRSServerWire k_wire_osrs230 = {

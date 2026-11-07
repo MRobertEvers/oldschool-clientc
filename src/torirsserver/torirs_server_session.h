@@ -216,6 +216,10 @@ struct ToriRSServerSession
     int client_type;
     int platform_type;
 
+    /** 1 when the login's subVersion was TORIRS_CONTROL_LOGIN_SUBVERSION: a
+     *  ToriRS client, which reads control frames (net/torirs_control.h). A
+     *  stock client is never sent one. */
+    int torirs_control;
 };
 
 /*

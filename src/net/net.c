@@ -4,6 +4,7 @@
 
 #include "cmd/cmdbus.h"
 #include "net/net_capture.h"
+#include "net/torirs_control.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -520,6 +521,29 @@ net_process_packets(struct ToriRS_Network* net)
 {
     if( !packetbuffer_ready(&net->packet_buffer) )
         return;
+
+    /* A control frame (torirs_control.h), not a packet: onto the same FIFO,
+     * so it runs in its place among the packets around it -- before the
+     * REBUILD a live reload sends after it. */
+    if( packetbuffer_is_control(&net->packet_buffer) )
+    {
+        struct RevPacket packet;
+        struct TorirsControlFrame* frame = ToriMem_Alloc(ToriMem_Net(), sizeof(*frame));
+
+        assert(frame);
+        frame->type = packetbuffer_control_type(&net->packet_buffer);
+        frame->length = packetbuffer_size(&net->packet_buffer);
+        frame->payload = packetbuffer_take_data(&net->packet_buffer);
+        if( torirs_env_net_debug() )
+            TORIRS_LOG("net: <- control %s size=%d\n", torirs_control_type_name(frame->type),
+                       frame->length);
+        memset(&packet, 0, sizeof(packet));
+        packet.packet_type = PKT_NAME_NONE;
+        packet._control = frame;
+        push_parsed_packet(net, &packet);
+        packetbuffer_reset(&net->packet_buffer);
+        return;
+    }
 
     {
         struct RevPacket packet;

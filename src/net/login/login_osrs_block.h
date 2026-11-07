@@ -22,7 +22,10 @@
  *   p2   payload length
  *   --- header, plaintext -----------------------------------------------
  *   p4   version            must equal 239 or the server answers CLIENT_OUT_OF_DATE
- *   p4   subVersion
+ *   p4   subVersion         TORIRS_CONTROL_LOGIN_SUBVERSION ("TORI") from our
+ *                           client: it may be sent control frames
+ *                           (src/net/torirs_control.h); a stock client never
+ *                           writes that value
  *   p4   serverVersion      NEW at 237; absent from the 230 block
  *   p1   clientType         rsprot LoginClientType: 1 desktop, 2 android,
  *                           3 ios, 4/5/10 enhanced windows/mac/linux,

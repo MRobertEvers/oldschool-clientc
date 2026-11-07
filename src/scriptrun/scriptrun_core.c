@@ -12,6 +12,7 @@
 #include "world/entity_player.h"
 #include "world/world.h"
 #include "net/net_capture.h"
+#include "net/torirs_control.h"
 #include "torirsserver/wire/osrs241/packetin.h" /* the opcode names, for the wirelog's every-packet line */
 
 #include <assert.h>
@@ -2092,6 +2093,45 @@ ScriptrunCore_Packet(
         core->rev->player_info_state_save(core->player_decoder_state);
 }
 
+void
+ScriptrunCore_Control(
+    struct ScriptrunCore* core,
+    int type,
+    const uint8_t* payload,
+    int len)
+{
+    struct TorirsControlFrame frame;
+    FILE* f = core_wirelog_file();
+    int index;
+    int count;
+
+    assert(core);
+    assert(len >= 0);
+    if( f )
+        fprintf(f, "%d\tctl\t%s\t%d\n", core->tick, torirs_control_type_name(type), len);
+    if( type != TORIRS_CONTROL_CACHE_INVALIDATE )
+        return;
+    frame.type = type;
+    frame.length = len;
+    frame.payload = (uint8_t*)payload;
+    /* The server wrote it, so it decodes. */
+    assert(torirs_control_invalidate_decode(&frame, &index, &count));
+    /* The live reload rewrote these archives. The bot's loc configs are
+     * decoded from the server's own records (ToriRSServer_SceneLocConfigDecode),
+     * which the reload has already replaced; the config group 2/6 row is the
+     * bot's cue to drop its decodes, as the client drops its loctypes. Its npc
+     * and obj rows read the server's tables at every lookup. */
+    if( index != 2 )
+        return;
+    for( int i = 0; i < count; i++ )
+    {
+        if( torirs_control_invalidate_archive(&frame, i) != RSCACHE_DAT2_CONFIG_KIND_LOCS )
+            continue;
+        fprintf(stderr, "scriptrun: cache invalidate: %d loc config(s) dropped\n",
+                ScriptrunCore_LocConfigsInvalidate());
+    }
+}
+
 static void
 core_packet(
     struct ScriptrunCore* core,
@@ -2263,23 +2303,6 @@ core_packet(
         break;
     case PKT_NAME_WORLDENTITY_INFO:
         core_worldentity_info(core, &packet._worldentity_info);
-        break;
-    case PKT_NAME_CACHE_INVALIDATE:
-        /* The live reload rewrote these archives. The bot's loc configs are
-         * decoded from the server's own records (ToriRSServer_SceneLocConfigDecode),
-         * which the reload has already replaced; the config group 2/6 row is
-         * the bot's cue to drop its decodes, as the client drops its loctypes.
-         * Its npc and obj rows read the server's tables at every lookup. */
-        if( packet._cache_invalidate.index == 2 )
-        {
-            for( int i = 0; i < packet._cache_invalidate.count; i++ )
-            {
-                if( packet._cache_invalidate.archives[i] != RSCACHE_DAT2_CONFIG_KIND_LOCS )
-                    continue;
-                fprintf(stderr, "scriptrun: cache invalidate: %d loc config(s) dropped\n",
-                        ScriptrunCore_LocConfigsInvalidate());
-            }
-        }
         break;
     case PKT_NAME_REBUILD_WORLDENTITY:
         core_rebuild_worldentity(core, &packet._rebuild_wev);

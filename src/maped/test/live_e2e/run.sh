@@ -137,8 +137,8 @@ rebuilds_after=$(grep -c "pkt	REBUILD_" "$dir/lane/wire.log")
 check "the covering bot got exactly one REBUILD" \
     $([ $((rebuilds_after - rebuilds_before)) = 1 ] && echo 1 || echo 0) \
     "$rebuilds_before -> $rebuilds_after"
-grep -q "pkt	CACHE_INVALIDATE" "$dir/lane/wire.log"
-check "the bot was sent CACHE_INVALIDATE for the rebuilt archives" $([ $? = 0 ] && echo 1 || echo 0) ""
+grep -q "ctl	CACHE_INVALIDATE" "$dir/lane/wire.log"
+check "the bot was sent the CACHE_INVALIDATE control frame for the rebuilt archives" $([ $? = 0 ] && echo 1 || echo 0) ""
 
 login_lines() { grep -c "logged in\|LOGIN" "$dir/lane/scriptrun.log" 2>/dev/null; }
 logins_before_c=$(login_lines)

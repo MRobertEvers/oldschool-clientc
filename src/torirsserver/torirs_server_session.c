@@ -22,6 +22,7 @@
 #include "torirs_server_oauth.h"
 
 #include "net/isaac.h"
+#include "net/torirs_control.h"
 #include "torirsserver/wire/osrs230/packetout.h"
 #include "net/rsa.h"
 
@@ -765,7 +766,8 @@ step_login(
      */
     rsab_wrap(&in, session->in + 3, (size_t)payload_len);
     (void)rsab_g4(&in); /* version */
-    (void)rsab_g4(&in); /* subVersion */
+    /* subVersion: our client's flag that it reads control frames. */
+    session->torirs_control = rsab_g4(&in) == TORIRS_CONTROL_LOGIN_SUBVERSION;
     if( login_is_239(srv) )
         (void)rsab_g4(&in); /* serverVersion, new at revision 237 */
     session->client_type = rsab_g1(&in);   /* clientType (LoginClientType) */
