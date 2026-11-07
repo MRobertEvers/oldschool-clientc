@@ -5400,6 +5400,20 @@ check-wintertodt-rewards:
 .PHONY: check-content-audits
 check-content-audits: check-crystal-set-contract check-agility-xp check-wintertodt-rewards
 
+# Generated files checked against their generators: each fails only when a
+# checked-in enum or manifest is stale. These are the only checks
+# torirsserver-scripts (and so every launch) runs.
+.PHONY: check-content-staleness
+check-content-staleness: check-clan-crystals check-konar-locations check-chompy-hats check-krystilia-tasks check-agility-shortcuts check-spellbooks check-corpbane check-godwars-manifest check-quest-combat-manifest
+
+# The content contracts: wiki agreement, coverage and authoring-rule sweeps.
+# Tests, not staleness, so they no longer gate a script build; they run here
+# and in test-content:
+#
+#     make -C src check-content-contracts
+.PHONY: check-content-contracts
+check-content-contracts: check-design-colours check-selftest-registration check-stronghold-contract check-dks-contract check-boss-contract check-dbtable-rows check-agility-courses check-npc-style-defaults check-pickpocket check-stalls check-thieving-tables check-mining check-smelting check-smithing check-superior-coverage check-godwars-contract check-quest-combat-contract check-npc-script-player-suspend check-chatnpc-without-npc check-quest-journal-banner check-charter-contract check-tob-pillar-contract
+
 check-godwars-manifest:
 	@cd $(REPO_ROOT) && python3 tools/generate_godwars_combat_manifest.py --check
 
@@ -5433,7 +5447,7 @@ check-quest-combat-contract:
 # that reaches ~npc_retaliate must also reach @player_combat_start/_ap
 # (QUEST_AUTHORING.md trap 31), and every quest's progress varp (or its
 # varbit's carrier) must be transmit=yes scope=perm. Exits non-zero on a miss.
-# check-quest-combat-contract runs both too, so torirsserver-scripts refuses one.
+# check-quest-combat-contract runs both too, so check-content-contracts refuses one.
 check-quest-contract-sweeps:
 	@cd $(REPO_ROOT) && python3 tools/check_quest_combat_contract.py --sweeps
 
@@ -5442,7 +5456,7 @@ check-quest-contract-sweeps:
 # p_countdialog -- must bind the player first (npc_findhero / p_finduid) or
 # queue() the dialogue onto the player. The engine aborts that script at the
 # suspend (torirs_server_scripts.c SCRIPT_PTR_BORROWED_PLAYER, seam21; LostCity
-# checkedHandler(ProtectedActivePlayer)), so this refuses it at build time.
+# checkedHandler(ProtectedActivePlayer)), so this refuses it before a run.
 check-npc-script-player-suspend:
 	@cd $(REPO_ROOT) && python3 tools/check_npc_script_player_suspend.py --strict --brief
 
@@ -5452,7 +5466,7 @@ check-npc-script-player-suspend:
 # page mounts and the conversation dies on its first continue (Mountain
 # Daughter's Shining Pool, seam23). Speak through npc_find, the npc-free
 # ~chatnpc_specific_anim, or ~mesbox instead. Known open hits are listed in
-# the tool's KNOWN_OPEN; a new one fails the build.
+# the tool's KNOWN_OPEN; a new one fails check-content-contracts.
 check-chatnpc-without-npc:
 	@cd $(REPO_ROOT) && python3 tools/check_chatnpc_without_npc.py --strict --brief
 
@@ -5626,8 +5640,9 @@ TORIRSSERVER_SCRIPT_OUT ?= $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build
 # by name and the compiler needs a number, so tools/ss_allocate.py has to have
 # run before sscompile sees the tree. It only ever appends below its marker, so
 # running it on every build is idempotent.
-# The content contracts hang off torirsserver-scripts, and the settled audits
-# off check-content-audits (see above); neither is repeated here. A lane build
+# The staleness checks hang off torirsserver-scripts, the contracts off
+# check-content-contracts and the settled audits off check-content-audits
+# (see above); none is repeated here. A lane build
 # compiles the same tree the default pack already gated.
 torirsserver-scripts-lanes: sscompile
 	@mkdir -p $(TORIRSSERVER_SCRIPT_OUT)
@@ -5650,11 +5665,11 @@ torirsserver-lanes: sscompile
 # herb tar). The gated lanes are off, and off now means absent rather than
 # present-but-flagged.
 #
-# This is the target the content contracts hang off, so it carries them all;
-# the lane variants below are development builds of the same tree and do not
-# re-run gates the default build has already passed. The three settled audits
-# are the exception and live on check-content-audits instead; see there for why.
-torirsserver-scripts: check-design-colours check-selftest-registration check-stronghold-contract check-dks-contract check-boss-contract check-clan-crystals check-konar-locations check-chompy-hats check-krystilia-tasks check-agility-shortcuts check-dbtable-rows check-spellbooks check-agility-courses check-corpbane check-npc-style-defaults check-pickpocket check-stalls check-thieving-tables check-mining check-smelting check-smithing check-superior-coverage check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-npc-script-player-suspend check-chatnpc-without-npc check-quest-journal-banner check-charter-contract check-tob-pillar-contract
+# It carries only the staleness checks (check-content-staleness): a generated
+# enum that no longer matches its generator. The content contracts are tests,
+# not freshness, and run from check-content-contracts / test-content instead,
+# so a launch that touches a script does not re-prove them all.
+torirsserver-scripts: check-content-staleness
 	@$(MAKE) torirsserver-scripts-lanes \
 		TORIRSSERVER_SCRIPT_LANES= \
 		TORIRSSERVER_SCRIPT_OUT=$(TORIRSSERVER_CONTENT_DIR)/server/scripts/build
@@ -6556,7 +6571,7 @@ test-torirsserver-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)
 # Deliberately does not include `make -C 3rd/rscache test` â that needs a cache and
 # takes minutes; it is the other half and is run on its own.
 .PHONY: test-servercodec test-content test-port test-membership test-dbindex
-test-content: check-content-audits test-content-register test-servercodec test-ss-symbols test-construction-catalog torirsserver-scripts torirsserver-servpack test-membership torirsserver-pack test-server-clean test-port
+test-content: check-content-audits check-content-contracts test-content-register test-servercodec test-ss-symbols test-construction-catalog torirsserver-scripts torirsserver-servpack test-membership torirsserver-pack test-server-clean test-port
 	@echo "--- content: validating the tree against the cache ---"
 	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_Pack$(PLATFORM_EXE_SUFFIX)
 	@echo "test-content: all content bars passed"
