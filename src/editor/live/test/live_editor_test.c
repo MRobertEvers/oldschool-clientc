@@ -1556,10 +1556,10 @@ main(
             hello(&b);
             check(wait_fact(&b, TORIRSMAPED_FACT_HELLO, 2000) >= 0, "welcome: a second window's HELLO is answered");
             check(wait_fact(&b, TORIRSMAPED_FACT_LIVE_STATUS, 2000) >= 0 && b.model.state == a.model.state,
-                "welcome: the live status follows the HELLO (state %u)", b.model.state);
+                "welcome: the live status follows the HELLO");
             check(wait_fact(&b, TORIRSMAPED_FACT_LIVE_PLAY, 2000) >= 0 && b.model.play_starts == 3
                       && b.model.play_pid == a.model.play_pid && b.model.play_state == a.model.play_state,
-                "welcome: the play state follows it (starts %u, pid %d)", b.model.play_starts, b.model.play_pid);
+                "welcome: the play state follows it (the third start, its pid)");
             g_conn_count--;
             ToriRSMapEd_SessionFree(&b.session);
         }
