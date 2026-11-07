@@ -29,6 +29,12 @@ typedef struct MsgClanchannelDeltaEvent {
 	int32_t skip_a;
 	int32_t skip_b;
 	int64_t skip8;
+	/* A user hash: 255 alone when there is none, else its 8 bytes (the first
+	 * being hash_lead, never 255), as RSProx peeks it. */
+	int32_t hash_lead;
+	int32_t hash_mid;
+	int32_t hash_lo;
+	int64_t join_time;
 } MsgClanchannelDeltaEvent;
 
 typedef struct MsgClanchannelDelta {

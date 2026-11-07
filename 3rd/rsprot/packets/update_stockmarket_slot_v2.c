@@ -13,6 +13,12 @@ packet_update_stockmarket_slot_v2_v1_out(RsprotExec *x, MsgUpdateStockmarketSlot
 
     RSPROT_U1(x, m->slot);
     RSPROT_U1(x, m->first_state);
+    if (RSPROT_BRANCH(x, m->first_state) == 0) {
+        /* An empty slot: the client discards the next 26 bytes and ignores the
+         * last 6 of the fixed 34 (RSProx 8c514346). */
+        RSPROT_DATA(x, m->padding, 32);
+        return;
+    }
     if ((RSPROT_BRANCH(x, m->first_state) & 7) == 7) {
         RSPROT_U1(x, m->version);
         RSPROT_U1(x, m->status);

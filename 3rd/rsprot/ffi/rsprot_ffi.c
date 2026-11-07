@@ -36,7 +36,7 @@ ffi_rev(int revision)
         RsprotRev r = { (uint32_t)revision };
         return r;
     }
-    return ffi_rev(revision);
+    return rsprot_osrs(revision);
 }
 
 int

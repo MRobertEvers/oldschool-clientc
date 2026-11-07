@@ -33,7 +33,7 @@ typedef struct MsgUpdateStockmarketSlotV2 {
 	int32_t completed_gold32;
 	int32_t extension_length;
 	const uint8_t *extension;
-	const uint8_t *padding; /* version 1 only: the 14 bytes after it */
+	const uint8_t *padding; /* version 1: the 14 bytes after it; an empty slot (first_state 0): the 32 after it */
 } MsgUpdateStockmarketSlotV2;
 
 /* v1 -- revs 241. */

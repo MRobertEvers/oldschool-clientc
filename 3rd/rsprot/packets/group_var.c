@@ -4,7 +4,8 @@
 /*
  * v1 -- revs 239-242.
  * while readable: g1 index, g4 packed, then by (packed >>> 16) & 3:
- * g4 | g8 | gjstr | gdata(rest).
+ * g4 | g8 | gjstr, and nothing for the fourth (RSProx 8c514346: the client
+ * reads no bytes for an unknown base var type, and the loop goes on).
  */
 void
 packet_group_var_v1_out(RsprotExec *x, MsgGroupVar *m)
@@ -22,8 +23,6 @@ packet_group_var_v1_out(RsprotExec *x, MsgGroupVar *m)
             RSPROT_U8_12345678(x, u->long_value);
         else if (type == 2)
             RSPROT_JSTR(x, u->string_value);
-        else
-            RSPROT_REST(x, u->data, u->data_length);
     }
 }
 
