@@ -244,6 +244,14 @@ open_doc_into(
 #include <errno.h>
 #include <sys/stat.h>
 
+/* What a core with no host bindings serves (ToriRSMapEd_Create): the catalog
+ * and its answers, the lanes' frames, strokes joined by DOC_CREATE. BUILD,
+ * LIVE and SPAWN_VIEW come only from a host that binds them. */
+#define EMBED_CAPS                                                                                    \
+    (TORIRSMAPED_CAP_CATALOG | TORIRSMAPED_CAP_CATALOG_PROGRESS | TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS    \
+     | TORIRSMAPED_CAP_CATALOG_USES | TORIRSMAPED_CAP_LANES_V2 | TORIRSMAPED_CAP_DOC_CREATE_STROKE                \
+     | TORIRSMAPED_CAP_CATALOG_SQUARES_NOWAIT)
+
 static void
 mkdir_p_or_die(char const* path)
 {
@@ -403,8 +411,8 @@ test_v1_peer(char const* scratch)
     check(
         raw_take(v2, &type, &length, &body) && type == TORIRSMAPED_FACT_HELLO && length > 16
             && ToriRSMapEd_ReadU32(body) == 2
-            && ToriRSMapEd_ReadU32(body + 12) == TORIRSMAPED_CAP_CATALOG,
-        "a v2 HELLO gets FACT_HELLO v2 with capabilities (the catalog)");
+            && ToriRSMapEd_ReadU32(body + 12) == EMBED_CAPS,
+        "a v2 HELLO gets FACT_HELLO v2 with capabilities (the catalog, the lanes, strokes; no build or live)");
     {
         /* This server is read-only (the first embed holds the tree): its v2
          * HELLO names the holder after the capabilities -- this process. */
@@ -710,8 +718,8 @@ main(
 
     /* ---- DOC_OPEN and the v1 alias answer the same document --------------- */
 
-    check(Editor_HostMapEdCapabilities(&a) == TORIRSMAPED_CAP_CATALOG,
-        "HELLO v2 reports the catalog binding and nothing else yet");
+    check(Editor_HostMapEdCapabilities(&a) == EMBED_CAPS,
+        "HELLO v2 reports what the core serves and no build or live binding yet");
     {
         struct EditorHost_Blob jm2 = { NULL, 0 };
         struct EditorHost_Blob jl2 = { NULL, 0 };

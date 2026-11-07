@@ -19,6 +19,8 @@
 #define ToriRSChromeFont_Small_LINE_HEIGHT 10
 /** Row pitch: the tallest glyph's bottom edge. */
 #define ToriRSChromeFont_Small_LINE_BOX 12
+/** 1: this tier draws hand-tuned masks (ToriRSChromeFont_SmallTuned), 0: the derived ones. */
+#define ToriRSChromeFont_Small_TUNED 0
 
 static const int ToriRSChromeFont_Small_advance_px[256] = {
       3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,
@@ -44,6 +46,8 @@ static const int ToriRSChromeFont_Small_advance_px[256] = {
 #define ToriRSChromeFont_Body_LINE_HEIGHT 12
 /** Row pitch: the tallest glyph's bottom edge. */
 #define ToriRSChromeFont_Body_LINE_BOX 16
+/** 1: this tier draws hand-tuned masks (ToriRSChromeFont_BodyTuned), 0: the derived ones. */
+#define ToriRSChromeFont_Body_TUNED 0
 
 static const int ToriRSChromeFont_Body_advance_px[256] = {
       3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,
@@ -69,6 +73,8 @@ static const int ToriRSChromeFont_Body_advance_px[256] = {
 #define ToriRSChromeFont_Menu_LINE_HEIGHT 12
 /** Row pitch: the tallest glyph's bottom edge. */
 #define ToriRSChromeFont_Menu_LINE_BOX 16
+/** 1: this tier draws hand-tuned masks (ToriRSChromeFont_MenuTuned), 0: the derived ones. */
+#define ToriRSChromeFont_Menu_TUNED 0
 
 static const int ToriRSChromeFont_Menu_advance_px[256] = {
       4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,
@@ -94,6 +100,8 @@ static const int ToriRSChromeFont_Menu_advance_px[256] = {
 #define ToriRSChromeFont_Small2x_LINE_HEIGHT 20
 /** Row pitch: the tallest glyph's bottom edge. */
 #define ToriRSChromeFont_Small2x_LINE_BOX 24
+/** 1: this tier draws hand-tuned masks (ToriRSChromeFont_Small2xTuned), 0: the derived ones. */
+#define ToriRSChromeFont_Small2x_TUNED 0
 
 static const int ToriRSChromeFont_Small2x_advance_px[256] = {
       6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,
@@ -119,6 +127,8 @@ static const int ToriRSChromeFont_Small2x_advance_px[256] = {
 #define ToriRSChromeFont_Body2x_LINE_HEIGHT 24
 /** Row pitch: the tallest glyph's bottom edge. */
 #define ToriRSChromeFont_Body2x_LINE_BOX 32
+/** 1: this tier draws hand-tuned masks (ToriRSChromeFont_Body2xTuned), 0: the derived ones. */
+#define ToriRSChromeFont_Body2x_TUNED 0
 
 static const int ToriRSChromeFont_Body2x_advance_px[256] = {
       6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,
@@ -144,6 +154,8 @@ static const int ToriRSChromeFont_Body2x_advance_px[256] = {
 #define ToriRSChromeFont_Menu2x_LINE_HEIGHT 24
 /** Row pitch: the tallest glyph's bottom edge. */
 #define ToriRSChromeFont_Menu2x_LINE_BOX 32
+/** 1: this tier draws hand-tuned masks (ToriRSChromeFont_Menu2xTuned), 0: the derived ones. */
+#define ToriRSChromeFont_Menu2x_TUNED 0
 
 static const int ToriRSChromeFont_Menu2x_advance_px[256] = {
       8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
@@ -169,6 +181,8 @@ static const int ToriRSChromeFont_Menu2x_advance_px[256] = {
 #define ToriRSChromeFont_Small3x_LINE_HEIGHT 30
 /** Row pitch: the tallest glyph's bottom edge. */
 #define ToriRSChromeFont_Small3x_LINE_BOX 36
+/** 1: this tier draws hand-tuned masks (ToriRSChromeFont_Small3xTuned), 0: the derived ones. */
+#define ToriRSChromeFont_Small3x_TUNED 0
 
 static const int ToriRSChromeFont_Small3x_advance_px[256] = {
       9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,
@@ -194,6 +208,8 @@ static const int ToriRSChromeFont_Small3x_advance_px[256] = {
 #define ToriRSChromeFont_Body3x_LINE_HEIGHT 36
 /** Row pitch: the tallest glyph's bottom edge. */
 #define ToriRSChromeFont_Body3x_LINE_BOX 48
+/** 1: this tier draws hand-tuned masks (ToriRSChromeFont_Body3xTuned), 0: the derived ones. */
+#define ToriRSChromeFont_Body3x_TUNED 0
 
 static const int ToriRSChromeFont_Body3x_advance_px[256] = {
       9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,
@@ -219,6 +235,8 @@ static const int ToriRSChromeFont_Body3x_advance_px[256] = {
 #define ToriRSChromeFont_Menu3x_LINE_HEIGHT 36
 /** Row pitch: the tallest glyph's bottom edge. */
 #define ToriRSChromeFont_Menu3x_LINE_BOX 48
+/** 1: this tier draws hand-tuned masks (ToriRSChromeFont_Menu3xTuned), 0: the derived ones. */
+#define ToriRSChromeFont_Menu3x_TUNED 0
 
 static const int ToriRSChromeFont_Menu3x_advance_px[256] = {
      12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,

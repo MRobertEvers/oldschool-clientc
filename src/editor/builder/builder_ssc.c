@@ -11,21 +11,65 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(_WIN32) || defined(__EMSCRIPTEN__)
+/* A filesystem and processes: every desktop. sscompile starts through the
+ * spawner the host hands in (Builder_SscSetSpawner; platform/launch_sessions.h:
+ * posix_spawn on Linux and macOS, CreateProcess on Windows). */
+#if defined(__EMSCRIPTEN__)
 #define BUILDER_SSC_NATIVE 0
 #else
 #define BUILDER_SSC_NATIVE 1
+#include "platform/launch_sessions.h"
 #include <dirent.h>
-#include <fcntl.h>
 #include <limits.h>
-#include <spawn.h>
 #include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include <direct.h>
+#include <sys/utime.h>
+#include <windows.h>
+#define ssc_mkdir(path) _mkdir(path)
+#else
+#include <utime.h>
+#define ssc_mkdir(path) mkdir(path, 0755)
 extern char** environ;
 #endif
+#endif
+
+#if BUILDER_SSC_NATIVE
+/* Who starts sscompile; NULL: Builder_SscRun answers NOT_RUN. */
+static const struct LaunchSessions_Spawner* g_ssc_spawner;
+
+/** POSIX realpath; on Windows '/' separators (the callers join with '/'). */
+static char*
+ssc_realpath(
+    const char* path,
+    char* resolved)
+{
+#ifdef _WIN32
+    if( GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES )
+        return NULL;
+    if( !_fullpath(resolved, path, PATH_MAX) )
+        return NULL;
+    for( char* scan = resolved; *scan; scan++ )
+        if( *scan == '\\' )
+            *scan = '/';
+    return resolved;
+#else
+    return realpath(path, resolved);
+#endif
+}
+#endif
+
+void
+Builder_SscSetSpawner(const struct LaunchSessions_Spawner* spawner)
+{
+#if BUILDER_SSC_NATIVE
+    g_ssc_spawner = spawner;
+#else
+    (void)spawner;
+#endif
+}
 
 static int
 copy_path(
@@ -150,6 +194,81 @@ Builder_SscParseOutput(
     }
 }
 
+void
+Builder_SscFormatDiag(
+    const struct Builder_SscDiag* diag,
+    char* out,
+    size_t out_size)
+{
+    assert(diag);
+    assert(out);
+    assert(out_size > 0);
+    snprintf(out, out_size, "%s:%d: %s%s", diag->file, diag->line, diag->warning ? "warning: " : "", diag->message);
+}
+
+void
+Builder_SscFormatSummary(
+    const struct Builder_SscResult* result,
+    char* out,
+    size_t out_size)
+{
+    int errors = 0;
+    int warnings = 0;
+
+    assert(result);
+    assert(out);
+    assert(out_size > 0);
+    for( int i = 0; i < result->diag_count; i++ )
+    {
+        errors += !result->diags[i].warning;
+        warnings += result->diags[i].warning;
+    }
+    if( result->status == BUILDER_SSC_OK && errors == 0 )
+        snprintf(out, out_size, "check: ok, %.1f s", result->seconds);
+    else if( result->status == BUILDER_SSC_OK || result->status == BUILDER_SSC_FAILED )
+        snprintf(out, out_size, "check: %d error(s), %d warning(s), %.1f s", errors + result->diags_dropped, warnings,
+            result->seconds);
+    else
+        snprintf(out, out_size, "check: sscompile could not run (%s)",
+            result->status == BUILDER_SSC_UNSUPPORTED ? "not on this platform" : "no binary or stage");
+}
+
+int
+Builder_SscTakeLine(
+    struct Builder_SscResult* result,
+    const char* line)
+{
+    int errors = 0;
+    int warnings = 0;
+    double seconds = 0.0;
+    int const before = result->diag_count;
+
+    assert(result);
+    assert(line);
+    if( strncmp(line, "check: ", 7) == 0 )
+    {
+        const char* rest = line + 7;
+        if( sscanf(rest, "ok, %lf s", &seconds) == 1 )
+        {
+            result->status = BUILDER_SSC_OK;
+            result->seconds = seconds;
+        }
+        else if( sscanf(rest, "%d error(s), %d warning(s), %lf s", &errors, &warnings, &seconds) == 3 )
+        {
+            result->status = errors ? BUILDER_SSC_FAILED : BUILDER_SSC_OK;
+            result->seconds = seconds;
+        }
+        else if( strncmp(rest, "sscompile could not run", 23) == 0 )
+            result->status = strstr(rest, "platform") ? BUILDER_SSC_UNSUPPORTED : BUILDER_SSC_NOT_RUN;
+        else
+            return 0;
+        snprintf(result->summary, sizeof(result->summary), "%s", rest);
+        return 2;
+    }
+    Builder_SscParseOutput("", line, strlen(line), result);
+    return result->diag_count > before;
+}
+
 int
 Builder_SscErrorsFor(
     const struct Builder_SscResult* result,
@@ -188,7 +307,7 @@ resolve_future(
     cut = strlen(probe);
     for( ;; )
     {
-        if( realpath(probe, resolved) )
+        if( ssc_realpath(probe, resolved) )
         {
             int written = snprintf(out, out_size, "%s%s", resolved, path + cut);
             return written >= 0 && (size_t)written < out_size;
@@ -212,7 +331,7 @@ resolve_future(
             probe[0] = '/';
             probe[1] = '\0';
             cut = 1;
-            if( realpath(probe, resolved) )
+            if( ssc_realpath(probe, resolved) )
             {
                 int written = snprintf(out, out_size, "%s", path);
                 return written >= 0 && (size_t)written < out_size;
@@ -246,7 +365,7 @@ make_dirs(const char* path)
         {
             char saved = dir[i];
             dir[i] = '\0';
-            if( mkdir(dir, 0755) != 0 && errno != EEXIST )
+            if( ssc_mkdir(dir) != 0 && errno != EEXIST )
                 return 0;
             dir[i] = saved;
         }
@@ -285,7 +404,7 @@ Builder_SscInit(
     assert(work_dir);
 
     memset(ssc, 0, sizeof(*ssc));
-    if( !realpath(content_root, content_real) )
+    if( !ssc_realpath(content_root, content_real) )
         return 0;
     if( !resolve_future(work_dir, work_real, sizeof(work_real)) )
         return 0;
@@ -423,7 +542,7 @@ copy_file(
     char buffer[65536];
     size_t got;
     int ok = 1;
-    struct timeval times[2];
+    struct utimbuf stamp;
 
     if( !in )
         return 0;
@@ -451,11 +570,9 @@ copy_file(
         ok = 0;
     /* The copy carries the source's mtime, so the next stage can tell an
      * unchanged file by size and mtime alone. */
-    times[0].tv_sec = info->st_atime;
-    times[0].tv_usec = 0;
-    times[1].tv_sec = info->st_mtime;
-    times[1].tv_usec = 0;
-    utimes(to, times);
+    stamp.actime = info->st_atime;
+    stamp.modtime = info->st_mtime;
+    utime(to, &stamp);
     return ok;
 }
 
@@ -615,9 +732,17 @@ Builder_SscPut(
 static double
 now_seconds(void)
 {
+#ifdef _WIN32
+    LARGE_INTEGER frequency;
+    LARGE_INTEGER counter;
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&counter);
+    return (double)counter.QuadPart / (double)frequency.QuadPart;
+#else
     struct timespec now;
     clock_gettime(CLOCK_MONOTONIC, &now);
     return (double)now.tv_sec + (double)now.tv_nsec / 1e9;
+#endif
 }
 
 enum Builder_SscStatus
@@ -630,9 +755,10 @@ Builder_SscRun(
     char configs[PATH_MAX];
     char* argv[16];
     int argc = 0;
-    posix_spawn_file_actions_t actions;
-    pid_t pid;
-    int status = 0;
+    int pid = 0;
+    int group = 0;
+    int exit_code = -1;
+    int signal_number = 0;
     double start;
     FILE* log;
 
@@ -642,7 +768,13 @@ Builder_SscRun(
 
     memset(result, 0, sizeof(*result));
     result->status = BUILDER_SSC_NOT_RUN;
+    if( !g_ssc_spawner )
+        return result->status;
+#ifdef _WIN32
+    if( access(ssc->sscompile, F_OK) != 0 ) /* Windows has no execute bit */
+#else
     if( access(ssc->sscompile, X_OK) != 0 )
+#endif
         return result->status;
     if( !ssc->staged && !Builder_SscStage(ssc) )
         return result->status;
@@ -667,25 +799,12 @@ Builder_SscRun(
         argv[argc++] = "--dry-run";
     argv[argc] = NULL;
 
-    if( posix_spawn_file_actions_init(&actions) != 0 )
-        return result->status;
-    posix_spawn_file_actions_addopen(&actions, 1, result->log_path, O_WRONLY | O_CREAT | O_TRUNC,
-                                     0644);
-    posix_spawn_file_actions_adddup2(&actions, 1, 2);
     start = now_seconds();
-    if( posix_spawn(&pid, ssc->sscompile, &actions, NULL, argv, environ) != 0 )
-    {
-        posix_spawn_file_actions_destroy(&actions);
+    if( g_ssc_spawner->spawn(g_ssc_spawner->context, argv, environ, result->log_path, 0, &pid, &group) != 0 )
         return result->status;
-    }
-    posix_spawn_file_actions_destroy(&actions);
-    while( waitpid(pid, &status, 0) < 0 )
-    {
-        if( errno != EINTR )
-            return result->status;
-    }
+    g_ssc_spawner->reap_child(g_ssc_spawner->context, pid, 1, &exit_code, &signal_number);
     result->seconds = now_seconds() - start;
-    result->exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    result->exit_code = signal_number ? -1 : exit_code;
     result->status = result->exit_code == 0 ? BUILDER_SSC_OK : BUILDER_SSC_FAILED;
 
     log = fopen(result->log_path, "rb");

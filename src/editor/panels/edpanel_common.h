@@ -5,6 +5,7 @@
 
 #include "editor/editor.h"
 #include "editor/editor_ui.h"
+#include "editor/panels/edpanel_ops.h"
 #include "ui/uitree_debug_overlay.h"
 
 #include <assert.h>
@@ -49,14 +50,15 @@
 #define EDP_RAIL_W 38
 #define EDP_RAIL_PITCH 34
 
-/** A 1x-authored layout constant at the chrome's current scale. */
+/** A 1x-authored layout constant at the chrome's current scale, rounded once
+ *  to device pixels where the chrome rounds its own (Editor_UiPx). */
 static inline int
 edp_px(
     const struct EditorUi* ui,
     int px)
 {
     assert(ui);
-    return px * ToriRSChrome_Scale(ui->chrome);
+    return Editor_UiPx(ui, px);
 }
 
 /** The surface's width in chrome pixels (0 before the first SetSurface). */
@@ -122,6 +124,16 @@ edp_locs_duplicate(struct EditorUi* ui);
 int
 edp_locs_delete(struct EditorUi* ui);
 
+/** The status bar's confirmation of a delete that applied (design section
+ *  7): "Deleted Oak tree at 3245,3210 L0; Ctrl+Z undoes it" for one loc (its
+ *  cache name once resident, else "loc <id>"), "Deleted N locs; ..." for a
+ *  set. `ref` is the first deleted loc. */
+void
+edp_locs_say_deleted(
+    struct EditorUi* ui,
+    const struct Editor_LocRef* ref,
+    int applied);
+
 /* ---- a loc's shapes (edpanel_actions.c) -------------------------------------
  *
  * What the App's cache says loc `loc_id` can be placed as
@@ -181,12 +193,16 @@ edp_locs_fit(struct EditorUi* ui);
 
 /** "Fit walls to neighbours" for the Place tool (default on): the place and
  *  the ghost take the fitted shape and rotation where a wall of the picked
- *  loc stands next to the hovered tile. One per window, not relayed. */
+ *  loc stands next to the hovered tile. Shared tool state
+ *  (EditorUiTools::place_fit, STATE_TOOLS): every window of the Client, its
+ *  Locs panel and its Catalog pane read the same bit. */
 int
-edp_place_fit_enabled(void);
+edp_place_fit_enabled(const struct EditorUi* ui);
 
 void
-edp_place_fit_set(int on);
+edp_place_fit_set(
+    struct EditorUi* ui,
+    int on);
 
 /** The pose a place at (world_x, world_z, level) takes: the Place pose, or
  *  with fit on the fitted wall shape and rotation. What the click places and
@@ -210,6 +226,19 @@ Editor_Locs_ShapeStrip(
     int out_shapes[23],
     int* out_view);
 
+/** The App rendered the strip: scene sprite `scene_id` (`version` bumps per
+ *  picture), `strip_w` x `strip_h`, `slot_w` wide per shape. The strip is a
+ *  GRAPH (workbench 6.3): the panel draws the picture and keys each slot, so
+ *  a click on a thumbnail reshapes (or sets the pose) as its button does. */
+void
+Editor_Locs_ShapeStripSprite(
+    struct EditorUi* ui,
+    int scene_id,
+    int strip_w,
+    int strip_h,
+    int slot_w,
+    uint32_t version);
+
 /** Place `loc_id` at a world tile; the placed loc becomes the selection. A
  *  shape the loc has no model for is refused with a console line. */
 int
@@ -221,6 +250,74 @@ edp_locs_place(
     int world_x,
     int world_z,
     int level);
+
+/* ---- the Place drag and the Select tool's sets (workbench 6.3) -------------
+ *
+ * World-free halves of the World's direct manipulation: the App turns the
+ * pointer into absolute tiles (editor_panel.c) and these do the rest, so a
+ * headless test drives exactly what a drag does. */
+
+/** Open a Place drag at (world_x, world_z) on `level` with the catalog's loc
+ *  pick. 0 (and the run left closed) when there is no loc pick: the release
+ *  is then the plain click it always was. */
+int
+edp_run_begin(
+    struct EditorUi* ui,
+    struct Editor_PlaceRun* run,
+    int world_x,
+    int world_z,
+    int level);
+
+/** Carry the drag to (world_x, world_z) (`constrain`: one axis) and re-plan
+ *  when the run changed. The first refused tile of the run is said in the
+ *  status bar, once a run. Returns 1 when the plan changed. */
+int
+edp_run_to(
+    struct EditorUi* ui,
+    struct Editor_PlaceRun* run,
+    int world_x,
+    int world_z,
+    int constrain);
+
+/** Release: a run of two or more tiles is planned afresh against the
+ *  document and placed, one undo step; the placed pieces become the
+ *  selection. Returns the edits applied; -1 when the run was one tile (a
+ *  click: the caller places it the way a click does). The run is closed. */
+int
+edp_run_end(
+    struct EditorUi* ui,
+    struct Editor_PlaceRun* run);
+
+/** Drop a drag without placing anything (Escape, the editor closing). */
+void
+edp_run_cancel(struct Editor_PlaceRun* run);
+
+/** Join `refs` to the loc selection by `mode` and say what changed; `what`
+ *  names the gesture in the console ("marquee", "select same"). Returns the
+ *  selection's new count. */
+int
+edp_select_refs(
+    struct EditorUi* ui,
+    const struct Editor_LocRef* refs,
+    int n,
+    enum Editor_LocSelectMode mode,
+    const char* what);
+
+/** The marquee: every loc on `rect->level` whose footprint (its record's
+ *  size, turned) touches the rectangle, joined by `mode`. */
+int
+edp_select_rect(
+    struct EditorUi* ui,
+    const struct Editor_TileRect* rect,
+    enum Editor_LocSelectMode mode);
+
+/** Select same: every loc `loc_id` on `level` in the open squares. */
+int
+edp_select_same(
+    struct EditorUi* ui,
+    int loc_id,
+    int level,
+    enum Editor_LocSelectMode mode);
 
 /** The rectangle tool's clipboard ops. Paste lands at the rectangle's SW
  *  corner when one is latched, else at (world_x, world_z). */
@@ -248,6 +345,11 @@ edp_rect_fill(struct EditorUi* ui);
 
 int
 edp_rect_clear(struct EditorUi* ui);
+
+/** The rectangle flattened to the latched tile's height (else its first
+ *  corner's) with the Plateau skirt (Editor_TileRectPlateau). */
+int
+edp_rect_plateau(struct EditorUi* ui);
 
 /** Whether the clipboard holds tiles, and its size. */
 int
@@ -366,6 +468,37 @@ edp_hotkey_tip(
     const char* text,
     char* out,
     int out_size);
+
+/**
+ * The chord a control wears (workbench 6.0, design section 15 surfaces 2 and
+ * 3), from the live table's display spelling: `widget` (a BUTTON) wears
+ * `action`'s first chord as a keycap after its caption, and its tooltip ends
+ * with every chord ("Delete, Backspace") when there are more than the one it
+ * wears. "" when the action is unbound. A module calls it at register and
+ * again whenever ui->hotkeys.serial moves, so a rebind relabels it on the
+ * next frame.
+ */
+void
+edp_button_chord(
+    struct EditorUi* ui,
+    int widget,
+    enum Editor_HotkeyAction action);
+
+/** The same for an ICONBUTTON: the first chord as the badge in its icon
+ *  box's corner, every chord after its tooltip. */
+void
+edp_iconbutton_chord(
+    struct EditorUi* ui,
+    int widget,
+    enum Editor_HotkeyAction action);
+
+/** Only the tooltip's chord, for a control that wears none (a slider, a
+ *  command icon): every chord of `action`, "" when unbound. */
+void
+edp_tooltip_chord(
+    struct EditorUi* ui,
+    int widget,
+    enum Editor_HotkeyAction action);
 
 /** Release the scratch and the clipboard (Editor_UiFree). */
 void

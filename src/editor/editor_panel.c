@@ -17,12 +17,14 @@
 #include "app.h"
 #include "app/app_internal.h"
 #include "builder/builder_panels.h"
+#include "editor_floorcolor.h"
 #include "editor_view.h"
 #include "engine/world_builder/world_builder.h"
 #include "log/torirs_log.h"
 #include "mem/torirs_mem.h"
 #include "panels/edpanel_common.h"
 #include "panels/edpanel_ops.h"
+#include "panels/edpanel_ops_stamps.h"
 #include "panels/edpanels.h"
 #include "torirsmaped/torirs_maped.h"
 #include "ui/uitree_debug_overlay.h"
@@ -31,6 +33,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -232,6 +235,24 @@ hook_open_square(
 }
 
 static void
+hook_close_square(
+    void* user,
+    int map_x,
+    int map_z,
+    const char* storage)
+{
+    struct App* app = user;
+    struct Editor_Panel* panel = &app->editor_panel;
+
+    assert(app);
+    assert(storage);
+    panel->sq_close_pending = 1;
+    panel->sq_close_x = map_x;
+    panel->sq_close_z = map_z;
+    snprintf(panel->sq_close_storage, sizeof(panel->sq_close_storage), "%s", storage);
+}
+
+static void
 hook_open_in_new_view(
     void* user,
     int map_x,
@@ -277,8 +298,38 @@ hook_floor_rgb(
                      : CacheProvider_UnderlayGet(app->provider, id - 1);
     if( !flo )
         return 0;
+    /* A textured overlay's `colour` is a placeholder (often magenta); the
+     * ground shows the texture, and the minimap its average, so the swatch
+     * does too once the texture is resident. */
+    if( is_overlay && flo->texture >= 0 )
+    {
+        struct ToriRS_Texture const* texture = CacheProvider_TextureGet(app->provider, flo->texture);
+        if( texture && texture->average_hsl != 0 )
+        {
+            *out_rgb = Editor_FloorRgbOfHsl16(texture->average_hsl & 0xffff);
+            return 1;
+        }
+    }
     *out_rgb = (uint32_t)flo->rgb_color & 0xffffff;
     return 1;
+}
+
+static void
+hook_floor_request(
+    void* user,
+    int is_overlay,
+    int id)
+{
+    struct App* app = user;
+    struct ToriRS_Task* task;
+
+    assert(app);
+    if( !app->provider || id <= 0 )
+        return;
+    task = is_overlay ? CreateTask_FlotypeLoad(app->provider, id - 1)
+                      : CreateTask_UnderlayLoad(app->provider, id - 1);
+    if( task )
+        ToriRS_TaskQueue_Add(app->runner.queue, task);
 }
 
 static void
@@ -368,8 +419,10 @@ Editor_PanelInit(
     panel->ui->app = app;
     panel->ui->hooks_user = app;
     panel->ui->hooks.open_square = hook_open_square;
+    panel->ui->hooks.close_square = hook_close_square;
     panel->ui->hooks.open_in_new_view = hook_open_in_new_view;
     panel->ui->hooks.floor_rgb = hook_floor_rgb;
+    panel->ui->hooks.floor_request = hook_floor_request;
     panel->ui->hooks.close_editor = hook_close_editor;
     panel->ui->hooks.bake = hook_bake;
     panel->ui->hooks.view_window = hook_view_window;
@@ -377,23 +430,24 @@ Editor_PanelInit(
     /* What the App-bound modules ask of the App, before they register. */
     app_map_editor_ui_services(app, &panel->ui->app_services);
     Editor_UiRegisterToolsPanels(panel->ui);
-    /* The builders' Check button compiles against a stage of the content
-     * tree's scripts with this checkout's sscompile (builder_ssc.h); the
-     * TORIRS_BUILDER_* env vars do the same where the manifest names neither. */
+    /* The builders' Check is the editor server's CHECK job (builder_ssc.h),
+     * so they take no compile paths here. */
     if( app->cfg.editor_content_dir && app->cfg.editor_content_dir[0] && app->cfg.editor_repo_root
         && app->cfg.editor_repo_root[0] )
     {
         char ssc[1024];
         char work[1024];
         snprintf(ssc, sizeof(ssc), "%s/src/build_opt/sscompile", app->cfg.editor_repo_root);
-        snprintf(work, sizeof(work), "%s/src/build_opt/tmp/builders", app->cfg.editor_repo_root);
-        Builder_PanelsSetCompile(panel->ui, ssc, app->cfg.editor_content_dir, work);
-        /* The Triggers panel's Check: the same compiler, its own stage. */
+        /* The Triggers panel's paths (its Check is the CHECK job too). */
         snprintf(work, sizeof(work), "%s/src/build_opt/tmp/triggers_check", app->cfg.editor_repo_root);
         (void)Editor_Triggers_SetPaths(panel->ui, app->cfg.editor_content_dir, ssc, work);
+        /* The quest board reads test/quests and build/quest_gate beside it. */
+        Editor_Quest_SetPaths(panel->ui, app->cfg.editor_content_dir, app->cfg.editor_repo_root);
     }
     else if( app->cfg.editor_content_dir && app->cfg.editor_content_dir[0] )
         (void)Editor_Triggers_SetPaths(panel->ui, app->cfg.editor_content_dir, NULL, NULL);
+    if( app->cfg.editor_content_dir && app->cfg.editor_content_dir[0] )
+        Editor_Shop_SetPaths(panel->ui, app->cfg.editor_content_dir);
     panel->built = 1;
 }
 
@@ -782,11 +836,15 @@ Editor_PanelPlaceLocAt(
     ui = panel->ui;
     if( !ui || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
         return 0;
+    /* A stamp armed from the Stamps list drops whole, whatever the pick
+     * (edpanel_ops_stamps.h): the click and Space both land here. */
+    if( edp_stamp_armed(ui) )
+        return edp_stamp_drop(ui, world_x, world_z, level);
     if( ui->tools.pick_kind == 1 || ui->tools.pick_kind == 2 )
         return Editor_Locs_PlaceSpawn(ui, world_x, world_z, level);
     if( ui->tools.pick_kind != 0 )
     {
-        Editor_UiLog(ui, "editor: pick a loc in the catalog first");
+        Editor_UiStatus(ui, "Place refused: pick a loc in the catalog first");
         return 0;
     }
     {
@@ -815,7 +873,10 @@ Editor_PanelDeleteLocAt(
         return 0;
     if( !Editor_LocOpsDelete(&app->editor->doc, &ref, 1, &command, 1, &result) )
         return 0;
-    return edp_apply(panel->ui, &command, 1, "delete loc");
+    if( !edp_apply(panel->ui, &command, 1, "delete loc") )
+        return 0;
+    edp_locs_say_deleted(panel->ui, &ref, 1);
+    return 1;
 }
 
 int
@@ -894,7 +955,7 @@ Editor_PanelDeleteLocByElement(
         scenery->angle & 3);
     if( !Editor_LocOpsDelete(&app->editor->doc, &ref, 1, &command, 1, &result) )
     {
-        Editor_UiLog(panel->ui, "editor: that loc is not in an open square");
+        Editor_UiStatus(panel->ui, "Delete refused: that loc is not in an open square");
         return 0;
     }
     if( !edp_apply(panel->ui, &command, 1, "delete loc") )
@@ -946,6 +1007,49 @@ Editor_PanelRecordLocEdit(
     return edp_apply(panel->ui, commands, count, "loc edit") > 0;
 }
 
+/** The Scatter set: the distinct ids of the selected locs, else the
+ *  catalog's loc pick; each with its record's size and first shape (one
+ *  tile and a centrepiece until the record is resident). */
+static void
+panel_scatter_set(
+    struct EditorUi* ui,
+    struct Editor_ScatterSet* set)
+{
+    set->count = 0;
+    for( int i = 0; i < ui->tools.loc_count && set->count < EDITOR_SCATTER_SET_MAX; i++ )
+    {
+        int const id = ui->tools.locs[i].loc_id;
+        int seen = 0;
+        if( id < 0 )
+            continue;
+        for( int k = 0; k < set->count; k++ )
+            if( set->loc_id[k] == id )
+                seen = 1;
+        if( !seen )
+            set->loc_id[set->count++] = id;
+    }
+    if( set->count == 0 && ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0 )
+        set->loc_id[set->count++] = ui->tools.pick_id;
+    for( int k = 0; k < set->count; k++ )
+    {
+        struct ToriRS_Location* cfg = NULL;
+        set->shape[k] = 10;
+        set->size_x[k] = 1;
+        set->size_z[k] = 1;
+        if( ui->app_services.loc_record )
+            cfg = ui->app_services.loc_record(ui->app_services.user_data, set->loc_id[k]);
+        if( !cfg )
+        {
+            if( ui->app_services.loc_request )
+                ui->app_services.loc_request(ui->app_services.user_data, set->loc_id[k]);
+            continue;
+        }
+        set->shape[k] = Editor_LocShapeFirst(Editor_LocShapeMask(cfg));
+        set->size_x[k] = cfg->size_x > 0 ? cfg->size_x : 1;
+        set->size_z[k] = cfg->size_z > 0 ? cfg->size_z : 1;
+    }
+}
+
 int
 Editor_PanelApplyToolAt(
     struct Editor_Panel* panel,
@@ -964,6 +1068,54 @@ Editor_PanelApplyToolAt(
     if( !ui || !app->editor || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
         return 0;
 
+    if( ui->tools.tool == EDITOR_TOOL_SCATTER )
+    {
+        int capacity;
+        struct Editor_Cmd* commands = edp_scratch(&capacity);
+        struct Editor_ScatterOp op;
+        int count;
+
+        memset(&op, 0, sizeof(op));
+        op.world_x = world_x;
+        op.world_z = world_z;
+        op.level = level < 0 ? 0 : level > 3 ? 3 : level;
+        op.brush = ui->tools.brush;
+        op.density = ui->tools.scatter_density < 1 ? 1 : ui->tools.scatter_density > 100 ? 100 : ui->tools.scatter_density;
+        op.rotate = ui->tools.scatter_rotate;
+        op.seed = ui->tools.scatter_seed;
+        op.erase = panel->scatter_erase;
+        panel_scatter_set(ui, &op.set);
+        if( op.set.count == 0 )
+        {
+            Editor_UiStatus(ui, "Scatter refused: select locs to scatter, or pick one in the catalog");
+            return 0;
+        }
+        count = Editor_ScatterCommands(&app->editor->doc, &op, commands, capacity);
+        if( count == 0 && !Editor_DocFindSquare(&app->editor->doc, world_x / 64, world_z / 64) )
+            Editor_UiLog(ui, "editor: m%d_%d is not open in the editor", world_x / 64, world_z / 64);
+        return edp_apply(ui, commands, count, op.erase ? "scatter erase" : "scatter");
+    }
+    if( ui->tools.tool == EDITOR_TOOL_PLATEAU )
+    {
+        int capacity;
+        struct Editor_Cmd* commands = edp_scratch(&capacity);
+        int const l = level < 0 ? 0 : level > 3 ? 3 : level;
+        int count;
+
+        /* The top is the height of the tile the stroke began on, held over
+         * the drag as Flatten holds its target. */
+        if( !ui->tools.flatten_valid
+            && Editor_OpsDerivedHeight(&app->editor->doc, world_x, world_z, l, &ui->tools.flatten_height) )
+            ui->tools.flatten_valid = 1;
+        if( !ui->tools.flatten_valid )
+        {
+            Editor_UiLog(ui, "editor: m%d_%d is not open in the editor", world_x / 64, world_z / 64);
+            return 0;
+        }
+        count = Editor_PlateauBrushCommands(&app->editor->doc, l, ui->tools.flatten_height, ui->tools.plateau_skirt,
+            &ui->tools.brush, world_x, world_z, commands, capacity);
+        return edp_apply(ui, commands, count, "plateau");
+    }
     if( Editor_ToolIsBrush(ui->tools.tool) )
     {
         int capacity;
@@ -972,6 +1124,8 @@ Editor_PanelApplyToolAt(
         int count;
 
         memset(&op, 0, sizeof(op));
+        op.noise_seed = ui->tools.noise_seed;
+        op.paint_mix = ui->tools.paint_mix;
         op.tool = ui->tools.tool;
         op.world_x = world_x;
         op.world_z = world_z;
@@ -1014,7 +1168,8 @@ Editor_PanelApplyToolAt(
         struct Editor_LocRef ref;
         if( !panel_loc_ref_pointed(app, scene_x, scene_z, level, &ref) )
         {
-            Editor_UiLog(ui, "editor: no loc on that tile");
+            Editor_UiStatus(
+                ui, "%s refused: no loc on that tile", ui->tools.tool == EDITOR_TOOL_LOC_ROTATE ? "Rotate" : "Delete");
             return 0;
         }
         Editor_UiSelectLoc(ui, &ref);
@@ -1047,6 +1202,294 @@ Editor_PanelApplyToSelection(
         return 0;
     panel->ui->tools.flatten_valid = 0;
     return Editor_PanelApplyToolAt(panel, app, scene_x, scene_z, panel->ui->tools.tile_level);
+}
+
+/* ---- the Path tool ------------------------------------------------------------- */
+
+void
+Editor_PanelPathParams(
+    const struct EditorUi* ui,
+    struct Editor_PathParams* out)
+{
+    assert(ui);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->style = ui->tools.path_style == EDITOR_PATH_PAVED ? EDITOR_PATH_PAVED : EDITOR_PATH_DIRT;
+    out->width = ui->tools.path_width_halves / 2.0;
+    if( out->width < 0.5 )
+        out->width = 0.5;
+    if( out->width > EDITOR_PATH_WIDTH_MAX )
+        out->width = EDITOR_PATH_WIDTH_MAX;
+    out->roughness = ui->tools.path_roughness / 100.0;
+    out->seed = ui->tools.path_seed;
+}
+
+/* One tile onto the drag; the tiles between it and the last one too, so a
+ * pointer that skipped tiles between frames leaves no gap (a Bresenham line). */
+static int
+panel_path_add(
+    struct Editor_Panel* panel,
+    int world_x,
+    int world_z)
+{
+    int x;
+    int z;
+    int dx;
+    int dz;
+    int sx;
+    int sz;
+    int err;
+    int added = 0;
+
+    if( panel->path.count == 0 )
+    {
+        panel->path.xs[0] = world_x;
+        panel->path.zs[0] = world_z;
+        panel->path.count = 1;
+        return 1;
+    }
+    x = panel->path.xs[panel->path.count - 1];
+    z = panel->path.zs[panel->path.count - 1];
+    dx = abs(world_x - x);
+    dz = -abs(world_z - z);
+    sx = x < world_x ? 1 : -1;
+    sz = z < world_z ? 1 : -1;
+    err = dx + dz;
+    while( (x != world_x || z != world_z) && panel->path.count < EDITOR_PATH_POINTS_MAX )
+    {
+        int const e2 = 2 * err;
+        if( e2 >= dz )
+        {
+            err += dz;
+            x += sx;
+        }
+        if( e2 <= dx )
+        {
+            err += dx;
+            z += sz;
+        }
+        panel->path.xs[panel->path.count] = x;
+        panel->path.zs[panel->path.count] = z;
+        panel->path.count++;
+        added = 1;
+    }
+    return added;
+}
+
+int
+Editor_PanelPathBegin(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    int world_x;
+    int world_z;
+
+    assert(panel);
+    assert(app);
+    if( !panel->ui || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+        return 0;
+    panel->path.active = 1;
+    panel->path.level = level < 0 ? 0 : level > 3 ? 3 : level;
+    panel->path.count = 0;
+    (void)panel_path_add(panel, world_x, world_z);
+    return 1;
+}
+
+int
+Editor_PanelPathTo(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z)
+{
+    int world_x;
+    int world_z;
+
+    assert(panel);
+    assert(app);
+    if( !panel->path.active || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+        return 0;
+    if( panel->path.count == EDITOR_PATH_POINTS_MAX )
+    {
+        Editor_UiStatus(panel->ui, "Path: %d tiles is as long as one drag lays; release, then drag on",
+            EDITOR_PATH_POINTS_MAX);
+        return 0;
+    }
+    return panel_path_add(panel, world_x, world_z);
+}
+
+int
+Editor_PanelPathPreview(
+    const struct Editor_Panel* panel,
+    struct Editor_PathTile* out,
+    int max)
+{
+    struct Editor_PathParams params;
+
+    assert(panel);
+    assert(out);
+    if( !panel->path.active || !panel->ui || panel->path.count == 0 )
+        return 0;
+    Editor_PanelPathParams(panel->ui, &params);
+    return Editor_PathPlan(&params, panel->path.xs, panel->path.zs, panel->path.count, NULL, NULL, out, max);
+}
+
+int
+Editor_PanelPathEnd(
+    struct Editor_Panel* panel,
+    struct App* app)
+{
+    struct EditorUi* ui;
+    struct Editor_PathParams params;
+    struct Editor_Cmd* commands;
+    int capacity;
+    int closed = 0;
+    int count;
+    int applied;
+
+    assert(panel);
+    assert(app);
+    ui = panel->ui;
+    if( !panel->path.active )
+        return 0;
+    panel->path.active = 0;
+    if( !ui || !app->editor )
+        return 0;
+    if( ui->tools.overlay_none )
+    {
+        Editor_UiStatus(ui, "Path refused: pick the path's overlay in the Palette first");
+        return 0;
+    }
+    Editor_PanelPathParams(ui, &params);
+    commands = edp_scratch(&capacity);
+    count = Editor_PathCommands(&app->editor->doc, panel->path.level, &params, ui->tools.overlay_id, panel->path.xs,
+        panel->path.zs, panel->path.count, commands, capacity, &closed);
+    applied = edp_apply(ui, commands, count, Editor_ToolName(EDITOR_TOOL_PAINT_PATH));
+    if( closed > 0 )
+        Editor_UiStatus(ui, "Path: %d tile%s in squares not open here were left out", closed, closed == 1 ? "" : "s");
+    else if( count == 0 )
+        Editor_UiStatus(ui, "Path: nothing to change (the tiles already carry it)");
+    else
+        Editor_UiStatus(ui, "Path: %d tile%s laid, %s %d.%d wide", applied, applied == 1 ? "" : "s",
+            params.style == EDITOR_PATH_PAVED ? "pavement" : "dirt", ui->tools.path_width_halves / 2,
+            ui->tools.path_width_halves % 2 ? 5 : 0);
+    /* The next path wanders its own way (the preview drew this seed's). */
+    ui->tools.path_seed = ui->tools.path_seed * 1664525u + 1013904223u;
+    return applied;
+}
+
+/* ---- direct manipulation ------------------------------------------------------ */
+
+int
+Editor_PanelRunBegin(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    int world_x;
+    int world_z;
+
+    assert(panel);
+    assert(app);
+    panel->run.active = 0;
+    if( !panel->ui || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+        return 0;
+    /* An armed spawn move takes the click (Editor_PanelApplyToolAt). */
+    if( Editor_Spawns_MoveArmed(panel->ui) )
+        return 0;
+    /* So does an armed stamp: its drop is one piece on one tile
+     * (Editor_PanelPlaceLocAt), never a run of the pick. */
+    if( edp_stamp_armed(panel->ui) )
+        return 0;
+    return edp_run_begin(panel->ui, &panel->run, world_x, world_z, level);
+}
+
+int
+Editor_PanelRunTo(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int constrain)
+{
+    int world_x;
+    int world_z;
+
+    assert(panel);
+    assert(app);
+    assert(panel->ui);
+    if( !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+        return 0;
+    return edp_run_to(panel->ui, &panel->run, world_x, world_z, constrain);
+}
+
+int
+Editor_PanelRunEnd(
+    struct Editor_Panel* panel,
+    struct App* app)
+{
+    assert(panel);
+    assert(app);
+    assert(panel->ui);
+    (void)app;
+    return edp_run_end(panel->ui, &panel->run);
+}
+
+int
+Editor_PanelMarqueeSelect(
+    struct Editor_Panel* panel,
+    struct App* app,
+    enum Editor_LocSelectMode mode)
+{
+    assert(panel);
+    assert(app);
+    (void)app;
+    if( !panel->ui )
+        return 0;
+    return edp_select_rect(panel->ui, &panel->ui->tools.rect, mode);
+}
+
+int
+Editor_PanelSelectPointed(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    enum Editor_LocSelectMode mode)
+{
+    struct Editor_LocRef ref;
+
+    assert(panel);
+    assert(app);
+    if( !panel->ui || !panel_loc_ref_pointed(app, scene_x, scene_z, level, &ref) )
+        return 0;
+    (void)edp_select_refs(panel->ui, &ref, 1, mode, "select");
+    return 1;
+}
+
+int
+Editor_PanelSelectSameAt(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    enum Editor_LocSelectMode mode)
+{
+    struct Editor_LocRef ref;
+
+    assert(panel);
+    assert(app);
+    if( !panel->ui || !panel_loc_ref_pointed(app, scene_x, scene_z, level, &ref) )
+        return 0;
+    (void)edp_select_same(panel->ui, ref.loc_id, level, mode);
+    return 1;
 }
 
 /* ---- the selection relay ---------------------------------------------------- */

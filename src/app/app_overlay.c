@@ -8,6 +8,7 @@
 
 #include "app/app_internal.h"
 #include "editor/editor_doc.h"
+#include "editor/loc_editor_selection.h"
 #include "editor/panels/edpanels.h"
 
 /**
@@ -1736,6 +1737,39 @@ app_overlay_build_editor_ghosts(struct App* app)
                     APP_OUTLINE_FILL_TRANS, APP_OVERLAY_SEGMENT_WIDTH);
         }
     }
+    /* The encounter builder's rings (Editor_Encounter_Rings, workbench 6.7):
+     * each set's wander squares washed and its hunt squares outlined in the
+     * set's colour, the shown set's brighter; drawn as the wander preview is. */
+    if( panel->ui )
+    {
+        static struct Editor_EncounterRing rings[EDITOR_ENCOUNTER_RINGS_MAX];
+        static int row_x0[2 * MAP_EDITOR_WANDER_RANGE_MAX + 2];
+        static int row_x1[2 * MAP_EDITOR_WANDER_RANGE_MAX + 2];
+        int const bx = app->world->_base_tile_x;
+        int const bz = app->world->_base_tile_z;
+        int const n = Editor_Encounter_Rings(panel->ui, rings, EDITOR_ENCOUNTER_RINGS_MAX);
+
+        for( int i = 0; i < n; i++ )
+        {
+            const struct Editor_EncounterRing* r = &rings[i];
+            uint32_t const color = 0xFF000000u | (r->current ? r->rgb : ((r->rgb >> 1) & 0x7F7F7Fu) + 0x404040u);
+            int const x0 = r->x0 - bx < 0 ? 0 : r->x0 - bx;
+            int const z0 = r->z0 - bz < 0 ? 0 : r->z0 - bz;
+            int const x1 = r->x1 - bx;
+            int rows = r->z1 - bz - z0 + 1;
+
+            if( x1 < x0 || rows <= 0 )
+                continue;
+            if( rows > (int)(sizeof(row_x0) / sizeof(row_x0[0])) )
+                rows = (int)(sizeof(row_x0) / sizeof(row_x0[0]));
+            for( int k = 0; k < rows; k++ )
+                row_x0[k] = row_x1[k] = -1;
+            row_x0[0] = row_x0[rows - 1] = x0;
+            row_x1[0] = row_x1[rows - 1] = x1;
+            app_overlay_editor_rows_hull(app, z0, rows, row_x0, row_x1, r->level, color,
+                r->hunt ? -1 : APP_OUTLINE_FILL_TRANS, APP_OVERLAY_SEGMENT_WIDTH + (r->hunt && r->current ? 1 : 0));
+        }
+    }
     if( panel->ui && hover->valid && panel->ui->tools.tool == EDITOR_TOOL_LOC_MOVE
         && panel->sel_kind == EDITOR_SELECTION_LOC && panel->ui->tools.loc_count > 1 )
     {
@@ -1757,6 +1791,165 @@ app_overlay_build_editor_ghosts(struct App* app)
             int const size_z = other && other->debug.draw_size_z > 0 ? other->debug.draw_size_z : 1;
             app_overlay_editor_block(
                 app, sx + dx, sz + dz, size_x, size_z, ref->level, APP_EDITOR_GHOST_COLOR, APP_OUTLINE_FILL_TRANS);
+        }
+    }
+}
+
+/* A run tile the release would not fill (its square closed, its key another
+ * loc's): drawn in the footprint red. */
+#define APP_EDITOR_REFUSED_COLOR APP_OUTLINE_COLOR_FOOTPRINT
+/* A run's wall line, thick enough to read as the wall it will be. */
+#define APP_EDITOR_RUN_LINE_WIDTH (APP_OVERLAY_SEGMENT_WIDTH + 1)
+/* A corner post's half-width, fine units (a tile is 128). */
+#define APP_EDITOR_RUN_POST_HALF 20
+
+/** A segment between two fine points on the ground of `level`. */
+static void
+app_overlay_editor_ground_segment(
+    struct App* app,
+    int fx0,
+    int fz0,
+    int fx1,
+    int fz1,
+    int level,
+    uint32_t color,
+    int width)
+{
+    int sx0;
+    int sy0;
+    int sx1;
+    int sy1;
+
+    if( !app_world_project_at(app, fx0, fz0, app_world_height(app, fx0, fz0, level), &sx0, &sy0) )
+        return;
+    if( !app_world_project_at(app, fx1, fz1, app_world_height(app, fx1, fz1, level), &sx1, &sy1) )
+        return;
+    app_overlay_push_segment(app, sx0, sy0, sx1, sy1, color, width);
+}
+
+/** A wall edge of scene tile (sx, sz): 0 west, 1 north, 2 east, 3 south. */
+static void
+app_overlay_editor_wall_edge(
+    struct App* app,
+    int sx,
+    int sz,
+    int edge,
+    int level,
+    uint32_t color)
+{
+    /* Each edge's two corners, in tile units from the SW corner. */
+    static const int k_edge[4][4] = { { 0, 0, 0, 1 }, { 0, 1, 1, 1 }, { 1, 0, 1, 1 }, { 0, 0, 1, 0 } };
+    int const* e = k_edge[edge & 3];
+
+    app_overlay_editor_ground_segment(app, (sx + e[0]) * 128, (sz + e[1]) * 128, (sx + e[2]) * 128,
+        (sz + e[3]) * 128, level, color, APP_EDITOR_RUN_LINE_WIDTH);
+}
+
+/**
+ * The Place run in progress (Editor_Panel::run): every footprint of the plan
+ * at the pose the release will place -- a wall run's straight pieces as the
+ * edge they stand on, its L as both edges, its corner post as a square on
+ * the corner; any other run's pose as the loc's footprint block -- and a
+ * tile the release would not fill in red. The same plan the release commits
+ * (edp_run_end re-plans it against the document), so they cannot disagree.
+ */
+/* The Path drag's plan (Editor_PanelPathPreview): the tiles the release will
+ * pave, edge-shaped ones stronger so the edge the planner chose reads. At
+ * most this many washes; a longer path shows its edge tiles first. */
+#define APP_EDITOR_PATH_PREVIEW_TILES 240
+
+static void
+app_overlay_build_editor_path(struct App* app)
+{
+    static struct Editor_PathTile tiles[EDITOR_PATH_SPAN_MAX * 8];
+    struct Editor_Panel const* panel = &app->editor_panel;
+    int count;
+    int drawn = 0;
+
+    if( !app->world || !panel->path.active )
+        return;
+    count = Editor_PanelPathPreview(panel, tiles, (int)(sizeof(tiles) / sizeof(tiles[0])));
+    for( int pass = 0; pass < 2; pass++ )
+        for( int i = 0; i < count && drawn < APP_EDITOR_PATH_PREVIEW_TILES; i++ )
+        {
+            int const edge = tiles[i].shape != 0;
+            int const sx = tiles[i].world_x - app->world->_base_tile_x;
+            int const sz = tiles[i].world_z - app->world->_base_tile_z;
+            /* Edges first, then the whole tiles while the budget lasts. */
+            if( edge != (pass == 0) )
+                continue;
+            if( sx < 0 || sz < 0 || sx >= app->world->_scene_size || sz >= app->world->_scene_size )
+                continue;
+            app_overlay_editor_tile(app, sx, sz, panel->path.level, APP_EDITOR_BRUSH_COLOR, edge ? 150 : 200, 0);
+            drawn++;
+        }
+}
+
+static void
+app_overlay_build_editor_run(struct App* app)
+{
+    struct Editor_Panel const* panel = &app->editor_panel;
+    struct Editor_LocRunPlan const* plan = &panel->run.plan;
+    int size_x = 1;
+    int size_z = 1;
+
+    if( !app->world || !panel->run.active || panel->run.path.count < 2 || plan->count < 2 )
+        return;
+    if( !plan->wall && app->provider && (plan->pieces[0].shape == 10 || plan->pieces[0].shape == 11) )
+    {
+        struct ToriRS_Location* cfg = CacheProvider_LocationGet(app->provider, plan->loc_id);
+        if( cfg )
+        {
+            size_x = cfg->size_x;
+            size_z = cfg->size_z;
+        }
+    }
+    for( int i = 0; i < plan->count; i++ )
+    {
+        struct Editor_LocRunPiece const* piece = &plan->pieces[i];
+        int const sx = piece->world_x - app->world->_base_tile_x;
+        int const sz = piece->world_z - app->world->_base_tile_z;
+        int const refused = piece->state == EDITOR_LOC_RUN_CLOSED || piece->state == EDITOR_LOC_RUN_TAKEN;
+        uint32_t const color = refused ? APP_EDITOR_REFUSED_COLOR : APP_EDITOR_GHOST_COLOR;
+
+        if( piece->state == EDITOR_LOC_RUN_NONE )
+            continue;
+        if( sx < 0 || sz < 0 || sx >= app->world->_scene_size || sz >= app->world->_scene_size )
+            continue;
+        if( refused )
+            app_overlay_editor_tile(app, sx, sz, plan->level, color, APP_OUTLINE_FILL_TRANS, APP_OVERLAY_SEGMENT_WIDTH);
+        if( !plan->wall )
+        {
+            int w;
+            int h;
+            Editor_LocFootprint(piece->shape, piece->rotation, size_x, size_z, &w, &h);
+            if( !refused )
+                app_overlay_editor_block(app, sx, sz, w, h, plan->level, color, APP_OUTLINE_FILL_TRANS);
+            continue;
+        }
+        if( piece->shape == 0 )
+            app_overlay_editor_wall_edge(app, sx, sz, piece->rotation, plan->level, color);
+        else if( piece->shape == 2 )
+        {
+            app_overlay_editor_wall_edge(app, sx, sz, piece->rotation, plan->level, color);
+            app_overlay_editor_wall_edge(app, sx, sz, piece->rotation + 1, plan->level, color);
+        }
+        else
+        {
+            /* A corner post: a small square on its corner (rotation 0 NW,
+             * 1 NE, 2 SE, 3 SW). */
+            static const int k_corner[4][2] = { { 0, 1 }, { 1, 1 }, { 1, 0 }, { 0, 0 } };
+            int const cx = (sx + k_corner[piece->rotation & 3][0]) * 128;
+            int const cz = (sz + k_corner[piece->rotation & 3][1]) * 128;
+            int const r = APP_EDITOR_RUN_POST_HALF;
+            app_overlay_editor_ground_segment(app, cx - r, cz - r, cx + r, cz - r, plan->level, color,
+                APP_EDITOR_RUN_LINE_WIDTH);
+            app_overlay_editor_ground_segment(app, cx + r, cz - r, cx + r, cz + r, plan->level, color,
+                APP_EDITOR_RUN_LINE_WIDTH);
+            app_overlay_editor_ground_segment(app, cx + r, cz + r, cx - r, cz + r, plan->level, color,
+                APP_EDITOR_RUN_LINE_WIDTH);
+            app_overlay_editor_ground_segment(app, cx - r, cz + r, cx - r, cz - r, plan->level, color,
+                APP_EDITOR_RUN_LINE_WIDTH);
         }
     }
 }
@@ -1930,6 +2123,71 @@ app_overlay_build_editor_areas(struct App* app)
  * panel_refresh (editor_panel.c) is reading for the readout at the same time.
  */
 void
+app_overlay_build_editor_selection(struct App* app);
+
+/* ---- the move gizmo and the multi-piece ghost (workbench 6.3) ---------------
+ *
+ * What app_map_editor.c computed this frame, drawn: the multi-piece ghost's
+ * footprints (an armed stamp at the hover, a gizmo drag's destinations),
+ * yellow, orange where the key is taken; and the gizmo on the primary
+ * selected loc -- the N/S arrows green, W/E red, the ring and the centre
+ * yellow, the handle under the pointer (or being dragged) white and wider.
+ * The points are App_MapEditorGizmoScreen's, the same the click tests, so
+ * what is drawn is what a press hits.
+ */
+#define APP_GIZMO_COLOR_NS 0xFF40D040u
+#define APP_GIZMO_COLOR_WE 0xFFE04040u
+#define APP_GIZMO_COLOR_RING 0xFFFFD040u
+#define APP_GIZMO_COLOR_HOT 0xFFFFFFFFu
+#define APP_GIZMO_COLOR_TAKEN 0xFFFF8020u
+
+static void
+app_overlay_build_editor_gizmo(struct App* app)
+{
+    struct MapEditorPieceGhost const* ghost = &app->map_ghost.pieces;
+    struct LocEditorGizmoScreen screen;
+    int hot;
+
+    for( int i = 0; i < ghost->count; i++ )
+    {
+        struct MapEditorPieceGhostPiece const* p = &ghost->pieces[i];
+        app_overlay_editor_block(app, p->scene_x, p->scene_z, p->size_x, p->size_z, p->level,
+            p->taken ? APP_GIZMO_COLOR_TAKEN : APP_OUTLINE_COLOR_EDITOR_SELECT, APP_OUTLINE_FILL_TRANS);
+    }
+    if( !App_MapEditorGizmoScreen(app, &screen, &hot) )
+        return;
+    for( int a = 0; a < 4; a++ )
+    {
+        int const handle = LOC_EDITOR_GIZMO_ARROW_N + a;
+        uint32_t const color = hot == handle ? APP_GIZMO_COLOR_HOT : a < 2 ? APP_GIZMO_COLOR_NS : APP_GIZMO_COLOR_WE;
+        int const width = hot == handle ? APP_OVERLAY_SEGMENT_WIDTH + 2 : APP_OVERLAY_SEGMENT_WIDTH + 1;
+        int const dx = screen.arrow_x1[a] - screen.arrow_x0[a];
+        int const dy = screen.arrow_y1[a] - screen.arrow_y0[a];
+        if( !screen.arrow_ok[a] )
+            continue;
+        app_overlay_push_segment(
+            app, screen.arrow_x0[a], screen.arrow_y0[a], screen.arrow_x1[a], screen.arrow_y1[a], color, width);
+        /* The head: two strokes back from the tip, a third of the shaft,
+         * turned out either side. */
+        app_overlay_push_segment(app, screen.arrow_x1[a], screen.arrow_y1[a],
+            screen.arrow_x1[a] - dx / 3 - dy / 4, screen.arrow_y1[a] - dy / 3 + dx / 4, color, width);
+        app_overlay_push_segment(app, screen.arrow_x1[a], screen.arrow_y1[a],
+            screen.arrow_x1[a] - dx / 3 + dy / 4, screen.arrow_y1[a] - dy / 3 - dx / 4, color, width);
+    }
+    app_overlay_push_polygon(app, screen.ring_x, screen.ring_y, screen.ring_count,
+        hot == LOC_EDITOR_GIZMO_RING ? APP_GIZMO_COLOR_HOT : APP_GIZMO_COLOR_RING,
+        hot == LOC_EDITOR_GIZMO_RING ? APP_OVERLAY_SEGMENT_WIDTH + 1 : APP_OVERLAY_SEGMENT_WIDTH);
+    {
+        int const r = hot == LOC_EDITOR_GIZMO_CENTRE ? 6 : 4;
+        int const cx[4] = { screen.centre_x - r, screen.centre_x + r, screen.centre_x + r, screen.centre_x - r };
+        int const cy[4] = { screen.centre_y - r, screen.centre_y - r, screen.centre_y + r, screen.centre_y + r };
+        uint32_t const color = hot == LOC_EDITOR_GIZMO_CENTRE ? APP_GIZMO_COLOR_HOT : APP_GIZMO_COLOR_RING;
+        app_overlay_push_polygon_filled(app, cx, cy, 4, color, 64);
+        app_overlay_push_polygon(app, cx, cy, 4, color, APP_OVERLAY_SEGMENT_WIDTH);
+    }
+}
+
+void
 app_overlay_build_editor_selection(struct App* app)
 {
     struct Editor_Panel const* panel = &app->editor_panel;
@@ -1946,8 +2204,14 @@ app_overlay_build_editor_selection(struct App* app)
      * move destinations. */
     app_overlay_build_brush_footprint(app);
     app_overlay_build_editor_ghosts(app);
+    /* A Place drag's run: every footprint it will place, before release. */
+    app_overlay_build_editor_run(app);
+    /* A Path drag: the tiles the release will pave. */
+    app_overlay_build_editor_path(app);
     /* The named areas (Areas panel). */
     app_overlay_build_editor_areas(app);
+    /* The move gizmo and the multi-piece ghost (workbench 6.3). */
+    app_overlay_build_editor_gizmo(app);
 
     /* The Place-loc ghost's FOOTPRINT: the translucent model says what it
      * looks like, this says which tiles it will own -- the question that

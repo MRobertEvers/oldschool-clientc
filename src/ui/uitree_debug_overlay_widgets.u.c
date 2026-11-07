@@ -52,15 +52,24 @@
  *  panel's track 40 px long). */
 #define DBG_SLIDER_LABEL_PERCENT 30
 #define DBG_SLIDER_LABEL_GAP DBG_PX(6)
+/* The least track a slider keeps beside a long label: the knob and two of its
+ * widths to travel. */
+#define DBG_SLIDER_TRACK_MIN (3 * DBG_KNOB)
 /** A docked panel's splitter band, on its inner edge. */
 #define DBG_SPLIT DBG_PX(5)
 /** Smallest a splitter drag may make a docked panel. */
 #define DBG_DOCK_MIN DBG_PX(48)
 /** One VLIST row, and one CODE line (the menu face, as the design says). */
-#define DBG_VROW_H (ToriRSChrome_FontLineBox(ui->theme.font_row, ui->scale) + DBG_PX(2))
-#define DBG_CODE_LINE_H (ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, ui->scale) + DBG_PX(1))
+#define DBG_VROW_H (ToriRSChrome_FontLineBoxQ(ui->theme.font_row, ui->scale_q) + DBG_PX(2))
+#define DBG_CODE_LINE_H (ToriRSChrome_FontLineBoxQ(TORIRS_CHROME_FONT_MENU, ui->scale_q) + DBG_PX(1))
 #define DBG_GUTTER_PAD DBG_PX(4)
 #define DBG_TOOLTIP_PAD DBG_PX(3)
+/** Chords at the action (torirs_chrome_metrics.h, "keycaps and badges"). */
+#define DBG_KEYCAP_INSET DBG_PX(TORIRS_CHROME_M_KEYCAP_INSET)
+#define DBG_KEYCAP_PAD_X DBG_PX(TORIRS_CHROME_M_KEYCAP_PAD_X)
+#define DBG_KEYCAP_GAP DBG_PX(TORIRS_CHROME_M_KEYCAP_GAP)
+#define DBG_BADGE_H DBG_PX(TORIRS_CHROME_M_BADGE_H)
+#define DBG_BADGE_INSET DBG_PX(TORIRS_CHROME_M_BADGE_INSET)
 /** Transparency of the veil under a modal (the reference's sense: 0 opaque). */
 #define DBG_MODAL_VEIL_TRANS 128
 
@@ -142,46 +151,124 @@ dbg_is_vlist_kind(int kind)
 }
 
 /**
- * Copy a caller string into one of a widget's fields, logging -- once per
- * widget serial -- when it did not fit. The limits stay (63-byte labels,
- * 191-byte text); what changes is that hitting one is no longer silent.
+ * Note -- once per widget serial -- that `src` did not fit a `cap`-byte field.
+ *
+ * Two answers, both kept: the stderr line every host already gets, and a
+ * record in the ring the host drains (ToriRSChrome_TakeTruncation), so the
+ * map editor's console can say it where the person editing will see it. The
+ * limits stay (63-byte labels, 191-byte text); what changes is that hitting
+ * one is never silent (the workbench contract's R2).
  */
+static void
+dbg_note_truncation(
+    struct ToriRSChrome* ui, int widget, int field, char const* src, int cap)
+{
+    struct ToriRSChromeWidget* w = &ui->widgets[widget];
+    struct ToriRSChromeTruncation* rec;
+    size_t length;
+    int slot;
+
+    if( !src || w->truncation_logged )
+        return;
+    length = strlen(src);
+    if( length < (size_t)cap )
+        return;
+    w->truncation_logged = 1;
+    fprintf(
+        stderr,
+        "chrome: widget %d (serial %d) string cut to %d bytes: \"%.40s...\"\n",
+        widget,
+        w->serial,
+        cap - 1,
+        src);
+    /* A full ring overwrites its oldest: the newest cut is the one on the page
+     * somebody just opened. */
+    if( ui->truncation_count == TORIRS_CHROME_TRUNCATION_RING )
+    {
+        ui->truncation_head = (ui->truncation_head + 1) % TORIRS_CHROME_TRUNCATION_RING;
+        ui->truncation_count--;
+        ui->truncation_dropped++;
+    }
+    slot = (ui->truncation_head + ui->truncation_count) % TORIRS_CHROME_TRUNCATION_RING;
+    rec = &ui->truncations[slot];
+    rec->widget = widget;
+    rec->serial = w->serial;
+    rec->widget_kind = w->kind;
+    rec->field = field;
+    rec->kept = cap - 1;
+    rec->length = length > 0x7FFFFFFF ? 0x7FFFFFFF : (int)length;
+    dbg_copy(rec->head, TORIRS_CHROME_TRUNCATION_HEAD, src);
+    ui->truncation_count++;
+}
+
+/** Which field of `w` the buffer `dst` is, for the truncation record. */
+static int
+dbg_widget_field(struct ToriRSChromeWidget const* w, char const* dst)
+{
+    if( dst == w->label )
+        return TORIRS_CHROME_TRUNC_LABEL;
+    if( dst == w->tooltip )
+        return TORIRS_CHROME_TRUNC_TOOLTIP;
+    if( dst == w->chord )
+        return TORIRS_CHROME_TRUNC_CHORD;
+    if( dst == w->tooltip_chord )
+        return TORIRS_CHROME_TRUNC_TOOLTIP_CHORD;
+    return TORIRS_CHROME_TRUNC_TEXT;
+}
+
+/** Copy a caller string into one of a widget's fields, noting a cut. */
 static void
 dbg_copy_widget(
     struct ToriRSChrome* ui, int widget, char* dst, int cap, char const* src)
 {
-    struct ToriRSChromeWidget* w = &ui->widgets[widget];
-
+    dbg_note_truncation(ui, widget, dbg_widget_field(&ui->widgets[widget], dst), src, cap);
     dbg_copy(dst, cap, src);
-    if( src && strlen(src) >= (size_t)cap && !w->truncation_logged )
-    {
-        w->truncation_logged = 1;
-        fprintf(
-            stderr,
-            "chrome: widget %d (serial %d) string cut to %d bytes: \"%.40s...\"\n",
-            widget,
-            w->serial,
-            cap - 1,
-            src);
-    }
 }
 
-/** The same check for a setter that copies into a scratch buffer first. */
-static void
-dbg_note_truncation(struct ToriRSChrome* ui, int widget, char const* src, int cap)
+int
+ToriRSChrome_TakeTruncation(struct ToriRSChrome* ui, struct ToriRSChromeTruncation* out)
 {
-    struct ToriRSChromeWidget* w = &ui->widgets[widget];
-
-    if( src && strlen(src) >= (size_t)cap && !w->truncation_logged )
+    assert(ui);
+    assert(out);
+    if( ui->truncation_count == 0 )
     {
-        w->truncation_logged = 1;
-        fprintf(
-            stderr,
-            "chrome: widget %d (serial %d) string cut to %d bytes: \"%.40s...\"\n",
-            widget,
-            w->serial,
-            cap - 1,
-            src);
+        memset(out, 0, sizeof(*out));
+        return 0;
+    }
+    *out = ui->truncations[ui->truncation_head];
+    ui->truncation_head = (ui->truncation_head + 1) % TORIRS_CHROME_TRUNCATION_RING;
+    ui->truncation_count--;
+    return 1;
+}
+
+int
+ToriRSChrome_TakeTruncationsDropped(struct ToriRSChrome* ui)
+{
+    int was;
+
+    assert(ui);
+    was = ui->truncation_dropped;
+    ui->truncation_dropped = 0;
+    return was;
+}
+
+char const*
+ToriRSChrome_TruncationFieldName(int field)
+{
+    assert(field >= TORIRS_CHROME_TRUNC_LABEL);
+    assert(field <= TORIRS_CHROME_TRUNC_TOOLTIP_CHORD);
+    switch( field )
+    {
+    case TORIRS_CHROME_TRUNC_LABEL:
+        return "label";
+    case TORIRS_CHROME_TRUNC_TEXT:
+        return "text";
+    case TORIRS_CHROME_TRUNC_TOOLTIP:
+        return "tooltip";
+    case TORIRS_CHROME_TRUNC_CHORD:
+        return "chord";
+    default:
+        return "tooltip chord";
     }
 }
 
@@ -202,8 +289,8 @@ dbg_push_icon(
         sw = 16;
         sh = 16;
     }
-    sw *= ui->scale;
-    sh *= ui->scale;
+    sw = DBG_PX(sw);
+    sh = DBG_PX(sh);
     dbg_push_sprite_box(ui, cx - sw / 2, cy - sh / 2, sw, sh, slot, clip);
     if( trans && ui->prim_count > before )
         ui->prims[ui->prim_count - 1].trans = trans;
@@ -528,8 +615,93 @@ dbg_event_init(
     ev->serial = ui->widgets[widget].serial;
 }
 
+/* ---- keycaps ------------------------------------------------------------------ */
+
+/** A keycap's width for `chord`: the chord in the Small face and its air. */
+static int
+dbg_keycap_width(struct ToriRSChrome const* ui, char const* chord)
+{
+    return ToriRSChrome_MeasureTextQ(TORIRS_CHROME_FONT_SMALL, ui->scale_q, chord) +
+           2 * DBG_KEYCAP_PAD_X;
+}
+
+/**
+ * `chord` as it fits `width` pixels of the Small face: whole when it fits;
+ * else the key it ends on after an ellipsis ("...+1" for Ctrl+Shift+1), so a
+ * cut chord never reads as a different, shorter one ("Ctrl+S"); else elided.
+ * The tooltip carries it whole. Never clipped mid-glyph (rule R2).
+ */
+static char const*
+dbg_fit_chord(struct ToriRSChrome* ui, char const* chord, int width)
+{
+    char buffer[TORIRS_CHROME_CHORD_MAX + 4];
+    char const* plus;
+    int len;
+
+    if( ToriRSChrome_MeasureTextQ(TORIRS_CHROME_FONT_SMALL, ui->scale_q, chord) <= width )
+        return chord;
+    /* The last segment: "Ctrl++" ends on the key '+', not on an empty one. */
+    plus = strrchr(chord, '+');
+    if( plus && plus[1] == '\0' && plus > chord && plus[-1] == '+' )
+        plus--;
+    if( plus && plus > chord )
+    {
+        len = snprintf(buffer, sizeof(buffer), "...%s", plus);
+        if( len > 0 && len < (int)sizeof(buffer) &&
+            ToriRSChrome_MeasureTextQ(TORIRS_CHROME_FONT_SMALL, ui->scale_q, buffer) <= width )
+        {
+            char const* fitted = dbg_wrap_line(ui, buffer, len);
+            if( fitted )
+                return fitted;
+        }
+    }
+    return width > 0 ? dbg_elide_text(ui, TORIRS_CHROME_FONT_SMALL, chord, width) : "";
+}
+
+/**
+ * One keycap: a dark box with the grey inset rule a field wears, and the
+ * chord in the Small face centred on it in `ink`.
+ *
+ * The chord prim borrows `chord`, which is a widget's own field, the same as
+ * every caption here. The fill is the field black and the rule the field
+ * inset, so a keycap reads as a key set INTO the control rather than as a
+ * second button on it.
+ */
+static void
+dbg_push_keycap(
+    struct ToriRSChrome* ui,
+    struct ToriRSChromeRect cap,
+    char const* chord,
+    uint32_t ink,
+    struct ToriRSChromeRect clip)
+{
+    struct ToriRSChromeTheme const* th = &ui->theme;
+    int const line_box = ToriRSChrome_FontLineBoxQ(TORIRS_CHROME_FONT_SMALL, ui->scale_q);
+    int const ascent = ToriRSChrome_FontLineHeightQ(TORIRS_CHROME_FONT_SMALL, ui->scale_q);
+    int chord_w;
+
+    /* A key narrower than its chord (a plate's room) shows it fitted. */
+    chord = dbg_fit_chord(ui, chord, cap.w - 2 * DBG_KEYCAP_PAD_X);
+    chord_w = ToriRSChrome_MeasureTextQ(TORIRS_CHROME_FONT_SMALL, ui->scale_q, chord);
+
+    dbg_push_rect(ui, cap.x, cap.y, cap.w, cap.h, th->input_bg, 1, clip);
+    dbg_push_rect(ui, cap.x, cap.y, cap.w, cap.h, th->dropdown_border_inner, 0, clip);
+    dbg_push_text(
+        ui,
+        cap.x + (cap.w - chord_w) / 2,
+        cap.y + (cap.h - line_box) / 2 + ascent,
+        chord,
+        ink,
+        TORIRS_CHROME_FONT_SMALL,
+        0,
+        dbg_rect_clip(clip, cap));
+}
+
 /* ---- tooltips ---------------------------------------------------------------- */
 
+/** Whether `w` shows a tooltip, and its own text: the tip, an ICONBUTTON's
+ *  label, or a BUTTON's caption whole when Build elided it. NULL for none.
+ *  @see dbg_tooltip_compose for the text the box shows. */
 static char const*
 dbg_tooltip_text(struct ToriRSChromeWidget const* w)
 {
@@ -537,7 +709,107 @@ dbg_tooltip_text(struct ToriRSChromeWidget const* w)
         return w->tooltip;
     if( w->kind == TORIRS_CHROME_W_ICONBUTTON && w->label[0] )
         return w->label;
+    if( w->kind == TORIRS_CHROME_W_BUTTON && w->caption_cut )
+        return w->text[0] ? w->text : w->label;
     return NULL;
+}
+
+/** The tooltip's text into `out`: dbg_tooltip_text, led by the caption whole
+ *  ("Redo: Redo the step undone last") when Build elided a BUTTON's caption
+ *  and the button has a tip of its own. @return 0 and "" for none. */
+static int
+dbg_tooltip_compose(struct ToriRSChromeWidget const* w, char* out, int out_size)
+{
+    char const* text = dbg_tooltip_text(w);
+
+    out[0] = '\0';
+    if( !text )
+        return 0;
+    if( w->kind == TORIRS_CHROME_W_BUTTON && w->caption_cut && w->tooltip[0] )
+        snprintf(out, (size_t)out_size, "%s: %s", w->text[0] ? w->text : w->label, w->tooltip);
+    else
+        snprintf(out, (size_t)out_size, "%s", text);
+    return 1;
+}
+
+int
+ToriRSChrome_TooltipText(struct ToriRSChrome const* ui, int widget, char* out, int out_size)
+{
+    assert(ui);
+    assert(out);
+    assert(out_size > 0);
+    assert(widget >= 0);
+    assert(widget < ui->widget_count);
+    return dbg_tooltip_compose(&ui->widgets[widget], out, out_size);
+}
+
+/** The chord a tooltip ends with: its own, else the chord a BUTTON or
+ *  ICONBUTTON wears. NULL for none. */
+static char const*
+dbg_tooltip_chord(struct ToriRSChromeWidget const* w)
+{
+    if( w->tooltip_chord[0] )
+        return w->tooltip_chord;
+    if( (w->kind == TORIRS_CHROME_W_BUTTON || w->kind == TORIRS_CHROME_W_ICONBUTTON) &&
+        w->chord[0] )
+        return w->chord;
+    return NULL;
+}
+
+/** A tooltip that is up redraws when anything it shows changed. */
+static void
+dbg_tooltip_touched(struct ToriRSChrome* ui, int widget)
+{
+    if( ui->tooltip_widget != widget )
+        return;
+    dbg_damage_add(ui, ui->tooltip_rect);
+    ui->dirty = 1;
+}
+
+/**
+ * Copy a chord into `dst` (a widget's chord or tooltip chord), noting a cut.
+ * @return 1 when the stored chord changed.
+ */
+static int
+dbg_set_chord(struct ToriRSChrome* ui, int widget, char* dst, char const* chord)
+{
+    char buf[TORIRS_CHROME_CHORD_MAX];
+
+    dbg_note_truncation(
+        ui, widget, dbg_widget_field(&ui->widgets[widget], dst), chord, TORIRS_CHROME_CHORD_MAX);
+    dbg_copy(buf, TORIRS_CHROME_CHORD_MAX, chord);
+    if( strcmp(buf, dst) == 0 )
+        return 0;
+    memcpy(dst, buf, sizeof(buf));
+    return 1;
+}
+
+void
+ToriRSChrome_SetTooltipChord(struct ToriRSChrome* ui, int widget, char const* chord)
+{
+    assert(ui);
+    assert(dbg_valid_widget(ui, widget));
+    assert(chord);
+    if( !dbg_set_chord(ui, widget, ui->widgets[widget].tooltip_chord, chord) )
+        return;
+    dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_TOOLTIP);
+    dbg_tooltip_touched(ui, widget);
+}
+
+void
+ToriRSChrome_ButtonSetChord(struct ToriRSChrome* ui, int widget, char const* chord)
+{
+    assert(ui);
+    assert(dbg_valid_widget(ui, widget));
+    assert(ui->widgets[widget].kind == TORIRS_CHROME_W_BUTTON);
+    assert(chord);
+    if( !dbg_set_chord(ui, widget, ui->widgets[widget].chord, chord) )
+        return;
+    dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_CHORD);
+    /* The plate is the label column wide whatever it holds, so the keycap
+     * moves no row: a repaint of this one is the whole of it. */
+    dbg_dirty_widget_paint(ui, widget);
+    dbg_tooltip_touched(ui, widget);
 }
 
 void
@@ -550,17 +822,13 @@ ToriRSChrome_SetTooltip(struct ToriRSChrome* ui, int widget, char const* text)
     if( !dbg_valid_widget(ui, widget) )
         return;
     w = &ui->widgets[widget];
-    dbg_note_truncation(ui, widget, text, TORIRS_CHROME_LABEL_MAX);
+    dbg_note_truncation(ui, widget, TORIRS_CHROME_TRUNC_TOOLTIP, text, TORIRS_CHROME_LABEL_MAX);
     dbg_copy(buf, TORIRS_CHROME_LABEL_MAX, text ? text : "");
     if( strcmp(buf, w->tooltip) == 0 )
         return;
     memcpy(w->tooltip, buf, sizeof(buf));
     dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_TOOLTIP);
-    if( ui->tooltip_widget == widget )
-    {
-        dbg_damage_add(ui, ui->tooltip_rect);
-        ui->dirty = 1;
-    }
+    dbg_tooltip_touched(ui, widget);
 }
 
 int
@@ -616,7 +884,11 @@ dbg_build_tooltip(struct ToriRSChrome* ui)
     struct ToriRSChromeWidget const* w;
     struct ToriRSChromeRect const surface = dbg_surface_rect(ui);
     struct ToriRSChromeRect box;
+    char composed[TORIRS_CHROME_INPUT_MAX + TORIRS_CHROME_LABEL_MAX + 4];
     char const* text;
+    char const* chord;
+    int text_w;
+    int cap_w = 0;
 
     if( ui->tooltip_widget < 0 )
         return;
@@ -626,12 +898,25 @@ dbg_build_tooltip(struct ToriRSChrome* ui)
         return;
     }
     w = &ui->widgets[ui->tooltip_widget];
-    text = dbg_tooltip_text(w);
-    if( !text || !dbg_widget_shown(ui, w) || !ui->panels[w->panel].visible )
+    if( !dbg_tooltip_compose(w, composed, (int)sizeof(composed)) || !dbg_widget_shown(ui, w) ||
+        !ui->panels[w->panel].visible )
         return;
-    box.w = ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, ui->scale, text) +
-            2 * DBG_TOOLTIP_PAD;
-    box.h = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_SMALL, ui->scale) +
+    /* The text prim borrows the widget's own string; only a composed one
+     * ("Caption: tip") is copied to the frame's pool, past this stack. */
+    text = dbg_tooltip_text(w);
+    if( strcmp(composed, text) != 0 )
+    {
+        char const* stashed = dbg_wrap_line(ui, composed, (int)strlen(composed));
+        if( stashed )
+            text = stashed;
+    }
+    chord = dbg_tooltip_chord(w);
+    text_w = ToriRSChrome_MeasureTextQ(TORIRS_CHROME_FONT_SMALL, ui->scale_q, text);
+    /* "text  [chord]": the box widens by the gap and the keycap. */
+    if( chord )
+        cap_w = dbg_keycap_width(ui, chord);
+    box.w = text_w + (chord ? DBG_KEYCAP_GAP + cap_w : 0) + 2 * DBG_TOOLTIP_PAD;
+    box.h = ToriRSChrome_FontLineBoxQ(TORIRS_CHROME_FONT_SMALL, ui->scale_q) +
             2 * DBG_TOOLTIP_PAD;
     box.x = ui->hover_x + DBG_PX(12);
     box.y = ui->hover_y + DBG_PX(16);
@@ -649,12 +934,23 @@ dbg_build_tooltip(struct ToriRSChrome* ui)
     dbg_push_text(
         ui,
         box.x + DBG_TOOLTIP_PAD,
-        box.y + DBG_TOOLTIP_PAD + ToriRSChrome_FontLineHeight(TORIRS_CHROME_FONT_SMALL, ui->scale),
+        box.y + DBG_TOOLTIP_PAD + ToriRSChrome_FontLineHeightQ(TORIRS_CHROME_FONT_SMALL, ui->scale_q),
         text,
         th->menu_hover_text,
         TORIRS_CHROME_FONT_SMALL,
         1,
         surface);
+    if( chord )
+    {
+        /* The keycap sits on the text's line box: the tooltip's pad is its
+         * frame, so it needs no inset of its own. */
+        struct ToriRSChromeRect cap;
+        cap.x = box.x + DBG_TOOLTIP_PAD + text_w + DBG_KEYCAP_GAP;
+        cap.y = box.y + DBG_TOOLTIP_PAD;
+        cap.w = cap_w;
+        cap.h = ToriRSChrome_FontLineBoxQ(TORIRS_CHROME_FONT_SMALL, ui->scale_q);
+        dbg_push_keycap(ui, cap, chord, th->menu_hover_text, surface);
+    }
     if( box.x != ui->tooltip_rect.x || box.y != ui->tooltip_rect.y ||
         box.w != ui->tooltip_rect.w || box.h != ui->tooltip_rect.h )
     {
@@ -764,6 +1060,32 @@ ToriRSChrome_VList(
 {
     assert(ui);
     return dbg_vlist_add(ui, panel, TORIRS_CHROME_W_VLIST, label, rows, row_count);
+}
+
+int
+ToriRSChrome_VListCells(
+    struct ToriRSChrome* ui, int panel, char const* label, int rows, int row_count)
+{
+    int h;
+
+    assert(ui);
+    h = dbg_vlist_add(ui, panel, TORIRS_CHROME_W_VLIST, label, rows, row_count);
+    if( h >= 0 )
+        ui->widgets[h].iaux = TORIRS_CHROME_VLIST_CELLS; /* shape, never changed */
+    return h;
+}
+
+int
+ToriRSChrome_VListCellsWide(
+    struct ToriRSChrome* ui, int panel, char const* label, int rows, int row_count)
+{
+    int h;
+
+    assert(ui);
+    h = dbg_vlist_add(ui, panel, TORIRS_CHROME_W_VLIST, label, rows, row_count);
+    if( h >= 0 )
+        ui->widgets[h].iaux = TORIRS_CHROME_VLIST_CELLS | TORIRS_CHROME_VLIST_CELLS_WIDE;
+    return h;
 }
 
 int
@@ -906,7 +1228,7 @@ ToriRSChrome_VListSetRow(struct ToriRSChrome* ui, int widget, int row, char cons
     slot = dbg_vrow_slot(ui, w, row);
     if( !slot )
         return;
-    dbg_note_truncation(ui, widget, text, TORIRS_CHROME_INPUT_MAX);
+    dbg_note_truncation(ui, widget, TORIRS_CHROME_TRUNC_TEXT, text, TORIRS_CHROME_INPUT_MAX);
     dbg_copy(buf, TORIRS_CHROME_INPUT_MAX, text ? text : "");
     if( slot->index == row && strcmp(slot->text, buf) == 0 )
         return;
@@ -1065,6 +1387,20 @@ ToriRSChrome_IconButtonSetIcon(struct ToriRSChrome* ui, int widget, int skin_slo
     dbg_dirty_widget_paint(ui, widget);
 }
 
+void
+ToriRSChrome_IconButtonSetChord(struct ToriRSChrome* ui, int widget, char const* chord)
+{
+    assert(ui);
+    assert(dbg_valid_widget(ui, widget));
+    assert(ui->widgets[widget].kind == TORIRS_CHROME_W_ICONBUTTON);
+    assert(chord);
+    if( !dbg_set_chord(ui, widget, ui->widgets[widget].chord, chord) )
+        return;
+    dbg_change_widget(ui, widget, TORIRS_CHROME_CHANGE_WIDGET_CHORD);
+    dbg_dirty_widget_paint(ui, widget);
+    dbg_tooltip_touched(ui, widget);
+}
+
 /* ---- SLIDER ---------------------------------------------------------------------- */
 
 static int
@@ -1152,7 +1488,9 @@ ToriRSChrome_SliderValue(struct ToriRSChrome const* ui, int widget)
 /**
  * A slider's caption column: the row's fixed label column, narrowed to
  * DBG_SLIDER_LABEL_PERCENT of the row, but never narrower than the caption
- * itself plus a gap. Stacked and unlabelled rows keep what every row gets.
+ * itself plus a gap; a caption longer than the fixed column widens it as far
+ * as the row keeps DBG_SLIDER_TRACK_MIN of track, and is ellipsised past
+ * that. Stacked and unlabelled rows keep what every row gets.
  */
 static int
 dbg_slider_label_w(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
@@ -1160,13 +1498,29 @@ dbg_slider_label_w(struct ToriRSChrome const* ui, struct ToriRSChromeWidget cons
     int const fixed = dbg_row_box_offset(ui, w);
     int const share = w->w * DBG_SLIDER_LABEL_PERCENT / 100;
     int text;
+    int column;
+    int room;
 
-    if( fixed <= 0 || w->w <= 0 || share >= fixed )
+    if( fixed <= 0 || w->w <= 0 )
         return fixed;
-    text = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label) + DBG_SLIDER_LABEL_GAP;
-    if( text > fixed )
-        return fixed;
-    return share > text ? share : text;
+    /* The label as drawn, a chord suffix included (the Terrain panel's
+     * "Strength  Shift+[ ]"), measured at the chrome's own scale. */
+    text = ToriRSChrome_MeasureTextQ(ui->theme.font_row, ui->scale_q, w->label) + DBG_SLIDER_LABEL_GAP;
+    if( share >= fixed || text > fixed )
+        column = fixed;
+    else
+        column = share > text ? share : text;
+    if( text <= column )
+        return column;
+    /* Longer than the column -- a chord suffix, most of all at 125/150/175 %,
+     * where text is a few device pixels wider than the column's 1x share --
+     * it was drawn on under the track. Take what the row can spare past the
+     * least track instead; what is still too long is ellipsised where it is
+     * drawn (R2), never clipped by the track. */
+    room = w->w - DBG_SLIDER_VALUE_W - DBG_SLIDER_TRACK_MIN;
+    if( room <= column )
+        return column;
+    return text < room ? text : room;
 }
 
 /** The track's box in a laid-out slider row. */
@@ -1450,19 +1804,30 @@ dbg_graph_region(
     return 1;
 }
 
+/** The scale (quarter units) a GRAPH well's items are drawn at: the integer
+ *  tier (dbg_draw_graph's `ui->scale`), so a well's pointer maps back to
+ *  item coordinates at the same factor its items were drawn at. At a
+ *  fractional q this is not q: mapping with q made a press, hover, drag or
+ *  key land on another item than the one under the pointer. */
+static int
+dbg_graph_q(struct ToriRSChrome const* ui)
+{
+    return ui->scale * TORIRS_CHROME_SCALE_Q_ONE;
+}
+
 static int
 dbg_graph_push(struct ToriRSChrome* ui, int widget, int kind, int x, int y, int value)
 {
     struct ToriRSChromeRect region;
     struct ToriRSChromeRect clip;
     struct ToriRSChromeEvent ev;
-    int const scale = ui->scale > 0 ? ui->scale : 1;
+    int const scale = dbg_graph_q(ui);
 
     if( !dbg_graph_region(ui, widget, &region, &clip) )
         return 0;
     dbg_event_init(&ev, ui, kind, widget);
-    ev.x = (x - region.x) / scale;
-    ev.y = (y - region.y) / scale;
+    ev.x = ToriRSChrome_UnscalePx(scale, x - region.x);
+    ev.y = ToriRSChrome_UnscalePx(scale, y - region.y);
     ev.key = ToriRSChrome_GraphKeyAt(ui, widget, ev.x, ev.y);
     ev.value = value;
     return ToriRSChrome_PushEvent(ui, &ev);
@@ -1507,7 +1872,7 @@ dbg_damage_surface(struct ToriRSChrome* ui)
 static int
 dbg_title_press(struct ToriRSChrome* ui, int panel, int x, int y)
 {
-    int const slop = TORIRS_CHROME_DOUBLE_CLICK_SLOP * (ui->scale > 0 ? ui->scale : 1);
+    int const slop = DBG_PX(TORIRS_CHROME_DOUBLE_CLICK_SLOP);
 
     /* No clock (a host that never calls ToriRSChrome_Tick), no double-click:
      * every press would be at the same instant. */
@@ -1655,7 +2020,7 @@ dbg_unmaximise_for_drag(struct ToriRSChrome* ui, int x, int y)
     struct ToriRSChromePanel* p = &ui->panels[panel];
     int const press_x = ui->drag_from_x + ui->drag_grab_x;
     int const press_y = ui->drag_from_y + ui->drag_grab_y;
-    int const slop = TORIRS_CHROME_DOUBLE_CLICK_SLOP * (ui->scale > 0 ? ui->scale : 1);
+    int const slop = DBG_PX(TORIRS_CHROME_DOUBLE_CLICK_SLOP);
     struct ToriRSChromeRect const maxed = p->last_rect;
     int restored_w;
 
@@ -1682,7 +2047,7 @@ dbg_unmaximise_for_resize(struct ToriRSChrome* ui, int x, int y)
 {
     int const panel = ui->resize_panel;
     struct ToriRSChromePanel* p = &ui->panels[panel];
-    int const slop = TORIRS_CHROME_DOUBLE_CLICK_SLOP * (ui->scale > 0 ? ui->scale : 1);
+    int const slop = DBG_PX(TORIRS_CHROME_DOUBLE_CLICK_SLOP);
 
     if( !p->maximised )
         return 1;
@@ -2060,23 +2425,23 @@ dbg_ext_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
     {
     case TORIRS_CHROME_W_TREE:
         return w->iaux * DBG_TREE_INDENT + DBG_TREE_EXP + DBG_TREE_GAP +
-               dbg_measure_tabbed(ui->theme.font_row, ui->scale, w->label, DBG_PX(16));
+               dbg_measure_tabbed(ui->theme.font_row, ui->scale_q, w->label, DBG_PX(16));
     case TORIRS_CHROME_W_VLIST:
     case TORIRS_CHROME_W_CODE:
     case TORIRS_CHROME_W_GRAPH:
         return DBG_LABEL_W + DBG_INPUT_MIN_W;
     case TORIRS_CHROME_W_ICONBUTTON:
         return DBG_ICON_BOX + (w->label[0] ? DBG_CHECK_GAP +
-                                   ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label)
+                                   ToriRSChrome_MeasureTextQ(ui->theme.font_row, ui->scale_q, w->label)
                                            : 0);
     case TORIRS_CHROME_W_SLIDER:
-        return (w->label[0] ? ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label)
+        return (w->label[0] ? ToriRSChrome_MeasureTextQ(ui->theme.font_row, ui->scale_q, w->label)
                                   + DBG_SLIDER_LABEL_GAP
                             : 0)
                + DBG_INPUT_MIN_W + DBG_SLIDER_VALUE_W;
     case TORIRS_CHROME_W_RADIO:
         return DBG_PX(TORIRS_CHROME_M_BOX) + DBG_CHECK_GAP +
-               ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label);
+               ToriRSChrome_MeasureTextQ(ui->theme.font_row, ui->scale_q, w->label);
     default:
         return -1;
     }
@@ -2156,6 +2521,44 @@ dbg_draw_iconbutton(
     }
     if( hovered && !w->disabled )
         dbg_push_rect(ui, x, y, box, box, th->accent, 0, clip);
+    if( w->chord[0] )
+    {
+        /* The chord as a badge: Small face over a black plate in the bottom-
+         * right corner, inside the hover outline so the outline never covers
+         * it. No wider than the box, and a chord wider than that is fitted to
+         * it rather than spilling onto its neighbour or cut mid-glyph. */
+        struct ToriRSChromeRect badge;
+        struct ToriRSChromeRect icon;
+        int const line_box = ToriRSChrome_FontLineBoxQ(TORIRS_CHROME_FONT_SMALL, ui->scale_q);
+
+        icon.x = x;
+        icon.y = y;
+        icon.w = box;
+        icon.h = box;
+        char const* shown;
+
+        badge.w = dbg_keycap_width(ui, w->chord);
+        if( badge.w > box - 2 * DBG_BADGE_INSET )
+            badge.w = box - 2 * DBG_BADGE_INSET;
+        badge.h = DBG_BADGE_H;
+        badge.x = x + box - DBG_BADGE_INSET - badge.w;
+        badge.y = y + box - DBG_BADGE_INSET - badge.h;
+        /* A chord wider than the icon box shows fitted ("...+1"), never cut
+         * mid-chord into one that reads as another; the tooltip has it whole. */
+        shown = dbg_fit_chord(ui, w->chord, badge.w - 2 * DBG_KEYCAP_PAD_X);
+        icon = dbg_rect_clip(clip, icon);
+        dbg_push_rect(ui, badge.x, badge.y, badge.w, badge.h, th->menu_chrome, 1, icon);
+        dbg_push_text(
+            ui,
+            badge.x + DBG_KEYCAP_PAD_X,
+            badge.y + (badge.h - line_box) / 2 +
+                ToriRSChrome_FontLineHeightQ(TORIRS_CHROME_FONT_SMALL, ui->scale_q),
+            shown,
+            w->disabled ? th->text_dim : th->menu_hover_text,
+            TORIRS_CHROME_FONT_SMALL,
+            0,
+            dbg_rect_clip(icon, badge));
+    }
 }
 
 /** CODE: the gutter's width, wide enough for the largest line number. */
@@ -2164,7 +2567,7 @@ dbg_code_gutter_w(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const
 {
     char digits[16];
     snprintf(digits, sizeof(digits), "%d", w->imax > 9 ? w->imax : 99);
-    return ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_MENU, ui->scale, digits) +
+    return ToriRSChrome_MeasureTextQ(TORIRS_CHROME_FONT_MENU, ui->scale_q, digits) +
            2 * DBG_GUTTER_PAD;
 }
 
@@ -2209,6 +2612,398 @@ dbg_list_on_bar(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* 
            dbg_point_in(x, y, box.x, box.y, box.w, box.h);
 }
 
+/* ---- VLIST cells (ToriRSChrome_VListCells) ---------------------------------------- */
+
+/** The five fields of a cells row, and its keycaps: pointers into the text
+ *  with lengths (the text is the row's pool slot or the widget's label, both
+ *  alive until the end of the build). */
+struct dbg_cells
+{
+    char const* field[6];
+    int len[6];
+    int key_count;
+    char const* key[TORIRS_CHROME_CELL_KEYS_MAX];
+    int key_len[TORIRS_CHROME_CELL_KEYS_MAX];
+};
+
+enum
+{
+    DBG_CELL_SPRITE = 0,
+    DBG_CELL_NAME,
+    DBG_CELL_DIM,
+    DBG_CELL_KEYS,
+    DBG_CELL_RIGHT,
+    DBG_CELL_MARK,
+    DBG_CELL_FIELDS,
+};
+
+static void
+dbg_cells_split(char const* text, struct dbg_cells* out)
+{
+    char const* at = text;
+
+    memset(out, 0, sizeof(*out));
+    for( int f = 0; f < DBG_CELL_FIELDS; f++ )
+    {
+        char const* end = strchr(at, TORIRS_CHROME_CELL_SEP);
+        out->field[f] = at;
+        out->len[f] = end ? (int)(end - at) : (int)strlen(at);
+        if( !end )
+        {
+            for( int g = f + 1; g < DBG_CELL_FIELDS; g++ )
+                out->field[g] = at + out->len[f];
+            break;
+        }
+        at = end + 1;
+    }
+    {
+        char const* k = out->field[DBG_CELL_KEYS];
+        char const* stop = k + out->len[DBG_CELL_KEYS];
+        while( k < stop && out->key_count < TORIRS_CHROME_CELL_KEYS_MAX )
+        {
+            char const* space;
+            while( k < stop && *k == ' ' )
+                k++;
+            if( k >= stop )
+                break;
+            space = k;
+            while( space < stop && *space != ' ' )
+                space++;
+            out->key[out->key_count] = k;
+            out->key_len[out->key_count] = (int)(space - k);
+            out->key_count++;
+            k = space;
+        }
+    }
+}
+
+/** Where a cells row's parts sit in its line (one row's box in the list). */
+struct dbg_cells_layout
+{
+    int thumb_x;
+    int name_x;
+    int name_w;
+    int keys_x;
+    int keys_w;
+    /** Keycaps shown and their boxes; `more` the ones that did not fit (drawn
+     *  as one "+n" cap after them, which is no cell). */
+    int key_shown;
+    int key_x[TORIRS_CHROME_CELL_KEYS_MAX];
+    int key_w[TORIRS_CHROME_CELL_KEYS_MAX];
+    int more;
+    int more_x;
+    int more_w;
+    int cap_y;
+    int cap_h;
+    int right_x;
+    int right_w;
+};
+
+/** A cell's text as its own string, from the build's wrap pool (NULL when
+ *  it is empty or the pool is full). */
+static char const*
+dbg_cells_text(struct ToriRSChrome* ui, char const* text, int len)
+{
+    return len > 0 ? dbg_wrap_line(ui, text, len) : NULL;
+}
+
+static int
+dbg_cells_key_w(struct ToriRSChrome const* ui, char const* key, int len)
+{
+    char buffer[32];
+    int const n = len < (int)sizeof(buffer) - 1 ? len : (int)sizeof(buffer) - 1;
+    memcpy(buffer, key, (size_t)n);
+    buffer[n] = '\0';
+    return dbg_keycap_width(ui, buffer);
+}
+
+/** A row with no picture well (its sprite field is "-"). */
+static int
+dbg_cells_no_well(struct dbg_cells const* cells)
+{
+    return cells->len[DBG_CELL_SPRITE] == 1 && cells->field[DBG_CELL_SPRITE][0] == TORIRS_CHROME_CELL_NO_SPRITE[0];
+}
+
+/** The row's mark (its sixth field's first byte), 0 for none. */
+static char
+dbg_cells_mark(struct dbg_cells const* cells)
+{
+    return cells->len[DBG_CELL_MARK] > 0 ? cells->field[DBG_CELL_MARK][0] : 0;
+}
+
+/**
+ * The columns: a 16 px thumbnail, the name, the keycaps in a column a third
+ * of the row wide (at most 96 px; `wide`, TORIRS_CHROME_VLIST_CELLS_WIDE:
+ * half the row, uncapped), the right field in a column six digits wide. The
+ * same numbers for every row and the header, so the columns line up; the
+ * name takes what is left. A row with no well starts its name at the well's
+ * place.
+ */
+static void
+dbg_cells_layout(
+    struct ToriRSChrome const* ui,
+    struct dbg_cells const* cells,
+    struct ToriRSChromeRect line,
+    int wide,
+    struct dbg_cells_layout* out)
+{
+    int const pad = DBG_INPUT_PAD_X;
+    int const gap = DBG_PX(3);
+    int const thumb = DBG_PX(16);
+    int const right_w = ToriRSChrome_MeasureTextQ(ui->theme.font_row, ui->scale_q, "000000");
+    int const line_box = ToriRSChrome_FontLineBoxQ(TORIRS_CHROME_FONT_SMALL, ui->scale_q);
+    int keys_w = line.w / 3;
+    int x;
+
+    memset(out, 0, sizeof(*out));
+    if( wide )
+        keys_w = line.w / 2;
+    else if( keys_w > DBG_PX(96) )
+        keys_w = DBG_PX(96);
+    out->thumb_x = line.x + pad;
+    out->right_w = right_w;
+    out->right_x = line.x + line.w - pad - right_w;
+    out->keys_w = keys_w;
+    out->keys_x = out->right_x - gap - keys_w;
+    out->name_x = dbg_cells_no_well(cells) ? out->thumb_x : out->thumb_x + thumb + gap;
+    out->name_w = out->keys_x - gap - out->name_x;
+    if( out->name_w < 0 )
+        out->name_w = 0;
+    out->cap_h = line_box + DBG_PX(2);
+    if( out->cap_h > line.h )
+        out->cap_h = line.h;
+    out->cap_y = line.y + (line.h - out->cap_h) / 2;
+
+    x = out->keys_x;
+    for( int k = 0; k < cells->key_count; k++ )
+    {
+        int const w = dbg_cells_key_w(ui, cells->key[k], cells->key_len[k]);
+        int const left = cells->key_count - k - 1;
+        /* Room for this cap, and for a "+n" after it when more follow. */
+        int const tail = left > 0 ? gap + dbg_keycap_width(ui, "+9") : 0;
+        if( x + w + tail > out->keys_x + keys_w )
+        {
+            out->more = cells->key_count - k;
+            break;
+        }
+        out->key_x[k] = x;
+        out->key_w[k] = w;
+        out->key_shown++;
+        x += w + gap;
+    }
+    if( out->more > 0 )
+    {
+        char more[8];
+        snprintf(more, sizeof(more), "+%d", out->more);
+        out->more_x = x;
+        out->more_w = dbg_keycap_width(ui, more);
+    }
+}
+
+/** The line box of visible row `row` of a VLIST. */
+static struct ToriRSChromeRect
+dbg_cells_line(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w, int row)
+{
+    struct ToriRSChromeRect const box = dbg_list_box(ui, w);
+    struct ToriRSChromeRect line;
+    line.x = box.x + DBG_RULE;
+    line.y = box.y + DBG_RULE + (row - w->imin) * DBG_VROW_H;
+    line.w = box.w - 2 * DBG_RULE - (w->imax > w->rows ? DBG_SCROLL_W : 0);
+    line.h = DBG_VROW_H;
+    return line;
+}
+
+/** The cell of a cells row under surface `x`: n for the n-th keycap, else 0. */
+static int
+dbg_cells_cell_at(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w, int row, int x)
+{
+    struct dbg_cells cells;
+    struct dbg_cells_layout lay;
+    char const* text = dbg_vrow_text(ui, w, row);
+
+    if( !text )
+        return 0;
+    dbg_cells_split(text, &cells);
+    dbg_cells_layout(ui, &cells, dbg_cells_line(ui, w, row), (w->iaux & TORIRS_CHROME_VLIST_CELLS_WIDE) != 0, &lay);
+    for( int k = 0; k < lay.key_shown; k++ )
+        if( x >= lay.key_x[k] && x < lay.key_x[k] + lay.key_w[k] )
+            return k + 1;
+    return 0;
+}
+
+/** One cells row, or (`header` 1) the header: every field dimmed, no
+ *  thumbnail, the keys field one caption at the keys column. */
+static void
+dbg_draw_cells(
+    struct ToriRSChrome* ui,
+    char const* text,
+    struct ToriRSChromeRect line,
+    int header,
+    int wide,
+    struct ToriRSChromeRect clip)
+{
+    struct ToriRSChromeTheme const* th = &ui->theme;
+    int const font = ui->theme.font_row;
+    int const baseline = line.y + (line.h - ToriRSChrome_FontLineBoxQ(font, ui->scale_q)) / 2 +
+                         ToriRSChrome_FontLineHeightQ(font, ui->scale_q);
+    struct dbg_cells cells;
+    struct dbg_cells_layout lay;
+    char const* name;
+    int name_used = 0;
+    char mark;
+    uint32_t name_ink;
+    uint32_t dim_ink;
+    uint32_t key_ink;
+
+    dbg_cells_split(text, &cells);
+    dbg_cells_layout(ui, &cells, line, wide, &lay);
+    mark = header ? 0 : dbg_cells_mark(&cells);
+    name_ink = header ? th->text_dim : th->text;
+    dim_ink = th->text_dim;
+    key_ink = th->accent;
+    if( mark == TORIRS_CHROME_CELL_MARK_ALERT )
+        name_ink = dim_ink = key_ink = TORIRS_CHROME_CELL_MARK_INK;
+    else if( mark == TORIRS_CHROME_CELL_MARK_ACCENT )
+        name_ink = th->accent;
+
+    /* The thumbnail: an empty well until the host has a picture for it; none
+     * at all for a row that says "-". */
+    if( !header && !dbg_cells_no_well(&cells) )
+    {
+        int const thumb = DBG_PX(16);
+        int const ty = line.y + (line.h - thumb) / 2;
+        int sprite = 0;
+        for( int i = 0; i < cells.len[DBG_CELL_SPRITE]; i++ )
+        {
+            char const c = cells.field[DBG_CELL_SPRITE][i];
+            if( c < '0' || c > '9' )
+            {
+                sprite = 0;
+                break;
+            }
+            sprite = sprite * 10 + (c - '0');
+        }
+        dbg_push_rect(ui, lay.thumb_x, ty, thumb, thumb, th->input_bg, 1, clip);
+        if( sprite > 0 )
+        {
+            struct ToriRSChromePrim* p = dbg_prim_push(ui);
+            if( p )
+            {
+                struct ToriRSChromeRect well;
+                well.x = lay.thumb_x;
+                well.y = ty;
+                well.w = thumb;
+                well.h = thumb;
+                p->kind = TORIRS_CHROME_PRIM_SPRITE;
+                p->x = well.x;
+                p->y = well.y;
+                p->w = thumb;
+                p->h = thumb;
+                p->sprite_scene_id = sprite;
+                p->clip = dbg_rect_clip(clip, well);
+            }
+        }
+    }
+
+    /* The name, then the dim part in what the name leaves: measured and
+     * ellipsised, never clipped (R2). */
+    name = dbg_cells_text(ui, cells.field[DBG_CELL_NAME], cells.len[DBG_CELL_NAME]);
+    if( name && lay.name_w > 0 )
+    {
+        name = dbg_elide_text(ui, font, name, lay.name_w);
+        dbg_push_text(ui, lay.name_x, baseline, name, name_ink, font, 0, clip);
+        name_used = ToriRSChrome_MeasureTextQ(font, ui->scale_q, name);
+    }
+    {
+        char const* dim = dbg_cells_text(ui, cells.field[DBG_CELL_DIM], cells.len[DBG_CELL_DIM]);
+        int const space = ToriRSChrome_MeasureTextQ(font, ui->scale_q, " ");
+        int const room = lay.name_w - name_used - (name_used ? space : 0);
+        int const least = ToriRSChrome_MeasureTextQ(font, ui->scale_q, "a...");
+        if( dim && room >= least )
+            dbg_push_text(
+                ui, lay.name_x + name_used + (name_used ? space : 0), baseline,
+                dbg_elide_text(ui, font, dim, room), dim_ink, font, 0, clip);
+    }
+
+    /* The keycaps; the header's is one caption at the column. */
+    if( header )
+    {
+        char const* caption = dbg_cells_text(ui, cells.field[DBG_CELL_KEYS], cells.len[DBG_CELL_KEYS]);
+        if( caption )
+            dbg_push_text(
+                ui, lay.keys_x, baseline, dbg_elide_text(ui, font, caption, lay.keys_w), th->text_dim, font, 0,
+                clip);
+    }
+    else
+    {
+        for( int k = 0; k < lay.key_shown; k++ )
+        {
+            struct ToriRSChromeRect cap;
+            char const* key = dbg_cells_text(ui, cells.key[k], cells.key_len[k]);
+            if( !key )
+                break;
+            cap.x = lay.key_x[k];
+            cap.y = lay.cap_y;
+            cap.w = lay.key_w[k];
+            cap.h = lay.cap_h;
+            dbg_push_keycap(ui, cap, key, key_ink, clip);
+        }
+        if( lay.more > 0 )
+        {
+            char more[8];
+            struct ToriRSChromeRect cap;
+            int const n = snprintf(more, sizeof(more), "+%d", lay.more);
+            char const* label = dbg_wrap_line(ui, more, n);
+            cap.x = lay.more_x;
+            cap.y = lay.cap_y;
+            cap.w = lay.more_w;
+            cap.h = lay.cap_h;
+            if( label )
+                dbg_push_keycap(ui, cap, label, th->text_dim, clip);
+        }
+    }
+
+    /* The right field, right-aligned in its column. */
+    {
+        char const* right = dbg_cells_text(ui, cells.field[DBG_CELL_RIGHT], cells.len[DBG_CELL_RIGHT]);
+        if( right )
+        {
+            right = dbg_elide_text(ui, font, right, lay.right_w);
+            dbg_push_text(
+                ui, lay.right_x + lay.right_w - ToriRSChrome_MeasureTextQ(font, ui->scale_q, right), baseline,
+                right, th->text_dim, font, 0, clip);
+        }
+    }
+}
+
+int
+ToriRSChrome_VListPickedCell(struct ToriRSChrome const* ui, int widget)
+{
+    assert(ui);
+    if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].kind != TORIRS_CHROME_W_VLIST )
+        return 0;
+    return ui->widgets[widget].vlist_cell;
+}
+
+int
+ToriRSChrome_VListHoverRow(struct ToriRSChrome const* ui, int widget, int* out_cell)
+{
+    struct ToriRSChromeWidget const* w;
+    int row;
+
+    assert(ui);
+    if( out_cell )
+        *out_cell = 0;
+    if( !dbg_valid_widget(ui, widget) || ui->widgets[widget].kind != TORIRS_CHROME_W_VLIST ||
+        ui->hover != widget )
+        return -1;
+    w = &ui->widgets[widget];
+    row = dbg_list_row_at(ui, w, ui->hover_x, ui->hover_y);
+    if( row >= 0 && w->iaux && out_cell )
+        *out_cell = dbg_cells_cell_at(ui, w, row, ui->hover_x);
+    return row;
+}
+
 static void
 dbg_draw_list(
     struct ToriRSChrome* ui,
@@ -2232,11 +3027,21 @@ dbg_draw_list(
 
     (void)row_x;
     (void)row_y;
-    if( w->label[0] )
+    box = dbg_list_box(ui, w);
+    if( w->label[0] && !code && w->iaux )
+    {
+        /* A cells list's caption is its header row, in the rows' columns. */
+        struct ToriRSChromeRect head;
+        head.x = box.x + DBG_RULE;
+        head.y = w->y;
+        head.w = box.w - 2 * DBG_RULE - bar;
+        head.h = DBG_ROW_H;
+        dbg_draw_cells(ui, w->label, head, 1, (w->iaux & TORIRS_CHROME_VLIST_CELLS_WIDE) != 0, clip);
+    }
+    else if( w->label[0] )
         dbg_push_text(
             ui, w->x, dbg_row_text_baseline(ui, w->y, DBG_ROW_H), w->label,
             w->color ? w->color : th->text_dim, ui->theme.font_row, 0, clip);
-    box = dbg_list_box(ui, w);
     dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->textarea_bg, 1, clip);
     dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->dropdown_border, 0, clip);
     dbg_push_rect(
@@ -2267,8 +3072,8 @@ dbg_draw_list(
         int const ly = inner.y + i * line_h;
         int const tx = inner.x + gutter + DBG_INPUT_PAD_X;
         int const baseline =
-            ly + (line_h - ToriRSChrome_FontLineBox(font, ui->scale)) / 2 +
-            ToriRSChrome_FontLineHeight(font, ui->scale);
+            ly + (line_h - ToriRSChrome_FontLineBoxQ(font, ui->scale_q)) / 2 +
+            ToriRSChrome_FontLineHeightQ(font, ui->scale_q);
         char const* text;
 
         if( r >= w->imax )
@@ -2289,12 +3094,22 @@ dbg_draw_list(
                 dbg_push_text(
                     ui,
                     inner.x + gutter - DBG_GUTTER_PAD -
-                        ToriRSChrome_MeasureText(font, ui->scale, num),
+                        ToriRSChrome_MeasureTextQ(font, ui->scale_q, num),
                     baseline, num, th->text_dim, font, 0, text_clip);
         }
         text = dbg_vrow_text(ui, w, r);
         if( !text )
             continue;
+        if( !code && w->iaux )
+        {
+            struct ToriRSChromeRect line;
+            line.x = inner.x;
+            line.y = ly;
+            line.w = inner.w;
+            line.h = line_h;
+            dbg_draw_cells(ui, text, line, 0, (w->iaux & TORIRS_CHROME_VLIST_CELLS_WIDE) != 0, text_clip);
+            continue;
+        }
         {
             struct ToriRSChromeRect line_clip = text_clip;
             int const left = inner.x + gutter;
@@ -2333,14 +3148,14 @@ dbg_draw_list(
                     /* Drawn over the plain run: the glyph masks are the same,
                      * so the later colour simply wins on those pixels. */
                     dbg_push_text(
-                        ui, tx + dbg_measure_prefix(font, ui->scale, text, start), baseline, seg,
+                        ui, tx + dbg_measure_prefix(font, ui->scale_q, text, start), baseline, seg,
                         sp->color, font, 0, line_clip);
                 }
                 if( ui->focus == widget && ui->caret_visible && r == w->ivalue )
                 {
                     int const col = w->caret < len ? w->caret : len;
                     dbg_push_rect(
-                        ui, tx + dbg_measure_prefix(font, ui->scale, text, col), ly + DBG_RULE,
+                        ui, tx + dbg_measure_prefix(font, ui->scale_q, text, col), ly + DBG_RULE,
                         DBG_RULE, line_h - 2 * DBG_RULE, th->input_text, 1, line_clip);
                 }
             }
@@ -2497,7 +3312,7 @@ dbg_ext_draw(
                 0, clip);
             if( right )
                 dbg_push_text(
-                    ui, row_x + w->w - DBG_PX(4) - ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, right),
+                    ui, row_x + w->w - DBG_PX(4) - ToriRSChrome_MeasureTextQ(ui->theme.font_row, ui->scale_q, right),
                     baseline, right, ink, ui->theme.font_row, 0, clip);
         }
         return 1;
@@ -2536,7 +3351,8 @@ dbg_ext_draw(
 
         if( w->label[0] )
             dbg_push_text(
-                ui, row_x, dbg_row_text_baseline(ui, row_y, row_h), w->label,
+                ui, row_x, dbg_row_text_baseline(ui, row_y, row_h),
+                dbg_elide_text(ui, ui->theme.font_row, w->label, t.x - row_x - DBG_SLIDER_LABEL_GAP),
                 w->color ? w->color : th->text_dim, ui->theme.font_row, 0, clip);
         if( th->skin_dropdown && dbg_skin_has(ui, TORIRS_CHROME_SKIN_SLIDER_TRACK)
             && dbg_skin_has(ui, TORIRS_CHROME_SKIN_SLIDER_TRACK_LEFT)
@@ -2587,7 +3403,7 @@ dbg_ext_draw(
             if( text )
                 dbg_push_text(
                     ui,
-                    row_x + w->w - ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, text),
+                    row_x + w->w - ToriRSChrome_MeasureTextQ(ui->theme.font_row, ui->scale_q, text),
                     dbg_row_text_baseline(ui, row_y, row_h), text, th->text, ui->theme.font_row, 0,
                     clip);
         }
@@ -2751,7 +3567,7 @@ dbg_ext_mouse_down(struct ToriRSChrome* ui, int hit, int x, int y)
                     int const tx = box.x + DBG_RULE + dbg_code_gutter_w(ui, w) + DBG_INPUT_PAD_X;
                     int const len = (int)strlen(text);
                     while( col < len &&
-                           dbg_measure_prefix(TORIRS_CHROME_FONT_MENU, ui->scale, text, col + 1) <=
+                           dbg_measure_prefix(TORIRS_CHROME_FONT_MENU, ui->scale_q, text, col + 1) <=
                                x - tx )
                         col++;
                 }
@@ -2807,10 +3623,12 @@ dbg_ext_hover(struct ToriRSChrome* ui, int hit, int x, int y)
         struct ToriRSChromeRect region;
         struct ToriRSChromeRect clip;
         int key = 0;
-        int const scale = ui->scale > 0 ? ui->scale : 1;
+        int const scale = dbg_graph_q(ui);
 
         if( dbg_graph_region(ui, hit, &region, &clip) && dbg_point_in_rect(x, y, clip) )
-            key = ToriRSChrome_GraphKeyAt(ui, hit, (x - region.x) / scale, (y - region.y) / scale);
+            key = ToriRSChrome_GraphKeyAt(
+                ui, hit, ToriRSChrome_UnscalePx(scale, x - region.x),
+                ToriRSChrome_UnscalePx(scale, y - region.y));
         if( hit != ui->graph_hover || key != ui->graph_hover_key )
         {
             ui->graph_hover = hit;
@@ -2913,6 +3731,8 @@ dbg_ext_click(struct ToriRSChrome* ui, int hit, int x, int y)
         int const row = dbg_list_row_at(ui, w, x, y);
         if( row >= 0 )
         {
+            /* A cells list says which keycap the click was on (0: the body). */
+            w->vlist_cell = w->iaux ? dbg_cells_cell_at(ui, w, row, x) : 0;
             ToriRSChrome_VListSetSelected(ui, hit, row);
             ui->activated = hit;
         }
@@ -3026,7 +3846,7 @@ ToriRSChrome_Scroll(struct ToriRSChrome* ui, int x, int y, double dx, double dy)
     struct ToriRSChromeEvent ev;
 
     assert(ui);
-    scale = ui->scale > 0 ? ui->scale : 1;
+    scale = dbg_graph_q(ui);
     if( dbg_modal_blocks(ui, x, y) )
         return 1;
     if( ui->dropdown_open >= 0 || ui->colorpick_open >= 0 )
@@ -3035,11 +3855,11 @@ ToriRSChrome_Scroll(struct ToriRSChrome* ui, int x, int y, double dx, double dy)
     if( graph < 0 || !dbg_graph_region(ui, graph, &region, &clip) )
         return 0;
     dbg_event_init(&ev, ui, TORIRS_CHROME_EVENT_GRAPH_SCROLL, graph);
-    ev.x = (x - region.x) / scale;
-    ev.y = (y - region.y) / scale;
+    ev.x = ToriRSChrome_UnscalePx(scale, x - region.x);
+    ev.y = ToriRSChrome_UnscalePx(scale, y - region.y);
     ev.key = ToriRSChrome_GraphKeyAt(ui, graph, ev.x, ev.y);
-    ev.dx = dbg_q8(dx / (double)scale);
-    ev.dy = dbg_q8(dy / (double)scale);
+    ev.dx = dbg_q8(dx * (double)TORIRS_CHROME_SCALE_Q_ONE / (double)scale);
+    ev.dy = dbg_q8(dy * (double)TORIRS_CHROME_SCALE_Q_ONE / (double)scale);
     (void)ToriRSChrome_PushEvent(ui, &ev);
     return 1;
 }
@@ -3176,12 +3996,14 @@ dbg_ext_key_edit(struct ToriRSChrome* ui, int key)
     switch( w->kind )
     {
     case TORIRS_CHROME_W_GRAPH:
+        /* The arrows, Enter and Backspace are the host's (the square picker
+         * moves, opens and goes back with them: workbench 6.4); so is Delete
+         * (the dialogue graph deletes its selected node: workbench 6.6);
+         * Escape is the host's too, and then releases the well. */
         if( key == TORIRS_CHROME_KEY_LEFT || key == TORIRS_CHROME_KEY_RIGHT || key == TORIRS_CHROME_KEY_UP ||
-            key == TORIRS_CHROME_KEY_DOWN )
-        {
+            key == TORIRS_CHROME_KEY_DOWN || key == TORIRS_CHROME_KEY_ENTER || key == TORIRS_CHROME_KEY_BACKSPACE ||
+            key == TORIRS_CHROME_KEY_DELETE || key == TORIRS_CHROME_KEY_ESCAPE )
             dbg_graph_key(ui, focus, -key);
-            return 1;
-        }
         if( key == TORIRS_CHROME_KEY_ESCAPE )
             (void)ToriRSChrome_FocusWidget(ui, -1, 0);
         /* Every other editing key stops at the well, as before. */
@@ -3222,6 +4044,7 @@ dbg_ext_key_edit(struct ToriRSChrome* ui, int key)
             row = w->imax - 1;
         else if( key == TORIRS_CHROME_KEY_ENTER )
         {
+            w->vlist_cell = 0;
             if( w->ivalue >= 0 )
                 ui->activated = focus;
             return 1;
@@ -3235,6 +4058,7 @@ dbg_ext_key_edit(struct ToriRSChrome* ui, int key)
             return 0;
         if( row < 0 )
             return 1;
+        w->vlist_cell = 0;
         ToriRSChrome_VListSetSelected(ui, focus, row);
         if( row < w->imin )
             ToriRSChrome_VListSetScroll(ui, focus, row);

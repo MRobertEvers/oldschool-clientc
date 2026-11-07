@@ -158,8 +158,17 @@ Host-owned local image URLs. Recognized names are `panelBody`, `pluginIcon`,
 `frameBottomLeft`, `frameBottom`, and `frameBottomRight`. IE8 tiles/stretches
 these through ordinary table/absolute elements; modern CSS uses the same URLs.
 
+Optional `skinTiers` (1, 2 or 3, default 1) says the host staged the skin's
+2x and 3x tiers beside `skin/` as `skin@2x/` and `skin@3x/`
+(`tools/chrome_skin_tiers.py`). A packaged `skin/<Slot>.png` URL is then drawn
+from the smallest tier whose pixels cover its CSS size times
+`devicePixelRatio`, sized back to the authored CSS size; with 3 the stylesheet's
+`image-set()` rules (scoped under `.tpc-skin-tiers` on the root) do the same
+for the art it names. A host that staged only `skin/` omits it and nothing
+asks for a tier.
+
 ```js
-{ protocol: 1, type: "theme", revision: 2, assets: { /* name: local URL */ } }
+{ protocol: 1, type: "theme", revision: 2, skinTiers: 3, assets: { /* name: local URL */ } }
 ```
 
 ### `page.snapshot`
@@ -292,6 +301,35 @@ implement the `torirs://bitmap/` resource scheme from its copied POD bitmap cach
 generation or recycled widget serial is ignored. `scaleMilli` describes bitmap
 source pixels per logical CSS unit; browser presenters normally receive a 1x
 source and let their compositor apply the actual (including fractional) DPR.
+
+### `graph.image`
+
+One picture a GRAPH well's IMAGE items name (`WIDGET_GRAPH_ITEM` with `tab` 4:
+`v` the scene id, `c` the transparency 0 opaque .. 255 invisible, the box in
+`x`, `y`, `cw`, `ch`) -- the square picker's 128x128 world-map pictures:
+
+```js
+{
+  protocol: 1,
+  type: "graph.image",
+  sceneId: 1275068419,
+  version: 3,
+  width: 128,
+  height: 128,
+  rgbaBase64: "..."   // width * height RGBA8, row-major
+}
+```
+
+Keyed by the scene id alone, not by a page: a picture outlives page snapshots
+and is replaced by the next one under its id. The runtime draws every IMAGE
+item of a well onto one `canvas.tpc-graph-canvas`, the well's first child,
+under its other items, unsmoothed; an id never sent draws nothing until it
+arrives, and its arrival redraws the wells that name it. The web host
+(`web/torirs_chrome.js` `graphImage`, from the wasm's
+`ToriRSChromeExecWeb_GraphImage` through `window.torirsChromeGraphImage`)
+keeps the last envelope of each id and replays them to a replaced iframe when
+it attaches. At most 256 ids and 1024 px a side; MSHTML has no canvas and
+draws no picture.
 
 ## Outbound envelopes
 

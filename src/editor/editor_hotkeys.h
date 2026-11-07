@@ -43,6 +43,13 @@
  *
  * With the Place tool (or a brush, Rect, Rotate, Delete) armed and locs
  * selected, the arrows turn the camera: only Select and Move nudge.
+ *
+ *   K (the picker has focus) excludes every other context, G included:
+ *   while the Squares well holds the keyboard it is a field, the App's
+ *   dispatcher resolves nothing (the text-field gate) and the panel resolves
+ *   the well's keys against the K rows alone (Editor_HotkeysMatch). So the
+ *   arrows, Return, Shift+Return, Backspace and Escape are the picker's
+ *   there and the World's everywhere else.
  */
 #define EDITOR_HK_CTX_G (1u << 0)
 /** The pointer is over the World panel's body. */
@@ -59,13 +66,20 @@
 #define EDITOR_HK_CTX_M (1u << 6)
 /** The Place tool is armed with a loc pick and no loc is selected. */
 #define EDITOR_HK_CTX_P (1u << 7)
+/** The Squares picker has focus (its well holds the keyboard; workbench
+ *  6.4). Never set by Editor_HotkeyContextsFrom: the panel resolves it. */
+#define EDITOR_HK_CTX_K (1u << 8)
+/** A GRAPH well (the builders' dialogue graph) holds the chrome's keyboard
+ *  focus (workbench 6.8: Ctrl+L lays the graph out). Overlaps every context
+ *  but K. */
+#define EDITOR_HK_CTX_Q (1u << 9)
 /** The camera scheme (ui->recent.camera_scheme): D the default scheme (F
  *  flies down), U the Unity-style scheme (F frames the selection; the mouse
  *  looks, pans and orbits). Exactly one of the two is live. */
-#define EDITOR_HK_CTX_D (1u << 8)
-#define EDITOR_HK_CTX_U (1u << 9)
-#define EDITOR_HK_CTX_COUNT 10
-#define EDITOR_HK_CTX_ALL 0x3ffu
+#define EDITOR_HK_CTX_D (1u << 10)
+#define EDITOR_HK_CTX_U (1u << 11)
+#define EDITOR_HK_CTX_COUNT 12
+#define EDITOR_HK_CTX_ALL 0xfffu
 
 /** Modifier bits of a chord. */
 #define EDITOR_HK_MOD_CTRL 1u
@@ -100,6 +114,10 @@ enum Editor_HotkeyAction
     EDITOR_HK_FILE_CHECK_SCRIPTS,
     EDITOR_HK_FILE_RUN,
     EDITOR_HK_FILE_PUBLISH,
+    /* Workbench 6.5: save the session's state as a scene (the Scenes panel),
+     * make a scratch lane from main and switch to it (the Lanes panel). */
+    EDITOR_HK_FILE_SAVE_SCENE,
+    EDITOR_HK_FILE_SCRATCH_LANE,
     /* Edit */
     EDITOR_HK_EDIT_UNDO,
     EDITOR_HK_EDIT_REDO,
@@ -110,10 +128,21 @@ enum Editor_HotkeyAction
     EDITOR_HK_EDIT_RESHAPE,
     EDITOR_HK_EDIT_APPLY,
     EDITOR_HK_EDIT_SELECT_SQUARE,
+    /** Every loc of the hovered (else the primary selected) loc's id in the
+     *  open squares on the edit level: the double-click's chord. */
+    EDITOR_HK_EDIT_SELECT_SAME,
     EDITOR_HK_EDIT_NUDGE_N,
     EDITOR_HK_EDIT_NUDGE_S,
     EDITOR_HK_EDIT_NUDGE_W,
     EDITOR_HK_EDIT_NUDGE_E,
+    /** Workbench 6.3: the nudges by a zone (8 tiles), and the selection a
+     *  level up / down (refused where it cannot land). */
+    EDITOR_HK_EDIT_NUDGE_FAR_N,
+    EDITOR_HK_EDIT_NUDGE_FAR_S,
+    EDITOR_HK_EDIT_NUDGE_FAR_W,
+    EDITOR_HK_EDIT_NUDGE_FAR_E,
+    EDITOR_HK_EDIT_LEVEL_UP,
+    EDITOR_HK_EDIT_LEVEL_DOWN,
     EDITOR_HK_EDIT_COPY,
     EDITOR_HK_EDIT_PASTE,
     EDITOR_HK_EDIT_FILL,
@@ -128,6 +157,8 @@ enum Editor_HotkeyAction
     EDITOR_HK_PLACE_HERE,
     EDITOR_HK_PLACE_FIT,
     EDITOR_HK_PLACE_SWAP,
+    /** Held: a Place drag (a wall run) keeps to one axis (a qualifier). */
+    EDITOR_HK_PLACE_CONSTRAIN,
     /* Tools: the first EDITOR_TOOL_COUNT follow enum Editor_Tool's order. */
     EDITOR_HK_TOOL_SELECT,
     EDITOR_HK_TOOL_RECT,
@@ -143,6 +174,10 @@ enum Editor_HotkeyAction
     EDITOR_HK_TOOL_ROTATE,
     EDITOR_HK_TOOL_DELETE,
     EDITOR_HK_TOOL_PLACE_PLAYER,
+    EDITOR_HK_TOOL_PAINT_PATH,
+    EDITOR_HK_TOOL_NOISE,
+    EDITOR_HK_TOOL_SCATTER,
+    EDITOR_HK_TOOL_PLATEAU,
     EDITOR_HK_TOOL_PREVIOUS,
     EDITOR_HK_TOOL_PICK_PAINT,
     EDITOR_HK_TOOL_PICK_LOC,
@@ -183,6 +218,18 @@ enum Editor_HotkeyAction
      *  scheme toggle (default <-> Unity) is remembered in editor_recent.ini. */
     EDITOR_HK_CAM_FRAME_KEY,
     EDITOR_HK_CAM_SCHEME,
+    /* Picker (context K, workbench 6.4): the focused cell north / south /
+     * west / east, open it, add it to the open set, back to the previous
+     * square of the open set, clear Find. Run by the Squares panel
+     * (Editor_SquarePicker_Key), in this order. */
+    EDITOR_HK_PICKER_NORTH,
+    EDITOR_HK_PICKER_SOUTH,
+    EDITOR_HK_PICKER_WEST,
+    EDITOR_HK_PICKER_EAST,
+    EDITOR_HK_PICKER_OPEN,
+    EDITOR_HK_PICKER_ADD,
+    EDITOR_HK_PICKER_BACK,
+    EDITOR_HK_PICKER_CLEAR_FIND,
     /* View: one per View-menu panel module, then the layout rows. */
     /** The Catalog palette's slots (Shift+1..9, Shift+0), add the pick,
      *  next / previous palette (src/editor/panels/edpanel_catalog_palette.c). */
@@ -224,6 +271,13 @@ enum Editor_HotkeyAction
     EDITOR_HK_VIEW_LIVE,
     EDITOR_HK_VIEW_ACCOUNTS,
     EDITOR_HK_VIEW_TRIGGERS,
+    EDITOR_HK_VIEW_SCENES,
+    EDITOR_HK_VIEW_ENCOUNTER,
+    /** Workbench 6.7: the Shop builder and the Quest board. */
+    EDITOR_HK_VIEW_SHOP,
+    EDITOR_HK_VIEW_QUEST,
+    /** Workbench 6.6: the Problems panel (the bottom strip's group). */
+    EDITOR_HK_VIEW_PROBLEMS,
     EDITOR_HK_VIEW_HIDE_PANELS,
     EDITOR_HK_VIEW_RESET_LAYOUT,
     EDITOR_HK_VIEW_SNAP,
@@ -236,12 +290,55 @@ enum Editor_HotkeyAction
      *  over none); hide the panel under the pointer. */
     EDITOR_HK_VIEW_POPOUT,
     EDITOR_HK_VIEW_CLOSE_PANEL,
-    /** The command palette (module "command", edpanel_command.c) and Go to
-     *  tile..., which opens it prefilled with coordinates. */
-    EDITOR_HK_VIEW_COMMAND,
+    /** View > Chrome scale (workbench 6.0b): Auto, then the design's steps
+     *  in order (ui/torirs_chrome_scale_q.h); View > Text size Normal /
+     *  Large; View > Text rendering bitmap at whole scales / smooth always.
+     *  Unbound by default. */
+    EDITOR_HK_VIEW_SCALE_AUTO,
+    EDITOR_HK_VIEW_SCALE_100,
+    EDITOR_HK_VIEW_SCALE_125,
+    EDITOR_HK_VIEW_SCALE_150,
+    EDITOR_HK_VIEW_SCALE_175,
+    EDITOR_HK_VIEW_SCALE_200,
+    EDITOR_HK_VIEW_SCALE_250,
+    EDITOR_HK_VIEW_SCALE_300,
+    EDITOR_HK_VIEW_TEXT_NORMAL,
+    EDITOR_HK_VIEW_TEXT_LARGE,
+    EDITOR_HK_VIEW_TEXT_BITMAP,
+    EDITOR_HK_VIEW_TEXT_SMOOTH,
+    /** Workspaces (workbench 6.8, design section 3 "Workspaces"): Build,
+     *  Terrain, Script, Playtest, in Editor_UiWorkspace order (editor_ui.h
+     *  asserts it); Ctrl+1..4 since the level pins moved to Alt. */
+    EDITOR_HK_VIEW_WORKSPACE_BUILD,
+    EDITOR_HK_VIEW_WORKSPACE_TERRAIN,
+    EDITOR_HK_VIEW_WORKSPACE_SCRIPT,
+    EDITOR_HK_VIEW_WORKSPACE_PLAYTEST,
+    /** The command palette (module "cmdpalette", Ctrl+K) and Go to tile...,
+     *  which opens it prefilled with coordinates. */
+    EDITOR_HK_VIEW_COMMAND_PALETTE,
     EDITOR_HK_VIEW_GOTO,
+    /** The World HUD's layer toggles (design section 4): Locs, NPCs, Objs,
+     *  Collision, Grid on Alt+L/N/O/C/G. RESERVED: the HUD is not built in
+     *  this tree, so they say so in the status bar and claim their chords so
+     *  nothing else takes them. */
+    EDITOR_HK_VIEW_LAYER_LOCS,
+    EDITOR_HK_VIEW_LAYER_NPCS,
+    EDITOR_HK_VIEW_LAYER_OBJS,
+    EDITOR_HK_VIEW_LAYER_COLLISION,
+    EDITOR_HK_VIEW_LAYER_GRID,
+    /* Scene (design section 12): save the scene and a scratch lane are the
+     * File group's (EDITOR_HK_FILE_SAVE_SCENE, EDITOR_HK_FILE_SCRATCH_LANE,
+     * workbench 6.5). */
+    /* Graph (context Q): lay the focused dialogue graph out. */
+    EDITOR_HK_GRAPH_AUTO_LAYOUT,
+    /** A new node of the Node kind dropdown's kind, after the selected one
+     *  (workbench 6.6). Delete on the graph is edit.delete's chord. */
+    EDITOR_HK_GRAPH_NEW_NODE,
     EDITOR_HK_COUNT
 };
+
+/** The workspace actions, in order. */
+#define EDITOR_HK_WORKSPACES (EDITOR_HK_VIEW_WORKSPACE_PLAYTEST - EDITOR_HK_VIEW_WORKSPACE_BUILD + 1)
 
 /** Chords one action may carry. */
 #define EDITOR_HK_CHORDS 2
@@ -270,6 +367,12 @@ struct Editor_HotkeyActionInfo
     const char* defaults[EDITOR_HK_CHORDS];
     /** View actions: the registry module the action shows / hides. */
     const char* panel;
+    /** The gesture that does the same on a trackpad or a touchscreen (design
+     *  section 14's table, section 15's "gesture" column): "2 fingers" (the
+     *  World's pan: the fly moves), "pinch" (the eye distance), "twist" (the
+     *  turn); NULL where none does. The hint strip spells it while the last
+     *  input was a finger. */
+    const char* gesture;
 };
 
 struct Editor_HotkeyBinding
@@ -305,14 +408,24 @@ Editor_HotkeyFind(const char* id);
 int
 Editor_HotkeyForPanel(const char* panel);
 
-/** "G", "W", "L, S", "no loc": the context mask as the panel prints it. */
+/** "G", "W", "L, S", "no loc": the context mask as the panel prints it
+ *  (the panel's long spelling). */
 void
 Editor_HotkeyContextText(
     unsigned contexts,
     char* out,
     int out_size);
 
-/** Can a state make both masks live at once? (L excludes S and N.) */
+/** The context mask as the letters the doc's tables use ("G", "L, S",
+ *  "N"): the Hotkeys panel's narrow context column. */
+void
+Editor_HotkeyContextLetters(
+    unsigned contexts,
+    char* out,
+    int out_size);
+
+/** Can a state make both masks live at once? (L excludes S and N; K
+ *  excludes every other.) */
 int
 Editor_HotkeyContextsOverlap(
     unsigned a,
@@ -335,18 +448,52 @@ Editor_HotkeysSet(
     const struct Editor_Chord* chords,
     int count);
 
+/**
+ * The Hotkeys panel's capture of ONE cell (workbench 6.8: two capture cells
+ * per row): slot `slot` (0 or 1) of `action` becomes `chord` and the other
+ * slot is kept; `chord.key` 0 unbinds that slot alone (Backspace). A first
+ * slot left empty beside a second chord takes it (the table never holds a
+ * second chord without a first). A chord equal to the other slot's leaves
+ * one copy. Stamped now; bumps the serial.
+ */
+void
+Editor_HotkeysSetSlot(
+    struct Editor_Hotkeys* hk,
+    enum Editor_HotkeyAction action,
+    int slot,
+    struct Editor_Chord chord);
+
 /** Same chords as the default (order included). */
 int
 Editor_HotkeysIsDefault(
     const struct Editor_Hotkeys* hk,
     enum Editor_HotkeyAction action);
 
+/**
+ * A QUALIFIER: a held action whose chord may be a modifier key alone (Fly
+ * faster, Snap while dragging, Constrain a drag). It fires nothing of its own;
+ * it changes how the gesture it names goes -- the flight, a panel drag, a
+ * Place drag -- so two qualifiers on the same bare modifier are not a clash:
+ * Shift both speeds the flight and keeps a wall run straight.
+ */
+int
+Editor_HotkeyIsQualifier(enum Editor_HotkeyAction action);
+
 /** The first action that shares a chord with `action` in a context that can
- *  be live with it, or -1. */
+ *  be live with it, or -1 (two qualifiers on one bare modifier excepted). */
 int
 Editor_HotkeysClash(
     const struct Editor_Hotkeys* hk,
     enum Editor_HotkeyAction action);
+
+/** The action `chord` fires in `contexts` (G is NOT implied: the picker
+ *  asks with K alone), or -1. The first chord or the second, as the
+ *  resolver reads them; a clash goes to the later binding. */
+int
+Editor_HotkeysMatch(
+    const struct Editor_Hotkeys* hk,
+    struct Editor_Chord chord,
+    unsigned contexts);
 
 /** Every clashing pair (a < b) into out[2*i], out[2*i+1]; returns how many. */
 int
@@ -378,6 +525,36 @@ Editor_ChordDisplay(
     char* out,
     int out_size);
 
+/**
+ * The keycap spelling (design section 15 "Chord spelling"): with `apple`,
+ * the modifiers as the symbols a Mac keyboard shows (Ctrl as Command "⌘",
+ * Shift "⇧", Alt "⌥", run together: "⌘⇧Z"); elsewhere the words
+ * ("Ctrl+Shift+Z"). With `glyphs` (the face the keycap is drawn in carries
+ * the symbols) the keys too: the arrows "↑ ↓ ← →", Return "↵", Delete "⌦",
+ * Backspace "⌫", Tab "⇥"; without, their words, and on Apple the
+ * modifiers' words as well ("Cmd+Shift+Z"), so nothing is drawn as a box.
+ * Editor_ChordDisplay is this with the build's own answers
+ * (EDITOR_HK_APPLE, EDITOR_HK_SMALL_FACE_GLYPHS). UTF-8.
+ */
+void
+Editor_ChordSpell(
+    struct Editor_Chord chord,
+    int apple,
+    int glyphs,
+    char* out,
+    int out_size);
+
+/** Whether the chrome's Small face (the keycaps' face) carries the symbol
+ *  glyphs. 0: the face is the cache's p11 (94 ASCII glyphs), and adding the
+ *  symbols is a bake from the cache (tools/fontbake_atlas.py), which this
+ *  tree cannot run without one; the keycaps keep the words. */
+#define EDITOR_HK_SMALL_FACE_GLYPHS 0
+#if defined(__APPLE__)
+#define EDITOR_HK_APPLE 1
+#else
+#define EDITOR_HK_APPLE 0
+#endif
+
 /** Every chord of `action` for a hint, ", "-separated; "" when unbound. */
 void
 Editor_HotkeyDisplay(
@@ -386,9 +563,147 @@ Editor_HotkeyDisplay(
     char* out,
     int out_size);
 
+/**
+ * The FIRST chord of each of `actions`, compacted the way the hint strip
+ * spells a row of several: the modifier prefix they all share said once
+ * ("Shift+[ ]" for Shift+[ and Shift+]), the four arrow keys as "arrows".
+ * One action gives its first chord alone ("Q"), the keycap a control wears
+ * (workbench 6.0: ToriRSChrome_ButtonSetChord, the tool rail's badges, the
+ * Terrain sliders' "Radius  [ ]"). Unbound actions are skipped; "" when
+ * none is bound. 1 <= count <= EDITOR_HK_HINT_ACTIONS.
+ */
+void
+Editor_HotkeysJoin(
+    const struct Editor_Hotkeys* hk,
+    const int* actions,
+    int count,
+    char* out,
+    int out_size);
+
+/**
+ * A RETIRED chord (workbench 6.8, design section 15 "Resolved collisions"):
+ * the level pins moved from Ctrl+0..5 to Alt+0..5 and Ctrl+1..4 became the
+ * workspaces; Pin level 0's Ctrl+0 and Show above's Ctrl+5, which nothing
+ * took, stay as each one's second default for one release. When `chord` is
+ * one of those and `action` fired on it, `out` gets the console line that
+ * says so ("Ctrl+0 is the old chord of Pin level 0: Alt+0 from now on; the
+ * old one goes next release") and 1 is returned; 0 for any other chord.
+ * The chord now in the action's first slot is the one named, so a rebind is
+ * followed.
+ */
+int
+Editor_HotkeyRetiredNote(
+    const struct Editor_Hotkeys* hk,
+    enum Editor_HotkeyAction action,
+    struct Editor_Chord chord,
+    char* out,
+    int out_size);
+
 /** The key a chord's modifier bit stands for (TORIRSK_CTRL ...), and back. */
 int
 Editor_HotkeyKeyIsModifier(int key);
+
+/* ---- the hint strip ------------------------------------------------------------
+ *
+ * The status bar's left track (design #workbench "Status bar and hint strip",
+ * #hotkeys surface 4): the live chords of the ARMED tool, as (chord, verb)
+ * runs. One source -- the chords are read from the live table on every call,
+ * so a rebind relabels the strip on the next frame -- and the rows are the
+ * table's, filtered by the contexts live now: Delete appears once a loc is
+ * selected, the nudges while Select or Move holds a selection, Copy and Fill
+ * while the Rect tool holds a rectangle.
+ *
+ * `tool` is an enum Editor_Tool value (editor_ui.h, which includes this
+ * header; it asserts the two orders agree): the first EDITOR_HK_HINT_TOOLS
+ * EDITOR_HK_TOOL_* actions arm the tools in that order.
+ */
+#define EDITOR_HK_HINT_TOOLS (EDITOR_HK_TOOL_PLATEAU - EDITOR_HK_TOOL_SELECT + 1)
+/** Rows one tool's strip holds at most (Select's nine). */
+#define EDITOR_HK_HINT_MAX 10
+/** Actions one row reads its chords from at most (the four nudges). */
+#define EDITOR_HK_HINT_ACTIONS 4
+#define EDITOR_HK_HINT_CHORD_MAX 48
+
+struct Editor_HotkeyHint
+{
+    /** What to press, as the strip prints it: the mouse word ("click",
+     *  "drag"), then the live chords ("click/Space, Enter", "Shift+[ ]",
+     *  "arrows" for the four nudges on the arrow keys). With `touch`, the
+     *  finger's word alone ("tap", "drag", "2 fingers", "pinch", "hold"). */
+    char chord[EDITOR_HK_HINT_CHORD_MAX];
+    /** What it does, one short word or two ("rotate", "add loc"). Static. */
+    const char* verb;
+    /** The first table action the row reads its chords from, -1 for a row
+     *  that is the mouse alone (click tile, drag marquee). */
+    int action;
+};
+
+/**
+ * The live hint rows for `tool` under `contexts` (EDITOR_HK_CTX_*; G is
+ * implied), in the tool's fixed order, into `out_rows` (at most `max`).
+ * A row whose actions are unbound or not live keeps only its mouse word, and
+ * is dropped when it has none. Returns how many were written.
+ *
+ * `touch` (the last input was a finger): the gesture words replace the
+ * mouse words. The tool's pointer rows say the finger's ("tap tile", "drag
+ * marquee"; a row with no finger spelling, Shift+click, is dropped, and so
+ * are the keyboard's), then the camera's from the table's gesture spellings
+ * and the long press: "2 fingers" pan, "pinch" zoom, "twist" turn, "hold"
+ * menu. A camera action with no gesture spelling keeps its row out.
+ *
+ * The rows, per tool (chords are the defaults; the table decides):
+ *
+ *   Select        click tile, Shift+click add loc, drag marquee,
+ *                 Ctrl+A square (W), arrows nudge (M), Q rotate,
+ *                 Shift+Q reshape, E swap (L), Del delete (L, S)
+ *   Place         click/Space place (P), Q turn, Shift+Q reshape, G fit,
+ *                 E swap (L), Esc drop
+ *   the brushes   drag paint, [ ] radius, Shift+[ ] strength, Ctrl+[ ] step
+ *   Move          drag/arrows move (M), Ctrl+D dup (L, S)
+ *   Rotate        click rotate
+ *   Delete        click delete
+ *   Rect          drag rectangle, Ctrl+C copy (R), Ctrl+V paste (W),
+ *                 Ctrl+Shift+F fill (R), Shift+Del clear (R)
+ *   Place player  click put player
+ */
+int
+Editor_HotkeysHint(
+    const struct Editor_Hotkeys* hk,
+    unsigned contexts,
+    int tool,
+    int touch,
+    struct Editor_HotkeyHint* out_rows,
+    int max);
+
+/** The editor state the contexts are derived from: what the App's key
+ *  snapshot (src/app/app_editor_hotkeys.c) and the status bar's hint both
+ *  read off the registry's shared tools. */
+struct Editor_HotkeyContextFacts
+{
+    /** enum Editor_Tool. */
+    int tool;
+    /** The pointer is over the World panel's body and no chrome wants it. */
+    int pointer_in_world;
+    int loc_count;
+    /** The Spawns panel's selection (0 while it is closed; behind a tab of
+     *  its strip it counts: Editor_Spawns_SelectionCount). */
+    int spawn_count;
+    /** The catalog's pick is a loc (kind 0, id >= 0). */
+    int loc_pick;
+    /** The Rect tool holds a rectangle. */
+    int rect_valid;
+    /** The chrome's keyboard focus is the NPC builder's dialogue graph
+     *  (context Q; Builder_GraphFocused), not any other GRAPH well. */
+    int graph_focus;
+    /** The Unity camera scheme is on (ui->recent.camera_scheme): context U,
+     *  else D. */
+    int camera_unity;
+};
+
+/** The EDITOR_HK_CTX_* mask `facts` make live (G always): the rules at the
+ *  top of this header, in one place. */
+unsigned
+Editor_HotkeyContextsFrom(const struct Editor_HotkeyContextFacts* facts);
 
 /* ---- editor_hotkeys.ini ------------------------------------------------------------ */
 

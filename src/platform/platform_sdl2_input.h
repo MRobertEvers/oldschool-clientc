@@ -38,4 +38,25 @@ void PlatformSdl_PushMultiGesture(
     struct ToriRS_CmdBus* bus,
     SDL_MultiGestureEvent const* gesture);
 
+/** Which halves of one SDL_MULTIGESTURE step go on the bus. */
+enum
+{
+    /** TORIRS_CMD_INPUT_PINCH, the spread's ratio. */
+    PLATFORM_SDL_MULTI_LEGACY_PINCH = 1,
+    /** The gesture frames (TORIRS_CMD_GESTURE_*). */
+    PLATFORM_SDL_MULTI_FRAMES = 2,
+};
+
+/**
+ * PlatformSdl_PushMultiGesture's routing, for a device of `type` while the
+ * touch policy's gesture frames are `touch_frames`
+ * (ToriRS_TouchGestureFrames). A touchpad (indirect) is this path's alone:
+ * both halves. A touchscreen (direct) is the touch policy's: the legacy pinch
+ * beside its wheel notches with the frames off, and nothing with them on --
+ * its PINCH frame is the pinch, and both would zoom a GRAPH twice a step.
+ */
+int PlatformSdl_MultiGestureRoute(
+    SDL_TouchDeviceType type,
+    int touch_frames);
+
 #endif

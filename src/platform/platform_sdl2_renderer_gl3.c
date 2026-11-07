@@ -1890,10 +1890,12 @@ gl3_font_glyph_callback(
     int const rgb = gctx->shadow ? 0 : color_rgb;
     float rgba[4];
     trspk_color_rgb_to_rgba(rgb, gctx->alpha, rgba);
+    /* Text mode 2 for a coverage atlas: its edge texels are partial alpha by
+     * design, and mode 1's threshold would draw them solid. */
     gl3_draw_textured_quad(
         renderer,
         slot->texture,
-        1,
+        slot->font->coverage ? 2 : 1,
         false,
         NULL,
         gx,

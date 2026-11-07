@@ -36,6 +36,15 @@ struct ToriDraw_Font
     int draw_width[256];
     int line_height;
     char charcodeset[256];
+    /* What a glyph_alpha byte is. 0, every cache face and every baked tier: a
+     * mask, written 0 or 255. 1: coverage, 0..255, which a filtered sampler
+     * must read as alpha rather than snap to solid (the chrome's faces at a
+     * fractional scale or under "smooth always", ToriRSChromeGlyphs_Rasterise:
+     * the vector face's antialiased outlines, or the cell path's quarter
+     * coverage on one-row edges). The software blitter blends by the byte either
+     * way -- a mask blends as solid -- so only the GPU paths that threshold
+     * the atlas (GL3's text mode) read this. */
+    int coverage;
 };
 
 void

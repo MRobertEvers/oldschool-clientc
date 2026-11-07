@@ -1,16 +1,33 @@
 /*
- * The asset catalog panel (docs/MAPED_DESIGN.html #catalog): the SERVER's
- * index of the content tree, a page at a time.
+ * The asset catalog panel (docs/MAPED_DESIGN.html #catalog; the workbench's
+ * loc finder, design section 6): the SERVER's index of the content tree.
  *
  *   Kind       loc, npc, obj, seq, spotanim, the vars, enum, struct, param,
  *              inv, dbrow/dbtable, interface, component, cs2, trigger,
  *              square, the pack tables, or every kind at once.
- *   Find       incremental: names, display names, ids and key=value filters
- *              (`op=Open`, `multivar=varb4153`), asked once the text has
- *              stood for a frame (edpanel_catalog_model.h).
- *   Results    one page of CATALOG_QUERY, as many rows as the list shows;
- *              Prev / Next page through the rest. The count row reads
- *              "<shown> of <total matching> <kind>" from the server's total.
+ *   Find       incremental: names, display names, ids, asked once the text
+ *              has stood for a frame (edpanel_catalog_model.h). A typed
+ *              `key=value` word becomes a FILTER CHIP under the box once a
+ *              space ends it; a chip's x removes it; the "+ filter" dropdown
+ *              adds the summary fields' chips (shape class, size, category,
+ *              op, multivar, has dialogue, has spawn). The free words and the
+ *              chips compose into the query's filter terms.
+ *   Count      "1 to 100 of 212 loc": the window's first row to the last row
+ *              held after it, of the server's total (the row under Find:
+ *              the box has no slot at its right end).
+ *   Shortcuts  chips over the index: favourites (editor/favourites.txt,
+ *              editor_favourites.h), recent (the session's last 20 picks), in
+ *              square (the locs the open squares place, from the mirror's
+ *              documents), same category (the pick's, as a chip).
+ *   Sort       best match (the server's order), name, id, category, size.
+ *   Results    a CELLS list (ToriRSChrome_VListCells): a 16 px top-down
+ *              thumbnail the App rasters for the rows on screen only
+ *              (app_services.loc_thumbnail, cached by id and shape), the name
+ *              with the display name dimmed, the loc's placeable shapes as
+ *              keycaps -- a click on one picks the loc at that shape -- and
+ *              the id right-aligned. CONTINUOUS: the list is the whole
+ *              result, the window asks for the page it is on and the next is
+ *              prefetched as it nears the end (no Next page button).
  *   Record     the picked row's CATALOG_RECORD: its sources (file:line and
  *              provenance) and every field of its config block, a server
  *              overlay's restatement marked over the cache value it
@@ -27,18 +44,25 @@
  * The pick is shared tool state (tools.pick_kind / pick_id / pick_name): a
  * loc, npc or obj row with an id becomes it, the Place tool stamps it, the
  * spawns panel resolves an npc / obj pick to its pack symbol, and the PREVIEW
- * panel (edpanel_preview.c, registered with this one) shows its model. It is
- * also the Client's: every pick is published as STATE_CATALOG_PICK and heard
- * back (catalog_on_state), so a popped-out Preview or Catalog follows the
- * window that picked. The multiloc rungs stay on the client's provider,
- * reached through ui->app_services (skipped when they are NULL, as in
- * editor_panels_test): one record loaded on demand, never a sweep.
+ * panel (edpanel_preview.c, registered with this one) shows its model and
+ * carries the pick's actions (Place, the favourite star, Palette, Record,
+ * Triggers, Find in world, Copy to new). It is also the Client's: every pick
+ * is published as STATE_CATALOG_PICK and heard back (catalog_on_state), so a
+ * popped-out Preview or Catalog follows the window that picked. The multiloc
+ * rungs stay on the client's provider, reached through ui->app_services
+ * (skipped when they are NULL, as in editor_panels_test): one record loaded
+ * on demand, never a sweep.
  */
 
 #include "edpanel_catalog_model.h"
+#include "edpanel_chips.h"
 #include "edpanel_common.h"
+#include "edpanel_ops.h"
+#include "edpanel_ops_stamps.h"
 #include "edpanels.h"
 #include "editor/editor_cfg.h"
+#include "editor/editor_favourites.h"
+#include "editor/editor_palette.h"
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
 #include "editor/editor_script.h"
@@ -55,13 +79,35 @@
 
 #define CATALOG_LABEL_MAX 48
 #define CATALOG_VARIANT_MAX 33
-/** Result rows on screen, which is also the page size asked for. */
+/** Result rows on screen. */
 #define CATALOG_LIST_ROWS 12
+/** Rows a CATALOG_QUERY page holds: "1 to 100 of 212". */
+#define CATALOG_PAGE_ROWS 100
 #define CATALOG_RECORD_ROWS 8
 /** Picks published whose echo has not come back yet. */
 #define CATALOG_PICK_ECHO_MAX 8
 /** TORIRS_EDITOR_CATALOG pick= entries. */
 #define CATALOG_ENV_PICKS 8
+/** Favourites and in-square locs whose records a rebuild asks at most:
+ *  the rest list by id. */
+#define CATALOG_RESOLVE_MAX 128
+/** The open squares' locs are gathered at most this often while commands
+ *  keep coming, through a set of this many slots (twice the list's cap). */
+#define CATALOG_IN_SQUARE_MS 500
+#define CATALOG_IN_SQUARE_SET 1024
+
+_Static_assert(EDITOR_CATALOG_KEYCAPS_MAX == TORIRS_CHROME_CELL_KEYS_MAX,
+    "the model's keycaps are the chrome's cells");
+
+/** The shortcut chips, in their order. */
+enum CatalogShortcut
+{
+    CATALOG_SHORTCUT_FAVOURITES = 0,
+    CATALOG_SHORTCUT_RECENT,
+    CATALOG_SHORTCUT_IN_SQUARE,
+    CATALOG_SHORTCUT_CATEGORY,
+    CATALOG_SHORTCUT_COUNT,
+};
 
 struct CatalogRows
 {
@@ -79,10 +125,13 @@ struct CatalogPanel
     int dropdown_kind;
     int input_search;
     int row_count;
+    /** The filter chips under Find, and the "+ filter" dropdown. */
+    struct Edp_ChipStrip chip_strip;
+    int dropdown_filter;
+    int dropdown_sort;
+    /** favourites / recent / in square / same category. */
+    struct Edp_ChipStrip shortcut_strip;
     int list;
-    int button_prev;
-    int button_next;
-    int row_page;
     int row_picked;
     int row_record;
     int record_list;
@@ -91,17 +140,66 @@ struct CatalogPanel
     int button_edit_record;
     /** The pick into the Catalog palette's first free slot. */
     int button_add_palette;
+    /** ui->hotkeys.serial the Add button's keycap was labelled from. */
+    uint32_t chord_serial;
     int button_open_script;
     int row_multi;
     int dropdown_variant;
     struct CatalogRows var_rows;
 
     struct Editor_CatalogModel model;
-    /** The list shows the model's answer of this query serial. */
-    int shown_queries;
-    /** The selected result row (-1 none) and the record list built for it. */
+    /** The filter chips, and the Find text as last seen (a change takes
+     *  its finished key=value words into chips). */
+    struct Editor_CatalogChips chips;
+    char find_seen[TORIRS_CHROME_INPUT_MAX];
+    char composed[EDITOR_CATALOG_FILTER_MAX];
+    /** The list shows the model's rows as of these serials. */
+    uint32_t shown_answers;
+    uint32_t shown_key;
+    /** The selected result row (absolute, -1 none) and the record list built
+     *  for it. */
     int selected;
     int record_built;
+    /** The list's tooltip: the hovered row and cell it was written for. */
+    int tip_row;
+    int tip_cell;
+
+    /* The shortcuts. */
+    struct Editor_CatalogRecents recents;
+    /** editor/favourites.txt as last parsed, and what it was parsed from. */
+    struct Editor_FavouritesFile favourites;
+    const char* fav_text;
+    size_t fav_length;
+    uint32_t fav_seq;
+    /** A hash of the text parsed: a command that did not touch the file
+     *  rebuilds nothing. */
+    uint32_t fav_hash;
+    int fav_opened;
+    /** The open squares' loc ids (distinct), and the command seq / square
+     *  count they were gathered at. */
+    int* in_square_ids;
+    int in_square_count;
+    uint32_t in_square_seq;
+    int in_square_squares;
+    /** A hash of the id set: an edit that moved no id in or out rebuilds
+     *  nothing. */
+    uint32_t in_square_hash;
+    /** The set the gather dedups through (CATALOG_IN_SQUARE_SET slots), and
+     *  when it last ran (chrome ms). */
+    int* in_square_set;
+    int64_t in_square_ms;
+    /** The rows a local list is built in (owned), and what the shown one
+     *  was built from (source, serial). */
+    struct Editor_CatalogLocalRow* local_build;
+    int local_source;
+    uint32_t local_serial;
+    /** The pick's record name and category (the favourite star and "same
+     *  category" read them), for (pick_kind, pick_id). */
+    int sym_kind;
+    int sym_id;
+    char sym_name[EDITOR_CMD_NAME_MAX];
+    char sym_category[EDITOR_CATALOG_CHIP_VALUE_MAX];
+    uint32_t sym_mask;
 
     char var_labels[CATALOG_VARIANT_MAX][CATALOG_LABEL_MAX];
     const char* var_options[CATALOG_VARIANT_MAX];
@@ -117,8 +215,8 @@ struct CatalogPanel
     int32_t pick_echo[CATALOG_PICK_ECHO_MAX][2];
     int pick_echo_count;
     int pick_name_pending;
-    /** Editor_Catalog_PickRecord: the row to select once the page holding it
-     *  lands ("" none). */
+    /** Editor_Catalog_PickRecord / PickFromWorld: the row to select, and
+     *  scroll into view, once the page holding it lands ("" none). */
     char select_name[EDITOR_CMD_NAME_MAX];
     uint32_t select_kind;
 
@@ -388,8 +486,8 @@ catalog_record_show(
     char line[TORIRS_CHROME_LABEL_MAX];
 
     self->record_built = self->selected;
-    if( host && self->selected >= 0 && self->selected < Editor_CatalogModelRowCount(&self->model) )
-        record = Editor_CatalogModelRecord(&self->model, host, self->selected);
+    if( host && self->selected >= 0 && self->selected < Editor_CatalogModelViewCount(&self->model) )
+        record = Editor_CatalogModelRecordAt(&self->model, host, self->selected);
     if( record )
         snprintf(line, sizeof(line), "%s %s  id %d%s%s", ToriRSMapEdCatalog_KindName(record->kind), record->name,
             (int)record->id, record->display[0] ? "  " : "", record->display);
@@ -412,12 +510,12 @@ catalog_record_rows(
     int first;
     int shown;
 
-    if( !host || self->selected < 0 || self->selected >= Editor_CatalogModelRowCount(&self->model) )
+    if( !host || self->selected < 0 || self->selected >= Editor_CatalogModelViewCount(&self->model) )
         return;
     if( !ToriRSChrome_VListWindow(ui->chrome, self->record_list, &first, &shown) )
         return;
     /* Held: the same row answers from the model, no round trip. */
-    record = Editor_CatalogModelRecord(&self->model, host, self->selected);
+    record = Editor_CatalogModelRecordAt(&self->model, host, self->selected);
     for( int r = first; r < first + shown && r < catalog_record_lines(record); r++ )
     {
         char text[TORIRS_CHROME_INPUT_MAX];
@@ -426,7 +524,24 @@ catalog_record_rows(
     }
 }
 
-/** The visible result rows' text, from the held page (compare-then-set). */
+/** Row `view`'s thumbnail: the App's 16 x 16 picture of the loc at its
+ *  first shape, asked for the rows on screen only; 0 while it is still to
+ *  come, or for a row that is not a loc. */
+static int
+catalog_thumbnail(
+    struct EditorUi* ui,
+    const struct Editor_CatalogView* view)
+{
+    const struct EditorUiAppServices* services = &ui->app_services;
+    int const shape = view->shape >= 0 ? view->shape : Editor_LocShapeFirst(view->shape_mask);
+
+    if( !services->loc_thumbnail || view->kind != TORIRSMAPED_CATALOG_LOC || view->id < 0 || shape < 0 )
+        return 0;
+    return services->loc_thumbnail(services->user_data, view->id, shape);
+}
+
+/** The visible rows, from what the model holds (compare-then-set): a row
+ *  whose page has not landed stays blank until it does. */
 static void
 catalog_list_rows(
     struct EditorUi* ui,
@@ -434,49 +549,449 @@ catalog_list_rows(
 {
     int first;
     int shown;
-    int const rows = Editor_CatalogModelRowCount(&self->model);
+    int const any_kind = self->model.source == EDITOR_CATALOG_SOURCE_INDEX
+                         && self->model.held_kind == TORIRSMAPED_CATALOG_ANY;
 
     if( !ToriRSChrome_VListWindow(ui->chrome, self->list, &first, &shown) )
         return;
-    for( int r = first; r < first + shown && r < rows; r++ )
+    for( int r = first; r < first + shown; r++ )
     {
+        struct Editor_CatalogView view;
         char text[TORIRS_CHROME_INPUT_MAX];
-        Editor_CatalogModelRowText(&self->model, r, text, sizeof(text));
+        if( !Editor_CatalogModelViewAt(&self->model, r, &view) )
+            continue;
+        Editor_CatalogCellsText(&view, catalog_thumbnail(ui, &view), any_kind, text, sizeof(text));
         ToriRSChrome_VListSetRow(ui->chrome, self->list, r, text);
     }
 }
 
-/** The page the model holds, into the list. Once per answer. */
+/** The list follows the model: its count every frame, and on a NEW answer
+ *  (kind, find, source) the top of it and no selection -- a page that lands
+ *  as the window moves is the same list and keeps both. */
 static void
 catalog_list_show(
     struct EditorUi* ui,
     struct CatalogPanel* self)
 {
-    char line[TORIRS_CHROME_LABEL_MAX];
-    int const rows = Editor_CatalogModelRowCount(&self->model);
-
-    self->shown_queries = self->model.queries;
-    self->selected = -1;
-    ToriRSChrome_VListSetCount(ui->chrome, self->list, rows);
-    ToriRSChrome_VListSetSelected(ui->chrome, self->list, -1);
-    ToriRSChrome_VListSetScroll(ui->chrome, self->list, 0);
-    catalog_list_rows(ui, self);
-    snprintf(line, sizeof(line), "page %u of %u", self->model.page + 1, Editor_CatalogModelPageCount(&self->model));
-    ToriRSChrome_SetText(ui->chrome, self->row_page, line);
-    /* Editor_Catalog_PickRecord's row, once a page holding it lands. */
+    ToriRSChrome_VListSetCount(ui->chrome, self->list, Editor_CatalogModelViewCount(&self->model));
+    if( self->shown_key != self->model.key_serial )
+    {
+        self->shown_key = self->model.key_serial;
+        self->selected = -1;
+        ToriRSChrome_VListSetSelected(ui->chrome, self->list, -1);
+        ToriRSChrome_VListSetScroll(ui->chrome, self->list, 0);
+        catalog_record_show(ui, self);
+    }
+    if( self->shown_answers == self->model.answers )
+        return;
+    self->shown_answers = self->model.answers;
+    /* Editor_Catalog_PickRecord / PickFromWorld's row, once a page holding
+     * it lands: selected and scrolled into view. */
     if( self->select_name[0] )
-        for( int r = 0; r < rows; r++ )
+    {
+        int const row = Editor_CatalogModelFindRow(&self->model, self->select_kind, self->select_name);
+        if( row >= 0 )
         {
-            const struct EditorHost_CatalogRow* row = Editor_CatalogModelRow(&self->model, r);
-            if( row->kind == self->select_kind && strcmp(row->name, self->select_name) == 0 )
+            int first = 0;
+            int shown = 0;
+            self->select_name[0] = '\0';
+            self->selected = row;
+            ToriRSChrome_VListSetSelected(ui->chrome, self->list, row);
+            (void)ToriRSChrome_VListWindow(ui->chrome, self->list, &first, &shown);
+            if( row < first || row >= first + (shown > 0 ? shown : CATALOG_LIST_ROWS) )
+                ToriRSChrome_VListSetScroll(ui->chrome, self->list, row > 2 ? row - 2 : 0);
+            catalog_record_show(ui, self);
+        }
+    }
+}
+
+/** The hovered row says itself whole (R2: the cells ellipsise) and a hovered
+ *  keycap says what its click does (R5). */
+static void
+catalog_list_tip(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    struct Editor_CatalogView view;
+    char tip[TORIRS_CHROME_LABEL_MAX];
+    int cell = 0;
+    int const row = ToriRSChrome_VListHoverRow(ui->chrome, self->list, &cell);
+
+    if( row == self->tip_row && cell == self->tip_cell )
+        return;
+    self->tip_row = row;
+    self->tip_cell = cell;
+    if( row < 0 || !Editor_CatalogModelViewAt(&self->model, row, &view) )
+    {
+        ToriRSChrome_SetTooltip(ui->chrome, self->list, "click: pick; a shape key: pick at that shape");
+        return;
+    }
+    if( cell > 0 && Editor_CatalogViewShapeAt(&view, cell) >= 0 )
+    {
+        int const shape = Editor_CatalogViewShapeAt(&view, cell);
+        snprintf(tip, sizeof(tip), "pick %.24s at shape %d (%s)", view.name, shape, Editor_LocShapeName(shape));
+    }
+    else if( view.display[0] && strcmp(view.display, view.name) != 0 )
+        snprintf(tip, sizeof(tip), "%.36s \"%.20s\" %d", view.name, view.display, (int)view.id);
+    else
+        snprintf(tip, sizeof(tip), "%.52s %d", view.name, (int)view.id);
+    /* A loc says its footprint and the layer its shapes go in (the server's
+     * `size` and `layer`). */
+    if( view.kind == TORIRSMAPED_CATALOG_LOC && view.layer[0] && !(cell > 0 && Editor_CatalogViewShapeAt(&view, cell) >= 0) )
+    {
+        size_t const at = strlen(tip);
+        snprintf(tip + at, sizeof(tip) - at, ", %dx%d %.20s", view.size_w, view.size_l, view.layer);
+    }
+    ToriRSChrome_SetTooltip(ui->chrome, self->list, tip);
+}
+
+/* ---- the chips: filters and shortcuts ------------------------------------------- */
+
+/** Find's finished `key=value` words become chips: a word is finished when
+ *  a space follows it, so "op=Op" is not a chip while "en" is still coming.
+ *  Writes the words left back into the box. */
+static void
+catalog_take_chips(
+    struct EditorUi* ui,
+    struct CatalogPanel* self,
+    const char* text)
+{
+    char done[TORIRS_CHROME_INPUT_MAX];
+    char rest[TORIRS_CHROME_INPUT_MAX];
+    char box[TORIRS_CHROME_INPUT_MAX];
+    const char* last_space = strrchr(text, ' ');
+    const char* tail;
+
+    if( !last_space )
+        return;
+    snprintf(done, sizeof(done), "%.*s", (int)(last_space - text), text);
+    tail = last_space + 1;
+    /* A word taken -- a new chip, or one already there -- leaves the box. */
+    (void)Editor_CatalogChipsTake(&self->chips, done, rest, sizeof(rest));
+    if( strcmp(rest, done) == 0 )
+        return;
+    snprintf(box, sizeof(box), "%s%s%s", rest, rest[0] ? " " : "", tail);
+    ToriRSChrome_SetText(ui->chrome, self->input_search, box);
+    snprintf(self->find_seen, sizeof(self->find_seen), "%s", box);
+}
+
+static void
+catalog_chips_draw(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    edp_chips_begin(&self->chip_strip);
+    for( int i = 0; i < self->chips.count; i++ )
+    {
+        char label[EDP_CHIP_LABEL_MAX];
+        char tip[EDP_CHIP_TIP_MAX];
+        Editor_CatalogChipLabel(&self->chips.chip[i], label, sizeof(label));
+        Editor_CatalogChipTip(&self->chips.chip[i], tip, sizeof(tip));
+        (void)edp_chips_push(&self->chip_strip, label, tip, 0, 1);
+    }
+    edp_chips_end(ui, &self->chip_strip);
+    ToriRSChrome_SetHidden(ui->chrome, self->chip_strip.graph, self->chips.count == 0);
+    edp_chips_hover(ui, &self->chip_strip);
+}
+
+static int
+catalog_favourite_count(const struct CatalogPanel* self)
+{
+    return Editor_FavouritesCount(&self->favourites);
+}
+
+static void
+catalog_shortcuts_draw(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    char label[EDP_CHIP_LABEL_MAX];
+    char tip[EDP_CHIP_TIP_MAX];
+    enum Editor_CatalogSource const source = self->model.source;
+
+    edp_chips_begin(&self->shortcut_strip);
+    snprintf(label, sizeof(label), "favourites (%d)", catalog_favourite_count(self));
+    (void)edp_chips_push(&self->shortcut_strip, label,
+        source == EDITOR_CATALOG_SOURCE_FAVOURITES ? "back to the index" : "your starred records, favourites.txt",
+        source == EDITOR_CATALOG_SOURCE_FAVOURITES, 0);
+    snprintf(label, sizeof(label), "recent (%d)", self->recents.count);
+    (void)edp_chips_push(&self->shortcut_strip, label,
+        source == EDITOR_CATALOG_SOURCE_RECENT ? "back to the index" : "the last 20 picks of this session",
+        source == EDITOR_CATALOG_SOURCE_RECENT, 0);
+    snprintf(label, sizeof(label), "in square (%d)", self->in_square_count);
+    (void)edp_chips_push(&self->shortcut_strip, label,
+        source == EDITOR_CATALOG_SOURCE_IN_SQUARE ? "back to the index" : "the locs the open squares place",
+        source == EDITOR_CATALOG_SOURCE_IN_SQUARE, 0);
+    if( self->sym_category[0] && ui->tools.pick_kind >= 0 && self->sym_kind == ui->tools.pick_kind
+        && self->sym_id == ui->tools.pick_id )
+    {
+        snprintf(label, sizeof(label), "same category (%.24s)", self->sym_category);
+        snprintf(tip, sizeof(tip), "adds the chip category: %.40s", self->sym_category);
+    }
+    else
+    {
+        snprintf(label, sizeof(label), "same category");
+        snprintf(tip, sizeof(tip), "pick a record with a category first");
+    }
+    (void)edp_chips_push(&self->shortcut_strip, label, tip, 0, 0);
+    edp_chips_end(ui, &self->shortcut_strip);
+    edp_chips_hover(ui, &self->shortcut_strip);
+}
+
+/* ---- the local lists: favourites, recent, in square ---------------------------- */
+
+/** editor/favourites.txt, re-parsed when its text moved. Opened on the
+ *  first tick with a session. */
+static void
+catalog_favourites_follow(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    struct Editor_DocHandle handle;
+
+    if( !ui->editor )
+        return;
+    if( !self->fav_opened )
+    {
+        self->fav_opened = 1;
+        if( !edp_ensure_doc(ui, EDITOR_DOC_TEXT, EDITOR_FAVOURITES_DOC_KEY) )
+            Editor_UiLog(ui, "editor: could not open %s; favourites are off", EDITOR_FAVOURITES_FILE_PATH);
+    }
+    if( !Editor_DocFind(&ui->editor->doc, EDITOR_DOC_TEXT, EDITOR_FAVOURITES_DOC_KEY, &handle) || !handle.text )
+        return;
+    if( handle.text->text == self->fav_text && handle.text->length == self->fav_length
+        && self->fav_seq == ui->editor->last_cmd_seq )
+        return;
+    self->fav_text = handle.text->text;
+    self->fav_length = handle.text->length;
+    self->fav_seq = ui->editor->last_cmd_seq;
+    {
+        uint32_t hash = 2166136261u;
+        for( size_t i = 0; i < handle.text->length; i++ )
+            hash = (hash ^ (uint8_t)handle.text->text[i]) * 16777619u;
+        hash ^= (uint32_t)handle.text->length;
+        if( hash == self->fav_hash && self->favourites.text )
+            return;
+        self->fav_hash = hash;
+    }
+    {
+        struct Editor_FavouritesParseResult const result =
+            Editor_FavouritesParse(&self->favourites, handle.text->text, handle.text->length);
+        if( !result.ok )
+            Editor_UiLog(ui, "editor: %s line %d does not parse; it is kept as it is", EDITOR_FAVOURITES_FILE_PATH,
+                result.line);
+    }
+}
+
+/**
+ * The open squares' distinct loc ids, gathered again when a command or an
+ * open moved them -- at most every CATALOG_IN_SQUARE_MS while commands keep
+ * coming (a brush stroke is a command a frame), with the panel shown. One
+ * pass over the squares' locs through an open-addressed set, no per-loc
+ * search of the list.
+ */
+static void
+catalog_in_square_follow(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    const struct Editor_Doc* doc;
+
+    if( !ui->editor )
+        return;
+    doc = &ui->editor->doc;
+    if( self->in_square_ids && self->in_square_seq == ui->editor->last_cmd_seq
+        && self->in_square_squares == doc->square_count )
+        return;
+    if( self->in_square_ids && ui->chrome->now_ms - self->in_square_ms < CATALOG_IN_SQUARE_MS
+        && ui->chrome->now_ms >= self->in_square_ms )
+        return;
+    if( !self->in_square_ids )
+    {
+        self->in_square_ids = ToriMem_Alloc(ToriMem_Editor(), sizeof(int) * EDITOR_CATALOG_LOCAL_MAX);
+        assert(self->in_square_ids);
+        self->in_square_set = ToriMem_Alloc(ToriMem_Editor(), sizeof(int) * CATALOG_IN_SQUARE_SET);
+        assert(self->in_square_set);
+    }
+    self->in_square_ms = ui->chrome->now_ms;
+    self->in_square_seq = ui->editor->last_cmd_seq;
+    self->in_square_squares = doc->square_count;
+    self->in_square_count = 0;
+    for( int i = 0; i < CATALOG_IN_SQUARE_SET; i++ )
+        self->in_square_set[i] = -1;
+    for( int s = 0; s < doc->square_count; s++ )
+    {
+        const struct Editor_Square* square = &doc->squares[s];
+        if( !square->loaded )
+            continue;
+        for( int i = 0; i < square->loc_count && self->in_square_count < EDITOR_CATALOG_LOCAL_MAX; i++ )
+        {
+            int const id = square->locs[i].loc_id;
+            uint32_t slot = ((uint32_t)id * 2654435761u) & (CATALOG_IN_SQUARE_SET - 1);
+            while( self->in_square_set[slot] >= 0 && self->in_square_set[slot] != id )
+                slot = (slot + 1) & (CATALOG_IN_SQUARE_SET - 1);
+            if( self->in_square_set[slot] == id )
+                continue;
+            self->in_square_set[slot] = id;
+            self->in_square_ids[self->in_square_count++] = id;
+        }
+    }
+    {
+        uint32_t hash = 2166136261u;
+        for( int i = 0; i < self->in_square_count; i++ )
+            hash = (hash ^ (uint32_t)self->in_square_ids[i]) * 16777619u;
+        self->in_square_hash = hash ^ (uint32_t)self->in_square_count;
+    }
+}
+
+/** One local row from the catalog's record of (kind, id or name): its
+ *  name, display name, category, shapes and size. 0 when the catalog has no
+ *  such record (the row keeps what it had). */
+static int
+catalog_resolve_local(
+    struct EditorHost* host,
+    struct Editor_CatalogLocalRow* row)
+{
+    struct EditorHost_CatalogRecord record;
+    struct EditorHost_CatalogField fields[64];
+    struct EditorHost_CatalogRow as_row;
+    int count = 0;
+    int ok;
+
+    memset(&record, 0, sizeof(record));
+    ok = Editor_HostMapEdCatalogRecord(host, row->kind, row->id, row->id >= 0 ? "" : row->name, &record)
+         == EDITOR_HOST_OK;
+    if( ok )
+    {
+        const char* category;
+        row->id = record.id;
+        if( record.name )
+            snprintf(row->name, sizeof(row->name), "%s", record.name);
+        if( record.display )
+            snprintf(row->display, sizeof(row->display), "%s", record.display);
+        for( int i = 0; i < record.field_count && count < 64; i++ )
+        {
+            fields[count].key = record.fields[i].key;
+            fields[count].value = record.fields[i].value;
+            count++;
+        }
+        memset(&as_row, 0, sizeof(as_row));
+        as_row.kind = row->kind;
+        as_row.id = row->id;
+        as_row.name = row->name;
+        as_row.display = row->display;
+        as_row.field_count = count;
+        as_row.fields = fields;
+        row->shape_mask = Editor_CatalogRowShapeMask(&as_row);
+        if( row->kind == TORIRSMAPED_CATALOG_LOC )
+            Editor_CatalogRowSize(&as_row, &row->size_w, &row->size_l);
+        category = Editor_CatalogRowField(&as_row, "category");
+        if( category )
+            snprintf(row->category, sizeof(row->category), "%s", category);
+    }
+    Editor_HostCatalogRecordFree(&record);
+    return ok;
+}
+
+/** The shown local list, built again when what it lists moved: the
+ *  favourites file, the recent picks, the open squares. */
+static void
+catalog_local_follow(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    struct EditorHost* host = catalog_host(ui);
+    struct Editor_CatalogLocalRow* rows;
+    int count = 0;
+    int capacity = 0;
+    int resolved = 0;
+    uint32_t serial;
+
+    switch( self->model.source )
+    {
+    case EDITOR_CATALOG_SOURCE_FAVOURITES:
+        serial = self->fav_hash;
+        break;
+    case EDITOR_CATALOG_SOURCE_RECENT:
+        serial = self->recents.serial;
+        break;
+    case EDITOR_CATALOG_SOURCE_IN_SQUARE:
+        serial = self->in_square_hash;
+        break;
+    default:
+        return;
+    }
+    if( self->local_source == (int)self->model.source && self->local_serial == serial )
+        return;
+    self->local_source = (int)self->model.source;
+    self->local_serial = serial;
+    if( !self->local_build )
+    {
+        self->local_build = ToriMem_Alloc(ToriMem_Editor(), sizeof(*self->local_build) * EDITOR_CATALOG_LOCAL_MAX);
+        assert(self->local_build);
+    }
+    rows = self->local_build;
+    capacity = EDITOR_CATALOG_LOCAL_MAX;
+
+    if( self->model.source == EDITOR_CATALOG_SOURCE_RECENT )
+    {
+        for( int i = 0; i < self->recents.count && count < capacity; i++ )
+            rows[count++] = self->recents.rows[i];
+    }
+    else if( self->model.source == EDITOR_CATALOG_SOURCE_FAVOURITES )
+    {
+        int const n = Editor_FavouritesCount(&self->favourites);
+        for( int i = 0; i < n && count < capacity; i++ )
+        {
+            const struct Editor_FavouriteRow* fav = Editor_FavouritesAt(&self->favourites, i);
+            struct Editor_CatalogLocalRow* row = &rows[count++];
+            memset(row, 0, sizeof(*row));
+            row->kind = (uint32_t)fav->kind;
+            row->id = -1;
+            snprintf(row->name, sizeof(row->name), "%s", fav->record);
+            row->shape = fav->shape;
+            row->rotation = fav->rotation;
+            /* A favourite is a name: the catalog says its id and fields. */
+            if( host && resolved < CATALOG_RESOLVE_MAX )
             {
-                self->select_name[0] = '\0';
-                self->selected = r;
-                ToriRSChrome_VListSetSelected(ui->chrome, self->list, r);
-                break;
+                resolved++;
+                (void)catalog_resolve_local(host, row);
             }
         }
-    catalog_record_show(ui, self);
+    }
+    else
+    {
+        for( int i = 0; i < self->in_square_count && count < capacity; i++ )
+        {
+            struct Editor_CatalogLocalRow* row = &rows[count++];
+            memset(row, 0, sizeof(*row));
+            row->kind = TORIRSMAPED_CATALOG_LOC;
+            row->id = self->in_square_ids[i];
+            row->shape = -1;
+            snprintf(row->name, sizeof(row->name), "loc_%d", self->in_square_ids[i]);
+            if( host && resolved < CATALOG_RESOLVE_MAX )
+            {
+                resolved++;
+                (void)catalog_resolve_local(host, row);
+            }
+        }
+    }
+    Editor_CatalogModelSetLocal(&self->model, rows, count);
+}
+
+/** Show `source`, or the index when it is shown already (a lit shortcut's
+ *  second click goes back). */
+static void
+catalog_show_source(
+    struct EditorUi* ui,
+    struct CatalogPanel* self,
+    enum Editor_CatalogSource source)
+{
+    if( self->model.source == source )
+        source = EDITOR_CATALOG_SOURCE_INDEX;
+    self->local_source = -1;
+    Editor_CatalogModelSetSource(&self->model, source);
+    catalog_local_follow(ui, self);
 }
 
 /* ---- TORIRS_EDITOR_CATALOG -------------------------------------------------------
@@ -487,7 +1002,7 @@ catalog_list_show(
  * (default 60) open the Catalog on <kind>, then type <find> into Find one
  * character every <frames> frames (default 8, a quick typist at 60 Hz), and
  * at each pick frame select result row <row> as a click on it does; `next`
- * presses Next page, `edit` presses Edit record... on the selection. With
+ * scrolls the list a window on, `edit` presses Edit record... on the selection. With
  * TORIRS_CATALOG_STATS=1 every frame from the open to 30 frames after the
  * last action prints its wall time (catalog_meter). */
 
@@ -594,10 +1109,10 @@ catalog_env_tick(
     while( self->env_pick_next < self->env_pick_count && f >= self->env_pick_frame[self->env_pick_next] )
     {
         int const row = self->env_pick_row[self->env_pick_next++];
-        if( row < 0 || row >= Editor_CatalogModelRowCount(&self->model) )
+        if( row < 0 || row >= Editor_CatalogModelViewCount(&self->model) )
         {
-            Editor_UiLog(ui, "editor: TORIRS_EDITOR_CATALOG pick=%d: the page has %d rows", row,
-                Editor_CatalogModelRowCount(&self->model));
+            Editor_UiLog(ui, "editor: TORIRS_EDITOR_CATALOG pick=%d: the list has %d rows", row,
+                Editor_CatalogModelViewCount(&self->model));
             continue;
         }
         if( Editor_CatalogModelStats() )
@@ -607,9 +1122,12 @@ catalog_env_tick(
     }
     if( f == self->env_next_frame )
     {
+        /* The list is continuous: "next" scrolls a window on (the page
+         * after it is prefetched). */
         if( Editor_CatalogModelStats() )
-            TORIRS_REPORT("catalog: frame %d presses Next page\n", f);
-        (void)catalog_activate(ui, self, self->button_next);
+            TORIRS_REPORT("catalog: frame %d scrolls a window on\n", f);
+        ToriRSChrome_VListSetScroll(
+            ui->chrome, self->list, ui->chrome->widgets[self->list].imin + CATALOG_LIST_ROWS);
     }
     if( f == self->env_edit_frame )
     {
@@ -641,6 +1159,81 @@ catalog_meter(
         TORIRS_REPORT("catalog: frame %d %.2f ms\n", self->env_frames, dt);
 }
 
+/** The pick's record name, category and shapes, for the star, "same
+ *  category" and the Preview's shape row: asked once per pick of a record
+ *  this window did not pick from a row (a heard pick, a selection). */
+static void
+catalog_symbol_follow(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    struct EditorHost* host;
+    struct Editor_CatalogLocalRow row;
+
+    if( self->sym_kind == ui->tools.pick_kind && self->sym_id == ui->tools.pick_id )
+        return;
+    self->sym_kind = ui->tools.pick_kind;
+    self->sym_id = ui->tools.pick_id;
+    self->sym_name[0] = '\0';
+    self->sym_category[0] = '\0';
+    self->sym_mask = 0;
+    host = catalog_host(ui);
+    if( !host || ui->tools.pick_kind < 0 || ui->tools.pick_kind > (int)TORIRSMAPED_CATALOG_OBJ
+        || ui->tools.pick_id < 0 )
+        return;
+    memset(&row, 0, sizeof(row));
+    row.kind = (uint32_t)ui->tools.pick_kind;
+    row.id = ui->tools.pick_id;
+    if( !catalog_resolve_local(host, &row) )
+        return;
+    snprintf(self->sym_name, sizeof(self->sym_name), "%s", row.name);
+    snprintf(self->sym_category, sizeof(self->sym_category), "%s", row.category);
+    self->sym_mask = row.shape_mask;
+}
+
+/** The pick's record name, "" when the catalog has none for it. */
+static const char*
+catalog_pick_symbol(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    catalog_symbol_follow(ui, self);
+    return self->sym_name;
+}
+
+/** Note the pick as made from `view` (its name, category and shapes are
+ *  known: nothing to ask), and remember it among the recent picks. */
+static void
+catalog_note_pick(
+    struct EditorUi* ui,
+    struct CatalogPanel* self,
+    const struct Editor_CatalogView* view)
+{
+    struct Editor_CatalogLocalRow recent;
+
+    /* The view's strings may be these very fields (Pick from world): no
+     * copy onto itself. */
+    self->sym_kind = (int)view->kind;
+    self->sym_id = view->id;
+    if( view->name != self->sym_name )
+        snprintf(self->sym_name, sizeof(self->sym_name), "%s", view->name);
+    if( view->category != self->sym_category )
+        snprintf(self->sym_category, sizeof(self->sym_category), "%s", view->category);
+    self->sym_mask = view->shape_mask;
+    memset(&recent, 0, sizeof(recent));
+    recent.kind = view->kind;
+    recent.id = view->id;
+    snprintf(recent.name, sizeof(recent.name), "%s", view->name);
+    snprintf(recent.display, sizeof(recent.display), "%s", view->display);
+    snprintf(recent.category, sizeof(recent.category), "%s", view->category);
+    recent.shape_mask = view->shape_mask;
+    recent.size_w = view->size_w;
+    recent.size_l = view->size_l;
+    recent.shape = view->kind == TORIRSMAPED_CATALOG_LOC ? ui->tools.place_shape : -1;
+    recent.rotation = view->kind == TORIRSMAPED_CATALOG_LOC ? ui->tools.place_rotation & 3 : 0;
+    Editor_CatalogRecentsPush(&self->recents, &recent);
+}
+
 static void
 catalog_tick(
     struct EditorUi* ui,
@@ -649,36 +1242,68 @@ catalog_tick(
     struct CatalogPanel* self = opaque;
     struct EditorHost* host;
     const char* search;
-    char line[TORIRS_CHROME_LABEL_MAX];
+    char line[TORIRS_CHROME_INPUT_MAX];
     int kind_index;
+    int first;
 
     catalog_meter(ui, self);
     catalog_env_tick(ui, self);
+    /* Add to palette wears palette.add_pick's chord (design section 15
+     * surface 3), relabelled on a rebind whether or not the panel shows. */
+    if( self->chord_serial != ui->hotkeys.serial )
+    {
+        edp_button_chord(ui, self->button_add_palette, EDITOR_HK_PALETTE_ADD_PICK);
+        self->chord_serial = ui->hotkeys.serial;
+    }
     kind_index = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_kind);
     /* A pick heard from another window: named whether or not this panel is
      * open (a popped-out Preview shows the name). */
     if( self->pick_name_pending )
         catalog_pick_name(ui, self);
+    /* The star, the shortcut chips and the Preview's shape row read these
+     * whether or not the list shows; each is a compare until what it
+     * follows moves. */
+    catalog_favourites_follow(ui, self);
+    catalog_symbol_follow(ui, self);
     if( !ui->chrome->panels[self->panel].visible )
         return;
+    /* Only the shown panel counts the open squares' locs. */
+    catalog_in_square_follow(ui, self);
     host = catalog_host(ui);
+
+    /* Find: its finished key=value words become chips; the rest and the
+     * chips compose the question. */
     search = ToriRSChrome_Text(ui->chrome, self->input_search);
+    if( !search )
+        search = "";
+    if( strcmp(search, self->find_seen) != 0 )
+    {
+        snprintf(self->find_seen, sizeof(self->find_seen), "%s", search);
+        catalog_take_chips(ui, self, search);
+        search = ToriRSChrome_Text(ui->chrome, self->input_search);
+    }
+    Editor_CatalogChipsCompose(&self->chips, search ? search : "", self->composed, sizeof(self->composed));
     (void)Editor_CatalogModelWant(&self->model,
         Editor_CatalogModelKindAt(kind_index >= 0 && kind_index < Editor_CatalogModelKindCount() ? kind_index : 0),
-        search ? search : "");
+        self->composed);
+    first = ui->chrome->widgets[self->list].imin;
+    Editor_CatalogModelWantWindow(&self->model, first, CATALOG_LIST_ROWS);
+    catalog_local_follow(ui, self);
     if( host )
-    {
-        /* Asks only when the kind, the settled text or the page changed. */
+        /* Asks only when the kind, the settled text, the window's page or
+         * a prefetch is due: at most one round trip. */
         (void)Editor_CatalogModelRefresh(&self->model, host);
-        if( self->model.queries != self->shown_queries )
-            catalog_list_show(ui, self);
-        Editor_CatalogModelCountText(&self->model, line, sizeof(line));
-    }
+    if( host || self->model.source != EDITOR_CATALOG_SOURCE_INDEX )
+        Editor_CatalogModelRangeText(&self->model, first, line, sizeof(line));
     else
         snprintf(line, sizeof(line), "no editor server with a catalog");
     ToriRSChrome_SetText(ui->chrome, self->row_count, line);
+    catalog_list_show(ui, self);
     catalog_list_rows(ui, self);
+    catalog_list_tip(ui, self);
     catalog_record_rows(ui, self);
+    catalog_chips_draw(ui, self);
+    catalog_shortcuts_draw(ui, self);
     if( ui->app_services.loc_record && (self->var_shown_id != ui->tools.pick_id || self->var_shown_kind != ui->tools.pick_kind) )
         catalog_variant_rebuild(ui, self);
 }
@@ -769,29 +1394,59 @@ catalog_pick_name(
     Editor_HostCatalogRecordFree(&record);
 }
 
-/** The pick follows a selected loc / npc / obj row with an id. */
+/**
+ * The pick follows a chosen loc / npc / obj row with an id. `cell` is the
+ * keycap the click landed on (ToriRSChrome_VListPickedCell): a shape key
+ * picks the loc AT that shape; the body keeps a shape the loc has (or takes
+ * its first), or a favourite's / recent pick's remembered pose.
+ */
 static void
 catalog_pick_row(
     struct EditorUi* ui,
     struct CatalogPanel* self,
-    int row)
+    int row,
+    int cell)
 {
-    const struct EditorHost_CatalogRow* r = Editor_CatalogModelRow(&self->model, row);
+    struct Editor_CatalogView view;
+    int shape = -1;
 
-    if( r->kind > TORIRSMAPED_CATALOG_OBJ )
+    if( !Editor_CatalogModelViewAt(&self->model, row, &view) )
+        return;
+    if( view.kind > TORIRSMAPED_CATALOG_OBJ )
         return; /* not a placeable kind: the record shows, the pick stays */
-    if( r->id < 0 )
+    if( view.id < 0 )
     {
-        Editor_UiLog(ui, "editor: %s %s has no id yet (a server-only record); nothing to place",
-            ToriRSMapEdCatalog_KindName(r->kind), r->name);
+        Editor_UiStatus(ui, "Pick refused: %s %s has no id yet (a server-only record); nothing to place",
+            ToriRSMapEdCatalog_KindName(view.kind), view.name);
         return;
     }
-    ui->tools.pick_kind = (int)r->kind;
-    ui->tools.pick_id = r->id;
-    snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "%s (%d)", r->name, (int)r->id);
-    /* A loc pick arms Place: picking one is asking to put it down. */
-    if( r->kind == TORIRSMAPED_CATALOG_LOC && ui->tools.tool == EDITOR_TOOL_SELECT )
-        Editor_UiSetTool(ui, EDITOR_TOOL_LOC_PLACE);
+    ui->tools.pick_kind = (int)view.kind;
+    ui->tools.pick_id = view.id;
+    snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "%s (%d)", view.name, (int)view.id);
+    if( view.kind == TORIRSMAPED_CATALOG_LOC )
+    {
+        if( cell > 0 )
+            shape = Editor_CatalogViewShapeAt(&view, cell);
+        if( shape >= 0 )
+            ui->tools.place_shape = shape;
+        else if( view.shape >= 0 )
+        {
+            ui->tools.place_shape = view.shape;
+            ui->tools.place_rotation = view.rotation;
+        }
+        else if( view.shape_mask
+                 && !(ui->tools.place_shape >= 0 && ui->tools.place_shape < EDITOR_LOC_SHAPE_COUNT
+                      && (view.shape_mask & (1u << ui->tools.place_shape))) )
+            ui->tools.place_shape = Editor_LocShapeFirst(view.shape_mask);
+        /* A loc pick arms Place: picking one is asking to put it down; a
+         * shape key, whatever tool was armed. */
+        if( ui->tools.tool == EDITOR_TOOL_SELECT || shape >= 0 )
+            Editor_UiSetTool(ui, EDITOR_TOOL_LOC_PLACE);
+        if( shape >= 0 )
+            Editor_UiStatus(ui, "Place %s at shape %d (%s), rotation %d", view.name, shape, Editor_LocShapeName(shape),
+                ui->tools.place_rotation & 3);
+    }
+    catalog_note_pick(ui, self, &view);
     catalog_publish_pick(ui);
 }
 
@@ -832,24 +1487,24 @@ Editor_Catalog_CopyRecord(
 
     if( kind > TORIRSMAPED_CATALOG_OBJ )
     {
-        Editor_UiLog(ui, "editor: only a loc, npc or obj definition can be copied");
+        Editor_UiStatus(ui, "Copy refused: only a loc, npc or obj definition can be copied");
         return 0;
     }
     if( !catalog_name_ok(new_name) )
     {
-        Editor_UiLog(ui, "editor: the new name must be [a-z0-9_], under %d bytes", EDITOR_CMD_NAME_MAX);
+        Editor_UiStatus(ui, "Copy refused: the new name must be [a-z0-9_], under %d bytes", EDITOR_CMD_NAME_MAX);
         return 0;
     }
     if( !ui->editor || !ui->editor->host_open )
     {
-        Editor_UiLog(ui, "editor: no editor server to copy on");
+        Editor_UiStatus(ui, "Copy refused: no editor server to copy on");
         return 0;
     }
     type = ToriRSMapEdCatalog_KindName(kind);
     status = Editor_CopyRecord(ui->editor, type, name, new_name, &id);
     if( status != EDITOR_HOST_OK )
     {
-        Editor_UiLog(ui, "editor: copying %s:%s to %s was refused (%s)", type, name, new_name,
+        Editor_UiStatus(ui, "Copy refused: copying %s:%s to %s (%s)", type, name, new_name,
             status == EDITOR_HOST_REFUSED  ? "the name is taken or not a name"
             : status == EDITOR_HOST_ABSENT ? "no such record"
                                            : "the server could not");
@@ -869,16 +1524,15 @@ catalog_copy(
     struct EditorUi* ui,
     struct CatalogPanel* self)
 {
-    const struct EditorHost_CatalogRow* r;
+    struct Editor_CatalogView view;
     const char* new_name = ToriRSChrome_Text(ui->chrome, self->input_new_name);
 
-    if( self->selected < 0 || self->selected >= Editor_CatalogModelRowCount(&self->model) )
+    if( self->selected < 0 || !Editor_CatalogModelViewAt(&self->model, self->selected, &view) )
     {
-        Editor_UiLog(ui, "editor: pick the loc, npc or obj to copy first");
+        Editor_UiStatus(ui, "Copy refused: pick the loc, npc or obj to copy first");
         return;
     }
-    r = Editor_CatalogModelRow(&self->model, self->selected);
-    if( !Editor_Catalog_CopyRecord(ui, r->kind, r->name, new_name ? new_name : "") )
+    if( !Editor_Catalog_CopyRecord(ui, view.kind, view.name, new_name ? new_name : "") )
         return;
     /* The copy is unsaved, so the index (which reads the tree) does not hold
      * it yet; a save makes it findable. Ask again then. */
@@ -891,6 +1545,38 @@ catalog_copy(
     }
 }
 
+/** A "+ filter" row: a whole chip, or "key=" put in Find for the value. */
+static void
+catalog_filter_menu(
+    struct EditorUi* ui,
+    struct CatalogPanel* self,
+    int index)
+{
+    char key[EDITOR_CATALOG_CHIP_KEY_MAX];
+    char value[EDITOR_CATALOG_CHIP_VALUE_MAX];
+    int kind;
+
+    if( index <= 0 || index >= Editor_CatalogFilterMenuCount() )
+        return;
+    kind = Editor_CatalogFilterMenuItem(index, key, value);
+    if( kind == 1 )
+    {
+        if( !Editor_CatalogChipsAdd(&self->chips, key, value) )
+            Editor_UiStatus(ui, "Filter refused: %s=%s is a chip already, or %d chips are the most",
+                key, value, EDITOR_CATALOG_CHIPS_MAX);
+    }
+    else if( kind == 2 )
+    {
+        const char* text = ToriRSChrome_Text(ui->chrome, self->input_search);
+        char box[TORIRS_CHROME_INPUT_MAX];
+        snprintf(box, sizeof(box), "%s%s%s=", text && text[0] ? text : "", text && text[0] ? " " : "", key);
+        ToriRSChrome_SetText(ui->chrome, self->input_search, box);
+        (void)ToriRSChrome_FocusWidget(ui->chrome, self->input_search, (int)strlen(box));
+        Editor_UiStatus(ui, "type the %s to filter by after %s= (a space makes it a chip)", key, key);
+    }
+    ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_filter, 0);
+}
+
 static int
 catalog_activate(
     struct EditorUi* ui,
@@ -901,28 +1587,32 @@ catalog_activate(
 
     if( widget == self->dropdown_kind )
     {
-        /* Choosing a kind again asks again: the tree may have changed. */
+        /* Choosing a kind again asks again: the tree may have changed. A
+         * kind is a question for the index. */
         Editor_CatalogModelInvalidate(&self->model);
+        Editor_CatalogModelSetSource(&self->model, EDITOR_CATALOG_SOURCE_INDEX);
         return 1;
     }
     if( widget == self->list )
     {
         int const choice = ToriRSChrome_VListSelected(ui->chrome, widget);
-        self->selected = choice >= 0 && choice < Editor_CatalogModelRowCount(&self->model) ? choice : -1;
+        self->selected = choice >= 0 && choice < Editor_CatalogModelViewCount(&self->model) ? choice : -1;
         if( self->selected >= 0 )
-            catalog_pick_row(ui, self, self->selected);
+            catalog_pick_row(ui, self, self->selected, ToriRSChrome_VListPickedCell(ui->chrome, widget));
         catalog_picked_label(ui, self);
         catalog_record_show(ui, self);
         return 1;
     }
-    if( widget == self->button_prev || widget == self->button_next )
+    if( widget == self->dropdown_filter )
     {
-        uint32_t page = self->model.page;
-        if( widget == self->button_next )
-            page++;
-        else if( page > 0 )
-            page--;
-        Editor_CatalogModelSetPage(&self->model, page);
+        catalog_filter_menu(ui, self, ToriRSChrome_DropdownSelected(ui->chrome, widget));
+        return 1;
+    }
+    if( widget == self->dropdown_sort )
+    {
+        int const choice = ToriRSChrome_DropdownSelected(ui->chrome, widget);
+        if( choice >= 0 && choice < EDITOR_CATALOG_SORT_COUNT )
+            Editor_CatalogModelSetSort(&self->model, (enum Editor_CatalogSort)choice);
         return 1;
     }
     if( widget == self->button_copy )
@@ -937,40 +1627,41 @@ catalog_activate(
     }
     if( widget == self->button_edit_record )
     {
-        const struct EditorHost_CatalogRow* r;
-        if( self->selected < 0 || self->selected >= Editor_CatalogModelRowCount(&self->model) )
+        struct Editor_CatalogView view;
+        if( self->selected < 0 || !Editor_CatalogModelViewAt(&self->model, self->selected, &view) )
         {
-            Editor_UiLog(ui, "editor: pick the loc, npc or obj to edit first");
+            Editor_UiStatus(ui, "Edit refused: pick the loc, npc or obj to edit first");
             return 1;
         }
-        r = Editor_CatalogModelRow(&self->model, self->selected);
-        (void)Editor_Record_Open(ui, r->kind, r->name);
+        (void)Editor_Record_Open(ui, view.kind, view.name);
         return 1;
     }
     if( widget == self->button_open_script )
     {
-        const struct EditorHost_CatalogRow* r = self->selected >= 0
-                                                        && self->selected < Editor_CatalogModelRowCount(&self->model)
-                                                    ? Editor_CatalogModelRow(&self->model, self->selected)
-                                                    : NULL;
+        struct EditorHost* host = catalog_host(ui);
+        const struct EditorHost_CatalogRecord* record = NULL;
+        struct Editor_CatalogView view;
         const char* file = NULL;
         const char* line = NULL;
         char rel[EDITOR_SCRIPT_PATH_MAX];
-        if( !r || r->kind != TORIRSMAPED_CATALOG_TRIGGER )
+        if( self->selected < 0 || !Editor_CatalogModelViewAt(&self->model, self->selected, &view)
+            || view.kind != TORIRSMAPED_CATALOG_TRIGGER )
         {
-            Editor_UiLog(ui, "editor: Open in editor: pick a trigger row (Kind: trigger)");
+            Editor_UiStatus(ui, "Open in editor: pick a trigger row (Kind: trigger)");
             return 1;
         }
-        for( int f = 0; f < r->field_count; f++ )
+        if( host )
+            record = Editor_CatalogModelRecordAt(&self->model, host, self->selected);
+        for( int f = 0; record && f < record->field_count; f++ )
         {
-            if( strcmp(r->fields[f].key, "file") == 0 )
-                file = r->fields[f].value;
-            else if( strcmp(r->fields[f].key, "line") == 0 )
-                line = r->fields[f].value;
+            if( strcmp(record->fields[f].key, "file") == 0 )
+                file = record->fields[f].value;
+            else if( strcmp(record->fields[f].key, "line") == 0 )
+                line = record->fields[f].value;
         }
         if( !file || !Editor_ScriptRelFromContentPath(file, rel, sizeof(rel)) || !Editor_UiPanelSelf(ui, "triggers") )
         {
-            Editor_UiLog(ui, "editor: Open in editor: %s is not a script this window can open", file ? file : "?");
+            Editor_UiStatus(ui, "Open in editor: %s is not a script this window can open", file ? file : "?");
             return 1;
         }
         (void)Editor_Triggers_OpenInEditor(ui, rel, line ? atoi(line) : 0);
@@ -984,7 +1675,60 @@ catalog_activate(
             catalog_variant_readout(ui, self);
         return 1;
     }
-    return widget == self->input_search || widget == self->record_list || widget == self->input_new_name;
+    return widget == self->input_search || widget == self->record_list || widget == self->input_new_name
+           || widget == self->chip_strip.graph || widget == self->shortcut_strip.graph;
+}
+
+/** A press on a chip: a filter chip's x removes it; a shortcut shows its
+ *  list (again: the index), "same category" adds the pick's category. */
+static int
+catalog_event(
+    struct EditorUi* ui,
+    void* opaque,
+    const struct ToriRSChromeEvent* event)
+{
+    struct CatalogPanel* self = opaque;
+    int on_x = 0;
+    int index;
+
+    if( event->widget == self->chip_strip.graph )
+    {
+        if( event->kind != TORIRS_CHROME_EVENT_GRAPH_PRESS )
+            return 1;
+        index = edp_chips_key_of(&self->chip_strip, event->key, &on_x);
+        if( index >= 0 && index < self->chips.count && on_x )
+        {
+            char label[EDP_CHIP_LABEL_MAX];
+            Editor_CatalogChipLabel(&self->chips.chip[index], label, sizeof(label));
+            Editor_CatalogChipsRemove(&self->chips, index);
+            Editor_UiStatus(ui, "filter %s removed", label);
+        }
+        return 1;
+    }
+    if( event->widget != self->shortcut_strip.graph )
+        return 0;
+    if( event->kind != TORIRS_CHROME_EVENT_GRAPH_PRESS )
+        return 1;
+    index = edp_chips_key_of(&self->shortcut_strip, event->key, &on_x);
+    if( index == CATALOG_SHORTCUT_FAVOURITES )
+        catalog_show_source(ui, self, EDITOR_CATALOG_SOURCE_FAVOURITES);
+    else if( index == CATALOG_SHORTCUT_RECENT )
+        catalog_show_source(ui, self, EDITOR_CATALOG_SOURCE_RECENT);
+    else if( index == CATALOG_SHORTCUT_IN_SQUARE )
+        catalog_show_source(ui, self, EDITOR_CATALOG_SOURCE_IN_SQUARE);
+    else if( index == CATALOG_SHORTCUT_CATEGORY )
+    {
+        catalog_symbol_follow(ui, self);
+        if( !self->sym_category[0] )
+            Editor_UiStatus(ui, "Same category refused: %s", ui->tools.pick_kind < 0 ? "nothing is picked"
+                                                                                       : "the pick states no category");
+        else
+        {
+            (void)Editor_CatalogChipsAdd(&self->chips, "category", self->sym_category);
+            Editor_CatalogModelSetSource(&self->model, EDITOR_CATALOG_SOURCE_INDEX);
+        }
+    }
+    return 1;
 }
 
 static void
@@ -995,6 +1739,10 @@ catalog_destroy(
     struct CatalogPanel* self = opaque;
     (void)ui;
     Editor_CatalogModelFree(&self->model);
+    Editor_FavouritesFree(&self->favourites);
+    ToriMem_Free(ToriMem_Editor(), self->in_square_ids);
+    ToriMem_Free(ToriMem_Editor(), self->in_square_set);
+    ToriMem_Free(ToriMem_Editor(), self->local_build);
     ToriMem_Free(ToriMem_Editor(), self);
 }
 
@@ -1002,19 +1750,33 @@ int
 Editor_Catalog_PreviewId(struct EditorUi* ui)
 {
     struct CatalogPanel* self;
+    int rung;
 
     assert(ui);
     self = Editor_UiPanelSelf(ui, "catalog");
     if( !self || ui->tools.pick_kind < 0 )
         return -1;
-    if( ui->tools.pick_kind != CACHEPROVIDER_CATALOG_LOC )
+    rung = Editor_Catalog_PreviewRung(ui);
+    if( rung == -1 )
         return ui->tools.pick_id;
+    return rung >= 0 ? rung : -1;
+}
+
+int
+Editor_Catalog_PreviewRung(struct EditorUi* ui)
+{
+    struct CatalogPanel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( !self || ui->tools.pick_kind != CACHEPROVIDER_CATALOG_LOC )
+        return -1;
     /* The rung only while the rungs are this pick's (they are rebuilt when
      * the panel next ticks open; a closed panel keeps an older pick's). */
     if( self->var_count > 0 && self->var_choice > 0 && self->var_shown_id == ui->tools.pick_id
         && self->var_shown_kind == ui->tools.pick_kind )
-        return catalog_variant_id(self);
-    return ui->tools.pick_id;
+        return catalog_variant_id(self) >= 0 ? catalog_variant_id(self) : -2;
+    return -1;
 }
 
 int
@@ -1025,8 +1787,8 @@ Editor_Catalog_PickRecord(
 {
     struct CatalogPanel* self;
     struct EditorHost* host;
-    struct EditorHost_CatalogRecord record;
-    int id = -1;
+    struct Editor_CatalogLocalRow row;
+    struct Editor_CatalogView view;
 
     assert(ui);
     assert(name);
@@ -1035,27 +1797,41 @@ Editor_Catalog_PickRecord(
     host = catalog_host(ui);
     if( !self || !host )
     {
-        Editor_UiLog(ui, "editor: no catalog to pick %s %s from", ToriRSMapEdCatalog_KindName(kind), name);
+        Editor_UiStatus(ui, "Pick refused: no catalog to pick %s %s from", ToriRSMapEdCatalog_KindName(kind), name);
         return 0;
     }
-    memset(&record, 0, sizeof(record));
-    if( Editor_HostMapEdCatalogRecord(host, kind, -1, name, &record) == EDITOR_HOST_OK )
-        id = record.id;
-    Editor_HostCatalogRecordFree(&record);
-    if( id < 0 )
+    memset(&row, 0, sizeof(row));
+    row.kind = kind;
+    row.id = -1;
+    row.shape = -1;
+    snprintf(row.name, sizeof(row.name), "%s", name);
+    if( !catalog_resolve_local(host, &row) || row.id < 0 )
     {
-        Editor_UiLog(ui, "editor: the catalog has no %s %s with an id", ToriRSMapEdCatalog_KindName(kind), name);
+        Editor_UiStatus(ui, "Pick refused: the catalog has no %s %s with an id", ToriRSMapEdCatalog_KindName(kind),
+            name);
         return 0;
     }
     ui->tools.pick_kind = (int)kind;
-    ui->tools.pick_id = id;
-    snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "%s (%d)", name, id);
+    ui->tools.pick_id = row.id;
+    snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "%s (%d)", name, (int)row.id);
     if( kind == TORIRSMAPED_CATALOG_LOC && ui->tools.tool == EDITOR_TOOL_SELECT )
         Editor_UiSetTool(ui, EDITOR_TOOL_LOC_PLACE);
+    memset(&view, 0, sizeof(view));
+    view.kind = row.kind;
+    view.id = row.id;
+    view.name = row.name;
+    view.display = row.display;
+    view.category = row.category;
+    view.shape_mask = row.shape_mask;
+    view.size_w = row.size_w;
+    view.size_l = row.size_l;
+    view.shape = -1;
+    catalog_note_pick(ui, self, &view);
     catalog_publish_pick(ui);
     catalog_picked_label(ui, self);
-    /* Shown in the list: that kind, found by name, its row selected when the
-     * page lands (catalog_list_show). */
+    /* Shown in the list: that kind, found by name, its row selected and
+     * scrolled into view when the page lands (catalog_list_show). */
+    Editor_CatalogModelSetSource(&self->model, EDITOR_CATALOG_SOURCE_INDEX);
     ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_kind, Editor_CatalogModelKindIndex(kind));
     ToriRSChrome_SetText(ui->chrome, self->input_search, name);
     snprintf(self->select_name, sizeof(self->select_name), "%s", name);
@@ -1063,37 +1839,76 @@ Editor_Catalog_PickRecord(
     return 1;
 }
 
-const struct Editor_CatalogModel*
-Editor_Catalog_Find(
+int
+Editor_Catalog_PickFromWorld(
     struct EditorUi* ui,
-    uint32_t kind,
-    const char* text)
+    int loc_id,
+    int shape,
+    int rotation)
 {
     struct CatalogPanel* self;
-    struct EditorHost* host;
-    const char* shown;
+    const char* name;
 
     assert(ui);
-    assert(text);
-    assert(kind <= TORIRSMAPED_CATALOG_OBJ);
+    assert(loc_id >= 0);
+    assert(shape >= 0);
+    assert(shape < EDITOR_LOC_SHAPE_COUNT);
     self = Editor_UiPanelSelf(ui, "catalog");
     if( !self )
-        return NULL;
-    /* The panel's own widgets carry the query, so an open Catalog shows what
-     * the palette asked for and a later keystroke there continues it. */
-    if( ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_kind) != Editor_CatalogModelKindIndex(kind) )
-        ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_kind, Editor_CatalogModelKindIndex(kind));
-    shown = ToriRSChrome_Text(ui->chrome, self->input_search);
-    if( !shown || strcmp(shown, text) != 0 )
-        ToriRSChrome_SetText(ui->chrome, self->input_search, text);
-    /* The panel's tick drives the model only while it is open: drive it here
-     * for a closed one (Want is keyed and settles, so this asks the server
-     * once per settled text, not per frame). */
-    (void)Editor_CatalogModelWant(&self->model, kind, text);
-    host = catalog_host(ui);
-    if( host && Editor_CatalogModelRefresh(&self->model, host) && ui->chrome->panels[self->panel].visible )
-        catalog_list_show(ui, self);
-    return &self->model;
+    {
+        Editor_UiStatus(ui, "Pick refused: this window has no catalog to pick into");
+        return 0;
+    }
+    ui->tools.pick_kind = CACHEPROVIDER_CATALOG_LOC;
+    ui->tools.pick_id = loc_id;
+    /* Its exact pose: what the hovered placement is, Place stamps. */
+    ui->tools.place_shape = shape;
+    ui->tools.place_rotation = rotation & 3;
+    Editor_UiSetTool(ui, EDITOR_TOOL_LOC_PLACE);
+    name = catalog_pick_symbol(ui, self);
+    if( name[0] )
+    {
+        struct Editor_CatalogView view;
+        snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "%s (%d)", name, loc_id);
+        memset(&view, 0, sizeof(view));
+        view.kind = TORIRSMAPED_CATALOG_LOC;
+        view.id = loc_id;
+        view.name = self->sym_name;
+        view.display = "";
+        view.category = self->sym_category;
+        view.shape_mask = self->sym_mask;
+        view.shape = -1;
+        catalog_note_pick(ui, self, &view);
+    }
+    else
+    {
+        struct ToriRS_Location* cfg = catalog_loc_record(ui, loc_id);
+        snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "%s (%d)",
+            cfg && cfg->name[0] ? cfg->name : "<unnamed>", loc_id);
+    }
+    catalog_publish_pick(ui);
+    catalog_picked_label(ui, self);
+    /* Find = its name (its id without a catalog), the chips off so nothing
+     * hides it, and its row selected and scrolled into view once it lands. */
+    Editor_CatalogChipsInit(&self->chips);
+    Editor_CatalogModelSetSource(&self->model, EDITOR_CATALOG_SOURCE_INDEX);
+    ToriRSChrome_DropdownSetSelected(
+        ui->chrome, self->dropdown_kind, Editor_CatalogModelKindIndex(TORIRSMAPED_CATALOG_LOC));
+    if( name[0] )
+    {
+        ToriRSChrome_SetText(ui->chrome, self->input_search, name);
+        snprintf(self->select_name, sizeof(self->select_name), "%s", name);
+        self->select_kind = TORIRSMAPED_CATALOG_LOC;
+    }
+    else
+    {
+        char id_text[16];
+        snprintf(id_text, sizeof(id_text), "%d", loc_id);
+        ToriRSChrome_SetText(ui->chrome, self->input_search, id_text);
+    }
+    Editor_UiStatus(ui, "picked %s at shape %d (%s), rotation %d", ui->tools.pick_name, shape,
+        Editor_LocShapeName(shape), rotation & 3);
+    return 1;
 }
 
 void
@@ -1116,6 +1931,7 @@ Editor_Catalog_Adopt(
     catalog_publish_pick(ui);
     catalog_picked_label(ui, self);
     /* Show it: kind loc, found by id (one query, when the panel next ticks). */
+    Editor_CatalogModelSetSource(&self->model, EDITOR_CATALOG_SOURCE_INDEX);
     ToriRSChrome_DropdownSetSelected(
         ui->chrome, self->dropdown_kind, Editor_CatalogModelKindIndex(TORIRSMAPED_CATALOG_LOC));
     {
@@ -1123,6 +1939,250 @@ Editor_Catalog_Adopt(
         snprintf(id_text, sizeof(id_text), "%d", loc_id);
         ToriRSChrome_SetText(ui->chrome, self->input_search, id_text);
     }
+}
+
+/* ---- the pick's actions (the Preview pane's row) ------------------------------- */
+
+/** The favourite row for the pick, with Place's pose for a loc. 0 (said)
+ *  when there is no pick or no record name for it. */
+static int
+catalog_favourite_row(
+    struct EditorUi* ui,
+    struct CatalogPanel* self,
+    struct Editor_FavouriteRow* out)
+{
+    const char* name;
+
+    if( ui->tools.pick_kind < 0 || ui->tools.pick_kind > (int)TORIRSMAPED_CATALOG_OBJ || ui->tools.pick_id < 0 )
+    {
+        Editor_UiStatus(ui, "Favourite refused: pick a loc, npc or obj first");
+        return 0;
+    }
+    name = catalog_pick_symbol(ui, self);
+    if( !name[0] || strlen(name) >= sizeof(out->record) )
+    {
+        Editor_UiStatus(ui, "Favourite refused: the catalog has no record name for %s", ui->tools.pick_name);
+        return 0;
+    }
+    memset(out, 0, sizeof(*out));
+    out->kind = ui->tools.pick_kind;
+    snprintf(out->record, sizeof(out->record), "%s", name);
+    out->shape = -1;
+    if( out->kind == EDITOR_PALETTE_LOC && ui->tools.place_shape >= 0
+        && ui->tools.place_shape < EDITOR_LOC_SHAPE_COUNT )
+    {
+        out->shape = ui->tools.place_shape;
+        out->rotation = ui->tools.place_rotation & 3;
+    }
+    return 1;
+}
+
+int
+Editor_Catalog_IsFavourite(struct EditorUi* ui)
+{
+    struct CatalogPanel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( !self || ui->tools.pick_kind < 0 || ui->tools.pick_id < 0 )
+        return 0;
+    catalog_favourites_follow(ui, self);
+    return catalog_pick_symbol(ui, self)[0]
+           && Editor_FavouritesFind(&self->favourites, ui->tools.pick_kind, self->sym_name) >= 0;
+}
+
+int
+Editor_Catalog_ToggleFavourite(struct EditorUi* ui)
+{
+    struct CatalogPanel* self;
+    struct Editor_FavouriteRow row;
+    struct Editor_Cmd command;
+    struct Editor_DocHandle handle;
+    int was;
+
+    assert(ui);
+    was = Editor_Catalog_IsFavourite(ui);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( !self || !ui->editor )
+    {
+        Editor_UiStatus(ui, "Favourite refused: no catalog or no session in this window");
+        return -1;
+    }
+    if( !catalog_favourite_row(ui, self, &row) )
+        return -1;
+    if( !Editor_DocFind(&ui->editor->doc, EDITOR_DOC_TEXT, EDITOR_FAVOURITES_DOC_KEY, &handle) || !handle.text )
+    {
+        Editor_UiStatus(ui, "Favourite refused: %s is not open", EDITOR_FAVOURITES_FILE_PATH);
+        return -1;
+    }
+    if( was ? !Editor_FavouritesRemoveCommand(&command, &self->favourites, row.kind, row.record)
+            : !Editor_FavouritesAddCommand(&command, &self->favourites, &row) )
+    {
+        Editor_UiStatus(ui, "Favourite refused: %s:%s cannot be written to %s", Editor_PaletteKindName(row.kind),
+            row.record, EDITOR_FAVOURITES_FILE_PATH);
+        return -1;
+    }
+    if( edp_apply(ui, &command, 1, was ? "unfavourite" : "favourite") <= 0 )
+    {
+        Editor_UiStatus(ui, "Favourite refused: the server did not take the edit to %s", EDITOR_FAVOURITES_FILE_PATH);
+        return -1;
+    }
+    catalog_favourites_follow(ui, self);
+    if( was )
+        Editor_UiStatus(ui, "%s is no longer a favourite", row.record);
+    else if( row.shape >= 0 )
+        Editor_UiStatus(ui, "%s is a favourite, at shape %d rot %d (unsaved; Save writes it)", row.record, row.shape,
+            row.rotation);
+    else
+        Editor_UiStatus(ui, "%s is a favourite (unsaved; Save writes it)", row.record);
+    return !was;
+}
+
+int
+Editor_Catalog_FindInWorld(struct EditorUi* ui)
+{
+    const struct Editor_Doc* doc;
+    int found = 0;
+    int first_x = -1;
+    int first_z = -1;
+    int first_level = 0;
+
+    assert(ui);
+    if( ui->tools.pick_kind != CACHEPROVIDER_CATALOG_LOC || ui->tools.pick_id < 0 )
+    {
+        Editor_UiStatus(ui, "Find in world refused: pick a loc first");
+        return 0;
+    }
+    if( !ui->editor )
+    {
+        Editor_UiStatus(ui, "Find in world refused: no session in this window");
+        return 0;
+    }
+    doc = &ui->editor->doc;
+    for( int s = 0; s < doc->square_count; s++ )
+    {
+        const struct Editor_Square* square = &doc->squares[s];
+        if( !square->loaded )
+            continue;
+        for( int i = 0; i < square->loc_count; i++ )
+        {
+            const struct Editor_Loc* loc = &square->locs[i];
+            struct Editor_LocRef ref;
+            int const wx = square->map_x * 64 + loc->x;
+            int const wz = square->map_z * 64 + loc->z;
+            if( loc->loc_id != ui->tools.pick_id )
+                continue;
+            if( found < EDITOR_LOC_SELECTION_MAX )
+            {
+                Editor_LocRefAt(&ref, wx, wz, loc->level, loc->shape, loc->loc_id, loc->rotation);
+                if( found == 0 )
+                {
+                    Editor_UiSelectLoc(ui, &ref);
+                    first_x = wx;
+                    first_z = wz;
+                    first_level = loc->level;
+                }
+                else
+                    (void)Editor_UiToggleLoc(ui, &ref);
+            }
+            found++;
+        }
+    }
+    if( found == 0 )
+    {
+        Editor_UiStatus(ui, "Find in world: %s is not placed in the open squares", ui->tools.pick_name);
+        return 0;
+    }
+    if( ui->app_services.camera_to_tile )
+        (void)ui->app_services.camera_to_tile(ui->app_services.user_data, first_x, first_z, first_level);
+    Editor_UiStatus(ui, "Find in world: %d placement%s of %s in the open squares%s", found, found == 1 ? "" : "s",
+        ui->tools.pick_name, found > EDITOR_LOC_SELECTION_MAX ? " (the first ones selected)" : ", selected");
+    return found;
+}
+
+int
+Editor_Catalog_EditPick(struct EditorUi* ui)
+{
+    struct CatalogPanel* self;
+    const char* name;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( !self || ui->tools.pick_kind < 0 || ui->tools.pick_kind > (int)TORIRSMAPED_CATALOG_OBJ )
+    {
+        Editor_UiStatus(ui, "Record refused: pick a loc, npc or obj first");
+        return 0;
+    }
+    name = catalog_pick_symbol(ui, self);
+    if( !name[0] )
+    {
+        Editor_UiStatus(ui, "Record refused: the catalog has no record name for %s", ui->tools.pick_name);
+        return 0;
+    }
+    return Editor_Record_Open(ui, (uint32_t)ui->tools.pick_kind, name);
+}
+
+int
+Editor_Catalog_CopyPick(struct EditorUi* ui)
+{
+    struct CatalogPanel* self;
+    const char* name;
+    const char* new_name;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( !self || ui->tools.pick_kind < 0 || ui->tools.pick_kind > (int)TORIRSMAPED_CATALOG_OBJ )
+    {
+        Editor_UiStatus(ui, "Copy refused: pick a loc, npc or obj first");
+        return 0;
+    }
+    name = catalog_pick_symbol(ui, self);
+    new_name = ToriRSChrome_Text(ui->chrome, self->input_new_name);
+    if( !name[0] )
+    {
+        Editor_UiStatus(ui, "Copy refused: the catalog has no record name for %s", ui->tools.pick_name);
+        return 0;
+    }
+    if( !new_name || !new_name[0] )
+    {
+        Editor_UiStatus(ui, "Copy refused: type the new name in the Catalog's New name first");
+        return 0;
+    }
+    if( !Editor_Catalog_CopyRecord(ui, (uint32_t)ui->tools.pick_kind, name, new_name) )
+        return 0;
+    Editor_CatalogModelInvalidate(&self->model);
+    catalog_picked_label(ui, self);
+    return 1;
+}
+
+uint32_t
+Editor_Catalog_PickShapes(struct EditorUi* ui)
+{
+    struct CatalogPanel* self;
+    uint32_t mask = 0;
+
+    assert(ui);
+    if( ui->tools.pick_kind != CACHEPROVIDER_CATALOG_LOC || ui->tools.pick_id < 0 )
+        return 0;
+    /* The config's shapes when it is resident (what the world draws), else
+     * the catalog's summary fields. */
+    if( edp_loc_shapes(ui, ui->tools.pick_id, &mask) && mask )
+        return mask;
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( !self )
+        return 0;
+    catalog_symbol_follow(ui, self);
+    return self->sym_mask;
+}
+
+const struct Editor_CatalogRecents*
+Editor_Catalog_Recents(struct EditorUi* ui)
+{
+    struct CatalogPanel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    return self ? &self->recents : NULL;
 }
 
 void
@@ -1137,26 +2197,42 @@ Editor_Catalog_Register(struct EditorUi* ui)
 
     self = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*self));
     assert(self);
-    Editor_CatalogModelInit(&self->model, TORIRSMAPED_CATALOG_LOC, CATALOG_LIST_ROWS);
-    self->shown_queries = -1;
+    Editor_CatalogModelInit(&self->model, TORIRSMAPED_CATALOG_LOC, CATALOG_PAGE_ROWS);
+    Editor_CatalogChipsInit(&self->chips);
+    Editor_FavouritesInit(&self->favourites);
+    self->shown_key = (uint32_t)-1;
+    self->shown_answers = (uint32_t)-1;
     self->selected = -1;
     self->record_built = -1;
     self->var_shown_id = -1;
     self->var_shown_kind = -1;
+    self->local_source = -1;
+    self->sym_kind = -2;
+    self->sym_id = -2;
+    self->tip_row = -2;
 
     self->panel = ToriRSChrome_PanelAdd(
         chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X + EDP_COL_W + 8), edp_px(ui, 420),
-        edp_px(ui, 240), "Catalog");
+        edp_px(ui, 260), "Catalog");
     assert(self->panel >= 0);
     self->dropdown_kind = ToriRSChrome_Dropdown(chrome, self->panel, "Kind", Editor_CatalogModelKindLabels(),
         Editor_CatalogModelKindCount(), 0);
+    /* The Stamps kind (workbench 6.3): a chip beside Kind that opens the
+     * Stamps panel, which owns it (edpanel_stamps.c). */
+    Editor_Stamps_CatalogChip(ui, self->panel);
     self->input_search = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
-    ToriRSChrome_SetTooltip(chrome, self->input_search, "name, display name, id, or key=value (op=Open)");
+    ToriRSChrome_SetTooltip(chrome, self->input_search, "name, id; key=value then a space becomes a chip");
     self->row_count = ToriRSChrome_Label(chrome, self->panel, "");
-    self->list = ToriRSChrome_VList(chrome, self->panel, "", CATALOG_LIST_ROWS, 0);
-    self->button_prev = ToriRSChrome_Button(chrome, self->panel, "Prev page");
-    self->button_next = ToriRSChrome_Button(chrome, self->panel, "Next page");
-    self->row_page = ToriRSChrome_Label(chrome, self->panel, "");
+    edp_chips_init(ui, &self->chip_strip, self->panel, 2);
+    ToriRSChrome_SetHidden(chrome, self->chip_strip.graph, 1);
+    self->dropdown_filter = ToriRSChrome_Dropdown(chrome, self->panel, "Filter", Editor_CatalogFilterMenuLabels(),
+        Editor_CatalogFilterMenuCount(), 0);
+    ToriRSChrome_SetTooltip(chrome, self->dropdown_filter, "add a filter chip on a summary field");
+    self->dropdown_sort = ToriRSChrome_Dropdown(chrome, self->panel, "Sort", Editor_CatalogSortLabels(),
+        EDITOR_CATALOG_SORT_COUNT, EDITOR_CATALOG_SORT_BEST);
+    edp_chips_init(ui, &self->shortcut_strip, self->panel, 1);
+    self->list = ToriRSChrome_VListCells(chrome, self->panel, Editor_CatalogCellsHeader(), CATALOG_LIST_ROWS, 0);
+    assert(self->list >= 0);
     ToriRSChrome_Separator(chrome, self->panel);
     self->row_picked = ToriRSChrome_Label(chrome, self->panel, "nothing picked");
     self->row_record = ToriRSChrome_Label(chrome, self->panel, "pick a row for its record");
@@ -1167,6 +2243,8 @@ Editor_Catalog_Register(struct EditorUi* ui)
     self->button_add_palette = ToriRSChrome_Button(chrome, self->panel, "Add to palette");
     ToriRSChrome_SetTooltip(chrome, self->button_add_palette,
         "the pick into the Catalog palette's first free slot");
+    edp_button_chord(ui, self->button_add_palette, EDITOR_HK_PALETTE_ADD_PICK);
+    self->chord_serial = ui->hotkeys.serial;
     self->button_open_script = ToriRSChrome_Button(chrome, self->panel, "Open in editor");
     ToriRSChrome_SetTooltip(chrome, self->button_open_script, "the picked trigger's file at its line, in your editor");
     self->input_new_name = ToriRSChrome_TextInput(chrome, self->panel, "New name", "");
@@ -1183,6 +2261,7 @@ Editor_Catalog_Register(struct EditorUi* ui)
     self->var_rows.ops = ToriRSChrome_Label(chrome, self->panel, "");
     catalog_rows_hidden(ui, self, 1);
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);
+    ToriRSChrome_PanelSetScrollable(chrome, self->panel, 1);
     ToriRSChrome_PanelSetVisible(chrome, self->panel, 0);
 
     memset(&desc, 0, sizeof(desc));
@@ -1192,6 +2271,7 @@ Editor_Catalog_Register(struct EditorUi* ui)
     desc.chrome_panel = self->panel;
     desc.tick = catalog_tick;
     desc.activate = catalog_activate;
+    desc.event = catalog_event;
     desc.on_state = catalog_on_state;
     desc.destroy = catalog_destroy;
     Editor_UiAddPanel(ui, &desc);
@@ -1203,639 +2283,8 @@ Editor_Catalog_Register(struct EditorUi* ui)
     /* The record editor travels with the catalog it opens records from. */
     if( !Editor_UiPanelSelf(ui, "record") )
         Editor_Record_Register(ui);
-}
-
-
-/* ---- the Record panel: one config record, every field -----------------------------
- *
- * A loc / npc / obj record is not one block. Its fields are spread over the
- * cache half (configs/all.<type>) and every server overlay that states the
- * record -- the generated layer (_explicit/configs/server_fields.generated.<type>)
- * and authored files (areas/<area>/configs/<file>.<type>) -- and the pack the
- * server reads merges them in a fixed order (editor_cfg.h, "a record across
- * its layers"). This panel opens one CFG document per layer (the overlay ones
- * as "<type>:<name>@<overlay>", block-scoped: the 10 MB generated file is
- * never loaded whole), resolves each field to the layer that wins it, and
- * lists every field of every layer plus every key of the field register
- * (fields/<type>.ini, as the TEXT document "fields:<type>.ini") the record
- * states nowhere.
- *
- *   select a row   its field and winning value fill Field / Value; the row
- *                  says which file holds it and how many beneath it are
- *                  shadowed.
- *   Set field      writes Value into the file that holds the field (Write to:
- *                  "where it is stated"), or into the chosen layer -- an
- *                  "override in <overlay>" for a field a lower layer states,
- *                  or the place a field nobody states is added (the record's
- *                  top layer by default). One undo step ("edit record").
- *   Remove field   takes the statement out of that file; a lower layer's
- *                  value (or the engine default) shows through.
- *
- * Field names: `key`, `key#N` for the N-th statement of a key a layer
- * repeats, and `param:<name>` for a param (`param=<name>,<value>`), which the
- * merge treats per param name. The layers come from the server's catalog
- * (the record's sources); without one only configs/all.<type> is edited.
- */
-
-#define RECORD_LIST_ROWS 14
-
-struct RecordPanel
-{
-    int panel;
-    int row_title;
-    int list;
-    int input_field;
-    int input_value;
-    int dropdown_layer;
-    int button_set;
-    int button_remove;
-    int row_hint;
-    /* The Triggers panel on this record. */
-    int button_triggers;
-
-    int open;
-    uint32_t kind;
-    char type[16];
-    char name[EDITOR_CMD_NAME_MAX];
-    char overlays[EDITOR_CFG_RECORD_LAYERS_MAX][EDITOR_DOC_KEY_MAX];
-    int overlay_count;
-    struct Editor_CfgRecord record;
-    struct Editor_CfgRegisterField fields[EDITOR_CFG_REGISTER_MAX];
-    int field_count;
-    /** The fact seq the rows were resolved at. */
-    uint32_t built_seq;
-    int built;
-
-    char layer_labels[EDITOR_CFG_RECORD_LAYERS_MAX + 1][TORIRS_CHROME_LABEL_MAX];
-    const char* layer_options[EDITOR_CFG_RECORD_LAYERS_MAX + 1];
-};
-
-static const char*
-record_rank_name(int rank)
-{
-    return rank == 0 ? "cache" : rank == 1 ? "generated" : "authored";
-}
-
-static const char*
-record_basename(const char* path)
-{
-    const char* slash = strrchr(path, '/');
-    return slash ? slash + 1 : path;
-}
-
-/** Re-read every layer's document and resolve the rows. */
-static void
-record_resolve(
-    struct EditorUi* ui,
-    struct RecordPanel* self)
-{
-    Editor_CfgRecordFree(&self->record);
-    Editor_CfgRecordInit(&self->record, self->type, self->name);
-    for( int i = -1; i < self->overlay_count; i++ )
-    {
-        struct Editor_DocHandle handle;
-        char key[EDITOR_DOC_KEY_MAX];
-        const char* overlay = i < 0 ? NULL : self->overlays[i];
-        const char* text = "";
-        size_t length = 0;
-
-        if( !Editor_CfgOverlayKey(key, self->type, self->name, overlay) )
-            continue;
-        if( ui->editor && Editor_DocFind(&ui->editor->doc, EDITOR_DOC_CFG, key, &handle) && handle.text
-            && handle.text->text )
-        {
-            text = handle.text->text;
-            length = handle.text->length;
-        }
-        (void)Editor_CfgRecordAddLayer(&self->record, overlay, text, length);
-    }
-    Editor_CfgRecordResolve(&self->record, self->fields, self->field_count);
-    self->built_seq = ui->editor ? ui->editor->last_cmd_seq : 0;
-    self->built = 1;
-
-    snprintf(self->layer_labels[0], sizeof(self->layer_labels[0]), "where it is stated");
-    self->layer_options[0] = self->layer_labels[0];
-    for( int l = 0; l < self->record.layer_count; l++ )
-    {
-        const struct Editor_CfgRecordLayer* layer = &self->record.layers[l];
-        snprintf(self->layer_labels[l + 1], sizeof(self->layer_labels[l + 1]), "%s %s (%s)",
-            layer->present ? "in" : "override in", record_basename(layer->label), record_rank_name(layer->rank));
-        self->layer_options[l + 1] = self->layer_labels[l + 1];
-    }
-    ToriRSChrome_DropdownSetOptions(ui->chrome, self->dropdown_layer, self->layer_options,
-        self->record.layer_count + 1, 0);
-    ToriRSChrome_VListSetCount(ui->chrome, self->list, self->record.row_count);
-    {
-        int first;
-        int shown;
-        if( ToriRSChrome_VListWindow(ui->chrome, self->list, &first, &shown) )
-            for( int r = first; r < first + shown; r++ )
-                ToriRSChrome_VListSetRow(ui->chrome, self->list, r, "");
-    }
-    {
-        char line[TORIRS_CHROME_LABEL_MAX];
-        int stated = 0;
-        for( int r = 0; r < self->record.row_count; r++ )
-            stated += self->record.rows[r].layer >= 0;
-        snprintf(line, sizeof(line), "%s %s: %d fields stated, %d more in fields/%s.ini; %d layer%s", self->type,
-            self->name, stated, self->record.row_count - stated, self->type, self->record.layer_count,
-            self->record.layer_count == 1 ? "" : "s");
-        ToriRSChrome_SetText(ui->chrome, self->row_title, line);
-    }
-}
-
-static void
-record_row_text(
-    const struct RecordPanel* self,
-    int index,
-    char* out,
-    size_t out_size)
-{
-    const struct Editor_CfgRecordRow* row = &self->record.rows[index];
-    char name[EDITOR_CMD_NAME_MAX * 2];
-
-    if( row->sub[0] )
-        snprintf(name, sizeof(name), "param:%s", row->sub);
-    else if( row->occurrence > 0 )
-        snprintf(name, sizeof(name), "%s#%d", row->key, row->occurrence);
-    else
-        snprintf(name, sizeof(name), "%s", row->key);
-    if( row->layer < 0 )
-        snprintf(out, out_size, "  %s = (not stated)%s%s", name, row->scope[0] ? "  " : "", row->scope);
-    else
-    {
-        const struct Editor_CfgRecordLayer* layer = &self->record.layers[row->layer];
-        char shadow[24] = "";
-        if( row->shadowed > 0 )
-            snprintf(shadow, sizeof(shadow), " +%d below", row->shadowed);
-        snprintf(out, out_size, "%c %s = %s   [%s%s]", layer->rank == 0 ? ' ' : '*', name, row->value,
-            record_basename(layer->label), shadow);
-    }
-}
-
-/** "param:<name>" | "key#N" | "key" -> (key, sub, occurrence). */
-static int
-record_parse_field(
-    const char* text,
-    char key[EDITOR_CMD_NAME_MAX],
-    char sub[EDITOR_CMD_NAME_MAX],
-    int* occurrence)
-{
-    const char* hash;
-
-    *occurrence = 0;
-    sub[0] = '\0';
-    while( text && *text == ' ' )
-        text++;
-    if( !text || !text[0] || strlen(text) >= EDITOR_CMD_NAME_MAX || strchr(text, '=') || strchr(text, ' ') )
-        return 0;
-    if( strncmp(text, "param:", 6) == 0 )
-    {
-        if( !text[6] )
-            return 0;
-        snprintf(key, EDITOR_CMD_NAME_MAX, "param");
-        snprintf(sub, EDITOR_CMD_NAME_MAX, "%s", text + 6);
-        return 1;
-    }
-    hash = strchr(text, '#');
-    if( hash )
-    {
-        char* end = NULL;
-        long n = strtol(hash + 1, &end, 10);
-        if( hash == text || !end || *end || n < 0 )
-            return 0;
-        *occurrence = (int)n;
-        snprintf(key, EDITOR_CMD_NAME_MAX, "%.*s", (int)(hash - text), text);
-        return 1;
-    }
-    snprintf(key, EDITOR_CMD_NAME_MAX, "%s", text);
-    return 1;
-}
-
-static int
-record_set(
-    struct EditorUi* ui,
-    struct RecordPanel* self,
-    const char* key,
-    const char* sub,
-    int occurrence,
-    const char* value,
-    int layer)
-{
-    struct Editor_Cmd commands[2];
-    int count;
-
-    if( !self->open )
-        return -1;
-    if( !self->built || (ui->editor && self->built_seq != ui->editor->last_cmd_seq) )
-        record_resolve(ui, self);
-    count = Editor_CfgRecordFieldCommands(&self->record, key, sub, occurrence, value, layer, commands, 2);
-    if( count < 0 )
-    {
-        Editor_UiLog(ui, "editor: %s%s%s cannot be written that way (a key or value the config grammar refuses)", key,
-            sub[0] ? ":" : "", sub);
-        return -1;
-    }
-    if( count == 0 )
-    {
-        Editor_UiLog(ui, "editor: %s%s%s: nothing to change", key, sub[0] ? ":" : "", sub);
-        return 0;
-    }
-    count = edp_apply(ui, commands, count, "edit record");
-    if( count > 0 )
-    {
-        record_resolve(ui, self);
-        Editor_UiLog(ui, "editor: %s %s: %s%s%s %s in %s (unsaved; Save writes it, RUN builds it)", self->type,
-            self->name, key, sub[0] ? ":" : "", sub, value[0] ? "set" : "removed", commands[count - 1].doc_key);
-    }
-    return count;
-}
-
-static void
-record_tick(
-    struct EditorUi* ui,
-    void* opaque)
-{
-    struct RecordPanel* self = opaque;
-    int first;
-    int shown;
-
-    if( !ui->chrome->panels[self->panel].visible )
-        return;
-    if( !self->open )
-    {
-        /* Nothing to show until a record is opened (a layout or a saved
-         * layout may have shown the empty window). */
-        ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
-        return;
-    }
-    if( !self->built || (ui->editor && self->built_seq != ui->editor->last_cmd_seq) )
-        record_resolve(ui, self);
-    if( !ToriRSChrome_VListWindow(ui->chrome, self->list, &first, &shown) )
-        return;
-    for( int r = first; r < first + shown && r < self->record.row_count; r++ )
-    {
-        char text[TORIRS_CHROME_INPUT_MAX];
-        record_row_text(self, r, text, sizeof(text));
-        ToriRSChrome_VListSetRow(ui->chrome, self->list, r, text);
-    }
-}
-
-/** Row `r` into Field / Value, "where it is stated", and the hint. */
-static void
-record_select_row(
-    struct EditorUi* ui,
-    struct RecordPanel* self,
-    int r)
-{
-    const struct Editor_CfgRecordRow* row;
-    char field[EDITOR_CMD_NAME_MAX * 2];
-    char hint[TORIRS_CHROME_LABEL_MAX];
-
-    if( r < 0 || r >= self->record.row_count )
-        return;
-    row = &self->record.rows[r];
-    if( row->sub[0] )
-        snprintf(field, sizeof(field), "param:%s", row->sub);
-    else if( row->occurrence > 0 )
-        snprintf(field, sizeof(field), "%s#%d", row->key, row->occurrence);
-    else
-        snprintf(field, sizeof(field), "%s", row->key);
-    ToriRSChrome_SetText(ui->chrome, self->input_field, field);
-    ToriRSChrome_SetText(ui->chrome, self->input_value, row->value);
-    ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_layer, 0);
-    if( row->layer >= 0 )
-        snprintf(hint, sizeof(hint), "%s is stated in %s%s", field, self->record.layers[row->layer].label,
-            row->shadowed ? " (over a lower layer)" : "");
-    else
-        snprintf(hint, sizeof(hint), "%s is stated nowhere; Set adds it to %s", field,
-            self->record.layers[Editor_CfgRecordAddLayerFor(&self->record)].label);
-    ToriRSChrome_SetText(ui->chrome, self->row_hint, hint);
-}
-
-static int
-record_activate(
-    struct EditorUi* ui,
-    void* opaque,
-    int widget)
-{
-    struct RecordPanel* self = opaque;
-
-    if( widget == self->list )
-    {
-        record_select_row(ui, self, ToriRSChrome_VListSelected(ui->chrome, widget));
-        return 1;
-    }
-    if( widget == self->button_set || widget == self->button_remove )
-    {
-        char key[EDITOR_CMD_NAME_MAX];
-        char sub[EDITOR_CMD_NAME_MAX];
-        int occurrence;
-        int const choice = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_layer);
-        const char* value = widget == self->button_set ? ToriRSChrome_Text(ui->chrome, self->input_value) : "";
-
-        if( !record_parse_field(ToriRSChrome_Text(ui->chrome, self->input_field), key, sub, &occurrence) )
-        {
-            Editor_UiLog(ui, "editor: Field is `key`, `key#N` or `param:<name>`");
-            return 1;
-        }
-        if( widget == self->button_set && (!value || !value[0]) )
-        {
-            Editor_UiLog(ui, "editor: type a value (Remove field takes a field out)");
-            return 1;
-        }
-        (void)record_set(ui, self, key, sub, occurrence, value ? value : "", choice > 0 ? choice - 1 : -1);
-        return 1;
-    }
-    if( widget == self->button_triggers )
-    {
-        if( Editor_UiPanelSelf(ui, "triggers") )
-            Editor_Triggers_Follow(ui);
-        else
-            Editor_UiLog(ui, "editor: this window has no Triggers panel");
-        return 1;
-    }
-    return widget == self->input_field || widget == self->input_value || widget == self->dropdown_layer;
-}
-
-/** Shown with the editor only once a record is open (Editor_Record_Open). */
-static void
-record_set_visible(
-    struct EditorUi* ui,
-    void* opaque,
-    int visible)
-{
-    struct RecordPanel* self = opaque;
-    if( visible && !self->open )
-        ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
-}
-
-static void
-record_destroy(
-    struct EditorUi* ui,
-    void* opaque)
-{
-    struct RecordPanel* self = opaque;
-    (void)ui;
-    Editor_CfgRecordFree(&self->record);
-    ToriMem_Free(ToriMem_Editor(), self);
-}
-
-void
-Editor_Record_Register(struct EditorUi* ui)
-{
-    struct RecordPanel* self;
-    struct EditorUiPanel desc;
-    struct ToriRSChrome* chrome;
-
-    assert(ui);
-    chrome = ui->chrome;
-    self = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*self));
-    assert(self);
-    self->panel = ToriRSChrome_PanelAdd(
-        chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X + EDP_COL_W + 16), edp_px(ui, 140),
-        edp_px(ui, 360), "Record");
-    assert(self->panel >= 0);
-    self->row_title = ToriRSChrome_Label(chrome, self->panel, "open a record: Catalog > Edit record, or Spawns");
-    self->list = ToriRSChrome_VList(chrome, self->panel, "", RECORD_LIST_ROWS, 0);
-    self->input_field = ToriRSChrome_TextInput(chrome, self->panel, "Field", "");
-    ToriRSChrome_SetTooltip(chrome, self->input_field, "key, key#N, or param:<name>");
-    self->input_value = ToriRSChrome_TextInput(chrome, self->panel, "Value", "");
-    self->dropdown_layer = ToriRSChrome_Dropdown(chrome, self->panel, "Write to", NULL, 0, -1);
-    self->button_set = ToriRSChrome_Button(chrome, self->panel, "Set field");
-    self->button_remove = ToriRSChrome_Button(chrome, self->panel, "Remove field");
-    self->row_hint = ToriRSChrome_Label(chrome, self->panel, "");
-    self->button_triggers = ToriRSChrome_Button(chrome, self->panel, "Triggers...");
-    ToriRSChrome_SetTooltip(chrome, self->button_triggers, "this record's script triggers; add one (Ctrl+E)");
-    ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);
-    ToriRSChrome_PanelSetScrollable(chrome, self->panel, 1);
-    ToriRSChrome_PanelSetVisible(chrome, self->panel, 0);
-
-    memset(&desc, 0, sizeof(desc));
-    desc.name = "record";
-    desc.title = "Record";
-    desc.self = self;
-    desc.chrome_panel = self->panel;
-    desc.tick = record_tick;
-    desc.activate = record_activate;
-    desc.set_visible = record_set_visible;
-    desc.destroy = record_destroy;
-    Editor_UiAddPanel(ui, &desc);
-}
-
-int
-Editor_Record_Open(
-    struct EditorUi* ui,
-    uint32_t kind,
-    const char* name)
-{
-    struct RecordPanel* self;
-    const char* type;
-    char key[EDITOR_DOC_KEY_MAX];
-    char register_key[EDITOR_DOC_KEY_MAX];
-    struct EditorHost* host;
-
-    assert(ui);
-    assert(name);
-    self = Editor_UiPanelSelf(ui, "record");
-    assert(self);
-    if( kind > TORIRSMAPED_CATALOG_OBJ )
-    {
-        Editor_UiLog(ui, "editor: the Record panel edits loc, npc and obj records");
-        return 0;
-    }
-    if( !ui->editor )
-    {
-        Editor_UiLog(ui, "editor: no editor session");
-        return 0;
-    }
-    type = ToriRSMapEdCatalog_KindName(kind);
-    snprintf(self->type, sizeof(self->type), "%s", type);
-    self->kind = kind;
-    self->overlay_count = 0;
-    self->open = 0;
-    self->built = 0;
-
-    /* A `#<id>` spawn name: the record's own name, from the catalog. */
-    host = catalog_host(ui);
-    if( name[0] == '#' )
-    {
-        struct EditorHost_CatalogRecord record;
-        memset(&record, 0, sizeof(record));
-        if( !host || Editor_HostMapEdCatalogRecord(host, kind, (int32_t)atoi(name + 1), "", &record) != EDITOR_HOST_OK
-            || !record.name || strlen(record.name) >= sizeof(self->name) )
-        {
-            Editor_UiLog(ui, "editor: %s %s has no record name the catalog knows", type, name);
-            Editor_HostCatalogRecordFree(&record);
-            return 0;
-        }
-        snprintf(self->name, sizeof(self->name), "%s", record.name);
-        Editor_HostCatalogRecordFree(&record);
-    }
-    else
-        snprintf(self->name, sizeof(self->name), "%s", name);
-
-    /* The layers: every server overlay the catalog says states the record. */
-    if( host )
-    {
-        struct EditorHost_CatalogRecord record;
-        size_t const type_length = strlen(type);
-        memset(&record, 0, sizeof(record));
-        if( Editor_HostMapEdCatalogRecord(host, kind, -1, self->name, &record) == EDITOR_HOST_OK )
-            for( int i = 0; i < record.source_count && self->overlay_count < EDITOR_CFG_RECORD_LAYERS_MAX - 1; i++ )
-            {
-                const char* path = record.sources[i].path;
-                size_t const length = strlen(path);
-                if( strncmp(path, "server/scripts/", 15) != 0 || length < 15 + type_length + 2
-                    || path[length - type_length - 1] != '.' || strcmp(path + length - type_length, type) != 0 )
-                    continue;
-                if( strlen(path + 15) >= sizeof(self->overlays[0]) )
-                    continue;
-                snprintf(self->overlays[self->overlay_count++], sizeof(self->overlays[0]), "%s", path + 15);
-            }
-        Editor_HostCatalogRecordFree(&record);
-    }
-    else
-        Editor_UiLog(ui, "editor: no catalog: only configs/all.%s is edited (server overlays are not found)", type);
-
-    /* Open each layer's document (an absent block opens empty). */
-    for( int i = -1; i < self->overlay_count; i++ )
-    {
-        if( !Editor_CfgOverlayKey(key, type, self->name, i < 0 ? NULL : self->overlays[i]) )
-            continue;
-        if( !edp_ensure_doc(ui, EDITOR_DOC_CFG, key) )
-            Editor_UiLog(ui, "editor: could not open %s", key);
-    }
-    /* The field register: what a record of this type may state. */
-    snprintf(register_key, sizeof(register_key), "fields:%s.ini", type);
-    self->field_count = 0;
-    if( edp_ensure_doc(ui, EDITOR_DOC_TEXT, register_key) )
-    {
-        struct Editor_DocHandle handle;
-        if( Editor_DocFind(&ui->editor->doc, EDITOR_DOC_TEXT, register_key, &handle) && handle.text && handle.text->text )
-            self->field_count = Editor_CfgRegisterParse(type, handle.text->text, handle.text->length, self->fields,
-                EDITOR_CFG_REGISTER_MAX);
-    }
-    self->open = 1;
-    record_resolve(ui, self);
-    ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 1);
-    Editor_UiLog(ui, "editor: record %s:%s over %d layer(s), %d register field(s)", type, self->name,
-        self->record.layer_count, self->field_count);
-    return 1;
-}
-
-int
-Editor_Record_WanderValues(
-    struct EditorUi* ui,
-    const char* type,
-    const char* name,
-    int* out_wander,
-    int* out_leash)
-{
-    struct RecordPanel* self;
-    int row;
-
-    assert(ui);
-    assert(type);
-    assert(name);
-    assert(out_wander);
-    assert(out_leash);
-    self = Editor_UiPanelSelf(ui, "record");
-    if( !self || !self->open || strcmp(self->type, type) != 0 || strcmp(self->name, name) != 0 )
-        return 0;
-    if( !self->built || (ui->editor && self->built_seq != ui->editor->last_cmd_seq) )
-        record_resolve(ui, self);
-    *out_wander = MAP_EDITOR_WANDER_DEFAULT;
-    *out_leash = MAP_EDITOR_LEASH_DEFAULT;
-    row = Editor_CfgRecordFindRow(&self->record, "wanderrange", "", 0);
-    if( row >= 0 && self->record.rows[row].layer >= 0 && self->record.rows[row].value[0] >= '0'
-        && self->record.rows[row].value[0] <= '9' )
-        *out_wander = atoi(self->record.rows[row].value);
-    row = Editor_CfgRecordFindRow(&self->record, "maxrange", "", 0);
-    if( row >= 0 && self->record.rows[row].layer >= 0 && self->record.rows[row].value[0] >= '0'
-        && self->record.rows[row].value[0] <= '9' )
-        *out_leash = atoi(self->record.rows[row].value);
-    return 1;
-}
-
-int
-Editor_Record_SetField(
-    struct EditorUi* ui,
-    const char* key,
-    const char* sub,
-    const char* value,
-    int layer)
-{
-    struct RecordPanel* self;
-
-    assert(ui);
-    assert(key);
-    assert(sub);
-    assert(value);
-    self = Editor_UiPanelSelf(ui, "record");
-    assert(self);
-    return record_set(ui, self, key, sub, 0, value, layer);
-}
-
-void
-Editor_Record_Place(
-    struct EditorUi* ui,
-    int x,
-    int y,
-    int w,
-    int h)
-{
-    struct RecordPanel* self;
-
-    assert(ui);
-    self = Editor_UiPanelSelf(ui, "record");
-    assert(self);
-    ToriRSChrome_PanelSetFixedWidth(ui->chrome, self->panel, w);
-    ToriRSChrome_PanelSetFixedHeight(ui->chrome, self->panel, h);
-    ToriRSChrome_PanelMove(ui->chrome, self->panel, x, y);
-    ui->chrome->panels[self->panel].user_placed = 1;
-    ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 1);
-}
-
-int
-Editor_Record_SelectField(
-    struct EditorUi* ui,
-    const char* key,
-    const char* sub)
-{
-    struct RecordPanel* self;
-    int row;
-
-    assert(ui);
-    assert(key);
-    assert(sub);
-    self = Editor_UiPanelSelf(ui, "record");
-    assert(self);
-    if( !self->open )
-        return -1;
-    if( !self->built || (ui->editor && self->built_seq != ui->editor->last_cmd_seq) )
-        record_resolve(ui, self);
-    row = Editor_CfgRecordFindRow(&self->record, key, sub, 0);
-    if( row < 0 )
-        return -1;
-    ToriRSChrome_VListSetSelected(ui->chrome, self->list, row);
-    ToriRSChrome_VListSetScroll(ui->chrome, self->list, row > 2 ? row - 2 : 0);
-    record_select_row(ui, self, row);
-    return row;
-}
-
-const struct Editor_CfgRecord*
-Editor_Record_Current(struct EditorUi* ui)
-{
-    struct RecordPanel* self;
-
-    assert(ui);
-    self = Editor_UiPanelSelf(ui, "record");
-    if( !self || !self->open )
-        return NULL;
-    if( !self->built || (ui->editor && self->built_seq != ui->editor->last_cmd_seq) )
-        record_resolve(ui, self);
-    return &self->record;
+    if( !Editor_UiPanelSelf(ui, "stamps") )
+        Editor_Stamps_Register(ui);
 }
 
 /* ---- for the tests ------------------------------------------------------------- */

@@ -7,7 +7,7 @@
 # The panel registry and its modules link into every client build (src/makefile
 # appends MAPED_CLIENT_SRCS to SRCS). Object names are basenames, so every
 # module is edpanel_<name>.c.
-TOOLS_PANELS_SRCS = editor/editor_ui.c \
+TOOLS_PANELS_SRCS = editor/editor_ui.c editor/editor_path.c \
 	editor/panels/edpanel_common.c editor/panels/edpanel_actions.c \
 	editor/panels/edpanel_ops.c editor/panels/edpanel_picker.c \
 	editor/panels/edpanel_newform.c editor/panels/edpanel_shapes.c \
@@ -18,11 +18,15 @@ TOOLS_PANELS_SRCS = editor/editor_ui.c \
 	editor/panels/edpanel_newsquare.c editor/panels/edpanel_locs.c \
 	editor/panels/edpanel_spawns.c editor/panels/edpanel_catalog.c \
 	editor/panels/edpanel_catalog_model.c editor/panels/edpanel_preview.c \
-	editor/panels/edpanel_inspector.c
+	editor/panels/edpanel_inspector.c editor/panels/edpanel_record.c
 # The History panel (editing feedback): the undo groups, click to jump.
 TOOLS_PANELS_SRCS += editor/panels/edpanel_history.c
-# The status bar along the bottom (screens and portability, 2026-11-03).
+# The status bar along the foot (design #workbench): the hint strip, the
+# hover readout, the status sentence.
 TOOLS_PANELS_SRCS += editor/panels/edpanel_statusbar.c
+# The floor colours as the client blends and draws them (the Palette's
+# picker, blend strip and swatch readouts), headless.
+TOOLS_PANELS_SRCS += editor/editor_floorcolor.c
 MAPED_CLIENT_SRCS += $(TOOLS_PANELS_SRCS)
 
 # The panels, headless, against the real chrome model and an embedded
@@ -52,7 +56,7 @@ test-editor-panels:
 	mkdir -p $(OBJ_DIR)
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_panels_test editor/test/editor_panels_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/editor_panels
 	mkdir -p $(OBJ_DIR)/tmp/editor_panels/maps $(OBJ_DIR)/tmp/editor_panels/configs \
 		$(OBJ_DIR)/tmp/editor_panels/worldmap \
@@ -73,4 +77,4 @@ test-editor-panels:
 		$(OBJ_DIR)/tmp/editor_panels/server/scripts/areas/world/configs/
 	./$(OBJ_DIR)/editor_panels_test $(OBJ_DIR)/tmp/editor_panels
 
-test-editor: test-editor-panels
+EDITOR_TREE_TESTS += test-editor-panels

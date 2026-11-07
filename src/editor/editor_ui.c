@@ -2,6 +2,7 @@
 
 #include "editor.h"
 #include "editor_view.h"
+#include "input/torirs_gesture.h"
 #include "builder/builder_panels.h"
 #include "iface/iface_panels.h"
 #include "live/live_panel.h"
@@ -10,9 +11,11 @@
 #include "panels/edpanel_common.h"
 #include "panels/edpanels.h"
 #include "torirsmaped/torirs_maped.h"
+#include "ui/torirs_chrome_scale_q.h"
 #include "ui/uitree_debug_overlay.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -28,8 +31,23 @@ static const char* const k_tool_names[EDITOR_TOOL_COUNT] = {
     "Select",       "Rectangle select", "Raise",        "Lower",
     "Flatten",      "Smooth",           "Paint underlay", "Paint overlay",
     "Paint flags",  "Place",            "Move",         "Rotate",
-    "Delete",       "Place player",
+    "Delete",       "Place player",     "Paint path",   "Roughen",
+    "Scatter",      "Plateau",
 };
+
+/* The hotkey table arms the tools in enum Editor_Tool's order, and its hint
+ * strip and context derivation (Editor_HotkeysHint, Editor_HotkeyContextsFrom)
+ * take the tool by that value. */
+_Static_assert(EDITOR_TOOL_COUNT == EDITOR_HK_HINT_TOOLS, "one hint list per tool");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_LOC_PLACE == EDITOR_HK_TOOL_PLACE, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_LOC_MOVE == EDITOR_HK_TOOL_MOVE, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_RECT_SELECT == EDITOR_HK_TOOL_RECT, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_PLACE_PLAYER == EDITOR_HK_TOOL_PLACE_PLAYER,
+    "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_PAINT_PATH == EDITOR_HK_TOOL_PAINT_PATH, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_NOISE == EDITOR_HK_TOOL_NOISE, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_SCATTER == EDITOR_HK_TOOL_SCATTER, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_PLATEAU == EDITOR_HK_TOOL_PLATEAU, "the tool orders agree");
 
 const char*
 Editor_ToolName(enum Editor_Tool tool)
@@ -44,7 +62,8 @@ Editor_ToolIsBrush(enum Editor_Tool tool)
 {
     return tool == EDITOR_TOOL_RAISE || tool == EDITOR_TOOL_LOWER || tool == EDITOR_TOOL_FLATTEN
            || tool == EDITOR_TOOL_SMOOTH || tool == EDITOR_TOOL_PAINT_UNDERLAY
-           || tool == EDITOR_TOOL_PAINT_OVERLAY || tool == EDITOR_TOOL_PAINT_FLAGS;
+           || tool == EDITOR_TOOL_PAINT_OVERLAY || tool == EDITOR_TOOL_PAINT_FLAGS || tool == EDITOR_TOOL_NOISE
+           || tool == EDITOR_TOOL_SCATTER || tool == EDITOR_TOOL_PLATEAU;
 }
 
 void
@@ -70,8 +89,19 @@ Editor_UiInit(
     ui->tools.edit_level = -1;
     ui->tools.vis_level = -1;
     ui->tools.place_shape = 10;
+    ui->tools.place_fit = 1;
     ui->tools.pick_kind = -1;
     ui->tools.pick_id = -1;
+    ui->tools.path_style = 0;
+    ui->tools.path_width_halves = 4;
+    ui->tools.path_roughness = 50;
+    ui->tools.path_seed = 1;
+    ui->tools.noise_seed = 1;
+    ui->tools.paint_mix = 100;
+    ui->tools.scatter_density = 20;
+    ui->tools.scatter_rotate = 1;
+    ui->tools.scatter_seed = 1;
+    ui->tools.plateau_skirt = 3;
 
     /* Any number other views are unlikely to pick: the address of this
      * window's registry mixed with the clock. Positive, never 0 (0 is what a
@@ -89,6 +119,9 @@ Editor_UiInit(
     ui->layout_reopened = -1;
     Editor_HotkeysInit(&ui->hotkeys);
     ui->previous_tool = EDITOR_TOOL_SELECT;
+    Editor_PrefsInit(&ui->prefs);
+    ui->scale_auto_q = Editor_ChromeScaleQ(chrome);
+    ui->text_face_normal = chrome->theme.font_row;
 
     /* A read-only session says so, and who holds the tree, before anybody
      * edits and finds out at Save (or RUN). */
@@ -226,6 +259,9 @@ ui_window_furniture(struct EditorUi* ui)
     }
 }
 
+static void
+ui_default_groups(struct EditorUi* ui);
+
 void
 Editor_UiRegisterToolsPanels(struct EditorUi* ui)
 {
@@ -241,7 +277,7 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
      * goes last so a modal's panel sits above the panels it guards. */
     Editor_Console_Register(ui);
     Editor_MenuBar_Register(ui);
-    /* The strip along the bottom; a layout member like the menu bar. */
+    /* The status bar across the foot, always on with the editor. */
     Editor_StatusBar_Register(ui);
     Editor_ToolRail_Register(ui);
     Editor_Terrain_Register(ui);
@@ -262,6 +298,8 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
         Editor_CatalogPalette_Register(ui);
     }
     Editor_NewSquare_Register(ui);
+    /* The instance helper, the picker's Instance... (design section 13). */
+    Editor_Instance_Register(ui);
     Editor_SaveGuard_Register(ui);
     /* The other phase-3 owners' modules: the interaction builders and the
      * shell editor (editor/builder/), the interface editor and the CS2 tools
@@ -278,21 +316,38 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     /* The editor lane and its publish (editor/panels/edpanel_publish.c,
      * File > Publish...): hidden until opened. */
     Editor_Publish_Register(ui);
+    /* Scenes (workbench 6.5): the SCENES document's list, Save scene
+     * (Ctrl+Shift+K), Enter; hidden until the View menu opens it. */
+    Editor_Scenes_Register(ui);
     /* The lane's accounts (editor/accounts/), hidden until the View menu
      * opens it; after the Live panel, whose log it echoes. */
     Editor_Accounts_Register(ui);
     /* The script triggers of a record or a file (View > Triggers, Ctrl+E):
      * Add trigger, Open in editor, Refresh, Check, Run. */
     Editor_Triggers_Register(ui);
+    /* Workbench 6.7: the Shop builder and the Quest board, hidden until the
+     * View menu opens them. */
+    Editor_Shop_Register(ui);
+    Editor_Quest_Register(ui);
     Editor_History_Register(ui);
+    /* Workbench 6.6: every build's, Check's and CS2 compile's findings and
+     * the builders' lint, one list; the bottom strip's third member. */
+    Editor_Problems_Register(ui);
     /* Named areas and square collections (the AREAS document). */
     Editor_Areas_Register(ui);
+    /* Encounter sets and their npcs (the ENCOUNTERS document, workbench
+     * 6.7): hidden until View > Encounters or Spawns' Group... opens it. */
+    Editor_Encounter_Register(ui);
     /* The hotkey table and its editor (View > Hotkeys panel, F1). */
     Editor_Hotkeys_Register(ui);
-    /* The command palette (Ctrl+P): actions, panels, squares, records. */
-    Editor_Command_Register(ui);
+    /* The command palette (Ctrl+K), a modal over every panel above. */
+    Editor_CmdPalette_Register(ui);
     ui->panel_end = ui->chrome->panel_count;
-    ui->layout_scale = ToriRSChrome_Scale(ui->chrome);
+    /* The panel groups last: their frames draw over the modules' windows
+     * (they never overlap the one each holds), and each is the next window
+     * of the registry's (Editor_UiRegisterGroup). */
+    ui_default_groups(ui);
+    ui->layout_scale = Editor_ChromeScaleQ(ui->chrome);
     ui_window_furniture(ui);
 }
 
@@ -315,6 +370,11 @@ Editor_UiSetVisible(
         if( panel->set_visible )
             panel->set_visible(ui, panel->self, ui->visible);
     }
+    /* A group's frame goes with the editor; it comes back with its first
+     * open member (ui_group_follow). */
+    if( !ui->visible )
+        for( int i = 0; i < ui->group_count; i++ )
+            ToriRSChrome_PanelSetVisible(ui->chrome, ui->groups[i].chrome_panel, 0);
 }
 
 /* ---- view frames ----------------------------------------------------------- */
@@ -408,6 +468,789 @@ Editor_UiPublishView(struct EditorUi* ui)
     ui_publish_view(ui);
 }
 
+/* ---- panel groups -------------------------------------------------------------
+ *
+ * The model is at struct EditorUiGroup (editor_ui.h). Everything here reads
+ * the registry and each group's few chrome panels, never the UI tree, so the
+ * per-frame follow is a handful of comparisons per group.
+ */
+_Static_assert(EDITOR_UI_GROUP_TITLE_MAX == TORIRS_CHROME_LABEL_MAX, "a group or tab title is a chrome label");
+_Static_assert(EDITOR_UI_GROUPS_MAX <= EDITOR_LAYOUT_GROUPS_MAX, "a layout file holds every group");
+_Static_assert(EDITOR_UI_GROUPS_MAX < 255, "group_plus1 is a byte");
+
+/** The registry index of module `name`, or -1. */
+static int
+ui_registry_index(
+    const struct EditorUi* ui,
+    const char* name)
+{
+    for( int i = 0; i < ui->panel_count; i++ )
+        if( strcmp(ui->panels[i].name, name) == 0 )
+            return i;
+    return -1;
+}
+
+/** The group registry panel `reg` is in now, or NULL. */
+static struct EditorUiGroup*
+ui_group_of(
+    struct EditorUi* ui,
+    int reg)
+{
+    return ui->group_plus1[reg] ? &ui->groups[ui->group_plus1[reg] - 1] : NULL;
+}
+
+/** The member slot of registry panel `reg` in `g`, or -1. */
+static int
+ui_group_slot(
+    const struct EditorUiGroup* g,
+    int reg)
+{
+    for( int slot = 0; slot < g->member_count; slot++ )
+        if( g->members[slot] == reg )
+            return slot;
+    return -1;
+}
+
+/** The chrome window of member `slot`. */
+static int
+ui_group_window(
+    const struct EditorUi* ui,
+    const struct EditorUiGroup* g,
+    int slot)
+{
+    return ui->panels[g->members[slot]].chrome_panel;
+}
+
+/** The group whose frame is chrome panel `panel`, or NULL. */
+static struct EditorUiGroup*
+ui_frame_group(
+    struct EditorUi* ui,
+    int panel)
+{
+    for( int i = 0; i < ui->group_count; i++ )
+        if( ui->groups[i].chrome_panel == panel )
+            return &ui->groups[i];
+    return NULL;
+}
+
+static int
+ui_group_has_open(const struct EditorUiGroup* g)
+{
+    for( int slot = 0; slot < g->member_count; slot++ )
+        if( g->open[slot] )
+            return 1;
+    return 0;
+}
+
+/** The frame's height (title bar and strip), from its last Build while it
+ *  showed; the last one known otherwise, 0 before it was ever built. */
+static int
+ui_group_frame_height(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g)
+{
+    struct ToriRSChromePanel const* f = &ui->chrome->panels[g->chrome_panel];
+    if( f->visible && f->last_rect.h > 0 )
+        g->frame_h = f->last_rect.h;
+    return g->frame_h;
+}
+
+/** A member window inside a frame wears no title bar of its own (the frame's
+ *  is the group's); out of it, its own title comes back. */
+static void
+ui_group_dress(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g,
+    int slot,
+    int on)
+{
+    int const panel = ui_group_window(ui, g, slot);
+
+    if( on && !g->dressed[slot] )
+    {
+        snprintf(g->member_titles[slot], sizeof(g->member_titles[slot]), "%s", ui->chrome->panels[panel].title);
+        ToriRSChrome_PanelSetTitle(ui->chrome, panel, "");
+        g->dressed[slot] = 1;
+    }
+    else if( !on && g->dressed[slot] )
+    {
+        ToriRSChrome_PanelSetTitle(ui->chrome, panel, g->member_titles[slot]);
+        g->dressed[slot] = 0;
+    }
+}
+
+/** The strip's rows, from the open members: "Catalog (F8)". Rebuilt only
+ *  when the open set, the front tab or a binding changed. */
+static void
+ui_group_strip(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g)
+{
+    uint32_t digest = 2166136261u;
+    int selected = 0;
+
+    for( int slot = 0; slot < g->member_count; slot++ )
+        digest = (digest ^ (uint32_t)(g->members[slot] * 4 + g->open[slot] * 2 + (slot == g->shown))) * 16777619u;
+    digest = (digest ^ ui->hotkeys.serial) * 16777619u;
+    if( g->tabs_built && digest == g->tabs_digest )
+        return;
+    g->tab_count = 0;
+    for( int slot = 0; slot < g->member_count; slot++ )
+    {
+        struct EditorUiPanel const* member = &ui->panels[g->members[slot]];
+        int const action = Editor_HotkeyForPanel(member->name);
+        char chords[48];
+
+        if( !g->open[slot] )
+            continue;
+        chords[0] = '\0';
+        if( action >= 0 )
+            Editor_HotkeyDisplay(&ui->hotkeys, (enum Editor_HotkeyAction)action, chords, (int)sizeof(chords));
+        if( chords[0] )
+            snprintf(g->tab_labels[g->tab_count], sizeof(g->tab_labels[0]), "%s (%s)", member->title, chords);
+        else
+            snprintf(g->tab_labels[g->tab_count], sizeof(g->tab_labels[0]), "%s", member->title);
+        g->tab_rows[g->tab_count] = g->tab_labels[g->tab_count];
+        g->tab_slots[g->tab_count] = slot;
+        if( slot == g->shown )
+            selected = g->tab_count;
+        g->tab_count++;
+    }
+    ToriRSChrome_TabsSetTitles(ui->chrome, g->tabs, g->tab_rows, g->tab_count);
+    ToriRSChrome_PanelSetActiveTab(ui->chrome, g->chrome_panel, selected);
+    g->tabs_digest = digest;
+    g->tabs_built = 1;
+}
+
+/** Member `slot` was maximised: put it back, and the group's box with it. */
+static void
+ui_group_unmaximise(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g,
+    int slot)
+{
+    int const panel = ui_group_window(ui, g, slot);
+    struct ToriRSChromePanel const* p = &ui->chrome->panels[panel];
+
+    if( !ToriRSChrome_PanelIsMaximised(ui->chrome, panel) )
+        return;
+    ToriRSChrome_PanelRestore(ui->chrome, panel);
+    if( g->frame_h <= 0 )
+        return;
+    g->x = p->x;
+    g->y = p->y - g->frame_h;
+    g->w = p->fixed_w;
+    g->body_h = p->fixed_h;
+    ToriRSChrome_PanelMove(ui->chrome, g->chrome_panel, g->x, g->y);
+}
+
+/** Bring member `slot` to the front: open in the strip, its window shown
+ *  (placed into the group's box by the next ui_group_place), the one in
+ *  front before it hidden but still open. */
+static void
+ui_group_show(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g,
+    int slot)
+{
+    int const old = g->shown;
+
+    g->open[slot] = 1;
+    if( old >= 0 && old != slot )
+    {
+        ui_group_unmaximise(ui, g, old);
+        ToriRSChrome_PanelSetVisible(ui->chrome, ui_group_window(ui, g, old), 0);
+        g->prev_shown = old;
+    }
+    g->shown = slot;
+    g->parked = 0;
+    ToriRSChrome_PanelSetVisible(ui->chrome, ui_group_window(ui, g, slot), 1);
+    ToriRSChrome_PanelSetVisible(ui->chrome, g->chrome_panel, 1);
+}
+
+/** What comes up when `closing` leaves the strip: the tab shown before it,
+ *  else the next open one after it, else the nearest before it; -1 none. */
+static int
+ui_group_next(
+    const struct EditorUiGroup* g,
+    int closing)
+{
+    if( g->prev_shown >= 0 && g->prev_shown != closing && g->open[g->prev_shown] )
+        return g->prev_shown;
+    for( int slot = closing + 1; slot < g->member_count; slot++ )
+        if( g->open[slot] )
+            return slot;
+    for( int slot = closing - 1; slot >= 0; slot-- )
+        if( g->open[slot] )
+            return slot;
+    return -1;
+}
+
+/** The shown tab leaves the strip (its window closed from wherever, or the
+ *  frame's Close); the next one comes up, or the frame goes. */
+static void
+ui_group_close_shown(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g)
+{
+    int const slot = g->shown;
+    int next;
+
+    ui_group_unmaximise(ui, g, slot);
+    g->open[slot] = 0;
+    ToriRSChrome_PanelSetVisible(ui->chrome, ui_group_window(ui, g, slot), 0);
+    next = ui_group_next(g, slot);
+    g->shown = -1;
+    g->prev_shown = -1;
+    if( next >= 0 )
+        ui_group_show(ui, g, next);
+    else
+        ToriRSChrome_PanelSetVisible(ui->chrome, g->chrome_panel, 0);
+}
+
+/** The layout has no room for the group: frame and windows hidden, the
+ *  strip kept as it is. */
+static void
+ui_group_park(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g)
+{
+    g->parked = 1;
+    ToriRSChrome_PanelSetVisible(ui->chrome, g->chrome_panel, 0);
+    for( int slot = 0; slot < g->member_count; slot++ )
+        ToriRSChrome_PanelSetVisible(ui->chrome, ui_group_window(ui, g, slot), 0);
+}
+
+/** Put member window `panel` into the group's box, under the strip. */
+static void
+ui_group_fill(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g,
+    int panel)
+{
+    ToriRSChrome_PanelSetFixedWidth(ui->chrome, panel, g->w);
+    ToriRSChrome_PanelSetFixedHeight(ui->chrome, panel, g->body_h);
+    /* A fixed height drops rows past the bottom unless the window scrolls,
+     * as the dock column's panels do. */
+    if( g->body_h > 0 )
+        ToriRSChrome_PanelSetScrollable(ui->chrome, panel, 1);
+    ToriRSChrome_PanelMove(ui->chrome, panel, g->x, g->y + g->frame_h);
+}
+
+/**
+ * The frame and the shown window move as one: a new front tab takes the
+ * group's box; a moved frame (its title dragged, the layout) takes the window
+ * with it; a window resized by its edges, maximised or moved by its module
+ * takes the frame with it -- and a resize by the user makes the group the
+ * user's (the frame is what the layout asks).
+ */
+static void
+ui_group_place(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    struct ToriRSChromePanel* frame = &chrome->panels[g->chrome_panel];
+    int const fh = ui_group_frame_height(ui, g);
+    int panel;
+    struct ToriRSChromePanel* p;
+
+    if( g->shown < 0 || g->parked || fh <= 0 )
+        return;
+    panel = ui_group_window(ui, g, g->shown);
+    p = &chrome->panels[panel];
+    if( g->pending_h > 0 )
+    {
+        g->body_h = g->pending_h - fh > 0 ? g->pending_h - fh : 0;
+        g->pending_h = 0;
+        g->placed = -1;
+    }
+    if( g->w <= 0 )
+    {
+        /* Never laid out (a group opened before the first layout, or by a
+         * harness that lays out none): the frame's place, the window's size. */
+        g->x = frame->x;
+        g->y = frame->y;
+        g->w = p->fixed_w > 0 ? p->fixed_w : p->last_rect.w;
+        g->body_h = p->fixed_h;
+        g->placed = -1;
+    }
+    if( g->placed != panel )
+    {
+        if( !ToriRSChrome_PanelIsMaximised(chrome, panel) )
+            ui_group_fill(ui, g, panel);
+        g->placed = panel;
+    }
+    else if( frame->x != g->x || frame->y != g->y )
+    {
+        g->x = frame->x;
+        g->y = frame->y;
+        ui_group_fill(ui, g, panel);
+    }
+    else if( p->x != g->x || p->y != g->y + fh || p->fixed_w != g->w || p->fixed_h != g->body_h )
+    {
+        g->x = p->x;
+        g->y = p->y - fh;
+        g->w = p->fixed_w > 0 ? p->fixed_w : p->last_rect.w;
+        g->body_h = p->fixed_h;
+        ToriRSChrome_PanelMove(chrome, g->chrome_panel, g->x, g->y);
+        if( p->user_placed && !ToriRSChrome_PanelIsMaximised(chrome, panel) )
+        {
+            frame->user_placed = 1;
+            p->user_placed = 0;
+        }
+    }
+    if( frame->fixed_w != g->w )
+        ToriRSChrome_PanelSetFixedWidth(chrome, g->chrome_panel, g->w);
+}
+
+/**
+ * One group, every frame: the strip follows the members' windows (whatever
+ * showed or hid them), the frame shows while a tab is open, the shown window
+ * sits under it.
+ */
+static void
+ui_group_follow(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    int const frame_shown = chrome->panels[g->chrome_panel].visible;
+    unsigned char vis[EDITOR_UI_GROUP_MEMBERS_MAX];
+    int newcomers = 0;
+    int first_newcomer = -1;
+
+    for( int slot = 0; slot < g->member_count; slot++ )
+    {
+        vis[slot] = (unsigned char)(chrome->panels[ui_group_window(ui, g, slot)].visible ? 1 : 0);
+        if( vis[slot] && (slot != g->shown || g->parked) )
+        {
+            newcomers++;
+            if( first_newcomer < 0 )
+                first_newcomer = slot;
+        }
+    }
+    if( newcomers > 0 )
+    {
+        /* Windows shown since the last frame join the strip. One shown on
+         * its own (View, a hotkey, the module, a pop-in) comes to the front;
+         * several at once (the editor opening, Reset layout, panels shown
+         * again) keep the front tab that was, or had been, in front. */
+        int front = first_newcomer;
+        if( newcomers > 1 && g->shown >= 0 && vis[g->shown] )
+            front = g->shown;
+        else if( newcomers > 1 && g->prev_shown >= 0 && vis[g->prev_shown] )
+            front = g->prev_shown;
+        for( int slot = 0; slot < g->member_count; slot++ )
+            if( vis[slot] )
+            {
+                g->open[slot] = 1;
+                if( slot != front && slot != g->shown )
+                    ToriRSChrome_PanelSetVisible(chrome, ui_group_window(ui, g, slot), 0);
+            }
+        ui_group_show(ui, g, front);
+    }
+    else if( g->parked )
+    {
+        /* Shown again by the layout's own reopen, or Reset layout. */
+        if( frame_shown && g->shown >= 0 )
+            ui_group_show(ui, g, g->shown);
+        else if( frame_shown )
+            ToriRSChrome_PanelSetVisible(chrome, g->chrome_panel, 0);
+    }
+    else if( g->shown >= 0 && (!vis[g->shown] || !frame_shown) )
+        /* The shown window closed (View, Pop out, the module) -- or the
+         * frame's own Close, which is the shown tab's. */
+        ui_group_close_shown(ui, g);
+    else if( g->shown < 0 && frame_shown )
+    {
+        /* Something showed the frame itself (Reset layout's default set). */
+        int const open = ui_group_next(g, -1);
+        if( open >= 0 )
+            ui_group_show(ui, g, open);
+        else
+            ToriRSChrome_PanelSetVisible(chrome, g->chrome_panel, 0);
+    }
+    for( int slot = 0; slot < g->member_count; slot++ )
+        ui_group_dress(ui, g, slot, 1);
+    ui_group_strip(ui, g);
+    ui_group_place(ui, g);
+}
+
+/** Every group, every frame. A popped-out window lays out its one panel
+ *  alone: there every member wears its own title again. */
+static void
+ui_groups_follow(struct EditorUi* ui)
+{
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup* g = &ui->groups[i];
+        if( ui->solo_panel >= 0 )
+        {
+            for( int slot = 0; slot < g->member_count; slot++ )
+                ui_group_dress(ui, g, slot, 0);
+            continue;
+        }
+        ui_group_follow(ui, g);
+    }
+}
+
+/** A tab click: that member to the front. 1 when `widget` was a strip. */
+static int
+ui_groups_activate(
+    struct EditorUi* ui,
+    int widget)
+{
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup* g = &ui->groups[i];
+        int tab;
+        if( widget != g->tabs )
+            continue;
+        tab = ToriRSChrome_PanelActiveTab(ui->chrome, g->chrome_panel);
+        if( tab >= 0 && tab < g->tab_count && g->tab_slots[tab] != g->shown )
+        {
+            ui_group_show(ui, g, g->tab_slots[tab]);
+            ui_group_strip(ui, g);
+            ui_group_place(ui, g);
+        }
+        return 1;
+    }
+    return 0;
+}
+
+int
+Editor_UiRegisterGroup(
+    struct EditorUi* ui,
+    const char* name,
+    const char* title)
+{
+    struct EditorUiGroup* g;
+    int frame;
+
+    assert(ui);
+    assert(name);
+    assert(title);
+    assert(name[0]);
+    assert(strlen(name) < EDITOR_LAYOUT_NAME_MAX);
+    assert(ui->group_count < EDITOR_UI_GROUPS_MAX);
+    assert(!Editor_UiFindGroup(ui, name));
+
+    g = &ui->groups[ui->group_count];
+    memset(g, 0, sizeof(*g));
+    snprintf(g->name, sizeof(g->name), "%s", name);
+    snprintf(g->title, sizeof(g->title), "%s", title);
+    g->shown = -1;
+    g->prev_shown = -1;
+    g->placed = -1;
+    frame = ToriRSChrome_PanelAdd(
+        ui->chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X), edp_px(ui, EDP_TOP_Y), edp_px(ui, EDP_COL_W),
+        g->title);
+    assert(frame >= 0);
+    /* The frame is one of this registry's windows: the next one after the
+     * modules' (while Editor_UiRegisterToolsPanels runs, panel_end is set
+     * just before the groups are added). */
+    assert(ui->panel_end > ui->panel_first);
+    assert(frame == ui->panel_end);
+    ui->panel_end = frame + 1;
+    g->chrome_panel = frame;
+    g->tabs = ToriRSChrome_Tabs(ui->chrome, frame, g->tab_rows, 0, 0);
+    assert(g->tabs >= 0);
+    /* Close and Pop out act on the shown tab (ui_group_follow,
+     * ui_popout_tick); the shown window's own edges resize the group. */
+    ToriRSChrome_PanelSetClosable(ui->chrome, frame, 1);
+    ToriRSChrome_PanelSetPoppable(ui->chrome, frame, 1);
+    ToriRSChrome_PanelSetVisible(ui->chrome, frame, 0);
+    return ui->group_count++;
+}
+
+/** Insert registry panel `reg` into `g` at member slot `at`. */
+static void
+ui_group_insert(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g,
+    int reg,
+    int at)
+{
+    assert(g->member_count < EDITOR_UI_GROUP_MEMBERS_MAX);
+    assert(at >= 0);
+    assert(at <= g->member_count);
+    for( int slot = g->member_count; slot > at; slot-- )
+    {
+        g->members[slot] = g->members[slot - 1];
+        g->open[slot] = g->open[slot - 1];
+        g->dressed[slot] = g->dressed[slot - 1];
+        memcpy(g->member_titles[slot], g->member_titles[slot - 1], sizeof(g->member_titles[slot]));
+    }
+    g->members[at] = reg;
+    g->open[at] = 0;
+    g->dressed[at] = 0;
+    g->member_titles[at][0] = '\0';
+    g->member_count++;
+    if( g->shown >= at )
+        g->shown++;
+    if( g->prev_shown >= at )
+        g->prev_shown++;
+    ui->group_plus1[reg] = (unsigned char)(g - ui->groups + 1);
+    /* A window open as a panel of its own joins the strip (as the front tab,
+     * on the next follow); a hidden one joins closed. */
+    g->tabs_built = 0;
+}
+
+/** Take registry panel `reg` out of its group: its title back, its window
+ *  open as a panel of its own when it was open in the strip. */
+static void
+ui_group_remove(
+    struct EditorUi* ui,
+    int reg)
+{
+    struct EditorUiGroup* g = ui_group_of(ui, reg);
+    int const panel = ui->panels[reg].chrome_panel;
+    int slot;
+    int was_shown;
+    int was_open;
+
+    assert(g);
+    slot = ui_group_slot(g, reg);
+    assert(slot >= 0);
+    was_shown = slot == g->shown;
+    was_open = g->open[slot] && !g->parked;
+    if( was_shown )
+        ui_group_unmaximise(ui, g, slot);
+    ui_group_dress(ui, g, slot, 0);
+    for( int i = slot; i + 1 < g->member_count; i++ )
+    {
+        g->members[i] = g->members[i + 1];
+        g->open[i] = g->open[i + 1];
+        g->dressed[i] = g->dressed[i + 1];
+        memcpy(g->member_titles[i], g->member_titles[i + 1], sizeof(g->member_titles[i]));
+    }
+    g->member_count--;
+    if( g->prev_shown == slot )
+        g->prev_shown = -1;
+    else if( g->prev_shown > slot )
+        g->prev_shown--;
+    if( was_shown )
+        g->shown = -1;
+    else if( g->shown > slot )
+        g->shown--;
+    if( g->placed == panel )
+        g->placed = -1;
+    ui->group_plus1[reg] = 0;
+    g->tabs_built = 0;
+    ToriRSChrome_PanelSetVisible(ui->chrome, panel, was_open);
+    if( was_shown )
+    {
+        int const next = ui_group_next(g, -1);
+        if( next >= 0 && !g->parked )
+            ui_group_show(ui, g, next);
+        else if( next < 0 )
+            ToriRSChrome_PanelSetVisible(ui->chrome, g->chrome_panel, 0);
+    }
+    /* The window is the layout's again, as any panel of its own. */
+    if( panel >= ui->panel_first && panel < ui->panel_end )
+    {
+        int const at = panel - ui->panel_first;
+        ui->docked[at] = 0;
+        ui->flown[at] = 0;
+        ui->closed[at] = 0;
+    }
+    ui->laid_out = 0;
+}
+
+void
+Editor_UiJoinGroup(
+    struct EditorUi* ui,
+    const char* module,
+    const char* group)
+{
+    struct EditorUiGroup* g;
+    int reg;
+
+    assert(ui);
+    assert(module);
+    assert(group);
+    reg = ui_registry_index(ui, module);
+    g = Editor_UiFindGroup(ui, group);
+    assert(reg >= 0);
+    assert(g);
+    assert(ui->panels[reg].title);
+    assert(ui->panels[reg].chrome_panel >= ui->panel_first);
+    assert(ui->panels[reg].chrome_panel < ui->panel_end);
+    assert(ui->chrome->panels[ui->panels[reg].chrome_panel].style == TORIRS_CHROME_PANEL_WINDOW);
+    assert(ui->panels[reg].chrome_panel != ui->world_panel);
+    assert(!ui->group_plus1[reg]);
+    assert(g->member_count < EDITOR_UI_GROUP_MEMBERS_MAX);
+
+    /* The first group a module joins is its default. */
+    {
+        int homed = 0;
+        for( int i = 0; i < ui->group_count; i++ )
+            for( int h = 0; h < ui->groups[i].home_count; h++ )
+                if( ui->groups[i].home[h] == reg )
+                    homed = 1;
+        if( !homed )
+        {
+            assert(g->home_count < EDITOR_UI_GROUP_MEMBERS_MAX);
+            g->home[g->home_count++] = reg;
+        }
+    }
+    ui_group_insert(ui, g, reg, g->member_count);
+    ui->laid_out = 0;
+}
+
+void
+Editor_UiLeaveGroup(
+    struct EditorUi* ui,
+    const char* module)
+{
+    int reg;
+
+    assert(ui);
+    assert(module);
+    reg = ui_registry_index(ui, module);
+    assert(reg >= 0);
+    assert(ui->group_plus1[reg]);
+    ui_group_remove(ui, reg);
+}
+
+void
+Editor_UiResetGroups(struct EditorUi* ui)
+{
+    assert(ui);
+    /* Out of every group that is not its default... */
+    for( int reg = 0; reg < ui->panel_count; reg++ )
+    {
+        struct EditorUiGroup* g = ui_group_of(ui, reg);
+        int home = 0;
+        if( !g )
+            continue;
+        for( int h = 0; h < g->home_count; h++ )
+            if( g->home[h] == reg )
+                home = 1;
+        if( !home )
+            ui_group_remove(ui, reg);
+    }
+    /* ...and into its default one, at its default place in the strip. */
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup* g = &ui->groups[i];
+        for( int h = 0; h < g->home_count; h++ )
+        {
+            int const reg = g->home[h];
+            int at = 0;
+            if( ui->group_plus1[reg] )
+                continue;
+            for( int before = 0; before < h; before++ )
+                if( ui_group_slot(g, g->home[before]) >= 0 )
+                    at = ui_group_slot(g, g->home[before]) + 1;
+            ui_group_insert(ui, g, reg, at);
+        }
+    }
+    ui->laid_out = 0;
+}
+
+struct EditorUiGroup*
+Editor_UiFindGroup(
+    struct EditorUi* ui,
+    const char* name)
+{
+    assert(ui);
+    assert(name);
+    for( int i = 0; i < ui->group_count; i++ )
+        if( strcmp(ui->groups[i].name, name) == 0 )
+            return &ui->groups[i];
+    return NULL;
+}
+
+int
+Editor_UiGroupOf(
+    const struct EditorUi* ui,
+    const char* module)
+{
+    int reg;
+
+    assert(ui);
+    assert(module);
+    reg = ui_registry_index(ui, module);
+    return reg >= 0 ? (int)ui->group_plus1[reg] - 1 : -1;
+}
+
+int
+Editor_UiPanelInStrip(
+    const struct EditorUi* ui,
+    const char* module)
+{
+    int const group = Editor_UiGroupOf(ui, module);
+    struct EditorUiGroup const* g;
+    int slot;
+
+    if( group < 0 )
+        return 0;
+    g = &ui->groups[group];
+    slot = ui_group_slot(g, ui_registry_index(ui, module));
+    assert(slot >= 0);
+    return g->open[slot];
+}
+
+const char*
+Editor_UiGroupShown(
+    const struct EditorUi* ui,
+    int group)
+{
+    struct EditorUiGroup const* g;
+
+    assert(ui);
+    assert(group >= 0);
+    assert(group < ui->group_count);
+    g = &ui->groups[group];
+    return g->shown >= 0 ? ui->panels[g->members[g->shown]].name : NULL;
+}
+
+void
+Editor_UiGroupShow(
+    struct EditorUi* ui,
+    const char* module)
+{
+    int reg;
+    struct EditorUiGroup* g;
+
+    assert(ui);
+    assert(module);
+    reg = ui_registry_index(ui, module);
+    assert(reg >= 0);
+    g = ui_group_of(ui, reg);
+    assert(g);
+    ui_group_show(ui, g, ui_group_slot(g, reg));
+    ui_group_strip(ui, g);
+    ui_group_place(ui, g);
+}
+
+/** The default groups (design #workbench): the right column's two and the
+ *  bottom strip's, each holding whichever of its modules this window has. */
+static void
+ui_default_groups(struct EditorUi* ui)
+{
+    static const struct
+    {
+        const char* name;
+        const char* title;
+        const char* members[4];
+    } k_groups[] = {
+        { "right-top", "Catalog / Locs / Spawns / Inspector", { "catalog", "locs", "spawns", "inspector" } },
+        { "right-mid", "Terrain / Palette / Catalog palette", { "terrain", "palette", "catalog_palette", NULL } },
+        { "bottom", "Console / History / Problems", { "console", "history", "problems", NULL } },
+    };
+
+    for( int i = 0; i < (int)(sizeof(k_groups) / sizeof(k_groups[0])); i++ )
+    {
+        (void)Editor_UiRegisterGroup(ui, k_groups[i].name, k_groups[i].title);
+        for( int m = 0; m < 4 && k_groups[i].members[m]; m++ )
+            if( Editor_UiFindPanel(ui, k_groups[i].members[m]) )
+                Editor_UiJoinGroup(ui, k_groups[i].members[m], k_groups[i].name);
+    }
+}
+
 /* ---- the default layout --------------------------------------------------
  *
  * The World panel (module "world", the 3D view) takes whatever the other
@@ -428,9 +1271,50 @@ _Static_assert(EDITOR_UI_LAYOUT_PANELS_MAX >= TORIRS_CHROME_MAX_PANELS,
  *  column. */
 static const char* const k_dock_order[] = {
     "terrain", "palette", "locs", "spawns", "rect", "inspector", "squares", "areas", "catalog", "preview",
-    "catalog_palette", "history",
+    "catalog_palette", "history", NULL,
 };
-#define UI_DOCK_COUNT ((int)(sizeof(k_dock_order) / sizeof(k_dock_order[0])))
+#define UI_DOCK_COUNT ((int)(sizeof(k_dock_order) / sizeof(k_dock_order[0])) - 1)
+
+/* The column per workspace (workbench 6.8): its own panels first, in the
+ * design table's order, then the Build column's for whatever else is opened
+ * there. A group takes the place of its first member in the order. Build's
+ * is the default layout's own (k_dock_order), so the boot layout is the one
+ * it always was. */
+static const char* const k_dock_terrain[] = {
+    "terrain", "palette", "squares", "inspector", "catalog_palette", "locs", "spawns", "rect", "areas",
+    "catalog", "preview", "history", NULL,
+};
+static const char* const k_dock_script[] = {
+    "record", "triggers", "locbuilder", "npcbuilder", "shelleditor", "shop", "quest", "terrain", "palette", "locs", "spawns",
+    "rect", "inspector", "squares", "areas", "catalog", "preview", "catalog_palette", "history", NULL,
+};
+static const char* const k_dock_playtest[] = {
+    "live", "accounts", "scenes", "encounter", "terrain", "palette", "locs", "spawns", "rect", "inspector", "squares", "areas",
+    "catalog", "preview", "catalog_palette", "history", NULL,
+};
+/** Most entries one workspace's column order holds. */
+#define UI_DOCK_MAX 24
+
+static const char* const*
+ui_dock_order(
+    const struct EditorUi* ui,
+    int* out_count)
+{
+    static const char* const* const k_orders[EDITOR_UI_WORKSPACES] = {
+        k_dock_order, k_dock_terrain, k_dock_script, k_dock_playtest,
+    };
+    const char* const* order;
+    int n = 0;
+
+    assert(ui->workspace >= 0);
+    assert(ui->workspace < EDITOR_UI_WORKSPACES);
+    order = k_orders[ui->workspace];
+    while( order[n] )
+        n++;
+    assert(n <= UI_DOCK_MAX);
+    *out_count = n;
+    return order;
+}
 
 /** The chrome panel of registry module `name`, or -1. */
 static int
@@ -452,6 +1336,285 @@ ui_round_down(
     return grid > 0 ? v / grid * grid : v;
 }
 
+/* ---- chrome scale and text size (workbench 6.0b) ----------------------------- */
+
+/* The host's quarter steps (ui/torirs_chrome_scale_q.h) are the chrome
+ * model's quarter units: one number crosses the shim unconverted. */
+_Static_assert(TORIRS_CHROME_SCALEQ_ONE == TORIRS_CHROME_SCALE_Q_ONE, "one quarter unit");
+_Static_assert(TORIRS_CHROME_SCALEQ_MIN == TORIRS_CHROME_SCALE_Q_MIN, "the same smallest scale");
+_Static_assert(TORIRS_CHROME_SCALEQ_MAX == TORIRS_CHROME_SCALE_Q_MAX, "the same largest scale");
+
+int
+Editor_ChromeSetScaleQ(
+    struct ToriRSChrome* chrome,
+    int q)
+{
+    assert(chrome);
+    assert(q >= TORIRS_CHROME_SCALEQ_MIN);
+    assert(q <= TORIRS_CHROME_SCALEQ_MAX);
+    if( ToriRSChrome_ScaleQ(chrome) == q )
+        return 0;
+    ToriRSChrome_SetScaleQ(chrome, q);
+    return 1;
+}
+
+int
+Editor_ChromeScaleQ(const struct ToriRSChrome* chrome)
+{
+    assert(chrome);
+    return ToriRSChrome_ScaleQ(chrome);
+}
+
+int
+Editor_ChromeScaleInteger(int q)
+{
+    assert(q >= TORIRS_CHROME_SCALEQ_MIN);
+    assert(q <= TORIRS_CHROME_SCALEQ_MAX);
+    /* ToriRSChrome_Scale is the tier the scale reads its bitmaps from, the
+     * nearest at or above: answering anything else would have
+     * App_SetChromeScale reset the quarter scale every frame. */
+    return (q + EDITOR_UI_SCALEQ_ONE - 1) / EDITOR_UI_SCALEQ_ONE;
+}
+
+int
+Editor_UiPx(
+    const struct EditorUi* ui,
+    int px)
+{
+    assert(ui);
+    return ToriRSChrome_Px(ui->chrome, px);
+}
+
+int
+Editor_UiChromeScaleFor(
+    struct EditorUi* ui,
+    int auto_q,
+    int touch)
+{
+    int q;
+
+    assert(ui);
+    assert(auto_q >= TORIRS_CHROME_SCALEQ_MIN);
+    assert(auto_q <= TORIRS_CHROME_SCALEQ_MAX);
+    ui->scale_auto_q = auto_q;
+    ui->scale_touch = touch ? 1 : 0;
+    if( ui->prefs.chrome_scale_q == EDITOR_PREFS_SCALE_AUTO )
+        return auto_q;
+    q = ui->prefs.chrome_scale_q;
+    /* The choice is kept (the same prefs file on a desk draws it as asked);
+     * this device draws no smaller than a finger needs. */
+    if( touch && q < TORIRS_CHROME_SCALEQ_TOUCH_MIN )
+        q = TORIRS_CHROME_SCALEQ_TOUCH_MIN;
+    return q;
+}
+
+void
+Editor_UiSetChromeScalePref(
+    struct EditorUi* ui,
+    int q)
+{
+    assert(ui);
+    assert(q == EDITOR_PREFS_SCALE_AUTO || ToriRSChromeScaleQ_StepIndex(q) >= 0);
+    if( ui->prefs.chrome_scale_q == q )
+        return;
+    ui->prefs.chrome_scale_q = q;
+    ui->prefs_serial++;
+    if( q == EDITOR_PREFS_SCALE_AUTO )
+        Editor_UiLog(ui, "editor: chrome scale Auto (the display: %d %%)", ToriRSChromeScaleQ_Percent(ui->scale_auto_q));
+    else
+        Editor_UiLog(ui, "editor: chrome scale %d %%", ToriRSChromeScaleQ_Percent(q));
+}
+
+/** The theme as Text size wants it: the face rows lay out in and their
+ *  height. Asked every frame (two ints), so a theme the App installs later
+ *  (App_SetChromeTheme, a skin change) wears this window's text size too. */
+static void
+ui_text_size_follow(struct EditorUi* ui)
+{
+    struct ToriRSChromeTheme theme = ui->chrome->theme;
+    int const face = ui->prefs.text_large ? TORIRS_CHROME_FONT_MENU : TORIRS_CHROME_FONT_BODY;
+    int const row_h = ui->prefs.text_large ? EDITOR_UI_LARGE_ROW_H : 0;
+
+    /* Normal leaves a theme's own face alone (the flat developer look rows
+     * in Small): only Large has an opinion, and turning it off restores
+     * the face it replaced. */
+    if( !ui->prefs.text_large && theme.row_h == 0 )
+        return;
+    if( ui->prefs.text_large && theme.font_row == face && theme.row_h == row_h )
+        return;
+    if( ui->prefs.text_large )
+    {
+        if( theme.row_h == 0 )
+            ui->text_face_normal = theme.font_row;
+        theme.font_row = face;
+    }
+    else
+        theme.font_row = ui->text_face_normal;
+    theme.row_h = row_h;
+    ToriRSChrome_SetTheme(ui->chrome, &theme);
+    /* Every row changed height: the windows the layout sized to their
+     * content are a different size now. */
+    ui->laid_out = 0;
+}
+
+void
+Editor_UiSetTextLarge(
+    struct EditorUi* ui,
+    int large)
+{
+    assert(ui);
+    large = large ? 1 : 0;
+    if( ui->prefs.text_large == large )
+        return;
+    ui->prefs.text_large = large;
+    ui->prefs_serial++;
+    ui_text_size_follow(ui);
+    Editor_UiLog(ui, "editor: text size %s", large ? "Large" : "Normal");
+}
+
+void
+Editor_UiSetTextSmooth(
+    struct EditorUi* ui,
+    int smooth)
+{
+    assert(ui);
+    smooth = smooth ? 1 : 0;
+    if( ui->prefs.text_smooth == smooth )
+        return;
+    ui->prefs.text_smooth = smooth;
+    ui->prefs_serial++;
+    Editor_UiLog(ui, "editor: text rendering %s", smooth ? "smooth always" : "bitmap at whole scales");
+}
+
+int
+Editor_UiTextSmooth(const struct EditorUi* ui)
+{
+    assert(ui);
+    return ui->prefs.text_smooth;
+}
+
+void
+Editor_UiApplyPrefs(
+    struct EditorUi* ui,
+    const struct Editor_Prefs* prefs)
+{
+    assert(ui);
+    assert(prefs);
+    assert(prefs->chrome_scale_q == EDITOR_PREFS_SCALE_AUTO || ToriRSChromeScaleQ_StepIndex(prefs->chrome_scale_q) >= 0);
+    ui->prefs.chrome_scale_q = prefs->chrome_scale_q;
+    ui->prefs.text_large = prefs->text_large ? 1 : 0;
+    ui->prefs.text_smooth = prefs->text_smooth ? 1 : 0;
+    ui_text_size_follow(ui);
+}
+
+/* ---- the Dock button ------------------------------------------------------------ */
+
+int
+Editor_UiModuleNeedsWorld(const char* module)
+{
+    assert(module);
+    return strcmp(module, "world") == 0 || strcmp(module, "preview") == 0;
+}
+
+/** The first VLIST on chrome panel `panel` (the Catalog's rows), or -1. */
+static int
+ui_panel_first_vlist(
+    const struct ToriRSChrome* chrome,
+    int panel)
+{
+    for( int i = 0; i < chrome->widget_count; i++ )
+        if( chrome->widgets[i].panel == panel && chrome->widgets[i].kind == TORIRS_CHROME_W_VLIST )
+            return i;
+    return -1;
+}
+
+int
+Editor_UiDockBack(struct EditorUi* ui)
+{
+    int32_t values[4];
+    int at = -1;
+    int list;
+
+    assert(ui);
+    assert(ui->solo_panel >= 0);
+    for( int i = 0; i < ui->panel_count; i++ )
+        if( ui->panels[i].chrome_panel == ui->solo_panel )
+            at = i;
+    assert(at >= 0);
+    values[0] = at;
+    values[1] = (int32_t)++ui->dock_serial;
+    /* Where the reader was, so the panel docks back scrolled where it was
+     * left: the panel's own scroll (logical px, the same at either window's
+     * scale) and its list's first row (-1: it has none). */
+    values[2] = ToriRSChrome_PanelScroll(ui->chrome, ui->solo_panel);
+    list = ui_panel_first_vlist(ui->chrome, ui->solo_panel);
+    values[3] = list >= 0 ? ui->chrome->widgets[list].imin : -1;
+    if( !Editor_UiPublish(ui, TORIRSMAPED_STATE_DOCK_PANEL, values, 4) )
+    {
+        Editor_UiLog(ui, "editor: Dock %s: no session to tell the main window through; close this window and "
+                         "use View > %s there", ui->panels[at].title, ui->panels[at].title);
+        return 0;
+    }
+    Editor_UiLog(ui, "editor: %s docks back into the main window; this window closes", ui->panels[at].title);
+    ui->dock_exit = 1;
+    return 1;
+}
+
+/** Per frame: the solo window's title-bar Dock. */
+static void
+ui_dock_tick(struct EditorUi* ui)
+{
+    int const pressed = ToriRSChrome_TakeDock(ui->chrome);
+
+    if( pressed < 0 )
+        return;
+    /* Only a solo window wears it; a press on a stale box is nobody's. */
+    if( ui->solo_panel >= 0 && pressed == ui->solo_panel )
+        (void)Editor_UiDockBack(ui);
+}
+
+/**
+ * Another window of the Client docked registry module `index`. The window
+ * that shows the panel set (not solo, the editor open) shows it again exactly
+ * as View > <panel> does -- the chrome window shown, its group's strip and
+ * the layout following -- and a panel already open stays as it is. A solo
+ * window, or a plain viewer with the panels hidden, is not the one meant.
+ */
+static void
+ui_dock_heard(
+    struct EditorUi* ui,
+    const int32_t* values,
+    int count)
+{
+    struct EditorUiPanel const* panel;
+    int const index = values[0];
+    int list;
+
+    if( ui->solo_panel >= 0 || !ui->visible )
+        return;
+    if( index < 0 || index >= ui->panel_count )
+    {
+        Editor_UiLog(ui, "editor: a window docked panel %d, which this window does not have", index);
+        return;
+    }
+    panel = &ui->panels[index];
+    if( !panel->title || panel->chrome_panel < 0 )
+        return;
+    if( !ui->chrome->panels[panel->chrome_panel].visible )
+        ToriRSChrome_PanelSetVisible(ui->chrome, panel->chrome_panel, 1);
+    /* The popped window's place (a two-value dock from an older build has
+     * none): the panel's scroll, clamped by its next Build, and its list's
+     * first row, clamped to its rows. */
+    if( count >= 4 )
+    {
+        ToriRSChrome_PanelSetScroll(ui->chrome, panel->chrome_panel, values[2] > 0 ? values[2] : 0);
+        list = ui_panel_first_vlist(ui->chrome, panel->chrome_panel);
+        if( list >= 0 && values[3] >= 0 )
+            ToriRSChrome_VListSetScroll(ui->chrome, list, values[3]);
+    }
+    Editor_UiLog(ui, "editor: %s docked back from its own window", panel->title);
+}
+
 /**
  * The modules size and place their windows in chrome pixels of the scale at
  * registration; the chrome stores those numbers as given. When the scale
@@ -462,7 +1625,10 @@ ui_round_down(
 static void
 ui_follow_scale(struct EditorUi* ui)
 {
-    int const scale = ToriRSChrome_Scale(ui->chrome);
+    /* In quarter units, so a 1.5x scale scales the windows by 3/2. At the
+     * integer scales the ratio is the same fraction it always was (8/4 is
+     * 2/1) and every truncation lands where it did. */
+    int const scale = Editor_ChromeScaleQ(ui->chrome);
     int const was = ui->layout_scale;
 
     if( was <= 0 || scale == was )
@@ -475,6 +1641,16 @@ ui_follow_scale(struct EditorUi* ui)
         if( p->fixed_h > 0 )
             ToriRSChrome_PanelSetFixedHeight(ui->chrome, i, p->fixed_h * scale / was);
         ToriRSChrome_PanelMove(ui->chrome, i, p->x * scale / was, p->y * scale / was);
+    }
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup* g = &ui->groups[i];
+        g->x = g->x * scale / was;
+        g->y = g->y * scale / was;
+        g->w = g->w * scale / was;
+        g->body_h = g->body_h * scale / was;
+        g->pending_h = g->pending_h * scale / was;
+        g->frame_h = 0;
     }
     ui->layout_scale = scale;
     ui->laid_out = 0;
@@ -492,8 +1668,11 @@ ui_follow_surface(struct EditorUi* ui)
 /** A dock candidate's heights: what it asks for and the least it takes. */
 struct UiDockSlot
 {
+    /** The chrome panel placed: a module's window, or a group's frame. */
     int panel;
     struct EditorUiPanel* module;
+    /** A group's place: its frame and members are placed together. */
+    struct EditorUiGroup* group;
     int natural;
     int min;
     int h;
@@ -551,6 +1730,50 @@ Editor_UiSetWindowBox(
     ui->window_h = h;
 }
 
+/** The bottom strip's height `h` (the console, or its group's frame) held so
+ *  the world keeps EDP_WORLD_MIN_PERCENT of the surface beside the dock at
+ *  `dock_x` (shortened to that, scrolling); 0 when that leaves it under half
+ *  a dock panel. */
+static int
+ui_strip_capped(
+    struct EditorUi* ui,
+    int world,
+    int h,
+    int left,
+    int dock_x,
+    int avail,
+    int grid)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    /* The world is the World panel's BODY: its title bar and rails come off
+     * the region first (the same insets at any box). */
+    int inset_w = 0;
+    int inset_h = 0;
+    int body_w;
+
+    if( dock_x - left <= 0 )
+        return h;
+    if( world >= 0 )
+    {
+        struct ToriRSChromeRect const box = ToriRSChrome_PanelRect(chrome, world);
+        struct ToriRSChromeRect const body = ToriRSChrome_PanelBodyRect(chrome, world);
+        inset_w = box.w - body.w;
+        inset_h = box.h - body.h;
+    }
+    body_w = dock_x - left - inset_w;
+    if( body_w > 0 )
+    {
+        int64_t const min_body_h =
+            ((int64_t)chrome->surface_w * chrome->surface_h * EDP_WORLD_MIN_PERCENT / 100 + body_w - 1) / body_w;
+        int const cap = ui_round_down(avail - inset_h - (int)min_body_h, grid);
+        if( h > cap )
+            h = cap;
+    }
+    if( h < edp_px(ui, EDP_DOCK_MIN_H) / 2 )
+        h = 0;
+    return h;
+}
+
 /** Measure a column candidate laid out at the column's width with no fixed
  *  height (the caller ran a Build since setting both). */
 static void
@@ -599,7 +1822,128 @@ ui_capture_boot(struct EditorUi* ui)
             ui->member[panel - ui->panel_first] = ui->boot_member[panel - ui->panel_first] =
                 (unsigned char)(chrome->panels[panel].visible ? 1 : 0);
     }
+    /* A group is in the default set when any of its members is. */
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup const* g = &ui->groups[i];
+        int const at = g->chrome_panel - ui->panel_first;
+        int any = chrome->panels[g->chrome_panel].visible || ui_group_has_open(g);
+        for( int slot = 0; slot < g->member_count; slot++ )
+            any |= chrome->panels[ui_group_window(ui, g, slot)].visible;
+        ui->member[at] = ui->boot_member[at] = (unsigned char)(any ? 1 : 0);
+    }
+    /* The strips as they booted, for the Build workspace's default. */
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup* g = &ui->groups[i];
+        g->boot_shown = g->shown >= 0 && g->shown < g->member_count ? g->shown : -1;
+        for( int slot = 0; slot < g->member_count; slot++ )
+        {
+            g->boot_open[slot] =
+                (unsigned char)(g->open[slot] || chrome->panels[ui_group_window(ui, g, slot)].visible ? 1 : 0);
+            if( g->boot_shown < 0 && g->boot_open[slot] && chrome->panels[ui_group_window(ui, g, slot)].visible )
+                g->boot_shown = slot;
+        }
+        if( g->boot_shown < 0 )
+            for( int slot = 0; slot < g->member_count && g->boot_shown < 0; slot++ )
+                if( g->boot_open[slot] )
+                    g->boot_shown = slot;
+    }
     ui->booted_layout = 1;
+}
+
+/** Make a group measurable at width `w` in the next Build: the frame and
+ *  every member window shown, content-sized. What showed before is kept in
+ *  `saved` for ui_group_measure_end. */
+static void
+ui_group_measure_begin(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g,
+    int w,
+    unsigned char* saved)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+
+    saved[0] = (unsigned char)chrome->panels[g->chrome_panel].visible;
+    ToriRSChrome_PanelSetFixedWidth(chrome, g->chrome_panel, w);
+    ToriRSChrome_PanelSetFixedHeight(chrome, g->chrome_panel, 0);
+    ToriRSChrome_PanelSetVisible(chrome, g->chrome_panel, 1);
+    for( int slot = 0; slot < g->member_count; slot++ )
+    {
+        int const panel = ui_group_window(ui, g, slot);
+        saved[1 + slot] = (unsigned char)chrome->panels[panel].visible;
+        ToriRSChrome_PanelSetFixedWidth(chrome, panel, w);
+        ToriRSChrome_PanelSetFixedHeight(chrome, panel, 0);
+        ToriRSChrome_PanelSetVisible(chrome, panel, 1);
+    }
+}
+
+/** After the Build: the group's heights (its strip plus its largest
+ *  member's, and the least of that it takes), and every window back as it
+ *  showed. */
+static void
+ui_group_measure_end(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g,
+    const unsigned char* saved,
+    int* out_natural,
+    int* out_min)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    int const floor_h = edp_px(ui, EDP_DOCK_MIN_H);
+    int const frame_h = ToriRSChrome_PanelRect(chrome, g->chrome_panel).h;
+    int natural = 0;
+    int min = 0;
+
+    if( frame_h > 0 )
+        g->frame_h = frame_h;
+    for( int slot = 0; slot < g->member_count; slot++ )
+    {
+        int const panel = ui_group_window(ui, g, slot);
+        int const h = ToriRSChrome_PanelRect(chrome, panel).h;
+        int const least = h < floor_h ? h : floor_h;
+        if( h > natural )
+            natural = h;
+        if( least > min )
+            min = least;
+        ToriRSChrome_PanelSetVisible(chrome, panel, saved[1 + slot]);
+    }
+    ToriRSChrome_PanelSetVisible(chrome, g->chrome_panel, saved[0]);
+    *out_natural = g->frame_h + natural;
+    *out_min = g->frame_h + min;
+}
+
+/** Dock a group into the box (x, y) w x h: the frame at the top, every
+ *  member window under its strip (the shown one showing). */
+static void
+ui_group_dock(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+
+    ToriRSChrome_PanelSetFixedWidth(chrome, g->chrome_panel, w);
+    ToriRSChrome_PanelSetFixedHeight(chrome, g->chrome_panel, 0);
+    ToriRSChrome_PanelMove(chrome, g->chrome_panel, x, y);
+    g->x = x;
+    g->y = y;
+    g->w = w;
+    g->body_h = h - g->frame_h > 0 ? h - g->frame_h : 0;
+    g->pending_h = 0;
+    g->parked = 0;
+    for( int slot = 0; slot < g->member_count; slot++ )
+    {
+        int const panel = ui_group_window(ui, g, slot);
+        if( !ToriRSChrome_PanelIsMaximised(chrome, panel) )
+            ui_group_fill(ui, g, panel);
+        ToriRSChrome_PanelSetVisible(chrome, panel, slot == g->shown);
+    }
+    g->placed = g->shown >= 0 ? ui_group_window(ui, g, g->shown) : -1;
+    ToriRSChrome_PanelSetVisible(chrome, g->chrome_panel, g->shown >= 0);
 }
 
 /** A popped-out window's layout: its one panel over the whole surface, every
@@ -616,6 +1960,10 @@ ui_layout_solo(struct EditorUi* ui)
     ToriRSChrome_PanelSetClosable(chrome, solo, 0);
     ToriRSChrome_PanelSetPoppable(chrome, solo, 0);
     ToriRSChrome_PanelSetResizable(chrome, solo, 0);
+    /* The way back in from this side (design #workbench "Every panel pops
+     * out"): the title bar's Dock, at its right end where the main window's
+     * Close and Pop out sit -- the OS window's own close ends it. */
+    ToriRSChrome_PanelSetDockable(chrome, solo, 1);
     ToriRSChrome_PanelSetFixedWidth(chrome, solo, chrome->surface_w);
     ToriRSChrome_PanelSetFixedHeight(chrome, solo, chrome->surface_h);
     ToriRSChrome_PanelSetScrollable(chrome, solo, 1);
@@ -638,13 +1986,17 @@ void
 Editor_UiLayout(struct EditorUi* ui)
 {
     struct ToriRSChrome* chrome;
-    struct UiDockSlot slots[UI_DOCK_COUNT];
+    struct UiDockSlot slots[UI_DOCK_MAX];
     int slot_count = 0;
+    int dock_count = 0;
+    const char* const* dock_order = ui_dock_order(ui, &dock_count);
     int const grid = edp_px(ui, EDP_GRID);
     int surface_w;
     int surface_h;
     int top = 0;
     int left = 0;
+    /** Where the status bar starts: everything else stops above it. */
+    int bottom;
     int world_bottom;
     int dock_w;
     int dock_x;
@@ -658,9 +2010,15 @@ Editor_UiLayout(struct EditorUi* ui)
     int world_wanted;
     int columns;
     int column_h;
-    /** Where the strips end: the surface's bottom, or the status bar's top. */
-    int bottom;
     int compact_col;
+    /* The bottom strip: the console's window, or its group's frame. */
+    struct EditorUiGroup* strip_group = NULL;
+    int strip;
+    int group_added[EDITOR_UI_GROUPS_MAX];
+    unsigned char group_saved[EDITOR_UI_GROUPS_MAX][EDITOR_UI_GROUP_MEMBERS_MAX + 1];
+    int strip_natural = 0;
+    int strip_min = 0;
+    int strip_measured = 0;
 
     assert(ui);
     chrome = ui->chrome;
@@ -675,6 +2033,9 @@ Editor_UiLayout(struct EditorUi* ui)
         ui_layout_solo(ui);
         return;
     }
+    /* The strips as the windows have them now (a window shown or closed
+     * since the last frame is in or out of its strip). */
+    ui_groups_follow(ui);
     menubar = ui_chrome_panel(ui, "menubar");
     statusbar = ui_chrome_panel(ui, "statusbar");
     rail = ui_chrome_panel(ui, "toolrail");
@@ -688,18 +2049,51 @@ Editor_UiLayout(struct EditorUi* ui)
     for( int i = ui->panel_first; i < ui->panel_end && i < chrome->panel_count; i++ )
         if( chrome->panels[i].collapsed )
             ToriRSChrome_PanelSetCollapsed(chrome, i, 0);
+    memset(group_added, 0, sizeof(group_added));
+    strip = console;
+    if( console >= 0 )
+    {
+        strip_group = ui_group_of(ui, ui_registry_index(ui, "console"));
+        if( strip_group )
+            strip = strip_group->chrome_panel;
+    }
 
     /* Who is in the column: the default set (and anything open now), minus
      * what the user closed or dragged out. The first layout fixes the
      * default set as what the modules showed with the editor. */
-    for( int d = 0; d < UI_DOCK_COUNT; d++ )
+    for( int d = 0; d < dock_count; d++ )
     {
-        struct EditorUiPanel* module = Editor_UiFindPanel(ui, k_dock_order[d]);
-        int const panel = ui_chrome_panel(ui, k_dock_order[d]);
+        struct EditorUiPanel* module = Editor_UiFindPanel(ui, dock_order[d]);
+        int const panel = ui_chrome_panel(ui, dock_order[d]);
         int at;
 
         if( panel < 0 )
             continue;
+        /* A member's place is its group's: the first member in this order
+         * puts the group here, and the group is one window of the column. */
+        if( ui_group_of(ui, (int)(module - ui->panels)) )
+        {
+            struct EditorUiGroup* g = ui_group_of(ui, (int)(module - ui->panels));
+            int const frame = g->chrome_panel;
+            if( g == strip_group || group_added[g - ui->groups] )
+                continue;
+            group_added[g - ui->groups] = 1;
+            at = frame - ui->panel_first;
+            ui->docked[at] = 0;
+            if( chrome->panels[frame].user_placed || !ui_group_has_open(g) )
+                continue;
+            if( !chrome->panels[frame].visible && !g->parked && (!ui->member[at] || ui->closed[at]) )
+                continue;
+            if( g->parked && ui->closed[at] )
+                continue;
+            ui->member[at] = 1;
+            slots[slot_count].panel = frame;
+            slots[slot_count].module = NULL;
+            slots[slot_count].group = g;
+            slots[slot_count].col = 0;
+            slot_count++;
+            continue;
+        }
         at = panel - ui->panel_first;
         ui->docked[at] = 0;
         if( chrome->panels[panel].user_placed )
@@ -709,6 +2103,7 @@ Editor_UiLayout(struct EditorUi* ui)
         ui->member[at] = 1;
         slots[slot_count].panel = panel;
         slots[slot_count].module = module;
+        slots[slot_count].group = NULL;
         slots[slot_count].col = 0;
         slot_count++;
     }
@@ -720,9 +2115,9 @@ Editor_UiLayout(struct EditorUi* ui)
         ToriRSChrome_PanelMove(chrome, menubar, 0, 0);
         top = ToriRSChrome_PanelRect(chrome, menubar).h;
     }
-    /* The status bar spans the bottom (its height is the last build's, as
-     * the menu bar's is: ui_default_layout waits for both); everything else
-     * ends above it. */
+    /* The status bar spans the foot; everything else ends above it. Its
+     * height is its face's line box (20 px at 1x), known from the last
+     * Build like the menu bar's. */
     bottom = surface_h;
     if( statusbar >= 0 && chrome->panels[statusbar].visible )
     {
@@ -741,11 +2136,20 @@ Editor_UiLayout(struct EditorUi* ui)
         int const one_w = edp_px(ui, EDP_RAIL_W);
         int const pitch = edp_px(ui, EDP_RAIL_PITCH);
         int const columns_now = p->fixed_w > one_w ? 1 + (p->fixed_w - one_w) / pitch : 1;
-        int const one_h = ToriRSChrome_PanelRect(chrome, rail).h * columns_now;
+        /* The rail's height at c columns: its rows (the buttons wrapped)
+         * at the button pitch, plus the strip's own padding, which the
+         * measured rect gives once the rows it holds now are taken off.
+         * (Dividing the one-column height by c undercounts the padding,
+         * and at 2x the last row then overlapped the console.) */
+        int const buttons = Editor_ToolRail_ButtonCount();
+        int const rows_now = (buttons + columns_now - 1) / columns_now;
+        int pad = ToriRSChrome_PanelRect(chrome, rail).h - rows_now * pitch;
         int columns = 1;
 
+        if( pad < 0 )
+            pad = 0;
         /* As many columns as it takes: never past the bottom. */
-        while( columns < 8 && one_h / columns > avail )
+        while( columns < 8 && ((buttons + columns - 1) / columns) * pitch + pad > avail )
             columns++;
         ToriRSChrome_PanelSetFixedWidth(chrome, rail, one_w + (columns - 1) * pitch);
         ToriRSChrome_PanelMove(chrome, rail, 0, top);
@@ -777,8 +2181,8 @@ Editor_UiLayout(struct EditorUi* ui)
         columns = (surface_w - left) / dock_w;
         if( columns < 1 )
             columns = 1;
-        if( columns > UI_DOCK_COUNT )
-            columns = UI_DOCK_COUNT;
+        if( columns > dock_count )
+            columns = dock_count;
         dock_w = ui_round_down((surface_w - left) / columns, grid);
     }
     dock_x = surface_w - dock_w * columns;
@@ -788,56 +2192,87 @@ Editor_UiLayout(struct EditorUi* ui)
      * answers all of them. */
     for( int i = 0; i < slot_count; i++ )
     {
+        if( slots[i].group )
+        {
+            ui_group_measure_begin(ui, slots[i].group, dock_w, group_saved[slots[i].group - ui->groups]);
+            continue;
+        }
         ToriRSChrome_PanelSetFixedWidth(chrome, slots[i].panel, dock_w);
         ToriRSChrome_PanelSetFixedHeight(chrome, slots[i].panel, 0);
         ToriRSChrome_PanelSetVisible(chrome, slots[i].panel, 1);
     }
-    if( console >= 0 && !chrome->panels[console].user_placed )
+    if( strip_group && !chrome->panels[strip].user_placed && ui_group_has_open(strip_group) )
+    {
+        ui_group_measure_begin(ui, strip_group, world_wanted ? dock_x - left : surface_w - left,
+            group_saved[strip_group - ui->groups]);
+        strip_measured = 1;
+    }
+    else if( console >= 0 && !strip_group && !chrome->panels[console].user_placed )
     {
         ToriRSChrome_PanelSetFixedWidth(chrome, console, world_wanted ? dock_x - left : surface_w - left);
         ToriRSChrome_PanelSetFixedHeight(chrome, console, 0);
     }
     ToriRSChrome_Build(chrome);
+    /* The groups' heights, and their windows back as they showed. */
+    for( int i = 0; i < slot_count; i++ )
+        if( slots[i].group )
+            ui_group_measure_end(
+                ui, slots[i].group, group_saved[slots[i].group - ui->groups], &slots[i].natural, &slots[i].min);
+    if( strip_measured )
+        ui_group_measure_end(ui, strip_group, group_saved[strip_group - ui->groups], &strip_natural, &strip_min);
 
     /* The console is a strip under the world when it takes a quarter of the
-     * height or less and leaves the world EDP_WORLD_MIN_PERCENT of the
-     * surface (shortened to that, scrolling, down to half a dock panel);
-     * otherwise the world keeps the height and the console waits for the
-     * View menu. */
+     * height or less (the plain console: and leaves the world
+     * EDP_WORLD_MIN_PERCENT of the surface, shortened to that, scrolling,
+     * down to half a dock panel); otherwise the world keeps the height and
+     * the console waits for the View menu. */
     world_bottom = bottom;
-    if( console >= 0 && !chrome->panels[console].user_placed )
+    if( strip_group && !chrome->panels[strip].user_placed )
+    {
+        /* The console's group: its strip plus its tallest member, held to a
+         * quarter of the height (the windows scroll) so long as each member
+         * keeps its few rows. */
+        int const at = strip - ui->panel_first;
+        int const wanted = strip_measured
+                           && (chrome->panels[strip].visible || strip_group->parked
+                               || (ui->member[at] && !ui->closed[at]))
+                           && !(strip_group->parked && ui->closed[at]);
+        int h = strip_natural;
+        int fits;
+
+        if( h * 4 > avail )
+            h = avail / 4;
+        /* The world's share holds the strip down too, but never below the
+         * group's minimum: a group is shown at that, not parked for it. */
+        if( world_wanted && h > strip_min )
+        {
+            int const capped = ui_strip_capped(ui, world, h, left, dock_x, avail, grid);
+            if( capped < h )
+                h = capped > strip_min ? capped : strip_min;
+        }
+        fits = strip_measured && h > 0 && h >= strip_min;
+        ui->docked[at] = 0;
+        if( wanted && fits )
+        {
+            ui_group_dock(ui, strip_group, left, bottom - h, world_wanted ? dock_x - left : surface_w - left, h);
+            world_bottom = bottom - h;
+            ui->docked[at] = 1;
+            ui->member[at] = 1;
+            ui->closed[at] = 0;
+            ui->flown[at] = 0;
+        }
+        else if( wanted )
+            ui_group_park(ui, strip_group);
+    }
+    else if( console >= 0 && !strip_group && !chrome->panels[console].user_placed )
     {
         int const at = console - ui->panel_first;
         int h = ToriRSChrome_PanelRect(chrome, console).h;
         int const wanted = chrome->panels[console].visible || (ui->member[at] && !ui->closed[at]);
         int fits;
 
-        if( world_wanted && h > 0 && dock_x - left > 0 )
-        {
-            /* The world is the World panel's BODY: its title bar and rails
-             * come off the region first (the same insets at any box). */
-            int inset_w = 0;
-            int inset_h = 0;
-            int body_w;
-            if( world >= 0 )
-            {
-                struct ToriRSChromeRect const box = ToriRSChrome_PanelRect(chrome, world);
-                struct ToriRSChromeRect const body = ToriRSChrome_PanelBodyRect(chrome, world);
-                inset_w = box.w - body.w;
-                inset_h = box.h - body.h;
-            }
-            body_w = dock_x - left - inset_w;
-            if( body_w > 0 )
-            {
-                int64_t const min_body_h =
-                    ((int64_t)surface_w * surface_h * EDP_WORLD_MIN_PERCENT / 100 + body_w - 1) / body_w;
-                int const cap = ui_round_down(avail - inset_h - (int)min_body_h, grid);
-                if( h > cap )
-                    h = cap;
-            }
-            if( h < edp_px(ui, EDP_DOCK_MIN_H) / 2 )
-                h = 0;
-        }
+        if( world_wanted && h > 0 )
+            h = ui_strip_capped(ui, world, h, left, dock_x, avail, grid);
         fits = h > 0 && h * 4 <= avail;
 
         ui->docked[at] = 0;
@@ -860,11 +2295,14 @@ Editor_UiLayout(struct EditorUi* ui)
      * to its title bar when it cannot have its minimum. */
     compact_col = ui->compact && world_wanted && columns == 1;
 
+    /* A group's frame was measured with its members above; it is never
+     * collapsed (its strip is the tabs), so its title bar is its minimum. */
     for( int i = 0; i < slot_count; i++ )
     {
-        ui_dock_measure(ui, &slots[i]);
+        if( !slots[i].group )
+            ui_dock_measure(ui, &slots[i]);
         slots[i].collapsed = 0;
-        slots[i].coll_h = ToriRSChrome_PanelCollapsedHeight(chrome, slots[i].panel);
+        slots[i].coll_h = slots[i].group ? slots[i].min : ToriRSChrome_PanelCollapsedHeight(chrome, slots[i].panel);
     }
     if( compact_col )
     {
@@ -873,18 +2311,21 @@ Editor_UiLayout(struct EditorUi* ui)
          * asked for first, each panel the user wants expanded takes its
          * minimum while the column still holds it -- so expanding one
          * collapses the least recently expanded when there is no room. */
-        int order[UI_DOCK_COUNT];
+        int order[UI_DOCK_MAX];
         used = 0;
         for( int i = 0; i < slot_count; i++ )
         {
-            slots[i].collapsed = 1;
+            slots[i].collapsed = !slots[i].group;
             slots[i].h = slots[i].coll_h;
             slots[i].col = 0;
             used += slots[i].coll_h;
         }
         for( int i = slot_count - 1; i >= 0 && used > column_h; i-- )
         {
-            ToriRSChrome_PanelSetVisible(chrome, slots[i].panel, 0);
+            if( slots[i].group )
+                ui_group_park(ui, slots[i].group);
+            else
+                ToriRSChrome_PanelSetVisible(chrome, slots[i].panel, 0);
             used -= slots[i].coll_h;
             slots[i].h = -1;
         }
@@ -904,7 +2345,7 @@ Editor_UiLayout(struct EditorUi* ui)
         {
             int const i = order[k];
             int const at = slots[i].panel - ui->panel_first;
-            if( slots[i].h < 0 || !ui->expanded[at] )
+            if( slots[i].h < 0 || !slots[i].collapsed || !ui->expanded[at] )
                 continue;
             if( used + slots[i].min - slots[i].coll_h > column_h )
                 continue;
@@ -928,7 +2369,10 @@ Editor_UiLayout(struct EditorUi* ui)
             }
             if( used + slots[i].min > column_h )
             {
-                ToriRSChrome_PanelSetVisible(chrome, slots[i].panel, 0);
+                if( slots[i].group )
+                    ui_group_park(ui, slots[i].group);
+                else
+                    ToriRSChrome_PanelSetVisible(chrome, slots[i].panel, 0);
                 slots[i].h = -1;
                 continue;
             }
@@ -986,13 +2430,18 @@ Editor_UiLayout(struct EditorUi* ui)
             int const at = slots[i].panel - ui->panel_first;
             if( slots[i].h < 0 || slots[i].col != col )
                 continue;
-            ToriRSChrome_PanelSetCollapsed(chrome, slots[i].panel, slots[i].collapsed);
-            ToriRSChrome_PanelSetFixedHeight(chrome, slots[i].panel, slots[i].h);
-            /* A fixed height drops rows past the bottom unless the panel
-             * scrolls; content that grows later (the inspector's rows) must
-             * not vanish. */
-            ToriRSChrome_PanelSetScrollable(chrome, slots[i].panel, 1);
-            ToriRSChrome_PanelMove(chrome, slots[i].panel, x, y);
+            if( slots[i].group )
+                ui_group_dock(ui, slots[i].group, x, y, dock_w, slots[i].h);
+            else
+            {
+                ToriRSChrome_PanelSetCollapsed(chrome, slots[i].panel, slots[i].collapsed);
+                ToriRSChrome_PanelSetFixedHeight(chrome, slots[i].panel, slots[i].h);
+                /* A fixed height drops rows past the bottom unless the panel
+                 * scrolls; content that grows later (the inspector's rows)
+                 * must not vanish. */
+                ToriRSChrome_PanelSetScrollable(chrome, slots[i].panel, 1);
+                ToriRSChrome_PanelMove(chrome, slots[i].panel, x, y);
+            }
             ui->docked[at] = 1;
             ui->closed[at] = 0;
             ui->flown[at] = 0;
@@ -1044,31 +2493,69 @@ Editor_UiLayout(struct EditorUi* ui)
  * of the layout beside the column, top-down below any already there, so it
  * covers the world and not another panel.
  */
+/**
+ * The i-th window ui_layout_follow keeps -- the registry's panels, then the
+ * groups' frames -- as its chrome panel, or -1 for a member of a group (its
+ * frame stands for it). `*out_titled` says it is a View-menu window.
+ */
+static int
+ui_follow_window(
+    const struct EditorUi* ui,
+    int i,
+    int* out_titled)
+{
+    if( i < ui->panel_count )
+    {
+        *out_titled = ui->panels[i].title != NULL;
+        return ui->group_plus1[i] ? -1 : ui->panels[i].chrome_panel;
+    }
+    *out_titled = 1;
+    return ui->groups[i - ui->panel_count].chrome_panel;
+}
+
+/** A window's height as the flyouts stack it: a group is its strip and the
+ *  shown window under it. 0 when it was never built. */
+static int
+ui_follow_height(
+    struct EditorUi* ui,
+    int panel)
+{
+    struct EditorUiGroup* g = ui_frame_group(ui, panel);
+    int const h = ui->chrome->panels[panel].last_rect.h;
+
+    if( g && g->shown >= 0 )
+        return h + ui->chrome->panels[ui_group_window(ui, g, g->shown)].last_rect.h;
+    return h;
+}
+
 static void
 ui_layout_follow(struct EditorUi* ui)
 {
     struct ToriRSChrome* chrome = ui->chrome;
     int y = ui->dock_top;
+    int const windows = ui->panel_count + ui->group_count;
 
     /* A popped-out window has no column to fly beside. */
     if( ui->solo_panel >= 0 )
         return;
 
     /* Where the open flyouts end. */
-    for( int i = 0; i < ui->panel_count; i++ )
+    for( int i = 0; i < windows; i++ )
     {
-        int const panel = ui->panels[i].chrome_panel;
+        int titled;
+        int const panel = ui_follow_window(ui, i, &titled);
         struct ToriRSChromeRect r;
         if( panel < ui->panel_first || panel >= ui->panel_end || !ui->flown[panel - ui->panel_first]
             || !chrome->panels[panel].visible )
             continue;
         r = ToriRSChrome_PanelRect(chrome, panel);
-        if( r.y + r.h > y )
-            y = r.y + r.h;
+        if( r.y + ui_follow_height(ui, panel) > y )
+            y = r.y + ui_follow_height(ui, panel);
     }
-    for( int i = 0; i < ui->panel_count; i++ )
+    for( int i = 0; i < windows; i++ )
     {
-        int const panel = ui->panels[i].chrome_panel;
+        int titled;
+        int const panel = ui_follow_window(ui, i, &titled);
         struct ToriRSChromePanel const* p;
         int at;
         int w;
@@ -1100,7 +2587,7 @@ ui_layout_follow(struct EditorUi* ui)
         }
         ui->closed[at] = 0;
         if( ui->docked[at] || ui->flown[at] || p->user_placed || p->modal
-            || p->style != TORIRS_CHROME_PANEL_WINDOW || !ui->panels[i].title )
+            || p->style != TORIRS_CHROME_PANEL_WINDOW || !titled )
             continue;
         w = p->last_rect.w > 0 ? p->last_rect.w : p->fixed_w;
         x = ui->dock_x - w;
@@ -1110,14 +2597,32 @@ ui_layout_follow(struct EditorUi* ui)
             y = ui->dock_top;
         ToriRSChrome_PanelMove(chrome, panel, x, y);
         ui->flown[at] = 1;
-        y += p->last_rect.h > 0 ? p->last_rect.h : edp_px(ui, EDP_DOCK_MIN_H);
+        y += ui_follow_height(ui, panel) > 0 ? ui_follow_height(ui, panel) : edp_px(ui, EDP_DOCK_MIN_H);
     }
 }
+
+static void
+ui_workspace_default(
+    struct EditorUi* ui,
+    int workspace,
+    int log);
+static void
+ui_default_layout(struct EditorUi* ui);
 
 void
 Editor_UiResetLayout(struct EditorUi* ui)
 {
     assert(ui);
+    /* Another workspace's reset is to ITS default; Build's is the modules'
+     * own set, below. */
+    if( ui->workspace != EDITOR_UI_WS_BUILD )
+    {
+        ui->workspace_has[ui->workspace] = 0;
+        ui_workspace_default(ui, ui->workspace, 0);
+        if( ui->chrome->surface_w > 0 && ui->chrome->surface_h > 0 )
+            Editor_UiLayout(ui);
+        return;
+    }
     for( int i = ui->panel_first; i < ui->panel_end && i < ui->chrome->panel_count; i++ )
     {
         int const at = i - ui->panel_first;
@@ -1135,6 +2640,13 @@ Editor_UiResetLayout(struct EditorUi* ui)
     }
     /* Compact goes back to automatic: the setting is part of the layout. */
     ui->compact_mode = -1;
+    /* A group whose frame alone came back takes its first open tab (or its
+     * default members, shown above, join it); every box is placed afresh. */
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        ui->groups[i].placed = -1;
+        ui->groups[i].pending_h = 0;
+    }
     ui->laid_out = 0;
     if( ui->chrome->surface_w > 0 && ui->chrome->surface_h > 0 )
         Editor_UiLayout(ui);
@@ -1201,7 +2713,7 @@ Editor_UiLayoutCapture(
     const struct EditorUi* ui,
     struct EditorLayoutFile* out)
 {
-    int const scale = ToriRSChrome_Scale(ui->chrome) > 0 ? ToriRSChrome_Scale(ui->chrome) : 1;
+    int const scale = Editor_ChromeScaleQ(ui->chrome);
 
     assert(ui);
     assert(out);
@@ -1209,7 +2721,7 @@ Editor_UiLayoutCapture(
     out->version = EDITOR_LAYOUT_VERSION;
     out->surface_w = ui->chrome->surface_w;
     out->surface_h = ui->chrome->surface_h;
-    out->scale = scale;
+    out->scale = Editor_ChromeScaleInteger(scale);
     out->has_snap = 1;
     out->snap = ui->snap;
     out->has_compact = 1;
@@ -1228,6 +2740,15 @@ Editor_UiLayoutCapture(
         struct EditorLayoutPanel* p;
         if( !ui_layout_saves(ui, i) )
             continue;
+        if( ui->group_plus1[i] )
+        {
+            /* A member says only whether it is in its strip; its box is the
+             * group's. */
+            p = EditorLayout_Add(out, ui->panels[i].name);
+            p->has_visible = 1;
+            p->visible = Editor_UiPanelInStrip(ui, ui->panels[i].name);
+            continue;
+        }
         cp = &ui->chrome->panels[ui->panels[i].chrome_panel];
         p = EditorLayout_Add(out, ui->panels[i].name);
         p->has_visible = 1;
@@ -1237,10 +2758,10 @@ Editor_UiLayoutCapture(
         p->has_user_placed = 1;
         p->user_placed = cp->user_placed ? 1 : 0;
         p->has_x = p->has_y = p->has_w = p->has_h = 1;
-        p->x = cp->x / scale;
-        p->y = cp->y / scale;
-        p->w = cp->fixed_w / scale;
-        p->h = cp->fixed_h / scale;
+        p->x = cp->x * EDITOR_UI_SCALEQ_ONE / scale;
+        p->y = cp->y * EDITOR_UI_SCALEQ_ONE / scale;
+        p->w = cp->fixed_w * EDITOR_UI_SCALEQ_ONE / scale;
+        p->h = cp->fixed_h * EDITOR_UI_SCALEQ_ONE / scale;
         /* Maximised: the box written is the one it restores to. */
         {
             int rx = 0;
@@ -1254,11 +2775,67 @@ Editor_UiLayoutCapture(
             if( p->maximised )
             {
                 p->user_placed = placed ? 1 : 0;
-                p->x = rx / scale;
-                p->y = ry / scale;
-                p->w = rw / scale;
-                p->h = rh / scale;
+                p->x = rx * EDITOR_UI_SCALEQ_ONE / scale;
+                p->y = ry * EDITOR_UI_SCALEQ_ONE / scale;
+                p->w = rw * EDITOR_UI_SCALEQ_ONE / scale;
+                p->h = rh * EDITOR_UI_SCALEQ_ONE / scale;
             }
+        }
+    }
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup const* g = &ui->groups[i];
+        struct ToriRSChromePanel const* frame = &ui->chrome->panels[g->chrome_panel];
+        struct EditorLayoutGroup* gp;
+        if( g->member_count == 0 )
+            continue;
+        gp = EditorLayout_AddGroup(out, g->name);
+        gp->has_visible = gp->has_user_placed = gp->has_x = gp->has_y = gp->has_w = gp->has_h = 1;
+        gp->visible = frame->visible ? 1 : 0;
+        gp->user_placed = frame->user_placed ? 1 : 0;
+        gp->x = frame->x * EDITOR_UI_SCALEQ_ONE / scale;
+        gp->y = frame->y * EDITOR_UI_SCALEQ_ONE / scale;
+        gp->w = (g->w > 0 ? g->w : frame->fixed_w) * EDITOR_UI_SCALEQ_ONE / scale;
+        gp->h = (g->body_h > 0 ? g->frame_h + g->body_h : 0) * EDITOR_UI_SCALEQ_ONE / scale;
+        gp->has_maximised = 1;
+        gp->maximised = 0;
+        if( g->shown >= 0 )
+        {
+            int rx = 0;
+            int ry = 0;
+            int rw = 0;
+            int rh = 0;
+            int placed = 0;
+            gp->has_shown = 1;
+            snprintf(gp->shown, sizeof(gp->shown), "%s", ui->panels[g->members[g->shown]].name);
+            /* Maximised: the box written is the one it restores to. */
+            gp->maximised = ToriRSChrome_PanelRestoreBox(
+                ui->chrome, ui_group_window(ui, g, g->shown), &rx, &ry, &rw, &rh, &placed);
+            if( gp->maximised )
+            {
+                gp->x = rx * EDITOR_UI_SCALEQ_ONE / scale;
+                gp->y = (ry - g->frame_h) * EDITOR_UI_SCALEQ_ONE / scale;
+                gp->w = rw * EDITOR_UI_SCALEQ_ONE / scale;
+                gp->h = (rh > 0 ? rh + g->frame_h : 0) * EDITOR_UI_SCALEQ_ONE / scale;
+            }
+        }
+    }
+    /* The workspaces: the current one is the live layout just captured, the
+     * others as they were left (or as the file had them). */
+    out->has_workspace = 1;
+    snprintf(out->workspace, sizeof(out->workspace), "%s", Editor_UiWorkspaceName(ui->workspace));
+    for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
+    {
+        struct EditorLayoutWorkspace* ws;
+        if( w != ui->workspace && !ui->workspace_has[w] )
+            continue;
+        ws = EditorLayout_AddWorkspace(out, Editor_UiWorkspaceName(w));
+        if( w == ui->workspace )
+            EditorLayout_WorkspaceFromTop(ws, out);
+        else
+        {
+            *ws = ui->workspace_saved[w];
+            snprintf(ws->name, sizeof(ws->name), "%s", Editor_UiWorkspaceName(w));
         }
     }
 }
@@ -1297,6 +2874,13 @@ ui_layout_clamp(
         *y = 0;
 }
 
+static void
+ui_group_apply(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g,
+    const struct EditorLayoutFile* file,
+    int scale);
+
 void
 Editor_UiLayoutApply(
     struct EditorUi* ui,
@@ -1308,11 +2892,25 @@ Editor_UiLayoutApply(
     assert(ui);
     assert(file);
     chrome = ui->chrome;
-    scale = ToriRSChrome_Scale(chrome) > 0 ? ToriRSChrome_Scale(chrome) : 1;
+    scale = Editor_ChromeScaleQ(chrome);
 
     /* The default set first, from what the modules showed: Reset layout must
      * return to the default, not to this file. */
     ui_capture_boot(ui);
+    /* A file that names its workspace (the layout file; a switch's own
+     * file names none): the current one and every one's saved layout. */
+    if( file->has_workspace )
+    {
+        int const current = Editor_UiWorkspaceFind(file->workspace);
+        ui->workspace = current >= 0 ? current : EDITOR_UI_WS_BUILD;
+        for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
+        {
+            struct EditorLayoutWorkspace const* ws = EditorLayout_FindWorkspace(file, Editor_UiWorkspaceName(w));
+            ui->workspace_has[w] = ws != NULL;
+            if( ws )
+                ui->workspace_saved[w] = *ws;
+        }
+    }
     if( file->has_snap )
         Editor_UiSetSnap(ui, file->snap);
     if( file->has_compact )
@@ -1323,7 +2921,7 @@ Editor_UiLayoutApply(
         int panel;
         int at;
 
-        if( !ui_layout_saves(ui, i) )
+        if( !ui_layout_saves(ui, i) || ui->group_plus1[i] )
             continue;
         sp = EditorLayout_Find(file, ui->panels[i].name);
         if( !sp )
@@ -1338,10 +2936,10 @@ Editor_UiLayoutApply(
         if( sp->has_user_placed && sp->user_placed && sp->has_x && sp->has_y )
         {
             struct ToriRSChromePanel* cp = &chrome->panels[panel];
-            int x = sp->x * scale;
-            int y = sp->y * scale;
-            int w = sp->has_w ? sp->w * scale : cp->fixed_w;
-            int h = sp->has_h ? sp->h * scale : cp->fixed_h;
+            int x = sp->x * scale / EDITOR_UI_SCALEQ_ONE;
+            int y = sp->y * scale / EDITOR_UI_SCALEQ_ONE;
+            int w = sp->has_w ? sp->w * scale / EDITOR_UI_SCALEQ_ONE : cp->fixed_w;
+            int h = sp->has_h ? sp->h * scale / EDITOR_UI_SCALEQ_ONE : cp->fixed_h;
 
             ui_layout_clamp(ui, &x, &y, &w, &h);
             ToriRSChrome_PanelSetFixedWidth(chrome, panel, w);
@@ -1371,15 +2969,99 @@ Editor_UiLayoutApply(
             ui->closed[at] = (unsigned char)(!sp->visible && ui->member[at] ? 1 : 0);
         }
     }
+    for( int i = 0; i < ui->group_count; i++ )
+        ui_group_apply(ui, &ui->groups[i], file, scale);
     /* Made for this very surface and scale: once the default layout has
      * placed the column (and set who is docked), the panels it placed take
      * the file's boxes too -- the column as the user left it, heights and
      * all, not as a fresh layout would share it out. */
     ui->layout_restore = file->surface_w == chrome->surface_w && file->surface_h == chrome->surface_h
-                         && file->scale == scale;
+                         && file->scale == Editor_ChromeScaleInteger(scale);
     if( ui->layout_restore && file != &ui->layout_saved )
         ui->layout_saved = *file;
     ui->laid_out = 0;
+}
+
+/** One group from a layout file: its members' `visible` say who is in the
+ *  strip, its [group] section the front tab, whether it shows, and -- placed
+ *  by the user -- its box. A file with no word on the group leaves it be. */
+static void
+ui_group_apply(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g,
+    const struct EditorLayoutFile* file,
+    int scale)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    struct EditorLayoutGroup const* gs = EditorLayout_FindGroup(file, g->name);
+    int const at = g->chrome_panel - ui->panel_first;
+    int stated = gs != NULL;
+    int shown = -1;
+    int visible;
+
+    for( int slot = 0; slot < g->member_count; slot++ )
+    {
+        struct EditorLayoutPanel const* sp = EditorLayout_Find(file, ui->panels[g->members[slot]].name);
+        if( sp && sp->has_visible )
+        {
+            g->open[slot] = (unsigned char)(sp->visible ? 1 : 0);
+            stated = 1;
+        }
+    }
+    if( !stated )
+        return;
+    if( gs && gs->has_shown )
+    {
+        int const slot = ui_group_slot(g, ui_registry_index(ui, gs->shown));
+        if( slot >= 0 && g->open[slot] )
+            shown = slot;
+    }
+    if( shown < 0 && g->shown >= 0 && g->open[g->shown] )
+        shown = g->shown;
+    if( shown < 0 )
+        shown = ui_group_next(g, -1);
+    visible = shown >= 0 && (!gs || !gs->has_visible || gs->visible);
+    for( int slot = 0; slot < g->member_count; slot++ )
+    {
+        int const panel = ui_group_window(ui, g, slot);
+        if( slot != shown )
+            ui_group_unmaximise(ui, g, slot);
+        ToriRSChrome_PanelSetVisible(chrome, panel, visible && slot == shown);
+    }
+    if( shown != g->shown )
+        g->prev_shown = -1;
+    g->shown = shown;
+    g->parked = shown >= 0 && !visible;
+    g->tabs_built = 0;
+    ToriRSChrome_PanelSetVisible(chrome, g->chrome_panel, visible);
+    /* A group the user closed (its tabs kept: it had no room, say) stays
+     * shut through the layout, as a closed panel does. */
+    ui->closed[at] = (unsigned char)(!visible && ui->member[at] ? 1 : 0);
+    if( gs && gs->has_user_placed && gs->user_placed && gs->has_x && gs->has_y )
+    {
+        int x = gs->x * scale / EDITOR_UI_SCALEQ_ONE;
+        int y = gs->y * scale / EDITOR_UI_SCALEQ_ONE;
+        int w = gs->has_w ? gs->w * scale / EDITOR_UI_SCALEQ_ONE : g->w;
+        int h = gs->has_h ? gs->h * scale / EDITOR_UI_SCALEQ_ONE : 0;
+
+        ui_layout_clamp(ui, &x, &y, &w, &h);
+        ToriRSChrome_PanelSetFixedWidth(chrome, g->chrome_panel, w);
+        ToriRSChrome_PanelMove(chrome, g->chrome_panel, x, y);
+        chrome->panels[g->chrome_panel].user_placed = 1;
+        g->x = x;
+        g->y = y;
+        g->w = w;
+        g->pending_h = h;
+        g->placed = -1;
+        ui->docked[at] = 0;
+        ui->flown[at] = 0;
+    }
+    if( gs && gs->has_maximised )
+    {
+        ui->maximise_pending[at] = (unsigned char)(gs->maximised ? 1 : 0);
+        if( !gs->maximised && shown >= 0 )
+            ui_group_unmaximise(ui, g, shown);
+    }
 }
 
 /** The second half of a same-surface restore: the boxes of the panels the
@@ -1388,13 +3070,16 @@ static void
 ui_layout_restore_boxes(struct EditorUi* ui)
 {
     struct ToriRSChrome* chrome = ui->chrome;
-    int const scale = ToriRSChrome_Scale(chrome) > 0 ? ToriRSChrome_Scale(chrome) : 1;
+    int const scale = Editor_ChromeScaleQ(chrome);
 
     for( int i = 0; i < ui->panel_count; i++ )
     {
         struct EditorLayoutPanel const* sp;
         int panel;
         if( !ui_layout_saves(ui, i) )
+            continue;
+        /* A member's box is its group's (below). */
+        if( ui->group_plus1[i] )
             continue;
         panel = ui->panels[i].chrome_panel;
         sp = EditorLayout_Find(&ui->layout_saved, ui->panels[i].name);
@@ -1403,10 +3088,30 @@ ui_layout_restore_boxes(struct EditorUi* ui)
         if( sp->has_visible && !sp->visible )
             continue;
         if( sp->has_w )
-            ToriRSChrome_PanelSetFixedWidth(chrome, panel, sp->w * scale);
+            ToriRSChrome_PanelSetFixedWidth(chrome, panel, sp->w * scale / EDITOR_UI_SCALEQ_ONE);
         if( sp->has_h )
-            ToriRSChrome_PanelSetFixedHeight(chrome, panel, sp->h * scale);
-        ToriRSChrome_PanelMove(chrome, panel, sp->x * scale, sp->y * scale);
+            ToriRSChrome_PanelSetFixedHeight(chrome, panel, sp->h * scale / EDITOR_UI_SCALEQ_ONE);
+        ToriRSChrome_PanelMove(chrome, panel, sp->x * scale / EDITOR_UI_SCALEQ_ONE, sp->y * scale / EDITOR_UI_SCALEQ_ONE);
+    }
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup* g = &ui->groups[i];
+        struct EditorLayoutGroup const* gs = EditorLayout_FindGroup(&ui->layout_saved, g->name);
+        int const frame = g->chrome_panel;
+        if( !gs || chrome->panels[frame].user_placed || !chrome->panels[frame].visible || !gs->has_x || !gs->has_y )
+            continue;
+        if( gs->has_visible && !gs->visible )
+            continue;
+        g->x = gs->x * scale / EDITOR_UI_SCALEQ_ONE;
+        g->y = gs->y * scale / EDITOR_UI_SCALEQ_ONE;
+        if( gs->has_w )
+            g->w = gs->w * scale / EDITOR_UI_SCALEQ_ONE;
+        if( gs->has_h && gs->h > 0 )
+            g->pending_h = gs->h * scale / EDITOR_UI_SCALEQ_ONE;
+        g->placed = -1;
+        ToriRSChrome_PanelSetFixedWidth(chrome, frame, g->w);
+        ToriRSChrome_PanelMove(chrome, frame, g->x, g->y);
+        ui_group_place(ui, g);
     }
 }
 
@@ -1452,13 +3157,15 @@ Editor_UiLayoutFingerprint(const struct EditorUi* ui)
     assert(ui);
     h = ui_fnv(h, ui->chrome->surface_w);
     h = ui_fnv(h, ui->chrome->surface_h);
-    h = ui_fnv(h, ToriRSChrome_Scale(ui->chrome));
+    h = ui_fnv(h, ToriRSChrome_ScaleQ(ui->chrome));
     h = ui_fnv(h, ui->snap);
     h = ui_fnv(h, ui->compact_mode);
     h = ui_fnv(h, ui->window_x);
     h = ui_fnv(h, ui->window_y);
     h = ui_fnv(h, ui->window_w);
     h = ui_fnv(h, ui->window_h);
+    h = ui_fnv(h, ui->workspace);
+    h = ui_fnv(h, (int)ui->workspace_serial);
     for( int i = 0; i < ui->panel_count; i++ )
     {
         struct ToriRSChromePanel const* cp;
@@ -1466,6 +3173,11 @@ Editor_UiLayoutFingerprint(const struct EditorUi* ui)
             continue;
         cp = &ui->chrome->panels[ui->panels[i].chrome_panel];
         h = ui_fnv(h, i);
+        if( ui->group_plus1[i] )
+        {
+            h = ui_fnv(h, Editor_UiPanelInStrip(ui, ui->panels[i].name));
+            continue;
+        }
         h = ui_fnv(h, cp->visible);
         h = ui_fnv(h, cp->collapsed);
         h = ui_fnv(h, cp->user_placed);
@@ -1474,6 +3186,22 @@ Editor_UiLayoutFingerprint(const struct EditorUi* ui)
         h = ui_fnv(h, cp->fixed_w);
         h = ui_fnv(h, cp->fixed_h);
         h = ui_fnv(h, cp->maximised);
+    }
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup const* g = &ui->groups[i];
+        struct ToriRSChromePanel const* frame = &ui->chrome->panels[g->chrome_panel];
+        if( g->member_count == 0 )
+            continue;
+        h = ui_fnv(h, 1000 + i);
+        h = ui_fnv(h, frame->visible);
+        h = ui_fnv(h, frame->user_placed);
+        h = ui_fnv(h, frame->x);
+        h = ui_fnv(h, frame->y);
+        h = ui_fnv(h, g->w);
+        h = ui_fnv(h, g->body_h);
+        h = ui_fnv(h, g->shown >= 0 ? g->members[g->shown] : -1);
+        h = ui_fnv(h, g->shown >= 0 ? ui->chrome->panels[ui_group_window(ui, g, g->shown)].maximised : 0);
     }
     return h;
 }
@@ -1489,10 +3217,273 @@ Editor_UiLayoutBusy(const struct EditorUi* ui)
            || chrome->resize_panel >= 0 || chrome->split_panel >= 0;
 }
 
+/* ---- workspaces (editor_ui.h has the table) --------------------------------- */
+
+_Static_assert(EDITOR_UI_WORKSPACES == 4, "EditorUi's workspace arrays hold the four");
+_Static_assert(EDITOR_HK_WORKSPACES == EDITOR_UI_WORKSPACES, "one workspace action per workspace, in order");
+
+static const char* const k_workspace_names[EDITOR_UI_WORKSPACES] = { "build", "terrain", "script", "playtest" };
+static const char* const k_workspace_titles[EDITOR_UI_WORKSPACES] = { "Build", "Terrain", "Script", "Playtest" };
+
+/* The design table's panels per workspace, as registry module names; the
+ * first listed member of a group is its front tab. Script also takes the
+ * Shop builder and the Quest board (workbench 6.7: both write scripts);
+ * Playtest the Scenes panel and the encounter builder (6.5, 6.7); Script the
+ * Problems panel (6.6, part 1). "vars", "dialogue_preview" (workbench 6.6)
+ * and "live_log" are not built in this tree (the Live log is the Live
+ * panel's own list today) and are skipped with a console line. */
+static const char* const k_ws_terrain[] = { "terrain", "palette", "squares", "inspector", "console", "history",
+    NULL };
+static const char* const k_ws_script[] = { "record", "triggers", "vars", "locbuilder", "npcbuilder",
+    "shelleditor", "shop", "quest", "problems", "console", "dialogue_preview", NULL };
+static const char* const k_ws_playtest[] = { "live", "accounts", "scenes", "encounter", "live_log", "console",
+    NULL };
+
+const char*
+Editor_UiWorkspaceName(int workspace)
+{
+    assert(workspace >= 0);
+    assert(workspace < EDITOR_UI_WORKSPACES);
+    return k_workspace_names[workspace];
+}
+
+const char*
+Editor_UiWorkspaceTitle(int workspace)
+{
+    assert(workspace >= 0);
+    assert(workspace < EDITOR_UI_WORKSPACES);
+    return k_workspace_titles[workspace];
+}
+
+int
+Editor_UiWorkspaceFind(const char* name)
+{
+    assert(name);
+    for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
+        if( strcmp(k_workspace_names[w], name) == 0 )
+            return w;
+    return -1;
+}
+
+const char* const*
+Editor_UiWorkspacePanels(int workspace)
+{
+    static const char* const* const k_lists[EDITOR_UI_WORKSPACES] = { NULL, k_ws_terrain, k_ws_script,
+        k_ws_playtest };
+    assert(workspace >= 0);
+    assert(workspace < EDITOR_UI_WORKSPACES);
+    return k_lists[workspace];
+}
+
+/** Is module `name` on the NULL-terminated `list`? */
+static int
+ui_name_listed(
+    const char* const* list,
+    const char* name)
+{
+    for( int i = 0; list[i]; i++ )
+        if( strcmp(list[i], name) == 0 )
+            return 1;
+    return 0;
+}
+
+/**
+ * Workspace `workspace`'s default: Build is the modules' own set (Reset
+ * layout's); another shows the table's panels and hides every other panel
+ * of the View menu but the World and the tool rail, every box placed afresh
+ * by the next layout. With `log`, a console line names what was skipped.
+ */
+static void
+ui_workspace_default(
+    struct EditorUi* ui,
+    int workspace,
+    int log)
+{
+    const char* const* list = Editor_UiWorkspacePanels(workspace);
+    struct EditorLayoutFile* file;
+    char skipped[EDITOR_UI_CONSOLE_LINE_MAX];
+    int skipped_count = 0;
+    int used = 0;
+
+    skipped[0] = '\0';
+    for( int i = ui->panel_first; i < ui->panel_end && i < ui->chrome->panel_count; i++ )
+    {
+        int const at = i - ui->panel_first;
+        if( ToriRSChrome_PanelIsMaximised(ui->chrome, i) )
+            ToriRSChrome_PanelRestore(ui->chrome, i);
+        ui->maximise_pending[at] = 0;
+        ui->chrome->panels[i].user_placed = 0;
+        ui->closed[at] = 0;
+        ui->docked[at] = 0;
+        ui->flown[at] = 0;
+    }
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        ui->groups[i].placed = -1;
+        ui->groups[i].pending_h = 0;
+    }
+    if( !list )
+    {
+        /* Build: the boot set, as Reset layout gives it in Build. */
+        ui_capture_boot(ui);
+        for( int i = ui->panel_first; i < ui->panel_end && i < ui->chrome->panel_count; i++ )
+        {
+            int const at = i - ui->panel_first;
+            ui->member[at] = ui->boot_member[at];
+        }
+        for( int i = 0; i < ui->panel_count; i++ )
+        {
+            int const panel = ui->panels[i].chrome_panel;
+            int at;
+            if( !ui_layout_saves(ui, i) || strcmp(ui->panels[i].name, "world") == 0
+                || strcmp(ui->panels[i].name, "toolrail") == 0 )
+                continue;
+            at = panel - ui->panel_first;
+            ToriRSChrome_PanelSetVisible(ui->chrome, panel, ui->boot_member[at] ? 1 : 0);
+        }
+        /* Each strip as it booted. */
+        for( int i = 0; i < ui->group_count; i++ )
+        {
+            struct EditorUiGroup* g = &ui->groups[i];
+            int const at = g->chrome_panel - ui->panel_first;
+            int const shown = ui->boot_member[at] ? g->boot_shown : -1;
+            for( int slot = 0; slot < g->member_count; slot++ )
+                g->open[slot] = (unsigned char)(shown >= 0 && g->boot_open[slot]);
+            for( int slot = 0; slot < g->member_count; slot++ )
+                ToriRSChrome_PanelSetVisible(ui->chrome, ui_group_window(ui, g, slot), slot == shown);
+            g->shown = shown;
+            g->prev_shown = -1;
+            g->parked = 0;
+            g->tabs_built = 0;
+            ToriRSChrome_PanelSetVisible(ui->chrome, g->chrome_panel, shown >= 0);
+        }
+        ui->layout_restore = 0;
+        ui->laid_out = 0;
+        return;
+    }
+    for( int i = 0; list[i]; i++ )
+        if( !Editor_UiFindPanel(ui, list[i]) )
+        {
+            used += snprintf(skipped + used, sizeof(skipped) - (size_t)used, "%s%s", skipped_count ? ", " : "",
+                list[i]);
+            if( used >= (int)sizeof(skipped) )
+                used = (int)sizeof(skipped) - 1;
+            skipped_count++;
+        }
+    if( log && skipped_count > 0 )
+        Editor_UiLog(ui, "editor: workspace %s: no %s panel in this window, skipped", Editor_UiWorkspaceTitle(workspace),
+            skipped);
+    /* The default as a file: every saved panel shown or hidden, each group's
+     * front tab its first listed member. Applied like any file (visibility,
+     * the strips), with no boxes: the layout places everything. */
+    file = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*file));
+    assert(file);
+    file->version = EDITOR_LAYOUT_VERSION;
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        struct EditorLayoutPanel* p;
+        if( !ui_layout_saves(ui, i) || strcmp(ui->panels[i].name, "world") == 0
+            || strcmp(ui->panels[i].name, "toolrail") == 0 )
+            continue;
+        p = EditorLayout_Add(file, ui->panels[i].name);
+        p->has_visible = 1;
+        p->visible = ui_name_listed(list, ui->panels[i].name);
+    }
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup const* g = &ui->groups[i];
+        struct EditorLayoutGroup* gs;
+        if( g->member_count == 0 )
+            continue;
+        gs = EditorLayout_AddGroup(file, g->name);
+        gs->has_visible = 1;
+        gs->visible = 0;
+        for( int l = 0; list[l] && !gs->has_shown; l++ )
+            if( ui_group_slot(g, ui_registry_index(ui, list[l])) >= 0 )
+            {
+                gs->has_shown = 1;
+                gs->visible = 1;
+                snprintf(gs->shown, sizeof(gs->shown), "%s", list[l]);
+            }
+    }
+    for( int i = ui->panel_first; i < ui->panel_end && i < ui->chrome->panel_count; i++ )
+        ui->member[i - ui->panel_first] = 0;
+    Editor_UiLayoutApply(ui, file);
+    /* The default set of this workspace is what it shows. */
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        int const panel = ui->panels[i].chrome_panel;
+        if( ui_layout_saves(ui, i) && !ui->group_plus1[i] )
+            ui->member[panel - ui->panel_first] = (unsigned char)(ui->chrome->panels[panel].visible ? 1 : 0);
+    }
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup const* g = &ui->groups[i];
+        ui->member[g->chrome_panel - ui->panel_first] =
+            (unsigned char)(ui->chrome->panels[g->chrome_panel].visible ? 1 : 0);
+    }
+    ToriMem_Free(ToriMem_Editor(), file);
+}
+
+int
+Editor_UiSetWorkspace(
+    struct EditorUi* ui,
+    int workspace)
+{
+    const char* const* list;
+    int skipped = 0;
+
+    assert(ui);
+    assert(workspace >= 0);
+    assert(workspace < EDITOR_UI_WORKSPACES);
+    list = Editor_UiWorkspacePanels(workspace);
+    for( int i = 0; list && list[i]; i++ )
+        if( !Editor_UiFindPanel(ui, list[i]) )
+            skipped++;
+    if( workspace == ui->workspace )
+    {
+        Editor_UiStatus(ui, "Workspace %s is already the one shown", Editor_UiWorkspaceTitle(workspace));
+        return skipped;
+    }
+    /* The one being left first, as it is now. */
+    {
+        struct EditorLayoutFile* now = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*now));
+        assert(now);
+        Editor_UiLayoutCapture(ui, now);
+        EditorLayout_WorkspaceFromTop(&ui->workspace_saved[ui->workspace], now);
+        snprintf(ui->workspace_saved[ui->workspace].name, sizeof(ui->workspace_saved[ui->workspace].name), "%s",
+            Editor_UiWorkspaceName(ui->workspace));
+        ui->workspace_has[ui->workspace] = 1;
+        ToriMem_Free(ToriMem_Editor(), now);
+    }
+    ui->workspace = workspace;
+    ui->workspace_serial++;
+    /* Its default first, so a panel its saved layout does not name (one
+     * registered since) is where the default puts it. */
+    ui_workspace_default(ui, workspace, 1);
+    if( ui->workspace_has[workspace] )
+    {
+        struct EditorLayoutFile* file = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*file));
+        assert(file);
+        EditorLayout_TopFromWorkspace(file, &ui->workspace_saved[workspace]);
+        file->has_snap = 1;
+        file->snap = ui->snap;
+        Editor_UiLayoutApply(ui, file);
+        ToriMem_Free(ToriMem_Editor(), file);
+    }
+    Editor_UiLog(ui, "editor: workspace %s%s", Editor_UiWorkspaceTitle(workspace),
+        ui->workspace_has[workspace] ? " (as you left it)" : "");
+    ui->laid_out = 0;
+    if( ui->chrome->surface_w > 0 && ui->chrome->surface_h > 0 )
+        ui_default_layout(ui);
+    return skipped;
+}
+
 static void
 ui_default_layout(struct EditorUi* ui)
 {
     int const menubar = ui_chrome_panel(ui, "menubar");
+    int const statusbar = ui_chrome_panel(ui, "statusbar");
 
     /* The saved layout is still being read: wait for it rather than lay out
      * the default and move everything a frame later. */
@@ -1509,12 +3500,10 @@ ui_default_layout(struct EditorUi* ui)
      * stacks nothing (its menu bar is hidden). */
     if( ui->solo_panel < 0 && menubar >= 0 && ToriRSChrome_PanelRect(ui->chrome, menubar).h <= 0 )
         return;
-    {
-        int const statusbar = ui_chrome_panel(ui, "statusbar");
-        if( ui->solo_panel < 0 && statusbar >= 0 && ui->chrome->panels[statusbar].visible
-            && ToriRSChrome_PanelRect(ui->chrome, statusbar).h <= 0 )
-            return;
-    }
+    /* Nor the status bar's band at the foot. */
+    if( ui->solo_panel < 0 && statusbar >= 0 && ui->chrome->panels[statusbar].visible
+        && ToriRSChrome_PanelRect(ui->chrome, statusbar).h <= 0 )
+        return;
     Editor_UiLayout(ui);
     /* A panel the user just brought back is shown, whatever the column had
      * room for: if the layout could not admit it, it opens beside the column
@@ -1540,7 +3529,7 @@ ui_default_layout(struct EditorUi* ui)
 /* ---- the shared tools (STATE_TOOLS) ------------------------------------------
  *
  * Every window of a Client edits with the same brush, palette, flags,
- * placement shape and view level as the tool itself (STATE_TOOL): a slider
+ * placement shape, Fit and view level as the tool itself (STATE_TOOL): a slider
  * moved in a popped-out Terrain window paints in the main window's World. One
  * key carries them all; a tick whose tools differ from what this window last
  * published or applied publishes them (so every way a panel or a hotkey
@@ -1568,6 +3557,7 @@ ui_tools_pack(
     out[11] = t->place_rotation;
     out[12] = t->vis_level;
     out[13] = t->vis_solo;
+    out[14] = t->place_fit;
 }
 
 static void
@@ -1592,6 +3582,7 @@ ui_tools_unpack(
     if( values[12] >= -1 && values[12] < EDITOR_SQUARE_LEVELS )
         t->vis_level = values[12];
     t->vis_solo = values[13];
+    t->place_fit = values[14] ? 1 : 0;
 }
 
 /** A popped-out World says in its title what a click in it does -- the
@@ -1697,8 +3688,12 @@ ui_popout_tick(struct EditorUi* ui)
     if( pressed >= 0 )
     {
         int const at = ui_registry_of(ui, pressed);
+        struct EditorUiGroup const* g = ui_frame_group(ui, pressed);
         if( at >= 0 )
             (void)Editor_UiPanelPopOut(ui, ui->panels[at].name);
+        /* A group's Pop out is its shown tab's. */
+        else if( g && g->shown >= 0 )
+            (void)Editor_UiPanelPopOut(ui, ui->panels[g->members[g->shown]].name);
     }
     for( int i = 0; i < ui->panel_count; i++ )
     {
@@ -1811,6 +3806,20 @@ Editor_UiPanelAt(
             found = ui->panels[i].name;
         }
     }
+    /* A group's frame stands for its shown tab. */
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup const* g = &ui->groups[i];
+        struct ToriRSChromeRect r;
+        if( g->shown < 0 || g->chrome_panel <= top || !ui->chrome->panels[g->chrome_panel].visible )
+            continue;
+        r = ui->chrome->panels[g->chrome_panel].last_rect;
+        if( x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h )
+        {
+            top = g->chrome_panel;
+            found = ui->panels[g->members[g->shown]].name;
+        }
+    }
     return found;
 }
 
@@ -1821,6 +3830,7 @@ Editor_UiClearSolo(struct EditorUi* ui)
     assert(ui->solo_panel >= 0);
     if( ui->solo_panel == ui->world_panel )
         ToriRSChrome_PanelSetTitle(ui->chrome, ui->world_panel, "World");
+    ToriRSChrome_PanelSetDockable(ui->chrome, ui->solo_panel, 0);
     ui->solo_panel = -1;
     ui_window_furniture(ui);
     /* Every titled panel shown, the default layout hiding what the column
@@ -1847,29 +3857,44 @@ Editor_UiSetSolo(
 
 /* ---- maximise: a double-click on a panel's title ------------------------ */
 
-/** The area a maximised panel fills: the whole surface below the menu bar --
- *  every pixel the dock lays panels out in. */
+/** The area a maximised panel fills: the whole surface between the menu bar
+ *  and the status bar -- every pixel the dock lays panels out in. */
 static struct ToriRSChromeRect
 ui_maximise_area(struct EditorUi* ui)
 {
     struct ToriRSChromeRect area;
     int const menubar = ui_chrome_panel(ui, "menubar");
+    int const statusbar = ui_chrome_panel(ui, "statusbar");
     int top = 0;
+    int bottom = ui->chrome->surface_h;
 
     if( menubar >= 0 && ui->chrome->panels[menubar].visible )
     {
         struct ToriRSChromeRect const bar = ToriRSChrome_PanelRect(ui->chrome, menubar);
         top = bar.y + bar.h;
     }
+    /* A maximised panel stops above the status bar, as the dock does. */
+    if( statusbar >= 0 && ui->chrome->panels[statusbar].visible )
+        bottom -= ToriRSChrome_PanelRect(ui->chrome, statusbar).h;
     area.x = 0;
     area.y = top;
     area.w = ui->chrome->surface_w;
-    area.h = ui->chrome->surface_h - top;
-    {
-        int const statusbar = ui_chrome_panel(ui, "statusbar");
-        if( statusbar >= 0 && ui->chrome->panels[statusbar].visible )
-            area.h -= ToriRSChrome_PanelRect(ui->chrome, statusbar).h;
-    }
+    area.h = bottom - top;
+    return area;
+}
+
+/** The area a group's shown window is maximised to: the dock's, under the
+ *  group's strip (the frame follows it to the top, ui_group_place). */
+static struct ToriRSChromeRect
+ui_maximise_group_area(
+    struct EditorUi* ui,
+    struct EditorUiGroup* g)
+{
+    struct ToriRSChromeRect area = ui_maximise_area(ui);
+    int const fh = ui_group_frame_height(ui, g);
+
+    area.y += fh;
+    area.h -= fh;
     return area;
 }
 
@@ -1926,14 +3951,51 @@ ui_maximise_tick(struct EditorUi* ui)
                 chrome->panels[clicked].title);
         }
     }
+    else if( clicked >= 0 && ui_frame_group(ui, clicked) && ui_frame_group(ui, clicked)->shown >= 0
+             && !ui_frame_group(ui, clicked)->parked )
+    {
+        /* A group's title: the group over the dock, its strip on top. */
+        struct EditorUiGroup* g = ui_frame_group(ui, clicked);
+        int const panel = ui_group_window(ui, g, g->shown);
+        if( ToriRSChrome_PanelIsMaximised(chrome, panel) )
+        {
+            ui_group_unmaximise(ui, g, g->shown);
+            ui->laid_out = 0;
+            Editor_UiLog(ui, "editor: %s restored", g->title);
+        }
+        else
+        {
+            ToriRSChrome_PanelMaximise(chrome, panel, ui_maximise_group_area(ui, g));
+            ui_group_place(ui, g);
+            Editor_UiLog(ui, "editor: %s maximised (double-click its title to restore)", g->title);
+        }
+    }
     else if( clicked >= 0 )
         chrome->title_double = clicked;
 
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup* g = &ui->groups[i];
+        int const at = g->chrome_panel - ui->panel_first;
+        int panel;
+        if( g->shown < 0 || g->parked )
+            continue;
+        panel = ui_group_window(ui, g, g->shown);
+        if( ui->maximise_pending[at] && ui->laid_out && !ui->layout_hold && !ui->layout_pending
+            && ui_group_frame_height(ui, g) > 0 )
+        {
+            ui->maximise_pending[at] = 0;
+            ToriRSChrome_PanelMaximise(chrome, panel, ui_maximise_group_area(ui, g));
+            ui_group_place(ui, g);
+        }
+        else if( ToriRSChrome_PanelIsMaximised(chrome, panel) )
+            ToriRSChrome_PanelMaximise(chrome, panel, ui_maximise_group_area(ui, g));
+    }
     for( int i = 0; i < ui->panel_count; i++ )
     {
         int const panel = ui->panels[i].chrome_panel;
         int at;
-        if( !ui_layout_saves(ui, i) )
+        if( !ui_layout_saves(ui, i) || ui->group_plus1[i] )
             continue;
         at = panel - ui->panel_first;
         if( ui->maximise_pending[at] && ui->laid_out && !ui->layout_hold && !ui->layout_pending )
@@ -1977,6 +4039,98 @@ ui_compact_tick(struct EditorUi* ui)
     }
 }
 
+/**
+ * The chrome's truncation ring into the console, one line per record (the
+ * workbench contract's R2: a cut string is never silent). A record whose
+ * widget is still the one that was cut names its window. Once a frame, after
+ * the modules ran, so a label a module set this frame is said this frame.
+ */
+static void
+ui_truncations_drain(struct EditorUi* ui)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    struct ToriRSChromeTruncation rec;
+    int dropped;
+
+    while( ToriRSChrome_TakeTruncation(chrome, &rec) )
+    {
+        const char* where = "";
+        /* The module's title: a grouped window's own title bar is gone (its
+         * group's frame wears the tabs), the registry still knows it. */
+        if( rec.widget >= 0 && rec.widget < chrome->widget_count && chrome->widgets[rec.widget].serial == rec.serial
+            && chrome->widgets[rec.widget].kind != TORIRS_CHROME_W_FREE )
+        {
+            int const panel = chrome->widgets[rec.widget].panel;
+            for( int i = 0; i < ui->panel_count && !where[0]; i++ )
+                if( ui->panels[i].chrome_panel == panel && ui->panels[i].title )
+                    where = ui->panels[i].title;
+            if( !where[0] && panel >= 0 && panel < chrome->panel_count )
+                where = chrome->panels[panel].title;
+        }
+        Editor_UiLog(ui, "chrome: %s%s%s cut to %d of %d bytes (widget %d): \"%s...\"", where, where[0] ? " " : "",
+            ToriRSChrome_TruncationFieldName(rec.field), rec.kept, rec.length, rec.widget, rec.head);
+    }
+    dropped = ToriRSChrome_TakeTruncationsDropped(chrome);
+    if( dropped > 0 )
+        Editor_UiLog(ui, "chrome: %d more cut string(s) were not kept (the ring holds %d)", dropped,
+            TORIRS_CHROME_TRUNCATION_RING);
+}
+
+/* ---- gesture frames (workbench 6.1, design section 14) -------------------- */
+
+int
+Editor_UiGesture(
+    struct EditorUi* ui,
+    const struct LibToriRS_Gesture* frame)
+{
+    static int const k_kind[LIBTORIRS_GESTURE_KIND_COUNT] = {
+        [LIBTORIRS_GESTURE_PAN] = TORIRS_CHROME_GESTURE_PAN,
+        [LIBTORIRS_GESTURE_PINCH] = TORIRS_CHROME_GESTURE_PINCH,
+        [LIBTORIRS_GESTURE_TWIST] = TORIRS_CHROME_GESTURE_TWIST,
+    };
+    static int const k_phase[LIBTORIRS_GESTURE_PHASE_COUNT] = {
+        [LIBTORIRS_GESTURE_BEGIN] = TORIRS_CHROME_GESTURE_BEGIN,
+        [LIBTORIRS_GESTURE_UPDATE] = TORIRS_CHROME_GESTURE_UPDATE,
+        [LIBTORIRS_GESTURE_END] = TORIRS_CHROME_GESTURE_END,
+    };
+    struct ToriRSChromeGesture gesture;
+
+    assert(ui);
+    assert(frame);
+    assert(frame->kind < LIBTORIRS_GESTURE_KIND_COUNT);
+    assert(frame->phase < LIBTORIRS_GESTURE_PHASE_COUNT);
+    assert(frame->scale > 0.0f);
+    /* Any panel of the instance, not only the editor's: the loc editor's
+     * windows share it, and a frame over one must not reach the World. */
+    if( !ToriRSChrome_HasVisiblePanel(ui->chrome) )
+        return 0;
+    /* The decoded frame (input/torirs_input.h) in the chrome's own copy of
+     * it: ui/ includes nothing of input/. The chrome keeps its own part-pixel
+     * remainders (pan_rem), so whole pixels are what it is handed. */
+    gesture.kind = k_kind[frame->kind];
+    gesture.x = frame->x;
+    gesture.y = frame->y;
+    gesture.dx = (int)lroundf(frame->dx);
+    gesture.dy = (int)lroundf(frame->dy);
+    gesture.fingers = frame->fingers;
+    gesture.scale_q16 = (int)lroundf(frame->scale * 65536.0f);
+    if( gesture.scale_q16 < 1 )
+        gesture.scale_q16 = 1;
+    gesture.radians_q16 = (int)lroundf(frame->radians * 65536.0f);
+    gesture.phase = k_phase[frame->phase];
+    return ToriRSChrome_Gesture(ui->chrome, &gesture);
+}
+
+void
+Editor_UiSetTouchInput(
+    struct EditorUi* ui,
+    int touch)
+{
+    assert(ui);
+    ui->input_touch = touch != 0;
+}
+
+
 void
 Editor_UiTick(struct EditorUi* ui)
 {
@@ -1989,13 +4143,18 @@ Editor_UiTick(struct EditorUi* ui)
         return;
     /* The grid follows the chrome's scale (8 px at 1x, 16 at 2x). */
     Editor_UiSetSnap(ui, ui->snap);
+    ui_text_size_follow(ui);
     ui_follow_scale(ui);
     ui_follow_surface(ui);
+    /* The strips first: what showed or hid a member window since the last
+     * frame says who is in which strip before anything is laid out. */
+    ui_groups_follow(ui);
     ui_default_layout(ui);
     if( ui->laid_out )
         ui_layout_follow(ui);
 
     ui_popout_tick(ui);
+    ui_dock_tick(ui);
     ui_maximise_tick(ui);
     ui_compact_tick(ui);
 
@@ -2005,7 +4164,7 @@ Editor_UiTick(struct EditorUi* ui)
     activated = ToriRSChrome_TakeActivated(ui->chrome);
     if( activated >= 0 )
     {
-        int claimed = 0;
+        int claimed = ui_groups_activate(ui, activated);
         for( int i = 0; i < ui->panel_count && !claimed; i++ )
             if( ui->panels[i].activate )
                 claimed = ui->panels[i].activate(ui, ui->panels[i].self, activated);
@@ -2028,8 +4187,13 @@ Editor_UiTick(struct EditorUi* ui)
     for( int i = 0; i < ui->panel_count; i++ )
         if( ui->panels[i].tick )
             ui->panels[i].tick(ui, ui->panels[i].self);
+    /* And again after the modules ran: a window a module (or a menu row)
+     * showed or hid this frame is in or out of its strip before the Build,
+     * so two tabs never draw at once. */
+    ui_groups_follow(ui);
     ui_tools_publish(ui);
     ui_solo_title(ui);
+    ui_truncations_drain(ui);
 }
 
 void
@@ -2105,6 +4269,8 @@ Editor_UiApplyState(
         if( ui->hooks.open_square )
             ui->hooks.open_square(ui->hooks_user, values[0], values[1], storage, values[2] != 0);
     }
+    else if( key == TORIRSMAPED_STATE_DOCK_PANEL && count >= 2 )
+        ui_dock_heard(ui, values, count);
 
     for( int i = 0; i < ui->panel_count; i++ )
         if( ui->panels[i].on_state )
@@ -2170,6 +4336,9 @@ Editor_UiPanelOpenBeside(
     assert(panel->chrome_panel >= 0);
 
     ToriRSChrome_PanelSetVisible(chrome, panel->chrome_panel, 1);
+    /* A member opens in its strip, where its group is. */
+    if( ui->group_plus1[panel - ui->panels] )
+        return;
     beside = Editor_UiFindPanel(ui, anchor);
     /* Placed only among the windows this registry lays out (a harness that
      * registers modules one by one lays out none). */
@@ -2241,10 +4410,23 @@ Editor_UiToggleAllPanels(struct EditorUi* ui)
          * View menu can still bring any of them back, and so does World. */
         if( chrome_panel < 0 || !panel->title || chrome_panel == ui->world_panel )
             continue;
-        if( !ui->chrome->panels[chrome_panel].visible )
+        /* A member behind another tab is open too: it comes back with it. */
+        if( !ui->chrome->panels[chrome_panel].visible && !Editor_UiPanelInStrip(ui, panel->name) )
             continue;
         ui->panels_hidden_open[i] = 1;
         ToriRSChrome_PanelSetVisible(ui->chrome, chrome_panel, 0);
+    }
+    /* Every strip empties with its windows (the press that brings them back
+     * refills it, the front tab first again). */
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup* g = &ui->groups[i];
+        if( g->shown >= 0 )
+            g->prev_shown = g->shown;
+        g->shown = -1;
+        g->parked = 0;
+        memset(g->open, 0, sizeof(g->open));
+        ToriRSChrome_PanelSetVisible(ui->chrome, g->chrome_panel, 0);
     }
     ui->panels_hidden = 1;
     return 1;
@@ -2304,6 +4486,42 @@ Editor_UiConsoleLine(
                        % EDITOR_UI_CONSOLE_LINES];
 }
 
+/* ---- the status sentence --------------------------------------------------- */
+
+void
+Editor_UiStatus(
+    struct EditorUi* ui,
+    const char* format,
+    ...)
+{
+    va_list args;
+    size_t length;
+
+    assert(ui);
+    assert(format);
+
+    va_start(args, format);
+    vsnprintf(ui->status, sizeof(ui->status), format, args);
+    va_end(args);
+    /* One sentence, one line: a trailing newline is TORIRS_LOG's habit. */
+    length = strlen(ui->status);
+    while( length > 0 && (ui->status[length - 1] == '\n' || ui->status[length - 1] == '\r') )
+        ui->status[--length] = '\0';
+    /* The console keeps the sentence (R8); the bar shows it for 6 s. */
+    Editor_UiLog(ui, "%s", ui->status);
+    ui->status_ms = ui->chrome->now_ms;
+    ui->status_serial++;
+}
+
+const char*
+Editor_UiStatusText(const struct EditorUi* ui)
+{
+    assert(ui);
+    if( !ui->status[0] || ui->chrome->now_ms - ui->status_ms >= EDITOR_UI_STATUS_MS )
+        return "";
+    return ui->status;
+}
+
 /* ---- the save guard -------------------------------------------------------- */
 
 void
@@ -2319,9 +4537,19 @@ Editor_UiRunGuarded(
     case EDITOR_UI_GUARD_OPEN_SQUARE:
         Editor_UiOpenSquare(ui, guard->map_x, guard->map_z, guard->storage, guard->storage_index, 0);
         break;
+    case EDITOR_UI_GUARD_ENTER_SCENE:
+        (void)Editor_Scenes_EnterNow(ui, guard->scene);
+        break;
     case EDITOR_UI_GUARD_CLOSE:
         if( ui->hooks.close_editor )
             ui->hooks.close_editor(ui->hooks_user);
+        break;
+    case EDITOR_UI_GUARD_CLOSE_SQUARE:
+        if( ui->hooks.close_square && Editor_UiWorldShown(ui) )
+            ui->hooks.close_square(ui->hooks_user, guard->map_x, guard->map_z, guard->storage);
+        else
+            Editor_UiStatus(ui, "Close refused: this window shows no world to close m%d_%d in", guard->map_x,
+                guard->map_z);
         break;
     case EDITOR_UI_GUARD_NONE:
         break;

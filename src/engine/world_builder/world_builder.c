@@ -555,6 +555,22 @@ WorldBuilder_New(
     return builder;
 }
 
+int
+WorldBuilder_ResolveLocId(
+    struct WorldBuilder* builder,
+    int loc_id)
+{
+    struct ToriRS_Location* base;
+    struct ToriRS_Location* resolved;
+
+    assert(builder);
+    base = CacheProvider_LocationGet(builder->cache, loc_id);
+    if( !base )
+        return WORLD_BUILDER_LOC_NOT_RESIDENT;
+    resolved = world_builder_resolve_loc(builder, base);
+    return resolved ? resolved->id : -1;
+}
+
 void
 WorldBuilder_Free(struct WorldBuilder* builder)
 {

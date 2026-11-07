@@ -45,7 +45,8 @@
     WIDGET_SELECTED: 15, WIDGET_FOCUS: 16, WIDGET_OPTIONS: 17,
     WIDGET_OPTION: 18, CHECK_STYLE: 19, WIDGET_HEIGHT: 20,
     PANEL_MODE: 21, WIDGET_VALUE: 22, WIDGET_ROW: 23, WIDGET_SPAN: 24,
-    WIDGET_GRAPH: 25, WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27
+    WIDGET_GRAPH: 25, WIDGET_GRAPH_ITEM: 26, WIDGET_TOOLTIP: 27, WIDGET_CHORD: 28,
+    SCALE: 29
   };
   const W = {
     LABEL: 0, CHECKBOX: 1, TEXTINPUT: 2, SEPARATOR: 3, MENUITEM: 4,
@@ -56,13 +57,22 @@
   const INTENT = {
     ACTIVATE: 1, ACTION: 2, TOGGLE: 3, TEXT: 4, PICK: 5, TAB: 6,
     CLOSE: 7, CUSTOM_ACTIVATE: 8, CUSTOM_MENU: 9, EXPAND: 10, SCROLL: 11,
-    VALUE: 12, SPLIT: 13, CODE_EDIT: 14, GRAPH: 15, GRAPH_WHEEL: 16
+    VALUE: 12, SPLIT: 13, CODE_EDIT: 14, GRAPH: 15, GRAPH_WHEEL: 16,
+    GESTURE: 17
   };
 
   const THEME = {
     protocol: PROTOCOL,
     type: 'theme',
     revision: 1,
+    /* 1: the page draws the 1x skin, pixelated, at every ratio, as before
+     * the tiers. `make web` still stages skin@2x/ and skin@3x/ beside skin/
+     * (tools/chrome_skin_tiers.py), but the GLYPH slots' tiers are derived
+     * (scale2x / scale3x of a two-ink quantisation, docs/CHROME_SCALE.md) and
+     * flatten the multi-ink marks -- CheckOn's 52 colours come out as 2 -- so
+     * a 2x page would change the look at an integer scale. 3 once those
+     * tiers are drawn by hand or the slots reclassified as TEXTURED. */
+    skinTiers: 1,
     assets: {
       panelBody: 'skin/PanelBody.png',
       pluginIcon: 'skin/PluginIcon.png',
@@ -132,6 +142,13 @@
       this.pagePanel = -1;
       this.pageGeneration = 0;
       this.checkStyle = 0;
+      /* The chrome scale (CMD.SCALE), carried in every page snapshot so a
+       * page made after the command went past still draws at it. */
+      this.scaleQ = 4;
+      this.scaleDen = 4;
+      /* SCALE's h: the text rendering (0 bitmap at whole scales, 1 smooth
+       * always), carried in every snapshot with the scale. */
+      this.scaleText = 0;
       this.title = 'Plugins';
       this.lastOutboundSequence = 0;
       this.lastLayoutKey = '';
@@ -142,6 +159,9 @@
       this.tab = null;
       this.customRevisions = {};
       this.widgetSerials = {};
+      /* The last graph.image of each scene id: pictures outlive pages, so a
+       * replaced iframe is given them again when it attaches. */
+      this.graphImages = {};
       this.rail = {
         protocol: PROTOCOL, type: 'rail.snapshot', registryRevision: 0,
         selectionGeneration: 0, pageGeneration: 0, activePlugin: -1,
@@ -187,6 +207,13 @@
       let accepted = true;
       try { accepted = runtime.receive(copy(THEME)) !== false; }
       catch (error) { accepted = false; }
+      /* Pictures first, so the page snapshot below draws its wells whole.
+       * One the runtime refuses is not a lost transaction. */
+      for (const sceneId in this.graphImages) {
+        if (!Object.prototype.hasOwnProperty.call(this.graphImages, sceneId)) continue;
+        try { runtime.receive(this.graphImages[sceneId]); }
+        catch (error) { /* drawn without it */ }
+      }
       const queued = this.pending;
       this.pending = [];
       this.pendingBytes = 0;
@@ -218,6 +245,7 @@
       else if (message.type === 'rail.icon') key = `rail.icon:${message.pluginIndex}`;
       else if (message.type === 'custom.bitmap')
         key = `custom:${message.pageGeneration}:${message.widget}:${message.widgetSerial}`;
+      else if (message.type === 'graph.image') key = `graph.image:${message.sceneId}`;
       else if (message.type === 'page.snapshot' || message.type === 'page.close') key = 'page';
       else key = `ordered:${++this.pendingSerial}`;
 
@@ -322,6 +350,9 @@
         this.pagePanel = panel;
         this.title = boundedText(message.title || 'Plugins', 191);
         this.checkStyle = integer(message.checkStyle, this.checkStyle);
+        this.scaleQ = integer(message.scaleQ, this.scaleQ);
+        this.scaleDen = integer(message.scaleDen, this.scaleDen);
+        this.scaleText = integer(message.scaleText, this.scaleText);
       } else if (message.type === 'page.close') {
         const generation = unsigned(message.pageGeneration);
         if (generation && this.pageGeneration && generation !== this.pageGeneration)
@@ -537,9 +568,17 @@
       let panel = this.pagePanel;
       let title = this.title;
       let checkStyle = this.checkStyle;
+      let scaleQ = this.scaleQ;
+      let scaleDen = this.scaleDen;
+      let scaleText = this.scaleText;
       for (let i = 0; i < commands.length; i++) {
         const command = commands[i];
         if (command.k === CMD.CHECK_STYLE) checkStyle = command.v;
+        else if (command.k === CMD.SCALE) {
+          scaleQ = command.v;
+          scaleDen = command.cw;
+          scaleText = command.ch;
+        }
         else if (command.k === CMD.PANEL_OPEN) {
           containsOpen = true;
           panel = command.p;
@@ -565,6 +604,9 @@
           panel,
           title: title || 'Plugins',
           checkStyle,
+          scaleQ,
+          scaleDen,
+          scaleText,
           commands: initial
         })) return false;
         this.updateWidgetIdentities(initial, generation, true);
@@ -573,6 +615,9 @@
         this.pageGeneration = generation;
         this.title = title || 'Plugins';
         this.checkStyle = checkStyle;
+        this.scaleQ = scaleQ;
+        this.scaleDen = scaleDen;
+        this.scaleText = scaleText;
         return true;
       }
 
@@ -581,6 +626,9 @@
           return false;
         this.resetPage();
         this.checkStyle = checkStyle;
+        this.scaleQ = scaleQ;
+        this.scaleDen = scaleDen;
+        this.scaleText = scaleText;
         return true;
       }
       if (!this.send({
@@ -592,6 +640,9 @@
       this.updateWidgetIdentities(commands, generation, false);
       this.title = title;
       this.checkStyle = checkStyle;
+      this.scaleQ = scaleQ;
+      this.scaleDen = scaleDen;
+      this.scaleText = scaleText;
       return true;
     }
 
@@ -613,6 +664,33 @@
         binary += String.fromCharCode.apply(null, bytes.subarray(
           at, Math.min(bytes.length, at + 32768)));
       return this.global.btoa(binary);
+    }
+
+    /* One GRAPH image's picture (ToriRSChromeExecWeb_GraphImage): kept by
+     * scene id and sent as graph.image; the runtime draws every IMAGE item
+     * naming the id from it. */
+    graphImage(sceneId, version, width, height, argb) {
+      sceneId = integer(sceneId, 0);
+      width = integer(width, 0);
+      height = integer(height, 0);
+      if (sceneId <= 0 || width <= 0 || height <= 0 || width > 1024 || height > 1024) return false;
+      const rgbaBase64 = this.argbToRgbaBase64(argb, width, height);
+      if (!rgbaBase64) return false;
+      const envelope = {
+        protocol: PROTOCOL,
+        type: 'graph.image',
+        sceneId,
+        version: unsigned(version),
+        width,
+        height,
+        rgbaBase64
+      };
+      this.graphImages[sceneId] = envelope;
+      if (!this.runtime) return this.send(envelope);
+      /* Attached: delivered now, and replayed should the iframe be
+       * replaced; a refusal is the runtime's (a full store), not a loss. */
+      this.send(envelope);
+      return true;
     }
 
     customFrame(panel, widget, generation, serial, scaleMilli, width, height, argb) {
@@ -676,7 +754,7 @@
          * (TORIRS_CHROME_INTENT_KIND_MAX). CUSTOM_MENU used to fall past an
          * older bound here and every secondary click on a well was dropped. */
         if (!this.pageOpen || normalized.k < INTENT.ACTIVATE ||
-            normalized.k > INTENT.GRAPH_WHEEL ||
+            normalized.k > INTENT.GESTURE ||
             normalized.g !== this.pageGeneration || normalized.p !== this.pagePanel)
           return false;
         if (normalized.k === INTENT.CLOSE || normalized.k === INTENT.SPLIT) {
@@ -886,6 +964,8 @@
     global.torirsChromeCustom = (panel, widget, generation, serial, scaleMilli,
       width, height, argb) =>
       host.customFrame(panel, widget, generation, serial, scaleMilli, width, height, argb);
+    global.torirsChromeGraphImage = (sceneId, version, width, height, argb) =>
+      host.graphImage(sceneId, version, width, height, argb);
     /* Canonical protocol entry point for new wasm hooks and browser tests. */
     global.torirsChromeReceive = envelope => {
       let message = envelope;

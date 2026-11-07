@@ -70,6 +70,12 @@ LaunchSessions_UnsupportedReason(void)
     return "desktop only";
 }
 
+char const*
+LaunchSessions_PartyUnsupportedReason(void)
+{
+    return "desktop only";
+}
+
 char*
 LaunchSessions_Answer(
     struct LaunchSessions* table,
@@ -1725,10 +1731,16 @@ verb_view(struct LaunchSessions* table, struct LaunchRequest const* request,
 char const*
 LaunchSessions_UnsupportedReason(void)
 {
+    return NULL;
+}
+
+char const*
+LaunchSessions_PartyUnsupportedReason(void)
+{
 #if defined(_WIN32)
     /* ToriRSServer_EmbedPartyListen aborts on Windows: a member spawned there
      * would abort at its first dial. The spawner below is ready for the day
-     * the party link runs. */
+     * the party link runs; the editor's views (`view`) need no party. */
     return "the party link is not available on this platform";
 #else
     return NULL;
@@ -1784,11 +1796,15 @@ LaunchSessions_Answer(
     static char const* const leader_keys[] = { "session", "token", NULL };
     struct LaunchText answer = { 0 };
     struct LaunchRequest request;
-    char const* reason = LaunchSessions_UnsupportedReason();
+    char const* reason;
     char const* refusal;
 
     assert(table);
     assert(verb);
+    /* `view` is the editor's and needs no party: refused only where the whole
+     * service is. */
+    reason = strcmp(verb, "view") == 0 ? LaunchSessions_UnsupportedReason()
+                                       : LaunchSessions_PartyUnsupportedReason();
     assert(peer);
     assert(out_size);
     assert(body_size >= 0);
@@ -2040,7 +2056,12 @@ system_spawn(void* context, char* const* argv, char* const* environment, char co
     posix_spawnattr_setsigdefault(&attributes, &defaults);
     sigemptyset(&mask);
     posix_spawnattr_setsigmask(&attributes, &mask);
-    result = posix_spawn(&pid, argv[0], &actions, &attributes, argv, environment);
+    /* A bare program name ("make") is searched on PATH, as the Windows
+     * spawner's CreateProcess does. */
+    if( strchr(argv[0], '/') )
+        result = posix_spawn(&pid, argv[0], &actions, &attributes, argv, environment);
+    else
+        result = posix_spawnp(&pid, argv[0], &actions, &attributes, argv, environment);
     posix_spawn_file_actions_destroy(&actions);
     posix_spawnattr_destroy(&attributes);
     if( result != 0 )
@@ -2186,6 +2207,8 @@ struct LaunchWindowsChild
 {
     int pid;
     HANDLE process;
+    /* Its job's group, so the last reap of a group frees the job's slot. */
+    int group;
 };
 
 struct LaunchWindowsJob
@@ -2218,6 +2241,7 @@ system_spawn(void* context, char* const* argv, char* const* environment, char co
     struct LaunchWindowsJob* job = NULL;
     struct LaunchWindowsChild* child = NULL;
     HANDLE log;
+    HANDLE null_in;
     BOOL started;
 
     (void)context;
@@ -2247,16 +2271,31 @@ system_spawn(void* context, char* const* argv, char* const* environment, char co
     }
     log = CreateFileA(log_path, GENERIC_WRITE, FILE_SHARE_READ, &inherit, CREATE_ALWAYS,
                       FILE_ATTRIBUTE_NORMAL, NULL);
+    if( log == INVALID_HANDLE_VALUE )
+    {
+        ToriMem_Free(ToriMem_Net(), command_line.data);
+        ToriMem_Free(ToriMem_Net(), block.data);
+        return EACCES;
+    }
+    /* stdin from the null device, as POSIX's /dev/null: a NULL handle is an
+     * invalid one to the child, and a child that asks for its stdin (Python's
+     * subprocess does, for every Popen) fails with "The handle is invalid". */
+    null_in = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, &inherit, OPEN_EXISTING,
+                          FILE_ATTRIBUTE_NORMAL, NULL);
     startup.cb = sizeof(startup);
     startup.dwFlags = STARTF_USESTDHANDLES;
-    startup.hStdInput = NULL;
+    startup.hStdInput = null_in;
     startup.hStdOutput = log;
     startup.hStdError = log;
-    started = CreateProcessA(argv[0], command_line.data, NULL, NULL, TRUE,
+    /* A bare program name is searched on PATH (with .exe), as posix_spawnp
+     * does: CreateProcess searches only when lpApplicationName is NULL. */
+    started = CreateProcessA(strchr(argv[0], '/') || strchr(argv[0], '\\') ? argv[0] : NULL,
+                             command_line.data, NULL, NULL, TRUE,
                              CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
                              block.data, NULL, &startup, &process);
-    if( log != INVALID_HANDLE_VALUE )
-        CloseHandle(log);
+    CloseHandle(log);
+    if( null_in != INVALID_HANDLE_VALUE )
+        CloseHandle(null_in);
     ToriMem_Free(ToriMem_Net(), command_line.data);
     ToriMem_Free(ToriMem_Net(), block.data);
     if( !started )
@@ -2276,6 +2315,7 @@ system_spawn(void* context, char* const* argv, char* const* environment, char co
     CloseHandle(process.hThread);
     child->pid = (int)process.dwProcessId;
     child->process = process.hProcess;
+    child->group = job->group;
     *out_pid = child->pid;
     *out_process_group = job->group;
     return 0;
@@ -2347,7 +2387,23 @@ system_reap_child(void* context, int pid, int block, int* out_exit_code, int* ou
         return 0;
     GetExitCodeProcess(child->process, &code);
     CloseHandle(child->process);
-    memset(child, 0, sizeof(*child));
+    {
+        /* The group's last member reaped: its job is empty, so close it and
+         * give the slot back (eight slots, and every spawn with group 0 takes
+         * a new one -- a long-lived host such as the editor server spawns many). */
+        int const group = child->group;
+        int members = 0;
+        memset(child, 0, sizeof(*child));
+        for( int i = 0; i < LAUNCH_WINDOWS_SLOTS; i++ )
+            if( g_windows_children[i].pid != 0 && g_windows_children[i].group == group )
+                members++;
+        for( int i = 0; i < LAUNCH_SESSIONS_SESSION_MAX && members == 0; i++ )
+            if( g_windows_jobs[i].group == group && g_windows_jobs[i].job )
+            {
+                CloseHandle(g_windows_jobs[i].job);
+                memset(&g_windows_jobs[i], 0, sizeof(g_windows_jobs[i]));
+            }
+    }
     *out_exit_code = (int)code;
     *out_signal = 0;
     return 1;

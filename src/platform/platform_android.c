@@ -981,6 +981,12 @@ PlatformWindow_DisplayDensityPercent(struct PlatformWindow* p)
     return PlatformWindow_PixelDensity(p) * 100;
 }
 
+int
+PlatformWindow_ChromeDensityPercent(struct PlatformWindow* p)
+{
+    return PlatformWindow_DisplayDensityPercent(p);
+}
+
 void
 PlatformWindow_SetWantHighDPI(bool want)
 {
@@ -1074,6 +1080,13 @@ PlatformWindow_SetTouchOverlayTest(struct PlatformWindow* p, ToriRS_TouchOverlay
 {
     assert(p);
     ToriRS_TouchSetOverlayTest(&p->touch, fn, user);
+}
+
+void
+PlatformWindow_SetTouchGestureFrames(struct PlatformWindow* p, int on)
+{
+    assert(p);
+    ToriRS_TouchSetGestureFrames(&p->touch, on);
 }
 
 void

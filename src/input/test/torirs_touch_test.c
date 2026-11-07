@@ -5,9 +5,11 @@
  * pass-through -- but the four decisions the policy makes that a backend cannot
  * see it make:
  *
- *   1. A TAP is a left click and a DRAG is not. On a frame where the world
- *      fills the screen, a click the player did not mean is a walk across the
- *      map, so the slop boundary is the difference between aiming and moving.
+ *   1. A TAP is a left click and a DRAG is not: a drag is a press where the
+ *      finger landed and a release where it lifted, never the tap's click at
+ *      the landing point. On a frame where the world fills the screen, a
+ *      click the player did not mean is a walk across the map, so the slop
+ *      boundary is the difference between aiming and moving.
  *   2. A HOLD is a right click, it fires while the finger is still down, and
  *      from then on the finger is CHOOSING from the menu it opened: its
  *      travel is the pointer and never a drag, and the release is the LEFT
@@ -16,9 +18,10 @@
  *   3. A SECOND finger cancels both. A pinch that left two taps behind would
  *      zoom and walk at once, and it is the one bug in this area that looks
  *      like the game misbehaving rather than the input.
- *   4. A pinch is the WHEEL and a two-finger pan is the ARROWS, and one pass
- *      does at most one of them -- fingers moving apart also move their
- *      midpoint, so a naive reading zooms and swings the camera together.
+ *   4. A pinch is the WHEEL (fingers apart a positive notch, zoom in) and a
+ *      two-finger pan is the ARROWS, and one pass does at most one of them --
+ *      fingers moving apart also move their midpoint, so a naive reading
+ *      zooms and swings the camera together.
  *   5. WHICH BUTTON a drag holds, which is how "turn the camera" and "throw a
  *      scrollbar" are told apart -- and that a window drawn over the viewport
  *      wins, because the client draws its panels inside the world's rectangle
@@ -63,6 +66,11 @@ struct Seen
 {
     int downs;
     int ups;
+    int right_downs;
+    int down_x;
+    int down_y;
+    int up_x;
+    int up_y;
     int moves;
     int wheels;
     int leaves;
@@ -93,9 +101,19 @@ drain(struct ToriRS_CmdBus* bus, struct Seen* seen)
 
             memcpy(&btn, payload, sizeof(btn));
             if( header.type == TORIRS_CMD_INPUT_MOUSE_DOWN )
+            {
                 seen->downs++;
+                if( btn.button == TORIRSM_RIGHT )
+                    seen->right_downs++;
+                seen->down_x = btn.x;
+                seen->down_y = btn.y;
+            }
             else
+            {
                 seen->ups++;
+                seen->up_x = btn.x;
+                seen->up_y = btn.y;
+            }
             seen->last_button = btn.button;
             seen->last_x = btn.x;
             seen->last_y = btn.y;
@@ -188,7 +206,12 @@ main(void)
     ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 100 + TORIRS_TOUCH_SLOP + 4, 80, 40);
     ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 1, 100 + TORIRS_TOUCH_SLOP + 4, 80, 80);
     drain(&bus, &seen);
-    CHECK(seen.downs == 0 && seen.ups == 0, "a finger that wandered does not click");
+    /* A drag holds a button from where the finger LANDED to where it lifted
+     * (the LEFT one here: no viewport is set, so this is not the world) --
+     * which is the widget's own press-move-release, not the tap's click. */
+    CHECK(seen.downs == 1 && seen.ups == 1, "a finger that wandered is one press-drag-release");
+    CHECK(seen.down_x == 100 && seen.down_y == 80, "pressed where it landed");
+    CHECK(seen.up_x == 100 + TORIRS_TOUCH_SLOP + 4 && seen.up_y == 80, "released where it lifted, not tapped at the landing");
     CHECK(seen.moves > 0, "but the pointer still followed it");
 
     /* ---- inside the slop it is still a tap ---- */
@@ -247,7 +270,7 @@ main(void)
     ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 60 + TORIRS_TOUCH_SLOP + 8, 40, 10);
     ToriRS_TouchTick(&touch, &bus, TORIRS_TOUCH_HOLD_MS + 1);
     drain(&bus, &seen);
-    CHECK(seen.downs == 0, "a finger that wandered never becomes a hold");
+    CHECK(seen.right_downs == 0, "a finger that wandered never becomes a hold");
 
     /* ---- a second finger cancels the first one's tap ---- */
     CmdBus_Init(&bus);
@@ -279,7 +302,7 @@ main(void)
         &touch, &bus, TORIRS_TOUCH_MOVED, 2, 400 + TORIRS_TOUCH_PINCH_STEP + 8, 200, 40);
     drain(&bus, &seen);
     CHECK(seen.wheels == 1, "spreading two fingers turns the wheel once");
-    CHECK(seen.last_wheel < 0, "and spreading zooms the one way");
+    CHECK(seen.last_wheel > 0, "and spreading is a positive notch: zoom in, as everywhere else");
 
     /* ---- two fingers travelling together turn the camera ---- */
     CmdBus_Init(&bus);
@@ -289,11 +312,15 @@ main(void)
     ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 2, 360, 200, 10); /* baseline */
     drain(&bus, &seen);
     /* both fingers slide right by the same amount: the spread is unchanged, so
-     * this is a pan and not a pinch */
-    ToriRS_TouchEvent(
-        &touch, &bus, TORIRS_TOUCH_MOVED, 1, 300 + (TORIRS_TOUCH_PAN_STEP * 2), 200, 40);
-    ToriRS_TouchEvent(
-        &touch, &bus, TORIRS_TOUCH_MOVED, 2, 360 + (TORIRS_TOUCH_PAN_STEP * 2), 200, 45);
+     * this is a pan and not a pinch. In steps, each finger less than the pinch
+     * step at a time, as two real fingers report: every event is read on its
+     * own, and one finger jumping the whole way first would be a pinch. */
+    for( int step = 1; step * (TORIRS_TOUCH_PINCH_STEP / 2) <= TORIRS_TOUCH_PAN_STEP * 2; step++ )
+    {
+        int const d = step * (TORIRS_TOUCH_PINCH_STEP / 2);
+        ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 1, 300 + d, 200, 20 + step * 2);
+        ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, 2, 360 + d, 200, 21 + step * 2);
+    }
     drain(&bus, &seen);
     CHECK(seen.wheels == 0, "a pan that keeps its spread does not zoom");
     CHECK(seen.key_downs == 1, "it holds an arrow key instead");

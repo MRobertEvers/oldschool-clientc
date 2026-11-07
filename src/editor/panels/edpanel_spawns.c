@@ -100,6 +100,8 @@ struct SpawnsPanel
     int button_delete;
     int button_restore;
     int button_duplicate;
+    /** Group...: the selection into the encounter builder's set (6.7). */
+    int button_group;
     /** ui->hotkeys.serial the tips were labelled from. */
     uint32_t hint_serial;
     int input_name;
@@ -443,18 +445,19 @@ spawns_env_step(
         }
 }
 
-/** The buttons' tips name their chords from the hotkey table. */
+/** The buttons with a hotkey wear its chord as a keycap (the tooltip ends
+ *  with every chord), from the hotkey table; again whenever its serial moves.
+ *  Move and Place arm the next world click and have no action of their own
+ *  in the table, so they wear none. */
 static void
 spawns_hints(
     struct EditorUi* ui,
     struct SpawnsPanel* self)
 {
-    char tip[TORIRS_CHROME_LABEL_MAX];
-
-    edp_hotkey_tip(ui, EDITOR_HK_EDIT_DUPLICATE, "Copy the selection one tile east", tip, (int)sizeof(tip));
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_duplicate, tip);
-    edp_hotkey_tip(ui, EDITOR_HK_EDIT_DELETE, "Delete, or suppress a generated row", tip, (int)sizeof(tip));
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_delete, tip);
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_duplicate, "Copy the selection one tile east");
+    edp_button_chord(ui, self->button_duplicate, EDITOR_HK_EDIT_DUPLICATE);
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_delete, "Delete, or suppress a generated row");
+    edp_button_chord(ui, self->button_delete, EDITOR_HK_EDIT_DELETE);
     self->hint_serial = ui->hotkeys.serial;
 }
 
@@ -1304,6 +1307,8 @@ spawns_activate(
     }
     if( widget == self->button_duplicate )
         (void)spawns_duplicate(ui, self);
+    else if( widget == self->button_group )
+        (void)Editor_Encounter_GroupSelection(ui);
     else if( widget == self->button_delete )
         (void)spawns_delete(ui, self);
     else if( widget == self->button_restore )
@@ -1364,6 +1369,8 @@ Editor_Spawns_Register(struct EditorUi* ui)
         "Edited rows go; generated ones are suppressed (-name x z level)");
     self->button_restore = ToriRSChrome_Button(chrome, self->panel, "Restore");
     self->button_duplicate = ToriRSChrome_Button(chrome, self->panel, "Duplicate");
+    self->button_group = ToriRSChrome_Button(chrome, self->panel, "Group...");
+    ToriRSChrome_SetTooltip(chrome, self->button_group, "the selection into an encounter set");
     ToriRSChrome_Separator(chrome, self->panel);
     {
         static const char* const tabs[] = { "Edit", "Place" };
@@ -1414,6 +1421,18 @@ Editor_Spawns_Register(struct EditorUi* ui)
     Editor_UiAddPanel(ui, &desc);
 }
 
+/** Shown, or open behind another tab of its group's strip: a Spawns tab
+ *  behind another keeps its selection, so Del, Ctrl+D, the S context, the
+ *  hint strip and the wander rects still act on it (the menubar's View rows
+ *  read "open" the same way). */
+static int
+spawns_open(
+    struct EditorUi* ui,
+    const struct SpawnsPanel* self)
+{
+    return ui->chrome->panels[self->panel].visible || Editor_UiPanelInStrip(ui, "spawns");
+}
+
 int
 Editor_Spawns_SelectionCount(struct EditorUi* ui)
 {
@@ -1421,7 +1440,7 @@ Editor_Spawns_SelectionCount(struct EditorUi* ui)
 
     assert(ui);
     self = Editor_UiPanelSelf(ui, "spawns");
-    if( !self || !ui->chrome->panels[self->panel].visible )
+    if( !self || !spawns_open(ui, self) )
         return 0;
     return self->selection_count;
 }
@@ -1583,7 +1602,7 @@ Editor_Spawns_WanderRects(
         spawns_wander_values(ui, self, name, &wander, &leash);
         count += MapEditorWander_Rects(hover_x, hover_z, hover_level, 1, wander, leash, out + count, max - count);
     }
-    if( !ui->chrome->panels[self->panel].visible )
+    if( !spawns_open(ui, self) )
         return count;
     for( int i = 0; i < self->selection_count; i++ )
     {

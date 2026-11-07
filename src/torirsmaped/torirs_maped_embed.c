@@ -2,6 +2,8 @@
 #include "mem/torirs_mem.h"
 
 #include "torirs_maped.h"
+#include "torirs_maped_lanes.h"
+#include "log/torirs_log.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -99,9 +101,21 @@ ToriRSMapEd_EmbedStartLane(
 {
     struct ToriRSMapEdEmbed* embed;
 
+    char boot_lane[TORIRSMAPED_LANE_NAME_MAX + 8];
+    char note[256];
+
     assert(content_dir);
     assert(why);
     why[0] = '\0';
+    /* A lane switched in the editor (build/lanes/lane.ini) wins over the
+     * boot's own; the log says which was served and why. */
+    if( repo_root && repo_root[0] )
+    {
+        if( ToriRSMapEdLanes_BootLane(repo_root, content_dir, lane, boot_lane, sizeof(boot_lane), note, sizeof(note)) )
+            lane = boot_lane;
+        if( note[0] )
+            TORIRS_LOG("torirsmaped: %s\n", note);
+    }
     if( !lane || !lane[0] || strcmp(lane, "main") == 0 )
         return ToriRSMapEd_EmbedStart(content_dir, repo_root);
     embed = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*embed));

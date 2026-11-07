@@ -23,11 +23,27 @@ test-edit-world:
 	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/edit_world_test \
 		engine/world_builder/test/edit_world_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
 	rm -rf $(OBJ_DIR)/tmp/edit_world
 	mkdir -p $(OBJ_DIR)/tmp/edit_world
 	./$(OBJ_DIR)/edit_world_test $(EDITOR_CONTENT_DIR) $(EDITOR_CACHE_DIR) \
 		$(EDIT_WORLD_SEED) $(EDIT_WORLD_STROKES) $(REPO_ROOT) $(OBJ_DIR)/tmp/edit_world
 
 # The per-tile derive rides with the editor's tests.
-test-editor: test-edit-world
+EDITOR_CACHE_TESTS += test-edit-world
+
+# The shell editor's var preview against the world's multiloc resolve
+# (workbench 6.6): a synthetic multiloc in a cache-less provider, its
+# STATE_VAR_PREVIEW fed through the client's own path into the varps an EDIT
+# builder resolves with, the child following each value. The same binary as
+# test-edit-world, run with --synthetic-shell: no content tree, no cache.
+.PHONY: test-edit-world-shell
+test-edit-world-shell:
+	mkdir -p $(OBJ_DIR)
+	$(MAKE) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/edit_world_test \
+		engine/world_builder/test/edit_world_test.c \
+		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS) $(MAPED_TEST_LDFLAGS)
+	./$(OBJ_DIR)/edit_world_test --synthetic-shell
+
+test-editor: test-edit-world-shell

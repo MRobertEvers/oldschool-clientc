@@ -36,6 +36,7 @@
  */
 
 #include "app/app_internal.h"
+#include "editor/builder/builder_panels.h"
 #include "editor/editor_hotkeys.h"
 #include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanel_ops.h"
@@ -86,6 +87,7 @@ app_hk_snapshot(
     struct EditorUiRect const world = Editor_UiWorldRect(ui);
     int const mx = input->curr.mouse_x;
     int const my = input->curr.mouse_y;
+    struct Editor_HotkeyContextFacts facts;
 
     memset(out, 0, sizeof(*out));
     out->now_ms = input->curr.time;
@@ -94,31 +96,24 @@ app_hk_snapshot(
         out->down[k] = LibToriRS_Input_IsKeyDown(input, (enum LibToriRS_KeyCode)k) ? 1 : 0;
         out->held[k] = out->down[k] || LibToriRS_Input_IsKeyHeld(input, (enum LibToriRS_KeyCode)k);
     }
-    out->contexts = EDITOR_HK_CTX_G;
-    if( Editor_UiWorldShown(ui) && mx >= world.x && my >= world.y && mx < world.x + world.w
-        && my < world.y + world.h && !app_chrome_wants_pointer(app, mx, my) )
-        out->contexts |= EDITOR_HK_CTX_W;
-    if( ui->tools.loc_count > 0 )
-    {
-        out->contexts |= EDITOR_HK_CTX_L;
-        /* Only Select and Move nudge with the arrows; any other tool (Place
-         * above all) leaves them to the camera. */
-        if( ui->tools.tool == EDITOR_TOOL_SELECT || ui->tools.tool == EDITOR_TOOL_LOC_MOVE )
-            out->contexts |= EDITOR_HK_CTX_M;
-        else
-            out->contexts |= EDITOR_HK_CTX_N;
-    }
-    else
-    {
-        out->contexts |= EDITOR_HK_CTX_N;
-        if( Editor_Spawns_SelectionCount(ui) > 0 )
-            out->contexts |= EDITOR_HK_CTX_S;
-        if( ui->tools.tool == EDITOR_TOOL_LOC_PLACE && ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0 )
-            out->contexts |= EDITOR_HK_CTX_P;
-    }
-    if( ui->tools.rect.valid )
-        out->contexts |= EDITOR_HK_CTX_R;
-    out->contexts |= ui->recent.camera_scheme == EDITOR_CAMERA_SCHEME_UNITY ? EDITOR_HK_CTX_U : EDITOR_HK_CTX_D;
+    /* The contexts from the facts, by the one rule set the status bar's hint
+     * uses too (Editor_HotkeyContextsFrom); the mask is left on the EditorUi
+     * so the hint shows the chords these keys resolve in. */
+    memset(&facts, 0, sizeof(facts));
+    facts.tool = (int)ui->tools.tool;
+    facts.pointer_in_world = Editor_UiWorldShown(ui) && mx >= world.x && my >= world.y && mx < world.x + world.w
+                             && my < world.y + world.h && !app_chrome_wants_pointer(app, mx, my);
+    facts.loc_count = ui->tools.loc_count;
+    facts.spawn_count = Editor_Spawns_SelectionCount(ui);
+    facts.loc_pick = ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0;
+    facts.rect_valid = ui->tools.rect.valid;
+    /* Q: the NPC builder's dialogue graph has the keyboard -- that well
+     * only: a palette's, a chip strip's or the picker's GRAPH is not it. */
+    facts.graph_focus = Builder_GraphFocused(ui);
+    facts.camera_unity = ui->recent.camera_scheme == EDITOR_CAMERA_SCHEME_UNITY;
+    out->contexts = Editor_HotkeyContextsFrom(&facts);
+    ui->hotkey_contexts = out->contexts;
+    ui->hotkey_contexts_valid = 1;
 }
 
 static void
@@ -215,7 +210,7 @@ app_hk_pick_loc(
 
     if( !app->world || !Editor_PanelHoverTile(&app->editor_panel, app, &scene_x, &scene_z) )
     {
-        Editor_UiLog(ui, "editor: no tile under the pointer to pick from");
+        Editor_UiStatus(ui, "Pick refused: no tile under the pointer to pick from");
         return;
     }
     level = Editor_PanelEditLevel(&app->editor_panel, app);
@@ -223,16 +218,16 @@ app_hk_pick_loc(
     scenery = idx >= 0 ? World_EntityPoolGet(&app->world->entities.scenery, idx) : NULL;
     if( !scenery )
     {
-        Editor_UiLog(ui, "editor: no loc on the hovered tile");
+        Editor_UiStatus(ui, "Pick refused: no loc on the hovered tile");
         return;
     }
     if( !Editor_UiFindPanel(ui, "catalog") )
     {
-        Editor_UiLog(ui, "editor: this window has no catalog to pick into");
+        Editor_UiStatus(ui, "Pick refused: this window has no catalog to pick into");
         return;
     }
-    Editor_Catalog_Adopt(ui, scenery->loc_id);
-    Editor_UiLog(ui, "editor: picked loc %s", ui->tools.pick_name);
+    /* Its exact pose, Find set to its name, its row in view (workbench 6.2). */
+    (void)Editor_Catalog_PickFromWorld(ui, scenery->loc_id, scenery->shape, scenery->angle & 3);
 }
 
 /** Ctrl+A: every loc of the hovered tile's square on the edit level. */
@@ -375,13 +370,47 @@ app_hk_deselect(
         panel->stroke_active = 0;
         return;
     }
+    /* A Path drag lays nothing until release: Escape drops it. */
+    if( panel->path.active )
+    {
+        panel->path.active = 0;
+        Editor_UiStatus(ui, "Path dropped");
+        return;
+    }
     if( panel->rect_dragging )
     {
+        /* A marquee too: it is the rectangle, and selects nothing now. */
         panel->rect_dragging = 0;
+        panel->marquee_active = 0;
         ui->tools.rect.valid = 0;
         return;
     }
+    /* A Place run in progress placed nothing yet: dropped whole. */
+    if( panel->run.active || panel->marquee_pending )
+    {
+        edp_run_cancel(&panel->run);
+        panel->marquee_pending = 0;
+        Editor_UiLog(ui, "editor: drag cancelled; nothing placed");
+        return;
+    }
     (void)Editor_HotkeyRun(ui, EDITOR_HK_EDIT_DESELECT);
+}
+
+/** Alt+A, select same: the hovered loc's id, else (no loc under the
+ *  pointer) the primary selected loc's, which the menu row also takes. */
+static void
+app_hk_select_same(
+    struct App* app,
+    struct EditorUi* ui)
+{
+    struct Editor_Panel* panel = &app->editor_panel;
+    int hx;
+    int hz;
+
+    if( Editor_PanelHoverTile(panel, app, &hx, &hz)
+        && Editor_PanelSelectSameAt(panel, app, hx, hz, Editor_PanelEditLevel(panel, app), EDITOR_LOC_SELECT_REPLACE) )
+        return;
+    (void)Editor_HotkeyRun(ui, EDITOR_HK_EDIT_SELECT_SAME);
 }
 
 static void
@@ -417,6 +446,9 @@ app_hk_run(
     case EDITOR_HK_EDIT_SELECT_SQUARE:
         app_hk_select_square(app, ui);
         break;
+    case EDITOR_HK_EDIT_SELECT_SAME:
+        app_hk_select_same(app, ui);
+        break;
     case EDITOR_HK_EDIT_PASTE:
         if( app_hk_hover(app, &x, &z, &level) )
             (void)edp_rect_paste_at(ui, x, z, level);
@@ -434,8 +466,13 @@ app_hk_run(
     {
         int const before = ui->tools.edit_level;
         level = edp_level_step(ui, action == EDITOR_HK_LEVEL_UP ? 1 : -1, Editor_PanelEditLevel(panel, app));
-        if( level != before )
-            Editor_UiLog(ui, "editor: level %d pinned (Ctrl+%d again: Auto)", level, level);
+        if( level != before && level >= 0 && level <= EDITOR_HK_LEVEL_PIN3 - EDITOR_HK_LEVEL_PIN0 )
+        {
+            char again[32];
+            Editor_HotkeyDisplay(
+                &ui->hotkeys, (enum Editor_HotkeyAction)(EDITOR_HK_LEVEL_PIN0 + level), again, (int)sizeof(again));
+            Editor_UiLog(ui, "editor: level %d pinned (%s again: Auto)", level, again[0] ? again : "its pin");
+        }
         break;
     }
     case EDITOR_HK_CAM_FRAME:
@@ -453,7 +490,7 @@ app_hk_run(
         if( app_hk_hover(app, &x, &z, &level) )
         {
             snprintf(prefill, sizeof(prefill), "%d,%d", x, z);
-            Editor_Command_Open(ui, prefill);
+            (void)Editor_CmdPalette_OpenWith(ui, prefill);
         }
         else
             (void)Editor_HotkeyRun(ui, action);
@@ -686,7 +723,7 @@ app_editor_hotkeys_frame(
      * an eyedropper, Paste at the hovered tile): before any gate, the box
      * that ran it may still be focused. */
     {
-        int const pending = Editor_Command_TakePendingAction(ui);
+        int const pending = Editor_CmdPalette_TakePendingAction(ui);
         if( pending >= 0 )
         {
             app_hk_run(app, ui, (enum Editor_HotkeyAction)pending);
@@ -695,28 +732,6 @@ app_editor_hotkeys_frame(
     }
     /* The Unity camera scheme's presses, ahead of the editor's world click. */
     app_camera_unity_gate(app, input);
-
-    /* The command palette open: its box has the keyboard (Enter is its
-     * activation); Up / Down and Escape are fed to it here, and nothing
-     * else resolves. */
-    if( Editor_Command_IsOpen(ui) )
-    {
-        int any = 0;
-        (void)Editor_Command_Feed(ui, &snapshot);
-        memset(&g_app_hk.frame, 0, sizeof(g_app_hk.frame));
-        for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
-        {
-            if( !snapshot.held[k] )
-                continue;
-            g_app_hk.frame.claimed[k] = 1;
-            app_hk_consume_key(app, k);
-            any |= snapshot.down[k];
-        }
-        g_app_hk.valid = 1;
-        if( any )
-            app->need_redraw = 1;
-        return;
-    }
 
     /* The Hotkeys panel waiting for a chord owns the keyboard. */
     if( Editor_Hotkeys_Capturing(ui) >= 0 )
@@ -738,6 +753,62 @@ app_editor_hotkeys_frame(
             app->input_frame_consumed = 1;
             app->need_redraw = 1;
         }
+        return;
+    }
+
+    /* The command palette (Ctrl+K) holds the keyboard while open: its search
+     * box takes the characters through the chrome, its list the navigation
+     * keys here, and no chord resolves under it. */
+    if( Editor_CmdPalette_IsOpen(ui) )
+    {
+        static const int k_nav[] = { TORIRSK_UP, TORIRSK_DOWN, TORIRSK_TAB, TORIRSK_PAGE_UP, TORIRSK_PAGE_DOWN,
+            TORIRSK_RETURN, TORIRSK_ESCAPE };
+        int any = 0;
+        (void)Editor_CmdPalette_Feed(ui, &snapshot);
+        memset(&g_app_hk.frame, 0, sizeof(g_app_hk.frame));
+        memset(ui->hotkeys.repeat_held, 0, sizeof(ui->hotkeys.repeat_held));
+        for( size_t i = 0; i < sizeof(k_nav) / sizeof(k_nav[0]); i++ )
+        {
+            if( !snapshot.held[k_nav[i]] )
+                continue;
+            g_app_hk.frame.claimed[k_nav[i]] = 1;
+            app_hk_consume_key(app, k_nav[i]);
+            any |= snapshot.down[k_nav[i]];
+        }
+        g_app_hk.valid = 1;
+        if( any )
+        {
+            app->input_frame_consumed = 1;
+            app->need_redraw = 1;
+        }
+        Editor_HotkeySnapHold(ui, 0);
+        return;
+    }
+
+    /* The dialogue graph's well holds the keyboard. That is a chrome focus,
+     * so the text-field gate below would shut everything; the graph's own
+     * rows (context Q: N, Ctrl+L) resolve against it instead, and nothing
+     * else does. */
+    if( Builder_GraphFocused(ui) && app->plugin_ui.focus < 0 && !app_text_input_focused_outside_chrome(app)
+        && !app_modelview_focused(app) && ui->chrome->dropdown_open < 0 && !app->frame_view->minimenu->visible )
+    {
+        memset(ui->hotkeys.repeat_held, 0, sizeof(ui->hotkeys.repeat_held));
+        (void)Builder_GraphKeys(ui, &snapshot, &g_app_hk.frame);
+        g_app_hk.valid = 1;
+        g_app_hk.mouse_x = input->curr.mouse_x;
+        g_app_hk.mouse_y = input->curr.mouse_y;
+        for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
+            if( g_app_hk.frame.consumed[k] )
+                app_hk_consume_key(app, k);
+        for( int i = 0; i < g_app_hk.frame.count; i++ )
+        {
+            char text[32];
+            Editor_ChordDisplay(g_app_hk.frame.fired_chord[i], text, (int)sizeof(text));
+            Editor_UiLog(ui, "editor: %s (%s)", Editor_HotkeyInfo(g_app_hk.frame.fired[i])->name, text);
+            app->input_frame_consumed = 1;
+            app->need_redraw = 1;
+        }
+        Editor_HotkeySnapHold(ui, 0);
         return;
     }
 
@@ -768,8 +839,12 @@ app_editor_hotkeys_frame(
         if( snapshot.down[chord.key] )
         {
             char text[32];
+            char note[EDITOR_UI_CONSOLE_LINE_MAX];
             Editor_ChordDisplay(chord, text, (int)sizeof(text));
             Editor_UiLog(ui, "editor: %s (%s)", Editor_HotkeyInfo(action)->name, text);
+            /* A chord the 6.8 moves retired, kept one release: say so. */
+            if( Editor_HotkeyRetiredNote(&ui->hotkeys, action, chord, note, (int)sizeof(note)) )
+                Editor_UiLog(ui, "%s", note);
         }
         app_hk_run(app, ui, action);
         app->input_frame_consumed = 1;

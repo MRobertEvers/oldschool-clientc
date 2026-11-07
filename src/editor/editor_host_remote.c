@@ -60,14 +60,23 @@
 #include <emscripten.h>
 #endif
 
-#if !defined(_WIN32)
+/* Sockets as the game server has them (torirsserver/torirs_server_host.c):
+ * winsock on Windows, BSD sockets elsewhere, a socket an int either way. */
 #include <errno.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#define remote_socket_close(fd) closesocket((SOCKET)(fd))
+#define remote_interrupted() (WSAGetLastError() == WSAEINTR)
+#else
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#define remote_socket_close(fd) close(fd)
+#define remote_interrupted() (errno == EINTR)
 #endif
 
 /** Loopback round trips are milliseconds; a minute means the daemon is gone. */
@@ -296,27 +305,22 @@ link_send(
         return ToriRSMapEd_EmbedWrite(remote->embed, remote->embed_client, data, len) == len;
 #endif
 
-#if !defined(_WIN32)
     {
         int sent_total = 0;
         while( sent_total < len )
         {
-            ssize_t sent =
-                send(remote->fd, data + sent_total, (size_t)(len - sent_total), 0);
+            int sent = (int)send(remote->fd, (const char*)data + sent_total, len - sent_total, 0);
             if( sent > 0 )
             {
-                sent_total += (int)sent;
+                sent_total += sent;
                 continue;
             }
-            if( sent < 0 && errno == EINTR )
+            if( sent < 0 && remote_interrupted() )
                 continue;
             return 0;
         }
         return 1;
     }
-#else
-    return 0;
-#endif
 }
 
 /**
@@ -385,11 +389,10 @@ link_fill(
     }
 #endif
 
-#if !defined(_WIN32)
     {
         fd_set readable;
         struct timeval timeout;
-        ssize_t taken;
+        int taken;
         int ready;
 
         FD_ZERO(&readable);
@@ -398,19 +401,15 @@ link_fill(
         timeout.tv_usec = (timeout_ms % 1000) * 1000;
         ready = select(remote->fd + 1, &readable, NULL, NULL, &timeout);
         if( ready < 0 )
-            return errno == EINTR ? 0 : -1;
+            return remote_interrupted() ? 0 : -1;
         if( ready == 0 )
             return 0;
-        taken = recv(remote->fd, chunk, sizeof(chunk), 0);
+        taken = (int)recv(remote->fd, (char*)chunk, (int)sizeof(chunk), 0);
         if( taken <= 0 )
             return -1;
-        ToriRSMapEd_BufWrite(&remote->in, chunk, (int)taken);
+        ToriRSMapEd_BufWrite(&remote->in, chunk, taken);
         return 1;
     }
-#else
-    (void)timeout_ms;
-    return -1;
-#endif
 }
 
 /** One whole frame off the buffer, header consumed, or NULL if none is
@@ -900,10 +899,8 @@ remote_free(void* user_data)
     }
     ToriRSMapEd_BufFree(&remote->web_out);
 #endif
-#if !defined(_WIN32)
     if( remote->fd >= 0 )
-        close(remote->fd);
-#endif
+        remote_socket_close(remote->fd);
     free_stash(remote);
     ToriMem_Free(ToriMem_Editor(), remote->atlas_changed);
     while( remote->live_head )
@@ -1210,7 +1207,6 @@ Editor_HostOpenMapEdTcp(
     int role,
     uint32_t join_group)
 {
-#if !defined(_WIN32)
     struct maped_remote* remote;
     struct addrinfo hints;
     struct addrinfo* found = NULL;
@@ -1256,6 +1252,17 @@ Editor_HostOpenMapEdTcp(
     }
 #endif
 
+#ifdef _WIN32
+    {
+        /* Counted by winsock: whoever else in this process started it too. */
+        WSADATA data;
+        if( WSAStartup(MAKEWORD(2, 2), &data) != 0 )
+        {
+            TORIRS_ERR("editor: WSAStartup failed: no maped connection\n");
+            return 0;
+        }
+    }
+#endif
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
@@ -1267,12 +1274,12 @@ Editor_HostOpenMapEdTcp(
     }
     for( struct addrinfo* cursor = found; cursor; cursor = cursor->ai_next )
     {
-        fd = socket(cursor->ai_family, cursor->ai_socktype, cursor->ai_protocol);
+        fd = (int)socket(cursor->ai_family, cursor->ai_socktype, cursor->ai_protocol);
         if( fd < 0 )
             continue;
-        if( connect(fd, cursor->ai_addr, cursor->ai_addrlen) == 0 )
+        if( connect(fd, cursor->ai_addr, (int)cursor->ai_addrlen) == 0 )
             break;
-        close(fd);
+        remote_socket_close(fd);
         fd = -1;
     }
     freeaddrinfo(found);
@@ -1287,7 +1294,7 @@ Editor_HostOpenMapEdTcp(
 
     if( !hello(remote, (uint32_t)role, join_group) )
     {
-        close(fd);
+        remote_socket_close(fd);
         ToriRSMapEd_BufFree(&remote->in);
         ToriMem_Free(ToriMem_Editor(), remote);
         return 0;
@@ -1296,15 +1303,6 @@ Editor_HostOpenMapEdTcp(
     host->vtable = &remote_vtable;
     host->user_data = remote;
     return 1;
-#else
-    (void)host;
-    (void)server_host;
-    (void)port;
-    (void)role;
-    (void)join_group;
-    TORIRS_LOG("editor: server=tcp is not built for this platform yet\n");
-    return 0;
-#endif
 }
 
 /* ------------------------------------------------------------------ */
@@ -1501,7 +1499,8 @@ Editor_HostMapEdDocCreate(
     ToriRSMapEd_PutU32(&payload, (uint32_t)request->kind);
     ToriRSMapEd_PutString(&payload, request->key);
     ToriRSMapEd_PutString(&payload, request->storage);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)request->template_kind);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)request->template_kind
+                                     | (request->join_stroke ? TORIRSMAPED_DOC_CREATE_IN_STROKE : 0u));
     ToriRSMapEd_PutString(&payload, request->source_key);
     ToriRSMapEd_PutU32(&payload, (uint32_t)request->fill_height);
     ToriRSMapEd_PutU32(&payload, (uint32_t)request->fill_underlay);
@@ -1921,6 +1920,10 @@ Editor_HostMapEdCatalogQuery(
     memset(out_page, 0, sizeof(*out_page));
     if( !(remote->capabilities & TORIRSMAPED_CAP_CATALOG) )
         return EDITOR_HOST_UNSUPPORTED;
+    /* PROGRESS goes only to a server that reads it: an older one would
+     * answer the v2 payload, which has no tail to read. */
+    if( !(remote->capabilities & TORIRSMAPED_CAP_CATALOG_PROGRESS) )
+        flags &= ~(uint32_t)TORIRSMAPED_CATALOG_PROGRESS;
 
     memset(&payload, 0, sizeof(payload));
     ToriRSMapEd_PutU32(&payload, kind);
@@ -1981,6 +1984,13 @@ Editor_HostMapEdCatalogQuery(
         }
     }
     out_page->row_count = (int)rows;
+    if( flags & TORIRSMAPED_CATALOG_PROGRESS )
+    {
+        /* The v3 tail (torirs_maped_catalog.h). */
+        out_page->page_flags = ToriRSMapEd_GetU32(&reader);
+        out_page->progress_done = ToriRSMapEd_GetU32(&reader);
+        out_page->progress_total = ToriRSMapEd_GetU32(&reader);
+    }
     frame_done(remote, length);
     if( !ToriRSMapEd_ReaderDone(&reader) )
     {
@@ -2093,6 +2103,87 @@ Editor_HostMapEdCatalogRecord(
     return status;
 }
 
+enum EditorHost_Status
+Editor_HostMapEdCatalogUses(
+    struct EditorHost* host,
+    uint32_t kind,
+    const char* name,
+    uint32_t cursor,
+    struct EditorHost_CatalogUses* out_uses)
+{
+    struct maped_remote* remote = as_remote(host);
+    struct ToriRSMapEdBuf payload;
+    struct ToriRSMapEdReader reader;
+    struct catalog_arena arena;
+    const uint8_t* fact;
+    uint32_t length;
+    uint32_t count;
+    enum EditorHost_Status status;
+    char* mem;
+    size_t row_bound;
+    char ignored[256];
+
+    assert(name);
+    assert(out_uses);
+    memset(out_uses, 0, sizeof(*out_uses));
+    if( !(remote->capabilities & TORIRSMAPED_CAP_CATALOG_USES) )
+        return EDITOR_HOST_UNSUPPORTED;
+
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_PutU32(&payload, kind);
+    ToriRSMapEd_PutString(&payload, name);
+    ToriRSMapEd_PutU32(&payload, cursor);
+    fact = catalog_rpc(remote, TORIRSMAPED_REQ_CATALOG_USES, &payload, TORIRSMAPED_FACT_CATALOG_USES, &length);
+    if( !fact )
+        return EDITOR_HOST_IO_ERROR;
+
+    /* a row is at least 20 bytes */
+    row_bound = length / 20;
+    mem = ToriMem_Alloc(ToriMem_Editor(), row_bound * sizeof(*out_uses->rows) + length + 1);
+    assert(mem);
+    out_uses->storage = mem;
+    out_uses->rows = (struct EditorHost_CatalogUse*)mem;
+    arena.at = mem + row_bound * sizeof(*out_uses->rows);
+    arena.end = arena.at + length + 1;
+
+    ToriRSMapEd_ReaderInit(&reader, fact, length);
+    status = (enum EditorHost_Status)ToriRSMapEd_GetU32(&reader);
+    out_uses->kind = ToriRSMapEd_GetU32(&reader);
+    ToriRSMapEd_GetString(&reader, ignored, sizeof(ignored));
+    out_uses->next_cursor = ToriRSMapEd_GetU32(&reader);
+    out_uses->files_done = ToriRSMapEd_GetU32(&reader);
+    out_uses->files_total = ToriRSMapEd_GetU32(&reader);
+    count = ToriRSMapEd_GetU32(&reader);
+    if( count > row_bound )
+        reader.bad = 1;
+    for( uint32_t i = 0; i < count && !reader.bad; i++ )
+    {
+        struct EditorHost_CatalogUse* row = &out_uses->rows[i];
+        row->use = ToriRSMapEd_GetU32(&reader);
+        row->path = arena_string(&reader, &arena);
+        row->line = ToriRSMapEd_GetU32(&reader);
+        row->count = ToriRSMapEd_GetU32(&reader);
+        row->text = arena_string(&reader, &arena);
+    }
+    out_uses->row_count = reader.bad ? 0 : (int)count;
+    frame_done(remote, length);
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+    {
+        Editor_HostCatalogUsesFree(out_uses);
+        return EDITOR_HOST_IO_ERROR;
+    }
+    return status;
+}
+
+void
+Editor_HostCatalogUsesFree(struct EditorHost_CatalogUses* uses)
+{
+    if( !uses )
+        return;
+    ToriMem_Free(ToriMem_Editor(), uses->storage);
+    memset(uses, 0, sizeof(*uses));
+}
+
 void
 Editor_HostCatalogRecordFree(struct EditorHost_CatalogRecord* record)
 {
@@ -2120,7 +2211,8 @@ decode_catalog_squares(
     struct EditorHost_CatalogSquare* squares;
     int* area_ids;
     int area_at = 0;
-    /* a storage is >= 4 bytes, an area >= 12, a square >= 32, an area id 4 */
+    /* a storage is >= 4 bytes, an area >= 12, a square >= 32 (36 with its
+     * loc_count), an area id 4 */
     size_t storage_bound = length / 4;
     size_t area_bound = length / 12;
     size_t square_bound = length / 32;
@@ -2198,6 +2290,16 @@ decode_catalog_squares(
                 reader.bad = 1;
             area_ids[area_at++] = (int)area;
         }
+        /* The row says whether it carries the count (a server with
+         * TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS that was asked for it); the
+         * bit is wire framing, not a square fact, so it does not reach
+         * `flags`. A v2 row leaves loc_count 0. */
+        sq->loc_count = 0;
+        if( sq->flags & TORIRSMAPED_SQUARE_LOC_COUNT )
+        {
+            sq->flags &= ~(uint32_t)TORIRSMAPED_SQUARE_LOC_COUNT;
+            sq->loc_count = (int)ToriRSMapEd_GetU32(&reader);
+        }
     }
     out->square_count = (int)count;
     out->storages = storages;
@@ -2238,8 +2340,14 @@ Editor_HostMapEdCatalogSquaresFlags(
         return EDITOR_HOST_UNSUPPORTED;
 
     memset(&payload, 0, sizeof(payload));
-    /* An empty body is the request every server answers; the flags u32 only
-     * when there are any (a NOWAIT the server answers BUSY to). */
+    /* The flags go only to a server that reads them: an older one takes an
+     * empty body and ends a session that sends anything else. The loc counts
+     * whenever the server offers them; NOWAIT (answered BUSY while the warm
+     * build runs) when the caller asked and the server knows it. */
+    if( remote->capabilities & TORIRSMAPED_CAP_CATALOG_SQUARE_LOCS )
+        flags |= TORIRSMAPED_CATALOG_SQUARES_LOCS;
+    if( !(remote->capabilities & TORIRSMAPED_CAP_CATALOG_SQUARES_NOWAIT) )
+        flags &= ~(uint32_t)TORIRSMAPED_CATALOG_SQUARES_NOWAIT;
     if( flags )
         ToriRSMapEd_PutU32(&payload, flags);
     fact = catalog_rpc(remote, TORIRSMAPED_REQ_CATALOG_SQUARES, &payload,

@@ -54,7 +54,9 @@ Task_Dat2FlotypeLoad_Run(
     rscache_overlay = dat2_buildcache_overlay_get(task->bc, task->flo_id);
     if( !rscache_overlay )
     {
-        TORIRS_ERR("Failed to load dat2 overlay %d\n", task->flo_id);
+        /* Not in the decoded group: a lookup miss (the editor's palette
+         * probes ids past the records), not a load failure. */
+        TORIRS_LOG("dat2 overlay %d: no such record\n", task->flo_id);
         PT_EXIT(&task->pt);
     }
 

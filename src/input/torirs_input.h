@@ -123,6 +123,79 @@ enum LibToriRS_MouseEventType
 #define LIBTORIRS_KEY_EVENT_MAX 32
 
 /**
+ * The three gesture frames (TORIRS_CMD_GESTURE_PAN / _PINCH / _TWIST), as the
+ * consumers read them. docs/GESTURES.md has the producers per platform.
+ */
+enum LibToriRS_GestureKind
+{
+    LIBTORIRS_GESTURE_PAN,
+    LIBTORIRS_GESTURE_PINCH,
+    LIBTORIRS_GESTURE_TWIST,
+    LIBTORIRS_GESTURE_KIND_COUNT
+};
+
+/**
+ * One gesture is a BEGIN, any number of UPDATEs and an END, per kind; a pan, a
+ * pinch and a twist of the same two fingers are three gestures that overlap.
+ * BEGIN carries the motion that made it a gesture (everything since the
+ * fingers landed), UPDATE the motion since the previous frame of its kind,
+ * END none (dx = dy = 0, scale 1, radians 0): it only says the fingers left,
+ * or a wheel stream went quiet.
+ */
+enum LibToriRS_GesturePhase
+{
+    LIBTORIRS_GESTURE_BEGIN,
+    LIBTORIRS_GESTURE_UPDATE,
+    LIBTORIRS_GESTURE_END,
+    LIBTORIRS_GESTURE_PHASE_COUNT
+};
+
+/** The same motion ALSO reached this frame the old way -- the integer wheel,
+ *  TORIRS_CMD_INPUT_SCROLL or TORIRS_CMD_INPUT_PINCH -- so a consumer that
+ *  takes the gesture drops those (a trackpad scroll, a ctrl+wheel, a browser
+ *  pinch). Clear on a touchscreen's frames under ToriRS_TouchSetGestureFrames,
+ *  which replace the synthesis instead of accompanying it, and on every
+ *  TWIST: no legacy route carries a turn. */
+#define LIBTORIRS_GESTURE_FLAG_ALSO_LEGACY 0x01u
+/** Fingers on the glass (a touchscreen), not a trackpad or a wheel: the hint
+ *  strip's "the last input was a touch". */
+#define LIBTORIRS_GESTURE_FLAG_TOUCH 0x02u
+
+/** Gesture frames kept per input frame. A touch produces at most one of each
+ *  kind a tick; a wheel one per OS event, which at a trackpad's 120 Hz into a
+ *  20 fps frame is six. Past the cap an UPDATE folds into the last entry of
+ *  its kind (nothing is lost but the granularity); anything else is dropped
+ *  and counted. */
+#define LIBTORIRS_GESTURE_MAX 32
+
+/**
+ * One decoded gesture frame. Canvas pixels; (x, y) the centre the gesture is
+ * about (the fingers' centroid, or the pointer on a trackpad).
+ *
+ *   PAN    dx, dy: how far the content under the gesture moves, +x right,
+ *          +y down -- a touchscreen's fingers' own travel; a trackpad's
+ *          scroll with the platform's direction setting applied. `fingers`
+ *          is 2 for a trackpad scroll, the fingers down for a touch.
+ *   PINCH  scale: the ratio since the previous frame, > 1 fingers apart.
+ *   TWIST  radians: the turn since the previous frame, + clockwise on screen.
+ *
+ * The fields a kind does not use hold their identity (0, or scale 1).
+ */
+struct LibToriRS_Gesture
+{
+    uint8_t kind;    /* enum LibToriRS_GestureKind */
+    uint8_t phase;   /* enum LibToriRS_GesturePhase */
+    uint8_t fingers; /* PAN; 0 otherwise */
+    uint8_t flags;   /* LIBTORIRS_GESTURE_FLAG_* */
+    int x;
+    int y;
+    float dx;
+    float dy;
+    float scale;
+    float radians;
+};
+
+/**
  * One keyboard event as a CS2 onKey handler sees it.
  *
  * The field naming follows the reference (InputManager.onKeyDown and
@@ -229,6 +302,31 @@ struct LibToriRS_Input
      * are dropped; overflow past the cap is dropped silently. */
     struct LibToriRS_KeyEvent key_events[LIBTORIRS_KEY_EVENT_MAX];
     int key_event_count;
+
+    /* Gesture frames for this frame, in arrival order -- the same lifetime as
+     * key_events above, for the same reason: cleared by Begin, kept by
+     * Continue, never edge-compared. The consumers (the World camera, GRAPH
+     * wells, the Preview, lists, sliders) walk it once a frame.
+     * `gesture_dropped` counts this frame's frames that found the list full
+     * and could not be folded into an UPDATE of their kind;
+     * `gesture_dropped_total` the same since Init, for a diagnostic line. */
+    struct LibToriRS_Gesture gestures[LIBTORIRS_GESTURE_MAX];
+    int gesture_count;
+    int gesture_dropped;
+    long gesture_dropped_total;
+    /* The last POINTER input was a finger (ToriRS_InputLastWasTouch, the
+     * hint strip's words): set by a finger landing
+     * (LibToriRS_Input_PushTouchBegan) and by a gesture frame flagged
+     * LIBTORIRS_GESTURE_FLAG_TOUCH; cleared by a gesture frame without it (a
+     * trackpad, a ctrl+wheel) and by a mouse move, click, wheel or scroll
+     * while no finger is down (LibToriRS_Input_NoteDesktopPointer). Not
+     * cleared by Begin -- it holds across quiet frames. Keys leave it alone:
+     * a phone's soft keyboard types, and the strip names pointer gestures.
+     * `touch_down`: a finger landed and the touch policy has not yet said it
+     * left (TORIRS_CMD_INPUT_MOUSE_LEAVE), so the pointer commands between
+     * are the finger's own. */
+    int last_touch;
+    int touch_down;
 
     /* Key state indexed by OSRS internal code, backing the CS2 KEYHELD and
      * KEYPRESSED opcodes. Updated for character keys too, unlike key_events,
@@ -387,6 +485,29 @@ LibToriRS_Input_PushScroll(
     int px_per_notch,
     int trackpad,
     int flipped);
+
+/** A finger landed (TORIRS_CMD_INPUT_TOUCH_BEGAN): @see last_touch. */
+void
+LibToriRS_Input_PushTouchBegan(struct LibToriRS_Input* input);
+
+/** A mouse move, click, wheel or scroll arrived off the bus: unless a finger
+ *  is down (its own synthesized pointer), the last pointer input is a mouse.
+ *  @see last_touch. */
+void
+LibToriRS_Input_NoteDesktopPointer(struct LibToriRS_Input* input);
+
+/**
+ * Append one gesture frame to this frame's list (@see struct
+ * LibToriRS_Gesture). The kind, the phase and the identities of the fields
+ * the kind does not use are the caller's contract: a PINCH's scale is > 0, an
+ * END carries no motion. Full: an UPDATE folds into the last entry of its kind
+ * when that one is a BEGIN or an UPDATE; otherwise the frame is dropped and
+ * counted.
+ */
+void
+LibToriRS_Input_PushGesture(
+    struct LibToriRS_Input* input,
+    struct LibToriRS_Gesture const* gesture);
 
 /**
  * The pointer stopped resting on the surface: the finger lifted, or the cursor

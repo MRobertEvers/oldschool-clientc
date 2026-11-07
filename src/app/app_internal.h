@@ -700,6 +700,9 @@ int
 app_text_input_focused(struct App const* app);
 
 int
+app_text_input_focused_outside_chrome(struct App const* app);
+
+int
 app_chrome_holds_keyboard(struct App const* app);
 
 /* The runner camera split's drain steps (app_render.c; struct App_ViewSplit):
@@ -1105,6 +1108,14 @@ EditorView_AppBoot(struct App* app);
 int
 EditorView_AppIsView(void);
 
+/** 1 when this process is a window popped out to show a panel that draws no
+ *  world (`--editor-panel <module>`, the module neither "world" nor
+ *  "preview": Editor_UiModuleNeedsWorld): the boot's default world load and
+ *  the load around the camera stand down (app_boot.c, EditorView_AppFrame).
+ *  The mirror, the catalog link and the preview raster are untouched. */
+int
+EditorView_AppHoldsNoWorld(void);
+
 /** Per frame, in the editor block: the toolbar's activation (while the
  *  command panels are hidden -- once "Open panels" showed them, their
  *  dispatcher owns the frame's one activation and offers it to
@@ -1174,6 +1185,14 @@ EditorView_AppWorldCamera(
     void* user_data,
     int level,
     struct EditorViewCamera* out);
+
+/** EditorUiAppServices::world_camera_set (user_data = the App): the free
+ *  camera put at `pose` (a scene's Enter, workbench 6.5); 0 while the point
+ *  is outside the loaded scene. */
+int
+EditorView_AppWorldCameraSet(
+    void* user_data,
+    const struct EditorViewCamera* pose);
 
 /** EditorUiAppServices::spawn_panel (user_data = the App). */
 int
@@ -1414,6 +1433,16 @@ App_MapEditorWorldSignature(struct App const* app);
 void
 app_map_editor_free(struct App* app);
 
+/** STATE_VAR_PREVIEW's values into `varps` (VarPManager_SetPreview): the
+ *  world's multiloc / multinpc resolve then honours the shell editor's
+ *  preview. App-free (edit_world_test drives it). Returns how many vars are
+ *  previewed. */
+int
+app_map_editor_var_preview(
+    struct VarPManager* varps,
+    const int32_t* values,
+    int count);
+
 /** The editor's whole shutdown (App_Shutdown): the layout and hotkeys files,
  *  Editor_PanelFree, then app_map_editor_free. Needs app->editor. */
 void
@@ -1441,11 +1470,33 @@ app_map_editor_world_click(
     struct App* app,
     struct LibToriRS_Input* input);
 
+/** This frame's gesture frames (input/torirs_gesture.h), editor open: each
+ *  offered to the chrome first (Editor_UiGesture), the rest to the World's
+ *  free camera (editor/editor_world_gesture.h). Sets the editor's touch
+ *  flag from the input's last-event kind. */
+void
+app_map_editor_gestures(
+    struct App* app,
+    struct LibToriRS_Input* input);
+
 void
 app_map_editor_ghost_update(struct App* app);
 
 void
 app_map_editor_preview_update(struct App* app);
+
+struct LocEditorGizmoScreen;
+/** The move gizmo (workbench 6.3) on the primary selected loc, projected
+ *  through the World panel's camera this frame: 0 (and `out` not valid)
+ *  while there is none -- no selection, a tool other than Select or Move,
+ *  the primary off the scene. `*out_hot` the handle under the pointer (or
+ *  being dragged), LOC_EDITOR_GIZMO_NONE when none. The overlay draws it;
+ *  the world click hit-tests the same points. */
+int
+App_MapEditorGizmoScreen(
+    struct App* app,
+    struct LocEditorGizmoScreen* out,
+    int* out_hot);
 
 
 /* ---- app_minimap.c ---- */

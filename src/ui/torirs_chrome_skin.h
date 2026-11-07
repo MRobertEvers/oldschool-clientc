@@ -31,7 +31,10 @@
 #include "uitree_debug_overlay.h"
 
 #include "engine/torirs_chrome_skin_baked.h"
+#include "engine/torirs_chrome_skin_class.h"
+#include "engine/torirs_chrome_skin_tiers.h"
 
+#include <assert.h>
 #include <stddef.h>
 
 /* The pin. One per slot, so a failure names the slot that moved rather than
@@ -240,6 +243,45 @@ static inline int
 ToriRSChromeSkin_Available(void)
 {
     return ToriRSChromeSkin_ForSlot(TORIRS_CHROME_SKIN_PANEL_BODY) != NULL;
+}
+
+/**
+ * The image for a semantic slot at tier `tier` (1..TORIRS_CHROME_SKIN_TIER_MAX):
+ * `tier` times the 1x size on each axis, drawn at that size rather than
+ * stretched (engine/torirs_chrome_skin_tiers.h has the recipe, and
+ * engine/torirs_chrome_skin_class.h which route each slot takes).
+ *
+ * Tier 1 is the bake itself, the very sprite ToriRSChromeSkin_ForSlot returns,
+ * so a 1x draw through this is the 1x draw it always was. A slot the tier bake
+ * does not cover -- one spritebake gained after the tiers were last baked, or
+ * one whose 1x size changed since -- falls back to the 1x image, which the
+ * caller then scales as it does today; `make -C src chrome-skin` is what keeps
+ * that from shipping. NULL exactly when ToriRSChromeSkin_ForSlot is NULL.
+ */
+static inline struct ToriRSChromeSkin_Sprite const*
+ToriRSChromeSkin_SpriteTier(int slot, int tier)
+{
+    struct ToriRSChromeSkin_Sprite const* base;
+    struct ToriRSChromeSkin_Sprite const* tiered;
+
+    assert(tier >= 1);
+    assert(tier <= TORIRS_CHROME_SKIN_TIER_MAX);
+    base = ToriRSChromeSkin_ForSlot(slot);
+    if( !base || tier == 1 )
+        return base;
+    tiered = ToriRSChromeSkin_TierGet(slot, tier);
+    if( !tiered || tiered->w != base->w * tier || tiered->h != base->h * tier )
+        return base;
+    return tiered;
+}
+
+/** GLYPH or TEXTURED (engine/torirs_chrome_skin_class.h) for a semantic slot. */
+static inline int
+ToriRSChromeSkin_ClassOf(int slot)
+{
+    assert(slot >= 0);
+    assert(slot < TORIRS_CHROME_SKIN_SLOT_COUNT);
+    return ToriRSChromeSkin_SlotClass(slot);
 }
 
 #endif

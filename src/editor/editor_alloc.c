@@ -853,7 +853,12 @@ Editor_AllocNsLoadWith(
         }
         if( dir )
             closedir(dir);
-        qsort(lanes, (size_t)count, sizeof(*lanes), compare_strings);
+        /* Not with no lanes: lanes is NULL then, and qsort's base is declared
+         * nonnull, so the optimizer took lanes for non-NULL and dropped the
+         * NULL test in the inlined ToriMem_Free below (a tree with no ported/
+         * crashed every copy at -O3 and ran at -O0). */
+        if( count > 1 )
+            qsort(lanes, (size_t)count, sizeof(*lanes), compare_strings);
         for( int i = 0; i < count; i++ )
         {
             char lane_tree[4096];

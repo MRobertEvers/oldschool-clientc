@@ -13,6 +13,12 @@
 #define SRC_PLATFORM_WIN32_COMPAT_H
 
 #if defined(_WIN32)
+/* rand_s is declared only when _CRT_RAND_S precedes the first <stdlib.h>.
+ * This header is force-included, so it is always that first include, and a
+ * file's own #define _CRT_RAND_S (torirs_server_auth.c) arrives too late. */
+#ifndef _CRT_RAND_S
+#define _CRT_RAND_S
+#endif
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
@@ -73,6 +79,14 @@ unsetenv(const char* name)
 {
     return torirs_win32_putenv(name, "");
 }
+
+/* POSIX mkdir(path, mode). The CRT's takes the path alone; the mode has no
+ * Windows meaning. Variadic so a one-argument call (Windows-only code) works
+ * too, and defined after <io.h> and <direct.h> have declared the CRT's, which
+ * a function-like macro would otherwise rewrite. */
+#include <direct.h>
+#include <io.h>
+#define mkdir(path, ...) _mkdir(path)
 #endif /* _WIN32 */
 
 #endif /* SRC_PLATFORM_WIN32_COMPAT_H */

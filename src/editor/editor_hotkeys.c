@@ -22,6 +22,8 @@
 #define N EDITOR_HK_CTX_N
 #define M EDITOR_HK_CTX_M
 #define P EDITOR_HK_CTX_P
+#define K EDITOR_HK_CTX_K
+#define Q EDITOR_HK_CTX_Q
 #define D EDITOR_HK_CTX_D
 #define U EDITOR_HK_CTX_U
 #define EDGE EDITOR_HK_EDGE
@@ -43,6 +45,11 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                              G, EDGE, { "ctrl+return" }, NULL },
     [EDITOR_HK_FILE_PUBLISH] = { "file.publish", "File", "Publish...", "Publish the lane's changes to a lane", G,
                                  EDGE, { "ctrl+shift+u" }, "publish" },
+    [EDITOR_HK_FILE_SAVE_SCENE] = { "file.save_scene", "File", "Save scene",
+                                    "Save the session's state as a scene", G, EDGE, { "ctrl+shift+k" }, NULL },
+    [EDITOR_HK_FILE_SCRATCH_LANE] = { "file.scratch_lane", "File", "Scratch lane",
+                                      "Make a scratch lane from main and switch to it", G, EDGE,
+                                      { "ctrl+shift+n" }, NULL },
 
     [EDITOR_HK_EDIT_UNDO] = { "edit.undo", "Edit", "Undo", "Undo", G, EDGE, { "ctrl+z" }, NULL },
     [EDITOR_HK_EDIT_REDO] = { "edit.redo", "Edit", "Redo", "Redo", G, EDGE, { "ctrl+shift+z", "ctrl+y" }, NULL },
@@ -60,6 +67,9 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_EDIT_SELECT_SQUARE] = { "edit.select_square", "Edit", "Select the square's locs",
                                        "Select every loc of the hovered tile's square", W, EDGE, { "ctrl+a" },
                                        NULL },
+    [EDITOR_HK_EDIT_SELECT_SAME] = { "edit.select_same", "Edit", "Select same",
+                                     "Select every loc of the hovered loc's id (select same", W | L, EDGE,
+                                     { "alt+a" }, NULL },
     [EDITOR_HK_EDIT_NUDGE_N] = { "edit.nudge_n", "Edit", "Nudge north", "Nudge selection N / S / W / E", M, REPEAT,
                                  { "up" }, NULL },
     [EDITOR_HK_EDIT_NUDGE_S] = { "edit.nudge_s", "Edit", "Nudge south", "Nudge selection N / S / W / E", M, REPEAT,
@@ -68,6 +78,18 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                                  { "left" }, NULL },
     [EDITOR_HK_EDIT_NUDGE_E] = { "edit.nudge_e", "Edit", "Nudge east", "Nudge selection N / S / W / E", M, REPEAT,
                                  { "right" }, NULL },
+    [EDITOR_HK_EDIT_NUDGE_FAR_N] = { "edit.nudge_far_n", "Edit", "Nudge north 8", "Nudge selection 8 tiles N / S / W / E",
+                                     M, REPEAT, { "shift+up" }, NULL },
+    [EDITOR_HK_EDIT_NUDGE_FAR_S] = { "edit.nudge_far_s", "Edit", "Nudge south 8", "Nudge selection 8 tiles N / S / W / E",
+                                     M, REPEAT, { "shift+down" }, NULL },
+    [EDITOR_HK_EDIT_NUDGE_FAR_W] = { "edit.nudge_far_w", "Edit", "Nudge west 8", "Nudge selection 8 tiles N / S / W / E",
+                                     M, REPEAT, { "shift+left" }, NULL },
+    [EDITOR_HK_EDIT_NUDGE_FAR_E] = { "edit.nudge_far_e", "Edit", "Nudge east 8", "Nudge selection 8 tiles N / S / W / E",
+                                     M, REPEAT, { "shift+right" }, NULL },
+    [EDITOR_HK_EDIT_LEVEL_UP] = { "edit.level_up", "Edit", "Selection up a level",
+                                  "Move the selected locs a level up / down", L, EDGE, { "ctrl+pageup" }, NULL },
+    [EDITOR_HK_EDIT_LEVEL_DOWN] = { "edit.level_down", "Edit", "Selection down a level",
+                                    "Move the selected locs a level up / down", L, EDGE, { "ctrl+pagedown" }, NULL },
     [EDITOR_HK_EDIT_COPY] = { "edit.copy", "Edit", "Copy tiles", "Copy tiles", R, EDGE, { "ctrl+c" }, NULL },
     [EDITOR_HK_EDIT_PASTE] = { "edit.paste", "Edit", "Paste tiles", "Paste tiles at the hovered tile", W, EDGE,
                                { "ctrl+v" }, NULL },
@@ -90,6 +112,9 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                               "Fit walls to neighbours on/off (Place tool)", G, EDGE, { "g" }, NULL },
     [EDITOR_HK_PLACE_SWAP] = { "place.swap", "Place", "Swap to catalog pick",
                                "Swap the selected locs to the catalog's pick", L, EDGE, { "e" }, NULL },
+    [EDITOR_HK_PLACE_CONSTRAIN] = { "place.constrain", "Place", "Constrain a drag to one axis (hold)",
+                                    "Keep a Place drag (a wall run) to one axis (hold)", W, HELD, { "shift" },
+                                    NULL },
     [EDITOR_HK_TOOL_SELECT] = { "tool.select", "Tools", "Select", "| Select |", G, EDGE, { "1" }, NULL },
     [EDITOR_HK_TOOL_RECT] = { "tool.rect", "Tools", "Rectangle", "| Rectangle |", G, EDGE, { "2" }, NULL },
     [EDITOR_HK_TOOL_RAISE] = { "tool.raise", "Tools", "Raise", "| Raise |", G, EDGE, { "3" }, NULL },
@@ -111,6 +136,18 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_TOOL_PLACE_PLAYER] = { "tool.place_player", "Tools", "Place player",
                                       "Place player (the lane's play account onto the clicked tile)", G, EDGE,
                                       { "p" }, NULL },
+    [EDITOR_HK_TOOL_PAINT_PATH] = { "tool.paint_path", "Tools", "Paint path",
+                                    "Paint path (the palette's overlay laid along a drag)", G, EDGE,
+                                    { "h" }, NULL },
+    [EDITOR_HK_TOOL_NOISE] = { "tool.noise", "Tools", "Roughen",
+                               "Roughen (seeded height noise under the brush, the step its amplitude)", G, EDGE,
+                               { "u" }, NULL },
+    [EDITOR_HK_TOOL_SCATTER] = { "tool.scatter", "Tools", "Scatter locs",
+                                 "Scatter locs (the selected locs' ids, else the catalog's pick, dropped on the brush's free tiles at a density; Alt-drag takes them off)",
+                                 G, EDGE, { "b" }, NULL },
+    [EDITOR_HK_TOOL_PLATEAU] = { "tool.plateau", "Tools", "Plateau",
+                                 "Plateau (the brush flattened to the first tile's height, a smoothed skirt around it: a mound or a hole with a flat top)",
+                                 G, EDGE, { "v" }, NULL },
     [EDITOR_HK_TOOL_PREVIOUS] = { "tool.previous", "Tools", "Previous tool", "Previous tool", G, EDGE, { "grave" },
                                   NULL },
     [EDITOR_HK_TOOL_PICK_PAINT] = { "tool.pick_paint", "Tools", "Pick the tile's paint",
@@ -140,29 +177,33 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_LEVEL_DOWN] = { "level.down", "Level", "Level down", "Level down / up", G, EDGE, { "pagedown" },
                                NULL },
     [EDITOR_HK_LEVEL_UP] = { "level.up", "Level", "Level up", "Level down / up", G, EDGE, { "pageup" }, NULL },
-    [EDITOR_HK_LEVEL_PIN0] = { "level.pin0", "Level", "Pin level 0", "Pin level 0..3", G, EDGE, { "ctrl+0" }, NULL },
-    [EDITOR_HK_LEVEL_PIN1] = { "level.pin1", "Level", "Pin level 1", "Pin level 0..3", G, EDGE, { "ctrl+1" }, NULL },
-    [EDITOR_HK_LEVEL_PIN2] = { "level.pin2", "Level", "Pin level 2", "Pin level 0..3", G, EDGE, { "ctrl+2" }, NULL },
-    [EDITOR_HK_LEVEL_PIN3] = { "level.pin3", "Level", "Pin level 3", "Pin level 0..3", G, EDGE, { "ctrl+3" }, NULL },
-    [EDITOR_HK_LEVEL_AUTO] = { "level.auto", "Level", "Level Auto", "Level Auto", G, EDGE, { "ctrl+4" }, NULL },
-    [EDITOR_HK_LEVEL_ABOVE] = { "level.above", "Level", "Show above", "Show above on/off", G, EDGE, { "ctrl+5" },
-                                NULL },
+    /* Workbench 6.8: the pins moved to Alt+0..5 (Ctrl+1..4 are the
+     * workspaces). Ctrl+0 and Ctrl+5, which nothing took, stay as the second
+     * chord for one release (Editor_HotkeyRetiredNote). */
+    [EDITOR_HK_LEVEL_PIN0] = { "level.pin0", "Level", "Pin level 0", "Pin level 0..3", G, EDGE,
+                               { "alt+0", "ctrl+0" }, NULL },
+    [EDITOR_HK_LEVEL_PIN1] = { "level.pin1", "Level", "Pin level 1", "Pin level 0..3", G, EDGE, { "alt+1" }, NULL },
+    [EDITOR_HK_LEVEL_PIN2] = { "level.pin2", "Level", "Pin level 2", "Pin level 0..3", G, EDGE, { "alt+2" }, NULL },
+    [EDITOR_HK_LEVEL_PIN3] = { "level.pin3", "Level", "Pin level 3", "Pin level 0..3", G, EDGE, { "alt+3" }, NULL },
+    [EDITOR_HK_LEVEL_AUTO] = { "level.auto", "Level", "Level Auto", "Level Auto", G, EDGE, { "alt+4" }, NULL },
+    [EDITOR_HK_LEVEL_ABOVE] = { "level.above", "Level", "Show above", "Show above on/off", G, EDGE,
+                                { "alt+5", "ctrl+5" }, NULL },
 
     [EDITOR_HK_CAM_FORWARD] = { "camera.forward", "Camera", "Fly forward", "Fly forward / back / left / right", G,
-                                HELD, { "w" }, NULL },
+                                HELD, { "w" }, NULL, "2 fingers" },
     [EDITOR_HK_CAM_BACK] = { "camera.back", "Camera", "Fly back", "Fly forward / back / left / right", G, HELD,
-                             { "s" }, NULL },
+                             { "s" }, NULL, "2 fingers" },
     [EDITOR_HK_CAM_LEFT] = { "camera.left", "Camera", "Fly left", "Fly forward / back / left / right", G, HELD,
-                             { "a" }, NULL },
+                             { "a" }, NULL, "2 fingers" },
     [EDITOR_HK_CAM_RIGHT] = { "camera.right", "Camera", "Fly right", "Fly forward / back / left / right", G, HELD,
-                              { "d" }, NULL },
-    [EDITOR_HK_CAM_DOWN] = { "camera.down", "Camera", "Fly down", "Fly down / up", D, HELD, { "f" }, NULL },
-    [EDITOR_HK_CAM_UP] = { "camera.up", "Camera", "Fly up", "Fly down / up", G, HELD, { "r" }, NULL },
+                              { "d" }, NULL, "2 fingers" },
+    [EDITOR_HK_CAM_DOWN] = { "camera.down", "Camera", "Fly down", "Fly down / up", D, HELD, { "f" }, NULL, "pinch" },
+    [EDITOR_HK_CAM_UP] = { "camera.up", "Camera", "Fly up", "Fly down / up", G, HELD, { "r" }, NULL, "pinch" },
     [EDITOR_HK_CAM_FAST] = { "camera.fast", "Camera", "Fly faster", "Fly faster", G, HELD, { "shift" }, NULL },
     [EDITOR_HK_CAM_TURN_LEFT] = { "camera.turn_left", "Camera", "Turn left", "Turn left / right, tilt up / down", N,
-                                  HELD, { "left" }, NULL },
+                                  HELD, { "left" }, NULL, "twist" },
     [EDITOR_HK_CAM_TURN_RIGHT] = { "camera.turn_right", "Camera", "Turn right", "Turn left / right, tilt up / down",
-                                   N, HELD, { "right" }, NULL },
+                                   N, HELD, { "right" }, NULL, "twist" },
     [EDITOR_HK_CAM_TILT_UP] = { "camera.tilt_up", "Camera", "Tilt up", "Turn left / right, tilt up / down", N, HELD,
                                 { "up" }, NULL },
     [EDITOR_HK_CAM_TILT_DOWN] = { "camera.tilt_down", "Camera", "Tilt down", "Turn left / right, tilt up / down", N,
@@ -176,6 +217,23 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                                   NULL },
     [EDITOR_HK_CAM_SCHEME] = { "camera.scheme", "Camera", "Camera scheme: default / Unity (toggle)",
                                "Camera scheme: default / Unity (toggle)", G, EDGE, { NULL }, NULL },
+
+    [EDITOR_HK_PICKER_NORTH] = { "picker.north", "Picker", "Focus north", "Move the focused square N / S / W / E",
+                                 K, REPEAT, { "up" }, NULL },
+    [EDITOR_HK_PICKER_SOUTH] = { "picker.south", "Picker", "Focus south", "Move the focused square N / S / W / E",
+                                 K, REPEAT, { "down" }, NULL },
+    [EDITOR_HK_PICKER_WEST] = { "picker.west", "Picker", "Focus west", "Move the focused square N / S / W / E", K,
+                                REPEAT, { "left" }, NULL },
+    [EDITOR_HK_PICKER_EAST] = { "picker.east", "Picker", "Focus east", "Move the focused square N / S / W / E", K,
+                                REPEAT, { "right" }, NULL },
+    [EDITOR_HK_PICKER_OPEN] = { "picker.open", "Picker", "Open the focused square",
+                                "Open the focused square (an empty one: New square)", K, EDGE, { "return" }, NULL },
+    [EDITOR_HK_PICKER_ADD] = { "picker.add", "Picker", "Add the focused square",
+                               "Add the focused square to the open set", K, EDGE, { "shift+return" }, NULL },
+    [EDITOR_HK_PICKER_BACK] = { "picker.back", "Picker", "Previous open square",
+                                "Go to the previous square of the open set", K, EDGE, { "backspace" }, NULL },
+    [EDITOR_HK_PICKER_CLEAR_FIND] = { "picker.clear_find", "Picker", "Clear Find",
+                                      "Clear Find (and its pin)", K, EDGE, { "escape" }, NULL },
 
     [EDITOR_HK_PALETTE_SLOT_1] = { "palette.slot_1", "Palette", "Palette slot 1", "Palette slot 1", G, EDGE,
                                    { "shift+1" }, NULL },
@@ -245,6 +303,16 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                                   EDGE, { NULL }, "accounts" },
     [EDITOR_HK_VIEW_TRIGGERS] = { "view.triggers", "View", "Triggers", "| Triggers |", G, EDGE, { "ctrl+e" },
                                   "triggers" },
+    [EDITOR_HK_VIEW_SCENES] = { "view.scenes", "View", "Scenes", "Every other panel the View menu lists", G, EDGE,
+                                { NULL }, "scenes" },
+    [EDITOR_HK_VIEW_ENCOUNTER] = { "view.encounter", "View", "Encounters", "Every other panel the View menu lists",
+                                   G, EDGE, { NULL }, "encounter" },
+    [EDITOR_HK_VIEW_SHOP] = { "view.shop", "View", "Shop builder", "Every other panel the View menu lists", G, EDGE,
+                              { NULL }, "shop" },
+    [EDITOR_HK_VIEW_QUEST] = { "view.quest", "View", "Quest board", "Every other panel the View menu lists", G, EDGE,
+                               { NULL }, "quest" },
+    [EDITOR_HK_VIEW_PROBLEMS] = { "view.problems", "View", "Problems", "Every other panel the View menu lists", G,
+                                  EDGE, { NULL }, "problems" },
     [EDITOR_HK_VIEW_HIDE_PANELS] = { "view.hide_panels", "View", "Hide / show panels",
                                      "Hide / show every panel but World", G, EDGE, { "tab" }, NULL },
     [EDITOR_HK_VIEW_RESET_LAYOUT] = { "view.reset_layout", "View", "Reset layout", "Reset layout", G, EDGE,
@@ -263,12 +331,64 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_VIEW_CLOSE_PANEL] = { "view.close_panel", "View", "Close panel",
                                      "Hide the panel under the pointer (the View menu brings it back)", G, EDGE,
                                      { "ctrl+w" }, NULL },
-    [EDITOR_HK_VIEW_COMMAND] = { "view.command", "View", "Command palette",
-                                 "| Command palette (actions, panels, squares, tiles, records) |", G, EDGE,
-                                 { "ctrl+p" }, "command" },
+    [EDITOR_HK_VIEW_SCALE_AUTO] = { "view.scale_auto", "View", "Chrome scale Auto",
+                                    "Chrome scale: Auto (the display's device pixel ratio)", G, EDGE, { NULL }, NULL },
+    [EDITOR_HK_VIEW_SCALE_100] = { "view.scale_100", "View", "Chrome scale 100 %", "Chrome scale: 100 %", G, EDGE,
+                                   { NULL }, NULL },
+    [EDITOR_HK_VIEW_SCALE_125] = { "view.scale_125", "View", "Chrome scale 125 %", "Chrome scale: 125 %", G, EDGE,
+                                   { NULL }, NULL },
+    [EDITOR_HK_VIEW_SCALE_150] = { "view.scale_150", "View", "Chrome scale 150 %", "Chrome scale: 150 %", G, EDGE,
+                                   { NULL }, NULL },
+    [EDITOR_HK_VIEW_SCALE_175] = { "view.scale_175", "View", "Chrome scale 175 %", "Chrome scale: 175 %", G, EDGE,
+                                   { NULL }, NULL },
+    [EDITOR_HK_VIEW_SCALE_200] = { "view.scale_200", "View", "Chrome scale 200 %", "Chrome scale: 200 %", G, EDGE,
+                                   { NULL }, NULL },
+    [EDITOR_HK_VIEW_SCALE_250] = { "view.scale_250", "View", "Chrome scale 250 %", "Chrome scale: 250 %", G, EDGE,
+                                   { NULL }, NULL },
+    [EDITOR_HK_VIEW_SCALE_300] = { "view.scale_300", "View", "Chrome scale 300 %", "Chrome scale: 300 %", G, EDGE,
+                                   { NULL }, NULL },
+    [EDITOR_HK_VIEW_TEXT_NORMAL] = { "view.text_normal", "View", "Text size Normal",
+                                     "Text size: Normal (the Body face, 18 px rows)", G, EDGE, { NULL }, NULL },
+    [EDITOR_HK_VIEW_TEXT_LARGE] = { "view.text_large", "View", "Text size Large",
+                                    "Text size: Large (the Menu face, 22 px rows)", G, EDGE, { NULL }, NULL },
+    [EDITOR_HK_VIEW_TEXT_BITMAP] = { "view.text_bitmap", "View", "Text rendering bitmap",
+                                     "Text rendering: the pixel font at 100, 200 and 300 %, smooth between",
+                                     G, EDGE, { NULL }, NULL },
+    [EDITOR_HK_VIEW_TEXT_SMOOTH] = { "view.text_smooth", "View", "Text rendering smooth",
+                                     "Text rendering: the smooth vector face at every scale", G, EDGE,
+                                     { NULL }, NULL },
+    [EDITOR_HK_VIEW_WORKSPACE_BUILD] = { "view.workspace_build", "View", "Workspace Build",
+                                         "Workspace: Build (placing locs and spawns; the default)", G, EDGE,
+                                         { "ctrl+1" }, NULL },
+    [EDITOR_HK_VIEW_WORKSPACE_TERRAIN] = { "view.workspace_terrain", "View", "Workspace Terrain",
+                                           "Workspace: Terrain (heights, colours, shapes, flags)", G, EDGE,
+                                           { "ctrl+2" }, NULL },
+    [EDITOR_HK_VIEW_WORKSPACE_SCRIPT] = { "view.workspace_script", "View", "Workspace Script",
+                                          "Workspace: Script (records, triggers, builders)", G, EDGE,
+                                          { "ctrl+3" }, NULL },
+    [EDITOR_HK_VIEW_WORKSPACE_PLAYTEST] = { "view.workspace_playtest", "View", "Workspace Playtest",
+                                            "Workspace: Playtest (RUN, live, accounts)", G, EDGE, { "ctrl+4" },
+                                            NULL },
+    [EDITOR_HK_VIEW_COMMAND_PALETTE] = { "view.command_palette", "View", "Command palette",
+                                         "Command palette (actions, panels, squares, records, accounts)", G,
+                                         EDGE, { "ctrl+k" }, "cmdpalette" },
     [EDITOR_HK_VIEW_GOTO] = { "view.goto_tile", "View", "Go to tile...",
                               "Go to tile... (the palette prefilled with coordinates)", G, EDGE, { "ctrl+shift+g" },
                               NULL },
+    [EDITOR_HK_VIEW_LAYER_LOCS] = { "view.layer_locs", "View", "Layer Locs (reserved)",
+                                    "World layer Locs on/off (reserved)", G, EDGE, { "alt+l" }, NULL },
+    [EDITOR_HK_VIEW_LAYER_NPCS] = { "view.layer_npcs", "View", "Layer NPCs (reserved)",
+                                    "World layer NPCs on/off (reserved)", G, EDGE, { "alt+n" }, NULL },
+    [EDITOR_HK_VIEW_LAYER_OBJS] = { "view.layer_objs", "View", "Layer Objs (reserved)",
+                                    "World layer Objs on/off (reserved)", G, EDGE, { "alt+o" }, NULL },
+    [EDITOR_HK_VIEW_LAYER_COLLISION] = { "view.layer_collision", "View", "Layer Collision (reserved)",
+                                         "World layer Collision on/off (reserved)", G, EDGE, { "alt+c" }, NULL },
+    [EDITOR_HK_VIEW_LAYER_GRID] = { "view.layer_grid", "View", "Layer Grid (reserved)",
+                                    "World layer Grid on/off (reserved)", G, EDGE, { "alt+g" }, NULL },
+    [EDITOR_HK_GRAPH_AUTO_LAYOUT] = { "graph.auto_layout", "Graph", "Auto-layout the graph",
+                                      "Lay the focused dialogue graph out", Q, EDGE, { "ctrl+l" }, NULL },
+    [EDITOR_HK_GRAPH_NEW_NODE] = { "graph.new_node", "Graph", "New node",
+                                   "New dialogue node after the selected one", Q, EDGE, { "n" }, NULL },
 };
 
 #undef G
@@ -279,6 +399,8 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
 #undef N
 #undef M
 #undef P
+#undef K
+#undef Q
 #undef D
 #undef U
 #undef EDGE
@@ -322,7 +444,7 @@ Editor_HotkeyContextText(
     int out_size)
 {
     static const char* const k_names[EDITOR_HK_CTX_COUNT] = { "G", "W", "L", "R", "S", "no loc / not Select-Move",
-        "M", "P", "D", "U" };
+        "M", "P", "K", "Q", "D", "U" };
     int used = 0;
 
     assert(out);
@@ -338,13 +460,38 @@ Editor_HotkeyContextText(
     }
 }
 
-/* L excludes S and P (no loc selected); M excludes N, S and P; D (the
+void
+Editor_HotkeyContextLetters(
+    unsigned contexts,
+    char* out,
+    int out_size)
+{
+    static const char k_letters[EDITOR_HK_CTX_COUNT + 1] = "GWLRSNMPKQDU";
+    int used = 0;
+
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    for( int i = 0; i < EDITOR_HK_CTX_COUNT; i++ )
+    {
+        if( !(contexts & (1u << i)) )
+            continue;
+        used += snprintf(out + used, (size_t)(out_size - used), "%s%c", used ? ", " : "", k_letters[i]);
+        if( used >= out_size )
+            return;
+    }
+}
+
+/* L excludes S and P (no loc selected); M excludes N, S and P; K (the
+ * picker holds the keyboard) excludes every other context, G too; D (the
  * default camera scheme) excludes U (the Unity scheme). */
 static int
 hk_ctx_exclusive_one(
     unsigned a,
     unsigned b)
 {
+    if( a == EDITOR_HK_CTX_K )
+        return b != EDITOR_HK_CTX_K;
     if( a == EDITOR_HK_CTX_L )
         return b == EDITOR_HK_CTX_S || b == EDITOR_HK_CTX_P;
     if( a == EDITOR_HK_CTX_M )
@@ -437,6 +584,39 @@ Editor_HotkeysSet(
     hk->serial++;
 }
 
+void
+Editor_HotkeysSetSlot(
+    struct Editor_Hotkeys* hk,
+    enum Editor_HotkeyAction action,
+    int slot,
+    struct Editor_Chord chord)
+{
+    struct Editor_HotkeyBinding* bind;
+    int const other = 1 - slot;
+
+    assert(hk);
+    assert((int)action >= 0);
+    assert(action < EDITOR_HK_COUNT);
+    assert(slot >= 0);
+    assert(slot < EDITOR_HK_CHORDS);
+    bind = &hk->bind[action];
+    if( chord.key == TORIRSK_UNKNOWN )
+        chord.mods = 0;
+    bind->chord[slot] = chord;
+    /* One copy of a chord: the other slot holding the same is emptied. */
+    if( chord.key != TORIRSK_UNKNOWN && bind->chord[other].key == chord.key && bind->chord[other].mods == chord.mods )
+        bind->chord[other].key = bind->chord[other].mods = 0;
+    /* Never a second chord without a first. */
+    if( bind->chord[0].key == TORIRSK_UNKNOWN && bind->chord[1].key != TORIRSK_UNKNOWN )
+    {
+        bind->chord[0] = bind->chord[1];
+        bind->chord[1].key = bind->chord[1].mods = 0;
+    }
+    bind->stamp = hk->stamp_next++;
+    hk->repeat_held[action] = 0;
+    hk->serial++;
+}
+
 int
 Editor_HotkeysIsDefault(
     const struct Editor_Hotkeys* hk,
@@ -456,12 +636,24 @@ Editor_HotkeysIsDefault(
     return 1;
 }
 
+int
+Editor_HotkeyIsQualifier(enum Editor_HotkeyAction action)
+{
+    assert((int)action >= 0);
+    assert(action < EDITOR_HK_COUNT);
+    return action == EDITOR_HK_CAM_FAST || action == EDITOR_HK_VIEW_SNAP_HOLD || action == EDITOR_HK_PLACE_CONSTRAIN;
+}
+
+/** Do actions a and b share a chord that makes them clash? Two qualifiers on
+ *  the same bare modifier do not: each only changes its own gesture. */
 static int
 hk_share_chord(
     const struct Editor_Hotkeys* hk,
     int a,
     int b)
 {
+    int const qualifiers = Editor_HotkeyIsQualifier(a) && Editor_HotkeyIsQualifier(b);
+
     for( int i = 0; i < EDITOR_HK_CHORDS; i++ )
     {
         struct Editor_Chord const ca = hk->bind[a].chord[i];
@@ -470,8 +662,11 @@ hk_share_chord(
         for( int j = 0; j < EDITOR_HK_CHORDS; j++ )
         {
             struct Editor_Chord const cb = hk->bind[b].chord[j];
-            if( cb.key == ca.key && cb.mods == ca.mods )
-                return 1;
+            if( cb.key != ca.key || cb.mods != ca.mods )
+                continue;
+            if( qualifiers && ca.mods == 0 && Editor_HotkeyKeyIsModifier(ca.key) )
+                continue;
+            return 1;
         }
     }
     return 0;
@@ -490,6 +685,34 @@ Editor_HotkeysClash(
             && Editor_HotkeyContextsOverlap(k_actions[action].contexts, k_actions[b].contexts) )
             return b;
     return -1;
+}
+
+int
+Editor_HotkeysMatch(
+    const struct Editor_Hotkeys* hk,
+    struct Editor_Chord chord,
+    unsigned contexts)
+{
+    int best = -1;
+
+    assert(hk);
+    if( chord.key == TORIRSK_UNKNOWN )
+        return -1;
+    for( int a = 0; a < EDITOR_HK_COUNT; a++ )
+    {
+        if( !(k_actions[a].contexts & contexts) )
+            continue;
+        for( int c = 0; c < EDITOR_HK_CHORDS; c++ )
+        {
+            struct Editor_Chord const bound = hk->bind[a].chord[c];
+            if( bound.key != chord.key || bound.mods != chord.mods )
+                continue;
+            /* A clash goes to the later binding, as in the resolver. */
+            if( best < 0 || hk->bind[a].stamp > hk->bind[best].stamp )
+                best = a;
+        }
+    }
+    return best;
 }
 
 int
@@ -637,15 +860,10 @@ Editor_ChordFormat(
         (chord.mods & EDITOR_HK_MOD_SHIFT) ? "shift+" : "", (chord.mods & EDITOR_HK_MOD_ALT) ? "alt+" : "", name);
 }
 
-#if defined(__APPLE__)
-#define HK_CTRL_TEXT "Cmd"
-#else
-#define HK_CTRL_TEXT "Ctrl"
-#endif
-
 static void
 hk_key_display(
     int key,
+    int glyphs,
     char* out,
     int out_size)
 {
@@ -656,7 +874,7 @@ hk_key_display(
     } k_names[] = {
         { TORIRSK_ESCAPE, "Esc" },     { TORIRSK_RETURN, "Enter" },   { TORIRSK_BACKSPACE, "Backspace" },
         { TORIRSK_INSERT, "Ins" },     { TORIRSK_DELETE, "Del" },     { TORIRSK_SHIFT, "Shift" },
-        { TORIRSK_CTRL, HK_CTRL_TEXT }, { TORIRSK_ALT, "Alt" },       { TORIRSK_TAB, "Tab" },
+        { TORIRSK_CTRL, "Ctrl" },      { TORIRSK_ALT, "Alt" },        { TORIRSK_TAB, "Tab" },
         { TORIRSK_SPACE, "Space" },    { TORIRSK_LEFT, "Left" },      { TORIRSK_RIGHT, "Right" },
         { TORIRSK_UP, "Up" },          { TORIRSK_DOWN, "Down" },      { TORIRSK_PAGE_UP, "PgUp" },
         { TORIRSK_PAGE_DOWN, "PgDn" }, { TORIRSK_COMMA, "," },        { TORIRSK_PERIOD, "." },
@@ -665,8 +883,26 @@ hk_key_display(
         { TORIRSK_GRAVE, "`" },        { TORIRSK_SLASH, "/" },        { TORIRSK_BACKSLASH, "\\" },
         { TORIRSK_HOME, "Home" },      { TORIRSK_END, "End" },
     };
+    /* The keyboard's own symbols, where the keycap's face has them. */
+    static const struct
+    {
+        int key;
+        const char* text;
+    } k_glyphs[] = {
+        { TORIRSK_UP, "\xe2\x86\x91" },        { TORIRSK_DOWN, "\xe2\x86\x93" },
+        { TORIRSK_LEFT, "\xe2\x86\x90" },      { TORIRSK_RIGHT, "\xe2\x86\x92" },
+        { TORIRSK_RETURN, "\xe2\x86\xb5" },    { TORIRSK_DELETE, "\xe2\x8c\xa6" },
+        { TORIRSK_BACKSPACE, "\xe2\x8c\xab" }, { TORIRSK_TAB, "\xe2\x87\xa5" },
+    };
     const char* name;
 
+    if( glyphs )
+        for( size_t i = 0; i < sizeof(k_glyphs) / sizeof(k_glyphs[0]); i++ )
+            if( k_glyphs[i].key == key )
+            {
+                snprintf(out, (size_t)out_size, "%s", k_glyphs[i].text);
+                return;
+            }
     for( size_t i = 0; i < sizeof(k_names) / sizeof(k_names[0]); i++ )
         if( k_names[i].key == key )
         {
@@ -682,8 +918,10 @@ hk_key_display(
 }
 
 void
-Editor_ChordDisplay(
+Editor_ChordSpell(
     struct Editor_Chord chord,
+    int apple,
+    int glyphs,
     char* out,
     int out_size)
 {
@@ -694,9 +932,81 @@ Editor_ChordDisplay(
     out[0] = '\0';
     if( chord.key == TORIRSK_UNKNOWN )
         return;
-    hk_key_display(chord.key, key, (int)sizeof(key));
-    snprintf(out, (size_t)out_size, "%s%s%s%s", (chord.mods & EDITOR_HK_MOD_CTRL) ? HK_CTRL_TEXT "+" : "",
+    hk_key_display(chord.key, glyphs, key, (int)sizeof(key));
+    /* A modifier alone (Fly faster on Shift) is its key's name. */
+    if( apple && chord.key == TORIRSK_CTRL )
+        snprintf(key, sizeof(key), "%s", glyphs ? "\xe2\x8c\x98" : "Cmd");
+    else if( glyphs && apple && chord.key == TORIRSK_SHIFT )
+        snprintf(key, sizeof(key), "%s", "\xe2\x87\xa7");
+    else if( glyphs && apple && chord.key == TORIRSK_ALT )
+        snprintf(key, sizeof(key), "%s", "\xe2\x8c\xa5");
+    if( apple && glyphs )
+    {
+        /* The Mac's order, run together: Option, Shift, Command. */
+        snprintf(out, (size_t)out_size, "%s%s%s%s", (chord.mods & EDITOR_HK_MOD_ALT) ? "\xe2\x8c\xa5" : "",
+            (chord.mods & EDITOR_HK_MOD_SHIFT) ? "\xe2\x87\xa7" : "",
+            (chord.mods & EDITOR_HK_MOD_CTRL) ? "\xe2\x8c\x98" : "", key);
+        return;
+    }
+    snprintf(out, (size_t)out_size, "%s%s%s%s",
+        (chord.mods & EDITOR_HK_MOD_CTRL) ? (apple ? "Cmd+" : "Ctrl+") : "",
         (chord.mods & EDITOR_HK_MOD_SHIFT) ? "Shift+" : "", (chord.mods & EDITOR_HK_MOD_ALT) ? "Alt+" : "", key);
+}
+
+void
+Editor_ChordDisplay(
+    struct Editor_Chord chord,
+    char* out,
+    int out_size)
+{
+    Editor_ChordSpell(chord, EDITOR_HK_APPLE, EDITOR_HK_SMALL_FACE_GLYPHS, out, out_size);
+}
+
+/* The chords the 6.8 moves retired, kept as the second default for one
+ * release (the doc's Level table says so). */
+static const struct
+{
+    enum Editor_HotkeyAction action;
+    const char* chord;
+} k_retired[] = {
+    { EDITOR_HK_LEVEL_PIN0, "ctrl+0" },
+    { EDITOR_HK_LEVEL_ABOVE, "ctrl+5" },
+};
+
+int
+Editor_HotkeyRetiredNote(
+    const struct Editor_Hotkeys* hk,
+    enum Editor_HotkeyAction action,
+    struct Editor_Chord chord,
+    char* out,
+    int out_size)
+{
+    assert(hk);
+    assert((int)action >= 0);
+    assert(action < EDITOR_HK_COUNT);
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    for( size_t i = 0; i < sizeof(k_retired) / sizeof(k_retired[0]); i++ )
+    {
+        struct Editor_Chord old;
+        char old_text[32];
+        char now_text[32];
+        int const ok = Editor_ChordParse(k_retired[i].chord, &old);
+        assert(ok);
+        (void)ok;
+        if( k_retired[i].action != action || old.key != chord.key || old.mods != chord.mods )
+            continue;
+        Editor_ChordDisplay(old, old_text, (int)sizeof(old_text));
+        Editor_ChordDisplay(hk->bind[action].chord[0], now_text, (int)sizeof(now_text));
+        /* Rebound onto the old chord itself: it is the user's now. */
+        if( hk->bind[action].chord[0].key == old.key && hk->bind[action].chord[0].mods == old.mods )
+            return 0;
+        snprintf(out, (size_t)out_size, "editor: %s is the old chord of %s: %s from now on; the old one goes next release",
+            old_text, k_actions[action].name, now_text[0] ? now_text : "unbound");
+        return 1;
+    }
+    return 0;
 }
 
 void
@@ -725,6 +1035,367 @@ Editor_HotkeyDisplay(
             return;
     }
 }
+
+/* ---- the hint strip ------------------------------------------------------------ */
+
+/** A tool by its arming action: enum Editor_Tool's value (editor_ui.c asserts
+ *  the two orders agree). */
+#define HK_TOOL(action) ((action) - EDITOR_HK_TOOL_SELECT)
+
+/** One hint row: the mouse word, the actions whose chords follow it, the
+ *  verb. A NULL verb ends a tool's list. */
+struct hk_hint_row
+{
+    const char* mouse;
+    int actions[EDITOR_HK_HINT_ACTIONS];
+    int action_count;
+    const char* verb;
+};
+
+#define HK_NUDGES                                                                                  \
+    {                                                                                              \
+        EDITOR_HK_EDIT_NUDGE_N, EDITOR_HK_EDIT_NUDGE_S, EDITOR_HK_EDIT_NUDGE_W, EDITOR_HK_EDIT_NUDGE_E \
+    }
+
+static const struct hk_hint_row k_hint_select[] = {
+    { "click", { 0 }, 0, "tile" },
+    { "Shift+click", { 0 }, 0, "add loc" },
+    { "drag", { 0 }, 0, "marquee" },
+    { NULL, { EDITOR_HK_EDIT_SELECT_SQUARE }, 1, "square" },
+    { NULL, { EDITOR_HK_EDIT_SELECT_SAME }, 1, "same" },
+    { NULL, HK_NUDGES, 4, "nudge" },
+    { NULL, { EDITOR_HK_EDIT_ROTATE }, 1, "rotate" },
+    { NULL, { EDITOR_HK_EDIT_RESHAPE }, 1, "reshape" },
+    { NULL, { EDITOR_HK_PLACE_SWAP }, 1, "swap" },
+    { NULL, { EDITOR_HK_EDIT_DELETE }, 1, "delete" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_place[] = {
+    { "click", { EDITOR_HK_PLACE_HERE }, 1, "place" },
+    { "drag", { 0 }, 0, "wall run" },
+    { NULL, { EDITOR_HK_PLACE_CONSTRAIN }, 1, "one axis" },
+    { NULL, { EDITOR_HK_EDIT_ROTATE }, 1, "turn" },
+    { NULL, { EDITOR_HK_EDIT_RESHAPE }, 1, "reshape" },
+    { NULL, { EDITOR_HK_PLACE_FIT }, 1, "fit" },
+    { NULL, { EDITOR_HK_PLACE_SWAP }, 1, "swap" },
+    { NULL, { EDITOR_HK_EDIT_DESELECT }, 1, "drop" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_brush[] = {
+    { "drag", { 0 }, 0, "paint" },
+    { NULL, { EDITOR_HK_BRUSH_RADIUS_DOWN, EDITOR_HK_BRUSH_RADIUS_UP }, 2, "radius" },
+    { NULL, { EDITOR_HK_BRUSH_STRENGTH_DOWN, EDITOR_HK_BRUSH_STRENGTH_UP }, 2, "strength" },
+    { NULL, { EDITOR_HK_BRUSH_STEP_DOWN, EDITOR_HK_BRUSH_STEP_UP }, 2, "step" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_move[] = {
+    { "drag", HK_NUDGES, 4, "move" },
+    { NULL, { EDITOR_HK_EDIT_DUPLICATE }, 1, "dup" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_rotate[] = {
+    { "click", { 0 }, 0, "rotate" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_delete[] = {
+    { "click", { 0 }, 0, "delete" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_rect[] = {
+    { "drag", { 0 }, 0, "rectangle" },
+    { NULL, { EDITOR_HK_EDIT_COPY }, 1, "copy" },
+    { NULL, { EDITOR_HK_EDIT_PASTE }, 1, "paste" },
+    { NULL, { EDITOR_HK_EDIT_FILL }, 1, "fill" },
+    { NULL, { EDITOR_HK_EDIT_CLEAR }, 1, "clear" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_player[] = {
+    { "click", { 0 }, 0, "put player" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+static const struct hk_hint_row k_hint_path[] = {
+    { "drag", { 0 }, 0, "lay path" },
+    { NULL, { EDITOR_HK_BRUSH_RADIUS_DOWN, EDITOR_HK_BRUSH_RADIUS_UP }, 2, "width" },
+    { NULL, { 0 }, 0, NULL },
+};
+static const struct hk_hint_row k_hint_scatter[] = {
+    { "drag", { 0 }, 0, "scatter" },
+    { "alt+drag", { 0 }, 0, "erase" },
+    { NULL, { EDITOR_HK_BRUSH_RADIUS_DOWN, EDITOR_HK_BRUSH_RADIUS_UP }, 2, "radius" },
+    { NULL, { EDITOR_HK_BRUSH_STRENGTH_DOWN, EDITOR_HK_BRUSH_STRENGTH_UP }, 2, "density" },
+    { NULL, { 0 }, 0, NULL },
+};
+static const struct hk_hint_row k_hint_plateau[] = {
+    { "drag", { 0 }, 0, "flatten" },
+    { NULL, { EDITOR_HK_BRUSH_RADIUS_DOWN, EDITOR_HK_BRUSH_RADIUS_UP }, 2, "radius" },
+    { NULL, { EDITOR_HK_BRUSH_STRENGTH_DOWN, EDITOR_HK_BRUSH_STRENGTH_UP }, 2, "skirt" },
+    { NULL, { 0 }, 0, NULL },
+};
+
+#undef HK_NUDGES
+
+static const struct hk_hint_row* const k_hint_rows[EDITOR_HK_HINT_TOOLS] = {
+    [HK_TOOL(EDITOR_HK_TOOL_SELECT)] = k_hint_select,
+    [HK_TOOL(EDITOR_HK_TOOL_RECT)] = k_hint_rect,
+    [HK_TOOL(EDITOR_HK_TOOL_RAISE)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_LOWER)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_FLATTEN)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_SMOOTH)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_PAINT_UNDERLAY)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_PAINT_OVERLAY)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_PAINT_FLAGS)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_PLACE)] = k_hint_place,
+    [HK_TOOL(EDITOR_HK_TOOL_MOVE)] = k_hint_move,
+    [HK_TOOL(EDITOR_HK_TOOL_ROTATE)] = k_hint_rotate,
+    [HK_TOOL(EDITOR_HK_TOOL_DELETE)] = k_hint_delete,
+    [HK_TOOL(EDITOR_HK_TOOL_PLACE_PLAYER)] = k_hint_player,
+    [HK_TOOL(EDITOR_HK_TOOL_PAINT_PATH)] = k_hint_path,
+    [HK_TOOL(EDITOR_HK_TOOL_NOISE)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_SCATTER)] = k_hint_scatter,
+    [HK_TOOL(EDITOR_HK_TOOL_PLATEAU)] = k_hint_plateau,
+};
+
+/**
+ * The chords of a row of several actions, compacted: each action's first
+ * chord, the modifier prefix they all share said once ("Shift+[ ]" for
+ * Shift+[ and Shift+]) when they all hold the same modifiers (else each said
+ * whole: "Ctrl+Shift+[ Ctrl+]"), and the four arrow keys as "arrows". "" when
+ * none of them is bound.
+ */
+static void
+hk_hint_join(
+    const struct Editor_Hotkeys* hk,
+    const int* actions,
+    int count,
+    char* out,
+    int out_size)
+{
+    char shown[EDITOR_HK_HINT_ACTIONS][32];
+    uint8_t mods[EDITOR_HK_HINT_ACTIONS];
+    int bound = 0;
+    int prefix = 0;
+    int same_mods = 1;
+    int used;
+
+    assert(count <= EDITOR_HK_HINT_ACTIONS);
+    out[0] = '\0';
+    for( int i = 0; i < count; i++ )
+    {
+        if( hk->bind[actions[i]].chord[0].key == TORIRSK_UNKNOWN )
+            continue;
+        Editor_ChordDisplay(hk->bind[actions[i]].chord[0], shown[bound], (int)sizeof(shown[bound]));
+        mods[bound] = hk->bind[actions[i]].chord[0].mods;
+        bound++;
+    }
+    if( bound == 0 )
+        return;
+    /* Compact only chords that hold the same modifiers: with Ctrl+Shift+[
+     * beside Ctrl+], a shared "Ctrl+" said once would read "Ctrl+Shift+[ ]",
+     * which says Ctrl+Shift+] -- a chord nothing is bound to. Each is then
+     * said whole. */
+    for( int i = 1; i < bound; i++ )
+        same_mods &= mods[i] == mods[0];
+    /* The longest prefix every chord shares that ends just past a '+': the
+     * modifiers, never part of a key. */
+    for( int at = 0; same_mods && shown[0][at]; at++ )
+    {
+        int same = 1;
+        for( int i = 1; i < bound && same; i++ )
+            same = shown[i][at] == shown[0][at];
+        if( !same )
+            break;
+        if( shown[0][at] == '+' && shown[0][at + 1] )
+            prefix = at + 1;
+    }
+    used = snprintf(out, (size_t)out_size, "%.*s", prefix, shown[0]);
+    if( bound == 4 && strcmp(shown[0] + prefix, "Up") == 0 && strcmp(shown[1] + prefix, "Down") == 0
+        && strcmp(shown[2] + prefix, "Left") == 0 && strcmp(shown[3] + prefix, "Right") == 0 )
+    {
+        snprintf(out + used, (size_t)(out_size - used), "arrows");
+        return;
+    }
+    for( int i = 0; i < bound && used < out_size; i++ )
+        used += snprintf(out + used, (size_t)(out_size - used), "%s%s", i ? " " : "", shown[i] + prefix);
+}
+
+void
+Editor_HotkeysJoin(
+    const struct Editor_Hotkeys* hk,
+    const int* actions,
+    int count,
+    char* out,
+    int out_size)
+{
+    assert(hk);
+    assert(actions);
+    assert(count > 0);
+    assert(count <= EDITOR_HK_HINT_ACTIONS);
+    assert(out);
+    assert(out_size > 0);
+    for( int i = 0; i < count; i++ )
+    {
+        assert(actions[i] >= 0);
+        assert(actions[i] < EDITOR_HK_COUNT);
+    }
+    hk_hint_join(hk, actions, count, out, out_size);
+}
+
+/** A row's mouse word as a finger says it ("click" is a tap; a drag is a
+ *  drag), NULL when a finger has none (Shift+click). */
+static const char*
+hk_touch_word(const char* mouse)
+{
+    if( !mouse )
+        return NULL;
+    if( strcmp(mouse, "click") == 0 )
+        return "tap";
+    if( strcmp(mouse, "drag") == 0 )
+        return "drag";
+    return NULL;
+}
+
+/** The camera's rows on a touch strip, each read off its table action's
+ *  gesture spelling, then the long press (the minimenu). */
+static const struct
+{
+    int action;
+    const char* verb;
+} k_touch_camera[] = {
+    { EDITOR_HK_CAM_FORWARD, "pan" },
+    { EDITOR_HK_CAM_UP, "zoom" },
+    { EDITOR_HK_CAM_TURN_LEFT, "turn" },
+};
+
+static int
+hk_hint_touch(
+    int tool,
+    struct Editor_HotkeyHint* out_rows,
+    int max)
+{
+    const struct hk_hint_row* row;
+    int count = 0;
+
+    for( row = k_hint_rows[tool]; row->verb && count < max; row++ )
+    {
+        const char* word = hk_touch_word(row->mouse);
+        if( !word )
+            continue;
+        snprintf(out_rows[count].chord, sizeof(out_rows[count].chord), "%s", word);
+        out_rows[count].verb = row->verb;
+        out_rows[count].action = row->action_count > 0 ? row->actions[0] : -1;
+        count++;
+    }
+    for( size_t i = 0; i < sizeof(k_touch_camera) / sizeof(k_touch_camera[0]) && count < max; i++ )
+    {
+        const char* gesture = k_actions[k_touch_camera[i].action].gesture;
+        if( !gesture )
+            continue;
+        snprintf(out_rows[count].chord, sizeof(out_rows[count].chord), "%s", gesture);
+        out_rows[count].verb = k_touch_camera[i].verb;
+        out_rows[count].action = k_touch_camera[i].action;
+        count++;
+    }
+    if( count < max )
+    {
+        /* The long press: the minimenu, as a right click (input/torirs_touch.h). */
+        snprintf(out_rows[count].chord, sizeof(out_rows[count].chord), "%s", "hold");
+        out_rows[count].verb = "menu";
+        out_rows[count].action = -1;
+        count++;
+    }
+    return count;
+}
+
+int
+Editor_HotkeysHint(
+    const struct Editor_Hotkeys* hk,
+    unsigned contexts,
+    int tool,
+    int touch,
+    struct Editor_HotkeyHint* out_rows,
+    int max)
+{
+    const struct hk_hint_row* row;
+    int count = 0;
+
+    assert(hk);
+    assert(tool >= 0);
+    assert(tool < EDITOR_HK_HINT_TOOLS);
+    assert(out_rows);
+    assert(max > 0);
+    if( touch )
+        return hk_hint_touch(tool, out_rows, max);
+    contexts |= EDITOR_HK_CTX_G;
+    for( row = k_hint_rows[tool]; row->verb && count < max; row++ )
+    {
+        struct Editor_HotkeyHint* out = &out_rows[count];
+        char keys[EDITOR_HK_HINT_CHORD_MAX];
+        int live = 0;
+
+        keys[0] = '\0';
+        for( int i = 0; i < row->action_count; i++ )
+            if( k_actions[row->actions[i]].contexts & contexts )
+                live = 1;
+        if( live && row->action_count == 1 )
+            Editor_HotkeyDisplay(hk, (enum Editor_HotkeyAction)row->actions[0], keys, (int)sizeof(keys));
+        else if( live )
+            hk_hint_join(hk, row->actions, row->action_count, keys, (int)sizeof(keys));
+        if( !row->mouse && !keys[0] )
+            continue;
+        snprintf(out->chord, sizeof(out->chord), "%s%s%s", row->mouse ? row->mouse : "",
+            row->mouse && keys[0] ? "/" : "", keys);
+        out->verb = row->verb;
+        out->action = row->action_count > 0 ? row->actions[0] : -1;
+        count++;
+    }
+    return count;
+}
+
+unsigned
+Editor_HotkeyContextsFrom(const struct Editor_HotkeyContextFacts* facts)
+{
+    unsigned contexts = EDITOR_HK_CTX_G;
+
+    assert(facts);
+    assert(facts->tool >= 0);
+    assert(facts->tool < EDITOR_HK_HINT_TOOLS);
+    if( facts->pointer_in_world )
+        contexts |= EDITOR_HK_CTX_W;
+    if( facts->loc_count > 0 )
+    {
+        contexts |= EDITOR_HK_CTX_L;
+        /* Only Select and Move nudge with the arrows; any other tool (Place
+         * above all) leaves them to the camera. */
+        if( facts->tool == HK_TOOL(EDITOR_HK_TOOL_SELECT) || facts->tool == HK_TOOL(EDITOR_HK_TOOL_MOVE) )
+            contexts |= EDITOR_HK_CTX_M;
+        else
+            contexts |= EDITOR_HK_CTX_N;
+    }
+    else
+    {
+        contexts |= EDITOR_HK_CTX_N;
+        if( facts->spawn_count > 0 )
+            contexts |= EDITOR_HK_CTX_S;
+        if( facts->tool == HK_TOOL(EDITOR_HK_TOOL_PLACE) && facts->loc_pick )
+            contexts |= EDITOR_HK_CTX_P;
+    }
+    if( facts->rect_valid )
+        contexts |= EDITOR_HK_CTX_R;
+    if( facts->graph_focus )
+        contexts |= EDITOR_HK_CTX_Q;
+    contexts |= facts->camera_unity ? EDITOR_HK_CTX_U : EDITOR_HK_CTX_D;
+    return contexts;
+}
+
+#undef HK_TOOL
 
 /* ---- editor_hotkeys.ini ------------------------------------------------------------ */
 

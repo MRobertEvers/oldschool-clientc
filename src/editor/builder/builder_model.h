@@ -31,6 +31,8 @@
  *   [op<N>]  [ap<N>]              one trigger, N 1..5: label=, dialogue=1,
  *                                 step=<kind>|<field>|... (repeated, in order)
  *   [opu,<obj>]  [apu,<obj>]      a use-on entry; "*" for any held obj
+ *   [ai,<trigger>]                an npc ai trigger (ai_opplayer2, ...): the
+ *                                 encounter builder's Combat templates (6.7)
  *   [dialogue]                    start=<node id>
  *   [node,<id>]                   one dialogue node (Builder_NodeKind)
  *
@@ -56,6 +58,10 @@
 #define BUILDER_MAPLINKS_MAX 8
 /** Node ids: [a-z0-9_], what a label name is made of. */
 #define BUILDER_NODE_ID_MAX 32
+/** An ai trigger's name ("ai_opplayer2"), the terminator included. */
+#define BUILDER_AI_NAME_MAX 32
+/** Builder_Trigger.op of an ai trigger. */
+#define BUILDER_OP_AI 6
 
 enum Builder_Subject
 {
@@ -135,8 +141,11 @@ struct Builder_Step
  */
 struct Builder_Trigger
 {
-    /** 1..5, or 0 for a use-on entry. */
+    /** 1..5, 0 for a use-on entry, BUILDER_OP_AI for an ai trigger
+     *  (`[<ai>,<npc>]`, its steps the body; approach and use_obj unused). */
     int op;
+    /** BUILDER_OP_AI: the trigger, "ai_opplayer2", "ai_applayer2", ... */
+    char ai[BUILDER_AI_NAME_MAX];
     /** 1 = ap (approach), 0 = op (operate when adjacent). */
     int approach;
     /** Use-on: the held obj, "*" = any. */
@@ -341,6 +350,23 @@ Builder_ModelTriggerAdd(
     int approach,
     const char* use_obj);
 
+/** 1 for an npc ai trigger name: "ai_" then [a-z0-9_], under
+ *  BUILDER_AI_NAME_MAX bytes. */
+int
+Builder_AiTriggerValid(const char* ai);
+
+/** The ai trigger `ai` (Builder_AiTriggerValid), or NULL. */
+struct Builder_Trigger*
+Builder_ModelAiTrigger(
+    struct Builder_Model* model,
+    const char* ai);
+
+/** The ai trigger, added (empty) when the model has none. NULL when full. */
+struct Builder_Trigger*
+Builder_ModelAiTriggerAdd(
+    struct Builder_Model* model,
+    const char* ai);
+
 void
 Builder_ModelTriggerRemove(
     struct Builder_Model* model,
@@ -394,6 +420,84 @@ void
 Builder_ModelNodeRemove(
     struct Builder_Model* model,
     const char* id);
+
+/* ---- the graph (workbench 6.6: ports, links, layout) ---------------------
+ *
+ * A node's OUT-PORTS, in the order the GRAPH well draws them left to right:
+ *
+ *   CHOICE      one per option (0 .. arm_count-1); `next` is not a port
+ *   BRANCH      one per arm, then the default (port arm_count = `next`)
+ *   END         none
+ *   any other   one: port 0 = `next`
+ *
+ * Linking writes the target's id into that port; an empty target unlinks.
+ */
+
+/** How many out-ports `node` has. */
+int
+Builder_NodePortCount(const struct Builder_Node* node);
+
+/** The port's target field (an id, "" = the dialogue ends). `port` must be
+ *  below Builder_NodePortCount. */
+char*
+Builder_NodePortNext(
+    struct Builder_Node* node,
+    int port);
+
+const char*
+Builder_NodePortNextConst(
+    const struct Builder_Node* node,
+    int port);
+
+/** Link `from`'s port to node `to` ("" unlinks). Returns 1, or 0 when `to`
+ *  names no node (nothing changes). */
+int
+Builder_ModelLink(
+    struct Builder_Model* model,
+    const char* from,
+    int port,
+    const char* to);
+
+/** The index of node `id`, or -1. */
+int
+Builder_ModelNodeIndex(
+    const struct Builder_Model* model,
+    const char* id);
+
+/**
+ * Mark every node reachable from `id` through out-ports, `id` included:
+ * mask[i] = 1 for node i (BUILDER_NODES_MAX bytes, cleared here). Returns
+ * how many were marked; 0 when `id` names no node.
+ */
+int
+Builder_ModelReach(
+    const struct Builder_Model* model,
+    const char* id,
+    unsigned char* mask);
+
+/** Mark the ORPHANS -- the nodes the start cannot reach (every node when
+ *  there is no start). Returns how many. */
+int
+Builder_ModelOrphans(
+    const struct Builder_Model* model,
+    unsigned char* mask);
+
+/** The auto-layout's grid: a column per depth, a row per node in it. */
+#define BUILDER_LAYOUT_ORIGIN 10
+#define BUILDER_LAYOUT_COL_W 150
+#define BUILDER_LAYOUT_ROW_H 44
+
+/**
+ * Lay the graph out left to right by depth (Ctrl+L): a breadth-first walk
+ * from the start, ports in port order, puts each node in the column of the
+ * depth it is first reached at and the next free row of that column. The
+ * orphans follow as roots of their own walks, in model order, below what is
+ * already in each column. A pure function of the links: the same graph lays
+ * out the same way whatever its current positions (stable), so a hand
+ * layout survives only until the next Ctrl+L. Returns how many nodes moved.
+ */
+int
+Builder_ModelAutoLayout(struct Builder_Model* model);
 
 /* ---- names --------------------------------------------------------------- */
 

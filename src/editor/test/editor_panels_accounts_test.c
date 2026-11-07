@@ -27,6 +27,8 @@
 #include "torirsmaped/torirs_maped_accounts.h"
 #include "torirsmaped/torirs_maped_catalog.h"
 #include "ui/uitree_debug_overlay.h"
+#include "platform/launch_sessions.h"
+#include "torirsmaped/torirs_maped_build.h"
 
 #include <rscache.h>
 
@@ -570,6 +572,9 @@ main(
     root = argv[1];
     setvbuf(stdout, NULL, _IONBF, 0);
     ToriMem_Init();
+    /* The editor server starts its children through the host's spawner, as
+     * the client and torirsmaped hand it theirs (torirs_maped_build.h). */
+    ToriRSMapEd_SetSpawner(LaunchSessions_SystemSpawner());
     if( !RSCache_ProfileByName("osrs241", &g_profile) )
     {
         printf("FAIL: no osrs241 profile\n");

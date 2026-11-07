@@ -18,13 +18,28 @@
 #include <time.h>
 
 #if TORIRSMAPED_JOBS_NATIVE
+#include "torirs_maped_lanes.h"
+/* Sockets as the game server has them (torirsserver/torirs_server_host.c):
+ * winsock on Windows, BSD sockets elsewhere; a socket is an int either way. */
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#define live_socket_close(fd) closesocket((SOCKET)(fd))
+#define live_socket_error() WSAGetLastError()
+#define LIVE_WOULD_BLOCK(error) ((error) == WSAEWOULDBLOCK || (error) == WSAEINPROGRESS)
+#else
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#define live_socket_close(fd) close(fd)
+#define live_socket_error() errno
+#define LIVE_WOULD_BLOCK(error) ((error) == EAGAIN || (error) == EWOULDBLOCK || (error) == EINPROGRESS || (error) == EINTR)
+#endif
 #endif
 
 enum
@@ -1794,16 +1809,42 @@ struct live_native
     int connected;
     int64_t started_ms;
     int64_t next_try_ms;
-    int pids[3];
+    /** The game server, js5_server and io_server a launch started. */
+    struct jobs_process launched[3];
     struct ToriRSMapEdBuf out;
 };
 
 static int64_t
 live_now_ms(void)
 {
-    struct timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-    return (int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000;
+    return LaunchSessions_MonotonicMs(NULL);
+}
+
+/** The socket layer up once per process (winsock counts its starts, and the
+ *  host that started it first may be the game client or no one). */
+static void
+live_sockets_up(void)
+{
+#ifdef _WIN32
+    static int started = 0;
+    if( !started )
+    {
+        WSADATA data;
+        started = WSAStartup(MAKEWORD(2, 2), &data) == 0;
+    }
+#endif
+}
+
+static void
+live_socket_nonblocking(int fd)
+{
+#ifdef _WIN32
+    u_long on = 1;
+    ioctlsocket((SOCKET)fd, FIONBIO, &on);
+#else
+    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+    fcntl(fd, F_SETFD, FD_CLOEXEC);
+#endif
 }
 
 /** `mkdir -p`. */
@@ -1818,13 +1859,13 @@ live_mkdirs(const char* path)
         if( *scan == '/' && used > 0 )
         {
             partial[used] = '\0';
-            mkdir(partial, 0755);
+            jobs_mkdir(partial);
         }
         partial[used++] = *scan;
     }
     partial[used] = '\0';
     if( used > 0 )
-        mkdir(partial, 0755);
+        jobs_mkdir(partial);
 }
 
 /**
@@ -1854,11 +1895,11 @@ live_web_play_prepare(
     live_mkdirs(path);
     snprintf(path, sizeof(path), "%s/play/web/revconfig", live);
     snprintf(target, sizeof(target), "%s/revconfig", lane->repo_root);
-    if( access(path, F_OK) != 0 && symlink(target, path) != 0 )
+    if( access(path, F_OK) != 0 && !ToriRSMapEdLanes_LinkDirectory(target, path) )
         TORIRS_LOG("torirsmaped: cannot link %s -> %s: %s\n", path, target, strerror(errno));
     snprintf(path, sizeof(path), "%s/play/web/cache", live);
     snprintf(target, sizeof(target), "%s/cache", live);
-    if( access(path, F_OK) != 0 && symlink(target, path) != 0 )
+    if( access(path, F_OK) != 0 && !ToriRSMapEdLanes_LinkDirectory(target, path) )
         TORIRS_LOG("torirsmaped: cannot link %s -> %s: %s\n", path, target, strerror(errno));
     snprintf(path, sizeof(path), "%s/play/web/manifests/manifest_%s.ini", live, lane->rev);
     if( !play_manifest_write(lane, path, "../cache", 0, why, sizeof(why)) )
@@ -1869,7 +1910,7 @@ static void
 live_native_disconnect(struct live_native* native)
 {
     if( native->fd >= 0 )
-        close(native->fd);
+        live_socket_close(native->fd);
     native->fd = -1;
     native->connecting = 0;
     native->connected = 0;
@@ -1888,29 +1929,29 @@ live_native_dial(struct live_native* native)
     int rc;
     int one = 1;
 
+    live_sockets_up();
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     snprintf(port, sizeof(port), "%d", native->target.port);
     if( getaddrinfo(native->target.host, port, &hints, &found) != 0 || !found )
         return 0;
-    fd = socket(found->ai_family, found->ai_socktype, found->ai_protocol);
+    fd = (int)socket(found->ai_family, found->ai_socktype, found->ai_protocol);
     if( fd < 0 )
     {
         freeaddrinfo(found);
         return 0;
     }
-    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
-    fcntl(fd, F_SETFD, FD_CLOEXEC);
-    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+    live_socket_nonblocking(fd);
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (const char*)&one, sizeof(one));
 #if defined(SO_NOSIGPIPE)
     setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
 #endif
-    rc = connect(fd, found->ai_addr, found->ai_addrlen);
+    rc = connect(fd, found->ai_addr, (int)found->ai_addrlen);
     freeaddrinfo(found);
-    if( rc != 0 && errno != EINPROGRESS )
+    if( rc != 0 && !LIVE_WOULD_BLOCK(live_socket_error()) )
     {
-        close(fd);
+        live_socket_close(fd);
         return 0;
     }
     native->fd = fd;
@@ -1923,11 +1964,7 @@ static void
 live_native_stop_launched(struct live_native* native)
 {
     for( int i = 0; i < 3; i++ )
-    {
-        if( native->pids[i] > 0 )
-            jobs_stop_process(native->pids[i], 2000);
-        native->pids[i] = 0;
-    }
+        jobs_process_stop(&native->launched[i], 2000);
 }
 
 static enum EditorHost_Status
@@ -1992,10 +2029,8 @@ live_native_open(
         snprintf(logs[2], sizeof(logs[2]), "%s/logs/io.log", lane->live_dir);
         {
             char* argv[] = { (char*)lane->server_bin, port[0], (char*)"--rev", (char*)lane->rev, NULL };
-            native->pids[0] = jobs_spawn_logged(argv, extra_env, logs[0], NULL);
-            if( native->pids[0] < 0 )
+            if( !jobs_process_start(argv, extra_env, logs[0], &native->launched[0]) )
             {
-                native->pids[0] = 0;
                 snprintf(why, why_size, "cannot start %s: %s", lane->server_bin, strerror(errno));
                 return EDITOR_HOST_IO_ERROR;
             }
@@ -2004,10 +2039,8 @@ live_native_open(
         {
             char* argv[] = { (char*)lane->js5_bin, (char*)"--cache", cache, (char*)"--revision",
                 rev_number, (char*)"--port", port[1], (char*)"--max-pending", (char*)"65535", NULL };
-            native->pids[1] = jobs_spawn_logged(argv, NULL, logs[1], NULL);
-            if( native->pids[1] < 0 )
+            if( !jobs_process_start(argv, NULL, logs[1], &native->launched[1]) )
             {
-                native->pids[1] = 0;
                 snprintf(why, why_size, "cannot start %s: %s", lane->js5_bin, strerror(errno));
                 live_native_stop_launched(native);
                 return EDITOR_HOST_IO_ERROR;
@@ -2035,10 +2068,8 @@ live_native_open(
                 ToriRSMapEd_LanePlayAccount(lane, user, sizeof(user), pass, sizeof(pass));
                 play_copy_fixture(lane, live, user);
             }
-            native->pids[2] = jobs_spawn_logged(argv, NULL, logs[2], NULL);
-            if( native->pids[2] < 0 )
+            if( !jobs_process_start(argv, NULL, logs[2], &native->launched[2]) )
             {
-                native->pids[2] = 0;
                 snprintf(why, why_size, "cannot start %s: %s", lane->io_bin, strerror(errno));
                 live_native_stop_launched(native);
                 return EDITOR_HOST_IO_ERROR;
@@ -2063,16 +2094,14 @@ live_native_poll(
     if( native->connected )
         return 1;
     /* A launched server that died before it listened will never answer. */
-    if( native->target.launch && native->pids[0] > 0 )
+    if( native->target.launch && native->launched[0].pid > 0 )
     {
         int status = 0;
-        if( waitpid((pid_t)native->pids[0], &status, WNOHANG) == (pid_t)native->pids[0] )
+        if( jobs_process_ended(&native->launched[0], &status) )
         {
-            native->pids[0] = 0;
             live_native_disconnect(native);
             live_native_stop_launched(native);
-            snprintf(why, why_size, "the launched game server exited (status %d) before it answered",
-                WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+            snprintf(why, why_size, "the launched game server exited (status %d) before it answered", status);
             return -1;
         }
     }
@@ -2086,7 +2115,7 @@ live_native_poll(
         FD_SET(native->fd, &writable);
         if( select(native->fd + 1, NULL, &writable, NULL, &zero) <= 0 )
             return 0;
-        getsockopt(native->fd, SOL_SOCKET, SO_ERROR, &error, &length);
+        getsockopt(native->fd, SOL_SOCKET, SO_ERROR, (char*)&error, &length);
         if( error == 0 )
         {
             native->connecting = 0;
@@ -2123,14 +2152,14 @@ live_native_flush(struct live_native* native)
 {
     while( ToriRSMapEd_BufAvailable(&native->out) > 0 )
     {
-        ssize_t sent = send(native->fd, ToriRSMapEd_BufPeek(&native->out),
-            (size_t)ToriRSMapEd_BufAvailable(&native->out), LIVE_SEND_FLAGS);
+        int sent = (int)send(native->fd, (const char*)ToriRSMapEd_BufPeek(&native->out),
+            ToriRSMapEd_BufAvailable(&native->out), LIVE_SEND_FLAGS);
         if( sent > 0 )
         {
-            ToriRSMapEd_BufConsume(&native->out, (int)sent);
+            ToriRSMapEd_BufConsume(&native->out, sent);
             continue;
         }
-        if( sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) )
+        if( sent < 0 && LIVE_WOULD_BLOCK(live_socket_error()) )
             return 1;
         return 0;
     }
@@ -2144,19 +2173,19 @@ live_native_recv(
     int max)
 {
     struct live_native* native = ctx;
-    ssize_t got;
+    int got;
 
     assert(native);
     if( !native->connected )
         return native->connecting ? 0 : -1;
     if( !live_native_flush(native) )
         return -1;
-    got = recv(native->fd, dst, (size_t)max, 0);
+    got = (int)recv(native->fd, (char*)dst, max, 0);
     if( got > 0 )
-        return (int)got;
+        return got;
     if( got == 0 )
         return -1;
-    if( errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR )
+    if( LIVE_WOULD_BLOCK(live_socket_error()) )
         return 0;
     return -1;
 }
@@ -2207,7 +2236,7 @@ enum
 struct play_native
 {
     struct ToriRSMapEdLane lane;
-    int pid;
+    struct jobs_process process;
 };
 
 /** 1 when 127.0.0.1:`port` accepts a connection now (loopback answers at
@@ -2219,7 +2248,8 @@ play_port_open(int port)
     int fd;
     int ok;
 
-    fd = socket(AF_INET, SOCK_STREAM, 0);
+    live_sockets_up();
+    fd = (int)socket(AF_INET, SOCK_STREAM, 0);
     if( fd < 0 )
         return 0;
     memset(&addr, 0, sizeof(addr));
@@ -2227,7 +2257,7 @@ play_port_open(int port)
     addr.sin_port = htons((uint16_t)port);
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     ok = connect(fd, (struct sockaddr*)&addr, sizeof(addr)) == 0;
-    close(fd);
+    live_socket_close(fd);
     return ok;
 }
 
@@ -2320,19 +2350,19 @@ play_native_start(
     const char* extra[PLAY_ENV_MAX + 1];
     int extra_count = 0;
     char** env;
-    int pid;
+    int started;
 
     assert(play);
     assert(spec);
     assert(out_pid);
     assert(why);
     lane = &play->lane;
-    if( play->pid > 0 )
-    {
-        jobs_stop_process(play->pid, 3000);
-        play->pid = 0;
-    }
+    jobs_process_stop(&play->process, 3000);
+#ifdef _WIN32
+    if( access(lane->play_bin, F_OK) != 0 ) /* Windows has no execute bit */
+#else
     if( access(lane->play_bin, X_OK) != 0 )
+#endif
     {
         snprintf(why, why_size, "the play client %s is not an executable (%s)", lane->play_bin, strerror(errno));
         return EDITOR_HOST_UNSUPPORTED;
@@ -2375,6 +2405,7 @@ play_native_start(
          * it die"). */
         char previous[TORIRSMAPED_LANE_PATH_MAX + 320];
         snprintf(previous, sizeof(previous), "%s/logs/play.prev.log", live);
+        remove(previous); /* Win32's rename keeps an existing target */
         (void)rename(log_path, previous);
     }
     env = jobs_env_build(extra, drop);
@@ -2382,17 +2413,16 @@ play_native_start(
         char* argv[] = { (char*)lane->play_bin, (char*)"--manifest", manifest, (char*)"--js5", (char*)"--js5-host",
             (char*)"127.0.0.1", (char*)"--js5-port", js5_port, (char*)"--js5-fallback-port", (char*)"0",
             (char*)"--user", (char*)spec->user, (char*)"--pass", (char*)spec->pass, NULL };
-        pid = jobs_spawn_envp(argv, env, log_path, NULL);
+        started = jobs_process_start_envp(argv, env, log_path, &play->process);
     }
     free(env);
-    if( pid < 0 )
+    if( !started )
     {
         snprintf(why, why_size, "cannot start %s: %s", lane->play_bin, strerror(errno));
         return EDITOR_HOST_IO_ERROR;
     }
-    play->pid = pid;
-    *out_pid = pid;
-    TORIRS_LOG("torirsmaped: play client pid %d: %s --manifest %s --js5-port %d --user %s (log %s)\n", pid,
+    *out_pid = play->process.pid;
+    TORIRS_LOG("torirsmaped: play client pid %d: %s --manifest %s --js5-port %d --user %s (log %s)\n", play->process.pid,
         lane->play_bin, manifest, lane->js5_port, spec->user, log_path);
     return EDITOR_HOST_OK;
 }
@@ -2403,21 +2433,13 @@ play_native_alive(
     int* out_status)
 {
     struct play_native* play = ctx;
-    int status = 0;
-    pid_t got;
 
     assert(play);
     assert(out_status);
     *out_status = 0;
-    if( play->pid <= 0 )
+    if( play->process.pid <= 0 )
         return 0;
-    got = waitpid((pid_t)play->pid, &status, WNOHANG);
-    if( got == 0 )
-        return 1;
-    if( got == (pid_t)play->pid )
-        *out_status = WIFEXITED(status) ? WEXITSTATUS(status) : WIFSIGNALED(status) ? -WTERMSIG(status) : -1;
-    play->pid = 0;
-    return 0;
+    return !jobs_process_ended(&play->process, out_status);
 }
 
 static void
@@ -2426,9 +2448,7 @@ play_native_stop(void* ctx)
     struct play_native* play = ctx;
 
     assert(play);
-    if( play->pid > 0 )
-        jobs_stop_process(play->pid, 3000);
-    play->pid = 0;
+    jobs_process_stop(&play->process, 3000);
 }
 
 static void
@@ -2453,7 +2473,7 @@ ToriRSMapEd_PlayLauncherNative(
 
     memset(out, 0, sizeof(*out));
 #if TORIRSMAPED_JOBS_NATIVE
-    if( !lane->play_bin[0] )
+    if( !lane->play_bin[0] || !g_jobs_spawner )
         return 0;
     {
         struct play_native* play = calloc(1, sizeof(*play));
@@ -2550,7 +2570,7 @@ ToriRSMapEd_LiveLinkNativePids(
         const struct live_native* native = link->ctx;
         assert(link->open == live_native_open);
         for( int i = 0; i < 3; i++ )
-            out_pids[i] = native->pids[i];
+            out_pids[i] = native->launched[i].pid;
     }
 #else
     for( int i = 0; i < 3; i++ )
@@ -2623,6 +2643,19 @@ live_lane_from_env(struct ToriRSMapEdLane* lane)
     live_env_path("TORIRSMAPED_LIVE_PLAY_PASS", lane->play_pass, sizeof(lane->play_pass));
 }
 
+/** 1 when `path` is absolute: "/x", and on Windows "C:/x", "C:\x" or "\x"
+ *  too (a drive-letter path read as relative gets the working directory
+ *  glued in front of it: "C:\repo/C:/repo/build/..."). */
+static int
+live_path_absolute(const char* path)
+{
+#ifdef _WIN32
+    if( path[0] == '\\' || (((path[0] | 0x20) >= 'a' && (path[0] | 0x20) <= 'z') && path[1] == ':') )
+        return 1;
+#endif
+    return path[0] == '/';
+}
+
 int
 ToriRSMapEd_BindLiveFromEnv(
     struct ToriRSMapEd* maped,
@@ -2662,13 +2695,13 @@ ToriRSMapEd_BindLiveFromEnv(
     }
     if( !live_dir[0] )
         return 0;
-    if( live_dir[0] != '/' )
+    if( !live_path_absolute(live_dir) )
     {
         /* A relative live dir is the process's; a missing parent is made so
          * the resolve can anchor it. */
         build_resolve(live_dir, live_abs, sizeof(live_abs));
 #if TORIRSMAPED_JOBS_NATIVE
-        if( live_abs[0] != '/' )
+        if( !live_path_absolute(live_abs) )
         {
             char cwd[TORIRSMAPED_LANE_PATH_MAX];
             if( getcwd(cwd, sizeof(cwd)) )

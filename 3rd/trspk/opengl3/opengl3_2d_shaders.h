@@ -15,6 +15,10 @@ static char const* const trspk_opengl3_2d_vertex_shader =
     "    gl_Position = u_projection * vec4(a_position, 0.0, 1.0);\n"
     "}\n";
 
+/* u_text_mode: 0 a sprite (texture times colour); 1 a mask font, any texel
+ * over zero solid (a cache face, whose filtered edges would otherwise thin);
+ * 2 a coverage font, the texel IS the alpha (ToriDraw_Font::coverage: the
+ * chrome's faces at a fractional scale). */
 static char const* const trspk_opengl3_2d_fragment_shader =
     "#version 150 core\n"
     "in vec2 v_texcoord;\n"
@@ -33,6 +37,7 @@ static char const* const trspk_opengl3_2d_fragment_shader =
     "    vec4 tex = texture(u_texture, uv);\n"
     "    vec4 c = (u_text_mode == 1)\n"
     "        ? vec4(v_color.rgb, step(0.001, tex.r) * v_color.a)\n"
+    "        : (u_text_mode == 2) ? vec4(v_color.rgb, tex.r * v_color.a)\n"
     "        : tex * v_color;\n"
     "    if (c.a < 0.004) discard;\n"
     "    fragColor = c;\n"

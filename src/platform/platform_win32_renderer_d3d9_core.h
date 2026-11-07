@@ -297,6 +297,7 @@ struct ToriPlatformWin32_Renderer_D3D9
     int offscreen_w;
     int offscreen_h;
     /* All Settings' interface scaling mode: 0 nearest, 1 linear, 2 bicubic.
+     * D3D9 composites bicubic as linear: it has no pixel shaders.
      * @see d3d9_ui_layer_wanted. */
     int interface_scale_mode;
     /*
@@ -328,11 +329,6 @@ struct ToriPlatformWin32_Renderer_D3D9
     int ui_layer_saved_lb_h;
     int ui_layer_saved_target_w;
     int ui_layer_saved_target_h;
-    /* The Bicubic composite (ps_2_0; not a pool resource, survives Reset).
-     * NULL and ::ui_composite_bicubic_unavailable set when the device has no
-     * ps_2_0 or refused it; Bicubic then composites linear. */
-    IDirect3DPixelShader9* ui_composite_bicubic;
-    bool ui_composite_bicubic_unavailable;
 
     struct TRSPK_Atlas atlas;
     IDirect3DTexture9* atlas_texture;

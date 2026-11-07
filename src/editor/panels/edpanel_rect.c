@@ -23,12 +23,30 @@ struct RectPanel
     int button_paste;
     int button_fill;
     int button_clear;
+    int button_plateau;
     int button_mark_area;
     struct Editor_TileRect shown;
     int shown_clip_w;
     int shown_clip_h;
     enum Editor_Tool shown_tool;
+    /** ui->hotkeys.serial the buttons' keycaps were labelled from. */
+    uint32_t chord_serial;
 };
+
+/** Every button wears its Edit action's chord as a keycap (design section
+ *  15 surface 3), from the hotkey table; again whenever its serial moves. */
+static void
+rect_chords(
+    struct EditorUi* ui,
+    struct RectPanel* self)
+{
+    edp_button_chord(ui, self->button_copy, EDITOR_HK_EDIT_COPY);
+    edp_button_chord(ui, self->button_paste, EDITOR_HK_EDIT_PASTE);
+    edp_button_chord(ui, self->button_fill, EDITOR_HK_EDIT_FILL);
+    edp_button_chord(ui, self->button_clear, EDITOR_HK_EDIT_CLEAR);
+    edp_button_chord(ui, self->button_mark_area, EDITOR_HK_EDIT_MARK_AREA);
+    self->chord_serial = ui->hotkeys.serial;
+}
 
 static void
 rect_tick(
@@ -40,6 +58,8 @@ rect_tick(
     int clip_w = 0;
     int clip_h = 0;
 
+    if( self->chord_serial != ui->hotkeys.serial )
+        rect_chords(ui, self);
     /* Arming the tool brings the panel up; it stays until closed. */
     if( self->shown_tool != ui->tools.tool )
     {
@@ -90,6 +110,8 @@ rect_activate(
         (void)edp_rect_fill(ui);
     else if( widget == self->button_clear )
         (void)edp_rect_clear(ui);
+    else if( widget == self->button_plateau )
+        (void)edp_rect_plateau(ui);
     else if( widget == self->button_mark_area )
     {
         /* Named in the Areas panel, where it is then selected for Rename. */
@@ -145,11 +167,17 @@ Editor_RectSelect_Register(struct EditorUi* ui)
     self->button_paste = ToriRSChrome_Button(ui->chrome, self->panel, "Paste");
     self->button_fill = ToriRSChrome_Button(ui->chrome, self->panel, "Fill with palette");
     self->button_clear = ToriRSChrome_Button(ui->chrome, self->panel, "Clear");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_copy, "Copy the rectangle's tiles for Paste");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_fill, "Paint the rectangle with the Palette's picks");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_paste,
         "Paste at the SW corner; authored heights follow the new ground");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_clear, "Every tile back to no tokens");
+    self->button_plateau = ToriRSChrome_Button(ui->chrome, self->panel, "Plateau");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_plateau,
+        "Flatten to the latched tile's height, a skirt eased around it");
     self->button_mark_area = ToriRSChrome_Button(ui->chrome, self->panel, "Mark area from rect");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_mark_area, "Name this rectangle as an area (Areas panel)");
+    rect_chords(ui, self);
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
 
     memset(&desc, 0, sizeof(desc));

@@ -599,7 +599,8 @@ struct AppConfig
      * window it is given; resizable lays the gameframe out at the window size.
      * --windowmode overrides. */
     int window_mode;
-    /** Manifest-pinned chrome zoom; 0 follows the display density. The env
+    /** Manifest-pinned chrome zoom in quarter units (bootmanifest.h), -1
+     *  `dynamic`; 0 follows the display density. The env
      *  TORIRS_CHROME_SCALE outranks both. */
     int chrome_scale;
     /** `[ui:boot] chrome_checkbox` -- enum ToriRSChromeCheckStyle: which of the
@@ -3057,20 +3058,40 @@ App_SetCanvasSize(
     int height);
 
 /**
- * Set the chrome scale: device pixels per ToriRSChrome pixel, 1..3.
+ * Set the chrome scale in quarters of a device pixel per ToriRSChrome pixel,
+ * 4..12 (6 is 1.5x), fractions included.
  *
- * One call, because the three things it touches must never disagree: the
- * overlay's LAYOUT (which measures against a baked font), the scene FONTS the
- * renderer draws those rows with, and the tree components that name them. Set
- * two of the three and the chrome lays out at one size and paints at another
- * -- which reads as a broken font rather than as a missed call.
+ * One call, because the things it touches must never disagree: the
+ * overlay's LAYOUT (both chrome models, ToriRSChrome_SetScaleQ, which measure
+ * against the quarter metrics), the scene FONTS and SKIN the renderer draws
+ * those rows with (UITreeSceneBridge_SetChromeScaleQ registers the bake's
+ * atlases and images at q), the tree components that name the fonts, and the
+ * step the parchment tiles by. Set some and not the others and the chrome
+ * lays out at one size and paints at another -- which reads as a broken font
+ * rather than as a missed call.
  *
- * The caller is whoever knows the display: on the desktop shell that is
- * PlatformWindow_PixelDensity, so a Retina window gets 2x chrome authored at 2x
- * rather than 1x chrome stretched onto it. @return 1 if the scale changed.
+ * The caller is whoever knows the display: main.c's main_chrome_scale_q,
+ * from the display's density, a pin or the editor's View row.
+ * @return 1 if the scale changed.
  */
 int
+App_SetChromeScaleQ(struct App* app, int q);
+
+/** App_SetChromeScaleQ(app, 4 * scale), for an integer scale 1..3. */
+int
 App_SetChromeScale(struct App* app, int scale);
+
+/**
+ * Text rendering, App_SetChromeScaleQ's sibling: 0 = bitmap at whole scales
+ * (the baked tiers at 1x, 2x, 3x; the vector face between), 1 = smooth always
+ * (the vector face at every scale). Sets both chrome models' mode
+ * (ToriRSChromeBake_SetTextSmooth) and the bridge's
+ * (UITreeSceneBridge_SetChromeTextSmooth), then re-resolves the overlay's
+ * font ids, so the native renderer draws the atlas the mode names. Nothing
+ * moves when the mode did not. @return 1 if it changed.
+ */
+int
+App_SetChromeTextSmooth(struct App* app, int smooth);
 
 /**
  * Choose which of the interfaces' two booleans the chrome's checkboxes wear:
@@ -4787,6 +4808,28 @@ App_ChromePointerOwned(struct App const* app, int x, int y);
  */
 int
 App_PointerOwnedByUi(struct App* app, int x, int y);
+
+/**
+ * Is the map editor's panel open, so a finger's one-finger drag is the armed
+ * tool's (the marquee, a brush stroke) and never the camera's? The host then
+ * gives the touch layer no world viewport (ToriRS_TouchSetViewport w = 0):
+ * the drag is a LEFT-button drag, the camera's middle-button synthesis is
+ * bypassed, and the World pans under two fingers (workbench 6.1). The game
+ * keeps the synthesis whenever the editor is closed.
+ */
+int
+App_EditorOwnsTouch(struct App const* app);
+
+/**
+ * Should two fingers be gesture frames (ToriRS_TouchSetGestureFrames) rather
+ * than the game's wheel notches and arrow keys? While the editor owns the
+ * touch AND the World's camera is the free one (offline, a cutscene, or
+ * unlocked online), which the frames move (EditorWorldGesture_Apply). Online
+ * with the follow camera locked the frames would have no camera to move, so
+ * the legacy synthesis stays on and turns and zooms it as in the game.
+ */
+int
+App_EditorOwnsGestureFrames(struct App const* app);
 
 /**
  * Relayout + CS1 re-evaluate + mark for redraw after an out-of-band tree

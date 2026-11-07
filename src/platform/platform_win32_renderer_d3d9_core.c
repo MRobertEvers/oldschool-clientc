@@ -20,7 +20,6 @@
 #include "engine/boot_bar.h"
 #include "platform/platform_win32_chrome.h"
 #include "platform/platform_win32_renderer_d3d9_core.h"
-#include "platform/platform_win32_renderer_d3d9_ui_composite_ps.h"
 #include "toridraw_element_id.h"
 #include <assert.h>
 
@@ -5982,39 +5981,6 @@ d3d9_ui_layer_begin(struct ToriPlatformWin32_Renderer_D3D9* renderer)
     IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0u);
 }
 
-/* The Bicubic program, created on first use. False when the device has no
- * ps_2_0 or cannot create it now; Bicubic then composites linear. */
-static bool
-d3d9_ui_composite_bicubic_ready(struct ToriPlatformWin32_Renderer_D3D9* renderer)
-{
-    HRESULT hr;
-
-    if( renderer->ui_composite_bicubic )
-        return true;
-    if( renderer->ui_composite_bicubic_unavailable )
-        return false;
-    if( renderer->caps.PixelShaderVersion < (DWORD)D3DPS_VERSION(2, 0) )
-    {
-        TORIRS_LOG("D3D9: no ps_2_0; the Bicubic interface filter composites linear\n");
-        renderer->ui_composite_bicubic_unavailable = true;
-        return false;
-    }
-    hr = IDirect3DDevice9_CreatePixelShader(
-        renderer->device, d3d9_ui_composite_bicubic_ps, &renderer->ui_composite_bicubic);
-    /* On a ps_2_0 device INVALIDCALL means the bytecode was rejected, which is
-     * a bug in platform_win32_renderer_d3d9_ui_composite_ps.h, not a state. */
-    assert(hr != D3DERR_INVALIDCALL);
-    if( FAILED(hr) )
-    {
-        d3d9_log_hr("CreatePixelShader(interface bicubic)", hr);
-        renderer->ui_composite_bicubic = NULL;
-        renderer->ui_composite_bicubic_unavailable = true;
-        return false;
-    }
-    assert(renderer->ui_composite_bicubic);
-    return true;
-}
-
 /*
  * Filter the finished segment onto the output rect it would have drawn to.
  *
@@ -6030,7 +5996,6 @@ d3d9_ui_layer_composite(struct ToriPlatformWin32_Renderer_D3D9* renderer)
     struct D3D9OverlayVertex quad[4];
     D3DTEXTUREFILTERTYPE filter = D3DTEXF_POINT;
     DWORD const linear_caps = D3DPTFILTERCAPS_MINFLINEAR | D3DPTFILTERCAPS_MAGFLINEAR;
-    bool bicubic = false;
     bool restored;
     float x0;
     float y0;
@@ -6068,9 +6033,10 @@ d3d9_ui_layer_composite(struct ToriPlatformWin32_Renderer_D3D9* renderer)
         return;
     }
 
-    if( renderer->interface_scale_mode == 2 && d3d9_ui_composite_bicubic_ready(renderer) )
-        bicubic = true;
-    else if( (renderer->caps.TextureFilterCaps & linear_caps) == linear_caps )
+    /* Bicubic composites linear here. A Catmull-Rom composite needs a pixel
+     * shader, and both Windows lanes are fixed-function only
+     * (lane-check-fixed-function-win32); GL3 and GLES2 do the real bicubic. */
+    if( (renderer->caps.TextureFilterCaps & linear_caps) == linear_caps )
         filter = D3DTEXF_LINEAR;
 
     x0 = (float)renderer->lb_x - 0.5f;
@@ -6096,30 +6062,10 @@ d3d9_ui_layer_composite(struct ToriPlatformWin32_Renderer_D3D9* renderer)
     IDirect3DDevice9_SetTextureStageState(device, 0u, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
     IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_MINFILTER, filter);
     IDirect3DDevice9_SetSamplerState(device, 0u, D3DSAMP_MAGFILTER, filter);
-    if( bicubic )
-    {
-        float const w = (float)renderer->ui_layer_w;
-        float const h = (float)renderer->ui_layer_h;
-        float const constants[D3D9_UI_COMPOSITE_PS_CONSTANT_COUNT * 4u] = {
-            w,          h,          0.0f, 0.0f, /* c0 */
-            -1.0f / w,  -1.0f / h,  0.0f, 0.0f, /* c1 */
-            1.0f / w,   0.0f,       0.0f, 0.0f, /* c2 */
-            -1.0f / w,  -1.0f / h,  0.0f, 0.0f, /* c3: row base - 1 */
-            -1.0f / w,  0.0f,       0.0f, 0.0f, /* c4: row base */
-            -1.0f / w,  1.0f / h,   0.0f, 0.0f, /* c5: row base + 1 */
-            -1.0f / w,  2.0f / h,   0.0f, 0.0f, /* c6: row base + 2 */
-            -0.5f,      -2.5f,      1.5f, 1.0f, /* c7 */
-            0.5f,       0.0f,       0.0f, 0.0f, /* c8 */
-        };
-        IDirect3DDevice9_SetPixelShader(device, renderer->ui_composite_bicubic);
-        IDirect3DDevice9_SetPixelShaderConstantF(
-            device, 0u, constants, D3D9_UI_COMPOSITE_PS_CONSTANT_COUNT);
-    }
     IDirect3DDevice9_DrawPrimitiveUP(
         device, D3DPT_TRIANGLESTRIP, 2u, quad, (UINT)sizeof(quad[0]));
     /* The device must not keep a reference to the DEFAULT-pool layer: Reset
-     * refuses while one is bound. d3d9_ui_set_states clears the shader and
-     * puts the 2D blend back. */
+     * refuses while one is bound. d3d9_ui_set_states puts the 2D blend back. */
     IDirect3DDevice9_SetTexture(device, 0u, NULL);
     d3d9_ui_set_states(renderer);
 }
@@ -6808,8 +6754,6 @@ ToriPlatformWin32_Renderer_D3D9_Free(struct ToriPlatformWin32_Renderer_D3D9* ren
     }
     if( renderer->static_batch_vbo )
         IDirect3DVertexBuffer9_Release(renderer->static_batch_vbo);
-    if( renderer->ui_composite_bicubic )
-        IDirect3DPixelShader9_Release(renderer->ui_composite_bicubic);
     if( renderer->device )
         IDirect3DDevice9_Release(renderer->device);
     if( renderer->d3d )

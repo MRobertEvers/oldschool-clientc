@@ -541,9 +541,43 @@ test_the_wander_squares_follow_the_record(void)
     CHECK(MapEditorWander_Rects(0, 0, 0, 1, 5, 7, rects, 1) == 1, "the output bound is kept");
 }
 
+/* ---- the multi-piece ghost (workbench 6.3) ----------------------------------- */
+
+static void
+test_the_piece_ghost_counts_its_taken_keys(void)
+{
+    struct MapEditorGhost ghost;
+    struct MapEditorPieceGhostPiece piece = { 10, 10, 0, 1, 1, false };
+
+    MapEditorGhost_Reset(&ghost);
+    CHECK(!MapEditorPieceGhost_Matches(&ghost.pieces, MAP_EDITOR_PIECE_GHOST_STAMP, 0, 0, 0, 0, 0),
+        "a reset ghost matches nothing, not even a zero key");
+    MapEditorPieceGhost_Begin(&ghost.pieces, MAP_EDITOR_PIECE_GHOST_STAMP, 40, 40, 0, 1, 7);
+    CHECK(MapEditorPieceGhost_Add(&ghost.pieces, &piece), "a piece goes in");
+    piece.scene_x = 11;
+    piece.taken = true;
+    CHECK(MapEditorPieceGhost_Add(&ghost.pieces, &piece), "a taken one too");
+    CHECK(ghost.pieces.count == 2 && ghost.pieces.taken_count == 1, "two pieces, one orange");
+    CHECK(MapEditorPieceGhost_Matches(&ghost.pieces, MAP_EDITOR_PIECE_GHOST_STAMP, 40, 40, 0, 1, 7),
+        "the same stamp, tile, turn and document: nothing to rebuild");
+    CHECK(!MapEditorPieceGhost_Matches(&ghost.pieces, MAP_EDITOR_PIECE_GHOST_STAMP, 40, 40, 0, 2, 7),
+        "a turn rebuilds it");
+    CHECK(!MapEditorPieceGhost_Matches(&ghost.pieces, MAP_EDITOR_PIECE_GHOST_STAMP, 40, 40, 0, 1, 8),
+        "and so does an edit to the document under it");
+    CHECK(!MapEditorPieceGhost_Matches(&ghost.pieces, MAP_EDITOR_PIECE_GHOST_DRAG, 40, 40, 0, 1, 7),
+        "a drag is another ghost");
+    for( int i = 0; i < MAP_EDITOR_PIECE_GHOST_MAX; i++ )
+        (void)MapEditorPieceGhost_Add(&ghost.pieces, &piece);
+    CHECK(ghost.pieces.count == MAP_EDITOR_PIECE_GHOST_MAX && ghost.pieces.dropped == 2,
+        "past its room the pieces are counted, not written (%d dropped)", ghost.pieces.dropped);
+    MapEditorPieceGhost_Clear(&ghost.pieces);
+    CHECK(ghost.pieces.count == 0 && ghost.pieces.source == MAP_EDITOR_PIECE_GHOST_NONE, "clearing forgets it");
+}
+
 int
 main(void)
 {
+    test_the_piece_ghost_counts_its_taken_keys();
     test_no_ghost_is_no_work();
     test_hovering_away_puts_the_occupant_back();
     test_an_empty_tile_restores_nothing();

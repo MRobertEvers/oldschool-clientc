@@ -40,6 +40,7 @@
 #include "editor/editor_hotkeys.h"
 #include "editor/editor_layout.h"
 #include "editor/editor_recent.h"
+#include "editor/editor_prefs.h"
 
 #include <stdarg.h>
 #include <stdint.h>
@@ -79,6 +80,23 @@ enum Editor_Tool
     /** Put the lane's play account on the clicked tile (the Accounts panel:
      *  ::tele online, the save offline; editor/accounts/accounts_panel.h). */
     EDITOR_TOOL_PLACE_PLAYER,
+    /** Drag a path: the palette's overlay along the drag, its edges shaped to
+     *  the line (editor/editor_path.h), one undo step on release. */
+    EDITOR_TOOL_PAINT_PATH,
+    /** Roughen: seeded height noise under the brush, the step its amplitude,
+     *  the falloff fading it to the rim (ground that is not a plane). */
+    EDITOR_TOOL_NOISE,
+    /** Scatter: locs from a set (the selection's ids, else the catalog's
+     *  pick) dropped on the brush's free tiles at a density, each turned at
+     *  random; Alt-drag takes the set's locs off (edpanel_ops.h
+     *  Editor_ScatterCommands). */
+    EDITOR_TOOL_SCATTER,
+    /** Plateau: the brush's disc flattened to the height of the tile the
+     *  stroke began on, and a skirt of `plateau_skirt` tiles around it eased
+     *  from that height down (or up) to the ground as it is -- a mound or a
+     *  hole with a flat top for a building (edpanel_ops.h
+     *  Editor_PlateauCommands; the Rect panel's Plateau does a rectangle). */
+    EDITOR_TOOL_PLATEAU,
     EDITOR_TOOL_COUNT
 };
 
@@ -160,6 +178,11 @@ struct EditorUiTools
 
     /** Paint picks: the palette writes them, the brushes read them. */
     int underlay_id;
+    /** Paint underlay's mix, 1..100 %: under 100 the brush paints that
+     *  share of its tiles (scaled by the falloff, drawn from noise_seed,
+     *  moved on per stroke), a dither the client's five-tile blend turns
+     *  into a gradient between the underlay there and the one painted. */
+    int paint_mix;
     /** has_overlay 0 with overlay "none" clears the overlay. */
     int overlay_id;
     int overlay_none;
@@ -183,6 +206,11 @@ struct EditorUiTools
     /** The Place tool's pose: what the ghost shows and the click stamps. */
     int place_shape;
     int place_rotation;
+    /** Fit walls to neighbours (the G toggle): the Place pose of a wall pick
+     *  joins the walls of its own loc around the tile (Editor_LocFitWall).
+     *  Shared like the pose (design R7: the Client shares Fit), so every
+     *  window's ghost, Locs panel and Catalog pane agree. 1 at boot. */
+    int place_fit;
 
     /** Multi-selection of locs, by document address. */
     struct Editor_LocRef locs[EDITOR_LOC_SELECTION_MAX];
@@ -206,7 +234,33 @@ struct EditorUiTools
      *  press): panel edits made meanwhile join it instead of opening their
      *  own. */
     int stroke_open;
+
+    /** The Path tool (editor/editor_path.h): dirt or pavement, the width in
+     *  half tiles (1..16), dirt's roughness in percent, and the seed its
+     *  wander is drawn from (New edges draws another). */
+    int path_style;
+    int path_width_halves;
+    int path_roughness;
+    uint32_t path_seed;
+
+    /** The Roughen brush: the seed its noise is drawn from, moved on at
+     *  every stroke so the same drag twice does not undo itself. */
+    uint32_t noise_seed;
+    /** The Scatter brush (edpanel_ops.h Editor_ScatterCommands): the share
+     *  of the brush's tiles that take a loc (1..100 %, scaled by the
+     *  falloff), whether each is turned at random, and the seed the choices
+     *  are drawn from (New seed draws another; each stroke moves it on). */
+    int scatter_density;
+    int scatter_rotate;
+    uint32_t scatter_seed;
+    /** The Plateau tool and the Rect panel's Plateau: the skirt's width in
+     *  tiles (0..EDITOR_PLATEAU_SKIRT_MAX) eased from the flat top to the
+     *  ground around it. */
+    int plateau_skirt;
 };
+
+/** The widest plateau skirt, in tiles. */
+#define EDITOR_PLATEAU_SKIRT_MAX 8
 
 /* ---- hooks ---------------------------------------------------------------
  *
@@ -219,11 +273,19 @@ struct EditorUiHooks
     /** Open square (map_x, map_z) from `storage` ("" = maps/) in this window:
      *  `add` 0 replaces what the window shows, 1 adds it to the open set. */
     void (*open_square)(void* user, int map_x, int map_z, const char* storage, int add);
+    /** Close square (map_x, map_z) of `storage` in this window: the world
+     *  reloads with the rest of what it shows (workbench 6.4, the picker's
+     *  open-set strip). The save guard has already asked. */
+    void (*close_square)(void* user, int map_x, int map_z, const char* storage);
     /** Open the square in a NEW view window (design #windows). */
     void (*open_in_new_view)(void* user, int map_x, int map_z);
     /** A floor config's colour (0xRRGGBB): `is_overlay` 0 underlay, 1 overlay.
      *  0 when the record is not resident. */
     int (*floor_rgb)(void* user, int is_overlay, int id, uint32_t* out_rgb);
+    /** Ask for floor config `id`'s record to be loaded (the window loads
+     *  them one id at a time, as its squares need them); floor_rgb answers
+     *  once it is resident. An id past the records is a quiet miss. */
+    void (*floor_request)(void* user, int is_overlay, int id);
     /** Close the editor's chrome (File > Close, after the save guard). */
     void (*close_editor)(void* user);
     /** Bake the cache (File > Bake). */
@@ -252,6 +314,8 @@ struct EditorViewCamera;
 #define EDITOR_UI_MAP_AREA_ALL 0x10000
 /** Scene sprite slots the picker's map may hold at once (image_publish). */
 #define EDITOR_UI_MAP_IMAGE_SLOTS 80
+/** Screenshots the quest board shows at once (png_publish). */
+#define EDITOR_UI_SHOT_SLOTS 4
 #define EDITOR_UI_MAP_LABEL_MAX 32
 
 /** One map element for the picker (EditorUiAppServices worldmap_icons): an
@@ -291,9 +355,23 @@ struct EditorUiAppServices
      *  yaw and pitch. 0 when that tile is not in the loaded scene (the caller
      *  opens its square and retries). NULL member: always 0. */
     int (*camera_to_tile)(void* user_data, int tile_x, int tile_z, int level);
+    /** A 16 x 16 top-down picture of loc `loc_id` at `shape` (workbench
+     *  6.2, the Catalog's row thumbnails), rastered through the Preview's
+     *  pipeline and registered as a scene sprite: its id, or 0 while it is
+     *  still to come (the config or a model loading: asked for, ask again
+     *  next frame). Cached by (id, shape); the Catalog asks for the rows on
+     *  screen only. NULL member: the rows draw the empty cell. */
+    int (*loc_thumbnail)(void* user_data, int loc_id, int shape);
     /** Put the catalog's model preview back at its default pose. NULL
      *  member: nothing happens. */
     void (*preview_invalidate)(void* user_data);
+    /** Orbit the catalog's model preview by these steps (2048 a turn), as
+     *  its orbit keys do: a gesture over the Preview's well. NULL member:
+     *  nothing happens. */
+    void (*preview_orbit)(void* user_data, int pitch_step, int yaw_step);
+    /** Zoom it by a pinch's ratio, 65536 = 1 (> 1 closer). NULL member:
+     *  nothing happens. */
+    void (*preview_zoom)(void* user_data, int ratio_q16);
     /** 1 while the world is busy: a load in flight, or a square open still
      *  pending. NULL member: never busy. */
     int (*world_busy)(void* user_data);
@@ -303,6 +381,12 @@ struct EditorUiAppServices
      *  point looked at, its level, yaw, pitch, distance), read on `level`'s
      *  ground. 0 when the window has no world. NULL member: no camera. */
     int (*world_camera)(void* user_data, int level, struct EditorViewCamera* out);
+    /** Put the World panel's camera at `camera` (the orbit pose world_camera
+     *  reads: the point looked at, its level, yaw, pitch, distance), as a
+     *  scene's Enter does (workbench 6.5). 0 when the point is not in the
+     *  loaded scene yet (the caller opens its squares and asks again once
+     *  the world is not busy). NULL member: no camera to put. */
+    int (*world_camera_set)(void* user_data, const struct EditorViewCamera* camera);
     /** Open a window of this session that shows registry module `module`
      *  alone, filling it ("world" = the 3D view) -- a popped-out panel --
      *  looking at `camera`. 1 when the window was asked for; 0 when it
@@ -352,6 +436,21 @@ struct EditorUiAppServices
      *  EDITOR_UI_MAP_IMAGE_SLOTS - 1) for a GRAPH image item; returns its
      *  scene sprite id, 0 when it cannot. */
     int (*image_publish)(void* user_data, int slot, const uint32_t* argb, int w, int h);
+    /** The quest board's screenshots (workbench 6.7): decode the PNG at
+     *  `path` (absolute) into shot slot `slot` (0 ..
+     *  EDITOR_UI_SHOT_SLOTS - 1), box-filtered down to fit `max_w` x
+     *  `max_h` (never up), and return its scene sprite id with the size it
+     *  was drawn at; 0 when it cannot (no such file, not a PNG the client's
+     *  decoder reads, no scene). NULL member (a headless harness, the web):
+     *  the board shows the shot's path. */
+    int (*png_publish)(
+        void* user_data,
+        int slot,
+        const char* path,
+        int max_w,
+        int max_h,
+        int* out_w,
+        int* out_h);
     /** The map elements on squares [x0, x0+w) x [z0, z0+h) of area
      *  `area_id`, what 595 draws over the map: up to `capacity` into `out`.
      *  An element whose config or sprite is not resident yet is asked for
@@ -366,6 +465,14 @@ struct EditorUiAppServices
         struct EditorUiMapIcon* out,
         int capacity,
         int* out_pending);
+    /** A monotonic clock, microseconds: what the picker's map times its
+     *  background loads by (EDITOR_WORLDMAP_PREFETCH_US a frame). NULL
+     *  member: one slice a tick, untimed. */
+    uint64_t (*now_us)(void* user_data);
+    /** The last frame's work, microseconds (App_LastFrameUs): what the
+     *  picker's map reports its cold open against. NULL member or 0: not
+     *  measured. */
+    uint64_t (*last_frame_us)(void* user_data);
 };
 
 /* ---- panels ---------------------------------------------------------------- */
@@ -418,9 +525,113 @@ struct EditorUiRect
 /** Chrome windows the default arrangement tracks (the chrome's own cap). */
 #define EDITOR_UI_LAYOUT_PANELS_MAX 64
 
+/* ---- panel groups (design #workbench, "Panel groups") ----------------------
+ *
+ * Several registered modules behind one tab strip. A group is ONE chrome
+ * WINDOW panel, the frame: its title bar is the group's (Close and Pop out on
+ * it act on the shown tab, a double-click maximises the group) and its first
+ * row is a TABSTRIP of the members open in it, each titled with its panel's
+ * title and, when the module has a View action, its chord in parentheses
+ * ("Catalog (F8)", Editor_HotkeyDisplay). The shown tab's own window lays out
+ * directly under the strip, the frame's width, with its title bar taken off
+ * (the frame's is the group's); every other member's window is hidden.
+ *
+ * Why the members keep their own windows rather than moving their rows into
+ * the frame: a widget belongs to its panel for life (the chrome refuses a
+ * move across panels, ToriRSChrome_WidgetMoveAfter), the modules address
+ * their rows and their pages through their own panel (Spawns carries a strip
+ * of its own, and a panel has one), and every path that already works on a
+ * member's window -- its pop-out, its View toggle, the module showing or
+ * hiding itself -- keeps working unchanged. So the strip says which member
+ * window lays out under it, and the members' visibility does the rest.
+ *
+ * The state is the registry's -- which members are open (in the strip), which
+ * one is shown -- and it follows the members' windows every frame
+ * (Editor_UiTick), so whatever showed or hid a window is obeyed:
+ *   - a member window shown from anywhere (View, its hotkey, the module
+ *     itself, a pop-in, Reset layout) joins its strip as the shown tab;
+ *   - the shown member's window hidden from anywhere (View, Close on the
+ *     frame, Pop out, the module itself) leaves the strip, and the tab shown
+ *     before it (else a neighbour) comes up; a group with no open member hides
+ *     its frame;
+ *   - a click on a tab shows that member.
+ * Editor_UiLayout docks a group as one window; the layout file keeps it as a
+ * [group <name>] section (editor_layout.h).
+ *
+ * Groups belong to the registry Editor_UiRegisterToolsPanels builds (their
+ * frames are counted among its windows); registering one anywhere else is a
+ * caller bug and asserts.
+ */
+#define EDITOR_UI_GROUPS_MAX 8
+#define EDITOR_UI_GROUP_MEMBERS_MAX 8
+/** A frame title or a tab title: the chrome's label size (asserted equal). */
+#define EDITOR_UI_GROUP_TITLE_MAX 64
+
+struct EditorUiGroup
+{
+    /** Stable lower-case name ("right-top"): the layout file's section. */
+    char name[EDITOR_LAYOUT_NAME_MAX];
+    /** The frame's title ("Catalog / Locs / Spawns / Inspector"). */
+    char title[EDITOR_UI_GROUP_TITLE_MAX];
+    /** The frame (a WINDOW) and its TABSTRIP. */
+    int chrome_panel;
+    int tabs;
+
+    /** Registry indices of the members, in strip order, and per member slot:
+     *  open (in the strip), and the member window's own title while the
+     *  frame wears the group's (`dressed`). */
+    int members[EDITOR_UI_GROUP_MEMBERS_MAX];
+    int member_count;
+    unsigned char open[EDITOR_UI_GROUP_MEMBERS_MAX];
+    unsigned char dressed[EDITOR_UI_GROUP_MEMBERS_MAX];
+    char member_titles[EDITOR_UI_GROUP_MEMBERS_MAX][EDITOR_UI_GROUP_TITLE_MAX];
+    /** The member slot whose window shows under the strip, -1 for none, and
+     *  the one shown before it (what comes back when it closes). */
+    int shown;
+    int prev_shown;
+    /** Hidden by the layout for want of room, its members still open: the
+     *  next layout with room (or View on a member) brings it back as it was. */
+    int parked;
+
+    /** The group's box in surface pixels: the frame's origin and width and
+     *  the shown window's height under it (0 = sized to its content), and the
+     *  member window last put there (-1 none: the next one shown is placed).
+     *  `pending_h` is a whole-group height from the layout file, resolved
+     *  once the frame's own height is known. */
+    int x;
+    int y;
+    int w;
+    int body_h;
+    int pending_h;
+    int placed;
+    /** The frame's height (title bar and strip) as last built, 0 unknown. */
+    int frame_h;
+
+    /** The strip's rows (borrowed by the TABSTRIP): one per open member, in
+     *  member order, and the member slot each names. */
+    char tab_labels[EDITOR_UI_GROUP_MEMBERS_MAX][EDITOR_UI_GROUP_TITLE_MAX];
+    const char* tab_rows[EDITOR_UI_GROUP_MEMBERS_MAX];
+    int tab_slots[EDITOR_UI_GROUP_MEMBERS_MAX];
+    int tab_count;
+    /** What the rows were made from (open set, shown, the hotkeys' serial). */
+    uint32_t tabs_digest;
+    int tabs_built;
+
+    /** The default membership, in strip order: what Reset groups restores. */
+    int home[EDITOR_UI_GROUP_MEMBERS_MAX];
+    int home_count;
+    /** The strip as the first layout found it (which members were open, which
+     *  was in front, -1 none): the Build workspace's default gives it back. */
+    unsigned char boot_open[EDITOR_UI_GROUP_MEMBERS_MAX];
+    int boot_shown;
+};
+
 /** Lines the output console keeps, and their width. */
 #define EDITOR_UI_CONSOLE_LINES 512
 #define EDITOR_UI_CONSOLE_LINE_MAX 160
+/** How long the status bar shows a status sentence, on the chrome's frame
+ *  clock (design #rules R8: "the status bar shows it for 6 s"). */
+#define EDITOR_UI_STATUS_MS 6000
 
 /** What a guarded action is waiting on: the save/discard modal answers it. */
 enum EditorUi_Guarded
@@ -430,6 +641,12 @@ enum EditorUi_Guarded
     EDITOR_UI_GUARD_OPEN_SQUARE,
     /** Close the editor. */
     EDITOR_UI_GUARD_CLOSE,
+    /** Close one square of this window's open set (the picker's strip,
+     *  Shift+click): the world reloads without it. */
+    EDITOR_UI_GUARD_CLOSE_SQUARE,
+    /** Enter a scene (workbench 6.5, edpanel_scenes.c): its squares replace
+     *  the open set, so unsaved edits are asked about first. */
+    EDITOR_UI_GUARD_ENTER_SCENE,
 };
 
 struct EditorUiGuard
@@ -441,6 +658,38 @@ struct EditorUiGuard
     /** The picker's index of `storage`, what a relayed open carries (every
      *  window mirrors the same atlas, so the index names the same storage). */
     int storage_index;
+    /** ENTER_SCENE: the scene's name (editor_scenes.h's EDITOR_SCENE_NAME_MAX). */
+    char scene[64];
+};
+
+/**
+ * The editor lane this window's server serves (torirsmaped/
+ * torirs_maped_lanes.h), as the Lanes module last heard it (workbench 6.5):
+ * FACT_LANE_INFO, then a FACT_LANE_COUNT every EDITOR_UI_LANE_COUNT_MS and
+ * after every save, publish and discard (the server answers it from its
+ * count cache: no walk of the mirror unless a write came since). The status
+ * bar's lane chip reads it
+ * ("working | 3 changed", Editor_Lanes_ChipText); the Scenes panel saves its
+ * name into a scene and compares a scene's lane with it.
+ */
+#define EDITOR_UI_LANE_NAME_MAX 48
+#define EDITOR_UI_LANE_COUNT_MS 15000
+
+struct EditorUiLane
+{
+    /** FACT_LANE_INFO (or a FACT_LANE_COUNT) heard. */
+    int known;
+    char name[EDITOR_UI_LANE_NAME_MAX];
+    int is_main;
+    int writable;
+    /** The change count against the base: modified + added + deleted. */
+    int changes_known;
+    int changes;
+    /** The lane build/lanes/lane.ini names for the next boot ("" none):
+     *  a Switch this server could not make while it runs. */
+    char next_boot[EDITOR_UI_LANE_NAME_MAX];
+    /** Moves whenever any field above does. */
+    uint32_t serial;
 };
 
 /** Other views' windows, as the picker frames them (STATE_VIEW_SQUARE). */
@@ -459,7 +708,7 @@ struct EditorUiViewFrame
 
 /** TORIRSMAPED_TOOLS_VALUES (torirsmaped/torirs_maped.h), asserted equal in
  *  editor_ui.c. */
-#define EDITOR_UI_TOOLS_VALUES 14
+#define EDITOR_UI_TOOLS_VALUES 15
 
 struct EditorUi
 {
@@ -487,6 +736,24 @@ struct EditorUi
     /** Set by the host each frame: shift is held (the picker's add-click and
      *  the loc multi-select read it). */
     int shift_held;
+    /**
+     * Set by the host's key dispatcher each frame it resolves the keys: the
+     * EDITOR_HK_CTX_* mask it resolved them in (Editor_HotkeyContextsFrom
+     * over the App's facts: the World panel shown, the pointer in its rect
+     * and no chrome wanting it). `hotkey_contexts_valid` 0 until a dispatcher
+     * has set it (a headless test), when the status bar derives the mask
+     * from what the editor knows itself. The status bar's hint reads it, so
+     * its rows are the keys' contexts, not a second guess at them.
+     */
+    unsigned hotkey_contexts;
+    int hotkey_contexts_valid;
+    /**
+     * The last pointer input was a finger (Editor_UiSetTouchInput, from the
+     * input's last-event kind each frame): the hint strip then spells the
+     * gestures ("2 fingers: pan, pinch: zoom, hold: menu") instead of the
+     * mouse words. 0 in a headless test and on a mouse.
+     */
+    int input_touch;
 
     /** Set while a received fact is applied, so a module's own latching does
      *  not publish back what the server just said. */
@@ -494,6 +761,8 @@ struct EditorUi
 
     /** The pending action the save guard is asking about. */
     struct EditorUiGuard guard;
+    /** The lane, for every module (the Lanes module fills it). */
+    struct EditorUiLane lane;
     /** Serial of the last TORIRSMAPED_STATE_OPEN_SQUARE this window asked. */
     uint32_t open_square_serial;
 
@@ -510,14 +779,20 @@ struct EditorUi
     int console_count;
     /** Bumps on every line, so the console panel refreshes only on change. */
     int console_serial;
+    /** The last status sentence (Editor_UiStatus), when it was said on the
+     *  chrome's clock, and a serial that moves on every sentence. */
+    char status[EDITOR_UI_CONSOLE_LINE_MAX];
+    int64_t status_ms;
+    uint32_t status_serial;
 
     /** The default layout ran for the current surface and scale
      *  (Editor_UiTick, the first frame the surface and the panels have
      *  sizes); cleared by a surface or scale change and by Reset layout. */
     int laid_out;
     /** The chrome panels the registered modules created, [panel_first,
-     *  panel_end), and the chrome scale their pixel sizes were given in: a
-     *  later scale change (the display's density arrives after boot) scales
+     *  panel_end), and the chrome scale their pixel sizes were given in, in
+     *  quarter units (Editor_ChromeScaleQ): a later scale change (the
+     *  display's density arrives after boot, View > Chrome scale) scales
      *  them to match. */
     int panel_first;
     int panel_end;
@@ -653,7 +928,224 @@ struct EditorUi
     int open_goto_x;
     int open_goto_z;
     int open_goto_level;
+
+    /** The panel groups (Editor_UiRegisterGroup), and per registry panel the
+     *  group it is in now, plus one (0: not in a group). */
+    struct EditorUiGroup groups[EDITOR_UI_GROUPS_MAX];
+    int group_count;
+    unsigned char group_plus1[EDITOR_UI_PANELS_MAX];
+
+    /**
+     * View > Chrome scale and View > Text size (workbench 6.0b): this
+     * device's choices (editor_prefs.h), never shared with the Client.
+     * `prefs_serial` moves on every change the user makes, so the host
+     * writes editor_prefs.ini when it differs from what it last wrote; a
+     * change applied from the file (Editor_UiApplyPrefs) does not move it.
+     * `scale_auto_q` is what the host's Auto resolved to on the last frame
+     * (Editor_UiChromeScaleFor), so the Auto row can name it.
+     */
+    struct Editor_Prefs prefs;
+    uint32_t prefs_serial;
+    int scale_auto_q;
+    /** The host said this is a touch device on the last frame
+     *  (Editor_UiChromeScaleFor): View rows under 2x are held at 2x, and the
+     *  menu says so on them. */
+    int scale_touch;
+    /** The theme's own row face, kept while Large wears the Menu face, so
+     *  Normal gives it back. */
+    int text_face_normal;
+
+    /**
+     * The Dock button (design #workbench "Every panel pops out"): this
+     * popped-out window's Dock was pressed and the leader was told
+     * (TORIRSMAPED_STATE_DOCK_PANEL); the host closes the window. And the
+     * serial of the last dock this window asked for.
+     */
+    int dock_exit;
+    uint32_t dock_serial;
+
+    /**
+     * Workspaces (workbench 6.8, design section 3): the current one
+     * (EDITOR_UI_WS_*), each one's layout as it was left -- `has` 0 until it
+     * was captured or read from the layout file, when switching to it gives
+     * its default instead -- and a serial that moves on every switch (the
+     * host saves the layout file when the fingerprint moves).
+     */
+    int workspace;
+    struct EditorLayoutWorkspace workspace_saved[4];
+    unsigned char workspace_has[4];
+    uint32_t workspace_serial;
 };
+
+/* ---- workspaces (workbench 6.8, design section 3 "Workspaces") ------------
+ *
+ * Four named layouts. A workspace is the panels it shows, their boxes, and
+ * which tab of each group is in front; the dock column takes the
+ * workspace's own panels first (the default layout's order, per workspace).
+ *
+ *   Build     the modules' default set (the editor's boot layout): Catalog,
+ *             Locs, Spawns, Inspector; Preview; Palette slots; Console,
+ *             History
+ *   Terrain   Terrain, Palette (Terrain in front); Squares; Inspector;
+ *             Console, History
+ *   Script    Record, Triggers, Vars; Loc builder, NPC builder; Shell;
+ *             Problems, Console, Dialogue preview
+ *   Playtest  Live, Accounts, Scenes; Encounter; Live log, Console
+ *
+ * A panel the table names that this window has not registered (Vars,
+ * Problems, Dialogue preview, Scenes, Encounter, Live log in this tree) is
+ * skipped, and the switch says which in one console line.
+ *
+ * Switching captures the workspace being left (Editor_UiLayoutCapture's
+ * panels and groups), then gives the target its saved layout when it has
+ * one, else its default. Reset layout resets the current workspace to its
+ * default. The layout file keeps every workspace's layout (editor_layout.h,
+ * [workspace <name>]).
+ */
+enum Editor_UiWorkspace
+{
+    EDITOR_UI_WS_BUILD = 0,
+    EDITOR_UI_WS_TERRAIN,
+    EDITOR_UI_WS_SCRIPT,
+    EDITOR_UI_WS_PLAYTEST,
+    EDITOR_UI_WORKSPACES
+};
+
+/** "build", "terrain", "script", "playtest": the layout file's section. */
+const char*
+Editor_UiWorkspaceName(int workspace);
+
+/** "Build", "Terrain", ...: the menu bar's chip and the palette's row. */
+const char*
+Editor_UiWorkspaceTitle(int workspace);
+
+/** The workspace named `name` (its section name), or -1. */
+int
+Editor_UiWorkspaceFind(const char* name);
+
+/** The registry modules the design's table names for `workspace`, in the
+ *  column's order (NULL-terminated; Build's is NULL: the default set), the
+ *  ones this tree has not got included -- what a switch skips. */
+const char* const*
+Editor_UiWorkspacePanels(int workspace);
+
+/**
+ * Switch to `workspace` (EDITOR_UI_WS_*): the current one's layout captured
+ * first, then the target's saved layout or its default, a console line, and
+ * the layout run again. The same workspace again: nothing. Returns the
+ * number of the table's panels this window skipped (absent).
+ */
+int
+Editor_UiSetWorkspace(
+    struct EditorUi* ui,
+    int workspace);
+
+/* ---- chrome scale and text size (workbench 6.0b) ---------------------------
+ *
+ * The chrome scale is in QUARTER units (ui/torirs_chrome_scale_q.h: 4 = 1x,
+ * 6 = 1.5x). The chrome model takes it exactly, through
+ * ToriRSChrome_SetScaleQ; ToriRSChrome_Scale is then the integer tier at or
+ * above it (the baked bitmaps the scale is drawn down from). Every editor
+ * metric goes through Editor_UiPx (edp_px), so the editor's layout rounds
+ * once, where the chrome rounds its own.
+ */
+#define EDITOR_UI_SCALEQ_ONE 4
+/** View > Text size Large: rows of this many chrome pixels at 1x. */
+#define EDITOR_UI_LARGE_ROW_H 22
+
+/** Set `chrome`'s scale to quarter value `q` (TORIRS_CHROME_SCALEQ_MIN..MAX,
+ *  asserted); 1 when it moved. */
+int
+Editor_ChromeSetScaleQ(
+    struct ToriRSChrome* chrome,
+    int q);
+
+/** `chrome`'s scale in quarter units (ToriRSChrome_ScaleQ). */
+int
+Editor_ChromeScaleQ(const struct ToriRSChrome* chrome);
+
+/** The integer scale App_SetChromeScale is handed beside quarter value `q`:
+ *  the one ToriRSChrome_Scale then answers (the tier at or above it), so the integer and
+ *  the quarter setter never undo each other. */
+int
+Editor_ChromeScaleInteger(int q);
+
+/** A 1x-authored editor metric in this window's device pixels, rounded once
+ *  (ToriRSChrome_Px). */
+int
+Editor_UiPx(
+    const struct EditorUi* ui,
+    int px);
+
+/** The chrome scale this window wants when the host's Auto is `auto_q`: the
+ *  View > Chrome scale choice, or `auto_q` for Auto (remembered for the Auto
+ *  row's label). On a `touch` device a choice under 2x is held at 2x
+ *  (TORIRS_CHROME_SCALEQ_TOUCH_MIN: "a touch device never goes under 2x");
+ *  the host's Auto already is. */
+int
+Editor_UiChromeScaleFor(
+    struct EditorUi* ui,
+    int auto_q,
+    int touch);
+
+/** View > Chrome scale: EDITOR_PREFS_SCALE_AUTO or a step
+ *  (ToriRSChromeScaleQ_StepIndex >= 0, asserted). The host applies the scale
+ *  on its next frame; the layout re-runs when it lands. Moves prefs_serial. */
+void
+Editor_UiSetChromeScalePref(
+    struct EditorUi* ui,
+    int q);
+
+/** View > Text size: 0 Normal (the Body face, 18 px rows), 1 Large (the
+ *  Menu face as the body face, EDITOR_UI_LARGE_ROW_H rows), through the
+ *  chrome's theme (`font_row`, `row_h`); the layout re-runs. Moves
+ *  prefs_serial. */
+void
+Editor_UiSetTextLarge(
+    struct EditorUi* ui,
+    int large);
+
+/** View > Text rendering: 0 bitmap at whole scales, 1 smooth always (the
+ *  synthesized vector face at 100, 200 and 300 % too). Device-local, beside
+ *  the chrome scale; nothing reflows (the faces measure alike). The host hands
+ *  it to the chrome models on its next frame (Editor_UiTextSmooth). Moves
+ *  prefs_serial. */
+void
+Editor_UiSetTextSmooth(
+    struct EditorUi* ui,
+    int smooth);
+
+/** The text-rendering choice the host hands the chrome: 0 or 1. */
+int
+Editor_UiTextSmooth(const struct EditorUi* ui);
+
+/** Apply what editor_prefs.ini says (the host's load), without moving
+ *  prefs_serial: nothing to write back. */
+void
+Editor_UiApplyPrefs(
+    struct EditorUi* ui,
+    const struct Editor_Prefs* prefs);
+
+/* ---- the Dock button (design #workbench "Every panel pops out") ------------ */
+
+/**
+ * Dock this popped-out window back into its leader: tell the Client
+ * (TORIRSMAPED_STATE_DOCK_PANEL: the module's registry index, a serial, the
+ * panel's scroll and its first list's first row) so the window that shows the
+ * panel set opens the panel again exactly as View > <panel> does, scrolled
+ * where this window left it, and set `dock_exit` for the host to close this window. Asserts
+ * the window is solo. Returns 1 when the leader was told; 0 (with a console
+ * line, the window left open) when there is no session to tell it through.
+ * The title-bar Dock button lands here.
+ */
+int
+Editor_UiDockBack(struct EditorUi* ui);
+
+/** Whether a window popped out to show module `module` alone holds a world:
+ *  "world" and "preview" draw one; every other panel loads none
+ *  (app_editor_view.c skips the world load around its camera). */
+int
+Editor_UiModuleNeedsWorld(const char* module);
 
 /** Zero the registry over `chrome`; no panels yet. `editor` may be NULL. */
 void
@@ -686,16 +1178,98 @@ Editor_UiPanelSelf(
     const char* name);
 
 /**
- * Register every tools-panels module (menu bar, tool rail, terrain, palette,
- * rectangle select, locs, spawns, inspector, console, save guard, square
- * picker, New square). The App-bound modules (catalog, inspector) need
+ * Register every tools-panels module (menu bar, status bar, tool rail,
+ * terrain, palette, rectangle select, locs, spawns, inspector, console, save
+ * guard, square picker, New square). The App-bound modules (catalog,
+ * inspector) need
  * `ui->app`; with it NULL they are skipped. They reach the App through
  * `ui->app_services` only, filled before this is called.
+ *
+ * Then the default panel groups, each holding whichever of its modules this
+ * window registered: "right-top" (Catalog, Locs, Spawns, Inspector),
+ * "right-mid" (Terrain, Palette, Catalog palette) and "bottom" (Console,
+ * History). Every other module is a window of its own, as before.
  *
  * integrate-3 adds the other owners' Register calls beside this one.
  */
 void
 Editor_UiRegisterToolsPanels(struct EditorUi* ui);
+
+/* ---- panel groups (the model is above, at struct EditorUiGroup) ----------- */
+
+/**
+ * Add an empty group `name` whose frame is titled `title`, hidden until a
+ * member opens. Called while Editor_UiRegisterToolsPanels runs, or straight
+ * after it before any other chrome panel is added (the frame must be the next
+ * window of the registry's). Asserts a new name and a free slot. Returns its
+ * index.
+ */
+int
+Editor_UiRegisterGroup(
+    struct EditorUi* ui,
+    const char* name,
+    const char* title);
+
+/**
+ * Put registry module `module` into group `group`, at the end of its strip;
+ * the first group a module joins is its default (Reset groups). Open in the
+ * strip when its window is shown. Asserts both exist, the module is a titled
+ * WINDOW of this registry, it is in no group yet, and the group has room.
+ */
+void
+Editor_UiJoinGroup(
+    struct EditorUi* ui,
+    const char* module,
+    const char* group);
+
+/**
+ * Take `module` out of its group: a window of its own again, with its title
+ * bar back, open when it was open in the strip, and laid out as a standalone
+ * panel (the design's "drag a tab out of its strip"). Lasts until Reset groups
+ * or the next launch. Asserts it is in a group.
+ */
+void
+Editor_UiLeaveGroup(
+    struct EditorUi* ui,
+    const char* module);
+
+/** View > Reset groups: every module back in its default group, in its
+ *  default place in the strip, and the layout run again. */
+void
+Editor_UiResetGroups(struct EditorUi* ui);
+
+/** The group named `name`, or NULL. */
+struct EditorUiGroup*
+Editor_UiFindGroup(
+    struct EditorUi* ui,
+    const char* name);
+
+/** Index of the group registry module `module` is in, or -1 (also for a name
+ *  that is no module). */
+int
+Editor_UiGroupOf(
+    const struct EditorUi* ui,
+    const char* module);
+
+/** 1 while registry module `module` is open in its group's strip, shown or
+ *  behind another tab; 0 when it is not, or is in no group. */
+int
+Editor_UiPanelInStrip(
+    const struct EditorUi* ui,
+    const char* module);
+
+/** The registry module whose tab group `group` shows, or NULL (none open). */
+const char*
+Editor_UiGroupShown(
+    const struct EditorUi* ui,
+    int group);
+
+/** Bring `module`'s tab to the front of its group (what a click on the tab
+ *  does), opening it in the strip if it was not. Asserts it is in a group. */
+void
+Editor_UiGroupShow(
+    struct EditorUi* ui,
+    const char* module);
 
 void
 Editor_UiSetVisible(
@@ -710,17 +1284,44 @@ Editor_UiSetVisible(
 void
 Editor_UiTick(struct EditorUi* ui);
 
+struct LibToriRS_Gesture;
+
+/**
+ * Offer one gesture frame (input/torirs_gesture.h) to the chrome the editor
+ * draws on (ToriRSChrome_Gesture: a GRAPH pans and zooms, a MODELVIEW
+ * orbits and zooms, a list scrolls by pixels), whenever any of its panels
+ * is up. Returns 1 when the chrome took it; 0 leaves it to the World.
+ * The events it queues are the modules' on the next Editor_UiTick.
+ */
+int
+Editor_UiGesture(
+    struct EditorUi* ui,
+    const struct LibToriRS_Gesture* frame);
+
+/** The touch flag: whether the last pointer input was a finger (@see
+ *  EditorUi::input_touch). The host sets it each frame from its input. */
+void
+Editor_UiSetTouchInput(
+    struct EditorUi* ui,
+    int touch);
+
 /**
  * The default layout, for the surface the chrome has now: the menu bar
  * across the top, the tool rail at the left edge, one column of panels docked
  * to the right edge (Terrain, Palette, Locs, Spawns, Rectangle, Inspector,
  * Squares, Catalog, in that order, each given at least a few rows and the
- * rest of the column shared top-down), the output console as a strip along
+ * rest of the column shared top-down), the status bar across the foot (the
+ * rest stops above it), the output console as a strip along
  * the bottom of the world when it is short enough, and the World panel
  * docked over the rectangle that is left -- the largest on the surface (its
  * body is Editor_UiWorldRect). Panels of the default
  * set that do not fit the column are hidden (the View menu opens them, beside
  * the column). Panels the user dragged or resized keep their place.
+ * A panel group takes ONE place: in the column where its first member in that
+ * order would go, or as the bottom strip when it holds the console; its
+ * height is its strip's plus its largest member's (the members all have the
+ * group's box, the shown one showing). A group with no room is hidden with
+ * its tabs kept, as a panel with no room is.
  * Editor_UiTick runs it on the first frame and whenever the surface or the
  * chrome scale changes.
  */
@@ -728,7 +1329,8 @@ void
 Editor_UiLayout(struct EditorUi* ui);
 
 /** View > Reset layout: every module window back in the default layout for
- *  the current surface, the default set shown again, drags forgotten. */
+ *  the current surface, the default set shown again, drags forgotten. The
+ *  default set is the current WORKSPACE's (Build's is the modules' own). */
 void
 Editor_UiResetLayout(struct EditorUi* ui);
 
@@ -779,7 +1381,9 @@ Editor_UiWorldShown(const struct EditorUi* ui);
 /* ---- the saved layout (editor_layout.h has the file and the policy) ------- */
 
 /** The live layout as a file: the surface, the scale, snap, and every
- *  View-menu panel's visibility, placement flag and geometry (at scale 1). */
+ *  View-menu panel's visibility, placement flag and geometry (at scale 1);
+ *  every group with members as a [group] section, and each member's [panel]
+ *  as only whether it is in its strip. */
 void
 Editor_UiLayoutCapture(
     const struct EditorUi* ui,
@@ -970,6 +1574,39 @@ const char*
 Editor_UiConsoleLine(
     const struct EditorUi* ui,
     int index);
+
+/**
+ * Say one sentence in the status bar (design #rules R8, "nothing happens
+ * without a word": a refused action says why, "Place refused: tile 3222,3218
+ * holds a wall of that shape; press E to swap"). The console keeps it -- it
+ * is logged exactly as Editor_UiLog logs -- and the status bar shows it for
+ * EDITOR_UI_STATUS_MS of the chrome's frame clock, until a newer one.
+ */
+void
+Editor_UiStatus(
+    struct EditorUi* ui,
+    const char* format,
+    ...)
+#if defined(__GNUC__) || defined(__clang__)
+    __attribute__((format(printf, 2, 3)))
+#endif
+    ;
+
+/** The status sentence the bar shows now: the last one, or "" once it is
+ *  EDITOR_UI_STATUS_MS old on the chrome's clock (or none was said). */
+const char*
+Editor_UiStatusText(const struct EditorUi* ui);
+
+/**
+ * The status bar (module "statusbar", src/editor/panels/edpanel_statusbar.c;
+ * design #workbench "Status bar and hint strip"): the strip along the foot of
+ * the window, always on while the editor shows. Left, the armed tool's live
+ * chords (Editor_HotkeysHint); middle, the hover readout; right, the status
+ * sentence and the server's write state. Editor_UiLayout reserves its band:
+ * the world, the dock column and the console stop above it.
+ */
+void
+Editor_StatusBar_Register(struct EditorUi* ui);
 
 /**
  * Run `guard` now when nothing is unsaved, else hold it and open the save

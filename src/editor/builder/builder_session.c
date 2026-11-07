@@ -200,6 +200,53 @@ session_triggers(
     return 1;
 }
 
+/** Is `name` one exact record of catalog kind `kind`? 1, 0, or -1 when
+ *  the catalog cannot be asked. */
+static int
+session_catalog_has(
+    struct Editor* editor,
+    uint32_t kind,
+    const char* name)
+{
+    struct EditorHost_CatalogPage page;
+    int found = 0;
+
+    memset(&page, 0, sizeof(page));
+    if( Editor_HostMapEdCatalogQuery(&editor->host, kind, name, TORIRSMAPED_CATALOG_EXACT, 0, 0, &page)
+        != EDITOR_HOST_OK )
+        return -1;
+    for( int i = 0; i < page.row_count && !found; i++ )
+        found = page.rows[i].name && strcmp(page.rows[i].name, name) == 0;
+    Editor_HostCatalogPageFree(&page);
+    return found;
+}
+
+/** The lint's names through the catalog: a var is a varp or a varbit
+ *  record, a proc a [proc,<name>] trigger. */
+static int
+session_name_known(
+    void* user_data,
+    int kind,
+    const char* name)
+{
+    struct Editor* editor = session_editor(user_data);
+    char trigger[BUILDER_NAME_MAX + 8];
+    int found;
+
+    assert(name);
+    if( !editor || !(editor->capabilities & TORIRSMAPED_CAP_CATALOG) )
+        return -1;
+    if( kind == BUILDER_NAME_VAR )
+    {
+        found = session_catalog_has(editor, TORIRSMAPED_CATALOG_VARP, name);
+        if( found == 0 )
+            found = session_catalog_has(editor, TORIRSMAPED_CATALOG_VARBIT, name);
+        return found;
+    }
+    snprintf(trigger, sizeof(trigger), "proc,%s", name);
+    return session_catalog_has(editor, TORIRSMAPED_CATALOG_TRIGGER, trigger);
+}
+
 static int
 session_state_set(
     void* user_data,
@@ -239,19 +286,7 @@ session_services(
     out->triggers = session_triggers;
     out->state_set = session_state_set;
     out->copy_record = session_copy_record;
-}
-
-/** TORIRS_BUILDER_SSCOMPILE / _CONTENT / _WORK: the compile check's paths
- *  when the host has not set them (Builder_PanelsSetCompile). */
-static void
-compile_from_env(struct EditorUi* ui)
-{
-    const char* sscompile = getenv("TORIRS_BUILDER_SSCOMPILE");
-    const char* content = getenv("TORIRS_BUILDER_CONTENT");
-    const char* work = getenv("TORIRS_BUILDER_WORK");
-
-    if( sscompile && content && work )
-        Builder_PanelsSetCompile(ui, sscompile, content, work);
+    out->name_known = session_name_known;
 }
 
 void
@@ -262,7 +297,6 @@ Editor_LocBuilder_Register(struct EditorUi* ui)
     assert(ui);
     session_services(ui, &services);
     Builder_LocPanelRegister(ui, &services);
-    compile_from_env(ui);
 }
 
 void
@@ -273,7 +307,6 @@ Editor_NpcBuilder_Register(struct EditorUi* ui)
     assert(ui);
     session_services(ui, &services);
     Builder_NpcPanelRegister(ui, &services);
-    compile_from_env(ui);
 }
 
 void

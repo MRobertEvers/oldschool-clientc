@@ -719,6 +719,18 @@ ssc_main_body(int argc, char** argv)
 int
 main(int argc, char** argv)
 {
+#ifdef _WIN32
+    /* Every path the compiler builds and compares is '/'-separated (a lane's
+     * script directories are recognised by prefix), and Windows tools hand it
+     * '\' (Python's os.path.join in tools/build_packs.py): a base pack whose
+     * --src read "...\server\scripts" took the lanes' scripts as its own and
+     * failed 100 units. Its arguments are paths and names, so all are made
+     * '/'. Windows accepts either separator. */
+    for( int i = 1; i < argc; i++ )
+        for( char* scan = argv[i]; *scan; scan++ )
+            if( *scan == '\\' )
+                *scan = '/';
+#endif
     ToriMem_Init();
     int const rc = ssc_main_body(argc, argv);
     ToriMem_Shutdown();

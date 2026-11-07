@@ -54,9 +54,12 @@ enum Editor_DocKind
     /** The catalog palettes (editor_palette.h): one document per content
      *  tree, key "palettes", held as text. */
     EDITOR_DOC_PALETTES,
+    /** The scenes (editor_scenes.h, workbench 6.5): one document per content
+     *  tree, key "scenes", held as text. */
+    EDITOR_DOC_SCENES,
 };
 
-#define EDITOR_DOC_KIND_COUNT 7
+#define EDITOR_DOC_KIND_COUNT 8
 /** Bytes in a document key, the terminator included. */
 #define EDITOR_DOC_KEY_MAX 128
 /** Bytes in a square's storage name ("" = the content tree's maps/,
@@ -130,9 +133,18 @@ enum Editor_CmdKind
      */
     EDITOR_CMD_PALETTE_SET,
     EDITOR_CMD_PALETTE_REMOVE,
+    /**
+     * SCENES documents (editor_scenes.h). One record line, by key (scene,
+     * the segment kinds it holds): SET upserts (has_after; has_before too
+     * when it rewrites a line, whose exact text it carries -- a rename is a
+     * SET whose names differ), REMOVE takes one out (has_before only) and
+     * remembers the index it stood at. `u.area` holds both lines.
+     */
+    EDITOR_CMD_SCENE_SET,
+    EDITOR_CMD_SCENE_REMOVE,
 };
 
-#define EDITOR_CMD_KIND_COUNT 16
+#define EDITOR_CMD_KIND_COUNT 18
 
 /** Bytes a TEXT_SPLICE carries, before and after together. A regeneration
  *  larger than this is several splices in one stroke. */
@@ -231,7 +243,8 @@ struct Editor_Cmd
             uint32_t after_len;
             char text[EDITOR_CMD_SPLICE_MAX];
         } text_splice;
-        /** AREA_* / COLLECTION_* (and PALETTE_*, editor_palette.h): the record line before then after, back to
+        /** AREA_* / COLLECTION_* (and PALETTE_*, editor_palette.h, and
+         *  SCENE_*, editor_scenes.h): the record line before then after, back to
          *  back in `text` (each at most EDITOR_AREAS_LINE_MAX bytes), and the
          *  line index `before` stood at (-1: unknown, an undone remove
          *  appends). */
@@ -373,6 +386,8 @@ Editor_CmdKindFits(
                || kind == EDITOR_CMD_COLLECTION_SET || kind == EDITOR_CMD_COLLECTION_REMOVE;
     case EDITOR_DOC_PALETTES:
         return kind == EDITOR_CMD_PALETTE_SET || kind == EDITOR_CMD_PALETTE_REMOVE;
+    case EDITOR_DOC_SCENES:
+        return kind == EDITOR_CMD_SCENE_SET || kind == EDITOR_CMD_SCENE_REMOVE;
     }
     return 0;
 }

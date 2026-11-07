@@ -16,6 +16,7 @@
  * Read-only: it never writes to the content tree.
  */
 
+#include "editor/test/editor_test_text.h"
 #include "editor/editor_doc.h"
 #include "editor/editor_jm2.h"
 
@@ -63,6 +64,7 @@ slurp(
     fclose(f);
     data[size] = '\0';
     *out_size = (size_t)size;
+    editor_test_text_lf(data, out_size);
     return data;
 }
 

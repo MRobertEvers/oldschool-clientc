@@ -311,6 +311,9 @@ Editor_DocKeyValid(
     case EDITOR_DOC_PALETTES:
         /* One per content tree (editor_palette.h). */
         return strcmp(key, "palettes") == 0;
+    case EDITOR_DOC_SCENES:
+        /* One per content tree (editor_scenes.h). */
+        return strcmp(key, "scenes") == 0;
     case EDITOR_DOC_TEXT:
         if( strncmp(key, "rs2:", 4) == 0 )
             return relative_path_valid(key + 4);
@@ -330,6 +333,54 @@ Editor_DocKeyValid(
             size_t const length = strlen(key + 7);
             return length > 4 && strcmp(key + 7 + length - 4, ".ini") == 0
                    && config_type_valid(key + 7, length - 4);
+        }
+        /* The catalog favourites, editor/favourites.txt (editor_favourites.h):
+         * one per content tree, a text document edited by splices. */
+        if( strcmp(key, "editor:favourites.txt") == 0 )
+            return 1;
+        /* The encounter sets, editor/encounters.txt (editor_encounters.h). */
+        if( strcmp(key, "editor:encounters.txt") == 0 )
+            return 1;
+        /* An npc's stats ledger, npc_stats/<shard>/<gameval>.stats
+         * (editor_npcstats.h): one shard byte, a slash, a gameval. */
+        if( strncmp(key, "stats:", 6) == 0 )
+        {
+            const char* name = key + 8;
+            size_t const length = strlen(key + 6);
+            if( length < 3 || key[7] != '/' )
+                return 0;
+            for( const char* at = name; *at; at++ )
+                if( !isalnum((unsigned char)*at) && *at != '_' )
+                    return 0;
+            /* The shard is the name's: gen_npc_stats.py's shard_of. */
+            return strlen(name) < 64
+                   && key[6] == (isalnum((unsigned char)name[0]) ? (char)tolower((unsigned char)name[0]) : '_');
+        }
+        /* A stamp and the stamps' list (editor_stamps.h): editor/stamps/
+         * <name>.stamp and editor/stamps/index.txt. Names are [A-Za-z0-9_-]
+         * under 48 bytes, so "index" can never be confused with the list. */
+        if( strncmp(key, "stamp:", 6) == 0 )
+        {
+            size_t const length = strlen(key + 6);
+            return length > 0 && length < 48 && name_valid(key + 6) && !strchr(key + 6, '.');
+        }
+        if( strcmp(key, "stamps:index") == 0 )
+            return 1;
+        /* A world-map area file, worldmap/areas/<name>.wma (editor_wma.h;
+         * the instance helper writes one): [a-z0-9_] under 48 bytes, the
+         * name the catalog's reader keys the file by. */
+        if( strncmp(key, "wma:", 4) == 0 )
+        {
+            size_t const length = strlen(key + 4);
+            if( length == 0 || length >= 48 )
+                return 0;
+            for( size_t i = 0; i < length; i++ )
+            {
+                char const c = key[4 + i];
+                if( !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') )
+                    return 0;
+            }
+            return 1;
         }
         return 0;
     }

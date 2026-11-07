@@ -53,8 +53,11 @@ int cw_intent(int kind, int panel, int widget, int value, int x, int y, char con
 
 void cw_test_tree(void);
 void cw_test_vlist(void);
+void cw_test_vlist_cells(void);
+void cw_test_vlist_cells_marks(void);
 void cw_test_iconbutton(void);
 void cw_test_slider(void);
+void cw_test_slider_long_label(void);
 void cw_test_radio(void);
 void cw_test_modal(void);
 void cw_test_tooltip(void);
@@ -63,5 +66,10 @@ void cw_test_graph(void);
 void cw_test_splitter(void);
 void cw_test_skin(void);
 void cw_test_capacity(void);
+void cw_test_button(void);
+void cw_test_truncation(void);
+void cw_test_scale(void);
+void cw_test_glyphs(void);
+void cw_test_gesture(void);
 
 #endif

@@ -79,6 +79,9 @@
  */
 #define TORIRS_CHROME_ROW_ACTION 0x1
 #define TORIRS_CHROME_ROW_LOCKED 0x2
+/* WIDGET_ADD `w` of a VLIST: TORIRS_CHROME_VLIST_CELLS (its rows are cells)
+ * and TORIRS_CHROME_VLIST_CELLS_WIDE, defined beside ToriRSChrome_VListCells
+ * (uitree_debug_overlay.h), which the model reads too. */
 
 /**
  * What one command says.
@@ -304,8 +307,45 @@ enum ToriRSChromeCmdKind
      * x with baseline y), `color`, `value` = its hit key, `label` = its text.
      */
     TORIRS_CHROME_CMD_WIDGET_GRAPH_ITEM,
-    /** `label` = the widget's hover text ("" none). */
+    /**
+     * `label` = the widget's hover text ("" none), `text` = the chord the
+     * tooltip ends with ("" none of its own: a BUTTON or ICONBUTTON then ends
+     * it with the chord its WIDGET_CHORD carries). A presentation shows
+     * "text  [chord]", the chord as a keycap where it can draw one.
+     */
     TORIRS_CHROME_CMD_WIDGET_TOOLTIP,
+    /**
+     * `label` = the chord a BUTTON wears as a keycap after its caption, or an
+     * ICONBUTTON as a badge in its corner ("" none). The display spelling of
+     * the hotkey table, already shortened to TORIRS_CHROME_CHORD_MAX; sent for
+     * those two kinds only, and only on a change. The keycap's geometry and
+     * ink are torirs_chrome_metrics.h's KEYCAP_* and BADGE_*, which the DOM
+     * presentations read too.
+     */
+    TORIRS_CHROME_CMD_WIDGET_CHORD,
+    /**
+     * The page zoom, as a rational: `value` / `w` CSS pixels per chrome
+     * pixel. The chrome's scale over the page's own density
+     * (ToriRSChrome_SetPageScale): q / 4 device pixels per chrome pixel on a
+     * page whose browser draws density / 100 device pixels per CSS pixel is
+     * (q * 100) / (4 * density), reduced by the common factor of 100 and the
+     * density -- so 5 / 4 is 1.25x on a 1x page, and Auto on a 2x page is
+     * 8 / 8, no zoom, because the browser already doubled it. A property of
+     * the whole chrome, like CHECK_STYLE: sent before any panel on the first
+     * Run and again whenever the ratio changes; never while it is 1 and was.
+     *
+     * A presentation that lays itself out from the commands (the DOM) keeps
+     * authoring in 1x chrome pixels and zooms by the ratio -- its fonts are
+     * outlines, so it needs nothing else; its device pixels per chrome pixel
+     * are its devicePixelRatio times the ratio. One that draws the display
+     * list ignores it: the list is already in device pixels.
+     *
+     * `h` is the text-rendering mode (ToriRSChrome_SetTextSmooth): 0 bitmap
+     * at whole scales, 1 smooth always -- the DOM uses the vector web fonts
+     * at every scale then, not only at a fractional device scale. A change
+     * of either the ratio or the mode resends the command.
+     */
+    TORIRS_CHROME_CMD_SCALE,
 };
 
 /**
@@ -406,15 +446,28 @@ enum ToriRSChromeIntentKind
     /**
      * A gesture over a GRAPH well: `value` = enum ToriRSChromeEventKind
      * (GRAPH_PRESS .. GRAPH_HOVER), `x`/`y` well-local logical units. The
-     * model resolves the hit key from its own item list.
+     * model resolves the hit key from its own item list. `value` GRAPH_KEY
+     * is a key on the focused well instead: `x` the key (a printable
+     * character, or a negated enum ToriRSChromeKey), `y` the modifier bits
+     * (1 Ctrl, 2 Shift, 4 Alt).
      */
     TORIRS_CHROME_INTENT_GRAPH,
     /** The wheel over a GRAPH well: `value` = the delta, `x`/`y` as above. */
     TORIRS_CHROME_INTENT_GRAPH_WHEEL,
+    /**
+     * A gesture frame over a GRAPH, MODELVIEW or VLIST/CODE the browser
+     * hit-tested itself (its touch pairs, ctrl+wheel, Safari's
+     * gesturechange): `value` = enum ToriRSChromeGestureKind, `x`/`y` the
+     * gesture's centre in widget-local logical units, `text` the frame's
+     * numbers "dx dy fingers scale_q16 radians_q16 phase" (decimal, logical
+     * px). Applied through ToriRSChrome_GestureWidget, so the DOM's wells
+     * pan, zoom and orbit by the very rules the canvas's do.
+     */
+    TORIRS_CHROME_INTENT_GESTURE,
 };
 
 /** The highest intent kind; executors fence what they accept against it. */
-#define TORIRS_CHROME_INTENT_KIND_MAX TORIRS_CHROME_INTENT_GRAPH_WHEEL
+#define TORIRS_CHROME_INTENT_KIND_MAX TORIRS_CHROME_INTENT_GESTURE
 
 /*
  * There was a CONFIRM here -- "the Ok beside the close box was used" -- and it
@@ -633,6 +686,10 @@ struct ToriRSChromeShadowWidget
     int rows_known;
     uint32_t rows_rev;
     char tooltip[TORIRS_CHROME_LABEL_MAX];
+    /** The tooltip's own chord and the BUTTON/ICONBUTTON chord, as last sent.
+     *  "" is what a fresh shadow holds, so a widget with none is told none. */
+    char tooltip_chord[TORIRS_CHROME_CHORD_MAX];
+    char chord[TORIRS_CHROME_CHORD_MAX];
 };
 
 struct ToriRSChromeShadowPanel
@@ -697,6 +754,25 @@ struct ToriRSChromeSync
      * shadow was zeroed to" is not being told.
      */
     int check_style;
+    /**
+     * The page zoom this executor holds, as the rational SCALE last carried
+     * (`scale_value` / `scale_den`).
+     *
+     * Seeded to 4 / 4 -- no zoom -- by Init, UNLIKE `check_style`: no zoom is
+     * what a presentation that was never told draws at, so a chrome whose
+     * page needs none (1x on a 1x page, or 2x on a 2x one: @see
+     * ToriRSChrome_SetPageScale) sends no SCALE at all and its stream is the
+     * one it always was. Compared as a ratio, so 8 / 8 is the seed too.
+     * Neither a page boundary (Invalidate) nor a full catch-up over a lost
+     * journal reseeds it: the binding is the same executor, and it holds the
+     * zoom it was last told (the DOM keeps it across page snapshots for
+     * exactly this).
+     */
+    int scale_value;
+    int scale_den;
+    /** The text-rendering mode SCALE last carried as `h` (seeded 0, bitmap
+     *  at whole scales, like the zoom). */
+    int scale_text;
     /** Commands emitted since Init, for tests and for a "did anything move"
      *  probe that costs nothing to keep. */
     int cmd_count;

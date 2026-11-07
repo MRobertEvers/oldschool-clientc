@@ -54,6 +54,7 @@ clean, so it can be wired straight into a makefile's $(info).
 
 import hashlib
 import os
+import re
 import sys
 
 STAMP_NAME = ".objverify"
@@ -80,8 +81,13 @@ def parse_depfile(path):
     if first is None:
         return None
 
-    # Split on the colon that ends the target, not one inside a path.
-    _, _, rhs = first.partition(":")
+    # Split on the colon that ends the target, not one inside a path: a
+    # Windows target is `C:/.../foo.o:`, and its drive colon is followed by a
+    # path, the target's by whitespace or the end of the line.
+    end = re.search(r":(?=\s|$)", first)
+    if end is None:
+        return None
+    rhs = first[end.end():]
 
     # Unescape "\ " (a space inside a path) without losing ordinary separators.
     prereqs = []

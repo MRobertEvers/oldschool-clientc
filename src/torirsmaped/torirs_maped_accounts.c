@@ -28,13 +28,28 @@
 #include <time.h>
 #include <unistd.h>
 
-/* Windows' mkdir takes no mode (torirs_server_savefile.c does the same). */
-#if defined(_WIN32)
+#ifdef _WIN32
 #include <direct.h>
-#define acct_mkdir(p) _mkdir(p)
+#include <windows.h>
+#define acct_mkdir(path) _mkdir(path)
 #else
-#define acct_mkdir(p) mkdir(p, 0755)
+#define acct_mkdir(path) mkdir(path, 0755)
 #endif
+
+/* Replace `path` with `temp` in one step. POSIX rename does; Win32's rename
+ * refuses an existing target, so MoveFileEx with REPLACE_EXISTING (as
+ * platform_x_io.c and torirs_server_savefile.c do it). 0 on success. */
+static int
+acct_replace_file(
+    const char* temp,
+    const char* path)
+{
+#ifdef _WIN32
+    return MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) ? 0 : -1;
+#else
+    return rename(temp, path);
+#endif
+}
 
 /* ------------------------------------------------------------------ */
 /* Pure pieces                                                         */
@@ -671,7 +686,7 @@ ToriRSMapEd_AcctSaveWrite(
         return 0;
     }
     free(text);
-    if( rename(temp, path) != 0 )
+    if( acct_replace_file(temp, path) != 0 )
     {
         unlink(temp);
         return 0;

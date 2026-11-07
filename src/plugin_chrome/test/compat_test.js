@@ -110,6 +110,42 @@ assert.match(legacyCss, /\.tpc-rail-hidden \.tpc-rail\s*\{\s*display:\s*none;/,
 assert.match(legacyCss, /\.tpc-rail-hidden \.tpc-pane\s*\{\s*right:\s*0;/,
     "the XP pane runs flush right while the rail is hidden");
 assert.doesNotMatch(legacyCss, /:not\(/, "the XP stylesheet uses no negation pseudo-class");
+/* The second family: the synthesized vector faces (tools/chrome_font_vector.py),
+ * for a fractional device scale and for "smooth always". */
+assert.match(modernCss,
+    /font-family:\s*"ToriRS Chrome Vector";[\s\S]*ToriRSBody-Vector\.woff[\s\S]*ToriRSBody-Vector\.ttf/,
+    "modern browsers load the vector Body WOFF/TTF as a second family");
+assert.match(modernCss,
+    /font-family:\s*"ToriRS Chrome Vector";[\s\S]*ToriRSMenu-Vector\.woff[\s\S]*font-weight:\s*700/,
+    "and the vector Menu face by weight");
+assert.match(modernCss, /ToriRS Chrome Small Vector[\s\S]*ToriRSSmall-Vector\.woff/,
+    "and the vector Small face");
+assert.match(modernCss,
+    /\.tpc-dpr-fractional, \.tpc-text-smooth,[\s\S]*?font-family:\s*"ToriRS Chrome Vector"/,
+    "a fractional device scale and smooth always draw the vector family");
+assert.match(legacyCss,
+    /font-family:\s*"ToriRS Chrome Vector";\s*src:\s*url\("font\/ToriRSBody-Vector\.eot"\)/,
+    "XP has a direct local-file EOT of the vector Body face");
+assert.match(legacyCss, /\.tpc-text-smooth body[\s\S]*?font-family:\s*"ToriRS Chrome Vector"/,
+    "XP draws it under smooth always");
+["body", "input", "textarea", "button", ".tpc-dropdown-list", ".tpc-minimenu"].forEach(function (sel) {
+    var esc = sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    [modernCss, legacyCss].forEach(function (css) {
+        if (css === modernCss && !/^\./.test(sel))
+            return;
+        assert.match(css, new RegExp("\\.tpc-text-smooth " + esc + "[^{]*\\{\\s*font-family:\\s*\"ToriRS Chrome Vector\""),
+            "smooth always gives " + sel + " the vector family in both stylesheets");
+    });
+});
+[modernRuntime, legacyRuntime].forEach(function (runtime) {
+    assert.match(runtime, /tpc-text-smooth/, "the runtime states smooth always as one class on the root");
+});
+["ToriRSBody", "ToriRSMenu", "ToriRSSmall"].forEach(function (stem) {
+    ["eot", "woff", "ttf"].forEach(function (extension) {
+        assert(fs.existsSync(path.join(fontRoot, stem + "-Vector." + extension)),
+            "font bundle contains " + stem + "-Vector." + extension);
+    });
+});
 ["ToriRSBody", "ToriRSMenu", "ToriRSSmall"].forEach(function (stem) {
     ["eot", "woff", "ttf"].forEach(function (extension) {
         assert(fs.existsSync(path.join(fontRoot, stem + "." + extension)),

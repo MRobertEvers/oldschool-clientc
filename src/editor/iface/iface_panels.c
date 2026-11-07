@@ -883,16 +883,10 @@ code_refresh(
     }
 }
 
-static void
-mkdir_one(const char* path)
-{
-#if defined(_WIN32)
-    (void)mkdir(path);
-#else
-    (void)mkdir(path, 0755);
-#endif
-}
-
+/* Compile (workbench 6.6): the editor server's CS2 job, never the compiler
+ * on this thread. The panel only asks; iface_register.c sends the job (it
+ * has the window's Live model), feeds the lines to `compile` and calls
+ * EditorIfacePanels_ShowCompile at the end. */
 static void
 code_compile(
     struct EditorIfacePanels* panels,
@@ -901,35 +895,29 @@ code_compile(
 {
     size_t length = 0;
     const char* text = code_text(panels, editor, &length);
-    struct EditorCs2CompileJob job;
-    char work[1200];
-    char names[1300];
-    int names_ok;
-    int rows = 0;
 
     if( !text )
         return;
-    snprintf(work, sizeof(work), "%s/cs2_compile", panels->work_dir[0] ? panels->work_dir : ".");
-    snprintf(names, sizeof(names), "%s/names", work);
-    catalog_ensure(panels);
-    /* The content's script names, over RuneStar's other tables. */
+    if( panels->compile_running )
     {
-        char parent[1200];
-        snprintf(parent, sizeof(parent), "%s", panels->work_dir[0] ? panels->work_dir : ".");
-        mkdir_one(parent);
-        mkdir_one(work);
+        status(panels, ui, "compile: the last one is still running on the editor server");
+        return;
     }
-    names_ok = EditorCs2Catalog_WriteNamesDir(&panels->catalog, panels->names_dir, names);
-    memset(&job, 0, sizeof(job));
-    job.cs2_bin = panels->cs2_bin;
-    job.cache_dir = panels->cache_dir;
-    job.names_dir = names_ok ? names : (panels->names_dir[0] ? panels->names_dir : NULL);
-    job.work_dir = work;
-    job.script_name = panels->code_key + 4;
-    job.source = text;
-    job.source_length = length;
-    EditorCs2_Compile(&job, panels->compile);
+    EditorCs2_CompileBegin(panels->compile, text, length);
+    panels->compile_pending = 1;
+    ToriRSChrome_VListSetCount(ui, panels->vl_output, 1);
+    ToriRSChrome_VListSetRow(ui, panels->vl_output, 0, "compiling on the editor server...");
+}
 
+void
+EditorIfacePanels_ShowCompile(
+    struct EditorIfacePanels* panels,
+    struct ToriRSChrome* ui)
+{
+    int rows = 0;
+
+    assert(panels);
+    assert(ui);
     ToriRSChrome_VListSetCount(ui, panels->vl_output, panels->compile->line_count + 1);
     {
         char head[TORIRS_CHROME_INPUT_MAX];
