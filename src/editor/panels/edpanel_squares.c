@@ -4,6 +4,13 @@
  * with the Area dropdown (a tab per area made a strip of ~50 overlapping
  * labels nobody could read).
  *
+ * The map is a window of its own, "Square map" (module "squaremap"): docked
+ * in the column or tabbed into a strip it was a few grid rows high. It opens
+ * at most of the world's box beside the column (squares_size_map) from the
+ * Squares panel's Map, a Find, the tool rail's Squares or View > Square map;
+ * the Squares panel keeps Find, the dropdowns, the open-set strip and the
+ * detail pane, and one module drives both windows.
+ *
  *   the well       the world map of the page's area (the CS2 world map's
  *                  own picture, editor_worldmap.h) under the square grid,
  *                  squares the page does not show dimmed; without the App's
@@ -61,15 +68,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* The well's height when the panel is content-sized, and the least it shrinks
- * to when the layout gives the panel a height to fill (1x pixels). The least
- * is what lets the picker into the 1280x800 column under Terrain and Palette
- * (758 px between the menu bar and the status bar, 160 each): the rows above
- * the well and the folded pane take 349, and at 120 the picker asked for 31 px
- * more than was left and the layout hid it. 88 is eleven grid rows; the
- * spare height the layout shares out goes to the well first. */
+/* The well's height when the Square map window is content-sized, and the
+ * least it shrinks to when the window is resized short (1x pixels). 88 is
+ * eleven grid rows. */
 #define SQUARES_WELL_H 300
 #define SQUARES_WELL_MIN_H 88
+/* The Square map window opens at this fraction of the world's box each way
+ * (squares_size_map): the map has a window of its own because a column slot
+ * or a strip left it a few rows high. */
+#define SQUARES_MAP_NUM 3
+#define SQUARES_MAP_DEN 4
 /* A press that moves further than this is a pan and never a click. */
 #define SQUARES_DRAG_SLOP 3
 /* Two clicks on one square this close are a double-click. */
@@ -93,9 +101,7 @@
 #define SQUARES_PANE_TEXT_MAX TORIRS_CHROME_INPUT_MAX
 /* The detail pane's rows past its heading (the six key / value rows, the
  * five actions past Open and Add, Recent) fold away when the panel is given
- * a height that would leave the atlas less than this (1x px): the heading,
- * Open and Add stay, the atlas keeps its room. */
-#define SQUARES_PANE_WELL_MIN_H 200
+ * a height that cannot hold them: the heading, Open and Add stay. */
 #define SQUARES_PANE_ACTIONS 5
 /* What the folding rows take (1x px): the chrome's KEY_VALUE rows, then the
  * buttons and the dropdown, each with the row gap. */
@@ -149,6 +155,11 @@ struct SquaresPanel
     int click_opened_here;
 
     int panel;
+    /** The Square map window: the well and the hover readout under it. */
+    int map_panel;
+    /** The box squares_size_map last gave it. */
+    int map_set_w;
+    int map_set_h;
     int input_search;
     int dropdown_area;
     int dropdown_storage;
@@ -160,6 +171,7 @@ struct SquaresPanel
     int button_new;
     int button_fit;
     int button_refresh;
+    int button_map;
 
     int menu_panel;
     int menu_items[MENU_COUNT];
@@ -563,12 +575,6 @@ squares_well_h(
     return h > 32 ? h : SQUARES_WELL_H;
 }
 
-/**
- * The well fills the panel. Content-sized (no layout height), it is
- * SQUARES_WELL_H at the chrome's scale; given a height by the layout or a
- * resize, it takes what the other rows leave, down to SQUARES_WELL_MIN_H.
- * Converges in one Build: the other rows' height does not depend on it.
- */
 /** Show or fold the pane's rows past its heading. */
 static void
 squares_pane_fold(
@@ -591,13 +597,14 @@ squares_pane_fold(
 }
 
 /**
- * The well fills the panel. Content-sized (no layout height), it is
- * SQUARES_WELL_H at the chrome's scale and the pane is open; given a height
- * by the layout or a resize, it takes what the other rows leave, down to
- * SQUARES_WELL_MIN_H, and the pane folds when it would leave the atlas less
- * than SQUARES_PANE_WELL_MIN_H (the default layout's docked column at 1x).
- * Converges in one Build: the other rows' height does not depend on it, and
- * the fold is judged on the well the panel would have with the pane folded,
+ * The well fills the Square map window: content-sized (no layout height) it
+ * is SQUARES_WELL_H at the chrome's scale; given a height by a resize, it
+ * takes what the readout under it leaves, down to SQUARES_WELL_MIN_H.
+ *
+ * The Squares window has no well; its detail pane's rows past the heading
+ * fold when the height the layout gives it cannot hold them (the docked
+ * column at 1280x800), and open again when it can or when it is
+ * content-sized. Judged on the panel's content with the pane folded,
  * whichever it is now, so it does not flip back and forth.
  */
 static void
@@ -605,47 +612,71 @@ squares_size_well(
     struct EditorUi* ui,
     struct SquaresPanel* self)
 {
+    struct ToriRSChromePanel const* map = &ui->chrome->panels[self->map_panel];
     struct ToriRSChromePanel const* p = &ui->chrome->panels[self->panel];
     struct ToriRSChromeWidget const* well = &ui->chrome->widgets[self->graph];
     int want = edp_px(ui, SQUARES_WELL_H);
     int open = 1;
 
-    if( p->fixed_h > 0 && p->view_h > 0 && p->content_h > 0 )
+    if( map->fixed_h > 0 && map->view_h > 0 && map->content_h > 0 )
     {
-        int const pane = edp_px(ui, SQUARES_PANE_FOLD_H);
-        int const folded = p->view_h - (p->content_h - well->view_h) + (self->pane_open ? pane : 0);
-        open = folded - pane >= edp_px(ui, SQUARES_PANE_WELL_MIN_H);
-        want = folded - (open ? pane : 0);
+        want = map->view_h - (map->content_h - well->view_h);
         if( want < edp_px(ui, SQUARES_WELL_MIN_H) )
             want = edp_px(ui, SQUARES_WELL_MIN_H);
     }
-    if( open != self->pane_open )
-        squares_pane_fold(ui, self, open);
     if( want != well->view_h )
         ToriRSChrome_SetCustomHeight(ui->chrome, self->graph, want);
+
+    if( p->fixed_h > 0 && p->view_h > 0 && p->content_h > 0 )
+    {
+        int const pane = edp_px(ui, SQUARES_PANE_FOLD_H);
+        int const folded = p->content_h - (self->pane_open ? pane : 0);
+        open = p->view_h - folded >= pane;
+    }
+    if( open != self->pane_open )
+        squares_pane_fold(ui, self, open);
 }
 
-/** EditorUiPanel::stretch: the well is the part that fills, and the detail
- *  pane's folding rows go with it (squares_size_well folds them when the
- *  height is short). So the least is the well's least with the pane folded,
- *  and the asking height has the pane open: measured with the pane open, the
- *  picker's least was taller than the 1280x800 column could give after
- *  Terrain and Palette, and the default layout hid the picker. */
-static int
-squares_stretch(
+/**
+ * The Square map window, until the user moves or resizes it: most of the
+ * world's box (SQUARES_MAP_NUM / SQUARES_MAP_DEN of it each way), flown out
+ * beside the column by the layout (ui_layout_follow) like any window that is
+ * not in it. Set again only when the world's box changes.
+ */
+static void
+squares_size_map(
     struct EditorUi* ui,
-    void* opaque,
-    int* out_min_h,
-    int* out_natural_h)
+    struct SquaresPanel* self)
 {
-    struct SquaresPanel* self = opaque;
-    int const pane = edp_px(ui, SQUARES_PANE_FOLD_H);
+    struct ToriRSChromePanel const* map = &ui->chrome->panels[self->map_panel];
+    int w = ui->world.w * SQUARES_MAP_NUM / SQUARES_MAP_DEN;
+    int h = ui->world.h * SQUARES_MAP_NUM / SQUARES_MAP_DEN;
 
-    assert(out_min_h);
-    assert(out_natural_h);
-    *out_min_h = edp_px(ui, SQUARES_WELL_MIN_H);
-    *out_natural_h = edp_px(ui, SQUARES_WELL_H) + pane;
-    return ui->chrome->widgets[self->graph].view_h + (self->pane_open ? pane : 0);
+    if( !map->visible || map->user_placed || map->maximised || ui->world.w <= 0 || ui->world.h <= 0 )
+        return;
+    if( w < edp_px(ui, EDP_PICKER_W) )
+        w = edp_px(ui, EDP_PICKER_W);
+    if( h < edp_px(ui, SQUARES_WELL_H) )
+        h = edp_px(ui, SQUARES_WELL_H);
+    if( w == self->map_set_w && h == self->map_set_h )
+        return;
+    self->map_set_w = w;
+    self->map_set_h = h;
+    ToriRSChrome_PanelSetFixedWidth(ui->chrome, self->map_panel, w);
+    ToriRSChrome_PanelSetFixedHeight(ui->chrome, self->map_panel, h);
+}
+
+/** Show or hide the Square map window. */
+static void
+squares_show_map(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    int show)
+{
+    if( ui->chrome->panels[self->map_panel].visible == show )
+        return;
+    ToriRSChrome_PanelSetVisible(ui->chrome, self->map_panel, show);
+    self->dirty = 1;
 }
 
 static uint32_t
@@ -943,7 +974,7 @@ squares_tick(
     struct Editor_Picker* picker = &self->picker;
     struct EditorHost_CatalogSquares atlas;
 
-    if( !ui->chrome->panels[self->panel].visible )
+    if( !ui->chrome->panels[self->panel].visible && !ui->chrome->panels[self->map_panel].visible )
         return;
     if( !self->fetched || self->want_refresh )
         squares_fetch(ui, self);
@@ -960,6 +991,7 @@ squares_tick(
         return;
     squares_collection_rows(ui, self);
 
+    squares_size_map(ui, self);
     squares_size_well(ui, self);
     /* Fitted until the user moves the view: the first frame the well has a
      * size, and again whenever the layout changes that size. */
@@ -1006,7 +1038,8 @@ squares_tick(
         squares_draw_strip(ui, self);
     squares_recent_rows(ui, self);
     squares_pane_update(ui, self);
-    if( !self->dirty )
+    /* A closed map keeps its dirt for the frame it opens on. */
+    if( !self->dirty || !ui->chrome->panels[self->map_panel].visible )
         return;
     Editor_PickerDraw(
         picker, ui->chrome, self->graph, squares_well_w(ui, self), squares_well_h(ui, self),
@@ -1349,7 +1382,9 @@ squares_find(
         self->pin_z = match.pin_z;
         self->pin_level = match.pin_level;
         squares_area_show(ui, self);
-        /* The arrows go on from here. */
+        /* What was found is on the map: open it, and the arrows go on
+         * from there. */
+        squares_show_map(ui, self, 1);
         (void)ToriRSChrome_FocusWidget(ui->chrome, self->graph, 0);
         if( match.pin_valid )
             Editor_UiLog(ui, "editor: tile %d,%d (level %d) pinned in m%d_%d", match.pin_x, match.pin_z,
@@ -2562,6 +2597,11 @@ squares_activate(
         self->want_refresh = 1;
         return 1;
     }
+    if( widget == self->button_map )
+    {
+        squares_show_map(ui, self, !ui->chrome->panels[self->map_panel].visible);
+        return 1;
+    }
     return 0;
 }
 
@@ -2578,6 +2618,20 @@ squares_set_visible(
         ToriRSChrome_PanelSetVisible(ui->chrome, self->confirm_panel, 0);
     }
     self->dirty = 1;
+}
+
+/** The Square map module's: not part of the default set, it opens from the
+ *  Squares panel's Map, a Find, the tool rail or View > Square map. */
+static void
+squaremap_set_visible(
+    struct EditorUi* ui,
+    void* opaque,
+    int visible)
+{
+    struct SquaresPanel* self = opaque;
+    (void)visible;
+    squares_menu_hide(ui, self);
+    ToriRSChrome_PanelSetVisible(ui->chrome, self->map_panel, 0);
 }
 
 static void
@@ -2941,12 +2995,8 @@ Editor_SquarePicker_Register(struct EditorUi* ui)
     self->dropdown_storage = ToriRSChrome_Dropdown(chrome, self->panel, "Storage", NULL, 0, -1);
     self->dropdown_collection = ToriRSChrome_Dropdown(chrome, self->panel, "Collection", NULL, 0, -1);
     ToriRSChrome_SetTooltip(chrome, self->dropdown_collection, "Only the squares of one named collection (Areas)");
-    self->graph = ToriRSChrome_Graph(chrome, self->panel, "", edp_px(ui, SQUARES_WELL_H));
-    ToriRSChrome_SetTooltip(chrome, self->graph, "click: open, wheel: zoom, drag: pan, arrows: focus, Enter: open");
-    /* The open set: one chip per square this window holds (under the well,
-     * so the well stays the panel's first GRAPH). */
+    /* The open set: one chip per square this window holds. */
     self->strip = ToriRSChrome_Graph(chrome, self->panel, "", edp_px(ui, SQUARES_STRIP_H));
-    self->row_hover = ToriRSChrome_Label(chrome, self->panel, " ");
     self->row_status = ToriRSChrome_Label(chrome, self->panel, "");
     /* The detail pane: the focused (else hovered) square. */
     self->pane_rows[0] = ToriRSChrome_Heading(chrome, self->panel, "");
@@ -2975,10 +3025,23 @@ Editor_SquarePicker_Register(struct EditorUi* ui)
     self->button_new = ToriRSChrome_Button(chrome, self->panel, "New square...");
     ToriRSChrome_SetTooltip(chrome, self->button_new,
         "Create a square: its storage (maps/ or a lane) and its template");
+    self->button_map = ToriRSChrome_Button(chrome, self->panel, "Map");
+    ToriRSChrome_SetTooltip(chrome, self->button_map, "Open or close the Square map window");
     self->button_fit = ToriRSChrome_Button(chrome, self->panel, "Fit");
     self->button_refresh = ToriRSChrome_Button(chrome, self->panel, "Refresh");
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);
     ToriRSChrome_PanelSetVisible(chrome, self->panel, 0);
+
+    /* The map in a window of its own: the well, and the readout naming the
+     * hovered square under it. Placed and sized by squares_size_map. */
+    self->map_panel = ToriRSChrome_PanelAdd(
+        chrome, TORIRS_CHROME_PANEL_WINDOW, x, edp_px(ui, EDP_TOP_Y), edp_px(ui, EDP_PICKER_W), "Square map");
+    assert(self->map_panel >= 0);
+    self->graph = ToriRSChrome_Graph(chrome, self->map_panel, "", edp_px(ui, SQUARES_WELL_H));
+    ToriRSChrome_SetTooltip(chrome, self->graph, "click: open, wheel: zoom, drag: pan, arrows: focus, Enter: open");
+    self->row_hover = ToriRSChrome_Label(chrome, self->map_panel, " ");
+    ToriRSChrome_PanelSetResizable(chrome, self->map_panel, 1);
+    ToriRSChrome_PanelSetVisible(chrome, self->map_panel, 0);
     self->strip_dirty = 1;
     self->hotkeys_serial = ui->hotkeys.serial;
     squares_chords(ui, self);
@@ -3009,6 +3072,16 @@ Editor_SquarePicker_Register(struct EditorUi* ui)
     desc.event = squares_event;
     desc.set_visible = squares_set_visible;
     desc.destroy = squares_destroy;
-    desc.stretch = squares_stretch;
+    Editor_UiAddPanel(ui, &desc);
+
+    /* The Square map's own registry entry, for the View menu, the layout
+     * file and a pop-out; the Squares module above ticks it, takes its
+     * events and frees it. */
+    memset(&desc, 0, sizeof(desc));
+    desc.name = "squaremap";
+    desc.title = "Square map";
+    desc.self = self;
+    desc.chrome_panel = self->map_panel;
+    desc.set_visible = squaremap_set_visible;
     Editor_UiAddPanel(ui, &desc);
 }

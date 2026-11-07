@@ -183,11 +183,16 @@ toolrail_activate(
     }
     if( widget == self->button_squares )
     {
+        /* The picker and its map window open and close together. */
         struct EditorUiPanel* picker = Editor_UiFindPanel(ui, "squares");
+        struct EditorUiPanel* map = Editor_UiFindPanel(ui, "squaremap");
         if( picker && picker->chrome_panel >= 0 )
-            ToriRSChrome_PanelSetVisible(
-                ui->chrome, picker->chrome_panel,
-                !ui->chrome->panels[picker->chrome_panel].visible);
+        {
+            int const show = !ui->chrome->panels[picker->chrome_panel].visible;
+            ToriRSChrome_PanelSetVisible(ui->chrome, picker->chrome_panel, show);
+            if( map && map->chrome_panel >= 0 )
+                ToriRSChrome_PanelSetVisible(ui->chrome, map->chrome_panel, show);
+        }
         return 1;
     }
     return 0;

@@ -578,12 +578,33 @@ static void
 test_panel_find_and_keys(void)
 {
     int const panel = window_of("squares");
-    int const graph = widget_in(panel, TORIRS_CHROME_W_GRAPH, NULL);
+    int const map = window_of("squaremap");
+    int const graph = widget_in(map, TORIRS_CHROME_W_GRAPH, NULL);
     struct Editor_Picker* picker = picker_of();
     int x;
     int z;
 
     CHECK(panel >= 0 && g_chrome.panels[panel].visible, "panel: Squares is open");
+    /* The map is a window of its own (the Squares panel has no well): shut
+     * with the editor, Map opens and closes it, a Find opens it. */
+    {
+        int strip = -1;
+        int count = 0;
+        int shown = 0;
+        CHECK(map >= 0 && graph >= 0 && Editor_SquarePicker_Strip(&g_ui, &strip, &count, &shown)
+                  && widget_in(panel, TORIRS_CHROME_W_GRAPH, NULL) == strip,
+            "panel: the well is the Square map's, the Squares panel's one GRAPH is the open-set strip");
+    }
+    CHECK(!g_chrome.panels[map].visible, "map: shut with the editor");
+    activate(widget_in(panel, TORIRS_CHROME_W_BUTTON, "Map"));
+    frame();
+    CHECK(g_chrome.panels[map].visible, "map: Map opens it");
+    CHECK(g_chrome.panels[map].last_rect.w > g_chrome.panels[panel].last_rect.w,
+        "map: ...wider than the Squares panel (%d vs %d)", g_chrome.panels[map].last_rect.w,
+        g_chrome.panels[panel].last_rect.w);
+    activate(widget_in(panel, TORIRS_CHROME_W_BUTTON, "Map"));
+    frame();
+    CHECK(!g_chrome.panels[map].visible, "map: ...and Map closes it");
     CHECK(picker && picker->square_count == g_row_count, "panel: the atlas is in (%d squares)",
         picker ? picker->square_count : -1);
     if( !picker )
@@ -597,6 +618,7 @@ test_panel_find_and_keys(void)
     CHECK(picker->focus == Editor_PickerFind(picker, 50, 50, 0), "find: m50_50 is focused");
     CHECK(picker->zoom >= EDITOR_PICKER_ZOOM_SHOW - 1e-9, "find: zoomed to at least %.0f px (%.2f)",
         (double)EDITOR_PICKER_ZOOM_SHOW, picker->zoom);
+    CHECK(g_chrome.panels[map].visible, "find: opens the map");
     CHECK(g_chrome.focus == graph, "find: the well holds the keyboard (%d vs %d)", g_chrome.focus, graph);
     {
         /* The focused cell's outline is the white one. */
@@ -930,10 +952,12 @@ test_panel_pane(void)
         "pane: its source is the focused square ('%s')",
         ToriRSChrome_Text(&g_chrome, Editor_Instance_Widget(&g_ui, EDITOR_INSTANCE_W_SOURCE_ROW)));
     ToriRSChrome_PanelSetVisible(&g_chrome, window_of("instance"), 0);
-    /* Given a short height, the rows past the heading fold away and the
-     * atlas keeps its room; Open and Add stay; given room, they come back. */
+    /* Given a short height, the rows past the heading fold away; Open and
+     * Add stay; given room, they come back. The map is in its own window, so
+     * neither moves the well. */
     {
-        int const graph = widget_in(panel, TORIRS_CHROME_W_GRAPH, NULL);
+        int const graph = widget_in(window_of("squaremap"), TORIRS_CHROME_W_GRAPH, NULL);
+        int const well_h = g_chrome.widgets[graph].view_h;
         int heading = 0;
         ToriRSChrome_PanelSetFixedHeight(&g_chrome, panel, 520);
         for( int i = 0; i < 4; i++ )
@@ -945,15 +969,15 @@ test_panel_pane(void)
         CHECK(!g_chrome.widgets[widget_in(panel, TORIRS_CHROME_W_BUTTON, "Open")].hidden
                   && g_chrome.widgets[widget_in(panel, TORIRS_CHROME_W_BUTTON, "Clear...")].hidden,
             "pane: ...Open stays, Clear... folds");
-        CHECK(g_chrome.widgets[graph].view_h >= 120,
-            "pane: ...and the atlas keeps at least its least height (%d)", g_chrome.widgets[graph].view_h);
+        CHECK(g_chrome.widgets[graph].view_h == well_h, "pane: ...and the map's well is untouched (%d vs %d)",
+            g_chrome.widgets[graph].view_h, well_h);
         ToriRSChrome_PanelSetFixedHeight(&g_chrome, panel, 980);
         for( int i = 0; i < 4; i++ )
             frame();
         CHECK(Editor_SquarePicker_PaneRow(&g_ui, 1, &widget, &full, &track) && !g_chrome.widgets[widget].hidden,
             "pane: open again in a 980 px panel");
-        CHECK(g_chrome.widgets[graph].view_h >= 200, "pane: the atlas has its room beside it (%d)",
-            g_chrome.widgets[graph].view_h);
+        CHECK(g_chrome.widgets[graph].view_h == well_h, "pane: ...nor by opening (%d vs %d)",
+            g_chrome.widgets[graph].view_h, well_h);
         check_pane("pane, 980 px");
         ToriRSChrome_PanelSetFixedHeight(&g_chrome, panel, 0);
         for( int i = 0; i < 3; i++ )
@@ -1072,11 +1096,11 @@ test_panel_strip(void)
         CHECK(picker->focus == Editor_PickerFind(picker, 51, 50, 0), "strip: ...and focuses it");
 
         /* Backspace: the open square before the focused one. */
-        (void)ToriRSChrome_FocusWidget(&g_chrome, widget_in(panel, TORIRS_CHROME_W_GRAPH, NULL), 0);
-        well_key(widget_in(panel, TORIRS_CHROME_W_GRAPH, NULL), TORIRS_CHROME_KEY_BACKSPACE);
+        (void)ToriRSChrome_FocusWidget(&g_chrome, widget_in(window_of("squaremap"), TORIRS_CHROME_W_GRAPH, NULL), 0);
+        well_key(widget_in(window_of("squaremap"), TORIRS_CHROME_W_GRAPH, NULL), TORIRS_CHROME_KEY_BACKSPACE);
         CHECK(picker->focus == Editor_PickerFind(picker, 50, 50, 0) && g_camera_x == 50 * 64 + 32,
             "keys: Backspace goes to the previous open square, m50_50");
-        well_key(widget_in(panel, TORIRS_CHROME_W_GRAPH, NULL), TORIRS_CHROME_KEY_BACKSPACE);
+        well_key(widget_in(window_of("squaremap"), TORIRS_CHROME_W_GRAPH, NULL), TORIRS_CHROME_KEY_BACKSPACE);
         CHECK(picker->focus == Editor_PickerFind(picker, 16, 101, 1), "keys: ...and wraps to the last");
 
         /* Shift+click closes it, through the guard (nothing unsaved here:

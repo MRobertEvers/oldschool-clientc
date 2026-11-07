@@ -3076,6 +3076,7 @@ ui_layout_restore_boxes(struct EditorUi* ui)
     {
         struct EditorLayoutPanel const* sp;
         int panel;
+        int in_column;
         if( !ui_layout_saves(ui, i) )
             continue;
         /* A member's box is its group's (below). */
@@ -3087,11 +3088,22 @@ ui_layout_restore_boxes(struct EditorUi* ui)
             continue;
         if( sp->has_visible && !sp->visible )
             continue;
+        in_column = panel >= ui->panel_first && panel < ui->panel_end && ui->docked[panel - ui->panel_first]
+                    && chrome->panels[panel].x >= ui->dock_x;
         if( sp->has_w )
             ToriRSChrome_PanelSetFixedWidth(chrome, panel, sp->w * scale / EDITOR_UI_SCALEQ_ONE);
         if( sp->has_h )
             ToriRSChrome_PanelSetFixedHeight(chrome, panel, sp->h * scale / EDITOR_UI_SCALEQ_ONE);
         ToriRSChrome_PanelMove(chrome, panel, sp->x * scale / EDITOR_UI_SCALEQ_ONE, sp->y * scale / EDITOR_UI_SCALEQ_ONE);
+        /* Docked in the column and put back off it: the flyout it was saved
+         * as (the Preview beside the Catalog), so nothing holds it to the
+         * dock. The World and the bottom strip are docked off the column
+         * and are left as they are. */
+        if( in_column && chrome->panels[panel].x < ui->dock_x )
+        {
+            ui->docked[panel - ui->panel_first] = 0;
+            ui->flown[panel - ui->panel_first] = 1;
+        }
     }
     for( int i = 0; i < ui->group_count; i++ )
     {

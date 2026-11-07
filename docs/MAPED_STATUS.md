@@ -5948,6 +5948,14 @@ Every issue the phase reports left open, by area, with where to start.
 
 ### Square picker world map
 
+- The map is its own window since 2026-11-07 (owner: "too cramped on another
+  panel"): "Square map" (module `squaremap`) holds the well and the hover
+  readout; the Squares panel keeps Find, the dropdowns, the open-set strip,
+  the detail pane, Fit and Refresh, and gained Map. One module
+  (edpanel_squares.c) drives both windows. The map opens on demand (Map, a
+  Find, the tool rail's Squares, View > Square map), as a flyout beside the
+  column at 3/4 of the world's box each way until it is moved or resized
+  (`squares_size_map`). No hotkey of its own yet; F4 still toggles Squares.
 - The web shows no map: the DOM executor (src/plugin_chrome/runtime*.js
   `renderGraph`) skips a `TORIRS_CHROME_GRAPH_IMAGE` item and the App does not
   fill the map services under `__EMSCRIPTEN__`, so the web picker keeps its

@@ -1813,7 +1813,8 @@ test_chrome(void)
     picker = edp_squares_picker(&g_ui);
     CHECK(picker && picker->square_count >= 6, "the picker fetched the atlas (%d squares)",
         picker ? picker->square_count : -1);
-    graph = find_widget(squares_panel, TORIRS_CHROME_W_GRAPH, NULL);
+    /* The well is the Square map window's (a Find below opens it). */
+    graph = find_widget(find_panel("Square map"), TORIRS_CHROME_W_GRAPH, NULL);
     CHECK(graph >= 0, "the picker has its GRAPH well");
     if( !picker || graph < 0 )
         return;
@@ -1847,10 +1848,11 @@ test_chrome(void)
     push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_HOVER, x, y, 0);
     frame();
     {
-        int const readout = find_widget(squares_panel, TORIRS_CHROME_W_LABEL, NULL);
+        int const map_panel = find_panel("Square map");
+        int const readout = find_widget(map_panel, TORIRS_CHROME_W_LABEL, NULL);
         int found = 0;
         for( int i = readout; i >= 0 && i < g_chrome.widget_count; i++ )
-            if( g_chrome.widgets[i].panel == squares_panel && strstr(g_chrome.widgets[i].text, "m50_50") )
+            if( g_chrome.widgets[i].panel == map_panel && strstr(g_chrome.widgets[i].text, "m50_50") )
                 found = 1;
         CHECK(found, "hover names m50_50 in the readout");
     }
@@ -2132,6 +2134,9 @@ static struct
     int slice_polls;
     double zoom;
     int drawn_pixels;
+    /* Map pixels over every picture since the test last zeroed it: the last
+     * picture alone can be one of the well's edges, past the land. */
+    int drawn_total;
     int dungeon_pixels;
     int icon_calls;
     int area;
@@ -2232,6 +2237,7 @@ fake_map_render_tile(
             int const on = (map_x >= 40 && map_x <= 60 && map_z >= 40 && map_z <= 60) || dungeon;
             out[row * size + col] = on ? 0xFF204080u : 0;
             g_map.drawn_pixels += on;
+            g_map.drawn_total += on;
             g_map.dungeon_pixels += dungeon;
         }
     }
@@ -2405,7 +2411,7 @@ test_worldmap(void)
     Editor_UiSetVisible(&g_ui, 1);
     squares_panel = find_panel("Squares");
     g_squares_panel = squares_panel;
-    graph = find_widget(squares_panel, TORIRS_CHROME_W_GRAPH, NULL);
+    graph = find_widget(find_panel("Square map"), TORIRS_CHROME_W_GRAPH, NULL);
     for( int i = 0; i < 3; i++ )
         frame();
     picker = (struct Editor_Picker*)edp_squares_picker(&g_ui);
@@ -2631,12 +2637,13 @@ test_worldmap(void)
         int vh;
         Editor_PickerZoomTo(picker, 48.0, x, y);
         Editor_PickerCentre(picker, 49, 43);
+        g_map.drawn_total = 0;
         frame();
         settle_map(80);
         picker_point(picker, 49, 43, &x, &y);
         CHECK(fabs(picker->zoom - 48.0) < 1e-9 && underlay_covers(picker, x, y) && g_map.zoom == 48.0,
             "48 px a square: m49_43 is under a picture");
-        CHECK(g_map.drawn_pixels > 0, "...and the last picture drawn has map in it (%d px)", g_map.drawn_pixels);
+        CHECK(g_map.drawn_total > 0, "...and the pictures drawn have map in them (%d px)", g_map.drawn_total);
         CHECK(Editor_PickerVisibleSquares(picker, &vx0, &vz0, &vw, &vh) && g_map.w == vw, "...polled for the view");
         CHECK(g_map.bad_publishes == 0, "every picture still the one size after %d publishes", g_map.publishes);
     }

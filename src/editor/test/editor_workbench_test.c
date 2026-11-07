@@ -256,11 +256,18 @@ registry_digest(
  * with every editor show (it opens on demand now, problems_set_visible).
  * The path painter moved all three registries again (was 2335556997u,
  * 2229059899u, 2715795737u): the tool rail's Paint path button, four
- * primitives at each scale; Linux and Windows agree. */
+ * primitives at each scale; Linux and Windows agree. The square map's own
+ * window moved all three registries (was 1800268757u, 1170014174u,
+ * 1806131047u): the Squares panel lost its well to the Square map window,
+ * which opens on demand (edpanel_squares.c, squaremap_set_visible), and
+ * gained Map, so the column's shares moved; the scenes did not. The
+ * Palette's eyedroppers (27541822f) moved the 1x registry once more (was
+ * 180134579u with the square map alone): two buttons in the docked Palette;
+ * 2x and 3x and the scenes did not move. */
 static const uint32_t k_golden[3][3] = {
-    { 1970238540u, 3840548130u, 1800268757u },
-    { 1606657634u, 3552625563u, 1170014174u },
-    { 1621493878u, 3838641767u, 1806131047u },
+    { 1970238540u, 3840548130u, 2329356403u },
+    { 1606657634u, 3552625563u, 3485951951u },
+    { 1621493878u, 3838641767u, 3425378636u },
 };
 
 static void
