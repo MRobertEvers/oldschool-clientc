@@ -8,6 +8,7 @@
  */
 
 #include "torirs_maped_live.h"
+#include "platform/launch_sessions.h" /* LaunchSessions_MonotonicMs, every build */
 
 #include <assert.h>
 #include <errno.h>
@@ -55,8 +56,13 @@ enum
     PLAY_PROBE_PERIOD_MS = 250,
 };
 
+/* Outside TORIRSMAPED_JOBS_NATIVE: the play client's port probe
+ * (play_service) runs on every build, the web one included. */
 static int64_t
-live_now_ms(void);
+live_now_ms(void)
+{
+    return LaunchSessions_MonotonicMs(NULL);
+}
 
 /* ------------------------------------------------------------------ */
 /* STATE_LIVE_FOCUS                                                    */
@@ -1863,12 +1869,6 @@ struct live_native
     struct jobs_process launched[3];
     struct ToriRSMapEdBuf out;
 };
-
-static int64_t
-live_now_ms(void)
-{
-    return LaunchSessions_MonotonicMs(NULL);
-}
 
 /** The socket layer up once per process (winsock counts its starts, and the
  *  host that started it first may be the game client or no one). */
