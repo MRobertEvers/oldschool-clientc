@@ -8,7 +8,7 @@
 #   content/  a writable mirror of OSRS-Content/osrs-content (mirror.py): the
 #             editor server saves into it and the pack build allocates in it
 #   lane/     the live dir: scripts/, scripts_lanes/, servpack/ (copies of the
-#             tree's three packs), cache/ (a copy of cache.osrs241), the
+#             tree's three packs), cache/ (a copy of cache.osrs242), the
 #             scriptrun's logs
 #
 # 1. torirsmaped serves the mirror with --live-dir lane/, its launch settings
@@ -74,7 +74,7 @@ python3 "$here/mirror.py" "$content_src" "$dir/content" || exit 2
 cp -R "$content_src/server/pack" "$dir/lane/servpack"
 cp -R "$content_src/server/scripts/build" "$dir/lane/scripts"
 cp -R "$content_src/server/scripts/build_summoning_curses" "$dir/lane/scripts_lanes"
-cp -R "$repo/cache.osrs241/" "$dir/lane/cache"
+cp -R "$repo/cache.osrs242/" "$dir/lane/cache"
 say "lane ready: $(du -sh "$dir/lane" | cut -f1)"
 
 LIVE_E2E_REPO="$repo" LIVE_E2E_DIR="$dir/lane" LIVE_E2E_OBJ="$obj" \

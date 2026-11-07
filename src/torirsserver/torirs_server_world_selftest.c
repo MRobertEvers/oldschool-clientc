@@ -20461,7 +20461,7 @@ ToriRSServer_WorldSelftest(void)
                 if( found && table )
                 {
                     int end_col = ToriRSServer_DbColumnIndex(table, "endstate");
-                    int points_col = ToriRSServer_DbColumnIndex(table, "questpoints");
+                    int points_col = ToriRSServer_DbColumnIndex(table, "questpoints_override");
                     const struct ToriRSServerDbRowColumn* ends =
                         end_col >= 0 ? ToriRSServer_DbRowColumn(found, end_col) : NULL;
                     const struct ToriRSServerDbRowColumn* pts =
@@ -20544,7 +20544,7 @@ ToriRSServer_WorldSelftest(void)
             {
                 struct ToriRSServerVarps varps_before = { 0 };
                 int qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
-                int points_col = table ? ToriRSServer_DbColumnIndex(table, "questpoints") : -1;
+                int points_col = table ? ToriRSServer_DbColumnIndex(table, "questpoints_override") : -1;
                 int rows = ToriRSServer_DbRowCount(quest_table);
                 int covered = 0;
                 int paid_twice = 0;

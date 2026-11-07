@@ -886,9 +886,9 @@ main(
     }
     setvbuf(stdout, NULL, _IONBF, 0);
     ToriMem_Init();
-    if( !RSCache_ProfileByName("osrs241", &g_profile) )
+    if( !RSCache_ProfileByName("osrs242", &g_profile) )
     {
-        printf("FAIL: no osrs241 profile\n");
+        printf("FAIL: no osrs242 profile\n");
         return 1;
     }
     write_fixture(argv[1]);

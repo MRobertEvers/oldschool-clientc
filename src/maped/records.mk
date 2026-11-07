@@ -24,7 +24,7 @@ MAPED_CLIENT_SRCS += editor/panels/edpanel_problems.c
 #       `check: ...` summary. Nothing is written in the content tree (the
 #       tool refuses a MAPED_CHECK_DIR inside it).
 #   make -C src maped-cs2-compile MAPED_CS2_DIR=<live>/cs2 MAPED_CS2_SCRIPT=<name> \
-#       MAPED_CS2_CACHE=<cache> MAPED_CACHE_REV=osrs241 MAPED_CS2_SCRIPTS=<tree>/scripts
+#       MAPED_CS2_CACHE=<cache> MAPED_CACHE_REV=osrs242 MAPED_CS2_SCRIPTS=<tree>/scripts
 #       `cs2 compile` of the one script the server wrote to
 #       MAPED_CS2_DIR/src/<name>.cs2, into MAPED_CS2_DIR/out. --names is
 #       MAPED_CS2_DIR/names, which maped_cs2_names
@@ -68,8 +68,8 @@ ifneq ($(MAPED_CS2_SCRIPTS),)
 endif
 	@echo "cs2: compiling $(MAPED_CS2_SCRIPT).cs2"
 	$(CS2_BIN) compile --src $(MAPED_CS2_DIR)/src \
-		--cache $(if $(MAPED_CS2_CACHE),$(MAPED_CS2_CACHE),$(REPO_ROOT)/cache.$(if $(MAPED_CACHE_REV),$(MAPED_CACHE_REV),osrs241)) \
-		--rev $(if $(MAPED_CACHE_REV),$(MAPED_CACHE_REV),osrs241) \
+		--cache $(if $(MAPED_CS2_CACHE),$(MAPED_CS2_CACHE),$(REPO_ROOT)/cache.$(if $(MAPED_CACHE_REV),$(MAPED_CACHE_REV),osrs242)) \
+		--rev $(if $(MAPED_CACHE_REV),$(MAPED_CACHE_REV),osrs242) \
 		$(if $(MAPED_CS2_SCRIPTS),--names $(MAPED_CS2_DIR)/names,$(if $(wildcard $(RUNESTAR_CS2_NAMES)),--names $(RUNESTAR_CS2_NAMES),)) \
 		--out $(MAPED_CS2_DIR)/out
 

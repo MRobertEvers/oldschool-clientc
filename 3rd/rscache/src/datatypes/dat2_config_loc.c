@@ -85,6 +85,9 @@ RSCache_Dat2ConfigLocFlags(const struct RSCache* cache)
         flags |= RSCACHE_CONFIG_LOC_DECODE_REV237_INT_MODEL_IDS;
         flags |= RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS;
     }
+    if( RSCache_RevisionAtLeastOsrs(
+            cache, RSCACHE_TYPE_LOC, 242, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
+        flags |= RSCACHE_CONFIG_LOC_DECODE_REV242_MULTI24;
 
     /* LARGE_MODEL_IDS stays off for every profile: an exact-consumption scan of
      * the jan2026 OSRS cache (60601/60601 files) showed big-smart model ids
@@ -574,7 +577,8 @@ RSCache_Dat2ConfigLocEncodeFlags(
 
     /* Opcodes 77 and 92 both carry the transform varbit/varp and the transform
      * list; 92 adds a default loc the decoder parks in the last slot, where 77
-     * leaves -1. Same shape as npc's 106/118 pair. */
+     * leaves -1. Same shape as npc's 106/118 pair. 242 writes them as 97/98,
+     * with three-byte loc ids. */
     bool multi_default = LOC_HAS(MULTI_DEFAULT);
     if( LOC_HAS(MULTI) || multi_default )
     {
@@ -582,16 +586,30 @@ RSCache_Dat2ConfigLocEncodeFlags(
         assert(loc->transform_count >= 2);
         int trailing = loc->transforms[loc->transform_count - 1];
         int listed = loc->transform_count - 1;
+        bool multi24 = (flags & RSCACHE_CONFIG_LOC_DECODE_REV242_MULTI24) != 0;
 
-        p1(&buffer, multi_default ? 92 : 77);
+        if( multi24 )
+            p1(&buffer, multi_default ? 98 : 97);
+        else
+            p1(&buffer, multi_default ? 92 : 77);
         p2(&buffer, loc->transform_varbit == -1 ? 65535 : loc->transform_varbit);
         p2(&buffer, loc->transform_varp == -1 ? 65535 : loc->transform_varp);
         if( multi_default )
-            LOC_WRITE_MODEL_ID(&buffer, flags, trailing == -1 ? 65535 : trailing);
+        {
+            if( multi24 )
+                p3(&buffer, trailing == -1 ? 0xffffff : trailing);
+            else
+                LOC_WRITE_MODEL_ID(&buffer, flags, trailing == -1 ? 65535 : trailing);
+        }
         p1(&buffer, listed - 1);
         for( int i = 0; i < listed; i++ )
-            LOC_WRITE_MODEL_ID(&buffer, flags, loc->transforms[i] == -1 ? 65535
-                                                                       : loc->transforms[i]);
+        {
+            if( multi24 )
+                p3(&buffer, loc->transforms[i] == -1 ? 0xffffff : loc->transforms[i]);
+            else
+                LOC_WRITE_MODEL_ID(&buffer, flags, loc->transforms[i] == -1 ? 65535
+                                                                           : loc->transforms[i]);
+        }
     }
 
     /*
@@ -1354,7 +1372,14 @@ RSCache_Dat2ConfigLocDecodeOp(
             break;
         case 77:
         case 92:
+        case 97:
+        case 98:
         {
+            /* Before 242, 97 and 98 are payload-free flags (RS2) or unused. */
+            bool multi24 = opcode == 97 || opcode == 98;
+            if( multi24 && !(flags & RSCACHE_CONFIG_LOC_DECODE_REV242_MULTI24) )
+                break;
+            bool with_default = opcode == 92 || opcode == 98;
             loc->transform_varbit = g2(buffer);
             if( loc->transform_varbit == 65535 )
             {
@@ -1368,10 +1393,10 @@ RSCache_Dat2ConfigLocDecodeOp(
             }
 
             int var3 = -1;
-            if( opcode == 92 )
+            if( with_default )
             {
-                var3 = LOC_READ_MODEL_ID(buffer, flags);
-                if( var3 == 65535 )
+                var3 = multi24 ? g3(buffer) : LOC_READ_MODEL_ID(buffer, flags);
+                if( var3 == (multi24 ? 0xffffff : 65535) )
                 {
                     var3 = -1;
                 }
@@ -1385,8 +1410,8 @@ RSCache_Dat2ConfigLocDecodeOp(
 
             for( int i = 0; i <= count; i++ )
             {
-                int transform = LOC_READ_MODEL_ID(buffer, flags);
-                if( transform == 65535 )
+                int transform = multi24 ? g3(buffer) : LOC_READ_MODEL_ID(buffer, flags);
+                if( transform == (multi24 ? 0xffffff : 65535) )
                 {
                     transform = -1;
                 }
@@ -1395,7 +1420,7 @@ RSCache_Dat2ConfigLocDecodeOp(
 
             loc->transforms[count + 1] = var3;
             /* One table, so one of the two opcodes: the later one's. */
-            if( opcode == 92 )
+            if( with_default )
             {
                 LOC_STATE(MULTI_DEFAULT);
                 RSCache_PresenceClear(&loc->present, RSCACHE_LOC_FIELD_MULTI);
@@ -1475,8 +1500,6 @@ RSCache_Dat2ConfigLocDecodeOp(
             }
             break;
         case 88:
-        case 97:
-        case 98:
         case 103:
         case 105:
         case 168:

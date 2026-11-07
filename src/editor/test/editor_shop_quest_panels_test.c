@@ -866,9 +866,9 @@ main(
     snprintf(g_content, sizeof(g_content), "%s/content", argv[1]);
     snprintf(g_repo, sizeof(g_repo), "%s/repo", argv[1]);
     snprintf(live, sizeof(live), "%s/live", argv[1]);
-    if( !RSCache_ProfileByName("osrs241", &g_profile) )
+    if( !RSCache_ProfileByName("osrs242", &g_profile) )
     {
-        printf("FAIL: no osrs241 profile\n");
+        printf("FAIL: no osrs242 profile\n");
         return 1;
     }
     write_fixture();

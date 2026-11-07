@@ -1803,6 +1803,8 @@ ToriRSServer_WireByName(char const* name)
         return &k_wire_osrs239;
     if( strcmp(name, "osrs241") == 0 )
         return ToriRSServer_Wire241();
+    if( strcmp(name, "osrs242") == 0 )
+        return ToriRSServer_Wire242();
     return NULL;
 }
 

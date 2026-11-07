@@ -30,7 +30,7 @@ MAPED_CLIENT_SRCS += $(LIVE_HOST_SRCS)
 # Refuses a live cache inside the content tree: the tree is a build's input.
 MAPED_LIVE_CACHE ?=
 MAPED_MAP_ARCHIVES ?=
-MAPED_CACHE_REV ?= osrs241
+MAPED_CACHE_REV ?= osrs242
 .PHONY: maped-client-cache
 maped-client-cache:
 	@test -n "$(MAPED_LIVE_CACHE)" || { echo "maped-client-cache: MAPED_LIVE_CACHE is required" >&2; exit 2; }
@@ -66,7 +66,7 @@ maped-client-cache:
 #   make -C src maped-run-build TORIRSSERVER_CONTENT_DIR=<tree> \
 #       TORIRSSERVER_SCRIPT_OUT=<live>/scripts TORIRSSERVER_PACKS_LANE_OUT=<live>/scripts_lanes \
 #       SERVPACK_OUT=<live>/servpack MAPED_LIVE_CACHE=<live>/cache [MAPED_MAP_ARCHIVES=<list>] \
-#       TORIRSSERVER_CACHE_BASE=<base cache> MAPED_CACHE_REV=osrs241 OBJVERIFY_SKIP=1
+#       TORIRSSERVER_CACHE_BASE=<base cache> MAPED_CACHE_REV=osrs242 OBJVERIFY_SKIP=1
 .PHONY: maped-lane-seed
 maped-lane-seed:
 	@seed() { \

@@ -1106,7 +1106,7 @@ Editor_HostOpenMapEdEmbedLane(
      * host>:43610/ (src/web/torirs_host.js), and a boot without one ends
      * here, saying how to start it. */
     TORIRS_ERR("editor: the web editor attaches to the native torirsmaped daemon over WebSocket; this "
-               "page booted without one (no --maped). Start it: ./launch run osrs241-mapeditor-web\n");
+               "page booted without one (no --maped). Start it: ./launch run osrs242-mapeditor-web\n");
     (void)repo_root;
     (void)remote;
     return 0;
@@ -1231,7 +1231,7 @@ Editor_HostOpenMapEdTcp(
         if( session <= 0 )
         {
             TORIRS_ERR("editor: the page's io_server reaches no torirsmaped on port %d (start it: ./launch run "
-                       "osrs241-mapeditor-web)\n",
+                       "osrs242-mapeditor-web)\n",
                 port);
             return 0;
         }

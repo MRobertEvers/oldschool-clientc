@@ -1,5 +1,6 @@
 #include "mock239_playerinfo.h"
 #include "mock241_playerinfo.h"
+#include "mock242_playerinfo.h"
 
 #include <rsareabuf.h>
 #include <assert.h>
@@ -719,7 +720,10 @@ mock239_playerinfo_write_world(struct RSAreaBuf* buf,
     for( int i = 0; i < extended_count; ++i )
     {
         const struct Mock239PlayerUpdate* update = extended[i];
-        if( state->wire_revision >= 241 )
+        if( state->wire_revision >= 242 )
+            mock242_write_player_extended(buf, update->appearance, update->appearance_len,
+                                          update->ext);
+        else if( state->wire_revision >= 241 )
             mock241_write_player_extended(buf, update->appearance, update->appearance_len,
                                           update->ext);
         else

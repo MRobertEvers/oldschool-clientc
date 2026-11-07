@@ -410,7 +410,7 @@ ToriRSMapEd_LaneDefaults(
     snprintf(lane->repo_root, sizeof(lane->repo_root), "%s", repo_root);
     snprintf(lane->content_dir, sizeof(lane->content_dir), "%s", content_dir);
     snprintf(lane->live_dir, sizeof(lane->live_dir), "%s", live_dir);
-    snprintf(lane->rev, sizeof(lane->rev), "osrs241");
+    snprintf(lane->rev, sizeof(lane->rev), "osrs242");
     snprintf(lane->base_cache, sizeof(lane->base_cache), "%s/cache.%s", repo_root, lane->rev);
 #ifdef _WIN32
     /* The Windows lane's names (build_windows.ps1, src/platform/platform.mk:

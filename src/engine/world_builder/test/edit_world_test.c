@@ -2838,9 +2838,9 @@ main(
             const char* file;
             enum BootManifestWorldLayout want;
         } manifests[] = {
-            { "manifests/manifest_osrs241_mapeditor.ini", BOOTMANIFEST_WORLD_LAYOUT_EDIT },
+            { "manifests/manifest_osrs242_mapeditor.ini", BOOTMANIFEST_WORLD_LAYOUT_EDIT },
             { "manifests/manifest_osrs239_mapeditor.ini", BOOTMANIFEST_WORLD_LAYOUT_EDIT },
-            { "manifests/manifest_osrs241.ini", BOOTMANIFEST_WORLD_LAYOUT_STATIC },
+            { "manifests/manifest_osrs242.ini", BOOTMANIFEST_WORLD_LAYOUT_STATIC },
         };
         for( size_t i = 0; i < sizeof(manifests) / sizeof(manifests[0]); i++ )
         {
@@ -2875,9 +2875,9 @@ main(
         printf("FAIL: cannot open the dat2 cache at %s\n", cache_dir);
         return 1;
     }
-    if( !RSCache_ProfileByName("osrs241", &h.profile) )
+    if( !RSCache_ProfileByName("osrs242", &h.profile) )
     {
-        printf("FAIL: no osrs241 profile\n");
+        printf("FAIL: no osrs242 profile\n");
         return 1;
     }
     RSCache_Dat2DiskSetProfile(h.disk, &h.profile);

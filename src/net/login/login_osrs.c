@@ -230,7 +230,7 @@ build_login_block(struct LoginOsrs* h)
     int enclen = rsa_crypt(&h->net->rsa, rsabuf, rbuf.position, enc, sizeof(enc));
     if( enclen <= 0 )
     {
-        TORIRS_ERR("osrs241 login: rsa encrypt failed\n");
+        TORIRS_ERR("osrs login: rsa encrypt failed\n");
         return 0;
     }
 
@@ -297,7 +297,7 @@ answer_proof_of_work(struct LoginOsrs* h, uint8_t const* payload, int len)
     int type = g1(&b);
     if( type != 0 )
     {
-        TORIRS_ERR("osrs241 login: unknown proof-of-work type %d\n", type);
+        TORIRS_ERR("osrs login: unknown proof-of-work type %d\n", type);
         return 0;
     }
     int version = g1(&b);
@@ -316,7 +316,7 @@ answer_proof_of_work(struct LoginOsrs* h, uint8_t const* payload, int len)
     uint64_t result = 0;
     if( !pow_sha256_solve(version, difficulty, salt, LOGIN_OSRS_POW_MAX_ATTEMPTS, &result) )
     {
-        TORIRS_LOG("osrs241 login: proof of work unsolved (v=%d difficulty=%d) after %llu "
+        TORIRS_LOG("osrs login: proof of work unsolved (v=%d difficulty=%d) after %llu "
                 "attempts\n",
                 version, difficulty, (unsigned long long)LOGIN_OSRS_POW_MAX_ATTEMPTS);
         return 0;
@@ -329,7 +329,7 @@ answer_proof_of_work(struct LoginOsrs* h, uint8_t const* payload, int len)
     p8(&o, (int64_t)result);
     h->out_len = (int)o.position;
     h->out_off = 0;
-    TORIRS_LOG("osrs241 login: proof of work solved (difficulty %d) -> %llu\n",
+    TORIRS_LOG("osrs login: proof of work solved (difficulty %d) -> %llu\n",
             difficulty, (unsigned long long)result);
     return 1;
 }
@@ -366,7 +366,7 @@ login_osrs_new(struct ToriRS_Network* net, char const* username, char const* pas
          * so no seed to authenticate with, or a table that does not claim the
          * seed flavour. Fall back to a fresh GAMELOGIN rather than sending a
          * block the server cannot authenticate. */
-        TORIRS_LOG("osrs241 login: %s; reconnecting as a fresh login\n",
+        TORIRS_LOG("osrs login: %s; reconnecting as a fresh login\n",
                 net->has_prev_seed ? "revision does not use the seed reconnect"
                                    : "no previous seed");
     }
@@ -419,7 +419,7 @@ login_osrs_recv(void* handle, uint8_t const* data, int size)
             uint64_t sid = (uint64_t)g8(&rbuf);
             if( status != 0 )
             {
-                TORIRS_ERR("osrs241 login: connect rejected status=%d\n", status);
+                TORIRS_ERR("osrs login: connect rejected status=%d\n", status);
                 h->state = LOGIN_OSRS_ERR;
                 return off;
             }
@@ -482,7 +482,7 @@ login_osrs_recv(void* handle, uint8_t const* data, int size)
                 (void)g1(&rbuf); /* playerMod */
                 int index = g2(&rbuf);
                 h->local_index = index;
-                TORIRS_LOG("osrs241 login: OK, local player index %d\n", index);
+                TORIRS_LOG("osrs login: OK, local player index %d\n", index);
                 h->state = LOGIN_OSRS_DONE;
                 publish_seed(h);
                 {
@@ -511,7 +511,7 @@ login_osrs_recv(void* handle, uint8_t const* data, int size)
                 len = (h->in[1] << 8) | h->in[2];
                 if( len < 0 || 3 + len > (int)sizeof(h->in) )
                 {
-                    TORIRS_ERR("osrs241 login: RECONNECT_OK payload too large (%d)\n", len);
+                    TORIRS_ERR("osrs login: RECONNECT_OK payload too large (%d)\n", len);
                     h->state = LOGIN_OSRS_ERR;
                     return off;
                 }
@@ -519,7 +519,7 @@ login_osrs_recv(void* handle, uint8_t const* data, int size)
                     break;
                 h->reconnect_block_off = 3;
                 h->reconnect_block_len = len;
-                TORIRS_LOG("osrs241 login: RECONNECT_OK, %d byte player-info init, index %d\n",
+                TORIRS_LOG("osrs login: RECONNECT_OK, %d byte player-info init, index %d\n",
                         len, h->local_index);
                 h->state = LOGIN_OSRS_DONE;
                 publish_seed(h);
@@ -532,7 +532,7 @@ login_osrs_recv(void* handle, uint8_t const* data, int size)
                     return off - extra;
                 }
             }
-            TORIRS_ERR("osrs241 login: rejected reply=%d\n", reply);
+            TORIRS_ERR("osrs login: rejected reply=%d\n", reply);
             h->reply_code = reply;
             h->state = LOGIN_OSRS_ERR;
             break;

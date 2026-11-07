@@ -25,7 +25,7 @@
  *
  * Env:
  *   TORIRSSERVER_VERBOSE=1   log every packet in and out
- *   TORIRSSERVER_CACHE=dir   cache to read obj metadata from (default cache.osrs241.baked)
+ *   TORIRSSERVER_CACHE=dir   cache to read obj metadata from (default cache.osrs242.baked)
  *   TORIRSSERVER_CONTENT=dir content tree (default OSRS-Content/osrs-content)
  *   TORIRSSERVER_SCRIPTS=dir compiled script pack (default <content>/scripts/build)
  *   TORIRSSERVER_HOME=x,z    tile to log in on (default 3222,3218 — Lumbridge castle
@@ -466,7 +466,7 @@ main(
     wire = rev_name ? ToriRSServer_WireByName(rev_name) : ToriRSServer_WireDefault();
     if( !wire )
     {
-        fprintf(stderr, "torirsserver: unknown --rev '%s' (osrs230, osrs239, osrs241)\n", rev_name);
+        fprintf(stderr, "torirsserver: unknown --rev '%s' (osrs230, osrs239, osrs241, osrs242)\n", rev_name);
         return 1;
     }
 

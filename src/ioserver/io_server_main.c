@@ -1799,11 +1799,11 @@ usage(char const* argv0)
         "               web editor's link to it (off by default)\n"
         "  --page-query send a bare GET / to /?<QUERY> -- the page's command\n"
         "               line, so a profile's URL stays http://host:port/ (the map\n"
-        "               editor's: 'args=--manifest,manifests/manifest_osrs241_mapeditor.ini')\n"
+        "               editor's: 'args=--manifest,manifests/manifest_osrs242_mapeditor.ini')\n"
         "  --gate       serve only the sign-in pages until the visitor signs in\n"
         "               with a web login (the account server: account_server), then send\n"
         "               them to LANDING, e.g.\n"
-        "               '/?args=--manifest,manifests/manifest_osrs241.ini&ws=ws'.\n"
+        "               '/?args=--manifest,manifests/manifest_osrs242.ini&ws=ws'.\n"
         "               Run torirsserver with --gate too: it checks the same\n"
         "               ticket on the game socket\n",
         argv0,

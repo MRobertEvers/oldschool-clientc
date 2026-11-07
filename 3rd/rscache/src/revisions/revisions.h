@@ -141,6 +141,10 @@ RSCache_ProfileDat2Osrs239(void);
 struct RSCache
 RSCache_ProfileDat2Osrs241(void);
 
+/** OSRS 242 (`cache.osrs242`, OpenRS2 #2757). */
+struct RSCache
+RSCache_ProfileDat2Osrs242(void);
+
 /* --- lookup ------------------------------------------------------------- */
 
 /**

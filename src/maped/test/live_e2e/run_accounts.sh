@@ -60,7 +60,7 @@ python3 "$here/mirror.py" "$content_src" "$dir/content" || exit 2
 cp -R "$content_src/server/pack" "$dir/lane/servpack"
 cp -R "$content_src/server/scripts/build" "$dir/lane/scripts"
 cp -R "$content_src/server/scripts/build_summoning_curses" "$dir/lane/scripts_lanes"
-cp -R "$repo/cache.osrs241/" "$dir/lane/cache"
+cp -R "$repo/cache.osrs242/" "$dir/lane/cache"
 say "lane ready: $(du -sh "$dir/lane" | cut -f1)"
 
 env TORIRSMAPED_LIVE_SERVER_BIN="$repo/src/$sobj/torirsserver" \

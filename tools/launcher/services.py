@@ -214,7 +214,7 @@ def _build_javconfig(config, context):
     manifest = context["manifest"]
     port = config.get("port") or DEFAULT_JAV_PORT
     cachedir = config.get("cachedir") or os.path.expanduser(
-        "~/jagexcache/torirs-%s" % (manifest.rev or "osrs241"))
+        "~/jagexcache/torirs-%s" % (manifest.rev or "osrs242"))
     argv = [
         "python3", "tools/torirs_javconfig.py",
         "--host", config.get("host") or "127.0.0.1",

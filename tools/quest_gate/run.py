@@ -282,24 +282,23 @@ def write_manifest():
     same reason the output has to live under manifests/ and not a session
     dir (measured A/B there: 50/78 from manifests/, 46/78 from a session
     dir)."""
-    source = os.path.join(REPO_ROOT, "manifests", "manifest_osrs241.ini")
+    source = os.path.join(REPO_ROOT, "manifests", "manifest_osrs242.ini")
     out = os.path.join(REPO_ROOT, "manifests", ".questtest.ini")
     lines = []
     with open(source, "r", encoding="utf-8") as handle:
         for line in handle:
             if line.startswith("dir="):
-                line = "dir=%s\n" % os.path.join(REPO_ROOT, "cache.osrs241")
+                line = "dir=%s\n" % os.path.join(REPO_ROOT, "cache.osrs242")
             elif line.startswith("transport="):
                 line = "transport=embed\n"
-            # The PROTOCOL is revision 241 (src/net/rev/osrs241, the selected
-            # revision); the cache and content stay what this manifest names
-            # until their 241 copies are repointed here. Set QUEST_PROTO_REV=
-            # osrs239 to run the same test on the 239 pair.
+            # The PROTOCOL is revision 242 (src/net/rev/osrs242), the cache's
+            # and content's own. Set QUEST_PROTO_REV=osrs241 to run the same
+            # test on the 241 pair.
             elif line.startswith("rev="):
-                line = "rev=%s\n" % os.environ.get("QUEST_PROTO_REV", "osrs241")
+                line = "rev=%s\n" % os.environ.get("QUEST_PROTO_REV", "osrs242")
             elif line.startswith("client_version="):
                 line = "client_version=%s\n" % (
-                    os.environ.get("QUEST_PROTO_REV", "osrs241")[len("osrs"):])
+                    os.environ.get("QUEST_PROTO_REV", "osrs242")[len("osrs"):])
             lines.append(line)
     with open(out, "w", encoding="utf-8") as handle:
         handle.writelines(lines)

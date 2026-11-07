@@ -93,7 +93,7 @@ struct RSCache_ServerPack;
  * The server still speaks the rev-230 protocol: what moved to 239 is the content,
  * not the wire.
  */
-#define TORIRSSERVER_CACHE_REVISION 241
+#define TORIRSSERVER_CACHE_REVISION 242
 /*
  * The pristine cache, deliberately: the world reads the same directory JS5
  * serves. Every server-authored value reaches the runtime through the content
@@ -104,7 +104,7 @@ struct RSCache_ServerPack;
  * client-visible content matters, point BOTH the world and JS5 at the baked
  * cache; run-osrs239.sh makes that one knob ($CACHE).
  */
-#define TORIRSSERVER_CACHE_DIR_DEFAULT "cache.osrs241"
+#define TORIRSSERVER_CACHE_DIR_DEFAULT "cache.osrs242"
 
 #include "torirs_server_bank.h"
 #include "torirs_server_varps.h"

@@ -208,7 +208,7 @@ EditorCs2_Compile(
         argv[argc++] = "--cache";
         argv[argc++] = job->cache_dir;
         argv[argc++] = "--rev";
-        argv[argc++] = job->revision ? job->revision : "osrs241";
+        argv[argc++] = job->revision ? job->revision : "osrs242";
         if( job->names_dir )
         {
             argv[argc++] = "--names";

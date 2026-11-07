@@ -1188,7 +1188,7 @@ test_launch_view(char const* scratch)
     ToriMem_Free(ToriMem_Net(), answer);
     LaunchSessions_Free(table);
 
-    config.manifest_path = "manifests/manifest_osrs241_mapeditor.ini";
+    config.manifest_path = "manifests/manifest_osrs242_mapeditor.ini";
     table = LaunchSessions_New(&config);
 
     length = EditorView_SpawnBody("tcp://127.0.0.1:43610", 3, &camera, NULL, body, (int)sizeof(body));
@@ -1198,7 +1198,7 @@ test_launch_view(char const* scratch)
     check(strncmp(answer, "ok\nview=1\npid=5001\n", 19) == 0, "the view verb starts a viewer");
     ToriMem_Free(ToriMem_Net(), answer);
     snprintf(expect, sizeof(expect),
-        "/opt/torirs/torirs --manifest manifests/manifest_osrs241_mapeditor.ini --editor-view "
+        "/opt/torirs/torirs --manifest manifests/manifest_osrs242_mapeditor.ini --editor-view "
         "--maped tcp://127.0.0.1:43610 --maped-group 3 --camera 3222.5,3218.5,0,512,300,1200 ");
     check(strcmp(fake.argv_line, expect) == 0, "with exactly the viewer command line");
     if( strcmp(fake.argv_line, expect) != 0 )
@@ -1220,7 +1220,7 @@ test_launch_view(char const* scratch)
     check(strncmp(answer, "ok\nview=2\n", 10) == 0, "the view verb starts a panel window");
     ToriMem_Free(ToriMem_Net(), answer);
     snprintf(expect, sizeof(expect),
-        "/opt/torirs/torirs --manifest manifests/manifest_osrs241_mapeditor.ini --editor-view "
+        "/opt/torirs/torirs --manifest manifests/manifest_osrs242_mapeditor.ini --editor-view "
         "--maped tcp://127.0.0.1:51129 --maped-group 3 --camera 3222.5,3218.5,0,512,300,1200 "
         "--editor-panel terrain ");
     check(strcmp(fake.argv_line, expect) == 0, "booted --editor-panel terrain");
@@ -1565,9 +1565,9 @@ main(
         free(data);
     }
 
-    if( !RSCache_ProfileByName("osrs241", &profile) )
+    if( !RSCache_ProfileByName("osrs242", &profile) )
     {
-        fprintf(stderr, "views_embed_test: no osrs241 cache profile\n");
+        fprintf(stderr, "views_embed_test: no osrs242 cache profile\n");
         return 1;
     }
 

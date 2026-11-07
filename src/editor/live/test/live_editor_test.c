@@ -595,7 +595,7 @@ main(
             check(url[0] == '\0', "lane: no web play URL without an io_server");
             snprintf(inside.io_manifest, sizeof(inside.io_manifest), "x.ini");
             ToriRSMapEd_LaneWebPlayUrl(&inside, url, sizeof(url));
-            check(strstr(url, "http://127.0.0.1:43622/?args=--manifest,manifests/manifest_osrs241.ini,"
+            check(strstr(url, "http://127.0.0.1:43622/?args=--manifest,manifests/manifest_osrs242.ini,"
                               "--connect,127.0.0.1:43620,--user,maped43620,--pass,lane43620run")
                       && strstr(url, "&ws=ws://127.0.0.1:43620/&js5_url=ws://127.0.0.1:43621/"),
                 "lane: the web play URL names io_server, the game port and the JS5");
@@ -1292,7 +1292,7 @@ main(
         }
         check(a.model.state == TORIRSMAPED_LIVE_ATTACHED && a.model.launched, "launch: attached to what it launched");
         peer_last("\"start\"", line, sizeof(line));
-        snprintf(path, sizeof(path), "\"argv\": [\"%d\", \"--rev\", \"osrs241\"]", port);
+        snprintf(path, sizeof(path), "\"argv\": [\"%d\", \"--rev\", \"osrs242\"]", port);
         check(strstr(line, path) != NULL, "launch: torirsserver <port> --rev <rev>");
         snprintf(path, sizeof(path), "\"TORIRSSERVER_CACHE\": \"%s/cache\"", live);
         check(strstr(line, path) != NULL, "launch: TORIRSSERVER_CACHE is the live cache");
@@ -1305,7 +1305,7 @@ main(
             int64_t const deadline = now_ms() + 5000;
             int found = 0;
             snprintf(path, sizeof(path), "%s.js5", g_peer_log);
-            snprintf(line, sizeof(line), "--cache %s/cache --revision 241 --port %d --max-pending 65535", live,
+            snprintf(line, sizeof(line), "--cache %s/cache --revision 242 --port %d --max-pending 65535", live,
                 port + 1);
             while( !found && now_ms() < deadline )
             {
@@ -1316,7 +1316,7 @@ main(
                 if( !found )
                     usleep(5000);
             }
-            check(found, "launch: js5_server --cache <live>/cache --revision 241 --port ...");
+            check(found, "launch: js5_server --cache <live>/cache --revision 242 --port ...");
         }
         ToriRSMapEd_LiveLinkNativePids(&launch_link, pids);
         check(pid_alive(pids[0]) && pid_alive(pids[1]) && pids[2] == 0,

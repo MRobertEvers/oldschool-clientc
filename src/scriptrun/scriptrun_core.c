@@ -13,7 +13,7 @@
 #include "world/world.h"
 #include "net/net_capture.h"
 #include "net/torirs_control.h"
-#include "torirsserver/wire/osrs241/packetin.h" /* the opcode names, for the wirelog's every-packet line */
+#include "torirsserver/wire/osrs242/packetin.h" /* the opcode names, for the wirelog's every-packet line */
 
 #include <assert.h>
 #include <datatypes/dat2_configs.h>
@@ -1870,10 +1870,10 @@ core_wirelog_file(void)
 static char const*
 core_pkt_name(int pkt_name)
 {
-    for( size_t i = 0; i < sizeof(g_packet_in_definitions_osrs241) / sizeof(g_packet_in_definitions_osrs241[0]);
+    for( size_t i = 0; i < sizeof(g_packet_in_definitions_osrs242) / sizeof(g_packet_in_definitions_osrs242[0]);
          i++ )
-        if( g_packet_in_definitions_osrs241[i].name == pkt_name )
-            return g_packet_in_definitions_osrs241[i].prot;
+        if( g_packet_in_definitions_osrs242[i].name == pkt_name )
+            return g_packet_in_definitions_osrs242[i].prot;
     return "?";
 }
 

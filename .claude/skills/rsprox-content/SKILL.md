@@ -236,7 +236,7 @@ fight, cutscene, interaction), before reporting it finished:
    delete it, or explain it. Check, field by field:
    - **Music:** `midi_song_v2`'s whole envelope (our tick log's music row carries it: c..f), not just the id.
    - **Sounds:** every `synth_sound` (id, loops, delay) and every `sound_area` (id, loops, delay,
-     range, tile). Name each id in our cache, rev 241 (`OSRS-Content/osrs-content/pack/4_soundeffects.pack`).
+     range, tile). Name each id in our cache, rev 242 (`OSRS-Content/osrs-content/pack/4_soundeffects.pack`).
      Npc attack/defend/death sounds come from the npc config's `attack_sound`/`defend_sound`/
      `death_sound` params, and the generated block (`_explicit/configs/server_fields.generated.npc`)
      sets them to `null`: a fight is silent until content sets them.
@@ -513,7 +513,7 @@ in 3x3.
 - Tile: `spotanim_map(spot, coord, height, delay)`.
 - Heights are raw (92 chest, 124 head) and delays are in cycles.
 - `id=-1` stops (`anim(null, 0)`).
-- **Check each seq id's name in our cache** (rev 241; an old recording's chathead seq can be an axe special in it).
+- **Check each seq id's name in our cache** (rev 242; an old recording's chathead seq can be an axe special in it).
 - An npc type with no anim block inherits `human_*`. Give it its own death/defend anims from the recording's npc record.
 - `npc_setdeathanimnow` puts the death seq on the killing tick.
 - Rev 234+ player cast seqs are the walkmerge forms.
@@ -983,7 +983,7 @@ gate checks the stage machine, not the words, the scenes or the sounds. Romeo & 
   transmit=no` base varp never reaches the client (TGV's 598-602 on varp 279).
 - **A journal nobody opened in a recording is unverified**, however green `quest.journal` is.
 - One recording = one roll. Count across sessions and quote counts ("37/37").
-- Recorded ids are from that session's revision. Name them in our cache (rev 241) first.
+- Recorded ids are from that session's revision. Name them in our cache (rev 242) first.
 - A seasonal recorder (Leagues, Grid Master) changes damage, attack rate and party scaling.
 - Instance tiles are template-translated. Measure player-to-npc distances on `--raw`.
 - Do not invent lines, messages or sounds the recording lacks. Do not drop ones it has.

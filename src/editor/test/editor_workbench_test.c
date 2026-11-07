@@ -954,7 +954,7 @@ main(
     {
         static struct RSCache profile;
         char maps[512];
-        CHECK(RSCache_ProfileByName("osrs241", &profile), "the osrs241 cache profile is built in");
+        CHECK(RSCache_ProfileByName("osrs242", &profile), "the osrs242 cache profile is built in");
         snprintf(maps, sizeof(maps), "%s/maps", argv[1]);
         (void)mkdir(maps, 0755);
         test_dock(argv[1], &profile);

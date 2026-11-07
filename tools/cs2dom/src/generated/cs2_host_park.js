@@ -51,6 +51,7 @@ export const PARK_CLASS_BY_OPCODE = Object.freeze(new Map([
     [1105, 'sprite'], /* CC_SETGRAPHIC */
     [1106, 'component'], /* CC_SET2DANGLE */
     [1108, 'model'], /* CC_SETMODEL */
+    [1109, 'component'], /* CC_SETMODELANGLE */
     [1110, 'component'], /* CC_SETMODELANIM */
     [1111, 'component'], /* CC_SETMODELORTHOG */
     [1113, 'font'], /* CC_SETTEXTFONT */
@@ -61,6 +62,7 @@ export const PARK_CLASS_BY_OPCODE = Object.freeze(new Map([
     [1125, 'component'], /* CC_SETBLENDMODE */
     [1126, 'component'], /* CC_SETLINEDIRECTION */
     [1127, 'component'], /* CC_SETMODELTRANSPARENT */
+    [1128, 'component'], /* CC_SETARC */
     [1133, 'component'], /* CC_INPUT_SETSELECTCOLOUR */
     [1134, 'component'], /* CC_INPUT_SETSELECTBGCOLOUR */
     [1135, 'component'], /* CC_INPUT_SETPLACEHOLDERTEXT */
@@ -92,6 +94,7 @@ export const PARK_CLASS_BY_OPCODE = Object.freeze(new Map([
     [2105, 'sprite'], /* IF_SETGRAPHIC */
     [2106, 'component'], /* IF_SET2DANGLE */
     [2108, 'model'], /* IF_SETMODEL */
+    [2109, 'component'], /* IF_SETMODELANGLE */
     [2110, 'component'], /* IF_SETMODELANIM */
     [2111, 'component'], /* IF_SETMODELORTHOG */
     [2113, 'font'], /* IF_SETTEXTFONT */
@@ -102,6 +105,7 @@ export const PARK_CLASS_BY_OPCODE = Object.freeze(new Map([
     [2125, 'component'], /* IF_SETBLENDMODE */
     [2126, 'component'], /* IF_SETLINEDIRECTION */
     [2127, 'component'], /* IF_SETMODELTRANSPARENT */
+    [2128, 'component'], /* IF_SETARC */
     [2133, 'component'], /* IF_INPUT_SETSELECTCOLOUR */
     [2134, 'component'], /* IF_INPUT_SETSELECTBGCOLOUR */
     [2135, 'component'], /* IF_INPUT_SETPLACEHOLDERTEXT */
@@ -126,6 +130,7 @@ export const PARK_CLASS_BY_OPCODE = Object.freeze(new Map([
     [2303, 'component'], /* IF_SETDRAGDEADZONE */
     [2304, 'component'], /* IF_SETDRAGDEADTIME */
     [2308, 'component'], /* IF_SETALWAYSLEFTCLICK */
+    [3130, 'model'], /* SETFEEDBACKSPRITE */
     [3304, 'enum'], /* INV_SIZE */
     [3400, 'enum'], /* ENUM_STRING */
     [3408, 'enum'], /* ENUM */

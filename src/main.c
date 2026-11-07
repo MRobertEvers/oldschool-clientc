@@ -7295,7 +7295,7 @@ main_print_usage(char const* program)
         "usage: %s [cache_dir] [interface_id] [--manifest <boot.ini>] "
         "[--dat1|--dat2] [--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] "
         "[--bmp] [--connect host[:port]] [--port N] [--offline] [--user U] "
-        "[--pass P] [--rev lc254|lc245_2|lc289|osrs230|osrs239|osrs241] "
+        "[--pass P] [--rev lc254|lc245_2|lc289|osrs230|osrs239|osrs241|osrs242] "
         "[--js5|--no-js5] [--js5-host H] [--js5-port N] "
         "[--js5-fallback-port N] [--js5-revision N] [--uncapped] [--unlocked] "
         "[--replay <rsprox.bin[.gz]>] "

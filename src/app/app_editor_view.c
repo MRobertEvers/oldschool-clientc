@@ -570,7 +570,7 @@ view_session_port(
     {
         snprintf(why, (size_t)why_size,
             "the embedded ToriRSMapEd could not open a loopback socket (see the log); "
-            "run osrs241-mapeditor-tcp to pop panels out");
+            "run osrs242-mapeditor-tcp to pop panels out");
         return 0;
     }
     TORIRS_REPORT("editor: the embedded ToriRSMapEd now also listens on 127.0.0.1:%d for popped-out windows\n",

@@ -2531,6 +2531,25 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
      * wrong stack in a script that never defined slot 0. */
     for( int i = 0; i < CS2_INTERP_MAX_ARRAYS; i++ )
         interp->array_stack[i] = -1;
+    /* `array_create(type, length, capacity)` stored straight into a string
+     * local declares that slot's element type as `define_array` does: osrs242
+     * builds a string array this way (script 10287) and reads it into a
+     * proc's string argument. */
+    for( int pc = 3; pc + 1 < script->op_count; pc++ )
+    {
+        const struct RSCache_CS2_CommandInfo* info = RSCache_CS2_CommandGet(script->opcodes[pc]);
+        if( !info || strcmp(info->name, "array_create") != 0 ||
+            script->opcodes[pc + 1] != RSCACHE_CS2_OP_POP_STRING_LOCAL ||
+            script->opcodes[pc - 3] != RSCACHE_CS2_OP_PUSH_CONSTANT_INT ||
+            !cs2_is_simple_push(script->opcodes[pc - 2]) ||
+            !cs2_is_simple_push(script->opcodes[pc - 1]) )
+            continue;
+        int slot = script->int_operands[pc + 1];
+        enum RSCache_CS2_Type element_type =
+            RSCache_CS2_TypeOfDesc((uint8_t)script->int_operands[pc - 3]);
+        if( slot >= 0 && slot < CS2_INTERP_MAX_ARRAYS && element_type != RSCACHE_CS2_TYPE_NONE )
+            interp->array_stack[slot] = RSCache_CS2_TypeStackType(element_type);
+    }
     interp->return_type_count = RSCache_CS2_ScriptReturnTypes(
         script, interp->return_types, CS2_INTERP_MAX_STACK_TYPES);
 

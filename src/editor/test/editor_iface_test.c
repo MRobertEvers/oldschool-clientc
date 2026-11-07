@@ -222,7 +222,7 @@ test_pack(
     check(disk != NULL, "pack: the cache opens read-only");
     if( disk )
     {
-        /* The content tree is rev 241 (meta.ini), as the cache beside it. */
+        /* The content tree is rev 242 (meta.ini), as the cache beside it. */
         struct RSCache profile = RSCache_ProfileZero();
         profile.game = RSCACHE_GAME_OLDSCHOOL;
         profile.epoch = RSCACHE_EPOCH_DAT2;

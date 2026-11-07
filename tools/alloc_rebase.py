@@ -140,7 +140,11 @@ def main() -> int:
         assert ids, f"{path}: nothing allocated"
         old_floor = min(ids)
         delta = new_floor - old_floor
-        assert delta > 0, f"{ns}: new floor {new_floor} is not above the old {old_floor}"
+        # A floor the new cache still does not reach stays where it is (242:
+        # varps to 6245 under a 6400 floor); only the lanes may have to move.
+        assert delta >= 0, f"{ns}: new floor {new_floor} is below the old {old_floor}"
+        assert new_floor > args.cache_max.get(ns, -1), \
+            f"{ns}: new floor {new_floor} is inside the new cache (to {args.cache_max[ns]})"
         out = lines[:marker + 1]
         for ln in lines[marker + 1:]:
             m = LINE_RE.match(ln.rstrip("\n"))
@@ -151,7 +155,8 @@ def main() -> int:
             name = m.group(2)
             new = old + delta
             new_name = shifted_name(ns, name, old, new)
-            rows.append((ns, old, name, new, new_name))
+            if new != old:
+                rows.append((ns, old, name, new, new_name))
             if new_name != name:
                 renames[name] = new_name
             out.append(f"{new}={new_name}{m.group(3)}\n")
@@ -166,7 +171,6 @@ def main() -> int:
         cache_max = args.cache_max.get(ns, -1)
         # Lanes get their own floor, so the main block can keep growing.
         nxt = args.lane_floor.get(ns, max(ids) + delta + 1)
-        assert nxt > max(ids) + delta, f"{ns}: lane floor {nxt} is inside the main block"
         for lane in sorted((args.tree / "ported").glob(f"*/pack/{ns}.alloc")):
             text = lane.read_text(encoding="utf-8")
             out_lines = []
@@ -179,6 +183,10 @@ def main() -> int:
                 if old in main_new and main_new[old][0] == name:
                     new, new_name = main_new[old][1], main_new[old][2]
                 elif old <= cache_max:
+                    # Only a re-mint needs the floor clear of the main block
+                    # (which grows past it: 242's varps reach 9515, lanes sit
+                    # at 9000 between main ids).
+                    assert nxt > max(ids) + delta, f"{ns}: lane floor {nxt} is inside the main block"
                     new = nxt
                     nxt += 1
                     new_name = shifted_name(ns, name, old, new)

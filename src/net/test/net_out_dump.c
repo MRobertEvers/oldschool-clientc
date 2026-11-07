@@ -180,7 +180,7 @@ dump(struct GameProtoRevTable const* rev, char const* rev_name)
 int
 main(void)
 {
-    static char const* const k_revs[] = { "osrs239", "osrs241", "lc254", "lc245_2", "lc289" };
+    static char const* const k_revs[] = { "osrs239", "osrs241", "osrs242", "lc254", "lc245_2", "lc289" };
     char name[16];
 
     for( size_t i = 0; i < sizeof(k_revs) / sizeof(k_revs[0]); i++ )

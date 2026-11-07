@@ -43,11 +43,40 @@ LOCAL_NAMES: dict[int, str] = {
     # site, clamps a long local with long_max/long_min, then 4062 takes that
     # long and the script returns its one int: long -> int.
     4062: "long_to_int",
+    # New in 242: the display-name checker (interface 2357, scripts
+    # 10213..10238), absent from every client we have. Names are read off what
+    # the calling scripts do with them ("Please enter the name you wish to
+    # check.", "Your request to cancel the session was unsuccessful."); the
+    # counts below are call-site balance, every site storing each result into
+    # a fresh local at once.
+    5100: "displaynames_poll",
+    5101: "displaynames_getsession",
+    5102: "displaynames_check",
+    5103: "displaynames_getcheck",
+    5104: "displaynames_submit",
+    5105: "displaynames_getsubmit",
+    5106: "displaynames_cancel",
+    5107: "displaynames_getcancel",
+    5108: "displaynames_end",
 }
 
 # NAME -> (args, defs, dot)
 LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "runelite_callback": (["STRING"], [], False),
+
+    # osrs242's display-name checker (LOCAL_NAMES 5100..5108). Scripts 10224,
+    # 10227, 10232 and 10235 pop the results into int locals 4..0 and string
+    # local 0 in reverse push order; 10221/10222 push varcstring 1588 (the
+    # typed name) for 5102/5104 and nothing else.
+    "displaynames_poll": ([], [], False),
+    "displaynames_getsession": ([], ["INT", "INT", "STRING", "INT", "INT", "INT"], False),
+    "displaynames_check": (["STRING"], [], False),
+    "displaynames_getcheck": ([], ["INT", "INT", "STRING", "INT", "INT", "INT", "INT"], False),
+    "displaynames_submit": (["STRING"], [], False),
+    "displaynames_getsubmit": ([], ["INT", "INT", "STRING", "INT"], False),
+    "displaynames_cancel": ([], [], False),
+    "displaynames_getcancel": ([], ["INT", "INT", "STRING"], False),
+    "displaynames_end": ([], [], False),
 
     # ---------------------------------------------------------------
     # The long stack. Every count is the rev-239 deob's own (Statics, the

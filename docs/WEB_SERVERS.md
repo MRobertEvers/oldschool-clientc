@@ -265,9 +265,9 @@ either answers without the gate's cookie**:
 
 ```sh
 TORIRSSERVER_SAVES=saves torirsserver 43594 --rev osrs241 --gate
-TORIRSSERVER_SAVES=saves io_server --manifest manifests/manifest_osrs241.ini \
+TORIRSSERVER_SAVES=saves io_server --manifest manifests/manifest_osrs242.ini \
     --root build-web --boot-root . --port 8088 \
-    --gate '/?args=--manifest,manifests/manifest_osrs241.ini&ws=ws'
+    --gate '/?args=--manifest,manifests/manifest_osrs242.ini&ws=ws'
 ```
 
 | server | without a good cookie |

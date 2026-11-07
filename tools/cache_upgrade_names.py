@@ -101,6 +101,12 @@ def merge_file(rel: Path, tree: Path, base: Path, theirs: Path, log: list) -> st
         if base_name is not None and norm(theirs_name) == norm(base_name):
             out.append(ln)  # Jagex kept the name; the tree's own spelling stands
             continue
+        # Jagex dropped a name the old cache had, and the record is still there:
+        # a filler is no name (242: varbit 5607, displayname_changedthissession,
+        # became `varbit_5607` and tutorial.rs2 stopped compiling).
+        if base_name is not None and re.fullmatch(rf"[a-z]+_{ident}", theirs_name):
+            out.append(ln)
+            continue
         new = f"{kind}{ident}_{theirs_name}" if kind else theirs_name
         if base_name is None or norm(ours) == norm(base_name):
             log.append((str(rel), ident, ours, new, "upstream"))

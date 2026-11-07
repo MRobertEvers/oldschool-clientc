@@ -33,11 +33,11 @@
 #
 # Visual check: `make -C src chrome-skin-rebake` writes the contact sheet to
 # $(OBJ_DIR)/tmp/chrome_skin/sheet.bmp -- inspect a crop of it.
-CHROME_SKIN_REV ?= osrs241
+CHROME_SKIN_REV ?= osrs242
 # Relative to the repository root, which is where the bake runs from: the path
 # is written into the generated header, and it has to be the same on every
 # machine that re-runs it.
-CHROME_SKIN_CACHE ?= cache.osrs241
+CHROME_SKIN_CACHE ?= cache.osrs242
 CHROME_SKIN_BAKE = engine/torirs_chrome_skin_baked.c
 CHROME_SKIN_RSCACHE = $(REPO_ROOT)/3rd/rscache
 CHROME_SKIN_TOOLS = $(CHROME_SKIN_RSCACHE)/tools

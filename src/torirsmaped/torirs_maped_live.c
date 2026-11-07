@@ -2056,7 +2056,7 @@ live_native_open(
         digits = lane->rev;
         while( *digits && (*digits < '0' || *digits > '9') )
             digits++;
-        snprintf(rev_number, sizeof(rev_number), "%s", *digits ? digits : "241");
+        snprintf(rev_number, sizeof(rev_number), "%s", *digits ? digits : "242");
         snprintf(env[0], sizeof(env[0]), "TORIRSSERVER_CONTENT=%s", lane->content_dir);
         snprintf(env[1], sizeof(env[1]), "TORIRSSERVER_CACHE=%s", cache);
         snprintf(env[2], sizeof(env[2]), "TORIRSSERVER_SCRIPTS=%s/scripts", lane->live_dir);
@@ -2727,7 +2727,7 @@ ToriRSMapEd_BindLiveFromEnv(
     /* Absolute, all three: the builds run `make -C <repo>/src`, so a path
      * relative to this process's directory names something else there. A
      * manifest's `repo_root=..` arrives as "manifests/.." and the lane's base
-     * cache became src/manifests/../cache.osrs241 -- a client cache built
+     * cache became src/manifests/../cache.osrs242 -- a client cache built
      * from nothing (master index 29 bytes), and a play client that logged in
      * and crashed on the missing interfaces table (2026-11-02). */
     build_resolve(repo_root, repo_abs, sizeof(repo_abs));

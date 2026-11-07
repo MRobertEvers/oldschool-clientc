@@ -1531,15 +1531,15 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         dx = vessel->fine_x - player->wev_last_fine_x[i];
         dz = vessel->fine_z - player->wev_last_fine_z[i];
         dangle = wev_angle_delta(player->wev_last_angle[i], vessel->angle);
-        /* updateFlags bit 0x1: the one-shot wire seq (the sink family), sent
-         * once per seq_stamp bump per observer. Bit 0x2 (op mask) stays
-         * spawn-only. */
+        /* updateFlags' sequence bit (0x1; 0x2 at 242): the one-shot wire seq
+         * (the sink family), sent once per seq_stamp bump per observer. The
+         * op-mask bit stays spawn-only. */
         {
             int flags = 0;
 
             if( vessel->seq_id >= 0 &&
                 player->wev_seq_stamps[i] != vessel->seq_stamp )
-                flags |= 0x1;
+                flags |= ToriRSServer_WireWevSeqFlag(pl);
         int teleport = player->wev_teleport_stamps[i] != vessel->teleport_stamp;
         if( dx == 0 && dz == 0 && dangle == 0 && !teleport )
         {
@@ -1558,9 +1558,9 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
             wev_put_transform(&buf, dx, 0, dz, dangle);
             rsab_p1(&buf, flags);
         }
-        if( (flags & 0x1) && pl->wev_seq )
+        if( flags && pl->wev_seq )
             pl->wev_seq(&buf, vessel->seq_id, vessel->seq_delay);
-        else if( flags & 0x1 )
+        else if( flags )
         {
             /* Same shape the client reads: seq u16 BE (65535 clears), then
              * the delay byte in 20 ms client ticks. */
@@ -1595,11 +1595,12 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         assert(zones_z <= 15);
 
         rsab_p2(&buf, vessel->view_id);
-        /* updateFlags: bit 0x2 carries the op mask. Sent on every spawn so the
+        /* updateFlags: the op-mask bit (0x2; 0x1 at 242). Sent on every spawn so the
          * entity's right-click ops are stated once, at the only point the
          * client has nothing to fall back on. */
         if( pl->wev_spawn_header )
-            pl->wev_spawn_header(&buf, 0x2, ((zones_x & 0xf) << 4) | (zones_z & 0xf),
+            pl->wev_spawn_header(&buf, ToriRSServer_WireWevOpsFlag(pl),
+                                 ((zones_x & 0xf) << 4) | (zones_z & 0xf),
                                  vessel->priority, vessel->config_id);
         else
         {
@@ -2451,8 +2452,11 @@ ToriRSServer_SendIfClearinv(
     if( !wire_is_v5(player) )
         return;
     open_packet(&buf, 4);
-    /* IfClearInvDecoder: gCombinedIdAlt2 at 239, a plain gCombinedId at 241. */
-    if( srv_wire_revision(player) >= 241 )
+    /* IfClearInvDecoder: gCombinedIdAlt2 at 239, a plain gCombinedId at 241,
+     * COM_2143 at 242 (RSProt if_clearinv). */
+    if( srv_wire_revision(player) >= 242 )
+        rsab_p4_alt3(&buf, uid);
+    else if( srv_wire_revision(player) >= 241 )
         rsab_p4(&buf, uid);
     else
         ToriRSServer_IfStateEncodeClearinv(&buf, uid);
@@ -4799,7 +4803,15 @@ ToriRSServer_SendSetPlayerOp(
     struct RSAreaBuf buf;
 
     open_packet(&buf, 64);
-    if( srv_wire_revision(player) >= 241 )
+    if( srv_wire_revision(player) >= 242 )
+    {
+        /* RSProt set_player_op's 242 row: g1Alt3 priority == 1, g1Alt2 id,
+         * then the text. */
+        rsab_p1_alt3(&buf, primary ? 1 : 0);
+        rsab_p1_alt2(&buf, slot);
+        rsab_pjstr(&buf, text ? text : "", RSAB_JSTR_NUL);
+    }
+    else if( srv_wire_revision(player) >= 241 )
     {
         /* SetPlayerOpDecoder (RSProx osrs-241): g1Alt3 id, gjstr op (NUL),
          * g1 priority == 1. The slot leads transformed and the priority
@@ -5091,7 +5103,17 @@ ToriRSServer_SendMapAnimSpecific(
     /* CoordInBuildArea.packedMedium: zoneX << 16 | zoneZ << 8 | xInZone << 4 |
      * zInZone, where zoneX/zoneZ are the zone's corner TILE in the build area
      * (a multiple of 8) -- and `pos` is already the two nibbles. */
-    if( srv_wire_revision(player) >= 241 )
+    if( srv_wire_revision(player) >= 242 )
+    {
+        /* RSProt map_anim_specific's 242 row: g2 id, g1Alt3 height, g2 delay,
+         * g3Alt1 (little-endian) coord. */
+        rsab_p2(&buf, event->id & 0xffff);
+        rsab_p1_alt3(&buf, event->src_height & 0xff);
+        rsab_p2(&buf, event->start_delay & 0xffff);
+        rsab_p3_alt1(&buf,
+                     ((base_x & 0xf8) << 16) | ((base_z & 0xf8) << 8) | (event->pos & 0x77));
+    }
+    else if( srv_wire_revision(player) >= 241 )
     {
         /* MapAnimSpecificDecoder (RSProx osrs-241): g2Alt3 id, g2 delay,
          * g1Alt3 height, g3Alt2 coord -- the codec row 3rd/rsprot/packets/
@@ -7261,6 +7283,336 @@ put_npc_extended_v241(
     }
 }
 
+/* ------------------------------------------------------------------ */
+/* Revision 242 npc extended info                                      */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The npc extended-info block at revision 242, a copy of put_npc_extended_v241
+ * changed to RSProt's npc_info osrs242 (3rd/rsprot/spec/streams/npc_info.ini,
+ * from RSProx 8c514346's NpcInfoClient): every flag renumbered, new
+ * continuation bits, the block order reshuffled and every block's transforms
+ * new; no block's field order changed.
+ *
+ * Order: HEADICON_CUSTOMISATION, SPOTANIM, HITMARKS, SEQUENCE, TRANSPARENCY,
+ * HEAD_CUSTOMISATION, BODY_CUSTOMISATION_V3, HEADBARS, SAY, NAME_CHANGE,
+ * FACING, TINTING, FREEZE, OPS, TRANSFORMATION, BODY_CUSTOMISATION_V2,
+ * EXACT_MOVE, BAS_CHANGE, BODY_CUSTOMISATION_V4, LEVEL_CHANGE.
+ */
+enum
+{
+    V242_NEXT_BYTE_1 = 0x4,
+    V242_NEXT_BYTE_2 = 0x400,
+    V242_NEXT_BYTE_3 = 0x200000,
+
+    V242_NPC_SPOTANIM = 0x1,
+    V242_NPC_SEQUENCE = 0x2,
+    V242_NPC_SAY = 0x10,
+    V242_NPC_FACING = 0x20,
+    V242_NPC_TRANSFORMATION = 0x80,
+    V242_NPC_TINTING = 0x100,
+    V242_NPC_EXACT_MOVE = 0x800,
+    V242_NPC_TRANSPARENCY = 0x1000,
+    V242_NPC_LEVEL_CHANGE = 0x4000,
+    V242_NPC_OPS = 0x8000,
+    V242_NPC_HEADICON_CUSTOMISATION = 0x40000,
+    V242_NPC_HITMARKS = 0x400000,
+    V242_NPC_BAS_CHANGE = 0x800000,
+    V242_NPC_HEADBARS = 0x1000000,
+    V242_NPC_BODY_CUSTOMISATION = 0x2000000, /* RSProx BODY_CUSTOMISATION_V3 */
+};
+
+static void
+v242_put_extended_flag(struct RSAreaBuf* buf, uint32_t flag)
+{
+    /* Each continuation bit lives in the byte BEFORE the one it announces, so
+     * the widest is decided first. */
+    if( flag & 0xff000000u )
+        flag |= V242_NEXT_BYTE_3;
+    if( flag & 0xffff0000u )
+        flag |= V242_NEXT_BYTE_2;
+    if( flag & 0xffffff00u )
+        flag |= V242_NEXT_BYTE_1;
+
+    rsab_p1(buf, (int32_t)(flag & 0xff));
+    if( flag & V242_NEXT_BYTE_1 )
+        rsab_p1(buf, (int32_t)((flag >> 8) & 0xff));
+    if( flag & V242_NEXT_BYTE_2 )
+        rsab_p1(buf, (int32_t)((flag >> 16) & 0xff));
+    if( flag & V242_NEXT_BYTE_3 )
+        rsab_p1(buf, (int32_t)((flag >> 24) & 0xff));
+}
+
+static void
+put_npc_extended_v242(
+    struct RSAreaBuf* buf,
+    struct ToriRSServerPlayer const* recipient,
+    struct ToriRSServerNpc* npc,
+    int force_face_latch,
+    int force_type_latch)
+{
+    uint32_t const classic = npc->masks;
+    uint32_t flag = 0;
+    int const hit = (classic & (TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2)) != 0;
+    struct Mock239Face face;
+    int const has_face = npc_face_block(&face, recipient, npc, force_face_latch);
+    int const splat = hit && npc_shows_hitsplat(npc);
+    int const headbar = npc_headbar_id(npc);
+
+    /* The same choices as put_npc_extended_v241. */
+    if( splat )
+        flag |= V242_NPC_HITMARKS;
+    int const own_bar =
+        (hit || (classic & TORIRSSERVER_NMASK_HEADBAR)) && headbar >= 0 && npc->max_hitpoints > 0;
+    int const timed_bar = (classic & TORIRSSERVER_NMASK_TIMED_BAR) != 0;
+    if( own_bar || timed_bar )
+        flag |= V242_NPC_HEADBARS;
+    if( classic & TORIRSSERVER_NMASK_ANIM )
+        flag |= V242_NPC_SEQUENCE;
+    if( classic & TORIRSSERVER_NMASK_SAY )
+        flag |= V242_NPC_SAY;
+    if( classic & TORIRSSERVER_NMASK_TRANSPARENCY )
+        flag |= V242_NPC_TRANSPARENCY;
+    if( classic & TORIRSSERVER_NMASK_SPOTANIM )
+        flag |= V242_NPC_SPOTANIM;
+    if( (classic & TORIRSSERVER_NMASK_CHANGE_TYPE) || force_type_latch )
+        flag |= V242_NPC_TRANSFORMATION;
+    if( has_face )
+        flag |= V242_NPC_FACING;
+    if( npc_v5_sends_ops(npc, force_face_latch) )
+        flag |= V242_NPC_OPS;
+    if( classic & TORIRSSERVER_NMASK_EXACT_MOVE )
+        flag |= V242_NPC_EXACT_MOVE;
+    if( classic & TORIRSSERVER_NMASK_TINT )
+        flag |= V242_NPC_TINTING;
+    if( npc_v5_sends_level(npc, force_face_latch) )
+        flag |= V242_NPC_LEVEL_CHANGE;
+    if( npc_v5_sends_headicon(npc, force_face_latch) )
+        flag |= V242_NPC_HEADICON_CUSTOMISATION;
+    if( npc_v5_sends_body(npc, force_face_latch) )
+        flag |= V242_NPC_BODY_CUSTOMISATION;
+    if( npc_v241_sends_bas(npc, force_face_latch) )
+        flag |= V242_NPC_BAS_CHANGE;
+    v242_put_extended_flag(buf, flag);
+
+    /* headicon_customisation: g1Alt2 slot mask; per slot a smart2or4 group and
+     * smart1or2 index + 1. */
+    if( flag & V242_NPC_HEADICON_CUSTOMISATION )
+    {
+        rsab_p1_alt2(buf, npc->headicon_mask);
+        for( int slot = 0; slot < TORIRSSERVER_NPC_HEADICON_SLOTS; slot++ )
+        {
+            int group;
+
+            if( !(npc->headicon_mask & (1 << slot)) )
+                continue;
+            group = npc->headicon_group[slot];
+            if( group < 0x8000 - 1 )
+                rsab_p2(buf, group);
+            else
+                rsab_p4(buf, group | (int32_t)0x80000000);
+            v5_psmart1or2(buf, npc->headicon_index[slot] + 1);
+        }
+    }
+    /* spotanim: g1Alt3 count; per entry g1Alt3 slot, g2Alt3 id, g4Alt2
+     * (height << 16 | delay), g1Alt2 loop. */
+    if( flag & V242_NPC_SPOTANIM )
+    {
+        assert(npc->spotanim_count > 0);
+        rsab_p1_alt3(buf, npc->spotanim_count);
+        for( int i = 0; i < npc->spotanim_count; i++ )
+        {
+            struct ToriRSServerNpcSpotanim const* spot = &npc->spotanims[i];
+
+            rsab_p1_alt3(buf, spot->slot);
+            rsab_p2_alt3(buf, spot->id < 0 ? 65535 : spot->id);
+            rsab_p4_alt2(buf, spot->height_delay);
+            rsab_p1_alt2(buf, spot->loop ? 1 : 0);
+        }
+    }
+    /* hitmarks: g1Alt3 count, four smarts per hit; the list and the per-viewer
+     * loot icon are put_npc_extended_v5's. */
+    if( splat )
+    {
+        int hits = npc->hitmark_count > 0 ? npc->hitmark_count : 1;
+        int const icon_type =
+            ToriRSServer_NpcLootIconWanted(recipient->world, npc, recipient)
+                ? ToriRSServer_HitsplatLootRestrictedIcon()
+                : -1;
+        int icon;
+
+        if( hits > TORIRSSERVER_HITMARK_MAX )
+            hits = TORIRSSERVER_HITMARK_MAX;
+        icon = (icon_type >= 0 && hits < TORIRSSERVER_HITMARK_MAX) ? 1 : 0;
+        rsab_p1_alt3(buf, hits + icon);
+        for( int i = 0; i < hits; i++ )
+        {
+            int const damage = npc->hitmark_count > 0 ? npc->hitmarks[i].damage : npc->damage;
+            int const stated =
+                npc->hitmark_count > 0 ? npc->hitmarks[i].type : npc->damage_type;
+            int const dealer = npc->hitmark_count > 0 ? npc->hitmarks[i].dealer_slot : -1;
+            int const max_hit = npc->hitmark_count > 0 ? npc->hitmarks[i].max_hit : 0;
+            int const damage_type = ToriRSServer_HitsplatForViewer(
+                recipient->world, recipient, stated, damage, dealer, max_hit);
+
+            v5_psmart1or2(buf, damage_type);
+            v5_psmart1or2(buf, damage);
+            v5_psmart1or2(buf, npc->hitmark_count > 0 ? npc->hitmarks[i].delay : 0);
+            v5_psmart1or2(buf, 4);
+        }
+        if( icon )
+        {
+            v5_psmart1or2(buf, icon_type);
+            v5_psmart1or2(buf, 0);
+            v5_psmart1or2(buf, 0);
+            v5_psmart1or2(buf, 4);
+        }
+    }
+    /* sequence: g2 id, g1 delay. */
+    if( flag & V242_NPC_SEQUENCE )
+    {
+        rsab_p2(buf, npc->anim_id < 0 ? 65535 : npc->anim_id);
+        rsab_p1(buf, npc->anim_delay);
+    }
+    /* transparency: g2sAlt2 start, g2sAlt2 end, g1sAlt1 from, g1sAlt1 to,
+     * g1Alt2 use-start (always 1: the fade starts from `from`). */
+    if( flag & V242_NPC_TRANSPARENCY )
+    {
+        rsab_p2_alt2(buf, npc->transparency_start_cycle & 0xffff);
+        rsab_p2_alt2(buf, npc->transparency_end_cycle & 0xffff);
+        rsab_p1_alt1(buf, npc->transparency_from & 0xff);
+        rsab_p1_alt1(buf, npc->transparency_to & 0xff);
+        rsab_p1_alt2(buf, 1);
+    }
+    /* body_customisation_v3: g1 flags; 2 = a model list (g1 count, g4Alt2
+     * each), 1 = reset to the type's models. */
+    if( flag & V242_NPC_BODY_CUSTOMISATION )
+    {
+        if( npc->body_model_set )
+        {
+            rsab_p1(buf, 2);
+            rsab_p1(buf, 1);
+            rsab_p4_alt2(buf, npc->body_model);
+        }
+        else
+            rsab_p1(buf, 1);
+    }
+    /* headbars: g1 count, then per bar smart type, smart end time, smart start
+     * time, g1Alt1 start fill, and g1Alt3 end fill when the end time is not 0
+     * (put_npc_extended_v241 says what each bar is). */
+    if( flag & V242_NPC_HEADBARS )
+    {
+        int const own_bars =
+            own_bar ? (npc->hitmark_count > 0
+                           ? (npc->hitmark_count < TORIRSSERVER_HITMARK_MAX ? npc->hitmark_count
+                                                                           : TORIRSSERVER_HITMARK_MAX)
+                           : 1)
+                    : 0;
+
+        rsab_p1(buf, own_bars + timed_bar);
+        if( own_bar )
+        {
+            int width = 0;
+            int fill = ToriRSServer_NpcHeadbarFill(npc, &width);
+
+            ToriRSServer_TicklogNpcHeadbar(npc, headbar, fill, width);
+            if( npc->hitmark_count > 0 )
+            {
+                for( int i = 0; i < own_bars; i++ )
+                {
+                    int w = 0;
+
+                    v5_psmart1or2(buf, headbar);
+                    v5_psmart1or2(buf, 0);
+                    v5_psmart1or2(buf, npc->hitmarks[i].delay);
+                    rsab_p1_alt1(buf, npc_headbar_fill_at(npc, npc->hitmarks[i].hp_after, &w));
+                }
+            }
+            else
+            {
+                v5_psmart1or2(buf, headbar);
+                v5_psmart1or2(buf, 0);
+                v5_psmart1or2(buf, 0);
+                rsab_p1_alt1(buf, fill);
+            }
+        }
+        if( timed_bar )
+        {
+            v5_psmart1or2(buf, npc->timed_bar_type);
+            v5_psmart1or2(buf, npc->timed_bar_end_cycle);
+        }
+        if( timed_bar && npc->timed_bar_end_cycle != 0x7fff )
+        {
+            v5_psmart1or2(buf, 0);
+            rsab_p1_alt1(buf, npc->timed_bar_start_fill);
+            if( npc->timed_bar_end_cycle > 0 )
+                rsab_p1_alt3(buf, npc->timed_bar_end_fill);
+        }
+    }
+    if( flag & V242_NPC_SAY )
+        rsab_pjstr(buf, npc->say, RSAB_JSTR_NUL);
+    /* facing: g1Alt1 header, then Face's shared payload. */
+    if( flag & V242_NPC_FACING )
+    {
+        int header = face.walk_mode | ((int)face.kind << 3) | (face.instant ? 0x40 : 0);
+
+        rsab_p1_alt1(buf, header);
+        mock239_face_write_payload(buf, &face);
+    }
+    /* tinting: g2Alt2 start, g2 end, g1Alt2 hue, g1Alt3 saturation, g1Alt2
+     * lightness, g1Alt3 weight. */
+    if( flag & V242_NPC_TINTING )
+    {
+        rsab_p2_alt2(buf, npc->tint_start_cycle & 0xffff);
+        rsab_p2(buf, npc->tint_end_cycle & 0xffff);
+        rsab_p1_alt2(buf, npc->tint_hue & 0xff);
+        rsab_p1_alt3(buf, npc->tint_saturation & 0xff);
+        rsab_p1_alt2(buf, npc->tint_lightness & 0xff);
+        rsab_p1_alt3(buf, npc->tint_weight & 0xff);
+    }
+    /* enabled ops: g1Alt1, the SHOWN ops. */
+    if( flag & V242_NPC_OPS )
+        rsab_p1_alt1(buf, 0x1f & ~npc->ops_hidden);
+    /* transformation: g2Alt2 id. */
+    if( flag & V242_NPC_TRANSFORMATION )
+    {
+        g_npc_transformation_writes++;
+        rsab_p2_alt2(buf, force_type_latch ? npc->type : npc->change_type);
+    }
+    /* exact_move: g1sAlt3 dx1, g1s dz1, g1sAlt2 dx2, g1sAlt3 dz2, g2Alt1
+     * delay1, g2 delay2, g2 direction. */
+    if( flag & V242_NPC_EXACT_MOVE )
+    {
+        rsab_p1_alt3(buf, npc->exact_dx1);
+        rsab_p1(buf, npc->exact_dz1);
+        rsab_p1_alt2(buf, npc->exact_dx2);
+        rsab_p1_alt3(buf, npc->exact_dz2);
+        rsab_p2_alt1(buf, npc->exact_delay1);
+        rsab_p2(buf, npc->exact_delay2);
+        rsab_p2(buf, npc->exact_direction);
+    }
+    /* base animation set: g4 mask, then one id per set bit in bit order --
+     * turn left g2Alt3 (0x1), turn right g2Alt1 (0x2), walk g2Alt2 (0x4),
+     * ready g2Alt3 (0x4000). */
+    if( flag & V242_NPC_BAS_CHANGE )
+    {
+        rsab_p4(buf, (npc->bas_turn_set ? 0x3 : 0) | (npc->bas_walk_set ? 0x4 : 0) |
+                         (npc->bas_ready_set ? 0x4000 : 0));
+        if( npc->bas_turn_set )
+        {
+            rsab_p2_alt3(buf, npc->bas_turnleft);
+            rsab_p2_alt1(buf, npc->bas_turnright);
+        }
+        if( npc->bas_walk_set )
+            rsab_p2_alt2(buf, npc->bas_walk);
+        if( npc->bas_ready_set )
+            rsab_p2_alt3(buf, npc->bas_ready);
+    }
+    /* combat level change: g4Alt2. */
+    if( flag & V242_NPC_LEVEL_CHANGE )
+        rsab_p4_alt2(buf, npc->level_override);
+}
+
 /** The npc extended block for this recipient's wire revision. */
 static void
 put_npc_extended_for(
@@ -7270,7 +7622,9 @@ put_npc_extended_for(
     int force_face_latch,
     int force_type_latch)
 {
-    if( srv_wire_revision(recipient) >= 241 )
+    if( srv_wire_revision(recipient) >= 242 )
+        put_npc_extended_v242(buf, recipient, npc, force_face_latch, force_type_latch);
+    else if( srv_wire_revision(recipient) >= 241 )
         put_npc_extended_v241(buf, recipient, npc, force_face_latch, force_type_latch);
     else
         put_npc_extended_v5(buf, recipient, npc, force_face_latch, force_type_latch);
@@ -7297,6 +7651,26 @@ npc_put_add_record(
     int dx,
     int dz)
 {
+    if( srv_wire_revision(recipient) >= 242 )
+    {
+        static int const k_type_bits[4] = { 12, 14, 17, 24 };
+        int sel = 0;
+
+        while( sel < 3 && npc->type >= (1 << k_type_bits[sel]) )
+            sel++;
+        /* RSProt npc_info osrs242's record: dx, facing, extended, the type,
+         * spawn cycle, jump, dz. */
+        rsab_pbit(buf, 16, client_slot);
+        rsab_pbit(buf, 6, dx & 0x3f);
+        rsab_pbit(buf, 3, npc->face_dir & 7);
+        rsab_pbit(buf, 1, extended);
+        rsab_pbit(buf, 2, sel);
+        rsab_pbit(buf, k_type_bits[sel], npc->type);
+        rsab_pbit(buf, 1, 0); /* no spawn cycle */
+        rsab_pbit(buf, 1, npc->tele && npc->tele_slide ? 0 : 1);
+        rsab_pbit(buf, 6, dz & 0x3f);
+        return;
+    }
     if( srv_wire_revision(recipient) >= 241 )
     {
         static int const k_type_bits[4] = { 12, 14, 17, 24 };

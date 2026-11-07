@@ -51,7 +51,7 @@ EDITOR_TREE_TESTS += test-editor-if
 # $(OBJ_DIR)/tmp/iface_editor, CODE edits as splices, watch/harness, and the
 # panels on a real ToriRSChrome. Reads OSRS-Content and the cache only.
 IFACE_EDITOR_RUNESTAR ?= $(HOME)/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2
-IFACE_EDITOR_CACHE ?= $(REPO_ROOT)/cache.osrs241
+IFACE_EDITOR_CACHE ?= $(REPO_ROOT)/cache.osrs242
 .PHONY: test-iface-editor
 test-iface-editor:
 	mkdir -p $(OBJ_DIR)

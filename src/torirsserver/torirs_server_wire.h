@@ -358,6 +358,11 @@ struct ToriRSServerWirePayload
         int priority_group,
         int config_id);
     void (*wev_seq)(struct RSAreaBuf* buf, int seq_id, int delay);
+    /* The update-flag bits of the sequence block and the op mask. 242 swapped
+     * them (sequence 0x2, ops 0x1); 0 means every earlier revision's 0x1 and
+     * 0x2. Read through ToriRSServer_WireWevSeqFlag / ToriRSServer_WireWevOpsFlag. */
+    int wev_seq_flag;
+    int wev_ops_flag;
     void (*rebuild_normal)(
         struct RSAreaBuf* buf,
         int world_area,
@@ -543,7 +548,23 @@ ToriRSServer_WirePlayerPid(int wire_index)
 const struct ToriRSServerWire*
 ToriRSServer_Wire241(void);
 
-/** "osrs230", "osrs239" or "osrs241"; NULL when unknown. */
+/** The revision-242 wire (torirs_server_wire242.c). */
+const struct ToriRSServerWire*
+ToriRSServer_Wire242(void);
+
+static inline int
+ToriRSServer_WireWevSeqFlag(const struct ToriRSServerWirePayload* payload)
+{
+    return payload->wev_seq_flag ? payload->wev_seq_flag : 0x1;
+}
+
+static inline int
+ToriRSServer_WireWevOpsFlag(const struct ToriRSServerWirePayload* payload)
+{
+    return payload->wev_ops_flag ? payload->wev_ops_flag : 0x2;
+}
+
+/** "osrs230", "osrs239", "osrs241" or "osrs242"; NULL when unknown. */
 const struct ToriRSServerWire*
 ToriRSServer_WireByName(char const* name);
 

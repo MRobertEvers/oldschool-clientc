@@ -272,7 +272,7 @@
     return scheme + location.host + new URL(given, location.href).pathname;
   }
 
-  const EDITOR_VIEW_MANIFEST = 'manifests/manifest_osrs241_mapeditor.ini';
+  const EDITOR_VIEW_MANIFEST = 'manifests/manifest_osrs242_mapeditor.ini';
 
   function editorViewBoot(query, argv, location) {
     if (query.get('editor_view') !== '1') { return { args: argv, socketUrl: null, error: null }; }
@@ -728,7 +728,7 @@
 
   /*
    * A recording of another revision reads that revision's cache: its packets
-   * name that cache's ids, and the rev-241 one answers a rev-223 obj id with
+   * name that cache's ids, and the rev-242 one answers a rev-223 obj id with
    * something else or nothing. The header's second int is the revision
    * (rsprox_recording.c); the database key and the JS5 handshake both follow
    * it, so the groups land apart from the boot cache's and the server is asked
@@ -778,7 +778,7 @@
    * page stops: there is no read-only in-memory editor to fall back to.
    * Returns false when the boot must stop.
    */
-  const EDITOR_DAEMON_HINT = './launch run osrs241-mapeditor-web';
+  const EDITOR_DAEMON_HINT = './launch run osrs242-mapeditor-web';
   /* `--maped` for this boot's editor windows: the daemon on io_server's own
    * machine, at the manifest's port. */
   let editorMapedArg = null;

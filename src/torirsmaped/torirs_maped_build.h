@@ -266,7 +266,7 @@ struct ToriRSMapEdLane
     char live_dir[TORIRSMAPED_LANE_PATH_MAX];
     /** The client cache a first client build copies (--base); "" = none. */
     char base_cache[TORIRSMAPED_LANE_PATH_MAX];
-    /** "osrs241". */
+    /** "osrs242". */
     char rev[16];
     /** The `make` to run; "" = "make". */
     char make[TORIRSMAPED_LANE_PATH_MAX];

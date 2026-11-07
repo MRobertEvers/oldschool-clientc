@@ -108,6 +108,18 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     4061: (0, 0, 2, 0),  # LONG_UNPACK(long) -> high, low
     4062: (0, 0, 1, 0),  # LONG_TO_INT
     4063: (0, 0, 1, 0),  # LONG_HIGH_TO_INT
+    # Rev 242's display-name checker: the counts of
+    # 3rd/rscache/tools/cs2/local_commands.py. No service here, so the
+    # getters answer zeros and empty strings.
+    5100: (0, 0, 0, 0),  # DISPLAYNAMES_POLL
+    5101: (0, 0, 5, 1),  # DISPLAYNAMES_GETSESSION
+    5102: (0, 1, 0, 0),  # DISPLAYNAMES_CHECK(name)
+    5103: (0, 0, 6, 1),  # DISPLAYNAMES_GETCHECK
+    5104: (0, 1, 0, 0),  # DISPLAYNAMES_SUBMIT(name)
+    5105: (0, 0, 3, 1),  # DISPLAYNAMES_GETSUBMIT
+    5106: (0, 0, 0, 0),  # DISPLAYNAMES_CANCEL
+    5107: (0, 0, 2, 1),  # DISPLAYNAMES_GETCANCEL
+    5108: (0, 0, 0, 0),  # DISPLAYNAMES_END
     4125: (0, 0, 0, 1),  # TOSTRING_LONG
     4126: (0, 1, 0, 1),  # TOSTRING_SPACER_LONG(long, separator)
     # ARRAY_MAX / ARRAY_DELETE: the decoder now types their element argument

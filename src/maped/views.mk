@@ -49,7 +49,7 @@ test-editor-views: torirsmaped
 	rm -rf $(OBJ_DIR)/tmp/views
 	mkdir -p $(OBJ_DIR)/tmp/views
 	./$(OBJ_DIR)/views_embed_test $(EDITOR_CONTENT_DIR) $(abspath $(OBJ_DIR)/tmp/views) \
-		$(abspath $(OBJ_DIR)/torirsmaped) $(abspath ../manifests/manifest_osrs241_mapeditor.ini)
+		$(abspath $(OBJ_DIR)/torirsmaped) $(abspath ../manifests/manifest_osrs242_mapeditor.ini)
 endif
 
 EDITOR_TREE_TESTS += test-editor-views

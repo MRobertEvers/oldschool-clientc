@@ -362,6 +362,9 @@ struct RSCache_Dat2ConfigLoc
 #define RSCACHE_CONFIG_LOC_DECODE_RS2_NESTED_MODELS 128
 /** Rev 530 alone: opcode 95 selects contour type 5 and has no payload. */
 #define RSCACHE_CONFIG_LOC_DECODE_RS2_530 256
+/** Rev 242+: the multiloc is opcodes 97/98 with three-byte loc ids (0xffffff
+ * is none); 242 writes every 77/92 record that way. */
+#define RSCACHE_CONFIG_LOC_DECODE_REV242_MULTI24 512
 
 /* --- codec versions -------------------------------------------------------- */
 /*

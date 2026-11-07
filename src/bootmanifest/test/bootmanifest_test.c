@@ -63,7 +63,7 @@ test_load_fields(void)
     CHECK(strcmp(bm.io_host, "io.example.com") == 0);
     CHECK(bm.io_port == 8099);
 
-    CHECK(strcmp(bm.rev_name, "osrs241") == 0);
+    CHECK(strcmp(bm.rev_name, "osrs242") == 0);
     CHECK(strcmp(bm.transport, "ws") == 0);
     CHECK(bm.clock_unlocked == 1);
     CHECK(strcmp(bm.host, "example.com") == 0);
@@ -182,7 +182,7 @@ test_apply_to_config(void)
     CHECK(cfg.cache_identity_set == 1);
     CHECK(cfg.cache_revision == 233);
     CHECK(cfg.cache_dir && strcmp(cfg.cache_dir, "bootmanifest/test/some/cache") == 0);
-    CHECK(cfg.rev_name && strcmp(cfg.rev_name, "osrs241") == 0);
+    CHECK(cfg.rev_name && strcmp(cfg.rev_name, "osrs242") == 0);
     CHECK(cfg.connect_target && strcmp(cfg.connect_target, "example.com") == 0);
     CHECK(cfg.connect_port == 1234);
     CHECK(cfg.client_version == 233);
@@ -646,7 +646,7 @@ test_chrome_scale(void)
     CHECK(bm.chrome_scale == 6);
     BootManifest_ApplyToConfig(&bm, &cfg);
     CHECK(cfg.chrome_scale == 6);
-    CHECK(BootManifest_LoadFile(&bm, "../manifests/manifest_osrs241_mapeditor.ini") == 0);
+    CHECK(BootManifest_LoadFile(&bm, "../manifests/manifest_osrs242_mapeditor.ini") == 0);
     CHECK(bm.chrome_scale == -1);
 }
 

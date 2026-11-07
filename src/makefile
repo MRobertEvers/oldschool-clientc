@@ -988,6 +988,10 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/mock241_inbound.c \
 	torirsserver/mock241_playerinfo.c \
 	torirsserver/wire/osrs241_clientprot.c \
+	torirsserver/torirs_server_wire242.c \
+	torirsserver/mock242_inbound.c \
+	torirsserver/mock242_playerinfo.c \
+	torirsserver/wire/osrs242_clientprot.c \
 	torirsserver/torirs_server_objinfo.c \
 	torirsserver/torirs_server_split.c \
 	torirsserver/torirs_server_runenergy.c \
@@ -1677,7 +1681,7 @@ test-ondemand-wire: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # Protocol + persistence integration against a caller-supplied, read-only
 # canonical cache. The binary creates and owns its disposable target directory;
 # only the mock response builder reads JS5_TEST_CACHE.
-JS5_TEST_CACHE ?= $(REPO_ROOT)/cache.osrs241
+JS5_TEST_CACHE ?= $(REPO_ROOT)/cache.osrs242
 ifeq ($(OS),Windows_NT)
 JS5_SOCKET_LIBS := -lws2_32
 JS5_EXE_SUFFIX := .exe
@@ -2435,7 +2439,7 @@ plugin-model-extract: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LIN
 # to refresh them or to re-point the plugin at different geometry; the source
 # cache is ~ a gigabyte and is NOT carried by a clone (.gitignore's `cache.*/`),
 # so the recipe names it rather than assuming it.
-PLUGIN_BEAM_SRC_CACHE ?= $(REPO_ROOT)/cache.osrs241
+PLUGIN_BEAM_SRC_CACHE ?= $(REPO_ROOT)/cache.osrs242
 PLUGIN_BEAM_ASSETS = $(REPO_ROOT)/script/plugins/assets/loot-beam
 
 plugin-beam-assets: plugin-model-extract
@@ -2443,9 +2447,9 @@ plugin-beam-assets: plugin-model-extract
 		echo "plugin-beam-assets: $(PLUGIN_BEAM_SRC_CACHE) is missing;"; \
 		echo "  obtain the OSRS 239 cache or set PLUGIN_BEAM_SRC_CACHE=<dir>"; \
 		exit 1; }
-	./$(OBJ_DIR)/plugin_model_extract --cache $(PLUGIN_BEAM_SRC_CACHE) --rev osrs241 \
+	./$(OBJ_DIR)/plugin_model_extract --cache $(PLUGIN_BEAM_SRC_CACHE) --rev osrs242 \
 		--model 43330 --out $(PLUGIN_BEAM_ASSETS)/beam_modern.model
-	./$(OBJ_DIR)/plugin_model_extract --cache $(PLUGIN_BEAM_SRC_CACHE) --rev osrs241 \
+	./$(OBJ_DIR)/plugin_model_extract --cache $(PLUGIN_BEAM_SRC_CACHE) --rev osrs242 \
 		--model 5809 --out $(PLUGIN_BEAM_ASSETS)/beam_light.model
 
 rs2012-material-bake: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o \
@@ -2853,7 +2857,7 @@ test-rsprot:
 RSPROT_TEST_DEPS = $(OBJ_DIR)/pkt_exec.o $(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_buf.o \
 	$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o
 
-# Chat text: the compiled-in OldSchool Huffman table against cache.osrs241's
+# Chat text: the compiled-in OldSchool Huffman table against cache.osrs242's
 # file, round trips, the deob's "Cabbage", and LostCity's wordpack wrappers.
 test-chat-huffman: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
@@ -3008,7 +3012,7 @@ test-preview-state: $(OBJ_DIR) game/preview_state.c game/test/preview_state_test
 # The content root the editor edits. Both map-editor tests are read-only over
 # it; neither writes into a content tree.
 EDITOR_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs-content
-EDITOR_CACHE_DIR   ?= $(REPO_ROOT)/cache.osrs241
+EDITOR_CACHE_DIR   ?= $(REPO_ROOT)/cache.osrs242
 
 # Document and command layer: undo restoring an authored *absence*, strokes
 # undoing as one step, edits at a square edge reaching the neighbour. Pure
@@ -3116,8 +3120,8 @@ endif
 test-plugin-native-hooks:
 	python3 $(REPO_ROOT)/tools/test_plugin_engine_script_hooks.py
 
-PLUGIN_HOOK_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs241-curses
-PLUGIN_HOOK_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs241-plugin-hooks
+PLUGIN_HOOK_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs242-curses
+PLUGIN_HOOK_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs242-plugin-hooks
 plugin-engine-cache-hooks:
 	python3 $(REPO_ROOT)/tools/plugin_engine_script_hooks.py --build \
 		--base "$(PLUGIN_HOOK_CACHE_BASE)" --cache "$(PLUGIN_HOOK_CACHE_DIR)"
@@ -3643,7 +3647,7 @@ RSPROT_INFO_OBJS = $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o $(O
 test-mock239-playerinfo: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_playerinfo_test $(TORIMEM_SRCS) \
 		torirsserver/test/mock239_playerinfo_test.c torirsserver/mock239_playerinfo.c \
-		torirsserver/mock241_playerinfo.c \
+		torirsserver/mock241_playerinfo.c torirsserver/mock242_playerinfo.c \
 		net/proto/proto_info.c \
 		$(RSAREABUF_DIR)/rsareabuf.c $(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/mock239_playerinfo_test
@@ -3663,10 +3667,20 @@ test-osrs241-npcinfo-large: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 test-mock241-playerinfo: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock241_playerinfo_test $(TORIMEM_SRCS) \
 		torirsserver/test/mock241_playerinfo_test.c torirsserver/mock239_playerinfo.c \
-		torirsserver/mock241_playerinfo.c \
+		torirsserver/mock241_playerinfo.c torirsserver/mock242_playerinfo.c \
 		net/proto/proto_info.c $(RSAREABUF_DIR)/rsareabuf.c \
 		$(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/mock241_playerinfo_test
+
+# PLAYER_INFO's rev-242 tail against RSProt's 242 reader, every block the
+# server writes in one update (order, continuation bits, transforms).
+test-mock242-playerinfo: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock242_playerinfo_test $(TORIMEM_SRCS) \
+		torirsserver/test/mock242_playerinfo_test.c torirsserver/mock239_playerinfo.c \
+		torirsserver/mock241_playerinfo.c torirsserver/mock242_playerinfo.c \
+		net/proto/proto_info.c $(RSAREABUF_DIR)/rsareabuf.c \
+		$(RSPROT_INFO_OBJS) -lm
+	./$(OBJ_DIR)/mock242_playerinfo_test
 
 # Golden client->server interface callback layouts. Kept independent of the
 # world/server link so byte order, inner framing and typed-tail losslessness can
@@ -5821,8 +5835,8 @@ torirsserver-packs: sscompile
 # were spelled literally in the recipe while TORIRSSERVER_CACHE_DIR was used only by
 # the `rm -rf` above them, so the two could disagree and the wrong tree would be
 # cleared.
-TORIRSSERVER_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs241
-TORIRSSERVER_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs241.baked
+TORIRSSERVER_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs242
+TORIRSSERVER_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs242.baked
 # RuneStar's CS2 name tables, for the lane decompile tests below only (they
 # print names when they list a lane's scripts). `cachepack` never reads them: a
 # bake takes every name from the content tree, and its own `decompile.ini`
@@ -5840,7 +5854,7 @@ torirsserver-cache: check-crystal-set-contract check-design-panel
 		--src $(TORIRSSERVER_CONTENT_DIR) \
 		$(if $(wildcard $(TORIRSSERVER_CACHE_BASE)),--base $(TORIRSSERVER_CACHE_BASE),) \
 		--out $(TORIRSSERVER_CACHE_DIR) \
-		--rev osrs241 --assets --binary --gamevals
+		--rev osrs242 --assets --binary --gamevals
 	@$(MAKE) --no-print-directory torirsserver-cache-check TORIRSSERVER_CACHE_DIR=$(TORIRSSERVER_CACHE_DIR)
 
 # Every dat2 table an OldSchool cache carries, by idx id â the OSRS column of
@@ -5875,8 +5889,8 @@ torirsserver-cache-check:
 # client at this directory; main.c hands the same resolved path to the embedded
 # mock, so scene/NPC reads and JS5 cannot fall back to pristine cache.osrs239.
 RS2012_OVERLAY_DIR = $(REPO_ROOT)/build/rs2012-overlay
-RS2012_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs241
-RS2012_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs241.rs2012
+RS2012_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs242
+RS2012_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs242.rs2012
 
 torirsserver-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay test-cache-overlay-stale
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack audioprobe
@@ -5900,11 +5914,11 @@ torirsserver-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay
 	@cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
 		--src $(RS2012_OVERLAY_DIR) \
 		$(if $(wildcard $(RS2012_CACHE_BASE)),--base $(RS2012_CACHE_BASE),) \
-		--out $(RS2012_CACHE_DIR) --rev osrs241 --assets --binary --gamevals
+		--out $(RS2012_CACHE_DIR) --rev osrs242 --assets --binary --gamevals
 	@$(MAKE) --no-print-directory torirsserver-cache-check TORIRSSERVER_CACHE_DIR=$(RS2012_CACHE_DIR)
 	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
 		cd $(REPO_ROOT) && $(CACHEPACK_BIN) verify \
-			--cache $(RS2012_CACHE_DIR) --rev osrs241 --src $(RS2012_OVERLAY_DIR) \
+			--cache $(RS2012_CACHE_DIR) --rev osrs242 --src $(RS2012_OVERLAY_DIR) \
 			--assets=interfaces,sprites,scripts,synth,songs,samples,patches --tmp "$$tmp"
 	@cd $(REPO_ROOT) && python3 tools/test_rs2012_audio_bridge.py \
 		--content $(TORIRSSERVER_CONTENT_DIR) \
@@ -5918,8 +5932,8 @@ torirsserver-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay
 # source declines, so only an exact non-zero `compiled N, failed 0` is evidence.
 SUMMONING_LANE = $(TORIRSSERVER_CONTENT_DIR)/ported/scape2009_summoning
 SUMMONING_OVERLAY_DIR = $(REPO_ROOT)/build/summoning-overlay
-SUMMONING_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs241.baked
-SUMMONING_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs241.summoning
+SUMMONING_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs242.baked
+SUMMONING_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs242.summoning
 
 test-summoning-cs2:
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cs2
@@ -5929,7 +5943,7 @@ test-summoning-cs2:
 		expected=$$(find "$(SUMMONING_LANE)/scripts" -type f -name '*.cs2' | wc -l | tr -d ' '); \
 		[ "$$expected" -gt 0 ] || { echo "test-summoning-cs2: zero scripts" >&2; exit 1; }; \
 		$(CS2_BIN) compile --src "$(SUMMONING_LANE)/scripts" \
-			--raw "$(TORIRSSERVER_CACHE_BASE)" --rev osrs241 \
+			--raw "$(TORIRSSERVER_CACHE_BASE)" --rev osrs242 \
 			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" >"$$log" 2>&1; \
 		cat "$$log"; \
 		grep -qx "compiled $$expected, failed 0" "$$log" || { \
@@ -6064,8 +6078,8 @@ test-summoning-byte-identity:
 # the third book's arm. `cachepack pack` itself now fails on a script that does
 # not compile or does not link, so a pack that exits zero shipped every script
 # the tree states; the assertions check the lane's own content landed.
-CURSES_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs241.baked
-CURSES_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs241.curses
+CURSES_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs242.baked
+CURSES_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs242.curses
 CURSES_OVERLAY_DIR = $(REPO_ROOT)/build/curses-overlay
 # As with SUMMONING_LANE: the cs2 test compiles the lane's own scripts, so it
 # needs the path, not the lane.ini discovery the server-script build uses.
@@ -6081,10 +6095,10 @@ torirsserver-cache-curses: check-crystal-set-contract test-curses-isolation test
 	@cd $(REPO_ROOT) && \
 		$(CACHEPACK_BIN) pack --src $(CURSES_OVERLAY_DIR) \
 		--base $(CURSES_CACHE_BASE) --out $(CURSES_CACHE_DIR) \
-		--rev osrs241 --assets --binary --gamevals
+		--rev osrs242 --assets --binary --gamevals
 	@$(MAKE) --no-print-directory torirsserver-cache-check TORIRSSERVER_CACHE_DIR=$(CURSES_CACHE_DIR)
 	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
-		$(CS2_BIN) decompile --cache "$(CURSES_CACHE_DIR)" --rev osrs241 \
+		$(CS2_BIN) decompile --cache "$(CURSES_CACHE_DIR)" --rev osrs242 \
 		--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" 463 547 6723 7053 7054 7055 7823 >"$$log" 2>&1; \
 		cat "$$log"; \
 		grep -Rqs 'return(6035)' "$$tmp" || { echo "torirsserver-cache-curses: script 7823 has no curses arm in the baked cache" >&2; exit 1; }; \
@@ -6099,8 +6113,8 @@ torirsserver-cache-curses: check-crystal-set-contract test-curses-isolation test
 # a script pack with BOTH content flags set and a cache with all three lanes
 # staged. The lanes are independent, so this is a chain rather than a merge:
 # rs2012-summoning is baked first and the curses overlay goes on top of it.
-CURSES_ALL_CACHE_BASE = $(REPO_ROOT)/cache.osrs241.rs2012-summoning
-CURSES_ALL_CACHE_DIR = $(REPO_ROOT)/cache.osrs241.rs2012-summoning-curses
+CURSES_ALL_CACHE_BASE = $(REPO_ROOT)/cache.osrs242.rs2012-summoning
+CURSES_ALL_CACHE_DIR = $(REPO_ROOT)/cache.osrs242.rs2012-summoning-curses
 
 # Both gated lanes at once, for manifests/manifest_osrs239_torirs.ini. Two names on one
 # line rather than a third recipe: that the combination is expressible at all,
@@ -6143,7 +6157,7 @@ test-curses-cs2:
 		expected=$$(find "$(CURSES_LANE)/scripts" -type f -name '*.cs2' | wc -l | tr -d ' '); \
 		[ "$$expected" -gt 0 ] || { echo "test-curses-cs2: zero scripts" >&2; exit 1; }; \
 		$(CS2_BIN) compile --src "$(CURSES_LANE)/scripts" \
-			--cache "$(TORIRSSERVER_CACHE_BASE)" --rev osrs241 \
+			--cache "$(TORIRSSERVER_CACHE_BASE)" --rev osrs242 \
 			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" >"$$log" 2>&1; \
 		cat "$$log"; \
 		grep -qx "compiled $$expected, failed 0" "$$log" || { \
@@ -6163,11 +6177,11 @@ torirsserver-cache-summoning: check-crystal-set-contract test-summoning-isolatio
 	@cd $(REPO_ROOT) && \
 		$(CACHEPACK_BIN) pack --src $(SUMMONING_OVERLAY_DIR) \
 		--base $(SUMMONING_CACHE_BASE) --out $(SUMMONING_CACHE_DIR) \
-		--rev osrs241 --assets --binary --gamevals
+		--rev osrs242 --assets --binary --gamevals
 	@$(MAKE) --no-print-directory torirsserver-cache-check TORIRSSERVER_CACHE_DIR=$(SUMMONING_CACHE_DIR)
 	@$(MAKE) --no-print-directory test-summoning-phase6-cache
 	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
-		$(CS2_BIN) decompile --cache "$(SUMMONING_CACHE_DIR)" --rev osrs241 \
+		$(CS2_BIN) decompile --cache "$(SUMMONING_CACHE_DIR)" --rev osrs242 \
 		--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" 393 1198 1904 8950 12000 12001 12002 12003 12004 >"$$log" 2>&1; \
 		cat "$$log"; grep -qx 'decompiled 9, failed 0, total 9' "$$log"; \
 		grep -Rqs '^\[clientscript,.*\](component .*int .*int .*int .*)' "$$tmp"; \
@@ -6194,7 +6208,7 @@ torirsserver-cache-summoning: check-crystal-set-contract test-summoning-isolatio
 # mid-recipe. The QBD/TD cache is reused as-is rather than rebuilt into a
 # private copy â it is the same bytes manifests/manifest_osrs239_rs2012.ini boots, which
 # is what makes a defect seen here reproducible there.
-RS2012_SUMMONING_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs241.rs2012-summoning
+RS2012_SUMMONING_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs242.rs2012-summoning
 
 .PHONY: torirsserver-cache-rs2012-summoning
 torirsserver-cache-rs2012-summoning:
@@ -6215,7 +6229,7 @@ test-summoning-phase1: torirsserver-cache-summoning torirsserver-scripts-summoni
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase1.py \
 		--client $(SRC_DIR)/torirs --flag-on $(SUMMONING_CACHE_DIR) \
-		--flag-off $(REPO_ROOT)/cache.osrs241 --scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
+		--flag-off $(REPO_ROOT)/cache.osrs242 --scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
 test-summoning-phase4: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack-summoning
@@ -6754,6 +6768,8 @@ test-loc-ops-wire: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unit
 		torirsserver/torirs_server_wire.c torirsserver/torirs_server_loc_ops.c \
 		torirsserver/torirs_server_wire241.c torirsserver/mock241_inbound.c \
 		torirsserver/wire/osrs241_clientprot.c \
+		torirsserver/torirs_server_wire242.c torirsserver/mock242_inbound.c \
+		torirsserver/wire/osrs242_clientprot.c \
 		torirsserver/torirs_server_interface_state.c torirsserver/mock239_interface_setters.c \
 		torirsserver/mock239_runclientscript.c torirsserver/mock239_varp.c \
 		torirsserver/mock239_inbound.c torirsserver/mock239_interface_inbound.c \
@@ -7626,11 +7642,11 @@ content-test-client:
 
 test-canoes-server:
 	$(MAKE) OPT=1 torirsserver
-	cd $(REPO_ROOT) && TORIRSSERVER_SELFTEST_CANOES_ONLY=1 TORIRSSERVER_CACHE=cache.osrs241 ./src/build_opt/torirsserver --selftest
+	cd $(REPO_ROOT) && TORIRSSERVER_SELFTEST_CANOES_ONLY=1 TORIRSSERVER_CACHE=cache.osrs242 ./src/build_opt/torirsserver --selftest
 
 # Same S0/S1/S2 runtime assertions as the complete world selftest, without
 # requiring unrelated content suites to reach the sailing section first.
 .PHONY: test-sailing-server
 test-sailing-server: torirsserver
 	cd $(REPO_ROOT) && TORIRSSERVER_SELFTEST_SAILING_ONLY=1 TORIRSSERVER_REV=osrs239 \
-		TORIRSSERVER_CACHE=cache.osrs241 ./src/$(OBJ_DIR)/torirsserver --selftest
+		TORIRSSERVER_CACHE=cache.osrs242 ./src/$(OBJ_DIR)/torirsserver --selftest

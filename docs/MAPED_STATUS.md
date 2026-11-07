@@ -21,7 +21,7 @@ people know, is docs/MAPED_ROADMAP.md.
 
 **Desktop, one command:**
 
-    ./launch run osrs241-mapeditor
+    ./launch run osrs242-mapeditor
 
 builds the client and the live lane's `torirsserver` and `js5_server` (the
 profile's `build=`), and opens the editor window with its embedded editor
@@ -52,7 +52,7 @@ same rows. How long a RUN takes, measured 2026-11-02 (see "RUN speed"):
 
 **Web, one command:**
 
-    ./launch run osrs241-mapeditor-web      # then open http://localhost:8088/
+    ./launch run osrs242-mapeditor-web      # then open http://localhost:8088/
 
 starts the torirsmaped daemon (the editor server: content tree, lock, BUILD,
 RUN, lane `build/live/default`), a js5_server for the page's cache and
@@ -81,7 +81,7 @@ panel, and its last line in the status ("exited (status 1) before it
 answered: torirsserver: no server pack at ...").
 
 **Where the logs are:** `build/live/default/logs/{server,js5,io,play}.log`
-(the lane's processes); `./launch logs osrs241-mapeditor-web [torirsmaped|
+(the lane's processes); `./launch logs osrs242-mapeditor-web [torirsmaped|
 io_server|js5_server]` (the web run's services); the editor's Console panel
 and the Live panel's log (build lines, RUN outcomes, a dead server's log
 tail).
@@ -92,11 +92,11 @@ tail).
 it -- in the Console at boot, in the Inspector's first row, and in RUN's stop:
 
     read-only: /.../OSRS-Content/osrs-content is held by pid 43893
-    (torirs --manifest manifests/manifest_osrs241_mapeditor.ini, since 16:22)
+    (torirs --manifest manifests/manifest_osrs242_mapeditor.ini, since 16:22)
     -- close it, or run this window against the daemon
 
 Close that process, or point this window at the daemon that holds the tree
-(`server=tcp`, `osrs241-mapeditor-tcp`). A lock whose pid no longer runs (a
+(`server=tcp`, `osrs242-mapeditor-tcp`). A lock whose pid no longer runs (a
 crash, a kill -9) is moved aside and taken at the next start, with one
 console line ("held a stale lock (pid N ... no longer runs); removed it").
 
@@ -117,15 +117,15 @@ checkout, or the mirror `src/maped/test/live_e2e/mirror.py` makes).
 **Native, one window, embedded editor server** (the default):
 
     make -C src
-    src/torirs --manifest manifests/manifest_osrs241_mapeditor.ini
+    src/torirs --manifest manifests/manifest_osrs242_mapeditor.ini
 
 or through the launcher, which builds the client and prepares the lane first:
 
-    ./launch run osrs241-mapeditor          # one window, embedded ToriRSMapEd
-    ./launch run osrs241-mapeditor-tcp      # the window attached to a shared daemon (started for you, port 43610)
-    ./launch run osrs241-mapeditor-view     # a viewer window of that session (start -tcp first)
+    ./launch run osrs242-mapeditor          # one window, embedded ToriRSMapEd
+    ./launch run osrs242-mapeditor-tcp      # the window attached to a shared daemon (started for you, port 43610)
+    ./launch run osrs242-mapeditor-view     # a viewer window of that session (start -tcp first)
 
-(`profiles/osrs241-mapeditor*.ini`; `./launch list` names the osrs239 twins.
+(`profiles/osrs242-mapeditor*.ini`; `./launch list` names the osrs239 twins.
 The preparation runs the content tree's contract checks and refuses a tree
 that fails them; `TORIRS_SKIP_CHECKS=1 ./launch run ...` boots on the tree as
 it stands.)
@@ -312,7 +312,7 @@ and its `x/y/w/h` (chrome pixels at scale 1) in the file.
 
     make -C src torirsmaped torirsmapedctl
     src/build_opt/torirsmaped 43610 --content-dir OSRS-Content/osrs-content --repo-root . \
-        [--view-binary src/torirs --view-manifest manifests/manifest_osrs241_mapeditor.ini] \
+        [--view-binary src/torirs --view-manifest manifests/manifest_osrs242_mapeditor.ini] \
         [--live-dir <dir>]
 
 then boot the client with `server=tcp` in `[editor:boot]` (host/port default
@@ -365,18 +365,18 @@ read-only TEXT document of a type's field register.
 
 **Viewer window** (a second camera on the same session):
 
-    src/torirs --manifest manifests/manifest_osrs241_mapeditor.ini --editor-view \
+    src/torirs --manifest manifests/manifest_osrs242_mapeditor.ini --editor-view \
         --maped tcp://127.0.0.1:43610 --maped-group <client id> --camera x,z,level,yaw,pitch,zoom
 
 or "Open in new view" in the picker (the daemon spawns it when started with
 `--view-binary/--view-manifest`, else the client's launch service does).
 
-**Web** (the Quick start's `./launch run osrs241-mapeditor-web`, by hand):
+**Web** (the Quick start's `./launch run osrs242-mapeditor-web`, by hand):
 
     make -C src servers torirsmaped && make -C src web
     src/build_opt/torirsmaped 43610 --content-dir OSRS-Content/osrs-content --repo-root . --live-dir build/live/default &
-    src/build/io_server --manifest manifests/manifest_osrs241_mapeditor.ini --root build-web \
-        --maped-port 43610 --page-query 'args=--manifest,manifests/manifest_osrs241_mapeditor.ini&js5_port=43595'
+    src/build/io_server --manifest manifests/manifest_osrs242_mapeditor.ini --root build-web \
+        --maped-port 43610 --page-query 'args=--manifest,manifests/manifest_osrs242_mapeditor.ini&js5_port=43595'
     # plus a js5_server on cache.osrs241, port 43595; then open http://localhost:8088/
 
 **The web editor's link to the daemon (2026-11-02).** A web boot of an
@@ -405,7 +405,7 @@ A web client PLAYING on a live lane (a RUN goes live in it, row 16): serve the
 page with io_server (`--root` the web build, `--boot-root` a tree whose
 manifest's `[net:boot]` names the lane's game port and whose `dir=` resolves to
 a dat2 cache, e.g. the lane's), and open
-`/?args=--manifest,manifests/manifest_osrs241.ini,--connect,127.0.0.1:<game>,--user,<name>,--pass,<letters+digits>&ws=ws://127.0.0.1:<game>/&js5_url=ws://127.0.0.1:<js5>/&idb=<fresh name>`
+`/?args=--manifest,manifests/manifest_osrs242.ini,--connect,127.0.0.1:<game>,--user,<name>,--pass,<letters+digits>&ws=ws://127.0.0.1:<game>/&js5_url=ws://127.0.0.1:<js5>/&idb=<fresh name>`
 (add `&env=TORIRS_CACHE_INVALIDATE_DEBUG%3D1&env=TORIRS_LOC_CFG%3D<id>` to
 see the reload). The lane's server builds its world, and answers the daemon's
 control link, only after that first login.
@@ -1087,7 +1087,7 @@ repo root; headless at 1280x800 on soft3d):
       PLATFORM_OBJ_BASE=build_agent_perf PLATFORM_TARGET=build_agent_perf_opt_prof/torirs \
       build_agent_perf_opt_prof/torirs
     python3 src/maped/test/live_e2e/mirror.py OSRS-Content/osrs-content <scratch>/content
-    # manifest: manifests/manifest_osrs241_mapeditor.ini with absolute dir=,
+    # manifest: manifests/manifest_osrs242_mapeditor.ini with absolute dir=,
     # content_dir=<scratch>/content, repo_root=<scratch>/repo, revconfig_cache=,
     # and `window=1280x800` under [ui:boot]
     TORIRS_HIDPI=0 TORIRS_PREFS="" TORIRS_EDITOR_LAYOUT="" TORIRS_PLUGINS=0 SDL_VIDEODRIVER=dummy \
@@ -5717,7 +5717,7 @@ wanted in the tool palette "like debuggers"; and "it lagged and crashed
 when trying to play".
 
 **Run on Windows, by hand** (`dist/win64/torirs.exe --manifest
-manifests/manifest_osrs241_mapeditor.ini`, `server=embed`, `lane=working`,
+manifests/manifest_osrs242_mapeditor.ini`, `server=embed`, `lane=working`,
 the window at 1296x839, driven by winctl): with the play account's save
 removed to match the screenshot, Place player now writes "offline: wrote
 saves/maped43620.ini (position 3231,3238 level 0; the play account's first
@@ -6134,7 +6134,7 @@ that exposed it):
     TORIRS_PLUGINS=0 TORIRS_HIDPI=0 TORIRS_EDITOR_LAYOUT= TORIRS_EDITOR_HOTKEYS= \
     TORIRS_CATALOG_STATS=1 TORIRS_MAX_FRAMES=1600 \
     TORIRS_EDITOR_CATALOG="loc:oak@200,every=150,pick=0@800,pick=1@950,pick=2@1100,edit=1250,next=1400" \
-      <client> --manifest manifests/manifest_osrs241_mapeditor.ini
+      <client> --manifest manifests/manifest_osrs242_mapeditor.ini
 
 (`TORIRS_EDITOR_CATALOG=<kind>:<find>[@<frame>][,every=<frames>][,pick=<row>@<frame>...][,next=<frame>][,edit=<frame>]`
 opens the Catalog, types the find text a character at a time, clicks rows,

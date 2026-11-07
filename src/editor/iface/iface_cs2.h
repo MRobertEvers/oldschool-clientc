@@ -43,7 +43,7 @@ struct EditorCs2CompileJob
     const char* cache_dir;
     /** --names (RuneStar's), or NULL. */
     const char* names_dir;
-    /** --rev, NULL for "osrs241". */
+    /** --rev, NULL for "osrs242". */
     const char* revision;
     /** A scratch directory this compile owns; `src/` and `out/` go under it. */
     const char* work_dir;

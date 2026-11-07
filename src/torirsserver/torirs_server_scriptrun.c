@@ -5629,18 +5629,20 @@ ToriRSServer_ScriptRun(
         fprintf(stderr, "scriptrun: cannot read %s\n", run.test_path);
         return 2;
     }
-    /* The bots decode revision 241 -- the selected revision -- with the
-     * client's own parser, so the world writes 241's bytes whatever the
-     * standalone server's default wire is. TORIRS_SCRIPTRUN_REV=osrs239 runs
-     * the same test on the 239 pair (both ends are chosen by the one name). */
+    /* The bots decode revision 242 -- the selected revision -- with the
+     * client's own parser, so the world writes 242's bytes whatever the
+     * standalone server's default wire is. TORIRS_SCRIPTRUN_REV=osrs241 (or
+     * osrs239) runs the same test on that pair (both ends are chosen by the
+     * one name). */
     {
         char const* rev_name = getenv("TORIRS_SCRIPTRUN_REV");
 
         if( !rev_name || !rev_name[0] )
-            rev_name = "osrs241";
-        /* Only the two modern tables are linked into the server. */
+            rev_name = "osrs242";
+        /* Only the modern tables are linked into the server. */
         run.rev = strcmp(rev_name, "osrs239") == 0   ? GameProtoRev_OSRS239()
                   : strcmp(rev_name, "osrs241") == 0 ? GameProtoRev_OSRS241()
+                  : strcmp(rev_name, "osrs242") == 0 ? GameProtoRev_OSRS242()
                                                      : NULL;
         srv->wire = ToriRSServer_WireByName(rev_name);
         if( !run.rev || !srv->wire )

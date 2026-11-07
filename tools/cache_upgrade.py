@@ -139,15 +139,26 @@ def restamp(text: str) -> str:
     return text[:j] + f"{fnv1a64(text[:i].encode()):016x}" + text[k:]
 
 
+def code_only(text: str) -> str:
+    """The text without whole-line comments, triggers spelled `{varp...}`."""
+    lines = [ln for ln in text.splitlines() if not ln.lstrip().startswith("//")]
+    return re.sub(r"\{\$(var)", r"{\1", "\n".join(lines))
+
+
 def local_map(curated: str, raw: str) -> dict[str, str] | None:
     """raw local -> curated local, paired by position.
 
     The two texts decompile the SAME bytecode, so their `$local` occurrences
     line up one for one; the text between them may differ only in how a
     global was spelled at the time (a name the tree has since given a model,
-    say). A pairing that names one raw local two ways is refused."""
-    c = TOK.findall(strip_stamp(curated))
-    r = TOK.findall(strip_stamp(raw))
+    say). A pairing that names one raw local two ways is refused.
+
+    Whole-line `//` comments are not code, and a curated one may mention a
+    local by name; a var-transmit trigger once printed `{$varp...}` names a
+    global, not a local. Neither takes part in the pairing (242: three
+    scripts had lost their names to one or the other)."""
+    c = TOK.findall(code_only(strip_stamp(curated)))
+    r = TOK.findall(code_only(strip_stamp(raw)))
     if len(c) != len(r):
         return None
     m: dict[str, str] = {}

@@ -1240,7 +1240,7 @@ main(
     const char* content = "OSRS-Content/osrs-content";
     /* Pack validates against the pristine unpack source, not the baked client
      * cache the live server shares with the client. */
-    const char* cache = "cache.osrs241";
+    const char* cache = "cache.osrs242";
     int prune = 0;
 
     for( int i = 1; i < argc; i++ )

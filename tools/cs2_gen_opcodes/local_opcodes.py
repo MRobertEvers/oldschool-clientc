@@ -37,6 +37,18 @@ LOCAL_NAMES: dict[int, str] = {
     4062: "LONG_TO_INT",
     # Rev-241 deob: pops a long, pushes (int)(v >> 32) -- 4062's high half.
     4063: "LONG_HIGH_TO_INT",
+    # Rev 242's display-name checker (interface 2357, scripts 10213..10238);
+    # no client we have declares them. Names and signatures:
+    # 3rd/rscache/tools/cs2/local_commands.py.
+    5100: "DISPLAYNAMES_POLL",
+    5101: "DISPLAYNAMES_GETSESSION",
+    5102: "DISPLAYNAMES_CHECK",
+    5103: "DISPLAYNAMES_GETCHECK",
+    5104: "DISPLAYNAMES_SUBMIT",
+    5105: "DISPLAYNAMES_GETSUBMIT",
+    5106: "DISPLAYNAMES_CANCEL",
+    5107: "DISPLAYNAMES_GETCANCEL",
+    5108: "DISPLAYNAMES_END",
     # rev239 Statics.method11128: per-priority-group world-entity draw limit.
     # Modern nullable array/string-stack literal. The cache command catalogue
     # calls this PUSH_CONSTANT_NULL; older RuneLite tables use PUSH_NULL.
