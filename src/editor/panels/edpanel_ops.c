@@ -287,17 +287,29 @@ Editor_BrushCommands(
 
             switch( op->tool )
             {
-            case EDITOR_TOOL_RAISE:
-            case EDITOR_TOOL_LOWER:
+            case EDITOR_TOOL_HEIGHT:
             {
-                int delta = (int)floor((double)op->brush.step * weight + 0.5);
-                if( delta < 1 )
-                    delta = 1;
-                if( op->tool == EDITOR_TOOL_LOWER )
-                    delta = -delta;
+                /* Derived heights grow DOWN: a positive gap is a target
+                 * below the tile. */
+                int here;
+                double gap;
+                double move;
+
+                (void)Editor_OpsDerivedHeight(doc, world_x, world_z, op->level, &here);
+                gap = (double)(op->height_target - here);
+                if( fabs(gap) < OPS_UNIT / 2.0 )
+                    continue;
+                if( (op->height_mode == EDITOR_HEIGHT_MODE_RAISE && gap > 0)
+                    || (op->height_mode == EDITOR_HEIGHT_MODE_LOWER && gap < 0) )
+                    continue;
+                move = gap * (double)op->brush.strength / 100.0 * weight;
+                if( fabs(move) < OPS_UNIT )
+                    move = gap < 0 ? -OPS_UNIT : OPS_UNIT;
+                if( fabs(move) > fabs(gap) )
+                    move = gap;
                 after.has_height = 1;
-                after.height = (uint8_t)ops_raw_of_units(
-                    ops_units_step(ops_tile_units(square, x, z, op->level), delta));
+                after.height = (uint8_t)Editor_OpsRawForHeight(
+                    ops_base(square, x, z, op->level), here + (int)floor(move + 0.5));
                 break;
             }
             case EDITOR_TOOL_NOISE:

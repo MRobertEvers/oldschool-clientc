@@ -395,8 +395,9 @@ enum ToriRSMapEdStateKey
      *  itself (editor_ui.c ui_tools_pack): brush radius, falloff, step,
      *  strength; underlay id, overlay id, overlay none, overlay shape,
      *  overlay rotation; flags value; place shape, place rotation; view
-     *  level, view solo; Fit walls to neighbours (workbench 6.3) --
-     *  TORIRSMAPED_TOOLS_VALUES in that order. */
+     *  level, view solo; Fit walls to neighbours (workbench 6.3); the
+     *  Height brush packed in one (mode, grid, grid opacity, target; editor_ui.c
+     *  ui_tools_pack) -- TORIRSMAPED_TOOLS_VALUES in that order. */
     TORIRSMAPED_STATE_TOOLS = 7,
     /** A window with no world of its own (a popped-out Squares panel) asks
      *  the windows that show one to open a square: map_x, map_z, add (1
@@ -418,7 +419,7 @@ enum ToriRSMapEdStateKey
 
 enum
 {
-    TORIRSMAPED_TOOLS_VALUES = 15,
+    TORIRSMAPED_TOOLS_VALUES = 16,
 };
 
 enum

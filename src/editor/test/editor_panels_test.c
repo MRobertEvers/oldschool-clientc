@@ -128,6 +128,28 @@ tile_at(
     return &square->tiles[Editor_TileIndex(world_x % 64, world_z % 64, level)];
 }
 
+/** A Height op at (x, z) on `level` whose grid stands `units` height units
+ *  above the ground there, pulling all the way (strength 100): every tile
+ *  under it below the grid goes up to it. */
+static void
+height_op_up(
+    struct Editor_BrushOp* op,
+    int x,
+    int z,
+    int level,
+    int units)
+{
+    int here = 0;
+
+    op->tool = EDITOR_TOOL_HEIGHT;
+    op->world_x = x;
+    op->world_z = z;
+    op->level = level;
+    op->brush.strength = 100;
+    (void)Editor_OpsDerivedHeight(&g_editor.doc, x, z, level, &here);
+    op->height_target = here - units * EDITOR_HEIGHT_UNIT;
+}
+
 static int
 derived(
     int world_x,
@@ -338,13 +360,9 @@ test_brushes(void)
     int expected = 0;
 
     memset(&op, 0, sizeof(op));
-    op.tool = EDITOR_TOOL_RAISE;
-    op.world_x = cx;
-    op.world_z = cz;
-    op.level = 0;
     op.brush.radius = 2;
     op.brush.falloff = EDITOR_BRUSH_FALLOFF_FLAT;
-    op.brush.step = 3;
+    height_op_up(&op, cx, cz, 0, 30);
 
     for( int dz = -2; dz <= 2; dz++ )
         for( int dx = -2; dx <= 2; dx++ )
@@ -360,8 +378,8 @@ test_brushes(void)
         for( int i = 0; i < 25; i++ )
             heights_before[i] = derived(cx + i % 5 - 2, cz + i / 5 - 2);
         count = Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX);
-        CHECK(count == 21, "raise makes one command per tile of the disc (%d)", count);
-        CHECK(apply_all(g_cmds, count) == count, "the authority applies the raise");
+        CHECK(count == 21, "a grid above the ground makes one command per tile of the disc (%d)", count);
+        CHECK(apply_all(g_cmds, count) == count, "the authority applies the pull");
         for( int dz = -2; dz <= 2; dz++ )
             for( int dx = -2; dx <= 2; dx++ )
             {
@@ -373,6 +391,10 @@ test_brushes(void)
                     raised = 0;
             }
         CHECK(raised, "every tile of the disc is authored and higher (negative is up)");
+        CHECK(abs(derived(cx, cz) - op.height_target) <= 4, "the centre lands on the grid's nearest step (%d vs %d)",
+            derived(cx, cz), op.height_target);
+        CHECK(Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX) == 0,
+            "a disc already on the grid makes no command");
         CHECK(Editor_Undo(&g_editor) == count, "one undo reverts the whole application");
         {
             int restored = 1;
@@ -381,6 +403,36 @@ test_brushes(void)
                     restored = 0;
             CHECK(restored, "undo restores the authored tiles exactly, absence included");
         }
+    }
+
+    /* Height's modes: raise only never cuts, lower only never fills; a
+     *  strength under 100 goes part of the way, never past the grid. */
+    {
+        int const here = derived(cx, cz);
+        int moved;
+        memset(&op, 0, sizeof(op));
+        op.tool = EDITOR_TOOL_HEIGHT;
+        op.world_x = cx;
+        op.world_z = cz;
+        op.brush.strength = 100;
+        op.height_target = here + 5 * EDITOR_HEIGHT_UNIT;
+        op.height_mode = EDITOR_HEIGHT_MODE_RAISE;
+        CHECK(Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX) == 0,
+            "height: raise only leaves ground that is above the grid");
+        op.height_mode = EDITOR_HEIGHT_MODE_LOWER;
+        CHECK(Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX) == 1,
+            "height: lower only cuts it");
+        op.height_target = here - 10 * EDITOR_HEIGHT_UNIT;
+        CHECK(Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX) == 0,
+            "height: lower only leaves ground that is below the grid");
+        op.height_mode = EDITOR_HEIGHT_MODE_BOTH;
+        op.brush.strength = 50;
+        count = Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX);
+        CHECK(count == 1 && apply_all(g_cmds, count) == 1, "height: half strength makes the one command");
+        moved = derived(cx, cz);
+        CHECK(moved < here && moved > op.height_target && abs(moved - (here - 5 * EDITOR_HEIGHT_UNIT)) <= 8,
+            "height: half strength goes half way up (%d from %d toward %d)", moved, here, op.height_target);
+        CHECK(Editor_Undo(&g_editor) == 1, "height: one undo");
     }
 
     /* Smooth falloff: the rim moves less than the centre. */
@@ -481,11 +533,8 @@ test_brushes(void)
         int in_a = 0;
         int in_b = 0;
         memset(&op, 0, sizeof(op));
-        op.tool = EDITOR_TOOL_RAISE;
-        op.world_x = SQ_X0 + 10;
-        op.world_z = SQ_Z0 + 63;
         op.brush.radius = 2;
-        op.brush.step = 1;
+        height_op_up(&op, SQ_X0 + 10, SQ_Z0 + 63, 0, 30);
         count = Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX);
         for( int i = 0; i < count; i++ )
         {
@@ -2073,13 +2122,13 @@ test_chrome(void)
     /* The tool rail arms tools; the console lists what happened. */
     {
         int const rail = find_panel("Tools");
-        int const raise = find_widget(rail, TORIRS_CHROME_W_ICONBUTTON, "Raise");
+        int const raise = find_widget(rail, TORIRS_CHROME_W_ICONBUTTON, "Height");
         int const console_panel = find_panel("Output");
         int const list = find_widget(console_panel, TORIRS_CHROME_W_VLIST, NULL);
-        CHECK(raise >= 0, "the rail has a Raise button");
+        CHECK(raise >= 0, "the rail has a Height button");
         activate(raise);
-        CHECK(g_ui.tools.tool == EDITOR_TOOL_RAISE && ToriRSChrome_Checked(&g_chrome, raise),
-            "Raise is armed and pressed");
+        CHECK(g_ui.tools.tool == EDITOR_TOOL_HEIGHT && ToriRSChrome_Checked(&g_chrome, raise),
+            "Height is armed and pressed");
         CHECK(list >= 0 && g_ui.console_count > 0 && g_chrome.widgets[list].imax == g_ui.console_count,
             "the console lists the session's lines (%d of %d)", list >= 0 ? g_chrome.widgets[list].imax : -1,
             g_ui.console_count);
@@ -3871,9 +3920,9 @@ test_shared_tools(void)
     Editor_PumpFacts(&peer);
     CHECK(g_peer_heard.tools_hits == 0, "shared tools: a window's boot publishes no tools (its defaults are no change)");
 
-    /* Main -> other window: the tool (the 3 key arms Raise), the brush, the
+    /* Main -> other window: the tool (the 3 key arms Height), the brush, the
      * palette, all heard. */
-    Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_HEIGHT);
     g_ui.tools.brush.radius = 5;
     g_ui.tools.brush.strength = 70;
     g_ui.tools.underlay_id = 12;
@@ -3883,8 +3932,8 @@ test_shared_tools(void)
     frame();
     Editor_PumpFacts(&g_editor);
     Editor_PumpFacts(&peer);
-    CHECK(g_peer_heard.tool_hits >= 1 && g_peer_heard.tool == EDITOR_TOOL_RAISE,
-        "shared tools: the other window hears the main window arm Raise");
+    CHECK(g_peer_heard.tool_hits >= 1 && g_peer_heard.tool == EDITOR_TOOL_HEIGHT,
+        "shared tools: the other window hears the main window arm Height");
     CHECK(g_peer_heard.tools_hits >= 1 && g_peer_heard.tools[0] == 5 && g_peer_heard.tools[3] == 70
               && g_peer_heard.tools[4] == 12 && g_peer_heard.tools[5] == 7 && g_peer_heard.tools[6] == 0
               && g_peer_heard.tools[10] == 22,
@@ -3948,11 +3997,11 @@ test_shared_tools(void)
     /* A popped-out World: the World panel alone, its title naming what a
      * click in it does. */
     CHECK(Editor_UiSetSolo(&g_ui, "world"), "shared tools: World can be a window's solo panel");
-    Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_HEIGHT);
     frame();
     frame();
     CHECK(g_ui.world_panel >= 0 && Editor_UiWorldShown(&g_ui)
-              && strcmp(g_chrome.panels[g_ui.world_panel].title, "World - Raise") == 0,
+              && strcmp(g_chrome.panels[g_ui.world_panel].title, "World - Height") == 0,
         "shared tools: the popped-out World shows and names the armed tool (%s)",
         g_ui.world_panel >= 0 ? g_chrome.panels[g_ui.world_panel].title : "-");
     CHECK(Editor_UiWorldRect(&g_ui).w > 1400 && Editor_UiWorldRect(&g_ui).h > 900,
@@ -4998,12 +5047,9 @@ fb_test_footprint(void)
             int inside = 1;
 
             memset(&op, 0, sizeof(op));
-            op.tool = EDITOR_TOOL_RAISE;
-            op.world_x = cx;
-            op.world_z = cz;
             op.brush.radius = k_radii[r];
             op.brush.falloff = (enum Editor_BrushFalloff)f;
-            op.brush.step = 4;
+            height_op_up(&op, cx, cz, 0, 40);
             n = Editor_Terrain_BrushFootprint(&op.brush, tiles, EDITOR_BRUSH_TILES_MAX);
             memset(marked, 0, sizeof(marked));
             for( int i = 0; i < n; i++ )
@@ -5033,7 +5079,7 @@ fb_test_footprint(void)
         CHECK(n == 21 && tiles[0].dx == 0 && tiles[0].dz == 0 && tiles[0].weight == 1.0,
             "footprint: a radius-2 disc is 21 tiles, centre first at full weight (%d)", n);
         CHECK(Editor_Terrain_BrushFootprint(&brush, tiles, 4) == 4, "footprint: a short array takes what fits");
-        CHECK(Editor_Terrain_ToolUsesFalloff(EDITOR_TOOL_RAISE) && !Editor_Terrain_ToolUsesFalloff(EDITOR_TOOL_PAINT_UNDERLAY)
+        CHECK(Editor_Terrain_ToolUsesFalloff(EDITOR_TOOL_HEIGHT) && !Editor_Terrain_ToolUsesFalloff(EDITOR_TOOL_PAINT_UNDERLAY)
                   && !Editor_Terrain_ToolUsesFalloff(EDITOR_TOOL_FLATTEN),
             "footprint: height brushes fade, flatten and paint do not");
     }
@@ -5253,12 +5299,9 @@ fb_test_history_panel(void)
 
     /* A: a named raise stroke on untouched ground. */
     memset(&op, 0, sizeof(op));
-    op.tool = EDITOR_TOOL_RAISE;
-    op.world_x = cx;
-    op.world_z = cz;
     op.brush.radius = 2;
     op.brush.falloff = EDITOR_BRUSH_FALLOFF_FLAT;
-    op.brush.step = 2;
+    height_op_up(&op, cx, cz, 0, 30);
     count = Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX);
     Editor_StrokeBegin(&g_editor);
     Editor_HistoryName(&g_editor, "Raise");
@@ -5272,7 +5315,8 @@ fb_test_history_panel(void)
     CHECK(strcmp(name, "Raise 21 tiles m50_50 L0") == 0 && history->groups[first].cmd_count == 21,
         "history: the stroke is one row named by its brush (%s, %d)", name, history->groups[first].cmd_count);
 
-    /* B: the same raise again, unnamed: the tallies say Raise. */
+    /* B: the grid higher again, unnamed: the tallies say Raise. */
+    op.height_target -= 30 * EDITOR_HEIGHT_UNIT;
     count = Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX);
     CHECK(apply_all(g_cmds, count) == count, "history: the second raise applies");
     Editor_HistoryGroupName(&history->groups[first + 1], name, sizeof(name));
@@ -6460,11 +6504,7 @@ test_active_level(void)
         t = tile_at(x2, z2, 2);
         CHECK(op.level == 2 && t && t->underlay_id == 7, "level: the empty level-2 tile now has the underlay");
 
-        op.tool = EDITOR_TOOL_RAISE;
-        op.world_x = x3;
-        op.world_z = z3;
-        op.level = 3;
-        op.brush.step = 4;
+        height_op_up(&op, x3, z3, 3, 4);
         count = Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX);
         CHECK(count == 1 && edp_apply(&g_ui, g_cmds, count, "raise") == 1, "level: raise on empty level 3 applies");
         undo++;
@@ -6684,7 +6724,7 @@ test_hotkeys(void)
         ToriRSChrome_SetText(&g_chrome, search, "redo");
         frame();
         CHECK(hotkeys_row(panel, EDITOR_HK_EDIT_REDO) >= 0 && hotkeys_row(panel, EDITOR_HK_EDIT_UNDO) < 0
-                  && hotkeys_row(panel, EDITOR_HK_TOOL_RAISE) < 0,
+                  && hotkeys_row(panel, EDITOR_HK_TOOL_HEIGHT) < 0,
             "hotkeys: 'redo' leaves Redo and hides Undo and Raise");
         ToriRSChrome_SetText(&g_chrome, search, "F12");
         frame();
@@ -6729,19 +6769,19 @@ test_hotkeys(void)
     CHECK(strcmp(hotkeys_cell(EDITOR_HK_FILE_BAKE, 5), "") == 0, "hotkeys: no clash left");
 
     /* Esc cancels; Backspace unbinds the slot. */
-    hotkeys_click_cell(EDITOR_HK_TOOL_RAISE, 1);
+    hotkeys_click_cell(EDITOR_HK_TOOL_HEIGHT, 1);
     (void)hotkeys_feed("escape");
-    CHECK(Editor_Hotkeys_Capturing(&g_ui) < 0 && Editor_HotkeysIsDefault(&g_ui.hotkeys, EDITOR_HK_TOOL_RAISE),
+    CHECK(Editor_Hotkeys_Capturing(&g_ui) < 0 && Editor_HotkeysIsDefault(&g_ui.hotkeys, EDITOR_HK_TOOL_HEIGHT),
         "hotkeys: Esc cancels and keeps the chord");
-    hotkeys_click_cell(EDITOR_HK_TOOL_RAISE, 1);
+    hotkeys_click_cell(EDITOR_HK_TOOL_HEIGHT, 1);
     (void)hotkeys_feed("backspace");
     frame();
-    CHECK(g_ui.hotkeys.bind[EDITOR_HK_TOOL_RAISE].chord[0].key == TORIRSK_UNKNOWN, "hotkeys: Backspace unbinds");
-    CHECK(strcmp(hotkeys_cell(EDITOR_HK_TOOL_RAISE, 3), "- -") == 0, "hotkeys: the row says unbound in both cells");
+    CHECK(g_ui.hotkeys.bind[EDITOR_HK_TOOL_HEIGHT].chord[0].key == TORIRSK_UNKNOWN, "hotkeys: Backspace unbinds");
+    CHECK(strcmp(hotkeys_cell(EDITOR_HK_TOOL_HEIGHT, 3), "- -") == 0, "hotkeys: the row says unbound in both cells");
     {
         struct EditorUiPanel* rail = Editor_UiFindPanel(&g_ui, "toolrail");
-        int const raise = rail ? find_widget(rail->chrome_panel, TORIRS_CHROME_W_ICONBUTTON, "Raise") : -1;
-        CHECK(raise >= 0 && strcmp(g_chrome.widgets[raise].tooltip, "Raise terrain (brush)") == 0
+        int const raise = rail ? find_widget(rail->chrome_panel, TORIRS_CHROME_W_ICONBUTTON, "Height") : -1;
+        CHECK(raise >= 0 && strcmp(g_chrome.widgets[raise].tooltip, "Height: pull to the grid; Ctrl/Cmd+wheel moves it") == 0
                   && g_chrome.widgets[raise].chord[0] == '\0' && g_chrome.widgets[raise].tooltip_chord[0] == '\0',
             "hotkeys: the rail drops the badge and the tip's chord (%s / '%s')",
             raise >= 0 ? g_chrome.widgets[raise].tooltip : "-", raise >= 0 ? g_chrome.widgets[raise].chord : "-");
@@ -6758,9 +6798,9 @@ test_hotkeys(void)
     }
     {
         struct EditorUiPanel* rail = Editor_UiFindPanel(&g_ui, "toolrail");
-        int const raise = rail ? find_widget(rail->chrome_panel, TORIRS_CHROME_W_ICONBUTTON, "Raise") : -1;
+        int const raise = rail ? find_widget(rail->chrome_panel, TORIRS_CHROME_W_ICONBUTTON, "Height") : -1;
         /* The badge wears the chord; the tooltip falls back to it. */
-        CHECK(raise >= 0 && strcmp(g_chrome.widgets[raise].tooltip, "Raise terrain (brush)") == 0
+        CHECK(raise >= 0 && strcmp(g_chrome.widgets[raise].tooltip, "Height: pull to the grid; Ctrl/Cmd+wheel moves it") == 0
                   && strcmp(g_chrome.widgets[raise].chord, "3") == 0,
             "hotkeys: the rail badge wears its chord again (%s / '%s')",
             raise >= 0 ? g_chrome.widgets[raise].tooltip : "-", raise >= 0 ? g_chrome.widgets[raise].chord : "-");
@@ -6785,12 +6825,12 @@ test_hotkeys(void)
         (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_BRUSH_RADIUS_DOWN);
         frame();
     }
-    Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
-    Editor_UiSetTool(&g_ui, EDITOR_TOOL_LOWER);
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_HEIGHT);
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_FLATTEN);
     (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_TOOL_PREVIOUS);
-    CHECK(g_ui.tools.tool == EDITOR_TOOL_RAISE, "hotkeys: ` swaps back to the previous tool");
+    CHECK(g_ui.tools.tool == EDITOR_TOOL_HEIGHT, "hotkeys: ` swaps back to the previous tool");
     (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_TOOL_PREVIOUS);
-    CHECK(g_ui.tools.tool == EDITOR_TOOL_LOWER, "hotkeys: ...and again");
+    CHECK(g_ui.tools.tool == EDITOR_TOOL_FLATTEN, "hotkeys: ...and again");
     Editor_UiSetTool(&g_ui, EDITOR_TOOL_SELECT);
     {
         int const terrain = find_panel("Terrain");
@@ -7129,7 +7169,7 @@ test_palette_colour(void)
     CHECK(strstr(g_chrome.widgets[graph_under].tooltip, "underlay 40") && strstr(g_chrome.widgets[graph_under].tooltip, "#40a068"),
         "palette: the hover names the swatch's id and colour (%s)", g_chrome.widgets[graph_under].tooltip);
     CHECK(Editor_Palette_SwatchAt(&g_ui, 0, 12, &x, &y), "palette: the earlier pick is still listed");
-    Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_HEIGHT);
     push_graph(graph_under, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
     frame();
     CHECK(g_ui.tools.underlay_id == 12 && g_ui.tools.tool == EDITOR_TOOL_PAINT_UNDERLAY
@@ -7238,7 +7278,7 @@ test_palette_colour(void)
             activate(w_drop_under);
             CHECK(Editor_Palette_DropperArmed(&g_ui) == 0, "palette: pressing it again disarms");
             activate(w_drop_under);
-            Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+            Editor_UiSetTool(&g_ui, EDITOR_TOOL_HEIGHT);
             CHECK(Editor_Palette_DropperAt(&g_ui, SQ_X0 + 5, SQ_Z0 + 6, 0) && g_ui.tools.underlay_id == 33
                       && g_ui.tools.overlay_none && g_ui.tools.tool == EDITOR_TOOL_PAINT_UNDERLAY
                       && Editor_Palette_DropperArmed(&g_ui) == 0,
@@ -7267,9 +7307,9 @@ test_palette_colour(void)
     CHECK(w_mix >= 0, "terrain: a Mix slider");
     if( w_mix >= 0 )
     {
-        Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+        Editor_UiSetTool(&g_ui, EDITOR_TOOL_HEIGHT);
         frame();
-        CHECK(g_chrome.widgets[w_mix].hidden, "terrain: Mix is hidden under Raise");
+        CHECK(g_chrome.widgets[w_mix].hidden, "terrain: Mix is hidden under Height");
         Editor_UiSetTool(&g_ui, EDITOR_TOOL_PAINT_UNDERLAY);
         frame();
         CHECK(!g_chrome.widgets[w_mix].hidden && g_ui.tools.paint_mix == 100, "terrain: Mix shows under Paint underlay, at 100");
@@ -7380,11 +7420,26 @@ test_statusbar(void)
     g_ui.tools.pick_id = 1902;
     frame();
     CHECK(statusbar_run(panel, "[click/Space, Enter] place") >= 0, "statusbar: with a loc pick, Space places");
-    Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_FLATTEN);
     frame();
     CHECK(statusbar_run(panel, "[drag] paint") >= 0 && statusbar_run(panel, "[[ ]] radius") >= 0
               && statusbar_run(panel, "[Shift+[ ]] strength") >= 0,
         "statusbar: a brush's rows");
+    /* Height says its wheel and its pick, in the platform's modifier. */
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_HEIGHT);
+    frame();
+#if defined(__APPLE__) && !defined(__EMSCRIPTEN__)
+    CHECK(statusbar_run(panel, "[drag] pull") >= 0 && statusbar_run(panel, "[cmd+wheel] height") >= 0
+              && statusbar_run(panel, "[cmd+shift+wheel] grid only") >= 0
+              && statusbar_run(panel, "[cmd+click] grid here") >= 0,
+        "statusbar: Height's rows");
+#else
+    CHECK(statusbar_run(panel, "[drag] pull") >= 0 && statusbar_run(panel, "[ctrl+wheel] height") >= 0
+              && statusbar_run(panel, "[ctrl+shift+wheel] grid only") >= 0
+              && statusbar_run(panel, "[ctrl+click] grid here") >= 0,
+        "statusbar: Height's rows");
+#endif
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_FLATTEN);
 
     /* A rebind relabels the strip on the next frame. */
     CHECK(Editor_ChordParse("minus", &chord), "statusbar: minus parses");

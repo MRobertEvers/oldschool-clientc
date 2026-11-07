@@ -157,8 +157,7 @@ The pointer (workbench 6.3, design section 7):
 |---|---|---|
 | Select | 1 | G |
 | Rectangle | 2 | G |
-| Raise | 3 | G |
-| Lower | 4 | G |
+| Height | 3 | G |
 | Flatten | 5 | G |
 | Smooth | 6 | G |
 | Paint underlay | 7 | G |
@@ -422,7 +421,7 @@ tables (the Hotkeys panel calls them by the name after the id):
 - **Edit**: `edit.undo` Undo, `edit.redo` Redo, `edit.deselect` Deselect / cancel, `edit.delete` Delete selection, `edit.duplicate` Duplicate, `edit.rotate` Rotate, `edit.reshape` Reshape, `edit.apply` Apply tool to selection, `edit.select_square` Select the square's locs, `edit.select_same` Select same, `edit.nudge_n` Nudge north, `edit.nudge_s` Nudge south, `edit.nudge_w` Nudge west, `edit.nudge_e` Nudge east, `edit.nudge_far_n` Nudge north 8, `edit.nudge_far_s` Nudge south 8, `edit.nudge_far_w` Nudge west 8, `edit.nudge_far_e` Nudge east 8, `edit.level_up` Selection up a level, `edit.level_down` Selection down a level, `edit.copy` Copy tiles, `edit.paste` Paste tiles, `edit.fill` Fill tiles, `edit.clear` Clear tiles, `edit.mark_area` Mark area from rect, `edit.select_kind` Select all of the picked kind, `edit.invert` Invert selection
 - **Place**: `place.here` Place at the hovered tile, `place.fit` Fit walls to neighbours (toggle), `place.swap` Swap to catalog pick, `place.constrain` Constrain a drag to one axis (hold)
 - **Palette**: `palette.slot_1` Palette slot 1, `palette.slot_2` Palette slot 2, `palette.slot_3` Palette slot 3, `palette.slot_4` Palette slot 4, `palette.slot_5` Palette slot 5, `palette.slot_6` Palette slot 6, `palette.slot_7` Palette slot 7, `palette.slot_8` Palette slot 8, `palette.slot_9` Palette slot 9, `palette.slot_10` Palette slot 10, `palette.add_pick` Add the pick to the palette, `palette.next` Next palette, `palette.previous` Previous palette
-- **Tools**: `tool.select` Select, `tool.rect` Rectangle, `tool.raise` Raise, `tool.lower` Lower, `tool.flatten` Flatten, `tool.smooth` Smooth, `tool.paint_underlay` Paint underlay, `tool.paint_overlay` Paint overlay, `tool.paint_flags` Paint flags, `tool.place` Place loc, `tool.move` Move loc, `tool.rotate` Rotate loc (tool), `tool.delete` Delete loc (tool), `tool.place_player` Place player, `tool.paint_path` Paint path, `tool.noise` Roughen, `tool.scatter` Scatter locs, `tool.plateau` Plateau, `tool.previous` Previous tool, `tool.pick_paint` Pick the tile's paint, `tool.pick_loc` Pick the hovered loc, `hold.place` Click places a loc (hold), `hold.delete` Click deletes a loc (hold), `hold.clear` Click clears the tile (hold)
+- **Tools**: `tool.select` Select, `tool.rect` Rectangle, `tool.height` Height, `tool.flatten` Flatten, `tool.smooth` Smooth, `tool.paint_underlay` Paint underlay, `tool.paint_overlay` Paint overlay, `tool.paint_flags` Paint flags, `tool.place` Place loc, `tool.move` Move loc, `tool.rotate` Rotate loc (tool), `tool.delete` Delete loc (tool), `tool.place_player` Place player, `tool.paint_path` Paint path, `tool.noise` Roughen, `tool.scatter` Scatter locs, `tool.plateau` Plateau, `tool.previous` Previous tool, `tool.pick_paint` Pick the tile's paint, `tool.pick_loc` Pick the hovered loc, `hold.place` Click places a loc (hold), `hold.delete` Click deletes a loc (hold), `hold.clear` Click clears the tile (hold)
 - **Brush**: `brush.radius_down` Radius -, `brush.radius_up` Radius +, `brush.strength_down` Strength -, `brush.strength_up` Strength +, `brush.step_down` Step -, `brush.step_up` Step +
 - **Level**: `level.down` Level down, `level.up` Level up, `level.pin0` Pin level 0, `level.pin1` Pin level 1, `level.pin2` Pin level 2, `level.pin3` Pin level 3, `level.auto` Level Auto, `level.above` Show above
 - **Camera**: `camera.forward` Fly forward, `camera.back` Fly back, `camera.left` Fly left, `camera.right` Fly right, `camera.down` Fly down, `camera.up` Fly up, `camera.fast` Fly faster, `camera.turn_left` Turn left, `camera.turn_right` Turn right, `camera.tilt_up` Tilt up, `camera.tilt_down` Tilt down, `camera.frame` Frame the selection, `camera.frame_square` Frame the square's centre, `camera.frame_key` Frame the selection (Unity scheme), `camera.scheme` Camera scheme: default / Unity (toggle)
@@ -436,7 +435,7 @@ Example:
     version = 1
     file.bake = ctrl+b
     edit.redo = ctrl+y, ctrl+shift+z
-    tool.raise =
+    tool.height =
 
 ## Where the build differs from the plan above
 

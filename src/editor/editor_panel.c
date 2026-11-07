@@ -1140,6 +1140,18 @@ Editor_PanelApplyToolAt(
                 return 0;
             op.flatten_height = ui->tools.flatten_height;
         }
+        /* Height pulls toward its grid; a press with no grid set yet sets
+         * it where the press landed, as Flatten takes its first tile. */
+        if( ui->tools.tool == EDITOR_TOOL_HEIGHT )
+        {
+            if( !ui->tools.height_valid
+                && Editor_OpsDerivedHeight(&app->editor->doc, world_x, world_z, op.level, &ui->tools.height_target) )
+                ui->tools.height_valid = 1;
+            if( !ui->tools.height_valid )
+                return 0;
+            op.height_target = ui->tools.height_target;
+            op.height_mode = ui->tools.height_mode;
+        }
         op.underlay_id = ui->tools.underlay_id;
         op.overlay_id = ui->tools.overlay_id;
         op.overlay_none = ui->tools.overlay_none;
@@ -1179,6 +1191,89 @@ Editor_PanelApplyToolAt(
     default:
         return 0;
     }
+}
+
+int
+Editor_PanelHeightWheel(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int notches,
+    int move_ground)
+{
+    struct EditorUi* ui;
+    int world_x;
+    int world_z;
+    int const l = level < 0 ? 0 : level > 3 ? 3 : level;
+
+    assert(panel);
+    assert(app);
+    assert(notches != 0);
+    ui = panel->ui;
+    if( !ui || !app->editor || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+        return 0;
+    /* The first notch starts the grid on the ground under the pointer. */
+    if( !ui->tools.height_valid )
+    {
+        if( !Editor_OpsDerivedHeight(&app->editor->doc, world_x, world_z, l, &ui->tools.height_target) )
+        {
+            Editor_UiStatus(ui, "Height refused: m%d_%d is not open", world_x / 64, world_z / 64);
+            return 0;
+        }
+        ui->tools.height_valid = 1;
+    }
+    Editor_UiSetHeightTarget(ui, ui->tools.height_target - notches * ui->tools.brush.step * EDITOR_HEIGHT_UNIT);
+    if( !move_ground )
+        return 1;
+    {
+        int capacity;
+        struct Editor_Cmd* commands = edp_scratch(&capacity);
+        struct Editor_BrushOp op;
+
+        /* The ground follows the grid all the way at the centre, the
+         * falloff's share of it toward the rim: a notch is a mound. */
+        memset(&op, 0, sizeof(op));
+        op.tool = EDITOR_TOOL_HEIGHT;
+        op.world_x = world_x;
+        op.world_z = world_z;
+        op.level = l;
+        op.brush = ui->tools.brush;
+        op.brush.strength = 100;
+        op.height_target = ui->tools.height_target;
+        op.height_mode = ui->tools.height_mode;
+        (void)edp_apply(ui, commands, Editor_BrushCommands(&app->editor->doc, &op, commands, capacity), "Height");
+        return 1;
+    }
+}
+
+int
+Editor_PanelHeightPick(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    struct EditorUi* ui;
+    int world_x;
+    int world_z;
+    int height;
+
+    assert(panel);
+    assert(app);
+    ui = panel->ui;
+    if( !ui || !app->editor || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+        return 0;
+    if( !Editor_OpsDerivedHeight(&app->editor->doc, world_x, world_z, level < 0 ? 0 : level > 3 ? 3 : level, &height) )
+    {
+        Editor_UiStatus(ui, "Height pick refused: m%d_%d is not open", world_x / 64, world_z / 64);
+        return 0;
+    }
+    ui->tools.height_valid = 1;
+    Editor_UiSetHeightTarget(ui, height);
+    return 1;
 }
 
 int

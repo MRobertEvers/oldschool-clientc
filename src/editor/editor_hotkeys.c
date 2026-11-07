@@ -117,8 +117,7 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                                     NULL },
     [EDITOR_HK_TOOL_SELECT] = { "tool.select", "Tools", "Select", "| Select |", G, EDGE, { "1" }, NULL },
     [EDITOR_HK_TOOL_RECT] = { "tool.rect", "Tools", "Rectangle", "| Rectangle |", G, EDGE, { "2" }, NULL },
-    [EDITOR_HK_TOOL_RAISE] = { "tool.raise", "Tools", "Raise", "| Raise |", G, EDGE, { "3" }, NULL },
-    [EDITOR_HK_TOOL_LOWER] = { "tool.lower", "Tools", "Lower", "| Lower |", G, EDGE, { "4" }, NULL },
+    [EDITOR_HK_TOOL_HEIGHT] = { "tool.height", "Tools", "Height", "| Height |", G, EDGE, { "3" }, NULL },
     [EDITOR_HK_TOOL_FLATTEN] = { "tool.flatten", "Tools", "Flatten", "| Flatten |", G, EDGE, { "5" }, NULL },
     [EDITOR_HK_TOOL_SMOOTH] = { "tool.smooth", "Tools", "Smooth", "| Smooth |", G, EDGE, { "6" }, NULL },
     [EDITOR_HK_TOOL_PAINT_UNDERLAY] = { "tool.paint_underlay", "Tools", "Paint underlay", "Paint underlay", G, EDGE,
@@ -1091,6 +1090,29 @@ static const struct hk_hint_row k_hint_brush[] = {
     { NULL, { 0 }, 0, NULL },
 };
 
+/* The Height brush's wheel: Ctrl is Command on a Mac (platform_sdl2.c maps
+ * both to TORIRSK_CTRL), and the strip says the key the hand presses. */
+#if defined(__APPLE__) && !defined(__EMSCRIPTEN__)
+#define HK_HEIGHT_WHEEL "cmd+wheel"
+#define HK_HEIGHT_WHEEL_GRID "cmd+shift+wheel"
+#define HK_HEIGHT_PICK "cmd+click"
+#else
+#define HK_HEIGHT_WHEEL "ctrl+wheel"
+#define HK_HEIGHT_WHEEL_GRID "ctrl+shift+wheel"
+#define HK_HEIGHT_PICK "ctrl+click"
+#endif
+
+static const struct hk_hint_row k_hint_height[] = {
+    { "drag", { 0 }, 0, "pull" },
+    { HK_HEIGHT_WHEEL, { 0 }, 0, "height" },
+    { HK_HEIGHT_WHEEL_GRID, { 0 }, 0, "grid only" },
+    { HK_HEIGHT_PICK, { 0 }, 0, "grid here" },
+    { NULL, { EDITOR_HK_BRUSH_RADIUS_DOWN, EDITOR_HK_BRUSH_RADIUS_UP }, 2, "radius" },
+    { NULL, { EDITOR_HK_BRUSH_STRENGTH_DOWN, EDITOR_HK_BRUSH_STRENGTH_UP }, 2, "strength" },
+    { NULL, { EDITOR_HK_BRUSH_STEP_DOWN, EDITOR_HK_BRUSH_STEP_UP }, 2, "step" },
+    { NULL, { 0 }, 0, NULL },
+};
+
 static const struct hk_hint_row k_hint_move[] = {
     { "drag", HK_NUDGES, 4, "move" },
     { NULL, { EDITOR_HK_EDIT_DUPLICATE }, 1, "dup" },
@@ -1145,8 +1167,7 @@ static const struct hk_hint_row k_hint_plateau[] = {
 static const struct hk_hint_row* const k_hint_rows[EDITOR_HK_HINT_TOOLS] = {
     [HK_TOOL(EDITOR_HK_TOOL_SELECT)] = k_hint_select,
     [HK_TOOL(EDITOR_HK_TOOL_RECT)] = k_hint_rect,
-    [HK_TOOL(EDITOR_HK_TOOL_RAISE)] = k_hint_brush,
-    [HK_TOOL(EDITOR_HK_TOOL_LOWER)] = k_hint_brush,
+    [HK_TOOL(EDITOR_HK_TOOL_HEIGHT)] = k_hint_height,
     [HK_TOOL(EDITOR_HK_TOOL_FLATTEN)] = k_hint_brush,
     [HK_TOOL(EDITOR_HK_TOOL_SMOOTH)] = k_hint_brush,
     [HK_TOOL(EDITOR_HK_TOOL_PAINT_UNDERLAY)] = k_hint_brush,

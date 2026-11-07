@@ -53,7 +53,7 @@ Editor_OpsRawForHeight(
 /** One brush application at one centre tile. */
 struct Editor_BrushOp
 {
-    /** RAISE, LOWER, FLATTEN, SMOOTH, PAINT_UNDERLAY, PAINT_OVERLAY,
+    /** HEIGHT, FLATTEN, SMOOTH, PAINT_UNDERLAY, PAINT_OVERLAY,
      *  PAINT_FLAGS, NOISE. */
     enum Editor_Tool tool;
     int world_x;
@@ -62,6 +62,12 @@ struct Editor_BrushOp
     struct Editor_Brush brush;
     /** FLATTEN: the derived height every tile in the brush goes to. */
     int flatten_height;
+    /** HEIGHT: the derived height each tile is pulled toward, by
+     *  brush.strength percent of the way scaled by the falloff (at least a
+     *  unit while it is a unit or more away, never past it), and which way
+     *  it may move (enum Editor_HeightMode). */
+    int height_target;
+    int height_mode;
     /** NOISE: the seed. Each tile's offset is a hash of the seed and its
      *  world tile, -step..+step scaled by the falloff: one seed is one
      *  relief, so a plan can be remade (the preview) and a tile revisited

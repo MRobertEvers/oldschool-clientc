@@ -3,6 +3,12 @@
  * the edit level as RADIO groups, the flags brush's four bits, and the view's
  * level cap (design #terrain). Every control writes the shared tool state
  * the moment it changes; the world click reads it on the next press.
+ *
+ * The Height brush's section (shown while it is armed): which way it may
+ * move the ground, the grid's height (the target, which Ctrl/Cmd+wheel and
+ * Ctrl/Cmd+click also set; "Follow the ground" unsets it so the grid stands on
+ * the hovered tile again), and whether the grid shows and how solid its
+ * fill is.
  */
 
 #include "edpanel_common.h"
@@ -20,12 +26,18 @@ enum
     TERRAIN_GROUP_LEVEL = 2,
     TERRAIN_GROUP_VIS = 3,
     TERRAIN_GROUP_PATH = 4,
+    TERRAIN_GROUP_HEIGHT = 5,
 };
+
+/** The grid slider's top: EDITOR_HEIGHT_TARGET_MIN in height units. */
+#define TERRAIN_HEIGHT_UNITS_MAX (-EDITOR_HEIGHT_TARGET_MIN / EDITOR_HEIGHT_UNIT)
 
 static const char* const k_falloff_names[EDITOR_BRUSH_FALLOFF_COUNT] = { "linear", "smooth", "flat" };
 static const char* const k_level_names[5] = { "auto", "0", "1", "2", "3" };
 static const char* const k_vis_names[5] = { "all", "0", "1", "2", "3" };
 static const char* const k_path_names[EDITOR_PATH_STYLE_COUNT] = { "dirt", "pavement" };
+static const char* const k_height_mode_names[EDITOR_HEIGHT_MODE_COUNT] = { "up and down", "raise only",
+                                                                         "lower only" };
 static const char* const k_flag_names[4] = { "block", "link below (bridge)", "remove roof",
                                              "vis below" };
 
@@ -66,6 +78,18 @@ struct TerrainPanel
      *  brush's tiles painted, the dither the client blends. */
     int slider_mix;
     int shown_mix;
+    /** The Height brush's section (shown while it is armed). */
+    int label_height;
+    int radio_height_mode[EDITOR_HEIGHT_MODE_COUNT];
+    int slider_height;
+    int button_height_follow;
+    int check_height_grid;
+    int slider_height_fill;
+    int shown_height_mode;
+    int shown_height_valid;
+    int shown_height_target;
+    int shown_height_grid;
+    int shown_height_fill;
     /** What the readout and the radios were last set from. */
     enum Editor_Tool shown_tool;
     int shown_level;
@@ -115,10 +139,10 @@ terrain_hints(
 {
     terrain_slider_chords(ui, self->slider_radius, "Radius", "Brush radius in tiles", EDITOR_HK_BRUSH_RADIUS_DOWN,
         EDITOR_HK_BRUSH_RADIUS_UP);
-    terrain_slider_chords(ui, self->slider_step, "Step", "Raise / lower: steps per click", EDITOR_HK_BRUSH_STEP_DOWN,
-        EDITOR_HK_BRUSH_STEP_UP);
+    terrain_slider_chords(ui, self->slider_step, "Step", "Height: units per wheel notch; Roughen: amplitude",
+        EDITOR_HK_BRUSH_STEP_DOWN, EDITOR_HK_BRUSH_STEP_UP);
     terrain_slider_chords(ui, self->slider_strength, "Strength",
-        "Smooth's pull; Shift+[ ] also steps density, skirt and mix", EDITOR_HK_BRUSH_STRENGTH_DOWN,
+        "Height and Smooth's pull per stroke; also density, skirt, mix", EDITOR_HK_BRUSH_STRENGTH_DOWN,
         EDITOR_HK_BRUSH_STRENGTH_UP);
     self->hint_serial = ui->hotkeys.serial;
 }
@@ -166,7 +190,7 @@ Editor_Terrain_BrushFootprint(
 int
 Editor_Terrain_ToolUsesFalloff(int tool)
 {
-    return tool == EDITOR_TOOL_RAISE || tool == EDITOR_TOOL_LOWER || tool == EDITOR_TOOL_SMOOTH;
+    return tool == EDITOR_TOOL_HEIGHT || tool == EDITOR_TOOL_SMOOTH;
 }
 
 static void
@@ -181,8 +205,15 @@ terrain_readout(
     int const scatter = ui->tools.tool == EDITOR_TOOL_SCATTER;
     int const plateau = ui->tools.tool == EDITOR_TOOL_PLATEAU;
     int const underlay = ui->tools.tool == EDITOR_TOOL_PAINT_UNDERLAY;
+    int const height = ui->tools.tool == EDITOR_TOOL_HEIGHT;
 
-    if( scatter )
+    if( height && ui->tools.height_valid )
+        snprintf(line, sizeof(line), "%s  r%d %s  grid at %d", Editor_ToolName(ui->tools.tool), brush->radius,
+            k_falloff_names[brush->falloff], -ui->tools.height_target / EDITOR_HEIGHT_UNIT);
+    else if( height )
+        snprintf(line, sizeof(line), "%s  r%d %s  grid on the ground", Editor_ToolName(ui->tools.tool),
+            brush->radius, k_falloff_names[brush->falloff]);
+    else if( scatter )
         snprintf(line, sizeof(line), "%s  r%d %s %d%%", Editor_ToolName(ui->tools.tool), brush->radius,
             k_falloff_names[brush->falloff], ui->tools.scatter_density);
     else if( underlay && ui->tools.paint_mix < 100 )
@@ -220,6 +251,13 @@ terrain_readout(
     ToriRSChrome_SetHidden(ui->chrome, self->button_scatter_seed, !scatter);
     ToriRSChrome_SetHidden(ui->chrome, self->slider_plateau_skirt, !plateau);
     ToriRSChrome_SetHidden(ui->chrome, self->slider_mix, !underlay);
+    ToriRSChrome_SetHidden(ui->chrome, self->label_height, !height);
+    for( int i = 0; i < EDITOR_HEIGHT_MODE_COUNT; i++ )
+        ToriRSChrome_SetHidden(ui->chrome, self->radio_height_mode[i], !height);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_height, !height);
+    ToriRSChrome_SetHidden(ui->chrome, self->button_height_follow, !height);
+    ToriRSChrome_SetHidden(ui->chrome, self->check_height_grid, !height);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_height_fill, !height || !ui->tools.height_grid);
     ToriRSChrome_SetHidden(ui->chrome, self->label_path, !path);
     for( int i = 0; i < EDITOR_PATH_STYLE_COUNT; i++ )
         ToriRSChrome_SetHidden(ui->chrome, self->radio_path[i], !path);
@@ -288,6 +326,22 @@ terrain_tick(
         self->shown_mix = ui->tools.paint_mix;
         terrain_readout(ui, self);
     }
+    /* The wheel, Ctrl/Cmd+click and other windows move the Height state. */
+    if( self->shown_height_mode != ui->tools.height_mode || self->shown_height_valid != ui->tools.height_valid
+        || self->shown_height_target != ui->tools.height_target || self->shown_height_grid != ui->tools.height_grid
+        || self->shown_height_fill != ui->tools.height_grid_opacity )
+    {
+        ToriRSChrome_RadioSelect(ui->chrome, self->radio_height_mode[ui->tools.height_mode]);
+        ToriRSChrome_SliderSet(ui->chrome, self->slider_height, -ui->tools.height_target / EDITOR_HEIGHT_UNIT);
+        ToriRSChrome_SetChecked(ui->chrome, self->check_height_grid, ui->tools.height_grid ? 1 : 0);
+        ToriRSChrome_SliderSet(ui->chrome, self->slider_height_fill, ui->tools.height_grid_opacity);
+        self->shown_height_mode = ui->tools.height_mode;
+        self->shown_height_valid = ui->tools.height_valid;
+        self->shown_height_target = ui->tools.height_target;
+        self->shown_height_grid = ui->tools.height_grid;
+        self->shown_height_fill = ui->tools.height_grid_opacity;
+        terrain_readout(ui, self);
+    }
     if( self->shown_flags != ui->tools.flags_value )
     {
         for( int i = 0; i < 4; i++ )
@@ -342,6 +396,27 @@ terrain_activate(
         terrain_readout(ui, self);
         return 1;
     }
+    else if( widget == self->slider_height )
+    {
+        Editor_UiSetHeightTarget(ui, -ToriRSChrome_SliderValue(ui->chrome, widget) * EDITOR_HEIGHT_UNIT);
+        return 1;
+    }
+    else if( widget == self->button_height_follow )
+    {
+        tools->height_valid = 0;
+        Editor_UiStatus(ui, "Height: the grid stands on the ground under the pointer until set");
+        return 1;
+    }
+    else if( widget == self->check_height_grid )
+    {
+        tools->height_grid = ToriRSChrome_Checked(ui->chrome, widget) ? 1 : 0;
+        return 1;
+    }
+    else if( widget == self->slider_height_fill )
+    {
+        tools->height_grid_opacity = ToriRSChrome_SliderValue(ui->chrome, widget);
+        return 1;
+    }
     else if( widget == self->check_solo )
     {
         tools->vis_solo = ToriRSChrome_Checked(ui->chrome, widget) ? 1 : 0;
@@ -354,6 +429,12 @@ terrain_activate(
             {
                 self->shown_brush.falloff = tools->brush.falloff = (enum Editor_BrushFalloff)i;
                 terrain_readout(ui, self);
+                return 1;
+            }
+        for( int i = 0; i < EDITOR_HEIGHT_MODE_COUNT; i++ )
+            if( widget == self->radio_height_mode[i] )
+            {
+                tools->height_mode = i;
                 return 1;
             }
         for( int i = 0; i < EDITOR_PATH_STYLE_COUNT; i++ )
@@ -439,6 +520,32 @@ Editor_Terrain_Register(struct EditorUi* ui)
     self->slider_strength =
         ToriRSChrome_Slider(chrome, self->panel, "Strength", 0, 100, ui->tools.brush.strength, 5);
     terrain_hints(ui, self);
+
+    /* The Height brush (3): hidden until armed (terrain_readout). */
+    self->label_height = ToriRSChrome_Label(chrome, self->panel, "Height brush");
+    for( int i = 0; i < EDITOR_HEIGHT_MODE_COUNT; i++ )
+        self->radio_height_mode[i] = ToriRSChrome_Radio(
+            chrome, self->panel, k_height_mode_names[i], TERRAIN_GROUP_HEIGHT, i == ui->tools.height_mode);
+    ToriRSChrome_SetTooltip(chrome, self->radio_height_mode[1], "Fill hollows up to the grid, leave rises above it");
+    ToriRSChrome_SetTooltip(chrome, self->radio_height_mode[2], "Cut rises down to the grid, leave hollows below it");
+    self->slider_height =
+        ToriRSChrome_Slider(chrome, self->panel, "Grid height", 0, TERRAIN_HEIGHT_UNITS_MAX, 0, 1);
+    ToriRSChrome_SetTooltip(chrome, self->slider_height,
+        "Units of 8; Ctrl/Cmd+wheel moves it, +Shift the grid only");
+    self->button_height_follow = ToriRSChrome_Button(chrome, self->panel, "Grid follows the ground");
+    ToriRSChrome_SetTooltip(chrome, self->button_height_follow, "Unset the grid: it stands on the hovered tile again");
+    self->check_height_grid = ToriRSChrome_Checkbox(chrome, self->panel, "Show grid", ui->tools.height_grid ? 1 : 0);
+    self->slider_height_fill =
+        ToriRSChrome_Slider(chrome, self->panel, "Grid fill (%)", 0, 100, ui->tools.height_grid_opacity, 5);
+    ToriRSChrome_SetTooltip(chrome, self->slider_height_fill, "How solid the grid's fill is; its lines always show");
+    self->shown_height_mode = -1;
+    ToriRSChrome_SetHidden(chrome, self->label_height, 1);
+    for( int i = 0; i < EDITOR_HEIGHT_MODE_COUNT; i++ )
+        ToriRSChrome_SetHidden(chrome, self->radio_height_mode[i], 1);
+    ToriRSChrome_SetHidden(chrome, self->slider_height, 1);
+    ToriRSChrome_SetHidden(chrome, self->button_height_follow, 1);
+    ToriRSChrome_SetHidden(chrome, self->check_height_grid, 1);
+    ToriRSChrome_SetHidden(chrome, self->slider_height_fill, 1);
 
     /* The Path tool (H): hidden until it is armed (terrain_readout). */
     self->label_path = ToriRSChrome_Label(chrome, self->panel, "Path");

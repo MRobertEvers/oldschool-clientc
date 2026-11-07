@@ -60,9 +60,11 @@ enum Editor_Tool
     EDITOR_TOOL_SELECT = 0,
     /** Drag a tile rectangle: copy, paste, fill, clear act on it. */
     EDITOR_TOOL_RECT_SELECT,
-    /** Height brushes: TILE commands on the `h` token, grouped per stroke. */
-    EDITOR_TOOL_RAISE,
-    EDITOR_TOOL_LOWER,
+    /** Height brushes: TILE commands on the `h` token, grouped per stroke.
+     *  HEIGHT is raise and lower in one: it pulls the ground toward the
+     *  target height its grid shows (EditorUiTools.height_target), which
+     *  Ctrl/Cmd+wheel moves, the ground under the brush following. */
+    EDITOR_TOOL_HEIGHT,
     EDITOR_TOOL_FLATTEN,
     EDITOR_TOOL_SMOOTH,
     /** Paint brushes: the `u`, `o` (id, shape, rotation) and `f` tokens. */
@@ -117,6 +119,23 @@ enum Editor_BrushFalloff
     EDITOR_BRUSH_FALLOFF_COUNT
 };
 
+/** Which way the Height brush may move a tile: toward its target either
+ *  way, or only up to it (fill a hollow without cutting the rise beside
+ *  it), or only down to it (cut a rise without filling the hollow). */
+enum Editor_HeightMode
+{
+    EDITOR_HEIGHT_MODE_BOTH = 0,
+    EDITOR_HEIGHT_MODE_RAISE,
+    EDITOR_HEIGHT_MODE_LOWER,
+    EDITOR_HEIGHT_MODE_COUNT
+};
+
+/** World units in one authored height unit (the `h` byte's step). */
+#define EDITOR_HEIGHT_UNIT 8
+/** The highest the Height brush's grid goes: four planes of the tallest
+ *  `h` (255 units each), as a derived height (negative up). */
+#define EDITOR_HEIGHT_TARGET_MIN (-4 * 255 * EDITOR_HEIGHT_UNIT)
+
 /** Largest brush radius, in tiles: a radius-16 disc is 33x33 tiles, one
  *  command per tile, inside one stroke. */
 #define EDITOR_BRUSH_RADIUS_MAX 16
@@ -128,9 +147,12 @@ struct Editor_Brush
     /** 0 is one tile. */
     int radius;
     enum Editor_BrushFalloff falloff;
-    /** Raise / lower: authored height units (8 world units each) per apply. */
+    /** Height: authored height units (8 world units each) one wheel notch
+     *  moves the target; Roughen: its amplitude. */
     int step;
-    /** Smooth: 0..100, how far toward the neighbours' mean one apply goes. */
+    /** Height: 0..100, how far toward the target one click or drag
+     *  application goes (100 lands on it); Smooth: how far toward the
+     *  neighbours' mean. */
     int strength;
 };
 
@@ -202,6 +224,19 @@ struct EditorUiTools
      *  press, read on every drag. */
     int flatten_valid;
     int flatten_height;
+
+    /** The Height brush's target, a derived height (world units, negative
+     *  up, as Editor_OpsDerivedHeight answers), where its grid stands. 0
+     *  valid until a press, a Ctrl/Cmd+click pick, a wheel notch or the Terrain
+     *  panel's slider sets it: the grid then stands on the hovered ground. */
+    int height_valid;
+    int height_target;
+    /** enum Editor_HeightMode. */
+    int height_mode;
+    /** The grid: drawn at all, and its fill's opacity in percent (0..100;
+     *  the lines are always drawn while it shows). */
+    int height_grid;
+    int height_grid_opacity;
 
     /** The Place tool's pose: what the ghost shows and the click stamps. */
     int place_shape;
@@ -708,7 +743,7 @@ struct EditorUiViewFrame
 
 /** TORIRSMAPED_TOOLS_VALUES (torirsmaped/torirs_maped.h), asserted equal in
  *  editor_ui.c. */
-#define EDITOR_UI_TOOLS_VALUES 15
+#define EDITOR_UI_TOOLS_VALUES 16
 
 struct EditorUi
 {
@@ -1544,6 +1579,14 @@ Editor_UiTogglePanel(
  *  when the panels are hidden afterwards. */
 int
 Editor_UiToggleAllPanels(struct EditorUi* ui);
+
+/** Stand the Height brush's grid at derived height `height` (negative up),
+ *  clamped to 0..EDITOR_HEIGHT_TARGET_MIN, and say where in the status
+ *  line. The wheel, Ctrl/Cmd+click and the Terrain panel's slider all land here. */
+void
+Editor_UiSetHeightTarget(
+    struct EditorUi* ui,
+    int height);
 
 /** Arm a tool: tools state, STATE_TOOL, console. The tool it replaces
  *  becomes `previous_tool`. */

@@ -62,6 +62,15 @@ static struct AppMapEditorGizmo
     int said;
     int said_quarters;
 } g_app_gizmo;
+/* The Height brush's wheel (Ctrl/Cmd+wheel moves the grid and the ground
+ * follows): a run of notches is one undo step, closed when the wheel rests
+ * this long, Ctrl is let go, or another gesture starts. */
+#define APP_EDITOR_HEIGHT_WHEEL_REST_MS 600
+static struct
+{
+    int open;
+    int64_t last_ms;
+} g_app_height_wheel;
 static int
 app_map_editor_gizmo_press(
     struct App* app,
@@ -2608,6 +2617,20 @@ app_map_editor_world_click(
     if( !app->editor || !panel->ui )
         return;
     ui = panel->ui;
+    /* The wheel's stroke closes at rest, at Ctrl's release, under another
+     * tool or with the editor hidden; a press closes it below. */
+    if( g_app_height_wheel.open
+        && (ui->chrome->now_ms - g_app_height_wheel.last_ms > APP_EDITOR_HEIGHT_WHEEL_REST_MS
+            || !LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) || ui->tools.tool != EDITOR_TOOL_HEIGHT
+            || !panel->visible || input->curr.mouse_button_down[TORIRSM_LEFT]) )
+    {
+        g_app_height_wheel.open = 0;
+        if( ui->tools.stroke_open )
+        {
+            ui->tools.stroke_open = 0;
+            Editor_StrokeEnd(app->editor);
+        }
+    }
     /* ui->shift_held is set by the hotkey dispatcher (app_editor_hotkeys.c),
      * the one reader of the editor's keys. */
     /* First: every reader below (and the previews after) takes the pinned
@@ -2670,6 +2693,37 @@ app_map_editor_world_click(
         return;
     level = Editor_PanelEditLevel(panel, app);
 
+    /* The Height brush's wheel: Ctrl (Command on a Mac) + wheel moves the
+     * grid a step a notch and the ground under the brush follows it, a run
+     * of notches one stroke; with Shift as well only the grid moves (set it
+     * up before touching the ground). Either way the camera never sees the
+     * wheel: it is taken out of the frame's input, the trackpad's precise
+     * scroll included. */
+    if( tool == EDITOR_TOOL_HEIGHT && LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) && !app->chrome_pointer_owned
+        && (input->curr.mouse_wheel_y != 0 || input->curr.scroll_dx != 0.0f || input->curr.scroll_dy != 0.0f) )
+    {
+        int const notches = input->curr.mouse_wheel_y;
+        int const ground = !LibToriRS_Input_IsKeyHeld(input, TORIRSK_SHIFT);
+
+        input->curr.mouse_wheel_y = 0;
+        input->curr.scroll_dx = 0.0f;
+        input->curr.scroll_dy = 0.0f;
+        if( notches == 0 )
+            return;
+        if( ground && !g_app_height_wheel.open && !ui->tools.stroke_open )
+        {
+            Editor_StrokeBegin(app->editor);
+            Editor_HistoryName(app->editor, "Height");
+            ui->tools.stroke_open = 1;
+            g_app_height_wheel.open = 1;
+        }
+        if( g_app_height_wheel.open )
+            g_app_height_wheel.last_ms = ui->chrome->now_ms;
+        (void)Editor_PanelHeightWheel(panel, app, hx, hz, level, notches, ground);
+        app->need_redraw = 1;
+        return;
+    }
+
     /* The palette's eyedropper takes the click whatever the tool: the press
      * opens no stroke, marquee or run, the release picks. */
     if( Editor_Palette_DropperArmed(ui) )
@@ -2692,6 +2746,14 @@ app_map_editor_world_click(
         {
             if( Editor_PanelPathBegin(panel, app, hx, hz, level) )
                 app->need_redraw = 1;
+            return;
+        }
+        /* Ctrl/Cmd+click under Height: the grid to the ground there, no
+         * edit (Alt+click is the Unity scheme's orbit). */
+        if( tool == EDITOR_TOOL_HEIGHT && LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) )
+        {
+            (void)Editor_PanelHeightPick(panel, app, hx, hz, level);
+            app->need_redraw = 1;
             return;
         }
         if( Editor_ToolIsBrush(tool) )
@@ -3051,7 +3113,7 @@ app_map_editor_ghost_place_edit(
  * photograph has no pointer, so this parks the editor's hover on ABSOLUTE
  * tile (x, z) for every frame, and once, at the first frame with panels,
  * arms the named tool (Editor_ToolName, case-insensitive, spaces as '_':
- * raise, paint_underlay, place, move) and the catalog pick. Only the
+ * height, paint_underlay, place, move) and the catalog pick. Only the
  * previews (the brush footprint, the loc / spawn ghosts, the move
  * footprints) and the Inspector's hovered tile read it; clicks still need a
  * real pointer. Read once per process.

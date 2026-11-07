@@ -28,11 +28,11 @@
 #define EDITOR_UI_FRAME_HEARTBEAT_MS 5000
 
 static const char* const k_tool_names[EDITOR_TOOL_COUNT] = {
-    "Select",       "Rectangle select", "Raise",        "Lower",
-    "Flatten",      "Smooth",           "Paint underlay", "Paint overlay",
-    "Paint flags",  "Place",            "Move",         "Rotate",
-    "Delete",       "Place player",     "Paint path",   "Roughen",
-    "Scatter",      "Plateau",
+    "Select",       "Rectangle select", "Height",       "Flatten",
+    "Smooth",       "Paint underlay",   "Paint overlay", "Paint flags",
+    "Place",        "Move",             "Rotate",       "Delete",
+    "Place player", "Paint path",       "Roughen",      "Scatter",
+    "Plateau",
 };
 
 /* The hotkey table arms the tools in enum Editor_Tool's order, and its hint
@@ -42,6 +42,7 @@ _Static_assert(EDITOR_TOOL_COUNT == EDITOR_HK_HINT_TOOLS, "one hint list per too
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_LOC_PLACE == EDITOR_HK_TOOL_PLACE, "the tool orders agree");
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_LOC_MOVE == EDITOR_HK_TOOL_MOVE, "the tool orders agree");
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_RECT_SELECT == EDITOR_HK_TOOL_RECT, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_HEIGHT == EDITOR_HK_TOOL_HEIGHT, "the tool orders agree");
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_PLACE_PLAYER == EDITOR_HK_TOOL_PLACE_PLAYER,
     "the tool orders agree");
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_PAINT_PATH == EDITOR_HK_TOOL_PAINT_PATH, "the tool orders agree");
@@ -60,7 +61,7 @@ Editor_ToolName(enum Editor_Tool tool)
 int
 Editor_ToolIsBrush(enum Editor_Tool tool)
 {
-    return tool == EDITOR_TOOL_RAISE || tool == EDITOR_TOOL_LOWER || tool == EDITOR_TOOL_FLATTEN
+    return tool == EDITOR_TOOL_HEIGHT || tool == EDITOR_TOOL_FLATTEN
            || tool == EDITOR_TOOL_SMOOTH || tool == EDITOR_TOOL_PAINT_UNDERLAY
            || tool == EDITOR_TOOL_PAINT_OVERLAY || tool == EDITOR_TOOL_PAINT_FLAGS || tool == EDITOR_TOOL_NOISE
            || tool == EDITOR_TOOL_SCATTER || tool == EDITOR_TOOL_PLATEAU;
@@ -102,6 +103,9 @@ Editor_UiInit(
     ui->tools.scatter_rotate = 1;
     ui->tools.scatter_seed = 1;
     ui->tools.plateau_skirt = 3;
+    ui->tools.height_mode = EDITOR_HEIGHT_MODE_BOTH;
+    ui->tools.height_grid = 1;
+    ui->tools.height_grid_opacity = 30;
 
     /* Any number other views are unlikely to pick: the address of this
      * window's registry mixed with the clock. Positive, never 0 (0 is what a
@@ -3548,6 +3552,7 @@ ui_default_layout(struct EditorUi* ui)
  * changes a tool is covered without each one publishing), and the fact lands
  * back in every window's tools, where each panel's own follow redraws it. */
 _Static_assert(EDITOR_UI_TOOLS_VALUES == TORIRSMAPED_TOOLS_VALUES, "the editor packs every shared tool");
+_Static_assert(-EDITOR_HEIGHT_TARGET_MIN < (1 << 13), "the Height target packs in 13 bits");
 
 static void
 ui_tools_pack(
@@ -3570,6 +3575,11 @@ ui_tools_pack(
     out[12] = t->vis_level;
     out[13] = t->vis_solo;
     out[14] = t->place_fit;
+    /* The Height brush in one value (the store's 16 are spent): mode 2
+     * bits, grid 1, opacity 7, target valid 1, target 13 (-target, which
+     * EDITOR_HEIGHT_TARGET_MIN keeps under 8192). */
+    out[15] = (t->height_mode & 3) | (t->height_grid ? 1 << 2 : 0) | ((t->height_grid_opacity & 0x7f) << 3)
+              | (t->height_valid ? 1 << 10 : 0) | (((-t->height_target) & 0x1fff) << 11);
 }
 
 static void
@@ -3595,6 +3605,12 @@ ui_tools_unpack(
         t->vis_level = values[12];
     t->vis_solo = values[13];
     t->place_fit = values[14] ? 1 : 0;
+    if( (values[15] & 3) < EDITOR_HEIGHT_MODE_COUNT )
+        t->height_mode = values[15] & 3;
+    t->height_grid = (values[15] >> 2) & 1;
+    t->height_grid_opacity = ((values[15] >> 3) & 0x7f) > 100 ? 100 : (values[15] >> 3) & 0x7f;
+    t->height_valid = (values[15] >> 10) & 1;
+    t->height_target = -((values[15] >> 11) & 0x1fff);
 }
 
 /** A popped-out World says in its title what a click in it does -- the
@@ -4303,6 +4319,20 @@ Editor_UiPublish(
     if( ui->applying_state || !ui->editor )
         return 0;
     return Editor_StateSet(ui->editor, key, values, count);
+}
+
+void
+Editor_UiSetHeightTarget(
+    struct EditorUi* ui,
+    int height)
+{
+    assert(ui);
+    ui->tools.height_target = height < EDITOR_HEIGHT_TARGET_MIN ? EDITOR_HEIGHT_TARGET_MIN
+                              : height > 0                      ? 0
+                                                                : height;
+    ui->tools.height_valid = 1;
+    Editor_UiStatus(ui, "Height: grid at %d (%d world units up)", -ui->tools.height_target / EDITOR_HEIGHT_UNIT,
+        -ui->tools.height_target);
 }
 
 void

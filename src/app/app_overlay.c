@@ -1422,6 +1422,9 @@ app_overlay_build_hover_footprint(struct App* app)
  * footprint red), the spawn ghost's and the move destinations'. */
 #define APP_EDITOR_BRUSH_COLOR 0xFF3CC8FFu
 #define APP_EDITOR_GHOST_COLOR 0xFFFFC040u
+/* The Height brush's grid: a pale cyan apart from the footprint's, so the
+ * plane the ground is pulled to reads apart from the ground it marks. */
+#define APP_EDITOR_HEIGHT_GRID_COLOR 0xFFC8F4FFu
 /* The Place player tool's marker: the tile the play account would land on
  * (a magenta no other editor overlay uses). */
 #define APP_EDITOR_PLAYER_COLOR 0xFFE060E0u
@@ -1551,6 +1554,117 @@ app_overlay_editor_block(
 }
 
 /**
+ * The Height brush's grid: a FLAT plane at the brush's target height (the
+ * hovered ground's while none is set) over the tiles the footprint covers --
+ * every tile edge as a line at that one height, the plane washed at the
+ * Terrain panel's fill, and a post from the ground at the centre up (or
+ * down) to it, so the gap between the ground and where the brush will take
+ * it reads at a glance. `row_x0/row_x1` are the footprint's rows (z0 + i),
+ * -1 for an empty row, exactly as the rim was drawn.
+ */
+static void
+app_overlay_build_height_grid(
+    struct App* app,
+    struct EditorUi const* ui,
+    struct MapEditorHover const* hover,
+    int z0,
+    int rows,
+    const int* row_x0,
+    const int* row_x1)
+{
+    int px[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+    int py[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+    int hx[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+    int hy[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+    int const cx = hover->scene_x * 128 + 64;
+    int const cz = hover->scene_z * 128 + 64;
+    int const ground = app_world_height(app, cx, cz, hover->level);
+    int const y = ui->tools.height_valid ? ui->tools.height_target : ground;
+    int x_min = -1;
+    int x_max = -1;
+    int n = 0;
+
+    for( int i = 0; i < rows; i++ )
+    {
+        if( row_x0[i] < 0 )
+            continue;
+        if( x_min < 0 || row_x0[i] < x_min )
+            x_min = row_x0[i];
+        if( row_x1[i] > x_max )
+            x_max = row_x1[i];
+        /* The plane's hull: each row's outer corners, all at one height. */
+        for( int e = 0; e < 2; e++ )
+            for( int dz = 0; dz < 2; dz++ )
+                if( n < TORIDRAW_CONVEX_HULL_MAX_POINTS
+                    && app_world_project_at(app, (e ? row_x1[i] + 1 : row_x0[i]) * 128, (z0 + i + dz) * 128, y,
+                        &px[n], &py[n]) )
+                    n++;
+    }
+    if( x_min < 0 )
+        return;
+    if( n > 0 && ui->tools.height_grid_opacity > 0 )
+    {
+        int const hull = ToriDraw_ConvexHull(px, py, n, hx, hy);
+        app_overlay_push_polygon_filled(
+            app, hx, hy, hull, APP_EDITOR_HEIGHT_GRID_COLOR, 255 - ui->tools.height_grid_opacity * 255 / 100);
+    }
+    /* Lines along z = const: the boundary under row i spans both rows it
+     * separates. */
+    for( int i = 0; i <= rows; i++ )
+    {
+        int a = -1;
+        int b = -1;
+        int sx0;
+        int sy0;
+        int sx1;
+        int sy1;
+        for( int r = i - 1; r <= i; r++ )
+        {
+            if( r < 0 || r >= rows || row_x0[r] < 0 )
+                continue;
+            if( a < 0 || row_x0[r] < a )
+                a = row_x0[r];
+            if( row_x1[r] + 1 > b )
+                b = row_x1[r] + 1;
+        }
+        if( a >= 0 && app_world_project_at(app, a * 128, (z0 + i) * 128, y, &sx0, &sy0)
+            && app_world_project_at(app, b * 128, (z0 + i) * 128, y, &sx1, &sy1) )
+            app_overlay_push_segment(app, sx0, sy0, sx1, sy1, APP_EDITOR_HEIGHT_GRID_COLOR, 1);
+    }
+    /* Lines along x = const: the column of tiles either side of it. */
+    for( int x = x_min; x <= x_max + 1; x++ )
+    {
+        int first = -1;
+        int last = -1;
+        int sx0;
+        int sy0;
+        int sx1;
+        int sy1;
+        for( int i = 0; i < rows; i++ )
+        {
+            if( row_x0[i] < 0 || row_x0[i] > x || row_x1[i] + 1 < x )
+                continue;
+            if( first < 0 )
+                first = i;
+            last = i;
+        }
+        if( first >= 0 && app_world_project_at(app, x * 128, (z0 + first) * 128, y, &sx0, &sy0)
+            && app_world_project_at(app, x * 128, (z0 + last + 1) * 128, y, &sx1, &sy1) )
+            app_overlay_push_segment(app, sx0, sy0, sx1, sy1, APP_EDITOR_HEIGHT_GRID_COLOR, 1);
+    }
+    /* The post: the hovered ground to the plane, while they differ. */
+    if( y != ground )
+    {
+        int sx0;
+        int sy0;
+        int sx1;
+        int sy1;
+        if( app_world_project_at(app, cx, cz, ground, &sx0, &sy0) && app_world_project_at(app, cx, cz, y, &sx1, &sy1) )
+            app_overlay_push_segment(app, sx0, sy0, sx1, sy1, APP_EDITOR_HEIGHT_GRID_COLOR, APP_OVERLAY_SEGMENT_WIDTH);
+    }
+}
+
+/**
  * The tiles the next brush application touches, around the hovered tile on
  * the edit level -- the same list the stroke walks
  * (Editor_Terrain_BrushFootprint, Editor_BrushWeight), so the preview and
@@ -1637,6 +1751,8 @@ app_overlay_build_brush_footprint(struct App* app)
     /* The rim: one outline round everything the stroke will touch. */
     app_overlay_editor_rows_hull(app, hover->scene_z - radius, 2 * radius + 1, row_x0, row_x1, hover->level,
         APP_EDITOR_BRUSH_COLOR, -1, APP_OVERLAY_SEGMENT_WIDTH);
+    if( ui->tools.tool == EDITOR_TOOL_HEIGHT && ui->tools.height_grid )
+        app_overlay_build_height_grid(app, ui, hover, hover->scene_z - radius, 2 * radius + 1, row_x0, row_x1);
 
     /* A headless shot (TORIRS_EDITOR_HOVER) says once what it drew, so a
      * photograph with no footprint in it is explained by its log. */

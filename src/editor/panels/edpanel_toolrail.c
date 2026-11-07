@@ -21,8 +21,7 @@ static const int k_tool_icons[EDITOR_TOOL_COUNT] = {
     /* No rectangle glyph in the cache; the splitter's grip reads as a
      * marquee handle beside the select crosshair. */
     [EDITOR_TOOL_RECT_SELECT] = TORIRS_CHROME_SKIN_SPLITTER_GRIP,
-    [EDITOR_TOOL_RAISE] = TORIRS_CHROME_SKIN_TOOL_RAISE,
-    [EDITOR_TOOL_LOWER] = TORIRS_CHROME_SKIN_TOOL_LOWER,
+    [EDITOR_TOOL_HEIGHT] = TORIRS_CHROME_SKIN_TOOL_RAISE,
     [EDITOR_TOOL_FLATTEN] = TORIRS_CHROME_SKIN_TOOL_FLATTEN,
     [EDITOR_TOOL_SMOOTH] = TORIRS_CHROME_SKIN_TOOL_SMOOTH,
     [EDITOR_TOOL_PAINT_UNDERLAY] = TORIRS_CHROME_SKIN_TOOL_PAINT_UNDERLAY,
@@ -49,8 +48,7 @@ static const int k_tool_icons[EDITOR_TOOL_COUNT] = {
 static const char* const k_tool_tips[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_SELECT] = "Select: click a tile, shift-click locs",
     [EDITOR_TOOL_RECT_SELECT] = "Rectangle: copy, paste, fill, clear",
-    [EDITOR_TOOL_RAISE] = "Raise terrain (brush)",
-    [EDITOR_TOOL_LOWER] = "Lower terrain (brush)",
+    [EDITOR_TOOL_HEIGHT] = "Height: pull to the grid; Ctrl/Cmd+wheel moves it",
     [EDITOR_TOOL_FLATTEN] = "Flatten to the first tile's height",
     [EDITOR_TOOL_SMOOTH] = "Smooth toward the neighbours",
     [EDITOR_TOOL_PAINT_UNDERLAY] = "Paint the palette's underlay",

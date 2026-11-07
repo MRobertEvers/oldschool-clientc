@@ -198,6 +198,33 @@ Editor_PanelTick(
 enum Editor_Tool
 Editor_PanelTool(const struct Editor_Panel* panel);
 
+/**
+ * The Height brush's wheel at a scene tile: the grid moves `notches` wheel
+ * steps (brush.step units each, positive up), starting on the tile's ground
+ * when none is set. With `move_ground` the ground under the brush follows
+ * it (the centre all the way, the falloff's share toward the rim) as one
+ * application -- the caller groups a run of notches into one stroke;
+ * without, only the grid moves (the preview). Returns 1 when the grid moved.
+ */
+int
+Editor_PanelHeightWheel(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int notches,
+    int move_ground);
+
+/** Ctrl/Cmd+click under Height: the grid to the tile's ground height. */
+int
+Editor_PanelHeightPick(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level);
+
 /** Apply the armed tool at a scene tile, as one undo step: a brush
  *  application, a place, a move, a rotate, a delete. */
 int

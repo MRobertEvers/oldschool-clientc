@@ -187,7 +187,7 @@ test_ini(void)
                        "version = 1\n"
                        "file.bake = ctrl+b\n"
                        "edit.redo = ctrl+y, ctrl+shift+z   ; swapped\n"
-                       "tool.raise =\n"
+                       "tool.height =\n"
                        "no.such.action = ctrl+q\n"
                        "edit.undo = ctrl+hyper\n"
                        "edit.copy = ctrl+c, ctrl+x, ctrl+v\n"
@@ -213,14 +213,14 @@ test_ini(void)
     CHECK(g_hk.bind[EDITOR_HK_FILE_BAKE].chord[0].key == chord.key
               && g_hk.bind[EDITOR_HK_FILE_BAKE].chord[0].mods == chord.mods,
         "file.bake bound to ctrl+b");
-    CHECK(g_hk.bind[EDITOR_HK_TOOL_RAISE].chord[0].key == TORIRSK_UNKNOWN, "tool.raise = is unbound");
+    CHECK(g_hk.bind[EDITOR_HK_TOOL_HEIGHT].chord[0].key == TORIRSK_UNKNOWN, "tool.height = is unbound");
     CHECK(g_hk.bind[EDITOR_HK_EDIT_REDO].chord[0].key == TORIRSK_Y, "redo's chords keep the file's order");
     CHECK(Editor_HotkeysIsDefault(&g_hk, EDITOR_HK_EDIT_UNDO) && Editor_HotkeysIsDefault(&g_hk, EDITOR_HK_FILE_NEW)
               && Editor_HotkeysIsDefault(&g_hk, EDITOR_HK_EDIT_COPY),
         "ignored lines leave their actions at the default");
 
     Editor_HotkeysEncode(&g_hk, &data, &size);
-    CHECK(strstr(data, "file.bake = ctrl+b\n") && strstr(data, "tool.raise =\n")
+    CHECK(strstr(data, "file.bake = ctrl+b\n") && strstr(data, "tool.height =\n")
               && strstr(data, "edit.redo = ctrl+y, ctrl+shift+z\n") && !strstr(data, "edit.undo"),
         "encode writes exactly the non-default bindings:\n%s", data);
     Editor_HotkeysInit(&back);
@@ -260,7 +260,7 @@ test_resolve(void)
     CHECK(fire("z", G) == -1, "bare Z is nothing");
     CHECK(fire("ctrl+shift+z", G) == EDITOR_HK_EDIT_REDO && fire("ctrl+y", G) == EDITOR_HK_EDIT_REDO,
         "both Redo chords");
-    CHECK(fire("3", G) == EDITOR_HK_TOOL_RAISE, "3 arms Raise");
+    CHECK(fire("3", G) == EDITOR_HK_TOOL_HEIGHT, "3 arms Height");
     CHECK(fire("alt+3", G) == EDITOR_HK_LEVEL_PIN3, "Alt+3 pins level 3 (workbench 6.8)");
     CHECK(fire("delete", LOCS) == EDITOR_HK_EDIT_DELETE, "Delete with locs selected");
     CHECK(fire("delete", SPAWNS) == EDITOR_HK_EDIT_DELETE, "Delete with a spawn selection");
@@ -456,7 +456,7 @@ test_hint(void)
         int rows;
     } k_counts[] = {
         { HINT_TOOL(EDITOR_HK_TOOL_SELECT), 10 }, { HINT_TOOL(EDITOR_HK_TOOL_PLACE), 8 },
-        { HINT_TOOL(EDITOR_HK_TOOL_RAISE), 4 },   { HINT_TOOL(EDITOR_HK_TOOL_PAINT_FLAGS), 4 },
+        { HINT_TOOL(EDITOR_HK_TOOL_HEIGHT), 7 },  { HINT_TOOL(EDITOR_HK_TOOL_PAINT_FLAGS), 4 },
         { HINT_TOOL(EDITOR_HK_TOOL_MOVE), 2 },    { HINT_TOOL(EDITOR_HK_TOOL_ROTATE), 1 },
         { HINT_TOOL(EDITOR_HK_TOOL_DELETE), 1 },  { HINT_TOOL(EDITOR_HK_TOOL_RECT), 5 },
         { HINT_TOOL(EDITOR_HK_TOOL_PLACE_PLAYER), 1 },
@@ -555,7 +555,7 @@ test_hint(void)
     CHECK(Editor_ChordParse("minus", &chords[0]) && Editor_ChordParse("equals", &chords[1]), "hint: - and = parse");
     Editor_HotkeysSet(&g_hk, EDITOR_HK_BRUSH_RADIUS_DOWN, &chords[0], 1);
     Editor_HotkeysSet(&g_hk, EDITOR_HK_BRUSH_RADIUS_UP, &chords[1], 1);
-    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_N, HINT_TOOL(EDITOR_HK_TOOL_RAISE), 0, rows, EDITOR_HK_HINT_MAX);
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_N, HINT_TOOL(EDITOR_HK_TOOL_HEIGHT), 0, rows, EDITOR_HK_HINT_MAX);
     row = hint_row(rows, count, "radius");
     CHECK(row && strcmp(row->chord, "- =") == 0, "hint: radius rebound to - and = shows '- =' ('%s')",
         row ? row->chord : "");
@@ -654,7 +654,7 @@ test_gesture_hint(void)
     row = hint_row(rows, count, "place");
     CHECK(count == 6 && row && strcmp(row->chord, "tap") == 0 && hint_row(rows, count, "wall run"),
         "touch hint: Place taps, and drags a run (%d rows)", count);
-    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_N, HINT_TOOL(EDITOR_HK_TOOL_RAISE), 1, rows, EDITOR_HK_HINT_MAX);
+    count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_N, HINT_TOOL(EDITOR_HK_TOOL_FLATTEN), 1, rows, EDITOR_HK_HINT_MAX);
     row = hint_row(rows, count, "paint");
     CHECK(count == 5 && row && strcmp(row->chord, "drag") == 0 && !hint_row(rows, count, "radius"),
         "touch hint: a brush strokes under one finger, its keys aside (%d rows)", count);
