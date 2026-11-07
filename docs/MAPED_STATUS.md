@@ -5707,6 +5707,166 @@ Open: the picker matches by the record's colour, not the ground's
 each kind; no names for the records (the OSRS content has none); the
 blend strip models a straight seam, not a corner or a one-tile speck.
 
+### Playtest from the rail: RUN beside the tools, Place player before the first login, a window's welcome (the owner's report, 2026-11-06)
+
+The owner's screenshot (Mac, the `working` lane, Place player armed on
+m50_50 level 1): "accounts: placing maped43620 at 3206,3213 level 1
+(offline: the save)" answered by "no save .../live/saves/maped43620.ini
+(refused)"; "many lag when placing the play character"; the run icon
+wanted in the tool palette "like debuggers"; and "it lagged and crashed
+when trying to play".
+
+**Run on Windows, by hand** (`dist/win64/torirs.exe --manifest
+manifests/manifest_osrs241_mapeditor.ini`, `server=embed`, `lane=working`,
+the window at 1296x839, driven by winctl): with the play account's save
+removed to match the screenshot, Place player now writes "offline: wrote
+saves/maped43620.ini (position 3231,3238 level 0; the play account's first
+save, from the lane's fixture)" (build/photos/play_seed.png, the magenta
+hover marker on the tile and the new RUN button at the foot of the rail).
+RUN from the rail's button built the packs and the client cache (the
+progress bar: "RUN 29%: build 2/4: enum (24 s, ~118 s left)"), launched
+torirsserver and js5_server, started the play client as maped43620, which
+logged into Lumbridge (play_client.png); the status bar reads "live
+attached  RUN done" (play_rail_run.png). Place player on the attached
+lane answered "online: ::tele 0_50_50_31_39 for maped43620". View > Live
+(play_live.png) then its pop-out, which on the desktop is a second
+`torirs` process: the new window said "play: logged in as maped43620 at
+m50_50 (3231,3238)" within its first seconds (play_welcome.png); Stop
+ended the play client and Play started another (new pid, a fresh
+play.log). CPU over 4 s with the cursor over the world: the editor ~0.21
+cores with Select armed, ~0.21 with Place player armed, the same with the
+play client running beside it (the play client ~0.21, torirsserver
+~0.01). `TORIRS_PERF=1` with Place player armed and the cursor moving
+over the world for 20 s, then a place: 575 frames, p50 5.0 ms, p95 6.2 ms,
+4 over the 20 ms budget (0.7 %) -- the frame is not where a lag would
+come from at this size. Neither the lag nor the crash reproduced on
+Windows.
+
+**What was fixed**
+
+- **RUN in the tool rail** (src/editor/panels/edpanel_toolrail.c): an icon
+  button under Save (`TORIRS_CHROME_SKIN_RUN`, "Run") calls
+  `Editor_Live_Run` from any workspace, is disabled while
+  `Editor_Live_Busy` (a RUN or a build in flight), and its tooltip ends
+  with the Ctrl+Return keycap. `Editor_ToolRail_ButtonCount` is one more,
+  so the rail's column count still follows the window's height. The
+  workbench goldens re-baselined (the registry row of each scale).
+- **Place player before the first login** (torirs_maped_accounts.c
+  `acct_seed_play_save`): the play account has no save until the play
+  client's first start copies the lane's fixture
+  (`play_copy_fixture`), so an offline edit of it -- Place player above
+  all -- refused with "no save". It now seeds the save the same way (the
+  fixture with `name = <account>`; a new character when the lane's fixture
+  file is absent; the lane's play password remembered in accounts.ini
+  [passwords]) and then applies the edit; the answer says so. Any other
+  account without a save is still ABSENT.
+- **A window's welcome** (torirs_maped_live.c `ToriRSMapEd_LiveWelcome`,
+  called from the HELLO handler): FACT_LIVE_STATUS and FACT_LIVE_PLAY were
+  broadcast only when they changed, so a window that connected while a
+  lane ran -- a popped-out panel on the desktop is a second process --
+  showed "detached" until the next status poll and "play: not started"
+  until the next play change. Every v2 HELLO is now followed by both
+  facts for that session (the host keeps them for the panels that take
+  them once they exist). The raw peers in maped_embed_test and
+  views_embed_test take the two frames after their HELLO; the ws probe
+  speaks v1 and gets none.
+- **The port probe** (`play_service`): while the play client waited for
+  the lane's game and JS5 ports, `play_native_ready` opened a blocking
+  `connect()` to each on every pump -- every frame of an embedding window.
+  Now at most four times a second (`PLAY_PROBE_PERIOD_MS`), the first
+  probe at once.
+- The Accounts panel's Refresh tooltip was 64 bytes, one over the
+  chrome's cut (the console said so during the run).
+
+**Found on the way, not fixed:** the play client's log carries "Failed to
+load dat2 idk 307" at login (the lane's cache holds idk 0..306; a
+`TORIRS_ERR` from the client, not the editor; the character draws); the
+owner's screenshot also shows "DOC_CREATE m50_50 refused: it exists there,
+or is open from another storage" from Save square as new... into a new
+lane while the square is open from the working lane -- the refusal is by
+design (one storage per open key) but a copy into a fresh lane is a
+reasonable ask; an open item under Documents.
+
+**The Mac lag and crash were not reproduced** here, so they are not
+fixed. What would decide them: the editor's stderr and
+`<live>/logs/play.log` (and `play.prev.log`) from the Mac run -- the play
+client's own crash lands in play.log; the editor's in the terminal that
+started it (a Mac crash report under ~/Library/Logs/DiagnosticReports
+names the frame). `TORIRS_PERF=1` on the editor prints per-stage frame
+times at exit (src/perf/torirs_perf.h), which says whether the lag is the
+frame (a Retina window renders four times the pixels of this run's
+1280x800) or a stall in the embedded server's pump. Plausible causes
+without evidence: the editor, the play client (a second software
+rasteriser at Retina size), torirsserver and js5_server all on one
+laptop; the per-frame port probe above while Play waited for a lane that
+was not coming up.
+
+**On Linux (the WSL clone), the POSIX side of the same flow.** The lane's
+e2e (`make -C src maped-live-e2e-play`: the real torirsmaped, torirsserver,
+js5_server and a headless play client) first ran against a content
+mirror whose 102k files are symlinks into the Windows filesystem: RUN (A)
+took 672 s, and "the play client logs into the lane" FAILED after 300 s
+with the client parked at "Connecting to server..." (its frames
+captured with `TORIRS_BMP_SERIES`). Not the editor and not the control
+link: the lane's server started by hand, with no torirsmaped at all,
+parks the client the same way, and gdb shows where it sits:
+`ToriRSServer_PackCheck -> fingerprint_collect -> fingerprint_walk ->
+stat()` over every file of the content tree (torirs_server_packcheck.c),
+while the port is already listening (torirs_server_main.c binds before
+the loaders on purpose, so a client started alongside is parked in the
+backlog rather than refused). A stat through one of those symlinks costs
+~7 ms on WSL (2000 of them: 13.7 s; 2000 local files: 4.2 s with the
+same shell loop), so the walk alone is minutes, and until it ends the
+play client shows "Connecting to server..." with nothing said anywhere.
+That is a "lag when trying to play" wherever the content tree is on a
+slow filesystem; the same server on Windows (NTFS, the tree local) logs
+"login user='maped43620' session=ok" within seconds. With the content
+copied into the Linux disk (`rsync` of OSRS-Content/osrs-content into
+`~/OSRS-Content-local`, the clone's symlink pointed there) the same e2e
+passes outright: 27 ok, 0 failed, RUN (A) 25 s, the play client logged in
+3 s after it, RUN (B) 5 s with the square reloaded in the running client
+(no relog), RUN (C) restarting a killed client, LIVE_DETACH stopping the
+lane. The POSIX play flow -- posix_spawn of the lane's servers and the
+client, the control link, the readiness probe, Play/Stop, the relog --
+works; WSL's filesystem was the whole difference.
+
+The editor itself on Linux, by hand but headless (WSLg gives it no window,
+below): `SDL_VIDEODRIVER=dummy TORIRS_EDITOR_LIVE=show` with
+`TORIRS_SIM_HOTKEY` / `TORIRS_SIM_CLICK_AT` driving it and
+`TORIRS_BMP_SERIES` photographing every 200th frame (765x503, the default
+window). P then a world click: "accounts: placing maped43620 ... /
+offline: wrote ..." in the console, the magenta marker on the tile
+(build/photos/play_linux_seed.png). Ctrl+Return: "RUN done: the lane was
+not up: launched it on the new packs and cache; play client started as
+maped43620 on the launched lane", then "play: logged in as maped43620 at
+m50_50 (3205,3235)" (play_linux_run.png; the lane's server.log: "login
+user='maped43620' session=ok") -- posix_spawn of torirsserver, js5_server
+and the client from the editor process, as the Mac does it. Stop: "play:
+not started -- stopped" (play_linux_stop.png). A panel's pop-out: "launch:
+view 1 is pid ..., editor view: ok" -- the second process the desktop
+pop-out is, through posix_spawn. Stop then Play in a later run: the
+client restarted and logged in again -- "play: logged in as maped43620
+at m50_50 (3227,3231)", the tile an earlier offline Place had written to
+the save, and the server's second "login user='maped43620' session=ok"
+(play_linux_play.png).
+
+Found on the way on Linux: under WSLg the editor segfaults at window
+creation in libwayland-client (SDL2's Wayland backend, "Failed to load
+plugin 'libdecor-gtk.so'"); `SDL_VIDEODRIVER=x11` runs it. A WSLg
+packaging matter, not ours, but worth knowing before reading a Linux
+"crash at start" as the editor's.
+
+Tests. Windows: editor_chords_test 613 (the rail: Run follows Save, chord
+in the tooltip only), editor_panels_test 2865, editor_workbench_test 294
+(goldens re-baselined), maped_embed_test 165 (the welcome's two frames),
+all 0 failed; the POSIX-only suites are skipped there. Linux: accounts_test
+144 (the play account's first Place seeds the save, the second edits it,
+a stranger is still ABSENT, the seeded account deletes), live_editor_test
+176 (a second window's HELLO followed by the lane's state),
+views_embed_test 182, maped_embed_test 165, editor_chords_test 613,
+editor_panels_test 2866, editor_workbench_test 295, all 0 failed;
+check-pt-switch and check-tree-walks PASS.
+
 ### The test suites
 
 `make -C src test-editor` on Windows (win64, OPT=1) and on Linux (a WSL clone
@@ -5749,6 +5909,12 @@ Every issue the phase reports left open, by area, with where to start.
 
 - DOC_CLOSE never unloads a document (no linger policy):
   src/torirsmaped/torirs_maped.c:909 `handle_doc_close`.
+- Save square as new... into a NEW lane refuses while the square is open
+  from the working lane ("DOC_CREATE m50_50 refused: it exists there, or is
+  open from another storage", the owner's screenshot of 2026-11-06): one
+  storage per open key is the rule, but a copy into a fresh lane is a
+  reasonable ask; the dialog could close the open one first, or the server
+  could allow a copy whose key is open elsewhere.
 - No DOC_DELETE; the picker's Delete clears the square instead:
   src/editor/panels/edpanel_squares.c:845.
 - npc_stats/*.stats, npc_combat/*.combat and npc_movement/*.move are not

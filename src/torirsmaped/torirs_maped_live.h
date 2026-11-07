@@ -302,6 +302,18 @@ ToriRSMapEd_Service(struct ToriRSMapEd* maped);
 int
 ToriRSMapEd_Busy(const struct ToriRSMapEd* maped);
 
+/**
+ * The lane as it is, to one session that just said HELLO: FACT_LIVE_STATUS
+ * and FACT_LIVE_PLAY, which are otherwise broadcast only when they change.
+ * A window opened mid-session (a popped-out panel is a second process on
+ * the desktop) showed "play: not started" beside a play client that was
+ * logged in, until the next change (2026-11-06). Nothing for a v1 peer.
+ */
+void
+ToriRSMapEd_LiveWelcome(
+    struct ToriRSMapEd* maped,
+    struct ToriRSMapEdSession* session);
+
 /* ---- the play client --------------------------------------------------------
  *
  * Each lane has one PLAY CLIENT: a game client (the lane's play_bin, by

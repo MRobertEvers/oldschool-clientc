@@ -2644,6 +2644,53 @@ acct_send_cheat(
     return ok;
 }
 
+static int
+acct_make_save(
+    struct acct_state* state,
+    const char* live,
+    const char* source,
+    const char* file,
+    const char* display,
+    const char* password,
+    char* why,
+    size_t why_size);
+
+/**
+ * The play account before its first login has no save. An offline edit of
+ * it (Place player above all) seeds the save from the lane's play fixture,
+ * as the play client's first start would (play_copy_fixture), instead of
+ * refusing "no save" -- the owner placed the player on a fresh lane and got
+ * nothing but the refusal (2026-11-06). 1 when `file` is the play account
+ * and its save now exists; 0 otherwise (`why` says what failed, "" when
+ * `file` is simply not the play account).
+ */
+static int
+acct_seed_play_save(
+    struct acct_state* state,
+    const char* live,
+    const char* file,
+    char* why,
+    size_t why_size)
+{
+    struct ToriRSMapEd* maped = state->maped;
+    char play[64];
+    char user[16];
+    char pass[24];
+    const char* fixture;
+
+    why[0] = '\0';
+    acct_play_file(maped, play, sizeof(play));
+    jobs_play_account(maped->jobs, user, sizeof(user), pass, sizeof(pass));
+    if( strcmp(play, file) != 0 || !user[0] )
+        return 0;
+    /* A fixture the lane names but does not have: a new character, as the
+     * play client's first start would make. */
+    fixture = maped->jobs->lane.play_fixture;
+    if( fixture[0] && access(fixture, F_OK) != 0 )
+        fixture = "";
+    return acct_make_save(state, live, fixture, file, user, pass, why, why_size);
+}
+
 /** ACCOUNT_SET / ACCOUNT_PLACE. */
 static void
 acct_handle_set(
@@ -2662,6 +2709,7 @@ acct_handle_set(
     struct acct_edit edit;
     static char cheats[ACCT_EDIT_CHEATS_MAX][200];
     int online;
+    int seeded = 0;
 
     if( !acct_live_dir(maped, live, sizeof(live)) )
     {
@@ -2678,9 +2726,23 @@ acct_handle_set(
     online = row != NULL;
     if( !acct_values_load(state, live, file, row, &values) && !online )
     {
+        char why[512];
         ToriRSMapEd_AcctSaveFree(&values.save);
-        acct_status(maped, session, request, EDITOR_HOST_ABSENT, file, "no save %s/saves/%s.ini", live, file);
-        return;
+        if( !acct_seed_play_save(state, live, file, why, sizeof(why)) )
+        {
+            if( why[0] )
+                acct_status(maped, session, request, EDITOR_HOST_IO_ERROR, file, "%s", why);
+            else
+                acct_status(maped, session, request, EDITOR_HOST_ABSENT, file, "no save %s/saves/%s.ini", live, file);
+            return;
+        }
+        if( !acct_values_load(state, live, file, row, &values) )
+        {
+            ToriRSMapEd_AcctSaveFree(&values.save);
+            acct_status(maped, session, request, EDITOR_HOST_ABSENT, file, "no save %s/saves/%s.ini", live, file);
+            return;
+        }
+        seeded = 1;
     }
     memset(&edit, 0, sizeof(edit));
     edit.cheats = cheats;
@@ -2736,8 +2798,9 @@ acct_handle_set(
             acct_status(maped, session, request, EDITOR_HOST_IO_ERROR, file, "cannot write %s: %s", path, strerror(errno));
             return;
         }
-        acct_status(maped, session, request, EDITOR_HOST_OK, file, "offline: %s saves/%s.ini (%s)",
-            edit.save_changed ? "wrote" : "no change to", file, edit.what);
+        acct_status(maped, session, request, EDITOR_HOST_OK, file, "offline: %s saves/%s.ini (%s%s)",
+            edit.save_changed ? "wrote" : "no change to", file, edit.what,
+            seeded ? "; the play account's first save, from the lane's fixture" : "");
     }
     ToriRSMapEd_AcctSaveFree(&values.save);
     acct_broadcast_view(state, NULL, file);
