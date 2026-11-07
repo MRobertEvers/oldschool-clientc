@@ -25,6 +25,7 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv",
+        "::setvar varb13714_barcrawl_progress 2", -- the quest's prerequisite, and the Barbarian Outpost guard's (RSProx 4474 [1073]: the gate opens)
         "::give airrune 300", -- the wall takes one; the rest feed the strike spells on the mother
         "::give waterrune 300",
         "::give earthrune 300",
@@ -62,6 +63,9 @@ return {
             points = 2,
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
+        -- The wire audit's tick log (docs/rsprox-analysis/quests/horror_from_the_deep.md,
+        -- RSProx index 4474); one mark per leg.
+        t.ticklog.start()
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
         -- Prerequisite: Alfred Grimhand's Barcrawl is on the Quest Helper list but no horror .rs2 reads it
@@ -90,6 +94,10 @@ return {
                 if r1 ~= "ok" then
                     return r1, "try " .. i .. " (" .. slips .. " slip(s) before): first jump: " .. tostring(d1)
                 end
+                local _, mid = t.world.tile()
+                if mid.x ~= second.src[1] or mid.z ~= second.src[2] then
+                    t.player.walk_to(second.src[1], second.src[2], 10)
+                end
                 local r2, d2 = t.player.cross_trap(second)
                 if r2 == "ok" then
                     return "ok", slips .. " slip(s) swept back to " .. shore .. " before this pair; " .. d1 .. " || " .. d2
@@ -102,30 +110,36 @@ return {
                 end
             end
         end
-        local SPOT1 = jump("horror_jumping_spot1", { 2522, 3595 }, { 2522, 3594 }, { 2522, 3598 })
-        local SPOT3 = jump("horror_jumping_spot3", { 2522, 3600 }, { 2522, 3598 }, { 2522, 3603 })
-        local SPOT5 = jump("horror_jumping_spot5", { 2518, 3611 }, { 2518, 3610 }, { 2515, 3611 })
-        local SPOT7 = jump("horror_jumping_spot7", { 2514, 3613 }, { 2515, 3611 }, { 2514, 3616 })
-        local SPOT9 = jump("horror_jumping_spot9", { 2514, 3617 }, { 2514, 3616 }, { 2514, 3620 })
-        local SPOT10 = jump("horror_jumping_spot10", { 2514, 3619 }, { 2514, 3620 }, { 2514, 3616 })
-        local SPOT8 = jump("horror_jumping_spot8", { 2514, 3615 }, { 2514, 3616 }, { 2514, 3612 })
-        local SPOT6 = jump("horror_jumping_spot6", { 2516, 3611 }, { 2514, 3612 }, { 2518, 3610 })
-        local SPOT4 = jump("horror_jumping_spot4", { 2522, 3602 }, { 2522, 3603 }, { 2522, 3599 })
-        local SPOT2 = jump("horror_jumping_spot2", { 2522, 3597 }, { 2522, 3599 }, { 2522, 3594 })
+        -- RSProx index 4474 [708..778]: each jump steps onto the rock and lands two tiles on
+        -- (basalt_rocks.rs2); `src` is the tile beside the rock the player clicks from.
+        local SPOT1 = jump("horror_jumping_spot1", { 2522, 3595 }, { 2522, 3594 }, { 2522, 3597 })
+        local SPOT3 = jump("horror_jumping_spot3", { 2522, 3600 }, { 2522, 3599 }, { 2522, 3602 })
+        local SPOT5 = jump("horror_jumping_spot5", { 2518, 3611 }, { 2518, 3610 }, { 2516, 3611 })
+        local SPOT7 = jump("horror_jumping_spot7", { 2514, 3613 }, { 2514, 3612 }, { 2514, 3615 })
+        local SPOT9 = jump("horror_jumping_spot9", { 2514, 3617 }, { 2514, 3616 }, { 2514, 3619 })
+        local SPOT10 = jump("horror_jumping_spot10", { 2514, 3619 }, { 2514, 3620 }, { 2514, 3617 })
+        local SPOT8 = jump("horror_jumping_spot8", { 2514, 3615 }, { 2514, 3616 }, { 2514, 3613 })
+        local SPOT6 = jump("horror_jumping_spot6", { 2516, 3611 }, { 2515, 3611 }, { 2518, 3611 })
+        local SPOT4 = jump("horror_jumping_spot4", { 2522, 3602 }, { 2522, 3603 }, { 2522, 3600 })
+        local SPOT2 = jump("horror_jumping_spot2", { 2522, 3597 }, { 2522, 3598 }, { 2522, 3595 })
         local function rocks_north(step)
             t.exec(step .. ".walkToRocks", t.player.walk_to, 2522, 3594, 30)
             t.exec(step .. ".rocks1to3", jump_pair, SPOT1, SPOT3, "the beach", 30)
             t.exec(step .. ".walkToSpot5", t.player.walk_to, 2518, 3610, 20)
             t.exec(step .. ".rocks5", t.player.cross_trap, SPOT5)
+            t.exec(step .. ".walkToSpot7", t.player.walk_to, 2514, 3612, 10)
             t.exec(step .. ".rocks7", t.player.cross_trap, SPOT7)
+            t.exec(step .. ".walkToSpot9", t.player.walk_to, 2514, 3616, 10)
             t.exec(step .. ".rocks9", t.player.cross_trap, SPOT9)
         end
         local function rocks_south(step)
             t.exec(step .. ".walkToRocks", t.player.walk_to, 2514, 3620, 30)
             t.exec(step .. ".rocks10to8", jump_pair, SPOT10, SPOT8, "the north rocks", 30)
+            t.exec(step .. ".walkToSpot6", t.player.walk_to, 2515, 3611, 10)
             t.exec(step .. ".rocks6", t.player.cross_trap, SPOT6)
             t.exec(step .. ".walkToSpot4", t.player.walk_to, 2522, 3603, 20)
             t.exec(step .. ".rocks4", t.player.cross_trap, SPOT4)
+            t.exec(step .. ".walkToSpot2", t.player.walk_to, 2522, 3598, 10)
             t.exec(step .. ".rocks2", t.player.cross_trap, SPOT2)
         end
         -- The outpost's gate (doors_selfstage barbariangatel 2545,3570; scorpcatcher.lua) and the
@@ -160,7 +174,7 @@ return {
             "npc:Well, we have to do something",
             "npc:has trapped me on this causeway",
             "npc:as well as fix the bridge",
-            "choose:Okay, I'll help!",
+            "choose:Yes.",
             "player:Okay, I'll help!",
             "npc:OH! THANK YOU SO MUCH!",
             "choose:I'll see what I can do",
@@ -221,16 +235,39 @@ return {
             at = { 2545, 3570, 0 }, near = { 2546, 3570 }, far = { 2545, 3570 } })
         t.exec("goto-openLighthouse.rocks", t.player.goto_tile, 2522, 3592, 0)
         rocks_north("openLighthouse")
-        t.exec("openLighthouse.walk", t.player.walk_to, 2509, 3635, 30)
-        t.exec("openLighthouse", t.player.click_loc, "horror_lighthouse_doorway", 1)
+        -- RSProx index 4474 [1211..1218]: the key goes to Larrissa (kept), the stage on her
+        -- last page; the door then leads straight in ([1239..1244]).
+        t.exec("openLighthouse.walk", t.player.walk_to, 2507, 3634, 30)
+        t.exec("giveKey", t.player.talk_to, "horror_girlfriend_prequest", 1)
+        t.exec("giveKey-dialog", t.chat.play, {
+            "player:I've got your key for you!",
+            "npc:Oh, thank you so much!",
+            "npc:Quickly, we must go inside",
+        })
+        t.expect("quest.stage.entered_lighthouse", t.quest.expect_stage("entered_lighthouse"))
+        t.expect("giveKey.kept", t.inv.expect_has("horror_key", 1))
+        t.exec("enterLighthouse.walk", t.player.walk_to, 2509, 3635, 10)
         t.exec("enterLighthouse", t.player.click_loc, "horror_lighthouse_doorway", 1)
         t.ticks(4)
-        t.expect("quest.stage.entered_lighthouse", t.quest.expect_stage("entered_lighthouse"))
+        t.exec("talkLarrissaInside", t.player.talk_to, "horror_girlfriend_postquest", 1)
+        t.exec("talkLarrissaInside-dialog", t.chat.play, {
+            "npc:This is terrible...",
+            "npc:What can have happened here?",
+            "player:Okay, I will see what I can do.",
+        })
+        t.expect("quest.stage.fixing_lighthouse", t.quest.expect_stage("fixing_lighthouse"))
         t.exec("goToF1", t.player.click_loc, "horror_lighthouse_spiralstairs_base", 1)
         t.ticks(3)
         t.check("goToF1.level", select(2, t.world.level()) == 1, "level " .. tostring(select(2, t.world.level())))
+        t.exec("takeBooks", t.player.click_loc, "horror_bookcase", 1)
+        -- The pack has room for one (the sharks); the recorder's first choice too ([1277]).
+        t.exec("takeBooks-dialog", t.chat.play, {
+            "mesbox:There are three books here that look important...",
+            "choose:Take the Lighthouse Manual",
+        })
+        t.expect("takeBooks.manual", t.inv.expect_has("horror_diary3", 1))
         t.exec("goToF2", t.player.click_loc, "horror_lighthouse_spiralstairs_middle", 1)
-        t.exec("goToF2-dialog", t.chat.play, {"choose:Climb Up."})
+        t.exec("goToF2-dialog", t.chat.play, {"choose:Climb up."})
         t.ticks(3)
         t.check("goToF2.level", select(2, t.world.level()) == 2, "level " .. tostring(select(2, t.world.level())))
         local cog = t.player.by_symbol("loc", "horror_lighthouse_cog_broken")
@@ -339,6 +376,11 @@ return {
         }
         local casts, landed, trace, eaten = 0, 0, "", 0
         local mother_low = nil
+        -- RSProx 4474: the line with every colour change ([1908] blue .. [2178] red), and
+        -- the recorder's window without Protect from Missiles ([2150..2155]): across the
+        -- two-tile gap she turns to her spines a tick later ([2152], two splats [2153]).
+        local colours_seen, colour_order = {}, ""
+        local spines_window, spines_trace = false, "not reached"
         for round = 1, 160 do
             local stage = select(2, t.quest.stage())
             if stage == 10 then break end
@@ -348,6 +390,25 @@ return {
             if hp_row.level < 55 then
                 t.player.inv_op("shark", 1)
                 eaten = eaten + 1
+            end
+            local lines_result, lines = t.msg.last(10)
+            if lines_result == "ok" and type(lines) == "table" then
+                for _, line in ipairs(lines) do
+                    local colour = string.match(tostring(line.text), "^The Dagannoth changes to (%a+)%.%.%.$")
+                    if colour and not colours_seen[colour] then
+                        colours_seen[colour] = true
+                        colour_order = colour_order .. colour .. " "
+                    end
+                end
+            end
+            if not spines_window and landed >= 3 then
+                spines_window = true
+                local _, before_row = t.skill.read("hitpoints")
+                t.cheat("::pray 17")
+                t.ticks(8)
+                t.cheat("::pray 17")
+                local _, after_row = t.skill.read("hitpoints")
+                spines_trace = "hp " .. tostring(before_row.level) .. " -> " .. tostring(after_row.level)
             end
             for _, c in ipairs(colours) do
                 local found = t.npc.nearest(c[1], 25)
@@ -373,12 +434,14 @@ return {
             end
         end
         t.check("killMother.casts", casts >= 1 and landed >= 1, casts .. " casts, " .. landed .. " ok, ate " .. eaten .. "; first: " .. trace)
+        t.check("killMother.colour_lines", colours_seen["blue"] == true and colours_seen["orange"] == true,
+            "seen in order: " .. (colour_order == "" and "<none>" or colour_order) .. "(recorded blue orange brown red green white)")
+        t.check("killMother.spines_window", spines_window, "8 ticks without Protect from Missiles: " .. spines_trace)
         local _, sharks_after_mother = t.inv.count("shark")
         t.check("killMother.margin", mother_low ~= nil and mother_low >= 25 and sharks_after_mother >= 1,
             "lowest hp read between casts " .. tostring(mother_low) .. "/99, ate " .. eaten .. ", sharks left "
                 .. tostring(sharks_after_mother) .. " (margin: lowest hp >= 25, a quarter of 99, AND food left)")
-        t.ticks(10)
-        t.exec("killMother-dialog", t.chat.drain, {max_pages = 8})
+        t.ticks(4)
         t.expect("quest.stage.complete", t.quest.expect_stage("complete"))
         t.check("reward.strength", t.skill.expect_gain("strength", 4662, snap))
         t.check("reward.ranged", t.skill.expect_gain("ranged", 4662, snap))
@@ -386,7 +449,54 @@ return {
         local magic_after = magic_row_after.experience
         t.check("reward.magic", magic_after - magic_before >= 4662.5, "magic xp " .. tostring(magic_before) .. " -> " .. tostring(magic_after) .. " (casts add some; reward is 4,662.5)")
         t.expect("reward.casket", t.inv.expect_has("horror_casket", 1))
+        -- RSProx index 4474 [2199..2236]: the scroll, then (on its close) the closing pages,
+        -- then the level-up boxes.
         t.quest.expect_complete()
+        t.exec("killMother-dialog", t.chat.play, {
+            "player:Okay, it's dead!",
+            "npc:Yes, quickly, the mother might be dead",
+            "npc:Follow me upstairs",
+            "npc:Bring it to my library",
+        })
+        -- The scroll's xp levels three skills; each box waits for its continue ([2236..]).
+        for i = 1, 4 do
+            local r, d = t.levelup.skill()
+            if r ~= "ok" then break end
+            local cr, cd = t.levelup.continue_()
+            t.check("levelup." .. i, cr == "ok" or cr == "covered", tostring(d and d.level_text) .. " -> " .. tostring(cr) .. " " .. tostring(cd))
+            t.ticks(3)
+        end
+        -- RSProx index 4474 [2249..2345]: out of the Dagannoth cave by its ladder into the
+        -- lighthouse, up the stairs, and Jossik's casket, the fourth option once.
+        t.exec("leaveCave", t.player.click_loc, "horror_ladder_base", 1)
+        t.ticks(4)
+        _, pos = t.world.tile()
+        t.check("leaveCave.tile", pos.x == 2510 and pos.z == 3644 and pos.level == 0, "tile " .. pos.x .. "," .. pos.z .. " level " .. pos.level)
+        t.exec("upToJossik", t.player.click_loc, "horror_lighthouse_spiralstairs_base", 1)
+        t.ticks(3)
+        t.exec("talkToJossikWell", t.player.talk_to, "horror_lighthousekeeeper_well", 1)
+        t.exec("talkToJossikWell-dialog", t.chat.play, {
+            "player:I see you managed to escape",
+            "npc:It seems I was not as injured",
+            "player:I have it here.",
+            "npc:I can indeed!",
+            "npc:It is very faint, however...",
+            "choose:Zamorak",
+            "player:I think it says...",
+            "npc:Are you sure?",
+            "choose:I wish it were one of the other gods.",
+            "player:I wish it were one of the other gods.",
+            "npc:The sea's always washing up",
+            "npc:For now, this casket definitely says",
+            "choose:Zamorak",
+            "player:I think it says...",
+            "npc:Are you sure?",
+            "choose:Zamorak",
+            "player:Nope, it definitely says Zamorak.",
+            "npc:I think you're right!",
+            "npc:Wow! It's an Unholy Book of Zamorak!",
+        })
+        t.expect("reward.book", t.inv.expect_has("unfinished_zamorakbook", 1))
         t.finish(0)
     end,
 }
