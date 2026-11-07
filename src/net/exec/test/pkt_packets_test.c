@@ -182,9 +182,11 @@ test_range_table_covers_every_revision(void)
     CHECK(rsprot_version_pick(r, n, rsprot_osrs(240)) == (RsprotCodecFn)packet_if_opentop_osrs240_out);
     CHECK(rsprot_version_pick(r, n, rsprot_osrs(241)) == (RsprotCodecFn)packet_if_opentop_v4_out);
     CHECK(rsprot_version_pick(r, n, rsprot_osrs(241)) == (RsprotCodecFn)packet_if_opentop_osrs241_out);
+    /* 242 sends it as 241 did (RSProt's IfOpenTopEncoder is unchanged). */
+    CHECK(rsprot_version_pick(r, n, rsprot_osrs(242)) == (RsprotCodecFn)packet_if_opentop_osrs242_out);
 
     CHECK(rsprot_version_pick(r, n, rsprot_osrs(220)) == NULL); /* before the first range */
-    CHECK(rsprot_version_pick(r, n, rsprot_osrs(242)) == NULL); /* after the last */
+    CHECK(rsprot_version_pick(r, n, rsprot_osrs(243)) == NULL); /* after the last */
 }
 
 /**
