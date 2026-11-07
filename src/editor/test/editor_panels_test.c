@@ -7201,6 +7201,59 @@ test_palette_colour(void)
         "palette: a lighter colour by slider shows in the hex and the row, and matches elsewhere (%s, %d)",
         ToriRSChrome_Text(&g_chrome, w_hex), n > 0 ? ids[0] : -1);
 
+    /* The eyedroppers: a button arms one, the next ground pick takes that
+     *  layer only (the overlay with its shape and rotation) and disarms. */
+    {
+        int const w_drop_under = find_widget(palette, TORIRS_CHROME_W_BUTTON, "Eyedropper: pick a tile's underlay");
+        int const w_drop_over = find_widget(palette, TORIRS_CHROME_W_BUTTON, "Eyedropper: pick a tile's overlay");
+        struct Editor_Tile* tile;
+
+        if( !square_of(50, 50) || !square_of(50, 50)->loaded )
+            CHECK(Editor_OpenDoc(&g_editor, EDITOR_DOC_SQUARE, "m50_50"), "palette: open m50_50 for the eyedropper");
+        tile = tile_at(SQ_X0 + 5, SQ_Z0 + 6, 0);
+        CHECK(w_drop_under >= 0 && w_drop_over >= 0 && tile, "palette: two eyedropper buttons and a tile (%d %d)",
+            w_drop_under, w_drop_over);
+        if( w_drop_under >= 0 && w_drop_over >= 0 && tile )
+        {
+            tile->underlay_id = 33;
+            tile->has_overlay = 1;
+            tile->overlay_id = 7;
+            tile->shape = 4;
+            tile->rotation = 3;
+            g_ui.tools.underlay_id = 12;
+            g_ui.tools.overlay_none = 1;
+            g_ui.tools.overlay_id = 0;
+            g_ui.tools.overlay_shape = 0;
+            g_ui.tools.overlay_rotation = 0;
+            CHECK(Editor_Palette_DropperArmed(&g_ui) == 0, "palette: no eyedropper armed at first");
+            activate(w_drop_under);
+            CHECK(Editor_Palette_DropperArmed(&g_ui) == 1, "palette: the underlay button arms the underlay dropper");
+            activate(w_drop_under);
+            CHECK(Editor_Palette_DropperArmed(&g_ui) == 0, "palette: pressing it again disarms");
+            activate(w_drop_under);
+            Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+            CHECK(Editor_Palette_DropperAt(&g_ui, SQ_X0 + 5, SQ_Z0 + 6, 0) && g_ui.tools.underlay_id == 33
+                      && g_ui.tools.overlay_none && g_ui.tools.tool == EDITOR_TOOL_PAINT_UNDERLAY
+                      && Editor_Palette_DropperArmed(&g_ui) == 0,
+                "palette: the underlay dropper takes 33 alone, arms Paint underlay and disarms (%d %d %d)",
+                g_ui.tools.underlay_id, g_ui.tools.overlay_none, (int)g_ui.tools.tool);
+            activate(w_drop_over);
+            CHECK(Editor_Palette_DropperArmed(&g_ui) == 2, "palette: the overlay button arms the overlay dropper");
+            g_ui.tools.underlay_id = 12;
+            CHECK(Editor_Palette_DropperAt(&g_ui, SQ_X0 + 5, SQ_Z0 + 6, 0) && !g_ui.tools.overlay_none
+                      && g_ui.tools.overlay_id == 7 && g_ui.tools.overlay_shape == 4 && g_ui.tools.overlay_rotation == 3
+                      && g_ui.tools.underlay_id == 12 && g_ui.tools.tool == EDITOR_TOOL_PAINT_OVERLAY,
+                "palette: the overlay dropper takes 7 shape 4 rotation 3, leaves the underlay (%d %d %d %d)",
+                g_ui.tools.overlay_id, g_ui.tools.overlay_shape, g_ui.tools.overlay_rotation, g_ui.tools.underlay_id);
+            activate(w_drop_over);
+            CHECK(!Editor_Palette_DropperAt(&g_ui, 99 * 64, 99 * 64, 0) && Editor_Palette_DropperArmed(&g_ui) == 0,
+                "palette: a pick from a square that is not open is refused and disarms");
+            tile->has_overlay = 0;
+            tile->underlay_id = 0;
+            g_ui.tools.overlay_none = 1;
+        }
+    }
+
     /* The Terrain panel's Mix: shown for Paint underlay only, in the readout
      *  under 100, the hotkey's chord steps it by ten. */
     w_mix = find_widget(terrain, TORIRS_CHROME_W_SLIDER, "Mix (%)");

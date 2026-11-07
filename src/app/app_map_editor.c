@@ -2670,6 +2670,20 @@ app_map_editor_world_click(
         return;
     level = Editor_PanelEditLevel(panel, app);
 
+    /* The palette's eyedropper takes the click whatever the tool: the press
+     * opens no stroke, marquee or run, the release picks. */
+    if( Editor_Palette_DropperArmed(ui) )
+    {
+        int world_x;
+        int world_z;
+        if( input->curr.mouse_button_up[TORIRSM_LEFT] && app_map_editor_hover_world(app, &world_x, &world_z) )
+        {
+            (void)Editor_Palette_DropperAt(ui, world_x, world_z, level);
+            app->need_redraw = 1;
+        }
+        return;
+    }
+
     /* The press opens a drag for the brushes and the rectangle. */
     if( input->curr.mouse_button_down[TORIRSM_LEFT] )
     {

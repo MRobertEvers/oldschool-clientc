@@ -82,6 +82,24 @@ Editor_Palette_Matches(
 int
 Editor_Palette_BlendFrom(struct EditorUi* ui);
 
+/** The palette's eyedropper the next ground click answers: 0 none (or no
+ *  palette in this window), 1 the underlay, 2 the overlay. The App asks
+ *  before the armed tool sees the click. */
+int
+Editor_Palette_DropperArmed(struct EditorUi* ui);
+
+/** The armed eyedropper's pick at absolute tile x, z on `level`: the
+ *  tile's underlay, or its overlay with shape and rotation, into the picks,
+ *  arming that paint brush as a well click does. Disarms it either way;
+ *  returns 0 (and says so) when the tile's square is not open. The dropper
+ *  must be armed. */
+int
+Editor_Palette_DropperAt(
+    struct EditorUi* ui,
+    int x,
+    int z,
+    int level);
+
 /** The rectangle select's copy / paste / fill / clear. "rect" */
 void
 Editor_RectSelect_Register(struct EditorUi* ui);

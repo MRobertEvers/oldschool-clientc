@@ -27,6 +27,12 @@
  * the eyedropper sets the picker to the pick's colour, so the matches are
  * then the records nearest what is on the ground.
  *
+ * The EYEDROPPERS: a button under each well arms a one-shot pick, and the
+ * next click on the ground (whatever tool is armed; the App asks
+ * Editor_Palette_DropperArmed before the tool sees the click) takes that
+ * tile's underlay, or its overlay with its shape and rotation, as I does for
+ * every layer at once. Pressing the button again disarms it.
+ *
  * Colours come from the window (hooks.floor_rgb, the provider's records); a
  * record the window has not loaded draws as a hatched grey cell with its id,
  * so the palette still works on a cache the editor cannot fully decode.
@@ -96,6 +102,8 @@ struct PalettePanel
     int row_overlay;
     int graph_overlay;
     int input_overlay;
+    int button_drop_underlay;
+    int button_drop_overlay;
     int row_shape;
     int graph_shape;
     int radio_rotation[4];
@@ -145,7 +153,13 @@ struct PalettePanel
     /** The well and key the tooltip names. */
     int hover_graph;
     int hover_key;
+    /** The eyedropper the next ground click answers: 0 none, else 1 +
+     *  is_overlay. */
+    int dropper;
 };
+
+static const char* const k_dropper_captions[2] = { "Eyedropper: pick a tile's underlay",
+                                                   "Eyedropper: pick a tile's overlay" };
 
 static int
 palette_rgb(
@@ -811,6 +825,21 @@ palette_pick_overlay(
     palette_arm(ui, EDITOR_TOOL_PAINT_OVERLAY);
 }
 
+/** Arm (1 + is_overlay) or disarm (0) the eyedropper; the armed button
+ *  says what the next click does. */
+static void
+palette_dropper_set(
+    struct EditorUi* ui,
+    struct PalettePanel* self,
+    int dropper)
+{
+    self->dropper = dropper;
+    ToriRSChrome_SetLabel(ui->chrome, self->button_drop_underlay,
+        dropper == 1 ? "Click a tile... (press to cancel)" : k_dropper_captions[0]);
+    ToriRSChrome_SetLabel(ui->chrome, self->button_drop_overlay,
+        dropper == 2 ? "Click a tile... (press to cancel)" : k_dropper_captions[1]);
+}
+
 /** The id a key of a well names, or -1. */
 static int
 palette_key_id(
@@ -927,6 +956,19 @@ palette_activate(
 {
     struct PalettePanel* self = opaque;
 
+    if( widget == self->button_drop_underlay || widget == self->button_drop_overlay )
+    {
+        int const dropper = widget == self->button_drop_overlay ? 2 : 1;
+        if( self->dropper == dropper )
+        {
+            palette_dropper_set(ui, self, 0);
+            Editor_UiStatus(ui, "Eyedropper off");
+            return 1;
+        }
+        palette_dropper_set(ui, self, dropper);
+        Editor_UiStatus(ui, "Eyedropper: click a tile to pick its %s", dropper == 2 ? "overlay" : "underlay");
+        return 1;
+    }
     for( int r = 0; r < 4; r++ )
         if( widget == self->radio_rotation[r] )
         {
@@ -1005,9 +1047,11 @@ palette_set_visible(
     int visible)
 {
     struct PalettePanel* self = opaque;
-    (void)ui;
     if( visible )
         self->dirty_draw = 1;
+    /* A dropper the user can no longer see is not left to eat a click. */
+    else if( self->dropper )
+        palette_dropper_set(ui, self, 0);
 }
 
 static void
@@ -1085,6 +1129,73 @@ Editor_Palette_BlendFrom(struct EditorUi* ui)
     return palette_self(ui)->blend_from;
 }
 
+/* ---- the eyedropper, for the App -------------------------------------------------- */
+
+int
+Editor_Palette_DropperArmed(struct EditorUi* ui)
+{
+    struct EditorUiPanel* module;
+
+    assert(ui);
+    /* A window without the palette has no dropper to arm. */
+    module = Editor_UiFindPanel(ui, "palette");
+    if( !module )
+        return 0;
+    return ((struct PalettePanel*)module->self)->dropper;
+}
+
+int
+Editor_Palette_DropperAt(
+    struct EditorUi* ui,
+    int x,
+    int z,
+    int level)
+{
+    struct PalettePanel* self;
+    struct Editor_Square* square;
+    struct Editor_Tile const* tile;
+    int is_overlay;
+
+    assert(ui);
+    self = palette_self(ui);
+    assert(self->dropper);
+    is_overlay = self->dropper == 2;
+    /* One pick per arming, landed or refused: a refusal is said, not
+     *  retried on every later click. */
+    palette_dropper_set(ui, self, 0);
+    square = ui->editor ? Editor_DocFindSquare(&ui->editor->doc, x / 64, z / 64) : NULL;
+    if( !square || !square->loaded )
+    {
+        Editor_UiStatus(ui, "Eyedropper refused: m%d_%d is not open", x / 64, z / 64);
+        return 0;
+    }
+    tile = &square->tiles[Editor_TileIndex(x % 64, z % 64, level)];
+    if( !is_overlay )
+    {
+        palette_pick_underlay(ui, tile->underlay_id);
+        Editor_UiStatus(ui, "Eyedropper: underlay %d from %d,%d L%d", tile->underlay_id, x, z, level);
+    }
+    else if( !tile->has_overlay )
+    {
+        palette_pick_overlay(ui, 0);
+        Editor_UiStatus(ui, "Eyedropper: no overlay at %d,%d L%d (none picked)", x, z, level);
+    }
+    else
+    {
+        /* As I picks it: overlay 0 with a shape is a cut-out of the
+         * underlay, not "none". */
+        ui->tools.overlay_none = 0;
+        ui->tools.overlay_id = tile->overlay_id;
+        ui->tools.overlay_shape = tile->shape;
+        ui->tools.overlay_rotation = tile->rotation & 3;
+        palette_arm(ui, EDITOR_TOOL_PAINT_OVERLAY);
+        Editor_UiStatus(ui, "Eyedropper: overlay %d shape %d rot %d from %d,%d L%d", tile->overlay_id, tile->shape,
+            (tile->rotation & 3) * 90, x, z, level);
+    }
+    self->dirty_draw = 1;
+    return 1;
+}
+
 /* ---- registration -------------------------------------------------------------- */
 
 void
@@ -1113,10 +1224,14 @@ Editor_Palette_Register(struct EditorUi* ui)
     self->graph_underlay = ToriRSChrome_Graph(chrome, self->panel, "", PALETTE_CELL * 2 + 2);
     self->input_underlay = ToriRSChrome_TextInput(chrome, self->panel, "id", "");
     ToriRSChrome_SetTooltip(chrome, self->input_underlay, "Type an underlay id and press Enter");
+    self->button_drop_underlay = ToriRSChrome_Button(chrome, self->panel, k_dropper_captions[0]);
+    ToriRSChrome_SetTooltip(chrome, self->button_drop_underlay, "The next click on the ground picks its underlay");
     self->row_overlay = ToriRSChrome_Label(chrome, self->panel, "Overlay");
     self->graph_overlay = ToriRSChrome_Graph(chrome, self->panel, "", PALETTE_CELL * 2 + 2);
     self->input_overlay = ToriRSChrome_TextInput(chrome, self->panel, "id", "");
     ToriRSChrome_SetTooltip(chrome, self->input_overlay, "Type an overlay id and press Enter");
+    self->button_drop_overlay = ToriRSChrome_Button(chrome, self->panel, k_dropper_captions[1]);
+    ToriRSChrome_SetTooltip(chrome, self->button_drop_overlay, "The next click on the ground picks its overlay and shape");
     self->row_shape = ToriRSChrome_Label(chrome, self->panel, "Shape");
     self->graph_shape = ToriRSChrome_Graph(
         chrome, self->panel, "", ((EDITOR_SHAPE_COUNT + SHAPE_COLS - 1) / SHAPE_COLS) * (SHAPE_BOX + 4) + 2);
