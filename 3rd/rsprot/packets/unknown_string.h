@@ -17,7 +17,7 @@ typedef struct MsgUnknownString {
 	const char *string;
 } MsgUnknownString;
 
-/* v1 -- revs osrs224-241. */
+/* v1 -- revs osrs224-241, osrs242. */
 void packet_unknown_string_v1_out(RsprotExec *x, MsgUnknownString *m);
 /* v2 -- revs osrsm241. */
 void packet_unknown_string_v2_out(RsprotExec *x, MsgUnknownString *m);
@@ -41,6 +41,7 @@ void packet_unknown_string_v2_out(RsprotExec *x, MsgUnknownString *m);
 #define packet_unknown_string_osrs239_out packet_unknown_string_v1_out
 #define packet_unknown_string_osrs240_out packet_unknown_string_v1_out
 #define packet_unknown_string_osrs241_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs242_out packet_unknown_string_v1_out
 #define packet_unknown_string_osrsm241_out packet_unknown_string_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

@@ -52,9 +52,23 @@ packet_scriptedproj_change_v3_out(RsprotExec *x, MsgScriptedProjChange *m)
     RSPROT_U4_3412(x, m->target_coord_packed);
 }
 
-/* v4 -- revs osrsm241. */
+/* v4 -- revs osrs242. */
 void
 packet_scriptedproj_change_v4_out(RsprotExec *x, MsgScriptedProjChange *m)
+{
+    RSPROT_U3_213(x, m->target_index);
+    RSPROT_U1(x, m->delete_on_freeze_end);
+    RSPROT_U4_2143(x, m->target_coord_packed);
+    RSPROT_U2_21(x, m->target_offset_x);
+    RSPROT_U2_12_ADD128(x, m->target_offset_z);
+    RSPROT_U2_21(x, m->freeze_duration);
+    RSPROT_U2_12(x, m->target_height);
+    RSPROT_U2_21_ADD128(x, m->slot);
+}
+
+/* v5 -- revs osrsm241. */
+void
+packet_scriptedproj_change_v5_out(RsprotExec *x, MsgScriptedProjChange *m)
 {
     RSPROT_U2_21_ADD128(x, m->target_offset_x);
     RSPROT_U1(x, m->delete_on_freeze_end);
@@ -67,14 +81,15 @@ packet_scriptedproj_change_v4_out(RsprotExec *x, MsgScriptedProjChange *m)
 }
 
 /*
- * 4 row(s) for 4 layout(s). A revision not listed has no SCRIPTEDPROJ_CHANGE and
+ * 5 row(s) for 5 layout(s). A revision not listed has no SCRIPTEDPROJ_CHANGE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_scriptedproj_change_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_scriptedproj_change_v1_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_scriptedproj_change_v2_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_scriptedproj_change_v3_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_scriptedproj_change_v4_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_scriptedproj_change_v4_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_scriptedproj_change_v5_out },
 };
 
 const int rsprot_scriptedproj_change_out_count =

@@ -31,7 +31,7 @@ typedef struct MsgHintArrow {
 
 /* v1 -- revs 222-234. */
 void packet_hint_arrow_v1_out(RsprotExec *x, MsgHintArrow *m);
-/* v2 -- revs 235-241. */
+/* v2 -- revs 235-242. */
 void packet_hint_arrow_v2_out(RsprotExec *x, MsgHintArrow *m);
 
 #define packet_hint_arrow_osrs222_out packet_hint_arrow_v1_out
@@ -54,6 +54,7 @@ void packet_hint_arrow_v2_out(RsprotExec *x, MsgHintArrow *m);
 #define packet_hint_arrow_osrs239_out packet_hint_arrow_v2_out
 #define packet_hint_arrow_osrs240_out packet_hint_arrow_v2_out
 #define packet_hint_arrow_osrs241_out packet_hint_arrow_v2_out
+#define packet_hint_arrow_osrs242_out packet_hint_arrow_v2_out
 #define packet_hint_arrow_osrsm241_out packet_hint_arrow_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

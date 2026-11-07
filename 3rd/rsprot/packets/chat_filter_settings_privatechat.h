@@ -17,7 +17,7 @@ typedef struct MsgChatFilterSettingsPrivateChat {
 	int32_t private_chat_filter;
 } MsgChatFilterSettingsPrivateChat;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_chat_filter_settings_privatechat_v1_out(RsprotExec *x, MsgChatFilterSettingsPrivateChat *m);
 /* v2 -- revs osrsm241. */
 void packet_chat_filter_settings_privatechat_v2_out(RsprotExec *x, MsgChatFilterSettingsPrivateChat *m);
@@ -44,6 +44,7 @@ void packet_chat_filter_settings_privatechat_v2_out(RsprotExec *x, MsgChatFilter
 #define packet_chat_filter_settings_privatechat_osrs239_out packet_chat_filter_settings_privatechat_v1_out
 #define packet_chat_filter_settings_privatechat_osrs240_out packet_chat_filter_settings_privatechat_v1_out
 #define packet_chat_filter_settings_privatechat_osrs241_out packet_chat_filter_settings_privatechat_v1_out
+#define packet_chat_filter_settings_privatechat_osrs242_out packet_chat_filter_settings_privatechat_v1_out
 #define packet_chat_filter_settings_privatechat_osrsm241_out packet_chat_filter_settings_privatechat_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

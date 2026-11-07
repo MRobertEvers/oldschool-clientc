@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void
 packet_reflection_check_reply_v1_in(RsprotExec *x, MsgReflectionCheckReply *m)
 {
@@ -19,11 +19,12 @@ packet_reflection_check_reply_v1_in(RsprotExec *x, MsgReflectionCheckReply *m)
 }
 
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no REFLECTION_CHECK_REPLY and
+ * 2 row(s) for 1 layout(s). A revision not listed has no REFLECTION_CHECK_REPLY and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_reflection_check_reply_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_reflection_check_reply_v1_in },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_reflection_check_reply_v1_in },
 };
 
 const int rsprot_reflection_check_reply_in_count =

@@ -29,6 +29,29 @@ packet_obj_customise_specific_v2_v1_out(RsprotExec *x, MsgObjCustomiseSpecificV2
         RSPROT_U2_12(x, m->colour);
 }
 
+/* v2 -- revs 242. */
+void
+packet_obj_customise_specific_v2_v2_out(RsprotExec *x, MsgObjCustomiseSpecificV2 *m)
+{
+    RSPROT_COUNT(x, m->retexture_count, MSG_OBJ_CUSTOMISE_SPECIFIC_V2_MAX_REPLACEMENTS);
+    for (int32_t i = 0; i < m->retexture_count; i++) {
+        RSPROT_U1(x, m->retextures[i].index);
+        RSPROT_U2_12(x, m->retextures[i].value);
+    }
+    RSPROT_U2_21(x, m->id);
+    RSPROT_COUNT_AS(x, U1_ADD128, m->recolour_count, MSG_OBJ_CUSTOMISE_SPECIFIC_V2_MAX_REPLACEMENTS);
+    for (int32_t i = 0; i < m->recolour_count; i++) {
+        RSPROT_U1_SUB128(x, m->recolours[i].index);
+        RSPROT_U2_12_ADD128(x, m->recolours[i].value);
+    }
+    RSPROT_U1_ADD128(x, m->has_colour);
+    if (RSPROT_BRANCH(x, m->has_colour) == 1)
+        RSPROT_U2_12(x, m->colour);
+    RSPROT_U4_2143(x, m->quantity);
+    RSPROT_U4_2143(x, m->packed_coord);
+    RSPROT_U2_21_ADD128(x, m->model_id);
+}
+
 /* osrsm241 -- the Android 241.4 client (Old School mobile). */
 void
 packet_obj_customise_specific_v2_osrsm241_out(RsprotExec *x, MsgObjCustomiseSpecificV2 *m)
@@ -54,6 +77,7 @@ packet_obj_customise_specific_v2_osrsm241_out(RsprotExec *x, MsgObjCustomiseSpec
 
 const RsprotVersionRange rsprot_obj_customise_specific_v2_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_obj_customise_specific_v2_v1_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_obj_customise_specific_v2_v2_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_customise_specific_v2_osrsm241_out },
 };
 

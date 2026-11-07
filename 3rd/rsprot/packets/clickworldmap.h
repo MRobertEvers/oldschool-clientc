@@ -48,6 +48,7 @@ void packet_clickworldmap_osrsm241_in(RsprotExec *x, MsgClickworldmap *m);
 #define packet_clickworldmap_osrs239_in packet_clickworldmap_v4_in
 #define packet_clickworldmap_osrs240_in packet_clickworldmap_v4_in
 #define packet_clickworldmap_osrs241_in packet_clickworldmap_v1_in
+#define packet_clickworldmap_osrs242_in packet_clickworldmap_v3_in
 #define packet_clickworldmap_osrsm241_in packet_clickworldmap_osrsm241_in
 
 /** Revision -> layout. See the .c for the rows. */

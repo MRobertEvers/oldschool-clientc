@@ -2,7 +2,7 @@
 #include "group_var.h"
 
 /*
- * v1 -- revs 239-241.
+ * v1 -- revs 239-242.
  * while readable: g1 index, g4 packed, then by (packed >>> 16) & 3:
  * g4 | g8 | gjstr | gdata(rest).
  */
@@ -28,7 +28,7 @@ packet_group_var_v1_out(RsprotExec *x, MsgGroupVar *m)
 }
 
 const RsprotVersionRange rsprot_group_var_out[] = {
-    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_group_var_v1_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_group_var_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_group_var_v1_out },
 };
 

@@ -34,7 +34,7 @@ packet_opworldentity3_v3_in(RsprotExec *x, MsgOpWorldEntity3 *m)
     RSPROT_U2_21_ADD128(x, m->index);
 }
 
-/* v4 -- revs osrs236. */
+/* v4 -- revs osrs236, osrs242. */
 void
 packet_opworldentity3_v4_in(RsprotExec *x, MsgOpWorldEntity3 *m)
 {
@@ -83,7 +83,7 @@ packet_opworldentity3_v9_in(RsprotExec *x, MsgOpWorldEntity3 *m)
 }
 
 /*
- * 9 row(s) for 9 layout(s). A revision not listed has no OPWORLDENTITY3 and
+ * 10 row(s) for 9 layout(s). A revision not listed has no OPWORLDENTITY3 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opworldentity3_in[] = {
@@ -95,6 +95,7 @@ const RsprotVersionRange rsprot_opworldentity3_in[] = {
     { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_opworldentity3_v6_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_opworldentity3_v7_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opworldentity3_v8_in },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_opworldentity3_v4_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opworldentity3_v9_in },
 };
 

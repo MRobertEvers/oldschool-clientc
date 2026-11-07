@@ -168,6 +168,7 @@
 #include "packets/loc_add_change_rs.c"
 #include "packets/loc_add_change_v1.c"
 #include "packets/loc_add_change_v2.c"
+#include "packets/loc_add_change_v3.c"
 #include "packets/loc_anim.c"
 #include "packets/loc_anim_specific.c"
 #include "packets/loc_del.c"
@@ -235,20 +236,27 @@
 #include "packets/oploc1.c"
 #include "packets/oploc1_v1.c"
 #include "packets/oploc1_v2.c"
+#include "packets/oploc1_v3.c"
 #include "packets/oploc2.c"
 #include "packets/oploc2_v1.c"
 #include "packets/oploc2_v2.c"
+#include "packets/oploc2_v3.c"
 #include "packets/oploc3.c"
 #include "packets/oploc3_v1.c"
 #include "packets/oploc3_v2.c"
+#include "packets/oploc3_v3.c"
 #include "packets/oploc4.c"
 #include "packets/oploc4_v1.c"
 #include "packets/oploc4_v2.c"
+#include "packets/oploc4_v3.c"
 #include "packets/oploc5.c"
 #include "packets/oploc5_v1.c"
 #include "packets/oploc5_v2.c"
+#include "packets/oploc5_v3.c"
 #include "packets/oploc6.c"
+#include "packets/oploc6_v2.c"
 #include "packets/oploct.c"
+#include "packets/oploct_v2.c"
 #include "packets/oplocu.c"
 #include "packets/opnpc1.c"
 #include "packets/opnpc1_v1.c"
@@ -354,6 +362,7 @@
 #include "packets/set_npc_update_origin.c"
 #include "packets/set_player_op.c"
 #include "packets/set_player_op_rs.c"
+#include "packets/set_website_token.c"
 #include "packets/site_settings.c"
 #include "packets/sound_area.c"
 #include "packets/sound_jingleend.c"
@@ -438,6 +447,7 @@
 #include "streams/npc_info_osrs239.c"
 #include "streams/npc_info_osrs240.c"
 #include "streams/npc_info_osrs241.c"
+#include "streams/npc_info_osrs242.c"
 #include "streams/npc_info_osrsm241.c"
 #include "streams/npc_info_rs_v1.c"
 #include "streams/npc_info_rs_v2.c"
@@ -465,6 +475,7 @@
 #include "streams/player_info_osrs239.c"
 #include "streams/player_info_osrs240.c"
 #include "streams/player_info_osrs241.c"
+#include "streams/player_info_osrs242.c"
 #include "streams/player_info_osrsm241.c"
 #include "streams/player_info_rs_v1.c"
 #include "streams/player_info_v1.c"
@@ -495,6 +506,7 @@
 #include "streams/worldentity_info_osrs239.c"
 #include "streams/worldentity_info_osrs240.c"
 #include "streams/worldentity_info_osrs241.c"
+#include "streams/worldentity_info_osrs242.c"
 #include "streams/worldentity_info_osrsm241.c"
 #include "streams/worldentity_info_v1.c"
 #include "streams/worldentity_info_v3.c"
@@ -685,6 +697,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "LOC_ADD_CHANGE_RS", RSPROT_REG_OUT, rsprot_loc_add_change_rs_out, &rsprot_loc_add_change_rs_out_count },
     { "LOC_ADD_CHANGE_V1", RSPROT_REG_OUT, rsprot_loc_add_change_v1_out, &rsprot_loc_add_change_v1_out_count },
     { "LOC_ADD_CHANGE_V2", RSPROT_REG_OUT, rsprot_loc_add_change_v2_out, &rsprot_loc_add_change_v2_out_count },
+    { "LOC_ADD_CHANGE_V3", RSPROT_REG_OUT, rsprot_loc_add_change_v3_out, &rsprot_loc_add_change_v3_out_count },
     { "LOC_ANIM", RSPROT_REG_OUT, rsprot_loc_anim_out, &rsprot_loc_anim_out_count },
     { "LOC_ANIM_SPECIFIC", RSPROT_REG_OUT, rsprot_loc_anim_specific_out, &rsprot_loc_anim_specific_out_count },
     { "LOC_DEL", RSPROT_REG_OUT, rsprot_loc_del_out, &rsprot_loc_del_out_count },
@@ -758,20 +771,27 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "OPLOC1", RSPROT_REG_IN, rsprot_oploc1_in, &rsprot_oploc1_in_count },
     { "OPLOC1_V1", RSPROT_REG_IN, rsprot_oploc1_v1_in, &rsprot_oploc1_v1_in_count },
     { "OPLOC1_V2", RSPROT_REG_IN, rsprot_oploc1_v2_in, &rsprot_oploc1_v2_in_count },
+    { "OPLOC1_V3", RSPROT_REG_IN, rsprot_oploc1_v3_in, &rsprot_oploc1_v3_in_count },
     { "OPLOC2", RSPROT_REG_IN, rsprot_oploc2_in, &rsprot_oploc2_in_count },
     { "OPLOC2_V1", RSPROT_REG_IN, rsprot_oploc2_v1_in, &rsprot_oploc2_v1_in_count },
     { "OPLOC2_V2", RSPROT_REG_IN, rsprot_oploc2_v2_in, &rsprot_oploc2_v2_in_count },
+    { "OPLOC2_V3", RSPROT_REG_IN, rsprot_oploc2_v3_in, &rsprot_oploc2_v3_in_count },
     { "OPLOC3", RSPROT_REG_IN, rsprot_oploc3_in, &rsprot_oploc3_in_count },
     { "OPLOC3_V1", RSPROT_REG_IN, rsprot_oploc3_v1_in, &rsprot_oploc3_v1_in_count },
     { "OPLOC3_V2", RSPROT_REG_IN, rsprot_oploc3_v2_in, &rsprot_oploc3_v2_in_count },
+    { "OPLOC3_V3", RSPROT_REG_IN, rsprot_oploc3_v3_in, &rsprot_oploc3_v3_in_count },
     { "OPLOC4", RSPROT_REG_IN, rsprot_oploc4_in, &rsprot_oploc4_in_count },
     { "OPLOC4_V1", RSPROT_REG_IN, rsprot_oploc4_v1_in, &rsprot_oploc4_v1_in_count },
     { "OPLOC4_V2", RSPROT_REG_IN, rsprot_oploc4_v2_in, &rsprot_oploc4_v2_in_count },
+    { "OPLOC4_V3", RSPROT_REG_IN, rsprot_oploc4_v3_in, &rsprot_oploc4_v3_in_count },
     { "OPLOC5", RSPROT_REG_IN, rsprot_oploc5_in, &rsprot_oploc5_in_count },
     { "OPLOC5_V1", RSPROT_REG_IN, rsprot_oploc5_v1_in, &rsprot_oploc5_v1_in_count },
     { "OPLOC5_V2", RSPROT_REG_IN, rsprot_oploc5_v2_in, &rsprot_oploc5_v2_in_count },
+    { "OPLOC5_V3", RSPROT_REG_IN, rsprot_oploc5_v3_in, &rsprot_oploc5_v3_in_count },
     { "OPLOC6", RSPROT_REG_IN, rsprot_oploc6_in, &rsprot_oploc6_in_count },
+    { "OPLOC6_V2", RSPROT_REG_IN, rsprot_oploc6_v2_in, &rsprot_oploc6_v2_in_count },
     { "OPLOCT", RSPROT_REG_IN, rsprot_oploct_in, &rsprot_oploct_in_count },
+    { "OPLOCT_V2", RSPROT_REG_IN, rsprot_oploct_v2_in, &rsprot_oploct_v2_in_count },
     { "OPLOCU", RSPROT_REG_IN, rsprot_oplocu_in, &rsprot_oplocu_in_count },
     { "OPNPC1", RSPROT_REG_IN, rsprot_opnpc1_in, &rsprot_opnpc1_in_count },
     { "OPNPC1_V1", RSPROT_REG_IN, rsprot_opnpc1_v1_in, &rsprot_opnpc1_v1_in_count },
@@ -876,6 +896,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "SET_NPC_UPDATE_ORIGIN", RSPROT_REG_OUT, rsprot_set_npc_update_origin_out, &rsprot_set_npc_update_origin_out_count },
     { "SET_PLAYER_OP", RSPROT_REG_OUT, rsprot_set_player_op_out, &rsprot_set_player_op_out_count },
     { "SET_PLAYER_OP_RS", RSPROT_REG_OUT, rsprot_set_player_op_rs_out, &rsprot_set_player_op_rs_out_count },
+    { "SET_WEBSITE_TOKEN", RSPROT_REG_OUT, rsprot_set_website_token_out, &rsprot_set_website_token_out_count },
     { "SITE_SETTINGS", RSPROT_REG_OUT, rsprot_site_settings_out, &rsprot_site_settings_out_count },
     { "SOUND_AREA", RSPROT_REG_OUT, rsprot_sound_area_out, &rsprot_sound_area_out_count },
     { "SOUND_JINGLEEND", RSPROT_REG_IN, rsprot_sound_jingleend_in, &rsprot_sound_jingleend_in_count },

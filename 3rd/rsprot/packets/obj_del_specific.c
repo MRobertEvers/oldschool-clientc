@@ -91,9 +91,18 @@ packet_obj_del_specific_v9_out(RsprotExec *x, MsgObjDelSpecific *m)
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
-/* v10 -- revs osrsm241. */
+/* v10 -- revs osrs242. */
 void
 packet_obj_del_specific_v10_out(RsprotExec *x, MsgObjDelSpecific *m)
+{
+    RSPROT_U4_1234(x, m->quantity);
+    RSPROT_U4_1234(x, m->coord_grid_packed);
+    RSPROT_U2_12(x, m->id);
+}
+
+/* v11 -- revs osrsm241. */
+void
+packet_obj_del_specific_v11_out(RsprotExec *x, MsgObjDelSpecific *m)
 {
     RSPROT_U4_4321(x, m->coord_grid_packed);
     RSPROT_U2_12_ADD128(x, m->id);
@@ -101,7 +110,7 @@ packet_obj_del_specific_v10_out(RsprotExec *x, MsgObjDelSpecific *m)
 }
 
 /*
- * 10 row(s) for 10 layout(s). A revision not listed has no OBJ_DEL_SPECIFIC and
+ * 11 row(s) for 11 layout(s). A revision not listed has no OBJ_DEL_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_del_specific_out[] = {
@@ -114,7 +123,8 @@ const RsprotVersionRange rsprot_obj_del_specific_out[] = {
     { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_obj_del_specific_v7_out },
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_obj_del_specific_v8_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_obj_del_specific_v9_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_del_specific_v10_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_obj_del_specific_v10_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_del_specific_v11_out },
 };
 
 const int rsprot_obj_del_specific_out_count =

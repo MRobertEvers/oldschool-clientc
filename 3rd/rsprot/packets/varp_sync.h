@@ -19,7 +19,7 @@ typedef struct MsgVarpSync {
 	int32_t _unused;
 } MsgVarpSync;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_varp_sync_v1_out(RsprotExec *x, MsgVarpSync *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_varp_sync_v2_out(RsprotExec *x, MsgVarpSync *m);
@@ -48,6 +48,7 @@ void packet_varp_sync_v3_out(RsprotExec *x, MsgVarpSync *m);
 #define packet_varp_sync_osrs239_out packet_varp_sync_v1_out
 #define packet_varp_sync_osrs240_out packet_varp_sync_v1_out
 #define packet_varp_sync_osrs241_out packet_varp_sync_v1_out
+#define packet_varp_sync_osrs242_out packet_varp_sync_v1_out
 #define packet_varp_sync_rs245_2_out packet_varp_sync_v2_out
 #define packet_varp_sync_rs254_out packet_varp_sync_v2_out
 #define packet_varp_sync_rs289_out packet_varp_sync_v2_out

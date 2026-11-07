@@ -20,7 +20,7 @@ typedef struct MsgCamRotateBy {
 	int32_t easing_id;
 } MsgCamRotateBy;
 
-/* v1 -- revs osrs223-241. */
+/* v1 -- revs osrs223-241, osrs242. */
 void packet_cam_rotateby_v1_out(RsprotExec *x, MsgCamRotateBy *m);
 /* v2 -- revs osrsm241. */
 void packet_cam_rotateby_v2_out(RsprotExec *x, MsgCamRotateBy *m);
@@ -45,6 +45,7 @@ void packet_cam_rotateby_v2_out(RsprotExec *x, MsgCamRotateBy *m);
 #define packet_cam_rotateby_osrs239_out packet_cam_rotateby_v1_out
 #define packet_cam_rotateby_osrs240_out packet_cam_rotateby_v1_out
 #define packet_cam_rotateby_osrs241_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs242_out packet_cam_rotateby_v1_out
 #define packet_cam_rotateby_osrsm241_out packet_cam_rotateby_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

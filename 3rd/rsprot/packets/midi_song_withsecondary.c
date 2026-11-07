@@ -262,9 +262,21 @@ packet_midi_song_withsecondary_v21_out(RsprotExec *x, MsgMidiSongWithSecondary *
     RSPROT_U2_21_ADD128(x, m->fade_out_speed);
 }
 
-/* v22 -- revs osrsm241. */
+/* v22 -- revs osrs242. */
 void
 packet_midi_song_withsecondary_v22_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
+{
+    RSPROT_U2_21_ADD128(x, m->fade_in_delay);
+    RSPROT_U2_12_ADD128(x, m->primary_id);
+    RSPROT_U2_21_ADD128(x, m->fade_in_speed);
+    RSPROT_U2_21_ADD128(x, m->secondary_id);
+    RSPROT_U2_12_ADD128(x, m->fade_out_speed);
+    RSPROT_U2_12_ADD128(x, m->fade_out_delay);
+}
+
+/* v23 -- revs osrsm241. */
+void
+packet_midi_song_withsecondary_v23_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
     RSPROT_U2_21_ADD128(x, m->fade_in_speed);
     RSPROT_U2_21(x, m->primary_id);
@@ -275,7 +287,7 @@ packet_midi_song_withsecondary_v22_out(RsprotExec *x, MsgMidiSongWithSecondary *
 }
 
 /*
- * 22 row(s) for 22 layout(s). A revision not listed has no MIDI_SONG_WITHSECONDARY and
+ * 23 row(s) for 23 layout(s). A revision not listed has no MIDI_SONG_WITHSECONDARY and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_midi_song_withsecondary_out[] = {
@@ -300,7 +312,8 @@ const RsprotVersionRange rsprot_midi_song_withsecondary_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_midi_song_withsecondary_v19_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_midi_song_withsecondary_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_midi_song_withsecondary_v21_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_midi_song_withsecondary_v22_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_midi_song_withsecondary_v22_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_midi_song_withsecondary_v23_out },
 };
 
 const int rsprot_midi_song_withsecondary_out_count =

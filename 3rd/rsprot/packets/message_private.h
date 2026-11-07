@@ -25,7 +25,7 @@ typedef struct MsgMessagePrivate {
 	int32_t huffman_length;
 } MsgMessagePrivate;
 
-/* v1 -- revs 222-241. */
+/* v1 -- revs 222-242. */
 void packet_message_private_v1_out(RsprotExec *x, MsgMessagePrivate *m);
 
 #define packet_message_private_osrs222_out packet_message_private_v1_out
@@ -48,6 +48,7 @@ void packet_message_private_v1_out(RsprotExec *x, MsgMessagePrivate *m);
 #define packet_message_private_osrs239_out packet_message_private_v1_out
 #define packet_message_private_osrs240_out packet_message_private_v1_out
 #define packet_message_private_osrs241_out packet_message_private_v1_out
+#define packet_message_private_osrs242_out packet_message_private_v1_out
 #define packet_message_private_osrsm241_out packet_message_private_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
@@ -63,7 +64,7 @@ typedef struct MsgMessagePrivateClient {
 	int32_t huffman_length;
 } MsgMessagePrivateClient;
 
-/* v1 -- revs 222-241. */
+/* v1 -- revs 222-242. */
 void packet_message_private_v1_in(RsprotExec *x, MsgMessagePrivateClient *m);
 
 /* osrsm241 -- the Android 241.4 client. */
@@ -89,6 +90,7 @@ void packet_message_private_osrsm241_in(RsprotExec *x, MsgMessagePrivateClient *
 #define packet_message_private_osrs239_in packet_message_private_v1_in
 #define packet_message_private_osrs240_in packet_message_private_v1_in
 #define packet_message_private_osrs241_in packet_message_private_v1_in
+#define packet_message_private_osrs242_in packet_message_private_v1_in
 #define packet_message_private_osrsm241_in packet_message_private_osrsm241_in
 
 /** Revision -> layout. See the .c for the rows. */

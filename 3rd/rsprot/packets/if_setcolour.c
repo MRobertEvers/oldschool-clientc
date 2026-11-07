@@ -98,7 +98,7 @@ packet_if_setcolour_v11_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_U2_21_ADD128(x, m->colour15_bit_packed);
 }
 
-/* v12 -- revs osrs237, osrs239. */
+/* v12 -- revs osrs237, osrs239, osrs242. */
 void
 packet_if_setcolour_v12_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -139,7 +139,7 @@ packet_if_setcolour_v16_out(RsprotExec *x, MsgIfSetColour *m)
 }
 
 /*
- * 25 row(s) for 16 layout(s). A revision not listed has no IF_SETCOLOUR and
+ * 26 row(s) for 16 layout(s). A revision not listed has no IF_SETCOLOUR and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setcolour_out[] = {
@@ -164,6 +164,7 @@ const RsprotVersionRange rsprot_if_setcolour_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setcolour_v12_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setcolour_v14_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setcolour_v9_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_setcolour_v12_out },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_setcolour_v15_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_setcolour_v15_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_setcolour_v15_out },

@@ -1,7 +1,7 @@
 /* UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER. Hand-written; see update_friendchat_channel_singleuser.h. */
 #include "update_friendchat_channel_singleuser.h"
 
-/* v1 -- revs 222-241. */
+/* v1 -- revs 222-242. */
 void
 packet_update_friendchat_channel_singleuser_v1_out(RsprotExec *x, MsgUpdateFriendchatChannelSingleuser *m)
 {
@@ -13,7 +13,7 @@ packet_update_friendchat_channel_singleuser_v1_out(RsprotExec *x, MsgUpdateFrien
 }
 
 const RsprotVersionRange rsprot_update_friendchat_channel_singleuser_out[] = {
-    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_friendchat_channel_singleuser_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_update_friendchat_channel_singleuser_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_friendchat_channel_singleuser_v1_out },
 };
 

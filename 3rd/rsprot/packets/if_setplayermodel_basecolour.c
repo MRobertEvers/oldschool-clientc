@@ -190,9 +190,18 @@ packet_if_setplayermodel_basecolour_v20_out(RsprotExec *x, MsgIfSetPlayerModelBa
     RSPROT_U1_SUB128(x, m->colour);
 }
 
-/* v21 -- revs osrsm241. */
+/* v21 -- revs osrs242. */
 void
 packet_if_setplayermodel_basecolour_v21_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m)
+{
+    RSPROT_U1_SUB128(x, m->index);
+    RSPROT_U1(x, m->colour);
+    RSPROT_COM_2143(x, m->combined_id);
+}
+
+/* v22 -- revs osrsm241. */
+void
+packet_if_setplayermodel_basecolour_v22_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m)
 {
     RSPROT_U1_ADD128(x, m->index);
     RSPROT_U1_NEG(x, m->colour);
@@ -200,7 +209,7 @@ packet_if_setplayermodel_basecolour_v21_out(RsprotExec *x, MsgIfSetPlayerModelBa
 }
 
 /*
- * 22 row(s) for 21 layout(s). A revision not listed has no IF_SETPLAYERMODEL_BASECOLOUR and
+ * 23 row(s) for 22 layout(s). A revision not listed has no IF_SETPLAYERMODEL_BASECOLOUR and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setplayermodel_basecolour_out[] = {
@@ -225,7 +234,8 @@ const RsprotVersionRange rsprot_if_setplayermodel_basecolour_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setplayermodel_basecolour_v10_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setplayermodel_basecolour_v19_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setplayermodel_basecolour_v20_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setplayermodel_basecolour_v21_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_setplayermodel_basecolour_v21_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setplayermodel_basecolour_v22_out },
 };
 
 const int rsprot_if_setplayermodel_basecolour_out_count =

@@ -1,7 +1,7 @@
 /* EVENT_NATIVE_MOUSE_MOVE. Hand-written; see event_native_mouse_move.h. */
 #include "event_native_mouse_move.h"
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 223-242. */
 void
 packet_event_native_mouse_move_v1_in(RsprotExec *x, MsgEventNativeMouseMove *m)
 {
@@ -52,7 +52,7 @@ packet_event_native_mouse_move_osrsm241_in(RsprotExec *x, MsgEventNativeMouseMov
 }
 
 const RsprotVersionRange rsprot_event_native_mouse_move_in[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_event_native_mouse_move_v1_in },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_event_native_mouse_move_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_event_native_mouse_move_osrsm241_in },
 };
 

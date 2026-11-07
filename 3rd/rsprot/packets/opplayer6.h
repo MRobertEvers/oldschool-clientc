@@ -18,7 +18,7 @@ typedef struct MsgOpPlayer6 {
 	int32_t control_key;
 } MsgOpPlayer6;
 
-/* v1 -- revs osrs221. */
+/* v1 -- revs osrs221, osrs242. */
 void packet_opplayer6_v1_in(RsprotExec *x, MsgOpPlayer6 *m);
 /* v2 -- revs osrs222. */
 void packet_opplayer6_v2_in(RsprotExec *x, MsgOpPlayer6 *m);
@@ -81,6 +81,7 @@ void packet_opplayer6_v20_in(RsprotExec *x, MsgOpPlayer6 *m);
 #define packet_opplayer6_osrs239_in packet_opplayer6_v17_in
 #define packet_opplayer6_osrs240_in packet_opplayer6_v18_in
 #define packet_opplayer6_osrs241_in packet_opplayer6_v19_in
+#define packet_opplayer6_osrs242_in packet_opplayer6_v1_in
 #define packet_opplayer6_osrsm241_in packet_opplayer6_v20_in
 
 /** Revision -> layout. See the .c for the rows. */

@@ -46,8 +46,10 @@ void packet_midi_song_stop_v12_out(RsprotExec *x, MsgMidiSongStop *m);
 void packet_midi_song_stop_v13_out(RsprotExec *x, MsgMidiSongStop *m);
 /* v14 -- revs osrs241. */
 void packet_midi_song_stop_v14_out(RsprotExec *x, MsgMidiSongStop *m);
-/* v15 -- revs osrsm241. */
+/* v15 -- revs osrs242. */
 void packet_midi_song_stop_v15_out(RsprotExec *x, MsgMidiSongStop *m);
+/* v16 -- revs osrsm241. */
+void packet_midi_song_stop_v16_out(RsprotExec *x, MsgMidiSongStop *m);
 
 /* Per-revision entry points: what revision R calls is packet_midi_song_stop_<R>_out. */
 #define packet_midi_song_stop_osrs221_out packet_midi_song_stop_v1_out
@@ -71,7 +73,8 @@ void packet_midi_song_stop_v15_out(RsprotExec *x, MsgMidiSongStop *m);
 #define packet_midi_song_stop_osrs239_out packet_midi_song_stop_v12_out
 #define packet_midi_song_stop_osrs240_out packet_midi_song_stop_v13_out
 #define packet_midi_song_stop_osrs241_out packet_midi_song_stop_v14_out
-#define packet_midi_song_stop_osrsm241_out packet_midi_song_stop_v15_out
+#define packet_midi_song_stop_osrs242_out packet_midi_song_stop_v15_out
+#define packet_midi_song_stop_osrsm241_out packet_midi_song_stop_v16_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_midi_song_stop_out[];

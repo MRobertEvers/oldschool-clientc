@@ -48,10 +48,12 @@ void packet_varp_large_v13_out(RsprotExec *x, MsgVarpLarge *m);
 void packet_varp_large_v14_out(RsprotExec *x, MsgVarpLarge *m);
 /* v15 -- revs osrs241. */
 void packet_varp_large_v15_out(RsprotExec *x, MsgVarpLarge *m);
-/* v16 -- revs rs245.2, rs254, rs289. */
+/* v16 -- revs osrs242. */
 void packet_varp_large_v16_out(RsprotExec *x, MsgVarpLarge *m);
-/* v17 -- revs osrsm241. */
+/* v17 -- revs rs245.2, rs254, rs289. */
 void packet_varp_large_v17_out(RsprotExec *x, MsgVarpLarge *m);
+/* v18 -- revs osrsm241. */
+void packet_varp_large_v18_out(RsprotExec *x, MsgVarpLarge *m);
 
 /* Per-revision entry points: what revision R calls is packet_varp_large_<R>_out. */
 #define packet_varp_large_osrs221_out packet_varp_large_v1_out
@@ -75,10 +77,11 @@ void packet_varp_large_v17_out(RsprotExec *x, MsgVarpLarge *m);
 #define packet_varp_large_osrs239_out packet_varp_large_v1_out
 #define packet_varp_large_osrs240_out packet_varp_large_v4_out
 #define packet_varp_large_osrs241_out packet_varp_large_v15_out
-#define packet_varp_large_rs245_2_out packet_varp_large_v16_out
-#define packet_varp_large_rs254_out packet_varp_large_v16_out
-#define packet_varp_large_rs289_out packet_varp_large_v16_out
-#define packet_varp_large_osrsm241_out packet_varp_large_v17_out
+#define packet_varp_large_osrs242_out packet_varp_large_v16_out
+#define packet_varp_large_rs245_2_out packet_varp_large_v17_out
+#define packet_varp_large_rs254_out packet_varp_large_v17_out
+#define packet_varp_large_rs289_out packet_varp_large_v17_out
+#define packet_varp_large_osrsm241_out packet_varp_large_v18_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_varp_large_out[];

@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs221. */
+/* v1 -- revs osrs221, osrs242. */
 void
 packet_opplayer6_v1_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
@@ -171,7 +171,7 @@ packet_opplayer6_v20_in(RsprotExec *x, MsgOpPlayer6 *m)
 }
 
 /*
- * 22 row(s) for 20 layout(s). A revision not listed has no OPPLAYER6 and
+ * 23 row(s) for 20 layout(s). A revision not listed has no OPPLAYER6 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opplayer6_in[] = {
@@ -196,6 +196,7 @@ const RsprotVersionRange rsprot_opplayer6_in[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_opplayer6_v17_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_opplayer6_v18_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opplayer6_v19_in },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_opplayer6_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opplayer6_v20_in },
 };
 

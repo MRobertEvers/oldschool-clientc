@@ -34,7 +34,7 @@ typedef struct MsgEventMouseMove {
 	MsgEventMouseMoveMove moves[MSG_EVENT_MOUSE_MOVE_MAX];
 } MsgEventMouseMove;
 
-/* v1 -- revs 222-241. */
+/* v1 -- revs 222-242. */
 void packet_event_mouse_move_v1_in(RsprotExec *x, MsgEventMouseMove *m);
 
 /* osrsm241 -- the Android 241.4 client. */
@@ -60,6 +60,7 @@ void packet_event_mouse_move_osrsm241_in(RsprotExec *x, MsgEventMouseMove *m);
 #define packet_event_mouse_move_osrs239_in packet_event_mouse_move_v1_in
 #define packet_event_mouse_move_osrs240_in packet_event_mouse_move_v1_in
 #define packet_event_mouse_move_osrs241_in packet_event_mouse_move_v1_in
+#define packet_event_mouse_move_osrs242_in packet_event_mouse_move_v1_in
 #define packet_event_mouse_move_osrsm241_in packet_event_mouse_move_osrsm241_in
 
 /** Revision -> layout. See the .c for the rows. */

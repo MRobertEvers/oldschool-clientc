@@ -33,11 +33,13 @@ typedef struct MsgObjCustomiseSpecificV2 {
 
 /* v1 -- revs 241. */
 void packet_obj_customise_specific_v2_v1_out(RsprotExec *x, MsgObjCustomiseSpecificV2 *m);
+void packet_obj_customise_specific_v2_v2_out(RsprotExec *x, MsgObjCustomiseSpecificV2 *m);
 
 /* osrsm241 -- the Android 241.4 client. */
 void packet_obj_customise_specific_v2_osrsm241_out(RsprotExec *x, MsgObjCustomiseSpecificV2 *m);
 
 #define packet_obj_customise_specific_v2_osrs241_out packet_obj_customise_specific_v2_v1_out
+#define packet_obj_customise_specific_v2_osrs242_out packet_obj_customise_specific_v2_v2_out
 #define packet_obj_customise_specific_v2_osrsm241_out packet_obj_customise_specific_v2_osrsm241_out
 
 /** Revision -> layout. See the .c for the rows. */

@@ -199,9 +199,18 @@ packet_update_zone_full_follows_v21_out(RsprotExec *x, MsgUpdateZoneFullFollows 
     RSPROT_U1(x, m->zone_x);
 }
 
-/* v22 -- revs osrsm241. */
+/* v22 -- revs osrs242. */
 void
 packet_update_zone_full_follows_v22_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
+{
+    RSPROT_U1_SUB128(x, m->zone_x);
+    RSPROT_U1_NEG(x, m->level);
+    RSPROT_U1_ADD128(x, m->zone_z);
+}
+
+/* v23 -- revs osrsm241. */
+void
+packet_update_zone_full_follows_v23_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
     RSPROT_U1_ADD128(x, m->level);
     RSPROT_U1_ADD128(x, m->zone_z);
@@ -209,7 +218,7 @@ packet_update_zone_full_follows_v22_out(RsprotExec *x, MsgUpdateZoneFullFollows 
 }
 
 /*
- * 22 row(s) for 22 layout(s). A revision not listed has no UPDATE_ZONE_FULL_FOLLOWS and
+ * 23 row(s) for 23 layout(s). A revision not listed has no UPDATE_ZONE_FULL_FOLLOWS and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_zone_full_follows_out[] = {
@@ -234,7 +243,8 @@ const RsprotVersionRange rsprot_update_zone_full_follows_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_update_zone_full_follows_v19_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_update_zone_full_follows_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_zone_full_follows_v21_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_zone_full_follows_v22_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_update_zone_full_follows_v22_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_zone_full_follows_v23_out },
 };
 
 const int rsprot_update_zone_full_follows_out_count =

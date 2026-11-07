@@ -131,9 +131,20 @@ packet_if_setevents_v2_v11_out(RsprotExec *x, MsgIfSetEventsV2 *m)
     RSPROT_U4_4321(x, m->events2);
 }
 
-/* v12 -- revs osrsm241. */
+/* v12 -- revs osrs242. */
 void
 packet_if_setevents_v2_v12_out(RsprotExec *x, MsgIfSetEventsV2 *m)
+{
+    RSPROT_U4_2143(x, m->events1);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U4_4321(x, m->events2);
+    RSPROT_U2_21(x, m->end);
+    RSPROT_U2_21(x, m->start);
+}
+
+/* v13 -- revs osrsm241. */
+void
+packet_if_setevents_v2_v13_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
     RSPROT_U2_12(x, m->end);
     RSPROT_U4_2143(x, m->events1);
@@ -143,7 +154,7 @@ packet_if_setevents_v2_v12_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 }
 
 /*
- * 12 row(s) for 12 layout(s). A revision not listed has no IF_SETEVENTS_V2 and
+ * 13 row(s) for 13 layout(s). A revision not listed has no IF_SETEVENTS_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setevents_v2_out[] = {
@@ -158,7 +169,8 @@ const RsprotVersionRange rsprot_if_setevents_v2_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setevents_v2_v9_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setevents_v2_v10_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setevents_v2_v11_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setevents_v2_v12_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_setevents_v2_v12_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setevents_v2_v13_out },
 };
 
 const int rsprot_if_setevents_v2_out_count =

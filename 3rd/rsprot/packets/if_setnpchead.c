@@ -146,24 +146,32 @@ packet_if_setnpchead_v17_out(RsprotExec *x, MsgIfSetNpcHead *m)
     RSPROT_U2_12_ADD128(x, m->npc);
 }
 
-/* v18 -- revs rs245.2, rs254, rs289. */
+/* v18 -- revs osrs242. */
 void
 packet_if_setnpchead_v18_out(RsprotExec *x, MsgIfSetNpcHead *m)
+{
+    RSPROT_U2_12_ADD128(x, m->npc);
+    RSPROT_COM_1234(x, m->combined_id);
+}
+
+/* v19 -- revs rs245.2, rs254, rs289. */
+void
+packet_if_setnpchead_v19_out(RsprotExec *x, MsgIfSetNpcHead *m)
 {
     RSPROT_U2_12(x, m->combined_id);
     RSPROT_U2_12(x, m->npc);
 }
 
-/* v19 -- revs osrsm241. */
+/* v20 -- revs osrsm241. */
 void
-packet_if_setnpchead_v19_out(RsprotExec *x, MsgIfSetNpcHead *m)
+packet_if_setnpchead_v20_out(RsprotExec *x, MsgIfSetNpcHead *m)
 {
     RSPROT_COM_1234(x, m->combined_id);
     RSPROT_U2_21(x, m->npc);
 }
 
 /*
- * 24 row(s) for 19 layout(s). A revision not listed has no IF_SETNPCHEAD and
+ * 25 row(s) for 20 layout(s). A revision not listed has no IF_SETNPCHEAD and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setnpchead_out[] = {
@@ -187,10 +195,11 @@ const RsprotVersionRange rsprot_if_setnpchead_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setnpchead_v15_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setnpchead_v16_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setnpchead_v17_out },
-    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_setnpchead_v18_out },
-    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_setnpchead_v18_out },
-    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_setnpchead_v18_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setnpchead_v19_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_setnpchead_v18_out },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_setnpchead_v19_out },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_setnpchead_v19_out },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_setnpchead_v19_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setnpchead_v20_out },
 };
 
 const int rsprot_if_setnpchead_out_count =

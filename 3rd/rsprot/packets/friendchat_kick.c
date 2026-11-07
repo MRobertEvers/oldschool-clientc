@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void
 packet_friendchat_kick_v1_in(RsprotExec *x, MsgFriendChatKick *m)
 {
@@ -25,11 +25,12 @@ packet_friendchat_kick_v2_in(RsprotExec *x, MsgFriendChatKick *m)
 }
 
 /*
- * 2 row(s) for 2 layout(s). A revision not listed has no FRIENDCHAT_KICK and
+ * 3 row(s) for 2 layout(s). A revision not listed has no FRIENDCHAT_KICK and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_friendchat_kick_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_friendchat_kick_v1_in },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_friendchat_kick_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_friendchat_kick_v2_in },
 };
 

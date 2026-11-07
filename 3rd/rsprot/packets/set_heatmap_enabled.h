@@ -17,7 +17,7 @@ typedef struct MsgSetHeatmapEnabled {
 	int32_t enabled;
 } MsgSetHeatmapEnabled;
 
-/* v1 -- revs osrs223-241. */
+/* v1 -- revs osrs223-241, osrs242. */
 void packet_set_heatmap_enabled_v1_out(RsprotExec *x, MsgSetHeatmapEnabled *m);
 /* v2 -- revs osrsm241. */
 void packet_set_heatmap_enabled_v2_out(RsprotExec *x, MsgSetHeatmapEnabled *m);
@@ -42,6 +42,7 @@ void packet_set_heatmap_enabled_v2_out(RsprotExec *x, MsgSetHeatmapEnabled *m);
 #define packet_set_heatmap_enabled_osrs239_out packet_set_heatmap_enabled_v1_out
 #define packet_set_heatmap_enabled_osrs240_out packet_set_heatmap_enabled_v1_out
 #define packet_set_heatmap_enabled_osrs241_out packet_set_heatmap_enabled_v1_out
+#define packet_set_heatmap_enabled_osrs242_out packet_set_heatmap_enabled_v1_out
 #define packet_set_heatmap_enabled_osrsm241_out packet_set_heatmap_enabled_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

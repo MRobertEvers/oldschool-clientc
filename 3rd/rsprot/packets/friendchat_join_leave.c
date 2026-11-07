@@ -1,7 +1,7 @@
 /* FRIENDCHAT_JOIN_LEAVE. Hand-written; see friendchat_join_leave.h. */
 #include "friendchat_join_leave.h"
 
-/* v1 -- revs 222-241. */
+/* v1 -- revs 222-242. */
 void
 packet_friendchat_join_leave_v1_in(RsprotExec *x, MsgFriendchatJoinLeave *m)
 {
@@ -18,7 +18,7 @@ packet_friendchat_join_leave_osrsm241_in(RsprotExec *x, MsgFriendchatJoinLeave *
 }
 
 const RsprotVersionRange rsprot_friendchat_join_leave_in[] = {
-    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_friendchat_join_leave_v1_in },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_friendchat_join_leave_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_friendchat_join_leave_osrsm241_in },
 };
 

@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs238, osrs240. */
+/* v1 -- revs osrs238, osrs240, osrs242. */
 void
 packet_cam_unlock_v1_out(RsprotExec *x, MsgCamUnlock *m)
 {
@@ -39,7 +39,7 @@ packet_cam_unlock_v4_out(RsprotExec *x, MsgCamUnlock *m)
 }
 
 /*
- * 5 row(s) for 4 layout(s). A revision not listed has no CAM_UNLOCK and
+ * 6 row(s) for 4 layout(s). A revision not listed has no CAM_UNLOCK and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_unlock_out[] = {
@@ -47,6 +47,7 @@ const RsprotVersionRange rsprot_cam_unlock_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_cam_unlock_v2_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_cam_unlock_v1_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_unlock_v3_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_cam_unlock_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_unlock_v4_out },
 };
 

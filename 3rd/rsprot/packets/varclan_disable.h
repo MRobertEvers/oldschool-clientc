@@ -19,7 +19,7 @@ typedef struct MsgVarClanDisable {
 	int32_t _unused;
 } MsgVarClanDisable;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_varclan_disable_v1_out(RsprotExec *x, MsgVarClanDisable *m);
 /* v2 -- revs osrsm241. */
 void packet_varclan_disable_v2_out(RsprotExec *x, MsgVarClanDisable *m);
@@ -46,6 +46,7 @@ void packet_varclan_disable_v2_out(RsprotExec *x, MsgVarClanDisable *m);
 #define packet_varclan_disable_osrs239_out packet_varclan_disable_v1_out
 #define packet_varclan_disable_osrs240_out packet_varclan_disable_v1_out
 #define packet_varclan_disable_osrs241_out packet_varclan_disable_v1_out
+#define packet_varclan_disable_osrs242_out packet_varclan_disable_v1_out
 #define packet_varclan_disable_osrsm241_out packet_varclan_disable_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

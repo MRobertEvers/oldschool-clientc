@@ -20,7 +20,7 @@ typedef struct MsgAffinedClanSettingsSetMutedFromChannel {
 	const char *name;
 } MsgAffinedClanSettingsSetMutedFromChannel;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_affinedclansettings_setmuted_fromchannel_v1_in(RsprotExec *x, MsgAffinedClanSettingsSetMutedFromChannel *m);
 /* v2 -- revs osrsm241. */
 void packet_affinedclansettings_setmuted_fromchannel_v2_in(RsprotExec *x, MsgAffinedClanSettingsSetMutedFromChannel *m);
@@ -47,6 +47,7 @@ void packet_affinedclansettings_setmuted_fromchannel_v2_in(RsprotExec *x, MsgAff
 #define packet_affinedclansettings_setmuted_fromchannel_osrs239_in packet_affinedclansettings_setmuted_fromchannel_v1_in
 #define packet_affinedclansettings_setmuted_fromchannel_osrs240_in packet_affinedclansettings_setmuted_fromchannel_v1_in
 #define packet_affinedclansettings_setmuted_fromchannel_osrs241_in packet_affinedclansettings_setmuted_fromchannel_v1_in
+#define packet_affinedclansettings_setmuted_fromchannel_osrs242_in packet_affinedclansettings_setmuted_fromchannel_v1_in
 #define packet_affinedclansettings_setmuted_fromchannel_osrsm241_in packet_affinedclansettings_setmuted_fromchannel_v2_in
 
 /** Revision -> layout. See the .c for the rows. */

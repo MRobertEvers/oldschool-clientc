@@ -59,8 +59,10 @@ void packet_move_gameclick_v18_in(RsprotExec *x, MsgMoveGameClick *m);
 void packet_move_gameclick_v19_in(RsprotExec *x, MsgMoveGameClick *m);
 /* v20 -- revs osrs241. */
 void packet_move_gameclick_v20_in(RsprotExec *x, MsgMoveGameClick *m);
-/* v21 -- revs osrsm241. */
+/* v21 -- revs osrs242. */
 void packet_move_gameclick_v21_in(RsprotExec *x, MsgMoveGameClick *m);
+/* v22 -- revs osrsm241. */
+void packet_move_gameclick_v22_in(RsprotExec *x, MsgMoveGameClick *m);
 
 /* Per-revision entry points: what revision R calls is packet_move_gameclick_<R>_in. */
 #define packet_move_gameclick_osrs221_in packet_move_gameclick_v1_in
@@ -84,7 +86,8 @@ void packet_move_gameclick_v21_in(RsprotExec *x, MsgMoveGameClick *m);
 #define packet_move_gameclick_osrs239_in packet_move_gameclick_v18_in
 #define packet_move_gameclick_osrs240_in packet_move_gameclick_v19_in
 #define packet_move_gameclick_osrs241_in packet_move_gameclick_v20_in
-#define packet_move_gameclick_osrsm241_in packet_move_gameclick_v21_in
+#define packet_move_gameclick_osrs242_in packet_move_gameclick_v21_in
+#define packet_move_gameclick_osrsm241_in packet_move_gameclick_v22_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_move_gameclick_in[];

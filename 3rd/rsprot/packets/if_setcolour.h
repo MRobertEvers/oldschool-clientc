@@ -40,7 +40,7 @@ void packet_if_setcolour_v9_out(RsprotExec *x, MsgIfSetColour *m);
 void packet_if_setcolour_v10_out(RsprotExec *x, MsgIfSetColour *m);
 /* v11 -- revs osrs236. */
 void packet_if_setcolour_v11_out(RsprotExec *x, MsgIfSetColour *m);
-/* v12 -- revs osrs237, osrs239. */
+/* v12 -- revs osrs237, osrs239, osrs242. */
 void packet_if_setcolour_v12_out(RsprotExec *x, MsgIfSetColour *m);
 /* v13 -- revs osrs238. */
 void packet_if_setcolour_v13_out(RsprotExec *x, MsgIfSetColour *m);
@@ -73,6 +73,7 @@ void packet_if_setcolour_v16_out(RsprotExec *x, MsgIfSetColour *m);
 #define packet_if_setcolour_osrs239_out packet_if_setcolour_v12_out
 #define packet_if_setcolour_osrs240_out packet_if_setcolour_v14_out
 #define packet_if_setcolour_osrs241_out packet_if_setcolour_v9_out
+#define packet_if_setcolour_osrs242_out packet_if_setcolour_v12_out
 #define packet_if_setcolour_rs245_2_out packet_if_setcolour_v15_out
 #define packet_if_setcolour_rs254_out packet_if_setcolour_v15_out
 #define packet_if_setcolour_rs289_out packet_if_setcolour_v15_out

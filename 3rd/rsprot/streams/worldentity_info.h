@@ -52,6 +52,8 @@ int worldentity_info_v7_osrs240(
     const uint8_t *data, int32_t len, RsprotInfoList *out);
 int worldentity_info_v7_osrs241(
     const uint8_t *data, int32_t len, RsprotInfoList *out);
+int worldentity_info_v7_osrs242(
+    const uint8_t *data, int32_t len, RsprotInfoList *out);
 int worldentity_info_v7_osrsm241(
     const uint8_t *data, int32_t len, RsprotInfoList *out);
 

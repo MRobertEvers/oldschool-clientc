@@ -53,8 +53,10 @@ void packet_set_player_op_v15_out(RsprotExec *x, MsgSetPlayerOp *m);
 void packet_set_player_op_v16_out(RsprotExec *x, MsgSetPlayerOp *m);
 /* v17 -- revs osrs241. */
 void packet_set_player_op_v17_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v18 -- revs osrsm241. */
+/* v18 -- revs osrs242. */
 void packet_set_player_op_v18_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v19 -- revs osrsm241. */
+void packet_set_player_op_v19_out(RsprotExec *x, MsgSetPlayerOp *m);
 
 /* Per-revision entry points: what revision R calls is packet_set_player_op_<R>_out. */
 #define packet_set_player_op_osrs222_out packet_set_player_op_v1_out
@@ -77,7 +79,8 @@ void packet_set_player_op_v18_out(RsprotExec *x, MsgSetPlayerOp *m);
 #define packet_set_player_op_osrs239_out packet_set_player_op_v15_out
 #define packet_set_player_op_osrs240_out packet_set_player_op_v16_out
 #define packet_set_player_op_osrs241_out packet_set_player_op_v17_out
-#define packet_set_player_op_osrsm241_out packet_set_player_op_v18_out
+#define packet_set_player_op_osrs242_out packet_set_player_op_v18_out
+#define packet_set_player_op_osrsm241_out packet_set_player_op_v19_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_set_player_op_out[];

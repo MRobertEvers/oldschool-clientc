@@ -62,8 +62,10 @@ void packet_npc_headicon_specific_v19_out(RsprotExec *x, MsgNpcHeadIconSpecific 
 void packet_npc_headicon_specific_v20_out(RsprotExec *x, MsgNpcHeadIconSpecific *m);
 /* v21 -- revs osrs241. */
 void packet_npc_headicon_specific_v21_out(RsprotExec *x, MsgNpcHeadIconSpecific *m);
-/* v22 -- revs osrsm241. */
+/* v22 -- revs osrs242. */
 void packet_npc_headicon_specific_v22_out(RsprotExec *x, MsgNpcHeadIconSpecific *m);
+/* v23 -- revs osrsm241. */
+void packet_npc_headicon_specific_v23_out(RsprotExec *x, MsgNpcHeadIconSpecific *m);
 
 /* Per-revision entry points: what revision R calls is packet_npc_headicon_specific_<R>_out. */
 #define packet_npc_headicon_specific_osrs221_out packet_npc_headicon_specific_v1_out
@@ -87,7 +89,8 @@ void packet_npc_headicon_specific_v22_out(RsprotExec *x, MsgNpcHeadIconSpecific 
 #define packet_npc_headicon_specific_osrs239_out packet_npc_headicon_specific_v19_out
 #define packet_npc_headicon_specific_osrs240_out packet_npc_headicon_specific_v20_out
 #define packet_npc_headicon_specific_osrs241_out packet_npc_headicon_specific_v21_out
-#define packet_npc_headicon_specific_osrsm241_out packet_npc_headicon_specific_v22_out
+#define packet_npc_headicon_specific_osrs242_out packet_npc_headicon_specific_v22_out
+#define packet_npc_headicon_specific_osrsm241_out packet_npc_headicon_specific_v23_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_npc_headicon_specific_out[];

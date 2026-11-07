@@ -21,7 +21,7 @@ typedef struct MsgEventMouseClickV1 {
 	int32_t right_click;
 } MsgEventMouseClickV1;
 
-/* v1 -- revs osrs227-241. */
+/* v1 -- revs osrs227-241, osrs242. */
 void packet_event_mouse_click_v1_v1_in(RsprotExec *x, MsgEventMouseClickV1 *m);
 /* v2 -- revs osrsm241. */
 void packet_event_mouse_click_v1_v2_in(RsprotExec *x, MsgEventMouseClickV1 *m);
@@ -42,6 +42,7 @@ void packet_event_mouse_click_v1_v2_in(RsprotExec *x, MsgEventMouseClickV1 *m);
 #define packet_event_mouse_click_v1_osrs239_in packet_event_mouse_click_v1_v1_in
 #define packet_event_mouse_click_v1_osrs240_in packet_event_mouse_click_v1_v1_in
 #define packet_event_mouse_click_v1_osrs241_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs242_in packet_event_mouse_click_v1_v1_in
 #define packet_event_mouse_click_v1_osrsm241_in packet_event_mouse_click_v1_v2_in
 
 /** Revision -> layout. See the .c for the rows. */

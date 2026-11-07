@@ -1,7 +1,7 @@
 /* MESSAGE_FRIENDCHANNEL. Hand-written; see message_friendchannel.h. */
 #include "message_friendchannel.h"
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 223-242. */
 void
 packet_message_friendchannel_v1_out(RsprotExec *x, MsgMessageFriendchannel *m)
 {
@@ -14,7 +14,7 @@ packet_message_friendchannel_v1_out(RsprotExec *x, MsgMessageFriendchannel *m)
 }
 
 const RsprotVersionRange rsprot_message_friendchannel_out[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_message_friendchannel_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_message_friendchannel_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_message_friendchannel_v1_out },
 };
 

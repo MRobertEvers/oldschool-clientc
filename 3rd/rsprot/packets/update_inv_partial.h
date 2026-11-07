@@ -56,7 +56,7 @@ typedef struct MsgUpdateInvPartial
  *  check did), so this is UPDATE_INV_FULL's bound. */
 #define MSG_UPDATE_INV_PARTIAL_MAX_SLOTS 4096
 
-/* v1 -- revs 221-241 (RSProx's decoder is the same at every revision 227-241). */
+/* v1 -- revs 221-242 (RSProx's decoder is the same at every revision 227-241). */
 void packet_update_inv_partial_v1_out(RsprotExec *x, MsgUpdateInvPartial *m);
 
 #define packet_update_inv_partial_osrs221_out packet_update_inv_partial_v1_out
@@ -80,6 +80,7 @@ void packet_update_inv_partial_v1_out(RsprotExec *x, MsgUpdateInvPartial *m);
 #define packet_update_inv_partial_osrs239_out packet_update_inv_partial_v1_out
 #define packet_update_inv_partial_osrs240_out packet_update_inv_partial_v1_out
 #define packet_update_inv_partial_osrs241_out packet_update_inv_partial_v1_out
+#define packet_update_inv_partial_osrs242_out packet_update_inv_partial_v1_out
 #define packet_update_inv_partial_osrsm241_out packet_update_inv_partial_v1_out
 
 extern const RsprotVersionRange rsprot_update_inv_partial_out[];

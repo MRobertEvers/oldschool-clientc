@@ -17,7 +17,7 @@ typedef struct MsgCamUnlock {
 	int32_t unlock;
 } MsgCamUnlock;
 
-/* v1 -- revs osrs238, osrs240. */
+/* v1 -- revs osrs238, osrs240, osrs242. */
 void packet_cam_unlock_v1_out(RsprotExec *x, MsgCamUnlock *m);
 /* v2 -- revs osrs239. */
 void packet_cam_unlock_v2_out(RsprotExec *x, MsgCamUnlock *m);
@@ -31,6 +31,7 @@ void packet_cam_unlock_v4_out(RsprotExec *x, MsgCamUnlock *m);
 #define packet_cam_unlock_osrs239_out packet_cam_unlock_v2_out
 #define packet_cam_unlock_osrs240_out packet_cam_unlock_v1_out
 #define packet_cam_unlock_osrs241_out packet_cam_unlock_v3_out
+#define packet_cam_unlock_osrs242_out packet_cam_unlock_v1_out
 #define packet_cam_unlock_osrsm241_out packet_cam_unlock_v4_out
 
 /** Revision -> layout. See the .c for the rows. */

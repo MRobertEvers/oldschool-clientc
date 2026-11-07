@@ -2,7 +2,7 @@
 #include "group_full.h"
 
 /*
- * v1 -- revs 239-241.
+ * v1 -- revs 239-242.
  * while readable: g1 index, gSmart1or2null id; id != -1: g8 uid, gdata(rest).
  */
 void
@@ -21,7 +21,7 @@ packet_group_full_v1_out(RsprotExec *x, MsgGroupFull *m)
 }
 
 const RsprotVersionRange rsprot_group_full_out[] = {
-    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_group_full_v1_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_group_full_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_group_full_v1_out },
 };
 

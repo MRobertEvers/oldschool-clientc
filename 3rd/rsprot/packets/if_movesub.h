@@ -38,7 +38,7 @@ void packet_if_movesub_v8_out(RsprotExec *x, MsgIfMoveSub *m);
 void packet_if_movesub_v9_out(RsprotExec *x, MsgIfMoveSub *m);
 /* v10 -- revs osrs233. */
 void packet_if_movesub_v10_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v11 -- revs osrs234. */
+/* v11 -- revs osrs234, osrs242. */
 void packet_if_movesub_v11_out(RsprotExec *x, MsgIfMoveSub *m);
 /* v12 -- revs osrs236. */
 void packet_if_movesub_v12_out(RsprotExec *x, MsgIfMoveSub *m);
@@ -71,6 +71,7 @@ void packet_if_movesub_v15_out(RsprotExec *x, MsgIfMoveSub *m);
 #define packet_if_movesub_osrs239_out packet_if_movesub_v14_out
 #define packet_if_movesub_osrs240_out packet_if_movesub_v8_out
 #define packet_if_movesub_osrs241_out packet_if_movesub_v4_out
+#define packet_if_movesub_osrs242_out packet_if_movesub_v11_out
 #define packet_if_movesub_osrsm241_out packet_if_movesub_v15_out
 
 /** Revision -> layout. See the .c for the rows. */

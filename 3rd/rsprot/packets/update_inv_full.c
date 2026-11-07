@@ -3,7 +3,7 @@
 
 /*
  * Ported from RSProt and RSProx:
- *   RSProt's encoder for 221-239, RSProx's decoder for 240-241
+ *   RSProt's encoder for 221-239, RSProx's decoder for 240-242
  *
  * One function per layout, running in whichever direction the executor is
  * in -- so a server's writer and a client's reader are the same
@@ -388,9 +388,27 @@ packet_update_inv_full_v21_out(RsprotExec *x, MsgUpdateInvFull *m)
     }
 }
 
-/* v22 -- revs osrsm241. */
+/* v22 -- revs osrs242. */
 void
 packet_update_inv_full_v22_out(RsprotExec *x, MsgUpdateInvFull *m)
+{
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
+    RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
+    for (int32_t i = 0; i < m->capacity; i++) {
+        MsgUpdateInvFullSlot *slot = &m->slots[i];
+        /* One byte, saturating at 255; at 255 the real count follows. */
+        RSPROT_CLAMP(x, U1_ADD128, slot->count_lo, slot->count, 255);
+        if (RSPROT_BRANCH(x, slot->count_lo) == 255)
+            RSPROT_U4_2143(x, slot->count);
+        /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
+        RSPROT_XFORM(x, U2_21_ADD128, slot->id, 1);
+    }
+}
+
+/* v23 -- revs osrsm241. */
+void
+packet_update_inv_full_v23_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
     RSPROT_COM_1234(x, m->combined_id);
     RSPROT_U2_12(x, m->inventory_id);
@@ -407,7 +425,7 @@ packet_update_inv_full_v22_out(RsprotExec *x, MsgUpdateInvFull *m)
 }
 
 /*
- * 22 row(s) for 22 layout(s). A revision not listed has no UPDATE_INV_FULL and
+ * 23 row(s) for 23 layout(s). A revision not listed has no UPDATE_INV_FULL and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_inv_full_out[] = {
@@ -432,7 +450,8 @@ const RsprotVersionRange rsprot_update_inv_full_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_update_inv_full_v19_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_update_inv_full_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_inv_full_v21_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_inv_full_v22_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_update_inv_full_v22_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_inv_full_v23_out },
 };
 
 const int rsprot_update_inv_full_out_count =

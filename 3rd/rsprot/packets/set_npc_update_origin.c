@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs222-241. */
+/* v1 -- revs osrs222-241, osrs242. */
 void
 packet_set_npc_update_origin_v1_out(RsprotExec *x, MsgSetNpcUpdateOrigin *m)
 {
@@ -27,11 +27,12 @@ packet_set_npc_update_origin_v2_out(RsprotExec *x, MsgSetNpcUpdateOrigin *m)
 }
 
 /*
- * 2 row(s) for 2 layout(s). A revision not listed has no SET_NPC_UPDATE_ORIGIN and
+ * 3 row(s) for 2 layout(s). A revision not listed has no SET_NPC_UPDATE_ORIGIN and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_set_npc_update_origin_out[] = {
     { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_set_npc_update_origin_v1_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_set_npc_update_origin_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_set_npc_update_origin_v2_out },
 };
 

@@ -26,7 +26,7 @@ void packet_opplayer7_v2_in(RsprotExec *x, MsgOpPlayer7 *m);
 void packet_opplayer7_v3_in(RsprotExec *x, MsgOpPlayer7 *m);
 /* v4 -- revs osrs226. */
 void packet_opplayer7_v4_in(RsprotExec *x, MsgOpPlayer7 *m);
-/* v5 -- revs osrs227. */
+/* v5 -- revs osrs227, osrs242. */
 void packet_opplayer7_v5_in(RsprotExec *x, MsgOpPlayer7 *m);
 /* v6 -- revs osrs228. */
 void packet_opplayer7_v6_in(RsprotExec *x, MsgOpPlayer7 *m);
@@ -77,6 +77,7 @@ void packet_opplayer7_v18_in(RsprotExec *x, MsgOpPlayer7 *m);
 #define packet_opplayer7_osrs239_in packet_opplayer7_v16_in
 #define packet_opplayer7_osrs240_in packet_opplayer7_v17_in
 #define packet_opplayer7_osrs241_in packet_opplayer7_v13_in
+#define packet_opplayer7_osrs242_in packet_opplayer7_v5_in
 #define packet_opplayer7_osrsm241_in packet_opplayer7_v18_in
 
 /** Revision -> layout. See the .c for the rows. */

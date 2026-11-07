@@ -130,24 +130,32 @@ packet_if_setanim_v15_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_U2_21_ADD128(x, m->anim);
 }
 
-/* v16 -- revs rs245.2, rs254, rs289. */
+/* v16 -- revs osrs242. */
 void
 packet_if_setanim_v16_out(RsprotExec *x, MsgIfSetAnim *m)
+{
+    RSPROT_U2_21_ADD128(x, m->anim);
+    RSPROT_COM_3412(x, m->combined_id);
+}
+
+/* v17 -- revs rs245.2, rs254, rs289. */
+void
+packet_if_setanim_v17_out(RsprotExec *x, MsgIfSetAnim *m)
 {
     RSPROT_U2_12(x, m->combined_id);
     RSPROT_U2_12(x, m->anim);
 }
 
-/* v17 -- revs osrsm241. */
+/* v18 -- revs osrsm241. */
 void
-packet_if_setanim_v17_out(RsprotExec *x, MsgIfSetAnim *m)
+packet_if_setanim_v18_out(RsprotExec *x, MsgIfSetAnim *m)
 {
     RSPROT_U2_21(x, m->anim);
     RSPROT_COM_1234(x, m->combined_id);
 }
 
 /*
- * 25 row(s) for 17 layout(s). A revision not listed has no IF_SETANIM and
+ * 26 row(s) for 18 layout(s). A revision not listed has no IF_SETANIM and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setanim_out[] = {
@@ -172,10 +180,11 @@ const RsprotVersionRange rsprot_if_setanim_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setanim_v11_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setanim_v14_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setanim_v15_out },
-    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_setanim_v16_out },
-    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_setanim_v16_out },
-    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_setanim_v16_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setanim_v17_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_setanim_v16_out },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_setanim_v17_out },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_setanim_v17_out },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_setanim_v17_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setanim_v18_out },
 };
 
 const int rsprot_if_setanim_out_count =

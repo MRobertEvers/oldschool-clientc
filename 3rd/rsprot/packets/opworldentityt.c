@@ -109,8 +109,19 @@ packet_opworldentityt_v9_in(RsprotExec *x, MsgOpWorldEntityT *m)
     RSPROT_U2_21_ADD128(x, m->selected_sub);
 }
 
+/* v10 -- revs osrs242. */
+void
+packet_opworldentityt_v10_in(RsprotExec *x, MsgOpWorldEntityT *m)
+{
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_U2_21(x, m->selected_sub);
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_COM_4321(x, m->selected_combined_id);
+    RSPROT_U2_12(x, m->selected_obj);
+}
+
 /*
- * 9 row(s) for 9 layout(s). A revision not listed has no OPWORLDENTITYT and
+ * 10 row(s) for 10 layout(s). A revision not listed has no OPWORLDENTITYT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opworldentityt_in[] = {
@@ -123,6 +134,7 @@ const RsprotVersionRange rsprot_opworldentityt_in[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_opworldentityt_v7_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_opworldentityt_v8_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opworldentityt_v9_in },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_opworldentityt_v10_in },
 };
 
 const int rsprot_opworldentityt_in_count =

@@ -234,9 +234,23 @@ packet_obj_customise_v16_out(RsprotExec *x, MsgObjCustomise *m)
     RSPROT_U2_12_ADD128(x, m->recol);
 }
 
-/* v17 -- revs osrsm241. */
+/* v17 -- revs osrs242. */
 void
 packet_obj_customise_v17_out(RsprotExec *x, MsgObjCustomise *m)
+{
+    RSPROT_U4_3412(x, m->quantity);
+    RSPROT_U2_21(x, m->retex_index);
+    RSPROT_U2_12(x, m->model);
+    RSPROT_U2_12_ADD128(x, m->recol);
+    RSPROT_U2_12_ADD128(x, m->retex);
+    RSPROT_U2_12_ADD128(x, m->recol_index);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U2_12(x, m->id);
+}
+
+/* v18 -- revs osrsm241. */
+void
+packet_obj_customise_v18_out(RsprotExec *x, MsgObjCustomise *m)
 {
     RSPROT_U4_1234(x, m->quantity);
     RSPROT_U1(x, m->coord_in_zone_packed);
@@ -249,7 +263,7 @@ packet_obj_customise_v17_out(RsprotExec *x, MsgObjCustomise *m)
 }
 
 /*
- * 17 row(s) for 17 layout(s). A revision not listed has no OBJ_CUSTOMISE and
+ * 18 row(s) for 18 layout(s). A revision not listed has no OBJ_CUSTOMISE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_customise_out[] = {
@@ -269,7 +283,8 @@ const RsprotVersionRange rsprot_obj_customise_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_obj_customise_v14_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_obj_customise_v15_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_obj_customise_v16_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_customise_v17_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_obj_customise_v17_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_customise_v18_out },
 };
 
 const int rsprot_obj_customise_out_count =

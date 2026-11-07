@@ -19,7 +19,7 @@ typedef struct MsgReflectionCheckReply {
 	int32_t copy_length;
 } MsgReflectionCheckReply;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_reflection_check_reply_v1_in(RsprotExec *x, MsgReflectionCheckReply *m);
 
 /* Per-revision entry points: what revision R calls is packet_reflection_check_reply_<R>_in. */
@@ -44,6 +44,7 @@ void packet_reflection_check_reply_v1_in(RsprotExec *x, MsgReflectionCheckReply 
 #define packet_reflection_check_reply_osrs239_in packet_reflection_check_reply_v1_in
 #define packet_reflection_check_reply_osrs240_in packet_reflection_check_reply_v1_in
 #define packet_reflection_check_reply_osrs241_in packet_reflection_check_reply_v1_in
+#define packet_reflection_check_reply_osrs242_in packet_reflection_check_reply_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_reflection_check_reply_in[];

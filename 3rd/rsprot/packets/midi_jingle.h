@@ -26,7 +26,7 @@ void packet_midi_jingle_v2_out(RsprotExec *x, MsgMidiJingle *m);
 void packet_midi_jingle_v3_out(RsprotExec *x, MsgMidiJingle *m);
 /* v4 -- revs osrs224. */
 void packet_midi_jingle_v4_out(RsprotExec *x, MsgMidiJingle *m);
-/* v5 -- revs osrs225, osrs240. */
+/* v5 -- revs osrs225, osrs240, osrs242. */
 void packet_midi_jingle_v5_out(RsprotExec *x, MsgMidiJingle *m);
 /* v6 -- revs osrs226, osrs233. */
 void packet_midi_jingle_v6_out(RsprotExec *x, MsgMidiJingle *m);
@@ -79,6 +79,7 @@ void packet_midi_jingle_v19_out(RsprotExec *x, MsgMidiJingle *m);
 #define packet_midi_jingle_osrs239_out packet_midi_jingle_v16_out
 #define packet_midi_jingle_osrs240_out packet_midi_jingle_v5_out
 #define packet_midi_jingle_osrs241_out packet_midi_jingle_v17_out
+#define packet_midi_jingle_osrs242_out packet_midi_jingle_v5_out
 #define packet_midi_jingle_rs245_2_out packet_midi_jingle_v18_out
 #define packet_midi_jingle_rs254_out packet_midi_jingle_v18_out
 #define packet_midi_jingle_rs289_out packet_midi_jingle_v18_out

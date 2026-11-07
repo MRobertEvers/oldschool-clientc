@@ -42,7 +42,7 @@ packet_opplayer7_v4_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U1_SUB128(x, m->control_key);
 }
 
-/* v5 -- revs osrs227. */
+/* v5 -- revs osrs227, osrs242. */
 void
 packet_opplayer7_v5_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -155,7 +155,7 @@ packet_opplayer7_v18_in(RsprotExec *x, MsgOpPlayer7 *m)
 }
 
 /*
- * 20 row(s) for 18 layout(s). A revision not listed has no OPPLAYER7 and
+ * 21 row(s) for 18 layout(s). A revision not listed has no OPPLAYER7 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opplayer7_in[] = {
@@ -178,6 +178,7 @@ const RsprotVersionRange rsprot_opplayer7_in[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_opplayer7_v16_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_opplayer7_v17_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opplayer7_v13_in },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_opplayer7_v5_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opplayer7_v18_in },
 };
 

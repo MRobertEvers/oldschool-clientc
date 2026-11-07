@@ -90,7 +90,7 @@ packet_if_movesub_v10_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM_1234(x, m->destination_combined_id);
 }
 
-/* v11 -- revs osrs234. */
+/* v11 -- revs osrs234, osrs242. */
 void
 packet_if_movesub_v11_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -131,7 +131,7 @@ packet_if_movesub_v15_out(RsprotExec *x, MsgIfMoveSub *m)
 }
 
 /*
- * 21 row(s) for 15 layout(s). A revision not listed has no IF_MOVESUB and
+ * 22 row(s) for 15 layout(s). A revision not listed has no IF_MOVESUB and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_movesub_out[] = {
@@ -155,6 +155,7 @@ const RsprotVersionRange rsprot_if_movesub_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_movesub_v14_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_movesub_v8_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_movesub_v4_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_movesub_v11_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_movesub_v15_out },
 };
 

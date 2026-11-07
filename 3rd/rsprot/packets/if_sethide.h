@@ -38,7 +38,7 @@ void packet_if_sethide_v8_out(RsprotExec *x, MsgIfSetHide *m);
 void packet_if_sethide_v9_out(RsprotExec *x, MsgIfSetHide *m);
 /* v10 -- revs osrs230. */
 void packet_if_sethide_v10_out(RsprotExec *x, MsgIfSetHide *m);
-/* v11 -- revs osrs231. */
+/* v11 -- revs osrs231, osrs242. */
 void packet_if_sethide_v11_out(RsprotExec *x, MsgIfSetHide *m);
 /* v12 -- revs osrs232. */
 void packet_if_sethide_v12_out(RsprotExec *x, MsgIfSetHide *m);
@@ -81,6 +81,7 @@ void packet_if_sethide_v20_out(RsprotExec *x, MsgIfSetHide *m);
 #define packet_if_sethide_osrs239_out packet_if_sethide_v17_out
 #define packet_if_sethide_osrs240_out packet_if_sethide_v5_out
 #define packet_if_sethide_osrs241_out packet_if_sethide_v18_out
+#define packet_if_sethide_osrs242_out packet_if_sethide_v11_out
 #define packet_if_sethide_rs245_2_out packet_if_sethide_v19_out
 #define packet_if_sethide_rs254_out packet_if_sethide_v19_out
 #define packet_if_sethide_rs289_out packet_if_sethide_v19_out

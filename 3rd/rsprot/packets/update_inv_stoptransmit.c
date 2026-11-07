@@ -24,7 +24,7 @@ packet_update_inv_stoptransmit_v2_out(RsprotExec *x, MsgUpdateInvStopTransmit *m
     RSPROT_U2_12_ADD128(x, m->inventory_id);
 }
 
-/* v3 -- revs osrs224, osrs227, osrs230, osrs232, osrs236. */
+/* v3 -- revs osrs224, osrs227, osrs230, osrs232, osrs236, osrs242. */
 void
 packet_update_inv_stoptransmit_v3_out(RsprotExec *x, MsgUpdateInvStopTransmit *m)
 {
@@ -46,7 +46,7 @@ packet_update_inv_stoptransmit_v5_out(RsprotExec *x, MsgUpdateInvStopTransmit *m
 }
 
 /*
- * 19 row(s) for 5 layout(s). A revision not listed has no UPDATE_INV_STOPTRANSMIT and
+ * 20 row(s) for 5 layout(s). A revision not listed has no UPDATE_INV_STOPTRANSMIT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_inv_stoptransmit_out[] = {
@@ -68,6 +68,7 @@ const RsprotVersionRange rsprot_update_inv_stoptransmit_out[] = {
     { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_update_inv_stoptransmit_v2_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_update_inv_stoptransmit_v4_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_inv_stoptransmit_v2_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_update_inv_stoptransmit_v3_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_inv_stoptransmit_v5_out },
 };
 

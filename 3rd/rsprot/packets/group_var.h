@@ -33,12 +33,13 @@ typedef struct MsgGroupVar {
 	MsgGroupVarUpdate updates[MSG_GROUP_VAR_MAX_UPDATES];
 } MsgGroupVar;
 
-/* v1 -- revs 239-241. */
+/* v1 -- revs 239-242. */
 void packet_group_var_v1_out(RsprotExec *x, MsgGroupVar *m);
 
 #define packet_group_var_osrs239_out packet_group_var_v1_out
 #define packet_group_var_osrs240_out packet_group_var_v1_out
 #define packet_group_var_osrs241_out packet_group_var_v1_out
+#define packet_group_var_osrs242_out packet_group_var_v1_out
 #define packet_group_var_osrsm241_out packet_group_var_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

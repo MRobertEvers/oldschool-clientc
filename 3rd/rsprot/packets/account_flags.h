@@ -17,7 +17,7 @@ typedef struct MsgAccountFlags {
 	int64_t flags;
 } MsgAccountFlags;
 
-/* v1 -- revs osrs233-241. */
+/* v1 -- revs osrs233-241, osrs242. */
 void packet_account_flags_v1_out(RsprotExec *x, MsgAccountFlags *m);
 /* v2 -- revs osrsm241. */
 void packet_account_flags_v2_out(RsprotExec *x, MsgAccountFlags *m);
@@ -32,6 +32,7 @@ void packet_account_flags_v2_out(RsprotExec *x, MsgAccountFlags *m);
 #define packet_account_flags_osrs239_out packet_account_flags_v1_out
 #define packet_account_flags_osrs240_out packet_account_flags_v1_out
 #define packet_account_flags_osrs241_out packet_account_flags_v1_out
+#define packet_account_flags_osrs242_out packet_account_flags_v1_out
 #define packet_account_flags_osrsm241_out packet_account_flags_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

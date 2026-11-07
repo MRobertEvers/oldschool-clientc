@@ -32,7 +32,7 @@ typedef struct MsgClientCheat {
 
 /* v1 -- revs 221-239. */
 void packet_client_cheat_v1_in(RsprotExec *x, MsgClientCheat *m);
-/* v2 -- revs 240-241: v1, then the optional autocomplete byte. */
+/* v2 -- revs 240-242: v1, then the optional autocomplete byte. */
 void packet_client_cheat_v2_in(RsprotExec *x, MsgClientCheat *m);
 
 /* Per-revision entry points: `packet_client_cheat_osrs239_in` is greppable, which
@@ -61,6 +61,7 @@ void packet_client_cheat_osrsm241_in(RsprotExec *x, MsgClientCheat *m);
 #define packet_client_cheat_osrs239_in packet_client_cheat_v1_in
 #define packet_client_cheat_osrs240_in packet_client_cheat_v2_in
 #define packet_client_cheat_osrs241_in packet_client_cheat_v2_in
+#define packet_client_cheat_osrs242_in packet_client_cheat_v2_in
 #define packet_client_cheat_osrsm241_in packet_client_cheat_osrsm241_in
 
 /** Revision -> layout. See the .c for the rows. */

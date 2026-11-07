@@ -26,7 +26,7 @@ typedef struct MsgCamShake {
 
 /* v1 -- revs osrs221-222. */
 void packet_cam_shake_v1_out(RsprotExec *x, MsgCamShake *m);
-/* v2 -- revs osrs223-241. */
+/* v2 -- revs osrs223-241, osrs242. */
 void packet_cam_shake_v2_out(RsprotExec *x, MsgCamShake *m);
 /* v3 -- revs rs245.2, rs254, rs289. */
 void packet_cam_shake_v3_out(RsprotExec *x, MsgCamShake *m);
@@ -55,6 +55,7 @@ void packet_cam_shake_v4_out(RsprotExec *x, MsgCamShake *m);
 #define packet_cam_shake_osrs239_out packet_cam_shake_v2_out
 #define packet_cam_shake_osrs240_out packet_cam_shake_v2_out
 #define packet_cam_shake_osrs241_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs242_out packet_cam_shake_v2_out
 #define packet_cam_shake_rs245_2_out packet_cam_shake_v3_out
 #define packet_cam_shake_rs254_out packet_cam_shake_v3_out
 #define packet_cam_shake_rs289_out packet_cam_shake_v3_out

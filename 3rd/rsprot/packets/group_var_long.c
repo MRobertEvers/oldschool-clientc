@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs239-241. */
+/* v1 -- revs osrs239-241, osrs242. */
 void
 packet_group_var_long_v1_out(RsprotExec *x, MsgGroupVarLong *m)
 {
@@ -29,11 +29,12 @@ packet_group_var_long_v2_out(RsprotExec *x, MsgGroupVarLong *m)
 }
 
 /*
- * 2 row(s) for 2 layout(s). A revision not listed has no GROUP_VAR_LONG and
+ * 3 row(s) for 2 layout(s). A revision not listed has no GROUP_VAR_LONG and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_group_var_long_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_group_var_long_v1_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_group_var_long_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_group_var_long_v2_out },
 };
 

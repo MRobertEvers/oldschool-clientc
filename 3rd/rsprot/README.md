@@ -1,7 +1,7 @@
 # rsprot (C)
 
 A C port of the OSRS wire layer that [RSProt](https://github.com/2004Scape/rsprot)
-and RSProx implement in Kotlin. It covers OSRS revisions 221-241 and the three
+and RSProx implement in Kotlin. It covers OSRS revisions 221-242 and the three
 LostCity builds (rs245.2, rs254, rs289), and depends on
 nothing outside this directory: no Kotlin, no JVM, no other library in this
 tree. Programs that read or write the protocol depend on it: the 3draster

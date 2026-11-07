@@ -19,7 +19,7 @@ typedef struct MsgCamTargetV3 {
 	int32_t target_index;
 } MsgCamTargetV3;
 
-/* v1 -- revs osrs229-241. */
+/* v1 -- revs osrs229-241, osrs242. */
 void packet_cam_target_v3_v1_out(RsprotExec *x, MsgCamTargetV3 *m);
 /* v2 -- revs osrsm241. */
 void packet_cam_target_v3_v2_out(RsprotExec *x, MsgCamTargetV3 *m);
@@ -38,6 +38,7 @@ void packet_cam_target_v3_v2_out(RsprotExec *x, MsgCamTargetV3 *m);
 #define packet_cam_target_v3_osrs239_out packet_cam_target_v3_v1_out
 #define packet_cam_target_v3_osrs240_out packet_cam_target_v3_v1_out
 #define packet_cam_target_v3_osrs241_out packet_cam_target_v3_v1_out
+#define packet_cam_target_v3_osrs242_out packet_cam_target_v3_v1_out
 #define packet_cam_target_v3_osrsm241_out packet_cam_target_v3_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

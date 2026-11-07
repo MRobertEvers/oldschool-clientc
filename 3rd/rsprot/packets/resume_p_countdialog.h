@@ -17,7 +17,7 @@ typedef struct MsgResumePCountDialog {
 	int32_t count;
 } MsgResumePCountDialog;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_resume_p_countdialog_v1_in(RsprotExec *x, MsgResumePCountDialog *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_resume_p_countdialog_v2_in(RsprotExec *x, MsgResumePCountDialog *m);
@@ -46,6 +46,7 @@ void packet_resume_p_countdialog_v3_in(RsprotExec *x, MsgResumePCountDialog *m);
 #define packet_resume_p_countdialog_osrs239_in packet_resume_p_countdialog_v1_in
 #define packet_resume_p_countdialog_osrs240_in packet_resume_p_countdialog_v1_in
 #define packet_resume_p_countdialog_osrs241_in packet_resume_p_countdialog_v1_in
+#define packet_resume_p_countdialog_osrs242_in packet_resume_p_countdialog_v1_in
 #define packet_resume_p_countdialog_rs245_2_in packet_resume_p_countdialog_v2_in
 #define packet_resume_p_countdialog_rs254_in packet_resume_p_countdialog_v2_in
 #define packet_resume_p_countdialog_rs289_in packet_resume_p_countdialog_v2_in

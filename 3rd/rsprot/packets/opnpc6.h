@@ -23,7 +23,7 @@ void packet_opnpc6_v1_in(RsprotExec *x, MsgOpNpc6 *m);
 void packet_opnpc6_v2_in(RsprotExec *x, MsgOpNpc6 *m);
 /* v3 -- revs osrs225, osrs228, osrs236-237. */
 void packet_opnpc6_v3_in(RsprotExec *x, MsgOpNpc6 *m);
-/* v4 -- revs osrs226, osrs231-233, osrs238-239, osrs241. */
+/* v4 -- revs osrs226, osrs231-233, osrs238-239, osrs241, osrs242. */
 void packet_opnpc6_v4_in(RsprotExec *x, MsgOpNpc6 *m);
 /* v5 -- revs osrsm241. */
 void packet_opnpc6_v5_in(RsprotExec *x, MsgOpNpc6 *m);
@@ -50,6 +50,7 @@ void packet_opnpc6_v5_in(RsprotExec *x, MsgOpNpc6 *m);
 #define packet_opnpc6_osrs239_in packet_opnpc6_v4_in
 #define packet_opnpc6_osrs240_in packet_opnpc6_v1_in
 #define packet_opnpc6_osrs241_in packet_opnpc6_v4_in
+#define packet_opnpc6_osrs242_in packet_opnpc6_v4_in
 #define packet_opnpc6_osrsm241_in packet_opnpc6_v5_in
 
 /** Revision -> layout. See the .c for the rows. */

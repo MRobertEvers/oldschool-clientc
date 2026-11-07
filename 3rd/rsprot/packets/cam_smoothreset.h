@@ -20,7 +20,7 @@ typedef struct MsgCamSmoothReset {
 	int32_t camera_look_proportional_speed;
 } MsgCamSmoothReset;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_cam_smoothreset_v1_out(RsprotExec *x, MsgCamSmoothReset *m);
 /* v2 -- revs osrsm241. */
 void packet_cam_smoothreset_v2_out(RsprotExec *x, MsgCamSmoothReset *m);
@@ -47,6 +47,7 @@ void packet_cam_smoothreset_v2_out(RsprotExec *x, MsgCamSmoothReset *m);
 #define packet_cam_smoothreset_osrs239_out packet_cam_smoothreset_v1_out
 #define packet_cam_smoothreset_osrs240_out packet_cam_smoothreset_v1_out
 #define packet_cam_smoothreset_osrs241_out packet_cam_smoothreset_v1_out
+#define packet_cam_smoothreset_osrs242_out packet_cam_smoothreset_v1_out
 #define packet_cam_smoothreset_osrsm241_out packet_cam_smoothreset_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

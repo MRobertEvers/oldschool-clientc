@@ -17,7 +17,7 @@ packet_if_clearinv_v1_out(RsprotExec *x, MsgIfClearInv *m)
     RSPROT_U4_4321(x, m->combined_id);
 }
 
-/* v2 -- revs osrs222, osrs227, osrs230, osrs235-236. */
+/* v2 -- revs osrs222, osrs227, osrs230, osrs235-236, osrs242. */
 void
 packet_if_clearinv_v2_out(RsprotExec *x, MsgIfClearInv *m)
 {
@@ -53,7 +53,7 @@ packet_if_clearinv_v6_out(RsprotExec *x, MsgIfClearInv *m)
 }
 
 /*
- * 19 row(s) for 6 layout(s). A revision not listed has no IF_CLEARINV and
+ * 20 row(s) for 6 layout(s). A revision not listed has no IF_CLEARINV and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_clearinv_out[] = {
@@ -75,6 +75,7 @@ const RsprotVersionRange rsprot_if_clearinv_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_clearinv_v5_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_clearinv_v3_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_clearinv_v4_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_clearinv_v2_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_clearinv_v6_out },
 };
 

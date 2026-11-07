@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs223-241. */
+/* v1 -- revs osrs223-241, osrs242. */
 void
 packet_connection_telemetry_v1_in(RsprotExec *x, MsgConnectionTelemetry *m)
 {
@@ -37,11 +37,12 @@ packet_connection_telemetry_v2_in(RsprotExec *x, MsgConnectionTelemetry *m)
 }
 
 /*
- * 2 row(s) for 2 layout(s). A revision not listed has no CONNECTION_TELEMETRY and
+ * 3 row(s) for 2 layout(s). A revision not listed has no CONNECTION_TELEMETRY and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_connection_telemetry_in[] = {
     { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_connection_telemetry_v1_in },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_connection_telemetry_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_connection_telemetry_v2_in },
 };
 

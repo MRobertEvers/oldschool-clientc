@@ -24,7 +24,7 @@ void packet_opworldentity3_v1_in(RsprotExec *x, MsgOpWorldEntity3 *m);
 void packet_opworldentity3_v2_in(RsprotExec *x, MsgOpWorldEntity3 *m);
 /* v3 -- revs osrs235. */
 void packet_opworldentity3_v3_in(RsprotExec *x, MsgOpWorldEntity3 *m);
-/* v4 -- revs osrs236. */
+/* v4 -- revs osrs236, osrs242. */
 void packet_opworldentity3_v4_in(RsprotExec *x, MsgOpWorldEntity3 *m);
 /* v5 -- revs osrs237. */
 void packet_opworldentity3_v5_in(RsprotExec *x, MsgOpWorldEntity3 *m);
@@ -47,6 +47,7 @@ void packet_opworldentity3_v9_in(RsprotExec *x, MsgOpWorldEntity3 *m);
 #define packet_opworldentity3_osrs239_in packet_opworldentity3_v6_in
 #define packet_opworldentity3_osrs240_in packet_opworldentity3_v7_in
 #define packet_opworldentity3_osrs241_in packet_opworldentity3_v8_in
+#define packet_opworldentity3_osrs242_in packet_opworldentity3_v4_in
 #define packet_opworldentity3_osrsm241_in packet_opworldentity3_v9_in
 
 /** Revision -> layout. See the .c for the rows. */

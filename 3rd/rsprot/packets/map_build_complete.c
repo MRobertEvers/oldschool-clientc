@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void
 packet_map_build_complete_v1_in(RsprotExec *x, MsgMapBuildComplete *m)
 {
@@ -35,11 +35,12 @@ packet_map_build_complete_v3_in(RsprotExec *x, MsgMapBuildComplete *m)
 }
 
 /*
- * 5 row(s) for 3 layout(s). A revision not listed has no MAP_BUILD_COMPLETE and
+ * 6 row(s) for 3 layout(s). A revision not listed has no MAP_BUILD_COMPLETE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_map_build_complete_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_map_build_complete_v1_in },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_map_build_complete_v1_in },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_map_build_complete_v2_in },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_map_build_complete_v2_in },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_map_build_complete_v2_in },

@@ -150,9 +150,23 @@ packet_obj_add_specific_v10_out(RsprotExec *x, MsgObjAddSpecific *m)
     RSPROT_U2_21(x, m->time_until_despawn);
 }
 
-/* v11 -- revs osrsm241. */
+/* v11 -- revs osrs242. */
 void
 packet_obj_add_specific_v11_out(RsprotExec *x, MsgObjAddSpecific *m)
+{
+    RSPROT_U1_ADD128(x, m->never_becomes_public);
+    RSPROT_U2_12(x, m->time_until_public);
+    RSPROT_U4_4321(x, m->coord_grid_packed);
+    RSPROT_U2_21(x, m->time_until_despawn);
+    RSPROT_U1_SUB128(x, m->ownership_type);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_SUB128(x, m->op_flags);
+    RSPROT_U4_1234(x, m->quantity);
+}
+
+/* v12 -- revs osrsm241. */
+void
+packet_obj_add_specific_v12_out(RsprotExec *x, MsgObjAddSpecific *m)
 {
     RSPROT_U2_12(x, m->time_until_public);
     RSPROT_U4_2143(x, m->coord_grid_packed);
@@ -165,7 +179,7 @@ packet_obj_add_specific_v11_out(RsprotExec *x, MsgObjAddSpecific *m)
 }
 
 /*
- * 11 row(s) for 11 layout(s). A revision not listed has no OBJ_ADD_SPECIFIC and
+ * 12 row(s) for 12 layout(s). A revision not listed has no OBJ_ADD_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_add_specific_out[] = {
@@ -179,7 +193,8 @@ const RsprotVersionRange rsprot_obj_add_specific_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_obj_add_specific_v8_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_obj_add_specific_v9_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_obj_add_specific_v10_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_add_specific_v11_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_obj_add_specific_v11_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_add_specific_v12_out },
 };
 
 const int rsprot_obj_add_specific_out_count =

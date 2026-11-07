@@ -34,7 +34,7 @@ packet_update_reboot_timer_v2_v3_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
     RSPROT_JSTR(x, m->message);
 }
 
-/* v4 -- revs osrs239. */
+/* v4 -- revs osrs239, osrs242. */
 void
 packet_update_reboot_timer_v2_v4_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
@@ -51,7 +51,7 @@ packet_update_reboot_timer_v2_v5_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 }
 
 /*
- * 6 row(s) for 5 layout(s). A revision not listed has no UPDATE_REBOOT_TIMER_V2 and
+ * 7 row(s) for 5 layout(s). A revision not listed has no UPDATE_REBOOT_TIMER_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_reboot_timer_v2_out[] = {
@@ -60,6 +60,7 @@ const RsprotVersionRange rsprot_update_reboot_timer_v2_out[] = {
     { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_update_reboot_timer_v2_v3_out },
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_update_reboot_timer_v2_v4_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_reboot_timer_v2_v1_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_update_reboot_timer_v2_v4_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_reboot_timer_v2_v5_out },
 };
 

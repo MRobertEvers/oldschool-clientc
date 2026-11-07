@@ -19,7 +19,7 @@ typedef struct MsgSynthSound {
 	int32_t delay;
 } MsgSynthSound;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_synth_sound_v1_out(RsprotExec *x, MsgSynthSound *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_synth_sound_v2_out(RsprotExec *x, MsgSynthSound *m);
@@ -48,6 +48,7 @@ void packet_synth_sound_v3_out(RsprotExec *x, MsgSynthSound *m);
 #define packet_synth_sound_osrs239_out packet_synth_sound_v1_out
 #define packet_synth_sound_osrs240_out packet_synth_sound_v1_out
 #define packet_synth_sound_osrs241_out packet_synth_sound_v1_out
+#define packet_synth_sound_osrs242_out packet_synth_sound_v1_out
 #define packet_synth_sound_rs245_2_out packet_synth_sound_v2_out
 #define packet_synth_sound_rs254_out packet_synth_sound_v2_out
 #define packet_synth_sound_rs289_out packet_synth_sound_v2_out

@@ -18,7 +18,7 @@ typedef struct MsgSetNpcUpdateOrigin {
 	int32_t origin_z;
 } MsgSetNpcUpdateOrigin;
 
-/* v1 -- revs osrs222-241. */
+/* v1 -- revs osrs222-241, osrs242. */
 void packet_set_npc_update_origin_v1_out(RsprotExec *x, MsgSetNpcUpdateOrigin *m);
 /* v2 -- revs osrsm241. */
 void packet_set_npc_update_origin_v2_out(RsprotExec *x, MsgSetNpcUpdateOrigin *m);
@@ -44,6 +44,7 @@ void packet_set_npc_update_origin_v2_out(RsprotExec *x, MsgSetNpcUpdateOrigin *m
 #define packet_set_npc_update_origin_osrs239_out packet_set_npc_update_origin_v1_out
 #define packet_set_npc_update_origin_osrs240_out packet_set_npc_update_origin_v1_out
 #define packet_set_npc_update_origin_osrs241_out packet_set_npc_update_origin_v1_out
+#define packet_set_npc_update_origin_osrs242_out packet_set_npc_update_origin_v1_out
 #define packet_set_npc_update_origin_osrsm241_out packet_set_npc_update_origin_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

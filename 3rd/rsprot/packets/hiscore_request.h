@@ -19,7 +19,7 @@ typedef struct MsgHiscoreRequest {
 	const char *name;
 } MsgHiscoreRequest;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_hiscore_request_v1_in(RsprotExec *x, MsgHiscoreRequest *m);
 /* v2 -- revs osrsm241. */
 void packet_hiscore_request_v2_in(RsprotExec *x, MsgHiscoreRequest *m);
@@ -46,6 +46,7 @@ void packet_hiscore_request_v2_in(RsprotExec *x, MsgHiscoreRequest *m);
 #define packet_hiscore_request_osrs239_in packet_hiscore_request_v1_in
 #define packet_hiscore_request_osrs240_in packet_hiscore_request_v1_in
 #define packet_hiscore_request_osrs241_in packet_hiscore_request_v1_in
+#define packet_hiscore_request_osrs242_in packet_hiscore_request_v1_in
 #define packet_hiscore_request_osrsm241_in packet_hiscore_request_v2_in
 
 /** Revision -> layout. See the .c for the rows. */

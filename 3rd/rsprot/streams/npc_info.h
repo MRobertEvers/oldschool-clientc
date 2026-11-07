@@ -136,6 +136,12 @@ int npc_info_small_v6_osrs241(
 int npc_info_large_v6_osrs241(
     const uint8_t *data, int32_t len, RsprotNpcTypeLengths lengths, void *ctx,
     RsprotInfoList *out);
+int npc_info_small_v6_osrs242(
+    const uint8_t *data, int32_t len, RsprotNpcTypeLengths lengths, void *ctx,
+    RsprotInfoList *out);
+int npc_info_large_v6_osrs242(
+    const uint8_t *data, int32_t len, RsprotNpcTypeLengths lengths, void *ctx,
+    RsprotInfoList *out);
 int npc_info_small_v6_osrsm241(
     const uint8_t *data, int32_t len, RsprotNpcTypeLengths lengths, void *ctx,
     RsprotInfoList *out);

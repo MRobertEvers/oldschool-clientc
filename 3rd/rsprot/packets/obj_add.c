@@ -304,18 +304,32 @@ packet_obj_add_v21_out(RsprotExec *x, MsgObjAdd *m)
     RSPROT_U1_SUB128(x, m->never_becomes_public);
 }
 
-/* v22 -- revs rs245.2, rs254, rs289. */
+/* v22 -- revs osrs242. */
 void
 packet_obj_add_v22_out(RsprotExec *x, MsgObjAdd *m)
+{
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_SUB128(x, m->ownership_type);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U2_12(x, m->time_until_despawn);
+    RSPROT_U2_12(x, m->time_until_public);
+    RSPROT_U1_ADD128(x, m->op_flags);
+    RSPROT_U1(x, m->never_becomes_public);
+    RSPROT_U4_4321(x, m->quantity);
+}
+
+/* v23 -- revs rs245.2, rs254, rs289. */
+void
+packet_obj_add_v23_out(RsprotExec *x, MsgObjAdd *m)
 {
     RSPROT_U1(x, m->coord_in_zone_packed);
     RSPROT_U2_12(x, m->id);
     RSPROT_U2_12(x, m->quantity);
 }
 
-/* v23 -- revs osrsm241. */
+/* v24 -- revs osrsm241. */
 void
-packet_obj_add_v23_out(RsprotExec *x, MsgObjAdd *m)
+packet_obj_add_v24_out(RsprotExec *x, MsgObjAdd *m)
 {
     RSPROT_U1_ADD128(x, m->never_becomes_public);
     RSPROT_U2_21(x, m->time_until_despawn);
@@ -328,7 +342,7 @@ packet_obj_add_v23_out(RsprotExec *x, MsgObjAdd *m)
 }
 
 /*
- * 25 row(s) for 23 layout(s). A revision not listed has no OBJ_ADD and
+ * 26 row(s) for 24 layout(s). A revision not listed has no OBJ_ADD and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_add_out[] = {
@@ -353,10 +367,11 @@ const RsprotVersionRange rsprot_obj_add_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_obj_add_v19_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_obj_add_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_obj_add_v21_out },
-    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_obj_add_v22_out },
-    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_obj_add_v22_out },
-    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_obj_add_v22_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_add_v23_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_obj_add_v22_out },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_obj_add_v23_out },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_obj_add_v23_out },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_obj_add_v23_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_add_v24_out },
 };
 
 const int rsprot_obj_add_out_count =

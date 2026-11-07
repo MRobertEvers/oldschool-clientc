@@ -70,7 +70,7 @@ const RsprotVersionRange rsprot_if_opentop_out[] = {
     /* 240 (RSProx osrs-240, IfOpenTopDecoder): g2_21_add128 -- v2, again. */
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_opentop_v2_out },
     /* 241 (RSProx osrs-241, IfOpenTopDecoder): decode body unchanged from 239. */
-    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_opentop_v4_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_opentop_v4_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_opentop_v2_out },
 };
 

@@ -62,8 +62,10 @@ void packet_teleport_v19_in(RsprotExec *x, MsgTeleport *m);
 void packet_teleport_v20_in(RsprotExec *x, MsgTeleport *m);
 /* v21 -- revs osrs241. */
 void packet_teleport_v21_in(RsprotExec *x, MsgTeleport *m);
-/* v22 -- revs osrsm241. */
+/* v22 -- revs osrs242. */
 void packet_teleport_v22_in(RsprotExec *x, MsgTeleport *m);
+/* v23 -- revs osrsm241. */
+void packet_teleport_v23_in(RsprotExec *x, MsgTeleport *m);
 
 /* Per-revision entry points: what revision R calls is packet_teleport_<R>_in. */
 #define packet_teleport_osrs221_in packet_teleport_v1_in
@@ -87,7 +89,8 @@ void packet_teleport_v22_in(RsprotExec *x, MsgTeleport *m);
 #define packet_teleport_osrs239_in packet_teleport_v19_in
 #define packet_teleport_osrs240_in packet_teleport_v20_in
 #define packet_teleport_osrs241_in packet_teleport_v21_in
-#define packet_teleport_osrsm241_in packet_teleport_v22_in
+#define packet_teleport_osrs242_in packet_teleport_v22_in
+#define packet_teleport_osrsm241_in packet_teleport_v23_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_teleport_in[];

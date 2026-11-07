@@ -262,9 +262,21 @@ packet_if_crmview_op_v21_in(RsprotExec *x, MsgIfCrmViewOp *m)
     RSPROT_COM_1234(x, m->combined_id);
 }
 
-/* v22 -- revs osrsm241. */
+/* v22 -- revs osrs242. */
 void
 packet_if_crmview_op_v22_in(RsprotExec *x, MsgIfCrmViewOp *m)
+{
+    RSPROT_U4_1234(x, m->behaviour3);
+    RSPROT_U4_2143(x, m->behaviour2);
+    RSPROT_U2_12(x, m->sub);
+    RSPROT_U4_3412(x, m->behaviour1);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U4_3412(x, m->server_target);
+}
+
+/* v23 -- revs osrsm241. */
+void
+packet_if_crmview_op_v23_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
     RSPROT_U4_4321(x, m->behaviour2);
     RSPROT_U4_4321(x, m->behaviour1);
@@ -275,7 +287,7 @@ packet_if_crmview_op_v22_in(RsprotExec *x, MsgIfCrmViewOp *m)
 }
 
 /*
- * 22 row(s) for 22 layout(s). A revision not listed has no IF_CRMVIEW_OP and
+ * 23 row(s) for 23 layout(s). A revision not listed has no IF_CRMVIEW_OP and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_crmview_op_in[] = {
@@ -300,7 +312,8 @@ const RsprotVersionRange rsprot_if_crmview_op_in[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_crmview_op_v19_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_crmview_op_v20_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_crmview_op_v21_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_crmview_op_v22_in },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_crmview_op_v22_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_crmview_op_v23_in },
 };
 
 const int rsprot_if_crmview_op_in_count =

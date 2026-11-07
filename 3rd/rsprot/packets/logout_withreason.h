@@ -17,7 +17,7 @@ typedef struct MsgLogoutWithReason {
 	int32_t reason;
 } MsgLogoutWithReason;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_logout_withreason_v1_out(RsprotExec *x, MsgLogoutWithReason *m);
 /* v2 -- revs osrsm241. */
 void packet_logout_withreason_v2_out(RsprotExec *x, MsgLogoutWithReason *m);
@@ -44,6 +44,7 @@ void packet_logout_withreason_v2_out(RsprotExec *x, MsgLogoutWithReason *m);
 #define packet_logout_withreason_osrs239_out packet_logout_withreason_v1_out
 #define packet_logout_withreason_osrs240_out packet_logout_withreason_v1_out
 #define packet_logout_withreason_osrs241_out packet_logout_withreason_v1_out
+#define packet_logout_withreason_osrs242_out packet_logout_withreason_v1_out
 #define packet_logout_withreason_osrsm241_out packet_logout_withreason_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

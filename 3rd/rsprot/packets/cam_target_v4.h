@@ -24,15 +24,18 @@ void packet_cam_target_v4_v1_out(RsprotExec *x, MsgCamTargetV4 *m);
 void packet_cam_target_v4_v2_out(RsprotExec *x, MsgCamTargetV4 *m);
 /* v3 -- revs osrs240. */
 void packet_cam_target_v4_v3_out(RsprotExec *x, MsgCamTargetV4 *m);
-/* v4 -- revs osrsm241. */
+/* v4 -- revs osrs242. */
 void packet_cam_target_v4_v4_out(RsprotExec *x, MsgCamTargetV4 *m);
+/* v5 -- revs osrsm241. */
+void packet_cam_target_v4_v5_out(RsprotExec *x, MsgCamTargetV4 *m);
 
 /* Per-revision entry points: what revision R calls is packet_cam_target_v4_<R>_out. */
 #define packet_cam_target_v4_osrs238_out packet_cam_target_v4_v1_out
 #define packet_cam_target_v4_osrs239_out packet_cam_target_v4_v2_out
 #define packet_cam_target_v4_osrs240_out packet_cam_target_v4_v3_out
 #define packet_cam_target_v4_osrs241_out packet_cam_target_v4_v1_out
-#define packet_cam_target_v4_osrsm241_out packet_cam_target_v4_v4_out
+#define packet_cam_target_v4_osrs242_out packet_cam_target_v4_v4_out
+#define packet_cam_target_v4_osrsm241_out packet_cam_target_v4_v5_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_target_v4_out[];

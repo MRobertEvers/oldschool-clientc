@@ -48,6 +48,7 @@ npc_info_large_v6_osrs(RsprotRev rev)
     switch (rev.id) {
     case RSPROT_OSRS_ID(240): return npc_info_large_v6_osrs240;
     case RSPROT_OSRS_ID(241): return npc_info_large_v6_osrs241;
+    case RSPROT_OSRS_ID(242): return npc_info_large_v6_osrs242;
     default: return NULL;
     }
 }
@@ -102,6 +103,7 @@ npc_info_small_v6_osrs(RsprotRev rev)
     switch (rev.id) {
     case RSPROT_OSRS_ID(240): return npc_info_small_v6_osrs240;
     case RSPROT_OSRS_ID(241): return npc_info_small_v6_osrs241;
+    case RSPROT_OSRS_ID(242): return npc_info_small_v6_osrs242;
     default: return NULL;
     }
 }

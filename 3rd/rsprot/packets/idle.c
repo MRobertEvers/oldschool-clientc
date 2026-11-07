@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void
 packet_idle_v1_in(RsprotExec *x, MsgIdle *m)
 {
@@ -35,11 +35,12 @@ packet_idle_v3_in(RsprotExec *x, MsgIdle *m)
 }
 
 /*
- * 5 row(s) for 3 layout(s). A revision not listed has no IDLE and
+ * 6 row(s) for 3 layout(s). A revision not listed has no IDLE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_idle_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_idle_v1_in },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_idle_v1_in },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_idle_v2_in },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_idle_v2_in },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_idle_v2_in },

@@ -60,7 +60,7 @@ packet_map_anim_specific_v5_out(RsprotExec *x, MsgMapAnimSpecific *m)
     RSPROT_U2_21(x, m->delay);
 }
 
-/* v6 -- revs osrs226. */
+/* v6 -- revs osrs226, osrs242. */
 void
 packet_map_anim_specific_v6_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
@@ -231,7 +231,7 @@ packet_map_anim_specific_v22_out(RsprotExec *x, MsgMapAnimSpecific *m)
 }
 
 /*
- * 22 row(s) for 22 layout(s). A revision not listed has no MAP_ANIM_SPECIFIC and
+ * 23 row(s) for 22 layout(s). A revision not listed has no MAP_ANIM_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_map_anim_specific_out[] = {
@@ -256,6 +256,7 @@ const RsprotVersionRange rsprot_map_anim_specific_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_map_anim_specific_v19_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_map_anim_specific_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_map_anim_specific_v21_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_map_anim_specific_v6_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_map_anim_specific_v22_out },
 };
 

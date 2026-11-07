@@ -19,7 +19,7 @@ typedef struct MsgServerTickEnd {
 	int32_t _unused;
 } MsgServerTickEnd;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_server_tick_end_v1_out(RsprotExec *x, MsgServerTickEnd *m);
 /* v2 -- revs osrsm241. */
 void packet_server_tick_end_v2_out(RsprotExec *x, MsgServerTickEnd *m);
@@ -46,6 +46,7 @@ void packet_server_tick_end_v2_out(RsprotExec *x, MsgServerTickEnd *m);
 #define packet_server_tick_end_osrs239_out packet_server_tick_end_v1_out
 #define packet_server_tick_end_osrs240_out packet_server_tick_end_v1_out
 #define packet_server_tick_end_osrs241_out packet_server_tick_end_v1_out
+#define packet_server_tick_end_osrs242_out packet_server_tick_end_v1_out
 #define packet_server_tick_end_osrsm241_out packet_server_tick_end_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

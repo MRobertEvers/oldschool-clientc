@@ -46,7 +46,7 @@ void packet_resume_pausebutton_v12_in(RsprotExec *x, MsgResumePauseButton *m);
 void packet_resume_pausebutton_v13_in(RsprotExec *x, MsgResumePauseButton *m);
 /* v14 -- revs osrs235, osrs241. */
 void packet_resume_pausebutton_v14_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v15 -- revs osrs236. */
+/* v15 -- revs osrs236, osrs242. */
 void packet_resume_pausebutton_v15_in(RsprotExec *x, MsgResumePauseButton *m);
 /* v16 -- revs osrs239. */
 void packet_resume_pausebutton_v16_in(RsprotExec *x, MsgResumePauseButton *m);
@@ -77,6 +77,7 @@ void packet_resume_pausebutton_v18_in(RsprotExec *x, MsgResumePauseButton *m);
 #define packet_resume_pausebutton_osrs239_in packet_resume_pausebutton_v16_in
 #define packet_resume_pausebutton_osrs240_in packet_resume_pausebutton_v1_in
 #define packet_resume_pausebutton_osrs241_in packet_resume_pausebutton_v14_in
+#define packet_resume_pausebutton_osrs242_in packet_resume_pausebutton_v15_in
 #define packet_resume_pausebutton_rs245_2_in packet_resume_pausebutton_v17_in
 #define packet_resume_pausebutton_rs254_in packet_resume_pausebutton_v17_in
 #define packet_resume_pausebutton_rs289_in packet_resume_pausebutton_v17_in

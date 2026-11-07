@@ -17,7 +17,7 @@ packet_if_setplayerhead_v1_out(RsprotExec *x, MsgIfSetPlayerHead *m)
     RSPROT_U4_3412(x, m->combined_id);
 }
 
-/* v2 -- revs osrs222, osrs224-225, osrs228, osrs236, osrs239. */
+/* v2 -- revs osrs222, osrs224-225, osrs228, osrs236, osrs239, osrs242. */
 void
 packet_if_setplayerhead_v2_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
@@ -60,7 +60,7 @@ packet_if_setplayerhead_v7_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 }
 
 /*
- * 22 row(s) for 7 layout(s). A revision not listed has no IF_SETPLAYERHEAD and
+ * 23 row(s) for 7 layout(s). A revision not listed has no IF_SETPLAYERHEAD and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setplayerhead_out[] = {
@@ -82,6 +82,7 @@ const RsprotVersionRange rsprot_if_setplayerhead_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setplayerhead_v2_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setplayerhead_v4_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setplayerhead_v3_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_setplayerhead_v2_out },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_setplayerhead_v6_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_setplayerhead_v6_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_setplayerhead_v6_out },

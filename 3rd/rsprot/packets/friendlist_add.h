@@ -17,7 +17,7 @@ typedef struct MsgFriendListAdd {
 	const char *name;
 } MsgFriendListAdd;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_friendlist_add_v1_in(RsprotExec *x, MsgFriendListAdd *m);
 /* v2 -- revs osrsm241. */
 void packet_friendlist_add_v2_in(RsprotExec *x, MsgFriendListAdd *m);
@@ -44,6 +44,7 @@ void packet_friendlist_add_v2_in(RsprotExec *x, MsgFriendListAdd *m);
 #define packet_friendlist_add_osrs239_in packet_friendlist_add_v1_in
 #define packet_friendlist_add_osrs240_in packet_friendlist_add_v1_in
 #define packet_friendlist_add_osrs241_in packet_friendlist_add_v1_in
+#define packet_friendlist_add_osrs242_in packet_friendlist_add_v1_in
 #define packet_friendlist_add_osrsm241_in packet_friendlist_add_v2_in
 
 /** Revision -> layout. See the .c for the rows. */

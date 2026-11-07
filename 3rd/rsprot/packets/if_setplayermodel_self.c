@@ -34,7 +34,7 @@ packet_if_setplayermodel_self_v3_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
     RSPROT_COM_1234(x, m->combined_id);
 }
 
-/* v4 -- revs osrs224, osrs238. */
+/* v4 -- revs osrs224, osrs238, osrs242. */
 void
 packet_if_setplayermodel_self_v4_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
@@ -139,7 +139,7 @@ packet_if_setplayermodel_self_v16_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 }
 
 /*
- * 21 row(s) for 16 layout(s). A revision not listed has no IF_SETPLAYERMODEL_SELF and
+ * 22 row(s) for 16 layout(s). A revision not listed has no IF_SETPLAYERMODEL_SELF and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setplayermodel_self_out[] = {
@@ -163,6 +163,7 @@ const RsprotVersionRange rsprot_if_setplayermodel_self_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setplayermodel_self_v12_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setplayermodel_self_v2_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setplayermodel_self_v15_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_setplayermodel_self_v4_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setplayermodel_self_v16_out },
 };
 

@@ -201,7 +201,7 @@ rsprot_appearance_reader(RsprotRev rev)
      * blob's own layout is not. */
     if (rsprot_rev_family(rev) == RSPROT_FAMILY_OSRSM && revision == 241)
         return rsprot_appearance_v4;
-    if (rsprot_rev_family(rev) != RSPROT_FAMILY_OSRS || revision < 223 || revision > 241)
+    if (rsprot_rev_family(rev) != RSPROT_FAMILY_OSRS || revision < 223 || revision > 242)
         return NULL;
     if (revision <= 225)
         return rsprot_appearance_v1;
@@ -209,5 +209,7 @@ rsprot_appearance_reader(RsprotRev rev)
         return rsprot_appearance_v2;
     if (revision <= 240)
         return rsprot_appearance_v3;
+    /* 242 sends the obj customisations of an npc-transformed player too, where
+     * 241 sent a 0 flag; the blob reads the same. */
     return rsprot_appearance_v4;
 }

@@ -19,7 +19,7 @@ typedef struct MsgClanChannelKickUser {
 	const char *name;
 } MsgClanChannelKickUser;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_clanchannel_kickuser_v1_in(RsprotExec *x, MsgClanChannelKickUser *m);
 /* v2 -- revs osrsm241. */
 void packet_clanchannel_kickuser_v2_in(RsprotExec *x, MsgClanChannelKickUser *m);
@@ -46,6 +46,7 @@ void packet_clanchannel_kickuser_v2_in(RsprotExec *x, MsgClanChannelKickUser *m)
 #define packet_clanchannel_kickuser_osrs239_in packet_clanchannel_kickuser_v1_in
 #define packet_clanchannel_kickuser_osrs240_in packet_clanchannel_kickuser_v1_in
 #define packet_clanchannel_kickuser_osrs241_in packet_clanchannel_kickuser_v1_in
+#define packet_clanchannel_kickuser_osrs242_in packet_clanchannel_kickuser_v1_in
 #define packet_clanchannel_kickuser_osrsm241_in packet_clanchannel_kickuser_v2_in
 
 /** Revision -> layout. See the .c for the rows. */

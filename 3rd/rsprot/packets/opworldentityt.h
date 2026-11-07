@@ -39,6 +39,8 @@ void packet_opworldentityt_v7_in(RsprotExec *x, MsgOpWorldEntityT *m);
 void packet_opworldentityt_v8_in(RsprotExec *x, MsgOpWorldEntityT *m);
 /* v9 -- revs osrs241. */
 void packet_opworldentityt_v9_in(RsprotExec *x, MsgOpWorldEntityT *m);
+/* v10 -- revs osrs242. */
+void packet_opworldentityt_v10_in(RsprotExec *x, MsgOpWorldEntityT *m);
 
 /* Per-revision entry points: what revision R calls is packet_opworldentityt_<R>_in. */
 #define packet_opworldentityt_osrs233_in packet_opworldentityt_v1_in
@@ -50,6 +52,7 @@ void packet_opworldentityt_v9_in(RsprotExec *x, MsgOpWorldEntityT *m);
 #define packet_opworldentityt_osrs239_in packet_opworldentityt_v7_in
 #define packet_opworldentityt_osrs240_in packet_opworldentityt_v8_in
 #define packet_opworldentityt_osrs241_in packet_opworldentityt_v9_in
+#define packet_opworldentityt_osrs242_in packet_opworldentityt_v10_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_opworldentityt_in[];

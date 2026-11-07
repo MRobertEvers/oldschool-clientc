@@ -220,9 +220,19 @@ packet_if_setangle_v21_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_U2_21(x, m->zoom);
 }
 
-/* v22 -- revs osrsm241. */
+/* v22 -- revs osrs242. */
 void
 packet_if_setangle_v22_out(RsprotExec *x, MsgIfSetAngle *m)
+{
+    RSPROT_U2_12_ADD128(x, m->zoom);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_12(x, m->angle_y);
+    RSPROT_U2_21(x, m->angle_x);
+}
+
+/* v23 -- revs osrsm241. */
+void
+packet_if_setangle_v23_out(RsprotExec *x, MsgIfSetAngle *m)
 {
     RSPROT_U2_12_ADD128(x, m->zoom);
     RSPROT_U2_12_ADD128(x, m->angle_x);
@@ -231,7 +241,7 @@ packet_if_setangle_v22_out(RsprotExec *x, MsgIfSetAngle *m)
 }
 
 /*
- * 22 row(s) for 22 layout(s). A revision not listed has no IF_SETANGLE and
+ * 23 row(s) for 23 layout(s). A revision not listed has no IF_SETANGLE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setangle_out[] = {
@@ -256,7 +266,8 @@ const RsprotVersionRange rsprot_if_setangle_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setangle_v19_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setangle_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setangle_v21_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setangle_v22_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_setangle_v22_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setangle_v23_out },
 };
 
 const int rsprot_if_setangle_out_count =

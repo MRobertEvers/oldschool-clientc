@@ -2,7 +2,7 @@
 #include "update_uid192.h"
 
 /*
- * v1 -- revs 222-241.
+ * v1 -- revs 222-242.
  * gdata(24), g4 crc.
  */
 void
@@ -13,7 +13,7 @@ packet_update_uid192_v1_out(RsprotExec *x, MsgUpdateUid192 *m)
 }
 
 const RsprotVersionRange rsprot_update_uid192_out[] = {
-    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_uid192_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_update_uid192_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_uid192_v1_out },
 };
 

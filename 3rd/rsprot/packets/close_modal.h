@@ -19,7 +19,7 @@ typedef struct MsgCloseModal {
 	int32_t _unused;
 } MsgCloseModal;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_close_modal_v1_in(RsprotExec *x, MsgCloseModal *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_close_modal_v2_in(RsprotExec *x, MsgCloseModal *m);
@@ -48,6 +48,7 @@ void packet_close_modal_v3_in(RsprotExec *x, MsgCloseModal *m);
 #define packet_close_modal_osrs239_in packet_close_modal_v1_in
 #define packet_close_modal_osrs240_in packet_close_modal_v1_in
 #define packet_close_modal_osrs241_in packet_close_modal_v1_in
+#define packet_close_modal_osrs242_in packet_close_modal_v1_in
 #define packet_close_modal_rs245_2_in packet_close_modal_v2_in
 #define packet_close_modal_rs254_in packet_close_modal_v2_in
 #define packet_close_modal_rs289_in packet_close_modal_v2_in

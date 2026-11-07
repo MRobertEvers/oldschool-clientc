@@ -79,9 +79,32 @@ packet_scriptedproj_add_v3_out(RsprotExec *x, MsgScriptedProjAdd *m)
     RSPROT_U1_NEG(x, m->coord_in_zone_packed);
 }
 
-/* v4 -- revs osrsm241. */
+/* v4 -- revs osrs242. */
 void
 packet_scriptedproj_add_v4_out(RsprotExec *x, MsgScriptedProjAdd *m)
+{
+    RSPROT_U2_12_ADD128(x, m->curve_script_h);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U4_2143(x, m->target_coord_packed);
+    RSPROT_U3_132(x, m->target_index);
+    RSPROT_U2_12_ADD128(x, m->end_time);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->target_height);
+    RSPROT_U2_12_ADD128(x, m->source_offset_x);
+    RSPROT_U2_21(x, m->start_time);
+    RSPROT_U2_21_ADD128(x, m->slot);
+    RSPROT_U2_21(x, m->source_height);
+    RSPROT_U2_21(x, m->source_offset_z);
+    RSPROT_U3_132(x, m->source_index);
+    RSPROT_U2_12(x, m->curve_script_t);
+    RSPROT_U2_21(x, m->curve_script_a);
+    RSPROT_U2_21(x, m->target_offset_x);
+    RSPROT_U2_12_ADD128(x, m->target_offset_z);
+}
+
+/* v5 -- revs osrsm241. */
+void
+packet_scriptedproj_add_v5_out(RsprotExec *x, MsgScriptedProjAdd *m)
 {
     RSPROT_U2_21(x, m->source_offset_z);
     RSPROT_U2_21_ADD128(x, m->id);
@@ -103,14 +126,15 @@ packet_scriptedproj_add_v4_out(RsprotExec *x, MsgScriptedProjAdd *m)
 }
 
 /*
- * 4 row(s) for 4 layout(s). A revision not listed has no SCRIPTEDPROJ_ADD and
+ * 5 row(s) for 5 layout(s). A revision not listed has no SCRIPTEDPROJ_ADD and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_scriptedproj_add_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_scriptedproj_add_v1_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_scriptedproj_add_v2_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_scriptedproj_add_v3_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_scriptedproj_add_v4_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_scriptedproj_add_v4_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_scriptedproj_add_v5_out },
 };
 
 const int rsprot_scriptedproj_add_out_count =

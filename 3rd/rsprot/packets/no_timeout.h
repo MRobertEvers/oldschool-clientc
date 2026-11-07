@@ -19,7 +19,7 @@ typedef struct MsgNoTimeout {
 	int32_t _unused;
 } MsgNoTimeout;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_no_timeout_v1_in(RsprotExec *x, MsgNoTimeout *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_no_timeout_v2_in(RsprotExec *x, MsgNoTimeout *m);
@@ -48,6 +48,7 @@ void packet_no_timeout_v3_in(RsprotExec *x, MsgNoTimeout *m);
 #define packet_no_timeout_osrs239_in packet_no_timeout_v1_in
 #define packet_no_timeout_osrs240_in packet_no_timeout_v1_in
 #define packet_no_timeout_osrs241_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs242_in packet_no_timeout_v1_in
 #define packet_no_timeout_rs245_2_in packet_no_timeout_v2_in
 #define packet_no_timeout_rs254_in packet_no_timeout_v2_in
 #define packet_no_timeout_rs289_in packet_no_timeout_v2_in

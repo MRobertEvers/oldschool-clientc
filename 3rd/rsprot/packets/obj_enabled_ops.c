@@ -181,9 +181,18 @@ packet_obj_enabled_ops_v19_out(RsprotExec *x, MsgObjEnabledOps *m)
     RSPROT_U1_NEG(x, m->coord_in_zone_packed);
 }
 
-/* v20 -- revs osrsm241. */
+/* v20 -- revs osrs242. */
 void
 packet_obj_enabled_ops_v20_out(RsprotExec *x, MsgObjEnabledOps *m)
+{
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+}
+
+/* v21 -- revs osrsm241. */
+void
+packet_obj_enabled_ops_v21_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
     RSPROT_U1(x, m->coord_in_zone_packed);
     RSPROT_U2_12(x, m->id);
@@ -191,7 +200,7 @@ packet_obj_enabled_ops_v20_out(RsprotExec *x, MsgObjEnabledOps *m)
 }
 
 /*
- * 20 row(s) for 20 layout(s). A revision not listed has no OBJ_ENABLED_OPS and
+ * 21 row(s) for 21 layout(s). A revision not listed has no OBJ_ENABLED_OPS and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_enabled_ops_out[] = {
@@ -214,7 +223,8 @@ const RsprotVersionRange rsprot_obj_enabled_ops_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_obj_enabled_ops_v17_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_obj_enabled_ops_v18_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_obj_enabled_ops_v19_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_enabled_ops_v20_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_obj_enabled_ops_v20_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_enabled_ops_v21_out },
 };
 
 const int rsprot_obj_enabled_ops_out_count =

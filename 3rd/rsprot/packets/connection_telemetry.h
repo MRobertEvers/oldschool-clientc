@@ -23,7 +23,7 @@ typedef struct MsgConnectionTelemetry {
 	int32_t unused2;
 } MsgConnectionTelemetry;
 
-/* v1 -- revs osrs223-241. */
+/* v1 -- revs osrs223-241, osrs242. */
 void packet_connection_telemetry_v1_in(RsprotExec *x, MsgConnectionTelemetry *m);
 /* v2 -- revs osrsm241. */
 void packet_connection_telemetry_v2_in(RsprotExec *x, MsgConnectionTelemetry *m);
@@ -48,6 +48,7 @@ void packet_connection_telemetry_v2_in(RsprotExec *x, MsgConnectionTelemetry *m)
 #define packet_connection_telemetry_osrs239_in packet_connection_telemetry_v1_in
 #define packet_connection_telemetry_osrs240_in packet_connection_telemetry_v1_in
 #define packet_connection_telemetry_osrs241_in packet_connection_telemetry_v1_in
+#define packet_connection_telemetry_osrs242_in packet_connection_telemetry_v1_in
 #define packet_connection_telemetry_osrsm241_in packet_connection_telemetry_v2_in
 
 /** Revision -> layout. See the .c for the rows. */

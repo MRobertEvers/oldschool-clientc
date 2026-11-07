@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void
 packet_minimap_toggle_v1_out(RsprotExec *x, MsgMinimapToggle *m)
 {
@@ -32,11 +32,12 @@ packet_minimap_toggle_v3_out(RsprotExec *x, MsgMinimapToggle *m)
 }
 
 /*
- * 5 row(s) for 3 layout(s). A revision not listed has no MINIMAP_TOGGLE and
+ * 6 row(s) for 3 layout(s). A revision not listed has no MINIMAP_TOGGLE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_minimap_toggle_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_minimap_toggle_v1_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_minimap_toggle_v1_out },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_minimap_toggle_v2_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_minimap_toggle_v2_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_minimap_toggle_v2_out },

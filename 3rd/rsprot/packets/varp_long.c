@@ -19,9 +19,18 @@ packet_varp_long_v1_out(RsprotExec *x, MsgVarpLong *m)
     RSPROT_U2_12(x, m->id);
 }
 
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrs242. */
 void
 packet_varp_long_v2_out(RsprotExec *x, MsgVarpLong *m)
+{
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U4_2143(x, m->high);
+    RSPROT_U4_2143(x, m->low);
+}
+
+/* v3 -- revs osrsm241. */
+void
+packet_varp_long_v3_out(RsprotExec *x, MsgVarpLong *m)
 {
     RSPROT_U4_4321(x, m->high);
     RSPROT_U4_4321(x, m->low);
@@ -29,12 +38,13 @@ packet_varp_long_v2_out(RsprotExec *x, MsgVarpLong *m)
 }
 
 /*
- * 2 row(s) for 2 layout(s). A revision not listed has no VARP_LONG and
+ * 3 row(s) for 3 layout(s). A revision not listed has no VARP_LONG and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_varp_long_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_varp_long_v1_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_varp_long_v2_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_varp_long_v2_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_varp_long_v3_out },
 };
 
 const int rsprot_varp_long_out_count =

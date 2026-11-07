@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void
 packet_event_applet_focus_v1_in(RsprotExec *x, MsgEventAppletFocus *m)
 {
@@ -18,11 +18,12 @@ packet_event_applet_focus_v1_in(RsprotExec *x, MsgEventAppletFocus *m)
 }
 
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no EVENT_APPLET_FOCUS and
+ * 2 row(s) for 1 layout(s). A revision not listed has no EVENT_APPLET_FOCUS and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_event_applet_focus_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_event_applet_focus_v1_in },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_event_applet_focus_v1_in },
 };
 
 const int rsprot_event_applet_focus_in_count =

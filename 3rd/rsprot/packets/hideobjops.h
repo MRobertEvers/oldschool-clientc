@@ -17,7 +17,7 @@ typedef struct MsgHideObjOps {
 	int32_t hidden;
 } MsgHideObjOps;
 
-/* v1 -- revs osrs223-241. */
+/* v1 -- revs osrs223-241, osrs242. */
 void packet_hideobjops_v1_out(RsprotExec *x, MsgHideObjOps *m);
 /* v2 -- revs osrsm241. */
 void packet_hideobjops_v2_out(RsprotExec *x, MsgHideObjOps *m);
@@ -42,6 +42,7 @@ void packet_hideobjops_v2_out(RsprotExec *x, MsgHideObjOps *m);
 #define packet_hideobjops_osrs239_out packet_hideobjops_v1_out
 #define packet_hideobjops_osrs240_out packet_hideobjops_v1_out
 #define packet_hideobjops_osrs241_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs242_out packet_hideobjops_v1_out
 #define packet_hideobjops_osrsm241_out packet_hideobjops_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

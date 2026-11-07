@@ -190,9 +190,18 @@ packet_move_gameclick_v20_in(RsprotExec *x, MsgMoveGameClick *m)
     RSPROT_U2_12_ADD128(x, m->x);
 }
 
-/* v21 -- revs osrsm241. */
+/* v21 -- revs osrs242. */
 void
 packet_move_gameclick_v21_in(RsprotExec *x, MsgMoveGameClick *m)
+{
+    RSPROT_U1_NEG(x, m->key_combination);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->z);
+}
+
+/* v22 -- revs osrsm241. */
+void
+packet_move_gameclick_v22_in(RsprotExec *x, MsgMoveGameClick *m)
 {
     RSPROT_U2_21_ADD128(x, m->x);
     RSPROT_U2_12_ADD128(x, m->z);
@@ -200,7 +209,7 @@ packet_move_gameclick_v21_in(RsprotExec *x, MsgMoveGameClick *m)
 }
 
 /*
- * 22 row(s) for 21 layout(s). A revision not listed has no MOVE_GAMECLICK and
+ * 23 row(s) for 22 layout(s). A revision not listed has no MOVE_GAMECLICK and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_move_gameclick_in[] = {
@@ -225,7 +234,8 @@ const RsprotVersionRange rsprot_move_gameclick_in[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_move_gameclick_v18_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_move_gameclick_v19_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_move_gameclick_v20_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_move_gameclick_v21_in },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_move_gameclick_v21_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_move_gameclick_v22_in },
 };
 
 const int rsprot_move_gameclick_in_count =

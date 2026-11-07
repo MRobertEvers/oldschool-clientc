@@ -50,6 +50,8 @@ int player_info_osrs240(
     RsprotPlayerInfo *pi, const uint8_t *data, int32_t len, RsprotInfoList *out);
 int player_info_osrs241(
     RsprotPlayerInfo *pi, const uint8_t *data, int32_t len, RsprotInfoList *out);
+int player_info_osrs242(
+    RsprotPlayerInfo *pi, const uint8_t *data, int32_t len, RsprotInfoList *out);
 int player_info_osrsm241(
     RsprotPlayerInfo *pi, const uint8_t *data, int32_t len, RsprotInfoList *out);
 

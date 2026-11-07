@@ -74,7 +74,7 @@ packet_loc_del_v8_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1_ADD128(x, m->loc_properties_packed);
 }
 
-/* v9 -- revs osrs230, osrs233. */
+/* v9 -- revs osrs230, osrs233, osrs242. */
 void
 packet_loc_del_v9_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -147,7 +147,7 @@ packet_loc_del_v17_out(RsprotExec *x, MsgLocDel *m)
 }
 
 /*
- * 25 row(s) for 17 layout(s). A revision not listed has no LOC_DEL and
+ * 26 row(s) for 17 layout(s). A revision not listed has no LOC_DEL and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_loc_del_out[] = {
@@ -172,6 +172,7 @@ const RsprotVersionRange rsprot_loc_del_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_loc_del_v15_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_loc_del_v4_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_loc_del_v7_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_loc_del_v9_out },
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_loc_del_v16_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_loc_del_v16_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_loc_del_v16_out },

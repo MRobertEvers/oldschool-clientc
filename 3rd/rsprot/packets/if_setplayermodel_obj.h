@@ -48,7 +48,7 @@ void packet_if_setplayermodel_obj_v13_out(RsprotExec *x, MsgIfSetPlayerModelObj 
 void packet_if_setplayermodel_obj_v14_out(RsprotExec *x, MsgIfSetPlayerModelObj *m);
 /* v15 -- revs osrs236. */
 void packet_if_setplayermodel_obj_v15_out(RsprotExec *x, MsgIfSetPlayerModelObj *m);
-/* v16 -- revs osrs237. */
+/* v16 -- revs osrs237, osrs242. */
 void packet_if_setplayermodel_obj_v16_out(RsprotExec *x, MsgIfSetPlayerModelObj *m);
 /* v17 -- revs osrs239. */
 void packet_if_setplayermodel_obj_v17_out(RsprotExec *x, MsgIfSetPlayerModelObj *m);
@@ -79,6 +79,7 @@ void packet_if_setplayermodel_obj_v19_out(RsprotExec *x, MsgIfSetPlayerModelObj 
 #define packet_if_setplayermodel_obj_osrs239_out packet_if_setplayermodel_obj_v17_out
 #define packet_if_setplayermodel_obj_osrs240_out packet_if_setplayermodel_obj_v18_out
 #define packet_if_setplayermodel_obj_osrs241_out packet_if_setplayermodel_obj_v12_out
+#define packet_if_setplayermodel_obj_osrs242_out packet_if_setplayermodel_obj_v16_out
 #define packet_if_setplayermodel_obj_osrsm241_out packet_if_setplayermodel_obj_v19_out
 
 /** Revision -> layout. See the .c for the rows. */

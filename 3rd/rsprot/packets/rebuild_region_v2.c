@@ -65,9 +65,20 @@ packet_rebuild_region_v2_v5_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
 }
 
-/* v6 -- revs osrsm241. */
+/* v6 -- revs osrs242. */
 void
 packet_rebuild_region_v2_v6_out(RsprotExec *x, MsgRebuildRegionV2 *m)
+{
+    RSPROT_U2_21(x, m->zone_z);
+    RSPROT_U2_12_ADD128(x, m->zone_x);
+    RSPROT_U1_NEG(x, m->reload);
+    RSPROT_U2_12(x, m->distinct_mapsquare_count);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+}
+
+/* v7 -- revs osrsm241. */
+void
+packet_rebuild_region_v2_v7_out(RsprotExec *x, MsgRebuildRegionV2 *m)
 {
     RSPROT_U1_SUB128(x, m->reload);
     RSPROT_U2_21(x, m->zone_x);
@@ -77,7 +88,7 @@ packet_rebuild_region_v2_v6_out(RsprotExec *x, MsgRebuildRegionV2 *m)
 }
 
 /*
- * 6 row(s) for 6 layout(s). A revision not listed has no REBUILD_REGION_V2 and
+ * 7 row(s) for 7 layout(s). A revision not listed has no REBUILD_REGION_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_rebuild_region_v2_out[] = {
@@ -86,7 +97,8 @@ const RsprotVersionRange rsprot_rebuild_region_v2_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_rebuild_region_v2_v3_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_rebuild_region_v2_v4_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_rebuild_region_v2_v5_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_rebuild_region_v2_v6_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_rebuild_region_v2_v6_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_rebuild_region_v2_v7_out },
 };
 
 const int rsprot_rebuild_region_v2_out_count =

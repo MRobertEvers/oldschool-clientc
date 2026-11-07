@@ -24,15 +24,18 @@ void packet_ambientsound_start_v1_out(RsprotExec *x, MsgAmbientSoundStart *m);
 void packet_ambientsound_start_v2_out(RsprotExec *x, MsgAmbientSoundStart *m);
 /* v3 -- revs osrs241. */
 void packet_ambientsound_start_v3_out(RsprotExec *x, MsgAmbientSoundStart *m);
-/* v4 -- revs osrsm241. */
+/* v4 -- revs osrs242. */
 void packet_ambientsound_start_v4_out(RsprotExec *x, MsgAmbientSoundStart *m);
+/* v5 -- revs osrsm241. */
+void packet_ambientsound_start_v5_out(RsprotExec *x, MsgAmbientSoundStart *m);
 
 /* Per-revision entry points: what revision R calls is packet_ambientsound_start_<R>_out. */
 #define packet_ambientsound_start_osrs238_out packet_ambientsound_start_v1_out
 #define packet_ambientsound_start_osrs239_out packet_ambientsound_start_v1_out
 #define packet_ambientsound_start_osrs240_out packet_ambientsound_start_v2_out
 #define packet_ambientsound_start_osrs241_out packet_ambientsound_start_v3_out
-#define packet_ambientsound_start_osrsm241_out packet_ambientsound_start_v4_out
+#define packet_ambientsound_start_osrs242_out packet_ambientsound_start_v4_out
+#define packet_ambientsound_start_osrsm241_out packet_ambientsound_start_v5_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_ambientsound_start_out[];

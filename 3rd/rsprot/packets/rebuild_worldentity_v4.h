@@ -29,7 +29,7 @@ typedef struct MsgRebuildWorldEntityV4 {
 	int32_t grid_raw_length;
 } MsgRebuildWorldEntityV4;
 
-/* v1 -- revs osrs237-241. */
+/* v1 -- revs osrs237-241, osrs242. */
 void packet_rebuild_worldentity_v4_v1_out(RsprotExec *x, MsgRebuildWorldEntityV4 *m);
 /* v2 -- revs osrsm241. */
 void packet_rebuild_worldentity_v4_v2_out(RsprotExec *x, MsgRebuildWorldEntityV4 *m);
@@ -40,6 +40,7 @@ void packet_rebuild_worldentity_v4_v2_out(RsprotExec *x, MsgRebuildWorldEntityV4
 #define packet_rebuild_worldentity_v4_osrs239_out packet_rebuild_worldentity_v4_v1_out
 #define packet_rebuild_worldentity_v4_osrs240_out packet_rebuild_worldentity_v4_v1_out
 #define packet_rebuild_worldentity_v4_osrs241_out packet_rebuild_worldentity_v4_v1_out
+#define packet_rebuild_worldentity_v4_osrs242_out packet_rebuild_worldentity_v4_v1_out
 #define packet_rebuild_worldentity_v4_osrsm241_out packet_rebuild_worldentity_v4_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

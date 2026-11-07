@@ -17,7 +17,7 @@ typedef struct MsgCamSkybox {
 	int32_t model;
 } MsgCamSkybox;
 
-/* v1 -- revs osrs238. */
+/* v1 -- revs osrs238, osrs242. */
 void packet_cam_skybox_v1_out(RsprotExec *x, MsgCamSkybox *m);
 /* v2 -- revs osrs239-240. */
 void packet_cam_skybox_v2_out(RsprotExec *x, MsgCamSkybox *m);
@@ -31,6 +31,7 @@ void packet_cam_skybox_v4_out(RsprotExec *x, MsgCamSkybox *m);
 #define packet_cam_skybox_osrs239_out packet_cam_skybox_v2_out
 #define packet_cam_skybox_osrs240_out packet_cam_skybox_v2_out
 #define packet_cam_skybox_osrs241_out packet_cam_skybox_v3_out
+#define packet_cam_skybox_osrs242_out packet_cam_skybox_v1_out
 #define packet_cam_skybox_osrsm241_out packet_cam_skybox_v4_out
 
 /** Revision -> layout. See the .c for the rows. */

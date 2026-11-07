@@ -34,8 +34,10 @@ void packet_rebuild_region_v2_v3_out(RsprotExec *x, MsgRebuildRegionV2 *m);
 void packet_rebuild_region_v2_v4_out(RsprotExec *x, MsgRebuildRegionV2 *m);
 /* v5 -- revs osrs241. */
 void packet_rebuild_region_v2_v5_out(RsprotExec *x, MsgRebuildRegionV2 *m);
-/* v6 -- revs osrsm241. */
+/* v6 -- revs osrs242. */
 void packet_rebuild_region_v2_v6_out(RsprotExec *x, MsgRebuildRegionV2 *m);
+/* v7 -- revs osrsm241. */
+void packet_rebuild_region_v2_v7_out(RsprotExec *x, MsgRebuildRegionV2 *m);
 
 /* Per-revision entry points: what revision R calls is packet_rebuild_region_v2_<R>_out. */
 #define packet_rebuild_region_v2_osrs237_out packet_rebuild_region_v2_v1_out
@@ -43,7 +45,8 @@ void packet_rebuild_region_v2_v6_out(RsprotExec *x, MsgRebuildRegionV2 *m);
 #define packet_rebuild_region_v2_osrs239_out packet_rebuild_region_v2_v3_out
 #define packet_rebuild_region_v2_osrs240_out packet_rebuild_region_v2_v4_out
 #define packet_rebuild_region_v2_osrs241_out packet_rebuild_region_v2_v5_out
-#define packet_rebuild_region_v2_osrsm241_out packet_rebuild_region_v2_v6_out
+#define packet_rebuild_region_v2_osrs242_out packet_rebuild_region_v2_v6_out
+#define packet_rebuild_region_v2_osrsm241_out packet_rebuild_region_v2_v7_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_rebuild_region_v2_out[];

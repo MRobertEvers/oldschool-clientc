@@ -19,7 +19,7 @@ typedef struct MsgResetAnims {
 	int32_t _unused;
 } MsgResetAnims;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_reset_anims_v1_out(RsprotExec *x, MsgResetAnims *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_reset_anims_v2_out(RsprotExec *x, MsgResetAnims *m);
@@ -48,6 +48,7 @@ void packet_reset_anims_v3_out(RsprotExec *x, MsgResetAnims *m);
 #define packet_reset_anims_osrs239_out packet_reset_anims_v1_out
 #define packet_reset_anims_osrs240_out packet_reset_anims_v1_out
 #define packet_reset_anims_osrs241_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs242_out packet_reset_anims_v1_out
 #define packet_reset_anims_rs245_2_out packet_reset_anims_v2_out
 #define packet_reset_anims_rs254_out packet_reset_anims_v2_out
 #define packet_reset_anims_rs289_out packet_reset_anims_v2_out

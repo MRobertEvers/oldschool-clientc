@@ -30,7 +30,7 @@ void packet_map_anim_specific_v3_out(RsprotExec *x, MsgMapAnimSpecific *m);
 void packet_map_anim_specific_v4_out(RsprotExec *x, MsgMapAnimSpecific *m);
 /* v5 -- revs osrs225. */
 void packet_map_anim_specific_v5_out(RsprotExec *x, MsgMapAnimSpecific *m);
-/* v6 -- revs osrs226. */
+/* v6 -- revs osrs226, osrs242. */
 void packet_map_anim_specific_v6_out(RsprotExec *x, MsgMapAnimSpecific *m);
 /* v7 -- revs osrs227. */
 void packet_map_anim_specific_v7_out(RsprotExec *x, MsgMapAnimSpecific *m);
@@ -87,6 +87,7 @@ void packet_map_anim_specific_v22_out(RsprotExec *x, MsgMapAnimSpecific *m);
 #define packet_map_anim_specific_osrs239_out packet_map_anim_specific_v19_out
 #define packet_map_anim_specific_osrs240_out packet_map_anim_specific_v20_out
 #define packet_map_anim_specific_osrs241_out packet_map_anim_specific_v21_out
+#define packet_map_anim_specific_osrs242_out packet_map_anim_specific_v6_out
 #define packet_map_anim_specific_osrsm241_out packet_map_anim_specific_v22_out
 
 /** Revision -> layout. See the .c for the rows. */

@@ -24,13 +24,14 @@ typedef struct MsgCacheInvalidate {
 /** Archives one packet names (the size of MsgCacheInvalidate.archives); the server splits a longer list. */
 #define CACHE_INVALIDATE_ARCHIVES_MAX 4096
 
-/* v1 -- revs osrs239-241, osrsm241. */
+/* v1 -- revs osrs239-242, osrsm241. */
 void packet_cache_invalidate_v1_out(RsprotExec *x, MsgCacheInvalidate *m);
 
 /* Per-revision entry points: what revision R calls is packet_cache_invalidate_<R>_out. */
 #define packet_cache_invalidate_osrs239_out packet_cache_invalidate_v1_out
 #define packet_cache_invalidate_osrs240_out packet_cache_invalidate_v1_out
 #define packet_cache_invalidate_osrs241_out packet_cache_invalidate_v1_out
+#define packet_cache_invalidate_osrs242_out packet_cache_invalidate_v1_out
 #define packet_cache_invalidate_osrsm241_out packet_cache_invalidate_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

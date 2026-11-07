@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs237-241. */
+/* v1 -- revs osrs237-242. */
 void
 packet_resume_p_countdialog_long_v1_in(RsprotExec *x, MsgResumePCountDialogLong *m)
 {
@@ -29,7 +29,7 @@ packet_resume_p_countdialog_long_v2_in(RsprotExec *x, MsgResumePCountDialogLong 
  * picks NULL.
  */
 const RsprotVersionRange rsprot_resume_p_countdialog_long_in[] = {
-    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_resume_p_countdialog_long_v1_in },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_resume_p_countdialog_long_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_resume_p_countdialog_long_v2_in },
 };
 

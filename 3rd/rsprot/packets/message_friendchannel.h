@@ -26,7 +26,7 @@ typedef struct MsgMessageFriendchannel {
 	int32_t huffman_length;
 } MsgMessageFriendchannel;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 223-242. */
 void packet_message_friendchannel_v1_out(RsprotExec *x, MsgMessageFriendchannel *m);
 
 #define packet_message_friendchannel_osrs223_out packet_message_friendchannel_v1_out
@@ -48,6 +48,7 @@ void packet_message_friendchannel_v1_out(RsprotExec *x, MsgMessageFriendchannel 
 #define packet_message_friendchannel_osrs239_out packet_message_friendchannel_v1_out
 #define packet_message_friendchannel_osrs240_out packet_message_friendchannel_v1_out
 #define packet_message_friendchannel_osrs241_out packet_message_friendchannel_v1_out
+#define packet_message_friendchannel_osrs242_out packet_message_friendchannel_v1_out
 #define packet_message_friendchannel_osrsm241_out packet_message_friendchannel_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

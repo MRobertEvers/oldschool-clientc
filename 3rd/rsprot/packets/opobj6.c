@@ -190,9 +190,18 @@ packet_opobj6_v20_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2_21_ADD128(x, m->x);
 }
 
-/* v21 -- revs osrsm241. */
+/* v21 -- revs osrs242. */
 void
 packet_opobj6_v21_in(RsprotExec *x, MsgOpObj6 *m)
+{
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
+}
+
+/* v22 -- revs osrsm241. */
+void
+packet_opobj6_v22_in(RsprotExec *x, MsgOpObj6 *m)
 {
     RSPROT_U2_21(x, m->id);
     RSPROT_U2_21_ADD128(x, m->z);
@@ -200,7 +209,7 @@ packet_opobj6_v21_in(RsprotExec *x, MsgOpObj6 *m)
 }
 
 /*
- * 22 row(s) for 21 layout(s). A revision not listed has no OPOBJ6 and
+ * 23 row(s) for 22 layout(s). A revision not listed has no OPOBJ6 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opobj6_in[] = {
@@ -225,7 +234,8 @@ const RsprotVersionRange rsprot_opobj6_in[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_opobj6_v18_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_opobj6_v19_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opobj6_v20_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opobj6_v21_in },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_opobj6_v21_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opobj6_v22_in },
 };
 
 const int rsprot_opobj6_in_count =

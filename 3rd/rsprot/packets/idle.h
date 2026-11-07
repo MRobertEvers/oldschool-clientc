@@ -19,7 +19,7 @@ typedef struct MsgIdle {
 	int32_t _unused;
 } MsgIdle;
 
-/* v1 -- revs osrs221-241. */
+/* v1 -- revs osrs221-241, osrs242. */
 void packet_idle_v1_in(RsprotExec *x, MsgIdle *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_idle_v2_in(RsprotExec *x, MsgIdle *m);
@@ -48,6 +48,7 @@ void packet_idle_v3_in(RsprotExec *x, MsgIdle *m);
 #define packet_idle_osrs239_in packet_idle_v1_in
 #define packet_idle_osrs240_in packet_idle_v1_in
 #define packet_idle_osrs241_in packet_idle_v1_in
+#define packet_idle_osrs242_in packet_idle_v1_in
 #define packet_idle_rs245_2_in packet_idle_v2_in
 #define packet_idle_rs254_in packet_idle_v2_in
 #define packet_idle_rs289_in packet_idle_v2_in

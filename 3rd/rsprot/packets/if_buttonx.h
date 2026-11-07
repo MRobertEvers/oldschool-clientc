@@ -20,7 +20,7 @@ typedef struct MsgIfButtonX {
 	int32_t op;
 } MsgIfButtonX;
 
-/* v1 -- revs osrs231-241. */
+/* v1 -- revs osrs231-241, osrs242. */
 void packet_if_buttonx_v1_in(RsprotExec *x, MsgIfButtonX *m);
 /* v2 -- revs osrsm241. */
 void packet_if_buttonx_v2_in(RsprotExec *x, MsgIfButtonX *m);
@@ -37,6 +37,7 @@ void packet_if_buttonx_v2_in(RsprotExec *x, MsgIfButtonX *m);
 #define packet_if_buttonx_osrs239_in packet_if_buttonx_v1_in
 #define packet_if_buttonx_osrs240_in packet_if_buttonx_v1_in
 #define packet_if_buttonx_osrs241_in packet_if_buttonx_v1_in
+#define packet_if_buttonx_osrs242_in packet_if_buttonx_v1_in
 #define packet_if_buttonx_osrsm241_in packet_if_buttonx_v2_in
 
 /** Revision -> layout. See the .c for the rows. */

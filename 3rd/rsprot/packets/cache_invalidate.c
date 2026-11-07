@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs239-241, osrsm241. */
+/* v1 -- revs osrs239-242, osrsm241. */
 void
 packet_cache_invalidate_v1_out(RsprotExec *x, MsgCacheInvalidate *m)
 {
@@ -25,7 +25,7 @@ packet_cache_invalidate_v1_out(RsprotExec *x, MsgCacheInvalidate *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cache_invalidate_out[] = {
-    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cache_invalidate_v1_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_cache_invalidate_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cache_invalidate_v1_out },
 };
 

@@ -55,9 +55,24 @@ packet_cam_moveto_arc_v3_v3_out(RsprotExec *x, MsgCamMoveToArcV3 *m)
     RSPROT_U2_12_ADD128(x, m->cycles);
 }
 
-/* v4 -- revs osrsm241. */
+/* v4 -- revs osrs242. */
 void
 packet_cam_moveto_arc_v3_v4_out(RsprotExec *x, MsgCamMoveToArcV3 *m)
+{
+    RSPROT_U2_12_ADD128(x, m->center_z);
+    RSPROT_U2_21_ADD128(x, m->cycles);
+    RSPROT_U2_21(x, m->height);
+    RSPROT_U2_12_ADD128(x, m->destination_x);
+    RSPROT_U1_ADD128(x, m->height_relative);
+    RSPROT_U1(x, m->ignore_terrain);
+    RSPROT_U2_21(x, m->destination_z);
+    RSPROT_U2_12(x, m->center_x);
+    RSPROT_U1_NEG(x, m->easing_id);
+}
+
+/* v5 -- revs osrsm241. */
+void
+packet_cam_moveto_arc_v3_v5_out(RsprotExec *x, MsgCamMoveToArcV3 *m)
 {
     RSPROT_U2_21_ADD128(x, m->destination_x);
     RSPROT_U2_12(x, m->center_x);
@@ -71,14 +86,15 @@ packet_cam_moveto_arc_v3_v4_out(RsprotExec *x, MsgCamMoveToArcV3 *m)
 }
 
 /*
- * 4 row(s) for 4 layout(s). A revision not listed has no CAM_MOVETO_ARC_V3 and
+ * 5 row(s) for 5 layout(s). A revision not listed has no CAM_MOVETO_ARC_V3 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_moveto_arc_v3_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_cam_moveto_arc_v3_v1_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_cam_moveto_arc_v3_v2_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_moveto_arc_v3_v3_out },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_moveto_arc_v3_v4_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_cam_moveto_arc_v3_v4_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_moveto_arc_v3_v5_out },
 };
 
 const int rsprot_cam_moveto_arc_v3_out_count =

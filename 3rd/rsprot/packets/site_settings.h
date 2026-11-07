@@ -17,7 +17,7 @@ typedef struct MsgSiteSettings {
 	const char *settings;
 } MsgSiteSettings;
 
-/* v1 -- revs osrs223-241. */
+/* v1 -- revs osrs223-241, osrs242. */
 void packet_site_settings_v1_out(RsprotExec *x, MsgSiteSettings *m);
 /* v2 -- revs osrsm241. */
 void packet_site_settings_v2_out(RsprotExec *x, MsgSiteSettings *m);
@@ -42,6 +42,7 @@ void packet_site_settings_v2_out(RsprotExec *x, MsgSiteSettings *m);
 #define packet_site_settings_osrs239_out packet_site_settings_v1_out
 #define packet_site_settings_osrs240_out packet_site_settings_v1_out
 #define packet_site_settings_osrs241_out packet_site_settings_v1_out
+#define packet_site_settings_osrs242_out packet_site_settings_v1_out
 #define packet_site_settings_osrsm241_out packet_site_settings_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

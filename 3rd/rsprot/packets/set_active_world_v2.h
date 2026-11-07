@@ -18,7 +18,7 @@ typedef struct MsgSetActiveWorldV2 {
 	int32_t active_level;
 } MsgSetActiveWorldV2;
 
-/* v1 -- revs osrs229-241. */
+/* v1 -- revs osrs229-241, osrs242. */
 void packet_set_active_world_v2_v1_out(RsprotExec *x, MsgSetActiveWorldV2 *m);
 /* v2 -- revs osrsm241. */
 void packet_set_active_world_v2_v2_out(RsprotExec *x, MsgSetActiveWorldV2 *m);
@@ -37,6 +37,7 @@ void packet_set_active_world_v2_v2_out(RsprotExec *x, MsgSetActiveWorldV2 *m);
 #define packet_set_active_world_v2_osrs239_out packet_set_active_world_v2_v1_out
 #define packet_set_active_world_v2_osrs240_out packet_set_active_world_v2_v1_out
 #define packet_set_active_world_v2_osrs241_out packet_set_active_world_v2_v1_out
+#define packet_set_active_world_v2_osrs242_out packet_set_active_world_v2_v1_out
 #define packet_set_active_world_v2_osrsm241_out packet_set_active_world_v2_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

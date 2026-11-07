@@ -24,7 +24,7 @@ void packet_if_setplayermodel_self_v1_out(RsprotExec *x, MsgIfSetPlayerModelSelf
 void packet_if_setplayermodel_self_v2_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m);
 /* v3 -- revs osrs223. */
 void packet_if_setplayermodel_self_v3_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m);
-/* v4 -- revs osrs224, osrs238. */
+/* v4 -- revs osrs224, osrs238, osrs242. */
 void packet_if_setplayermodel_self_v4_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m);
 /* v5 -- revs osrs225. */
 void packet_if_setplayermodel_self_v5_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m);
@@ -73,6 +73,7 @@ void packet_if_setplayermodel_self_v16_out(RsprotExec *x, MsgIfSetPlayerModelSel
 #define packet_if_setplayermodel_self_osrs239_out packet_if_setplayermodel_self_v12_out
 #define packet_if_setplayermodel_self_osrs240_out packet_if_setplayermodel_self_v2_out
 #define packet_if_setplayermodel_self_osrs241_out packet_if_setplayermodel_self_v15_out
+#define packet_if_setplayermodel_self_osrs242_out packet_if_setplayermodel_self_v4_out
 #define packet_if_setplayermodel_self_osrsm241_out packet_if_setplayermodel_self_v16_out
 
 /** Revision -> layout. See the .c for the rows. */

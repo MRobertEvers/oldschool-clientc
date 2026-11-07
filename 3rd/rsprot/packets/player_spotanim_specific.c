@@ -272,7 +272,7 @@ packet_player_spotanim_specific_v19_out(RsprotExec *x, MsgPlayerSpotanimSpecific
     RSPROT_U2_12_ADD128(x, m->index);
 }
 
-/* v20 -- revs osrs241. */
+/* v20 -- revs osrs241, osrs242. */
 void
 packet_player_spotanim_specific_v20_out(RsprotExec *x, MsgPlayerSpotanimSpecific *m)
 {
@@ -301,7 +301,7 @@ packet_player_spotanim_specific_v21_out(RsprotExec *x, MsgPlayerSpotanimSpecific
 }
 
 /*
- * 21 row(s) for 21 layout(s). A revision not listed has no PLAYER_SPOTANIM_SPECIFIC and
+ * 22 row(s) for 21 layout(s). A revision not listed has no PLAYER_SPOTANIM_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_player_spotanim_specific_out[] = {
@@ -325,6 +325,7 @@ const RsprotVersionRange rsprot_player_spotanim_specific_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_player_spotanim_specific_v18_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_player_spotanim_specific_v19_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_player_spotanim_specific_v20_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_player_spotanim_specific_v20_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_player_spotanim_specific_v21_out },
 };
 

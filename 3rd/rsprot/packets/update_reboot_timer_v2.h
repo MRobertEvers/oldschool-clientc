@@ -24,7 +24,7 @@ void packet_update_reboot_timer_v2_v1_out(RsprotExec *x, MsgUpdateRebootTimerV2 
 void packet_update_reboot_timer_v2_v2_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m);
 /* v3 -- revs osrs238. */
 void packet_update_reboot_timer_v2_v3_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m);
-/* v4 -- revs osrs239. */
+/* v4 -- revs osrs239, osrs242. */
 void packet_update_reboot_timer_v2_v4_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m);
 /* v5 -- revs osrsm241. */
 void packet_update_reboot_timer_v2_v5_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m);
@@ -36,6 +36,7 @@ void packet_update_reboot_timer_v2_v5_out(RsprotExec *x, MsgUpdateRebootTimerV2 
 #define packet_update_reboot_timer_v2_osrs239_out packet_update_reboot_timer_v2_v4_out
 #define packet_update_reboot_timer_v2_osrs240_out packet_update_reboot_timer_v2_v1_out
 #define packet_update_reboot_timer_v2_osrs241_out packet_update_reboot_timer_v2_v1_out
+#define packet_update_reboot_timer_v2_osrs242_out packet_update_reboot_timer_v2_v4_out
 #define packet_update_reboot_timer_v2_osrsm241_out packet_update_reboot_timer_v2_v5_out
 
 /** Revision -> layout. See the .c for the rows. */

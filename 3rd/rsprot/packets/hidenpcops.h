@@ -17,7 +17,7 @@ typedef struct MsgHideNpcOps {
 	int32_t hidden;
 } MsgHideNpcOps;
 
-/* v1 -- revs osrs223-241. */
+/* v1 -- revs osrs223-241, osrs242. */
 void packet_hidenpcops_v1_out(RsprotExec *x, MsgHideNpcOps *m);
 /* v2 -- revs osrsm241. */
 void packet_hidenpcops_v2_out(RsprotExec *x, MsgHideNpcOps *m);
@@ -42,6 +42,7 @@ void packet_hidenpcops_v2_out(RsprotExec *x, MsgHideNpcOps *m);
 #define packet_hidenpcops_osrs239_out packet_hidenpcops_v1_out
 #define packet_hidenpcops_osrs240_out packet_hidenpcops_v1_out
 #define packet_hidenpcops_osrs241_out packet_hidenpcops_v1_out
+#define packet_hidenpcops_osrs242_out packet_hidenpcops_v1_out
 #define packet_hidenpcops_osrsm241_out packet_hidenpcops_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

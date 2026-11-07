@@ -19,7 +19,7 @@ typedef struct MsgIfSetPlayerHead {
 
 /* v1 -- revs osrs221. */
 void packet_if_setplayerhead_v1_out(RsprotExec *x, MsgIfSetPlayerHead *m);
-/* v2 -- revs osrs222, osrs224-225, osrs228, osrs236, osrs239. */
+/* v2 -- revs osrs222, osrs224-225, osrs228, osrs236, osrs239, osrs242. */
 void packet_if_setplayerhead_v2_out(RsprotExec *x, MsgIfSetPlayerHead *m);
 /* v3 -- revs osrs223, osrs227, osrs229, osrs232, osrs241. */
 void packet_if_setplayerhead_v3_out(RsprotExec *x, MsgIfSetPlayerHead *m);
@@ -54,6 +54,7 @@ void packet_if_setplayerhead_v7_out(RsprotExec *x, MsgIfSetPlayerHead *m);
 #define packet_if_setplayerhead_osrs239_out packet_if_setplayerhead_v2_out
 #define packet_if_setplayerhead_osrs240_out packet_if_setplayerhead_v4_out
 #define packet_if_setplayerhead_osrs241_out packet_if_setplayerhead_v3_out
+#define packet_if_setplayerhead_osrs242_out packet_if_setplayerhead_v2_out
 #define packet_if_setplayerhead_rs245_2_out packet_if_setplayerhead_v6_out
 #define packet_if_setplayerhead_rs254_out packet_if_setplayerhead_v6_out
 #define packet_if_setplayerhead_rs289_out packet_if_setplayerhead_v6_out

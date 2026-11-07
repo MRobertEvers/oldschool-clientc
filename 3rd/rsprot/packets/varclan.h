@@ -19,7 +19,7 @@ typedef struct MsgVarclan {
 	int32_t data_length;
 } MsgVarclan;
 
-/* v1 -- revs 222-241. */
+/* v1 -- revs 222-242. */
 void packet_varclan_v1_out(RsprotExec *x, MsgVarclan *m);
 
 #define packet_varclan_osrs222_out packet_varclan_v1_out
@@ -42,6 +42,7 @@ void packet_varclan_v1_out(RsprotExec *x, MsgVarclan *m);
 #define packet_varclan_osrs239_out packet_varclan_v1_out
 #define packet_varclan_osrs240_out packet_varclan_v1_out
 #define packet_varclan_osrs241_out packet_varclan_v1_out
+#define packet_varclan_osrs242_out packet_varclan_v1_out
 #define packet_varclan_osrsm241_out packet_varclan_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

@@ -26,7 +26,7 @@ typedef struct MsgMessageClanchannel {
 	int32_t huffman_length;
 } MsgMessageClanchannel;
 
-/* v1 -- revs 222-241. */
+/* v1 -- revs 222-242. */
 void packet_message_clanchannel_v1_out(RsprotExec *x, MsgMessageClanchannel *m);
 
 #define packet_message_clanchannel_osrs222_out packet_message_clanchannel_v1_out
@@ -49,6 +49,7 @@ void packet_message_clanchannel_v1_out(RsprotExec *x, MsgMessageClanchannel *m);
 #define packet_message_clanchannel_osrs239_out packet_message_clanchannel_v1_out
 #define packet_message_clanchannel_osrs240_out packet_message_clanchannel_v1_out
 #define packet_message_clanchannel_osrs241_out packet_message_clanchannel_v1_out
+#define packet_message_clanchannel_osrs242_out packet_message_clanchannel_v1_out
 #define packet_message_clanchannel_osrsm241_out packet_message_clanchannel_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

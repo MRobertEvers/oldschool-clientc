@@ -26,7 +26,7 @@ packet_if_settext_v2_out(RsprotExec *x, MsgIfSetText *m)
     RSPROT_COM_2143(x, m->combined_id);
 }
 
-/* v3 -- revs osrs223, osrs228. */
+/* v3 -- revs osrs223, osrs228, osrs242. */
 void
 packet_if_settext_v3_out(RsprotExec *x, MsgIfSetText *m)
 {
@@ -83,7 +83,7 @@ packet_if_settext_v9_out(RsprotExec *x, MsgIfSetText *m)
 }
 
 /*
- * 20 row(s) for 9 layout(s). A revision not listed has no IF_SETTEXT and
+ * 21 row(s) for 9 layout(s). A revision not listed has no IF_SETTEXT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_settext_out[] = {
@@ -106,6 +106,7 @@ const RsprotVersionRange rsprot_if_settext_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_settext_v6_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_settext_v7_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_settext_v4_out },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_settext_v3_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_settext_v9_out },
 };
 

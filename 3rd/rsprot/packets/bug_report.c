@@ -46,9 +46,18 @@ packet_bug_report_v4_in(RsprotExec *x, MsgBugReport *m)
     RSPROT_JSTR(x, m->description);
 }
 
-/* v5 -- revs osrsm241. */
+/* v5 -- revs osrs242. */
 void
 packet_bug_report_v5_in(RsprotExec *x, MsgBugReport *m)
+{
+    RSPROT_JSTR(x, m->description);
+    RSPROT_U1_NEG(x, m->type);
+    RSPROT_JSTR(x, m->instructions);
+}
+
+/* v6 -- revs osrsm241. */
+void
+packet_bug_report_v6_in(RsprotExec *x, MsgBugReport *m)
 {
     RSPROT_JSTR(x, m->description);
     RSPROT_U1(x, m->type);
@@ -56,7 +65,7 @@ packet_bug_report_v5_in(RsprotExec *x, MsgBugReport *m)
 }
 
 /*
- * 5 row(s) for 5 layout(s). A revision not listed has no BUG_REPORT and
+ * 6 row(s) for 6 layout(s). A revision not listed has no BUG_REPORT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_bug_report_in[] = {
@@ -64,7 +73,8 @@ const RsprotVersionRange rsprot_bug_report_in[] = {
     { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_bug_report_v2_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_bug_report_v3_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_bug_report_v4_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_bug_report_v5_in },
+    { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_bug_report_v5_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_bug_report_v6_in },
 };
 
 const int rsprot_bug_report_in_count =

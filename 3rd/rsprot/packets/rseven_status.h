@@ -17,7 +17,7 @@ typedef struct MsgRSevenStatus {
 	int32_t packed;
 } MsgRSevenStatus;
 
-/* v1 -- revs osrs227-241. */
+/* v1 -- revs osrs227-241, osrs242. */
 void packet_rseven_status_v1_in(RsprotExec *x, MsgRSevenStatus *m);
 /* v2 -- revs osrsm241. */
 void packet_rseven_status_v2_in(RsprotExec *x, MsgRSevenStatus *m);
@@ -38,6 +38,7 @@ void packet_rseven_status_v2_in(RsprotExec *x, MsgRSevenStatus *m);
 #define packet_rseven_status_osrs239_in packet_rseven_status_v1_in
 #define packet_rseven_status_osrs240_in packet_rseven_status_v1_in
 #define packet_rseven_status_osrs241_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs242_in packet_rseven_status_v1_in
 #define packet_rseven_status_osrsm241_in packet_rseven_status_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
