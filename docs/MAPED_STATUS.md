@@ -5250,9 +5250,9 @@ the sliders and the hex following each other, the Mix slider shown for
 Paint underlay only and the chord stepping it); editor_placement_test
 `test_mix` (100 paints the disc, 50 about half of it and only its tiles,
 the same seed the same tiles, another seed another dither, the falloff
-thinning it, one undo). Windows: placement 176, panels 1965, hotkeys 2504,
+thinning it, one undo). Windows: placement 176, panels 1967, hotkeys 2504,
 workbench 294 (goldens re-baselined for the new rows), all 0 failed;
-Linux (the WSL clone) 176, 1966, 2504, 295, all 0 failed; check-pt-switch
+Linux (the WSL clone) 176, 1968, 2504, 295, all 0 failed; check-pt-switch
 and check-tree-walks PASS.
 
 Open: the picker matches by the record's colour, not the ground's
