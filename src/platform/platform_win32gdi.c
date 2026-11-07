@@ -162,6 +162,10 @@ struct Win32BrowserBitmapEntry
 struct PlatformWindow
 {
     HWND    hwnd;
+    /* PlatformWindow_SetCursor's shape; WM_SETCURSOR applies it over the
+     * client area (the class cursor is the arrow, which Windows would put
+     * back on every mouse move). */
+    int     cursor;
     /* The window's own DC, fetched once. The class is CS_OWNDC, so this handle
      * is permanently associated with the window and survives resizes — but
      * GetDC/ReleaseDC around every present is still a pair of calls into
@@ -903,6 +907,14 @@ wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         /* The complete DIB below owns every client pixel. Default erasure used
          * to paint it black before the next out-of-band GetDC blit. */
         return 1;
+
+    case WM_SETCURSOR:
+        if( p && LOWORD(lparam) == HTCLIENT && p->cursor == PLATFORM_CURSOR_PAN )
+        {
+            SetCursor(LoadCursor(NULL, IDC_SIZEALL));
+            return TRUE;
+        }
+        break;
 
     case WM_PAINT:
         if( p )
@@ -2727,6 +2739,24 @@ PlatformWindow_SetTitle(struct PlatformWindow* p, char const* title)
 {
     if( p->hwnd && title )
         SetWindowTextA(p->hwnd, title);
+}
+
+void
+PlatformWindow_SetCursor(struct PlatformWindow* p, enum PlatformCursor cursor)
+{
+    POINT pt;
+    RECT rc;
+
+    assert(p);
+    if( p->cursor == (int)cursor )
+        return;
+    p->cursor = (int)cursor;
+    if( !p->hwnd )
+        return;
+    /* WM_SETCURSOR comes only when the pointer moves: a key that changes the
+     * shape under a still pointer shows it now, over the client area. */
+    if( GetCursorPos(&pt) && ScreenToClient(p->hwnd, &pt) && GetClientRect(p->hwnd, &rc) && PtInRect(&rc, pt) )
+        SetCursor(LoadCursor(NULL, cursor == PLATFORM_CURSOR_PAN ? IDC_SIZEALL : IDC_ARROW));
 }
 
 /*

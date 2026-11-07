@@ -180,6 +180,34 @@ static struct
     int pitch;
 } g_cam_unity;
 
+/* The grab pan (docs/MAPED_HOTKEYS.md "Pan (Space)"): Space held over the
+ * World, then a left-drag, under either scheme -- or Alt+Ctrl+left-drag
+ * (Option+Cmd) under the Unity scheme. One latch for both: the press
+ * starts it over the world, the drag then keeps the pointer until the left
+ * button comes up, whether or not the key is still down. */
+static struct
+{
+    int active;
+    int last_x;
+    int last_y;
+    /** Space has been held since an earlier frame, and whether a grab
+     *  started while it was: a tap with no drag under the Place tool says
+     *  where Place here went (Space was its chord until 2026-11-07). */
+    int space_held;
+    int space_dragged;
+    /** Under the Unity scheme Alt+Ctrl is held over the world this frame
+     *  (app_camera_unity_gate): the cursor shows the pan before a press. */
+    int unity_chord_over_world;
+} g_cam_grab;
+
+/** The free camera is this frame's: offline, or a cutscene's. The same
+ *  split app_world_camera_mouse makes. */
+static int
+app_camera_grab_free(struct App const* app)
+{
+    return !(app->net && !app->cam_script.scripted);
+}
+
 /** The Unity scheme is on and this frame's camera is the editor's free one. */
 static int
 app_camera_unity_on(struct App const* app)
@@ -264,9 +292,18 @@ app_camera_unity_gate(
     int const mx = input->curr.mouse_x;
     int const my = input->curr.mouse_y;
     int const alt = LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT);
+    int const ctrl = LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL);
 
     assert(app);
     assert(input);
+    /* The grab ends with its button under either scheme, and runs before any
+     * of the hotkeys' gates, so a text field or a minimenu that opens
+     * mid-drag still sees the release; while it runs it owns the pointer. */
+    if( g_cam_grab.active && !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
+        g_cam_grab.active = 0;
+    if( g_cam_grab.active )
+        app->input_frame_consumed = 1;
+    g_cam_grab.unity_chord_over_world = 0;
     if( !app_camera_unity_on(app) )
     {
         g_cam_unity.look_active = 0;
@@ -282,7 +319,18 @@ app_camera_unity_gate(
     if( g_cam_unity.pan_active && !LibToriRS_Input_IsMouseHeld(input, TORIRSM_MIDDLE) )
         g_cam_unity.pan_active = 0;
 
-    if( !g_cam_unity.orbit_active && alt && input->curr.mouse_button_down[TORIRSM_LEFT]
+    g_cam_grab.unity_chord_over_world = alt && ctrl && !app->frame_view->minimenu->visible
+                                        && app_camera_grab_free(app) && app_camera_unity_over_world(app, mx, my);
+    /* Alt+Ctrl+left-drag (Option+Cmd: Cmd is reported as Ctrl) is Unity's
+     * one-button pan, checked before Alt's orbit so the orbit never sees it. */
+    if( !g_cam_grab.active && !g_cam_unity.orbit_active && alt && ctrl && input->curr.mouse_button_down[TORIRSM_LEFT]
+        && !app->frame_view->minimenu->visible && app_camera_grab_free(app) && app_camera_unity_over_world(app, mx, my) )
+    {
+        g_cam_grab.active = 1;
+        g_cam_grab.last_x = mx;
+        g_cam_grab.last_y = my;
+    }
+    if( !g_cam_grab.active && !g_cam_unity.orbit_active && alt && !ctrl && input->curr.mouse_button_down[TORIRSM_LEFT]
         && !app->frame_view->minimenu->visible && app_camera_unity_over_world(app, mx, my) )
     {
         struct App_WorldView const* view = app->frame_view;
@@ -324,8 +372,89 @@ app_camera_unity_gate(
     /* An orbit or pan owns the frame's pointer from its press: the editor's
      * click (which runs after this) must not paint, select or stroke, and the
      * middle press must not start the default scheme's rotate. */
-    if( g_cam_unity.orbit_active || g_cam_unity.pan_active )
+    if( g_cam_unity.orbit_active || g_cam_unity.pan_active || g_cam_grab.active )
         app->input_frame_consumed = 1;
+}
+
+void
+app_camera_grab_gate(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    int const mx = input->curr.mouse_x;
+    int const my = input->curr.mouse_y;
+    int const pan = app_editor_hotkeys_active(app, EDITOR_HK_CAM_PAN);
+
+    assert(app);
+    assert(input);
+    if( pan && !g_cam_grab.space_held )
+    {
+        g_cam_grab.space_held = 1;
+        g_cam_grab.space_dragged = 0;
+    }
+    else if( !pan && g_cam_grab.space_held )
+    {
+        struct EditorUi* ui = app->editor_panel.ui;
+        g_cam_grab.space_held = 0;
+        if( !g_cam_grab.space_dragged && ui->tools.tool == EDITOR_TOOL_LOC_PLACE )
+            Editor_UiStatus(ui, "Space pans the camera now (hold it and drag); Return or a click places");
+    }
+    if( !g_cam_grab.active && pan && input->curr.mouse_button_down[TORIRSM_LEFT]
+        && !app->frame_view->minimenu->visible && app_camera_grab_free(app) && app_camera_unity_over_world(app, mx, my) )
+    {
+        g_cam_grab.active = 1;
+        g_cam_grab.space_dragged = 1;
+        g_cam_grab.last_x = mx;
+        g_cam_grab.last_y = my;
+    }
+    /* The editor's click runs after this: a press that started a grab must
+     * not paint, select or stroke. */
+    if( g_cam_grab.active )
+        app->input_frame_consumed = 1;
+}
+
+int
+App_WantsPanCursor(struct App const* app)
+{
+    assert(app);
+    /* The latches and the hover flag are written by the editor's gates,
+     * which run only while it owns the camera: off it, nothing pans. */
+    if( !app_editor_hotkeys_owns_camera(app) || !app->world || !app->frame_view || !app_camera_grab_free(app) )
+        return 0;
+    if( g_cam_grab.active || g_cam_unity.pan_active )
+        return 1;
+    /* Held, not yet pressed: the cursor says what a press will do. Space is
+     * the hotkeys' answer (wherever it is rebound; over the World only, and
+     * nothing while a text field holds the keyboard). */
+    return app_editor_hotkeys_active(app, EDITOR_HK_CAM_PAN) || g_cam_grab.unity_chord_over_world;
+}
+
+/** Pan the ground plane by a pointer delta: the pointer drags the world with
+ *  it, so the eye moves the other way, faster the higher it is (one tile of
+ *  ground per ~10 px from 2600 units up). The middle-drag of the Unity
+ *  scheme and the grab pan share it. */
+static void
+app_camera_pan_ground(
+    struct App* app,
+    int dx,
+    int dy)
+{
+    struct App_WorldView* view = app->frame_view;
+    int const extent = app->world->_scene_size * 128;
+    int const tx = app_camera_clamp_axis(view->world_camera_pos.x, 0, extent - 1);
+    int const tz = app_camera_clamp_axis(view->world_camera_pos.z, 0, extent - 1);
+    int const level = app->editor_panel.ui->tools.edit_level >= 0 ? app->editor_panel.ui->tools.edit_level : 0;
+    int const ground = app_world_height(app, tx, tz, level);
+    int height = ground - view->world_camera_pos.y;
+    int per_px;
+
+    if( height < 200 )
+        height = 200;
+    per_px = height / 200 + 1;
+    app_camera_move_left(app, dx * per_px);
+    app_camera_move_forward(app, dy * per_px);
+    view->camera_unlocked = 1;
+    app->need_redraw = 1;
 }
 
 /** The drags: one delta each, then the clamp. Runs from
@@ -380,25 +509,7 @@ app_camera_unity_mouse(
         }
     }
     else if( g_cam_unity.pan_active && (dx || dy) )
-    {
-        /* Pan the ground plane: the pointer drags the world with it, so the
-         * eye moves the other way, faster the higher it is (one tile of
-         * ground per ~10 px from 2600 units up). */
-        int const extent = app->world->_scene_size * 128;
-        int const tx = app_camera_clamp_axis(view->world_camera_pos.x, 0, extent - 1);
-        int const tz = app_camera_clamp_axis(view->world_camera_pos.z, 0, extent - 1);
-        int const level = app->editor_panel.ui->tools.edit_level >= 0 ? app->editor_panel.ui->tools.edit_level : 0;
-        int const ground = app_world_height(app, tx, tz, level);
-        int height = ground - view->world_camera_pos.y;
-        int per_px;
-        if( height < 200 )
-            height = 200;
-        per_px = height / 200 + 1;
-        app_camera_move_left(app, dx * per_px);
-        app_camera_move_forward(app, dy * per_px);
-        view->camera_unlocked = 1;
-        app->need_redraw = 1;
-    }
+        app_camera_pan_ground(app, dx, dy);
     g_cam_unity.last_x = mx;
     g_cam_unity.last_y = my;
 
@@ -735,6 +846,29 @@ app_world_camera_mouse(
     /* The same split app_world_camera_keys makes: online and out of a cutscene
      * the orbit follow cam owns the angles, otherwise the free camera does. */
     follow_cam = app->net && !app->cam_script.scripted;
+
+    /* The grab pan (Space, or Unity's Alt+Ctrl) under either scheme: the
+     * left-drag moves the ground with the pointer, then the scheme's own
+     * handling runs as usual (its wheel, its keys). A grab whose button came
+     * up, whose editor closed or whose camera became the follow cam ends. */
+    if( g_cam_grab.active )
+    {
+        if( follow_cam || !app_editor_hotkeys_owns_camera(app) || !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
+            g_cam_grab.active = 0;
+        else
+        {
+            int const dx = mouse_x - g_cam_grab.last_x;
+            int const dy = mouse_y - g_cam_grab.last_y;
+            if( dx || dy )
+            {
+                app_camera_pan_ground(app, dx, dy);
+                app_camera_keep_over_scene(app);
+                app_debug_log_camera(app, "grab-pan", 0);
+            }
+            g_cam_grab.last_x = mouse_x;
+            g_cam_grab.last_y = mouse_y;
+        }
+    }
 
     /* The editor's Unity-style scheme takes the mouse whole: its own drags
      * and its zoom-to-cursor wheel, none of the default scheme's below. */

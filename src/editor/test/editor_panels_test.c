@@ -7563,7 +7563,7 @@ test_statusbar(void)
     g_ui.tools.pick_kind = 0;
     g_ui.tools.pick_id = 1902;
     frame();
-    CHECK(statusbar_run(panel, "[click/Space, Enter] place") >= 0, "statusbar: with a loc pick, Space places");
+    CHECK(statusbar_run(panel, "[click/Enter] place") >= 0, "statusbar: with a loc pick, Enter places (Space pans)");
     Editor_UiSetTool(&g_ui, EDITOR_TOOL_FLATTEN);
     frame();
     CHECK(statusbar_run(panel, "[drag] paint") >= 0 && statusbar_run(panel, "[[ ]] radius") >= 0

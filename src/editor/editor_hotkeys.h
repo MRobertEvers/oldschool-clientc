@@ -219,6 +219,11 @@ enum Editor_HotkeyAction
      *  scheme toggle (default <-> Unity) is remembered in editor_recent.ini. */
     EDITOR_HK_CAM_FRAME_KEY,
     EDITOR_HK_CAM_SCHEME,
+    /** Held over the World (Space): a left-drag pans the ground plane
+     *  under either scheme, the pan cursor showing while it is held
+     *  (app_camera_grab_gate). Under the Unity scheme Alt+Ctrl+left-drag
+     *  (Option+Cmd on a Mac) is the same pan, Unity's own chord. */
+    EDITOR_HK_CAM_PAN,
     /* Picker (context K, workbench 6.4): the focused cell north / south /
      * west / east, open it, add it to the open set, back to the previous
      * square of the open set, clear Find. Run by the Squares panel

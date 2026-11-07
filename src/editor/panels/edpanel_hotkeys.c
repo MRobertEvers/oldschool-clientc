@@ -543,8 +543,8 @@ Editor_HotkeyRun(
                                                   : EDITOR_CAMERA_SCHEME_UNITY;
         Editor_RecentSetScheme(&ui->recent, next);
         if( next == EDITOR_CAMERA_SCHEME_UNITY )
-            Editor_UiLog(ui, "editor: camera scheme Unity: right-drag looks, middle-drag pans, wheel zooms to the "
-                             "cursor, Alt+drag orbits the selection, F frames it");
+            Editor_UiLog(ui, "editor: camera scheme Unity: right-drag looks, middle-drag (or Alt+Ctrl+drag) pans, "
+                             "wheel zooms to the cursor, Alt+drag orbits the selection, F frames it");
         else
             Editor_UiLog(ui, "editor: camera scheme default: WASD/RF fly, arrows turn, middle-drag orbits, "
                              "wheel dollies");

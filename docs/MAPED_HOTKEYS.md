@@ -125,7 +125,7 @@ same squares when its box is empty.
 ### Place
 | Action | Chord | Ctx |
 |---|---|---|
-| Place the catalog's loc at the hovered tile (the ghost's pose) | Space, Return | P |
+| Place the catalog's loc at the hovered tile (the ghost's pose) | Return | P |
 | Fit walls to neighbours on/off (Place tool) | G | G |
 | Swap the selected locs to the catalog's pick | E | L |
 | Keep a Place drag (a wall run) to one axis (hold) | Shift | W |
@@ -234,6 +234,7 @@ remembered shape and rotation (docs/MAPED_STATUS.md row 3d).
 | Frame the current square's centre | Ctrl+Home | G |
 | Frame the selection, else the hovered square (Unity scheme) | F | U |
 | Camera scheme: default / Unity (toggle) | unbound | G |
+| Pan: drag the ground with the left button (held) | Space (also Alt+Ctrl+drag, Option+Cmd on a Mac, under the Unity scheme) | W |
 
 The manifest's `[debug:hotkeys]` flight (Ctrl+W/A/S/D/R/F) keeps working
 where the editor claims no chord; Ctrl+S, Ctrl+D and Ctrl+A are claimed.
@@ -247,9 +248,23 @@ pitch; a right CLICK still opens the minimenu, a drag past a few px closes
 it), **middle-drag pans** the ground plane (faster the higher the camera),
 the **wheel zooms toward the tile under the cursor** (never closer than two
 tiles), **Alt+left-drag orbits** the selection (else the latched tile, else
-the tile under the pointer), and **F frames** the selection (Home frames in
-both schemes; Fly down is R's twin only under the default scheme). The keys
-otherwise stay the table's. **Double-click a tile with no loc** in the World
+the tile under the pointer), **Alt+Ctrl+left-drag pans** like the middle
+button (Option+Cmd on a Mac: Unity's one-button pan, checked before the
+orbit), and **F frames** the selection (Home frames in both schemes; Fly down
+is R's twin only under the default scheme). The keys otherwise stay the
+table's.
+
+**Pan (Space).** Under either scheme, hold Space with the pointer over the
+World and left-drag: the ground follows the pointer, at the middle-drag pan's
+rate (faster the higher the camera). The pan cursor shows from the moment the
+key (or, under Unity, Alt+Ctrl) is held over the World, before any press, and
+stays for the whole drag; a middle-drag pan shows it too. It is the system's
+"move" cursor: four arrows on Windows, Linux and the web, the closed hand on
+macOS. The drag keeps the pointer until the button comes up, wherever it
+goes; letting go of Space mid-drag does not drop it. While Space is held a
+left press never reaches the armed tool. Space was Place here's second chord
+until 2026-11-07; a Space tap with the Place tool armed and no drag says so in
+the status bar, and Return or a click still places. **Double-click a tile with no loc** in the World
 panel (Select tool) recentres the camera on it at the distance it has, under
 either scheme; a double-click on a loc is Select same (every loc of its id on
 the edit level).
@@ -425,7 +440,7 @@ tables (the Hotkeys panel calls them by the name after the id):
 - **Tools**: `tool.select` Select, `tool.rect` Rectangle, `tool.height` Height, `tool.flatten` Flatten, `tool.smooth` Smooth, `tool.paint_underlay` Paint underlay, `tool.paint_overlay` Paint overlay, `tool.paint_flags` Paint flags, `tool.place` Place loc, `tool.move` Move loc, `tool.rotate` Rotate loc (tool), `tool.delete` Delete loc (tool), `tool.place_player` Place player, `tool.paint_path` Paint path, `tool.noise` Roughen, `tool.scatter` Scatter locs, `tool.plateau` Plateau, `tool.previous` Previous tool, `tool.pick_paint` Pick the tile's paint, `tool.pick_loc` Pick the hovered loc, `hold.place` Click places a loc (hold), `hold.delete` Click deletes a loc (hold), `hold.clear` Click clears the tile (hold)
 - **Brush**: `brush.radius_down` Radius -, `brush.radius_up` Radius +, `brush.strength_down` Strength -, `brush.strength_up` Strength +, `brush.step_down` Step -, `brush.step_up` Step +
 - **Level**: `level.down` Level down, `level.up` Level up, `level.pin0` Pin level 0, `level.pin1` Pin level 1, `level.pin2` Pin level 2, `level.pin3` Pin level 3, `level.auto` Level Auto, `level.above` Show above
-- **Camera**: `camera.forward` Fly forward, `camera.back` Fly back, `camera.left` Fly left, `camera.right` Fly right, `camera.down` Fly down, `camera.up` Fly up, `camera.fast` Fly faster, `camera.turn_left` Turn left, `camera.turn_right` Turn right, `camera.tilt_up` Tilt up, `camera.tilt_down` Tilt down, `camera.frame` Frame the selection, `camera.frame_square` Frame the square's centre, `camera.frame_key` Frame the selection (Unity scheme), `camera.scheme` Camera scheme: default / Unity (toggle)
+- **Camera**: `camera.forward` Fly forward, `camera.back` Fly back, `camera.left` Fly left, `camera.right` Fly right, `camera.down` Fly down, `camera.up` Fly up, `camera.fast` Fly faster, `camera.turn_left` Turn left, `camera.turn_right` Turn right, `camera.tilt_up` Tilt up, `camera.tilt_down` Tilt down, `camera.frame` Frame the selection, `camera.frame_square` Frame the square's centre, `camera.frame_key` Frame the selection (Unity scheme), `camera.scheme` Camera scheme: default / Unity (toggle), `camera.pan` Pan (hold, then drag)
 - **Picker**: `picker.north` Focus north, `picker.south` Focus south, `picker.west` Focus west, `picker.east` Focus east, `picker.open` Open the focused square, `picker.add` Add the focused square, `picker.back` Previous open square, `picker.clear_find` Clear Find
 - **Graph**: `graph.auto_layout` Auto-layout the graph, `graph.new_node` New node
 - **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.catalog_palette` Catalog palette, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC builder, `view.shelleditor` Shell editor, `view.iface` Interface editor, `view.cs2` CS2, `view.live` Live, `view.accounts` Accounts, `view.triggers` Triggers, `view.scenes` Scenes, `view.encounter` Encounters, `view.shop` Shop builder, `view.quest` Quest board, `view.problems` Problems, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.compact` Compact panels, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel, `view.scale_auto` Chrome scale Auto, `view.scale_100` Chrome scale 100 %, `view.scale_125` Chrome scale 125 %, `view.scale_150` Chrome scale 150 %, `view.scale_175` Chrome scale 175 %, `view.scale_200` Chrome scale 200 %, `view.scale_250` Chrome scale 250 %, `view.scale_300` Chrome scale 300 %, `view.text_normal` Text size Normal, `view.text_large` Text size Large, `view.text_bitmap` Text rendering bitmap, `view.text_smooth` Text rendering smooth, `view.workspace_build` Workspace Build, `view.workspace_terrain` Workspace Terrain, `view.workspace_script` Workspace Script, `view.workspace_playtest` Workspace Playtest, `view.command_palette` Command palette, `view.goto_tile` Go to tile..., `view.layer_locs` Layer Locs (reserved), `view.layer_npcs` Layer NPCs (reserved), `view.layer_objs` Layer Objs (reserved), `view.layer_collision` Layer Collision (reserved), `view.layer_grid` Layer Grid (reserved)

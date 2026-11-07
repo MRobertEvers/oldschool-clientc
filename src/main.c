@@ -4057,6 +4057,9 @@ frame_loop_step(void)
                  * while the free camera is the World's. The follow camera
                  * online keeps the notches and keys that turn it. */
                 PlatformWindow_SetTouchGestureFrames(platform, App_EditorOwnsGestureFrames(&app));
+                /* The map editor's grab pan (Space, or Option+Cmd under the
+                 * Unity scheme) shows the move cursor while armed or dragging. */
+                PlatformWindow_SetCursor(platform, App_WantsPanCursor(&app) ? PLATFORM_CURSOR_PAN : PLATFORM_CURSOR_ARROW);
                 PlatformWindow_PollCommands(platform, &bus);
                 /* The editor's layout file remembers the window's box: told
                  * every frame (a cached pair of SDL reads), written only when

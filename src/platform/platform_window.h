@@ -637,6 +637,25 @@ PlatformWindow_SetTouchOverlayTest(
 void
 PlatformWindow_SetTouchGestureFrames(struct PlatformWindow* platform, int on);
 
+/** The pointer's shape over the main window. */
+enum PlatformCursor
+{
+    /** The system arrow. */
+    PLATFORM_CURSOR_ARROW = 0,
+    /** The system "move" cursor, for a camera pan (the map editor's grab,
+     *  App_WantsPanCursor): four arrows on Windows, X11 and the web, the
+     *  closed hand on macOS. */
+    PLATFORM_CURSOR_PAN,
+};
+
+/**
+ * Set the pointer's shape over the main window. Compare-then-set, so it is
+ * safe to call every frame; the system cursor is made on first use. A no-op
+ * on a backend with no pointer (Android).
+ */
+void
+PlatformWindow_SetCursor(struct PlatformWindow* platform, enum PlatformCursor cursor);
+
 /**
  * Whether the canvas tracks the window, with the game area's floor in points.
  *

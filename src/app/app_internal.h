@@ -644,6 +644,19 @@ app_camera_unity_gate(
     struct App* app,
     struct LibToriRS_Input* input);
 
+/**
+ * The grab pan's press (docs/MAPED_HOTKEYS.md "Pan (Space)"): with the
+ * camera.pan action held (Space) a left press over the world latches the pan
+ * under either scheme and consumes the frame, so the editor's click never
+ * sees it. Runs after Editor_HotkeysResolve, which says whether the action is
+ * held; the drag itself moves the camera in app_world_camera_mouse, and
+ * app_camera_unity_gate ends it when the button comes up.
+ */
+void
+app_camera_grab_gate(
+    struct App* app,
+    struct LibToriRS_Input* input);
+
 /** TORIRS_EDITOR_HOVER's parked tile (a photograph's pointer), ABSOLUTE:
  *  1 when one is parked. */
 int

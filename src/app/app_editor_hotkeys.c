@@ -829,6 +829,9 @@ app_editor_hotkeys_frame(
     for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
         if( g_app_hk.frame.consumed[k] )
             app_hk_consume_key(app, k);
+    /* Space held (camera.pan): a left press over the world is the grab pan,
+     * ahead of the editor's world click. */
+    app_camera_grab_gate(app, input);
 
     for( int i = 0; i < g_app_hk.frame.count; i++ )
     {

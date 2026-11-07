@@ -1090,6 +1090,14 @@ PlatformWindow_SetTouchGestureFrames(struct PlatformWindow* p, int on)
 }
 
 void
+PlatformWindow_SetCursor(struct PlatformWindow* p, enum PlatformCursor cursor)
+{
+    /* A touchscreen has no pointer to shape. */
+    assert(p);
+    (void)cursor;
+}
+
+void
 PlatformWindow_SetClientScaling(struct PlatformWindow* p, struct ClientScaleSettings const* settings)
 {
     assert(p);

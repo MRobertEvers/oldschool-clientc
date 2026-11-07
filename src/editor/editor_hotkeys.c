@@ -110,7 +110,7 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
 
     [EDITOR_HK_PLACE_HERE] = { "place.here", "Place", "Place at the hovered tile",
                                "Place the catalog's loc at the hovered tile (the ghost's pose)", P, EDGE,
-                               { "space", "return" }, NULL },
+                               { "return" }, NULL },
     [EDITOR_HK_PLACE_FIT] = { "place.fit", "Place", "Fit walls to neighbours (toggle)",
                               "Fit walls to neighbours on/off (Place tool)", G, EDGE, { "g" }, NULL },
     [EDITOR_HK_PLACE_SWAP] = { "place.swap", "Place", "Swap to catalog pick",
@@ -219,6 +219,11 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                                   NULL },
     [EDITOR_HK_CAM_SCHEME] = { "camera.scheme", "Camera", "Camera scheme: default / Unity (toggle)",
                                "Camera scheme: default / Unity (toggle)", G, EDGE, { NULL }, NULL },
+    /* Space is the pan key of every image and level editor (Photoshop,
+     * Figma, Godot, Hammer); it was Place here's second chord until
+     * 2026-11-07, and Return and a click still place. */
+    [EDITOR_HK_CAM_PAN] = { "camera.pan", "Camera", "Pan (hold, then drag)",
+                            "Pan: drag the ground with the left button (held)", W, HELD, { "space" }, NULL },
 
     [EDITOR_HK_PICKER_NORTH] = { "picker.north", "Picker", "Focus north", "Move the focused square N / S / W / E",
                                  K, REPEAT, { "up" }, NULL },

@@ -4832,6 +4832,15 @@ int
 App_EditorOwnsGestureFrames(struct App const* app);
 
 /**
+ * Should the pointer be the pan cursor? While the editor's grab pan runs or
+ * is armed: Space held over the World, Alt+Ctrl (Option+Cmd) held there under
+ * the Unity scheme, or a pan drag (that grab, or the Unity middle-drag) in
+ * progress. main.c hands the answer to PlatformWindow_SetCursor every frame.
+ */
+int
+App_WantsPanCursor(struct App const* app);
+
+/**
  * Relayout + CS1 re-evaluate + mark for redraw after an out-of-band tree
  * mutation (slot mounts, packet-driven component changes).
  */

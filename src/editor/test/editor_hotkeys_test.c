@@ -285,10 +285,28 @@ test_resolve(void)
         CHECK(held.active[EDITOR_HK_CAM_TURN_LEFT] && held.count == 0,
             "...they turn the camera (Left held turns left)");
     }
-    CHECK(fire("space", PLACING) == EDITOR_HK_PLACE_HERE && fire("return", PLACING) == EDITOR_HK_PLACE_HERE,
-        "Space and Return place at the hovered tile with the Place tool armed and nothing selected");
+    CHECK(fire("return", PLACING) == EDITOR_HK_PLACE_HERE && fire("space", PLACING) == -1,
+        "Return places at the hovered tile with the Place tool armed and nothing selected; Space no longer does");
     CHECK(fire("return", LOCS) == EDITOR_HK_EDIT_APPLY && fire("space", G) == -1,
-        "Return still applies the tool to a selection; Space is nothing elsewhere");
+        "Return still applies the tool to a selection; Space fires nothing");
+    /* Space is the pan key now (2026-11-07): held over the World, with the
+     * Place tool armed too, and its key claimed from the game; off the
+     * World it is nothing. It clashes with no action. */
+    {
+        struct Editor_HotkeyFrame held;
+        input_clear(1000);
+        press("space");
+        g_in.contexts = PLACING | EDITOR_HK_CTX_W;
+        Editor_HotkeysResolve(&g_hk, &g_in, &held);
+        CHECK(held.active[EDITOR_HK_CAM_PAN] && held.count == 0 && held.claimed[TORIRSK_SPACE],
+            "Space held over the World is the pan, while placing too, and fires nothing");
+        input_clear(1000);
+        press("space");
+        g_in.contexts = PLACING;
+        Editor_HotkeysResolve(&g_hk, &g_in, &held);
+        CHECK(!held.active[EDITOR_HK_CAM_PAN], "Space off the World is no pan");
+        CHECK(Editor_HotkeysClash(&g_hk, EDITOR_HK_CAM_PAN) == -1, "the pan's Space clashes with nothing");
+    }
     CHECK(fire("q", PLACING) == EDITOR_HK_EDIT_ROTATE && fire("shift+q", PLACING) == EDITOR_HK_EDIT_RESHAPE,
         "Q / Shift+Q turn and reshape the ghost (the Edit actions, which act on the pose while placing)");
     CHECK(fire("g", G) == EDITOR_HK_PLACE_FIT, "G toggles Fit walls to neighbours");
@@ -503,7 +521,7 @@ test_hint(void)
         "hint: Select's rows in order (row 3 '%s', 4 '%s', 9 '%s')", count > 3 ? rows[3].chord : "",
         count > 4 ? rows[4].chord : "", count > 9 ? rows[9].chord : "");
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_PLACE), 0, rows, EDITOR_HK_HINT_MAX);
-    CHECK(count == 8 && strcmp(rows[0].chord, "click/Space, Enter") == 0 && strcmp(rows[0].verb, "place") == 0
+    CHECK(count == 8 && strcmp(rows[0].chord, "click/Enter") == 0 && strcmp(rows[0].verb, "place") == 0
               && rows[0].action == EDITOR_HK_PLACE_HERE && strcmp(rows[1].chord, "drag") == 0
               && strcmp(rows[1].verb, "wall run") == 0 && strcmp(rows[2].chord, "Shift") == 0
               && rows[2].action == EDITOR_HK_PLACE_CONSTRAIN && strcmp(rows[2].verb, "one axis") == 0

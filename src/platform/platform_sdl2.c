@@ -197,6 +197,11 @@ struct PlatformWindow
      * See PlatformWindow_SetTitle. Sized to hold main.c's readout whole: a title
      * that overflows would compare equal on its tail and stop updating. */
     char title[256];
+    /* PlatformWindow_SetCursor: the shape last set, and the pan cursor once
+     * made (SDL's SIZEALL: NSCursor closedHand on macOS, CSS "move" in the
+     * browser). The arrow is SDL_GetDefaultCursor, which SDL owns. */
+    enum PlatformCursor cursor;
+    SDL_Cursor* cursor_pan;
     /* Drawable pixels per window point, from SDL: 1 on an ordinary display, 2
      * on a Retina/200% one. The framebuffer is sized in DRAWABLE pixels, so
      * this is not a scale anything multiplies by at draw time -- it is what the
@@ -1143,6 +1148,12 @@ PlatformWindow_Free(struct PlatformWindow* platform)
     /* Before the main window's teardown, so the aux one never outlives the
      * SDL_Quit that follows. */
     PlatformWindow_AuxClose(platform);
+    if( platform->cursor_pan )
+    {
+        SDL_SetCursor(SDL_GetDefaultCursor());
+        SDL_FreeCursor(platform->cursor_pan);
+        platform->cursor_pan = NULL;
+    }
     ToriMem_Free(ToriMem_Process(), platform->pixels);
     platform->pixels = NULL;
     if( platform->texture )
@@ -3401,6 +3412,26 @@ PlatformWindow_SetTouchGestureFrames(struct PlatformWindow* p, int on)
 {
     assert(p);
     ToriRS_TouchSetGestureFrames(&p->touch, on);
+}
+
+void
+PlatformWindow_SetCursor(struct PlatformWindow* p, enum PlatformCursor cursor)
+{
+    assert(p);
+    if( p->cursor == cursor )
+        return;
+    p->cursor = cursor;
+    if( cursor == PLATFORM_CURSOR_PAN )
+    {
+        if( !p->cursor_pan )
+            p->cursor_pan = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZEALL);
+        /* A backend with no system cursors (a headless video driver) has none
+         * to make: the pointer keeps its arrow and nothing else changes. */
+        if( p->cursor_pan )
+            SDL_SetCursor(p->cursor_pan);
+        return;
+    }
+    SDL_SetCursor(SDL_GetDefaultCursor());
 }
 
 void
