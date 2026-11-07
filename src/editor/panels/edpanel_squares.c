@@ -22,7 +22,8 @@
  *   click          opens the square in this window (through the save guard)
  *   shift-click    adds it to the open set
  *   right-click    Open, Open in new view, Copy to..., Delete (clear)
- *   empty cell     a click opens New square on it
+ *   empty cell     a click focuses it (the pane names it empty); New square
+ *                  makes a scratch square, placed by Save (below)
  *   Find           m50_50, "50 50", an absolute tile "3222 3218" (pinned),
  *                  an area or region name, a collection name, lane:<name>,
  *                  instance: (edpanel_picker_find.h); a cell is shown at
@@ -46,6 +47,21 @@
  *                  squares (the AREAS document, edpanel_areas.c), whatever
  *                  their area page; "all" is every square again
  *
+ * The map also picks (docs/MAPED_STATUS.md "Scratch squares"), with a bar
+ * over the well -- the instruction, a Stored in choice, the action, Cancel:
+ *
+ *   Open squares   File > Open squares (Ctrl+O): a drag sweeps up to 3x3
+ *                  cells (Editor_PickerSweepRect) and Open opens the squares
+ *                  among them together as the working set, through the save
+ *                  guard; empty cells are skipped. Scroll pans, wheel zooms.
+ *   Place          Save with a scratch square holding work, Save as new on
+ *                  one, or Copy to on any square: the hovered cell is checked
+ *                  as a destination (Editor_NewSquareValidate) and outlined
+ *                  green or in the accent with the reason in the bar; a click
+ *                  copies the source there (DOC_CREATE). A scratch square's
+ *                  Place then saves, clears the scratch slot and opens the
+ *                  placed square as the working set; Copy to adds it.
+ *
  * The atlas is the catalog's (CATALOG_SQUARES), fetched the first time the
  * panel is shown and replaced whenever the server broadcasts a change (a
  * DOC_CREATE, a save that wrote squares). A server with no catalog binding
@@ -53,6 +69,7 @@
  */
 
 #include "edpanel_common.h"
+#include "edpanel_newform.h"
 #include "edpanel_picker.h"
 #include "edpanel_picker_find.h"
 #include "edpanel_picker_nav.h"
@@ -123,6 +140,18 @@ static const char* const k_menu_rows[MENU_COUNT] = {
 };
 
 static const char* const k_loading_titles[1] = { "Squares" };
+
+/* What a press on the Square map does: open (browsing), sweep cells for
+ * Open squares, or place the pick's source. */
+enum
+{
+    SQUARES_PICK_BROWSE = 0,
+    SQUARES_PICK_SWEEP,
+    SQUARES_PICK_PLACE,
+};
+/* An Open squares sweep: at most this many squares a side. */
+#define SQUARES_SWEEP_SIDE 3
+_Static_assert(SQUARES_SWEEP_SIDE * SQUARES_SWEEP_SIDE <= EDITOR_UI_OPEN_SET_MAX, "a sweep fits a working set");
 
 enum
 {
@@ -259,6 +288,27 @@ struct SquaresPanel
     /** The table the Open / Add keycaps were read from. */
     uint32_t hotkeys_serial;
 
+    /* The pick (Open squares, Place): the bar over the well, the mode, the
+     * sweep's first cell, and Place's source. */
+    int pick_mode;
+    int row_pick;
+    int dropdown_place;
+    int input_place_lane;
+    int button_pick_go;
+    int button_pick_cancel;
+    int sweeping;
+    int sweep_anchor_x;
+    int sweep_anchor_z;
+    char place_source[EDITOR_DOC_KEY_MAX];
+    /** Place's source is a scratch square (Save's Place), not Copy to's. */
+    int place_scratch;
+    /** The Stored in rows: label, and the picker storage index (-1 = a new
+     *  lane named in input_place_lane). */
+    char place_labels[SQUARES_STORAGE_ROWS + 1][TORIRS_CHROME_LABEL_MAX];
+    const char* place_rows[SQUARES_STORAGE_ROWS + 1];
+    int place_index[SQUARES_STORAGE_ROWS + 1];
+    int place_count;
+
     /* Gesture state. */
     int pressing;
     int dragging;
@@ -292,6 +342,14 @@ squares_recent_rows(
     struct SquaresPanel* self);
 static void
 squares_pane_update(
+    struct EditorUi* ui,
+    struct SquaresPanel* self);
+static void
+squares_pick_leave(
+    struct EditorUi* ui,
+    struct SquaresPanel* self);
+static void
+squares_pick_layout(
     struct EditorUi* ui,
     struct SquaresPanel* self);
 
@@ -1038,6 +1096,9 @@ squares_tick(
         squares_draw_strip(ui, self);
     squares_recent_rows(ui, self);
     squares_pane_update(ui, self);
+    /* The map's close box ends a pick. */
+    if( self->pick_mode != SQUARES_PICK_BROWSE && !ui->chrome->panels[self->map_panel].visible )
+        squares_pick_leave(ui, self);
     /* A closed map keeps its dirt for the frame it opens on. */
     if( !self->dirty || !ui->chrome->panels[self->map_panel].visible )
         return;
@@ -1170,8 +1231,8 @@ squares_click(
         picker->empty_valid = 1;
         picker->empty_map_x = map_x;
         picker->empty_map_z = map_z;
-        Editor_UiLog(ui, "editor: m%d_%d is empty: New square", map_x, map_z);
-        Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_NEW, NULL, map_x, map_z);
+        Editor_UiStatus(ui, "m%d_%d is empty: New square makes a scratch square, and its Save places it", map_x,
+            map_z);
     }
     self->dirty = 1;
 }
@@ -2163,10 +2224,10 @@ squares_open_focus(
     }
     if( add )
     {
-        Editor_UiStatus(ui, "Add refused: m%d_%d is empty; Enter makes it with New square", map_x, map_z);
+        Editor_UiStatus(ui, "Add refused: m%d_%d is empty; Enter starts a New square", map_x, map_z);
         return;
     }
-    Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_NEW, NULL, map_x, map_z);
+    Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_NEW, NULL);
 }
 
 static void
@@ -2223,6 +2284,457 @@ squares_key_chord(
     return chord;
 }
 
+/* ---- the pick: Open squares and Place ------------------------------------------- */
+
+/** Place's Stored in rows: every storage but the scratch one, maps/ chosen,
+ *  then New lane. */
+static void
+squares_pick_storages(
+    struct EditorUi* ui,
+    struct SquaresPanel* self)
+{
+    struct Editor_Picker const* picker = &self->picker;
+    int const maps = Editor_PickerStorageIndex(picker, "maps");
+    int selected = 0;
+    int n = 0;
+
+    for( int i = 0; i < picker->storage_count && n < SQUARES_STORAGE_ROWS; i++ )
+    {
+        const char* storage = picker->storages[i];
+        if( Editor_DocStorageIsScratch(storage) )
+            continue;
+        if( storage[0] == '\0' || strcmp(storage, "maps") == 0 )
+            snprintf(self->place_labels[n], TORIRS_CHROME_LABEL_MAX, "maps/ (content tree)");
+        else
+            snprintf(self->place_labels[n], TORIRS_CHROME_LABEL_MAX, "%s/", storage);
+        self->place_rows[n] = self->place_labels[n];
+        self->place_index[n] = i;
+        if( i == maps )
+            selected = n;
+        n++;
+    }
+    snprintf(self->place_labels[n], TORIRS_CHROME_LABEL_MAX, "New lane...");
+    self->place_rows[n] = self->place_labels[n];
+    self->place_index[n] = -1;
+    n++;
+    self->place_count = n;
+    ToriRSChrome_DropdownSetOptions(ui->chrome, self->dropdown_place, self->place_rows, n, selected);
+}
+
+/** The bar over the well: hidden while browsing; Stored in (and Lane, for a
+ *  new one) while placing; Open while sweeping. */
+static void
+squares_pick_layout(
+    struct EditorUi* ui,
+    struct SquaresPanel* self)
+{
+    int const browse = self->pick_mode == SQUARES_PICK_BROWSE;
+    int const place = self->pick_mode == SQUARES_PICK_PLACE;
+    int const row = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_place);
+    int const new_lane = place && row >= 0 && row < self->place_count && self->place_index[row] < 0;
+
+    ToriRSChrome_SetHidden(ui->chrome, self->row_pick, browse);
+    ToriRSChrome_SetHidden(ui->chrome, self->dropdown_place, !place);
+    ToriRSChrome_SetHidden(ui->chrome, self->input_place_lane, !new_lane);
+    ToriRSChrome_SetHidden(ui->chrome, self->button_pick_go, self->pick_mode != SQUARES_PICK_SWEEP);
+    ToriRSChrome_SetHidden(ui->chrome, self->button_pick_cancel, browse);
+}
+
+static void
+squares_pick_say(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    const char* text,
+    int ok)
+{
+    ToriRSChrome_SetText(ui->chrome, self->row_pick, text);
+    ToriRSChrome_SetColor(ui->chrome, self->row_pick, ok ? 0x9fdf8f : 0xff7f5f);
+}
+
+/** Back to browsing: the bar hides, the sweep goes. */
+static void
+squares_pick_leave(
+    struct EditorUi* ui,
+    struct SquaresPanel* self)
+{
+    if( self->pick_mode == SQUARES_PICK_BROWSE )
+        return;
+    self->pick_mode = SQUARES_PICK_BROWSE;
+    self->sweeping = 0;
+    self->picker.sweep_w = 0;
+    self->picker.sweep_h = 0;
+    squares_pick_layout(ui, self);
+    self->dirty = 1;
+}
+
+static void
+squares_pick_enter(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    int mode)
+{
+    squares_menu_hide(ui, self);
+    self->pick_mode = mode;
+    self->sweeping = 0;
+    self->picker.sweep_w = 0;
+    self->picker.sweep_h = 0;
+    self->picker.sweep_ok = 1;
+    if( mode == SQUARES_PICK_PLACE )
+    {
+        squares_pick_storages(ui, self);
+        ToriRSChrome_SetText(ui->chrome, self->input_place_lane, "");
+    }
+    squares_pick_layout(ui, self);
+    squares_show_map(ui, self, 1);
+    self->dirty = 1;
+}
+
+/** The squares the sweep holds -- each cell's on the page's storage, else
+ *  any, empty cells counted in `out_empty` -- the one nearest the middle
+ *  first (where the camera goes). Returns how many. */
+static int
+squares_sweep_refs(
+    struct SquaresPanel* self,
+    struct EditorUiSquareRef* out,
+    int* out_empty)
+{
+    struct Editor_Picker const* picker = &self->picker;
+    int const mid_x2 = 2 * picker->sweep_x + picker->sweep_w - 1;
+    int const mid_z2 = 2 * picker->sweep_z + picker->sweep_h - 1;
+    int best = -1;
+    int best_d = 0;
+    int count = 0;
+
+    *out_empty = 0;
+    for( int z = picker->sweep_z; z < picker->sweep_z + picker->sweep_h; z++ )
+    {
+        for( int x = picker->sweep_x; x < picker->sweep_x + picker->sweep_w; x++ )
+        {
+            int const square = Editor_PickerFind(picker, x, z, picker->storage_filter);
+            int d;
+            if( square < 0 )
+            {
+                (*out_empty)++;
+                continue;
+            }
+            assert(count < EDITOR_UI_OPEN_SET_MAX);
+            out[count].map_x = x;
+            out[count].map_z = z;
+            squares_storage_of(picker, square, out[count].storage);
+            d = abs(2 * x - mid_x2) + abs(2 * z - mid_z2);
+            if( best < 0 || d < best_d )
+            {
+                best = count;
+                best_d = d;
+            }
+            count++;
+        }
+    }
+    if( best > 0 )
+    {
+        struct EditorUiSquareRef const first = out[0];
+        out[0] = out[best];
+        out[best] = first;
+    }
+    return count;
+}
+
+static void
+squares_sweep_say(
+    struct EditorUi* ui,
+    struct SquaresPanel* self)
+{
+    struct Editor_Picker const* picker = &self->picker;
+    struct EditorUiSquareRef refs[EDITOR_UI_OPEN_SET_MAX];
+    char line[TORIRS_CHROME_LABEL_MAX];
+    int empty;
+    int count;
+
+    if( picker->sweep_w <= 0 )
+    {
+        squares_pick_say(ui, self, "Drag over up to 3x3 squares, then Open", 1);
+        ToriRSChrome_SetDisabled(ui->chrome, self->button_pick_go, 1);
+        return;
+    }
+    count = squares_sweep_refs(self, refs, &empty);
+    if( picker->sweep_w == 1 && picker->sweep_h == 1 )
+        snprintf(line, sizeof(line), "m%d_%d: %s", picker->sweep_x, picker->sweep_z, count ? "1 square" : "empty");
+    else
+        snprintf(line, sizeof(line), "m%d_%d .. m%d_%d: %d square%s%s", picker->sweep_x, picker->sweep_z,
+            picker->sweep_x + picker->sweep_w - 1, picker->sweep_z + picker->sweep_h - 1, count,
+            count == 1 ? "" : "s", empty ? " (empty cells skipped)" : "");
+    squares_pick_say(ui, self, line, count > 0);
+    ToriRSChrome_SetDisabled(ui->chrome, self->button_pick_go, count == 0);
+}
+
+/** Open: the swept squares as the working set, through the save guard. */
+static void
+squares_sweep_open(
+    struct EditorUi* ui,
+    struct SquaresPanel* self)
+{
+    struct EditorUiGuard guard;
+    int empty;
+
+    memset(&guard, 0, sizeof(guard));
+    guard.action = EDITOR_UI_GUARD_OPEN_SET;
+    guard.set_count = self->picker.sweep_w > 0 ? squares_sweep_refs(self, guard.set, &empty) : 0;
+    if( guard.set_count == 0 )
+    {
+        squares_pick_say(ui, self, "No squares there to open: drag over some", 0);
+        return;
+    }
+    guard.map_x = guard.set[0].map_x;
+    guard.map_z = guard.set[0].map_z;
+    for( int i = 0; i < guard.set_count; i++ )
+    {
+        char key[EDITOR_DOC_KEY_MAX];
+        if( guard.set[i].storage[0] )
+            snprintf(key, sizeof(key), "%s/m%d_%d", guard.set[i].storage, guard.set[i].map_x, guard.set[i].map_z);
+        else
+            snprintf(key, sizeof(key), "m%d_%d", guard.set[i].map_x, guard.set[i].map_z);
+        Editor_PickerRecentPush(&self->recent, key);
+    }
+    self->recent_dirty = 1;
+    squares_pick_leave(ui, self);
+    (void)Editor_UiGuarded(ui, &guard);
+}
+
+/** Place's form for cell (map_x, map_z): a copy of the source there, in the
+ *  storage the bar names. */
+static void
+squares_place_form(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    int map_x,
+    int map_z,
+    struct Editor_NewSquareForm* form)
+{
+    int const row = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_place);
+
+    memset(form, 0, sizeof(*form));
+    form->mode = EDITOR_NEW_SQUARE_COPY_TO;
+    form->map_x = map_x;
+    form->map_z = map_z;
+    form->storage = row >= 0 && row < self->place_count ? self->place_index[row] : 1 << 20;
+    snprintf(form->new_lane, sizeof(form->new_lane), "%s", ToriRSChrome_Text(ui->chrome, self->input_place_lane));
+    form->template_kind = EDITOR_DOC_TEMPLATE_COPY;
+    snprintf(form->source_key, sizeof(form->source_key), "%s", self->place_source);
+}
+
+/** The hovered cell as Place's destination: outlined green or in the
+ *  accent, the bar saying what a click does or why it cannot. */
+static void
+squares_place_hover(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    int x,
+    int y)
+{
+    struct Editor_Picker* picker = &self->picker;
+    struct Editor_NewSquareForm form;
+    struct Editor_NewSquareCheck check;
+    char line[TORIRS_CHROME_LABEL_MAX];
+    int map_x;
+    int map_z;
+
+    if( !Editor_PickerCellAt(picker, x, y, &map_x, &map_z) )
+    {
+        if( picker->sweep_w > 0 )
+            self->dirty = 1;
+        picker->sweep_w = 0;
+        snprintf(line, sizeof(line), "Click the cell %s goes in", self->place_source);
+        squares_pick_say(ui, self, line, 1);
+        return;
+    }
+    squares_place_form(ui, self, map_x, map_z, &form);
+    picker->sweep_ok = Editor_NewSquareValidate(picker, &form, &check, NULL);
+    picker->sweep_x = map_x;
+    picker->sweep_z = map_z;
+    picker->sweep_w = 1;
+    picker->sweep_h = 1;
+    if( picker->sweep_ok )
+        snprintf(line, sizeof(line), "Click: %s", check.message);
+    else
+        snprintf(line, sizeof(line), "%s", check.message);
+    squares_pick_say(ui, self, line, picker->sweep_ok);
+    self->dirty = 1;
+}
+
+/**
+ * Place the source on cell (map_x, map_z): DOC_CREATE a copy there. A
+ * scratch square's Place then clears the scratch slot (one undo step of its
+ * own), saves -- Save is what asked -- and opens the placed square as the
+ * working set; the next unplaced scratch square, if any, is asked about
+ * next. Copy to adds the copy to the open set.
+ */
+static void
+squares_place_go(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    int map_x,
+    int map_z)
+{
+    struct Editor_Picker* picker = &self->picker;
+    struct Editor_NewSquareForm form;
+    struct Editor_NewSquareCheck check;
+    struct EditorHost_DocCreate request;
+    struct EditorUiSquareRef placed;
+    enum EditorHost_Status status;
+    char next[EDITOR_DOC_KEY_MAX];
+
+    squares_place_form(ui, self, map_x, map_z, &form);
+    if( !Editor_NewSquareValidate(picker, &form, &check, &request) )
+    {
+        squares_pick_say(ui, self, check.message, 0);
+        return;
+    }
+    if( !ui->editor )
+    {
+        squares_pick_say(ui, self, "no editor session", 0);
+        return;
+    }
+    status = Editor_CreateSquare(ui->editor, &request);
+    if( status != EDITOR_HOST_OK )
+    {
+        squares_pick_say(ui, self,
+            status == EDITOR_HOST_REFUSED ? "refused: it exists there, or is open from another storage"
+                                          : "the server did not place it",
+            0);
+        Editor_UiLog(ui, "editor: placing %s at %s refused (status %d)", self->place_source, request.key,
+            (int)status);
+        return;
+    }
+    memset(&placed, 0, sizeof(placed));
+    placed.map_x = map_x;
+    placed.map_z = map_z;
+    snprintf(placed.storage, sizeof(placed.storage), "%s", request.storage);
+    squares_pick_leave(ui, self);
+    self->want_refresh = 1;
+    if( !self->place_scratch )
+    {
+        Editor_UiLog(ui, "editor: %s (unsaved until Save)", check.message);
+        Editor_UiOpenSquare(ui, map_x, map_z, request.storage, Editor_PickerStorageIndex(picker, request.storage), 1);
+        return;
+    }
+
+    {
+        char storage[EDITOR_DOC_STORAGE_MAX];
+        char bare[EDITOR_DOC_KEY_MAX];
+        int scratch_x;
+        int scratch_z;
+        int saved;
+        if( Editor_DocSplitSquareKey(self->place_source, storage, bare)
+            && Editor_SquareKeyParse(bare, &scratch_x, &scratch_z)
+            && edp_ensure_doc(ui, EDITOR_DOC_SQUARE, self->place_source) )
+            (void)edp_square_clear(ui, scratch_x, scratch_z);
+        saved = Editor_SaveAll(ui->editor);
+        Editor_UiLog(ui, "editor: placed %s as %s%s%s; saved %d document(s)", self->place_source,
+            request.storage[0] ? request.storage : "", request.storage[0] ? "/" : "", request.key, saved);
+    }
+    Editor_UiOpenSquareSet(ui, &placed, 1);
+    if( Editor_NewSquare_UnplacedScratch(ui, next) )
+        Editor_SquarePicker_Place(ui, next, 1);
+}
+
+/** A well event while picking; 0 for the ones browsing's handling keeps
+ *  (wheel, pinch, scroll, the keys but Escape). */
+static int
+squares_pick_event(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    const struct ToriRSChromeEvent* event)
+{
+    struct Editor_Picker* picker = &self->picker;
+    int map_x;
+    int map_z;
+
+    if( event->kind == TORIRS_CHROME_EVENT_GRAPH_PRESS )
+    {
+        squares_menu_hide(ui, self);
+        if( !Editor_PickerCellAt(picker, event->x, event->y, &map_x, &map_z) )
+            return 1;
+        if( self->pick_mode == SQUARES_PICK_PLACE )
+        {
+            squares_place_go(ui, self, map_x, map_z);
+            return 1;
+        }
+        self->sweeping = 1;
+        self->sweep_anchor_x = map_x;
+        self->sweep_anchor_z = map_z;
+    }
+    else if( event->kind == TORIRS_CHROME_EVENT_GRAPH_DRAG )
+    {
+        if( self->pick_mode != SQUARES_PICK_SWEEP || !self->sweeping
+            || !Editor_PickerCellAt(picker, event->x, event->y, &map_x, &map_z) )
+            return 1;
+    }
+    else if( event->kind == TORIRS_CHROME_EVENT_GRAPH_RELEASE )
+    {
+        self->sweeping = 0;
+        return 1;
+    }
+    else if( event->kind == TORIRS_CHROME_EVENT_GRAPH_HOVER )
+    {
+        if( Editor_PickerHover(picker, event->x, event->y) )
+            self->dirty = 1;
+        if( self->pick_mode == SQUARES_PICK_PLACE )
+            squares_place_hover(ui, self, event->x, event->y);
+        return 1;
+    }
+    else if( event->kind == TORIRS_CHROME_EVENT_GRAPH_MENU )
+        return 1;
+    else if( event->kind == TORIRS_CHROME_EVENT_GRAPH_KEY && event->value == -TORIRS_CHROME_KEY_ESCAPE )
+    {
+        squares_pick_leave(ui, self);
+        return 1;
+    }
+    else
+        return 0;
+
+    /* A press or a drag of the sweep: the rectangle from its first cell. */
+    Editor_PickerSweepRect(self->sweep_anchor_x, self->sweep_anchor_z, map_x, map_z, SQUARES_SWEEP_SIDE,
+        &picker->sweep_x, &picker->sweep_z, &picker->sweep_w, &picker->sweep_h);
+    picker->sweep_ok = 1;
+    squares_sweep_say(ui, self);
+    self->dirty = 1;
+    return 1;
+}
+
+/** The bar's widgets. */
+static int
+squares_pick_activate(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    int widget)
+{
+    if( widget == self->button_pick_cancel )
+    {
+        squares_pick_leave(ui, self);
+        return 1;
+    }
+    if( widget == self->button_pick_go )
+    {
+        squares_sweep_open(ui, self);
+        return 1;
+    }
+    if( widget == self->dropdown_place || widget == self->input_place_lane )
+    {
+        squares_pick_layout(ui, self);
+        if( self->picker.sweep_w > 0 && self->picker.hover_valid )
+        {
+            int x;
+            int y;
+            int w;
+            int h;
+            Editor_PickerCellBox(&self->picker, self->picker.sweep_x, self->picker.sweep_z, &x, &y, &w, &h);
+            squares_place_hover(ui, self, x + w / 2, y + h / 2);
+        }
+        return 1;
+    }
+    return 0;
+}
+
 static int
 squares_event(
     struct EditorUi* ui,
@@ -2241,6 +2753,8 @@ squares_event(
     if( event->widget != self->graph )
         return 0;
     if( !self->fetched )
+        return 1;
+    if( self->pick_mode != SQUARES_PICK_BROWSE && squares_pick_event(ui, self, event) )
         return 1;
 
     switch( event->kind )
@@ -2422,7 +2936,7 @@ squares_pane_activate(
         if( (square = squares_focus_square(ui, self, "Copy to")) >= 0 )
         {
             Editor_PickerSquareKey(picker, square, key);
-            Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_COPY_TO, key, -1, -1);
+            Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_COPY_TO, key);
         }
         return 1;
     }
@@ -2507,7 +3021,7 @@ squares_activate(
         else if( i == MENU_NEW_VIEW )
             squares_new_view(ui, self, square);
         else if( i == MENU_COPY_TO )
-            Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_COPY_TO, key, -1, -1);
+            Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_COPY_TO, key);
         else if( i == MENU_DELETE )
             squares_confirm_delete(ui, self, square);
         return 1;
@@ -2578,13 +3092,13 @@ squares_activate(
         return 1;
     if( widget == self->button_new )
     {
-        int map_x = picker->empty_valid ? picker->empty_map_x : -1;
-        int map_z = picker->empty_valid ? picker->empty_map_z : -1;
         if( picker->focus >= 0 )
             Editor_PickerSquareKey(picker, picker->focus, key);
-        Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_NEW, picker->focus >= 0 ? key : NULL, map_x, map_z);
+        Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_NEW, picker->focus >= 0 ? key : NULL);
         return 1;
     }
+    if( squares_pick_activate(ui, self, widget) )
+        return 1;
     if( widget == self->button_fit )
     {
         Editor_PickerFit(picker, squares_well_w(ui, self), squares_well_h(ui, self));
@@ -2631,6 +3145,7 @@ squaremap_set_visible(
     struct SquaresPanel* self = opaque;
     (void)visible;
     squares_menu_hide(ui, self);
+    squares_pick_leave(ui, self);
     ToriRSChrome_PanelSetVisible(ui->chrome, self->map_panel, 0);
 }
 
@@ -2949,6 +3464,56 @@ Editor_SquarePicker_Recent(
     return n;
 }
 
+void
+Editor_SquarePicker_Place(
+    struct EditorUi* ui,
+    const char* source_key,
+    int scratch)
+{
+    struct SquaresPanel* self;
+    char line[TORIRS_CHROME_LABEL_MAX];
+
+    assert(ui);
+    assert(source_key);
+    self = squares_self(ui);
+    if( !self )
+    {
+        Editor_UiLog(ui, "editor: no Square map in this window to place %s on", source_key);
+        return;
+    }
+    if( !self->fetched )
+        squares_fetch(ui, self);
+    if( !self->fetched )
+    {
+        Editor_UiLog(ui, "editor: no square atlas to place %s on: is the server reachable?", source_key);
+        return;
+    }
+    snprintf(self->place_source, sizeof(self->place_source), "%s", source_key);
+    self->place_scratch = scratch;
+    squares_pick_enter(ui, self, SQUARES_PICK_PLACE);
+    snprintf(line, sizeof(line), "Click the cell %s goes in", source_key);
+    squares_pick_say(ui, self, line, 1);
+    Editor_UiStatus(ui, "Place %s: click its cell on the Square map", source_key);
+}
+
+void
+Editor_SquarePicker_OpenSquares(struct EditorUi* ui)
+{
+    struct SquaresPanel* self;
+
+    assert(ui);
+    self = squares_self(ui);
+    if( !self )
+    {
+        Editor_UiLog(ui, "editor: no Square map in this window");
+        return;
+    }
+    if( !self->fetched )
+        squares_fetch(ui, self);
+    squares_pick_enter(ui, self, SQUARES_PICK_SWEEP);
+    squares_sweep_say(ui, self);
+}
+
 const struct Editor_Picker*
 edp_squares_picker(struct EditorUi* ui)
 {
@@ -3024,7 +3589,7 @@ Editor_SquarePicker_Register(struct EditorUi* ui)
     squares_pane_fold(ui, self, 0);
     self->button_new = ToriRSChrome_Button(chrome, self->panel, "New square...");
     ToriRSChrome_SetTooltip(chrome, self->button_new,
-        "Create a square: its storage (maps/ or a lane) and its template");
+        "A scratch square to shape first; its Save picks the place");
     self->button_map = ToriRSChrome_Button(chrome, self->panel, "Map");
     ToriRSChrome_SetTooltip(chrome, self->button_map, "Open or close the Square map window");
     self->button_fit = ToriRSChrome_Button(chrome, self->panel, "Fit");
@@ -3037,11 +3602,21 @@ Editor_SquarePicker_Register(struct EditorUi* ui)
     self->map_panel = ToriRSChrome_PanelAdd(
         chrome, TORIRS_CHROME_PANEL_WINDOW, x, edp_px(ui, EDP_TOP_Y), edp_px(ui, EDP_PICKER_W), "Square map");
     assert(self->map_panel >= 0);
+    /* The pick's bar (Open squares, Place), hidden while browsing. */
+    self->row_pick = ToriRSChrome_Label(chrome, self->map_panel, " ");
+    self->dropdown_place = ToriRSChrome_Dropdown(chrome, self->map_panel, "Stored in", NULL, 0, -1);
+    ToriRSChrome_SetTooltip(chrome, self->dropdown_place,
+        "maps/ is what the cache pack reads; a lane ships with its lane");
+    self->input_place_lane = ToriRSChrome_TextInput(chrome, self->map_panel, "Lane", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_place_lane, "The new lane's directory: ported/<lane>/maps");
+    self->button_pick_go = ToriRSChrome_Button(chrome, self->map_panel, "Open");
+    self->button_pick_cancel = ToriRSChrome_Button(chrome, self->map_panel, "Cancel");
     self->graph = ToriRSChrome_Graph(chrome, self->map_panel, "", edp_px(ui, SQUARES_WELL_H));
     ToriRSChrome_SetTooltip(chrome, self->graph, "click: open, wheel: zoom, drag: pan, arrows: focus, Enter: open");
     self->row_hover = ToriRSChrome_Label(chrome, self->map_panel, " ");
     ToriRSChrome_PanelSetResizable(chrome, self->map_panel, 1);
     ToriRSChrome_PanelSetVisible(chrome, self->map_panel, 0);
+    squares_pick_layout(ui, self);
     self->strip_dirty = 1;
     self->hotkeys_serial = ui->hotkeys.serial;
     squares_chords(ui, self);

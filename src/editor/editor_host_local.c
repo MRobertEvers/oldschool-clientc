@@ -865,7 +865,9 @@ Editor_HostDocPath(
         char bare[EDITOR_DOC_KEY_MAX];
         static char const* const extensions[] = { "jm2", "jl2", "filepack" };
 
-        if( part < 0 || part > 2 || !Editor_DocSplitSquareKey(key, storage, bare) )
+        /* A scratch square has no file: it is placed, never saved. */
+        if( part < 0 || part > 2 || !Editor_DocSplitSquareKey(key, storage, bare)
+            || Editor_DocStorageIsScratch(storage) )
             return 0;
         written = snprintf(
             out, out_size, "%s/%s.%s", storage[0] ? storage : "maps", bare, extensions[part]);

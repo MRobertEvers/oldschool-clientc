@@ -118,6 +118,8 @@ enum Editor_HotkeyAction
      * make a scratch lane from main and switch to it (the Lanes panel). */
     EDITOR_HK_FILE_SAVE_SCENE,
     EDITOR_HK_FILE_SCRATCH_LANE,
+    /* The Square map's sweep: up to 3x3 squares opened as the working set. */
+    EDITOR_HK_FILE_OPEN_SQUARES,
     /* Edit */
     EDITOR_HK_EDIT_UNDO,
     EDITOR_HK_EDIT_REDO,

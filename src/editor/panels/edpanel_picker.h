@@ -345,6 +345,16 @@ struct Editor_Picker
     int mark_z;
     int mark_w;
     int mark_h;
+    /** The Square map's pick (edpanel_squares.c): the cells an Open squares
+     *  drag sweeps, or the cell Place would put a scratch square in.
+     *  [sweep_x, sweep_x + sweep_w) x [sweep_z, sweep_z + sweep_h); sweep_w
+     *  0 = none. Drawn at every zoom, twice outlined: in the created green
+     *  when `sweep_ok`, else in the unsaved accent (a cell Place refuses). */
+    int sweep_x;
+    int sweep_z;
+    int sweep_w;
+    int sweep_h;
+    int sweep_ok;
 
     /** Storage filter: -1 every storage, else one index. */
     int storage_filter;

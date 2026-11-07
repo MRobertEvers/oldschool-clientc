@@ -50,6 +50,9 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_FILE_SCRATCH_LANE] = { "file.scratch_lane", "File", "Scratch lane",
                                       "Make a scratch lane from main and switch to it", G, EDGE,
                                       { "ctrl+shift+n" }, NULL },
+    [EDITOR_HK_FILE_OPEN_SQUARES] = { "file.open_squares", "File", "Open squares...",
+                                      "Open up to 3x3 squares, swept on the Square map", G, EDGE, { "ctrl+o" },
+                                      NULL },
 
     [EDITOR_HK_EDIT_UNDO] = { "edit.undo", "Edit", "Undo", "Undo", G, EDGE, { "ctrl+z" }, NULL },
     [EDITOR_HK_EDIT_REDO] = { "edit.redo", "Edit", "Redo", "Redo", G, EDGE, { "ctrl+shift+z", "ctrl+y" }, NULL },

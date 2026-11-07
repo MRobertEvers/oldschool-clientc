@@ -171,12 +171,8 @@ toolrail_activate(
     if( widget == self->button_new )
     {
         char key[EDITOR_DOC_KEY_MAX];
-        int map_x = -1;
-        int map_z = -1;
-        (void)Editor_SquarePicker_EmptyCell(ui, &map_x, &map_z);
         Editor_NewSquare_Open(
-            ui, EDITOR_NEW_SQUARE_NEW,
-            Editor_SquarePicker_SelectionKey(ui, key, (int)sizeof(key)) ? key : NULL, map_x, map_z);
+            ui, EDITOR_NEW_SQUARE_NEW, Editor_SquarePicker_SelectionKey(ui, key, (int)sizeof(key)) ? key : NULL);
         return 1;
     }
     if( widget == self->button_squares )

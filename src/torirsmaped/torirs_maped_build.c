@@ -2687,8 +2687,10 @@ jobs_run_save(
     for( int i = 0; i < maped->doc.square_count; i++ )
     {
         struct Editor_DocHandle handle = { EDITOR_DOC_SQUARE, &maped->doc.squares[i], NULL, NULL };
+        /* A scratch square is placed, never saved (EDITOR_DOC_SCRATCH_STORAGE). */
         if( !handle.square->loaded
-            || (!Editor_DocHandleDirty(&handle) && !maped->doc.square_created[i]) )
+            || (!Editor_DocHandleDirty(&handle) && !maped->doc.square_created[i])
+            || Editor_DocStorageIsScratch(maped->doc.square_storage[i]) )
             continue;
         if( save_doc(maped, &handle, &rows[saved]) == EDITOR_HOST_OK )
             saved++;

@@ -427,11 +427,19 @@ Editor_PickerSetAtlas(
         assert(picker->area_refs);
         assert(picker->selected);
         picker->area_ref_count = 0;
+        picker->square_count = 0;
         for( int i = 0; i < atlas->square_count; i++ )
         {
             const struct EditorHost_CatalogSquare* from = &atlas->squares[i];
-            struct Editor_PickerSquare* to = &picker->squares[i];
+            struct Editor_PickerSquare* to = &picker->squares[picker->square_count];
 
+            /* A scratch square has no place on the map until it is placed
+             * (EDITOR_DOC_SCRATCH_STORAGE); its storage stays listed, so an
+             * Open naming it by index still resolves. */
+            if( from->storage >= 0 && from->storage < atlas->storage_count
+                && Editor_DocStorageIsScratch(picker->storages[from->storage]) )
+                continue;
+            picker->square_count++;
             to->map_x = from->map_x;
             to->map_z = from->map_z;
             to->storage =
@@ -2069,6 +2077,25 @@ picker_paint(
                 picker->mark_z + picker->mark_h - 1, &x, &y, &w, &h)
             && paint_mark(paint, EDITOR_PICKER_DROP_OUTLINES) )
             ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, colors->created, 0, 0);
+    }
+
+    /* The Square map's pick: an Open squares sweep, a Place cell. Doubled,
+     * so it reads over the open and selection outlines under it. */
+    if( picker->sweep_w > 0 && picker->sweep_h > 0 )
+    {
+        int x;
+        int y;
+        int w;
+        int h;
+        uint32_t const color = picker->sweep_ok ? colors->created : colors->dirty;
+        if( picker_squares_box(picker, picker->sweep_x, picker->sweep_x + picker->sweep_w - 1, picker->sweep_z,
+                picker->sweep_z + picker->sweep_h - 1, &x, &y, &w, &h)
+            && paint_mark(paint, EDITOR_PICKER_DROP_OUTLINES) )
+        {
+            ToriRSChrome_GraphRect(chrome, graph, x, y, w, h, color, 0, 0);
+            if( w > 4 && h > 4 )
+                ToriRSChrome_GraphRect(chrome, graph, x + 1, y + 1, w - 2, h - 2, color, 0, 0);
+        }
     }
 
     /* Hover on top of everything but the frames; from 40 px a square its

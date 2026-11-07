@@ -395,7 +395,7 @@ Editor_DocStorageValid(const char* storage)
 
     assert(storage);
 
-    if( storage[0] == '\0' || strcmp(storage, "maps") == 0 )
+    if( storage[0] == '\0' || strcmp(storage, "maps") == 0 || Editor_DocStorageIsScratch(storage) )
         return 1;
     length = strlen(storage);
     if( length >= EDITOR_DOC_STORAGE_MAX || strncmp(storage, "ported/", 7) != 0 || length < 13 )
@@ -411,6 +411,61 @@ Editor_DocStorageValid(const char* storage)
             return 0;
     }
     return storage + length - 5 > lane;
+}
+
+int
+Editor_DocStorageIsScratch(const char* storage)
+{
+    assert(storage);
+    return strcmp(storage, EDITOR_DOC_SCRATCH_STORAGE) == 0;
+}
+
+void
+Editor_DocScratchSlot(
+    int slot,
+    int* out_map_x,
+    int* out_map_z)
+{
+    assert(slot >= 0);
+    assert(slot < EDITOR_DOC_SCRATCH_SLOTS);
+    assert(out_map_x);
+    assert(out_map_z);
+    *out_map_x = 240 + 2 * (slot % 4);
+    *out_map_z = 240 + 2 * (slot / 4);
+}
+
+int
+Editor_DocIsScratchSlot(
+    int map_x,
+    int map_z)
+{
+    for( int slot = 0; slot < EDITOR_DOC_SCRATCH_SLOTS; slot++ )
+    {
+        int x;
+        int z;
+        Editor_DocScratchSlot(slot, &x, &z);
+        if( x == map_x && z == map_z )
+            return 1;
+    }
+    return 0;
+}
+
+int
+Editor_SquareIsBlank(const struct Editor_Square* square)
+{
+    assert(square);
+    if( square->loc_count > 0 )
+        return 0;
+    /* Field by field: a tile that came off the wire need not have its
+     * padding byte zeroed, so a memcmp against the zero tile can miss. */
+    for( int i = 0; i < EDITOR_SQUARE_TILES; i++ )
+    {
+        struct Editor_Tile const* tile = &square->tiles[i];
+        if( tile->has_height || tile->height || tile->has_overlay || tile->overlay_id || tile->shape
+            || tile->rotation || tile->settings || tile->underlay_id )
+            return 0;
+    }
+    return 1;
 }
 
 int
@@ -743,6 +798,20 @@ Editor_DocHandleClearDirty(struct Editor_DocHandle* handle)
     handle->text->dirty = 0;
 }
 
+/** Square `i` holds edits a save (or a Place) is owed: a blank scratch
+ *  square -- the slot a Place cleared -- owes nothing. */
+static int
+doc_square_unsaved(
+    const struct Editor_Doc* doc,
+    int i)
+{
+    const struct Editor_Square* square = &doc->squares[i];
+
+    if( !square->dirty_map && !square->dirty_loc )
+        return 0;
+    return !(Editor_DocStorageIsScratch(doc->square_storage[i]) && Editor_SquareIsBlank(square));
+}
+
 int
 Editor_DocHasUnsaved(const struct Editor_Doc* doc)
 {
@@ -750,7 +819,7 @@ Editor_DocHasUnsaved(const struct Editor_Doc* doc)
 
     for( int i = 0; i < doc->square_count; i++ )
     {
-        if( doc->squares[i].dirty_map || doc->squares[i].dirty_loc )
+        if( doc_square_unsaved(doc, i) )
             return 1;
     }
     for( int i = 0; i < doc->spawn_count; i++ )
@@ -773,7 +842,7 @@ Editor_DocUnsavedCount(const struct Editor_Doc* doc)
 
     assert(doc);
     for( int i = 0; i < doc->square_count; i++ )
-        if( doc->squares[i].dirty_map || doc->squares[i].dirty_loc )
+        if( doc_square_unsaved(doc, i) )
             count++;
     for( int i = 0; i < doc->spawn_count; i++ )
         if( doc->spawns[i]->dirty )

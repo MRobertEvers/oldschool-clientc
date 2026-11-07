@@ -252,6 +252,27 @@ fake_open_square(
     snprintf(g_window.open_storage, sizeof(g_window.open_storage), "%s", storage ? storage : "");
 }
 
+/* What the working-set hook was asked (the Square map's Open squares and
+ * a scratch square's Place). */
+static struct
+{
+    int calls;
+    int count;
+    struct EditorUiSquareRef squares[EDITOR_UI_OPEN_SET_MAX];
+} g_set;
+
+static void
+fake_open_square_set(
+    void* user,
+    const struct EditorUiSquareRef* squares,
+    int count)
+{
+    (void)user;
+    g_set.calls++;
+    g_set.count = count;
+    memcpy(g_set.squares, squares, (size_t)count * sizeof(*squares));
+}
+
 static void
 fake_open_in_new_view(
     void* user,
@@ -1526,6 +1547,25 @@ test_newform(void)
               && request.fill_underlay == 40,
         "flat fill carries its height and underlay");
 
+    {
+        int scratch_x;
+        int scratch_z;
+        int sx;
+        int sz;
+        int sw;
+        int sh;
+        Editor_DocScratchSlot(0, &scratch_x, &scratch_z);
+        form.template_kind = EDITOR_DOC_TEMPLATE_EMPTY;
+        form.map_x = scratch_x;
+        form.map_z = scratch_z;
+        CHECK(!Editor_NewSquareValidate(&g_picker, &form, &check, NULL) && strstr(check.message, "scratch"),
+            "a scratch slot is never a destination (%s)", check.message);
+        Editor_PickerSweepRect(10, 10, 15, 4, 3, &sx, &sz, &sw, &sh);
+        CHECK(sx == 10 && sz == 8 && sw == 3 && sh == 3, "a sweep stops at 3x3, kept against its first cell");
+        Editor_PickerSweepRect(10, 10, 9, 10, 3, &sx, &sz, &sw, &sh);
+        CHECK(sx == 9 && sz == 10 && sw == 2 && sh == 1, "...and runs either way");
+    }
+
     memset(&form, 0, sizeof(form));
     form.mode = EDITOR_NEW_SQUARE_SAVE_AS;
     form.map_x = 50;
@@ -1835,6 +1875,7 @@ test_chrome(void)
     ToriRSChrome_SetSurface(&g_chrome, 1280, 800);
     Editor_UiInit(&g_ui, &g_chrome, &g_editor);
     g_ui.hooks.open_square = fake_open_square;
+    g_ui.hooks.open_square_set = fake_open_square_set;
     g_ui.hooks.open_in_new_view = fake_open_in_new_view;
     g_ui.hooks.floor_rgb = fake_floor_rgb;
     g_ui.hooks.floor_request = fake_floor_request;
@@ -1969,11 +2010,17 @@ test_chrome(void)
         push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_MENU, x, y, 0);
         frame();
         activate(copy_item);
-        new_panel = find_panel("Copy square to");
-        CHECK(new_panel >= 0 && g_chrome.panels[new_panel].visible && ToriRSChrome_ModalPanel(&g_chrome) == new_panel,
-            "Copy to opens the New modal in its copy mode");
-        activate(find_widget(new_panel, TORIRS_CHROME_W_BUTTON, "Cancel"));
-        CHECK(!g_chrome.panels[new_panel].visible, "Cancel closes it");
+        new_panel = find_panel("Square map");
+        {
+            int const place_storage = find_widget(new_panel, TORIRS_CHROME_W_DROPDOWN, "Stored in");
+            int const cancel = find_widget(new_panel, TORIRS_CHROME_W_BUTTON, "Cancel");
+            CHECK(new_panel >= 0 && g_chrome.panels[new_panel].visible && place_storage >= 0
+                      && !g_chrome.widgets[place_storage].hidden,
+                "Copy to asks for its cell on the Square map");
+            activate(cancel);
+            CHECK(g_chrome.widgets[place_storage].hidden && g_chrome.widgets[cancel].hidden,
+                "Cancel goes back to browsing");
+        }
     }
 
     /* The Area dropdown switches the area the well draws, fitted. */
@@ -2014,76 +2061,180 @@ test_chrome(void)
             "one undo brings the whole square back");
     }
 
-    /* The New button: coordinates, storage, template; then DOC_CREATE. */
+    /* The New button: what it starts as, nothing more. It makes a scratch
+     * square, opened at once as the working set; Save then places it on the
+     * Square map. */
     {
         int new_panel;
         int create;
-        int input_x;
-        int input_z;
-        int storage;
-        int check_row = -1;
+        int map_panel;
+        int place_storage;
         int lane_row = -1;
+        int scratch_x;
+        int scratch_z;
+        int x;
+        int y;
+        struct Editor_Square* scratch;
+        struct Editor_Square* placed;
+        struct Editor_Cmd command;
+        int const tile = Editor_TileIndex(3, 4, 0);
 
+        /* The Delete above left m51_50 unsaved; opening the scratch square
+         * in its place would (rightly) ask the save guard first. */
+        CHECK(Editor_SaveAll(&g_editor) >= 0 && !Editor_DocHasUnsaved(&g_editor.doc), "nothing unsaved");
         activate(find_widget(squares_panel, TORIRS_CHROME_W_BUTTON, "New square..."));
         new_panel = find_panel("New square");
         CHECK(new_panel >= 0 && g_chrome.panels[new_panel].visible, "New square... opens the modal");
         create = find_widget(new_panel, TORIRS_CHROME_W_BUTTON, "Create");
-        input_x = find_widget(new_panel, TORIRS_CHROME_W_TEXTINPUT, "Map x");
-        input_z = find_widget(new_panel, TORIRS_CHROME_W_TEXTINPUT, "Map z");
-        storage = find_widget(new_panel, TORIRS_CHROME_W_DROPDOWN, "Stored in");
-        CHECK(create >= 0 && input_x >= 0 && input_z >= 0 && storage >= 0, "the modal has its fields");
-        for( int i = 0; i < g_chrome.widgets[storage].option_count; i++ )
-            if( strstr(g_chrome.widgets[storage].options[i], "emptylane") )
-                lane_row = i;
-        CHECK(lane_row >= 0, "the storage list names the empty lane");
-        CHECK(strstr(g_chrome.widgets[storage].options[g_chrome.widgets[storage].option_count - 1], "New lane"),
-            "...and offers a new lane last");
-
-        /* Taken: Create stays disabled and the owner is named. */
-        ToriRSChrome_SetText(&g_chrome, input_x, "50");
-        ToriRSChrome_SetText(&g_chrome, input_z, "50");
-        ToriRSChrome_DropdownSetSelected(&g_chrome, storage, 0);
+        CHECK(create >= 0 && find_widget(new_panel, TORIRS_CHROME_W_TEXTINPUT, "Map x") < 0,
+            "the modal asks what it starts as, not where it goes");
         frame();
-        for( int i = 0; i < g_chrome.widget_count; i++ )
-            if( g_chrome.widgets[i].panel == new_panel && strstr(g_chrome.widgets[i].text, "already exists") )
-                check_row = i;
-        CHECK(check_row >= 0 && ToriRSChrome_Disabled(&g_chrome, create),
-            "m50_50 in maps/: refused before anything is sent");
-
-        ToriRSChrome_SetText(&g_chrome, input_x, "61");
-        ToriRSChrome_SetText(&g_chrome, input_z, "62");
-        ToriRSChrome_DropdownSetSelected(&g_chrome, storage, lane_row);
+        {
+            int const flat = find_widget(new_panel, TORIRS_CHROME_W_RADIO, "Flat fill");
+            int const underlay = find_widget(new_panel, TORIRS_CHROME_W_SLIDER, "Underlay");
+            CHECK(flat >= 0 && ToriRSChrome_Checked(&g_chrome, flat) && underlay >= 0
+                      && ToriRSChrome_SliderValue(&g_chrome, underlay) > 0,
+                "New starts as a flat fill on an underlay that draws (%d)",
+                underlay >= 0 ? ToriRSChrome_SliderValue(&g_chrome, underlay) : -1);
+        }
+        ToriRSChrome_RadioSelect(&g_chrome, find_widget(new_panel, TORIRS_CHROME_W_RADIO, "Empty"));
         frame();
-        CHECK(!ToriRSChrome_Disabled(&g_chrome, create), "m61_62 in the empty lane can be created");
+        CHECK(!ToriRSChrome_Disabled(&g_chrome, create), "Create is ready with the Empty template");
         memset(&g_window, 0, sizeof(g_window));
         activate(create);
         CHECK(!g_chrome.panels[new_panel].visible, "Create closes the modal");
-        {
-            struct Editor_Square* created = square_of(61, 62);
-            CHECK(created && created->loaded, "the created square is open in the mirror");
-            CHECK(created && strcmp(Editor_DocSquareStorage(&g_editor.doc, created), "ported/emptylane/maps") == 0,
-                "...stored in the lane");
-        }
-        CHECK(g_window.open_calls == 1 && g_window.open_x == 61 && g_window.open_add
-                  && strcmp(g_window.open_storage, "ported/emptylane/maps") == 0,
-            "...and the window is asked to show it");
+        Editor_DocScratchSlot(0, &scratch_x, &scratch_z);
+        scratch = square_of(scratch_x, scratch_z);
+        CHECK(scratch && scratch->loaded
+                  && Editor_DocStorageIsScratch(Editor_DocSquareStorage(&g_editor.doc, scratch)),
+            "the scratch square m%d_%d is open in the mirror, in scratch storage", scratch_x, scratch_z);
+        CHECK(g_window.open_calls == 1 && g_window.open_x == scratch_x && g_window.open_z == scratch_z
+                  && !g_window.open_add && strcmp(g_window.open_storage, EDITOR_DOC_SCRATCH_STORAGE) == 0,
+            "...and opened at once as the working set (%d calls, m%d_%d, add %d, '%s')", g_window.open_calls,
+            g_window.open_x, g_window.open_z, g_window.open_add, g_window.open_storage);
+        CHECK(!Editor_DocHasUnsaved(&g_editor.doc), "a blank scratch square owes no save");
         for( int i = 0; i < 4; i++ )
             frame();
         picker = edp_squares_picker(&g_ui);
+        CHECK(Editor_PickerFind(picker, scratch_x, scratch_z, -1) < 0, "the map does not show a scratch square");
+
+        /* Work in it, then Save: nothing is written, the map asks where. */
+        Editor_CmdInitSquare(&command, EDITOR_CMD_TILE, scratch_x, scratch_z);
+        command.u.tile.x = 3;
+        command.u.tile.z = 4;
+        command.u.tile.before = scratch->tiles[tile];
+        command.u.tile.after = command.u.tile.before;
+        command.u.tile.after.has_height = 1;
+        command.u.tile.after.height = 7;
+        Editor_Apply(&g_editor, &command);
+        CHECK(Editor_DocHasUnsaved(&g_editor.doc), "the scratch square's edit is unsaved");
+        CHECK(Editor_SaveAll(&g_editor) == 0 && Editor_DocHasUnsaved(&g_editor.doc),
+            "Save all writes no scratch square");
+        (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_FILE_SAVE_ALL);
+        frame();
+        map_panel = find_panel("Square map");
+        CHECK(map_panel >= 0 && g_chrome.panels[map_panel].visible, "Save opens the Square map to place it");
+        place_storage = find_widget(map_panel, TORIRS_CHROME_W_DROPDOWN, "Stored in");
+        CHECK(place_storage >= 0 && !g_chrome.widgets[place_storage].hidden, "...with a Stored in choice");
+        for( int i = 0; place_storage >= 0 && i < g_chrome.widgets[place_storage].option_count; i++ )
+        {
+            CHECK(!strstr(g_chrome.widgets[place_storage].options[i], EDITOR_DOC_SCRATCH_STORAGE),
+                "...that never offers the scratch storage");
+            if( strstr(g_chrome.widgets[place_storage].options[i], "emptylane") )
+                lane_row = i;
+        }
+        CHECK(lane_row >= 0, "the storage list names the empty lane");
+        CHECK(strstr(g_chrome.widgets[place_storage].options[g_chrome.widgets[place_storage].option_count - 1],
+                  "New lane"),
+            "...and offers a new lane last");
+
+        /* A taken cell is refused where it is hovered; a free one places. */
+        search_field("m50_50");
+        CHECK(picker_point(picker, 50, 50, &x, &y), "m50_50 is in view");
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_HOVER, x, y, 0);
+        frame();
+        CHECK(picker->sweep_w == 1 && picker->sweep_x == 50 && picker->sweep_z == 50 && !picker->sweep_ok,
+            "m50_50 in maps/ is outlined as refused");
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y, 0);
+        frame();
+        CHECK(g_chrome.panels[map_panel].visible && square_of(scratch_x, scratch_z)
+                  && !Editor_SquareIsBlank(square_of(scratch_x, scratch_z)),
+            "a click there places nothing");
+        search_field("m61_62");
+        CHECK(picker_point(picker, 61, 62, &x, &y), "m61_62 is in view");
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_HOVER, x, y, 0);
+        frame();
+        CHECK(picker->sweep_w == 1 && picker->sweep_x == 61 && picker->sweep_z == 62 && picker->sweep_ok,
+            "free m61_62 is outlined as the place");
+        memset(&g_set, 0, sizeof(g_set));
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y, 0);
+        frame();
+        placed = square_of(61, 62);
+        CHECK(placed && placed->loaded && strcmp(Editor_DocSquareStorage(&g_editor.doc, placed), "") == 0,
+            "a click places the copy at m61_62 in maps/");
+        CHECK(placed && placed->tiles[tile].has_height && placed->tiles[tile].height == 7,
+            "...carrying the scratch square's work");
+        CHECK(Editor_SquareIsBlank(square_of(scratch_x, scratch_z)), "the scratch slot is cleared");
+        CHECK(!Editor_DocHasUnsaved(&g_editor.doc), "...and the place is saved");
+        CHECK(g_set.calls == 1 && g_set.count == 1 && g_set.squares[0].map_x == 61 && g_set.squares[0].map_z == 62,
+            "the placed square opens as the working set (%d calls)", g_set.calls);
+        CHECK(g_chrome.widgets[place_storage].hidden && picker->sweep_w == 0, "the map is back to browsing");
+        for( int i = 0; i < 4; i++ )
+            frame();
         {
             int const at = Editor_PickerFind(picker, 61, 62, -1);
-            CHECK(at >= 0 && (picker->squares[at].flags & TORIRSMAPED_SQUARE_CREATED),
-                "the atlas row appears flagged CREATED (nothing on disk yet)");
+            CHECK(at >= 0, "the atlas shows the placed square");
         }
 
-        /* The same coordinates again: the server's refusal is shown. */
-        Editor_NewSquare_Open(&g_ui, EDITOR_NEW_SQUARE_NEW, NULL, 61, 62);
+        /* A blank scratch slot is free again. */
+        activate(find_widget(squares_panel, TORIRS_CHROME_W_BUTTON, "New square..."));
+        ToriRSChrome_RadioSelect(&g_chrome, find_widget(new_panel, TORIRS_CHROME_W_RADIO, "Empty"));
         frame();
-        CHECK(!ToriRSChrome_Disabled(&g_chrome, create), "m61_62 in maps/ (the default) is free");
-        ToriRSChrome_DropdownSetSelected(&g_chrome, storage, lane_row);
+        activate(create);
+        CHECK(square_of(scratch_x, scratch_z) && g_window.open_x == scratch_x, "New reuses the cleared slot");
+    }
+
+    /* File > Open squares: a drag sweeps up to 3x3 cells, Open opens their
+     * squares together as the working set. */
+    {
+        int const map_panel = find_panel("Square map");
+        int const open_button = find_widget(map_panel, TORIRS_CHROME_W_BUTTON, "Open");
+        int expect = 0;
+        int x2;
+        int y2;
+        int x;
+        int y;
+
+        (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_FILE_OPEN_SQUARES);
         frame();
-        CHECK(ToriRSChrome_Disabled(&g_chrome, create), "m61_62 in that lane is now refused by the form");
-        activate(find_widget(new_panel, TORIRS_CHROME_W_BUTTON, "Cancel"));
+        CHECK(g_chrome.panels[map_panel].visible && open_button >= 0 && !g_chrome.widgets[open_button].hidden
+                  && ToriRSChrome_Disabled(&g_chrome, open_button),
+            "Open squares shows the map's bar, Open waiting for a sweep");
+        search_field("m50_50");
+        CHECK(picker_point(picker, 50, 50, &x, &y), "m50_50 is in view");
+        /* Back out so the cells around it are in the well too. */
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_WHEEL, x, y, 8);
+        frame();
+        CHECK(picker_point(picker, 50, 50, &x, &y) && picker_point(picker, 51, 49, &x2, &y2),
+            "m50_50 and m51_49 are in view (zoom %.1f)", picker->zoom);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_DRAG, x2, y2, 0);
+        push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x2, y2, 0);
+        frame();
+        CHECK(picker->sweep_x == 50 && picker->sweep_z == 49 && picker->sweep_w == 2 && picker->sweep_h == 2,
+            "the drag sweeps m50_49 .. m51_50 (%d,%d %dx%d)", picker->sweep_x, picker->sweep_z, picker->sweep_w,
+            picker->sweep_h);
+        for( int z = 49; z <= 50; z++ )
+            for( int sx = 50; sx <= 51; sx++ )
+                expect += Editor_PickerFind(picker, sx, z, -1) >= 0;
+        CHECK(expect >= 2 && !ToriRSChrome_Disabled(&g_chrome, open_button), "%d squares to open", expect);
+        memset(&g_set, 0, sizeof(g_set));
+        activate(open_button);
+        CHECK(g_set.calls == 1 && g_set.count == expect, "Open opens the %d squares together (%d calls, %d)", expect,
+            g_set.calls, g_set.count);
+        CHECK(g_chrome.widgets[open_button].hidden && picker->sweep_w == 0, "...and the map browses again");
     }
 
     /* The save guard: unsaved edits hold an open-in-place behind the modal. */
@@ -2733,7 +2884,7 @@ test_worldmap(void)
             "20 px a square: no icons, no labels");
     }
 
-    /* A click on an empty square opens New square on it. */
+    /* A click on an empty square focuses it; New is a scratch square now. */
     {
         struct Editor_PickerSearch search;
         int new_panel;
@@ -2748,16 +2899,9 @@ test_worldmap(void)
         push_graph(graph, TORIRS_CHROME_EVENT_GRAPH_RELEASE, x, y, 0);
         frame();
         new_panel = find_panel("New square");
-        CHECK(new_panel >= 0 && g_chrome.panels[new_panel].visible, "a click on the empty square opens New square");
-        if( new_panel >= 0 )
-        {
-            int const input_x = find_widget(new_panel, TORIRS_CHROME_W_TEXTINPUT, "Map x");
-            int const input_z = find_widget(new_panel, TORIRS_CHROME_W_TEXTINPUT, "Map z");
-            CHECK(input_x >= 0 && strcmp(ToriRSChrome_Text(&g_chrome, input_x), "55") == 0 && input_z >= 0
-                      && strcmp(ToriRSChrome_Text(&g_chrome, input_z), "55") == 0,
-                "...prefilled with m55_55");
-            activate(find_widget(new_panel, TORIRS_CHROME_W_BUTTON, "Cancel"));
-        }
+        CHECK(new_panel < 0 || !g_chrome.panels[new_panel].visible, "a click on the empty square opens no modal");
+        CHECK(picker->empty_valid && picker->empty_map_x == 55 && picker->empty_map_z == 55,
+            "...it focuses m55_55");
         CHECK(picker->underlay.active, "the map stays under the grid");
     }
 

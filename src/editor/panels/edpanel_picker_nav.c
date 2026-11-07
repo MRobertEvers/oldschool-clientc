@@ -386,3 +386,44 @@ Editor_PickerFitText(
     snprintf(out, (size_t)out_size, "...");
     return 1;
 }
+
+/* ---- the Square map's sweep ---------------------------------------------------- */
+
+static void
+sweep_axis(
+    int a,
+    int b,
+    int max_side,
+    int* out_start,
+    int* out_length)
+{
+    int d = b - a;
+
+    if( d > max_side - 1 )
+        d = max_side - 1;
+    if( d < -(max_side - 1) )
+        d = -(max_side - 1);
+    *out_start = d < 0 ? a + d : a;
+    *out_length = (d < 0 ? -d : d) + 1;
+}
+
+void
+Editor_PickerSweepRect(
+    int ax,
+    int az,
+    int bx,
+    int bz,
+    int max_side,
+    int* out_x,
+    int* out_z,
+    int* out_w,
+    int* out_h)
+{
+    assert(max_side >= 1);
+    assert(out_x);
+    assert(out_z);
+    assert(out_w);
+    assert(out_h);
+    sweep_axis(ax, bx, max_side, out_x, out_w);
+    sweep_axis(az, bz, max_side, out_z, out_h);
+}

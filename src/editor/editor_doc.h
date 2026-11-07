@@ -194,10 +194,45 @@ Editor_DocKeyValid(
     enum Editor_DocKind kind,
     const char* key);
 
-/** 1 for a square storage: "" or "maps" (the content tree's maps/) or
- *  "ported/<lane>/maps". */
+/** 1 for a square storage: "" or "maps" (the content tree's maps/),
+ *  "ported/<lane>/maps", or EDITOR_DOC_SCRATCH_STORAGE. */
 int
 Editor_DocStorageValid(const char* storage);
+
+/**
+ * A scratch square: one made to be edited before it has a place
+ * (docs/MAPED_STATUS.md "Scratch squares"). DOC_CREATE makes it in this
+ * storage at one of the reserved slots below, far east of any content (the
+ * content tree's squares stop at x 65); the file layer has no path for it,
+ * so it is never read from or written to disk, and a save skips it. Save
+ * places it instead: the Square map's Place copies it to the cell and
+ * storage the user picks, then clears it, and a cleared (blank) scratch
+ * square is a free slot DOC_CREATE may fill again.
+ */
+#define EDITOR_DOC_SCRATCH_STORAGE "scratch"
+#define EDITOR_DOC_SCRATCH_SLOTS 8
+
+/** 1 for EDITOR_DOC_SCRATCH_STORAGE. */
+int
+Editor_DocStorageIsScratch(const char* storage);
+
+/** Scratch slot `slot`'s square (0 <= slot < EDITOR_DOC_SCRATCH_SLOTS): two
+ *  apart, so no two slots are ever neighbours in one world. */
+void
+Editor_DocScratchSlot(
+    int slot,
+    int* out_map_x,
+    int* out_map_z);
+
+/** Whether (map_x, map_z) is one of the scratch slots. */
+int
+Editor_DocIsScratchSlot(
+    int map_x,
+    int map_z);
+
+/** Whether the square holds nothing: every tile the zero tile, no loc. */
+int
+Editor_SquareIsBlank(const struct Editor_Square* square);
 
 /**
  * Split a square key that may carry its storage ("ported/x/maps/m16_101",

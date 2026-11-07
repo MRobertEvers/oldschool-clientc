@@ -248,13 +248,15 @@ Editor_Locs_Register(struct EditorUi* ui);
 
 /* ---- entry points other modules (and the app) reach ------------------------ */
 
-/** Modes of the New square modal: the full question, or the storage question
- *  alone (design #squares). */
+/** Modes of the New square modal (design #squares). */
 enum Editor_NewSquareMode
 {
-    /** Coordinates, storage, template. */
+    /** A scratch square (EDITOR_DOC_SCRATCH_STORAGE) and its template: it
+     *  opens as the working set at once, and Save places it on the Square
+     *  map (Editor_SquarePicker_Place). */
     EDITOR_NEW_SQUARE_NEW = 0,
-    /** Copy `source` to new coordinates and a storage. */
+    /** Copy `source` to a cell picked on the Square map (forwards to
+     *  Editor_SquarePicker_Place). */
     EDITOR_NEW_SQUARE_COPY_TO,
     /** `source` again at its own coordinates, in another storage. */
     EDITOR_NEW_SQUARE_SAVE_AS,
@@ -262,16 +264,43 @@ enum Editor_NewSquareMode
 
 /**
  * Open the New square modal. `source_key` ("m50_50", may carry its storage)
- * is the square a COPY template or the two copy modes copy, NULL for none;
- * (map_x, map_z) prefill the coordinates, -1 for none.
+ * is the square a COPY template or the two copy modes copy, NULL for none.
  */
 void
 Editor_NewSquare_Open(
     struct EditorUi* ui,
     enum Editor_NewSquareMode mode,
+    const char* source_key);
+
+/** The first scratch square this window's mirror holds with anything in it
+ *  ("scratch/m240_240"): one a Save has still to place. 0 when none. */
+int
+Editor_NewSquare_UnplacedScratch(
+    struct EditorUi* ui,
+    char out[EDITOR_DOC_KEY_MAX]);
+
+/**
+ * The Square map's Place (docs/MAPED_STATUS.md "Scratch squares"): open the
+ * map with `source_key` ("scratch/m240_240", or any square for Copy to) on
+ * the pointer -- the hovered cell is outlined green where it may go, in the
+ * accent where it may not, the readout says why -- with a Stored in choice
+ * above the well; a click places it. `scratch` 1: a scratch square's Place
+ * (Save's), which then saves, clears the scratch slot and opens the placed
+ * square as the working set; 0: Copy to, which adds the copy to the open set.
+ */
+void
+Editor_SquarePicker_Place(
+    struct EditorUi* ui,
     const char* source_key,
-    int map_x,
-    int map_z);
+    int scratch);
+
+/**
+ * File > Open squares: open the Square map in its sweep mode, where a drag
+ * picks up to 3x3 squares and Open opens them together as the working set,
+ * in place of what is open (through the save guard).
+ */
+void
+Editor_SquarePicker_OpenSquares(struct EditorUi* ui);
 
 /** The picker's current selection as a square key with storage (what the
  *  New dialog's "copy of selection" copies). 0 when nothing is selected. */

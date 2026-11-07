@@ -52,6 +52,26 @@ Editor_PickerKeepInView(
     int map_x,
     int map_z);
 
+/* ---- the Square map's sweep ---------------------------------------------------
+ *
+ * File > Open squares: a drag over the map from cell A to cell B picks the
+ * rectangle with both corners, at most `max_side` squares a side -- the far
+ * corner is pulled toward A, never A moved.
+ */
+
+/** The swept rectangle from (ax, az) to (bx, bz), `max_side` >= 1. Pure. */
+void
+Editor_PickerSweepRect(
+    int ax,
+    int az,
+    int bx,
+    int bz,
+    int max_side,
+    int* out_x,
+    int* out_z,
+    int* out_w,
+    int* out_h);
+
 /* ---- the open set ------------------------------------------------------------
  *
  * What this window holds: every square in its world now (OPEN_HERE) and every

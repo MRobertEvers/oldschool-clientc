@@ -93,6 +93,11 @@ struct Editor_Panel
     int sq_open_z;
     int sq_open_add;
     char sq_open_storage[EDITOR_DOC_STORAGE_MAX];
+    /** A working set the Square map's Open squares asked for: these squares,
+     *  together, in place of what is open. Drained like sq_open_*, before
+     *  it; the camera goes to the first. */
+    int sq_set_count;
+    struct EditorUiSquareRef sq_set[EDITOR_UI_OPEN_SET_MAX];
     /** Open (not Add) also brings the free camera to the square once its
      *  load has landed: the tile it goes to, pending until the world has it.
      *  Without this an Open of a square away from the camera looked like

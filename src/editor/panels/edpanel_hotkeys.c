@@ -87,25 +87,34 @@ hk_run_file(
     char key[EDITOR_DOC_KEY_MAX];
 
     if( action == EDITOR_HK_FILE_NEW )
-    {
-        int map_x = -1;
-        int map_z = -1;
-        (void)Editor_SquarePicker_EmptyCell(ui, &map_x, &map_z);
-        Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_NEW,
-            Editor_SquarePicker_SelectionKey(ui, key, (int)sizeof(key)) ? key : NULL, map_x, map_z);
-    }
+        Editor_NewSquare_Open(
+            ui, EDITOR_NEW_SQUARE_NEW, Editor_SquarePicker_SelectionKey(ui, key, (int)sizeof(key)) ? key : NULL);
+    else if( action == EDITOR_HK_FILE_OPEN_SQUARES )
+        Editor_SquarePicker_OpenSquares(ui);
     else if( action == EDITOR_HK_FILE_SAVE_ALL )
     {
         int const saved = ui->editor ? Editor_SaveAll(ui->editor) : -1;
         if( saved < 0 )
             Editor_UiLog(ui, "editor: read-only session, nothing saved");
         else
+        {
             Editor_UiLog(ui, "editor: saved %d document(s) as text", saved);
+            /* A scratch square is not saved but placed: the Square map asks
+             * where (docs/MAPED_STATUS.md "Scratch squares"). */
+            if( Editor_NewSquare_UnplacedScratch(ui, key) )
+                Editor_SquarePicker_Place(ui, key, 1);
+        }
     }
     else if( action == EDITOR_HK_FILE_SAVE_AS )
     {
         if( hk_current_square(ui, key, (int)sizeof(key)) )
-            Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_SAVE_AS, key, -1, -1);
+        {
+            /* A scratch square's "as new" is its Place. */
+            if( strncmp(key, EDITOR_DOC_SCRATCH_STORAGE "/", sizeof(EDITOR_DOC_SCRATCH_STORAGE)) == 0 )
+                Editor_SquarePicker_Place(ui, key, 1);
+            else
+                Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_SAVE_AS, key);
+        }
         else
             Editor_UiLog(ui, "editor: open or select a square first");
     }
@@ -420,7 +429,7 @@ Editor_HotkeyRun(
 
     assert(ui);
     info = Editor_HotkeyInfo(action);
-    if( action <= EDITOR_HK_FILE_SCRATCH_LANE )
+    if( action <= EDITOR_HK_FILE_OPEN_SQUARES )
     {
         hk_run_file(ui, action);
         return 1;

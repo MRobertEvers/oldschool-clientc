@@ -235,6 +235,26 @@ hook_open_square(
 }
 
 static void
+hook_open_square_set(
+    void* user,
+    const struct EditorUiSquareRef* squares,
+    int count)
+{
+    struct App* app = user;
+    struct Editor_Panel* panel = &app->editor_panel;
+
+    assert(app);
+    assert(squares);
+    assert(count > 0);
+    assert(count <= EDITOR_UI_OPEN_SET_MAX);
+    memcpy(panel->sq_set, squares, (size_t)count * sizeof(*squares));
+    panel->sq_set_count = count;
+    /* The set replaces whatever single open was still waiting. */
+    panel->sq_open_pending = 0;
+    panel->sq_open_goto_valid = 0;
+}
+
+static void
 hook_close_square(
     void* user,
     int map_x,
@@ -419,6 +439,7 @@ Editor_PanelInit(
     panel->ui->app = app;
     panel->ui->hooks_user = app;
     panel->ui->hooks.open_square = hook_open_square;
+    panel->ui->hooks.open_square_set = hook_open_square_set;
     panel->ui->hooks.close_square = hook_close_square;
     panel->ui->hooks.open_in_new_view = hook_open_in_new_view;
     panel->ui->hooks.floor_rgb = hook_floor_rgb;

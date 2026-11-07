@@ -303,11 +303,26 @@ struct EditorUiTools
  * then says the action is unavailable in the console rather than doing half
  * of it.
  */
+/** The most squares an Open squares sweep takes: 3x3. */
+#define EDITOR_UI_OPEN_SET_MAX 9
+
+/** One square of a working set: where, and its storage ("" = maps/). */
+struct EditorUiSquareRef
+{
+    int map_x;
+    int map_z;
+    char storage[EDITOR_DOC_STORAGE_MAX];
+};
+
 struct EditorUiHooks
 {
     /** Open square (map_x, map_z) from `storage` ("" = maps/) in this window:
      *  `add` 0 replaces what the window shows, 1 adds it to the open set. */
     void (*open_square)(void* user, int map_x, int map_z, const char* storage, int add);
+    /** Open `count` squares (1..EDITOR_UI_OPEN_SET_MAX) as this window's
+     *  whole working set, in place of what it shows: the Square map's Open
+     *  squares. */
+    void (*open_square_set)(void* user, const struct EditorUiSquareRef* squares, int count);
     /** Close square (map_x, map_z) of `storage` in this window: the world
      *  reloads with the rest of what it shows (workbench 6.4, the picker's
      *  open-set strip). The save guard has already asked. */
@@ -682,6 +697,9 @@ enum EditorUi_Guarded
     /** Enter a scene (workbench 6.5, edpanel_scenes.c): its squares replace
      *  the open set, so unsaved edits are asked about first. */
     EDITOR_UI_GUARD_ENTER_SCENE,
+    /** Open a working set (the Square map's Open squares) in place of the
+     *  current set. */
+    EDITOR_UI_GUARD_OPEN_SET,
 };
 
 struct EditorUiGuard
@@ -695,6 +713,9 @@ struct EditorUiGuard
     int storage_index;
     /** ENTER_SCENE: the scene's name (editor_scenes.h's EDITOR_SCENE_NAME_MAX). */
     char scene[64];
+    /** OPEN_SET: the squares. */
+    int set_count;
+    struct EditorUiSquareRef set[EDITOR_UI_OPEN_SET_MAX];
 };
 
 /**
@@ -1568,6 +1589,15 @@ Editor_UiOpenSquare(
     const char* storage,
     int storage_index,
     int add);
+
+/** Open `count` squares (1..EDITOR_UI_OPEN_SET_MAX) together as this
+ *  window's working set, in place of what it shows. Only the window that
+ *  shows the world can (its open_square_set hook); elsewhere it says so. */
+void
+Editor_UiOpenSquareSet(
+    struct EditorUi* ui,
+    const struct EditorUiSquareRef* squares,
+    int count);
 
 int
 Editor_UiTogglePanel(

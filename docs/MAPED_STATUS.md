@@ -5901,6 +5901,88 @@ of the same commit, gcc 15). The editor tests now build on Windows:
   the daemon's cfg-copy (8), live-editor (1), cp-incremental, iface-editor
   and the embed test's link.
 
+## Scratch squares and Open squares (2026-11-07)
+
+The owner (2026-11-07): the New square dialog asked for a map x and z nobody
+has memorised, and picking a place for a square was hard in general. New now
+makes a scratch square to shape first, and its Save picks the place on the
+Square map; File > Open squares sweeps up to 3x3 squares off the map as the
+working set.
+
+- **Scratch squares** (`EDITOR_DOC_SCRATCH_STORAGE`, src/editor/editor_doc.h).
+  New square... asks only what it starts as (Empty, Copy of selection, Flat
+  fill; Flat fill is chosen, on the palette's underlay or else u48, Lumbridge's
+  grass -- an Empty or underlay-0 square alone in the world is a black void
+  with nothing to grab) and DOC_CREATEs it in storage `scratch` on the first free scratch
+  slot (`Editor_DocScratchSlot`: eight squares at x 240..246, z 240..242, two
+  apart; the content tree stops at x 65). It opens at once as the working set,
+  through the save guard only when a save has something to write (a scratch
+  square's own work is no reason to ask: a save never writes it). The server holds it like any created square, but
+  the file layer has no path for it (`Editor_HostDocPath`), SAVE refuses it,
+  SAVE_ALL and RUN/PUBLISH's save skip it, DOC_CREATE refuses a scratch slot
+  to any other storage and the scratch storage to any other square, and the
+  picker leaves it off the map (its storage stays in the atlas, so an index
+  still resolves).
+- **Save places it.** Save all (Ctrl+S) saves everything else, then, when a
+  scratch square holds work (`Editor_NewSquare_UnplacedScratch`), opens the
+  Square map in Place (`Editor_SquarePicker_Place`): a bar over the well
+  with the instruction, Stored in (maps/, every lane, New lane...) and
+  Cancel. The hovered cell is checked as a destination with
+  `Editor_NewSquareValidate` and outlined green, or in the accent with the
+  reason in the bar; a click DOC_CREATEs a copy there, clears the scratch
+  slot (its own undo step), saves, and opens the placed square as the working
+  set. The next unplaced scratch square, if any, is asked about next. Save
+  square as new on a scratch square is its Place too.
+- **A blank scratch square is a free slot**: DOC_CREATE reuses it, and
+  `Editor_DocHasUnsaved` / `Editor_DocUnsavedCount` do not count it, so a
+  placed (cleared) slot never trips the save guard. A scratch square still
+  holding work is unsaved; the guard's Save leaves it in the session, and
+  New square... offers "Open unplaced scratch/m240_240" to go back to it.
+- **Copy to...** (the map's menu, the pane) is the same Place without the
+  save or the clearing; the copy joins the open set, as before.
+- **An empty cell** clicked on the map is focused (the pane names it empty)
+  instead of opening New with its coordinates.
+- **Open squares** (File, Ctrl+O, `file.open_squares`): the Square map's
+  sweep mode. A drag sweeps up to 3x3 cells (`Editor_PickerSweepRect`, kept
+  against the first cell), the bar counts the squares under it, and Open
+  opens them together (`Editor_UiOpenSquareSet`, the `open_square_set` hook,
+  `EDITOR_UI_GUARD_OPEN_SET` past the save guard) in place of what is open;
+  empty cells are skipped; the camera goes to the square nearest the middle.
+  The app drains the set like a single open (`app_map_editor_open_square_set`).
+  Wheel and two-finger scroll still zoom and pan; Escape or Cancel leaves.
+
+Photographed (private OPT client, a mirror of the content tree, headless at
+1280x800; the scratchpad, not committed): New's modal; the scratch square
+opened alone as flat grass (status bar m240_240, 1 unsaved); Ctrl+S opening
+the Square map in Place with its bar; a taken cell refused in the bar
+("m31_36 already exists (maps/, Gielinor Surface)"); a free one offered
+("Click: creates m13_63 in maps/") and placed (its .jm2/.jl2/.filepack
+written, the strip m13_63, nothing unsaved); Ctrl+O's bar, a 3x3 sweep
+("m36_44 .. m38_46: 9 squares", outlined green) and Open (the world at the
+swept squares, the strip m36_44, m36_45, m36_46, +6). Found on the way: a
+flat fill on u139 draws black (a dark underlay, not a fault) -- why the
+default underlay is one that draws.
+
+Checked: test-editor-panels (New makes a scratch square that opens at once;
+Save all writes none of it; Save opens Place; a taken cell is refused where
+it is hovered; a free one places the copy with the scratch's work, clears the
+slot, saves and opens it as the working set; New reuses the slot; Open
+squares sweeps 2x2 and opens the squares there together; the sweep clamp and
+the scratch-slot refusal), test-editor-hotkeys (the doc row), test-catalog,
+test-editor-catalog-finder.
+
+Open:
+- Open squares works only in the window that shows the world; a popped-out
+  Square map says so instead of relaying the set
+  (`Editor_UiOpenSquareSet`).
+- A scratch square's spawns are not copied by Place (DOC_CREATE's copy
+  carries tiles and locs).
+- The open-set strip does not list a scratch square (the picker hides it).
+- The Square map opens as a flyout that runs under the right column's
+  panels (the Catalog draws over its east part) at 1280x800; a cell there is
+  out of reach until the map is moved. Its placement is `squares_size_map`
+  (899aee439), not this change.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.

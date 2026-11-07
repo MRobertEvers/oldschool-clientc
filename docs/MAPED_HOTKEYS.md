@@ -89,6 +89,7 @@ of the two is live; the Camera table below says which keys each has).
 | Publish the lane's changes to a lane | Ctrl+Shift+U | G |
 | Save the session's state as a scene (the open squares, the World's camera, the pinned level and Above, the lane, the var preview, the live account; the Scenes panel's Holds chips choose; one undo step, saved at once) | Ctrl+Shift+K | G |
 | Make a scratch lane from main and switch to it (`scratch-<yymmdd><letter>`; the switch waits for the next editor boot: a running server cannot re-point its lane) | Ctrl+Shift+N | G |
+| Open up to 3x3 squares, swept on the Square map (a drag over the map picks them; Open opens them together as the working set, in place of what is open) | Ctrl+O | G |
 
 File also lists **Recent squares**: the last ten squares opened in this
 window (newest first, a lane square as `<lane>/m50_50`), remembered per user
@@ -417,7 +418,7 @@ chords is skipped and named in the console (`editor: editor_hotkeys.ini: line
 N: ...`); the rest of the file still applies. The ids, in the order of the
 tables (the Hotkeys panel calls them by the name after the id):
 
-- **File**: `file.new` New square..., `file.save_all` Save all, `file.save_as` Save square as new..., `file.bake` Bake cache (slow), `file.close` Close editor, `file.check_scripts` Check scripts, `file.run` Run (save, build, reload), `file.publish` Publish..., `file.save_scene` Save scene, `file.scratch_lane` Scratch lane
+- **File**: `file.new` New square..., `file.save_all` Save all, `file.save_as` Save square as new..., `file.bake` Bake cache (slow), `file.close` Close editor, `file.check_scripts` Check scripts, `file.run` Run (save, build, reload), `file.publish` Publish..., `file.save_scene` Save scene, `file.scratch_lane` Scratch lane, `file.open_squares` Open squares...
 - **Edit**: `edit.undo` Undo, `edit.redo` Redo, `edit.deselect` Deselect / cancel, `edit.delete` Delete selection, `edit.duplicate` Duplicate, `edit.rotate` Rotate, `edit.reshape` Reshape, `edit.apply` Apply tool to selection, `edit.select_square` Select the square's locs, `edit.select_same` Select same, `edit.nudge_n` Nudge north, `edit.nudge_s` Nudge south, `edit.nudge_w` Nudge west, `edit.nudge_e` Nudge east, `edit.nudge_far_n` Nudge north 8, `edit.nudge_far_s` Nudge south 8, `edit.nudge_far_w` Nudge west 8, `edit.nudge_far_e` Nudge east 8, `edit.level_up` Selection up a level, `edit.level_down` Selection down a level, `edit.copy` Copy tiles, `edit.paste` Paste tiles, `edit.fill` Fill tiles, `edit.clear` Clear tiles, `edit.mark_area` Mark area from rect, `edit.select_kind` Select all of the picked kind, `edit.invert` Invert selection
 - **Place**: `place.here` Place at the hovered tile, `place.fit` Fit walls to neighbours (toggle), `place.swap` Swap to catalog pick, `place.constrain` Constrain a drag to one axis (hold)
 - **Palette**: `palette.slot_1` Palette slot 1, `palette.slot_2` Palette slot 2, `palette.slot_3` Palette slot 3, `palette.slot_4` Palette slot 4, `palette.slot_5` Palette slot 5, `palette.slot_6` Palette slot 6, `palette.slot_7` Palette slot 7, `palette.slot_8` Palette slot 8, `palette.slot_9` Palette slot 9, `palette.slot_10` Palette slot 10, `palette.add_pick` Add the pick to the palette, `palette.next` Next palette, `palette.previous` Previous palette

@@ -34,22 +34,7 @@ struct SaveGuardPanel
 static int
 saveguard_unsaved_count(struct EditorUi* ui)
 {
-    struct Editor_Doc* doc;
-    int count = 0;
-
-    if( !ui->editor )
-        return 0;
-    doc = &ui->editor->doc;
-    for( int i = 0; i < doc->square_count; i++ )
-        if( doc->squares[i].loaded && (doc->squares[i].dirty_map || doc->squares[i].dirty_loc) )
-            count++;
-    for( int i = 0; i < doc->spawn_count; i++ )
-        if( doc->spawns[i]->dirty )
-            count++;
-    for( int i = 0; i < doc->text_count; i++ )
-        if( doc->texts[i]->dirty )
-            count++;
-    return count;
+    return ui->editor ? Editor_DocUnsavedCount(&ui->editor->doc) : 0;
 }
 
 static void
@@ -90,6 +75,9 @@ saveguard_tick(
             snprintf(line, sizeof(line), "before opening m%d_%d", ui->guard.map_x, ui->guard.map_z);
         else if( ui->guard.action == EDITOR_UI_GUARD_CLOSE_SQUARE )
             snprintf(line, sizeof(line), "before closing m%d_%d", ui->guard.map_x, ui->guard.map_z);
+        else if( ui->guard.action == EDITOR_UI_GUARD_OPEN_SET )
+            snprintf(line, sizeof(line), "before opening %d square%s around m%d_%d", ui->guard.set_count,
+                ui->guard.set_count == 1 ? "" : "s", ui->guard.map_x, ui->guard.map_z);
         else if( ui->guard.action == EDITOR_UI_GUARD_ENTER_SCENE )
             snprintf(line, sizeof(line), "before entering scene %.48s", ui->guard.scene);
         else

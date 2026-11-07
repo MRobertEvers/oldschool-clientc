@@ -1194,8 +1194,10 @@ save_all_docs(
     for( int i = 0; i < maped->doc.square_count; i++ )
     {
         struct Editor_DocHandle handle = { EDITOR_DOC_SQUARE, &maped->doc.squares[i], NULL, NULL };
+        /* A scratch square is placed, never saved (EDITOR_DOC_SCRATCH_STORAGE). */
         if( !handle.square->loaded
-            || (!Editor_DocHandleDirty(&handle) && !maped->doc.square_created[i]) )
+            || (!Editor_DocHandleDirty(&handle) && !maped->doc.square_created[i])
+            || Editor_DocStorageIsScratch(maped->doc.square_storage[i]) )
             continue;
         if( save_doc(maped, &handle, &rows[saved]) == EDITOR_HOST_OK )
             saved++;
@@ -1271,6 +1273,13 @@ handle_save(
         send_status_extra(session, TORIRSMAPED_REQ_SAVE, EDITOR_HOST_ABSENT, 0);
         return;
     }
+    if( handle.square
+        && Editor_DocStorageIsScratch(maped->doc.square_storage[handle.square - maped->doc.squares]) )
+    {
+        /* Placed, never saved: the client's Place copies it out. */
+        send_status_extra(session, TORIRSMAPED_REQ_SAVE, EDITOR_HOST_REFUSED, 0);
+        return;
+    }
     if( handle.square )
         created = maped->doc.square_created[handle.square - maped->doc.squares];
     if( !Editor_DocHandleDirty(&handle) && !created )
@@ -1326,6 +1335,8 @@ handle_doc_create(
     struct EditorHost_Blob existing = { NULL, 0 };
     struct Editor_Square* source = NULL;
     struct Editor_Square* square;
+    struct Editor_Square* reuse;
+    int scratch;
     int index;
     int was_in_stroke;
     int join_stroke;
@@ -1364,12 +1375,28 @@ handle_doc_create(
         return;
     }
 
+    /* A scratch square lives only on a scratch slot, and nothing else does
+     * (Editor_DocStorageIsScratch). */
+    scratch = Editor_DocStorageIsScratch(storage);
+    if( scratch != Editor_DocIsScratchSlot(map_x, map_z) )
+    {
+        send_status(session, TORIRSMAPED_REQ_DOC_CREATE, EDITOR_HOST_REFUSED);
+        return;
+    }
+    /* A blank scratch square is a free slot: a placed one was cleared. */
+    reuse = Editor_DocFindSquare(&maped->doc, map_x, map_z);
+    if( reuse
+        && !(scratch && reuse->loaded
+             && Editor_DocStorageIsScratch(Editor_DocSquareStorage(&maped->doc, reuse))
+             && Editor_SquareIsBlank(reuse)) )
+        reuse = NULL;
+
     /* Taken in that storage, or open at all (one square per place). */
     square_file_key(file_key, sizeof(file_key), storage, key);
     if( maped->files.vtable->doc_load(
             maped->files.user_data, EDITOR_DOC_SQUARE, file_key, 0, &existing)
             == EDITOR_HOST_OK
-        || Editor_DocFindSquare(&maped->doc, map_x, map_z) )
+        || (!reuse && Editor_DocFindSquare(&maped->doc, map_x, map_z)) )
     {
         Editor_HostBlobFree(&existing);
         TORIRS_LOG("torirsmaped: DOC_CREATE refused — %s already exists\n", file_key);
@@ -1398,7 +1425,7 @@ handle_doc_create(
         }
     }
 
-    square = Editor_DocOpenSquare(&maped->doc, map_x, map_z);
+    square = reuse ? reuse : Editor_DocOpenSquare(&maped->doc, map_x, map_z);
     if( !square )
     {
         send_status(session, TORIRSMAPED_REQ_DOC_CREATE, EDITOR_HOST_IO_ERROR);

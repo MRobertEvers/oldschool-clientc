@@ -71,6 +71,11 @@ Editor_NewSquareValidate(
         return 0;
     }
     Editor_SquareKey(key, form->map_x, form->map_z);
+    if( Editor_DocIsScratchSlot(form->map_x, form->map_z) )
+    {
+        snprintf(check->message, sizeof(check->message), "%s is kept for scratch squares", key);
+        return 0;
+    }
 
     /* Where it lives. */
     if( form->storage < 0 )

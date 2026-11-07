@@ -480,7 +480,8 @@ ui_service_world_busy(void* user_data)
 {
     struct App* app = user_data;
     assert(app);
-    return app->world_load_inflight || app->editor_panel.sq_open_pending || app->editor_panel.sq_close_pending;
+    return app->world_load_inflight || app->editor_panel.sq_open_pending || app->editor_panel.sq_set_count > 0
+           || app->editor_panel.sq_close_pending;
 }
 
 static void
@@ -1189,6 +1190,56 @@ app_map_editor_close_square(
 }
 
 /**
+ * Load the working set the Square map's Open squares asked for: those
+ * squares together, in place of what the window shows. A square from a lane
+ * (or a created one) opens in the mirror by its full key first, as a single
+ * open does; the camera goes to the first square's centre once it lands.
+ */
+static void
+app_map_editor_open_square_set(
+    struct App* app,
+    struct Editor_Panel* panel)
+{
+    int chunks[EDITOR_UI_OPEN_SET_MAX * 2];
+    int count = 0;
+    struct AppEditCtx ctx = { app->editor, app->provider, app->world_builder, app->world, app->scene };
+
+    for( int i = 0; i < panel->sq_set_count; i++ )
+    {
+        struct EditorUiSquareRef const* ref = &panel->sq_set[i];
+        if( ref->storage[0] )
+        {
+            char key[EDITOR_DOC_KEY_MAX + EDITOR_DOC_STORAGE_MAX];
+            snprintf(key, sizeof(key), "%s/m%d_%d", ref->storage, ref->map_x, ref->map_z);
+            if( !Editor_OpenDoc(app->editor, EDITOR_DOC_SQUARE, key) )
+            {
+                TORIRS_ERR("editor: cannot open %s\n", key);
+                continue;
+            }
+        }
+        chunks[count * 2] = ref->map_x;
+        chunks[count * 2 + 1] = ref->map_z;
+        count++;
+    }
+    panel->sq_set_count = 0;
+    if( count == 0 )
+        return;
+    for( int i = 0; i < count; i++ )
+    {
+        struct Editor_Square* square = Editor_DocFindSquare(&app->editor->doc, chunks[i * 2], chunks[i * 2 + 1]);
+        if( square && square->loaded && app->provider )
+            app_edit_seed_provider(&ctx, square);
+    }
+    TORIRS_LOG("editor: opening a working set of %d square%s\n", count, count == 1 ? "" : "s");
+    app->world_load_attempted = 0;
+    app_world_load_begin(app, chunks, count);
+    panel->sq_goto_pending = 1;
+    panel->sq_goto_level = 0;
+    panel->sq_goto_x = chunks[0] * 64 + 32;
+    panel->sq_goto_z = chunks[1] * 64 + 32;
+}
+
+/**
  * Start a load the square picker asked for. Runs on the frame boundary with
  * the other editor drains, so a panel click never loads a world mid-tick.
  *
@@ -1223,10 +1274,17 @@ app_map_editor_open_pending_square(struct App* app)
                 panel->sq_goto_z / 64);
     }
     /* A close waits for the load in flight and for an open asked before it. */
-    if( panel->sq_close_pending && !panel->sq_open_pending && !app->world_load_inflight )
+    if( panel->sq_close_pending && !panel->sq_open_pending && panel->sq_set_count == 0
+        && !app->world_load_inflight )
     {
         panel->sq_close_pending = 0;
         app_map_editor_close_square(app, panel);
+        return;
+    }
+    if( panel->sq_set_count > 0 )
+    {
+        if( !app->world_load_inflight )
+            app_map_editor_open_square_set(app, panel);
         return;
     }
     if( !panel->sq_open_pending )

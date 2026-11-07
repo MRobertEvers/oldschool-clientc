@@ -4263,6 +4263,26 @@ Editor_UiOpenSquare(
 }
 
 void
+Editor_UiOpenSquareSet(
+    struct EditorUi* ui,
+    const struct EditorUiSquareRef* squares,
+    int count)
+{
+    assert(ui);
+    assert(squares);
+    assert(count > 0);
+    assert(count <= EDITOR_UI_OPEN_SET_MAX);
+    for( int i = 0; i < count; i++ )
+        Editor_RecentNote(&ui->recent, squares[i].map_x, squares[i].map_z, squares[i].storage);
+    if( Editor_UiWorldShown(ui) && ui->hooks.open_square_set )
+    {
+        ui->hooks.open_square_set(ui->hooks_user, squares, count);
+        return;
+    }
+    Editor_UiLog(ui, "editor: Open squares needs the window that shows the world");
+}
+
+void
 Editor_UiApplyState(
     struct EditorUi* ui,
     uint32_t key,
@@ -4581,6 +4601,9 @@ Editor_UiRunGuarded(
         break;
     case EDITOR_UI_GUARD_ENTER_SCENE:
         (void)Editor_Scenes_EnterNow(ui, guard->scene);
+        break;
+    case EDITOR_UI_GUARD_OPEN_SET:
+        Editor_UiOpenSquareSet(ui, guard->set, guard->set_count);
         break;
     case EDITOR_UI_GUARD_CLOSE:
         if( ui->hooks.close_editor )
