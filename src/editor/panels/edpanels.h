@@ -1505,7 +1505,7 @@ Editor_Hotkeys_Feed(
  * locs, npcs and objs; "loc:" "npc:" "obj:" narrow it to one kind) and
  * Scenes (the SCENES document: Enter enters the scene through the save
  * guard), Lanes (the Lanes panel's list: Enter stages the switch for the
- * next boot) and Accounts (the Accounts panel's list). Recent, ahead of
+ * next launch) and Accounts (the Accounts panel's list). Recent, ahead of
  * them all, is the squares opened most recently (ui->recent), every one
  * when the box is empty. An absolute tile ("3222,3218", "3222 3218 1") is a
  * Squares row that brings the camera to it, opening its square first when
@@ -1548,7 +1548,7 @@ enum Editor_CmdPalKind
     EDITOR_CMDPAL_KIND_ACCOUNT,
     /** `name` a scene: Editor_Scenes_Enter. */
     EDITOR_CMDPAL_KIND_SCENE,
-    /** `name` a lane: Editor_Lanes_Switch (staged for the next boot). */
+    /** `name` a lane: Editor_Lanes_Switch (staged for the next launch). */
     EDITOR_CMDPAL_KIND_LANE,
     /** `x` `z` `level` an absolute tile: the camera over it, its square
      *  opened first when the scene does not hold it. */
@@ -1809,8 +1809,10 @@ Editor_CatalogPalette_ThumbDone(
 
 /** Register the Lanes panel (module "publish", titled "Lanes" since workbench
  *  6.5: every lane with its change count, the changes, Publish to...,
- *  Scratch lane, Switch..., Discard...); needs ui->editor. It also keeps
- *  ui->lane, which the status bar's chip reads. */
+ *  Scratch lane, Switch at relaunch, Discard..., Lane from main, and a
+ *  boot line saying which lane every launch opens and how to reach a
+ *  switched one); needs ui->editor. It also keeps ui->lane, which the
+ *  status bar's chip reads. */
 void
 Editor_Publish_Register(struct EditorUi* ui);
 
@@ -1827,16 +1829,17 @@ Editor_Lanes_Show(struct EditorUi* ui);
 /** Ctrl+Shift+N, the panel's Scratch lane: a lane named
  *  "scratch-<yymmdd><letter>" (ToriRSMapEdLanes_ScratchName, today's date,
  *  the first free letter) made from main through LANE_CREATE, then the
- *  session switched to it -- staged for the next boot, since a running
- *  server cannot re-point its lane; the status bar says which. 1 asked, 0
- *  refused with a status sentence. */
+ *  session switched to it -- staged for the next launch, since a running
+ *  server cannot re-point its lane; the status bar says which and what to
+ *  do ("quit and launch the editor again"). 1 asked, 0 refused with a
+ *  status sentence. */
 int
 Editor_Lanes_Scratch(struct EditorUi* ui);
 
-/** Switch the session to lane `name` (LANE_SWITCH): what the next boot
- *  serves (build/lanes/lane.ini); the server's answer is said in the status
- *  bar. 1 asked, 0 refused with a status sentence (no such server frame, the
- *  lane it serves already). */
+/** Switch the session to lane `name` (LANE_SWITCH): what every launch opens
+ *  from then on (build/lanes/lane.ini); the status bar says so and how to
+ *  get there. 1 asked, 0 refused with a status sentence (no such server
+ *  frame, the lane it serves already). */
 int
 Editor_Lanes_Switch(
     struct EditorUi* ui,

@@ -270,10 +270,14 @@ registry_digest(
  * names its own skin slot now; 2x, 3x and the scenes did not move. The
  * Region tools moved all three registries (was 2251776434u, 1406059493u,
  * 2103401179u): the rail gained Region, Lasso and Tidy; HEAD without them
- * still drew the old digests; the scenes did not move. */
+ * still drew the old digests; the scenes did not move. The Lanes panel's
+ * boot line (2026-11-08: a label saying which lane every launch opens, and
+ * the buttons renamed "Switch at relaunch" / "Lane from main") moved the 1x
+ * and 2x registries (was 920953359u, 2007608999u); 3x and the scenes did
+ * not move. */
 static const uint32_t k_golden[3][3] = {
-    { 1970238540u, 3840548130u, 920953359u },
-    { 1606657634u, 3552625563u, 2007608999u },
+    { 1970238540u, 3840548130u, 38085939u },
+    { 1606657634u, 3552625563u, 3973481444u },
     { 1621493878u, 3838641767u, 3276910591u },
 };
 

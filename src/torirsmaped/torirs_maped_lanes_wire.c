@@ -356,6 +356,15 @@ ToriRSMapEd_OpenLane(
     return 1;
 }
 
+void
+ToriRSMapEd_SetLaneAsked(
+    struct ToriRSMapEd* maped,
+    const char* asked)
+{
+    assert(maped);
+    snprintf(maped->lane_asked, sizeof(maped->lane_asked), "%s", asked && asked[0] ? asked : "main");
+}
+
 static void
 lanes_put_def(
     struct ToriRSMapEdBuf* out,
@@ -593,11 +602,12 @@ handle_lane_switch(
         return;
     }
     if( strcmp(name, maped->lane.name) == 0 )
-        snprintf(message, sizeof(message), "this editor serves lane '%s' now and from every boot on", name);
+        snprintf(message, sizeof(message), "this editor is on lane '%s' already; every launch opens it from now on",
+            name);
     else
         snprintf(message, sizeof(message),
-            "the next editor boot serves lane '%s' (build/lanes/lane.ini); this one keeps '%s' until it restarts: "
-            "a running server cannot re-point its lane",
+            "lane '%s' opens from the next launch on (build/lanes/lane.ini); quit and launch the editor again to go "
+            "there, this one stays on '%s': a running server cannot re-point its lane",
             name, maped->lane.name);
     lanes_published(maped, TORIRSMAPED_LANE_PUBLISHED_SWITCH, EDITOR_HOST_OK, message, name, NULL, 0);
 }
@@ -741,6 +751,9 @@ handle_lanes(
             char next_boot[TORIRSMAPED_LANE_NAME_MAX + 8];
             lanes_next_boot(maped, next_boot, sizeof(next_boot));
             ToriRSMapEd_PutString(&payload, next_boot);
+            /* And what the boot asked for, so the panel can tell a lane
+             * pinned by Switch from the manifest's own ("" never told). */
+            ToriRSMapEd_PutString(&payload, maped->lane_asked);
         }
         send_buf(session, TORIRSMAPED_FACT_LANE_INFO, &payload);
     }

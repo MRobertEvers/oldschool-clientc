@@ -721,6 +721,12 @@ struct ToriRSMapEd
      *  else the main lane of `content_dir` itself. */
     struct ToriRSMapEdLaneDef lane;
     int lane_bound;
+    /** The lane the boot ASKED for -- the manifest's `lane=`, `--lane`,
+     *  "main" when neither said -- before build/lanes/lane.ini had its say
+     *  (ToriRSMapEd_SetLaneAsked); "" when the caller never told us. The
+     *  Lanes panel shows it beside the lane every launch opens, so a lane
+     *  pinned by Switch can be told from the manifest's own. */
+    char lane_asked[TORIRSMAPED_LANE_NAME_MAX + 8];
     /** A LANE_CHANGES scan on its worker thread (torirs_maped_lanes_wire.c);
      *  NULL when none runs. One runs at a time: the lanes whose walk a
      *  request wanted meanwhile wait here by name, and lanes_service starts
@@ -819,6 +825,14 @@ ToriRSMapEd_OpenLane(
     const char* lane_name,
     char* why,
     size_t why_size);
+
+/** Remember the lane the boot asked for (`lane_asked`): called after Open
+ *  or OpenLane by whoever read the manifest or --lane, with the name BEFORE
+ *  build/lanes/lane.ini overrode it. NULL or "" is "main". */
+void
+ToriRSMapEd_SetLaneAsked(
+    struct ToriRSMapEd* maped,
+    const char* asked);
 
 void
 ToriRSMapEd_Close(struct ToriRSMapEd* maped);

@@ -75,7 +75,10 @@
  * without the bit, which would end the session on an unknown request:
  *
  *   FACT_LANE_INFO      gains a trailing `string next_boot`: the lane
- *                       build/lanes/lane.ini names for the next boot ("" none).
+ *                       build/lanes/lane.ini names for the next boot ("" none);
+ *                       then `string asked`: the lane the boot asked for before
+ *                       lane.ini had its say (the manifest's `lane=` / --lane,
+ *                       "main" when neither; "" from a server that predates it).
  *   FACT_LANE_LIST      gains a trailing `u32 n, n * (i32 changes, string
  *                       held)`, in the rows' order: each lane's change count
  *                       against its base (-1 not counted) and who holds its

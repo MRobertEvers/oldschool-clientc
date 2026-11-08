@@ -37,6 +37,52 @@ subject go to NONE when the tile went, and the Place-tool ghost drop waits
 until the spawn selection is empty too. editor_panels_test
 `test_spawn_escape`. docs/MAPED_HOTKEYS.md "Deselect / cancel".
 
+## Lanes: the switch made legible (2026-11-08)
+
+Owner: "It is not clear how to switch lanes... I seem to be stuck in a
+scratch lane, and it is not clear how to create a scratch lane from the
+fresh cache." Nothing was broken: a Switch (and Scratch lane's switch)
+writes `build/lanes/lane.ini`, which every launch then obeys over the
+manifest's `lane=`, and the running editor stays where it is. What was
+missing was the panel saying so in the user's terms -- it spoke of "the
+next boot" and a file name, never of quitting and launching again, never of
+which lane the launches were pinned to or why, and Enter on a lane row did
+nothing. So (edpanel_publish.c, edpanel_statusbar.c, the lanes wire):
+
+- **The boot line**, a label under Lane / Base in the Lanes panel, always
+  says what the launches do and what to do about it:
+  - a switch waiting: "Next launch opens: working. Quit and launch the
+    editor again to switch; this session stays on scratch-261108a."
+  - pinned by an earlier Switch: "Every launch opens: scratch-261108a (set
+    by Switch; the manifest asks for working)." -- the way back is a Switch
+    to the named lane.
+  - nothing staged: "Every launch opens: working (the manifest's lane).
+    Switch or Scratch lane changes that."
+  The server tells the panel which lane the boot ASKED for before lane.ini
+  had its say: `FACT_LANE_INFO` gains a second trailing string `asked`
+  after `next_boot` (`ToriRSMapEd_SetLaneAsked`, called by the daemon's
+  main and `ToriRSMapEd_EmbedStartLane`; `struct EditorUiLane` gains
+  `pinned` and `asked`; `torirsmapedctl lane` prints both).
+- **The buttons say what they do**: "Switch at relaunch" (was "Switch...";
+  tip: the picked lane opens at the next launch, quit and launch again),
+  "Scratch lane" (tip: a clean mirror of main as it is now, opens at the next
+  launch), "Lane from main" (was "New lane"; the button column is narrow,
+  a longer label is cut). The lane list's row for
+  the staged lane carries " | next launch".
+- **Enter on a lane row switches**: the first activation picks the row, the
+  second (Enter again, a double-click) is its Switch, as the Scenes list's
+  second activation enters the scene. The old handler only refreshed.
+- **Every sentence names the action**: "Switched: working opens from the
+  next launch on. Quit and launch the editor again to go there; this
+  session stays on scratch-261108a"; "Scratch lane scratch-261108b made
+  from main; it opens from the next launch on. Quit and launch the editor
+  again to go there"; the chip's tip "Quit and launch again to switch to
+  working". The word "boot" is gone from the panel.
+- Tests: editor_scenes_ops_test (the boot line both ways, the row marker,
+  Enter twice switching to main and back, `pinned` / `asked` after the
+  restart). A live re-point of a running server is still not built (the
+  6.5 open item stands): the switch is honest about being a relaunch.
+
 ## Spawn preview (2026-11-08)
 
 Spawns panel, "Show spawns in the world" (Shift+F6, off by default): every

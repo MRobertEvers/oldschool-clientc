@@ -457,9 +457,9 @@ statusbar_tick(
         {
             char tip[TORIRS_CHROME_LABEL_MAX];
             if( ui->lane.next_boot[0] )
-                snprintf(tip, sizeof(tip), "Lanes panel; the next boot serves %.20s", ui->lane.next_boot);
+                snprintf(tip, sizeof(tip), "Quit and launch again to switch to %.24s", ui->lane.next_boot);
             else
-                snprintf(tip, sizeof(tip), "Click: the Lanes panel (publish, scratch, switch)");
+                snprintf(tip, sizeof(tip), "Click: the Lanes panel (switch, scratch lane, publish)");
             ToriRSChrome_SetTooltip(ui->chrome, self->label_lane, tip);
             self->refit = 1;
         }

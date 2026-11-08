@@ -2294,10 +2294,14 @@ lanes_print(
             writable ? "" : " [read-only]", content, live);
         if( !is_main )
             printf("  base    %s\n", base);
-        /* The workbench tail (TORIRSMAPED_CAP_LANES_V2). */
+        /* The workbench tail (TORIRSMAPED_CAP_LANES_V2): the lane every
+         * launch opens (build/lanes/lane.ini) and the one the boot asked for. */
         ToriRSMapEd_GetString(&reader, text, sizeof(text));
         if( !reader.bad && text[0] )
-            printf("  next boot serves lane %s (build/lanes/lane.ini)\n", text);
+            printf("  every launch opens lane %s (build/lanes/lane.ini, set by Switch)\n", text);
+        ToriRSMapEd_GetString(&reader, text, sizeof(text));
+        if( !reader.bad && text[0] )
+            printf("  the boot asked for lane %s (the manifest / --lane)\n", text);
         reader.bad = 0;
     }
     else if( type == TORIRSMAPED_FACT_LANE_LIST )

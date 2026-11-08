@@ -48,7 +48,7 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_FILE_SAVE_SCENE] = { "file.save_scene", "File", "Save scene",
                                     "Save the session's state as a scene", G, EDGE, { "ctrl+shift+k" }, NULL },
     [EDITOR_HK_FILE_SCRATCH_LANE] = { "file.scratch_lane", "File", "Scratch lane",
-                                      "Make a scratch lane from main and switch to it", G, EDGE,
+                                      "Make a scratch lane from main; it opens at the next launch", G, EDGE,
                                       { "ctrl+shift+n" }, NULL },
     [EDITOR_HK_FILE_OPEN_SQUARES] = { "file.open_squares", "File", "Open squares...",
                                       "Open up to 3x3 squares, swept on the Square map", G, EDGE, { "ctrl+o" },

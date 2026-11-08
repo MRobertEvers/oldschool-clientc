@@ -92,7 +92,7 @@ of the two is live; the Camera table below says which keys each has).
 | Run: save all, build, reload live | Ctrl+Return | G |
 | Publish the lane's changes to a lane | Ctrl+Shift+U | G |
 | Save the session's state as a scene (the open squares, the World's camera, the pinned level and Above, the lane, the var preview, the live account; the Scenes panel's Holds chips choose; one undo step, saved at once) | Ctrl+Shift+K | G |
-| Make a scratch lane from main and switch to it (`scratch-<yymmdd><letter>`; the switch waits for the next editor boot: a running server cannot re-point its lane) | Ctrl+Shift+N | G |
+| Make a scratch lane from main; it opens at the next launch (`scratch-<yymmdd><letter>`, a clean mirror of main as it is now; the switch waits for the next launch: a running server cannot re-point its lane, so quit and launch the editor again) | Ctrl+Shift+N | G |
 | Open up to 3x3 squares, swept on the Square map (a drag over the map picks them; Open opens them together as the working set, in place of what is open) | Ctrl+O | G |
 
 File also lists **Recent squares**: the last ten squares opened in this

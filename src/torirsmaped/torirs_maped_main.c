@@ -278,6 +278,9 @@ main(
      * and the live link, everything a build writes under that dir. */
     if( live_dir )
         setenv("TORIRSMAPED_LIVE_DIR", live_dir, 1);
+    /* What this boot asked for, before lane.ini has its say (the Lanes
+     * panel shows it beside the lane every launch opens). */
+    const char* const lane_asked = lane_name && lane_name[0] ? lane_name : "main";
     /* A lane switched in the editor (build/lanes/lane.ini, the Lanes
      * panel's Switch and Scratch lane) wins over --lane: this daemon cannot
      * re-point its lane while it runs, so the switch waits for this boot. */
@@ -310,6 +313,7 @@ main(
     }
     else
         ToriRSMapEd_Open(&maped, content_dir, repo_root);
+    ToriRSMapEd_SetLaneAsked(&maped, lane_asked);
     daemon_views_bind(&maped, view_binary, view_manifest, port);
 
     fprintf(

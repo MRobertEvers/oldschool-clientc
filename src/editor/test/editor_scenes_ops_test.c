@@ -54,6 +54,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <time.h>
+#endif
 #include <time.h>
 
 static int
@@ -351,6 +356,33 @@ pump(int n)
     }
 }
 
+/** Pump window A until its lane chip starts with `want`, or about four
+ *  seconds pass: since 4f6ea328e the server walks a lane's changes on a
+ *  worker thread and the count lands as a broadcast, so a fixed frame count
+ *  cannot see it. Returns 1 when the chip got there. */
+static int
+pump_until_chip(const char* want)
+{
+    char chip[96];
+
+    for( int i = 0; i < 2000; i++ )
+    {
+        pump(1);
+        Editor_Lanes_ChipText(&g_a.ui, chip, (int)sizeof(chip));
+        if( strncmp(chip, want, strlen(want)) == 0 )
+            return 1;
+#if defined(_WIN32)
+        Sleep(2);
+#else
+        {
+            struct timespec nap = { 0, 2 * 1000 * 1000 };
+            nanosleep(&nap, NULL);
+        }
+#endif
+    }
+    return 0;
+}
+
 static const char*
 doc_text(struct Window* w)
 {
@@ -428,6 +460,23 @@ statusbar_label(
         const struct ToriRSChromeWidget* widget = &w->chrome.widgets[i];
         if( widget->kind == TORIRS_CHROME_W_LABEL && w->chrome.panels[widget->panel].style == TORIRS_CHROME_PANEL_MENUBAR
             && !widget->hidden && strncmp(widget->text, prefix, strlen(prefix)) == 0 )
+            return i;
+    }
+    return -1;
+}
+
+/** The first shown LABEL of `panel` whose text starts with `prefix`, -1. */
+static int
+panel_label(
+    struct Window* w,
+    int panel,
+    const char* prefix)
+{
+    for( int i = 0; i < w->chrome.widget_count; i++ )
+    {
+        const struct ToriRSChromeWidget* widget = &w->chrome.widgets[i];
+        if( widget->kind == TORIRS_CHROME_W_LABEL && widget->panel == panel && !widget->hidden
+            && strncmp(widget->text, prefix, strlen(prefix)) == 0 )
             return i;
     }
     return -1;
@@ -705,6 +754,7 @@ test_lanes_and_chip(void)
     char name[48];
     char today[48];
     char chip[96];
+    char line[256];
     char path[2048];
     char* ini;
     int label;
@@ -730,6 +780,7 @@ test_lanes_and_chip(void)
     /* The chip: the lane and its change count (editor/scenes.txt is the
      * lane's one change). */
     expected = lane_changes("work");
+    (void)pump_until_chip("work | 1 changed");
     Editor_Lanes_ChipText(&g_a.ui, chip, (int)sizeof(chip));
     CHECK(expected == 1, "the lane has one change: its scenes.txt (%d)", expected);
     CHECK(strcmp(chip, "work | 1 changed") == 0, "the chip text: %s", chip);
@@ -759,8 +810,9 @@ test_lanes_and_chip(void)
     free(ini);
     CHECK(strcmp(g_a.ui.lane.next_boot, today) == 0 && strcmp(g_a.ui.lane.name, "work") == 0,
         "the session stays on work, the next boot on %s (%s)", today, g_a.ui.lane.next_boot);
-    CHECK(strstr(status(&g_a), "for the next editor boot") && strstr(status(&g_a), "cannot re-point its lane"),
-        "the status bar says the switch waits for a restart: %s", status(&g_a));
+    CHECK(strstr(status(&g_a), "Scratch lane") && strstr(status(&g_a), "opens from the next launch on")
+              && strstr(status(&g_a), "launch the editor again"),
+        "the status bar says how to get there: %s", status(&g_a));
     Editor_Lanes_ChipText(&g_a.ui, chip, (int)sizeof(chip));
     snprintf(name, sizeof(name), "work | 1 changed | next: %s", today);
     CHECK(strcmp(chip, name) == 0, "the chip names the next boot's lane: %s", chip);
@@ -779,12 +831,63 @@ test_lanes_and_chip(void)
                     found |= 1;
                 if( strncmp(row, "work (this) | 1 changed", 23) == 0 )
                     found |= 2;
+                if( strstr(row, today) && strstr(row, "| next launch") )
+                    found |= 4;
             }
         }
         CHECK(list >= 0 && g_a.chrome.widgets[list].imax == 3, "three lanes: main, the scratch, work (%d)",
             list >= 0 ? g_a.chrome.widgets[list].imax : -1);
-        CHECK(found == 3, "rows with their counts (%d: %s / %s / %s)", found, row_text(&g_a, list, 0),
-            row_text(&g_a, list, 1), row_text(&g_a, list, 2));
+        CHECK(found == 7, "rows with their counts, the staged one marked (%d: %s / %s / %s)", found,
+            row_text(&g_a, list, 0), row_text(&g_a, list, 1), row_text(&g_a, list, 2));
+        /* The boot line says what happens and what to do, in the user's
+         * terms: a launch, not a boot. */
+        label = panel_label(&g_a, lanes_panel, "Next launch opens: ");
+        snprintf(line, sizeof(line),
+            "Next launch opens: %s. Quit and launch the editor again to switch; this session stays on work.", today);
+        CHECK(label >= 0 && strcmp(g_a.chrome.widgets[label].text, line) == 0, "the boot line says how to switch: %s",
+            label >= 0 ? g_a.chrome.widgets[label].text : "-");
+    }
+
+    /* Enter on a lane row: the first activation picks it, the second is its
+     * Switch (as the Scenes list's second activation enters the scene):
+     * main, then back to the scratch lane. */
+    {
+        int const list = find_widget(&g_a, lanes_panel, TORIRS_CHROME_W_VLIST, "Lanes");
+        int row_main = -1;
+        int row_today = -1;
+        int marked = 0;
+        for( int r = 0; list >= 0 && r < g_a.chrome.widgets[list].imax && r < 8; r++ )
+        {
+            if( strncmp(row_text(&g_a, list, r), "main |", 6) == 0 )
+                row_main = r;
+            if( strncmp(row_text(&g_a, list, r), today, strlen(today)) == 0 )
+                row_today = r;
+        }
+        CHECK(row_main >= 0 && row_today >= 0, "the list has main and %s", today);
+        if( row_main >= 0 && row_today >= 0 )
+        {
+            ToriRSChrome_VListSetSelected(&g_a.chrome, list, row_main);
+            activate(&g_a, list);
+            pump(2);
+            CHECK(strcmp(g_a.ui.lane.next_boot, today) == 0, "one Enter picks the row and switches nothing (%s)",
+                g_a.ui.lane.next_boot);
+            activate(&g_a, list);
+            pump(4);
+            CHECK(strcmp(g_a.ui.lane.next_boot, "main") == 0, "a second Enter switches to it (%s)", g_a.ui.lane.next_boot);
+            CHECK(strstr(status(&g_a), "Switched: main opens from the next launch on") != NULL
+                      && strstr(status(&g_a), "this session stays on work") != NULL,
+                "and says so: %s", status(&g_a));
+            for( int r = 0; r < g_a.chrome.widgets[list].imax && r < 8; r++ )
+                if( strncmp(row_text(&g_a, list, r), "main |", 6) == 0 && strstr(row_text(&g_a, list, r), "| next launch") )
+                    marked = 1;
+            CHECK(marked, "the main row is marked for the next launch (%s)", row_text(&g_a, list, row_main));
+            ToriRSChrome_VListSetSelected(&g_a.chrome, list, row_today);
+            activate(&g_a, list);
+            pump(2);
+            activate(&g_a, list);
+            pump(4);
+            CHECK(strcmp(g_a.ui.lane.next_boot, today) == 0, "and back to %s (%s)", today, g_a.ui.lane.next_boot);
+        }
     }
 
     /* The counts are the server's cache of each lane's last walk: the chip's
@@ -804,7 +907,8 @@ test_lanes_and_chip(void)
         CHECK(refresh >= 0, "the Lanes panel has Refresh");
         if( refresh >= 0 )
             activate(&g_a, refresh);
-        pump(4);
+        (void)pump_until_chip("work | 2 changed");
+        pump(2);
         Editor_Lanes_ChipText(&g_a.ui, chip, (int)sizeof(chip));
         CHECK(strncmp(chip, "work | 2 changed", 16) == 0, "Refresh walks the mirror again (%s)", chip);
         for( int r = 0; list >= 0 && r < g_a.chrome.widgets[list].imax && r < 8; r++ )
@@ -816,7 +920,8 @@ test_lanes_and_chip(void)
         remove(path);
         if( refresh >= 0 )
             activate(&g_a, refresh);
-        pump(4);
+        (void)pump_until_chip("work | 1 changed");
+        pump(2);
         Editor_Lanes_ChipText(&g_a.ui, chip, (int)sizeof(chip));
         CHECK(strncmp(chip, "work | 1 changed", 16) == 0, "and again once it is gone (%s)", chip);
     }
@@ -845,10 +950,22 @@ test_lanes_and_chip(void)
     }
     pump(4);
     CHECK(strcmp(g_a.ui.lane.name, today) == 0, "the next boot serves %s (%s)", today, g_a.ui.lane.name);
-    Editor_Lanes_ChipText(&g_a.ui, chip, (int)sizeof(chip));
     snprintf(name, sizeof(name), "%s | clean", today);
+    (void)pump_until_chip(name);
+    Editor_Lanes_ChipText(&g_a.ui, chip, (int)sizeof(chip));
     CHECK(strcmp(chip, name) == 0, "its chip: %s", chip);
     CHECK(strcmp(doc_text(&g_a), "") == 0, "a scratch lane is made from main: no scenes in it");
+    /* And the panel says the lane is pinned, and by what: the way back is a
+     * Switch to the manifest's lane, which the server named. */
+    CHECK(g_a.ui.lane.pinned && strcmp(g_a.ui.lane.asked, "work") == 0,
+        "lane.ini pins it; the boot asked for work (pinned %d, asked %s)", g_a.ui.lane.pinned, g_a.ui.lane.asked);
+    lanes_panel = find_panel(&g_a, "Lanes");
+    (void)Editor_Lanes_Show(&g_a.ui);
+    pump(4);
+    label = lanes_panel >= 0 ? panel_label(&g_a, lanes_panel, "Every launch opens: ") : -1;
+    snprintf(line, sizeof(line), "Every launch opens: %s (set by Switch; the manifest asks for work).", today);
+    CHECK(label >= 0 && strcmp(g_a.chrome.widgets[label].text, line) == 0, "the boot line says so: %s",
+        label >= 0 ? g_a.chrome.widgets[label].text : "-");
 }
 
 /** The palette's row for an item of `kind` named `name` in `group`, -1. */

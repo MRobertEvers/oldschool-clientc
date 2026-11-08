@@ -26,22 +26,33 @@
  *                    this lane's base, the lane is clean afterwards (its
  *                    published files are links to the base again) unless
  *                    "Keep the changes here" is ticked.
- *   Scratch lane     (Ctrl+Shift+N) a lane named scratch-<yymmdd><letter>
- *                    made from main, then the session switched to it.
- *   Switch...        the lane picked in the list becomes the session's.
+ *   Scratch lane     (Ctrl+Shift+N) a lane named scratch-<yymmdd><letter>,
+ *                    a clean mirror of main as it is now, then the switch
+ *                    to it (staged, below).
+ *   Switch at        the lane picked in the list opens from the next launch
+ *   relaunch         on; a second activation of the picked row (Enter, a
+ *                    double-click) is the same.
  *   Discard...       every change back to the base (a second press within
  *                    4 s confirms); the server drops its documents, and every
  *                    window reopens the square it shows.
- *   New lane         a lane mirrored from the main tree, nothing published.
+ *   Lane from main   a lane mirrored from the main tree, named in the box;
+ *                    nothing published, not switched to.
  *   Refresh          scan the lanes and the changes again (a save does it).
  *
  * A SWITCH IS STAGED. A running editor server cannot re-point its lane: its
  * tree lock, its documents and their history, the catalog, the live dir and
  * the servers it launched are all the lane's, and every window mirrors them.
- * So Switch (and Scratch lane's switch) writes the lane the NEXT boot serves
- * (LANE_SWITCH: build/lanes/lane.ini, read by the daemon's main and the
- * embedded server), and the status bar and the lane chip say so ("working |
- * 3 changed | next: scratch-261105a").
+ * So Switch (and Scratch lane's switch) writes the lane EVERY LAUNCH opens
+ * from then on (LANE_SWITCH: build/lanes/lane.ini, read by the daemon's main
+ * and the embedded server, over the manifest's `lane=`), and the panel's
+ * boot line, the status bar and the lane chip say so in the user's terms:
+ * "Next launch opens: working. Quit and launch the editor again to switch;
+ * this session stays on scratch-261108a", the chip "scratch-261108a | clean
+ * | next: working". Once there, the boot line says the lane is pinned
+ * ("Every launch opens: scratch-261108a (set by Switch; the manifest asks
+ * for working)") -- the way back is Switch to the manifest's lane, which the
+ * server names (FACT_LANE_INFO's trailing `asked`). The word "boot" stays
+ * out of the panel: a user launches the editor.
  *
  * The module also keeps ui->lane, for every window and every module: the
  * lane's name and its change count, which the status bar's lane chip shows
@@ -56,8 +67,8 @@
  * (TORIRSMAPED_LANE_LIST_RESCAN). A server
  * without TORIRSMAPED_CAP_LANES_V2 hears no frame it does not know.
  *
- * A server on the main tree has nothing to publish: the panel says so and
- * how to start on a lane. The requests go through the host's lanes frames
+ * A server on the main tree has nothing to publish: the panel says so, and
+ * the boot line says how to get onto a lane. The requests go through the host's lanes frames
  * (Editor_HostMapEdLanesSend / Take, editor_host.h); every answer to an
  * action is a broadcast, so every window's panel shows the same lane.
  */
@@ -117,6 +128,8 @@ struct PublishPanel
     int panel;
     int label_lane;
     int label_base;
+    /** Which lane every launch opens, and how to reach a switched one. */
+    int label_boot;
     int input_find;
     int list_lanes;
     int label_counts;
@@ -183,6 +196,14 @@ struct PublishPanel
      *  for LANE_CREATE's answer to switch to `scratch_name`. */
     int scratch_wanted;
     char scratch_name[TORIRSMAPED_LANE_NAME_MAX + 8];
+    /** Our scratch lane is made and its switch sent: the switch's answer is
+     *  worded as the scratch lane's. */
+    int scratch_switching;
+    /** The lane list's picked row (-1 none): a second activation of the
+     *  same row (Enter, a double-click) is its Switch, as the Scenes list's
+     *  second activation enters the scene. */
+    int picked_row;
+    char picked_name[TORIRSMAPED_LANE_NAME_MAX + 8];
     /** Discard...'s first press, on the chrome clock (0: not armed). */
     int64_t discard_armed_ms;
     int discard_armed;
@@ -376,7 +397,8 @@ publish_lane_note(
     int is_main,
     int writable,
     int changes,
-    const char* next_boot)
+    const char* next_boot,
+    const char* asked)
 {
     struct EditorUiLane* lane = &ui->lane;
     struct EditorUiLane before = *lane;
@@ -396,9 +418,13 @@ publish_lane_note(
     }
     if( next_boot )
     {
-        /* The lane it serves now is no switch waiting. */
-        snprintf(lane->next_boot, sizeof(lane->next_boot), "%s", strcmp(next_boot, lane->name) == 0 ? "" : next_boot);
+        /* lane.ini naming the lane it serves now is no switch waiting: it is
+         * this lane pinned for every launch. */
+        lane->pinned = next_boot[0] && strcmp(next_boot, lane->name) == 0;
+        snprintf(lane->next_boot, sizeof(lane->next_boot), "%s", lane->pinned ? "" : next_boot);
     }
+    if( asked )
+        snprintf(lane->asked, sizeof(lane->asked), "%s", asked);
     if( memcmp(&before, lane, sizeof(before)) != 0 )
         lane->serial++;
 }
@@ -435,11 +461,14 @@ Editor_Lanes_ChipText(
 
 static void
 publish_lane_row_text(
+    const struct EditorUi* ui,
     const struct publish_lane* lane,
     char* out,
     size_t out_size)
 {
     char count[48];
+    /* The lane a Switch staged: it opens at the next launch. */
+    int const next = !lane->is_this && ui->lane.next_boot[0] && strcmp(lane->name, ui->lane.next_boot) == 0;
 
     if( lane->is_main )
         snprintf(count, sizeof(count), "the tree");
@@ -451,8 +480,8 @@ publish_lane_row_text(
         snprintf(count, sizeof(count), "%d changed", lane->changes);
     /* This lane's tree is held by this very server: no news. */
     int const locked = lane->held[0] && !lane->is_this;
-    snprintf(out, out_size, "%s%s | %s%s%s", lane->name, lane->is_this ? " (this)" : "", count,
-        locked ? " | locked: " : "", locked ? lane->held : "");
+    snprintf(out, out_size, "%s%s | %s%s%s%s", lane->name, lane->is_this ? " (this)" : "", count,
+        next ? " | next launch" : "", locked ? " | locked: " : "", locked ? lane->held : "");
 }
 
 static void
@@ -469,7 +498,7 @@ publish_fill_lanes(
     for( int row = first; row < first + shown && row < self->lane_row_count; row++ )
     {
         char text[300];
-        publish_lane_row_text(&self->lanes[self->lane_rows[row]], text, sizeof(text));
+        publish_lane_row_text(ui, &self->lanes[self->lane_rows[row]], text, sizeof(text));
         ToriRSChrome_VListSetRow(ui->chrome, self->list_lanes, row, text);
     }
 }
@@ -560,6 +589,33 @@ publish_chords(
     self->chord_serial = ui->hotkeys.serial;
 }
 
+/** The boot line: which lane every launch opens, and how to reach a
+ *  switched one. Said in the user's terms -- a launch, not a boot; "quit
+ *  and launch the editor again", not a file name -- because the staged
+ *  switch is the one thing about lanes a user cannot see happen. */
+static void
+publish_boot_text(
+    const struct EditorUi* ui,
+    char* out,
+    size_t out_size)
+{
+    const struct EditorUiLane* lane = &ui->lane;
+    int const asked_differs = lane->asked[0] && strcmp(lane->asked, lane->name) != 0;
+
+    if( !lane->known )
+        out[0] = '\0';
+    else if( lane->next_boot[0] )
+        snprintf(out, out_size,
+            "Next launch opens: %s. Quit and launch the editor again to switch; this session stays on %s.",
+            lane->next_boot, lane->name);
+    else if( lane->pinned )
+        snprintf(out, out_size, "Every launch opens: %s (set by Switch%s%s).", lane->name,
+            asked_differs ? "; the manifest asks for " : "", asked_differs ? lane->asked : "");
+    else
+        snprintf(out, out_size, "Every launch opens: %s (the manifest's lane). Switch or Scratch lane changes that.",
+            lane->name);
+}
+
 static void
 publish_refresh_widgets(
     struct EditorUi* ui,
@@ -575,17 +631,17 @@ publish_refresh_widgets(
     if( !ui->lane.known )
         snprintf(text, sizeof(text), "Lane: asking the editor server...");
     else if( ui->lane.is_main )
-        snprintf(text, sizeof(text), "Lane: main -- this editor edits the tree itself (%s)", self->lane_content);
+        snprintf(text, sizeof(text), "Lane: main -- the tree itself, nothing to publish (%s)", self->lane_content);
     else
         snprintf(text, sizeof(text), "Lane: %s%s", chip, ui->lane.writable ? "" : " [read-only]");
     ToriRSChrome_SetText(ui->chrome, self->label_lane, text);
     if( on_lane )
         snprintf(text, sizeof(text), "Base: %s", self->lane_base);
-    else if( ui->lane.known )
-        snprintf(text, sizeof(text), "Start the editor on a lane ([editor:boot] lane=working) to publish.");
     else
         text[0] = '\0';
     ToriRSChrome_SetText(ui->chrome, self->label_base, text);
+    publish_boot_text(ui, text, sizeof(text));
+    ToriRSChrome_SetText(ui->chrome, self->label_boot, text);
     if( !self->changes_known )
         snprintf(text, sizeof(text), on_lane ? "Changes: scanning..." : "");
     else if( self->change_count == 0 )
@@ -705,9 +761,22 @@ publish_apply_fact(
         if( reader.bad )
             return;
         self->info_known = 1;
-        /* The workbench tail: what the next boot serves. */
-        ToriRSMapEd_GetString(&reader, next_boot, sizeof(next_boot));
-        publish_lane_note(ui, name, is_main, writable, is_main ? 0 : -1, reader.bad ? NULL : next_boot);
+        /* The workbench tail: what the next launch opens, then what the
+         * boot asked for (a server before either says neither). */
+        {
+            char asked[TORIRSMAPED_LANE_NAME_MAX + 8];
+            const char* next_heard = NULL;
+            const char* asked_heard = NULL;
+            ToriRSMapEd_GetString(&reader, next_boot, sizeof(next_boot));
+            if( !reader.bad )
+            {
+                next_heard = next_boot;
+                ToriRSMapEd_GetString(&reader, asked, sizeof(asked));
+                if( !reader.bad )
+                    asked_heard = asked;
+            }
+            publish_lane_note(ui, name, is_main, writable, is_main ? 0 : -1, next_heard, asked_heard);
+        }
     }
     else if( type == TORIRSMAPED_FACT_LANE_LIST )
     {
@@ -774,7 +843,7 @@ publish_apply_fact(
         self->changes_known = 1;
         self->changes_pending = 0;
         if( ui->lane.known )
-            publish_lane_note(ui, NULL, 0, -1, self->modified + self->added + self->deleted, NULL);
+            publish_lane_note(ui, NULL, 0, -1, self->modified + self->added + self->deleted, NULL, NULL);
     }
     else if( type == TORIRSMAPED_FACT_LANE_COUNT )
     {
@@ -799,7 +868,7 @@ publish_apply_fact(
         if( ui->lane.known && strcmp(ui->lane.name, name) != 0 )
             return;
         self->count_pending = 0;
-        publish_lane_note(ui, name, is_main, -1, changes, next_boot);
+        publish_lane_note(ui, name, is_main, -1, changes, next_boot, NULL);
     }
     else if( type == TORIRSMAPED_FACT_LANE_PUBLISHED )
     {
@@ -823,24 +892,31 @@ publish_apply_fact(
                 Editor_UiStatus(ui, "Scratch lane refused: %s", message);
             else if( !publish_v2(ui) )
                 Editor_UiStatus(ui,
-                    "Scratch lane %s made; this editor server cannot switch lanes: boot the editor with lane=%s",
+                    "Scratch lane %s made from main; this editor server cannot switch lanes: launch the editor with "
+                    "lane=%s",
                     target, target);
             else
-                (void)Editor_Lanes_Switch(ui, target);
+                self->scratch_switching = Editor_Lanes_Switch(ui, target);
             self->scratch_name[0] = '\0';
         }
         else if( kind == TORIRSMAPED_LANE_PUBLISHED_SWITCH )
         {
+            int const scratch = self->scratch_switching;
+            self->scratch_switching = 0;
             if( status == EDITOR_HOST_OK )
             {
-                publish_lane_note(ui, NULL, 0, -1, -1, target);
+                publish_lane_note(ui, NULL, 0, -1, -1, target, NULL);
                 if( strcmp(target, ui->lane.name) == 0 )
-                    Editor_UiStatus(ui, "Switch: this editor serves %s already, and will from every boot on",
+                    Editor_UiStatus(ui, "This editor is on %s already; every launch opens it from now on", target);
+                else if( scratch )
+                    Editor_UiStatus(ui,
+                        "Scratch lane %s made from main; it opens from the next launch on. Quit and launch the "
+                        "editor again to go there",
                         target);
                 else
                     Editor_UiStatus(ui,
-                        "Switched to %s for the next editor boot (build/lanes/lane.ini); this session stays on %s: "
-                        "a running server cannot re-point its lane",
+                        "Switched: %s opens from the next launch on. Quit and launch the editor again to go there; "
+                        "this session stays on %s",
                         target, ui->lane.name);
             }
             else
@@ -969,7 +1045,20 @@ publish_activate(
         return 1;
     if( widget == self->list_lanes )
     {
-        /* Enter on a lane: its Switch. */
+        /* A second activation of the picked row (Enter, a double-click) is
+         * its Switch; the first picks it. */
+        int const row = ToriRSChrome_VListSelected(ui->chrome, self->list_lanes);
+        if( row >= 0 && row < self->lane_row_count )
+        {
+            const char* picked = self->lanes[self->lane_rows[row]].name;
+            if( row == self->picked_row && strcmp(picked, self->picked_name) == 0 )
+                (void)Editor_Lanes_Switch(ui, picked);
+            else
+            {
+                self->picked_row = row;
+                snprintf(self->picked_name, sizeof(self->picked_name), "%s", picked);
+            }
+        }
         publish_refresh_widgets(ui, self);
         return 1;
     }
@@ -1127,10 +1216,12 @@ Editor_Publish_Register(struct EditorUi* ui)
     assert(self->panel >= 0);
     self->label_lane = ToriRSChrome_Label(ui->chrome, self->panel, "Lane: asking the editor server...");
     self->label_base = ToriRSChrome_Label(ui->chrome, self->panel, "");
+    self->label_boot = ToriRSChrome_Label(ui->chrome, self->panel, "");
+    self->picked_row = -1;
     self->input_find = ToriRSChrome_TextInput(ui->chrome, self->panel, "Find", "");
     ToriRSChrome_SetTooltip(ui->chrome, self->input_find, "part of a lane's name");
     self->list_lanes = ToriRSChrome_VList(ui->chrome, self->panel, "Lanes", PUBLISH_LANE_ROWS, 0);
-    ToriRSChrome_SetTooltip(ui->chrome, self->list_lanes, "Every lane: its change count; Switch... goes to it");
+    ToriRSChrome_SetTooltip(ui->chrome, self->list_lanes, "Every lane; Enter twice or double-click a row to switch");
     self->label_counts = ToriRSChrome_Label(ui->chrome, self->panel, "");
     edp_chips_init(ui, &self->chips, self->panel, 1);
     self->list_changes = ToriRSChrome_VList(ui->chrome, self->panel, "Changes", PUBLISH_ROWS, 0);
@@ -1144,14 +1235,14 @@ Editor_Publish_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(ui->chrome, self->button_publish,
         "Save every dirty document, then write this lane's changes in");
     self->button_scratch = ToriRSChrome_Button(ui->chrome, self->panel, "Scratch lane");
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_scratch, "A dated lane from main; the next boot serves it");
-    self->button_switch = ToriRSChrome_Button(ui->chrome, self->panel, "Switch...");
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_switch, "The lane picked above: the next editor boot serves it");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_scratch, "A clean mirror of main as it is now; opens at next launch");
+    self->button_switch = ToriRSChrome_Button(ui->chrome, self->panel, "Switch at relaunch");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_switch, "The picked lane opens at the next launch (quit, launch again)");
     self->button_discard = ToriRSChrome_Button(ui->chrome, self->panel, "Discard...");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_discard,
         "Every change back to the base, unsaved ones too (press twice)");
-    self->button_create = ToriRSChrome_Button(ui->chrome, self->panel, "New lane");
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_create, "A lane mirrored from the main tree, nothing published");
+    self->button_create = ToriRSChrome_Button(ui->chrome, self->panel, "Lane from main");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_create, "A clean mirror of main, named in the box; not switched to");
     self->button_refresh = ToriRSChrome_Button(ui->chrome, self->panel, "Refresh");
     self->label_status = ToriRSChrome_Label(ui->chrome, self->panel, "");
     publish_chords(ui, self);
@@ -1218,7 +1309,7 @@ Editor_LanesList(
         struct Editor_LaneListRow* row = &out->rows[out->count++];
         snprintf(row->name, sizeof(row->name), "%s", self->lanes[i].name);
         row->is_this = self->lanes[i].is_this;
-        publish_lane_row_text(&self->lanes[i], row->summary, sizeof(row->summary));
+        publish_lane_row_text(ui, &self->lanes[i], row->summary, sizeof(row->summary));
     }
     return out->count;
 }
@@ -1294,12 +1385,13 @@ Editor_Lanes_Switch(
     }
     if( !publish_v2(ui) )
     {
-        Editor_UiStatus(ui, "Switch refused: this editor server predates lane switching; boot with lane=%s", name);
+        Editor_UiStatus(ui, "Switch refused: this editor server predates lane switching; launch the editor with lane=%s",
+            name);
         return 0;
     }
     if( ui->lane.known && strcmp(name, ui->lane.name) == 0 && !ui->lane.next_boot[0] )
     {
-        Editor_UiStatus(ui, "Switch refused: this editor serves %s already", name);
+        Editor_UiStatus(ui, "Switch: this editor is on %s already; nothing to change", name);
         return 0;
     }
     memset(&payload, 0, sizeof(payload));

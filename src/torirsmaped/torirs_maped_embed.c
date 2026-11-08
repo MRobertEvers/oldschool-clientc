@@ -100,6 +100,9 @@ ToriRSMapEd_EmbedStartLane(
     size_t why_size)
 {
     struct ToriRSMapEdEmbed* embed;
+    /* What the boot asked for, before lane.ini has its say: the panel shows
+     * it beside the lane every launch opens. */
+    const char* const asked = lane && lane[0] ? lane : "main";
 
     char boot_lane[TORIRSMAPED_LANE_NAME_MAX + 8];
     char note[256];
@@ -117,13 +120,19 @@ ToriRSMapEd_EmbedStartLane(
             TORIRS_LOG("torirsmaped: %s\n", note);
     }
     if( !lane || !lane[0] || strcmp(lane, "main") == 0 )
-        return ToriRSMapEd_EmbedStart(content_dir, repo_root);
+    {
+        embed = ToriRSMapEd_EmbedStart(content_dir, repo_root);
+        if( embed )
+            ToriRSMapEd_SetLaneAsked(&embed->maped, asked);
+        return embed;
+    }
     embed = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*embed));
     if( !ToriRSMapEd_OpenLane(&embed->maped, content_dir, repo_root, lane, why, why_size) )
     {
         ToriMem_Free(ToriMem_Editor(), embed);
         return NULL;
     }
+    ToriRSMapEd_SetLaneAsked(&embed->maped, asked);
     client_open(embed, &embed->clients[0]);
     return embed;
 }

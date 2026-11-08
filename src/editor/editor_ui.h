@@ -801,6 +801,12 @@ struct EditorUiLane
     /** The lane build/lanes/lane.ini names for the next boot ("" none):
      *  a Switch this server could not make while it runs. */
     char next_boot[EDITOR_UI_LANE_NAME_MAX];
+    /** lane.ini names THIS lane: every launch opens it, whatever the
+     *  manifest asks (a Switch or Scratch lane made earlier). */
+    int pinned;
+    /** The lane the boot asked for before lane.ini had its say (the
+     *  manifest's lane= / --lane; "" from a server that does not say). */
+    char asked[EDITOR_UI_LANE_NAME_MAX];
     /** Moves whenever any field above does. */
     uint32_t serial;
 };
