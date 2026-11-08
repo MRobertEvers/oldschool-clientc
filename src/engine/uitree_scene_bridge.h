@@ -133,6 +133,9 @@ struct UITreeSceneBridge
  * decoded from the cache — see app_worldmap_flash_marker_scene. */
 #define UITREE_SCENE_WORLD_MAP_FLASH_SPRITE_ID 0x40000004
 
+/* SET_HEATMAP_ENABLED's image over the world map, replaced as it redraws. */
+#define UITREE_SCENE_WORLD_MAP_HEATMAP_SPRITE_ID 0x400000FE
+
 /* Reserved scene sprite id for the world map overview pane (clientCode 1401):
  * the current area's compositetexture PNG, replaced on area switch. */
 #define UITREE_SCENE_WORLD_MAP_OVERVIEW_SPRITE_ID 0x40000005

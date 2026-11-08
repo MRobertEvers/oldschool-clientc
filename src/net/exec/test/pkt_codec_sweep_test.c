@@ -82,9 +82,10 @@ static const struct
     { "MESSAGE_CLANCHANNEL_SYSTEM", "raw to rs_clan" },
     { "UPDATE_FRIENDCHAT_CHANNEL_FULL_V2", "raw to rs_friends_chat" },
     { "UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER", "raw to rs_friends_chat" },
-    { "MESSAGE_FRIENDCHANNEL", "raw to rs_friends_chat" },
     { "MESSAGE_PRIVATE", "raw to rs_social" },
-    { "MESSAGE_PRIVATE_ECHO", "raw to rs_social" },
+    /* Rev 222 has no codec for these two; 223 on do, and the executor uses them. */
+    { "MESSAGE_FRIENDCHANNEL", "no codec at 222", 222 },
+    { "MESSAGE_PRIVATE_ECHO", "no codec at 222", 222 },
     { "UPDATE_TRADINGPOST", "raw to the trading post store" },
     { "UPDATE_STOCKMARKET_SLOT", "raw to the stock market store" },
     /* RSProx's catch-all row for a prot it cannot decode: no layout exists. */

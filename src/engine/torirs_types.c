@@ -194,6 +194,8 @@ ToriRS_ObjtypeFree(struct ToriRS_Objtype* objtype)
         return;
     ToriMem_Free(ToriMem_Assets(), objtype->recolors_from);
     ToriMem_Free(ToriMem_Assets(), objtype->recolors_to);
+    ToriMem_Free(ToriMem_Assets(), objtype->retextures_from);
+    ToriMem_Free(ToriMem_Assets(), objtype->retextures_to);
     if( objtype->params )
     {
         for( i = 0; i < objtype->param_count; i++ )

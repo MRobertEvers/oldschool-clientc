@@ -185,6 +185,16 @@ App_Logout(struct App* app)
 
     app->logout_requested = 0;
     app->logout_wait_cycles = 0;
+    /* What the deob's logout reset clears (Statics.method5943's neighbours:
+     * field1275, field3246, field1008, the group store). */
+    app->cam_script.cam_mode = 0;
+    app->cam_script.oculus_sync = 0;
+    app->cam_script.oculus_recentre = 0;
+    app->cam_script.oculus_y_valid = 0;
+    app->worldmap.heatmap_on = false;
+    app->host.client.objunlock_present = false;
+    RS_GroupStore_Free(&app->host.groups);
+    App_SetSkybox(app, -1);
     /*
      * The DISCONNECT is QUEUED, not performed: it goes into the same outbound
      * ring the logout button's IF_BUTTON is already sitting in, and the
@@ -943,6 +953,17 @@ app_send_close_modal(void* user)
     struct App* app = (struct App*)user;
     APP_NET_SEND(
         app, net_out_close_modal(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
+}
+
+/* Leaving the free camera (deob Statics.method6646). */
+void
+App_SendExitFreecam(struct App* app)
+{
+    assert(app);
+    if( !app->net )
+        return;
+    APP_NET_SEND(
+        app, net_out_exit_freecam(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
 }
 
 /* SEND_PING's answer (deob class243.field3049's handler). */

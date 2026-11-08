@@ -189,6 +189,7 @@ struct ToriRS_Frame
     int event_index;
     struct ToriRS_RenderCommand queued;
     struct ToriRS_RenderCommand_Begin3D pending_begin_3d;
+    struct ToriDraw_ModelHandle skybox;
 };
 
 void

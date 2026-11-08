@@ -718,6 +718,12 @@ struct App_WorldMapView
      * consumed by the same frame's draw: the visible regions first, then every
      * map element icon over them. */
     struct RS_WorldMapTiles tiles;
+    /** SET_HEATMAP_ENABLED (deob Statics.field3246) and what the last heat
+     *  image was drawn for. It is redrawn every 50 cycles at most. */
+    bool heatmap_on;
+    int heatmap_built_cycle;
+    int heatmap_built_w, heatmap_built_h, heatmap_built_centre_x, heatmap_built_centre_y;
+    int heatmap_built_region_px;
     /* Visible regions for this frame, ordered nearest-the-view-centre first —
      * the order decides who gets the frame's bake and load allowance. */
     struct RS_WorldMapVisits visits;
@@ -767,6 +773,9 @@ enum App_CamScriptOp
     APP_CAM_SCRIPT_OP_ROTATETO_COORDINATE = 6,
     APP_CAM_SCRIPT_OP_MOVETO_ARC = 7,
     APP_CAM_SCRIPT_OP_SMOOTHRESET = 8,
+    APP_CAM_SCRIPT_OP_ROTATEBY = 9,
+    APP_CAM_SCRIPT_OP_ROTATETO = 10,
+    APP_CAM_SCRIPT_OP_LOOKAT_CYCLES = 11,
 };
 
 /** Size of App_CamScript.events: the camera packets the driver can read back.
@@ -2703,16 +2712,34 @@ struct App
             struct App_CamArc arc_path;
         } move_cycles;
         /**
-         * CAM_ROTATETO_COORDINATE: pitch and yaw eased to face a tile (deob
-         * class563 x2, client.java class243.field3046). Held at the end until
-         * the next CAM_LOOKAT/CAM_RESET, like move_cycles.
+         * CAM_ROTATETO_COORDINATE, CAM_ROTATEBY, CAM_ROTATETO: pitch and yaw
+         * eased (deob class563 x2, client.java class243.field3046; class594 x2
+         * at 241). Each axis runs its own ease: ROTATEBY/ROTATETO can restart
+         * one and leave the other's in flight. Held at the end until the next
+         * CAM_LOOKAT/CAM_RESET, like move_cycles.
          */
         struct App_CamRotateCycles
         {
             int active;
-            int pitch0, pitch1, yaw0, yaw1;
-            int start_cycle, duration, easing;
+            struct App_CamAxisEase
+            {
+                int active;
+                int from, to;
+                int start_cycle, duration, easing;
+            } pitch, yaw;
         } rotate_cycles;
+        /**
+         * CAM_LOOKAT_CYCLES: the look-at point eased to a tile, in world units
+         * (deob class586). Done when it arrives; the look_lx/lz/height it
+         * finished on then hold, as field2173/field624/field623 do.
+         */
+        struct App_CamLookCycles
+        {
+            int active;
+            int x0, z0, height0;
+            int x1, z1, height1;
+            int start_cycle, duration, easing;
+        } look_cycles;
         /** The last CAM_MOVETO's height: what a height-relative move adds to
          *  (deob Statics.field6040). */
         int last_move_height;
@@ -2724,6 +2751,22 @@ struct App
         /** The shake's per-frame roll, shared by every paint of one frame
          *  while a script's view is attached (struct App_ShakeRoll). */
         struct App_ShakeRoll shake_roll;
+        /** CAM_MODE (deob client.java field1275): 1 is the free camera, whose
+         *  focus the keys move instead of the player. */
+        int cam_mode;
+        /** OCULUS_SYNC's last value (field1183). */
+        int oculus_sync;
+        /** Bring the focus back to the player (field1184). */
+        int oculus_recentre;
+        /** The focus height, once the free camera has one (field5690). */
+        int oculus_y_valid;
+        int oculus_y;
+        /** How fast the focus is moving, and which way (field1180..1182). */
+        int oculus_speed;
+        int oculus_angle;
+        int oculus_dy;
+        /** The keys, sampled with the frame's input. */
+        int oculus_w, oculus_s, oculus_a, oculus_d, oculus_r, oculus_f, oculus_shift;
         /** Camera packets executed this session; events[serial % RING] is the
          *  newest once serial > 0. */
         int serial;
@@ -2796,6 +2839,13 @@ struct App
      * client hands its site-settings store): kept as the client keeps them. */
     char unknown_string[256];
     char site_settings[1024];
+    char website_token[256]; /* SET_WEBSITE_TOKEN */
+    /** CAM_SKYBOX: the model id + 1, 0 for none (deob client.java field1294). */
+    int skybox_id_plus1;
+    /** What has been built and asked for, as above. */
+    int skybox_built_plus1;
+    int skybox_requested_plus1;
+    struct ToriDraw_Model* skybox_model;
     /** MINIMAP_TOGGLE state; see enum AppMinimapState. */
     int minimap_state;
     /** CAM_UNLOCK: nonzero widens the orbit camera's pitch limits to the
@@ -4364,6 +4414,42 @@ App_CinemaCameraRotateCycles(
     int easing,
     int height_relative);
 
+/** Tell the server the free camera was left. */
+void
+App_SendExitFreecam(struct App* app);
+
+/** CAM_SKYBOX: -1 clears. */
+void
+App_SetSkybox(
+    struct App* app,
+    int model_id);
+
+void
+App_CinemaCameraRotateBy(
+    struct App* app,
+    int yaw_delta,
+    int pitch_delta,
+    int cycles,
+    int easing);
+
+void
+App_CinemaCameraRotateTo(
+    struct App* app,
+    int yaw,
+    int pitch,
+    int cycles,
+    int easing);
+
+void
+App_CinemaCameraLookCycles(
+    struct App* app,
+    int local_x,
+    int local_z,
+    int height,
+    int cycles,
+    int easing,
+    int height_relative);
+
 /* Spawn a projectile (reference ClientProj) from a spotanim config, driven by
  * the MAP_PROJANIM zone packet. Enqueues an async load of the spotanim config +
  * its model/seq before building the world entity. Coordinates are scene tiles;
@@ -4415,7 +4501,52 @@ struct AppScriptedProj
     int start_delay;
     int end_delay;
     int curve[3];
+    int slot;
 };
+
+/* What a ground item's customise packet replaces (deob Statics.method4117). */
+struct AppObjCustomise
+{
+    int model;
+    int tint;
+    int recol_count;
+    int const* recol_index;
+    int const* recol_value;
+    int retex_count;
+    int const* retex_index;
+    int const* retex_value;
+};
+
+/** OBJ_CUSTOMISE: the first stack on the tile with this id and count wears
+ *  it; its model is rebuilt. */
+void
+App_WorldObjStackCustomise(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int count,
+    struct AppObjCustomise const* custom);
+
+void
+App_WorldObjStackUncustomise(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int count);
+
+/** OBJ_ENABLED_OPS: the five ground ops of the first stack of this id. */
+void
+App_WorldObjStackSetEnabledOps(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int enabled_ops);
 
 /* Spawn a scripted projectile (deob class56). Like App_WorldProjectileSpawn it
  * loads the spotanim first; it also loads the three curve clientscripts and

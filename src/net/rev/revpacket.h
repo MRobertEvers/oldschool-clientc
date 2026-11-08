@@ -410,6 +410,71 @@ struct PktObjReveal
     int obj_id;    /* g2 */
     int count;     /* g2 */
     int receiver;  /* g2: player index, skip if != local */
+    /* OBJ_ENABLED_OPS, which shares this name: the five op bits for the first
+     * stack of obj_id on the tile (deob Statics.method6758). */
+    int has_enabled_ops;
+    int enabled_ops;
+};
+
+/* How many (index, value) pairs one customise packet is kept to. RSProt's V2
+ * limit is 255; an obj carries a handful of recolours. */
+#define PKT_OBJ_CUSTOMISE_MAX_PAIRS 8
+
+/* What a customise packet replaces (deob Statics.method4117). model and tint
+ * are -1 for "keep"; indices name the objtype's recolour/retexture slots. */
+struct PktObjCustomiseFields
+{
+    int model;
+    int tint;
+    int recol_count;
+    int recol_index[PKT_OBJ_CUSTOMISE_MAX_PAIRS];
+    int recol_value[PKT_OBJ_CUSTOMISE_MAX_PAIRS];
+    int retex_count;
+    int retex_index[PKT_OBJ_CUSTOMISE_MAX_PAIRS];
+    int retex_value[PKT_OBJ_CUSTOMISE_MAX_PAIRS];
+};
+
+struct PktObjCustomise
+{
+    int pos;
+    int obj_id;
+    int count;
+    struct PktObjCustomiseFields fields;
+};
+
+struct PktObjUncustomise
+{
+    int pos;
+    int obj_id;
+    int count;
+};
+
+/* OBJ_CUSTOMISE_SPECIFIC(_V2) / OBJ_UNCUSTOMISE_SPECIFIC: absolute tile. */
+struct PktObjCustomiseSpecific
+{
+    int x;
+    int z;
+    int level;
+    int obj_id;
+    int count;
+    struct PktObjCustomiseFields fields;
+};
+
+/* SCRIPTEDPROJ_CHANGE: deob class278.field3434 -> class56.method1481. target_x
+ * is -1 when the target does not change; freeze_cycles is -1 when the freeze
+ * does not. */
+struct PktScriptedProjChange
+{
+    int slot;
+    int target_x;
+    int target_z;
+    int target_level;
+    int target_offset_x;
+    int target_offset_z;
+    int target_height;
+    int target;
+    int freeze_cycles;
+    int delete_on_freeze_end;
 };
 
 struct PktObjCount
@@ -559,6 +624,9 @@ struct PktZoneSubPacket
         struct PktMapAnim _map_anim;
         struct PktSoundArea _sound_area;
         struct PktScriptedProjAdd _scriptedproj_add;
+        struct PktScriptedProjChange _scriptedproj_change;
+        struct PktObjCustomise _obj_customise;
+        struct PktObjUncustomise _obj_uncustomise;
     };
 };
 
@@ -809,6 +877,100 @@ struct PktCamSmoothReset
     int move_proportional_speed;
     int look_constant_speed;
     int look_proportional_speed;
+};
+
+/* CAM_ROTATEBY / CAM_ROTATETO: deob client.java class259.field3190 / 3187. By:
+ * signed deltas, an axis at 0 is left alone. To: a negative angle leaves its
+ * axis alone. Angles are the client's 2048 units. */
+struct PktCamRotate
+{
+    int yaw;
+    int pitch;
+    int cycles;
+    int easing;
+};
+
+/* CAM_LOOKAT_CYCLES: the look-at point eased to a world tile over `cycles`
+ * (deob class259.field3232 -> class586). */
+struct PktCamLookAtCycles
+{
+    int x;
+    int z;
+    int height;
+    int cycles;
+    int easing;
+    int height_relative;
+};
+
+struct PktMessagePrivateEcho
+{
+    char recipient[32];
+    char* text;
+};
+
+struct PktMessageFriendChannel
+{
+    char sender[32];
+    int64_t channel_name; /* base37 */
+    int world;
+    int counter;
+    int crown;
+    char* text;
+};
+
+/* ANIM_SPECIFIC: a seq on the local player only (deob class259.field3150). */
+struct PktAnimSpecific
+{
+    int id; /* -1 stops */
+    int delay;
+};
+
+/* NPC_ANIM_SPECIFIC (deob class259.field3183). */
+struct PktNpcAnimSpecific
+{
+    int index;
+    int id; /* -1 stops */
+    int delay;
+};
+
+/* NPC_SPOTANIM_SPECIFIC / PLAYER_SPOTANIM_SPECIFIC (deob class259.field3196 /
+ * field3174, both class83.method2252). */
+struct PktEntitySpotanimSpecific
+{
+    int index;
+    int slot;
+    int id; /* -1 clears the slot */
+    int height;
+    int delay;
+};
+
+/* LOC_ANIM_SPECIFIC: LOC_ANIM at a build-area tile (deob class259.field3139). */
+struct PktLocAnimSpecific
+{
+    int x;
+    int z;
+    int info;
+    int seq_id;
+};
+
+/* PROJANIM_SPECIFIC_V4: both ends are absolute (deob class259.field3164). */
+struct PktProjAnimSpecific
+{
+    int level;
+    int x;
+    int z;
+    int dst_level;
+    int dst_x;
+    int dst_z;
+    int spotanim; /* 65535 is no projectile */
+    int src_height;
+    int dst_height;
+    int start_delay;
+    int end_delay;
+    int peak;
+    int arc;
+    int target;
+    int source;
 };
 
 /* HIDENPCOPS / HIDELOCOPS / HIDEOBJOPS: the kind is the packet type. */
@@ -1081,6 +1243,50 @@ struct PktObjSpecific
     int time_until_despawn;
     int ownership_type;
     int never_becomes_public;
+    int op_flags; /* OBJ_ENABLED_OPS_SPECIFIC */
+};
+
+/* OBJUNLOCK_UPDATE: words of the unlocked-obj bitset, each named by its delta
+ * from the last (deob class561.method12548). */
+struct PktObjUnlockEntry
+{
+    int delta;
+    int64_t bits;
+};
+
+struct PktObjUnlock
+{
+    int count;
+    struct PktObjUnlockEntry* entries; /* heap-allocated */
+};
+
+/* CAM_MODE, OCULUS_SYNC, CAM_SKYBOX, SET_HEATMAP_ENABLED. */
+struct PktIntValue
+{
+    int value;
+};
+
+/* GROUP_VAR(_INT, _LONG): deob class630.method13783. */
+struct PktGroupVarUpdate
+{
+    int index;
+    int packed;
+    int32_t int_value;
+    int64_t long_value;
+    char* string_value; /* heap-allocated, or NULL */
+};
+
+struct PktGroupVar
+{
+    int count;
+    struct PktGroupVarUpdate* updates; /* heap-allocated */
+};
+
+/* UPDATE_UID192: deob Statics.method578. */
+struct PktUid192
+{
+    uint8_t data[24];
+    int crc;
 };
 
 /* ZBUF: the server's choice of depth buffering. */
@@ -1493,6 +1699,15 @@ struct RevPacket
         struct PktMinimapToggle _minimap_toggle;
         struct PktCamUnlock _cam_unlock;
         struct PktCamSmoothReset _cam_smoothreset;
+        struct PktCamRotate _cam_rotate;
+        struct PktCamLookAtCycles _cam_lookat_cycles;
+        struct PktMessagePrivateEcho _message_private_echo;
+        struct PktMessageFriendChannel _message_friendchannel;
+        struct PktAnimSpecific _anim_specific;
+        struct PktNpcAnimSpecific _npc_anim_specific;
+        struct PktEntitySpotanimSpecific _entity_spotanim_specific;
+        struct PktLocAnimSpecific _loc_anim_specific;
+        struct PktProjAnimSpecific _projanim_specific;
         struct PktHideOps _hide_ops;
         struct PktUpdateIgnoreList _update_ignorelist;
         struct PktUpdateFriendList _update_friendlist;
@@ -1526,6 +1741,14 @@ struct RevPacket
         struct PktInteractionMode _interaction_mode;
         struct PktNpcHeadiconSpecific _npc_headicon_specific;
         struct PktObjSpecific _obj_specific;
+        struct PktScriptedProjChange _scriptedproj_change;
+        struct PktObjCustomise _obj_customise;
+        struct PktObjUncustomise _obj_uncustomise;
+        struct PktObjCustomiseSpecific _obj_customise_specific;
+        struct PktObjUnlock _objunlock_update;
+        struct PktUid192 _uid192;
+        struct PktIntValue _int_value;
+        struct PktGroupVar _group_var;
         struct PktZBuf _zbuf;
         struct PktLogoutTransfer _logout_transfer;
     };

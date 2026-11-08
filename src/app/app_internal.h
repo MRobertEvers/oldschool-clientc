@@ -366,6 +366,9 @@ struct AppModelRecolorSpec
     const int* retextures_from;
     const int* retextures_to;
     int retexture_count;
+    /** Every face to this colour first (deob class131.method4474). */
+    bool has_tint;
+    int tint;
 };
 
 
@@ -826,6 +829,10 @@ enum AppPlaceholderKind
      * read it) with item_scene_id -1, and draws no picture until this lands. */
     APP_PLACEHOLDER_WIDGET_ICON,
 };
+
+/** The skybox model for this frame, built once resident. */
+struct ToriDraw_ModelHandle
+app_skybox_handle(struct App* app);
 
 void
 app_placeholder_obj_stack(

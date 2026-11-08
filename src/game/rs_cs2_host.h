@@ -3,6 +3,7 @@
 
 #include "cs2vm2/cs2vm2_host.h"
 #include "game/rs_clan.h"
+#include "game/rs_group_store.h"
 #include "game/rs_clientop.h"
 #include "game/rs_friends_chat.h"
 #include "game/rs_entity_overlay.h"
@@ -507,6 +508,8 @@ enum RS_CS2KeyInputMode
  * rs_cs2_client_ops.c; the renderer, input and login code read it. Fields the
  * server or the platform supply are mirrored in by the App.
  */
+#define RS_CS2_OBJUNLOCK_WORDS 2048
+
 struct RS_CS2ClientState
 {
     bool middle_mouse_camera;        /* 3110: the middle button drives the camera */
@@ -540,6 +543,10 @@ struct RS_CS2ClientState
     int sidebar_width[RS_CS2_SIDEBAR_SLOTS]; /* 6231/6232, 0 = released */
     /* 3113: a url waiting for the platform to open; "" when none. */
     char pending_open_url[RS_CS2_HOST_SOCIAL_TEXT_LEN];
+    /* OBJUNLOCK_UPDATE's bitset by obj id (deob client.java field1008), read
+     * by commands 4252 and 4253. Absent reads as nothing unlocked. */
+    bool objunlock_present;
+    uint64_t objunlock_words[RS_CS2_OBJUNLOCK_WORDS];
 
     /* Mirrored by the App. */
     int loading_percent;             /* 3153 */
@@ -1049,6 +1056,8 @@ struct RS_CS2Host
     /** The friends chat (36xx) and the clans (38xx, core ops 74 / 76). */
     struct RS_FriendsChat friends_chat;
     struct RS_ClanStore clan;
+    /** GROUP_FULL / GROUP_VAR, read by the group_* commands. */
+    struct RS_GroupStore groups;
     /** The Grand Exchange offer slots (39xx), replaced whole by
      *  UPDATE_STOCKMARKET_SLOT and emptied at login. */
     struct RS_CS2StockmarketOffer stockmarket[RS_CS2_STOCKMARKET_SLOTS];
@@ -2266,6 +2275,13 @@ RS_CS2Host_ResetSocialForLogin(struct RS_CS2Host* host);
  *  caller's storage. */
 void
 RS_CS2Host_Free(struct RS_CS2Host* host);
+
+/** The group_* commands (rs_cs2_client_ops.c). */
+int
+RS_CS2Host_ExecGroupOp(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest const* request);
 
 /**
  * CS2VM2 host_exec callback. Expects CS2VM_USER(thread) == RS_CS2Host*.

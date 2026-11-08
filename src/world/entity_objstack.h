@@ -5,6 +5,8 @@
 
 /* Ground item stack (zone OBJ_ADD/DEL/COUNT packets). The element draws the
  * TOP of the stack; obj_id/count mirror the server's authoritative stack. */
+#define WORLD_OBJSTACK_CUSTOM_SLOTS 32
+
 struct WorldEntity_ObjStack
 {
     int element_id;
@@ -21,6 +23,19 @@ struct WorldEntity_ObjStack
      * don't fit in 32. */
     char name[64];
     struct WorldEntityFacet_Action actions[5];
+    /** OBJ_ENABLED_OPS's five bits: an op whose bit is clear is left out of
+     *  `actions` (deob class91.method3492). */
+    int enabled_ops;
+    /** OBJ_CUSTOMISE (deob class428, Statics.method4117): the replacement
+     *  model, and which of the objtype's recolour/retexture slots are
+     *  replaced. Slots past the limit keep the objtype's value. */
+    bool customised;
+    int custom_model;
+    int custom_tint;
+    uint32_t custom_recol_mask;
+    uint32_t custom_retex_mask;
+    int16_t custom_recol[WORLD_OBJSTACK_CUSTOM_SLOTS];
+    int16_t custom_retex[WORLD_OBJSTACK_CUSTOM_SLOTS];
     /*
      * OBJ_ADD's ownership half, for the cache's ground-items overlay.
      *

@@ -99,6 +99,26 @@ struct WorldEntity_Projectile
     float origin_x;
     float origin_y;
     float origin_z;
+    /** The server's id for it (deob field1698's key). */
+    int scripted_slot;
+    /** SCRIPTEDPROJ_CHANGE's new target (deob field507), taken at the end of
+     *  the next step; world units, as dst_x/dst_z. */
+    bool retarget_pending;
+    int retarget_dst_x;
+    int retarget_dst_z;
+    int retarget_dst_level;
+    int retarget_offset_x;
+    int retarget_offset_z;
+    int retarget_height;
+    int retarget_target;
+    /** Once retargeted the curves restart from where it was: progress runs
+     *  0..1 over what was left (deob field521/field520). */
+    bool rebased;
+    float rebase_progress;
+    /** The p->cycle the freeze ends on, -1 when none (deob field511). */
+    int freeze_until;
+    /** The projectile ends when the freeze does (deob field512). */
+    bool delete_on_freeze_end;
 };
 
 #endif

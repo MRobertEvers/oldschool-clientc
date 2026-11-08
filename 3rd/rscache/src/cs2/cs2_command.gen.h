@@ -1003,6 +1003,8 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [4222] = { "oc_isubop", RSCACHE_CS2_CMD_BASIC, 72, 3, 0, 1, false, 0 },
     [4223] = { "oc_id", RSCACHE_CS2_CMD_BASIC, 98, 1, 20, 1, false, 0 },
     [4224] = { "oc_byid", RSCACHE_CS2_CMD_BASIC, 20, 1, 20, 1, false, 0 },
+    [4252] = { "obj_isunlocked", RSCACHE_CS2_CMD_BASIC, 1, 1, 1, 1, false, 0 },
+    [4253] = { "obj_unlockcount", RSCACHE_CS2_CMD_BASIC, 0, 0, 1, 1, false, 0 },
 
     /* chat: 4300..5099 — chat commands. rev-239 method11780. */
     [5000] = { "chat_getfilter_public", RSCACHE_CS2_CMD_BASIC, 0, 0, 314, 1, false, 0 },
@@ -1517,11 +1519,12 @@ static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {
     [8330] = { "plugin_query_del_term", RSCACHE_CS2_CMD_BASIC, 1, 1, 0, 0, false, 0 },
     [8331] = { "plugin_query_clear_terms", RSCACHE_CS2_CMD_UNKNOWN, 0, 0, 0, 0, false, 0 },
     [8332] = { "plugin_query_status", RSCACHE_CS2_CMD_BASIC, 0, 0, 1, 1, false, 0 },
-    [8501] = { "group_check", RSCACHE_CS2_CMD_BASIC, 14, 2, 1, 1, false, 0 },
+    [8501] = { "group_check", RSCACHE_CS2_CMD_BASIC, 1, 1, 1, 1, false, 0 },
     [8520] = { "group_get", RSCACHE_CS2_CMD_BASIC, 1, 1, 1, 1, false, 0 },
-    [8521] = { "group_getindex", RSCACHE_CS2_CMD_BASIC, 1, 1, 1, 1, false, 0 },
+    [8521] = { "group_getindex", RSCACHE_CS2_CMD_BASIC, 0, 0, 1, 1, false, 0 },
     [8560] = { "group_getvar", RSCACHE_CS2_CMD_UNKNOWN, 0, 0, 0, 0, false, 0 },
     [8561] = { "group_getmembervar", RSCACHE_CS2_CMD_UNKNOWN, 0, 0, 0, 0, false, 0 },
+    [8570] = { "group_getvar_scoped", RSCACHE_CS2_CMD_UNKNOWN, 0, 0, 0, 0, false, 0 },
 
     /* op-count: 13000..13999 — interpreter operation-count introspection. rev-239 method6817. */
     [13337] = { "opcount", RSCACHE_CS2_CMD_BASIC, 0, 0, 1, 1, false, 0 },

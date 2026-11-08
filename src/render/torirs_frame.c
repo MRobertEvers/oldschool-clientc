@@ -2951,6 +2951,7 @@ again:
             frame_command_reset(out);
             out->kind = TORIRSRC_BEGIN_3D;
             out->u.begin_3d = frame->pending_begin_3d;
+            out->u.begin_3d.skybox = frame->skybox;
             frame->pass = TORIRS_FRAME_PASS_3D;
             frame->world_begun = true;
             return true;

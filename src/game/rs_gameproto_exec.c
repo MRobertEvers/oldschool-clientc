@@ -4,6 +4,7 @@
 #include "app.h"
 #include "inv/inv_manager.h"
 #include "net/jbase37.h"
+#include "net/login/login_osrs.h"
 #include "net/net.h"
 #include "net/rev/revpacket.h"
 #include "net/torirs_control.h"
@@ -19,6 +20,7 @@
 #include "rs_player_stats.h"
 #include "rs_social.h"
 #include "rs_ui_slots.h"
+#include "task_entity_assets.h"
 #include "ui/uitree.h"
 #include "varp/varp_manager.h"
 #include "world/world.h"
@@ -380,6 +382,15 @@ zone_sub_packet_copy(
     case PKT_NAME_SCRIPTEDPROJ_ADD:
         dst->_scriptedproj_add = *(struct PktScriptedProjAdd const*)payload;
         return 1;
+    case PKT_NAME_SCRIPTEDPROJ_CHANGE:
+        dst->_scriptedproj_change = *(struct PktScriptedProjChange const*)payload;
+        return 1;
+    case PKT_NAME_OBJ_CUSTOMISE:
+        dst->_obj_customise = *(struct PktObjCustomise const*)payload;
+        return 1;
+    case PKT_NAME_OBJ_UNCUSTOMISE:
+        dst->_obj_uncustomise = *(struct PktObjUncustomise const*)payload;
+        return 1;
     default:
         return 0;
     }
@@ -682,6 +693,270 @@ exec_map_anim_specific(
 }
 
 /*
+ * LOC_ANIM_SPECIFIC: LOC_ANIM for this player only, addressed like
+ * MAP_ANIM_SPECIFIC by a build-area tile on the player's plane (deob client.java
+ * class259.field3139 -> Statics.method5969, the method LOC_ANIM reaches).
+ */
+static void
+exec_loc_anim_specific(
+    struct RS_GameProtoCtx const* ctx,
+    struct PktLocAnimSpecific const* pkt)
+{
+    struct App* app = ctx->app;
+    struct PktLocAnim sub;
+    struct ZoneAt at;
+
+    assert(pkt);
+    if( !app || !app->world )
+        return;
+    memset(&sub, 0, sizeof(sub));
+    sub.pos = ((pkt->x & 7) << 4) | (pkt->z & 7);
+    sub.info = pkt->info;
+    sub.seq_id = pkt->seq_id;
+    at.base_x = pkt->x & ~7;
+    at.base_z = pkt->z & ~7;
+    at.level = zone_player_level(app);
+    at.view = app->active_world;
+    if( !App_ActiveWorldview(app)->world->load_complete )
+    {
+        zone_pending_push_at(app, PKT_NAME_LOC_ANIM, &sub, &at);
+        return;
+    }
+    if( app->pending_zone_count > 0 )
+        RS_GameProto_FlushPendingZone(ctx);
+    exec_zone_sub_packet_at(ctx, PKT_NAME_LOC_ANIM, &sub, &at);
+}
+
+/*
+ * PROJANIM_SPECIFIC_V4: a projectile for this player only (deob client.java
+ * class259.field3164 -> new class31, as MAP_PROJANIM). Both ends are absolute,
+ * so it runs through the MAP_PROJANIM arm with the source's zone as its base and
+ * the landing tile as its absolute coord.
+ */
+static void
+exec_projanim_specific(
+    struct RS_GameProtoCtx const* ctx,
+    struct PktProjAnimSpecific const* pkt)
+{
+    struct App* app = ctx->app;
+    struct PktMapProjAnim sub;
+    struct ZoneAt at;
+    int local_x;
+    int local_z;
+
+    assert(pkt);
+    if( !app || !app->world || pkt->spotanim == 65535 )
+        return;
+    local_x = pkt->x - app->world->_base_tile_x;
+    local_z = pkt->z - app->world->_base_tile_z;
+    /* Wire data, as exec_obj_specific's. */
+    if( local_x < 0 || local_z < 0 || local_x >= app->world->_scene_size ||
+        local_z >= app->world->_scene_size )
+    {
+        TORIRS_LOG("exec: projanim specific at %d,%d is outside the scene\n", pkt->x, pkt->z);
+        return;
+    }
+    memset(&sub, 0, sizeof(sub));
+    sub.pos = ((local_x & 7) << 4) | (local_z & 7);
+    sub.target = pkt->target;
+    sub.source = pkt->source;
+    sub.spotanim = pkt->spotanim;
+    sub.src_height = pkt->src_height;
+    sub.dst_height = pkt->dst_height;
+    sub.start_delay = pkt->start_delay;
+    sub.end_delay = pkt->end_delay;
+    sub.peak = pkt->peak;
+    sub.arc = pkt->arc;
+    sub.dst_abs = 1;
+    sub.dst_abs_level = pkt->dst_level;
+    sub.dst_abs_x = pkt->dst_x;
+    sub.dst_abs_z = pkt->dst_z;
+    at.base_x = local_x & ~7;
+    at.base_z = local_z & ~7;
+    at.level = pkt->level;
+    at.view = WORLDVIEW_ROOT;
+    if( !app->world->load_complete )
+    {
+        zone_pending_push_at(app, PKT_NAME_MAP_PROJANIM, &sub, &at);
+        return;
+    }
+    if( app->pending_zone_count > 0 )
+        RS_GameProto_FlushPendingZone(ctx);
+    exec_zone_sub_packet_at(ctx, PKT_NAME_MAP_PROJANIM, &sub, &at);
+}
+
+/*
+ * OBJ_CUSTOMISE_SPECIFIC(_V2) / OBJ_UNCUSTOMISE_SPECIFIC: the zone forms at an
+ * absolute tile, queued the same way while the world loads (deob client.java
+ * class259.field3188, field3224, field3106).
+ */
+static void
+exec_obj_customise_specific(
+    struct RS_GameProtoCtx const* ctx,
+    enum GameProtoPktName name,
+    struct PktObjCustomiseSpecific const* pkt)
+{
+    struct App* app = ctx->app;
+    union
+    {
+        struct PktObjCustomise add;
+        struct PktObjUncustomise del;
+    } sub;
+    enum GameProtoPktName sub_name;
+    struct ZoneAt at;
+    int local_x;
+    int local_z;
+    int pos;
+
+    assert(pkt);
+    if( !app || !app->world )
+        return;
+    local_x = pkt->x - app->world->_base_tile_x;
+    local_z = pkt->z - app->world->_base_tile_z;
+    /* Wire data, as exec_obj_specific's. */
+    if( local_x < 0 || local_z < 0 || local_x >= app->world->_scene_size ||
+        local_z >= app->world->_scene_size )
+    {
+        TORIRS_LOG("exec: obj customise at %d,%d is outside the scene\n", pkt->x, pkt->z);
+        return;
+    }
+    pos = ((local_x & 7) << 4) | (local_z & 7);
+    memset(&sub, 0, sizeof(sub));
+    if( name == PKT_NAME_OBJ_CUSTOMISE_SPECIFIC )
+    {
+        sub_name = PKT_NAME_OBJ_CUSTOMISE;
+        sub.add.pos = pos;
+        sub.add.obj_id = pkt->obj_id;
+        sub.add.count = pkt->count;
+        sub.add.fields = pkt->fields;
+    }
+    else
+    {
+        assert(name == PKT_NAME_OBJ_UNCUSTOMISE_SPECIFIC);
+        sub_name = PKT_NAME_OBJ_UNCUSTOMISE;
+        sub.del.pos = pos;
+        sub.del.obj_id = pkt->obj_id;
+        sub.del.count = pkt->count;
+    }
+    at.base_x = local_x & ~7;
+    at.base_z = local_z & ~7;
+    at.level = pkt->level;
+    at.view = WORLDVIEW_ROOT;
+    if( !app->world->load_complete )
+    {
+        zone_pending_push_at(app, sub_name, &sub, &at);
+        return;
+    }
+    if( app->pending_zone_count > 0 )
+        RS_GameProto_FlushPendingZone(ctx);
+    exec_zone_sub_packet_at(ctx, sub_name, &sub, &at);
+}
+
+/* The slot PLAYER_INFO files the local player under until the server has named
+ * its pid (task_exec_entity_info.c, ENTITY_INFO_LOCAL_SENTINEL). */
+enum
+{
+    EXEC_LOCAL_PLAYER_SENTINEL = 2047,
+};
+
+/*
+ * ANIM_SPECIFIC: a seq on the local player only (deob Statics.method6644, the
+ * player SEQUENCE block's rule, which World_PlayerSetPrimaryAnimation is). The
+ * track binder fetches the seq; held models land as they do for the block.
+ */
+static void
+exec_anim_specific(
+    struct App* app,
+    struct PktAnimSpecific const* pkt)
+{
+    int pid;
+    int idx = -1;
+    int element = -1;
+
+    assert(app);
+    assert(pkt);
+    if( !app->world )
+        return;
+    pid = app->esync.local_pid >= 0 ? app->esync.local_pid : EXEC_LOCAL_PLAYER_SENTINEL;
+    RS_EntitySync_FindPlayer(&app->esync, pid, &idx, &element);
+    if( idx < 0 )
+        return;
+    World_PlayerSetPrimaryAnimation(app->world, idx, pkt->id, pkt->delay);
+    if( pkt->id >= 0 )
+        ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_PlayerHeldLand(app, pid, pkt->id));
+}
+
+/* NPC_ANIM_SPECIFIC: the npc SEQUENCE block's rule for one player (deob
+ * client.java class259.field3183); an npc this client has not been told about
+ * is ignored, as the deob's null check is. */
+static void
+exec_npc_anim_specific(
+    struct App* app,
+    struct PktNpcAnimSpecific const* pkt)
+{
+    int idx = -1;
+    int element = -1;
+
+    assert(app);
+    assert(pkt);
+    if( !app->world )
+        return;
+    RS_EntitySync_FindNpc(&app->esync, pkt->index, &idx, &element);
+    if( idx < 0 )
+        return;
+    World_NpcSetPrimaryAnimation(app->world, idx, pkt->id, pkt->delay);
+    App_DriveEvent(
+        app,
+        DRIVE_EVENT_NPC_SEQ,
+        pkt->index,
+        pkt->id,
+        (int32_t)(app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES),
+        0);
+}
+
+/* NPC_SPOTANIM_SPECIFIC / PLAYER_SPOTANIM_SPECIFIC: class83.method2252, the
+ * spotanim block's setter, for one player. */
+static void
+exec_npc_spotanim_specific(
+    struct App* app,
+    struct PktEntitySpotanimSpecific const* pkt)
+{
+    int idx = -1;
+    int element = -1;
+
+    assert(app);
+    assert(pkt);
+    if( !app->world )
+        return;
+    RS_EntitySync_FindNpc(&app->esync, pkt->index, &idx, &element);
+    if( idx < 0 )
+        return;
+    World_NpcSetSpotanim(app->world, idx, pkt->slot, pkt->id, pkt->height, pkt->delay, false);
+    if( pkt->id >= 0 )
+        App_EntitySpotanimPrefetch(app, pkt->id);
+}
+
+static void
+exec_player_spotanim_specific(
+    struct App* app,
+    struct PktEntitySpotanimSpecific const* pkt)
+{
+    int idx = -1;
+    int element = -1;
+
+    assert(app);
+    assert(pkt);
+    if( !app->world )
+        return;
+    RS_EntitySync_FindPlayer(&app->esync, pkt->index, &idx, &element);
+    if( idx < 0 )
+        return;
+    World_PlayerSetSpotanim(app->world, idx, pkt->slot, pkt->id, pkt->height, pkt->delay, false);
+    if( pkt->id >= 0 )
+        App_EntitySpotanimPrefetch(app, pkt->id);
+}
+
+/*
  * OBJ_ADD_SPECIFIC / OBJ_DEL_SPECIFIC / OBJ_COUNT_SPECIFIC: a ground obj for
  * this player only, at an ABSOLUTE tile with no zone header. Played through
  * the zone OBJ arms with the zone the tile is in as their base, like
@@ -700,6 +975,7 @@ exec_obj_specific(
         struct PktObjAdd add;
         struct PktObjDel del;
         struct PktObjCount count;
+        struct PktObjReveal reveal;
     } sub;
     enum GameProtoPktName sub_name;
     struct ZoneAt at;
@@ -738,6 +1014,15 @@ exec_obj_specific(
         sub_name = PKT_NAME_OBJ_DEL;
         sub.del.pos = pos;
         sub.del.obj_id = pkt->obj_id;
+    }
+    else if( name == PKT_NAME_OBJ_ENABLED_OPS_SPECIFIC )
+    {
+        sub_name = PKT_NAME_OBJ_REVEAL;
+        sub.reveal.pos = pos;
+        sub.reveal.obj_id = pkt->obj_id;
+        sub.reveal.receiver = -1;
+        sub.reveal.has_enabled_ops = 1;
+        sub.reveal.enabled_ops = pkt->op_flags;
     }
     else
     {
@@ -896,6 +1181,13 @@ exec_zone_sub_packet_at(
     {
         /* Reveal targets one receiver; everyone else already sees it. */
         struct PktObjReveal const* pkt = payload;
+        /* OBJ_ENABLED_OPS shares this name and addresses every viewer. */
+        if( pkt->has_enabled_ops )
+        {
+            zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+            App_WorldObjStackSetEnabledOps(app, tile_x, tile_z, level, pkt->obj_id, pkt->enabled_ops);
+            break;
+        }
         if( ctx->app->esync.local_pid >= 0 && pkt->receiver != ctx->app->esync.local_pid )
             break;
         zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
@@ -1071,6 +1363,63 @@ exec_zone_sub_packet_at(
             pkt->source);
         break;
     }
+    case PKT_NAME_OBJ_CUSTOMISE:
+    {
+        struct PktObjCustomise const* pkt = payload;
+        struct AppObjCustomise custom = {
+            .model = pkt->fields.model,
+            .tint = pkt->fields.tint,
+            .recol_count = pkt->fields.recol_count,
+            .recol_index = pkt->fields.recol_index,
+            .recol_value = pkt->fields.recol_value,
+            .retex_count = pkt->fields.retex_count,
+            .retex_index = pkt->fields.retex_index,
+            .retex_value = pkt->fields.retex_value,
+        };
+
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        App_WorldObjStackCustomise(app, tile_x, tile_z, level, pkt->obj_id, pkt->count, &custom);
+        break;
+    }
+    case PKT_NAME_OBJ_UNCUSTOMISE:
+    {
+        struct PktObjUncustomise const* pkt = payload;
+
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        App_WorldObjStackUncustomise(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
+        break;
+    }
+    case PKT_NAME_SCRIPTEDPROJ_CHANGE:
+    {
+        /* Deob class278.field3434 -> class56.method1481; an absent slot is
+         * ignored there too. */
+        struct PktScriptedProjChange const* pkt = payload;
+        struct World* world = App_ActiveWorldview(app)->world;
+        int const idx = World_ProjectileFindScriptedSlot(world, pkt->slot);
+
+        if( idx < 0 )
+            break;
+        if( pkt->target_x != -1 )
+        {
+            int const origin_x = (ctx->app->rebuild_zone_x - 6) * 8;
+            int const origin_z = (ctx->app->rebuild_zone_z - 6) * 8;
+
+            World_ProjectileScriptedRetarget(
+                world,
+                idx,
+                (pkt->target_x - origin_x) * 128 + 64,
+                (pkt->target_z - origin_z) * 128 + 64,
+                pkt->target_level,
+                pkt->target_offset_x,
+                pkt->target_offset_z,
+                pkt->target_height,
+                pkt->target);
+        }
+        if( pkt->freeze_cycles != -1 )
+            World_ProjectileScriptedFreeze(
+                world, idx, pkt->freeze_cycles, pkt->delete_on_freeze_end != 0);
+        break;
+    }
     case PKT_NAME_SCRIPTEDPROJ_ADD:
     {
         /* Rev-241 scripted projectile (deob class278.field3437 -> new class56):
@@ -1113,7 +1462,11 @@ exec_zone_sub_packet_at(
             .start_delay = pkt->start_delay,
             .end_delay = pkt->end_delay,
             .curve = { pkt->curve_h, pkt->curve_a, pkt->curve_t },
+            .slot = pkt->slot,
         };
+        /* `if (var16 == null)`: a slot in use keeps its projectile. */
+        if( World_ProjectileFindScriptedSlot(App_ActiveWorldview(app)->world, pkt->slot) >= 0 )
+            break;
         App_WorldScriptedProjSpawn(app, &sp);
         break;
     }
@@ -1522,6 +1875,71 @@ exec_message_clanchannel(
     exec_escape_tags(text, escaped, sizeof(escaped));
     RS_Chat_CrownedName(message->crown, message->sender, name, sizeof(name));
     exec_chat_add(ctx, message->clan_type >= 0 ? RS_CHAT_TYPE_CLAN_CHAT : RS_CHAT_TYPE_CLAN_GUEST_CHAT, name, channel->name, escaped);
+}
+
+/* MESSAGE_FRIENDCHANNEL: deob client.java class259.field3189. Shares the message
+ * id ring with the other chat prots, and the crown decides whether the sender's
+ * ignore applies. The channel's name is what this store keeps in `sender`, as
+ * exec_message_clanchannel does. */
+static void
+exec_message_friendchannel(
+    struct RS_GameProtoCtx const* ctx,
+    struct PktMessageFriendChannel const* message)
+{
+    struct App* app = ctx->app;
+    char channel[16];
+    char escaped[RS_CHAT_TEXT_LEN];
+    char name[RS_CHAT_SENDER_LEN];
+    int ignorable;
+
+    assert(app);
+    assert(message);
+    int64_t const key = ((int64_t)message->world << 32) + message->counter;
+    for( int i = 0; i < 100; i++ )
+        if( app->pm_message_ids[i] == key )
+            return;
+    RS_Chat_CrownImage(message->crown, &ignorable);
+    if( ignorable && RS_Social_IsIgnored(&app->social, message->sender) )
+        return;
+    app->pm_message_ids[app->pm_message_head] = key;
+    app->pm_message_head = (app->pm_message_head + 1) % 100;
+
+    base37tostr((uint64_t)message->channel_name, channel, sizeof(channel));
+    exec_escape_tags(message->text ? message->text : "", escaped, sizeof(escaped));
+    RS_Chat_CrownedName(message->crown, message->sender, name, sizeof(name));
+    exec_chat_add(ctx, RS_CHAT_TYPE_FRIENDS_CHAT, name, channel, escaped);
+}
+
+/* The deob's CRC-32 (class643.field7000). */
+static uint32_t
+exec_crc32(uint8_t const* data, size_t length)
+{
+    uint32_t crc = 0xffffffffu;
+
+    for( size_t i = 0; i < length; i++ )
+    {
+        crc ^= data[i];
+        for( int bit = 0; bit < 8; bit++ )
+            crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1u)));
+    }
+    return ~crc;
+}
+
+/* deob class630.method13772: clientscript 85 hears a group arrive or leave. */
+static void
+exec_group_notify(void* user, int def_id, int index, int64_t uid)
+{
+    struct App* app = user;
+    struct PktRunClientScript request;
+
+    memset(&request, 0, sizeof(request));
+    request.script_id = 85;
+    request.argc = 3;
+    request.intv[0] = def_id;
+    request.intv[1] = index;
+    request.long_mask = 1u << 2;
+    request.longv[2] = uid;
+    App_RunClientScript(app, &request);
 }
 
 /*
@@ -2185,6 +2603,44 @@ RS_GameProto_Exec(
     case PKT_NAME_MAP_ANIM_SPECIFIC:
         exec_map_anim_specific(ctx, &packet->_map_anim_specific);
         break;
+    case PKT_NAME_SCRIPTEDPROJ_CHANGE:
+        exec_zone_sub_packet(ctx, PKT_NAME_SCRIPTEDPROJ_CHANGE, &packet->_scriptedproj_change);
+        break;
+    case PKT_NAME_OBJ_CUSTOMISE:
+        exec_zone_sub_packet(ctx, PKT_NAME_OBJ_CUSTOMISE, &packet->_obj_customise);
+        break;
+    case PKT_NAME_OBJ_UNCUSTOMISE:
+        exec_zone_sub_packet(ctx, PKT_NAME_OBJ_UNCUSTOMISE, &packet->_obj_uncustomise);
+        break;
+    case PKT_NAME_OBJ_CUSTOMISE_SPECIFIC:
+    case PKT_NAME_OBJ_UNCUSTOMISE_SPECIFIC:
+        exec_obj_customise_specific(ctx, packet->packet_type, &packet->_obj_customise_specific);
+        break;
+    case PKT_NAME_OBJ_ENABLED_OPS_SPECIFIC:
+        exec_obj_specific(ctx, packet->packet_type, &packet->_obj_specific);
+        break;
+    case PKT_NAME_LOC_ANIM_SPECIFIC:
+        exec_loc_anim_specific(ctx, &packet->_loc_anim_specific);
+        break;
+    case PKT_NAME_PROJANIM_SPECIFIC:
+        exec_projanim_specific(ctx, &packet->_projanim_specific);
+        break;
+    case PKT_NAME_ANIM_SPECIFIC:
+        if( ctx->app )
+            exec_anim_specific(ctx->app, &packet->_anim_specific);
+        break;
+    case PKT_NAME_NPC_ANIM_SPECIFIC:
+        if( ctx->app )
+            exec_npc_anim_specific(ctx->app, &packet->_npc_anim_specific);
+        break;
+    case PKT_NAME_NPC_SPOTANIM_SPECIFIC:
+        if( ctx->app )
+            exec_npc_spotanim_specific(ctx->app, &packet->_entity_spotanim_specific);
+        break;
+    case PKT_NAME_PLAYER_SPOTANIM_SPECIFIC:
+        if( ctx->app )
+            exec_player_spotanim_specific(ctx->app, &packet->_entity_spotanim_specific);
+        break;
     case PKT_NAME_SOUND_AREA:
         exec_zone_sub_packet(ctx, PKT_NAME_SOUND_AREA, &packet->_sound_area);
         break;
@@ -2256,6 +2712,7 @@ RS_GameProto_Exec(
             app->cam_script.look_rate = packet->_cam_lookat.rate;
             app->cam_script.look_rate2 = packet->_cam_lookat.rate2;
             app->cam_script.rotate_cycles.active = 0;
+            app->cam_script.look_cycles.active = 0;
             /* The move half is left as it is (deob client.java, class243.field3073):
              * after a CAM_RESET its rates are 0, so the eye holds where it was
              * -- Wanted!'s scans turn to Solus without moving (RSProx 4464
@@ -2301,6 +2758,68 @@ RS_GameProto_Exec(
                 packet->_cam_moveto_cycles.height,
                 packet->_cam_moveto_cycles.cycles,
                 packet->_cam_moveto_cycles.easing);
+            app->need_redraw = 1;
+        }
+        break;
+    /* deob client.java class259.field3190: signed deltas from where the camera
+     * is. Recorded as yaw, pitch, cycles in height, rate, rate2. */
+    case PKT_NAME_CAM_ROTATEBY:
+        if( ctx->app && ctx->app->world )
+        {
+            App_CinemaCameraRotateBy(
+                ctx->app,
+                packet->_cam_rotate.yaw,
+                packet->_cam_rotate.pitch,
+                packet->_cam_rotate.cycles,
+                packet->_cam_rotate.easing);
+            exec_cam_script_record(
+                ctx->app,
+                APP_CAM_SCRIPT_OP_ROTATEBY,
+                -1,
+                -1,
+                packet->_cam_rotate.yaw,
+                packet->_cam_rotate.pitch,
+                packet->_cam_rotate.cycles);
+            ctx->app->need_redraw = 1;
+        }
+        break;
+    /* deob client.java class259.field3187. */
+    case PKT_NAME_CAM_ROTATETO:
+        if( ctx->app && ctx->app->world )
+        {
+            App_CinemaCameraRotateTo(
+                ctx->app,
+                packet->_cam_rotate.yaw,
+                packet->_cam_rotate.pitch,
+                packet->_cam_rotate.cycles,
+                packet->_cam_rotate.easing);
+            exec_cam_script_record(
+                ctx->app,
+                APP_CAM_SCRIPT_OP_ROTATETO,
+                -1,
+                -1,
+                packet->_cam_rotate.yaw,
+                packet->_cam_rotate.pitch,
+                packet->_cam_rotate.cycles);
+            ctx->app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_CAM_LOOKAT_CYCLES:
+        if( ctx->app && ctx->app->world )
+        {
+            struct App* app = ctx->app;
+            struct PktCamLookAtCycles const* l = &packet->_cam_lookat_cycles;
+
+            App_CinemaCameraLookCycles(
+                app,
+                l->x - app->world->_base_tile_x,
+                l->z - app->world->_base_tile_z,
+                l->height,
+                l->cycles,
+                l->easing,
+                l->height_relative);
+            exec_cam_script_record(
+                app, APP_CAM_SCRIPT_OP_LOOKAT_CYCLES, l->x, l->z, l->height, l->cycles, l->easing);
             app->need_redraw = 1;
         }
         break;
@@ -2416,6 +2935,7 @@ RS_GameProto_Exec(
                 app->cam_script.smooth_reset = 1;
                 app->cam_script.move_cycles.active = 0;
                 app->cam_script.rotate_cycles.active = 0;
+                app->cam_script.look_cycles.active = 0;
                 for( int i = 0; i < 5; i++ )
                     app->cam_script.shake[i] = 0;
                 app->need_redraw = 1;
@@ -2535,6 +3055,29 @@ RS_GameProto_Exec(
                     name,
                     packet->_message_private.text);
         }
+        break;
+    /* deob client.java class259.field3170: the line the sender sees for a
+     * private message they sent. */
+    case PKT_NAME_MESSAGE_PRIVATE_ECHO:
+        if( ctx->app && ctx->chat )
+        {
+            char escaped[RS_CHAT_TEXT_LEN];
+
+            exec_escape_tags(
+                packet->_message_private_echo.text ? packet->_message_private_echo.text : "",
+                escaped,
+                sizeof(escaped));
+            exec_chat_add(
+                ctx,
+                RS_CHAT_TYPE_PRIVATE_TO,
+                packet->_message_private_echo.recipient,
+                packet->_message_private_echo.recipient,
+                escaped);
+        }
+        break;
+    case PKT_NAME_MESSAGE_FRIENDCHANNEL:
+        if( ctx->app && ctx->chat )
+            exec_message_friendchannel(ctx, &packet->_message_friendchannel);
         break;
     case PKT_NAME_CHAT_FILTER_SETTINGS:
         if( ctx->app )
@@ -2701,6 +3244,54 @@ RS_GameProto_Exec(
             snprintf(ctx->app->unknown_string, sizeof(ctx->app->unknown_string), "%s",
                      packet->_text.text);
         break;
+    /* deob client.java field1008: OBJUNLOCK_RESET forgets the bitset. */
+    case PKT_NAME_OBJUNLOCK_RESET:
+        if( ctx->app )
+            ctx->app->host.client.objunlock_present = false;
+        break;
+    /* class561.method12548: each entry names its word by delta from the last.
+     * The deob throws on a word past the end; here it is dropped with a line. */
+    case PKT_NAME_OBJUNLOCK_UPDATE:
+        if( ctx->app )
+        {
+            struct RS_CS2ClientState* client = &ctx->app->host.client;
+            int word = 0;
+
+            if( !client->objunlock_present )
+            {
+                memset(client->objunlock_words, 0, sizeof(client->objunlock_words));
+                client->objunlock_present = true;
+            }
+            for( int i = 0; i < packet->_objunlock_update.count; i++ )
+            {
+                word += packet->_objunlock_update.entries[i].delta;
+                if( word < 0 || word >= RS_CS2_OBJUNLOCK_WORDS )
+                {
+                    TORIRS_LOG("exec: objunlock word %d out of range\n", word);
+                    break;
+                }
+                client->objunlock_words[word] = (uint64_t)packet->_objunlock_update.entries[i].bits;
+            }
+        }
+        break;
+    /* The deob reads and discards both. */
+    case PKT_NAME_ACCOUNT_FLAGS:
+    case PKT_NAME_HISCORE_REPLY:
+        break;
+    case PKT_NAME_SET_WEBSITE_TOKEN:
+        if( ctx->app )
+            snprintf(ctx->app->website_token, sizeof(ctx->app->website_token), "%s",
+                     packet->_text.text);
+        break;
+    /* deob client.java class259.field3155 -> class186.method6134. Through the
+     * host's slot, so main.c opens it on the platform as CS2's openurl does. */
+    case PKT_NAME_URL_OPEN:
+        if( ctx->app )
+            snprintf(ctx->app->host.client.pending_open_url,
+                     sizeof(ctx->app->host.client.pending_open_url),
+                     "%s",
+                     packet->_text.text);
+        break;
     case PKT_NAME_SITE_SETTINGS:
         if( ctx->app )
             snprintf(ctx->app->site_settings, sizeof(ctx->app->site_settings), "%s",
@@ -2813,7 +3404,60 @@ RS_GameProto_Exec(
             ctx->app->need_redraw = 1;
         }
         break;
+    case PKT_NAME_CAM_MODE:
+        if( ctx->app )
+        {
+            ctx->app->cam_script.cam_mode = packet->_int_value.value;
+            ctx->app->cam_script.oculus_y_valid = 0;
+            ctx->app->need_redraw = 1;
+        }
+        break;
+    /* deob client.java class259.field3148 -> Statics.method9192. */
+    case PKT_NAME_OCULUS_SYNC:
+        if( ctx->app && ctx->app->cam_script.oculus_sync != packet->_int_value.value )
+        {
+            ctx->app->cam_script.oculus_sync = packet->_int_value.value;
+            if( ctx->app->cam_script.cam_mode == 1 )
+                ctx->app->cam_script.oculus_recentre = 1;
+        }
+        break;
+    case PKT_NAME_CAM_SKYBOX:
+        if( ctx->app )
+            App_SetSkybox(ctx->app, packet->_int_value.value);
+        break;
+    case PKT_NAME_SET_HEATMAP_ENABLED:
+        if( ctx->app )
+        {
+            ctx->app->worldmap.heatmap_on = packet->_int_value.value != 0;
+            ctx->app->worldmap.heatmap_built_cycle = -1;
+            ctx->app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_UPDATE_UID192:
+        if( exec_crc32(packet->_uid192.data, sizeof(packet->_uid192.data)) ==
+            (uint32_t)packet->_uid192.crc )
+            login_osrs_set_uid192(packet->_uid192.data);
+        break;
+    case PKT_NAME_GROUP_VAR:
+        if( ctx->app )
+            for( int i = 0; i < packet->_group_var.count; i++ )
+                RS_GroupStore_ApplyVar(
+                    &ctx->app->host.groups,
+                    packet->_group_var.updates[i].index,
+                    packet->_group_var.updates[i].packed,
+                    packet->_group_var.updates[i].int_value,
+                    packet->_group_var.updates[i].long_value,
+                    packet->_group_var.updates[i].string_value);
+        break;
     case PKT_NAME_GROUP_FULL:
+        if( ctx->app && ctx->app->provider )
+            RS_GroupStore_ApplyFull(
+                &ctx->app->host.groups,
+                &ctx->app->provider->group_types,
+                packet->_raw_payload.data,
+                packet->_raw_payload.length,
+                exec_group_notify,
+                ctx->app);
         /* The group-ironman shared storage (deob class603.method13001). Its
          * readers are the group storage clientscript commands, which this
          * client does not implement; the payload is decoded and kept no

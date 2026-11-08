@@ -229,6 +229,12 @@ struct WevConfigTable;
  *  47), at boot. */
 struct ToriRS_Task*
 CreateTask_Dat2VarClanTypeLoad(struct CacheProvider* provider);
+/** Every group config into provider->group_types (config group 75), at boot. */
+struct ToriRS_Task*
+CreateTask_Dat2GroupTypeLoad(struct CacheProvider* provider);
+/** ScriptVarType id -> base type: 0 int, 1 long, 2 string, -1 not a type. */
+int
+torirs_script_var_base_type(int type_id);
 
 struct ToriRS_Task*
 CreateTask_Dat2WevConfigLoad(

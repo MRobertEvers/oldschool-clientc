@@ -1707,6 +1707,30 @@ World_Vec3Cross(
  */
 #define WORLD_SCRIPTEDPROJ_ANGLE_TO_RPI2048 325.9493f
 
+/* class56.method1441: the retarget lands after the step, from where the
+ * projectile has got to. */
+static void
+World_ProjectileApplyRetarget(
+    struct WorldEntity_Projectile* proj,
+    float frac)
+{
+    if( !proj->retarget_pending )
+        return;
+    proj->origin_x = (float)proj->x;
+    proj->origin_y = (float)proj->y;
+    proj->origin_z = (float)proj->z;
+    proj->rebase_progress = frac;
+    proj->rebased = true;
+    proj->dst_x = proj->retarget_dst_x;
+    proj->dst_z = proj->retarget_dst_z;
+    proj->dst_level = proj->retarget_dst_level;
+    proj->dst_offset_x = proj->retarget_offset_x;
+    proj->dst_offset_z = proj->retarget_offset_z;
+    proj->end_height = proj->retarget_height;
+    proj->target = proj->retarget_target;
+    proj->retarget_pending = false;
+}
+
 static void
 World_ProjectileScriptedStep(
     struct World* world,
@@ -1757,7 +1781,20 @@ World_ProjectileScriptedStep(
     frac = proj->t2 > proj->t1
                ? (float)(proj->cycle - proj->t1) / (float)(proj->t2 - proj->t1)
                : 1.0f;
-    progress = (int)floorf(frac * 65536.0f + 0.5f);
+    {
+        /* class56.method1440: after a retarget the curves run over what was
+         * left of the flight. */
+        float curve_frac = frac;
+
+        if( proj->rebased )
+        {
+            float const left = 1.0f - proj->rebase_progress;
+
+            curve_frac = left > 1.0e-6f ? (frac - proj->rebase_progress) / left : 1.0f;
+            curve_frac = curve_frac < 0.0f ? 0.0f : curve_frac > 1.0f ? 1.0f : curve_frac;
+        }
+        progress = (int)floorf(curve_frac * 65536.0f + 0.5f);
+    }
     h = World_ProjectileCurve(world, proj->curve[0], progress);
     a = World_ProjectileCurve(world, proj->curve[1], progress);
     t = World_ProjectileCurve(world, proj->curve[2], progress);
@@ -1772,6 +1809,7 @@ World_ProjectileScriptedStep(
         proj->x = proj->origin_x;
         proj->y = proj->origin_y;
         proj->z = proj->origin_z;
+        World_ProjectileApplyRetarget(proj, frac);
         return;
     }
     World_Vec3Normalize(dir);
@@ -1800,6 +1838,7 @@ World_ProjectileScriptedStep(
                 ((int)(atan2f(dy, horiz) * WORLD_SCRIPTEDPROJ_ANGLE_TO_RPI2048)) & 0x7ff;
         }
     }
+    World_ProjectileApplyRetarget(proj, frac);
 }
 
 static void
@@ -1815,6 +1854,22 @@ World_CycleUpdateProjectiles(
 
         if( cycles_elapsed > 0 )
             p->cycle += cycles_elapsed;
+
+        /* class56.method1439's freeze: the flight's clock is held, and the
+         * end of the freeze can end the projectile. */
+        if( p->scripted && p->freeze_until >= 0 )
+        {
+            if( p->freeze_until > p->cycle )
+            {
+                p->t1 += cycles_elapsed;
+                p->t2 += cycles_elapsed;
+                i = next;
+                continue;
+            }
+            p->freeze_until = -1;
+            if( p->delete_on_freeze_end )
+                p->t2 = 0;
+        }
 
         if( p->cycle > p->t2 )
         {

@@ -1023,6 +1023,97 @@ main(void)
     }
 
     /*
+     * GROUP_FULL fills a slot from the group's config, GROUP_VAR writes one
+     * variable, and a record of -1 empties the slot. OBJUNLOCK_UPDATE's entries
+     * name their words by delta.
+     */
+    {
+        struct ToriRS_GroupTypeVar var = { .type_id = 0, .base = 0 };
+        struct ToriRS_GroupType type = { .var_count = { 1, 0, 0 }, .vars = { &var, NULL, NULL } };
+        struct ToriRS_GroupTypes types = { .types = &type, .count = 1 };
+        struct RS_GroupStore store;
+        /* slot 3, config 0 (id byte 1), uid 9, value zigzag 21 -> -11 */
+        uint8_t const full[] = { 3, 1, 0, 0, 0, 0, 0, 0, 0, 9, 21 };
+        uint8_t const gone[] = { 3, 0 };
+        struct App* app = calloc(1, sizeof(*app));
+        struct RS_GameProtoCtx unlock_ctx;
+        struct RevPacket p;
+        struct PktObjUnlockEntry entries[2] = { { 2, 5 }, { 3, 1 } };
+
+        memset(&store, 0, sizeof(store));
+        RS_GroupStore_ApplyFull(&store, &types, full, sizeof(full), NULL, NULL);
+        assert(store.slots[3]);
+        assert(store.slots[3]->uid == 9);
+        assert(store.slots[3]->values[0][0].int_value == -11);
+        assert(RS_GroupStore_FindUid(&store, 9) == store.slots[3]);
+        RS_GroupStore_ApplyVar(&store, 3, 0, 44, 0, NULL);
+        assert(store.slots[3]->values[0][0].int_value == 44);
+        RS_GroupStore_ApplyFull(&store, &types, gone, sizeof(gone), NULL, NULL);
+        assert(!store.slots[3]);
+        RS_GroupStore_Free(&store);
+
+        assert(app);
+        memset(&unlock_ctx, 0, sizeof(unlock_ctx));
+        unlock_ctx.app = app;
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_OBJUNLOCK_UPDATE;
+        p._objunlock_update.count = 2;
+        p._objunlock_update.entries = entries;
+        RS_GameProto_Exec(&unlock_ctx, &p);
+        assert(app->host.client.objunlock_present);
+        assert(app->host.client.objunlock_words[2] == 5);
+        assert(app->host.client.objunlock_words[5] == 1);
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_OBJUNLOCK_RESET;
+        RS_GameProto_Exec(&unlock_ctx, &p);
+        assert(!app->host.client.objunlock_present);
+        free(app);
+        printf("ok - group store and objunlock\n");
+    }
+
+    /*
+     * CAM_ROTATEBY / CAM_ROTATETO each restart only the axis they name, and
+     * URL_OPEN leaves the url where main.c collects it.
+     */
+    {
+        struct App* app = calloc(1, sizeof(*app));
+        struct App_WorldView view;
+        struct RS_GameProtoCtx url_ctx;
+        struct RevPacket p;
+        struct App_CamRotateCycles const* r = &app->cam_script.rotate_cycles;
+
+        assert(app);
+        memset(&view, 0, sizeof(view));
+        view.world_camera.pitch = 300;
+        view.world_camera.yaw = 100;
+        app->frame_view = &view;
+
+        App_CinemaCameraRotateBy(app, 50, 0, 30, 0);
+        assert(r->active);
+        assert(r->yaw.active);
+        assert(r->yaw.from == 100);
+        assert(r->yaw.to == 150);
+        assert(!r->pitch.active);
+        assert(app->cam_script.scripted);
+
+        /* A negative pitch leaves the axis; the yaw goes the short way. */
+        App_CinemaCameraRotateTo(app, 1900, -1, 30, 0);
+        assert(r->yaw.to == 1900 - 2048);
+        assert(!r->pitch.active);
+
+        memset(&url_ctx, 0, sizeof(url_ctx));
+        url_ctx.app = app;
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_URL_OPEN;
+        p._text.text = (char*)"https://oldschool.runescape.com/";
+        RS_GameProto_Exec(&url_ctx, &p);
+        assert(strcmp(app->host.client.pending_open_url, "https://oldschool.runescape.com/") == 0);
+
+        free(app);
+        printf("ok - timed camera turns and URL_OPEN\n");
+    }
+
+    /*
      * LAST_LOGIN_INFO also OPENS the welcome screen -- nothing else in the
      * client does, so without this the rows above are correct on a screen no
      * one ever sees.

@@ -1757,6 +1757,17 @@ ToriPlatform_Renderer_Soft3D_Execute(
                 soft->scene, &soft->camera_3d, soft->view_port_3d.stride, soft->height);
         soft->scratch->rszbuffer_model_count = 0;
         soft->scratch->depth_translucent_count = 0;
+        /* The skybox sits behind the painter's scene at the eye (deob
+         * class135.method5696 at 0,0,0); a depth world has no such "behind". */
+        if( cmd->u.begin_3d.skybox.kind != TORIDRAWMK_NONE && !soft->depth && !soft->rszbuffer )
+        {
+            struct ToriRS_RenderCommand_Model sky;
+
+            memset(&sky, 0, sizeof(sky));
+            sky.model = cmd->u.begin_3d.skybox;
+            sky.element_id = -1;
+            soft3d_draw_model(soft, &sky);
+        }
         break;
 
     case TORIRSRC_END_3D:

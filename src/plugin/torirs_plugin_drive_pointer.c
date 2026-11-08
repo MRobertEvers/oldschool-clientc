@@ -3229,6 +3229,12 @@ drive_camera_op_name(int op)
         return "reset";
     case APP_CAM_SCRIPT_OP_SMOOTHRESET:
         return "smoothreset";
+    case APP_CAM_SCRIPT_OP_ROTATEBY:
+        return "rotateby";
+    case APP_CAM_SCRIPT_OP_ROTATETO:
+        return "rotateto";
+    case APP_CAM_SCRIPT_OP_LOOKAT_CYCLES:
+        return "lookat_cycles";
     default:
         return NULL;
     }

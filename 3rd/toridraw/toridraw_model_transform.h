@@ -35,6 +35,12 @@ ToriDraw_ModelRecolor(
     int color_src,
     int color_dst);
 
+/* Every face to one colour. */
+void
+ToriDraw_ModelSetAllFaceColors(
+    struct ToriDraw_Model* model,
+    hsl16_t color);
+
 void
 ToriDraw_ModelRetexture(
     struct ToriDraw_Model* model,

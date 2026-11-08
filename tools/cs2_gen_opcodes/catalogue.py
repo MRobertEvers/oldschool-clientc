@@ -132,6 +132,16 @@ def names() -> dict[int, str]:
 # because the client is what a script runs against. Each entry must say which
 # code proves it; signatures() refuses an entry that no longer disagrees.
 SIGNATURE_EXCEPTIONS: dict[int, tuple[tuple[int, int, int, int], str]] = {
+    8501: (
+        (1, 0, 1, 0),
+        "group_check: Statics.method11273 pops a long group_uid and one int. The "
+        "catalogue counts group_uid as an int.",
+    ),
+    8521: (
+        (0, 0, 1, 0),
+        "group_getindex: Statics.method11273 pops a long group_uid. The catalogue "
+        "counts group_uid as an int.",
+    ),
     6618: (
         (1, 0, 1, 0),
         "worldmap_getsourcecoord: Statics 6618 pushes ONE packed coord (or -1) on "

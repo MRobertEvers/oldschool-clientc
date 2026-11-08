@@ -835,8 +835,10 @@ def heuristic(name: str) -> tuple[int, int, int, int] | None:
         return (2, 0, 1, 0)
     if name in ("ON_MOBILE", "CLIENTTYPE", "COORD", "RUNWEIGHT_VISIBLE", "RUNENERGY_VISIBLE"):
         return (0, 0, 1, 0)
-    if name in ("CLIENTCLOCK", "REBOOTTIMER"):
+    if name in ("CLIENTCLOCK", "REBOOTTIMER", "OBJ_UNLOCKCOUNT"):
         return (0, 0, 1, 0)
+    if name == "OBJ_ISUNLOCKED":
+        return (1, 0, 1, 0)
     if name in ("MOUSE_GETX", "MOUSE_GETY"):
         return (0, 0, 1, 0)
     if name == "GETCANVASSIZE":

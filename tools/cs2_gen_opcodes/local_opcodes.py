@@ -13,6 +13,10 @@ from __future__ import annotations
 
 # id -> name. Replaces a vendor placeholder, or adds an id vendor never listed.
 LOCAL_NAMES: dict[int, str] = {
+    # deob Statics.method8450: the OBJUNLOCK bitset (client.java field1008).
+    8570: "GROUP_GETVAR_SCOPED",  # deob Statics.method11273
+    4252: "OBJ_ISUNLOCKED",
+    4253: "OBJ_UNLOCKCOUNT",
     # Dispatched here, but NOT declared by the rev-239 client: its command
     # catalogue lists every one of these as a gap, its dispatch has no case for
     # them, and no script in cache.osrs239 uses them. Each used to carry a name

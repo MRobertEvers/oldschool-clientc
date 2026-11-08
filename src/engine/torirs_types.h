@@ -759,6 +759,9 @@ struct ToriRS_Objtype
     int* recolors_from;
     int* recolors_to;
     int recolor_count;
+    int* retextures_from;
+    int* retextures_to;
+    int retexture_count;
     struct ToriRS_Param* params;
     int param_count;
     /* Worn-equipment model ids for the player appearance build (-1 = none). */
@@ -953,6 +956,29 @@ struct ToriRS_Struct
  * carries for the var and what PUSH_VARCLAN may read. Indexed by var id;
  * -1 for an id with no record or no type.
  */
+/** One variable of a group config (deob class437). */
+struct ToriRS_GroupTypeVar
+{
+    int type_id;
+    signed char base; /* 0 int, 1 long, 2 string, -1 not a type */
+    int32_t default_int;
+    int64_t default_long;
+    char* default_string;
+};
+
+/** A group config's variables, by scope. */
+struct ToriRS_GroupType
+{
+    int var_count[3];
+    struct ToriRS_GroupTypeVar* vars[3];
+};
+
+struct ToriRS_GroupTypes
+{
+    struct ToriRS_GroupType* types;
+    int count;
+};
+
 struct ToriRS_VarClanTypes
 {
     signed char* base_type; /* 0 int, 1 long, 2 string */

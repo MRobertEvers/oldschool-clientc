@@ -14238,6 +14238,10 @@ CS2VM2_RunOp(
     /* === CS2 opcode group: obj (4200..4299) ===
      * object definitions and object search.
      * rev-239 dispatch: Statics.method6889 -> method2965. */
+    /* The OBJUNLOCK bitset, answered by rs_cs2_client_ops.c. */
+    case CS2_OP_OBJ_ISUNLOCKED:
+    case CS2_OP_OBJ_UNLOCKCOUNT:
+        return CS2VM2_Op_HostSignature(vm, opcode);
     /* OC_ID (4223): Statics.java:54414 is `return 1` -- an obj IS its int id,
      * on the same stack, so the value is left exactly where it is. */
     case CS2_OP_OC_ID:
@@ -15040,6 +15044,60 @@ CS2VM2_RunOp(
     /* === CS2 opcode group: typed-data (8100..8599) ===
      * typed long-keyed data commands.
      * rev-239 dispatch: Statics.method6889 -> method4514. */
+    /* The group store (deob Statics.method11273). */
+    case CS2_OP_GROUP_CHECK:
+    {
+        struct CS2VM_HostRequest request;
+
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_GROUP_CHECK;
+        if( CS2VM2_PopLong(vm, &request.u.GROUP_CHECK.uid) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopInt(vm, &request.u.GROUP_CHECK.type) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return vm->vm->host_exec(vm, &request);
+    }
+    case CS2_OP_GROUP_GET:
+    {
+        struct CS2VM_HostRequest request;
+
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_GROUP_GET;
+        if( CS2VM2_PopInt(vm, &request.u.GROUP_GET.index) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return vm->vm->host_exec(vm, &request);
+    }
+    case CS2_OP_GROUP_GETINDEX:
+    {
+        struct CS2VM_HostRequest request;
+
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_GROUP_GETINDEX;
+        if( CS2VM2_PopLong(vm, &request.u.GROUP_GETINDEX.uid) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return vm->vm->host_exec(vm, &request);
+    }
+    case CS2_OP_GROUP_GETVAR:
+    {
+        struct CS2VM_HostRequest request;
+
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_GROUP_GETVAR;
+        if( CS2VM2_PopInt(vm, &request.u.GROUP_GETVAR.var) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopLong(vm, &request.u.GROUP_GETVAR.uid) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return vm->vm->host_exec(vm, &request);
+    }
+    case CS2_OP_GROUP_GETVAR_SCOPED:
+    {
+        struct CS2VM_HostRequest request;
+
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_GROUP_GETVAR_SCOPED;
+        if( CS2VM2_PopInt(vm, &request.u.GROUP_GETVAR_SCOPED.var) != CS2VM_EXECNO_OK ||
+            CS2VM2_PopLong(vm, &request.u.GROUP_GETVAR_SCOPED.uid) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return vm->vm->host_exec(vm, &request);
+    }
 
     /* === CS2 opcode group: op-count (13000..13999) ===
      * interpreter operation-count introspection.

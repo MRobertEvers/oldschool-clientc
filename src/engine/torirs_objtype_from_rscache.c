@@ -259,6 +259,18 @@ ToriRS_ObjtypeFromRSCacheDat2(
     if( src->recolor_count > 0 )
         torirs_objtype_copy_recolors(
             objtype, src->recolors_from, src->recolors_to, src->recolor_count);
+    if( src->retexture_count > 0 )
+    {
+        size_t const bytes = (size_t)src->retexture_count * sizeof(int);
+
+        objtype->retexture_count = src->retexture_count;
+        objtype->retextures_from = ToriMem_Alloc(ToriMem_Assets(), bytes);
+        objtype->retextures_to = ToriMem_Alloc(ToriMem_Assets(), bytes);
+        assert(objtype->retextures_from);
+        assert(objtype->retextures_to);
+        memcpy(objtype->retextures_from, src->retextures_from, bytes);
+        memcpy(objtype->retextures_to, src->retextures_to, bytes);
+    }
 
     torirs_objtype_copy_params(objtype, &src->params);
 

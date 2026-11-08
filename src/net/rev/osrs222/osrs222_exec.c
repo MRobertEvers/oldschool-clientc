@@ -10,6 +10,8 @@
  * packet's arm fills its message and runs packet_<file>_osrs222_in.
  *
  * Canonical prots with no arm at this revision:
+ *   MESSAGE_PRIVATE_ECHO (MESSAGE_PRIVATE_ECHO): no codec at this revision
+ *   MESSAGE_FRIENDCHANNEL (MESSAGE_FRIENDCHANNEL): no codec at this revision
  *   OPNPCU (OPNPCU): no client codec at this revision
  *   OPLOCU (OPLOCU): no client codec at this revision
  *   OPOBJU (OPOBJU): no client codec at this revision
@@ -23,8 +25,10 @@
 
 #include "packets/affinedclansettings_addbanned_fromchannel.h"
 #include "packets/affinedclansettings_setmuted_fromchannel.h"
+#include "packets/anim_specific.h"
 #include "packets/bug_report.h"
 #include "packets/cam_lookat.h"
+#include "packets/cam_mode.h"
 #include "packets/cam_moveto.h"
 #include "packets/cam_moveto_arc_v1.h"
 #include "packets/cam_moveto_cycles.h"
@@ -46,6 +50,7 @@
 #include "packets/clickworldmap.h"
 #include "packets/client_cheat.h"
 #include "packets/close_modal.h"
+#include "packets/exit_freecam.h"
 #include "packets/friendchat_join_leave.h"
 #include "packets/friendchat_kick.h"
 #include "packets/friendchat_setrank.h"
@@ -53,6 +58,7 @@
 #include "packets/friendlist_del.h"
 #include "packets/friendlist_loaded.h"
 #include "packets/hint_arrow.h"
+#include "packets/hiscore_reply.h"
 #include "packets/idle.h"
 #include "packets/if3_button.h"
 #include "packets/if_button.h"
@@ -85,6 +91,7 @@
 #include "packets/ignorelist_del.h"
 #include "packets/loc_add_change.h"
 #include "packets/loc_anim.h"
+#include "packets/loc_anim_specific.h"
 #include "packets/loc_del.h"
 #include "packets/loc_merge.h"
 #include "packets/logout.h"
@@ -108,11 +115,14 @@
 #include "packets/move_gameclick.h"
 #include "packets/move_minimapclick.h"
 #include "packets/no_timeout.h"
+#include "packets/npc_anim_specific.h"
 #include "packets/npc_headicon_specific.h"
+#include "packets/npc_spotanim_specific.h"
 #include "packets/obj_add.h"
 #include "packets/obj_count.h"
 #include "packets/obj_del.h"
 #include "packets/obj_opfilter.h"
+#include "packets/oculus_sync.h"
 #include "packets/oploc1.h"
 #include "packets/oploc2.h"
 #include "packets/oploc3.h"
@@ -140,6 +150,7 @@
 #include "packets/opplayer7.h"
 #include "packets/opplayer8.h"
 #include "packets/opplayert.h"
+#include "packets/player_spotanim_specific.h"
 #include "packets/rebuild_normal.h"
 #include "packets/rebuild_region.h"
 #include "packets/reflection_checker.h"
@@ -175,9 +186,11 @@
 #include "packets/update_stat.h"
 #include "packets/update_stockmarket_slot_v1.h"
 #include "packets/update_tradingpost_v1.h"
+#include "packets/update_uid192.h"
 #include "packets/update_zone_full_follows.h"
 #include "packets/update_zone_partial_enclosed.h"
 #include "packets/update_zone_partial_follows.h"
+#include "packets/url_open.h"
 #include "packets/varclan.h"
 #include "packets/varclan_disable.h"
 #include "packets/varclan_enable.h"
@@ -976,6 +989,23 @@ in_map_anim_specific(uint8_t const* data, int len, struct RevPacket* out)
     return adapt_map_anim_specific(&m, out);
 }
 
+/* LOC_ANIM_SPECIFIC, opcode 26 */
+static int
+in_loc_anim_specific(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgLocAnimSpecific m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_loc_anim_specific_osrs222_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_loc_anim_specific(&m, out);
+}
+
 /* NPC_HEADICON_SPECIFIC, opcode 4 */
 static int
 in_npc_headicon_specific(uint8_t const* data, int len, struct RevPacket* out)
@@ -991,6 +1021,74 @@ in_npc_headicon_specific(uint8_t const* data, int len, struct RevPacket* out)
     if( !rev_exec_whole(&x, &b, len) )
         return 0;
     return adapt_npc_headicon_specific(&m, out);
+}
+
+/* NPC_SPOTANIM_SPECIFIC, opcode 115 */
+static int
+in_npc_spotanim_specific(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgNpcSpotanimSpecific m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_npc_spotanim_specific_osrs222_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_npc_spotanim_specific(&m, out);
+}
+
+/* NPC_ANIM_SPECIFIC, opcode 95 */
+static int
+in_npc_anim_specific(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgNpcAnimSpecific m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_npc_anim_specific_osrs222_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_npc_anim_specific(&m, out);
+}
+
+/* ANIM_SPECIFIC, opcode 72 */
+static int
+in_anim_specific(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgAnimSpecific m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_anim_specific_osrs222_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_anim_specific(&m, out);
+}
+
+/* PLAYER_SPOTANIM_SPECIFIC, opcode 103 */
+static int
+in_player_spotanim_specific(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgPlayerSpotanimSpecific m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_player_spotanim_specific_osrs222_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_player_spotanim_specific(&m, out);
 }
 
 /* PLAYER_INFO, opcode 37 */
@@ -1313,6 +1411,23 @@ in_cam_rotateto_coordinate(uint8_t const* data, int len, struct RevPacket* out)
     return adapt_cam_rotateto_coordinate(&m, out);
 }
 
+/* CAM_MODE, opcode 11 */
+static int
+in_cam_mode(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgCamMode m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_cam_mode_osrs222_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_cam_mode(&m, out);
+}
+
 /* CAM_TARGET, opcode 127 */
 static int
 in_cam_target(uint8_t const* data, int len, struct RevPacket* out)
@@ -1328,6 +1443,23 @@ in_cam_target(uint8_t const* data, int len, struct RevPacket* out)
     if( !rev_exec_whole(&x, &b, len) )
         return 0;
     return adapt_cam_target_v1(&m, out);
+}
+
+/* OCULUS_SYNC, opcode 19 */
+static int
+in_oculus_sync(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgOculusSync m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_oculus_sync_osrs222_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_oculus_sync(&m, out);
 }
 
 /* UPDATE_INV_FULL, opcode 48 */
@@ -1985,6 +2117,40 @@ in_server_tick_end(uint8_t const* data, int len, struct RevPacket* out)
     return 1;
 }
 
+/* URL_OPEN, opcode 117 */
+static int
+in_url_open(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgUrlOpen m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_url_open_osrs222_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_url_open(&m, out);
+}
+
+/* UPDATE_UID192, opcode 42 */
+static int
+in_update_uid192(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgUpdateUid192 m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_update_uid192_osrs222_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_update_uid192(&m, out);
+}
+
 /* REFLECTION_CHECKER, opcode 112 */
 static int
 in_reflection_checker(uint8_t const* data, int len, struct RevPacket* out)
@@ -2017,6 +2183,23 @@ in_send_ping(uint8_t const* data, int len, struct RevPacket* out)
     if( !rev_exec_whole(&x, &b, len) )
         return 0;
     return adapt_send_ping(&m, out);
+}
+
+/* HISCORE_REPLY, opcode 36 */
+static int
+in_hiscore_reply(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgHiscoreReply m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_hiscore_reply_osrs222_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_hiscore_reply(&m, out);
 }
 
 /* The revision's zone sub-packets, by the ordinal that leads each. */
@@ -3321,6 +3504,24 @@ out_clickworldmap(struct ProtoOutArgs const* a, RsprotBuf* b)
     return 1;
 }
 
+/* EXIT_FREECAM, opcode 40 */
+static int
+out_exit_freecam(struct ProtoOutArgs const* a, RsprotBuf* b)
+{
+    MsgExitFreecam m;
+    RsprotExec x;
+
+    memset(&m, 0, sizeof(m));
+    w_exit_freecam(&m, a);
+    rsprot_exec_encode(&x, b);
+    packet_exit_freecam_osrs222_in(&x, &m);
+    if( b->err )
+        return 0; /* it does not fit the caller's buffer */
+    /* Arguments the layout cannot carry are the caller's bug. */
+    assert(rsprot_exec_ok(&x));
+    return 1;
+}
+
 /* CLOSE_MODAL, opcode 55 */
 static int
 out_close_modal(struct ProtoOutArgs const* a, RsprotBuf* b)
@@ -3513,7 +3714,12 @@ static int (*const k_in[TOP])(uint8_t const* data, int len, struct RevPacket* ou
     [123] = in_map_projanim,
     [65] = in_sound_area,
     [34] = in_map_anim_specific,
+    [26] = in_loc_anim_specific,
     [4] = in_npc_headicon_specific,
+    [115] = in_npc_spotanim_specific,
+    [95] = in_npc_anim_specific,
+    [72] = in_anim_specific,
+    [103] = in_player_spotanim_specific,
     [37] = in_player_info,
     [90] = in_npc_info_small,
     [102] = in_npc_info_large,
@@ -3535,7 +3741,9 @@ static int (*const k_in[TOP])(uint8_t const* data, int len, struct RevPacket* ou
     [78] = in_cam_moveto_eased_circular,
     [0] = in_cam_lookat,
     [15] = in_cam_rotateto_coordinate,
+    [11] = in_cam_mode,
     [127] = in_cam_target,
+    [19] = in_oculus_sync,
     [48] = in_update_inv_full,
     [29] = in_update_inv_partial,
     [40] = in_update_inv_stoptransmit,
@@ -3574,8 +3782,11 @@ static int (*const k_in[TOP])(uint8_t const* data, int len, struct RevPacket* ou
     [96] = in_update_reboot_timer,
     [74] = in_minimap_toggle,
     [63] = in_server_tick_end,
+    [117] = in_url_open,
+    [42] = in_update_uid192,
     [112] = in_reflection_checker,
     [106] = in_send_ping,
+    [36] = in_hiscore_reply,
 };
 
 static int16_t const k_in_name[TOP] = {
@@ -3622,7 +3833,12 @@ static int16_t const k_in_name[TOP] = {
     [123] = PKT_NAME_MAP_PROJANIM,
     [65] = PKT_NAME_SOUND_AREA,
     [34] = PKT_NAME_MAP_ANIM_SPECIFIC,
+    [26] = PKT_NAME_LOC_ANIM_SPECIFIC,
     [4] = PKT_NAME_NPC_HEADICON_SPECIFIC,
+    [115] = PKT_NAME_NPC_SPOTANIM_SPECIFIC,
+    [95] = PKT_NAME_NPC_ANIM_SPECIFIC,
+    [72] = PKT_NAME_ANIM_SPECIFIC,
+    [103] = PKT_NAME_PLAYER_SPOTANIM_SPECIFIC,
     [37] = PKT_NAME_PLAYER_INFO,
     [90] = PKT_NAME_NPC_INFO,
     [102] = PKT_NAME_NPC_INFO_LARGE,
@@ -3644,7 +3860,9 @@ static int16_t const k_in_name[TOP] = {
     [78] = PKT_NAME_CAM_MOVETO_ARC,
     [0] = PKT_NAME_CAM_LOOKAT,
     [15] = PKT_NAME_CAM_ROTATETO_COORDINATE,
+    [11] = PKT_NAME_CAM_MODE,
     [127] = PKT_NAME_CAM_TARGET,
+    [19] = PKT_NAME_OCULUS_SYNC,
     [48] = PKT_NAME_UPDATE_INV_FULL,
     [29] = PKT_NAME_UPDATE_INV_PARTIAL,
     [40] = PKT_NAME_UPDATE_INV_STOP_TRANSMIT,
@@ -3683,8 +3901,11 @@ static int16_t const k_in_name[TOP] = {
     [96] = PKT_NAME_UPDATE_REBOOT_TIMER,
     [74] = PKT_NAME_MINIMAP_TOGGLE,
     [63] = PKT_NAME_SERVER_TICK_END,
+    [117] = PKT_NAME_URL_OPEN,
+    [42] = PKT_NAME_UPDATE_UID192,
     [112] = PKT_NAME_REFLECTION_CHECKER,
     [106] = PKT_NAME_SEND_PING,
+    [36] = PKT_NAME_HISCORE_REPLY,
 };
 
 /* Every opcode's size; NO_PROT where the revision has none. */
@@ -3832,18 +4053,21 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_LOC_DEL] = 9,
     [PKT_NAME_VARCLAN] = 10,
     [PKT_NAME_IF_SETSCROLLPOS] = 11,
+    [PKT_NAME_CAM_MODE] = 12,
     [PKT_NAME_IF_SETHIDE] = 13,
     [PKT_NAME_SYNTH_SOUND] = 14,
     [PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER] = 15,
     [PKT_NAME_CAM_ROTATETO_COORDINATE] = 16,
     [PKT_NAME_CAM_MOVETO] = 17,
     [PKT_NAME_IF_OPENTOP] = 18,
+    [PKT_NAME_OCULUS_SYNC] = 20,
     [PKT_NAME_UPDATE_STAT] = 21,
     [PKT_NAME_MESSAGE_CLANCHANNEL_SYSTEM] = 22,
     [PKT_NAME_UPDATE_FRIENDLIST] = 23,
     [PKT_NAME_MESSAGE_PRIVATE] = 24,
     [PKT_NAME_RESET_ANIMS] = 25,
     [PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED] = 26,
+    [PKT_NAME_LOC_ANIM_SPECIFIC] = 27,
     [PKT_NAME_OBJ_COUNT] = 28,
     [PKT_NAME_LOGOUT] = 29,
     [PKT_NAME_UPDATE_INV_PARTIAL] = 30,
@@ -3852,11 +4076,13 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_IF_SETEVENTS] = 33,
     [PKT_NAME_MAP_ANIM_SPECIFIC] = 35,
     [PKT_NAME_IF_SETANGLE] = 36,
+    [PKT_NAME_HISCORE_REPLY] = 37,
     [PKT_NAME_PLAYER_INFO] = 38,
     [PKT_NAME_OBJ_ADD] = 39,
     [PKT_NAME_CLANCHANNEL_FULL] = 40,
     [PKT_NAME_UPDATE_INV_STOP_TRANSMIT] = 41,
     [PKT_NAME_IF_SETTEXT] = 42,
+    [PKT_NAME_UPDATE_UID192] = 43,
     [PKT_NAME_MIDI_SWAP] = 44,
     [PKT_NAME_VARCLAN_DISABLE] = 45,
     [PKT_NAME_UPDATE_RUNENERGY] = 47,
@@ -3879,6 +4105,7 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_CAM_RESET] = 67,
     [PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR] = 69,
     [PKT_NAME_UPDATE_IGNORELIST] = 70,
+    [PKT_NAME_ANIM_SPECIFIC] = 73,
     [PKT_NAME_MINIMAP_TOGGLE] = 75,
     [PKT_NAME_VARP_RESET] = 76,
     [PKT_NAME_FRIENDLIST_LOADED] = 77,
@@ -3899,12 +4126,14 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_IF_CLOSESUB] = 93,
     [PKT_NAME_IF_SETPLAYERHEAD] = 94,
     [PKT_NAME_IF_SETANIM] = 95,
+    [PKT_NAME_NPC_ANIM_SPECIFIC] = 96,
     [PKT_NAME_UPDATE_REBOOT_TIMER] = 97,
     [PKT_NAME_REBUILD_NORMAL] = 98,
     [PKT_NAME_IF_SETMODEL] = 100,
     [PKT_NAME_CLANSETTINGS_FULL] = 101,
     [PKT_NAME_CAM_SHAKE] = 102,
     [PKT_NAME_NPC_INFO_LARGE] = 103,
+    [PKT_NAME_PLAYER_SPOTANIM_SPECIFIC] = 104,
     [PKT_NAME_VARP_LARGE] = 105,
     [PKT_NAME_UNSET_MAP_FLAG] = 106,
     [PKT_NAME_SEND_PING] = 107,
@@ -3915,7 +4144,9 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_MIDI_JINGLE] = 112,
     [PKT_NAME_REFLECTION_CHECKER] = 113,
     [PKT_NAME_UPDATE_RUNWEIGHT] = 114,
+    [PKT_NAME_NPC_SPOTANIM_SPECIFIC] = 116,
     [PKT_NAME_RUNCLIENTSCRIPT] = 117,
+    [PKT_NAME_URL_OPEN] = 118,
     [PKT_NAME_UPDATE_TRADINGPOST] = 119,
     [PKT_NAME_IF_SETROTATESPEED] = 120,
     [PKT_NAME_MESSAGE_CLANCHANNEL] = 121,
@@ -3966,6 +4197,7 @@ static int16_t const k_out_wire1[PKTOUT_NAME_COUNT] = {
     [PKTOUT_NAME_AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL] = 38,
     [PKTOUT_NAME_IF_BUTTON9] = 39,
     [PKTOUT_NAME_OPLOC2] = 40,
+    [PKTOUT_NAME_EXIT_FREECAM] = 41,
     [PKTOUT_NAME_EVENT_CAMERA_POSITION] = 43,
     [PKTOUT_NAME_OPLOCU] = 44,
     [PKTOUT_NAME_EVENT_MOUSE_MOVE] = 45,
@@ -4179,6 +4411,7 @@ static int (*const k_out[PKTOUT_NAME_COUNT])(struct ProtoOutArgs const* a, Rspro
     [PKTOUT_NAME_AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL] = out_affinedclansettings_addbanned_fromchannel,
     [PKTOUT_NAME_IF_BUTTON9] = out_if_button9,
     [PKTOUT_NAME_OPLOC2] = out_oploc2,
+    [PKTOUT_NAME_EXIT_FREECAM] = out_exit_freecam,
     [PKTOUT_NAME_CHAT_SETMODE] = out_set_chatfiltersettings,
     [PKTOUT_NAME_IF_BUTTON7] = out_if_button7,
     [PKTOUT_NAME_OPOBJ3] = out_opobj3,

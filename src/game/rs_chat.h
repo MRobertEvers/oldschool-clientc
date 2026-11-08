@@ -52,6 +52,7 @@ enum RS_ChatMessageType
     RS_CHAT_TYPE_PRIVATE_TO = 6,
     RS_CHAT_TYPE_PRIVATE_FROM_MOD = 7,
     RS_CHAT_TYPE_DUELREQ = 8,
+    RS_CHAT_TYPE_FRIENDS_CHAT = 9,
     /* The clan channel lines: a player's (CLAN_CHAT) and the channel's own
      * notices (CLAN_MESSAGE), and the same two for the guest clan. */
     RS_CHAT_TYPE_CLAN_CHAT = 41,

@@ -934,7 +934,35 @@ World_ProjectileMakeScripted(
     int src_offset_x,
     int src_offset_z,
     int dst_offset_x,
-    int dst_offset_z);
+    int dst_offset_z,
+    int slot);
+
+/** The scripted projectile the server calls `slot`, or -1. */
+int
+World_ProjectileFindScriptedSlot(
+    struct World* world,
+    int slot);
+
+/** SCRIPTEDPROJ_CHANGE's target half: taken at the end of its next step. */
+void
+World_ProjectileScriptedRetarget(
+    struct World* world,
+    int idx,
+    int dst_x,
+    int dst_z,
+    int dst_level,
+    int offset_x,
+    int offset_z,
+    int height,
+    int target);
+
+/** SCRIPTEDPROJ_CHANGE's freeze half. */
+void
+World_ProjectileScriptedFreeze(
+    struct World* world,
+    int idx,
+    int cycles,
+    bool delete_on_end);
 
 /** @see World_WorldEntityRegisterFn. Pass NULL to detach. */
 void
@@ -1728,6 +1756,24 @@ World_ObjStackSetOwnership(
     int despawn_clock,
     int owner,
     int never_becomes_public);
+
+/** Set which of the five ground ops stay on the menu. */
+void
+World_ObjStackSetEnabledOps(
+    struct World* world,
+    int idx,
+    int enabled_ops);
+
+/** The first stack on the tile with this id and count, or -1 (deob
+ *  Statics.method4117 / method1031's match). */
+int
+World_ObjStackFindExact(
+    struct World* world,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int count);
 
 /** Find a stack by tile + obj id (obj_id -1 = any). Returns pool idx or -1. */
 int

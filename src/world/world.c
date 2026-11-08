@@ -1172,7 +1172,8 @@ World_ProjectileMakeScripted(
     int src_offset_x,
     int src_offset_z,
     int dst_offset_x,
-    int dst_offset_z)
+    int dst_offset_z,
+    int slot)
 {
     struct WorldEntity_Projectile* p;
 
@@ -1188,6 +1189,73 @@ World_ProjectileMakeScripted(
     p->src_offset_z = src_offset_z;
     p->dst_offset_x = dst_offset_x;
     p->dst_offset_z = dst_offset_z;
+    p->scripted_slot = slot;
+    p->freeze_until = -1;
+}
+
+int
+World_ProjectileFindScriptedSlot(
+    struct World* world,
+    int slot)
+{
+    struct World_EntityPool* pool;
+
+    assert(world);
+    pool = &world->entities.projectile;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Projectile const* p = World_EntityPoolGet(pool, i);
+        if( p && p->scripted && p->scripted_slot == slot )
+            return i;
+    }
+    return -1;
+}
+
+void
+World_ProjectileScriptedRetarget(
+    struct World* world,
+    int idx,
+    int dst_x,
+    int dst_z,
+    int dst_level,
+    int offset_x,
+    int offset_z,
+    int height,
+    int target)
+{
+    struct WorldEntity_Projectile* p;
+
+    assert(world);
+    p = World_EntityPoolGet(&world->entities.projectile, idx);
+    assert(p);
+    assert(p->scripted);
+    p->retarget_pending = true;
+    p->retarget_dst_x = dst_x;
+    p->retarget_dst_z = dst_z;
+    p->retarget_dst_level = dst_level;
+    p->retarget_offset_x = offset_x;
+    p->retarget_offset_z = offset_z;
+    p->retarget_height = height;
+    p->retarget_target = target;
+}
+
+void
+World_ProjectileScriptedFreeze(
+    struct World* world,
+    int idx,
+    int cycles,
+    bool delete_on_end)
+{
+    struct WorldEntity_Projectile* p;
+
+    assert(world);
+    assert(cycles >= 0);
+    p = World_EntityPoolGet(&world->entities.projectile, idx);
+    assert(p);
+    assert(p->scripted);
+    p->freeze_until = p->cycle + cycles;
+    p->delete_on_freeze_end = delete_on_end;
 }
 
 int
@@ -3561,6 +3629,12 @@ World_ObjStackAdd(
     stack->despawn_clock = -1;
     stack->owner = 0;
     stack->never_becomes_public = 0;
+    stack->enabled_ops = 0x1f;
+    stack->customised = false;
+    stack->custom_model = -1;
+    stack->custom_tint = -1;
+    stack->custom_recol_mask = 0;
+    stack->custom_retex_mask = 0;
     if( name )
     {
         strncpy(stack->name, name, sizeof(stack->name) - 1);
@@ -3731,6 +3805,48 @@ World_ObjStackSetMenu(
     strncpy(stack->name, name, sizeof(stack->name) - 1);
     stack->name[sizeof(stack->name) - 1] = '\0';
     World_CopyMenuActions(stack->actions, actions);
+    for( int i = 0; i < 5; i++ )
+        if( !(stack->enabled_ops & (1 << i)) )
+            stack->actions[i].name[0] = '\0';
+}
+
+void
+World_ObjStackSetEnabledOps(
+    struct World* world,
+    int idx,
+    int enabled_ops)
+{
+    struct WorldEntity_ObjStack* stack;
+
+    assert(world);
+    assert(idx >= 0);
+    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
+    assert(stack);
+    stack->enabled_ops = enabled_ops;
+}
+
+int
+World_ObjStackFindExact(
+    struct World* world,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int count)
+{
+    struct World_EntityPool* pool;
+
+    assert(world);
+    pool = &world->entities.obj_stack;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_ObjStack const* stack = World_EntityPoolGet(pool, i);
+        if( stack && stack->grid_position.x == scene_x && stack->grid_position.z == scene_z &&
+            stack->grid_position.level == level && stack->obj_id == obj_id && stack->count == count )
+            return i;
+    }
+    return -1;
 }
 
 void

@@ -110,6 +110,109 @@ queue_text(
     RS_CS2Host_SendPush(host, &send);
 }
 
+/* Push a group variable by the base type packed in `var` (deob method10660). */
+static int
+group_push(
+    struct CS2VM2_Thread* vm,
+    int var,
+    int32_t int_value,
+    int64_t long_value,
+    char const* string_value)
+{
+    switch( (var >> 16) & 0x3 )
+    {
+    case 0:
+        return CS2VM2_PushInt(vm, int_value);
+    case 1:
+        return CS2VM2_PushLong(vm, long_value);
+    case 2:
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, string_value ? string_value : ""));
+    default:
+        return CS2VM_EXECNO_OK;
+    }
+}
+
+/* group_getvar / its scoped form: the live value, or the config's default when
+ * this account has no such group. A live group of another config is an error in
+ * the deob too. */
+static int
+group_getvar(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    int64_t uid,
+    int var,
+    int scope)
+{
+    struct RS_GroupInstance const* group = RS_GroupStore_FindUid(&host->groups, uid);
+    int const def_id = (var >> 20) & 0x7ff;
+    int const slot = var & 0xffff;
+    struct CacheProvider const* provider = host->provider;
+
+    if( group )
+    {
+        struct RS_GroupValue const* value;
+
+        if( group->def_id != def_id || slot >= group->value_count[scope] )
+        {
+            TORIRS_LOG("cs2: group var %d does not fit group config %d\n", var, group->def_id);
+            return CS2VM_EXECNO_ERROR;
+        }
+        value = &group->values[scope][slot];
+        return group_push(vm, var, value->int_value, value->long_value, value->string_value);
+    }
+    if( !provider || def_id >= provider->group_types.count ||
+        slot >= provider->group_types.types[def_id].var_count[scope] )
+        return group_push(vm, var, 0, 0, "");
+    {
+        struct ToriRS_GroupTypeVar const* d = &provider->group_types.types[def_id].vars[scope][slot];
+
+        return group_push(vm, var, d->default_int, d->default_long, d->default_string);
+    }
+}
+
+int
+RS_CS2Host_ExecGroupOp(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest const* request)
+{
+    assert(host);
+    assert(vm);
+    assert(request);
+    if( request->kind == CS2VM_HOST_REQUEST_GROUP_CHECK )
+    {
+        struct RS_GroupInstance const* group =
+            RS_GroupStore_FindUid(&host->groups, request->u.GROUP_CHECK.uid);
+
+        return CS2VM2_PushInt(vm, group && group->def_id == request->u.GROUP_CHECK.type ? 1 : 0);
+    }
+    if( request->kind == CS2VM_HOST_REQUEST_GROUP_GET )
+    {
+        int const index = request->u.GROUP_GET.index;
+
+        if( index < 0 || index >= RS_GROUP_SLOTS || !host->groups.slots[index] )
+            return CS2VM2_PushLong(vm, -1);
+        return CS2VM2_PushLong(vm, host->groups.slots[index]->uid);
+    }
+    if( request->kind == CS2VM_HOST_REQUEST_GROUP_GETINDEX )
+    {
+        struct RS_GroupInstance const* group =
+            RS_GroupStore_FindUid(&host->groups, request->u.GROUP_GETINDEX.uid);
+
+        return CS2VM2_PushInt(vm, group ? group->index : -1);
+    }
+    if( request->kind == CS2VM_HOST_REQUEST_GROUP_GETVAR )
+        return group_getvar(
+            host, vm, request->u.GROUP_GETVAR.uid, request->u.GROUP_GETVAR.var, 0);
+    assert(request->kind == CS2VM_HOST_REQUEST_GROUP_GETVAR_SCOPED);
+    {
+        int const var = request->u.GROUP_GETVAR_SCOPED.var;
+
+        return group_getvar(
+            host, vm, request->u.GROUP_GETVAR_SCOPED.uid, var, ((var >> 18) & 0x3) == 2 ? 2 : 1);
+    }
+}
+
 int
 RS_CS2Host_ExecClientOp(
     struct RS_CS2Host* host,
@@ -428,6 +531,27 @@ RS_CS2Host_ExecClientOp(
     case CS2_OP_TRANSLATIONS_CLEAR:
         ToriDraw_FontClearTranslations();
         return CS2VM_EXECNO_OK;
+
+    /* Is this obj unlocked: deob Statics.method8450's 4252. */
+    case CS2_OP_OBJ_ISUNLOCKED:
+    {
+        int const obj = ints[0];
+
+        if( !state->objunlock_present || obj < 0 ||
+            (obj >> 6) >= RS_CS2_OBJUNLOCK_WORDS )
+            return CS2VM2_PushInt(vm, 0);
+        return CS2VM2_PushInt(vm, (state->objunlock_words[obj >> 6] >> (obj & 63)) & 1 ? 1 : 0);
+    }
+    /* How many are: 4253. */
+    case CS2_OP_OBJ_UNLOCKCOUNT:
+    {
+        int total = 0;
+
+        if( state->objunlock_present )
+            for( int i = 0; i < RS_CS2_OBJUNLOCK_WORDS; i++ )
+                total += __builtin_popcountll(state->objunlock_words[i]);
+        return CS2VM2_PushInt(vm, total);
+    }
 
     /* The reboot countdown in client cycles, 0 when none is running. */
     case CS2_OP_REBOOTTIMER:

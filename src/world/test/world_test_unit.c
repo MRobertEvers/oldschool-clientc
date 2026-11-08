@@ -572,7 +572,9 @@ test_projectile_scripted(void)
     int idx = World_ProjectileSpawn(
         world, 44, 0, 0, 10 * 128 + 64, 10 * 128 + 64, 20 * 128 + 64, 10 * 128 + 64, 500 - 500, 500, 124,
         0, 36, 0, 0, WORLD_PROJECTILE_TARGET_NONE, WORLD_PROJECTILE_TARGET_NONE);
-    World_ProjectileMakeScripted(world, idx, 10024, 10018, 10017, 0, 0, 0, 0);
+    World_ProjectileMakeScripted(world, idx, 10024, 10018, 10017, 0, 0, 0, 0, 7);
+    TEST_ASSERT(World_ProjectileFindScriptedSlot(world, 7) == idx, "the slot finds it");
+    TEST_ASSERT(World_ProjectileFindScriptedSlot(world, 8) == -1, "no other slot does");
     struct WorldEntity_Projectile* proj = World_EntityPoolGet(&world->entities.projectile, idx);
 
     for( int t = 0; t < 3; t++ )

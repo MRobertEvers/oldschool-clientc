@@ -3,7 +3,7 @@
 #define CS2_OPCODE_H
 
 #define CS2_OPCODE_MAX 13337
-#define CS2_OPCODE_COUNT 1332
+#define CS2_OPCODE_COUNT 1335
 
 #define CS2_OP_SS_AND -2
 #define CS2_OP_SS_OR -1
@@ -2698,6 +2698,8 @@
 #define CS2_OP_OC_ISUBOP 4222
 #define CS2_OP_OC_ID 4223
 #define CS2_OP_OC_BYID 4224
+#define CS2_OP_OBJ_ISUNLOCKED 4252
+#define CS2_OP_OBJ_UNLOCKCOUNT 4253
 
 /* === CS2 opcode group: chat (4300..5099) ===
  * chat commands.
@@ -4124,6 +4126,7 @@
 #define CS2_OP_GROUP_GETINDEX 8521
 #define CS2_OP_GROUP_GETVAR 8560
 #define CS2_OP_GROUP_GETMEMBERVAR 8561
+#define CS2_OP_GROUP_GETVAR_SCOPED 8570
 
 /* === CS2 opcode group: op-count (13000..13999) ===
  * interpreter operation-count introspection.

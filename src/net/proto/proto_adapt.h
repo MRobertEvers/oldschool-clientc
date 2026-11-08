@@ -67,6 +67,38 @@
 #include "packets/cam_target_v3.h"
 #include "packets/cam_target_v4.h"
 #include "packets/cam_smoothreset.h"
+#include "packets/cam_mode.h"
+#include "packets/cam_skybox.h"
+#include "packets/group_var.h"
+#include "packets/group_var_int.h"
+#include "packets/group_var_long.h"
+#include "packets/oculus_sync.h"
+#include "packets/set_heatmap_enabled.h"
+#include "packets/account_flags.h"
+#include "packets/hiscore_reply.h"
+#include "packets/objunlock_reset.h"
+#include "packets/objunlock_update.h"
+#include "packets/obj_customise.h"
+#include "packets/obj_customise_specific.h"
+#include "packets/obj_customise_specific_v2.h"
+#include "packets/obj_enabled_ops_specific.h"
+#include "packets/obj_uncustomise.h"
+#include "packets/obj_uncustomise_specific.h"
+#include "packets/scriptedproj_change.h"
+#include "packets/set_website_token.h"
+#include "packets/update_uid192.h"
+#include "packets/anim_specific.h"
+#include "packets/cam_lookat_cycles.h"
+#include "packets/cam_rotateby.h"
+#include "packets/cam_rotateto.h"
+#include "packets/loc_anim_specific.h"
+#include "packets/message_friendchannel.h"
+#include "packets/message_private_echo.h"
+#include "packets/npc_anim_specific.h"
+#include "packets/npc_spotanim_specific.h"
+#include "packets/player_spotanim_specific.h"
+#include "packets/projanim_specific_v4.h"
+#include "packets/url_open.h"
 #include "packets/cam_unlock.h"
 #include "packets/chat_filter_settings.h"
 #include "packets/clanchannel_delta.h"
@@ -506,6 +538,70 @@ int
 adapt_cam_unlock(MsgCamUnlock const* m, struct RevPacket* out);
 int
 adapt_cam_smoothreset(MsgCamSmoothReset const* m, struct RevPacket* out);
+int
+adapt_cam_rotateby(MsgCamRotateBy const* m, struct RevPacket* out);
+int
+adapt_cam_rotateto(MsgCamRotateTo const* m, struct RevPacket* out);
+int
+adapt_cam_lookat_cycles(MsgCamLookAtCycles const* m, struct RevPacket* out);
+int
+adapt_message_private_echo(MsgMessagePrivateEcho const* m, struct RevPacket* out);
+int
+adapt_message_friendchannel(MsgMessageFriendchannel const* m, struct RevPacket* out);
+int
+adapt_anim_specific(MsgAnimSpecific const* m, struct RevPacket* out);
+int
+adapt_npc_anim_specific(MsgNpcAnimSpecific const* m, struct RevPacket* out);
+int
+adapt_npc_spotanim_specific(MsgNpcSpotanimSpecific const* m, struct RevPacket* out);
+int
+adapt_player_spotanim_specific(MsgPlayerSpotanimSpecific const* m, struct RevPacket* out);
+int
+adapt_loc_anim_specific(MsgLocAnimSpecific const* m, struct RevPacket* out);
+int
+adapt_projanim_specific_v4(MsgProjAnimSpecificV4 const* m, struct RevPacket* out);
+int
+adapt_url_open(MsgUrlOpen const* m, struct RevPacket* out);
+int
+adapt_cam_mode(MsgCamMode const* m, struct RevPacket* out);
+int
+adapt_oculus_sync(MsgOculusSync const* m, struct RevPacket* out);
+int
+adapt_cam_skybox(MsgCamSkybox const* m, struct RevPacket* out);
+int
+adapt_set_heatmap_enabled(MsgSetHeatmapEnabled const* m, struct RevPacket* out);
+int
+adapt_group_var(MsgGroupVar const* m, struct RevPacket* out);
+int
+adapt_group_var_int(MsgGroupVarInt const* m, struct RevPacket* out);
+int
+adapt_group_var_long(MsgGroupVarLong const* m, struct RevPacket* out);
+int
+adapt_zone_scriptedproj_change(MsgScriptedProjChange const* m, struct PktZoneSubPacket* out);
+int
+adapt_zone_obj_customise(MsgObjCustomise const* m, struct PktZoneSubPacket* out);
+int
+adapt_zone_obj_uncustomise(MsgObjUncustomise const* m, struct PktZoneSubPacket* out);
+int
+adapt_obj_customise_specific(MsgObjCustomiseSpecific const* m, struct RevPacket* out);
+int
+adapt_obj_customise_specific_v2(MsgObjCustomiseSpecificV2 const* m, struct RevPacket* out);
+int
+adapt_obj_uncustomise_specific(MsgObjUncustomiseSpecific const* m, struct RevPacket* out);
+int
+adapt_obj_enabled_ops_specific(MsgObjEnabledOpsSpecific const* m, struct RevPacket* out);
+int
+adapt_objunlock_reset(MsgObjunlockReset const* m, struct RevPacket* out);
+int
+adapt_objunlock_update(MsgObjunlockUpdate const* m, struct RevPacket* out);
+int
+adapt_account_flags(MsgAccountFlags const* m, struct RevPacket* out);
+int
+adapt_hiscore_reply(MsgHiscoreReply const* m, struct RevPacket* out);
+int
+adapt_set_website_token(MsgSetWebsiteToken const* m, struct RevPacket* out);
+int
+adapt_update_uid192(MsgUpdateUid192 const* m, struct RevPacket* out);
 
 /* --- sound ---------------------------------------------------------------- */
 

@@ -46,6 +46,14 @@ static signed char const k_script_var_base_type[] = {
     -1,  0, -1, -1,  0,  1,  0, -1, -1, -1, -1, -1,
 };
 
+int
+torirs_script_var_base_type(int type_id)
+{
+    if( type_id < 0 || type_id >= (int)sizeof(k_script_var_base_type) )
+        return -1;
+    return k_script_var_base_type[type_id];
+}
+
 static int
 varclan_base_type(uint8_t const* data, int size)
 {

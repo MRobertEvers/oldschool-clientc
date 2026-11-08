@@ -82,6 +82,9 @@ struct ToriRS_RenderCommand_Begin3D
     struct ToriDraw_ViewPort view_port;
     struct ToriDraw_Camera camera;
     struct ToriDraw_Position camera_position;
+    /** CAM_SKYBOX's model, drawn first by the software painter (deob class135,
+     *  which skips it under a GPU). TORIDRAWMK_NONE for none. */
+    struct ToriDraw_ModelHandle skybox;
 };
 
 struct ToriRS_RenderCommand_Model

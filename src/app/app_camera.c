@@ -62,6 +62,12 @@ enum
     APP_CAM_UNLOCK_PITCH_STEEPEST = 520,
 };
 
+/* class61.field571 (100) in the client's 2048 angle units. */
+enum
+{
+    APP_CAM_LOOK_CYCLES_FLAT_RATE = 12,
+};
+
 int
 app_world_clamp_pitch(
     struct App const* app,
@@ -675,6 +681,23 @@ app_world_camera_keys(
         app->frame_view->cam_key_up = 0;
         app->frame_view->cam_key_down = 0;
     }
+    /* The free camera's keys (deob Statics.method1034's mode 1 arm); Escape
+     * leaves it and tells the server (method6646). */
+    if( app->cam_script.cam_mode == 1 )
+    {
+        app->cam_script.oculus_w = LibToriRS_Input_IsKeyHeld(input, TORIRSK_W);
+        app->cam_script.oculus_s = LibToriRS_Input_IsKeyHeld(input, TORIRSK_S);
+        app->cam_script.oculus_a = LibToriRS_Input_IsKeyHeld(input, TORIRSK_A);
+        app->cam_script.oculus_d = LibToriRS_Input_IsKeyHeld(input, TORIRSK_D);
+        app->cam_script.oculus_r = LibToriRS_Input_IsKeyHeld(input, TORIRSK_R);
+        app->cam_script.oculus_f = LibToriRS_Input_IsKeyHeld(input, TORIRSK_F);
+        app->cam_script.oculus_shift = LibToriRS_Input_IsKeyHeld(input, TORIRSK_SHIFT);
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_ESCAPE) )
+        {
+            App_SendExitFreecam(app);
+            app->cam_script.cam_mode = 0;
+        }
+    }
     if( app->cam_script.scripted || !app->net || app->frame_view->camera_unlocked )
     {
         if( app->frame_view->cam_key_left )
@@ -1269,6 +1292,138 @@ App_CinemaCameraMoveArc(
     m->arc = 1;
 }
 
+/* The free camera's focus for one client cycle (deob Statics.method1034, mode
+ * 1): field1180 eases toward the held speed, and the focus moves that way in
+ * the camera's frame. R and F lift it, never below the ground line the focus
+ * started on (field5690 stays <= 0 in the deob's units, here oculus_y). */
+static void
+app_world_camera_oculus_step(
+    struct App* app,
+    int player_x,
+    int player_z,
+    int level)
+{
+    struct WorldCameraOrbit* orbit = &app->frame_view->orbit;
+    int angle = -1;
+    int dy = 0;
+    int want = 0;
+    int const yaw = app->frame_view->world_camera.yaw;
+
+    if( app->cam_script.oculus_recentre )
+    {
+        if( player_x >= 0 && player_z >= 0 )
+        {
+            int const ground = app_world_height(app, player_x, player_z, level) - 50;
+
+            orbit->anchor_x = (float)player_x;
+            orbit->anchor_z = (float)player_z;
+            if( app->cam_script.oculus_y_valid && ground < app->cam_script.oculus_y )
+                app->cam_script.oculus_y = ground;
+            app->cam_script.oculus_recentre = 0;
+        }
+    }
+
+    if( app->cam_script.oculus_w )
+        angle = 0;
+    else if( app->cam_script.oculus_s )
+        angle = 1024;
+    if( app->cam_script.oculus_a )
+        angle = angle == 0 ? 1792 : angle == 1024 ? 1280 : 1536;
+    else if( app->cam_script.oculus_d )
+        angle = angle == 0 ? 256 : angle == 1024 ? 768 : 512;
+    if( app->cam_script.oculus_r )
+        dy = -1;
+    else if( app->cam_script.oculus_f )
+        dy = 1;
+    if( angle >= 0 || dy != 0 )
+    {
+        /* field1005 (6) with Shift, field1277 (12) without. */
+        want = (app->cam_script.oculus_shift ? 6 : 12) * 16;
+        app->cam_script.oculus_angle = angle;
+        app->cam_script.oculus_dy = dy;
+    }
+    if( app->cam_script.oculus_speed < want )
+    {
+        app->cam_script.oculus_speed += want / 8;
+        if( app->cam_script.oculus_speed > want )
+            app->cam_script.oculus_speed = want;
+    }
+    else if( app->cam_script.oculus_speed > want )
+        app->cam_script.oculus_speed = app->cam_script.oculus_speed * 8 / 10;
+    if( app->cam_script.oculus_speed > 0 )
+    {
+        int const step = app->cam_script.oculus_speed / 16;
+
+        if( app->cam_script.oculus_angle >= 0 )
+        {
+            double const radians =
+                (double)((app->cam_script.oculus_angle - yaw) & 0x7ff) * 2.0 * M_PI / 2048.0;
+
+            orbit->anchor_x += (float)(step * sin(radians));
+            orbit->anchor_z += (float)(step * cos(radians));
+        }
+        if( app->cam_script.oculus_dy != 0 && app->cam_script.oculus_y_valid )
+        {
+            app->cam_script.oculus_y += app->cam_script.oculus_dy * step;
+            if( app->cam_script.oculus_y > 0 )
+                app->cam_script.oculus_y = 0;
+        }
+    }
+    else
+    {
+        app->cam_script.oculus_angle = -1;
+        app->cam_script.oculus_dy = 0;
+    }
+    app->need_redraw = 1;
+}
+
+/* One axis of a timed turn from where the camera is now. */
+static void
+app_cam_axis_start(
+    struct App* app,
+    struct App_CamAxisEase* axis,
+    int from,
+    int to,
+    int cycles,
+    int easing)
+{
+    axis->from = from;
+    axis->to = to;
+    axis->start_cycle = app_cam_cycle(app);
+    axis->duration = cycles;
+    axis->easing = easing;
+    axis->active = 1;
+}
+
+/* The yaw the short way round (deob Statics.method8200). */
+static void
+app_cam_yaw_start(
+    struct App* app,
+    struct App_CamAxisEase* axis,
+    int yaw,
+    int cycles,
+    int easing)
+{
+    int const from = app->frame_view->world_camera.yaw;
+
+    if( yaw - from > 1024 )
+        yaw -= 2048;
+    else if( yaw - from < -1024 )
+        yaw += 2048;
+    app_cam_axis_start(app, axis, from, yaw, cycles, easing);
+}
+
+/* What every timed turn leaves behind (deob field1150 = true, field1151 = false,
+ * field1281 = true, field1243 = false). */
+static void
+app_cam_rotate_begun(struct App* app)
+{
+    app->cam_script.rotate_cycles.active = 1;
+    app->cam_script.look_cycles.active = 0;
+    app->cam_script.scripted = 1;
+    app->cam_script.smooth_reset = 0;
+}
+
 /*
  * CAM_ROTATETO_COORDINATE at arrival: the pitch and yaw that face the tile
  * from where the eye is now, eased toward from the current ones. The yaw is
@@ -1296,19 +1451,95 @@ App_CinemaCameraRotateCycles(
     ty = app_world_height(app, tx, tz, app_cinema_level(app)) -
          (height_relative ? app->cam_script.look_height + height : height);
     app_cinema_angles_to(app, tx, ty, tz, &pitch, &yaw);
-    r->pitch0 = app->frame_view->world_camera.pitch;
-    r->yaw0 = app->frame_view->world_camera.yaw;
-    r->pitch1 = pitch;
-    if( yaw - r->yaw0 > 1024 )
-        yaw -= 2048;
-    else if( yaw - r->yaw0 < -1024 )
-        yaw += 2048;
-    r->yaw1 = yaw;
-    r->start_cycle = app_cam_cycle(app);
-    r->duration = cycles;
-    r->easing = easing;
-    r->active = 1;
+    app_cam_axis_start(app, &r->pitch, app->frame_view->world_camera.pitch, pitch, cycles, easing);
+    app_cam_yaw_start(app, &r->yaw, yaw, cycles, easing);
     app->cam_script.look_height = height_relative ? app->cam_script.look_height + height : height;
+    app_cam_rotate_begun(app);
+}
+
+/* CAM_ROTATEBY at arrival (deob client.java class259.field3190): an axis asked
+ * to move 0 keeps whatever ease it has. The yaw is not taken the short way: a
+ * delta names its own direction. */
+void
+App_CinemaCameraRotateBy(
+    struct App* app,
+    int yaw_delta,
+    int pitch_delta,
+    int cycles,
+    int easing)
+{
+    struct App_CamRotateCycles* r;
+    int pitch, yaw;
+
+    assert(app);
+    r = &app->cam_script.rotate_cycles;
+    pitch = app->frame_view->world_camera.pitch;
+    yaw = app->frame_view->world_camera.yaw;
+    if( yaw_delta != 0 )
+        app_cam_axis_start(app, &r->yaw, yaw, yaw + yaw_delta, cycles, easing);
+    if( pitch_delta != 0 )
+        app_cam_axis_start(
+            app, &r->pitch, pitch, app_world_clamp_pitch(app, pitch + pitch_delta), cycles, easing);
+    app_cam_rotate_begun(app);
+}
+
+/* CAM_ROTATETO at arrival (deob client.java class259.field3187): a negative
+ * angle keeps that axis's ease. */
+void
+App_CinemaCameraRotateTo(
+    struct App* app,
+    int yaw,
+    int pitch,
+    int cycles,
+    int easing)
+{
+    struct App_CamRotateCycles* r;
+
+    assert(app);
+    r = &app->cam_script.rotate_cycles;
+    if( yaw >= 0 )
+        app_cam_yaw_start(app, &r->yaw, yaw & 0x7ff, cycles, easing);
+    if( pitch >= 0 )
+        app_cam_axis_start(
+            app,
+            &r->pitch,
+            app->frame_view->world_camera.pitch,
+            app_world_clamp_pitch(app, pitch),
+            cycles,
+            easing);
+    app_cam_rotate_begun(app);
+}
+
+/* CAM_LOOKAT_CYCLES at arrival (deob client.java class259.field3232): eases the
+ * look-at point itself, from the last one named to this one. */
+void
+App_CinemaCameraLookCycles(
+    struct App* app,
+    int local_x,
+    int local_z,
+    int height,
+    int cycles,
+    int easing,
+    int height_relative)
+{
+    struct App_CamLookCycles* l;
+
+    assert(app);
+    l = &app->cam_script.look_cycles;
+    l->x0 = app->cam_script.look_lx * 128 + 64;
+    l->z0 = app->cam_script.look_lz * 128 + 64;
+    l->height0 = app->cam_script.look_height;
+    app->cam_script.look_lx = local_x;
+    app->cam_script.look_lz = local_z;
+    app->cam_script.look_height = height_relative ? app->cam_script.look_height + height : height;
+    l->x1 = local_x * 128 + 64;
+    l->z1 = local_z * 128 + 64;
+    l->height1 = app->cam_script.look_height;
+    l->start_cycle = app_cam_cycle(app);
+    l->duration = cycles;
+    l->easing = easing;
+    l->active = 1;
+    app->cam_script.rotate_cycles.active = 0;
     app->cam_script.scripted = 1;
     app->cam_script.smooth_reset = 0;
 }
@@ -1426,6 +1657,7 @@ App_CinemaCameraRelease(struct App* app)
     app->cam_script.look_rate2 = 0;
     app->cam_script.move_cycles.active = 0;
     app->cam_script.rotate_cycles.active = 0;
+    app->cam_script.look_cycles.active = 0;
 }
 
 /* Deob Statics.method234 (ar.bz). Runs every frame the script is up: the eye
@@ -1485,15 +1717,48 @@ app_world_camera_cinema(struct App* app)
     if( app->cam_script.rotate_cycles.active )
     {
         struct App_CamRotateCycles* r = &app->cam_script.rotate_cycles;
-        double f = app_cam_ease(app_cam_cycle(app) - r->start_cycle, r->duration, r->easing);
-        app->frame_view->world_camera.pitch =
-            app_world_clamp_pitch(app, r->pitch0 + (int)lround((r->pitch1 - r->pitch0) * f));
-        app->frame_view->world_camera.yaw = (r->yaw0 + (int)lround((r->yaw1 - r->yaw0) * f)) & 0x7ff;
+
+        if( r->pitch.active )
+        {
+            double f = app_cam_ease(
+                app_cam_cycle(app) - r->pitch.start_cycle, r->pitch.duration, r->pitch.easing);
+            app->frame_view->world_camera.pitch = app_world_clamp_pitch(
+                app, r->pitch.from + (int)lround((r->pitch.to - r->pitch.from) * f));
+        }
+        if( r->yaw.active )
+        {
+            double f = app_cam_ease(
+                app_cam_cycle(app) - r->yaw.start_cycle, r->yaw.duration, r->yaw.easing);
+            app->frame_view->world_camera.yaw =
+                (r->yaw.from + (int)lround((r->yaw.to - r->yaw.from) * f)) & 0x7ff;
+        }
         app->need_redraw = 1;
         return;
     }
 
-    app_cinema_angles(app, &pitch, &yaw);
+    /* Deob Statics.method234's field1243 branch: the look-at point eases and the
+     * ordinary turn follows it, at a flat rate of 100 in the deob's 14-bit angles
+     * (class61.field571) that outlasts the ease; on arrival the ordinary look-at
+     * resumes on the same point. */
+    if( app->cam_script.look_cycles.active )
+    {
+        struct App_CamLookCycles* l = &app->cam_script.look_cycles;
+        int const elapsed = app_cam_cycle(app) - l->start_cycle;
+        double f = app_cam_ease(elapsed, l->duration, l->easing);
+        int const tx = l->x0 + (int)lround((l->x1 - l->x0) * f);
+        int const tz = l->z0 + (int)lround((l->z1 - l->z0) * f);
+        int const ty = app_world_height(app, tx, tz, app_cinema_level(app)) -
+                       (l->height0 + (int)lround((l->height1 - l->height0) * f));
+
+        app_cinema_angles_to(app, tx, ty, tz, &pitch, &yaw);
+        app->cam_script.look_rate = APP_CAM_LOOK_CYCLES_FLAT_RATE;
+        if( elapsed >= l->duration )
+            l->active = 0;
+    }
+    else
+    {
+        app_cinema_angles(app, &pitch, &yaw);
+    }
     rate = app->cam_script.look_rate;
     rate2 = app->cam_script.look_rate2;
     app->frame_view->world_camera.pitch =
@@ -1804,8 +2069,11 @@ app_world_camera_follow(struct App* app)
      * direction the player last walked. The eye is built around that anchor, so
      * the player model swung round a point beside itself while orbiting — the
      * camera appeared to orbit the tile rather than the player. */
-    Wev_SmoothCameraFocus(
-        &app->frame_view->orbit.anchor_x, &app->frame_view->orbit.anchor_z, target_x, target_z);
+    if( app->cam_script.cam_mode == 1 )
+        app_world_camera_oculus_step(app, target_x, target_z, player->grid_position.level);
+    else
+        Wev_SmoothCameraFocus(
+            &app->frame_view->orbit.anchor_x, &app->frame_view->orbit.anchor_z, target_x, target_z);
 
     /* Arrow keys -> yaw/pitch velocity. @see WorldCameraOrbit_StepAngles. */
     {
@@ -1887,6 +2155,15 @@ app_world_camera_follow(struct App* app)
             : app_world_height(app, target_x, target_z, player->grid_position.level) - 8 - 50;
     target_x = (int)app->frame_view->orbit.anchor_x;
     target_z = (int)app->frame_view->orbit.anchor_z;
+    if( app->cam_script.cam_mode == 1 )
+    {
+        if( !app->cam_script.oculus_y_valid )
+        {
+            app->cam_script.oculus_y = target_y;
+            app->cam_script.oculus_y_valid = 1;
+        }
+        target_y = app->cam_script.oculus_y;
+    }
 
     if( app->cam_script.scripted )
     {

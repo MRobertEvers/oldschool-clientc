@@ -328,6 +328,13 @@ net_out_close_modal(
 }
 
 int
+net_out_exit_freecam(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap)
+{
+    return out_empty(rev, random_out, buf, cap, PKTOUT_NAME_EXIT_FREECAM);
+}
+
+int
 net_out_resume_countdialog(
     struct GameProtoRevTable const* rev,
     struct Isaac* random_out,

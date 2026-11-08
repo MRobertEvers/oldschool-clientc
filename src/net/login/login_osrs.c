@@ -7,6 +7,17 @@
 #include "net/torirs_control.h"
 #include "login_osrs_block.h"
 
+/* UPDATE_UID192: what the next login sends in its uuid field (deob client.java
+ * field1171). The deob also keeps it on disk; this session-long copy does not. */
+static uint8_t g_login_uid192[OSRS_LOGIN_UUID_BYTES];
+
+void
+login_osrs_set_uid192(uint8_t const* data)
+{
+    assert(data);
+    memcpy(g_login_uid192, data, sizeof(g_login_uid192));
+}
+
 #include <assert.h>
 #include <rsbuffer.h>
 #include <stdio.h>
@@ -241,7 +252,7 @@ build_login_block(struct LoginOsrs* h)
     p2(&bbuf, 765);  /* width  */
     p2(&bbuf, 503);  /* height */
     for( int i = 0; i < OSRS_LOGIN_UUID_BYTES; i++ )
-        p1(&bbuf, 0);
+        p1(&bbuf, g_login_uid192[i]);
     pjstr(&bbuf, "", 0); /* siteSettings */
     p4(&bbuf, 0);        /* affiliate */
     p1(&bbuf, 0);        /* deepLinkCount */

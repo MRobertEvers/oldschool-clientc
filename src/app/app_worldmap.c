@@ -258,6 +258,178 @@ app_worldmap_push_icon(
     return true;
 }
 
+/* deob class215.method6476. */
+static uint32_t
+app_worldmap_hsl(double h, double s, double l)
+{
+    double const q = l < 0.5 ? l * (1.0 + s) : l + s - l * s;
+    double const p = 2.0 * l - q;
+    double t[3] = { h + 1.0 / 3.0, h, h - 1.0 / 3.0 };
+    int rgb[3];
+
+    for( int i = 0; i < 3; i++ )
+    {
+        double v;
+
+        if( t[i] < 0.0 )
+            t[i] += 1.0;
+        if( t[i] > 1.0 )
+            t[i] -= 1.0;
+        if( t[i] < 1.0 / 6.0 )
+            v = p + (q - p) * 6.0 * t[i];
+        else if( t[i] < 0.5 )
+            v = q;
+        else if( t[i] < 2.0 / 3.0 )
+            v = p + (q - p) * (2.0 / 3.0 - t[i]) * 6.0;
+        else
+            v = p;
+        rgb[i] = (int)(v * 255.0);
+    }
+    return ((uint32_t)rgb[0] << 16) | ((uint32_t)rgb[1] << 8) | (uint32_t)rgb[2];
+}
+
+/* deob class691's constructor: sixteen blues up to the first count, then a hue
+ * for each doubling. */
+static void
+app_worldmap_heat_palette(uint32_t* palette, int count)
+{
+    int i = 0;
+    int hue = 240;
+
+    for( ; i < 16 && i < count; i++, hue -= 12 )
+        palette[i] = app_worldmap_hsl(hue / 360.0, 0.9999, i * 0.425 / 16.0 + 0.075);
+    hue = 48;
+    while( i < count )
+    {
+        int const end = i * 2;
+        uint32_t const colour = app_worldmap_hsl((hue < 0 ? hue + 360 : hue) / 360.0, 0.9999, 0.5);
+
+        for( ; i < end && i < count; i++ )
+            palette[i] = colour;
+        hue -= 8;
+    }
+}
+
+/*
+ * SET_HEATMAP_ENABLED: where the players in the scene are, as heat over the map
+ * (deob class691.method15014, fed by Statics.method8524 every 50 cycles). Each
+ * player is a gaussian blob; the summed heat picks from the palette, and a pixel
+ * with none is black, as the deob paints it.
+ */
+static void
+app_worldmap_build_heatmap(
+    struct App* app,
+    struct ToriRS_WorldMapArea const* area,
+    int box_x,
+    int box_y,
+    int box_w,
+    int box_h,
+    int centre_x,
+    int centre_y,
+    int display_x,
+    int display_y,
+    int region_px)
+{
+    struct UITreeWorldMapTile* tile;
+    int const cycle = (int)app->logic_cycle;
+
+    if( !app->worldmap.heatmap_on || !app->world || box_w <= 0 || box_h <= 0 ||
+        app->worldmap.tiles.count >= RS_WORLDMAP_TILES_MAX )
+        return;
+    if( app->worldmap.heatmap_built_cycle < 0 ||
+        cycle - app->worldmap.heatmap_built_cycle >= 50 ||
+        app->worldmap.heatmap_built_w != box_w || app->worldmap.heatmap_built_h != box_h ||
+        app->worldmap.heatmap_built_centre_x != centre_x ||
+        app->worldmap.heatmap_built_centre_y != centre_y ||
+        app->worldmap.heatmap_built_region_px != region_px )
+    {
+        enum
+        {
+            HEAT_PALETTE = 2000
+        };
+        static uint32_t palette[HEAT_PALETTE];
+        static bool palette_ready = false;
+        struct World_EntityPool* pool = &app->world->entities.player;
+        int const radius = region_px * 18 / 64 < 1 ? 1 : region_px * 18 / 64 > 64 ? 64 : region_px * 18 / 64;
+        double const sigma = radius / 3.0 > 0.5 ? radius / 3.0 : 0.5;
+        int* heat = ToriMem_Calloc(ToriMem_Process(), (size_t)box_w * box_h, sizeof(*heat));
+        uint32_t* argb;
+        struct ToriDraw_Sprite* sprite;
+        struct ToriDraw_Sprite** sprites;
+
+        assert(heat);
+        if( !palette_ready )
+        {
+            app_worldmap_heat_palette(palette, HEAT_PALETTE);
+            palette_ready = true;
+        }
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_Player const* player = World_EntityPoolGet(pool, i);
+            int map_x, map_y;
+
+            if( !player )
+                continue;
+            if( !ToriRS_WorldMapArea_Position(
+                    area,
+                    player->grid_position.level,
+                    app->world->_base_tile_x + ((int)player->draw_position.x >> 7),
+                    app->world->_base_tile_z + ((int)player->draw_position.z >> 7),
+                    &map_x,
+                    &map_y) )
+                continue;
+            {
+                int const px = centre_x + (map_x - display_x) * region_px / WORLD_MAP_TERRAIN_X - box_x;
+                int const py = centre_y - (map_y - display_y) * region_px / WORLD_MAP_TERRAIN_Z - box_y;
+
+                for( int dy = -radius; dy <= radius; dy++ )
+                {
+                    if( py + dy < 0 || py + dy >= box_h )
+                        continue;
+                    for( int dx = -radius; dx <= radius; dx++ )
+                    {
+                        if( px + dx < 0 || px + dx >= box_w )
+                            continue;
+                        heat[(py + dy) * box_w + px + dx] +=
+                            (int)(exp(-(double)(dx * dx + dy * dy) / (2.0 * sigma * sigma)) * 256.0);
+                    }
+                }
+            }
+        }
+        argb = TORIDRAW_MALLOC((size_t)box_w * box_h * sizeof(*argb)); /* Owned by the sprite */
+        assert(argb);
+        for( int i = 0; i < box_w * box_h; i++ )
+        {
+            int index = (heat[i] + 63) / 256;
+
+            argb[i] = 0xFF000000u;
+            if( heat[i] > 0 && index > 0 )
+                argb[i] = palette[(index > HEAT_PALETTE ? HEAT_PALETTE : index) - 1] | 0xFF000000u;
+        }
+        ToriMem_Free(ToriMem_Process(), heat);
+        sprite = ToriDraw_SpriteNewFromArgbOwned(argb, box_w, box_h);
+        assert(sprite);
+        sprites = TORIDRAW_MALLOC(sizeof(*sprites)); /* SceneSpriteAdd frees it */
+        assert(sprites);
+        sprites[0] = sprite;
+        ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_WORLD_MAP_HEATMAP_SPRITE_ID, sprites, 1);
+        app->worldmap.heatmap_built_cycle = cycle;
+        app->worldmap.heatmap_built_w = box_w;
+        app->worldmap.heatmap_built_h = box_h;
+        app->worldmap.heatmap_built_centre_x = centre_x;
+        app->worldmap.heatmap_built_centre_y = centre_y;
+        app->worldmap.heatmap_built_region_px = region_px;
+    }
+    tile = RS_WorldMapTiles_Push(&app->worldmap.tiles);
+    assert(tile);
+    tile->scene_id = UITREE_SCENE_WORLD_MAP_HEATMAP_SPRITE_ID;
+    tile->x = box_x;
+    tile->y = box_y;
+    tile->w = box_w;
+    tile->h = box_h;
+}
+
 int
 app_worldmap_build_tiles(
     struct App* app,
@@ -505,6 +677,8 @@ app_worldmap_build_tiles(
         }
     }
 
+    app_worldmap_build_heatmap(
+        app, area, box_x, box_y, box_w, box_h, centre_x, centre_y, display_x, display_y, region_px);
     app_worldmap_build_icons(app, area, centre_x, centre_y, display_x, display_y, region_px);
 
     /*

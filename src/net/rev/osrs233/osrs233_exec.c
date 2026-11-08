@@ -21,14 +21,19 @@
  */
 #include "net/rev/rev_exec.h"
 
+#include "packets/account_flags.h"
 #include "packets/affinedclansettings_addbanned_fromchannel.h"
 #include "packets/affinedclansettings_setmuted_fromchannel.h"
+#include "packets/anim_specific.h"
 #include "packets/bug_report.h"
 #include "packets/cam_lookat.h"
+#include "packets/cam_mode.h"
 #include "packets/cam_moveto.h"
 #include "packets/cam_moveto_arc_v1.h"
 #include "packets/cam_moveto_cycles.h"
 #include "packets/cam_reset.h"
+#include "packets/cam_rotateby.h"
+#include "packets/cam_rotateto.h"
 #include "packets/cam_rotateto_coordinate.h"
 #include "packets/cam_shake.h"
 #include "packets/cam_smoothreset.h"
@@ -45,6 +50,7 @@
 #include "packets/clickworldmap.h"
 #include "packets/client_cheat.h"
 #include "packets/close_modal.h"
+#include "packets/exit_freecam.h"
 #include "packets/friendchat_join_leave.h"
 #include "packets/friendchat_kick.h"
 #include "packets/friendchat_setrank.h"
@@ -55,6 +61,7 @@
 #include "packets/hidenpcops.h"
 #include "packets/hideobjops.h"
 #include "packets/hint_arrow.h"
+#include "packets/hiscore_reply.h"
 #include "packets/idle.h"
 #include "packets/if_button.h"
 #include "packets/if_buttond.h"
@@ -90,6 +97,7 @@
 #include "packets/ignorelist_del.h"
 #include "packets/loc_add_change_v2.h"
 #include "packets/loc_anim.h"
+#include "packets/loc_anim_specific.h"
 #include "packets/loc_del.h"
 #include "packets/loc_merge.h"
 #include "packets/logout.h"
@@ -101,8 +109,10 @@
 #include "packets/map_projanim_v2.h"
 #include "packets/message_clanchannel.h"
 #include "packets/message_clanchannel_system.h"
+#include "packets/message_friendchannel.h"
 #include "packets/message_game.h"
 #include "packets/message_private.h"
+#include "packets/message_private_echo.h"
 #include "packets/message_public.h"
 #include "packets/midi_jingle.h"
 #include "packets/midi_song_stop.h"
@@ -113,16 +123,22 @@
 #include "packets/move_gameclick.h"
 #include "packets/move_minimapclick.h"
 #include "packets/no_timeout.h"
+#include "packets/npc_anim_specific.h"
 #include "packets/npc_headicon_specific.h"
+#include "packets/npc_spotanim_specific.h"
 #include "packets/obj_add.h"
 #include "packets/obj_add_specific.h"
 #include "packets/obj_count.h"
 #include "packets/obj_count_specific.h"
 #include "packets/obj_customise.h"
+#include "packets/obj_customise_specific.h"
 #include "packets/obj_del.h"
 #include "packets/obj_del_specific.h"
 #include "packets/obj_enabled_ops.h"
+#include "packets/obj_enabled_ops_specific.h"
 #include "packets/obj_uncustomise.h"
+#include "packets/obj_uncustomise_specific.h"
+#include "packets/oculus_sync.h"
 #include "packets/oploc1.h"
 #include "packets/oploc2.h"
 #include "packets/oploc3.h"
@@ -151,6 +167,8 @@
 #include "packets/opplayer8.h"
 #include "packets/opplayert.h"
 #include "packets/packet_group_start.h"
+#include "packets/player_spotanim_specific.h"
+#include "packets/projanim_specific_v4.h"
 #include "packets/rebuild_normal.h"
 #include "packets/rebuild_region.h"
 #include "packets/rebuild_worldentity_v3.h"
@@ -170,6 +188,7 @@
 #include "packets/set_active_world_v2.h"
 #include "packets/set_chatfiltersettings.h"
 #include "packets/set_heading.h"
+#include "packets/set_heatmap_enabled.h"
 #include "packets/set_interaction_mode.h"
 #include "packets/set_map_flag.h"
 #include "packets/set_npc_update_origin.h"
@@ -192,9 +211,11 @@
 #include "packets/update_stat_v2.h"
 #include "packets/update_stockmarket_slot_v1.h"
 #include "packets/update_tradingpost_v1.h"
+#include "packets/update_uid192.h"
 #include "packets/update_zone_full_follows.h"
 #include "packets/update_zone_partial_enclosed.h"
 #include "packets/update_zone_partial_follows.h"
+#include "packets/url_open.h"
 #include "packets/varclan.h"
 #include "packets/varclan_disable.h"
 #include "packets/varclan_enable.h"
@@ -951,6 +972,50 @@ in_obj_enabled_ops(uint8_t const* data, int len, struct RevPacket* out)
     return 1;
 }
 
+/* OBJ_CUSTOMISE, opcode 138 */
+static int
+in_obj_customise(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgObjCustomise m;
+    struct PktZoneSubPacket sub;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_obj_customise_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    memset(&sub, 0, sizeof(sub));
+    if( adapt_zone_obj_customise(&m, &sub) != 1 )
+        return 0;
+    proto_adapt_zone_to_packet(&sub, out);
+    return 1;
+}
+
+/* OBJ_UNCUSTOMISE, opcode 130 */
+static int
+in_obj_uncustomise(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgObjUncustomise m;
+    struct PktZoneSubPacket sub;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_obj_uncustomise_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    memset(&sub, 0, sizeof(sub));
+    if( adapt_zone_obj_uncustomise(&m, &sub) != 1 )
+        return 0;
+    proto_adapt_zone_to_packet(&sub, out);
+    return 1;
+}
+
 /* MAP_ANIM, opcode 43 */
 static int
 in_map_anim(uint8_t const* data, int len, struct RevPacket* out)
@@ -995,6 +1060,23 @@ in_sound_area(uint8_t const* data, int len, struct RevPacket* out)
     return 1;
 }
 
+/* PROJANIM_SPECIFIC_V4, opcode 135 */
+static int
+in_projanim_specific_v4(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgProjAnimSpecificV4 m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_projanim_specific_v4_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_projanim_specific_v4(&m, out);
+}
+
 /* MAP_ANIM_SPECIFIC, opcode 92 */
 static int
 in_map_anim_specific(uint8_t const* data, int len, struct RevPacket* out)
@@ -1012,6 +1094,23 @@ in_map_anim_specific(uint8_t const* data, int len, struct RevPacket* out)
     return adapt_map_anim_specific(&m, out);
 }
 
+/* LOC_ANIM_SPECIFIC, opcode 123 */
+static int
+in_loc_anim_specific(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgLocAnimSpecific m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_loc_anim_specific_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_loc_anim_specific(&m, out);
+}
+
 /* NPC_HEADICON_SPECIFIC, opcode 33 */
 static int
 in_npc_headicon_specific(uint8_t const* data, int len, struct RevPacket* out)
@@ -1027,6 +1126,74 @@ in_npc_headicon_specific(uint8_t const* data, int len, struct RevPacket* out)
     if( !rev_exec_whole(&x, &b, len) )
         return 0;
     return adapt_npc_headicon_specific(&m, out);
+}
+
+/* NPC_SPOTANIM_SPECIFIC, opcode 108 */
+static int
+in_npc_spotanim_specific(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgNpcSpotanimSpecific m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_npc_spotanim_specific_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_npc_spotanim_specific(&m, out);
+}
+
+/* NPC_ANIM_SPECIFIC, opcode 30 */
+static int
+in_npc_anim_specific(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgNpcAnimSpecific m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_npc_anim_specific_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_npc_anim_specific(&m, out);
+}
+
+/* ANIM_SPECIFIC, opcode 90 */
+static int
+in_anim_specific(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgAnimSpecific m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_anim_specific_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_anim_specific(&m, out);
+}
+
+/* PLAYER_SPOTANIM_SPECIFIC, opcode 53 */
+static int
+in_player_spotanim_specific(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgPlayerSpotanimSpecific m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_player_spotanim_specific_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_player_spotanim_specific(&m, out);
 }
 
 /* OBJ_ADD_SPECIFIC, opcode 26 */
@@ -1063,6 +1230,40 @@ in_obj_del_specific(uint8_t const* data, int len, struct RevPacket* out)
     return adapt_obj_del_specific(&m, out);
 }
 
+/* OBJ_ENABLED_OPS_SPECIFIC, opcode 55 */
+static int
+in_obj_enabled_ops_specific(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgObjEnabledOpsSpecific m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_obj_enabled_ops_specific_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_obj_enabled_ops_specific(&m, out);
+}
+
+/* OBJ_UNCUSTOMISE_SPECIFIC, opcode 132 */
+static int
+in_obj_uncustomise_specific(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgObjUncustomiseSpecific m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_obj_uncustomise_specific_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_obj_uncustomise_specific(&m, out);
+}
+
 /* OBJ_COUNT_SPECIFIC, opcode 133 */
 static int
 in_obj_count_specific(uint8_t const* data, int len, struct RevPacket* out)
@@ -1078,6 +1279,23 @@ in_obj_count_specific(uint8_t const* data, int len, struct RevPacket* out)
     if( !rev_exec_whole(&x, &b, len) )
         return 0;
     return adapt_obj_count_specific(&m, out);
+}
+
+/* OBJ_CUSTOMISE_SPECIFIC, opcode 137 */
+static int
+in_obj_customise_specific(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgObjCustomiseSpecific m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_obj_customise_specific_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_obj_customise_specific(&m, out);
 }
 
 /* PLAYER_INFO, opcode 121 */
@@ -1407,6 +1625,57 @@ in_cam_rotateto_coordinate(uint8_t const* data, int len, struct RevPacket* out)
     return adapt_cam_rotateto_coordinate(&m, out);
 }
 
+/* CAM_ROTATEBY, opcode 91 */
+static int
+in_cam_rotateby(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgCamRotateBy m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_cam_rotateby_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_cam_rotateby(&m, out);
+}
+
+/* CAM_ROTATETO, opcode 40 */
+static int
+in_cam_rotateto(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgCamRotateTo m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_cam_rotateto_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_cam_rotateto(&m, out);
+}
+
+/* CAM_MODE, opcode 52 */
+static int
+in_cam_mode(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgCamMode m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_cam_mode_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_cam_mode(&m, out);
+}
+
 /* CAM_TARGET_V3, opcode 103 */
 static int
 in_cam_target_v3(uint8_t const* data, int len, struct RevPacket* out)
@@ -1422,6 +1691,23 @@ in_cam_target_v3(uint8_t const* data, int len, struct RevPacket* out)
     if( !rev_exec_whole(&x, &b, len) )
         return 0;
     return adapt_cam_target_v3(&m, out);
+}
+
+/* OCULUS_SYNC, opcode 70 */
+static int
+in_oculus_sync(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgOculusSync m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_oculus_sync_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_oculus_sync(&m, out);
 }
 
 /* UPDATE_INV_FULL, opcode 119 */
@@ -1492,6 +1778,23 @@ in_message_private(uint8_t const* data, int len, struct RevPacket* out)
     if( !rev_exec_whole(&x, &b, len) )
         return 0;
     return adapt_message_private(&m, out);
+}
+
+/* MESSAGE_PRIVATE_ECHO, opcode 109 */
+static int
+in_message_private_echo(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgMessagePrivateEcho m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_message_private_echo_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_message_private_echo(&m, out);
 }
 
 /* FRIENDLIST_LOADED, opcode 110 */
@@ -1579,6 +1882,23 @@ in_update_friendchat_channel_singleuser(uint8_t const* data, int len, struct Rev
     if( !rev_exec_whole(&x, &b, len) )
         return 0;
     return adapt_update_friendchat_channel_singleuser(data, len, out);
+}
+
+/* MESSAGE_FRIENDCHANNEL, opcode 61 */
+static int
+in_message_friendchannel(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgMessageFriendchannel m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_message_friendchannel_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_message_friendchannel(&m, out);
 }
 
 /* VARCLAN, opcode 85 */
@@ -1992,6 +2312,23 @@ in_update_stockmarket_slot(uint8_t const* data, int len, struct RevPacket* out)
     return adapt_update_stockmarket_slot_v1(&m, out);
 }
 
+/* ACCOUNT_FLAGS, opcode 136 */
+static int
+in_account_flags(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgAccountFlags m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_account_flags_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_account_flags(&m, out);
+}
+
 /* HINT_ARROW, opcode 39 */
 static int
 in_hint_arrow(uint8_t const* data, int len, struct RevPacket* out)
@@ -2042,6 +2379,23 @@ in_update_reboot_timer(uint8_t const* data, int len, struct RevPacket* out)
     if( !rev_exec_whole(&x, &b, len) )
         return 0;
     return adapt_update_reboot_timer(&m, out);
+}
+
+/* SET_HEATMAP_ENABLED, opcode 62 */
+static int
+in_set_heatmap_enabled(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgSetHeatmapEnabled m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_set_heatmap_enabled_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_set_heatmap_enabled(&m, out);
 }
 
 /* MINIMAP_TOGGLE, opcode 34 */
@@ -2164,6 +2518,23 @@ in_reset_interaction_mode(uint8_t const* data, int len, struct RevPacket* out)
     return adapt_reset_interaction_mode(&m, out);
 }
 
+/* URL_OPEN, opcode 44 */
+static int
+in_url_open(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgUrlOpen m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_url_open_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_url_open(&m, out);
+}
+
 /* SITE_SETTINGS, opcode 124 */
 static int
 in_site_settings(uint8_t const* data, int len, struct RevPacket* out)
@@ -2179,6 +2550,23 @@ in_site_settings(uint8_t const* data, int len, struct RevPacket* out)
     if( !rev_exec_whole(&x, &b, len) )
         return 0;
     return adapt_site_settings(&m, out);
+}
+
+/* UPDATE_UID192, opcode 64 */
+static int
+in_update_uid192(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgUpdateUid192 m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_update_uid192_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_update_uid192(&m, out);
 }
 
 /* REFLECTION_CHECKER, opcode 96 */
@@ -2213,6 +2601,23 @@ in_send_ping(uint8_t const* data, int len, struct RevPacket* out)
     if( !rev_exec_whole(&x, &b, len) )
         return 0;
     return adapt_send_ping(&m, out);
+}
+
+/* HISCORE_REPLY, opcode 117 */
+static int
+in_hiscore_reply(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgHiscoreReply m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_hiscore_reply_osrs233_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_hiscore_reply(&m, out);
 }
 
 /* PACKET_GROUP_START, opcode 128 */
@@ -2283,8 +2688,7 @@ zone_sub(RsprotBuf* c, struct PktZoneSubPacket* out)
         packet_obj_uncustomise_osrs233_out(&x, &m);
         if( !rsprot_exec_ok(&x) || c->err )
             return 0;
-        (void)m;
-        return 2; /* read; no canonical arm */
+        return adapt_zone_obj_uncustomise(&m, out);
     }
     case 2: /* OBJ_ADD */
     {
@@ -2368,8 +2772,7 @@ zone_sub(RsprotBuf* c, struct PktZoneSubPacket* out)
         packet_obj_customise_osrs233_out(&x, &m);
         if( !rsprot_exec_ok(&x) || c->err )
             return 0;
-        (void)m;
-        return 2; /* read; no canonical arm */
+        return adapt_zone_obj_customise(&m, out);
     }
     case 9: /* SOUND_AREA */
     {
@@ -3451,6 +3854,24 @@ out_clickworldmap(struct ProtoOutArgs const* a, RsprotBuf* b)
     return 1;
 }
 
+/* EXIT_FREECAM, opcode 71 */
+static int
+out_exit_freecam(struct ProtoOutArgs const* a, RsprotBuf* b)
+{
+    MsgExitFreecam m;
+    RsprotExec x;
+
+    memset(&m, 0, sizeof(m));
+    w_exit_freecam(&m, a);
+    rsprot_exec_encode(&x, b);
+    packet_exit_freecam_osrs233_in(&x, &m);
+    if( b->err )
+        return 0; /* it does not fit the caller's buffer */
+    /* Arguments the layout cannot carry are the caller's bug. */
+    assert(rsprot_exec_ok(&x));
+    return 1;
+}
+
 /* CLOSE_MODAL, opcode 12 */
 static int
 out_close_modal(struct ProtoOutArgs const* a, RsprotBuf* b)
@@ -3659,13 +4080,24 @@ static int (*const k_in[TOP])(uint8_t const* data, int len, struct RevPacket* ou
     [122] = in_obj_del,
     [65] = in_obj_count,
     [32] = in_obj_enabled_ops,
+    [138] = in_obj_customise,
+    [130] = in_obj_uncustomise,
     [43] = in_map_anim,
     [2] = in_sound_area,
+    [135] = in_projanim_specific_v4,
     [92] = in_map_anim_specific,
+    [123] = in_loc_anim_specific,
     [33] = in_npc_headicon_specific,
+    [108] = in_npc_spotanim_specific,
+    [30] = in_npc_anim_specific,
+    [90] = in_anim_specific,
+    [53] = in_player_spotanim_specific,
     [26] = in_obj_add_specific,
     [35] = in_obj_del_specific,
+    [55] = in_obj_enabled_ops_specific,
+    [132] = in_obj_uncustomise_specific,
     [133] = in_obj_count_specific,
+    [137] = in_obj_customise_specific,
     [121] = in_player_info,
     [115] = in_npc_info_small_v5,
     [94] = in_npc_info_large_v5,
@@ -3688,16 +4120,22 @@ static int (*const k_in[TOP])(uint8_t const* data, int len, struct RevPacket* ou
     [71] = in_cam_moveto_arc,
     [7] = in_cam_lookat,
     [101] = in_cam_rotateto_coordinate,
+    [91] = in_cam_rotateby,
+    [40] = in_cam_rotateto,
+    [52] = in_cam_mode,
     [103] = in_cam_target_v3,
+    [70] = in_oculus_sync,
     [119] = in_update_inv_full,
     [16] = in_update_inv_partial,
     [127] = in_update_inv_stoptransmit,
     [50] = in_message_private,
+    [109] = in_message_private_echo,
     [110] = in_friendlist_loaded,
     [27] = in_update_friendlist,
     [21] = in_update_ignorelist,
     [89] = in_update_friendchat_channel_full_v2,
     [14] = in_update_friendchat_channel_singleuser,
+    [61] = in_message_friendchannel,
     [85] = in_varclan,
     [76] = in_varclan_enable,
     [72] = in_varclan_disable,
@@ -3722,9 +4160,11 @@ static int (*const k_in[TOP])(uint8_t const* data, int len, struct RevPacket* ou
     [74] = in_chat_filter_settings_privatechat,
     [97] = in_update_tradingpost,
     [9] = in_update_stockmarket_slot,
+    [136] = in_account_flags,
     [39] = in_hint_arrow,
     [20] = in_reset_anims,
     [8] = in_update_reboot_timer,
+    [62] = in_set_heatmap_enabled,
     [34] = in_minimap_toggle,
     [116] = in_server_tick_end,
     [49] = in_hidenpcops,
@@ -3732,9 +4172,12 @@ static int (*const k_in[TOP])(uint8_t const* data, int len, struct RevPacket* ou
     [60] = in_hidelocops,
     [45] = in_set_interaction_mode,
     [36] = in_reset_interaction_mode,
+    [44] = in_url_open,
     [124] = in_site_settings,
+    [64] = in_update_uid192,
     [96] = in_reflection_checker,
     [63] = in_send_ping,
+    [117] = in_hiscore_reply,
     [128] = in_packet_group_start,
     [81] = in_unknown_string,
 };
@@ -3781,13 +4224,24 @@ static int16_t const k_in_name[TOP] = {
     [122] = PKT_NAME_OBJ_DEL,
     [65] = PKT_NAME_OBJ_COUNT,
     [32] = PKT_NAME_OBJ_REVEAL,
+    [138] = PKT_NAME_OBJ_CUSTOMISE,
+    [130] = PKT_NAME_OBJ_UNCUSTOMISE,
     [43] = PKT_NAME_MAP_ANIM,
     [2] = PKT_NAME_SOUND_AREA,
+    [135] = PKT_NAME_PROJANIM_SPECIFIC,
     [92] = PKT_NAME_MAP_ANIM_SPECIFIC,
+    [123] = PKT_NAME_LOC_ANIM_SPECIFIC,
     [33] = PKT_NAME_NPC_HEADICON_SPECIFIC,
+    [108] = PKT_NAME_NPC_SPOTANIM_SPECIFIC,
+    [30] = PKT_NAME_NPC_ANIM_SPECIFIC,
+    [90] = PKT_NAME_ANIM_SPECIFIC,
+    [53] = PKT_NAME_PLAYER_SPOTANIM_SPECIFIC,
     [26] = PKT_NAME_OBJ_ADD_SPECIFIC,
     [35] = PKT_NAME_OBJ_DEL_SPECIFIC,
+    [55] = PKT_NAME_OBJ_ENABLED_OPS_SPECIFIC,
+    [132] = PKT_NAME_OBJ_UNCUSTOMISE_SPECIFIC,
     [133] = PKT_NAME_OBJ_COUNT_SPECIFIC,
+    [137] = PKT_NAME_OBJ_CUSTOMISE_SPECIFIC,
     [121] = PKT_NAME_PLAYER_INFO,
     [115] = PKT_NAME_NPC_INFO,
     [94] = PKT_NAME_NPC_INFO_LARGE,
@@ -3810,16 +4264,22 @@ static int16_t const k_in_name[TOP] = {
     [71] = PKT_NAME_CAM_MOVETO_ARC,
     [7] = PKT_NAME_CAM_LOOKAT,
     [101] = PKT_NAME_CAM_ROTATETO_COORDINATE,
+    [91] = PKT_NAME_CAM_ROTATEBY,
+    [40] = PKT_NAME_CAM_ROTATETO,
+    [52] = PKT_NAME_CAM_MODE,
     [103] = PKT_NAME_CAM_TARGET,
+    [70] = PKT_NAME_OCULUS_SYNC,
     [119] = PKT_NAME_UPDATE_INV_FULL,
     [16] = PKT_NAME_UPDATE_INV_PARTIAL,
     [127] = PKT_NAME_UPDATE_INV_STOP_TRANSMIT,
     [50] = PKT_NAME_MESSAGE_PRIVATE,
+    [109] = PKT_NAME_MESSAGE_PRIVATE_ECHO,
     [110] = PKT_NAME_FRIENDLIST_LOADED,
     [27] = PKT_NAME_UPDATE_FRIENDLIST,
     [21] = PKT_NAME_UPDATE_IGNORELIST,
     [89] = PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL,
     [14] = PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER,
+    [61] = PKT_NAME_MESSAGE_FRIENDCHANNEL,
     [85] = PKT_NAME_VARCLAN,
     [76] = PKT_NAME_VARCLAN_ENABLE,
     [72] = PKT_NAME_VARCLAN_DISABLE,
@@ -3844,9 +4304,11 @@ static int16_t const k_in_name[TOP] = {
     [74] = PKT_NAME_CHAT_FILTER_SETTINGS,
     [97] = PKT_NAME_UPDATE_TRADINGPOST,
     [9] = PKT_NAME_UPDATE_STOCKMARKET_SLOT,
+    [136] = PKT_NAME_ACCOUNT_FLAGS,
     [39] = PKT_NAME_HINT_ARROW,
     [20] = PKT_NAME_RESET_ANIMS,
     [8] = PKT_NAME_UPDATE_REBOOT_TIMER,
+    [62] = PKT_NAME_SET_HEATMAP_ENABLED,
     [34] = PKT_NAME_MINIMAP_TOGGLE,
     [116] = PKT_NAME_SERVER_TICK_END,
     [49] = PKT_NAME_HIDENPCOPS,
@@ -3854,9 +4316,12 @@ static int16_t const k_in_name[TOP] = {
     [60] = PKT_NAME_HIDELOCOPS,
     [45] = PKT_NAME_SET_INTERACTION_MODE,
     [36] = PKT_NAME_RESET_INTERACTION_MODE,
+    [44] = PKT_NAME_URL_OPEN,
     [124] = PKT_NAME_SITE_SETTINGS,
+    [64] = PKT_NAME_UPDATE_UID192,
     [96] = PKT_NAME_REFLECTION_CHECKER,
     [63] = PKT_NAME_SEND_PING,
+    [117] = PKT_NAME_HISCORE_REPLY,
     [128] = PKT_NAME_PACKET_GROUP_START,
     [81] = PKT_NAME_UNKNOWN_STRING,
 };
@@ -4038,6 +4503,7 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_UPDATE_FRIENDLIST] = 28,
     [PKT_NAME_IF_SETNPCHEAD_ACTIVE] = 29,
     [PKT_NAME_CLANSETTINGS_DELTA] = 30,
+    [PKT_NAME_NPC_ANIM_SPECIFIC] = 31,
     [PKT_NAME_CLANSETTINGS_FULL] = 32,
     [PKT_NAME_OBJ_REVEAL] = 33,
     [PKT_NAME_NPC_HEADICON_SPECIFIC] = 34,
@@ -4047,9 +4513,11 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_REBUILD_NORMAL] = 38,
     [PKT_NAME_REBUILD_REGION] = 39,
     [PKT_NAME_HINT_ARROW] = 40,
+    [PKT_NAME_CAM_ROTATETO] = 41,
     [PKT_NAME_LOC_DEL] = 42,
     [PKT_NAME_HIDEOBJOPS] = 43,
     [PKT_NAME_MAP_ANIM] = 44,
+    [PKT_NAME_URL_OPEN] = 45,
     [PKT_NAME_SET_INTERACTION_MODE] = 46,
     [PKT_NAME_IF_CLOSESUB] = 47,
     [PKT_NAME_LOC_ANIM] = 48,
@@ -4057,18 +4525,25 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_HIDENPCOPS] = 50,
     [PKT_NAME_MESSAGE_PRIVATE] = 51,
     [PKT_NAME_UNSET_MAP_FLAG] = 52,
+    [PKT_NAME_CAM_MODE] = 53,
+    [PKT_NAME_PLAYER_SPOTANIM_SPECIFIC] = 54,
     [PKT_NAME_CLANCHANNEL_DELTA] = 55,
+    [PKT_NAME_OBJ_ENABLED_OPS_SPECIFIC] = 56,
     [PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR] = 57,
     [PKT_NAME_IF_OPENSUB] = 58,
     [PKT_NAME_MIDI_SONG_WITHSECONDARY] = 59,
     [PKT_NAME_CAM_SMOOTHRESET] = 60,
     [PKT_NAME_HIDELOCOPS] = 61,
+    [PKT_NAME_MESSAGE_FRIENDCHANNEL] = 62,
+    [PKT_NAME_SET_HEATMAP_ENABLED] = 63,
     [PKT_NAME_SEND_PING] = 64,
+    [PKT_NAME_UPDATE_UID192] = 65,
     [PKT_NAME_OBJ_COUNT] = 66,
     [PKT_NAME_CAM_SHAKE] = 67,
     [PKT_NAME_UPDATE_RUNWEIGHT] = 68,
     [PKT_NAME_IF_CLEARINV] = 69,
     [PKT_NAME_IF_OPENTOP] = 70,
+    [PKT_NAME_OCULUS_SYNC] = 71,
     [PKT_NAME_CAM_MOVETO_ARC] = 72,
     [PKT_NAME_VARCLAN_DISABLE] = 73,
     [PKT_NAME_LOC_ADD_CHANGE] = 74,
@@ -4087,6 +4562,8 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_IF_SETANGLE] = 88,
     [PKT_NAME_UPDATE_RUNENERGY] = 89,
     [PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL] = 90,
+    [PKT_NAME_ANIM_SPECIFIC] = 91,
+    [PKT_NAME_CAM_ROTATEBY] = 92,
     [PKT_NAME_MAP_ANIM_SPECIFIC] = 93,
     [PKT_NAME_REBUILD_WORLDENTITY] = 94,
     [PKT_NAME_NPC_INFO_LARGE] = 95,
@@ -4103,6 +4580,8 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_TRIGGER_ONDIALOGABORT] = 106,
     [PKT_NAME_IF_SETPLAYERMODEL_SELF] = 107,
     [PKT_NAME_SET_NPC_UPDATE_ORIGIN] = 108,
+    [PKT_NAME_NPC_SPOTANIM_SPECIFIC] = 109,
+    [PKT_NAME_MESSAGE_PRIVATE_ECHO] = 110,
     [PKT_NAME_FRIENDLIST_LOADED] = 111,
     [PKT_NAME_IF_SETANIM] = 112,
     [PKT_NAME_IF_SETMODEL] = 113,
@@ -4110,20 +4589,28 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_MIDI_SONG_STOP] = 115,
     [PKT_NAME_NPC_INFO] = 116,
     [PKT_NAME_SERVER_TICK_END] = 117,
+    [PKT_NAME_HISCORE_REPLY] = 118,
     [PKT_NAME_IF_SETCOLOUR] = 119,
     [PKT_NAME_UPDATE_INV_FULL] = 120,
     [PKT_NAME_LOC_MERGE] = 121,
     [PKT_NAME_PLAYER_INFO] = 122,
     [PKT_NAME_OBJ_DEL] = 123,
+    [PKT_NAME_LOC_ANIM_SPECIFIC] = 124,
     [PKT_NAME_SITE_SETTINGS] = 125,
     [PKT_NAME_MIDI_JINGLE] = 126,
     [PKT_NAME_VARP_RESET] = 127,
     [PKT_NAME_UPDATE_INV_STOP_TRANSMIT] = 128,
     [PKT_NAME_PACKET_GROUP_START] = 129,
     [PKT_NAME_WORLDENTITY_INFO] = 130,
+    [PKT_NAME_OBJ_UNCUSTOMISE] = 131,
     [PKT_NAME_IF_SETEVENTS] = 132,
+    [PKT_NAME_OBJ_UNCUSTOMISE_SPECIFIC] = 133,
     [PKT_NAME_OBJ_COUNT_SPECIFIC] = 134,
     [PKT_NAME_IF_RESYNC_V2] = 135,
+    [PKT_NAME_PROJANIM_SPECIFIC] = 136,
+    [PKT_NAME_ACCOUNT_FLAGS] = 137,
+    [PKT_NAME_OBJ_CUSTOMISE_SPECIFIC] = 138,
+    [PKT_NAME_OBJ_CUSTOMISE] = 139,
     [PKT_NAME_SET_ACTIVE_WORLD] = 141,
 };
 
@@ -4183,6 +4670,7 @@ static int16_t const k_out_wire1[PKTOUT_NAME_COUNT] = {
     [PKTOUT_NAME_IGNORELIST_DEL] = 68,
     [PKTOUT_NAME_FRIENDCHAT_KICK] = 69,
     [PKTOUT_NAME_SET_HEADING] = 70,
+    [PKTOUT_NAME_EXIT_FREECAM] = 72,
     [PKTOUT_NAME_OPLOCU] = 74,
     [PKTOUT_NAME_OPPLAYER4] = 75,
     [PKTOUT_NAME_IF_BUTTON] = 76,
@@ -4398,6 +4886,7 @@ static int (*const k_out[PKTOUT_NAME_COUNT])(struct ProtoOutArgs const* a, Rspro
     [PKTOUT_NAME_IGNORELIST_DEL] = out_ignorelist_del,
     [PKTOUT_NAME_FRIENDCHAT_KICK] = out_friendchat_kick,
     [PKTOUT_NAME_SET_HEADING] = out_set_heading,
+    [PKTOUT_NAME_EXIT_FREECAM] = out_exit_freecam,
     [PKTOUT_NAME_OPPLAYER4] = out_opplayer4,
     [PKTOUT_NAME_IF_BUTTON] = out_if_button,
     [PKTOUT_NAME_SEND_PING_REPLY] = out_send_ping_reply,

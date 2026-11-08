@@ -124,6 +124,7 @@ App_BuildFrame(
                 app->frame_view->world_camera_pos.x,
                 app->frame_view->world_camera_pos.y,
                 app->frame_view->world_camera_pos.z);
+            frame->skybox = app_skybox_handle(app);
             /* Must follow SetWorld: it resets slot 0 to the root identity. */
             app_wev_bind_frame_xforms(app, frame);
             /* Must follow the paint: a tile marker that belongs in the scene

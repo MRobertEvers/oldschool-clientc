@@ -10,6 +10,7 @@
  */
 #include "proto_adapt.h"
 
+#include "log/torirs_log.h"
 #include "mem/torirs_mem.h"
 #include "net/jbase37.h"
 #include "net/proto/proto_info.h"
@@ -1663,6 +1664,9 @@ proto_adapt_zone_to_packet(struct PktZoneSubPacket const* sub, struct RevPacket*
     case PKT_NAME_OBJ_DEL: out->_obj_del = sub->_obj_del; break;
     case PKT_NAME_OBJ_REVEAL: out->_obj_reveal = sub->_obj_reveal; break;
     case PKT_NAME_OBJ_COUNT: out->_obj_count = sub->_obj_count; break;
+    case PKT_NAME_SCRIPTEDPROJ_CHANGE: out->_scriptedproj_change = sub->_scriptedproj_change; break;
+    case PKT_NAME_OBJ_CUSTOMISE: out->_obj_customise = sub->_obj_customise; break;
+    case PKT_NAME_OBJ_UNCUSTOMISE: out->_obj_uncustomise = sub->_obj_uncustomise; break;
     case PKT_NAME_MAP_ANIM: out->_map_anim = sub->_map_anim; break;
     case PKT_NAME_SOUND_AREA: out->_sound_area = sub->_sound_area; break;
     case PKT_NAME_SCRIPTEDPROJ_ADD: out->_scriptedproj_add = sub->_scriptedproj_add; break;
@@ -1907,6 +1911,8 @@ adapt_zone_obj_enabled_ops(MsgObjEnabledOps const* m, struct PktZoneSubPacket* o
     out->_obj_reveal.pos = m->coord_in_zone_packed;
     out->_obj_reveal.obj_id = m->id;
     out->_obj_reveal.receiver = -1;
+    out->_obj_reveal.has_enabled_ops = 1;
+    out->_obj_reveal.enabled_ops = m->op_flags;
     return 1;
 }
 
@@ -2359,6 +2365,447 @@ adapt_cam_smoothreset(MsgCamSmoothReset const* m, struct RevPacket* out)
     out->_cam_smoothreset.look_constant_speed = m->camera_look_constant_speed;
     out->_cam_smoothreset.look_proportional_speed = m->camera_look_proportional_speed;
     return 1;
+}
+
+/* Both angles are the client's g2s (deob method14009); the codec reads u2. */
+int
+adapt_cam_rotateby(MsgCamRotateBy const* m, struct RevPacket* out)
+{
+    out->_cam_rotate.yaw = (int16_t)m->yaw;
+    out->_cam_rotate.pitch = (int16_t)m->pitch;
+    out->_cam_rotate.cycles = m->cycles;
+    out->_cam_rotate.easing = m->easing_id;
+    return 1;
+}
+
+int
+adapt_cam_rotateto(MsgCamRotateTo const* m, struct RevPacket* out)
+{
+    out->_cam_rotate.yaw = (int16_t)m->yaw;
+    out->_cam_rotate.pitch = (int16_t)m->pitch;
+    out->_cam_rotate.cycles = m->cycles;
+    out->_cam_rotate.easing = m->easing_id;
+    return 1;
+}
+
+int
+adapt_cam_lookat_cycles(MsgCamLookAtCycles const* m, struct RevPacket* out)
+{
+    out->_cam_lookat_cycles.x = m->x;
+    out->_cam_lookat_cycles.z = m->z;
+    out->_cam_lookat_cycles.height = m->height;
+    out->_cam_lookat_cycles.cycles = m->cycles;
+    out->_cam_lookat_cycles.easing = m->easing_id;
+    out->_cam_lookat_cycles.height_relative = m->height_relative;
+    return 1;
+}
+
+int
+adapt_message_private_echo(MsgMessagePrivateEcho const* m, struct RevPacket* out)
+{
+    struct PktMessagePrivateEcho* p = &out->_message_private_echo;
+    size_t n;
+
+    memset(p, 0, sizeof(*p));
+    if( !m->recipient )
+        return 0;
+    n = strlen(m->recipient);
+    if( n >= sizeof(p->recipient) )
+        return 0;
+    memcpy(p->recipient, m->recipient, n + 1);
+    p->text = chat_huffman_unpack(m->huffman, m->huffman_length);
+    return p->text != NULL;
+}
+
+int
+adapt_message_friendchannel(MsgMessageFriendchannel const* m, struct RevPacket* out)
+{
+    struct PktMessageFriendChannel* p = &out->_message_friendchannel;
+    size_t n;
+
+    memset(p, 0, sizeof(*p));
+    if( !m->sender )
+        return 0;
+    n = strlen(m->sender);
+    if( n >= sizeof(p->sender) )
+        return 0;
+    memcpy(p->sender, m->sender, n + 1);
+    p->channel_name = m->channel_name;
+    p->world = m->world_id;
+    p->counter = m->world_message_counter;
+    p->crown = m->chat_crown_type;
+    p->text = chat_huffman_unpack(m->huffman, m->huffman_length);
+    return p->text != NULL;
+}
+
+int
+adapt_anim_specific(MsgAnimSpecific const* m, struct RevPacket* out)
+{
+    out->_anim_specific.id = m->id == 65535 ? -1 : m->id;
+    out->_anim_specific.delay = m->delay;
+    return 1;
+}
+
+int
+adapt_npc_anim_specific(MsgNpcAnimSpecific const* m, struct RevPacket* out)
+{
+    out->_npc_anim_specific.index = m->index;
+    out->_npc_anim_specific.id = m->id == 65535 ? -1 : m->id;
+    out->_npc_anim_specific.delay = m->delay;
+    return 1;
+}
+
+int
+adapt_npc_spotanim_specific(MsgNpcSpotanimSpecific const* m, struct RevPacket* out)
+{
+    struct PktEntitySpotanimSpecific* p = &out->_entity_spotanim_specific;
+
+    p->index = m->index;
+    p->slot = m->slot;
+    p->id = m->id == 65535 ? -1 : m->id;
+    p->height = m->packed >> 16;
+    p->delay = m->packed & 0xffff;
+    return 1;
+}
+
+int
+adapt_player_spotanim_specific(MsgPlayerSpotanimSpecific const* m, struct RevPacket* out)
+{
+    struct PktEntitySpotanimSpecific* p = &out->_entity_spotanim_specific;
+
+    p->index = m->index;
+    p->slot = m->slot;
+    p->id = m->id == 65535 ? -1 : m->id;
+    p->height = m->packed >> 16;
+    p->delay = m->packed & 0xffff;
+    return 1;
+}
+
+int
+adapt_loc_anim_specific(MsgLocAnimSpecific const* m, struct RevPacket* out)
+{
+    int packed = m->coord_in_build_area_packed;
+
+    out->_loc_anim_specific.x = ((packed >> 4) & 0x7) + (packed >> 16);
+    out->_loc_anim_specific.z = (packed & 0x7) + ((packed >> 8) & 0xff);
+    out->_loc_anim_specific.info = m->loc_properties_packed;
+    out->_loc_anim_specific.seq_id = m->id;
+    return 1;
+}
+
+/* Heights as MAP_PROJANIM_V2's: the wire's are 4x the client's script units. */
+int
+adapt_projanim_specific_v4(MsgProjAnimSpecificV4 const* m, struct RevPacket* out)
+{
+    struct PktProjAnimSpecific* p = &out->_projanim_specific;
+
+    p->level = (m->start_packed >> 28) & 0x3;
+    p->x = (m->start_packed >> 14) & 0x3fff;
+    p->z = m->start_packed & 0x3fff;
+    p->dst_level = (m->end_packed >> 28) & 0x3;
+    p->dst_x = (m->end_packed >> 14) & 0x3fff;
+    p->dst_z = m->end_packed & 0x3fff;
+    p->spotanim = m->id;
+    p->src_height = m->start_height / 4;
+    p->dst_height = m->end_height / 4;
+    p->start_delay = m->start_time;
+    p->end_delay = m->end_time;
+    p->peak = m->angle;
+    p->arc = m->progress;
+    p->target = sign24(m->target_index);
+    p->source = sign24(m->source_index);
+    return 1;
+}
+
+/* One (index, value) pair of a customise packet. Past the limit a pair names a
+ * slot no packet this client has seen uses; it is dropped with a line. */
+static void
+customise_pair(int* count, int* indices, int* values, int index, int value)
+{
+    if( *count >= PKT_OBJ_CUSTOMISE_MAX_PAIRS )
+    {
+        TORIRS_LOG("adapt: obj customise pair past %d dropped\n", PKT_OBJ_CUSTOMISE_MAX_PAIRS);
+        return;
+    }
+    indices[*count] = index;
+    values[*count] = value;
+    (*count)++;
+}
+
+/* The single-pair form of Statics.method4117's arrays. */
+static void
+customise_fields_v1(
+    struct PktObjCustomiseFields* f,
+    int model,
+    int recol_index,
+    int recol,
+    int retex_index,
+    int retex)
+{
+    memset(f, 0, sizeof(*f));
+    f->model = model == 65535 ? -1 : model;
+    f->tint = -1;
+    customise_pair(&f->recol_count, f->recol_index, f->recol_value, recol_index, (int16_t)recol);
+    customise_pair(&f->retex_count, f->retex_index, f->retex_value, retex_index, (int16_t)retex);
+}
+
+int
+adapt_zone_scriptedproj_change(MsgScriptedProjChange const* m, struct PktZoneSubPacket* out)
+{
+    struct PktScriptedProjChange* p = &out->_scriptedproj_change;
+    int packed = m->target_coord_packed;
+
+    out->name = PKT_NAME_SCRIPTEDPROJ_CHANGE;
+    p->slot = m->slot;
+    p->target_x = packed == -1 ? -1 : (packed >> 14) & 0x3fff;
+    p->target_z = packed == -1 ? -1 : packed & 0x3fff;
+    p->target_level = packed == -1 ? -1 : (packed >> 28) & 0x3;
+    p->target_offset_x = (int16_t)m->target_offset_x;
+    p->target_offset_z = (int16_t)m->target_offset_z;
+    p->target_height = (int16_t)m->target_height;
+    p->target = sign24(m->target_index);
+    p->freeze_cycles = m->freeze_duration == 65535 ? -1 : m->freeze_duration;
+    p->delete_on_freeze_end = m->delete_on_freeze_end;
+    return 1;
+}
+
+int
+adapt_zone_obj_customise(MsgObjCustomise const* m, struct PktZoneSubPacket* out)
+{
+    out->name = PKT_NAME_OBJ_CUSTOMISE;
+    out->_obj_customise.pos = m->coord_in_zone_packed;
+    out->_obj_customise.obj_id = m->id;
+    out->_obj_customise.count = m->quantity;
+    customise_fields_v1(
+        &out->_obj_customise.fields, m->model, m->recol_index, m->recol, m->retex_index, m->retex);
+    return 1;
+}
+
+int
+adapt_zone_obj_uncustomise(MsgObjUncustomise const* m, struct PktZoneSubPacket* out)
+{
+    out->name = PKT_NAME_OBJ_UNCUSTOMISE;
+    out->_obj_uncustomise.pos = m->coord_in_zone_packed;
+    out->_obj_uncustomise.obj_id = m->id;
+    out->_obj_uncustomise.count = m->quantity;
+    return 1;
+}
+
+static void
+customise_specific_coord(struct PktObjCustomiseSpecific* p, int packed)
+{
+    p->level = (packed >> 28) & 0x3;
+    p->x = (packed >> 14) & 0x3fff;
+    p->z = packed & 0x3fff;
+}
+
+int
+adapt_obj_customise_specific(MsgObjCustomiseSpecific const* m, struct RevPacket* out)
+{
+    struct PktObjCustomiseSpecific* p = &out->_obj_customise_specific;
+
+    customise_specific_coord(p, m->coord_grid_packed);
+    p->obj_id = m->id;
+    p->count = m->quantity;
+    customise_fields_v1(&p->fields, m->model, m->recol_index, m->recol, m->retex_index, m->retex);
+    return 1;
+}
+
+int
+adapt_obj_customise_specific_v2(MsgObjCustomiseSpecificV2 const* m, struct RevPacket* out)
+{
+    struct PktObjCustomiseSpecific* p = &out->_obj_customise_specific;
+    struct PktObjCustomiseFields* f = &p->fields;
+
+    customise_specific_coord(p, m->packed_coord);
+    p->obj_id = m->id;
+    p->count = m->quantity;
+    memset(f, 0, sizeof(*f));
+    f->model = m->model_id == 65535 ? -1 : m->model_id;
+    f->tint = m->has_colour ? (int16_t)m->colour : -1;
+    for( int i = 0; i < m->retexture_count; i++ )
+        customise_pair(
+            &f->retex_count,
+            f->retex_index,
+            f->retex_value,
+            m->retextures[i].index,
+            (int16_t)m->retextures[i].value);
+    for( int i = 0; i < m->recolour_count; i++ )
+        customise_pair(
+            &f->recol_count,
+            f->recol_index,
+            f->recol_value,
+            m->recolours[i].index,
+            (int16_t)m->recolours[i].value);
+    return 1;
+}
+
+int
+adapt_obj_uncustomise_specific(MsgObjUncustomiseSpecific const* m, struct RevPacket* out)
+{
+    struct PktObjCustomiseSpecific* p = &out->_obj_customise_specific;
+
+    memset(p, 0, sizeof(*p));
+    customise_specific_coord(p, m->coord_grid_packed);
+    p->obj_id = m->id;
+    p->count = m->quantity;
+    return 1;
+}
+
+int
+adapt_obj_enabled_ops_specific(MsgObjEnabledOpsSpecific const* m, struct RevPacket* out)
+{
+    struct PktObjSpecific* p = &out->_obj_specific;
+
+    memset(p, 0, sizeof(*p));
+    obj_specific_coord(p, m->coord_grid_packed);
+    p->obj_id = m->id;
+    p->op_flags = m->op_flags;
+    return 1;
+}
+
+int
+adapt_objunlock_reset(MsgObjunlockReset const* m, struct RevPacket* out)
+{
+    (void)m;
+    (void)out;
+    return 1;
+}
+
+int
+adapt_objunlock_update(MsgObjunlockUpdate const* m, struct RevPacket* out)
+{
+    struct PktObjUnlock* p = &out->_objunlock_update;
+
+    p->count = m->entries_count;
+    p->entries = NULL;
+    if( p->count <= 0 )
+        return 1;
+    p->entries = ToriMem_Alloc(ToriMem_Net(), (size_t)p->count * sizeof(*p->entries));
+    assert(p->entries);
+    for( int i = 0; i < p->count; i++ )
+    {
+        p->entries[i].delta = m->entries[i].delta;
+        p->entries[i].bits = m->entries[i].bits;
+    }
+    return 1;
+}
+
+/* The deob reads the eight bytes and uses none of them. */
+int
+adapt_account_flags(MsgAccountFlags const* m, struct RevPacket* out)
+{
+    (void)m;
+    (void)out;
+    return 1;
+}
+
+/* class259.field3115 has no arm in the deob's packet loop: framed and dropped
+ * there too. Decoded here only so a bad layout shows as a decode failure. */
+int
+adapt_hiscore_reply(MsgHiscoreReply const* m, struct RevPacket* out)
+{
+    (void)m;
+    (void)out;
+    return 1;
+}
+
+int
+adapt_set_website_token(MsgSetWebsiteToken const* m, struct RevPacket* out)
+{
+    out->_text.text = dup_borrowed(m->token ? m->token : "");
+    return out->_text.text != NULL;
+}
+
+int
+adapt_update_uid192(MsgUpdateUid192 const* m, struct RevPacket* out)
+{
+    assert(m->data);
+    memcpy(out->_uid192.data, m->data, sizeof(out->_uid192.data));
+    out->_uid192.crc = m->crc;
+    return 1;
+}
+
+int
+adapt_cam_mode(MsgCamMode const* m, struct RevPacket* out)
+{
+    out->_int_value.value = m->mode;
+    return 1;
+}
+
+int
+adapt_oculus_sync(MsgOculusSync const* m, struct RevPacket* out)
+{
+    out->_int_value.value = m->value;
+    return 1;
+}
+
+int
+adapt_cam_skybox(MsgCamSkybox const* m, struct RevPacket* out)
+{
+    out->_int_value.value = m->model;
+    return 1;
+}
+
+int
+adapt_set_heatmap_enabled(MsgSetHeatmapEnabled const* m, struct RevPacket* out)
+{
+    out->_int_value.value = m->enabled;
+    return 1;
+}
+
+static void
+group_var_alloc(struct RevPacket* out, int count)
+{
+    out->_group_var.count = count;
+    out->_group_var.updates =
+        ToriMem_Calloc(ToriMem_Net(), (size_t)(count > 0 ? count : 1), sizeof(*out->_group_var.updates));
+    assert(out->_group_var.updates);
+}
+
+int
+adapt_group_var(MsgGroupVar const* m, struct RevPacket* out)
+{
+    group_var_alloc(out, m->updates_count);
+    for( int i = 0; i < m->updates_count; i++ )
+    {
+        struct PktGroupVarUpdate* u = &out->_group_var.updates[i];
+
+        u->index = m->updates[i].index;
+        u->packed = m->updates[i].packed;
+        u->int_value = m->updates[i].int_value;
+        u->long_value = m->updates[i].long_value;
+        if( m->updates[i].string_value )
+            u->string_value = dup_borrowed(m->updates[i].string_value);
+    }
+    return 1;
+}
+
+int
+adapt_group_var_int(MsgGroupVarInt const* m, struct RevPacket* out)
+{
+    group_var_alloc(out, 1);
+    out->_group_var.updates[0].index = m->update_index;
+    out->_group_var.updates[0].packed = m->update_packed_group_var;
+    out->_group_var.updates[0].int_value = m->update_variable_value;
+    return 1;
+}
+
+int
+adapt_group_var_long(MsgGroupVarLong const* m, struct RevPacket* out)
+{
+    group_var_alloc(out, 1);
+    out->_group_var.updates[0].index = m->update_index;
+    out->_group_var.updates[0].packed = m->update_packed_group_var;
+    out->_group_var.updates[0].long_value = m->update_variable_value;
+    return 1;
+}
+
+int
+adapt_url_open(MsgUrlOpen const* m, struct RevPacket* out)
+{
+    out->_text.text = dup_borrowed(m->url ? m->url : "");
+    return out->_text.text != NULL;
 }
 
 int

@@ -124,6 +124,140 @@ app_obj_stack_build_model(
     }
 }
 
+void
+App_SetSkybox(
+    struct App* app,
+    int model_id)
+{
+    assert(app);
+    app->skybox_id_plus1 = model_id < 0 ? 0 : model_id + 1;
+    app->skybox_requested_plus1 = 0;
+    if( app->skybox_id_plus1 == 0 && app->skybox_model )
+    {
+        ToriDraw_ModelFree(app->skybox_model);
+        app->skybox_model = NULL;
+        app->skybox_built_plus1 = 0;
+    }
+}
+
+/* Deob Statics.method11645's neighbour: a new skybox replaces the old one the
+ * frame its model is resident. */
+struct ToriDraw_ModelHandle
+app_skybox_handle(struct App* app)
+{
+    struct ToriDraw_ModelHandle hnd;
+
+    assert(app);
+    memset(&hnd, 0, sizeof(hnd));
+    if( app->skybox_id_plus1 != 0 && app->skybox_built_plus1 != app->skybox_id_plus1 )
+    {
+        int const id = app->skybox_id_plus1 - 1;
+
+        if( CacheProvider_ModelGet(app->provider, id) )
+        {
+            struct AppModelRecolorSpec const recolors = { 0 };
+            struct ToriDraw_Model* model = app_world_build_model(
+                app, &id, 1, &recolors, 128, 128, APP_LIGHT_SCENE, 0, 0);
+
+            if( model )
+            {
+                if( app->skybox_model )
+                    ToriDraw_ModelFree(app->skybox_model);
+                app->skybox_model = model;
+                app->skybox_built_plus1 = app->skybox_id_plus1;
+                app_sync_textures(app);
+            }
+        }
+        else if( app->skybox_requested_plus1 != app->skybox_id_plus1 )
+        {
+            struct ToriRS_Task* load = CreateTask_ModelLoad(app->provider, id);
+
+            app->skybox_requested_plus1 = app->skybox_id_plus1;
+            if( load )
+                ToriRS_TaskQueue_Add(app->runner.queue, load);
+        }
+    }
+    if( app->skybox_model )
+    {
+        hnd.kind = TORIDRAWMK_MODEL;
+        hnd.u.model.model = app->skybox_model;
+    }
+    return hnd;
+}
+
+/* app_obj_stack_build_model with a stack's OBJ_CUSTOMISE on it (deob
+ * class397.method9215, Statics.method9248): the objtype's replacements, except
+ * in the slots the packet named, on the replacement model when it named one. */
+static struct ToriDraw_Model*
+app_obj_stack_build_custom_model(
+    struct App* app,
+    struct WorldEntity_ObjStack const* stack,
+    int count)
+{
+    struct ToriRS_Objtype* obj;
+    struct ToriRS_Objtype* shape;
+    int model_ids[1];
+    int recol_to[256];
+    int retex_to[256];
+
+    assert(app);
+    assert(stack);
+    assert(stack->customised);
+    obj = CacheProvider_ObjtypeGet(
+        app->provider, ObjModelLoad_RenderObjId(app->provider, stack->obj_id, count));
+    if( !obj )
+        return NULL;
+    shape = obj;
+    if( obj->inventory_model_id <= 0 && obj->cert_template > 0 )
+        shape = CacheProvider_ObjtypeGet(app->provider, obj->cert_template);
+    if( !shape )
+        return NULL;
+    model_ids[0] = stack->custom_model > -1 ? stack->custom_model : shape->inventory_model_id;
+    if( model_ids[0] <= 0 )
+        return NULL;
+    assert(shape->recolor_count <= 256);
+    for( int i = 0; i < shape->recolor_count; i++ )
+    {
+        recol_to[i] = shape->recolors_to[i];
+        if( i < WORLD_OBJSTACK_CUSTOM_SLOTS && (stack->custom_recol_mask & (1u << i)) )
+            recol_to[i] = stack->custom_recol[i];
+    }
+    assert(shape->retexture_count <= 256);
+    for( int i = 0; i < shape->retexture_count; i++ )
+    {
+        retex_to[i] = shape->retextures_to[i];
+        if( i < WORLD_OBJSTACK_CUSTOM_SLOTS && (stack->custom_retex_mask & (1u << i)) )
+            retex_to[i] = stack->custom_retex[i];
+    }
+    {
+        struct AppModelRecolorSpec recolors = {
+            .recolors_from = shape->recolors_from,
+            .recolors_to = recol_to,
+            .recolor_count = shape->recolor_count,
+            .retextures_from = shape->retextures_from,
+            .retextures_to = retex_to,
+            .retexture_count = shape->retexture_count,
+            .has_tint = stack->custom_tint != -1,
+            .tint = stack->custom_tint,
+        };
+        return app_world_build_model(
+            app, model_ids, 1, &recolors, 128, 128, APP_LIGHT_SCENE, obj->contrast, obj->ambient);
+    }
+}
+
+/* The stack's model for `count`, customised or not. */
+static struct ToriDraw_Model*
+app_obj_stack_model_for(
+    struct App* app,
+    struct WorldEntity_ObjStack const* stack,
+    int count)
+{
+    assert(stack);
+    if( stack->customised )
+        return app_obj_stack_build_custom_model(app, stack, count);
+    return app_obj_stack_build_model(app, stack->obj_id, count);
+}
+
 /* Re-point a live stack's element at the model its NEW count selects. The
  * variant only changes at the ten count_co thresholds, so this is a no-op for
  * most count edits. Call BEFORE World_ObjStackSetCount: the count still on the
@@ -149,7 +283,7 @@ app_obj_stack_refresh_model(
         return;
     if( stack->element_id < 0 || !ToriDraw_SceneElementIsLive(app->scene, stack->element_id) )
         return;
-    model = app_obj_stack_build_model(app, stack->obj_id, count);
+    model = app_obj_stack_model_for(app, stack, count);
     if( !model )
         return;
     memset(&hnd, 0, sizeof(hnd));
@@ -285,6 +419,161 @@ App_WorldObjStackAdd(
     }
 }
 
+/* Rebuild a customised stack's model on its element, or send it back to the
+ * placeholder when the replacement model is not resident yet. */
+static void
+app_obj_stack_custom_changed(
+    struct App* app,
+    struct World* world,
+    int idx)
+{
+    struct WorldEntity_ObjStack* stack;
+    struct ToriDraw_Model* model;
+    struct ToriDraw_ModelHandle hnd;
+
+    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
+    assert(stack);
+    if( stack->customised && stack->custom_model > -1 &&
+        !CacheProvider_ModelGet(app->provider, stack->custom_model) )
+    {
+        struct ToriRS_Task* load = CreateTask_ModelLoad(app->provider, stack->custom_model);
+
+        if( load )
+            ToriRS_TaskQueue_Add(app->runner.queue, load);
+        if( stack->element_id >= 0 )
+            return;
+        app_placeholder_obj_stack(
+            app,
+            stack->grid_position.x,
+            stack->grid_position.z,
+            stack->grid_position.level,
+            stack->obj_id,
+            stack->count);
+        return;
+    }
+    if( stack->element_id < 0 || !ToriDraw_SceneElementIsLive(app->scene, stack->element_id) )
+        return;
+    model = app_obj_stack_model_for(app, stack, stack->count);
+    if( !model )
+        return;
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = model;
+    ToriDraw_SceneElementSetModel(app->scene, stack->element_id, hnd);
+    app_sync_textures(app);
+    app->need_redraw = 1;
+}
+
+void
+App_WorldObjStackCustomise(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int count,
+    struct AppObjCustomise const* custom)
+{
+    struct World* world;
+    struct WorldEntity_ObjStack* stack;
+    int idx;
+
+    assert(app);
+    assert(custom);
+    world = App_ActiveWorldview(app)->world;
+    idx = World_ObjStackFindExact(world, scene_x, scene_z, level, obj_id, count);
+    if( idx < 0 )
+        return;
+    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
+    assert(stack);
+    stack->customised = true;
+    if( custom->model > -1 )
+        stack->custom_model = custom->model;
+    stack->custom_tint = custom->tint;
+    for( int i = 0; i < custom->recol_count; i++ )
+    {
+        int const slot = custom->recol_index[i];
+        if( slot >= 0 && slot < WORLD_OBJSTACK_CUSTOM_SLOTS )
+        {
+            stack->custom_recol[slot] = (int16_t)custom->recol_value[i];
+            stack->custom_recol_mask |= 1u << slot;
+        }
+    }
+    for( int i = 0; i < custom->retex_count; i++ )
+    {
+        int const slot = custom->retex_index[i];
+        if( slot >= 0 && slot < WORLD_OBJSTACK_CUSTOM_SLOTS )
+        {
+            stack->custom_retex[slot] = (int16_t)custom->retex_value[i];
+            stack->custom_retex_mask |= 1u << slot;
+        }
+    }
+    app_obj_stack_custom_changed(app, world, idx);
+}
+
+void
+App_WorldObjStackUncustomise(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int count)
+{
+    struct World* world;
+    struct WorldEntity_ObjStack* stack;
+    int idx;
+
+    assert(app);
+    world = App_ActiveWorldview(app)->world;
+    idx = World_ObjStackFindExact(world, scene_x, scene_z, level, obj_id, count);
+    if( idx < 0 )
+        return;
+    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
+    assert(stack);
+    stack->customised = false;
+    stack->custom_model = -1;
+    stack->custom_tint = -1;
+    stack->custom_recol_mask = 0;
+    stack->custom_retex_mask = 0;
+    app_obj_stack_custom_changed(app, world, idx);
+}
+
+void
+App_WorldObjStackSetEnabledOps(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int enabled_ops)
+{
+    struct World* world;
+    struct WorldEntity_ObjStack const* stack;
+    struct ToriRS_Objtype* obj;
+    int idx;
+
+    assert(app);
+    world = App_ActiveWorldview(app)->world;
+    idx = World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
+    if( idx < 0 )
+        return;
+    World_ObjStackSetEnabledOps(world, idx, enabled_ops);
+    /* A stack not landed yet takes the mask when the land sets its menu. */
+    obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
+    if( !obj )
+        return;
+    stack = World_EntityPoolGet(&world->entities.obj_stack, idx);
+    assert(stack);
+    {
+        char actions32[5][32];
+        for( int a = 0; a < 5; a++ )
+            snprintf(actions32[a], sizeof(actions32[a]), "%s", obj->ground_actions[a]);
+        World_ObjStackSetMenu(world, idx, stack->name, actions32);
+    }
+    app->need_redraw = 1;
+}
+
 static int
 app_obj_stack_land_one(
     struct App* app,
@@ -306,7 +595,10 @@ app_obj_stack_land_one(
     obj = CacheProvider_ObjtypeGet(app->provider, stack->obj_id);
     if( !obj || ObjModelLoad_NeedsWork(app->provider, stack->obj_id, stack->count) )
         return 0;
-    model = app_obj_stack_build_model(app, stack->obj_id, stack->count);
+    if( stack->customised && stack->custom_model > -1 &&
+        !CacheProvider_ModelGet(app->provider, stack->custom_model) )
+        return 0;
+    model = app_obj_stack_model_for(app, stack, stack->count);
     if( !model )
         return 0;
     world_x = stack->grid_position.x * 128 + 64;

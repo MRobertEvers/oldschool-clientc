@@ -329,6 +329,51 @@ enum GameProtoPktName
      * struct PktCamSmoothReset). Appended likewise. */
     PKT_NAME_CAM_SMOOTHRESET,
 
+    /* The per-player forms of the visuals the zone and info packets carry
+     * (struct PktAnimSpecific, PktNpcAnimSpecific, PktEntitySpotanimSpecific,
+     * PktLocAnimSpecific, PktProjAnimSpecific); the timed camera turns
+     * (struct PktCamRotate, PktCamLookAtCycles); the chat lines
+     * (struct PktMessagePrivateEcho, PktMessageFriendChannel); URL_OPEN
+     * (struct PktText). Appended likewise. */
+    PKT_NAME_ANIM_SPECIFIC,
+    PKT_NAME_NPC_ANIM_SPECIFIC,
+    PKT_NAME_NPC_SPOTANIM_SPECIFIC,
+    PKT_NAME_PLAYER_SPOTANIM_SPECIFIC,
+    PKT_NAME_LOC_ANIM_SPECIFIC,
+    PKT_NAME_PROJANIM_SPECIFIC,
+    PKT_NAME_CAM_ROTATEBY,
+    PKT_NAME_CAM_ROTATETO,
+    PKT_NAME_CAM_LOOKAT_CYCLES,
+    PKT_NAME_MESSAGE_PRIVATE_ECHO,
+    PKT_NAME_MESSAGE_FRIENDCHANNEL,
+    PKT_NAME_URL_OPEN,
+
+    /* Scripted projectile changes, ground item customisation, per-player ops
+     * on a ground item (struct PktScriptedProjChange, PktObjCustomise,
+     * PktObjUncustomise, PktObjSpecific); which objs the player has unlocked
+     * (struct PktObjUnlock); packets the deob reads for no effect or for one
+     * value (struct PktText, PktUid192). Appended likewise. */
+    PKT_NAME_SCRIPTEDPROJ_CHANGE,
+    PKT_NAME_OBJ_CUSTOMISE,
+    PKT_NAME_OBJ_UNCUSTOMISE,
+    PKT_NAME_OBJ_CUSTOMISE_SPECIFIC,
+    PKT_NAME_OBJ_UNCUSTOMISE_SPECIFIC,
+    PKT_NAME_OBJ_ENABLED_OPS_SPECIFIC,
+    PKT_NAME_OBJUNLOCK_RESET,
+    PKT_NAME_OBJUNLOCK_UPDATE,
+    PKT_NAME_ACCOUNT_FLAGS,
+    PKT_NAME_HISCORE_REPLY,
+    PKT_NAME_SET_WEBSITE_TOKEN,
+    PKT_NAME_UPDATE_UID192,
+
+    /* One value each (struct PktIntValue); a group's variables
+     * (struct PktGroupVar). Appended likewise. */
+    PKT_NAME_CAM_MODE,
+    PKT_NAME_OCULUS_SYNC,
+    PKT_NAME_CAM_SKYBOX,
+    PKT_NAME_SET_HEATMAP_ENABLED,
+    PKT_NAME_GROUP_VAR,
+
     PKT_NAME_COUNT
 };
 
@@ -507,6 +552,9 @@ enum GameProtoPktOutName
 
     /* The answer to SEND_PING: its two values back, with the frame rate. */
     PKTOUT_NAME_SEND_PING_REPLY,
+
+    /* Leaving the free camera (deob Statics.method6646). Appended likewise. */
+    PKTOUT_NAME_EXIT_FREECAM,
 
     PKTOUT_NAME_COUNT
 };

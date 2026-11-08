@@ -857,6 +857,8 @@ export const CS2_WIRE_OPCODE_METADATA = [
     { opcode: 4222, name: "OC_ISUBOP", operand: "int8" },
     { opcode: 4223, name: "OC_ID", operand: "int8" },
     { opcode: 4224, name: "OC_BYID", operand: "int8" },
+    { opcode: 4252, name: "OBJ_ISUNLOCKED", operand: "int8" },
+    { opcode: 4253, name: "OBJ_UNLOCKCOUNT", operand: "int8" },
     { opcode: 4500, name: "RS2_STRUCT_PARAM", operand: "int8" },
     { opcode: 5000, name: "CHAT_GETFILTER_PUBLIC", operand: "int8" },
     { opcode: 5001, name: "CHAT_SETFILTER", operand: "int8" },
@@ -1341,6 +1343,7 @@ export const CS2_WIRE_OPCODE_METADATA = [
     { opcode: 8521, name: "GROUP_GETINDEX", operand: "int8" },
     { opcode: 8560, name: "GROUP_GETVAR", operand: "int8" },
     { opcode: 8561, name: "GROUP_GETMEMBERVAR", operand: "int8" },
+    { opcode: 8570, name: "GROUP_GETVAR_SCOPED", operand: "int8" },
     { opcode: 13337, name: "OPCOUNT", operand: "int8" },
 ] as const satisfies readonly CS2WireOpcodeMetadata[];
 

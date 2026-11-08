@@ -180,6 +180,7 @@ gameproto_free(struct RevPacket* p)
         break;
     case PKT_NAME_UNKNOWN_STRING:
     case PKT_NAME_SITE_SETTINGS:
+    case PKT_NAME_URL_OPEN:
         ToriMem_Free(ToriMem_Net(), p->_text.text);
         p->_text.text = NULL;
         break;
@@ -191,6 +192,30 @@ gameproto_free(struct RevPacket* p)
     case PKT_NAME_MESSAGE_CLANCHANNEL_SYSTEM:
         ToriMem_Free(ToriMem_Net(), p->_message_clanchannel.text);
         p->_message_clanchannel.text = NULL;
+        break;
+    case PKT_NAME_OBJUNLOCK_UPDATE:
+        ToriMem_Free(ToriMem_Net(), p->_objunlock_update.entries);
+        p->_objunlock_update.entries = NULL;
+        p->_objunlock_update.count = 0;
+        break;
+    case PKT_NAME_GROUP_VAR:
+        for( int i = 0; i < p->_group_var.count; i++ )
+            ToriMem_Free(ToriMem_Net(), p->_group_var.updates[i].string_value);
+        ToriMem_Free(ToriMem_Net(), p->_group_var.updates);
+        p->_group_var.updates = NULL;
+        p->_group_var.count = 0;
+        break;
+    case PKT_NAME_SET_WEBSITE_TOKEN:
+        ToriMem_Free(ToriMem_Net(), p->_text.text);
+        p->_text.text = NULL;
+        break;
+    case PKT_NAME_MESSAGE_PRIVATE_ECHO:
+        ToriMem_Free(ToriMem_Net(), p->_message_private_echo.text);
+        p->_message_private_echo.text = NULL;
+        break;
+    case PKT_NAME_MESSAGE_FRIENDCHANNEL:
+        ToriMem_Free(ToriMem_Net(), p->_message_friendchannel.text);
+        p->_message_friendchannel.text = NULL;
         break;
     case PKT_NAME_REBUILD_WORLDENTITY:
         ToriMem_Free(ToriMem_Net(), p->_rebuild_wev.data);

@@ -124,6 +124,9 @@ int
 net_out_close_modal(
     struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap);
 int
+net_out_exit_freecam(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap);
+int
 net_out_resume_countdialog(
     struct GameProtoRevTable const* rev,
     struct Isaac* random_out,

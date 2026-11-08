@@ -84,6 +84,9 @@ struct CacheProvider
     /** Every VarClanType's base type (config group 47), loaded at boot; count 0
      *  until then and on a cache without the group. */
     struct ToriRS_VarClanTypes varclan_types;
+    /** Every group config (config group 75), loaded at boot; empty until
+     *  then and on a cache without the group. */
+    struct ToriRS_GroupTypes group_types;
     /** The obj config group's id space, last file id + 1, known once the
      *  load-all above has run; 0 until then. OC_BYID bounds an id with it, as
      *  the client bounds it with the group's file count. */

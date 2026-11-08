@@ -2511,6 +2511,7 @@ RS_CS2Host_Free(struct RS_CS2Host* host)
     assert(host);
     RS_CS2ClientState_Free(&host->client);
     RS_ClanStore_Free(&host->clan);
+    RS_GroupStore_Free(&host->groups);
     ToriMem_Free(ToriMem_Script(), host->trading_post.offers);
     memset(&host->trading_post, 0, sizeof(host->trading_post));
     RS_WorldMap_Free(host->worldmap);
@@ -10986,7 +10987,15 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_RT7_GETENABLED:
     case CS2VM_HOST_REQUEST_TRANSLATIONS_SET:
     case CS2VM_HOST_REQUEST_TRANSLATIONS_CLEAR:
+    case CS2VM_HOST_REQUEST_GROUP_CHECK:
+    case CS2VM_HOST_REQUEST_GROUP_GET:
+    case CS2VM_HOST_REQUEST_GROUP_GETINDEX:
+    case CS2VM_HOST_REQUEST_GROUP_GETVAR:
+    case CS2VM_HOST_REQUEST_GROUP_GETVAR_SCOPED:
+        return RS_CS2Host_ExecGroupOp(host, vm, request);
     case CS2VM_HOST_REQUEST_REBOOTTIMER:
+    case CS2VM_HOST_REQUEST_OBJ_ISUNLOCKED:
+    case CS2VM_HOST_REQUEST_OBJ_UNLOCKCOUNT:
     case CS2VM_HOST_REQUEST_PLAYERMOD:
     case CS2VM_HOST_REQUEST_WORLDFLAGS:
     case CS2VM_HOST_REQUEST_IDLETIMER_GET:

@@ -29,4 +29,7 @@
 
 extern struct NetLoginVTable const g_login_osrs_vtable;
 
+void
+login_osrs_set_uid192(uint8_t const* data);
+
 #endif

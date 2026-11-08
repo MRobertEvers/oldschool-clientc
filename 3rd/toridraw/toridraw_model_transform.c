@@ -760,6 +760,24 @@ ToriDraw_ModelRecolorHslArray(
 }
 
 void
+ToriDraw_ModelSetAllFaceColors(
+    struct ToriDraw_Model* model,
+    hsl16_t color)
+{
+    hsl16_t* arrays[4];
+
+    assert(model);
+    arrays[0] = model->face_colors;
+    arrays[1] = model->face_colors_a;
+    arrays[2] = model->face_colors_b;
+    arrays[3] = model->face_colors_c;
+    for( int a = 0; a < 4; a++ )
+        if( arrays[a] )
+            for( int i = 0; i < model->face_count; i++ )
+                arrays[a][i] = color;
+}
+
+void
 ToriDraw_ModelRecolor(
     struct ToriDraw_Model* model,
     int color_src,

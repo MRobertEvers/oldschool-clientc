@@ -289,6 +289,8 @@ app_world_build_model(
      * scenery apply_transforms and the obj icon path in the scene bridge). */
     if( recolors )
     {
+        if( recolors->has_tint )
+            ToriDraw_ModelSetAllFaceColors(model, (hsl16_t)recolors->tint);
         for( int i = 0; i < recolors->recolor_count; i++ )
             ToriDraw_ModelRecolor(model, recolors->recolors_from[i], recolors->recolors_to[i]);
         for( int i = 0; i < recolors->retexture_count; i++ )
@@ -1361,7 +1363,8 @@ app_world_spawn_scripted_proj_now(
         sp->src_offset_x,
         sp->src_offset_z,
         sp->dst_offset_x,
-        sp->dst_offset_z);
+        sp->dst_offset_z,
+        sp->slot);
     p = World_EntityPoolGet(&world->entities.projectile, idx);
     assert(p);
     p->spotanim_id = sp->spotanim_id;

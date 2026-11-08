@@ -869,7 +869,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	engine/toridraw_sprite_from_torirs.c \
 	engine/toridraw_font_from_torirs.c \
 	engine/toridraw_model_from_torirs.c \
-	game/rs_cs2_host.c game/rs_cs2_client_ops.c game/rs_cs2_social_ops.c game/rs_cs2_market_ops.c game/rs_clan.c game/rs_friends_chat.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
+	game/rs_cs2_host.c game/rs_cs2_client_ops.c game/rs_cs2_social_ops.c game/rs_cs2_market_ops.c game/rs_clan.c game/rs_group_store.c game/rs_friends_chat.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/content_test.c game/content_test_sailing.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/task_entity_assets.c game/rs_entity_sync.c game/rs_audio.c \
 	game/rs_prefs.c game/task_prefs_io.c game/preview_state.c \
@@ -919,7 +919,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	world/worldview.c \
-	world/wev.c world/wev_deck.c engine/dat2/task_dat2_wevconfig_load.c engine/dat2/task_dat2_varclantype_load.c \
+	world/wev.c world/wev_deck.c engine/dat2/task_dat2_wevconfig_load.c engine/dat2/task_dat2_grouptype_load.c engine/dat2/task_dat2_varclantype_load.c \
 	engine/world_builder/task_world_load.c \
 	editor/editor.c editor/editor_doc.c editor/editor_jm2.c editor/editor_spawn.c \
 	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \
