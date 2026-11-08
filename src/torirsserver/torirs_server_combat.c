@@ -3963,6 +3963,25 @@ npc_death_step(
          */
         npc_death_arrive(srv, npc);
         /*
+         * Slayer credit lands with the death animation, not with the corpse:
+         * RSProx index 4488 [68] sends `slayer_count` and the xp on the tick of
+         * seq 6182, five ticks before the delete, and 338 of 411 matched kills
+         * across the index agree (the arrive delay moves both together). Here
+         * and not in `npc_death_arrive`, which `ToriRSServer_CombatNpcDie` also
+         * reaches from inside a running script; that death keeps its credit at
+         * the corpse stage rather than nesting a proc.
+         */
+        {
+            struct ToriRSServerPlayer* const saved_active = srv->active_player;
+            int const hero_pid = death_hero_pid(srv, npc);
+
+            if( hero_pid >= 0 )
+                ToriRSServer_WorldSetActive(srv, &srv->players[hero_pid]);
+            ToriRSServer_WorldNpcSlayerCredit(srv, slot);
+            npc->slayer_credited = 1;
+            ToriRSServer_WorldSetActive(srv, saved_active);
+        }
+        /*
          * `death_delay=0`: NO CORPSE WAIT, so `[ai_queue3]` runs on the tick of
          * the death animation rather than a tick later (raid loop seam9).
          *
@@ -4730,6 +4749,7 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
         }
         npc->death_seq_sent = 0;
         npc->death_seq_tick = -1;
+        npc->slayer_credited = 0;
         npc->scripted_death_pending = 0;
         npc->poison_severity = 0;
         npc->venom_damage = 0;

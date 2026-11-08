@@ -15517,7 +15517,8 @@ ToriRSServer_WorldNpcDied(
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_AI_QUEUE3, type,
                                 ToriRSServer_NpcCategory(type), slot);
     /*
-     * Slayer kill credit — always, after the drop table.
+     * Slayer kill credit — always, after the drop table, unless the death
+     * animation's tick already paid it (`npc_death_step` ARRIVE).
      *
      * `[ai_queue3]` is exclusive (type → category → `_`), so a drop-table bind
      * suppresses `[ai_queue3,_]` and any credit hung only there would miss the
@@ -15526,12 +15527,23 @@ ToriRSServer_WorldNpcDied(
      * (`[proc,slayer_on_npc_kill]`); the engine only promises the call. Missing
      * the proc is a silent no-op (scripts not loaded / older packs).
      */
-    ToriRSServer_ScriptsRunProcOnNpc(srv, "[proc,slayer_on_npc_kill]", slot);
+    if( npc->slayer_credited )
+        npc->slayer_credited = 0;
+    else
+        ToriRSServer_WorldNpcSlayerCredit(srv, slot);
     /* Boss kill counts, for the same reason and in the same shape: a boss's
      * `[ai_queue3]` is its own encounter script, so a count hung on any one
      * of them misses the rest. Content decides which npc is whose boss
      * (`[proc,collection_kc_on_kill]`, interface_collection/). */
     ToriRSServer_ScriptsRunProcOnNpc(srv, "[proc,collection_kc_on_kill]", slot);
+}
+
+void
+ToriRSServer_WorldNpcSlayerCredit(
+    struct ToriRSServer* srv,
+    int slot)
+{
+    ToriRSServer_ScriptsRunProcOnNpc(srv, "[proc,slayer_on_npc_kill]", slot);
 }
 
 /*

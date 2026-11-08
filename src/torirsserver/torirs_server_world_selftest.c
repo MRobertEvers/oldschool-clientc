@@ -59999,7 +59999,9 @@ ToriRSServer_WorldSelftest(void)
                             "spawning and killing the nine diary npcs should "
                             "reach step 9, got %d",
                             ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
-                        for( int t = 0; t < 4; t++ )
+                        /* The hooks run when the corpse is reaped, and a corpse
+                         * lies up to 8 ticks (RSProx-measured `death_delay`). */
+                        for( int t = 0; t < 12; t++ )
                             selftest_tick(srv);
                         ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                         ToriRSServer_ScriptsRunScript(srv, c->id);

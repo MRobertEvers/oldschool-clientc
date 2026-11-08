@@ -3518,6 +3518,12 @@ struct ToriRSServerNpc
      */
     int death_seq_sent;
     /**
+     * `[proc,slayer_on_npc_kill]` already ran for this death, on the tick of
+     * the death animation (`npc_death_step` ARRIVE), so the corpse stage's
+     * `ToriRSServer_WorldNpcDied` must not pay it again. Consumed there.
+     */
+    int slayer_credited;
+    /**
      * The tick `death_seq` was played on, or -1. Paired with `death_seq_sent`
      * so a removal can be held until the corpse has actually outlived its own
      * death animation — see `ToriRSServer_WorldNpcFree`.
@@ -7782,6 +7788,11 @@ ToriRSServer_WorldNpcQueueWaypoint(
 
 void
 ToriRSServer_WorldNpcDied(
+    struct ToriRSServer* srv,
+    int slot);
+
+void
+ToriRSServer_WorldNpcSlayerCredit(
     struct ToriRSServer* srv,
     int slot);
 
