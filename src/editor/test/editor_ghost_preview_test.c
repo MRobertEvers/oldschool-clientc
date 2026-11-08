@@ -605,11 +605,17 @@ test_the_spawn_preview_keeps_what_is_still_wanted(void)
     n = MapEditorSpawnPreview_Reconcile(&preview, rows, 2, removed);
     CHECK(preview.items[1].id == MAP_EDITOR_SPAWN_PREVIEW_ID_UNKNOWN, "a change of suppression makes a new item");
 
+    /* A reload keeps the entities, so the table hands each one back to be
+     * despawned: forgotten, it would stand beside the copy its row lands. */
     preview.items[0].entity = 8;
-    MapEditorSpawnPreview_WorldLost(&preview);
-    CHECK(preview.items[0].entity == -1 && preview.items[0].element_id == -1, "a rebuild leaves everything pending");
+    preview.items[0].element_id = 80;
+    preview.items[1].entity = -1;
+    n = MapEditorSpawnPreview_TakeDown(&preview, removed);
+    CHECK(n == 1 && removed[0].entity == 8 && removed[0].element_id == 80, "a reload hands back what had landed, only that");
+    CHECK(preview.items[0].entity == -1 && preview.items[0].element_id == -1, "a reload leaves everything pending");
+    CHECK(MapEditorSpawnPreview_TakeDown(&preview, removed) == 0, "a second reload has nothing to take down");
     n = MapEditorSpawnPreview_Reconcile(&preview, NULL, 0, removed);
-    CHECK(n == 0 && preview.count == 0, "after a rebuild there is nothing left to despawn");
+    CHECK(n == 0 && preview.count == 0, "after a reload there is nothing left to despawn");
 }
 
 static void

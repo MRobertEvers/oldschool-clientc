@@ -188,18 +188,26 @@ MapEditorSpawnPreview_Reconcile(
     return removed;
 }
 
-void
-MapEditorSpawnPreview_WorldLost(struct MapEditorSpawnPreview* preview)
+int
+MapEditorSpawnPreview_TakeDown(
+    struct MapEditorSpawnPreview* preview,
+    struct MapEditorSpawnPreviewItem* out_removed)
 {
+    int removed = 0;
+
     assert(preview);
+    assert(out_removed);
     for( int i = 0; i < preview->count; i++ )
     {
+        if( preview->items[i].entity >= 0 )
+            out_removed[removed++] = preview->items[i];
         preview->items[i].entity = -1;
         preview->items[i].element_id = -1;
         preview->items[i].size = 1;
         preview->items[i].faded = false;
     }
     preview->cursor = 0;
+    return removed;
 }
 
 struct MapEditorSpawnPreviewItem*

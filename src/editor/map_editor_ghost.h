@@ -174,9 +174,17 @@ MapEditorSpawnPreview_Reconcile(
     int count,
     struct MapEditorSpawnPreviewItem* out_removed);
 
-/** The world was rebuilt and took every entity with it: all pending again. */
-void
-MapEditorSpawnPreview_WorldLost(struct MapEditorSpawnPreview* preview);
+/**
+ * Before a reload moves the scene: every landed item into `out_removed` (which
+ * must hold MAP_EDITOR_SPAWN_PREVIEW_MAX) and back to pending. The caller
+ * despawns what it is handed. A rebuild keeps npcs and ground items, for the
+ * server's rebase to shift, so an item merely forgotten stays standing on the
+ * old scene tile while its row lands a second copy. Returns the count.
+ */
+int
+MapEditorSpawnPreview_TakeDown(
+    struct MapEditorSpawnPreview* preview,
+    struct MapEditorSpawnPreviewItem* out_removed);
 
 /** The item a scene element is, or NULL. */
 struct MapEditorSpawnPreviewItem*

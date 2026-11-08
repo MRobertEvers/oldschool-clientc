@@ -341,6 +341,9 @@ app_world_load_begin(
     app->world_load_attempted = 1;
     app->world_load_inflight = 1;
     ToriRS_BootTelemetry_Mark("world_load");
+    /* Ahead of the drain, so what it removes goes with this scene. */
+    if( app->editor )
+        app_map_editor_world_load_begin(app);
     App_WorldDrainEntityRemoved(app);
 
     /*

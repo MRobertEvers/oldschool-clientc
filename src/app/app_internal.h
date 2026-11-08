@@ -1415,6 +1415,11 @@ app_map_editor_spawn_preview_select_element(
     struct App* app,
     int element_id);
 
+/** A world load is starting: the editor's previews and ghosts come down while
+ *  the scene they were placed in still stands, and land again in the new one. */
+void
+app_map_editor_world_load_begin(struct App* app);
+
 struct MapEditorSpawnPreview;
 
 /** The active player in the spawn preview, for the overlay: 1 when it stands

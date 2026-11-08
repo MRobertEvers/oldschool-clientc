@@ -3874,7 +3874,8 @@ app_map_editor_spawn_ghost_update(
         want.scene_z = hover->scene_z;
         want.level = hover->level;
     }
-    /* A rebuild freed what the ghost became: forget it, place it again. */
+    /* A rebuild that did not start here (app_map_editor_world_load_begin
+     * took down its own): forget it, place it again. */
     if( app->map_ghost.spawn.active && app->map_ghost.spawn.entity >= 0
         && (!app->world || app->map_ghost.spawn.load_seq != app->world->load_seq) )
         app_map_editor_spawn_ghost_remove(app);
@@ -4107,8 +4108,12 @@ app_map_editor_spawn_preview_update(
     rows = Editor_Spawns_PreviewRows(ui, &count, &serial);
     if( preview->load_seq != app->world->load_seq )
     {
+        /* Empty after a load that started here; a server rebuild comes
+         * straight here, with what stood already shifted to its base. */
+        int const removed = MapEditorSpawnPreview_TakeDown(preview, g_app_spawn_preview.removed);
+        for( int i = 0; i < removed; i++ )
+            app_spawn_preview_despawn(app, &g_app_spawn_preview.removed[i]);
         preview->load_seq = app->world->load_seq;
-        MapEditorSpawnPreview_WorldLost(preview);
     }
     if( serial != preview->rows_serial )
     {
@@ -4452,7 +4457,7 @@ app_map_editor_player_ghost_update(
     int const wanted = hover->valid && (moving || ui->tools.tool == EDITOR_TOOL_PLACE_PLAYER) && app->world
                        && app->provider && Editor_Accounts_PlayLook(ui, &look, &look_serial);
 
-    /* A rebuild freed what the ghost was. */
+    /* A rebuild that did not start here. */
     if( g_app_player_ghost.entity >= 0 && (!app->world || g_app_player_ghost.load_seq != app->world->load_seq) )
         g_app_player_ghost.entity = -1;
     if( !wanted )
@@ -4592,6 +4597,22 @@ app_map_editor_player_preview_update(
     g_app_player_preview.scene_z = scene_z;
     g_app_player_preview.level = level;
     app->need_redraw = 1;
+}
+
+void
+app_map_editor_world_load_begin(struct App* app)
+{
+    assert(app);
+    if( !app->world )
+        return;
+    {
+        int const removed = MapEditorSpawnPreview_TakeDown(&g_app_spawn_preview.preview, g_app_spawn_preview.removed);
+        for( int i = 0; i < removed; i++ )
+            app_spawn_preview_despawn(app, &g_app_spawn_preview.removed[i]);
+    }
+    app_map_editor_spawn_ghost_remove(app);
+    app_map_editor_player_ghost_remove(app);
+    app_map_editor_player_preview_remove(app);
 }
 
 static void
@@ -5285,10 +5306,15 @@ app_map_editor_ghost_update(struct App* app)
     app_map_editor_hover_update(app, panel);
     app_map_editor_hover_env_arm(ui);
     app_map_editor_level_env(app, ui);
-    app_map_editor_spawn_ghost_update(app, ui);
-    app_map_editor_spawn_preview_update(app, ui);
-    app_map_editor_player_ghost_update(app, ui);
-    app_map_editor_player_preview_update(app, ui);
+    /* Nothing lands while a load rewrites the scene: its origin is already
+     * the new one, and what stood is down until the load finishes. */
+    if( app->world && app->world->load_complete && !app->world_load_inflight )
+    {
+        app_map_editor_spawn_ghost_update(app, ui);
+        app_map_editor_spawn_preview_update(app, ui);
+        app_map_editor_player_ghost_update(app, ui);
+        app_map_editor_player_preview_update(app, ui);
+    }
     app_map_editor_piece_ghost_update(app, ui);
 
     /* Place previews the CATALOG pick; Move previews the first selected loc
