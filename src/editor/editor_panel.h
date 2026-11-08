@@ -30,6 +30,7 @@
 #include "editor.h"
 #include "editor_ui.h"
 #include "panels/edpanel_ops.h"
+#include "editor_panel_region.h"
 
 #include <stdint.h>
 
@@ -143,6 +144,9 @@ struct Editor_Panel
         int xs[EDITOR_PATH_POINTS_MAX];
         int zs[EDITOR_PATH_POINTS_MAX];
     } path;
+    /** The Region brush's stroke or the Lasso's loop, press to lay
+     *  (editor/editor_panel_region.h); the overlay previews its plan. */
+    struct Editor_RegionStroke region;
     /** The Scatter stroke in progress erases (Alt was held at the press)
      *  rather than drops; read by every application of the stroke. */
     int scatter_erase;
@@ -366,6 +370,16 @@ void
 Editor_PanelPathParams(
     const struct EditorUi* ui,
     struct Editor_PathParams* out);
+
+/** Ctrl/Cmd+click under the Path tool: the tile's ground height becomes the
+ *  path's "set to" height (and the height mode "set to"). */
+int
+Editor_PanelPathHeightPick(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level);
 
 /** Press with the Path tool: the drag opens at the tile. 0 off the world. */
 int

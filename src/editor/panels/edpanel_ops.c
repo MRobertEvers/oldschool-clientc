@@ -503,6 +503,99 @@ Editor_PathCommands(
     return written;
 }
 
+int
+Editor_PathHeightCommands(
+    struct Editor_Doc* doc,
+    int level,
+    const struct Editor_PathParams* params,
+    enum Editor_PathHeightMode mode,
+    int units,
+    const int* xs,
+    const int* zs,
+    int count,
+    struct Editor_Cmd* out,
+    int have,
+    int max,
+    int* out_closed)
+{
+    int const room = EDITOR_PATH_SPAN_MAX * EDITOR_PATH_SPAN_MAX;
+    int* cx;
+    int* cz;
+    int corners;
+    int written = have;
+    int closed = 0;
+
+    assert(doc);
+    assert(params);
+    assert(level >= 0);
+    assert(level < 4);
+    assert(mode > EDITOR_PATH_HEIGHT_OFF);
+    assert(mode < EDITOR_PATH_HEIGHT_MODE_COUNT);
+    assert(units >= 0);
+    assert(out);
+    assert(have >= 0);
+    assert(have <= max);
+
+    cx = ToriMem_Alloc(ToriMem_Editor(), sizeof(*cx) * (size_t)room);
+    cz = ToriMem_Alloc(ToriMem_Editor(), sizeof(*cz) * (size_t)room);
+    assert(cx);
+    assert(cz);
+    corners = Editor_PathCorners(params, xs, zs, count, cx, cz, room);
+    for( int i = 0; i < corners; i++ )
+    {
+        struct Editor_Square* square;
+        char key[EDITOR_DOC_KEY_MAX];
+        int here;
+        int target;
+        int raw;
+        int x;
+        int z;
+        int merged = 0;
+
+        square = ops_square_at(doc, cx[i], cz[i], &x, &z);
+        if( !square )
+        {
+            closed++;
+            continue;
+        }
+        (void)Editor_OpsDerivedHeight(doc, cx[i], cz[i], level, &here);
+        /* Derived heights grow DOWN: lowering adds. */
+        if( mode == EDITOR_PATH_HEIGHT_SET )
+            target = -units * OPS_UNIT;
+        else if( mode == EDITOR_PATH_HEIGHT_LOWER )
+            target = here + units * OPS_UNIT;
+        else
+            target = here - units * OPS_UNIT;
+        if( abs(target - here) < OPS_UNIT / 2 )
+            continue;
+        raw = Editor_OpsRawForHeight(ops_base(square, x, z, level), target);
+        /* The path's own command for the tile, when it painted it. */
+        Editor_SquareKey(key, square->map_x, square->map_z);
+        for( int k = 0; k < written && !merged; k++ )
+        {
+            struct Editor_Cmd* command = &out[k];
+            if( command->kind != EDITOR_CMD_TILE || command->u.tile.level != level || command->u.tile.x != x
+                || command->u.tile.z != z || strcmp(command->doc_key, key) != 0 )
+                continue;
+            command->u.tile.after.has_height = 1;
+            command->u.tile.after.height = (uint8_t)raw;
+            merged = 1;
+        }
+        if( !merged )
+        {
+            struct Editor_Tile after = square->tiles[Editor_TileIndex(x, z, level)];
+            after.has_height = 1;
+            after.height = (uint8_t)raw;
+            ops_emit_tile(square, x, z, level, &after, out, &written, max);
+        }
+    }
+    ToriMem_Free(ToriMem_Editor(), cx);
+    ToriMem_Free(ToriMem_Editor(), cz);
+    if( out_closed )
+        *out_closed += closed;
+    return written;
+}
+
 /* ---- scatter ------------------------------------------------------------------- */
 
 /** A loc of the set stands on world tile (x, z) on `level`: its index in the

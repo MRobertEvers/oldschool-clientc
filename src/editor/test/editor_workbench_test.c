@@ -267,11 +267,14 @@ registry_digest(
  * registries (was 2329356403u, 3485951951u, 3425378636u): Raise and Lower
  * are one tool, so the rail lost a button; the scenes did not move. The
  * tool discs moved the 1x registry (was 2260660493u): every rail button
- * names its own skin slot now; 2x, 3x and the scenes did not move. */
+ * names its own skin slot now; 2x, 3x and the scenes did not move. The
+ * Region tools moved all three registries (was 2251776434u, 1406059493u,
+ * 2103401179u): the rail gained Region, Lasso and Tidy; HEAD without them
+ * still drew the old digests; the scenes did not move. */
 static const uint32_t k_golden[3][3] = {
-    { 1970238540u, 3840548130u, 2251776434u },
-    { 1606657634u, 3552625563u, 1406059493u },
-    { 1621493878u, 3838641767u, 2103401179u },
+    { 1970238540u, 3840548130u, 920953359u },
+    { 1606657634u, 3552625563u, 2007608999u },
+    { 1621493878u, 3838641767u, 3276910591u },
 };
 
 static void

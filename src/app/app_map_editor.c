@@ -2603,6 +2603,18 @@ app_map_editor_drag(
             app->need_redraw = 1;
         }
     }
+    /* The Region brush's stroke, a freehand loop, a lasso corner's click:
+     * the release lays it (or drops the corner). */
+    if( panel->region.active && panel->region.held )
+    {
+        if( Editor_PanelRegionTrack(panel, app) )
+            app->need_redraw = 1;
+        if( released )
+        {
+            (void)Editor_PanelRegionRelease(panel, app);
+            app->need_redraw = 1;
+        }
+    }
     if( panel->marquee_pending )
     {
         /* Off its first tile, the press on empty ground is a marquee: the
@@ -2893,7 +2905,7 @@ app_map_editor_world_click(
     }
 
     if( panel->stroke_active || panel->rect_dragging || panel->run.active || panel->marquee_pending
-        || panel->path.active )
+        || panel->path.active || (panel->region.active && panel->region.held) )
     {
         /* The editor closing mid-drag still closes the stroke: an open
          * stroke would fold every later edit into one undo step. A run or a
@@ -2910,6 +2922,7 @@ app_map_editor_world_click(
             panel->marquee_pending = 0;
             panel->marquee_active = 0;
             panel->path.active = 0;
+            (void)Editor_PanelRegionCancel(panel, NULL);
             edp_run_cancel(&panel->run);
             return;
         }
@@ -2930,6 +2943,13 @@ app_map_editor_world_click(
         return;
 
     tool = ui->tools.tool;
+    /* The Region tools follow the point under the pointer every frame: the
+     * brush's disc, the lasso's rubber band and Tidy's run are previewed
+     * before any press. */
+    if( (tool == EDITOR_TOOL_REGION || tool == EDITOR_TOOL_LASSO || tool == EDITOR_TOOL_TIDY
+            || panel->region.active)
+        && Editor_PanelRegionTrack(panel, app) )
+        app->need_redraw = 1;
     if( !Editor_PanelHoverTile(panel, app, &hx, &hz) )
         return;
     level = Editor_PanelEditLevel(panel, app);
@@ -2982,10 +3002,27 @@ app_map_editor_world_click(
     /* The press opens a drag for the brushes and the rectangle. */
     if( input->curr.mouse_button_down[TORIRSM_LEFT] )
     {
+        /* Ctrl/Cmd+click under Path: the path's height off the ground there,
+         * as the Height brush's Ctrl/Cmd+click sets its grid. */
+        if( tool == EDITOR_TOOL_PAINT_PATH && LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) )
+        {
+            (void)Editor_PanelPathHeightPick(panel, app, hx, hz, level);
+            app->need_redraw = 1;
+            return;
+        }
         /* The Path tool: the drag is the path, laid on release. */
         if( tool == EDITOR_TOOL_PAINT_PATH )
         {
             if( Editor_PanelPathBegin(panel, app, hx, hz, level) )
+                app->need_redraw = 1;
+            return;
+        }
+        /* The Region brush and the Lasso: the drag (or the lasso's clicks)
+         * is the region, laid on release; Alt at the press takes the overlay
+         * off. Tidy acts on the release, below. */
+        if( tool == EDITOR_TOOL_REGION || tool == EDITOR_TOOL_LASSO )
+        {
+            if( Editor_PanelRegionPress(panel, app, LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT)) )
                 app->need_redraw = 1;
             return;
         }
@@ -3137,6 +3174,16 @@ app_map_editor_world_click(
     }
     if( Editor_ToolIsBrush(tool) || tool == EDITOR_TOOL_RECT_SELECT )
         return;
+    if( tool == EDITOR_TOOL_REGION || tool == EDITOR_TOOL_LASSO )
+        return;
+
+    /* Tidy: the click refits the run of overlay under it, one undo step. */
+    if( tool == EDITOR_TOOL_TIDY )
+    {
+        (void)Editor_PanelTidyAt(panel, app, hx, hz, level);
+        app->need_redraw = 1;
+        return;
+    }
 
     /* Place player: the lane's play account onto the tile, through the
      * Accounts panel's server request (::tele online, the save offline; the

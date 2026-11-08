@@ -18,7 +18,7 @@
 test-editor-path:
 	mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_path_test $(TORIMEM_SRCS) editor/editor_path.c \
-		editor/test/editor_path_test.c -lm $(MAPED_TEST_LDFLAGS)
+		editor/editor_region.c editor/test/editor_path_test.c -lm $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_path_test $(PATH_PLANS)
 
 test-editor: test-editor-path

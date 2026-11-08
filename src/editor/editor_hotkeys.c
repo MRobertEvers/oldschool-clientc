@@ -74,21 +74,21 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                                      "Select every loc of the hovered loc's id (select same", W | L, EDGE,
                                      { "alt+a" }, NULL },
     [EDITOR_HK_EDIT_NUDGE_N] = { "edit.nudge_n", "Edit", "Nudge north", "Nudge selection N / S / W / E", M, REPEAT,
-                                 { "up" }, NULL },
+                                 { "ctrl+up" }, NULL },
     [EDITOR_HK_EDIT_NUDGE_S] = { "edit.nudge_s", "Edit", "Nudge south", "Nudge selection N / S / W / E", M, REPEAT,
-                                 { "down" }, NULL },
+                                 { "ctrl+down" }, NULL },
     [EDITOR_HK_EDIT_NUDGE_W] = { "edit.nudge_w", "Edit", "Nudge west", "Nudge selection N / S / W / E", M, REPEAT,
-                                 { "left" }, NULL },
+                                 { "ctrl+left" }, NULL },
     [EDITOR_HK_EDIT_NUDGE_E] = { "edit.nudge_e", "Edit", "Nudge east", "Nudge selection N / S / W / E", M, REPEAT,
-                                 { "right" }, NULL },
+                                 { "ctrl+right" }, NULL },
     [EDITOR_HK_EDIT_NUDGE_FAR_N] = { "edit.nudge_far_n", "Edit", "Nudge north 8", "Nudge selection 8 tiles N / S / W / E",
-                                     M, REPEAT, { "shift+up" }, NULL },
+                                     M, REPEAT, { "ctrl+shift+up" }, NULL },
     [EDITOR_HK_EDIT_NUDGE_FAR_S] = { "edit.nudge_far_s", "Edit", "Nudge south 8", "Nudge selection 8 tiles N / S / W / E",
-                                     M, REPEAT, { "shift+down" }, NULL },
+                                     M, REPEAT, { "ctrl+shift+down" }, NULL },
     [EDITOR_HK_EDIT_NUDGE_FAR_W] = { "edit.nudge_far_w", "Edit", "Nudge west 8", "Nudge selection 8 tiles N / S / W / E",
-                                     M, REPEAT, { "shift+left" }, NULL },
+                                     M, REPEAT, { "ctrl+shift+left" }, NULL },
     [EDITOR_HK_EDIT_NUDGE_FAR_E] = { "edit.nudge_far_e", "Edit", "Nudge east 8", "Nudge selection 8 tiles N / S / W / E",
-                                     M, REPEAT, { "shift+right" }, NULL },
+                                     M, REPEAT, { "ctrl+shift+right" }, NULL },
     [EDITOR_HK_EDIT_LEVEL_UP] = { "edit.level_up", "Edit", "Selection up a level",
                                   "Move the selected locs a level up / down", L, EDGE, { "ctrl+pageup" }, NULL },
     [EDITOR_HK_EDIT_LEVEL_DOWN] = { "edit.level_down", "Edit", "Selection down a level",
@@ -150,6 +150,15 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_TOOL_PLATEAU] = { "tool.plateau", "Tools", "Plateau",
                                  "Plateau (the brush flattened to the first tile's height, a smoothed skirt around it: a mound or a hole with a flat top)",
                                  G, EDGE, { "v" }, NULL },
+    [EDITOR_HK_TOOL_REGION] = { "tool.region", "Tools", "Region brush",
+                                "Region brush (the palette's overlay under a swept disc, its edge cut to the tile shapes; Alt-drag takes it off)",
+                                G, EDGE, { "o" }, NULL },
+    [EDITOR_HK_TOOL_LASSO] = { "tool.lasso", "Tools", "Lasso",
+                               "Lasso (a drawn loop, or clicked corners, filled with the palette's overlay, its edge cut to the tile shapes)",
+                               G, EDGE, { "j" }, NULL },
+    [EDITOR_HK_TOOL_TIDY] = { "tool.tidy", "Tools", "Tidy",
+                              "Tidy (click an overlay: its run's stepped edge smoothed and refitted to the tile shapes)",
+                              G, EDGE, { "y" }, NULL },
     [EDITOR_HK_TOOL_PREVIOUS] = { "tool.previous", "Tools", "Previous tool", "Previous tool", G, EDGE, { "grave" },
                                   NULL },
     [EDITOR_HK_TOOL_PICK_PAINT] = { "tool.pick_paint", "Tools", "Pick the tile's paint",
@@ -202,13 +211,13 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_CAM_DOWN] = { "camera.down", "Camera", "Fly down", "Fly down / up", D, HELD, { "f" }, NULL, "pinch" },
     [EDITOR_HK_CAM_UP] = { "camera.up", "Camera", "Fly up", "Fly down / up", G, HELD, { "r" }, NULL, "pinch" },
     [EDITOR_HK_CAM_FAST] = { "camera.fast", "Camera", "Fly faster", "Fly faster", G, HELD, { "shift" }, NULL },
-    [EDITOR_HK_CAM_TURN_LEFT] = { "camera.turn_left", "Camera", "Turn left", "Turn left / right, tilt up / down", N,
+    [EDITOR_HK_CAM_TURN_LEFT] = { "camera.turn_left", "Camera", "Turn left", "Turn left / right, tilt up / down", G,
                                   HELD, { "left" }, NULL, "twist" },
     [EDITOR_HK_CAM_TURN_RIGHT] = { "camera.turn_right", "Camera", "Turn right", "Turn left / right, tilt up / down",
-                                   N, HELD, { "right" }, NULL, "twist" },
-    [EDITOR_HK_CAM_TILT_UP] = { "camera.tilt_up", "Camera", "Tilt up", "Turn left / right, tilt up / down", N, HELD,
+                                   G, HELD, { "right" }, NULL, "twist" },
+    [EDITOR_HK_CAM_TILT_UP] = { "camera.tilt_up", "Camera", "Tilt up", "Turn left / right, tilt up / down", G, HELD,
                                 { "up" }, NULL },
-    [EDITOR_HK_CAM_TILT_DOWN] = { "camera.tilt_down", "Camera", "Tilt down", "Turn left / right, tilt up / down", N,
+    [EDITOR_HK_CAM_TILT_DOWN] = { "camera.tilt_down", "Camera", "Tilt down", "Turn left / right, tilt up / down", G,
                                   HELD, { "down" }, NULL },
     [EDITOR_HK_CAM_FRAME] = { "camera.frame", "Camera", "Frame the selection",
                               "Frame the selection, else the hovered square", G, EDGE, { "home" }, NULL },
@@ -1153,6 +1162,7 @@ static const struct hk_hint_row k_hint_player[] = {
 
 static const struct hk_hint_row k_hint_path[] = {
     { "drag", { 0 }, 0, "lay path" },
+    { HK_HEIGHT_PICK, { 0 }, 0, "set height" },
     { NULL, { EDITOR_HK_BRUSH_RADIUS_DOWN, EDITOR_HK_BRUSH_RADIUS_UP }, 2, "width" },
     { NULL, { 0 }, 0, NULL },
 };
@@ -1167,6 +1177,25 @@ static const struct hk_hint_row k_hint_plateau[] = {
     { "drag", { 0 }, 0, "flatten" },
     { NULL, { EDITOR_HK_BRUSH_RADIUS_DOWN, EDITOR_HK_BRUSH_RADIUS_UP }, 2, "radius" },
     { NULL, { EDITOR_HK_BRUSH_STRENGTH_DOWN, EDITOR_HK_BRUSH_STRENGTH_UP }, 2, "skirt" },
+    { NULL, { 0 }, 0, NULL },
+};
+static const struct hk_hint_row k_hint_region[] = {
+    { "drag", { 0 }, 0, "paint" },
+    { "alt+drag", { 0 }, 0, "take off" },
+    { NULL, { EDITOR_HK_BRUSH_RADIUS_DOWN, EDITOR_HK_BRUSH_RADIUS_UP }, 2, "radius" },
+    { NULL, { EDITOR_HK_BRUSH_STRENGTH_DOWN, EDITOR_HK_BRUSH_STRENGTH_UP }, 2, "hardness" },
+    { NULL, { 0 }, 0, NULL },
+};
+static const struct hk_hint_row k_hint_lasso[] = {
+    { "drag", { 0 }, 0, "draw loop" },
+    { "click", { 0 }, 0, "corner" },
+    { "alt+drag", { 0 }, 0, "take off" },
+    { NULL, { EDITOR_HK_EDIT_DESELECT }, 1, "drop" },
+    { NULL, { 0 }, 0, NULL },
+};
+static const struct hk_hint_row k_hint_tidy[] = {
+    { "click", { 0 }, 0, "tidy run" },
+    { NULL, { EDITOR_HK_BRUSH_STRENGTH_DOWN, EDITOR_HK_BRUSH_STRENGTH_UP }, 2, "hardness" },
     { NULL, { 0 }, 0, NULL },
 };
 
@@ -1190,6 +1219,9 @@ static const struct hk_hint_row* const k_hint_rows[EDITOR_HK_HINT_TOOLS] = {
     [HK_TOOL(EDITOR_HK_TOOL_NOISE)] = k_hint_brush,
     [HK_TOOL(EDITOR_HK_TOOL_SCATTER)] = k_hint_scatter,
     [HK_TOOL(EDITOR_HK_TOOL_PLATEAU)] = k_hint_plateau,
+    [HK_TOOL(EDITOR_HK_TOOL_REGION)] = k_hint_region,
+    [HK_TOOL(EDITOR_HK_TOOL_LASSO)] = k_hint_lasso,
+    [HK_TOOL(EDITOR_HK_TOOL_TIDY)] = k_hint_tidy,
 };
 
 /**
@@ -1401,8 +1433,8 @@ Editor_HotkeyContextsFrom(const struct Editor_HotkeyContextFacts* facts)
     if( facts->loc_count > 0 )
     {
         contexts |= EDITOR_HK_CTX_L;
-        /* Only Select and Move nudge with the arrows; any other tool (Place
-         * above all) leaves them to the camera. */
+        /* Only Select and Move nudge (Ctrl+arrows); the bare arrows are the
+         * camera's under every tool. */
         if( facts->tool == HK_TOOL(EDITOR_HK_TOOL_SELECT) || facts->tool == HK_TOOL(EDITOR_HK_TOOL_MOVE) )
             contexts |= EDITOR_HK_CTX_M;
         else

@@ -35,6 +35,11 @@ enum Editor_PathStyle
 {
     EDITOR_PATH_DIRT = 0,
     EDITOR_PATH_PAVED,
+    /** A stream or a river: the dirt track's way, but the bed meanders
+     *  slowly across a width or more and both banks swell together; the
+     *  curve stays smooth, the edges lean rather than step. With the Path
+     *  tool's height on "lower by", the bed is dug as it is laid. */
+    EDITOR_PATH_RIVER,
     EDITOR_PATH_STYLE_COUNT
 };
 
@@ -54,9 +59,11 @@ struct Editor_PathParams
     enum Editor_PathStyle style;
     /** Across the path, in tiles: 0.5 .. EDITOR_PATH_WIDTH_MAX. */
     double width;
-    /** Dirt: how much the width and the line wander, 0 .. 1 (pavement: unused). */
+    /** Dirt and river: how much the width and the line wander, 0 .. 1
+     *  (pavement: unused). */
     double roughness;
-    /** Dirt: the wander's seed, so a stroke redrawn draws the same edges. */
+    /** Dirt and river: the wander's seed, so a stroke redrawn draws the same
+     *  edges. */
     uint32_t seed;
 };
 
@@ -110,6 +117,24 @@ Editor_PathPlan(
     Editor_PathExistingFn existing,
     void* user,
     struct Editor_PathTile* out,
+    int max);
+
+/**
+ * The tile corners the path covers: world corner (x, z) -- tile (x, z)'s
+ * south-west corner, which its `h` token sets -- is in when at least two of
+ * the four samples touching it are. The same region Editor_PathPlan fits
+ * shapes to, so a height laid with the path follows its banks. Writes up
+ * to `max` corners; returns the count (0 for no points or a path wider than
+ * EDITOR_PATH_SPAN_MAX tiles).
+ */
+int
+Editor_PathCorners(
+    const struct Editor_PathParams* params,
+    const int* xs,
+    const int* zs,
+    int count,
+    int* out_x,
+    int* out_z,
     int max);
 
 #endif

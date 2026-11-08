@@ -162,7 +162,7 @@ test_shapes(void)
                 int shape = -1;
                 int rotation = -1;
                 int const fitted = Editor_PathFit((enum Editor_PathStyle)style, m, &shape, &rotation);
-                int const allowed = style == EDITOR_PATH_DIRT || s == 0 || s == 1 || s == 6 || s == 7 || s == 8;
+                int const allowed = style != EDITOR_PATH_PAVED || s == 0 || s == 1 || s == 6 || s == 7 || s == 8;
                 if( !allowed )
                     continue;
                 CHECK(fitted && Editor_PathShapeMask(shape, rotation) == m,
@@ -420,6 +420,87 @@ test_limits(void)
         "limits: a click is one whole tile");
 }
 
+/* A river: continuous along the drag, wider than its width where it swells,
+ * its banks edge shapes on a share of it, seeded. */
+static void
+test_river(void)
+{
+    static struct Editor_PathTile other[TILES_MAX];
+    int xs[256];
+    int zs[256];
+    int const n = curve_points(xs, zs);
+    int count;
+    int count2;
+    int edges = 0;
+    int same = 1;
+    int dirt;
+
+    count = plan(EDITOR_PATH_RIVER, 3.0, 0.7, 11, xs, zs, n, NULL, NULL, g_tiles);
+    dump("river_curve", g_tiles, count);
+    for( int i = 0; i < count; i++ )
+        edges += g_tiles[i].shape != 0;
+    CHECK(count > 0 && edges * 100 / count >= 15, "river: its banks are edge shapes (%d of %d)", edges, count);
+    count2 = plan(EDITOR_PATH_RIVER, 3.0, 0.7, 11, xs, zs, n, NULL, NULL, other);
+    same = count2 == count;
+    for( int i = 0; same && i < count; i++ )
+        same = memcmp(&g_tiles[i], &other[i], sizeof(g_tiles[i])) == 0;
+    CHECK(same, "river: the same seed draws the same river");
+    count2 = plan(EDITOR_PATH_RIVER, 3.0, 0.7, 12, xs, zs, n, NULL, NULL, other);
+    same = count2 == count;
+    for( int i = 0; same && i < count; i++ )
+        same = memcmp(&g_tiles[i], &other[i], sizeof(g_tiles[i])) == 0;
+    CHECK(!same, "river: another seed meanders otherwise");
+    /* The bed wanders off the drag: some drag tiles fall outside a narrow
+     * rough river where they never do for a smooth one. */
+    count2 = plan(EDITOR_PATH_RIVER, 3.0, 0.0, 11, xs, zs, n, NULL, NULL, other);
+    for( int i = 0; i < n; i++ )
+        CHECK(tile_at(other, count2, xs[i], zs[i]), "river: a smooth river covers the drag's tile %d,%d", xs[i], zs[i]);
+    dirt = plan(EDITOR_PATH_DIRT, 3.0, 0.0, 11, xs, zs, n, NULL, NULL, other);
+    CHECK(dirt > 0 && count2 > 0, "river and dirt both plan");
+    for( int i = 0; i < count; i++ )
+        CHECK(g_tiles[i].shape >= 0 && g_tiles[i].shape != 11, "river: no trapezium (%d)", g_tiles[i].shape);
+}
+
+/* The corners a path covers: a paved road three wide along a row covers the
+ * four corner rows its three tile rows span. */
+static void
+test_corners(void)
+{
+    struct Editor_PathParams params;
+    static int cx[TILES_MAX];
+    static int cz[TILES_MAX];
+    int xs[64];
+    int zs[64];
+    int n = 0;
+    int count;
+    int rows[8] = { 0 };
+
+    for( int x = 10; x <= 20; x++ )
+    {
+        xs[n] = x;
+        zs[n] = 30;
+        n++;
+    }
+    memset(&params, 0, sizeof(params));
+    params.style = EDITOR_PATH_PAVED;
+    params.width = 3.0;
+    params.seed = 1;
+    count = Editor_PathCorners(&params, xs, zs, n, cx, cz, TILES_MAX);
+    for( int i = 0; i < count; i++ )
+    {
+        CHECK(cz[i] >= 29 && cz[i] <= 32, "corners: inside the road's rows (%d)", cz[i]);
+        CHECK(cx[i] >= 10 && cx[i] <= 21, "corners: inside the road's ends (%d)", cx[i]);
+        if( cz[i] >= 29 && cz[i] <= 32 )
+            rows[cz[i] - 29]++;
+    }
+    /* The edge rows lose their two end corners: each touches one sample of
+     * the road, the rest of the outline two. */
+    CHECK(rows[0] == 10 && rows[1] == 12 && rows[2] == 12 && rows[3] == 10,
+        "corners: the outline's rows hold ten, the inner rows twelve (%d %d %d %d)", rows[0], rows[1], rows[2],
+        rows[3]);
+    CHECK(Editor_PathCorners(&params, xs, zs, 0, cx, cz, TILES_MAX) == 0, "corners: no points, none");
+}
+
 int
 main(
     int argc,
@@ -438,6 +519,8 @@ main(
     test_fit();
     test_paved();
     test_dirt();
+    test_river();
+    test_corners();
     test_limits();
     if( g_dump )
         fclose(g_dump);

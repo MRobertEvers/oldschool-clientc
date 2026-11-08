@@ -1330,7 +1330,9 @@ Editor_PanelPathParams(
     assert(ui);
     assert(out);
     memset(out, 0, sizeof(*out));
-    out->style = ui->tools.path_style == EDITOR_PATH_PAVED ? EDITOR_PATH_PAVED : EDITOR_PATH_DIRT;
+    out->style = ui->tools.path_style >= 0 && ui->tools.path_style < EDITOR_PATH_STYLE_COUNT
+                     ? (enum Editor_PathStyle)ui->tools.path_style
+                     : EDITOR_PATH_DIRT;
     out->width = ui->tools.path_width_halves / 2.0;
     if( out->width < 0.5 )
         out->width = 0.5;
@@ -1338,6 +1340,36 @@ Editor_PanelPathParams(
         out->width = EDITOR_PATH_WIDTH_MAX;
     out->roughness = ui->tools.path_roughness / 100.0;
     out->seed = ui->tools.path_seed;
+}
+
+int
+Editor_PanelPathHeightPick(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    int world_x;
+    int world_z;
+    int here;
+
+    assert(panel);
+    assert(app);
+    if( !panel->ui || !app->editor || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+        return 0;
+    level = level < 0 ? 0 : level > 3 ? 3 : level;
+    if( !Editor_OpsDerivedHeight(&app->editor->doc, world_x, world_z, level, &here) )
+    {
+        Editor_UiStatus(panel->ui, "Path: that square is not open here; no height to pick");
+        return 0;
+    }
+    /* Derived heights grow down; the panel counts units up from zero. */
+    panel->ui->tools.path_height_units = here > 0 ? 0 : (-here + EDITOR_HEIGHT_UNIT / 2) / EDITOR_HEIGHT_UNIT;
+    panel->ui->tools.path_height_mode = EDITOR_PATH_HEIGHT_SET;
+    Editor_UiStatus(panel->ui, "Path: the next path sets the ground to %d (the clicked tile's)",
+        panel->ui->tools.path_height_units);
+    return 1;
 }
 
 /* One tile onto the drag; the tiles between it and the last one too, so a
@@ -1483,15 +1515,28 @@ Editor_PanelPathEnd(
     commands = edp_scratch(&capacity);
     count = Editor_PathCommands(&app->editor->doc, panel->path.level, &params, ui->tools.overlay_id, panel->path.xs,
         panel->path.zs, panel->path.count, commands, capacity, &closed);
+    /* The ground under it, in the same undo step: a tile both painted and
+     * lifted is one command. */
+    if( ui->tools.path_height_mode > EDITOR_PATH_HEIGHT_OFF
+        && ui->tools.path_height_mode < EDITOR_PATH_HEIGHT_MODE_COUNT )
+        count = Editor_PathHeightCommands(&app->editor->doc, panel->path.level, &params,
+            (enum Editor_PathHeightMode)ui->tools.path_height_mode, ui->tools.path_height_units, panel->path.xs,
+            panel->path.zs, panel->path.count, commands, count, capacity, &closed);
     applied = edp_apply(ui, commands, count, Editor_ToolName(EDITOR_TOOL_PAINT_PATH));
     if( closed > 0 )
         Editor_UiStatus(ui, "Path: %d tile%s in squares not open here were left out", closed, closed == 1 ? "" : "s");
     else if( count == 0 )
         Editor_UiStatus(ui, "Path: nothing to change (the tiles already carry it)");
     else
-        Editor_UiStatus(ui, "Path: %d tile%s laid, %s %d.%d wide", applied, applied == 1 ? "" : "s",
-            params.style == EDITOR_PATH_PAVED ? "pavement" : "dirt", ui->tools.path_width_halves / 2,
-            ui->tools.path_width_halves % 2 ? 5 : 0);
+        Editor_UiStatus(ui, "Path: %d tile%s laid, %s %d.%d wide%s", applied, applied == 1 ? "" : "s",
+            params.style == EDITOR_PATH_PAVED   ? "pavement"
+            : params.style == EDITOR_PATH_RIVER ? "river"
+                                                : "dirt",
+            ui->tools.path_width_halves / 2, ui->tools.path_width_halves % 2 ? 5 : 0,
+            ui->tools.path_height_mode == EDITOR_PATH_HEIGHT_SET     ? ", the ground set level"
+            : ui->tools.path_height_mode == EDITOR_PATH_HEIGHT_LOWER ? ", the ground dug"
+            : ui->tools.path_height_mode == EDITOR_PATH_HEIGHT_RAISE ? ", the ground raised"
+                                                                     : "");
     /* The next path wanders its own way (the preview drew this seed's). */
     ui->tools.path_seed = ui->tools.path_seed * 1664525u + 1013904223u;
     return applied;

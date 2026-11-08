@@ -30,6 +30,7 @@
 #include "edpanels.h"
 #include "editor/builder/builder_panels.h"
 #include "editor/editor_path.h"
+#include "editor/editor_region.h"
 #include "editor/live/live_panel.h"
 #include "mem/torirs_mem.h"
 #include "ui/torirs_chrome_scale_q.h"
@@ -468,6 +469,29 @@ Editor_HotkeyRun(
         halves = halves < 1 ? 1 : halves > (int)(EDITOR_PATH_WIDTH_MAX * 2) ? (int)(EDITOR_PATH_WIDTH_MAX * 2) : halves;
         ui->tools.path_width_halves = halves;
         Editor_UiLog(ui, "editor: path width %d.%d tiles", halves / 2, halves % 2 ? 5 : 0);
+        return 1;
+    }
+    /* With the Region brush up, [ and ] are its radius, half a tile a step. */
+    if( (action == EDITOR_HK_BRUSH_RADIUS_DOWN || action == EDITOR_HK_BRUSH_RADIUS_UP)
+        && ui->tools.tool == EDITOR_TOOL_REGION )
+    {
+        int halves = ui->tools.region_radius_halves + (action == EDITOR_HK_BRUSH_RADIUS_UP ? 1 : -1);
+        ui->tools.region_radius_halves =
+            halves < 1 ? 1 : halves > EDITOR_REGION_RADIUS_HALVES_MAX ? EDITOR_REGION_RADIUS_HALVES_MAX : halves;
+        Editor_UiLog(ui, "editor: region radius %d.%d tiles", ui->tools.region_radius_halves / 2,
+            ui->tools.region_radius_halves % 2 ? 5 : 0);
+        return 1;
+    }
+    /* With a Region tool up, Shift+[ and Shift+] are its hardness, ten points a step. */
+    if( (action == EDITOR_HK_BRUSH_STRENGTH_DOWN || action == EDITOR_HK_BRUSH_STRENGTH_UP)
+        && (ui->tools.tool == EDITOR_TOOL_REGION || ui->tools.tool == EDITOR_TOOL_LASSO
+            || ui->tools.tool == EDITOR_TOOL_TIDY) )
+    {
+        int hard = ui->tools.region_hardness + (action == EDITOR_HK_BRUSH_STRENGTH_UP ? 10 : -10);
+        ui->tools.region_hardness = hard < EDITOR_REGION_HARDNESS_MIN   ? EDITOR_REGION_HARDNESS_MIN
+                                    : hard > EDITOR_REGION_HARDNESS_MAX ? EDITOR_REGION_HARDNESS_MAX
+                                                                        : hard;
+        Editor_UiLog(ui, "editor: region hardness %d%%", ui->tools.region_hardness);
         return 1;
     }
     /* With Plateau up, Shift+[ and Shift+] are its skirt, a tile a step. */

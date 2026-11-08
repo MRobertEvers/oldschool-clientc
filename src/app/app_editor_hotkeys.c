@@ -370,6 +370,10 @@ app_hk_deselect(
         panel->stroke_active = 0;
         return;
     }
+    /* A Region stroke or an open lasso lays nothing until release (or its
+     * close): Escape drops it. */
+    if( Editor_PanelRegionCancel(panel, "Region dropped; nothing laid") )
+        return;
     /* A Path drag lays nothing until release: Escape drops it. */
     if( panel->path.active )
     {

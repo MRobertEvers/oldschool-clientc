@@ -37,6 +37,11 @@ static const int k_tool_icons[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_NOISE] = TORIRS_CHROME_SKIN_TOOL_ROUGHEN,
     [EDITOR_TOOL_SCATTER] = TORIRS_CHROME_SKIN_TOOL_SCATTER,
     [EDITOR_TOOL_PLATEAU] = TORIRS_CHROME_SKIN_TOOL_PLATEAU,
+    /* The Region tools lay the overlay brush's paint, shaped; Tidy smooths
+     * what is laid. */
+    [EDITOR_TOOL_REGION] = TORIRS_CHROME_SKIN_TOOL_REGION,
+    [EDITOR_TOOL_LASSO] = TORIRS_CHROME_SKIN_TOOL_LASSO,
+    [EDITOR_TOOL_TIDY] = TORIRS_CHROME_SKIN_TOOL_TIDY,
 };
 
 /* What the next click does. The chord is not part of the text: the badge in
@@ -60,6 +65,9 @@ static const char* const k_tool_tips[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_NOISE] = "Roughen the terrain (seeded noise, the step its amplitude)",
     [EDITOR_TOOL_SCATTER] = "Scatter the selected locs (else the pick); Alt-drag erases",
     [EDITOR_TOOL_PLATEAU] = "Plateau: a flat top at the first tile, a smoothed skirt",
+    [EDITOR_TOOL_REGION] = "Region: paint the overlay, edge cut to shapes; Alt takes off",
+    [EDITOR_TOOL_LASSO] = "Lasso: draw a loop (or click corners) to fill with the overlay",
+    [EDITOR_TOOL_TIDY] = "Tidy: click an overlay to smooth its stepped edge",
 };
 
 struct ToolRailPanel

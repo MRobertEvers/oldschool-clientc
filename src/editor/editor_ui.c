@@ -32,7 +32,7 @@ static const char* const k_tool_names[EDITOR_TOOL_COUNT] = {
     "Smooth",       "Paint underlay",   "Paint overlay", "Paint flags",
     "Place",        "Move",             "Rotate",       "Delete",
     "Place player", "Paint path",       "Roughen",      "Scatter",
-    "Plateau",
+    "Plateau",      "Region",           "Lasso",        "Tidy",
 };
 
 /* The hotkey table arms the tools in enum Editor_Tool's order, and its hint
@@ -49,6 +49,8 @@ _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_PAINT_PATH == EDITOR_HK_TOOL_
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_NOISE == EDITOR_HK_TOOL_NOISE, "the tool orders agree");
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_SCATTER == EDITOR_HK_TOOL_SCATTER, "the tool orders agree");
 _Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_PLATEAU == EDITOR_HK_TOOL_PLATEAU, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_REGION == EDITOR_HK_TOOL_REGION, "the tool orders agree");
+_Static_assert(EDITOR_HK_TOOL_SELECT + EDITOR_TOOL_TIDY == EDITOR_HK_TOOL_TIDY, "the tool orders agree");
 
 const char*
 Editor_ToolName(enum Editor_Tool tool)
@@ -97,12 +99,23 @@ Editor_UiInit(
     ui->tools.path_width_halves = 4;
     ui->tools.path_roughness = 50;
     ui->tools.path_seed = 1;
+    ui->tools.path_height_mode = 0;
+    ui->tools.path_height_units = 2;
     ui->tools.noise_seed = 1;
     ui->tools.paint_mix = 100;
     ui->tools.scatter_density = 20;
     ui->tools.scatter_rotate = 1;
     ui->tools.scatter_seed = 1;
     ui->tools.plateau_skirt = 3;
+    ui->tools.region_radius_halves = 5;
+    ui->tools.region_hardness = 50;
+    ui->tools.region_snap = 0;
+    ui->tools.region_set = 0;
+    ui->tools.region_underlay = 0;
+    ui->tools.region_lasso_smooth = 2;
+    ui->tools.region_tidy_halves = 1;
+    ui->tools.region_feather = 1;
+    ui->tools.region_seed = 1;
     ui->tools.height_mode = EDITOR_HEIGHT_MODE_BOTH;
     ui->tools.height_grid = 1;
     ui->tools.height_grid_opacity = 30;

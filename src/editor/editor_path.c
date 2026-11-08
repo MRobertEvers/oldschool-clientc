@@ -1,5 +1,7 @@
 #include "editor/editor_path.h"
 
+#include "editor/editor_region.h"
+
 #include "mem/torirs_mem.h"
 
 #include <assert.h>
@@ -7,161 +9,29 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- the client's overlay shapes ----------------------------------------------- */
+/* ---- the client's overlay shapes: editor/editor_region.c ------------------------ */
 
-/* engine/world_builder/world_decode_tile.c: table row = overlay shape + 1.
- * A row's vertex types (1..8 the corners and edge middles anticlockwise from
- * the SW corner, 9..12 the quarter-midlines, 13..16 the quarter-centres) and
- * its faces, each (is_overlay, a, b, c) over those vertices. */
-static const int k_vertex_types[13][6] = {
-    { 1, 3, 5, 7 },         { 1, 3, 5, 7 },         { 1, 3, 5, 7 },          { 1, 3, 5, 7, 6 },
-    { 1, 3, 5, 7, 6 },      { 1, 3, 5, 7, 6 },      { 1, 3, 5, 7, 6 },       { 1, 3, 5, 7, 2, 6 },
-    { 1, 3, 5, 7, 2, 8 },   { 1, 3, 5, 7, 2, 8 },   { 1, 3, 5, 7, 11, 12 },  { 1, 3, 5, 7, 11, 12 },
-    { 1, 3, 5, 7, 13, 14 },
-};
-static const int k_vertex_counts[13] = { 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6 };
-static const int k_faces[13][24] = {
-    { 0, 1, 2, 3, 0, 0, 1, 3 },
-    { 1, 1, 2, 3, 1, 0, 1, 3 },
-    { 0, 1, 2, 3, 1, 0, 1, 3 },
-    { 0, 0, 1, 2, 0, 0, 2, 4, 1, 0, 4, 3 },
-    { 0, 0, 1, 4, 0, 0, 4, 3, 1, 1, 2, 4 },
-    { 0, 0, 4, 3, 1, 0, 1, 2, 1, 0, 2, 4 },
-    { 0, 1, 2, 4, 1, 0, 1, 4, 1, 0, 4, 3 },
-    { 0, 4, 1, 2, 0, 4, 2, 5, 1, 0, 4, 5, 1, 0, 5, 3 },
-    { 0, 4, 1, 2, 0, 4, 2, 3, 0, 4, 3, 5, 1, 0, 4, 5 },
-    { 0, 0, 4, 5, 1, 4, 1, 2, 1, 4, 2, 3, 1, 4, 3, 5 },
-    { 0, 0, 1, 5, 0, 1, 4, 5, 0, 1, 2, 4, 1, 0, 5, 3, 1, 5, 4, 3, 1, 4, 2, 3 },
-    { 1, 0, 1, 5, 1, 1, 4, 5, 1, 1, 2, 4, 0, 0, 5, 3, 0, 5, 4, 3, 0, 4, 2, 3 },
-    { 1, 0, 5, 4, 1, 0, 1, 5, 0, 0, 4, 3, 0, 4, 5, 3, 0, 5, 2, 3, 0, 1, 2, 5 },
-};
-static const int k_face_counts[13] = { 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 6, 6, 6 };
-/* Each vertex type's place in the tile, in 128ths (x east, z north). */
-static const int k_type_pos[17][2] = {
-    { 0, 0 },    { 0, 0 },    { 64, 0 },  { 128, 0 },  { 128, 64 }, { 128, 128 }, { 64, 128 }, { 0, 128 }, { 0, 64 },
-    { 64, 32 },  { 96, 64 },  { 64, 96 }, { 32, 64 },  { 32, 32 },  { 96, 32 },   { 96, 96 },  { 32, 96 },
-};
+_Static_assert(EDITOR_PATH_MASK == EDITOR_REGION_MASK, "a path's coverage is a region's");
+_Static_assert(EDITOR_PATH_SPAN_MAX == EDITOR_REGION_SPAN_MAX, "a path plans as one region");
 
-#define PATH_SHAPES 12
 #define PATH_PI 3.14159265358979323846
-
-static uint64_t g_masks[PATH_SHAPES][4];
-static int g_masks_ready;
-
-/* The client turns an edge-middle or quarter vertex type with the tile; the
- * corners stay and the faces' corner indices turn instead. */
-static int
-path_rotate_type(
-    int type,
-    int rotation)
-{
-    if( (type & 1) == 0 && type <= 8 )
-        return ((type - rotation - rotation - 1) & 7) + 1;
-    if( type > 8 && type <= 12 )
-        return ((type - 9 - rotation) & 3) + 9;
-    if( type > 12 )
-        return ((type - 13 - rotation) & 3) + 13;
-    return type;
-}
-
-/* Inside or on the triangle (a sample on a shared diagonal counts for both
- * halves, as it does for neither more than the other). */
-static int
-path_in_triangle(
-    const double* a,
-    const double* b,
-    const double* c,
-    double x,
-    double z)
-{
-    double const d1 = (x - b[0]) * (a[1] - b[1]) - (a[0] - b[0]) * (z - b[1]);
-    double const d2 = (x - c[0]) * (b[1] - c[1]) - (b[0] - c[0]) * (z - c[1]);
-    double const d3 = (x - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (z - a[1]);
-    int const negative = d1 < 0 || d2 < 0 || d3 < 0;
-    int const positive = d1 > 0 || d2 > 0 || d3 > 0;
-    return !(negative && positive);
-}
-
-static uint64_t
-path_build_mask(
-    int shape,
-    int rotation)
-{
-    int const row = shape + 1;
-    double pos[6][2];
-    uint64_t mask = 0;
-
-    for( int v = 0; v < k_vertex_counts[row]; v++ )
-    {
-        int const type = path_rotate_type(k_vertex_types[row][v], rotation);
-        pos[v][0] = k_type_pos[type][0];
-        pos[v][1] = k_type_pos[type][1];
-    }
-    for( int r = 0; r < EDITOR_PATH_MASK; r++ )
-        for( int c = 0; c < EDITOR_PATH_MASK; c++ )
-        {
-            double const x = (c + 0.5) * 128.0 / EDITOR_PATH_MASK;
-            double const z = (r + 0.5) * 128.0 / EDITOR_PATH_MASK;
-            for( int f = 0; f < k_face_counts[row]; f++ )
-            {
-                const int* face = &k_faces[row][f * 4];
-                int index[3];
-                if( face[0] != 1 )
-                    continue;
-                for( int k = 0; k < 3; k++ )
-                    index[k] = face[1 + k] < 4 ? (face[1 + k] - rotation) & 3 : face[1 + k];
-                if( path_in_triangle(pos[index[0]], pos[index[1]], pos[index[2]], x, z) )
-                {
-                    mask |= (uint64_t)1 << (r * EDITOR_PATH_MASK + c);
-                    break;
-                }
-            }
-        }
-    return mask;
-}
-
-static void
-path_masks_init(void)
-{
-    if( g_masks_ready )
-        return;
-    for( int s = 0; s < PATH_SHAPES; s++ )
-        for( int r = 0; r < 4; r++ )
-            g_masks[s][r] = path_build_mask(s, r);
-    g_masks_ready = 1;
-}
 
 uint64_t
 Editor_PathShapeMask(
     int shape,
     int rotation)
 {
-    assert(shape >= 0);
-    assert(shape < PATH_SHAPES);
-    assert(rotation >= 0);
-    assert(rotation < 4);
-    path_masks_init();
-    return g_masks[shape][rotation];
+    return Editor_RegionShapeMask(shape, rotation);
 }
 
-static int
-path_popcount(uint64_t v)
+/* Dirt has every shape the content's tracks use, pavement the straight ones
+ * and the corners a 45-degree bend needs: the region's NATURAL and PAVED. */
+static enum Editor_RegionSet
+path_set(enum Editor_PathStyle style)
 {
-    int n = 0;
-    while( v )
-    {
-        v &= v - 1;
-        n++;
-    }
-    return n;
+    /* A river's banks take the dirt track's shapes. */
+    return style == EDITOR_PATH_PAVED ? EDITOR_REGION_PAVED : EDITOR_REGION_NATURAL;
 }
-
-/* The shapes a style may write, in tie order: the full tile, the half
- * diagonal, the half square first. Pavement keeps to the straight ones and
- * the corners a 45-degree bend needs; dirt has every shape the content's
- * tracks use (not 11, the trapezium). */
-static const int k_dirt_shapes[] = { 0, 1, 6, 4, 5, 2, 3, 8, 7, 10, 9 };
-static const int k_paved_shapes[] = { 0, 1, 6, 8, 7 };
 
 int
 Editor_PathFit(
@@ -170,30 +40,9 @@ Editor_PathFit(
     int* out_shape,
     int* out_rotation)
 {
-    const int* shapes = style == EDITOR_PATH_PAVED ? k_paved_shapes : k_dirt_shapes;
-    int const shape_count = style == EDITOR_PATH_PAVED ? (int)(sizeof(k_paved_shapes) / sizeof(k_paved_shapes[0]))
-                                                       : (int)(sizeof(k_dirt_shapes) / sizeof(k_dirt_shapes[0]));
-    int best = path_popcount(mask);
-    int found = 0;
-
     assert(style >= 0);
     assert(style < EDITOR_PATH_STYLE_COUNT);
-    assert(out_shape);
-    assert(out_rotation);
-    path_masks_init();
-    for( int i = 0; i < shape_count; i++ )
-        for( int r = 0; r < (shapes[i] == 0 ? 1 : 4); r++ )
-        {
-            int const cost = path_popcount(mask ^ g_masks[shapes[i]][r]);
-            if( cost < best )
-            {
-                best = cost;
-                *out_shape = shapes[i];
-                *out_rotation = r;
-                found = 1;
-            }
-        }
-    return found;
+    return Editor_RegionFit(path_set(style), EDITOR_REGION_HARDNESS_DEFAULT, mask, out_shape, out_rotation);
 }
 
 /* ---- the region ----------------------------------------------------------------- */
@@ -368,6 +217,57 @@ path_dirt_line(
             p->left = 0.3;
         if( p->right < 0.3 )
             p->right = 0.3;
+        p->x += -dz * drift;
+        p->z += dx * drift;
+    }
+}
+
+/* River: the dirt line's way, slower and wider. The bed meanders across a
+ * width or more over a dozen tiles, both banks swell together with a ripple
+ * of their own on each, and the curve is cut smoother (the content's
+ * streams: no corner the drag made survives). */
+static void
+path_river_line(
+    const struct Editor_PathParams* params,
+    struct PathLine* line)
+{
+    double const half = params->width / 2.0;
+    double const rough = params->roughness;
+    double s = 0.0;
+
+    for( int pass = 0; pass < 4; pass++ )
+        path_chaikin(line);
+    path_resample(line, 0.25);
+    for( int i = 0; i < line->count; i++ )
+    {
+        struct PathPoint* p = &line->points[i];
+        int const a = i > 0 ? i - 1 : i;
+        int const b = i + 1 < line->count ? i + 1 : i;
+        double dx = line->points[b].x - line->points[a].x;
+        double dz = line->points[b].z - line->points[a].z;
+        double const length = sqrt(dx * dx + dz * dz);
+        double drift;
+        double swell;
+
+        if( i > 0 )
+        {
+            double const ex = p->x - line->points[i - 1].x;
+            double const ez = p->z - line->points[i - 1].z;
+            s += sqrt(ex * ex + ez * ez);
+        }
+        if( length > 0.0 )
+        {
+            dx /= length;
+            dz /= length;
+        }
+        drift = 0.45 * rough * params->width * path_wander(params->seed + 404u, s, 12.0);
+        swell = 0.3 * rough * path_wander(params->seed + 505u, s, 9.0);
+        p->left = half * (1.0 + swell + 0.15 * rough * path_wander(params->seed + 606u, s, 4.0));
+        p->right = half * (1.0 + swell + 0.15 * rough * path_wander(params->seed + 707u, s, 4.0));
+        if( p->left < 0.4 )
+            p->left = 0.4;
+        if( p->right < 0.4 )
+            p->right = 0.4;
         p->x += -dz * drift;
         p->z += dx * drift;
     }
@@ -613,71 +513,10 @@ path_paved_half(
     return steps / sqrt(2.0);
 }
 
-/* ---- fitting the tiles together --------------------------------------------- */
+/* ---- fitting the tiles together: editor/editor_region.c ----------------------- */
 
-/* A coverage's samples along each side, 8 bits west to east / south to north. */
-static unsigned
-path_side_south(uint64_t m)
-{
-    return (unsigned)(m & 0xff);
-}
-
-static unsigned
-path_side_north(uint64_t m)
-{
-    return (unsigned)(m >> 56 & 0xff);
-}
-
-static unsigned
-path_side_column(
-    uint64_t m,
-    int column)
-{
-    unsigned out = 0;
-    for( int r = 0; r < EDITOR_PATH_MASK; r++ )
-        out |= (unsigned)(m >> (r * EDITOR_PATH_MASK + column) & 1) << r;
-    return out;
-}
-
-/* How far a tile's sides are from its neighbours' facing sides: a step where
- * a path's edge leaves one tile and does not carry on into the next. Only
- * between tiles the path touches, or against one that already holds the
- * overlay: against bare ground a side is the path's own edge. */
-static int
-path_seams(
-    uint64_t m,
-    const uint64_t* target,
-    const uint64_t* chosen,
-    const struct PathGrid* grid,
-    int tx,
-    int tz)
-{
-    int seams = 0;
-    size_t at;
-    if( tx > 0 && (target[at = (size_t)tz * grid->w + tx - 1] || chosen[at]) )
-        seams += path_popcount(path_side_column(m, 0) ^ path_side_column(chosen[at], 7));
-    if( tx + 1 < grid->w && (target[at = (size_t)tz * grid->w + tx + 1] || chosen[at]) )
-        seams += path_popcount(path_side_column(m, 7) ^ path_side_column(chosen[at], 0));
-    if( tz > 0 && (target[at = (size_t)(tz - 1) * grid->w + tx] || chosen[at]) )
-        seams += path_popcount(path_side_south(m) ^ path_side_north(chosen[at]));
-    if( tz + 1 < grid->h && (target[at = (size_t)(tz + 1) * grid->w + tx] || chosen[at]) )
-        seams += path_popcount(path_side_north(m) ^ path_side_south(chosen[at]));
-    return seams;
-}
-
-/* The seams weigh this much against a sample of coverage: enough that a tile
- * whose edge would step out of line with both neighbours takes the shape that
- * carries their edge on, not enough to move an edge off the path. Chosen by
- * eye on editor_path_test's dirt curve: at 0 and 1.25 whole tiles stick out
- * of a sloping edge every few tiles, at 2.5 the slope runs on, at 4 edges
- * start to spike out where no path is. */
-#define PATH_SEAM_WEIGHT 2.5
-#define PATH_SETTLE_PASSES 4
-
-/* Each touched tile's shape: first the best cover on its own, then a few
- * passes in which each tile may change to whatever best covers it AND meets
- * its neighbours (a tile the stroke did not touch is a fixed neighbour: bare,
- * or the overlay it holds). Writes the touched tiles that end up covered. */
+/* The grid planned as a region: ADD at hardness 50, the tiles that already
+ * hold the overlay joined. A path never takes an overlay off. */
 static int
 path_settle(
     enum Editor_PathStyle style,
@@ -687,117 +526,48 @@ path_settle(
     struct Editor_PathTile* out,
     int max)
 {
-    const int* shapes = style == EDITOR_PATH_PAVED ? k_paved_shapes : k_dirt_shapes;
-    int const shape_count = style == EDITOR_PATH_PAVED ? (int)(sizeof(k_paved_shapes) / sizeof(k_paved_shapes[0]))
-                                                       : (int)(sizeof(k_dirt_shapes) / sizeof(k_dirt_shapes[0]));
-    size_t const n = (size_t)grid->w * (size_t)grid->h;
-    uint64_t* target = ToriMem_Alloc(ToriMem_Editor(), n * sizeof(*target));
-    uint64_t* chosen = ToriMem_Alloc(ToriMem_Editor(), n * sizeof(*chosen));
-    signed char* shape_of = ToriMem_Alloc(ToriMem_Editor(), n);
-    signed char* rotation_of = ToriMem_Alloc(ToriMem_Editor(), n);
+    struct Editor_RegionParams params;
+    struct Editor_RegionGrid region;
+    struct Editor_RegionTile* plan;
+    int planned;
     int written = 0;
 
-    assert(target);
-    assert(chosen);
-    assert(shape_of);
-    assert(rotation_of);
-    for( int tz = 0; tz < grid->h; tz++ )
-        for( int tx = 0; tx < grid->w; tx++ )
-        {
-            size_t const at = (size_t)tz * grid->w + tx;
-            int had_shape;
-            int had_rotation;
-            int const had = existing && existing(user, grid->x0 + tx, grid->z0 + tz, &had_shape, &had_rotation);
-            uint64_t const was = had ? Editor_PathShapeMask(had_shape, had_rotation) : 0;
-            int shape;
-            int rotation;
-
-            target[at] = grid->tiles[at] ? grid->tiles[at] | was : 0;
-            /* Untouched: a fixed neighbour, as it is. */
-            chosen[at] = was;
-            shape_of[at] = -1;
-            rotation_of[at] = 0;
-            if( target[at] && Editor_PathFit(style, target[at], &shape, &rotation) )
-            {
-                chosen[at] = Editor_PathShapeMask(shape, rotation);
-                shape_of[at] = (signed char)shape;
-                rotation_of[at] = (signed char)rotation;
-            }
-            else if( target[at] )
-                chosen[at] = 0;
-        }
-
-    for( int pass = 0; pass < PATH_SETTLE_PASSES; pass++ )
+    params.set = path_set(style);
+    params.op = EDITOR_REGION_ADD;
+    params.hardness = EDITOR_REGION_HARDNESS_DEFAULT;
+    params.misfit_cap = 0;
+    region.x0 = grid->x0;
+    region.z0 = grid->z0;
+    region.w = grid->w;
+    region.h = grid->h;
+    region.tiles = grid->tiles;
+    plan = ToriMem_Alloc(ToriMem_Editor(), sizeof(*plan) * (size_t)(max > 0 ? max : 1));
+    assert(plan);
+    planned = Editor_RegionPlan(&params, &region, existing, user, plan, max);
+    for( int i = 0; i < planned; i++ )
     {
-        int changes = 0;
-        for( int tz = 0; tz < grid->h; tz++ )
-            for( int tx = 0; tx < grid->w; tx++ )
-            {
-                size_t const at = (size_t)tz * grid->w + tx;
-                double best;
-                int best_shape = -1;
-                int best_rotation = 0;
-                uint64_t best_mask = 0;
-
-                if( !target[at] )
-                    continue;
-                best = path_popcount(target[at]) + PATH_SEAM_WEIGHT * path_seams(0, target, chosen, grid, tx, tz);
-                for( int i = 0; i < shape_count; i++ )
-                    for( int r = 0; r < (shapes[i] == 0 ? 1 : 4); r++ )
-                    {
-                        uint64_t const m = g_masks[shapes[i]][r];
-                        double const cost =
-                            path_popcount(target[at] ^ m) + PATH_SEAM_WEIGHT * path_seams(m, target, chosen, grid, tx, tz);
-                        if( cost < best - 1e-9 )
-                        {
-                            best = cost;
-                            best_shape = shapes[i];
-                            best_rotation = r;
-                            best_mask = m;
-                        }
-                    }
-                if( best_mask != chosen[at] )
-                {
-                    chosen[at] = best_mask;
-                    shape_of[at] = (signed char)best_shape;
-                    rotation_of[at] = (signed char)best_rotation;
-                    changes++;
-                }
-            }
-        if( changes == 0 )
-            break;
+        assert(plan[i].shape >= 0);
+        out[written].world_x = plan[i].world_x;
+        out[written].world_z = plan[i].world_z;
+        out[written].shape = plan[i].shape;
+        out[written].rotation = plan[i].rotation;
+        out[written].coverage = plan[i].coverage;
+        written++;
     }
-
-    for( int tz = 0; tz < grid->h; tz++ )
-        for( int tx = 0; tx < grid->w; tx++ )
-        {
-            size_t const at = (size_t)tz * grid->w + tx;
-            if( !target[at] || shape_of[at] < 0 || written >= max )
-                continue;
-            out[written].world_x = grid->x0 + tx;
-            out[written].world_z = grid->z0 + tz;
-            out[written].shape = shape_of[at];
-            out[written].rotation = rotation_of[at];
-            out[written].coverage = path_popcount(target[at]);
-            written++;
-        }
-    ToriMem_Free(ToriMem_Editor(), target);
-    ToriMem_Free(ToriMem_Editor(), chosen);
-    ToriMem_Free(ToriMem_Editor(), shape_of);
-    ToriMem_Free(ToriMem_Editor(), rotation_of);
+    ToriMem_Free(ToriMem_Editor(), plan);
     return written;
 }
 
-int
-Editor_PathPlan(
+/* The path's coverage: the line through the drag, shaped by the style, and
+ * every sample within it set. 1 with grid->tiles allocated (the caller frees
+ * them); 0 for no points or a path wider than EDITOR_PATH_SPAN_MAX. */
+static int
+path_build_grid(
     const struct Editor_PathParams* params,
     const int* xs,
     const int* zs,
     int count,
-    Editor_PathExistingFn existing,
-    void* user,
-    struct Editor_PathTile* out,
-    int max)
+    struct PathGrid* grid_out)
 {
     struct PathLine line = { 0 };
     struct PathGrid grid;
@@ -806,14 +576,14 @@ Editor_PathPlan(
     double max_x = -1e18;
     double max_z = -1e18;
     double reach;
-    int written = 0;
 
     assert(params);
     assert(params->style >= 0);
     assert(params->style < EDITOR_PATH_STYLE_COUNT);
     assert(params->width >= 0.5);
     assert(params->width <= EDITOR_PATH_WIDTH_MAX);
-    assert(out);
+    assert(grid_out);
+    memset(grid_out, 0, sizeof(*grid_out));
     if( count <= 0 )
         return 0;
     assert(xs);
@@ -826,11 +596,17 @@ Editor_PathPlan(
             path_line_push(&line, xs[i] + 0.5, zs[i] + 0.5);
     if( params->style == EDITOR_PATH_DIRT )
         path_dirt_line(params, &line);
+    else if( params->style == EDITOR_PATH_RIVER )
+        path_river_line(params, &line);
     else
         path_paved_line(params, &line);
 
     /* The box every sample that can be in lies within. */
-    reach = params->width * (params->style == EDITOR_PATH_DIRT ? 0.5 * (1.0 + 0.4 * params->roughness) + 0.25 : 0.75) + 1.0;
+    reach = params->width
+                * (params->style == EDITOR_PATH_DIRT    ? 0.5 * (1.0 + 0.4 * params->roughness) + 0.25
+                   : params->style == EDITOR_PATH_RIVER ? 0.5 * (1.0 + 0.45 * params->roughness) + 0.25
+                                                        : 0.75)
+            + 1.0;
     for( int i = 0; i < line.count; i++ )
     {
         min_x = line.points[i].x < min_x ? line.points[i].x : min_x;
@@ -852,7 +628,7 @@ Editor_PathPlan(
     grid.tiles = ToriMem_Calloc(ToriMem_Editor(), (size_t)grid.w * (size_t)grid.h, sizeof(*grid.tiles));
     assert(grid.tiles);
 
-    if( params->style == EDITOR_PATH_DIRT )
+    if( params->style != EDITOR_PATH_PAVED )
     {
         if( line.count == 1 )
         {
@@ -904,8 +680,79 @@ Editor_PathPlan(
         }
     }
 
+    ToriMem_Free(ToriMem_Editor(), line.points);
+    *grid_out = grid;
+    return 1;
+}
+
+int
+Editor_PathPlan(
+    const struct Editor_PathParams* params,
+    const int* xs,
+    const int* zs,
+    int count,
+    Editor_PathExistingFn existing,
+    void* user,
+    struct Editor_PathTile* out,
+    int max)
+{
+    struct PathGrid grid;
+    int written;
+
+    assert(out);
+    if( !path_build_grid(params, xs, zs, count, &grid) )
+        return 0;
     written = path_settle(params->style, &grid, existing, user, out, max);
     ToriMem_Free(ToriMem_Editor(), grid.tiles);
-    ToriMem_Free(ToriMem_Editor(), line.points);
+    return written;
+}
+
+/* Whether sample (row, column) of tile (tx, tz) of the grid is set; outside
+ * the grid, no. */
+static int
+path_sample(
+    const struct PathGrid* grid,
+    int tx,
+    int tz,
+    int row,
+    int column)
+{
+    if( tx < 0 || tz < 0 || tx >= grid->w || tz >= grid->h )
+        return 0;
+    return (int)(grid->tiles[(size_t)tz * grid->w + tx] >> (row * EDITOR_PATH_MASK + column) & 1);
+}
+
+int
+Editor_PathCorners(
+    const struct Editor_PathParams* params,
+    const int* xs,
+    const int* zs,
+    int count,
+    int* out_x,
+    int* out_z,
+    int max)
+{
+    struct PathGrid grid;
+    int written = 0;
+
+    assert(out_x);
+    assert(out_z);
+    if( !path_build_grid(params, xs, zs, count, &grid) )
+        return 0;
+    /* Corner (cx, cz) of the grid touches the NE sample of tile (cx-1, cz-1),
+     * the NW of (cx, cz-1), the SE of (cx-1, cz) and the SW of (cx, cz). */
+    for( int cz = 0; cz <= grid.h && written < max; cz++ )
+        for( int cx = 0; cx <= grid.w && written < max; cx++ )
+        {
+            int const top = EDITOR_PATH_MASK - 1;
+            int const in = path_sample(&grid, cx - 1, cz - 1, top, top) + path_sample(&grid, cx, cz - 1, top, 0)
+                           + path_sample(&grid, cx - 1, cz, 0, top) + path_sample(&grid, cx, cz, 0, 0);
+            if( in < 2 )
+                continue;
+            out_x[written] = grid.x0 + cx;
+            out_z[written] = grid.z0 + cz;
+            written++;
+        }
+    ToriMem_Free(ToriMem_Editor(), grid.tiles);
     return written;
 }

@@ -734,18 +734,22 @@ app_loc_editor_tick(
          * W/A/S/D nudged whatever loc the loc editor had latched *while also*
          * flying the camera, since a nudge does not consume the frame. Same
          * reasoning as the activation latch below.
+         *
+         * The nudges are Ctrl+W/A/S/D (Cmd on a Mac): the bare keys fly the
+         * camera and nothing in the world view takes them over (owner,
+         * 2026-11-07).
          */
         if( !app->locedit.visible )
         {
             /* The map editor's keys are its hotkey table's (app_editor_hotkeys.c). */
         }
-        else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_D) )
+        else if( input->key_held[TORIRSK_CTRL] && LibToriRS_Input_IsKeyDown(input, TORIRSK_D) )
             app_loc_editor_nudge(app, 1, 0);
-        else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_A) )
+        else if( input->key_held[TORIRSK_CTRL] && LibToriRS_Input_IsKeyDown(input, TORIRSK_A) )
             app_loc_editor_nudge(app, -1, 0);
-        else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_W) )
+        else if( input->key_held[TORIRSK_CTRL] && LibToriRS_Input_IsKeyDown(input, TORIRSK_W) )
             app_loc_editor_nudge(app, 0, 1);
-        else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_S) )
+        else if( input->key_held[TORIRSK_CTRL] && LibToriRS_Input_IsKeyDown(input, TORIRSK_S) )
             app_loc_editor_nudge(app, 0, -1);
         else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_R) )
             app_loc_editor_rotate(app);

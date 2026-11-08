@@ -28,6 +28,12 @@ it was built and what is open.
   whether or not it acted, so Ctrl+S saves and never also flies the camera.
 - **Edge, not held**, except the camera (held) and the repeaters (brush size,
   nudge: first press, then repeat after 300 ms at 20 Hz while held).
+- **The arrows and W/A/S/D are the camera's** over the World, under every
+  tool and selection: the bare arrows turn and tilt, W/A/S/D fly. Anything
+  else on those keys takes Ctrl (Cmd on a Mac): the loc nudges are
+  Ctrl+arrows (Ctrl+Shift+arrows for 8 tiles), the debug loc editor's nudges
+  Ctrl+W/A/S/D. A focused field, model view, picker or command palette still
+  takes the keys it types or moves with.
 - **Context.** An action lives in one context; a chord may be reused across
   contexts that cannot both be live (a loc selected vs none). Within a context
   two actions never share a chord: the panel shows the clash in red and the
@@ -57,9 +63,7 @@ Context: **G** always (editor open) · **W** pointer over the World panel ·
 **L** one or more locs selected · **R** the Rect tool holds a rectangle ·
 **S** the Spawns panel holds a selection and no loc is selected ·
 **M** locs selected and the Select or Move tool armed (the nudges) ·
-**N** no loc selected, or a tool other than Select / Move armed (the camera's
-arrows: with the Place tool, a brush, Rect, Rotate or Delete armed the arrows
-turn the camera even with locs selected) ·
+**N** no loc selected, or a tool other than Select / Move armed ·
 **P** the Place tool armed with a loc pick and no loc selected ·
 **K** the picker has focus (the Squares well holds the keyboard: a press in
 it, or a Find that matched a square, gives it; Escape in the well, or a click
@@ -111,8 +115,8 @@ same squares when its box is empty.
 | Apply the armed tool to the selection | Return | L |
 | Select every loc of the hovered tile's square on the edit level | Ctrl+A | W |
 | Select every loc of the hovered loc's id (select same; with no loc under the pointer, the primary selected loc's) in the open squares on the edit level | Alt+A | W, L |
-| Nudge selection N / S / W / E one tile (onto a tile holding a loc of that shape: the two swap) | Up / Down / Left / Right | M |
-| Nudge selection 8 tiles N / S / W / E (a zone; the same swap rule) | Shift+Up / Shift+Down / Shift+Left / Shift+Right | M |
+| Nudge selection N / S / W / E one tile (onto a tile holding a loc of that shape: the two swap) | Ctrl+Up / Ctrl+Down / Ctrl+Left / Ctrl+Right | M |
+| Nudge selection 8 tiles N / S / W / E (a zone; the same swap rule) | Ctrl+Shift+Up / Ctrl+Shift+Down / Ctrl+Shift+Left / Ctrl+Shift+Right | M |
 | Move the selected locs a level up / down (each keeps its tile; refused, with the reason in the status bar, where a loc would leave levels 0..3, its square is not open, or the key above / below holds another loc) | Ctrl+PageUp / Ctrl+PageDown | L |
 | Copy tiles (and the rectangle's locs on its level: the unnamed stamp) | Ctrl+C | R |
 | Paste tiles at the hovered tile (then the copied locs, in the same undo step) | Ctrl+V | W |
@@ -173,6 +177,9 @@ The pointer (workbench 6.3, design section 7):
 | Roughen (seeded height noise under the brush, the step its amplitude) | U | G |
 | Scatter locs (the selected locs' ids, else the catalog's pick, dropped on the brush's free tiles at a density; Alt-drag takes them off) | B | G |
 | Plateau (the brush flattened to the first tile's height, a smoothed skirt around it: a mound or a hole with a flat top) | V | G |
+| Region brush (the palette's overlay under a swept disc, its edge cut to the tile shapes; Alt-drag takes it off) | O | G |
+| Lasso (a drawn loop, or clicked corners, filled with the palette's overlay, its edge cut to the tile shapes) | J | G |
+| Tidy (click an overlay: its run's stepped edge smoothed and refitted to the tile shapes) | Y | G |
 | Previous tool (swap with the last armed) | Grave (`) | G |
 | Pick the hovered tile's paint into the palette (underlay, overlay, shape, flags) | I | W |
 | Pick the hovered loc into the catalog | Shift+I | W |
@@ -183,8 +190,8 @@ The pointer (workbench 6.3, design section 7):
 ### Brush (height and paint tools)
 | Action | Chord | Ctx |
 |---|---|---|
-| Radius - / + | [ / ] | G |
-| Strength - / + (Scatter: density by 5; Plateau: skirt by 1; Paint underlay: mix by 10) | Shift+[ / Shift+] | G |
+| Radius - / + (Path: width by half a tile; Region brush: radius by half a tile) | [ / ] | G |
+| Strength - / + (Scatter: density by 5; Plateau: skirt by 1; Paint underlay: mix by 10; Region, Lasso, Tidy: hardness by 10) | Shift+[ / Shift+] | G |
 | Step - / + | Ctrl+[ / Ctrl+] | G |
 
 ### Level
@@ -229,7 +236,7 @@ remembered shape and rotation (docs/MAPED_STATUS.md row 3d).
 | Fly forward / back / left / right (held) | W / S / A / D | G |
 | Fly down / up (held) | F / R | D (down) / G (up) |
 | Fly faster (held with the above) | Shift | G |
-| Turn left / right, tilt up / down (held) | Left / Right / Up / Down | N |
+| Turn left / right, tilt up / down (held) | Left / Right / Up / Down | G |
 | Frame the selection, else the hovered square | Home | G |
 | Frame the current square's centre | Ctrl+Home | G |
 | Frame the selection, else the hovered square (Unity scheme) | F | U |
@@ -437,7 +444,7 @@ tables (the Hotkeys panel calls them by the name after the id):
 - **Edit**: `edit.undo` Undo, `edit.redo` Redo, `edit.deselect` Deselect / cancel, `edit.delete` Delete selection, `edit.duplicate` Duplicate, `edit.rotate` Rotate, `edit.reshape` Reshape, `edit.apply` Apply tool to selection, `edit.select_square` Select the square's locs, `edit.select_same` Select same, `edit.nudge_n` Nudge north, `edit.nudge_s` Nudge south, `edit.nudge_w` Nudge west, `edit.nudge_e` Nudge east, `edit.nudge_far_n` Nudge north 8, `edit.nudge_far_s` Nudge south 8, `edit.nudge_far_w` Nudge west 8, `edit.nudge_far_e` Nudge east 8, `edit.level_up` Selection up a level, `edit.level_down` Selection down a level, `edit.copy` Copy tiles, `edit.paste` Paste tiles, `edit.fill` Fill tiles, `edit.clear` Clear tiles, `edit.mark_area` Mark area from rect, `edit.select_kind` Select all of the picked kind, `edit.invert` Invert selection
 - **Place**: `place.here` Place at the hovered tile, `place.fit` Fit walls to neighbours (toggle), `place.swap` Swap to catalog pick, `place.constrain` Constrain a drag to one axis (hold)
 - **Palette**: `palette.slot_1` Palette slot 1, `palette.slot_2` Palette slot 2, `palette.slot_3` Palette slot 3, `palette.slot_4` Palette slot 4, `palette.slot_5` Palette slot 5, `palette.slot_6` Palette slot 6, `palette.slot_7` Palette slot 7, `palette.slot_8` Palette slot 8, `palette.slot_9` Palette slot 9, `palette.slot_10` Palette slot 10, `palette.add_pick` Add the pick to the palette, `palette.next` Next palette, `palette.previous` Previous palette
-- **Tools**: `tool.select` Select, `tool.rect` Rectangle, `tool.height` Height, `tool.flatten` Flatten, `tool.smooth` Smooth, `tool.paint_underlay` Paint underlay, `tool.paint_overlay` Paint overlay, `tool.paint_flags` Paint flags, `tool.place` Place loc, `tool.move` Move loc, `tool.rotate` Rotate loc (tool), `tool.delete` Delete loc (tool), `tool.place_player` Place player, `tool.paint_path` Paint path, `tool.noise` Roughen, `tool.scatter` Scatter locs, `tool.plateau` Plateau, `tool.previous` Previous tool, `tool.pick_paint` Pick the tile's paint, `tool.pick_loc` Pick the hovered loc, `hold.place` Click places a loc (hold), `hold.delete` Click deletes a loc (hold), `hold.clear` Click clears the tile (hold)
+- **Tools**: `tool.select` Select, `tool.rect` Rectangle, `tool.height` Height, `tool.flatten` Flatten, `tool.smooth` Smooth, `tool.paint_underlay` Paint underlay, `tool.paint_overlay` Paint overlay, `tool.paint_flags` Paint flags, `tool.place` Place loc, `tool.move` Move loc, `tool.rotate` Rotate loc (tool), `tool.delete` Delete loc (tool), `tool.place_player` Place player, `tool.paint_path` Paint path, `tool.noise` Roughen, `tool.scatter` Scatter locs, `tool.plateau` Plateau, `tool.region` Region brush, `tool.lasso` Lasso, `tool.tidy` Tidy, `tool.previous` Previous tool, `tool.pick_paint` Pick the tile's paint, `tool.pick_loc` Pick the hovered loc, `hold.place` Click places a loc (hold), `hold.delete` Click deletes a loc (hold), `hold.clear` Click clears the tile (hold)
 - **Brush**: `brush.radius_down` Radius -, `brush.radius_up` Radius +, `brush.strength_down` Strength -, `brush.strength_up` Strength +, `brush.step_down` Step -, `brush.step_up` Step +
 - **Level**: `level.down` Level down, `level.up` Level up, `level.pin0` Pin level 0, `level.pin1` Pin level 1, `level.pin2` Pin level 2, `level.pin3` Pin level 3, `level.auto` Level Auto, `level.above` Show above
 - **Camera**: `camera.forward` Fly forward, `camera.back` Fly back, `camera.left` Fly left, `camera.right` Fly right, `camera.down` Fly down, `camera.up` Fly up, `camera.fast` Fly faster, `camera.turn_left` Turn left, `camera.turn_right` Turn right, `camera.tilt_up` Tilt up, `camera.tilt_down` Tilt down, `camera.frame` Frame the selection, `camera.frame_square` Frame the square's centre, `camera.frame_key` Frame the selection (Unity scheme), `camera.scheme` Camera scheme: default / Unity (toggle), `camera.pan` Pan (hold, then drag)

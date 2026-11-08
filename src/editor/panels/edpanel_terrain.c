@@ -16,6 +16,7 @@
 #include "edpanels.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
+#include "editor/editor_region.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -27,7 +28,17 @@ enum
     TERRAIN_GROUP_VIS = 3,
     TERRAIN_GROUP_PATH = 4,
     TERRAIN_GROUP_HEIGHT = 5,
+    TERRAIN_GROUP_REGION_TARGET = 6,
+    TERRAIN_GROUP_REGION_SET = 7,
+    TERRAIN_GROUP_PATH_HEIGHT = 8,
 };
+
+/** The armed path style as an index into k_path_names. */
+static int
+terrain_path_style(const struct EditorUi* ui)
+{
+    return ui->tools.path_style >= 0 && ui->tools.path_style < EDITOR_PATH_STYLE_COUNT ? ui->tools.path_style : 0;
+}
 
 /** The grid slider's top: EDITOR_HEIGHT_TARGET_MIN in height units. */
 #define TERRAIN_HEIGHT_UNITS_MAX (-EDITOR_HEIGHT_TARGET_MIN / EDITOR_HEIGHT_UNIT)
@@ -35,9 +46,13 @@ enum
 static const char* const k_falloff_names[EDITOR_BRUSH_FALLOFF_COUNT] = { "linear", "smooth", "flat" };
 static const char* const k_level_names[5] = { "auto", "0", "1", "2", "3" };
 static const char* const k_vis_names[5] = { "all", "0", "1", "2", "3" };
-static const char* const k_path_names[EDITOR_PATH_STYLE_COUNT] = { "dirt", "pavement" };
+static const char* const k_path_names[EDITOR_PATH_STYLE_COUNT] = { "dirt", "pavement", "river" };
+static const char* const k_path_height_names[EDITOR_PATH_HEIGHT_MODE_COUNT] = { "leave the ground", "set to",
+                                                                               "lower by", "raise by" };
 static const char* const k_height_mode_names[EDITOR_HEIGHT_MODE_COUNT] = { "up and down", "raise only",
                                                                          "lower only" };
+static const char* const k_region_target_names[2] = { "overlay", "underlay" };
+static const char* const k_region_set_names[EDITOR_REGION_SET_COUNT] = { "natural", "paved", "all twelve" };
 static const char* const k_flag_names[4] = { "block", "link below (bridge)", "remove roof",
                                              "vis below" };
 
@@ -60,6 +75,11 @@ struct TerrainPanel
     int slider_path_width;
     int slider_path_rough;
     int button_path_seed;
+    /** What the path does to the ground under it, and by how much. */
+    int radio_path_height[EDITOR_PATH_HEIGHT_MODE_COUNT];
+    int slider_path_height;
+    int shown_path_height_mode;
+    int shown_path_height_units;
     int shown_path_style;
     int shown_path_width;
     int shown_path_rough;
@@ -90,6 +110,22 @@ struct TerrainPanel
     int shown_height_target;
     int shown_height_grid;
     int shown_height_fill;
+    /** The Region tools' section (shown while the Region brush, the Lasso
+     *  or Tidy is armed): the target, the brush's radius in half tiles,
+     *  hardness, half-tile snap, the shape set, the lasso's corner
+     *  smoothing, Tidy's smoothing, the underlay rim's feather, New dither;
+     *  and the values they were last set from. */
+    int label_region;
+    int radio_region_target[2];
+    int slider_region_radius;
+    int slider_region_hardness;
+    int check_region_snap;
+    int radio_region_set[EDITOR_REGION_SET_COUNT];
+    int slider_region_lasso_smooth;
+    int slider_region_tidy_smooth;
+    int slider_region_feather;
+    int button_region_seed;
+    int shown_region[8];
     /** What the readout and the radios were last set from. */
     enum Editor_Tool shown_tool;
     int shown_level;
@@ -206,6 +242,11 @@ terrain_readout(
     int const plateau = ui->tools.tool == EDITOR_TOOL_PLATEAU;
     int const underlay = ui->tools.tool == EDITOR_TOOL_PAINT_UNDERLAY;
     int const height = ui->tools.tool == EDITOR_TOOL_HEIGHT;
+    int const region_brush = ui->tools.tool == EDITOR_TOOL_REGION;
+    int const lasso = ui->tools.tool == EDITOR_TOOL_LASSO;
+    int const tidy = ui->tools.tool == EDITOR_TOOL_TIDY;
+    int const region = region_brush || lasso || tidy;
+    int const region_under = (region_brush || lasso) && ui->tools.region_underlay;
 
     if( height && ui->tools.height_valid )
         snprintf(line, sizeof(line), "%s  r%d %s  grid at %d", Editor_ToolName(ui->tools.tool), brush->radius,
@@ -225,26 +266,56 @@ terrain_readout(
     else if( Editor_ToolIsBrush(ui->tools.tool) )
         snprintf(line, sizeof(line), "%s  r%d %s", Editor_ToolName(ui->tools.tool), brush->radius,
             k_falloff_names[brush->falloff]);
+    else if( path && ui->tools.path_height_mode > EDITOR_PATH_HEIGHT_OFF
+             && ui->tools.path_height_mode < EDITOR_PATH_HEIGHT_MODE_COUNT )
+        snprintf(line, sizeof(line), "%s  %s %d.%d wide, %s %d", Editor_ToolName(ui->tools.tool),
+            k_path_names[terrain_path_style(ui)], ui->tools.path_width_halves / 2,
+            ui->tools.path_width_halves % 2 ? 5 : 0, k_path_height_names[ui->tools.path_height_mode],
+            ui->tools.path_height_units);
     else if( path )
         snprintf(line, sizeof(line), "%s  %s %d.%d wide", Editor_ToolName(ui->tools.tool),
-            k_path_names[ui->tools.path_style == EDITOR_PATH_PAVED], ui->tools.path_width_halves / 2,
+            k_path_names[terrain_path_style(ui)], ui->tools.path_width_halves / 2,
             ui->tools.path_width_halves % 2 ? 5 : 0);
+    else if( region_brush )
+        snprintf(line, sizeof(line), "%s  r%d.%d %s, hardness %d%%", Editor_ToolName(ui->tools.tool),
+            ui->tools.region_radius_halves / 2, ui->tools.region_radius_halves % 2 ? 5 : 0,
+            k_region_target_names[ui->tools.region_underlay ? 1 : 0], ui->tools.region_hardness);
+    else if( lasso )
+        snprintf(line, sizeof(line), "%s  %s, hardness %d%%", Editor_ToolName(ui->tools.tool),
+            k_region_target_names[ui->tools.region_underlay ? 1 : 0], ui->tools.region_hardness);
+    else if( tidy )
+        snprintf(line, sizeof(line), "%s  smooth %d.%d, hardness %d%%", Editor_ToolName(ui->tools.tool),
+            ui->tools.region_tidy_halves / 2, ui->tools.region_tidy_halves % 2 ? 5 : 0, ui->tools.region_hardness);
     else
         snprintf(line, sizeof(line), "%s (not a brush)", Editor_ToolName(ui->tools.tool));
     ToriRSChrome_SetText(ui->chrome, self->row_tool, line);
     /* The path's section only while the Path tool is up, and then in the
      * brush's place (a path has no radius, falloff, step or strength), so it
      * is at the top of the panel rather than under the fold. */
-    ToriRSChrome_SetHidden(ui->chrome, self->slider_radius, path);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_radius, path || region);
     for( int i = 0; i < EDITOR_BRUSH_FALLOFF_COUNT; i++ )
         ToriRSChrome_SetHidden(ui->chrome, self->radio_falloff[i], path);
     /* Scatter and Plateau keep the radius (and Scatter the falloff: the
      * density fades with it) and show their own rows instead of the step
      * and strength, which neither reads. */
     for( int i = 0; i < EDITOR_BRUSH_FALLOFF_COUNT; i++ )
-        ToriRSChrome_SetHidden(ui->chrome, self->radio_falloff[i], path || plateau);
-    ToriRSChrome_SetHidden(ui->chrome, self->slider_step, path || scatter || plateau);
-    ToriRSChrome_SetHidden(ui->chrome, self->slider_strength, path || scatter || plateau);
+        ToriRSChrome_SetHidden(ui->chrome, self->radio_falloff[i], path || plateau || region);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_step, path || scatter || plateau || region);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_strength, path || scatter || plateau || region);
+    /* The Region section, in the brush's place: each row only for the tools
+     * that read it. */
+    ToriRSChrome_SetHidden(ui->chrome, self->label_region, !region);
+    for( int i = 0; i < 2; i++ )
+        ToriRSChrome_SetHidden(ui->chrome, self->radio_region_target[i], !(region_brush || lasso));
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_region_radius, !region_brush);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_region_hardness, !region || region_under);
+    ToriRSChrome_SetHidden(ui->chrome, self->check_region_snap, !(region_brush || lasso));
+    for( int i = 0; i < EDITOR_REGION_SET_COUNT; i++ )
+        ToriRSChrome_SetHidden(ui->chrome, self->radio_region_set[i], !region || region_under);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_region_lasso_smooth, !lasso);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_region_tidy_smooth, !tidy);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_region_feather, !region_under);
+    ToriRSChrome_SetHidden(ui->chrome, self->button_region_seed, !region_under);
     ToriRSChrome_SetHidden(ui->chrome, self->label_scatter, !scatter);
     ToriRSChrome_SetHidden(ui->chrome, self->slider_scatter_density, !scatter);
     ToriRSChrome_SetHidden(ui->chrome, self->check_scatter_rotate, !scatter);
@@ -264,6 +335,9 @@ terrain_readout(
     ToriRSChrome_SetHidden(ui->chrome, self->slider_path_width, !path);
     ToriRSChrome_SetHidden(ui->chrome, self->slider_path_rough, !path || ui->tools.path_style == EDITOR_PATH_PAVED);
     ToriRSChrome_SetHidden(ui->chrome, self->button_path_seed, !path || ui->tools.path_style == EDITOR_PATH_PAVED);
+    for( int i = 0; i < EDITOR_PATH_HEIGHT_MODE_COUNT; i++ )
+        ToriRSChrome_SetHidden(ui->chrome, self->radio_path_height[i], !path);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_path_height, !path || ui->tools.path_height_mode == EDITOR_PATH_HEIGHT_OFF);
     self->shown_tool = ui->tools.tool;
 }
 
@@ -304,12 +378,23 @@ terrain_tick(
     if( self->shown_path_style != ui->tools.path_style || self->shown_path_width != ui->tools.path_width_halves
         || self->shown_path_rough != ui->tools.path_roughness )
     {
-        ToriRSChrome_RadioSelect(ui->chrome, self->radio_path[ui->tools.path_style == EDITOR_PATH_PAVED]);
+        ToriRSChrome_RadioSelect(ui->chrome, self->radio_path[terrain_path_style(ui)]);
         ToriRSChrome_SliderSet(ui->chrome, self->slider_path_width, ui->tools.path_width_halves);
         ToriRSChrome_SliderSet(ui->chrome, self->slider_path_rough, ui->tools.path_roughness);
         self->shown_path_style = ui->tools.path_style;
         self->shown_path_width = ui->tools.path_width_halves;
         self->shown_path_rough = ui->tools.path_roughness;
+        terrain_readout(ui, self);
+    }
+    /* Ctrl/Cmd+click under Path picks the height and the mode. */
+    if( self->shown_path_height_mode != ui->tools.path_height_mode
+        || self->shown_path_height_units != ui->tools.path_height_units )
+    {
+        if( ui->tools.path_height_mode >= 0 && ui->tools.path_height_mode < EDITOR_PATH_HEIGHT_MODE_COUNT )
+            ToriRSChrome_RadioSelect(ui->chrome, self->radio_path_height[ui->tools.path_height_mode]);
+        ToriRSChrome_SliderSet(ui->chrome, self->slider_path_height, ui->tools.path_height_units);
+        self->shown_path_height_mode = ui->tools.path_height_mode;
+        self->shown_path_height_units = ui->tools.path_height_units;
         terrain_readout(ui, self);
     }
     if( self->shown_scatter_density != ui->tools.scatter_density
@@ -342,6 +427,25 @@ terrain_tick(
         self->shown_height_fill = ui->tools.height_grid_opacity;
         terrain_readout(ui, self);
     }
+    {
+        int const now[8] = { ui->tools.region_radius_halves, ui->tools.region_hardness, ui->tools.region_snap,
+            ui->tools.region_set, ui->tools.region_underlay, ui->tools.region_lasso_smooth,
+            ui->tools.region_tidy_halves, ui->tools.region_feather };
+        if( memcmp(now, self->shown_region, sizeof(now)) != 0 )
+        {
+            ToriRSChrome_SliderSet(ui->chrome, self->slider_region_radius, now[0]);
+            ToriRSChrome_SliderSet(ui->chrome, self->slider_region_hardness, now[1]);
+            ToriRSChrome_SetChecked(ui->chrome, self->check_region_snap, now[2] ? 1 : 0);
+            if( now[3] >= 0 && now[3] < EDITOR_REGION_SET_COUNT )
+                ToriRSChrome_RadioSelect(ui->chrome, self->radio_region_set[now[3]]);
+            ToriRSChrome_RadioSelect(ui->chrome, self->radio_region_target[now[4] ? 1 : 0]);
+            ToriRSChrome_SliderSet(ui->chrome, self->slider_region_lasso_smooth, now[5]);
+            ToriRSChrome_SliderSet(ui->chrome, self->slider_region_tidy_smooth, now[6]);
+            ToriRSChrome_SliderSet(ui->chrome, self->slider_region_feather, now[7]);
+            memcpy(self->shown_region, now, sizeof(now));
+            terrain_readout(ui, self);
+        }
+    }
     if( self->shown_flags != ui->tools.flags_value )
     {
         for( int i = 0; i < 4; i++ )
@@ -369,6 +473,8 @@ terrain_activate(
         self->shown_path_width = tools->path_width_halves = ToriRSChrome_SliderValue(ui->chrome, widget);
     else if( widget == self->slider_path_rough )
         self->shown_path_rough = tools->path_roughness = ToriRSChrome_SliderValue(ui->chrome, widget);
+    else if( widget == self->slider_path_height )
+        self->shown_path_height_units = tools->path_height_units = ToriRSChrome_SliderValue(ui->chrome, widget);
     else if( widget == self->button_path_seed )
     {
         tools->path_seed = tools->path_seed * 1664525u + 1013904223u;
@@ -417,6 +523,24 @@ terrain_activate(
         tools->height_grid_opacity = ToriRSChrome_SliderValue(ui->chrome, widget);
         return 1;
     }
+    else if( widget == self->slider_region_radius )
+        tools->region_radius_halves = ToriRSChrome_SliderValue(ui->chrome, widget);
+    else if( widget == self->slider_region_hardness )
+        tools->region_hardness = ToriRSChrome_SliderValue(ui->chrome, widget);
+    else if( widget == self->check_region_snap )
+        tools->region_snap = ToriRSChrome_Checked(ui->chrome, widget) ? 1 : 0;
+    else if( widget == self->slider_region_lasso_smooth )
+        tools->region_lasso_smooth = ToriRSChrome_SliderValue(ui->chrome, widget);
+    else if( widget == self->slider_region_tidy_smooth )
+        tools->region_tidy_halves = ToriRSChrome_SliderValue(ui->chrome, widget);
+    else if( widget == self->slider_region_feather )
+        tools->region_feather = ToriRSChrome_SliderValue(ui->chrome, widget);
+    else if( widget == self->button_region_seed )
+    {
+        tools->region_seed = tools->region_seed * 1664525u + 1013904223u;
+        Editor_UiStatus(ui, "Region: another dither for the next underlay stroke");
+        return 1;
+    }
     else if( widget == self->check_solo )
     {
         tools->vis_solo = ToriRSChrome_Checked(ui->chrome, widget) ? 1 : 0;
@@ -435,6 +559,25 @@ terrain_activate(
             if( widget == self->radio_height_mode[i] )
             {
                 tools->height_mode = i;
+                return 1;
+            }
+        for( int i = 0; i < 2; i++ )
+            if( widget == self->radio_region_target[i] )
+            {
+                tools->region_underlay = i;
+                return 1;
+            }
+        for( int i = 0; i < EDITOR_REGION_SET_COUNT; i++ )
+            if( widget == self->radio_region_set[i] )
+            {
+                tools->region_set = i;
+                return 1;
+            }
+        for( int i = 0; i < EDITOR_PATH_HEIGHT_MODE_COUNT; i++ )
+            if( widget == self->radio_path_height[i] )
+            {
+                self->shown_path_height_mode = tools->path_height_mode = i;
+                terrain_readout(ui, self);
                 return 1;
             }
         for( int i = 0; i < EDITOR_PATH_STYLE_COUNT; i++ )
@@ -551,15 +694,30 @@ Editor_Terrain_Register(struct EditorUi* ui)
     self->label_path = ToriRSChrome_Label(chrome, self->panel, "Path");
     for( int i = 0; i < EDITOR_PATH_STYLE_COUNT; i++ )
         self->radio_path[i] = ToriRSChrome_Radio(chrome, self->panel, k_path_names[i], TERRAIN_GROUP_PATH,
-            i == (ui->tools.path_style == EDITOR_PATH_PAVED));
+            i == terrain_path_style(ui));
     ToriRSChrome_SetTooltip(chrome, self->radio_path[0], "Edges that wander, the width breathing (the content's tracks)");
     ToriRSChrome_SetTooltip(chrome, self->radio_path[1], "Straight runs and 45-degree bends, a steady width (roads)");
+    ToriRSChrome_SetTooltip(chrome, self->radio_path[2], "A slow meander, banks that swell (pick water; dig its bed)");
     self->slider_path_width = ToriRSChrome_Slider(chrome, self->panel, "Width (half tiles)", 1,
         (int)(EDITOR_PATH_WIDTH_MAX * 2), ui->tools.path_width_halves, 1);
     self->slider_path_rough =
         ToriRSChrome_Slider(chrome, self->panel, "Roughness", 0, 100, ui->tools.path_roughness, 5);
     self->button_path_seed = ToriRSChrome_Button(chrome, self->panel, "New edges");
-    ToriRSChrome_SetTooltip(chrome, self->button_path_seed, "Another wander for the next dirt path");
+    ToriRSChrome_SetTooltip(chrome, self->button_path_seed, "Another wander for the next dirt path or river");
+    for( int i = 0; i < EDITOR_PATH_HEIGHT_MODE_COUNT; i++ )
+        self->radio_path_height[i] = ToriRSChrome_Radio(chrome, self->panel, k_path_height_names[i],
+            TERRAIN_GROUP_PATH_HEIGHT, i == ui->tools.path_height_mode);
+    ToriRSChrome_SetTooltip(chrome, self->radio_path_height[1], "One height under the path; Ctrl/Cmd+click picks it");
+    ToriRSChrome_SetTooltip(chrome, self->radio_path_height[2], "Dig the ground under the path: a river's bed");
+    ToriRSChrome_SetTooltip(chrome, self->radio_path_height[3], "Lift the ground under the path: a causeway");
+    self->slider_path_height = ToriRSChrome_Slider(
+        chrome, self->panel, "Height (units of 8)", 0, TERRAIN_HEIGHT_UNITS_MAX, ui->tools.path_height_units, 1);
+    ToriRSChrome_SetTooltip(chrome, self->slider_path_height, "Set to: above zero; lower or raise: by how much");
+    self->shown_path_height_mode = ui->tools.path_height_mode;
+    self->shown_path_height_units = ui->tools.path_height_units;
+    for( int i = 0; i < EDITOR_PATH_HEIGHT_MODE_COUNT; i++ )
+        ToriRSChrome_SetHidden(chrome, self->radio_path_height[i], 1);
+    ToriRSChrome_SetHidden(chrome, self->slider_path_height, 1);
     self->shown_path_style = ui->tools.path_style;
     self->shown_path_width = ui->tools.path_width_halves;
     self->shown_path_rough = ui->tools.path_roughness;
@@ -596,6 +754,54 @@ Editor_Terrain_Register(struct EditorUi* ui)
     ToriRSChrome_SetHidden(chrome, self->check_scatter_rotate, 1);
     ToriRSChrome_SetHidden(chrome, self->button_scatter_seed, 1);
     ToriRSChrome_SetHidden(chrome, self->slider_plateau_skirt, 1);
+
+    /* The Region tools (O, J, Y): hidden until one is armed. */
+    self->label_region = ToriRSChrome_Label(chrome, self->panel, "Region");
+    for( int i = 0; i < 2; i++ )
+        self->radio_region_target[i] = ToriRSChrome_Radio(chrome, self->panel, k_region_target_names[i],
+            TERRAIN_GROUP_REGION_TARGET, i == (ui->tools.region_underlay ? 1 : 0));
+    ToriRSChrome_SetTooltip(chrome, self->radio_region_target[0], "The palette's overlay, its edge cut to tile shapes");
+    ToriRSChrome_SetTooltip(chrome, self->radio_region_target[1],
+        "The palette's underlay, its rim dithered for the ground's blend");
+    self->slider_region_radius = ToriRSChrome_Slider(chrome, self->panel, "Radius (half tiles)", 1,
+        EDITOR_REGION_RADIUS_HALVES_MAX, ui->tools.region_radius_halves, 1);
+    self->slider_region_hardness = ToriRSChrome_Slider(chrome, self->panel, "Hardness (%)", EDITOR_REGION_HARDNESS_MIN,
+        EDITOR_REGION_HARDNESS_MAX, ui->tools.region_hardness, 10);
+    ToriRSChrome_SetTooltip(chrome, self->slider_region_hardness,
+        "Higher: shapes stay inside the line; lower: they spill over it");
+    self->check_region_snap = ToriRSChrome_Checkbox(chrome, self->panel, "Half-tile snap", ui->tools.region_snap);
+    ToriRSChrome_SetTooltip(chrome, self->check_region_snap,
+        "Points on half tiles: edges land on tile edges and middles");
+    for( int i = 0; i < EDITOR_REGION_SET_COUNT; i++ )
+        self->radio_region_set[i] = ToriRSChrome_Radio(
+            chrome, self->panel, k_region_set_names[i], TERRAIN_GROUP_REGION_SET, i == ui->tools.region_set);
+    ToriRSChrome_SetTooltip(chrome, self->radio_region_set[0], "Every shape the content's tracks use");
+    ToriRSChrome_SetTooltip(chrome, self->radio_region_set[1], "Straight edges and 45-degree corners only");
+    ToriRSChrome_SetTooltip(chrome, self->radio_region_set[2], "All twelve shapes, the trapezium too");
+    self->slider_region_lasso_smooth = ToriRSChrome_Slider(
+        chrome, self->panel, "Corner smoothing (passes)", 0, 3, ui->tools.region_lasso_smooth, 1);
+    self->slider_region_tidy_smooth =
+        ToriRSChrome_Slider(chrome, self->panel, "Smooth (half tiles)", 0, 4, ui->tools.region_tidy_halves, 1);
+    ToriRSChrome_SetTooltip(chrome, self->slider_region_tidy_smooth,
+        "How far Tidy rounds steps: 1 a single step, 3 a whole bay");
+    self->slider_region_feather =
+        ToriRSChrome_Slider(chrome, self->panel, "Feather (tiles)", 0, 3, ui->tools.region_feather, 1);
+    ToriRSChrome_SetTooltip(chrome, self->slider_region_feather, "How wide the underlay's dithered rim is");
+    self->button_region_seed = ToriRSChrome_Button(chrome, self->panel, "New dither");
+    ToriRSChrome_SetTooltip(chrome, self->button_region_seed, "Another dither for the next underlay stroke");
+    self->shown_region[0] = -1;
+    ToriRSChrome_SetHidden(chrome, self->label_region, 1);
+    for( int i = 0; i < 2; i++ )
+        ToriRSChrome_SetHidden(chrome, self->radio_region_target[i], 1);
+    ToriRSChrome_SetHidden(chrome, self->slider_region_radius, 1);
+    ToriRSChrome_SetHidden(chrome, self->slider_region_hardness, 1);
+    ToriRSChrome_SetHidden(chrome, self->check_region_snap, 1);
+    for( int i = 0; i < EDITOR_REGION_SET_COUNT; i++ )
+        ToriRSChrome_SetHidden(chrome, self->radio_region_set[i], 1);
+    ToriRSChrome_SetHidden(chrome, self->slider_region_lasso_smooth, 1);
+    ToriRSChrome_SetHidden(chrome, self->slider_region_tidy_smooth, 1);
+    ToriRSChrome_SetHidden(chrome, self->slider_region_feather, 1);
+    ToriRSChrome_SetHidden(chrome, self->button_region_seed, 1);
 
     ToriRSChrome_Separator(chrome, self->panel);
     ToriRSChrome_Label(chrome, self->panel, "Flags brush");

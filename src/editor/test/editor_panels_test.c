@@ -370,6 +370,117 @@ test_shapes(void)
 
 /* ---- brushes -------------------------------------------------------------------- */
 
+/* ---- the path's height, the region tools ------------------------------------------ */
+
+/* No two commands of `count` name the same tile. */
+static int
+one_command_per_tile(
+    const struct Editor_Cmd* commands,
+    int count)
+{
+    for( int i = 0; i < count; i++ )
+        for( int k = i + 1; k < count; k++ )
+            if( commands[i].kind == EDITOR_CMD_TILE && commands[k].kind == EDITOR_CMD_TILE
+                && commands[i].u.tile.x == commands[k].u.tile.x && commands[i].u.tile.z == commands[k].u.tile.z
+                && commands[i].u.tile.level == commands[k].u.tile.level
+                && strcmp(commands[i].doc_key, commands[k].doc_key) == 0 )
+                return 0;
+    return 1;
+}
+
+static void
+test_path_height_and_region(void)
+{
+    struct Editor_PathParams params;
+    int xs[16];
+    int zs[16];
+    int n = 0;
+    int closed = 0;
+    int painted;
+    int count;
+    int const mid_x = SQ_X0 + 25;
+    int const mid_z = SQ_Z0 + 40;
+    int const here = derived(mid_x, mid_z);
+
+    for( int x = SQ_X0 + 20; x <= SQ_X0 + 30; x++ )
+    {
+        xs[n] = x;
+        zs[n] = mid_z;
+        n++;
+    }
+    memset(&params, 0, sizeof(params));
+    params.style = EDITOR_PATH_RIVER;
+    params.width = 3.0;
+    params.roughness = 0.0;
+    params.seed = 1;
+
+    /* A river dug as it is laid: one command a tile, the authority takes
+     * them all, the bed two units lower, one undo puts it all back. */
+    painted = Editor_PathCommands(&g_editor.doc, 0, &params, 12, xs, zs, n, g_cmds, EDITOR_RECT_TILES_MAX, &closed);
+    count = Editor_PathHeightCommands(&g_editor.doc, 0, &params, EDITOR_PATH_HEIGHT_LOWER, 2, xs, zs, n, g_cmds,
+        painted, EDITOR_RECT_TILES_MAX, &closed);
+    CHECK(painted > 0 && count >= painted, "path height: the river paints and digs (%d, %d)", painted, count);
+    CHECK(closed == 0, "path height: every tile is in the open square");
+    CHECK(one_command_per_tile(g_cmds, count), "path height: a tile painted and dug is one command");
+    CHECK(apply_all(g_cmds, count) == count, "path height: the authority takes the merged commands");
+    CHECK(tile_at(mid_x, mid_z, 0)->has_overlay && tile_at(mid_x, mid_z, 0)->overlay_id == 12,
+        "path height: the river's water is laid");
+    CHECK(abs(derived(mid_x, mid_z) - (here + 2 * EDITOR_HEIGHT_UNIT)) <= EDITOR_HEIGHT_UNIT,
+        "path height: the bed is two units lower (%d from %d)", derived(mid_x, mid_z), here);
+    CHECK(Editor_Undo(&g_editor) == count, "path height: one undo for the river and its bed");
+    CHECK(derived(mid_x, mid_z) == here, "path height: undo restores the ground");
+
+    /* Set to: one level under the whole path. */
+    params.style = EDITOR_PATH_PAVED;
+    params.width = 2.0;
+    painted = Editor_PathCommands(&g_editor.doc, 0, &params, 12, xs, zs, n, g_cmds, EDITOR_RECT_TILES_MAX, NULL);
+    count = Editor_PathHeightCommands(&g_editor.doc, 0, &params, EDITOR_PATH_HEIGHT_SET, 30, xs, zs, n, g_cmds,
+        painted, EDITOR_RECT_TILES_MAX, NULL);
+    CHECK(apply_all(g_cmds, count) == count, "path height: set to is taken");
+    {
+        int level = 1;
+        for( int x = SQ_X0 + 21; x <= SQ_X0 + 29; x++ )
+            if( abs(derived(x, mid_z) - (-30 * EDITOR_HEIGHT_UNIT)) > EDITOR_HEIGHT_UNIT )
+                level = 0;
+        CHECK(level, "path height: the road's corners are all at 30 units");
+    }
+    CHECK(Editor_Undo(&g_editor) == count, "path height: one undo");
+
+    /* The Region brush's commands and Tidy's, through the authority. */
+    {
+        struct Editor_RegionGrid grid;
+        struct Editor_RegionParams rp = { EDITOR_REGION_NATURAL, EDITOR_REGION_ADD, 50, EDITOR_REGION_POOR_FIT };
+        struct Editor_RegionStats stats;
+        struct Editor_RegionTidy tidy;
+        int laid;
+
+        CHECK(Editor_RegionGridInit(&grid, SQ_X0 + 10, SQ_Z0 + 10, 12, 12), "region: grid");
+        Editor_RegionCapsule(&grid, SQ_X0 + 16.3, SQ_Z0 + 16.6, SQ_X0 + 16.3, SQ_Z0 + 16.6, 3.0);
+        laid = Editor_RegionOverlayCommands(&g_editor.doc, 0, &rp, 12, &grid, g_cmds, EDITOR_RECT_TILES_MAX, &stats);
+        /* m50_50 has overlays of its own here: a rim tile over another one is
+         * kept whole, so fewer edges than on bare ground. */
+        CHECK(laid > 20 && stats.edges > 0, "region: a disc lays whole tiles and edge shapes (%d, %d)", laid, stats.edges);
+        CHECK(apply_all(g_cmds, laid) == laid, "region: the authority takes the disc");
+        CHECK(Editor_RegionOverlayCommands(&g_editor.doc, 0, &rp, 12, &grid, g_cmds, EDITOR_RECT_TILES_MAX, NULL) == 0,
+            "region: the same disc again changes nothing");
+        CHECK(Editor_RegionTidyBegin(&g_editor.doc, 0, SQ_X0 + 16, SQ_Z0 + 16, 2, 50, &tidy) == 1,
+            "region: Tidy finds the disc's run");
+        count = Editor_RegionTidyCommands(&g_editor.doc, &tidy, EDITOR_REGION_NATURAL, 50, g_cmds,
+            EDITOR_RECT_TILES_MAX, NULL);
+        CHECK(apply_all(g_cmds, count) == count, "region: the authority takes Tidy's refit (%d)", count);
+        if( count > 0 )
+            CHECK(Editor_Undo(&g_editor) == count, "region: one undo for Tidy");
+        Editor_RegionTidyFree(&tidy);
+        rp.op = EDITOR_REGION_SUBTRACT;
+        count = Editor_RegionOverlayCommands(&g_editor.doc, 0, &rp, 12, &grid, g_cmds, EDITOR_RECT_TILES_MAX, NULL);
+        CHECK(apply_all(g_cmds, count) == count, "region: the take-off is taken");
+        CHECK(!tile_at(SQ_X0 + 16, SQ_Z0 + 16, 0)->has_overlay, "region: the middle is bare again");
+        CHECK(Editor_Undo(&g_editor) == count, "region: undo the take-off");
+        CHECK(Editor_Undo(&g_editor) == laid, "region: undo the disc");
+        Editor_RegionGridFree(&grid);
+    }
+}
+
 static void
 test_brushes(void)
 {
@@ -8140,6 +8251,7 @@ main(
 
     test_shapes();
     test_brushes();
+    test_path_height_and_region();
     test_rect();
     test_locs();
     test_spawns();

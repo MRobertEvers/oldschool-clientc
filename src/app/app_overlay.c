@@ -2001,6 +2001,102 @@ app_overlay_build_editor_path(struct App* app)
         }
 }
 
+/* The Region tools' preview (Editor_PanelRegionPreview): every tile the
+ * release (or Tidy's click) would write, in the shape the fitter chose --
+ * the client's own overlay faces, so the preview cannot disagree with the
+ * ground it makes -- edge shapes first while the budget lasts; a tile whose
+ * best shape still misses the region is outlined red, a tile losing its
+ * overlay is outlined in the take-off colour. Then the outline: the brush's
+ * disc round the pointer, the lasso's loop with its rubber band. */
+#define APP_EDITOR_REGION_TRIANGLES 1800
+#define APP_EDITOR_REGION_OUTLINE 256
+#define APP_EDITOR_REGION_TAKE_OFF 0xFFFF7A3Cu
+
+/** One triangle of a tile in tile units (0..1), on `level`'s ground. */
+static int
+app_overlay_editor_region_triangle(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    const double tri[3][2],
+    int level,
+    uint32_t color,
+    int trans)
+{
+    int px[3];
+    int py[3];
+
+    for( int k = 0; k < 3; k++ )
+    {
+        int const fx = scene_x * 128 + (int)(tri[k][0] * 128.0);
+        int const fz = scene_z * 128 + (int)(tri[k][1] * 128.0);
+        if( !app_world_project_at(app, fx, fz, app_world_height(app, fx, fz, level), &px[k], &py[k]) )
+            return 0;
+    }
+    app_overlay_push_polygon_filled(app, px, py, 3, color, trans);
+    return 1;
+}
+
+static void
+app_overlay_build_editor_region(struct App* app)
+{
+    struct Editor_Panel* panel = &app->editor_panel;
+    struct EditorUi* ui = panel->ui;
+    const struct Editor_RegionTile* tiles = NULL;
+    struct Editor_RegionStats stats;
+    double xs[APP_EDITOR_REGION_OUTLINE];
+    double zs[APP_EDITOR_REGION_OUTLINE];
+    int const level = panel->region.active ? panel->region.level : panel->region.hover_level;
+    int const take_off = panel->region.active && panel->region.subtract;
+    int closed = 0;
+    int count;
+    int drawn = 0;
+    int n;
+
+    if( !app->world || !ui )
+        return;
+    if( ui->tools.tool != EDITOR_TOOL_REGION && ui->tools.tool != EDITOR_TOOL_LASSO && ui->tools.tool != EDITOR_TOOL_TIDY
+        && !panel->region.active )
+        return;
+    count = Editor_PanelRegionPreview(panel, app, &tiles, &stats);
+    for( int pass = 0; pass < 2 && tiles; pass++ )
+        for( int i = 0; i < count && drawn < APP_EDITOR_REGION_TRIANGLES; i++ )
+        {
+            int const sx = tiles[i].world_x - app->world->_base_tile_x;
+            int const sz = tiles[i].world_z - app->world->_base_tile_z;
+            int const edge = tiles[i].shape != 0;
+            double tri[EDITOR_REGION_SHAPE_TRIANGLES][3][2];
+            int t;
+            if( edge != (pass == 0) )
+                continue;
+            if( sx < 0 || sz < 0 || sx >= app->world->_scene_size || sz >= app->world->_scene_size )
+                continue;
+            if( tiles[i].shape < 0 )
+            {
+                app_overlay_editor_tile(app, sx, sz, level, APP_EDITOR_REGION_TAKE_OFF, 200, 1);
+                drawn += 2;
+                continue;
+            }
+            t = Editor_RegionShapeTriangles(tiles[i].shape, tiles[i].rotation, tri);
+            for( int k = 0; k < t; k++ )
+                drawn += app_overlay_editor_region_triangle(
+                    app, sx, sz, (const double(*)[2])tri[k], level, take_off ? APP_EDITOR_REGION_TAKE_OFF : APP_EDITOR_BRUSH_COLOR,
+                    edge ? 120 : 170);
+            if( tiles[i].misfit > EDITOR_REGION_POOR_FIT )
+                app_overlay_editor_tile(app, sx, sz, level, APP_OUTLINE_COLOR_FOOTPRINT, -1, 1);
+        }
+
+    n = Editor_PanelRegionOutline(panel, xs, zs, APP_EDITOR_REGION_OUTLINE, &closed);
+    for( int i = 0; i + 1 < n + (closed ? 1 : 0); i++ )
+    {
+        int const j = (i + 1) % n;
+        app_overlay_editor_ground_segment(app, (int)((xs[i] - app->world->_base_tile_x) * 128.0),
+            (int)((zs[i] - app->world->_base_tile_z) * 128.0), (int)((xs[j] - app->world->_base_tile_x) * 128.0),
+            (int)((zs[j] - app->world->_base_tile_z) * 128.0), level,
+            take_off ? APP_EDITOR_REGION_TAKE_OFF : APP_EDITOR_GHOST_COLOR, APP_OVERLAY_SEGMENT_WIDTH);
+    }
+}
+
 static void
 app_overlay_build_editor_run(struct App* app)
 {
@@ -2324,6 +2420,7 @@ app_overlay_build_editor_selection(struct App* app)
     app_overlay_build_editor_run(app);
     /* A Path drag: the tiles the release will pave. */
     app_overlay_build_editor_path(app);
+    app_overlay_build_editor_region(app);
     /* The named areas (Areas panel). */
     app_overlay_build_editor_areas(app);
     /* The move gizmo and the multi-piece ghost (workbench 6.3). */

@@ -270,20 +270,33 @@ test_resolve(void)
         "[ radius, Ctrl+] step");
     CHECK(fire("ctrl+c", G) == -1 && fire("ctrl+c", G | EDITOR_HK_CTX_R) == EDITOR_HK_EDIT_COPY,
         "Ctrl+C copies only with a rectangle");
-    CHECK(fire("up", LOCS) == EDITOR_HK_EDIT_NUDGE_N, "Up nudges a selection under Select / Move");
-    /* 2026-11-02 (owner: "the loc placement tool needs hotkeys and to not
-     * lock the arrow keys"): with the Place tool armed the arrows are the
-     * camera's even with locs selected; the Place tool's keys. */
-    CHECK(fire("up", LOCS_PLACE) == -1 && fire("left", LOCS_PLACE) == -1,
-        "with locs selected under the Place tool the arrows fire no nudge");
+    /* 2026-11-07 (owner: "the arrow keys ALWAYS tilt/roll etc the camera
+     * when focused on the world view"): the nudges are Ctrl+arrows (Cmd on
+     * a Mac); the bare arrows are the camera's under every tool and
+     * selection. */
+    CHECK(fire("ctrl+up", LOCS) == EDITOR_HK_EDIT_NUDGE_N && fire("ctrl+shift+left", LOCS) == EDITOR_HK_EDIT_NUDGE_FAR_W,
+        "Ctrl+Up nudges a selection under Select / Move, Ctrl+Shift+Left 8 tiles");
+    CHECK(fire("up", LOCS) == -1 && fire("shift+left", LOCS) == -1, "the bare arrows nudge nothing, Shift or not");
+    CHECK(fire("ctrl+up", LOCS_PLACE) == -1 && fire("ctrl+left", LOCS_PLACE) == -1,
+        "with locs selected under the Place tool Ctrl+arrows fire no nudge");
     {
         struct Editor_HotkeyFrame held;
+        unsigned const k_ctx[2] = { LOCS, LOCS_PLACE };
+        for( int i = 0; i < 2; i++ )
+        {
+            input_clear(1000);
+            press("left");
+            g_in.contexts = k_ctx[i];
+            Editor_HotkeysResolve(&g_hk, &g_in, &held);
+            CHECK(held.active[EDITOR_HK_CAM_TURN_LEFT] && held.count == 0,
+                "Left held turns the camera with locs selected (%s)", i ? "Place" : "Select");
+        }
         input_clear(1000);
-        press("left");
-        g_in.contexts = LOCS_PLACE;
+        press("ctrl+left");
+        g_in.contexts = LOCS;
         Editor_HotkeysResolve(&g_hk, &g_in, &held);
-        CHECK(held.active[EDITOR_HK_CAM_TURN_LEFT] && held.count == 0,
-            "...they turn the camera (Left held turns left)");
+        CHECK(!held.active[EDITOR_HK_CAM_TURN_LEFT] && held.count == 1 && held.fired[0] == EDITOR_HK_EDIT_NUDGE_W,
+            "Ctrl+Left nudges and does not turn");
     }
     CHECK(fire("return", PLACING) == EDITOR_HK_PLACE_HERE && fire("space", PLACING) == -1,
         "Return places at the hovered tile with the Place tool armed and nothing selected; Space no longer does");
@@ -411,12 +424,15 @@ test_resolve(void)
         CHECK(fire("ctrl+z", G) == EDITOR_HK_FILE_BAKE, "the later binding wins the chord");
         Editor_HotkeysSet(&g_hk, EDITOR_HK_EDIT_UNDO, &chord, 1);
         CHECK(fire("ctrl+z", G) == EDITOR_HK_EDIT_UNDO, "...until the other side is rebound");
-        (void)Editor_ChordParse("left", &chord);
+        (void)Editor_ChordParse("ctrl+left", &chord);
         Editor_HotkeysSet(&g_hk, EDITOR_HK_EDIT_NUDGE_N, &chord, 1);
         CHECK(Editor_HotkeysClash(&g_hk, EDITOR_HK_EDIT_NUDGE_N) == EDITOR_HK_EDIT_NUDGE_W,
-            "nudge N on Left clashes with nudge W");
-        CHECK(Editor_HotkeysClash(&g_hk, EDITOR_HK_CAM_TURN_LEFT) < 0,
-            "but not with the camera's turn (no loc vs locs: exclusive)");
+            "nudge N on Ctrl+Left clashes with nudge W");
+        CHECK(Editor_HotkeysClash(&g_hk, EDITOR_HK_CAM_TURN_LEFT) < 0, "but not with the camera's bare Left");
+        (void)Editor_ChordParse("left", &chord);
+        Editor_HotkeysSet(&g_hk, EDITOR_HK_EDIT_NUDGE_N, &chord, 1);
+        CHECK(Editor_HotkeysClash(&g_hk, EDITOR_HK_EDIT_NUDGE_N) == EDITOR_HK_CAM_TURN_LEFT,
+            "nudge N on bare Left clashes with the camera's turn (the arrows are live everywhere)");
     }
 
     /* Capture. */
@@ -514,7 +530,7 @@ test_hint(void)
     CHECK(count == 10 && strcmp(rows[0].chord, "click") == 0 && strcmp(rows[0].verb, "tile") == 0
               && strcmp(rows[1].chord, "Shift+click") == 0 && strcmp(rows[2].verb, "marquee") == 0
               && strcmp(rows[3].chord, HINT_CTRL "+A") == 0 && strcmp(rows[4].chord, "Alt+A") == 0
-              && strcmp(rows[4].verb, "same") == 0 && strcmp(rows[5].chord, "arrows") == 0
+              && strcmp(rows[4].verb, "same") == 0 && strcmp(rows[5].chord, HINT_CTRL "+arrows") == 0
               && strcmp(rows[5].verb, "nudge") == 0 && strcmp(rows[6].chord, "Q") == 0
               && strcmp(rows[7].chord, "Shift+Q") == 0 && strcmp(rows[8].chord, "E") == 0
               && strcmp(rows[9].chord, "Del, Backspace") == 0 && strcmp(rows[9].verb, "delete") == 0,
@@ -535,7 +551,7 @@ test_hint(void)
         "hint: a brush's bracket pairs say their modifier once ('%s', '%s', '%s')", count > 1 ? rows[1].chord : "",
         count > 2 ? rows[2].chord : "", count > 3 ? rows[3].chord : "");
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_MOVE), 0, rows, EDITOR_HK_HINT_MAX);
-    CHECK(count == 2 && strcmp(rows[0].chord, "drag/arrows") == 0 && strcmp(rows[1].chord, HINT_CTRL "+D") == 0,
+    CHECK(count == 2 && strcmp(rows[0].chord, "drag/" HINT_CTRL "+arrows") == 0 && strcmp(rows[1].chord, HINT_CTRL "+D") == 0,
         "hint: Move drags or nudges, and duplicates ('%s')", count > 0 ? rows[0].chord : "");
     count = Editor_HotkeysHint(&g_hk, EDITOR_HK_CTX_ALL, HINT_TOOL(EDITOR_HK_TOOL_RECT), 0, rows, EDITOR_HK_HINT_MAX);
     CHECK(count == 5 && strcmp(rows[1].chord, HINT_CTRL "+C") == 0 && strcmp(rows[2].chord, HINT_CTRL "+V") == 0
@@ -723,7 +739,8 @@ test_join(void)
     Editor_HotkeysJoin(&g_hk, strength, 2, out, (int)sizeof(out));
     CHECK(strcmp(out, "Shift+[ ]") == 0, "join: the shared modifier said once ('%s')", out);
     Editor_HotkeysJoin(&g_hk, nudges, 4, out, (int)sizeof(out));
-    CHECK(strcmp(out, "arrows") == 0, "join: the four nudges are 'arrows' ('%s')", out);
+    CHECK(strcmp(out, "Ctrl+arrows") == 0 || strcmp(out, "Cmd+arrows") == 0,
+        "join: the four nudges are 'Ctrl+arrows' ('%s')", out);
     CHECK(Editor_ChordParse("minus", &chord), "join: minus parses");
     Editor_HotkeysSet(&g_hk, EDITOR_HK_BRUSH_RADIUS_DOWN, &chord, 1);
     Editor_HotkeysJoin(&g_hk, radius, 2, out, (int)sizeof(out));
@@ -789,7 +806,7 @@ test_contexts_from(void)
     facts.loc_pick = 1;
     contexts = Editor_HotkeyContextsFrom(&facts);
     CHECK((contexts & EDITOR_HK_CTX_N) && !(contexts & EDITOR_HK_CTX_M) && !(contexts & EDITOR_HK_CTX_P),
-        "contexts: Place with locs selected leaves the arrows to the camera and has no P (%#x)", contexts);
+        "contexts: Place with locs selected has no nudges (M) and no P (%#x)", contexts);
     facts.loc_count = 0;
     contexts = Editor_HotkeyContextsFrom(&facts);
     CHECK((contexts & EDITOR_HK_CTX_P) && !(contexts & EDITOR_HK_CTX_L), "contexts: Place with a loc pick is P (%#x)",
@@ -930,9 +947,9 @@ test_picker_context(void)
         CHECK(fire(k_picker[i].chord, EDITOR_HK_CTX_G | EDITOR_HK_CTX_N) != k_picker[i].action,
             "picker: %s resolves to the World's action in G N", k_picker[i].chord);
     }
-    CHECK(Editor_ChordParse("up", &chord), "picker: up parses");
+    CHECK(Editor_ChordParse("ctrl+up", &chord), "picker: ctrl+up parses");
     CHECK(Editor_HotkeysMatch(&g_hk, chord, EDITOR_HK_CTX_G | EDITOR_HK_CTX_M) == EDITOR_HK_EDIT_NUDGE_N,
-        "picker: up still nudges in M");
+        "picker: Ctrl+Up still nudges in M");
     CHECK(Editor_ChordParse("return", &chord), "picker: return parses");
     CHECK(Editor_HotkeysMatch(&g_hk, chord, EDITOR_HK_CTX_G | EDITOR_HK_CTX_L) == EDITOR_HK_EDIT_APPLY,
         "picker: Return still applies the tool in L");

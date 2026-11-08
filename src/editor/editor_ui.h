@@ -99,6 +99,15 @@ enum Editor_Tool
      *  hole with a flat top for a building (edpanel_ops.h
      *  Editor_PlateauCommands; the Rect panel's Plateau does a rectangle). */
     EDITOR_TOOL_PLATEAU,
+    /** Region brush: a disc swept along the drag in continuous tile space,
+     *  the palette's overlay laid with its edge fitted to the client's tile
+     *  shapes (editor/editor_region.h); Alt-drag takes it off. On release,
+     *  one undo step (editor/editor_panel_region.h). */
+    EDITOR_TOOL_REGION,
+    /** Lasso: a drawn loop (or clicked corners) filled the same way. */
+    EDITOR_TOOL_LASSO,
+    /** Tidy: a click refits the run of overlay under it, its steps smoothed. */
+    EDITOR_TOOL_TIDY,
     EDITOR_TOOL_COUNT
 };
 
@@ -270,13 +279,21 @@ struct EditorUiTools
      *  own. */
     int stroke_open;
 
-    /** The Path tool (editor/editor_path.h): dirt or pavement, the width in
-     *  half tiles (1..16), dirt's roughness in percent, and the seed its
-     *  wander is drawn from (New edges draws another). */
+    /** The Path tool (editor/editor_path.h): dirt, pavement or river, the
+     *  width in half tiles (1..16), dirt's and a river's roughness in
+     *  percent, and the seed their wander is drawn from (New edges draws
+     *  another). */
     int path_style;
     int path_width_halves;
     int path_roughness;
     uint32_t path_seed;
+    /** What the path does to the ground under it (edpanel_ops.h enum
+     *  Editor_PathHeightMode: leave, set to, lower by, raise by) and the
+     *  amount in EDITOR_HEIGHT_UNITs (for "set to", the height above zero
+     *  as the Height brush's grid counts it; Ctrl/Cmd+click under the Path
+     *  tool picks it off the ground). */
+    int path_height_mode;
+    int path_height_units;
 
     /** The Roughen brush: the seed its noise is drawn from, moved on at
      *  every stroke so the same drag twice does not undo itself. */
@@ -292,7 +309,29 @@ struct EditorUiTools
      *  tiles (0..EDITOR_PLATEAU_SKIRT_MAX) eased from the flat top to the
      *  ground around it. */
     int plateau_skirt;
+    /** The Region tools (editor/editor_panel_region.h): the brush's radius
+     *  in half tiles (1..EDITOR_REGION_RADIUS_HALVES_MAX), hardness
+     *  (EDITOR_REGION_HARDNESS_MIN..MAX %: how much a shape may spill past
+     *  the region against how much of it it may leave bare), half-tile
+     *  snap of the brush's points and the lasso's corners, the shape set
+     *  (enum Editor_RegionSet), the target (0 the palette's overlay, 1 its
+     *  underlay with the rim dithered), the lasso's corner smoothing in
+     *  passes (0..3), Tidy's smoothing in half tiles (0..4), the underlay
+     *  rim's feather in tiles (0..3) and the dither's seed. Per window, as
+     *  the path's settings are. */
+    int region_radius_halves;
+    int region_hardness;
+    int region_snap;
+    int region_set;
+    int region_underlay;
+    int region_lasso_smooth;
+    int region_tidy_halves;
+    int region_feather;
+    uint32_t region_seed;
 };
+
+/** The widest Region brush, in half tiles (8 tiles across the radius). */
+#define EDITOR_REGION_RADIUS_HALVES_MAX 16
 
 /** The widest plateau skirt, in tiles. */
 #define EDITOR_PLATEAU_SKIRT_MAX 8

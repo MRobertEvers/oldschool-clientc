@@ -34,15 +34,18 @@
  *
  * Where an action is live. G is always live while the editor is open; the
  * rest are states of the editor. A chord may be reused across exclusive
- * contexts: the arrows nudge in M and turn the camera in N; Return applies
- * the tool in L and places in P.
+ * contexts: Return applies the tool in L and places in P.
+ *
+ * The bare arrows turn and tilt the camera in every context (G): nothing in
+ * the World takes them over. The nudges are Ctrl+arrows (Cmd on a Mac), live
+ * in M only.
  *
  *   L excludes S and P (both say no loc is selected);
  *   M (locs selected AND the Select or Move tool armed) excludes N (no loc
  *   selected, OR another tool armed), S and P.
  *
  * With the Place tool (or a brush, Rect, Rotate, Delete) armed and locs
- * selected, the arrows turn the camera: only Select and Move nudge.
+ * selected, Ctrl+arrows do nothing: only Select and Move nudge.
  *
  *   K (the picker has focus) excludes every other context, G included:
  *   while the Squares well holds the keyboard it is a field, the App's
@@ -179,6 +182,9 @@ enum Editor_HotkeyAction
     EDITOR_HK_TOOL_NOISE,
     EDITOR_HK_TOOL_SCATTER,
     EDITOR_HK_TOOL_PLATEAU,
+    EDITOR_HK_TOOL_REGION,
+    EDITOR_HK_TOOL_LASSO,
+    EDITOR_HK_TOOL_TIDY,
     EDITOR_HK_TOOL_PREVIOUS,
     EDITOR_HK_TOOL_PICK_PAINT,
     EDITOR_HK_TOOL_PICK_LOC,
@@ -623,7 +629,7 @@ Editor_HotkeyKeyIsModifier(int key);
  * header; it asserts the two orders agree): the first EDITOR_HK_HINT_TOOLS
  * EDITOR_HK_TOOL_* actions arm the tools in that order.
  */
-#define EDITOR_HK_HINT_TOOLS (EDITOR_HK_TOOL_PLATEAU - EDITOR_HK_TOOL_SELECT + 1)
+#define EDITOR_HK_HINT_TOOLS (EDITOR_HK_TOOL_TIDY - EDITOR_HK_TOOL_SELECT + 1)
 /** Rows one tool's strip holds at most (Select's nine). */
 #define EDITOR_HK_HINT_MAX 10
 /** Actions one row reads its chords from at most (the four nudges). */
@@ -660,12 +666,12 @@ struct Editor_HotkeyHint
  * The rows, per tool (chords are the defaults; the table decides):
  *
  *   Select        click tile, Shift+click add loc, drag marquee,
- *                 Ctrl+A square (W), arrows nudge (M), Q rotate,
+ *                 Ctrl+A square (W), Ctrl+arrows nudge (M), Q rotate,
  *                 Shift+Q reshape, E swap (L), Del delete (L, S)
  *   Place         click/Space place (P), Q turn, Shift+Q reshape, G fit,
  *                 E swap (L), Esc drop
  *   the brushes   drag paint, [ ] radius, Shift+[ ] strength, Ctrl+[ ] step
- *   Move          drag/arrows move (M), Ctrl+D dup (L, S)
+ *   Move          drag/Ctrl+arrows move (M), Ctrl+D dup (L, S)
  *   Rotate        click rotate
  *   Delete        click delete
  *   Rect          drag rectangle, Ctrl+C copy (R), Ctrl+V paste (W),

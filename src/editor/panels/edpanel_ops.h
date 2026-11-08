@@ -131,6 +131,46 @@ Editor_PathCommands(
     int max,
     int* out_closed);
 
+/** What the Path tool does to the ground under the path. */
+enum Editor_PathHeightMode
+{
+    /** Leaves it as it is. */
+    EDITOR_PATH_HEIGHT_OFF = 0,
+    /** Sets every corner under the path to one height: a level road. */
+    EDITOR_PATH_HEIGHT_SET,
+    /** Lowers every corner by the amount: a river's bed, a sunken lane. */
+    EDITOR_PATH_HEIGHT_LOWER,
+    /** Raises every corner by the amount: a causeway. */
+    EDITOR_PATH_HEIGHT_RAISE,
+    EDITOR_PATH_HEIGHT_MODE_COUNT
+};
+
+/**
+ * The height a path lays (Editor_PathCorners: the corners under it, the
+ * banks included), as TILE commands on the `h` token, merged into the path's
+ * own `have` commands in `out` (a tile both paints and lifts in one command,
+ * so the authority sees one before and one after for it). `units` is in
+ * EDITOR_HEIGHT_UNITs: the height above zero for SET (as the Height brush's
+ * grid counts it), the depth or rise for LOWER and RAISE. A corner within
+ * half a unit of where it would go is left. Returns the new count (at most
+ * `max`); *out_closed (when given) gains the corners left out because their
+ * square is not open.
+ */
+int
+Editor_PathHeightCommands(
+    struct Editor_Doc* doc,
+    int level,
+    const struct Editor_PathParams* params,
+    enum Editor_PathHeightMode mode,
+    int units,
+    const int* xs,
+    const int* zs,
+    int count,
+    struct Editor_Cmd* out,
+    int have,
+    int max,
+    int* out_closed);
+
 /* ---- scatter: locs by the brushful --------------------------------------------- */
 
 /** Kinds one scatter set holds. */

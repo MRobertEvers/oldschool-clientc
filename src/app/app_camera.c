@@ -451,7 +451,10 @@ app_camera_pan_ground(
     if( height < 200 )
         height = 200;
     per_px = height / 200 + 1;
-    app_camera_move_left(app, dx * per_px);
+    /* app_camera_move_left's positive is RIGHT: a drag to the right moves
+     * the eye left, so the ground slides right under the pointer. A drag
+     * down moves the eye forward, which carries the ground down the screen. */
+    app_camera_move_left(app, -dx * per_px);
     app_camera_move_forward(app, dy * per_px);
     view->camera_unlocked = 1;
     app->need_redraw = 1;
@@ -648,8 +651,8 @@ app_world_camera_keys(
      * scripted) fall back to the free-cam direct rotate. */
     if( app_editor_hotkeys_owns_camera(app) )
     {
-        /* The editor's turn / tilt actions: only with no loc selected (the
-         * arrows nudge a selection then), and rebindable. */
+        /* The editor's turn / tilt actions: the bare arrows, always (the
+         * nudges are Ctrl+arrows), and rebindable. */
         app->frame_view->cam_key_left = app_editor_hotkeys_active(app, EDITOR_HK_CAM_TURN_LEFT);
         app->frame_view->cam_key_right = app_editor_hotkeys_active(app, EDITOR_HK_CAM_TURN_RIGHT);
         app->frame_view->cam_key_up = app_editor_hotkeys_active(app, EDITOR_HK_CAM_TILT_UP);
@@ -936,6 +939,32 @@ app_world_camera_mouse(
     }
     else
         app->frame_view->cam_mmb_active = 0;
+
+    /* A trackpad's two-finger scroll flies the free camera on BOTH axes, by
+     * the exact deltas: up/down dollies forward/back at the wheel's rate per
+     * notch's worth of pixels, left/right strafes at the same rate, so a
+     * diagonal swipe flies diagonally and a slow one moves slowly instead of
+     * waiting out a whole notch. The platform's "natural" flip is taken back
+     * out as it is for mouse_wheel_y: fingers away fly forward and fingers
+     * right fly right, whatever the setting. The same swipe is also in
+     * mouse_wheel_y; it is not dollied twice. */
+    if( !follow_cam && input->curr.scroll_trackpad
+        && (input->curr.scroll_dx != 0.0f || input->curr.scroll_dy != 0.0f) && !out->wheel_consumed
+        && !app->frame_view->minimenu->visible && !app_chrome_wants_pointer(app, mouse_x, mouse_y)
+        && app_world_mouse_gate(app, mouse_x, mouse_y) )
+    {
+        float const sign = input->curr.scroll_flipped ? -1.0f : 1.0f;
+        float per_px;
+
+        assert(input->curr.scroll_px_per_notch > 0);
+        per_px = (float)APP_WORLD_ZOOM_FREECAM_STEP / (float)input->curr.scroll_px_per_notch;
+        app_camera_move_forward(app, (int)lroundf(sign * input->curr.scroll_dy * per_px));
+        /* app_camera_move_left's positive is RIGHT (the Right key's +fly). */
+        app_camera_move_left(app, (int)lroundf(sign * input->curr.scroll_dx * per_px));
+        app_debug_log_camera(app, "trackpad", 0);
+        app->need_redraw = 1;
+        return;
+    }
 
     /* Wheel up (positive) zooms in. Gated on the pointer being over the scene
      * and on no widget having already taken this notch, so a wheel over a
