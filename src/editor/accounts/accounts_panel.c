@@ -255,6 +255,8 @@ struct AccountsPanel
     int shown_pick_id;
     int log_follow;
     int list_asked;
+    /** When Editor_Accounts_PlayPosition last asked for a fresh list. */
+    int position_asked_frame;
     int quests_asked;
     int loadouts_asked;
     int invs_asked;
@@ -2367,6 +2369,62 @@ Editor_Accounts_Show(
     self->shown_view_serial = -1;
     self->shown_list_serial = -1;
     return 1;
+}
+
+int
+Editor_Accounts_PlayPosition(
+    struct EditorUi* ui,
+    int* out_x,
+    int* out_z,
+    int* out_level)
+{
+    struct AccountsPanel* self;
+    const struct Editor_AccountsModel* m;
+
+    assert(ui);
+    assert(out_x);
+    assert(out_z);
+    assert(out_level);
+    self = acct_self(ui);
+    if( !self )
+        return 0;
+    if( ui->editor && self->frame - self->position_asked_frame >= ACCT_LOOK_ASK_FRAMES )
+    {
+        self->position_asked_frame = self->frame;
+        acct_ask_list(ui, self);
+    }
+    m = &self->model;
+    if( !m->play_account[0] )
+        return 0;
+    for( int i = 0; i < m->row_count; i++ )
+        if( strcmp(m->rows[i].name, m->play_account) == 0 )
+        {
+            /* A save that has never been placed says 0,0. */
+            if( m->rows[i].x <= 0 && m->rows[i].z <= 0 )
+                return 0;
+            *out_x = m->rows[i].x;
+            *out_z = m->rows[i].z;
+            *out_level = m->rows[i].level;
+            return 1;
+        }
+    return 0;
+}
+
+void
+Editor_Accounts_RevealPlay(struct EditorUi* ui)
+{
+    struct AccountsPanel* self;
+
+    assert(ui);
+    self = acct_self(ui);
+    if( !self )
+        return;
+    if( self->model.play_account[0] )
+        (void)Editor_Accounts_Show(ui, self->model.play_account);
+    if( Editor_UiPanelInStrip(ui, "accounts") )
+        Editor_UiGroupShow(ui, "accounts");
+    else if( !ui->chrome->panels[self->panel].visible )
+        ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 1);
 }
 
 int

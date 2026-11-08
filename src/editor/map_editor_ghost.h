@@ -23,7 +23,10 @@
  * put back, which is what lets the bookkeeping be tested without a world.
  */
 
+#include "editor_spawn.h"
+
 #include <stdbool.h>
+#include <stdint.h>
 
 /** One placement: which loc, where, and in what pose. */
 struct MapEditorGhostSpec
@@ -92,6 +95,92 @@ struct MapEditorHover
     int scene_z;
     int level;
 };
+
+/* ---- the spawn preview --------------------------------------------------------
+ *
+ * Every spawn of the open squares standing in the world, npc bodies held still
+ * in their ready pose and ground items on their tiles: the Spawns panel's View
+ * toggles. Real scene entities, like the spawn ghost, which is what makes them
+ * lit, sized and pickable like the npc they preview; marked (editor_preview)
+ * so the menu offers "Select spawn" in place of the npc's own ops.
+ *
+ * The table keeps the rows wanted and what each became. Reconciling it against
+ * a new set of rows leaves an unchanged row's entity standing, so an edit to
+ * one row does not reload every body in the square. Nothing here touches a
+ * world: the caller lands the pending items and removes what it is handed.
+ */
+#define MAP_EDITOR_SPAWN_PREVIEW_MAX 1024
+
+/** Not looked up yet (the id); no such record is -2. */
+#define MAP_EDITOR_SPAWN_PREVIEW_ID_UNKNOWN (-1)
+#define MAP_EDITOR_SPAWN_PREVIEW_ID_MISSING (-2)
+
+/** One spawn the preview should show. */
+struct MapEditorSpawnPreviewRow
+{
+    struct Editor_SpawnRow row;
+    /** 1 the edited file holds it, 0 the generated one. */
+    int edited;
+    /** A generated row the edited file hides: drawn translucent. */
+    int suppressed;
+};
+
+struct MapEditorSpawnPreviewItem
+{
+    struct MapEditorSpawnPreviewRow want;
+    uint32_t hash;
+    /** The npc / obj id, or MAP_EDITOR_SPAWN_PREVIEW_ID_*. */
+    int id;
+    /** The world pool index it landed as; -1 while pending. */
+    int entity;
+    /** Its scene element once landed; -1 while pending. */
+    int element_id;
+    /** Footprint side in tiles, 1 until landed. */
+    int size;
+    /** An obj's translucency has been written (suppressed rows). */
+    bool faded;
+    /** Reconcile's scratch: a wanted row already claimed this item. */
+    bool claimed;
+};
+
+struct MapEditorSpawnPreview
+{
+    struct MapEditorSpawnPreviewItem items[MAP_EDITOR_SPAWN_PREVIEW_MAX];
+    int count;
+    /** World.load_seq the entities landed in. */
+    unsigned load_seq;
+    /** The rows' serial the table was last reconciled against. */
+    uint32_t rows_serial;
+    /** Where the next frame's landing pass starts. */
+    int cursor;
+};
+
+/** FNV-1a over everything that names the row. */
+uint32_t
+MapEditorSpawnPreview_RowHash(struct MapEditorSpawnPreviewRow const* row);
+
+/**
+ * Make the table hold exactly `rows`: an item whose row is still wanted keeps
+ * its entity, one that is not goes into `out_removed` (when it had landed),
+ * and each new row becomes a pending item. Returns how many were written to
+ * `out_removed`, which must hold MAP_EDITOR_SPAWN_PREVIEW_MAX.
+ */
+int
+MapEditorSpawnPreview_Reconcile(
+    struct MapEditorSpawnPreview* preview,
+    struct MapEditorSpawnPreviewRow const* rows,
+    int count,
+    struct MapEditorSpawnPreviewItem* out_removed);
+
+/** The world was rebuilt and took every entity with it: all pending again. */
+void
+MapEditorSpawnPreview_WorldLost(struct MapEditorSpawnPreview* preview);
+
+/** The item a scene element is, or NULL. */
+struct MapEditorSpawnPreviewItem*
+MapEditorSpawnPreview_FindElement(
+    struct MapEditorSpawnPreview* preview,
+    int element_id);
 
 /* ---- the multi-piece ghost (workbench 6.3) ------------------------------------
  *

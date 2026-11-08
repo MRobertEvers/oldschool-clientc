@@ -1023,6 +1023,9 @@ World_StepEntityAnimation(
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_IdleAnimations const* idle)
 {
+    if( anim->held )
+        return;
+
     /* Reference entityAnim clears this at the top every cycle; only an active,
      * un-delayed primary seq below re-asserts it from the seq's stretches flag. */
     anim->needs_forward_draw_padding = 0;

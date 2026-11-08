@@ -264,6 +264,10 @@ struct RS_MinimenuBuildCtx
 #define RS_MINIMENU_ACTION_MAPEDIT_SELECT (UITREE_MINIMENU_ACTION_CLIENT_BASE + 2)
 #define RS_MINIMENU_ACTION_MAPEDIT_SELECT_TERRAIN (UITREE_MINIMENU_ACTION_CLIENT_BASE + 3)
 
+/* A previewed spawn's row (WorldEntity_NPC / _ObjStack.editor_preview); the
+ * pick's id is the entity's scene element. */
+#define RS_MINIMENU_ACTION_MAPEDIT_SELECT_SPAWN (UITREE_MINIMENU_ACTION_CLIENT_BASE + 6)
+
 /*
  * A CLIENTOP_* row -- one the cache installed with 6700..6709 ("Mark tile",
  * "Tag"), run client-side and never sent to a server.

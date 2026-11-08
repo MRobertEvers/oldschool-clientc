@@ -1405,6 +1405,29 @@ app_minimenu_font_scene_id(struct App* app);
 bool
 app_mapedit_select_active(struct App const* app);
 
+/** The minimenu's "Select spawn" row: the previewed spawn that scene element
+ *  is joins the Spawns selection (Shift adds it, as a list click does). */
+void
+app_map_editor_spawn_preview_select_element(
+    struct App* app,
+    int element_id);
+
+struct MapEditorSpawnPreview;
+
+/** The active player in the spawn preview, for the overlay: 1 when it stands
+ *  in this world (its scene tile, level, element; selected in the view). */
+int
+app_map_editor_player_preview_view(
+    int* out_scene_x,
+    int* out_scene_z,
+    int* out_level,
+    int* out_element_id,
+    int* out_selected);
+
+/** The spawn preview's table, for the overlay's markers and outlines. */
+struct MapEditorSpawnPreview*
+app_map_editor_spawn_preview(void);
+
 int
 app_modelview_focused(struct App const* app);
 

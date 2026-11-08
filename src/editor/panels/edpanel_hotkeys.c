@@ -437,6 +437,11 @@ Editor_HotkeyRun(
     }
     if( action <= EDITOR_HK_EDIT_INVERT )
         return hk_run_edit(ui, action);
+    if( action == EDITOR_HK_VIEW_SPAWN_PREVIEW )
+    {
+        Editor_UiLog(ui, "editor: spawns in the world %s", Editor_Spawns_TogglePreview(ui) ? "on" : "off");
+        return 1;
+    }
     if( action == EDITOR_HK_PLACE_FIT )
     {
         edp_place_fit_set(ui, !edp_place_fit_enabled(ui));

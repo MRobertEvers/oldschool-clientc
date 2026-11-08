@@ -42,6 +42,19 @@
  *               (map_editor_ghost.h MapEditorWander_Rects), also around the
  *               spawn ghost and at a pending move's destination.
  *
+ *   View        "Show spawns in the world" (Shift+F6) stands every spawn of the
+ *               open squares in the scene: npc bodies held still in their
+ *               ready pose, ground items on their tiles, suppressed rows
+ *               translucent, and the play account where it stands. The View
+ *               tab filters them (npcs, objs, the player, generated, edited,
+ *               suppressed) and turns the tile markers and the wander
+ *               preview on and off. app_map_editor.c lands what
+ *               Editor_Spawns_PreviewRows lists.
+ *   Pick        with the preview up, a Select click on a spawn's model or
+ *               marker selects it (Shift adds, Ctrl toggles, Alt takes out) and
+ *               the minimenu's "Select spawn" does the same with any tool.
+ *               The list follows the spawn's square.
+ *
  * The list selects one row per click and shift-click adds or takes a row out
  * of the selection (marked *), the way the loc multi-selection works.
  *
@@ -70,6 +83,27 @@ enum
 {
     SPAWNS_GROUP_KIND = 31,
     SPAWNS_GROUP_EDIT_KIND = 32,
+};
+
+/** Spawn names the preview has resolved to ids. */
+#define SPAWNS_PREVIEW_NAMES MAP_EDITOR_SPAWN_PREVIEW_MAX
+
+struct SpawnsPreviewName
+{
+    char name[EDITOR_CMD_NAME_MAX];
+    int is_obj;
+    int id;
+};
+
+/** One open square's generated file, parsed for the preview. */
+struct SpawnsPreviewSquare
+{
+    int map_x;
+    int map_z;
+    int used;
+    int tried;
+    size_t length;
+    struct Editor_SpawnFile generated;
 };
 
 /** Npc records whose wander values the preview remembers. */
@@ -128,6 +162,35 @@ struct SpawnsPanel
     int button_record;
     int check_wander;
     int row_wander;
+
+    /* The world preview: the master switch above the list, the View tab. */
+    int check_preview;
+    int check_view_npcs;
+    int check_view_objs;
+    int check_view_player;
+    int check_view_generated;
+    int check_view_edited;
+    int check_view_suppressed;
+    int check_view_markers;
+    int row_preview;
+    int preview_landed;
+    int preview_waiting;
+    int preview_missing;
+    int preview_counts_valid;
+    /** What the rows were merged from; what they came to. */
+    uint32_t preview_signature;
+    uint32_t preview_hash;
+    uint32_t preview_serial;
+    int preview_clipped;
+    struct MapEditorSpawnPreviewRow preview_rows[MAP_EDITOR_SPAWN_PREVIEW_MAX];
+    int preview_count;
+    struct SpawnsPreviewSquare preview_squares[EDITOR_DOC_MAX_SQUARES];
+    struct SpawnsPreviewName preview_names[SPAWNS_PREVIEW_NAMES];
+    int preview_name_count;
+    /** A world pick waits for the list to hold its row, then shows it. */
+    int reveal_pending;
+    /** A tab was clicked: scroll its content, below the list, into view. */
+    int tab_scroll_pending;
     /** The form shows this row (the anchor) and selection size; refilled
      *  only when they change, so typing is never overwritten. */
     struct Editor_SpawnRow form_row;
@@ -357,6 +420,11 @@ spawns_form_refresh(
     struct EditorUi* ui,
     struct SpawnsPanel* self);
 
+static int
+spawns_list_find(
+    const struct SpawnsPanel* self,
+    const struct Editor_SpawnRow* row);
+
 /*
  * TORIRS_EDITOR_SPAWNS=<x>,<z>,<level>[,record|-[,<scroll px>]] -- a headless photograph has
  * no pointer, so this opens the Spawns panel once, at the first frame with an
@@ -523,6 +591,29 @@ spawns_tick(
         ToriRSChrome_SetText(ui->chrome, self->row_square, line);
     }
     spawns_form_refresh(ui, self);
+    if( self->reveal_pending && self->selection_count > 0 )
+    {
+        int const at = spawns_list_find(self, &self->selection[0]);
+        if( at >= 0 )
+        {
+            self->reveal_pending = 0;
+            ToriRSChrome_VListSetSelected(ui->chrome, self->list, at);
+            ToriRSChrome_VListSetScroll(ui->chrome, self->list, at > 2 ? at - 2 : 0);
+        }
+    }
+    if( self->tab_scroll_pending )
+    {
+        /* Laid out by the Build after the click: a hidden row is still at 0. */
+        int const tab = ToriRSChrome_PanelActiveTab(ui->chrome, self->panel);
+        int const row = tab == 2 ? self->row_preview : tab == 1 ? self->input_name : self->row_edit;
+        if( ui->chrome->widgets[row].y > 0 )
+        {
+            self->tab_scroll_pending = 0;
+            ToriRSChrome_PanelSetScroll(ui->chrome, self->panel, ui->chrome->widgets[row].y
+                                                                     - ui->chrome->panels[self->panel].content_y
+                                                                     + ui->chrome->panels[self->panel].scroll_y);
+        }
+    }
     if( !ToriRSChrome_VListWindow(ui->chrome, self->list, &first, &shown) )
         return;
     for( int r = first; r < first + shown && r < self->row_count; r++ )
@@ -551,35 +642,67 @@ spawns_selected(
     return row;
 }
 
+/** Delete (or suppress, for a generated row) the selection as one undo step;
+ *  with nothing selected, the list's highlighted row. */
 static int
 spawns_delete(
     struct EditorUi* ui,
     struct SpawnsPanel* self)
 {
-    struct Editor_Cmd command;
-    int const row = spawns_selected(ui, self);
-    struct Editor_SpawnFile* edited;
+    struct Editor_Cmd* commands;
+    struct Editor_SpawnFile* edited = spawns_edited(ui, self->map_x, self->map_z);
+    int rows[SPAWNS_SELECTION_MAX];
+    int capacity;
+    int picked = 0;
+    int count = 0;
+    int skipped = 0;
+    int applied;
 
-    if( row < 0 )
-        return 0;
-    edited = spawns_edited(ui, self->map_x, self->map_z);
-    if( self->rows[row].suppressed )
+    for( int i = 0; i < self->selection_count; i++ )
     {
-        Editor_UiLog(ui, "editor: already suppressed; Restore brings it back");
+        int const r = spawns_list_find(self, &self->selection[i]);
+        if( r >= 0 )
+            rows[picked++] = r;
+    }
+    if( picked == 0 )
+    {
+        int const r = spawns_selected(ui, self);
+        if( r < 0 )
+            return 0;
+        rows[picked++] = r;
+    }
+    commands = edp_scratch(&capacity);
+    for( int i = 0; i < picked && count < capacity; i++ )
+    {
+        const struct SpawnsListRow* row = &self->rows[rows[i]];
+        if( row->suppressed )
+        {
+            skipped++;
+            continue;
+        }
+        if( !row->edited && !edited )
+        {
+            Editor_UiLog(ui, "editor: the edited spawn file is not open; suppression refused");
+            return 0;
+        }
+        if( Editor_SpawnDeleteCommand(row->edited ? edited : NULL, &row->row, &commands[count]) )
+            count++;
+    }
+    if( count == 0 )
+    {
+        if( skipped )
+            Editor_UiLog(ui, "editor: already suppressed; Restore brings it back");
         return 0;
     }
-    if( !Editor_SpawnDeleteCommand(self->rows[row].edited ? edited : NULL, &self->rows[row].row, &command) )
+    applied = edp_apply(ui, commands, count, commands[0].kind == EDITOR_CMD_SPAWN_SUPPRESS ? "suppress" : "delete spawn");
+    if( applied == 0 )
         return 0;
-    if( !self->rows[row].edited && !edited )
-    {
-        Editor_UiLog(ui, "editor: the edited spawn file is not open; suppression refused");
-        return 0;
-    }
-    if( !edp_apply(ui, &command, 1, command.kind == EDITOR_CMD_SPAWN_SUPPRESS ? "suppress" : "delete spawn") )
-        return 0;
-    Editor_UiLog(ui, "editor: %s %s at %d,%d", command.kind == EDITOR_CMD_SPAWN_SUPPRESS ? "suppressed" : "deleted",
-        self->rows[row].row.name, self->rows[row].row.abs_x, self->rows[row].row.abs_z);
-    return 1;
+    if( picked == 1 )
+        Editor_UiLog(ui, "editor: %s %s at %d,%d", commands[0].kind == EDITOR_CMD_SPAWN_SUPPRESS ? "suppressed" : "deleted",
+            self->rows[rows[0]].row.name, self->rows[rows[0]].row.abs_x, self->rows[rows[0]].row.abs_z);
+    else
+        Editor_UiLog(ui, "editor: deleted or suppressed %d spawns, one undo step", applied);
+    return applied;
 }
 
 static void
@@ -1265,11 +1388,20 @@ spawns_activate(
         return 1;
     }
     if( widget == self->radio_npc || widget == self->radio_obj || widget == self->slider_count
-        || widget == self->input_name || widget == self->tabs || widget == self->input_edit_name
+        || widget == self->input_name || widget == self->input_edit_name
         || widget == self->radio_edit_npc || widget == self->radio_edit_obj || widget == self->input_x
         || widget == self->input_z || widget == self->input_level || widget == self->input_count
-        || widget == self->check_suppressed || widget == self->check_wander )
+        || widget == self->check_suppressed || widget == self->check_wander || widget == self->check_preview
+        || widget == self->check_view_npcs || widget == self->check_view_objs || widget == self->check_view_player
+        || widget == self->check_view_generated
+        || widget == self->check_view_edited || widget == self->check_view_suppressed
+        || widget == self->check_view_markers )
         return 1;
+    if( widget == self->tabs )
+    {
+        self->tab_scroll_pending = 1;
+        return 1;
+    }
     if( widget == self->button_apply )
     {
         (void)spawns_apply_form(ui, self);
@@ -1342,6 +1474,8 @@ spawns_destroy(
     struct SpawnsPanel* self = opaque;
     (void)ui;
     Editor_SpawnFree(&self->generated);
+    for( int i = 0; i < EDITOR_DOC_MAX_SQUARES; i++ )
+        Editor_SpawnFree(&self->preview_squares[i].generated);
     ToriMem_Free(ToriMem_Editor(), self);
 }
 
@@ -1362,6 +1496,8 @@ Editor_Spawns_Register(struct EditorUi* ui)
         chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X + EDP_COL_W + 8), edp_px(ui, 120),
         edp_px(ui, 260), "Spawns");
     assert(self->panel >= 0);
+    self->check_preview = ToriRSChrome_Checkbox(chrome, self->panel, "Show spawns in the world", 0);
+    ToriRSChrome_SetTooltip(chrome, self->check_preview, "every spawn of the open squares; click one to select it");
     self->row_square = ToriRSChrome_Label(chrome, self->panel, "");
     self->list = ToriRSChrome_VList(chrome, self->panel, "", SPAWNS_LIST_ROWS, 0);
     self->button_delete = ToriRSChrome_Button(chrome, self->panel, "Delete / suppress");
@@ -1373,8 +1509,8 @@ Editor_Spawns_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->button_group, "the selection into an encounter set");
     ToriRSChrome_Separator(chrome, self->panel);
     {
-        static const char* const tabs[] = { "Edit", "Place" };
-        self->tabs = ToriRSChrome_Tabs(chrome, self->panel, tabs, 2, 0);
+        static const char* const tabs[] = { "Edit", "Place", "View" };
+        self->tabs = ToriRSChrome_Tabs(chrome, self->panel, tabs, 3, 0);
     }
     ToriRSChrome_PanelBeginTab(chrome, self->panel, 0);
     self->row_edit = ToriRSChrome_Label(chrome, self->panel, "select a spawn in the list to edit it");
@@ -1395,8 +1531,6 @@ Editor_Spawns_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->button_move, "the next world click moves the selection");
     self->button_record = ToriRSChrome_Button(chrome, self->panel, "Edit npc record...");
     ToriRSChrome_SetTooltip(chrome, self->button_record, "every field of the npc / obj record");
-    self->check_wander = ToriRSChrome_Checkbox(chrome, self->panel, "Show wander range", 1);
-    self->row_wander = ToriRSChrome_Label(chrome, self->panel, "");
     ToriRSChrome_PanelBeginTab(chrome, self->panel, 1);
     self->input_name = ToriRSChrome_TextInput(chrome, self->panel, "Name", "");
     self->radio_npc = ToriRSChrome_Radio(chrome, self->panel, "npc", SPAWNS_GROUP_KIND, 1);
@@ -1404,6 +1538,21 @@ Editor_Spawns_Register(struct EditorUi* ui)
     self->slider_count = ToriRSChrome_Slider(chrome, self->panel, "Count", 1, 1000, 1, 1);
     self->button_pick = ToriRSChrome_Button(chrome, self->panel, "Use catalog pick");
     self->button_place = ToriRSChrome_Button(chrome, self->panel, "Place at latched tile");
+    ToriRSChrome_PanelBeginTab(chrome, self->panel, 2);
+    self->row_preview = ToriRSChrome_Label(chrome, self->panel, "tick Show spawns in the world");
+    self->check_view_npcs = ToriRSChrome_Checkbox(chrome, self->panel, "Npcs", 1);
+    self->check_view_objs = ToriRSChrome_Checkbox(chrome, self->panel, "Ground items", 1);
+    self->check_view_player = ToriRSChrome_Checkbox(chrome, self->panel, "Active player", 1);
+    ToriRSChrome_SetTooltip(chrome, self->check_view_player, "the play account where it stands, in its own gear");
+    self->check_view_generated = ToriRSChrome_Checkbox(chrome, self->panel, "Generated rows", 1);
+    self->check_view_edited = ToriRSChrome_Checkbox(chrome, self->panel, "Edited rows", 1);
+    self->check_view_suppressed = ToriRSChrome_Checkbox(chrome, self->panel, "Suppressed rows", 0);
+    ToriRSChrome_SetTooltip(chrome, self->check_view_suppressed, "drawn translucent, with a red marker");
+    self->check_view_markers = ToriRSChrome_Checkbox(chrome, self->panel, "Tile markers", 1);
+    ToriRSChrome_SetTooltip(chrome, self->check_view_markers,
+        "spawn tiles: green edited, yellow generated, red suppressed");
+    self->check_wander = ToriRSChrome_Checkbox(chrome, self->panel, "Show wander range", 1);
+    self->row_wander = ToriRSChrome_Label(chrome, self->panel, "");
     ToriRSChrome_PanelBeginTab(chrome, self->panel, -1);
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);
     ToriRSChrome_PanelSetScrollable(chrome, self->panel, 1);
@@ -1637,4 +1786,411 @@ Editor_Spawns_WanderRects(
         }
     }
     return count;
+}
+
+/* ---- the world preview ------------------------------------------------------- */
+
+/** The square's cache slot: its own, else a free one, else one whose square
+ *  is no longer open. */
+static struct SpawnsPreviewSquare*
+spawns_preview_square(
+    struct EditorUi* ui,
+    struct SpawnsPanel* self,
+    int map_x,
+    int map_z)
+{
+    struct SpawnsPreviewSquare* spare = NULL;
+
+    for( int i = 0; i < EDITOR_DOC_MAX_SQUARES; i++ )
+    {
+        struct SpawnsPreviewSquare* slot = &self->preview_squares[i];
+        if( !slot->used )
+        {
+            if( !spare )
+                spare = slot;
+            continue;
+        }
+        if( slot->map_x == map_x && slot->map_z == map_z )
+            return slot;
+    }
+    if( !spare )
+        for( int i = 0; i < EDITOR_DOC_MAX_SQUARES && !spare; i++ )
+        {
+            int open = 0;
+            for( int s = 0; s < ui->editor->doc.square_count && !open; s++ )
+                open = ui->editor->doc.squares[s].loaded
+                       && ui->editor->doc.squares[s].map_x == self->preview_squares[i].map_x
+                       && ui->editor->doc.squares[s].map_z == self->preview_squares[i].map_z;
+            if( !open )
+                spare = &self->preview_squares[i];
+        }
+    /* At most EDITOR_DOC_MAX_SQUARES are open, and this one is among them. */
+    assert(spare);
+    Editor_SpawnFree(&spare->generated);
+    memset(spare, 0, sizeof(*spare));
+    spare->map_x = map_x;
+    spare->map_z = map_z;
+    spare->used = 1;
+    Editor_SpawnInit(&spare->generated);
+    return spare;
+}
+
+/** Bring a square's two files in (the first time) and its parse up to date.
+ *  `*open_budget` is how many first opens this frame may still make: each one
+ *  is a request to the server. */
+static void
+spawns_preview_load_square(
+    struct EditorUi* ui,
+    struct SpawnsPreviewSquare* slot,
+    int* open_budget)
+{
+    struct Editor_DocHandle handle;
+    char key[EDITOR_DOC_KEY_MAX];
+
+    if( !slot->tried )
+    {
+        if( *open_budget <= 0 )
+            return;
+        (*open_budget)--;
+        slot->tried = 1;
+        Editor_SquareKey(key, slot->map_x, slot->map_z);
+        (void)edp_ensure_doc(ui, EDITOR_DOC_SPAWN, key);
+        Editor_SpawnGeneratedKey(key, slot->map_x, slot->map_z);
+        (void)edp_ensure_doc(ui, EDITOR_DOC_TEXT, key);
+    }
+    Editor_SpawnGeneratedKey(key, slot->map_x, slot->map_z);
+    if( Editor_DocFind(&ui->editor->doc, EDITOR_DOC_TEXT, key, &handle) && handle.text->text
+        && handle.text->length != slot->length )
+    {
+        struct Editor_SpawnParseResult const result =
+            Editor_SpawnParse(&slot->generated, handle.text->text, handle.text->length);
+        if( !result.ok )
+            Editor_UiLog(ui, "editor: %s line %d does not parse", key, result.line);
+        slot->length = handle.text->length;
+    }
+}
+
+/** One row into the merged list, unless a filter or the table says no. */
+static void
+spawns_preview_add(
+    struct EditorUi* ui,
+    struct SpawnsPanel* self,
+    const struct Editor_SpawnRow* row,
+    int edited,
+    int suppressed)
+{
+    struct MapEditorSpawnPreviewRow* out;
+
+    if( !ToriRSChrome_Checked(ui->chrome, row->is_obj ? self->check_view_objs : self->check_view_npcs) )
+        return;
+    if( !ToriRSChrome_Checked(ui->chrome, suppressed ? self->check_view_suppressed
+                                          : edited   ? self->check_view_edited
+                                                     : self->check_view_generated) )
+        return;
+    /* One stack per obj per tile is all the world holds, so a second row of
+     * the same obj there has nothing of its own to stand as. */
+    if( row->is_obj )
+        for( int i = 0; i < self->preview_count; i++ )
+        {
+            const struct Editor_SpawnRow* other = &self->preview_rows[i].row;
+            if( other->is_obj && other->abs_x == row->abs_x && other->abs_z == row->abs_z && other->level == row->level
+                && strcmp(other->name, row->name) == 0 )
+                return;
+        }
+    if( self->preview_count == MAP_EDITOR_SPAWN_PREVIEW_MAX )
+    {
+        self->preview_clipped = 1;
+        return;
+    }
+    out = &self->preview_rows[self->preview_count++];
+    memset(out, 0, sizeof(*out));
+    out->row = *row;
+    out->edited = edited;
+    out->suppressed = suppressed;
+}
+
+/** The open squares' rows through the filters, as the panel's list reads the
+ *  two files: a suppression row shows only through the generated row it hides. */
+static void
+spawns_preview_merge(
+    struct EditorUi* ui,
+    struct SpawnsPanel* self)
+{
+    struct Editor_Doc* doc = &ui->editor->doc;
+    uint32_t hash = 2166136261u;
+    int const was_clipped = self->preview_clipped;
+
+    self->preview_count = 0;
+    self->preview_clipped = 0;
+    for( int s = 0; s < doc->square_count; s++ )
+    {
+        struct SpawnsPreviewSquare* slot;
+        const struct Editor_SpawnFile* edited;
+
+        if( !doc->squares[s].loaded )
+            continue;
+        slot = spawns_preview_square(ui, self, doc->squares[s].map_x, doc->squares[s].map_z);
+        edited = spawns_edited(ui, slot->map_x, slot->map_z);
+        if( edited )
+            for( int i = 0; i < edited->line_count; i++ )
+                if( edited->lines[i].kind == EDITOR_SPAWN_LINE_ROW && !edited->lines[i].row.suppress )
+                    spawns_preview_add(ui, self, &edited->lines[i].row, 1, 0);
+        for( int i = 0; i < slot->generated.line_count; i++ )
+        {
+            const struct Editor_SpawnLine* line = &slot->generated.lines[i];
+            if( line->kind == EDITOR_SPAWN_LINE_ROW && !line->row.suppress )
+                spawns_preview_add(ui, self, &line->row, 0, Editor_SpawnIsSuppressed(edited, &line->row));
+        }
+    }
+    if( self->preview_clipped && !was_clipped )
+        Editor_UiLog(ui, "editor: the spawn preview shows the first %d spawns", MAP_EDITOR_SPAWN_PREVIEW_MAX);
+    for( int i = 0; i < self->preview_count; i++ )
+        hash = (hash ^ MapEditorSpawnPreview_RowHash(&self->preview_rows[i])) * 16777619u;
+    if( hash != self->preview_hash )
+    {
+        self->preview_hash = hash;
+        self->preview_serial++;
+    }
+}
+
+const struct MapEditorSpawnPreviewRow*
+Editor_Spawns_PreviewRows(
+    struct EditorUi* ui,
+    int* out_count,
+    uint32_t* out_serial)
+{
+    struct SpawnsPanel* self;
+    uint32_t signature = 2166136261u;
+    int open_budget = 1;
+
+    assert(ui);
+    assert(out_count);
+    assert(out_serial);
+    *out_count = 0;
+    *out_serial = 0;
+    self = Editor_UiPanelSelf(ui, "spawns");
+    if( !self || !ui->editor )
+        return NULL;
+    /* TORIRS_EDITOR_SPAWN_PREVIEW=1: a headless photograph has no pointer to
+     * tick the box with. Read once per process. */
+    {
+        static int resolved;
+        if( !resolved )
+        {
+            resolved = 1;
+            if( getenv("TORIRS_EDITOR_SPAWN_PREVIEW") )
+                ToriRSChrome_SetChecked(ui->chrome, self->check_preview, 1);
+        }
+    }
+    if( !ToriRSChrome_Checked(ui->chrome, self->check_preview) )
+    {
+        if( self->preview_count )
+        {
+            self->preview_count = 0;
+            self->preview_hash = 0;
+            self->preview_signature = 0;
+            self->preview_serial++;
+        }
+        *out_serial = self->preview_serial;
+        return self->preview_rows;
+    }
+
+    {
+        int const filters[5] = {
+            self->check_view_npcs,   self->check_view_objs,       self->check_view_generated,
+            self->check_view_edited, self->check_view_suppressed,
+        };
+        for( int i = 0; i < 5; i++ )
+            signature = (signature ^ (uint32_t)ToriRSChrome_Checked(ui->chrome, filters[i])) * 16777619u;
+    }
+    signature = (signature ^ ui->editor->last_cmd_seq) * 16777619u;
+    for( int s = 0; s < ui->editor->doc.square_count; s++ )
+    {
+        struct Editor_Square const* square = &ui->editor->doc.squares[s];
+        struct SpawnsPreviewSquare* slot;
+        const struct Editor_SpawnFile* edited;
+
+        if( !square->loaded )
+            continue;
+        slot = spawns_preview_square(ui, self, square->map_x, square->map_z);
+        spawns_preview_load_square(ui, slot, &open_budget);
+        edited = spawns_edited(ui, slot->map_x, slot->map_z);
+        signature = (signature ^ (uint32_t)(slot->map_x * 4099 + slot->map_z)) * 16777619u;
+        signature = (signature ^ (uint32_t)slot->length) * 16777619u;
+        signature = (signature ^ (uint32_t)(edited ? edited->line_count + 1 : 0)) * 16777619u;
+    }
+    if( signature != self->preview_signature )
+    {
+        self->preview_signature = signature;
+        spawns_preview_merge(ui, self);
+    }
+    *out_count = self->preview_count;
+    *out_serial = self->preview_serial;
+    return self->preview_rows;
+}
+
+int
+Editor_Spawns_PreviewResolve(
+    struct EditorUi* ui,
+    const struct Editor_SpawnRow* row)
+{
+    struct EditorHost_CatalogRecord record;
+    struct SpawnsPanel* self;
+    uint32_t const kind = row->is_obj ? TORIRSMAPED_CATALOG_OBJ : TORIRSMAPED_CATALOG_NPC;
+    int id = MAP_EDITOR_SPAWN_PREVIEW_ID_MISSING;
+
+    assert(ui);
+    assert(row);
+    if( row->name[0] == '#' )
+        return atoi(row->name + 1);
+    self = Editor_UiPanelSelf(ui, "spawns");
+    assert(self);
+    for( int i = 0; i < self->preview_name_count; i++ )
+        if( self->preview_names[i].is_obj == row->is_obj && strcmp(self->preview_names[i].name, row->name) == 0 )
+            return self->preview_names[i].id;
+    if( !ui->editor || !(ui->editor->capabilities & TORIRSMAPED_CAP_CATALOG) )
+        return id;
+    /* A miss is not remembered here: the caller's item holds the answer for
+     * as long as its row stands, and a record added later may yet exist. */
+    memset(&record, 0, sizeof(record));
+    if( Editor_HostMapEdCatalogRecord(&ui->editor->host, kind, -1, row->name, &record) == EDITOR_HOST_OK && record.id >= 0 )
+    {
+        id = record.id;
+        if( self->preview_name_count < SPAWNS_PREVIEW_NAMES )
+        {
+            struct SpawnsPreviewName* name = &self->preview_names[self->preview_name_count++];
+            snprintf(name->name, sizeof(name->name), "%s", row->name);
+            name->is_obj = row->is_obj;
+            name->id = id;
+        }
+    }
+    Editor_HostCatalogRecordFree(&record);
+    return id;
+}
+
+void
+Editor_Spawns_PreviewCounts(
+    struct EditorUi* ui,
+    int landed,
+    int waiting,
+    int missing)
+{
+    struct SpawnsPanel* self;
+    char line[TORIRS_CHROME_LABEL_MAX];
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "spawns");
+    assert(self);
+    if( self->preview_counts_valid && self->preview_landed == landed && self->preview_waiting == waiting
+        && self->preview_missing == missing )
+        return;
+    self->preview_counts_valid = 1;
+    self->preview_landed = landed;
+    self->preview_waiting = waiting;
+    self->preview_missing = missing;
+    snprintf(line, sizeof(line), "%d shown, %d loading, %d not found", landed, waiting, missing);
+    ToriRSChrome_SetText(ui->chrome, self->row_preview, line);
+}
+
+int
+Editor_Spawns_PreviewMarkers(struct EditorUi* ui)
+{
+    struct SpawnsPanel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "spawns");
+    return self && ToriRSChrome_Checked(ui->chrome, self->check_preview)
+           && ToriRSChrome_Checked(ui->chrome, self->check_view_markers);
+}
+
+int
+Editor_Spawns_PreviewPlayer(struct EditorUi* ui)
+{
+    struct SpawnsPanel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "spawns");
+    return self && ToriRSChrome_Checked(ui->chrome, self->check_preview)
+           && ToriRSChrome_Checked(ui->chrome, self->check_view_player);
+}
+
+int
+Editor_Spawns_TogglePreview(struct EditorUi* ui)
+{
+    struct SpawnsPanel* self;
+    int on;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "spawns");
+    if( !self )
+        return 0;
+    on = !ToriRSChrome_Checked(ui->chrome, self->check_preview);
+    ToriRSChrome_SetChecked(ui->chrome, self->check_preview, on);
+    return on;
+}
+
+int
+Editor_Spawns_SelectFromWorld(
+    struct EditorUi* ui,
+    const struct Editor_SpawnRow* row,
+    enum Editor_LocSelectMode mode)
+{
+    struct SpawnsPanel* self;
+    int const map_x = row->abs_x / EDITOR_SQUARE_X;
+    int const map_z = row->abs_z / EDITOR_SQUARE_Z;
+    int same_square;
+    int at;
+    int replaced;
+
+    assert(ui);
+    assert(row);
+    self = Editor_UiPanelSelf(ui, "spawns");
+    assert(self);
+
+    same_square = self->square_valid && self->map_x == map_x && self->map_z == map_z;
+    /* The list is one square's, so a selection is too. */
+    replaced = mode == EDITOR_LOC_SELECT_REPLACE || !same_square;
+    self->move_armed = 0;
+    if( !same_square )
+    {
+        char key[EDITOR_DOC_KEY_MAX];
+        if( mode != EDITOR_LOC_SELECT_REPLACE && self->selection_count > 0 )
+            Editor_UiLog(ui, "editor: a spawn selection is one square's; m%d_%d replaces it", map_x, map_z);
+        self->map_x = map_x;
+        self->map_z = map_z;
+        self->square_valid = 1;
+        self->built_hash = 0;
+        Editor_SquareKey(key, map_x, map_z);
+        (void)edp_ensure_doc(ui, EDITOR_DOC_SPAWN, key);
+    }
+    if( replaced )
+    {
+        self->selection[0] = *row;
+        self->selection_count = 1;
+    }
+    else
+    {
+        at = spawns_selection_find(self, row);
+        if( at >= 0 && mode != EDITOR_LOC_SELECT_ADD )
+        {
+            self->selection[at] = self->selection[self->selection_count - 1];
+            self->selection_count--;
+        }
+        else if( at < 0 && mode != EDITOR_LOC_SELECT_SUBTRACT )
+        {
+            if( self->selection_count < SPAWNS_SELECTION_MAX )
+                self->selection[self->selection_count++] = *row;
+            else
+                Editor_UiLog(ui, "editor: a spawn selection holds %d rows", SPAWNS_SELECTION_MAX);
+        }
+    }
+    self->form_valid = 0;
+    self->reveal_pending = 1;
+
+    /* The panel is where a selection is read and edited: bring it up. */
+    if( Editor_UiPanelInStrip(ui, "spawns") )
+        Editor_UiGroupShow(ui, "spawns");
+    else if( !ui->chrome->panels[self->panel].visible )
+        ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 1);
+    return replaced;
 }

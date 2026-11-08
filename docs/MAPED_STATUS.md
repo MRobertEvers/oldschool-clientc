@@ -15,6 +15,28 @@ brush footprint, spawn ghosts, History panel, slider skin).
 The plan for the editor as a game editor, measured against the editors
 people know, is docs/MAPED_ROADMAP.md.
 
+## Spawn preview (2026-11-08)
+
+Spawns panel, "Show spawns in the world" (Shift+F6, off by default): every
+spawn of the open squares stands in the scene. Npcs are held on the first
+frame of their ready pose (`WorldEntityFacet_Animation.held`), ground items
+sit on their tiles, suppressed rows are translucent, and the play account
+stands where the server's account list says, in its own gear. The View tab
+filters npcs, ground items, the active player, generated / edited /
+suppressed rows, and turns tile markers and the wander range on and off.
+
+A Select click on a model or marker selects it (Shift adds, Ctrl toggles, Alt
+removes); the minimenu's "Select spawn" / "Select player" works under any
+tool. The entities carry `editor_preview`, so they offer no game ops and an
+offline world click does not walk the player. Table:
+map_editor_ghost.h `MapEditorSpawnPreview`; landing: app_map_editor.c; rows and
+filters: edpanel_spawns.c. `TORIRS_EDITOR_SPAWN_PREVIEW=1` ticks the box for a
+headless photograph.
+
+Open: only the square's generated and edited `.spawn` files are read, so the
+spawn files that quests and skills keep under their own `configs/` are not
+shown; the toggles reset each launch.
+
 ## How to run it
 
 ### Quick start (2026-11-02)

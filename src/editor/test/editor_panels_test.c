@@ -6019,6 +6019,109 @@ test_spawn_edit(void)
     free(before);
 }
 
+/* ---- the Spawns panel's world preview -------------------------------------------- */
+
+static void
+test_spawn_preview(void)
+{
+    struct Editor_Cmd command;
+    struct Editor_SpawnRow a = spawn_row("test_guard", 0, SQ_X0 + 41, SQ_Z0 + 42, 0, 1);
+    struct Editor_SpawnRow b = spawn_row("test_guard", 0, SQ_X0 + 43, SQ_Z0 + 44, 0, 1);
+    struct Editor_SpawnRow sel[4];
+    const struct MapEditorSpawnPreviewRow* rows;
+    uint32_t serial;
+    uint32_t serial_on;
+    int count;
+    int spawns;
+    int master;
+    int npcs;
+    int edited_box;
+    int markers;
+    int player;
+    int edited_rows;
+
+    cat_ui_open();
+    spawns = cat_panel("Spawns");
+    CHECK(spawns >= 0, "preview: the Spawns panel is there");
+    if( spawns < 0 )
+        return;
+    ToriRSChrome_PanelSetVisible(&g_cat_chrome, spawns, 1);
+    g_cat_ui.tools.tile_valid = 1;
+    g_cat_ui.tools.tile_x = SQ_X0 + 5;
+    g_cat_ui.tools.tile_z = SQ_Z0 + 5;
+    g_cat_ui.tools.tile_level = 0;
+    cat_frame();
+    Editor_SpawnCommand(&command, &a, 1);
+    CHECK(apply_all(&command, 1) == 1, "preview: place guard a");
+    Editor_SpawnCommand(&command, &b, 1);
+    CHECK(apply_all(&command, 1) == 1, "preview: place guard b");
+    cat_frame();
+
+    master = cat_widget(spawns, TORIRS_CHROME_W_CHECKBOX, "Show spawns in the world");
+    npcs = cat_widget(spawns, TORIRS_CHROME_W_CHECKBOX, "Npcs");
+    edited_box = cat_widget(spawns, TORIRS_CHROME_W_CHECKBOX, "Edited rows");
+    markers = cat_widget(spawns, TORIRS_CHROME_W_CHECKBOX, "Tile markers");
+    player = cat_widget(spawns, TORIRS_CHROME_W_CHECKBOX, "Active player");
+    CHECK(master >= 0 && npcs >= 0 && edited_box >= 0 && markers >= 0 && player >= 0, "preview: the toggles are there");
+    if( master < 0 || npcs < 0 || edited_box < 0 || markers < 0 || player < 0 )
+        return;
+
+    (void)Editor_Spawns_PreviewRows(&g_cat_ui, &count, &serial);
+    CHECK(count == 0, "preview: off by default, nothing to show");
+    CHECK(!Editor_Spawns_PreviewMarkers(&g_cat_ui), "preview: off draws no markers");
+
+    CHECK(Editor_Spawns_TogglePreview(&g_cat_ui) == 1, "preview: the toggle turns it on");
+    rows = Editor_Spawns_PreviewRows(&g_cat_ui, &count, &serial_on);
+    CHECK(count >= 2 && serial_on != serial, "preview: on lists the open square's rows and moves the serial");
+    CHECK(rows[0].edited == 1 && rows[0].suppressed == 0, "preview: an edited row is marked edited");
+    CHECK(Editor_Spawns_PreviewMarkers(&g_cat_ui), "preview: on draws the markers");
+    CHECK(Editor_Spawns_PreviewPlayer(&g_cat_ui), "preview: on shows the active player");
+    ToriRSChrome_SetChecked(&g_cat_chrome, player, 0);
+    CHECK(!Editor_Spawns_PreviewPlayer(&g_cat_ui), "preview: Active player off");
+    ToriRSChrome_SetChecked(&g_cat_chrome, player, 1);
+    (void)Editor_Spawns_PreviewRows(&g_cat_ui, &count, &serial);
+    CHECK(serial == serial_on, "preview: a quiet frame leaves the serial alone");
+
+    ToriRSChrome_SetChecked(&g_cat_chrome, npcs, 0);
+    rows = Editor_Spawns_PreviewRows(&g_cat_ui, &count, &serial);
+    CHECK(serial != serial_on, "preview: a filter moves the serial");
+    for( int i = 0; i < count; i++ )
+        CHECK(rows[i].row.is_obj, "preview: Npcs off takes every npc row out");
+    ToriRSChrome_SetChecked(&g_cat_chrome, npcs, 1);
+    ToriRSChrome_SetChecked(&g_cat_chrome, edited_box, 0);
+    rows = Editor_Spawns_PreviewRows(&g_cat_ui, &count, &serial);
+    edited_rows = 0;
+    for( int i = 0; i < count; i++ )
+        edited_rows += rows[i].edited;
+    CHECK(edited_rows == 0, "preview: Edited rows off takes the edited rows out");
+    ToriRSChrome_SetChecked(&g_cat_chrome, edited_box, 1);
+    ToriRSChrome_SetChecked(&g_cat_chrome, markers, 0);
+    CHECK(!Editor_Spawns_PreviewMarkers(&g_cat_ui), "preview: Tile markers off");
+    ToriRSChrome_SetChecked(&g_cat_chrome, markers, 1);
+
+    /* A world pick: select, Shift adds, a repeat of Ctrl takes out. */
+    CHECK(Editor_Spawns_SelectFromWorld(&g_cat_ui, &a, EDITOR_LOC_SELECT_REPLACE) == 1, "pick: a click replaces");
+    CHECK(Editor_Spawns_Selection(&g_cat_ui, sel, 4) == 1 && Editor_SpawnRowsEqual(&sel[0], &a), "pick: the row is selected");
+    CHECK(Editor_Spawns_SelectFromWorld(&g_cat_ui, &b, EDITOR_LOC_SELECT_ADD) == 0, "pick: Shift keeps the selection");
+    CHECK(Editor_Spawns_Selection(&g_cat_ui, sel, 4) == 2, "pick: Shift adds the second");
+    CHECK(Editor_Spawns_SelectFromWorld(&g_cat_ui, &b, EDITOR_LOC_SELECT_TOGGLE) == 0
+              && Editor_Spawns_Selection(&g_cat_ui, sel, 4) == 1,
+        "pick: Ctrl on a selected row takes it out");
+    cat_frame();
+    CHECK(ToriRSChrome_VListSelected(&g_cat_chrome, cat_widget(spawns, TORIRS_CHROME_W_VLIST, "")) >= 0,
+        "pick: the list shows the picked row");
+
+    /* Delete takes the whole selection, one undo step. */
+    (void)Editor_Spawns_SelectFromWorld(&g_cat_ui, &b, EDITOR_LOC_SELECT_ADD);
+    cat_frame();
+    CHECK(Editor_Spawns_DeleteSelected(&g_cat_ui) == 2, "pick: Delete takes both selected rows");
+    cat_frame();
+    CHECK(Editor_Spawns_Selection(&g_cat_ui, sel, 4) == 0, "pick: and they leave the selection");
+    CHECK(Editor_Spawns_TogglePreview(&g_cat_ui) == 0, "preview: off again");
+    (void)Editor_Spawns_PreviewRows(&g_cat_ui, &count, &serial);
+    CHECK(count == 0, "preview: off empties the list");
+}
+
 /* ---- the Record panel: every field of every layer ------------------------------- */
 
 static void
@@ -8275,6 +8378,7 @@ main(
     test_publish();
     test_spawn_duplicate();
     test_spawn_edit();
+    test_spawn_preview();
     test_record_editor();
     test_editing_feedback();
     test_areas();

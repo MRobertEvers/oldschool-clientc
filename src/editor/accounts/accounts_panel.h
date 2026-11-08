@@ -114,6 +114,23 @@ Editor_Accounts_PlayLook(
     struct Editor_AccountLook* out,
     int* out_serial);
 
+/**
+ * Where the PLAY account stands, absolute, from the server's account list: 1
+ * with the tile once it is known and has ever had one. Asks for a fresh list
+ * every few seconds while called, so an online account's walking shows. 0
+ * without the panel.
+ */
+int
+Editor_Accounts_PlayPosition(
+    struct EditorUi* ui,
+    int* out_x,
+    int* out_z,
+    int* out_level);
+
+/** Bring the Accounts panel up on the play account. */
+void
+Editor_Accounts_RevealPlay(struct EditorUi* ui);
+
 int
 Editor_Accounts_PlacePlayer(
     struct EditorUi* ui,

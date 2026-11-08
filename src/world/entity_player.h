@@ -22,6 +22,9 @@ enum
 struct WorldEntity_Player
 {
     int element_id;
+    /** The map editor's spawn preview of the play account, not a player of
+     *  any game: the menu offers "Select player" and no ops. */
+    bool editor_preview;
     struct WorldEntityFacet_GridPosition grid_position;
     struct WorldEntityFacet_DrawPosition draw_position;
     struct WorldEntityFacet_ViewPlacement view_placement;

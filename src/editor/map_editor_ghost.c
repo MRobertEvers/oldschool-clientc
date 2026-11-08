@@ -103,6 +103,118 @@ MapEditorGhost_NeedsFade(struct MapEditorGhost const* ghost)
     return ghost->active && !ghost->alpha_done;
 }
 
+/* ---- the spawn preview --------------------------------------------------- */
+
+uint32_t
+MapEditorSpawnPreview_RowHash(struct MapEditorSpawnPreviewRow const* row)
+{
+    uint32_t hash = 2166136261u;
+    int values[7];
+
+    assert(row);
+    values[0] = row->row.is_obj;
+    values[1] = row->row.abs_x;
+    values[2] = row->row.abs_z;
+    values[3] = row->row.level;
+    values[4] = row->row.count;
+    values[5] = row->edited;
+    values[6] = row->suppressed;
+    for( int i = 0; i < 7; i++ )
+        hash = (hash ^ (uint32_t)values[i]) * 16777619u;
+    for( const char* c = row->row.name; *c; c++ )
+        hash = (hash ^ (uint32_t)(unsigned char)*c) * 16777619u;
+    return hash;
+}
+
+static bool
+preview_rows_same(
+    struct MapEditorSpawnPreviewRow const* a,
+    struct MapEditorSpawnPreviewRow const* b)
+{
+    return a->row.is_obj == b->row.is_obj && a->row.abs_x == b->row.abs_x && a->row.abs_z == b->row.abs_z
+           && a->row.level == b->row.level && a->row.count == b->row.count && a->edited == b->edited
+           && a->suppressed == b->suppressed && strcmp(a->row.name, b->row.name) == 0;
+}
+
+int
+MapEditorSpawnPreview_Reconcile(
+    struct MapEditorSpawnPreview* preview,
+    struct MapEditorSpawnPreviewRow const* rows,
+    int count,
+    struct MapEditorSpawnPreviewItem* out_removed)
+{
+    static struct MapEditorSpawnPreviewItem next[MAP_EDITOR_SPAWN_PREVIEW_MAX];
+    int removed = 0;
+
+    assert(preview);
+    assert(rows || count == 0);
+    assert(out_removed);
+    assert(count <= MAP_EDITOR_SPAWN_PREVIEW_MAX);
+
+    for( int i = 0; i < preview->count; i++ )
+        preview->items[i].claimed = false;
+    for( int r = 0; r < count; r++ )
+    {
+        uint32_t const hash = MapEditorSpawnPreview_RowHash(&rows[r]);
+        struct MapEditorSpawnPreviewItem* item = &next[r];
+        int kept = 0;
+
+        for( int i = 0; i < preview->count && !kept; i++ )
+        {
+            struct MapEditorSpawnPreviewItem* old = &preview->items[i];
+            if( old->claimed || old->hash != hash || !preview_rows_same(&old->want, &rows[r]) )
+                continue;
+            old->claimed = true;
+            *item = *old;
+            kept = 1;
+        }
+        if( kept )
+            continue;
+        memset(item, 0, sizeof(*item));
+        item->want = rows[r];
+        item->hash = hash;
+        item->id = MAP_EDITOR_SPAWN_PREVIEW_ID_UNKNOWN;
+        item->entity = -1;
+        item->element_id = -1;
+        item->size = 1;
+    }
+    for( int i = 0; i < preview->count; i++ )
+        if( !preview->items[i].claimed && preview->items[i].entity >= 0 )
+            out_removed[removed++] = preview->items[i];
+    memcpy(preview->items, next, sizeof(next[0]) * (size_t)count);
+    preview->count = count;
+    preview->cursor = 0;
+    return removed;
+}
+
+void
+MapEditorSpawnPreview_WorldLost(struct MapEditorSpawnPreview* preview)
+{
+    assert(preview);
+    for( int i = 0; i < preview->count; i++ )
+    {
+        preview->items[i].entity = -1;
+        preview->items[i].element_id = -1;
+        preview->items[i].size = 1;
+        preview->items[i].faded = false;
+    }
+    preview->cursor = 0;
+}
+
+struct MapEditorSpawnPreviewItem*
+MapEditorSpawnPreview_FindElement(
+    struct MapEditorSpawnPreview* preview,
+    int element_id)
+{
+    assert(preview);
+    if( element_id < 0 )
+        return NULL;
+    for( int i = 0; i < preview->count; i++ )
+        if( preview->items[i].element_id == element_id )
+            return &preview->items[i];
+    return NULL;
+}
+
 /* ---- the spawn ghost ----------------------------------------------------- */
 
 bool

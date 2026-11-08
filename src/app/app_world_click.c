@@ -300,7 +300,11 @@ app_try_move(
         int head = World_EntityPoolHead(&world->entities.player);
         if( !online && head != WORLD_ENTITY_NIL )
         {
-            World_PlayerPathJump(world, head, false, dst_x, dst_z);
+            struct WorldEntity_Player* first = World_EntityPoolGet(&world->entities.player, head);
+
+            /* The map editor's spawn preview stands where the account does. */
+            if( !first->editor_preview )
+                World_PlayerPathJump(world, head, false, dst_x, dst_z);
             app->minimap.flag_tile_x = dst_x;
             app->minimap.flag_tile_z = dst_z;
             return 1;

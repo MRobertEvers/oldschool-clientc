@@ -1432,6 +1432,10 @@ app_overlay_build_hover_footprint(struct App* app)
  * filled and outlined, its maxrange leash a fainter outline only. */
 #define APP_EDITOR_WANDER_COLOR 0xFF50E070u
 #define APP_EDITOR_LEASH_COLOR 0xFF2C8C46u
+/* The spawn preview's tile markers, by which file the row is in. */
+#define APP_EDITOR_SPAWN_EDITED_COLOR 0xFF50E070u
+#define APP_EDITOR_SPAWN_GENERATED_COLOR 0xFFFFE070u
+#define APP_EDITOR_SPAWN_SUPPRESSED_COLOR 0xFFE05050u
 /* Brushes up to this many tiles draw every tile (radius 5); larger ones
  * draw nested washes, so a radius-16 brush stays inside the overlay budget
  * (OVERLAY_STAGE_WORLD_MAX). Up to the smaller count each tile is outlined
@@ -1810,6 +1814,62 @@ app_overlay_build_editor_ghosts(struct App* app)
         }
         app_overlay_editor_block(app, spawn->spec.scene_x, spawn->spec.scene_z, spawn->size, spawn->size,
             spawn->spec.level, APP_EDITOR_GHOST_COLOR, APP_OUTLINE_FILL_TRANS);
+    }
+    /* The spawn preview: the active level's tile markers, and the selected
+     * spawns picked out on any level. */
+    {
+        struct MapEditorSpawnPreview const* preview = app_map_editor_spawn_preview();
+        struct Editor_SpawnRow selected[64];
+        int const markers = Editor_Spawns_PreviewMarkers(panel->ui);
+        int const marker_level = Editor_PanelEditLevel(panel, app);
+        int picked = Editor_Spawns_SelectionCount(panel->ui) > 0 ? Editor_Spawns_Selection(panel->ui, selected, 64) : 0;
+
+        if( picked > 64 )
+            picked = 64;
+        for( int i = 0; i < preview->count; i++ )
+        {
+            struct MapEditorSpawnPreviewItem const* item = &preview->items[i];
+            struct Editor_SpawnRow const* row = &item->want.row;
+            int const x = row->abs_x - app->world->_base_tile_x;
+            int const z = row->abs_z - app->world->_base_tile_z;
+            int chosen = 0;
+
+            if( x < 0 || z < 0 || x >= app->world->_scene_size || z >= app->world->_scene_size )
+                continue;
+            for( int s = 0; s < picked && !chosen; s++ )
+                chosen = selected[s].is_obj == row->is_obj && selected[s].abs_x == row->abs_x
+                         && selected[s].abs_z == row->abs_z && selected[s].level == row->level
+                         && strcmp(selected[s].name, row->name) == 0;
+            if( chosen )
+            {
+                if( item->element_id >= 0 )
+                    app_overlay_outline_element_model(app, item->element_id, APP_OUTLINE_COLOR_EDITOR_SELECT);
+                app_overlay_editor_block(app, x, z, item->size, item->size, row->level, APP_OUTLINE_COLOR_EDITOR_SELECT,
+                    APP_OUTLINE_FILL_TRANS);
+            }
+            else if( markers && row->level == marker_level )
+                app_overlay_editor_block(app, x, z, item->size, item->size, row->level,
+                    item->want.suppressed ? APP_EDITOR_SPAWN_SUPPRESSED_COLOR
+                    : item->want.edited   ? APP_EDITOR_SPAWN_EDITED_COLOR
+                                          : APP_EDITOR_SPAWN_GENERATED_COLOR,
+                    -1);
+        }
+    }
+    /* The active player, in the Place player colour. */
+    {
+        int scene_x;
+        int scene_z;
+        int level;
+        int element_id;
+        int selected;
+        if( app_map_editor_player_preview_view(&scene_x, &scene_z, &level, &element_id, &selected) )
+        {
+            if( selected )
+                app_overlay_outline_element_model(app, element_id, APP_OUTLINE_COLOR_EDITOR_SELECT);
+            if( selected || (Editor_Spawns_PreviewMarkers(panel->ui) && level == Editor_PanelEditLevel(panel, app)) )
+                app_overlay_editor_block(app, scene_x, scene_z, 1, 1, level,
+                    selected ? APP_OUTLINE_COLOR_EDITOR_SELECT : APP_EDITOR_PLAYER_COLOR, selected ? APP_OUTLINE_FILL_TRANS : -1);
+        }
     }
     /* The wander preview: every selected npc spawn's wanderrange square and
      * maxrange leash, the spawn ghost's, a pending spawn move's destination.

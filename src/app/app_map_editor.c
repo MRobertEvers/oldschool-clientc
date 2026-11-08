@@ -54,6 +54,15 @@ static int
 app_map_editor_ghost_is_edit(struct App const* app);
 static void
 app_map_editor_spawn_ghost_remove(struct App* app);
+
+static int
+app_map_editor_spawn_preview_click(
+    struct App* app,
+    struct EditorUi* ui,
+    int scene_x,
+    int scene_z,
+    int level,
+    enum Editor_LocSelectMode mode);
 /* The move gizmo's press and drag (workbench 6.3, the gizmo section). */
 static struct AppMapEditorGizmo
 {
@@ -3132,6 +3141,15 @@ app_map_editor_world_click(
 
     if( tool == EDITOR_TOOL_SELECT )
     {
+        /* A previewed spawn under the pointer is what the click means; an
+         * armed spawn move wants the tile instead. */
+        if( !Editor_Spawns_MoveArmed(ui)
+            && app_map_editor_spawn_preview_click(app, ui, hx, hz, level, app_map_editor_select_mode(app, input)) )
+        {
+            app->need_redraw = 1;
+            return;
+        }
+
         /* A plain click latches the TILE (unambiguous where a wall, a decor
          * and a ground loc share it; the minimenu's "Select wall" rows pick
          * those exactly). With a modifier the loc under the pointer joins the
@@ -3714,21 +3732,18 @@ app_map_editor_spawn_ghost_land(struct App* app)
     }
 }
 
-/** The obj ghost's fade: written once onto the stack element's own model
- *  (ForWrite: the obj's models are shared). */
-static void
-app_map_editor_spawn_ghost_fade(struct App* app)
+/** An obj stack's fade: written once onto the element's own model (ForWrite:
+ *  the obj's models are shared). 1 when written. */
+static int
+app_map_editor_obj_stack_fade(
+    struct App* app,
+    int entity)
 {
-    struct MapEditorSpawnGhost* ghost = &app->map_ghost.spawn;
-    struct WorldEntity_ObjStack* stack;
-    struct ToriDraw_Model* model;
+    struct WorldEntity_ObjStack* stack = World_EntityPoolGet(&app->world->entities.obj_stack, entity);
+    struct ToriDraw_Model* model = stack ? ToriDraw_SceneElementModelForWrite(app->scene, stack->element_id) : NULL;
 
-    if( !ghost->active || ghost->entity < 0 || ghost->faded || !app->world || !app->scene )
-        return;
-    stack = World_EntityPoolGet(&app->world->entities.obj_stack, ghost->entity);
-    model = stack ? ToriDraw_SceneElementModelForWrite(app->scene, stack->element_id) : NULL;
     if( !model || model->face_count <= 0 )
-        return;
+        return 0;
     if( !model->face_alphas )
     {
         /* lib:toridraw: the model's array; ToriDraw_ModelFree frees it. */
@@ -3736,8 +3751,19 @@ app_map_editor_spawn_ghost_fade(struct App* app)
         assert(model->face_alphas);
     }
     memset(model->face_alphas, 150, (size_t)model->face_count);
-    ghost->faded = true;
     app->need_redraw = 1;
+    return 1;
+}
+
+static void
+app_map_editor_spawn_ghost_fade(struct App* app)
+{
+    struct MapEditorSpawnGhost* ghost = &app->map_ghost.spawn;
+
+    if( !ghost->active || ghost->entity < 0 || ghost->faded || !app->world || !app->scene )
+        return;
+    if( app_map_editor_obj_stack_fade(app, ghost->entity) )
+        ghost->faded = true;
 }
 
 /**
@@ -3775,6 +3801,408 @@ app_map_editor_spawn_ghost_update(
     if( MapEditorSpawnGhost_Pending(&app->map_ghost.spawn) )
         (void)app_map_editor_spawn_ghost_land(app);
     app_map_editor_spawn_ghost_fade(app);
+}
+
+#if defined(__EMSCRIPTEN__)
+/* No Accounts here, so no active player in the preview. */
+static int
+app_player_preview_take_element(
+    struct App* app,
+    struct EditorUi* ui,
+    int element_id)
+{
+    (void)app;
+    (void)ui;
+    (void)element_id;
+    return 0;
+}
+
+static int
+app_player_preview_take_tile(
+    struct App* app,
+    struct EditorUi* ui,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    (void)app;
+    (void)ui;
+    (void)scene_x;
+    (void)scene_z;
+    (void)level;
+    return 0;
+}
+
+static void
+app_player_preview_deselect(void)
+{
+}
+
+int
+app_map_editor_player_preview_view(
+    int* out_scene_x,
+    int* out_scene_z,
+    int* out_level,
+    int* out_element_id,
+    int* out_selected)
+{
+    (void)out_scene_x;
+    (void)out_scene_z;
+    (void)out_level;
+    (void)out_element_id;
+    (void)out_selected;
+    return 0;
+}
+#else
+static int
+app_player_preview_take_element(
+    struct App* app,
+    struct EditorUi* ui,
+    int element_id);
+
+static int
+app_player_preview_take_tile(
+    struct App* app,
+    struct EditorUi* ui,
+    int scene_x,
+    int scene_z,
+    int level);
+
+static void
+app_player_preview_deselect(void);
+#endif
+
+/* ---- the spawn preview -----------------------------------------------------
+ *
+ * The open squares' spawns as scene entities, while the Spawns panel's Show
+ * spawns is on (map_editor_ghost.h has the table's rules). Ids come from the
+ * server's catalog and bodies from the cache, so an item lands when its
+ * assets do; a frame spends a bounded amount of either, and a quiet frame
+ * spends nothing but the walk of the rows' serial.
+ */
+
+/** Catalog lookups one frame may make (each is a request to the server). */
+#define APP_SPAWN_PREVIEW_LOOKUPS_PER_FRAME 4
+/** Items a frame may land, and may look at to find them. */
+#define APP_SPAWN_PREVIEW_LANDS_PER_FRAME 8
+#define APP_SPAWN_PREVIEW_VISITS_PER_FRAME 128
+/** Waiting on Task_NpcMultiLoad: its answer is an npc id, or -1 for a hidden
+ *  variant, so "not yet" needs a value of its own. */
+#define APP_SPAWN_PREVIEW_LOADING (-2)
+
+/* The asset requests, one per id for the session. A request outlives the frame
+ * and the table item that made it, so its out slot lives here, never moved. */
+struct AppSpawnPreviewLoad
+{
+    int id;
+    int is_obj;
+    int npc_resolved;
+    int model_requested;
+};
+
+static struct
+{
+    struct MapEditorSpawnPreview preview;
+    struct MapEditorSpawnPreviewItem removed[MAP_EDITOR_SPAWN_PREVIEW_MAX];
+    struct AppSpawnPreviewLoad loads[MAP_EDITOR_SPAWN_PREVIEW_MAX];
+    int load_count;
+} g_app_spawn_preview;
+
+struct MapEditorSpawnPreview*
+app_map_editor_spawn_preview(void)
+{
+    return &g_app_spawn_preview.preview;
+}
+
+/** The session's request for this id, made if it is the first; NULL when the
+ *  table is full (the item waits, which the panel's count shows). */
+static struct AppSpawnPreviewLoad*
+app_spawn_preview_load(
+    struct App* app,
+    int is_obj,
+    int id)
+{
+    struct AppSpawnPreviewLoad* load;
+    struct ToriRS_Task* task;
+
+    for( int i = 0; i < g_app_spawn_preview.load_count; i++ )
+    {
+        load = &g_app_spawn_preview.loads[i];
+        if( load->id == id && load->is_obj == is_obj )
+            return load;
+    }
+    if( g_app_spawn_preview.load_count == MAP_EDITOR_SPAWN_PREVIEW_MAX )
+        return NULL;
+    load = &g_app_spawn_preview.loads[g_app_spawn_preview.load_count++];
+    load->id = id;
+    load->is_obj = is_obj;
+    load->npc_resolved = APP_SPAWN_PREVIEW_LOADING;
+    load->model_requested = -1;
+    task = is_obj ? CreateTask_ObjLoad(app->provider, id) : CreateTask_NpcMultiLoad(app, id, &load->npc_resolved);
+    assert(task);
+    ToriRS_TaskQueue_Add(app->runner.queue, task);
+    return load;
+}
+
+/** Land one pending npc if its assets are in; 1 when it did. */
+static int
+app_spawn_preview_land_npc(
+    struct App* app,
+    struct MapEditorSpawnPreviewItem* item,
+    int scene_x,
+    int scene_z)
+{
+    struct AppSpawnPreviewLoad* load = app_spawn_preview_load(app, 0, item->id);
+    struct WorldEntity_NPC* npc;
+    int body;
+    int idx;
+
+    if( !load || load->npc_resolved == APP_SPAWN_PREVIEW_LOADING )
+        return 0;
+    /* A multinpc shows the form the editor's zeroed varps select; one whose
+     * form at zero is hidden still takes its shell, for the marker and pick. */
+    body = load->npc_resolved >= 0 ? load->npc_resolved : item->id;
+    if( !CacheProvider_NpctypeGet(app->provider, body) )
+        return 0;
+    idx = app_world_spawn_npc_now(app, body, body == item->id ? -1 : item->id, scene_x, scene_z, item->want.row.level);
+    npc = idx >= 0 ? World_EntityPoolGet(&app->world->entities.npc, idx) : NULL;
+    if( !npc )
+        return 0;
+    npc->editor_preview = true;
+    /* Held on the ready pose's first frame: the cycle steps nothing further. */
+    npc->animation.secondary.anim_id = (uint16_t)npc->idle_animations.readyanim;
+    npc->animation.secondary.frame = 0;
+    npc->animation.secondary.cycle = 0;
+    npc->animation.held = true;
+    if( item->want.suppressed )
+        WorldEntityTransparency_Set(
+            &npc->transparency, app->world->cycle, app->world->cycle, app->world->cycle, 150, 150, 1);
+    item->entity = idx;
+    item->element_id = npc->element_id;
+    item->size = npc->size > 0 ? npc->size : 1;
+    return 1;
+}
+
+/** Land one pending ground item if its assets are in; 1 when it did. */
+static int
+app_spawn_preview_land_obj(
+    struct App* app,
+    struct MapEditorSpawnPreviewItem* item,
+    int scene_x,
+    int scene_z)
+{
+    struct AppSpawnPreviewLoad* load = app_spawn_preview_load(app, 1, item->id);
+    struct ToriRS_Objtype* obj = load ? CacheProvider_ObjtypeGet(app->provider, item->id) : NULL;
+    struct WorldEntity_ObjStack* stack;
+    int idx;
+
+    if( !obj )
+        return 0;
+    if( obj->inventory_model_id > 0 && !CacheProvider_ModelHas(app->provider, obj->inventory_model_id) )
+    {
+        if( load->model_requested != obj->inventory_model_id )
+        {
+            struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, obj->inventory_model_id);
+            assert(task);
+            load->model_requested = obj->inventory_model_id;
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+        }
+        return 0;
+    }
+    idx = App_WorldObjStackAdd(app, scene_x, scene_z, item->want.row.level, item->id, 1);
+    stack = idx >= 0 ? World_EntityPoolGet(&app->world->entities.obj_stack, idx) : NULL;
+    if( !stack )
+        return 0;
+    stack->editor_preview = true;
+    item->entity = idx;
+    item->element_id = stack->element_id;
+    return 1;
+}
+
+/** Take down what the table no longer wants. */
+static void
+app_spawn_preview_despawn(
+    struct App* app,
+    struct MapEditorSpawnPreviewItem const* item)
+{
+    if( item->want.row.is_obj )
+        App_WorldObjStackDel(app, item->want.row.abs_x - app->world->_base_tile_x,
+            item->want.row.abs_z - app->world->_base_tile_z, item->want.row.level, item->id);
+    else
+        World_NpcDespawn(app->world, item->entity);
+    app->need_redraw = 1;
+}
+
+static void
+app_map_editor_spawn_preview_update(
+    struct App* app,
+    struct EditorUi* ui)
+{
+    struct MapEditorSpawnPreview* preview = &g_app_spawn_preview.preview;
+    struct MapEditorSpawnPreviewRow const* rows;
+    int count = 0;
+    uint32_t serial = 0;
+    int lookups = APP_SPAWN_PREVIEW_LOOKUPS_PER_FRAME;
+    int lands = APP_SPAWN_PREVIEW_LANDS_PER_FRAME;
+    int landed = 0;
+    int waiting = 0;
+    int missing = 0;
+
+    if( !app->world || !app->provider || !app->scene )
+        return;
+    rows = Editor_Spawns_PreviewRows(ui, &count, &serial);
+    if( preview->load_seq != app->world->load_seq )
+    {
+        preview->load_seq = app->world->load_seq;
+        MapEditorSpawnPreview_WorldLost(preview);
+    }
+    if( serial != preview->rows_serial )
+    {
+        int const removed = MapEditorSpawnPreview_Reconcile(preview, rows, count, g_app_spawn_preview.removed);
+        for( int i = 0; i < removed; i++ )
+            app_spawn_preview_despawn(app, &g_app_spawn_preview.removed[i]);
+        preview->rows_serial = serial;
+    }
+
+    /* Bounded, from where the last frame stopped, so a spawn whose assets
+     * never come cannot starve the rest. */
+    for( int visit = 0; visit < APP_SPAWN_PREVIEW_VISITS_PER_FRAME && visit < preview->count && lands > 0; visit++ )
+    {
+        struct MapEditorSpawnPreviewItem* item;
+        int scene_x;
+        int scene_z;
+
+        if( preview->cursor >= preview->count )
+            preview->cursor = 0;
+        item = &preview->items[preview->cursor++];
+        if( item->entity >= 0 )
+            continue;
+        if( item->id == MAP_EDITOR_SPAWN_PREVIEW_ID_UNKNOWN )
+        {
+            if( lookups == 0 )
+                continue;
+            lookups--;
+            item->id = Editor_Spawns_PreviewResolve(ui, &item->want.row);
+        }
+        if( item->id == MAP_EDITOR_SPAWN_PREVIEW_ID_MISSING )
+            continue;
+        scene_x = item->want.row.abs_x - app->world->_base_tile_x;
+        scene_z = item->want.row.abs_z - app->world->_base_tile_z;
+        if( scene_x < 0 || scene_z < 0 || scene_x >= app->world->_scene_size || scene_z >= app->world->_scene_size )
+            continue;
+        if( item->want.row.is_obj ? app_spawn_preview_land_obj(app, item, scene_x, scene_z)
+                                  : app_spawn_preview_land_npc(app, item, scene_x, scene_z) )
+        {
+            lands--;
+            app->need_redraw = 1;
+        }
+    }
+
+    for( int i = 0; i < preview->count; i++ )
+    {
+        struct MapEditorSpawnPreviewItem* item = &preview->items[i];
+        if( item->entity >= 0 )
+        {
+            landed++;
+            if( item->want.row.is_obj && item->want.suppressed && !item->faded
+                && app_map_editor_obj_stack_fade(app, item->entity) )
+                item->faded = true;
+        }
+        else if( item->id == MAP_EDITOR_SPAWN_PREVIEW_ID_MISSING )
+            missing++;
+        else
+            waiting++;
+    }
+    Editor_Spawns_PreviewCounts(ui, landed, waiting, missing);
+}
+
+/** A previewed spawn into the Spawns selection. */
+static void
+app_spawn_preview_select(
+    struct App* app,
+    struct EditorUi* ui,
+    struct MapEditorSpawnPreviewItem const* item,
+    enum Editor_LocSelectMode mode)
+{
+    /* The latch is what the panel's list follows, so a selection that has
+     * replaced the old one latches its spawn's tile. */
+    if( Editor_Spawns_SelectFromWorld(ui, &item->want.row, mode) )
+        Editor_PanelSelectTerrain(&app->editor_panel, app, item->want.row.abs_x - app->world->_base_tile_x,
+            item->want.row.abs_z - app->world->_base_tile_z, item->want.row.level);
+    app->need_redraw = 1;
+}
+
+void
+app_map_editor_spawn_preview_select_element(
+    struct App* app,
+    int element_id)
+{
+    struct MapEditorSpawnPreviewItem* item;
+    struct EditorUi* ui;
+
+    assert(app);
+    ui = app->editor_panel.ui;
+    if( !ui || !app->world )
+        return;
+    if( app_player_preview_take_element(app, ui, element_id) )
+        return;
+    app_player_preview_deselect();
+    item = MapEditorSpawnPreview_FindElement(&g_app_spawn_preview.preview, element_id);
+    if( item )
+        app_spawn_preview_select(app, ui, item, ui->shift_held ? EDITOR_LOC_SELECT_ADD : EDITOR_LOC_SELECT_REPLACE);
+}
+
+/**
+ * A Select click: the spawn whose model is under the pointer (nearest first),
+ * else, with the tile markers drawn, the spawn whose marker holds the clicked
+ * tile -- how a model-less npc is reached at all. 1 when it took the click.
+ */
+static int
+app_map_editor_spawn_preview_click(
+    struct App* app,
+    struct EditorUi* ui,
+    int scene_x,
+    int scene_z,
+    int level,
+    enum Editor_LocSelectMode mode)
+{
+    struct MapEditorSpawnPreview* preview = &g_app_spawn_preview.preview;
+    struct World_PickSet const* picks = &app->frame_view->world_pickset;
+    struct MapEditorSpawnPreviewItem* item = NULL;
+
+    if( !app->world )
+        return 0;
+    app_player_preview_deselect();
+    if( picks->mouse_valid && picks->mouse_x == app->frame_view->world_mouse_x
+        && picks->mouse_y == app->frame_view->world_mouse_y )
+        for( int i = picks->count - 1; i >= 0 && !item; i-- )
+        {
+            if( picks->items[i].view_id != 0 )
+                continue;
+            if( picks->items[i].type == WORLD_PICK_PLAYER
+                && app_player_preview_take_element(app, ui, picks->items[i].element_id) )
+                return 1;
+            if( picks->items[i].type == WORLD_PICK_NPC || picks->items[i].type == WORLD_PICK_OBJSTACK )
+                item = MapEditorSpawnPreview_FindElement(preview, picks->items[i].element_id);
+        }
+    if( !item && Editor_Spawns_PreviewMarkers(ui) )
+    {
+        if( app_player_preview_take_tile(app, ui, scene_x, scene_z, level) )
+            return 1;
+        for( int i = 0; i < preview->count && !item; i++ )
+        {
+            struct Editor_SpawnRow const* row = &preview->items[i].want.row;
+            int const x = row->abs_x - app->world->_base_tile_x;
+            int const z = row->abs_z - app->world->_base_tile_z;
+            if( row->level == level && scene_x >= x && scene_x < x + preview->items[i].size && scene_z >= z
+                && scene_z < z + preview->items[i].size )
+                item = &preview->items[i];
+        }
+    }
+    if( !item )
+        return 0;
+    app_spawn_preview_select(app, ui, item, mode);
+    return 1;
 }
 
 #if !defined(__EMSCRIPTEN__)
@@ -3857,6 +4285,72 @@ app_player_ghost_slots(
     return 1;
 }
 
+/**
+ * A scene player in `look`'s body and gear, on the tile: the Place player ghost
+ * and the active player's preview. Returns the player-pool index, or -1 while
+ * something it wears is still loading (asked for). `out_slots` and
+ * `out_colours` are what it was dressed in.
+ */
+static int
+app_player_body_spawn(
+    struct App* app,
+    const struct Editor_AccountLook* look,
+    int scene_x,
+    int scene_z,
+    int level,
+    const char* name,
+    int out_slots[APPEARANCE_SLOT_COUNT],
+    int out_colours[APPEARANCE_COLOUR_COUNT])
+{
+    static const struct WorldEntityFacet_IdleAnimations idle = {
+        .readyanim = APP_PLAYER_SEQ_READY,
+        .walkanim = APP_PLAYER_SEQ_WALK,
+        .turnanim = APP_PLAYER_SEQ_TURN,
+        .turnanim_r = APP_PLAYER_SEQ_TURN,
+        .runanim = APP_PLAYER_SEQ_RUN,
+        .walkanim_b = APP_PLAYER_SEQ_WALK_B,
+        .walkanim_r = APP_PLAYER_SEQ_WALK_R,
+        .walkanim_l = APP_PLAYER_SEQ_WALK_L,
+        .runanim_b = -1,
+        .runanim_r = -1,
+        .runanim_l = -1,
+        .crawlanim = -1,
+        .crawlanim_b = -1,
+        .crawlanim_r = -1,
+        .crawlanim_l = -1,
+    };
+    int idx;
+
+    /* The identity kits (every idk config) and the gear's configs and models. */
+    if( !g_app_player_ghost.idk_asked )
+    {
+        struct ToriRS_Task* task = CreateTask_PlayerAppearanceLoad(app->provider);
+        if( task )
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+        g_app_player_ghost.idk_asked = 1;
+    }
+    if( !app_player_ghost_slots(app, look, out_slots) )
+        return -1;
+    if( !PlayerModel_AppearanceResident(app->provider, out_slots, look->gender) )
+    {
+        int ids[64];
+        int missing = 0;
+        int const n = PlayerModel_CollectAppearanceModelIds(app->provider, out_slots, look->gender, ids, 64);
+        for( int i = 0; i < n; i++ )
+            app_icon_model(app, ids[i], &missing);
+        return -1;
+    }
+    idx = app_world_spawn_player_now(app, scene_x, scene_z, level);
+    if( idx < 0 )
+        return -1;
+    for( int i = 0; i < APPEARANCE_COLOUR_COUNT; i++ )
+        out_colours[i] = i < TORIRSMAPED_ACCT_LOOK_COLOURS ? look->colours[i] : 0;
+    /* The body is built from these by the frame's reconcile, every part
+     * being resident (checked above). */
+    World_PlayerSetAppearance(app->world, idx, out_slots, out_slots, out_colours, &idle, name, 0, look->gender);
+    return idx;
+}
+
 static void
 app_map_editor_player_ghost_update(
     struct App* app,
@@ -3892,52 +4386,11 @@ app_map_editor_player_ghost_update(
         }
         return;
     }
-    /* The identity kits (every idk config) and the gear's configs and models. */
-    if( !g_app_player_ghost.idk_asked )
     {
-        struct ToriRS_Task* task = CreateTask_PlayerAppearanceLoad(app->provider);
-        if( task )
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
-        g_app_player_ghost.idk_asked = 1;
-    }
-    if( !app_player_ghost_slots(app, &look, slots) )
-        return;
-    if( !PlayerModel_AppearanceResident(app->provider, slots, look.gender) )
-    {
-        int ids[64];
-        int missing = 0;
-        int const n = PlayerModel_CollectAppearanceModelIds(app->provider, slots, look.gender, ids, 64);
-        for( int i = 0; i < n; i++ )
-            app_icon_model(app, ids[i], &missing);
-        return;
-    }
-    {
-        struct WorldEntityFacet_IdleAnimations idle = {
-            .readyanim = APP_PLAYER_SEQ_READY,
-            .walkanim = APP_PLAYER_SEQ_WALK,
-            .turnanim = APP_PLAYER_SEQ_TURN,
-            .turnanim_r = APP_PLAYER_SEQ_TURN,
-            .runanim = APP_PLAYER_SEQ_RUN,
-            .walkanim_b = APP_PLAYER_SEQ_WALK_B,
-            .walkanim_r = APP_PLAYER_SEQ_WALK_R,
-            .walkanim_l = APP_PLAYER_SEQ_WALK_L,
-            .runanim_b = -1,
-            .runanim_r = -1,
-            .runanim_l = -1,
-            .crawlanim = -1,
-            .crawlanim_b = -1,
-            .crawlanim_r = -1,
-            .crawlanim_l = -1,
-        };
         int colours[APPEARANCE_COLOUR_COUNT];
-        int const idx = app_world_spawn_player_now(app, hover->scene_x, hover->scene_z, hover->level);
+        int const idx = app_player_body_spawn(app, &look, hover->scene_x, hover->scene_z, hover->level, "", slots, colours);
         if( idx < 0 )
             return;
-        for( int i = 0; i < APPEARANCE_COLOUR_COUNT; i++ )
-            colours[i] = i < TORIRSMAPED_ACCT_LOOK_COLOURS ? look.colours[i] : 0;
-        /* The body is built from these by the frame's reconcile, every part
-         * being resident (checked above). */
-        World_PlayerSetAppearance(app->world, idx, slots, slots, colours, &idle, "", 0, look.gender);
         World_PlayerSetTransparency(app->world, idx, 0, 0, 150, 150, true);
         g_app_player_ghost.entity = idx;
         g_app_player_ghost.load_seq = app->world->load_seq;
@@ -3948,6 +4401,180 @@ app_map_editor_player_ghost_update(
         g_app_player_ghost.gender = look.gender;
         app->need_redraw = 1;
     }
+}
+
+/* ---- the active player in the spawn preview ---------------------------------
+ *
+ * The play account where the server says it stands, in its own body and gear
+ * and held still like the spawns round it: the View tab's Active player. It
+ * follows the account (a Place player, the play client walking); selecting it
+ * brings up the Accounts panel on it.
+ */
+static struct
+{
+    int entity;
+    int element_id;
+    uint32_t load_seq;
+    int look_serial;
+    int scene_x;
+    int scene_z;
+    int level;
+    int selected;
+} g_app_player_preview = { -1, -1, 0, -1, 0, 0, 0, 0 };
+
+static void
+app_map_editor_player_preview_remove(struct App* app)
+{
+    if( g_app_player_preview.entity < 0 )
+        return;
+    if( app->world && g_app_player_preview.load_seq == app->world->load_seq
+        && World_EntityPoolIsActive(&app->world->entities.player, g_app_player_preview.entity) )
+        World_PlayerDespawn(app->world, g_app_player_preview.entity);
+    g_app_player_preview.entity = -1;
+    g_app_player_preview.element_id = -1;
+    app->need_redraw = 1;
+}
+
+static void
+app_map_editor_player_preview_update(
+    struct App* app,
+    struct EditorUi* ui)
+{
+    struct Editor_AccountLook look;
+    struct WorldEntity_Player* player;
+    int look_serial = -1;
+    int abs_x = 0;
+    int abs_z = 0;
+    int level = 0;
+    int slots[APPEARANCE_SLOT_COUNT];
+    int colours[APPEARANCE_COLOUR_COUNT];
+    int scene_x;
+    int scene_z;
+    int idx;
+    int wanted = app->world && app->provider && app->scene && Editor_Spawns_PreviewPlayer(ui)
+                 && Editor_Accounts_PlayPosition(ui, &abs_x, &abs_z, &level)
+                 && Editor_Accounts_PlayLook(ui, &look, &look_serial);
+
+    if( g_app_player_preview.entity >= 0 && (!app->world || g_app_player_preview.load_seq != app->world->load_seq) )
+    {
+        g_app_player_preview.entity = -1;
+        g_app_player_preview.element_id = -1;
+    }
+    if( wanted )
+    {
+        scene_x = abs_x - app->world->_base_tile_x;
+        scene_z = abs_z - app->world->_base_tile_z;
+        wanted = scene_x >= 0 && scene_z >= 0 && scene_x < app->world->_scene_size && scene_z < app->world->_scene_size;
+    }
+    if( !wanted )
+    {
+        g_app_player_preview.selected = 0;
+        app_map_editor_player_preview_remove(app);
+        return;
+    }
+    if( g_app_player_preview.entity >= 0
+        && (g_app_player_preview.look_serial != look_serial || g_app_player_preview.level != level) )
+        app_map_editor_player_preview_remove(app);
+    if( g_app_player_preview.entity >= 0 )
+    {
+        if( g_app_player_preview.scene_x != scene_x || g_app_player_preview.scene_z != scene_z )
+        {
+            World_PlayerPathJump(app->world, g_app_player_preview.entity, true, scene_x, scene_z);
+            g_app_player_preview.scene_x = scene_x;
+            g_app_player_preview.scene_z = scene_z;
+            app->need_redraw = 1;
+        }
+        return;
+    }
+    idx = app_player_body_spawn(app, &look, scene_x, scene_z, level, look.name, slots, colours);
+    player = idx >= 0 ? World_EntityPoolGet(&app->world->entities.player, idx) : NULL;
+    if( !player )
+        return;
+    player->editor_preview = true;
+    player->animation.secondary.anim_id = APP_PLAYER_SEQ_READY;
+    player->animation.secondary.frame = 0;
+    player->animation.secondary.cycle = 0;
+    player->animation.held = true;
+    g_app_player_preview.entity = idx;
+    g_app_player_preview.element_id = player->element_id;
+    g_app_player_preview.load_seq = app->world->load_seq;
+    g_app_player_preview.look_serial = look_serial;
+    g_app_player_preview.scene_x = scene_x;
+    g_app_player_preview.scene_z = scene_z;
+    g_app_player_preview.level = level;
+    app->need_redraw = 1;
+}
+
+static void
+app_player_preview_select(
+    struct App* app,
+    struct EditorUi* ui)
+{
+    struct Editor_SpawnRow none;
+
+    memset(&none, 0, sizeof(none));
+    (void)Editor_Spawns_Select(ui, &none, 0);
+    g_app_player_preview.selected = 1;
+    Editor_PanelSelectTerrain(
+        &app->editor_panel, app, g_app_player_preview.scene_x, g_app_player_preview.scene_z, g_app_player_preview.level);
+    Editor_Accounts_RevealPlay(ui);
+    app->need_redraw = 1;
+}
+
+static int
+app_player_preview_take_element(
+    struct App* app,
+    struct EditorUi* ui,
+    int element_id)
+{
+    if( element_id < 0 || element_id != g_app_player_preview.element_id )
+        return 0;
+    app_player_preview_select(app, ui);
+    return 1;
+}
+
+static int
+app_player_preview_take_tile(
+    struct App* app,
+    struct EditorUi* ui,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    if( g_app_player_preview.entity < 0 || g_app_player_preview.scene_x != scene_x
+        || g_app_player_preview.scene_z != scene_z || g_app_player_preview.level != level )
+        return 0;
+    app_player_preview_select(app, ui);
+    return 1;
+}
+
+static void
+app_player_preview_deselect(void)
+{
+    g_app_player_preview.selected = 0;
+}
+
+int
+app_map_editor_player_preview_view(
+    int* out_scene_x,
+    int* out_scene_z,
+    int* out_level,
+    int* out_element_id,
+    int* out_selected)
+{
+    assert(out_scene_x);
+    assert(out_scene_z);
+    assert(out_level);
+    assert(out_element_id);
+    assert(out_selected);
+    if( g_app_player_preview.entity < 0 )
+        return 0;
+    *out_scene_x = g_app_player_preview.scene_x;
+    *out_scene_z = g_app_player_preview.scene_z;
+    *out_level = g_app_player_preview.level;
+    *out_element_id = g_app_player_preview.element_id;
+    *out_selected = g_app_player_preview.selected;
+    return 1;
 }
 #endif
 
@@ -4318,8 +4945,10 @@ app_map_editor_ghost_update(struct App* app)
     app_map_editor_hover_env_arm(ui);
     app_map_editor_level_env(app, ui);
     app_map_editor_spawn_ghost_update(app, ui);
+    app_map_editor_spawn_preview_update(app, ui);
 #if !defined(__EMSCRIPTEN__)
     app_map_editor_player_ghost_update(app, ui);
+    app_map_editor_player_preview_update(app, ui);
 #endif
     app_map_editor_piece_ghost_update(app, ui);
 

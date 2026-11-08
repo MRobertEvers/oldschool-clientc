@@ -38,6 +38,9 @@ struct WorldEntity_NPC
      *  subsequent NPC_INFO masks and varp-driven reappearance still work, but
      *  every player-facing renderer/menu path treats it as absent. */
     bool multinpc_hidden;
+    /** The map editor's spawn preview, not an npc of any game: the menu
+     *  offers "Select spawn" and none of the type's ops. */
+    bool editor_preview;
     int size;
     /** NpcType.alwaysontop (opcode 99). Draw-order tier: alwaysontop NPCs
      *  register with the painter before other players and normal NPCs, so

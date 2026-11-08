@@ -2510,6 +2510,13 @@ app_minimenu_run_option(
         return 0; /* handled locally; no CS2 task was dispatched */
     }
 
+    /* A previewed spawn's row: any tool, the Spawns selection takes it. */
+    if( opt.action == RS_MINIMENU_ACTION_MAPEDIT_SELECT_SPAWN )
+    {
+        app_map_editor_spawn_preview_select_element(app, opt.pick.id);
+        return 0; /* handled locally; no CS2 task was dispatched */
+    }
+
     /* Arm target mode from a spell/prayer button (reference TGT_BUTTON): the
      * next click on a valid target casts. objsel and targetsel are mutually
      * exclusive. */

@@ -812,6 +812,21 @@ enum Editor_LocSelectMode
     EDITOR_LOC_SELECT_SUBTRACT,
 };
 
+struct Editor_SpawnRow;
+
+/**
+ * A previewed spawn clicked in the world, into the Spawns selection, which
+ * comes up and follows it to its square. `mode` is the loc selection's.
+ * Returns 1 when it replaced the selection: the caller latches its tile, which
+ * the panel's list follows.
+ */
+int
+Editor_Spawns_SelectFromWorld(
+    struct EditorUi* ui,
+    const struct Editor_SpawnRow* row,
+    enum Editor_LocSelectMode mode);
+
+
 /** The modifiers held, as the mode they mean (Alt over Ctrl over Shift). */
 enum Editor_LocSelectMode
 Editor_LocSelectModeOf(

@@ -543,6 +543,75 @@ test_the_wander_squares_follow_the_record(void)
 
 /* ---- the multi-piece ghost (workbench 6.3) ----------------------------------- */
 
+static struct MapEditorSpawnPreviewRow
+preview_row(
+    const char* name,
+    int x)
+{
+    struct MapEditorSpawnPreviewRow row;
+
+    memset(&row, 0, sizeof(row));
+    snprintf(row.row.name, sizeof(row.row.name), "%s", name);
+    row.row.abs_x = x;
+    row.row.abs_z = 3200;
+    row.row.count = 1;
+    return row;
+}
+
+/* An edit to one row must not reload every body in the square, and a row that
+ * goes away must hand back exactly the entity it became. */
+static void
+test_the_spawn_preview_keeps_what_is_still_wanted(void)
+{
+    static struct MapEditorSpawnPreview preview;
+    static struct MapEditorSpawnPreviewItem removed[MAP_EDITOR_SPAWN_PREVIEW_MAX];
+    struct MapEditorSpawnPreviewRow rows[3];
+    int n;
+
+    memset(&preview, 0, sizeof(preview));
+    rows[0] = preview_row("guard", 3200);
+    rows[1] = preview_row("goblin", 3201);
+    n = MapEditorSpawnPreview_Reconcile(&preview, rows, 2, removed);
+    CHECK(n == 0 && preview.count == 2, "two new rows are two pending items, nothing removed");
+    CHECK(preview.items[0].entity == -1 && preview.items[0].id == MAP_EDITOR_SPAWN_PREVIEW_ID_UNKNOWN,
+        "a new row is pending and unresolved");
+    preview.items[0].entity = 7;
+    preview.items[0].element_id = 70;
+    preview.items[0].id = 3;
+    preview.items[1].entity = 8;
+    preview.items[1].element_id = 80;
+
+    /* goblin stays, guard moves a tile, in a new order. */
+    rows[0] = preview_row("goblin", 3201);
+    rows[1] = preview_row("guard", 3205);
+    n = MapEditorSpawnPreview_Reconcile(&preview, rows, 2, removed);
+    CHECK(n == 1 && removed[0].entity == 7 && removed[0].want.row.abs_x == 3200, "the moved row's old entity comes down");
+    CHECK(preview.items[0].entity == 8, "the unchanged row keeps its entity, wherever it now sits");
+    CHECK(preview.items[1].entity == -1, "the moved row is pending at its new tile");
+    CHECK(MapEditorSpawnPreview_FindElement(&preview, 80) == &preview.items[0], "its element still finds it");
+    CHECK(MapEditorSpawnPreview_FindElement(&preview, 70) == NULL, "the despawned element finds nothing");
+    CHECK(MapEditorSpawnPreview_FindElement(&preview, -1) == NULL, "a pending item's -1 is nobody's element");
+
+    /* Two identical rows are two entities: one claim each. */
+    rows[0] = preview_row("goblin", 3201);
+    rows[1] = preview_row("goblin", 3201);
+    rows[2] = preview_row("guard", 3205);
+    n = MapEditorSpawnPreview_Reconcile(&preview, rows, 3, removed);
+    CHECK(n == 0 && preview.items[0].entity == 8 && preview.items[1].entity == -1,
+        "a second identical row does not share the first one's entity");
+
+    /* A row suppressed since is a different picture of it. */
+    rows[1].suppressed = 1;
+    n = MapEditorSpawnPreview_Reconcile(&preview, rows, 2, removed);
+    CHECK(preview.items[1].id == MAP_EDITOR_SPAWN_PREVIEW_ID_UNKNOWN, "a change of suppression makes a new item");
+
+    preview.items[0].entity = 8;
+    MapEditorSpawnPreview_WorldLost(&preview);
+    CHECK(preview.items[0].entity == -1 && preview.items[0].element_id == -1, "a rebuild leaves everything pending");
+    n = MapEditorSpawnPreview_Reconcile(&preview, NULL, 0, removed);
+    CHECK(n == 0 && preview.count == 0, "after a rebuild there is nothing left to despawn");
+}
+
 static void
 test_the_piece_ghost_counts_its_taken_keys(void)
 {
@@ -577,6 +646,7 @@ test_the_piece_ghost_counts_its_taken_keys(void)
 int
 main(void)
 {
+    test_the_spawn_preview_keeps_what_is_still_wanted();
     test_the_piece_ghost_counts_its_taken_keys();
     test_no_ghost_is_no_work();
     test_hovering_away_puts_the_occupant_back();

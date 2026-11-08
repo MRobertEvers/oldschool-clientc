@@ -50,6 +50,9 @@ struct WorldEntityFacet_Animation
 {
     struct WorldEntityFacet_AnimationStep primary;
     struct WorldEntityFacet_AnimationStep secondary;
+    /* The editor's spawn preview: both tracks stay on the frame they hold.
+     * Never set for an entity of a running game. */
+    bool held;
     /* Route length at the moment the primary seq was applied (reference
      * preanimRouteLength; drives the PreanimMove.DELAYANIM gate). */
     uint8_t preanim_route_length;

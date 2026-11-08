@@ -133,6 +133,47 @@ Editor_Spawns_DeleteSelected(struct EditorUi* ui);
 int
 Editor_Spawns_Duplicate(struct EditorUi* ui);
 
+struct MapEditorSpawnPreviewRow;
+
+/**
+ * The spawns the world should show (edpanel_spawns.c, "View"), through the View
+ * tab's filters; empty while Show spawns is off. The serial moves only when
+ * the list does. May open one square's files per call. The array is the
+ * panel's, good until the next call; NULL only with no Spawns panel here.
+ */
+const struct MapEditorSpawnPreviewRow*
+Editor_Spawns_PreviewRows(
+    struct EditorUi* ui,
+    int* out_count,
+    uint32_t* out_serial);
+
+/** The npc / obj id a row names, or MAP_EDITOR_SPAWN_PREVIEW_ID_MISSING. Asks
+ *  the server's catalog for a name it has not seen. */
+int
+Editor_Spawns_PreviewResolve(
+    struct EditorUi* ui,
+    const struct Editor_SpawnRow* row);
+
+/** What the world made of the rows, for the View tab's line. */
+void
+Editor_Spawns_PreviewCounts(
+    struct EditorUi* ui,
+    int landed,
+    int waiting,
+    int missing);
+
+/** 1 while the tile markers are drawn (Show spawns and Tile markers). */
+int
+Editor_Spawns_PreviewMarkers(struct EditorUi* ui);
+
+/** 1 while the active player stands in the preview. */
+int
+Editor_Spawns_PreviewPlayer(struct EditorUi* ui);
+
+/** Show spawns in the world, flipped; returns the new state. */
+int
+Editor_Spawns_TogglePreview(struct EditorUi* ui);
+
 /** Copy up to `max` selected rows into `out`; returns the selection's size. */
 int
 Editor_Spawns_Selection(

@@ -264,6 +264,14 @@ add_npc_rows(
 
     if( npc->multinpc_hidden )
         return;
+    /* The map editor's spawn preview is no npc of any server: one row, and
+     * the type's ops (which would go nowhere) stay off the menu. */
+    if( npc->editor_preview )
+    {
+        snprintf(text, sizeof(text), "Select spawn @yel@%s", npc->name[0] ? npc->name : "NPC");
+        UIMinimenu_AddOption(menu, text, RS_MINIMENU_ACTION_MAPEDIT_SELECT_SPAWN, 0, pick);
+        return;
+    }
     bool const ops_ok = interaction_allows(sel, picked->view_id, RS_MINIMENU_INTERACTION_NPC, false);
     bool const examine_ok = interaction_allows(sel, picked->view_id, RS_MINIMENU_INTERACTION_NPC, true);
 
@@ -739,6 +747,13 @@ add_obj_rows(
         .view_id = picked->view_id,
     };
 
+    if( stack->editor_preview )
+    {
+        snprintf(text, sizeof(text), "Select spawn @lre@%s", name);
+        UIMinimenu_AddOption(menu, text, RS_MINIMENU_ACTION_MAPEDIT_SELECT_SPAWN, 0, pick);
+        return;
+    }
+
     bool const hide_ops =
         sel->hide_obj_ops || !interaction_allows(sel, picked->view_id, RS_MINIMENU_INTERACTION_OBJ, false);
 
@@ -943,6 +958,13 @@ add_player_rows(
     };
 
     assert(menu && ctx && world && player && picked);
+
+    if( player->editor_preview )
+    {
+        snprintf(text, sizeof(text), "Select player @whi@%s", player->name[0] ? player->name : "Player");
+        UIMinimenu_AddOption(menu, text, RS_MINIMENU_ACTION_MAPEDIT_SELECT_SPAWN, 0, pick);
+        return;
+    }
     if( world->local_pid >= 0 && player->server_pid == world->local_pid )
         return;
 
