@@ -292,6 +292,8 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
     [EDITOR_HK_VIEW_CATALOG] = { "view.catalog", "View", "Catalog", "| Catalog |", G, EDGE, { "f8" }, "catalog" },
     [EDITOR_HK_VIEW_PREVIEW] = { "view.preview", "View", "Preview", "| Preview (the Catalog pick's model) |", G,
                                  EDGE, { "ctrl+shift+p" }, "preview" },
+    [EDITOR_HK_VIEW_GALLERY] = { "view.gallery", "View", "Gallery", "| Gallery (the Catalog's search as pictures) |", G,
+                                 EDGE, { "shift+f8" }, "gallery" },
     [EDITOR_HK_VIEW_CATALOG_PALETTE] = { "view.catalog_palette", "View", "Catalog palette",
                                          "| Catalog palette (slots of locs, npcs and objs) |", G, EDGE, { NULL },
                                          "catalog_palette" },

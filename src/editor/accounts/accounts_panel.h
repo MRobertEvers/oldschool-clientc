@@ -131,6 +131,18 @@ Editor_Accounts_PlayPosition(
 void
 Editor_Accounts_RevealPlay(struct EditorUi* ui);
 
+/**
+ * Put obj `obj` in the Items tab's selected slot, Count deep, as a click on
+ * one of Put here's rows does (the Gallery's double-click on an obj while
+ * the account builder is open). 1 when the panel is open on Items with a
+ * slot selected and the request went out (or was refused there, with a
+ * log line); 0 when there is no slot to put it in.
+ */
+int
+Editor_Accounts_PutObj(
+    struct EditorUi* ui,
+    int obj);
+
 int
 Editor_Accounts_PlacePlayer(
     struct EditorUi* ui,

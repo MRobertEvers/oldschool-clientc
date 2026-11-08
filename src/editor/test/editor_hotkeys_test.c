@@ -1066,7 +1066,7 @@ test_workbench68(void)
     /* The console note of a retired chord. */
     (void)Editor_ChordParse("ctrl+0", &chord);
     CHECK(Editor_HotkeyRetiredNote(&g_hk, EDITOR_HK_LEVEL_PIN0, chord, note, (int)sizeof(note)) == 1
-              && strstr(note, "Ctrl+0") && strstr(note, "Alt+0") && strstr(note, "next release"),
+              && strstr(note, HINT_CTRL "+0") && strstr(note, "Alt+0") && strstr(note, "next release"),
         "6.8: Ctrl+0 firing says it is the old chord and names Alt+0 (%s)", note);
     (void)Editor_ChordParse("alt+0", &chord);
     CHECK(Editor_HotkeyRetiredNote(&g_hk, EDITOR_HK_LEVEL_PIN0, chord, note, (int)sizeof(note)) == 0 && !note[0],

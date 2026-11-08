@@ -22,6 +22,7 @@ Editor_PrefsInit(struct Editor_Prefs* prefs)
     prefs->text_large = 0;
     prefs->text_smooth = 0;
     prefs->spawn_view = EDITOR_PREFS_SPAWN_DEFAULT;
+    prefs->gallery_tile = EDITOR_PREFS_GALLERY_TILE_DEFAULT;
 }
 
 const char*
@@ -131,6 +132,18 @@ prefs_line(
     word[length] = '\0';
     if( prefs_is(key, key_end, "version") )
         return 1;
+    if( prefs_is(key, key_end, "gallery_tile") )
+    {
+        if( strcmp(word, "S") == 0 || strcmp(word, "s") == 0 )
+            prefs->gallery_tile = EDITOR_PREFS_GALLERY_TILE_S;
+        else if( strcmp(word, "M") == 0 || strcmp(word, "m") == 0 )
+            prefs->gallery_tile = EDITOR_PREFS_GALLERY_TILE_M;
+        else if( strcmp(word, "L") == 0 || strcmp(word, "l") == 0 )
+            prefs->gallery_tile = EDITOR_PREFS_GALLERY_TILE_L;
+        else
+            return 0;
+        return 1;
+    }
     if( prefs_is(key, key_end, "chrome_scale") )
     {
         int percent;
@@ -273,9 +286,11 @@ Editor_PrefsEncode(
         "chrome_scale = %s\n"
         "text_size = %s\n"
         "text_rendering = %s\n"
-        "spawn_view = %s\n",
+        "spawn_view = %s\n"
+        "gallery_tile = %s\n",
         EDITOR_PREFS_VERSION, scale, prefs->text_large ? "large" : "normal",
-        prefs->text_smooth ? "smooth" : "bitmap", spawn_view);
+        prefs->text_smooth ? "smooth" : "bitmap", spawn_view,
+        prefs->gallery_tile == EDITOR_PREFS_GALLERY_TILE_S ? "S" : prefs->gallery_tile == EDITOR_PREFS_GALLERY_TILE_L ? "L" : "M");
     assert(length > 0);
     assert((size_t)length < capacity);
     *out_text = text;

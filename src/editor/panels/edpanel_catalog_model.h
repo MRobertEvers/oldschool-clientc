@@ -152,6 +152,14 @@ struct Editor_CatalogView
     int size_l;
     int shape;
     int rotation;
+    /** An obj's primary wear position (`wearpos`), -1 none; 1 when it
+     *  stacks (`stackable=yes`). */
+    int wearpos;
+    int stackable;
+    /** An npc's combat level (`vislevel`, -1 none) and footprint (`size`,
+     *  1 when absent). */
+    int level;
+    int npc_size;
 };
 
 
@@ -412,6 +420,27 @@ Editor_CatalogChipsCompose(
     char* out,
     int out_size);
 
+/**
+ * A `<kind>:` prefix on the Find text (`obj:whip`, `npc:hans`, `all:`): 1
+ * with the kind and the text after the colon (leading spaces dropped), 0
+ * when the text starts with no kind name the catalog knows.
+ */
+int
+Editor_CatalogTakeKindPrefix(
+    const char* text,
+    uint32_t* out_kind,
+    char* out_rest,
+    int out_size);
+
+/** The worn slot's name as wornitems.if lays it out ("weapon" for 3),
+ *  "" for a slot no obj is worn in; and the slot a name (or a number)
+ *  names, -1 for none. */
+const char*
+Editor_CatalogWearName(int wearpos);
+
+int
+Editor_CatalogWearSlot(const char* name);
+
 /** What a chip shows: "shape: wall", "op: Open". */
 void
 Editor_CatalogChipLabel(
@@ -438,7 +467,7 @@ const char*
 Editor_CatalogShapeClassOf(int shape);
 
 /** The "+ filter" dropdown: its first row is the title ("+ filter"), the
- *  rest the summary fields. */
+ *  rest the summary fields. The loc menu (the Catalog's default). */
 int
 Editor_CatalogFilterMenuCount(void);
 
@@ -452,6 +481,22 @@ Editor_CatalogFilterMenuLabels(void);
  */
 int
 Editor_CatalogFilterMenuItem(
+    int index,
+    char out_key[EDITOR_CATALOG_CHIP_KEY_MAX],
+    char out_value[EDITOR_CATALOG_CHIP_VALUE_MAX]);
+
+/** The same menu for `kind`: locs get the shape, size and multivar rows;
+ *  objs the wear slots, stackable, tradeable, members; npcs level, size,
+ *  dialogue, spawn; every other kind category alone. */
+int
+Editor_CatalogFilterMenuCountFor(uint32_t kind);
+
+const char* const*
+Editor_CatalogFilterMenuLabelsFor(uint32_t kind);
+
+int
+Editor_CatalogFilterMenuItemFor(
+    uint32_t kind,
     int index,
     char out_key[EDITOR_CATALOG_CHIP_KEY_MAX],
     char out_value[EDITOR_CATALOG_CHIP_VALUE_MAX]);
@@ -596,6 +641,23 @@ Editor_CatalogCellsText(
 /** The header row in the same format: "name", "shapes", "id". */
 const char*
 Editor_CatalogCellsHeader(void);
+
+/** The header for `kind`'s rows: the keycap column reads `shapes` for locs,
+ *  `wear` for objs, `level` for npcs, nothing for the rest. */
+const char*
+Editor_CatalogCellsHeaderFor(uint32_t kind);
+
+/**
+ * The filter an obj row's keycap `cell` (1-based) narrows to: 1 with the
+ * chip (`wear=weapon`, `stackable=yes`), 0 for the row body, a loc's shape
+ * cap or a cell past the caps.
+ */
+int
+Editor_CatalogViewKeyChip(
+    const struct Editor_CatalogView* view,
+    int cell,
+    char out_key[EDITOR_CATALOG_CHIP_KEY_MAX],
+    char out_value[EDITOR_CATALOG_CHIP_VALUE_MAX]);
 
 /** The shape keycap `cell` (1-based, as ToriRSChrome_VListPickedCell says)
  *  of a row stands for, -1 when the cell is the row body or past them. */

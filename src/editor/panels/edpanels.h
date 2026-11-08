@@ -277,6 +277,60 @@ Editor_Preview_ModelView(struct EditorUi* ui);
 int
 Editor_Preview_AutoOpens(struct EditorUi* ui);
 
+/**
+ * The Gallery (edpanel_gallery.c, workbench 7.2): the Catalog's search as a
+ * grid of pictures -- the same query (its Find box and type chips edit the
+ * Catalog's), tiles of the game's obj icons and the record renderer's loc
+ * and npc thumbs, a click the shared pick, a double-click the pick's
+ * action. Registered by Editor_Catalog_Register. "gallery" */
+void
+Editor_Gallery_Register(struct EditorUi* ui);
+
+/** 1 while the Gallery's panel shows (the Catalog drives the shared query
+ *  for it then, whether or not its own panel shows). */
+int
+Editor_Gallery_Visible(struct EditorUi* ui);
+
+/** The Gallery's tile size in px (the device pref), what the tests read. */
+int
+Editor_Gallery_TilePx(struct EditorUi* ui);
+
+/* The Catalog's query, shared with the Gallery (edpanel_catalog.c). */
+
+/** The kind the Catalog asks for (the Type strip's lit chip). */
+uint32_t
+Editor_Catalog_Kind(struct EditorUi* ui);
+
+/** Choose the kind as the Type strip does: asks again, leaves a local list. */
+void
+Editor_Catalog_SetKind(
+    struct EditorUi* ui,
+    uint32_t kind);
+
+/** The Find box's text ("" with no Catalog). */
+const char*
+Editor_Catalog_FindText(struct EditorUi* ui);
+
+void
+Editor_Catalog_SetFindText(
+    struct EditorUi* ui,
+    const char* text);
+
+/** The rows a second view shows: wants their page and prefetches the next
+ *  (Editor_CatalogModelWantWindow on the shared model). */
+void
+Editor_Catalog_WantWindow(
+    struct EditorUi* ui,
+    int first,
+    int rows);
+
+/** Pick row `row` (absolute) of the shared list as a click on it does:
+ *  1 when it became the pick. */
+int
+Editor_Catalog_PickRow(
+    struct EditorUi* ui,
+    int row);
+
 /** Tile and loc readout: authored vs generated, the loc record. App-bound.
  *  "inspector" */
 void

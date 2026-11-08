@@ -80,7 +80,11 @@
  *   ACCOUNT_SET     string name, string key, string value
  *                                                   -> FACT_ACCOUNT_STATUS
  *                   (its message names the path: "online: ::setlevel 7 50"
- *                   or "offline: wrote saves/x.ini"), then FACT_ACCOUNT
+ *                   or "offline: wrote saves/x.ini"; after the message
+ *                   `u32 obj, u32 count`: the item an item edit resolved to,
+ *                   0xFFFFFFFF 0 for every other edit, so the panel checks
+ *                   the view it gets next against what it asked), then
+ *                   FACT_ACCOUNT
  *       keys (one vocabulary for the panel and `torirsmapedctl account-set`):
  *         player.x | player.z | player.level  <n>
  *         player.pos                           <x> <z> <level>
@@ -89,9 +93,13 @@
  *         stats.all                            max | reset
  *         varps.<id|name>  varbits.<id|name>   <value>
  *         vars.<name>                          <value> (varbit first, then varp)
- *         inv.<slot> | worn.<slot> | bank.<slot>  <obj id|name> [count] | -
+ *         inv.<slot> | worn.<slot> | bank.<slot>  <obj> [count] | -
+ *             <obj> is `#<id>` (an id, nothing else is tried), a bare number
+ *             (an id), the exact pack name, or a display name exactly one obj
+ *             carries (several -> refused, the candidates listed). worn.<slot>
+ *             refuses an obj whose wearpos is not that slot (or has none).
  *         inv.clear | worn.clear | bank.clear   (online: inv.clear only, ::clearinv)
- *         container.<inv id|name>.<slot>       <obj id|name> [count] | -   (offline only)
+ *         container.<inv id|name>.<slot>       <obj> [count] | -   (offline only)
  *         container.<inv id|name>.clear        (offline only)
  *         loadout                              <loadout name> (the loadout's worn
  *                                              and backpack replace the account's;

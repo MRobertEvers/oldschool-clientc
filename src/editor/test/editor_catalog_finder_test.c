@@ -116,6 +116,59 @@ test_chips(void)
     CHECK(Editor_CatalogChipsTake(&chips, "op=more ", rest, sizeof(rest)) == 0 && strcmp(rest, "op=more") == 0,
         "past the last chip a key=value stays text, still a filter word");
 
+    Editor_CatalogChipsInit(&chips);
+    (void)Editor_CatalogChipsAdd(&chips, "wear", "weapon");
+    (void)Editor_CatalogChipsAdd(&chips, "cat", "150");
+    (void)Editor_CatalogChipsAdd(&chips, "level", "28");
+    (void)Editor_CatalogChipsAdd(&chips, "stack", "yes");
+    Editor_CatalogChipsCompose(&chips, "whip #4151 #x9", composed, sizeof(composed));
+    CHECK(strcmp(composed, "whip id=4151 #x9 wearpos=3 category=150 vislevel=28 stackable=yes") == 0,
+        "#<digits> is the id, and wear / cat / level / stack compose to the summary fields: '%s'", composed);
+    Editor_CatalogChipLabel(&chips.chip[0], label, sizeof(label));
+    CHECK(strcmp(label, "wear: weapon") == 0, "a wear chip reads as typed (%s)", label);
+    Editor_CatalogChipsInit(&chips);
+    (void)Editor_CatalogChipsAdd(&chips, "wearpos", "3");
+    (void)Editor_CatalogChipsAdd(&chips, "stackable", "yes");
+    Editor_CatalogChipLabel(&chips.chip[0], label, sizeof(label));
+    CHECK(strcmp(label, "wear: weapon") == 0, "a wearpos=3 chip reads wear: weapon (%s)", label);
+    Editor_CatalogChipLabel(&chips.chip[1], label, sizeof(label));
+    CHECK(strcmp(label, "stackable") == 0, "stackable=yes reads stackable (%s)", label);
+    CHECK(Editor_CatalogWearSlot("weapon") == 3 && Editor_CatalogWearSlot("ammo") == 13 && Editor_CatalogWearSlot("13") == 13
+              && Editor_CatalogWearSlot("hat") == -1 && Editor_CatalogWearSlot("6") == 6
+              && strcmp(Editor_CatalogWearName(0), "head") == 0 && Editor_CatalogWearName(6)[0] == '\0',
+        "the wear slots by name and number");
+    {
+        uint32_t kind = 0;
+        CHECK(Editor_CatalogTakeKindPrefix("obj:whip", &kind, rest, sizeof(rest)) && kind == TORIRSMAPED_CATALOG_OBJ
+                  && strcmp(rest, "whip") == 0,
+            "obj:whip is the obj kind and 'whip'");
+        CHECK(Editor_CatalogTakeKindPrefix("  NPC: hans", &kind, rest, sizeof(rest)) && kind == TORIRSMAPED_CATALOG_NPC
+                  && strcmp(rest, "hans") == 0,
+            "the prefix is case-insensitive and drops the spaces after the colon");
+        CHECK(Editor_CatalogTakeKindPrefix("all:", &kind, rest, sizeof(rest)) && kind == TORIRSMAPED_CATALOG_ANY
+                  && rest[0] == '\0',
+            "all: is every kind");
+        CHECK(!Editor_CatalogTakeKindPrefix("open:door", &kind, rest, sizeof(rest))
+                  && !Editor_CatalogTakeKindPrefix("whip", &kind, rest, sizeof(rest))
+                  && !Editor_CatalogTakeKindPrefix(":x", &kind, rest, sizeof(rest)),
+            "a word that is no kind, no colon, or nothing before it is not a prefix");
+    }
+    CHECK(Editor_CatalogFilterMenuCountFor(TORIRSMAPED_CATALOG_OBJ) == 17
+              && Editor_CatalogFilterMenuCountFor(TORIRSMAPED_CATALOG_LOC) == Editor_CatalogFilterMenuCount()
+              && Editor_CatalogFilterMenuCountFor(TORIRSMAPED_CATALOG_SEQ) == 2,
+        "the filter menu is the kind's: 17 obj rows, the loc menu, category alone for a seq");
+    {
+        char key[EDITOR_CATALOG_CHIP_KEY_MAX];
+        char value[EDITOR_CATALOG_CHIP_VALUE_MAX];
+        CHECK(Editor_CatalogFilterMenuItemFor(TORIRSMAPED_CATALOG_OBJ, 4, key, value) == 1 && strcmp(key, "wear") == 0
+                  && strcmp(value, "weapon") == 0,
+            "obj row 4 is wear=weapon");
+        CHECK(Editor_CatalogFilterMenuItemFor(TORIRSMAPED_CATALOG_NPC, 1, key, value) == 2 && strcmp(key, "level") == 0,
+            "npc row 1 is level=, typed");
+        CHECK(strcmp(Editor_CatalogFilterMenuLabelsFor(TORIRSMAPED_CATALOG_OBJ)[12], "stackable") == 0,
+            "the obj menu's labels");
+    }
+
     CHECK(Editor_CatalogShapeClass("wall", &mask) && mask == ((1u << 0) | (1u << 1) | (1u << 2) | (1u << 3) | (1u << 9)),
         "wall is 0 1 2 3 9");
     CHECK(Editor_CatalogShapeClass("decor", &mask) && mask == 0x1F0u, "decor is 4 to 8");
@@ -247,6 +300,12 @@ static const struct EditorHost_CatalogField k_tree_fields[] = {
 static const struct EditorHost_CatalogField k_torch_fields[] = {
     { "shape1", "4,300" },
 };
+static const struct EditorHost_CatalogField k_knife_fields[] = {
+    { "wearpos", "3" }, { "stackable", "yes" }, { "category", "weapons" },
+};
+static const struct EditorHost_CatalogField k_guard_fields[] = {
+    { "vislevel", "21" }, { "size", "2" },
+};
 static const struct EditorHost_CatalogField k_many_fields[] = {
     { "shape1", "0,1" }, { "shape2", "1,2" }, { "shape3", "2,3" }, { "shape4", "3,4" }, { "shape5", "9,5" },
     { "shape6", "4,6" }, { "shape7", "10,7" },
@@ -324,6 +383,41 @@ test_rows(void)
     CHECK(Editor_CatalogViewShapeAt(&view, 7) == 9 && Editor_CatalogViewShapeAt(&view, 8) == -1,
         "and that cap is no shape");
     Editor_CatalogModelFree(&model);
+
+    /* An obj's cells: its wear slot and "stack" as caps, each a chip; an
+     * npc's its level and footprint; the headers per kind. */
+    {
+        struct EditorHost_CatalogRow const knife = row_of(TORIRSMAPED_CATALOG_OBJ, 5, "knife", "Knife", k_knife_fields, 3);
+        struct EditorHost_CatalogRow const guard = row_of(TORIRSMAPED_CATALOG_NPC, 6, "guard", "Guard", k_guard_fields, 2);
+        char key[EDITOR_CATALOG_CHIP_KEY_MAX];
+        char value[EDITOR_CATALOG_CHIP_VALUE_MAX];
+        Editor_CatalogModelInit(&model, TORIRSMAPED_CATALOG_OBJ, 10);
+        Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_OBJ, "");
+        Editor_CatalogModelFeed(&model, 0, 1, &knife, 1);
+        CHECK(Editor_CatalogModelViewAt(&model, 0, &view) && view.wearpos == 3 && view.stackable,
+            "an obj row's view carries wearpos and stackable");
+        Editor_CatalogCellsText(&view, 42, 0, text, sizeof(text));
+        CHECK(strcmp(text, "42\x1f" "knife\x1f" "Knife\x1f" "weapon stack\x1f" "5") == 0,
+            "its cells: the icon, name, display, wear slot and stack as caps, the id (%s)", text);
+        CHECK(Editor_CatalogViewKeyChip(&view, 1, key, value) == 1 && strcmp(key, "wear") == 0 && strcmp(value, "weapon") == 0
+                  && Editor_CatalogViewKeyChip(&view, 2, key, value) == 1 && strcmp(key, "stackable") == 0
+                  && Editor_CatalogViewKeyChip(&view, 3, key, value) == 0 && Editor_CatalogViewKeyChip(&view, 0, key, value) == 0,
+            "cap 1 narrows to wear=weapon, cap 2 to stackable=yes, the body and past them to nothing");
+        CHECK(Editor_CatalogViewShapeAt(&view, 1) == -1, "an obj's cap is no shape");
+        Editor_CatalogModelFree(&model);
+        Editor_CatalogModelInit(&model, TORIRSMAPED_CATALOG_NPC, 10);
+        Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_NPC, "");
+        Editor_CatalogModelFeed(&model, 0, 1, &guard, 1);
+        CHECK(Editor_CatalogModelViewAt(&model, 0, &view) && view.level == 21 && view.npc_size == 2, "an npc row's level and size");
+        Editor_CatalogCellsText(&view, 0, 0, text, sizeof(text));
+        CHECK(strcmp(text, "\x1f" "guard\x1f" "Guard\x1f" "lvl 21 2x2\x1f" "6") == 0, "its caps read lvl 21 2x2 (%s)", text);
+        CHECK(Editor_CatalogViewKeyChip(&view, 1, key, value) == 0, "an npc's caps are no chips");
+        Editor_CatalogModelFree(&model);
+        CHECK(strcmp(Editor_CatalogCellsHeaderFor(TORIRSMAPED_CATALOG_OBJ), "\x1f" "name" "\x1f" "\x1f" "wear" "\x1f" "id") == 0
+                  && strcmp(Editor_CatalogCellsHeaderFor(TORIRSMAPED_CATALOG_LOC), Editor_CatalogCellsHeader()) == 0
+                  && strcmp(Editor_CatalogCellsHeaderFor(TORIRSMAPED_CATALOG_NPC), "\x1f" "name" "\x1f" "\x1f" "level" "\x1f" "id") == 0,
+            "the header's cap column is wear, shapes or level by kind");
+    }
 }
 
 /* The server's derived loc fields and the PROGRESS tail (workbench 6.2, the
@@ -961,8 +1055,10 @@ test_panels(const char* root)
     find = find_widget(panel, TORIRS_CHROME_W_TEXTINPUT, "Find", 0);
     sort = find_widget(panel, TORIRS_CHROME_W_DROPDOWN, "Sort", 0);
     filter = find_widget(panel, TORIRS_CHROME_W_DROPDOWN, "Filter", 0);
-    chips_graph = find_widget(panel, TORIRS_CHROME_W_GRAPH, NULL, 0);
-    shortcuts_graph = find_widget(panel, TORIRS_CHROME_W_GRAPH, NULL, 1);
+    /* The first GRAPHs are the Type strip and the list | grid chips
+     * (workbench 7.2); the filter chips and the shortcuts follow them. */
+    chips_graph = find_widget(panel, TORIRS_CHROME_W_GRAPH, NULL, 2);
+    shortcuts_graph = find_widget(panel, TORIRS_CHROME_W_GRAPH, NULL, 3);
     count_row = find_widget(panel, TORIRS_CHROME_W_LABEL, NULL, 0);
     CHECK(list >= 0 && find >= 0 && sort >= 0 && filter >= 0 && chips_graph >= 0 && shortcuts_graph >= 0
               && count_row >= 0,

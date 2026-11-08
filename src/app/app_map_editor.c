@@ -10,6 +10,7 @@
 #include "mem/torirs_mem.h"
 #include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
+#include "app/app_record_thumbs.h"
 #include "perf/frame_stats.h"
 #include "editor/builder/builder_shell.h"
 #include "editor/editor_derive.h"
@@ -1108,6 +1109,22 @@ ui_service_obj_icon(
     return scene_id > 0 ? scene_id : -1;
 }
 
+/** EditorUiAppServices.record_thumb: the shared renderer (app_record_thumbs.c). */
+static int
+ui_service_record_thumb(
+    void* user_data,
+    uint32_t kind,
+    int id,
+    int px)
+{
+    struct App* app = user_data;
+
+    assert(app);
+    assert(id >= 0);
+    assert(px > 0);
+    return app_record_thumb(app, kind, id, px);
+}
+
 static int
 ui_service_cache_sprite(
     void* user_data,
@@ -1173,6 +1190,9 @@ app_map_editor_ui_services(
      * silhouettes, scene sprites as the thumbnails are. */
     out->obj_icon = ui_service_obj_icon;
     out->cache_sprite = ui_service_cache_sprite;
+    /* The Gallery's tiles and the Catalog's npc rows: one renderer for the
+     * small pictures of loc, npc and obj records (app_record_thumbs.c). */
+    out->record_thumb = ui_service_record_thumb;
     /* The quest board's screenshots: decoded from disk, which a page has no
      * path to (its board lists the paths). */
     out->png_publish = ui_service_png_publish;

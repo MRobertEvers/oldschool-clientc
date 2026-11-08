@@ -9,6 +9,7 @@
 
 #include "mem/torirs_mem.h"
 #include "app/app_catalog_palette.h"
+#include "app/app_record_thumbs.h"
 #include "app/app_iface_editor.h"
 #include "app/app_internal.h"
 #include "perf_audit.h"
@@ -858,7 +859,9 @@ app_run_once_body(
             uint64_t const t_hover = FrameStats_Now();
             app_map_editor_ghost_update(app);
             app_map_editor_preview_update(app);
-            /* The Catalog palette's slot thumbnails (app_catalog_palette.c). */
+            /* The small pictures of records (app_record_thumbs.c: the Gallery's
+             * tiles, the Catalog's npc rows) and the Catalog palette's slots. */
+            app_record_thumbs_update(app);
             app_catalog_palette_update(app);
             FrameStats_Span(FRAME_STATS_HOVER_GHOSTS, t_hover);
         }

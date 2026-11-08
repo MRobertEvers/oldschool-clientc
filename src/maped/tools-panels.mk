@@ -17,7 +17,7 @@ TOOLS_PANELS_SRCS = editor/editor_ui.c editor/editor_path.c editor/editor_region
 	editor/panels/edpanel_rect.c editor/panels/edpanel_squares.c \
 	editor/panels/edpanel_newsquare.c editor/panels/edpanel_locs.c \
 	editor/panels/edpanel_spawns.c editor/panels/edpanel_catalog.c \
-	editor/panels/edpanel_catalog_model.c editor/panels/edpanel_preview.c \
+	editor/panels/edpanel_catalog_model.c editor/panels/edpanel_preview.c editor/panels/edpanel_gallery.c \
 	editor/panels/edpanel_inspector.c editor/panels/edpanel_record.c
 # The History panel (editing feedback): the undo groups, click to jump.
 TOOLS_PANELS_SRCS += editor/panels/edpanel_history.c

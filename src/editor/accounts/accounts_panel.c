@@ -11,8 +11,15 @@
  * over one GRAPH well that draws the container the way the game does -- the
  * worn-equipment layout with its slot plates and silhouettes, the backpack's
  * 4 x 7, a paged grid for the bank and every other inv -- with the items'
- * own icons (EditorUiAppServices.obj_icon). A click selects a slot; Obj and
- * Count fill from it; Set / Remove / Clear write it.
+ * own icons (EditorUiAppServices.obj_icon). A click selects a slot, whose
+ * line names what it holds (the catalog's pack name, the id, the count).
+ * Under it PUT HERE is an item finder: a settled catalog query over objs,
+ * rows with the game's icons, narrowed to the slot's wear position while the
+ * Equipment is shown (the "wear: <slot>" chip; its x widens the search), and
+ * chips for the Catalog's pick. A click on a row SETS AT ONCE -- the request
+ * carries `#<id> <count>`, never text the server has to resolve -- and once
+ * the view lands the slot is checked against what was asked (a green "view
+ * agrees" line, or a red one naming both). Remove / Clear container write.
  */
 
 #include "accounts_panel.h"
@@ -20,6 +27,7 @@
 #include "editor/editor.h"
 #include "editor/editor_host.h"
 #include "editor/live/live_panel.h"
+#include "editor/panels/edpanel_chips.h"
 #include "editor/panels/edpanel_common.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
@@ -54,6 +62,12 @@ enum
     ACCT_FIND_MAX = 40,
     /** Frames the Find text must rest before the catalog is asked. */
     ACCT_FIND_SETTLE_FRAMES = 10,
+    /** The Items tab's finder: rows on screen, rows held, the settle. */
+    ACCT_PUT_ROWS = 6,
+    ACCT_PUT_MAX = 24,
+    ACCT_PUT_SETTLE_FRAMES = 10,
+    /** Obj names the slot line asked the catalog for, kept per id. */
+    ACCT_NAMES_MAX = 64,
     /** Frames after an online cheat during which the Live log is echoed. */
     ACCT_ECHO_FRAMES = 240,
     ACCT_PANEL_W = 360,
@@ -149,6 +163,25 @@ struct AcctFind
     char name[96];
 };
 
+/** One row of the Items tab's finder (a catalog obj row). */
+struct AcctPutRow
+{
+    int id;
+    char name[64];
+    char display[64];
+    /** The obj's primary wear position, -1 none / unknown. */
+    int wearpos;
+};
+
+/** An obj the catalog was asked about: its pack name ("" none) and wear
+ *  position, so the slot line and the pick chip say what they hold. */
+struct AcctName
+{
+    int id;
+    char name[64];
+    int wearpos;
+};
+
 struct AccountsPanel
 {
     struct Editor_AccountsTransport transport;
@@ -185,11 +218,13 @@ struct AccountsPanel
     int button_page_prev;
     int button_page_next;
     int label_slot;
-    int input_slot;
-    int input_obj;
+    /** "view agrees with the last Set" / "view shows X, asked for Y". */
+    int label_verify;
+    int input_put;
     int input_count;
-    int button_item_pick;
-    int button_item_set;
+    /** wear: <slot> (x widens), Catalog pick: <name> (<id>). */
+    struct Edp_ChipStrip put_strip;
+    int list_put;
     int button_item_remove;
     int button_clear;
     /* Loadouts */
@@ -275,6 +310,28 @@ struct AccountsPanel
     int loadout_dirty;
     int selected_loadout;
     int shown_selected_loadout;
+    /* Items: the finder (Put here), its chips, and the check of the last Set. */
+    char put_text[96];
+    char put_asked[160];
+    int put_rest;
+    int put_wear_filter;
+    struct AcctPutRow put_rows[ACCT_PUT_MAX];
+    int put_count;
+    /** Rows still waiting on an icon: restated next tick. */
+    int put_dirty;
+    int chip_wear;
+    int chip_pick;
+    /** The last Set from this tab: where, what, and the view serial it was
+     *  sent at; pending until a newer view says what landed. */
+    int verify_pending;
+    int verify_section;
+    int verify_slot;
+    int verify_obj;
+    int verify_count;
+    int verify_view_serial;
+    struct AcctName obj_names[ACCT_NAMES_MAX];
+    int obj_name_count;
+    int obj_name_next;
 
     /* Vars: the selected var and the find. */
     int var_kind;
@@ -1046,20 +1103,89 @@ acct_draw_items(
     self->items_dirty = pending;
 }
 
-/** The selected slot's line: where it is, what is in it (its name once the
- *  icon service has its config). */
+/** The catalog's pack name and wear position of obj `id`, asked once per id
+ *  and kept (a miss is kept too: "" and -1). Falls back to the cache's
+ *  display name through obj_icon when the catalog has none. */
+static const struct AcctName*
+acct_obj_name(
+    struct EditorUi* ui,
+    struct AccountsPanel* self,
+    int id)
+{
+    const struct EditorUiAppServices* services = &ui->app_services;
+    struct AcctName* slot;
+    char text[16];
+
+    for( int i = 0; i < self->obj_name_count; i++ )
+        if( self->obj_names[i].id == id )
+            return &self->obj_names[i];
+    if( self->obj_name_count < ACCT_NAMES_MAX )
+        slot = &self->obj_names[self->obj_name_count++];
+    else
+    {
+        slot = &self->obj_names[self->obj_name_next];
+        self->obj_name_next = (self->obj_name_next + 1) % ACCT_NAMES_MAX;
+    }
+    slot->id = id;
+    slot->name[0] = '\0';
+    slot->wearpos = -1;
+    snprintf(text, sizeof(text), "%d", id);
+    if( ui->editor && (ui->editor->capabilities & TORIRSMAPED_CAP_CATALOG) )
+    {
+        struct EditorHost_CatalogPage page;
+        memset(&page, 0, sizeof(page));
+        if( Editor_HostMapEdCatalogQuery(&ui->editor->host, TORIRSMAPED_CATALOG_OBJ, text, TORIRSMAPED_CATALOG_EXACT, 0, 1, &page)
+                == EDITOR_HOST_OK
+            && page.row_count > 0 && page.rows[0].id == id )
+        {
+            snprintf(slot->name, sizeof(slot->name), "%s", page.rows[0].name ? page.rows[0].name : "");
+            for( int f = 0; f < page.rows[0].field_count; f++ )
+                if( strcmp(page.rows[0].fields[f].key, "wearpos") == 0 )
+                {
+                    char* end = NULL;
+                    long value = strtol(page.rows[0].fields[f].value, &end, 10);
+                    if( end && end != page.rows[0].fields[f].value && *end == '\0' && value >= 0
+                        && value < TORIRSMAPED_ACCT_WORN_SLOTS )
+                        slot->wearpos = (int)value;
+                }
+        }
+        Editor_HostCatalogPageFree(&page);
+    }
+    if( !slot->name[0] && services->obj_icon )
+        (void)services->obj_icon(services->user_data, id, 1, slot->name, (int)sizeof(slot->name));
+    return slot;
+}
+
+/** "abyssal_whip (4151)" / "obj 4151". */
+static void
+acct_obj_label(
+    struct EditorUi* ui,
+    struct AccountsPanel* self,
+    int id,
+    char* out,
+    size_t out_size)
+{
+    const struct AcctName* name = acct_obj_name(ui, self, id);
+    if( name->name[0] )
+        snprintf(out, out_size, "%s (%d)", name->name, id);
+    else
+        snprintf(out, out_size, "obj %d", id);
+}
+
+/** The selected slot's line: where it is, what is in it (the catalog's
+ *  pack name, the id, the count). */
 static void
 acct_slot_label(
     struct EditorUi* ui,
     struct AccountsPanel* self)
 {
-    const struct EditorUiAppServices* services = &ui->app_services;
     int const section = acct_container_section(self);
     const struct Editor_AccountItem* item =
         section >= 0 && self->selected_slot >= 0
             ? Editor_AccountsItem(&self->model.view, section, (uint32_t)self->selected_slot)
             : NULL;
     char where[48];
+    char what[96];
     char text[TORIRS_CHROME_LABEL_MAX];
 
     if( self->selected_slot < 0 )
@@ -1073,18 +1199,16 @@ acct_slot_label(
         snprintf(where, sizeof(where), "slot %d", self->selected_slot);
     if( item )
     {
-        char name[64] = "";
-        if( services->obj_icon )
-            (void)services->obj_icon(services->user_data, item->obj, item->count, name, (int)sizeof(name));
-        snprintf(text, sizeof(text), "%s: %s%s%d x%d", where, name, name[0] ? " " : "obj ", item->obj, item->count);
+        acct_obj_label(ui, self, item->obj, what, sizeof(what));
+        snprintf(text, sizeof(text), "%s: %s x%d", where, what, item->count);
     }
     else
         snprintf(text, sizeof(text), "%s: empty", where);
     ToriRSChrome_SetText(ui->chrome, self->label_slot, text);
 }
 
-/** Select `slot` of the shown container: the Slot / Obj / Count inputs
- *  follow it. */
+/** Select `slot` of the shown container: the slot line and the finder's
+ *  wear chip follow it; Count takes the slot's stack. */
 static void
 acct_select_slot(
     struct EditorUi* ui,
@@ -1097,16 +1221,14 @@ acct_select_slot(
     char value[32];
 
     self->selected_slot = slot;
-    snprintf(value, sizeof(value), "%d", slot);
-    ToriRSChrome_SetText(ui->chrome, self->input_slot, value);
     if( item )
     {
-        snprintf(value, sizeof(value), "%d", item->obj);
-        ToriRSChrome_SetText(ui->chrome, self->input_obj, value);
         snprintf(value, sizeof(value), "%d", item->count);
         ToriRSChrome_SetText(ui->chrome, self->input_count, value);
     }
     acct_slot_label(ui, self);
+    ToriRSChrome_SetText(ui->chrome, self->label_verify, "");
+    self->put_asked[0] = '\0';
     self->items_dirty = 1;
 }
 
@@ -1310,6 +1432,328 @@ acct_follow_list(
     acct_ask_view(ui, self);
 }
 
+/* ---- the Items tab's finder: Put here ------------------------------------------------ */
+
+/** The worn slot the finder narrows to (-1: the shown container is not the
+ *  Equipment, no slot is selected, or the wear chip was taken off). */
+static int
+acct_put_wear_slot(const struct AccountsPanel* self)
+{
+    if( self->container != ACCT_CONT_WORN || self->selected_slot < 0 || !self->put_wear_filter )
+        return -1;
+    return self->selected_slot;
+}
+
+/** The finder's query text: the typed words (`#<n>` is the id), plus the
+ *  wear chip's filter. "" when there is nothing to ask. */
+static void
+acct_put_filter(
+    const struct AccountsPanel* self,
+    char* out,
+    size_t out_size)
+{
+    const char* text = self->put_text;
+    int const wear = acct_put_wear_slot(self);
+    char* end = NULL;
+    long id;
+
+    out[0] = '\0';
+    while( *text == ' ' )
+        text++;
+    if( text[0] == '#' )
+    {
+        id = strtol(text + 1, &end, 10);
+        if( end && end != text + 1 && (*end == '\0' || *end == ' ') && id >= 0 )
+            snprintf(out, out_size, "id=%ld%s", id, end);
+        else
+            snprintf(out, out_size, "%s", text + 1);
+    }
+    else
+        snprintf(out, out_size, "%s", text);
+    if( wear >= 0 )
+    {
+        size_t at = strlen(out);
+        snprintf(out + at, out_size > at ? out_size - at : 0, "%swearpos=%d", at ? " " : "", wear);
+    }
+}
+
+/** Ask the catalog for `filter`'s objs: the rows, with their names and wear
+ *  positions. */
+static void
+acct_put_run(
+    struct EditorUi* ui,
+    struct AccountsPanel* self,
+    const char* filter)
+{
+    struct EditorHost_CatalogPage page;
+
+    self->put_count = 0;
+    snprintf(self->put_asked, sizeof(self->put_asked), "%s", filter);
+    if( !filter[0] )
+        return;
+    if( !ui->editor || !(ui->editor->capabilities & TORIRSMAPED_CAP_CATALOG) )
+    {
+        Editor_UiLog(ui, "accounts: the server has no catalog to find objs in");
+        return;
+    }
+    memset(&page, 0, sizeof(page));
+    if( Editor_HostMapEdCatalogQuery(&ui->editor->host, TORIRSMAPED_CATALOG_OBJ, filter, 0, 0, ACCT_PUT_MAX, &page)
+        == EDITOR_HOST_OK )
+    {
+        for( int i = 0; i < page.row_count && self->put_count < ACCT_PUT_MAX; i++ )
+        {
+            const struct EditorHost_CatalogRow* row = &page.rows[i];
+            struct AcctPutRow* put;
+            if( row->id < 0 )
+                continue;
+            put = &self->put_rows[self->put_count++];
+            put->id = row->id;
+            snprintf(put->name, sizeof(put->name), "%s", row->name ? row->name : "");
+            snprintf(put->display, sizeof(put->display), "%s", row->display ? row->display : "");
+            put->wearpos = -1;
+            for( int f = 0; f < row->field_count; f++ )
+                if( strcmp(row->fields[f].key, "wearpos") == 0 )
+                {
+                    char* end = NULL;
+                    long value = strtol(row->fields[f].value, &end, 10);
+                    if( end && end != row->fields[f].value && *end == '\0' && value >= 0
+                        && value < TORIRSMAPED_ACCT_WORN_SLOTS )
+                        put->wearpos = (int)value;
+                }
+        }
+    }
+    Editor_HostCatalogPageFree(&page);
+}
+
+/** The finder's rows on screen: the game's icon, the pack name, the display
+ *  name dimmed, the wear slot as a keycap, the id. An icon still loading
+ *  leaves put_dirty set so the row is stated again next tick. */
+static void
+acct_put_rows(
+    struct EditorUi* ui,
+    struct AccountsPanel* self)
+{
+    const struct EditorUiAppServices* services = &ui->app_services;
+    int first;
+    int shown;
+
+    self->put_dirty = 0;
+    ToriRSChrome_VListSetCount(ui->chrome, self->list_put, self->put_count);
+    if( !ToriRSChrome_VListWindow(ui->chrome, self->list_put, &first, &shown) )
+        return;
+    for( int r = first; r < first + shown && r < self->put_count; r++ )
+    {
+        const struct AcctPutRow* row = &self->put_rows[r];
+        char sprite[16] = "";
+        char text[TORIRS_CHROME_INPUT_MAX];
+        if( services->obj_icon )
+        {
+            int const scene_id = services->obj_icon(services->user_data, row->id, 1, NULL, 0);
+            if( scene_id > 0 )
+                snprintf(sprite, sizeof(sprite), "%d", scene_id);
+            else if( scene_id == 0 )
+                self->put_dirty = 1;
+        }
+        else
+            snprintf(sprite, sizeof(sprite), TORIRS_CHROME_CELL_NO_SPRITE);
+        snprintf(text, sizeof(text), "%s%c%s%c%s%c%s%c%d", sprite, TORIRS_CHROME_CELL_SEP, row->name, TORIRS_CHROME_CELL_SEP,
+            strcmp(row->display, row->name) == 0 ? "" : row->display, TORIRS_CHROME_CELL_SEP,
+            row->wearpos >= 0 ? acct_worn_slot_name(row->wearpos) : "", TORIRS_CHROME_CELL_SEP, row->id);
+        ToriRSChrome_VListSetRow(ui->chrome, self->list_put, r, text);
+    }
+}
+
+/** The finder follows its box: a changed text rests ACCT_PUT_SETTLE_FRAMES,
+ *  then the catalog is asked once per (text, wear chip). */
+static void
+acct_put_tick(
+    struct EditorUi* ui,
+    struct AccountsPanel* self)
+{
+    const char* typed = ToriRSChrome_Text(ui->chrome, self->input_put);
+    char filter[160];
+
+    if( strcmp(typed, self->put_text) != 0 )
+    {
+        snprintf(self->put_text, sizeof(self->put_text), "%s", typed);
+        self->put_rest = 0;
+    }
+    acct_put_filter(self, filter, sizeof(filter));
+    if( strcmp(filter, self->put_asked) != 0 && ++self->put_rest >= ACCT_PUT_SETTLE_FRAMES )
+    {
+        acct_put_run(ui, self, filter);
+        self->put_dirty = 1;
+    }
+    if( self->put_dirty )
+        acct_put_rows(ui, self);
+}
+
+/** The chips under Put here: the wear filter (while the Equipment is shown
+ *  and a slot is selected) and the Catalog's pick (while it is an obj). */
+static void
+acct_put_chips(
+    struct EditorUi* ui,
+    struct AccountsPanel* self)
+{
+    char label[EDP_CHIP_LABEL_MAX];
+    char tip[EDP_CHIP_TIP_MAX];
+
+    self->chip_wear = -1;
+    self->chip_pick = -1;
+    edp_chips_begin(&self->put_strip);
+    if( self->container == ACCT_CONT_WORN && self->selected_slot >= 0 )
+    {
+        const char* name = acct_worn_slot_name(self->selected_slot);
+        if( self->put_wear_filter )
+        {
+            snprintf(label, sizeof(label), "wear: %s", name);
+            snprintf(tip, sizeof(tip), "only what the %s slot wears; x searches every obj", name);
+            self->chip_wear = edp_chips_push(&self->put_strip, label, tip, 1, 1);
+        }
+        else
+        {
+            snprintf(tip, sizeof(tip), "every obj; click to show only what the %s slot wears", name);
+            self->chip_wear = edp_chips_push(&self->put_strip, "wear: any", tip, 0, 0);
+        }
+    }
+    if( ui->tools.pick_kind == TORIRSMAPED_CATALOG_OBJ && ui->tools.pick_id >= 0 )
+    {
+        snprintf(label, sizeof(label), "Catalog pick: %.32s", ui->tools.pick_name);
+        snprintf(tip, sizeof(tip), "put the Catalog's pick in the selected slot");
+        self->chip_pick = edp_chips_push(&self->put_strip, label, tip, 0, 0);
+    }
+    edp_chips_end(ui, &self->put_strip);
+    ToriRSChrome_SetHidden(ui->chrome, self->put_strip.graph, self->put_strip.count == 0);
+    edp_chips_hover(ui, &self->put_strip);
+}
+
+/**
+ * Put obj `obj` (its pack name `name`, "" unknown; its wear position
+ * `wearpos`, -1 unknown) in the selected slot, Count deep: one SET with
+ * `#<id> <count>`. A wear position that is not the Equipment slot is refused
+ * here (the server refuses it too). Remembered for the check once the view
+ * lands.
+ */
+static void
+acct_put_obj(
+    struct EditorUi* ui,
+    struct AccountsPanel* self,
+    int obj,
+    const char* name,
+    int wearpos)
+{
+    const char* count_text = ToriRSChrome_Text(ui->chrome, self->input_count);
+    int const count = count_text[0] && atoi(count_text) > 0 ? atoi(count_text) : 1;
+    char field[16];
+    char key[64];
+    char value[48];
+    char what[96];
+
+    if( self->selected_slot < 0 )
+    {
+        Editor_UiLog(ui, "accounts: click a slot first, then choose what to put there");
+        return;
+    }
+    if( name && name[0] )
+        snprintf(what, sizeof(what), "%s (%d)", name, obj);
+    else
+        acct_obj_label(ui, self, obj, what, sizeof(what));
+    if( self->container == ACCT_CONT_WORN && wearpos >= 0 && wearpos != self->selected_slot )
+    {
+        Editor_UiLog(ui, "accounts: %s is worn in the %s slot; this is %s", what, acct_worn_slot_name(wearpos),
+            acct_worn_slot_name(self->selected_slot));
+        return;
+    }
+    snprintf(field, sizeof(field), "%d", self->selected_slot);
+    acct_container_key(self, field, key, sizeof(key));
+    snprintf(value, sizeof(value), "#%d %d", obj, count);
+    if( !acct_set(ui, self, key, value) )
+        return;
+    self->verify_pending = 1;
+    self->verify_section = acct_container_section(self);
+    self->verify_slot = self->selected_slot;
+    self->verify_obj = obj;
+    self->verify_count = count;
+    self->verify_view_serial = self->model.view_serial;
+    ToriRSChrome_SetText(ui->chrome, self->label_verify, "");
+    Editor_UiLog(ui, "accounts: %s slot %d <- %s x%d", key, self->selected_slot, what, count);
+}
+
+/** Row `row` of the finder into the selected slot. */
+static void
+acct_put_row(
+    struct EditorUi* ui,
+    struct AccountsPanel* self,
+    int row)
+{
+    const struct AcctPutRow* put;
+
+    if( row < 0 || row >= self->put_count )
+        return;
+    put = &self->put_rows[row];
+    acct_put_obj(ui, self, put->id, put->name, put->wearpos);
+}
+
+/** Once a view newer than the last Set lands, the slot is compared with what
+ *  was asked: a green line when they agree, a red one naming both when not.
+ *  A refused Set (the Log says why) ends the check. */
+static void
+acct_verify_tick(
+    struct EditorUi* ui,
+    struct AccountsPanel* self)
+{
+    const struct Editor_AccountsModel* m = &self->model;
+    const struct Editor_AccountItem* item;
+    int const have_view = m->view.status == EDITOR_HOST_OK && strcmp(m->view.name, self->account) == 0;
+    char asked[96];
+    char got[96];
+    char text[TORIRS_CHROME_LABEL_MAX];
+
+    if( !self->verify_pending || m->view_serial == self->verify_view_serial || !have_view )
+        return;
+    self->verify_pending = 0;
+    if( self->verify_section < 0 )
+        return;
+    item = Editor_AccountsItem(&m->view, self->verify_section, (uint32_t)self->verify_slot);
+    if( item && item->obj == self->verify_obj && item->count == self->verify_count )
+    {
+        ToriRSChrome_SetText(ui->chrome, self->label_verify, "view agrees with the last Set");
+        ToriRSChrome_SetColor(ui->chrome, self->label_verify, 0xFF80E080u);
+        return;
+    }
+    acct_obj_label(ui, self, self->verify_obj, asked, sizeof(asked));
+    if( item )
+    {
+        acct_obj_label(ui, self, item->obj, got, sizeof(got));
+        snprintf(text, sizeof(text), "view shows %s x%d, asked for %s x%d", got, item->count, asked, self->verify_count);
+    }
+    else
+        snprintf(text, sizeof(text), "view shows slot %d empty, asked for %s x%d", self->verify_slot, asked,
+            self->verify_count);
+    ToriRSChrome_SetText(ui->chrome, self->label_verify, text);
+    ToriRSChrome_SetColor(ui->chrome, self->label_verify, 0xFFFF5555u);
+    Editor_UiLog(ui, "accounts: %s", text);
+}
+
+int
+Editor_Accounts_PutObj(
+    struct EditorUi* ui,
+    int obj)
+{
+    struct AccountsPanel* self;
+    const struct AcctName* name;
+
+    assert(ui);
+    assert(obj >= 0);
+    self = Editor_UiPanelSelf(ui, "accounts");
+    if( !self || !ui->chrome->panels[self->panel].visible
+        || ToriRSChrome_PanelActiveTab(ui->chrome, self->panel) != ACCT_TAB_ITEMS || self->selected_slot < 0 )
+        return 0;
+    name = acct_obj_name(ui, self, obj);
+    acct_put_obj(ui, self, obj, name->name, name->wearpos);
+    return 1;
+}
+
 static void
 acct_refresh(
     struct EditorUi* ui,
@@ -1436,11 +1880,11 @@ acct_refresh(
             self->log_follow = first + shown >= m->log_count;
         self->shown_log_serial = m->log_serial;
     }
-    if( ui->tools.pick_kind == 2 && ui->tools.pick_id >= 0 && ui->tools.pick_id != self->shown_pick_id )
+    if( tab == ACCT_TAB_ITEMS )
     {
-        self->shown_pick_id = ui->tools.pick_id;
-        snprintf(text, sizeof(text), "the Catalog's pick (obj %d %s) into Obj", ui->tools.pick_id, ui->tools.pick_name);
-        ToriRSChrome_SetTooltip(ui->chrome, self->button_item_pick, text);
+        acct_put_tick(ui, self);
+        acct_put_chips(ui, self);
+        acct_verify_tick(ui, self);
     }
 }
 
@@ -1471,6 +1915,12 @@ acct_note_status(
         acct_ask_view(ui, self);
         self->shown_view_serial = -1;
         self->shown_list_serial = -1;
+    }
+    if( self->verify_pending && m->last_request == TORIRSMAPED_REQ_ACCOUNT_SET && m->last_status != EDITOR_HOST_OK )
+    {
+        self->verify_pending = 0;
+        ToriRSChrome_SetText(ui->chrome, self->label_verify, "not set: see the Log");
+        ToriRSChrome_SetColor(ui->chrome, self->label_verify, 0xFFFF5555u);
     }
     if( strncmp(m->last_message, "online:", 7) == 0 )
     {
@@ -1680,6 +2130,26 @@ acct_event(
 {
     struct AccountsPanel* self = opaque;
 
+    if( event->widget == self->put_strip.graph )
+    {
+        int on_x = 0;
+        int index;
+        if( event->kind != TORIRS_CHROME_EVENT_GRAPH_PRESS )
+            return 1;
+        index = edp_chips_key_of(&self->put_strip, event->key, &on_x);
+        if( index >= 0 && index == self->chip_wear )
+        {
+            self->put_wear_filter = !self->put_wear_filter;
+            self->put_asked[0] = '\0';
+        }
+        else if( index >= 0 && index == self->chip_pick && ui->tools.pick_kind == TORIRSMAPED_CATALOG_OBJ
+                 && ui->tools.pick_id >= 0 )
+        {
+            const struct AcctName* name = acct_obj_name(ui, self, ui->tools.pick_id);
+            acct_put_obj(ui, self, ui->tools.pick_id, name->name, name->wearpos);
+        }
+        return 1;
+    }
     if( event->widget != self->graph_items && event->widget != self->graph_loadout )
         return 0;
     if( event->widget == self->graph_items && event->kind == TORIRS_CHROME_EVENT_GRAPH_PRESS && event->key > 0 )
@@ -1877,40 +2347,39 @@ acct_activate(
         self->items_dirty = 1;
         return 1;
     }
-    if( widget == self->button_item_pick )
+    if( widget == self->list_put )
     {
-        if( ui->tools.pick_kind != 2 || ui->tools.pick_id < 0 )
-        {
-            Editor_UiLog(ui, "accounts: pick an obj in the Catalog first");
-            return 1;
-        }
-        snprintf(value, sizeof(value), "%d", ui->tools.pick_id);
-        ToriRSChrome_SetText(ui->chrome, self->input_obj, value);
+        acct_put_row(ui, self, ToriRSChrome_VListSelected(ui->chrome, widget));
         return 1;
     }
-    if( widget == self->button_item_set || widget == self->button_item_remove )
+    if( widget == self->input_put )
     {
-        const char* slot = ToriRSChrome_Text(ui->chrome, self->input_slot);
-        const char* obj = ToriRSChrome_Text(ui->chrome, self->input_obj);
-        const char* count = ToriRSChrome_Text(ui->chrome, self->input_count);
-        if( !slot[0] )
+        /* Return: the first row the words match. */
+        char filter[160];
+        acct_put_filter(self, filter, sizeof(filter));
+        if( strcmp(filter, self->put_asked) != 0 )
         {
-            Editor_UiLog(ui, "accounts: click a slot (or type its number in Slot) first");
+            acct_put_run(ui, self, filter);
+            self->put_dirty = 1;
+        }
+        if( self->put_count == 0 )
+            Editor_UiLog(ui, "accounts: no obj matches '%s'", self->put_text);
+        else
+            acct_put_row(ui, self, 0);
+        return 1;
+    }
+    if( widget == self->button_item_remove )
+    {
+        char field[16];
+        if( self->selected_slot < 0 )
+        {
+            Editor_UiLog(ui, "accounts: click a slot first");
             return 1;
         }
-        acct_container_key(self, slot, key, sizeof(key));
-        if( widget == self->button_item_remove )
-            acct_set(ui, self, key, "-");
-        else
-        {
-            if( !obj[0] )
-            {
-                Editor_UiLog(ui, "accounts: type an obj id or name, or From Catalog pick");
-                return 1;
-            }
-            snprintf(value, sizeof(value), "%s %s", obj, count[0] ? count : "1");
-            acct_set(ui, self, key, value);
-        }
+        snprintf(field, sizeof(field), "%d", self->selected_slot);
+        acct_container_key(self, field, key, sizeof(key));
+        acct_set(ui, self, key, "-");
+        ToriRSChrome_SetText(ui->chrome, self->label_verify, "");
         return 1;
     }
     if( widget == self->button_clear )
@@ -2071,8 +2540,8 @@ acct_activate(
         return 1;
     if( widget == self->list_log || widget == self->input_name || widget == self->input_password
         || widget == self->input_fixture || widget == self->input_x || widget == self->input_z
-        || widget == self->input_level || widget == self->input_slot || widget == self->input_obj
-        || widget == self->input_count || widget == self->input_loadout_name )
+        || widget == self->input_level || widget == self->input_count || widget == self->input_loadout_name
+        || widget == self->put_strip.graph )
         return 1;
     return 0;
 }
@@ -2129,6 +2598,10 @@ Editor_Accounts_RegisterWith(
     self->shown_tab = -1;
     self->shown_quest_filter = -1;
     self->shown_pick_id = -1;
+    self->put_wear_filter = 1;
+    self->chip_wear = -1;
+    self->chip_pick = -1;
+    self->verify_section = -1;
     self->log_follow = 1;
     self->env_tab = -1;
     self->container = ACCT_CONT_WORN;
@@ -2190,14 +2663,16 @@ Editor_Accounts_RegisterWith(
     self->button_page_prev = ToriRSChrome_Button(chrome, self->panel, "Previous page");
     self->button_page_next = ToriRSChrome_Button(chrome, self->panel, "Next page");
     self->label_slot = ToriRSChrome_Label(chrome, self->panel, "click a slot");
-    self->input_slot = ToriRSChrome_TextInput(chrome, self->panel, "Slot", "");
-    self->input_obj = ToriRSChrome_TextInput(chrome, self->panel, "Obj", "");
-    ToriRSChrome_SetTooltip(chrome, self->input_obj, "An obj id or pack name");
+    self->label_verify = ToriRSChrome_LabelColored(chrome, self->panel, "", 0xFF80E080u);
+    self->input_put = ToriRSChrome_TextInput(chrome, self->panel, "Put here", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_put, "An obj by name or #id; a row click sets it (online: ::item)");
     self->input_count = ToriRSChrome_TextInput(chrome, self->panel, "Count", "1");
-    self->button_item_pick = ToriRSChrome_Button(chrome, self->panel, "From Catalog pick");
-    self->button_item_set = ToriRSChrome_Button(chrome, self->panel, "Set");
-    ToriRSChrome_SetTooltip(chrome, self->button_item_set,
-        "Online: ::item (+ ::wield when worn); others offline only");
+    edp_chips_init(ui, &self->put_strip, self->panel, 1);
+    ToriRSChrome_SetHidden(chrome, self->put_strip.graph, 1);
+    self->list_put = ToriRSChrome_VListCells(chrome, self->panel,
+        TORIRS_CHROME_CELL_SEP_STR "name" TORIRS_CHROME_CELL_SEP_STR TORIRS_CHROME_CELL_SEP_STR "wear" TORIRS_CHROME_CELL_SEP_STR "id",
+        ACCT_PUT_ROWS, 0);
+    ToriRSChrome_SetTooltip(chrome, self->list_put, "click a row to put it in the selected slot");
     self->button_item_remove = ToriRSChrome_Button(chrome, self->panel, "Remove");
     self->button_clear = ToriRSChrome_Button(chrome, self->panel, "Clear container");
     ToriRSChrome_SetTooltip(chrome, self->button_clear, "Empty every slot (online: the backpack only, ::clearinv)");

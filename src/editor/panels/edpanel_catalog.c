@@ -2,16 +2,26 @@
  * The asset catalog panel (docs/MAPED_DESIGN.html #catalog; the workbench's
  * loc finder, design section 6): the SERVER's index of the content tree.
  *
- *   Kind       loc, npc, obj, seq, spotanim, the vars, enum, struct, param,
- *              inv, dbrow/dbtable, interface, component, cs2, trigger,
- *              square, the pack tables, or every kind at once.
+ *   Type       a strip of chips over the kinds the editor places or scripts
+ *              against (all, loc, npc, obj, seq, spotanim, var, interface,
+ *              cs2, trigger, square), the active one lit; "more" shows the
+ *              Kind dropdown holding every other kind (enum, struct, param,
+ *              inv, dbrow/dbtable, component, the pack tables...), and a
+ *              kind chosen there stands as a lit chip of its own. The
+ *              dropdown is also what TORIRS_EDITOR_CATALOG drives.
  *   Find       incremental: names, display names, ids, asked once the text
  *              has stood for a frame (edpanel_catalog_model.h). A typed
  *              `key=value` word becomes a FILTER CHIP under the box once a
  *              space ends it; a chip's x removes it; the "+ filter" dropdown
- *              adds the summary fields' chips (shape class, size, category,
- *              op, multivar, has dialogue, has spawn). The free words and the
- *              chips compose into the query's filter terms.
+ *              adds the kind's summary-field chips (locs: shape class, size,
+ *              category, op, multivar, dialogue, spawn; objs: the wear
+ *              slots, stackable, tradeable, members, category, op; npcs:
+ *              level, size, dialogue, spawn, category, op). The free words
+ *              and the chips compose into the query's filter terms: `#4151`
+ *              is the id, `wear=weapon` the wear position, `cat=`, `level=`
+ *              and `stack=` the spoken forms of category, vislevel and
+ *              stackable. A leading `obj:` / `npc:` / `loc:` (any kind name)
+ *              sets the Type and leaves the box.
  *   Count      "1 to 100 of 212 loc": the window's first row to the last row
  *              held after it, of the server's total (the row under Find:
  *              the box has no slot at its right end).
@@ -20,12 +30,17 @@
  *              square (the locs the open squares place, from the mirror's
  *              documents), same category (the pick's, as a chip).
  *   Sort       best match (the server's order), name, id, category, size.
- *   Results    a CELLS list (ToriRSChrome_VListCells): a 16 px top-down
- *              thumbnail the App rasters for the rows on screen only
- *              (app_services.loc_thumbnail, cached by id and shape), the name
- *              with the display name dimmed, the loc's placeable shapes as
- *              keycaps -- a click on one picks the loc at that shape -- and
- *              the id right-aligned. CONTINUOUS: the list is the whole
+ *   Results    a CELLS list (ToriRSChrome_VListCells): a picture per row --
+ *              a loc's 16 px top-down thumbnail the App rasters for the rows
+ *              on screen only (app_services.loc_thumbnail, cached by id and
+ *              shape), an obj's inventory icon as the game draws it
+ *              (app_services.obj_icon: the cache's zoom2d and the three 2D
+ *              angles), an npc's figure (app_services.record_thumb) -- the
+ *              name with the display name dimmed, keycaps and the id
+ *              right-aligned. A loc's keycaps are its placeable shapes (a
+ *              click picks it at that shape); an obj's its wear slot and
+ *              "stack" (a click adds that chip, narrowing the list); an npc's
+ *              its level and footprint. CONTINUOUS: the list is the whole
  *              result, the window asks for the page it is on and the next is
  *              prefetched as it nears the end (no Next page button).
  *   Record     the picked row's CATALOG_RECORD: its sources (file:line and
@@ -122,6 +137,14 @@ struct CatalogRows
 struct CatalogPanel
 {
     int panel;
+    /** The Type strip: the kinds as chips, "more" showing the dropdown. */
+    struct Edp_ChipStrip type_strip;
+    /** list | grid: the Gallery is the grid view of this search. */
+    struct Edp_ChipStrip view_strip;
+    int type_more;
+    int type_kind_of[EDP_CHIPS_MAX];
+    /** The kind the "+ filter" menu and the list header were built for. */
+    uint32_t shown_filter_kind;
     int dropdown_kind;
     int input_search;
     int row_count;
@@ -534,8 +557,27 @@ catalog_thumbnail(
 {
     const struct EditorUiAppServices* services = &ui->app_services;
     int const shape = view->shape >= 0 ? view->shape : Editor_LocShapeFirst(view->shape_mask);
+    int scene_id;
 
-    if( !services->loc_thumbnail || view->kind != TORIRSMAPED_CATALOG_LOC || view->id < 0 || shape < 0 )
+    if( view->id < 0 )
+        return 0;
+    if( view->kind == TORIRSMAPED_CATALOG_OBJ )
+    {
+        /* The game's own inventory icon (count 1): the bridge applies the
+         * cache's zoom2d, xan2d, yan2d, zan2d and offsets. */
+        if( !services->obj_icon )
+            return 0;
+        scene_id = services->obj_icon(services->user_data, view->id, 1, NULL, 0);
+        return scene_id > 0 ? scene_id : 0;
+    }
+    if( view->kind == TORIRSMAPED_CATALOG_NPC )
+    {
+        if( !services->record_thumb )
+            return 0;
+        scene_id = services->record_thumb(services->user_data, view->kind, view->id, 16);
+        return scene_id > 0 ? scene_id : 0;
+    }
+    if( !services->loc_thumbnail || view->kind != TORIRSMAPED_CATALOG_LOC || shape < 0 )
         return 0;
     return services->loc_thumbnail(services->user_data, view->id, shape);
 }
@@ -630,6 +672,15 @@ catalog_list_tip(
     {
         int const shape = Editor_CatalogViewShapeAt(&view, cell);
         snprintf(tip, sizeof(tip), "pick %.24s at shape %d (%s)", view.name, shape, Editor_LocShapeName(shape));
+    }
+    else if( cell > 0 && view.kind == TORIRSMAPED_CATALOG_OBJ )
+    {
+        char key[EDITOR_CATALOG_CHIP_KEY_MAX];
+        char value[EDITOR_CATALOG_CHIP_VALUE_MAX];
+        if( Editor_CatalogViewKeyChip(&view, cell, key, value) )
+            snprintf(tip, sizeof(tip), "narrow the list to %s=%s", key, value);
+        else
+            snprintf(tip, sizeof(tip), "%.52s %d", view.name, (int)view.id);
     }
     else if( view.display[0] && strcmp(view.display, view.name) != 0 )
         snprintf(tip, sizeof(tip), "%.36s \"%.20s\" %d", view.name, view.display, (int)view.id);
@@ -736,6 +787,99 @@ catalog_shortcuts_draw(
     (void)edp_chips_push(&self->shortcut_strip, label, tip, 0, 0);
     edp_chips_end(ui, &self->shortcut_strip);
     edp_chips_hover(ui, &self->shortcut_strip);
+}
+
+/* ---- the Type strip ------------------------------------------------------------- */
+
+/** The kinds the strip always shows, in its order. */
+static const uint32_t k_type_strip[] = {
+    TORIRSMAPED_CATALOG_ANY,       TORIRSMAPED_CATALOG_LOC,     TORIRSMAPED_CATALOG_NPC,       TORIRSMAPED_CATALOG_OBJ,
+    TORIRSMAPED_CATALOG_SEQ,       TORIRSMAPED_CATALOG_SPOTANIM, TORIRSMAPED_CATALOG_VARS,     TORIRSMAPED_CATALOG_INTERFACE,
+    TORIRSMAPED_CATALOG_CS2,       TORIRSMAPED_CATALOG_TRIGGER, TORIRSMAPED_CATALOG_SQUARE,
+};
+#define CATALOG_TYPE_STRIP ((int)(sizeof(k_type_strip) / sizeof(k_type_strip[0])))
+
+/** The kind the dropdown holds. */
+static uint32_t
+catalog_kind(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    int const index = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_kind);
+    return Editor_CatalogModelKindAt(index >= 0 && index < Editor_CatalogModelKindCount() ? index : 0);
+}
+
+/** Choosing a kind, from the strip, a prefix or the dropdown: asks again
+ *  (the tree may have changed) and leaves any local list. */
+static void
+catalog_set_kind(
+    struct EditorUi* ui,
+    struct CatalogPanel* self,
+    uint32_t kind)
+{
+    ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_kind, Editor_CatalogModelKindIndex(kind));
+    Editor_CatalogModelInvalidate(&self->model);
+    Editor_CatalogModelSetSource(&self->model, EDITOR_CATALOG_SOURCE_INDEX);
+}
+
+static void
+catalog_type_strip_draw(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    uint32_t const current = catalog_kind(ui, self);
+    int shown = 0;
+    int index;
+
+    edp_chips_begin(&self->type_strip);
+    for( int i = 0; i < CATALOG_TYPE_STRIP; i++ )
+    {
+        uint32_t const kind = k_type_strip[i];
+        const char* name = kind == TORIRSMAPED_CATALOG_ANY ? "all" : ToriRSMapEdCatalog_KindName(kind);
+        char tip[EDP_CHIP_TIP_MAX];
+        snprintf(tip, sizeof(tip), kind == TORIRSMAPED_CATALOG_ANY ? "every kind at once" : "only %s records", name);
+        index = edp_chips_push(&self->type_strip, name, tip, kind == current, 0);
+        if( index >= 0 )
+            self->type_kind_of[index] = (int)kind;
+        shown |= kind == current;
+    }
+    if( !shown )
+    {
+        index = edp_chips_push(&self->type_strip, ToriRSMapEdCatalog_KindName(current), "the kind chosen under more", 1, 0);
+        if( index >= 0 )
+            self->type_kind_of[index] = (int)current;
+    }
+    self->type_more = edp_chips_push(&self->type_strip, "more",
+        ui->chrome->widgets[self->dropdown_kind].hidden ? "show the Kind dropdown: every other kind"
+                                                              : "hide the Kind dropdown",
+        !ui->chrome->widgets[self->dropdown_kind].hidden, 0);
+    if( self->type_more >= 0 )
+        self->type_kind_of[self->type_more] = -1;
+    edp_chips_end(ui, &self->type_strip);
+    edp_chips_hover(ui, &self->type_strip);
+
+    edp_chips_begin(&self->view_strip);
+    (void)edp_chips_push(&self->view_strip, "list", "this list", 1, 0);
+    (void)edp_chips_push(&self->view_strip, "grid", "the Gallery: the same search as pictures (Shift+F8)",
+        Editor_Gallery_Visible(ui), 0);
+    edp_chips_end(ui, &self->view_strip);
+    edp_chips_hover(ui, &self->view_strip);
+}
+
+/** The "+ filter" menu and the list header follow the kind. */
+static void
+catalog_kind_follow(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    uint32_t const kind = catalog_kind(ui, self);
+
+    if( kind == self->shown_filter_kind )
+        return;
+    self->shown_filter_kind = kind;
+    ToriRSChrome_DropdownSetOptions(ui->chrome, self->dropdown_filter, Editor_CatalogFilterMenuLabelsFor(kind),
+        Editor_CatalogFilterMenuCountFor(kind), 0);
+    ToriRSChrome_SetLabel(ui->chrome, self->list, Editor_CatalogCellsHeaderFor(kind));
 }
 
 /* ---- the local lists: favourites, recent, in square ---------------------------- */
@@ -1265,7 +1409,8 @@ catalog_tick(
      * follows moves. */
     catalog_favourites_follow(ui, self);
     catalog_symbol_follow(ui, self);
-    if( !ui->chrome->panels[self->panel].visible )
+    /* The Gallery is a second view of this query: it is driven for it too. */
+    if( !ui->chrome->panels[self->panel].visible && !Editor_Gallery_Visible(ui) )
         return;
     /* Only the shown panel counts the open squares' locs. */
     catalog_in_square_follow(ui, self);
@@ -1278,10 +1423,21 @@ catalog_tick(
         search = "";
     if( strcmp(search, self->find_seen) != 0 )
     {
+        uint32_t prefix_kind;
+        char rest[TORIRS_CHROME_INPUT_MAX];
+        /* `obj:whip`: the kind leaves the box and becomes the Type. */
+        if( Editor_CatalogTakeKindPrefix(search, &prefix_kind, rest, sizeof(rest)) )
+        {
+            catalog_set_kind(ui, self, prefix_kind);
+            ToriRSChrome_SetText(ui->chrome, self->input_search, rest);
+            search = ToriRSChrome_Text(ui->chrome, self->input_search);
+            kind_index = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_kind);
+        }
         snprintf(self->find_seen, sizeof(self->find_seen), "%s", search);
         catalog_take_chips(ui, self, search);
         search = ToriRSChrome_Text(ui->chrome, self->input_search);
     }
+    catalog_kind_follow(ui, self);
     Editor_CatalogChipsCompose(&self->chips, search ? search : "", self->composed, sizeof(self->composed));
     (void)Editor_CatalogModelWant(&self->model,
         Editor_CatalogModelKindAt(kind_index >= 0 && kind_index < Editor_CatalogModelKindCount() ? kind_index : 0),
@@ -1304,6 +1460,7 @@ catalog_tick(
     catalog_record_rows(ui, self);
     catalog_chips_draw(ui, self);
     catalog_shortcuts_draw(ui, self);
+    catalog_type_strip_draw(ui, self);
     if( ui->app_services.loc_record && (self->var_shown_id != ui->tools.pick_id || self->var_shown_kind != ui->tools.pick_kind) )
         catalog_variant_rebuild(ui, self);
 }
@@ -1423,6 +1580,19 @@ catalog_pick_row(
     ui->tools.pick_kind = (int)view.kind;
     ui->tools.pick_id = view.id;
     snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "%s (%d)", view.name, (int)view.id);
+    if( view.kind == TORIRSMAPED_CATALOG_OBJ && cell > 0 )
+    {
+        /* A wear or stack keycap narrows the list to that chip. */
+        char key[EDITOR_CATALOG_CHIP_KEY_MAX];
+        char value[EDITOR_CATALOG_CHIP_VALUE_MAX];
+        if( Editor_CatalogViewKeyChip(&view, cell, key, value) )
+        {
+            if( Editor_CatalogChipsAdd(&self->chips, key, value) )
+                Editor_UiStatus(ui, "narrowed to %s=%s", key, value);
+            else
+                Editor_UiStatus(ui, "%s=%s is a chip already", key, value);
+        }
+    }
     if( view.kind == TORIRSMAPED_CATALOG_LOC )
     {
         if( cell > 0 )
@@ -1556,9 +1726,9 @@ catalog_filter_menu(
     char value[EDITOR_CATALOG_CHIP_VALUE_MAX];
     int kind;
 
-    if( index <= 0 || index >= Editor_CatalogFilterMenuCount() )
+    if( index <= 0 || index >= Editor_CatalogFilterMenuCountFor(catalog_kind(ui, self)) )
         return;
-    kind = Editor_CatalogFilterMenuItem(index, key, value);
+    kind = Editor_CatalogFilterMenuItemFor(catalog_kind(ui, self), index, key, value);
     if( kind == 1 )
     {
         if( !Editor_CatalogChipsAdd(&self->chips, key, value) )
@@ -1676,7 +1846,8 @@ catalog_activate(
         return 1;
     }
     return widget == self->input_search || widget == self->record_list || widget == self->input_new_name
-           || widget == self->chip_strip.graph || widget == self->shortcut_strip.graph;
+           || widget == self->chip_strip.graph || widget == self->shortcut_strip.graph || widget == self->type_strip.graph
+           || widget == self->view_strip.graph;
 }
 
 /** A press on a chip: a filter chip's x removes it; a shortcut shows its
@@ -1703,6 +1874,28 @@ catalog_event(
             Editor_CatalogChipsRemove(&self->chips, index);
             Editor_UiStatus(ui, "filter %s removed", label);
         }
+        return 1;
+    }
+    if( event->widget == self->view_strip.graph )
+    {
+        if( event->kind != TORIRS_CHROME_EVENT_GRAPH_PRESS )
+            return 1;
+        index = edp_chips_key_of(&self->view_strip, event->key, &on_x);
+        if( index == 1 && !Editor_Gallery_Visible(ui) )
+            Editor_UiPanelOpenBeside(ui, "gallery", "catalog");
+        return 1;
+    }
+    if( event->widget == self->type_strip.graph )
+    {
+        if( event->kind != TORIRS_CHROME_EVENT_GRAPH_PRESS )
+            return 1;
+        index = edp_chips_key_of(&self->type_strip, event->key, &on_x);
+        if( index < 0 || index >= EDP_CHIPS_MAX )
+            return 1;
+        if( index == self->type_more )
+            ToriRSChrome_SetHidden(ui->chrome, self->dropdown_kind, !ui->chrome->widgets[self->dropdown_kind].hidden);
+        else if( self->type_kind_of[index] >= 0 && (uint32_t)self->type_kind_of[index] != catalog_kind(ui, self) )
+            catalog_set_kind(ui, self, (uint32_t)self->type_kind_of[index]);
         return 1;
     }
     if( event->widget != self->shortcut_strip.graph )
@@ -2215,13 +2408,20 @@ Editor_Catalog_Register(struct EditorUi* ui)
         chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X + EDP_COL_W + 8), edp_px(ui, 420),
         edp_px(ui, 260), "Catalog");
     assert(self->panel >= 0);
+    /* Twelve chips: two lines at the panel's width. */
+    edp_chips_init(ui, &self->type_strip, self->panel, 2);
+    self->type_more = -1;
+    self->shown_filter_kind = 0xFFFFFFFFu;
     self->dropdown_kind = ToriRSChrome_Dropdown(chrome, self->panel, "Kind", Editor_CatalogModelKindLabels(),
         Editor_CatalogModelKindCount(), 0);
+    /* Every other kind lives here, shown by the strip's "more". */
+    ToriRSChrome_SetHidden(chrome, self->dropdown_kind, 1);
     /* The Stamps kind (workbench 6.3): a chip beside Kind that opens the
      * Stamps panel, which owns it (edpanel_stamps.c). */
     Editor_Stamps_CatalogChip(ui, self->panel);
     self->input_search = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
-    ToriRSChrome_SetTooltip(chrome, self->input_search, "name, id; key=value then a space becomes a chip");
+    ToriRSChrome_SetTooltip(chrome, self->input_search, "name, #id, obj:/npc:/loc:; key=value + space = a chip");
+    edp_chips_init(ui, &self->view_strip, self->panel, 1);
     self->row_count = ToriRSChrome_Label(chrome, self->panel, "");
     edp_chips_init(ui, &self->chip_strip, self->panel, 2);
     ToriRSChrome_SetHidden(chrome, self->chip_strip.graph, 1);
@@ -2280,6 +2480,8 @@ Editor_Catalog_Register(struct EditorUi* ui)
      * menu and the dock order. */
     if( !Editor_UiPanelSelf(ui, "preview") )
         Editor_Preview_Register(ui);
+    if( !Editor_UiPanelSelf(ui, "gallery") )
+        Editor_Gallery_Register(ui);
     /* The record editor travels with the catalog it opens records from. */
     if( !Editor_UiPanelSelf(ui, "record") )
         Editor_Record_Register(ui);
@@ -2297,4 +2499,92 @@ Editor_Catalog_Model(struct EditorUi* ui)
     assert(ui);
     self = Editor_UiPanelSelf(ui, "catalog");
     return self ? &self->model : NULL;
+}
+
+uint32_t
+Editor_Catalog_Kind(struct EditorUi* ui)
+{
+    struct CatalogPanel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    return self ? catalog_kind(ui, self) : TORIRSMAPED_CATALOG_LOC;
+}
+
+void
+Editor_Catalog_SetKind(
+    struct EditorUi* ui,
+    uint32_t kind)
+{
+    struct CatalogPanel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( self && kind != catalog_kind(ui, self) )
+        catalog_set_kind(ui, self, kind);
+}
+
+const char*
+Editor_Catalog_FindText(struct EditorUi* ui)
+{
+    struct CatalogPanel* self;
+    const char* text;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( !self )
+        return "";
+    text = ToriRSChrome_Text(ui->chrome, self->input_search);
+    return text ? text : "";
+}
+
+void
+Editor_Catalog_SetFindText(
+    struct EditorUi* ui,
+    const char* text)
+{
+    struct CatalogPanel* self;
+
+    assert(ui);
+    assert(text);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( self )
+        ToriRSChrome_SetText(ui->chrome, self->input_search, text);
+}
+
+void
+Editor_Catalog_WantWindow(
+    struct EditorUi* ui,
+    int first,
+    int rows)
+{
+    struct CatalogPanel* self;
+
+    assert(ui);
+    assert(first >= 0);
+    assert(rows > 0);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( self )
+        Editor_CatalogModelWantWindow(&self->model, first, rows);
+}
+
+int
+Editor_Catalog_PickRow(
+    struct EditorUi* ui,
+    int row)
+{
+    struct CatalogPanel* self;
+    struct Editor_CatalogView view;
+
+    assert(ui);
+    assert(row >= 0);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( !self || !Editor_CatalogModelViewAt(&self->model, row, &view) )
+        return 0;
+    self->selected = row;
+    ToriRSChrome_VListSetSelected(ui->chrome, self->list, row);
+    catalog_pick_row(ui, self, row, 0);
+    catalog_picked_label(ui, self);
+    catalog_record_show(ui, self);
+    return view.kind <= TORIRSMAPED_CATALOG_OBJ && view.id >= 0;
 }

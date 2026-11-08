@@ -30,6 +30,7 @@
 #include "editor/panels/edpanel_picker_find.h"
 #include "editor/panels/edpanel_picker_nav.h"
 #include "editor/panels/edpanel_shapes.h"
+#include "editor/panels/edpanel_chips.h"
 #include "editor/panels/edpanels.h"
 #include "editor/editor_spawn.h"
 #include "editor/map_editor_ghost.h"
@@ -1189,6 +1190,48 @@ cat_widget(
     return -1;
 }
 
+/** Where the catalog chrome's GRAPH `graph` answers `key` (well-local), 1
+ *  when found. */
+static int
+cat_graph_key_find(
+    int graph,
+    int key,
+    int* out_x,
+    int* out_y)
+{
+    for( int y = 1; y < 40; y += 2 )
+        for( int x = 1; x < 400; x += 2 )
+            if( ToriRSChrome_GraphKeyAt(&g_cat_chrome, graph, x, y) == key )
+            {
+                *out_x = x;
+                *out_y = y;
+                return 1;
+            }
+    return 0;
+}
+
+static void
+cat_press_graph(
+    int graph,
+    int x,
+    int y)
+{
+    struct ToriRSChromeEvent event;
+    memset(&event, 0, sizeof(event));
+    event.kind = TORIRS_CHROME_EVENT_GRAPH_PRESS;
+    event.widget = graph;
+    event.serial = g_cat_chrome.widgets[graph].serial;
+    event.x = x;
+    event.y = y;
+    event.key = ToriRSChrome_GraphKeyAt(&g_cat_chrome, graph, x, y);
+    (void)ToriRSChrome_PushEvent(&g_cat_chrome, &event);
+    cat_frame();
+}
+
+/** The strip's always-shown kinds (edpanel_catalog.c k_type_strip): "more"
+ *  is the chip after them while the kind is one of them. */
+#define CATALOG_TYPE_STRIP_TEST 11
+
 static int
 cat_panel(const char* title)
 {
@@ -1308,6 +1351,45 @@ test_catalog_panel(void)
     CHECK(Editor_DocFind(&g_editor.doc, EDITOR_DOC_CFG, "loc:test_crate_copy", &handle) && handle.text
               && handle.text->length == 0,
         "catalog: after the undo the copy's record is empty again");
+
+    /* The Type strip: a chip sets the kind, the "+ filter" menu and the
+     * list header follow it; a `kind:` prefix in Find does the same and
+     * leaves the box; "more" shows the Kind dropdown. */
+    {
+        int const strip = cat_widget(panel, TORIRS_CHROME_W_GRAPH, NULL);
+        int const filter = cat_widget(panel, TORIRS_CHROME_W_DROPDOWN, "Filter");
+        int x = 0;
+        int y = 0;
+        CHECK(strip >= 0 && filter >= 0 && g_cat_chrome.widgets[kind].hidden, "catalog: the strip is up, Kind hidden under more");
+        ToriRSChrome_SetText(&g_cat_chrome, find, "");
+        cat_frame();
+        CHECK(cat_graph_key_find(strip, EDP_CHIP_KEY_BASE + 3, &x, &y), "catalog: the strip's fourth chip is obj");
+        cat_press_graph(strip, x, y);
+        cat_frame();
+        CHECK(Editor_CatalogModelKindAt(ToriRSChrome_DropdownSelected(&g_cat_chrome, kind)) == TORIRSMAPED_CATALOG_OBJ
+                  && g_cat_chrome.widgets[filter].option_count == Editor_CatalogFilterMenuCountFor(TORIRSMAPED_CATALOG_OBJ)
+                  && strstr(g_cat_chrome.widgets[list].label, "wear") != NULL,
+            "catalog: the obj chip sets the kind, the filter menu and the header follow (%d options)",
+            g_cat_chrome.widgets[filter].option_count);
+        cat_frame();
+        Editor_CatalogModelCountText(model, text, sizeof(text));
+        CHECK(strcmp(text, "1 of 1 obj") == 0, "catalog: kind obj lists the knife (%s)", text);
+        ToriRSChrome_SetText(&g_cat_chrome, find, "loc:crate");
+        cat_frame();
+        CHECK(Editor_CatalogModelKindAt(ToriRSChrome_DropdownSelected(&g_cat_chrome, kind)) == TORIRSMAPED_CATALOG_LOC
+                  && strcmp(g_cat_chrome.widgets[find].text, "crate") == 0,
+            "catalog: loc:crate sets the kind and leaves 'crate' in Find (%s)", g_cat_chrome.widgets[find].text);
+        cat_frame();
+        cat_frame();
+        CHECK(model->result.total == 1, "catalog: and finds the crate");
+        CHECK(cat_graph_key_find(strip, EDP_CHIP_KEY_BASE + CATALOG_TYPE_STRIP_TEST, &x, &y), "catalog: more is the last chip");
+        cat_press_graph(strip, x, y);
+        cat_frame();
+        CHECK(!g_cat_chrome.widgets[kind].hidden, "catalog: more shows the Kind dropdown");
+        cat_press_graph(strip, x, y);
+        cat_frame();
+        CHECK(g_cat_chrome.widgets[kind].hidden, "catalog: and hides it again");
+    }
 
     /* The npc kind, and the spawns panel resolving the pick to a symbol. */
     ToriRSChrome_SetText(&g_cat_chrome, find, "");
@@ -4354,6 +4436,174 @@ layout_boot_catalog(
         Editor_UiLayoutLoaded(&g_ui, file);
     for( int i = 0; i < 4; i++ )
         frame();
+}
+
+
+/** The main chrome's GRAPH `graph` answers `key` at (x, y), 1 when found. */
+static int
+main_graph_key_find(
+    int graph,
+    int key,
+    int* out_x,
+    int* out_y)
+{
+    for( int y = 1; y < 400; y += 3 )
+        for( int x = 1; x < 400; x += 3 )
+            if( ToriRSChrome_GraphKeyAt(&g_chrome, graph, x, y) == key )
+            {
+                *out_x = x;
+                *out_y = y;
+                return 1;
+            }
+    return 0;
+}
+
+/** The nth (0 first) GRAPH of `panel`. */
+static int
+nth_graph(
+    int panel,
+    int nth)
+{
+    for( int i = 0; i < g_chrome.widget_count; i++ )
+        if( g_chrome.widgets[i].panel == panel && g_chrome.widgets[i].kind == TORIRS_CHROME_W_GRAPH && nth-- == 0 )
+            return i;
+    return -1;
+}
+
+/** The Gallery (workbench 7.2): the Catalog's search as pictures, one query
+ *  under two views. */
+static void
+test_gallery(void)
+{
+    struct EditorUiPanel* module;
+    const struct Editor_CatalogModel* model;
+    const char* row;
+    char text[96];
+    int gallery;
+    int catalog;
+    int find;
+    int count_row;
+    int kind_graph;
+    int size_graph;
+    int view_graph;
+    int well;
+    int x = 0;
+    int y = 0;
+    uint32_t serial;
+
+    layout_boot_catalog(1280, 800, NULL);
+    gallery = find_panel("Gallery");
+    catalog = find_panel("Catalog");
+    CHECK(gallery >= 0 && catalog >= 0, "gallery: the Catalog registers a Gallery panel");
+    if( gallery < 0 || catalog < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    module = Editor_UiFindPanel(&g_ui, "gallery");
+    CHECK(module && module - g_ui.panels == Editor_UiFindPanel(&g_ui, "preview") - g_ui.panels + 1,
+        "gallery: module \"gallery\", right after the Preview in the registry (and the View menu)");
+    row = view_row("Gallery");
+    CHECK(row && strstr(row, "Shift+F8"), "gallery: View > Gallery shows its chord (%s)", row ? row : "-");
+    CHECK(Editor_HotkeyForPanel("gallery") == EDITOR_HK_VIEW_GALLERY, "gallery: view.gallery toggles it");
+    CHECK(g_chrome.panels[gallery].closable && g_chrome.panels[gallery].poppable && g_chrome.panels[gallery].resizable,
+        "gallery: it wears the Close box, the Pop out and the grip");
+    find = find_widget(gallery, TORIRS_CHROME_W_TEXTINPUT, "Find");
+    count_row = find_widget(gallery, TORIRS_CHROME_W_LABEL, NULL);
+    kind_graph = nth_graph(gallery, 0);
+    size_graph = nth_graph(gallery, 1);
+    view_graph = nth_graph(gallery, 2);
+    well = nth_graph(gallery, 3);
+    CHECK(find >= 0 && count_row >= 0 && kind_graph >= 0 && size_graph >= 0 && view_graph >= 0 && well >= 0,
+        "gallery: Find, the count, the kind / size / view chips and the well");
+    if( find < 0 || well < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    CHECK(!g_chrome.panels[gallery].visible && !g_chrome.panels[catalog].visible,
+        "gallery: at 1280x800 the layout leaves the Gallery and the Catalog closed");
+    CHECK(!Editor_Gallery_Visible(&g_ui), "gallery: closed, it says so");
+
+    /* Open alone: the Catalog drives the shared query for it. */
+    (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_GALLERY);
+    frame();
+    frame();
+    model = Editor_Catalog_Model(&g_ui);
+    CHECK(g_chrome.panels[gallery].visible && !g_chrome.panels[catalog].visible && Editor_Gallery_Visible(&g_ui),
+        "gallery: Shift+F8 opens the Gallery, the Catalog stays closed");
+    CHECK(model && model->queries >= 1, "gallery: the Catalog asked the index for it (%d)", model ? model->queries : -1);
+    CHECK(ToriRSChrome_GraphKeyAt(&g_chrome, well, 6, 6) == 1 && ToriRSChrome_GraphKeyAt(&g_chrome, well, 6 + 48 + 8 + 4, 6) == 2,
+        "gallery: tiles keyed by row at the M size (%d, %d)", ToriRSChrome_GraphKeyAt(&g_chrome, well, 6, 6),
+        ToriRSChrome_GraphKeyAt(&g_chrome, well, 6 + 48 + 8 + 4, 6));
+
+    /* One text: typed here, asked by the Catalog. */
+    ToriRSChrome_SetText(&g_chrome, find, "crate");
+    for( int i = 0; i < 4; i++ )
+        frame();
+    CHECK(strcmp(Editor_Catalog_FindText(&g_ui), "crate") == 0 && strcmp(model->filter, "crate") == 0,
+        "gallery: Find here is the Catalog's Find and the query (%s / %s)", Editor_Catalog_FindText(&g_ui), model->filter);
+    Editor_CatalogModelCountText(model, text, sizeof(text));
+    CHECK(strcmp(text, "1 of 1 loc") == 0 && strcmp(g_chrome.widgets[count_row].text, text) == 0,
+        "gallery: the count row reads %s", g_chrome.widgets[count_row].text);
+
+    /* A click picks; a second within the double-click window arms Place. */
+    Editor_SetStateCallback(&g_editor, main_on_state, &g_ui);
+    push_graph(well, TORIRS_CHROME_EVENT_GRAPH_PRESS, 6, 6, 0);
+    frame();
+    CHECK(g_ui.tools.pick_kind == 0 && g_ui.tools.pick_id == 0 && strcmp(g_ui.tools.pick_name, "test_crate (0)") == 0,
+        "gallery: a tile click is the shared pick (%d %d %s)", g_ui.tools.pick_kind, g_ui.tools.pick_id, g_ui.tools.pick_name);
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_SELECT);
+    push_graph(well, TORIRS_CHROME_EVENT_GRAPH_PRESS, 6, 6, 0);
+    frame();
+    CHECK(g_ui.tools.tool == EDITOR_TOOL_LOC_PLACE, "gallery: a double-click arms Place");
+
+    /* The size chips move the device pref; the kind chips the Catalog's kind. */
+    serial = g_ui.prefs_serial;
+    CHECK(main_graph_key_find(size_graph, EDP_CHIP_KEY_BASE + 2, &x, &y), "gallery: the L chip is there");
+    push_graph(size_graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+    frame();
+    CHECK(Editor_Gallery_TilePx(&g_ui) == 64 && g_ui.prefs.gallery_tile == 64 && g_ui.prefs_serial != serial,
+        "gallery: L makes the tiles 64 px and moves the prefs (%d)", Editor_Gallery_TilePx(&g_ui));
+    frame();
+    /* One row ("crate"): the tile is 72 wide now, where at M it ended at 56. */
+    CHECK(ToriRSChrome_GraphKeyAt(&g_chrome, well, 70, 6) == 1 && ToriRSChrome_GraphKeyAt(&g_chrome, well, 82, 6) == 0,
+        "gallery: the grid relaid at the new size (%d, %d)", ToriRSChrome_GraphKeyAt(&g_chrome, well, 70, 6),
+        ToriRSChrome_GraphKeyAt(&g_chrome, well, 82, 6));
+    CHECK(main_graph_key_find(kind_graph, EDP_CHIP_KEY_BASE + 3, &x, &y), "gallery: the obj chip is there");
+    ToriRSChrome_SetText(&g_chrome, find, "");
+    push_graph(kind_graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+    for( int i = 0; i < 4; i++ )
+        frame();
+    Editor_CatalogModelCountText(model, text, sizeof(text));
+    CHECK(Editor_Catalog_Kind(&g_ui) == TORIRSMAPED_CATALOG_OBJ && strcmp(text, "1 of 1 obj") == 0,
+        "gallery: the obj chip sets the Catalog's kind and the grid shows the knife (%s)", text);
+
+    /* list | grid: this panel's list opens the Catalog beside it; the
+     * Catalog's grid opens this panel. */
+    CHECK(main_graph_key_find(view_graph, EDP_CHIP_KEY_BASE + 0, &x, &y), "gallery: the list chip is there");
+    push_graph(view_graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+    frame();
+    frame();
+    CHECK(g_chrome.panels[catalog].visible, "gallery: list opens the Catalog");
+    {
+        struct ToriRSChromeRect const c = g_chrome.panels[catalog].last_rect;
+        struct ToriRSChromeRect const g = g_chrome.panels[gallery].last_rect;
+        CHECK((c.x + c.w == g.x || c.x == g.x + g.w) && c.y == g.y, "gallery: the Catalog opened beside it (%d,%d / %d,%d)",
+            c.x, c.y, g.x, g.y);
+    }
+    (void)Editor_UiTogglePanel(&g_ui, "gallery");
+    frame();
+    CHECK(!g_chrome.panels[gallery].visible && !Editor_Gallery_Visible(&g_ui), "gallery: View toggles it closed");
+    {
+        int const cat_view = nth_graph(catalog, 1);
+        CHECK(cat_view >= 0 && main_graph_key_find(cat_view, EDP_CHIP_KEY_BASE + 1, &x, &y), "gallery: the Catalog's grid chip");
+        push_graph(cat_view, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+        frame();
+        frame();
+        CHECK(g_chrome.panels[gallery].visible, "gallery: the Catalog's grid chip opens the Gallery beside it");
+    }
+    Editor_UiFree(&g_ui);
 }
 
 /** The Catalog's result row `row`, picked as a click does. */
@@ -8426,6 +8676,7 @@ main(
 
     test_catalog_panel();
     test_preview();
+    test_gallery();
     test_publish();
     test_spawn_duplicate();
     test_spawn_edit();

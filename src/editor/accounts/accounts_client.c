@@ -20,6 +20,7 @@ Editor_AccountsModelInit(struct Editor_AccountsModel* model)
     memset(model, 0, sizeof(*model));
     model->list_status = EDITOR_HOST_UNSUPPORTED;
     model->view.status = EDITOR_HOST_ABSENT;
+    model->last_obj = -1;
 }
 
 int
@@ -352,6 +353,19 @@ apply_status(
 
     ToriRSMapEd_GetString(reader, account, sizeof(account));
     ToriRSMapEd_GetString(reader, message, sizeof(message));
+    model->last_obj = -1;
+    model->last_count = 0;
+    /* The resolved item: a server older than the field ends here. */
+    if( !reader->bad && reader->at < reader->length )
+    {
+        uint32_t const obj = ToriRSMapEd_GetU32(reader);
+        uint32_t const count = ToriRSMapEd_GetU32(reader);
+        if( obj != 0xFFFFFFFFu )
+        {
+            model->last_obj = (int32_t)obj;
+            model->last_count = (int32_t)count;
+        }
+    }
     if( !ToriRSMapEd_ReaderDone(reader) )
         return 0;
     model->last_request = request;

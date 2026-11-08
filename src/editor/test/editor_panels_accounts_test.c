@@ -21,6 +21,7 @@
  */
 
 #include "editor/accounts/accounts_panel.h"
+#include "editor/panels/edpanel_chips.h"
 #include "editor/editor.h"
 #include "editor/editor_host.h"
 #include "editor/editor_hotkeys.h"
@@ -134,8 +135,9 @@ write_fixture(const char* root)
     write_text(content, "configs/all.varp.compack", "29=varp29_cookquest\n281=varp281_tutorial\n");
     write_text(content, "configs/all.varbit", "[varb5078_soulbearer]\nbasevar=varp281_tutorial\nstartbit=30\nendbit=31\n");
     write_text(content, "configs/all.varbit.compack", "5078=varb5078_soulbearer\n");
-    write_text(content, "configs/all.obj", "[coins]\nname=Coins\n\n[bronze_sword]\nname=Bronze sword\n");
-    write_text(content, "configs/all.obj.compack", "995=coins\n1277=bronze_sword\n");
+    write_text(content, "configs/all.obj",
+        "[coins]\nname=Coins\n\n[bronze_sword]\nname=Bronze sword\nwearpos=3\n\n[bronze_med_helm]\nname=Bronze med helm\nwearpos=0\n");
+    write_text(content, "configs/all.obj.compack", "995=coins\n1277=bronze_sword\n1139=bronze_med_helm\n");
     write_text(content, "configs/all.dbrow",
         "[quest_cooksassistant]\ntable=quest\ndata=displayname,Cook's Assistant\n\n[miniquest_bearyoursoul]\ntable=quest\n"
         "data=displayname,Bear Your Soul\n");
@@ -275,6 +277,47 @@ vlist_has(
     return 0;
 }
 
+/** Where GRAPH `graph` answers `key` (well-local), scanning its top rows;
+ *  1 when found. */
+static int
+graph_key_find(
+    int graph,
+    int key,
+    int* out_x,
+    int* out_y)
+{
+    for( int y = 1; y < 40; y += 2 )
+        for( int x = 1; x < 360; x += 2 )
+            if( ToriRSChrome_GraphKeyAt(&g_chrome, graph, x, y) == key )
+            {
+                if( out_x )
+                    *out_x = x;
+                if( out_y )
+                    *out_y = y;
+                return 1;
+            }
+    return 0;
+}
+
+/** The absolute row of VLIST `list` on screen whose text holds `needle`, -1. */
+static int
+vlist_row_of(
+    int list,
+    const char* needle)
+{
+    const struct ToriRSChromeWidget* w = &g_chrome.widgets[list];
+    int first = 0;
+    int shown = 0;
+    (void)ToriRSChrome_VListWindow(&g_chrome, list, &first, &shown);
+    for( int i = 0; i < w->rows; i++ )
+    {
+        const struct ToriRSChromeVRow* row = &g_chrome.vrows[w->vrow_first + i];
+        if( strstr(row->text, needle) )
+            return first + i;
+    }
+    return -1;
+}
+
 static int
 console_has(
     struct EditorUi* ui,
@@ -372,12 +415,13 @@ test_panel(const char* root)
     int label_quest_detail;
     int button_quest_reset;
     int button_quest_complete_shown;
-    int input_slot;
-    int input_obj;
+    int label_slot;
+    int label_verify;
+    int input_put;
     int input_count;
-    int button_item_set;
+    int list_put;
+    int graph_put;
     int button_item_remove;
-    int button_item_pick;
     int input_name;
     int input_password;
     int button_new;
@@ -420,13 +464,14 @@ test_panel(const char* root)
     input_find = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Find", 0);
     list_find = find_widget(&g_chrome, panel, TORIRS_CHROME_W_VLIST, "Matches", 0);
     input_value = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Value", 0);
-    button_var_set = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Set", 1);
+    button_var_set = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Set", 0);
     list_quests = find_widget(&g_chrome, panel, TORIRS_CHROME_W_VLIST, "Quests", 0);
     button_mark = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Mark complete", 0);
     label_queue = find_widget(&g_chrome, panel, TORIRS_CHROME_W_LABEL, "0 queued cheat(s) for the next login", 0);
     dropdown_container = find_widget(&g_chrome, panel, TORIRS_CHROME_W_DROPDOWN, "Container", 0);
     graph_items = find_widget(&g_chrome, panel, TORIRS_CHROME_W_GRAPH, NULL, 0);
-    graph_loadout = find_widget(&g_chrome, panel, TORIRS_CHROME_W_GRAPH, NULL, 1);
+    graph_put = find_widget(&g_chrome, panel, TORIRS_CHROME_W_GRAPH, NULL, 1);
+    graph_loadout = find_widget(&g_chrome, panel, TORIRS_CHROME_W_GRAPH, NULL, 2);
     input_inv = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Inv", 0);
     button_inv_open = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Open inv", 0);
     button_clear = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Clear container", 0);
@@ -440,12 +485,12 @@ test_panel(const char* root)
     label_quest_detail = find_widget(&g_chrome, panel, TORIRS_CHROME_W_LABEL, "pick a quest for its var and value", 0);
     button_quest_reset = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Reset", 0);
     button_quest_complete_shown = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Complete shown", 0);
-    input_slot = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Slot", 0);
-    input_obj = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Obj", 0);
+    label_slot = find_widget(&g_chrome, panel, TORIRS_CHROME_W_LABEL, "click a slot", 0);
+    label_verify = label_slot >= 0 ? label_slot + 1 : -1;
+    input_put = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Put here", 0);
     input_count = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Count", 0);
-    button_item_set = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Set", 0);
+    list_put = find_widget(&g_chrome, panel, TORIRS_CHROME_W_VLIST, "\x1f" "name" "\x1f" "\x1f" "wear" "\x1f" "id", 0);
     button_item_remove = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Remove", 0);
-    button_item_pick = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "From Catalog pick", 0);
     input_name = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Name", 0);
     input_password = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Password", 0);
     button_new = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "New account", 0);
@@ -459,11 +504,11 @@ test_panel(const char* root)
               && list_loadouts >= 0 && input_loadout_name >= 0 && button_loadout_save >= 0 && button_loadout_apply >= 0
               && button_loadout_delete >= 0 && dropdown_quest_filter >= 0 && label_quest_summary >= 0
               && label_quest_detail >= 0 && button_quest_reset >= 0 && button_quest_complete_shown >= 0
-              && input_slot >= 0 && input_obj >= 0 && input_count >= 0 && button_item_set >= 0 && button_item_remove >= 0
-              && button_item_pick >= 0 && input_name >= 0 && input_password >= 0 && button_new >= 0 && button_use >= 0
+              && label_slot >= 0 && input_put >= 0 && input_count >= 0 && list_put >= 0 && graph_put >= 0
+              && button_item_remove >= 0 && input_name >= 0 && input_password >= 0 && button_new >= 0 && button_use >= 0
               && button_delete >= 0 && list_log >= 0,
         "its widgets are there");
-    if( dropdown < 0 || list_stats < 0 || button_item_set < 0 || list_log < 0 )
+    if( dropdown < 0 || list_stats < 0 || list_put < 0 || list_log < 0 )
         return;
 
     /* The list arrives and the first (only) account is shown. */
@@ -598,8 +643,10 @@ test_panel(const char* root)
         CHECK(file_has(registry, "tester.0 = questmark miniquest_bearyoursoul"), "the registry holds the queued line");
     }
 
-    /* Items: the worn layout, the backpack's grid, a slot by name, from the
-     * Catalog's pick, removed; an inv opened by name. */
+    /* Items: the worn layout, the backpack's grid, the slot line, Put here
+     * (a row click sets at once, #id on the wire; the wear chip narrows to
+     * the slot and its x widens; a wrong slot is refused here), the Catalog
+     * pick chip, the check against the view, Remove; an inv opened by name. */
     ToriRSChrome_PanelSetActiveTab(&g_chrome, panel, 1);
     settle(NULL, 10);
     CHECK(g_chrome.widgets[dropdown_container].option_count == 3
@@ -610,38 +657,89 @@ test_panel(const char* root)
               && ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 8 + 21 + 10, 2 + 82 + 10) == 4
               && ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 8 + 133 + 10, 2 + 162 + 10) == 13,
         "the worn layout has head, weapon and ring where the game draws them");
+    CHECK(g_chrome.widgets[graph_put].hidden, "no chips before a slot is selected");
     press_graph(graph_items, 8 + 21 + 10, 2 + 82 + 10);
-    CHECK(strcmp(g_chrome.widgets[input_slot].text, "3") == 0 && strcmp(g_chrome.widgets[input_obj].text, "1277") == 0,
-        "pressing the weapon slot fills Slot 3 and Obj 1277 (%s, %s)", g_chrome.widgets[input_slot].text,
-        g_chrome.widgets[input_obj].text);
+    CHECK(strcmp(g_chrome.widgets[label_slot].text, "weapon (slot 3): bronze_sword (1277) x1") == 0,
+        "pressing the weapon slot names what it holds by its pack name (%s)", g_chrome.widgets[label_slot].text);
+    settle(NULL, 3);
+    CHECK(!g_chrome.widgets[graph_put].hidden && graph_key_find(graph_put, EDP_CHIP_KEY_BASE, NULL, NULL)
+              && graph_key_find(graph_put, EDP_CHIP_X_BASE, NULL, NULL),
+        "the wear chip is up, with its x");
+    ToriRSChrome_SetText(&g_chrome, input_put, "bronze");
+    settle(NULL, 20);
+    CHECK(vlist_has(list_put, "bronze_sword") && !vlist_has(list_put, "bronze_med_helm"),
+        "Put here narrows to what the weapon slot wears");
+    {
+        int x = 0;
+        int y = 0;
+        CHECK(graph_key_find(graph_put, EDP_CHIP_X_BASE, &x, &y), "the wear chip's x is where a press finds it");
+        press_graph(graph_put, x, y);
+    }
+    settle(NULL, 20);
+    CHECK(vlist_has(list_put, "bronze_med_helm") && vlist_has(list_put, "weapon") && vlist_has(list_put, "head"),
+        "the x widens the search to every obj, each row with its wear slot");
+    {
+        int const row = vlist_row_of(list_put, "bronze_med_helm");
+        CHECK(row >= 0, "the helm has a row");
+        ToriRSChrome_VListSetSelected(&g_chrome, list_put, row);
+        activate(list_put);
+        CHECK(console_has(&g_ui, "bronze_med_helm (1139) is worn in the head slot; this is weapon")
+                  && file_has(save, "3 = 1277 1\n") && !file_has(save, "3 = 1139 1\n"),
+            "a helm into the weapon slot is refused in the panel, nothing sent");
+    }
+    /* The backpack: coins x100 into slot 3 by a row click, #id on the wire. */
     choose(dropdown_container, 1);
     CHECK(ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 8 + 3 * 42 + 5, 4 + 5) == 4
               && ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 8 + 3 * 42 + 5, 4 + 6 * 36 + 5) == 28,
         "the backpack is the gameframe's 4 x 7");
     press_graph(graph_items, 8 + 3 * 42 + 5, 4 + 5);
-    CHECK(strcmp(g_chrome.widgets[input_slot].text, "3") == 0, "pressing backpack slot 3 selects it");
-    ToriRSChrome_SetText(&g_chrome, input_obj, "coins");
+    CHECK(strcmp(g_chrome.widgets[label_slot].text, "slot 3: empty") == 0, "pressing backpack slot 3 selects it (%s)",
+        g_chrome.widgets[label_slot].text);
+    ToriRSChrome_SetText(&g_chrome, input_put, "coins");
     ToriRSChrome_SetText(&g_chrome, input_count, "100");
+    settle(NULL, 20);
+    CHECK(vlist_has(list_put, "coins") && vlist_has(list_put, "995"), "Put here lists coins with its id");
     g_want_serial = g_model->view_serial;
-    activate(button_item_set);
+    ToriRSChrome_VListSetSelected(&g_chrome, list_put, 0);
+    activate(list_put);
     {
         const struct Editor_AccountItem* item;
         settle(view_moved, 200);
         item = Editor_AccountsItem(&g_model->view, EDITOR_ACCOUNTS_SECTION_INV, 3);
         CHECK(file_has(save, "3 = 995 100\n") && item && item->obj == 995 && item->count == 100,
-            "Set puts coins x100 in backpack slot 3 by name");
+            "a row click puts coins x100 in backpack slot 3 at once");
+        CHECK(g_model->last_obj == 995 && g_model->last_count == 100, "the status fact carries the resolved item (%d x%d)",
+            g_model->last_obj, g_model->last_count);
+        settle(NULL, 5);
+        CHECK(strcmp(g_chrome.widgets[label_verify].text, "view agrees with the last Set") == 0,
+            "the view is checked against the request (%s)", g_chrome.widgets[label_verify].text);
+        CHECK(strcmp(g_chrome.widgets[label_slot].text, "slot 3: coins (995) x100") == 0, "the slot line follows (%s)",
+            g_chrome.widgets[label_slot].text);
     }
+    /* The Catalog's pick as a chip: bronze_sword into slot 4. */
     CHECK(Editor_Catalog_PickRecord(&g_ui, TORIRSMAPED_CATALOG_OBJ, "bronze_sword"), "pick bronze_sword in the Catalog");
-    activate(button_item_pick);
-    CHECK(strcmp(g_chrome.widgets[input_obj].text, "1277") == 0, "From Catalog pick fills Obj with 1277 (%s)",
-        g_chrome.widgets[input_obj].text);
-    ToriRSChrome_SetText(&g_chrome, input_slot, "3");
+    press_graph(graph_items, 8 + 5, 4 + 36 + 5);
+    ToriRSChrome_SetText(&g_chrome, input_count, "1");
+    settle(NULL, 3);
+    {
+        int x = 0;
+        int y = 0;
+        CHECK(graph_key_find(graph_put, EDP_CHIP_KEY_BASE, &x, &y), "the Catalog pick chip is up in the backpack");
+        g_want_serial = g_model->view_serial;
+        press_graph(graph_put, x, y);
+        CHECK(settle(view_moved, 200) && file_has(save, "4 = 1277 1\n"), "the pick chip puts the pick in slot 4");
+    }
+    g_want_serial = g_model->view_serial;
+    activate(button_item_remove);
+    CHECK(settle(view_moved, 200) && !file_has(save, "4 = 1277 1\n"), "Remove empties slot 4 again");
+    press_graph(graph_items, 8 + 3 * 42 + 5, 4 + 5);
     g_want_serial = g_model->view_serial;
     activate(button_item_remove);
     CHECK(settle(view_moved, 200) && !file_has(save, "3 = 995 100\n")
               && !Editor_AccountsItem(&g_model->view, EDITOR_ACCOUNTS_SECTION_INV, 3),
         "Remove empties slot 3");
-    /* Another inv, by name: the save gets its section on the first Set. */
+    /* Another inv, by name: the save gets its section on the first Set;
+     * Return in Put here sets the first match (#995 is the id). */
     settle(NULL, 20);
     ToriRSChrome_SetText(&g_chrome, input_inv, "tob_chests");
     activate(button_inv_open);
@@ -652,13 +750,13 @@ test_panel(const char* root)
     CHECK(ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 4 + 3 * 40 + 5, 4 + 36 + 5) == 12
               && ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 4 + 4 * 40 + 5, 4 + 36 + 5) == 0,
         "its grid is its 12 slots");
-    ToriRSChrome_SetText(&g_chrome, input_slot, "2");
-    ToriRSChrome_SetText(&g_chrome, input_obj, "995");
+    press_graph(graph_items, 4 + 2 * 40 + 5, 4 + 5);
+    ToriRSChrome_SetText(&g_chrome, input_put, "#995");
     ToriRSChrome_SetText(&g_chrome, input_count, "50");
     g_want_serial = g_model->view_serial;
-    activate(button_item_set);
+    activate(input_put);
     CHECK(settle(view_moved, 200) && file_has(save, "[container.612]\n2 = 995 50\n") && g_model->view.container_count == 1,
-        "Set writes the inv's section and the view lists the container");
+        "Return puts #995 x50 in slot 2: the inv's section is written and the view lists the container");
     settle(NULL, 5);
     CHECK(g_chrome.widgets[dropdown_container].option_count == 4 && ToriRSChrome_DropdownSelected(&g_chrome, dropdown_container) == 3,
         "the picker keeps it, now one of the save's (%d)", g_chrome.widgets[dropdown_container].option_count);
@@ -681,7 +779,7 @@ test_panel(const char* root)
         g_chrome.widgets[graph_loadout].graph_count);
     ToriRSChrome_PanelSetActiveTab(&g_chrome, panel, 1);
     choose(dropdown_container, 0);
-    ToriRSChrome_SetText(&g_chrome, input_slot, "3");
+    press_graph(graph_items, 8 + 21 + 10, 2 + 82 + 10);
     g_want_serial = g_model->view_serial;
     activate(button_item_remove);
     CHECK(settle(view_moved, 200) && !file_has(save, "[worn]\n3 = 1277 1\n"), "the sword comes off");

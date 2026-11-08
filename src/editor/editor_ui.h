@@ -451,6 +451,11 @@ struct EditorUiAppServices
      *  next frame). Cached by (id, shape); the Catalog asks for the rows on
      *  screen only. NULL member: the rows draw the empty cell. */
     int (*loc_thumbnail)(void* user_data, int loc_id, int shape);
+    /** A record's picture at `px` square (the Gallery's tiles, the
+     *  Catalog's npc rows): a loc's or npc's model rastered with the
+     *  Preview's camera, an obj's inventory icon; a scene sprite id, 0
+     *  while its assets load, -1 for a record with no picture. */
+    int (*record_thumb)(void* user_data, uint32_t kind, int id, int px);
     /** Obj `obj_id`'s inventory icon at stack `count` (the game's 32 x 32:
      *  model, outline, the count variant, a note or a placeholder drawn as
      *  the game draws them) as a scene sprite: its id, 0 while a config or a

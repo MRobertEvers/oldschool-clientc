@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 
 double
@@ -758,6 +759,17 @@ Editor_CatalogChipsRemove(
 
 /** Append `word` to `out` (length `*at`), a space first unless it is the
  *  first. Stops quietly where `out` ends: the input box is the bound. */
+static int
+catalog_all_digits(
+    const char* text,
+    int length)
+{
+    for( int i = 0; i < length; i++ )
+        if( text[i] < '0' || text[i] > '9' )
+            return 0;
+    return length > 0;
+}
+
 static void
 catalog_append_word(
     char* out,
@@ -850,7 +862,15 @@ Editor_CatalogChipsCompose(
         end = p;
         while( *end && *end != ' ' )
             end++;
-        catalog_append_word(out, out_size, &at, p, (int)(end - p));
+        /* `#4151` is the id, whole (the server's id= term). */
+        if( *p == '#' && end - p > 1 && catalog_all_digits(p + 1, (int)(end - p - 1)) )
+        {
+            char word[32];
+            int const length = snprintf(word, sizeof(word), "id=%.*s", (int)(end - p - 1), p + 1);
+            catalog_append_word(out, out_size, &at, word, length);
+        }
+        else
+            catalog_append_word(out, out_size, &at, p, (int)(end - p));
         p = end;
     }
     for( int i = 0; i < chips->count; i++ )
@@ -860,10 +880,89 @@ Editor_CatalogChipsCompose(
         int length;
         /* `shape=` (a class or a number) resolves server-side against the
          * loc's placeable shapes (torirs_maped_catalog.h), so every chip
-         * goes as it reads. */
-        length = snprintf(word, sizeof(word), "%s=%s", chip->key, chip->value);
+         * goes as it reads. The spoken aliases compose to the summary
+         * field: wear=weapon is wearpos=3, cat= is category=, level= is
+         * vislevel=, stack= is stackable=. */
+        if( strcmp(chip->key, "wear") == 0 && Editor_CatalogWearSlot(chip->value) >= 0 )
+            length = snprintf(word, sizeof(word), "wearpos=%d", Editor_CatalogWearSlot(chip->value));
+        else if( strcmp(chip->key, "cat") == 0 )
+            length = snprintf(word, sizeof(word), "category=%s", chip->value);
+        else if( strcmp(chip->key, "level") == 0 )
+            length = snprintf(word, sizeof(word), "vislevel=%s", chip->value);
+        else if( strcmp(chip->key, "stack") == 0 )
+            length = snprintf(word, sizeof(word), "stackable=%s", chip->value);
+        else
+            length = snprintf(word, sizeof(word), "%s=%s", chip->key, chip->value);
         catalog_append_word(out, out_size, &at, word, length);
     }
+}
+
+/* ---- the kind prefix, the wear slots ---- */
+
+/** The worn slots as wornitems.if lays them out: index = wearpos. */
+static const char* const k_wear_names[14] = {
+    "head", "cape", "neck", "weapon", "body", "shield", "", "legs", "", "hands", "feet", "", "ring", "ammo"
+};
+
+const char*
+Editor_CatalogWearName(int wearpos)
+{
+    if( wearpos < 0 || wearpos >= 14 )
+        return "";
+    return k_wear_names[wearpos];
+}
+
+int
+Editor_CatalogWearSlot(const char* name)
+{
+    char* end = NULL;
+    long number;
+
+    assert(name);
+    if( !name[0] )
+        return -1;
+    number = strtol(name, &end, 10);
+    if( end && end != name && *end == '\0' )
+        return number >= 0 && number < 14 ? (int)number : -1;
+    for( int i = 0; i < 14; i++ )
+        if( k_wear_names[i][0] && strcasecmp(k_wear_names[i], name) == 0 )
+            return i;
+    return -1;
+}
+
+int
+Editor_CatalogTakeKindPrefix(
+    const char* text,
+    uint32_t* out_kind,
+    char* out_rest,
+    int out_size)
+{
+    const char* colon;
+    size_t length;
+
+    assert(text);
+    assert(out_kind);
+    assert(out_rest);
+    assert(out_size > 0);
+    while( *text == ' ' )
+        text++;
+    colon = strchr(text, ':');
+    if( !colon || colon == text )
+        return 0;
+    length = (size_t)(colon - text);
+    for( int i = 0; i < CATALOG_MODEL_KINDS; i++ )
+    {
+        const char* name = k_kinds[i] == TORIRSMAPED_CATALOG_ANY ? "all" : ToriRSMapEdCatalog_KindName(k_kinds[i]);
+        if( strlen(name) != length || strncasecmp(name, text, length) != 0 )
+            continue;
+        colon++;
+        while( *colon == ' ' )
+            colon++;
+        *out_kind = k_kinds[i];
+        snprintf(out_rest, (size_t)out_size, "%s", colon);
+        return 1;
+    }
+    return 0;
 }
 
 void
@@ -879,6 +978,14 @@ Editor_CatalogChipLabel(
         snprintf(out, (size_t)out_size, "has dialogue");
     else if( strcmp(chip->key, "spawn") == 0 && strcmp(chip->value, "yes") == 0 )
         snprintf(out, (size_t)out_size, "has spawn");
+    else if( (strcmp(chip->key, "stackable") == 0 || strcmp(chip->key, "stack") == 0) && strcmp(chip->value, "yes") == 0 )
+        snprintf(out, (size_t)out_size, "stackable");
+    else if( strcmp(chip->key, "tradeable") == 0 && strcmp(chip->value, "yes") == 0 )
+        snprintf(out, (size_t)out_size, "tradeable");
+    else if( strcmp(chip->key, "members") == 0 && strcmp(chip->value, "yes") == 0 )
+        snprintf(out, (size_t)out_size, "members");
+    else if( strcmp(chip->key, "wearpos") == 0 && Editor_CatalogWearName(Editor_CatalogWearSlot(chip->value))[0] )
+        snprintf(out, (size_t)out_size, "wear: %s", Editor_CatalogWearName(Editor_CatalogWearSlot(chip->value)));
     else if( strcmp(chip->value, "*") == 0 )
         snprintf(out, (size_t)out_size, "%s: any", chip->key);
     else
@@ -941,6 +1048,124 @@ static const struct catalog_filter_item k_filter_items[] = {
 #define CATALOG_FILTER_ITEMS ((int)(sizeof(k_filter_items) / sizeof(k_filter_items[0])))
 
 static const char* g_filter_labels[CATALOG_FILTER_ITEMS];
+
+static const struct catalog_filter_item k_obj_filter_items[] = {
+    { "+ filter", NULL, NULL },
+    { "wear: head", "wear", "head" },
+    { "wear: cape", "wear", "cape" },
+    { "wear: neck", "wear", "neck" },
+    { "wear: weapon", "wear", "weapon" },
+    { "wear: body", "wear", "body" },
+    { "wear: shield", "wear", "shield" },
+    { "wear: legs", "wear", "legs" },
+    { "wear: hands", "wear", "hands" },
+    { "wear: feet", "wear", "feet" },
+    { "wear: ring", "wear", "ring" },
+    { "wear: ammo", "wear", "ammo" },
+    { "stackable", "stackable", "yes" },
+    { "tradeable", "tradeable", "yes" },
+    { "members", "members", "yes" },
+    { "category=... (type it)", "category", NULL },
+    { "op=... (type it)", "op", NULL },
+};
+#define CATALOG_OBJ_FILTER_ITEMS ((int)(sizeof(k_obj_filter_items) / sizeof(k_obj_filter_items[0])))
+static const char* g_obj_filter_labels[CATALOG_OBJ_FILTER_ITEMS];
+
+static const struct catalog_filter_item k_npc_filter_items[] = {
+    { "+ filter", NULL, NULL },
+    { "level=... (type it)", "level", NULL },
+    { "size: 1", "size", "1" },
+    { "size: 2", "size", "2" },
+    { "size: 3", "size", "3" },
+    { "has dialogue", "dialogue", "yes" },
+    { "has spawn", "spawn", "yes" },
+    { "category=... (type it)", "category", NULL },
+    { "op=... (type it)", "op", NULL },
+};
+#define CATALOG_NPC_FILTER_ITEMS ((int)(sizeof(k_npc_filter_items) / sizeof(k_npc_filter_items[0])))
+static const char* g_npc_filter_labels[CATALOG_NPC_FILTER_ITEMS];
+
+static const struct catalog_filter_item k_other_filter_items[] = {
+    { "+ filter", NULL, NULL },
+    { "category=... (type it)", "category", NULL },
+};
+#define CATALOG_OTHER_FILTER_ITEMS ((int)(sizeof(k_other_filter_items) / sizeof(k_other_filter_items[0])))
+static const char* g_other_filter_labels[CATALOG_OTHER_FILTER_ITEMS];
+
+/** The menu table of `kind`, its size, and the label array it fills. */
+static const struct catalog_filter_item*
+catalog_filter_table(
+    uint32_t kind,
+    int* out_count,
+    const char*** out_labels)
+{
+    if( kind == TORIRSMAPED_CATALOG_LOC || kind == TORIRSMAPED_CATALOG_ANY )
+    {
+        *out_count = CATALOG_FILTER_ITEMS;
+        *out_labels = g_filter_labels;
+        return k_filter_items;
+    }
+    if( kind == TORIRSMAPED_CATALOG_OBJ )
+    {
+        *out_count = CATALOG_OBJ_FILTER_ITEMS;
+        *out_labels = g_obj_filter_labels;
+        return k_obj_filter_items;
+    }
+    if( kind == TORIRSMAPED_CATALOG_NPC )
+    {
+        *out_count = CATALOG_NPC_FILTER_ITEMS;
+        *out_labels = g_npc_filter_labels;
+        return k_npc_filter_items;
+    }
+    *out_count = CATALOG_OTHER_FILTER_ITEMS;
+    *out_labels = g_other_filter_labels;
+    return k_other_filter_items;
+}
+
+int
+Editor_CatalogFilterMenuCountFor(uint32_t kind)
+{
+    int count;
+    const char** labels;
+    (void)catalog_filter_table(kind, &count, &labels);
+    return count;
+}
+
+const char* const*
+Editor_CatalogFilterMenuLabelsFor(uint32_t kind)
+{
+    int count;
+    const char** labels;
+    const struct catalog_filter_item* items = catalog_filter_table(kind, &count, &labels);
+    if( !labels[0] )
+        for( int i = 0; i < count; i++ )
+            labels[i] = items[i].label;
+    return labels;
+}
+
+int
+Editor_CatalogFilterMenuItemFor(
+    uint32_t kind,
+    int index,
+    char out_key[EDITOR_CATALOG_CHIP_KEY_MAX],
+    char out_value[EDITOR_CATALOG_CHIP_VALUE_MAX])
+{
+    int count;
+    const char** labels;
+    const struct catalog_filter_item* items = catalog_filter_table(kind, &count, &labels);
+
+    assert(out_key);
+    assert(out_value);
+    out_key[0] = '\0';
+    out_value[0] = '\0';
+    if( index < 0 || index >= count || !items[index].key )
+        return 0;
+    snprintf(out_key, EDITOR_CATALOG_CHIP_KEY_MAX, "%s", items[index].key);
+    if( !items[index].value )
+        return 2;
+    snprintf(out_value, EDITOR_CATALOG_CHIP_VALUE_MAX, "%s", items[index].value);
+    return 1;
+}
 
 int
 Editor_CatalogFilterMenuCount(void)
@@ -1117,6 +1342,9 @@ catalog_view_of_row(
     out->display = row->display ? row->display : "";
     out->category = category ? category : "";
     out->shape_mask = Editor_CatalogRowShapeMask(row);
+    out->wearpos = -1;
+    out->level = -1;
+    out->npc_size = 1;
     if( row->kind == TORIRSMAPED_CATALOG_LOC )
     {
         const char* layer = Editor_CatalogRowField(row, "layer");
@@ -1125,6 +1353,23 @@ catalog_view_of_row(
     }
     else
         out->layer = "";
+    if( row->kind == TORIRSMAPED_CATALOG_OBJ )
+    {
+        const char* wearpos = Editor_CatalogRowField(row, "wearpos");
+        const char* stackable = Editor_CatalogRowField(row, "stackable");
+        if( wearpos )
+            out->wearpos = Editor_CatalogWearSlot(wearpos);
+        out->stackable = stackable && strcmp(stackable, "yes") == 0;
+    }
+    if( row->kind == TORIRSMAPED_CATALOG_NPC )
+    {
+        const char* level = Editor_CatalogRowField(row, "vislevel");
+        const char* size = Editor_CatalogRowField(row, "size");
+        if( level && level[0] >= '0' && level[0] <= '9' )
+            out->level = atoi(level);
+        if( size && size[0] >= '1' && size[0] <= '9' )
+            out->npc_size = atoi(size);
+    }
     out->shape = -1;
 }
 
@@ -1145,6 +1390,9 @@ catalog_view_of_local(
     out->size_l = row->size_l;
     out->shape = row->shape;
     out->rotation = row->rotation;
+    out->wearpos = -1;
+    out->level = -1;
+    out->npc_size = 1;
 }
 
 /** Server row `row` (absolute, the server's order) of the held question. */
@@ -1908,7 +2156,7 @@ Editor_CatalogCellsText(
 {
     int shapes[EDITOR_LOC_SHAPE_COUNT];
     int const shape_count = Editor_LocShapeList(view->shape_mask, shapes);
-    char keys[EDITOR_LOC_SHAPE_COUNT * 3 + 1];
+    char keys[EDITOR_LOC_SHAPE_COUNT * 3 + 24];
     int at = 0;
     char sprite[16] = "";
     char id[16];
@@ -1926,6 +2174,22 @@ Editor_CatalogCellsText(
             at += snprintf(keys + at, sizeof(keys) - (size_t)at, " +%d", shape_count - i);
         else
             at += snprintf(keys + at, sizeof(keys) - (size_t)at, "%s%d", at ? " " : "", shapes[i]);
+    }
+    /* An obj's caps are its wear slot and "stack" (each a chip to narrow
+     * by, Editor_CatalogViewKeyChip); an npc's its level and footprint. */
+    if( view->kind == TORIRSMAPED_CATALOG_OBJ )
+    {
+        if( view->wearpos >= 0 && Editor_CatalogWearName(view->wearpos)[0] )
+            at += snprintf(keys + at, sizeof(keys) - (size_t)at, "%s", Editor_CatalogWearName(view->wearpos));
+        if( view->stackable )
+            at += snprintf(keys + at, sizeof(keys) - (size_t)at, "%sstack", at ? " " : "");
+    }
+    else if( view->kind == TORIRSMAPED_CATALOG_NPC )
+    {
+        if( view->level > 0 )
+            at += snprintf(keys + at, sizeof(keys) - (size_t)at, "lvl %d", view->level);
+        if( view->npc_size > 1 )
+            at += snprintf(keys + at, sizeof(keys) - (size_t)at, "%s%dx%d", at ? " " : "", view->npc_size, view->npc_size);
     }
     if( sprite_id > 0 )
         snprintf(sprite, sizeof(sprite), "%d", sprite_id);
@@ -1945,6 +2209,49 @@ const char*
 Editor_CatalogCellsHeader(void)
 {
     return "\x1f" "name" "\x1f" "\x1f" "shapes" "\x1f" "id";
+}
+
+const char*
+Editor_CatalogCellsHeaderFor(uint32_t kind)
+{
+    if( kind == TORIRSMAPED_CATALOG_OBJ )
+        return "\x1f" "name" "\x1f" "\x1f" "wear" "\x1f" "id";
+    if( kind == TORIRSMAPED_CATALOG_NPC )
+        return "\x1f" "name" "\x1f" "\x1f" "level" "\x1f" "id";
+    if( kind == TORIRSMAPED_CATALOG_LOC || kind == TORIRSMAPED_CATALOG_ANY )
+        return Editor_CatalogCellsHeader();
+    return "\x1f" "name" "\x1f" "\x1f" "\x1f" "id";
+}
+
+int
+Editor_CatalogViewKeyChip(
+    const struct Editor_CatalogView* view,
+    int cell,
+    char out_key[EDITOR_CATALOG_CHIP_KEY_MAX],
+    char out_value[EDITOR_CATALOG_CHIP_VALUE_MAX])
+{
+    int at = 0;
+
+    assert(view);
+    assert(out_key);
+    assert(out_value);
+    out_key[0] = '\0';
+    out_value[0] = '\0';
+    if( view->kind != TORIRSMAPED_CATALOG_OBJ || cell <= 0 )
+        return 0;
+    if( view->wearpos >= 0 && Editor_CatalogWearName(view->wearpos)[0] && ++at == cell )
+    {
+        snprintf(out_key, EDITOR_CATALOG_CHIP_KEY_MAX, "wear");
+        snprintf(out_value, EDITOR_CATALOG_CHIP_VALUE_MAX, "%s", Editor_CatalogWearName(view->wearpos));
+        return 1;
+    }
+    if( view->stackable && ++at == cell )
+    {
+        snprintf(out_key, EDITOR_CATALOG_CHIP_KEY_MAX, "stackable");
+        snprintf(out_value, EDITOR_CATALOG_CHIP_VALUE_MAX, "yes");
+        return 1;
+    }
+    return 0;
 }
 
 int

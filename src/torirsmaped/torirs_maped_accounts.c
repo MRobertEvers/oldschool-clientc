@@ -1495,32 +1495,188 @@ acct_var_find(
     return 0;
 }
 
-/** An obj by id or exact name; the name is filled when the catalog knows it. */
+/** The worn slot's name, as wornitems.if lays it out (-1 unknown). */
+static const char*
+acct_worn_slot_name(int slot)
+{
+    static const char* const names[TORIRSMAPED_ACCT_WORN_SLOTS] = {
+        "head", "cape", "neck", "weapon", "body", "shield", "slot 6", "legs", "slot 8", "hands", "feet", "slot 11", "ring", "ammo"
+    };
+    if( slot < 0 || slot >= TORIRSMAPED_ACCT_WORN_SLOTS )
+        return "slot";
+    return names[slot];
+}
+
+/** The catalog's record of obj `id`, or -1 (none, or not built yet). */
 static int
+acct_obj_record(
+    struct ToriRSMapEd* maped,
+    int id,
+    char* out_name,
+    size_t name_size)
+{
+    struct ToriRSMapEdCatalogEntry entry;
+    char text[16];
+    int record;
+
+    out_name[0] = '\0';
+    snprintf(text, sizeof(text), "%d", id);
+    record = acct_catalog_find(maped, TORIRSMAPED_CATALOG_OBJ, text, &entry);
+    if( record >= 0 )
+        snprintf(out_name, name_size, "%s", entry.name);
+    return record;
+}
+
+/** The obj's primary wear position (its `wearpos` summary field), -1 when
+ *  it has none ("default", absent, or no record). */
+static int
+acct_obj_wearpos(
+    struct ToriRSMapEd* maped,
+    int record)
+{
+    char text[32];
+    char* end = NULL;
+    long value;
+
+    if( record < 0 || !maped->catalog || !ToriRSMapEdCatalog_Field(maped->catalog, record, "wearpos", text, sizeof(text)) )
+        return -1;
+    value = strtol(text, &end, 10);
+    if( !end || end == text || *end != '\0' || value < 0 || value >= TORIRSMAPED_ACCT_WORN_SLOTS )
+        return -1;
+    return (int)value;
+}
+
+/** `<obj> [count]`: the obj text is everything but a trailing whole number,
+ *  so a display name with spaces ("Bronze med helm", "Bronze med helm 1")
+ *  reaches the resolver whole. 0 for an empty value. */
+static int
+acct_item_value(
+    const char* value,
+    char* obj_text,
+    size_t obj_size,
+    int* out_count)
+{
+    const char* end = value + strlen(value);
+    const char* last;
+    char* stop = NULL;
+    long count;
+
+    while( *value == ' ' )
+        value++;
+    while( end > value && end[-1] == ' ' )
+        end--;
+    if( end == value )
+        return 0;
+    *out_count = 1;
+    last = end;
+    while( last > value && last[-1] != ' ' )
+        last--;
+    count = strtol(last, &stop, 10);
+    if( last > value && stop == end && count >= 0 )
+    {
+        if( count >= 1 )
+            *out_count = (int)count;
+        end = last;
+        while( end > value && end[-1] == ' ' )
+            end--;
+    }
+    snprintf(obj_text, obj_size, "%.*s", (int)(end - value), value);
+    return 1;
+}
+
+enum acct_obj_found
+{
+    ACCT_OBJ_NONE = 0,
+    ACCT_OBJ_OK = 1,
+    /** A display name several objs share: `why` lists them. */
+    ACCT_OBJ_AMBIGUOUS = 2,
+};
+
+/**
+ * An obj by `#<id>` (an id and nothing else), by a bare number (an id), by
+ * its exact pack name, or by a display name exactly one obj carries. The
+ * catalog fills the name and the record when it knows the obj (-1 otherwise:
+ * an id works before the index is built). Several objs sharing a display
+ * name is ACCT_OBJ_AMBIGUOUS with the candidates in `why` -- the panel and
+ * the ctl must say which, by pack name or #id.
+ */
+static enum acct_obj_found
 acct_obj_find(
     struct ToriRSMapEd* maped,
     const char* text,
     int* out_id,
     char* out_name,
-    size_t name_size)
+    size_t name_size,
+    int* out_record,
+    char* why,
+    size_t why_size)
 {
-    struct ToriRSMapEdCatalogEntry entry;
+    int records[16];
+    int total;
+    int display_hits = 0;
+    int display_id = -1;
+    int display_record = -1;
+    char display_name[96] = "";
     char* end = NULL;
-    long numeric = strtol(text, &end, 10);
+    const char* digits = text[0] == '#' ? text + 1 : text;
+    long numeric = strtol(digits, &end, 10);
 
     out_name[0] = '\0';
-    if( acct_catalog_find(maped, TORIRSMAPED_CATALOG_OBJ, text, &entry) >= 0 )
-    {
-        *out_id = entry.id;
-        snprintf(out_name, name_size, "%s", entry.name);
-        return 1;
-    }
-    if( end && end != text && *end == '\0' && numeric >= 0 )
+    *out_record = -1;
+    why[0] = '\0';
+    if( end && end != digits && *end == '\0' && numeric >= 0 )
     {
         *out_id = (int)numeric;
-        return 1;
+        *out_record = acct_obj_record(maped, (int)numeric, out_name, name_size);
+        return ACCT_OBJ_OK;
     }
-    return 0;
+    if( text[0] == '#' )
+        return ACCT_OBJ_NONE;
+    if( !maped->catalog || !ToriRSMapEdCatalog_Built(maped->catalog) )
+        return ACCT_OBJ_NONE;
+    total = ToriRSMapEdCatalog_Query(maped->catalog, TORIRSMAPED_CATALOG_OBJ, text, TORIRSMAPED_CATALOG_EXACT, records, 16);
+    for( int i = 0; i < total && i < 16; i++ )
+    {
+        struct ToriRSMapEdCatalogEntry entry;
+        ToriRSMapEdCatalog_Entry(maped->catalog, records[i], &entry);
+        if( entry.kind != TORIRSMAPED_CATALOG_OBJ || entry.id < 0 )
+            continue;
+        if( strcasecmp(entry.name, text) == 0 )
+        {
+            *out_id = entry.id;
+            *out_record = records[i];
+            snprintf(out_name, name_size, "%s", entry.name);
+            return ACCT_OBJ_OK;
+        }
+        if( strcasecmp(entry.display, text) == 0 )
+        {
+            size_t at = strlen(why);
+            if( display_hits == 0 )
+            {
+                display_id = entry.id;
+                display_record = records[i];
+                snprintf(display_name, sizeof(display_name), "%s", entry.name);
+            }
+            display_hits++;
+            snprintf(why + at, why_size > at ? why_size - at : 0, "%s%s (%d)", at ? ", " : "", entry.name, (int)entry.id);
+        }
+    }
+    if( display_hits == 1 )
+    {
+        *out_id = display_id;
+        *out_record = display_record;
+        snprintf(out_name, name_size, "%s", display_name);
+        why[0] = '\0';
+        return ACCT_OBJ_OK;
+    }
+    if( display_hits > 1 )
+    {
+        char list[512];
+        snprintf(list, sizeof(list), "%s", why);
+        snprintf(why, why_size, "'%s' names %d objs: %s; use the pack name or #<id>", text, display_hits, list);
+        return ACCT_OBJ_AMBIGUOUS;
+    }
+    return ACCT_OBJ_NONE;
 }
 
 /* ---- the quest index -------------------------------------------------------------- */
@@ -1788,6 +1944,8 @@ acct_send_or_broadcast(
         jobs_broadcast(maped, type, payload);
 }
 
+struct acct_edit;
+
 static void
 acct_status(
     struct ToriRSMapEd* maped,
@@ -1802,6 +1960,34 @@ acct_status(
 #endif
     ;
 
+/** FACT_ACCOUNT_STATUS: the message, then the item an item edit resolved
+ *  to (obj -1 = none: 0xFFFFFFFF on the wire), so a panel can check the view
+ *  it gets next against what was asked. */
+static void
+acct_status_send(
+    struct ToriRSMapEd* maped,
+    struct ToriRSMapEdSession* session,
+    uint32_t request,
+    enum EditorHost_Status status,
+    const char* account,
+    int obj,
+    int count,
+    const char* message)
+{
+    struct ToriRSMapEdBuf payload;
+
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_PutU32(&payload, request);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)status);
+    ToriRSMapEd_PutString(&payload, account);
+    ToriRSMapEd_PutString(&payload, message);
+    ToriRSMapEd_PutU32(&payload, obj < 0 ? 0xFFFFFFFFu : (uint32_t)obj);
+    ToriRSMapEd_PutU32(&payload, obj < 0 ? 0u : (uint32_t)count);
+    acct_send_or_broadcast(maped, session, TORIRSMAPED_FACT_ACCOUNT_STATUS, &payload);
+    ToriRSMapEd_BufFree(&payload);
+    TORIRS_LOG("torirsmaped: accounts: %s%s%s\n", account[0] ? account : "", account[0] ? ": " : "", message);
+}
+
 static void
 acct_status(
     struct ToriRSMapEd* maped,
@@ -1812,22 +1998,31 @@ acct_status(
     const char* format,
     ...)
 {
-    struct ToriRSMapEdBuf payload;
     char message[1024];
     va_list args;
 
     va_start(args, format);
     vsnprintf(message, sizeof(message), format, args);
     va_end(args);
-    memset(&payload, 0, sizeof(payload));
-    ToriRSMapEd_PutU32(&payload, request);
-    ToriRSMapEd_PutU32(&payload, (uint32_t)status);
-    ToriRSMapEd_PutString(&payload, account);
-    ToriRSMapEd_PutString(&payload, message);
-    acct_send_or_broadcast(maped, session, TORIRSMAPED_FACT_ACCOUNT_STATUS, &payload);
-    ToriRSMapEd_BufFree(&payload);
-    TORIRS_LOG("torirsmaped: accounts: %s%s%s\n", account[0] ? account : "", account[0] ? ": " : "", message);
+    acct_status_send(maped, session, request, status, account, -1, 0, message);
 }
+
+/** acct_status for a SET: the edit's resolved item rides along. */
+static void
+acct_status_edit(
+    struct ToriRSMapEd* maped,
+    struct ToriRSMapEdSession* session,
+    uint32_t request,
+    enum EditorHost_Status status,
+    const char* account,
+    const struct acct_edit* edit,
+    const char* format,
+    ...)
+#if defined(__GNUC__) || defined(__clang__)
+    __attribute__((format(printf, 7, 8)))
+#endif
+    ;
+
 
 /** The save files under `<live>/saves`, sorted, as file names. */
 static int
@@ -2719,8 +2914,12 @@ struct acct_edit
     int cheat_count;
     int queue_only;
     int save_changed;
+    /** An item edit's resolution (FACT_ACCOUNT_STATUS carries it so the
+     *  panel can check the view against it): obj -1 for any other edit. */
+    int obj;
+    int count;
     char what[256];
-    char why[256];
+    char why[512];
 };
 
 static void
@@ -2770,6 +2969,26 @@ acct_edit_refuse(
     vsnprintf(edit->why, sizeof(edit->why), format, args);
     va_end(args);
     return 0;
+}
+
+static void
+acct_status_edit(
+    struct ToriRSMapEd* maped,
+    struct ToriRSMapEdSession* session,
+    uint32_t request,
+    enum EditorHost_Status status,
+    const char* account,
+    const struct acct_edit* edit,
+    const char* format,
+    ...)
+{
+    char message[1024];
+    va_list args;
+
+    va_start(args, format);
+    vsnprintf(message, sizeof(message), format, args);
+    va_end(args);
+    acct_status_send(maped, session, request, status, account, edit->obj, edit->count, message);
 }
 
 /** Up to three space-separated integers out of `value`; the count. */
@@ -3065,20 +3284,41 @@ acct_edit_items(
     {
         char obj_text[96] = "";
         int count = 1;
-        char rest[8] = "";
         int obj;
         char obj_name[96];
-        int n = sscanf(value, "%95s %d %7s", obj_text, &count, rest);
-        if( n < 1 || rest[0] )
-            return acct_edit_refuse(edit, "%s.<slot> takes <obj id|name> [count] or - (got '%s')", section, value);
-        if( count < 1 )
-            count = 1;
-        if( !acct_obj_find(state->maped, obj_text, &obj, obj_name, sizeof(obj_name)) )
+        if( !acct_item_value(value, obj_text, sizeof(obj_text), &count) )
+            return acct_edit_refuse(edit, "%s.<slot> takes <obj id|#id|name> [count] or - (got '%s')", section, value);
         {
-            if( state->maped->catalog && !ToriRSMapEdCatalog_Built(state->maped->catalog) )
-                return acct_edit_refuse(edit, "the catalog is still indexing: name '%s' cannot be resolved yet (an id works)", obj_text);
-            return acct_edit_refuse(edit, "no obj is named '%s'", obj_text);
+            int record = -1;
+            char why[512];
+            enum acct_obj_found found =
+                acct_obj_find(state->maped, obj_text, &obj, obj_name, sizeof(obj_name), &record, why, sizeof(why));
+            if( found == ACCT_OBJ_AMBIGUOUS )
+                return acct_edit_refuse(edit, "%s", why);
+            if( found == ACCT_OBJ_NONE )
+            {
+                if( obj_text[0] == '#' )
+                    return acct_edit_refuse(edit, "#<id> takes a number (got '%s')", obj_text);
+                if( state->maped->catalog && !ToriRSMapEdCatalog_Built(state->maped->catalog) )
+                    return acct_edit_refuse(edit, "the catalog is still indexing: name '%s' cannot be resolved yet (an id works)", obj_text);
+                return acct_edit_refuse(edit, "no obj is named '%s'", obj_text);
+            }
+            /* A worn slot takes only what the game wears there: the obj's
+             * primary wear position is the slot (wearpos2 / wearpos3 are
+             * positions it covers, not slots). Unknown to the catalog (an
+             * id before the index is built) passes. */
+            if( strcmp(section, "worn") == 0 && record >= 0 )
+            {
+                int const wearpos = acct_obj_wearpos(state->maped, record);
+                if( wearpos < 0 )
+                    return acct_edit_refuse(edit, "%s (%d) has no wear position: it cannot be worn", obj_name, obj);
+                if( wearpos != (int)slot )
+                    return acct_edit_refuse(edit, "%s (%d) is worn in slot %d (%s), not %ld (%s)", obj_name, obj, wearpos,
+                        acct_worn_slot_name(wearpos), slot, acct_worn_slot_name((int)slot));
+            }
         }
+        edit->obj = obj;
+        edit->count = count;
         snprintf(edit->what, sizeof(edit->what), "%s slot %ld = %s%s%d x%d", section, slot, obj_name, obj_name[0] ? " " : "",
             obj, count);
         if( online )
@@ -3268,18 +3508,24 @@ acct_edit_container(
         }
         {
             char obj_text[96] = "";
-            char rest[8] = "";
             char obj_name[96];
             char text[48];
             int count = 1;
             int obj;
-            int n = sscanf(value, "%95s %d %7s", obj_text, &count, rest);
-            if( n < 1 || rest[0] )
-                return acct_edit_refuse(edit, "container.<inv>.<slot> takes <obj id|name> [count] or - (got '%s')", value);
-            if( count < 1 )
-                count = 1;
-            if( !acct_obj_find(state->maped, obj_text, &obj, obj_name, sizeof(obj_name)) )
-                return acct_edit_refuse(edit, "no obj is named '%s'", obj_text);
+            if( !acct_item_value(value, obj_text, sizeof(obj_text), &count) )
+                return acct_edit_refuse(edit, "container.<inv>.<slot> takes <obj id|#id|name> [count] or - (got '%s')", value);
+            {
+                int record = -1;
+                char why[512];
+                enum acct_obj_found found =
+                    acct_obj_find(state->maped, obj_text, &obj, obj_name, sizeof(obj_name), &record, why, sizeof(why));
+                if( found == ACCT_OBJ_AMBIGUOUS )
+                    return acct_edit_refuse(edit, "%s", why);
+                if( found == ACCT_OBJ_NONE )
+                    return acct_edit_refuse(edit, "no obj is named '%s'", obj_text);
+            }
+            edit->obj = obj;
+            edit->count = count;
             snprintf(text, sizeof(text), "%d %d", obj, count);
             edit->save_changed |= ToriRSMapEd_AcctSaveSet(&values->save, section, key, text);
             snprintf(edit->what, sizeof(edit->what), "%s slot %ld = %s%s%d x%d", inv ? inv->name : section, slot, obj_name,
@@ -3580,6 +3826,7 @@ acct_handle_set(
     }
     memset(&edit, 0, sizeof(edit));
     edit.cheats = cheats;
+    edit.obj = -1;
     if( !acct_edit_resolve(state, &edit, &values, online, key, value) )
     {
         ToriRSMapEd_AcctSaveFree(&values.save);
@@ -3602,10 +3849,10 @@ acct_handle_set(
         if( edit.cheat_count == 0 )
             acct_status(maped, session, request, EDITOR_HOST_OK, file, "online: asked %s for a checkpoint", row->account);
         else if( edit.cheat_count == 1 )
-            acct_status(maped, session, request, EDITOR_HOST_OK, file, "online: ::%s for %s (%s)", edit.cheats[0],
+            acct_status_edit(maped, session, request, EDITOR_HOST_OK, file, &edit, "online: ::%s for %s (%s)", edit.cheats[0],
                 row->account, edit.what);
         else
-            acct_status(maped, session, request, EDITOR_HOST_OK, file, "online: ::%s and %d more for %s (%s)",
+            acct_status_edit(maped, session, request, EDITOR_HOST_OK, file, &edit, "online: ::%s and %d more for %s (%s)",
                 edit.cheats[0], edit.cheat_count - 1, row->account, edit.what);
     }
     else if( edit.queue_only )
@@ -3632,7 +3879,7 @@ acct_handle_set(
             acct_status(maped, session, request, EDITOR_HOST_IO_ERROR, file, "cannot write %s: %s", path, strerror(errno));
             return;
         }
-        acct_status(maped, session, request, EDITOR_HOST_OK, file, "offline: %s saves/%s.ini (%s%s)",
+        acct_status_edit(maped, session, request, EDITOR_HOST_OK, file, &edit, "offline: %s saves/%s.ini (%s%s)",
             edit.save_changed ? "wrote" : "no change to", file, edit.what,
             seeded ? "; the play account's first save, from the lane's fixture" : "");
     }

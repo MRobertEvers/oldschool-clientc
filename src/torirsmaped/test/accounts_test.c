@@ -440,6 +440,9 @@ struct status_fact
     uint32_t status;
     char account[64];
     char message[1024];
+    /** The item a SET resolved to; -1 none. */
+    int obj;
+    int count;
 };
 
 /** The first FACT_ACCOUNT_STATUS for `request` after the mark; -1 on timeout. */
@@ -461,6 +464,18 @@ wait_status(struct conn* conn, uint32_t request, struct status_fact* out, int ti
             out->status = ToriRSMapEd_GetU32(&reader);
             ToriRSMapEd_GetString(&reader, out->account, sizeof(out->account));
             ToriRSMapEd_GetString(&reader, out->message, sizeof(out->message));
+            out->obj = -1;
+            out->count = 0;
+            if( !reader.bad && reader.at < reader.length )
+            {
+                uint32_t const obj = ToriRSMapEd_GetU32(&reader);
+                uint32_t const count = ToriRSMapEd_GetU32(&reader);
+                if( obj != 0xFFFFFFFFu )
+                {
+                    out->obj = (int)obj;
+                    out->count = (int)count;
+                }
+            }
             if( out->request == request )
                 return at;
             from = at + 1;
@@ -891,9 +906,11 @@ write_content(const char* content)
     snprintf(path, sizeof(path), "%s/configs/all.varbit.compack", content);
     write_text(path, "5078=varb5078_arceuus_soulbearer_story\n");
     snprintf(path, sizeof(path), "%s/configs/all.obj", content);
-    write_text(path, "[coins]\nname=Coins\nstackable=yes\n\n[bronze_sword]\nname=Bronze sword\n");
+    write_text(path, "[coins]\nname=Coins\nstackable=yes\n\n[bronze_sword]\nname=Bronze sword\nwearpos=3\n\n"
+                     "[bronze_med_helm]\nname=Bronze med helm\nwearpos=0\n\n[br_bronze_sword]\nname=Bronze sword\nwearpos=3\n\n"
+                     "[cert_bronze_sword]\nname=Bronze sword\ncertlink=bronze_sword\n");
     snprintf(path, sizeof(path), "%s/configs/all.obj.compack", content);
-    write_text(path, "995=coins\n1277=bronze_sword\n");
+    write_text(path, "995=coins\n1277=bronze_sword\n1139=bronze_med_helm\n20407=br_bronze_sword\n1278=cert_bronze_sword\n");
     snprintf(path, sizeof(path), "%s/configs/all.dbrow", content);
     write_text(path, "[quest_cooksassistant]\ntable=quest\ndata=id,1\ndata=displayname,Cook's Assistant\n\n"
                      "[miniquest_bearyoursoul]\ntable=quest\ndata=displayname,Bear Your Soul\n\n"
@@ -1117,6 +1134,26 @@ test_server(const char* scratch, const char* peer_script, const char* repo_root)
         "set: inv.3 coins 100 by catalog name");
     check(set_ok(&a, "tester_one", "worn.3", "1277", &status) && file_has(path, "[worn]\n3 = 1277 1\n"),
         "set: worn.3 by id, count 1");
+    check(status.obj == 1277 && status.count == 1, "set: the status fact carries the resolved item");
+    check(set_ok(&a, "tester_one", "worn.3", "#1277 1", &status) && status.obj == 1277, "set: #<id> is an id");
+    check(!set_ok(&a, "tester_one", "worn.3", "#bronze_sword", &status) && strstr(status.message, "#<id> takes a number"),
+        "set: #<name> is refused, not resolved");
+    check(set_ok(&a, "tester_one", "worn.3", "bronze_sword", &status) && status.obj == 1277, "set: the exact pack name");
+    check(!set_ok(&a, "tester_one", "worn.3", "Bronze sword", &status) && strstr(status.message, "names 3 objs")
+              && strstr(status.message, "bronze_sword (1277)") && strstr(status.message, "br_bronze_sword (20407)"),
+        "set: a display name three objs share is refused with the candidates");
+    check(set_ok(&a, "tester_one", "worn.0", "Bronze med helm", &status) && status.obj == 1139
+              && file_has(path, "0 = 1139 1\n"),
+        "set: a display name one obj carries resolves");
+    check(!set_ok(&a, "tester_one", "worn.0", "bronze_sword", &status) && strstr(status.message, "slot 3 (weapon), not 0 (head)"),
+        "set: worn.0 refuses a weapon");
+    check(!set_ok(&a, "tester_one", "worn.3", "coins", &status) && strstr(status.message, "no wear position"),
+        "set: worn.3 refuses an obj with no wearpos");
+    check(set_ok(&a, "tester_one", "inv.4", "cert_bronze_sword 2", &status) && status.obj == 1278 && status.count == 2,
+        "set: the backpack takes any obj, and the count rides in the status");
+    check(status.obj == 1278 && set_ok(&a, "tester_one", "player.x", "3222", &status) && status.obj == -1,
+        "set: a non-item edit's status carries no item");
+    check(set_ok(&a, "tester_one", "worn.0", "-", &status) && !file_has(path, "0 = 1139 1\n"), "set: worn.0 - takes the helm off");
     check(set_ok(&a, "tester_one", "bank.5", "995 10000", &status) && file_has(path, "[bank]\n5 = 995 10000\n"),
         "set: bank.5");
     check(set_ok(&a, "tester_one", "inv.3", "-", &status) && !file_has(path, "3 = 995 100\n"), "set: inv.3 - removes the slot");

@@ -193,6 +193,10 @@ struct Editor_AccountsModel
     uint32_t last_status;
     char last_account[64];
     char last_message[1024];
+    /** The item a SET resolved to (obj -1 for any other status, and for a
+     *  server older than the field). */
+    int32_t last_obj;
+    int32_t last_count;
     int status_serial;
     char log[EDITOR_ACCOUNTS_LOG_LINES][EDITOR_ACCOUNTS_LOG_LINE_MAX];
     int log_head;

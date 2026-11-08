@@ -12,7 +12,7 @@
 MAPED_CLIENT_SRCS += editor/editor_palette.c
 MAPED_SERVER_SRCS += editor/editor_palette.c
 # The Catalog palette panel and the App's thumbnails of its slots.
-MAPED_CLIENT_SRCS += editor/panels/edpanel_catalog_palette.c app/app_catalog_palette.c
+MAPED_CLIENT_SRCS += editor/panels/edpanel_catalog_palette.c app/app_catalog_palette.c app/app_record_thumbs.c
 
 # ...and the tests that list their sources by hand (areas.mk's list).
 test-editor-cmd test-editor-save test-torirsmaped-embed test-editor-cfg test-editor-alloc \

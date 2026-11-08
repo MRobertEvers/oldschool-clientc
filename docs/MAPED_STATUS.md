@@ -6068,6 +6068,104 @@ Open:
   out of reach until the map is moved. Its placement is `squares_size_map`
   (899aee439), not this change.
 
+## Catalog pictures, the Gallery and the account builder (2026-11-08)
+
+Owner: "Improve the catalog picker. Make the catalog search a more expressive
+search with preview icons for objects and locs ... the rich preview should be
+its own panel with a search and filter on type. Additionally, the account
+builder is still not great. I set an object as an equipment slot and it looks
+like it used an NPC instead of the object id." Design first, as an artifact
+(https://claude.ai/artifact/NpdDiPWN9n6VYwufqC6kGU); the owner took the
+defaults on its open questions (no per-kind counts; one shared query under two
+views; tile size M; the server refuses a wrong wear slot; the Catalog palette
+moved onto the shared renderer).
+
+**The whip that became a dust devil.** Obj 4145 is `slayerguide_dustdevil` (a
+slayer guide page whose inventory icon is a dust devil): an obj, not an npc.
+The save and the checkpoint on disk both held `worn.3 = 4151`, so the view
+the panel showed did not match the file the server wrote; not reproduced
+from the files. Two facts made the class of fault easy: three objs share the
+display name "Abyssal whip" (4151, cert_waa_helper 4178, br_abyssal_whip
+20405) and the resolver took the first hash hit; and the lane's game server
+has no `::checkpoint`, so an online edit's view falls back to the save. The
+builder now shows what it will set, sends an id, and checks what came back.
+
+**Server (src/torirsmaped/torirs_maped_accounts.c).** `acct_obj_find`: `#<id>`
+is an id and nothing else; a bare number an id; else the exact pack name;
+else a display name exactly one obj carries, several refused with the
+candidates ("'Bronze sword' names 3 objs: bronze_sword (1277), ...; use the
+pack name or #<id>"). The value is `<obj text> [count]` with the count the
+trailing whole number, so a display name with spaces reaches the resolver.
+`worn.<slot>` refuses an obj whose `wearpos` summary field is not the slot
+("is worn in slot 3 (weapon), not 0 (head)") or that has none; an id before
+the index is built passes. FACT_ACCOUNT_STATUS ends with `u32 obj, u32 count`
+(0xFFFFFFFF 0 for a non-item edit; old readers stop at the string).
+
+**Account builder, Items tab (src/editor/accounts/accounts_panel.c).** The
+Slot / Obj inputs, "From Catalog pick" and Set are gone. A pressed slot's line
+names what it holds by the catalog's pack name ("weapon (slot 3): bronze_sword
+(1277) x1"). PUT HERE is a settled catalog query over objs (cells rows with
+the game's icons, the wear slot as a cap, the id), narrowed to the slot's wear
+position by a "wear: weapon" chip while the Equipment shows (its x widens),
+plus a "Catalog pick: name (id)" chip; a row click SETS AT ONCE with `#<id>
+<count>`, Return sets the first match, a wrong wear slot is refused in the
+panel before anything is sent; once the view lands the slot is checked
+against the request: a green "view agrees with the last Set" or a red "view
+shows X, asked for Y" line (and Log row). `Editor_Accounts_PutObj` puts an obj
+in the selected slot for the Gallery.
+
+**Catalog (src/editor/panels/edpanel_catalog.c, edpanel_catalog_model.c).** A
+TYPE strip of chips (all, loc, npc, obj, seq, spotanim, vars, interface, cs2,
+trigger, square; "more" shows the Kind dropdown, which keeps every other kind
+and the env driver); Find takes `obj:` / `npc:` / `loc:` (any kind name) as
+the kind, `#4151` as the id, and the chips `wear=weapon` (-> wearpos=3),
+`cat=`, `level=` (vislevel), `stack=` (stackable); the "+ filter" menu is the
+kind's (objs: the eleven wear slots, stackable, tradeable, members, category,
+op; npcs: level, size, dialogue, spawn, category, op; others: category); obj
+rows draw the game's inventory icon (app_services.obj_icon: the cache's
+zoom2d and 2D angles) with the wear slot and "stack" as caps that add their
+chip on a click, npc rows the record renderer's figure with "lvl N" and the
+footprint; the header's cap column reads shapes / wear / level by kind;
+"list | grid" chips open the Gallery beside.
+
+**Gallery (src/editor/panels/edpanel_gallery.c; module "gallery", View >
+Gallery, Shift+F8, registered by the Catalog after the Preview, docked after
+it).** The same query as pictures: its Find box and the Catalog's edit one
+text (the last changed wins), its kind chips (all / loc / npc / obj) set the
+Catalog's kind, the rows are the shared model's (the Catalog drives the query
+while either panel shows, `Editor_Gallery_Visible`). A GRAPH well filling the
+panel (`stretch`), tiles at S / M / L = 32 / 48 / 64 px (device pref
+`gallery_tile`, editor_prefs.ini), the pack name under each; an obj's picture
+is the game's icon, a loc's or npc's the record renderer's. Click = the shared
+pick (published, the Preview follows); double-click = an obj into the account
+builder's selected slot when the Accounts panel is open on Items, else Place
+armed; right-click = pick + the Preview beside; wheel / trackpad / Up, Down,
+Home, End scroll by tile rows; "list" opens the Catalog beside.
+
+**One renderer (src/app/app_record_thumbs.c).** `EditorUiAppServices.record_thumb
+(kind, id, px)`: a fixed LRU of 384 entries keyed (kind, id, size), two
+renders a frame beside the Preview's update, assets asked once per wait, a
+record given up after 600 frames; scene sprites 0x4C002000+entry. The Catalog
+palette's slots (app_catalog_palette.c) now ask it at 64 px, closing the "one
+helper wanted" note above.
+
+Tests: accounts_test 183 (`#id`, ambiguous and unique display names, wrong
+slot, no wearpos, the status fields, a count after a display name),
+editor_panels_accounts_test 83 (the slot line, Put here narrowed by the wear
+chip and widened by its x, a helm into the weapon slot refused here, a row
+click setting coins x100 with `#id`, the verify line, the pick chip, Return
+with `#995`), editor_catalog_finder_test 223 (the grammar and aliases, the
+kind prefix, the per-kind menus, obj and npc cells and their chips, the
+headers), editor_panels_test 3211 (the Type strip and `loc:crate`, "more";
+the Gallery: registry order, chord, open alone with the Catalog driving the
+query, one Find text, the count, tiles keyed, click = pick, double-click =
+Place, the L size relaying the grid, the obj chip, list | grid both ways),
+editor_panels_palette_test 50; `make -C src check-tree-walks` PASS.
+editor_hotkeys_test's one failure ("Ctrl+0 ... names Alt+0" against a note
+that spells Cmd+0 on this Mac) predates this work. Not done: a drag out of
+the Gallery onto a slot or the world; TORIRS_EDITOR_GALLERY photographs; a
+"Gallery..." chip in the Items tab (the double-click path covers it).
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.
