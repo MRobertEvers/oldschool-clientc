@@ -1238,6 +1238,7 @@ App_CinemaCameraMoveCycles(
     m->arc = 0;
     m->active = 1;
     app->cam_script.scripted = 1;
+    app->cam_script.smooth_reset = 0;
 }
 
 /* CAM_MOVETO_ARC at arrival: the cycles move above, with x/z on the arc
@@ -1309,6 +1310,7 @@ App_CinemaCameraRotateCycles(
     r->active = 1;
     app->cam_script.look_height = height_relative ? app->cam_script.look_height + height : height;
     app->cam_script.scripted = 1;
+    app->cam_script.smooth_reset = 0;
 }
 
 /* A CAM_* snap takes every attached view (owner decision 2): the scripted
@@ -1369,6 +1371,63 @@ app_cinema_ease(
     return current;
 }
 
+/* The same walk for a yaw: the short way round, and stopping when the sign of
+ * the remaining turn flips -- the linear helper cannot see past the seam. */
+static int
+app_cinema_ease_yaw(
+    int current,
+    int target,
+    int rate,
+    int rate2)
+{
+    int delta = target - current;
+
+    if( delta > 1024 )
+        delta -= 2048;
+    else if( delta < -1024 )
+        delta += 2048;
+
+    if( delta > 0 )
+        current = (current + rate + delta * rate2 / 1000) & 0x7ff;
+    else if( delta < 0 )
+        current = (current - rate - -delta * rate2 / 1000) & 0x7ff;
+
+    if( delta != 0 )
+    {
+        int remaining = target - current;
+        if( remaining > 1024 )
+            remaining -= 2048;
+        else if( remaining < -1024 )
+            remaining += 2048;
+        if( (remaining < 0 && delta > 0) || (remaining > 0 && delta < 0) )
+            current = target;
+    }
+    return current;
+}
+
+/* Deob client.java, class243.field2937 and the tail of Statics.method3868:
+ * both targets, heights and rates to 0, not just the flag. A stale move rate
+ * would carry the last scene's eye into the next look-at-only scene. */
+void
+App_CinemaCameraRelease(struct App* app)
+{
+    assert(app);
+    app->cam_script.scripted = 0;
+    app->cam_script.smooth_reset = 0;
+    app->cam_script.move_lx = 0;
+    app->cam_script.move_lz = 0;
+    app->cam_script.move_height = 0;
+    app->cam_script.move_rate = 0;
+    app->cam_script.move_rate2 = 0;
+    app->cam_script.look_lx = 0;
+    app->cam_script.look_lz = 0;
+    app->cam_script.look_height = 0;
+    app->cam_script.look_rate = 0;
+    app->cam_script.look_rate2 = 0;
+    app->cam_script.move_cycles.active = 0;
+    app->cam_script.rotate_cycles.active = 0;
+}
+
 /* Deob Statics.method234 (ar.bz). Runs every frame the script is up: the eye
  * walks toward the move-to point (Statics.method10397) and turns toward the
  * look-at point (Statics.method4719), a flat rate plus rate2/1000 of what is
@@ -1377,11 +1436,15 @@ app_cinema_ease(
 void
 app_world_camera_cinema(struct App* app)
 {
-    int tx, ty, tz, pitch, yaw, delta;
+    int tx, ty, tz, pitch, yaw;
     int rate = app->cam_script.move_rate;
     int rate2 = app->cam_script.move_rate2;
 
     if( !app->cam_script.scripted || !app->world )
+        return;
+    /* client.java's frame step: `if (field698) method3868 else if (field904)
+     * method234`. The glide needs the follow camera's answer, so it runs there. */
+    if( app->cam_script.smooth_reset )
         return;
 
     if( app->cam_script.move_cycles.active )
@@ -1436,31 +1499,8 @@ app_world_camera_cinema(struct App* app)
     app->frame_view->world_camera.pitch =
         app_cinema_ease(app->frame_view->world_camera.pitch, pitch, rate, rate2);
 
-    /* Yaw wraps, so ease along the short way round and stop when the sign of
-     * the remaining turn flips — the linear helper cannot see past the seam. */
-    delta = yaw - app->frame_view->world_camera.yaw;
-    if( delta > 1024 )
-        delta -= 2048;
-    else if( delta < -1024 )
-        delta += 2048;
-
-    if( delta > 0 )
-        app->frame_view->world_camera.yaw =
-            (app->frame_view->world_camera.yaw + rate + delta * rate2 / 1000) & 0x7ff;
-    else if( delta < 0 )
-        app->frame_view->world_camera.yaw =
-            (app->frame_view->world_camera.yaw - rate - -delta * rate2 / 1000) & 0x7ff;
-
-    if( delta != 0 )
-    {
-        int remaining = yaw - app->frame_view->world_camera.yaw;
-        if( remaining > 1024 )
-            remaining -= 2048;
-        else if( remaining < -1024 )
-            remaining += 2048;
-        if( (remaining < 0 && delta > 0) || (remaining > 0 && delta < 0) )
-            app->frame_view->world_camera.yaw = yaw;
-    }
+    app->frame_view->world_camera.yaw =
+        app_cinema_ease_yaw(app->frame_view->world_camera.yaw, yaw, rate, rate2);
 
     /* TORIRS_CAM_DEBUG=1: trace the scripted camera. */
     if( getenv("TORIRS_CAM_DEBUG") )
@@ -1485,6 +1525,69 @@ app_world_camera_cinema(struct App* app)
             app->cam_script.shake[4]);
 
     app->need_redraw = 1;
+}
+
+/* Deob Statics.method3868, one view's step: the eye and its angles walk toward
+ * where the follow camera would put them (class71's scene draw keeps that
+ * target current while the script is up, Statics.method13640) at the rates the
+ * last CAM_MOVETO and CAM_LOOKAT left. A view on all five has arrived. */
+static void
+app_world_camera_smooth_reset_step(
+    struct App* app,
+    struct ToriDraw_Position const* eye,
+    int pitch,
+    int yaw)
+{
+    struct App_WorldView* view = app->frame_view;
+    int move_rate = app->cam_script.move_rate;
+    int move_rate2 = app->cam_script.move_rate2;
+    int look_rate = app->cam_script.look_rate;
+    int look_rate2 = app->cam_script.look_rate2;
+
+    view->world_camera_pos.x = app_cinema_ease(view->world_camera_pos.x, eye->x, move_rate, move_rate2);
+    view->world_camera_pos.y = app_cinema_ease(view->world_camera_pos.y, eye->y, move_rate, move_rate2);
+    view->world_camera_pos.z = app_cinema_ease(view->world_camera_pos.z, eye->z, move_rate, move_rate2);
+    view->world_camera.pitch = app_cinema_ease(view->world_camera.pitch, pitch, look_rate, look_rate2);
+    view->world_camera.yaw = app_cinema_ease_yaw(view->world_camera.yaw, yaw, look_rate, look_rate2);
+
+    if( view->world_camera_pos.x == eye->x && view->world_camera_pos.y == eye->y &&
+        view->world_camera_pos.z == eye->z && view->world_camera.pitch == pitch &&
+        view->world_camera.yaw == yaw )
+        app->cam_script.smooth_reset_arrived++;
+
+    /* TORIRS_CAM_DEBUG=1: trace the scripted camera, the glide included. */
+    if( getenv("TORIRS_CAM_DEBUG") )
+        TORIRS_LOG(
+            "cam glide eye=%d,%d,%d pitch=%d yaw=%d -> eye=%d,%d,%d pitch=%d yaw=%d rates=%d,%d %d,%d\n",
+            view->world_camera_pos.x,
+            view->world_camera_pos.y,
+            view->world_camera_pos.z,
+            view->world_camera.pitch,
+            view->world_camera.yaw,
+            eye->x,
+            eye->y,
+            eye->z,
+            pitch,
+            yaw,
+            move_rate,
+            move_rate2,
+            look_rate,
+            look_rate2);
+
+    app->need_redraw = 1;
+}
+
+/* The tail of Statics.method3868, once per frame: every attached view shares
+ * the one script, so it ends when the last of them is home. */
+void
+app_world_camera_smooth_reset_end(struct App* app)
+{
+    assert(app);
+    if( !app->cam_script.smooth_reset || !app->cam_script.scripted )
+        return;
+    if( app->cam_script.smooth_reset_arrived < app->view_split.view_count )
+        return;
+    App_CinemaCameraRelease(app);
 }
 
 /*
@@ -1574,8 +1677,15 @@ app_world_camera_follow(struct App* app)
      * the follow overwrites the eye every frame, which is why free flight only
      * ever worked offline. */
     if( app->frame_view->camera_unlocked )
+    {
+        /* A debug-flown view has nowhere to glide to; it must not hold the
+         * script open for the others. */
+        app->cam_script.smooth_reset_arrived++;
         return;
-    if( app->cam_script.scripted || !app->net )
+    }
+    /* A CAM_SMOOTHRESET's glide is still scripted, and needs all of the below
+     * (the anchor especially): only the last step changes hands. */
+    if( (app->cam_script.scripted && !app->cam_script.smooth_reset) || !app->net )
         return;
 
     /*
@@ -1778,6 +1888,14 @@ app_world_camera_follow(struct App* app)
     target_x = (int)app->frame_view->orbit.anchor_x;
     target_z = (int)app->frame_view->orbit.anchor_z;
 
+    if( app->cam_script.scripted )
+    {
+        struct ToriDraw_Position eye;
+
+        ToriRS_OrbitCameraEye(target_x, target_y, target_z, pitch, yaw, distance, &eye);
+        app_world_camera_smooth_reset_step(app, &eye, pitch, yaw);
+        return;
+    }
     ToriRS_OrbitCameraEye(
         target_x, target_y, target_z, pitch, yaw, distance, &app->frame_view->world_camera_pos);
     app->frame_view->world_camera.pitch = pitch;

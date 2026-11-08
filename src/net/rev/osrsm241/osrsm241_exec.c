@@ -33,6 +33,7 @@
 #include "packets/cam_reset.h"
 #include "packets/cam_rotateto_coordinate_v3.h"
 #include "packets/cam_shake.h"
+#include "packets/cam_smoothreset.h"
 #include "packets/cam_target_v3.h"
 #include "packets/cam_target_v4.h"
 #include "packets/cam_unlock.h"
@@ -1269,6 +1270,23 @@ in_cam_reset(uint8_t const* data, int len, struct RevPacket* out)
         return 0;
     (void)out;
     return 1;
+}
+
+/* CAM_SMOOTHRESET, opcode 94 */
+static int
+in_cam_smoothreset(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgCamSmoothReset m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_cam_smoothreset_osrsm241_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_cam_smoothreset(&m, out);
 }
 
 /* CAM_MOVETO_V3, opcode 136 */
@@ -3757,6 +3775,7 @@ static int (*const k_in[TOP])(uint8_t const* data, int len, struct RevPacket* ou
     [96] = in_varp_sync,
     [51] = in_cam_shake,
     [1] = in_cam_reset,
+    [94] = in_cam_smoothreset,
     [136] = in_cam_moveto_v3,
     [133] = in_cam_moveto_cycles_v3,
     [129] = in_cam_moveto_arc_v3,
@@ -3881,6 +3900,7 @@ static int16_t const k_in_name[TOP] = {
     [96] = PKT_NAME_VARP_SYNC,
     [51] = PKT_NAME_CAM_SHAKE,
     [1] = PKT_NAME_CAM_RESET,
+    [94] = PKT_NAME_CAM_SMOOTHRESET,
     [136] = PKT_NAME_CAM_MOVETO,
     [133] = PKT_NAME_CAM_MOVETO_CYCLES,
     [129] = PKT_NAME_CAM_MOVETO_ARC,
@@ -4174,6 +4194,7 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_PLAYER_INFO] = 91,
     [PKT_NAME_SEND_PING] = 93,
     [PKT_NAME_MESSAGE_PRIVATE] = 94,
+    [PKT_NAME_CAM_SMOOTHRESET] = 95,
     [PKT_NAME_VARP_SYNC] = 97,
     [PKT_NAME_SET_ACTIVE_WORLD] = 100,
     [PKT_NAME_IF_SETPLAYERMODEL_SELF] = 101,

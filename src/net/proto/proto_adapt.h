@@ -66,6 +66,7 @@
 #include "packets/cam_target_v2.h"
 #include "packets/cam_target_v3.h"
 #include "packets/cam_target_v4.h"
+#include "packets/cam_smoothreset.h"
 #include "packets/cam_unlock.h"
 #include "packets/chat_filter_settings.h"
 #include "packets/clanchannel_delta.h"
@@ -503,6 +504,8 @@ int
 adapt_cam_target_v4(MsgCamTargetV4 const* m, struct RevPacket* out);
 int
 adapt_cam_unlock(MsgCamUnlock const* m, struct RevPacket* out);
+int
+adapt_cam_smoothreset(MsgCamSmoothReset const* m, struct RevPacket* out);
 
 /* --- sound ---------------------------------------------------------------- */
 

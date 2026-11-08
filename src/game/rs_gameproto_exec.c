@@ -2224,6 +2224,7 @@ RS_GameProto_Exec(
             /* The look half is left as it is (deob client.java, class243.field3026):
              * after a CAM_RESET its rates are 0, so the angles hold. */
             app->cam_script.scripted = 1;
+            app->cam_script.smooth_reset = 0;
             if( packet->_cam_moveto.rate2 >= 100 )
                 App_CinemaCameraSnapPosition(app);
             exec_cam_script_record(
@@ -2260,6 +2261,7 @@ RS_GameProto_Exec(
              * -- Wanted!'s scans turn to Solus without moving (RSProx 4464
              * [2833]). */
             app->cam_script.scripted = 1;
+            app->cam_script.smooth_reset = 0;
             if( packet->_cam_lookat.rate2 >= 100 )
                 App_CinemaCameraSnapAngle(app);
             exec_cam_script_record(
@@ -2393,23 +2395,39 @@ RS_GameProto_Exec(
             /* Deob client.java, class243.field2937: both targets, heights and
              * rates to 0, not just the flag. A stale move rate would carry the
              * last scene's eye into the next look-at-only scene. */
-            app->cam_script.scripted = 0;
-            app->cam_script.move_lx = 0;
-            app->cam_script.move_lz = 0;
-            app->cam_script.move_height = 0;
-            app->cam_script.move_rate = 0;
-            app->cam_script.move_rate2 = 0;
-            app->cam_script.look_lx = 0;
-            app->cam_script.look_lz = 0;
-            app->cam_script.look_height = 0;
-            app->cam_script.look_rate = 0;
-            app->cam_script.look_rate2 = 0;
-            app->cam_script.move_cycles.active = 0;
-            app->cam_script.rotate_cycles.active = 0;
+            App_CinemaCameraRelease(app);
             for( int i = 0; i < 5; i++ )
                 app->cam_script.shake[i] = 0;
             exec_cam_script_record(app, APP_CAM_SCRIPT_OP_RESET, -1, -1, 0, 0, 0);
             app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_CAM_SMOOTHRESET:
+        if( ctx->app )
+        {
+            struct App* app = ctx->app;
+            /* Deob client.java, class243.field2963 `&& field904`: only a
+             * script that is up can glide back. The targets and rates stay;
+             * app_world_camera_follow walks the eye home with them, and
+             * ending it is App_CinemaCameraRelease's. Every CAM_MOVETO or
+             * CAM_LOOKAT after this cancels the glide (field698 = false). */
+            if( app->cam_script.scripted )
+            {
+                app->cam_script.smooth_reset = 1;
+                app->cam_script.move_cycles.active = 0;
+                app->cam_script.rotate_cycles.active = 0;
+                for( int i = 0; i < 5; i++ )
+                    app->cam_script.shake[i] = 0;
+                app->need_redraw = 1;
+            }
+            exec_cam_script_record(
+                app,
+                APP_CAM_SCRIPT_OP_SMOOTHRESET,
+                -1,
+                -1,
+                0,
+                packet->_cam_smoothreset.move_constant_speed,
+                packet->_cam_smoothreset.move_proportional_speed);
         }
         break;
 

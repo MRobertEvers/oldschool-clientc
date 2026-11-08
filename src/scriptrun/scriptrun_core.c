@@ -2036,6 +2036,11 @@ core_wirelog(
     case PKT_NAME_CAM_RESET:
         fprintf(f, "%d\tcam_reset\n", t);
         break;
+    case PKT_NAME_CAM_SMOOTHRESET:
+        fprintf(f, "%d\tcam_smoothreset\t%d\t%d\t%d\t%d\n", t, p->_cam_smoothreset.move_constant_speed,
+                p->_cam_smoothreset.move_proportional_speed, p->_cam_smoothreset.look_constant_speed,
+                p->_cam_smoothreset.look_proportional_speed);
+        break;
     case PKT_NAME_CAM_SHAKE:
         fprintf(f, "%d\tcam_shake\t%d\t%d\t%d\t%d\n", t, p->_cam_shake.axis, p->_cam_shake.amplitude,
                 p->_cam_shake.frequency, p->_cam_shake.speed);

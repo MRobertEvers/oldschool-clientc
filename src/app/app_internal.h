@@ -684,6 +684,9 @@ app_world_camera_cinema(struct App* app);
 void
 app_world_camera_follow(struct App* app);
 
+void
+app_world_camera_smooth_reset_end(struct App* app);
+
 
 /* ---- app_canvas_layout.c ---- */
 int

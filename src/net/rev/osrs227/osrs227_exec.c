@@ -31,6 +31,7 @@
 #include "packets/cam_reset.h"
 #include "packets/cam_rotateto_coordinate.h"
 #include "packets/cam_shake.h"
+#include "packets/cam_smoothreset.h"
 #include "packets/cam_target_v2.h"
 #include "packets/chat_filter_settings.h"
 #include "packets/chat_filter_settings_privatechat.h"
@@ -1286,6 +1287,23 @@ in_cam_reset(uint8_t const* data, int len, struct RevPacket* out)
         return 0;
     (void)out;
     return 1;
+}
+
+/* CAM_SMOOTHRESET, opcode 91 */
+static int
+in_cam_smoothreset(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgCamSmoothReset m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_cam_smoothreset_osrs227_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_cam_smoothreset(&m, out);
 }
 
 /* CAM_MOVETO, opcode 55 */
@@ -3790,6 +3808,7 @@ static int (*const k_in[TOP])(uint8_t const* data, int len, struct RevPacket* ou
     [71] = in_varp_sync,
     [4] = in_cam_shake,
     [9] = in_cam_reset,
+    [91] = in_cam_smoothreset,
     [55] = in_cam_moveto,
     [63] = in_cam_moveto_cycles,
     [85] = in_cam_moveto_arc,
@@ -3910,6 +3929,7 @@ static int16_t const k_in_name[TOP] = {
     [71] = PKT_NAME_VARP_SYNC,
     [4] = PKT_NAME_CAM_SHAKE,
     [9] = PKT_NAME_CAM_RESET,
+    [91] = PKT_NAME_CAM_SMOOTHRESET,
     [55] = PKT_NAME_CAM_MOVETO,
     [63] = PKT_NAME_CAM_MOVETO_CYCLES,
     [85] = PKT_NAME_CAM_MOVETO_ARC,
@@ -4188,6 +4208,7 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_CLANSETTINGS_DELTA] = 89,
     [PKT_NAME_UPDATE_STAT] = 90,
     [PKT_NAME_CLANCHANNEL_DELTA] = 91,
+    [PKT_NAME_CAM_SMOOTHRESET] = 92,
     [PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE] = 93,
     [PKT_NAME_UNSET_MAP_FLAG] = 96,
     [PKT_NAME_CHAT_FILTER_SETTINGS] = 97,

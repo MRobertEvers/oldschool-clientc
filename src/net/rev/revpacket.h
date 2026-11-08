@@ -799,6 +799,18 @@ struct PktCamUnlock
     int unlock;
 };
 
+/* CAM_SMOOTHRESET: deob client.java, the class243.field2963 handler (rev 241:
+ * class259.field3230) reads none of the four bytes; the glide runs at the last
+ * CAM_MOVETO's and CAM_LOOKAT's rates. Kept for the tick log and the camera
+ * event ring. RSProx 4487 [1194] sends 10, 12, 6, 8. */
+struct PktCamSmoothReset
+{
+    int move_constant_speed;
+    int move_proportional_speed;
+    int look_constant_speed;
+    int look_proportional_speed;
+};
+
 /* HIDENPCOPS / HIDELOCOPS / HIDEOBJOPS: the kind is the packet type. */
 struct PktHideOps
 {
@@ -1480,6 +1492,7 @@ struct RevPacket
         struct PktSetMultiway _set_multiway;
         struct PktMinimapToggle _minimap_toggle;
         struct PktCamUnlock _cam_unlock;
+        struct PktCamSmoothReset _cam_smoothreset;
         struct PktHideOps _hide_ops;
         struct PktUpdateIgnoreList _update_ignorelist;
         struct PktUpdateFriendList _update_friendlist;

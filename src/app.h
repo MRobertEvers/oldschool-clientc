@@ -766,6 +766,7 @@ enum App_CamScriptOp
     APP_CAM_SCRIPT_OP_MOVETO_CYCLES = 5,
     APP_CAM_SCRIPT_OP_ROTATETO_COORDINATE = 6,
     APP_CAM_SCRIPT_OP_MOVETO_ARC = 7,
+    APP_CAM_SCRIPT_OP_SMOOTHRESET = 8,
 };
 
 /** Size of App_CamScript.events: the camera packets the driver can read back.
@@ -2674,6 +2675,12 @@ struct App
     struct App_CamScript
     {
         int scripted; /* 1 while a CAM_MOVETO/LOOKAT script overrides free-fly */
+        /** CAM_SMOOTHRESET (deob client.field698): `scripted` stays 1 while
+         *  the eye glides back to the follow camera, then both clear. */
+        int smooth_reset;
+        /** Attached views that reached the follow camera this frame; the glide
+         *  ends when every one has. */
+        int smooth_reset_arrived;
         int move_lx, move_lz, move_height, move_rate, move_rate2;
         int look_lx, look_lz, look_height, look_rate, look_rate2;
         /**
@@ -4312,6 +4319,12 @@ App_CinemaCameraSnapPosition(struct App* app);
 
 void
 App_CinemaCameraSnapAngle(struct App* app);
+
+/* End the script: targets, heights and rates to 0 and the follow camera back
+ * (CAM_RESET, and a CAM_SMOOTHRESET's glide on arrival). Shakes are the
+ * caller's. */
+void
+App_CinemaCameraRelease(struct App* app);
 
 /** CAM_MOVETO_CYCLES / CAM_ROTATETO_COORDINATE, at arrival (rs_gameproto_exec.c).
  *  `local_x`/`local_z` are scene-local tiles. */

@@ -3227,6 +3227,8 @@ drive_camera_op_name(int op)
         return "shake";
     case APP_CAM_SCRIPT_OP_RESET:
         return "reset";
+    case APP_CAM_SCRIPT_OP_SMOOTHRESET:
+        return "smoothreset";
     default:
         return NULL;
     }

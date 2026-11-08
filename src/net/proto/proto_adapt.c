@@ -2352,6 +2352,16 @@ adapt_cam_unlock(MsgCamUnlock const* m, struct RevPacket* out)
 }
 
 int
+adapt_cam_smoothreset(MsgCamSmoothReset const* m, struct RevPacket* out)
+{
+    out->_cam_smoothreset.move_constant_speed = m->camera_move_constant_speed;
+    out->_cam_smoothreset.move_proportional_speed = m->camera_move_proportional_speed;
+    out->_cam_smoothreset.look_constant_speed = m->camera_look_constant_speed;
+    out->_cam_smoothreset.look_proportional_speed = m->camera_look_proportional_speed;
+    return 1;
+}
+
+int
 adapt_hidenpcops(MsgHideNpcOps const* m, struct RevPacket* out)
 {
     out->_hide_ops.hidden = m->hidden;

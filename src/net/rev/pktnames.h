@@ -325,6 +325,10 @@ enum GameProtoPktName
     PKT_NAME_LOGOUT_TRANSFER,        /* struct PktLogoutTransfer */
     PKT_NAME_GROUP_FULL,             /* struct PktRawPayload */
 
+    /* The scripted camera glides back to the follow camera (CAM_SMOOTHRESET;
+     * struct PktCamSmoothReset). Appended likewise. */
+    PKT_NAME_CAM_SMOOTHRESET,
+
     PKT_NAME_COUNT
 };
 

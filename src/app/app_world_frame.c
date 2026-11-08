@@ -199,16 +199,19 @@ app_world_frame(
 
     app_world_sync_positions(app);
     /* Exactly one of these does anything: the follow cam returns early while a
-     * cutscene is up, and the cinema cam returns early when one is not. */
+     * cutscene is up, and the cinema cam returns early when one is not. A
+     * CAM_SMOOTHRESET's glide is the follow cam's. */
     /* Per attached view (the runner camera split): each camera follows the
      * same player its own way, and a cutscene's scripted camera -- cam_script,
      * shared -- takes every one of them (owner decision 2). */
+    app->cam_script.smooth_reset_arrived = 0;
     for( int view = 0; view < app->view_split.view_count; view++ )
     {
         app->frame_view = &app->views[view];
         app_world_camera_cinema(app);
         app_world_camera_follow(app);
     }
+    app_world_camera_smooth_reset_end(app);
     app->frame_view = App_RunnerView(app);
     /* Publish the orbit angles to the CS2 host (CAM_GETANGLE_XA/YA, CAM_GETYAW)
      * and take back anything CAM_FORCEANGLE snapped since the last tick. Both
