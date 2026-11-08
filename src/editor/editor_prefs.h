@@ -24,6 +24,8 @@
  *     chrome_scale = auto   ; auto | 100 | 125 | 150 | 175 | 200 | 250 | 300
  *     text_size = normal    ; normal | large
  *     text_rendering = bitmap ; bitmap (at whole scales) | smooth (always)
+ *     spawn_view = npcs objs player generated edited scripted markers wander
+ *                            ; the Spawns panel's view toggles that are on
  */
 
 #define EDITOR_PREFS_VERSION 1
@@ -45,6 +47,28 @@ struct Editor_Prefs
      *  2x / 3x faces at 100, 200 and 300 %, the synthesized vector face
      *  between), 1 "smooth always" (the vector face at every scale). */
     int text_smooth;
+    /** The Spawns panel's view toggles, EDITOR_PREFS_SPAWN_*. */
+    int spawn_view;
+};
+
+/** The Spawns panel's view toggles (Editor_Prefs.spawn_view). */
+enum
+{
+    EDITOR_PREFS_SPAWN_SHOW = 1 << 0,
+    EDITOR_PREFS_SPAWN_NPCS = 1 << 1,
+    EDITOR_PREFS_SPAWN_OBJS = 1 << 2,
+    EDITOR_PREFS_SPAWN_PLAYER = 1 << 3,
+    EDITOR_PREFS_SPAWN_GENERATED = 1 << 4,
+    EDITOR_PREFS_SPAWN_EDITED = 1 << 5,
+    EDITOR_PREFS_SPAWN_SCRIPTED = 1 << 6,
+    EDITOR_PREFS_SPAWN_SUPPRESSED = 1 << 7,
+    EDITOR_PREFS_SPAWN_MARKERS = 1 << 8,
+    EDITOR_PREFS_SPAWN_WANDER = 1 << 9,
+    /** A first boot: everything but Show and the suppressed rows. */
+    EDITOR_PREFS_SPAWN_DEFAULT = EDITOR_PREFS_SPAWN_NPCS | EDITOR_PREFS_SPAWN_OBJS | EDITOR_PREFS_SPAWN_PLAYER
+                                 | EDITOR_PREFS_SPAWN_GENERATED | EDITOR_PREFS_SPAWN_EDITED
+                                 | EDITOR_PREFS_SPAWN_SCRIPTED | EDITOR_PREFS_SPAWN_MARKERS
+                                 | EDITOR_PREFS_SPAWN_WANDER,
 };
 
 /** Auto, Normal and bitmap at whole scales. */

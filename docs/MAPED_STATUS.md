@@ -33,9 +33,15 @@ map_editor_ghost.h `MapEditorSpawnPreview`; landing: app_map_editor.c; rows and
 filters: edpanel_spawns.c. `TORIRS_EDITOR_SPAWN_PREVIEW=1` ticks the box for a
 headless photograph.
 
-Open: only the square's generated and edited `.spawn` files are read, so the
-spawn files that quests and skills keep under their own `configs/` are not
-shown; the toggles reset each launch.
+Rows from the `.spawn` files quests and skills keep under their own `configs/`
+come from a read-only TEXT document, `spawns:m<x>_<z>`, which the server builds
+on open by walking `server/scripts` (skipping `areas/world` and `areas/edited`).
+They are listed marked `~`, have a cyan marker and a Quest and skill rows
+toggle; an edit suppresses them and adds an edited row, as for generated rows.
+The document is read once per open square, so a change to such a file shows
+after the square is reopened. The toggles persist as `spawn_view` in
+`editor_prefs.ini`. The Place player ghost and the active player also work on
+the web lane.
 
 ## How to run it
 

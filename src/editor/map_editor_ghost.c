@@ -109,7 +109,7 @@ uint32_t
 MapEditorSpawnPreview_RowHash(struct MapEditorSpawnPreviewRow const* row)
 {
     uint32_t hash = 2166136261u;
-    int values[7];
+    int values[8];
 
     assert(row);
     values[0] = row->row.is_obj;
@@ -119,7 +119,8 @@ MapEditorSpawnPreview_RowHash(struct MapEditorSpawnPreviewRow const* row)
     values[4] = row->row.count;
     values[5] = row->edited;
     values[6] = row->suppressed;
-    for( int i = 0; i < 7; i++ )
+    values[7] = row->scripted;
+    for( int i = 0; i < 8; i++ )
         hash = (hash ^ (uint32_t)values[i]) * 16777619u;
     for( const char* c = row->row.name; *c; c++ )
         hash = (hash ^ (uint32_t)(unsigned char)*c) * 16777619u;
@@ -133,7 +134,7 @@ preview_rows_same(
 {
     return a->row.is_obj == b->row.is_obj && a->row.abs_x == b->row.abs_x && a->row.abs_z == b->row.abs_z
            && a->row.level == b->row.level && a->row.count == b->row.count && a->edited == b->edited
-           && a->suppressed == b->suppressed && strcmp(a->row.name, b->row.name) == 0;
+           && a->suppressed == b->suppressed && a->scripted == b->scripted && strcmp(a->row.name, b->row.name) == 0;
 }
 
 int

@@ -119,8 +119,10 @@ struct MapEditorHover
 struct MapEditorSpawnPreviewRow
 {
     struct Editor_SpawnRow row;
-    /** 1 the edited file holds it, 0 the generated one. */
+    /** 1 the edited file holds it, 0 the generated one or a quest's / skill's. */
     int edited;
+    /** A quest's or skill's own .spawn file holds it. */
+    int scripted;
     /** A generated row the edited file hides: drawn translucent. */
     int suppressed;
 };

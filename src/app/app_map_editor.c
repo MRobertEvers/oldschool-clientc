@@ -951,13 +951,6 @@ ui_service_last_frame_us(void* user_data)
     return App_LastFrameUs(app);
 }
 
-#if !defined(__EMSCRIPTEN__)
-static int
-ui_service_loc_thumbnail(
-    void* user_data,
-    int loc_id,
-    int shape);
-
 /*
  * Loads a well's icons and sprites asked for, each once: a request outlives
  * the frame that made it, and an icon is asked for every frame its cell is
@@ -1036,6 +1029,13 @@ app_icon_model(
             ToriRS_TaskQueue_Add(app->runner.queue, task);
     }
 }
+
+#if !defined(__EMSCRIPTEN__)
+static int
+ui_service_loc_thumbnail(
+    void* user_data,
+    int loc_id,
+    int shape);
 
 /** Everything bridge_ensure_obj_icon reads for (obj_id, count): the
  *  config, its count variant, a note's paper and base, a placeholder's
@@ -3803,57 +3803,6 @@ app_map_editor_spawn_ghost_update(
     app_map_editor_spawn_ghost_fade(app);
 }
 
-#if defined(__EMSCRIPTEN__)
-/* No Accounts here, so no active player in the preview. */
-static int
-app_player_preview_take_element(
-    struct App* app,
-    struct EditorUi* ui,
-    int element_id)
-{
-    (void)app;
-    (void)ui;
-    (void)element_id;
-    return 0;
-}
-
-static int
-app_player_preview_take_tile(
-    struct App* app,
-    struct EditorUi* ui,
-    int scene_x,
-    int scene_z,
-    int level)
-{
-    (void)app;
-    (void)ui;
-    (void)scene_x;
-    (void)scene_z;
-    (void)level;
-    return 0;
-}
-
-static void
-app_player_preview_deselect(void)
-{
-}
-
-int
-app_map_editor_player_preview_view(
-    int* out_scene_x,
-    int* out_scene_z,
-    int* out_level,
-    int* out_element_id,
-    int* out_selected)
-{
-    (void)out_scene_x;
-    (void)out_scene_z;
-    (void)out_level;
-    (void)out_element_id;
-    (void)out_selected;
-    return 0;
-}
-#else
 static int
 app_player_preview_take_element(
     struct App* app,
@@ -3870,7 +3819,6 @@ app_player_preview_take_tile(
 
 static void
 app_player_preview_deselect(void);
-#endif
 
 /* ---- the spawn preview -----------------------------------------------------
  *
@@ -4205,7 +4153,6 @@ app_map_editor_spawn_preview_click(
     return 1;
 }
 
-#if !defined(__EMSCRIPTEN__)
 /* ---- the Place player ghost -----------------------------------------------------
  *
  * While Place player is armed, the play account stands translucent on the
@@ -4576,7 +4523,6 @@ app_map_editor_player_preview_view(
     *out_selected = g_app_player_preview.selected;
     return 1;
 }
-#endif
 
 /* ---- the move gizmo and the multi-piece ghost (workbench 6.3) ----------------
  *
@@ -4946,10 +4892,8 @@ app_map_editor_ghost_update(struct App* app)
     app_map_editor_level_env(app, ui);
     app_map_editor_spawn_ghost_update(app, ui);
     app_map_editor_spawn_preview_update(app, ui);
-#if !defined(__EMSCRIPTEN__)
     app_map_editor_player_ghost_update(app, ui);
     app_map_editor_player_preview_update(app, ui);
-#endif
     app_map_editor_piece_ghost_update(app, ui);
 
     /* Place previews the CATALOG pick; Move previews the first selected loc

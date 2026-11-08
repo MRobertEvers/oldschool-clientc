@@ -1028,6 +1028,13 @@ write_catalog_fixture(const char* root)
     write_text(root, "configs/all.loc.compack", "0=test_crate\n1=test_door\n");
     write_text(root, "configs/all.npc", "[test_guard]\nname=Guard\nop1=Talk-to\n");
     write_text(root, "configs/all.npc.compack", "0=test_guard\n");
+    snprintf(path, sizeof(path), "%s/server", root);
+    mkdir(path, 0755);
+    snprintf(path, sizeof(path), "%s/server/scripts", root);
+    mkdir(path, 0755);
+    snprintf(path, sizeof(path), "%s/server/scripts/quest_fixture", root);
+    mkdir(path, 0755);
+    write_text(root, "server/scripts/quest_fixture/fixture.spawn", "==== NPC ====\nfixture_quest_guard 3250 3250 0\n");
     write_text(root, "configs/all.obj", "[test_knife]\nname=Knife\n");
     write_text(root, "configs/all.obj.compack", "0=test_knife\n");
     write_text(root, "pack/loc.client", "// loc client half\n");
@@ -6081,6 +6088,50 @@ test_spawn_preview(void)
     ToriRSChrome_SetChecked(&g_cat_chrome, player, 1);
     (void)Editor_Spawns_PreviewRows(&g_cat_ui, &count, &serial);
     CHECK(serial == serial_on, "preview: a quiet frame leaves the serial alone");
+
+    /* A quest's own .spawn file: the "spawns:" document. */
+    {
+        int scripted_box = cat_widget(spawns, TORIRS_CHROME_W_CHECKBOX, "Quest and skill rows");
+        int found = -1;
+        for( int tries = 0; tries < 8 && found < 0; tries++ )
+        {
+            rows = Editor_Spawns_PreviewRows(&g_cat_ui, &count, &serial);
+            for( int i = 0; i < count; i++ )
+                if( strcmp(rows[i].row.name, "fixture_quest_guard") == 0 )
+                    found = i;
+        }
+        CHECK(found >= 0 && rows[found].scripted == 1 && rows[found].edited == 0,
+            "preview: a quest's .spawn row shows, marked as a quest's");
+        ToriRSChrome_SetChecked(&g_cat_chrome, scripted_box, 0);
+        rows = Editor_Spawns_PreviewRows(&g_cat_ui, &count, &serial);
+        found = -1;
+        for( int i = 0; i < count; i++ )
+            if( strcmp(rows[i].row.name, "fixture_quest_guard") == 0 )
+                found = i;
+        CHECK(found < 0, "preview: Quest and skill rows off takes it out");
+        ToriRSChrome_SetChecked(&g_cat_chrome, scripted_box, 1);
+        rows = Editor_Spawns_PreviewRows(&g_cat_ui, &count, &serial_on);
+    }
+
+    /* The toggles persist: a box moves the preference, a preference the box. */
+    {
+        uint32_t const prefs_before = g_cat_ui.prefs_serial;
+        cat_frame();
+        CHECK((g_cat_ui.prefs.spawn_view & EDITOR_PREFS_SPAWN_SHOW) != 0 && g_cat_ui.prefs_serial != prefs_before,
+            "prefs: Show spawns is saved, and the host hears");
+        {
+            /* Through what the boot's file load calls. */
+            struct Editor_Prefs loaded = g_cat_ui.prefs;
+            loaded.spawn_view &= ~EDITOR_PREFS_SPAWN_MARKERS;
+            Editor_UiApplyPrefs(&g_cat_ui, &loaded);
+            cat_frame();
+            CHECK(!ToriRSChrome_Checked(&g_cat_chrome, markers), "prefs: a loaded preference sets the box");
+            loaded.spawn_view |= EDITOR_PREFS_SPAWN_MARKERS;
+            Editor_UiApplyPrefs(&g_cat_ui, &loaded);
+            cat_frame();
+            CHECK(ToriRSChrome_Checked(&g_cat_chrome, markers), "prefs: and back");
+        }
+    }
 
     ToriRSChrome_SetChecked(&g_cat_chrome, npcs, 0);
     rows = Editor_Spawns_PreviewRows(&g_cat_ui, &count, &serial);

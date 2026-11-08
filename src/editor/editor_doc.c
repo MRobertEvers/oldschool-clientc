@@ -341,6 +341,15 @@ Editor_DocKeyValid(
         /* The encounter sets, editor/encounters.txt (editor_encounters.h). */
         if( strcmp(key, "editor:encounters.txt") == 0 )
             return 1;
+        /* A square's rows from the .spawn files of quests and skills, made
+         * by the server (editor_host_local.c); read, never edited. */
+        if( strncmp(key, "spawns:", 7) == 0 )
+        {
+            int map_x;
+            int map_z;
+            char tail;
+            return sscanf(key + 7, "m%d_%d%c", &map_x, &map_z, &tail) == 2 && map_x >= 0 && map_z >= 0;
+        }
         /* An npc's stats ledger, npc_stats/<shard>/<gameval>.stats
          * (editor_npcstats.h): one shard byte, a slash, a gameval. */
         if( strncmp(key, "stats:", 6) == 0 )

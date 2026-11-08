@@ -866,6 +866,14 @@ Editor_SpawnGeneratedKey(
     int map_x,
     int map_z);
 
+/** The read-only TEXT document of the square's rows from every other .spawn
+ *  file (a quest's, a skill's; Editor_DocKeyValid "spawns:"). */
+void
+Editor_SpawnScriptedKey(
+    char out[EDITOR_DOC_KEY_MAX],
+    int map_x,
+    int map_z);
+
 /** A spawn row as a SPAWN (or SPAWN_SUPPRESS) command: `adding` 1 adds the
  *  row, 0 removes it. */
 void

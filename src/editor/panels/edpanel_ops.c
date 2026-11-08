@@ -1750,6 +1750,16 @@ Editor_SpawnGeneratedKey(
 }
 
 void
+Editor_SpawnScriptedKey(
+    char out[EDITOR_DOC_KEY_MAX],
+    int map_x,
+    int map_z)
+{
+    assert(out);
+    snprintf(out, EDITOR_DOC_KEY_MAX, "spawns:m%d_%d", map_x, map_z);
+}
+
+void
 Editor_SpawnCommand(
     struct Editor_Cmd* out,
     const struct Editor_SpawnRow* row,

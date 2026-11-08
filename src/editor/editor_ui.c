@@ -1521,6 +1521,7 @@ Editor_UiApplyPrefs(
     ui->prefs.chrome_scale_q = prefs->chrome_scale_q;
     ui->prefs.text_large = prefs->text_large ? 1 : 0;
     ui->prefs.text_smooth = prefs->text_smooth ? 1 : 0;
+    ui->prefs.spawn_view = prefs->spawn_view;
     ui_text_size_follow(ui);
 }
 

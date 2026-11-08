@@ -21,6 +21,7 @@ Editor_PrefsInit(struct Editor_Prefs* prefs)
     prefs->chrome_scale_q = EDITOR_PREFS_SCALE_AUTO;
     prefs->text_large = 0;
     prefs->text_smooth = 0;
+    prefs->spawn_view = EDITOR_PREFS_SPAWN_DEFAULT;
 }
 
 const char*
@@ -55,6 +56,60 @@ prefs_is(
     return (size_t)(end - start) == n && memcmp(start, word, n) == 0;
 }
 
+static const struct
+{
+    const char* word;
+    int bit;
+} k_spawn_view_words[] = {
+    { "show", EDITOR_PREFS_SPAWN_SHOW },
+    { "npcs", EDITOR_PREFS_SPAWN_NPCS },
+    { "objs", EDITOR_PREFS_SPAWN_OBJS },
+    { "player", EDITOR_PREFS_SPAWN_PLAYER },
+    { "generated", EDITOR_PREFS_SPAWN_GENERATED },
+    { "edited", EDITOR_PREFS_SPAWN_EDITED },
+    { "scripted", EDITOR_PREFS_SPAWN_SCRIPTED },
+    { "suppressed", EDITOR_PREFS_SPAWN_SUPPRESSED },
+    { "markers", EDITOR_PREFS_SPAWN_MARKERS },
+    { "wander", EDITOR_PREFS_SPAWN_WANDER },
+};
+
+/** `spawn_view`'s words into bits: 0 (the line is malformed) on one it does
+ *  not know, so a typo keeps the toggles rather than half of them. */
+static int
+prefs_spawn_view(
+    struct Editor_Prefs* prefs,
+    const char* value,
+    const char* value_end)
+{
+    int bits = 0;
+
+    while( value < value_end )
+    {
+        const char* word_end;
+        int found = 0;
+
+        while( value < value_end && (*value == ' ' || *value == '\t') )
+            value++;
+        word_end = value;
+        while( word_end < value_end && *word_end != ' ' && *word_end != '\t' )
+            word_end++;
+        if( word_end == value )
+            break;
+        for( size_t i = 0; i < sizeof(k_spawn_view_words) / sizeof(k_spawn_view_words[0]) && !found; i++ )
+            if( strlen(k_spawn_view_words[i].word) == (size_t)(word_end - value)
+                && strncmp(k_spawn_view_words[i].word, value, (size_t)(word_end - value)) == 0 )
+            {
+                bits |= k_spawn_view_words[i].bit;
+                found = 1;
+            }
+        if( !found )
+            return 0;
+        value = word_end;
+    }
+    prefs->spawn_view = bits;
+    return 1;
+}
+
 /** One `key = value` of [view]: 1 when it was understood. */
 static int
 prefs_line(
@@ -67,6 +122,9 @@ prefs_line(
     char word[16];
     int length = (int)(value_end - value);
 
+    /* A list of words, longer than any other value; none is every box off. */
+    if( prefs_is(key, key_end, "spawn_view") )
+        return prefs_spawn_view(prefs, value, value_end);
     if( length <= 0 || length >= (int)sizeof(word) )
         return prefs_is(key, key_end, "version");
     memcpy(word, value, (size_t)length);
@@ -185,7 +243,9 @@ Editor_PrefsEncode(
     char scale[16];
     char* text;
     int length;
-    size_t const capacity = 384;
+    size_t const capacity = 512;
+    char spawn_view[128] = "";
+    size_t used = 0;
 
     assert(prefs);
     assert(out_text);
@@ -199,6 +259,12 @@ Editor_PrefsEncode(
     }
     text = ToriMem_Alloc(ToriMem_Process(), capacity);
     assert(text);
+    for( size_t i = 0; i < sizeof(k_spawn_view_words) / sizeof(k_spawn_view_words[0]); i++ )
+        if( prefs->spawn_view & k_spawn_view_words[i].bit )
+        {
+            snprintf(spawn_view + used, sizeof(spawn_view) - used, "%s%s", used ? " " : "", k_spawn_view_words[i].word);
+            used = strlen(spawn_view);
+        }
     length = snprintf(text, capacity,
         "; The map editor's view on this device (editor_prefs.h). View > Chrome scale,\n"
         "; Text size and Text rendering write it; a window popped out of this one reads it.\n"
@@ -206,9 +272,10 @@ Editor_PrefsEncode(
         "version = %d\n"
         "chrome_scale = %s\n"
         "text_size = %s\n"
-        "text_rendering = %s\n",
+        "text_rendering = %s\n"
+        "spawn_view = %s\n",
         EDITOR_PREFS_VERSION, scale, prefs->text_large ? "large" : "normal",
-        prefs->text_smooth ? "smooth" : "bitmap");
+        prefs->text_smooth ? "smooth" : "bitmap", spawn_view);
     assert(length > 0);
     assert((size_t)length < capacity);
     *out_text = text;

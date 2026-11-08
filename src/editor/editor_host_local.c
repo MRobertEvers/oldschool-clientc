@@ -11,6 +11,7 @@
 #include "editor_doc.h"
 #include "editor_if.h"
 #include "editor_open_cmd.h"
+#include "editor_spawn.h"
 #include "mem/torirs_mem.h"
 
 #include <assert.h>
@@ -997,6 +998,101 @@ cfg_block_extent(
     return 0;
 }
 
+/*
+ * "spawns:m<x>_<z>": the rows of the square from every .spawn file that is
+ * neither the generated areas/world one nor the edited one -- the files quests
+ * and skills keep in their own configs/. A read-only document made on request
+ * from the tree as it stands, so a new file needs no index. Suppression rows
+ * in those files are not listed: they hide a spawn, they are not one.
+ */
+static void
+scripted_spawns_walk(
+    const struct local_host* host,
+    const char* rel,
+    int map_x,
+    int map_z,
+    struct Editor_SpawnFile* out)
+{
+    char dir_path[2200];
+    DIR* dir;
+    struct dirent* entry;
+
+    snprintf(dir_path, sizeof(dir_path), "%s/server/scripts/%s", host->content_dir, rel);
+    dir = opendir(dir_path);
+    if( !dir )
+        return;
+    while( (entry = readdir(dir)) != NULL )
+    {
+        char child[1024];
+        char path[2600];
+        struct stat st;
+        size_t name_length = strlen(entry->d_name);
+
+        if( entry->d_name[0] == '.' )
+            continue;
+        if( snprintf(child, sizeof(child), "%s%s%s", rel, rel[0] ? "/" : "", entry->d_name) >= (int)sizeof(child) )
+            continue;
+        if( strcmp(child, "areas/world") == 0 || strcmp(child, "areas/edited") == 0 )
+            continue;
+        snprintf(path, sizeof(path), "%s/%s", dir_path, entry->d_name);
+        if( stat(path, &st) != 0 )
+            continue;
+        if( S_ISDIR(st.st_mode) )
+        {
+            scripted_spawns_walk(host, child, map_x, map_z, out);
+            continue;
+        }
+        if( name_length > 6 && strcmp(entry->d_name + name_length - 6, ".spawn") == 0 )
+        {
+            struct EditorHost_Blob blob = { NULL, 0 };
+            struct Editor_SpawnFile file;
+
+            if( read_whole_file(path, &blob) != EDITOR_HOST_OK )
+                continue;
+            Editor_SpawnInit(&file);
+            if( Editor_SpawnParse(&file, blob.data, blob.size).ok )
+            {
+                for( int i = 0; i < file.line_count; i++ )
+                {
+                    const struct Editor_SpawnRow* row = &file.lines[i].row;
+                    if( file.lines[i].kind == EDITOR_SPAWN_LINE_ROW && !row->suppress
+                        && row->abs_x / EDITOR_SQUARE_X == map_x && row->abs_z / EDITOR_SQUARE_Z == map_z )
+                        (void)Editor_SpawnInsert(out, row);
+                }
+            }
+            else
+                TORIRS_ERR("editor: %s does not parse; its spawns are not previewed\n", path);
+            Editor_SpawnFree(&file);
+            Editor_HostBlobFree(&blob);
+        }
+    }
+    closedir(dir);
+}
+
+static enum EditorHost_Status
+scripted_spawns_load(
+    const struct local_host* host,
+    const char* key,
+    struct EditorHost_Blob* out_blob)
+{
+    struct Editor_SpawnFile out;
+    int map_x;
+    int map_z;
+    size_t size;
+
+    if( sscanf(key + 7, "m%d_%d", &map_x, &map_z) != 2 )
+        return EDITOR_HOST_REFUSED;
+    Editor_SpawnInit(&out);
+    scripted_spawns_walk(host, "", map_x, map_z, &out);
+    size = Editor_SpawnEmit(&out, NULL, 0);
+    out_blob->data = ToriMem_Alloc(ToriMem_Editor(), size + 1);
+    assert(out_blob->data);
+    Editor_SpawnEmit(&out, out_blob->data, size + 1);
+    out_blob->size = size;
+    Editor_SpawnFree(&out);
+    return EDITOR_HOST_OK;
+}
+
 static enum EditorHost_Status
 local_doc_load(
     void* user_data,
@@ -1016,6 +1112,8 @@ local_doc_load(
 
     out_blob->data = NULL;
     out_blob->size = 0;
+    if( kind == EDITOR_DOC_TEXT && part == 0 && Editor_DocKeyValid(kind, key) && strncmp(key, "spawns:", 7) == 0 )
+        return scripted_spawns_load(host, key, out_blob);
     if( !Editor_HostDocPath(kind, key, part, relative, sizeof(relative)) )
         return EDITOR_HOST_REFUSED;
     snprintf(path, sizeof(path), "%s/%s", host->content_dir, relative);

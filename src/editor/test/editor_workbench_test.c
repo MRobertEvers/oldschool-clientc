@@ -653,6 +653,29 @@ test_prefs_file(void)
         CHECK(back.text_large == 0, "a bad text size keeps the default");
     }
     {
+        static const char k_spawn[] = "[view]\nspawn_view = show npcs wander\n";
+        static const char k_spawn_bad[] = "[view]\nspawn_view = show gibberish\n";
+        struct Editor_Prefs spawn_prefs;
+        char* spawn_text = NULL;
+        int spawn_size = 0;
+
+        Editor_PrefsInit(&spawn_prefs);
+        CHECK(spawn_prefs.spawn_view == EDITOR_PREFS_SPAWN_DEFAULT
+                  && !(spawn_prefs.spawn_view & EDITOR_PREFS_SPAWN_SHOW),
+            "spawn_view defaults to every view but Show and the suppressed rows");
+        CHECK(Editor_PrefsDecode(&spawn_prefs, k_spawn, (int)sizeof(k_spawn) - 1) == 0
+                  && spawn_prefs.spawn_view
+                         == (EDITOR_PREFS_SPAWN_SHOW | EDITOR_PREFS_SPAWN_NPCS | EDITOR_PREFS_SPAWN_WANDER),
+            "spawn_view reads its words");
+        Editor_PrefsEncode(&spawn_prefs, &spawn_text, &spawn_size);
+        CHECK(spawn_text && strstr(spawn_text, "spawn_view = show npcs wander\n") != NULL, "and is written back");
+        ToriMem_Free(ToriMem_Process(), spawn_text);
+        CHECK(Editor_PrefsDecode(&spawn_prefs, k_spawn_bad, (int)sizeof(k_spawn_bad) - 1) == 1
+                  && spawn_prefs.spawn_view
+                         == (EDITOR_PREFS_SPAWN_SHOW | EDITOR_PREFS_SPAWN_NPCS | EDITOR_PREFS_SPAWN_WANDER),
+            "a spawn_view with an unknown word changes nothing");
+    }
+    {
         static const char k_smooth[] = "[view]\ntext_rendering = smooth\n";
         static const char k_bad[] = "[view]\ntext_rendering = blurry\n";
         char* text = NULL;

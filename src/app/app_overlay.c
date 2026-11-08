@@ -1436,6 +1436,7 @@ app_overlay_build_hover_footprint(struct App* app)
 #define APP_EDITOR_SPAWN_EDITED_COLOR 0xFF50E070u
 #define APP_EDITOR_SPAWN_GENERATED_COLOR 0xFFFFE070u
 #define APP_EDITOR_SPAWN_SUPPRESSED_COLOR 0xFFE05050u
+#define APP_EDITOR_SPAWN_SCRIPTED_COLOR 0xFF50D8F0u
 /* Brushes up to this many tiles draw every tile (radius 5); larger ones
  * draw nested washes, so a radius-16 brush stays inside the overlay budget
  * (OVERLAY_STAGE_WORLD_MAX). Up to the smaller count each tile is outlined
@@ -1851,6 +1852,7 @@ app_overlay_build_editor_ghosts(struct App* app)
                 app_overlay_editor_block(app, x, z, item->size, item->size, row->level,
                     item->want.suppressed ? APP_EDITOR_SPAWN_SUPPRESSED_COLOR
                     : item->want.edited   ? APP_EDITOR_SPAWN_EDITED_COLOR
+                    : item->want.scripted ? APP_EDITOR_SPAWN_SCRIPTED_COLOR
                                           : APP_EDITOR_SPAWN_GENERATED_COLOR,
                     -1);
         }

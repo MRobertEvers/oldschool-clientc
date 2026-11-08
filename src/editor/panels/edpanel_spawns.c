@@ -50,6 +50,10 @@
  *               suppressed) and turns the tile markers and the wander
  *               preview on and off. app_map_editor.c lands what
  *               Editor_Spawns_PreviewRows lists.
+ *               A quest's or skill's own .spawn rows (the "spawns:" document)
+ *               are listed and previewed too, marked ~; like generated rows
+ *               they are not written, an edit suppresses them. The toggles
+ *               persist in editor_prefs.ini.
  *   Pick        with the preview up, a Select click on a spawn's model or
  *               marker selects it (Shift adds, Ctrl toggles, Alt takes out) and
  *               the minimenu's "Select spawn" does the same with any tool.
@@ -104,6 +108,9 @@ struct SpawnsPreviewSquare
     int tried;
     size_t length;
     struct Editor_SpawnFile generated;
+    /** The "spawns:" document: quests' and skills' rows. */
+    size_t scripted_length;
+    struct Editor_SpawnFile scripted;
 };
 
 /** Npc records whose wander values the preview remembers. */
@@ -121,8 +128,10 @@ struct SpawnsWanderEntry
 struct SpawnsListRow
 {
     struct Editor_SpawnRow row;
-    /** 1 the edited file, 0 the generated one. */
+    /** 1 the edited file, 0 the generated one or a quest's / skill's. */
     int edited;
+    /** A quest's or skill's own .spawn file holds it. */
+    int scripted;
     int suppressed;
 };
 
@@ -170,9 +179,12 @@ struct SpawnsPanel
     int check_view_player;
     int check_view_generated;
     int check_view_edited;
+    int check_view_scripted;
     int check_view_suppressed;
     int check_view_markers;
     int row_preview;
+    /** The toggles as last read from or written to ui->prefs.spawn_view. */
+    int view_prefs;
     int preview_landed;
     int preview_waiting;
     int preview_missing;
@@ -210,6 +222,9 @@ struct SpawnsPanel
 
     /** The generated file, parsed; which square, and whether it was tried. */
     struct Editor_SpawnFile generated;
+    /** The "spawns:" document, parsed; its text's length. */
+    struct Editor_SpawnFile scripted;
+    size_t scripted_length;
     int generated_x;
     int generated_z;
     int generated_tried;
@@ -275,6 +290,21 @@ spawns_load_generated(
     struct Editor_DocHandle handle;
     char key[EDITOR_DOC_KEY_MAX];
 
+    /* A square with no quest rows must not keep the last square's. */
+    if( !self->generated_tried || self->generated_x != self->map_x || self->generated_z != self->map_z )
+    {
+        Editor_SpawnFree(&self->scripted);
+        Editor_SpawnInit(&self->scripted);
+        self->scripted_length = 0;
+    }
+    Editor_SpawnScriptedKey(key, self->map_x, self->map_z);
+    (void)edp_ensure_doc(ui, EDITOR_DOC_TEXT, key);
+    if( ui->editor && Editor_DocFind(&ui->editor->doc, EDITOR_DOC_TEXT, key, &handle) && handle.text->text
+        && handle.text->length != self->scripted_length )
+    {
+        (void)Editor_SpawnParse(&self->scripted, handle.text->text, handle.text->length);
+        self->scripted_length = handle.text->length;
+    }
     if( self->generated_tried && self->generated_x == self->map_x && self->generated_z == self->map_z )
     {
         /* Re-parse only if a resync replaced the text. */
@@ -385,23 +415,29 @@ spawns_rebuild(
             {
                 struct Editor_SpawnRow live = line->row;
                 live.suppress = 0;
-                if( Editor_SpawnFind(&self->generated, &live) >= 0 )
+                if( Editor_SpawnFind(&self->generated, &live) >= 0 || Editor_SpawnFind(&self->scripted, &live) >= 0 )
                     continue;
             }
             self->rows[self->row_count].row = line->row;
             self->rows[self->row_count].edited = 1;
+            self->rows[self->row_count].scripted = 0;
             self->rows[self->row_count].suppressed = 0;
             self->row_count++;
         }
-    for( int i = 0; i < self->generated.line_count && self->row_count < SPAWNS_ROWS_MAX; i++ )
+    for( int pass = 0; pass < 2; pass++ )
     {
-        const struct Editor_SpawnLine* line = &self->generated.lines[i];
-        if( line->kind != EDITOR_SPAWN_LINE_ROW || line->row.suppress )
-            continue;
-        self->rows[self->row_count].row = line->row;
-        self->rows[self->row_count].edited = 0;
-        self->rows[self->row_count].suppressed = Editor_SpawnIsSuppressed(edited, &line->row);
-        self->row_count++;
+        const struct Editor_SpawnFile* file = pass ? &self->scripted : &self->generated;
+        for( int i = 0; i < file->line_count && self->row_count < SPAWNS_ROWS_MAX; i++ )
+        {
+            const struct Editor_SpawnLine* line = &file->lines[i];
+            if( line->kind != EDITOR_SPAWN_LINE_ROW || line->row.suppress )
+                continue;
+            self->rows[self->row_count].row = line->row;
+            self->rows[self->row_count].edited = 0;
+            self->rows[self->row_count].scripted = pass;
+            self->rows[self->row_count].suppressed = Editor_SpawnIsSuppressed(edited, &line->row);
+            self->row_count++;
+        }
     }
     ToriRSChrome_VListSetCount(ui->chrome, self->list, self->row_count);
     spawns_selection_prune(self);
@@ -529,6 +565,51 @@ spawns_hints(
     self->hint_serial = ui->hotkeys.serial;
 }
 
+/** The view toggles and their preference, each way: a preference that moved
+ *  (the file landing at boot) sets the boxes, a box that moved sets the
+ *  preference and has the host write it. */
+static void
+spawns_view_sync(
+    struct EditorUi* ui,
+    struct SpawnsPanel* self)
+{
+    const struct
+    {
+        int widget;
+        int bit;
+    } views[] = {
+        { self->check_preview, EDITOR_PREFS_SPAWN_SHOW },
+        { self->check_view_npcs, EDITOR_PREFS_SPAWN_NPCS },
+        { self->check_view_objs, EDITOR_PREFS_SPAWN_OBJS },
+        { self->check_view_player, EDITOR_PREFS_SPAWN_PLAYER },
+        { self->check_view_generated, EDITOR_PREFS_SPAWN_GENERATED },
+        { self->check_view_edited, EDITOR_PREFS_SPAWN_EDITED },
+        { self->check_view_scripted, EDITOR_PREFS_SPAWN_SCRIPTED },
+        { self->check_view_suppressed, EDITOR_PREFS_SPAWN_SUPPRESSED },
+        { self->check_view_markers, EDITOR_PREFS_SPAWN_MARKERS },
+        { self->check_wander, EDITOR_PREFS_SPAWN_WANDER },
+    };
+    int const count = (int)(sizeof(views) / sizeof(views[0]));
+    int boxes = 0;
+
+    if( ui->prefs.spawn_view != self->view_prefs )
+    {
+        self->view_prefs = ui->prefs.spawn_view;
+        for( int i = 0; i < count; i++ )
+            ToriRSChrome_SetChecked(ui->chrome, views[i].widget, (self->view_prefs & views[i].bit) != 0);
+        return;
+    }
+    for( int i = 0; i < count; i++ )
+        if( ToriRSChrome_Checked(ui->chrome, views[i].widget) )
+            boxes |= views[i].bit;
+    if( boxes != self->view_prefs )
+    {
+        self->view_prefs = boxes;
+        ui->prefs.spawn_view = boxes;
+        ui->prefs_serial++;
+    }
+}
+
 static void
 spawns_tick(
     struct EditorUi* ui,
@@ -538,6 +619,7 @@ spawns_tick(
 
     if( self->hint_serial != ui->hotkeys.serial )
         spawns_hints(ui, self);
+    spawns_view_sync(ui, self);
     spawns_env_step(ui, self);
     struct Editor_SpawnFile* edited;
     char line[TORIRS_CHROME_LABEL_MAX];
@@ -574,7 +656,7 @@ spawns_tick(
     }
     spawns_load_generated(ui, self);
     edited = spawns_edited(ui, map_x, map_z);
-    hash = spawns_hash(&self->generated, spawns_hash(edited, 2166136261u));
+    hash = spawns_hash(&self->scripted, spawns_hash(&self->generated, spawns_hash(edited, 2166136261u)));
     if( hash != self->built_hash )
     {
         int edited_rows = 0;
@@ -621,7 +703,8 @@ spawns_tick(
         const struct SpawnsListRow* row = &self->rows[r];
         char text[TORIRS_CHROME_INPUT_MAX];
         snprintf(text, sizeof(text), "%s%c %s %s %d %d %d%s", spawns_selection_find(self, &row->row) >= 0 ? "* " : "",
-            row->edited ? (row->row.suppress ? '-' : '+') : row->suppressed ? '-' : ' ', row->row.is_obj ? "obj" : "npc",
+            row->edited ? (row->row.suppress ? '-' : '+') : row->suppressed ? '-' : row->scripted ? '~' : ' ',
+            row->row.is_obj ? "obj" : "npc",
             row->row.name, row->row.abs_x, row->row.abs_z, row->row.level,
             row->suppressed ? "  (suppressed)" : row->row.suppress ? "  (suppression row)" : "");
         ToriRSChrome_VListSetRow(ui->chrome, self->list, r, text);
@@ -996,7 +1079,9 @@ spawns_form_refresh(
     ToriRSChrome_SetChecked(ui->chrome, self->check_suppressed, spawns_row_suppressed(&self->rows[r]));
     if( self->selection_count == 1 )
         snprintf(line, sizeof(line), "editing %s %s (%s)", self->form_row.is_obj ? "obj" : "npc", self->form_row.name,
-            self->rows[r].edited ? "edited file" : "generated: an edit suppresses it and adds an edited row");
+            self->rows[r].edited ? "edited file"
+            : self->rows[r].scripted ? "a quest's or skill's file: an edit suppresses it and adds an edited row"
+                                     : "generated: an edit suppresses it and adds an edited row");
     else
         snprintf(line, sizeof(line), "%d selected: changed fields apply to each (X/Z/Level as an offset)",
             self->selection_count);
@@ -1394,7 +1479,8 @@ spawns_activate(
         || widget == self->check_suppressed || widget == self->check_wander || widget == self->check_preview
         || widget == self->check_view_npcs || widget == self->check_view_objs || widget == self->check_view_player
         || widget == self->check_view_generated
-        || widget == self->check_view_edited || widget == self->check_view_suppressed
+        || widget == self->check_view_edited || widget == self->check_view_scripted
+        || widget == self->check_view_suppressed
         || widget == self->check_view_markers )
         return 1;
     if( widget == self->tabs )
@@ -1474,8 +1560,12 @@ spawns_destroy(
     struct SpawnsPanel* self = opaque;
     (void)ui;
     Editor_SpawnFree(&self->generated);
+    Editor_SpawnFree(&self->scripted);
     for( int i = 0; i < EDITOR_DOC_MAX_SQUARES; i++ )
+    {
         Editor_SpawnFree(&self->preview_squares[i].generated);
+        Editor_SpawnFree(&self->preview_squares[i].scripted);
+    }
     ToriMem_Free(ToriMem_Editor(), self);
 }
 
@@ -1492,6 +1582,8 @@ Editor_Spawns_Register(struct EditorUi* ui)
     self = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*self));
     assert(self);
     Editor_SpawnInit(&self->generated);
+    Editor_SpawnInit(&self->scripted);
+    self->view_prefs = ui->prefs.spawn_view;
     self->panel = ToriRSChrome_PanelAdd(
         chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X + EDP_COL_W + 8), edp_px(ui, 120),
         edp_px(ui, 260), "Spawns");
@@ -1546,6 +1638,8 @@ Editor_Spawns_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->check_view_player, "the play account where it stands, in its own gear");
     self->check_view_generated = ToriRSChrome_Checkbox(chrome, self->panel, "Generated rows", 1);
     self->check_view_edited = ToriRSChrome_Checkbox(chrome, self->panel, "Edited rows", 1);
+    self->check_view_scripted = ToriRSChrome_Checkbox(chrome, self->panel, "Quest and skill rows", 1);
+    ToriRSChrome_SetTooltip(chrome, self->check_view_scripted, "rows from the .spawn files quests and skills keep");
     self->check_view_suppressed = ToriRSChrome_Checkbox(chrome, self->panel, "Suppressed rows", 0);
     ToriRSChrome_SetTooltip(chrome, self->check_view_suppressed, "drawn translucent, with a red marker");
     self->check_view_markers = ToriRSChrome_Checkbox(chrome, self->panel, "Tile markers", 1);
@@ -1827,11 +1921,13 @@ spawns_preview_square(
     /* At most EDITOR_DOC_MAX_SQUARES are open, and this one is among them. */
     assert(spare);
     Editor_SpawnFree(&spare->generated);
+    Editor_SpawnFree(&spare->scripted);
     memset(spare, 0, sizeof(*spare));
     spare->map_x = map_x;
     spare->map_z = map_z;
     spare->used = 1;
     Editor_SpawnInit(&spare->generated);
+    Editor_SpawnInit(&spare->scripted);
     return spare;
 }
 
@@ -1857,6 +1953,8 @@ spawns_preview_load_square(
         (void)edp_ensure_doc(ui, EDITOR_DOC_SPAWN, key);
         Editor_SpawnGeneratedKey(key, slot->map_x, slot->map_z);
         (void)edp_ensure_doc(ui, EDITOR_DOC_TEXT, key);
+        Editor_SpawnScriptedKey(key, slot->map_x, slot->map_z);
+        (void)edp_ensure_doc(ui, EDITOR_DOC_TEXT, key);
     }
     Editor_SpawnGeneratedKey(key, slot->map_x, slot->map_z);
     if( Editor_DocFind(&ui->editor->doc, EDITOR_DOC_TEXT, key, &handle) && handle.text->text
@@ -1868,6 +1966,13 @@ spawns_preview_load_square(
             Editor_UiLog(ui, "editor: %s line %d does not parse", key, result.line);
         slot->length = handle.text->length;
     }
+    Editor_SpawnScriptedKey(key, slot->map_x, slot->map_z);
+    if( Editor_DocFind(&ui->editor->doc, EDITOR_DOC_TEXT, key, &handle) && handle.text->text
+        && handle.text->length != slot->scripted_length )
+    {
+        (void)Editor_SpawnParse(&slot->scripted, handle.text->text, handle.text->length);
+        slot->scripted_length = handle.text->length;
+    }
 }
 
 /** One row into the merged list, unless a filter or the table says no. */
@@ -1877,6 +1982,7 @@ spawns_preview_add(
     struct SpawnsPanel* self,
     const struct Editor_SpawnRow* row,
     int edited,
+    int scripted,
     int suppressed)
 {
     struct MapEditorSpawnPreviewRow* out;
@@ -1885,6 +1991,7 @@ spawns_preview_add(
         return;
     if( !ToriRSChrome_Checked(ui->chrome, suppressed ? self->check_view_suppressed
                                           : edited   ? self->check_view_edited
+                                          : scripted ? self->check_view_scripted
                                                      : self->check_view_generated) )
         return;
     /* One stack per obj per tile is all the world holds, so a second row of
@@ -1906,6 +2013,7 @@ spawns_preview_add(
     memset(out, 0, sizeof(*out));
     out->row = *row;
     out->edited = edited;
+    out->scripted = scripted;
     out->suppressed = suppressed;
 }
 
@@ -1934,12 +2042,16 @@ spawns_preview_merge(
         if( edited )
             for( int i = 0; i < edited->line_count; i++ )
                 if( edited->lines[i].kind == EDITOR_SPAWN_LINE_ROW && !edited->lines[i].row.suppress )
-                    spawns_preview_add(ui, self, &edited->lines[i].row, 1, 0);
-        for( int i = 0; i < slot->generated.line_count; i++ )
+                    spawns_preview_add(ui, self, &edited->lines[i].row, 1, 0, 0);
+        for( int pass = 0; pass < 2; pass++ )
         {
-            const struct Editor_SpawnLine* line = &slot->generated.lines[i];
-            if( line->kind == EDITOR_SPAWN_LINE_ROW && !line->row.suppress )
-                spawns_preview_add(ui, self, &line->row, 0, Editor_SpawnIsSuppressed(edited, &line->row));
+            const struct Editor_SpawnFile* file = pass ? &slot->scripted : &slot->generated;
+            for( int i = 0; i < file->line_count; i++ )
+            {
+                const struct Editor_SpawnLine* line = &file->lines[i];
+                if( line->kind == EDITOR_SPAWN_LINE_ROW && !line->row.suppress )
+                    spawns_preview_add(ui, self, &line->row, 0, pass, Editor_SpawnIsSuppressed(edited, &line->row));
+            }
         }
     }
     if( self->preview_clipped && !was_clipped )
@@ -1996,11 +2108,11 @@ Editor_Spawns_PreviewRows(
     }
 
     {
-        int const filters[5] = {
-            self->check_view_npcs,   self->check_view_objs,       self->check_view_generated,
-            self->check_view_edited, self->check_view_suppressed,
+        int const filters[6] = {
+            self->check_view_npcs,   self->check_view_objs,     self->check_view_generated,
+            self->check_view_edited, self->check_view_scripted, self->check_view_suppressed,
         };
-        for( int i = 0; i < 5; i++ )
+        for( int i = 0; i < 6; i++ )
             signature = (signature ^ (uint32_t)ToriRSChrome_Checked(ui->chrome, filters[i])) * 16777619u;
     }
     signature = (signature ^ ui->editor->last_cmd_seq) * 16777619u;
@@ -2017,6 +2129,7 @@ Editor_Spawns_PreviewRows(
         edited = spawns_edited(ui, slot->map_x, slot->map_z);
         signature = (signature ^ (uint32_t)(slot->map_x * 4099 + slot->map_z)) * 16777619u;
         signature = (signature ^ (uint32_t)slot->length) * 16777619u;
+        signature = (signature ^ (uint32_t)slot->scripted_length) * 16777619u;
         signature = (signature ^ (uint32_t)(edited ? edited->line_count + 1 : 0)) * 16777619u;
     }
     if( signature != self->preview_signature )
