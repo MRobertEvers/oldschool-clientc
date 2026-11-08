@@ -163,8 +163,12 @@ The pointer (workbench 6.3, design section 7):
   drag moves it, previewed and applied in one step on release; the spawn
   moves the Spawns selection as "Move: click a tile" does ("move spawn", one
   undo step); the player is placed as the Place player tool places it. An
-  unselected loc or spawn becomes the selection first. Let go on the same
-  tile and it is the Ctrl+click it was (the selection toggles).
+  unselected loc or spawn becomes the selection first. While the drag is
+  off its tile the thing is previewed where it would land, as Place previews
+  a pick: the loc's body (the first selected one; every loc's footprint), the
+  spawn's npc or ground item, the account's body, translucent, under the
+  pointer. Let go on the same tile and it is the Ctrl+click it was (the
+  selection toggles).
 
 ### Tools
 | Action | Chord | Ctx |

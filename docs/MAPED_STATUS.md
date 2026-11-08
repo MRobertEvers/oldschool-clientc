@@ -6180,9 +6180,21 @@ selection when it was not in it; `Editor_Spawns_MoveTo` with the drag's
 offset, one undo step "move spawn"); the player as the Place player tool
 places the play account (`Editor_Accounts_PlacePlayer`, ACCOUNT_PLACE). The
 destination footprint is the piece ghost (MAP_EDITOR_PIECE_GHOST_DRAG) under
-the pointer. The press is pending until the pointer leaves its tile; let go
-on it, the frame falls through to the click it was (Ctrl+click toggles the
-selection). docs/MAPED_HOTKEYS.md "Select: Ctrl+drag".
+the pointer, and -- owner, the same day: "The cmd+drag should be previewed
+as dragging, just like placing" -- the thing itself is drawn there,
+translucent, through the ghosts Place already has: a dragged spawn is the
+spawn ghost (`app_map_editor_spawn_ghost_update` wants it while
+`g_app_move` is active on a spawn, with the kind and id the press read off
+the preview item), the dragged player is the Place player ghost
+(`app_map_editor_player_ghost_update`, the drag's level), and a gizmo centre
+drag -- the Ctrl+drag on a loc is one -- puts the loc ghost at the first
+selected loc's landing tile (`app_map_editor_ghost_update`, the gizmo
+branch; `LocEditorGizmo_DragResult`'s dx/dz, in scene bounds, never a zero
+move), as the Move tool previews it. None is drawn on the thing's own tile
+(a translucent double of itself reads as flicker). The press is pending
+until the pointer leaves its tile; let go on it, the frame falls through to
+the click it was (Ctrl+click toggles the selection). docs/MAPED_HOTKEYS.md
+"Select: Ctrl+drag".
 
 Also today: the Gallery's chips are one line (kinds, S M L, list | grid) and
 its well is sized in chrome pixels from `view_h` as the squares map is (the

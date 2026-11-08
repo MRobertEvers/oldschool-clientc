@@ -106,6 +106,10 @@ static struct AppMapEditorMove
     int start_z;
     int level;
     int size;
+    /** A dragged spawn's kind and id: the body previewed at the tile under
+     *  the pointer (MAP_EDITOR_SPAWN_PREVIEW_ID_* while unresolved: none). */
+    enum MapEditorSpawnKind spawn_kind;
+    int spawn_id;
 } g_app_move;
 /* The Height brush's wheel (Ctrl/Cmd+wheel moves the grid and the ground
  * follows): a run of notches is one undo step, closed when the wheel rests
@@ -3843,11 +3847,26 @@ app_map_editor_spawn_ghost_update(
 {
     struct MapEditorHover const* hover = &app->map_ghost.hover;
     struct MapEditorSpawnSpec want;
-    int const wanted = hover->valid && ui->tools.tool == EDITOR_TOOL_LOC_PLACE
-                       && (ui->tools.pick_kind == 1 || ui->tools.pick_kind == 2) && ui->tools.pick_id >= 0;
+    /* A Ctrl+drag of a spawn (below, "Ctrl+drag"): its own body at the tile
+     * under the pointer, as Place previews a pick -- not on its own tile,
+     * where a translucent double of itself reads as flicker. */
+    int const moving = g_app_move.active && g_app_move.kind == APP_MOVE_SPAWN && g_app_move.spawn_id >= 0
+                       && !(hover->scene_x == g_app_move.start_x && hover->scene_z == g_app_move.start_z);
+    int const wanted = hover->valid
+                       && (moving
+                           || (ui->tools.tool == EDITOR_TOOL_LOC_PLACE
+                               && (ui->tools.pick_kind == 1 || ui->tools.pick_kind == 2) && ui->tools.pick_id >= 0));
 
     memset(&want, 0, sizeof(want));
-    if( wanted )
+    if( wanted && moving )
+    {
+        want.kind = g_app_move.spawn_kind;
+        want.id = g_app_move.spawn_id;
+        want.scene_x = hover->scene_x;
+        want.scene_z = hover->scene_z;
+        want.level = g_app_move.level;
+    }
+    else if( wanted )
     {
         want.kind = ui->tools.pick_kind == 1 ? MAP_EDITOR_SPAWN_NPC : MAP_EDITOR_SPAWN_OBJ;
         want.id = ui->tools.pick_id;
@@ -4424,8 +4443,14 @@ app_map_editor_player_ghost_update(
     struct Editor_AccountLook look;
     int look_serial = -1;
     int slots[APPEARANCE_SLOT_COUNT];
-    int const wanted = hover->valid && ui->tools.tool == EDITOR_TOOL_PLACE_PLAYER && app->world && app->provider
-                       && Editor_Accounts_PlayLook(ui, &look, &look_serial);
+    /* A Ctrl+drag of the play account's preview ("Ctrl+drag" below): the
+     * account's body at the tile under the pointer, as Place player shows
+     * it -- not on the preview's own tile. */
+    int const moving = g_app_move.active && g_app_move.kind == APP_MOVE_PLAYER
+                       && !(hover->scene_x == g_app_move.start_x && hover->scene_z == g_app_move.start_z);
+    int const level = moving ? g_app_move.level : hover->level;
+    int const wanted = hover->valid && (moving || ui->tools.tool == EDITOR_TOOL_PLACE_PLAYER) && app->world
+                       && app->provider && Editor_Accounts_PlayLook(ui, &look, &look_serial);
 
     /* A rebuild freed what the ghost was. */
     if( g_app_player_ghost.entity >= 0 && (!app->world || g_app_player_ghost.load_seq != app->world->load_seq) )
@@ -4436,7 +4461,7 @@ app_map_editor_player_ghost_update(
         return;
     }
     if( g_app_player_ghost.entity >= 0
-        && (g_app_player_ghost.look_serial != look_serial || g_app_player_ghost.level != hover->level) )
+        && (g_app_player_ghost.look_serial != look_serial || g_app_player_ghost.level != level) )
         app_map_editor_player_ghost_remove(app);
     if( g_app_player_ghost.entity >= 0 )
     {
@@ -4452,13 +4477,13 @@ app_map_editor_player_ghost_update(
     }
     {
         int colours[APPEARANCE_COLOUR_COUNT];
-        int const idx = app_player_body_spawn(app, &look, hover->scene_x, hover->scene_z, hover->level, "", slots, colours);
+        int const idx = app_player_body_spawn(app, &look, hover->scene_x, hover->scene_z, level, "", slots, colours);
         if( idx < 0 )
             return;
         World_PlayerSetTransparency(app->world, idx, 0, 0, 150, 150, true);
         g_app_player_ghost.entity = idx;
         g_app_player_ghost.load_seq = app->world->load_seq;
-        g_app_player_ghost.level = hover->level;
+        g_app_player_ghost.level = level;
         g_app_player_ghost.look_serial = look_serial;
         memcpy(g_app_player_ghost.slots, slots, sizeof(slots));
         memcpy(g_app_player_ghost.colours, colours, sizeof(colours));
@@ -4945,6 +4970,8 @@ app_map_editor_move_press(
             app_spawn_preview_select(app, ui, item, EDITOR_LOC_SELECT_REPLACE);
         g_app_move.kind = APP_MOVE_SPAWN;
         g_app_move.size = item->size > 0 ? item->size : 1;
+        g_app_move.spawn_kind = item->want.row.is_obj ? MAP_EDITOR_SPAWN_OBJ : MAP_EDITOR_SPAWN_NPC;
+        g_app_move.spawn_id = item->id;
     }
     else if( Editor_PanelPointedLoc(panel, app, scene_x, scene_z, level, &under) )
     {
@@ -5236,6 +5263,8 @@ app_map_editor_ghost_update(struct App* app)
     int shape = 0;
     int angle = 0;
     int level = 0;
+    int gx;
+    int gz;
 
     assert(app);
 
@@ -5259,6 +5288,8 @@ app_map_editor_ghost_update(struct App* app)
     {
         int const hover_ok = app->map_ghost.hover.valid && !g_app_gizmo.active;
 
+        gx = app->map_ghost.hover.scene_x;
+        gz = app->map_ghost.hover.scene_z;
         if( panel->visible && hover_ok && ui->tools.tool == EDITOR_TOOL_LOC_PLACE && !edp_stamp_armed(ui)
             && ui->tools.pick_kind == CACHEPROVIDER_CATALOG_LOC && ui->tools.pick_id >= 0 )
         {
@@ -5284,12 +5315,35 @@ app_map_editor_ghost_update(struct App* app)
             angle = panel->sel_angle;
             level = panel->sel_level;
         }
+        else if( panel->visible && g_app_gizmo.active && app->world && panel->sel_kind == EDITOR_SELECTION_LOC )
+        {
+            /* The gizmo's centre drag (a Ctrl+drag on a loc is one): the
+             * first selected loc's body at the tile it would land on, over
+             * the footprints the gizmo draws -- as the Move tool previews
+             * it. Not at rest on its own tile. */
+            struct LocEditorGizmoResult result;
+            LocEditorGizmo_DragResult(&g_app_gizmo.drag, &result);
+            if( (result.action == LOC_EDITOR_GIZMO_DO_MOVE || result.action == LOC_EDITOR_GIZMO_DO_DUPLICATE)
+                && (result.dx != 0 || result.dz != 0) )
+            {
+                gx = panel->sel_scene_x + result.dx;
+                gz = panel->sel_scene_z + result.dz;
+                if( gx >= 0 && gz >= 0 && gx < app->world->_scene_size && gz < app->world->_scene_size )
+                {
+                    want = 1;
+                    id = panel->sel_loc_id;
+                    shape = panel->sel_shape;
+                    angle = panel->sel_angle;
+                    level = panel->sel_level;
+                }
+            }
+        }
     }
 
     {
         struct MapEditorGhostSpec const wanted = { .loc_id = id,
-                                                   .scene_x = app->map_ghost.hover.scene_x,
-                                                   .scene_z = app->map_ghost.hover.scene_z,
+                                                   .scene_x = gx,
+                                                   .scene_z = gz,
                                                    .level = level,
                                                    .shape = shape,
                                                    .angle = angle };
