@@ -9,7 +9,7 @@ exists on the wiki (404).
 The quest was a LostCity port. Skill section 16 applied. `content_asset_inventory.py`: 11 unused symbols, none
 this quest's (all later Lucien content), 0 switches never written.
 
-Test: `test/quests/ikov.lua`, 151/151 rows on a private pack and servpack (`SCRIPTRUN PASS`, 1302 ticks). A green
+Test: `test/quests/ikov.lua`, 177/177 rows on a private pack and servpack (`SCRIPTRUN PASS`, 1469 ticks). A green
 gate is not parity: see Open.
 
 ## Stages and vars
@@ -507,7 +507,7 @@ pressed page. C = ops, ok = the same event on the same offset.
 | Lucien fight | attack 2078, defend 2079 delay 37, sounds; no death seq | same after `death_anim,null` | matched |
 | Lucien defeat ([1183]..[1204]) | page +1 from the last hit, reset, seq 804 + puff +2, `[del]` +4 from puff, page sent twice, stage at continue | page 3 ticks after last hit | Open 2 |
 | completion | see Start and end | | matched |
-| npc block inventory | `npc_block_inventory.py`: only MISSING is guardianfemale's facing (the test talks to a male, R to a female too) | | explained |
+| npc block inventory | `npc_block_inventory.py` over 4478, 4479, 4483: no kind MISSING | | see Npc info |
 | multinpc stances | `multinpc_stance_audit.py`: 2 pairs, both "same" | | matched |
 
 ## Fights (sections 13, 13b)
@@ -522,6 +522,93 @@ Regular quest npcs; no boss-class encounter here.
 Residual audit: `rsprox_hit_causes.py` on both sessions, no leftover cause on the room's npcs except the recorder's
 own knife rows above.
 
+## Npc info (block kinds, `npc_block_inventory.py --ours --values`)
+
+Sessions 4478, 4479, 4483, npc rows only. "Before" is the tick log of the run committed in 926aaecdb, "after" run
+16 (177/177). No block sits on an `[add]` tick for any of these npcs, so the pending engine change (a facing reset
+carried by npc adds) changes nothing here. Kinds recorded for these npcs: `facing`, `say`, `enabled_ops`, `headbar`,
+`hit`, `sequence`, `spotanim`; no `transformation`, `level_change`, `bas`, `body_customisation` or
+`headicon_customisation` exists for them, and "kinds recorded and never sent" is 0 (was 1).
+
+### facing
+
+| npc | recorded | ours before | ours after | verdict |
+|---|---|---|---|---|
+| ikov_lucien1 | 4 | 2 | 4 | matched; the lost-pendant talk added to the test |
+| ikov_firewarrior | 11 | 4 | 12 | matched but for the route: 5 recorded re-sends, 6 ours, from the player's own walk |
+| ikov_winelda | 4 | 2 | 4 | matched; walking off between the talks added to the test |
+| ikov_guardianmale | 3 | 1 | 3 | matched; the stage-70 talk added |
+| ikov_guardianfemale | 3 | 0 | 3 | matched; the two stage-70 talks added |
+| ikov_lucien2 | 8 | 6 | 8 | matched; both mind tricks driven |
+| total | 33 | 15 | 34 | |
+
+### say
+
+| npc | recorded | ours before | ours after | verdict |
+|---|---|---|---|---|
+| ikov_firewarrior "You will not pass!" | 1 | 1 | 1 | matched: 2 ticks after his add, 5 after the player's last step |
+| ikov_firewarrior "Amitus! Setitii!" | 1 | 1 | 1 | matched: the next tick, with the face and the cast |
+
+### enabled_ops
+
+| npc | recorded | ours before | ours after | verdict |
+|---|---|---|---|---|
+| ikov_firewarrior `0b00000` | 1 | 1 | 1 | same block; one tick early, see below |
+
+### Every other kind
+
+| kind and npc | recorded | ours before | ours after | verdict |
+|---|---|---|---|---|
+| hit, ikov_firewarrior | 96 | 34 | 38 | fight length: the recorder's adamant knives, ours darts; the residual audit above covers the causes |
+| headbar, ikov_firewarrior | 96 | 34 | 38 | as hit |
+| hit, ikov_lucien2 | 14 | 4 | 4 | fight length |
+| headbar, ikov_lucien2 | 14 | 4 | 4 | as hit |
+| spotanim, ikov_firewarrior (`fireblast_casting`, height 92) | 54 | 26 | 30 | one per cast |
+| spotanim, ikov_winelda (`teleport_casting`) | 1 | 1 | 1 | matched |
+| sequence, ikov_firewarrior | 56 | 28 | 32 | `human_caststrike_walkmerge` 53 / 25 / 29, one per cast; `human_caststrike`, `human_death`, `human_smokepuff_tele_appear` 1 each, matched |
+| sequence, ikov_lucien2 | 19 | 12 | 12 | `barrows_quarterstaff_defend` 14 / 8 / 8 and `_attack` 2 / 2 / 1 follow the fight; `human_mindtrick` 2 / 1 / 2; `human_smokepuff_tele_disappear` 1 |
+
+### Tick by tick (facing, say, ops)
+
+Every row of the recording against the tick log, each placed by its own anchor on both sides: the npc click or
+continue before it for a dialogue, the player's step for a release, the npc's add or the killing splat elsewhere.
+
+| event | R | R offset | ours | ours offset | verdict |
+|---|---|---|---|---|---|
+| Lucien's first talk, turn | 4478 [685] | page +1 | 39 | page +1 | matched |
+| released | [764] | the step out of range, +1 | 64 | +1 | matched |
+| lost pendant, turn | [1721] | page +1 | 67 | page +1 | matched |
+| released | [1728] | step +1 | 74 | +1 | matched |
+| fire door, says | 4483 [274], [275] | add +2, +3 | 884, 885 | add +2, +3 | matched |
+| fire door, turn | [275] | with the second say | 885 | same | matched |
+| fire door, reset | [282] | face +7, the npc phase after `cam_reset` | 892 | face +7 | fixed (was face +1) |
+| warrior's talk, turn | [287] | page +1 | 917 | page +1 | matched |
+| refused attack, reset | [312] | click +1 | 932 | click +1 | fixed (no reset before) |
+| first arrow, turn | [326] | the first splat's tick | 942 | same | matched |
+| re-sends while the player walks | [389], [523]..[525], [550] | a tick after the step or with it | 952..959 | same | rule matched, count follows the route |
+| death, reset | [556] | with `human_death`, blow +1 | 1060 | same | matched |
+| death, ops | [556] | with `human_death`, blow +1 | 1059 | blow +0 | one tick early (engine) |
+| Winelda, turn | [588] | page +1 | 1100 | page +1 | matched |
+| released | [642] | step +1 | 1116 | step +1 | matched |
+| second talk, turn | [651] | page +1 | 1133 | page +1 | matched |
+| released by the teleport | [691] | landing +1 | 1144 | landing +1 | matched |
+| guardian (male), turn | [767] | page +1 | 1297 | page +1 | matched |
+| re-sent, released | [927], [929] | on the walk off | 1325, 1326 | same | matched |
+| guardian (female), turn, released | [941], [946] | page +1, step +1 | 1344, 1349 | same | matched |
+| guardian (female), turn | [970] | page +1 | 1363 | page +1 | matched |
+| Lucien in the forest, turn | [1109] | page +1 | 1397 | page +1 | matched |
+| mind trick, square | [1127] | on the click, no entity face after it | 1403 | same | fixed (a player face followed it) |
+| released | [1136] | the box's continue | 1411 | same | fixed (no row before) |
+| attack with the pendant, turn | [1145] | the first splat's tick | 1416 | same | matched |
+| mind trick again, square, released | [1148], [1155] | click; continue | 1417, 1426 | same | fixed (not driven before) |
+| attack, turn | [1160] | the first splat's tick | 1431 | same | matched |
+| defeat, reset | [1183] | blow +1 | 1438 | blow +1 | fixed (a second reset two ticks later is gone) |
+
+Recorded rules these confirm, all already in the engine or the chat proc: a talk turns the npc on the page's tick +1
+(`playerfaceclose` applied by the next npc phase); the turn is released the tick after the player's step out of one
+tile; a held face goes out again when the angle to the player changes (`npc_face_follow`), so a step past the npc
+re-sends it and a two-tile run straight away does not.
+
 ## Open
 
 1. **Lucien after the Armadyl ending.** The wiki has pages for it, the cache hides both Lucien shells at vis 3
@@ -534,10 +621,12 @@ own knife rows above.
    after the quest (no line, no source), the shiny-key door (no recording, `locked` sound unsourced), Lucien's spawn
    tiles (recorded first-seen 2572..2575,3324 and 3125,3481 versus ours 2573,3321 and 3122,3484; wanderers).
 5. **Journal** stages 80 and 90 (unrecorded, no wiki transcript).
+5b. **Fire Warrior's `enabled_ops 0b00000`** goes out a tick before the recorded one (blow tick; recorded with the death
+   seq, blow +1). It is `npc_death_begin`'s generic rule, one sample here; left alone.
 6. **Generic content not diffed:** banks, the Grand Exchange, tablets beyond the route used, Death's office and
    gravestones, golem portal, cook's trapdoor, RFD chest, Fortis travel. Rows marked "not diffed" or "no direct
    binding" in the inventory; the binding check is by name and category only and missed `poshdoor`, which works.
 7. **Ground spawn.** The boots lie as `ikov_bootsoflightness` (88) in the recordings; ours is the generated
    `ikov_bootsoflightnessworn` plus a pickup conversion (`ikov_boots.rs2`, `m41_152.spawn`, generated, not edited).
-8. **Not driven on scriptrun:** the mind trick (test wears the pendant), camera lines (no reader), the wardrobes
+8. **Not driven on scriptrun:** camera lines (no reader), the wardrobes
    and "Nothing interesting" trapdoor (engine default, not exercised).

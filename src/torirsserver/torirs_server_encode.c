@@ -6285,6 +6285,22 @@ npc_face_block(
         face->walk_mode = npc->face_walktype;
         return 1;
     }
+    /* An add with no entity held and no facing masked this tick states what
+     * the npc's facing latch says (`face_add_latch`), not `face_x`: an old
+     * facesquare that a reset or an angle replaced must not come back. */
+    if( force_latch && npc->face_entity < 0 &&
+        (npc->masks & (TORIRSSERVER_NMASK_FACE_ENTITY | TORIRSSERVER_NMASK_FACE_COORD)) == 0 )
+    {
+        if( npc->face_add_latch == TORIRSSERVER_NPCFACEADD_NONE )
+            return 0;
+        if( npc->face_add_latch == TORIRSSERVER_NPCFACEADD_RESET )
+        {
+            mock239_face_init(face);
+            face->kind = MOCK239_FACE_RESET;
+            face->walk_mode = npc->face_walktype;
+            return 1;
+        }
+    }
     has = v5_face_from_classic(face, recipient, npc->masks, TORIRSSERVER_NMASK_FACE_ENTITY,
                                TORIRSSERVER_NMASK_FACE_COORD, npc->face_entity, npc->face_x,
                                npc->face_z, force_latch);
@@ -6294,6 +6310,29 @@ npc_face_block(
     if( has && face->kind == MOCK239_FACE_ENTITY )
         face->instant = npc->face_entity_instant;
     return has;
+}
+
+/* A facing block sent only because the npc entered view, for the tick log: the
+ * per-tick rows there come from the masks, which an add never set, and an audit
+ * reading `[facing]` per `[add]` would otherwise count none of what went out. */
+static void
+npc_ticklog_add_face(
+    const struct Mock239Face* face,
+    const struct ToriRSServerNpc* npc,
+    int has_face,
+    int added)
+{
+    if( !added || !has_face )
+        return;
+    if( npc->masks &
+        (TORIRSSERVER_NMASK_FACE_ENTITY | TORIRSSERVER_NMASK_FACE_COORD | TORIRSSERVER_NMASK_FACE_ANGLE) )
+        return;
+    if( face->kind == MOCK239_FACE_RESET )
+        ToriRSServer_TicklogNpcFaceAdd(npc, -1, -1);
+    else if( face->kind == MOCK239_FACE_LOC )
+        ToriRSServer_TicklogNpcFaceAdd(npc, face->x, face->z);
+    else
+        ToriRSServer_TicklogNpcFaceAdd(npc, -1, npc->face_entity);
 }
 
 /** The flag itself, plus the continuation bits its own width implies. */
@@ -6590,6 +6629,7 @@ put_npc_extended_v5(
     int const hit = (classic & (TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2)) != 0;
     struct Mock239Face face;
     int const has_face = npc_face_block(&face, recipient, npc, force_face_latch);
+    npc_ticklog_add_face(&face, npc, has_face, force_face_latch);
 
     /*
      * The splat and the bar are two masks, and an npc may want the second
@@ -7013,6 +7053,7 @@ put_npc_extended_v241(
     int const hit = (classic & (TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2)) != 0;
     struct Mock239Face face;
     int const has_face = npc_face_block(&face, recipient, npc, force_face_latch);
+    npc_ticklog_add_face(&face, npc, has_face, force_face_latch);
     int const splat = hit && npc_shows_hitsplat(npc);
     int const headbar = npc_headbar_id(npc);
 
@@ -7356,6 +7397,7 @@ put_npc_extended_v242(
     int const hit = (classic & (TORIRSSERVER_NMASK_DAMAGE | TORIRSSERVER_NMASK_DAMAGE2)) != 0;
     struct Mock239Face face;
     int const has_face = npc_face_block(&face, recipient, npc, force_face_latch);
+    npc_ticklog_add_face(&face, npc, has_face, force_face_latch);
     int const splat = hit && npc_shows_hitsplat(npc);
     int const headbar = npc_headbar_id(npc);
 

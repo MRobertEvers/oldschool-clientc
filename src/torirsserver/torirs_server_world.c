@@ -21036,6 +21036,9 @@ phase_cleanup(struct ToriRSServer* srv)
 
     for( int i = 0; i < srv->npc_slot_max; i++ )
     {
+        /* Before the masks go: what this tick's facing blocks leave an add
+         * to restate later. */
+        ToriRSServer_NpcFaceAddLatch(&srv->npcs[i]);
         srv->npcs[i].masks = 0;
         srv->npcs[i].face_entity_instant = 0;
         /* With the masks — see the player's copy of this line. */

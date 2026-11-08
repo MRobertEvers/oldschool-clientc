@@ -592,6 +592,7 @@ index reuse):
   - Many npcs `[facing] type=reset` with their first step after an angle face (Armacus, the
     Guardians): `npc_facereset` on that tick.
   - **Angle** is `npc_facedir`.
+  - **An `[add]` restates the npc's facing, and the engine does it (not content; `face_add_latch`).** Two per-npc latches, rev 238+: an entity held is sent; else a coord standing is sent; else `type=reset` once a reset has cleared a coord; else nothing. A reset clears the entity and turns a standing coord into the reset latch; a reset with no coord behind it (player, reset) leaves the add empty; an angle clears the coord/reset latch. Fit on 5 sessions (index 4448, 4451, 4452, 4486, 4487): 3441/3441 after one refinement. Held out on 175 other sessions (rev 238, 239, 241, 242): 34717/35074 (none 30809/31032, reset 1591/1651, coord 1150/1165, player 978/1026, npc 189/197, angle 0/3); the misses are mostly npcs whose facing changed while out of view (gap <= 30 ticks: 13869/13970). Not a type property: 71 npc types add both with and without reset (cook 19/16). Klenter's 22 adds are all `type=reset`.
   - Note **when** it re-faces (every attack? only on target change?).
   - Several bosses swing with the facing **held** into the swing (Tekton).
   - `playerface` drops past the npc's `maxrange` from spawn (default 7).

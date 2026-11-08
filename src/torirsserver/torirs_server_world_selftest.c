@@ -3656,6 +3656,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
 
 #include "test/sailing_server_selftest.u.h"
 #include "test/sailing_multiplayer_selftest.u.h"
+#include "test/npc_add_face_selftest.u.h"
 /* Before the lifecycle header, which is its only caller: the stale-callback
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
@@ -5766,6 +5767,14 @@ ToriRSServer_WorldSelftest(void)
     ToriRSServer_WorldInit(srv, 426, 408);
     ToriRSServer_WorldPlayerInit(player);
 
+    if( getenv("TORIRSSERVER_SELFTEST_NPCFACEADD_ONLY") )
+    {
+        selftest_npc_add_face(srv, player);
+        fprintf(stderr, "ToriRSServer npc add facing selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("npc_add_face");
+        return g_selftest_failures;
+    }
     if( getenv("TORIRSSERVER_SELFTEST_NPC_SEED_ONLY") )
     {
         selftest_npc_run_seed(srv);

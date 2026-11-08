@@ -3050,6 +3050,12 @@ struct ToriRSServerNpc
     /** The angle (0..2047) to the faced player when FACE_ENTITY last went out:
      *  the block is re-sent whenever it turns (`npc_face_follow`). */
     int face_sent_angle;
+    /**
+     * The facing an `[add]` restates, beside the entity latch above (an entity
+     * held wins): one of TORIRSSERVER_NPCFACEADD_*. Updated once a tick by
+     * `ToriRSServer_NpcFaceAddLatch`, cleared with the npc (memset, respawn).
+     */
+    int face_add_latch;
     char say[80];
     int anim_id;
     int anim_delay;
@@ -3576,6 +3582,51 @@ struct ToriRSServerNpc
      *  so does the death it causes. See `hit_has_player_dealer`. */
     int last_hit_unowned;
 };
+
+/*
+ * The facing an add restates for an npc holding no entity face. Jagex's npc
+ * has two facing latches (RSProx, rev 238+; rule and counts in the rsprox-content
+ * skill, section 9): the entity one, and this one.
+ *
+ *   NONE   no block on an add: nothing has turned the npc, or `npc_faceangle`
+ *          did, or a reset arrived while nothing but the entity latch was set
+ *   COORD  an `npc_facesquare` held: the add restates the coord
+ *   RESET  a reset cleared a coord: the add carries `[facing] type=reset`,
+ *          and goes on carrying it until a new coord or an angle
+ */
+enum
+{
+    TORIRSSERVER_NPCFACEADD_NONE = 0, /* zero: a fresh npc states no facing */
+    TORIRSSERVER_NPCFACEADD_COORD,
+    TORIRSSERVER_NPCFACEADD_RESET,
+};
+
+/*
+ * Fold this tick's facing blocks into `face_add_latch`, once per tick while
+ * the masks are still set. A block's order on the wire is coord over entity,
+ * angle over both -- the order `npc_face_block` writes them.
+ */
+static inline void
+ToriRSServer_NpcFaceAddLatch(struct ToriRSServerNpc* npc)
+{
+    assert(npc);
+    if( npc->masks & TORIRSSERVER_NMASK_FACE_ANGLE )
+    {
+        npc->face_add_latch = TORIRSSERVER_NPCFACEADD_NONE;
+    }
+    else if( npc->masks & TORIRSSERVER_NMASK_FACE_COORD )
+    {
+        npc->face_add_latch = TORIRSSERVER_NPCFACEADD_COORD;
+    }
+    else if( (npc->masks & TORIRSSERVER_NMASK_FACE_ENTITY) && npc->face_entity < 0 &&
+             npc->face_add_latch == TORIRSSERVER_NPCFACEADD_COORD )
+    {
+        /* A reset with an entity held clears the entity AND resolves the
+         * coord (4451/4452: coord, player, reset then adds carry reset);
+         * a reset with no coord behind it changes nothing. */
+        npc->face_add_latch = TORIRSSERVER_NPCFACEADD_RESET;
+    }
+}
 
 /*
  * Point an npc's FACE_ENTITY latch at a player, by pid.
@@ -6882,6 +6933,9 @@ void ToriRSServer_TicklogNpcFree(const struct ToriRSServer* srv, int slot);
 /* An npc turned to a square (`npc_facesquare`, the one writer of
  * TORIRSSERVER_NMASK_FACE_COORD): x/z are tiles, not the wire's half-tiles. */
 void ToriRSServer_TicklogNpcFace(const struct ToriRSServerNpc* npc, int x, int z);
+/* The facing block an add sent only because the npc entered view (no mask),
+ * once per npc per tick. x = -1, z = -1 for a reset. */
+void ToriRSServer_TicklogNpcFaceAdd(const struct ToriRSServerNpc* npc, int x, int z);
 void ToriRSServer_TicklogNpcRetype(const struct ToriRSServerNpc* npc, int from_type, int to_type,
                                    int duration);
 void ToriRSServer_TicklogLocSet(const struct ToriRSServer* srv, int coord, int loc_id, int shape,

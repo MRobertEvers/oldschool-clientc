@@ -168,6 +168,18 @@ return {
         })
         local _, pendant_count = t.inv.count("ikov_pendantoflucien")
         t.check("talkToLucien-pendant", pendant_count == 1, "pendant of Lucien in the pack: " .. tostring(pendant_count))
+        -- The lost pendant, recorded 4478 [1718]..[1728]: a fresh face a tick after the page, reset when
+        -- the player walks off.
+        t.exec("lostPendant.drop", t.player.drop, "ikov_pendantoflucien")
+        t.player.walk_to(2575, 3320, 12)
+        t.ticks(2)
+        t.exec("lostPendant.talk", t.player.talk_to, "ikov_lucien1", 1)
+        t.exec("lostPendant.dialog", t.chat.play, {
+            "npc:I told you not to meet me here again!",
+            "player:I've lost the pendant",
+            "npc:Imbecile!",
+            "objbox:Lucien has given you another pendant",
+        })
         t.exec("wear-pendantOfLucien", t.player.equip, "ikov_pendantoflucien")
         t.exec("leaveInn.innDoorOut", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
             at = { 2576, 3320, 0 }, near = { 2575, 3320 }, far = { 2577, 3320 } })
@@ -459,7 +471,6 @@ return {
             far_desc = "north of the trap-lever door, z >= 9858" })
         t.player.walk_to(2646, 9865, 30)
         t.player.walk_to(2646, 9869, 20)
-        t.exec("wear-iceArrows", t.player.equip, "ice_arrow")
         -- The warrior fights with fire blast (ikov_firewarrior.rs2 [ai_applayer2]
         -- ~npc_cast_spell_with_forced_max_hit(^fire_blast, 4, 8); LostCity fire_warrior_of_leskarus.rs2:14-15),
         -- 20-40 hp off an unprotected player over a 60-100 tick fight (runs 2-9). Protect from Magic goes up
@@ -486,7 +497,39 @@ return {
         } })
         t.ticks(12)
         t.exec("fightLes-talkRefused", t.npc.by_symbol, "ikov_firewarrior")
+        -- Recorded 4483 [286]..[328], npc info included: the two talks, the refused attack without ice
+        -- arrows (his face reset the tick after it, no cast until he is hit), then the arrows.
+        t.exec("fightLes.prayerOffForTalk", t.prayer.set, "protectfrommagic", false)
+        t.exec("fightLes.pilgrim-talk", t.player.talk_to, "ikov_firewarrior", 1)
+        t.exec("fightLes.pilgrim-dialog", t.chat.play, {
+            "npc:Who dares to enter",
+            "choose:A humble pilgrim.",
+            "player:A humble pilgrim.",
+            "npc:I haven't seen a pilgrim",
+            "npc:Temple is closed!",
+        })
+        t.exec("fightLes.prayerOnForHero", t.prayer.set, "protectfrommagic", true)
+        t.exec("fightLes.hero-talk", t.player.talk_to, "ikov_firewarrior", 1)
+        t.exec("fightLes.hero-dialog", t.chat.play, {
+            "npc:Who dares to enter",
+            "choose:A mighty hero!",
+            "player:A mighty hero!",
+            "npc:Pathetic fool!",
+        })
+        t.ticks(3)
+        t.exec("fightLes.refused", t.player.talk_to, "ikov_firewarrior", 2)
+        t.exec("fightLes.refused-dialog", t.chat.play, { "npc:Your puny weapons" })
+        t.ticks(3)
+        t.exec("wear-iceArrows", t.player.equip, "ice_arrow")
         t.exec("fightLes", t.player.attack, "ikov_firewarrior", 2, 30)
+        -- [388]..[389], [522]..[525], [549]..[550]: his face goes out again the tick after the player's step.
+        t.ticks(8)
+        do
+            local _, tile = t.world.tile()
+            -- Across his front, as the recorder ran: a straight line away keeps the angle and sends nothing.
+            t.player.walk_to(2642, 9864, 12)
+        end
+        t.exec("fightLes.reengage", t.player.attack, "ikov_firewarrior", 2, 30)
         local les_result, les_detail = t.npc.await_dead_engaged(400, 12, { eat = { item = FOOD, below = EAT_BELOW } })
         t.step("fightLes-dead", les_result == "ok" and "PASS" or "FAIL", tostring(les_detail))
         margin_row("fightLes.margin", "Fire Warrior of Lesarkus", les_detail)
@@ -516,6 +559,16 @@ return {
         })
         t.ticks(2)
         t.expect("quest.stage.spoken_winelda", t.quest.expect_stage("spoken_winelda"))
+        -- Recorded 4483 [641]..[651]: walking off resets her face, the next talk turns her again.
+        do
+            local _, tile = t.world.tile()
+            if tile.x >= 2655 then
+                t.player.walk_to(2651, 9876, 12)
+            else
+                t.player.walk_to(2658, 9875, 12)
+            end
+            t.ticks(2)
+        end
         t.exec("giveWineldaLimps", t.player.talk_to, "ikov_winelda", 1)
         t.exec("giveWineldaLimps-pay", t.chat.play, {
             "player:I've got you the limpwurt roots",
@@ -583,6 +636,32 @@ return {
         t.ticks(2)
         t.expect("quest.stage.helping_armadyl", t.quest.expect_stage("helping_armadyl"))
         t.exec("makeChoice-pendantOfArmadyl", t.inv.expect_has, "ikov_pendantofarmardyl", 1)
+        -- The stage-70 talks, recorded 4483 [921]..[972]: a male and two females, each turned a tick after
+        -- the page and reset when the player walks off.
+        do
+            local function not_yet(tag, symbol)
+                t.exec(tag .. "-talk", t.player.talk_to, symbol, 1)
+                t.exec(tag .. "-dialog", t.chat.play, {
+                    "npc:Have you killed Lucien?",
+                    "player:Not yet.",
+                    "npc:Hurry friend!",
+                })
+            end
+            local function walk_off()
+                local _, tile = t.world.tile()
+                if tile.x < 2644 then
+                    t.player.walk_to(2649, 9908, 30)
+                else
+                    t.player.walk_to(2637, 9911, 30)
+                end
+                t.ticks(2)
+            end
+            not_yet("stage70.male", "ikov_guardianmale")
+            walk_off()
+            not_yet("stage70.female1", "ikov_guardianfemale")
+            walk_off()
+            not_yet("stage70.female2", "ikov_guardianfemale")
+        end
 
         -- ---------------------------------------------------------------- killLucien
         t.exec("killLucien-wear", t.player.equip, "ikov_pendantofarmardyl")
@@ -591,7 +670,8 @@ return {
         do
             local _, hp = t.skill.read("hitpoints")
             local level = hp and hp.level or 0
-            if level < EAT_BELOW then
+            local _, sharks_held = t.inv.count(FOOD)
+            if level < EAT_BELOW and (sharks_held or 0) > 0 then
                 local _, sharks_before = t.inv.count(FOOD)
                 local eat_result, eat_detail = t.player.inv_op(FOOD, 1)
                 t.ticks(3)
@@ -639,6 +719,20 @@ return {
         t.ticks(5) -- recorded 4483 [1129]..[1133]: the box comes four ticks after the page's continue
         t.exec("mindTrick-box", t.chat.play, { "mesbox:You decide not to attack Lucien." })
         t.exec("mindTrick-wearPendant", t.player.equip, "ikov_pendantofarmardyl")
+        -- [1143]..[1155]: the pendant on, an attack turns him ([1145]); off mid-fight, the next press is
+        -- the trick again.
+        t.exec("mindTrick2-attack", t.player.attack, "ikov_lucien2", 2, 30)
+        t.exec("mindTrick2-removePendant", t.player.unequip, "ikov_pendantofarmardyl")
+        -- The combat loop re-asks [apnpc2] every tick, so with the pendant off the next swing is already
+        -- the trick; a press on top of it would run the trick twice.
+        t.ticks(1)
+        if t.chat.kind() == "none" then
+            t.exec("mindTrick2-press", t.player.talk_to, "ikov_lucien2", 2)
+        end
+        t.exec("mindTrick2-dialog", t.chat.play, { "npc:You don't want to attack me." })
+        t.ticks(5)
+        t.exec("mindTrick2-box", t.chat.play, { "mesbox:You decide not to attack Lucien." })
+        t.exec("mindTrick2-wearPendant", t.player.equip, "ikov_pendantofarmardyl")
         t.exec("killLucien", t.player.attack, "ikov_lucien2", 2, 30)
         -- Lucien is level 14 (quest_ikov.npc: attack 12, strength 10, 17 hp): the last shark is kept for a real
         -- emergency, not eaten at the fire warrior's threshold (run 2 ate it at once on a 49-hp entry).

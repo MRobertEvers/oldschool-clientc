@@ -4764,6 +4764,7 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
         /* A respawn is a fresh npc to every observer, so it faces the way a
          * fresh npc does rather than wherever it was walking when it died. */
         npc->face_dir = TORIRSSERVER_FACE_SOUTH;
+        npc->face_add_latch = TORIRSSERVER_NPCFACEADD_NONE;
         npc->masks = 0;
         npc->last_step_x = npc->x - 1;
         npc->last_step_z = npc->z;

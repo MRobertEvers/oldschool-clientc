@@ -861,6 +861,28 @@ ToriRSServer_TicklogNpcFace(
 }
 
 void
+ToriRSServer_TicklogNpcFaceAdd(
+    const struct ToriRSServerNpc* npc,
+    int x,
+    int z)
+{
+    /* NPC_INFO is encoded per viewer; the block is the npc's. */
+    static int s_last_tick_plus1[TORIRSSERVER_NPC_MAX];
+    int slot;
+
+    if( !g_ticklog.srv )
+        return;
+    assert(npc);
+    slot = ticklog_npc_slot(npc);
+    if( slot < 0 )
+        return;
+    if( s_last_tick_plus1[slot] == g_ticklog.srv->tick + 1 )
+        return;
+    s_last_tick_plus1[slot] = g_ticklog.srv->tick + 1;
+    ticklog_write_side(TORIRSSERVER_TICKLOG_NPC_FACE, slot, npc->type, x, z, 0, 0, 0, "");
+}
+
+void
 ToriRSServer_TicklogNpcRetype(
     const struct ToriRSServerNpc* npc,
     int from_type,
