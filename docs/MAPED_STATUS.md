@@ -15,6 +15,28 @@ brush footprint, spawn ghosts, History panel, slider skin).
 The plan for the editor as a game editor, measured against the editors
 people know, is docs/MAPED_ROADMAP.md.
 
+## Escape clears every selection (2026-11-08)
+
+Owner: "Escape should clear the spawn selection. Why does spawn and tile
+selections use a separate selection and not respect escape? They should."
+The editor keeps three selections because they are three different things
+with three owners: the loc selection is `ui->tools.locs` (document refs,
+shared with every window through the selection state); the tile is the
+latched `ui->tools.tile_*` plus the panel's `sel_kind` TERRAIN (the subject
+of Apply, the Spawns list's square, the Place player ghost); the Spawns
+selection is the Spawns panel's own rows (`SpawnsPanel.selection`, one
+square's rows by name and tile, since the list is one square's and a row
+has no id). The active player's mark is a fourth, the App's
+(`g_app_player_preview.selected`). What was wrong is that Escape's Deselect
+(edpanel_hotkeys.c) knew only the first: it cleared the locs and the
+rectangle and left the rest -- the spawn selection and the tile, selected
+from the world or the list, had no key that let them go. Now Deselect clears
+all of them (`Editor_Spawns_ClearSelection`, `tile_valid`, and the App drops
+the player's mark before running it), `panel_sync_primary` lets a TERRAIN
+subject go to NONE when the tile went, and the Place-tool ghost drop waits
+until the spawn selection is empty too. editor_panels_test
+`test_spawn_escape`. docs/MAPED_HOTKEYS.md "Deselect / cancel".
+
 ## Spawn preview (2026-11-08)
 
 Spawns panel, "Show spawns in the world" (Shift+F6, off by default): every

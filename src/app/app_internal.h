@@ -1427,6 +1427,11 @@ app_map_editor_player_preview_view(
     int* out_element_id,
     int* out_selected);
 
+/** Escape: the active player's mark in the spawn preview goes (its tile
+ *  goes with the selection the ui-side Deselect clears). */
+void
+app_map_editor_player_preview_deselect(struct App* app);
+
 /** The spawn preview's table, for the overlay's markers and outlines. */
 struct MapEditorSpawnPreview*
 app_map_editor_spawn_preview(void);

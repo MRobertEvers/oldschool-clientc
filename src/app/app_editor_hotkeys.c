@@ -397,6 +397,7 @@ app_hk_deselect(
         Editor_UiLog(ui, "editor: drag cancelled; nothing placed");
         return;
     }
+    app_map_editor_player_preview_deselect(app);
     (void)Editor_HotkeyRun(ui, EDITOR_HK_EDIT_DESELECT);
 }
 

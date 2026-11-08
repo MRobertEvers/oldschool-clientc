@@ -107,7 +107,7 @@ same squares when its box is empty.
 |---|---|---|
 | Undo | Ctrl+Z | G |
 | Redo | Ctrl+Shift+Z, Ctrl+Y | G |
-| Deselect / cancel (open menu, drag or rectangle in progress, then the selection; with the Place tool armed and nothing selected, drops the ghost: back to Select, the pick kept) | Escape | G |
+| Deselect / cancel (open menu, drag or rectangle in progress, then EVERY selection: the locs, the rectangle, the Spawns selection, the active player's mark and the latched tile; with the Place tool armed and nothing selected, drops the ghost: back to Select, the pick kept) | Escape | G |
 | Delete selection (locs; else the Spawns selection) | Delete, Backspace | L, S |
 | Duplicate (locs; else the Spawns selection) | Ctrl+D | L, S |
 | Rotate (selected locs; else the Place ghost -- the ghost whenever the Place tool is armed) | Q | G |

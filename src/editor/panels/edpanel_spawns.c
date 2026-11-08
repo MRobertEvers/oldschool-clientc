@@ -1816,6 +1816,23 @@ Editor_Spawns_Select(
 }
 
 int
+Editor_Spawns_ClearSelection(struct EditorUi* ui)
+{
+    struct SpawnsPanel* self;
+    int count;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "spawns");
+    if( !self )
+        return 0;
+    count = self->selection_count;
+    self->selection_count = 0;
+    self->move_armed = 0;
+    self->form_valid = 0;
+    return count;
+}
+
+int
 Editor_Spawns_WanderRects(
     struct EditorUi* ui,
     int hover_valid,

@@ -624,6 +624,11 @@ Editor_Spawns_Select(
     const struct Editor_SpawnRow* rows,
     int count);
 
+/** Drop the selection (and an armed move): Escape's Deselect / cancel, with
+ *  the locs and the latched tile. The rows dropped; 0 without the panel. */
+int
+Editor_Spawns_ClearSelection(struct EditorUi* ui);
+
 /**
  * The wander preview's rectangles this frame, ABSOLUTE world tiles
  * (map_editor_ghost.h): the spawn ghost's (`ghost_npc_id` >= 0, at the

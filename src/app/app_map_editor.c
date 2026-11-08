@@ -4643,6 +4643,16 @@ app_player_preview_deselect(void)
     g_app_player_preview.selected = 0;
 }
 
+void
+app_map_editor_player_preview_deselect(struct App* app)
+{
+    assert(app);
+    if( !g_app_player_preview.selected )
+        return;
+    app_player_preview_deselect();
+    app->need_redraw = 1;
+}
+
 int
 app_map_editor_player_preview_view(
     int* out_scene_x,

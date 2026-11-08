@@ -6025,6 +6025,46 @@ cat_ui_open(void)
     cat_frame();
 }
 
+/* Escape (Deselect / cancel) clears the Spawns selection and the latched
+ * tile, not only the locs (owner 2026-11-08: "Escape should clear the spawn
+ * selection ... spawn and tile selections ... should respect escape"). */
+static void
+test_spawn_escape(void)
+{
+    struct Editor_SpawnRow sel[1];
+    int spawns;
+
+    cat_ui_open();
+    spawns = cat_panel("Spawns");
+    CHECK(spawns >= 0, "escape: the Spawns panel is there");
+    if( spawns < 0 )
+        return;
+    ToriRSChrome_PanelSetVisible(&g_cat_chrome, spawns, 1);
+    memset(sel, 0, sizeof(sel));
+    snprintf(sel[0].name, sizeof(sel[0].name), "test_guard");
+    sel[0].abs_x = SQ_X0 + 5;
+    sel[0].abs_z = SQ_Z0 + 5;
+    sel[0].count = 1;
+    g_cat_ui.tools.tile_valid = 1;
+    g_cat_ui.tools.tile_x = SQ_X0 + 5;
+    g_cat_ui.tools.tile_z = SQ_Z0 + 5;
+    g_cat_ui.tools.tile_level = 0;
+    Editor_Spawns_Select(&g_cat_ui, sel, 1);
+    CHECK(Editor_Spawns_SelectionCount(&g_cat_ui) == 1, "escape: a spawn is selected");
+    CHECK(Editor_HotkeyRun(&g_cat_ui, EDITOR_HK_EDIT_DESELECT) == 1, "escape: Deselect / cancel runs");
+    CHECK(Editor_Spawns_SelectionCount(&g_cat_ui) == 0, "escape: the spawn selection is cleared");
+    CHECK(!g_cat_ui.tools.tile_valid, "escape: the latched tile is cleared");
+    /* A spawn selected under the Place tool: Escape is the deselect first,
+     * the ghost drop next. */
+    Editor_Spawns_Select(&g_cat_ui, sel, 1);
+    Editor_UiSetTool(&g_cat_ui, EDITOR_TOOL_LOC_PLACE);
+    (void)Editor_HotkeyRun(&g_cat_ui, EDITOR_HK_EDIT_DESELECT);
+    CHECK(Editor_Spawns_SelectionCount(&g_cat_ui) == 0 && g_cat_ui.tools.tool == EDITOR_TOOL_LOC_PLACE,
+        "escape: with a spawn selected under Place, Escape deselects and keeps the tool");
+    (void)Editor_HotkeyRun(&g_cat_ui, EDITOR_HK_EDIT_DESELECT);
+    CHECK(g_cat_ui.tools.tool == EDITOR_TOOL_SELECT, "escape: the next Escape drops the ghost (back to Select)");
+}
+
 static void
 test_spawn_edit(void)
 {
@@ -8679,6 +8719,7 @@ main(
     test_publish();
     test_spawn_duplicate();
     test_spawn_edit();
+    test_spawn_escape();
     test_spawn_preview();
     test_record_editor();
     test_editing_feedback();

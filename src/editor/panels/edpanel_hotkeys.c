@@ -299,11 +299,14 @@ hk_run_edit(
         Editor_UiLog(ui, "editor: redo reapplied %d edit(s)", ui->editor ? Editor_Redo(ui->editor) : 0);
         return 1;
     case EDITOR_HK_EDIT_DESELECT:
-        /* A drag in progress is the App's to cancel first; here the
-         * selection and the rectangle go. With neither, under the Place
+        /* A drag in progress is the App's to cancel first; here EVERY
+         * selection goes: the locs, the rectangle, the Spawns panel's
+         * selection and the latched tile (the player preview's mark went
+         * on the App side). With none of the first three, under the Place
          * tool, the ghost goes: back to Select, the catalog pick kept (0
          * arms Place on it again). */
-        if( tools->loc_count == 0 && !tools->rect.valid && tools->tool == EDITOR_TOOL_LOC_PLACE )
+        if( tools->loc_count == 0 && !tools->rect.valid && Editor_Spawns_SelectionCount(ui) == 0
+            && tools->tool == EDITOR_TOOL_LOC_PLACE )
         {
             Editor_UiSetTool(ui, EDITOR_TOOL_SELECT);
             Editor_UiLog(ui, "editor: placing cancelled (the catalog pick is kept)");
@@ -311,6 +314,8 @@ hk_run_edit(
         }
         tools->loc_count = 0;
         tools->rect.valid = 0;
+        tools->tile_valid = 0;
+        (void)Editor_Spawns_ClearSelection(ui);
         if( ui->hooks.selection_changed )
             ui->hooks.selection_changed(ui->hooks_user);
         return 1;

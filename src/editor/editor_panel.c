@@ -194,6 +194,13 @@ panel_sync_primary(
         panel->sel_element_id = -1;
         panel->sel_loc_id = -1;
     }
+    else if( panel->sel_kind == EDITOR_SELECTION_TERRAIN && !ui->tools.tile_valid )
+    {
+        /* The latched tile went too (Escape): nothing is the subject. */
+        panel->sel_kind = EDITOR_SELECTION_NONE;
+        panel->sel_element_id = -1;
+        panel->sel_loc_id = -1;
+    }
     app->need_redraw = 1;
     panel_publish_selection(panel, app);
 }
