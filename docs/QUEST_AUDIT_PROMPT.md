@@ -58,6 +58,10 @@ every iteration.
    - Every parked dialogue has a resume or discard path.
    - Rewards, quest points, and journal text verbatim against the wiki's
      rewards table.
+   - If an RSProx recording of the quest exists: every recorded npc `[facing]`,
+     `[say]` and `[enabled_ops]` block is written in the content, per step 12
+     of "Porting a quest" in `.claude/skills/rsprox-content/SKILL.md`. A block
+     nobody wrote is a defect, not an audit footnote.
    - Run the §8 pre-flight greps over the quest dir.
 3. **Dynamic audit.** Rebuild sscompile, compile the pack (absolute paths),
    confirm the compiled line, then drive the quest: prefer an existing

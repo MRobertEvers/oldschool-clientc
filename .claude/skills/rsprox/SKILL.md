@@ -98,7 +98,7 @@ and what is already settled.
 
 ## 5. Auditing our content against it
 
-To IMPLEMENT or rebuild content from a recording (ops, maplinks, locs, projectiles, sounds, interfaces, npc info, dialogues, movement), use the `rsprox-content` skill: `tools/rsprox/rsprox_interact.py` traces one interaction tick by tick, and `.claude/skills/rsprox-content/PACKETS.md` explains every packet.
+To IMPLEMENT or rebuild content from a recording (ops, maplinks, locs, projectiles, sounds, interfaces, npc info, dialogues, movement), use the `rsprox-content` skill: `tools/rsprox/rsprox_interact.py` traces one interaction tick by tick, and `.claude/skills/rsprox-content/PACKETS.md` explains every packet. Npc `[facing]`, `[say]` and `[enabled_ops]` are part of every port, not only its audit (that skill's "Porting a quest", step 12).
 
 
 1. Run the full `rsprox_tells.py --anchor … --ours …` inventory, then walk **every** section: loc_add shape/rotation, varp/varbit (incl. `hpbar_hud_*`), synth and area sounds, npc seq/spotanim, obj despawn, messages. Explain every R-only and O-only row as a fix, the recorder's kit, or rate. Do not extract only the events you went looking for.

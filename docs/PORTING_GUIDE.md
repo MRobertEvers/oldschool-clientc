@@ -709,6 +709,12 @@ shows no *new* silently-missing opcodes. "It compiles" is not done;
 "the graphic plays but the character is frozen"-class bugs (anim priority,
 missing `IF_SETEVENTS`) only show up in the client.
 
+When an RSProx recording of the slice exists, the slice is not done until its
+npc info is ported too: every recorded `[facing]`, `[say]` and `[enabled_ops]`
+block for its npcs is written in the content on its recorded tick, and
+`npc_block_inventory.py` has no unexplained MISSING row. The procedure is step
+12 of "Porting a quest" in `.claude/skills/rsprox-content/SKILL.md`.
+
 ### 4.3a Porting a boss: state its triggers, including the ones it does nothing in
 
 The combat triggers are **wildcards**. An npc that names no

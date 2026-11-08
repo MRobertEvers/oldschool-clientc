@@ -19,8 +19,8 @@ the script command that emits it. Keep it open.
 the same session's three teleport-tablet breaks unbound in our tree (Break did nothing), its ten
 ladder climbs, chopping, drinking, drops and pickups never looked at, the battlefield's
 npc-vs-npc fight found only by accident, and the journal never checked. Every one was in the
-recording. A quest is done when every row of steps 1-3 has a verdict, not when the quest gate
-is green.
+recording. A quest is done when every row of steps 1-3 and every recorded npc-info block kind
+(step 12) has a verdict, not when the quest gate is green.
 
 1. **Inventory every action the recorder took.**
    `python3 tools/rsprox/rsprox_actions.py <idx.txt>` lists each distinct op (npc, loc, obj,
@@ -115,10 +115,29 @@ is green.
     is the spirit trees' menu (`menu` 217 "Spirit Tree Locations", recorded in 311 and 3976).
 11. **Fights** get one agent each (owner rule: Opus 5.5, max effort, sequential): §13, §13b,
     §9 for every encounter, including npcs that attack on sight in a quest area.
-12. **The test follows the recorded flow**, waits out no-continue boxes and fades before
+12. **Npc info is part of the port, not only its audit.** Every `[facing]`, `[say]` and
+    `[enabled_ops]` block the recording sends for the content's npcs is written in the content
+    on its recorded tick: `npc_facedir`/`npc_faceangle`, `npc_facesquare`, `npc_facenpc`,
+    `npc_faceplayer`, `npc_facereset`, `npc_say`, `npc_setops` (§9). Only the turn to the
+    player on a page comes from the engine.
+    - Build it from `npc_block_inventory.py <txt>... --ours <ticklog.tsv> --values`, the same
+      pass as the pages and ops, never after them. Every other MISSING kind (`transformation`,
+      `level_change`, `[bas]`, ...) is built too, or gets a named reason.
+    - Count npc rows only: a transcript's `[facing]` lines include the player's own.
+    - Find what triggers each kind (a spawn pose, a scene's setup, a page, the end of a walk).
+    - `[say]`: every recorded speaker says their lines. A crowd's lines sent through one
+      member is a defect.
+    - The test must reach it: a block that only fires in a fight or scene the test leaves
+      early has not been compared. Stay in it (win branch included), then re-run the inventory.
+    - The doc gets one table per block kind: recorded count, ours before and after, verdict.
+
+    Death on the Isle (2026-11-08) passed 181/181 rows with 2,949 lines of script, one
+    `npc_facereset` and no other face command against 439 recorded npc faces, no `npc_setops`
+    against 112 `enabled_ops`, and its crowd's lines coming from one spectator.
+13. **The test follows the recorded flow**, waits out no-continue boxes and fades before
     reading the next page, and stands where the recording stood (a wandering npc behind bars
     read from 3 tiles instead of 2 made the route leave the room).
-13. **Write the doc as you go**: one table per section (R / ours / verdict), the action and
+14. **Write the doc as you go**: one table per section (R / ours / verdict), the action and
     teleport inventories with a verdict per row, and an Open list. A row with no verdict means
     the port is not done.
 

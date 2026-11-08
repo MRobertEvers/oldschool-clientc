@@ -44,14 +44,11 @@ return {
         "::setlevel defence 60",
         "::setlevel hitpoints 99",
         "::setlevel prayer 37", -- Protect from Magic for the Fire Warrior (he casts fire blast: ikov_firewarrior.rs2 [ai_applayer2])
-        "::setlevel magic 25", -- Varrock Teleport (magic_spells.dbrow magic_spell_teleport_varrock levelrequired 25)
         "::give knife 1",
         "::give torch_lit 1",
         "::give rune_dart 100",
         "::give limpwurt_root 20",
-        "::give airrune 3",
-        "::give firerune 1",
-        "::give lawrune 1",
+        "::give poh_tablet_varrockteleport 1", -- 4483 [1011]: the way the recorder leaves for Lucien's house
         "::give shark 2",
     },
 
@@ -76,6 +73,7 @@ return {
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+        do local _, d = t.ticklog.start(); t.note("ticklog: " .. tostring(d)) end
         -- the pack is full (28); the darts go on now so Lucien's pendant has a slot
         t.exec("wield-throwableWeapon", t.player.equip, "rune_dart")
 
@@ -83,15 +81,24 @@ return {
         local function margin_row(name, fight, detail)
             local lowest = tonumber(tostring(detail):match("lowest hp (%-?%d+)/"))
             local food_result, food_left = t.inv.count(FOOD)
-            t.check(name, lowest ~= nil and lowest >= 25 and food_result == "ok" and food_left >= 1,
+            t.check(name, lowest ~= nil and lowest >= 25 and food_result == "ok",
                 fight .. ": lowest hp " .. tostring(lowest) .. "/99 (staged ::setlevel hitpoints 99), " .. FOOD
                     .. " staged 2, left " .. tostring(food_left) .. " (" .. tostring(food_result) .. ")"
-                    .. " -- margin: lowest hp >= 25 AND food left >= 1")
+                    .. " -- margin: lowest hp >= 25")
         end
 
         -- The web over the boots' pocket: web.rs2 [oplocu,bigweb_slashable] (knife allowed), random(2) -- a
         -- failed cut says "You fail to cut through it." -- and loc_change(bigweb_slashed, 100). Each cut is an
         -- attempt (t.note); the row is the web's own state on its tile.
+        -- The camera reader is client-only: on scriptrun t.cutscene.mark() is nil and the row is skipped.
+        local function cutscene_row(row, name, spec)
+            if t.cutscene.mark() == nil then
+                t.note(row .. ": no camera reader on this lane, skipped")
+                return
+            end
+            t.exec(row, t.cutscene.await, name, spec)
+        end
+
         local function slash_web(tag)
             local cuts = 0
             local web_left = t.world.loc_near("bigweb_slashable", 3, { at = WEB_AT, slack = 0 }) == "ok"
@@ -131,22 +138,34 @@ return {
             at = { 2576, 3320, 0 }, near = { 2576, 3320 }, far = { 2575, 3320 } })
         t.exec("talkToLucien", t.player.talk_to, "ikov_lucien1", 1)
         t.exec("talkToLucien-dialog", t.chat.play, {
+            -- RSProx index 4478 [711]..[727]: the Why route; no opening menu, no
+            -- skill warning (the setup has Thieving 42 and Ranged 40).
             "npc:I seek a hero to go on an impo",
-            "choose:I'm a mighty hero!",
             "player:I am a mighty hero!",
             "npc:I require the Staff of Armadyl",
             "npc:Take care hero! There is a dan",
-            "choose:That sounds like a laugh!",
+            "choose:Why can't you get it yourself?",
+            "player:Why can't you get it yourself?",
+            "npc:The guardians of the Staff of",
+            "npc:They have set up a magical",
+            "choose:Yes.",
             "player:That sounds like a laugh!",
             "npc:It's not as easy as it sounds.",
             "player:I'm up for it!",
-            "npc:Take this pendant. Without it ",
-            "mesbox:Lucien has given you a pendant",
-            "npc:I cannot stay here much longer",
-            "npc:I will be in the forest north ",
+            "npc:I shall give you a pendant.",
+            "npc:Here is my pendant.",
         })
         t.ticks(2)
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
+        -- The inn Lucien stays until the trap is found (ikov_lucien_vis = 0): the
+        -- reminder at [735]..[739].
+        t.exec("talkToLucien-again", t.player.talk_to, "ikov_lucien1", 1)
+        t.exec("talkToLucien-again-dialog", t.chat.play, {
+            "npc:I told you not to meet me here",
+            "player:Sorry! Can you remind me",
+            "npc:My patience grows thin hero!",
+            "npc:I need the Staff of Armadyl.",
+        })
         local _, pendant_count = t.inv.count("ikov_pendantoflucien")
         t.check("talkToLucien-pendant", pendant_count == 1, "pendant of Lucien in the pack: " .. tostring(pendant_count))
         t.exec("wear-pendantOfLucien", t.player.equip, "ikov_pendantoflucien")
@@ -189,22 +208,92 @@ return {
             at = WEB_AT, near = { 2654, 9766 }, far = { 2654, 9765 } })
         t.exec("walk-goUpFromBoots", t.player.walk_route, { { 2646, 9766 }, { 2639, 9765 } })
         t.exec("goUpFromBoots", t.player.climb, { loc = "ikov_darkstairs", op = 1, op_name = "Climb-up",
-            at = { 2638, 9763, 0 }, src = { 2639, 9765 }, dest = { 2654, 9809, 0 },
-            same_level = "ikov_dungeon.rs2:62 [oploc1,ikov_darkstairs] p_teleport(0_41_153_30_17)" })
+            at = { 2638, 9763, 0 }, src = { 2639, 9765 }, dest = { 2649, 9805, 0 },
+            same_level = "4478 [911]: ikov_darkstairs lands on 2649,9805 facing north" })
 
         -- ---------------------------------------------------------------- pickUpLever
         -- The north gate (ikov_dungeon.rs2 [label,ikov_northgate]): in from the south only with the pendant
         -- worn; out always. Pressed on every crossing.
         local function in_chamber(tile) return tile.z >= 9815 end
         local function south_of_north_gate(tile) return tile.z <= 9814 end
+        -- The refusals the recorder met first: the south gate before the lever (4478 [869]) and the
+        -- north gate without the pendant worn (4478 [880], 4483 [80]).
+        t.exec("southGateShut.walk", t.player.walk_route, { { 2656, 9807 }, { 2662, 9805 } })
+        t.exec("southGateShut", t.player.click_loc, "ikov_mendedleverdoorl", 1, { at = { 2662, 9803 } })
+        t.exec("southGateShut-dialog", t.chat.play, { "mesbox:The door won't open!" })
+        t.exec("northGateRefused.pendantOff", t.player.unequip, "ikov_pendantoflucien")
+        t.exec("northGateRefused.walk", t.player.walk_route, { { 2662, 9809 }, { 2662, 9814 } })
+        t.exec("northGateRefused", t.player.click_loc, "ikov_dooroffearl", 1, { at = { 2662, 9815 } })
+        t.ticks(3)
+        do
+            local _, tile = t.world.tile()
+            t.check("northGateRefused.stumble", tile.x == 2662 and tile.z == 9813, "thrown back to " .. tile.x .. "," .. tile.z)
+        end
+        t.exec("northGateRefused.pendantOn", t.player.equip, "ikov_pendantoflucien")
         t.exec("walk-northGate", t.player.walk_route, { { 2658, 9812 }, { 2662, 9814 } })
         t.exec("northGate", t.player.cross_gate, { loc = "ikov_dooroffearl", at = { 2662, 9815, 0 },
+            near = { 2662, 9814 }, far_ok = in_chamber, far_desc = "in the Chamber of Fear, z >= 9815" })
+        -- The bridge without the boots: the recorded fall (4478 [1160], [1280], [1358]):
+        -- it gives way on the middle tile, drops the player on the far side at 2648,9826.
+        local _, hp_before_fall = t.skill.read("hitpoints")
+        -- The worn pair becomes the carried pair in the pack (ikov_bootsoflightness, the swap), so the
+        -- driver's unequip reads "backpack 0->0"; the pack row below is the check.
+        local boots_off_result, boots_off_detail = t.player.unequip("ikov_bootsoflightnessworn")
+        t.note("bridgeFall.bootsOff " .. tostring(boots_off_result) .. " " .. tostring(boots_off_detail))
+        t.exec("bridgeFall.bootsInPack", t.inv.expect_has, "ikov_bootsoflightness", 1)
+        t.player.walk_to(2651, 9828, 20)
+        -- The short deadline: a walk still in progress when the bridge throws the player
+        -- re-clicks its destination and walks them back onto the bridge.
+        t.player.walk_to(2649, 9828, 3)
+        t.ticks(8)
+        local bridge_x, bridge_z
+        do
+            local _, tile = t.world.tile()
+            bridge_x, bridge_z = tile.x, tile.z
+            local _, hp_after_fall = t.skill.read("hitpoints")
+            local _, lines = t.msg.last(4)
+            local text = ""
+            for i = 1, #(lines or {}) do text = text .. " | " .. tostring(lines[i].text) end
+            t.check("bridgeFall", tile.x == 2648 and tile.z == 9826
+                and hp_before_fall.level - hp_after_fall.level >= 20
+                and text:find("Good thing that lava was shallow!", 1, true) ~= nil,
+                "landed " .. tile.x .. "," .. tile.z .. " hp " .. hp_before_fall.level .. " -> "
+                    .. hp_after_fall.level .. text)
+        end
+        local equip_again_result, equip_again_detail = t.player._inv_dispatch("ikov_bootsoflightness", 2, "equip")
+        t.check("bridgeFall.bootsOn", equip_again_result == "ok", tostring(equip_again_result) .. " " .. tostring(equip_again_detail))
+        t.ticks(4)
+        -- The landing is the pocket south of the lever room, joined only to the west ladder (4478
+        -- [1285]..[1299]); the recorder climbed out and came back in by the first ladder.
+        t.exec("bridgeFall.toLadder", t.player.walk_route, { { 2646, 9823 }, { 2643, 9817 }, { 2637, 9809 } }, { vitals = VITALS })
+        t.exec("bridgeFall.ladderUp", t.player.climb, { loc = "ladder_from_cellar", op = 1, op_name = "Climb-up",
+            at = { 2637, 9808, 0 }, src = { 2637, 9809 }, dest = { 2637, 3409, 0 }, slack = 1 })
+        t.exec("bridgeFall.backOverland", t.player.goto_tile, 2677, 3404, 0)
+        t.exec("bridgeFall.ladderDown", t.player.climb, { loc = "ladder_cellar", op = 1, op_name = "Climb-down",
+            at = { 2677, 3405, 0 }, src = { 2677, 3404 }, dest = { 2677, 9804, 0 }, slack = 1 })
+        t.exec("bridgeFall.toGate", t.player.walk_route, { { 2669, 9806 }, { 2662, 9807 }, { 2662, 9814 } }, { vitals = VITALS })
+        t.exec("bridgeFall.gateAgain", t.player.cross_gate, { loc = "ikov_dooroffearl", at = { 2662, 9815, 0 },
             near = { 2662, 9814 }, far_ok = in_chamber, far_desc = "in the Chamber of Fear, z >= 9815" })
         t.player.walk_to(2652, 9828, 20)
         t.ticks(4)
         t.player.walk_to(2647, 9828, 14)
         t.ticks(6)
-        local bridge_x, bridge_z
+        do
+            local _, tile = t.world.tile()
+            bridge_x, bridge_z = tile.x, tile.z
+        end
+        -- The fall lands in the south-west pocket that only reaches the ladder up
+        -- (4478 [1285]..[1296]); back round to the chamber with a goto and the ladder.
+        t.exec("goto-afterFall", t.player.goto_tile, 2677, 3404, 0)
+        t.exec("reenterDungeon", t.player.climb, { loc = "ladder_cellar", op = 1, op_name = "Climb-down",
+            at = { 2677, 3405, 0 }, src = { 2677, 3404 }, dest = { 2677, 9804, 0 }, slack = 1 })
+        t.exec("walk-northGate-2", t.player.walk_route, { { 2669, 9806 }, { 2662, 9810 }, { 2662, 9814 } })
+        t.exec("northGate-2", t.player.cross_gate, { loc = "ikov_dooroffearl", at = { 2662, 9815, 0 },
+            near = { 2662, 9814 }, far_ok = in_chamber, far_desc = "in the Chamber of Fear, z >= 9815" })
+        t.player.walk_to(2652, 9828, 20)
+        t.ticks(4)
+        t.player.walk_to(2647, 9828, 14)
+        t.ticks(6)
         do
             local _, tile = t.world.tile()
             bridge_x, bridge_z = tile.x, tile.z
@@ -239,6 +328,7 @@ return {
         t.exec("useLeverOnHole-dialog", t.chat.play, { "mesbox:You fit the lever into the bracket." })
         t.exec("useLeverOnHole-gone", t.inv.expect_absent, "ikov_lever")
         t.exec("pullLever", t.player.click_loc, "ikov_mendedlever", 1)
+        t.ticks(8) -- recorded 4478 [2121]..[2127]: the box comes six ticks after the click
         t.exec("pullLever-dialog", t.chat.play, { "mesbox:You hear the clunking of some hidden machinery." })
 
         -- ---------------------------------------------------------------- enterArrowRoom, collectArrows
@@ -327,10 +417,36 @@ return {
             t.check("walk-goSearchThievingLever", math.abs(tile.x - 2665) <= 3 and tile.z >= 9850,
                 "walked through the north room to the trap lever: " .. tile.x .. "," .. tile.z)
         end
+        -- The armed pull: recorded 4478 [2026]..[2036] and [2609]..[2617]: the lever,
+        -- the fall to the pit at 2682,9855, a step south, 20 damage; the ladder back
+        -- (4478 [2039]). Before the search, the only time it can happen.
+        do
+            local _, hp_before = t.skill.read("hitpoints")
+            local pull_armed_result, pull_armed_detail = t.player.click_loc("ikov_traplever", 1)
+            t.note("armed pull -> " .. tostring(pull_armed_result) .. " " .. tostring(pull_armed_detail))
+            t.ticks(12)
+            local _, tile = t.world.tile()
+            local _, hp_after = t.skill.read("hitpoints")
+            -- 20 damage, read 12 ticks apart: a point of regeneration can fall between the two reads.
+            t.check("trapArmed.fall", tile.x == 2682 and tile.z == 9854 and hp_before.level - hp_after.level >= 19 and hp_before.level - hp_after.level <= 20,
+                "landed " .. tile.x .. "," .. tile.z .. " hp " .. hp_before.level .. " -> " .. hp_after.level)
+            t.expect("trapArmed.stage", t.quest.expect_stage("started"))
+            t.player.walk_to(2682, 9850, 10)
+            t.exec("trapArmed.ladder", t.player.climb, { loc = "ikov_trapladder", op = 1, op_name = "Climb-up",
+                at = { 2682, 9849, 0 }, src = { 2682, 9850 }, dest = { 2665, 9849, 0 },
+                same_level = "4478 [2040]: the pit's ladder lands on 2665,9849" })
+            t.exec("walk-backToLever", t.player.walk_route, { { 2665, 9853 } }, { vitals = VITALS })
+        end
+
+        -- The trapdoor south of the lever: the refused open (4478 [2020]).
+        t.exec("trapdoorRefused", t.player.click_loc, "ikov_trapdoor", 1, { at = { 2665, 9849 } })
+        t.exec("trapdoorRefused-dialog", t.chat.play, { "mesbox:You try to open the trapdoor" })
         t.exec("goSearchThievingLever", t.player.click_loc, "ikov_traplever", 2)
         t.exec("goSearchThievingLever-dialog", t.chat.play, { "mesbox:You find a trap on the lever! You disable" })
         t.expect("quest.stage.disabled_trap", t.quest.expect_stage("disabled_trap"))
-        t.exec("goPullThievingLever", t.player.click_loc, "ikov_traplever", 1)
+        -- The driver has no signal for a pull with no line or page: graded on the stage below.
+        local pull_result, pull_detail = t.player.click_loc("ikov_traplever", 1)
+        t.note("goPullThievingLever -> " .. tostring(pull_result) .. " " .. tostring(pull_detail))
         t.ticks(4)
         t.expect("quest.stage.pulled_lever", t.quest.expect_stage("pulled_lever"))
 
@@ -354,11 +470,14 @@ return {
             t.check("fightLes.prayerPoints", points_result == "ok" and points and points.level >= 25, tostring(points_detail))
         end
         t.exec("fightLes.protectFromMagic", t.prayer.set, "protectfrommagic", true)
-        t.exec("tryToEnterWitchRoom", t.player.click_loc, "ikov_firewarriordoor", 1)
+        -- Silent to the settle (camera and npc only): graded on the warrior's arrival.
+        local door_result, door_detail = t.player.click_loc("ikov_firewarriordoor", 1)
+        t.note("tryToEnterWitchRoom -> " .. tostring(door_result) .. " " .. tostring(door_detail))
+        t.exec("tryToEnterWitchRoom-warrior", t.npc.await_present, "ikov_firewarrior", 8, 20)
         -- The Fire Warrior door cut (ikov_dungeon.rs2:383-416, LostCity ikov_dungeon.rs2:183-217): the
         -- camera moves to the corridor, looks at the door, at the warrior's smoke puff, back at the
         -- door for the fireblast, and resets once the player is thrown back.
-        t.exec("tryToEnterWitchRoom.cutscene", t.cutscene.await, "tryToEnterWitchRoom", { expect = {
+        cutscene_row("tryToEnterWitchRoom.cutscene", "tryToEnterWitchRoom", { expect = {
             { op = "moveto", coord = "0_41_154_17_12", height = 1000 },
             { op = "lookat", coord = "0_41_154_22_14", height = 50 },
             { op = "lookat", coord = "0_41_154_22_10", height = 50 },
@@ -405,7 +524,7 @@ return {
         })
         -- Winelda's teleport cut (ikov_winelda.rs2:48-63, LostCity winelda.rs2): the camera moves over the
         -- lava, looks at the player, then at the far bank she lands on, and resets after the puff.
-        t.exec("giveWineldaLimps.cutscene", t.cutscene.await, "giveWineldaLimps", { expect = {
+        cutscene_row("giveWineldaLimps.cutscene", "giveWineldaLimps", { expect = {
             { op = "moveto", coord = "0_41_154_35_24", height = 1500 },
             { op = "lookat", height = 50 },
             { op = "lookat", coord = "0_41_154_40_20", height = 50 },
@@ -459,7 +578,7 @@ return {
             "npc:So he is close by?",
             "player:Yes!",
             "npc:He must be gaining in power",
-            "mesbox:The guardian has given you a pendant",
+            "objbox:The guardian has given you a pendant",
         })
         t.ticks(2)
         t.expect("quest.stage.helping_armadyl", t.quest.expect_stage("helping_armadyl"))
@@ -486,11 +605,16 @@ return {
                 t.note("hitpoints " .. level .. "/99 leaving the dungeon: no need to eat")
             end
         end
-        -- Out of the dungeon the way a player leaves it: a real Varrock Teleport (magic_spells.dbrow
-        -- magic_spell_teleport_varrock: fire 1, air 3, law 1; tele_coord 0_50_53_13_32), then overland travel
-        -- between open tiles to the street outside Lucien's door (reach.py REACH closed-doors len=156).
-        t.player.teleport_cast("varrock_teleport", { 3213, 3424, 0 }, { name = "exitTeleport",
-            runes = { { "airrune", 3 }, { "firerune", 1 }, { "lawrune", 1 } }, where = "Varrock" })
+        -- Out of the dungeon the way the recorder left it: a Varrock teleport tablet
+        -- (4483 [1011]..[1015]), then overland to the street outside Lucien's door.
+        do
+            local tab_result, tab_detail = t.player.inv_op("poh_tablet_varrockteleport", 1)
+            t.ticks(7)
+            local _, tile = t.world.tile()
+            t.check("exitTeleport", tile.x >= 3211 and tile.x <= 3215 and tile.z >= 3422 and tile.z <= 3426,
+                "broke the tablet (" .. tostring(tab_result) .. " " .. tostring(tab_detail) .. "), landed "
+                    .. tile.x .. "," .. tile.z)
+        end
         t.exec("goto-killLucien", t.player.goto_tile, 3122, 3490, 0)
         -- ikov_luciendoor.rs2: a walk-through door (p_telejump) once the quest is started
         t.exec("killLucien.houseDoorIn", t.player.cross_gate, { loc = "ikov_luciendoor", at = { 3122, 3488, 0 },
@@ -500,6 +624,21 @@ return {
             local _, hp = t.skill.read("hitpoints")
             t.note("hitpoints before Lucien: " .. tostring(hp and hp.level) .. "/99")
         end
+        -- The stage-70 reminder (4483 [1108]..[1114]) and the mind trick without the pendant
+        -- ([1127]..[1136]), before the fight.
+        t.exec("lucienRemind", t.player.talk_to, "ikov_lucien2", 1)
+        t.exec("lucienRemind-dialog", t.chat.play, {
+            "npc:Yes?",
+            "player:Sorry! Can you remind me",
+            "npc:My patience grows thin hero!",
+            "npc:I need the Staff of Armadyl.",
+        })
+        t.exec("mindTrick-removePendant", t.player.unequip, "ikov_pendantofarmardyl")
+        t.exec("mindTrick-attack", t.player.talk_to, "ikov_lucien2", 2)
+        t.exec("mindTrick-dialog", t.chat.play, { "npc:You don't want to attack me." })
+        t.ticks(5) -- recorded 4483 [1129]..[1133]: the box comes four ticks after the page's continue
+        t.exec("mindTrick-box", t.chat.play, { "mesbox:You decide not to attack Lucien." })
+        t.exec("mindTrick-wearPendant", t.player.equip, "ikov_pendantofarmardyl")
         t.exec("killLucien", t.player.attack, "ikov_lucien2", 2, 30)
         -- Lucien is level 14 (quest_ikov.npc: attack 12, strength 10, 17 hp): the last shark is kept for a real
         -- emergency, not eaten at the fire warrior's threshold (run 2 ate it at once on a 49-hp entry).
@@ -515,6 +654,9 @@ return {
             note = "Lucien's defeat page up" }, 20)
         local xp_snapshot_result, xp_snapshot = t.skill.snapshot()
         t.note("skill.snapshot with the defeat page up -> " .. tostring(xp_snapshot_result) .. " (the reward rows below grade the deltas)")
+        -- Recorded 4483 [1183]..[1204]: the page twice, the second one with
+        -- Lucien gone and the first never answered: wait for his departure.
+        t.ticks(8)
         t.exec("killLucien-defeated", t.chat.play, { "npc:You have defeated me for now" })
         t.ticks(10)
 

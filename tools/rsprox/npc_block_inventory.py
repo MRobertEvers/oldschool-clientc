@@ -102,9 +102,7 @@ def ours(paths):
                         # enabled one (`opflags=`).
                         values[typ][k]["opflags=0b{:05b}".format(~int(f[6]) & 31)] += 1
                 continue
-            # hit_npc rows name a slot, not a type: hits are left to the
-            # damage audit (rsprox_player_hits.py), not counted here.
-            if kind not in OURS or kind == "hit_npc":
+            if kind not in OURS:
                 continue
             typ = int(f[4])
             k = OURS[kind]
@@ -134,7 +132,7 @@ def main():
         print("== %s (%d)" % (names.get(typ, typ), typ))
         for kind in sorted(rc[typ]):
             r, o = rc[typ][kind], oc[typ][kind]
-            flag = "MISSING" if o == 0 and kind != "hit" else ""
+            flag = "MISSING" if o == 0 else ""
             gaps += bool(flag)
             print("   %-24s recorded %6d   ours %6d  %s" % (kind, r, o, flag))
             if a.values and kind in VALUED:
