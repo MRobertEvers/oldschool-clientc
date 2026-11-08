@@ -98,6 +98,8 @@ apply_list(
         return 0;
     model->list_status = status;
     snprintf(model->live_dir, sizeof(model->live_dir), "%s", live);
+    if( strcmp(model->play_account, play) != 0 )
+        model->play_look_known = 0;
     snprintf(model->play_account, sizeof(model->play_account), "%s", play);
     model->attached = attached != 0;
     memcpy(model->rows, rows, (size_t)kept * sizeof(rows[0]));
@@ -178,9 +180,63 @@ apply_view(
             if( view.quest_count < EDITOR_ACCOUNTS_QUESTS_MAX )
                 view.quests[view.quest_count++] = quest;
         }
+        /* The look and the other containers: a server older than them
+         * ends the fact here. */
+        if( !reader->bad && reader->at < reader->length )
+        {
+            view.has_look = 1;
+            snprintf(view.look.name, sizeof(view.look.name), "%s", view.name);
+            view.look.gender = (int)ToriRSMapEd_GetU32(reader);
+            n = ToriRSMapEd_GetU32(reader);
+            if( reader->bad || n != TORIRSMAPED_ACCT_LOOK_SLOTS )
+                return 0;
+            for( uint32_t i = 0; i < n; i++ )
+                view.look.kits[i] = (int32_t)ToriRSMapEd_GetU32(reader);
+            n = ToriRSMapEd_GetU32(reader);
+            if( reader->bad || n != TORIRSMAPED_ACCT_LOOK_COLOURS )
+                return 0;
+            for( uint32_t i = 0; i < n; i++ )
+                view.look.colours[i] = (int32_t)ToriRSMapEd_GetU32(reader);
+            n = ToriRSMapEd_GetU32(reader);
+            for( uint32_t i = 0; i < n && !reader->bad; i++ )
+            {
+                struct Editor_AccountContainer container;
+                uint32_t items;
+                container.inv = ToriRSMapEd_GetU32(reader);
+                ToriRSMapEd_GetString(reader, container.name, sizeof(container.name));
+                container.size = ToriRSMapEd_GetU32(reader);
+                items = ToriRSMapEd_GetU32(reader);
+                for( uint32_t k = 0; k < items && !reader->bad; k++ )
+                {
+                    struct Editor_AccountItem item;
+                    item.section = EDITOR_ACCOUNTS_SECTION_CONTAINER + view.container_count;
+                    item.slot = ToriRSMapEd_GetU32(reader);
+                    item.obj = (int32_t)ToriRSMapEd_GetU32(reader);
+                    item.count = (int32_t)ToriRSMapEd_GetU32(reader);
+                    if( view.container_count < TORIRSMAPED_ACCT_CONTAINERS_MAX
+                        && view.item_count < EDITOR_ACCOUNTS_ITEMS_MAX )
+                        view.items[view.item_count++] = item;
+                }
+                if( view.container_count < TORIRSMAPED_ACCT_CONTAINERS_MAX )
+                    view.containers[view.container_count++] = container;
+            }
+        }
+        for( int i = 0; i < TORIRSMAPED_ACCT_WORN_SLOTS; i++ )
+            view.look.worn[i] = -1;
+        for( int i = 0; i < view.item_count; i++ )
+            if( view.items[i].section == EDITOR_ACCOUNTS_SECTION_WORN && view.items[i].slot < TORIRSMAPED_ACCT_WORN_SLOTS )
+                view.look.worn[view.items[i].slot] = view.items[i].obj;
     }
     if( !ToriRSMapEd_ReaderDone(reader) )
         return 0;
+    /* The play account's look, whichever account this window follows. */
+    if( view.status == EDITOR_HOST_OK && view.has_look && model->play_account[0]
+        && strcmp(view.name, model->play_account) == 0 )
+    {
+        model->play_look = view.look;
+        model->play_look_known = 1;
+        model->play_look_serial++;
+    }
     if( follow && follow[0] && strcmp(follow, view.name) != 0 )
     {
         char line[EDITOR_ACCOUNTS_LOG_LINE_MAX];
@@ -217,6 +273,69 @@ apply_quests(
     memcpy(model->quests, quests, (size_t)kept * sizeof(quests[0]));
     model->quest_count = kept;
     model->quests_serial++;
+    return 1;
+}
+
+static int
+apply_loadouts(
+    struct Editor_AccountsModel* model,
+    struct ToriRSMapEdReader* reader)
+{
+    static struct Editor_AccountLoadout loadouts[TORIRSMAPED_ACCT_LOADOUTS_MAX];
+    uint32_t status = ToriRSMapEd_GetU32(reader);
+    uint32_t count = ToriRSMapEd_GetU32(reader);
+    int kept = 0;
+
+    for( uint32_t i = 0; i < count && !reader->bad; i++ )
+    {
+        struct Editor_AccountLoadout row;
+        uint32_t items;
+        memset(&row, 0, sizeof(row));
+        ToriRSMapEd_GetString(reader, row.name, sizeof(row.name));
+        items = ToriRSMapEd_GetU32(reader);
+        for( uint32_t k = 0; k < items && !reader->bad; k++ )
+        {
+            struct Editor_AccountItem item;
+            item.section = (int)ToriRSMapEd_GetU32(reader);
+            item.slot = ToriRSMapEd_GetU32(reader);
+            item.obj = (int32_t)ToriRSMapEd_GetU32(reader);
+            item.count = (int32_t)ToriRSMapEd_GetU32(reader);
+            if( row.item_count < (int)(sizeof(row.items) / sizeof(row.items[0])) )
+                row.items[row.item_count++] = item;
+        }
+        if( kept < TORIRSMAPED_ACCT_LOADOUTS_MAX )
+            loadouts[kept++] = row;
+    }
+    if( !ToriRSMapEd_ReaderDone(reader) )
+        return 0;
+    model->loadouts_status = status;
+    memcpy(model->loadouts, loadouts, (size_t)kept * sizeof(loadouts[0]));
+    model->loadout_count = kept;
+    model->loadouts_serial++;
+    return 1;
+}
+
+static int
+apply_invs(
+    struct Editor_AccountsModel* model,
+    struct ToriRSMapEdReader* reader)
+{
+    uint32_t count = ToriRSMapEd_GetU32(reader);
+    int kept = 0;
+
+    for( uint32_t i = 0; i < count && !reader->bad; i++ )
+    {
+        struct Editor_AccountInv inv;
+        inv.id = ToriRSMapEd_GetU32(reader);
+        ToriRSMapEd_GetString(reader, inv.name, sizeof(inv.name));
+        inv.size = ToriRSMapEd_GetU32(reader);
+        if( kept < EDITOR_ACCOUNTS_INVS_MAX )
+            model->invs[kept++] = inv;
+    }
+    if( !ToriRSMapEd_ReaderDone(reader) )
+        return 0;
+    model->inv_count = kept;
+    model->invs_serial++;
     return 1;
 }
 
@@ -270,6 +389,10 @@ Editor_AccountsModelApply(
         ok = apply_quests(model, &reader);
     else if( type == TORIRSMAPED_FACT_ACCOUNT_STATUS )
         ok = apply_status(model, &reader);
+    else if( type == TORIRSMAPED_FACT_LOADOUTS )
+        ok = apply_loadouts(model, &reader);
+    else if( type == TORIRSMAPED_FACT_INVS )
+        ok = apply_invs(model, &reader);
     else
         ok = 1; /* a fact a newer server added: nothing to show */
     if( !ok )
@@ -354,6 +477,72 @@ Editor_AccountsEncodeQuests(struct ToriRSMapEdBuf* out)
     assert(out);
     (void)out;
     return TORIRSMAPED_REQ_ACCOUNTS_QUESTS;
+}
+
+uint32_t
+Editor_AccountsEncodeLoadouts(struct ToriRSMapEdBuf* out)
+{
+    assert(out);
+    (void)out;
+    return TORIRSMAPED_REQ_LOADOUTS_LIST;
+}
+
+uint32_t
+Editor_AccountsEncodeInvs(struct ToriRSMapEdBuf* out)
+{
+    assert(out);
+    (void)out;
+    return TORIRSMAPED_REQ_ACCOUNTS_INVS;
+}
+
+uint32_t
+Editor_AccountsEncodeLoadoutSave(
+    struct ToriRSMapEdBuf* out,
+    const char* loadout,
+    const char* account)
+{
+    assert(out);
+    assert(loadout);
+    assert(account);
+    ToriRSMapEd_PutString(out, loadout);
+    ToriRSMapEd_PutString(out, account);
+    return TORIRSMAPED_REQ_LOADOUT_SAVE;
+}
+
+uint32_t
+Editor_AccountsEncodeLoadoutDelete(
+    struct ToriRSMapEdBuf* out,
+    const char* loadout)
+{
+    assert(out);
+    assert(loadout);
+    ToriRSMapEd_PutString(out, loadout);
+    return TORIRSMAPED_REQ_LOADOUT_DELETE;
+}
+
+const struct Editor_AccountLoadout*
+Editor_AccountsLoadout(
+    const struct Editor_AccountsModel* model,
+    const char* name)
+{
+    assert(model);
+    assert(name);
+    for( int i = 0; i < model->loadout_count; i++ )
+        if( strcmp(model->loadouts[i].name, name) == 0 )
+            return &model->loadouts[i];
+    return NULL;
+}
+
+const struct Editor_AccountInv*
+Editor_AccountsInv(
+    const struct Editor_AccountsModel* model,
+    uint32_t id)
+{
+    assert(model);
+    for( int i = 0; i < model->inv_count; i++ )
+        if( model->invs[i].id == id )
+            return &model->invs[i];
+    return NULL;
 }
 
 uint32_t

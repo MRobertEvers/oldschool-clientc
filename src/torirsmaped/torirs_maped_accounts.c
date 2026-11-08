@@ -136,6 +136,30 @@ ToriRSMapEd_AcctFileName(
     out[written] = '\0';
 }
 
+void
+ToriRSMapEd_AcctLoadoutName(
+    const char* name,
+    char* out,
+    size_t out_size)
+{
+    size_t n = 0;
+
+    assert(name);
+    assert(out);
+    assert(out_size > 0);
+    for( const char* c = name; *c && n + 1 < out_size && n < TORIRSMAPED_ACCT_LOADOUT_NAME_MAX; c++ )
+    {
+        char ch = *c;
+        if( ch >= 'A' && ch <= 'Z' )
+            ch = (char)(ch - 'A' + 'a');
+        if( ch == ' ' || ch == '-' )
+            ch = '_';
+        if( (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_' )
+            out[n++] = ch;
+    }
+    out[n] = '\0';
+}
+
 const char*
 ToriRSMapEd_AcctCredentialsProblem(
     const char* name,
@@ -928,6 +952,15 @@ ToriRSMapEd_AcctConstantFind(
 /** The first checkpoint leg this module uses (the quest harness counts from 1). */
 #define ACCT_LEG_BASE 90001
 
+/** One inv of configs/all.inv. */
+struct acct_inv
+{
+    int id;
+    char name[64];
+    /** Its `size=`, 0 when it states none. */
+    int size;
+};
+
 /** One account's server checkpoint, asked for by `refresh`. */
 struct acct_snapshot
 {
@@ -964,6 +997,14 @@ struct acct_state
     int quests_loaded;
     struct ToriRSMapEdAcctQuest quests[ACCT_QUESTS_MAX];
     int quest_count;
+    /** configs/all.inv: every inv's id, name and size, read on the first
+     *  request that needs it (acct_invs_load). */
+    int invs_loaded;
+    struct acct_inv* invs;
+    int inv_count;
+    /** player/configs/appearance.enum's default kit per wear position. */
+    int kits_loaded;
+    int default_kit[TORIRSMAPED_ACCT_LOOK_SLOTS];
 };
 
 static struct acct_state* g_acct_states[4];
@@ -1000,6 +1041,7 @@ acct_state_drop(struct ToriRSMapEd* maped)
         if( g_acct_states[i] && g_acct_states[i]->maped == maped )
         {
             ToriRSMapEd_AcctSaveFree(&g_acct_states[i]->registry);
+            free(g_acct_states[i]->invs);
             free(g_acct_states[i]);
             g_acct_states[i] = NULL;
         }
@@ -1951,6 +1993,244 @@ acct_put_items(
     ToriRSMapEd_WriteU32(payload->data + payload->head + at, (uint32_t)count);
 }
 
+/* ------------------------------------------------------------------ */
+/* Invs, the look, the other containers                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * configs/all.inv joined to its compack: every inv's id, name and size. A
+ * machine dump read once; a record this does not understand is skipped.
+ */
+static void
+acct_invs_load(struct acct_state* state)
+{
+    struct ToriRSMapEd* maped = state->maped;
+    char path[ACCT_PATH_MAX];
+    char* text;
+    size_t length = 0;
+    struct acct_inv* invs = NULL;
+    int count = 0;
+    int capacity = 0;
+
+    if( state->invs_loaded )
+        return;
+    state->invs_loaded = 1;
+    snprintf(path, sizeof(path), "%s/configs/all.inv.compack", maped->content_dir);
+    text = acct_read_file(path, &length);
+    if( !text )
+        return;
+    for( char* line = text; line && *line; )
+    {
+        char* next = strchr(line, '\n');
+        char* eq;
+        if( next )
+            *next++ = '\0';
+        eq = strchr(line, '=');
+        if( eq && line[0] >= '0' && line[0] <= '9' )
+        {
+            if( count == capacity )
+            {
+                capacity = capacity ? capacity * 2 : 256;
+                invs = realloc(invs, (size_t)capacity * sizeof(*invs));
+                assert(invs);
+            }
+            memset(&invs[count], 0, sizeof(invs[count]));
+            invs[count].id = atoi(line);
+            snprintf(invs[count].name, sizeof(invs[count].name), "%s", eq + 1);
+            for( size_t n = strlen(invs[count].name);
+                 n > 0 && (invs[count].name[n - 1] == '\r' || invs[count].name[n - 1] == ' '); n-- )
+                invs[count].name[n - 1] = '\0';
+            count++;
+        }
+        line = next;
+    }
+    free(text);
+    snprintf(path, sizeof(path), "%s/configs/all.inv", maped->content_dir);
+    text = acct_read_file(path, &length);
+    if( text )
+    {
+        struct acct_inv* current = NULL;
+        for( char* line = text; line && *line; )
+        {
+            char* next = strchr(line, '\n');
+            char name[64];
+            size_t n;
+            if( next )
+                *next++ = '\0';
+            n = strlen(line);
+            if( n > 0 && line[n - 1] == '\r' )
+                line[n - 1] = '\0';
+            if( acct_line_section(line, name, sizeof(name)) )
+            {
+                current = NULL;
+                for( int i = 0; i < count; i++ )
+                    if( strcmp(invs[i].name, name) == 0 )
+                    {
+                        current = &invs[i];
+                        break;
+                    }
+            }
+            else if( current && strncmp(line, "size=", 5) == 0 )
+                current->size = atoi(line + 5);
+            line = next;
+        }
+        free(text);
+    }
+    state->invs = invs;
+    state->inv_count = count;
+    TORIRS_LOG("torirsmaped: accounts: %d inv(s) from configs/all.inv\n", count);
+}
+
+/** The inv named `text` (a pack name or its decimal id); NULL when none. */
+static const struct acct_inv*
+acct_inv_find(
+    struct acct_state* state,
+    const char* text)
+{
+    char* end = NULL;
+    long id;
+
+    acct_invs_load(state);
+    id = strtol(text, &end, 10);
+    for( int i = 0; i < state->inv_count; i++ )
+    {
+        if( end && end != text && *end == '\0' && state->invs[i].id == id )
+            return &state->invs[i];
+        if( strcmp(state->invs[i].name, text) == 0 )
+            return &state->invs[i];
+    }
+    return NULL;
+}
+
+/**
+ * player/configs/appearance.enum's `val=<wearpos>,<idk>` rows: the kit the
+ * game server draws at a wear position the save states none for
+ * (torirs_server_encode.c default_kit). -1 everywhere without the file.
+ */
+static void
+acct_kits_load(struct acct_state* state)
+{
+    char path[ACCT_PATH_MAX];
+    char* text;
+    size_t length = 0;
+
+    if( state->kits_loaded )
+        return;
+    state->kits_loaded = 1;
+    for( int i = 0; i < TORIRSMAPED_ACCT_LOOK_SLOTS; i++ )
+        state->default_kit[i] = -1;
+    snprintf(path, sizeof(path), "%s/server/scripts/player/configs/appearance.enum", state->maped->content_dir);
+    text = acct_read_file(path, &length);
+    if( !text )
+        return;
+    for( char* line = text; line && *line; )
+    {
+        char* next = strchr(line, '\n');
+        int key;
+        int value;
+        if( next )
+            *next++ = '\0';
+        if( sscanf(line, "val=%d,%d", &key, &value) == 2 && key >= 0 && key < TORIRSMAPED_ACCT_LOOK_SLOTS )
+            state->default_kit[key] = value;
+        line = next;
+    }
+    free(text);
+}
+
+/** The look: gender, the kit at each wear position, the five colours. From
+ *  `save`'s [appearance]; `fallback` (the save file, when `save` is a
+ *  checkpoint without one) when it has none. */
+static void
+acct_put_look(
+    struct acct_state* state,
+    struct ToriRSMapEdBuf* payload,
+    const struct ToriRSMapEdAcctSave* save,
+    const struct ToriRSMapEdAcctSave* fallback)
+{
+    const struct ToriRSMapEdAcctSave* from = save;
+    char text[256];
+    int colours[TORIRSMAPED_ACCT_LOOK_COLOURS] = { 0 };
+    int gender = 0;
+
+    acct_kits_load(state);
+    if( !ToriRSMapEd_AcctSaveGet(save, "appearance", "gender", text, sizeof(text)) && fallback )
+        from = fallback;
+    if( ToriRSMapEd_AcctSaveGet(from, "appearance", "gender", text, sizeof(text)) && atoi(text) == 1 )
+        gender = 1;
+    ToriRSMapEd_PutU32(payload, (uint32_t)gender);
+    ToriRSMapEd_PutU32(payload, TORIRSMAPED_ACCT_LOOK_SLOTS);
+    for( int wearpos = 0; wearpos < TORIRSMAPED_ACCT_LOOK_SLOTS; wearpos++ )
+    {
+        char key[16];
+        int kit = state->default_kit[wearpos];
+        snprintf(key, sizeof(key), "kit%d", wearpos);
+        if( ToriRSMapEd_AcctSaveGet(from, "appearance", key, text, sizeof(text)) && atoi(text) >= 0 )
+            kit = atoi(text);
+        ToriRSMapEd_PutU32(payload, (uint32_t)kit);
+    }
+    if( ToriRSMapEd_AcctSaveGet(from, "appearance", "colours", text, sizeof(text)) )
+    {
+        const char* scan = text;
+        for( int i = 0; i < TORIRSMAPED_ACCT_LOOK_COLOURS && *scan; i++ )
+        {
+            char* end = NULL;
+            colours[i] = (int)strtol(scan, &end, 10) & 0xff;
+            if( !end || end == scan )
+                break;
+            scan = end;
+            while( *scan == ' ' )
+                scan++;
+        }
+    }
+    ToriRSMapEd_PutU32(payload, TORIRSMAPED_ACCT_LOOK_COLOURS);
+    for( int i = 0; i < TORIRSMAPED_ACCT_LOOK_COLOURS; i++ )
+        ToriRSMapEd_PutU32(payload, (uint32_t)colours[i]);
+}
+
+/** The inv ids of every `[container.<inv>]` the save states, in file
+ *  order, each once. */
+static int
+acct_save_containers(
+    const struct ToriRSMapEdAcctSave* save,
+    int* out,
+    int max)
+{
+    int count = 0;
+
+    for( int i = 0; i < save->count; i++ )
+    {
+        char name[128];
+        char* end = NULL;
+        long id;
+        int seen = 0;
+        if( !acct_line_section(save->lines[i], name, sizeof(name)) || strncmp(name, "container.", 10) != 0 )
+            continue;
+        id = strtol(name + 10, &end, 10);
+        if( !end || end == name + 10 || *end != '\0' || id < 0 )
+            continue;
+        for( int k = 0; k < count; k++ )
+            seen |= out[k] == (int)id;
+        if( !seen && count < max )
+            out[count++] = (int)id;
+    }
+    return count;
+}
+
+/** The slots of inv `inv_id` an edit or a view accepts: its size, else
+ *  TORIRSMAPED_ACCT_CONTAINER_SLOTS. */
+static int
+acct_container_slots(
+    struct acct_state* state,
+    int inv_id)
+{
+    char text[16];
+    const struct acct_inv* inv;
+
+    snprintf(text, sizeof(text), "%d", inv_id);
+    inv = acct_inv_find(state, text);
+    return inv && inv->size > 0 ? inv->size : TORIRSMAPED_ACCT_CONTAINER_SLOTS;
+}
+
 /** FACT_ACCOUNT for `file`, to `session` or everyone. */
 static void
 acct_broadcast_view(
@@ -2068,6 +2348,40 @@ acct_broadcast_view(
         ToriRSMapEd_PutU32(&payload, quest_state);
         ToriRSMapEd_PutU32(&payload, (uint32_t)value);
     }
+    /* The look. A checkpoint is a whole save (torirs_server_save.c), but one
+     * without an [appearance] reads it from the save file. */
+    {
+        struct ToriRSMapEdAcctSave fallback;
+        int have_fallback = 0;
+        ToriRSMapEd_AcctSaveInit(&fallback);
+        if( values.from_snapshot )
+        {
+            char path[ACCT_PATH_MAX];
+            acct_save_path(live, file, path, sizeof(path));
+            have_fallback = ToriRSMapEd_AcctSaveLoad(&fallback, path);
+        }
+        acct_put_look(state, &payload, &values.save, have_fallback ? &fallback : NULL);
+        ToriRSMapEd_AcctSaveFree(&fallback);
+    }
+    /* The other containers. */
+    {
+        int ids[TORIRSMAPED_ACCT_CONTAINERS_MAX];
+        int const n = acct_save_containers(&values.save, ids, TORIRSMAPED_ACCT_CONTAINERS_MAX);
+        ToriRSMapEd_PutU32(&payload, (uint32_t)n);
+        for( int i = 0; i < n; i++ )
+        {
+            char section[48];
+            char id_text[16];
+            const struct acct_inv* inv;
+            snprintf(id_text, sizeof(id_text), "%d", ids[i]);
+            inv = acct_inv_find(state, id_text);
+            ToriRSMapEd_PutU32(&payload, (uint32_t)ids[i]);
+            ToriRSMapEd_PutString(&payload, inv ? inv->name : "");
+            ToriRSMapEd_PutU32(&payload, (uint32_t)(inv ? inv->size : 0));
+            snprintf(section, sizeof(section), "container.%d", ids[i]);
+            acct_put_items(&payload, &values, section, acct_container_slots(state, ids[i]));
+        }
+    }
     ToriRSMapEd_AcctSaveFree(&values.save);
     acct_send_or_broadcast(maped, session, TORIRSMAPED_FACT_ACCOUNT, &payload);
     ToriRSMapEd_BufFree(&payload);
@@ -2107,6 +2421,293 @@ acct_send_quests(
 /* ------------------------------------------------------------------ */
 /* Edits                                                               */
 /* ------------------------------------------------------------------ */
+
+/** FACT_INVS: every inv of configs/all.inv. */
+static void
+acct_send_invs(
+    struct acct_state* state,
+    struct ToriRSMapEdSession* session)
+{
+    struct ToriRSMapEdBuf payload;
+
+    acct_invs_load(state);
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_PutU32(&payload, (uint32_t)state->inv_count);
+    for( int i = 0; i < state->inv_count; i++ )
+    {
+        ToriRSMapEd_PutU32(&payload, (uint32_t)state->invs[i].id);
+        ToriRSMapEd_PutString(&payload, state->invs[i].name);
+        ToriRSMapEd_PutU32(&payload, (uint32_t)state->invs[i].size);
+    }
+    acct_send_or_broadcast(state->maped, session, TORIRSMAPED_FACT_INVS, &payload);
+    ToriRSMapEd_BufFree(&payload);
+}
+
+/* ---- loadouts ------------------------------------------------------------------ */
+
+/** The registry's `[loadout.<name>]` names, in file order, each once. */
+static int
+acct_loadout_names(
+    struct acct_state* state,
+    char names[][64],
+    int max)
+{
+    int count = 0;
+
+    for( int i = 0; i < state->registry.count; i++ )
+    {
+        char name[128];
+        int seen = 0;
+        if( !acct_line_section(state->registry.lines[i], name, sizeof(name)) || strncmp(name, "loadout.", 8) != 0
+            || !name[8] )
+            continue;
+        for( int k = 0; k < count; k++ )
+            seen |= strcmp(names[k], name + 8) == 0;
+        if( !seen && count < max )
+            snprintf(names[count++], 64, "%s", name + 8);
+    }
+    return count;
+}
+
+/** One loadout item: section 0 backpack, 1 worn. */
+struct acct_loadout_item
+{
+    int section;
+    int slot;
+    int obj;
+    int count;
+};
+
+/** The items of `[loadout.<name>]`, worn first then the backpack, each in
+ *  slot order. -1 when there is no such loadout. */
+static int
+acct_loadout_items(
+    struct acct_state* state,
+    const char* name,
+    struct acct_loadout_item* out,
+    int max)
+{
+    char section[96];
+    char key[64];
+    char value[128];
+    int start;
+    int end;
+    int count = 0;
+
+    snprintf(section, sizeof(section), "loadout.%s", name);
+    if( acct_save_section(&state->registry, section, &start, &end) < 0 )
+        return -1;
+    for( int pass = 1; pass >= 0; pass-- )
+        for( int slot = 0; slot < (pass ? TORIRSMAPED_ACCT_WORN_SLOTS : TORIRSMAPED_ACCT_INV_SLOTS); slot++ )
+        {
+            int obj = -1;
+            int n = 0;
+            snprintf(key, sizeof(key), "%s.%d", pass ? "worn" : "inv", slot);
+            if( !ToriRSMapEd_AcctSaveGet(&state->registry, section, key, value, sizeof(value)) )
+                continue;
+            if( sscanf(value, "%d %d", &obj, &n) != 2 || obj < 0 || n <= 0 || count >= max )
+                continue;
+            out[count].section = pass;
+            out[count].slot = slot;
+            out[count].obj = obj;
+            out[count].count = n;
+            count++;
+        }
+    return count;
+}
+
+/** Remove every block of `[section]` from the registry, header and keys. */
+static void
+acct_registry_drop_section(
+    struct acct_state* state,
+    const char* section)
+{
+    int start;
+    int end;
+    int header;
+
+    while( (header = acct_save_section_from(&state->registry, section, 0, &start, &end)) >= 0 )
+        for( int i = end - 1; i >= header; i-- )
+            acct_save_delete(&state->registry, i);
+}
+
+/** FACT_LOADOUTS, to `session` or everyone. */
+static void
+acct_broadcast_loadouts(
+    struct acct_state* state,
+    struct ToriRSMapEdSession* session)
+{
+    static char names[TORIRSMAPED_ACCT_LOADOUTS_MAX][64];
+    static struct acct_loadout_item items[TORIRSMAPED_ACCT_WORN_SLOTS + TORIRSMAPED_ACCT_INV_SLOTS];
+    struct ToriRSMapEdBuf payload;
+    char live[ACCT_PATH_MAX];
+    int count;
+
+    memset(&payload, 0, sizeof(payload));
+    if( !acct_live_dir(state->maped, live, sizeof(live)) )
+    {
+        ToriRSMapEd_PutU32(&payload, EDITOR_HOST_UNSUPPORTED);
+        ToriRSMapEd_PutU32(&payload, 0);
+        acct_send_or_broadcast(state->maped, session, TORIRSMAPED_FACT_LOADOUTS, &payload);
+        ToriRSMapEd_BufFree(&payload);
+        return;
+    }
+    count = acct_loadout_names(state, names, TORIRSMAPED_ACCT_LOADOUTS_MAX);
+    ToriRSMapEd_PutU32(&payload, EDITOR_HOST_OK);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)count);
+    for( int i = 0; i < count; i++ )
+    {
+        int n = acct_loadout_items(state, names[i], items, (int)(sizeof(items) / sizeof(items[0])));
+        if( n < 0 )
+            n = 0;
+        ToriRSMapEd_PutString(&payload, names[i]);
+        ToriRSMapEd_PutU32(&payload, (uint32_t)n);
+        for( int k = 0; k < n; k++ )
+        {
+            ToriRSMapEd_PutU32(&payload, (uint32_t)items[k].section);
+            ToriRSMapEd_PutU32(&payload, (uint32_t)items[k].slot);
+            ToriRSMapEd_PutU32(&payload, (uint32_t)items[k].obj);
+            ToriRSMapEd_PutU32(&payload, (uint32_t)items[k].count);
+        }
+    }
+    acct_send_or_broadcast(state->maped, session, TORIRSMAPED_FACT_LOADOUTS, &payload);
+    ToriRSMapEd_BufFree(&payload);
+}
+
+/** LOADOUT_SAVE: `account`'s worn items and backpack (as its view shows
+ *  them) become loadout `loadout_text`. */
+static void
+acct_handle_loadout_save(
+    struct acct_state* state,
+    struct ToriRSMapEdSession* session,
+    uint32_t request,
+    const char* loadout_text,
+    const char* account)
+{
+    struct ToriRSMapEd* maped = state->maped;
+    char live[ACCT_PATH_MAX];
+    char name[64];
+    char file[64];
+    char section[96];
+    struct acct_values values;
+    int worn = 0;
+    int inv = 0;
+    int replaced;
+    int start;
+    int end;
+
+    if( !acct_live_dir(maped, live, sizeof(live)) )
+    {
+        acct_status(maped, session, request, EDITOR_HOST_UNSUPPORTED, account, "no lane is bound (torirsmaped --live-dir)");
+        return;
+    }
+    ToriRSMapEd_AcctLoadoutName(loadout_text, name, sizeof(name));
+    if( !name[0] )
+    {
+        acct_status(maped, session, request, EDITOR_HOST_REFUSED, account,
+            "'%s' is not a loadout name (letters, digits, '_', at most %d)", loadout_text,
+            TORIRSMAPED_ACCT_LOADOUT_NAME_MAX);
+        return;
+    }
+    ToriRSMapEd_AcctFileName(account, file, sizeof(file));
+    if( !file[0] || !acct_values_load(state, live, file, acct_online_row(maped, file), &values) )
+    {
+        if( file[0] )
+            ToriRSMapEd_AcctSaveFree(&values.save);
+        acct_status(maped, session, request, EDITOR_HOST_ABSENT, file[0] ? file : account, "no save for '%s'", account);
+        return;
+    }
+    snprintf(section, sizeof(section), "loadout.%s", name);
+    replaced = acct_save_section(&state->registry, section, &start, &end) >= 0;
+    if( !replaced )
+    {
+        static char names[TORIRSMAPED_ACCT_LOADOUTS_MAX][64];
+        if( acct_loadout_names(state, names, TORIRSMAPED_ACCT_LOADOUTS_MAX) >= TORIRSMAPED_ACCT_LOADOUTS_MAX )
+        {
+            ToriRSMapEd_AcctSaveFree(&values.save);
+            acct_status(maped, session, request, EDITOR_HOST_REFUSED, file, "the lane keeps %d loadouts: delete one first",
+                TORIRSMAPED_ACCT_LOADOUTS_MAX);
+            return;
+        }
+    }
+    acct_registry_drop_section(state, section);
+    /* The header even when both are empty: an empty loadout strips an
+     * account bare, which is a loadout worth keeping. */
+    {
+        char line[128];
+        snprintf(line, sizeof(line), "[%s]", section);
+        acct_save_insert(&state->registry, state->registry.count, line);
+    }
+    for( int pass = 1; pass >= 0; pass-- )
+    {
+        const char* from = pass ? "worn" : "inv";
+        int const slots = pass ? TORIRSMAPED_ACCT_WORN_SLOTS : TORIRSMAPED_ACCT_INV_SLOTS;
+        for( int slot = 0; slot < slots; slot++ )
+        {
+            char key[32];
+            char value[128];
+            int obj = -1;
+            int n = 0;
+            snprintf(key, sizeof(key), "%d", slot);
+            if( !ToriRSMapEd_AcctSaveGet(&values.save, from, key, value, sizeof(value))
+                || sscanf(value, "%d %d", &obj, &n) != 2 || obj < 0 || n <= 0 )
+                continue;
+            snprintf(key, sizeof(key), "%s.%d", from, slot);
+            snprintf(value, sizeof(value), "%d %d", obj, n);
+            ToriRSMapEd_AcctSaveSet(&state->registry, section, key, value);
+            if( pass )
+                worn++;
+            else
+                inv++;
+        }
+    }
+    ToriRSMapEd_AcctSaveFree(&values.save);
+    if( !acct_registry_write(state) )
+    {
+        acct_status(maped, session, request, EDITOR_HOST_IO_ERROR, file, "cannot write %s", state->registry_path);
+        return;
+    }
+    acct_status(maped, session, request, EDITOR_HOST_OK, file, "loadout %s %s from %s: %d worn, %d in the backpack", name,
+        replaced ? "replaced" : "saved", file, worn, inv);
+    acct_broadcast_loadouts(state, NULL);
+}
+
+/** LOADOUT_DELETE. */
+static void
+acct_handle_loadout_delete(
+    struct acct_state* state,
+    struct ToriRSMapEdSession* session,
+    uint32_t request,
+    const char* loadout_text)
+{
+    struct ToriRSMapEd* maped = state->maped;
+    char live[ACCT_PATH_MAX];
+    char name[64];
+    char section[96];
+    int start;
+    int end;
+
+    if( !acct_live_dir(maped, live, sizeof(live)) )
+    {
+        acct_status(maped, session, request, EDITOR_HOST_UNSUPPORTED, "", "no lane is bound (torirsmaped --live-dir)");
+        return;
+    }
+    ToriRSMapEd_AcctLoadoutName(loadout_text, name, sizeof(name));
+    snprintf(section, sizeof(section), "loadout.%s", name);
+    if( !name[0] || acct_save_section(&state->registry, section, &start, &end) < 0 )
+    {
+        acct_status(maped, session, request, EDITOR_HOST_ABSENT, "", "no loadout is named '%s'", loadout_text);
+        return;
+    }
+    acct_registry_drop_section(state, section);
+    if( !acct_registry_write(state) )
+    {
+        acct_status(maped, session, request, EDITOR_HOST_IO_ERROR, "", "cannot write %s", state->registry_path);
+        return;
+    }
+    acct_status(maped, session, request, EDITOR_HOST_OK, "", "loadout %s deleted", name);
+    acct_broadcast_loadouts(state, NULL);
+}
 
 #define ACCT_EDIT_CHEATS_MAX 400
 
@@ -2424,24 +3025,28 @@ acct_edit_items(
 
     if( strcmp(field, "clear") == 0 )
     {
-        if( strcmp(section, "inv") != 0 )
-            return acct_edit_refuse(edit, "only inv.clear exists (the server's ::clearinv)");
-        snprintf(edit->what, sizeof(edit->what), "backpack emptied");
+        char var_section[32];
+        snprintf(edit->what, sizeof(edit->what), "%s emptied",
+            strcmp(section, "inv") == 0 ? "backpack" : strcmp(section, "worn") == 0 ? "equipment" : "bank");
         if( online )
         {
+            if( strcmp(section, "inv") != 0 )
+                return acct_edit_refuse(edit, "online only the backpack clears (::clearinv): empty %s when the account is offline",
+                    strcmp(section, "worn") == 0 ? "the equipment" : "the bank");
             acct_edit_cheat(edit, "clearinv");
             return 1;
         }
+        snprintf(var_section, sizeof(var_section), "%s_var", section);
         {
             char k[64];
             char v[128];
-            while( ToriRSMapEd_AcctSaveNth(&values->save, "inv", 0, k, sizeof(k), v, sizeof(v)) )
+            while( ToriRSMapEd_AcctSaveNth(&values->save, section, 0, k, sizeof(k), v, sizeof(v)) )
             {
-                ToriRSMapEd_AcctSaveRemove(&values->save, "inv", k);
+                ToriRSMapEd_AcctSaveRemove(&values->save, section, k);
                 edit->save_changed = 1;
             }
-            while( ToriRSMapEd_AcctSaveNth(&values->save, "inv_var", 0, k, sizeof(k), v, sizeof(v)) )
-                ToriRSMapEd_AcctSaveRemove(&values->save, "inv_var", k);
+            while( ToriRSMapEd_AcctSaveNth(&values->save, var_section, 0, k, sizeof(k), v, sizeof(v)) )
+                ToriRSMapEd_AcctSaveRemove(&values->save, var_section, k);
         }
         return 1;
     }
@@ -2500,18 +3105,74 @@ static int
 acct_edit_quests(
     struct acct_state* state,
     struct acct_edit* edit,
+    struct acct_values* values,
+    int online,
     const char* field,
     const char* value)
 {
     int mark;
 
     acct_quests_load(state);
+    /* A batch: `quests.list complete|mark <dbrow> <dbrow> ...`, one cheat
+     * each (the panel's "Complete shown"). */
+    if( strcmp(field, "list") == 0 )
+    {
+        char verb[16] = "";
+        const char* scan = value;
+        int n = 0;
+        int skipped = 0;
+        if( sscanf(value, "%15s", verb) != 1 || (strcmp(verb, "complete") != 0 && strcmp(verb, "mark") != 0) )
+            return acct_edit_refuse(edit, "quests.list takes complete|mark then dbrows (got '%s')", value);
+        scan += strlen(verb);
+        edit->queue_only = 1;
+        for( ;; )
+        {
+            char dbrow[64];
+            int used = 0;
+            int found = 0;
+            if( sscanf(scan, "%63s%n", dbrow, &used) != 1 )
+                break;
+            scan += used;
+            for( int i = 0; i < state->quest_count; i++ )
+                if( strcmp(state->quests[i].dbrow, dbrow) == 0 && state->quests[i].constant[0] )
+                {
+                    acct_edit_cheat(edit, "%s %s", verb[0] == 'm' ? "questmark" : "complete", dbrow);
+                    found = 1;
+                    n++;
+                    break;
+                }
+            skipped += !found;
+        }
+        if( n == 0 )
+            return acct_edit_refuse(edit, "quests.list named no quest with a ::complete arm");
+        snprintf(edit->what, sizeof(edit->what), "%d quest(s) %s%s", n, verb[0] == 'm' ? "marked complete" : "completed",
+            skipped ? " (some had no ::complete arm and were skipped)" : "");
+        return 1;
+    }
+    if( strcmp(value, "reset") == 0 )
+    {
+        for( int i = 0; i < state->quest_count; i++ )
+            if( strcmp(state->quests[i].dbrow, field) == 0 )
+            {
+                const struct ToriRSMapEdAcctQuest* quest = &state->quests[i];
+                char id[16];
+                if( quest->var_kind == 0 )
+                    return acct_edit_refuse(edit, "%s's state goes through a proc: there is no var to reset", field);
+                snprintf(id, sizeof(id), "%d", quest->var_id);
+                if( !acct_edit_var(state, edit, values, online, quest->var_kind, id, "0") )
+                    return 0;
+                snprintf(edit->what, sizeof(edit->what), "%s reset (its %s %d to 0)", quest->display,
+                    quest->var_kind == 1 ? "varp" : "varbit", quest->var_id);
+                return 1;
+            }
+        return acct_edit_refuse(edit, "no quest row is named '%s'", field);
+    }
     if( strcmp(value, "complete") == 0 )
         mark = 0;
     else if( strcmp(value, "mark") == 0 )
         mark = 1;
     else
-        return acct_edit_refuse(edit, "quests.<dbrow> takes complete or mark (got '%s')", value);
+        return acct_edit_refuse(edit, "quests.<dbrow> takes complete, mark or reset (got '%s')", value);
     edit->queue_only = 1;
     if( strcmp(field, "all") == 0 )
     {
@@ -2538,6 +3199,174 @@ acct_edit_quests(
             return 1;
         }
     return acct_edit_refuse(edit, "no quest row is named '%s'", field);
+}
+
+/** `container.<inv>.<slot>` / `container.<inv>.clear`: a save's
+ *  `[container.<inv>]`, offline only (no cheat reaches one). */
+static int
+acct_edit_container(
+    struct acct_state* state,
+    struct acct_edit* edit,
+    struct acct_values* values,
+    int online,
+    const char* field,
+    const char* value)
+{
+    char inv_text[96];
+    char section[48];
+    char var_section[48];
+    const char* dot = strrchr(field, '.');
+    const struct acct_inv* inv;
+    int inv_id;
+    int slots;
+
+    if( !dot || dot == field )
+        return acct_edit_refuse(edit, "container.<inv>.<slot|clear> (got 'container.%s')", field);
+    snprintf(inv_text, sizeof(inv_text), "%.*s", (int)(dot - field), field);
+    inv = acct_inv_find(state, inv_text);
+    if( inv )
+        inv_id = inv->id;
+    else
+    {
+        char* end = NULL;
+        long id = strtol(inv_text, &end, 10);
+        if( !end || end == inv_text || *end != '\0' || id < 0 )
+            return acct_edit_refuse(edit, "no inv is named '%s' (configs/all.inv)", inv_text);
+        inv_id = (int)id;
+    }
+    if( online )
+        return acct_edit_refuse(edit, "no cheat edits a container online: edit it when the account is offline");
+    slots = acct_container_slots(state, inv_id);
+    snprintf(section, sizeof(section), "container.%d", inv_id);
+    snprintf(var_section, sizeof(var_section), "container_var.%d", inv_id);
+    if( strcmp(dot + 1, "clear") == 0 )
+    {
+        char k[64];
+        char v[128];
+        while( ToriRSMapEd_AcctSaveNth(&values->save, section, 0, k, sizeof(k), v, sizeof(v)) )
+        {
+            ToriRSMapEd_AcctSaveRemove(&values->save, section, k);
+            edit->save_changed = 1;
+        }
+        while( ToriRSMapEd_AcctSaveNth(&values->save, var_section, 0, k, sizeof(k), v, sizeof(v)) )
+            ToriRSMapEd_AcctSaveRemove(&values->save, var_section, k);
+        snprintf(edit->what, sizeof(edit->what), "%s emptied", inv ? inv->name : section);
+        return 1;
+    }
+    {
+        char* end = NULL;
+        long slot = strtol(dot + 1, &end, 10);
+        char key[16];
+        if( !end || end == dot + 1 || *end != '\0' || slot < 0 || slot >= slots )
+            return acct_edit_refuse(edit, "%s holds slots 0..%d (got '%s')", inv ? inv->name : section, slots - 1, dot + 1);
+        snprintf(key, sizeof(key), "%ld", slot);
+        if( strcmp(value, "-") == 0 )
+        {
+            edit->save_changed |= ToriRSMapEd_AcctSaveRemove(&values->save, section, key);
+            snprintf(edit->what, sizeof(edit->what), "%s slot %ld emptied", inv ? inv->name : section, slot);
+            return 1;
+        }
+        {
+            char obj_text[96] = "";
+            char rest[8] = "";
+            char obj_name[96];
+            char text[48];
+            int count = 1;
+            int obj;
+            int n = sscanf(value, "%95s %d %7s", obj_text, &count, rest);
+            if( n < 1 || rest[0] )
+                return acct_edit_refuse(edit, "container.<inv>.<slot> takes <obj id|name> [count] or - (got '%s')", value);
+            if( count < 1 )
+                count = 1;
+            if( !acct_obj_find(state->maped, obj_text, &obj, obj_name, sizeof(obj_name)) )
+                return acct_edit_refuse(edit, "no obj is named '%s'", obj_text);
+            snprintf(text, sizeof(text), "%d %d", obj, count);
+            edit->save_changed |= ToriRSMapEd_AcctSaveSet(&values->save, section, key, text);
+            snprintf(edit->what, sizeof(edit->what), "%s slot %ld = %s%s%d x%d", inv ? inv->name : section, slot, obj_name,
+                obj_name[0] ? " " : "", obj, count);
+            return 1;
+        }
+    }
+}
+
+/** `loadout <name>`: the loadout's worn items and backpack replace the
+ *  account's (torirs_maped_accounts.h, ACCOUNT_SET). */
+static int
+acct_edit_loadout(
+    struct acct_state* state,
+    struct acct_edit* edit,
+    struct acct_values* values,
+    int online,
+    const char* value)
+{
+    static struct acct_loadout_item items[TORIRSMAPED_ACCT_WORN_SLOTS + TORIRSMAPED_ACCT_INV_SLOTS];
+    char name[64];
+    int count;
+    int worn = 0;
+    int inv = 0;
+
+    ToriRSMapEd_AcctLoadoutName(value, name, sizeof(name));
+    count = name[0] ? acct_loadout_items(state, name, items, (int)(sizeof(items) / sizeof(items[0]))) : -1;
+    if( count < 0 )
+        return acct_edit_refuse(edit, "no loadout is named '%s'", value);
+    for( int i = 0; i < count; i++ )
+    {
+        worn += items[i].section == 1;
+        inv += items[i].section == 0;
+    }
+    if( online )
+    {
+        int kept = 0;
+        acct_edit_cheat(edit, "clearinv");
+        for( int i = 0; i < count; i++ )
+            if( items[i].section == 1 )
+            {
+                acct_edit_cheat(edit, "item %d %d", items[i].obj, items[i].count);
+                acct_edit_cheat(edit, "wield %d", items[i].obj);
+            }
+        acct_edit_cheat(edit, "clearinv");
+        for( int i = 0; i < count; i++ )
+            if( items[i].section == 0 )
+                acct_edit_cheat(edit, "item %d %d", items[i].obj, items[i].count);
+        /* No cheat empties a worn slot: one the loadout leaves empty keeps
+         * whatever the account wears there. */
+        for( int slot = 0; slot < TORIRSMAPED_ACCT_WORN_SLOTS; slot++ )
+        {
+            char key[16];
+            char text[64];
+            int covered = 0;
+            snprintf(key, sizeof(key), "%d", slot);
+            if( !ToriRSMapEd_AcctSaveGet(&values->save, "worn", key, text, sizeof(text)) )
+                continue;
+            for( int i = 0; i < count; i++ )
+                covered |= items[i].section == 1 && items[i].slot == slot;
+            kept += !covered;
+        }
+        snprintf(edit->what, sizeof(edit->what), "loadout %s: %d worn, %d in the backpack%s", name, worn, inv,
+            kept ? "; worn slots the loadout leaves empty keep their items (no cheat empties one)" : "");
+        return 1;
+    }
+    {
+        static const char* const sections[4] = { "worn", "inv", "worn_var", "inv_var" };
+        char k[64];
+        char v[128];
+        for( int i = 0; i < 4; i++ )
+            while( ToriRSMapEd_AcctSaveNth(&values->save, sections[i], 0, k, sizeof(k), v, sizeof(v)) )
+            {
+                ToriRSMapEd_AcctSaveRemove(&values->save, sections[i], k);
+                edit->save_changed = 1;
+            }
+    }
+    for( int i = 0; i < count; i++ )
+    {
+        char key[16];
+        char text[48];
+        snprintf(key, sizeof(key), "%d", items[i].slot);
+        snprintf(text, sizeof(text), "%d %d", items[i].obj, items[i].count);
+        edit->save_changed |= ToriRSMapEd_AcctSaveSet(&values->save, items[i].section ? "worn" : "inv", key, text);
+    }
+    snprintf(edit->what, sizeof(edit->what), "loadout %s: %d worn, %d in the backpack", name, worn, inv);
+    return 1;
 }
 
 /** Resolve one SET into `edit`. 0 with edit->why on a refusal. */
@@ -2602,7 +3431,11 @@ acct_edit_resolve(
     if( strcmp(section, "inv") == 0 || strcmp(section, "worn") == 0 || strcmp(section, "bank") == 0 )
         return acct_edit_items(state, edit, values, online, section, field, value);
     if( strcmp(section, "quests") == 0 )
-        return acct_edit_quests(state, edit, field, value);
+        return acct_edit_quests(state, edit, values, online, field, value);
+    if( strcmp(section, "container") == 0 )
+        return acct_edit_container(state, edit, values, online, field, value);
+    if( strcmp(section, "loadout") == 0 && !field[0] )
+        return acct_edit_loadout(state, edit, values, online, value);
     if( strcmp(section, "cheat") == 0 )
     {
         const char* line = value;
@@ -2623,7 +3456,8 @@ acct_edit_resolve(
         return 1;
     }
     return acct_edit_refuse(edit,
-        "unknown key '%s' (player, stats, varps, varbits, vars, inv, worn, bank, quests, cheat, refresh)", key);
+        "unknown key '%s' (player, stats, varps, varbits, vars, inv, worn, bank, container, loadout, quests, cheat, refresh)",
+        key);
 }
 
 /** Send one cheat for `row` on the control link; 1 when it went. */
@@ -3055,17 +3889,44 @@ handle_accounts(
         acct_broadcast_list(state, session);
         return;
     }
-    if( type == TORIRSMAPED_REQ_ACCOUNTS_QUESTS )
+    if( type == TORIRSMAPED_REQ_ACCOUNTS_QUESTS || type == TORIRSMAPED_REQ_LOADOUTS_LIST
+        || type == TORIRSMAPED_REQ_ACCOUNTS_INVS )
     {
         if( length != 0 )
         {
             session->alive = 0;
             return;
         }
-        acct_send_quests(state, session);
+        if( type == TORIRSMAPED_REQ_ACCOUNTS_QUESTS )
+            acct_send_quests(state, session);
+        else if( type == TORIRSMAPED_REQ_LOADOUTS_LIST )
+            acct_broadcast_loadouts(state, session);
+        else
+            acct_send_invs(state, session);
         return;
     }
     ToriRSMapEd_GetString(&reader, name, sizeof(name));
+    if( type == TORIRSMAPED_REQ_LOADOUT_DELETE )
+    {
+        if( !ToriRSMapEd_ReaderDone(&reader) )
+        {
+            session->alive = 0;
+            return;
+        }
+        acct_handle_loadout_delete(state, session, type, name);
+        return;
+    }
+    if( type == TORIRSMAPED_REQ_LOADOUT_SAVE )
+    {
+        ToriRSMapEd_GetString(&reader, a, sizeof(a));
+        if( !ToriRSMapEd_ReaderDone(&reader) )
+        {
+            session->alive = 0;
+            return;
+        }
+        acct_handle_loadout_save(state, session, type, name, a);
+        return;
+    }
     if( type == TORIRSMAPED_REQ_ACCOUNT_VIEW || type == TORIRSMAPED_REQ_ACCOUNT_DELETE
         || type == TORIRSMAPED_REQ_ACCOUNT_USE )
     {

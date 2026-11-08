@@ -549,6 +549,17 @@ struct view_fact
     char quest[8][64];
     uint32_t quest_state[8];
     int32_t quest_value[8];
+    int32_t worn_obj[14];
+    uint32_t gender;
+    int32_t kit[12];
+    int32_t colour[5];
+    int container_count;
+    uint32_t container_inv[4];
+    char container_name[4][64];
+    uint32_t container_size[4];
+    int container_items[4];
+    uint32_t container_slot[4];
+    int32_t container_obj[4];
 };
 
 static void
@@ -606,11 +617,15 @@ decode_view(const struct fact* fact, struct view_fact* out)
     }
     n = ToriRSMapEd_GetU32(&reader);
     out->worn_count = (int)n;
+    for( int i = 0; i < 14; i++ )
+        out->worn_obj[i] = -1;
     for( uint32_t i = 0; i < n && !reader.bad; i++ )
     {
+        uint32_t slot = ToriRSMapEd_GetU32(&reader);
+        int32_t obj = (int32_t)ToriRSMapEd_GetU32(&reader);
         ToriRSMapEd_GetU32(&reader);
-        ToriRSMapEd_GetU32(&reader);
-        ToriRSMapEd_GetU32(&reader);
+        if( slot < 14 )
+            out->worn_obj[slot] = obj;
     }
     n = ToriRSMapEd_GetU32(&reader);
     out->bank_count = (int)n;
@@ -646,6 +661,45 @@ decode_view(const struct fact* fact, struct view_fact* out)
             out->quest_value[i] = value;
         }
     }
+    out->gender = ToriRSMapEd_GetU32(&reader);
+    n = ToriRSMapEd_GetU32(&reader);
+    assert(n == 12);
+    for( int i = 0; i < 12; i++ )
+        out->kit[i] = (int32_t)ToriRSMapEd_GetU32(&reader);
+    n = ToriRSMapEd_GetU32(&reader);
+    assert(n == 5);
+    for( int i = 0; i < 5; i++ )
+        out->colour[i] = (int32_t)ToriRSMapEd_GetU32(&reader);
+    n = ToriRSMapEd_GetU32(&reader);
+    out->container_count = (int)n;
+    for( uint32_t i = 0; i < n && !reader.bad; i++ )
+    {
+        uint32_t inv = ToriRSMapEd_GetU32(&reader);
+        char name[64];
+        uint32_t size;
+        uint32_t items;
+        ToriRSMapEd_GetString(&reader, name, sizeof(name));
+        size = ToriRSMapEd_GetU32(&reader);
+        items = ToriRSMapEd_GetU32(&reader);
+        for( uint32_t k = 0; k < items && !reader.bad; k++ )
+        {
+            uint32_t slot = ToriRSMapEd_GetU32(&reader);
+            int32_t obj = (int32_t)ToriRSMapEd_GetU32(&reader);
+            ToriRSMapEd_GetU32(&reader);
+            if( i < 4 && k == 0 )
+            {
+                out->container_slot[i] = slot;
+                out->container_obj[i] = obj;
+            }
+        }
+        if( i < 4 )
+        {
+            out->container_inv[i] = inv;
+            snprintf(out->container_name[i], sizeof(out->container_name[i]), "%s", name);
+            out->container_size[i] = size;
+            out->container_items[i] = (int)items;
+        }
+    }
     assert(ToriRSMapEd_ReaderDone(&reader));
 }
 
@@ -675,6 +729,46 @@ latest_view(struct conn* conn, const char* name, struct view_fact* out)
     if( found >= 0 )
         decode_view(&conn->facts[found], out);
     return found;
+}
+
+struct loadouts_fact
+{
+    uint32_t status;
+    int count;
+    char names[8][64];
+    int items[8];
+};
+
+static void
+decode_loadouts(const struct fact* fact, struct loadouts_fact* out)
+{
+    struct ToriRSMapEdReader reader;
+    uint32_t count;
+    memset(out, 0, sizeof(*out));
+    ToriRSMapEd_ReaderInit(&reader, fact->data, fact->length);
+    out->status = ToriRSMapEd_GetU32(&reader);
+    count = ToriRSMapEd_GetU32(&reader);
+    for( uint32_t i = 0; i < count && !reader.bad; i++ )
+    {
+        char name[64];
+        uint32_t items;
+        ToriRSMapEd_GetString(&reader, name, sizeof(name));
+        items = ToriRSMapEd_GetU32(&reader);
+        for( uint32_t k = 0; k < items && !reader.bad; k++ )
+        {
+            ToriRSMapEd_GetU32(&reader);
+            ToriRSMapEd_GetU32(&reader);
+            ToriRSMapEd_GetU32(&reader);
+            ToriRSMapEd_GetU32(&reader);
+        }
+        if( i < 8 )
+        {
+            snprintf(out->names[i], sizeof(out->names[i]), "%s", name);
+            out->items[i] = (int)items;
+        }
+        out->count++;
+    }
+    assert(ToriRSMapEd_ReaderDone(&reader));
 }
 
 static void
@@ -816,6 +910,15 @@ write_content(const char* content)
     write_text(path, "^cook_started = 1\n^cook_complete = 2\n");
     snprintf(path, sizeof(path), "%s/server/scripts/quests/configs/bys.constant", content);
     write_text(path, "^bys_complete = 3\n^quest_cog_complete = 8\n");
+    snprintf(path, sizeof(path), "%s/configs/all.inv", content);
+    write_text(path, "// invs\n\n[inv]\nsize=28\nscope=default\n\n[worn]\nsize=14\n\n[bank]\nsize=1410\n\n[tob_chests]\nsize=12\n");
+    snprintf(path, sizeof(path), "%s/configs/all.inv.compack", content);
+    write_text(path, "93=inv\n94=worn\n95=bank\n612=tob_chests\n");
+    snprintf(path, sizeof(path), "%s/server/scripts/player/configs", content);
+    mkdirs(path);
+    snprintf(path, sizeof(path), "%s/server/scripts/player/configs/appearance.enum", content);
+    write_text(path, "// the default body\n[default_appearance]\ninputtype=int\noutputtype=int\ndefault=-1\n"
+                     "val=4,18\nval=6,26\nval=7,36\nval=8,0\nval=9,33\nval=10,42\nval=11,10\n");
 }
 
 static void
@@ -1041,6 +1144,10 @@ test_server(const char* scratch, const char* peer_script, const char* repo_root)
                   && strcmp(view.varp_name[0], "varp29_cookquest") == 0,
             "view: varps carry their catalog names");
         check(view.inv_count == 0 && view.worn_count == 1 && view.bank_count == 1, "view: the item sections");
+        check(view.gender == 0 && view.kit[4] == 18 && view.kit[8] == 0 && view.kit[11] == 10 && view.kit[0] == -1
+                  && view.kit[3] == -1 && view.colour[0] == 0,
+            "view: a save without [appearance] wears the content's default kits");
+        check(view.container_count == 0, "view: no other containers yet");
         q = view_quest(&view, "quest_cooksassistant");
         check(q >= 0 && view.quest_state[q] == TORIRSMAPED_QUEST_NOT_COMPLETE && view.quest_value[q] == 1,
             "view: Cook's Assistant not complete at varp 29 = 1");
@@ -1167,6 +1274,124 @@ test_server(const char* scratch, const char* peer_script, const char* repo_root)
               && file_has(path, "x = 3100\nz = 3300\nlevel = 2\n"),
         "place: offline writes the save");
 
+    /* ---- the look, the other containers, invs, loadouts (offline) --------------- */
+    snprintf(path, sizeof(path), "%s/saves/tester_one.ini", live);
+    {
+        FILE* f = fopen(path, "a");
+        assert(f);
+        fputs("\n[appearance]\n; gender, then <wearpos> = <idk> and colours\ngender = 1\nkit8 = 5\ncolours = 1 2 3 4 5\n", f);
+        fclose(f);
+    }
+    check(set_ok(&a, "tester_one", "container.tob_chests.2", "coins 50", &status) && file_has(path, "[container.612]\n2 = 995 50\n"),
+        "container: a slot of tob_chests by name");
+    check(!set_ok(&a, "tester_one", "container.612.12", "995", &status) && strstr(status.message, "0..11"),
+        "container: the inv's size bounds the slot");
+    check(!set_ok(&a, "tester_one", "container.nosuch.0", "995", &status) && strstr(status.message, "no inv"),
+        "container: an unknown inv is refused");
+    ToriRSMapEd_PutString(&payload, "tester_one");
+    mark(&a);
+    conn_send(&a, TORIRSMAPED_REQ_ACCOUNT_VIEW, &payload);
+    at = wait_fact(&a, TORIRSMAPED_FACT_ACCOUNT, 2000);
+    if( at >= 0 )
+        decode_view(&a.facts[at], &view);
+    check(at >= 0 && view.gender == 1 && view.kit[8] == 5 && view.kit[4] == 18 && view.colour[4] == 5,
+        "look: the save's gender, its own hair kit, the rest the defaults, its colours");
+    check(at >= 0 && view.container_count == 1 && view.container_inv[0] == 612
+              && strcmp(view.container_name[0], "tob_chests") == 0 && view.container_size[0] == 12
+              && view.container_items[0] == 1 && view.container_slot[0] == 2 && view.container_obj[0] == 995,
+        "view: the container with its name, size and item");
+    check(set_ok(&a, "tester_one", "container.612.clear", "", &status) && !file_has(path, "2 = 995 50\n"),
+        "container: clear empties it");
+    mark(&a);
+    conn_send(&a, TORIRSMAPED_REQ_ACCOUNTS_INVS, NULL);
+    at = wait_fact(&a, TORIRSMAPED_FACT_INVS, 2000);
+    {
+        int found = 0;
+        uint32_t count = 0;
+        if( at >= 0 )
+        {
+            struct ToriRSMapEdReader reader;
+            ToriRSMapEd_ReaderInit(&reader, a.facts[at].data, a.facts[at].length);
+            count = ToriRSMapEd_GetU32(&reader);
+            for( uint32_t i = 0; i < count && !reader.bad; i++ )
+            {
+                uint32_t id = ToriRSMapEd_GetU32(&reader);
+                char name[64];
+                uint32_t size;
+                ToriRSMapEd_GetString(&reader, name, sizeof(name));
+                size = ToriRSMapEd_GetU32(&reader);
+                found |= id == 612 && strcmp(name, "tob_chests") == 0 && size == 12;
+            }
+        }
+        check(at >= 0 && count == 4 && found, "invs: every inv with its name and size");
+    }
+    /* Loadouts: save from the account, list, apply, replace, delete. */
+    check(set_ok(&a, "tester_one", "inv.0", "coins 7", &status), "loadout: a backpack item to save");
+    ToriRSMapEd_PutString(&payload, "Melee Set");
+    ToriRSMapEd_PutString(&payload, "tester_one");
+    mark(&a);
+    mark(&b);
+    conn_send(&a, TORIRSMAPED_REQ_LOADOUT_SAVE, &payload);
+    check(wait_status(&a, TORIRSMAPED_REQ_LOADOUT_SAVE, &status, 2000) >= 0 && status.status == EDITOR_HOST_OK
+              && strstr(status.message, "loadout melee_set saved") && strstr(status.message, "1 worn, 1 in the backpack"),
+        "loadout: saved under its kept name");
+    snprintf(path, sizeof(path), "%s/accounts.ini", live);
+    check(file_has(path, "[loadout.melee_set]\nworn.3 = 1277 1\ninv.0 = 995 7\n"), "loadout: the registry holds it");
+    at = wait_fact(&b, TORIRSMAPED_FACT_LOADOUTS, 2000);
+    {
+        struct loadouts_fact loadouts;
+        if( at >= 0 )
+            decode_loadouts(&b.facts[at], &loadouts);
+        check(at >= 0 && loadouts.status == EDITOR_HOST_OK && loadouts.count == 1
+                  && strcmp(loadouts.names[0], "melee_set") == 0 && loadouts.items[0] == 2,
+            "loadout: every connection hears the list");
+    }
+    snprintf(path, sizeof(path), "%s/saves/tester_one.ini", live);
+    check(set_ok(&a, "tester_one", "worn.3", "-", &status) && set_ok(&a, "tester_one", "inv.clear", "", &status)
+              && set_ok(&a, "tester_one", "inv.5", "995 1", &status),
+        "loadout: the account changed since");
+    check(set_ok(&a, "tester_one", "loadout", "melee set", &status) && strstr(status.message, "loadout melee_set: 1 worn, 1 in the backpack")
+              && file_has(path, "3 = 1277 1\n") && file_has(path, "0 = 995 7\n") && !file_has(path, "5 = 995 1\n"),
+        "loadout: applying it offline replaces worn and backpack");
+    check(!set_ok(&a, "tester_one", "loadout", "nothing", &status) && strstr(status.message, "no loadout"),
+        "loadout: an unknown one is refused");
+    ToriRSMapEd_PutString(&payload, "melee_set");
+    ToriRSMapEd_PutString(&payload, "tester_one");
+    mark(&a);
+    conn_send(&a, TORIRSMAPED_REQ_LOADOUT_SAVE, &payload);
+    check(wait_status(&a, TORIRSMAPED_REQ_LOADOUT_SAVE, &status, 2000) >= 0 && strstr(status.message, "replaced"),
+        "loadout: saving the same name replaces it");
+    ToriRSMapEd_PutString(&payload, "!!");
+    ToriRSMapEd_PutString(&payload, "tester_one");
+    mark(&a);
+    conn_send(&a, TORIRSMAPED_REQ_LOADOUT_SAVE, &payload);
+    check(wait_status(&a, TORIRSMAPED_REQ_LOADOUT_SAVE, &status, 2000) >= 0 && status.status == EDITOR_HOST_REFUSED,
+        "loadout: a name with no letters is refused");
+    ToriRSMapEd_PutString(&payload, "spare");
+    ToriRSMapEd_PutString(&payload, "tester_one");
+    mark(&a);
+    conn_send(&a, TORIRSMAPED_REQ_LOADOUT_SAVE, &payload);
+    (void)wait_status(&a, TORIRSMAPED_REQ_LOADOUT_SAVE, &status, 2000);
+    ToriRSMapEd_PutString(&payload, "spare");
+    mark(&a);
+    conn_send(&a, TORIRSMAPED_REQ_LOADOUT_DELETE, &payload);
+    snprintf(path, sizeof(path), "%s/accounts.ini", live);
+    check(wait_status(&a, TORIRSMAPED_REQ_LOADOUT_DELETE, &status, 2000) >= 0 && status.status == EDITOR_HOST_OK
+              && !file_has(path, "[loadout.spare]") && file_has(path, "[loadout.melee_set]"),
+        "loadout: delete removes only that one");
+    ToriRSMapEd_PutString(&payload, "spare");
+    mark(&a);
+    conn_send(&a, TORIRSMAPED_REQ_LOADOUT_DELETE, &payload);
+    check(wait_status(&a, TORIRSMAPED_REQ_LOADOUT_DELETE, &status, 2000) >= 0 && status.status == EDITOR_HOST_ABSENT,
+        "loadout: deleting it again is ABSENT");
+    snprintf(path, sizeof(path), "%s/saves/tester_one.ini", live);
+    check(set_ok(&a, "tester_one", "varps.29", "2", &status) && set_ok(&a, "tester_one", "quests.quest_cooksassistant", "reset", &status)
+              && strstr(status.message, "reset") && !file_has(path, "29 = 2\n"),
+        "quests: reset puts the quest's varp back to 0 (offline)");
+    check(!set_ok(&a, "tester_one", "quests.quest_clocktower", "reset", &status) && strstr(status.message, "proc"),
+        "quests: a proc arm cannot be reset");
+    check(set_ok(&a, "tester_one", "varps.29", "1", &status), "quests: varp 29 back to 1");
+
     /* ---- online, against the mock peer ------------------------------------------ */
     check(set_ok(&a, "tester_one", "stats.cooking", "50", &status), "set: cooking 50 before going online");
     port = free_port();
@@ -1271,6 +1496,16 @@ test_server(const char* scratch, const char* peer_script, const char* repo_root)
         "online: xp below the current is refused");
     check(set_ok(&a, "tester_one", "stats.7.xp", "200000", &status) && strstr(status.message, "::xp cooking 98667"),
         "online: xp above adds the difference (from the save's 101333)");
+    check(set_ok(&a, "tester_one", "loadout", "melee_set", &status) && strstr(status.message, "online: ::clearinv and"),
+        "online: a loadout is cheats");
+    check(wait_peer("\"line\": \"item 995 7\"", 1, 3000) && wait_peer("\"line\": \"clearinv\"", 2, 3000),
+        "online: the loadout's backpack item and both clearinvs reached the peer");
+    check(set_ok(&a, "tester_one", "quests.list", "mark quest_cooksassistant miniquest_bearyoursoul nosuch", &status)
+              && strstr(status.message, "skipped"),
+        "online: a quest batch is sent, the unknown row skipped");
+    check(wait_peer("\"line\": \"questmark miniquest_bearyoursoul\"", 1, 3000), "online: the batch reached the peer");
+    check(!set_ok(&a, "tester_one", "container.612.0", "995", &status) && strstr(status.message, "offline"),
+        "online: a container edit is refused with the way out");
     /* The server's checkpoint lands: the view shows it. */
     snprintf(path, sizeof(path), "%s/saves/checkpoints", live);
     mkdirs(path);

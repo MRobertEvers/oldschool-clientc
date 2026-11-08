@@ -27,6 +27,9 @@
 #include "editor/task_editor_layout_io.h"
 #include "editor/task_editor_prefs_io.h"
 #include "engine/world_builder/edit/world_edit.h"
+#include "engine/entity_model_build.h"
+#include "engine/player_appearance.h"
+#include "net/rev/packets/pkt_player_appearance.h"
 #include "game/rs_worldmap_overview.h"
 #include "graphics/pixel_format.h"
 #include "toridraw.h"
@@ -945,6 +948,182 @@ ui_service_loc_thumbnail(
     void* user_data,
     int loc_id,
     int shape);
+
+/*
+ * Loads a well's icons and sprites asked for, each once: a request outlives
+ * the frame that made it, and an icon is asked for every frame its cell is
+ * drawn. A small open-addressed set per kind; when one fills it is cleared
+ * (a few requests go out twice, nothing goes out never).
+ */
+enum
+{
+    APP_ICON_ASKED_MAX = 1024,
+};
+
+static struct
+{
+    int obj[APP_ICON_ASKED_MAX];
+    int model[APP_ICON_ASKED_MAX];
+    int sprite[APP_ICON_ASKED_MAX];
+    int obj_count;
+    int model_count;
+    int sprite_count;
+} g_app_icon_asked;
+
+/** 1 the first time `id` is asked for in `set` (and remembers it). */
+static int
+app_icon_ask_once(
+    int* set,
+    int* count,
+    int id)
+{
+    for( int i = 0; i < *count; i++ )
+        if( set[i] == id )
+            return 0;
+    if( *count >= APP_ICON_ASKED_MAX )
+        *count = 0;
+    set[(*count)++] = id;
+    return 1;
+}
+
+/** Obj `obj_id`'s config, asked for when absent. */
+static struct ToriRS_Objtype*
+app_icon_obj(
+    struct App* app,
+    int obj_id,
+    int* missing)
+{
+    struct ToriRS_Objtype* obj;
+
+    if( obj_id < 0 )
+        return NULL;
+    obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
+    if( obj )
+        return obj;
+    *missing = 1;
+    if( app_icon_ask_once(g_app_icon_asked.obj, &g_app_icon_asked.obj_count, obj_id) )
+    {
+        struct ToriRS_Task* task = CreateTask_ObjLoad(app->provider, obj_id);
+        if( task )
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+    }
+    return NULL;
+}
+
+/** Model `model_id`, asked for when absent. */
+static void
+app_icon_model(
+    struct App* app,
+    int model_id,
+    int* missing)
+{
+    if( model_id <= 0 || CacheProvider_ModelHas(app->provider, model_id) )
+        return;
+    *missing = 1;
+    if( app_icon_ask_once(g_app_icon_asked.model, &g_app_icon_asked.model_count, model_id) )
+    {
+        struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, model_id);
+        if( task )
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+    }
+}
+
+/** Everything bridge_ensure_obj_icon reads for (obj_id, count): the
+ *  config, its count variant, a note's paper and base, a placeholder's
+ *  item, and each one's inventory model. 1 when all are resident. */
+static int
+app_icon_resident(
+    struct App* app,
+    int obj_id,
+    int count)
+{
+    struct ToriRS_Objtype* obj;
+    int missing = 0;
+
+    obj = app_icon_obj(app, obj_id, &missing);
+    if( !obj )
+        return 0;
+    if( count > 1 )
+        for( int i = 0; i < 10; i++ )
+            if( obj->count_co[i] != 0 && count >= obj->count_co[i] && obj->count_obj[i] > 0 )
+            {
+                struct ToriRS_Objtype* variant = app_icon_obj(app, obj->count_obj[i], &missing);
+                if( variant )
+                    app_icon_model(app, variant->inventory_model_id, &missing);
+            }
+    app_icon_model(app, obj->inventory_model_id, &missing);
+    if( obj->inventory_model_id <= 0 && obj->cert_template > 0 )
+    {
+        struct ToriRS_Objtype* paper = app_icon_obj(app, obj->cert_template, &missing);
+        struct ToriRS_Objtype* base = app_icon_obj(app, obj->cert_link, &missing);
+        if( paper )
+            app_icon_model(app, paper->inventory_model_id, &missing);
+        if( base )
+            app_icon_model(app, base->inventory_model_id, &missing);
+    }
+    if( obj->inventory_model_id <= 0 && obj->placeholder_template >= 0 && obj->placeholder_link >= 0 )
+    {
+        struct ToriRS_Objtype* item = app_icon_obj(app, obj->placeholder_link, &missing);
+        if( item )
+            app_icon_model(app, item->inventory_model_id, &missing);
+    }
+    return !missing;
+}
+
+static int
+ui_service_obj_icon(
+    void* user_data,
+    int obj_id,
+    int count,
+    char* out_name,
+    int name_size)
+{
+    struct App* app = user_data;
+    struct ToriRS_Objtype* obj;
+    int scene_id;
+
+    assert(app);
+    assert(obj_id >= 0);
+    if( out_name && name_size > 0 )
+        out_name[0] = '\0';
+    if( !app->provider || !app->scene )
+        return 0;
+    obj = CacheProvider_ObjtypeGet(app->provider, obj_id);
+    if( obj && out_name && name_size > 0 )
+        snprintf(out_name, (size_t)name_size, "%s", obj->name);
+    if( !app_icon_resident(app, obj_id, count) )
+        return 0;
+    scene_id = UITreeSceneBridge_EnsureObjIcon(&app->bridge, obj_id, count);
+    if( scene_id > 0 )
+        app_sync_textures(app);
+    return scene_id > 0 ? scene_id : -1;
+}
+
+static int
+ui_service_cache_sprite(
+    void* user_data,
+    int archive)
+{
+    struct App* app = user_data;
+    int scene_id;
+
+    assert(app);
+    assert(archive >= 0);
+    if( !app->provider || !app->scene )
+        return 0;
+    if( !CacheProvider_SpriteHas(app->provider, archive) )
+    {
+        if( app_icon_ask_once(g_app_icon_asked.sprite, &g_app_icon_asked.sprite_count, archive) )
+        {
+            struct ToriRS_Task* task = CreateTask_SpriteLoad(app->provider, archive);
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+        }
+        return 0;
+    }
+    scene_id = UITreeSceneBridge_EnsureSprite(&app->bridge, archive);
+    return scene_id > 0 ? scene_id : -1;
+}
 #endif
 
 void
@@ -981,6 +1160,10 @@ app_map_editor_ui_services(
     /* The Catalog's row thumbnails: scene sprites, which a DOM page has no
      * pixels for (its cells list draws the empty cell). */
     out->loc_thumbnail = ui_service_loc_thumbnail;
+    /* The Accounts panel's wells: item icons and the worn slots'
+     * silhouettes, scene sprites as the thumbnails are. */
+    out->obj_icon = ui_service_obj_icon;
+    out->cache_sprite = ui_service_cache_sprite;
     /* The quest board's screenshots: decoded from disk, which a page has no
      * path to (its board lists the paths). */
     out->png_publish = ui_service_png_publish;
@@ -3547,6 +3730,180 @@ app_map_editor_spawn_ghost_update(
     app_map_editor_spawn_ghost_fade(app);
 }
 
+#if !defined(__EMSCRIPTEN__)
+/* ---- the Place player ghost -----------------------------------------------------
+ *
+ * While Place player is armed, the play account stands translucent on the
+ * hovered tile in its own body and gear: the save's look (the server's
+ * resolution of its kits, Editor_Accounts_PlayLook) dressed in its worn
+ * items the way the game server dresses it (torirs_server_encode.c
+ * appearance_slots: a worn item blanks the positions its wearpos 2 / 3
+ * claim, an unclaimed position falls back to the kit). A scene player of its
+ * own, never the document's; it comes down when the tool, the look or the
+ * world changes.
+ */
+
+static struct
+{
+    int entity;
+    uint32_t load_seq;
+    int level;
+    int look_serial;
+    int slots[APPEARANCE_SLOT_COUNT];
+    int colours[APPEARANCE_COLOUR_COUNT];
+    int gender;
+    int idk_asked;
+} g_app_player_ghost = { -1, 0, 0, -1, { 0 }, { 0 }, 0, 0 };
+
+static void
+app_map_editor_player_ghost_remove(struct App* app)
+{
+    if( g_app_player_ghost.entity < 0 )
+        return;
+    if( app->world && g_app_player_ghost.load_seq == app->world->load_seq
+        && World_EntityPoolIsActive(&app->world->entities.player, g_app_player_ghost.entity) )
+        World_PlayerDespawn(app->world, g_app_player_ghost.entity);
+    g_app_player_ghost.entity = -1;
+    app->need_redraw = 1;
+}
+
+/** The appearance slots `look` wears; 0 while an obj config it needs is
+ *  still loading (asked for). */
+static int
+app_player_ghost_slots(
+    struct App* app,
+    const struct Editor_AccountLook* look,
+    int slots[APPEARANCE_SLOT_COUNT])
+{
+    int covered[APPEARANCE_SLOT_COUNT] = { 0 };
+    int worn_at[APPEARANCE_SLOT_COUNT];
+    int missing = 0;
+
+    for( int i = 0; i < APPEARANCE_SLOT_COUNT; i++ )
+        worn_at[i] = -1;
+    for( int s = 0; s < TORIRSMAPED_ACCT_WORN_SLOTS; s++ )
+    {
+        struct ToriRS_Objtype* obj;
+        if( look->worn[s] < 0 )
+            continue;
+        obj = app_icon_obj(app, look->worn[s], &missing);
+        if( !obj )
+            continue;
+        if( obj->wearpos2 >= 0 && obj->wearpos2 < APPEARANCE_SLOT_COUNT )
+            covered[obj->wearpos2] = 1;
+        if( obj->wearpos3 >= 0 && obj->wearpos3 < APPEARANCE_SLOT_COUNT )
+            covered[obj->wearpos3] = 1;
+        if( obj->wearpos >= 0 && obj->wearpos < APPEARANCE_SLOT_COUNT )
+            worn_at[obj->wearpos] = look->worn[s];
+    }
+    if( missing )
+        return 0;
+    for( int w = 0; w < APPEARANCE_SLOT_COUNT; w++ )
+    {
+        if( worn_at[w] >= 0 )
+            slots[w] = Appearance_PackObj(worn_at[w]);
+        else if( !covered[w] && w < TORIRSMAPED_ACCT_LOOK_SLOTS && look->kits[w] >= 0 )
+            slots[w] = Appearance_PackKit(look->kits[w]);
+        else
+            slots[w] = APPEARANCE_SLOT_EMPTY;
+    }
+    return 1;
+}
+
+static void
+app_map_editor_player_ghost_update(
+    struct App* app,
+    struct EditorUi* ui)
+{
+    struct MapEditorHover const* hover = &app->map_ghost.hover;
+    struct Editor_AccountLook look;
+    int look_serial = -1;
+    int slots[APPEARANCE_SLOT_COUNT];
+    int const wanted = hover->valid && ui->tools.tool == EDITOR_TOOL_PLACE_PLAYER && app->world && app->provider
+                       && Editor_Accounts_PlayLook(ui, &look, &look_serial);
+
+    /* A rebuild freed what the ghost was. */
+    if( g_app_player_ghost.entity >= 0 && (!app->world || g_app_player_ghost.load_seq != app->world->load_seq) )
+        g_app_player_ghost.entity = -1;
+    if( !wanted )
+    {
+        app_map_editor_player_ghost_remove(app);
+        return;
+    }
+    if( g_app_player_ghost.entity >= 0
+        && (g_app_player_ghost.look_serial != look_serial || g_app_player_ghost.level != hover->level) )
+        app_map_editor_player_ghost_remove(app);
+    if( g_app_player_ghost.entity >= 0 )
+    {
+        struct WorldEntity_Player* player =
+            World_EntityPoolGet(&app->world->entities.player, g_app_player_ghost.entity);
+        if( player
+            && (player->grid_position.x != hover->scene_x || player->grid_position.z != hover->scene_z) )
+        {
+            World_PlayerPathJump(app->world, g_app_player_ghost.entity, true, hover->scene_x, hover->scene_z);
+            app->need_redraw = 1;
+        }
+        return;
+    }
+    /* The identity kits (every idk config) and the gear's configs and models. */
+    if( !g_app_player_ghost.idk_asked )
+    {
+        struct ToriRS_Task* task = CreateTask_PlayerAppearanceLoad(app->provider);
+        if( task )
+            ToriRS_TaskQueue_Add(app->runner.queue, task);
+        g_app_player_ghost.idk_asked = 1;
+    }
+    if( !app_player_ghost_slots(app, &look, slots) )
+        return;
+    if( !PlayerModel_AppearanceResident(app->provider, slots, look.gender) )
+    {
+        int ids[64];
+        int missing = 0;
+        int const n = PlayerModel_CollectAppearanceModelIds(app->provider, slots, look.gender, ids, 64);
+        for( int i = 0; i < n; i++ )
+            app_icon_model(app, ids[i], &missing);
+        return;
+    }
+    {
+        struct WorldEntityFacet_IdleAnimations idle = {
+            .readyanim = APP_PLAYER_SEQ_READY,
+            .walkanim = APP_PLAYER_SEQ_WALK,
+            .turnanim = APP_PLAYER_SEQ_TURN,
+            .turnanim_r = APP_PLAYER_SEQ_TURN,
+            .runanim = APP_PLAYER_SEQ_RUN,
+            .walkanim_b = APP_PLAYER_SEQ_WALK_B,
+            .walkanim_r = APP_PLAYER_SEQ_WALK_R,
+            .walkanim_l = APP_PLAYER_SEQ_WALK_L,
+            .runanim_b = -1,
+            .runanim_r = -1,
+            .runanim_l = -1,
+            .crawlanim = -1,
+            .crawlanim_b = -1,
+            .crawlanim_r = -1,
+            .crawlanim_l = -1,
+        };
+        int colours[APPEARANCE_COLOUR_COUNT];
+        int const idx = app_world_spawn_player_now(app, hover->scene_x, hover->scene_z, hover->level);
+        if( idx < 0 )
+            return;
+        for( int i = 0; i < APPEARANCE_COLOUR_COUNT; i++ )
+            colours[i] = i < TORIRSMAPED_ACCT_LOOK_COLOURS ? look.colours[i] : 0;
+        /* The body is built from these by the frame's reconcile, every part
+         * being resident (checked above). */
+        World_PlayerSetAppearance(app->world, idx, slots, slots, colours, &idle, "", 0, look.gender);
+        World_PlayerSetTransparency(app->world, idx, 0, 0, 150, 150, true);
+        g_app_player_ghost.entity = idx;
+        g_app_player_ghost.load_seq = app->world->load_seq;
+        g_app_player_ghost.level = hover->level;
+        g_app_player_ghost.look_serial = look_serial;
+        memcpy(g_app_player_ghost.slots, slots, sizeof(slots));
+        memcpy(g_app_player_ghost.colours, colours, sizeof(colours));
+        g_app_player_ghost.gender = look.gender;
+        app->need_redraw = 1;
+    }
+}
+#endif
+
 /* ---- the move gizmo and the multi-piece ghost (workbench 6.3) ----------------
  *
  * The gizmo (editor/loc_editor_selection.h) stands on the primary selected
@@ -3914,6 +4271,9 @@ app_map_editor_ghost_update(struct App* app)
     app_map_editor_hover_env_arm(ui);
     app_map_editor_level_env(app, ui);
     app_map_editor_spawn_ghost_update(app, ui);
+#if !defined(__EMSCRIPTEN__)
+    app_map_editor_player_ghost_update(app, ui);
+#endif
     app_map_editor_piece_ghost_update(app, ui);
 
     /* Place previews the CATALOG pick; Move previews the first selected loc

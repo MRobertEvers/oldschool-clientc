@@ -412,6 +412,19 @@ struct EditorUiAppServices
      *  next frame). Cached by (id, shape); the Catalog asks for the rows on
      *  screen only. NULL member: the rows draw the empty cell. */
     int (*loc_thumbnail)(void* user_data, int loc_id, int shape);
+    /** Obj `obj_id`'s inventory icon at stack `count` (the game's 32 x 32:
+     *  model, outline, the count variant, a note or a placeholder drawn as
+     *  the game draws them) as a scene sprite: its id, 0 while a config or a
+     *  model is still loading (asked for: ask again next frame), -1 when the
+     *  obj has nothing to draw. `out_name` (NULL: none wanted) gets the
+     *  obj's name once its config is resident, "" before. NULL member: the
+     *  wells draw the slot's id instead (a headless harness, the web). */
+    int (*obj_icon)(void* user_data, int obj_id, int count, char* out_name, int name_size);
+    /** Cache sprite archive `archive`, frame 0, as a scene sprite: its id, 0
+     *  while it loads (asked for), -1 when the cache has none. The Accounts
+     *  panel's worn slots draw the game's own silhouettes (156..166) on its
+     *  slot plate (170). NULL member: the wells draw plain boxes. */
+    int (*cache_sprite)(void* user_data, int archive);
     /** Put the catalog's model preview back at its default pose. NULL
      *  member: nothing happens. */
     void (*preview_invalidate)(void* user_data);

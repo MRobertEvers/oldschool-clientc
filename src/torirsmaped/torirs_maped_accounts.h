@@ -55,7 +55,17 @@
  *                         i32 count), u32 worn_count, ..., u32 bank_count,
  *                         ..., u32 queue_count, queue_count * string,
  *                         u32 quest_count, quest_count * (string dbrow,
- *                         u32 state (TORIRSMAPED_QUEST_*), i32 value)
+ *                         u32 state (TORIRSMAPED_QUEST_*), i32 value),
+ *                         then the LOOK and the other containers:
+ *                         u32 gender, u32 12, 12 * i32 kit (the save's
+ *                         `kit<wearpos>`, else the content default
+ *                         `player/configs/appearance.enum`, else -1 -- what
+ *                         the game server draws), u32 5, 5 * i32 colour,
+ *                         u32 container_count, container_count * (u32 inv,
+ *                         string inv name, u32 size, u32 item_count,
+ *                         item_count * (u32 slot, i32 obj, i32 count)) --
+ *                         every `[container.<inv>]` of the save, the inv's
+ *                         size from configs/all.inv (0 when unknown)
  *       Broadcast (every window shows the same account the same way); a
  *       status NOT_FOUND names a missing save.
  *   ACCOUNT_CREATE  string name, string password, string fixture ("" = the
@@ -80,13 +90,41 @@
  *         varps.<id|name>  varbits.<id|name>   <value>
  *         vars.<name>                          <value> (varbit first, then varp)
  *         inv.<slot> | worn.<slot> | bank.<slot>  <obj id|name> [count] | -
- *         inv.clear
- *         quests.<dbrow>                       complete | mark
+ *         inv.clear | worn.clear | bank.clear   (online: inv.clear only, ::clearinv)
+ *         container.<inv id|name>.<slot>       <obj id|name> [count] | -   (offline only)
+ *         container.<inv id|name>.clear        (offline only)
+ *         loadout                              <loadout name> (the loadout's worn
+ *                                              and backpack replace the account's;
+ *                                              online: ::clearinv, ::item + ::wield
+ *                                              per worn item, ::clearinv, ::item per
+ *                                              backpack item -- a worn slot the
+ *                                              loadout leaves empty keeps its item)
+ *         quests.<dbrow>                       complete | mark | reset (reset: the
+ *                                              quest's var to 0; not for a proc arm)
  *         quests.all                           mark
  *         cheat                                <line> (online: sent; offline: queued)
  *         refresh                              (online: a checkpoint)
  *   ACCOUNT_PLACE   string name, i32 x, i32 z, i32 level
  *                                                   -> as SET player.pos
+ *   LOADOUTS_LIST   (empty)
+ *       -> FACT_LOADOUTS  u32 status (UNSUPPORTED: no lane), u32 count,
+ *                         count * (string name, u32 item_count, item_count *
+ *                         (u32 section (0 backpack, 1 worn), u32 slot, i32 obj,
+ *                         i32 count))
+ *       Loadouts are the lane's, in `<live_dir>/accounts.ini` sections
+ *       `[loadout.<name>]` (`worn.<slot>` / `inv.<slot>` = `<obj> <count>`);
+ *       names are 1..32 of [a-z0-9_] (spaces and '-' become '_'). Broadcast
+ *       whenever one is saved or deleted.
+ *   LOADOUT_SAVE    string loadout, string account   -> FACT_ACCOUNT_STATUS,
+ *                   FACT_LOADOUTS broadcast: the account's worn items and
+ *                   backpack (as its view shows them) become the loadout,
+ *                   replacing one of the same name
+ *   LOADOUT_DELETE  string loadout                   -> FACT_ACCOUNT_STATUS,
+ *                   FACT_LOADOUTS broadcast
+ *   ACCOUNTS_INVS   (empty)
+ *       -> FACT_INVS      u32 count, count * (u32 inv, string name, u32 size)
+ *                         -- every inv of configs/all.inv: the containers an
+ *                         account may hold
  *   ACCOUNTS_QUESTS (empty)
  *       -> FACT_QUESTS    u32 count, count * (string dbrow, string display,
  *                         string var ("varp 29", "varbit 5078", "proc"),
@@ -126,6 +164,10 @@ enum
     TORIRSMAPED_REQ_ACCOUNT_SET = 71,
     TORIRSMAPED_REQ_ACCOUNT_PLACE = 72,
     TORIRSMAPED_REQ_ACCOUNTS_QUESTS = 73,
+    TORIRSMAPED_REQ_LOADOUTS_LIST = 74,
+    TORIRSMAPED_REQ_LOADOUT_SAVE = 75,
+    TORIRSMAPED_REQ_LOADOUT_DELETE = 76,
+    TORIRSMAPED_REQ_ACCOUNTS_INVS = 77,
     TORIRSMAPED_REQ_ACCOUNTS_RANGE_FIRST = 65,
     TORIRSMAPED_REQ_ACCOUNTS_RANGE_LAST = 80,
 
@@ -133,6 +175,8 @@ enum
     TORIRSMAPED_FACT_ACCOUNT = 192,
     TORIRSMAPED_FACT_ACCOUNT_STATUS = 193,
     TORIRSMAPED_FACT_QUESTS = 194,
+    TORIRSMAPED_FACT_LOADOUTS = 195,
+    TORIRSMAPED_FACT_INVS = 196,
     TORIRSMAPED_FACT_ACCOUNTS_RANGE_FIRST = 191,
     TORIRSMAPED_FACT_ACCOUNTS_RANGE_LAST = 200,
 };
@@ -175,6 +219,16 @@ enum
     TORIRSMAPED_ACCT_NAME_MAX = 12,
     /** Queued cheats per account. */
     TORIRSMAPED_ACCT_QUEUE_MAX = 300,
+    /** The look: wear positions and design colours (the wire's). */
+    TORIRSMAPED_ACCT_LOOK_SLOTS = 12,
+    TORIRSMAPED_ACCT_LOOK_COLOURS = 5,
+    /** `[container.<inv>]` sections a view carries, and the slots of one
+     *  whose inv states no size (configs/all.inv). */
+    TORIRSMAPED_ACCT_CONTAINERS_MAX = 32,
+    TORIRSMAPED_ACCT_CONTAINER_SLOTS = 2048,
+    /** Loadouts a lane keeps, and a loadout name's length. */
+    TORIRSMAPED_ACCT_LOADOUTS_MAX = 64,
+    TORIRSMAPED_ACCT_LOADOUT_NAME_MAX = 32,
 };
 
 /** The stat names in protocol order (pack/stat.pack); "?" past the end. */
@@ -205,6 +259,14 @@ ToriRSMapEd_AcctXpForLevel(int level);
 int
 ToriRSMapEd_AcctLevelForXp(int xp);
 
+/** A loadout name as it is kept: lower-case alphanumerics and '_' (' ' and
+ *  '-' become '_', anything else dropped), at most
+ *  TORIRSMAPED_ACCT_LOADOUT_NAME_MAX; "" refuses. */
+void
+ToriRSMapEd_AcctLoadoutName(
+    const char* name,
+    char* out,
+    size_t out_size);
 /** The server's save file name for an account: lower-case alphanumerics,
  *  ' ' / '-' / '_' as '_', everything else dropped ("" refuses). */
 void

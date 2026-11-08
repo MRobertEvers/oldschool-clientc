@@ -21,7 +21,10 @@ enum
 {
     EDITOR_ACCOUNTS_MAX = 64,
     EDITOR_ACCOUNTS_VARPS_MAX = 512,
-    EDITOR_ACCOUNTS_ITEMS_MAX = 28 + 14 + 1200,
+    /** Backpack, worn, bank, then the other containers' items. */
+    EDITOR_ACCOUNTS_ITEMS_MAX = 28 + 14 + 1200 + 4096,
+    /** configs/all.inv's invs the model keeps (FACT_INVS). */
+    EDITOR_ACCOUNTS_INVS_MAX = 2048,
     EDITOR_ACCOUNTS_QUEUE_MAX = 64,
     EDITOR_ACCOUNTS_QUESTS_MAX = 320,
     EDITOR_ACCOUNTS_LOG_LINES = 64,
@@ -45,9 +48,19 @@ struct Editor_AccountVarp
     char name[96];
 };
 
+/** Item sections: the three spelled containers, then the view's other
+ *  containers (`EDITOR_ACCOUNTS_SECTION_CONTAINER + i` is containers[i]). */
+enum
+{
+    EDITOR_ACCOUNTS_SECTION_INV = 0,
+    EDITOR_ACCOUNTS_SECTION_WORN = 1,
+    EDITOR_ACCOUNTS_SECTION_BANK = 2,
+    EDITOR_ACCOUNTS_SECTION_CONTAINER = 3,
+};
+
 struct Editor_AccountItem
 {
-    /** 0 inv, 1 worn, 2 bank. */
+    /** 0 inv, 1 worn, 2 bank, 3 + i the view's containers[i]. */
     int section;
     uint32_t slot;
     int32_t obj;
@@ -59,6 +72,44 @@ struct Editor_AccountQuestState
     char dbrow[64];
     uint32_t state;
     int32_t value;
+};
+
+/** One `[container.<inv>]` of a view. */
+struct Editor_AccountContainer
+{
+    uint32_t inv;
+    char name[64];
+    /** configs/all.inv's size; 0 when it states none. */
+    uint32_t size;
+};
+
+/** What an account looks like: the save's look and its worn items. */
+struct Editor_AccountLook
+{
+    /** The account (a save file name) this is; "" none. */
+    char name[64];
+    int gender;
+    /** The kit at each wear position (-1 none), the server's resolution. */
+    int32_t kits[TORIRSMAPED_ACCT_LOOK_SLOTS];
+    int32_t colours[TORIRSMAPED_ACCT_LOOK_COLOURS];
+    /** The obj worn at each worn slot, -1 empty. */
+    int32_t worn[TORIRSMAPED_ACCT_WORN_SLOTS];
+};
+
+/** One FACT_LOADOUTS row; items are sections 0 (backpack) and 1 (worn). */
+struct Editor_AccountLoadout
+{
+    char name[64];
+    struct Editor_AccountItem items[TORIRSMAPED_ACCT_WORN_SLOTS + TORIRSMAPED_ACCT_INV_SLOTS];
+    int item_count;
+};
+
+/** One FACT_INVS row. */
+struct Editor_AccountInv
+{
+    uint32_t id;
+    char name[64];
+    uint32_t size;
 };
 
 /** FACT_ACCOUNT. */
@@ -82,6 +133,11 @@ struct Editor_AccountView
     int queue_count;
     struct Editor_AccountQuestState quests[EDITOR_ACCOUNTS_QUESTS_MAX];
     int quest_count;
+    /** The look (has_look 0 from a server that sends none). */
+    int has_look;
+    struct Editor_AccountLook look;
+    struct Editor_AccountContainer containers[TORIRSMAPED_ACCT_CONTAINERS_MAX];
+    int container_count;
 };
 
 /** FACT_QUESTS rows. */
@@ -113,6 +169,24 @@ struct Editor_AccountsModel
     struct Editor_AccountQuest quests[EDITOR_ACCOUNTS_QUESTS_MAX];
     int quest_count;
     int quests_serial;
+
+    /* ---- the play account's look, from any FACT_ACCOUNT for it (the
+     *      followed account or not): what Place player's ghost wears ---- */
+    struct Editor_AccountLook play_look;
+    /** 1 when play_look is the CURRENT play account's. */
+    int play_look_known;
+    int play_look_serial;
+
+    /* ---- FACT_LOADOUTS ---- */
+    uint32_t loadouts_status;
+    struct Editor_AccountLoadout loadouts[TORIRSMAPED_ACCT_LOADOUTS_MAX];
+    int loadout_count;
+    int loadouts_serial;
+
+    /* ---- FACT_INVS ---- */
+    struct Editor_AccountInv invs[EDITOR_ACCOUNTS_INVS_MAX];
+    int inv_count;
+    int invs_serial;
 
     /* ---- FACT_ACCOUNT_STATUS: the newest, and a log ---- */
     uint32_t last_request;
@@ -193,6 +267,36 @@ Editor_AccountsEncodeList(struct ToriRSMapEdBuf* out);
 
 uint32_t
 Editor_AccountsEncodeQuests(struct ToriRSMapEdBuf* out);
+
+uint32_t
+Editor_AccountsEncodeLoadouts(struct ToriRSMapEdBuf* out);
+
+uint32_t
+Editor_AccountsEncodeInvs(struct ToriRSMapEdBuf* out);
+
+/** LOADOUT_SAVE: `account`'s worn items and backpack become `loadout`. */
+uint32_t
+Editor_AccountsEncodeLoadoutSave(
+    struct ToriRSMapEdBuf* out,
+    const char* loadout,
+    const char* account);
+
+uint32_t
+Editor_AccountsEncodeLoadoutDelete(
+    struct ToriRSMapEdBuf* out,
+    const char* loadout);
+
+/** The loadout named `name` (its kept spelling), or NULL. */
+const struct Editor_AccountLoadout*
+Editor_AccountsLoadout(
+    const struct Editor_AccountsModel* model,
+    const char* name);
+
+/** The inv `id` of FACT_INVS, or NULL. */
+const struct Editor_AccountInv*
+Editor_AccountsInv(
+    const struct Editor_AccountsModel* model,
+    uint32_t id);
 
 uint32_t
 Editor_AccountsEncodeView(

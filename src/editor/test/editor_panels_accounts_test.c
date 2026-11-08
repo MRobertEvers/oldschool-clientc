@@ -9,9 +9,14 @@
  * the save (offline) and the list rows follow; Move and the Place player tool
  * write the position; Find resolves a varp through the catalog and Set writes
  * it; the Quests tab lists the rows with their states and a mark is queued;
- * the Items tab sets a slot (by name and from the Catalog's pick) and removes
- * it; New account / Use for RUN / Delete; a second window of the Client sees
- * the list after a pump; the tool's name and hotkey. Links the client's
+ * the Items tab draws the worn layout and the backpack's grid with a key per
+ * slot, a pressed slot fills the inputs, Set puts an item in a slot (by name
+ * and from the Catalog's pick) and Remove takes it out, an inv opened by name
+ * gets its section on the first Set; a loadout is saved, listed, drawn,
+ * applied and deleted; the quest filter, counts, detail, reset and "Complete
+ * shown"; the play account's look for Place player's ghost; New account /
+ * Use for RUN / Delete; a second window of the Client sees the list after a
+ * pump; the tool's name and hotkey. Links the client's
  * objects minus main.o, as test-editor-panels does.
  */
 
@@ -138,8 +143,15 @@ write_fixture(const char* root)
         "if ($row = quest_cooksassistant) {\n    if (%varp29_cookquest >= ^cook_complete) {\n        return(^questcheat_already);\n    }\n}\n"
         "if ($row = miniquest_bearyoursoul) {\n    if (%varb5078_soulbearer >= ^bys_complete) {\n        return(^questcheat_already);\n    }\n}\n");
     write_text(content, "server/scripts/quests/configs/q.constant", "^cook_complete = 2\n^bys_complete = 3\n");
+    write_text(content, "configs/all.inv", "[inv]\nsize=28\n\n[worn]\nsize=14\n\n[bank]\nsize=1410\n\n[tob_chests]\nsize=12\n");
+    write_text(content, "configs/all.inv.compack", "93=inv\n94=worn\n95=bank\n612=tob_chests\n");
+    make_dir(root, "content/server/scripts/player");
+    make_dir(root, "content/server/scripts/player/configs");
+    write_text(content, "server/scripts/player/configs/appearance.enum",
+        "[default_appearance]\ninputtype=int\noutputtype=int\ndefault=-1\nval=4,18\nval=8,0\n");
     write_text(root, "live/saves/tester.ini",
-        "; a save\n[player]\nversion = 1\nname = tester\nx = 3206\nz = 3233\nlevel = 0\n\n[varps]\n281 = 1000\n\n[inv]\n0 = 1277 1\n");
+        "; a save\n[player]\nversion = 1\nname = tester\nx = 3206\nz = 3233\nlevel = 0\n\n[appearance]\ngender = 1\n"
+        "kit8 = 7\ncolours = 1 2 3 4 5\n\n[varps]\n281 = 1000\n\n[inv]\n0 = 1277 1\n\n[worn]\n3 = 1277 1\n");
     write_text(root, "fixture.ini", "[player]\nversion = 1\nname = fixture\nx = 3100\nz = 3100\nlevel = 0\n");
     write_text(root, "live/accounts.ini", "; test registry\n[passwords]\ntester = Secret123x\n");
 }
@@ -185,6 +197,33 @@ activate(int widget)
     frame();
     Editor_PumpFacts(&g_editor);
     frame();
+}
+
+static void
+press_graph(
+    int graph,
+    int x,
+    int y)
+{
+    struct ToriRSChromeEvent event;
+    memset(&event, 0, sizeof(event));
+    event.kind = TORIRS_CHROME_EVENT_GRAPH_PRESS;
+    event.widget = graph;
+    event.serial = g_chrome.widgets[graph].serial;
+    event.x = x;
+    event.y = y;
+    event.key = ToriRSChrome_GraphKeyAt(&g_chrome, graph, x, y);
+    (void)ToriRSChrome_PushEvent(&g_chrome, &event);
+    frame();
+}
+
+static void
+choose(
+    int dropdown,
+    int option)
+{
+    ToriRSChrome_DropdownSetSelected(&g_chrome, dropdown, option);
+    activate(dropdown);
 }
 
 static int
@@ -277,6 +316,12 @@ view_tester(void)
 static int g_want_serial;
 
 static int
+loadouts_moved(void)
+{
+    return g_model && g_model->loadouts_serial > g_want_serial;
+}
+
+static int
 view_moved(void)
 {
     return g_model && g_model->view_serial > g_want_serial;
@@ -311,7 +356,22 @@ test_panel(const char* root)
     int button_var_set;
     int list_quests;
     int button_mark;
-    int list_items;
+    int dropdown_container;
+    int graph_items;
+    int input_inv;
+    int button_inv_open;
+    int button_clear;
+    int list_loadouts;
+    int graph_loadout;
+    int input_loadout_name;
+    int button_loadout_save;
+    int button_loadout_apply;
+    int button_loadout_delete;
+    int dropdown_quest_filter;
+    int label_quest_summary;
+    int label_quest_detail;
+    int button_quest_reset;
+    int button_quest_complete_shown;
     int input_slot;
     int input_obj;
     int input_count;
@@ -350,7 +410,7 @@ test_panel(const char* root)
         "the hotkey table has the tool in enum order and the View action");
 
     dropdown = find_widget(&g_chrome, panel, TORIRS_CHROME_W_DROPDOWN, "Account", 0);
-    status = find_widget(&g_chrome, panel, TORIRS_CHROME_W_LABEL, NULL, 1);
+    status = find_widget(&g_chrome, panel, TORIRS_CHROME_W_LABEL, NULL, 0);
     list_stats = find_widget(&g_chrome, panel, TORIRS_CHROME_W_VLIST, "Stats", 0);
     input_level = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Level", 1);
     button_set_level = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Set level", 0);
@@ -360,15 +420,30 @@ test_panel(const char* root)
     input_find = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Find", 0);
     list_find = find_widget(&g_chrome, panel, TORIRS_CHROME_W_VLIST, "Matches", 0);
     input_value = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Value", 0);
-    button_var_set = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Set", 0);
+    button_var_set = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Set", 1);
     list_quests = find_widget(&g_chrome, panel, TORIRS_CHROME_W_VLIST, "Quests", 0);
     button_mark = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Mark complete", 0);
     label_queue = find_widget(&g_chrome, panel, TORIRS_CHROME_W_LABEL, "0 queued cheat(s) for the next login", 0);
-    list_items = find_widget(&g_chrome, panel, TORIRS_CHROME_W_VLIST, "Slots", 0);
+    dropdown_container = find_widget(&g_chrome, panel, TORIRS_CHROME_W_DROPDOWN, "Container", 0);
+    graph_items = find_widget(&g_chrome, panel, TORIRS_CHROME_W_GRAPH, NULL, 0);
+    graph_loadout = find_widget(&g_chrome, panel, TORIRS_CHROME_W_GRAPH, NULL, 1);
+    input_inv = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Inv", 0);
+    button_inv_open = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Open inv", 0);
+    button_clear = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Clear container", 0);
+    list_loadouts = find_widget(&g_chrome, panel, TORIRS_CHROME_W_VLIST, "Loadouts", 0);
+    input_loadout_name = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Name", 1);
+    button_loadout_save = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Save current gear", 0);
+    button_loadout_apply = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Apply to account", 0);
+    button_loadout_delete = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Delete loadout", 0);
+    dropdown_quest_filter = find_widget(&g_chrome, panel, TORIRS_CHROME_W_DROPDOWN, "Show", 0);
+    label_quest_summary = find_widget(&g_chrome, panel, TORIRS_CHROME_W_LABEL, "asking for the quest rows...", 0);
+    label_quest_detail = find_widget(&g_chrome, panel, TORIRS_CHROME_W_LABEL, "pick a quest for its var and value", 0);
+    button_quest_reset = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Reset", 0);
+    button_quest_complete_shown = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Complete shown", 0);
     input_slot = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Slot", 0);
     input_obj = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Obj", 0);
     input_count = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Count", 0);
-    button_item_set = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Set", 1);
+    button_item_set = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Set", 0);
     button_item_remove = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "Remove", 0);
     button_item_pick = find_widget(&g_chrome, panel, TORIRS_CHROME_W_BUTTON, "From Catalog pick", 0);
     input_name = find_widget(&g_chrome, panel, TORIRS_CHROME_W_TEXTINPUT, "Name", 0);
@@ -379,7 +454,11 @@ test_panel(const char* root)
     list_log = find_widget(&g_chrome, panel, TORIRS_CHROME_W_VLIST, "Log", 0);
     CHECK(dropdown >= 0 && status >= 0 && list_stats >= 0 && input_level >= 0 && button_set_level >= 0 && input_x >= 0
               && input_z >= 0 && button_move >= 0 && input_find >= 0 && list_find >= 0 && input_value >= 0
-              && button_var_set >= 0 && list_quests >= 0 && button_mark >= 0 && label_queue >= 0 && list_items >= 0
+              && button_var_set >= 0 && list_quests >= 0 && button_mark >= 0 && label_queue >= 0 && dropdown_container >= 0
+              && graph_items >= 0 && graph_loadout >= 0 && input_inv >= 0 && button_inv_open >= 0 && button_clear >= 0
+              && list_loadouts >= 0 && input_loadout_name >= 0 && button_loadout_save >= 0 && button_loadout_apply >= 0
+              && button_loadout_delete >= 0 && dropdown_quest_filter >= 0 && label_quest_summary >= 0
+              && label_quest_detail >= 0 && button_quest_reset >= 0 && button_quest_complete_shown >= 0
               && input_slot >= 0 && input_obj >= 0 && input_count >= 0 && button_item_set >= 0 && button_item_remove >= 0
               && button_item_pick >= 0 && input_name >= 0 && input_password >= 0 && button_new >= 0 && button_use >= 0
               && button_delete >= 0 && list_log >= 0,
@@ -398,8 +477,14 @@ test_panel(const char* root)
         g_chrome.widgets[status].text);
     CHECK(vlist_has(list_stats, "hitpoints     lvl 10  xp 1154"), "the Stats list shows the fresh character's hitpoints");
 
+    /* Only the picker and its status line sit above the tabs. */
+    CHECK(g_chrome.widgets[dropdown].tab == -1 && g_chrome.widgets[status].tab == -1
+              && g_chrome.widgets[button_use].tab == 0 && g_chrome.widgets[input_name].tab == 0
+              && g_chrome.widgets[list_log].tab == 6,
+        "the account picker and status are above the tabs; the account's buttons and the log have tabs of their own");
+
     /* Stats: cooking 50 writes the save, the row follows. */
-    ToriRSChrome_PanelSetActiveTab(&g_chrome, panel, 1);
+    ToriRSChrome_PanelSetActiveTab(&g_chrome, panel, 3);
     frame();
     ToriRSChrome_VListSetSelected(&g_chrome, list_stats, 7);
     ToriRSChrome_SetText(&g_chrome, input_level, "50");
@@ -425,12 +510,13 @@ test_panel(const char* root)
     activate(button_move);
     CHECK(settle(view_moved, 200) && g_model->view.x == 3222 && g_model->view.z == 3218 && file_has(save, "x = 3222\nz = 3218\n"),
         "Move writes the position (%d,%d)", g_model->view.x, g_model->view.z);
-    CHECK(!Editor_Accounts_PlacePlayer(&g_ui, 3300, 3300, 0) || settle(NULL, 20),
-        "Place player for the lane's default play account (no save: the status says ABSENT)");
+    /* The lane's default play account has never logged in: Place player
+     * makes its first save (workbench 7.1) instead of refusing. */
     g_want_serial = g_model->status_serial;
-    (void)Editor_Accounts_PlacePlayer(&g_ui, 3300, 3300, 0);
-    CHECK(settle(status_moved, 200) && g_model->last_status == EDITOR_HOST_ABSENT && console_has(&g_ui, "no save"),
-        "the default play account has no save: ABSENT in the console (%s)", g_model->last_message);
+    CHECK(Editor_Accounts_PlacePlayer(&g_ui, 3300, 3300, 0), "Place player for the lane's default play account");
+    CHECK(settle(status_moved, 200) && g_model->last_status == EDITOR_HOST_OK && console_has(&g_ui, "first save"),
+        "the default play account's first save is made, and the console says so (%s)", g_model->last_message);
+    CHECK(settle(NULL, 20) && g_model->row_count == 2, "the list now has its save too (%d)", g_model->row_count);
     g_want_serial = g_model->status_serial;
     activate(button_use);
     CHECK(settle(status_moved, 200) && g_model->last_status == EDITOR_HOST_OK, "Use for RUN / Play: %s", g_model->last_message);
@@ -442,8 +528,24 @@ test_panel(const char* root)
     CHECK(console_has(&g_ui, "offline: wrote saves/tester.ini (position 3300,3301 level 1)"),
         "the console says the offline path");
 
+    /* Place player's ghost: the play account's look (tester since Use). */
+    {
+        struct Editor_AccountLook look;
+        int serial = -1;
+        int known = 0;
+        for( int i = 0; i < 200 && !known; i++ )
+        {
+            known = Editor_Accounts_PlayLook(&g_ui, &look, &serial);
+            Editor_PumpFacts(&g_editor);
+            frame();
+        }
+        CHECK(known && strcmp(look.name, "tester") == 0 && look.gender == 1 && look.kits[8] == 7 && look.kits[4] == 18
+                  && look.kits[0] == -1 && look.colours[4] == 5 && look.worn[3] == 1277 && look.worn[0] == -1,
+            "the play account's look: its gender, own hair kit, the content's default torso, colours and the worn sword");
+    }
+
     /* Vars: Find through the catalog, Set. */
-    ToriRSChrome_PanelSetActiveTab(&g_chrome, panel, 2);
+    ToriRSChrome_PanelSetActiveTab(&g_chrome, panel, 4);
     frame();
     ToriRSChrome_SetText(&g_chrome, input_find, "cookquest");
     settle(NULL, 30);
@@ -459,11 +561,25 @@ test_panel(const char* root)
         CHECK(Editor_AccountsVarp(&g_model->view, 29, &value) && value == 2, "the view carries varp 29 = 2");
     }
 
-    /* Quests: the rows, the state, a queued mark. */
-    ToriRSChrome_PanelSetActiveTab(&g_chrome, panel, 3);
+    /* Quests: the rows, the state, the counts, the filter, a queued mark. */
+    ToriRSChrome_PanelSetActiveTab(&g_chrome, panel, 5);
     settle(NULL, 60);
     CHECK(g_model->quest_count == 2 && vlist_has(list_quests, "[x] Cook's Assistant") && vlist_has(list_quests, "[ ] Bear Your Soul"),
         "the Quests list: Cook's Assistant complete (varp 29 = 2), Bear Your Soul not (%d rows)", g_model->quest_count);
+    CHECK(strstr(g_chrome.widgets[label_quest_summary].text, "1 complete, 1 not, 0 unknown of 2") != NULL,
+        "the counts (%s)", g_chrome.widgets[label_quest_summary].text);
+    choose(dropdown_quest_filter, 2);
+    CHECK(g_chrome.widgets[list_quests].imax == 1 && vlist_has(list_quests, "Cook's Assistant"),
+        "Show: Complete keeps only Cook's Assistant (%d rows)", g_chrome.widgets[list_quests].imax);
+    choose(dropdown_quest_filter, 0);
+    ToriRSChrome_VListSetSelected(&g_chrome, list_quests, 0);
+    activate(list_quests);
+    CHECK(strstr(g_chrome.widgets[label_quest_detail].text, "quest_cooksassistant: varp 29 = 2, complete at 2") != NULL,
+        "the detail names the var and value (%s)", g_chrome.widgets[label_quest_detail].text);
+    g_want_serial = g_model->view_serial;
+    activate(button_quest_reset);
+    CHECK(settle(view_moved, 200) && !file_has(save, "29 = 2\n") && vlist_has(list_quests, "[ ] Cook's Assistant"),
+        "Reset puts Cook's Assistant's varp back to 0 offline");
     ToriRSChrome_VListSetSelected(&g_chrome, list_quests, 1);
     g_want_serial = g_model->view_serial;
     activate(button_mark);
@@ -471,23 +587,50 @@ test_panel(const char* root)
         "Mark complete offline is queued (%d)", g_model->view.queue_count);
     CHECK(strcmp(g_chrome.widgets[label_queue].text, "1 queued cheat(s) for the next login") == 0, "the queue label (%s)",
         g_chrome.widgets[label_queue].text);
+    g_want_serial = g_model->view_serial;
+    activate(button_quest_complete_shown);
+    CHECK(settle(view_moved, 200) && g_model->view.queue_count == 3
+              && strcmp(g_model->view.queue[1], "complete quest_cooksassistant") == 0,
+        "Complete shown queues every shown quest not complete (%d)", g_model->view.queue_count);
     {
         char registry[1200];
         snprintf(registry, sizeof(registry), "%s/live/accounts.ini", root);
         CHECK(file_has(registry, "tester.0 = questmark miniquest_bearyoursoul"), "the registry holds the queued line");
     }
 
-    /* Items: a slot by name, from the Catalog's pick, removed. */
-    ToriRSChrome_PanelSetActiveTab(&g_chrome, panel, 4);
-    frame();
-    CHECK(vlist_has(list_items, "0: obj 1277 x1") && vlist_has(list_items, "1: (empty)"), "the backpack rows");
-    ToriRSChrome_SetText(&g_chrome, input_slot, "3");
+    /* Items: the worn layout, the backpack's grid, a slot by name, from the
+     * Catalog's pick, removed; an inv opened by name. */
+    ToriRSChrome_PanelSetActiveTab(&g_chrome, panel, 1);
+    settle(NULL, 10);
+    CHECK(g_chrome.widgets[dropdown_container].option_count == 3
+              && strcmp(g_chrome.widgets[dropdown_container].options[0], "Equipment") == 0
+              && strcmp(g_chrome.widgets[dropdown_container].options[2], "Bank") == 0,
+        "the container picker: Equipment, Backpack, Bank (%d)", g_chrome.widgets[dropdown_container].option_count);
+    CHECK(ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 8 + 77 + 10, 2 + 4 + 10) == 1
+              && ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 8 + 21 + 10, 2 + 82 + 10) == 4
+              && ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 8 + 133 + 10, 2 + 162 + 10) == 13,
+        "the worn layout has head, weapon and ring where the game draws them");
+    press_graph(graph_items, 8 + 21 + 10, 2 + 82 + 10);
+    CHECK(strcmp(g_chrome.widgets[input_slot].text, "3") == 0 && strcmp(g_chrome.widgets[input_obj].text, "1277") == 0,
+        "pressing the weapon slot fills Slot 3 and Obj 1277 (%s, %s)", g_chrome.widgets[input_slot].text,
+        g_chrome.widgets[input_obj].text);
+    choose(dropdown_container, 1);
+    CHECK(ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 8 + 3 * 42 + 5, 4 + 5) == 4
+              && ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 8 + 3 * 42 + 5, 4 + 6 * 36 + 5) == 28,
+        "the backpack is the gameframe's 4 x 7");
+    press_graph(graph_items, 8 + 3 * 42 + 5, 4 + 5);
+    CHECK(strcmp(g_chrome.widgets[input_slot].text, "3") == 0, "pressing backpack slot 3 selects it");
     ToriRSChrome_SetText(&g_chrome, input_obj, "coins");
     ToriRSChrome_SetText(&g_chrome, input_count, "100");
     g_want_serial = g_model->view_serial;
     activate(button_item_set);
-    CHECK(settle(view_moved, 200) && file_has(save, "3 = 995 100\n") && vlist_has(list_items, "3: obj 995 x100"),
-        "Set puts coins x100 in slot 3 by name");
+    {
+        const struct Editor_AccountItem* item;
+        settle(view_moved, 200);
+        item = Editor_AccountsItem(&g_model->view, EDITOR_ACCOUNTS_SECTION_INV, 3);
+        CHECK(file_has(save, "3 = 995 100\n") && item && item->obj == 995 && item->count == 100,
+            "Set puts coins x100 in backpack slot 3 by name");
+    }
     CHECK(Editor_Catalog_PickRecord(&g_ui, TORIRSMAPED_CATALOG_OBJ, "bronze_sword"), "pick bronze_sword in the Catalog");
     activate(button_item_pick);
     CHECK(strcmp(g_chrome.widgets[input_obj].text, "1277") == 0, "From Catalog pick fills Obj with 1277 (%s)",
@@ -495,7 +638,61 @@ test_panel(const char* root)
     ToriRSChrome_SetText(&g_chrome, input_slot, "3");
     g_want_serial = g_model->view_serial;
     activate(button_item_remove);
-    CHECK(settle(view_moved, 200) && !file_has(save, "3 = 995 100\n") && vlist_has(list_items, "3: (empty)"), "Remove empties slot 3");
+    CHECK(settle(view_moved, 200) && !file_has(save, "3 = 995 100\n")
+              && !Editor_AccountsItem(&g_model->view, EDITOR_ACCOUNTS_SECTION_INV, 3),
+        "Remove empties slot 3");
+    /* Another inv, by name: the save gets its section on the first Set. */
+    settle(NULL, 20);
+    ToriRSChrome_SetText(&g_chrome, input_inv, "tob_chests");
+    activate(button_inv_open);
+    CHECK(g_chrome.widgets[dropdown_container].option_count == 4
+              && strstr(g_chrome.widgets[dropdown_container].options[3], "tob_chests") != NULL
+              && ToriRSChrome_DropdownSelected(&g_chrome, dropdown_container) == 3,
+        "Open inv adds tob_chests to the picker and shows it (%d)", g_chrome.widgets[dropdown_container].option_count);
+    CHECK(ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 4 + 3 * 40 + 5, 4 + 36 + 5) == 12
+              && ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 4 + 4 * 40 + 5, 4 + 36 + 5) == 0,
+        "its grid is its 12 slots");
+    ToriRSChrome_SetText(&g_chrome, input_slot, "2");
+    ToriRSChrome_SetText(&g_chrome, input_obj, "995");
+    ToriRSChrome_SetText(&g_chrome, input_count, "50");
+    g_want_serial = g_model->view_serial;
+    activate(button_item_set);
+    CHECK(settle(view_moved, 200) && file_has(save, "[container.612]\n2 = 995 50\n") && g_model->view.container_count == 1,
+        "Set writes the inv's section and the view lists the container");
+    settle(NULL, 5);
+    CHECK(g_chrome.widgets[dropdown_container].option_count == 4 && ToriRSChrome_DropdownSelected(&g_chrome, dropdown_container) == 3,
+        "the picker keeps it, now one of the save's (%d)", g_chrome.widgets[dropdown_container].option_count);
+    g_want_serial = g_model->view_serial;
+    activate(button_clear);
+    CHECK(settle(view_moved, 200) && !file_has(save, "2 = 995 50\n"), "Clear container empties it");
+
+    /* Loadouts: save the gear, see it, change the account, apply, delete. */
+    ToriRSChrome_PanelSetActiveTab(&g_chrome, panel, 2);
+    ToriRSChrome_SetText(&g_chrome, input_loadout_name, "Sword Kit");
+    g_want_serial = g_model->loadouts_serial;
+    activate(button_loadout_save);
+    CHECK(settle(loadouts_moved, 200) && g_model->loadout_count == 1 && strcmp(g_model->loadouts[0].name, "sword_kit") == 0
+              && vlist_has(list_loadouts, "sword_kit  (1 worn, 1 in the backpack)"),
+        "Save current gear lists sword_kit (1 worn, 1 in the backpack)");
+    ToriRSChrome_VListSetSelected(&g_chrome, list_loadouts, 0);
+    activate(list_loadouts);
+    settle(NULL, 3);
+    CHECK(g_chrome.widgets[graph_loadout].graph_count > 0, "the loadout's gear is drawn (%d items)",
+        g_chrome.widgets[graph_loadout].graph_count);
+    ToriRSChrome_PanelSetActiveTab(&g_chrome, panel, 1);
+    choose(dropdown_container, 0);
+    ToriRSChrome_SetText(&g_chrome, input_slot, "3");
+    g_want_serial = g_model->view_serial;
+    activate(button_item_remove);
+    CHECK(settle(view_moved, 200) && !file_has(save, "[worn]\n3 = 1277 1\n"), "the sword comes off");
+    ToriRSChrome_PanelSetActiveTab(&g_chrome, panel, 2);
+    g_want_serial = g_model->view_serial;
+    activate(button_loadout_apply);
+    CHECK(settle(view_moved, 200) && file_has(save, "3 = 1277 1\n") && file_has(save, "0 = 1277 1\n"),
+        "Apply to account puts the sword back on and the backpack back");
+    g_want_serial = g_model->loadouts_serial;
+    activate(button_loadout_delete);
+    CHECK(settle(loadouts_moved, 200) && g_model->loadout_count == 0, "Delete loadout removes it");
 
     /* New account, then Delete. */
     ToriRSChrome_SetText(&g_chrome, input_name, "second");
@@ -504,9 +701,9 @@ test_panel(const char* root)
     activate(button_new);
     CHECK(settle(status_moved, 200) && g_model->last_status == EDITOR_HOST_OK, "New account: %s", g_model->last_message);
     settle(NULL, 40);
-    CHECK(g_model->row_count == 2 && strcmp(Editor_Accounts_Current(&g_ui), "second") == 0
-              && g_chrome.widgets[dropdown].option_count == 2,
-        "the list has two accounts and second is shown (%s)", Editor_Accounts_Current(&g_ui));
+    CHECK(g_model->row_count == 3 && strcmp(Editor_Accounts_Current(&g_ui), "second") == 0
+              && g_chrome.widgets[dropdown].option_count == 3,
+        "the list has three accounts and second is shown (%s)", Editor_Accounts_Current(&g_ui));
     ToriRSChrome_SetText(&g_chrome, input_name, "x");
     ToriRSChrome_SetText(&g_chrome, input_password, "short");
     g_want_serial = g_model->status_serial;
@@ -530,23 +727,23 @@ test_panel(const char* root)
         Editor_UiSetVisible(&pv_ui, 1);
         Editor_SetStateCallback(&peer, on_state, &pv_ui);
         pv_model = Editor_AccountsPanelModel(&pv_ui);
-        for( int i = 0; i < 200 && !(pv_model && pv_model->row_count == 2); i++ )
+        for( int i = 0; i < 200 && !(pv_model && pv_model->row_count == 3); i++ )
         {
             Editor_PumpFacts(&peer);
             frame_of(&pv_chrome, &pv_ui);
         }
-        CHECK(pv_model && pv_model->row_count == 2 && strcmp(pv_model->play_account, "tester") == 0,
-            "the second window lists both accounts and the play account");
+        CHECK(pv_model && pv_model->row_count == 3 && strcmp(pv_model->play_account, "tester") == 0,
+            "the second window lists every account and the play account");
         /* The first window's Delete reaches it. */
         g_want_serial = g_model->status_serial;
         activate(button_delete);
         CHECK(settle(status_moved, 200) && g_model->last_status == EDITOR_HOST_OK, "Delete second: %s", g_model->last_message);
-        for( int i = 0; i < 200 && pv_model->row_count != 1; i++ )
+        for( int i = 0; i < 200 && pv_model->row_count != 2; i++ )
         {
             Editor_PumpFacts(&peer);
             frame_of(&pv_chrome, &pv_ui);
         }
-        CHECK(pv_model->row_count == 1, "the second window's list follows the delete (%d)", pv_model->row_count);
+        CHECK(pv_model->row_count == 2, "the second window's list follows the delete (%d)", pv_model->row_count);
         settle(NULL, 40);
         CHECK(strcmp(Editor_Accounts_Current(&g_ui), "tester") == 0, "the main window falls back to tester");
         Editor_Close(&peer);
