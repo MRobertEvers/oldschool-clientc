@@ -271,6 +271,10 @@ publish_ask_count(
 {
     struct ToriRSMapEdBuf payload;
 
+    /* An ask the server never answered (its walk was dropped by a Switch or
+     * a Discard) must not hold the chip forever: after four periods, ask again. */
+    if( self->count_pending && ui->chrome->now_ms - self->count_asked_ms >= 4 * EDITOR_UI_LANE_COUNT_MS )
+        self->count_pending = 0;
     self->count_asked_ms = ui->chrome->now_ms;
     self->count_ever_asked = 1;
     if( !publish_v2(ui) || self->count_pending )
@@ -784,9 +788,18 @@ publish_apply_fact(
         changes += (int)ToriRSMapEd_GetU32(&reader);
         changes += (int)ToriRSMapEd_GetU32(&reader);
         ToriRSMapEd_GetString(&reader, next_boot, sizeof(next_boot));
+        if( reader.bad )
+            return;
+        /* The server broadcasts a lane's count as its walk lands (its own
+         * lane's answers the chip; any lane's refreshes the list's row), so a
+         * count may name a lane that is not this session's. */
+        for( int i = 0; i < self->lane_count; i++ )
+            if( strcmp(self->lanes[i].name, name) == 0 )
+                self->lanes[i].changes = changes;
+        if( ui->lane.known && strcmp(ui->lane.name, name) != 0 )
+            return;
         self->count_pending = 0;
-        if( !reader.bad )
-            publish_lane_note(ui, name, is_main, -1, changes, next_boot);
+        publish_lane_note(ui, name, is_main, -1, changes, next_boot);
     }
     else if( type == TORIRSMAPED_FACT_LANE_PUBLISHED )
     {

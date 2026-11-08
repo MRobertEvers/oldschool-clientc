@@ -2,7 +2,11 @@
  * Per-frame phase clocks for the editor, off by default.
  *
  * `TORIRS_EDITOR_FRAME_STATS=1` arms them (`TORIRS_EDITOR_FRAME_STATS_FROM=<n>`
- * samples only frames after the n-th, to isolate a scenario); at exit the client prints to
+ * samples only frames after the n-th, to isolate a scenario;
+ * `TORIRS_EDITOR_FRAME_STATS_SLOW=<ms>` prints every loop iteration longer
+ * than that -- the frame's phases and the time outside App_RunOnce+App_Render,
+ * which is the present, the event poll and the pacer's sleep -- the moment
+ * it ends, so a hitch names its frame and its phase); at exit the client prints to
  * stderr the number of frames sampled and the p50 / p95 / max of each phase
  * in milliseconds, plus the startup marks (time since the process started and
  * the resident set at the first frame that drew the world and at the moment
@@ -71,6 +75,8 @@ struct FrameStats
     int enabled;          /* 0 not yet read, 1 on, 2 off */
     int sampling;         /* 1 once the first world frame was drawn */
     int sample_from;      /* TORIRS_EDITOR_FRAME_STATS_FROM: no sample before this frame */
+    int slow_us;          /* TORIRS_EDITOR_FRAME_STATS_SLOW in microseconds, 0 = no trace */
+    uint64_t last_end_ns; /* the clock at the previous FrameEnd: the loop interval */
     uint64_t start_ns;    /* the clock at the first call (close to process start) */
     uint64_t accum_ns[FRAME_STATS_PHASE_COUNT]; /* this frame */
     uint64_t counters[FRAME_STATS_CTR_COUNT];
@@ -105,7 +111,9 @@ FrameStats_Enabled(void)
         if( g_frame_stats.enabled == 1 )
         {
             char const* from = getenv("TORIRS_EDITOR_FRAME_STATS_FROM");
+            char const* slow = getenv("TORIRS_EDITOR_FRAME_STATS_SLOW");
             g_frame_stats.sample_from = from ? atoi(from) : 0;
+            g_frame_stats.slow_us = slow ? atoi(slow) * 1000 : 0;
             g_frame_stats.samples =
                 calloc((size_t)FRAME_STATS_SAMPLES_MAX * FRAME_STATS_PHASE_COUNT, sizeof(uint32_t));
             assert(g_frame_stats.samples);
@@ -193,6 +201,43 @@ FrameStats_FrameEnd(void)
     if( !FrameStats_Enabled() )
         return;
     g_frame_stats.frames_total++;
+    if( g_frame_stats.slow_us > 0 )
+    {
+        uint64_t const now = FrameStats_ClockNs();
+        uint64_t const loop_us = g_frame_stats.last_end_ns ? (now - g_frame_stats.last_end_ns) / 1000u : 0;
+        uint64_t const frame_us = g_frame_stats.accum_ns[FRAME_STATS_FRAME] / 1000u;
+        g_frame_stats.last_end_ns = now;
+        if( g_frame_stats.sampling && (int64_t)loop_us > g_frame_stats.slow_us )
+        {
+            /* One line per slow iteration: the phases that nest inside the
+             * frame, then what the frame did not account for, then the time
+             * outside the frame (present + events + pace). Milliseconds. */
+            fprintf(stderr,
+                "frame_stats: slow frame %d: loop %.1f ms, frame %.1f (ui %.1f [chrome %.1f] "
+                "hover %.1f pump %.1f logic %.1f flush %.1f interact %.1f render %.1f "
+                "[world %.1f] other %.1f), outside frame %.1f\n",
+                g_frame_stats.frames_total, loop_us / 1000.0, frame_us / 1000.0,
+                g_frame_stats.accum_ns[FRAME_STATS_EDITOR_UI] / 1e6,
+                g_frame_stats.accum_ns[FRAME_STATS_CHROME_BUILD] / 1e6,
+                g_frame_stats.accum_ns[FRAME_STATS_HOVER_GHOSTS] / 1e6,
+                g_frame_stats.accum_ns[FRAME_STATS_PUMP] / 1e6,
+                g_frame_stats.accum_ns[FRAME_STATS_LOGIC] / 1e6,
+                g_frame_stats.accum_ns[FRAME_STATS_EDIT_FLUSH] / 1e6,
+                g_frame_stats.accum_ns[FRAME_STATS_INTERACT] / 1e6,
+                g_frame_stats.accum_ns[FRAME_STATS_RENDER] / 1e6,
+                g_frame_stats.accum_ns[FRAME_STATS_WORLD_DRAW] / 1e6,
+                ((double)g_frame_stats.accum_ns[FRAME_STATS_FRAME]
+                 - (double)(g_frame_stats.accum_ns[FRAME_STATS_EDITOR_UI]
+                            + g_frame_stats.accum_ns[FRAME_STATS_PUMP]
+                            + g_frame_stats.accum_ns[FRAME_STATS_LOGIC]
+                            + g_frame_stats.accum_ns[FRAME_STATS_EDIT_FLUSH]
+                            + g_frame_stats.accum_ns[FRAME_STATS_INTERACT]
+                            + g_frame_stats.accum_ns[FRAME_STATS_RENDER]))
+                    / 1e6,
+                (loop_us > frame_us ? loop_us - frame_us : 0) / 1000.0);
+            fflush(stderr);
+        }
+    }
     if( g_frame_stats.sampling && g_frame_stats.frames_total > g_frame_stats.sample_from
         && g_frame_stats.sample_count < FRAME_STATS_SAMPLES_MAX )
     {

@@ -1664,22 +1664,38 @@ ToriRSMapEd_Service(struct ToriRSMapEd* maped)
     assert(maped);
     assert(maped->open);
     assert(maped->jobs);
+    double t0 = ToriRSMapEd_PumpTraceNow();
     jobs_build_service(maped);
+    ToriRSMapEd_PumpTraceSpan("build service", -1, t0);
+    t0 = ToriRSMapEd_PumpTraceNow();
     live_service(maped);
+    ToriRSMapEd_PumpTraceSpan("live service", -1, t0);
+    t0 = ToriRSMapEd_PumpTraceNow();
     play_service(maped);
+    ToriRSMapEd_PumpTraceSpan("play service", -1, t0);
+    t0 = ToriRSMapEd_PumpTraceNow();
     jobs_progress_service(maped);
+    ToriRSMapEd_PumpTraceSpan("progress service", -1, t0);
+    t0 = ToriRSMapEd_PumpTraceNow();
     lanes_service(maped);
+    ToriRSMapEd_PumpTraceSpan("lanes service", -1, t0);
     /* The catalog's warm build and freshness sweeps, a slice at a time
      * (torirs_maped_catalog.h ToriRSMapEdCatalog_Service). */
     if( maped->catalog )
     {
         uint32_t const maps = ToriRSMapEdCatalog_MapsRevision(maped->catalog);
+        t0 = ToriRSMapEd_PumpTraceNow();
         (void)ToriRSMapEdCatalog_Service(maped->catalog, ToriRSMapEdCatalog_Built(maped->catalog)
                                                              ? TORIRSMAPED_CATALOG_SLICE_MS
                                                              : TORIRSMAPED_CATALOG_WARM_SLICE_MS);
+        ToriRSMapEd_PumpTraceSpan("catalog service", -1, t0);
         /* A sweep that merged a square changed on disk: every window's atlas. */
         if( ToriRSMapEdCatalog_MapsRevision(maped->catalog) != maps )
+        {
+            t0 = ToriRSMapEd_PumpTraceNow();
             catalog_atlas_changed(maped, 0);
+            ToriRSMapEd_PumpTraceSpan("catalog atlas changed", -1, t0);
+        }
     }
 }
 

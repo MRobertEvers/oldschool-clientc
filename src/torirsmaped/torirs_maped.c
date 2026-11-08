@@ -29,6 +29,12 @@
 #include <time.h>
 #include "log/torirs_log.h"
 
+/* The pump trace (TORIRS_MAPED_PUMP_TRACE), defined beside ToriRSMapEd_SessionPump. */
+static double
+ToriRSMapEd_PumpTraceNow(void);
+static void
+ToriRSMapEd_PumpTraceSpan(const char* what, int type, double t0);
+
 /* Views (torirs_maped_view.c, compiled into this unit at its end). */
 static int
 view_state_set_intercept(
@@ -1778,7 +1784,10 @@ catalog_atlas_changed(
 }
 
 /** The lane change counts' cache (torirs_maped_lanes_wire.c) holds until a
- *  request that can write a tree arrives: note it before it runs. */
+ *  request that can write a tree arrives: note it before it runs. A read
+ *  (ACCOUNTS_LIST, which the Accounts panel and the spawn preview ask every
+ *  few seconds; a VIEW, the quest or inventory lists) is not one: counting
+ *  those expired the cache before every one of the chip's asks. */
 static void
 note_lane_writes(
     struct ToriRSMapEd* maped,
@@ -1787,8 +1796,16 @@ note_lane_writes(
     if( type == TORIRSMAPED_REQ_SQUARE_SAVE || type == TORIRSMAPED_REQ_SPAWN_SAVE || type == TORIRSMAPED_REQ_BAKE
         || type == TORIRSMAPED_REQ_SAVE_ALL || type == TORIRSMAPED_REQ_SAVE || type == TORIRSMAPED_REQ_SAVE_AS
         || type == TORIRSMAPED_REQ_DOC_CREATE || type == TORIRSMAPED_REQ_BUILD || type == TORIRSMAPED_REQ_RUN
-        || (type >= TORIRSMAPED_REQ_ACCOUNTS_RANGE_FIRST && type <= TORIRSMAPED_REQ_ACCOUNTS_RANGE_LAST) )
+        || type == TORIRSMAPED_REQ_ACCOUNT_CREATE || type == TORIRSMAPED_REQ_ACCOUNT_DELETE
+        || type == TORIRSMAPED_REQ_ACCOUNT_DUPLICATE || type == TORIRSMAPED_REQ_ACCOUNT_USE
+        || type == TORIRSMAPED_REQ_ACCOUNT_SET || type == TORIRSMAPED_REQ_ACCOUNT_PLACE
+        || type == TORIRSMAPED_REQ_LOADOUT_SAVE || type == TORIRSMAPED_REQ_LOADOUT_DELETE )
+    {
         maped->lane_writes_own++;
+        if( getenv("TORIRSMAPED_LANES_DEBUG") )
+            fprintf(stderr, "torirsmaped: lanes: request %u counts as a write of this lane (writes_own %u)\n", type,
+                maped->lane_writes_own);
+    }
     else if( type == TORIRSMAPED_REQ_LANE_PUBLISH || type == TORIRSMAPED_REQ_LANE_DISCARD
              || type == TORIRSMAPED_REQ_LANE_CREATE )
         maped->lane_writes_all++;
@@ -2002,7 +2019,19 @@ handle_frame(
      * protocol it did not declare, which is a framing error like any other. */
     if( v2 && type == TORIRSMAPED_REQ_DOC_OPEN )
     {
+        double const t0 = ToriRSMapEd_PumpTraceNow();
         handle_doc_open(session, maped, body, length);
+        if( t0 != 0.0 && length > 8 )
+        {
+            char key[EDITOR_DOC_KEY_MAX + EDITOR_DOC_STORAGE_MAX];
+            struct ToriRSMapEdReader reader;
+            ToriRSMapEd_ReaderInit(&reader, body, length);
+            (void)ToriRSMapEd_GetU32(&reader);
+            ToriRSMapEd_GetString(&reader, key, sizeof(key));
+            if( ToriRSMapEd_PumpTraceNow() - t0 >= 1.0 )
+                fprintf(stderr, "torirsmaped: pump: doc open kind %u '%s' took %.1f ms\n", ToriRSMapEd_ReadU32(body), key,
+                    ToriRSMapEd_PumpTraceNow() - t0);
+        }
         return;
     }
     if( v2 && type == TORIRSMAPED_REQ_DOC_CLOSE )
@@ -2074,6 +2103,53 @@ handle_frame(
     session->alive = 0;
 }
 
+/* TORIRS_MAPED_PUMP_TRACE=<ms>: every request handled and every service
+ * step of a pump that took longer than that prints a line naming it, so a
+ * frame hitch inside the embedded server names its cause. 0 when off, so a
+ * span is one branch. */
+static int
+ToriRSMapEd_PumpTraceMs(void)
+{
+    static int ms = -1;
+    if( ms < 0 )
+    {
+        const char* env = getenv("TORIRS_MAPED_PUMP_TRACE");
+        ms = env ? atoi(env) : 0;
+        if( ms < 0 )
+            ms = 0;
+    }
+    return ms;
+}
+
+static double
+ToriRSMapEd_PumpTraceNow(void)
+{
+    struct timespec ts;
+    if( ToriRSMapEd_PumpTraceMs() == 0 )
+        return 0.0;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
+}
+
+static void
+ToriRSMapEd_PumpTraceSpan(
+    const char* what,
+    int type,
+    double t0)
+{
+    double took;
+    if( t0 == 0.0 )
+        return;
+    took = ToriRSMapEd_PumpTraceNow() - t0;
+    if( took < (double)ToriRSMapEd_PumpTraceMs() )
+        return;
+    if( type >= 0 )
+        fprintf(stderr, "torirsmaped: pump: %s %d took %.1f ms\n", what, type, took);
+    else
+        fprintf(stderr, "torirsmaped: pump: %s took %.1f ms\n", what, took);
+    fflush(stderr);
+}
+
 int
 ToriRSMapEd_SessionPump(struct ToriRSMapEdSession* session)
 {
@@ -2128,7 +2204,11 @@ ToriRSMapEd_SessionPump(struct ToriRSMapEdSession* session)
         /* The payload is contiguous at the head; handled in place, then
          * consumed. Handlers must not write into `in`, and none can — the
          * only writer is the recv loop above. */
-        handle_frame(session, maped, type, ToriRSMapEd_BufPeek(&session->in), length);
+        {
+            double const t0 = ToriRSMapEd_PumpTraceNow();
+            handle_frame(session, maped, type, ToriRSMapEd_BufPeek(&session->in), length);
+            ToriRSMapEd_PumpTraceSpan("request", (int)type, t0);
+        }
         ToriRSMapEd_BufConsume(&session->in, (int)length);
     }
 
@@ -2137,7 +2217,11 @@ ToriRSMapEd_SessionPump(struct ToriRSMapEdSession* session)
     /* Builds and the live link advance on every pump: an embed pumps every
      * frame, so it needs no other call (torirs_maped_live.h). */
     ToriRSMapEd_Service(maped);
-    ToriRSMapEd_AccountsService(maped);
+    {
+        double const t0 = ToriRSMapEd_PumpTraceNow();
+        ToriRSMapEd_AccountsService(maped);
+        ToriRSMapEd_PumpTraceSpan("accounts service", -1, t0);
+    }
     return session->alive;
 }
 

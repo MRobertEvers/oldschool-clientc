@@ -60,6 +60,46 @@ editor_replace_file(
 #endif
 }
 
+/* The scripted spawns' walk (every .spawn under server/scripts that is not
+ * the generated areas/world one or the edited one) runs on a worker thread
+ * where the platform has one, as the lane scan and the catalog's warm build
+ * do; the web and win32 lanes walk inline. The walk allocates through
+ * ToriMem_Editor(), a HEAP group, which the catalog's thread does too. */
+#if !defined(__EMSCRIPTEN__) && !defined(_WIN32)
+#include <pthread.h>
+#define LOCAL_SPAWNS_THREAD 1
+#else
+#define LOCAL_SPAWNS_THREAD 0
+#endif
+
+/** A snapshot older than this starts a new walk on the next ask (answered
+ *  from the snapshot as it stands; the walk lands for the ask after). */
+#define LOCAL_SPAWNS_REFRESH_S 30
+
+/**
+ * The scripted spawns, every row of every quest's and skill's .spawn file,
+ * as one snapshot the "spawns:m<x>_<z>" documents are cut from. The walk is
+ * a stat of every entry under server/scripts (58k on an OSRS tree, 2-3 s on
+ * a lane's symlink mirror), and until 2026-11-08 every square open ran it on
+ * the UI thread; now the first open joins the walk the host's open started,
+ * and every later one answers from the snapshot.
+ */
+struct scripted_spawns
+{
+    /** The snapshot answered from; `built` once a walk has landed. */
+    struct Editor_SpawnFile rows;
+    int built;
+    time_t walked_at;
+    /** A walk in flight fills `fresh`; the landing swaps it into `rows`. */
+    struct Editor_SpawnFile fresh;
+    int walking;
+#if LOCAL_SPAWNS_THREAD
+    pthread_t thread;
+    int thread_live;
+#endif
+    int done;
+};
+
 struct local_host
 {
     char content_dir[1024];
@@ -70,7 +110,13 @@ struct local_host
     /** Who holds the tree when the last acquire found it taken
      *  ("<content_dir> is held by pid N (...)"); empty otherwise. */
     char lock_holder[1024];
+    struct scripted_spawns spawns;
 };
+
+static void
+scripted_spawns_land(
+    struct local_host* host,
+    int wait);
 
 static void
 square_path(
@@ -789,6 +835,10 @@ local_free(void* user_data)
      * later one out of a tree nobody is editing. */
     if( host->lock_path[0] != '\0' )
         remove(host->lock_path);
+    /* A walk in flight owns `fresh` until it lands. */
+    scripted_spawns_land(host, 1);
+    if( host->spawns.built )
+        Editor_SpawnFree(&host->spawns.rows);
     ToriMem_Free(ToriMem_Editor(), host);
 }
 
@@ -1001,16 +1051,15 @@ cfg_block_extent(
 /*
  * "spawns:m<x>_<z>": the rows of the square from every .spawn file that is
  * neither the generated areas/world one nor the edited one -- the files quests
- * and skills keep in their own configs/. A read-only document made on request
- * from the tree as it stands, so a new file needs no index. Suppression rows
- * in those files are not listed: they hide a spawn, they are not one.
+ * and skills keep in their own configs/. A read-only document cut from the
+ * snapshot (struct scripted_spawns) of the tree as it stands, so a new file
+ * needs no index. Suppression rows in those files are not listed: they hide a
+ * spawn, they are not one.
  */
 static void
 scripted_spawns_walk(
     const struct local_host* host,
     const char* rel,
-    int map_x,
-    int map_z,
     struct Editor_SpawnFile* out)
 {
     char dir_path[2200];
@@ -1039,7 +1088,7 @@ scripted_spawns_walk(
             continue;
         if( S_ISDIR(st.st_mode) )
         {
-            scripted_spawns_walk(host, child, map_x, map_z, out);
+            scripted_spawns_walk(host, child, out);
             continue;
         }
         if( name_length > 6 && strcmp(entry->d_name + name_length - 6, ".spawn") == 0 )
@@ -1055,8 +1104,7 @@ scripted_spawns_walk(
                 for( int i = 0; i < file.line_count; i++ )
                 {
                     const struct Editor_SpawnRow* row = &file.lines[i].row;
-                    if( file.lines[i].kind == EDITOR_SPAWN_LINE_ROW && !row->suppress
-                        && row->abs_x / EDITOR_SQUARE_X == map_x && row->abs_z / EDITOR_SQUARE_Z == map_z )
+                    if( file.lines[i].kind == EDITOR_SPAWN_LINE_ROW && !row->suppress )
                         (void)Editor_SpawnInsert(out, row);
                 }
             }
@@ -1069,12 +1117,90 @@ scripted_spawns_walk(
     closedir(dir);
 }
 
+static void
+scripted_spawns_run(struct local_host* host)
+{
+    struct timespec t0;
+    struct timespec t1;
+
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    scripted_spawns_walk(host, "", &host->spawns.fresh);
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    if( getenv("TORIRS_EDITOR_HOST_TRACE") )
+        fprintf(stderr, "editor: scripted spawns walk of %s took %.1f ms (%d lines)\n", host->content_dir,
+            (double)(t1.tv_sec - t0.tv_sec) * 1000.0 + (double)(t1.tv_nsec - t0.tv_nsec) / 1e6,
+            host->spawns.fresh.line_count);
+    /* Release: every write of the walk is visible to the landing's acquire. */
+    __atomic_store_n(&host->spawns.done, 1, __ATOMIC_RELEASE);
+}
+
+#if LOCAL_SPAWNS_THREAD
+static void*
+scripted_spawns_thread_main(void* arg)
+{
+    scripted_spawns_run(arg);
+    return NULL;
+}
+#endif
+
+/** Start a walk, unless one is in flight. */
+static void
+scripted_spawns_start(struct local_host* host)
+{
+    struct scripted_spawns* spawns = &host->spawns;
+
+    if( spawns->walking )
+        return;
+    Editor_SpawnInit(&spawns->fresh);
+    spawns->walking = 1;
+    spawns->done = 0;
+#if LOCAL_SPAWNS_THREAD
+    if( pthread_create(&spawns->thread, NULL, scripted_spawns_thread_main, host) == 0 )
+    {
+        spawns->thread_live = 1;
+        return;
+    }
+#endif
+    scripted_spawns_run(host);
+}
+
+/** A walk that has landed (or, with `wait`, the one in flight, joined)
+ *  becomes the snapshot. */
+static void
+scripted_spawns_land(
+    struct local_host* host,
+    int wait)
+{
+    struct scripted_spawns* spawns = &host->spawns;
+
+    if( !spawns->walking )
+        return;
+    if( !wait && !__atomic_load_n(&spawns->done, __ATOMIC_ACQUIRE) )
+        return;
+#if LOCAL_SPAWNS_THREAD
+    if( spawns->thread_live )
+    {
+        pthread_join(spawns->thread, NULL);
+        spawns->thread_live = 0;
+    }
+#endif
+    assert(__atomic_load_n(&spawns->done, __ATOMIC_ACQUIRE));
+    if( spawns->built )
+        Editor_SpawnFree(&spawns->rows);
+    spawns->rows = spawns->fresh;
+    memset(&spawns->fresh, 0, sizeof(spawns->fresh));
+    spawns->built = 1;
+    spawns->walked_at = time(NULL);
+    spawns->walking = 0;
+}
+
 static enum EditorHost_Status
 scripted_spawns_load(
-    const struct local_host* host,
+    struct local_host* host,
     const char* key,
     struct EditorHost_Blob* out_blob)
 {
+    struct scripted_spawns* spawns = &host->spawns;
     struct Editor_SpawnFile out;
     int map_x;
     int map_z;
@@ -1082,8 +1208,25 @@ scripted_spawns_load(
 
     if( sscanf(key + 7, "m%d_%d", &map_x, &map_z) != 2 )
         return EDITOR_HOST_REFUSED;
+    /* The snapshot: the first ask waits for the walk the open started (or
+     * runs it); a later one answers from what stands and, once the snapshot
+     * is old enough, starts the next walk for the asks after it. */
+    scripted_spawns_land(host, 0);
+    if( !spawns->built )
+    {
+        scripted_spawns_start(host);
+        scripted_spawns_land(host, 1);
+    }
+    else if( !spawns->walking && time(NULL) - spawns->walked_at >= LOCAL_SPAWNS_REFRESH_S )
+        scripted_spawns_start(host);
     Editor_SpawnInit(&out);
-    scripted_spawns_walk(host, "", map_x, map_z, &out);
+    for( int i = 0; i < spawns->rows.line_count; i++ )
+    {
+        const struct Editor_SpawnRow* row = &spawns->rows.lines[i].row;
+        if( spawns->rows.lines[i].kind == EDITOR_SPAWN_LINE_ROW && row->abs_x / EDITOR_SQUARE_X == map_x
+            && row->abs_z / EDITOR_SQUARE_Z == map_z )
+            (void)Editor_SpawnInsert(&out, row);
+    }
     size = Editor_SpawnEmit(&out, NULL, 0);
     out_blob->data = ToriMem_Alloc(ToriMem_Editor(), size + 1);
     assert(out_blob->data);
@@ -1342,6 +1485,9 @@ Editor_HostOpenLocal(
 
     host->vtable = &local_vtable;
     host->user_data = local;
+    /* The scripted spawns' walk starts now, so the first square open (the
+     * world's, seconds from now) finds its snapshot landed or nearly so. */
+    scripted_spawns_start(local);
     return 1;
 }
 

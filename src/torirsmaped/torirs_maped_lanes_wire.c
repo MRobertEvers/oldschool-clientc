@@ -8,7 +8,17 @@
 /* The change scan runs on a worker thread where the platform has one (the
  * catalog's warm build has the same shape); the web and win32 lanes scan
  * inline. Nothing on the thread allocates through ToriMem: the rows buffer is
- * the main thread's, filled by the scan and read after the join. */
+ * the main thread's, filled by the scan and read after the join.
+ *
+ * Every walk of a mirror goes through that scan: a LANE_CHANGES request, the
+ * status bar's periodic COUNT_ONLY and the LIST's per-lane counts all ask
+ * lanes_scan_want, which runs one scan at a time and queues the rest
+ * (maped->lane_scan_queue); a request answers from the counts' cache as it
+ * stands (or "counting", -1) and the landing broadcasts FACT_LANE_COUNT (and,
+ * for this server's own lane, FACT_LANE_CHANGES) to every window. The embedded
+ * server runs on the editor's UI thread, and a walk of a 100k-file mirror is
+ * 3-5 s: before 2026-11-08 the chip's ask walked it there every 15 s whenever
+ * the cache had expired, which an ACCOUNTS_LIST (a read) did on every pass. */
 #if !defined(__EMSCRIPTEN__) && !defined(_WIN32)
 #include <pthread.h>
 #define LANES_SCAN_THREAD 1
@@ -98,14 +108,144 @@ lanes_count_store(
     int total,
     const struct ToriRSMapEdLaneCounts* counts);
 
+static void
+lanes_next_boot(
+    const struct ToriRSMapEd* maped,
+    char* out,
+    size_t out_size);
+
+static const char*
+lanes_base_tree(const struct ToriRSMapEd* maped);
+
+/** FACT_LANE_COUNT for one lane: to `session`, or to every window when NULL. */
+static void
+lanes_send_count(
+    struct ToriRSMapEd* maped,
+    struct ToriRSMapEdSession* session,
+    const char* name,
+    int is_main,
+    const struct ToriRSMapEdLaneCounts* counts)
+{
+    struct ToriRSMapEdBuf payload;
+    char next_boot[TORIRSMAPED_LANE_NAME_MAX + 8];
+
+    memset(&payload, 0, sizeof(payload));
+    lanes_next_boot(maped, next_boot, sizeof(next_boot));
+    ToriRSMapEd_PutString(&payload, name);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)is_main);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)counts->modified);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)counts->added);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)counts->deleted);
+    ToriRSMapEd_PutString(&payload, next_boot);
+    if( session )
+        send_buf(session, TORIRSMAPED_FACT_LANE_COUNT, &payload);
+    else
+        jobs_broadcast(maped, TORIRSMAPED_FACT_LANE_COUNT, &payload);
+    ToriRSMapEd_BufFree(&payload);
+}
+
+/** Start the scan of `lane` now: the rows buffer, then the thread (or the
+ *  walk inline where there is none). Exactly one scan runs at a time. */
+static void
+lanes_scan_start(
+    struct ToriRSMapEd* maped,
+    const struct ToriRSMapEdLaneDef* lane)
+{
+    struct ToriRSMapEdLaneScan* scan;
+
+    assert(!maped->lane_scan);
+    scan = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*scan));
+    assert(scan);
+    scan->lane = *lane;
+    scan->writes_own = maped->lane_writes_own;
+    scan->writes_all = maped->lane_writes_all;
+    scan->rows = ToriMem_Alloc(ToriMem_Editor(), TORIRSMAPED_LANE_CHANGE_ROWS_MAX * sizeof(*scan->rows));
+    assert(scan->rows);
+    maped->lane_scan = scan;
+#if LANES_SCAN_THREAD
+    if( pthread_create(&scan->thread, NULL, lanes_scan_thread_main, scan) == 0 )
+        scan->thread_live = 1;
+    else
+        lanes_scan_run(scan);
+#else
+    lanes_scan_run(scan);
+#endif
+}
+
+/** The lane named `name`: this server's own, else one of build/lanes. 0 when
+ *  there is no such lane any more (a queued name a Switch or a delete outran). */
+static int
+lanes_def_by_name(
+    struct ToriRSMapEd* maped,
+    const char* name,
+    struct ToriRSMapEdLaneDef* out)
+{
+    struct ToriRSMapEdLaneDef* lanes;
+    int count;
+    int found = 0;
+
+    if( strcmp(name, maped->lane.name) == 0 )
+    {
+        *out = maped->lane;
+        return 1;
+    }
+    if( !maped->repo_root[0] )
+        return 0;
+    lanes = ToriMem_Alloc(ToriMem_Editor(), TORIRSMAPED_LANES_MAX * sizeof(*lanes));
+    assert(lanes);
+    count = ToriRSMapEdLanes_List(maped->repo_root, lanes_base_tree(maped), lanes, TORIRSMAPED_LANES_MAX);
+    for( int i = 0; i < count && !found; i++ )
+        if( strcmp(lanes[i].name, name) == 0 )
+        {
+            *out = lanes[i];
+            found = 1;
+        }
+    ToriMem_Free(ToriMem_Editor(), lanes);
+    return found;
+}
+
+static void
+lanes_service(struct ToriRSMapEd* maped);
+
+/** A walk of `lane` is wanted: start it, or queue it behind the one running
+ *  (once; the main tree has no base and is never walked). Nothing here walks
+ *  on this thread, except where the platform has no worker thread. */
+static void
+lanes_scan_want(
+    struct ToriRSMapEd* maped,
+    const struct ToriRSMapEdLaneDef* lane)
+{
+    if( lane->is_main || !lane->base[0] )
+        return;
+    if( maped->lane_scan )
+    {
+        if( strcmp(maped->lane_scan->lane.name, lane->name) == 0 )
+            return;
+        for( int i = 0; i < maped->lane_scan_queue_count; i++ )
+            if( strcmp(maped->lane_scan_queue[i], lane->name) == 0 )
+                return;
+        if( maped->lane_scan_queue_count < TORIRSMAPED_LANES_MAX )
+            snprintf(maped->lane_scan_queue[maped->lane_scan_queue_count++],
+                sizeof(maped->lane_scan_queue[0]), "%s", lane->name);
+        return;
+    }
+    lanes_scan_start(maped, lane);
+    /* A scan that ran inline (no thread) is done: its landing is now. */
+    lanes_service(maped);
+}
+
 /** Once per service pass: a finished scan is joined, its count remembered
- *  (the chip and the LIST after it need no walk of their own) and its rows
- *  broadcast. */
+ *  (the chip and the LIST after it need no walk of their own), its count
+ *  broadcast (and its rows, when it is this server's lane), and the next
+ *  queued lane's scan started. */
 static void
 lanes_service(struct ToriRSMapEd* maped)
 {
     struct ToriRSMapEdLaneScan* scan = maped->lane_scan;
-    struct ToriRSMapEdBuf payload;
+    struct ToriRSMapEdLaneCounts counts;
+    char name[TORIRSMAPED_LANE_NAME_MAX + 8];
+    int is_main;
+    int own;
 
     if( !scan || !__atomic_load_n(&scan->done, __ATOMIC_ACQUIRE) )
         return;
@@ -125,11 +265,36 @@ lanes_service(struct ToriRSMapEd* maped)
         entry->writes_own = scan->writes_own;
         entry->writes_all = scan->writes_all;
     }
-    memset(&payload, 0, sizeof(payload));
-    lanes_put_changes(&payload, TORIRSMAPED_LANE_CHANGES_DONE, scan);
-    jobs_broadcast(maped, TORIRSMAPED_FACT_LANE_CHANGES, &payload);
-    ToriRSMapEd_BufFree(&payload);
+    own = strcmp(scan->lane.name, maped->lane.name) == 0;
+    if( own )
+    {
+        struct ToriRSMapEdBuf payload;
+        memset(&payload, 0, sizeof(payload));
+        lanes_put_changes(&payload, TORIRSMAPED_LANE_CHANGES_DONE, scan);
+        jobs_broadcast(maped, TORIRSMAPED_FACT_LANE_CHANGES, &payload);
+        ToriRSMapEd_BufFree(&payload);
+    }
+    counts = scan->counts;
+    snprintf(name, sizeof(name), "%s", scan->lane.name);
+    is_main = scan->lane.is_main;
     lanes_scan_free(maped);
+    lanes_send_count(maped, NULL, name, is_main, &counts);
+
+    /* The next lane waiting for a walk. */
+    while( maped->lane_scan_queue_count > 0 && !maped->lane_scan )
+    {
+        struct ToriRSMapEdLaneDef next;
+        int found = lanes_def_by_name(maped, maped->lane_scan_queue[0], &next);
+        maped->lane_scan_queue_count--;
+        memmove(&maped->lane_scan_queue[0], &maped->lane_scan_queue[1],
+            (size_t)maped->lane_scan_queue_count * sizeof(maped->lane_scan_queue[0]));
+        if( found && !next.is_main && next.base[0] )
+        {
+            lanes_scan_start(maped, &next);
+            /* Inline (no thread): it is done; land it before the next. */
+            lanes_service(maped);
+        }
+    }
 }
 
 /** LANE_CHANGES: start the scan (or join the one running) and answer the
@@ -139,7 +304,6 @@ lanes_scan_begin(
     struct ToriRSMapEdSession* session,
     struct ToriRSMapEd* maped)
 {
-    struct ToriRSMapEdLaneScan* scan;
     struct ToriRSMapEdBuf payload;
 
     memset(&payload, 0, sizeof(payload));
@@ -151,30 +315,10 @@ lanes_scan_begin(
         ToriRSMapEd_BufFree(&payload);
         return;
     }
-    if( !maped->lane_scan )
-    {
-        scan = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*scan));
-        assert(scan);
-        scan->lane = maped->lane;
-        scan->writes_own = maped->lane_writes_own;
-        scan->writes_all = maped->lane_writes_all;
-        scan->rows = ToriMem_Alloc(ToriMem_Editor(), TORIRSMAPED_LANE_CHANGE_ROWS_MAX * sizeof(*scan->rows));
-        assert(scan->rows);
-        maped->lane_scan = scan;
-#if LANES_SCAN_THREAD
-        if( pthread_create(&scan->thread, NULL, lanes_scan_thread_main, scan) == 0 )
-            scan->thread_live = 1;
-        else
-            lanes_scan_run(scan);
-#else
-        lanes_scan_run(scan);
-#endif
-    }
     lanes_put_changes(&payload, TORIRSMAPED_LANE_CHANGES_SCANNING, NULL);
     send_buf(session, TORIRSMAPED_FACT_LANE_CHANGES, &payload);
     ToriRSMapEd_BufFree(&payload);
-    /* A scan that ran inline (no thread) is done: broadcast it now. */
-    lanes_service(maped);
+    lanes_scan_want(maped, &maped->lane);
 }
 
 int
@@ -305,6 +449,7 @@ handle_lane_publish(
     }
     /* A scan in flight reads the tree this is about to rewrite. */
     lanes_scan_free(maped);
+    maped->lane_scan_queue_count = 0;
     /* What is on disk is what gets published: every dirty document first. */
     status = save_all_docs(maped, &saved);
     if( status != EDITOR_HOST_OK )
@@ -380,6 +525,7 @@ handle_lane_discard(
         return;
     }
     lanes_scan_free(maped);
+    maped->lane_scan_queue_count = 0;
     /* Unsaved edits are changes too: the documents go with the files, and
      * every window reopens what it shows from the base. */
     Editor_DocFree(&maped->doc);
@@ -513,8 +659,29 @@ lanes_count_store(
     entry->walked_at = (long long)time(NULL);
 }
 
+static void
+lanes_scan_want(
+    struct ToriRSMapEd* maped,
+    const struct ToriRSMapEdLaneDef* lane);
+
+/** 1 when the cache's entry for `lane` answers for it now (above). */
+static int
+lanes_count_holds(
+    const struct ToriRSMapEd* maped,
+    const struct ToriRSMapEdLaneCountCache* entry,
+    const struct ToriRSMapEdLaneDef* lane)
+{
+    int const own = strcmp(lane->name, maped->lane.name) == 0;
+    return entry->used && strcmp(entry->name, lane->name) == 0 && entry->writes_all == maped->lane_writes_all
+           && (!own || entry->writes_own == maped->lane_writes_own)
+           && ((own && maped->writable) || (long long)time(NULL) - entry->walked_at < TORIRSMAPED_LANE_COUNT_STALE_S);
+}
+
 /** `lane`'s change count (and its M/A/D in `counts`), from the cache when
- *  it holds (above), else walked now and remembered; `rescan` walks anyway. */
+ *  it holds (above). When it does not, or `rescan` asks, the walk is wanted
+ *  of the worker (lanes_scan_want) and the answer is the cache as it stands:
+ *  the last count, or -1 ("counting") for a lane never walked; the landing
+ *  broadcasts FACT_LANE_COUNT. Never a walk on this thread: it is the UI's. */
 static int
 lanes_count(
     struct ToriRSMapEd* maped,
@@ -523,20 +690,28 @@ lanes_count(
     struct ToriRSMapEdLaneCounts* counts)
 {
     struct ToriRSMapEdLaneCountCache* entry = lanes_count_slot(maped, lane->name);
-    int const own = strcmp(lane->name, maped->lane.name) == 0;
-    int total;
 
-    if( !rescan && entry->used && strcmp(entry->name, lane->name) == 0 && entry->writes_all == maped->lane_writes_all
-        && (!own || entry->writes_own == maped->lane_writes_own)
-        && ((own && maped->writable) || (long long)time(NULL) - entry->walked_at < TORIRSMAPED_LANE_COUNT_STALE_S) )
+    if( !rescan && lanes_count_holds(maped, entry, lane) )
+    {
+        *counts = entry->counts;
+        return entry->total;
+    }
+    if( getenv("TORIRSMAPED_LANES_DEBUG") )
+        fprintf(stderr,
+            "torirsmaped: lanes: count of '%s' wants a walk: rescan %d used %d writes_all %u/%u writes_own %u/%u"
+            " writable %d age %lld s\n",
+            lane->name, rescan, entry->used, entry->writes_all, maped->lane_writes_all, entry->writes_own,
+            maped->lane_writes_own, maped->writable, (long long)time(NULL) - entry->walked_at);
+    lanes_scan_want(maped, lane);
+    /* Inline (no worker thread): the walk has landed into the cache. */
+    entry = lanes_count_slot(maped, lane->name);
+    if( entry->used && strcmp(entry->name, lane->name) == 0 )
     {
         *counts = entry->counts;
         return entry->total;
     }
     memset(counts, 0, sizeof(*counts));
-    total = ToriRSMapEdLanes_Changes(lane, NULL, 0, counts);
-    lanes_count_store(maped, lane, total, counts);
-    return total;
+    return -1;
 }
 
 static void
@@ -609,7 +784,6 @@ handle_lanes(
         /* The count alone (the status bar's chip): FACT_LANE_COUNT. */
         struct ToriRSMapEdReader reader;
         struct ToriRSMapEdLaneCounts counts;
-        char next_boot[TORIRSMAPED_LANE_NAME_MAX + 8];
         uint32_t flags;
         ToriRSMapEd_ReaderInit(&reader, body, length);
         flags = ToriRSMapEd_GetU32(&reader);
@@ -619,15 +793,10 @@ handle_lanes(
             ToriRSMapEd_BufFree(&payload);
             return;
         }
-        (void)lanes_count(maped, &maped->lane, 0, &counts);
-        lanes_next_boot(maped, next_boot, sizeof(next_boot));
-        ToriRSMapEd_PutString(&payload, maped->lane.name);
-        ToriRSMapEd_PutU32(&payload, (uint32_t)maped->lane.is_main);
-        ToriRSMapEd_PutU32(&payload, (uint32_t)counts.modified);
-        ToriRSMapEd_PutU32(&payload, (uint32_t)counts.added);
-        ToriRSMapEd_PutU32(&payload, (uint32_t)counts.deleted);
-        ToriRSMapEd_PutString(&payload, next_boot);
-        send_buf(session, TORIRSMAPED_FACT_LANE_COUNT, &payload);
+        /* -1: no count yet; the scan just wanted broadcasts it when it lands
+         * (lanes_service), to this window among every other. */
+        if( lanes_count(maped, &maped->lane, 0, &counts) >= 0 )
+            lanes_send_count(maped, session, maped->lane.name, maped->lane.is_main, &counts);
     }
     else if( type == TORIRSMAPED_REQ_LANE_CHANGES )
         lanes_scan_begin(session, maped);

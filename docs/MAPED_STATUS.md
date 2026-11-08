@@ -38,8 +38,12 @@ come from a read-only TEXT document, `spawns:m<x>_<z>`, which the server builds
 on open by walking `server/scripts` (skipping `areas/world` and `areas/edited`).
 They are listed marked `~`, have a cyan marker and a Quest and skill rows
 toggle; an edit suppresses them and adds an edited row, as for generated rows.
-The document is read once per open square, so a change to such a file shows
-after the square is reopened. The toggles persist as `spawn_view` in
+The server cuts it from a snapshot of every scripted `.spawn` file, walked
+on a worker thread when the server opens and again, in the background, once
+the snapshot is 30 s old and a square asks (editor_host_local.c
+`scripted_spawns`); a change to such a file shows after the square is
+reopened, once the next walk has landed. Until 2026-11-08 every square open
+walked the 58k entries of server/scripts on the UI thread (2-3 s a time). The toggles persist as `spawn_view` in
 `editor_prefs.ini`. The Place player ghost and the active player also work on
 the web lane.
 
@@ -1196,6 +1200,7 @@ The numbers (this Mac, the mirror; frame = p50 / p95 ms; the loop is paced at
 | popped-out Preview attached | 8.7 / 10.0 ms | 2.5 / 2.9 ms | the pump (above) |
 | Raise brush drag, 300 frames | 3.7 / 5.1 ms (after the build); remesh flush p50 0.001 ms, max 1.8 ms | same | nothing: the edit layout's per-tile remesh is already cheap |
 | startup | world drawn 0.17-0.20 s, rss 183 MB (0.13 s with the thread); catalog ready never within 24 s (slices) | catalog ready 8.0-8.4 s on the mirror (scan 4.6 s + parse 3.7 s + merge 0.1 s of IO-bound work; the real tree's scan is faster), rss 450 MB at that moment; exit rss 192-206 MB | |
+| random hitches in use (2026-11-08; the owner: camera moves, placing the player, selecting a loc) | every 15 s a 3.4-5.9 s frame: the status bar's lane chip asked LANE_CHANGES COUNT_ONLY and the embedded server walked the lane's 100k-file mirror on the UI thread, because the count cache expired on every ACCOUNTS_LIST (a read the Accounts panel and the spawn preview send every few seconds counted as a lane write); every square open a 2-3 s frame: the `spawns:m<x>_<z>` document walked server/scripts (58k entries) synchronously | no frame over 30 ms after boot in 1500 idle frames; the chip's ask answers from the cache or starts the scan thread and the landing broadcasts FACT_LANE_COUNT; the square open answers from the spawn snapshot | note_lane_writes counts only writing account requests; every lane walk goes through lanes_scan_want (one scan thread, a queue of lane names, torirs_maped_lanes_wire.c); the Publish panel takes a broadcast count into its list row by name and re-asks after 4 periods if an answer never came; `scripted_spawns` snapshot (editor_host_local.c). Found with `TORIRS_EDITOR_FRAME_STATS_SLOW=<ms>` (one line per slow loop iteration with every phase) and `TORIRS_MAPED_PUMP_TRACE=<ms>` (every request and service step of the embedded server over that long, DOC_OPEN with its key); `TORIRSMAPED_LANES_DEBUG=1` says why a count wants a walk, `TORIRS_EDITOR_HOST_TRACE=1` times the spawn walk |
 
 Hot functions (`sample`, 8 s, idle with the mouse over the world): 83% of
 the main thread sleeps in the pacer; of the working samples 826/938 are

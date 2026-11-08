@@ -686,10 +686,11 @@ enum
  */
 /** One lane's change counts as a walk of its mirror last found them
  *  (torirs_maped_lanes_wire.c): FACT_LANE_COUNT and FACT_LANE_LIST answer
- *  from here, and walk again only when a request that can write a tree has
- *  arrived since, or (another lane, or this one while another server holds
- *  it) the entry is older than TORIRSMAPED_LANE_COUNT_STALE_S, or the Lanes
- *  panel's Refresh asks (TORIRSMAPED_LANE_LIST_RESCAN). */
+ *  from here, and want a walk again (of the worker thread, never the
+ *  request's own) only when a request that writes a tree has arrived since,
+ *  or (another lane, or this one while another server holds it) the entry
+ *  is older than TORIRSMAPED_LANE_COUNT_STALE_S, or the Lanes panel's
+ *  Refresh asks (TORIRSMAPED_LANE_LIST_RESCAN). */
 struct ToriRSMapEdLaneCountCache
 {
     char name[TORIRSMAPED_LANE_NAME_MAX + 8];
@@ -721,8 +722,12 @@ struct ToriRSMapEd
     struct ToriRSMapEdLaneDef lane;
     int lane_bound;
     /** A LANE_CHANGES scan on its worker thread (torirs_maped_lanes_wire.c);
-     *  NULL when none runs. */
+     *  NULL when none runs. One runs at a time: the lanes whose walk a
+     *  request wanted meanwhile wait here by name, and lanes_service starts
+     *  the next as one lands. */
     struct ToriRSMapEdLaneScan* lane_scan;
+    char lane_scan_queue[TORIRSMAPED_LANES_MAX][TORIRSMAPED_LANE_NAME_MAX + 8];
+    int lane_scan_queue_count;
 
     /** The document. Clients hold mirrors of it; this is the original. */
     struct Editor_Doc doc;
