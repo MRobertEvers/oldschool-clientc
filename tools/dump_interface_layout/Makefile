@@ -4,14 +4,16 @@ OBJ_DIR = build
 TARGET = dump_interface_layout
 
 REPO_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../..)
-V0_DIR    := $(REPO_ROOT)/v0
+RSCACHE   := $(REPO_ROOT)/3rd/rscache
+THIRD     := $(REPO_ROOT)/3rd
 SRC_DIR   := $(REPO_ROOT)/src
 TOOLS_DIR := $(REPO_ROOT)/tools
 
 CFLAGS = -std=c11 -Wall -Wextra -g \
-	-I$(TOOLS_DIR) -I$(V0_DIR) -I$(V0_DIR)/osrs/rscache -I$(SRC_DIR)
+	-I$(TOOLS_DIR) -I$(SRC_DIR) -I$(RSCACHE)/include -I$(RSCACHE)/src -I$(RSCACHE) \
+	-I$(THIRD)/bzip -I$(THIRD)/miniz -I$(THIRD)/xteas
 
-LDFLAGS = -lbz2 -lz
+LDFLAGS = -lbz2 -lz -lm
 
 # Intentionally no ASAN: sanitizers hang dat2 interface decode on macOS.
 ifdef ASAN
@@ -21,9 +23,11 @@ endif
 
 SRCS = main.c \
 	$(TOOLS_DIR)/dump_interface_common.c \
-	$(V0_DIR)/osrs/rscache/unity.c \
-	$(V0_DIR)/3rd/bzip/bzip.c \
-	$(V0_DIR)/3rd/miniz/miniz.c
+	$(RSCACHE)/rscache_unity.c \
+	$(THIRD)/bzip/bzip.c \
+	$(THIRD)/bzip/bzip_encode.c \
+	$(THIRD)/miniz/miniz.c \
+	$(THIRD)/xteas/xteas.c
 
 OBJS = $(addprefix $(OBJ_DIR)/, $(notdir $(SRCS:.c=.o)))
 
@@ -43,14 +47,20 @@ $(OBJ_DIR)/main.o: main.c
 $(COMMON_OBJ): $(TOOLS_DIR)/dump_interface_common.c
 	$(CC) $(CFLAGS) -c $(TOOLS_DIR)/dump_interface_common.c -o $@
 
-$(OBJ_DIR)/unity.o: $(V0_DIR)/osrs/rscache/unity.c
-	$(CC) $(CFLAGS) -c $(V0_DIR)/osrs/rscache/unity.c -o $@
+$(OBJ_DIR)/rscache_unity.o: $(RSCACHE)/rscache_unity.c
+	$(CC) $(CFLAGS) -c $(RSCACHE)/rscache_unity.c -o $@
 
-$(OBJ_DIR)/bzip.o: $(V0_DIR)/3rd/bzip/bzip.c
-	$(CC) $(CFLAGS) -c $(V0_DIR)/3rd/bzip/bzip.c -o $@
+$(OBJ_DIR)/bzip.o: $(THIRD)/bzip/bzip.c
+	$(CC) $(CFLAGS) -c $(THIRD)/bzip/bzip.c -o $@
 
-$(OBJ_DIR)/miniz.o: $(V0_DIR)/3rd/miniz/miniz.c
-	$(CC) $(CFLAGS) -c $(V0_DIR)/3rd/miniz/miniz.c -o $@
+$(OBJ_DIR)/bzip_encode.o: $(THIRD)/bzip/bzip_encode.c
+	$(CC) $(CFLAGS) -c $(THIRD)/bzip/bzip_encode.c -o $@
+
+$(OBJ_DIR)/miniz.o: $(THIRD)/miniz/miniz.c
+	$(CC) $(CFLAGS) -c $(THIRD)/miniz/miniz.c -o $@
+
+$(OBJ_DIR)/xteas.o: $(THIRD)/xteas/xteas.c
+	$(CC) $(CFLAGS) -c $(THIRD)/xteas/xteas.c -o $@
 
 clean:
 	rm -rf $(OBJ_DIR) $(TARGET)

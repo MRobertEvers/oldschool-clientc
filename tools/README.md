@@ -3,8 +3,8 @@
 Scripts and small subprojects used during development and content generation.
 
 Everything documented below builds and runs against the current tree. Tools that
-were tied to the retired CMake lane, to `src2/`, or to the parts of `src/` that
-moved into `v0/` now live under [`deprecated/`](deprecated/README.md) — including
+were tied to the retired CMake lane, to `src2/`, or to since-retired parts of
+`src/` now live under [`deprecated/`](deprecated/README.md) — including
 the old `tools/ci/` release packaging.
 
 ---
@@ -134,10 +134,7 @@ make -C tools/dump_interface
 ```
 
 > The CMake target is gone with the rest of the CMake lane. The standalone
-> Makefile still compiles `v0/osrs/rscache/unity.c` rather than the live
-> [`3rd/rscache`](../3rd/rscache), so it decodes with the archived copy of the
-> cache library — fine for dat1/dat2 interfaces, but it will not learn anything
-> `3rd/rscache` has gained since the split. Same for `dump_interface_layout`.
+> Makefile links [`3rd/rscache`](../3rd/rscache). Same for `dump_interface_layout`.
 
 **Usage:**
 

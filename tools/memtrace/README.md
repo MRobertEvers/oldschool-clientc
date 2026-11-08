@@ -2,7 +2,7 @@
 
 Memtrace records every heap allocation and free with call stacks, sizes, and running live-heap totals. Traces are written to a compact binary file (`memtrace.bin` by default) and can be explored in a self-contained HTML viewer.
 
-**Source:** [`src/platform/torirs_memtrace.c`](../../src/platform/torirs_memtrace.c) (v1's copy is at `v1/platforms/`)  
+**Source:** [`src/platform/torirs_memtrace.c`](../../src/platform/torirs_memtrace.c)  
 **Viewer:** [`viewer.html`](viewer.html)  
 **Site summary:** [`summarize.py`](summarize.py) — start here for a large trace  
 **Offline decoder:** [`decode_memtrace.py`](decode_memtrace.py) — per-event JSONL

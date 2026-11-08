@@ -274,10 +274,4 @@ deprecated/pokesprite/assets/*.db-shm
 /tools/perf/bin/torirs-O3
 /tools/proctex_port/gen_verify_rand
 /tools/runescript-lsp/runescript-lsp
-/v0/datastruct/hmap_test
-/v0/datastruct/test_hmap
-/v1/programs/interface_editor/interface_editor
-/v1/programs/io_reactor_test/io_reactor_test
-/v1/programs/sdl2/sdl2
-/v1/programs/sdl2/sdl2_noshim
 *.dSYM/

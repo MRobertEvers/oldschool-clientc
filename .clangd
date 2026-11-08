@@ -5,7 +5,7 @@
 # Per-OS compile DB dirs are set in .vscode/settings.json ([darwin]/[win32]) via
 # clangd --compile-commands-dir. The default is src/, i.e. src/compile_flags.txt:
 # the whole client is built by src/makefile, and the CMake build that used to
-# populate build/compile_commands.json is deprecated (its sources moved to v0/).
+# populate build/compile_commands.json is deprecated.
 CompileFlags:
   CompilationDatabase: src/
   Add:

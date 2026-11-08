@@ -44,13 +44,6 @@ TORIDRAW = os.path.join(REPO, "3rd", "toridraw")
 # All of 3rd/, not just toridraw: trspk includes toridraw's projection header,
 # and a search scoped to the library being renamed misses exactly the callers a
 # rename is most likely to break -- the ones in another component.
-#
-# NOT v0/ and v1/. Those hold SEPARATE, OLDER COPIES of this library, with their
-# own graphics/projection16_simd.u.c and no impl/ directory at all. A basename
-# search cannot tell one tree's file from another's, so rewriting their includes
-# to this tree's new layout points them at files that do not exist -- and does it
-# silently, because nothing in the default build compiles them. Excluded by path,
-# not by hoping the pattern misses them.
 SEARCH_ROOTS = [os.path.join(REPO, "3rd"),
                 os.path.join(REPO, "src"),
                 os.path.join(REPO, "tools")]

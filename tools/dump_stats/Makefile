@@ -1,4 +1,4 @@
-# Standalone build against 3rd/rscache (not the v0 unity in CMake).
+# Standalone build against 3rd/rscache.
 CC      ?= cc
 REPO    := $(abspath ../..)
 RSCACHE := $(REPO)/3rd/rscache

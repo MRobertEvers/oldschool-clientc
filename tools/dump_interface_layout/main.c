@@ -24,7 +24,7 @@ print_child(
         fprintf(fp, "child %d: not found (count=%d)\n", child_id, li->count);
         return;
     }
-    RSCacheDat2A_Component const* c = &li->comps[child_id];
+    struct RSCache_Dat2Component const* c = &li->comps[child_id];
     fprintf(
         fp,
         "child_id=%d type=%d x=%d y=%d w=%d h=%d graphic=%d hidden=%d\n",
@@ -45,7 +45,7 @@ print_list(
 {
     for( int i = 0; i < li->count; i++ )
     {
-        RSCacheDat2A_Component const* c = &li->comps[i];
+        struct RSCache_Dat2Component const* c = &li->comps[i];
         if( c->type < 0 )
             continue;
         fprintf(
@@ -72,7 +72,7 @@ print_json(
     int first = 1;
     for( int i = 0; i < li->count; i++ )
     {
-        RSCacheDat2A_Component const* c = &li->comps[i];
+        struct RSCache_Dat2Component const* c = &li->comps[i];
         if( c->type < 0 )
             continue;
         if( !first )
@@ -149,7 +149,7 @@ main(
         root_h = 600;
     }
 
-    struct RSCacheDat2Disk* cache = RSCacheDat2Disk_NewFromDirectory(cache_dir);
+    struct RSCache_Dat2Disk* cache = RSCache_Dat2DiskNewFromDirectory(cache_dir);
     if( !cache )
     {
         fprintf(stderr, "failed to open cache: %s\n", cache_dir);
@@ -160,7 +160,7 @@ main(
     if( dump_iface_load_dat2(cache, iface, root_w, root_h, &li) != 0 )
     {
         fprintf(stderr, "failed to load interface %d\n", iface);
-        RSCacheDat2Disk_Free(cache);
+        RSCache_Dat2DiskFree(cache);
         return 1;
     }
 
@@ -172,7 +172,7 @@ main(
         {
             fprintf(stderr, "failed to open %s\n", out_path);
             dump_iface_free(&li);
-            RSCacheDat2Disk_Free(cache);
+            RSCache_Dat2DiskFree(cache);
             return 1;
         }
     }
@@ -188,6 +188,6 @@ main(
         fclose(fp);
 
     dump_iface_free(&li);
-    RSCacheDat2Disk_Free(cache);
+    RSCache_Dat2DiskFree(cache);
     return 0;
 }

@@ -308,10 +308,9 @@ throughout dispatch and yielding.
 | **Object config** | `OC_PARAM`, `OC_NAME`, `OC_COST`, `OC_STACKABLE` | Item/object definition lookups |
 | **Misc** | `CLIENTCLOCK`, `STRUCT_PARAM`, `PARAHEIGHT`, `PARAWIDTH` | Clock, struct params, text layout |
 
-Reference implementations (still on the CS2VMX API) live in `v1/games/`:
-
-- `GameRunescape_CS2HostExec` — `v1/games/runescape_cs2_host.c`
-- `GameInterfaceEditor_CS2HostExec` — `v1/games/game_interface_editor_cs2_host.c`
+Reference implementations on the older CS2VMX API were removed with `v1/`; read
+them from git history (`git show 2844c3c6d:v1/games/runescape_cs2_host.c`,
+`v1/games/game_interface_editor_cs2_host.c`).
 
 ### Debugging
 
@@ -385,8 +384,8 @@ python3 tools/cs2_gen_opcodes/gen_opcodes.py
 
 ## Relation to v1/vm
 
-Production consumers (game hosts, tests, tools) still compile against `v1/vm`
-(`cs2vmx.c`, `CS2VMX_*` API). This folder is the threaded rename/port:
+`v1/vm` (`cs2vmx.c`, `CS2VMX_*` API) was the predecessor, removed with `v1/`.
+This folder is the threaded rename/port:
 
 | v1/vm (CS2VMX) | src/cs2vm2 (CS2VM2) |
 |----------------|---------------------|

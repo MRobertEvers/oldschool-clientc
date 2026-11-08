@@ -149,10 +149,8 @@ ev_catalog: $(BUILD)/ev_catalog.o $(BUILD)/lc_pack.o $(COMMON_OBJS) $(DEP_OBJS) 
 $(BUILD)/toridraw_unity.o: $(TORIDRAW)/toridraw_unity.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
-# Not in the unity: the font module needs v0/ on its include path, which is why
-# src/makefile compiles it on its own too.
 $(BUILD)/toridraw_font.o: $(TORIDRAW)/toridraw_font.c | $(BUILD)
-	$(CC) $(DEP_CFLAGS) -I$(REPO)/v0 -c $< -o $@
+	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
 # Also outside the unity. The self-test uses it as an oracle: it is the model
 # rasteriser the client itself renders chatheads and interface previews with.
@@ -457,7 +455,6 @@ EM_HEADERS := $(wildcard ev_*.h) $(wildcard $(TORIDRAW)/*.h) \
 
 web/ev_wasm.js: $(EM_SRCS) $(EM_HEADERS)
 	$(EMCC) $(EM_OPT) -std=c11 -w $(INCLUDES) \
-		-I$(REPO)/v0 \
 		-o $@ $(EM_SRCS) \
 		$(EM_LINK) \
 		-sINITIAL_MEMORY=67108864 -sASSERTIONS=0
@@ -549,7 +546,6 @@ wasm-san: web/ev_wasm_san.js
 
 web/ev_wasm_san.js: $(EM_SRCS) $(EM_HEADERS) $(EM_SAN_STAMP)
 	$(EMCC) $(EM_SAN_OPT) $(EM_SAN_CFLAGS) -std=c11 -w $(INCLUDES) \
-		-I$(REPO)/v0 \
 		-o $@ $(EM_SRCS) \
 		$(EM_LINK) \
 		-sINITIAL_MEMORY=268435456 -sASSERTIONS=1 \

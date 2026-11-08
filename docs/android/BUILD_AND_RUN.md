@@ -1235,9 +1235,9 @@ Detail: [`docs/serverscript.md`](docs/serverscript.md).
 | `dump_stats` | `make -C tools/dump_stats` | npc/obj records to CSV for any dat2 cache | ✅ builds |
 | `entity_viewer` | `make -C tools/entity_viewer` | npc→anim catalog + wasm/toridraw viewer | ✅ builds |
 
-`dump_interface` and `dump_interface_layout` still compile `v0/osrs/rscache/unity.c`
-rather than the live `3rd/rscache`; `dump_npc`, `dump_stats` and `entity_viewer`
-link `3rd/rscache` and are the pattern to copy for a new cache tool.
+`dump_interface`, `dump_interface_layout`, `dump_npc`, `dump_stats` and
+`entity_viewer` all link `3rd/rscache`; the last three are the pattern to copy
+for a new cache tool.
 
 Everything that used to be listed here as ❌ broken now lives under
 [`tools/deprecated/`](tools/deprecated/README.md) — `interface161_test`,

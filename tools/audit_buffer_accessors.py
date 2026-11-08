@@ -14,7 +14,6 @@ AREAS = [
     ("rscache", "3rd/rscache"),
     ("rsprot",  "3rd/rsprot"),
     ("rsareabuf", "3rd/rsareabuf"),
-    ("v0",      "v0"),
     ("trspk",   "3rd/trspk"),
     ("serverscript", "src/serverscript"),
     ("engine",  "src/engine"),

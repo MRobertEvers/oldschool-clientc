@@ -1,9 +1,7 @@
 #ifndef DUMP_INTERFACE_COMMON_H
 #define DUMP_INTERFACE_COMMON_H
 
-#include "osrs/rscache/dat1a/dat1a_config_component.h"
-#include "osrs/rscache/dat2a/dat2a_component.h"
-#include "osrs/rscache/dat2disk/dat2disk.h"
+#include "rscache.h"
 
 enum
 {
@@ -20,7 +18,7 @@ enum DumpIfaceCacheMode
 
 struct DumpIfaceLoaded
 {
-    RSCacheDat2A_Component* comps;
+    struct RSCache_Dat2Component* comps;
     int* parent_idx;
     int* lay_x;
     int* lay_y;
@@ -29,13 +27,13 @@ struct DumpIfaceLoaded
     int count;
     enum DumpIfaceCacheMode cache_mode;
     /** Dat1 only: parallel source widgets (for inv slot sprite names). */
-    struct RSCacheDat1A_ConfigComponent** dat1_src;
-    struct RSCacheDat1A_ConfigComponentList* dat1_list;
+    struct RSCache_Dat1ConfigComponent** dat1_src;
+    struct RSCache_Dat1ConfigComponentList* dat1_list;
 };
 
 char const*
 dump_iface_component_type_name(
-    RSCacheDat2A_Component const* c);
+    struct RSCache_Dat2Component const* c);
 
 int
 dump_iface_parent_file_index(
@@ -60,15 +58,16 @@ dump_iface_format_packed_id(
 
 int
 dump_iface_decode_component_from_bytes(
-    RSCacheDat2A_Component* out,
+    struct RSCache_Dat2Component* out,
     char* data,
     int size,
     int iface_id,
-    int file_index);
+    int file_index,
+    struct RSCache_Dat2ComponentDecodeRev rev);
 
 void
 dump_iface_resolve_layout(
-    RSCacheDat2A_Component* comps,
+    struct RSCache_Dat2Component* comps,
     int n,
     int root_x,
     int root_y,
@@ -85,7 +84,7 @@ dump_iface_detect_cache_mode(char const* cache_dir);
 
 int
 dump_iface_load_dat2(
-    struct RSCacheDat2Disk* cache,
+    struct RSCache_Dat2Disk* cache,
     int iface_id,
     int root_w,
     int root_h,
@@ -105,7 +104,7 @@ dump_iface_free(struct DumpIfaceLoaded* li);
 /** Scan all dat2 interface archives for references to target_iface. Returns 0 on success. */
 int
 dump_iface_scan_parents(
-    struct RSCacheDat2Disk* cache,
+    struct RSCache_Dat2Disk* cache,
     int target_iface,
     FILE* fp);
 

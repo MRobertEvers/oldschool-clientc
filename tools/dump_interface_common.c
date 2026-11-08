@@ -1,10 +1,6 @@
 #include "dump_interface_common.h"
 #include <assert.h>
 
-#include "osrs/rscache/dat1a/dat1a_configs_dat.h"
-#include "osrs/rscache/dat1disk/dat1disk.h"
-#include "osrs/rscache/shared/shared_file_list.h"
-#include "osrs/rscache/shared/shared_rs_buffer.h"
 #include "ui/ui_if3_layout.h"
 
 #include <stdio.h>
@@ -12,7 +8,7 @@
 #include <string.h>
 
 char const*
-dump_iface_component_type_name(RSCacheDat2A_Component const* c)
+dump_iface_component_type_name(struct RSCache_Dat2Component const* c)
 {
     assert(c);
 
@@ -39,23 +35,23 @@ dump_iface_component_type_name(RSCacheDat2A_Component const* c)
 
     switch( c->type )
     {
-    case COMPONENT_TYPE_LAYER:
+    case RSCACHE_DAT1_COMPONENT_TYPE_LAYER:
         return "layer";
-    case COMPONENT_TYPE_UNUSED:
+    case RSCACHE_DAT1_COMPONENT_TYPE_UNUSED:
         return "unused";
-    case COMPONENT_TYPE_INV:
+    case RSCACHE_DAT1_COMPONENT_TYPE_INV:
         return "inv";
-    case COMPONENT_TYPE_RECT:
+    case RSCACHE_DAT1_COMPONENT_TYPE_RECT:
         return "rect";
-    case COMPONENT_TYPE_TEXT:
+    case RSCACHE_DAT1_COMPONENT_TYPE_TEXT:
         return "text";
-    case COMPONENT_TYPE_GRAPHIC:
+    case RSCACHE_DAT1_COMPONENT_TYPE_GRAPHIC:
         return "graphic";
-    case COMPONENT_TYPE_MODEL:
+    case RSCACHE_DAT1_COMPONENT_TYPE_MODEL:
         return "model";
-    case COMPONENT_TYPE_INV_TEXT:
+    case RSCACHE_DAT1_COMPONENT_TYPE_INV_TEXT:
         return "inv_text";
-    case COMPONENT_TYPE_LINE:
+    case RSCACHE_DAT1_COMPONENT_TYPE_LINE:
         return "line";
     default:
         return "unknown_if1";
@@ -107,31 +103,32 @@ dump_iface_format_packed_id(
 
 int
 dump_iface_decode_component_from_bytes(
-    RSCacheDat2A_Component* out,
+    struct RSCache_Dat2Component* out,
     char* data,
     int size,
     int iface_id,
-    int file_index)
+    int file_index,
+    struct RSCache_Dat2ComponentDecodeRev rev)
 {
     if( size <= 0 )
         return -1;
     assert(out);
     assert(data);
 
-    struct RSCacheShared_RSBuffer buf;
-    RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, size);
-    RSCacheDat2A_ComponentInit(out);
+    struct RSCache_Buffer buf;
+    RSCache_BufferInit(&buf, (uint8_t*)data, (uint32_t)size);
+    RSCache_Dat2ComponentInit(out);
     out->id = (iface_id << 16) | (file_index & 0xFFFF);
     if( (unsigned char)data[0] == (unsigned char)255 )
-        RSCacheDat2A_ComponentDecodeIf3(out, &buf);
+        RSCache_Dat2ComponentDecodeIf3(out, &buf, rev);
     else
-        RSCacheDat2A_ComponentDecodeIf1(out, &buf);
+        RSCache_Dat2ComponentDecodeIf1(out, &buf, rev);
     return 0;
 }
 
 void
 dump_iface_resolve_layout(
-    RSCacheDat2A_Component* comps,
+    struct RSCache_Dat2Component* comps,
     int n,
     int root_x,
     int root_y,
@@ -274,9 +271,9 @@ dump_iface_detect_cache_mode(char const* cache_dir)
     return -1;
 }
 
-static struct RSCacheDat1A_ConfigComponent*
+static struct RSCache_Dat1ConfigComponent*
 dat1_ifaces_get_component(
-    struct RSCacheDat1A_ConfigComponentList* list,
+    struct RSCache_Dat1ConfigComponentList* list,
     int component_id)
 {
     if( component_id < 0 )
@@ -285,14 +282,14 @@ dat1_ifaces_get_component(
 
     if( component_id < list->components_count && list->components[component_id] )
     {
-        struct RSCacheDat1A_ConfigComponent* at_index = list->components[component_id];
+        struct RSCache_Dat1ConfigComponent* at_index = list->components[component_id];
         if( at_index->id == component_id )
             return at_index;
     }
 
     for( int i = 0; i < list->components_count; i++ )
     {
-        struct RSCacheDat1A_ConfigComponent* c = list->components[i];
+        struct RSCache_Dat1ConfigComponent* c = list->components[i];
         if( c && c->id == component_id )
             return c;
     }
@@ -301,27 +298,27 @@ dat1_ifaces_get_component(
 
 static int
 dat1_resolve_walk_root_id(
-    struct RSCacheDat1A_ConfigComponentList* ifaces,
+    struct RSCache_Dat1ConfigComponentList* ifaces,
     int componentno)
 {
-    struct RSCacheDat1A_ConfigComponent* direct = dat1_ifaces_get_component(ifaces, componentno);
+    struct RSCache_Dat1ConfigComponent* direct = dat1_ifaces_get_component(ifaces, componentno);
     if( !direct )
         return componentno;
 
     int root = componentno;
 
-    if( direct->type == COMPONENT_TYPE_LAYER )
+    if( direct->type == RSCACHE_DAT1_COMPONENT_TYPE_LAYER )
         root = direct->id;
     else
     {
         int layer_id = direct->layer;
         for( int depth = 0; layer_id >= 0 && depth < 32; depth++ )
         {
-            struct RSCacheDat1A_ConfigComponent* layer_comp =
+            struct RSCache_Dat1ConfigComponent* layer_comp =
                 dat1_ifaces_get_component(ifaces, layer_id);
             if( !layer_comp )
                 break;
-            if( layer_comp->type == COMPONENT_TYPE_LAYER )
+            if( layer_comp->type == RSCACHE_DAT1_COMPONENT_TYPE_LAYER )
             {
                 root = layer_comp->id;
                 break;
@@ -354,10 +351,10 @@ dump_iface_strdup(char const* s)
 
 static void
 dump_iface_dat1_convert(
-    RSCacheDat2A_Component* out,
-    struct RSCacheDat1A_ConfigComponent const* src)
+    struct RSCache_Dat2Component* out,
+    struct RSCache_Dat1ConfigComponent const* src)
 {
-    RSCacheDat2A_ComponentInit(out);
+    RSCache_Dat2ComponentInit(out);
     out->id = src->id;
     out->type = src->type;
     out->layer = src->layer;
@@ -402,7 +399,7 @@ dump_iface_dat1_convert(
     if( src->targetText )
         out->targetText = dump_iface_strdup(src->targetText);
 
-    if( src->type == COMPONENT_TYPE_GRAPHIC )
+    if( src->type == RSCACHE_DAT1_COMPONENT_TYPE_GRAPHIC )
     {
         if( src->graphic )
             out->name = dump_iface_strdup(src->graphic);
@@ -421,7 +418,7 @@ dump_iface_dat1_convert(
 }
 
 static void
-dat1_interfaces_list_free(struct RSCacheDat1A_ConfigComponentList* interfaces)
+dat1_interfaces_list_free(struct RSCache_Dat1ConfigComponentList* interfaces)
 {
     if( !interfaces )
         return;
@@ -431,48 +428,48 @@ dat1_interfaces_list_free(struct RSCacheDat1A_ConfigComponentList* interfaces)
         for( int i = 0; i < interfaces->components_count; i++ )
         {
             if( interfaces->components[i] )
-                RSCacheDat1A_ConfigComponentFree(interfaces->components[i]);
+                RSCache_Dat1ConfigComponentFree(interfaces->components[i]);
         }
         free(interfaces->components);
     }
     free(interfaces);
 }
 
-static struct RSCacheDat1A_ConfigComponentList*
+static struct RSCache_Dat1ConfigComponentList*
 dat1_load_interfaces(char const* dat1_dir)
 {
-    struct RSCacheDat1Disk* disk = RSCacheDat1Disk_NewFromDirectory(dat1_dir);
+    struct RSCache_Dat1Disk* disk = RSCache_Dat1DiskNewFromDirectory(dat1_dir);
     if( !disk )
         return NULL;
 
-    struct RSCacheDat1Disk_Archive* arc =
-        RSCacheDat1Disk_ArchiveNewLoad(disk, 0, RSCacheDat1A_ConfigKind_Interfaces);
+    struct RSCache_Dat1DiskArchive* arc =
+        RSCache_Dat1DiskArchiveNewLoad(disk, 0, RSCACHE_DAT1_CONFIG_INTERFACES);
     if( !arc )
     {
-        RSCacheDat1Disk_Free(disk);
+        RSCache_Dat1DiskFree(disk);
         return NULL;
     }
 
-    struct RSCacheShared_FileListDat* fl = RSCacheShared_FileListDatNewFromCacheDatArchive(arc);
-    RSCacheDat1Disk_ArchiveFree(arc);
+    struct RSCache_FileListDat* fl = RSCache_FileListDatNewFromDecode(arc->data, arc->data_size);
+    RSCache_Dat1DiskArchiveFree(arc);
     if( !fl )
     {
-        RSCacheDat1Disk_Free(disk);
+        RSCache_Dat1DiskFree(disk);
         return NULL;
     }
 
-    int data_idx = RSCacheShared_FileListDatFindFileByName(fl, "data");
+    int data_idx = RSCache_FileListDatFindFileByName(fl, "data");
     if( data_idx < 0 )
     {
-        RSCacheShared_FileListDatFree(fl);
-        RSCacheDat1Disk_Free(disk);
+        RSCache_FileListDatFree(fl);
+        RSCache_Dat1DiskFree(disk);
         return NULL;
     }
 
-    struct RSCacheDat1A_ConfigComponentList* list = RSCacheDat1A_ConfigComponentListNewDecode(
+    struct RSCache_Dat1ConfigComponentList* list = RSCache_Dat1ConfigComponentListNewDecode(
         fl->files[data_idx], fl->file_sizes[data_idx]);
-    RSCacheShared_FileListDatFree(fl);
-    RSCacheDat1Disk_Free(disk);
+    RSCache_FileListDatFree(fl);
+    RSCache_Dat1DiskFree(disk);
     return list;
 }
 
@@ -484,13 +481,13 @@ typedef struct
     int rel_y;
     int w;
     int h;
-    struct RSCacheDat1A_ConfigComponent* src;
+    struct RSCache_Dat1ConfigComponent* src;
 } DumpIfaceDat1Node;
 
 static int
 dat1_push_child_nodes(
-    struct RSCacheDat1A_ConfigComponentList* ifaces,
-    struct RSCacheDat1A_ConfigComponent* layer,
+    struct RSCache_Dat1ConfigComponentList* ifaces,
+    struct RSCache_Dat1ConfigComponent* layer,
     int parent_rel_x,
     int parent_rel_y,
     DumpIfaceDat1Node* nodes,
@@ -499,7 +496,7 @@ dat1_push_child_nodes(
     int* visited,
     int visited_cap)
 {
-    if( !layer || layer->type != COMPONENT_TYPE_LAYER || !layer->children || layer->children_count <= 0 )
+    if( !layer || layer->type != RSCACHE_DAT1_COMPONENT_TYPE_LAYER || !layer->children || layer->children_count <= 0 )
         return 0;
 
     if( !layer->childX || !layer->childY )
@@ -511,7 +508,7 @@ dat1_push_child_nodes(
         if( child_index < 0 || child_index >= ifaces->components_count )
             continue;
 
-        struct RSCacheDat1A_ConfigComponent* child = ifaces->components[child_index];
+        struct RSCache_Dat1ConfigComponent* child = ifaces->components[child_index];
         if( !child )
             continue;
 
@@ -536,7 +533,7 @@ dat1_push_child_nodes(
         };
         (*node_count)++;
 
-        if( child->type == COMPONENT_TYPE_LAYER )
+        if( child->type == RSCACHE_DAT1_COMPONENT_TYPE_LAYER )
         {
             if( dat1_push_child_nodes(
                     ifaces,
@@ -566,12 +563,12 @@ dump_iface_load_dat1(
     memset(out, 0, sizeof(*out));
     out->cache_mode = DUMP_IFACE_CACHE_DAT1;
 
-    struct RSCacheDat1A_ConfigComponentList* list = dat1_load_interfaces(cache_dir);
+    struct RSCache_Dat1ConfigComponentList* list = dat1_load_interfaces(cache_dir);
     if( !list )
         return -1;
 
     int walk_root = dat1_resolve_walk_root_id(list, componentno);
-    struct RSCacheDat1A_ConfigComponent* root = dat1_ifaces_get_component(list, walk_root);
+    struct RSCache_Dat1ConfigComponent* root = dat1_ifaces_get_component(list, walk_root);
     if( !root )
     {
         dat1_interfaces_list_free(list);
@@ -597,7 +594,7 @@ dump_iface_load_dat1(
         .src = root,
     };
 
-    if( root->type == COMPONENT_TYPE_LAYER )
+    if( root->type == RSCACHE_DAT1_COMPONENT_TYPE_LAYER )
     {
         if( dat1_push_child_nodes(
                 list, root, 0, 0, nodes, &node_count, list->components_count, visited, visited_cap) !=
@@ -612,7 +609,7 @@ dump_iface_load_dat1(
 
     if( componentno != walk_root )
     {
-        struct RSCacheDat1A_ConfigComponent* direct = dat1_ifaces_get_component(list, componentno);
+        struct RSCache_Dat1ConfigComponent* direct = dat1_ifaces_get_component(list, componentno);
         if( direct && direct->id != walk_root )
         {
             if( direct->id >= 0 && direct->id < visited_cap && !visited[direct->id] )
@@ -635,14 +632,14 @@ dump_iface_load_dat1(
     free(visited);
 
     int n = node_count;
-    RSCacheDat2A_Component* comps = calloc((size_t)n, sizeof(RSCacheDat2A_Component));
+    struct RSCache_Dat2Component* comps = calloc((size_t)n, sizeof(struct RSCache_Dat2Component));
     int* parent_idx = calloc((size_t)n, sizeof(int));
     int* lay_x = calloc((size_t)n, sizeof(int));
     int* lay_y = calloc((size_t)n, sizeof(int));
     int* lay_w = calloc((size_t)n, sizeof(int));
     int* lay_h = calloc((size_t)n, sizeof(int));
-    struct RSCacheDat1A_ConfigComponent** dat1_src =
-        calloc((size_t)n, sizeof(struct RSCacheDat1A_ConfigComponent*));
+    struct RSCache_Dat1ConfigComponent** dat1_src =
+        calloc((size_t)n, sizeof(struct RSCache_Dat1ConfigComponent*));
     if( !comps || !parent_idx || !lay_x || !lay_y || !lay_w || !lay_h || !dat1_src )
     {
         free(comps);
@@ -692,7 +689,7 @@ dump_iface_load_dat1(
 
 int
 dump_iface_load_dat2(
-    struct RSCacheDat2Disk* cache,
+    struct RSCache_Dat2Disk* cache,
     int iface_id,
     int root_w,
     int root_h,
@@ -700,21 +697,25 @@ dump_iface_load_dat2(
 {
     memset(out, 0, sizeof(*out));
 
-    struct RSCacheDat2Disk_Archive* arch =
-        RSCacheDat2Disk_ArchiveNewLoad(cache, RSCacheDat2Disk_Table_Interfaces, iface_id);
+    struct RSCache_Dat2DiskArchive* arch =
+        RSCache_Dat2DiskArchiveNewLoad(cache, RSCACHE_DAT2_OSRS_TABLE_INTERFACES, iface_id);
     if( !arch )
         return -1;
 
-    RSCacheDat2Disk_ArchiveInitMetadata(cache, arch);
-    struct RSCacheShared_FileList* fl = RSCacheShared_FileListNewFromCacheArchive(arch);
+    RSCache_Dat2DiskArchiveInitMetadata(cache, arch);
+    struct RSCache_ReferenceTable* table = cache->tables[RSCACHE_DAT2_OSRS_TABLE_INTERFACES];
+    assert(table);
+    struct RSCache_Dat2ComponentDecodeRev rev = RSCache_Dat2ComponentDecodeRevOsrs(table->version);
+    struct RSCache_FileList* fl =
+        RSCache_FileListNewFromDecode(arch->data, arch->data_size, arch->file_count);
     if( !fl )
     {
-        RSCacheDat2Disk_ArchiveFree(arch);
+        RSCache_Dat2DiskArchiveFree(arch);
         return -1;
     }
 
     int n = fl->file_count;
-    RSCacheDat2A_Component* comps = calloc((size_t)n, sizeof(RSCacheDat2A_Component));
+    struct RSCache_Dat2Component* comps = calloc((size_t)n, sizeof(struct RSCache_Dat2Component));
     int* parent_idx = calloc((size_t)n, sizeof(int));
     int* lay_x = calloc((size_t)n, sizeof(int));
     int* lay_y = calloc((size_t)n, sizeof(int));
@@ -730,8 +731,8 @@ dump_iface_load_dat2(
     for( int fi = 0; fi < n; fi++ )
     {
         if( dump_iface_decode_component_from_bytes(
-                &comps[fi], fl->files[fi], fl->file_sizes[fi], iface_id, fi) != 0 )
-            RSCacheDat2A_ComponentInit(&comps[fi]);
+                &comps[fi], fl->files[fi], fl->file_sizes[fi], iface_id, fi, rev) != 0 )
+            RSCache_Dat2ComponentInit(&comps[fi]);
     }
 
     dump_iface_resolve_layout(
@@ -746,8 +747,8 @@ dump_iface_load_dat2(
     out->count = n;
     out->cache_mode = DUMP_IFACE_CACHE_DAT2;
 
-    RSCacheShared_FileListFree(fl);
-    RSCacheDat2Disk_ArchiveFree(arch);
+    RSCache_FileListFree(fl);
+    RSCache_Dat2DiskArchiveFree(arch);
     return 0;
 }
 
@@ -757,7 +758,7 @@ dump_iface_free(struct DumpIfaceLoaded* li)
     if( !li )
         return;
     for( int i = 0; i < li->count; i++ )
-        RSCacheDat2A_ComponentFree(&li->comps[i]);
+        RSCache_Dat2ComponentFree(&li->comps[i]);
     free(li->comps);
     free(li->parent_idx);
     free(li->lay_x);
@@ -772,7 +773,7 @@ dump_iface_free(struct DumpIfaceLoaded* li)
 
 static bool
 hook_refs_iface(
-    ComponentScriptVar const* hook,
+    struct RSCache_Dat2ComponentScriptVar const* hook,
     int hook_len,
     int target_iface)
 {
@@ -781,7 +782,7 @@ hook_refs_iface(
     assert(hook);
     for( int i = 0; i < hook_len; i++ )
     {
-        if( hook[i].type != SCRIPT_VAR_INT )
+        if( hook[i].type != RSCACHE_DAT2_COMPONENT_SCRIPT_VAR_INT )
             continue;
         int v = hook[i].value.i;
         if( v == target_iface || (v >> 16) == target_iface )
@@ -792,7 +793,7 @@ hook_refs_iface(
 
 static bool
 component_refs_iface(
-    RSCacheDat2A_Component const* c,
+    struct RSCache_Dat2Component const* c,
     int target_iface)
 {
     assert(c);
@@ -823,7 +824,7 @@ print_hook_ref(
     int parent_iface,
     int file_index,
     char const* hook_name,
-    ComponentScriptVar const* hook,
+    struct RSCache_Dat2ComponentScriptVar const* hook,
     int hook_len,
     int target_iface)
 {
@@ -837,9 +838,9 @@ print_hook_ref(
         hook_name);
     for( int i = 0; i < hook_len; i++ )
     {
-        if( hook[i].type == SCRIPT_VAR_INT )
+        if( hook[i].type == RSCACHE_DAT2_COMPONENT_SCRIPT_VAR_INT )
             fprintf(fp, " %d", hook[i].value.i);
-        else if( hook[i].type == SCRIPT_VAR_STRING && hook[i].value.s )
+        else if( hook[i].type == RSCACHE_DAT2_COMPONENT_SCRIPT_VAR_STRING && hook[i].value.s )
             fprintf(fp, " '%s'", hook[i].value.s);
     }
     fputc('\n', fp);
@@ -847,7 +848,7 @@ print_hook_ref(
 
 int
 dump_iface_scan_parents(
-    struct RSCacheDat2Disk* cache,
+    struct RSCache_Dat2Disk* cache,
     int target_iface,
     FILE* fp)
 {
@@ -856,8 +857,8 @@ dump_iface_scan_parents(
     assert(cache);
     assert(fp);
 
-    struct RSCacheDat2Disk_ReferenceTable* table =
-        cache->tables[RSCacheDat2Disk_Table_Interfaces];
+    struct RSCache_ReferenceTable* table =
+        cache->tables[RSCACHE_DAT2_OSRS_TABLE_INTERFACES];
     if( !table )
         return -1;
 
@@ -896,7 +897,7 @@ dump_iface_scan_parents(
             else
                 fputs("none", fp);
             if( target.comps[i].onInvTransmitLen > 0 && target.comps[i].onInvTransmit &&
-                target.comps[i].onInvTransmit[0].type == SCRIPT_VAR_INT )
+                target.comps[i].onInvTransmit[0].type == RSCACHE_DAT2_COMPONENT_SCRIPT_VAR_INT )
                 fprintf(fp, " onInvTransmit=%d", target.comps[i].onInvTransmit[0].value.i);
             else if( target.comps[i].onInvTransmitLen > 0 )
                 fprintf(fp, " onInvTransmitLen=%d", target.comps[i].onInvTransmitLen);
@@ -948,7 +949,7 @@ dump_iface_scan_parents(
 
         for( int fi = 0; fi < li.count; fi++ )
         {
-            RSCacheDat2A_Component const* c = &li.comps[fi];
+            struct RSCache_Dat2Component const* c = &li.comps[fi];
             if( c->type < 0 || c->onInvTransmitLen <= 0 )
                 continue;
             bool watches_94 = c->inventoryTriggersLen <= 0;
@@ -968,7 +969,7 @@ dump_iface_scan_parents(
                 "  iface %d file[%02d] onInvTransmit=%d inv_triggers=",
                 iface_id,
                 fi,
-                c->onInvTransmit[0].type == SCRIPT_VAR_INT ? c->onInvTransmit[0].value.i : -1);
+                c->onInvTransmit[0].type == RSCACHE_DAT2_COMPONENT_SCRIPT_VAR_INT ? c->onInvTransmit[0].value.i : -1);
             if( c->inventoryTriggersLen > 0 )
             {
                 for( int t = 0; t < c->inventoryTriggersLen; t++ )
@@ -1000,7 +1001,7 @@ dump_iface_scan_parents(
         bool any = false;
         for( int fi = 0; fi < li.count; fi++ )
         {
-            RSCacheDat2A_Component const* c = &li.comps[fi];
+            struct RSCache_Dat2Component const* c = &li.comps[fi];
             if( c->type < 0 )
                 continue;
             if( !component_refs_iface(c, target_iface) )

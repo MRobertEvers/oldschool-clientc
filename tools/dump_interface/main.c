@@ -46,13 +46,13 @@ print_inv_slots(
     FILE* fp,
     char const* indent)
 {
-    RSCacheDat2A_Component const* c = &li->comps[i];
-    if( !c || c->type != COMPONENT_TYPE_INV )
+    struct RSCache_Dat2Component const* c = &li->comps[i];
+    if( !c || c->type != RSCACHE_DAT1_COMPONENT_TYPE_INV )
         return;
 
     if( li->cache_mode == DUMP_IFACE_CACHE_DAT1 && li->dat1_src && li->dat1_src[i] )
     {
-        struct RSCacheDat1A_ConfigComponent const* src = li->dat1_src[i];
+        struct RSCache_Dat1ConfigComponent const* src = li->dat1_src[i];
         for( int si = 0; si < DUMP_IFACE_INV_SLOT_MAX; si++ )
         {
             char const* gfx = src->invSlotGraphic ? src->invSlotGraphic[si] : NULL;
@@ -90,13 +90,13 @@ print_inv_slots(
 
 static void
 print_ops(
-    RSCacheDat2A_Component const* c,
+    struct RSCache_Dat2Component const* c,
     FILE* fp,
     char const* indent)
 {
     char const* const* ops = NULL;
     int ops_len = 0;
-    if( c->type == COMPONENT_TYPE_INV && c->objOps )
+    if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_INV && c->objOps )
     {
         ops = c->objOps;
         ops_len = 5;
@@ -127,7 +127,7 @@ print_ops(
 static void
 print_one_hook(
     char const* label,
-    ComponentScriptVar const* vars,
+    struct RSCache_Dat2ComponentScriptVar const* vars,
     int len,
     FILE* fp,
     char const* indent)
@@ -137,7 +137,7 @@ print_one_hook(
     fprintf(fp, "%s%s:", indent, label);
     for( int i = 0; i < len; i++ )
     {
-        if( vars[i].type == SCRIPT_VAR_STRING )
+        if( vars[i].type == RSCACHE_DAT2_COMPONENT_SCRIPT_VAR_STRING )
             fprintf(fp, " \"%s\"", vars[i].value.s ? vars[i].value.s : "");
         else
             fprintf(fp, " %d", vars[i].value.i);
@@ -147,7 +147,7 @@ print_one_hook(
 
 static void
 print_hooks(
-    RSCacheDat2A_Component const* c,
+    struct RSCache_Dat2Component const* c,
     FILE* fp,
     char const* indent)
 {
@@ -177,7 +177,7 @@ print_component_details(
     int i,
     FILE* fp)
 {
-    RSCacheDat2A_Component const* c = &li->comps[i];
+    struct RSCache_Dat2Component const* c = &li->comps[i];
     if( c->type < 0 )
         return;
 
@@ -235,7 +235,7 @@ print_component_details(
      * (activeModel / activeText / activeColour). Reference getIfActive. */
     if( li->cache_mode == DUMP_IFACE_CACHE_DAT1 && li->dat1_src && li->dat1_src[i] )
     {
-        struct RSCacheDat1A_ConfigComponent const* src = li->dat1_src[i];
+        struct RSCache_Dat1ConfigComponent const* src = li->dat1_src[i];
         /* This struct does not keep the comparator count (it is decoded
          * independently of scripts_count in the cache format); in practice the
          * two match for the widgets that use them. */
@@ -254,7 +254,7 @@ print_component_details(
         }
     }
 
-    if( c->type == COMPONENT_TYPE_INV )
+    if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_INV )
     {
         fprintf(
             fp,
@@ -265,7 +265,7 @@ print_component_details(
             c->marginY);
         print_inv_slots(li, i, fp, "      ");
     }
-    else if( c->type == COMPONENT_TYPE_INV_TEXT )
+    else if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_INV_TEXT )
     {
         fprintf(
             fp,
@@ -276,7 +276,7 @@ print_component_details(
             c->marginY,
             c->textFont);
     }
-    else if( c->type == COMPONENT_TYPE_GRAPHIC || (c->if3 && c->type == 5) )
+    else if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_GRAPHIC || (c->if3 && c->type == 5) )
     {
         if( c->name && c->name[0] != '\0' )
         {
@@ -299,7 +299,7 @@ print_component_details(
                 c->transparency);
         }
     }
-    else if( c->type == COMPONENT_TYPE_TEXT || (c->if3 && c->type == 4) )
+    else if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_TEXT || (c->if3 && c->type == 4) )
     {
         fprintf(
             fp,
@@ -313,7 +313,7 @@ print_component_details(
             fprintf(fp, "  activeText='%s'", c->activeText);
         fputc('\n', fp);
     }
-    else if( c->type == COMPONENT_TYPE_MODEL || (c->if3 && c->type == 6) )
+    else if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_MODEL || (c->if3 && c->type == 6) )
     {
         fprintf(
             fp,
@@ -333,7 +333,7 @@ print_component_details(
                 li->dat1_src[i]->activeModelType,
                 li->dat1_src[i]->activeModel);
     }
-    else if( c->type == COMPONENT_TYPE_RECT || (c->if3 && c->type == 3) )
+    else if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_RECT || (c->if3 && c->type == 3) )
     {
         fprintf(
             fp,
@@ -342,7 +342,7 @@ print_component_details(
             c->fill ? 1 : 0,
             c->transparency);
     }
-    else if( c->type == COMPONENT_TYPE_LINE || (c->if3 && c->type == 9) )
+    else if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_LINE || (c->if3 && c->type == 9) )
     {
         fprintf(
             fp,
@@ -351,7 +351,7 @@ print_component_details(
             (unsigned)(c->color & 0xFFFFFF),
             c->lineDirection ? 1 : 0);
     }
-    else if( c->type == COMPONENT_TYPE_LAYER || (c->if3 && c->type == 0) )
+    else if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_LAYER || (c->if3 && c->type == 0) )
     {
         fprintf(
             fp,
@@ -360,7 +360,7 @@ print_component_details(
             c->scrollHeight,
             c->noClickThrough ? 1 : 0);
     }
-    else if( c->type == COMPONENT_TYPE_UNUSED )
+    else if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_UNUSED )
     {
         fprintf(fp, "      WARNING: IF1 type 1 (unused) — not supported by game bake path\n");
     }
@@ -384,12 +384,12 @@ print_summary(
 
     for( int i = 0; i < li->count; i++ )
     {
-        RSCacheDat2A_Component const* c = &li->comps[i];
+        struct RSCache_Dat2Component const* c = &li->comps[i];
         if( c->type < 0 )
             continue;
         if( c->type >= 0 && c->type < 16 )
             type_counts[c->type]++;
-        if( c->type == COMPONENT_TYPE_INV )
+        if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_INV )
         {
             inv_children++;
             if( c->invSlotGraphicId )
@@ -401,7 +401,7 @@ print_summary(
                 }
             }
         }
-        if( c->type == COMPONENT_TYPE_UNUSED )
+        if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_UNUSED )
             unsupported++;
         if( c->if3 && c->type == 2 )
             unsupported++;
@@ -458,7 +458,7 @@ print_json_child(
     int i,
     FILE* fp)
 {
-    RSCacheDat2A_Component const* c = &li->comps[i];
+    struct RSCache_Dat2Component const* c = &li->comps[i];
     int parent = dump_iface_parent_file_index(li, i);
     char const* tname = dump_iface_component_type_name(c);
 
@@ -495,7 +495,7 @@ print_json_child(
     json_escape(fp, c->name);
     fprintf(fp, "\"");
 
-    if( c->type == COMPONENT_TYPE_INV )
+    if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_INV )
     {
         fprintf(fp, ",\n      \"inv_cols\": %d, \"inv_rows\": %d,\n", c->baseWidth, c->baseHeight);
         fprintf(fp, "      \"margin_x\": %d, \"margin_y\": %d,\n", c->marginX, c->marginY);
@@ -503,7 +503,7 @@ print_json_child(
         int first_slot = 1;
         if( li->cache_mode == DUMP_IFACE_CACHE_DAT1 && li->dat1_src && li->dat1_src[i] )
         {
-            struct RSCacheDat1A_ConfigComponent const* src = li->dat1_src[i];
+            struct RSCache_Dat1ConfigComponent const* src = li->dat1_src[i];
             for( int si = 0; si < DUMP_IFACE_INV_SLOT_MAX; si++ )
             {
                 char const* gfx = src->invSlotGraphic ? src->invSlotGraphic[si] : NULL;
@@ -542,7 +542,7 @@ print_json_child(
         }
         fprintf(fp, "\n      ]");
     }
-    else if( c->type == COMPONENT_TYPE_TEXT || (c->if3 && c->type == 4) )
+    else if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_TEXT || (c->if3 && c->type == 4) )
     {
         fprintf(fp, ",\n      \"text\": \"");
         json_escape(fp, c->text);
@@ -555,7 +555,7 @@ print_json_child(
             c->textVerticalAlignment,
             c->textLineHeight);
     }
-    else if( c->type == COMPONENT_TYPE_MODEL || (c->if3 && c->type == 6) )
+    else if( c->type == RSCACHE_DAT1_COMPONENT_TYPE_MODEL || (c->if3 && c->type == 6) )
     {
         fprintf(
             fp,
@@ -684,7 +684,7 @@ main(
     }
     else
     {
-        struct RSCacheDat2Disk* cache = RSCacheDat2Disk_NewFromDirectory(cache_dir);
+        struct RSCache_Dat2Disk* cache = RSCache_Dat2DiskNewFromDirectory(cache_dir);
         if( !cache )
         {
             fprintf(stderr, "failed to open dat2 cache: %s\n", cache_dir);
@@ -700,24 +700,24 @@ main(
                 if( !fp )
                 {
                     fprintf(stderr, "failed to open %s\n", out_path);
-                    RSCacheDat2Disk_Free(cache);
+                    RSCache_Dat2DiskFree(cache);
                     return 1;
                 }
             }
             int rc = dump_iface_scan_parents(cache, root_id, fp);
             if( fp != stdout )
                 fclose(fp);
-            RSCacheDat2Disk_Free(cache);
+            RSCache_Dat2DiskFree(cache);
             return rc != 0;
         }
 
         if( dump_iface_load_dat2(cache, root_id, root_w, root_h, &li) != 0 )
         {
             fprintf(stderr, "failed to load dat2 interface %d\n", root_id);
-            RSCacheDat2Disk_Free(cache);
+            RSCache_Dat2DiskFree(cache);
             return 1;
         }
-        RSCacheDat2Disk_Free(cache);
+        RSCache_Dat2DiskFree(cache);
     }
 
     FILE* fp = stdout;
