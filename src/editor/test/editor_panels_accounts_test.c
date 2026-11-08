@@ -687,6 +687,60 @@ test_panel(const char* root)
                   && file_has(save, "3 = 1277 1\n") && !file_has(save, "3 = 1139 1\n"),
             "a helm into the weapon slot is refused in the panel, nothing sent");
     }
+    /* A scrolled panel: a real press at the weapon slot's screen place must
+     * still select the weapon slot (the tab grew taller than the dock). */
+    {
+        struct ToriRSChromeWidget const* w = &g_chrome.widgets[graph_items];
+        int const scale = ToriRSChrome_Scale(&g_chrome) > 0 ? ToriRSChrome_Scale(&g_chrome) : 1;
+        int before;
+        int x;
+        int y;
+        press_graph(graph_items, 8 + 77 + 10, 2 + 4 + 10); /* head */
+        CHECK(strncmp(g_chrome.widgets[label_slot].text, "head", 4) == 0, "the head slot is selected (%s)",
+            g_chrome.widgets[label_slot].text);
+        before = w->y;
+        /* A dock height shorter than the tab's rows: the panel scrolls. */
+        ToriRSChrome_PanelSetFixedHeight(&g_chrome, panel, 360);
+        frame();
+        ToriRSChrome_PanelSetScroll(&g_chrome, panel, 60);
+        frame();
+        frame();
+        CHECK(w->y == before - 60, "scrolling the panel 60 px moves the well up 60 (%d -> %d)", before, w->y);
+        x = w->x + 1 + (8 + 21 + 10) * scale;
+        y = w->y + 1 + (2 + 82 + 10) * scale;
+        ToriRSChrome_MouseDown(&g_chrome, x, y);
+        ToriRSChrome_MouseUp(&g_chrome, x, y);
+        frame();
+        CHECK(strncmp(g_chrome.widgets[label_slot].text, "weapon", 6) == 0,
+            "a press at the weapon slot's screen place on a scrolled panel selects weapon (%s)", g_chrome.widgets[label_slot].text);
+        /* The same at chrome scale 2 (a Retina Mac's Auto): the well's
+         * items map through the drawn scale. */
+        ToriRSChrome_SetScale(&g_chrome, 2);
+        ToriRSChrome_PanelSetFixedHeight(&g_chrome, panel, 760);
+        frame();
+        frame();
+        press_graph(graph_items, 8 + 77 + 10, 2 + 4 + 10); /* head, well-local */
+        ToriRSChrome_PanelSetScroll(&g_chrome, panel, 120);
+        frame();
+        frame();
+        x = w->x + ToriRSChrome_Px(&g_chrome, 1) + (8 + 21 + 10) * 2;
+        y = w->y + ToriRSChrome_Px(&g_chrome, 1) + (2 + 82 + 10) * 2;
+        ToriRSChrome_MouseDown(&g_chrome, x, y);
+        ToriRSChrome_MouseUp(&g_chrome, x, y);
+        frame();
+        CHECK(strncmp(g_chrome.widgets[label_slot].text, "weapon", 6) == 0,
+            "at scale 2, a press at the weapon slot's screen place on a scrolled panel selects weapon (%s; hit %d vs well %d; "
+            "well %d,%d %dx%d view_h %d clip %d,%d %dx%d; press %d,%d; key at well-local %d)",
+            g_chrome.widgets[label_slot].text, ToriRSChrome_HitTest(&g_chrome, x, y), graph_items, w->x, w->y, w->w, w->h,
+            w->view_h, w->custom_clip_x, w->custom_clip_y, w->custom_clip_w, w->custom_clip_h, x, y,
+            ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 8 + 21 + 10, 2 + 82 + 10));
+        ToriRSChrome_SetScale(&g_chrome, 1);
+        ToriRSChrome_PanelSetScroll(&g_chrome, panel, 0);
+        ToriRSChrome_PanelSetFixedHeight(&g_chrome, panel, 0);
+        frame();
+        frame();
+    }
+
     /* The backpack: coins x100 into slot 3 by a row click, #id on the wire. */
     choose(dropdown_container, 1);
     CHECK(ToriRSChrome_GraphKeyAt(&g_chrome, graph_items, 8 + 3 * 42 + 5, 4 + 5) == 4

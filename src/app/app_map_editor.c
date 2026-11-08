@@ -64,6 +64,18 @@ app_map_editor_spawn_preview_click(
     int scene_z,
     int level,
     enum Editor_LocSelectMode mode);
+/* Ctrl (Command) + drag moves the thing under the pointer (workbench 7.2). */
+static int
+app_map_editor_move_press(
+    struct App* app,
+    struct EditorUi* ui,
+    int scene_x,
+    int scene_z,
+    int level);
+static int
+app_map_editor_move_drag(
+    struct App* app,
+    struct LibToriRS_Input* input);
 /* The move gizmo's press and drag (workbench 6.3, the gizmo section). */
 static struct AppMapEditorGizmo
 {
@@ -75,6 +87,26 @@ static struct AppMapEditorGizmo
     int said;
     int said_quarters;
 } g_app_gizmo;
+/* Ctrl (Command) + drag on a thing moves it (workbench 7.2): the press is
+ * pending until the pointer leaves its tile. */
+enum AppMoveKind
+{
+    APP_MOVE_NONE = 0,
+    APP_MOVE_LOC,
+    APP_MOVE_SPAWN,
+    APP_MOVE_PLAYER,
+};
+static struct AppMapEditorMove
+{
+    int pending;
+    int active;
+    enum AppMoveKind kind;
+    /** The scene tile and level of the press; the footprint previewed. */
+    int start_x;
+    int start_z;
+    int level;
+    int size;
+} g_app_move;
 /* The Height brush's wheel (Ctrl/Cmd+wheel moves the grid and the ground
  * follows): a run of notches is one undo step, closed when the wheel rests
  * this long, Ctrl is let go, or another gesture starts. */
@@ -2933,6 +2965,14 @@ app_map_editor_world_click(
         return;
     }
 
+    /* A Ctrl+press on a loc, a spawn or the player holds the pointer: off
+     * its tile it moves the thing; let go on it, it is the click it was. */
+    if( g_app_move.pending || g_app_move.active )
+    {
+        if( !app_map_editor_move_drag(app, input) )
+            return;
+    }
+
     if( panel->stroke_active || panel->rect_dragging || panel->run.active || panel->marquee_pending
         || panel->path.active || (panel->region.active && panel->region.held) )
     {
@@ -3109,6 +3149,11 @@ app_map_editor_world_click(
              * "Drag along tiles"); a release on the same tile is the click. */
             if( tool == EDITOR_TOOL_LOC_PLACE && ui->tools.pick_kind == 0
                 && Editor_PanelRunBegin(panel, app, hx, hz, level) )
+                return;
+            /* Ctrl (Command on a Mac) + press on a loc, a previewed spawn
+             * or the play account's preview: a drag off the tile moves it. */
+            if( tool == EDITOR_TOOL_SELECT && LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL)
+                && app_map_editor_move_press(app, ui, hx, hz, level) )
                 return;
             /* Select on empty ground: a marquee once the pointer moves off
              * the tile. Over a loc the press stays a click. */
@@ -3930,8 +3975,30 @@ app_spawn_preview_land_npc(
     /* A multinpc shows the form the editor's zeroed varps select; one whose
      * form at zero is hidden still takes its shell, for the marker and pick. */
     body = load->npc_resolved >= 0 ? load->npc_resolved : item->id;
-    if( !CacheProvider_NpctypeGet(app->provider, body) )
-        return 0;
+    {
+        struct ToriRS_Npctype const* npctype = CacheProvider_NpctypeGet(app->provider, body);
+        if( !npctype )
+            return 0;
+        /* The spawn path gives an npc whose models are not in an EMPTY body
+         * and leaves the real one to the game's NpcBodyLand, which never
+         * comes for a preview: the preview stood as an invisible entity under
+         * its marker. Ask for the models once and land when they are in. */
+        if( !app_world_npc_models_resident(app, npctype) )
+        {
+            if( load->model_requested != body )
+            {
+                load->model_requested = body;
+                for( int i = 0; i < npctype->models_count; i++ )
+                    if( npctype->models[i] >= 0 && !CacheProvider_ModelHas(app->provider, npctype->models[i]) )
+                    {
+                        struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, npctype->models[i]);
+                        if( task )
+                            ToriRS_TaskQueue_Add(app->runner.queue, task);
+                    }
+            }
+            return 0;
+        }
+    }
     idx = app_world_spawn_npc_now(app, body, body == item->id ? -1 : item->id, scene_x, scene_z, item->want.row.level);
     npc = idx >= 0 ? World_EntityPoolGet(&app->world->entities.npc, idx) : NULL;
     if( !npc )
@@ -4082,6 +4149,36 @@ app_map_editor_spawn_preview_update(
             waiting++;
     }
     Editor_Spawns_PreviewCounts(ui, landed, waiting, missing);
+    /* TORIRS_SPAWN_PREVIEW_LOG=1: the counts on stderr when they move (a
+     * headless photograph has no View tab to read them off). */
+    {
+        static int log_on = -1;
+        static int said_landed = -1;
+        static int said_waiting = -1;
+        static int said_missing = -1;
+        if( log_on < 0 )
+            log_on = getenv("TORIRS_SPAWN_PREVIEW_LOG") ? 1 : 0;
+        if( log_on && (landed != said_landed || waiting != said_waiting || missing != said_missing) )
+        {
+            said_landed = landed;
+            said_waiting = waiting;
+            said_missing = missing;
+            fprintf(stderr, "spawn preview: %d shown, %d loading, %d not found (%d rows)\n", landed, waiting, missing, count);
+            /* Every item once all landed: what each stands as. */
+            if( waiting == 0 && landed == count && count > 0 )
+                for( int i = 0; i < preview->count; i++ )
+                {
+                    struct MapEditorSpawnPreviewItem const* item = &preview->items[i];
+                    struct ToriRS_Npctype const* npctype =
+                        !item->want.row.is_obj && item->id >= 0 ? CacheProvider_NpctypeGet(app->provider, item->id) : NULL;
+                    fprintf(stderr, "  %s %s id %d entity %d level %d at %d,%d%s%s\n", item->want.row.is_obj ? "obj" : "npc",
+                        item->want.row.name, item->id, item->entity, item->want.row.level, item->want.row.abs_x,
+                        item->want.row.abs_z, npctype && npctype->models_count <= 0 ? " MODEL-LESS" : "",
+                        npctype && npctype->models_count > 0 && !app_world_npc_models_resident(app, npctype) ? " NOT-RESIDENT"
+                                                                                                                : "");
+                }
+        }
+    }
 }
 
 /** A previewed spawn into the Spawns selection. */
@@ -4731,6 +4828,245 @@ app_gizmo_preview(
         (void)MapEditorPieceGhost_Add(ghost, &piece);
     }
     app->need_redraw = 1;
+}
+
+/* ---- Ctrl+drag: move the thing under the pointer (workbench 7.2) -------------
+ *
+ * With Ctrl (Command on a Mac) held, a Select press on a loc, a previewed
+ * spawn or the play account's preview, dragged off its tile, MOVES it: the
+ * loc (or the loc selection it is in; an unselected loc becomes the
+ * selection first) through the gizmo's centre drag -- the same preview, the
+ * same one-step move on release; the spawn as "Move: click a tile" moves the
+ * Spawns selection (the dragged spawn made the selection when it was not in
+ * it; one undo step "move spawn"); the player as the Place player tool
+ * places the play account (ACCOUNT_PLACE). Let go on the press's own tile it
+ * is the Ctrl+click it always was (the selection toggles).
+ */
+
+/** The previewed spawn under the pointer: the pick set's model, else -- with
+ *  the markers drawn -- the one whose marker holds the tile. NULL for none. */
+static struct MapEditorSpawnPreviewItem*
+app_spawn_preview_item_under(
+    struct App* app,
+    struct EditorUi* ui,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    struct MapEditorSpawnPreview* preview = &g_app_spawn_preview.preview;
+    struct World_PickSet const* picks = &app->frame_view->world_pickset;
+
+    if( picks->mouse_valid && picks->mouse_x == app->frame_view->world_mouse_x
+        && picks->mouse_y == app->frame_view->world_mouse_y )
+        for( int i = picks->count - 1; i >= 0; i-- )
+        {
+            struct MapEditorSpawnPreviewItem* item;
+            if( picks->items[i].view_id != 0
+                || (picks->items[i].type != WORLD_PICK_NPC && picks->items[i].type != WORLD_PICK_OBJSTACK) )
+                continue;
+            item = MapEditorSpawnPreview_FindElement(preview, picks->items[i].element_id);
+            if( item )
+                return item;
+        }
+    if( !Editor_Spawns_PreviewMarkers(ui) )
+        return NULL;
+    for( int i = 0; i < preview->count; i++ )
+    {
+        struct Editor_SpawnRow const* row = &preview->items[i].want.row;
+        int const x = row->abs_x - app->world->_base_tile_x;
+        int const z = row->abs_z - app->world->_base_tile_z;
+        if( row->level == level && scene_x >= x && scene_x < x + preview->items[i].size && scene_z >= z
+            && scene_z < z + preview->items[i].size )
+            return &preview->items[i];
+    }
+    return NULL;
+}
+
+/** The play account's preview is under the pointer: its model in the pick
+ *  set, or its tile. */
+static int
+app_player_preview_under(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    struct World_PickSet const* picks = &app->frame_view->world_pickset;
+
+    if( g_app_player_preview.entity < 0 )
+        return 0;
+    if( picks->mouse_valid && picks->mouse_x == app->frame_view->world_mouse_x
+        && picks->mouse_y == app->frame_view->world_mouse_y )
+        for( int i = picks->count - 1; i >= 0; i-- )
+            if( picks->items[i].view_id == 0 && picks->items[i].type == WORLD_PICK_PLAYER
+                && picks->items[i].element_id == g_app_player_preview.element_id )
+                return 1;
+    return g_app_player_preview.scene_x == scene_x && g_app_player_preview.scene_z == scene_z
+           && g_app_player_preview.level == level;
+}
+
+static int
+app_spawn_row_same(
+    const struct Editor_SpawnRow* a,
+    const struct Editor_SpawnRow* b)
+{
+    return a->is_obj == b->is_obj && a->abs_x == b->abs_x && a->abs_z == b->abs_z && a->level == b->level
+           && strcmp(a->name, b->name) == 0;
+}
+
+static int
+app_map_editor_move_press(
+    struct App* app,
+    struct EditorUi* ui,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    struct Editor_Panel* panel = &app->editor_panel;
+    struct MapEditorSpawnPreviewItem* item;
+    struct Editor_LocRef under;
+
+    memset(&g_app_move, 0, sizeof(g_app_move));
+    if( !app->world )
+        return 0;
+    if( app_player_preview_under(app, scene_x, scene_z, level) )
+    {
+        g_app_move.kind = APP_MOVE_PLAYER;
+        g_app_move.size = 1;
+    }
+    else if( (item = app_spawn_preview_item_under(app, ui, scene_x, scene_z, level)) != NULL )
+    {
+        struct Editor_SpawnRow rows[32];
+        int const count = Editor_Spawns_Selection(ui, rows, 32);
+        int selected = 0;
+        for( int i = 0; i < count && !selected; i++ )
+            selected = app_spawn_row_same(&rows[i], &item->want.row);
+        if( !selected )
+            app_spawn_preview_select(app, ui, item, EDITOR_LOC_SELECT_REPLACE);
+        g_app_move.kind = APP_MOVE_SPAWN;
+        g_app_move.size = item->size > 0 ? item->size : 1;
+    }
+    else if( Editor_PanelPointedLoc(panel, app, scene_x, scene_z, level, &under) )
+    {
+        if( Editor_UiFindLoc(ui, &under) < 0 )
+            Editor_UiSelectLoc(ui, &under);
+        g_app_move.kind = APP_MOVE_LOC;
+        g_app_move.size = 1;
+    }
+    else
+        return 0;
+    g_app_move.pending = 1;
+    g_app_move.start_x = scene_x;
+    g_app_move.start_z = scene_z;
+    g_app_move.level = level;
+    return 1;
+}
+
+/** The held press: 1 when it ended as the click it was (let go on its own
+ *  tile), 0 when it is a move (pending, dragging, or just done). */
+static int
+app_map_editor_move_drag(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    struct Editor_Panel* panel = &app->editor_panel;
+    struct EditorUi* ui = panel->ui;
+    struct MapEditorPieceGhost* ghost = &app->map_ghost.pieces;
+    int const released =
+        input->curr.mouse_button_up[TORIRSM_LEFT] || !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
+    int hx;
+    int hz;
+
+    if( !panel->visible || !app->world )
+    {
+        memset(&g_app_move, 0, sizeof(g_app_move));
+        MapEditorPieceGhost_Clear(ghost);
+        return 0;
+    }
+    /* Off the world (the sky, a panel) the tile stays where it was. */
+    if( !Editor_PanelHoverTile(panel, app, &hx, &hz) )
+    {
+        hx = g_app_move.start_x;
+        hz = g_app_move.start_z;
+    }
+    if( g_app_move.pending )
+    {
+        if( hx == g_app_move.start_x && hz == g_app_move.start_z )
+        {
+            if( released )
+            {
+                g_app_move.pending = 0;
+                return 1;
+            }
+            return 0;
+        }
+        g_app_move.pending = 0;
+        if( g_app_move.kind == APP_MOVE_LOC )
+        {
+            /* The gizmo's centre drag from the press's tile: its preview and
+             * its one-step move on release. */
+            struct LocEditorGizmoScreen screen;
+            int hot = LOC_EDITOR_GIZMO_NONE;
+            int cx = app->frame_view->world_mouse_x;
+            int cy = app->frame_view->world_mouse_y;
+            if( ui->tools.loc_count == 0 )
+            {
+                memset(&g_app_move, 0, sizeof(g_app_move));
+                return 0;
+            }
+            if( App_MapEditorGizmoScreen(app, &screen, &hot) )
+            {
+                cx = screen.centre_x;
+                cy = screen.centre_y;
+            }
+            LocEditorGizmo_DragBegin(&g_app_gizmo.drag, LOC_EDITOR_GIZMO_CENTRE, g_app_move.start_x, g_app_move.start_z,
+                cx, cy, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y,
+                LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT));
+            g_app_gizmo.active = 1;
+            g_app_gizmo.said_quarters = -1;
+            (void)LocEditorGizmo_DragUpdate(
+                &g_app_gizmo.drag, hx, hz, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
+            app_gizmo_preview(app, ui);
+            app->need_redraw = 1;
+            memset(&g_app_move, 0, sizeof(g_app_move));
+            return 0;
+        }
+        g_app_move.active = 1;
+    }
+    /* A spawn or the player: the destination footprint under the pointer. */
+    if( !MapEditorPieceGhost_Matches(ghost, MAP_EDITOR_PIECE_GHOST_DRAG, hx, hz, g_app_move.level, (int)g_app_move.kind, 7u) )
+    {
+        struct MapEditorPieceGhostPiece piece;
+        MapEditorPieceGhost_Begin(ghost, MAP_EDITOR_PIECE_GHOST_DRAG, hx, hz, g_app_move.level, (int)g_app_move.kind, 7u);
+        memset(&piece, 0, sizeof(piece));
+        piece.scene_x = hx;
+        piece.scene_z = hz;
+        piece.level = g_app_move.level;
+        piece.size_x = g_app_move.size;
+        piece.size_z = g_app_move.size;
+        (void)MapEditorPieceGhost_Add(ghost, &piece);
+        app->need_redraw = 1;
+    }
+    if( !released )
+        return 0;
+    MapEditorPieceGhost_Clear(ghost);
+    app->need_redraw = 1;
+    if( hx != g_app_move.start_x || hz != g_app_move.start_z )
+    {
+        int const dx = hx - g_app_move.start_x;
+        int const dz = hz - g_app_move.start_z;
+        if( g_app_move.kind == APP_MOVE_PLAYER )
+            (void)Editor_Accounts_PlacePlayer(
+                ui, app->world->_base_tile_x + hx, app->world->_base_tile_z + hz, g_app_move.level);
+        else
+        {
+            struct Editor_SpawnRow first;
+            if( Editor_Spawns_Selection(ui, &first, 1) > 0 )
+                (void)Editor_Spawns_MoveTo(ui, first.abs_x + dx, first.abs_z + dz, first.level);
+        }
+    }
+    memset(&g_app_move, 0, sizeof(g_app_move));
+    return 0;
 }
 
 /** A press on a handle starts its drag (and takes the press from the world

@@ -2658,7 +2658,8 @@ Editor_Accounts_RegisterWith(
     self->input_inv = ToriRSChrome_TextInput(chrome, self->panel, "Inv", "");
     ToriRSChrome_SetTooltip(chrome, self->input_inv, "Any inv of configs/all.inv by name or id (Enter opens it)");
     self->button_inv_open = ToriRSChrome_Button(chrome, self->panel, "Open inv");
-    self->graph_items = ToriRSChrome_Graph(chrome, self->panel, "", ACCT_WELL_H);
+    /* A well's height is chrome pixels: the layout inside it is logical. */
+    self->graph_items = ToriRSChrome_Graph(chrome, self->panel, "", edp_px(ui, ACCT_WELL_H));
     self->label_page = ToriRSChrome_Label(chrome, self->panel, "");
     self->button_page_prev = ToriRSChrome_Button(chrome, self->panel, "Previous page");
     self->button_page_next = ToriRSChrome_Button(chrome, self->panel, "Next page");
@@ -2679,7 +2680,7 @@ Editor_Accounts_RegisterWith(
 
     ToriRSChrome_PanelBeginTab(chrome, self->panel, ACCT_TAB_LOADOUTS);
     self->list_loadouts = ToriRSChrome_VList(chrome, self->panel, "Loadouts", ACCT_LOADOUT_ROWS, 0);
-    self->graph_loadout = ToriRSChrome_Graph(chrome, self->panel, "", ACCT_PREVIEW_H);
+    self->graph_loadout = ToriRSChrome_Graph(chrome, self->panel, "", edp_px(ui, ACCT_PREVIEW_H));
     self->label_loadout = ToriRSChrome_Label(chrome, self->panel, "");
     self->input_loadout_name = ToriRSChrome_TextInput(chrome, self->panel, "Name", "");
     ToriRSChrome_SetTooltip(chrome, self->input_loadout_name, "Letters, digits and '_' (spaces become '_')");

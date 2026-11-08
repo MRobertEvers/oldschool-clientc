@@ -34,7 +34,9 @@
  *   Scroll       the wheel and a trackpad scroll move the window a tile row
  *                at a time; the well's keys (Up / Down / Home / End) too while
  *                it has the focus.
- *   list | grid  the Catalog's "grid" chip opens this panel beside it
+ *   Chips        one line: the kinds with pictures (all, loc, npc, obj; the
+ *                Catalog's kind when it is another), S M L, then list | grid
+ *                -- the Catalog's "grid" chip opens this panel beside it
  *                (Editor_UiPanelOpenBeside); this panel's "list" chip opens
  *                the Catalog beside this one.
  */
@@ -73,16 +75,21 @@ static const uint32_t k_gallery_kinds[] = {
     TORIRSMAPED_CATALOG_ANY, TORIRSMAPED_CATALOG_LOC, TORIRSMAPED_CATALOG_NPC, TORIRSMAPED_CATALOG_OBJ,
 };
 #define GALLERY_KINDS ((int)(sizeof(k_gallery_kinds) / sizeof(k_gallery_kinds[0])))
+/** What a chip past the kinds means (kind_of). */
+#define GALLERY_CHIP_SIZE (-10)
+#define GALLERY_CHIP_LIST (-20)
+#define GALLERY_CHIP_GRID (-21)
 
 struct GalleryPanel
 {
     int panel;
     int input_find;
-    struct Edp_ChipStrip kind_strip;
+    /** One line of chips: the kinds, then S M L, then list | grid; each
+     *  chip's meaning by index (kind_of >= 0 a kind, GALLERY_CHIP_SIZE +
+     *  0..2 a size, GALLERY_CHIP_LIST / GRID the views). */
+    struct Edp_ChipStrip strip;
     int kind_of[EDP_CHIPS_MAX];
     int row_count;
-    struct Edp_ChipStrip size_strip;
-    struct Edp_ChipStrip view_strip;
     int graph;
 
     /** The shared Find text as last seen by both boxes. */
@@ -167,15 +174,21 @@ gallery_strips_draw(
 {
     uint32_t const current = Editor_Catalog_Kind(ui);
     int const px = Editor_Gallery_TilePx(ui);
+    static const int sizes[3] = { EDITOR_PREFS_GALLERY_TILE_S, EDITOR_PREFS_GALLERY_TILE_M, EDITOR_PREFS_GALLERY_TILE_L };
+    static const char* const size_names[3] = { "S", "M", "L" };
+    static const char* const size_tips[3] = { "32 px pictures: the game's icon at its own size", "48 px pictures",
+        "64 px pictures" };
     int shown = 0;
     int index;
 
-    edp_chips_begin(&self->kind_strip);
+    for( int i = 0; i < EDP_CHIPS_MAX; i++ )
+        self->kind_of[i] = -1;
+    edp_chips_begin(&self->strip);
     for( int i = 0; i < GALLERY_KINDS; i++ )
     {
         uint32_t const kind = k_gallery_kinds[i];
         const char* name = kind == TORIRSMAPED_CATALOG_ANY ? "all" : ToriRSMapEdCatalog_KindName(kind);
-        index = edp_chips_push(&self->kind_strip, name,
+        index = edp_chips_push(&self->strip, name,
             kind == TORIRSMAPED_CATALOG_ANY ? "every kind at once" : "only this kind", kind == current, 0);
         if( index >= 0 )
             self->kind_of[index] = (int)kind;
@@ -183,26 +196,24 @@ gallery_strips_draw(
     }
     if( !shown )
     {
-        index = edp_chips_push(&self->kind_strip, ToriRSMapEdCatalog_KindName(current), "the Catalog's kind", 1, 0);
+        index = edp_chips_push(&self->strip, ToriRSMapEdCatalog_KindName(current), "the Catalog's kind", 1, 0);
         if( index >= 0 )
             self->kind_of[index] = (int)current;
     }
-    edp_chips_end(ui, &self->kind_strip);
-    edp_chips_hover(ui, &self->kind_strip);
-
-    edp_chips_begin(&self->size_strip);
-    (void)edp_chips_push(&self->size_strip, "S", "32 px pictures: the game's icon at its own size",
-        px == EDITOR_PREFS_GALLERY_TILE_S, 0);
-    (void)edp_chips_push(&self->size_strip, "M", "48 px pictures", px == EDITOR_PREFS_GALLERY_TILE_M, 0);
-    (void)edp_chips_push(&self->size_strip, "L", "64 px pictures", px == EDITOR_PREFS_GALLERY_TILE_L, 0);
-    edp_chips_end(ui, &self->size_strip);
-    edp_chips_hover(ui, &self->size_strip);
-
-    edp_chips_begin(&self->view_strip);
-    (void)edp_chips_push(&self->view_strip, "list", "the Catalog: the same search as a list (F8)", 0, 0);
-    (void)edp_chips_push(&self->view_strip, "grid", "this grid", 1, 0);
-    edp_chips_end(ui, &self->view_strip);
-    edp_chips_hover(ui, &self->view_strip);
+    for( int i = 0; i < 3; i++ )
+    {
+        index = edp_chips_push(&self->strip, size_names[i], size_tips[i], px == sizes[i], 0);
+        if( index >= 0 )
+            self->kind_of[index] = GALLERY_CHIP_SIZE + i;
+    }
+    index = edp_chips_push(&self->strip, "list", "the Catalog: the same search as a list (F8)", 0, 0);
+    if( index >= 0 )
+        self->kind_of[index] = GALLERY_CHIP_LIST;
+    index = edp_chips_push(&self->strip, "grid", "this grid", 1, 0);
+    if( index >= 0 )
+        self->kind_of[index] = GALLERY_CHIP_GRID;
+    edp_chips_end(ui, &self->strip);
+    edp_chips_hover(ui, &self->strip);
 }
 
 /* ---- the well ------------------------------------------------------------------------ */
@@ -229,21 +240,20 @@ gallery_size_well(
     struct GalleryPanel* self)
 {
     struct ToriRSChromePanel const* p = &ui->chrome->panels[self->panel];
+    struct ToriRSChromeWidget const* well = &ui->chrome->widgets[self->graph];
     int const scale = ToriRSChrome_Scale(ui->chrome) > 0 ? ToriRSChrome_Scale(ui->chrome) : 1;
-    int const have = ui->chrome->widgets[self->graph].h;
     int want = edp_px(ui, GALLERY_WELL_H);
 
-    if( p->fixed_h > 0 && p->view_h > 0 && p->content_h > 0 && have > 0 )
+    if( p->fixed_h > 0 && p->view_h > 0 && p->content_h > 0 )
     {
-        want = p->view_h - (p->content_h - have);
+        want = p->view_h - (p->content_h - well->view_h);
         if( want < edp_px(ui, GALLERY_WELL_MIN_H) )
             want = edp_px(ui, GALLERY_WELL_MIN_H);
     }
-    if( want / scale != self->well_h )
-    {
-        self->well_h = want / scale;
-        ToriRSChrome_SetCustomHeight(ui->chrome, self->graph, self->well_h);
-    }
+    if( want != well->view_h )
+        ToriRSChrome_SetCustomHeight(ui->chrome, self->graph, want);
+    /* The grid works in the well's own (logical) pixels. */
+    self->well_h = ui->chrome->widgets[self->graph].view_h / scale;
 }
 
 /** EditorUiPanel::stretch: the well is the part that fills. */
@@ -260,7 +270,7 @@ gallery_stretch(
     assert(out_natural_h);
     *out_min_h = edp_px(ui, GALLERY_WELL_MIN_H);
     *out_natural_h = edp_px(ui, GALLERY_WELL_H);
-    return ui->chrome->widgets[self->graph].h > 0 ? ui->chrome->widgets[self->graph].h : edp_px(ui, GALLERY_WELL_H);
+    return ui->chrome->widgets[self->graph].view_h;
 }
 
 /** The grid's shape at the tile size and the well's width. */
@@ -474,42 +484,31 @@ gallery_event(
     int on_x = 0;
     int index;
 
-    if( event->widget == self->kind_strip.graph )
+    if( event->widget == self->strip.graph )
     {
-        if( event->kind == TORIRS_CHROME_EVENT_GRAPH_PRESS )
+        if( event->kind != TORIRS_CHROME_EVENT_GRAPH_PRESS )
+            return 1;
+        index = edp_chips_key_of(&self->strip, event->key, &on_x);
+        if( index < 0 || index >= EDP_CHIPS_MAX )
+            return 1;
+        if( self->kind_of[index] >= 0 )
         {
-            index = edp_chips_key_of(&self->kind_strip, event->key, &on_x);
-            if( index >= 0 && index < EDP_CHIPS_MAX && self->kind_of[index] >= 0 )
-            {
-                Editor_Catalog_SetKind(ui, (uint32_t)self->kind_of[index]);
-                self->first_row = 0;
-            }
+            Editor_Catalog_SetKind(ui, (uint32_t)self->kind_of[index]);
+            self->first_row = 0;
         }
-        return 1;
-    }
-    if( event->widget == self->size_strip.graph )
-    {
-        if( event->kind == TORIRS_CHROME_EVENT_GRAPH_PRESS )
+        else if( self->kind_of[index] >= GALLERY_CHIP_SIZE && self->kind_of[index] < GALLERY_CHIP_SIZE + 3 )
         {
             static const int sizes[3] = { EDITOR_PREFS_GALLERY_TILE_S, EDITOR_PREFS_GALLERY_TILE_M,
                 EDITOR_PREFS_GALLERY_TILE_L };
-            index = edp_chips_key_of(&self->size_strip, event->key, &on_x);
-            if( index >= 0 && index < 3 && ui->prefs.gallery_tile != sizes[index] )
+            int const px = sizes[self->kind_of[index] - GALLERY_CHIP_SIZE];
+            if( ui->prefs.gallery_tile != px )
             {
-                ui->prefs.gallery_tile = sizes[index];
+                ui->prefs.gallery_tile = px;
                 ui->prefs_serial++;
             }
         }
-        return 1;
-    }
-    if( event->widget == self->view_strip.graph )
-    {
-        if( event->kind == TORIRS_CHROME_EVENT_GRAPH_PRESS )
-        {
-            index = edp_chips_key_of(&self->view_strip, event->key, &on_x);
-            if( index == 0 )
-                Editor_UiPanelOpenBeside(ui, "catalog", "gallery");
-        }
+        else if( self->kind_of[index] == GALLERY_CHIP_LIST )
+            Editor_UiPanelOpenBeside(ui, "catalog", "gallery");
         return 1;
     }
     if( event->widget != self->graph )
@@ -587,8 +586,7 @@ gallery_activate(
 {
     struct GalleryPanel* self = opaque;
     (void)ui;
-    return widget == self->input_find || widget == self->graph || widget == self->kind_strip.graph
-           || widget == self->size_strip.graph || widget == self->view_strip.graph;
+    return widget == self->input_find || widget == self->graph || widget == self->strip.graph;
 }
 
 static void
@@ -642,17 +640,16 @@ Editor_Gallery_Register(struct EditorUi* ui)
     self->panel = ToriRSChrome_PanelAdd(chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X + EDP_COL_W + 8),
         edp_px(ui, 420), edp_px(ui, GALLERY_W), "Gallery");
     assert(self->panel >= 0);
-    edp_chips_init(ui, &self->kind_strip, self->panel, 1);
     self->input_find = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
     ToriRSChrome_SetTooltip(chrome, self->input_find, "the Catalog's Find: name, #id, obj:/npc:/loc:, key=value");
     self->row_count = ToriRSChrome_Label(chrome, self->panel, "");
-    edp_chips_init(ui, &self->size_strip, self->panel, 1);
-    edp_chips_init(ui, &self->view_strip, self->panel, 1);
-    self->graph = ToriRSChrome_Graph(chrome, self->panel, "", GALLERY_WELL_H);
+    edp_chips_init(ui, &self->strip, self->panel, 1);
+    self->graph = ToriRSChrome_Graph(chrome, self->panel, "", edp_px(ui, GALLERY_WELL_H));
     assert(self->graph >= 0);
     ToriRSChrome_SetTooltip(chrome, self->graph, "click: pick; double-click: place (or put in the account's slot)");
     self->well_h = GALLERY_WELL_H;
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);
+    ToriRSChrome_PanelSetScrollable(chrome, self->panel, 0);
     ToriRSChrome_PanelSetVisible(chrome, self->panel, 0);
 
     memset(&desc, 0, sizeof(desc));

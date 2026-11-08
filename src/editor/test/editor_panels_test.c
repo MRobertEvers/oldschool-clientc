@@ -4483,9 +4483,7 @@ test_gallery(void)
     int catalog;
     int find;
     int count_row;
-    int kind_graph;
-    int size_graph;
-    int view_graph;
+    int strip;
     int well;
     int x = 0;
     int y = 0;
@@ -4510,12 +4508,10 @@ test_gallery(void)
         "gallery: it wears the Close box, the Pop out and the grip");
     find = find_widget(gallery, TORIRS_CHROME_W_TEXTINPUT, "Find");
     count_row = find_widget(gallery, TORIRS_CHROME_W_LABEL, NULL);
-    kind_graph = nth_graph(gallery, 0);
-    size_graph = nth_graph(gallery, 1);
-    view_graph = nth_graph(gallery, 2);
-    well = nth_graph(gallery, 3);
-    CHECK(find >= 0 && count_row >= 0 && kind_graph >= 0 && size_graph >= 0 && view_graph >= 0 && well >= 0,
-        "gallery: Find, the count, the kind / size / view chips and the well");
+    strip = nth_graph(gallery, 0);
+    well = nth_graph(gallery, 1);
+    CHECK(find >= 0 && count_row >= 0 && strip >= 0 && well >= 0 && nth_graph(gallery, 2) < 0,
+        "gallery: Find, the count, one chip line and the well");
     if( find < 0 || well < 0 )
     {
         Editor_UiFree(&g_ui);
@@ -4560,8 +4556,9 @@ test_gallery(void)
 
     /* The size chips move the device pref; the kind chips the Catalog's kind. */
     serial = g_ui.prefs_serial;
-    CHECK(main_graph_key_find(size_graph, EDP_CHIP_KEY_BASE + 2, &x, &y), "gallery: the L chip is there");
-    push_graph(size_graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+    /* The line: all loc npc obj | S M L | list grid. */
+    CHECK(main_graph_key_find(strip, EDP_CHIP_KEY_BASE + 6, &x, &y), "gallery: the L chip is there");
+    push_graph(strip, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
     frame();
     CHECK(Editor_Gallery_TilePx(&g_ui) == 64 && g_ui.prefs.gallery_tile == 64 && g_ui.prefs_serial != serial,
         "gallery: L makes the tiles 64 px and moves the prefs (%d)", Editor_Gallery_TilePx(&g_ui));
@@ -4570,9 +4567,9 @@ test_gallery(void)
     CHECK(ToriRSChrome_GraphKeyAt(&g_chrome, well, 70, 6) == 1 && ToriRSChrome_GraphKeyAt(&g_chrome, well, 82, 6) == 0,
         "gallery: the grid relaid at the new size (%d, %d)", ToriRSChrome_GraphKeyAt(&g_chrome, well, 70, 6),
         ToriRSChrome_GraphKeyAt(&g_chrome, well, 82, 6));
-    CHECK(main_graph_key_find(kind_graph, EDP_CHIP_KEY_BASE + 3, &x, &y), "gallery: the obj chip is there");
+    CHECK(main_graph_key_find(strip, EDP_CHIP_KEY_BASE + 3, &x, &y), "gallery: the obj chip is there");
     ToriRSChrome_SetText(&g_chrome, find, "");
-    push_graph(kind_graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+    push_graph(strip, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
     for( int i = 0; i < 4; i++ )
         frame();
     Editor_CatalogModelCountText(model, text, sizeof(text));
@@ -4581,8 +4578,8 @@ test_gallery(void)
 
     /* list | grid: this panel's list opens the Catalog beside it; the
      * Catalog's grid opens this panel. */
-    CHECK(main_graph_key_find(view_graph, EDP_CHIP_KEY_BASE + 0, &x, &y), "gallery: the list chip is there");
-    push_graph(view_graph, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+    CHECK(main_graph_key_find(strip, EDP_CHIP_KEY_BASE + 7, &x, &y), "gallery: the list chip is there");
+    push_graph(strip, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
     frame();
     frame();
     CHECK(g_chrome.panels[catalog].visible, "gallery: list opens the Catalog");
@@ -4596,8 +4593,10 @@ test_gallery(void)
     frame();
     CHECK(!g_chrome.panels[gallery].visible && !Editor_Gallery_Visible(&g_ui), "gallery: View toggles it closed");
     {
-        int const cat_view = nth_graph(catalog, 1);
-        CHECK(cat_view >= 0 && main_graph_key_find(cat_view, EDP_CHIP_KEY_BASE + 1, &x, &y), "gallery: the Catalog's grid chip");
+        /* The Catalog's strip: eleven kinds, more, list, grid. */
+        int const cat_view = nth_graph(catalog, 0);
+        CHECK(cat_view >= 0 && main_graph_key_find(cat_view, EDP_CHIP_KEY_BASE + CATALOG_TYPE_STRIP_TEST + 2, &x, &y),
+            "gallery: the Catalog's grid chip");
         push_graph(cat_view, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
         frame();
         frame();

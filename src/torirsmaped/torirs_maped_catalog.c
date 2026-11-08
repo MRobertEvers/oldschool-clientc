@@ -5758,7 +5758,10 @@ ToriRSMapEdCatalog_HandleRecord(
     }
     if( record < 0 )
     {
-        ToriRSMapEd_PutU32(out, EDITOR_HOST_ABSENT);
+        /* A miss on the warm build's partial index is not "no such record":
+         * BUSY, so the asker tries again once the index is whole (the spawn
+         * preview held every name asked in the first seconds as not found). */
+        ToriRSMapEd_PutU32(out, ToriRSMapEdCatalog_Built(catalog) ? EDITOR_HOST_ABSENT : EDITOR_HOST_BUSY);
         ToriRSMapEd_PutU32(out, kind);
         ToriRSMapEd_PutU32(out, (uint32_t)id);
         ToriRSMapEd_PutString(out, name);

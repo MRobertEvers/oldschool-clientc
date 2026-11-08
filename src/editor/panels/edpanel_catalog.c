@@ -137,10 +137,10 @@ struct CatalogRows
 struct CatalogPanel
 {
     int panel;
-    /** The Type strip: the kinds as chips, "more" showing the dropdown. */
+    /** The Type strip: the kinds as chips, "more" showing the dropdown,
+     *  then list | grid (the Gallery is the grid view of this search).
+     *  type_kind_of: a kind, or CATALOG_CHIP_MORE / LIST / GRID. */
     struct Edp_ChipStrip type_strip;
-    /** list | grid: the Gallery is the grid view of this search. */
-    struct Edp_ChipStrip view_strip;
     int type_more;
     int type_kind_of[EDP_CHIPS_MAX];
     /** The kind the "+ filter" menu and the list header were built for. */
@@ -798,6 +798,10 @@ static const uint32_t k_type_strip[] = {
     TORIRSMAPED_CATALOG_CS2,       TORIRSMAPED_CATALOG_TRIGGER, TORIRSMAPED_CATALOG_SQUARE,
 };
 #define CATALOG_TYPE_STRIP ((int)(sizeof(k_type_strip) / sizeof(k_type_strip[0])))
+/** What a strip chip past the kinds means (type_kind_of). */
+#define CATALOG_CHIP_MORE (-1)
+#define CATALOG_CHIP_LIST (-2)
+#define CATALOG_CHIP_GRID (-3)
 
 /** The kind the dropdown holds. */
 static uint32_t
@@ -854,16 +858,16 @@ catalog_type_strip_draw(
                                                               : "hide the Kind dropdown",
         !ui->chrome->widgets[self->dropdown_kind].hidden, 0);
     if( self->type_more >= 0 )
-        self->type_kind_of[self->type_more] = -1;
+        self->type_kind_of[self->type_more] = CATALOG_CHIP_MORE;
+    index = edp_chips_push(&self->type_strip, "list", "this list", 1, 0);
+    if( index >= 0 )
+        self->type_kind_of[index] = CATALOG_CHIP_LIST;
+    index = edp_chips_push(&self->type_strip, "grid", "the Gallery: the same search as pictures (Shift+F8)",
+        Editor_Gallery_Visible(ui), 0);
+    if( index >= 0 )
+        self->type_kind_of[index] = CATALOG_CHIP_GRID;
     edp_chips_end(ui, &self->type_strip);
     edp_chips_hover(ui, &self->type_strip);
-
-    edp_chips_begin(&self->view_strip);
-    (void)edp_chips_push(&self->view_strip, "list", "this list", 1, 0);
-    (void)edp_chips_push(&self->view_strip, "grid", "the Gallery: the same search as pictures (Shift+F8)",
-        Editor_Gallery_Visible(ui), 0);
-    edp_chips_end(ui, &self->view_strip);
-    edp_chips_hover(ui, &self->view_strip);
 }
 
 /** The "+ filter" menu and the list header follow the kind. */
@@ -1846,8 +1850,7 @@ catalog_activate(
         return 1;
     }
     return widget == self->input_search || widget == self->record_list || widget == self->input_new_name
-           || widget == self->chip_strip.graph || widget == self->shortcut_strip.graph || widget == self->type_strip.graph
-           || widget == self->view_strip.graph;
+           || widget == self->chip_strip.graph || widget == self->shortcut_strip.graph || widget == self->type_strip.graph;
 }
 
 /** A press on a chip: a filter chip's x removes it; a shortcut shows its
@@ -1876,15 +1879,6 @@ catalog_event(
         }
         return 1;
     }
-    if( event->widget == self->view_strip.graph )
-    {
-        if( event->kind != TORIRS_CHROME_EVENT_GRAPH_PRESS )
-            return 1;
-        index = edp_chips_key_of(&self->view_strip, event->key, &on_x);
-        if( index == 1 && !Editor_Gallery_Visible(ui) )
-            Editor_UiPanelOpenBeside(ui, "gallery", "catalog");
-        return 1;
-    }
     if( event->widget == self->type_strip.graph )
     {
         if( event->kind != TORIRS_CHROME_EVENT_GRAPH_PRESS )
@@ -1892,8 +1886,10 @@ catalog_event(
         index = edp_chips_key_of(&self->type_strip, event->key, &on_x);
         if( index < 0 || index >= EDP_CHIPS_MAX )
             return 1;
-        if( index == self->type_more )
+        if( self->type_kind_of[index] == CATALOG_CHIP_MORE )
             ToriRSChrome_SetHidden(ui->chrome, self->dropdown_kind, !ui->chrome->widgets[self->dropdown_kind].hidden);
+        else if( self->type_kind_of[index] == CATALOG_CHIP_GRID && !Editor_Gallery_Visible(ui) )
+            Editor_UiPanelOpenBeside(ui, "gallery", "catalog");
         else if( self->type_kind_of[index] >= 0 && (uint32_t)self->type_kind_of[index] != catalog_kind(ui, self) )
             catalog_set_kind(ui, self, (uint32_t)self->type_kind_of[index]);
         return 1;
@@ -2408,8 +2404,9 @@ Editor_Catalog_Register(struct EditorUi* ui)
         chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X + EDP_COL_W + 8), edp_px(ui, 420),
         edp_px(ui, 260), "Catalog");
     assert(self->panel >= 0);
-    /* Twelve chips: two lines at the panel's width. */
-    edp_chips_init(ui, &self->type_strip, self->panel, 2);
+    /* Fourteen chips (the kinds, more, list | grid): three lines at the
+     * panel's width; a well's least height is 48 px anyway. */
+    edp_chips_init(ui, &self->type_strip, self->panel, 3);
     self->type_more = -1;
     self->shown_filter_kind = 0xFFFFFFFFu;
     self->dropdown_kind = ToriRSChrome_Dropdown(chrome, self->panel, "Kind", Editor_CatalogModelKindLabels(),
@@ -2421,7 +2418,6 @@ Editor_Catalog_Register(struct EditorUi* ui)
     Editor_Stamps_CatalogChip(ui, self->panel);
     self->input_search = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
     ToriRSChrome_SetTooltip(chrome, self->input_search, "name, #id, obj:/npc:/loc:; key=value + space = a chip");
-    edp_chips_init(ui, &self->view_strip, self->panel, 1);
     self->row_count = ToriRSChrome_Label(chrome, self->panel, "");
     edp_chips_init(ui, &self->chip_strip, self->panel, 2);
     ToriRSChrome_SetHidden(chrome, self->chip_strip.graph, 1);

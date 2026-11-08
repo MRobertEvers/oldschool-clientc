@@ -6166,6 +6166,54 @@ that spells Cmd+0 on this Mac) predates this work. Not done: a drag out of
 the Gallery onto a slot or the world; TORIRS_EDITOR_GALLERY photographs; a
 "Gallery..." chip in the Items tab (the double-click path covers it).
 
+## Ctrl+drag moves the thing under the pointer (2026-11-08)
+
+Owner: "when dealing with spawns, locs, objs, players; the command+drag
+should MOVE the thing." In Select, with Ctrl (Command on a Mac) held, a press
+on a loc, a previewed spawn (npc or obj) or the play account's preview,
+dragged off its tile, moves it (src/app/app_map_editor.c, the
+"Ctrl+drag" section): a loc through the gizmo's centre drag -- the loc joins
+the selection first when it was not in it; the same footprint preview and
+the same one-step move on release (`edp_locs_nudge`); a spawn as "Move:
+click a tile" moves the Spawns selection (the dragged spawn made the
+selection when it was not in it; `Editor_Spawns_MoveTo` with the drag's
+offset, one undo step "move spawn"); the player as the Place player tool
+places the play account (`Editor_Accounts_PlacePlayer`, ACCOUNT_PLACE). The
+destination footprint is the piece ghost (MAP_EDITOR_PIECE_GHOST_DRAG) under
+the pointer. The press is pending until the pointer leaves its tile; let go
+on it, the frame falls through to the click it was (Ctrl+click toggles the
+selection). docs/MAPED_HOTKEYS.md "Select: Ctrl+drag".
+
+Also today: the Gallery's chips are one line (kinds, S M L, list | grid) and
+its well is sized in chrome pixels from `view_h` as the squares map is (the
+mix of logical and chrome pixels made the well relayout every frame: the
+owner's "the gallery is flickering", and tile captions that read another
+well's chip labels; six consecutive headless frames are now byte-identical);
+the Catalog's Type strip is three lines holding the kinds, "more" and
+list | grid (two lines cut it to "+2", hiding "more"); the Accounts wells
+are sized in chrome pixels too (`edp_px(ACCT_WELL_H)`: at a 2x chrome scale
+the worn layout's lower half was cut off); the Catalog's hotkey test spells
+the retired chord per platform; editor_panels_accounts_test presses a slot
+on a scrolled panel at scale 1 and 2 (the chrome maps both right).
+
+**Spawn preview in the world** (owner: "show spawns in the world doesn't
+work"; the feature is the other session's, 9b98a6032 / d321a1145): run
+headless on a mirror of OSRS-Content with `TORIRS_EDITOR_SPAWN_PREVIEW=1`,
+m50_50's 175 rows all landed ("175 shown, 0 loading, 0 not found" on the
+View tab, and `TORIRS_SPAWN_PREVIEW_LOG=1` prints the counts and every
+landed item to stderr once). Two things were wrong on the way: (1) a
+previewed npc was spawned as soon as its config was known, and
+`app_world_spawn_npc_now` gives an npc whose models are not resident an
+EMPTY body that the game fills from NpcBodyLand, which a preview never
+gets -- the preview now asks for the models once and lands when they are
+in (`app_spawn_preview_land_npc`); (2) a name looked up while the catalog
+index was still building was held as "not found" until the rows changed --
+a record request on a partial index now answers EDITOR_HOST_BUSY and the
+resolver treats BUSY as "ask again" (`Editor_Spawns_PreviewResolve`). In the
+photographs the markers that still show no body are model-less npcs
+(deadman_guard_lumbridge, veos_lumbridge: multinpc shells) and spawns on
+levels 1 and 2 under the castle roof, drawn as markers over it.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.

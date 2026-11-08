@@ -1022,6 +1022,94 @@ fav_text(void)
     return text;
 }
 
+/** A record picture that never comes: what the Gallery sees while the App
+ *  still renders, every frame. */
+static int
+fake_record_thumb(
+    void* user_data,
+    uint32_t kind,
+    int id,
+    int px)
+{
+    (void)user_data;
+    (void)kind;
+    (void)id;
+    (void)px;
+    return 0;
+}
+
+/** The text of the nth TEXT item of GRAPH `graph`, "" past them. */
+static const char*
+graph_text(
+    int graph,
+    int nth)
+{
+    const struct ToriRSChromeWidget* w = &g_chrome.widgets[graph];
+    for( int i = 0; i < w->graph_count; i++ )
+    {
+        const struct ToriRSChromeGraphItem* it = &g_chrome.graph_items[w->graph_first + i];
+        if( it->kind == TORIRS_CHROME_GRAPH_TEXT && nth-- == 0 )
+            return it->text;
+    }
+    return "";
+}
+
+/** The Gallery over the same 150 locs: the tiles name the rows in order,
+ *  and a frame with nothing new restates nothing (no flicker). */
+static void
+test_gallery_tiles(void)
+{
+    int const gallery = find_panel("Gallery");
+    int well = -1;
+    int graphs = 0;
+    uint32_t rev;
+    int items;
+
+    CHECK(gallery >= 0, "gallery: registered with the Catalog");
+    if( gallery < 0 )
+        return;
+    for( int i = 0; i < g_chrome.widget_count; i++ )
+        if( g_chrome.widgets[i].panel == gallery && g_chrome.widgets[i].kind == TORIRS_CHROME_W_GRAPH )
+            well = i, graphs++;
+    CHECK(graphs == 2 && well >= 0, "gallery: one chip line and the well (%d graphs)", graphs);
+    if( well < 0 )
+        return;
+    g_ui.app_services.record_thumb = fake_record_thumb;
+    ToriRSChrome_PanelSetVisible(&g_chrome, gallery, 1);
+    frames(6);
+    /* Each tile's texts: the pending picture's short name, then the caption:
+     * the row's own name, ellipsised to the tile. In the list's order. */
+    {
+        const struct Editor_CatalogModel* model = Editor_Catalog_Model(&g_ui);
+        struct Editor_CatalogView view;
+        int bad = 0;
+        int seen = 0;
+        for( int r = 0; r < 12 && model && Editor_CatalogModelViewAt(model, r, &view); r++ )
+        {
+            const char* caption = graph_text(well, 2 * r + 1);
+            size_t n = strlen(caption);
+            if( !caption[0] )
+                break;
+            seen++;
+            if( n >= 2 && caption[n - 1] == '.' && caption[n - 2] == '.' )
+                n -= 2;
+            if( strncmp(caption, view.name, n) != 0 )
+                bad++;
+        }
+        CHECK(seen >= 2 && bad == 0, "gallery: every tile's caption is its row's name, in order (%d tiles, %d wrong: %s / %s)",
+            seen, bad, graph_text(well, 1), graph_text(well, 3));
+    }
+    rev = g_chrome.widgets[well].rows_rev;
+    items = g_chrome.widgets[well].graph_count;
+    frames(5);
+    CHECK(g_chrome.widgets[well].rows_rev == rev && g_chrome.widgets[well].graph_count == items,
+        "gallery: five quiet frames with pictures pending restate nothing (rev %u -> %u)", rev,
+        g_chrome.widgets[well].rows_rev);
+    ToriRSChrome_PanelSetVisible(&g_chrome, gallery, 0);
+    g_ui.app_services.record_thumb = NULL;
+    frames(2);
+}
+
 static void
 test_panels(const char* root)
 {
@@ -1055,10 +1143,10 @@ test_panels(const char* root)
     find = find_widget(panel, TORIRS_CHROME_W_TEXTINPUT, "Find", 0);
     sort = find_widget(panel, TORIRS_CHROME_W_DROPDOWN, "Sort", 0);
     filter = find_widget(panel, TORIRS_CHROME_W_DROPDOWN, "Filter", 0);
-    /* The first GRAPHs are the Type strip and the list | grid chips
-     * (workbench 7.2); the filter chips and the shortcuts follow them. */
-    chips_graph = find_widget(panel, TORIRS_CHROME_W_GRAPH, NULL, 2);
-    shortcuts_graph = find_widget(panel, TORIRS_CHROME_W_GRAPH, NULL, 3);
+    /* The first GRAPH is the Type strip (workbench 7.2: the kinds, more,
+     * list | grid); the filter chips and the shortcuts follow it. */
+    chips_graph = find_widget(panel, TORIRS_CHROME_W_GRAPH, NULL, 1);
+    shortcuts_graph = find_widget(panel, TORIRS_CHROME_W_GRAPH, NULL, 2);
     count_row = find_widget(panel, TORIRS_CHROME_W_LABEL, NULL, 0);
     CHECK(list >= 0 && find >= 0 && sort >= 0 && filter >= 0 && chips_graph >= 0 && shortcuts_graph >= 0
               && count_row >= 0,
@@ -1102,6 +1190,10 @@ test_panels(const char* root)
         CHECK(strcmp(g_chrome.widgets[count_row].text, "99 to 150 of 150 loc") == 0, "the count: %s",
             g_chrome.widgets[count_row].text);
     }
+
+    test_gallery_tiles();
+    ToriRSChrome_PanelSetVisible(&g_chrome, panel, 1);
+    frames(2);
 
     /* Chips: a finished key=value word leaves the box. */
     ToriRSChrome_SetText(&g_chrome, find, "category=tree oa");

@@ -2166,15 +2166,28 @@ Editor_Spawns_PreviewResolve(
     /* A miss is not remembered here: the caller's item holds the answer for
      * as long as its row stands, and a record added later may yet exist. */
     memset(&record, 0, sizeof(record));
-    if( Editor_HostMapEdCatalogRecord(&ui->editor->host, kind, -1, row->name, &record) == EDITOR_HOST_OK && record.id >= 0 )
     {
-        id = record.id;
-        if( self->preview_name_count < SPAWNS_PREVIEW_NAMES )
+        enum EditorHost_Status const status =
+            Editor_HostMapEdCatalogRecord(&ui->editor->host, kind, -1, row->name, &record);
+        if( status == EDITOR_HOST_OK && record.id >= 0 )
         {
-            struct SpawnsPreviewName* name = &self->preview_names[self->preview_name_count++];
-            snprintf(name->name, sizeof(name->name), "%s", row->name);
-            name->is_obj = row->is_obj;
-            name->id = id;
+            id = record.id;
+            if( self->preview_name_count < SPAWNS_PREVIEW_NAMES )
+            {
+                struct SpawnsPreviewName* name = &self->preview_names[self->preview_name_count++];
+                snprintf(name->name, sizeof(name->name), "%s", row->name);
+                name->is_obj = row->is_obj;
+                name->id = id;
+            }
+        }
+        else if( status == EDITOR_HOST_BUSY )
+        {
+            /* The index is still building (the first seconds after boot,
+             * when a saved "Show spawns in the world" asks at once): a miss
+             * on a partial index is no answer. The caller asks again, instead
+             * of holding every spawn of the square as "not found" until its
+             * rows change. */
+            id = MAP_EDITOR_SPAWN_PREVIEW_ID_UNKNOWN;
         }
     }
     Editor_HostCatalogRecordFree(&record);

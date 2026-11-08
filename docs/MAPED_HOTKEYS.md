@@ -157,6 +157,15 @@ The pointer (workbench 6.3, design section 7):
   a marquee and for a click on a loc alike (a plain click latches the tile).
   A **double-click** on a loc is select same (Alt+A).
 
+- **Select: Ctrl+drag (Cmd+drag on a Mac) on a thing moves it.** A press on
+  a loc, a previewed spawn or the play account's preview, dragged off its
+  tile: the loc (or the loc selection it is in) moves as the gizmo's centre
+  drag moves it, previewed and applied in one step on release; the spawn
+  moves the Spawns selection as "Move: click a tile" does ("move spawn", one
+  undo step); the player is placed as the Place player tool places it. An
+  unselected loc or spawn becomes the selection first. Let go on the same
+  tile and it is the Ctrl+click it was (the selection toggles).
+
 ### Tools
 | Action | Chord | Ctx |
 |---|---|---|
