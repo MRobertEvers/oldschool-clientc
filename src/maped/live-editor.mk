@@ -22,7 +22,9 @@ MAPED_CLIENT_SRCS += $(LIVE_HOST_SRCS)
 # BUILD client cache (torirsmaped/torirs_maped_build.h). The incremental config
 # pack writes IN PLACE into MAPED_LIVE_CACHE (copied from the base the first
 # time; cp_incremental.h), then the squares the editor saved go in by archive
-# (MAPED_MAP_ARCHIVES: `maps=<(x << 8) | z>` rows, written by the runner).
+# (MAPED_MAP_ARCHIVES: `maps=<(x << 8) | z>` rows, written by the runner), in
+# the same cachepack run: a second one loaded the names and opened the cache
+# again for one archive.
 #
 #   make -C src maped-client-cache MAPED_LIVE_CACHE=<lane live dir>/cache \
 #       [TORIRSSERVER_CONTENT_DIR=<tree>] [MAPED_MAP_ARCHIVES=<list>]
@@ -37,13 +39,11 @@ maped-client-cache:
 	@case "$(abspath $(MAPED_LIVE_CACHE))/" in "$(abspath $(TORIRSSERVER_CONTENT_DIR))"/*) \
 		echo "maped-client-cache: $(MAPED_LIVE_CACHE) is inside the content tree $(TORIRSSERVER_CONTENT_DIR)" >&2; \
 		exit 2;; esac
-	@$(SUBMAKE) --no-print-directory -C $(RSCACHE_DIR)/tools cachepack > /dev/null
+	$(if $(MAPED_RUN_TOOLS_BUILT),,@$(SUBMAKE) --no-print-directory -C $(RSCACHE_DIR)/tools cachepack > /dev/null)
 	cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack --incremental --src $(TORIRSSERVER_CONTENT_DIR) \
 		$(if $(wildcard $(TORIRSSERVER_CACHE_BASE)/main_file_cache.dat2),--base $(TORIRSSERVER_CACHE_BASE),) \
-		--out $(abspath $(MAPED_LIVE_CACHE)) --rev $(MAPED_CACHE_REV) --defaults=$(CACHEPACK_DEFAULTS)
-	$(if $(MAPED_MAP_ARCHIVES),cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack --asset-only --assets=maps \
-		--archive-list $(abspath $(MAPED_MAP_ARCHIVES)) --src $(TORIRSSERVER_CONTENT_DIR) \
-		--out $(abspath $(MAPED_LIVE_CACHE)) --rev $(MAPED_CACHE_REV),@true)
+		--out $(abspath $(MAPED_LIVE_CACHE)) --rev $(MAPED_CACHE_REV) --defaults=$(CACHEPACK_DEFAULTS) \
+		$(if $(MAPED_MAP_ARCHIVES),--assets=maps --archive-list $(abspath $(MAPED_MAP_ARCHIVES)),)
 
 # ---------------------------------------------------------------------------
 # RUN's build (torirsmaped/torirs_maped_build.h TORIRSMAPED_BUILD_RUN): the
@@ -52,9 +52,15 @@ maped-client-cache:
 # other -- RUN's "extremely long time before the client opens" (owner,
 # 2026-11-02): the first RUN of the day into build/live/default took 17:52 ->
 # 17:53:43 on this Mac. The cachepack tool is built once, serially, before the
-# two targets run under -j2 (both would otherwise rebuild it at the same
-# moment); sscompile is torirsserver-packs' own prerequisite. Command-line
-# variables reach the inner make through MAKEFLAGS.
+# two targets run (both would otherwise rebuild it at the same moment);
+# sscompile is torirsserver-packs' own prerequisite.
+#
+# ONE make: the editor runs `make -j2 maped-run-build`, and the two halves are
+# this make's own targets, ordered after maped-run-tools. It was a second
+# `$(MAKE) -j2` under this one, and parsing this makefile again was 0.45 s of a
+# warm RUN's 2.8 s (2026-11-07). make's error lines still name the half that
+# failed ("[torirsserver-packs]", "[maped-client-cache]"): the RUN message
+# reads them (torirs_maped_build.c).
 #
 # A BRAND-NEW lane (no pack.manifest in SERVPACK_OUT / TORIRSSERVER_SCRIPT_OUT /
 # TORIRSSERVER_PACKS_LANE_OUT) is seeded from the tree's own pack outputs,
@@ -63,7 +69,7 @@ maped-client-cache:
 # compile of each script pack. Skipped while the tree's pack is mid-write
 # (.pack.lock) and when the tree has none. Nothing is written under the tree.
 #
-#   make -C src maped-run-build TORIRSSERVER_CONTENT_DIR=<tree> \
+#   make -C src -j2 maped-run-build TORIRSSERVER_CONTENT_DIR=<tree> \
 #       TORIRSSERVER_SCRIPT_OUT=<live>/scripts TORIRSSERVER_PACKS_LANE_OUT=<live>/scripts_lanes \
 #       SERVPACK_OUT=<live>/servpack MAPED_LIVE_CACHE=<live>/cache [MAPED_MAP_ARCHIVES=<list>] \
 #       TORIRSSERVER_CACHE_BASE=<base cache> MAPED_CACHE_REV=osrs242 OBJVERIFY_SKIP=1
@@ -87,10 +93,19 @@ maped-lane-seed:
 maped-lane-packs: maped-lane-seed
 	@$(MAKE) --no-print-directory torirsserver-packs
 
-.PHONY: maped-run-build
-maped-run-build: maped-lane-seed
+.PHONY: maped-run-build maped-run-tools
+maped-run-tools: maped-lane-seed
 	@$(SUBMAKE) --no-print-directory -C $(RSCACHE_DIR)/tools cachepack > /dev/null
-	@$(MAKE) --no-print-directory -j2 torirsserver-packs maped-client-cache
+
+# Non-empty under `make maped-run-build`: maped-run-tools built cachepack, so
+# neither half (maped-client-cache, torirsserver-packs in src/makefile) asks
+# its makefile again: 0.12 s on each half of every RUN.
+MAPED_RUN_TOOLS_BUILT := $(filter maped-run-build,$(MAKECMDGOALS))
+ifneq ($(MAPED_RUN_TOOLS_BUILT),)
+torirsserver-packs maped-client-cache: | maped-run-tools
+endif
+
+maped-run-build: torirsserver-packs maped-client-cache
 
 # ---------------------------------------------------------------------------
 # BUILD, RUN and the live link against a real ToriRSMapEd (no chrome): the

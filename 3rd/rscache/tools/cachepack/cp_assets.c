@@ -854,6 +854,19 @@ parse_asset_list(
     return 1;
 }
 
+int
+cp_assets_selects(
+    const char* assets_csv,
+    int asset)
+{
+    unsigned mask = 0;
+
+    assert(asset >= 0 && asset < CP_ASSET_COUNT);
+    if( !parse_asset_list(assets_csv, &mask) )
+        return 0;
+    return mask == 0 || (mask & (1u << asset)) != 0;
+}
+
 /*
  * Optional archive-level selection for an on-the-fly cache overlay.
  *

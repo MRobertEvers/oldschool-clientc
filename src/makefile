@@ -5809,7 +5809,7 @@ TORIRSSERVER_PACKS_LANES ?= scape2009_summoning rs558_ancient_curses
 TORIRSSERVER_PACKS_LANE_OUT ?= $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning_curses
 .PHONY: torirsserver-packs
 torirsserver-packs: sscompile
-	@$(SUBMAKE) --no-print-directory -C $(RSCACHE_DIR)/tools cachepack > /dev/null
+	$(if $(MAPED_RUN_TOOLS_BUILT),,@$(SUBMAKE) --no-print-directory -C $(RSCACHE_DIR)/tools cachepack > /dev/null)
 	@cd $(REPO_ROOT) && python3 tools/build_packs.py \
 		--sscompile src/$(SSC_BIN) --cachepack $(CACHEPACK_BIN) \
 		--content $(TORIRSSERVER_CONTENT_DIR) \

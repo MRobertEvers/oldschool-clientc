@@ -1124,9 +1124,10 @@ collect_input_list(
     const char* srcdir,
     const char* const* lanes,
     int lane_count,
+    struct RSCache_EntryKinds* kinds,
     char*** out_rels)
 {
-    int count = RSCache_ServerPackInputs(srcdir, lanes, lane_count, out_rels);
+    int count = RSCache_ServerPackInputsKinds(srcdir, lanes, lane_count, kinds, out_rels);
     char** rels = *out_rels;
 
     rels = (char**)realloc(rels, (size_t)(count + 2) * sizeof(char*));
@@ -1241,7 +1242,15 @@ cp_server_up_to_date(
         if( at < 0 || state.inputs[at].hash != hash_u64(binary, lanes_digest(lanes, lane_count)) )
             fresh = 0;
     }
-    count = fresh ? collect_input_list(srcdir, lanes, lane_count, &rels) : 0;
+    if( fresh )
+    {
+        struct RSCache_EntryKinds* kinds = RSCache_EntryKindsNew();
+
+        count = collect_input_list(srcdir, lanes, lane_count, kinds, &rels);
+        RSCache_EntryKindsFree(kinds);
+    }
+    else
+        count = 0;
     for( int i = 0; i < count && fresh; i++ )
     {
         struct stat info;
@@ -1502,7 +1511,7 @@ cp_pack_server_incremental(
 
     /* --- the inputs, and the global key --- */
     mark = now_seconds();
-    rel_count = collect_input_list(ctx->srcdir, ctx->lanes, ctx->lane_count, &rels);
+    rel_count = collect_input_list(ctx->srcdir, ctx->lanes, ctx->lane_count, cp_entry_kinds(ctx), &rels);
     global = hash_u64(0x8bb84b93962eacc9ull, STATE_FORMAT);
     global = hash_u64(global, executable_hash(NULL));
     global = hash_u64(global, lanes_digest(ctx->lanes, ctx->lane_count));
@@ -2032,6 +2041,8 @@ cp_pack_client_incremental(
     {
         if( base_cache_dir )
         {
+            if( !cp_check_base_identity(ctx->srcdir, base_cache_dir) )
+                return 0;
             printf("Copying %s -> %s (first incremental build)\n", base_cache_dir, out_cache_dir);
             if( tool_copy_cache_dir(base_cache_dir, out_cache_dir) != 0 )
             {
@@ -2083,7 +2094,7 @@ cp_pack_client_incremental(
 
     /* The global key: the server pack's, under its own seed, plus the
      * selection (a --types build keys only what it packed). */
-    rel_count = collect_input_list(ctx->srcdir, ctx->lanes, ctx->lane_count, &rels);
+    rel_count = collect_input_list(ctx->srcdir, ctx->lanes, ctx->lane_count, cp_entry_kinds(ctx), &rels);
     global = hash_u64(0x3c6ef372fe94f82bull, STATE_FORMAT);
     global = hash_u64(global, executable_hash(NULL));
     global = hash_u64(global, lanes_digest(ctx->lanes, ctx->lane_count));

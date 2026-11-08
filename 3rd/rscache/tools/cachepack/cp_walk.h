@@ -58,11 +58,15 @@ struct CP_Walk
  * Walk `<srcdir>/<dir>` for each declared root, recursively.
  *
  * Returns the number of files recorded. A root that does not exist is skipped
- * silently: a tree that carries no `server/` is a normal tree.
+ * silently: a tree that carries no `server/` is a normal tree. An entry d_type
+ * does not type (a symlink) is typed through `kinds` (rscache_serverpack.h).
  */
+struct RSCache_EntryKinds;
+
 int
 cp_walk_tree(
     struct CP_Walk* walk,
+    struct RSCache_EntryKinds* kinds,
     const char* srcdir,
     const char* const* roots,
     const int* ranks,

@@ -703,6 +703,16 @@ struct Build
     struct Map input_by_path;
     struct Map previous_input_by_path;
 
+    /* SSC_DirEntryIsDir's answer per entry path, for this build. An editor
+     * lane's content is one symlink per file (d_type DT_LNK, so each answer
+     * is a stat through the link), and the source walk and the inputs check
+     * type the same ~56,000 entries under server/scripts: once each, not
+     * twice. */
+    struct EntryKind* entry_kinds;
+    int entry_kind_count;
+    int entry_kind_capacity;
+    struct Map entry_kind_by_path;
+
     struct SSC_Symbols symbols;
     int symbols_loaded;
     struct SSC_Compiler* compiler;
@@ -725,6 +735,12 @@ logf_(struct Build* build, int to_stdout, const char* fmt, ...)
     if( to_stdout )
         fputs(line, stdout);
 }
+
+struct EntryKind
+{
+    char* path;
+    int is_dir; /* SSC_DirEntryIsDir: 1, 0, or -1 when the stat failed */
+};
 
 /* --- map adaptors --- */
 
@@ -782,6 +798,63 @@ input_path_equal(void* context, int32_t value, const void* key)
     const struct Build* build = (const struct Build*)context;
 
     return strcmp(build->inputs[value].path, (const char*)key) == 0;
+}
+
+static int
+entry_kind_path_equal(void* context, int32_t value, const void* key)
+{
+    const struct Build* build = (const struct Build*)context;
+
+    return strcmp(build->entry_kinds[value].path, (const char*)key) == 0;
+}
+
+static int build_entry_is_dir(struct Build* build, const struct dirent* entry, const char* path);
+
+/** The symbol loaders' SSC_EntryIsDirAsker: the build's own answers. */
+static int
+symbols_entry_is_dir(void* context, const struct dirent* entry, const char* path)
+{
+    return build_entry_is_dir((struct Build*)context, entry, path);
+}
+
+/** SSC_DirEntryIsDir, asked once per path in a build (struct Build). */
+static int
+build_entry_is_dir(
+    struct Build* build,
+    const struct dirent* entry,
+    const char* path)
+{
+    uint64_t hash;
+    int32_t found;
+    int is_dir;
+
+#ifdef DT_DIR
+    if( entry->d_type == DT_DIR )
+        return 1;
+    if( entry->d_type == DT_REG )
+        return 0;
+#endif
+    hash = ssc_hash_str(SSC_HASH_SEED, path);
+    found = map_find(&build->entry_kind_by_path, hash, path, entry_kind_path_equal, build);
+    if( found >= 0 )
+        return build->entry_kinds[found].is_dir;
+    is_dir = SSC_DirEntryIsDir(entry, path);
+    if( build->entry_kind_count == build->entry_kind_capacity )
+    {
+        build->entry_kind_capacity = build->entry_kind_capacity ? build->entry_kind_capacity * 2 : 1024;
+        build->entry_kinds = (struct EntryKind*)ToriMem_Realloc(
+            ToriMem_Compiler(),
+            build->entry_kinds,
+            (size_t)build->entry_kind_capacity * sizeof(struct EntryKind));
+        assert(build->entry_kinds);
+    }
+    build->entry_kinds[build->entry_kind_count].path = ToriMem_Strdup(ToriMem_Compiler(), path);
+    assert(build->entry_kinds[build->entry_kind_count].path);
+    build->entry_kinds[build->entry_kind_count].is_dir = is_dir;
+    map_insert(&build->entry_kind_by_path, hash, build->entry_kinds[build->entry_kind_count].path,
+               build->entry_kind_count, entry_kind_path_equal, build);
+    build->entry_kind_count++;
+    return is_dir;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1206,6 +1279,7 @@ struct WalkList
  * d_type instead of stat()ing every entry: only a `.rs2` is stat'd. */
 static void
 walk_sources(
+    struct Build* build,
     const char* dir,
     const char* const* excludes,
     int exclude_count,
@@ -1233,12 +1307,12 @@ walk_sources(
             continue;
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
         length = strlen(entry->d_name);
-        is_dir = SSC_DirEntryIsDir(entry, path);
+        is_dir = build_entry_is_dir(build, entry, path);
         if( is_dir < 0 )
             continue;
         if( is_dir )
         {
-            walk_sources(path, excludes, exclude_count, list);
+            walk_sources(build, path, excludes, exclude_count, list);
             continue;
         }
         if( length < 4 || strcmp(entry->d_name + length - 4, ".rs2") != 0 )
@@ -1307,7 +1381,9 @@ compare_names(const void* a, const void* b)
 }
 
 static uint64_t
-dir_listing_hash(const char* dir)
+dir_listing_hash(
+    struct Build* build,
+    const char* dir)
 {
     DIR* handle = opendir(dir);
     struct dirent* entry;
@@ -1327,7 +1403,7 @@ dir_listing_hash(const char* dir)
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        is_dir = SSC_DirEntryIsDir(entry, path);
+        is_dir = build_entry_is_dir(build, entry, path);
         if( is_dir < 0 || (!is_dir && !symbol_source_name(entry->d_name)) )
             continue;
         snprintf(name, sizeof(name), "%s%s", entry->d_name, is_dir ? "/" : "");
@@ -1399,7 +1475,7 @@ observe_input(void* context, const char* path, int is_dir)
     input->mtime = stat_mtime_ns(&info);
     if( is_dir )
     {
-        input->hash = dir_listing_hash(path);
+        input->hash = dir_listing_hash(build, path);
         return;
     }
     /* The previous build's hash, when nothing about the file moved. */
@@ -1442,7 +1518,7 @@ inputs_changed(struct Build* build, const char** changed, int max)
         }
         else if( input->is_dir )
         {
-            moved = dir_listing_hash(input->path) != input->hash;
+            moved = dir_listing_hash(build, input->path) != input->hash;
         }
         else if( (int64_t)info.st_size == input->size && stat_mtime_ns(&info) == input->mtime )
         {
@@ -1721,10 +1797,12 @@ load_symbols_once(struct Build* build)
         return 1;
     SSC_SymbolsInit(&build->symbols);
     build->symbols.observe_input = observe_input;
+    build->symbols.entry_is_dir = symbols_entry_is_dir;
     build->symbols.observe_context = build;
     if( !build->options->load_symbols(build->options->load_context, &build->symbols) )
         return 0;
     build->symbols.observe_input = NULL;
+    build->symbols.entry_is_dir = NULL;
     build->symbols_loaded = 1;
     return 1;
 }
@@ -1867,6 +1945,7 @@ SSC_BuildPack(const struct SSC_BuildOptions* options)
     map_init(&build->id_by_name);
     map_init(&build->query_by_key);
     map_init(&build->input_by_path);
+    map_init(&build->entry_kind_by_path);
 
     if( !lock_take(&lock, options->out) )
     {
@@ -1945,7 +2024,7 @@ SSC_BuildPack(const struct SSC_BuildOptions* options)
             assert(kept_count < (int)(sizeof(kept) / sizeof(kept[0])));
             kept[kept_count++] = exclusion;
         }
-        walk_sources(options->roots[i].dir, kept, kept_count,
+        walk_sources(build, options->roots[i].dir, kept, kept_count,
                      options->roots[i].weak ? &weak : &strong);
     }
     qsort(strong.files, (size_t)strong.count, sizeof(struct WalkFile), walk_file_compare);
@@ -2582,6 +2661,10 @@ done:
     map_free(&build->query_by_key);
     map_free(&build->input_by_path);
     map_free(&build->previous_input_by_path);
+    for( int i = 0; i < build->entry_kind_count; i++ )
+        ToriMem_Free(ToriMem_Compiler(), build->entry_kinds[i].path);
+    ToriMem_Free(ToriMem_Compiler(), build->entry_kinds);
+    map_free(&build->entry_kind_by_path);
     state_free(&build->previous);
     return status;
 }

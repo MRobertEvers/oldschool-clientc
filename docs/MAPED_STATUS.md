@@ -826,6 +826,59 @@ Tests: live_editor_test (the RUN build's command, the one job, both
 failure halves named, progress rows in order), maped-live-e2e-play (RUN (A)
 and (B) timings printed), maped_daemon_test.sh.
 
+### The warm build again (2026-11-07)
+
+Owner: "I want that warm build to be extremely fast." The last RUN on
+`build/lanes/working` spent 5.1 s of 6.1 s in the build step with nothing to
+rebuild. Profiled on a copy of that lane (its content is the mirror: one
+symlink per file, ~102,000), with `sample`, a recipe-line timestamp `SHELL`,
+and a stat-counting dyld interposer. The cost was the filesystem, not the
+tools' work: a no-change build made ~480,000 `stat()` calls, ~185,000 of them
+on a path the same process had already stat'd. Every walker types entries by
+`d_type` and stats only what it cannot type, but every mirror entry is a
+`DT_LNK`, so every entry is a stat through its link (~3 us; one pass over
+`server/` is ~175 ms). Fixes:
+
+1. **One make.** `make -j2 maped-run-build` runs both halves as its own
+   targets, ordered after `maped-run-tools` (the seed, cachepack once). It was
+   a `$(MAKE) -j2` under it, and parsing src/makefile twice plus a cachepack
+   check per half was ~0.7 s. make's error lines still name the half.
+2. **The CS2 link check only when the client scripts were imported**
+   (`cp_assets_selects`): the one-square `--assets=maps` import linked every
+   script in the table, 0.4 s for an archive no script reads.
+3. **The square goes in with the config pack**: `--incremental` takes
+   `--assets=<kinds> --archive-list F` (a bare `--assets` is still refused),
+   one cachepack run instead of a second that loaded the names and opened the
+   cache again.
+4. **The base identity check where the base is copied** (the first build): a
+   later incremental pack never reads the base, and the check is a crc of its
+   whole 252 MB dat2.
+5. **One stat per entry per process.** `RSCache_EntryKinds`
+   (rscache_serverpack.h) remembers each symlinked entry's directory-or-not
+   for cachepack's content walk and the server-pack input list it shares;
+   sscompile's build does the same for its source walk, its inputs check and
+   the symbol loaders (`SSC_Symbols.entry_is_dir`, ssc_build.c). The symbol
+   table's three loader walks were 1 s of a one-script edit.
+6. **ss_allocate's stamp types entries without following links**: `os.walk`
+   never enters a symlinked directory, so the link is a name like any other.
+
+Measured interleaved against HEAD's toolchain on two copies of the lane
+(medians; outputs compared: both script.dat byte-identical, server and client
+packs "0 archive(s) changed" each way, `cachepack verify` exact for loc and
+the 2,950 squares after a config commit and a square in one run):
+
+| warm RUN build                       | before | now    |
+|--------------------------------------|--------|--------|
+| nothing changed (one saved square)   | 2.24 s | 0.97 s |
+| one `.rs2` edited                    | 3.35 s | 1.43 s |
+
+A changed cachepack or sscompile binary changes the incremental state's key:
+the first RUN after this lands repacks the lane once (~25 s).
+
+Left: four processes each resolve the mirror's links once (both script packs,
+the server pack check, the client pack), and src/makefile's parse (~0.25 s,
+its `$(shell)` probes included) is the floor of any make-driven RUN.
+
 ## Accounts (2026-11-02)
 
 The lane's player saves, managed from the editor (row 16b; the module header

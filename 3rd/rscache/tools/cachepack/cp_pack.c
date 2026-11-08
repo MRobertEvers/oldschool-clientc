@@ -54,6 +54,15 @@
  * Pack lines all load up front, so the order only matters for reporting.
  */
 
+struct RSCache_EntryKinds*
+cp_entry_kinds(struct CP_Ctx* ctx)
+{
+    assert(ctx);
+    if( !ctx->entry_kinds )
+        ctx->entry_kinds = RSCache_EntryKindsNew();
+    return ctx->entry_kinds;
+}
+
 void
 cp_walk_content(struct CP_Ctx* ctx)
 {
@@ -75,7 +84,7 @@ cp_walk_content(struct CP_Ctx* ctx)
     }
     roots[count] = "server/scripts";
     ranks[count++] = 1;
-    cp_walk_tree(&ctx->walk, ctx->srcdir, roots, ranks, count);
+    cp_walk_tree(&ctx->walk, cp_entry_kinds(ctx), ctx->srcdir, roots, ranks, count);
 }
 
 int

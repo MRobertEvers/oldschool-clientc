@@ -816,6 +816,18 @@ SSC_DirEntryIsDir(
     return (info.st_mode & S_IFDIR) != 0;
 }
 
+/** SSC_DirEntryIsDir, through the build's asker when it set one. */
+static int
+symbols_entry_is_dir(
+    const struct SSC_Symbols* symbols,
+    const struct dirent* entry,
+    const char* path)
+{
+    if( symbols->entry_is_dir )
+        return symbols->entry_is_dir(symbols->observe_context, entry, path);
+    return SSC_DirEntryIsDir(entry, path);
+}
+
 /*
  * Every file and directory the loaders read goes through these two, so an
  * incremental build (ssc_build.c) learns the complete set of symbol inputs
@@ -908,7 +920,7 @@ SSC_SymbolsLoadPackDir(
          * Recurse. `SSC_SymbolsLoadConstantDir` below already does, and this one
          * not doing so is why nothing under a subdirectory was ever reachable.
          */
-        if( SSC_DirEntryIsDir(entry, path) == 1 )
+        if( symbols_entry_is_dir(symbols, entry, path) == 1 )
         {
             if( entry->d_name[0] != '.' )
             {
@@ -1021,6 +1033,7 @@ SSC_SymbolsLoadComponentDir(
                  ifaces[i].name);
         SSC_SymbolsInit(&children);
         children.observe_input = symbols->observe_input;
+        children.entry_is_dir = symbols->entry_is_dir;
         children.observe_context = symbols->observe_context;
         if( SSC_SymbolsLoadPack(&children, path, SSC_SYM_COMPONENT) > 0 )
         {
@@ -1064,7 +1077,7 @@ SSC_SymbolsLoadConstantDir(
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        is_dir = SSC_DirEntryIsDir(entry, path);
+        is_dir = symbols_entry_is_dir(symbols, entry, path);
         if( is_dir < 0 )
             continue;
 
@@ -1260,7 +1273,7 @@ SSC_SymbolsLoadDbTableDir(
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        is_dir = SSC_DirEntryIsDir(entry, path);
+        is_dir = symbols_entry_is_dir(symbols, entry, path);
         if( is_dir < 0 )
             continue;
 
@@ -1589,7 +1602,7 @@ SSC_SymbolsLoadVarpDecls(
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        is_dir = SSC_DirEntryIsDir(entry, path);
+        is_dir = symbols_entry_is_dir(symbols, entry, path);
         if( is_dir < 0 )
             continue;
         if( is_dir )

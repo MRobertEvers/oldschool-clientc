@@ -4,6 +4,7 @@
 
 #include "cp_assets.h"
 #include "cp_import.h"
+#include "rscache_serverpack.h"
 #include "cache_write.h"
 #include "tool_profile.h"
 
@@ -27,6 +28,7 @@ usage(void)
         "                   --assets=interfaces,scripts [--archive-list FILE]\n"
         "  cachepack pack   --src DIR --server-only [--lane NAME]... [--server-out DIR] [--force]\n"
         "  cachepack pack   --src DIR --out DIR --incremental [--base DIR] [--rev NAME] [--types a,b]\n"
+        "                   [--assets=<kinds> --archive-list FILE]\n"
         "  (either pack)    [--defaults=warn|error] [--defaults-report FILE]\n"
         "  cachepack verify --cache DIR --rev NAME --src DIR [--types a,b]\n"
         "                   [--assets[=models,sprites]] [--tmp DIR]\n"
@@ -121,7 +123,9 @@ usage(void)
         "                  --base the first time): only the types whose inputs moved\n"
         "                  repack, only the archives whose records differ are written,\n"
         "                  and the reference table is bumped. <out>/client.changed\n"
-        "                  lists what was written (cp_incremental.h).\n"
+        "                  lists what was written (cp_incremental.h). With\n"
+        "                  --assets=<kinds> --archive-list F, those archives are then\n"
+        "                  imported into it, as --asset-only would.\n"
         "  --tmp DIR       scratch directory for `verify --assets` (default\n"
         "                  build/cachepack_verify). Never the content tree.\n"
         "  --warn N        cap repeated warnings at N per kind (-1 for no cap, default 20)\n"
@@ -690,12 +694,18 @@ main(int argc, char** argv)
             cp_names_free(&ctx.names);
             return 1;
         }
-        if( incremental && (check_only || server_only || asset_only || want_assets || want_binary ||
-                            want_gamevals) )
+        /* An archive overlay (named kinds, an archive list) is the one asset
+         * import an incremental pack takes: the editor's RUN imports the
+         * squares it saved into the cache it just packed, in one process
+         * instead of a second cachepack that loads the names and opens the
+         * cache again. */
+        bool const overlay = want_assets && asset_kinds && archive_list_path;
+        if( incremental && (check_only || server_only || asset_only || (want_assets && !overlay) ||
+                            want_binary || want_gamevals) )
         {
             fprintf(stderr, "cachepack: --incremental packs the client configs alone; it cannot be "
-                            "combined with --check-only, --server-only, --asset-only, --assets, "
-                            "--binary or --gamevals\n");
+                            "combined with --check-only, --server-only, --asset-only, --assets "
+                            "(but --assets=<kinds> --archive-list F), --binary or --gamevals\n");
             cp_names_free(&ctx.names);
             return 1;
         }
@@ -766,13 +776,15 @@ main(int argc, char** argv)
         {
             /* The client cache in place (cp_incremental.h): only the types
              * whose inputs moved, only the archives whose records did. The
-             * raw groups and assets are the cache's already. */
-            if( base_dir && !cp_check_base_identity(src_dir, base_dir) )
-            {
-                cp_names_free(&ctx.names);
-                return 1;
-            }
+             * raw groups and assets are the cache's already. The base is
+             * checked where it is copied, the first build only: a later one
+             * never reads it, and the check is a crc of its whole dat2. */
             rc = cp_pack_client_incremental(&ctx, &sel, base_dir, out_dir) ? 0 : 1;
+            /* The target is a complete cache whether or not this run changed
+             * an archive of it (seeded from --base, or packed before), as an
+             * --asset-only target is: an overlay may go in. */
+            if( rc == 0 )
+                ctx.cache_committed = true;
         }
         else
         {
@@ -826,7 +838,11 @@ main(int argc, char** argv)
             if( !cp_binary_import(&ctx, out_dir) )
                 rc = 1;
         }
-        if( want_assets && ctx.cache_open && writable && !check_only && rc == 0 )
+        /* Only when the import wrote the client scripts: an `--assets=maps`
+         * overlay (the editor's RUN, one square) changes nothing a script
+         * links against, and linking every script in the table is 0.4 s. */
+        if( want_assets && ctx.cache_open && writable && !check_only && rc == 0 &&
+            cp_assets_selects(asset_kinds, CP_ASSET_SCRIPT) )
         {
             if( !cp_scripts_link_check(&ctx) )
                 rc = 1;
@@ -870,5 +886,6 @@ main(int argc, char** argv)
         tool_dat2_close(&ctx.compare);
     cp_names_free(&ctx.names);
     free(ctx.param_types);
+    RSCache_EntryKindsFree(ctx.entry_kinds);
     return rc;
 }

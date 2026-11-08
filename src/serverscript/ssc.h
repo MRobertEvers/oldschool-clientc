@@ -235,6 +235,11 @@ enum SSC_Query
 typedef void (*SSC_QueryObserver)(void* context, int query, const char* name, int32_t arg);
 /** `is_dir`: a directory listed, or searched for a file that was not there. */
 typedef void (*SSC_InputObserver)(void* context, const char* path, int is_dir);
+struct dirent;
+/** SSC_DirEntryIsDir's question, answered by the incremental build from what
+ *  it already knows (ssc_build.c): an editor lane's tree is one symlink per
+ *  file, and every loader's walk would stat the same ~56,000 again. */
+typedef int (*SSC_EntryIsDirAsker)(void* context, const struct dirent* entry, const char* path);
 
 /** One distinct name's chain in the symbol index: its first and last entry. */
 struct SSC_SymbolSlot
@@ -263,6 +268,8 @@ struct SSC_Symbols
     /** Optional observers; NULL for an ordinary build. */
     SSC_QueryObserver observe;
     SSC_InputObserver observe_input;
+    /** The loaders' directory test; NULL: SSC_DirEntryIsDir. */
+    SSC_EntryIsDirAsker entry_is_dir;
     void* observe_context;
 
     /** Carriers, keyed by varp id, in insertion order. See SSC_SymbolsCarrier. */

@@ -684,6 +684,9 @@ struct CP_Ctx
 
     /** Source files found by extension, built once per pack run (cp_walk.h). */
     struct CP_Walk walk;
+    /** The directory-or-not answers of every walk this run (cp_walk_content,
+     *  the server pack's input list): one stat per symlinked entry. */
+    struct RSCache_EntryKinds* entry_kinds;
 
     /**
      * Previous revision's cache, opened for LC-style unpack diffs.
@@ -1131,6 +1134,10 @@ cp_intlist_push(
 
 void
 cp_intlist_free(struct CP_IntList* list);
+
+/** The run's RSCache_EntryKinds (ctx->entry_kinds), made on first use. */
+struct RSCache_EntryKinds*
+cp_entry_kinds(struct CP_Ctx* ctx);
 
 /** Walk the content roots every command merges: `configs` (rank 0), each
  *  `--lane`'s `ported/<lane>/configs`, then `server/scripts`. */

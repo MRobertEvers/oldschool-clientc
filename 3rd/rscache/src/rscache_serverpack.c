@@ -399,10 +399,130 @@ fingerprint_config_file(const char* name)
     return 0;
 }
 
+/* ---- entry kinds -------------------------------------------------------------- */
+
+struct RSCache_EntryKinds
+{
+    uint64_t* hashes;
+    char** paths; /* NULL: an empty slot */
+    signed char* kinds;
+    uint32_t capacity;
+    uint32_t used;
+};
+
+static uint64_t
+entry_kinds_hash(const char* path)
+{
+    uint64_t hash = 14695981039346656037ull;
+
+    for( const char* p = path; *p; p++ )
+    {
+        hash ^= (uint8_t)*p;
+        hash *= 1099511628211ull;
+    }
+    return hash;
+}
+
+/* The slot holding `path`, or the empty one it would go in. */
+static uint32_t
+entry_kinds_slot(
+    const struct RSCache_EntryKinds* kinds,
+    uint64_t hash,
+    const char* path)
+{
+    uint32_t const mask = kinds->capacity - 1;
+    uint32_t slot = (uint32_t)hash & mask;
+
+    while( kinds->paths[slot] && (kinds->hashes[slot] != hash || strcmp(kinds->paths[slot], path) != 0) )
+        slot = (slot + 1) & mask;
+    return slot;
+}
+
+static void
+entry_kinds_grow(struct RSCache_EntryKinds* kinds)
+{
+    struct RSCache_EntryKinds old = *kinds;
+
+    kinds->capacity = old.capacity ? old.capacity * 2 : 4096;
+    kinds->hashes = RSCACHE_CALLOC(kinds->capacity, sizeof(*kinds->hashes));
+    kinds->paths = RSCACHE_CALLOC(kinds->capacity, sizeof(*kinds->paths));
+    kinds->kinds = RSCACHE_CALLOC(kinds->capacity, sizeof(*kinds->kinds));
+    assert(kinds->hashes);
+    assert(kinds->paths);
+    assert(kinds->kinds);
+    for( uint32_t i = 0; i < old.capacity; i++ )
+    {
+        uint32_t slot;
+
+        if( !old.paths[i] )
+            continue;
+        slot = entry_kinds_slot(kinds, old.hashes[i], old.paths[i]);
+        kinds->hashes[slot] = old.hashes[i];
+        kinds->paths[slot] = old.paths[i];
+        kinds->kinds[slot] = old.kinds[i];
+    }
+    RSCACHE_FREE(old.hashes);
+    RSCACHE_FREE(old.paths);
+    RSCACHE_FREE(old.kinds);
+}
+
+struct RSCache_EntryKinds*
+RSCache_EntryKindsNew(void)
+{
+    struct RSCache_EntryKinds* kinds = RSCACHE_CALLOC(1, sizeof(*kinds));
+
+    assert(kinds);
+    entry_kinds_grow(kinds);
+    return kinds;
+}
+
+void
+RSCache_EntryKindsFree(struct RSCache_EntryKinds* kinds)
+{
+    if( !kinds )
+        return;
+    for( uint32_t i = 0; i < kinds->capacity; i++ )
+        RSCACHE_FREE(kinds->paths[i]);
+    RSCACHE_FREE(kinds->hashes);
+    RSCACHE_FREE(kinds->paths);
+    RSCACHE_FREE(kinds->kinds);
+    RSCACHE_FREE(kinds);
+}
+
+int
+RSCache_EntryKindsIsDir(
+    struct RSCache_EntryKinds* kinds,
+    const char* path)
+{
+    uint64_t const hash = entry_kinds_hash(path);
+    struct stat info;
+    uint32_t slot;
+    int kind;
+
+    assert(kinds);
+    assert(path);
+    slot = entry_kinds_slot(kinds, hash, path);
+    if( kinds->paths[slot] )
+        return kinds->kinds[slot];
+    kind = stat(path, &info) != 0 ? -1 : S_ISDIR(info.st_mode) ? 1 : 0;
+    if( (kinds->used + 1) * 2 > kinds->capacity )
+    {
+        entry_kinds_grow(kinds);
+        slot = entry_kinds_slot(kinds, hash, path);
+    }
+    kinds->hashes[slot] = hash;
+    kinds->paths[slot] = RSCache_Strdup(path);
+    assert(kinds->paths[slot]);
+    kinds->kinds[slot] = (signed char)kind;
+    kinds->used++;
+    return kind;
+}
+
 /* Every file under `dir` (relative path `rel`), or only config files. */
 static void
 fingerprint_walk(
     struct FingerprintFiles* files,
+    struct RSCache_EntryKinds* kinds,
     const char* srcdir,
     const char* rel,
     int configs_only,
@@ -420,7 +540,6 @@ fingerprint_walk(
     {
         char child[2048];
         char path[2048];
-        struct stat info;
         int is_dir = -1;
 
         if( entry->d_name[0] == '.' )
@@ -437,13 +556,13 @@ fingerprint_walk(
 #endif
         if( is_dir < 0 )
         {
-            if( stat(path, &info) != 0 )
+            is_dir = RSCache_EntryKindsIsDir(kinds, path);
+            if( is_dir < 0 )
                 continue;
-            is_dir = S_ISDIR(info.st_mode) ? 1 : 0;
         }
         if( is_dir )
         {
-            fingerprint_walk(files, srcdir, child, configs_only, only_extension);
+            fingerprint_walk(files, kinds, srcdir, child, configs_only, only_extension);
             continue;
         }
         if( configs_only && !fingerprint_config_file(entry->d_name) )
@@ -509,22 +628,23 @@ mix_bytes(
 static void
 fingerprint_collect(
     struct FingerprintFiles* files,
+    struct RSCache_EntryKinds* kinds,
     const char* srcdir,
     const char* const* lanes,
     int lane_count)
 {
     memset(files, 0, sizeof(*files));
-    fingerprint_walk(files, srcdir, "configs", 0, NULL);
-    fingerprint_walk(files, srcdir, "fields", 0, NULL);
-    fingerprint_walk(files, srcdir, "pack", 0, NULL);
-    fingerprint_walk(files, srcdir, "interfaces", 0, "compack");
-    fingerprint_walk(files, srcdir, "server/scripts", 1, NULL);
+    fingerprint_walk(files, kinds, srcdir, "configs", 0, NULL);
+    fingerprint_walk(files, kinds, srcdir, "fields", 0, NULL);
+    fingerprint_walk(files, kinds, srcdir, "pack", 0, NULL);
+    fingerprint_walk(files, kinds, srcdir, "interfaces", 0, "compack");
+    fingerprint_walk(files, kinds, srcdir, "server/scripts", 1, NULL);
     for( int l = 0; l < lane_count; l++ )
     {
         char rel[512];
 
         snprintf(rel, sizeof(rel), "ported/%s/configs", lanes[l]);
-        fingerprint_walk(files, srcdir, rel, 0, NULL);
+        fingerprint_walk(files, kinds, srcdir, rel, 0, NULL);
     }
     {
         char dir[2048];
@@ -540,12 +660,32 @@ fingerprint_collect(
             if( entry->d_name[0] == '.' )
                 continue;
             snprintf(rel, sizeof(rel), "ported/%s/pack", entry->d_name);
-            fingerprint_walk(files, srcdir, rel, 0, NULL);
+            fingerprint_walk(files, kinds, srcdir, rel, 0, NULL);
         }
         if( handle )
             closedir(handle);
     }
     qsort(files->paths, (size_t)files->count, sizeof(*files->paths), fingerprint_order);
+}
+
+int
+RSCache_ServerPackInputsKinds(
+    const char* srcdir,
+    const char* const* lanes,
+    int lane_count,
+    struct RSCache_EntryKinds* kinds,
+    char*** out_paths)
+{
+    struct FingerprintFiles files;
+
+    assert(srcdir);
+    assert(kinds);
+    assert(out_paths);
+    assert(lane_count >= 0);
+    assert(lane_count == 0 || lanes);
+    fingerprint_collect(&files, kinds, srcdir, lanes, lane_count);
+    *out_paths = files.paths;
+    return files.count;
 }
 
 int
@@ -555,15 +695,11 @@ RSCache_ServerPackInputs(
     int lane_count,
     char*** out_paths)
 {
-    struct FingerprintFiles files;
+    struct RSCache_EntryKinds* kinds = RSCache_EntryKindsNew();
+    int const count = RSCache_ServerPackInputsKinds(srcdir, lanes, lane_count, kinds, out_paths);
 
-    assert(srcdir);
-    assert(out_paths);
-    assert(lane_count >= 0);
-    assert(lane_count == 0 || lanes);
-    fingerprint_collect(&files, srcdir, lanes, lane_count);
-    *out_paths = files.paths;
-    return files.count;
+    RSCache_EntryKindsFree(kinds);
+    return count;
 }
 
 uint64_t
@@ -585,7 +721,12 @@ RSCache_ServerPackFingerprint(
     assert(lane_count >= 0);
     assert(lane_count == 0 || lanes);
     assert(chunk);
-    fingerprint_collect(&files, srcdir, lanes, lane_count);
+    {
+        struct RSCache_EntryKinds* kinds = RSCache_EntryKindsNew();
+
+        fingerprint_collect(&files, kinds, srcdir, lanes, lane_count);
+        RSCache_EntryKindsFree(kinds);
+    }
 
     hash = fnv1a(hash, &version, sizeof(version));
     for( int l = 0; l < lane_count; l++ )

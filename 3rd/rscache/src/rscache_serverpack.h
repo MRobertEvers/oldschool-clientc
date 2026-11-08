@@ -242,6 +242,38 @@ RSCache_ServerPackInputs(
     int lane_count,
     char*** out_paths);
 
+/*
+ * Is a directory entry whose d_type does not say (a symlink, DT_UNKNOWN) a
+ * directory? Answered by stat() once per path, then remembered. An editor
+ * lane's content is a mirror of one symlink per file, so every entry is such
+ * a one, each stat goes through its link, and a tool that walks the tree twice
+ * (cachepack's content walk, then the server pack's input list) paid for the
+ * ~56,000 entries under server/scripts twice. Only for a walk over a tree that
+ * does not change type under it: one tool run, never a long-lived process.
+ */
+struct RSCache_EntryKinds;
+
+struct RSCache_EntryKinds*
+RSCache_EntryKindsNew(void);
+
+void
+RSCache_EntryKindsFree(struct RSCache_EntryKinds* kinds);
+
+/** 1 for a directory, 0 for anything else, -1 when stat() fails. */
+int
+RSCache_EntryKindsIsDir(
+    struct RSCache_EntryKinds* kinds,
+    const char* path);
+
+/** RSCache_ServerPackInputs, typing entries through `kinds`. */
+int
+RSCache_ServerPackInputsKinds(
+    const char* srcdir,
+    const char* const* lanes,
+    int lane_count,
+    struct RSCache_EntryKinds* kinds,
+    char*** out_paths);
+
 uint64_t
 RSCache_ServerPackFingerprint(
     const char* srcdir,

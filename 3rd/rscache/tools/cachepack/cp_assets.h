@@ -242,6 +242,13 @@ cp_assets_verify(
 int
 cp_asset_by_name(const char* dir);
 
+/** 1 when an `--assets=` list selects `asset`: an empty or absent list
+ *  selects every kind. 0 for a list naming an unknown kind. */
+int
+cp_assets_selects(
+    const char* assets_csv,
+    int asset);
+
 /** Sentinel `size` meaning "this is a whole archive, do not sniff it". */
 #define CP_ASSET_SIZE_ARCHIVE (-1)
 

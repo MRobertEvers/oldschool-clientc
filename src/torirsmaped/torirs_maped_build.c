@@ -599,6 +599,10 @@ ToriRSMapEd_BuildCommand(
     build_arg(out, "-C%s%s", "", "");
     build_arg(out, "%s/src%s", lane->repo_root, "");
     build_arg(out, "--no-print-directory%s%s", "", "");
+    /* maped-run-build's two halves run side by side in this one make: a
+     * second make under it parsed src/makefile again (0.45 s a RUN). */
+    if( job->what == TORIRSMAPED_BUILD_RUN )
+        build_arg(out, "-j2%s%s", "", "");
     /* src/maped/live-editor.mk: maped-lane-packs seeds a brand-new lane from
      * the tree's own pack outputs, then tools/build_packs.py under the
      * project's own target (allocation, the base and lane script packs and

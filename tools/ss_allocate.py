@@ -398,6 +398,13 @@ def open(file, mode='r', *args, **kwargs):  # noqa: A001 — records what is rea
 # its mtime: packs, logs and this stamp are written into server/scripts/build
 # and screenshots into selftest/, and an mtime test re-ran the whole sweep after
 # every one of them.
+#
+# Entries are typed without following symlinks. An editor lane's content is a
+# mirror of one symlink per file (torirsmaped/torirs_maped_lanes.c), and
+# following them typed all ~56,000 entries under server/scripts on every build
+# to keep a few hundred. Nothing is lost: `os.walk` never descends into a
+# symlinked directory, so what lies under one is never read; the link is a name
+# here like any other.
 _RELEVANT_EXTENSIONS = None
 
 
@@ -414,9 +421,10 @@ def _stat_line(kind, path):
     if kind == 'D':
         try:
             with os.scandir(path) as entries:
-                names = sorted(e.name + '/' if e.is_dir() else e.name for e in entries
+                names = sorted(e.name + '/' if e.is_dir(follow_symlinks=False) else e.name
+                               for e in entries
                                if not e.name.startswith('.') and
-                               (e.is_dir() or _relevant(e.name)))
+                               (e.is_dir(follow_symlinks=False) or _relevant(e.name)))
         except OSError:
             return f'D\t-\t-\t{path}'
         digest = hashlib.sha1('\n'.join(names).encode('utf-8')).hexdigest()

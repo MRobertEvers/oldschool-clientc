@@ -1,5 +1,8 @@
 #include "cp_walk.h"
 
+#include "rscache_serverpack.h"
+
+#include <assert.h>
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,7 +46,11 @@ push(struct CP_Walk* walk, const char* path, int rank)
 }
 
 static void
-walk_dir(struct CP_Walk* walk, const char* dir, int rank)
+walk_dir(
+    struct CP_Walk* walk,
+    struct RSCache_EntryKinds* kinds,
+    const char* dir,
+    int rank)
 {
     DIR* handle = opendir(dir);
     struct dirent* entry;
@@ -53,7 +60,6 @@ walk_dir(struct CP_Walk* walk, const char* dir, int rank)
     while( (entry = readdir(handle)) != NULL )
     {
         char path[CP_WALK_PATH];
-        struct stat info;
         int is_dir = -1;
 
         if( entry->d_name[0] == '.' )
@@ -67,14 +73,16 @@ walk_dir(struct CP_Walk* walk, const char* dir, int rank)
         else if( entry->d_type == DT_REG )
             is_dir = 0;
 #endif
+        /* A symlink (an editor lane's mirror is one per file) is typed
+         * through `kinds`, which the server pack's input walk shares. */
         if( is_dir < 0 )
         {
-            if( stat(path, &info) != 0 )
+            is_dir = RSCache_EntryKindsIsDir(kinds, path);
+            if( is_dir < 0 )
                 continue;
-            is_dir = S_ISDIR(info.st_mode) ? 1 : 0;
         }
         if( is_dir )
-            walk_dir(walk, path, rank);
+            walk_dir(walk, kinds, path, rank);
         else
             push(walk, path, rank);
     }
@@ -84,11 +92,13 @@ walk_dir(struct CP_Walk* walk, const char* dir, int rank)
 int
 cp_walk_tree(
     struct CP_Walk* walk,
+    struct RSCache_EntryKinds* kinds,
     const char* srcdir,
     const char* const* roots,
     const int* ranks,
     int root_count)
 {
+    assert(kinds);
     memset(walk, 0, sizeof(*walk));
     for( int i = 0; i < root_count && i < CP_WALK_MAX_ROOTS; i++ )
     {
@@ -97,7 +107,7 @@ cp_walk_tree(
         snprintf(dir, sizeof(dir), "%s/%s", srcdir, roots[i]);
         /* A missing root is not an error: a tree with no `server/` is a normal
          * tree, and so is one exported without configs. */
-        walk_dir(walk, dir, ranks[i]);
+        walk_dir(walk, kinds, dir, ranks[i]);
     }
     return walk->count;
 }
