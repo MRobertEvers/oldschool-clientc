@@ -22,7 +22,9 @@ dump's own `name` field is the second opinion that catches it.
 Rules, in the order they run:
 
   1. **The id must exist** in this cache's config table. An id past the end is
-     dropped, named in the report.
+     dropped, named in the report. So is an id whose symbol the table still
+     lists but whose record this cache deleted (`configs/all.npc` has no block
+     for it): rev 242 deleted the Lumbridge tutors that way.
   2. **The name must agree**, comparing case- and punctuation-insensitively and
      following `multinpc` chains --- a spawn of a multinpc *base* is correct and
      legitimately reports the display name of whichever variant is live, so the
@@ -305,6 +307,14 @@ NPC_SPAWN_EXCLUSIONS = {
     # at stage 0..4, Kovac at 5..9 and nothing from 10 (wiki Sleeping_Giants oldid
     # 15241064; Quest Helper SleepingGiants.java strikeHillGiant WorldPoint 3361,3147).
     ("gh_giant2", 3361, 3147, 0),
+    # The Lumbridge tidy-up (3 November 2026, rev 242): "Deadman Nigel moves to
+    # the Grand Exchange in Varrock on normal worlds, while staying in Lumbridge
+    # on Deadman worlds." Rev 242's deadman_nigel shows -1 unless deadman_mode
+    # is set, and the normal-world Nigel is a new type, deadman_nigel_varrock
+    # (areas/varrock/configs/varrock.spawn). RSProx index 4478 (rev 242.1) stood
+    # within 13 tiles of 3243,3201 and was never sent one; rev 241 sent him
+    # there (index 4464 and others, x 3242-3243, z 3201-3203).
+    ("deadman_nigel", 3243, 3201, 0),
 }
 
 
@@ -330,6 +340,12 @@ NPC_SPAWN_EXCLUSIONS = {
 # tiles are `o12;0;0` floor with no blocking flag).
 NPC_SPAWN_RELOCATIONS = {
     ("claus_carnillean", 2566, 9670, 0): (2540, 9697, 0),
+    # The Lumbridge tidy-up (3 November 2026, rev 242): "The Leagues tutor has
+    # also moved to the Grand Exchange in Varrock." Rev 241 sent him on
+    # 3226,3215 in 20 of 20 courtyard lives (index 4454, 4464, ...); rev 242.1
+    # sends him on 3155,3512 (index 4474, 2 of 2) and never in the courtyard,
+    # which 4465, 4466 and 4478 all had in view.
+    ("league_tutor", 3225, 3213, 0): (3155, 3512, 0),
 }
 
 
@@ -741,6 +757,9 @@ def main():
             name = npc_correction
         if name is None:
             reject["npc: id past the end of this cache's npc table"] += 1
+            continue
+        if name not in npc_blocks:
+            reject["npc: record deleted from this cache"] += 1
             continue
         if name not in names_cache:
             names_cache[name] = reachable_names(npc_blocks, name)

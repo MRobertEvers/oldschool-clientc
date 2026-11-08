@@ -245,8 +245,10 @@ return {
         t.check("banditDoor.out", outside and outside.x == 3259 and outside.z == 3400, "after the door " .. tostring(outside and outside.x) .. "," .. tostring(outside and outside.z))
 
         t.ticklog.mark("leg.tobyn")
-        -- Nevet, on the way ([722]..[736]).
-        t.exec("goto-nevet", t.player.goto_tile, 3210, 3435, 0)
+        -- Nevet, on the way ([722]..[736]). The recording (rev 241) has her in
+        -- Varrock square; the Lumbridge tidy-up (rev 242) moved her to the
+        -- Grand Exchange, 3154,3514 (RSProx index 4474), so the leg goes there.
+        t.exec("goto-nevet", t.player.goto_tile, 3154, 3513, 0)
         t.exec("talkToNevet", t.player.talk_to, "events_shop")
         t.exec("nevet.chat", t.chat.play, {
             "npc:Hello! Looking to buy?",
