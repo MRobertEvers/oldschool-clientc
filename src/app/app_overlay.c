@@ -2063,6 +2063,91 @@ app_overlay_build_editor_path(struct App* app)
         }
 }
 
+/* The void grid: lines this many tiles apart, bent to the height field in
+ * runs of APP_EDITOR_VOID_GRID_RUN tiles (at most ~290 segments a square). */
+#define APP_EDITOR_VOID_GRID_TILES 8
+#define APP_EDITOR_VOID_GRID_RUN 4
+#define APP_EDITOR_VOID_GRID_COLOR 0xFF55606Au
+#define APP_EDITOR_VOID_GRID_EDGE_COLOR 0xFFA0B4C4u
+
+/** Whether square-local tile (x, z) of level 0 has no floor; a line on the
+ *  square's far edge asks about the last tile. */
+static int
+app_overlay_void_tile(
+    struct Editor_Square const* square,
+    int x,
+    int z)
+{
+    struct Editor_Tile const* tile = &square->tiles[Editor_TileIndex(
+        x < EDITOR_SQUARE_X ? x : EDITOR_SQUARE_X - 1, z < EDITOR_SQUARE_Z ? z : EDITOR_SQUARE_Z - 1, 0)];
+
+    return !tile->has_overlay && !tile->underlay_id;
+}
+
+/**
+ * One line of the void grid along an axis of `square`: `across` tiles in on
+ * the other axis, `along_x` for a line running in x. Interior lines are drawn
+ * only over tiles with no floor; the square's edge always.
+ */
+static void
+app_overlay_void_grid_line(
+    struct App* app,
+    struct Editor_Square const* square,
+    int across,
+    int along_x)
+{
+    int const base_x = square->map_x * EDITOR_SQUARE_X - app->world->_base_tile_x;
+    int const base_z = square->map_z * EDITOR_SQUARE_Z - app->world->_base_tile_z;
+    int const size = app->world->_scene_size;
+    int const edge = across == 0 || across == EDITOR_SQUARE_X;
+
+    for( int a = 0; a < EDITOR_SQUARE_X; a += APP_EDITOR_VOID_GRID_RUN )
+    {
+        int const x0 = along_x ? a : across;
+        int const z0 = along_x ? across : a;
+        int const x1 = along_x ? a + APP_EDITOR_VOID_GRID_RUN : across;
+        int const z1 = along_x ? across : a + APP_EDITOR_VOID_GRID_RUN;
+
+        if( base_x + x0 < 0 || base_z + z0 < 0 || base_x + x1 >= size || base_z + z1 >= size )
+            continue;
+        if( !edge && !app_overlay_void_tile(square, x0, z0) )
+            continue;
+        app_overlay_editor_ground_segment(app, (base_x + x0) * 128, (base_z + z0) * 128, (base_x + x1) * 128,
+            (base_z + z1) * 128, 0, edge ? APP_EDITOR_VOID_GRID_EDGE_COLOR : APP_EDITOR_VOID_GRID_COLOR,
+            edge ? APP_OVERLAY_SEGMENT_WIDTH : 1);
+    }
+}
+
+/**
+ * A scratch square, or any square still blank, gets a grid where it has no
+ * floor: without one an Empty square is a black view with no way to tell
+ * where it is, and the tools act on it (app_map_editor_void_hover) at tiles
+ * nothing shows. A placed square's void is left alone: it is the map's.
+ */
+static void
+app_overlay_build_editor_void_grid(struct App* app)
+{
+    struct Editor_Doc const* doc;
+
+    if( !app->world || !app->editor )
+        return;
+    doc = &app->editor->doc;
+    for( int i = 0; i < doc->square_count; i++ )
+    {
+        struct Editor_Square const* square = &doc->squares[i];
+
+        if( !square->loaded )
+            continue;
+        if( !Editor_DocStorageIsScratch(Editor_DocSquareStorage(doc, square)) && !Editor_SquareIsBlank(square) )
+            continue;
+        for( int across = 0; across <= EDITOR_SQUARE_X; across += APP_EDITOR_VOID_GRID_TILES )
+        {
+            app_overlay_void_grid_line(app, square, across, 1);
+            app_overlay_void_grid_line(app, square, across, 0);
+        }
+    }
+}
+
 /* The Region tools' preview (Editor_PanelRegionPreview): every tile the
  * release (or Tidy's click) would write, in the shape the fitter chose --
  * the client's own overlay faces, so the preview cannot disagree with the
@@ -2474,6 +2559,8 @@ app_overlay_build_editor_selection(struct App* app)
     if( !panel->visible )
         return;
 
+    /* Under everything else: where a floorless square's tiles are. */
+    app_overlay_build_editor_void_grid(app);
     /* What the next click touches: the brush's tiles, the spawn ghost, the
      * move destinations. */
     app_overlay_build_brush_footprint(app);

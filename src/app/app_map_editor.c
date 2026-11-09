@@ -2495,6 +2495,53 @@ app_pin_tile_covers(
 }
 
 /**
+ * A tile with no floor draws nothing, so the pick cannot name it: an Empty
+ * square was a black view every tool ignored (and the first paint had nowhere
+ * to land). When the pick found no surface under the pointer, the level 0
+ * tile of an open square with no floor under it is the hover, from the height
+ * field as app_pin_tile_covers projects it. Only a miss pays for this, and
+ * only a floorless tile is projected.
+ */
+static void
+app_map_editor_void_hover(struct App* app)
+{
+    struct Editor_Doc const* doc;
+    int size;
+
+    if( !app->editor || !app->world || !app->world_view_valid || !app->frame_view->world_mouse_in_viewport
+        || app->frame_view->world_hover_tile_x >= 0 )
+        return;
+    doc = &app->editor->doc;
+    size = app->world->_scene_size;
+    for( int i = 0; i < doc->square_count; i++ )
+    {
+        struct Editor_Square const* square = &doc->squares[i];
+        int const base_x = square->map_x * EDITOR_SQUARE_X - app->world->_base_tile_x;
+        int const base_z = square->map_z * EDITOR_SQUARE_Z - app->world->_base_tile_z;
+
+        if( !square->loaded )
+            continue;
+        for( int z = 0; z < EDITOR_SQUARE_Z; z++ )
+            for( int x = 0; x < EDITOR_SQUARE_X; x++ )
+            {
+                struct Editor_Tile const* tile = &square->tiles[Editor_TileIndex(x, z, 0)];
+                int const tx = base_x + x;
+                int const tz = base_z + z;
+
+                if( tile->has_overlay || tile->underlay_id || tx < 1 || tz < 1 || tx >= size - 1 || tz >= size - 1 )
+                    continue;
+                if( !app_pin_tile_covers(
+                        app, tx, tz, 0, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y) )
+                    continue;
+                app->frame_view->world_hover_tile_x = tx;
+                app->frame_view->world_hover_tile_z = tz;
+                app->frame_view->world_hover_tile_level = 0;
+                return;
+            }
+    }
+}
+
+/**
  * With a level pinned, the tile of THAT plane under the pointer, into
  * panel->pin_hover_*. The pick reports the first surface drawn: the pinned
  * plane where it has floor, but over an empty upper floor (a flat roof to
@@ -2954,6 +3001,7 @@ app_map_editor_world_click(
     /* First: every reader below (and the previews after) takes the pinned
      * plane's tile from here. */
     app_map_editor_level_camera(app, ui);
+    app_map_editor_void_hover(app);
     app_map_editor_pin_hover(app, panel);
 
     /* A gizmo drag holds the pointer until its release (workbench 6.3). */

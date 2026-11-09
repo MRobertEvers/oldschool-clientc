@@ -2301,8 +2301,11 @@ test_chrome(void)
         frame();
         CHECK(!ToriRSChrome_Disabled(&g_chrome, create), "Create is ready with the Empty template");
         memset(&g_window, 0, sizeof(g_window));
+        g_ui.tools.underlay_id = 0;
         activate(create);
         CHECK(!g_chrome.panels[new_panel].visible, "Create closes the modal");
+        CHECK(g_ui.tools.underlay_id > 0, "an Empty square arms an underlay: underlay 0 paints void onto void (%d)",
+            g_ui.tools.underlay_id);
         Editor_DocScratchSlot(0, &scratch_x, &scratch_z);
         scratch = square_of(scratch_x, scratch_z);
         CHECK(scratch && scratch->loaded

@@ -6070,8 +6070,13 @@ working set.
 - **Scratch squares** (`EDITOR_DOC_SCRATCH_STORAGE`, src/editor/editor_doc.h).
   New square... asks only what it starts as (Empty, Copy of selection, Flat
   fill; Flat fill is chosen, on the palette's underlay or else u48, Lumbridge's
-  grass -- an Empty or underlay-0 square alone in the world is a black void
-  with nothing to grab) and DOC_CREATEs it in storage `scratch` on the first free scratch
+  grass -- an Empty or underlay-0 square alone in the world is a black void) and,
+  since 2026-11-08, Empty is workable too: a scratch or blank square draws a grid
+  where it has no floor (`app_overlay_build_editor_void_grid`), a pick that met
+  no surface takes the floorless level 0 tile under the pointer from the height
+  field (`app_map_editor_void_hover`), and Empty arms u48 when the palette is on
+  underlay 0, which would paint void onto void. It
+  DOC_CREATEs it in storage `scratch` on the first free scratch
   slot (`Editor_DocScratchSlot`: eight squares at x 240..246, z 240..242, two
   apart; the content tree stops at x 65). It opens at once as the working set,
   through the save guard only when a save has something to write (a scratch

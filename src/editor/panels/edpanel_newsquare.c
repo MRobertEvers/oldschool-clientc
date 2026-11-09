@@ -442,6 +442,10 @@ newsquare_create_scratch(
             return;
         }
         Editor_UiLog(ui, "editor: scratch square %s: edit it, then Save places it", request.key);
+        /* Underlay 0 paints void: on an Empty square the first stroke would
+         * change nothing. */
+        if( form->template_kind == EDITOR_DOC_TEMPLATE_EMPTY && ui->tools.underlay_id == 0 )
+            ui->tools.underlay_id = NEWSQUARE_FLAT_UNDERLAY_DEFAULT;
         newsquare_close(ui, self);
         Editor_SquarePicker_Refresh(ui);
         newsquare_open_scratch(ui, map_x, map_z);
