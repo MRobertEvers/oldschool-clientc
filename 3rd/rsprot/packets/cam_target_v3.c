@@ -19,7 +19,7 @@ packet_cam_target_v3_v1_out(RsprotExec *x, MsgCamTargetV3 *m)
     RSPROT_U2_12(x, m->target_index);
 }
 
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void
 packet_cam_target_v3_v2_out(RsprotExec *x, MsgCamTargetV3 *m)
 {
@@ -29,13 +29,14 @@ packet_cam_target_v3_v2_out(RsprotExec *x, MsgCamTargetV3 *m)
 }
 
 /*
- * 3 row(s) for 2 layout(s). A revision not listed has no CAM_TARGET_V3 and
+ * 4 row(s) for 2 layout(s). A revision not listed has no CAM_TARGET_V3 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_target_v3_out[] = {
     { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_target_v3_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_cam_target_v3_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_target_v3_v2_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_cam_target_v3_v2_out },
 };
 
 const int rsprot_cam_target_v3_out_count =

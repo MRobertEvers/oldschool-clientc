@@ -217,8 +217,17 @@ packet_npc_anim_specific_v23_out(RsprotExec *x, MsgNpcAnimSpecific *m)
     RSPROT_U1_NEG(x, m->delay);
 }
 
+/* v24 -- revs osrsm242. */
+void
+packet_npc_anim_specific_v24_out(RsprotExec *x, MsgNpcAnimSpecific *m)
+{
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_SUB128(x, m->delay);
+}
+
 /*
- * 23 row(s) for 23 layout(s). A revision not listed has no NPC_ANIM_SPECIFIC and
+ * 24 row(s) for 24 layout(s). A revision not listed has no NPC_ANIM_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_npc_anim_specific_out[] = {
@@ -245,6 +254,7 @@ const RsprotVersionRange rsprot_npc_anim_specific_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_npc_anim_specific_v21_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_npc_anim_specific_v22_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_npc_anim_specific_v23_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_npc_anim_specific_v24_out },
 };
 
 const int rsprot_npc_anim_specific_out_count =

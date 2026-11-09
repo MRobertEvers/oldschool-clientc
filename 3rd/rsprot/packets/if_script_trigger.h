@@ -48,6 +48,8 @@ void packet_if_script_trigger_v11_in(RsprotExec *x, MsgIfScriptTrigger *m);
 void packet_if_script_trigger_v12_in(RsprotExec *x, MsgIfScriptTrigger *m);
 /* v13 -- revs osrsm241. */
 void packet_if_script_trigger_v13_in(RsprotExec *x, MsgIfScriptTrigger *m);
+/* v14 -- revs osrsm242. */
+void packet_if_script_trigger_v14_in(RsprotExec *x, MsgIfScriptTrigger *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_script_trigger_<R>_in. */
 #define packet_if_script_trigger_osrs231_in packet_if_script_trigger_v1_in
@@ -63,6 +65,7 @@ void packet_if_script_trigger_v13_in(RsprotExec *x, MsgIfScriptTrigger *m);
 #define packet_if_script_trigger_osrs241_in packet_if_script_trigger_v11_in
 #define packet_if_script_trigger_osrs242_in packet_if_script_trigger_v12_in
 #define packet_if_script_trigger_osrsm241_in packet_if_script_trigger_v13_in
+#define packet_if_script_trigger_osrsm242_in packet_if_script_trigger_v14_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_script_trigger_in[];

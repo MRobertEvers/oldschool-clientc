@@ -226,8 +226,17 @@ packet_if_setobject_v24_out(RsprotExec *x, MsgIfSetObject *m)
     RSPROT_COM_4321(x, m->combined_id);
 }
 
+/* v25 -- revs osrsm242. */
+void
+packet_if_setobject_v25_out(RsprotExec *x, MsgIfSetObject *m)
+{
+    RSPROT_U4_4321(x, m->count);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->obj);
+}
+
 /*
- * 26 row(s) for 24 layout(s). A revision not listed has no IF_SETOBJECT and
+ * 27 row(s) for 25 layout(s). A revision not listed has no IF_SETOBJECT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setobject_out[] = {
@@ -257,6 +266,7 @@ const RsprotVersionRange rsprot_if_setobject_out[] = {
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_setobject_v23_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_setobject_v23_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setobject_v24_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_setobject_v25_out },
 };
 
 const int rsprot_if_setobject_out_count =

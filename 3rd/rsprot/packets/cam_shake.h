@@ -30,7 +30,7 @@ void packet_cam_shake_v1_out(RsprotExec *x, MsgCamShake *m);
 void packet_cam_shake_v2_out(RsprotExec *x, MsgCamShake *m);
 /* v3 -- revs rs245.2, rs254, rs289. */
 void packet_cam_shake_v3_out(RsprotExec *x, MsgCamShake *m);
-/* v4 -- revs osrsm241. */
+/* v4 -- revs osrsm241, osrsm242. */
 void packet_cam_shake_v4_out(RsprotExec *x, MsgCamShake *m);
 
 /* Per-revision entry points: what revision R calls is packet_cam_shake_<R>_out. */
@@ -60,6 +60,7 @@ void packet_cam_shake_v4_out(RsprotExec *x, MsgCamShake *m);
 #define packet_cam_shake_rs254_out packet_cam_shake_v3_out
 #define packet_cam_shake_rs289_out packet_cam_shake_v3_out
 #define packet_cam_shake_osrsm241_out packet_cam_shake_v4_out
+#define packet_cam_shake_osrsm242_out packet_cam_shake_v4_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_shake_out[];

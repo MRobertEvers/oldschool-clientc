@@ -19,7 +19,7 @@ typedef struct MsgFriendChatKick {
 
 /* v1 -- revs osrs221-241, osrs242. */
 void packet_friendchat_kick_v1_in(RsprotExec *x, MsgFriendChatKick *m);
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void packet_friendchat_kick_v2_in(RsprotExec *x, MsgFriendChatKick *m);
 
 /* Per-revision entry points: what revision R calls is packet_friendchat_kick_<R>_in. */
@@ -46,6 +46,7 @@ void packet_friendchat_kick_v2_in(RsprotExec *x, MsgFriendChatKick *m);
 #define packet_friendchat_kick_osrs241_in packet_friendchat_kick_v1_in
 #define packet_friendchat_kick_osrs242_in packet_friendchat_kick_v1_in
 #define packet_friendchat_kick_osrsm241_in packet_friendchat_kick_v2_in
+#define packet_friendchat_kick_osrsm242_in packet_friendchat_kick_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_friendchat_kick_in[];

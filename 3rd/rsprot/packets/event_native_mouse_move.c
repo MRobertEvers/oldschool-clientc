@@ -53,7 +53,7 @@ packet_event_native_mouse_move_osrsm241_in(RsprotExec *x, MsgEventNativeMouseMov
 
 const RsprotVersionRange rsprot_event_native_mouse_move_in[] = {
     { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_event_native_mouse_move_v1_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_event_native_mouse_move_osrsm241_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_event_native_mouse_move_osrsm241_in },
 };
 
 const int rsprot_event_native_mouse_move_in_count =

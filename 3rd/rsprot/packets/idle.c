@@ -26,7 +26,7 @@ packet_idle_v2_in(RsprotExec *x, MsgIdle *m)
     (void)m;
 }
 
-/* v3 -- revs osrsm241. */
+/* v3 -- revs osrsm241, osrsm242. */
 void
 packet_idle_v3_in(RsprotExec *x, MsgIdle *m)
 {
@@ -35,7 +35,7 @@ packet_idle_v3_in(RsprotExec *x, MsgIdle *m)
 }
 
 /*
- * 6 row(s) for 3 layout(s). A revision not listed has no IDLE and
+ * 7 row(s) for 3 layout(s). A revision not listed has no IDLE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_idle_in[] = {
@@ -45,6 +45,7 @@ const RsprotVersionRange rsprot_idle_in[] = {
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_idle_v2_in },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_idle_v2_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_idle_v3_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_idle_v3_in },
 };
 
 const int rsprot_idle_in_count =

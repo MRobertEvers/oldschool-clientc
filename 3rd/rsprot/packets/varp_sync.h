@@ -23,7 +23,7 @@ typedef struct MsgVarpSync {
 void packet_varp_sync_v1_out(RsprotExec *x, MsgVarpSync *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_varp_sync_v2_out(RsprotExec *x, MsgVarpSync *m);
-/* v3 -- revs osrsm241. */
+/* v3 -- revs osrsm241, osrsm242. */
 void packet_varp_sync_v3_out(RsprotExec *x, MsgVarpSync *m);
 
 /* Per-revision entry points: what revision R calls is packet_varp_sync_<R>_out. */
@@ -53,6 +53,7 @@ void packet_varp_sync_v3_out(RsprotExec *x, MsgVarpSync *m);
 #define packet_varp_sync_rs254_out packet_varp_sync_v2_out
 #define packet_varp_sync_rs289_out packet_varp_sync_v2_out
 #define packet_varp_sync_osrsm241_out packet_varp_sync_v3_out
+#define packet_varp_sync_osrsm242_out packet_varp_sync_v3_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_varp_sync_out[];

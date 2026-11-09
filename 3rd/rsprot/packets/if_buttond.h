@@ -68,6 +68,8 @@ void packet_if_buttond_v21_in(RsprotExec *x, MsgIfButtonD *m);
 void packet_if_buttond_v22_in(RsprotExec *x, MsgIfButtonD *m);
 /* v23 -- revs osrsm241. */
 void packet_if_buttond_v23_in(RsprotExec *x, MsgIfButtonD *m);
+/* v24 -- revs osrsm242. */
+void packet_if_buttond_v24_in(RsprotExec *x, MsgIfButtonD *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_buttond_<R>_in. */
 #define packet_if_buttond_osrs221_in packet_if_buttond_v1_in
@@ -93,6 +95,7 @@ void packet_if_buttond_v23_in(RsprotExec *x, MsgIfButtonD *m);
 #define packet_if_buttond_osrs241_in packet_if_buttond_v21_in
 #define packet_if_buttond_osrs242_in packet_if_buttond_v22_in
 #define packet_if_buttond_osrsm241_in packet_if_buttond_v23_in
+#define packet_if_buttond_osrsm242_in packet_if_buttond_v24_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_buttond_in[];

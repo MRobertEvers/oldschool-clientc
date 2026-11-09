@@ -118,8 +118,17 @@ packet_obj_uncustomise_specific_v12_out(RsprotExec *x, MsgObjUncustomiseSpecific
     RSPROT_U4_2143(x, m->quantity);
 }
 
+/* v13 -- revs osrsm242. */
+void
+packet_obj_uncustomise_specific_v13_out(RsprotExec *x, MsgObjUncustomiseSpecific *m)
+{
+    RSPROT_U4_3412(x, m->quantity);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U4_1234(x, m->coord_grid_packed);
+}
+
 /*
- * 12 row(s) for 12 layout(s). A revision not listed has no OBJ_UNCUSTOMISE_SPECIFIC and
+ * 13 row(s) for 13 layout(s). A revision not listed has no OBJ_UNCUSTOMISE_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_uncustomise_specific_out[] = {
@@ -135,6 +144,7 @@ const RsprotVersionRange rsprot_obj_uncustomise_specific_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_obj_uncustomise_specific_v10_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_obj_uncustomise_specific_v11_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_uncustomise_specific_v12_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_obj_uncustomise_specific_v13_out },
 };
 
 const int rsprot_obj_uncustomise_specific_out_count =

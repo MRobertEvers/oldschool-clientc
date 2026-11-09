@@ -240,8 +240,18 @@ packet_send_ping_reply_v23_in(RsprotExec *x, MsgSendPingReply *m)
     RSPROT_U1(x, m->gc_percent_time);
 }
 
+/* v24 -- revs osrsm242. */
+void
+packet_send_ping_reply_v24_in(RsprotExec *x, MsgSendPingReply *m)
+{
+    RSPROT_U1_ADD128(x, m->fps);
+    RSPROT_U4_1234(x, m->value1);
+    RSPROT_U4_1234(x, m->value2);
+    RSPROT_U1_ADD128(x, m->gc_percent_time);
+}
+
 /*
- * 23 row(s) for 23 layout(s). A revision not listed has no SEND_PING_REPLY and
+ * 24 row(s) for 24 layout(s). A revision not listed has no SEND_PING_REPLY and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_send_ping_reply_in[] = {
@@ -268,6 +278,7 @@ const RsprotVersionRange rsprot_send_ping_reply_in[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_send_ping_reply_v21_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_send_ping_reply_v22_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_send_ping_reply_v23_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_send_ping_reply_v24_in },
 };
 
 const int rsprot_send_ping_reply_in_count =

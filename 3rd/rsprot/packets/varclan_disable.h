@@ -21,7 +21,7 @@ typedef struct MsgVarClanDisable {
 
 /* v1 -- revs osrs221-241, osrs242. */
 void packet_varclan_disable_v1_out(RsprotExec *x, MsgVarClanDisable *m);
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void packet_varclan_disable_v2_out(RsprotExec *x, MsgVarClanDisable *m);
 
 /* Per-revision entry points: what revision R calls is packet_varclan_disable_<R>_out. */
@@ -48,6 +48,7 @@ void packet_varclan_disable_v2_out(RsprotExec *x, MsgVarClanDisable *m);
 #define packet_varclan_disable_osrs241_out packet_varclan_disable_v1_out
 #define packet_varclan_disable_osrs242_out packet_varclan_disable_v1_out
 #define packet_varclan_disable_osrsm241_out packet_varclan_disable_v2_out
+#define packet_varclan_disable_osrsm242_out packet_varclan_disable_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_varclan_disable_out[];

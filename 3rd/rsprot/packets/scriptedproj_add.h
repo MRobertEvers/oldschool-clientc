@@ -43,6 +43,8 @@ void packet_scriptedproj_add_v3_out(RsprotExec *x, MsgScriptedProjAdd *m);
 void packet_scriptedproj_add_v4_out(RsprotExec *x, MsgScriptedProjAdd *m);
 /* v5 -- revs osrsm241. */
 void packet_scriptedproj_add_v5_out(RsprotExec *x, MsgScriptedProjAdd *m);
+/* v6 -- revs osrsm242. */
+void packet_scriptedproj_add_v6_out(RsprotExec *x, MsgScriptedProjAdd *m);
 
 /* Per-revision entry points: what revision R calls is packet_scriptedproj_add_<R>_out. */
 #define packet_scriptedproj_add_osrs239_out packet_scriptedproj_add_v1_out
@@ -50,6 +52,7 @@ void packet_scriptedproj_add_v5_out(RsprotExec *x, MsgScriptedProjAdd *m);
 #define packet_scriptedproj_add_osrs241_out packet_scriptedproj_add_v3_out
 #define packet_scriptedproj_add_osrs242_out packet_scriptedproj_add_v4_out
 #define packet_scriptedproj_add_osrsm241_out packet_scriptedproj_add_v5_out
+#define packet_scriptedproj_add_osrsm242_out packet_scriptedproj_add_v6_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_scriptedproj_add_out[];

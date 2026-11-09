@@ -300,8 +300,22 @@ packet_player_spotanim_specific_v21_out(RsprotExec *x, MsgPlayerSpotanimSpecific
     RSPROT_U1_NEG(x, m->slot);
 }
 
+/* v22 -- revs osrsm242. */
+void
+packet_player_spotanim_specific_v22_out(RsprotExec *x, MsgPlayerSpotanimSpecific *m)
+{
+    /* RSProx derives, after the reads:
+     *   val height = packed ushr 16
+     *   val delay = packed and 0xFFFF
+     */
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_U4_1234(x, m->packed);
+    RSPROT_U1_NEG(x, m->slot);
+}
+
 /*
- * 22 row(s) for 21 layout(s). A revision not listed has no PLAYER_SPOTANIM_SPECIFIC and
+ * 23 row(s) for 22 layout(s). A revision not listed has no PLAYER_SPOTANIM_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_player_spotanim_specific_out[] = {
@@ -327,6 +341,7 @@ const RsprotVersionRange rsprot_player_spotanim_specific_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_player_spotanim_specific_v20_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_player_spotanim_specific_v20_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_player_spotanim_specific_v21_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_player_spotanim_specific_v22_out },
 };
 
 const int rsprot_player_spotanim_specific_out_count =

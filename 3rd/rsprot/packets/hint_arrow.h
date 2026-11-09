@@ -56,6 +56,7 @@ void packet_hint_arrow_v2_out(RsprotExec *x, MsgHintArrow *m);
 #define packet_hint_arrow_osrs241_out packet_hint_arrow_v2_out
 #define packet_hint_arrow_osrs242_out packet_hint_arrow_v2_out
 #define packet_hint_arrow_osrsm241_out packet_hint_arrow_v2_out
+#define packet_hint_arrow_osrsm242_out packet_hint_arrow_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_hint_arrow_out[];

@@ -82,6 +82,7 @@ void packet_update_inv_partial_v1_out(RsprotExec *x, MsgUpdateInvPartial *m);
 #define packet_update_inv_partial_osrs241_out packet_update_inv_partial_v1_out
 #define packet_update_inv_partial_osrs242_out packet_update_inv_partial_v1_out
 #define packet_update_inv_partial_osrsm241_out packet_update_inv_partial_v1_out
+#define packet_update_inv_partial_osrsm242_out packet_update_inv_partial_v1_out
 
 extern const RsprotVersionRange rsprot_update_inv_partial_out[];
 extern const int rsprot_update_inv_partial_out_count;

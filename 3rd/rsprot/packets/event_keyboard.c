@@ -199,6 +199,17 @@ packet_event_keyboard_v17_in(RsprotExec *x, MsgEventKeyboard *m)
     }
 }
 
+/* osrsm242 -- the Android 242.3 client (Old School mobile). */
+void
+packet_event_keyboard_osrsm242_in(RsprotExec *x, MsgEventKeyboard *m)
+{
+    /* Four bytes a key, to the end of the payload. */
+    for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
+        RSPROT_U3_213(x, m->keys[i].delta);
+        RSPROT_U1_ADD128(x, m->keys[i].key);
+    }
+}
+
 const RsprotVersionRange rsprot_event_keyboard_in[] = {
     { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_event_keyboard_v1_in },
     { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_event_keyboard_v2_in },
@@ -221,6 +232,7 @@ const RsprotVersionRange rsprot_event_keyboard_in[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_event_keyboard_v16_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_event_keyboard_v17_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_event_keyboard_osrsm241_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_event_keyboard_osrsm242_in },
 };
 
 const int rsprot_event_keyboard_in_count =

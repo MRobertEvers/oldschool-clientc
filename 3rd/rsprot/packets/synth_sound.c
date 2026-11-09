@@ -28,7 +28,7 @@ packet_synth_sound_v2_out(RsprotExec *x, MsgSynthSound *m)
     RSPROT_U2_12(x, m->delay);
 }
 
-/* v3 -- revs osrsm241. */
+/* v3 -- revs osrsm241, osrsm242. */
 void
 packet_synth_sound_v3_out(RsprotExec *x, MsgSynthSound *m)
 {
@@ -38,7 +38,7 @@ packet_synth_sound_v3_out(RsprotExec *x, MsgSynthSound *m)
 }
 
 /*
- * 6 row(s) for 3 layout(s). A revision not listed has no SYNTH_SOUND and
+ * 7 row(s) for 3 layout(s). A revision not listed has no SYNTH_SOUND and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_synth_sound_out[] = {
@@ -48,6 +48,7 @@ const RsprotVersionRange rsprot_synth_sound_out[] = {
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_synth_sound_v2_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_synth_sound_v2_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_synth_sound_v3_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_synth_sound_v3_out },
 };
 
 const int rsprot_synth_sound_out_count =

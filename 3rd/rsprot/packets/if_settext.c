@@ -82,8 +82,16 @@ packet_if_settext_v9_out(RsprotExec *x, MsgIfSetText *m)
     RSPROT_JSTR(x, m->text);
 }
 
+/* v10 -- revs osrsm242. */
+void
+packet_if_settext_v10_out(RsprotExec *x, MsgIfSetText *m)
+{
+    RSPROT_JSTR(x, m->text);
+    RSPROT_COM_1234(x, m->combined_id);
+}
+
 /*
- * 21 row(s) for 9 layout(s). A revision not listed has no IF_SETTEXT and
+ * 22 row(s) for 10 layout(s). A revision not listed has no IF_SETTEXT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_settext_out[] = {
@@ -108,6 +116,7 @@ const RsprotVersionRange rsprot_if_settext_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_settext_v4_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_settext_v3_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_settext_v9_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_settext_v10_out },
 };
 
 const int rsprot_if_settext_out_count =

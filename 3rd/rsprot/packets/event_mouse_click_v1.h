@@ -23,7 +23,7 @@ typedef struct MsgEventMouseClickV1 {
 
 /* v1 -- revs osrs227-241, osrs242. */
 void packet_event_mouse_click_v1_v1_in(RsprotExec *x, MsgEventMouseClickV1 *m);
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void packet_event_mouse_click_v1_v2_in(RsprotExec *x, MsgEventMouseClickV1 *m);
 
 /* Per-revision entry points: what revision R calls is packet_event_mouse_click_v1_<R>_in. */
@@ -44,6 +44,7 @@ void packet_event_mouse_click_v1_v2_in(RsprotExec *x, MsgEventMouseClickV1 *m);
 #define packet_event_mouse_click_v1_osrs241_in packet_event_mouse_click_v1_v1_in
 #define packet_event_mouse_click_v1_osrs242_in packet_event_mouse_click_v1_v1_in
 #define packet_event_mouse_click_v1_osrsm241_in packet_event_mouse_click_v1_v2_in
+#define packet_event_mouse_click_v1_osrsm242_in packet_event_mouse_click_v1_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_event_mouse_click_v1_in[];

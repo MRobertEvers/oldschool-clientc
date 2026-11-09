@@ -58,6 +58,7 @@ npc_info_large_v6_osrsm(RsprotRev rev)
 {
     switch (rev.id) {
     case RSPROT_OSRSM_ID(241): return npc_info_large_v6_osrsm241;
+    case RSPROT_OSRSM_ID(242): return npc_info_large_v6_osrsm242;
     default: return NULL;
     }
 }
@@ -113,6 +114,7 @@ npc_info_small_v6_osrsm(RsprotRev rev)
 {
     switch (rev.id) {
     case RSPROT_OSRSM_ID(241): return npc_info_small_v6_osrsm241;
+    case RSPROT_OSRSM_ID(242): return npc_info_small_v6_osrsm242;
     default: return NULL;
     }
 }

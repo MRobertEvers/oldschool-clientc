@@ -51,6 +51,7 @@ void packet_message_clanchannel_v1_out(RsprotExec *x, MsgMessageClanchannel *m);
 #define packet_message_clanchannel_osrs241_out packet_message_clanchannel_v1_out
 #define packet_message_clanchannel_osrs242_out packet_message_clanchannel_v1_out
 #define packet_message_clanchannel_osrsm241_out packet_message_clanchannel_v1_out
+#define packet_message_clanchannel_osrsm242_out packet_message_clanchannel_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_message_clanchannel_out[];

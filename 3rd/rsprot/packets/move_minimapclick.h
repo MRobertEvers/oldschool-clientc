@@ -73,6 +73,8 @@ void packet_move_minimapclick_v20_in(RsprotExec *x, MsgMoveMinimapClick *m);
 void packet_move_minimapclick_v21_in(RsprotExec *x, MsgMoveMinimapClick *m);
 /* v22 -- revs osrsm241. */
 void packet_move_minimapclick_v22_in(RsprotExec *x, MsgMoveMinimapClick *m);
+/* v23 -- revs osrsm242. */
+void packet_move_minimapclick_v23_in(RsprotExec *x, MsgMoveMinimapClick *m);
 
 /* Per-revision entry points: what revision R calls is packet_move_minimapclick_<R>_in. */
 #define packet_move_minimapclick_osrs221_in packet_move_minimapclick_v1_in
@@ -98,6 +100,7 @@ void packet_move_minimapclick_v22_in(RsprotExec *x, MsgMoveMinimapClick *m);
 #define packet_move_minimapclick_osrs241_in packet_move_minimapclick_v20_in
 #define packet_move_minimapclick_osrs242_in packet_move_minimapclick_v21_in
 #define packet_move_minimapclick_osrsm241_in packet_move_minimapclick_v22_in
+#define packet_move_minimapclick_osrsm242_in packet_move_minimapclick_v23_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_move_minimapclick_in[];

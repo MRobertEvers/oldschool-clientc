@@ -64,8 +64,17 @@ packet_bug_report_v6_in(RsprotExec *x, MsgBugReport *m)
     RSPROT_JSTR(x, m->instructions);
 }
 
+/* v7 -- revs osrsm242. */
+void
+packet_bug_report_v7_in(RsprotExec *x, MsgBugReport *m)
+{
+    RSPROT_JSTR(x, m->description);
+    RSPROT_JSTR(x, m->instructions);
+    RSPROT_U1(x, m->type);
+}
+
 /*
- * 6 row(s) for 6 layout(s). A revision not listed has no BUG_REPORT and
+ * 7 row(s) for 7 layout(s). A revision not listed has no BUG_REPORT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_bug_report_in[] = {
@@ -75,6 +84,7 @@ const RsprotVersionRange rsprot_bug_report_in[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_bug_report_v4_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_bug_report_v5_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_bug_report_v6_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_bug_report_v7_in },
 };
 
 const int rsprot_bug_report_in_count =

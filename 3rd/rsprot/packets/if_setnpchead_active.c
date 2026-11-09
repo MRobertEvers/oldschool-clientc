@@ -162,8 +162,16 @@ packet_if_setnpchead_active_v19_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
     RSPROT_U2_12_ADD128(x, m->index);
 }
 
+/* v20 -- revs osrsm242. */
+void
+packet_if_setnpchead_active_v20_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
+{
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_COM_4321(x, m->combined_id);
+}
+
 /*
- * 22 row(s) for 19 layout(s). A revision not listed has no IF_SETNPCHEAD_ACTIVE and
+ * 23 row(s) for 20 layout(s). A revision not listed has no IF_SETNPCHEAD_ACTIVE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setnpchead_active_out[] = {
@@ -189,6 +197,7 @@ const RsprotVersionRange rsprot_if_setnpchead_active_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setnpchead_active_v18_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_setnpchead_active_v13_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setnpchead_active_v19_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_setnpchead_active_v20_out },
 };
 
 const int rsprot_if_setnpchead_active_out_count =

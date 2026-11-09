@@ -23,7 +23,7 @@ typedef struct MsgResetAnims {
 void packet_reset_anims_v1_out(RsprotExec *x, MsgResetAnims *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_reset_anims_v2_out(RsprotExec *x, MsgResetAnims *m);
-/* v3 -- revs osrsm241. */
+/* v3 -- revs osrsm241, osrsm242. */
 void packet_reset_anims_v3_out(RsprotExec *x, MsgResetAnims *m);
 
 /* Per-revision entry points: what revision R calls is packet_reset_anims_<R>_out. */
@@ -53,6 +53,7 @@ void packet_reset_anims_v3_out(RsprotExec *x, MsgResetAnims *m);
 #define packet_reset_anims_rs254_out packet_reset_anims_v2_out
 #define packet_reset_anims_rs289_out packet_reset_anims_v2_out
 #define packet_reset_anims_osrsm241_out packet_reset_anims_v3_out
+#define packet_reset_anims_osrsm242_out packet_reset_anims_v3_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_reset_anims_out[];

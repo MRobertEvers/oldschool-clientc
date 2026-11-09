@@ -81,7 +81,10 @@ void packet_event_keyboard_osrsm241_in(RsprotExec *x, MsgEventKeyboard *m);
 #define packet_event_keyboard_osrs240_in packet_event_keyboard_v5_in
 #define packet_event_keyboard_osrs241_in packet_event_keyboard_v16_in
 #define packet_event_keyboard_osrs242_in packet_event_keyboard_v17_in
+/* osrsm242 -- the Android 242.3 client. */
+void packet_event_keyboard_osrsm242_in(RsprotExec *x, MsgEventKeyboard *m);
 #define packet_event_keyboard_osrsm241_in packet_event_keyboard_osrsm241_in
+#define packet_event_keyboard_osrsm242_in packet_event_keyboard_osrsm242_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_event_keyboard_in[];

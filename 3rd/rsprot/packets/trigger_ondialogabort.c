@@ -18,7 +18,7 @@ packet_trigger_ondialogabort_v1_out(RsprotExec *x, MsgTriggerOnDialogAbort *m)
     (void)m;
 }
 
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void
 packet_trigger_ondialogabort_v2_out(RsprotExec *x, MsgTriggerOnDialogAbort *m)
 {
@@ -27,13 +27,14 @@ packet_trigger_ondialogabort_v2_out(RsprotExec *x, MsgTriggerOnDialogAbort *m)
 }
 
 /*
- * 3 row(s) for 2 layout(s). A revision not listed has no TRIGGER_ONDIALOGABORT and
+ * 4 row(s) for 2 layout(s). A revision not listed has no TRIGGER_ONDIALOGABORT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_trigger_ondialogabort_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_trigger_ondialogabort_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_trigger_ondialogabort_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_trigger_ondialogabort_v2_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_trigger_ondialogabort_v2_out },
 };
 
 const int rsprot_trigger_ondialogabort_out_count =

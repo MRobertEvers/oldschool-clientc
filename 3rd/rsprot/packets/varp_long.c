@@ -37,14 +37,24 @@ packet_varp_long_v3_out(RsprotExec *x, MsgVarpLong *m)
     RSPROT_U2_12(x, m->id);
 }
 
+/* v4 -- revs osrsm242. */
+void
+packet_varp_long_v4_out(RsprotExec *x, MsgVarpLong *m)
+{
+    RSPROT_U4_3412(x, m->high);
+    RSPROT_U4_3412(x, m->low);
+    RSPROT_U2_21_ADD128(x, m->id);
+}
+
 /*
- * 3 row(s) for 3 layout(s). A revision not listed has no VARP_LONG and
+ * 4 row(s) for 4 layout(s). A revision not listed has no VARP_LONG and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_varp_long_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_varp_long_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_varp_long_v2_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_varp_long_v3_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_varp_long_v4_out },
 };
 
 const int rsprot_varp_long_out_count =

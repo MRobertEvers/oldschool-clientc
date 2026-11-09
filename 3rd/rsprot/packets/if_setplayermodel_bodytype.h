@@ -54,6 +54,8 @@ void packet_if_setplayermodel_bodytype_v16_out(RsprotExec *x, MsgIfSetPlayerMode
 void packet_if_setplayermodel_bodytype_v17_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
 /* v18 -- revs osrsm241. */
 void packet_if_setplayermodel_bodytype_v18_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
+/* v19 -- revs osrsm242. */
+void packet_if_setplayermodel_bodytype_v19_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_setplayermodel_bodytype_<R>_out. */
 #define packet_if_setplayermodel_bodytype_osrs221_out packet_if_setplayermodel_bodytype_v1_out
@@ -79,6 +81,7 @@ void packet_if_setplayermodel_bodytype_v18_out(RsprotExec *x, MsgIfSetPlayerMode
 #define packet_if_setplayermodel_bodytype_osrs241_out packet_if_setplayermodel_bodytype_v16_out
 #define packet_if_setplayermodel_bodytype_osrs242_out packet_if_setplayermodel_bodytype_v17_out
 #define packet_if_setplayermodel_bodytype_osrsm241_out packet_if_setplayermodel_bodytype_v18_out
+#define packet_if_setplayermodel_bodytype_osrsm242_out packet_if_setplayermodel_bodytype_v19_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setplayermodel_bodytype_out[];

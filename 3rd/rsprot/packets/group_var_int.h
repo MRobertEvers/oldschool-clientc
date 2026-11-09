@@ -21,7 +21,7 @@ typedef struct MsgGroupVarInt {
 
 /* v1 -- revs osrs239-241, osrs242. */
 void packet_group_var_int_v1_out(RsprotExec *x, MsgGroupVarInt *m);
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void packet_group_var_int_v2_out(RsprotExec *x, MsgGroupVarInt *m);
 
 /* Per-revision entry points: what revision R calls is packet_group_var_int_<R>_out. */
@@ -30,6 +30,7 @@ void packet_group_var_int_v2_out(RsprotExec *x, MsgGroupVarInt *m);
 #define packet_group_var_int_osrs241_out packet_group_var_int_v1_out
 #define packet_group_var_int_osrs242_out packet_group_var_int_v1_out
 #define packet_group_var_int_osrsm241_out packet_group_var_int_v2_out
+#define packet_group_var_int_osrsm242_out packet_group_var_int_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_group_var_int_out[];

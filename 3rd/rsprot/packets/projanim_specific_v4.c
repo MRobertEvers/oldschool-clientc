@@ -231,8 +231,25 @@ packet_projanim_specific_v4_v13_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U2_21_ADD128(x, m->end_height);
 }
 
+/* v14 -- revs osrsm242. */
+void
+packet_projanim_specific_v4_v14_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
+{
+    RSPROT_U2_12_ADD128(x, m->start_time);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U4_3412(x, m->start_packed);
+    RSPROT_U2_12_ADD128(x, m->start_height);
+    RSPROT_U1_NEG(x, m->angle);
+    RSPROT_U2_12_ADD128(x, m->progress);
+    RSPROT_U2_21_ADD128(x, m->end_height);
+    RSPROT_U3_213(x, m->target_index);
+    RSPROT_U3_132(x, m->source_index);
+    RSPROT_U2_12(x, m->end_time);
+    RSPROT_U4_2143(x, m->end_packed);
+}
+
 /*
- * 13 row(s) for 13 layout(s). A revision not listed has no PROJANIM_SPECIFIC_V4 and
+ * 14 row(s) for 14 layout(s). A revision not listed has no PROJANIM_SPECIFIC_V4 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_projanim_specific_v4_out[] = {
@@ -249,6 +266,7 @@ const RsprotVersionRange rsprot_projanim_specific_v4_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_projanim_specific_v4_v11_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_projanim_specific_v4_v12_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_projanim_specific_v4_v13_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_projanim_specific_v4_v14_out },
 };
 
 const int rsprot_projanim_specific_v4_out_count =

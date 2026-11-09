@@ -36,6 +36,13 @@ packet_clickworldmap_osrsm241_in(RsprotExec *x, MsgClickworldmap *m)
     RSPROT_U4_2143(x, m->packed);
 }
 
+/* osrsm242 -- the Android 242.3 client (Old School mobile). */
+void
+packet_clickworldmap_osrsm242_in(RsprotExec *x, MsgClickworldmap *m)
+{
+    RSPROT_U4_4321(x, m->packed);
+}
+
 const RsprotVersionRange rsprot_clickworldmap_in[] = {
     { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_clickworldmap_v3_in },
     { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_clickworldmap_v1_in },
@@ -55,6 +62,7 @@ const RsprotVersionRange rsprot_clickworldmap_in[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clickworldmap_v1_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_clickworldmap_v3_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_clickworldmap_osrsm241_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_clickworldmap_osrsm242_in },
 };
 
 const int rsprot_clickworldmap_in_count =

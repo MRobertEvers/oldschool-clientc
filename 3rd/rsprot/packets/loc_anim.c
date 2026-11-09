@@ -217,8 +217,17 @@ packet_loc_anim_v23_out(RsprotExec *x, MsgLocAnim *m)
     RSPROT_U1(x, m->coord_in_zone_packed);
 }
 
+/* v24 -- revs osrsm242. */
+void
+packet_loc_anim_v24_out(RsprotExec *x, MsgLocAnim *m)
+{
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U1(x, m->loc_properties_packed);
+    RSPROT_U2_21(x, m->id);
+}
+
 /*
- * 26 row(s) for 23 layout(s). A revision not listed has no LOC_ANIM and
+ * 27 row(s) for 24 layout(s). A revision not listed has no LOC_ANIM and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_loc_anim_out[] = {
@@ -248,6 +257,7 @@ const RsprotVersionRange rsprot_loc_anim_out[] = {
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_loc_anim_v22_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_loc_anim_v22_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_loc_anim_v23_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_loc_anim_v24_out },
 };
 
 const int rsprot_loc_anim_out_count =

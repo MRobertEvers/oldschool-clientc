@@ -80,8 +80,22 @@ packet_scriptedproj_change_v5_out(RsprotExec *x, MsgScriptedProjChange *m)
     RSPROT_U2_12(x, m->freeze_duration);
 }
 
+/* v6 -- revs osrsm242. */
+void
+packet_scriptedproj_change_v6_out(RsprotExec *x, MsgScriptedProjChange *m)
+{
+    RSPROT_U3_123(x, m->target_index);
+    RSPROT_U2_12_ADD128(x, m->target_offset_z);
+    RSPROT_U2_21(x, m->target_height);
+    RSPROT_U2_21(x, m->slot);
+    RSPROT_U2_12(x, m->target_offset_x);
+    RSPROT_U2_12(x, m->freeze_duration);
+    RSPROT_U4_3412(x, m->target_coord_packed);
+    RSPROT_U1_SUB128(x, m->delete_on_freeze_end);
+}
+
 /*
- * 5 row(s) for 5 layout(s). A revision not listed has no SCRIPTEDPROJ_CHANGE and
+ * 6 row(s) for 6 layout(s). A revision not listed has no SCRIPTEDPROJ_CHANGE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_scriptedproj_change_out[] = {
@@ -90,6 +104,7 @@ const RsprotVersionRange rsprot_scriptedproj_change_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_scriptedproj_change_v3_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_scriptedproj_change_v4_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_scriptedproj_change_v5_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_scriptedproj_change_v6_out },
 };
 
 const int rsprot_scriptedproj_change_out_count =

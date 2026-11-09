@@ -23,9 +23,12 @@ typedef struct MsgOpLoc1V3 {
 
 /* v1 -- revs osrs242. */
 void packet_oploc1_v3_v1_in(RsprotExec *x, MsgOpLoc1V3 *m);
+/* v2 -- revs osrsm242. */
+void packet_oploc1_v3_v2_in(RsprotExec *x, MsgOpLoc1V3 *m);
 
 /* Per-revision entry points: what revision R calls is packet_oploc1_v3_<R>_in. */
 #define packet_oploc1_v3_osrs242_in packet_oploc1_v3_v1_in
+#define packet_oploc1_v3_osrsm242_in packet_oploc1_v3_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_oploc1_v3_in[];

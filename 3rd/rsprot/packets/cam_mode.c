@@ -17,7 +17,7 @@ packet_cam_mode_v1_out(RsprotExec *x, MsgCamMode *m)
     RSPROT_U1(x, m->mode);
 }
 
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void
 packet_cam_mode_v2_out(RsprotExec *x, MsgCamMode *m)
 {
@@ -25,13 +25,14 @@ packet_cam_mode_v2_out(RsprotExec *x, MsgCamMode *m)
 }
 
 /*
- * 3 row(s) for 2 layout(s). A revision not listed has no CAM_MODE and
+ * 4 row(s) for 2 layout(s). A revision not listed has no CAM_MODE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_mode_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_mode_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_cam_mode_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_mode_v2_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_cam_mode_v2_out },
 };
 
 const int rsprot_cam_mode_out_count =

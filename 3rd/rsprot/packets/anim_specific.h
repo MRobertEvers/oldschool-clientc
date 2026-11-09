@@ -54,6 +54,8 @@ void packet_anim_specific_v16_out(RsprotExec *x, MsgAnimSpecific *m);
 void packet_anim_specific_v17_out(RsprotExec *x, MsgAnimSpecific *m);
 /* v18 -- revs osrsm241. */
 void packet_anim_specific_v18_out(RsprotExec *x, MsgAnimSpecific *m);
+/* v19 -- revs osrsm242. */
+void packet_anim_specific_v19_out(RsprotExec *x, MsgAnimSpecific *m);
 
 /* Per-revision entry points: what revision R calls is packet_anim_specific_<R>_out. */
 #define packet_anim_specific_osrs221_out packet_anim_specific_v1_out
@@ -79,6 +81,7 @@ void packet_anim_specific_v18_out(RsprotExec *x, MsgAnimSpecific *m);
 #define packet_anim_specific_osrs241_out packet_anim_specific_v8_out
 #define packet_anim_specific_osrs242_out packet_anim_specific_v17_out
 #define packet_anim_specific_osrsm241_out packet_anim_specific_v18_out
+#define packet_anim_specific_osrsm242_out packet_anim_specific_v19_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_anim_specific_out[];

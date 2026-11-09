@@ -21,7 +21,7 @@ typedef struct MsgIfCloseSub {
 void packet_if_closesub_v1_out(RsprotExec *x, MsgIfCloseSub *m);
 /* v2 -- revs osrs222-241, osrs242. */
 void packet_if_closesub_v2_out(RsprotExec *x, MsgIfCloseSub *m);
-/* v3 -- revs osrsm241. */
+/* v3 -- revs osrsm241, osrsm242. */
 void packet_if_closesub_v3_out(RsprotExec *x, MsgIfCloseSub *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_closesub_<R>_out. */
@@ -48,6 +48,7 @@ void packet_if_closesub_v3_out(RsprotExec *x, MsgIfCloseSub *m);
 #define packet_if_closesub_osrs241_out packet_if_closesub_v2_out
 #define packet_if_closesub_osrs242_out packet_if_closesub_v2_out
 #define packet_if_closesub_osrsm241_out packet_if_closesub_v3_out
+#define packet_if_closesub_osrsm242_out packet_if_closesub_v3_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_closesub_out[];

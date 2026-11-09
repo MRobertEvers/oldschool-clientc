@@ -63,6 +63,8 @@ void packet_obj_del_v20_out(RsprotExec *x, MsgObjDel *m);
 void packet_obj_del_v21_out(RsprotExec *x, MsgObjDel *m);
 /* v22 -- revs osrsm241. */
 void packet_obj_del_v22_out(RsprotExec *x, MsgObjDel *m);
+/* v23 -- revs osrsm242. */
+void packet_obj_del_v23_out(RsprotExec *x, MsgObjDel *m);
 
 /* Per-revision entry points: what revision R calls is packet_obj_del_<R>_out. */
 #define packet_obj_del_osrs221_out packet_obj_del_v1_out
@@ -91,6 +93,7 @@ void packet_obj_del_v22_out(RsprotExec *x, MsgObjDel *m);
 #define packet_obj_del_rs254_out packet_obj_del_v21_out
 #define packet_obj_del_rs289_out packet_obj_del_v21_out
 #define packet_obj_del_osrsm241_out packet_obj_del_v22_out
+#define packet_obj_del_osrsm242_out packet_obj_del_v23_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_del_out[];

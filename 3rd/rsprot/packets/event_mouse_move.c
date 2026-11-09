@@ -47,7 +47,7 @@ packet_event_mouse_move_osrsm241_in(RsprotExec *x, MsgEventMouseMove *m)
 
 const RsprotVersionRange rsprot_event_mouse_move_in[] = {
     { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_event_mouse_move_v1_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_event_mouse_move_osrsm241_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_event_mouse_move_osrsm241_in },
 };
 
 const int rsprot_event_mouse_move_in_count =

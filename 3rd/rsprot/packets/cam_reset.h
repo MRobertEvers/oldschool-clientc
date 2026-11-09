@@ -23,7 +23,7 @@ typedef struct MsgCamReset {
 void packet_cam_reset_v1_out(RsprotExec *x, MsgCamReset *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_cam_reset_v2_out(RsprotExec *x, MsgCamReset *m);
-/* v3 -- revs osrsm241. */
+/* v3 -- revs osrsm241, osrsm242. */
 void packet_cam_reset_v3_out(RsprotExec *x, MsgCamReset *m);
 
 /* Per-revision entry points: what revision R calls is packet_cam_reset_<R>_out. */
@@ -53,6 +53,7 @@ void packet_cam_reset_v3_out(RsprotExec *x, MsgCamReset *m);
 #define packet_cam_reset_rs254_out packet_cam_reset_v2_out
 #define packet_cam_reset_rs289_out packet_cam_reset_v2_out
 #define packet_cam_reset_osrsm241_out packet_cam_reset_v3_out
+#define packet_cam_reset_osrsm242_out packet_cam_reset_v3_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_reset_out[];

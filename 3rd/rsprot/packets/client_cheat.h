@@ -63,6 +63,7 @@ void packet_client_cheat_osrsm241_in(RsprotExec *x, MsgClientCheat *m);
 #define packet_client_cheat_osrs241_in packet_client_cheat_v2_in
 #define packet_client_cheat_osrs242_in packet_client_cheat_v2_in
 #define packet_client_cheat_osrsm241_in packet_client_cheat_osrsm241_in
+#define packet_client_cheat_osrsm242_in packet_client_cheat_osrsm241_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_client_cheat_in[];

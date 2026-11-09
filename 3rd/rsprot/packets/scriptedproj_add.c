@@ -125,8 +125,31 @@ packet_scriptedproj_add_v5_out(RsprotExec *x, MsgScriptedProjAdd *m)
     RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
 }
 
+/* v6 -- revs osrsm242. */
+void
+packet_scriptedproj_add_v6_out(RsprotExec *x, MsgScriptedProjAdd *m)
+{
+    RSPROT_U2_21(x, m->end_time);
+    RSPROT_U2_12_ADD128(x, m->target_offset_x);
+    RSPROT_U2_21(x, m->target_offset_z);
+    RSPROT_U2_12(x, m->source_offset_z);
+    RSPROT_U2_12_ADD128(x, m->curve_script_h);
+    RSPROT_U2_21(x, m->source_offset_x);
+    RSPROT_U3_123(x, m->target_index);
+    RSPROT_U2_12_ADD128(x, m->target_height);
+    RSPROT_U2_21_ADD128(x, m->slot);
+    RSPROT_U4_2143(x, m->target_coord_packed);
+    RSPROT_U3_123(x, m->source_index);
+    RSPROT_U2_21(x, m->source_height);
+    RSPROT_U1(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->start_time);
+    RSPROT_U2_12(x, m->curve_script_t);
+    RSPROT_U2_12_ADD128(x, m->curve_script_a);
+    RSPROT_U2_21(x, m->id);
+}
+
 /*
- * 5 row(s) for 5 layout(s). A revision not listed has no SCRIPTEDPROJ_ADD and
+ * 6 row(s) for 6 layout(s). A revision not listed has no SCRIPTEDPROJ_ADD and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_scriptedproj_add_out[] = {
@@ -135,6 +158,7 @@ const RsprotVersionRange rsprot_scriptedproj_add_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_scriptedproj_add_v3_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_scriptedproj_add_v4_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_scriptedproj_add_v5_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_scriptedproj_add_v6_out },
 };
 
 const int rsprot_scriptedproj_add_out_count =

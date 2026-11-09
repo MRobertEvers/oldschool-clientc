@@ -24,7 +24,7 @@ packet_minimap_toggle_v2_out(RsprotExec *x, MsgMinimapToggle *m)
     RSPROT_U1(x, m->minimap_state);
 }
 
-/* v3 -- revs osrsm241. */
+/* v3 -- revs osrsm241, osrsm242. */
 void
 packet_minimap_toggle_v3_out(RsprotExec *x, MsgMinimapToggle *m)
 {
@@ -32,7 +32,7 @@ packet_minimap_toggle_v3_out(RsprotExec *x, MsgMinimapToggle *m)
 }
 
 /*
- * 6 row(s) for 3 layout(s). A revision not listed has no MINIMAP_TOGGLE and
+ * 7 row(s) for 3 layout(s). A revision not listed has no MINIMAP_TOGGLE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_minimap_toggle_out[] = {
@@ -42,6 +42,7 @@ const RsprotVersionRange rsprot_minimap_toggle_out[] = {
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_minimap_toggle_v2_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_minimap_toggle_v2_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_minimap_toggle_v3_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_minimap_toggle_v3_out },
 };
 
 const int rsprot_minimap_toggle_out_count =

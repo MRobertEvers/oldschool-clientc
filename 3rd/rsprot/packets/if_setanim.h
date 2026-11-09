@@ -54,6 +54,8 @@ void packet_if_setanim_v16_out(RsprotExec *x, MsgIfSetAnim *m);
 void packet_if_setanim_v17_out(RsprotExec *x, MsgIfSetAnim *m);
 /* v18 -- revs osrsm241. */
 void packet_if_setanim_v18_out(RsprotExec *x, MsgIfSetAnim *m);
+/* v19 -- revs osrsm242. */
+void packet_if_setanim_v19_out(RsprotExec *x, MsgIfSetAnim *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_setanim_<R>_out. */
 #define packet_if_setanim_osrs221_out packet_if_setanim_v1_out
@@ -82,6 +84,7 @@ void packet_if_setanim_v18_out(RsprotExec *x, MsgIfSetAnim *m);
 #define packet_if_setanim_rs254_out packet_if_setanim_v17_out
 #define packet_if_setanim_rs289_out packet_if_setanim_v17_out
 #define packet_if_setanim_osrsm241_out packet_if_setanim_v18_out
+#define packet_if_setanim_osrsm242_out packet_if_setanim_v19_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setanim_out[];

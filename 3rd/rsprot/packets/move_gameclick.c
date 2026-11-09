@@ -208,8 +208,17 @@ packet_move_gameclick_v22_in(RsprotExec *x, MsgMoveGameClick *m)
     RSPROT_U1_SUB128(x, m->key_combination);
 }
 
+/* v23 -- revs osrsm242. */
+void
+packet_move_gameclick_v23_in(RsprotExec *x, MsgMoveGameClick *m)
+{
+    RSPROT_U1(x, m->key_combination);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->x);
+}
+
 /*
- * 23 row(s) for 22 layout(s). A revision not listed has no MOVE_GAMECLICK and
+ * 24 row(s) for 23 layout(s). A revision not listed has no MOVE_GAMECLICK and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_move_gameclick_in[] = {
@@ -236,6 +245,7 @@ const RsprotVersionRange rsprot_move_gameclick_in[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_move_gameclick_v20_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_move_gameclick_v21_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_move_gameclick_v22_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_move_gameclick_v23_in },
 };
 
 const int rsprot_move_gameclick_in_count =

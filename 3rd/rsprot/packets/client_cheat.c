@@ -29,7 +29,7 @@ packet_client_cheat_osrsm241_in(RsprotExec *x, MsgClientCheat *m)
 const RsprotVersionRange rsprot_client_cheat_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_client_cheat_v1_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_client_cheat_v2_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_client_cheat_osrsm241_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_client_cheat_osrsm241_in },
 };
 
 const int rsprot_client_cheat_in_count =

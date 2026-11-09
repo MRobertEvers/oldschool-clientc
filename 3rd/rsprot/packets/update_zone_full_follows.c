@@ -217,8 +217,17 @@ packet_update_zone_full_follows_v23_out(RsprotExec *x, MsgUpdateZoneFullFollows 
     RSPROT_U1_NEG(x, m->zone_x);
 }
 
+/* v24 -- revs osrsm242. */
+void
+packet_update_zone_full_follows_v24_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
+{
+    RSPROT_U1_NEG(x, m->zone_z);
+    RSPROT_U1_NEG(x, m->level);
+    RSPROT_U1_SUB128(x, m->zone_x);
+}
+
 /*
- * 23 row(s) for 23 layout(s). A revision not listed has no UPDATE_ZONE_FULL_FOLLOWS and
+ * 24 row(s) for 24 layout(s). A revision not listed has no UPDATE_ZONE_FULL_FOLLOWS and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_zone_full_follows_out[] = {
@@ -245,6 +254,7 @@ const RsprotVersionRange rsprot_update_zone_full_follows_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_zone_full_follows_v21_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_update_zone_full_follows_v22_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_zone_full_follows_v23_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_update_zone_full_follows_v24_out },
 };
 
 const int rsprot_update_zone_full_follows_out_count =

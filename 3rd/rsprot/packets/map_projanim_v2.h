@@ -53,6 +53,8 @@ void packet_map_projanim_v2_v11_out(RsprotExec *x, MsgMapProjAnimV2 *m);
 void packet_map_projanim_v2_v12_out(RsprotExec *x, MsgMapProjAnimV2 *m);
 /* v13 -- revs osrsm241. */
 void packet_map_projanim_v2_v13_out(RsprotExec *x, MsgMapProjAnimV2 *m);
+/* v14 -- revs osrsm242. */
+void packet_map_projanim_v2_v14_out(RsprotExec *x, MsgMapProjAnimV2 *m);
 
 /* Per-revision entry points: what revision R calls is packet_map_projanim_v2_<R>_out. */
 #define packet_map_projanim_v2_osrs231_out packet_map_projanim_v2_v1_out
@@ -68,6 +70,7 @@ void packet_map_projanim_v2_v13_out(RsprotExec *x, MsgMapProjAnimV2 *m);
 #define packet_map_projanim_v2_osrs241_out packet_map_projanim_v2_v11_out
 #define packet_map_projanim_v2_osrs242_out packet_map_projanim_v2_v12_out
 #define packet_map_projanim_v2_osrsm241_out packet_map_projanim_v2_v13_out
+#define packet_map_projanim_v2_osrsm242_out packet_map_projanim_v2_v14_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_map_projanim_v2_out[];

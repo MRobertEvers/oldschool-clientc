@@ -70,7 +70,7 @@ void packet_loc_merge_v20_out(RsprotExec *x, MsgLocMerge *m);
 void packet_loc_merge_v21_out(RsprotExec *x, MsgLocMerge *m);
 /* v22 -- revs rs245.2, rs254, rs289. */
 void packet_loc_merge_v22_out(RsprotExec *x, MsgLocMerge *m);
-/* v23 -- revs osrsm241. */
+/* v23 -- revs osrsm241, osrsm242. */
 void packet_loc_merge_v23_out(RsprotExec *x, MsgLocMerge *m);
 
 /* Per-revision entry points: what revision R calls is packet_loc_merge_<R>_out. */
@@ -99,6 +99,7 @@ void packet_loc_merge_v23_out(RsprotExec *x, MsgLocMerge *m);
 #define packet_loc_merge_rs254_out packet_loc_merge_v22_out
 #define packet_loc_merge_rs289_out packet_loc_merge_v22_out
 #define packet_loc_merge_osrsm241_out packet_loc_merge_v23_out
+#define packet_loc_merge_osrsm242_out packet_loc_merge_v23_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_loc_merge_out[];

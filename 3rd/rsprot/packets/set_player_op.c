@@ -181,8 +181,17 @@ packet_set_player_op_v19_out(RsprotExec *x, MsgSetPlayerOp *m)
     RSPROT_JSTR(x, m->op);
 }
 
+/* v20 -- revs osrsm242. */
+void
+packet_set_player_op_v20_out(RsprotExec *x, MsgSetPlayerOp *m)
+{
+    RSPROT_U1_SUB128(x, m->id);
+    RSPROT_JSTR(x, m->op);
+    RSPROT_U1_ADD128(x, m->priority);
+}
+
 /*
- * 20 row(s) for 19 layout(s). A revision not listed has no SET_PLAYER_OP and
+ * 21 row(s) for 20 layout(s). A revision not listed has no SET_PLAYER_OP and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_set_player_op_out[] = {
@@ -206,6 +215,7 @@ const RsprotVersionRange rsprot_set_player_op_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_set_player_op_v17_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_set_player_op_v18_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_set_player_op_v19_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_set_player_op_v20_out },
 };
 
 const int rsprot_set_player_op_out_count =

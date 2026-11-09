@@ -59,8 +59,15 @@ packet_if_setplayerhead_v7_out(RsprotExec *x, MsgIfSetPlayerHead *m)
     RSPROT_COM_2143(x, m->combined_id);
 }
 
+/* v8 -- revs osrsm242. */
+void
+packet_if_setplayerhead_v8_out(RsprotExec *x, MsgIfSetPlayerHead *m)
+{
+    RSPROT_COM_4321(x, m->combined_id);
+}
+
 /*
- * 23 row(s) for 7 layout(s). A revision not listed has no IF_SETPLAYERHEAD and
+ * 24 row(s) for 8 layout(s). A revision not listed has no IF_SETPLAYERHEAD and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setplayerhead_out[] = {
@@ -87,6 +94,7 @@ const RsprotVersionRange rsprot_if_setplayerhead_out[] = {
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_setplayerhead_v6_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_setplayerhead_v6_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setplayerhead_v7_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_setplayerhead_v8_out },
 };
 
 const int rsprot_if_setplayerhead_out_count =

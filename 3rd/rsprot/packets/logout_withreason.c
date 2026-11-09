@@ -17,7 +17,7 @@ packet_logout_withreason_v1_out(RsprotExec *x, MsgLogoutWithReason *m)
     RSPROT_U1(x, m->reason);
 }
 
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void
 packet_logout_withreason_v2_out(RsprotExec *x, MsgLogoutWithReason *m)
 {
@@ -25,13 +25,14 @@ packet_logout_withreason_v2_out(RsprotExec *x, MsgLogoutWithReason *m)
 }
 
 /*
- * 3 row(s) for 2 layout(s). A revision not listed has no LOGOUT_WITHREASON and
+ * 4 row(s) for 2 layout(s). A revision not listed has no LOGOUT_WITHREASON and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_logout_withreason_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_logout_withreason_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_logout_withreason_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_logout_withreason_v2_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_logout_withreason_v2_out },
 };
 
 const int rsprot_logout_withreason_out_count =

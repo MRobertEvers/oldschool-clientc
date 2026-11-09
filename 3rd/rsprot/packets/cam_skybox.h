@@ -25,6 +25,8 @@ void packet_cam_skybox_v2_out(RsprotExec *x, MsgCamSkybox *m);
 void packet_cam_skybox_v3_out(RsprotExec *x, MsgCamSkybox *m);
 /* v4 -- revs osrsm241. */
 void packet_cam_skybox_v4_out(RsprotExec *x, MsgCamSkybox *m);
+/* v5 -- revs osrsm242. */
+void packet_cam_skybox_v5_out(RsprotExec *x, MsgCamSkybox *m);
 
 /* Per-revision entry points: what revision R calls is packet_cam_skybox_<R>_out. */
 #define packet_cam_skybox_osrs238_out packet_cam_skybox_v1_out
@@ -33,6 +35,7 @@ void packet_cam_skybox_v4_out(RsprotExec *x, MsgCamSkybox *m);
 #define packet_cam_skybox_osrs241_out packet_cam_skybox_v3_out
 #define packet_cam_skybox_osrs242_out packet_cam_skybox_v1_out
 #define packet_cam_skybox_osrsm241_out packet_cam_skybox_v4_out
+#define packet_cam_skybox_osrsm242_out packet_cam_skybox_v5_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_skybox_out[];

@@ -54,6 +54,8 @@ void packet_opplayer7_v16_in(RsprotExec *x, MsgOpPlayer7 *m);
 void packet_opplayer7_v17_in(RsprotExec *x, MsgOpPlayer7 *m);
 /* v18 -- revs osrsm241. */
 void packet_opplayer7_v18_in(RsprotExec *x, MsgOpPlayer7 *m);
+/* v19 -- revs osrsm242. */
+void packet_opplayer7_v19_in(RsprotExec *x, MsgOpPlayer7 *m);
 
 /* Per-revision entry points: what revision R calls is packet_opplayer7_<R>_in. */
 #define packet_opplayer7_osrs221_in packet_opplayer7_v1_in
@@ -79,6 +81,7 @@ void packet_opplayer7_v18_in(RsprotExec *x, MsgOpPlayer7 *m);
 #define packet_opplayer7_osrs241_in packet_opplayer7_v13_in
 #define packet_opplayer7_osrs242_in packet_opplayer7_v5_in
 #define packet_opplayer7_osrsm241_in packet_opplayer7_v18_in
+#define packet_opplayer7_osrsm242_in packet_opplayer7_v19_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_opplayer7_in[];

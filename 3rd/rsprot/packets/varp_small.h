@@ -52,6 +52,8 @@ void packet_varp_small_v15_out(RsprotExec *x, MsgVarpSmall *m);
 void packet_varp_small_v16_out(RsprotExec *x, MsgVarpSmall *m);
 /* v17 -- revs osrsm241. */
 void packet_varp_small_v17_out(RsprotExec *x, MsgVarpSmall *m);
+/* v18 -- revs osrsm242. */
+void packet_varp_small_v18_out(RsprotExec *x, MsgVarpSmall *m);
 
 /* Per-revision entry points: what revision R calls is packet_varp_small_<R>_out. */
 #define packet_varp_small_osrs221_out packet_varp_small_v1_out
@@ -80,6 +82,7 @@ void packet_varp_small_v17_out(RsprotExec *x, MsgVarpSmall *m);
 #define packet_varp_small_rs254_out packet_varp_small_v16_out
 #define packet_varp_small_rs289_out packet_varp_small_v16_out
 #define packet_varp_small_osrsm241_out packet_varp_small_v17_out
+#define packet_varp_small_osrsm242_out packet_varp_small_v18_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_varp_small_out[];

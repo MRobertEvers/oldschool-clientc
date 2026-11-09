@@ -19,7 +19,7 @@ typedef struct MsgIgnoreListAdd {
 
 /* v1 -- revs osrs221-241, osrs242. */
 void packet_ignorelist_add_v1_in(RsprotExec *x, MsgIgnoreListAdd *m);
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void packet_ignorelist_add_v2_in(RsprotExec *x, MsgIgnoreListAdd *m);
 
 /* Per-revision entry points: what revision R calls is packet_ignorelist_add_<R>_in. */
@@ -46,6 +46,7 @@ void packet_ignorelist_add_v2_in(RsprotExec *x, MsgIgnoreListAdd *m);
 #define packet_ignorelist_add_osrs241_in packet_ignorelist_add_v1_in
 #define packet_ignorelist_add_osrs242_in packet_ignorelist_add_v1_in
 #define packet_ignorelist_add_osrsm241_in packet_ignorelist_add_v2_in
+#define packet_ignorelist_add_osrsm242_in packet_ignorelist_add_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_ignorelist_add_in[];

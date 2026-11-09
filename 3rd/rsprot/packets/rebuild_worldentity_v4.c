@@ -25,7 +25,7 @@ packet_rebuild_worldentity_v4_v1_out(RsprotExec *x, MsgRebuildWorldEntityV4 *m)
     }
 }
 
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void
 packet_rebuild_worldentity_v4_v2_out(RsprotExec *x, MsgRebuildWorldEntityV4 *m)
 {
@@ -41,13 +41,14 @@ packet_rebuild_worldentity_v4_v2_out(RsprotExec *x, MsgRebuildWorldEntityV4 *m)
 }
 
 /*
- * 3 row(s) for 2 layout(s). A revision not listed has no REBUILD_WORLDENTITY_V4 and
+ * 4 row(s) for 2 layout(s). A revision not listed has no REBUILD_WORLDENTITY_V4 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_rebuild_worldentity_v4_out[] = {
     { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_rebuild_worldentity_v4_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_rebuild_worldentity_v4_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_rebuild_worldentity_v4_v2_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_rebuild_worldentity_v4_v2_out },
 };
 
 const int rsprot_rebuild_worldentity_v4_out_count =

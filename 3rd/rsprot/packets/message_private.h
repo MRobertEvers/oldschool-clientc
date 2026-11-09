@@ -50,6 +50,7 @@ void packet_message_private_v1_out(RsprotExec *x, MsgMessagePrivate *m);
 #define packet_message_private_osrs241_out packet_message_private_v1_out
 #define packet_message_private_osrs242_out packet_message_private_v1_out
 #define packet_message_private_osrsm241_out packet_message_private_v1_out
+#define packet_message_private_osrsm242_out packet_message_private_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_message_private_out[];
@@ -92,6 +93,7 @@ void packet_message_private_osrsm241_in(RsprotExec *x, MsgMessagePrivateClient *
 #define packet_message_private_osrs241_in packet_message_private_v1_in
 #define packet_message_private_osrs242_in packet_message_private_v1_in
 #define packet_message_private_osrsm241_in packet_message_private_osrsm241_in
+#define packet_message_private_osrsm242_in packet_message_private_osrsm241_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_message_private_in[];

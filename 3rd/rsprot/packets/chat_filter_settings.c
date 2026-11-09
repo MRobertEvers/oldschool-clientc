@@ -154,8 +154,16 @@ packet_chat_filter_settings_v18_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1_SUB128(x, m->public_chat_filter);
 }
 
+/* v19 -- revs osrsm242. */
+void
+packet_chat_filter_settings_v19_out(RsprotExec *x, MsgChatFilterSettings *m)
+{
+    RSPROT_U1_NEG(x, m->trade_chat_filter);
+    RSPROT_U1_NEG(x, m->public_chat_filter);
+}
+
 /*
- * 23 row(s) for 18 layout(s). A revision not listed has no CHAT_FILTER_SETTINGS and
+ * 24 row(s) for 19 layout(s). A revision not listed has no CHAT_FILTER_SETTINGS and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_chat_filter_settings_out[] = {
@@ -182,6 +190,7 @@ const RsprotVersionRange rsprot_chat_filter_settings_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_chat_filter_settings_v16_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_chat_filter_settings_v17_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_chat_filter_settings_v18_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_chat_filter_settings_v19_out },
 };
 
 const int rsprot_chat_filter_settings_out_count =

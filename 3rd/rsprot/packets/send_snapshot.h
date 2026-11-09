@@ -21,7 +21,7 @@ typedef struct MsgSendSnapshot {
 
 /* v1 -- revs osrs221-241, osrs242. */
 void packet_send_snapshot_v1_in(RsprotExec *x, MsgSendSnapshot *m);
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void packet_send_snapshot_v2_in(RsprotExec *x, MsgSendSnapshot *m);
 
 /* Per-revision entry points: what revision R calls is packet_send_snapshot_<R>_in. */
@@ -48,6 +48,7 @@ void packet_send_snapshot_v2_in(RsprotExec *x, MsgSendSnapshot *m);
 #define packet_send_snapshot_osrs241_in packet_send_snapshot_v1_in
 #define packet_send_snapshot_osrs242_in packet_send_snapshot_v1_in
 #define packet_send_snapshot_osrsm241_in packet_send_snapshot_v2_in
+#define packet_send_snapshot_osrsm242_in packet_send_snapshot_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_send_snapshot_in[];

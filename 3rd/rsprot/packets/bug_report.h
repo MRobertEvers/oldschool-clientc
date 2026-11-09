@@ -31,6 +31,8 @@ void packet_bug_report_v4_in(RsprotExec *x, MsgBugReport *m);
 void packet_bug_report_v5_in(RsprotExec *x, MsgBugReport *m);
 /* v6 -- revs osrsm241. */
 void packet_bug_report_v6_in(RsprotExec *x, MsgBugReport *m);
+/* v7 -- revs osrsm242. */
+void packet_bug_report_v7_in(RsprotExec *x, MsgBugReport *m);
 
 /* Per-revision entry points: what revision R calls is packet_bug_report_<R>_in. */
 #define packet_bug_report_osrs221_in packet_bug_report_v1_in
@@ -56,6 +58,7 @@ void packet_bug_report_v6_in(RsprotExec *x, MsgBugReport *m);
 #define packet_bug_report_osrs241_in packet_bug_report_v4_in
 #define packet_bug_report_osrs242_in packet_bug_report_v5_in
 #define packet_bug_report_osrsm241_in packet_bug_report_v6_in
+#define packet_bug_report_osrsm242_in packet_bug_report_v7_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_bug_report_in[];

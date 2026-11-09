@@ -46,6 +46,8 @@ void packet_event_mouse_click_v2_v10_in(RsprotExec *x, MsgEventMouseClickV2 *m);
 void packet_event_mouse_click_v2_v11_in(RsprotExec *x, MsgEventMouseClickV2 *m);
 /* v12 -- revs osrsm241. */
 void packet_event_mouse_click_v2_v12_in(RsprotExec *x, MsgEventMouseClickV2 *m);
+/* v13 -- revs osrsm242. */
+void packet_event_mouse_click_v2_v13_in(RsprotExec *x, MsgEventMouseClickV2 *m);
 
 /* Per-revision entry points: what revision R calls is packet_event_mouse_click_v2_<R>_in. */
 #define packet_event_mouse_click_v2_osrs232_in packet_event_mouse_click_v2_v1_in
@@ -60,6 +62,7 @@ void packet_event_mouse_click_v2_v12_in(RsprotExec *x, MsgEventMouseClickV2 *m);
 #define packet_event_mouse_click_v2_osrs241_in packet_event_mouse_click_v2_v10_in
 #define packet_event_mouse_click_v2_osrs242_in packet_event_mouse_click_v2_v11_in
 #define packet_event_mouse_click_v2_osrsm241_in packet_event_mouse_click_v2_v12_in
+#define packet_event_mouse_click_v2_osrsm242_in packet_event_mouse_click_v2_v13_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_event_mouse_click_v2_in[];

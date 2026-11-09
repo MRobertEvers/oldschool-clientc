@@ -19,7 +19,7 @@ typedef struct MsgResumePCountDialogLong {
 
 /* v1 -- revs osrs237-242. */
 void packet_resume_p_countdialog_long_v1_in(RsprotExec *x, MsgResumePCountDialogLong *m);
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void packet_resume_p_countdialog_long_v2_in(RsprotExec *x, MsgResumePCountDialogLong *m);
 
 /* Per-revision entry points: what revision R calls is packet_resume_p_countdialog_long_<R>_in. */
@@ -30,6 +30,7 @@ void packet_resume_p_countdialog_long_v2_in(RsprotExec *x, MsgResumePCountDialog
 #define packet_resume_p_countdialog_long_osrs241_in packet_resume_p_countdialog_long_v1_in
 #define packet_resume_p_countdialog_long_osrs242_in packet_resume_p_countdialog_long_v1_in
 #define packet_resume_p_countdialog_long_osrsm241_in packet_resume_p_countdialog_long_v2_in
+#define packet_resume_p_countdialog_long_osrsm242_in packet_resume_p_countdialog_long_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_resume_p_countdialog_long_in[];

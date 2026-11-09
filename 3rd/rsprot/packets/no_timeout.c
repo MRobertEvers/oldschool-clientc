@@ -26,7 +26,7 @@ packet_no_timeout_v2_in(RsprotExec *x, MsgNoTimeout *m)
     (void)m;
 }
 
-/* v3 -- revs osrsm241. */
+/* v3 -- revs osrsm241, osrsm242. */
 void
 packet_no_timeout_v3_in(RsprotExec *x, MsgNoTimeout *m)
 {
@@ -35,7 +35,7 @@ packet_no_timeout_v3_in(RsprotExec *x, MsgNoTimeout *m)
 }
 
 /*
- * 6 row(s) for 3 layout(s). A revision not listed has no NO_TIMEOUT and
+ * 7 row(s) for 3 layout(s). A revision not listed has no NO_TIMEOUT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_no_timeout_in[] = {
@@ -45,6 +45,7 @@ const RsprotVersionRange rsprot_no_timeout_in[] = {
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_no_timeout_v2_in },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_no_timeout_v2_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_no_timeout_v3_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_no_timeout_v3_in },
 };
 
 const int rsprot_no_timeout_in_count =

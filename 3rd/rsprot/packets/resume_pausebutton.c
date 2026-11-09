@@ -153,8 +153,16 @@ packet_resume_pausebutton_v18_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_U2_21(x, m->sub);
 }
 
+/* v19 -- revs osrsm242. */
+void
+packet_resume_pausebutton_v19_in(RsprotExec *x, MsgResumePauseButton *m)
+{
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_21(x, m->sub);
+}
+
 /*
- * 26 row(s) for 18 layout(s). A revision not listed has no RESUME_PAUSEBUTTON and
+ * 27 row(s) for 19 layout(s). A revision not listed has no RESUME_PAUSEBUTTON and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_resume_pausebutton_in[] = {
@@ -184,6 +192,7 @@ const RsprotVersionRange rsprot_resume_pausebutton_in[] = {
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_resume_pausebutton_v17_in },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_resume_pausebutton_v17_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_resume_pausebutton_v18_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_resume_pausebutton_v19_in },
 };
 
 const int rsprot_resume_pausebutton_in_count =

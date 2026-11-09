@@ -36,6 +36,7 @@
 #include "rs254_prot.h"
 #include "rs289_prot.h"
 #include "osrsm241_prot.h"
+#include "osrsm242_prot.h"
 
 /* clang-format off */
 static const RsprotRevTable rsprot_all_revisions[] = {
@@ -65,6 +66,7 @@ static const RsprotRevTable rsprot_all_revisions[] = {
     { { RSPROT_RS_ID(254, 0) }, rsprot_rs254_server, RSPROT_RS254_SERVER_COUNT, rsprot_rs254_client, RSPROT_RS254_CLIENT_COUNT, rsprot_rs254_zone_order, RSPROT_RS254_ZONE_COUNT },
     { { RSPROT_RS_ID(289, 0) }, rsprot_rs289_server, RSPROT_RS289_SERVER_COUNT, rsprot_rs289_client, RSPROT_RS289_CLIENT_COUNT, rsprot_rs289_zone_order, RSPROT_RS289_ZONE_COUNT },
     { { RSPROT_OSRSM_ID(241) }, rsprot_osrsm241_server, RSPROT_OSRSM241_SERVER_COUNT, rsprot_osrsm241_client, RSPROT_OSRSM241_CLIENT_COUNT, rsprot_osrsm241_zone_order, RSPROT_OSRSM241_ZONE_COUNT },
+    { { RSPROT_OSRSM_ID(242) }, rsprot_osrsm242_server, RSPROT_OSRSM242_SERVER_COUNT, rsprot_osrsm242_client, RSPROT_OSRSM242_CLIENT_COUNT, rsprot_osrsm242_zone_order, RSPROT_OSRSM242_ZONE_COUNT },
 };
 /* clang-format on */
 

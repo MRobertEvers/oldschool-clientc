@@ -48,6 +48,8 @@ void packet_event_camera_position_v13_in(RsprotExec *x, MsgEventCameraPosition *
 void packet_event_camera_position_v14_in(RsprotExec *x, MsgEventCameraPosition *m);
 /* v15 -- revs osrsm241. */
 void packet_event_camera_position_v15_in(RsprotExec *x, MsgEventCameraPosition *m);
+/* v16 -- revs osrsm242. */
+void packet_event_camera_position_v16_in(RsprotExec *x, MsgEventCameraPosition *m);
 
 /* Per-revision entry points: what revision R calls is packet_event_camera_position_<R>_in. */
 #define packet_event_camera_position_osrs221_in packet_event_camera_position_v1_in
@@ -73,6 +75,7 @@ void packet_event_camera_position_v15_in(RsprotExec *x, MsgEventCameraPosition *
 #define packet_event_camera_position_osrs241_in packet_event_camera_position_v11_in
 #define packet_event_camera_position_osrs242_in packet_event_camera_position_v14_in
 #define packet_event_camera_position_osrsm241_in packet_event_camera_position_v15_in
+#define packet_event_camera_position_osrsm242_in packet_event_camera_position_v16_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_event_camera_position_in[];

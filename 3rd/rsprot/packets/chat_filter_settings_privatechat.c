@@ -17,7 +17,7 @@ packet_chat_filter_settings_privatechat_v1_out(RsprotExec *x, MsgChatFilterSetti
     RSPROT_U1(x, m->private_chat_filter);
 }
 
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void
 packet_chat_filter_settings_privatechat_v2_out(RsprotExec *x, MsgChatFilterSettingsPrivateChat *m)
 {
@@ -25,13 +25,14 @@ packet_chat_filter_settings_privatechat_v2_out(RsprotExec *x, MsgChatFilterSetti
 }
 
 /*
- * 3 row(s) for 2 layout(s). A revision not listed has no CHAT_FILTER_SETTINGS_PRIVATECHAT and
+ * 4 row(s) for 2 layout(s). A revision not listed has no CHAT_FILTER_SETTINGS_PRIVATECHAT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_chat_filter_settings_privatechat_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_chat_filter_settings_privatechat_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_chat_filter_settings_privatechat_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_chat_filter_settings_privatechat_v2_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_chat_filter_settings_privatechat_v2_out },
 };
 
 const int rsprot_chat_filter_settings_privatechat_out_count =

@@ -38,9 +38,13 @@ void packet_obj_customise_specific_v2_v2_out(RsprotExec *x, MsgObjCustomiseSpeci
 /* osrsm241 -- the Android 241.4 client. */
 void packet_obj_customise_specific_v2_osrsm241_out(RsprotExec *x, MsgObjCustomiseSpecificV2 *m);
 
+/* osrsm242 -- the Android 242.3 client. */
+void packet_obj_customise_specific_v2_osrsm242_out(RsprotExec *x, MsgObjCustomiseSpecificV2 *m);
+
 #define packet_obj_customise_specific_v2_osrs241_out packet_obj_customise_specific_v2_v1_out
 #define packet_obj_customise_specific_v2_osrs242_out packet_obj_customise_specific_v2_v2_out
 #define packet_obj_customise_specific_v2_osrsm241_out packet_obj_customise_specific_v2_osrsm241_out
+#define packet_obj_customise_specific_v2_osrsm242_out packet_obj_customise_specific_v2_osrsm242_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_customise_specific_v2_out[];

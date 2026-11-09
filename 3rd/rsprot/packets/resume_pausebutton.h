@@ -54,6 +54,8 @@ void packet_resume_pausebutton_v16_in(RsprotExec *x, MsgResumePauseButton *m);
 void packet_resume_pausebutton_v17_in(RsprotExec *x, MsgResumePauseButton *m);
 /* v18 -- revs osrsm241. */
 void packet_resume_pausebutton_v18_in(RsprotExec *x, MsgResumePauseButton *m);
+/* v19 -- revs osrsm242. */
+void packet_resume_pausebutton_v19_in(RsprotExec *x, MsgResumePauseButton *m);
 
 /* Per-revision entry points: what revision R calls is packet_resume_pausebutton_<R>_in. */
 #define packet_resume_pausebutton_osrs221_in packet_resume_pausebutton_v1_in
@@ -82,6 +84,7 @@ void packet_resume_pausebutton_v18_in(RsprotExec *x, MsgResumePauseButton *m);
 #define packet_resume_pausebutton_rs254_in packet_resume_pausebutton_v17_in
 #define packet_resume_pausebutton_rs289_in packet_resume_pausebutton_v17_in
 #define packet_resume_pausebutton_osrsm241_in packet_resume_pausebutton_v18_in
+#define packet_resume_pausebutton_osrsm242_in packet_resume_pausebutton_v19_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_resume_pausebutton_in[];

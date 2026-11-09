@@ -341,8 +341,22 @@ packet_obj_add_v24_out(RsprotExec *x, MsgObjAdd *m)
     RSPROT_U2_12_ADD128(x, m->time_until_public);
 }
 
+/* v25 -- revs osrsm242. */
+void
+packet_obj_add_v25_out(RsprotExec *x, MsgObjAdd *m)
+{
+    RSPROT_U1_ADD128(x, m->op_flags);
+    RSPROT_U2_12_ADD128(x, m->time_until_public);
+    RSPROT_U2_12_ADD128(x, m->time_until_despawn);
+    RSPROT_U1_NEG(x, m->never_becomes_public);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1(x, m->coord_in_zone_packed);
+    RSPROT_U1_ADD128(x, m->ownership_type);
+    RSPROT_U4_4321(x, m->quantity);
+}
+
 /*
- * 26 row(s) for 24 layout(s). A revision not listed has no OBJ_ADD and
+ * 27 row(s) for 25 layout(s). A revision not listed has no OBJ_ADD and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_add_out[] = {
@@ -372,6 +386,7 @@ const RsprotVersionRange rsprot_obj_add_out[] = {
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_obj_add_v23_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_obj_add_v23_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_add_v24_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_obj_add_v25_out },
 };
 
 const int rsprot_obj_add_out_count =

@@ -271,8 +271,19 @@ packet_opplayert_v24_in(RsprotExec *x, MsgOpPlayerT *m)
     RSPROT_U2_21_ADD128(x, m->selected_sub);
 }
 
+/* v25 -- revs osrsm242. */
+void
+packet_opplayert_v25_in(RsprotExec *x, MsgOpPlayerT *m)
+{
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_COM_2143(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->selected_sub);
+    RSPROT_U2_12(x, m->selected_obj);
+}
+
 /*
- * 26 row(s) for 24 layout(s). A revision not listed has no OPPLAYERT and
+ * 27 row(s) for 25 layout(s). A revision not listed has no OPPLAYERT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opplayert_in[] = {
@@ -302,6 +313,7 @@ const RsprotVersionRange rsprot_opplayert_in[] = {
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_opplayert_v23_in },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_opplayert_v23_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opplayert_v24_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_opplayert_v25_in },
 };
 
 const int rsprot_opplayert_in_count =

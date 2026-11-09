@@ -33,7 +33,7 @@ packet_message_public_osrsm241_in(RsprotExec *x, MsgMessagePublic *m)
 
 const RsprotVersionRange rsprot_message_public_in[] = {
     { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_message_public_v1_in },
-    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_message_public_osrsm241_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_message_public_osrsm241_in },
 };
 
 const int rsprot_message_public_in_count =

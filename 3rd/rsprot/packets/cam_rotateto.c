@@ -20,7 +20,7 @@ packet_cam_rotateto_v1_out(RsprotExec *x, MsgCamRotateTo *m)
     RSPROT_U1(x, m->easing_id);
 }
 
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void
 packet_cam_rotateto_v2_out(RsprotExec *x, MsgCamRotateTo *m)
 {
@@ -31,13 +31,14 @@ packet_cam_rotateto_v2_out(RsprotExec *x, MsgCamRotateTo *m)
 }
 
 /*
- * 3 row(s) for 2 layout(s). A revision not listed has no CAM_ROTATETO and
+ * 4 row(s) for 2 layout(s). A revision not listed has no CAM_ROTATETO and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_rotateto_out[] = {
     { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_rotateto_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_cam_rotateto_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_rotateto_v2_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_cam_rotateto_v2_out },
 };
 
 const int rsprot_cam_rotateto_out_count =

@@ -18,7 +18,7 @@ packet_friendlist_loaded_v1_out(RsprotExec *x, MsgFriendListLoaded *m)
     (void)m;
 }
 
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void
 packet_friendlist_loaded_v2_out(RsprotExec *x, MsgFriendListLoaded *m)
 {
@@ -27,13 +27,14 @@ packet_friendlist_loaded_v2_out(RsprotExec *x, MsgFriendListLoaded *m)
 }
 
 /*
- * 3 row(s) for 2 layout(s). A revision not listed has no FRIENDLIST_LOADED and
+ * 4 row(s) for 2 layout(s). A revision not listed has no FRIENDLIST_LOADED and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_friendlist_loaded_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_friendlist_loaded_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_friendlist_loaded_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_friendlist_loaded_v2_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_friendlist_loaded_v2_out },
 };
 
 const int rsprot_friendlist_loaded_out_count =

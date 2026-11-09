@@ -50,8 +50,16 @@ packet_cam_target_v4_v5_out(RsprotExec *x, MsgCamTargetV4 *m)
     RSPROT_U1_SUB128(x, m->type);
 }
 
+/* v6 -- revs osrsm242. */
+void
+packet_cam_target_v4_v6_out(RsprotExec *x, MsgCamTargetV4 *m)
+{
+    RSPROT_U1_ADD128(x, m->type);
+    RSPROT_U4_4321(x, m->value);
+}
+
 /*
- * 6 row(s) for 5 layout(s). A revision not listed has no CAM_TARGET_V4 and
+ * 7 row(s) for 6 layout(s). A revision not listed has no CAM_TARGET_V4 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_target_v4_out[] = {
@@ -61,6 +69,7 @@ const RsprotVersionRange rsprot_cam_target_v4_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_target_v4_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_cam_target_v4_v4_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_target_v4_v5_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_cam_target_v4_v6_out },
 };
 
 const int rsprot_cam_target_v4_out_count =

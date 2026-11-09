@@ -21,7 +21,7 @@ typedef struct MsgHiscoreRequest {
 
 /* v1 -- revs osrs221-241, osrs242. */
 void packet_hiscore_request_v1_in(RsprotExec *x, MsgHiscoreRequest *m);
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void packet_hiscore_request_v2_in(RsprotExec *x, MsgHiscoreRequest *m);
 
 /* Per-revision entry points: what revision R calls is packet_hiscore_request_<R>_in. */
@@ -48,6 +48,7 @@ void packet_hiscore_request_v2_in(RsprotExec *x, MsgHiscoreRequest *m);
 #define packet_hiscore_request_osrs241_in packet_hiscore_request_v1_in
 #define packet_hiscore_request_osrs242_in packet_hiscore_request_v1_in
 #define packet_hiscore_request_osrsm241_in packet_hiscore_request_v2_in
+#define packet_hiscore_request_osrsm242_in packet_hiscore_request_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_hiscore_request_in[];

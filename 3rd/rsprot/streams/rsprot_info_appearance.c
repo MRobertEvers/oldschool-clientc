@@ -199,7 +199,7 @@ rsprot_appearance_reader(RsprotRev rev)
     /* The mobile client's blob is assumed to be its desktop revision's: the
      * APPEARANCE block around it is traced (osrsm241, player_info.ini), the
      * blob's own layout is not. */
-    if (rsprot_rev_family(rev) == RSPROT_FAMILY_OSRSM && revision == 241)
+    if (rsprot_rev_family(rev) == RSPROT_FAMILY_OSRSM && (revision == 241 || revision == 242))
         return rsprot_appearance_v4;
     if (rsprot_rev_family(rev) != RSPROT_FAMILY_OSRS || revision < 223 || revision > 242)
         return NULL;

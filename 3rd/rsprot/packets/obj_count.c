@@ -250,8 +250,18 @@ packet_obj_count_v24_out(RsprotExec *x, MsgObjCount *m)
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
+/* v25 -- revs osrsm242. */
+void
+packet_obj_count_v25_out(RsprotExec *x, MsgObjCount *m)
+{
+    RSPROT_U4_1234(x, m->old_quantity);
+    RSPROT_U1(x, m->coord_in_zone_packed);
+    RSPROT_U4_2143(x, m->new_quantity);
+    RSPROT_U2_21_ADD128(x, m->id);
+}
+
 /*
- * 26 row(s) for 24 layout(s). A revision not listed has no OBJ_COUNT and
+ * 27 row(s) for 25 layout(s). A revision not listed has no OBJ_COUNT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_count_out[] = {
@@ -281,6 +291,7 @@ const RsprotVersionRange rsprot_obj_count_out[] = {
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_obj_count_v23_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_obj_count_v23_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_count_v24_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_obj_count_v25_out },
 };
 
 const int rsprot_obj_count_out_count =

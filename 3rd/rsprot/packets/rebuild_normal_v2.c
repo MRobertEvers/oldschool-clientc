@@ -80,8 +80,18 @@ packet_rebuild_normal_v2_v7_out(RsprotExec *x, MsgRebuildNormalV2 *m)
     RSPROT_U2_12(x, m->zone_z);
 }
 
+/* v8 -- revs osrsm242. */
+void
+packet_rebuild_normal_v2_v8_out(RsprotExec *x, MsgRebuildNormalV2 *m)
+{
+    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 6);
+    RSPROT_U2_21_ADD128(x, m->zone_x);
+    RSPROT_U2_21_ADD128(x, m->world_area);
+    RSPROT_U2_12(x, m->zone_z);
+}
+
 /*
- * 7 row(s) for 7 layout(s). A revision not listed has no REBUILD_NORMAL_V2 and
+ * 8 row(s) for 8 layout(s). A revision not listed has no REBUILD_NORMAL_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_rebuild_normal_v2_out[] = {
@@ -92,6 +102,7 @@ const RsprotVersionRange rsprot_rebuild_normal_v2_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_rebuild_normal_v2_v5_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_rebuild_normal_v2_v6_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_rebuild_normal_v2_v7_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_rebuild_normal_v2_v8_out },
 };
 
 const int rsprot_rebuild_normal_v2_out_count =

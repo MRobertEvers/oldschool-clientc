@@ -73,8 +73,17 @@ packet_opnpc2_v2_v7_in(RsprotExec *x, MsgOpNpc2V2 *m)
     RSPROT_U1_ADD128(x, m->control_key);
 }
 
+/* v8 -- revs osrsm242. */
+void
+packet_opnpc2_v2_v8_in(RsprotExec *x, MsgOpNpc2V2 *m)
+{
+    RSPROT_U1_ADD128(x, m->control_key);
+    RSPROT_U1_NEG(x, m->subop);
+    RSPROT_U2_12(x, m->index);
+}
+
 /*
- * 7 row(s) for 7 layout(s). A revision not listed has no OPNPC2_V2 and
+ * 8 row(s) for 8 layout(s). A revision not listed has no OPNPC2_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opnpc2_v2_in[] = {
@@ -85,6 +94,7 @@ const RsprotVersionRange rsprot_opnpc2_v2_in[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opnpc2_v2_v5_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_opnpc2_v2_v6_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opnpc2_v2_v7_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_opnpc2_v2_v8_in },
 };
 
 const int rsprot_opnpc2_v2_in_count =

@@ -18,7 +18,7 @@ packet_membership_promotion_eligibility_v1_in(RsprotExec *x, MsgMembershipPromot
     RSPROT_U1(x, m->eligible_for_trial_purchase);
 }
 
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void
 packet_membership_promotion_eligibility_v2_in(RsprotExec *x, MsgMembershipPromotionEligibility *m)
 {
@@ -27,13 +27,14 @@ packet_membership_promotion_eligibility_v2_in(RsprotExec *x, MsgMembershipPromot
 }
 
 /*
- * 3 row(s) for 2 layout(s). A revision not listed has no MEMBERSHIP_PROMOTION_ELIGIBILITY and
+ * 4 row(s) for 2 layout(s). A revision not listed has no MEMBERSHIP_PROMOTION_ELIGIBILITY and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_membership_promotion_eligibility_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_membership_promotion_eligibility_v1_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_membership_promotion_eligibility_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_membership_promotion_eligibility_v2_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_membership_promotion_eligibility_v2_in },
 };
 
 const int rsprot_membership_promotion_eligibility_in_count =

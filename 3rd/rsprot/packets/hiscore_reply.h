@@ -60,6 +60,7 @@ void packet_hiscore_reply_v1_out(RsprotExec *x, MsgHiscoreReply *m);
 #define packet_hiscore_reply_osrs241_out packet_hiscore_reply_v1_out
 #define packet_hiscore_reply_osrs242_out packet_hiscore_reply_v1_out
 #define packet_hiscore_reply_osrsm241_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrsm242_out packet_hiscore_reply_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_hiscore_reply_out[];

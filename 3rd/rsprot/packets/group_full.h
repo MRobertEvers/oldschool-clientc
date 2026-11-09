@@ -37,6 +37,7 @@ void packet_group_full_v1_out(RsprotExec *x, MsgGroupFull *m);
 #define packet_group_full_osrs241_out packet_group_full_v1_out
 #define packet_group_full_osrs242_out packet_group_full_v1_out
 #define packet_group_full_osrsm241_out packet_group_full_v1_out
+#define packet_group_full_osrsm242_out packet_group_full_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_group_full_out[];

@@ -67,6 +67,8 @@ void packet_if_setobject_v22_out(RsprotExec *x, MsgIfSetObject *m);
 void packet_if_setobject_v23_out(RsprotExec *x, MsgIfSetObject *m);
 /* v24 -- revs osrsm241. */
 void packet_if_setobject_v24_out(RsprotExec *x, MsgIfSetObject *m);
+/* v25 -- revs osrsm242. */
+void packet_if_setobject_v25_out(RsprotExec *x, MsgIfSetObject *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_setobject_<R>_out. */
 #define packet_if_setobject_osrs221_out packet_if_setobject_v1_out
@@ -95,6 +97,7 @@ void packet_if_setobject_v24_out(RsprotExec *x, MsgIfSetObject *m);
 #define packet_if_setobject_rs254_out packet_if_setobject_v23_out
 #define packet_if_setobject_rs289_out packet_if_setobject_v23_out
 #define packet_if_setobject_osrsm241_out packet_if_setobject_v24_out
+#define packet_if_setobject_osrsm242_out packet_if_setobject_v25_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setobject_out[];

@@ -28,12 +28,31 @@ packet_loc_add_change_v3_v1_out(RsprotExec *x, MsgLocAddChangeV3 *m)
     RSPROT_U1_SUB128(x, m->loc_properties_packed);
 }
 
+/* v2 -- revs osrsm242. */
+void
+packet_loc_add_change_v3_v2_out(RsprotExec *x, MsgLocAddChangeV3 *m)
+{
+    RSPROT_U1_SUB128(x, m->loc_properties_packed);
+    RSPROT_U1_ADD128(x, m->op_flags);
+    RSPROT_U1_SUB128(x, m->ops_count);
+    if ((!(m->ops_count == 0))) {
+        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
+            Rsprot_MsgLocAddChangeV3_opsElem *elem = &m->ops[rs_i_ops];
+            RSPROT_XFORM(x, U1_NEG, elem->key, -1);
+            RSPROT_JSTR(x, elem->value);
+        }
+    }
+    RSPROT_U3_321(x, m->id);
+    RSPROT_U1(x, m->coord_in_zone_packed);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no LOC_ADD_CHANGE_V3 and
+ * 2 row(s) for 2 layout(s). A revision not listed has no LOC_ADD_CHANGE_V3 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_loc_add_change_v3_out[] = {
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_loc_add_change_v3_v1_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_loc_add_change_v3_v2_out },
 };
 
 const int rsprot_loc_add_change_v3_out_count =

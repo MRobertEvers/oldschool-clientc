@@ -21,12 +21,24 @@ packet_oploc3_v3_v1_in(RsprotExec *x, MsgOpLoc3V3 *m)
     RSPROT_U1_ADD128(x, m->subop);
 }
 
+/* v2 -- revs osrsm242. */
+void
+packet_oploc3_v3_v2_in(RsprotExec *x, MsgOpLoc3V3 *m)
+{
+    RSPROT_U1_SUB128(x, m->subop);
+    RSPROT_U2_12_ADD128(x, m->x);
+    RSPROT_U3_321(x, m->id);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U1_ADD128(x, m->control_key);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no OPLOC3_V3 and
+ * 2 row(s) for 2 layout(s). A revision not listed has no OPLOC3_V3 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_oploc3_v3_in[] = {
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_oploc3_v3_v1_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_oploc3_v3_v2_in },
 };
 
 const int rsprot_oploc3_v3_in_count =

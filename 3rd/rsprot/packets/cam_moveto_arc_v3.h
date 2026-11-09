@@ -35,6 +35,8 @@ void packet_cam_moveto_arc_v3_v3_out(RsprotExec *x, MsgCamMoveToArcV3 *m);
 void packet_cam_moveto_arc_v3_v4_out(RsprotExec *x, MsgCamMoveToArcV3 *m);
 /* v5 -- revs osrsm241. */
 void packet_cam_moveto_arc_v3_v5_out(RsprotExec *x, MsgCamMoveToArcV3 *m);
+/* v6 -- revs osrsm242. */
+void packet_cam_moveto_arc_v3_v6_out(RsprotExec *x, MsgCamMoveToArcV3 *m);
 
 /* Per-revision entry points: what revision R calls is packet_cam_moveto_arc_v3_<R>_out. */
 #define packet_cam_moveto_arc_v3_osrs239_out packet_cam_moveto_arc_v3_v1_out
@@ -42,6 +44,7 @@ void packet_cam_moveto_arc_v3_v5_out(RsprotExec *x, MsgCamMoveToArcV3 *m);
 #define packet_cam_moveto_arc_v3_osrs241_out packet_cam_moveto_arc_v3_v3_out
 #define packet_cam_moveto_arc_v3_osrs242_out packet_cam_moveto_arc_v3_v4_out
 #define packet_cam_moveto_arc_v3_osrsm241_out packet_cam_moveto_arc_v3_v5_out
+#define packet_cam_moveto_arc_v3_osrsm242_out packet_cam_moveto_arc_v3_v6_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_moveto_arc_v3_out[];

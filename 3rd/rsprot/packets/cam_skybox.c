@@ -38,8 +38,15 @@ packet_cam_skybox_v4_out(RsprotExec *x, MsgCamSkybox *m)
     RSPROT_U4_1234(x, m->model);
 }
 
+/* v5 -- revs osrsm242. */
+void
+packet_cam_skybox_v5_out(RsprotExec *x, MsgCamSkybox *m)
+{
+    RSPROT_U4_3412(x, m->model);
+}
+
 /*
- * 5 row(s) for 4 layout(s). A revision not listed has no CAM_SKYBOX and
+ * 6 row(s) for 5 layout(s). A revision not listed has no CAM_SKYBOX and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_skybox_out[] = {
@@ -48,6 +55,7 @@ const RsprotVersionRange rsprot_cam_skybox_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_skybox_v3_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_cam_skybox_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_skybox_v4_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_cam_skybox_v5_out },
 };
 
 const int rsprot_cam_skybox_out_count =

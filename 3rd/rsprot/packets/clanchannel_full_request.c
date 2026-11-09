@@ -17,7 +17,7 @@ packet_clanchannel_full_request_v1_in(RsprotExec *x, MsgClanChannelFullRequest *
     RSPROT_I1(x, m->clan_id);
 }
 
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void
 packet_clanchannel_full_request_v2_in(RsprotExec *x, MsgClanChannelFullRequest *m)
 {
@@ -25,13 +25,14 @@ packet_clanchannel_full_request_v2_in(RsprotExec *x, MsgClanChannelFullRequest *
 }
 
 /*
- * 3 row(s) for 2 layout(s). A revision not listed has no CLANCHANNEL_FULL_REQUEST and
+ * 4 row(s) for 2 layout(s). A revision not listed has no CLANCHANNEL_FULL_REQUEST and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_clanchannel_full_request_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clanchannel_full_request_v1_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_clanchannel_full_request_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_clanchannel_full_request_v2_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_clanchannel_full_request_v2_in },
 };
 
 const int rsprot_clanchannel_full_request_in_count =

@@ -78,6 +78,7 @@ void packet_update_ignorelist_v1_out(RsprotExec *x, MsgUpdateIgnoreList *m);
 #define packet_update_ignorelist_osrs241_out packet_update_ignorelist_v1_out
 #define packet_update_ignorelist_osrs242_out packet_update_ignorelist_v1_out
 #define packet_update_ignorelist_osrsm241_out packet_update_ignorelist_v1_out
+#define packet_update_ignorelist_osrsm242_out packet_update_ignorelist_v1_out
 
 extern const RsprotVersionRange rsprot_update_ignorelist_out[];
 extern const int rsprot_update_ignorelist_out_count;

@@ -75,8 +75,21 @@ packet_cam_rotateto_coordinate_v3_v5_out(RsprotExec *x, MsgCamRotateToCoordinate
     RSPROT_U2_21(x, m->x);
 }
 
+/* v6 -- revs osrsm242. */
+void
+packet_cam_rotateto_coordinate_v3_v6_out(RsprotExec *x, MsgCamRotateToCoordinateV3 *m)
+{
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U1(x, m->track_target);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->cycles);
+    RSPROT_U2_21(x, m->height);
+    RSPROT_U1(x, m->height_relative);
+    RSPROT_U1(x, m->easing_id);
+}
+
 /*
- * 5 row(s) for 5 layout(s). A revision not listed has no CAM_ROTATETO_COORDINATE_V3 and
+ * 6 row(s) for 6 layout(s). A revision not listed has no CAM_ROTATETO_COORDINATE_V3 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_rotateto_coordinate_v3_out[] = {
@@ -85,6 +98,7 @@ const RsprotVersionRange rsprot_cam_rotateto_coordinate_v3_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v3_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v4_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v5_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v6_out },
 };
 
 const int rsprot_cam_rotateto_coordinate_v3_out_count =

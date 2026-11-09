@@ -52,6 +52,8 @@ GameProtoRev_OSRS242(void);
 struct GameProtoRevTable const*
 GameProtoRev_OSRSM241(void);
 struct GameProtoRevTable const*
+GameProtoRev_OSRSM242(void);
+struct GameProtoRevTable const*
 GameProtoRev_RS245_2(void);
 struct GameProtoRevTable const*
 GameProtoRev_RS254(void);
@@ -82,6 +84,7 @@ GameProtoRev_RS289(void);
     X(OSRS241, 241) \
     X(OSRS242, 242) \
     X(OSRSM241, 241) \
+    X(OSRSM242, 242) \
     X(RS245_2, 2452) \
     X(RS254, 254) \
     X(RS289, 289) \

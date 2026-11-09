@@ -19,7 +19,7 @@ packet_group_var_long_v1_out(RsprotExec *x, MsgGroupVarLong *m)
     RSPROT_U8_12345678(x, m->update_variable_value);
 }
 
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void
 packet_group_var_long_v2_out(RsprotExec *x, MsgGroupVarLong *m)
 {
@@ -29,13 +29,14 @@ packet_group_var_long_v2_out(RsprotExec *x, MsgGroupVarLong *m)
 }
 
 /*
- * 3 row(s) for 2 layout(s). A revision not listed has no GROUP_VAR_LONG and
+ * 4 row(s) for 2 layout(s). A revision not listed has no GROUP_VAR_LONG and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_group_var_long_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_group_var_long_v1_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_group_var_long_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_group_var_long_v2_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_group_var_long_v2_out },
 };
 
 const int rsprot_group_var_long_out_count =

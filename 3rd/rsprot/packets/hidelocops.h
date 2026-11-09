@@ -19,7 +19,7 @@ typedef struct MsgHideLocOps {
 
 /* v1 -- revs osrs223-241, osrs242. */
 void packet_hidelocops_v1_out(RsprotExec *x, MsgHideLocOps *m);
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void packet_hidelocops_v2_out(RsprotExec *x, MsgHideLocOps *m);
 
 /* Per-revision entry points: what revision R calls is packet_hidelocops_<R>_out. */
@@ -44,6 +44,7 @@ void packet_hidelocops_v2_out(RsprotExec *x, MsgHideLocOps *m);
 #define packet_hidelocops_osrs241_out packet_hidelocops_v1_out
 #define packet_hidelocops_osrs242_out packet_hidelocops_v1_out
 #define packet_hidelocops_osrsm241_out packet_hidelocops_v2_out
+#define packet_hidelocops_osrsm242_out packet_hidelocops_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_hidelocops_out[];

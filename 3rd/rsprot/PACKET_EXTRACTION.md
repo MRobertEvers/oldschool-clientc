@@ -87,12 +87,19 @@ The handlers are the same code from one build to the next, so the previous mobil
 4. Packets the desktop diff says are new have no previous case. Name them by reading the handler against the desktop port of that revision.
 5. Enforce one name per opcode, and a matching size.
 
-> **Not yet run.** Steps 2 and 3 are what the 241 work points to, but 241 was the first mobile port, so it had no earlier mobile build to compare with. It used these instead, and they remain the fallback for any case that doesn't pair cleanly:
->
-> - **Unique size**: a size only one packet has pins it (8 packets).
-> - **Field widths**: a size plus field-width multiset matched 20 of 96 fixed-size packets to exactly one name. The rest sat in small groups with identical shapes.
-> - **Behaviour**: read the case next to the named 216 `Client::TcpIn` case: the callee (`Client::PlayJingle`, `IfType::Get`), the fields written, the loops.
-> - **Traffic**: rebuild first, varps after `VARP_RESET`, and per-tick packets.
+Two things made this work at 242, and are worth repeating:
+
+- **A binary-wide function map.** Pair functions across the two builds by normalised body (addresses, labels and locals removed), first exact, then with literals removed so moved struct offsets still match. Propagate through call lists of pairs. At 242 that mapped 13,716 of 21,246 functions, and comparing callees through the map separates cases that constants alone can't.
+- **Client packets by function and position.** Pair the functions containing `MakeClientMessage` calls by the sequence of packet sizes they send plus their fingerprint, then line the calls up by position, since source order doesn't change between builds. That named 75 of 110 client opcodes.
+
+A fingerprint pairing is a hypothesis. Small handlers that only store a byte or two score almost the same as each other: 242 got `CAM_MODE`/`CAM_UNLOCK`, `IF_SETNPCHEAD`/`IF_SETNPCHEAD_ACTIVE`, two clan-settings packets and the `OPLOC`/`OPOBJ` senders wrong. All of them were caught in step 5, by reading the 242 handler next to the 241 one and comparing what each does. Have that step confirm or reject every name.
+
+If a case doesn't pair, these are the fallbacks:
+
+- **Unique size**: a size only one packet has pins it (8 packets at 241).
+- **Field widths**: a size plus field-width multiset matched 20 of 96 fixed-size packets to exactly one name. The rest sat in small groups with identical shapes.
+- **Behaviour**: read the case next to the named 216 `Client::TcpIn` case: the callee (`Client::PlayJingle`, `IfType::Get`), the fields written, the loops.
+- **Traffic**: rebuild first, varps after `VARP_RESET`, and per-tick packets.
 
 Record a confidence and a line of evidence for each opcode, in a new `FINDINGS.md` and `.tsv`. Some packets stay uncertain. At 241 the three hide-ops flags are adjacent bits told apart only by send order, and opcodes with no handler were named by elimination. Say so in the table.
 

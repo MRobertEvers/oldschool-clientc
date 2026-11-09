@@ -42,6 +42,7 @@ void packet_update_stockmarket_slot_v2_v1_out(RsprotExec *x, MsgUpdateStockmarke
 #define packet_update_stockmarket_slot_v2_osrs241_out packet_update_stockmarket_slot_v2_v1_out
 #define packet_update_stockmarket_slot_v2_osrs242_out packet_update_stockmarket_slot_v2_v1_out
 #define packet_update_stockmarket_slot_v2_osrsm241_out packet_update_stockmarket_slot_v2_v1_out
+#define packet_update_stockmarket_slot_v2_osrsm242_out packet_update_stockmarket_slot_v2_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_stockmarket_slot_v2_out[];

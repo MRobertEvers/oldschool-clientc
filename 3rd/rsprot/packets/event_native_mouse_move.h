@@ -64,6 +64,7 @@ void packet_event_native_mouse_move_osrsm241_in(RsprotExec *x, MsgEventNativeMou
 #define packet_event_native_mouse_move_osrs241_in packet_event_native_mouse_move_v1_in
 #define packet_event_native_mouse_move_osrs242_in packet_event_native_mouse_move_v1_in
 #define packet_event_native_mouse_move_osrsm241_in packet_event_native_mouse_move_osrsm241_in
+#define packet_event_native_mouse_move_osrsm242_in packet_event_native_mouse_move_osrsm241_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_event_native_mouse_move_in[];

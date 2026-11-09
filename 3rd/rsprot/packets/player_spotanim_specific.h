@@ -62,6 +62,8 @@ void packet_player_spotanim_specific_v19_out(RsprotExec *x, MsgPlayerSpotanimSpe
 void packet_player_spotanim_specific_v20_out(RsprotExec *x, MsgPlayerSpotanimSpecific *m);
 /* v21 -- revs osrsm241. */
 void packet_player_spotanim_specific_v21_out(RsprotExec *x, MsgPlayerSpotanimSpecific *m);
+/* v22 -- revs osrsm242. */
+void packet_player_spotanim_specific_v22_out(RsprotExec *x, MsgPlayerSpotanimSpecific *m);
 
 /* Per-revision entry points: what revision R calls is packet_player_spotanim_specific_<R>_out. */
 #define packet_player_spotanim_specific_osrs222_out packet_player_spotanim_specific_v1_out
@@ -86,6 +88,7 @@ void packet_player_spotanim_specific_v21_out(RsprotExec *x, MsgPlayerSpotanimSpe
 #define packet_player_spotanim_specific_osrs241_out packet_player_spotanim_specific_v20_out
 #define packet_player_spotanim_specific_osrs242_out packet_player_spotanim_specific_v20_out
 #define packet_player_spotanim_specific_osrsm241_out packet_player_spotanim_specific_v21_out
+#define packet_player_spotanim_specific_osrsm242_out packet_player_spotanim_specific_v22_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_player_spotanim_specific_out[];

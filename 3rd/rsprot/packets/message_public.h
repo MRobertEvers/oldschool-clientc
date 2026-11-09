@@ -56,6 +56,7 @@ void packet_message_public_osrsm241_in(RsprotExec *x, MsgMessagePublic *m);
 #define packet_message_public_osrs241_in packet_message_public_v1_in
 #define packet_message_public_osrs242_in packet_message_public_v1_in
 #define packet_message_public_osrsm241_in packet_message_public_osrsm241_in
+#define packet_message_public_osrsm242_in packet_message_public_osrsm241_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_message_public_in[];

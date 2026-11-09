@@ -19,7 +19,7 @@ packet_window_status_v1_in(RsprotExec *x, MsgWindowStatus *m)
     RSPROT_U2_12(x, m->frame_height);
 }
 
-/* v2 -- revs osrsm241. */
+/* v2 -- revs osrsm241, osrsm242. */
 void
 packet_window_status_v2_in(RsprotExec *x, MsgWindowStatus *m)
 {
@@ -29,13 +29,14 @@ packet_window_status_v2_in(RsprotExec *x, MsgWindowStatus *m)
 }
 
 /*
- * 3 row(s) for 2 layout(s). A revision not listed has no WINDOW_STATUS and
+ * 4 row(s) for 2 layout(s). A revision not listed has no WINDOW_STATUS and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_window_status_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_window_status_v1_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_window_status_v1_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_window_status_v2_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_window_status_v2_in },
 };
 
 const int rsprot_window_status_in_count =

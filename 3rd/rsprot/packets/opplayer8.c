@@ -162,8 +162,16 @@ packet_opplayer8_v19_in(RsprotExec *x, MsgOpPlayer8 *m)
     RSPROT_U2_12_ADD128(x, m->index);
 }
 
+/* v20 -- revs osrsm242. */
+void
+packet_opplayer8_v20_in(RsprotExec *x, MsgOpPlayer8 *m)
+{
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_U1_SUB128(x, m->control_key);
+}
+
 /*
- * 23 row(s) for 19 layout(s). A revision not listed has no OPPLAYER8 and
+ * 24 row(s) for 20 layout(s). A revision not listed has no OPPLAYER8 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opplayer8_in[] = {
@@ -190,6 +198,7 @@ const RsprotVersionRange rsprot_opplayer8_in[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opplayer8_v2_in },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_opplayer8_v18_in },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opplayer8_v19_in },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_opplayer8_v20_in },
 };
 
 const int rsprot_opplayer8_in_count =

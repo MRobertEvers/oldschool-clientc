@@ -23,7 +23,7 @@ typedef struct MsgLogout {
 void packet_logout_v1_out(RsprotExec *x, MsgLogout *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_logout_v2_out(RsprotExec *x, MsgLogout *m);
-/* v3 -- revs osrsm241. */
+/* v3 -- revs osrsm241, osrsm242. */
 void packet_logout_v3_out(RsprotExec *x, MsgLogout *m);
 
 /* Per-revision entry points: what revision R calls is packet_logout_<R>_out. */
@@ -53,6 +53,7 @@ void packet_logout_v3_out(RsprotExec *x, MsgLogout *m);
 #define packet_logout_rs254_out packet_logout_v2_out
 #define packet_logout_rs289_out packet_logout_v2_out
 #define packet_logout_osrsm241_out packet_logout_v3_out
+#define packet_logout_osrsm242_out packet_logout_v3_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_logout_out[];

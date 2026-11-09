@@ -38,8 +38,15 @@ packet_cam_unlock_v4_out(RsprotExec *x, MsgCamUnlock *m)
     RSPROT_U1_SUB128(x, m->unlock);
 }
 
+/* v5 -- revs osrsm242. */
+void
+packet_cam_unlock_v5_out(RsprotExec *x, MsgCamUnlock *m)
+{
+    RSPROT_U1(x, m->unlock);
+}
+
 /*
- * 6 row(s) for 4 layout(s). A revision not listed has no CAM_UNLOCK and
+ * 7 row(s) for 5 layout(s). A revision not listed has no CAM_UNLOCK and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_unlock_out[] = {
@@ -49,6 +56,7 @@ const RsprotVersionRange rsprot_cam_unlock_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_unlock_v3_out },
     { RSPROT_OSRS_ID(242), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_cam_unlock_v1_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_unlock_v4_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_cam_unlock_v5_out },
 };
 
 const int rsprot_cam_unlock_out_count =

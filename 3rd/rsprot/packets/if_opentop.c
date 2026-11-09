@@ -53,6 +53,13 @@ packet_if_opentop_v4_out(RsprotExec *x, MsgIfOpenTop *m)
  * Order does not matter — rsprot_version_pick is a linear scan — but the rows
  * are kept in ascending revision order so a gap is visible by eye.
  */
+/* osrsm242 -- the Android 242.3 client (Old School mobile). */
+void
+packet_if_opentop_osrsm242_out(RsprotExec *x, MsgIfOpenTop *m)
+{
+    RSPROT_U2_12(x, m->interface_id);
+}
+
 const RsprotVersionRange rsprot_if_opentop_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_if_opentop_v1_out },
     { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_if_opentop_v2_out },
@@ -72,6 +79,7 @@ const RsprotVersionRange rsprot_if_opentop_out[] = {
     /* 241 (RSProx osrs-241, IfOpenTopDecoder): decode body unchanged from 239. */
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(242), (RsprotCodecFn)packet_if_opentop_v4_out },
     { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_opentop_v2_out },
+    { RSPROT_OSRSM_ID(242), RSPROT_OSRSM_ID(242), (RsprotCodecFn)packet_if_opentop_osrsm242_out },
 };
 
 const int rsprot_if_opentop_out_count =
