@@ -129,7 +129,7 @@ static const struct Editor_HotkeyActionInfo k_actions[EDITOR_HK_COUNT] = {
                                        { "8" }, NULL },
     [EDITOR_HK_TOOL_PAINT_FLAGS] = { "tool.paint_flags", "Tools", "Paint flags", "Paint flags", G, EDGE, { "9" },
                                      NULL },
-    [EDITOR_HK_TOOL_PLACE] = { "tool.place", "Tools", "Place loc", "Place loc", G, EDGE, { "0" }, NULL },
+    [EDITOR_HK_TOOL_PLACE] = { "tool.place", "Tools", "Place loc / wall run", "Place loc", G, EDGE, { "0" }, NULL },
     [EDITOR_HK_TOOL_MOVE] = { "tool.move", "Tools", "Move loc", "Move loc", G, EDGE, { "m" }, NULL },
     [EDITOR_HK_TOOL_ROTATE] = { "tool.rotate", "Tools", "Rotate loc (tool)", "Rotate loc (tool)", G, EDGE, { "t" },
                                 NULL },
