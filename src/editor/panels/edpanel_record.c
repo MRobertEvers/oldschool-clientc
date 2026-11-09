@@ -47,6 +47,7 @@
 #include "editor/builder/builder_panels.h"
 #include "editor/builder/builder_shell.h"
 #include "editor/editor_cfg.h"
+#include "editor/editor_npc.h"
 #include "editor/editor_host.h"
 #include "editor/editor_script.h"
 #include "editor/map_editor_ghost.h"
@@ -221,6 +222,12 @@ struct RecordPanel
 
     char layer_labels[EDITOR_CFG_RECORD_LAYERS_MAX + 1][TORIRS_CHROME_LABEL_MAX];
     const char* layer_options[EDITOR_CFG_RECORD_LAYERS_MAX + 1];
+    /** Write to's option i is layer layer_option_layer[i]: the generated
+     *  layers are never offered (docs/NPC_EDITOR_DESIGN.md 3.8, D8). */
+    int layer_option_layer[EDITOR_CFG_RECORD_LAYERS_MAX + 1];
+    int layer_option_count;
+    /** The tab strip's tooltip: every layer's full path. */
+    char tab_tip[TORIRS_CHROME_INPUT_MAX];
 
     /* Triggers */
     struct Editor_ScriptRef triggers[RECORD_TRIGGERS_MAX];
@@ -395,18 +402,37 @@ record_tabs(
 {
     int n = 0;
 
+    size_t tip_at = 0;
+
+    /* Short titles, so a record over four layers still shows every tab
+     * (D7: "Server overlay server_fields.generate|Server overlay lumbridge."
+     * ran the strip's titles together); the full paths are the strip's
+     * tooltip. */
+    self->tab_tip[0] = '\0';
     for( int l = 0; l < self->record.layer_count && n < RECORD_TABS_MAX - 3; l++ )
     {
         const struct Editor_CfgRecordLayer* layer = &self->record.layers[l];
+        int generated_layers = 0;
+        for( int k = 0; k < self->record.layer_count; k++ )
+            generated_layers += self->record.layers[k].rank == 1;
         if( layer->rank == 0 )
-            snprintf(self->tab_titles[n], sizeof(self->tab_titles[n]), "Cache block");
+            snprintf(self->tab_titles[n], sizeof(self->tab_titles[n]), "cache");
+        else if( layer->rank == 1 && generated_layers == 1 )
+            snprintf(self->tab_titles[n], sizeof(self->tab_titles[n]), "generated");
         else
-            snprintf(self->tab_titles[n], sizeof(self->tab_titles[n]), "Server overlay %s",
-                record_basename(layer->label));
+            snprintf(self->tab_titles[n], sizeof(self->tab_titles[n]), "%s", record_basename(layer->label));
         self->tab_roles[n] = layer->rank == 0 ? EDITOR_RECORD_TAB_CACHE : EDITOR_RECORD_TAB_OVERLAY;
         snprintf(self->tab_layers[n], sizeof(self->tab_layers[n]), "%s", layer->doc_key);
+        /* The authored files' paths (a tooltip holds 63 bytes: the cache and
+         * generated tabs' are fixed and the row's source badge names them). */
+        if( layer->rank == 2 && tip_at < sizeof(self->tab_tip) )
+            tip_at += (size_t)snprintf(self->tab_tip + tip_at, sizeof(self->tab_tip) - tip_at, "%s%s",
+                tip_at ? "; " : "", layer->label);
         n++;
     }
+    if( tip_at >= TORIRS_CHROME_LABEL_MAX )
+        snprintf(self->tab_tip, sizeof(self->tab_tip), "one tab per file; Write to names each authored one");
+    ToriRSChrome_SetTooltip(ui->chrome, self->tabs, self->tab_tip);
     snprintf(self->tab_titles[n], sizeof(self->tab_titles[n]), "Triggers");
     self->tab_roles[n] = EDITOR_RECORD_TAB_TRIGGERS;
     self->tab_layers[n++][0] = '\0';
@@ -451,17 +477,24 @@ record_resolve(
         }
     }
 
-    snprintf(self->layer_labels[0], sizeof(self->layer_labels[0]), "where it is stated");
-    self->layer_options[0] = self->layer_labels[0];
+    /* Write to: every layer but the generated ones -- their generator
+     *  rewrites them, so an edit there is lost on the next run (D8). */
+    self->layer_option_count = 0;
     for( int l = 0; l < self->record.layer_count; l++ )
     {
         const struct Editor_CfgRecordLayer* layer = &self->record.layers[l];
-        snprintf(self->layer_labels[l + 1], sizeof(self->layer_labels[l + 1]), "%s %s (%s)",
-            layer->present ? "in" : "override in", record_basename(layer->label), record_rank_name(layer->rank));
-        self->layer_options[l + 1] = self->layer_labels[l + 1];
+        int const o = self->layer_option_count;
+        if( layer->rank == 1 )
+            continue;
+        snprintf(self->layer_labels[o], sizeof(self->layer_labels[o]), "%s %s (%s)",
+            layer->present ? "in" : "new block in", record_basename(layer->label),
+            layer->rank == 0 ? "cache" : layer->present ? "authored" : "authored, this file has no block yet");
+        self->layer_options[o] = self->layer_labels[o];
+        self->layer_option_layer[o] = l;
+        self->layer_option_count++;
     }
-    ToriRSChrome_DropdownSetOptions(ui->chrome, self->dropdown_layer, self->layer_options,
-        self->record.layer_count + 1, 0);
+    ToriRSChrome_DropdownSetOptions(ui->chrome, self->dropdown_layer, self->layer_options, self->layer_option_count,
+        self->layer_option_count > 0 ? 0 : -1);
     {
         char line[TORIRS_CHROME_LABEL_MAX];
         int stated = 0;
@@ -523,6 +556,11 @@ record_tab_role(
 }
 
 static void
+record_layout(
+    struct EditorUi* ui,
+    struct RecordPanel* self);
+
+static void
 record_visible_build(
     struct EditorUi* ui,
     struct RecordPanel* self)
@@ -531,23 +569,44 @@ record_visible_build(
     int const role = record_tab_role(ui, self, &layer);
     const char* find = ToriRSChrome_Text(ui->chrome, self->input_find);
     int const changed_only = ToriRSChrome_Checked(ui->chrome, self->check_changed);
-    int const add_layer = Editor_CfgRecordAddLayerFor(&self->record);
+    int const add_layer = Editor_CfgRecordWriteLayerFor(&self->record, -1);
+    int const tab = ToriRSChrome_PanelActiveTab(ui->chrome, self->panel);
 
+    /* Another tab: its own rows from the top, nothing picked -- the pick
+     * and the scroll of the last tab must not survive the switch (D7: the
+     * row editor showed `wanderrange 5` while `multinpc2` was highlighted). */
+    if( self->visible_valid && self->visible_tab != tab )
+    {
+        self->picked = -1;
+        self->picked_name[0] = '\0';
+        self->editor_kind = EDITOR_CFG_FIELD_TEXT;
+        ToriRSChrome_VListSetSelected(ui->chrome, self->list, -1);
+        ToriRSChrome_VListSetScroll(ui->chrome, self->list, 0);
+        ToriRSChrome_SetText(ui->chrome, self->label_field, "");
+        ToriRSChrome_SetText(ui->chrome, self->row_hint, "pick a field to edit it");
+        record_layout(ui, self);
+    }
     find = find ? find : "";
     self->visible_count = 0;
     if( (role == EDITOR_RECORD_TAB_CACHE || role == EDITOR_RECORD_TAB_OVERLAY) && layer >= 0 )
-        for( int r = 0; r < self->record.row_count && self->visible_count < RECORD_ROWS_SHOWN; r++ )
-        {
-            const struct Editor_CfgRecordRow* row = &self->record.rows[r];
-            int const stated = Editor_CfgRecordLayerStates(&self->record, layer, r, NULL, 0) >= 0;
-            if( !stated && !(row->layer < 0 && layer == add_layer) )
-                continue;
-            if( !Editor_CfgRecordRowMatches(&self->record, r, find) )
-                continue;
-            if( changed_only && !Editor_CfgRecordRowChanged(&self->record, r, &self->base) )
-                continue;
-            self->visible[self->visible_count++] = r;
-        }
+    {
+        /* The rows this layer states first, in the record's order; then,
+         * on the tab of the layer an edit would be written to, the
+         * register's fields nobody states (the add rows), below a rule. */
+        for( int pass = 0; pass < 2; pass++ )
+            for( int r = 0; r < self->record.row_count && self->visible_count < RECORD_ROWS_SHOWN; r++ )
+            {
+                const struct Editor_CfgRecordRow* row = &self->record.rows[r];
+                int const stated = Editor_CfgRecordLayerStates(&self->record, layer, r, NULL, 0) >= 0;
+                if( pass == 0 ? !stated : (stated || !(row->layer < 0 && layer == add_layer)) )
+                    continue;
+                if( !Editor_CfgRecordRowMatches(&self->record, r, find) )
+                    continue;
+                if( changed_only && !Editor_CfgRecordRowChanged(&self->record, r, &self->base) )
+                    continue;
+                self->visible[self->visible_count++] = r;
+            }
+    }
     self->visible_seq = self->built_seq;
     snprintf(self->visible_find, sizeof(self->visible_find), "%s", find);
     self->visible_changed = changed_only;
@@ -807,9 +866,21 @@ record_select_row(
         }
     }
     (void)record_tab_role(ui, self, &layer);
-    /* Write to: the tab's layer when it states the field, else where it is. */
-    ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_layer,
-        layer >= 0 && Editor_CfgRecordLayerStates(&self->record, layer, r, NULL, 0) >= 0 ? layer + 1 : 0);
+    /* Write to: a client-side field stated by the cache block is edited
+     * there; anything else goes to the highest AUTHORED layer that states
+     * it, else the authored layer holding the record (3.8) -- never the
+     * generated file the tab may be showing (D8). */
+    {
+        int target = Editor_CfgRecordWriteLayerFor(&self->record, r);
+        if( row->client_side && row->layer >= 0 && self->record.layers[row->layer].rank == 0 )
+            target = row->layer;
+        else if( layer >= 0 && self->record.layers[layer].rank != 1
+                 && Editor_CfgRecordLayerStates(&self->record, layer, r, NULL, 0) >= 0 )
+            target = layer;
+        for( int o = 0; o < self->layer_option_count; o++ )
+            if( self->layer_option_layer[o] == target )
+                ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_layer, o);
+    }
     snprintf(head, sizeof(head), "%s   %s%s%s", name,
         Editor_CfgFieldKindName(row->kind == EDITOR_CFG_FIELD_PARAM ? row->value_kind : row->kind),
         row->kind == EDITOR_CFG_FIELD_PARAM ? " param" : "", field ? "" : "   (not in the register)");
@@ -818,8 +889,11 @@ record_select_row(
         snprintf(hint, sizeof(hint), "%s is stated in %s%s%s%s", name, self->record.layers[row->layer].label,
             row->shadowed ? " (over a lower layer)" : "", row->issue ? "; " : "", Editor_CfgRowIssueText(row->issue));
     else
+    {
+        int const target = Editor_CfgRecordWriteLayerFor(&self->record, -1);
         snprintf(hint, sizeof(hint), "%s is stated nowhere; Set adds it to %s", name,
-            self->record.layers[Editor_CfgRecordAddLayerFor(&self->record)].label);
+            target >= 0 ? self->record.layers[target].label : "an authored overlay (none is open)");
+    }
     if( row->client_side )
     {
         size_t const at = strlen(hint);
@@ -1003,7 +1077,12 @@ record_set_from_editor(
             }
         }
     }
-    return record_set(ui, self, key, sub, occurrence, value, choice > 0 ? choice - 1 : -1) >= 0;
+    if( choice < 0 || choice >= self->layer_option_count )
+    {
+        Editor_UiStatus(ui, "Set refused: this record has no authored overlay to write to");
+        return 0;
+    }
+    return record_set(ui, self, key, sub, occurrence, value, self->layer_option_layer[choice]) >= 0;
 }
 
 /** A step button: the value +/- 1, kept in the register's range. */
@@ -1853,6 +1932,26 @@ Editor_Record_Open(
     }
     else
         Editor_UiLog(ui, "editor: no catalog: only configs/all.%s is edited (server overlays are not found)", type);
+    /* A record no authored file states gets the editor's own overlay to
+     * write to -- `server/scripts/edited/<name>/configs/<name>.<type>`, the
+     * builder's directory (docs/NPC_EDITOR_DESIGN.md 3.8 rule 3) -- so an
+     * edit never lands in the generated file. The document opens empty;
+     * the first Set adds the block, Save creates the file. */
+    {
+        int authored = 0;
+        for( int i = 0; i < self->overlay_count; i++ )
+            authored += Editor_CfgLayerRank(self->overlays[i]) == 2;
+        if( !authored && self->overlay_count < EDITOR_CFG_RECORD_LAYERS_MAX - 1 && host )
+        {
+            char path[EDITOR_DOC_KEY_MAX];
+            int const n = snprintf(path, sizeof(path), "edited/%s/configs/%s.%s", self->name, self->name, type);
+            if( n > 0 && (size_t)n < sizeof(self->overlays[0]) )
+            {
+                self->overlay_lines[self->overlay_count] = 0;
+                snprintf(self->overlays[self->overlay_count++], sizeof(self->overlays[0]), "%s", path);
+            }
+        }
+    }
 
     /* Open each layer's document (an absent block opens empty). */
     for( int i = -1; i < self->overlay_count; i++ )
@@ -1889,35 +1988,39 @@ Editor_Record_Open(
 }
 
 int
-Editor_Record_WanderValues(
+Editor_Record_NpcMovement(
     struct EditorUi* ui,
     const char* type,
     const char* name,
-    int* out_wander,
-    int* out_leash)
+    struct Editor_NpcMovement* out)
 {
     struct RecordPanel* self;
-    int row;
 
     assert(ui);
     assert(type);
     assert(name);
-    assert(out_wander);
-    assert(out_leash);
+    assert(out);
     self = record_self(ui);
     if( !self || !self->open || strcmp(self->type, type) != 0 || strcmp(self->name, name) != 0 )
         return 0;
     record_fresh(ui, self);
-    *out_wander = MAP_EDITOR_WANDER_DEFAULT;
-    *out_leash = MAP_EDITOR_LEASH_DEFAULT;
-    row = Editor_CfgRecordFindRow(&self->record, "wanderrange", "", 0);
-    if( row >= 0 && self->record.rows[row].layer >= 0 && self->record.rows[row].value[0] >= '0'
-        && self->record.rows[row].value[0] <= '9' )
-        *out_wander = atoi(self->record.rows[row].value);
-    row = Editor_CfgRecordFindRow(&self->record, "maxrange", "", 0);
-    if( row >= 0 && self->record.rows[row].layer >= 0 && self->record.rows[row].value[0] >= '0'
-        && self->record.rows[row].value[0] <= '9' )
-        *out_leash = atoi(self->record.rows[row].value);
+    Editor_NpcMovementInit(out);
+    /* The winning rows only: a shadowed statement is not what the server
+     * reads. A param row's value is "<name>,<value>" to the reader. */
+    for( int r = 0; r < self->record.row_count; r++ )
+    {
+        const struct Editor_CfgRecordRow* row = &self->record.rows[r];
+        if( row->layer < 0 )
+            continue;
+        if( row->sub[0] )
+        {
+            char value[EDITOR_CMD_VALUE_MAX + EDITOR_CMD_NAME_MAX + 1];
+            snprintf(value, sizeof(value), "%s,%s", row->sub, row->value);
+            (void)Editor_NpcMovementRead(out, row->key, value);
+        }
+        else
+            (void)Editor_NpcMovementRead(out, row->key, row->value);
+    }
     return 1;
 }
 
@@ -1983,8 +2086,11 @@ Editor_Record_SelectField(
     /* The tab of the layer that wins it (the top one for a field nobody
      * states), with no search or chip hiding it. */
     {
-        int const layer = self->record.rows[row].layer >= 0 ? self->record.rows[row].layer
-                                                             : Editor_CfgRecordAddLayerFor(&self->record);
+        int layer = self->record.rows[row].layer;
+        if( layer < 0 )
+            layer = Editor_CfgRecordWriteLayerFor(&self->record, -1);
+        if( layer < 0 )
+            layer = Editor_CfgRecordAddLayerFor(&self->record);
         for( int t = 0; t < self->tab_count; t++ )
             if( strcmp(self->tab_layers[t], self->record.layers[layer].doc_key) == 0 )
                 ToriRSChrome_PanelSetActiveTab(ui->chrome, self->panel, t);
@@ -1992,6 +2098,8 @@ Editor_Record_SelectField(
     ToriRSChrome_SetText(ui->chrome, self->input_find, "");
     ToriRSChrome_SetChecked(ui->chrome, self->check_changed, 0);
     record_visible_build(ui, self);
+    self->shown_tab = ToriRSChrome_PanelActiveTab(ui->chrome, self->panel);
+    record_layout(ui, self);
     for( int v = 0; v < self->visible_count; v++ )
         if( self->visible[v] == row )
         {

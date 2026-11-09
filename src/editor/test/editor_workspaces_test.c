@@ -560,6 +560,22 @@ test_palette_module(void)
     if( fit_row >= 0 )
         CHECK(strcmp(list->items[list->row_item[fit_row]].chord, "G") == 0, "its right column is its chord, G");
     {
+        /* A wall run is a Place drag, so its row is the Place tool's. */
+        int wall_run_row = -1;
+        Editor_CmdPalette_SetQuery(&g_ui, "wall run");
+        frame();
+        list = Editor_CmdPalette_List(&g_ui);
+        for( int r = 0; list && r < list->row_count; r++ )
+            if( list->row_kind[r] == EDITOR_CMDPAL_ROW_ITEM
+                && list->items[list->row_item[r]].target == EDITOR_HK_TOOL_PLACE
+                && list->items[list->row_item[r]].kind == EDITOR_CMDPAL_KIND_ACTION )
+                wall_run_row = r;
+        CHECK(wall_run_row >= 0, "'wall run' finds the Place tool");
+        Editor_CmdPalette_SetQuery(&g_ui, "fit walls");
+        frame();
+        list = Editor_CmdPalette_List(&g_ui);
+    }
+    {
         /* The row on screen, as the list draws it. */
         int list_widget = -1;
         for( int i = 0; i < g_chrome.widget_count; i++ )

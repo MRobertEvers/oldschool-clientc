@@ -995,6 +995,28 @@ cp_archive_filter_load(
     return 1;
 }
 
+/**
+ * A square the editor made has no row in the map pack yet. Its id and its name
+ * are the same fact, `(x << 8) | z` and `m<x>_<z>`, so a selected square needs
+ * no row to be packed under the right name.
+ */
+static void
+cp_archive_filter_name_maps(
+    struct CP_Ctx* ctx,
+    const struct CP_ArchiveFilter* filter)
+{
+    for( int i = 0; i < filter->count; i++ )
+    {
+        const struct CP_ArchivePick* pick = &filter->picks[i];
+        char name[32];
+
+        if( pick->asset != CP_ASSET_MAP || pick->archive > 0xFFFF || cp_asset_name_get(ctx, CP_ASSET_MAP, pick->archive) )
+            continue;
+        snprintf(name, sizeof(name), "m%d_%d", pick->archive >> 8, pick->archive & 0xFF);
+        cp_asset_name_set(ctx, CP_ASSET_MAP, pick->archive, name);
+    }
+}
+
 static int
 cp_archive_filter_validate(
     const struct CP_Ctx* ctx,
@@ -1945,6 +1967,8 @@ cp_assets_import(
     if( archive_list_path && !cp_archive_filter_load(&filter, archive_list_path) )
         return 0;
     const struct CP_ArchiveFilter* active_filter = archive_list_path ? &filter : NULL;
+    if( active_filter )
+        cp_archive_filter_name_maps(ctx, active_filter);
     if( active_filter &&
         !cp_archive_filter_validate(ctx, active_filter, mask, all, archive_list_path) )
     {

@@ -271,6 +271,13 @@ Js5ClientInvalidateArchive(
     struct Js5Client* client,
     int archive);
 
+/* An invalidation's new reference table is still on its way: until it lands, a
+ * group the server just added reads as absent. False on a failed client. */
+bool
+Js5ClientReprimePending(
+    const struct Js5Client* client,
+    int archive);
+
 void
 Js5ClientSetLoggedIn(
     struct Js5Client* client,

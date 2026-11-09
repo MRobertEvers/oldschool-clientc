@@ -1432,6 +1432,14 @@ app_overlay_build_hover_footprint(struct App* app)
  * filled and outlined, its maxrange leash a fainter outline only. */
 #define APP_EDITOR_WANDER_COLOR 0xFF50E070u
 #define APP_EDITOR_LEASH_COLOR 0xFF2C8C46u
+/* A patrol route (docs/NPC_EDITOR_DESIGN.md 3.4): waypoints and the walked
+ * legs in amber, the closing leg back to waypoint 1 dimmer, a leg the
+ * server would teleport (another level, no path) in the footprint red; a
+ * nomove npc's pin in orange. */
+#define APP_EDITOR_ROUTE_COLOR 0xFFFFB040u
+#define APP_EDITOR_ROUTE_CLOSING_COLOR 0xFFA87A30u
+#define APP_EDITOR_ROUTE_TELEPORT_COLOR 0xFFE05050u
+#define APP_EDITOR_PIN_COLOR 0xFFFF8040u
 /* The spawn preview's tile markers, by which file the row is in. */
 #define APP_EDITOR_SPAWN_EDITED_COLOR 0xFF50E070u
 #define APP_EDITOR_SPAWN_GENERATED_COLOR 0xFFFFE070u
@@ -1788,6 +1796,83 @@ app_overlay_build_brush_footprint(struct App* app)
  * loc ghost's. Nothing here is in the document yet.
  */
 static void
+app_overlay_editor_ground_segment(
+    struct App* app,
+    int fx0,
+    int fz0,
+    int fx1,
+    int fz1,
+    int level,
+    uint32_t color,
+    int width);
+
+/** A patrol leg as a ground line between two tile centres, one piece per
+ *  tile so it follows the terrain. */
+static void
+app_overlay_editor_route_leg(
+    struct App* app,
+    int sx0,
+    int sz0,
+    int sx1,
+    int sz1,
+    int level,
+    uint32_t color,
+    int width)
+{
+    int const dx = sx1 - sx0;
+    int const dz = sz1 - sz0;
+    int const steps = (dx < 0 ? -dx : dx) > (dz < 0 ? -dz : dz) ? (dx < 0 ? -dx : dx) : (dz < 0 ? -dz : dz);
+    int const fx0 = sx0 * 128 + 64;
+    int const fz0 = sz0 * 128 + 64;
+    int const fx1 = sx1 * 128 + 64;
+    int const fz1 = sz1 * 128 + 64;
+
+    if( steps <= 0 )
+        return;
+    for( int k = 0; k < steps; k++ )
+    {
+        int const ax = fx0 + (fx1 - fx0) * k / steps;
+        int const az = fz0 + (fz1 - fz0) * k / steps;
+        int const bx = fx0 + (fx1 - fx0) * (k + 1) / steps;
+        int const bz = fz0 + (fz1 - fz0) * (k + 1) / steps;
+        app_overlay_editor_ground_segment(app, ax, az, bx, bz, level, color, width);
+    }
+}
+
+/** A waypoint's number above its tile. */
+static void
+app_overlay_editor_route_number(
+    struct App* app,
+    int sx,
+    int sz,
+    int level,
+    int index,
+    uint32_t color)
+{
+    int const font_id = app_minimenu_font_scene_id(app);
+    int const fx = sx * 128 + 64;
+    int const fz = sz * 128 + 64;
+    int px;
+    int py;
+    struct UITreeEntityOverlay text;
+
+    if( font_id < 0 || !app_world_project_at(app, fx, fz, app_world_height(app, fx, fz, level), &px, &py) )
+        return;
+    memset(&text, 0, sizeof(text));
+    text.kind = UITREE_ENTITY_OVERLAY_TEXT;
+    text.font_id = font_id;
+    text.x = px + 1;
+    text.y = py - 6 + 1;
+    text.color = 0xFF000000u;
+    snprintf(text.text, sizeof(text.text), "%d", index);
+    app_overlay_push(app, &text);
+    text.x -= 1;
+    text.y -= 1;
+    text.color = color;
+    app_overlay_push(app, &text);
+}
+
+static void
 app_overlay_build_editor_ghosts(struct App* app)
 {
     struct Editor_Panel const* panel = &app->editor_panel;
@@ -1896,6 +1981,30 @@ app_overlay_build_editor_ghosts(struct App* app)
             int const x1 = r->x1 - bx;
             int rows = r->z1 - bz - z0 + 1;
 
+            if( r->kind == MAP_EDITOR_WANDER_LEG )
+            {
+                /* A route leg: the walked line, amber; the closing leg dim;
+                 * a teleport (another level, no path) red. */
+                uint32_t const color = (r->flags & (MAP_EDITOR_WANDER_FLAG_TELEPORT | MAP_EDITOR_WANDER_FLAG_UNREACHABLE))
+                                           ? APP_EDITOR_ROUTE_TELEPORT_COLOR
+                                       : (r->flags & MAP_EDITOR_WANDER_FLAG_CLOSING) ? APP_EDITOR_ROUTE_CLOSING_COLOR
+                                                                                     : APP_EDITOR_ROUTE_COLOR;
+                app_overlay_editor_route_leg(app, r->x0 - bx, r->z0 - bz, r->x1 - bx, r->z1 - bz, r->level, color,
+                    APP_OVERLAY_SEGMENT_WIDTH + 1);
+                continue;
+            }
+            if( r->kind == MAP_EDITOR_WANDER_WAYPOINT )
+            {
+                int const extent = app->world->_scene_size;
+                int const sx = r->x0 - bx;
+                int const sz = r->z0 - bz;
+                if( sx < 0 || sz < 0 || sx >= extent || sz >= extent )
+                    continue;
+                app_overlay_editor_tile(app, sx, sz, r->level, APP_EDITOR_ROUTE_COLOR, APP_OUTLINE_FILL_TRANS,
+                    APP_OVERLAY_SEGMENT_WIDTH);
+                app_overlay_editor_route_number(app, sx, sz, r->level, r->index, APP_EDITOR_ROUTE_COLOR);
+                continue;
+            }
             if( x1 < x0 || rows <= 0 )
                 continue;
             if( rows > (int)(sizeof(row_x0) / sizeof(row_x0[0])) )
@@ -1904,7 +2013,10 @@ app_overlay_build_editor_ghosts(struct App* app)
                 row_x0[k] = row_x1[k] = -1;
             row_x0[0] = row_x0[rows - 1] = x0;
             row_x1[0] = row_x1[rows - 1] = x1;
-            if( r->kind == MAP_EDITOR_WANDER_FOOTPRINT )
+            if( r->kind == MAP_EDITOR_WANDER_PIN )
+                app_overlay_editor_rows_hull(app, z0, rows, row_x0, row_x1, r->level, APP_EDITOR_PIN_COLOR,
+                    APP_OUTLINE_FILL_TRANS, APP_OVERLAY_SEGMENT_WIDTH + 1);
+            else if( r->kind == MAP_EDITOR_WANDER_FOOTPRINT )
                 app_overlay_editor_rows_hull(app, z0, rows, row_x0, row_x1, r->level, APP_EDITOR_GHOST_COLOR,
                     APP_OUTLINE_FILL_TRANS, APP_OVERLAY_SEGMENT_WIDTH);
             else if( r->kind == MAP_EDITOR_WANDER_LEASH )

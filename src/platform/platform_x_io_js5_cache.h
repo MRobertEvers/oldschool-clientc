@@ -49,6 +49,11 @@ PlatformXIOJs5Cache_Invalidate(
     int archive);
 
 bool
+PlatformXIOJs5Cache_ReprimePending(
+    const struct PlatformXIOJs5Cache* cache,
+    int archive);
+
+bool
 PlatformXIOJs5Cache_MetadataReady(const struct PlatformXIOJs5Cache* cache);
 
 enum Js5Error

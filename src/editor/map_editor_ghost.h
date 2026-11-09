@@ -440,7 +440,23 @@ enum MapEditorWanderKind
     MAP_EDITOR_WANDER_LEASH = 1,
     /** Where a pending move puts the spawn itself (its footprint). */
     MAP_EDITOR_WANDER_FOOTPRINT = 2,
+    /** A patrol route's waypoint: one tile (x0, z0), `index` its 1-based
+     *  number (docs/NPC_EDITOR_DESIGN.md 3.4; editor_npc.h builds them). */
+    MAP_EDITOR_WANDER_WAYPOINT = 3,
+    /** A patrol leg: the ground line from tile (x0, z0) to tile (x1, z1),
+     *  `index` the waypoint it leaves. The closing leg back to waypoint 1
+     *  carries MAP_EDITOR_WANDER_FLAG_CLOSING; a leg to another level (the
+     *  server teleports) MAP_EDITOR_WANDER_FLAG_TELEPORT. */
+    MAP_EDITOR_WANDER_LEG = 4,
+    /** A `nomove` npc's pin: its spawn tile, nothing to roam. */
+    MAP_EDITOR_WANDER_PIN = 5,
 };
+
+#define MAP_EDITOR_WANDER_FLAG_CLOSING 1
+#define MAP_EDITOR_WANDER_FLAG_TELEPORT 2
+/** The leg's path search found no way (the server teleports after 32 stuck
+ *  ticks): set by a caller that ran one. */
+#define MAP_EDITOR_WANDER_FLAG_UNREACHABLE 4
 
 struct MapEditorWanderRect
 {
@@ -450,6 +466,10 @@ struct MapEditorWanderRect
     int x1;
     int z1;
     int level;
+    /** WAYPOINT / LEG: the waypoint's 1-based number; 0 otherwise. */
+    int index;
+    /** MAP_EDITOR_WANDER_FLAG_*; 0 otherwise. */
+    int flags;
 };
 
 /**

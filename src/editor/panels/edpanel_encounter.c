@@ -1564,7 +1564,7 @@ enc_open_builder(
     if( !Editor_UiPanelSelf(ui, BUILDER_PANEL_NPC) || !Builder_PanelOpenSubject(ui, BUILDER_PANEL_NPC, self->npc)
         || !Builder_PanelInspect(ui, BUILDER_PANEL_NPC, &view) || !view.model )
     {
-        Editor_UiStatus(ui, "Open in step builder refused: the NPC builder cannot open %s (see its status)", self->npc);
+        Editor_UiStatus(ui, "Open in step builder refused: the NPC editor cannot open %s (see its status)", self->npc);
         return;
     }
     if( view.read_only )
@@ -1627,7 +1627,7 @@ enc_open_builder(
         }
     }
     if( !Builder_PanelSetModel(ui, BUILDER_PANEL_NPC, model) )
-        Editor_UiStatus(ui, "Open in step builder refused: the NPC builder did not take the %s template",
+        Editor_UiStatus(ui, "Open in step builder refused: the NPC editor did not take the %s template",
             Editor_CombatTemplateName(kind));
     else
         Editor_UiStatus(ui, "%s: the %s template is %s's [%s] (unsaved; the builder's Save writes it)", self->npc,

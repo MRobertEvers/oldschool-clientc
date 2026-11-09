@@ -202,9 +202,10 @@ Editor_DocStorageValid(const char* storage);
 /**
  * A scratch square: one made to be edited before it has a place
  * (docs/MAPED_STATUS.md "Scratch squares"). DOC_CREATE makes it in this
- * storage at one of the reserved slots below, far east of any content (the
- * content tree's squares stop at x 65); the file layer has no path for it,
- * so it is never read from or written to disk, and a save skips it. Save
+ * storage at one of the reserved slots below, past any content (the content
+ * tree's squares stop at x 65) and short of the server's instance pool (x 100
+ * up); the file layer has no path for it, and a save skips it. Only RUN's
+ * build writes one to disk, for its own length. Save
  * places it instead: the Square map's Place copies it to the cell and
  * storage the user picks, then clears it, and a cleared (blank) scratch
  * square is a free slot DOC_CREATE may fill again.

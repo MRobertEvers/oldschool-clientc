@@ -27,7 +27,8 @@ MAPED_CLIENT_SRCS += $(BUILDER_PANEL_SRCS)
 # OSRS-Content is only read. The authority is linked the way torirsmaped is:
 # with every fragment's MAPED_SERVER_SRCS (the config and interface codecs
 # editor_cmd.c calls, the view launcher torirs_maped.c calls).
-BUILDER_TEST_SRCS = $(BUILDER_CORE_SRCS) editor/builder/builder_panels.c \
+BUILDER_TEST_SRCS = $(BUILDER_CORE_SRCS) editor/builder/builder_panels.c editor/editor_npc.c \
+	editor/map_editor_ghost.c \
 	torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c torirsmaped/torirs_maped_cmdwire.c \
 	torirsmaped/torirs_maped_embed.c editor/editor_host_local.c editor/editor_host_remote.c \
 	editor/editor_doc.c editor/editor_cmd.c editor/editor_spawn.c \

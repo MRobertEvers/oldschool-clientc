@@ -6078,12 +6078,14 @@ working set.
   underlay 0, which would paint void onto void. Flat fill at height 0 writes no
   `h` token, so the square takes the perlin ground. It
   DOC_CREATEs it in storage `scratch` on the first free scratch
-  slot (`Editor_DocScratchSlot`: eight squares at x 240..246, z 240..242, two
-  apart; the content tree stops at x 65). It opens at once as the working set,
+  slot (`Editor_DocScratchSlot`: eight squares at x 90..96, z 240..242, two
+  apart; the content tree stops at x 65, and the server's instance pool, whose login rescue sends a character to the respawn tile, starts at x 100). It opens at once as the working set,
   through the save guard only when a save has something to write (a scratch
   square's own work is no reason to ask: a save never writes it). The server holds it like any created square, but
   the file layer has no path for it (`Editor_HostDocPath`), SAVE refuses it,
-  SAVE_ALL and RUN/PUBLISH's save skip it, DOC_CREATE refuses a scratch slot
+  SAVE_ALL and RUN/PUBLISH's save skip it (RUN's build still plays one holding
+  work: `jobs_run_scratch_write` puts its files in maps/ at the slot for the
+  length of the build only, and it stays unsaved), DOC_CREATE refuses a scratch slot
   to any other storage and the scratch storage to any other square, and the
   picker leaves it off the map (its storage stays in the atlas, so an index
   still resolves).
@@ -6304,6 +6306,66 @@ resolver treats BUSY as "ask again" (`Editor_Spawns_PreviewResolve`). In the
 photographs the markers that still show no body are model-less npcs
 (deadman_guard_lumbridge, veos_lumbridge: multinpc shells) and spawns on
 levels 1 and 2 under the castle roof, drawn as markers over it.
+
+## The NPC editor (2026-11-09)
+
+docs/NPC_EDITOR_DESIGN.md, built from its defect catalogue (D1-D14) and
+phases 1 and 2. The three builder windows (NPC builder, NPC outline,
+Dialogue) are one tabbed, dockable panel, module `npcbuilder`, titled
+"NPC editor", docked after Spawns in every workspace column
+(`src/editor/builder/builder_panels.c`); the loc builder is one window too,
+its outline a TREE under an Outline heading.
+
+- **Tabs**: Movement (the minimap well, the Mode radio, Leash / Wander range
+  sliders, Restrict / Block walk / Facing dropdowns, Respawn and Timer, the
+  route list with Pause, Add at latched tile, Insert after, Delete,
+  up / down, Play, "Writes to"), Spawns (this npc's rows across the open
+  squares: Go to, Select in Spawns, Place at latched tile, Delete /
+  suppress), Interactions (the tree's triggers listed read-only with Open in
+  editor, then the builder's triggers, outline, step and server fields),
+  Dialogue (the graph, node fields, outline tree, lint).
+- **The rule** (`src/editor/editor_npc.c`, pure, test-editor-npc): patrol
+  rows win, then a stated defaultmode, then wanderrange; nomove zeroes the
+  radius. `Editor_NpcPreviewRects` draws the EFFECTIVE behaviour: a
+  patroller's numbered waypoints and legs (the closing leg dim, a leg to
+  another level red), a wanderer's square and leash, a nomove pin. The
+  Spawns panel's preview and the World overlay (`app_overlay.c`) draw it;
+  the header line says it ("will: patrols 10 waypoints, 73 ticks a lap;
+  wanderrange 5 is unused").
+- **Writes** (`src/editor/panels/edpanel_npcdoc.c`, bound by
+  builder_session.c): the highest AUTHORED overlay stating the field, else
+  the authored overlay holding the record, else the editor's own
+  `edited/<npc>/configs/<npc>.npc` -- never a generated file
+  (`Editor_CfgRecordWriteLayerFor`). A route edit is one undo step: the
+  patrol rows (`Editor_NpcRoutePlan`), `defaultmode`, and the movement
+  ledger `npc_movement/<shard>/<name>.move` set to `movement = patrols`
+  (or wanders / stationary) with `source = authored`
+  (`Editor_NpcMoveTextSet`, line-preserving; TEXT key `move:<shard>/<name>`).
+  `tools/gen_npc_movement.py` reads `patrols` as "do not decide".
+- **Record panel**: tab titles `cache` / `generated` / `<file>.npc`; stated
+  rows first, the register's unstated rows after them on the write layer's
+  tab; a tab switch clears the pick and the scroll; Write to lists the cache
+  and the authored files only (default by the rule above); a record with no
+  authored file gets `edited/<name>/configs/<name>.npc`.
+- **Spawns panel**: a Find box; rows show the display name; the list scrolls
+  to the selection; "Edit npc..." opens the NPC editor on the row
+  (`Editor_Spawns_EditNpc`); row-level `Editor_Spawns_RowsOf` /
+  `_PlaceRow` / `_DeleteRow` for the editor's Spawns tab.
+- **App services**: `tile_flags` and `path_steps` (the loaded scene's
+  collision and its BFS) for the minimap and the route legs.
+- **Headless**: `TORIRS_EDITOR_NPC=<name>[,<tab>]` opens an npc in the
+  editor at the first frame with a session.
+- Tests: test-editor-npc (the rule, spellings, route plan, ledger),
+  test-builder `movement` (the tab over fake services: legs, Add / Move /
+  Delete on the well, Pause, a slider, Mode Wander), the records and panels
+  tests' rows; the workbench 1x golden moved.
+
+Not built (phase 3 of the design): the Behaviour, Look and Problems tabs,
+From recording..., per-spawn facing (decision 3.9), moving the Encounters
+Set tab's per-npc fields. The minimap is a flat collision picture (open /
+blocked / roofed / wall edges), not the world-map bake the design named;
+the World's route overlay draws straight legs, the panel's legs are the
+client's BFS step counts.
 
 ## Open issues
 
@@ -6963,74 +7025,3 @@ Still slow, with where to start:
   rebuilds). It is not on test-editor (boots a whole server).
 - test-torirsserver-embed (21 failures) and test-torirsserver-servpack-boot
   fail identically on the phase-3 HEAD (content and scratch-path causes).
-
-## Windowing: compound windows, the clip rule, Shift+Alt+drag (2026-11-09)
-
-Owner: "Sometimes the top parts of views are ahead and their bottoms lag
-behind. If a header is cut off, there is no way to move or drag. Scroll
-areas are not being clipped. The grid previewer still flickers. Design the
-windowing system to be much better and less ad-hoc."
-
-**The lag.** A panel group was two chrome panels the editor reconciled on
-its own tick: the frame (title bar and tab strip) and the shown member's
-window under it (`ui_group_place`, three branches of "who moved, so who
-follows"). The frame's title drag moved the frame inside ToriRSChrome's
-input routing, the chrome was built right after, and the editor's tick moved
-the window to follow a frame LATER -- so on every drag frame the strip was
-drawn where the pointer was and the window where it had been. Now the
-window is ATTACHED to the frame in the chrome
-(`ToriRSChrome_PanelAttach`, `ToriRSChromePanel::attach_to`): the Build
-derives its box from the parent's before anything is laid out
-(`dbg_attach_layout`, measuring the parent with the same
-`dbg_window_measure` the build sizes it by), so the two land in one
-display list. The pair is one piece to every gesture: an edge or corner on
-either resizes the compound (frame x and width, window height; the seam is
-no edge), the window's grip is the compound's, a maximise of either
-maximises the compound (the frame heads the area, the window takes the
-rest; `PanelRestore` of either puts both back), the snap works on the
-compound's outline, and the frame's `user_placed` is what a gesture on
-either sets. `ui_group_place` now only reads the box back for the layout
-file. `src/ui/test/chrome_panel_attach_test.c` (`make -C src
-test-chrome-panel-attach`) drives each case through the chrome's real
-input entry points; editor_groups_test (2226 checks) passes unchanged.
-
-The same lag, more generally: everything the editor's tick did to the
-chrome (a well sized to its panel, a label, a shown window) was drawn the
-next frame, because the one `ToriRSChrome_Build` ran before the tick.
-app_frame.c builds the chrome once more after the editor's tick (a no-op
-when the tick changed nothing), so a resized panel's bottom no longer trails
-its top.
-
-**The header off the surface.** Shift+Alt (Shift+Option) held, a press
-anywhere on a window panel picks it up (`ToriRSChrome_SetModifiers`, fed
-from the input's held keys in `app_chrome_route_input`; a compound by its
-root; a docked panel stays; the World body falls through).
-docs/MAPED_HOTKEYS.md.
-
-**Scroll areas not clipped.** The owner's screenshot: the Catalog's shape
-keycaps ("10", "11") drawn in a column BELOW the group's window, every other
-part of those rows gone. The chrome clipped each keycap's chord to
-`dbg_rect_clip(clip, cap)`, which is EMPTY for a row wholly past the fold --
-and to every renderer (soft3d, GL3, GLES, WebGL) a scissor of zero width or
-height is NO scissor (`scissor_w > 0 && scissor_h > 0` is "scissor set"), so
-the prim was drawn whole, wherever it was. Every prim now goes through
-`dbg_prim_push_in(ui, clip)`, which pushes nothing for an empty clip; the
-thumbnail and model-view sprites, which set their own clip after the push,
-intersect it with the panel's first. The test asserts no prim with an empty
-clip and every prim's clip inside its panel over a scrolled cells list.
-
-**The Gallery "flicker": not reproduced headlessly.** On this build, the
-Gallery (floating, 420x640, loc "tree", M tiles) was photographed as a
-series of consecutive frames -- 30 frames at 1x, 48 and 100 frames at a
-simulated 2x pixel density (`TORIRS_HIDPI=1 TORIRS_SIM_PIXEL_DENSITY=2`),
-with the pointer parked on a tile and with clicks across tiles
-(`TORIRS_SIM_CLICK_AT`) -- and byte-compared pair by pair: the only changes
-inside the Gallery's box were the pick outline on a click, the pictures
-landing after it and the tooltip; no region toggled on its own. The two
-changes above remove the one-frame-late geometry the well's sizing had
-(`gallery_size_well` reads the panel's view height from the last Build and
-is now drawn in the same frame), which is the likeliest live cause left.
-If it still flickers: which part (the pictures, the captions, the hover
-outline, the well's border), which renderer, and whether the pointer is
-moving.
-

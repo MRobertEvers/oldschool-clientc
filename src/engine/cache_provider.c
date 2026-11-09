@@ -2008,6 +2008,26 @@ CacheProvider_SetArchiveInvalidateHook(
     provider->archive_invalidate_user = hook ? user : NULL;
 }
 
+void
+CacheProvider_SetArchiveReprimeHook(
+    struct CacheProvider* provider,
+    int (*hook)(void* user, int index),
+    void* user)
+{
+    assert(provider);
+    provider->archive_reprime_hook = hook;
+    provider->archive_reprime_user = hook ? user : NULL;
+}
+
+int
+CacheProvider_ArchiveReprimePending(
+    struct CacheProvider* provider,
+    int index)
+{
+    assert(provider);
+    return provider->archive_reprime_hook ? provider->archive_reprime_hook(provider->archive_reprime_user, index) : 0;
+}
+
 enum CacheProviderInvalidate
 CacheProvider_InvalidateArchive(
     struct CacheProvider* provider,

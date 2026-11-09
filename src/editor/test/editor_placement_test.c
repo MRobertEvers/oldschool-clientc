@@ -79,6 +79,7 @@ static int g_failed;
 #define LOC_CRATE 500
 #define LOC_TREE 600
 #define LOC_POSTLESS_WALL 1904
+#define LOC_DECOR 1905
 
 static struct Editor g_editor;
 static struct Editor g_peer;
@@ -143,12 +144,14 @@ write_fixture(const char* root)
  * the postless wall for 0 and 2 only; the crate is a 2x3 centrepiece, the
  * tree a 1x1 one. */
 static int k_wall_shapes[5] = { 0, 1, 2, 3, 9 };
+static int k_decor_shapes[1] = { 4 };
 static int k_postless_shapes[2] = { 0, 2 };
 static int k_lengths[5] = { 1, 1, 1, 1, 1 };
 static int k_model[1] = { 1 };
 static int* k_models[5] = { k_model, k_model, k_model, k_model, k_model };
 static struct ToriRS_Location g_wall;
 static struct ToriRS_Location g_postless;
+static struct ToriRS_Location g_decor;
 static struct ToriRS_Location g_crate;
 static struct ToriRS_Location g_tree;
 
@@ -162,6 +165,8 @@ test_loc_record(
         return &g_wall;
     if( loc_id == LOC_POSTLESS_WALL )
         return &g_postless;
+    if( loc_id == LOC_DECOR )
+        return &g_decor;
     if( loc_id == LOC_CRATE )
         return &g_crate;
     if( loc_id == LOC_TREE )
@@ -181,6 +186,9 @@ records_init(void)
     g_postless = g_wall;
     g_postless.shapes = k_postless_shapes;
     g_postless.shapes_and_model_count = 2;
+    g_decor = g_wall;
+    g_decor.shapes = k_decor_shapes;
+    g_decor.shapes_and_model_count = 1;
     /* No shape list: a centrepiece only. */
     g_crate.models = k_models;
     g_crate.lengths = k_lengths;
@@ -381,6 +389,35 @@ arm_place(
     g_ui.tools.place_rotation = rotation;
 }
 
+/* The Place tool's pose over a wall: with Fit on, straight decor takes the
+ * on-wall shape, the one the wall's width pushes out. */
+static void
+test_decor_pose(void)
+{
+    static struct Editor_PlaceRun run;
+    int const x0 = BASE_X + 50;
+    int const z0 = BASE_Z + 4;
+    int shape = -1;
+    int rotation = -1;
+
+    arm_place(LOC_WALL, 0, 1);
+    edp_place_fit_set(&g_ui, 1);
+    CHECK(edp_run_begin(&g_ui, &run, x0, z0, 0) == 1, "decor pose: the wall's run opens");
+    (void)edp_run_to(&g_ui, &run, x0 + 1, z0, 0);
+    CHECK(edp_run_end(&g_ui, &run) > 0, "decor pose: a wall stands there");
+
+    arm_place(LOC_DECOR, 4, 1);
+    edp_place_pose_at(&g_ui, x0, z0, 0, &shape, &rotation);
+    CHECK(shape == 5 && rotation == 1, "decor pose: on the wall's edge it is shape 5 (%d rot %d)", shape, rotation);
+    edp_place_pose_at(&g_ui, x0, z0 + 5, 0, &shape, &rotation);
+    CHECK(shape == 4, "decor pose: on a bare tile it stays 4 (%d)", shape);
+    edp_place_fit_set(&g_ui, 0);
+    edp_place_pose_at(&g_ui, x0, z0, 0, &shape, &rotation);
+    CHECK(shape == 4, "decor pose: Fit off places exactly the pose (%d)", shape);
+    edp_place_fit_set(&g_ui, 1);
+    CHECK(Editor_Undo(&g_editor) > 0, "decor pose: the wall comes back off");
+}
+
 static void
 test_wall_run(void)
 {
@@ -449,6 +486,42 @@ test_wall_run(void)
         CHECK(Editor_LocFitWall(&doc, LOC_WALL, 0x20fu, x0 + 2, z0 + 1, 0, &shape, &rotation) && shape == 2
                   && rotation == k_rotation[3],
             "wall run: Fit makes the same L there (%d rot %d)", shape, rotation);
+        Editor_DocFree(&doc);
+    }
+
+    /* Decor on a wall's edge is the shape the wall's width pushes out. */
+    {
+        static struct Editor_Doc doc;
+        struct Editor_Square* s;
+        struct Editor_Loc straight = { LOC_WALL, 0, 1, 0, 13, 11 };
+        struct Editor_Loc corner = { LOC_WALL, 2, 0, 0, 20, 20 };
+        int shape;
+        memset(&doc, 0, sizeof(doc));
+        s = Editor_DocOpenSquare(&doc, 50, 50);
+        s->loaded = 1;
+        (void)Editor_SquareLocAdd(s, &straight);
+        (void)Editor_SquareLocAdd(s, &corner);
+        shape = 4;
+        CHECK(Editor_LocFitDecor(&doc, 0x1f0u, x0 + 3, z0 + 1, 0, 1, &shape) && shape == 5,
+            "decor fit: on a straight wall's edge, 4 becomes 5 (%d)", shape);
+        shape = 4;
+        CHECK(!Editor_LocFitDecor(&doc, 0x1f0u, x0 + 3, z0 + 1, 0, 0, &shape) && shape == 4,
+            "decor fit: on another edge of the tile it stays 4 (%d)", shape);
+        shape = 4;
+        CHECK(!Editor_LocFitDecor(&doc, 0x1f0u, x0 + 4, z0 + 1, 0, 1, &shape) && shape == 4,
+            "decor fit: with no wall on the tile it stays 4 (%d)", shape);
+        shape = 4;
+        CHECK(!Editor_LocFitDecor(&doc, 0x010u, x0 + 3, z0 + 1, 0, 1, &shape) && shape == 4,
+            "decor fit: a loc with no shape 5 stays 4 (%d)", shape);
+        shape = 7;
+        CHECK(!Editor_LocFitDecor(&doc, 0x1f0u, x0 + 3, z0 + 1, 0, 1, &shape) && shape == 7,
+            "decor fit: only a straight decor pose changes (%d)", shape);
+        shape = 4;
+        CHECK(Editor_LocFitDecor(&doc, 0x1f0u, x0 + 10, z0 + 10, 0, 1, &shape) && shape == 5,
+            "decor fit: an L carries its second edge too (%d)", shape);
+        shape = 4;
+        CHECK(!Editor_LocFitDecor(&doc, 0x1f0u, x0 + 10, z0 + 10, 0, 2, &shape) && shape == 4,
+            "decor fit: but not the edges it does not have (%d)", shape);
         Editor_DocFree(&doc);
     }
 
@@ -1204,6 +1277,7 @@ main(
     g_ui.app_services.user_data = &g_app_stand_in;
     g_ui.app_services.loc_record = test_loc_record;
     test_wall_run();
+    test_decor_pose();
     test_fit_run();
     test_diagonal_run();
     test_noise();

@@ -447,6 +447,24 @@ PlatformX_IO_ArchiveInvalidateHook(
     PlatformX_IO_InvalidateArchive((struct PlatformX_IO*)user, index, archive);
 }
 
+int
+PlatformX_IO_ArchiveReprimePendingHook(
+    void* user,
+    int index)
+{
+    assert(user);
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+    {
+        struct PlatformX_IO const* px = user;
+        if( px->js5 )
+            return PlatformXIOJs5Cache_ReprimePending(px->js5, index);
+    }
+#else
+    (void)index;
+#endif
+    return 0;
+}
+
 static int
 read_whole_file(
     const char* path,

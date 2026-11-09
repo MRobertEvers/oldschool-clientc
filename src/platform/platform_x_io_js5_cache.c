@@ -195,6 +195,15 @@ PlatformXIOJs5Cache_Invalidate(
 }
 
 bool
+PlatformXIOJs5Cache_ReprimePending(
+    const struct PlatformXIOJs5Cache* cache,
+    int archive)
+{
+    assert(cache);
+    return Js5ClientReprimePending(cache->client, archive);
+}
+
+bool
 PlatformXIOJs5Cache_MetadataReady(const struct PlatformXIOJs5Cache* cache)
 {
     return cache && Js5ClientMetadataReady(cache->client);

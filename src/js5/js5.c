@@ -87,6 +87,8 @@ struct Js5Archive
     bool optional;
     bool master_present;
     bool reference_ready;
+    /** Invalidated with its table resident; the new table has not landed. */
+    bool reprime_pending;
     bool empty;
     bool scanning;
     bool ready;
@@ -937,6 +939,7 @@ js5_reference_apply(
     archive->reference = table;
     archive->group_states = states;
     archive->reference_ready = true;
+    archive->reprime_pending = false;
     archive->scanning = true;
     archive->scan_position = 0;
     archive->total_groups = total;
@@ -2139,6 +2142,17 @@ Js5ClientLastError(const struct Js5Client* client)
 }
 
 bool
+Js5ClientReprimePending(
+    const struct Js5Client* client,
+    int archive_id)
+{
+    assert(client);
+    assert(archive_id >= 0);
+    assert(archive_id < 255);
+    return client->state != JS5_STATE_FAILED && client->archives[archive_id].reprime_pending;
+}
+
+bool
 Js5ClientInvalidateArchive(struct Js5Client* client, int archive_id)
 {
     assert(client);
@@ -2198,6 +2212,7 @@ Js5ClientInvalidateArchive(struct Js5Client* client, int archive_id)
     if( archive->group_states && archive->reference )
         memset(archive->group_states, JS5_GROUP_UNKNOWN, (size_t)archive->reference->archive_count);
     archive->reference_ready = false;
+    archive->reprime_pending = true;
     archive->scanning = false;
     archive->master_present = false;
     archive->total_groups = 0u;

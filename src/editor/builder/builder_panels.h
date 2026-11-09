@@ -29,6 +29,7 @@
 #include "builder_lint.h"
 #include "builder_ssc.h"
 #include "editor/editor_hotkeys.h"
+#include "editor/editor_npc.h"
 
 #include <stdint.h>
 
@@ -44,6 +45,11 @@ struct Builder_RecordInfo
     char display[BUILDER_NAME_MAX];
     /** op1..op5 as the cache states them; "" when absent. */
     char ops[5][BUILDER_NAME_MAX];
+    /** An npc's movement statements from the merged record (editor_npc.h),
+     *  for the editor's "will:" line; `has_movement` 0 when the service
+     *  could not say (no catalog). */
+    int has_movement;
+    struct Editor_NpcMovement movement;
 };
 
 #define BUILDER_EXISTING_MAX 64
@@ -56,6 +62,36 @@ struct Builder_ExistingList
     char files[BUILDER_EXISTING_MAX][256];
     struct Builder_ExistingTrigger rows[BUILDER_EXISTING_MAX];
     int count;
+};
+
+/** One spawn of the editor's npc (the NPC editor's Spawns tab, its minimap):
+ *  a `.spawn` row of an open square and which file holds it. */
+struct Builder_NpcSpawn
+{
+    int x;
+    int z;
+    int level;
+    /** 1 the edited file, 0 the generated one or a quest's / skill's. */
+    int edited;
+    /** A quest's or skill's own .spawn file. */
+    int scripted;
+    /** A generated row the edited file hides. */
+    int suppressed;
+    /** The row's own spelling of the npc ("hans" or "#3105"). */
+    char name[64];
+};
+
+/** What the minimap knows of one tile (tile_info): the loaded scene's
+ *  collision flags (engine/world_builder/collision_map.h COLL_FLAG_*) and
+ *  the square's jm2 settings byte (1 block, 2 link-below, 4 roof). */
+struct Builder_TileInfo
+{
+    /** 1 when the tile's square is loaded in the world (collision known). */
+    int in_scene;
+    /** 1 when its square is open in the editor (settings known). */
+    int in_doc;
+    int collision;
+    int settings;
 };
 
 struct Builder_Services
@@ -95,6 +131,52 @@ struct Builder_Services
      *  version in `out_version`), 1 when there is one. May be NULL: the
      *  preview draws the head's box and says no preview pipeline is bound. */
     int (*chat_head)(void* user_data, const char* npc, const char* expr, int* out_scene_id, uint32_t* out_version);
+    /** "From selection": the record name the editor's selection points at
+     *  for `subject` -- the Spawns panel's anchor row, else the Catalog's
+     *  pick (an npc), the selected loc (a loc) -- into `out`. 0 when
+     *  nothing is selected. May be NULL (the button then says so). */
+    int (*selection)(void* user_data, enum Builder_Subject subject, char* out, size_t out_size);
+    /** "Open in editor": `rel_path` under server/scripts at `line` in the
+     *  external editor (the Triggers panel's TORIRS_EDITOR_OPEN_CMD). 1 when
+     *  it opened. May be NULL. */
+    int (*open_file)(void* user_data, const char* rel_path, int line);
+
+    /* The NPC editor's Movement and Spawns tabs (docs/NPC_EDITOR_DESIGN.md
+     * 3.4-3.6). All may be NULL: the tabs then say what is missing. */
+    /** `npc`'s movement statements as the session's documents hold them
+     *  (unsaved edits included), and into `target` the file an edit would
+     *  be written to (3.8). 0 when the record cannot be opened. */
+    int (*movement)(void* user_data, const char* npc, struct Editor_NpcMovement* out, char* target, size_t target_size);
+    /** Set one field (`key`, `value`; "" removes) of `npc`'s record in the
+     *  write target, one undo step named `what`. Commands taken, 0 nothing
+     *  changed, -1 refused. */
+    int (*movement_set)(void* user_data, const char* npc, const char* key, const char* value, const char* what);
+    /** Replace `npc`'s route and pin its ledger (Editor_NpcDocSetRoute),
+     *  one undo step named `what`. Commands taken, 0 nothing, -1 refused. */
+    int (*route_set)(void* user_data, const char* npc, const struct Editor_NpcWaypoint* waypoints, int count,
+        enum Editor_NpcMode mode, const char* what);
+    /** What the minimap draws for ABSOLUTE tile (x, z, level). */
+    void (*tile_info)(void* user_data, int x, int z, int level, struct Builder_TileInfo* out);
+    /** Steps of the shortest walk between two tiles on `level`: 0+, -1 no
+     *  path, -2 not in the loaded scene (EditorUiAppServices path_steps). */
+    int (*path_steps)(void* user_data, int ax, int az, int bx, int bz, int level);
+    /** `npc`'s (`id`'s) spawns across the open squares, at most `max`. */
+    int (*spawns)(void* user_data, const char* npc, int id, struct Builder_NpcSpawn* out, int max);
+    /** Put the World's camera over the tile; 0 when its square is not loaded. */
+    int (*goto_tile)(void* user_data, int x, int z, int level);
+    /** The Spawns tab's edits through the Spawns panel: select `spawn` there
+     *  (1 when it could), place `npc` at the latched tile (commands taken),
+     *  delete / suppress `spawn` (commands taken). */
+    int (*spawn_select)(void* user_data, const struct Builder_NpcSpawn* spawn);
+    int (*spawn_place)(void* user_data, const char* npc, int x, int z, int level);
+    int (*spawn_delete)(void* user_data, const struct Builder_NpcSpawn* spawn);
+    /** The panel is destroyed: free what the services kept for it. May be
+     *  NULL. */
+    void (*release)(void* user_data);
+    /** TORIRS_EDITOR_NPC's `photo`: lay chrome panel `panel` over the whole
+     *  right column, the other View-menu panels closed, so a headless
+     *  photograph shows the tab. May be NULL. */
+    void (*photo_place)(void* user_data, int panel);
 };
 
 #define BUILDER_NAME_VAR 0
@@ -130,10 +212,67 @@ Editor_ShellEditor_Register(struct EditorUi* ui);
 
 /* ---- what the tests read -------------------------------------------------- */
 
-/** The panel names Editor_UiFindPanel knows them by. */
+/** The panel names Editor_UiFindPanel knows them by. The npc one is the
+ *  NPC editor (docs/NPC_EDITOR_DESIGN.md): one tabbed window -- the View
+ *  menu's "NPC editor", registered under the name the palette, the
+ *  Encounters and Quest panels and the tests have always used. */
 #define BUILDER_PANEL_LOC "locbuilder"
 #define BUILDER_PANEL_NPC "npcbuilder"
 #define BUILDER_PANEL_SHELL "shelleditor"
+
+/** The NPC editor's tabs (ToriRSChrome_PanelActiveTab on its panel). */
+enum Builder_NpcTab
+{
+    BUILDER_NPC_TAB_MOVEMENT = 0,
+    BUILDER_NPC_TAB_SPAWNS = 1,
+    BUILDER_NPC_TAB_INTERACTIONS = 2,
+    BUILDER_NPC_TAB_DIALOGUE = 3,
+    BUILDER_NPC_TAB_COUNT
+};
+
+/* ---- what the Movement tab's tests read -------------------------------- */
+
+/** The route as the Movement tab holds it (the record's patrol rows), the
+ *  selected waypoint and each leg's step count (-1 no path, -2 unknown:
+ *  the scene is not loaded, -3 a teleport across levels). */
+struct Builder_RouteView
+{
+    const struct Editor_NpcWaypoint* waypoints;
+    int count;
+    int selected;
+    const int* legs;
+    /** The effective behaviour, and the file an edit is written to. */
+    const struct Editor_NpcEffective* effective;
+    const char* target;
+    /** The minimap well, and the well-local box of waypoint `i`
+     *  (Builder_RouteWaypointBox). */
+    int w_minimap;
+    int tool;
+};
+
+int
+Builder_RouteInspect(
+    struct EditorUi* ui,
+    struct Builder_RouteView* out);
+
+/** The minimap's well-local box of waypoint `index`; 0 when off the view. */
+int
+Builder_RouteWaypointBox(
+    struct EditorUi* ui,
+    int index,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h);
+
+/** The minimap's well-local centre of ABSOLUTE tile (x, z); 0 off view. */
+int
+Builder_RouteTilePoint(
+    struct EditorUi* ui,
+    int x,
+    int z,
+    int* out_x,
+    int* out_y);
 
 struct Builder_PanelView
 {

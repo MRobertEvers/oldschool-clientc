@@ -47,6 +47,10 @@
 #include "editor/builder/builder_lint.h"
 #include "editor/builder/builder_model.h"
 #include "editor/builder/builder_panels.h"
+#include "engine/world_builder/collision_map.h"
+
+/** The Movement tab draws waypoints in this amber (builder_panels.c BP_MV_C_ROUTE). */
+#define BP_TEST_C_ROUTE 0xffb040
 #include "editor/builder/builder_shell.h"
 #include "editor/builder/builder_ssc.h"
 #include "editor/builder/builder_text.h"
@@ -1613,9 +1617,8 @@ test_authority(const char* tmp)
         check(Builder_PanelSaveAll(&ui, BUILDER_PANEL_LOC), "the panel saves");
 
         /* Renaming op1 is a CFG_FIELD on the cache record, not a script edit. */
-        ToriRSChrome_SetText(&chrome, find_widget(&chrome, panel->chrome_panel, "Menu text (the cache's opN)"),
-                             "Rummage");
-        widget = find_widget(&chrome, panel->chrome_panel, "Rename the op in the cache");
+        ToriRSChrome_SetText(&chrome, find_widget(&chrome, panel->chrome_panel, "Menu text"), "Rummage");
+        widget = find_widget(&chrome, panel->chrome_panel, "Rename op");
         check(widget >= 0 && panel->activate(&ui, panel->self, widget), "Rename is the panel's");
         text = mirror_current(&mirror, EDITOR_DOC_CFG, "loc:ed_test_crate", &length);
         check(text && strstr(text, "op1=Rummage\n") && strstr(text, "op2=hidden\n"),
@@ -2140,6 +2143,265 @@ name_known_fake(
     return strcmp(name, "chatplayer") == 0;
 }
 
+/* ---- the Movement tab over fake services (docs/NPC_EDITOR_DESIGN.md 3.5) --- */
+
+static struct Editor_NpcWaypoint g_fake_route[EDITOR_NPC_PATROL_MAX];
+static int g_fake_route_count;
+static int g_fake_route_sets;
+static enum Editor_NpcMode g_fake_route_mode;
+static char g_fake_set_key[64];
+static char g_fake_set_value[64];
+
+static int
+fake_movement(
+    void* user_data,
+    const char* npc,
+    struct Editor_NpcMovement* out,
+    char* target,
+    size_t target_size)
+{
+    char value[64];
+    (void)user_data;
+    (void)npc;
+    Editor_NpcMovementInit(out);
+    (void)Editor_NpcMovementRead(out, "maxrange", "50");
+    (void)Editor_NpcMovementRead(out, "wanderrange", "5");
+    if( g_fake_route_count > 0 )
+        (void)Editor_NpcMovementRead(out, "defaultmode", "patrol");
+    else if( g_fake_route_sets > 0 )
+        (void)Editor_NpcMovementRead(out, "defaultmode", Editor_NpcModeWord(g_fake_route_mode));
+    for( int i = 0; i < g_fake_route_count; i++ )
+    {
+        char key[16];
+        snprintf(key, sizeof(key), "patrol%d", i + 1);
+        Editor_NpcWaypointFormat(&g_fake_route[i], value, sizeof(value));
+        (void)Editor_NpcMovementRead(out, key, value);
+    }
+    snprintf(target, target_size, "areas/lumbridge/configs/lumbridge.npc");
+    return 1;
+}
+
+static int
+fake_route_set(
+    void* user_data,
+    const char* npc,
+    const struct Editor_NpcWaypoint* waypoints,
+    int count,
+    enum Editor_NpcMode mode,
+    const char* what)
+{
+    (void)user_data;
+    (void)npc;
+    (void)what;
+    memcpy(g_fake_route, waypoints, sizeof(*waypoints) * (size_t)count);
+    g_fake_route_count = count;
+    g_fake_route_mode = mode;
+    g_fake_route_sets++;
+    return 1;
+}
+
+static int
+fake_movement_set(
+    void* user_data,
+    const char* npc,
+    const char* key,
+    const char* value,
+    const char* what)
+{
+    (void)user_data;
+    (void)npc;
+    (void)what;
+    snprintf(g_fake_set_key, sizeof(g_fake_set_key), "%s", key);
+    snprintf(g_fake_set_value, sizeof(g_fake_set_value), "%s", value);
+    return 1;
+}
+
+/* A wall runs north-south at x = 3215: every tile is loaded, that column
+ * is blocked, and no path crosses it. */
+static void
+fake_tile_info(
+    void* user_data,
+    int x,
+    int z,
+    int level,
+    struct Builder_TileInfo* out)
+{
+    (void)user_data;
+    (void)z;
+    (void)level;
+    memset(out, 0, sizeof(*out));
+    out->in_scene = 1;
+    out->in_doc = 1;
+    out->collision = x == 3215 ? COLL_FLAG_LOC : 0;
+}
+
+static int
+fake_path_steps(
+    void* user_data,
+    int ax,
+    int az,
+    int bx,
+    int bz,
+    int level)
+{
+    int const dx = ax > bx ? ax - bx : bx - ax;
+    int const dz = az > bz ? az - bz : bz - az;
+    (void)user_data;
+    (void)level;
+    if( (ax < 3215) != (bx < 3215) )
+        return -1;
+    return dx > dz ? dx : dz;
+}
+
+static int
+fake_spawns(
+    void* user_data,
+    const char* npc,
+    int id,
+    struct Builder_NpcSpawn* out,
+    int max)
+{
+    (void)user_data;
+    (void)npc;
+    (void)id;
+    if( max < 1 )
+        return 0;
+    memset(&out[0], 0, sizeof(out[0]));
+    out[0].x = 3207;
+    out[0].z = 3233;
+    out[0].level = 0;
+    out[0].edited = 1;
+    snprintf(out[0].name, sizeof(out[0].name), "graph_npc");
+    return 1;
+}
+
+static void
+test_movement_panel(void)
+{
+    static struct ToriRSChrome chrome;
+    static struct EditorUi ui;
+    struct Builder_Services services;
+    struct Builder_RouteView route;
+    struct EditorUiPanel* panel;
+    int well;
+    int x;
+    int y;
+    int w;
+    int h;
+
+    g_fake_route_count = 3;
+    g_fake_route_sets = 0;
+    g_fake_route[0].x = 3207; g_fake_route[0].z = 3233; g_fake_route[0].level = 0; g_fake_route[0].pause = 0;
+    g_fake_route[1].x = 3211; g_fake_route[1].z = 3230; g_fake_route[1].level = 0; g_fake_route[1].pause = 0;
+    g_fake_route[2].x = 3219; g_fake_route[2].z = 3230; g_fake_route[2].level = 0; g_fake_route[2].pause = 10;
+
+    ToriRSChrome_Init(&chrome);
+    ToriRSChrome_SetSurface(&chrome, 1280, 900);
+    memset(&ui, 0, sizeof(ui));
+    ui.chrome = &chrome;
+    ui.visible = 1;
+    Editor_HotkeysInit(&ui.hotkeys);
+    memset(&services, 0, sizeof(services));
+    services.record = fake_record;
+    services.triggers = fake_triggers;
+    services.movement = fake_movement;
+    services.movement_set = fake_movement_set;
+    services.route_set = fake_route_set;
+    services.tile_info = fake_tile_info;
+    services.path_steps = fake_path_steps;
+    services.spawns = fake_spawns;
+    Builder_NpcPanelRegister(&ui, &services);
+    panel = Editor_UiFindPanel(&ui, BUILDER_PANEL_NPC);
+    ToriRSChrome_Build(&chrome);
+    check(Builder_PanelOpenSubject(&ui, BUILDER_PANEL_NPC, "graph_npc"), "the NPC editor opens graph_npc");
+    ToriRSChrome_PanelSetVisible(&chrome, panel->chrome_panel, 1);
+    panel->tick(&ui, panel->self);
+
+    /* The route as the record states it, each leg's steps, the target. */
+    check(Builder_RouteInspect(&ui, &route) && route.count == 3 && route.effective->mode == EDITOR_NPC_MODE_PATROL,
+          "the Movement tab holds the three patrol rows as a route");
+    check(route.legs[0] == 4 && route.legs[1] == -1 && route.legs[2] == -1,
+          "legs: 4 steps, then NO PATH across the wall both ways");
+    check(strcmp(route.target, "areas/lumbridge/configs/lumbridge.npc") == 0, "the write target is the authored file");
+    check(route.effective->lap_pause == 10 && route.effective->unused_wanderrange,
+          "the lap carries the pause; wanderrange 5 is dead data");
+    {
+        int label = -1;
+        for( int i = 0; i < chrome.widget_count && label < 0; i++ )
+            if( chrome.widgets[i].panel == panel->chrome_panel && strncmp(chrome.widgets[i].text, "will: patrols 3", 15) == 0 )
+                label = i;
+        check(label >= 0, "the header says what the server will do: will: patrols 3 waypoints...");
+    }
+    /* Fit framed every waypoint on the well. */
+    well = route.w_minimap;
+    check(well >= 0 && Builder_RouteWaypointBox(&ui, 0, &x, &y, &w, &h) && Builder_RouteWaypointBox(&ui, 2, &x, &y, &w, &h),
+          "the minimap framed the route (Fit on open)");
+    check(graph_items(&chrome, well, TORIRS_CHROME_GRAPH_RECT, BP_TEST_C_ROUTE) >= 3, "the waypoints are drawn in amber");
+    check(graph_items(&chrome, well, TORIRS_CHROME_GRAPH_LINE, 0xe05050) >= 1, "the unreachable leg is drawn red");
+
+    /* Add waypoint: a click on a free tile appends one. */
+    {
+        int add = find_widget(&chrome, panel->chrome_panel, "Add waypoint");
+        check(add >= 0 && panel->activate(&ui, panel->self, add), "the Add waypoint tool is the panel's");
+        check(Builder_RouteTilePoint(&ui, 3209, 3236, &x, &y), "a free tile is on the view");
+        graph_send(&ui, panel, well, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+        check(g_fake_route_sets == 1 && g_fake_route_count == 4 && g_fake_route[3].x == 3209 && g_fake_route[3].z == 3236,
+              "the click wrote a four-waypoint route through the service");
+        Builder_RouteInspect(&ui, &route);
+        check(route.count == 4 && route.selected == 3, "...and the editor shows and selects it");
+    }
+    /* Move waypoint: drag the new one two tiles east. */
+    {
+        int move = find_widget(&chrome, panel->chrome_panel, "Move waypoint");
+        int tx;
+        int ty;
+        check(move >= 0 && panel->activate(&ui, panel->self, move), "the Move tool is the panel's");
+        panel->tick(&ui, panel->self);
+        check(Builder_RouteWaypointBox(&ui, 3, &x, &y, &w, &h) && Builder_RouteTilePoint(&ui, 3211, 3236, &tx, &ty),
+              "the waypoint and its destination are on the view");
+        graph_send(&ui, panel, well, TORIRS_CHROME_EVENT_GRAPH_PRESS, x + 1, y + 1, 0);
+        graph_send(&ui, panel, well, TORIRS_CHROME_EVENT_GRAPH_DRAG, tx, ty, 0);
+        graph_send(&ui, panel, well, TORIRS_CHROME_EVENT_GRAPH_RELEASE, tx, ty, 0);
+        check(g_fake_route_sets == 2 && g_fake_route[3].x == 3211 && g_fake_route[3].z == 3236,
+              "the drag moved waypoint 4 to 3211,3236");
+    }
+    /* Delete waypoint: back to three. */
+    {
+        int del = find_widget(&chrome, panel->chrome_panel, "Delete waypoint");
+        check(del >= 0 && panel->activate(&ui, panel->self, del) && g_fake_route_count == 3, "Delete waypoint removes it");
+    }
+    /* The pause of the selected waypoint. */
+    {
+        int pause = find_widget(&chrome, panel->chrome_panel, "Pause (ticks)");
+        Builder_RouteInspect(&ui, &route);
+        check(route.selected == 2, "the selection moved to the last waypoint");
+        ToriRSChrome_SetText(&chrome, pause, "6");
+        check(pause >= 0 && panel->activate(&ui, panel->self, pause) && g_fake_route[2].pause == 6,
+              "Enter in Pause sets the selected waypoint's pause");
+    }
+    /* A slider release writes its field. */
+    {
+        int leash = find_widget(&chrome, panel->chrome_panel, "Leash");
+        ToriRSChrome_SliderSet(&chrome, leash, 12);
+        check(leash >= 0 && panel->activate(&ui, panel->self, leash) && strcmp(g_fake_set_key, "maxrange") == 0
+                  && strcmp(g_fake_set_value, "12") == 0,
+              "the Leash slider writes maxrange=12");
+    }
+    /* Mode Wander over a route: the rows go with the mode. */
+    {
+        int wander = find_widget(&chrome, panel->chrome_panel, "Wander");
+        check(wander >= 0 && panel->activate(&ui, panel->self, wander) && g_fake_route_count == 0
+                  && g_fake_route_mode == EDITOR_NPC_MODE_WANDER,
+              "Mode Wander removes the patrol rows and states wander");
+        Builder_RouteInspect(&ui, &route);
+        check(route.count == 0 && route.effective->mode == EDITOR_NPC_MODE_WANDER && route.effective->wander == 5,
+              "...and the editor shows a wanderer of 5");
+        panel->tick(&ui, panel->self);
+        check(graph_items(&chrome, well, TORIRS_CHROME_GRAPH_RECT, 0x50e070) >= 1, "the wander square is drawn at the spawn");
+    }
+    panel->destroy(&ui, panel->self);
+}
+
 static void
 test_graph_panel(const char* tmp)
 {
@@ -2209,9 +2471,12 @@ test_graph_panel(const char* tmp)
         int layout = find_widget(&chrome, dialogue, "Auto-layout");
         int add = find_widget(&chrome, dialogue, "New node");
         int del = find_widget(&chrome, dialogue, "Delete node");
+        /* The chord's modifier is spelled for the platform: Ctrl, or Cmd on
+         * a Mac (Editor_ChordDisplay). */
         check(layout >= 0 && strstr(chrome.widgets[layout].chord, "L") != NULL
-                  && strstr(chrome.widgets[layout].chord, "trl") != NULL,
-              "Auto-layout wears Ctrl+L");
+                  && (strstr(chrome.widgets[layout].chord, "trl") != NULL
+                      || strstr(chrome.widgets[layout].chord, "md") != NULL),
+              "Auto-layout wears Ctrl+L (or Cmd+L)");
         check(add >= 0 && strcmp(chrome.widgets[add].chord, "N") == 0, "New node wears N");
         check(del >= 0 && strstr(chrome.widgets[del].chord, "Del") != NULL, "Delete node wears Delete");
     }
@@ -2774,6 +3039,7 @@ main(
     SECTION("chat", test_chat());
     SECTION("lintrows", test_lint_rows());
     SECTION("graphpanel", test_graph_panel(tmp));
+    SECTION("movement", test_movement_panel());
     if( g_have_content )
         SECTION("compile", test_compile(content, tmp, sscompile));
     else

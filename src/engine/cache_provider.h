@@ -149,6 +149,10 @@ struct CacheProvider
      */
     void (*archive_invalidate_hook)(void* user, int index, int archive);
     void* archive_invalidate_user;
+    /** Whether that invalidation's new reference table is still on its way
+     *  (CacheProvider_SetArchiveReprimeHook). NULL: never. */
+    int (*archive_reprime_hook)(void* user, int index);
+    void* archive_reprime_user;
 
     /**
      * Records a CACHE_INVALIDATE evicted, kept alive until the provider is
@@ -855,6 +859,22 @@ CacheProvider_SetArchiveInvalidateHook(
     struct CacheProvider* provider,
     void (*hook)(void* user, int index, int archive),
     void* user);
+
+/**
+ * Who owns the JS5 client answers whether an invalidated index's new reference
+ * table is still on its way: until it lands, an archive the reload just ADDED
+ * reads as absent. NULL unregisters.
+ */
+void
+CacheProvider_SetArchiveReprimeHook(
+    struct CacheProvider* provider,
+    int (*hook)(void* user, int index),
+    void* user);
+
+int
+CacheProvider_ArchiveReprimePending(
+    struct CacheProvider* provider,
+    int index);
 
 /** packed_id = (iface_id << 16) | (child & 0xFFFF). Resolves into pack cache. */
 struct ToriRS_Component*

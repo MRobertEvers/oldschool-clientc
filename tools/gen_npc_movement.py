@@ -786,6 +786,13 @@ def main():
 
         path = ledger_path(content, gameval)
         existing = read_ledger(path)
+        if existing.get("source") == "authored" and existing.get("movement") == "patrols":
+            # The NPC editor's word for a route (docs/NPC_EDITOR_DESIGN.md 3.5):
+            # the patrol rows live in the npc's authored block, which
+            # load_authored_movement already skips; the ledger only says why.
+            # Nothing here decides anything for a patroller.
+            pinned += 1
+            continue
         if existing.get("source") == "authored":
             decision = 0 if existing.get("movement") == "stationary" else 1
             pinned_restrict = existing.get("restrict", "normal")

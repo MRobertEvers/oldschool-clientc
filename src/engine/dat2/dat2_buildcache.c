@@ -302,6 +302,14 @@ dat2_invalidate_archive(
     assert(bc);
     if( bc->group_cache )
         Dat2GroupCache_Evict(bc->group_cache, index, archive);
+    /* The table names the squares, and a reload may have added one: the next
+     * load reads it again, once Task_WorldLoad has seen the new one land. A
+     * map load uses the table between yields and keeps no pointer to it. */
+    if( index == RSCACHE_DAT2_TABLE_MAPS && bc->reference_tables[index] )
+    {
+        RSCache_ReferenceTableFree(bc->reference_tables[index]);
+        bc->reference_tables[index] = NULL;
+    }
 }
 
 static struct CacheProviderVTable dat2_vtable = {

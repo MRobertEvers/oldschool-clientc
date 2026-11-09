@@ -1870,6 +1870,25 @@ Editor_CfgRecordAddLayerFor(const struct Editor_CfgRecord* record)
     return 0;
 }
 
+int
+Editor_CfgRecordWriteLayerFor(
+    const struct Editor_CfgRecord* record,
+    int row)
+{
+    assert(record);
+    if( row >= 0 && row < record->row_count )
+        for( int l = record->layer_count - 1; l >= 0; l-- )
+            if( record->layers[l].rank == 2 && Editor_CfgRecordLayerStates(record, l, row, NULL, 0) >= 0 )
+                return l;
+    for( int l = record->layer_count - 1; l >= 0; l-- )
+        if( record->layers[l].rank == 2 && record->layers[l].present )
+            return l;
+    for( int l = record->layer_count - 1; l >= 0; l-- )
+        if( record->layers[l].rank == 2 )
+            return l;
+    return -1;
+}
+
 /** The line of (key, sub, occurrence) in a block, its index among the
  *  block's `key` lines, and its raw value; -1 when absent. */
 static int

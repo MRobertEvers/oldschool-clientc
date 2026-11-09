@@ -1290,8 +1290,8 @@ _Static_assert(EDITOR_UI_LAYOUT_PANELS_MAX >= TORIRS_CHROME_MAX_PANELS,
  *  is open at a layout it takes its place here, else it opens beside the
  *  column. */
 static const char* const k_dock_order[] = {
-    "terrain", "palette", "locs", "spawns", "rect", "inspector", "squares", "areas", "catalog", "preview", "gallery",
-    "catalog_palette", "history", NULL,
+    "terrain", "palette", "locs", "spawns", "npcbuilder", "rect", "inspector", "squares", "areas", "catalog", "preview",
+    "gallery", "catalog_palette", "history", NULL,
 };
 #define UI_DOCK_COUNT ((int)(sizeof(k_dock_order) / sizeof(k_dock_order[0])) - 1)
 
@@ -1301,7 +1301,7 @@ static const char* const k_dock_order[] = {
  * is the default layout's own (k_dock_order), so the boot layout is the one
  * it always was. */
 static const char* const k_dock_terrain[] = {
-    "terrain", "palette", "squares", "inspector", "catalog_palette", "locs", "spawns", "rect", "areas",
+    "terrain", "palette", "squares", "inspector", "catalog_palette", "locs", "spawns", "npcbuilder", "rect", "areas",
     "catalog", "preview", "gallery", "history", NULL,
 };
 static const char* const k_dock_script[] = {
@@ -1309,8 +1309,8 @@ static const char* const k_dock_script[] = {
     "rect", "inspector", "squares", "areas", "catalog", "preview", "gallery", "catalog_palette", "history", NULL,
 };
 static const char* const k_dock_playtest[] = {
-    "live", "accounts", "scenes", "encounter", "terrain", "palette", "locs", "spawns", "rect", "inspector", "squares", "areas",
-    "catalog", "preview", "gallery", "catalog_palette", "history", NULL,
+    "live", "accounts", "scenes", "encounter", "terrain", "palette", "locs", "spawns", "npcbuilder", "rect", "inspector",
+    "squares", "areas", "catalog", "preview", "gallery", "catalog_palette", "history", NULL,
 };
 /** Most entries one workspace's column order holds. */
 #define UI_DOCK_MAX 24

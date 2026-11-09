@@ -8413,8 +8413,11 @@ main(
      * decompressed-archive LRU and the JS5 client's reference table
      * (docs/serverpack.md "The hot-reload contract", clients). */
     if( app.provider )
+    {
         CacheProvider_SetArchiveInvalidateHook(app.provider, PlatformX_IO_ArchiveInvalidateHook,
                                                app.runner.px);
+        CacheProvider_SetArchiveReprimeHook(app.provider, PlatformX_IO_ArchiveReprimePendingHook, app.runner.px);
+    }
 #else
     /* The browser's half: platform_web_io.js drops its decoded copy, resident
      * container and reference-table memo, and the page's JS5 client re-primes

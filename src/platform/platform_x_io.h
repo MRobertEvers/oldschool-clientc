@@ -89,6 +89,13 @@ PlatformX_IO_ArchiveInvalidateHook(
     int index,
     int archive);
 
+/** Whether an invalidated index's new reference table is still on its way
+ *  (CacheProvider_SetArchiveReprimeHook's shape; `user` is the IO). */
+int
+PlatformX_IO_ArchiveReprimePendingHook(
+    void* user,
+    int index);
+
 int
 PlatformX_IO_LoadItem(
     struct PlatformX_IO* px,

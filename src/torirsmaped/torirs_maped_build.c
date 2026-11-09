@@ -205,6 +205,10 @@ struct ToriRSMapEdJobs
     /* ---- what the next reload names: everything since the last good one ---- */
     int32_t pending_squares[2 * TORIRSMAPED_BUILD_SQUARES_MAX];
     int pending_square_count;
+    /** Scratch squares whose files this RUN's build is reading (x, z pairs);
+     *  jobs_run_scratch_remove takes the files back. */
+    int32_t run_scratch[2 * EDITOR_DOC_SCRATCH_SLOTS];
+    int run_scratch_count;
     char pending_spawns[JOBS_SPAWNS_MAX][JOBS_SPAWN_PATH_MAX];
     int pending_spawn_count;
     uint32_t pending_archives[2 * JOBS_ARCHIVES_MAX];
@@ -1865,6 +1869,90 @@ jobs_note_saved(
     }
 }
 
+/* ---- RUN's scratch squares ---------------------------------------------------- */
+
+/** Take back the files jobs_run_scratch_write wrote. */
+static void
+jobs_run_scratch_remove(struct ToriRSMapEd* maped)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+    const struct EditorHost_VTable* files = maped->files.vtable;
+
+    for( int i = 0; i < jobs->run_scratch_count; i++ )
+    {
+        char key[EDITOR_DOC_KEY_MAX];
+
+        Editor_SquareKey(key, jobs->run_scratch[2 * i], jobs->run_scratch[2 * i + 1]);
+        for( int part = 0; part < 3; part++ )
+            (void)files->doc_save(maped->files.user_data, EDITOR_DOC_SQUARE, key, part, NULL, 0);
+    }
+    jobs->run_scratch_count = 0;
+}
+
+/**
+ * A scratch square has no file (EDITOR_DOC_SCRATCH_STORAGE), but RUN plays what
+ * is open: left out of the build, it is a square the player logs in on with no
+ * map under them. For the length of the build each one holding work is written
+ * to maps/ at its slot and owed to the reload. jobs_run_scratch_remove takes
+ * the files back when the build ends, so the picker and Publish never list
+ * them, and no FACT_SAVED goes out: the square is still unsaved, and Save still
+ * places it.
+ */
+static enum EditorHost_Status
+jobs_run_scratch_write(struct ToriRSMapEd* maped)
+{
+    struct ToriRSMapEdJobs* jobs = maped->jobs;
+    const struct EditorHost_VTable* files = maped->files.vtable;
+    void* user = maped->files.user_data;
+
+    assert(jobs->run_scratch_count == 0);
+    for( int i = 0; i < maped->doc.square_count; i++ )
+    {
+        struct Editor_Square* square = &maped->doc.squares[i];
+        struct Editor_DocRef row;
+        enum EditorHost_Status status;
+        char filepack[2 * EDITOR_DOC_KEY_MAX + 16];
+        int filepack_size;
+        size_t size;
+        char* text;
+
+        if( !square->loaded || !Editor_DocStorageIsScratch(maped->doc.square_storage[i])
+            || Editor_SquareIsBlank(square) )
+            continue;
+        assert(jobs->run_scratch_count < EDITOR_DOC_SCRATCH_SLOTS);
+        jobs->run_scratch[2 * jobs->run_scratch_count] = square->map_x;
+        jobs->run_scratch[2 * jobs->run_scratch_count + 1] = square->map_z;
+        jobs->run_scratch_count++;
+
+        memset(&row, 0, sizeof(row));
+        row.kind = EDITOR_DOC_SQUARE;
+        Editor_SquareKey(row.key, square->map_x, square->map_z);
+
+        size = Editor_Jm2Emit(square, NULL, 0);
+        text = ToriMem_Alloc(ToriMem_Editor(), size + 1);
+        Editor_Jm2Emit(square, text, size + 1);
+        status = files->doc_save(user, EDITOR_DOC_SQUARE, row.key, 0, text, size);
+        ToriMem_Free(ToriMem_Editor(), text);
+        if( status != EDITOR_HOST_OK )
+            return status;
+
+        size = Editor_Jl2Emit(square, NULL, 0);
+        text = ToriMem_Alloc(ToriMem_Editor(), size + 1);
+        Editor_Jl2Emit(square, text, size + 1);
+        status = files->doc_save(user, EDITOR_DOC_SQUARE, row.key, 1, text, size);
+        ToriMem_Free(ToriMem_Editor(), text);
+        if( status != EDITOR_HOST_OK )
+            return status;
+
+        filepack_size = snprintf(filepack, sizeof(filepack), "0=%s.jm2\n1=%s.jl2\n", row.key, row.key);
+        status = files->doc_save(user, EDITOR_DOC_SQUARE, row.key, 2, filepack, (size_t)filepack_size);
+        if( status != EDITOR_HOST_OK )
+            return status;
+        jobs_note_saved(maped, &row, 1);
+    }
+    return EDITOR_HOST_OK;
+}
+
 /* ---- the build in flight ---------------------------------------------------- */
 
 static void
@@ -2233,6 +2321,7 @@ jobs_build_finished(
     int const for_run = jobs->build_for_run;
 
     jobs->building = 0;
+    jobs_run_scratch_remove(maped);
     jobs_build_send_done(maped, what, status, 1);
     /* Both builds name archives: the client cache's (index, archive) rows and
      * the packs build's server-pack groups (index 255, from the manifest
@@ -2800,9 +2889,19 @@ handle_run(
             maped->lane_writes_own++;
         }
     }
+    /* After the follow, which would drop a file its base does not have. */
+    status = jobs_run_scratch_write(maped);
+    if( status != EDITOR_HOST_OK )
+    {
+        jobs_run_scratch_remove(maped);
+        jobs_run_finish(maped, status, TORIRSMAPED_RUN_STEP_BUILD,
+            "a scratch square could not be written for the build; nothing was built or launched", NULL, NULL, 0);
+        return;
+    }
     status = jobs_build_start(maped, TORIRSMAPED_BUILD_RUN, "", 1);
     if( status != EDITOR_HOST_OK )
     {
+        jobs_run_scratch_remove(maped);
         jobs_build_send_done(maped, TORIRSMAPED_BUILD_RUN, status, 0);
         jobs_run_finish(maped, status, TORIRSMAPED_RUN_STEP_BUILD,
             jobs->have_runner ? "the build did not start" : "this server has no build runner", NULL, NULL, 0);

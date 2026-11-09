@@ -368,7 +368,7 @@ Editor_NewSquare_Open(
     const char* source_key);
 
 /** The first scratch square this window's mirror holds with anything in it
- *  ("scratch/m240_240"): one a Save has still to place. 0 when none. */
+ *  ("scratch/m90_240"): one a Save has still to place. 0 when none. */
 int
 Editor_NewSquare_UnplacedScratch(
     struct EditorUi* ui,
@@ -376,7 +376,7 @@ Editor_NewSquare_UnplacedScratch(
 
 /**
  * The Square map's Place (docs/MAPED_STATUS.md "Scratch squares"): open the
- * map with `source_key` ("scratch/m240_240", or any square for Copy to) on
+ * map with `source_key` ("scratch/m90_240", or any square for Copy to) on
  * the pointer -- the hovered cell is outlined green where it may go, in the
  * accent where it may not, the readout says why -- with a Stored in choice
  * above the well; a click places it. `scratch` 1: a scratch square's Place
@@ -617,6 +617,43 @@ Editor_Spawns_SetEditForm(
     int count,
     int suppressed);
 
+struct MapEditorSpawnPreviewRow;
+
+/** Every `.spawn` row of the open squares naming npc `name` (or `#<id>`
+ *  when `id` >= 0): the edited, generated and quest / skill files, a
+ *  generated row the edited file hides flagged `suppressed`. The NPC
+ *  editor's Spawns tab and minimap. At most `max`; returns the count. */
+int
+Editor_Spawns_RowsOf(
+    struct EditorUi* ui,
+    const char* name,
+    int id,
+    struct MapEditorSpawnPreviewRow* out,
+    int max);
+
+/** Delete an edited row, or suppress a generated / scripted one, wherever
+ *  its square is (the NPC editor's Spawns tab): one undo step. Returns the
+ *  commands the authority took. */
+int
+Editor_Spawns_DeleteRow(
+    struct EditorUi* ui,
+    const struct MapEditorSpawnPreviewRow* row);
+
+/** Add `row` to its square's edited file ("place spawn", one undo step).
+ *  Returns the commands the authority took. */
+int
+Editor_Spawns_PlaceRow(
+    struct EditorUi* ui,
+    const struct Editor_SpawnRow* row);
+
+/** "Edit npc...": the NPC editor (BUILDER_PANEL_NPC) opened on the row's
+ *  npc and shown; an obj row, or a window without the editor, opens the
+ *  Record panel instead. 1 when something opened. */
+int
+Editor_Spawns_EditNpc(
+    struct EditorUi* ui,
+    const struct Editor_SpawnRow* row);
+
 /** Replace the selection (rows as the list shows them). */
 int
 Editor_Spawns_Select(
@@ -662,16 +699,18 @@ Editor_Record_Open(
     uint32_t kind,
     const char* name);
 
-/** The Record panel's resolved wanderrange / maxrange when it holds
- *  `type`:`name` (unsaved edits included); 0 otherwise. A value no layer
- *  states is the engine default (5 / 7). */
+struct Editor_NpcMovement;
+
+/** The Record panel's resolved movement statements (editor_npc.h: the
+ *  winning wanderrange, maxrange, defaultmode, patrol rows, moverestrict,
+ *  facing...) when it holds `type`:`name`, unsaved edits included; 0
+ *  otherwise. What the Spawns preview draws for the record being edited. */
 int
-Editor_Record_WanderValues(
+Editor_Record_NpcMovement(
     struct EditorUi* ui,
     const char* type,
     const char* name,
-    int* out_wander,
-    int* out_leash);
+    struct Editor_NpcMovement* out);
 
 /** Set field (`key`, `sub`) of the open record to `value` ("" removes) in
  *  layer `layer` (-1 where it is stated), as one undo step ("edit record").

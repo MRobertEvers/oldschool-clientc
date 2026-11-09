@@ -66,6 +66,10 @@ idset_add(
     s->count++;
 }
 
+/* The dat2 index maps are read from, and how long a load waits for it. */
+#define WORLD_LOAD_MAPS_INDEX 5
+#define WORLD_LOAD_REPRIME_WAIT_MS 5000.0
+
 struct Task_WorldLoad
 {
     struct ToriRS_Task task;
@@ -122,6 +126,9 @@ struct Task_WorldLoad
      * disk, with nothing on the wire.
      */
     int pending;
+
+    /* When the wait for a live reload's new map table gives up. */
+    double reprime_deadline_ms;
 
     /* TORIRS_REBUILD_TIMING=1: when the task first ran, when its assets were
      * all resident, and how many times the runner resumed it in between --
@@ -283,6 +290,18 @@ Task_WorldLoad_Run(
         self->t_start_ms = WorldBuilder_TimingNowMs();
 
     PT_BEGIN(&self->pt);
+
+    /*
+     * A live reload sends CACHE_INVALIDATE and the REBUILD together, and the
+     * new map table comes over JS5 behind them. A square the reload ADDED is
+     * in no table this client has yet, so loading now reads it as absent and
+     * nothing loads it again. Bounded, so a dead JS5 link cannot hold up the
+     * scene.
+     */
+    self->reprime_deadline_ms = WorldBuilder_TimingNowMs() + WORLD_LOAD_REPRIME_WAIT_MS;
+    PT_WAIT_UNTIL(&self->pt,
+        !CacheProvider_ArchiveReprimePending(p, WORLD_LOAD_MAPS_INDEX)
+            || WorldBuilder_TimingNowMs() >= self->reprime_deadline_ms);
 
     /*
      * 0. Reclaim before preloading, not after.

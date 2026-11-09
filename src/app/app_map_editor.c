@@ -12,6 +12,7 @@
 #include "app/app_internal.h"
 #include "app/app_record_thumbs.h"
 #include "perf/frame_stats.h"
+#include "engine/world_builder/collision_map.h"
 #include "editor/builder/builder_shell.h"
 #include "editor/editor_derive.h"
 #include "editor/accounts/accounts_panel.h"
@@ -491,6 +492,72 @@ ui_service_camera_to_tile(
 
     assert(app);
     return app_map_editor_camera_to_tile(app, tile_x, tile_z, level, 2600);
+}
+
+/** The NPC editor's minimap: a scene tile's collision flags. */
+static int
+ui_service_tile_flags(
+    void* user_data,
+    int world_x,
+    int world_z,
+    int level,
+    int* out_flags)
+{
+    struct App* app = user_data;
+    struct CollisionMap* cm;
+    int sx;
+    int sz;
+
+    assert(app);
+    assert(out_flags);
+    if( !app->world || level < 0 || level >= COLLISION_LEVELS )
+        return 0;
+    cm = app->world->collision_maps[level];
+    sx = world_x - app->world->_base_tile_x;
+    sz = world_z - app->world->_base_tile_z;
+    if( !cm || sx < 0 || sz < 0 || sx >= cm->size_x || sz >= cm->size_z )
+        return 0;
+    *out_flags = cm->flags[sx * cm->size_z + sz];
+    return 1;
+}
+
+/** The NPC editor's route legs: the BFS steps between two scene tiles. */
+static int
+ui_service_path_steps(
+    void* user_data,
+    int ax,
+    int az,
+    int bx,
+    int bz,
+    int level)
+{
+    struct App* app = user_data;
+    struct CollisionMap* cm;
+    static int path_x[256];
+    static int path_z[256];
+    int sax;
+    int saz;
+    int sbx;
+    int sbz;
+    int steps;
+
+    assert(app);
+    if( !app->world || level < 0 || level >= COLLISION_LEVELS )
+        return -2;
+    cm = app->world->collision_maps[level];
+    if( !cm )
+        return -2;
+    sax = ax - app->world->_base_tile_x;
+    saz = az - app->world->_base_tile_z;
+    sbx = bx - app->world->_base_tile_x;
+    sbz = bz - app->world->_base_tile_z;
+    if( sax < 0 || saz < 0 || sax >= cm->size_x || saz >= cm->size_z || sbx < 0 || sbz < 0 || sbx >= cm->size_x
+        || sbz >= cm->size_z )
+        return -2;
+    if( sax == sbx && saz == sbz )
+        return 0;
+    steps = collision_map_bfs_path(cm, sax, saz, sbx, sbz, path_x, path_z, 256);
+    return steps < 0 ? -1 : steps;
 }
 
 static void
@@ -1203,6 +1270,8 @@ app_map_editor_ui_services(
     out->scene_window = ui_service_scene_window;
     out->select_terrain = ui_service_select_terrain;
     out->camera_to_tile = ui_service_camera_to_tile;
+    out->tile_flags = ui_service_tile_flags;
+    out->path_steps = ui_service_path_steps;
     out->preview_invalidate = ui_service_preview_invalidate;
     out->preview_orbit = ui_service_preview_orbit;
     out->preview_zoom = ui_service_preview_zoom;

@@ -996,6 +996,9 @@ Editor_HostDocPath(
         else if( strncmp(key, "stats:", 6) == 0 )
             /* An npc's stats ledger (editor_npcstats.h). */
             written = snprintf(out, out_size, "npc_stats/%s.stats", key + 6);
+        else if( strncmp(key, "move:", 5) == 0 )
+            /* An npc's movement ledger (editor_npc.h). */
+            written = snprintf(out, out_size, "npc_movement/%s.move", key + 5);
         else
             return 0;
         break;

@@ -274,9 +274,14 @@ registry_digest(
  * boot line (2026-11-08: a label saying which lane every launch opens, and
  * the buttons renamed "Switch at relaunch" / "Lane from main") moved the 1x
  * and 2x registries (was 920953359u, 2007608999u); 3x and the scenes did
- * not move. */
+ * not move. The NPC editor (2026-11-09, docs/NPC_EDITOR_DESIGN.md: the
+ * three builder windows became one tabbed panel, docked after Spawns, and
+ * the Spawns panel gained a Find box) moved the 1x registry (was
+ * 38085939u), and the chrome's clip rule the same day (ec6f76523: an
+ * empty clip pushes nothing, 623 prims became 601) moved it once more;
+ * 2x, 3x and the scenes did not move. */
 static const uint32_t k_golden[3][3] = {
-    { 1970238540u, 3840548130u, 38085939u },
+    { 1970238540u, 3840548130u, 3107326265u },
     { 1606657634u, 3552625563u, 3973481444u },
     { 1621493878u, 3838641767u, 3276910591u },
 };

@@ -18,7 +18,9 @@
 
 /* ---- shared --------------------------------------------------------------- */
 
-#define BP_ISSUE_ROWS 8
+#define BP_ISSUE_ROWS 4
+/** Rows of the tree's triggers the Interactions tab lists at once. */
+#define BP_EXISTING_ROWS 5
 #define BP_OUTLINE_MAX (BUILDER_TRIGGERS_MAX * (BUILDER_STEPS_MAX + 1) + BUILDER_NODES_MAX + 4)
 #define BP_NODE_W 120
 #define BP_NODE_H 26
@@ -55,6 +57,53 @@ enum
 #define BP_LINT_VISIBLE 6
 #define BP_NAME_CACHE 32
 
+/* The Movement tab (docs/NPC_EDITOR_DESIGN.md 3.4, 3.5): the minimap well's
+ * logical size, its zooms (px a tile), its hit keys (tiles from 1, then the
+ * waypoints, then the spawns), the route list's rows. */
+#define BP_MV_W 256
+#define BP_MV_H 256
+#define BP_MV_PX_MIN 2
+#define BP_MV_PX_MAX 16
+#define BP_MV_PX_DEFAULT 8
+#define BP_MV_KEY_TILE 1
+#define BP_MV_KEY_WP 20000
+#define BP_MV_KEY_SPAWN 21000
+#define BP_MV_ROUTE_ROWS 6
+#define BP_MV_SPAWN_ROWS 6
+#define BP_MV_SPAWNS_MAX 64
+/** Frames a Play step holds (a tick is 0.6 s; the editor runs ~60 a second). */
+#define BP_MV_PLAY_FRAMES 36
+/** The Mode and tool radio groups (unique across the panels: spawns 31/32). */
+#define BP_GROUP_TOOL 41
+#define BP_GROUP_MODE 42
+/* Colours of the well (0xRRGGBB). */
+#define BP_MV_C_OPEN 0x3a5a3a
+#define BP_MV_C_OPEN_ROOF 0x5c5a3a
+#define BP_MV_C_BLOCKED 0x6a2e2e
+#define BP_MV_C_WALL 0x1a1a1a
+#define BP_MV_C_UNLOADED 0x262626
+#define BP_MV_C_NODOC 0x303038
+#define BP_MV_C_ROUTE 0xffb040
+#define BP_MV_C_ROUTE_CLOSING 0xa87a30
+#define BP_MV_C_TELEPORT 0xe05050
+#define BP_MV_C_WANDER 0x50e070
+#define BP_MV_C_LEASH 0x2c8c46
+#define BP_MV_C_PIN 0xff8040
+#define BP_MV_C_SPAWN_EDITED 0x50e070
+#define BP_MV_C_SPAWN_GENERATED 0xffe070
+#define BP_MV_C_SPAWN_SUPPRESSED 0xe05050
+#define BP_MV_C_SPAWN_SCRIPTED 0x50d8f0
+#define BP_MV_C_SELECTED 0xffffff
+#define BP_MV_C_HOVER 0xe0e0e0
+#define BP_MV_C_GHOST 0x60e0ff
+
+static const char* const k_mode_words[3] = { "none", "wander", "patrol" };
+static const char* const k_restrict_options[8] = { "(unstated)", "normal", "blocked", "blocked+normal",
+                                                   "indoors",    "outdoors", "nomove", "passthru" };
+static const char* const k_block_options[5] = { "(unstated)", "none", "npc", "all", "player" };
+static const char* const k_facing_options[9] = { "(unstated)", "northwest", "north", "northeast", "west",
+                                                 "east",       "southwest", "south", "southeast" };
+
 /* Borrowed by the dropdowns for the widgets' whole life: static. */
 static const char* const k_trigger_options[] = {
     "op1", "op2", "op3", "op4", "op5", "ap1", "ap2", "ap3", "ap4", "ap5", "use-on (op)", "use-on (ap)",
@@ -76,8 +125,8 @@ static const char* const k_var_options[] = { "varbit", "varp" };
 /** What fields A, B, C and Text mean for each step kind ("" hides it). */
 static const char* const k_step_fields[BUILDER_STEP_KIND_COUNT][4] = {
     { "", "", "", "Message" },
-    { "Var", "Compare (= ! < > <= >=)", "Value", "" },
-    { "Var", "Compare (= ! < > <= >=)", "Value", "" },
+    { "Var", "Compare", "Value", "" },
+    { "Var", "Compare", "Value", "" },
     { "", "", "", "" },
     { "", "", "", "" },
     { "Var", "Value", "", "" },
@@ -86,15 +135,15 @@ static const char* const k_step_fields[BUILDER_STEP_KIND_COUNT][4] = {
     { "Obj", "Count", "", "Said when missing" },
     { "Stat", "Level", "", "Said when too low" },
     { "Interface", "", "", "" },
-    { "Target (iface:comp)", "Interface", "Mode", "" },
+    { "Target", "Interface", "Mode", "" },
     { "Seq", "", "", "" },
     { "Synth", "", "", "" },
-    { "Coord (level_mx_mz_lx_lz)", "", "", "" },
+    { "Coord", "", "", "" },
     { "Ticks", "", "", "" },
     { "Loc", "Ticks", "", "" },
     { "Proc", "Arguments", "", "" },
     { "Label", "", "", "" },
-    { "", "", "", "RuneScript (\\n between lines)" },
+    { "", "", "", "RuneScript" },
 };
 
 static void
@@ -149,18 +198,89 @@ struct builder_panel
     int sel_step;
     int sel_node;
 
+    /** The one window (docs/NPC_EDITOR_DESIGN.md 3.2): the header on every
+     *  tab, then (npc) the Interactions and Dialogue tabs. The outline rows
+     *  live in it, after their heading, re-made on every rebuild. */
     int p_main;
-    int p_outline;
-    int p_dialogue;
+    int w_tabs;
+    /** "will: patrols 10 waypoints..." -- the effective behaviour (npc),
+     *  and its notes ("wanderrange 5 is unused") on a second line. */
+    int w_will;
+    int w_will_note;
+    /** The triggers the TREE declares for the subject, read-only, with
+     *  Open in editor for a hand-authored one (D6). */
+    int w_existing_label, w_existing_list, w_existing_open;
+    struct Builder_ExistingList* existing;
+    /** The outline's heading in each tab: its rows are relinked after it. */
+    int w_outline_head, w_dialogue_outline_head;
+    /** While rebuilding: the row the next one goes after, and its tab. */
+    int outline_after;
+    int outline_tab;
+    /** The issues, a list (D3: labels overflowed the panel). */
+    int w_issue_list;
 
     int w_subject, w_open, w_fromsel, w_status;
+
+    /* The Movement tab. */
+    int w_mv_eff, w_mv_map, w_mv_readout;
+    int w_mv_tool_select, w_mv_tool_add, w_mv_tool_move, w_mv_fit, w_mv_goto;
+    int w_mv_mode_none, w_mv_mode_patrol, w_mv_mode_wander;
+    int w_mv_leash, w_mv_range, w_mv_restrict, w_mv_block, w_mv_facing, w_mv_respawn, w_mv_timer;
+    int w_mv_route, w_mv_route_label, w_mv_pause, w_mv_wp_add, w_mv_wp_insert, w_mv_wp_delete, w_mv_wp_up,
+        w_mv_wp_down, w_mv_play, w_mv_target;
+    /** The record's movement as the documents hold it (services.movement),
+     *  the file an edit goes to, what the server makes of it. */
+    struct Editor_NpcMovement mv;
+    int mv_valid;
+    char mv_target[EDITOR_DOC_KEY_MAX];
+    struct Editor_NpcEffective mv_eff;
+    /** Each leg's steps (services.path_steps): -1 no path, -2 unknown, -3
+     *  a teleport across levels. Recomputed when the route or level moves. */
+    int mv_legs[EDITOR_NPC_PATROL_MAX];
+    uint32_t mv_legs_hash;
+    int mv_sel;
+    /** 0 Select, 1 Add waypoint, 2 Move. */
+    int mv_tool;
+    /** The view: px a tile, the centre tile, the level shown. */
+    int mv_px;
+    int mv_cx;
+    int mv_cz;
+    int mv_level;
+    int mv_fit_pending;
+    int mv_hover_valid;
+    int mv_hover_x;
+    int mv_hover_z;
+    /** A waypoint being dragged (Move), -1 none; its live tile. */
+    int mv_drag_wp;
+    int mv_drag_x;
+    int mv_drag_z;
+    /** A pan in progress (Select): where it pressed, the centre then. */
+    int mv_panning;
+    int mv_press_x;
+    int mv_press_y;
+    int mv_press_cx;
+    int mv_press_cz;
+    /** Play: the ghost's leg, its step along it, frames into the step. */
+    int mv_play;
+    int mv_play_leg;
+    int mv_play_step;
+    int mv_play_frame;
+    int mv_frame;
+    uint32_t mv_draw_hash;
+    /** TORIRS_EDITOR_NPC's `photo`: frames left before the panel is laid
+     *  over the column (after the first layout has shown the default set). */
+    int photo_countdown;
+    /* The Spawns tab. */
+    int w_sp_label, w_sp_list, w_sp_goto, w_sp_select, w_sp_place, w_sp_delete;
+    struct Builder_NpcSpawn sp[BP_MV_SPAWNS_MAX];
+    int sp_count;
+    int sp_sel;
     int w_trigger_kind, w_use_obj, w_trigger_add, w_trigger_remove, w_trigger_dialogue;
     int w_menu_text, w_rename_op;
     int w_step_kind, w_step_field[4], w_step_add, w_step_apply, w_step_remove, w_step_up,
         w_step_down;
     int w_category, w_door, w_door_other, w_ladder, w_server_apply;
     int w_regen, w_check, w_save, w_detach;
-    int w_issue[BP_ISSUE_ROWS];
 
     int outline_rows[BP_OUTLINE_MAX];
     int outline_trigger[BP_OUTLINE_MAX];
@@ -239,24 +359,136 @@ bp_show_issues(
     struct EditorUi* ui,
     struct builder_panel* self)
 {
-    for( int i = 0; i < BP_ISSUE_ROWS; i++ )
-    {
-        char line[TORIRS_CHROME_INPUT_MAX];
-        if( i < self->issues.count )
+    int first;
+    int shown;
+
+    ToriRSChrome_VListSetCount(ui->chrome, self->w_issue_list, self->issues.count);
+    ToriRSChrome_SetHidden(ui->chrome, self->w_issue_list, self->issues.count == 0);
+    if( ToriRSChrome_VListWindow(ui->chrome, self->w_issue_list, &first, &shown) )
+        for( int i = first; i < first + shown && i < self->issues.count; i++ )
         {
             const struct Builder_Issue* issue = &self->issues.items[i];
-            snprintf(line, sizeof(line), "%s %s: %s",
-                     issue->severity == BUILDER_ISSUE_ERROR ? "error" : "warning", issue->where,
-                     issue->message);
+            char line[TORIRS_CHROME_INPUT_MAX];
+            snprintf(line, sizeof(line), "%s %s: %s", issue->severity == BUILDER_ISSUE_ERROR ? "error" : "warning",
+                     issue->where, issue->message);
+            ToriRSChrome_VListSetRow(ui->chrome, self->w_issue_list, i, line);
         }
-        else if( i == 0 )
-            snprintf(line, sizeof(line), "%s", self->has_model ? "no issues" : "");
-        else
-            line[0] = '\0';
-        ToriRSChrome_SetText(ui->chrome, self->w_issue[i], line);
-        ToriRSChrome_SetHidden(ui->chrome, self->w_issue[i], line[0] == '\0');
-    }
 }
+
+/** The tree's triggers for the subject (the Interactions tab's first list):
+ *  each row names the trigger and where it lives -- `builder` (this
+ *  model's), `hand-authored <file>` or `test fixture <file>` (a
+ *  selftest_*.rs2 binding, live in game but nobody's content). */
+static int
+bp_existing_kind(
+    const struct builder_panel* self,
+    int index)
+{
+    const char* file = self->existing->files[index];
+    const char* base = strrchr(file, '/');
+    char own[EDITOR_DOC_KEY_MAX];
+    size_t own_length;
+    size_t const file_length = strlen(file);
+
+    base = base ? base + 1 : file;
+    if( strncmp(base, "selftest_", 9) == 0 )
+        return 2;
+    if( !self->has_model )
+        return 1;
+    Builder_FilePath(self->subject, self->model->name, BUILDER_FILE_SCRIPT, own, sizeof(own));
+    own_length = strlen(own);
+    if( file_length >= own_length && strcmp(file + file_length - own_length, own) == 0 )
+        return 0;
+    return 1;
+}
+
+static void
+bp_show_existing(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    int first;
+    int shown;
+    int const count = self->existing ? self->existing->count : 0;
+    char line[TORIRS_CHROME_LABEL_MAX];
+
+    ToriRSChrome_VListSetCount(ui->chrome, self->w_existing_list, count);
+    if( !self->has_model )
+        line[0] = '\0';
+    else if( !self->existing )
+        snprintf(line, sizeof(line), "no catalog: the tree's triggers are not listed");
+    else
+    {
+        int hand = 0;
+        int test = 0;
+        for( int i = 0; i < count; i++ )
+        {
+            int const kind = bp_existing_kind(self, i);
+            hand += kind == 1;
+            test += kind == 2;
+        }
+        snprintf(line, sizeof(line), "%d trigger%s in the tree: %d hand-authored, %d test fixture%s", count,
+                 count == 1 ? "" : "s", hand, test, test == 1 ? "" : "s");
+    }
+    ToriRSChrome_SetText(ui->chrome, self->w_existing_label, line);
+    if( ToriRSChrome_VListWindow(ui->chrome, self->w_existing_list, &first, &shown) )
+        for( int i = first; i < first + shown && i < count; i++ )
+        {
+            int const kind = bp_existing_kind(self, i);
+            snprintf(line, sizeof(line), "[%s]  %s%s", self->existing->names[i],
+                     kind == 0 ? "builder" : kind == 2 ? "test fixture: " : "hand-authored: ",
+                     kind == 0 ? "" : self->existing->files[i]);
+            ToriRSChrome_VListSetRow(ui->chrome, self->w_existing_list, i, line);
+        }
+}
+
+/** The header's "will:" line, from the record's movement statements. */
+static void
+bp_show_will(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    char line[TORIRS_CHROME_LABEL_MAX];
+    char sentence[TORIRS_CHROME_LABEL_MAX];
+    struct Editor_NpcEffective effective;
+
+    if( self->w_will < 0 )
+        return;
+    if( !self->has_model || (!self->record.has_movement && !self->mv_valid) )
+    {
+        ToriRSChrome_SetHidden(ui->chrome, self->w_will, 1);
+        ToriRSChrome_SetHidden(ui->chrome, self->w_will_note, 1);
+        return;
+    }
+    /* The documents' statements (unsaved edits included) over the catalog's. */
+    {
+        const struct Editor_NpcMovement* movement = self->mv_valid ? &self->mv : &self->record.movement;
+        Editor_NpcEffectiveMode(movement, &effective);
+        Editor_NpcEffectiveSentence(movement, &effective, sentence, sizeof(sentence));
+    }
+    /* The sentence on one line, its notes ("; wanderrange 5 is unused") on
+     * the next: a docked column is 200-400 px wide. */
+    {
+        char* semicolon = strstr(sentence, "; ");
+        if( semicolon )
+        {
+            *semicolon = '\0';
+            ToriRSChrome_SetText(ui->chrome, self->w_will_note, semicolon + 2);
+            ToriRSChrome_SetHidden(ui->chrome, self->w_will_note, 0);
+        }
+        else
+            ToriRSChrome_SetHidden(ui->chrome, self->w_will_note, 1);
+    }
+    snprintf(line, sizeof(line), "will: %s", sentence);
+    ToriRSChrome_SetText(ui->chrome, self->w_will, line);
+    ToriRSChrome_SetHidden(ui->chrome, self->w_will, 0);
+}
+
+static void bp_mv_build(struct EditorUi* ui, struct builder_panel* self);
+static void bp_mv_refresh(struct EditorUi* ui, struct builder_panel* self);
+static int bp_mv_activate(struct EditorUi* ui, struct builder_panel* self, int widget);
+static int bp_mv_event(struct EditorUi* ui, struct builder_panel* self, const struct ToriRSChromeEvent* event);
+static void bp_mv_tick(struct EditorUi* ui, struct builder_panel* self);
 
 static void
 bp_set_editable(
@@ -345,9 +577,16 @@ outline_push(
 
     if( self->outline_count >= BP_OUTLINE_MAX )
         return;
-    widget = ToriRSChrome_TreeRow(ui->chrome, self->p_outline, label, depth, expander);
+    /* A widget is always added at the panel's end: relink it after the
+     * last outline row (first: the heading), so the outline stays under
+     * its heading inside the tab (ToriRSChrome_WidgetMoveAfter). */
+    ToriRSChrome_PanelBeginTab(ui->chrome, self->p_main, self->outline_tab);
+    widget = ToriRSChrome_TreeRow(ui->chrome, self->p_main, label, depth, expander);
+    ToriRSChrome_PanelBeginTab(ui->chrome, self->p_main, -1);
     if( widget < 0 )
         return;
+    ToriRSChrome_WidgetMoveAfter(ui->chrome, widget, self->outline_after);
+    self->outline_after = widget;
     self->outline_rows[self->outline_count] = widget;
     self->outline_trigger[self->outline_count] = trigger;
     self->outline_step[self->outline_count] = step;
@@ -429,14 +668,27 @@ bp_rebuild_outline(
     struct builder_panel* self)
 {
     char line[TORIRS_CHROME_LABEL_MAX];
+    int npc = self->subject == BUILDER_SUBJECT_NPC;
 
-    ToriRSChrome_PanelClearWidgets(ui->chrome, self->p_outline);
+    for( int i = 0; i < self->outline_count; i++ )
+        ToriRSChrome_WidgetRemove(ui->chrome, self->outline_rows[i]);
     self->outline_count = 0;
+    /* The triggers and their steps, under the Interactions tab's heading. */
+    self->outline_after = self->w_outline_head;
+    self->outline_tab = npc ? BUILDER_NPC_TAB_INTERACTIONS : -1;
     if( !self->has_model )
     {
-        ToriRSChrome_Label(ui->chrome, self->p_outline, "Open a subject to see its triggers.");
+        outline_push(ui, self, "Open a subject to see its triggers.", 0, TORIRS_CHROME_TREE_LEAF, -1, -1, -1);
+        if( npc )
+        {
+            self->outline_after = self->w_dialogue_outline_head;
+            self->outline_tab = BUILDER_NPC_TAB_DIALOGUE;
+            outline_push(ui, self, "Open a subject to see its dialogue.", 0, TORIRS_CHROME_TREE_LEAF, -1, -1, -1);
+        }
         return;
     }
+    if( self->model->trigger_count == 0 )
+        outline_push(ui, self, "no builder triggers yet: Add trigger", 0, TORIRS_CHROME_TREE_LEAF, -1, -1, -1);
     for( int t = 0; t < self->model->trigger_count; t++ )
     {
         const struct Builder_Trigger* trigger = &self->model->triggers[t];
@@ -447,36 +699,42 @@ bp_rebuild_outline(
                      t, -1, -1);
         if( trigger->dialogue )
             continue;
-        for( int s = 0; s < trigger->step_count; s++ )
+        for( int s2 = 0; s2 < trigger->step_count; s2++ )
         {
             char summary[TORIRS_CHROME_LABEL_MAX];
-            step_summary(&trigger->steps[s], summary, sizeof(summary));
-            snprintf(line, sizeof(line), "%d. %s", s + 1, summary);
-            outline_push(ui, self, line, 1, TORIRS_CHROME_TREE_LEAF, t, s, -1);
+            step_summary(&trigger->steps[s2], summary, sizeof(summary));
+            snprintf(line, sizeof(line), "%d. %s", s2 + 1, summary);
+            outline_push(ui, self, line, 1, TORIRS_CHROME_TREE_LEAF, t, s2, -1);
         }
     }
-    if( self->model->node_count > 0 )
+    if( !npc )
+        return;
+    /* The dialogue as a tree, under the Dialogue tab's heading: the
+     * accessible form of the graph, every node with a row to select. */
+    self->outline_after = self->w_dialogue_outline_head;
+    self->outline_tab = BUILDER_NPC_TAB_DIALOGUE;
+    if( self->model->node_count == 0 )
+    {
+        outline_push(ui, self, "no dialogue yet: Runs the dialogue on a trigger, or New node", 0,
+                     TORIRS_CHROME_TREE_LEAF, -1, -1, -1);
+        return;
+    }
     {
         unsigned char seen[BUILDER_NODES_MAX];
+        int heading = 0;
         memset(seen, 0, sizeof(seen));
-        outline_push(ui, self, "Dialogue", 0, TORIRS_CHROME_TREE_OPEN, -1, -1, -1);
-        outline_dialogue(ui, self, self->model->start, 1, seen);
-        /* The tree is the graph's model: what the start cannot reach is in
-         * it too, under its own row, so every node has a row to select. */
+        outline_dialogue(ui, self, self->model->start, 0, seen);
+        for( int n = 0; n < self->model->node_count; n++ )
         {
-            int heading = 0;
-            for( int n = 0; n < self->model->node_count; n++ )
+            if( seen[n] )
+                continue;
+            if( !heading )
             {
-                if( seen[n] )
-                    continue;
-                if( !heading )
-                {
-                    outline_push(ui, self, "Orphans (not reached from the start)", 0, TORIRS_CHROME_TREE_OPEN, -1,
-                                 -1, -1);
-                    heading = 1;
-                }
-                outline_dialogue(ui, self, self->model->nodes[n].id, 1, seen);
+                outline_push(ui, self, "Orphans (not reached from the start)", 0, TORIRS_CHROME_TREE_OPEN, -1, -1,
+                             -1);
+                heading = 1;
             }
+            outline_dialogue(ui, self, self->model->nodes[n].id, 1, seen);
         }
     }
 }
@@ -1379,6 +1637,9 @@ bp_refresh(
     bp_rebuild_outline(ui, self);
     bp_redraw_graph(ui, self);
     bp_show_issues(ui, self);
+    bp_show_existing(ui, self);
+    bp_mv_refresh(ui, self);
+    bp_show_will(ui, self);
     bp_set_editable(ui, self);
     bp_run_lint(ui, self);
     if( self->w_graph >= 0 )
@@ -1530,8 +1791,12 @@ bp_open(
         }
     }
 
-    existing = ToriMem_Alloc(ToriMem_Editor(), sizeof(*existing));
-    assert(existing);
+    if( !self->existing )
+    {
+        self->existing = ToriMem_Alloc(ToriMem_Editor(), sizeof(*self->existing));
+        assert(self->existing);
+    }
+    existing = self->existing;
     memset(existing, 0, sizeof(*existing));
     if( self->services.triggers
         && self->services.triggers(self->services.user_data, name, existing) )
@@ -1539,13 +1804,16 @@ bp_open(
         if( Builder_FindConflicts(self->model, existing->rows, existing->count, &self->issues) > 0 )
             self->read_only = 1;
         /* Triggers the model does not have yet would also collide the moment
-         * they are added: name the ops a hand-authored script already owns. */
+         * they are added: name the ops a hand-authored script already owns.
+         * A test fixture's binding (selftest_*.rs2) is listed, not warned
+         * about: it is nobody's content (D3). */
         for( int i = 0; i < existing->count; i++ )
         {
             char own[EDITOR_DOC_KEY_MAX];
             size_t own_length;
             size_t file_length = strlen(existing->files[i]);
             const char* comma = strchr(existing->names[i], ',');
+            const char* base = strrchr(existing->files[i], '/');
             Builder_FilePath(self->subject, name, BUILDER_FILE_SCRIPT, own, sizeof(own));
             own_length = strlen(own);
             if( !comma || strcmp(comma + 1, name) != 0 )
@@ -1553,20 +1821,30 @@ bp_open(
             if( file_length >= own_length
                 && strcmp(existing->files[i] + file_length - own_length, own) == 0 )
                 continue;
+            if( strncmp(base ? base + 1 : existing->files[i], "selftest_", 9) == 0 )
+                continue;
             Builder_IssueAdd(&self->issues, BUILDER_ISSUE_WARNING, existing->names[i],
                              "hand-authored in %s; the builder cannot add it", existing->files[i]);
         }
     }
     else
+    {
+        ToriMem_Free(ToriMem_Editor(), self->existing);
+        self->existing = NULL;
         Builder_IssueAdd(&self->issues, BUILDER_ISSUE_WARNING, "subject",
                          "no catalog: duplicate triggers are not checked until Check");
-    ToriMem_Free(ToriMem_Editor(), existing);
+    }
 
     {
         char line[192];
-        snprintf(line, sizeof(line), "%s%s: %d trigger(s), %d node(s)%s", name,
-                 self->record.display[0] ? "" : "", self->model->trigger_count,
-                 self->model->node_count, self->read_only ? " -- read-only (see issues)" : "");
+        int hand = 0;
+        if( self->existing )
+            for( int i = 0; i < self->existing->count; i++ )
+                hand += bp_existing_kind(self, i) == 1;
+        snprintf(line, sizeof(line), "%s%s%s%s: %d builder trigger(s), %d node(s), %d hand-authored%s", name,
+                 self->record.display[0] ? " (" : "", self->record.display, self->record.display[0] ? ")" : "",
+                 self->model->trigger_count, self->model->node_count, hand,
+                 self->read_only ? " -- read-only (see issues)" : "");
         bp_status(ui, self, line);
     }
     ToriRSChrome_SetText(ui->chrome, self->w_subject, name);
@@ -2351,18 +2629,54 @@ bp_activate(
     }
     if( widget == self->w_fromsel )
     {
-        struct Builder_RecordInfo info;
-        if( ui->tools.loc_count == 0 || !self->services.record )
+        char name[BUILDER_NAME_MAX];
+        if( !self->services.selection )
         {
-            bp_status(ui, self, "select a loc in the world first");
+            bp_status(ui, self, "no selection source here");
             return 1;
         }
-        memset(&info, 0, sizeof(info));
-        if( self->services.record(self->services.user_data, self->subject, "", ui->tools.locs[0].loc_id,
-                                  &info) )
-            bp_open(ui, self, info.name);
+        if( !self->services.selection(self->services.user_data, self->subject, name, sizeof(name)) )
+        {
+            bp_status(ui, self, self->subject == BUILDER_SUBJECT_NPC
+                                    ? "select a spawn in the Spawns panel, or pick an npc in the Catalog, first"
+                                    : "select a loc in the world first");
+            return 1;
+        }
+        if( name[0] == '#' )
+        {
+            struct Builder_RecordInfo info;
+            memset(&info, 0, sizeof(info));
+            if( self->services.record
+                && self->services.record(self->services.user_data, self->subject, "", atoi(name + 1), &info) )
+                bp_open(ui, self, info.name);
+            else
+                bp_status(ui, self, "the selection is not in the catalog");
+            return 1;
+        }
+        bp_open(ui, self, name);
+        return 1;
+    }
+    if( self->w_tabs >= 0 && widget == self->w_tabs )
+        return 1;
+    if( self->w_mv_map >= 0 && bp_mv_activate(ui, self, widget) )
+        return 1;
+    if( widget == self->w_existing_list )
+        return 1;
+    if( widget == self->w_existing_open )
+    {
+        int const row = ToriRSChrome_VListSelected(chrome, self->w_existing_list);
+        if( !self->existing || row < 0 || row >= self->existing->count )
+            bp_status(ui, self, "pick a trigger in the tree's list first");
+        else if( !self->services.open_file )
+            bp_status(ui, self, "no editor to open scripts in here");
         else
-            bp_status(ui, self, "the selected loc is not in the catalog");
+        {
+            const char* file = self->existing->files[row];
+            /* The catalog's file is under the content root; the editor
+             * opens it relative to server/scripts. */
+            const char* rel = strncmp(file, "server/scripts/", 15) == 0 ? file + 15 : file;
+            (void)self->services.open_file(self->services.user_data, rel, 1);
+        }
         return 1;
     }
     if( widget == self->w_regen )
@@ -2624,6 +2938,8 @@ bp_event(
 {
     struct builder_panel* self = opaque;
 
+    if( self->w_mv_map >= 0 && event->widget == self->w_mv_map )
+        return bp_mv_event(ui, self, event);
     if( self->w_graph < 0 )
         return 0;
     if( event->widget != self->w_graph && event->widget != self->w_pages && event->widget != self->w_preview )
@@ -2646,11 +2962,46 @@ bp_tick(
     int visible = ui->visible && ui->chrome->panels[self->p_main].visible;
 
     bp_watch_check(ui, self);
-    /* The outline and the dialogue follow the form's window. */
-    if( ui->chrome->panels[self->p_outline].visible != visible )
-        ToriRSChrome_PanelSetVisible(ui->chrome, self->p_outline, visible);
-    if( self->p_dialogue >= 0 && ui->chrome->panels[self->p_dialogue].visible != visible )
-        ToriRSChrome_PanelSetVisible(ui->chrome, self->p_dialogue, visible);
+    /* TORIRS_EDITOR_NPC=<name>[,<tab>[,photo]] -- a headless photograph has
+     * no pointer: open that npc in the NPC editor at the first frame with a
+     * session, show the panel, pick the tab (0 Movement .. 3 Dialogue) and,
+     * with `photo`, lay the panel over the whole right column so the tab
+     * is in the picture. Read once per process. */
+    if( self->subject == BUILDER_SUBJECT_NPC && ui->editor )
+    {
+        static int resolved;
+        if( !resolved )
+        {
+            const char* value = getenv("TORIRS_EDITOR_NPC");
+            resolved = 1;
+            if( value && value[0] )
+            {
+                char name[BUILDER_NAME_MAX];
+                const char* comma = strchr(value, ',');
+                size_t const n = comma ? (size_t)(comma - value) : strlen(value);
+                snprintf(name, sizeof(name), "%.*s", (int)(n < sizeof(name) - 1 ? n : sizeof(name) - 1), value);
+                ToriRSChrome_SetText(ui->chrome, self->w_subject, name);
+                if( bp_open(ui, self, name) )
+                {
+                    ToriRSChrome_PanelSetVisible(ui->chrome, self->p_main, 1);
+                    if( comma && self->w_tabs >= 0 )
+                        ToriRSChrome_PanelSetActiveTab(ui->chrome, self->p_main, atoi(comma + 1));
+                    if( comma && strstr(comma, "photo") && self->services.photo_place )
+                        self->photo_countdown = 120;
+                    Editor_UiLog(ui, "editor: TORIRS_EDITOR_NPC opened %s", name);
+                }
+            }
+        }
+        if( self->photo_countdown > 0 && --self->photo_countdown == 0 && self->services.photo_place )
+            self->services.photo_place(self->services.user_data, self->p_main);
+        visible = ui->visible && ui->chrome->panels[self->p_main].visible;
+    }
+    if( visible && ToriRSChrome_VListNeedsRows(ui->chrome, self->w_existing_list) )
+        bp_show_existing(ui, self);
+    if( visible && ToriRSChrome_VListNeedsRows(ui->chrome, self->w_issue_list) )
+        bp_show_issues(ui, self);
+    if( visible && self->w_mv_map >= 0 )
+        bp_mv_tick(ui, self);
     if( self->w_graph < 0 )
         return;
     /* A rebind relabels the graph's buttons. */
@@ -2693,9 +3044,26 @@ bp_set_visible(
      * editor closes it. The registry has just shown the form's window. */
     (void)visible;
     ToriRSChrome_PanelSetVisible(ui->chrome, self->p_main, 0);
-    ToriRSChrome_PanelSetVisible(ui->chrome, self->p_outline, 0);
-    if( self->p_dialogue >= 0 )
-        ToriRSChrome_PanelSetVisible(ui->chrome, self->p_dialogue, 0);
+}
+
+/** The NPC editor grows into the column (EditorUiPanel::stretch): the map
+ *  well is the part that stretches, so a tall column shows the whole
+ *  Movement tab and a short one still shows the header, the tabs and the
+ *  well. */
+static int
+bp_stretch(
+    struct EditorUi* ui,
+    void* opaque,
+    int* out_min_h,
+    int* out_natural_h)
+{
+    struct builder_panel* self = opaque;
+
+    assert(out_min_h);
+    assert(out_natural_h);
+    *out_min_h = ToriRSChrome_Px(ui->chrome, 360);
+    *out_natural_h = ToriRSChrome_Px(ui->chrome, 720);
+    return ToriRSChrome_Px(ui->chrome, self->w_mv_map >= 0 ? BP_MV_H : BP_GRAPH_H);
 }
 
 static void
@@ -2706,8 +3074,11 @@ bp_destroy(
     struct builder_panel* self = opaque;
     if( self->problems_source[0] )
         (void)Editor_Problems_Clear(ui, self->problems_source);
+    if( self->services.release )
+        self->services.release(self->services.user_data);
     ToriMem_Free(ToriMem_Editor(), self->check);
     ToriMem_Free(ToriMem_Editor(), self->model);
+    ToriMem_Free(ToriMem_Editor(), self->existing);
     ToriMem_Free(ToriMem_Editor(), self);
 }
 
@@ -2721,36 +3092,92 @@ bp_build(
     int p;
 
     options_init();
-    self->p_main = ToriRSChrome_PanelAdd(chrome, TORIRS_CHROME_PANEL_WINDOW, npc ? 380 : 360,
-                                         npc ? 60 : 40, 300, npc ? "NPC builder" : "Loc builder");
+    /* One window, docked by the layout like every other panel (D1: three
+     * floating windows at hard-coded coordinates); its width is the
+     * column's, so every label here is short enough for a 260 px column
+     * and says the rest in its tooltip (D2). */
+    self->p_main = ToriRSChrome_PanelAdd(chrome, TORIRS_CHROME_PANEL_WINDOW, EDP_COL_X + EDP_COL_W + 8,
+                                         npc ? 120 : 140, 300, npc ? "NPC editor" : "Loc builder");
     assert(self->p_main >= 0);
     p = self->p_main;
     ToriRSChrome_PanelSetScrollable(chrome, p, 1);
+    ToriRSChrome_PanelSetResizable(chrome, p, 1);
     ToriRSChrome_PanelSetClosable(chrome, p, 1);
-    self->w_subject = ToriRSChrome_TextInput(chrome, p, npc ? "NPC" : "Loc", "");
-    self->w_open = ToriRSChrome_Button(chrome, p, "Open");
-    self->w_fromsel = npc ? -1 : ToriRSChrome_Button(chrome, p, "From selection");
-    self->w_status = ToriRSChrome_Label(chrome, p, "Open a subject.");
+    ToriRSChrome_PanelBeginTab(chrome, p, -1);
 
-    ToriRSChrome_Heading(chrome, p, "Triggers");
+    /* The header, on every tab. */
+    self->w_subject = ToriRSChrome_TextInput(chrome, p, npc ? "NPC" : "Loc", "");
+    ToriRSChrome_SetTooltip(chrome, self->w_subject, "The record's pack symbol; Enter opens it");
+    self->w_open = ToriRSChrome_Button(chrome, p, "Open");
+    self->w_fromsel = ToriRSChrome_Button(chrome, p, "From selection");
+    ToriRSChrome_SetTooltip(chrome, self->w_fromsel,
+                            npc ? "The Spawns panel's selected spawn, else the Catalog's pick"
+                                : "The loc selected in the world");
+    self->w_status = ToriRSChrome_Label(chrome, p, "Open a subject.");
+    self->w_will = -1;
+    self->w_will_note = -1;
+    if( npc )
+    {
+        self->w_will = ToriRSChrome_Label(chrome, p, "");
+        ToriRSChrome_SetTooltip(chrome, self->w_will, "The rule: patrol rows, then defaultmode, then wanderrange");
+        ToriRSChrome_SetHidden(chrome, self->w_will, 1);
+        self->w_will_note = ToriRSChrome_Label(chrome, p, "");
+        ToriRSChrome_SetHidden(chrome, self->w_will_note, 1);
+    }
+    self->w_tabs = -1;
+    self->w_mv_map = -1;
+    self->w_sp_list = -1;
+    self->mv_sel = -1;
+    self->sp_sel = -1;
+    self->mv_px = BP_MV_PX_DEFAULT;
+    self->mv_drag_wp = -1;
+    if( npc )
+    {
+        static const char* const k_tabs[BUILDER_NPC_TAB_COUNT] = { "Movement", "Spawns", "Interactions", "Dialogue" };
+        self->w_tabs = ToriRSChrome_Tabs(chrome, p, k_tabs, BUILDER_NPC_TAB_COUNT, BUILDER_NPC_TAB_MOVEMENT);
+        assert(self->w_tabs >= 0);
+        bp_mv_build(ui, self);
+        ToriRSChrome_PanelBeginTab(chrome, p, BUILDER_NPC_TAB_INTERACTIONS);
+    }
+
+    /* ---- Interactions: the tree's triggers, then the builder's ---- */
+    ToriRSChrome_Heading(chrome, p, "In the tree");
+    self->w_existing_label = ToriRSChrome_Label(chrome, p, "");
+    self->w_existing_list = ToriRSChrome_VList(chrome, p, "", BP_EXISTING_ROWS, 0);
+    assert(self->w_existing_list >= 0);
+    ToriRSChrome_SetTooltip(chrome, self->w_existing_list, "Every trigger the tree declares; hand-authored = read-only");
+    self->w_existing_open = ToriRSChrome_Button(chrome, p, "Open in editor");
+    ToriRSChrome_SetTooltip(chrome, self->w_existing_open, "The selected trigger's script in your editor");
+
+    ToriRSChrome_Heading(chrome, p, "Builder triggers");
     self->w_trigger_kind = ToriRSChrome_Dropdown(chrome, p, "Trigger", k_trigger_options,
                                                  BP_TRIGGER_OPTION_COUNT, 0);
-    self->w_use_obj = ToriRSChrome_TextInput(chrome, p, "Held obj (use-on, * = any)", "");
+    self->w_use_obj = ToriRSChrome_TextInput(chrome, p, "Held obj", "");
+    ToriRSChrome_SetTooltip(chrome, self->w_use_obj, "For a use-on trigger: the obj used on the subject, * for any");
     self->w_trigger_add = ToriRSChrome_Button(chrome, p, "Add trigger");
     self->w_trigger_remove = ToriRSChrome_Button(chrome, p, "Remove trigger");
-    self->w_trigger_dialogue =
-        npc ? ToriRSChrome_Checkbox(chrome, p, "Selected trigger runs the dialogue", 0) : -1;
-    self->w_menu_text = ToriRSChrome_TextInput(chrome, p, "Menu text (the cache's opN)", "");
-    self->w_rename_op = ToriRSChrome_Button(chrome, p, "Rename the op in the cache");
-    ToriRSChrome_SetTooltip(chrome, self->w_rename_op, "Changes the client's menu: needs a cache pack");
+    self->w_trigger_dialogue = npc ? ToriRSChrome_Checkbox(chrome, p, "Runs the dialogue", 0) : -1;
+    if( npc )
+        ToriRSChrome_SetTooltip(chrome, self->w_trigger_dialogue,
+                                "The selected trigger runs the Dialogue tab's graph, not steps");
+    self->w_menu_text = ToriRSChrome_TextInput(chrome, p, "Menu text", "");
+    ToriRSChrome_SetTooltip(chrome, self->w_menu_text, "The cache's opN: what the right-click menu shows");
+    self->w_rename_op = ToriRSChrome_Button(chrome, p, "Rename op");
+    ToriRSChrome_SetTooltip(chrome, self->w_rename_op,
+                            "Menu text becomes the cache's opN: needs a cache pack");
+
+    self->w_outline_head = ToriRSChrome_Heading(chrome, p, "Outline");
+    ToriRSChrome_SetTooltip(chrome, self->w_outline_head, "The builder's triggers and their steps; click to select");
 
     ToriRSChrome_Heading(chrome, p, "Step");
     self->w_step_kind =
         ToriRSChrome_Dropdown(chrome, p, "Kind", k_step_options, BUILDER_STEP_KIND_COUNT, 0);
+    ToriRSChrome_SetTooltip(chrome, self->w_step_kind, "Compare: = ! < > <= >=; Coord: level_mx_mz_lx_lz");
     for( int f = 0; f < 4; f++ )
         self->w_step_field[f] = ToriRSChrome_TextInput(chrome, p, "-", "");
     self->w_step_add = ToriRSChrome_Button(chrome, p, "Add step");
-    self->w_step_apply = ToriRSChrome_Button(chrome, p, "Apply to selected step");
+    self->w_step_apply = ToriRSChrome_Button(chrome, p, "Apply step");
+    ToriRSChrome_SetTooltip(chrome, self->w_step_apply, "Write the fields into the selected step");
     self->w_step_remove = ToriRSChrome_Button(chrome, p, "Remove step");
     self->w_step_up = ToriRSChrome_Button(chrome, p, "Move up");
     self->w_step_down = ToriRSChrome_Button(chrome, p, "Move down");
@@ -2767,30 +3194,27 @@ bp_build(
     else
     {
         self->w_door = ToriRSChrome_Dropdown(chrome, p, "Door", k_door_options, 3, 0);
-        self->w_door_other = ToriRSChrome_TextInput(chrome, p, "Door's other half", "");
+        self->w_door_other = ToriRSChrome_TextInput(chrome, p, "Other half", "");
+        ToriRSChrome_SetTooltip(chrome, self->w_door_other, "The door's other half (a double door)");
         self->w_ladder = ToriRSChrome_Dropdown(chrome, p, "Ladder", k_ladder_options, 7, 0);
     }
-    self->w_server_apply = ToriRSChrome_Button(chrome, p, "Apply server fields");
+    self->w_server_apply = ToriRSChrome_Button(chrome, p, "Apply fields");
+    ToriRSChrome_SetTooltip(chrome, self->w_server_apply, "Write the server fields into the subject's config");
 
     ToriRSChrome_Separator(chrome, p);
     self->w_regen = ToriRSChrome_Button(chrome, p, "Regenerate");
-    self->w_check = ToriRSChrome_Button(chrome, p, "Check (sscompile)");
+    self->w_check = ToriRSChrome_Button(chrome, p, "Check");
+    ToriRSChrome_SetTooltip(chrome, self->w_check, "Compile the scripts on the editor server (sscompile)");
     self->w_save = ToriRSChrome_Button(chrome, p, "Save");
     self->w_detach = ToriRSChrome_Button(chrome, p, "Detach");
     ToriRSChrome_SetTooltip(chrome, self->w_detach,
                             "Drop the model: the scripts become hand-authored");
-    for( int i = 0; i < BP_ISSUE_ROWS; i++ )
-    {
-        self->w_issue[i] = ToriRSChrome_Label(chrome, p, "");
-        ToriRSChrome_SetHidden(chrome, self->w_issue[i], 1);
-    }
+    self->w_issue_list = ToriRSChrome_VList(chrome, p, "Issues", BP_ISSUE_ROWS, 0);
+    assert(self->w_issue_list >= 0);
+    ToriRSChrome_SetTooltip(chrome, self->w_issue_list, "What stops the builder writing: also in Problems");
+    ToriRSChrome_SetHidden(chrome, self->w_issue_list, 1);
 
-    self->p_outline = ToriRSChrome_PanelAdd(chrome, TORIRS_CHROME_PANEL_WINDOW, npc ? 690 : 670,
-                                            npc ? 60 : 40, 260, npc ? "NPC outline" : "Loc outline");
-    assert(self->p_outline >= 0);
-    ToriRSChrome_PanelSetScrollable(chrome, self->p_outline, 1);
-
-    self->p_dialogue = -1;
+    /* ---- Dialogue ---- */
     self->w_graph = -1;
     self->w_node_kind = self->w_node_add = self->w_node_remove = self->w_node_start = -1;
     self->w_node_apply = -1;
@@ -2798,16 +3222,13 @@ bp_build(
     self->w_graph_hint = self->w_layout = -1;
     self->w_pages = self->w_preview = self->w_preview_label = -1;
     self->w_lint_find = self->w_lint_list = self->w_lint_label = -1;
+    self->w_dialogue_outline_head = -1;
     self->layout_node = -2;
     self->drag_port_node = -1;
     Builder_ChatMetricsBaked(&self->chat);
     if( npc )
     {
-        self->p_dialogue =
-            ToriRSChrome_PanelAdd(chrome, TORIRS_CHROME_PANEL_WINDOW, 380, 420, 560, "Dialogue");
-        assert(self->p_dialogue >= 0);
-        p = self->p_dialogue;
-        ToriRSChrome_PanelSetScrollable(chrome, p, 1);
+        ToriRSChrome_PanelBeginTab(chrome, p, BUILDER_NPC_TAB_DIALOGUE);
         self->w_graph = ToriRSChrome_Graph(chrome, p, "Dialogue graph", BP_GRAPH_H);
         self->w_graph_hint = ToriRSChrome_Paragraph(
             chrome, p,
@@ -2822,25 +3243,37 @@ bp_build(
         self->w_node_remove = ToriRSChrome_Button(chrome, p, "Delete node");
         ToriRSChrome_SetTooltip(chrome, self->w_node_remove, "Delete the selected node; says what it orphans");
         self->w_node_start = ToriRSChrome_Button(chrome, p, "Make it the start");
-        self->w_node_text = ToriRSChrome_TextInput(chrome, p, "Text ({player} = the player's name)", "");
+        self->w_node_text = ToriRSChrome_TextInput(chrome, p, "Text ({player} = name)", "");
+        ToriRSChrome_SetTooltip(chrome, self->w_node_text, "The node's text; {player} is the player's name");
         /* The Text field as the chat box breaks it, and the page it shows. */
-        self->w_pages = ToriRSChrome_Graph(chrome, p, "Text at the chat box's line rule", BP_PAGE_LINE_H + 4);
+        self->w_pages = ToriRSChrome_Graph(chrome, p, "Pages", BP_PAGE_LINE_H + 4);
+        ToriRSChrome_SetTooltip(chrome, self->w_pages, "The text at the chat box's line rule; click a page");
         self->w_preview = ToriRSChrome_Graph(chrome, p, "Chat box preview", BP_CHAT_H + 2);
         self->w_preview_label = ToriRSChrome_Label(chrome, p, "");
-        self->w_node_expr = ToriRSChrome_TextInput(chrome, p, "Expression (^chat_...)", "neutral");
-        self->w_node_next = ToriRSChrome_TextInput(chrome, p, "Next node (or default arm)", "");
-        self->w_node_speaker_npc = ToriRSChrome_TextInput(chrome, p, "Speaker npc (override)", "");
+        self->w_node_expr = ToriRSChrome_TextInput(chrome, p, "Expression", "neutral");
+        ToriRSChrome_SetTooltip(chrome, self->w_node_expr, "The chathead's expression (^chat_...)");
+        self->w_node_next = ToriRSChrome_TextInput(chrome, p, "Next node", "");
+        ToriRSChrome_SetTooltip(chrome, self->w_node_next, "The node after this one, or a branch's default arm");
+        self->w_node_speaker_npc = ToriRSChrome_TextInput(chrome, p, "Speaker npc", "");
+        ToriRSChrome_SetTooltip(chrome, self->w_node_speaker_npc, "Another npc speaking this line (override)");
         self->w_node_speaker_name = ToriRSChrome_TextInput(chrome, p, "Speaker name", "");
-        self->w_node_obj = ToriRSChrome_TextInput(chrome, p, "Obj / var / step field", "");
-        self->w_node_row = ToriRSChrome_TextInput(chrome, p, "Quest row / first stage", "");
-        self->w_node_quest = ToriRSChrome_TextInput(chrome, p, "Quest action / step kind", "");
+        self->w_node_obj = ToriRSChrome_TextInput(chrome, p, "Obj / var", "");
+        ToriRSChrome_SetTooltip(chrome, self->w_node_obj, "The obj, var or step field the node kind reads");
+        self->w_node_row = ToriRSChrome_TextInput(chrome, p, "Quest row", "");
+        ToriRSChrome_SetTooltip(chrome, self->w_node_row, "The quest row, or a first stage");
+        self->w_node_quest = ToriRSChrome_TextInput(chrome, p, "Quest action", "");
+        ToriRSChrome_SetTooltip(chrome, self->w_node_quest, "The quest action, or a step kind");
         for( int a = 0; a < BUILDER_ARMS_MAX; a++ )
         {
             char label[48];
-            snprintf(label, sizeof(label), "Port %d (text|next or cmp|value|next)", a + 1);
+            snprintf(label, sizeof(label), "Port %d", a + 1);
             self->w_node_arm[a] = ToriRSChrome_TextInput(chrome, p, label, "");
+            ToriRSChrome_SetTooltip(chrome, self->w_node_arm[a], "text|next (a choice) or cmp|value|next (a branch)");
         }
         self->w_node_apply = ToriRSChrome_Button(chrome, p, "Apply to node");
+        self->w_dialogue_outline_head = ToriRSChrome_Heading(chrome, p, "Outline");
+        ToriRSChrome_SetTooltip(chrome, self->w_dialogue_outline_head,
+                                "The dialogue as a tree from the start; a click selects");
         /* The lint, the dialogue's own Problems rows: a click selects. */
         ToriRSChrome_Heading(chrome, p, "Problems");
         self->w_lint_label = ToriRSChrome_Label(chrome, p, "");
@@ -2852,10 +3285,8 @@ bp_build(
         edp_button_chord(ui, self->w_node_add, EDITOR_HK_GRAPH_NEW_NODE);
         edp_button_chord(ui, self->w_node_remove, EDITOR_HK_EDIT_DELETE);
     }
+    ToriRSChrome_PanelBeginTab(chrome, p, -1);
     ToriRSChrome_PanelSetVisible(chrome, self->p_main, 0);
-    ToriRSChrome_PanelSetVisible(chrome, self->p_outline, 0);
-    if( self->p_dialogue >= 0 )
-        ToriRSChrome_PanelSetVisible(chrome, self->p_dialogue, 0);
     bp_refresh(ui, self);
 }
 
@@ -2891,13 +3322,14 @@ builder_register(
 
     memset(&panel, 0, sizeof(panel));
     panel.name = subject == BUILDER_SUBJECT_NPC ? BUILDER_PANEL_NPC : BUILDER_PANEL_LOC;
-    panel.title = subject == BUILDER_SUBJECT_NPC ? "NPC builder" : "Loc builder";
+    panel.title = subject == BUILDER_SUBJECT_NPC ? "NPC editor" : "Loc builder";
     panel.self = self;
     panel.chrome_panel = self->p_main;
     panel.tick = bp_tick;
     panel.activate = bp_activate;
     panel.event = bp_event;
     panel.set_visible = bp_set_visible;
+    panel.stretch = subject == BUILDER_SUBJECT_NPC ? bp_stretch : NULL;
     panel.destroy = bp_destroy;
     Editor_UiAddPanel(ui, &panel);
 }
@@ -3513,6 +3945,1384 @@ Builder_ShellPanelShell(struct EditorUi* ui)
     return self && self->has_shell ? &self->shell : NULL;
 }
 
+/* ---- the Movement and Spawns tabs (docs/NPC_EDITOR_DESIGN.md 3.4-3.6) ----- */
+
+#include "engine/world_builder/collision_map.h"
+
+static void
+bp_mv_build(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    int const p = self->p_main;
+
+    ToriRSChrome_PanelBeginTab(chrome, p, BUILDER_NPC_TAB_MOVEMENT);
+    self->w_mv_eff = ToriRSChrome_Label(chrome, p, "");
+    self->w_mv_map = ToriRSChrome_Graph(chrome, p, "Map", BP_MV_H);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_map, "Wheel zooms; drag pans; F fits; click a tile with Add");
+    self->w_mv_readout = ToriRSChrome_Label(chrome, p, "");
+    self->w_mv_tool_select = ToriRSChrome_Radio(chrome, p, "Select", BP_GROUP_TOOL, 1);
+    self->w_mv_tool_add = ToriRSChrome_Radio(chrome, p, "Add waypoint", BP_GROUP_TOOL, 0);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_tool_add, "A click on the map appends a waypoint there");
+    self->w_mv_tool_move = ToriRSChrome_Radio(chrome, p, "Move waypoint", BP_GROUP_TOOL, 0);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_tool_move, "Drag a waypoint to another tile");
+    self->w_mv_fit = ToriRSChrome_Button(chrome, p, "Fit");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_fit, "Frame the spawns, the route and the leash");
+    self->w_mv_goto = ToriRSChrome_Button(chrome, p, "Go to");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_goto, "The World's camera over the selected waypoint or spawn");
+
+    ToriRSChrome_Heading(chrome, p, "Mode");
+    self->w_mv_mode_none = ToriRSChrome_Radio(chrome, p, "None", BP_GROUP_MODE, 0);
+    self->w_mv_mode_patrol = ToriRSChrome_Radio(chrome, p, "Patrol", BP_GROUP_MODE, 0);
+    self->w_mv_mode_wander = ToriRSChrome_Radio(chrome, p, "Wander", BP_GROUP_MODE, 1);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_mode_wander, "Wander or None over a route removes its patrol rows");
+    self->w_mv_leash = ToriRSChrome_Slider(chrome, p, "Leash", 0, 64, EDITOR_NPC_LEASH_DEFAULT, 1);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_leash, "maxrange: how far from the spawn a target is followed");
+    self->w_mv_range = ToriRSChrome_Slider(chrome, p, "Wander range", 0, 64, EDITOR_NPC_WANDER_DEFAULT, 1);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_range, "wanderrange: the square it roams (unused by a patroller)");
+    self->w_mv_restrict = ToriRSChrome_Dropdown(chrome, p, "Restrict", k_restrict_options, 8, 0);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_restrict, "moverestrict: indoors / outdoors read the roof flag");
+    self->w_mv_block = ToriRSChrome_Dropdown(chrome, p, "Block walk", k_block_options, 5, 0);
+    self->w_mv_facing = ToriRSChrome_Dropdown(chrome, p, "Facing", k_facing_options, 9, 0);
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_facing, "Type-wide: every spawn of this npc faces this way");
+    self->w_mv_respawn = ToriRSChrome_TextInput(chrome, p, "Respawn (ticks)", "");
+    self->w_mv_timer = ToriRSChrome_TextInput(chrome, p, "Timer (ticks)", "");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_timer, "The [ai_timer] interval; 0 or empty: never armed");
+
+    ToriRSChrome_Heading(chrome, p, "Route");
+    self->w_mv_route_label = ToriRSChrome_Label(chrome, p, "");
+    self->w_mv_route = ToriRSChrome_VList(chrome, p, "", BP_MV_ROUTE_ROWS, 0);
+    assert(self->w_mv_route >= 0);
+    self->w_mv_pause = ToriRSChrome_TextInput(chrome, p, "Pause (ticks)", "");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_pause, "Enter sets the selected waypoint's pause");
+    self->w_mv_wp_add = ToriRSChrome_Button(chrome, p, "Add at latched tile");
+    self->w_mv_wp_insert = ToriRSChrome_Button(chrome, p, "Insert after");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_wp_insert, "A waypoint halfway along the selected one's leg");
+    self->w_mv_wp_delete = ToriRSChrome_Button(chrome, p, "Delete waypoint");
+    self->w_mv_wp_up = ToriRSChrome_Button(chrome, p, "Waypoint up");
+    self->w_mv_wp_down = ToriRSChrome_Button(chrome, p, "Waypoint down");
+    self->w_mv_play = ToriRSChrome_Button(chrome, p, "Play");
+    ToriRSChrome_SetTooltip(chrome, self->w_mv_play, "A ghost walks the route on the map, a tile a tick");
+    self->w_mv_target = ToriRSChrome_Label(chrome, p, "");
+
+    ToriRSChrome_PanelBeginTab(chrome, p, BUILDER_NPC_TAB_SPAWNS);
+    self->w_sp_label = ToriRSChrome_Label(chrome, p, "");
+    self->w_sp_list = ToriRSChrome_VList(chrome, p, "", BP_MV_SPAWN_ROWS, 0);
+    assert(self->w_sp_list >= 0);
+    ToriRSChrome_SetTooltip(chrome, self->w_sp_list, "This npc's rows in the open squares: + edited ~ quest - hidden");
+    self->w_sp_goto = ToriRSChrome_Button(chrome, p, "Go to spawn");
+    self->w_sp_select = ToriRSChrome_Button(chrome, p, "Select in Spawns");
+    ToriRSChrome_SetTooltip(chrome, self->w_sp_select, "The Spawns panel's selection, for Move and the edit form");
+    self->w_sp_place = ToriRSChrome_Button(chrome, p, "Place at latched tile");
+    self->w_sp_delete = ToriRSChrome_Button(chrome, p, "Delete / suppress");
+    ToriRSChrome_SetTooltip(chrome, self->w_sp_delete, "An edited row goes; a generated one is suppressed");
+}
+
+/* ---- the view ---- */
+
+static int
+bp_mv_cols(const struct builder_panel* self)
+{
+    return BP_MV_W / self->mv_px;
+}
+
+static int
+bp_mv_rows(const struct builder_panel* self)
+{
+    return BP_MV_H / self->mv_px;
+}
+
+/** The well-local top-left of tile (x, z); the tile may be off the view. */
+static void
+bp_mv_tile_point(
+    const struct builder_panel* self,
+    int x,
+    int z,
+    int* out_sx,
+    int* out_sy)
+{
+    int const ox = self->mv_cx - bp_mv_cols(self) / 2;
+    int const oz = self->mv_cz + bp_mv_rows(self) / 2;
+    *out_sx = (x - ox) * self->mv_px;
+    *out_sy = (oz - z) * self->mv_px;
+}
+
+static int
+bp_mv_tile_in_view(
+    const struct builder_panel* self,
+    int x,
+    int z)
+{
+    int sx;
+    int sy;
+    bp_mv_tile_point(self, x, z, &sx, &sy);
+    return sx >= 0 && sy >= 0 && sx + self->mv_px <= BP_MV_W && sy + self->mv_px <= BP_MV_H;
+}
+
+/** The tile under well-local (sx, sy). */
+static void
+bp_mv_tile_at(
+    const struct builder_panel* self,
+    int sx,
+    int sy,
+    int* out_x,
+    int* out_z)
+{
+    int const ox = self->mv_cx - bp_mv_cols(self) / 2;
+    int const oz = self->mv_cz + bp_mv_rows(self) / 2;
+    int tx = sx < 0 ? -1 : sx / self->mv_px;
+    int ty = sy < 0 ? -1 : sy / self->mv_px;
+    *out_x = ox + tx;
+    *out_z = oz - ty;
+}
+
+/** Frame the spawns, the route and (a wanderer's) leash. */
+static void
+bp_mv_fit(struct builder_panel* self)
+{
+    int x0 = 0;
+    int z0 = 0;
+    int x1 = 0;
+    int z1 = 0;
+    int any = 0;
+    int level = -1;
+
+    for( int i = 0; i < self->sp_count; i++ )
+    {
+        int const r = self->sp[i].suppressed ? 0 : self->mv_eff.mode == EDITOR_NPC_MODE_WANDER ? self->mv_eff.wander : 0;
+        if( !any )
+        {
+            x0 = self->sp[i].x - r;
+            z0 = self->sp[i].z - r;
+            x1 = self->sp[i].x + r;
+            z1 = self->sp[i].z + r;
+            level = self->sp[i].level;
+            any = 1;
+            continue;
+        }
+        if( self->sp[i].x - r < x0 ) x0 = self->sp[i].x - r;
+        if( self->sp[i].z - r < z0 ) z0 = self->sp[i].z - r;
+        if( self->sp[i].x + r > x1 ) x1 = self->sp[i].x + r;
+        if( self->sp[i].z + r > z1 ) z1 = self->sp[i].z + r;
+    }
+    for( int i = 0; i < self->mv.patrol_count; i++ )
+    {
+        const struct Editor_NpcWaypoint* w = &self->mv.patrol[i];
+        if( w->level < 0 )
+            continue;
+        if( !any )
+        {
+            x0 = x1 = w->x;
+            z0 = z1 = w->z;
+            level = w->level;
+            any = 1;
+            continue;
+        }
+        if( w->x < x0 ) x0 = w->x;
+        if( w->z < z0 ) z0 = w->z;
+        if( w->x > x1 ) x1 = w->x;
+        if( w->z > z1 ) z1 = w->z;
+    }
+    if( !any )
+        return;
+    self->mv_cx = (x0 + x1) / 2;
+    self->mv_cz = (z0 + z1) / 2;
+    if( level >= 0 )
+        self->mv_level = level;
+    /* The largest zoom that holds the extent, with a tile's margin. */
+    self->mv_px = BP_MV_PX_MAX;
+    while( self->mv_px > BP_MV_PX_MIN
+           && ((x1 - x0 + 3) * self->mv_px > BP_MV_W || (z1 - z0 + 3) * self->mv_px > BP_MV_H) )
+        self->mv_px /= 2;
+    self->mv_fit_pending = 0;
+}
+
+/* ---- the record's movement into the controls ---- */
+
+static uint32_t
+bp_mv_hash_route(const struct builder_panel* self)
+{
+    uint32_t h = 2166136261u;
+    const unsigned char* bytes = (const unsigned char*)self->mv.patrol;
+    for( size_t i = 0; i < sizeof(self->mv.patrol[0]) * (size_t)self->mv.patrol_count; i++ )
+        h = (h ^ bytes[i]) * 16777619u;
+    h = (h ^ (uint32_t)self->mv.patrol_count) * 16777619u;
+    return h;
+}
+
+static void
+bp_mv_legs(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    uint32_t const hash = bp_mv_hash_route(self) ^ (uint32_t)(ui->editor ? ui->editor->last_cmd_seq : 0);
+
+    if( hash == self->mv_legs_hash )
+        return;
+    self->mv_legs_hash = hash;
+    for( int i = 0; i < self->mv.patrol_count; i++ )
+    {
+        const struct Editor_NpcWaypoint* a = &self->mv.patrol[i];
+        const struct Editor_NpcWaypoint* b = &self->mv.patrol[(i + 1) % self->mv.patrol_count];
+        if( a->level < 0 || b->level < 0 )
+            self->mv_legs[i] = -2;
+        else if( a->level != b->level )
+            self->mv_legs[i] = -3;
+        else if( !self->services.path_steps )
+            self->mv_legs[i] = -2;
+        else
+            self->mv_legs[i] = self->services.path_steps(self->services.user_data, a->x, a->z, b->x, b->z, a->level);
+    }
+}
+
+static void
+bp_mv_route_rows(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    int first;
+    int shown;
+    int reachable = 1;
+    int steps = 0;
+    int unknown = 0;
+    char line[TORIRS_CHROME_INPUT_MAX];
+
+    ToriRSChrome_VListSetCount(ui->chrome, self->w_mv_route, self->mv.patrol_count);
+    if( ToriRSChrome_VListWindow(ui->chrome, self->w_mv_route, &first, &shown) )
+        for( int r = first; r < first + shown && r < self->mv.patrol_count; r++ )
+        {
+            const struct Editor_NpcWaypoint* w = &self->mv.patrol[r];
+            int const leg = self->mv_legs[r];
+            char legtext[32];
+            if( self->mv.patrol_count < 2 )
+                legtext[0] = '\0';
+            else if( leg >= 0 )
+                snprintf(legtext, sizeof(legtext), "  leg %d step%s", leg, leg == 1 ? "" : "s");
+            else if( leg == -3 )
+                snprintf(legtext, sizeof(legtext), "  leg: teleport");
+            else if( leg == -1 )
+                snprintf(legtext, sizeof(legtext), "  leg: NO PATH (teleports)");
+            else
+                snprintf(legtext, sizeof(legtext), "  leg ?");
+            snprintf(line, sizeof(line), "%s%d  %d,%d lvl %d  pause %d%s%s", r == self->mv_sel ? "* " : "", r + 1, w->x,
+                     w->z, w->level, w->pause, legtext, r + 1 == self->mv.patrol_count ? "  (back to 1)" : "");
+            ToriRSChrome_VListSetRow(ui->chrome, self->w_mv_route, r, line);
+        }
+    for( int i = 0; i < self->mv.patrol_count; i++ )
+    {
+        if( self->mv_legs[i] == -1 )
+            reachable = 0;
+        else if( self->mv_legs[i] == -2 )
+            unknown = 1;
+        else if( self->mv_legs[i] > 0 )
+            steps += self->mv_legs[i];
+    }
+    if( self->mv.patrol_count == 0 )
+        snprintf(line, sizeof(line), "no route: Add waypoint on the map, or Add at latched tile");
+    else
+        snprintf(line, sizeof(line), "lap: %d legs, %d steps + %d pause = %d ticks; %s", self->mv.patrol_count, steps,
+                 self->mv_eff.lap_pause, steps + self->mv_eff.lap_pause,
+                 !reachable ? "a leg has NO PATH" : unknown ? "legs unknown (load the squares)" : "all legs reachable");
+    ToriRSChrome_SetText(ui->chrome, self->w_mv_route_label, line);
+}
+
+static void
+bp_mv_spawn_rows(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    int first;
+    int shown;
+    char line[TORIRS_CHROME_INPUT_MAX];
+
+    ToriRSChrome_VListSetCount(ui->chrome, self->w_sp_list, self->sp_count);
+    if( ToriRSChrome_VListWindow(ui->chrome, self->w_sp_list, &first, &shown) )
+        for( int r = first; r < first + shown && r < self->sp_count; r++ )
+        {
+            const struct Builder_NpcSpawn* s2 = &self->sp[r];
+            snprintf(line, sizeof(line), "%s%c %s  %d,%d lvl %d%s", r == self->sp_sel ? "* " : "",
+                     s2->edited ? '+' : s2->suppressed ? '-' : s2->scripted ? '~' : ' ',
+                     s2->edited ? "edited" : s2->scripted ? "quest" : "generated", s2->x, s2->z, s2->level,
+                     s2->suppressed ? "  (suppressed)" : "");
+            ToriRSChrome_VListSetRow(ui->chrome, self->w_sp_list, r, line);
+        }
+    if( !self->has_model )
+        line[0] = '\0';
+    else if( !self->services.spawns )
+        snprintf(line, sizeof(line), "no Spawns panel here: the rows are not listed");
+    else
+        snprintf(line, sizeof(line), "%d spawn%s in the open squares (m%d_%d...)", self->sp_count,
+                 self->sp_count == 1 ? "" : "s", self->sp_count ? self->sp[0].x / 64 : 0,
+                 self->sp_count ? self->sp[0].z / 64 : 0);
+    ToriRSChrome_SetText(ui->chrome, self->w_sp_label, line);
+}
+
+static void
+bp_mv_refresh(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    char line[TORIRS_CHROME_LABEL_MAX];
+    int editable;
+
+    if( self->w_mv_map < 0 )
+        return;
+    self->mv_valid = 0;
+    self->sp_count = 0;
+    if( self->has_model && self->services.movement )
+        self->mv_valid = self->services.movement(self->services.user_data, self->model->name, &self->mv, self->mv_target,
+                                                 sizeof(self->mv_target));
+    if( !self->mv_valid )
+    {
+        Editor_NpcMovementInit(&self->mv);
+        self->mv_target[0] = '\0';
+    }
+    if( self->has_model && self->services.spawns )
+        self->sp_count = self->services.spawns(self->services.user_data, self->model->name, self->record.id, self->sp,
+                                               BP_MV_SPAWNS_MAX);
+    if( self->mv_sel >= self->mv.patrol_count )
+        self->mv_sel = self->mv.patrol_count - 1;
+    if( self->sp_sel >= self->sp_count )
+        self->sp_sel = self->sp_count - 1;
+    Editor_NpcEffectiveMode(&self->mv, &self->mv_eff);
+    bp_mv_legs(ui, self);
+
+    /* The effective line. */
+    if( !self->has_model )
+        snprintf(line, sizeof(line), "open an npc");
+    else if( !self->mv_valid )
+        snprintf(line, sizeof(line), "no record session: the movement fields are not editable here");
+    else
+        snprintf(line, sizeof(line), "effective: %s -- %s%s", self->mv_eff.mode == EDITOR_NPC_MODE_PATROL ? "PATROL"
+                                                                 : self->mv_eff.mode == EDITOR_NPC_MODE_WANDER ? "WANDER"
+                                                                                                                 : "NONE",
+                 self->mv_eff.why, self->mv_eff.nomove ? " (nomove)" : "");
+    ToriRSChrome_SetText(chrome, self->w_mv_eff, line);
+
+    /* The controls read the statements; a tick on a radio is the stated or
+     * effective mode. */
+    editable = self->mv_valid && !self->read_only;
+    ToriRSChrome_RadioSelect(chrome, self->mv.patrol_count > 0 ? self->w_mv_mode_patrol
+                                     : self->mv.defaultmode_stated
+                                         ? (self->mv.defaultmode == EDITOR_NPC_MODE_WANDER ? self->w_mv_mode_wander
+                                            : self->mv.defaultmode == EDITOR_NPC_MODE_PATROL ? self->w_mv_mode_patrol
+                                                                                              : self->w_mv_mode_none)
+                                     : self->mv_eff.mode == EDITOR_NPC_MODE_WANDER ? self->w_mv_mode_wander
+                                                                                   : self->w_mv_mode_none);
+    ToriRSChrome_SliderSet(chrome, self->w_mv_leash, self->mv.maxrange >= 0 ? self->mv.maxrange : EDITOR_NPC_LEASH_DEFAULT);
+    ToriRSChrome_SliderSet(chrome, self->w_mv_range,
+                           self->mv.wanderrange >= 0 ? self->mv.wanderrange : EDITOR_NPC_WANDER_DEFAULT);
+    ToriRSChrome_SetDisabled(chrome, self->w_mv_range, !editable || self->mv_eff.mode == EDITOR_NPC_MODE_PATROL);
+    ToriRSChrome_DropdownSetSelected(chrome, self->w_mv_restrict,
+                                     self->mv.moverestrict >= 0 ? (int)self->mv.moverestrict + 1 : 0);
+    ToriRSChrome_DropdownSetSelected(chrome, self->w_mv_block, self->mv.blockwalk >= 0 ? self->mv.blockwalk + 1 : 0);
+    ToriRSChrome_DropdownSetSelected(chrome, self->w_mv_facing, self->mv.facing >= 0 ? self->mv.facing + 1 : 0);
+    if( chrome->focus != self->w_mv_respawn )
+    {
+        if( self->mv.respawnrate >= 0 )
+            snprintf(line, sizeof(line), "%d", self->mv.respawnrate);
+        else
+            line[0] = '\0';
+        ToriRSChrome_SetText(chrome, self->w_mv_respawn, line);
+    }
+    if( chrome->focus != self->w_mv_timer )
+    {
+        if( self->mv.timer >= 0 )
+            snprintf(line, sizeof(line), "%d", self->mv.timer);
+        else
+            line[0] = '\0';
+        ToriRSChrome_SetText(chrome, self->w_mv_timer, line);
+    }
+    if( chrome->focus != self->w_mv_pause )
+    {
+        if( self->mv_sel >= 0 )
+            snprintf(line, sizeof(line), "%d", self->mv.patrol[self->mv_sel].pause);
+        else
+            line[0] = '\0';
+        ToriRSChrome_SetText(chrome, self->w_mv_pause, line);
+    }
+    {
+        int const widgets[] = { self->w_mv_mode_none, self->w_mv_mode_patrol, self->w_mv_mode_wander, self->w_mv_leash,
+                                self->w_mv_restrict, self->w_mv_block, self->w_mv_facing, self->w_mv_respawn,
+                                self->w_mv_timer, self->w_mv_pause, self->w_mv_wp_add, self->w_mv_wp_insert,
+                                self->w_mv_wp_delete, self->w_mv_wp_up, self->w_mv_wp_down, self->w_sp_place,
+                                self->w_sp_delete };
+        for( size_t i = 0; i < sizeof(widgets) / sizeof(widgets[0]); i++ )
+            ToriRSChrome_SetDisabled(chrome, widgets[i], !editable);
+    }
+    if( !self->has_model )
+        line[0] = '\0';
+    else if( self->mv_target[0] )
+        snprintf(line, sizeof(line), "Writes to: %s%s", self->mv_target,
+                 strstr(self->mv_target, "edited/") == self->mv_target ? " (the editor's own)" : " (authored)");
+    else
+        snprintf(line, sizeof(line), "Writes to: no authored overlay (edits refused)");
+    ToriRSChrome_SetText(chrome, self->w_mv_target, line);
+    bp_mv_route_rows(ui, self);
+    bp_mv_spawn_rows(ui, self);
+    if( self->mv_fit_pending || (self->mv_cx == 0 && self->mv_cz == 0) )
+        bp_mv_fit(self);
+    self->mv_draw_hash = 0;
+}
+
+/* ---- the well ---- */
+
+static uint32_t
+bp_mv_hash_view(const struct builder_panel* self)
+{
+    uint32_t h = bp_mv_hash_route(self);
+    int const parts[] = { self->mv_px,     self->mv_cx,      self->mv_cz,     self->mv_level,  self->mv_sel,
+                          self->mv_hover_valid ? self->mv_hover_x : -1, self->mv_hover_valid ? self->mv_hover_z : -1,
+                          self->mv_drag_wp, self->mv_drag_x,  self->mv_drag_z, self->sp_count,  self->mv_eff.mode,
+                          self->mv_eff.wander, self->mv_eff.leash, self->mv_eff.nomove, self->mv_play,
+                          self->mv_play_leg, self->mv_play_step, self->mv_tool };
+    for( size_t i = 0; i < sizeof(parts) / sizeof(parts[0]); i++ )
+        h = (h ^ (uint32_t)parts[i]) * 16777619u;
+    for( int i = 0; i < self->sp_count; i++ )
+        h = (h ^ (uint32_t)(self->sp[i].x * 73856093 ^ self->sp[i].z * 19349663 ^ self->sp[i].level)) * 16777619u;
+    for( int i = 0; i < self->mv.patrol_count; i++ )
+        h = (h ^ (uint32_t)self->mv_legs[i]) * 16777619u;
+    return h;
+}
+
+/** A rectangle of tiles as an outline, clipped to the well. */
+static void
+bp_mv_tile_rect_outline(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    int x0,
+    int z0,
+    int x1,
+    int z1,
+    uint32_t color)
+{
+    int sx0;
+    int sy0;
+    int sx1;
+    int sy1;
+    bp_mv_tile_point(self, x0, z1, &sx0, &sy0);
+    bp_mv_tile_point(self, x1, z0, &sx1, &sy1);
+    sx1 += self->mv_px;
+    sy1 += self->mv_px;
+    if( sx0 < 0 ) sx0 = 0;
+    if( sy0 < 0 ) sy0 = 0;
+    if( sx1 > BP_MV_W ) sx1 = BP_MV_W;
+    if( sy1 > BP_MV_H ) sy1 = BP_MV_H;
+    if( sx1 <= sx0 || sy1 <= sy0 )
+        return;
+    ToriRSChrome_GraphRect(ui->chrome, self->w_mv_map, sx0, sy0, sx1 - sx0, sy1 - sy0, color, 0, 0);
+}
+
+/** The ghost's tile while Play runs: along leg `mv_play_leg`, step
+ *  `mv_play_step` of it (a straight line of Chebyshev steps). */
+static int
+bp_mv_ghost_tile(
+    const struct builder_panel* self,
+    int* out_x,
+    int* out_z)
+{
+    const struct Editor_NpcWaypoint* a;
+    const struct Editor_NpcWaypoint* b;
+    int steps;
+    int dx;
+    int dz;
+
+    if( !self->mv_play || self->mv.patrol_count == 0 )
+        return 0;
+    a = &self->mv.patrol[self->mv_play_leg % self->mv.patrol_count];
+    b = &self->mv.patrol[(self->mv_play_leg + 1) % self->mv.patrol_count];
+    steps = Editor_NpcLegSteps(a, b);
+    if( steps <= 0 )
+    {
+        *out_x = b->x;
+        *out_z = b->z;
+        return 1;
+    }
+    dx = b->x - a->x;
+    dz = b->z - a->z;
+    *out_x = a->x + (dx > 0 ? (self->mv_play_step < dx ? self->mv_play_step : dx)
+                            : -(self->mv_play_step < -dx ? self->mv_play_step : -dx));
+    *out_z = a->z + (dz > 0 ? (self->mv_play_step < dz ? self->mv_play_step : dz)
+                            : -(self->mv_play_step < -dz ? self->mv_play_step : -dz));
+    return 1;
+}
+
+static void
+bp_mv_redraw(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    int const w = self->w_mv_map;
+    int const cols = bp_mv_cols(self);
+    int const rows = bp_mv_rows(self);
+    int const ox = self->mv_cx - cols / 2;
+    int const oz = self->mv_cz + rows / 2;
+    int const px = self->mv_px;
+    int const tint_roof = self->mv.moverestrict == EDITOR_NPC_RESTRICT_INDOORS
+                          || self->mv.moverestrict == EDITOR_NPC_RESTRICT_OUTDOORS;
+    uint32_t const hash = bp_mv_hash_view(self);
+
+    if( hash == self->mv_draw_hash && (self->mv_frame % 30) != 0 )
+        return;
+    self->mv_draw_hash = hash;
+    ToriRSChrome_GraphBegin(chrome, w);
+    /* The ground: one keyed rect a tile. */
+    for( int r = 0; r < rows; r++ )
+        for( int c = 0; c < cols; c++ )
+        {
+            int const x = ox + c;
+            int const z = oz - r;
+            struct Builder_TileInfo info;
+            uint32_t color;
+            memset(&info, 0, sizeof(info));
+            if( self->services.tile_info )
+                self->services.tile_info(self->services.user_data, x, z, self->mv_level, &info);
+            if( info.in_scene )
+            {
+                int const blocked = (info.collision & (COLL_FLAG_FLOOR_BLOCKED | COLL_FLAG_LOC)) != 0;
+                color = blocked ? BP_MV_C_BLOCKED : (tint_roof && (info.settings & 4)) ? BP_MV_C_OPEN_ROOF : BP_MV_C_OPEN;
+            }
+            else if( info.in_doc )
+                color = (info.settings & 1) ? BP_MV_C_BLOCKED : (tint_roof && (info.settings & 4)) ? BP_MV_C_OPEN_ROOF
+                                                                                                    : BP_MV_C_NODOC;
+            else
+                color = BP_MV_C_UNLOADED;
+            ToriRSChrome_GraphRect(chrome, w, c * px, r * px, px, px, color, 1, BP_MV_KEY_TILE + r * cols + c);
+            /* Walls as edge lines, when a tile is wide enough to show them. */
+            if( info.in_scene && px >= 6 && (info.collision & 0xAA) )
+            {
+                int const sx = c * px;
+                int const sy = r * px;
+                if( info.collision & COLL_FLAG_WALL_NORTH )
+                    ToriRSChrome_GraphLine(chrome, w, sx, sy, sx + px - 1, sy, BP_MV_C_WALL);
+                if( info.collision & COLL_FLAG_WALL_SOUTH )
+                    ToriRSChrome_GraphLine(chrome, w, sx, sy + px - 1, sx + px - 1, sy + px - 1, BP_MV_C_WALL);
+                if( info.collision & COLL_FLAG_WALL_WEST )
+                    ToriRSChrome_GraphLine(chrome, w, sx, sy, sx, sy + px - 1, BP_MV_C_WALL);
+                if( info.collision & COLL_FLAG_WALL_EAST )
+                    ToriRSChrome_GraphLine(chrome, w, sx + px - 1, sy, sx + px - 1, sy + px - 1, BP_MV_C_WALL);
+            }
+        }
+    /* The effective squares at each spawn: a wanderer's square and leash, a
+     * stander's leash, a nomove's pin; a patroller has none. */
+    for( int i = 0; i < self->sp_count; i++ )
+    {
+        const struct Builder_NpcSpawn* s2 = &self->sp[i];
+        int const size = self->mv.size > 0 ? self->mv.size : 1;
+        if( s2->suppressed || s2->level != self->mv_level )
+            continue;
+        if( self->mv_eff.mode == EDITOR_NPC_MODE_PATROL )
+            continue;
+        if( self->mv_eff.nomove )
+            bp_mv_tile_rect_outline(ui, self, s2->x, s2->z, s2->x + size - 1, s2->z + size - 1, BP_MV_C_PIN);
+        else
+        {
+            if( self->mv_eff.wander > 0 )
+                bp_mv_tile_rect_outline(ui, self, s2->x - self->mv_eff.wander, s2->z - self->mv_eff.wander,
+                                        s2->x + size - 1 + self->mv_eff.wander, s2->z + size - 1 + self->mv_eff.wander,
+                                        BP_MV_C_WANDER);
+            if( self->mv_eff.leash > self->mv_eff.wander )
+                bp_mv_tile_rect_outline(ui, self, s2->x - self->mv_eff.leash, s2->z - self->mv_eff.leash,
+                                        s2->x + size - 1 + self->mv_eff.leash, s2->z + size - 1 + self->mv_eff.leash,
+                                        BP_MV_C_LEASH);
+        }
+    }
+    /* The route: legs between tile centres, then the waypoints over them. */
+    for( int i = 0; i < self->mv.patrol_count && self->mv.patrol_count >= 2; i++ )
+    {
+        struct Editor_NpcWaypoint a = self->mv.patrol[i];
+        struct Editor_NpcWaypoint b = self->mv.patrol[(i + 1) % self->mv.patrol_count];
+        int ax, ay, bx, by;
+        uint32_t color;
+        if( self->mv_drag_wp == i )
+        {
+            a.x = self->mv_drag_x;
+            a.z = self->mv_drag_z;
+        }
+        if( self->mv_drag_wp == (i + 1) % self->mv.patrol_count )
+        {
+            b.x = self->mv_drag_x;
+            b.z = self->mv_drag_z;
+        }
+        if( a.level < 0 || b.level < 0 )
+            continue;
+        color = (a.level != b.level || self->mv_legs[i] == -1) ? BP_MV_C_TELEPORT
+                : i + 1 == self->mv.patrol_count               ? BP_MV_C_ROUTE_CLOSING
+                                                               : BP_MV_C_ROUTE;
+        bp_mv_tile_point(self, a.x, a.z, &ax, &ay);
+        bp_mv_tile_point(self, b.x, b.z, &bx, &by);
+        ax += px / 2;
+        ay += px / 2;
+        bx += px / 2;
+        by += px / 2;
+        if( (ax < 0 && bx < 0) || (ay < 0 && by < 0) || (ax >= BP_MV_W && bx >= BP_MV_W) || (ay >= BP_MV_H && by >= BP_MV_H) )
+            continue;
+        ToriRSChrome_GraphLine(chrome, w, ax, ay, bx, by, color);
+    }
+    for( int i = 0; i < self->mv.patrol_count; i++ )
+    {
+        struct Editor_NpcWaypoint a = self->mv.patrol[i];
+        int sx;
+        int sy;
+        char number[8];
+        if( self->mv_drag_wp == i )
+        {
+            a.x = self->mv_drag_x;
+            a.z = self->mv_drag_z;
+        }
+        if( a.level < 0 || !bp_mv_tile_in_view(self, a.x, a.z) )
+            continue;
+        bp_mv_tile_point(self, a.x, a.z, &sx, &sy);
+        ToriRSChrome_GraphRect(chrome, w, sx, sy, px, px, a.level == self->mv_level ? BP_MV_C_ROUTE : BP_MV_C_TELEPORT, 1,
+                               BP_MV_KEY_WP + i);
+        if( i == self->mv_sel )
+            ToriRSChrome_GraphRect(chrome, w, sx - 1, sy - 1, px + 2, px + 2, BP_MV_C_SELECTED, 0, 0);
+        if( px >= 8 )
+        {
+            snprintf(number, sizeof(number), "%d", i + 1);
+            ToriRSChrome_GraphText(chrome, w, sx + px + 1, sy + px - 1, BP_MV_C_ROUTE, number);
+        }
+    }
+    /* The spawns: a square inset in the tile, coloured by file. */
+    for( int i = 0; i < self->sp_count; i++ )
+    {
+        const struct Builder_NpcSpawn* s2 = &self->sp[i];
+        int sx;
+        int sy;
+        int const inset = px >= 8 ? 2 : px >= 4 ? 1 : 0;
+        uint32_t const color = s2->suppressed ? BP_MV_C_SPAWN_SUPPRESSED
+                               : s2->edited   ? BP_MV_C_SPAWN_EDITED
+                               : s2->scripted ? BP_MV_C_SPAWN_SCRIPTED
+                                              : BP_MV_C_SPAWN_GENERATED;
+        if( !bp_mv_tile_in_view(self, s2->x, s2->z) )
+            continue;
+        bp_mv_tile_point(self, s2->x, s2->z, &sx, &sy);
+        ToriRSChrome_GraphRect(chrome, w, sx + inset, sy + inset, px - 2 * inset, px - 2 * inset,
+                               s2->level == self->mv_level ? color : (color >> 1) & 0x7f7f7f, 1, BP_MV_KEY_SPAWN + i);
+        if( i == self->sp_sel )
+            ToriRSChrome_GraphRect(chrome, w, sx - 1, sy - 1, px + 2, px + 2, BP_MV_C_SELECTED, 0, 0);
+    }
+    /* The ghost at play, the hovered tile. */
+    {
+        int gx;
+        int gz;
+        int sx;
+        int sy;
+        if( bp_mv_ghost_tile(self, &gx, &gz) && bp_mv_tile_in_view(self, gx, gz) )
+        {
+            bp_mv_tile_point(self, gx, gz, &sx, &sy);
+            ToriRSChrome_GraphRect(chrome, w, sx + 1, sy + 1, px - 2 > 0 ? px - 2 : 1, px - 2 > 0 ? px - 2 : 1,
+                                   BP_MV_C_GHOST, 1, 0);
+        }
+        if( self->mv_hover_valid && bp_mv_tile_in_view(self, self->mv_hover_x, self->mv_hover_z) )
+        {
+            bp_mv_tile_point(self, self->mv_hover_x, self->mv_hover_z, &sx, &sy);
+            ToriRSChrome_GraphRect(chrome, w, sx, sy, px, px, BP_MV_C_HOVER, 0, 0);
+        }
+    }
+    ToriRSChrome_GraphEnd(chrome, w);
+}
+
+static void
+bp_mv_readout(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    char line[TORIRS_CHROME_LABEL_MAX];
+    struct Builder_TileInfo info;
+
+    if( !self->mv_hover_valid )
+    {
+        snprintf(line, sizeof(line), "level %d, %d px a tile; centre %d,%d", self->mv_level, self->mv_px, self->mv_cx,
+                 self->mv_cz);
+        ToriRSChrome_SetText(ui->chrome, self->w_mv_readout, line);
+        return;
+    }
+    memset(&info, 0, sizeof(info));
+    if( self->services.tile_info )
+        self->services.tile_info(self->services.user_data, self->mv_hover_x, self->mv_hover_z, self->mv_level, &info);
+    snprintf(line, sizeof(line), "%d,%d lvl %d  m%d_%d  %s%s", self->mv_hover_x, self->mv_hover_z, self->mv_level,
+             self->mv_hover_x / 64, self->mv_hover_z / 64,
+             info.in_scene ? ((info.collision & (COLL_FLAG_FLOOR_BLOCKED | COLL_FLAG_LOC)) ? "blocked" : "walkable")
+             : info.in_doc ? ((info.settings & 1) ? "blocked (jm2)" : "open (not in the world)")
+                           : "square not open",
+             (info.settings & 4) ? ", roofed" : "");
+    ToriRSChrome_SetText(ui->chrome, self->w_mv_readout, line);
+}
+
+/* ---- the edits ---- */
+
+static int
+bp_mv_write_route(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    const struct Editor_NpcWaypoint* route,
+    int count,
+    enum Editor_NpcMode mode,
+    const char* what)
+{
+    int n;
+
+    if( !self->has_model || !self->services.route_set )
+    {
+        bp_status(ui, self, "no record session: the route cannot be written here");
+        return 0;
+    }
+    if( self->read_only )
+    {
+        bp_status(ui, self, "read-only: the route was not changed");
+        return 0;
+    }
+    n = self->services.route_set(self->services.user_data, self->model->name, route, count, mode, what);
+    if( n < 0 )
+        return 0;
+    bp_mv_refresh(ui, self);
+    bp_show_will(ui, self);
+    return 1;
+}
+
+static int
+bp_mv_write_field(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    const char* key,
+    const char* value,
+    const char* what)
+{
+    int n;
+
+    if( !self->has_model || !self->services.movement_set )
+    {
+        bp_status(ui, self, "no record session: the field cannot be written here");
+        return 0;
+    }
+    if( self->read_only )
+    {
+        bp_status(ui, self, "read-only: the field was not changed");
+        return 0;
+    }
+    n = self->services.movement_set(self->services.user_data, self->model->name, key, value, what);
+    if( n < 0 )
+        return 0;
+    bp_mv_refresh(ui, self);
+    bp_show_will(ui, self);
+    if( n > 0 )
+    {
+        char line[160];
+        snprintf(line, sizeof(line), "%s %s %s %s -> %s", self->model->name, key, value[0] ? "=" : "removed",
+                 value[0] ? value : "", self->mv_target);
+        bp_status(ui, self, line);
+    }
+    return 1;
+}
+
+/** The route with waypoint `at` (0..count) inserted / `at` removed /
+ *  moved: the callers' one helper. */
+static int
+bp_mv_route_copy(
+    const struct builder_panel* self,
+    struct Editor_NpcWaypoint* out)
+{
+    int n = 0;
+    for( int i = 0; i < self->mv.patrol_count; i++ )
+        if( self->mv.patrol[i].level >= 0 )
+            out[n++] = self->mv.patrol[i];
+    return n;
+}
+
+static void
+bp_mv_add_waypoint(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    int x,
+    int z,
+    int level,
+    int after)
+{
+    struct Editor_NpcWaypoint route[EDITOR_NPC_PATROL_MAX + 1];
+    struct Editor_NpcWaypoint added;
+    int n = bp_mv_route_copy(self, route);
+
+    if( n >= EDITOR_NPC_PATROL_MAX )
+    {
+        bp_status(ui, self, "the server walks at most 16 waypoints");
+        return;
+    }
+    memset(&added, 0, sizeof(added));
+    added.x = x;
+    added.z = z;
+    added.level = level;
+    if( after < 0 || after >= n )
+        route[n] = added;
+    else
+    {
+        memmove(&route[after + 2], &route[after + 1], sizeof(route[0]) * (size_t)(n - after - 1));
+        route[after + 1] = added;
+    }
+    n++;
+    if( bp_mv_write_route(ui, self, route, n, EDITOR_NPC_MODE_PATROL, "add waypoint") )
+    {
+        self->mv_sel = after < 0 || after >= n - 1 ? n - 1 : after + 1;
+        bp_mv_route_rows(ui, self);
+        bp_mv_refresh(ui, self);
+    }
+}
+
+static int
+bp_mv_activate(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    int widget)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    char value[32];
+
+    if( widget == self->w_mv_tool_select || widget == self->w_mv_tool_add || widget == self->w_mv_tool_move )
+    {
+        self->mv_tool = widget == self->w_mv_tool_add ? 1 : widget == self->w_mv_tool_move ? 2 : 0;
+        return 1;
+    }
+    if( widget == self->w_mv_fit )
+    {
+        bp_mv_fit(self);
+        bp_mv_readout(ui, self);
+        return 1;
+    }
+    if( widget == self->w_mv_goto || widget == self->w_sp_goto )
+    {
+        int x = 0;
+        int z = 0;
+        int level = 0;
+        int have = 0;
+        if( widget == self->w_mv_goto && self->mv_sel >= 0 && self->mv_sel < self->mv.patrol_count )
+        {
+            x = self->mv.patrol[self->mv_sel].x;
+            z = self->mv.patrol[self->mv_sel].z;
+            level = self->mv.patrol[self->mv_sel].level;
+            have = 1;
+        }
+        else if( self->sp_count > 0 )
+        {
+            int const i = self->sp_sel >= 0 ? self->sp_sel : 0;
+            x = self->sp[i].x;
+            z = self->sp[i].z;
+            level = self->sp[i].level;
+            have = 1;
+        }
+        if( !have )
+            bp_status(ui, self, "nothing to go to: no waypoint selected, no spawn");
+        else if( !self->services.goto_tile )
+            bp_status(ui, self, "no World camera to move here");
+        else if( !self->services.goto_tile(self->services.user_data, x, z, level) )
+            bp_status(ui, self, "the tile's square is not loaded: opening it; Go to again when it is");
+        else
+        {
+            self->mv_cx = x;
+            self->mv_cz = z;
+            self->mv_level = level;
+        }
+        return 1;
+    }
+    if( widget == self->w_mv_mode_none || widget == self->w_mv_mode_patrol || widget == self->w_mv_mode_wander )
+    {
+        enum Editor_NpcMode const mode = widget == self->w_mv_mode_wander ? EDITOR_NPC_MODE_WANDER
+                                         : widget == self->w_mv_mode_patrol ? EDITOR_NPC_MODE_PATROL
+                                                                            : EDITOR_NPC_MODE_NONE;
+        if( !self->mv_valid )
+            return 1;
+        if( mode != EDITOR_NPC_MODE_PATROL && self->mv.patrol_count > 0 )
+        {
+            /* Wander or None over a route: the rows go with the mode, as one
+             * step (a route with defaultmode=wander is still a patrol, 1.1). */
+            (void)bp_mv_write_route(ui, self, NULL, 0, mode, mode == EDITOR_NPC_MODE_WANDER ? "mode wander" : "mode none");
+            return 1;
+        }
+        if( mode == EDITOR_NPC_MODE_PATROL && self->mv.patrol_count == 0 )
+        {
+            bp_status(ui, self, "Patrol: add waypoints (the mode follows the first one)");
+            bp_mv_refresh(ui, self);
+            return 1;
+        }
+        (void)bp_mv_write_field(ui, self, "defaultmode", k_mode_words[mode], "defaultmode");
+        return 1;
+    }
+    if( widget == self->w_mv_leash || widget == self->w_mv_range )
+    {
+        snprintf(value, sizeof(value), "%d", ToriRSChrome_SliderValue(chrome, widget));
+        (void)bp_mv_write_field(ui, self, widget == self->w_mv_leash ? "maxrange" : "wanderrange", value,
+                                widget == self->w_mv_leash ? "maxrange" : "wanderrange");
+        return 1;
+    }
+    if( widget == self->w_mv_restrict || widget == self->w_mv_block || widget == self->w_mv_facing )
+    {
+        int const at = ToriRSChrome_DropdownSelected(chrome, widget);
+        const char* key = widget == self->w_mv_restrict ? "moverestrict" : widget == self->w_mv_block ? "blockwalk" : "facing";
+        const char* word = "";
+        if( at > 0 )
+            word = widget == self->w_mv_restrict ? k_restrict_options[at]
+                   : widget == self->w_mv_block ? k_block_options[at]
+                                                : k_facing_options[at];
+        (void)bp_mv_write_field(ui, self, key, word, key);
+        return 1;
+    }
+    if( widget == self->w_mv_respawn || widget == self->w_mv_timer )
+    {
+        const char* text = ToriRSChrome_Text(chrome, widget);
+        const char* key = widget == self->w_mv_respawn ? "respawnrate" : "timer";
+        char* end = NULL;
+        long n;
+        if( !text || !text[0] )
+        {
+            (void)bp_mv_write_field(ui, self, key, "", key);
+            return 1;
+        }
+        n = strtol(text, &end, 10);
+        if( !end || *end || n < 0 || n > 65535 )
+        {
+            bp_status(ui, self, "a tick count is a whole number 0..65535");
+            return 1;
+        }
+        snprintf(value, sizeof(value), "%ld", n);
+        (void)bp_mv_write_field(ui, self, key, value, key);
+        return 1;
+    }
+    if( widget == self->w_mv_route )
+    {
+        self->mv_sel = ToriRSChrome_VListSelected(chrome, self->w_mv_route);
+        if( self->mv_sel >= self->mv.patrol_count )
+            self->mv_sel = -1;
+        if( self->mv_sel >= 0 )
+        {
+            snprintf(value, sizeof(value), "%d", self->mv.patrol[self->mv_sel].pause);
+            ToriRSChrome_SetText(chrome, self->w_mv_pause, value);
+        }
+        bp_mv_route_rows(ui, self);
+        return 1;
+    }
+    if( widget == self->w_mv_pause )
+    {
+        struct Editor_NpcWaypoint route[EDITOR_NPC_PATROL_MAX];
+        int const n = bp_mv_route_copy(self, route);
+        const char* text = ToriRSChrome_Text(chrome, widget);
+        char* end = NULL;
+        long pause;
+        if( self->mv_sel < 0 || self->mv_sel >= n )
+        {
+            bp_status(ui, self, "select a waypoint in the route list first");
+            return 1;
+        }
+        pause = strtol(text ? text : "", &end, 10);
+        if( !text || !text[0] || !end || *end || pause < 0 || pause > 65535 )
+        {
+            bp_status(ui, self, "a pause is a whole number of ticks");
+            return 1;
+        }
+        route[self->mv_sel].pause = (int)pause;
+        (void)bp_mv_write_route(ui, self, route, n, EDITOR_NPC_MODE_PATROL, "waypoint pause");
+        return 1;
+    }
+    if( widget == self->w_mv_wp_add )
+    {
+        if( !ui->tools.tile_valid )
+        {
+            bp_status(ui, self, "latch a tile in the World first (the select tool)");
+            return 1;
+        }
+        bp_mv_add_waypoint(ui, self, ui->tools.tile_x, ui->tools.tile_z, ui->tools.tile_level, self->mv_sel);
+        return 1;
+    }
+    if( widget == self->w_mv_wp_insert )
+    {
+        struct Editor_NpcWaypoint route[EDITOR_NPC_PATROL_MAX];
+        int const n = bp_mv_route_copy(self, route);
+        if( self->mv_sel < 0 || self->mv_sel >= n )
+        {
+            bp_status(ui, self, "select the waypoint to insert after");
+            return 1;
+        }
+        {
+            const struct Editor_NpcWaypoint* a = &route[self->mv_sel];
+            const struct Editor_NpcWaypoint* b = &route[(self->mv_sel + 1) % n];
+            bp_mv_add_waypoint(ui, self, (a->x + b->x) / 2, (a->z + b->z) / 2, a->level, self->mv_sel);
+        }
+        return 1;
+    }
+    if( widget == self->w_mv_wp_delete || widget == self->w_mv_wp_up || widget == self->w_mv_wp_down )
+    {
+        struct Editor_NpcWaypoint route[EDITOR_NPC_PATROL_MAX];
+        int const n = bp_mv_route_copy(self, route);
+        int const at = self->mv_sel;
+        if( at < 0 || at >= n )
+        {
+            bp_status(ui, self, "select a waypoint in the route list first");
+            return 1;
+        }
+        if( widget == self->w_mv_wp_delete )
+        {
+            memmove(&route[at], &route[at + 1], sizeof(route[0]) * (size_t)(n - at - 1));
+            if( bp_mv_write_route(ui, self, route, n - 1, EDITOR_NPC_MODE_PATROL, "delete waypoint") )
+                self->mv_sel = at < n - 1 ? at : n - 2;
+        }
+        else
+        {
+            int const to = at + (widget == self->w_mv_wp_up ? -1 : 1);
+            struct Editor_NpcWaypoint swap;
+            if( to < 0 || to >= n )
+                return 1;
+            swap = route[at];
+            route[at] = route[to];
+            route[to] = swap;
+            if( bp_mv_write_route(ui, self, route, n, EDITOR_NPC_MODE_PATROL, "reorder route") )
+                self->mv_sel = to;
+        }
+        bp_mv_route_rows(ui, self);
+        return 1;
+    }
+    if( widget == self->w_mv_play )
+    {
+        self->mv_play = !self->mv_play && self->mv.patrol_count >= 2;
+        self->mv_play_leg = 0;
+        self->mv_play_step = 0;
+        self->mv_play_frame = 0;
+        ToriRSChrome_SetLabel(chrome, self->w_mv_play, self->mv_play ? "Stop" : "Play");
+        if( !self->mv_play && self->mv.patrol_count < 2 )
+            bp_status(ui, self, "Play needs a route of two or more waypoints");
+        return 1;
+    }
+    /* The Spawns tab. */
+    if( widget == self->w_sp_list )
+    {
+        self->sp_sel = ToriRSChrome_VListSelected(chrome, self->w_sp_list);
+        if( self->sp_sel >= self->sp_count )
+            self->sp_sel = -1;
+        bp_mv_spawn_rows(ui, self);
+        return 1;
+    }
+    if( widget == self->w_sp_select )
+    {
+        if( self->sp_sel < 0 || self->sp_sel >= self->sp_count )
+            bp_status(ui, self, "select a spawn in the list first");
+        else if( !self->services.spawn_select || !self->services.spawn_select(self->services.user_data, &self->sp[self->sp_sel]) )
+            bp_status(ui, self, "no Spawns panel here to select it in");
+        return 1;
+    }
+    if( widget == self->w_sp_place )
+    {
+        if( !self->has_model )
+            return 1;
+        if( !ui->tools.tile_valid )
+            bp_status(ui, self, "latch a tile in the World first (the select tool)");
+        else if( !self->services.spawn_place
+                 || self->services.spawn_place(self->services.user_data, self->model->name, ui->tools.tile_x,
+                                               ui->tools.tile_z, ui->tools.tile_level)
+                        <= 0 )
+            bp_status(ui, self, "the spawn was not placed (see the Console)");
+        else
+        {
+            bp_mv_refresh(ui, self);
+            self->sp_sel = self->sp_count - 1;
+            bp_mv_spawn_rows(ui, self);
+        }
+        return 1;
+    }
+    if( widget == self->w_sp_delete )
+    {
+        if( self->sp_sel < 0 || self->sp_sel >= self->sp_count )
+            bp_status(ui, self, "select a spawn in the list first");
+        else if( !self->services.spawn_delete
+                 || self->services.spawn_delete(self->services.user_data, &self->sp[self->sp_sel]) <= 0 )
+            bp_status(ui, self, "the spawn was not deleted (see the Console)");
+        else
+            bp_mv_refresh(ui, self);
+        return 1;
+    }
+    return 0;
+}
+
+static int
+bp_mv_event(
+    struct EditorUi* ui,
+    struct builder_panel* self,
+    const struct ToriRSChromeEvent* event)
+{
+    int tx;
+    int tz;
+
+    switch( event->kind )
+    {
+    case TORIRS_CHROME_EVENT_GRAPH_HOVER:
+        if( event->key >= BP_MV_KEY_TILE && event->key < BP_MV_KEY_WP )
+        {
+            int const index = event->key - BP_MV_KEY_TILE;
+            int const cols = bp_mv_cols(self);
+            self->mv_hover_x = self->mv_cx - cols / 2 + index % cols;
+            self->mv_hover_z = self->mv_cz + bp_mv_rows(self) / 2 - index / cols;
+            self->mv_hover_valid = 1;
+        }
+        else if( event->key >= BP_MV_KEY_WP && event->key < BP_MV_KEY_SPAWN
+                 && event->key - BP_MV_KEY_WP < self->mv.patrol_count )
+        {
+            self->mv_hover_x = self->mv.patrol[event->key - BP_MV_KEY_WP].x;
+            self->mv_hover_z = self->mv.patrol[event->key - BP_MV_KEY_WP].z;
+            self->mv_hover_valid = 1;
+        }
+        else if( event->key >= BP_MV_KEY_SPAWN && event->key - BP_MV_KEY_SPAWN < self->sp_count )
+        {
+            self->mv_hover_x = self->sp[event->key - BP_MV_KEY_SPAWN].x;
+            self->mv_hover_z = self->sp[event->key - BP_MV_KEY_SPAWN].z;
+            self->mv_hover_valid = 1;
+        }
+        else
+            self->mv_hover_valid = 0;
+        bp_mv_readout(ui, self);
+        return 1;
+    case TORIRS_CHROME_EVENT_GRAPH_WHEEL:
+    {
+        int const px = self->mv_px;
+        int ux;
+        int uz;
+        bp_mv_tile_at(self, event->x, event->y, &ux, &uz);
+        if( event->value < 0 && px < BP_MV_PX_MAX )
+            self->mv_px = px * 2;
+        else if( event->value > 0 && px > BP_MV_PX_MIN )
+            self->mv_px = px / 2;
+        else
+            return 1;
+        /* The tile under the pointer stays under it. */
+        {
+            int nx;
+            int nz;
+            bp_mv_tile_at(self, event->x, event->y, &nx, &nz);
+            self->mv_cx += ux - nx;
+            self->mv_cz += uz - nz;
+        }
+        bp_mv_readout(ui, self);
+        return 1;
+    }
+    case TORIRS_CHROME_EVENT_GRAPH_PRESS:
+        self->mv_press_x = event->x;
+        self->mv_press_y = event->y;
+        self->mv_press_cx = self->mv_cx;
+        self->mv_press_cz = self->mv_cz;
+        self->mv_panning = 0;
+        if( event->key >= BP_MV_KEY_WP && event->key < BP_MV_KEY_SPAWN
+            && event->key - BP_MV_KEY_WP < self->mv.patrol_count )
+        {
+            self->mv_sel = event->key - BP_MV_KEY_WP;
+            if( self->mv_tool == 2 && !self->read_only )
+            {
+                self->mv_drag_wp = self->mv_sel;
+                self->mv_drag_x = self->mv.patrol[self->mv_sel].x;
+                self->mv_drag_z = self->mv.patrol[self->mv_sel].z;
+            }
+            bp_mv_route_rows(ui, self);
+            {
+                char value[16];
+                snprintf(value, sizeof(value), "%d", self->mv.patrol[self->mv_sel].pause);
+                ToriRSChrome_SetText(ui->chrome, self->w_mv_pause, value);
+            }
+            return 1;
+        }
+        if( event->key >= BP_MV_KEY_SPAWN && event->key - BP_MV_KEY_SPAWN < self->sp_count )
+        {
+            self->sp_sel = event->key - BP_MV_KEY_SPAWN;
+            bp_mv_spawn_rows(ui, self);
+            return 1;
+        }
+        bp_mv_tile_at(self, event->x, event->y, &tx, &tz);
+        if( self->mv_tool == 1 )
+        {
+            if( !self->has_model )
+                bp_status(ui, self, "open an npc first");
+            else
+                bp_mv_add_waypoint(ui, self, tx, tz, self->mv_level, self->mv_sel);
+            return 1;
+        }
+        self->mv_panning = 1;
+        return 1;
+    case TORIRS_CHROME_EVENT_GRAPH_DRAG:
+        if( self->mv_drag_wp >= 0 )
+        {
+            bp_mv_tile_at(self, event->x, event->y, &tx, &tz);
+            self->mv_drag_x = tx;
+            self->mv_drag_z = tz;
+            return 1;
+        }
+        if( self->mv_panning )
+        {
+            self->mv_cx = self->mv_press_cx - (event->x - self->mv_press_x) / self->mv_px;
+            self->mv_cz = self->mv_press_cz + (event->y - self->mv_press_y) / self->mv_px;
+            bp_mv_readout(ui, self);
+        }
+        return 1;
+    case TORIRS_CHROME_EVENT_GRAPH_RELEASE:
+        if( self->mv_drag_wp >= 0 )
+        {
+            struct Editor_NpcWaypoint route[EDITOR_NPC_PATROL_MAX];
+            int const n = bp_mv_route_copy(self, route);
+            int const at = self->mv_drag_wp;
+            bp_mv_tile_at(self, event->x, event->y, &tx, &tz);
+            self->mv_drag_wp = -1;
+            if( at < n && (route[at].x != tx || route[at].z != tz) )
+            {
+                route[at].x = tx;
+                route[at].z = tz;
+                (void)bp_mv_write_route(ui, self, route, n, EDITOR_NPC_MODE_PATROL, "move waypoint");
+            }
+            return 1;
+        }
+        self->mv_panning = 0;
+        return 1;
+    case TORIRS_CHROME_EVENT_GRAPH_KEY:
+        if( event->value == 'f' || event->value == 'F' )
+        {
+            bp_mv_fit(self);
+            bp_mv_readout(ui, self);
+        }
+        else if( (event->value == 'n' || event->value == 'N') && self->mv_hover_valid && self->has_model )
+            bp_mv_add_waypoint(ui, self, self->mv_hover_x, self->mv_hover_z, self->mv_level, self->mv_sel);
+        else if( event->value == '+' || event->value == '=' || event->value == '-' )
+        {
+            if( (event->value == '-') ? self->mv_px > BP_MV_PX_MIN : self->mv_px < BP_MV_PX_MAX )
+                self->mv_px = event->value == '-' ? self->mv_px / 2 : self->mv_px * 2;
+        }
+        return 1;
+    default:
+        return 1;
+    }
+}
+
+static void
+bp_mv_tick(
+    struct EditorUi* ui,
+    struct builder_panel* self)
+{
+    int const tab = ToriRSChrome_PanelActiveTab(ui->chrome, self->p_main);
+
+    self->mv_frame++;
+    /* The spawn files open asynchronously: ask again twice a second until
+     * the rows come, and after any edit that moved the facts. */
+    if( self->has_model && self->services.spawns && (self->mv_frame % 30) == 0 )
+    {
+        struct Builder_NpcSpawn fresh[BP_MV_SPAWNS_MAX];
+        int const n = self->services.spawns(self->services.user_data, self->model->name, self->record.id, fresh,
+                                            BP_MV_SPAWNS_MAX);
+        if( n != self->sp_count || memcmp(fresh, self->sp, sizeof(fresh[0]) * (size_t)n) != 0 )
+        {
+            memcpy(self->sp, fresh, sizeof(fresh[0]) * (size_t)n);
+            self->sp_count = n;
+            if( self->sp_sel >= n )
+                self->sp_sel = -1;
+            bp_mv_spawn_rows(ui, self);
+            if( self->mv.patrol_count == 0 )
+                bp_mv_fit(self);
+            self->mv_draw_hash = 0;
+        }
+    }
+    /* The documents moved under us (an undo, the Record panel, a spawn
+     * edit): the controls follow. */
+    if( self->has_model && ui->editor && self->mv_legs_hash != 0
+        && (bp_mv_hash_route(self) ^ (uint32_t)ui->editor->last_cmd_seq) != self->mv_legs_hash )
+        bp_mv_refresh(ui, self);
+    if( self->mv_play && self->mv.patrol_count >= 2 )
+    {
+        if( ++self->mv_play_frame >= BP_MV_PLAY_FRAMES )
+        {
+            const struct Editor_NpcWaypoint* a = &self->mv.patrol[self->mv_play_leg % self->mv.patrol_count];
+            const struct Editor_NpcWaypoint* b = &self->mv.patrol[(self->mv_play_leg + 1) % self->mv.patrol_count];
+            int const steps = Editor_NpcLegSteps(a, b);
+            self->mv_play_frame = 0;
+            self->mv_play_step++;
+            /* At the waypoint: hold its pause, then the next leg. */
+            if( self->mv_play_step > steps + (b->pause > 0 ? b->pause : 0) )
+            {
+                self->mv_play_step = 0;
+                self->mv_play_leg = (self->mv_play_leg + 1) % self->mv.patrol_count;
+            }
+        }
+    }
+    if( tab != BUILDER_NPC_TAB_MOVEMENT )
+    {
+        if( tab == BUILDER_NPC_TAB_SPAWNS && ToriRSChrome_VListNeedsRows(ui->chrome, self->w_sp_list) )
+            bp_mv_spawn_rows(ui, self);
+        return;
+    }
+    if( ToriRSChrome_VListNeedsRows(ui->chrome, self->w_mv_route) )
+        bp_mv_route_rows(ui, self);
+    bp_mv_redraw(ui, self);
+}
+
+/* ---- the Movement tab's test surface ---- */
+
+int
+Builder_RouteInspect(
+    struct EditorUi* ui,
+    struct Builder_RouteView* out)
+{
+    struct builder_panel* self;
+
+    assert(ui);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    self = Editor_UiPanelSelf(ui, BUILDER_PANEL_NPC);
+    if( !self || self->w_mv_map < 0 )
+        return 0;
+    out->waypoints = self->mv.patrol;
+    out->count = self->mv.patrol_count;
+    out->selected = self->mv_sel;
+    out->legs = self->mv_legs;
+    out->effective = &self->mv_eff;
+    out->target = self->mv_target;
+    out->w_minimap = self->w_mv_map;
+    out->tool = self->mv_tool;
+    return 1;
+}
+
+int
+Builder_RouteWaypointBox(
+    struct EditorUi* ui,
+    int index,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    struct builder_panel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, BUILDER_PANEL_NPC);
+    if( !self || self->w_mv_map < 0 || index < 0 || index >= self->mv.patrol_count
+        || !bp_mv_tile_in_view(self, self->mv.patrol[index].x, self->mv.patrol[index].z) )
+        return 0;
+    bp_mv_tile_point(self, self->mv.patrol[index].x, self->mv.patrol[index].z, out_x, out_y);
+    *out_w = self->mv_px;
+    *out_h = self->mv_px;
+    return 1;
+}
+
+int
+Builder_RouteTilePoint(
+    struct EditorUi* ui,
+    int x,
+    int z,
+    int* out_x,
+    int* out_y)
+{
+    struct builder_panel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, BUILDER_PANEL_NPC);
+    if( !self || self->w_mv_map < 0 || !bp_mv_tile_in_view(self, x, z) )
+        return 0;
+    bp_mv_tile_point(self, x, z, out_x, out_y);
+    *out_x += self->mv_px / 2;
+    *out_y += self->mv_px / 2;
+    return 1;
+}
+
 /* ---- the scripting surface ------------------------------------------------ */
 
 static struct builder_panel*
@@ -3658,9 +5468,9 @@ Builder_GraphHotkey(
                         action == EDITOR_HK_GRAPH_AUTO_LAYOUT ? "Auto-layout" : "New node");
         return 1;
     }
-    if( !focused && (!ui->chrome->panels[self->p_dialogue].visible || !ui->visible) )
+    if( !focused && (!ui->chrome->panels[self->p_main].visible || !ui->visible) )
     {
-        Editor_UiStatus(ui, "%s refused: no dialogue graph is open (View > NPC builder, then click its graph)",
+        Editor_UiStatus(ui, "%s refused: no dialogue graph is open (View > NPC editor, Dialogue, then click its graph)",
                         action == EDITOR_HK_GRAPH_AUTO_LAYOUT ? "Auto-layout" : "New node");
         return 1;
     }

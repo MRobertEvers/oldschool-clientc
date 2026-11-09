@@ -33,6 +33,7 @@
 #include "editor/panels/edpanel_chips.h"
 #include "editor/panels/edpanels.h"
 #include "editor/editor_spawn.h"
+#include "editor/editor_npc.h"
 #include "editor/map_editor_ghost.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
@@ -2310,6 +2311,15 @@ test_chrome(void)
         CHECK(g_ui.tools.underlay_id > 0, "an Empty square arms an underlay: underlay 0 paints void onto void (%d)",
             g_ui.tools.underlay_id);
         Editor_DocScratchSlot(0, &scratch_x, &scratch_z);
+        for( int slot = 0; slot < EDITOR_DOC_SCRATCH_SLOTS; slot++ )
+        {
+            int slot_x;
+            int slot_z;
+            Editor_DocScratchSlot(slot, &slot_x, &slot_z);
+            /* 100: MAPINSTANCE_SCAN_X0, ^map_instance_pool_min_x. A login at
+             * or past it is teleported to the respawn tile. */
+            CHECK(slot_x < 100, "scratch slot %d (m%d_%d) is below the server's instance pool", slot, slot_x, slot_z);
+        }
         scratch = square_of(scratch_x, scratch_z);
         CHECK(scratch && scratch->loaded
                   && Editor_DocStorageIsScratch(Editor_DocSquareStorage(&g_editor.doc, scratch)),
@@ -6507,10 +6517,14 @@ test_record_editor(void)
     CHECK(row >= 0 && record->rows[row].layer == 0 && strcmp(record->rows[row].value, "Talk-to") == 0,
         "record: op1 comes from all.npc");
     {
-        int wander = -1;
-        int leash = -1;
-        CHECK(Editor_Record_WanderValues(&g_cat_ui, "npc", "test_guard", &wander, &leash) && wander == 2 && leash == 12,
+        struct Editor_NpcMovement movement;
+        struct Editor_NpcEffective effective;
+        CHECK(Editor_Record_NpcMovement(&g_cat_ui, "npc", "test_guard", &movement) && movement.wanderrange == 2
+                  && movement.maxrange == 12,
             "record: the wander preview reads 2 / 12 from it");
+        Editor_NpcEffectiveMode(&movement, &effective);
+        CHECK(effective.mode == EDITOR_NPC_MODE_WANDER && effective.wander == 2 && effective.leash == 12,
+            "record: and the guard wanders 2 with leash 12");
     }
 
     /* Edit where stated: the authored overlay's line, one undo step. */

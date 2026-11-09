@@ -580,6 +580,19 @@ struct EditorUiAppServices
      *  picker's map reports its cold open against. NULL member or 0: not
      *  measured. */
     uint64_t (*last_frame_us)(void* user_data);
+
+    /* The NPC editor's minimap and route legs (docs/NPC_EDITOR_DESIGN.md
+     * 3.4): the loaded scene's collision, as the client built it. */
+    /** The collision flags of ABSOLUTE tile (x, z) on `level`
+     *  (engine/world_builder/collision_map.h COLL_FLAG_*), 1 when the tile
+     *  is in the loaded scene; 0 when it is not (nothing written). NULL
+     *  member: no scene. */
+    int (*tile_flags)(void* user_data, int world_x, int world_z, int level, int* out_flags);
+    /** Steps of the shortest walk a 1x1 mover takes from ABSOLUTE (ax, az)
+     *  to (bx, bz) on `level` through the loaded scene's collision
+     *  (collision_map_bfs_path): 0 or more; -1 when no path exists; -2
+     *  when either tile is outside the loaded scene. NULL member: -2. */
+    int (*path_steps)(void* user_data, int ax, int az, int bx, int bz, int level);
 };
 
 /* ---- panels ---------------------------------------------------------------- */

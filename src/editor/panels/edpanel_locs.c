@@ -15,14 +15,17 @@
 #include "edpanel_ops.h"
 #include "edpanel_ops_stamps.h"
 #include "edpanels.h"
+#include "editor/editor_cfg.h"
 #include "engine/torirs_types.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
 #include "world/world.h"
 
+#include <limits.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define LOCS_LIST_ROWS 6
@@ -38,6 +41,43 @@
 #define LOCS_STRIP_SLOT_RGB 0x6a6050u
 static const char* const k_rotation_names[4] = { "0", "90", "180", "270" };
 static const char* const k_layer_names[4] = { "wall layer", "wall decor layer", "ground layer", "ground decor layer" };
+
+/* Type flags: fields of the subject's configs/all.loc block. They belong to
+ * the loc type, so they are written to the record, never to a placement.
+ * A flag is on when its key states `word` (cp_loc.c's spelling); off is the
+ * block's `default`. */
+#define LOCS_FLAG_COUNT 5
+static const struct
+{
+    const char* key;
+    const char* word;
+    const char* label;
+} k_flags[LOCS_FLAG_COUNT] = {
+    { "sharelight", "1", "Share light" },
+    { "occlude", "1", "Occlude" },
+    { "shadow", "no", "No shadow" },
+    { "forcedecor", "1", "Force decor" },
+    { "breakroutefinding", "1", "Break route finding" },
+};
+#define LOCS_VALUE_COUNT 4
+static const struct
+{
+    const char* key;
+    const char* label;
+    int min;
+    int max;
+    const char* tip;
+} k_values[LOCS_VALUE_COUNT] = {
+    { "wallwidth", "Wall width", 0, 255, "How far wall decor stands off this wall; default is 16" },
+    { "ambient", "Ambient", INT_MIN, INT_MAX, "The ambient key of the record; empty is the default" },
+    { "contrast", "Contrast", INT_MIN, INT_MAX, "The contrast key of the record; empty is the default" },
+    { "raiseobject", "Raise object", 0, 255, "The raiseobject key of the record; empty is the default" },
+};
+/* contourground, -type and -param are one opcode: cachepack refuses a block
+ * where they disagree, so one control writes all three. */
+static const char* const k_contour_names[4] = { "Off", "Follow ground", "Keep height", "Other (edit in Record)" };
+#define LOCS_CONTOUR_OTHER 3
+#define LOCS_FLAG_COMMANDS 16
 
 struct LocsPanel
 {
@@ -119,6 +159,23 @@ struct LocsPanel
     int was_empty;
     /** ui->hotkeys.serial the buttons' tips were labelled from. */
     uint32_t hint_serial;
+
+    /* Type flags: the subject's cache block, parsed when the subject or its
+     * document moves. */
+    int label_flags;
+    int check_flags[LOCS_FLAG_COUNT];
+    int dropdown_contour;
+    int input_contour_height;
+    int input_values[LOCS_VALUE_COUNT];
+    int button_flags_apply;
+    int flags_loc_id;
+    char flags_name[EDITOR_CMD_NAME_MAX];
+    char flags_key[EDITOR_DOC_KEY_MAX];
+    int flags_read;
+    uint32_t flags_revision;
+    int flags_hidden;
+    struct Editor_CfgRecord flags_record;
+    struct Editor_Cmd flags_commands[LOCS_FLAG_COMMANDS];
 };
 
 /** The one Locs panel of this window, for the App's thumbnail render
@@ -513,6 +570,248 @@ locs_info_refresh(
     ToriRSChrome_SetText(ui->chrome, self->row_multiloc, multiloc);
 }
 
+/* ---- type flags ---------------------------------------------------------------------- */
+
+static void
+locs_flags_set_hidden(
+    struct EditorUi* ui,
+    struct LocsPanel* self,
+    int hidden)
+{
+    if( self->flags_hidden == hidden )
+        return;
+    self->flags_hidden = hidden;
+    for( int i = 0; i < LOCS_FLAG_COUNT; i++ )
+        ToriRSChrome_SetHidden(ui->chrome, self->check_flags[i], hidden);
+    for( int i = 0; i < LOCS_VALUE_COUNT; i++ )
+        ToriRSChrome_SetHidden(ui->chrome, self->input_values[i], hidden);
+    ToriRSChrome_SetHidden(ui->chrome, self->dropdown_contour, hidden);
+    ToriRSChrome_SetHidden(ui->chrome, self->input_contour_height, hidden);
+    ToriRSChrome_SetHidden(ui->chrome, self->button_flags_apply, hidden);
+}
+
+/** The value the block states for `key`; "default" when it states none. */
+static const char*
+locs_flags_value(
+    struct LocsPanel* self,
+    const char* key)
+{
+    int const row = Editor_CfgRecordFindRow(&self->flags_record, key, "", 0);
+    return row >= 0 && self->flags_record.rows[row].layer >= 0 ? self->flags_record.rows[row].value : "default";
+}
+
+/** A new subject: its record name, and its cache block open. */
+static void
+locs_flags_subject(
+    struct EditorUi* ui,
+    struct LocsPanel* self,
+    int loc_id)
+{
+    struct EditorHost_CatalogRecord record;
+
+    self->flags_loc_id = loc_id;
+    self->flags_name[0] = '\0';
+    self->flags_read = 0;
+    if( loc_id < 0 || !ui->editor || !(ui->editor->capabilities & TORIRSMAPED_CAP_CATALOG) )
+        return;
+    memset(&record, 0, sizeof(record));
+    if( Editor_HostMapEdCatalogRecord(&ui->editor->host, TORIRSMAPED_CATALOG_LOC, loc_id, "", &record) == EDITOR_HOST_OK
+        && record.name && strlen(record.name) < sizeof(self->flags_name)
+        && Editor_CfgOverlayKey(self->flags_key, "loc", record.name, NULL)
+        && edp_ensure_doc(ui, EDITOR_DOC_CFG, self->flags_key) )
+        snprintf(self->flags_name, sizeof(self->flags_name), "%s", record.name);
+    Editor_HostCatalogRecordFree(&record);
+}
+
+/** Show the subject's block. Asked every frame: parses only when the subject
+ *  or the document (an edit, an undo) moved. */
+static void
+locs_flags_refresh(
+    struct EditorUi* ui,
+    struct LocsPanel* self)
+{
+    int shape = -1;
+    int const loc_id = locs_subject(ui, &shape);
+    struct Editor_DocHandle handle;
+    char line[TORIRS_CHROME_LABEL_MAX];
+    const char* type;
+    int contour;
+
+    if( loc_id != self->flags_loc_id )
+        locs_flags_subject(ui, self, loc_id);
+    if( !self->flags_name[0] || !ui->editor
+        || !Editor_DocFind(&ui->editor->doc, EDITOR_DOC_CFG, self->flags_key, &handle) || !handle.text
+        || !handle.text->text )
+    {
+        if( loc_id < 0 )
+            snprintf(line, sizeof(line), "Type flags: select a loc");
+        else
+            snprintf(line, sizeof(line), "Type flags: loc %d has no record to edit", loc_id);
+        ToriRSChrome_SetText(ui->chrome, self->label_flags, line);
+        locs_flags_set_hidden(ui, self, 1);
+        self->flags_read = 0;
+        return;
+    }
+    if( self->flags_read && handle.text->revision == self->flags_revision )
+        return;
+    self->flags_read = 1;
+    self->flags_revision = handle.text->revision;
+
+    Editor_CfgRecordFree(&self->flags_record);
+    Editor_CfgRecordInit(&self->flags_record, "loc", self->flags_name);
+    (void)Editor_CfgRecordAddLayer(&self->flags_record, NULL, handle.text->text, handle.text->length);
+    Editor_CfgRecordResolve(&self->flags_record, NULL, 0);
+
+    snprintf(line, sizeof(line), "Type flags: %s (every placement)", self->flags_name);
+    ToriRSChrome_SetText(ui->chrome, self->label_flags, line);
+    locs_flags_set_hidden(ui, self, 0);
+    for( int i = 0; i < LOCS_FLAG_COUNT; i++ )
+        ToriRSChrome_SetChecked(
+            ui->chrome, self->check_flags[i], strcmp(locs_flags_value(self, k_flags[i].key), k_flags[i].word) == 0);
+    for( int i = 0; i < LOCS_VALUE_COUNT; i++ )
+        ToriRSChrome_SetText(ui->chrome, self->input_values[i], locs_flags_value(self, k_values[i].key));
+    type = locs_flags_value(self, "contourgroundtype");
+    contour = strcmp(type, "default") == 0 ? 0
+              : strcmp(type, "1") == 0     ? 1
+              : strcmp(type, "2") == 0     ? 2
+                                           : LOCS_CONTOUR_OTHER;
+    ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_contour, contour);
+    ToriRSChrome_SetText(
+        ui->chrome, self->input_contour_height, contour == 2 ? locs_flags_value(self, "contourgroundparam") : "");
+}
+
+/** One field's commands onto the batch. 0 when the block cannot say it. */
+static int
+locs_flags_add(
+    struct LocsPanel* self,
+    const char* key,
+    const char* value,
+    int* count)
+{
+    int const made = Editor_CfgRecordFieldCommands(
+        &self->flags_record, key, "", 0, value, 0, self->flags_commands + *count, LOCS_FLAG_COMMANDS - *count);
+    if( made < 0 )
+        return 0;
+    *count += made;
+    return 1;
+}
+
+/** The batch as one undo step. The next tick shows what the block holds. */
+static void
+locs_flags_commit(
+    struct EditorUi* ui,
+    struct LocsPanel* self,
+    int count)
+{
+    self->flags_read = 0;
+    if( count > 0 && edp_apply(ui, self->flags_commands, count, "edit loc type") > 0 )
+        Editor_UiStatus(ui, "%s changed for every placement (unsaved; Save writes it, RUN builds it)", self->flags_name);
+}
+
+static void
+locs_flag_toggle(
+    struct EditorUi* ui,
+    struct LocsPanel* self,
+    int flag)
+{
+    int count = 0;
+
+    if( !self->flags_read )
+        return;
+    if( !locs_flags_add(self, k_flags[flag].key,
+            ToriRSChrome_Checked(ui->chrome, self->check_flags[flag]) ? k_flags[flag].word : "default", &count) )
+    {
+        Editor_UiStatus(ui, "Set refused: %s cannot be written that way", k_flags[flag].key);
+        self->flags_read = 0;
+        return;
+    }
+    locs_flags_commit(ui, self, count);
+}
+
+/** A typed value as the block spells it: empty or "default" is the default,
+ *  otherwise a whole number in [min, max]. 0 when it is neither. */
+static int
+locs_value_parse(
+    const char* text,
+    int min,
+    int max,
+    char* out,
+    size_t out_size)
+{
+    char* end = NULL;
+    long value;
+
+    if( !text[0] || strcmp(text, "default") == 0 )
+    {
+        snprintf(out, out_size, "default");
+        return 1;
+    }
+    value = strtol(text, &end, 10);
+    if( *end || value < min || value > max )
+        return 0;
+    snprintf(out, out_size, "%ld", value);
+    return 1;
+}
+
+/** The contour control's three keys onto the batch. 0 and a refusal said when
+ *  the height is not one cachepack takes. */
+static int
+locs_flags_add_contour(
+    struct EditorUi* ui,
+    struct LocsPanel* self,
+    int* count)
+{
+    int const row = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_contour);
+    char height[16];
+
+    if( row == 0 )
+        return locs_flags_add(self, "contourgroundtype", "default", count)
+               && locs_flags_add(self, "contourground", "default", count)
+               && locs_flags_add(self, "contourgroundparam", "default", count);
+    if( row == 1 )
+        return locs_flags_add(self, "contourgroundtype", "1", count) && locs_flags_add(self, "contourground", "0", count)
+               && locs_flags_add(self, "contourgroundparam", "default", count);
+    if( row != 2 )
+        return 1;
+    if( !locs_value_parse(
+            ToriRSChrome_Text(ui->chrome, self->input_contour_height), 0, 65280, height, sizeof(height))
+        || strcmp(height, "default") == 0 || strtol(height, NULL, 10) % 256 != 0 )
+    {
+        Editor_UiStatus(ui, "Apply refused: Keep height needs a Contour height that is a multiple of 256, 0 to 65280");
+        return 0;
+    }
+    return locs_flags_add(self, "contourgroundtype", "2", count) && locs_flags_add(self, "contourground", height, count)
+           && locs_flags_add(self, "contourgroundparam", height, count);
+}
+
+static void
+locs_flags_apply_values(
+    struct EditorUi* ui,
+    struct LocsPanel* self)
+{
+    int count = 0;
+
+    if( !self->flags_read || !locs_flags_add_contour(ui, self, &count) )
+        return;
+    for( int i = 0; i < LOCS_VALUE_COUNT; i++ )
+    {
+        char value[16];
+        if( !locs_value_parse(ToriRSChrome_Text(ui->chrome, self->input_values[i]), k_values[i].min, k_values[i].max,
+                value, sizeof(value)) )
+        {
+            Editor_UiStatus(ui, "Apply refused: %s needs a whole number from %d to %d", k_values[i].label,
+                k_values[i].min, k_values[i].max);
+            return;
+        }
+        if( !locs_flags_add(self, k_values[i].key, value, &count) )
+        {
+            Editor_UiStatus(ui, "Apply refused: %s cannot be written that way", k_values[i].key);
+            return;
+        }
+    }
+    locs_flags_commit(ui, self, count);
+}
+
 /** Follow: the camera onto the row's loc, keeping its yaw and pitch. */
 static void
 locs_follow_row(
@@ -643,6 +942,7 @@ locs_tick(
     }
 
     locs_info_refresh(ui, self);
+    locs_flags_refresh(ui, self);
     {
         const char* filter = ToriRSChrome_Text(ui->chrome, self->input_find);
         if( !filter )
@@ -709,8 +1009,23 @@ locs_activate(
     }
     if( widget == self->input_find || widget == self->input_stamp_name || widget == self->check_follow
         || widget == self->check_stamp_tiles || widget == self->check_stamp_spawns
-        || widget == self->check_stamp_overwrite )
+        || widget == self->check_stamp_overwrite || widget == self->dropdown_contour
+        || widget == self->input_contour_height )
         return 1;
+    for( int i = 0; i < LOCS_VALUE_COUNT; i++ )
+        if( widget == self->input_values[i] )
+            return 1;
+    for( int i = 0; i < LOCS_FLAG_COUNT; i++ )
+        if( widget == self->check_flags[i] )
+        {
+            locs_flag_toggle(ui, self, i);
+            return 1;
+        }
+    if( widget == self->button_flags_apply )
+    {
+        locs_flags_apply_values(ui, self);
+        return 1;
+    }
     for( int i = 0; i < self->strip_count; i++ )
         if( widget == self->strip_buttons[i] )
         {
@@ -792,10 +1107,25 @@ locs_destroy(
     struct EditorUi* ui,
     void* opaque)
 {
+    struct LocsPanel* self = opaque;
+
     (void)ui;
     if( g_locs == opaque )
         g_locs = NULL;
+    Editor_CfgRecordFree(&self->flags_record);
     ToriMem_Free(ToriMem_Editor(), opaque);
+}
+
+/** A command button: the plate takes the panel's width. */
+static int
+locs_button(
+    struct ToriRSChrome* chrome,
+    int panel,
+    const char* caption)
+{
+    int const button = ToriRSChrome_Button(chrome, panel, caption);
+    ToriRSChrome_ButtonSetFill(chrome, button, 1);
+    return button;
 }
 
 void
@@ -832,33 +1162,39 @@ Editor_Locs_Register(struct EditorUi* ui)
     self->row_multiloc = ToriRSChrome_Label(chrome, self->panel, "");
     ToriRSChrome_SetTooltip(chrome, self->row_multiloc,
         "Is the primary a shell? Shells using it are not indexed yet");
-    self->button_north = ToriRSChrome_Button(chrome, self->panel, "Nudge north");
-    self->button_south = ToriRSChrome_Button(chrome, self->panel, "Nudge south");
-    self->button_west = ToriRSChrome_Button(chrome, self->panel, "Nudge west");
-    self->button_east = ToriRSChrome_Button(chrome, self->panel, "Nudge east");
-    self->button_rotate = ToriRSChrome_Button(chrome, self->panel, "Rotate");
-    self->button_reshape = ToriRSChrome_Button(chrome, self->panel, "Reshape");
-    self->button_duplicate = ToriRSChrome_Button(chrome, self->panel, "Duplicate");
-    self->button_delete = ToriRSChrome_Button(chrome, self->panel, "Delete");
-    self->button_swap = ToriRSChrome_Button(chrome, self->panel, "Swap to catalog pick");
-    self->button_fit = ToriRSChrome_Button(chrome, self->panel, "Fit selection to neighbours");
-    self->button_level_up = ToriRSChrome_Button(chrome, self->panel, "Up a level");
-    self->button_level_down = ToriRSChrome_Button(chrome, self->panel, "Down a level");
-    self->button_find_same = ToriRSChrome_Button(chrome, self->panel, "Find same");
+    self->button_north = locs_button(chrome, self->panel, "Nudge north");
+    self->button_south = locs_button(chrome, self->panel, "Nudge south");
+    self->button_west = locs_button(chrome, self->panel, "Nudge west");
+    self->button_east = locs_button(chrome, self->panel, "Nudge east");
+    self->button_rotate = locs_button(chrome, self->panel, "Rotate");
+    self->button_reshape = locs_button(chrome, self->panel, "Reshape");
+    self->button_duplicate = locs_button(chrome, self->panel, "Duplicate");
+    self->button_delete = locs_button(chrome, self->panel, "Delete");
+    self->button_swap = locs_button(chrome, self->panel, "Swap to catalog pick");
+    self->button_fit = locs_button(chrome, self->panel, "Fit selection to neighbours");
+    self->button_level_up = locs_button(chrome, self->panel, "Up a level");
+    self->button_level_down = locs_button(chrome, self->panel, "Down a level");
+    self->button_find_same = locs_button(chrome, self->panel, "Find same");
     ToriRSChrome_SetTooltip(chrome, self->button_find_same,
         "Select every loc of this id on its level, open squares");
     locs_hints(ui, self);
     ToriRSChrome_Separator(chrome, self->panel);
-    /* Save as stamp (editor/stamps/<name>.stamp): the Catalog's Stamps
-     * places it again. */
-    self->input_stamp_name = ToriRSChrome_TextInput(chrome, self->panel, "Stamp name", "");
-    ToriRSChrome_SetTooltip(chrome, self->input_stamp_name, "letters, digits, _ and -");
-    self->check_stamp_tiles = ToriRSChrome_Checkbox(chrome, self->panel, "with the terrain under it", 0);
-    self->check_stamp_spawns = ToriRSChrome_Checkbox(chrome, self->panel, "with the spawns on it", 0);
-    self->check_stamp_overwrite = ToriRSChrome_Checkbox(chrome, self->panel, "Overwrite a stamp of that name", 0);
-    self->button_save_stamp = ToriRSChrome_Button(chrome, self->panel, "Save as stamp...");
-    ToriRSChrome_SetTooltip(chrome, self->button_save_stamp,
-        "Save the selection to editor/stamps/<name>.stamp");
+    /* Type flags: the subject's record, shown once a loc is the subject. */
+    self->flags_loc_id = -2;
+    self->label_flags = ToriRSChrome_Label(chrome, self->panel, "Type flags: select a loc");
+    for( int i = 0; i < LOCS_FLAG_COUNT; i++ )
+        self->check_flags[i] = ToriRSChrome_Checkbox(chrome, self->panel, k_flags[i].label, 0);
+    self->dropdown_contour = ToriRSChrome_Dropdown(chrome, self->panel, "Contour", k_contour_names, 4, 0);
+    self->input_contour_height = ToriRSChrome_TextInput(chrome, self->panel, "Contour height", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_contour_height, "Keep height only: a multiple of 256, 0 to 65280");
+    for( int i = 0; i < LOCS_VALUE_COUNT; i++ )
+    {
+        self->input_values[i] = ToriRSChrome_TextInput(chrome, self->panel, k_values[i].label, "");
+        ToriRSChrome_SetTooltip(chrome, self->input_values[i], k_values[i].tip);
+    }
+    self->button_flags_apply = locs_button(chrome, self->panel, "Apply values");
+    ToriRSChrome_SetTooltip(chrome, self->button_flags_apply, "Write Contour and the numbers above: one undo step");
+    locs_flags_set_hidden(ui, self, 1);
     ToriRSChrome_Separator(chrome, self->panel);
     /* The shape strip: the subject's shapes as thumbnails (the App renders
      * them, Editor_Locs_ShapeStrip, and hands the picture back,
@@ -869,7 +1205,7 @@ Editor_Locs_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->strip_view, "Click a shape to reshape");
     for( int i = 0; i < LOCS_STRIP_MAX; i++ )
     {
-        self->strip_buttons[i] = ToriRSChrome_Button(chrome, self->panel, "");
+        self->strip_buttons[i] = locs_button(chrome, self->panel, "");
         ToriRSChrome_SetHidden(chrome, self->strip_buttons[i], 1);
     }
     ToriRSChrome_Separator(chrome, self->panel);
@@ -878,8 +1214,21 @@ Editor_Locs_Register(struct EditorUi* ui)
     self->check_fit = ToriRSChrome_Checkbox(chrome, self->panel, "Fit walls to neighbours", edp_place_fit_enabled(ui));
     self->dropdown_rotation = ToriRSChrome_Dropdown(
         chrome, self->panel, "Rotation", k_rotation_names, 4, ui->tools.place_rotation & 3);
+    ToriRSChrome_Separator(chrome, self->panel);
+    /* Save as stamp (editor/stamps/<name>.stamp): the Catalog's Stamps
+     * places it again. */
+    self->input_stamp_name = ToriRSChrome_TextInput(chrome, self->panel, "Stamp name", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_stamp_name, "letters, digits, _ and -");
+    self->check_stamp_tiles = ToriRSChrome_Checkbox(chrome, self->panel, "with the terrain under it", 0);
+    self->check_stamp_spawns = ToriRSChrome_Checkbox(chrome, self->panel, "with the spawns on it", 0);
+    self->check_stamp_overwrite = ToriRSChrome_Checkbox(chrome, self->panel, "Overwrite a stamp of that name", 0);
+    self->button_save_stamp = locs_button(chrome, self->panel, "Save as stamp...");
+    ToriRSChrome_SetTooltip(chrome, self->button_save_stamp,
+        "Save the selection to editor/stamps/<name>.stamp");
     ToriRSChrome_PanelSetScrollable(chrome, self->panel, 1);
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);
+    /* The rows outgrow any window: scroll them, not over the Output panel. */
+    ToriRSChrome_PanelSetFixedHeight(chrome, self->panel, edp_px(ui, 480));
     ToriRSChrome_PanelSetVisible(chrome, self->panel, 0);
 
     memset(&desc, 0, sizeof(desc));

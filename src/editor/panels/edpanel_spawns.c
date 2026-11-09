@@ -69,17 +69,24 @@
 #include "edpanel_common.h"
 #include "edpanel_ops.h"
 #include "edpanels.h"
+#include "editor/builder/builder_panels.h"
+#include "editor/editor_npc.h"
 #include "editor/map_editor_ghost.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define SPAWNS_ROWS_MAX 1024
-#define SPAWNS_LIST_ROWS 10
+/** Rows the list shows at once: fewer than before, so the Edit form below
+ *  it fits the column in the default layout (D11). */
+#define SPAWNS_LIST_ROWS 8
+/** Display names the rows show, remembered per spawn name. */
+#define SPAWNS_DISPLAY_NAMES 128
 /** Rows one selection (and so one Duplicate) holds. */
 #define SPAWNS_SELECTION_MAX 64
 
@@ -119,10 +126,18 @@ struct SpawnsPreviewSquare
 struct SpawnsWanderEntry
 {
     char name[EDITOR_CMD_NAME_MAX];
-    int wanderrange;
-    int maxrange;
-    /** 1 when no record stated a value and the engine defaults stand. */
-    int defaulted;
+    /** What the merged record states (editor_npc.h); the preview draws
+     *  its EFFECTIVE behaviour (a patroller's route, a wanderer's square,
+     *  a nomove's pin), never the raw wanderrange (D10). */
+    struct Editor_NpcMovement movement;
+};
+
+/** A spawn name's display name ("hans" -> "Hans"), from the catalog. */
+struct SpawnsDisplayName
+{
+    char name[EDITOR_CMD_NAME_MAX];
+    int is_obj;
+    char display[48];
 };
 
 struct SpawnsListRow
@@ -139,6 +154,10 @@ struct SpawnsPanel
 {
     int panel;
     int row_square;
+    /** Find: the list shows the rows whose name, display name, tile or
+     *  file word holds every term (D11). */
+    int input_find;
+    char find[64];
     int list;
     int button_delete;
     int button_restore;
@@ -232,6 +251,11 @@ struct SpawnsPanel
 
     struct SpawnsListRow rows[SPAWNS_ROWS_MAX];
     int row_count;
+    /** The list's row i is rows[shown[i]] (the Find box's filter). */
+    int shown[SPAWNS_ROWS_MAX];
+    int shown_count;
+    struct SpawnsDisplayName displays[SPAWNS_DISPLAY_NAMES];
+    int display_count;
     /** The multi-selection, by row CONTENT (a rebuild reorders the list,
      *  an edit elsewhere in the file moves line numbers). */
     struct Editor_SpawnRow selection[SPAWNS_SELECTION_MAX];
@@ -395,6 +419,144 @@ spawns_selection_prune(struct SpawnsPanel* self)
     self->selection_count = kept;
 }
 
+/** The display name of a row's record, "" while unknown. Asked of the
+ *  catalog once per name; a busy index is asked again. */
+static const char*
+spawns_display(
+    struct EditorUi* ui,
+    struct SpawnsPanel* self,
+    const struct Editor_SpawnRow* row)
+{
+    struct EditorHost_CatalogRecord record;
+    struct SpawnsDisplayName* entry;
+    enum EditorHost_Status status;
+
+    for( int i = 0; i < self->display_count; i++ )
+        if( self->displays[i].is_obj == row->is_obj && strcmp(self->displays[i].name, row->name) == 0 )
+            return self->displays[i].display;
+    if( !ui->editor || !(ui->editor->capabilities & TORIRSMAPED_CAP_CATALOG) )
+        return "";
+    memset(&record, 0, sizeof(record));
+    status = Editor_HostMapEdCatalogRecord(&ui->editor->host, row->is_obj ? TORIRSMAPED_CATALOG_OBJ : TORIRSMAPED_CATALOG_NPC,
+        row->name[0] == '#' ? (int32_t)atoi(row->name + 1) : -1, row->name[0] == '#' ? "" : row->name, &record);
+    if( status == EDITOR_HOST_BUSY )
+    {
+        Editor_HostCatalogRecordFree(&record);
+        return "";
+    }
+    if( self->display_count == SPAWNS_DISPLAY_NAMES )
+        self->display_count = 0;
+    entry = &self->displays[self->display_count++];
+    memset(entry, 0, sizeof(*entry));
+    snprintf(entry->name, sizeof(entry->name), "%s", row->name);
+    entry->is_obj = row->is_obj;
+    if( status == EDITOR_HOST_OK && record.display && record.display[0] && strcmp(record.display, row->name) != 0 )
+        snprintf(entry->display, sizeof(entry->display), "%s", record.display);
+    Editor_HostCatalogRecordFree(&record);
+    return entry->display;
+}
+
+/** One list row's text. */
+static void
+spawns_row_text(
+    struct EditorUi* ui,
+    struct SpawnsPanel* self,
+    const struct SpawnsListRow* row,
+    char* out,
+    size_t out_size)
+{
+    const char* display = spawns_display(ui, self, &row->row);
+    snprintf(out, out_size, "%s%c %s %s%s%s%s %d %d %d%s", spawns_selection_find(self, &row->row) >= 0 ? "* " : "",
+        row->edited ? (row->row.suppress ? '-' : '+') : row->suppressed ? '-' : row->scripted ? '~' : ' ',
+        row->row.is_obj ? "obj" : "npc", row->row.name, display[0] ? " (" : "", display, display[0] ? ")" : "",
+        row->row.abs_x, row->row.abs_z, row->row.level,
+        row->suppressed ? "  (suppressed)" : row->row.suppress ? "  (suppression row)" : "");
+}
+
+/** Case-insensitive: every whitespace-separated term of `find` in `text`. */
+static int
+spawns_row_matches(
+    const char* text,
+    const char* find)
+{
+    const char* at = find;
+
+    while( *at )
+    {
+        char term[64];
+        size_t n = 0;
+        size_t hay_length;
+        int found = 0;
+        while( *at == ' ' )
+            at++;
+        while( *at && *at != ' ' && n + 1 < sizeof(term) )
+            term[n++] = (char)tolower((unsigned char)*at++);
+        term[n] = '\0';
+        if( n == 0 )
+            break;
+        hay_length = strlen(text);
+        for( size_t i = 0; i + n <= hay_length && !found; i++ )
+        {
+            size_t k = 0;
+            while( k < n && tolower((unsigned char)text[i + k]) == (unsigned char)term[k] )
+                k++;
+            found = k == n;
+        }
+        if( !found )
+            return 0;
+    }
+    return 1;
+}
+
+/** The list's rows from the panel's, through the Find box. */
+static void
+spawns_filter(
+    struct EditorUi* ui,
+    struct SpawnsPanel* self)
+{
+    int first;
+    int shown;
+
+    self->shown_count = 0;
+    for( int r = 0; r < self->row_count; r++ )
+    {
+        if( self->find[0] )
+        {
+            char text[TORIRS_CHROME_INPUT_MAX];
+            spawns_row_text(ui, self, &self->rows[r], text, sizeof(text));
+            if( !spawns_row_matches(text, self->find) )
+                continue;
+        }
+        self->shown[self->shown_count++] = r;
+    }
+    ToriRSChrome_VListSetCount(ui->chrome, self->list, self->shown_count);
+    if( ToriRSChrome_VListWindow(ui->chrome, self->list, &first, &shown) )
+        for( int r = first; r < first + shown; r++ )
+            ToriRSChrome_VListSetRow(ui->chrome, self->list, r, "");
+}
+
+/** The list row a panel row is shown at, -1 when the Find box hides it. */
+static int
+spawns_list_index(
+    const struct SpawnsPanel* self,
+    int row)
+{
+    for( int i = 0; i < self->shown_count; i++ )
+        if( self->shown[i] == row )
+            return i;
+    return -1;
+}
+
+/** The panel row the list's selected row is, -1 for none. */
+static int
+spawns_list_picked(
+    struct EditorUi* ui,
+    const struct SpawnsPanel* self)
+{
+    int const at = ToriRSChrome_VListSelected(ui->chrome, self->list);
+    return at >= 0 && at < self->shown_count ? self->shown[at] : -1;
+}
+
 static void
 spawns_rebuild(
     struct EditorUi* ui,
@@ -439,16 +601,9 @@ spawns_rebuild(
             self->row_count++;
         }
     }
-    ToriRSChrome_VListSetCount(ui->chrome, self->list, self->row_count);
     spawns_selection_prune(self);
     /* Every visible row's text is stale now. */
-    {
-        int first;
-        int shown;
-        if( ToriRSChrome_VListWindow(ui->chrome, self->list, &first, &shown) )
-            for( int r = first; r < first + shown; r++ )
-                ToriRSChrome_VListSetRow(ui->chrome, self->list, r, "");
-    }
+    spawns_filter(ui, self);
 }
 
 static void
@@ -519,7 +674,7 @@ spawns_env_step(
             self->selection[0] = self->rows[r].row;
             self->selection_count = 1;
             self->form_valid = 0;
-            ToriRSChrome_VListSetSelected(ui->chrome, self->list, r);
+            self->reveal_pending = 1;
             g_spawns_env.done = 1;
             /* For the photograph: over the right column, so the world's
              * middle (where the selected spawn and its ring are) stays clear. */
@@ -673,15 +828,27 @@ spawns_tick(
         ToriRSChrome_SetText(ui->chrome, self->row_square, line);
     }
     spawns_form_refresh(ui, self);
+    /* The Find box filters as it is typed. */
+    {
+        const char* find = ToriRSChrome_Text(ui->chrome, self->input_find);
+        if( strcmp(self->find, find ? find : "") != 0 )
+        {
+            snprintf(self->find, sizeof(self->find), "%s", find ? find : "");
+            spawns_filter(ui, self);
+        }
+    }
     if( self->reveal_pending && self->selection_count > 0 )
     {
-        int const at = spawns_list_find(self, &self->selection[0]);
+        int const r = spawns_list_find(self, &self->selection[0]);
+        int const at = r >= 0 ? spawns_list_index(self, r) : -1;
         if( at >= 0 )
         {
             self->reveal_pending = 0;
             ToriRSChrome_VListSetSelected(ui->chrome, self->list, at);
             ToriRSChrome_VListSetScroll(ui->chrome, self->list, at > 2 ? at - 2 : 0);
         }
+        else if( r >= 0 )
+            self->reveal_pending = 0; /* hidden by the Find box */
     }
     if( self->tab_scroll_pending )
     {
@@ -698,15 +865,10 @@ spawns_tick(
     }
     if( !ToriRSChrome_VListWindow(ui->chrome, self->list, &first, &shown) )
         return;
-    for( int r = first; r < first + shown && r < self->row_count; r++ )
+    for( int r = first; r < first + shown && r < self->shown_count; r++ )
     {
-        const struct SpawnsListRow* row = &self->rows[r];
         char text[TORIRS_CHROME_INPUT_MAX];
-        snprintf(text, sizeof(text), "%s%c %s %s %d %d %d%s", spawns_selection_find(self, &row->row) >= 0 ? "* " : "",
-            row->edited ? (row->row.suppress ? '-' : '+') : row->suppressed ? '-' : row->scripted ? '~' : ' ',
-            row->row.is_obj ? "obj" : "npc",
-            row->row.name, row->row.abs_x, row->row.abs_z, row->row.level,
-            row->suppressed ? "  (suppressed)" : row->row.suppress ? "  (suppression row)" : "");
+        spawns_row_text(ui, self, &self->rows[self->shown[r]], text, sizeof(text));
         ToriRSChrome_VListSetRow(ui->chrome, self->list, r, text);
     }
 }
@@ -716,8 +878,8 @@ spawns_selected(
     struct EditorUi* ui,
     struct SpawnsPanel* self)
 {
-    int const row = ToriRSChrome_VListSelected(ui->chrome, self->list);
-    if( row < 0 || row >= self->row_count )
+    int const row = spawns_list_picked(ui, self);
+    if( row < 0 )
     {
         Editor_UiLog(ui, "editor: pick a spawn in the list first");
         return -1;
@@ -893,10 +1055,10 @@ spawns_select_click(
     struct EditorUi* ui,
     struct SpawnsPanel* self)
 {
-    int const row = ToriRSChrome_VListSelected(ui->chrome, self->list);
+    int const row = spawns_list_picked(ui, self);
     int at;
 
-    if( row < 0 || row >= self->row_count )
+    if( row < 0 )
         return;
     at = spawns_selection_find(self, &self->rows[row].row);
     if( !ui->shift_held )
@@ -1384,38 +1546,20 @@ spawns_edit_use_pick(
 
 /* ---- the wander preview ------------------------------------------------------- */
 
-/** An int field of a catalog record; -1 when absent or not a number. */
-static int
-spawns_record_int(
-    const struct EditorHost_CatalogRecord* record,
-    const char* key)
-{
-    for( int i = 0; i < record->field_count; i++ )
-        if( strcmp(record->fields[i].key, key) == 0 )
-        {
-            char* end = NULL;
-            long value = strtol(record->fields[i].value, &end, 10);
-            if( end && end != record->fields[i].value && *end == '\0' && value >= 0 )
-                return (int)value;
-            return -1;
-        }
-    return -1;
-}
-
-/** The npc's wanderrange / maxrange: the Record panel's (unsaved edits
+/** The npc's movement statements: the Record panel's (unsaved edits
  *  included) when it holds that npc, else the server's catalog (the merged
- *  record), else the engine defaults. Remembered per name until a fact. */
+ *  record), else nothing stated (the engine defaults stand). Remembered per
+ *  name until a fact. */
 static void
-spawns_wander_values(
+spawns_npc_movement(
     struct EditorUi* ui,
     struct SpawnsPanel* self,
     const char* name,
-    int* out_wander,
-    int* out_leash)
+    struct Editor_NpcMovement* out)
 {
     struct SpawnsWanderEntry* entry;
 
-    if( Editor_Record_WanderValues(ui, "npc", name, out_wander, out_leash) )
+    if( Editor_Record_NpcMovement(ui, "npc", name, out) )
         return;
     if( ui->editor && ui->editor->last_cmd_seq != self->wander_seq )
     {
@@ -1425,8 +1569,7 @@ spawns_wander_values(
     for( int i = 0; i < self->wander_count; i++ )
         if( strcmp(self->wander[i].name, name) == 0 )
         {
-            *out_wander = self->wander[i].wanderrange;
-            *out_leash = self->wander[i].maxrange;
+            *out = self->wander[i].movement;
             return;
         }
     if( self->wander_count == SPAWNS_WANDER_CACHE )
@@ -1434,8 +1577,7 @@ spawns_wander_values(
     entry = &self->wander[self->wander_count++];
     memset(entry, 0, sizeof(*entry));
     snprintf(entry->name, sizeof(entry->name), "%s", name);
-    entry->wanderrange = -1;
-    entry->maxrange = -1;
+    Editor_NpcMovementInit(&entry->movement);
     if( ui->editor && (ui->editor->capabilities & TORIRSMAPED_CAP_CATALOG) )
     {
         struct EditorHost_CatalogRecord record;
@@ -1445,18 +1587,34 @@ spawns_wander_values(
                 by_id ? (int32_t)atoi(name + 1) : -1, by_id ? "" : name, &record)
             == EDITOR_HOST_OK )
         {
-            entry->wanderrange = spawns_record_int(&record, "wanderrange");
-            entry->maxrange = spawns_record_int(&record, "maxrange");
+            /* The merged record lists every statement, the later source
+             * over the earlier: feed them in order, the winner lands last. */
+            for( int i = 0; i < record.field_count; i++ )
+                if( record.fields[i].key && record.fields[i].value )
+                    (void)Editor_NpcMovementRead(&entry->movement, record.fields[i].key, record.fields[i].value);
         }
         Editor_HostCatalogRecordFree(&record);
     }
-    entry->defaulted = entry->wanderrange < 0 || entry->maxrange < 0;
-    if( entry->wanderrange < 0 )
-        entry->wanderrange = MAP_EDITOR_WANDER_DEFAULT;
-    if( entry->maxrange < 0 )
-        entry->maxrange = MAP_EDITOR_LEASH_DEFAULT;
-    *out_wander = entry->wanderrange;
-    *out_leash = entry->maxrange;
+    *out = entry->movement;
+}
+
+/** The preview's rectangles for `name` standing at (x, z, level), from its
+ *  effective behaviour (Editor_NpcPreviewRects). */
+static int
+spawns_preview_rects(
+    struct EditorUi* ui,
+    struct SpawnsPanel* self,
+    const char* name,
+    int x,
+    int z,
+    int level,
+    struct MapEditorWanderRect* out,
+    int max)
+{
+    struct Editor_NpcMovement movement;
+
+    spawns_npc_movement(ui, self, name, &movement);
+    return Editor_NpcPreviewRects(&movement, x, z, level, out, max);
 }
 
 static int
@@ -1474,6 +1632,7 @@ spawns_activate(
     }
     if( widget == self->radio_npc || widget == self->radio_obj || widget == self->slider_count
         || widget == self->input_name || widget == self->input_edit_name
+        || widget == self->input_find
         || widget == self->radio_edit_npc || widget == self->radio_edit_obj || widget == self->input_x
         || widget == self->input_z || widget == self->input_level || widget == self->input_count
         || widget == self->check_suppressed || widget == self->check_wander || widget == self->check_preview
@@ -1519,8 +1678,7 @@ spawns_activate(
         if( self->selection_count == 0 )
             Editor_UiLog(ui, "editor: select a spawn first");
         else
-            (void)Editor_Record_Open(ui, self->selection[0].is_obj ? TORIRSMAPED_CATALOG_OBJ : TORIRSMAPED_CATALOG_NPC,
-                self->selection[0].name);
+            (void)Editor_Spawns_EditNpc(ui, &self->selection[0]);
         return 1;
     }
     if( widget == self->button_duplicate )
@@ -1591,6 +1749,8 @@ Editor_Spawns_Register(struct EditorUi* ui)
     self->check_preview = ToriRSChrome_Checkbox(chrome, self->panel, "Show spawns in the world", 0);
     ToriRSChrome_SetTooltip(chrome, self->check_preview, "every spawn of the open squares; click one to select it");
     self->row_square = ToriRSChrome_Label(chrome, self->panel, "");
+    self->input_find = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_find, "a name, display name, tile or file word; every term must match");
     self->list = ToriRSChrome_VList(chrome, self->panel, "", SPAWNS_LIST_ROWS, 0);
     self->button_delete = ToriRSChrome_Button(chrome, self->panel, "Delete / suppress");
     ToriRSChrome_SetTooltip(chrome, self->button_delete,
@@ -1621,8 +1781,8 @@ Editor_Spawns_Register(struct EditorUi* ui)
     self->button_apply = ToriRSChrome_Button(chrome, self->panel, "Apply edit");
     self->button_move = ToriRSChrome_Button(chrome, self->panel, "Move: click a tile");
     ToriRSChrome_SetTooltip(chrome, self->button_move, "the next world click moves the selection");
-    self->button_record = ToriRSChrome_Button(chrome, self->panel, "Edit npc record...");
-    ToriRSChrome_SetTooltip(chrome, self->button_record, "every field of the npc / obj record");
+    self->button_record = ToriRSChrome_Button(chrome, self->panel, "Edit npc...");
+    ToriRSChrome_SetTooltip(chrome, self->button_record, "the NPC editor on this npc; an obj opens its Record");
     ToriRSChrome_PanelBeginTab(chrome, self->panel, 1);
     self->input_name = ToriRSChrome_TextInput(chrome, self->panel, "Name", "");
     self->radio_npc = ToriRSChrome_Radio(chrome, self->panel, "npc", SPAWNS_GROUP_KIND, 1);
@@ -1795,6 +1955,174 @@ Editor_Spawns_SetEditForm(
     return spawns_apply_form(ui, self);
 }
 
+static struct SpawnsPreviewSquare*
+spawns_preview_square(
+    struct EditorUi* ui,
+    struct SpawnsPanel* self,
+    int map_x,
+    int map_z);
+
+static void
+spawns_preview_load_square(
+    struct EditorUi* ui,
+    struct SpawnsPreviewSquare* slot,
+    int* open_budget);
+
+int
+Editor_Spawns_RowsOf(
+    struct EditorUi* ui,
+    const char* name,
+    int id,
+    struct MapEditorSpawnPreviewRow* out,
+    int max)
+{
+    struct SpawnsPanel* self;
+    struct Editor_Doc* doc;
+    char by_id[16];
+    int count = 0;
+    int open_budget = EDITOR_DOC_MAX_SQUARES;
+
+    assert(ui);
+    assert(name);
+    assert(out || max == 0);
+    self = Editor_UiPanelSelf(ui, "spawns");
+    if( !self || !ui->editor )
+        return 0;
+    snprintf(by_id, sizeof(by_id), "#%d", id);
+    doc = &ui->editor->doc;
+    for( int s2 = 0; s2 < doc->square_count && count < max; s2++ )
+    {
+        struct SpawnsPreviewSquare* slot;
+        const struct Editor_SpawnFile* edited;
+        if( !doc->squares[s2].loaded )
+            continue;
+        slot = spawns_preview_square(ui, self, doc->squares[s2].map_x, doc->squares[s2].map_z);
+        spawns_preview_load_square(ui, slot, &open_budget);
+        edited = spawns_edited(ui, slot->map_x, slot->map_z);
+        for( int pass = 0; pass < 3 && count < max; pass++ )
+        {
+            const struct Editor_SpawnFile* file = pass == 0 ? edited : pass == 1 ? &slot->generated : &slot->scripted;
+            if( !file )
+                continue;
+            for( int i = 0; i < file->line_count && count < max; i++ )
+            {
+                const struct Editor_SpawnLine* line = &file->lines[i];
+                if( line->kind != EDITOR_SPAWN_LINE_ROW || line->row.suppress || line->row.is_obj )
+                    continue;
+                if( strcmp(line->row.name, name) != 0 && !(id >= 0 && strcmp(line->row.name, by_id) == 0) )
+                    continue;
+                memset(&out[count], 0, sizeof(out[count]));
+                out[count].row = line->row;
+                out[count].edited = pass == 0;
+                out[count].scripted = pass == 2;
+                out[count].suppressed = pass > 0 && Editor_SpawnIsSuppressed(edited, &line->row);
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
+int
+Editor_Spawns_DeleteRow(
+    struct EditorUi* ui,
+    const struct MapEditorSpawnPreviewRow* row)
+{
+    struct Editor_Cmd command;
+    struct Editor_SpawnFile* edited;
+    char key[EDITOR_DOC_KEY_MAX];
+
+    assert(ui);
+    assert(row);
+    if( row->suppressed )
+    {
+        Editor_UiLog(ui, "editor: %s at %d,%d is already suppressed", row->row.name, row->row.abs_x, row->row.abs_z);
+        return 0;
+    }
+    Editor_SpawnDocKeyAt(key, row->row.abs_x, row->row.abs_z);
+    if( !edp_ensure_doc(ui, EDITOR_DOC_SPAWN, key) )
+    {
+        Editor_UiLog(ui, "editor: could not open the spawn document %s", key);
+        return 0;
+    }
+    edited = spawns_edited(ui, row->row.abs_x / EDITOR_SQUARE_X, row->row.abs_z / EDITOR_SQUARE_Z);
+    if( !row->edited && !edited )
+    {
+        Editor_UiLog(ui, "editor: the edited spawn file is not open; suppression refused");
+        return 0;
+    }
+    if( !Editor_SpawnDeleteCommand(row->edited ? edited : NULL, &row->row, &command) )
+        return 0;
+    return edp_apply(ui, &command, 1, command.kind == EDITOR_CMD_SPAWN_SUPPRESS ? "suppress" : "delete spawn");
+}
+
+int
+Editor_Spawns_PlaceRow(
+    struct EditorUi* ui,
+    const struct Editor_SpawnRow* row)
+{
+    struct Editor_Cmd command;
+    char key[EDITOR_DOC_KEY_MAX];
+
+    assert(ui);
+    assert(row);
+    if( !Editor_SpawnRowValid(row) )
+    {
+        Editor_UiLog(ui, "editor: %s is not a spawn row", row->name);
+        return 0;
+    }
+    Editor_SpawnDocKeyAt(key, row->abs_x, row->abs_z);
+    if( !edp_ensure_doc(ui, EDITOR_DOC_SPAWN, key) )
+    {
+        Editor_UiLog(ui, "editor: could not open the spawn document %s", key);
+        return 0;
+    }
+    Editor_SpawnCommand(&command, row, 1);
+    return edp_apply(ui, &command, 1, "place spawn");
+}
+
+int
+Editor_Spawns_EditNpc(
+    struct EditorUi* ui,
+    const struct Editor_SpawnRow* row)
+{
+    char name[EDITOR_CMD_NAME_MAX];
+
+    assert(ui);
+    assert(row);
+    if( row->is_obj || !Editor_UiFindPanel(ui, BUILDER_PANEL_NPC) )
+        return Editor_Record_Open(ui, row->is_obj ? TORIRSMAPED_CATALOG_OBJ : TORIRSMAPED_CATALOG_NPC, row->name);
+    /* A `#<id>` row: the record's name, from the catalog. */
+    snprintf(name, sizeof(name), "%s", row->name);
+    if( name[0] == '#' )
+    {
+        struct EditorHost_CatalogRecord record;
+        memset(&record, 0, sizeof(record));
+        if( !ui->editor
+            || Editor_HostMapEdCatalogRecord(&ui->editor->host, TORIRSMAPED_CATALOG_NPC, (int32_t)atoi(name + 1), "",
+                   &record)
+                   != EDITOR_HOST_OK
+            || !record.name || strlen(record.name) >= sizeof(name) )
+        {
+            Editor_HostCatalogRecordFree(&record);
+            Editor_UiStatus(ui, "Edit npc refused: npc %s has no record name the catalog knows", name);
+            return 0;
+        }
+        snprintf(name, sizeof(name), "%s", record.name);
+        Editor_HostCatalogRecordFree(&record);
+    }
+    if( !Builder_PanelOpenSubject(ui, BUILDER_PANEL_NPC, name) )
+    {
+        Editor_UiStatus(ui, "Edit npc: the NPC editor could not open %s (see its status); opening its Record", name);
+        return Editor_Record_Open(ui, TORIRSMAPED_CATALOG_NPC, name);
+    }
+    if( Editor_UiPanelInStrip(ui, BUILDER_PANEL_NPC) )
+        Editor_UiGroupShow(ui, BUILDER_PANEL_NPC);
+    else if( Editor_UiTogglePanel(ui, BUILDER_PANEL_NPC) == 0 )
+        (void)Editor_UiTogglePanel(ui, BUILDER_PANEL_NPC);
+    return 1;
+}
+
 int
 Editor_Spawns_Select(
     struct EditorUi* ui,
@@ -1812,6 +2140,8 @@ Editor_Spawns_Select(
     memcpy(self->selection, rows, sizeof(*rows) * (size_t)count);
     self->selection_count = count;
     self->form_valid = 0;
+    /* The list follows the selection (D11: it stayed at the top). */
+    self->reveal_pending = count > 0;
     return count;
 }
 
@@ -1845,8 +2175,6 @@ Editor_Spawns_WanderRects(
 {
     struct SpawnsPanel* self;
     int count = 0;
-    int wander;
-    int leash;
 
     assert(ui);
     assert(out || max == 0);
@@ -1859,8 +2187,7 @@ Editor_Spawns_WanderRects(
     {
         char name[16];
         snprintf(name, sizeof(name), "#%d", ghost_npc_id);
-        spawns_wander_values(ui, self, name, &wander, &leash);
-        count += MapEditorWander_Rects(hover_x, hover_z, hover_level, 1, wander, leash, out + count, max - count);
+        count += spawns_preview_rects(ui, self, name, hover_x, hover_z, hover_level, out + count, max - count);
     }
     if( !spawns_open(ui, self) )
         return count;
@@ -1870,8 +2197,8 @@ Editor_Spawns_WanderRects(
         int const r = spawns_list_find(self, row);
         if( row->is_obj || r < 0 || spawns_row_suppressed(&self->rows[r]) )
             continue;
-        spawns_wander_values(ui, self, row->name, &wander, &leash);
-        count += MapEditorWander_Rects(row->abs_x, row->abs_z, row->level, 1, wander, leash, out + count, max - count);
+        count += spawns_preview_rects(ui, self, row->name, row->abs_x, row->abs_z, row->level, out + count,
+            max - count);
         /* A pending move: where it would stand, and roam, from the pointer. */
         if( self->move_armed && hover_valid )
         {
@@ -1887,12 +2214,20 @@ Editor_Spawns_WanderRects(
                 out[count].level = hover_level;
                 count++;
             }
-            count += MapEditorWander_Rects(x, z, hover_level, 1, wander, leash, out + count, max - count);
+            count += spawns_preview_rects(ui, self, row->name, x, z, hover_level, out + count, max - count);
         }
         if( i == 0 )
         {
+            /* The status line says what the server will do, not the raw
+             * fields (D10: Hans's wanderrange 5 is dead data). */
             char line[TORIRS_CHROME_LABEL_MAX];
-            snprintf(line, sizeof(line), "%s: wander %d, leash %d", row->name, wander, leash);
+            char sentence[TORIRS_CHROME_LABEL_MAX];
+            struct Editor_NpcMovement movement;
+            struct Editor_NpcEffective effective;
+            spawns_npc_movement(ui, self, row->name, &movement);
+            Editor_NpcEffectiveMode(&movement, &effective);
+            Editor_NpcEffectiveSentence(&movement, &effective, sentence, sizeof(sentence));
+            snprintf(line, sizeof(line), "%s: %s", row->name, sentence);
             ToriRSChrome_SetText(ui->chrome, self->row_wander, line);
         }
     }

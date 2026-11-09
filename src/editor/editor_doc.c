@@ -365,6 +365,20 @@ Editor_DocKeyValid(
             return strlen(name) < 64
                    && key[6] == (isalnum((unsigned char)name[0]) ? (char)tolower((unsigned char)name[0]) : '_');
         }
+        /* An npc's movement ledger, npc_movement/<shard>/<name>.move
+         * (editor_npc.h), shaped as the stats one. */
+        if( strncmp(key, "move:", 5) == 0 )
+        {
+            const char* name = key + 7;
+            size_t const length = strlen(key + 5);
+            if( length < 3 || key[6] != '/' )
+                return 0;
+            for( const char* at = name; *at; at++ )
+                if( !isalnum((unsigned char)*at) && *at != '_' )
+                    return 0;
+            return strlen(name) < 64
+                   && key[5] == (isalnum((unsigned char)name[0]) ? (char)tolower((unsigned char)name[0]) : '_');
+        }
         /* A stamp and the stamps' list (editor_stamps.h): editor/stamps/
          * <name>.stamp and editor/stamps/index.txt. Names are [A-Za-z0-9_-]
          * under 48 bytes, so "index" can never be confused with the list. */
@@ -439,7 +453,10 @@ Editor_DocScratchSlot(
     assert(slot < EDITOR_DOC_SCRATCH_SLOTS);
     assert(out_map_x);
     assert(out_map_z);
-    *out_map_x = 240 + 2 * (slot % 4);
+    /* East of the content and of every shipped square, and below map x 100:
+     * that is the server's instance pool, whose login rescue teleports a
+     * character standing there to the respawn tile. */
+    *out_map_x = 90 + 2 * (slot % 4);
     *out_map_z = 240 + 2 * (slot / 4);
 }
 

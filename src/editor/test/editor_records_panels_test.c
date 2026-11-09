@@ -423,12 +423,12 @@ test_record(void)
     record = Editor_Record_Current(&g_ui);
     CHECK(record && record->layer_count == 3, "record: three layers (%d)", record ? record->layer_count : -1);
     CHECK(Editor_Record_TabCount(&g_ui) == 6, "record: six tabs (%d)", Editor_Record_TabCount(&g_ui));
-    CHECK(strcmp(Editor_Record_TabTitle(&g_ui, 0, &role), "Cache block") == 0 && role == EDITOR_RECORD_TAB_CACHE,
+    CHECK(strcmp(Editor_Record_TabTitle(&g_ui, 0, &role), "cache") == 0 && role == EDITOR_RECORD_TAB_CACHE,
         "record: tab 0 is the cache block");
-    CHECK(strcmp(Editor_Record_TabTitle(&g_ui, 1, &role), "Server overlay server_fields.generated.npc") == 0
+    CHECK(strcmp(Editor_Record_TabTitle(&g_ui, 1, &role), "generated") == 0
               && role == EDITOR_RECORD_TAB_OVERLAY,
         "record: tab 1 is the generated overlay, named by its file (%s)", Editor_Record_TabTitle(&g_ui, 1, &role));
-    CHECK(strcmp(Editor_Record_TabTitle(&g_ui, 2, &role), "Server overlay lumbridge.npc") == 0
+    CHECK(strcmp(Editor_Record_TabTitle(&g_ui, 2, &role), "lumbridge.npc") == 0
               && role == EDITOR_RECORD_TAB_OVERLAY,
         "record: tab 2 is the authored overlay");
     CHECK(strcmp(Editor_Record_TabTitle(&g_ui, 3, &role), "Triggers") == 0 && role == EDITOR_RECORD_TAB_TRIGGERS

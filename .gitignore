@@ -275,3 +275,8 @@ deprecated/pokesprite/assets/*.db-shm
 /tools/proctex_port/gen_verify_rand
 /tools/runescript-lsp/runescript-lsp
 *.dSYM/
+
+# The editor writes its own state beside the binary it was launched from.
+/editor_layout.ini
+/editor_prefs.ini
+/editor_recent.ini

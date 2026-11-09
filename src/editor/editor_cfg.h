@@ -744,9 +744,25 @@ Editor_CfgRecordFindRow(
     int occurrence);
 
 /** Where a field nobody states is added: the highest-precedence layer that
- *  holds the record's block (the one whose statement would win), else 0. */
+ *  holds the record's block (the one whose statement would win), else 0.
+ *  For most npcs that is the GENERATED overlay, which its generator rewrites:
+ *  an editor writes through Editor_CfgRecordWriteLayerFor instead. */
 int
 Editor_CfgRecordAddLayerFor(const struct Editor_CfgRecord* record);
+
+/**
+ * Where an edit of row `row` (-1: a field no row has yet) is written
+ * (docs/NPC_EDITOR_DESIGN.md 3.8): the highest AUTHORED layer (rank 2) that
+ * states the field; else the highest authored layer holding the record's
+ * block; else the highest authored layer the record was opened with (one
+ * the caller added for it, empty); -1 when the record has no authored layer
+ * at all. Never a generated layer, never the cache half -- a client-side
+ * field's edit (the cache block's `name`) is the caller's call.
+ */
+int
+Editor_CfgRecordWriteLayerFor(
+    const struct Editor_CfgRecord* record,
+    int row);
 
 /**
  * The commands that set field (key, sub, occurrence) to `value` ("" removes

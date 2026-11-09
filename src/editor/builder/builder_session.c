@@ -9,10 +9,15 @@
 
 #include "editor/editor.h"
 #include "editor/editor_ui.h"
+#include "editor/editor_doc.h"
+#include "editor/editor_spawn.h"
+#include "editor/map_editor_ghost.h"
+#include "editor/panels/edpanel_npcdoc.h"
 #include "editor/panels/edpanels.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
+#include "ui/uitree_debug_overlay.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -147,8 +152,72 @@ session_record(
         if( value && strcmp(value, "default") != 0 && strcmp(value, "hidden") != 0 )
             snprintf(out->ops[op], sizeof(out->ops[op]), "%s", value);
     }
+    /* The movement statements, the later source over the earlier (the
+     * merged record lists them in merge order, so the winner lands last). */
+    if( subject == BUILDER_SUBJECT_NPC )
+    {
+        Editor_NpcMovementInit(&out->movement);
+        for( int i = 0; i < record.field_count; i++ )
+            if( record.fields[i].key && record.fields[i].value )
+                (void)Editor_NpcMovementRead(&out->movement, record.fields[i].key, record.fields[i].value);
+        out->has_movement = 1;
+    }
     Editor_HostCatalogRecordFree(&record);
     return 1;
+}
+
+/** From selection: the Spawns panel's anchor row for an npc, else the
+ *  Catalog's npc pick; the selected loc for a loc. */
+static int
+session_selection(
+    void* user_data,
+    enum Builder_Subject subject,
+    char* out,
+    size_t out_size)
+{
+    struct EditorUi* ui = user_data;
+
+    assert(ui);
+    assert(out);
+    if( subject == BUILDER_SUBJECT_NPC )
+    {
+        struct Editor_SpawnRow row;
+        if( Editor_UiFindPanel(ui, "spawns") && Editor_Spawns_Selection(ui, &row, 1) >= 1 && !row.is_obj )
+        {
+            snprintf(out, out_size, "%s", row.name);
+            return 1;
+        }
+        if( ui->tools.pick_kind == 1 )
+        {
+            snprintf(out, out_size, "#%d", ui->tools.pick_id);
+            return 1;
+        }
+        return 0;
+    }
+    if( ui->tools.loc_count > 0 )
+    {
+        snprintf(out, out_size, "#%d", ui->tools.locs[0].loc_id);
+        return 1;
+    }
+    return 0;
+}
+
+static int
+session_open_file(
+    void* user_data,
+    const char* rel_path,
+    int line)
+{
+    struct EditorUi* ui = user_data;
+
+    assert(ui);
+    assert(rel_path);
+    if( !Editor_UiFindPanel(ui, "triggers") )
+    {
+        Editor_UiStatus(ui, "Open in editor refused: this window has no Triggers panel to open scripts through");
+        return 0;
+    }
+    return Editor_Triggers_OpenInEditor(ui, rel_path, line);
 }
 
 static int
@@ -270,6 +339,335 @@ session_copy_record(
         ui, subject == BUILDER_SUBJECT_NPC ? TORIRSMAPED_CATALOG_NPC : TORIRSMAPED_CATALOG_LOC, name, new_name);
 }
 
+/* ---- the NPC editor's Movement and Spawns tabs ---------------------------- */
+
+/** One npc record per window, opened on first use and kept while the editor
+ *  asks about the same npc (docs/NPC_EDITOR_DESIGN.md 3.5). */
+#define SESSION_NPCDOCS 4
+
+static struct
+{
+    struct EditorUi* ui;
+    struct Editor_NpcDoc doc;
+} g_npcdocs[SESSION_NPCDOCS];
+
+static struct Editor_NpcDoc*
+session_npcdoc(
+    struct EditorUi* ui,
+    const char* npc)
+{
+    int spare = -1;
+
+    for( int i = 0; i < SESSION_NPCDOCS; i++ )
+    {
+        if( g_npcdocs[i].ui == ui )
+        {
+            if( g_npcdocs[i].doc.open && strcmp(g_npcdocs[i].doc.name, npc) == 0 )
+                return &g_npcdocs[i].doc;
+            spare = i;
+        }
+        else if( spare < 0 && !g_npcdocs[i].ui )
+            spare = i;
+    }
+    if( spare < 0 )
+        spare = 0;
+    g_npcdocs[spare].ui = ui;
+    if( !Editor_NpcDocOpen(ui, &g_npcdocs[spare].doc, npc) )
+        return NULL;
+    return &g_npcdocs[spare].doc;
+}
+
+static int
+session_movement(
+    void* user_data,
+    const char* npc,
+    struct Editor_NpcMovement* out,
+    char* target,
+    size_t target_size)
+{
+    struct EditorUi* ui = user_data;
+    struct Editor_NpcDoc* doc;
+
+    assert(ui);
+    assert(npc);
+    assert(out);
+    doc = session_npcdoc(ui, npc);
+    if( !doc || !Editor_NpcDocMovement(ui, doc, out) )
+        return 0;
+    if( target && target_size )
+        (void)Editor_NpcDocWriteTarget(ui, doc, "patrol1", target, target_size);
+    return 1;
+}
+
+static int
+session_movement_set(
+    void* user_data,
+    const char* npc,
+    const char* key,
+    const char* value,
+    const char* what)
+{
+    struct EditorUi* ui = user_data;
+    struct Editor_NpcDoc* doc;
+    const char* sub = "";
+    char plain[EDITOR_CMD_NAME_MAX];
+
+    assert(ui);
+    assert(npc);
+    assert(key);
+    assert(value);
+    doc = session_npcdoc(ui, npc);
+    if( !doc )
+        return -1;
+    /* "param:huntrange" addresses a param row. */
+    if( strncmp(key, "param:", 6) == 0 )
+    {
+        sub = key + 6;
+        snprintf(plain, sizeof(plain), "param");
+        key = plain;
+    }
+    return Editor_NpcDocSetField(ui, doc, key, sub, value, what);
+}
+
+static int
+session_route_set(
+    void* user_data,
+    const char* npc,
+    const struct Editor_NpcWaypoint* waypoints,
+    int count,
+    enum Editor_NpcMode mode,
+    const char* what)
+{
+    struct EditorUi* ui = user_data;
+    struct Editor_NpcDoc* doc;
+
+    assert(ui);
+    assert(npc);
+    doc = session_npcdoc(ui, npc);
+    if( !doc )
+        return -1;
+    return Editor_NpcDocSetRoute(ui, doc, waypoints, count, mode, what);
+}
+
+static void
+session_tile_info(
+    void* user_data,
+    int x,
+    int z,
+    int level,
+    struct Builder_TileInfo* out)
+{
+    struct EditorUi* ui = user_data;
+    struct Editor_Square* square;
+
+    assert(ui);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    if( ui->app_services.tile_flags
+        && ui->app_services.tile_flags(ui->app_services.user_data, x, z, level, &out->collision) )
+        out->in_scene = 1;
+    if( ui->editor && level >= 0 && level < EDITOR_SQUARE_LEVELS && x >= 0 && z >= 0 )
+    {
+        square = Editor_DocFindSquare(&ui->editor->doc, x / EDITOR_SQUARE_X, z / EDITOR_SQUARE_Z);
+        if( square && square->loaded )
+        {
+            out->in_doc = 1;
+            out->settings = square->tiles[Editor_TileIndex(x % EDITOR_SQUARE_X, z % EDITOR_SQUARE_Z, level)].settings;
+        }
+    }
+}
+
+static int
+session_path_steps(
+    void* user_data,
+    int ax,
+    int az,
+    int bx,
+    int bz,
+    int level)
+{
+    struct EditorUi* ui = user_data;
+
+    assert(ui);
+    if( !ui->app_services.path_steps )
+        return -2;
+    return ui->app_services.path_steps(ui->app_services.user_data, ax, az, bx, bz, level);
+}
+
+static int
+session_spawns(
+    void* user_data,
+    const char* npc,
+    int id,
+    struct Builder_NpcSpawn* out,
+    int max)
+{
+    struct EditorUi* ui = user_data;
+    static struct MapEditorSpawnPreviewRow rows[MAP_EDITOR_SPAWN_PREVIEW_MAX];
+    int n;
+
+    assert(ui);
+    assert(npc);
+    assert(out || max == 0);
+    if( !Editor_UiFindPanel(ui, "spawns") )
+        return 0;
+    n = Editor_Spawns_RowsOf(ui, npc, id, rows, MAP_EDITOR_SPAWN_PREVIEW_MAX);
+    if( n > max )
+        n = max;
+    for( int i = 0; i < n; i++ )
+    {
+        memset(&out[i], 0, sizeof(out[i]));
+        out[i].x = rows[i].row.abs_x;
+        out[i].z = rows[i].row.abs_z;
+        out[i].level = rows[i].row.level;
+        out[i].edited = rows[i].edited;
+        out[i].scripted = rows[i].scripted;
+        out[i].suppressed = rows[i].suppressed;
+        snprintf(out[i].name, sizeof(out[i].name), "%s", rows[i].row.name);
+    }
+    return n;
+}
+
+static int
+session_goto_tile(
+    void* user_data,
+    int x,
+    int z,
+    int level)
+{
+    struct EditorUi* ui = user_data;
+
+    assert(ui);
+    if( !ui->app_services.camera_to_tile )
+        return 0;
+    if( ui->app_services.camera_to_tile(ui->app_services.user_data, x, z, level) )
+        return 1;
+    /* Not loaded: open its square (keeping the rest) and let the caller ask again. */
+    Editor_UiOpenSquare(ui, x / EDITOR_SQUARE_X, z / EDITOR_SQUARE_Z, "", -1, 1);
+    return 0;
+}
+
+static void
+session_spawn_row(
+    const struct Builder_NpcSpawn* spawn,
+    struct MapEditorSpawnPreviewRow* out)
+{
+    memset(out, 0, sizeof(*out));
+    snprintf(out->row.name, sizeof(out->row.name), "%s", spawn->name);
+    out->row.abs_x = spawn->x;
+    out->row.abs_z = spawn->z;
+    out->row.level = spawn->level;
+    out->row.count = 1;
+    out->edited = spawn->edited;
+    out->scripted = spawn->scripted;
+    out->suppressed = spawn->suppressed;
+}
+
+static int
+session_spawn_select(
+    void* user_data,
+    const struct Builder_NpcSpawn* spawn)
+{
+    struct EditorUi* ui = user_data;
+    struct MapEditorSpawnPreviewRow row;
+
+    assert(ui);
+    assert(spawn);
+    if( !Editor_UiFindPanel(ui, "spawns") )
+        return 0;
+    session_spawn_row(spawn, &row);
+    /* The panel lists the latched tile's square: latch the spawn's. */
+    ui->tools.tile_valid = 1;
+    ui->tools.tile_x = spawn->x;
+    ui->tools.tile_z = spawn->z;
+    ui->tools.tile_level = spawn->level;
+    return Editor_Spawns_Select(ui, &row.row, 1) == 1;
+}
+
+static int
+session_spawn_place(
+    void* user_data,
+    const char* npc,
+    int x,
+    int z,
+    int level)
+{
+    struct EditorUi* ui = user_data;
+    struct Editor_SpawnRow row;
+
+    assert(ui);
+    assert(npc);
+    if( !Editor_UiFindPanel(ui, "spawns") )
+        return 0;
+    memset(&row, 0, sizeof(row));
+    snprintf(row.name, sizeof(row.name), "%s", npc);
+    row.abs_x = x;
+    row.abs_z = z;
+    row.level = level;
+    row.count = 1;
+    return Editor_Spawns_PlaceRow(ui, &row);
+}
+
+static int
+session_spawn_delete(
+    void* user_data,
+    const struct Builder_NpcSpawn* spawn)
+{
+    struct EditorUi* ui = user_data;
+    struct MapEditorSpawnPreviewRow row;
+
+    assert(ui);
+    assert(spawn);
+    if( !Editor_UiFindPanel(ui, "spawns") )
+        return 0;
+    session_spawn_row(spawn, &row);
+    return Editor_Spawns_DeleteRow(ui, &row);
+}
+
+static void
+session_release(void* user_data)
+{
+    struct EditorUi* ui = user_data;
+
+    assert(ui);
+    for( int i = 0; i < SESSION_NPCDOCS; i++ )
+        if( g_npcdocs[i].ui == ui )
+        {
+            Editor_NpcDocClose(&g_npcdocs[i].doc);
+            g_npcdocs[i].ui = NULL;
+        }
+}
+
+static void
+session_photo_place(
+    void* user_data,
+    int panel)
+{
+    struct EditorUi* ui = user_data;
+
+    assert(ui);
+    if( ui->dock_x <= 0 || ui->chrome->surface_w <= ui->dock_x )
+        return;
+    /* Every other View-menu panel closes, so nothing draws over the one
+     * photographed (the column's frames are drawn after it). */
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        const struct EditorUiPanel* other = &ui->panels[i];
+        if( !other->title || other->chrome_panel < 0 || other->chrome_panel == panel )
+            continue;
+        if( strcmp(other->name, "world") == 0 || strcmp(other->name, "console") == 0
+            || strcmp(other->name, "toolrail") == 0 || strcmp(other->name, "statusbar") == 0 )
+            continue;
+        if( Editor_UiPanelInStrip(ui, other->name) || ui->chrome->panels[other->chrome_panel].visible )
+            (void)Editor_UiTogglePanel(ui, other->name);
+    }
+    ToriRSChrome_PanelSetFixedWidth(ui->chrome, panel, ui->chrome->surface_w - ui->dock_x);
+    ToriRSChrome_PanelSetFixedHeight(ui->chrome, panel, ui->dock_bottom - ui->dock_top);
+    ToriRSChrome_PanelMove(ui->chrome, panel, ui->dock_x, ui->dock_top);
+    ui->chrome->panels[panel].user_placed = 1;
+    ToriRSChrome_PanelSetVisible(ui->chrome, panel, 1);
+}
+
 static void
 session_services(
     struct EditorUi* ui,
@@ -287,6 +685,20 @@ session_services(
     out->state_set = session_state_set;
     out->copy_record = session_copy_record;
     out->name_known = session_name_known;
+    out->selection = session_selection;
+    out->open_file = session_open_file;
+    out->movement = session_movement;
+    out->movement_set = session_movement_set;
+    out->route_set = session_route_set;
+    out->tile_info = session_tile_info;
+    out->path_steps = session_path_steps;
+    out->spawns = session_spawns;
+    out->goto_tile = session_goto_tile;
+    out->spawn_select = session_spawn_select;
+    out->spawn_place = session_spawn_place;
+    out->spawn_delete = session_spawn_delete;
+    out->release = session_release;
+    out->photo_place = session_photo_place;
 }
 
 void
