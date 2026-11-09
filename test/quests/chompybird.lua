@@ -92,21 +92,12 @@ return {
         t.exec("talkToRantz", t.player.talk_to, "rantz", 1)
         t.exec("talkToRantz.dialog.questions", t.chat.play, {
             "npc:Hey you creature! Make me some stabbers",
-            "choose:What are 'stabbers'?",
-            "player:What are stabbers?",
+            "player:Stabbers?",
             "npc:For da stabbie chucker",
             "*",
             "player:I think I understand",
             "npc:Yeah, is what Rantz sayed, make da stabbers",
-            "choose:How do I make the 'stabbers'?",
-            "player:How do I make the 'stabbers'?",
-            "npc:Ahhh, da creature wants to know",
-            "choose:What's a 'chompy'?",
-            "player:What's a 'chompy'?",
-            "npc:Da chompy is der bestest yummies",
-            "player:Ah, so 'da chompy' is some kind of bird?",
-            "npc:Yeah, is what Rantz sayed, Da chompy is da big flapper",
-            "choose:Er, make you're own 'stabbers'!",
+            "choose:No.",
             "player:Er, make you're own",
             "npc:When I make 'stabbers'",
             "end",
@@ -116,7 +107,12 @@ return {
         t.exec("talkToRantz.accept", t.player.talk_to, "rantz", 1)
         t.exec("talkToRantz.accept.dialog", t.chat.play, {
             "npc:Hey you creature! Make me some stabbers",
-            "choose:Ok, I'll make you some 'stabbers'.",
+            "player:Stabbers?",
+            "npc:For da stabbie chucker",
+            "*",
+            "player:I think I understand",
+            "npc:Yeah, is what Rantz sayed, make da stabbers",
+            "choose:Yes.",
             "player:OK, I'll make you some 'stabbers'.",
             "npc:Good you creature, you need sticksies",
             "end",
@@ -135,8 +131,9 @@ return {
         for i = 1, 6 do
             local _, logs = t.inv.count("achey_tree_logs")
             if (logs or 0) == 0 then break end
-            t.exec("makeShafts." .. i, t.player.use_item_on_item, "knife", "achey_tree_logs")
-            t.ticks(3)
+            t.player.use_item_on_item("knife", "achey_tree_logs")
+            t.exec("makeShafts.menu." .. i, t.ui.make, "a")
+            t.ticks(4)
         end
         local _, shafts = t.inv.count("ogre_arrow_shaft")
         t.check("makeShafts.count", (shafts or 0) >= 10, "ogre_arrow_shaft=" .. tostring(shafts))
@@ -145,8 +142,9 @@ return {
         for i = 1, 5 do
             local _, bones = t.inv.count("wolf_bones")
             if (bones or 0) == 0 then break end
-            t.exec("useChiselOnBones." .. i, t.player.use_item_on_item, "chisel", "wolf_bones")
-            t.ticks(3)
+            t.player.use_item_on_item("chisel", "wolf_bones")
+            t.exec("useChiselOnBones.menu." .. i, t.ui.make, "a")
+            t.ticks(4)
         end
         local _, tips = t.inv.count("wolfbone_arrowheads")
         t.check("useChiselOnBones.count", (tips or 0) >= 12, "wolfbone_arrowheads=" .. tostring(tips))
@@ -155,15 +153,21 @@ return {
         for i = 1, 8 do
             local _, bare = t.inv.count("ogre_arrow_shaft")
             if (bare or 0) == 0 then break end
-            t.exec("useFeathersOnShafts." .. i, t.player.use_item_on_item, "feather", "ogre_arrow_shaft")
-            t.ticks(3)
+            t.player.use_item_on_item("feather", "ogre_arrow_shaft")
+            if (bare or 0) > 6 then
+                t.exec("useFeathersOnShafts.menu." .. i, t.ui.make, "a")
+            end
+            t.ticks(4)
         end
         for i = 1, 8 do
             local _, flighted = t.inv.count("ogre_headless_arrow")
             local _, spare_tips = t.inv.count("wolfbone_arrowheads")
             if (flighted or 0) == 0 or (spare_tips or 0) == 0 then break end
-            t.exec("useTipsOnShafts." .. i, t.player.use_item_on_item, "wolfbone_arrowheads", "ogre_headless_arrow")
-            t.ticks(3)
+            t.player.use_item_on_item("wolfbone_arrowheads", "ogre_headless_arrow")
+            if math.min(flighted or 0, spare_tips or 0) > 6 then
+                t.exec("useTipsOnShafts.menu." .. i, t.ui.make, "a")
+            end
+            t.ticks(4)
         end
         local _, arrows = t.inv.count("ogre_arrow")
         t.check("useTipsOnShafts.count", (arrows or 0) >= 8, "ogre_arrow=" .. tostring(arrows))
@@ -184,7 +188,7 @@ return {
             "choose:What are 'fatsy toadies'?",
             "player:What are 'fatsy toadies'?",
             "npc:Fatsy toadies are da chompy burds",
-            "choose:Where do we put the 'fatsy toadies'?",
+            "choose:Where do we put the fatsy toadies?",
             "player:Where do we put",
             "npc:Over der!",
             "mesbox:The ogre points to a small clearing",
@@ -207,13 +211,13 @@ return {
 
         -- ---- enterCave, getBellow (the chest sticks: a strength roll) ----
         -- The cave is entered by its op and left by its op on every visit (door rule): the entrance
-        -- rantzogrecaveentrance 2629,2998 (op1 Enter) p_teleports to 2647,9379,0 and the exit
-        -- rantzogrecaveexitl 2647,9377 (op1 Walk through) to 2630,2997,0 (chompy_caves.rs2:9-18) -- the
+        -- rantzogrecaveentrance 2629,2998 (op1 Enter) p_teleports to 2647,9378,0 and the exit
+        -- rantzogrecaveexitl 2647,9377 (op1 Walk through) to 2629,2997,0 (chompy_caves.rs2:9-18) -- the
         -- same level in another map frame (z // 6400), so each is a graded climb, and the in-cave hops
         -- depart from the climb's landing (one cave passage: reach.py REACH closed-doors).
         t.exec("goto-cave", t.player.goto_tile, 2630, 2997, 0)
         t.exec("enterCave", t.player.climb, { loc = "rantzogrecaveentrance", op = 1, op_name = "Enter",
-            at = { 2629, 2998, 0 }, dest = { 2647, 9379, 0 } })
+            at = { 2629, 2998, 0 }, dest = { 2647, 9378, 0 } })
         t.exec("goto-chest", t.player.goto_tile, 2638, 9396, 0)
         local rock_attempt = 0
         for i = 1, 12 do
@@ -226,14 +230,15 @@ return {
         end
         t.check("getBellow.rock", rock_attempt > 0, "rock lifted on attempt " .. rock_attempt)
         t.expect("quest.stage.removed_rock_from_chest", t.quest.expect_stage("removed_rock_from_chest"))
-        t.exec("getBellow", t.player.click_loc, "chompybird_chest_open", 1)
+        t.player.click_loc("chompybird_chest_open", 1)
+        t.exec("getBellow.menu", t.ui.make, "a")
         t.exec("getBellow.inv", t.inv.await, "empty_ogre_bellows", 1, 10)
         t.chat.close()
 
         -- ---- leaveCave ----
-        t.exec("goto-caveexit", t.player.goto_tile, 2647, 9379, 0)
+        t.exec("goto-caveexit", t.player.goto_tile, 2647, 9378, 0)
         t.exec("leaveCave", t.player.climb, { loc = "rantzogrecaveexitl", op = 1, op_name = "Walk through",
-            at = { 2647, 9377, 0 }, dest = { 2630, 2997, 0 } })
+            at = { 2647, 9377, 0 }, dest = { 2629, 2997, 0 } })
 
         -- ---- fillBellows on the swamp bubbles, inflateToad x3 ----
         -- The swamp (swampbubbles 2595-2601 x 2963-2967) is worked from its WEST edge: the
@@ -297,7 +302,7 @@ return {
                     vitals("inflateToad." .. round .. "." .. i)
                 end
             end
-            t.exec("dropToad.goto." .. round, t.player.goto_tile, 2634, 2965, 0)
+            t.exec("dropToad.goto." .. round, t.player.goto_tile, 2634, 2968, 0)
             local _, before = t.inv.count("bloated_toad")
             t.exec("dropToad." .. round, t.player.inv_op, "bloated_toad", 1)
             t.ticks(3)
@@ -447,19 +452,21 @@ return {
             t.ticks(2)
         end
         t.check("killChompy.attack", attack_result == "ok", tostring(attack_result) .. " " .. tostring(attack_detail))
-        local _, chompy_dead_detail = t.exec("killChompy", t.npc.await_dead_engaged, 120, 40, { eat = { item = "lobster", below = 40 } })
-        -- Margin (chompybird: quest_chompybird.npc:5, hitpoints=10, a real block): the lowest hp the
-        -- kill wait's eater read, and the read before the attack, is at least a quarter of the
-        -- maximum, AND food is left.
-        local low_text, base_text = string.match(tostring(chompy_dead_detail), "lowest hp (%d+)/(%d+)")
-        local low, base = tonumber(low_text), tonumber(base_text)
-        if low ~= nil and hp_at_attack ~= nil and hp_at_attack < low then
-            low = hp_at_attack
+        -- The bird never leaves its slot: at zero hitpoints it turns into the carcass
+        -- (index 4503 [5622]), so the kill is read off the stage.
+        local chompy_killed = false
+        for _ = 1, 40 do
+            local _, st = t.var.server("varp293_chompybird")
+            if st >= 50 then chompy_killed = true; break end
+            vitals("killChompy")
+            t.ticks(4)
+            t.player.attack("chompybird", 5, 1, { eat = { item = "lobster", below = 40 } })
         end
+        t.check("killChompy", chompy_killed, "stage reached player_killed_chompy")
         local food_result, food_left = t.inv.count("lobster")
         t.check("killChompy.margin",
-            low ~= nil and base ~= nil and low * 4 >= base and food_result == "ok" and (food_left or 0) >= 1,
-            "lowest hp " .. tostring(low) .. "/" .. tostring(base) .. " (hp before the attack " .. tostring(hp_at_attack)
+            hunt_low ~= nil and hunt_low * 4 >= 60 and food_result == "ok" and (food_left or 0) >= 1,
+            "lowest hp " .. tostring(hunt_low) .. "/60 (hp before the attack " .. tostring(hp_at_attack)
                 .. "), lobsters left " .. tostring(food_left) .. " of 10 (margin: lowest hp >= a quarter of max AND food left)")
         t.ticks(3)
         t.exec("killChompy.corpse", t.npc.await_present, "chompybird_dead", 10, 3)
@@ -498,7 +505,7 @@ return {
         -- ---- enterCaveAgain, talkToBugs, talkToFycie, leaveCaveAgain ----
         t.exec("goto-cave2", t.player.goto_tile, 2630, 2997, 0)
         t.exec("enterCaveAgain", t.player.climb, { loc = "rantzogrecaveentrance", op = 1, op_name = "Enter",
-            at = { 2629, 2998, 0 }, dest = { 2647, 9379, 0 } })
+            at = { 2629, 2998, 0 }, dest = { 2647, 9378, 0 } })
         t.exec("goto-bugs", t.player.goto_tile, 2641, 9389, 0)
         t.exec("talkToBugs", t.player.talk_to, "bugs", 1)
         t.exec("talkToBugs.dialog", t.chat.play, { "npc:Dad say's you's making da chompy", "end" })
@@ -510,9 +517,9 @@ return {
         local fycie_flavour = math.floor((kv1 or 0) / 16) % 4
         t.check("flavour.rolled", bugs_flavour >= 1 and bugs_flavour <= 2 and fycie_flavour >= 1 and fycie_flavour <= 2,
             "kills=" .. tostring(kv1) .. " rantz=" .. rantz_flavour .. " bugs=" .. bugs_flavour .. " fycie=" .. fycie_flavour)
-        t.exec("goto-caveexit2", t.player.goto_tile, 2647, 9379, 0)
+        t.exec("goto-caveexit2", t.player.goto_tile, 2647, 9378, 0)
         t.exec("leaveCaveAgain", t.player.climb, { loc = "rantzogrecaveexitl", op = 1, op_name = "Walk through",
-            at = { 2647, 9377, 0 }, dest = { 2630, 2997, 0 } })
+            at = { 2647, 9377, 0 }, dest = { 2629, 2997, 0 } })
 
         -- ---- getIngredients: the three flavours, by clicking ----
         if rantz_flavour == 0 then

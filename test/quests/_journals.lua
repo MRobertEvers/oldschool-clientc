@@ -1837,6 +1837,126 @@ local SOTS = {
         "<col=000080>I need to find <col=800000>one<col=000080> more person to help with the ritual, so that I",
         "<col=000080>can summon <col=800000>Agrith-Naar<col=000080> again and slay him."),
 }
+local CHOMPY_4503 = {
+    { 5, nil, {
+        "<str>I found an ogre named Rantz near a cave just East of the",
+        "<str>Ogre City Gu'Tanoth. When I spoke to him he seemed",
+        "<str>obsessed with using things called 'stabbers' to hunt 'Chompy",
+        "<str>Birds'.",
+        "<col=000080>I agreed to get <col=800000>Rantz<col=000080> some <col=800000>'stabbers'<col=000080>",
+    } },
+    { 15, nil, {
+        "<str>I found an ogre named Rantz near a cave just East of the",
+        "<str>Ogre City Gu'Tanoth. When I spoke to him he seemed",
+        "<str>obsessed with using things called 'stabbers' to hunt 'Chompy",
+        "<str>Birds'.",
+        "<str>It turned out that 'stabbers' are a kind of specially made ogre",
+        "<str>arrow that are quite sturdily constructed. I brought Rantz",
+        "<str>some so that he could catch 'chompy'.",
+        "<str>Rantz told me 'fatsy toadies' grow fat on swamp gas...",
+        "<col=000080>I need to bring <col=800000>Rantz<col=000080> a '<col=800000>fatsy toady<col=000080>' to catch <col=800000>chompy<col=000080>.",
+    } },
+    { 25, nil, {
+        "<str>I found an ogre named Rantz near a cave just East of the",
+        "<str>Ogre City Gu'Tanoth. When I spoke to him he seemed",
+        "<str>obsessed with using things called 'stabbers' to hunt 'Chompy",
+        "<str>Birds'.",
+        "<str>It turned out that 'stabbers' are a kind of specially made ogre",
+        "<str>arrow that are quite sturdily constructed. I brought Rantz",
+        "<str>some so that he could catch 'chompy'.",
+        "<str>Rantz told me 'fatsy toadies' grow fat on swamp gas...",
+        "<str>I managed to trap some 'fatsy toadies' by using some gas",
+        "<str>filled ogre bellows. I took the 'fatsy toady' to Rantz.",
+        "<col=000080>I should <col=800000>drop a toad<col=000080> in the spot <col=800000>Rantz<col=000080> showed to me",
+    } },
+    { 40, nil, {
+        "<str>I found an ogre named Rantz near a cave just East of the",
+        "<str>Ogre City Gu'Tanoth. When I spoke to him he seemed",
+        "<str>obsessed with using things called 'stabbers' to hunt 'Chompy",
+        "<str>Birds'.",
+        "<str>It turned out that 'stabbers' are a kind of specially made ogre",
+        "<str>arrow that are quite sturdily constructed. I brought Rantz",
+        "<str>some so that he could catch 'chompy'.",
+        "<str>Rantz told me 'fatsy toadies' grow fat on swamp gas...",
+        "<str>I managed to trap some 'fatsy toadies' by using some gas",
+        "<str>filled ogre bellows. I took the 'fatsy toady' to Rantz.",
+        "<str>I dropped a fatsy toady on the spot Rantz showed me.",
+        "<col=800000>Rantz<col=000080> doesn't seem to be a very good shot... maybe I should",
+        "<col=000080>try to shoot a <col=800000>chompy<col=000080> for him?",
+    } },
+    { 45, "ogre_bow", {
+        "<str>I found an ogre named Rantz near a cave just East of the",
+        "<str>Ogre City Gu'Tanoth. When I spoke to him he seemed",
+        "<str>obsessed with using things called 'stabbers' to hunt 'Chompy",
+        "<str>Birds'.",
+        "<str>It turned out that 'stabbers' are a kind of specially made ogre",
+        "<str>arrow that are quite sturdily constructed. I brought Rantz",
+        "<str>some so that he could catch 'chompy'.",
+        "<str>Rantz told me 'fatsy toadies' grow fat on swamp gas...",
+        "<str>I managed to trap some 'fatsy toadies' by using some gas",
+        "<str>filled ogre bellows. I took the 'fatsy toady' to Rantz.",
+        "<str>I dropped a fatsy toady on the spot Rantz showed me.",
+        "<str>Rantz doesn't seem to be a very good shot... maybe I should",
+        "<str>try to shoot a chompy for him?",
+        "<col=800000>Rantz<col=000080> has lent me an <col=800000>Ogre bow<col=000080> so I can kill a <col=800000>chompy bird<col=000080>.",
+    } },
+    { 50, "raw_chompy", {
+        "<str>I found an ogre named Rantz near a cave just East of the",
+        "<str>Ogre City Gu'Tanoth. When I spoke to him he seemed",
+        "<str>obsessed with using things called 'stabbers' to hunt 'Chompy",
+        "<str>Birds'.",
+        "<str>It turned out that 'stabbers' are a kind of specially made ogre",
+        "<str>arrow that are quite sturdily constructed. I brought Rantz",
+        "<str>some so that he could catch 'chompy'.",
+        "<str>Rantz told me 'fatsy toadies' grow fat on swamp gas...",
+        "<str>I managed to trap some 'fatsy toadies' by using some gas",
+        "<str>filled ogre bellows. I took the 'fatsy toady' to Rantz.",
+        "<str>I dropped a fatsy toady on the spot Rantz showed me.",
+        "<str>Rantz taught me how to use bloated swamp toads to lure",
+        "<str>Chompy Birds and hunt them. I've killed a chompy bird!",
+        "<str>Rantz stands no chance of shooting a chompy bird - he'll",
+        "<str>starve to death if I don't help him.",
+        "<col=000080>I should take this <col=800000>raw chompy<col=000080> to <col=800000>Rantz",
+    } },
+    { 55, nil, {
+        "<str>I found an ogre named Rantz near a cave just East of the",
+        "<str>Ogre City Gu'Tanoth. When I spoke to him he seemed",
+        "<str>obsessed with using things called 'stabbers' to hunt 'Chompy",
+        "<str>Birds'.",
+        "<str>It turned out that 'stabbers' are a kind of specially made ogre",
+        "<str>arrow that are quite sturdily constructed. I brought Rantz",
+        "<str>some so that he could catch 'chompy'.",
+        "<str>Rantz told me 'fatsy toadies' grow fat on swamp gas...",
+        "<str>I managed to trap some 'fatsy toadies' by using some gas",
+        "<str>filled ogre bellows. I took the 'fatsy toady' to Rantz.",
+        "<str>I dropped a fatsy toady on the spot Rantz showed me.",
+        "<str>Rantz taught me how to use bloated swamp toads to lure",
+        "<str>Chompy Birds and hunt them. I've killed a chompy bird!",
+        "<str>I showed Rantz the chompy, he seemed quite impressed.",
+        "<col=000080>That cheeky ogre <col=800000>Rantz<col=000080> has asked me to <col=800000>cook<col=000080> the <col=800000>chompy<col=000080> for",
+        "<col=000080>him and his kids, and they want it <col=800000>seasoned<col=000080> as well!",
+    } },
+    { 60, "cooked_s_chompy", {
+        "<str>I found an ogre named Rantz near a cave just East of the",
+        "<str>Ogre City Gu'Tanoth. When I spoke to him he seemed",
+        "<str>obsessed with using things called 'stabbers' to hunt 'Chompy",
+        "<str>Birds'.",
+        "<str>It turned out that 'stabbers' are a kind of specially made ogre",
+        "<str>arrow that are quite sturdily constructed. I brought Rantz",
+        "<str>some so that he could catch 'chompy'.",
+        "<str>Rantz told me 'fatsy toadies' grow fat on swamp gas...",
+        "<str>I managed to trap some 'fatsy toadies' by using some gas",
+        "<str>filled ogre bellows. I took the 'fatsy toady' to Rantz.",
+        "<str>I dropped a fatsy toady on the spot Rantz showed me.",
+        "<str>Rantz taught me how to use bloated swamp toads to lure",
+        "<str>Chompy Birds and hunt them. I've killed a chompy bird!",
+        "<str>I showed Rantz the chompy, he seemed quite impressed.",
+        "<str>That cheeky ogre Rantz has asked me to cook the chompy for",
+        "<str>him and his kids, and they want it seasoned as well!",
+        "<col=000080>I've <col=800000>cooked<col=000080> the <col=800000>chompy<col=000080> for that cheeky <col=800000>ogre<col=000080> and his <col=800000>kids<col=000080>, I'd",
+        "<col=000080>better take it to them before they <col=800000>starve<col=000080>!",
+    } },
+}
 return {
     id = "journals",
     fixture = "fresh_lumbridge.ini",
@@ -1876,6 +1996,17 @@ return {
             t.cheat(cmd, false)
             t.ticks(2)
         end
+
+        -- Big Chompy Bird Hunting: every stage RSProx 4503 opened, row for row.
+        for _, st in ipairs(CHOMPY_4503) do
+            set("::clearinv")
+            if st[2] then
+                set("::give " .. st[2] .. " 1")
+            end
+            set("::setvar varp293_chompybird " .. st[1])
+            exact("journal.chompybird." .. st[1], "Big Chompy Bird Hunting", st[3])
+        end
+        set("::clearinv")
 
         set("::setvar varb20106_cowquest 22")
         exact("journal.idesofmilk.complete", "The Ides of Milk", IOM_4381)
