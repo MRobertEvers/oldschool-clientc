@@ -23,6 +23,7 @@
  */
 
 #include "editor/editor.h"
+#include "editor/editor_cfg.h"
 #include "editor/editor_cmd.h"
 #include "editor/editor_doc.h"
 #include "editor/editor_host.h"
@@ -314,6 +315,25 @@ activate(int widget)
     frame();
 }
 
+/** The primary's configs/all.loc block holds this exact line. */
+static int
+wall_block_has(const char* line)
+{
+    struct Editor_DocHandle handle;
+    char key[EDITOR_DOC_KEY_MAX];
+    size_t const length = strlen(line);
+    int const key_fits = Editor_CfgOverlayKey(key, "loc", "test_wall", NULL);
+
+    assert(key_fits);
+    (void)key_fits;
+    if( !Editor_DocFind(&g_editor.doc, EDITOR_DOC_CFG, key, &handle) || !handle.text || !handle.text->text )
+        return 0;
+    for( const char* at = strstr(handle.text->text, line); at; at = strstr(at + 1, line) )
+        if( (at == handle.text->text || at[-1] == '\n') && (at[length] == '\n' || at[length] == '\r' || !at[length]) )
+            return 1;
+    return 0;
+}
+
 /* ---- stamps ------------------------------------------------------------------- */
 
 static void
@@ -573,6 +593,59 @@ test_panels(void)
             && strncmp(g_chrome.widgets[i].text, "Multiloc", 8) == 0 )
             CHECK(strcmp(g_chrome.widgets[i].text, "Multiloc: no shell") == 0, "the multiloc row (%s)",
                 g_chrome.widgets[i].text);
+
+    /* Type flags: the primary's record, each edit one undo step. */
+    {
+        int const share = find_widget(locs, TORIRS_CHROME_W_CHECKBOX, "Share light");
+        int const width = find_widget(locs, TORIRS_CHROME_W_TEXTINPUT, "Wall width");
+        int const contour = find_widget(locs, TORIRS_CHROME_W_DROPDOWN, "Contour");
+        int const height = find_widget(locs, TORIRS_CHROME_W_TEXTINPUT, "Contour height");
+        int const apply = find_widget(locs, TORIRS_CHROME_W_BUTTON, "Apply values");
+        int const before = groups();
+        CHECK(share >= 0 && width >= 0 && contour >= 0 && height >= 0 && apply >= 0, "the Type flags rows");
+        if( share < 0 || width < 0 || contour < 0 || height < 0 || apply < 0 )
+            return;
+        CHECK(!g_chrome.widgets[share].hidden, "shown with a loc selected");
+        {
+            int const north = find_widget(locs, TORIRS_CHROME_W_BUTTON, "Nudge north");
+            CHECK(north >= 0 && g_chrome.widgets[north].w > 0 && g_chrome.widgets[north].w == g_chrome.widgets[list].w,
+                "a command button is as wide as its row (%d, list %d)", north >= 0 ? g_chrome.widgets[north].w : -1,
+                g_chrome.widgets[list].w);
+        }
+
+        ToriRSChrome_SetChecked(&g_chrome, share, 1);
+        activate(share);
+        CHECK(wall_block_has("sharelight=1"), "Share light writes the record");
+        CHECK(groups() == before + 1, "as one undo step");
+        frame();
+
+        ToriRSChrome_SetText(&g_chrome, width, "32");
+        ToriRSChrome_DropdownSetSelected(&g_chrome, contour, 2);
+        ToriRSChrome_SetText(&g_chrome, height, "512");
+        activate(apply);
+        CHECK(wall_block_has("wallwidth=32"), "Apply writes Wall width");
+        CHECK(wall_block_has("contourgroundtype=2") && wall_block_has("contourground=512")
+                  && wall_block_has("contourgroundparam=512"),
+            "Keep height writes all three contour keys, as cachepack requires");
+        CHECK(groups() == before + 2, "all of it one undo step");
+        frame();
+        CHECK(strcmp(ToriRSChrome_Text(&g_chrome, height), "512") == 0, "the height reads back from the record");
+
+        ToriRSChrome_SetText(&g_chrome, height, "100");
+        activate(apply);
+        CHECK(groups() == before + 2 && wall_block_has("contourground=512"),
+            "a height cachepack would refuse is refused here");
+        frame();
+
+        Editor_Undo(&g_editor);
+        frame();
+        CHECK(!wall_block_has("wallwidth=32") && !wall_block_has("contourgroundtype=2"), "undo takes the values back");
+        CHECK(ToriRSChrome_Checked(&g_chrome, share), "and Share light is still on");
+        Editor_Undo(&g_editor);
+        frame();
+        CHECK(!wall_block_has("sharelight=1") && !ToriRSChrome_Checked(&g_chrome, share),
+            "undo unticks Share light from the record");
+    }
 
     /* Follow: a row click puts the camera on that loc. */
     g_ui.app_services.camera_to_tile = fake_camera_to_tile;

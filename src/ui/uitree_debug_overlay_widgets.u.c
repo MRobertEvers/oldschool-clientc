@@ -824,6 +824,18 @@ ToriRSChrome_ButtonSetChord(struct ToriRSChrome* ui, int widget, char const* cho
 }
 
 void
+ToriRSChrome_ButtonSetFill(struct ToriRSChrome* ui, int widget, int fill)
+{
+    assert(ui);
+    assert(dbg_valid_widget(ui, widget));
+    assert(ui->widgets[widget].kind == TORIRS_CHROME_W_BUTTON);
+    if( ui->widgets[widget].button_fill == fill )
+        return;
+    ui->widgets[widget].button_fill = fill;
+    dbg_dirty_widget_paint(ui, widget);
+}
+
+void
 ToriRSChrome_SetTooltip(struct ToriRSChrome* ui, int widget, char const* text)
 {
     char buf[TORIRS_CHROME_LABEL_MAX];

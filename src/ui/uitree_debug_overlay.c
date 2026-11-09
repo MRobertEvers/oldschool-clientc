@@ -6686,7 +6686,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
         {
             char const* const whole_caption = w->text[0] ? w->text : w->label;
             char const* caption = whole_caption;
-            int const box_w = DBG_LABEL_W < w->w ? DBG_LABEL_W : w->w;
+            int const box_w = !w->button_fill && DBG_LABEL_W < w->w ? DBG_LABEL_W : w->w;
             /* An unavailable button answers to nothing the pointer does: no
              * accent under it, no caption nudge, dim ink. The same vocabulary
              * a disabled option in the dropdown list is drawn with. */

@@ -1505,6 +1505,9 @@ struct ToriRSChromeWidget
      * cut is always one hover away (@see ToriRSChrome_TooltipText).
      */
     int caption_cut;
+    /** BUTTON: the plate takes the row's whole width, not the label column's
+     *  (@see ToriRSChrome_ButtonSetFill). */
+    int button_fill;
 };
 
 /** Which of a widget's strings a truncation record is about. */
@@ -2932,6 +2935,15 @@ ToriRSChrome_Button(struct ToriRSChrome* ui, int panel, char const* text);
  */
 void
 ToriRSChrome_ButtonSetChord(struct ToriRSChrome* ui, int widget, char const* chord);
+
+/**
+ * `fill` 1: the BUTTON's plate is as wide as its row instead of the label
+ * column, for a panel whose buttons are a column of commands: the caption and
+ * its keycap then have the panel's width to share, and widening the panel
+ * widens them. `widget` must be a live BUTTON.
+ */
+void
+ToriRSChrome_ButtonSetFill(struct ToriRSChrome* ui, int widget, int fill);
 
 /**
  * A tab strip over `titles`, which is BORROWED and must outlive the widget.
