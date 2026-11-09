@@ -1739,8 +1739,11 @@ test_newform(void)
     CHECK(Editor_NewSquareValidate(&g_picker, &form, &check, &request) && strcmp(request.source_key, "m50_50") == 0,
         "copy of the selection carries its key");
     form.template_kind = EDITOR_DOC_TEMPLATE_FLAT;
+    form.fill_height = -1;
+    CHECK(!Editor_NewSquareValidate(&g_picker, &form, &check, NULL), "a flat fill below h 0 is refused");
     form.fill_height = 0;
-    CHECK(!Editor_NewSquareValidate(&g_picker, &form, &check, NULL), "a flat fill at h 0 is refused");
+    CHECK(Editor_NewSquareValidate(&g_picker, &form, &check, &request) && request.fill_height == 0,
+        "a flat fill at h 0 (the perlin ground) is allowed");
     form.fill_height = 12;
     form.fill_underlay = 40;
     CHECK(Editor_NewSquareValidate(&g_picker, &form, &check, &request) && request.fill_height == 12

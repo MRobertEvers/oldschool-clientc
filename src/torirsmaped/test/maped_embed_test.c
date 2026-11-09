@@ -1194,6 +1194,20 @@ main(
             Editor_HostMapEdDocCreate(&a, &create) == EDITOR_HOST_REFUSED,
             "creating it twice is refused");
 
+        snprintf(create.key, sizeof(create.key), "m59_50");
+        create.fill_height = 0;
+        check(
+            Editor_HostMapEdDocCreate(&a, &create) == EDITOR_HOST_OK,
+            "DOC_CREATE makes a height 0 fill");
+        drain(&a, &ma);
+        check(
+            Editor_HostMapEdDocOpen(&b, EDITOR_DOC_SQUARE, "ported/testlane/maps/m59_50", &text)
+                    == EDITOR_HOST_OK
+                && text.parts[0].data && strstr(text.parts[0].data, "0 0 0: u5"),
+            "a height 0 fill has no h token: the perlin ground");
+        Editor_HostDocTextFree(&text);
+        create.fill_height = 20;
+
         create.template_kind = EDITOR_DOC_TEMPLATE_COPY;
         snprintf(create.key, sizeof(create.key), "m52_50");
         snprintf(create.storage, sizeof(create.storage), "ported/testlane/maps");

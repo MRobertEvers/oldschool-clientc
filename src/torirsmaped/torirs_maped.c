@@ -1462,7 +1462,8 @@ handle_doc_create(
                 command.u.tile.level = 0;
                 command.u.tile.x = x;
                 command.u.tile.z = z;
-                command.u.tile.after.has_height = 1;
+                /* Height 0 is no `h` token: the perlin ground. */
+                command.u.tile.after.has_height = fill_height > 0;
                 command.u.tile.after.height = (uint8_t)fill_height;
                 command.u.tile.after.underlay_id = (uint8_t)fill_underlay;
                 server_command(maped, &command);

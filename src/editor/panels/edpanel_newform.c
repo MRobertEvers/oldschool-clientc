@@ -146,10 +146,10 @@ Editor_NewSquareValidate(
         }
     }
     if( template_kind == EDITOR_DOC_TEMPLATE_FLAT
-        && (form->fill_height < 1 || form->fill_height > 255 || form->fill_underlay < 0
+        && (form->fill_height < 0 || form->fill_height > 255 || form->fill_underlay < 0
             || form->fill_underlay > 255) )
     {
-        snprintf(check->message, sizeof(check->message), "flat fill: height 1..255, underlay 0..255");
+        snprintf(check->message, sizeof(check->message), "flat fill: height 0..255, underlay 0..255");
         return 0;
     }
 

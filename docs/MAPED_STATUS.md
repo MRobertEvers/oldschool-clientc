@@ -6075,7 +6075,8 @@ working set.
   where it has no floor (`app_overlay_build_editor_void_grid`), a pick that met
   no surface takes the floorless level 0 tile under the pointer from the height
   field (`app_map_editor_void_hover`), and Empty arms u48 when the palette is on
-  underlay 0, which would paint void onto void. It
+  underlay 0, which would paint void onto void. Flat fill at height 0 writes no
+  `h` token, so the square takes the perlin ground. It
   DOC_CREATEs it in storage `scratch` on the first free scratch
   slot (`Editor_DocScratchSlot`: eight squares at x 240..246, z 240..242, two
   apart; the content tree stops at x 65). It opens at once as the working set,

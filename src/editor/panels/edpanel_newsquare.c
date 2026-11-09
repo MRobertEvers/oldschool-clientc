@@ -186,10 +186,10 @@ newsquare_check_scratch(
         return 0;
     }
     if( form->template_kind == EDITOR_DOC_TEMPLATE_FLAT
-        && (form->fill_height < 1 || form->fill_height > 255 || form->fill_underlay < 0
+        && (form->fill_height < 0 || form->fill_height > 255 || form->fill_underlay < 0
             || form->fill_underlay > 255) )
     {
-        snprintf(message, message_size, "flat fill: height 1..255, underlay 0..255");
+        snprintf(message, message_size, "flat fill: height 0..255, underlay 0..255");
         return 0;
     }
     snprintf(message, message_size, "it opens to edit; Save then places it");
@@ -603,8 +603,8 @@ Editor_NewSquare_Register(struct EditorUi* ui)
         self->radio_template[i] =
             ToriRSChrome_Radio(chrome, self->panel, k_template_names[i], NEWSQUARE_GROUP_TEMPLATE, i == 0);
     self->row_source = ToriRSChrome_Label(chrome, self->panel, "");
-    self->slider_height = ToriRSChrome_Slider(chrome, self->panel, "Height h", 1, 255, 1, 1);
-    ToriRSChrome_SetTooltip(chrome, self->slider_height, "The h token every level-0 tile gets (1 = ground)");
+    self->slider_height = ToriRSChrome_Slider(chrome, self->panel, "Height h", 0, 255, 1, 1);
+    ToriRSChrome_SetTooltip(chrome, self->slider_height, "The h token every level-0 tile gets (0 = perlin noise, 1 = ground)");
     self->slider_underlay = ToriRSChrome_Slider(chrome, self->panel, "Underlay", 0, 255, 0, 1);
     self->row_check = ToriRSChrome_Label(chrome, self->panel, "");
     self->button_create = ToriRSChrome_Button(chrome, self->panel, "Create");

@@ -482,7 +482,8 @@ enum Editor_DocTemplate
     EDITOR_DOC_TEMPLATE_EMPTY = 0,
     /** A copy of `source_key`'s tiles and locs. */
     EDITOR_DOC_TEMPLATE_COPY,
-    /** Level 0 authored flat at `fill_height`, underlay `fill_underlay`. */
+    /** Level 0 at `fill_height` (0: no `h` token, the perlin ground), underlay
+     *  `fill_underlay`. */
     EDITOR_DOC_TEMPLATE_FLAT,
 };
 
