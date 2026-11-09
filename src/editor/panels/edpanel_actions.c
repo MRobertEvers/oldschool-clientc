@@ -438,6 +438,9 @@ edp_place_pose_at(
         return;
     if( !edp_loc_shapes(ui, ui->tools.pick_id, &mask) )
         return;
+    /* Decor over a wall takes the shape the wall's width pushes out. */
+    if( Editor_LocFitDecor(&ui->editor->doc, mask, world_x, world_z, level, *out_rotation, out_shape) )
+        return;
     /* Only a wall pick fits: a centrepiece placed beside a wall of its own
      * loc stays the centrepiece it was asked to be. */
     if( *out_shape != 0 && *out_shape != 1 && *out_shape != 2 && *out_shape != 3 && *out_shape != 9 )

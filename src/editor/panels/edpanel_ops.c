@@ -1983,6 +1983,40 @@ ops_wall_edges(
 }
 
 int
+Editor_LocFitDecor(
+    struct Editor_Doc* doc,
+    uint32_t mask,
+    int world_x,
+    int world_z,
+    int level,
+    int rotation,
+    int* shape)
+{
+    struct Editor_Square* square;
+    int x;
+    int z;
+
+    assert(doc);
+    assert(shape);
+    if( *shape != 4 || !(mask & (1u << 5)) )
+        return 0;
+    square = ops_square_at(doc, world_x, world_z, &x, &z);
+    if( !square )
+        return 0;
+    for( int i = 0; i < square->loc_count; i++ )
+    {
+        const struct Editor_Loc* loc = &square->locs[i];
+        if( loc->level == level && loc->x == x && loc->z == z
+            && (ops_wall_edges(loc->shape, loc->rotation) & (1u << (rotation & 3))) )
+        {
+            *shape = 5;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int
 Editor_LocFitWall(
     struct Editor_Doc* doc,
     int loc_id,

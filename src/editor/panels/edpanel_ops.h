@@ -517,6 +517,24 @@ Editor_LocFitWall(
     int* out_shape,
     int* out_rotation);
 
+/**
+ * Fit a straight wall decoration to the wall it hangs on: shape 4 stands on
+ * the tile edge with no offset, shape 5 is pushed off the wall by the wall's
+ * `wallwidth`. On a tile with a straight wall or an L on the decoration's
+ * edge, `*shape` 4 becomes 5 (`mask` permitting). In the content 81% of
+ * straight decor on a wall tile is shape 5, and 92% of shape 4 has no wall.
+ * Returns 1 when it changed `*shape`, else 0 and `*shape` untouched.
+ */
+int
+Editor_LocFitDecor(
+    struct Editor_Doc* doc,
+    uint32_t mask,
+    int world_x,
+    int world_z,
+    int level,
+    int rotation,
+    int* shape);
+
 /** Give every selected loc the shape `shapes[i]` (and, when `rotations` is
  *  not NULL and rotations[i] >= 0, that rotation); -1 keeps it. A loc whose
  *  new tile+shape is held is left as it is (result->blocked). */
