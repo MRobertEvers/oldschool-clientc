@@ -6963,3 +6963,74 @@ Still slow, with where to start:
   rebuilds). It is not on test-editor (boots a whole server).
 - test-torirsserver-embed (21 failures) and test-torirsserver-servpack-boot
   fail identically on the phase-3 HEAD (content and scratch-path causes).
+
+## Windowing: compound windows, the clip rule, Shift+Alt+drag (2026-11-09)
+
+Owner: "Sometimes the top parts of views are ahead and their bottoms lag
+behind. If a header is cut off, there is no way to move or drag. Scroll
+areas are not being clipped. The grid previewer still flickers. Design the
+windowing system to be much better and less ad-hoc."
+
+**The lag.** A panel group was two chrome panels the editor reconciled on
+its own tick: the frame (title bar and tab strip) and the shown member's
+window under it (`ui_group_place`, three branches of "who moved, so who
+follows"). The frame's title drag moved the frame inside ToriRSChrome's
+input routing, the chrome was built right after, and the editor's tick moved
+the window to follow a frame LATER -- so on every drag frame the strip was
+drawn where the pointer was and the window where it had been. Now the
+window is ATTACHED to the frame in the chrome
+(`ToriRSChrome_PanelAttach`, `ToriRSChromePanel::attach_to`): the Build
+derives its box from the parent's before anything is laid out
+(`dbg_attach_layout`, measuring the parent with the same
+`dbg_window_measure` the build sizes it by), so the two land in one
+display list. The pair is one piece to every gesture: an edge or corner on
+either resizes the compound (frame x and width, window height; the seam is
+no edge), the window's grip is the compound's, a maximise of either
+maximises the compound (the frame heads the area, the window takes the
+rest; `PanelRestore` of either puts both back), the snap works on the
+compound's outline, and the frame's `user_placed` is what a gesture on
+either sets. `ui_group_place` now only reads the box back for the layout
+file. `src/ui/test/chrome_panel_attach_test.c` (`make -C src
+test-chrome-panel-attach`) drives each case through the chrome's real
+input entry points; editor_groups_test (2226 checks) passes unchanged.
+
+The same lag, more generally: everything the editor's tick did to the
+chrome (a well sized to its panel, a label, a shown window) was drawn the
+next frame, because the one `ToriRSChrome_Build` ran before the tick.
+app_frame.c builds the chrome once more after the editor's tick (a no-op
+when the tick changed nothing), so a resized panel's bottom no longer trails
+its top.
+
+**The header off the surface.** Shift+Alt (Shift+Option) held, a press
+anywhere on a window panel picks it up (`ToriRSChrome_SetModifiers`, fed
+from the input's held keys in `app_chrome_route_input`; a compound by its
+root; a docked panel stays; the World body falls through).
+docs/MAPED_HOTKEYS.md.
+
+**Scroll areas not clipped.** The owner's screenshot: the Catalog's shape
+keycaps ("10", "11") drawn in a column BELOW the group's window, every other
+part of those rows gone. The chrome clipped each keycap's chord to
+`dbg_rect_clip(clip, cap)`, which is EMPTY for a row wholly past the fold --
+and to every renderer (soft3d, GL3, GLES, WebGL) a scissor of zero width or
+height is NO scissor (`scissor_w > 0 && scissor_h > 0` is "scissor set"), so
+the prim was drawn whole, wherever it was. Every prim now goes through
+`dbg_prim_push_in(ui, clip)`, which pushes nothing for an empty clip; the
+thumbnail and model-view sprites, which set their own clip after the push,
+intersect it with the panel's first. The test asserts no prim with an empty
+clip and every prim's clip inside its panel over a scrolled cells list.
+
+**The Gallery "flicker": not reproduced headlessly.** On this build, the
+Gallery (floating, 420x640, loc "tree", M tiles) was photographed as a
+series of consecutive frames -- 30 frames at 1x, 48 and 100 frames at a
+simulated 2x pixel density (`TORIRS_HIDPI=1 TORIRS_SIM_PIXEL_DENSITY=2`),
+with the pointer parked on a tile and with clicks across tiles
+(`TORIRS_SIM_CLICK_AT`) -- and byte-compared pair by pair: the only changes
+inside the Gallery's box were the pick outline on a click, the pictures
+landing after it and the tooltip; no region toggled on its own. The two
+changes above remove the one-frame-late geometry the well's sizing had
+(`gallery_size_well` reads the panel's view height from the last Build and
+is now drawn in the same frame), which is the likeliest live cause left.
+If it still flickers: which part (the pictures, the captions, the hover
+outline, the well's border), which renderer, and whether the pointer is
+moving.
+

@@ -1743,6 +1743,31 @@ struct ToriRSChromePanel
      * The title bar still drags, closes and pops out as before.
      */
     int collapsed;
+    /**
+     * ATTACHED under another panel (ToriRSChrome_PanelAttach), or -1.
+     *
+     * The box of an attached panel is DERIVED from its parent's at every
+     * Build, before anything is laid out: the parent's left edge and width,
+     * its top on the parent's bottom. The two are one piece of furniture --
+     * the map editor's panel groups are this, the frame (title bar and tab
+     * strip) the parent and the shown member's window the child -- and
+     * deriving the child here, inside the Build, is what keeps them one: a
+     * host that moved the child to follow the parent on its own tick did so
+     * a frame after the drag had moved the parent, so the strip ran ahead of
+     * the window under it on every drag frame.
+     *
+     * The pair is also one piece to the gestures: an edge or corner of either
+     * resizes the compound (the parent's x and width, the child's height), a
+     * drag of the parent's title carries both, a maximise of either maximises
+     * the compound (the parent at the top of the area, the child taking the
+     * rest), and the snap works on the compound's outline. The parent's
+     * `user_placed` is what a drag or resize of either sets.
+     * @see ToriRSChrome_PanelAttach, ToriRSChrome_PanelExtent.
+     */
+    int attach_to;
+    /** Maximised as a compound: the area's height (ToriRSChrome_PanelMaximise),
+     *  of which the child takes what the parent leaves at every Build. */
+    int maximise_h;
 };
 
 /** Internal retained-model event kinds consumed by ToriRSChromeSync_Run. */
@@ -1990,6 +2015,17 @@ struct ToriRSChrome
     int resize_press_y;
     int resize_from_x;
     int resize_from_y;
+    /** The attached child of `resize_panel` while a compound is resized (the
+     *  box resize_from_* holds is then the compound's outline), else -1. */
+    int resize_child;
+    /**
+     * The modifier keys down, TORIRS_CHROME_MOD_* bits, as the host last
+     * told them (ToriRSChrome_SetModifiers; 0 for a host that never does).
+     * Read at the press: Shift+Alt (Option) held, a press ANYWHERE on a
+     * window panel picks the window up, title bar or not -- the way to move
+     * a panel whose title bar is off the surface or under another panel.
+     */
+    int mods;
 
     /**
      * The last press on a title bar (panel, chrome clock, where), for the
@@ -2484,6 +2520,45 @@ ToriRSChrome_PanelSetFixedHeight(struct ToriRSChrome* ui, int panel, int height)
 /** Resolved bounds of a panel as of the last Build. 0 when unknown. */
 struct ToriRSChromeRect
 ToriRSChrome_PanelRect(struct ToriRSChrome const* ui, int panel);
+
+/* ---- attachment (compound windows) ---------------------------------------- */
+
+/**
+ * Attach `panel` under `parent`, or detach it (`parent` -1): from the next
+ * Build the panel's box is derived from the parent's (ToriRSChromePanel::
+ * attach_to). Both must be WINDOW panels; a parent may not itself be
+ * attached (no chains), and a panel may not be attached to itself. Several
+ * panels may be attached to one parent -- the VISIBLE one is the compound's
+ * child (the map editor shows one member of a group at a time).
+ */
+void
+ToriRSChrome_PanelAttach(struct ToriRSChrome* ui, int panel, int parent);
+/** The panel `panel` is attached under, or -1. */
+int
+ToriRSChrome_PanelAttachedTo(struct ToriRSChrome const* ui, int panel);
+/** The visible panel attached under `panel`, or -1. */
+int
+ToriRSChrome_PanelAttachedChild(struct ToriRSChrome const* ui, int panel);
+/**
+ * The outline of the compound `panel` belongs to, as of the last Build: its
+ * own box joined with its parent's (attached) or its visible child's. A
+ * panel attached to nothing with nothing attached is just its own rect.
+ */
+struct ToriRSChromeRect
+ToriRSChrome_PanelExtent(struct ToriRSChrome const* ui, int panel);
+
+/* Modifier bits for ToriRSChrome_SetModifiers (the editor's EDITOR_HK_MOD_*
+ * values, so a host passes its own mask through). */
+#define TORIRS_CHROME_MOD_CTRL 1u
+#define TORIRS_CHROME_MOD_SHIFT 2u
+#define TORIRS_CHROME_MOD_ALT 4u
+/**
+ * The modifier keys held now, for the presses that follow (ToriRSChrome::
+ * mods). A host calls it before routing each frame's pointer; one that never
+ * does gets the plain behaviour everywhere.
+ */
+void
+ToriRSChrome_SetModifiers(struct ToriRSChrome* ui, unsigned mods);
 
 /** @return widget handle, or -1 when full / panel invalid. */
 int

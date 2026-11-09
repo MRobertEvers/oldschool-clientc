@@ -3434,7 +3434,18 @@ test-editor-dropdown: $(OBJ_DIR) ui/uitree_debug_overlay.c ui/test/uitree_test_d
 		ui/uitree_debug_overlay.c ui/test/uitree_test_dropdown.c
 	./$(OBJ_DIR)/uitree_test_dropdown
 
-test-editor: test-editor-cmd test-editor-dropdown test-convex-hull test-polygon-fill
+# Compound windows (a frame with a window attached under it: the map editor's
+# panel groups) and the clip rule, through the chrome's real input entry
+# points: the attached window placed in the same Build its parent moved in,
+# Shift+Alt+drag anywhere on a window, the pair resized and maximised as one,
+# and no prim with an empty clip (a zero scissor is "no scissor" downstream).
+.PHONY: test-chrome-panel-attach
+test-chrome-panel-attach: $(OBJ_DIR) ui/uitree_debug_overlay.c ui/test/chrome_panel_attach_test.c
+	$(CC) $(CFLAGS) -UNDEBUG -o $(OBJ_DIR)/chrome_panel_attach_test \
+		ui/uitree_debug_overlay.c ui/test/chrome_panel_attach_test.c
+	./$(OBJ_DIR)/chrome_panel_attach_test
+
+test-editor: test-editor-cmd test-editor-dropdown test-chrome-panel-attach test-convex-hull test-polygon-fill
 EDITOR_TREE_TESTS += test-editor-jm2 test-editor-save test-torirsmaped-embed test-torirsmaped-daemon
 EDITOR_CACHE_TESTS += test-editor-derive
 

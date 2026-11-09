@@ -651,14 +651,13 @@ ui_group_unmaximise(
 
     if( !ToriRSChrome_PanelIsMaximised(ui->chrome, panel) )
         return;
+    /* The compound restores as one (the frame too): the group's box is
+     * what the frame and the window came back as. */
     ToriRSChrome_PanelRestore(ui->chrome, panel);
-    if( g->frame_h <= 0 )
-        return;
-    g->x = p->x;
-    g->y = p->y - g->frame_h;
+    g->x = ui->chrome->panels[g->chrome_panel].x;
+    g->y = ui->chrome->panels[g->chrome_panel].y;
     g->w = p->fixed_w;
     g->body_h = p->fixed_h;
-    ToriRSChrome_PanelMove(ui->chrome, g->chrome_panel, g->x, g->y);
 }
 
 /** Bring member `slot` to the front: open in the strip, its window shown
@@ -798,24 +797,20 @@ ui_group_place(
             ui_group_fill(ui, g, panel);
         g->placed = panel;
     }
-    else if( frame->x != g->x || frame->y != g->y )
+    else
     {
+        /* The window is ATTACHED to the frame (ui_group_insert): the chrome
+         * keeps it under the strip, moves it with the frame's title and
+         * resizes the pair as one, writing the frame's x, y and width and
+         * the window's height. So the group's box is read back from them --
+         * whatever a drag, an edge, a grip, a maximise or the layout did --
+         * rather than reconciled here. */
         g->x = frame->x;
         g->y = frame->y;
-        ui_group_fill(ui, g, panel);
-    }
-    else if( p->x != g->x || p->y != g->y + fh || p->fixed_w != g->w || p->fixed_h != g->body_h )
-    {
-        g->x = p->x;
-        g->y = p->y - fh;
-        g->w = p->fixed_w > 0 ? p->fixed_w : p->last_rect.w;
-        g->body_h = p->fixed_h;
-        ToriRSChrome_PanelMove(chrome, g->chrome_panel, g->x, g->y);
-        if( p->user_placed && !ToriRSChrome_PanelIsMaximised(chrome, panel) )
-        {
-            frame->user_placed = 1;
-            p->user_placed = 0;
-        }
+        if( frame->fixed_w > 0 )
+            g->w = frame->fixed_w;
+        if( !ToriRSChrome_PanelIsMaximised(chrome, panel) )
+            g->body_h = p->fixed_h;
     }
     if( frame->fixed_w != g->w )
         ToriRSChrome_PanelSetFixedWidth(chrome, g->chrome_panel, g->w);
@@ -1004,6 +999,12 @@ ui_group_insert(
     g->dressed[at] = 0;
     g->member_titles[at][0] = '\0';
     g->member_count++;
+    /* The member's window hangs under the frame from here on: the chrome
+     * places it there at every Build (ToriRSChromePanel::attach_to), moves
+     * it with the frame's title, resizes the pair as one and maximises them
+     * as one. The group's own fields below are the editor's view of that
+     * box, for the layout and the layout file. */
+    ToriRSChrome_PanelAttach(ui->chrome, ui->panels[reg].chrome_panel, g->chrome_panel);
     if( g->shown >= at )
         g->shown++;
     if( g->prev_shown >= at )
@@ -1035,6 +1036,8 @@ ui_group_remove(
     if( was_shown )
         ui_group_unmaximise(ui, g, slot);
     ui_group_dress(ui, g, slot, 0);
+    /* A window of its own again: its box is its own from the next Build. */
+    ToriRSChrome_PanelAttach(ui->chrome, panel, -1);
     for( int i = slot; i + 1 < g->member_count; i++ )
     {
         g->members[i] = g->members[i + 1];
@@ -2826,11 +2829,21 @@ Editor_UiLayoutCapture(
             int placed = 0;
             gp->has_shown = 1;
             snprintf(gp->shown, sizeof(gp->shown), "%s", ui->panels[g->members[g->shown]].name);
-            /* Maximised: the box written is the one it restores to. */
+            /* Maximised: the box written is the one it restores to -- the
+             * window's kept box under the frame's, and whether the FRAME was
+             * the user's before (the compound's maximise marks the frame
+             * placed while it lasts). */
             gp->maximised = ToriRSChrome_PanelRestoreBox(
                 ui->chrome, ui_group_window(ui, g, g->shown), &rx, &ry, &rw, &rh, &placed);
             if( gp->maximised )
             {
+                int fx = 0;
+                int fy = 0;
+                int fw = 0;
+                int fh = 0;
+                int frame_placed = 0;
+                if( ToriRSChrome_PanelRestoreBox(ui->chrome, g->chrome_panel, &fx, &fy, &fw, &fh, &frame_placed) )
+                    gp->user_placed = frame_placed ? 1 : 0;
                 gp->x = rx * EDITOR_UI_SCALEQ_ONE / scale;
                 gp->y = (ry - g->frame_h) * EDITOR_UI_SCALEQ_ONE / scale;
                 gp->w = rw * EDITOR_UI_SCALEQ_ONE / scale;
@@ -3925,21 +3938,6 @@ ui_maximise_area(struct EditorUi* ui)
     return area;
 }
 
-/** The area a group's shown window is maximised to: the dock's, under the
- *  group's strip (the frame follows it to the top, ui_group_place). */
-static struct ToriRSChromeRect
-ui_maximise_group_area(
-    struct EditorUi* ui,
-    struct EditorUiGroup* g)
-{
-    struct ToriRSChromeRect area = ui_maximise_area(ui);
-    int const fh = ui_group_frame_height(ui, g);
-
-    area.y += fh;
-    area.h -= fh;
-    return area;
-}
-
 /** The registry panel whose chrome panel is `panel`, when it is one the
  *  layout keeps (a titled View-menu window), else -1. */
 static int
@@ -4007,7 +4005,9 @@ ui_maximise_tick(struct EditorUi* ui)
         }
         else
         {
-            ToriRSChrome_PanelMaximise(chrome, panel, ui_maximise_group_area(ui, g));
+            /* The frame heads the compound: the chrome puts the strip at the
+             * top of the area and gives the window what is left. */
+            ToriRSChrome_PanelMaximise(chrome, g->chrome_panel, area);
             ui_group_place(ui, g);
             Editor_UiLog(ui, "editor: %s maximised (double-click its title to restore)", g->title);
         }
@@ -4027,11 +4027,11 @@ ui_maximise_tick(struct EditorUi* ui)
             && ui_group_frame_height(ui, g) > 0 )
         {
             ui->maximise_pending[at] = 0;
-            ToriRSChrome_PanelMaximise(chrome, panel, ui_maximise_group_area(ui, g));
+            ToriRSChrome_PanelMaximise(chrome, g->chrome_panel, area);
             ui_group_place(ui, g);
         }
         else if( ToriRSChrome_PanelIsMaximised(chrome, panel) )
-            ToriRSChrome_PanelMaximise(chrome, panel, ui_maximise_group_area(ui, g));
+            ToriRSChrome_PanelMaximise(chrome, g->chrome_panel, area);
     }
     for( int i = 0; i < ui->panel_count; i++ )
     {

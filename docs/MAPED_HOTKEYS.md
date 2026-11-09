@@ -170,6 +170,15 @@ The pointer (workbench 6.3, design section 7):
   pointer. Let go on the same tile and it is the Ctrl+click it was (the
   selection toggles).
 
+- **Any panel: Shift+Alt+drag (Shift+Option on a Mac) moves it.** With both
+  held, a press anywhere on a panel -- a row, a button, its grip, its
+  window's body -- picks the panel up as its title bar does, so a panel
+  whose title bar is off the top of the window or under another panel can
+  still be brought back. A group (a tab strip with its window) moves as one;
+  the World view's body is the world and falls through as always. The chrome
+  reads the modifiers the app hands it each frame
+  (ToriRSChrome_SetModifiers, src/app/app_loc_editor.c).
+
 ### Tools
 | Action | Chord | Ctx |
 |---|---|---|

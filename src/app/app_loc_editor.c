@@ -440,6 +440,14 @@ app_chrome_route_input(
     assert(ui);
     assert(input);
 
+    /* The modifiers down, for the presses below: Shift+Alt (Option) on a
+     * press anywhere on a window picks the window up (ToriRSChrome::mods),
+     * the way to move one whose title bar is off the surface. */
+    ToriRSChrome_SetModifiers(
+        ui,
+        (LibToriRS_Input_IsKeyHeld(input, TORIRSK_SHIFT) ? TORIRS_CHROME_MOD_SHIFT : 0u)
+            | (LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT) ? TORIRS_CHROME_MOD_ALT : 0u)
+            | (LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) ? TORIRS_CHROME_MOD_CTRL : 0u));
     if( ToriRSChrome_MouseMove(ui, input->curr.mouse_x, input->curr.mouse_y) )
         app->input_frame_consumed = 1;
     /*

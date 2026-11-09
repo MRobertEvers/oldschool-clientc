@@ -264,6 +264,58 @@ Visual: `build/debug_overlay_01_bordered_background.bmp`,
 `build/debug_overlay_08_clipping.bmp`, `build/debug_overlay_14_grip.bmp`,
 `build/debug_overlay_16_grip_clamped.bmp`.
 
+#### Compound windows: a panel attached under another
+
+```c
+ToriRSChrome_PanelAttach(&ui, member, frame);   /* -1 detaches */
+```
+
+The attached panel's box is **derived from its parent's at every Build**,
+before anything is laid out: the parent's left edge and width, its top on
+the parent's bottom (`dbg_attach_layout`, which measures the parent with the
+same `dbg_window_measure` the build sizes it by). The map editor's panel
+groups are this: the frame (a title bar and a tab strip) is the parent, the
+shown member's window the child. Deriving the child inside the Build is the
+whole point -- a host that moved the child to follow the parent on its own
+tick did so a frame after the drag had moved the parent, so the strip ran
+ahead of the window under it on every drag frame.
+
+The pair is one piece to every gesture: an edge or corner pressed on either
+resizes the compound (the parent's x and width, the child's height; the seam
+between them is no edge), the child's grip is the compound's, a title drag
+of the parent carries both, `PanelMaximise` on either maximises the compound
+(the parent heads the area, the child takes what is left, both answer
+`PanelIsMaximised`) and `PanelRestore` on either puts both back, and the
+snap works on the compound's outline (`PanelExtent`). The parent's
+`user_placed` is what a drag or resize of either sets. Several panels may be
+attached to one parent; the visible one is the child (`PanelAttachedChild`).
+A parent may not itself be attached.
+
+#### Moving a window from anywhere: Shift+Alt+drag
+
+```c
+ToriRSChrome_SetModifiers(&ui, TORIRS_CHROME_MOD_SHIFT | TORIRS_CHROME_MOD_ALT);
+```
+
+A host tells the chrome which modifiers are down before routing each
+frame's pointer. With Shift and Alt (Option) both held, a press **anywhere
+on a WINDOW panel** picks it up -- buttons, grip, edges and rows included --
+so a window whose title bar is off the surface or under another panel can
+still be moved. A compound is picked up by its root; a docked panel stays; a
+hollow panel's body falls through as it always does. A host that never calls
+`SetModifiers` gets the plain behaviour everywhere.
+
+#### The clip rule
+
+No prim with an EMPTY clip reaches the display list (`dbg_prim_push_in`).
+An empty clip is a box wholly outside the window it is clipped to -- a
+keycap on a list row below the fold -- and it means "nothing of this shows";
+but to every renderer downstream a scissor of zero width or height is NO
+scissor, so such a prim would be drawn whole, wherever it is. The Catalog's
+shape keycaps were once painted in a column below their panel for exactly
+this reason. `test-chrome-panel-attach` asserts the rule over a scrolled
+cells list, with the compound cases above.
+
 ### 5.2 Menus — `TORIRS_CHROME_PANEL_MENU`
 
 The minimenu's chrome: body fill, black title bar, black separator and
@@ -826,11 +878,11 @@ if you are generating panels programmatically.
 | | |
 | --- | --- |
 | **Lifecycle** | `Init` `Reset` `SetTheme` |
-| **Panels** | `PanelAdd` `PanelMove` `PanelSetVisible` `PanelSetResizable` `PanelRect` |
+| **Panels** | `PanelAdd` `PanelMove` `PanelSetVisible` `PanelSetResizable` `PanelRect` `PanelAttach` `PanelAttachedTo` `PanelAttachedChild` `PanelExtent` `PanelMaximise` `PanelRestore` |
 | **Widgets** | `Label` `LabelColored` `Checkbox` `TextInput` `Separator` `MenuItem` |
 | **Mutation** | `SetText` `SetLabel` `SetColor` `SetChecked` `SetCaretVisible` |
 | **Query** | `Checked` `Text` `HitTest` `MeasureText` `FontLineHeight` `FontLineBox` |
-| **Input** | `MouseMove` `MouseDown` `MouseUp` `KeyChar` `KeyEdit` `TakeActivated` |
+| **Input** | `SetModifiers` `MouseMove` `MouseDown` `MouseUp` `KeyChar` `KeyEdit` `TakeActivated` |
 | **Display list** | `Build` `Prims` `Damage` `DamageClear` |
 
 All prefixed `ToriRSChrome_`. Full documentation is in

@@ -867,6 +867,20 @@ app_run_once_body(
         }
         app_map_editor_open_pending_square(app);
         app_map_editor_drain(app);
+        /*
+         * The chrome built once more, AFTER the editor's tick. The build in
+         * app_loc_editor_tick ran before it, on this frame's pointer, so
+         * everything the editor's tick then did to the chrome -- a well sized
+         * to the panel it sits in, a label, a group's window shown -- would
+         * otherwise be drawn a frame late, and geometry a frame late is
+         * visible: a resized panel's bottom trailing its top. A build on a
+         * frame where the tick changed nothing is a no-op (the dirty flag).
+         */
+        if( ToriRSChrome_Build(&app->dbg_ui) )
+        {
+            app->need_redraw = 1;
+            ToriRSChrome_DamageClear(&app->dbg_ui);
+        }
     }
     FrameStats_Span(FRAME_STATS_EDITOR_UI, t_ui);
 

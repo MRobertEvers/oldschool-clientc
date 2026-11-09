@@ -58,6 +58,7 @@ static int dbg_ext_wheel(struct ToriRSChrome* ui, int x, int y, int delta);
 static int dbg_title_press(struct ToriRSChrome* ui, int panel, int x, int y);
 static int dbg_unmaximise_for_drag(struct ToriRSChrome* ui, int x, int y);
 static int dbg_unmaximise_for_resize(struct ToriRSChrome* ui, int x, int y);
+static int dbg_window_height(struct ToriRSChrome const* ui, struct ToriRSChromePanel const* p);
 static int dbg_ext_secondary(struct ToriRSChrome* ui, int x, int y);
 static int dbg_ext_key_char(struct ToriRSChrome* ui, int ch);
 static int dbg_ext_key_edit(struct ToriRSChrome* ui, int key);
@@ -1385,6 +1386,132 @@ dbg_valid_widget(struct ToriRSChrome const* ui, int widget)
            ui->widgets[widget].kind != TORIRS_CHROME_W_FREE;
 }
 
+/* ---- attachment (compound windows) ----------------------------------------
+ *
+ * A panel attached under another (ToriRSChromePanel::attach_to) has its box
+ * derived from the parent's at every Build (dbg_attach_layout), and the two
+ * are one piece to every gesture. The helpers here answer "which panel is
+ * the root of the compound this one is in" and "which visible panel hangs
+ * under this one", and give the compound's outline; the gestures ask them
+ * rather than reading attach_to themselves.
+ */
+
+/** The root of `panel`'s compound: its parent when attached, else itself. */
+static int
+dbg_attach_root(struct ToriRSChrome const* ui, int panel)
+{
+    assert(dbg_valid_panel(ui, panel));
+    if( ui->panels[panel].attach_to >= 0 )
+    {
+        assert(dbg_valid_panel(ui, ui->panels[panel].attach_to));
+        return ui->panels[panel].attach_to;
+    }
+    return panel;
+}
+
+/** The visible panel attached under `panel`, or -1. */
+static int
+dbg_attach_child(struct ToriRSChrome const* ui, int panel)
+{
+    assert(dbg_valid_panel(ui, panel));
+    for( int i = 0; i < ui->panel_count; i++ )
+        if( ui->panels[i].attach_to == panel && ui->panels[i].visible )
+            return i;
+    return -1;
+}
+
+/** The union of two boxes; an empty one contributes nothing. */
+static struct ToriRSChromeRect
+dbg_rect_union(struct ToriRSChromeRect a, struct ToriRSChromeRect b)
+{
+    struct ToriRSChromeRect r;
+    int x1;
+    int y1;
+
+    if( a.w <= 0 || a.h <= 0 )
+        return b;
+    if( b.w <= 0 || b.h <= 0 )
+        return a;
+    r.x = a.x < b.x ? a.x : b.x;
+    r.y = a.y < b.y ? a.y : b.y;
+    x1 = a.x + a.w > b.x + b.w ? a.x + a.w : b.x + b.w;
+    y1 = a.y + a.h > b.y + b.h ? a.y + a.h : b.y + b.h;
+    r.w = x1 - r.x;
+    r.h = y1 - r.y;
+    return r;
+}
+
+/** The compound's outline as last built: root and visible child together. */
+static struct ToriRSChromeRect
+dbg_panel_extent(struct ToriRSChrome const* ui, int panel)
+{
+    int const root = dbg_attach_root(ui, panel);
+    int const child = dbg_attach_child(ui, root);
+    struct ToriRSChromeRect r = ui->panels[root].last_rect;
+
+    if( child >= 0 )
+        r = dbg_rect_union(r, ui->panels[child].last_rect);
+    return r;
+}
+
+static void
+dbg_compound_apply(struct ToriRSChrome* ui, int root, int left, int top, int right, int bottom);
+
+void
+ToriRSChrome_PanelAttach(struct ToriRSChrome* ui, int panel, int parent)
+{
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    assert(parent < 0 || dbg_valid_panel(ui, parent));
+    assert(parent != panel);
+    assert(ui->panels[panel].style == TORIRS_CHROME_PANEL_WINDOW);
+    if( parent >= 0 )
+    {
+        assert(ui->panels[parent].style == TORIRS_CHROME_PANEL_WINDOW);
+        /* No chains: a parent is never itself attached. */
+        assert(ui->panels[parent].attach_to < 0);
+        /* And nothing hangs under the panel being attached. */
+        for( int i = 0; i < ui->panel_count; i++ )
+            assert(ui->panels[i].attach_to != panel);
+    }
+    if( ui->panels[panel].attach_to == parent )
+        return;
+    ui->panels[panel].attach_to = parent;
+    ui->dirty = 1;
+    ui->panels[panel].dirty = 1;
+}
+
+int
+ToriRSChrome_PanelAttachedTo(struct ToriRSChrome const* ui, int panel)
+{
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    return ui->panels[panel].attach_to;
+}
+
+int
+ToriRSChrome_PanelAttachedChild(struct ToriRSChrome const* ui, int panel)
+{
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    return dbg_attach_child(ui, panel);
+}
+
+struct ToriRSChromeRect
+ToriRSChrome_PanelExtent(struct ToriRSChrome const* ui, int panel)
+{
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    return dbg_panel_extent(ui, panel);
+}
+
+void
+ToriRSChrome_SetModifiers(struct ToriRSChrome* ui, unsigned mods)
+{
+    assert(ui);
+    ui->mods = (int)mods;
+}
+
 /* ---- retained executor change queue ------------------------------------ */
 
 static void
@@ -2033,6 +2160,7 @@ ToriRSChrome_Init(struct ToriRSChrome* ui)
     ui->colorpick_drag_bar = TORIRS_CHROME_COLORBAR_NONE;
     ui->drag_panel = -1;
     ui->resize_panel = -1;
+    ui->resize_child = -1;
     ui->title_press_panel = -1;
     ui->title_double = -1;
     ui->title_click = -1;
@@ -2081,6 +2209,7 @@ ToriRSChrome_Reset(struct ToriRSChrome* ui)
     ui->taken_custom = 0;
     ui->drag_panel = -1;
     ui->resize_panel = -1;
+    ui->resize_child = -1;
     ui->title_press_panel = -1;
     ui->title_double = -1;
     ui->title_click = -1;
@@ -2287,6 +2416,7 @@ ToriRSChrome_PanelAdd(
     p->fixed_w = fixed_w;
     p->first_widget = -1;
     p->last_widget = -1;
+    p->attach_to = -1;
     /* -1 is "every tab": a panel with no strip must not have its rows stamped
      * onto tab 0, or adding a strip later would hide all of them at once. */
     p->build_tab = -1;
@@ -2545,14 +2675,33 @@ dbg_maximised_over(struct ToriRSChrome const* ui, int x, int y)
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
         struct ToriRSChromePanel const* p = &ui->panels[i];
+        int root;
+        int child;
         if( !p->visible || !p->maximised || p->modal || p->last_rect.w <= 0 )
             continue;
-        if( x >= p->last_rect.x && x < p->last_rect.x + p->last_rect.w && y >= p->last_rect.y &&
-            y < p->last_rect.y + p->last_rect.h )
-            return i;
+        /* A maximised compound covers its whole outline: the member of it
+         * under the point is the one hit (the root's strip, or the child
+         * under it). */
+        root = dbg_attach_root(ui, i);
+        child = dbg_attach_child(ui, root);
+        if( dbg_point_in_rect(x, y, ui->panels[root].last_rect) )
+            return root;
+        if( child >= 0 && dbg_point_in_rect(x, y, ui->panels[child].last_rect) )
+            return child;
         return -1;
     }
     return -1;
+}
+
+/** With `top` the maximised panel under the point (dbg_maximised_over, or
+ *  -1 for none): whether panel `i` may still be hit -- it is `top`, a member
+ *  of its compound, or a modal over everything. */
+static int
+dbg_maximised_allows(struct ToriRSChrome const* ui, int top, int i)
+{
+    if( top < 0 || i == top || ui->panels[i].modal )
+        return 1;
+    return dbg_attach_root(ui, i) == dbg_attach_root(ui, top);
 }
 
 /** Panel whose Close button is under the point, or -1. */
@@ -2563,7 +2712,7 @@ dbg_panel_close_at(struct ToriRSChrome const* ui, int x, int y)
 
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
-        if( top >= 0 && i != top && !ui->panels[i].modal )
+        if( !dbg_maximised_allows(ui, top, i) )
             continue;
         if( !ui->panels[i].visible || !ui->panels[i].closable )
             continue;
@@ -2637,7 +2786,7 @@ dbg_panel_popout_at(struct ToriRSChrome const* ui, int x, int y)
 
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
-        if( top >= 0 && i != top && !ui->panels[i].modal )
+        if( !dbg_maximised_allows(ui, top, i) )
             continue;
         if( !ui->panels[i].visible || !ui->panels[i].poppable )
             continue;
@@ -2727,7 +2876,7 @@ dbg_panel_dock_at(struct ToriRSChrome const* ui, int x, int y)
 
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
-        if( top >= 0 && i != top && !ui->panels[i].modal )
+        if( !dbg_maximised_allows(ui, top, i) )
             continue;
         if( !ui->panels[i].visible || !ui->panels[i].dockable )
             continue;
@@ -4778,6 +4927,32 @@ dbg_prim_push(struct ToriRSChrome* ui)
 }
 
 /**
+ * A prim clipped to `clip` -- or NULL, and nothing pushed, when the clip is
+ * EMPTY.
+ *
+ * Every prim here goes through this. An empty clip is the intersection of a
+ * box with a window it lies wholly outside of (a keycap on a list row below
+ * the panel's fold, a thumbnail scrolled off), and it means "nothing of this
+ * shows". It must never reach the display list, because to every renderer
+ * downstream a scissor of zero width or height is NO scissor (the GL and
+ * soft3d paths test `scissor_w > 0 && scissor_h > 0` for "scissor set"): the
+ * prim would be drawn whole, wherever it is. That is how the Catalog's shape
+ * keycaps came to be painted in a column below their panel, the one part of
+ * each dropped row that was not clipped (2026-11-09).
+ */
+static struct ToriRSChromePrim*
+dbg_prim_push_in(struct ToriRSChrome* ui, struct ToriRSChromeRect clip)
+{
+    struct ToriRSChromePrim* p;
+    if( clip.w <= 0 || clip.h <= 0 )
+        return NULL;
+    p = dbg_prim_push(ui);
+    if( p )
+        p->clip = clip;
+    return p;
+}
+
+/**
  * One wrapped line, copied into the build's scratch and NUL-terminated.
  *
  * A TEXT prim BORROWS its string, and a wrapped line is a SLICE of a widget's
@@ -4885,7 +5060,7 @@ dbg_push_rect_trans(
      * here would be a display-list slot spent painting nothing. */
     if( trans >= 255 )
         return;
-    p = dbg_prim_push(ui);
+    p = dbg_prim_push_in(ui, clip);
     if( !p )
         return;
     p->kind = TORIRS_CHROME_PRIM_RECT;
@@ -4928,7 +5103,7 @@ dbg_push_text(
     struct ToriRSChromePrim* p;
     if( !text || !text[0] )
         return;
-    p = dbg_prim_push(ui);
+    p = dbg_prim_push_in(ui, clip);
     if( !p )
         return;
     p->kind = TORIRS_CHROME_PRIM_TEXT;
@@ -4965,7 +5140,7 @@ dbg_push_sprite_box(
     assert(w >= 0);
     assert(h >= 0);
     assert((w == 0) == (h == 0));
-    p = dbg_prim_push(ui);
+    p = dbg_prim_push_in(ui, clip);
     if( !p )
         return;
     p->kind = TORIRS_CHROME_PRIM_SPRITE;
@@ -5657,10 +5832,41 @@ dbg_panel_has_grip(struct ToriRSChromePanel const* p)
  * A window panel: the minimenu's chrome, body fill, an optional title bar in
  * the menu face, then one row per widget in the theme's row face.
  */
-static void
-dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
+/** A WINDOW panel's measurements: what dbg_window_measure resolves before
+ *  anything is placed, and the size the Build gives the panel. */
+struct DbgWindowSize
 {
-    struct ToriRSChromeTheme const* th = &ui->theme;
+    /** The border thickness, the header block and the bottom padding. */
+    int edge;
+    int head_h;
+    int foot_h;
+    /** The pinned tab strip (-1 none) and the band it reserves. */
+    int strip;
+    int strip_h;
+    /** The rows' widest and their stacked height, strip excluded. */
+    int content_w;
+    int content_h;
+    /** The panel's size: hand-set, else sized to its content; collapsed,
+     *  the header block alone. */
+    int w;
+    int h;
+};
+
+/**
+ * Measure a WINDOW panel without placing or drawing anything.
+ *
+ * The one derivation of a window's size, shared by dbg_build_window and by
+ * dbg_attach_layout, which has to know a parent's height before the parent
+ * is built so the panel attached under it can be placed in the same Build.
+ * Two copies of this arithmetic is how an attached window ends up a pixel
+ * off its parent's bottom on some panels and not others.
+ */
+static void
+dbg_window_measure(
+    struct ToriRSChrome const* ui,
+    struct ToriRSChromePanel const* p,
+    struct DbgWindowSize* out)
+{
     struct DbgMenuLayout const l =
         dbg_menu_layout(ToriRSChrome_FontLineBoxQ(TORIRS_CHROME_FONT_MENU, ui->scale_q), ui->scale_q);
     /*
@@ -5673,33 +5879,22 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
      * been three pixels of border painted over the first row.
      */
     int const edge = dbg_panel_is_framed(ui, p) ? DBG_FRAME : DBG_RULE;
-    /* The minimenu header block is authored against a 1px border, so a thicker
-     * one shifts the whole of it down rather than restating its arithmetic. */
-    int const head_y = p->y + edge - DBG_RULE;
+    int widget;
+
+    memset(out, 0, sizeof(*out));
+    out->edge = edge;
     /* Distance from the panel's top edge to the first content row, borders
      * included: the black bar, the body gap under it and the separator rule --
      * the minimenu's own header block. A titleless panel has just its top
      * border. */
-    int const head_h = p->title[0] ? (edge - DBG_RULE) + l.separator_y + DBG_RULE : edge;
+    out->head_h = p->title[0] ? (edge - DBG_RULE) + l.separator_y + DBG_RULE : edge;
     /* Bottom padding. A resizable panel reserves the grip's full grab box
      * instead of the usual pad, so the carets get a strip of their own: at
      * DBG_PAD_Y the grip reaches up into the last row and the two draw over
      * each other, which reads as a rendering fault rather than as a corner you
      * can pull. */
-    int const foot_h = dbg_panel_has_grip(p) ? DBG_GRIP_HIT : DBG_PAD_Y;
-    struct ToriRSChromeRect clip;
-    int content_w = 0;
-    int content_h = 0;
-    int content_top;
-    int content_bot;
-    int overflow;
-    int bar_w;
-    int row_y;
-    int widget;
-    /** The pinned tab strip, and the band it reserves above the rows. */
-    int strip = -1;
-    int strip_h = 0;
-    int strip_y;
+    out->foot_h = dbg_panel_has_grip(p) ? DBG_GRIP_HIT : DBG_PAD_Y;
+    out->strip = -1;
 
     for( widget = p->first_widget; widget >= 0; widget = ui->widgets[widget].next )
     {
@@ -5707,8 +5902,8 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
         if( !dbg_widget_shown(ui, &ui->widgets[widget]) )
             continue;
         w = dbg_widget_width(ui, &ui->widgets[widget]);
-        if( w > content_w )
-            content_w = w;
+        if( w > out->content_w )
+            out->content_w = w;
         /*
          * The strip is PINNED, not scrolled: it sits between the header and the
          * rows, and the rows move under it. A strip counted as content would
@@ -5716,42 +5911,150 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
          * only way back to the rows that scrolled it away -- the same
          * unreachable-destination problem tab compression exists to avoid.
          */
-        if( ui->widgets[widget].kind == TORIRS_CHROME_W_TABSTRIP && strip < 0 )
+        if( ui->widgets[widget].kind == TORIRS_CHROME_W_TABSTRIP && out->strip < 0 )
         {
-            strip = widget;
-            strip_h = dbg_widget_height(ui, &ui->widgets[widget]) + DBG_ROW_GAP;
+            out->strip = widget;
+            out->strip_h = dbg_widget_height(ui, &ui->widgets[widget]) + DBG_ROW_GAP;
             continue;
         }
-        content_h += dbg_widget_height(ui, &ui->widgets[widget]) + DBG_ROW_GAP;
+        out->content_h += dbg_widget_height(ui, &ui->widgets[widget]) + DBG_ROW_GAP;
     }
-    if( content_h > 0 )
-        content_h -= DBG_ROW_GAP;
+    if( out->content_h > 0 )
+        out->content_h -= DBG_ROW_GAP;
     if( p->title[0] )
     {
         int const tw = ToriRSChrome_MeasureTextQ(TORIRS_CHROME_FONT_MENU, ui->scale_q, p->title);
-        if( tw > content_w )
-            content_w = tw;
+        if( tw > out->content_w )
+            out->content_w = tw;
     }
-    if( content_w < DBG_MIN_CONTENT_W )
-        content_w = DBG_MIN_CONTENT_W;
+    if( out->content_w < DBG_MIN_CONTENT_W )
+        out->content_w = DBG_MIN_CONTENT_W;
 
-    p->w = p->fixed_w > 0 ? p->fixed_w : content_w + 2 * DBG_PAD_X + 2 * edge;
+    out->w = p->fixed_w > 0 ? p->fixed_w : out->content_w + 2 * DBG_PAD_X + 2 * edge;
     /* content_h is 0 for an empty panel, so this is also the empty case: the
      * header block, the pads and the bottom border. */
-    p->h = p->fixed_h > 0 ? p->fixed_h
-                          : head_h + DBG_PAD_Y + strip_h + content_h + foot_h + edge;
+    out->h = p->fixed_h > 0 ? p->fixed_h
+                            : out->head_h + DBG_PAD_Y + out->strip_h + out->content_h + out->foot_h + edge;
+    /* Collapsed: the header block and the bottom border, whatever height was
+     * set -- the same number ToriRSChrome_PanelCollapsedHeight gives the
+     * layout. */
+    if( p->collapsed )
+    {
+        out->h = out->head_h + edge;
+        out->strip = -1;
+        out->strip_h = 0;
+        out->content_h = 0;
+    }
+}
+
+/** The height dbg_build_window will give a WINDOW panel as it stands. */
+static int
+dbg_window_height(struct ToriRSChrome const* ui, struct ToriRSChromePanel const* p)
+{
+    struct DbgWindowSize m;
+    dbg_window_measure(ui, p, &m);
+    return m.h;
+}
+
+/**
+ * Place every attached panel under its parent, before the panels are built:
+ * the parent's left edge and width, its top on the parent's bottom as the
+ * parent will be built this Build (dbg_window_measure). A maximised
+ * compound's child also takes the height the area leaves under the parent.
+ * A child whose parent is hidden keeps the box it has. Runs inside the Build
+ * so the two land in the same display list: the host never has to move the
+ * child to follow the parent, and never does it a frame late.
+ */
+static void
+dbg_attach_layout(struct ToriRSChrome* ui)
+{
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        struct ToriRSChromePanel* c = &ui->panels[i];
+        struct ToriRSChromePanel const* parent;
+        struct DbgWindowSize m;
+
+        if( c->attach_to < 0 || !c->visible )
+            continue;
+        assert(dbg_valid_panel(ui, c->attach_to));
+        parent = &ui->panels[c->attach_to];
+        if( !parent->visible )
+            continue;
+        dbg_window_measure(ui, parent, &m);
+        if( c->x != parent->x || c->y != parent->y + m.h )
+        {
+            dbg_damage_add(ui, c->last_rect);
+            c->x = parent->x;
+            c->y = parent->y + m.h;
+            dbg_change_panel(ui, i, TORIRS_CHROME_CHANGE_PANEL_RECT);
+            c->dirty = 1;
+        }
+        if( c->fixed_w != m.w )
+        {
+            dbg_damage_add(ui, c->last_rect);
+            c->fixed_w = m.w;
+            dbg_change_panel(ui, i, TORIRS_CHROME_CHANGE_PANEL_RECT);
+            c->dirty = 1;
+        }
+        if( parent->maximised && parent->maximise_h > 0 )
+        {
+            int const h = parent->maximise_h - m.h > 0 ? parent->maximise_h - m.h : 0;
+            if( c->fixed_h != h )
+            {
+                dbg_damage_add(ui, c->last_rect);
+                c->fixed_h = h;
+                dbg_change_panel(ui, i, TORIRS_CHROME_CHANGE_PANEL_RECT);
+                c->dirty = 1;
+            }
+        }
+    }
+}
+
+static void
+dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
+{
+    struct ToriRSChromeTheme const* th = &ui->theme;
+    struct DbgMenuLayout const l =
+        dbg_menu_layout(ToriRSChrome_FontLineBoxQ(TORIRS_CHROME_FONT_MENU, ui->scale_q), ui->scale_q);
+    struct DbgWindowSize m;
+    struct ToriRSChromeRect clip;
+    int content_top;
+    int content_bot;
+    int overflow;
+    int bar_w;
+    int row_y;
+    int widget;
+    int strip_y;
+    int edge;
+    int head_y;
+    int head_h;
+    int foot_h;
+    int strip;
+    int strip_h;
+    int content_h;
+
+    dbg_window_measure(ui, p, &m);
+    /* The measurements by their old names: the border (dbg_window_measure
+     * says why there is ONE number), the header block, the footer, the
+     * pinned strip and its band, and the rows' stacked height. */
+    edge = m.edge;
+    /* The minimenu header block is authored against a 1px border, so a thicker
+     * one shifts the whole of it down rather than restating its arithmetic. */
+    head_y = p->y + edge - DBG_RULE;
+    head_h = m.head_h;
+    foot_h = m.foot_h;
+    strip = m.strip;
+    strip_h = m.strip_h;
+    content_h = m.content_h;
+    p->w = m.w;
+    p->h = m.h;
     /*
      * Collapsed: the header block and the bottom border, whatever height was
-     * set -- the same number ToriRSChrome_PanelCollapsedHeight gives the
-     * layout -- and no rows: the strip and every widget lose their boxes so
-     * nothing below the title is drawn or hit.
+     * set (dbg_window_measure), and no rows: the strip and every widget lose
+     * their boxes so nothing below the title is drawn or hit.
      */
     if( p->collapsed )
     {
-        p->h = head_h + edge;
-        strip = -1;
-        strip_h = 0;
-        content_h = 0;
         for( widget = p->first_widget; widget >= 0; widget = ui->widgets[widget].next )
         {
             struct ToriRSChromeWidget* w = &ui->widgets[widget];
@@ -6416,7 +6719,16 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                 ui->focus == widget ? th->input_border_focus : th->input_border, 0, clip);
             if( w->view_scene_id > 0 )
             {
-                struct ToriRSChromePrim* p2 = dbg_prim_push(ui);
+                /* Clipped to the well AND the panel: the host's render may
+                 * be larger than the box, and the well may be half off the
+                 * fold. */
+                struct ToriRSChromeRect well;
+                struct ToriRSChromePrim* p2;
+                well.x = row_x + DBG_RULE;
+                well.y = row_y + DBG_RULE;
+                well.w = w->view_w;
+                well.h = w->view_h;
+                p2 = dbg_prim_push_in(ui, dbg_rect_clip(clip, well));
                 if( p2 )
                 {
                     p2->kind = TORIRS_CHROME_PRIM_SPRITE;
@@ -6431,12 +6743,6 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                         p2->y += (w->view_h - w->view_sprite_h) / 2;
                     }
                     p2->sprite_scene_id = w->view_scene_id;
-                    /* Clip to the well, not the panel: the host's render may
-                     * be larger than the box. */
-                    p2->clip.x = row_x + DBG_RULE;
-                    p2->clip.y = row_y + DBG_RULE;
-                    p2->clip.w = w->view_w;
-                    p2->clip.h = w->view_h;
                 }
             }
             break;
@@ -7386,6 +7692,9 @@ ToriRSChrome_Build(struct ToriRSChrome* ui)
     /* Docked panels first take their place from the surface: the rest of the
      * build lays each one out at the box this gives it. */
     dbg_dock_layout(ui);
+    /* Then every attached panel under its parent, as the parent will be
+     * built: the two land in this one display list. */
+    dbg_attach_layout(ui);
 
     /*
      * Three passes: every ordinary panel, a maximised one over them, then --
@@ -8245,7 +8554,7 @@ dbg_panel_header_at(struct ToriRSChrome const* ui, int x, int y)
 
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
-        if( top >= 0 && i != top && !ui->panels[i].modal )
+        if( !dbg_maximised_allows(ui, top, i) )
             continue;
         struct ToriRSChromePanel const* p = &ui->panels[i];
 
@@ -8270,7 +8579,7 @@ dbg_panel_grip_at(struct ToriRSChrome const* ui, int x, int y)
 
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
-        if( top >= 0 && i != top && !ui->panels[i].modal )
+        if( !dbg_maximised_allows(ui, top, i) )
             continue;
         struct ToriRSChromePanel const* p = &ui->panels[i];
         struct ToriRSChromeRect g;
@@ -8359,6 +8668,10 @@ dbg_panel_resize_edges(struct ToriRSChrome* ui, int panel, int x, int y)
     int min_w = DBG_MIN_PANEL_W;
     int min_h = DBG_MIN_PANEL_H;
 
+    /* A compound's floor is its root (the strip) over the least a window
+     * can be: the child never shrinks under the parent's bottom. */
+    if( ui->resize_child >= 0 )
+        min_h += dbg_window_height(ui, &ui->panels[panel]);
     if( e != (TORIRS_CHROME_EDGE_RIGHT | TORIRS_CHROME_EDGE_BOTTOM) )
     {
         if( min_w < DBG_PX(120) )
@@ -8396,9 +8709,85 @@ dbg_panel_resize_edges(struct ToriRSChrome* ui, int panel, int x, int y)
         else
             bottom = top + min_h;
     }
-    if( e & (TORIRS_CHROME_EDGE_LEFT | TORIRS_CHROME_EDGE_TOP) )
-        dbg_panel_move_to(ui, panel, left, top);
-    dbg_panel_resize_to(ui, panel, right, bottom);
+    dbg_compound_apply(ui, panel, left, top, right, bottom);
+}
+
+/** The box a sized compound (or plain sized window) stands at, from its live
+ *  fields: 0 when it has no hand-set size to speak of. */
+static int
+dbg_compound_box(
+    struct ToriRSChrome const* ui,
+    int root,
+    int* out_left,
+    int* out_top,
+    int* out_right,
+    int* out_bottom)
+{
+    struct ToriRSChromePanel const* p = &ui->panels[root];
+    int const child = dbg_attach_child(ui, root);
+    int h;
+
+    if( p->fixed_w <= 0 )
+        return 0;
+    if( child >= 0 )
+    {
+        if( ui->panels[child].fixed_h <= 0 )
+            return 0;
+        h = dbg_window_height(ui, p) + ui->panels[child].fixed_h;
+    }
+    else
+    {
+        if( p->fixed_h <= 0 )
+            return 0;
+        h = p->fixed_h;
+    }
+    *out_left = p->x;
+    *out_top = p->y;
+    *out_right = p->x + p->fixed_w;
+    *out_bottom = p->y + h;
+    return 1;
+}
+
+static void
+dbg_compound_apply(struct ToriRSChrome* ui, int root, int left, int top, int right, int bottom)
+{
+    struct ToriRSChromePanel* p = &ui->panels[root];
+    int const child = dbg_attach_child(ui, root);
+    int root_h;
+    int h;
+
+    assert(ui->panels[root].attach_to < 0);
+    if( left != p->x || top != p->y )
+        dbg_panel_move_to(ui, root, left, top);
+    if( child < 0 )
+    {
+        dbg_panel_resize_to(ui, root, right, bottom);
+        return;
+    }
+    /* The root keeps its content height (a title bar and a strip); the
+     * width is the compound's, the child's height whatever is left. */
+    if( p->fixed_w != right - left )
+    {
+        dbg_damage_add(ui, p->last_rect);
+        p->fixed_w = right - left;
+        dbg_change_panel(ui, root, TORIRS_CHROME_CHANGE_PANEL_RECT);
+        dbg_dirty_panel(ui, root);
+    }
+    root_h = dbg_window_height(ui, p);
+    h = bottom - top - root_h;
+    if( h < DBG_MIN_PANEL_H )
+        h = DBG_MIN_PANEL_H;
+    {
+        struct ToriRSChromePanel* c = &ui->panels[child];
+        if( c->fixed_w != right - left || c->fixed_h != h )
+        {
+            dbg_damage_add(ui, c->last_rect);
+            c->fixed_w = right - left;
+            c->fixed_h = h;
+            dbg_change_panel(ui, child, TORIRS_CHROME_CHANGE_PANEL_RECT);
+            dbg_dirty_panel(ui, child);
+        }
+    }
 }
 
 int
@@ -8411,35 +8800,44 @@ ToriRSChrome_PanelEdgeAt(struct ToriRSChrome const* ui, int x, int y, int* out_p
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
         struct ToriRSChromePanel const* p = &ui->panels[i];
-        struct ToriRSChromeRect const r = p->last_rect;
+        struct ToriRSChromeRect r = p->last_rect;
         /* The window's own border: the frame where it wears one, never less
          * than a band a pointer can find. */
         int band = dbg_panel_is_framed(ui, p) ? DBG_FRAME : DBG_RULE;
         int edges = 0;
 
-        if( top >= 0 && i != top && !p->modal )
+        if( !dbg_maximised_allows(ui, top, i) )
             continue;
         if( !p->visible || r.w <= 0 )
             continue;
         if( !dbg_point_in_rect(x, y, r) )
             continue;
         /* The topmost panel under the point owns it: a press inside it is
-         * never a resize of a window beneath. */
-        if( p->style != TORIRS_CHROME_PANEL_WINDOW || !dbg_panel_has_grip(p)
-            || p->dock != TORIRS_CHROME_DOCK_NONE || p->modal )
-            return 0;
-        if( band < DBG_PX(4) )
-            band = DBG_PX(4);
-        if( x < r.x + band )
-            edges |= TORIRS_CHROME_EDGE_LEFT;
-        else if( x >= r.x + r.w - band )
-            edges |= TORIRS_CHROME_EDGE_RIGHT;
-        if( y < r.y + band )
-            edges |= TORIRS_CHROME_EDGE_TOP;
-        else if( y >= r.y + r.h - band )
-            edges |= TORIRS_CHROME_EDGE_BOTTOM;
-        if( edges )
-            *out_panel = i;
+         * never a resize of a window beneath. A compound is one window to
+         * this: its outline is the pair's, its grip the member's that has
+         * one (the group's shown window), its dock the root's -- and the
+         * seam between parent and child is not an edge of anything. */
+        {
+            int const root = dbg_attach_root(ui, i);
+            int const child = dbg_attach_child(ui, root);
+            struct ToriRSChromePanel const* gripped = &ui->panels[child >= 0 ? child : root];
+            if( p->style != TORIRS_CHROME_PANEL_WINDOW || !dbg_panel_has_grip(gripped)
+                || ui->panels[root].dock != TORIRS_CHROME_DOCK_NONE || p->modal )
+                return 0;
+            r = dbg_panel_extent(ui, root);
+            if( band < DBG_PX(4) )
+                band = DBG_PX(4);
+            if( x < r.x + band )
+                edges |= TORIRS_CHROME_EDGE_LEFT;
+            else if( x >= r.x + r.w - band )
+                edges |= TORIRS_CHROME_EDGE_RIGHT;
+            if( y < r.y + band )
+                edges |= TORIRS_CHROME_EDGE_TOP;
+            else if( y >= r.y + r.h - band )
+                edges |= TORIRS_CHROME_EDGE_BOTTOM;
+            if( edges )
+                *out_panel = root;
+        }
         return edges;
     }
     return 0;
@@ -8591,8 +8989,11 @@ static void
 dbg_panel_snap_drop(struct ToriRSChrome* ui, int panel)
 {
     struct ToriRSChromePanel const* p = &ui->panels[panel];
-    int const w = p->last_rect.w;
-    int const h = p->last_rect.h;
+    /* The compound's outline: a group snaps by its window's bottom edge,
+     * not its strip's. */
+    struct ToriRSChromeRect const extent = dbg_panel_extent(ui, panel);
+    int const w = extent.w;
+    int const h = extent.h;
     int x;
     int y;
 
@@ -8608,14 +9009,19 @@ static void
 dbg_panel_snap_size(struct ToriRSChrome* ui, int panel)
 {
     struct ToriRSChromePanel const* p = &ui->panels[panel];
+    int left;
+    int top;
+    int right;
+    int bottom;
     int w;
     int h;
 
-    if( ui->snap_grid <= 0 || p->dock != TORIRS_CHROME_DOCK_NONE || p->fixed_w <= 0 || p->fixed_h <= 0 )
+    if( ui->snap_grid <= 0 || p->dock != TORIRS_CHROME_DOCK_NONE
+        || !dbg_compound_box(ui, panel, &left, &top, &right, &bottom) )
         return;
-    w = dbg_snap_axis_size(ui, panel, 1, p->x, p->x + p->fixed_w, p->y, p->fixed_h);
-    h = dbg_snap_axis_size(ui, panel, 0, p->y, p->y + p->fixed_h, p->x, w);
-    dbg_panel_resize_to(ui, panel, p->x + w, p->y + h);
+    w = dbg_snap_axis_size(ui, panel, 1, left, right, top, bottom - top);
+    h = dbg_snap_axis_size(ui, panel, 0, top, bottom, left, w);
+    dbg_compound_apply(ui, panel, left, top, left + w, top + h);
 }
 
 /** Round `v` to the nearest multiple of `grid`. */
@@ -8646,12 +9052,9 @@ dbg_panel_snap_edges(struct ToriRSChrome* ui, int panel)
         dbg_panel_snap_size(ui, panel);
         return;
     }
-    if( ui->snap_grid <= 0 || p->dock != TORIRS_CHROME_DOCK_NONE || p->fixed_w <= 0 || p->fixed_h <= 0 )
+    if( ui->snap_grid <= 0 || p->dock != TORIRS_CHROME_DOCK_NONE
+        || !dbg_compound_box(ui, panel, &left, &top, &right, &bottom) )
         return;
-    left = p->x;
-    top = p->y;
-    right = p->x + p->fixed_w;
-    bottom = p->y + p->fixed_h;
     if( e & TORIRS_CHROME_EDGE_LEFT )
         left = dbg_round_to_grid(left, ui->snap_grid);
     if( e & TORIRS_CHROME_EDGE_TOP )
@@ -8662,8 +9065,7 @@ dbg_panel_snap_edges(struct ToriRSChrome* ui, int panel)
         bottom = dbg_round_to_grid(bottom, ui->snap_grid);
     if( right - left < DBG_MIN_PANEL_W || bottom - top < DBG_MIN_PANEL_H )
         return;
-    dbg_panel_move_to(ui, panel, left, top);
-    dbg_panel_resize_to(ui, panel, right, bottom);
+    dbg_compound_apply(ui, panel, left, top, right, bottom);
 }
 
 void
@@ -8743,7 +9145,7 @@ dbg_panel_scroll_press(struct ToriRSChrome* ui, int x, int y)
 
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
-        if( top >= 0 && i != top && !ui->panels[i].modal )
+        if( !dbg_maximised_allows(ui, top, i) )
             continue;
         struct ToriRSChromeRect const bar = dbg_panel_scrollbar_rect(ui, i);
         struct ToriRSChromePanel* p = &ui->panels[i];
@@ -9230,6 +9632,37 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
     }
 
     /*
+     * Shift+Alt (Option) held: the WHOLE window is its drag handle. Ahead of
+     * the title-bar buttons, the grip, the edges and the rows, because the
+     * point of it is reaching a window whose title bar cannot be reached --
+     * off the top of the surface, or under another panel -- and with the
+     * modifiers down nothing on the panel is a control. A compound (a group's
+     * strip and window) is picked up by its root; a docked panel is placed
+     * by its dock and stays; a hollow panel's body (the World view) is the
+     * host's and falls through as it always does.
+     */
+    if( (ui->mods & (TORIRS_CHROME_MOD_SHIFT | TORIRS_CHROME_MOD_ALT))
+        == (TORIRS_CHROME_MOD_SHIFT | TORIRS_CHROME_MOD_ALT) )
+    {
+        int const panel = dbg_panel_at(ui, x, y);
+        if( panel >= 0 && ui->panels[panel].style == TORIRS_CHROME_PANEL_WINDOW && !ui->panels[panel].modal )
+        {
+            int const root = dbg_attach_root(ui, panel);
+            if( ui->panels[root].dock == TORIRS_CHROME_DOCK_NONE )
+            {
+                ui->drag_panel = root;
+                ui->drag_grab_x = x - ui->panels[root].x;
+                ui->drag_grab_y = y - ui->panels[root].y;
+                ui->drag_from_x = ui->panels[root].x;
+                ui->drag_from_y = ui->panels[root].y;
+                ui->press = -1;
+                dbg_focus_release(ui);
+                return 1;
+            }
+        }
+    }
+
+    /*
      * A closable panel's Close, before its header drag: the button lives IN the
      * title bar, and a press on it must not also pick the window up. Acted on
      * at RELEASE like every other clickable thing here, so a press that slides
@@ -9272,16 +9705,20 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
         int edge_panel = -1;
         int edges = 0;
 
-        if( grip >= 0 && ui->panels[grip].dock == TORIRS_CHROME_DOCK_NONE )
+        /* The grip of a group's shown window is the compound's: its root
+         * is what the resize holds (ToriRSChrome_PanelEdgeAt names the root
+         * itself). */
+        if( grip >= 0 && ui->panels[dbg_attach_root(ui, grip)].dock == TORIRS_CHROME_DOCK_NONE )
         {
-            edge_panel = grip;
+            edge_panel = dbg_attach_root(ui, grip);
             edges = TORIRS_CHROME_EDGE_RIGHT | TORIRS_CHROME_EDGE_BOTTOM;
         }
         else if( grip < 0 )
             edges = ToriRSChrome_PanelEdgeAt(ui, x, y, &edge_panel);
         if( edges && edge_panel >= 0 )
         {
-            struct ToriRSChromeRect const from = ui->panels[edge_panel].last_rect;
+            /* The compound's outline, when the panel heads one. */
+            struct ToriRSChromeRect const from = dbg_panel_extent(ui, edge_panel);
             /* The box it was taken from and where the pointer took it: each
              * moved edge then follows the pointer's TRAVEL, so the panel keeps
              * the exact point it was picked up by instead of snapping an edge
@@ -9289,6 +9726,7 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
             ui->resize_grab_x = x - (from.x + from.w);
             ui->resize_grab_y = y - (from.y + from.h);
             ui->resize_panel = edge_panel;
+            ui->resize_child = dbg_attach_child(ui, edge_panel);
             ui->resize_edges = edges;
             ui->resize_press_x = x;
             ui->resize_press_y = y;
@@ -9523,13 +9961,22 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
         if( dbg_valid_panel(ui, ui->resize_panel) && !ui->panels[ui->resize_panel].maximised )
         {
             struct ToriRSChromePanel* p = &ui->panels[ui->resize_panel];
+            int left;
+            int top;
+            int right;
+            int bottom;
             dbg_panel_resize_edges(ui, ui->resize_panel, x, y);
             dbg_panel_snap_edges(ui, ui->resize_panel);
-            if( p->fixed_w != ui->resize_from_w || p->fixed_h != ui->resize_from_h
-                || p->x != ui->resize_from_x || p->y != ui->resize_from_y )
+            /* The compound's box against the one it was taken from: the
+             * root (a group's frame) is what a host lays out, so the root
+             * is what records that the user sized it. */
+            if( dbg_compound_box(ui, ui->resize_panel, &left, &top, &right, &bottom)
+                && (right - left != ui->resize_from_w || bottom - top != ui->resize_from_h
+                    || left != ui->resize_from_x || top != ui->resize_from_y) )
                 p->user_placed = 1;
         }
         ui->resize_panel = -1;
+        ui->resize_child = -1;
         ui->press = -1;
         return 1;
     }

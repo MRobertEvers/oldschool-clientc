@@ -318,7 +318,7 @@ dbg_push_line(
     uint32_t color,
     struct ToriRSChromeRect clip)
 {
-    struct ToriRSChromePrim* p = dbg_prim_push(ui);
+    struct ToriRSChromePrim* p = dbg_prim_push_in(ui, clip);
 
     if( !p )
         return;
@@ -1964,22 +1964,58 @@ ToriRSChrome_PanelRestoreBox(
     return 1;
 }
 
-void
-ToriRSChrome_PanelRestore(struct ToriRSChrome* ui, int panel)
+/** Put one panel's kept box back (the half of a restore that is per panel). */
+static void
+dbg_panel_restore_one(struct ToriRSChrome* ui, int panel)
 {
-    struct ToriRSChromePanel* p;
+    struct ToriRSChromePanel* p = &ui->panels[panel];
 
-    assert(ui);
-    assert(dbg_valid_panel(ui, panel));
-    p = &ui->panels[panel];
     if( !p->maximised )
         return;
     p->maximised = 0;
+    p->maximise_h = 0;
     ToriRSChrome_PanelSetFixedWidth(ui, panel, p->restore_fixed_w);
     ToriRSChrome_PanelSetFixedHeight(ui, panel, p->restore_fixed_h);
     ToriRSChrome_PanelSetScrollable(ui, panel, p->restore_scrollable);
     ToriRSChrome_PanelMove(ui, panel, p->restore_x, p->restore_y);
     p->user_placed = p->restore_user_placed;
+}
+
+/** Keep one panel's box for a later restore and flag it maximised. */
+static void
+dbg_panel_keep_for_restore(struct ToriRSChrome* ui, int panel)
+{
+    struct ToriRSChromePanel* p = &ui->panels[panel];
+
+    if( p->maximised )
+        return;
+    p->restore_rect = p->last_rect;
+    p->restore_x = p->x;
+    p->restore_y = p->y;
+    p->restore_fixed_w = p->fixed_w;
+    p->restore_fixed_h = p->fixed_h;
+    p->restore_user_placed = p->user_placed;
+    p->restore_scrollable = p->scrollable;
+    p->maximised = 1;
+    dbg_damage_surface(ui);
+}
+
+void
+ToriRSChrome_PanelRestore(struct ToriRSChrome* ui, int panel)
+{
+    int root;
+
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    if( !ui->panels[panel].maximised )
+        return;
+    /* A compound restores as one: the root and every panel attached under
+     * it (the hidden members of a group were kept too). */
+    root = dbg_attach_root(ui, panel);
+    dbg_panel_restore_one(ui, root);
+    for( int i = 0; i < ui->panel_count; i++ )
+        if( ui->panels[i].attach_to == root )
+            dbg_panel_restore_one(ui, i);
     /* Everything it covered shows again. */
     dbg_damage_surface(ui);
 }
@@ -1988,32 +2024,50 @@ void
 ToriRSChrome_PanelMaximise(struct ToriRSChrome* ui, int panel, struct ToriRSChromeRect area)
 {
     struct ToriRSChromePanel* p;
+    int root;
+    int child;
 
     assert(ui);
     assert(dbg_valid_panel(ui, panel));
     assert(area.w > 0);
     assert(area.h > 0);
+    /*
+     * A compound maximises as one, whichever member was asked: the root at
+     * the top of the area, full width, keeping its content height (a title
+     * bar and a strip); the visible child under it with what is left
+     * (dbg_attach_layout keeps that up while the root stays maximised, and
+     * refits it when the strip grows a row). The members not showing are
+     * flagged with it, so a tab brought to the front later comes up in the
+     * maximised box and a restore puts every one of them back.
+     */
+    root = dbg_attach_root(ui, panel);
+    child = dbg_attach_child(ui, root);
     for( int i = 0; i < ui->panel_count; i++ )
-        if( i != panel && ui->panels[i].maximised )
+        if( dbg_attach_root(ui, i) != root && ui->panels[i].maximised )
             ToriRSChrome_PanelRestore(ui, i);
-    p = &ui->panels[panel];
-    if( !p->maximised )
+    p = &ui->panels[root];
+    dbg_panel_keep_for_restore(ui, root);
+    for( int i = 0; i < ui->panel_count; i++ )
+        if( ui->panels[i].attach_to == root )
+            dbg_panel_keep_for_restore(ui, i);
+    ToriRSChrome_PanelSetFixedWidth(ui, root, area.w);
+    ToriRSChrome_PanelMove(ui, root, area.x, area.y);
+    if( child >= 0 )
     {
-        p->restore_rect = p->last_rect;
-        p->restore_x = p->x;
-        p->restore_y = p->y;
-        p->restore_fixed_w = p->fixed_w;
-        p->restore_fixed_h = p->fixed_h;
-        p->restore_user_placed = p->user_placed;
-        p->restore_scrollable = p->scrollable;
-        p->maximised = 1;
-        dbg_damage_surface(ui);
+        int const root_h = dbg_window_height(ui, p);
+        p->maximise_h = area.h;
+        ToriRSChrome_PanelSetFixedWidth(ui, child, area.w);
+        ToriRSChrome_PanelSetFixedHeight(ui, child, area.h - root_h > 0 ? area.h - root_h : 0);
+        /* A hand-set height drops rows past the bottom unless it scrolls. */
+        ToriRSChrome_PanelSetScrollable(ui, child, 1);
+        ToriRSChrome_PanelMove(ui, child, area.x, area.y + root_h);
     }
-    ToriRSChrome_PanelSetFixedWidth(ui, panel, area.w);
-    ToriRSChrome_PanelSetFixedHeight(ui, panel, area.h);
-    /* A hand-set height drops rows past the bottom unless it scrolls. */
-    ToriRSChrome_PanelSetScrollable(ui, panel, 1);
-    ToriRSChrome_PanelMove(ui, panel, area.x, area.y);
+    else
+    {
+        p->maximise_h = 0;
+        ToriRSChrome_PanelSetFixedHeight(ui, root, area.h);
+        ToriRSChrome_PanelSetScrollable(ui, root, 1);
+    }
     /* A host that lays its windows out itself must leave this one alone. */
     p->user_placed = 1;
 }
@@ -2069,6 +2123,13 @@ dbg_unmaximise_for_resize(struct ToriRSChrome* ui, int x, int y)
     ui->resize_from_y = p->restore_y;
     ui->resize_from_w = p->restore_fixed_w > 0 ? p->restore_fixed_w : p->restore_rect.w;
     ui->resize_from_h = p->restore_fixed_h > 0 ? p->restore_fixed_h : p->restore_rect.h;
+    /* A compound's box is the root's strip over the child's restored height. */
+    if( ui->resize_child >= 0 && dbg_valid_panel(ui, ui->resize_child) )
+    {
+        struct ToriRSChromePanel const* c = &ui->panels[ui->resize_child];
+        ui->resize_from_h = dbg_window_height(ui, p)
+                            + (c->fixed_h > 0 ? c->fixed_h : c->last_rect.h);
+    }
     return 1;
 }
 
@@ -2897,21 +2958,21 @@ dbg_draw_cells(
         dbg_push_rect(ui, lay.thumb_x, ty, thumb, thumb, th->input_bg, 1, clip);
         if( sprite > 0 )
         {
-            struct ToriRSChromePrim* p = dbg_prim_push(ui);
+            struct ToriRSChromeRect well;
+            struct ToriRSChromePrim* p;
+            well.x = lay.thumb_x;
+            well.y = ty;
+            well.w = thumb;
+            well.h = thumb;
+            p = dbg_prim_push_in(ui, dbg_rect_clip(clip, well));
             if( p )
             {
-                struct ToriRSChromeRect well;
-                well.x = lay.thumb_x;
-                well.y = ty;
-                well.w = thumb;
-                well.h = thumb;
                 p->kind = TORIRS_CHROME_PRIM_SPRITE;
                 p->x = well.x;
                 p->y = well.y;
                 p->w = thumb;
                 p->h = thumb;
                 p->sprite_scene_id = sprite;
-                p->clip = dbg_rect_clip(clip, well);
             }
         }
     }
@@ -3250,7 +3311,7 @@ dbg_draw_graph(
                 break;
             /* Clipped to the visible well, as MODELVIEW's preview: the
              * picture may start left of or above the well. */
-            p = dbg_prim_push(ui);
+            p = dbg_prim_push_in(ui, visible);
             if( !p )
                 break;
             p->kind = TORIRS_CHROME_PRIM_SPRITE;
@@ -3260,7 +3321,6 @@ dbg_draw_graph(
             p->h = it->h * s;
             p->sprite_scene_id = it->scene_id;
             p->trans = it->trans;
-            p->clip = visible;
             break;
         }
         default:
