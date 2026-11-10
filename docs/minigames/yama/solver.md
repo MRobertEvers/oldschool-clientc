@@ -76,3 +76,14 @@ How it plays (each a fix found on a seed read in full):
 
 Not reached: the duo (the Join needs mutual friends; no lane can add a friend) and the live-lane
 parity seed (README section 8).
+
+## Batch of 2026-11-10
+
+Kit: blood runes join the loose pouch runes (one super restore makes room) for the greater ghost.
+Play: a thrall at the summon and again 75 ticks after it returns (4498's median); the staff back in hand
+after each Judge; the home distance drawn per walk from 4498's mage (mostly 3..6, 2% beside him) with
+Protect from Melee when beside him and no regular in the air; stones that a surge is coming down are
+stepped off sideways or back. Duo (`--bots 2`): each seat adds the other as a friend, seat 1 travels in,
+seat 2 joins by the Voice's Join, seat 1 challenges when both are in.
+Results: 47/48 solo, 8/8 duo, 8/9 live (README section 12).
+

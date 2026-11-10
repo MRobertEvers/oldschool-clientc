@@ -311,3 +311,37 @@ the same tick (the row keeps one spotanim), so specials are read from the seq pl
 the chat line, and phase 3's styles from the token stream; a wave launched while another is on the map
 is found by the jump in the row count; Yama melees anyone in the ring next to him on his attack tick,
 so the walk home goes round it.
+
+## 12. The owner's batch (2026-11-10): one row each
+
+| item | recorded | was | now | evidence |
+|---|---|---|---|---|
+| HUD max and the kill | `hpbar_hud_hp/basehp` 2500/2500 at [687], 0 at the kill; the killing splat is what was left (49 at [4740], 55 [5512], 8 [6465], 16 [7617]) with the despawn on that tick | `npc_setheadbarreserve(1)` showed 2499 (Judge 399) and the kill clamped the last hit to hp-1 | no reserve; `param=death_script,yes` on Yama and the Judge (the engine queues `[ai_queue3]` and starts no death); the killing hit is whole and the engine's splat clamps to what was left; phases 1-2 still never reach 0 (the portal ends them) | HUD max 2500 on every run (varp 1682); `[ai_queue3,yama]`, `[ai_queue3,yama_judge_of_yama]` |
+| shield splats | 147 `hitsplat_shield_max_me` (44) value 0 on the recorder: 80 on special landings, 59 on regulars inside the 10-tick ward, 8 on hazards | the ward absorbed, but the engine rewrote every 0-value hit to the block splat (26) | `zero_hit_splat` (torirs_server_combat.c): a script's shield-family splat survives a 0 | 18..27 shield splats a solo run, 1,032 on 48 seeds; the ward covers regulars, specials, waves, streaks, meteor, root and now the flares' explosions |
+| flares | wiki: P1/P2 one shadow and one flame flare, P3 shadow; 42..45 (P3 23..25) if they charge, the matching glyph takes it; always the max hit from magic and standard ranged; 200% demonbane vulnerability doubles demonbane *bonuses* | any magic hit doubled; explosion scaled by flare hp, no glyph | elements kept per slot (`^yama_v_flare_el`), the glyph of the flare's element takes the explosion, 42..45 / 23..25; magic and ranged always max; only Mark of Darkness's demonbane % and the melee passive double on them | `test/bosses/yama_bonus.lua` (C = 2A on a flare) |
+| melee | solo 3268/3322/798, target tile at the end of A-1: 37 melees all within 1 of his 5x5; 7 regulars with the target that close; chase after a melee hit 13 of 21 ticks | always melee when adjacent; the bot never came adjacent | melee on 37/44 when within 1 (`~yama_melee_swings`); the chase as before | 23 melee swings on 48 solo seeds; the bot's home distance drawn from 4498's mage (1: 2%, 2: 9%, 3: 19%, 4: 26%, 5: 17%, 6: 24%, 7: 3%) and Protect from Melee when beside him |
+| demonbane bonuses | wiki: Mark of Darkness +25% demonbane damage after equipment, +50% only with the purging staff as the weapon; duration (base magic x 3) ticks, x5 when cast with the staff; the emberlight +70% vs demons | Mark applied before the equipment %, duration x1, line "You mark yourself with darkness." | Mark after the equipment %, the staff checked on the hit, the flare doubling, duration x5 with the staff, the recorded line `@mes_hl_pur@You have placed a Mark of Darkness upon yourself.</col>` | `yama_bonus.lua`: staff off, no Mark 35; staff off, Mark 52 (35 + 50% on a flare); staff on 38, staff on + Mark 76; the demonbane spells' accuracy bonus (+20/40/80%) is not modelled (Open) |
+| weapon after the Judge | the recorder swaps back to the staff ([873]) | the solver kept the emberlight | the solver reads the worn container and equips the staff before casting | `staff_back` 2 a run |
+| thralls | 68 greater ghost casts in 4498: cast at the summon+1..4, cooldown varbit 1 for 17 ticks, risen +5 with the line, swings every 4 (seq 11101, water strike sound, `thrall_magic_travel` 15/60/15/32 heights 110/124, hit 2 ticks on, 0..3), back to the grave a Magic level of ticks after rising; recast a median 75 ticks after it returns | thralls followed and never fought | `thrall.rs2`: the ghosts swing at the npc their owner last hit (named in `~player_hit_npc_prepare`), the recorded shape, cooldown, duration, lines; skeletons and zombies still do not fight (no recording) | 52..106 thrall shots a solo run (3,623 on 48 seeds) |
+| target switch (duo) | 4498 --all-players: 20 switches in 577 attacks, every phase 1-2 switch on the phase's 13th attack (19 of 23 phases that reached it), the line ("A change of pace." / "I grow tired of you." / "Your strikes lack bite.") the tick before; one P3 switch in 13 phases | 1/8 a swing, any phase | the tick before the 13th attack of phases 1-2, 19/23; none in phase 3 | `targetfit` in the session; the top-damage rule fits only 12 of 23 |
+| duo route | the partner joins by the Voice's op4 name prompt, mutual friends only | no lane could add a friend | `api_drive.friend_add` on both lanes (`d_friend_add`, `lua_drive_friend_add`), `t.player.add_friend` | 8 duo seeds: both seats join, both kill, both get a drop |
+| rewards | K+11 drops for each raider | Yama's timer ran the kill's events and he is removed at K+7: K+9, K+11 and K+15 never ran (no drops, the hud never closed) | the re-added throne's timer runs them | `yama.drop` on every kill (each seat sees its own pile) |
+| hazards after the kill | 8 of 8 kills with waves on the map: no splat on the recorder after the despawn | waves, streaks and crash rocks kept landing | the kill cancels them and drops pending events | no hit after the despawn |
+| facing | one recorded fight: 133 ticks with a face row in 1,017 (125 player, 4 reset, 3 coord) | a player face every tick, 63 resets in P3 | faced once per target change | duo d000: 84 ticks with a row in 432 (81 player, 2 reset, 5 coord); the recording's re-sends are not every-attack and are not fitted (Open) |
+| registers | | `^yama_v_crash` (unused) and `^yama_v_surge` both at 144 | the crash's dead registers removed; the surges own 144..151 | |
+
+Proof (2026-11-10, the same PASS row as section 11, plus the new counts; `yama_audit.py`):
+
+| lane | seeds | kills | deaths | style-wrong prayers | shield splats | melee swings | thrall shots | HUD max |
+|---|---|---|---|---|---|---|---|---|
+| scriptrun solo | 48 (y000..y047) | 47 | 1 (y016, at the second Judge with no food left) | 0 of 2,880 (14 found the prayer shut by a wave) | 18..27 a run, 1,032 (495 specials, 522 regulars, 15 hazards; the recorder's 147: 80 / 59 / 8) | 23 | 52..106 a run | 2500 |
+| scriptrun duo (two seats) | 8 (d000..d007) | 8, both seats alive, both with a drop | 0 | 0 of 414 | 14..27 a run | 0 | 89..124 a run | 2500 |
+| live client (`src/torirs_yamalive`, unlocked) | 9 (ylive00..ylive08) | 8 | 1 (ylive02: six wave hits in seven ticks in phase 2) | 0 | 18..28 a run | 1 | 35..111 a run | 2500 |
+
+Still different: the demonbane spells' accuracy bonus (+20%, +40% with the staff or Mark, +80% with
+both) is not modelled, so Yama's magic defence (-30) is a fit that absorbs it; Mark of Darkness's expiry
+lines are not sent; the skeleton and zombie thralls still do not fight; the Judge-phase surge columns and
+fireball tile, the streak hit rule, the flare body models and the contracts' rules are as before (section
+8); Yama's re-sent faces are not fitted (ours 81 player faces in a 432-tick duo fight, the recording 125
+in 1,017); the live lane is not tick-identical to scriptrun (one live death the sweep does not show).
+

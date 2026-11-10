@@ -703,6 +703,41 @@ lua_drive_say(struct lua_State* L)
     return 2;
 }
 
+/* api_drive.friend_add(name) -> "ok" | "refused" | "not_visible": the Add
+ * Friend prompt's send -- clientscript 681's friend_add parks an
+ * RS_CS2_SOCIAL_SEND_FRIEND_ADD on the CS2 host, which the App's flush turns
+ * into FRIENDLIST_ADD (app_cs2_flush.c, net_out_friendlist_add). Scriptrun's
+ * d_friend_add sends the same packet. The friend appears in the list when the
+ * server answers, as for a typed name. */
+static int
+lua_drive_friend_add(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    char const* name = luaL_checkstring(L, 1);
+    struct RS_CS2SocialSend send;
+
+    assert(app);
+    if( name[0] == '\0' || strlen(name) > 12 )
+    {
+        lua_pushstring(L, "refused");
+        lua_pushstring(L, "friend_add: a name is 1..12 characters");
+        return 2;
+    }
+    if( !app->net || app->net->state != TORIRS_NET_GAME )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushstring(L, "friend_add: not in game");
+        return 2;
+    }
+    memset(&send, 0, sizeof(send));
+    send.kind = RS_CS2_SOCIAL_SEND_FRIEND_ADD;
+    snprintf(send.name, sizeof(send.name), "%s", name);
+    RS_CS2Host_SendPush(&app->host, &send);
+    lua_pushstring(L, "ok");
+    lua_pushstring(L, "friendlist_add queued");
+    return 2;
+}
+
 static int
 lua_drive_message_serial(struct lua_State* L)
 {
@@ -895,6 +930,7 @@ static struct LuaFn const LUA_DRIVE_STATE_FNS[] = {
     {"messages", lua_drive_messages},
     {"message_serial", lua_drive_message_serial},
     {"say", lua_drive_say},
+    {"friend_add", lua_drive_friend_add},
     {"vessel", lua_drive_vessel},
     {"player_delayed", lua_drive_player_delayed},
     {NULL, NULL},

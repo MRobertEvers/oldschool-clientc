@@ -34,7 +34,7 @@ local function new_state()
         waves = {}, seen_wave = {}, tells = {}, lanes = {}, rock_tiles = {},
         style = "fire", last_style_tick = -1, phase = 1,
         next_cast = 0, next_hop = 0, msg_serial = 0, wrong = 0,
-        pray_block_until = -1, glyph_used = {},
+        pray_block_until = -1, glyph_used = {}, rng = 12345,
     }
 end
 
@@ -46,8 +46,20 @@ local GLYPHS = {
     { dx = 38, dz = 30, a = "shadow", b = "fire" },
 }
 local GLYPH_LOC = { fire = "floorkit_summoning03_full02", shadow = "floorkit_summoning03_full01" }
--- Where to stand between attacks: north of the boss, reach of both pairs.
-local HOME = { dx = 31, dz = 34 }
+-- Where to stand between attacks: north of him, at a distance drawn from the recorder's
+-- (RSProx 4498, the mage's tile against his 5x5 at the end of the tick before each of his
+-- 495 attacks: 1: 2%, 2: 9%, 3: 19%, 4: 26%, 5: 17%, 6: 24%, 7: 3%), a new draw for each
+-- walk home. A run's own stream (its name), so both lanes draw the same.
+local HOME_D = { { 1, 2 }, { 2, 9 }, { 3, 19 }, { 4, 26 }, { 5, 17 }, { 6, 24 }, { 7, 3 } }
+local function draw_home(S)
+    S.rng = (S.rng * 1103515245 + 12345) % 2147483648
+    local roll = S.rng % 100
+    for _, w in ipairs(HOME_D) do
+        if roll < w[2] then return w[1] end
+        roll = roll - w[2]
+    end
+    return 4
+end
 
 local function is_glyph_tile(S, x, z)
     for _, g in ipairs(GLYPHS) do
@@ -156,8 +168,16 @@ local function scan_chat(t, S)
                 S.special_el = "fire"
             elseif line:find("shadow-based", 1, true) then
                 S.special_el = "shadow"
-            elseif line:find("mark yourself with darkness", 1, true) then
-                S.mark_due = S.k + 285
+            elseif line:find("placed a Mark of Darkness upon yourself", 1, true) then
+                -- Five times (magic x 3) ticks under the purging staff: once a fight.
+                S.mark_due = S.k + 1470
+            elseif line:find("You resurrect a greater ghostly thrall", 1, true) then
+                S.thrall_up = true
+                S.thrall_due = nil
+                count(S, "thrall_up")
+            elseif line:find("thrall returns to the grave", 1, true) then
+                S.thrall_up = false
+                S.thrall_due = S.k + 75
             elseif line:find("You have been poisoned", 1, true) then
                 S.poisoned = true
             elseif line:find("can't use protection", 1, true) then
@@ -183,9 +203,11 @@ local function read_tell(t, S, Y, k)
         if Y.spotanim_id == SPOT_FIRE then
             S.last_style_tick = Y.spotanim_tick
             S.style = "fire"
+            S.reg_until = k + 3
         elseif Y.spotanim_id == SPOT_SHADOW then
             S.last_style_tick = Y.spotanim_tick
             S.style = "shadow"
+            S.reg_until = k + 3
         end
     end
     -- A special: the seq, then the element from whichever client channel carries it first
@@ -234,6 +256,7 @@ local function read_tell(t, S, Y, k)
             local seen = (Y.spotanim_id == SPOT_FIRE and "fire") or (Y.spotanim_id == SPOT_SHADOW and "shadow")
             S.style = seen or S.p3_next
             S.p3_next = (S.style == "fire") and "shadow" or "fire"
+            S.reg_until = k + 3
             trace(t, S, "p3 i " .. i .. " seen " .. tostring(seen) .. " style " .. S.style)
         else
             trace(t, S, "p3 i " .. i .. " crash/other seq " .. tostring(Y.seq_id))
@@ -271,6 +294,12 @@ local PRAYER_POTS = { "4doseprayerrestore", "3doseprayerrestore", "2doseprayerre
     "4dose2restore", "3dose2restore", "2dose2restore", "1dose2restore" }
 local ANTIVENOM = { "extended_antivenom+4", "extended_antivenom+3", "extended_antivenom+2", "extended_antivenom+1" }
 
+-- The weapon actually in hand (the worn container, as the client shows it).
+local function wielding(t, name)
+    local r, n = t.inv.count_in("worn", name)
+    return r == "ok" and (n or 0) > 0
+end
+
 local function held(t, names)
     for _, n in ipairs(names) do
         local r, c = t.inv.count(n)
@@ -283,7 +312,7 @@ end
 -- press round is one tick. Returns after at least a tick has gone.
 local function press_round(t, S, D)
     local k = S.k
-    if D.cast and not D.walk then
+    if D.cast and not D.walk and not D.equip then
         if k >= S.next_cast then
             S.next_cast = k + 5
             local c0 = now(t)
@@ -303,7 +332,14 @@ local function press_round(t, S, D)
         if cr == "ok" then t.ui.invoke(comp, 1) end
         count(S, "mark_press")
     end
-    if D.pray or D.eat or D.drink or D.anti or D.walk or D.equip or D.mark then
+    if D.thrall then
+        -- The greater ghost the same way (4498: cast at the summon, again ~75 ticks after
+        -- each one returns to the grave); its line confirms it.
+        local cr, comp = t.player._spell_component("resurrect_greater_ghost")
+        if cr == "ok" then t.ui.invoke(comp, 1) end
+        count(S, "thrall_press")
+    end
+    if D.pray or D.eat or D.drink or D.anti or D.walk or D.equip or D.mark or D.thrall then
         if not (D.pray or D.eat or D.drink or D.anti or D.walk or D.equip) then
             t.ticks(1)
             return
@@ -373,7 +409,7 @@ end
 local function walk_home(S, Y, x, z, hx, hz)
     local west, east = Y.x - 2, Y.x + 6
     local north, south = Y.z + 6, Y.z - 2
-    if z < north then
+    if z < north and not (cheb(x, z, hx, hz) <= 2 and z >= Y.z + 5) then
         if z <= south then
             -- South side: head for the nearest outside corner first.
             local cx = (math.abs(x - west) <= math.abs(x - east)) and west or east
@@ -404,8 +440,26 @@ local function fight_tick(t, S, k, Y)
     end
     local hp, prayer = skill_of(t, "hitpoints", 99), skill_of(t, "prayer", 40)
     if hp <= 0 then t.ticks(1) return end
-    want_prayer(t, S, D, S.style == "fire" and "protectfrommagic" or "protectfrommissiles")
+    -- Beside him with no telegraphed regular in the air, his next swing is a melee
+    -- (37 of 44 recorded): Protect from Melee; a regular's spot puts the style back.
+    local beside = in_boss(S, Y, x, z) and cheb(x, z, Y.x + 2, Y.z + 2) <= 3
+    if beside and k > (S.reg_until or -1) then
+        want_prayer(t, S, D, "protectfrommelee")
+        count(S, "melee_prayer")
+    else
+        want_prayer(t, S, D, S.style == "fire" and "protectfrommagic" or "protectfrommissiles")
+    end
     survive(t, S, D, hp, prayer, Y)
+    -- The staff back in hand (the Judge's swings leave the emberlight in it).
+    if wielding(t, "emberlight") then
+        D.equip = "purging_staff"
+        count(S, "staff_back")
+    end
+    -- The thrall: raised at the summon, again 75 ticks after it returns.
+    if not S.thrall_up and not D.mark and k >= (S.thrall_due or 0) and k >= (S.thrall_press or 0) then
+        S.thrall_press = k + 5
+        D.thrall = true
+    end
 
     -- A special in the air: the glyph, ahead of everything but a press that costs nothing.
     if S.glyph_want then
@@ -423,6 +477,7 @@ local function fight_tick(t, S, k, Y)
                     count(S, "glyph_stepped")
                     S.glyph_want = nil
                     S.home_after = k + 1
+                    S.home_d = draw_home(S)
                 else
                     D.walk = { x = g.x, z = g.z }
                     trace(t, S, "glyph walk " .. g.x - S.bx .. "," .. g.z - S.bz)
@@ -451,9 +506,10 @@ local function fight_tick(t, S, k, Y)
     -- when idle.
     local flare = row_of(t, "yama_voidflare", 30)
     if not D.walk then
-        local hx, hz = Y.x + 2, Y.z + 6
-        local far = cheb(x, z, hx, hz) > 2
-        if (in_boss(S, Y, x, z) or far) and k >= (S.home_after or 0) then
+        S.home_d = S.home_d or draw_home(S)
+        local hx, hz = Y.x + 2, Y.z + 4 + S.home_d
+        local far = cheb(x, z, hx, hz) > 1
+        if far and k >= (S.home_after or 0) then
             local w = walk_home(S, Y, x, z, hx, hz)
             if not tile_danger(S, w.x, w.z, k) then D.walk = w end
         end
@@ -483,6 +539,18 @@ local function next_stone(t, S, x, z, J)
         if dz >= 1 and dz <= 3 and dx <= 3 and not burnt(s.x, s.z) then
             local d = math.abs(s.x - (J.x + 1)) * 2 + dz
             if not bd or d < bd then best, bd = s, d end
+        end
+    end
+    -- Nothing ahead and a surge coming down my own column: any stone in reach that is
+    -- clear, sideways or back.
+    if not best and burnt(x, z) then
+        for i = 1, #rows do
+            local s = rows[i]
+            local dz, dx = s.z - z, math.abs(s.x - x)
+            if (dx > 0 or dz ~= 0) and math.abs(dz) <= 3 and dx <= 3 and not burnt(s.x, s.z) then
+                local d = math.abs(dz) + dx
+                if not bd or d < bd then best, bd = s, d end
+            end
         end
     end
     return best
@@ -532,19 +600,18 @@ local function judge_tick(t, S, k, J)
     -- His prayer: frame 7 melee, frame 6 magic; a hit of the style he prays lands 0.
     -- Hit with the other one; the weapon follows.
     local head = J.headicon_index
+    local ember = wielding(t, "emberlight")
     if head == 6 then
-        if S.weapon ~= "emberlight" then
+        if not ember then
             D.equip = "emberlight"
-            S.weapon = "emberlight"
         elseif k >= S.next_cast and not D.walk then
             S.next_cast = k + 4
             D.melee = "yama_judge_of_yama"
             count(S, "swing")
         end
     else
-        if S.weapon == "emberlight" then
+        if ember then
             D.equip = "purging_staff"
-            S.weapon = "purging_staff"
         else
             D.cast = "yama_judge_of_yama"
         end
@@ -557,14 +624,39 @@ local function run(t)
     -- One press round is one tick: a together block waits at most a tick for its effects.
     t.TOGETHER_CONFIRM_TICKS = 1
     local S = new_state()
+    -- The run's own random stream, from its name (the live lane's user carries "_p1").
+    local user = string.gsub(t.session._user() or "", "_p%d+$", "")
+    for i = 1, #user do S.rng = (S.rng * 31 + string.byte(user, i)) % 2147483648 end
     t.ticks(2)
-    t.exec("voice.travel", t.player.talk_to, "voice_of_yama", 3)
+    -- Duo (--bots 2): the creator (seat 1) travels in and takes the west Judge; the
+    -- partner (seat 2) joins through the Voice's Join, a name prompt that only finds a
+    -- mutual friend (4498 [516..531]), so each adds the other first. Each seat plays
+    -- from its own client; the creator challenges once the partner is in.
+    local role, size = t.party.role(), t.party.size()
+    S.role = role
+    if size > 1 then
+        local other = t.party.name(role == 1 and 2 or 1)
+        t.check("duo.friend", t.player.add_friend(other) == "ok", "added " .. tostring(other))
+        t.party.barrier("yama_friends", 200)
+    end
+    if role == 1 then
+        t.exec("voice.travel", t.player.talk_to, "voice_of_yama", 3)
+        if size > 1 then t.party.barrier("yama_creator_in", 300) end
+    else
+        t.party.barrier("yama_creator_in", 300)
+        t.exec("voice.join", t.player.talk_to, "voice_of_yama", 4)
+        local creator = t.party.name(1)
+        local nr = t.chat.name_entry(creator)
+        if nr == "unsupported" then nr = t.chat.resume_name(creator) end
+        t.check("duo.join", nr == "ok", "named " .. tostring(creator) .. ": " .. tostring(nr))
+    end
     t.ticks(8)
     local x, z = tile(t)
     S.bx, S.bz = x - x % 64, z - z % 64
     t.check("entered", x > 6000, "landed " .. tostring(x) .. "," .. tostring(z))
-    t.exec("walk.throne", t.player.walk_to, S.bx + 31, S.bz + 40, 40)
-    t.player.press("yama_throne", 3, 3)
+    t.exec("walk.throne", t.player.walk_to, S.bx + 31 + (role == 1 and 0 or 2), S.bz + 39, 40)
+    if size > 1 then t.party.barrier("yama_partner_in", 400) end
+    if role == 1 then t.player.press("yama_throne", 3, 3) end
     t.ticklog.mark("fight")
     local start, deadline = now(t), now(t) + 5200
     local fought, killed = false, false
@@ -597,6 +689,15 @@ local function run(t)
     end
     t.ticks(20)
     local dead = t.player.alive() ~= "ok"
+    -- The drop: each raider's own pile on the loot tile (template 1503,10088), read from
+    -- this seat's client (another raider's drop is not shown to it).
+    if killed then
+        local hr, here = t.world.hazard_at(S.bx + 31, S.bz + 40)
+        local objs = (hr == "ok" and type(here) == "table" and type(here.objs) == "table") and here.objs or {}
+        local names = {}
+        for _, o in ipairs(objs) do names[#names + 1] = tostring(o.name or o.obj_id or o.id) end
+        t.check("yama.drop", #objs > 0, #objs .. " obj(s) on the loot tile: " .. table.concat(names, ", "))
+    end
     for name, n in pairs(S.tells) do t.check("tell." .. name, true, name .. " " .. n) end
     t.check("yama.killed", killed, "kill seen, ended " .. now(t) .. " dead=" .. tostring(dead))
     t.expect("yama.run", "ok", "fight ticks " .. (now(t) - start))
@@ -630,9 +731,10 @@ for _, line in ipairs({
     "::give nzone_zenyte_ring_enchanted_recoil 1", "::wield nzone_zenyte_ring_enchanted_recoil",
     "::give zeah_blessing_elite 1", "::wield zeah_blessing_elite",
     "::clearinv",
+    -- (the rune pouch's fire, blood and cosmic loose, and the soul runes beside them)
     "::give firerune 30000", "::give emberlight 1", "::give mantaray 12",
-    "::give 4doseprayerrestore 9", "::give 4dose2restore 2", "::give extended_antivenom+4 1",
-    "::give soulrune 8000", "::give cosmicrune 10000",
+    "::give 4doseprayerrestore 9", "::give 4dose2restore 1", "::give extended_antivenom+4 1",
+    "::give soulrune 8000", "::give cosmicrune 10000", "::give bloodrune 10000",
     -- beside the Voice of Yama
     "::goto 1442 10080 0",
 }) do kit[#kit + 1] = line end

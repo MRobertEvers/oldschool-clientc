@@ -19,8 +19,8 @@ worn = {0: 'viking_helmet_magic', 1: 'ma2_saradomin_cape', 2: 'occult_necklace',
         13: 'zeah_blessing_elite'}
 # The recorded backpack, rune pouch and the two oddments replaced by the loose runes.
 inv = [('firerune', 30000), ('emberlight', 1)] + [('mantaray', 1)] * 12 + \
-      [('4doseprayerrestore', 1)] * 9 + [('4dose2restore', 1)] * 2 + \
-      [('extended_antivenom+4', 1), ('soulrune', 8000), ('cosmicrune', 10000)]
+      [('4doseprayerrestore', 1)] * 9 + [('4dose2restore', 1)] * 1 + \
+      [('extended_antivenom+4', 1), ('soulrune', 8000), ('cosmicrune', 10000), ('bloodrune', 10000)]
 assert len(inv) == 28, len(inv)
 # Recorded levels (4498 update_stat at login); skill xp is written as the level's minimum.
 XP = {1: 0}

@@ -29,8 +29,8 @@ Y27	death	Voice room teleport	hook in player/death.rs2	matched	gravestone flow i
 Y28	contracts	hp/cycle (3000/2875/2500, 7t) recorded	those only	open	each contract's own rules are not implemented
 Y29	stance	chase melee / stand for ranged and magic (wiki)	set from the last hit style at launch	partial	movement not testable: no recorded melee target
 Y30	magic defence by style	4498 accuracy 0.74..0.87 in every phase and face state (tools/yama_accuracy.py)	-30 always	matched	the wiki +60/+81 are not in the recording
-Y31	duo	target switching 19 on 16 fights, slot 2 everywhere	1/8 per attack	open	no run: Join needs mutual friends and no lane can add a friend
-Y32	facing	per-tick pattern	npc_faceplayer each tick	partial
+Y31	duo	target switch at the 13th attack of P1/P2 (19/23), line the tick before; partner joins by the Voice op4 (mutual friends)	same; friend_add on both lanes	matched	8/8 duo seeds, drops for both seats; P3 switch (1 in 13) not modelled
+Y32	facing	133 face ticks in a 1,017-tick fight (125 player)	faced once per target change	partial	ours 81 player faces in 432 ticks; re-send rule not fitted
 Y33	wire: packet kinds	one recorded fight vs one solver kill (tools/yama_wirekinds.py)	diffed	partial	HUD refresh (if_setcolour x3 + hp_hud_open most ticks) and ambientsound_stop not sent by us
 Y34	wave damage	16..20 (25 splats)	random_range(16,20)	matched
 Y35	stone hop reach	198/206 clicks at Chebyshev 2..3	aploc1 reach 3	matched
@@ -40,3 +40,11 @@ Y38	contract 3329	recorded fight under a contract	hp/cycle only	open	rules of it
 Y39	contract 3368	recorded fight under a contract	hp/cycle only	open	rules of its contract not implemented
 Y40	contract 3371	recorded fight under a contract	hp/cycle only	open	rules of its contract not implemented
 Y41	solver PASS row	-	47/48 kills, 0/3895 style-wrong, both Judges by play	matched	y046 dies in P2 (three unabsorbed stomp specials)
+Y42	HUD and kill	HUD 2500/2500, killing splat = hp left, despawn that tick	death_script, no headbar reserve	matched	Judge max 400
+Y43	shield splats	147 hitsplat_shield_max_me on the recorder (80/59/8)	zero_hit_splat keeps the type	matched	1,032 on 48 seeds (495/522/15)
+Y44	melee by distance	37 of 44 attacks with the target within 1 (solo GM)	37/44 roll	matched	solver home distance drawn from 4498 (2% adjacent)
+Y45	demonbane bonuses	wiki: Mark +25%/+50% with staff, after equipment; x5 duration with staff; flares double demonbane bonuses	same; test yama_bonus.lua	partial	demonbane accuracy bonus not modelled
+Y46	thralls	68 greater ghost casts: +5 rise, 4-tick swings 0..3, life = magic ticks, cooldown 17	same for ghosts	partial	skeleton/zombie attacks not recorded
+Y47	rewards after K+7	drops K+11 for each raider	the throne runs the events	matched	was: never dropped
+Y48	hazards after the kill	none land (8/8 kills)	cancelled at the kill	matched
+Y49	flare explosion	wiki 42..45 (P3 23..25), glyph of its element	same	partial	no recording reaches it
