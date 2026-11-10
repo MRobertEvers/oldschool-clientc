@@ -28,9 +28,9 @@ Y26	kill	K, K+5, K+7, K+9, K+11, K+15	same	matched	throne say on K+9 not confirm
 Y27	death	Voice room teleport	hook in player/death.rs2	matched	gravestone flow is the generic path
 Y28	contracts	hp/cycle (3000/2875/2500, 7t) recorded	those only	open	each contract's own rules are not implemented
 Y29	stance	chase melee / stand for ranged and magic (wiki)	set from the last hit style at launch	partial	movement not testable: no recorded melee target
-Y30	magic defence by style	4498 accuracy 0.74..0.87 in every phase and face state (tools/yama_accuracy.py)	-30 always	matched	the wiki +60/+81 are not in the recording
-Y31	duo	target switching 19 on 16 fights, slot 2 everywhere	1/8 per attack	open	no run: Join needs mutual friends and no lane can add a friend
-Y32	facing	per-tick pattern	npc_faceplayer each tick	partial
+Y30	magic defence by phase	4498 accuracy by the cast tick's outcome sound, Mystic Might on: P1-2 262/374 (0.701), P3 92/115 (0.800); no face-target effect (tools/yama_accuracy.py)	+47 P1-2, +10 P3 (fit with the demonbane accuracy)	matched	wiki +60 is 1.4 SE from the P1-2 fit; wiki P3 +81 rejected (5 SE); melee-using target (wiki -30) not recorded
+Y31	duo	target switch at the 13th attack of P1/P2 (19/23), line the tick before; partner joins by the Voice op4 (mutual friends)	same; friend_add on both lanes	matched	8/8 duo seeds, drops for both seats; P3 switch (1 in 13) not modelled
+Y32	facing	133 face ticks in a 1,017-tick fight (125 player)	faced once per target change	partial	ours 81 player faces in 432 ticks; re-send rule not fitted
 Y33	wire: packet kinds	one recorded fight vs one solver kill (tools/yama_wirekinds.py)	diffed	partial	HUD refresh (if_setcolour x3 + hp_hud_open most ticks) and ambientsound_stop not sent by us
 Y34	wave damage	16..20 (25 splats)	random_range(16,20)	matched
 Y35	stone hop reach	198/206 clicks at Chebyshev 2..3	aploc1 reach 3	matched
@@ -40,3 +40,30 @@ Y38	contract 3329	recorded fight under a contract	hp/cycle only	open	rules of it
 Y39	contract 3368	recorded fight under a contract	hp/cycle only	open	rules of its contract not implemented
 Y40	contract 3371	recorded fight under a contract	hp/cycle only	open	rules of its contract not implemented
 Y41	solver PASS row	-	47/48 kills, 0/3895 style-wrong, both Judges by play	matched	y046 dies in P2 (three unabsorbed stomp specials)
+Y42	HUD and kill	HUD 2500/2500, killing splat = hp left, despawn that tick	death_script, no headbar reserve	matched	Judge max 400
+Y43	shield splats	147 hitsplat_shield_max_me on the recorder (80/59/8)	zero_hit_splat keeps the type	matched	1,032 on 48 seeds (495/522/15)
+Y44	melee by distance	37 of 44 attacks with the target within 1 (solo GM)	37/44 roll	matched	solver home distance drawn from 4498 (2% adjacent)
+Y45	demonbane bonuses	wiki: accuracy +20%, x2 staff, x2 Mark, x2 on flares; Mark damage +25%/+50% with staff after equipment; x5 duration with staff	same (accuracy in ~pvm_spell_hit_roll); test yama_bonus.lua	partial	recorded max 58 on Yama against ours 57 (Open)
+Y46	thralls	68 greater ghost casts (4498), 15 skeleton (4392, 4292), 1 zombie (4292 [2108]); +5 rise line; swing clock 4 after the last swing, first >= cast+4; grave line at cast+Magic+4, npc a tick before, resurrect_end; recast sends the old one's line; -6 prayer; used varbit 6/7/8	same for all three kinds (thrall.rs2)	matched	was: ghosts only, line and npc together at cast+Magic+2, no resurrect_end, fixed 4-tick grid
+Y47	rewards after K+7	drops K+11 for each raider	the throne runs the events	matched	was: never dropped
+Y48	hazards after the kill	none land (8/8 kills)	cancelled at the kill	matched
+Y49	flare explosion	wiki 42..45 (P3 23..25), glyph of its element	same	partial	no recording reaches it
+Y50	demonbane timing and sounds	splat 3 ticks after the cast at every distance (376/376); cast synth 5053; impact area sound 5035 (or 227) delay 60 at the target's tile	same (dbrow spotanim_proj null 60, sound_cast, sound_impact)	matched	was: hit a tick after the cast, no sounds
+Y51	impact graphics on Yama	none in 827 casts (Judge 76, flares 87)	spell_impact_hidden on Yama	matched	was: 1870/85 on him, 135 a run
+Y52	Mystic Might	on for 489 of 587 casts read	the solver prays it while casting	matched
+Y53	shields per kill	11.2 shields, 16.6 damage splats a completed fight; specials warded 78/82	11.5, 18.3; 164/178 warded (16 duo seeds)	matched
+Y54	facing re-send	a face on 285 of 293 target steps (201 next tick, 84 same)	P1-2 re-face per step: 528/555 (298 same tick, 230 next); P3 one face per target	partial	phase order: ours mostly the same tick (Open)
+Y55	ambientsound_stop	every 5 ticks from login, all 21 rev-241/242 recordings read; no ambientsound_start	not sent	differs	engine-wide: 21 rev-241/242 recordings (README section 15 lists them), not Yama's (Open, owner)
+Y56	HP HUD re-send	if_setcolour x3 + hp_hud_open on 81% of fight ticks; other bosses too (4480)	sent once	differs	engine hpbar_hud behaviour: Yama 4498, CoX 4392, Araxxor 4043, 4480, 4444 (Open, owner)
+Y57	Mark of Darkness expiry lines	none recorded (staff Marks outlast fights)	wiki lines: 10 ticks before, at the fade	partial	wiki-labelled; fade animation not sent
+Y58	ghost thrall swing	thrall_magic_travel 15 -> 25+5d (d Chebyshev to target SW; 1596/1599); hit E/30 ticks on; own slot cleared (spotanim -1 h96); thrall_magic_impact on the target with the landing (rev 241, 615/744; Yama hides); no impact sound in rev 242 (0/855)	same	matched	was: endtime 60 and hit +2 at every distance
+Y59	skeleton thrall swing	skeleton_update_champion_attack_thrall; longbow delay 20; thrall_ranged_travel 57 -> 67+5d (1654/1709); hit E/30 ticks on; target: null spot (1540/1713) and defend anim (43) with the landing	same; longbow range 1 by the ghost's rev-242 change (rev 241: 12)	matched	was: never swung
+Y60	zombie thrall swing	zombie_update_attack_normal_thrall; zombie_attack at its tile; hit +1 (12 swings); walks to the nearest in-reach tile of the target and swings the tick after arriving (3/3)	same (npc_walk to the ring tile, mode none while engaged)	matched	was: never swung
+Y61	thrall facing	the target's middle (SW + size/2; Yama +2,+2 848/848) every tick from the first swing	same	matched	was: SW tile on the swing tick, owner between swings
+Y62	live/scriptrun identity	same name + fixed start tick: identical from the spawn (89) to 369/378/294/272 (yid001..004)	live a tick later at a stepping stone, a cast, a cast against a step	partial	cause on the live side not found (Open); run.py solo name vs scriptrun _p1 name changes the RNG
+Y63	portal crossing	13 P1 portals: 3 at the first slot after the HP crossing, 10 at the next	portal when HP at the previous attack <= threshold	partial	no rule separates the two groups (Open)
+Y64	streak hit rule	14 recorder contacts: hit 10/10 when on the tile at the end of the send tick and the next, 0/4 otherwise	hit when on the tile at the end of the send tick	partial	13/14; the after-movement half needs an engine hook (Open)
+Y65	Judge fireball and surges	fireball on the start-of-tick tile 157/157; surges in judge x-1..x+3 (29/26/35/30/32), two in distinct columns 70, one 12	same (two picks, merged when equal)	matched	was: columns x-2..x+2, one or two at even odds
+Y66	flare body models	body_customisation 17003/17006/17009 on one flare of each pair (48)	dropped	differs	engine: a three-model opcode; a pack using it aborts older binaries (Open, owner)
+Y67	demonbane max on Yama	values in pairs up to 57/58 (376 hits)	max 57	differs	no multiplier or floor chain fits with <= 1 miss (Open)
+Y68	solver deaths	the recorder never lets a flare's bar run out; 48/55 meteors absorbed	three kinds: an unwarded meteor stood in (watched duo wd5 seat 1; fixed: meteor_escape walks out to four tiles), a late glyph run rooted in the wave lanes (ys8002, yd8014), both flares exploding after eating (yd6004, ys7007)	partial	solver (Open for the last two); scriptrun solo 30/32, duo 30/32 this pass

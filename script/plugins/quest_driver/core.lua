@@ -1491,6 +1491,15 @@ function QD.core_run_test(loader, options)
     -- new account: logout, forget varps, login) or as_is.  session.lua
     -- QD.session._start owns all three; nil start is "fresh".
     local start_result, start_detail = QD.session._start(options)
+    if start_result == "ok" then
+        -- A fresh start's login (and a launched member's, at its boot) opens
+        -- the welcome screen: Play it, as the person would (session.lua).
+        local just_logged_in = (options.start or "fresh") == "fresh"
+            or (type(options.party) == "table" and not options.party.launch)
+        local welcome_result, welcome_detail = QD.session.welcome_play(just_logged_in and 3 or 0)
+        start_result = welcome_result
+        start_detail = tostring(start_detail) .. "; " .. tostring(welcome_detail)
+    end
     if start_result ~= "ok" then
         QD.step("watch.start", "FAIL", tostring(start_detail))
         QD.finish(1)

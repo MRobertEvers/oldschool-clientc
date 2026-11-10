@@ -570,6 +570,18 @@ function QD.chat.count(n)
     return "ok", "chat.count: entered " .. tostring(n)
 end
 
+-- t.player.add_friend(name) -> "ok" | "refused" | "not_visible" | "unsupported", detail
+-- The friends list's Add Friend as its name prompt sends it: FRIENDLIST_ADD with the
+-- name, on both lanes (api_drive.friend_add: scriptrun's d_friend_add, the client's
+-- lua_drive_friend_add). The list updates when the server answers; nothing waits here.
+-- A Yama duo's partner can join only a mutual friend (the Voice's Join).
+function QD.player.add_friend(name)
+    if api_drive.friend_add == nil then
+        return "unsupported", "player.add_friend: this binary has no api_drive.friend_add"
+    end
+    return api_drive.friend_add(tostring(name))
+end
+
 function QD.chat.name_entry(text)
     local mode_res, mode = api_drive.meslayer_mode()
     if mode_res ~= "ok" then

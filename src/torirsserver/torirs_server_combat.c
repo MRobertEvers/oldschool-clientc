@@ -732,6 +732,25 @@ hitsplat_family_of(int type)
 }
 
 /*
+ * The splat of a hit that took nothing. A miss is the block splat and a hit the
+ * absorption pool ate is the shield; a script that names a shield-family splat
+ * for a 0 on purpose keeps it (Yama's glyphs: `hitsplat_shield_max_me`, value 0,
+ * 147 times on the recorder of RSProx 4498), where the old rewrite to the block
+ * splat sent every one of them as a miss.
+ */
+static int
+zero_hit_splat(
+    int type,
+    int absorbed_fully)
+{
+    if( absorbed_fully )
+        return hitsplat_shield();
+    if( hitsplat_family_of(type) == &HITSPLAT_FAMILIES[3] )
+        return type;
+    return hitsplat_block();
+}
+
+/*
  * Did a player deal this hit, as far as its sounds are concerned?
  *
  * No when no player is behind the script that dealt it, and no when the
@@ -2533,13 +2552,13 @@ ToriRSServer_CombatHitPlayerFrom(
     player->hitpoints -= amount;
 
     ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
-                        amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()),
+                        amount > 0 ? type : zero_hit_splat(type, absorbed_fully),
                         dealer_slot, ToriRSServer_HitClientDelay(srv), 0, player->hitpoints);
     /* The splat as shown: after `::god`, absorption and the clamp to the
      * hitpoints left, which is the number a recorder reads off the client. */
     ToriRSServer_TicklogHitPlayer(
         srv, player, amount,
-        amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()), dealer_slot,
+        amount > 0 ? type : zero_hit_splat(type, absorbed_fully), dealer_slot,
         requested);
     player->damage = player->hitmarks[0].damage;
     player->damage_type = player->hitmarks[0].type;

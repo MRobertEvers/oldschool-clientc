@@ -3243,6 +3243,16 @@ drive_launch_queue(struct lua_State* L, char const* verb, char* body, int size)
 
     assert(verb);
     assert(body);
+    /* The client is going down: the driver has shut down (g_app cleared) and the
+     * Scripts plugin's on_stop still closes its party. There is no task runner to
+     * carry the request any more, and the members end on the leader-pid watchdog;
+     * queueing here was a SIGSEGV on every exit with a party up (a watched Yama
+     * duo Play with quit, 2026-11-10). */
+    if( !g_app )
+    {
+        ToriMem_Free(ToriMem_Plugins(), body);
+        return PluginDrive_PushResult(L, DRIVE_REFUSED, "drive.launch: the driver has shut down (the client is exiting)");
+    }
     for( int i = 0; i < DRIVE_LAUNCH_TICKETS && !ticket; i++ )
         if( g_launch_tickets[i].state == DRIVE_LAUNCH_FREE )
             ticket = &g_launch_tickets[i];
@@ -3535,6 +3545,19 @@ lua_drive_party(struct lua_State* L)
     lua_setfield(L, -2, "mail_answers");
     lua_pushstring(L, last);
     lua_setfield(L, -2, "mail");
+    /* A world's host (the leader, or a solo run): the members that ever joined
+     * its world and the links open now. Fewer open than joined is a member
+     * gone -- its process ended, or the world dropped it -- and t.party.barrier
+     * ends its wait on that at once rather than waiting out its timeout
+     * (owner 2026-11-10: "A barrier whose partner is dead must fail loudly,
+     * not hang"). A member hosts no world and has neither field. */
+    if( g_embed )
+    {
+        lua_pushinteger(L, ToriRSServer_EmbedPartyJoined(g_embed));
+        lua_setfield(L, -2, "members_joined");
+        lua_pushinteger(L, ToriRSServer_EmbedPartyOpen(g_embed));
+        lua_setfield(L, -2, "members_open");
+    }
     return 2;
 }
 

@@ -76,3 +76,32 @@ How it plays (each a fix found on a seed read in full):
 
 Not reached: the duo (the Join needs mutual friends; no lane can add a friend) and the live-lane
 parity seed (README section 8).
+
+## Batch of 2026-11-10
+
+Kit: blood runes join the loose pouch runes (one super restore makes room) for the greater ghost.
+Play: a thrall at the summon and again 75 ticks after it returns (4498's median); the staff back in hand
+after each Judge; the home distance drawn per walk from 4498's mage (mostly 3..6, 2% beside him) with
+Protect from Melee when beside him and no regular in the air; stones that a surge is coming down are
+stepped off sideways or back. Duo (`--bots 2`): each seat adds the other as a friend, seat 1 travels in,
+seat 2 joins by the Voice's Join, seat 1 challenges when both are in.
+Results: 47/48 solo, 8/8 duo, 8/9 live (README section 12).
+
+## Built the relay's way (2026-11-10, second batch)
+
+The tests are one call each (`QD_ROOT.raid.yama_test({ fixture =, party =, max_frames = })`); the kit
+and the play live in the driver part `script/plugins/quest_driver/yama_solver.lua`. Party: friends
+both ways, barrier `yama_friends`; the creator Travels, `yama_entered`; the partner Joins by name and
+lands, `yama_joined` (every seat passes it); the creator sees the partner; each seat walks to its
+tile, `yama_ready`, waits for world tick 85 (solo) or 125 (duo) so that the fight starts on the same
+tick on the scriptrun and the live lane (a world that has run longer, a watched Play, starts at once),
+`::synctimers` on every seat, `yama_synced`, the creator sits; `yama_end` before the finish. A barrier that does not pass is a FAIL row and the seat's finish. Rows as each phase
+begins. Run on (the orb) when a watched account has it off; each seat its own random stream; a glyph
+out of reach in the ticks left is given up rather than run for, and with no glyph under it a seat
+walks out of the meteor's reach (four tiles from its tile; the target's run is off, so three). Results: README section 13.
+
+## Third pass (2026-11-10)
+
+Mystic Might while casting (the recorder's prayer on 489 of the 587 casts read), above 15 prayer.
+With the measured accuracy (README section 14) the fights run longer (solo median 933 ticks, was 828)
+and the duo lost two seats in 16 seeds (an unwarded special at 98 hitpoints, a phase-2 burst).

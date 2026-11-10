@@ -69,6 +69,7 @@
 #include "plugin/torirs_drive_plan_lua.h"
 #include "plugin/torirs_drive_cox_lua.h"
 #include "net/chat_huffman.h"
+#include "net/jbase37.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -4155,6 +4156,32 @@ d_resume_namedialog(lua_State* L)
     return push_result(L, "ok", "resume_p_namedialog sent");
 }
 
+/* api_drive.friend_add(name) -> ok | refused
+ *
+ * FRIENDLIST_ADD with the name's base-37, the packet the client's Add Friend
+ * prompt sends (net_out_friendlist_add, app_cs2_flush.c); the live client's
+ * twin is torirs_plugin_drive_state.c's lua_drive_friend_add. Scriptrun has no
+ * friends tab to type into. A Yama duo's partner joins only a mutual friend
+ * (`p_findmutualfriend`, the Voice's Join). */
+static int
+d_friend_add(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    char const* text = luaL_checkstring(L, 1);
+    uint8_t payload[8];
+    int64_t name37;
+
+    if( text[0] == '\0' || strlen(text) > 12 )
+        return push_result(L, "refused", "friend_add: a name is 1..12 characters");
+    name37 = (int64_t)strtobase37(text);
+    if( name37 == 0 )
+        return push_result(L, "refused", "friend_add: not a name");
+    for( int i = 0; i < 8; i++ )
+        payload[i] = (uint8_t)(((uint64_t)name37 >> (56 - 8 * i)) & 0xff);
+    handle(bot, PKTOUT_NAME_FRIENDLIST_ADD, payload, 8);
+    return push_result(L, "ok", "friendlist_add sent");
+}
+
 /* api_drive.resume_objdialog(obj) -> ok
  *
  * RESUME_P_OBJDIALOG with `obj`: the client's item search answered (the Grand
@@ -4706,6 +4733,7 @@ push_drive_table(
     bind(L, bot, "cheat", d_cheat);
     bind(L, bot, "key", d_key);
     bind(L, bot, "resume_namedialog", d_resume_namedialog);
+    bind(L, bot, "friend_add", d_friend_add);
     bind(L, bot, "resume_objdialog", d_resume_objdialog);
     bind(L, bot, "resume_stringdialog", d_resume_stringdialog);
     bind(L, bot, "if_drag", d_if_drag);

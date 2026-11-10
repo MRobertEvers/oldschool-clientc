@@ -330,7 +330,14 @@ def party_seats(directory):
 # script runs on caged (raid.lua, "seam22: a dead raider in step") and its
 # trace reaches the leader's end like anyone's; the PASS detail names the
 # members whose ledger carries a `player.died` row.
-PARTY_TRACE_RE = re.compile(r"(?m)^net: party: boundary (\d+) -> tick (-?\d+) digest ([0-9a-f]{8})\s*$")
+#
+# NOT ANCHORED TO THE LINE: another thread's stderr can land in the middle of
+# a boundary line (Yama duo yld02, 2026-11-10: "Failed to load map terranet:
+# party: boundary 54 -> tick 53 digest d86fb5b6" in the leader's client.log),
+# and an anchored pattern dropped that boundary and reported the next line as
+# a difference at boundary 55 while every digest agreed. The digest is a fixed
+# eight digits, so the match needs no end anchor either.
+PARTY_TRACE_RE = re.compile(r"net: party: boundary (\d+) -> tick (-?\d+) digest ([0-9a-f]{8})")
 PARTY_LOCKSTEP_STEP = "party.lockstep"
 
 # The raid HUD against the overhead bar (owner, 2026-10-07: "overhead health bars
