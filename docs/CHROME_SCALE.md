@@ -270,6 +270,109 @@ re-registration and no rasterising the second time. With the pref off, 1x /
 `test-scene-bridge-chrome` holds the registration to the vector raster (not
 the cells) and the toggle cycle.
 
+## The UI faces: the editor's own text
+
+The map editor's theme (`torirs_chrome_theme_editor`, 2026-11-09) does not
+draw in the game's faces. It draws in vendored outline fonts, which are five
+more font slots after Small, Menu and Body (`enum ToriRSChromeFontSlot`; the
+three game slots keep their values, and `TORIRS_CHROME_FONT_GAME_COUNT` is 3):
+
+| Slot | Face | 1x em | Ascent | Line box | Role in the editor theme |
+|---|---|---|---|---|---|
+| `TORIRS_CHROME_FONT_UI` | Inter Regular | 13 | 14 | 18 | rows, labels, fields, menus (`font_row`, `font_menu`) |
+| `TORIRS_CHROME_FONT_UI_SMALL` | Inter Regular | 11 | 11 | 14 | keycaps, badges, tooltips, captions (`font_small`) |
+| `TORIRS_CHROME_FONT_UI_BOLD` | Inter SemiBold | 13 | 14 | 18 | panel titles (`font_title`) |
+| `TORIRS_CHROME_FONT_UI_MONO` | JetBrains Mono Regular | 12 | 13 | 17 | CODE views (`font_code`) |
+| `TORIRS_CHROME_FONT_ICON` | ToriRSIcons (58 Lucide icons) | 16 | 16 | 16 | furniture, arrows, ticks, tool glyphs (`font_icon`) |
+
+Rows under that theme are 22 px (`row_h_base`). The em, ascent and line box
+are `k_dbg_ui_faces` in `src/ui/uitree_debug_overlay.c`. Ascent and line box
+are layout numbers chosen so a capital sits centred in a row and a descender
+stays in the box; they are not the font's own.
+
+**Where the faces come from.** `src/engine/fonts/vendor/` holds the TTFs and
+their licences (README there). `tools/chrome_ui_fonts.py` writes, from those
+files and nothing else:
+
+| Output | Use |
+|---|---|
+| `src/engine/torirs_chrome_ui_fonts_baked.{c,h}` | each face's TrueType bytes, behind `ToriRSChromeUiFont_File` |
+| `src/ui/uitree_ui_font_metrics.h` | per face: units per em, ascent, descent, and the advance of bytes 32..255 in font units; `static const` only |
+
+`make -C src chrome-ui-fonts` rewrites them; `chrome-ui-fonts-check` fails
+when a committed file differs from a rerun (`src/maped/ui-fonts.mk`). It needs
+Python 3 with fontTools 4.59.2 (`FONTTOOLS_DIR` may name its directory).
+
+**One rounding rule.** A UI face has no bitmap tier, so there is no 1x
+advance to scale. The advance of a byte in device pixels at scale q is
+
+    round(units x em x q / (units_per_em x 4)), halves up
+
+computed in one place, `dbg_ui_advance_px`, behind
+`ToriRSChrome_GlyphAdvanceQ`. Layout measures with it. The bake does not read
+advances from the font: it steps its atlas's pen with the number
+`GlyphAdvanceQ` returns and asserts every one of the 256 bytes against it, so
+measured width and drawn width are the same number. The baseline is
+`ToriRSChrome_ScalePx(q, ascent)` from the top of the line box, a whole
+device row, like every other face.
+
+**The rasteriser** (`ToriRSChromeGlyphs_RasteriseUi`, `torirs_chrome_bake.c`).
+At EVERY q, the whole ones included, the outline is drawn at em x q / 4 device
+pixels per em by `stbtt_MakeGlyphBitmapSubpixel` with a zero shift: stb's
+exact area coverage, no hinting, no stem table, no oversampling, no coverage
+curve. The game faces need zones and stems because each was synthesized from
+a 1x bitmap whose pixels have to be kept; Inter and JetBrains Mono were drawn
+as outlines and have no such grid. No curve, because the reference the look
+was judged against (FreeType, unhinted, in `tools/chrome_ui_theme_preview.py`)
+computes the same area and is blended the same way; and a horizontal 3x box
+filter over exact coverage is the same coverage. "Text rendering: smooth
+always" does not apply to these faces: they have one drawing.
+
+An atlas is built the first time a (slot, q) is asked for
+(`ToriRSChromeBake_Face`) and kept for the process, so a chrome whose theme
+names none of them never builds one, and `ToriRSChromeBake_GlyphAtlasBuilds`
+still counts each once.
+
+**What an atlas holds.** A `struct ToriDraw_Font` has 94 glyph slots and its
+own table from byte to slot. A UI face spends them on the printable ASCII,
+0x21..0x7E (`ToriRSChrome_FontDrawsByte`), not on the game faces' set (which
+has the pound sign for the backtick and draws no vertical bar). Every other
+byte, Latin-1 included, measures and draws as a space: the metrics header
+carries their advances, and the atlas has no slot to draw them in until
+`TORIDRAW_FONT_GLYPH_COUNT` grows. The icon face has an outline for 58 of the
+94; the rest advance and draw nothing.
+
+**In the native path.** `UITreeSceneBridge_EnsureDebugFont(bridge, slot)`
+registers a UI face's atlas under `UITREE_SCENE_DEBUG_FONT_Q_ID(slot, q)` at
+every q and drops it when the scale moves (`chrome_ui_faces_q`; a change of
+text mode leaves it). `UITreeSceneBridge_EnsureDebugFonts` answers all eight
+slots at once, which is what a host hands the drawer as the descriptor's
+`debug_font_id`: the game faces always, the UI faces only once the host said
+its theme uses them (`UITreeSceneBridge_SetChromeUiFonts`, which
+`app_debug_overlay_init` does when it installs the editor theme), and -1 for
+them otherwise, so the game client builds and uploads none.
+`EnsureDebugFont1x` pins a UI face at 1x under
+`UITREE_SCENE_DEBUG_FONT_UI_1X_ID`.
+
+The overlay node carries the ids to the frame. It carried the three game
+faces' (`UITreeDebugOverlayConfig::font_id_small` / `_menu` / `_body`); for
+the UI faces to draw it carries theirs too, and `ui/uitree.h` then defines
+`UITREE_DEBUG_OVERLAY_UI_FONTS`. `app_debug_ui.c` installs the editor theme
+only in a build where that is defined: without it a UI slot has no face
+behind it, and the editor keeps the theme that draws.
+
+**Looking at it without a build.** `python3 tools/chrome_ui_theme_preview.py
+--out preview.png [--q 6]` draws the editor's main frame from the theme's
+initialiser, `k_dbg_ui_faces`, the metrics header and the faces, with the
+chrome's own advance and baseline arithmetic, and prints the contrast of each
+text / ground pair (it exits 1 when one is under the ratio it is held to:
+body text 7:1, dim text 4.5:1, marks 3:1; or when a key of the theme is pure
+yellow). Its glyphs are FreeType's, not stb's.
+
+**The web pages** do not have these families: `modern.css` loads the game
+faces only, and a DOM presentation of the editor draws in them whatever the
+native theme is.
+
 ## Fonts: the hand-tuned tier hook
 
 The 2x and 3x font tiers are derived: the 1x masks multiplied. Where doubling

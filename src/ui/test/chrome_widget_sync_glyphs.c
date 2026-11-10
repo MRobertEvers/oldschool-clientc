@@ -186,7 +186,7 @@ static void
 gl_test_vector(void)
 {
     static int const scales[] = { 4, 5, 6, 7, 8, 9, 10, 11, 12 };
-    static struct ToriRSChromeFontVector const* (*const vector[TORIRS_CHROME_FONT_SLOT_COUNT])(void) = {
+    static struct ToriRSChromeFontVector const* (*const vector[TORIRS_CHROME_FONT_GAME_COUNT])(void) = {
         [TORIRS_CHROME_FONT_SMALL] = ToriRSChromeFontVector_Small,
         [TORIRS_CHROME_FONT_MENU] = ToriRSChromeFontVector_Menu,
         [TORIRS_CHROME_FONT_BODY] = ToriRSChromeFontVector_Body,
@@ -208,7 +208,7 @@ gl_test_vector(void)
         ToriRSChromeBake_PrepareSmooth(q);
         ToriRSChromeBake_Prepare(q);
         ToriRSChromeBake_PrepareSmooth(q);
-        for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+        for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
         {
             struct ToriDraw_Font const* src = gl_face(slot, 1);
             struct ToriDraw_Font const* dst = ToriRSChromeBake_FaceSmooth(slot, q);
@@ -299,11 +299,11 @@ gl_test_vector(void)
             (void)vec;
         }
         snprintf(what, sizeof(what), "q = %d: the vector atlases are built once, three faces", q);
-        CW_CHECK(ToriRSChromeBake_GlyphAtlasBuilds() - before <= TORIRS_CHROME_FONT_SLOT_COUNT, what);
+        CW_CHECK(ToriRSChromeBake_GlyphAtlasBuilds() - before <= TORIRS_CHROME_FONT_GAME_COUNT, what);
         {
             int const again = ToriRSChromeBake_GlyphAtlasBuilds();
             for( int n = 0; n < 100; n++ )
-                for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+                for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
                 {
                     (void)ToriRSChromeBake_Face(slot, q);
                     (void)ToriRSChromeBake_FaceSmooth(slot, q);
@@ -348,7 +348,7 @@ gl_bad_hinted_stems(
     int slot, int q, struct ToriDraw_Font const* dst, int* out_stems, int* out_rows,
     int* out_unread)
 {
-    static struct ToriRSChromeFontVector const* (*const vector[TORIRS_CHROME_FONT_SLOT_COUNT])(void) = {
+    static struct ToriRSChromeFontVector const* (*const vector[TORIRS_CHROME_FONT_GAME_COUNT])(void) = {
         [TORIRS_CHROME_FONT_SMALL] = ToriRSChromeFontVector_Small,
         [TORIRS_CHROME_FONT_MENU] = ToriRSChromeFontVector_Menu,
         [TORIRS_CHROME_FONT_BODY] = ToriRSChromeFontVector_Body,
@@ -456,7 +456,7 @@ gl_test_hinting(void)
     for( int i = 0; i < (int)(sizeof(scales) / sizeof(scales[0])); i++ )
     {
         int const q = scales[i];
-        for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+        for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
         {
             struct ToriDraw_Font a;
             struct ToriDraw_Font b;
@@ -498,7 +498,7 @@ cw_test_glyphs(void)
 
     /* At a tier the bitmap path IS the bake: the 1x masks at q = 8 and 12
      * come out as the 2x and 3x faces, every metric and every pixel. */
-    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
         for( int tier = 1; tier <= 3; tier++ )
         {
             struct ToriDraw_Font out;
@@ -518,9 +518,9 @@ cw_test_glyphs(void)
         int bad_coverage = 0;
         int bad_baseline = 0;
         int bad_hint = 0;
-        struct ToriDraw_Font cells[TORIRS_CHROME_FONT_SLOT_COUNT];
+        struct ToriDraw_Font cells[TORIRS_CHROME_FONT_GAME_COUNT];
 
-        for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+        for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
         {
             struct ToriDraw_Font const* src = gl_face(slot, 1);
             struct ToriDraw_Font const* dst = &cells[slot];
@@ -588,7 +588,7 @@ cw_test_glyphs(void)
             CW_CHECK(seen > 50, "the Body face has stems to check");
             CW_CHECK(bad == 0, "every vertical stem of every Body glyph is whole device pixels");
         }
-        for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+        for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
             gl_free(&cells[slot]);
     }
 

@@ -3095,6 +3095,111 @@ PlatformWindow_Present(struct PlatformWindow* p)
     gdi_paint_latest(p, p->window_dc);
 }
 
+/* PrintWindow's "what the compositor shows" flag. Windows 8.1 and later; the
+ * XP lane's headers do not carry the name. */
+#if !defined(PW_RENDERFULLCONTENT)
+#define PW_RENDERFULLCONTENT 0x00000002
+#endif
+
+/*
+ * The agent server's `shot` (docs/AGENT_API.md): the game area as the window
+ * shows it, written at once.
+ *
+ * Software: the window keeps its latest complete frame in the DIB, so the
+ * picture is gdi_paint_latest into a bitmap of the game area -- the same
+ * placement, filter and letterbox a present, a repair paint and
+ * WM_PRINTCLIENT draw. The one-shot damage box belongs to the NEXT present
+ * (gdi_paint_latest consumes it, whoever paints), so it is put aside for the
+ * capture and put back after: a capture cut to a damage box would be mostly
+ * uninitialised bitmap, and one that consumed the box would leave the next
+ * present copying the whole frame for nothing.
+ *
+ * D3D9: the DIB holds no frame (gdi_frame_valid is 0), so the compositor is
+ * asked for the window instead. That needs Windows 8.1 or later and a window
+ * that is not minimised; on XP PrintWindow reaches WM_PRINTCLIENT, which has
+ * nothing to paint, and the picture is black.
+ */
+bool
+PlatformWindow_RequestCapture(struct PlatformWindow* p, char const* path)
+{
+    BITMAPINFO info;
+    HDC dc;
+    HBITMAP dib = NULL;
+    HGDIOBJ old;
+    void* bits = NULL;
+    int width = 0;
+    int height = 0;
+    int painted;
+
+    assert(p);
+    assert(path);
+    assert(path[0]);
+    if( !p->hwnd || !win32_game_client_size(p, &width, &height) || width <= 0 || height <= 0 )
+    {
+        fprintf(stderr, "capture: the window has no game area to capture\n");
+        return false;
+    }
+
+    memset(&info, 0, sizeof(info));
+    info.bmiHeader.biSize = sizeof(info.bmiHeader);
+    info.bmiHeader.biWidth = width;
+    /* Top-down, the row order bmp_write_file reads. */
+    info.bmiHeader.biHeight = -height;
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+    /* A screen-compatible memory DC: the window's own DC is not needed to
+     * hold a DIB section, and a D3D9 window may never have painted through it. */
+    dc = CreateCompatibleDC(NULL);
+    if( dc )
+        dib = CreateDIBSection(dc, &info, DIB_RGB_COLORS, &bits, NULL, 0);
+    if( !dc || !dib || !bits )
+    {
+        fprintf(stderr, "capture: no memory bitmap for a %dx%d picture\n", width, height);
+        if( dib )
+            DeleteObject(dib);
+        if( dc )
+            DeleteDC(dc);
+        return false;
+    }
+    old = SelectObject(dc, dib);
+
+    if( p->gdi_frame_valid && p->mem_dc && p->pixels )
+    {
+        int const dmg_x = p->present_dmg_x;
+        int const dmg_y = p->present_dmg_y;
+        int const dmg_w = p->present_dmg_w;
+        int const dmg_h = p->present_dmg_h;
+        int const dmg_rects = p->present_dmg_rect_count;
+
+        p->present_dmg_w = 0;
+        p->present_dmg_h = 0;
+        p->present_dmg_rect_count = 0;
+        gdi_paint_latest(p, dc);
+        p->present_dmg_x = dmg_x;
+        p->present_dmg_y = dmg_y;
+        p->present_dmg_w = dmg_w;
+        p->present_dmg_h = dmg_h;
+        p->present_dmg_rect_count = dmg_rects;
+        painted = 1;
+    }
+    else
+        painted = PrintWindow(p->hwnd, dc, PW_CLIENTONLY | PW_RENDERFULLCONTENT) != 0;
+    GdiFlush();
+
+    if( painted )
+    {
+        void bmp_write_file(const char* filename, int* px, int w, int h);
+        bmp_write_file(path, (int*)bits, width, height);
+    }
+    else
+        fprintf(stderr, "capture: PrintWindow could not read the window (is it minimised?)\n");
+    SelectObject(dc, old);
+    DeleteObject(dib);
+    DeleteDC(dc);
+    return painted != 0;
+}
+
 void
 PlatformWindow_PresentGL(struct PlatformWindow* p)
 {

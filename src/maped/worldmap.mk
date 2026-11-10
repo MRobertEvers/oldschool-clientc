@@ -28,7 +28,7 @@ test-editor-worldmap:
 		editor/test/editor_worldmap_test.c editor/test/editor_worldmap_test_stubs.c \
 		ui/uitree_debug_overlay.c ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c \
 		ui/torirs_chrome_rail.c ui/torirs_chrome_bake.c engine/torirs_chrome_skin_baked.c \
-		engine/torirs_chrome_skin_tiers.c engine/torirs_debug_font_baked.c -lm $(MAPED_TEST_LDFLAGS)
+		engine/torirs_chrome_skin_tiers.c engine/torirs_debug_font_baked.c engine/torirs_chrome_ui_fonts_baked.c -lm $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/editor_worldmap_test
 
 test-editor: test-editor-worldmap

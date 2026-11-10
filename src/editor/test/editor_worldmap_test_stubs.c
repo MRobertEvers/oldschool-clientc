@@ -9,8 +9,10 @@
 #include "editor/panels/edpanel_picker.h"
 #include "game/rs_worldmap_render.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define STUB(name)                                                                                 \
     do                                                                                             \
@@ -116,4 +118,15 @@ Editor_DocSquareStorage(
     (void)doc;
     (void)square;
     STUB("Editor_DocSquareStorage");
+}
+
+/* Not a stub: the picker asks this of every atlas square's storage since
+ * scratch squares (Editor_PickerSetAtlas, 2026-11-07), and this test loads
+ * atlases, so the test stopped LINKING that day. editor_doc.c's own
+ * definition, which this test does not link. */
+int
+Editor_DocStorageIsScratch(const char* storage)
+{
+    assert(storage);
+    return strcmp(storage, EDITOR_DOC_SCRATCH_STORAGE) == 0;
 }

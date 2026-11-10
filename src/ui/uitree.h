@@ -636,6 +636,12 @@ struct UITreeChatConfig
     char prompt[UITREE_CHAT_PROMPT_LEN];
 };
 
+/** The overlay node carries the UI faces' font ids as well as the game
+ *  faces' (font_id_ui below, UITree_DebugOverlaySetUiFontIds): a chrome theme
+ *  that draws in them has a face behind every text prim. app/app_debug_ui.c
+ *  installs the editor's theme only where this is defined. */
+#define UITREE_DEBUG_OVERLAY_UI_FONTS 1
+
 struct UITreeDebugOverlayConfig
 {
     /** Scene font ids the host registered the baked debug faces
@@ -644,6 +650,10 @@ struct UITreeDebugOverlayConfig
     int font_id_small;
     int font_id_menu;
     int font_id_body;
+    /** Scene font ids of the chrome's UI faces (TORIRS_CHROME_FONT_UI and
+     * up), indexed by slot - TORIRS_CHROME_FONT_GAME_COUNT; -1 for a face the
+     * host did not register (a theme that names none of them). */
+    int font_id_ui[TORIRS_CHROME_FONT_SLOT_COUNT - TORIRS_CHROME_FONT_GAME_COUNT];
     /** Scene id the host uploaded the baked chrome skin under, and the
      * atlas index per enum ToriRSChromeSkinSlot. -1 = no skin. */
     int skin_scene_id;
@@ -2183,6 +2193,17 @@ UITree_DebugOverlaySetFontIds(
     int font_id_small,
     int font_id_menu,
     int font_id_body);
+
+/**
+ * The same for the chrome's UI faces: `font_ids` is every slot's scene font
+ * id, TORIRS_CHROME_FONT_SLOT_COUNT of them as
+ * UITreeSceneBridge_EnsureDebugFonts fills it; the entries from
+ * TORIRS_CHROME_FONT_GAME_COUNT up are taken (-1: not registered).
+ */
+void
+UITree_DebugOverlaySetUiFontIds(
+    struct UITree* tree,
+    int const* font_ids);
 
 void
 UITree_WalkAdvance(

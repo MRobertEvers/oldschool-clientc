@@ -30,9 +30,9 @@
  * BUILDER_SSC_UNSUPPORTED (the live editor's BuildRunner owns builds there,
  * MAPED_IMPLEMENTATION.md phase 4).
  *
- * AS A BUILD JOB (workbench 6.6, design section 9: "Check and CS2 compile run
- * on the server pump as BUILD jobs with progress lines, so the window never
- * waits"). Builder_SscRun waits for the compiler, so no window calls it any
+ * AS A BUILD JOB (workbench 6.6, design section 9: Check runs on the server
+ * pump as a BUILD job with progress lines, so the window never waits).
+ * Builder_SscRun waits for the compiler, so no window calls it any
  * more: the editor server's TORIRSMAPED_BUILD_CHECK job runs `make -C src
  * maped-script-check` (src/maped/records.mk), whose tool
  * (builder_ssc_main.c) is this module in its own process -- Stage, the

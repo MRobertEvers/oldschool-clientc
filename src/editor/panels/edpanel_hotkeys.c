@@ -88,8 +88,9 @@ hk_run_file(
     char key[EDITOR_DOC_KEY_MAX];
 
     if( action == EDITOR_HK_FILE_NEW )
-        Editor_NewSquare_Open(
-            ui, EDITOR_NEW_SQUARE_NEW, Editor_SquarePicker_SelectionKey(ui, key, (int)sizeof(key)) ? key : NULL);
+        /* The copy it offers: the Square map's selection, else the square
+         * that is open (hk_current_square). */
+        Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_NEW, hk_current_square(ui, key, (int)sizeof(key)) ? key : NULL);
     else if( action == EDITOR_HK_FILE_OPEN_SQUARES )
         Editor_SquarePicker_OpenSquares(ui);
     else if( action == EDITOR_HK_FILE_SAVE_ALL )
@@ -293,11 +294,25 @@ hk_run_edit(
     switch( action )
     {
     case EDITOR_HK_EDIT_UNDO:
-        Editor_UiLog(ui, "editor: undo reverted %d edit(s)", ui->editor ? Editor_Undo(ui->editor) : 0);
+    {
+        /* In the status bar, not only the console: after Ctrl+Z it went on
+         * reading "Placed loc 354 at ..." for the place just undone. */
+        int const steps = ui->editor ? Editor_Undo(ui->editor) : 0;
+        if( steps > 0 )
+            Editor_UiStatus(ui, "Undo: reverted %d edit%s", steps, steps == 1 ? "" : "s");
+        else
+            Editor_UiStatus(ui, "Nothing to undo");
         return 1;
+    }
     case EDITOR_HK_EDIT_REDO:
-        Editor_UiLog(ui, "editor: redo reapplied %d edit(s)", ui->editor ? Editor_Redo(ui->editor) : 0);
+    {
+        int const steps = ui->editor ? Editor_Redo(ui->editor) : 0;
+        if( steps > 0 )
+            Editor_UiStatus(ui, "Redo: reapplied %d edit%s", steps, steps == 1 ? "" : "s");
+        else
+            Editor_UiStatus(ui, "Nothing to redo");
         return 1;
+    }
     case EDITOR_HK_EDIT_DESELECT:
         /* A drag in progress is the App's to cancel first; here EVERY
          * selection goes: the locs, the rectangle, the Spawns panel's
@@ -455,7 +470,7 @@ Editor_HotkeyRun(
     }
     if( action == EDITOR_HK_PLACE_SWAP )
     {
-        (void)edp_locs_swap(ui);
+        (void)Editor_Locs_Swap(ui);
         return 1;
     }
     /* Place at the hovered tile needs the world: the App's. */
@@ -615,6 +630,12 @@ Editor_HotkeyRun(
     {
         if( !Editor_CmdPalette_Open(ui) )
             Editor_UiStatus(ui, "Command palette refused: this window has no palette");
+        return 1;
+    }
+    if( action == EDITOR_HK_VIEW_LAYER_GRID )
+    {
+        /* The tile grid and the open squares' borders: auto, on, off. */
+        (void)edp_tile_grid_cycle(ui);
         return 1;
     }
     if( action >= EDITOR_HK_VIEW_LAYER_LOCS && action <= EDITOR_HK_VIEW_LAYER_GRID )

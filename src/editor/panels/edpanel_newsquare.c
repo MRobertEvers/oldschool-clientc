@@ -11,7 +11,12 @@
  *                (Editor_SquarePicker_Place), where the cell is picked by eye
  *                instead of typed. A scratch square with something in it
  *                that Save has not placed yet is offered again here (Open
- *                unplaced scratch).
+ *                unplaced scratch). The copy row names its source ("Copy of
+ *                m50_50"; with nothing selected it says so and cannot be
+ *                chosen) and brings the source's spawns with "with its
+ *                spawns" (on): they stand on the scratch square, and its
+ *                Place carries them on (edp_square_create). Flat fill's
+ *                underlay shows its colour beside the number.
  *   Save as new  the open square again at its own coordinates, in another
  *                storage: the storage question alone.
  *   Copy to...   forwards to the Square map's Place with that square.
@@ -24,6 +29,7 @@
 #include "edpanel_common.h"
 #include "edpanel_newform.h"
 #include "edpanel_picker.h"
+#include "edpanel_picker_nav.h"
 #include "edpanels.h"
 #include "mem/torirs_mem.h"
 
@@ -36,6 +42,10 @@
  * `.jm2` id of the grass most of Lumbridge stands on. A scratch square opens
  * alone, so a fill nothing draws is a black void with nothing to grab. */
 #define NEWSQUARE_FLAT_UNDERLAY_DEFAULT 48
+/* The underlay's colour beside its slider (1x px): the block, and the well. */
+#define NEWSQUARE_SWATCH_W 36
+#define NEWSQUARE_SWATCH_H 14
+#define NEWSQUARE_SWATCH_ROW_H 18
 
 enum
 {
@@ -53,8 +63,18 @@ struct NewSquarePanel
     int row_template;
     int radio_template[3];
     int row_source;
+    /** New's copy: the source's spawns come too. */
+    int check_spawns;
     int slider_height;
     int slider_underlay;
+    /** The underlay's colour, as the Palette's swatch shows it. */
+    int graph_underlay;
+    int swatch_id;
+    int swatch_known;
+    uint32_t swatch_rgb;
+    int swatch_asked;
+    /** The template chosen last: what a refused "Copy of" falls back to. */
+    int template_last;
     int row_check;
     int button_create;
     int button_scratch;
@@ -165,10 +185,14 @@ newsquare_layout(
         ToriRSChrome_SetHidden(ui->chrome, self->radio_template[i], save_as);
     ToriRSChrome_SetHidden(
         ui->chrome, self->row_source, !(save_as || template_kind == EDITOR_DOC_TEMPLATE_COPY));
+    ToriRSChrome_SetHidden(ui->chrome, self->check_spawns, save_as || template_kind != EDITOR_DOC_TEMPLATE_COPY);
     ToriRSChrome_SetHidden(
         ui->chrome, self->slider_height, save_as || template_kind != EDITOR_DOC_TEMPLATE_FLAT);
     ToriRSChrome_SetHidden(
         ui->chrome, self->slider_underlay, save_as || template_kind != EDITOR_DOC_TEMPLATE_FLAT);
+    /* No colours without the window's floor records (a headless harness). */
+    ToriRSChrome_SetHidden(ui->chrome, self->graph_underlay,
+        save_as || template_kind != EDITOR_DOC_TEMPLATE_FLAT || !ui->hooks.floor_rgb);
     ToriRSChrome_SetHidden(ui->chrome, self->button_scratch, save_as || !self->unplaced_key[0]);
 }
 
@@ -182,7 +206,7 @@ newsquare_check_scratch(
 {
     if( form->template_kind == EDITOR_DOC_TEMPLATE_COPY && !form->source_key[0] )
     {
-        snprintf(message, message_size, "select the square to copy in the picker first");
+        snprintf(message, message_size, "no square is selected: click one on the Square map, then New");
         return 0;
     }
     if( form->template_kind == EDITOR_DOC_TEMPLATE_FLAT
@@ -232,6 +256,65 @@ newsquare_check(
     ToriRSChrome_SetText(ui->chrome, self->row_check, check.message);
     ToriRSChrome_SetColor(ui->chrome, self->row_check, self->ok ? 0x9fdf8f : 0xff7f5f);
     ToriRSChrome_SetDisabled(ui->chrome, self->button_create, !self->ok);
+}
+
+/** The underlay slider's colour: the record's own (hooks.floor_rgb, what the
+ *  Palette's swatches show), hatched grey while the record is not resident
+ *  (asked for once an id), crossed out for 0, which draws no ground. Redrawn
+ *  only when the id or its answer moves. */
+static void
+newsquare_swatch(
+    struct EditorUi* ui,
+    struct NewSquarePanel* self)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    int const id = ToriRSChrome_SliderValue(chrome, self->slider_underlay);
+    uint32_t rgb = 0;
+    int known = 0;
+    char text[TORIRS_CHROME_LABEL_MAX];
+
+    if( !ui->hooks.floor_rgb )
+        return;
+    if( id > 0 )
+    {
+        known = ui->hooks.floor_rgb(ui->hooks_user, 0, id, &rgb) ? 1 : 0;
+        if( !known && ui->hooks.floor_request && self->swatch_asked != id )
+        {
+            ui->hooks.floor_request(ui->hooks_user, 0, id);
+            self->swatch_asked = id;
+        }
+    }
+    if( id == self->swatch_id && known == self->swatch_known && rgb == self->swatch_rgb )
+        return;
+    self->swatch_id = id;
+    self->swatch_known = known;
+    self->swatch_rgb = rgb;
+
+    ToriRSChrome_GraphBegin(chrome, self->graph_underlay);
+    if( id == 0 )
+    {
+        ToriRSChrome_GraphRect(chrome, self->graph_underlay, 0, 2, NEWSQUARE_SWATCH_W, NEWSQUARE_SWATCH_H, 0x201c16, 1,
+            0);
+        ToriRSChrome_GraphLine(chrome, self->graph_underlay, 0, 2 + NEWSQUARE_SWATCH_H - 1, NEWSQUARE_SWATCH_W - 1, 2,
+            0xb04030);
+        snprintf(text, sizeof(text), "underlay 0: none, the ground draws black");
+    }
+    else if( known )
+    {
+        ToriRSChrome_GraphRect(chrome, self->graph_underlay, 0, 2, NEWSQUARE_SWATCH_W, NEWSQUARE_SWATCH_H, rgb, 1, 0);
+        snprintf(text, sizeof(text), "underlay %d", id);
+    }
+    else
+    {
+        ToriRSChrome_GraphRect(chrome, self->graph_underlay, 0, 2, NEWSQUARE_SWATCH_W, NEWSQUARE_SWATCH_H, 0x5a564c, 1,
+            0);
+        ToriRSChrome_GraphLine(chrome, self->graph_underlay, 0, 2, NEWSQUARE_SWATCH_W - 1, 2 + NEWSQUARE_SWATCH_H - 1,
+            0x3a362c);
+        snprintf(text, sizeof(text), "underlay %d: no colour (not loaded, or no such floor)", id);
+    }
+    ToriRSChrome_GraphText(chrome, self->graph_underlay, NEWSQUARE_SWATCH_W + 6, NEWSQUARE_SWATCH_ROW_H - 5,
+        chrome->theme.text, text);
+    ToriRSChrome_GraphEnd(chrome, self->graph_underlay);
 }
 
 static void
@@ -343,8 +426,31 @@ Editor_NewSquare_Open(
     else
         snprintf(line, sizeof(line), "select a square in the picker to copy it");
     ToriRSChrome_SetText(ui->chrome, self->row_source, line);
+    /* The copy row says WHICH square, or that there is none to copy (N2,
+     * 2026-11-09): "Copy of selection" named nothing, and with nothing
+     * selected it could be chosen and then only refused at Create. */
+    if( self->source_key[0] )
+    {
+        char chip[EDITOR_PICKER_NAME_MAX];
+        Editor_PickerChipText(self->source_key, chip);
+        snprintf(line, sizeof(line), "Copy of %.40s", chip);
+        ToriRSChrome_SetTooltip(ui->chrome, self->radio_template[EDITOR_DOC_TEMPLATE_COPY],
+            "Its terrain and locs, and its spawns with the box below ticked");
+    }
+    else
+    {
+        snprintf(line, sizeof(line), "Copy of selection (no square selected)");
+        ToriRSChrome_SetTooltip(ui->chrome, self->radio_template[EDITOR_DOC_TEMPLATE_COPY],
+            "Open a square, or click one on the Square map, to copy it");
+    }
+    ToriRSChrome_SetLabel(ui->chrome, self->radio_template[EDITOR_DOC_TEMPLATE_COPY], line);
+    ToriRSChrome_SetDisabled(ui->chrome, self->radio_template[EDITOR_DOC_TEMPLATE_COPY],
+        mode == EDITOR_NEW_SQUARE_NEW && !self->source_key[0]);
+    self->template_last = EDITOR_DOC_TEMPLATE_FLAT;
     ToriRSChrome_SliderSet(ui->chrome, self->slider_underlay,
         ui->tools.underlay_id > 0 ? ui->tools.underlay_id : NEWSQUARE_FLAT_UNDERLAY_DEFAULT);
+    self->swatch_id = -1;
+    newsquare_swatch(ui, self);
 
     self->shown = 1;
     self->checked_valid = 0;
@@ -409,6 +515,7 @@ newsquare_create_scratch(
     const struct Editor_NewSquareForm* form)
 {
     struct EditorHost_DocCreate request;
+    int const with_spawns = ToriRSChrome_Checked(ui->chrome, self->check_spawns);
 
     memset(&request, 0, sizeof(request));
     request.kind = EDITOR_DOC_SQUARE;
@@ -425,6 +532,7 @@ newsquare_create_scratch(
         int map_z;
         struct Editor_Square* held;
         enum EditorHost_Status status;
+        int spawns = 0;
 
         Editor_DocScratchSlot(slot, &map_x, &map_z);
         /* This mirror's view first: a slot holding work is not asked for. */
@@ -432,7 +540,8 @@ newsquare_create_scratch(
         if( held && held->loaded && !Editor_SquareIsBlank(held) )
             continue;
         Editor_SquareKey(request.key, map_x, map_z);
-        status = Editor_CreateSquare(ui->editor, &request);
+        /* A copy brings the source's spawns (the box), in the create's step. */
+        status = edp_square_create(ui, &request, with_spawns, &spawns);
         if( status == EDITOR_HOST_REFUSED )
             continue; /* another window's scratch work holds it */
         if( status != EDITOR_HOST_OK )
@@ -441,6 +550,14 @@ newsquare_create_scratch(
             Editor_UiLog(ui, "editor: DOC_CREATE scratch/%s failed (status %d)", request.key, (int)status);
             return;
         }
+        if( form->template_kind != EDITOR_DOC_TEMPLATE_COPY )
+            Editor_UiStatus(ui, "New scratch square: edit it, then Save places it on the Square map");
+        else if( with_spawns )
+            Editor_UiStatus(ui, "New scratch square, a copy of %s with its %d spawn%s: Save places it", form->source_key,
+                spawns, spawns == 1 ? "" : "s");
+        else
+            Editor_UiStatus(ui, "New scratch square, a copy of %s; its spawns stay behind (the box is off)",
+                form->source_key);
         Editor_UiLog(ui, "editor: scratch square %s: edit it, then Save places it", request.key);
         /* Underlay 0 paints void: on an Empty square the first stroke would
          * change nothing. */
@@ -525,6 +642,7 @@ newsquare_tick(
         return;
     }
     newsquare_check(ui, self, 0);
+    newsquare_swatch(ui, self);
 }
 
 static int
@@ -559,10 +677,25 @@ newsquare_activate(
         newsquare_close(ui, self);
         return 1;
     }
+    if( widget == self->radio_template[EDITOR_DOC_TEMPLATE_COPY] && self->mode == EDITOR_NEW_SQUARE_NEW
+        && !self->source_key[0] )
+    {
+        /* Not a choice with nothing to copy: back to what was chosen, and
+         * the reason where the form's verdict is read. */
+        ToriRSChrome_RadioSelect(ui->chrome, self->radio_template[self->template_last]);
+        newsquare_check(ui, self, 1);
+        ToriRSChrome_SetText(ui->chrome, self->row_check,
+            "nothing to copy: click a square on the Square map, then New");
+        ToriRSChrome_SetColor(ui->chrome, self->row_check, 0xff7f5f);
+        return 1;
+    }
     if( widget == self->input_lane || widget == self->dropdown_storage || widget == self->slider_height
         || widget == self->slider_underlay || widget == self->radio_template[0]
-        || widget == self->radio_template[1] || widget == self->radio_template[2] )
+        || widget == self->radio_template[1] || widget == self->radio_template[2] || widget == self->check_spawns )
     {
+        for( int i = 0; i < 3; i++ )
+            if( widget == self->radio_template[i] )
+                self->template_last = i;
         newsquare_check(ui, self, 1);
         return 1;
     }
@@ -603,9 +736,16 @@ Editor_NewSquare_Register(struct EditorUi* ui)
         self->radio_template[i] =
             ToriRSChrome_Radio(chrome, self->panel, k_template_names[i], NEWSQUARE_GROUP_TEMPLATE, i == 0);
     self->row_source = ToriRSChrome_Label(chrome, self->panel, "");
+    self->check_spawns = ToriRSChrome_Checkbox(chrome, self->panel, "with its spawns", 1);
+    ToriRSChrome_SetTooltip(chrome, self->check_spawns,
+        "The copy brings the source square's npcs and ground items");
     self->slider_height = ToriRSChrome_Slider(chrome, self->panel, "Height h", 0, 255, 1, 1);
-    ToriRSChrome_SetTooltip(chrome, self->slider_height, "The h token every level-0 tile gets (0 = perlin noise, 1 = ground)");
+    ToriRSChrome_SetTooltip(chrome, self->slider_height, "Each ground tile's height: 0 is rolling noise, 1 is flat");
     self->slider_underlay = ToriRSChrome_Slider(chrome, self->panel, "Underlay", 0, 255, 0, 1);
+    ToriRSChrome_SetTooltip(chrome, self->slider_underlay, "The ground's floor id; its colour shows below");
+    self->graph_underlay = ToriRSChrome_Graph(chrome, self->panel, "", edp_px(ui, NEWSQUARE_SWATCH_ROW_H));
+    self->swatch_id = -1;
+    self->template_last = EDITOR_DOC_TEMPLATE_FLAT;
     self->row_check = ToriRSChrome_Label(chrome, self->panel, "");
     self->button_create = ToriRSChrome_Button(chrome, self->panel, "Create");
     ToriRSChrome_SetTooltip(chrome, self->button_create,

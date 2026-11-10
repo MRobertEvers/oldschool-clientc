@@ -50,6 +50,78 @@ app_settings_picker_commit(
  * as the digits change under it. */
 static char const k_app_debug_overlay_title[] = "Frame time (10-frame avg)";
 
+/*
+ * Can this build draw the editor's theme?
+ *
+ * torirs_chrome_theme_editor names the UI font slots, and a text prim's slot
+ * reaches a face only through the overlay node's font ids. The node carries
+ * the three game faces' (UITreeDebugOverlayConfig::font_id_small / _menu /
+ * _body); once it carries the UI faces' too, ui/uitree.h says so with
+ * UITREE_DEBUG_OVERLAY_UI_FONTS. Until then the theme's text would be handed
+ * to the drawer with no face behind it, so it is not chosen: the editor keeps
+ * the theme it had, which draws.
+ */
+#if defined(UITREE_DEBUG_OVERLAY_UI_FONTS)
+#define APP_CHROME_THEME_EDITOR_DRAWS 1
+#else
+#define APP_CHROME_THEME_EDITOR_DRAWS 0
+#endif
+
+/*
+ * The theme the developer chrome wears in a session that boots the map editor
+ * (2026-11-09): torirs_chrome_theme_editor, the editor's own look, because its
+ * windows are this chrome's panels. The game client's session, and the plugin
+ * window in either, keep theirs.
+ *
+ * TORIRS_CHROME_THEME still decides when it is set: `osrs` the game's skin,
+ * `flat` the grey developer palette (app_debug_overlay_init has already
+ * applied that one, to the plugin window too, as it always did), `editor`
+ * this theme in a session with no editor. Any other value is said and
+ * ignored.
+ *
+ * "Boots the editor" is the manifest's own test (app.c, phase 5b): a content
+ * directory, or a daemon to dial. Asked of the configuration and not of
+ * app->editor, which does not exist yet when the chrome is made; a session
+ * whose editor then fails to open keeps this theme on its few developer
+ * panels, which is the lesser surprise than a theme that changes after boot.
+ */
+static void
+app_chrome_theme_editor_choose(struct App* app)
+{
+    char const* const pick = getenv("TORIRS_CHROME_THEME");
+    int want_editor;
+
+    assert(app);
+    want_editor = (app->cfg.editor_content_dir && app->cfg.editor_content_dir[0]) ||
+                  app->cfg.editor_server == BOOTMANIFEST_EDITOR_SERVER_TCP;
+    if( pick && pick[0] )
+    {
+        if( strcmp(pick, "editor") == 0 )
+            want_editor = 1;
+        else if( strcmp(pick, "osrs") == 0 || strcmp(pick, "flat") == 0 )
+            want_editor = 0;
+        else
+            TORIRS_LOG("chrome: TORIRS_CHROME_THEME must be osrs|flat|editor, got '%s'\n", pick);
+    }
+    if( !want_editor )
+        return;
+    if( !APP_CHROME_THEME_EDITOR_DRAWS )
+    {
+        /* Said only when it was asked for by name: an editor boot on a build
+         * that cannot draw it yet simply keeps the game's skin. */
+        if( pick && strcmp(pick, "editor") == 0 )
+            TORIRS_LOG(
+                "chrome: TORIRS_CHROME_THEME=editor needs the UI faces wired to the overlay "
+                "(UITREE_DEBUG_OVERLAY_UI_FONTS in ui/uitree.h); keeping the current theme\n");
+        return;
+    }
+    app->dbg_ui.theme = torirs_chrome_theme_editor;
+    /* Its faces are the vendored ones: the bridge registers them with the
+     * scene when the overlay's font ids are next resolved (and builds none
+     * in a session that never gets here). */
+    UITreeSceneBridge_SetChromeUiFonts(&app->bridge, ToriRSChrome_ThemeUsesUiFonts(&app->dbg_ui.theme));
+}
+
 void
 app_debug_overlay_init(struct App* app)
 {
@@ -67,7 +139,8 @@ app_debug_overlay_init(struct App* app)
      * with no code path here that has to know about that case.
      *
      * TORIRS_CHROME_THEME=flat forces the flat developer palette, for reading a
-     * dense readout without the parchment behind it.
+     * dense readout without the parchment behind it. (The editor's own theme
+     * is chosen below, after the plugin window's copy is taken.)
      */
     {
         char const* theme = getenv("TORIRS_CHROME_THEME");
@@ -115,6 +188,9 @@ app_debug_overlay_init(struct App* app)
      * a fourth panel would eventually be found not to have.
      */
     app->plugin_ui = app->dbg_ui;
+    /* The editor's windows are this instance's panels: its theme is chosen
+     * now, after the copy, so the plugin window keeps the game's. */
+    app_chrome_theme_editor_choose(app);
     ToriRSChromeShell_Init(&app->plugin_shell, 320);
     /* File-static view state survives Android recreating main() in one
      * process; the App does not, so a new App must not inherit a selected page

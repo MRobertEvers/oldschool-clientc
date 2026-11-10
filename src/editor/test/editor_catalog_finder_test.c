@@ -1143,8 +1143,9 @@ test_panels(const char* root)
     find = find_widget(panel, TORIRS_CHROME_W_TEXTINPUT, "Find", 0);
     sort = find_widget(panel, TORIRS_CHROME_W_DROPDOWN, "Sort", 0);
     filter = find_widget(panel, TORIRS_CHROME_W_DROPDOWN, "Filter", 0);
-    /* The first GRAPH is the Type strip (workbench 7.2: the kinds, more,
-     * list | grid); the filter chips and the shortcuts follow it. */
+    /* The first GRAPH is the Type strip (the six kinds, then more); the
+     * filter chips follow it, and the shortcuts are the third, under the
+     * list. */
     chips_graph = find_widget(panel, TORIRS_CHROME_W_GRAPH, NULL, 1);
     shortcuts_graph = find_widget(panel, TORIRS_CHROME_W_GRAPH, NULL, 2);
     count_row = find_widget(panel, TORIRS_CHROME_W_LABEL, NULL, 0);
@@ -1162,14 +1163,50 @@ test_panels(const char* root)
         model ? Editor_CatalogModelViewCount(model) : -1);
     CHECK(strcmp(g_chrome.widgets[count_row].text, "1 to 100 of 150 loc") == 0, "the count: %s",
         g_chrome.widgets[count_row].text);
+    /* The rows run from the question to the answer (2026-11-09): Find, one
+     * strip of six kinds and "more", the count, then the results. Kind,
+     * Filter and Sort wait under "more"; the shortcuts are under the list. */
+    {
+        int const type_graph = find_widget(panel, TORIRS_CHROME_W_GRAPH, NULL, 0);
+        int const kind_drop = find_widget(panel, TORIRS_CHROME_W_DROPDOWN, "Kind", 0);
+
+        CHECK(type_graph >= 0 && kind_drop >= 0 && find < type_graph && type_graph < count_row && count_row < list,
+            "Find, the kinds and the count come before the results (%d %d %d %d)", find, type_graph, count_row, list);
+        CHECK(shortcuts_graph > list, "the shortcuts come after the results (%d %d)", shortcuts_graph, list);
+        if( type_graph >= 0 && kind_drop >= 0 )
+        {
+            CHECK(g_chrome.widgets[kind_drop].hidden && g_chrome.widgets[filter].hidden && g_chrome.widgets[sort].hidden,
+                "Kind, Filter and Sort are closed until more is pressed");
+            /* all loc npc obj seq spotanim, then more: chip 6. */
+            press_chip(type_graph, EDP_CHIP_KEY_BASE + 6);
+            CHECK(!g_chrome.widgets[kind_drop].hidden && !g_chrome.widgets[filter].hidden
+                      && !g_chrome.widgets[sort].hidden,
+                "more shows the three");
+            press_chip(type_graph, EDP_CHIP_KEY_BASE + 6);
+            CHECK(g_chrome.widgets[kind_drop].hidden && g_chrome.widgets[filter].hidden && g_chrome.widgets[sort].hidden,
+                "and its second press closes them");
+        }
+        CHECK(find_widget(panel, TORIRS_CHROME_W_BUTTON, "To palette", 0) >= 0
+                  && find_widget(panel, TORIRS_CHROME_W_BUTTON, "Add to palette", 0) < 0,
+            "the palette button's caption fits beside its keycap: To palette");
+        CHECK(find_widget(panel, TORIRS_CHROME_W_BUTTON, EDITOR_REVEAL_CAPTION, 0) >= 0, "a %s button",
+            EDITOR_REVEAL_CAPTION);
+    }
     CHECK(strcmp(row_text(list, 0), "500\x1f" "fence_wood\x1f" "Fence\x1f" "0 2 9\x1f" "0") == 0,
         "row 0: its picture, the name, the display name dimmed, shapes 0 2 9 as keycaps, the id (%s)",
         row_text(list, 0));
     {
+        /* The list is twelve rows until a Build has given its panel a height
+         * and as many as that height holds from then on (catalog_list_fit,
+         * 2026-11-09): a row was on screen when it is inside the larger of
+         * the two windows, and never past the rows the list reserved. */
+        int const shown = g_chrome.widgets[list].rows;
+        int const window = shown > 12 ? shown : 12;
         int outside = 0;
         int asks = g_thumb_asks < 4096 ? g_thumb_asks : 4096;
+        CHECK(shown >= 6 && shown <= 36, "the list shows between six and thirty-six rows (%d)", shown);
         for( int i = 0; i < asks; i++ )
-            outside += g_thumb_asked[i] < 0 || g_thumb_asked[i] >= 12;
+            outside += g_thumb_asked[i] < 0 || g_thumb_asked[i] >= window;
         CHECK(g_thumb_asks > 0 && outside == 0, "thumbnails are asked for the rows on screen only (%d of %d outside)",
             outside, g_thumb_asks);
     }
@@ -1248,6 +1285,26 @@ test_panels(const char* root)
     CHECK(recents && recents->count == 1 && strcmp(recents->rows[0].name, "fence_wood") == 0
               && recents->rows[0].shape == 2,
         "the pick is the most recent, with its pose");
+
+    /* Copy to new with no name typed: the caret goes to the New name field
+     * directly over the button, and the bar says what it is for. */
+    {
+        int const copy = find_widget(panel, TORIRS_CHROME_W_BUTTON, "Copy to new", 0);
+        int const new_name = find_widget(panel, TORIRS_CHROME_W_TEXTINPUT, "New name", 0);
+
+        CHECK(copy >= 0 && new_name >= 0 && copy > new_name, "New name sits over Copy to new (%d %d)", new_name, copy);
+        if( copy >= 0 && new_name >= 0 )
+        {
+            activate(copy);
+            CHECK(g_chrome.focus == new_name
+                      && strcmp(Editor_UiStatusText(&g_ui), "Type the new record's name, then Copy to new") == 0,
+                "an empty New name takes the caret and the bar says what to type (focus %d, %s)", g_chrome.focus,
+                Editor_UiStatusText(&g_ui));
+            CHECK(g_ui.tools.pick_id == 0, "and nothing was copied: the pick is still fence_wood (%d)",
+                g_ui.tools.pick_id);
+            (void)ToriRSChrome_FocusWidget(&g_chrome, -1, 0);
+        }
+    }
 
     /* The favourite star, through the authority, one undo step. */
     g_ui.tools.place_rotation = 1;

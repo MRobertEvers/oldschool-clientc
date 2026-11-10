@@ -735,8 +735,12 @@ Editor_PanelSelectLoc(
     panel_sync_primary(panel, app);
     if( panel->ui->tools.loc_count > 0 && panel->sel_loc_id == scenery->loc_id )
         panel->sel_element_id = element_id;
-    /* The catalog follows the selection: selecting a maploc picks that loc. */
-    Editor_Catalog_Adopt(panel->ui, scenery->loc_id);
+    /* The Catalog is left alone: its Find text and its pick are the user's
+     * (2026-11-09: selecting a crate used to type "366" into Find and make the
+     * crate the pick, so the next Place put down the wrong thing). The
+     * Preview names the selection by its own rule (Editor_Preview_Subject);
+     * "Pick from world" (Editor_Catalog_PickFromWorld) is the explicit way to
+     * make a placed loc the pick. */
 }
 
 void

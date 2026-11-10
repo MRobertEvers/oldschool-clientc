@@ -66,7 +66,7 @@ static int g_checks;
         }                                                                      \
     } while( 0 )
 
-static char const* const k_face_name[TORIRS_CHROME_FONT_SLOT_COUNT] = {
+static char const* const k_face_name[TORIRS_CHROME_FONT_GAME_COUNT] = {
     [TORIRS_CHROME_FONT_SMALL] = "Small",
     [TORIRS_CHROME_FONT_MENU] = "Menu",
     [TORIRS_CHROME_FONT_BODY] = "Body",
@@ -210,7 +210,7 @@ test_faces_at_one_and_a_half(void)
     CHECK(UITreeSceneBridge_ChromeScale(&f.bridge) == 2, "its tier is the one at or above, 2");
     CHECK(ToriRSChromeBake_Prepared(6), "setting the scale prepared the bake at q 6");
 
-    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
     {
         struct ToriDraw_Font const* src = ToriRSChromeFont_Tier(slot, 1);
         int const ascent = ToriRSChrome_FontLineHeight(slot, 1);
@@ -386,7 +386,7 @@ test_tiers_are_the_bake(void)
         /* A new bridge is already at 1x, so setting 4 moves nothing and
          * prepares nothing; the comparisons below read the bake at q. */
         ToriRSChromeBake_Prepare(q);
-        for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+        for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
         {
             int const id = UITreeSceneBridge_EnsureDebugFont(&f.bridge, slot);
             int const want = q == 4 ? (slot == TORIRS_CHROME_FONT_SMALL  ? UITREE_SCENE_DEBUG_FONT_SMALL_ID
@@ -439,13 +439,13 @@ test_skin_and_moves(void)
     CHECK(one_x == UITREE_SCENE_CHROME_SKIN_1X_ID, "the 1x skin has its own id");
     CHECK(skin_frames_are(&f, one_x, 4, 1), "the 1x skin is the 1x bake at q 6");
 
-    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
         (void)UITreeSceneBridge_EnsureDebugFont(&f.bridge, slot);
     ToriDraw_SceneFrameEnd(f.scene);
 
     /* 1.5x -> 1.75x: q 6's faces go, by unload events; the skin follows. */
     UITreeSceneBridge_SetChromeScaleQ(&f.bridge, 7);
-    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
     {
         int const old_id = UITREE_SCENE_DEBUG_FONT_Q_ID(slot, 6);
         CHECK(!ToriDraw_SceneFontHas(f.scene, old_id), "q 6 -> 7: %s at q 6 is dropped",
@@ -492,7 +492,7 @@ test_smooth_always(void)
 
     builds = ToriRSChromeBake_GlyphAtlasBuilds();
     UITreeSceneBridge_SetChromeTextSmooth(&f.bridge, 1);
-    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
     {
         int const id = UITreeSceneBridge_EnsureDebugFont(&f.bridge, slot);
         struct ToriDraw_Font const* font = ToriDraw_SceneFontGet(f.scene, id);
@@ -505,7 +505,7 @@ test_smooth_always(void)
         CHECK(font && !fonts_equal(font, ToriRSChromeFont_Tier(slot, 1)),
               "q 4, smooth: %s is not the bitmap tier", k_face_name[slot]);
     }
-    CHECK(ToriRSChromeBake_GlyphAtlasBuilds() - builds <= TORIRS_CHROME_FONT_SLOT_COUNT,
+    CHECK(ToriRSChromeBake_GlyphAtlasBuilds() - builds <= TORIRS_CHROME_FONT_GAME_COUNT,
           "turning smooth on builds at most one atlas per face (%d)",
           ToriRSChromeBake_GlyphAtlasBuilds() - builds);
     ToriDraw_SceneFrameEnd(f.scene);
@@ -516,7 +516,7 @@ test_smooth_always(void)
 
     /* Back to bitmap: q 4's vector faces go by unload events; the tiers answer. */
     UITreeSceneBridge_SetChromeTextSmooth(&f.bridge, 0);
-    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
     {
         int const old_id = UITREE_SCENE_DEBUG_FONT_Q_ID(slot, 4);
         CHECK(!ToriDraw_SceneFontHas(f.scene, old_id), "smooth -> bitmap: %s at q 4 is dropped",
@@ -532,7 +532,7 @@ test_smooth_always(void)
     /* On again: the bake's raster is cached, so nothing is rebuilt. */
     builds = ToriRSChromeBake_GlyphAtlasBuilds();
     UITreeSceneBridge_SetChromeTextSmooth(&f.bridge, 1);
-    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
         (void)UITreeSceneBridge_EnsureDebugFont(&f.bridge, slot);
     CHECK(ToriRSChromeBake_GlyphAtlasBuilds() == builds, "smooth on again rebuilds no atlas");
 

@@ -6367,9 +6367,185 @@ blocked / roofed / wall edges), not the world-map bake the design named;
 the World's route overlay draws straight legs, the panel's legs are the
 client's BFS step counts.
 
+## The friction pass: the editor used, not photographed (2026-11-09)
+
+The owner's report was that the editor is hard to use and does not look
+professional. Every earlier check of it was a posed photograph
+(`TORIRS_EDITOR_<PANEL>=`, `TORIRS_PRESENT_BMP`) or a headless test, and both
+were green. So this pass USED it: a short quest built in a lane of its own
+(an npc, a crate loc, a varp, a dialogue, a placed scratch square), then work
+on a fully custom island, driven from outside through `tools/editor_drive`
+and, once it existed, the agent API. About a hundred faults came out of that,
+none of which a posed frame shows. What was done about them:
+
+- **The interface editor is gone.** The CS2 / interface panels were a second
+  tool living inside this one (`src/editor/iface/`, `src/app/app_iface_editor.*`,
+  `TORIRSMAPED_BUILD_CS2`, View > Interfaces / CS2: all deleted; build kind 4
+  is reserved, not reused). The `.if` codec stays (`editor_if*.c`,
+  `src/maped/iface-codec.mk`) because Save still round-trips those files.
+- **Scripts are written in the owner's editor.** The Triggers panel no
+  longer tries to be one: Open in editor, Show in Explorer / Finder / Open
+  folder (`Editor_HostLocalRevealInFileManager`, `TORIRS_EDITOR_REVEAL_CMD`),
+  Copy path, Copy name, New script file, and a Snippets dropdown with a
+  preview and Copy snippet (`src/editor/editor_snippets.c`, 17 snippets;
+  `src/platform/platform_clipboard.c`). The Script workspace is Triggers, the
+  open record and Problems; it no longer opens the Loc builder, the NPC
+  editor, the Shell editor, the Shop builder and the Quest board (they are on
+  the View menu). The dialogue and loc builders are left as they were and are
+  not to be grown.
+- **Custom maps.** File > New and the New square dialog make a flat square
+  or "Copy of mX_Z" with its spawns; a rectangle Copy / Paste carries the
+  spawns in it ("with spawns"); a scratch square can be cleared; the camera
+  follows a Place; a tile grid overlay (Alt+G: auto / on / off, auto shows
+  it on a flat square that has nothing to see) and a Height hint; a record
+  made by Copy to new that the client cannot draw yet is refused with the
+  reason ("is new: RUN builds it, then it can be placed").
+- **The look** (docs/CHROME_SCALE.md "The UI faces"). Vendored faces under
+  `src/engine/fonts/vendor/` with their licences: Inter 4.1 (Regular,
+  SemiBold), JetBrains Mono 2.304 and a 58-glyph subset of Lucide as
+  `ToriRSIcons.ttf` (`tools/chrome_ui_fonts_vendor.py`,
+  `chrome_ui_icons_vendor.py`; ids in `src/ui/torirs_chrome_icons.h`). They
+  are baked as TrueType bytes (`tools/chrome_ui_fonts.py`,
+  `make chrome-ui-fonts-check`) and drawn by stb_truetype in five font slots
+  after the game's three (`TORIRS_CHROME_FONT_UI`, `_UI_SMALL`, `_UI_BOLD`,
+  `_UI_MONO`, `_ICON`). `torirs_chrome_theme_editor` -- flat controls, a dark
+  palette, 22 px rows, an accent line under the active tab -- is what an
+  editor boot wears (`TORIRS_CHROME_THEME=osrs|flat|editor`); the game client
+  and the plugin window keep the game's skin and upload no UI atlas. The tool
+  rail draws icons (`ToriRSChrome_IconButtonSetGlyph`), a menu is as tall as
+  its rows, chip strips are the theme's buttons in a bare well
+  (`ToriRSChrome_GraphSetBare`), and View > Text size Large, which is the
+  game's bold face, says to use Chrome scale instead.
+- **The toolkit.** Escape closes an open list or menu; the click that
+  dismisses one is consumed and no longer paints the world under it; a closed
+  dropdown ignores the wheel; one notch scrolls three rows; floating windows
+  draw above the dock and below the bars (`TORIRS_CHROME_LAYER_*`), and a
+  floating window's Close no longer closes World under it; a text field takes
+  Ctrl+A / C / V / X and a double-click; no tooltip over the field being
+  typed in; every keycapped button fills its row. A GRAPH whose items moved
+  in the pool is painted again (`dbg_graph_release`, `ToriRSChrome_GraphEnd`):
+  the prims of the last Build point at an item's text in the pool, and a
+  strip laid out again with the same picture left every later strip's chips
+  reading another chip's caption until something else dirtied the panel
+  (found by editor_workbench_test.c's "the list the boot leaves is the list
+  a Build emits", which the new default column was the first to trip).
+- **The column.** It opens with the Catalog group, the Preview and the
+  Gallery; the terrain group, Squares and Areas are on demand
+  (`k_dock_on_demand`, editor_ui.c) and DOCK when asked for, and arming a
+  terrain tool asks. The Catalog is Find first, one row of kinds, and its
+  list is the part of the column that stretches (`catalog_stretch`,
+  `catalog_list_fit`: it fills its panel down to the picked record's first
+  line, never fewer than six rows). The bottom strip has a floor of its own
+  (`EDP_STRIP_MIN_H`): at the column's it was parked at every boot of a
+  900 px window once rows were 22 px. The tool rail runs the whole height
+  between the bars. A flown-out window is kept between the bars and beside
+  the column. Problems no longer gives itself a second title bar inside the
+  strip.
+- **The panels.** Picking a palette colour no longer changes the armed tool;
+  selecting in the world no longer rewrites the Catalog or steals the front
+  tab; lists, sliders and wells no longer shut the hotkeys off; WASD flies
+  while a list has the focus. RUN ends in one sentence, raises Problems when
+  it failed, and says when the lane server must be restarted (Restart lane).
+  A Place says where it went ("Placed loc 354 at 3226,3231 L0", and what it
+  replaced when it replaced something); Undo and Redo say what they did in
+  the status bar, which otherwise went on showing the place just undone.
+  The Squares picker's atlas is kept current while its panel is closed: the
+  instance helper's Find free and the Areas filter read it, and with Squares
+  closed by default Find free offered the square the last Create had made.
+- **Noise.** 76,431 "WebView2 bootstrap failed" lines a session became one
+  (`platform_win32_webview2.c`); the labels and tooltips the chrome was
+  cutting at 63 bytes were shortened, and a boot prints no cut line.
+- **An agent API** (docs/AGENT_API.md, `src/agent/`, `--agent-port`,
+  `tools/agent/torirs_agent.py`): JSON lines over loopback; the chrome as
+  data (`ui`, `ui_click`, `ui_set`), the editor's state and its actions by
+  id, tiles to and from the screen, `world_click`, `camera`, `shot`, and for
+  a client in the game `game`, `npcs` and `npc_click`. A list row is pressed
+  by number through `ToriRSChrome_VListRowRect`.
+
+Tests (a private object directory, `PLATFORM_OBJ_BASE=build_edsess`, win64):
+55 editor, chrome and agent suites; 52 pass, one is skipped here and two
+fail as they do at the committed HEAD (below). Updated for the
+deliberate changes: editor_panels_test.c (the boot column and the full one
+are both laid out at thirteen sizes: 2175 checks became 3829),
+editor_groups_test.c, editor_chords_test.c, editor_workspaces_test.c,
+editor_scenes_ops_test.c, editor_catalog_finder_test.c and the workbench
+goldens (the six scene values moved with the title-bar furniture alone;
+the registry values with the column). test-editor-worldmap links again: it
+had not since scratch squares (2026-11-07), for want of one symbol in its
+stubs. New: test-editor-snippets, test-agent-json. test-editor-if ("all 982
+interfaces read") and test-editor-vars ("every all.varbit record was read")
+fail one check each against the live content tree, and fail the same way
+built from the committed HEAD: the content moved, not the codecs.
+test-editor-views is a POSIX harness and is skipped on Windows.
+
 ## Open issues
 
 Every issue the phase reports left open, by area, with where to start.
+
+### From the friction pass (2026-11-09)
+
+- A record made by Copy to new cannot be placed in the session that made it:
+  Place refuses it ("is new: RUN builds it, then it can be placed"), and after
+  RUN the editor's own client still reads the base cache, so it draws nothing
+  for the new id. The test quest's crate was placed by editing the `.jl2` by
+  hand. Start at the editor client's cache provider against the lane's
+  client cache (`build/lanes/<lane>/live`), beside the live reload of added
+  squares.
+- A NEW varp, varbit or varc in a lane fails RUN: `tools/ss_allocate.py:726`
+  runs `<tree>/../tools/var_prefix_names.py`, which a lane does not have, and
+  that script rewrites `OSRS-Content/osrs-content` whatever tree it was asked
+  for. Until it takes a tree, spell the block with its id yourself
+  (`[varp9517_fenwick_lantern]`): the allocator adopts a prefixed name whose
+  id is free.
+- The Square map opens a square on ONE click of its cell (no confirm when
+  nothing is unsaved), so a stray click moves the session across the world:
+  src/editor/panels/edpanel_squares.c `squares_click`. A click that selects
+  and a double-click (or Enter, or Open) that opens is the file-list habit.
+  Its hover tooltip also sits over the map.
+- `::checkpoint` and the other `::` lines the quest driver types are echoed
+  into the play client's chat: the fix is server-side
+  (src/torirsserver/torirs_server_world.c, torirs_server_control.c) and was
+  not applied.
+- The Catalog's picked-record rows (its files, five buttons) repeat what the
+  Preview's chips do and are as tall as the rest of the panel; they sit below
+  the fold and the panel scrolls inside the column, a list inside a scrolling
+  panel. Moving them out (into the Preview, or the Inspector tab) would let
+  the panel stop scrolling: src/editor/panels/edpanel_catalog.c
+  `Editor_Catalog_Register`.
+- The dialogue builder and the loc builder keep their defects from the pass
+  (a typed line is lost unless Apply is pressed, a half-built dialogue emits
+  a script that does not compile): they are not being grown, see above.
+- Host-drawn colours that do not follow the theme: the Hotkeys panel's
+  capture colour (src/editor/panels/edpanel_hotkeys.c:50), the picker's dirty
+  and selected cells (edpanel_picker.c:1266); the Squares pane's height is
+  budgeted from an 18 px row (edpanel_squares.c:138) and the editor theme's
+  is 22.
+- The UI faces draw the 94 printable ASCII bytes; a Latin-1 byte (and the
+  pound sign) is a space, until `TORIDRAW_FONT_GLYPH_COUNT` grows. The DOM
+  presentation (`src/plugin_chrome/`) has no editor theme, no UI faces and
+  never hears an icon glyph or `VListSetRows`.
+- The play client RUN starts has no agent port (the editor clears the two
+  agent variables before it starts a window): to drive it, start a second
+  client on the lane by hand with `--agent-port 0 --agent-port-file`, as the
+  command line of the one RUN started shows. The agent API has no inventory,
+  loc list or varps.
+- A strip's chips that do not fit fold into a "+N" chip, which shows them
+  in its tooltip and cannot be pressed: at 2x the Catalog's "same category"
+  and "grid" are in "+2". `edp_chips_end` also lays a strip out at 200 px
+  for the frame its row's width reads 0, so the fold flickers while a flown
+  Catalog settles: src/editor/panels/edpanel_chips.c.
+- The Output console's Clear button is below the fold of the bottom strip at
+  1530x1006 (the strip's body is 94 px and scrolls) since the strip has its
+  own floor (`EDP_STRIP_MIN_H`).
+- A resize grip that lies under another panel cannot be reached: the dismiss
+  and layer rules stop a press at the covering panel
+  (`dbg_furniture_at`). Intended, but the World's grip is under the column
+  when the column is full; drag the World's edge from the left of it.
+- `make -C src check-app-boundary` is red at the committed HEAD on three
+  counts this pass did not add to (`struct App` 385 fields against 378,
+  app.c 1462 lines against 1457, src/editor/editor_panel_region.c not in the
+  baseline); the pass added only the four `src/agent/*.c` units to
+  tools/appc_map_baseline.txt.
 
 ### Documents, protocol, editor server
 

@@ -228,6 +228,7 @@ app_chrome_fonts_resolve(struct App* app)
     int small;
     int menu;
     int body;
+    int ids[TORIRS_CHROME_FONT_SLOT_COUNT];
 
     assert(app);
     /* Before the tree exists there is nothing to point at, and the bake will
@@ -240,6 +241,10 @@ app_chrome_fonts_resolve(struct App* app)
     menu = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIRS_CHROME_FONT_MENU);
     body = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIRS_CHROME_FONT_BODY);
     UITree_DebugOverlaySetFontIds(app->tree, small, menu, body);
+    /* And the UI faces the editor's theme draws in (-1 each in a session
+     * whose chrome names none: UITreeSceneBridge_SetChromeUiFonts). */
+    UITreeSceneBridge_EnsureDebugFonts(&app->bridge, ids);
+    UITree_DebugOverlaySetUiFontIds(app->tree, ids);
 }
 
 /*

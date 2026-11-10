@@ -621,6 +621,8 @@ static void
 bridge_upload_chrome_skin(struct UITreeSceneBridge* bridge);
 static void
 bridge_release_q_faces(struct UITreeSceneBridge* bridge);
+static void
+bridge_release_ui_faces(struct UITreeSceneBridge* bridge);
 
 void
 UITreeSceneBridge_SetChromeScale(struct UITreeSceneBridge* bridge, int scale)
@@ -657,6 +659,10 @@ UITreeSceneBridge_SetChromeScaleQ(struct UITreeSceneBridge* bridge, int q)
      * change back. */
     if( bridge->chrome_faces_q != 0 && bridge->chrome_faces_q != q )
         bridge_release_q_faces(bridge);
+    /* The UI faces are an atlas per q at every q: the ones of the q it leaves
+     * go the same way, and EnsureDebugFont registers the new q's when asked. */
+    if( bridge->chrome_ui_faces_q != 0 && bridge->chrome_ui_faces_q != q )
+        bridge_release_ui_faces(bridge);
     /* The skin is one entry whose pixels follow the scale: replaced in place
      * (the scene unloads the old images and loads the new), so the id every
      * overlay already holds stays right. Only once something asked for it. */
@@ -815,7 +821,8 @@ bridge_ensure_debug_font_vector(
     assert(bridge);
     assert(bridge->scene);
     assert(font_slot >= 0);
-    assert(font_slot < TORIRS_CHROME_FONT_SLOT_COUNT);
+    /* A game face: a UI face has no vector twin (bridge_ensure_debug_font_ui). */
+    assert(font_slot < TORIRS_CHROME_FONT_GAME_COUNT);
     /* Only the scale the bridge holds: the release tracks one q. */
     assert(q == UITreeSceneBridge_ChromeScaleQ(bridge));
 
@@ -836,10 +843,63 @@ bridge_release_q_faces(struct UITreeSceneBridge* bridge)
     assert(bridge);
     assert(bridge->scene);
     assert(bridge->chrome_faces_q != 0);
-    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+    /* The game faces' vector atlases. The UI faces share the q's row of ids
+     * and are not this function's: they stay through a change of text mode
+     * (bridge_release_ui_faces drops them, when the scale moves). */
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
         ToriDraw_SceneFontRemove(
             bridge->scene, UITREE_SCENE_DEBUG_FONT_Q_ID(slot, bridge->chrome_faces_q));
     bridge->chrome_faces_q = 0;
+}
+
+/** Is `font_slot` one of the UI faces? */
+static int
+bridge_slot_is_ui(int font_slot)
+{
+    return font_slot >= TORIRS_CHROME_FONT_GAME_COUNT && font_slot < TORIRS_CHROME_FONT_SLOT_COUNT;
+}
+
+/*
+ * A UI face at quarter scale q: the bake's atlas of its vendored outline
+ * (ToriRSChromeBake_Face, built once per (slot, q) for the process), under
+ * UITREE_SCENE_DEBUG_FONT_Q_ID(slot, q) at every q -- there is no tier to
+ * prefer at a whole one and no second drawing under "smooth always". Dropped
+ * by SetChromeScaleQ when the chrome moves off q.
+ */
+static int
+bridge_ensure_debug_font_ui(
+    struct UITreeSceneBridge* bridge,
+    int font_slot,
+    int q)
+{
+    int scene_id;
+
+    assert(bridge);
+    assert(bridge->scene);
+    assert(bridge_slot_is_ui(font_slot));
+    /* Only the scale the bridge holds: the release tracks one q. */
+    assert(q == UITreeSceneBridge_ChromeScaleQ(bridge));
+
+    scene_id = UITREE_SCENE_DEBUG_FONT_Q_ID(font_slot, q);
+    if( ToriDraw_SceneFontHas(bridge->scene, scene_id) )
+        return scene_id;
+    ToriDraw_SceneFontAdd(
+        bridge->scene, scene_id, bridge_font_copy(ToriRSChromeBake_Face(font_slot, q)));
+    bridge->chrome_ui_faces_q = q;
+    return scene_id;
+}
+
+static void
+bridge_release_ui_faces(struct UITreeSceneBridge* bridge)
+{
+    assert(bridge);
+    assert(bridge->scene);
+    assert(bridge->chrome_ui_faces_q != 0);
+    /* A slot never asked for has no entry, and removing none is nothing. */
+    for( int slot = TORIRS_CHROME_FONT_GAME_COUNT; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+        ToriDraw_SceneFontRemove(
+            bridge->scene, UITREE_SCENE_DEBUG_FONT_Q_ID(slot, bridge->chrome_ui_faces_q));
+    bridge->chrome_ui_faces_q = 0;
 }
 
 int
@@ -851,6 +911,8 @@ UITreeSceneBridge_EnsureDebugFont(
 
     assert(bridge);
     q = UITreeSceneBridge_ChromeScaleQ(bridge);
+    if( bridge_slot_is_ui(font_slot) )
+        return bridge_ensure_debug_font_ui(bridge, font_slot, q);
     /* A tier is the tier's own face under its historic id: the very pixels
      * ToriRSChromeBake_Face hands out at that q. Between the tiers, and at a
      * tier under "smooth always", the vector face. */
@@ -859,11 +921,53 @@ UITreeSceneBridge_EnsureDebugFont(
     return bridge_ensure_debug_font_vector(bridge, font_slot, q);
 }
 
+void
+UITreeSceneBridge_SetChromeUiFonts(struct UITreeSceneBridge* bridge, int wanted)
+{
+    assert(bridge);
+    wanted = wanted ? 1 : 0;
+    if( bridge->chrome_ui_fonts == wanted )
+        return;
+    bridge->chrome_ui_fonts = wanted;
+    /* No longer wanted: the atlases a renderer holds for them go with the
+     * scene's unload events. */
+    if( !wanted && bridge->chrome_ui_faces_q != 0 )
+        bridge_release_ui_faces(bridge);
+}
+
+void
+UITreeSceneBridge_EnsureDebugFonts(
+    struct UITreeSceneBridge* bridge,
+    int* out_ids)
+{
+    assert(bridge);
+    assert(out_ids);
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+        out_ids[slot] = !bridge_slot_is_ui(slot) || bridge->chrome_ui_fonts
+                            ? UITreeSceneBridge_EnsureDebugFont(bridge, slot)
+                            : -1;
+}
+
 int
 UITreeSceneBridge_EnsureDebugFont1x(
     struct UITreeSceneBridge* bridge,
     int font_slot)
 {
+    assert(bridge);
+    if( bridge_slot_is_ui(font_slot) )
+    {
+        /* The q = 4 atlas under an id of its own, which no change of scale
+         * drops: what is asked for at 1x is laid out in interface pixels and
+         * outlives the chrome's scale, as the game faces' 1x ids do. */
+        int const scene_id = UITREE_SCENE_DEBUG_FONT_UI_1X_ID(font_slot);
+
+        assert(bridge->scene);
+        if( !ToriDraw_SceneFontHas(bridge->scene, scene_id) )
+            ToriDraw_SceneFontAdd(
+                bridge->scene, scene_id,
+                bridge_font_copy(ToriRSChromeBake_Face(font_slot, TORIRS_CHROME_SCALE_Q_ONE)));
+        return scene_id;
+    }
     return bridge_ensure_debug_font_at(bridge, font_slot, 1);
 }
 

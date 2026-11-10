@@ -4,6 +4,10 @@
  * S), and the rectangle's copy, paste, fill and clear (menu bar, rectangle
  * panel). Each is: build the commands against the mirror (edpanel_ops.h),
  * submit them as one undo step, re-point the selection, say what happened.
+ *
+ * Also the square copy that brings its spawns (edp_square_create) and the
+ * clearing of a placed scratch square's slot (edp_scratch_clear): the New
+ * square dialog and the Square map's Place both end there.
  */
 
 #include "edpanel_common.h"
@@ -11,6 +15,8 @@
 #include "engine/torirs_types.h"
 #include "edpanel_ops_stamps.h"
 #include "mem/torirs_mem.h"
+#include "torirsmaped/torirs_maped.h"
+#include "torirsmaped/torirs_maped_catalog.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -97,6 +103,95 @@ actions_need_selection(
         return 0;
     }
     return 1;
+}
+
+/* Loc records this window's client asked its cache for and has not been
+ * given: which, and since when on the chrome's clock (edp_loc_shapes notes
+ * the first ask and forgets one that arrives). A record the cache holds
+ * answers within a frame or two; one still absent ACTIONS_LOC_LOAD_MS later
+ * is one the cache does not have. A few slots: the ghost asks about the pick
+ * every frame while a selection asks about its own locs. */
+#define ACTIONS_LOC_LOAD_MS 1500
+#define ACTIONS_LOC_WAIT_SLOTS 4
+static struct
+{
+    int valid;
+    int loc_id;
+    int64_t since_ms;
+} g_loc_wait[ACTIONS_LOC_WAIT_SLOTS];
+static int g_loc_wait_next;
+
+/** How long loc `loc_id` has been waited for, in ms; the first call for it
+ *  starts the wait (0). */
+static int64_t
+actions_loc_waited(
+    const struct EditorUi* ui,
+    int loc_id)
+{
+    int64_t const now = (int64_t)ui->chrome->now_ms;
+
+    for( int i = 0; i < ACTIONS_LOC_WAIT_SLOTS; i++ )
+        if( g_loc_wait[i].valid && g_loc_wait[i].loc_id == loc_id )
+            return now - g_loc_wait[i].since_ms;
+    g_loc_wait[g_loc_wait_next].valid = 1;
+    g_loc_wait[g_loc_wait_next].loc_id = loc_id;
+    g_loc_wait[g_loc_wait_next].since_ms = now;
+    g_loc_wait_next = (g_loc_wait_next + 1) % ACTIONS_LOC_WAIT_SLOTS;
+    return 0;
+}
+
+static void
+actions_loc_arrived(int loc_id)
+{
+    for( int i = 0; i < ACTIONS_LOC_WAIT_SLOTS; i++ )
+        if( g_loc_wait[i].valid && g_loc_wait[i].loc_id == loc_id )
+            g_loc_wait[i].valid = 0;
+}
+
+/**
+ * Refuse `verb` because loc `loc_id`'s record is not resident, saying which
+ * of the two reasons it is (W6, 2026-11-09). While it may still be loading:
+ * "still loading; try again in a moment", as before. Once it has been absent
+ * ACTIONS_LOC_LOAD_MS: the cache has no such record. That is a loc made in
+ * this session ("Copy to new"): the editor's own client draws from the base
+ * cache, which gains no record a session makes, so the loc cannot be drawn
+ * or placed in the editor by this build -- and "try again in a moment" was a
+ * promise that never came true, RUN or no RUN. A harness with no clock
+ * (now_ms 0) keeps the first sentence.
+ */
+static void
+actions_loc_absent(
+    struct EditorUi* ui,
+    const char* verb,
+    int loc_id)
+{
+    char name[64];
+
+    if( actions_loc_waited(ui, loc_id) < ACTIONS_LOC_LOAD_MS )
+    {
+        Editor_UiStatus(ui, "%s refused: loc %d is still loading; try again in a moment", verb, loc_id);
+        return;
+    }
+    /* Its name: the server's catalog knows a new record; else the Catalog
+     * panel's own name for the pick ("#70000" until it has one). */
+    snprintf(name, sizeof(name), "loc %d", loc_id);
+    if( ui->tools.pick_kind == 0 && ui->tools.pick_id == loc_id && ui->tools.pick_name[0]
+        && ui->tools.pick_name[0] != '#' )
+        snprintf(name, sizeof(name), "%.28s (loc %d)", ui->tools.pick_name, loc_id);
+    if( ui->editor && (ui->editor->capabilities & TORIRSMAPED_CAP_CATALOG) )
+    {
+        struct EditorHost_CatalogRecord record;
+        memset(&record, 0, sizeof(record));
+        if( Editor_HostMapEdCatalogRecord(&ui->editor->host, TORIRSMAPED_CATALOG_LOC, loc_id, "", &record)
+                == EDITOR_HOST_OK
+            && record.name && record.name[0] )
+            snprintf(name, sizeof(name), "%.28s (loc %d)", record.name, loc_id);
+        Editor_HostCatalogRecordFree(&record);
+    }
+    /* Inside EDITOR_UI_CONSOLE_LINE_MAX with the longest verb and name. */
+    Editor_UiStatus(ui,
+        "%s refused: %s is new: this build's editor reads the base cache and cannot draw or place it yet; RUN builds it",
+        verb, name);
 }
 
 static int
@@ -187,11 +282,12 @@ edp_locs_reshape(struct EditorUi* ui)
     {
         uint32_t mask;
         shapes[i] = -1;
-        if( edp_loc_shapes(ui, ui->tools.locs[i].loc_id, &mask) && mask != 0 )
+        if( !edp_loc_shapes(ui, ui->tools.locs[i].loc_id, &mask) )
+            actions_loc_absent(ui, "Reshape", ui->tools.locs[i].loc_id);
+        else if( mask != 0 )
             shapes[i] = Editor_LocShapeNext(mask, ui->tools.locs[i].shape);
         else
-            Editor_UiStatus(
-                ui, "Reshape refused: loc %d is still loading; try again in a moment", ui->tools.locs[i].loc_id);
+            Editor_UiStatus(ui, "Reshape refused: loc %d has no model for any shape", ui->tools.locs[i].loc_id);
     }
     return actions_reshape_to(ui, "reshape", shapes, NULL);
 }
@@ -321,8 +417,12 @@ edp_loc_shapes(
     {
         if( ui->app_services.loc_request )
             ui->app_services.loc_request(ui->app_services.user_data, loc_id);
+        /* The wait starts at the first ask, so a refusal can tell a record
+         * still loading from one the cache will never give. */
+        (void)actions_loc_waited(ui, loc_id);
         return 0;
     }
+    actions_loc_arrived(loc_id);
     *out_mask = Editor_LocShapeMask(cfg);
     return 1;
 }
@@ -362,7 +462,7 @@ edp_loc_shape_check(
     actions_verb(what, verb, sizeof(verb));
     if( !edp_loc_shapes(ui, loc_id, &mask) )
     {
-        Editor_UiStatus(ui, "%s refused: loc %d is still loading; try again in a moment", verb, loc_id);
+        actions_loc_absent(ui, verb, loc_id);
         return 0;
     }
     if( shape >= 0 && shape < EDITOR_LOC_SHAPE_COUNT && (mask & (1u << shape)) )
@@ -571,6 +671,18 @@ edp_locs_place(
     }
     applied = edp_apply(ui, &command, 1, "place");
     actions_selection_moved(ui, &g_result, applied > 0);
+    /* A place onto a tile whose slot is taken REPLACES what stood there. It
+     * did so without a word: a test crate took a rock's place on Gullwick
+     * Isle and only a file diff showed it (2026-11-09). */
+    if( applied > 0 && command.has_before && command.has_after
+        && command.u.loc.before.loc_id != command.u.loc.after.loc_id )
+        Editor_UiStatus(ui, "Placed loc %d at %d,%d L%d: it replaced loc %d there; Ctrl+Z brings that back",
+            command.u.loc.after.loc_id, world_x, world_z, level, command.u.loc.before.loc_id);
+    /* And a plain place says where it went: the status bar was blank after
+     * one, and a program driving the editor (world_click's reply is this
+     * sentence) could tell a place from a miss only by the unsaved count. */
+    else if( applied > 0 )
+        Editor_UiStatus(ui, "Placed loc %d at %d,%d L%d", loc_id, world_x, world_z, level);
     return applied;
 }
 
@@ -685,8 +797,16 @@ edp_run_end(
     if( !actions_run_plan(ui, run) )
     {
         if( ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0 )
-            Editor_UiStatus(
-                ui, "Place refused: loc %d is still loading; try again in a moment", ui->tools.pick_id);
+        {
+            uint32_t mask;
+            /* The record is not there (yet, or at all); or it is, and the
+             * pose shown is not one of its shapes. */
+            if( !edp_loc_shapes(ui, ui->tools.pick_id, &mask) )
+                actions_loc_absent(ui, "Place", ui->tools.pick_id);
+            else
+                Editor_UiStatus(ui, "Place refused: loc %d has no model for the pose shown; pick another shape",
+                    ui->tools.pick_id);
+        }
         return 0;
     }
     what = run->plan.wall ? "wall run" : "place run";
@@ -908,21 +1028,113 @@ actions_need_rect(
     return 1;
 }
 
+/* The Rectangle panel's "with spawns" box: Copy takes the spawns standing in
+ * the rectangle and Paste stands them again. Here, not in the panel, because
+ * Ctrl+C and Ctrl+V reach the clipboard without it. On until unticked: an
+ * area copied to a new map is expected to bring its npcs (2026-11-09). */
+static int g_rect_with_spawns = 1;
+
+int
+edp_rect_with_spawns(void)
+{
+    return g_rect_with_spawns;
+}
+
+void
+edp_rect_set_with_spawns(int on)
+{
+    g_rect_with_spawns = on ? 1 : 0;
+}
+
+static const char*
+actions_s(int n)
+{
+    return n == 1 ? "" : "s";
+}
+
+/** One undo step over several submissions: a paste's tiles, then its locs,
+ *  then its spawns, each list built against what the one before left and
+ *  each able to fill the scratch on its own (a 64 x 64 paste is 4096 tile
+ *  commands, which used to leave no room for a single loc). The stroke opens
+ *  at the first submission that has a command, so a step that changes
+ *  nothing leaves no History row. */
+struct ActionsStep
+{
+    const char* what;
+    int was_open;
+    int opened;
+};
+
+static void
+actions_step_begin(
+    struct EditorUi* ui,
+    struct ActionsStep* step,
+    const char* what)
+{
+    step->what = what;
+    step->was_open = ui->tools.stroke_open;
+    step->opened = 0;
+}
+
+static int
+actions_step_apply(
+    struct EditorUi* ui,
+    struct ActionsStep* step,
+    const struct Editor_Cmd* commands,
+    int count)
+{
+    if( count <= 0 )
+        return 0;
+    if( !step->was_open && !step->opened )
+    {
+        Editor_StrokeBegin(ui->editor);
+        Editor_HistoryName(ui->editor, step->what);
+        ui->tools.stroke_open = 1;
+        step->opened = 1;
+    }
+    return edp_apply(ui, commands, count, step->what);
+}
+
+static void
+actions_step_end(
+    struct EditorUi* ui,
+    struct ActionsStep* step)
+{
+    if( !step->opened )
+        return;
+    ui->tools.stroke_open = step->was_open;
+    Editor_StrokeEnd(ui->editor);
+}
+
 int
 edp_rect_copy(struct EditorUi* ui)
 {
+    struct Editor_TileClip* clip;
     int copied;
+    int locs;
+    int spawns;
 
     assert(ui);
     if( !actions_need_rect(ui, "copy") )
         return 0;
-    copied = Editor_TileClipCopy(&ui->editor->doc, &ui->tools.rect, actions_clip());
-    /* The marquee is the unnamed stamp (design #placing): its locs travel
-     * with its tiles, pasted after them in the same step. */
-    {
-        int const locs = edp_stamp_clip_copy(ui, &ui->tools.rect);
-        Editor_UiLog(ui, "editor: copied %d tile(s) and %d loc(s)", copied, locs);
-    }
+    clip = actions_clip();
+    copied = Editor_TileClipCopy(&ui->editor->doc, &ui->tools.rect, clip);
+    /* The marquee is the unnamed stamp (design #placing): its locs and the
+     * spawns standing in it travel with its tiles, pasted after them in the
+     * same step. */
+    locs = edp_stamp_clip_copy(ui, &ui->tools.rect, g_rect_with_spawns);
+    spawns = edp_stamp_clip_spawns();
+    if( copied == 0 )
+        Editor_UiStatus(ui, "Copy refused: the rectangle is in no open square; open its square first");
+    else if( !g_rect_with_spawns )
+        Editor_UiStatus(ui, "Copied %dx%d tiles, %d loc%s; spawns stay behind (\"with spawns\" is off)", clip->w,
+            clip->h, locs, actions_s(locs));
+    else if( copied < clip->w * clip->h )
+        Editor_UiStatus(ui, "Copied %dx%d tiles, %d loc%s, %d spawn%s; %d tiles are in squares that are not open",
+            clip->w, clip->h, locs, actions_s(locs), spawns, actions_s(spawns), clip->w * clip->h - copied);
+    else
+        Editor_UiStatus(ui, "Copied %dx%d tiles, %d loc%s, %d spawn%s", clip->w, clip->h, locs, actions_s(locs),
+            spawns, actions_s(spawns));
     return copied;
 }
 
@@ -954,28 +1166,59 @@ edp_rect_paste_at(
 {
     int capacity;
     struct Editor_Cmd* commands = edp_scratch(&capacity);
+    struct ActionsStep step;
     int count;
-    int applied;
+    int tiles;
+    int locs;
+    int spawns = 0;
 
     assert(ui);
     if( !ui->editor )
         return 0;
     if( !g_clip || !g_clip->valid )
     {
-        Editor_UiLog(ui, "editor: nothing copied yet");
+        Editor_UiStatus(ui, "Paste refused: nothing is copied yet; drag a rectangle and Copy it first");
         return 0;
     }
+    /* The tile commands exactly as the tile paste makes them; the copied
+     * locs after them, one place (a replace onto a taken key) each; then the
+     * copied spawns, each an edited row of the square it lands in. Three
+     * submissions, ONE undo step. */
+    actions_step_begin(ui, &step, "paste");
     count = Editor_TileClipPaste(&ui->editor->doc, g_clip, world_x, world_z, level, commands, capacity);
-    /* The tile commands exactly as before; the copied locs after them, one
-     * place (a replace onto a taken key) each, in the same undo step. */
+    tiles = actions_step_apply(ui, &step, commands, count);
+    count = edp_stamp_clip_paste(ui, world_x, world_z, level, commands, capacity);
+    locs = actions_step_apply(ui, &step, commands, count);
+    if( g_rect_with_spawns )
     {
-        int const tiles = count;
-        count += edp_stamp_clip_paste(ui, world_x, world_z, level, commands + count, capacity - count);
-        applied = edp_apply(ui, commands, count, "paste");
-        Editor_UiLog(ui, "editor: pasted %dx%d, %d tile(s) and %d loc(s) changed", g_clip->w, g_clip->h,
-            applied < tiles ? applied : tiles, applied > tiles ? applied - tiles : 0);
+        count = edp_stamp_clip_paste_spawns(ui, world_x, world_z, level, commands, capacity);
+        spawns = actions_step_apply(ui, &step, commands, count);
+        /* Pasted npcs are shown, or the paste reads as having dropped them. */
+        if( spawns > 0 )
+            edp_spawns_note_added(ui, commands, count);
     }
-    return applied;
+    actions_step_end(ui, &step);
+
+    if( tiles + locs + spawns > 0 )
+    {
+        int const left = g_rect_with_spawns ? 0 : edp_stamp_clip_spawns();
+        if( left > 0 )
+            Editor_UiStatus(ui, "Pasted %dx%d at %d,%d L%d: %d tile%s, %d loc%s; %d spawn%s left out (\"with spawns\" is off)",
+                g_clip->w, g_clip->h, world_x, world_z, level, tiles, actions_s(tiles), locs, actions_s(locs), left,
+                actions_s(left));
+        else
+            Editor_UiStatus(ui, "Pasted %dx%d at %d,%d L%d: %d tile%s, %d loc%s, %d spawn%s; Ctrl+Z undoes it",
+                g_clip->w, g_clip->h, world_x, world_z, level, tiles, actions_s(tiles), locs, actions_s(locs), spawns,
+                actions_s(spawns));
+    }
+    else if( world_x < 0 || world_z < 0
+             || !Editor_DocFindSquare(&ui->editor->doc, world_x / EDITOR_SQUARE_X, world_z / EDITOR_SQUARE_Z)
+             || !Editor_DocFindSquare(&ui->editor->doc, world_x / EDITOR_SQUARE_X, world_z / EDITOR_SQUARE_Z)->loaded )
+        Editor_UiStatus(ui, "Paste refused: %d,%d is not in an open square; open its square first", world_x, world_z);
+    else
+        Editor_UiStatus(ui, "Paste at %d,%d L%d: everything copied is already there; nothing changed", world_x,
+            world_z, level);
+    return tiles + locs + spawns;
 }
 
 int
@@ -1098,6 +1341,134 @@ edp_square_clear(
     if( !was_open )
         Editor_StrokeEnd(ui->editor);
     Editor_UiLog(ui, "editor: cleared m%d_%d (%d edits, one undo step)", map_x, map_z, applied);
+    return applied;
+}
+
+enum EditorHost_Status
+edp_square_create(
+    struct EditorUi* ui,
+    const struct EditorHost_DocCreate* request,
+    int with_spawns,
+    int* out_spawns)
+{
+    struct EditorHost_DocCreate create;
+    enum EditorHost_Status status;
+    char storage[EDITOR_DOC_STORAGE_MAX];
+    char bare[EDITOR_DOC_KEY_MAX];
+    char verb[48];
+    int capacity;
+    struct Editor_Cmd* commands;
+    int from_x = -1;
+    int from_z = -1;
+    int to_x = -1;
+    int to_z = -1;
+    int was_open;
+    int joined;
+    int count;
+
+    assert(ui);
+    assert(request);
+    assert(out_spawns);
+    assert(ui->editor);
+
+    *out_spawns = 0;
+    if( !with_spawns || request->template_kind != EDITOR_DOC_TEMPLATE_COPY
+        || !Editor_DocSplitSquareKey(request->source_key, storage, bare)
+        || !Editor_SquareKeyParse(bare, &from_x, &from_z) || !Editor_SquareKeyParse(request->key, &to_x, &to_z)
+        || (from_x == to_x && from_z == to_z) )
+        /* Nothing to carry: no source, or the same square in another
+         * storage, whose spawn files (keyed by coordinates) it shares. */
+        return Editor_CreateSquare(ui->editor, request);
+
+    /* One undo step where the server lets a create join the client's stroke
+     * (TORIRSMAPED_CAP_DOC_CREATE_STROKE): the copy and the spawns it brought
+     * are undone together. An older server makes the square its own step and
+     * the spawns the step after it. */
+    create = *request;
+    /* The spawn documents of both squares, before the stroke: the capture
+     * reads the source's, the adds land in the destination's. */
+    edp_square_spawn_docs(ui, from_x, from_z);
+    edp_square_spawn_docs(ui, to_x, to_z);
+    was_open = ui->tools.stroke_open;
+    joined = (ui->editor->capabilities & TORIRSMAPED_CAP_DOC_CREATE_STROKE) != 0;
+    if( joined )
+    {
+        if( !was_open )
+        {
+            snprintf(verb, sizeof(verb), "copy square to %.24s", request->key);
+            Editor_StrokeBegin(ui->editor);
+            Editor_HistoryName(ui->editor, verb);
+        }
+        ui->tools.stroke_open = 1;
+        create.join_stroke = 1;
+    }
+    status = Editor_CreateSquare(ui->editor, &create);
+    if( status == EDITOR_HOST_OK )
+    {
+        commands = edp_scratch(&capacity);
+        count = edp_square_spawn_commands(ui, from_x, from_z, to_x, to_z, commands, capacity, NULL);
+        *out_spawns = edp_apply(ui, commands, count, "copy spawns");
+        if( *out_spawns > 0 )
+            edp_spawns_note_added(ui, commands, count);
+    }
+    if( joined )
+    {
+        ui->tools.stroke_open = was_open;
+        if( !was_open )
+            Editor_StrokeEnd(ui->editor);
+    }
+    return status;
+}
+
+int
+edp_scratch_clear(
+    struct EditorUi* ui,
+    int map_x,
+    int map_z)
+{
+    struct Editor_DocHandle handle;
+    char key[EDITOR_DOC_KEY_MAX];
+    int capacity;
+    struct Editor_Cmd* commands;
+    int applied;
+    int was_open;
+
+    assert(ui);
+    if( !ui->editor )
+        return 0;
+    was_open = ui->tools.stroke_open;
+    if( !was_open )
+    {
+        Editor_StrokeBegin(ui->editor);
+        Editor_HistoryName(ui->editor, "clear scratch square");
+    }
+    ui->tools.stroke_open = 1;
+    applied = edp_square_clear(ui, map_x, map_z);
+    /* The slot's edited spawn rows too: its spawns went to the placed square
+     * (edp_square_create), and a row left here would be saved as a spawn at
+     * a parking coordinate no map has. */
+    Editor_SquareKey(key, map_x, map_z);
+    commands = edp_scratch(&capacity);
+    while( edp_ensure_doc(ui, EDITOR_DOC_SPAWN, key) && Editor_DocFind(&ui->editor->doc, EDITOR_DOC_SPAWN, key, &handle)
+           && handle.spawn->loaded )
+    {
+        const struct Editor_SpawnFile* file = &handle.spawn->file;
+        int count = 0;
+        int removed;
+
+        for( int i = 0; i < file->line_count && count < capacity; i++ )
+            if( file->lines[i].kind == EDITOR_SPAWN_LINE_ROW )
+                Editor_SpawnCommand(&commands[count++], &file->lines[i].row, 0);
+        if( count == 0 )
+            break;
+        removed = edp_apply(ui, commands, count, "clear scratch square");
+        applied += removed;
+        if( removed < count )
+            break; /* refused: do not spin */
+    }
+    ui->tools.stroke_open = was_open;
+    if( !was_open )
+        Editor_StrokeEnd(ui->editor);
     return applied;
 }
 

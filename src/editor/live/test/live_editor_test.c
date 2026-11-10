@@ -633,12 +633,15 @@ main(
         check(strstr(line, " maped-run-build ") && strstr(line, path) && strstr(line, "MAPED_LIVE_CACHE=")
                   && strstr(line, "MAPED_MAP_ARCHIVES=") && strstr(line, " OBJVERIFY_SKIP=1"),
             "command: RUN's build names both halves' outputs and skips the object verifier");
-        job.what = TORIRSMAPED_BUILD_CS2;
+        /* 4 is reserved (the interface editor's CS2 compile until
+         * 2026-11-09): no command exists for it, with or without the script
+         * name an older window sends, so no runner ever starts one. */
+        job.what = (enum ToriRSMapEdBuildWhat)4;
+        check(!ToriRSMapEd_BuildCommand(&lane, &job, &command) && command.argc == 0,
+            "command: the retired kind 4 has none");
         snprintf(job.quest, sizeof(job.quest), "%s", "bank_sort");
-        check(ToriRSMapEd_BuildCommand(&lane, &job, &command), "command: cs2 compiles one script (workbench 6.6)");
-        ToriRSMapEd_BuildCommandFormat(&command, line, sizeof(line));
-        check(strstr(line, " maped-cs2-compile ") && strstr(line, "MAPED_CS2_SCRIPT=bank_sort"),
-            "command: the cs2 target names its script");
+        check(!ToriRSMapEd_BuildCommand(&lane, &job, &command) && command.argc == 0,
+            "command: nor with the script name it used to carry");
         job.quest[0] = '\0';
 
         mkdir(live, 0755);
@@ -1047,6 +1050,16 @@ main(
         "RUN: nothing pending after a good reload");
     check(b.model.run_counts[0] == 3 && b.model.run_counts[1] == 1 && b.model.run_counts[2] == 1,
         "RUN: the reload's counts reached the model");
+    {
+        /* The one sentence the Output console and the status bar get. */
+        static const char want[] = "RUN done in 31 s: 3 scripts, 1 config group, 1 square";
+        char said[EDITOR_LIVE_OUTCOME_MAX];
+        check(Editor_LiveRunOutcomeLine(&b.model, 31, NULL, said, sizeof(said)) == EDITOR_LIVE_RUN_DONE
+                  && strncmp(said, want, sizeof(want) - 1) == 0 && strstr(said, " reloaded") != NULL,
+            "outcome: a finished RUN is one sentence: its time and what the reload swapped in");
+        if( strncmp(said, want, sizeof(want) - 1) != 0 )
+            fprintf(stderr, "  said: %s\n", said);
+    }
 
     /* ---- RUN stops at the first failure ------------------------------------------------ */
     add_spawn(&a, 3203);
@@ -1073,6 +1086,19 @@ main(
             "fail packs: the RUN message names the packs half and the failing line, not make's");
         if( !strstr(a.model.run_message, "wanted.varp") )
             fprintf(stderr, "  run: %s\n", a.model.run_message);
+        {
+            /* The sentence for the console and the status bar: what failed,
+             * then the diagnostic the panel hands it (the build's first). */
+            char said[EDITOR_LIVE_OUTCOME_MAX];
+            check(Editor_LiveRunOutcomeLine(&a.model, -1, "wanted.varp:4: varp9514 lacks clientcode", said,
+                      sizeof(said))
+                          == EDITOR_LIVE_RUN_STOPPED
+                      && strcmp(said, "RUN stopped: the packs build failed: wanted.varp:4: varp9514 lacks clientcode")
+                             == 0,
+                "outcome: a stopped RUN says what failed and the build's first diagnostic");
+            if( !strstr(said, "the packs build failed: wanted.varp") )
+                fprintf(stderr, "  said: %s\n", said);
+        }
         {
             int found = 0;
             for( int i = 0; i < a.model.log_count && i < 12; i++ )
@@ -1134,6 +1160,20 @@ main(
     check(strstr(line, "m50_50.spawn") != NULL, "after the failure: the reload names the spawn file again");
     check(a.model.restart_count == 1 && strstr(a.model.restart[0], "fields/npc.ini"),
         "restart-needed rows reach the model");
+    {
+        /* "RUN done" alone was wrong for this one: the new content does not
+         * run until the lane's server starts again. */
+        static const char want[] = "RUN done, but the ";
+        char said[EDITOR_LIVE_OUTCOME_MAX];
+        /* What to do differs with who started the server (a launched lane:
+         * Detach, then RUN again; a dialled one: restart it yourself). */
+        check(Editor_LiveRunOutcomeLine(&a.model, 12, NULL, said, sizeof(said)) == EDITOR_LIVE_RUN_RESTART
+                  && strncmp(said, want, sizeof(want) - 1) == 0
+                  && strstr(said, "server must restart for: fields/npc.ini changed. ") != NULL,
+            "outcome: a RUN the reload could not finish live says the restart and what to do");
+        if( !strstr(said, "must restart for") )
+            fprintf(stderr, "  said: %s\n", said);
+    }
 
     /* a link that drops mid-reload stops RUN */
     add_spawn(&a, 3204);

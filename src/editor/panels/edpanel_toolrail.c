@@ -12,6 +12,7 @@
 #include "edpanels.h"
 #include "editor/live/live_panel.h"
 #include "mem/torirs_mem.h"
+#include "ui/torirs_chrome_icons.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -42,6 +43,34 @@ static const int k_tool_icons[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_REGION] = TORIRS_CHROME_SKIN_TOOL_REGION,
     [EDITOR_TOOL_LASSO] = TORIRS_CHROME_SKIN_TOOL_LASSO,
     [EDITOR_TOOL_TIDY] = TORIRS_CHROME_SKIN_TOOL_TIDY,
+};
+
+/* The same tools in the icon face (ui/torirs_chrome_icons.h), which is what
+ * a theme with one draws instead of the disc (ToriRSChrome_IconButtonSetGlyph;
+ * the editor's own theme, 2026-11-09): twenty discs told apart by a letter
+ * became twenty pictures of what each tool does. The discs above stay for the
+ * game's skin, which has no icon face. */
+static const char* const k_tool_glyphs[EDITOR_TOOL_COUNT] = {
+    [EDITOR_TOOL_SELECT] = TORIRS_CHROME_ICON_TOOL_SELECT,
+    [EDITOR_TOOL_RECT_SELECT] = TORIRS_CHROME_ICON_TOOL_RECT,
+    [EDITOR_TOOL_HEIGHT] = TORIRS_CHROME_ICON_TOOL_HEIGHT,
+    [EDITOR_TOOL_FLATTEN] = TORIRS_CHROME_ICON_TOOL_FLATTEN,
+    [EDITOR_TOOL_SMOOTH] = TORIRS_CHROME_ICON_TOOL_SMOOTH,
+    [EDITOR_TOOL_PAINT_UNDERLAY] = TORIRS_CHROME_ICON_TOOL_PAINT_UNDERLAY,
+    [EDITOR_TOOL_PAINT_OVERLAY] = TORIRS_CHROME_ICON_TOOL_PAINT_OVERLAY,
+    [EDITOR_TOOL_PAINT_FLAGS] = TORIRS_CHROME_ICON_TOOL_FLAGS,
+    [EDITOR_TOOL_LOC_PLACE] = TORIRS_CHROME_ICON_TOOL_PLACE,
+    [EDITOR_TOOL_LOC_MOVE] = TORIRS_CHROME_ICON_TOOL_MOVE,
+    [EDITOR_TOOL_LOC_ROTATE] = TORIRS_CHROME_ICON_TOOL_ROTATE,
+    [EDITOR_TOOL_LOC_DELETE] = TORIRS_CHROME_ICON_TOOL_DELETE,
+    [EDITOR_TOOL_PLACE_PLAYER] = TORIRS_CHROME_ICON_TOOL_PLACE_PLAYER,
+    [EDITOR_TOOL_PAINT_PATH] = TORIRS_CHROME_ICON_TOOL_PAINT_PATH,
+    [EDITOR_TOOL_NOISE] = TORIRS_CHROME_ICON_TOOL_ROUGHEN,
+    [EDITOR_TOOL_SCATTER] = TORIRS_CHROME_ICON_TOOL_SCATTER,
+    [EDITOR_TOOL_PLATEAU] = TORIRS_CHROME_ICON_TOOL_PLATEAU,
+    [EDITOR_TOOL_REGION] = TORIRS_CHROME_ICON_TOOL_REGION,
+    [EDITOR_TOOL_LASSO] = TORIRS_CHROME_ICON_TOOL_LASSO,
+    [EDITOR_TOOL_TIDY] = TORIRS_CHROME_ICON_TOOL_TIDY,
 };
 
 /* What the next click does. The chord is not part of the text: the badge in
@@ -250,14 +279,23 @@ Editor_ToolRail_Register(struct EditorUi* ui)
     {
         self->buttons[t] =
             ToriRSChrome_IconButton(ui->chrome, self->panel, k_tool_icons[t], Editor_ToolName(t));
+        assert(k_tool_glyphs[t]);
+        ToriRSChrome_IconButtonSetGlyph(ui->chrome, self->buttons[t], k_tool_glyphs[t]);
     }
     self->button_save = ToriRSChrome_IconButton(ui->chrome, self->panel, TORIRS_CHROME_SKIN_SAVE, "Save");
+    ToriRSChrome_IconButtonSetGlyph(ui->chrome, self->button_save, TORIRS_CHROME_ICON_SAVE);
     self->button_run = ToriRSChrome_IconButton(ui->chrome, self->panel, TORIRS_CHROME_SKIN_RUN, "Run");
+    ToriRSChrome_IconButtonSetGlyph(ui->chrome, self->button_run, TORIRS_CHROME_ICON_RUN);
     /* The design's New button lives in the picker; it is here too because a
-     * new square is the first thing an empty session wants. */
+     * new square is the first thing an empty session wants. Its glyph is a
+     * plus (a new one); the skin's is the hammer it always wore. */
     self->button_new = ToriRSChrome_IconButton(ui->chrome, self->panel, TORIRS_CHROME_SKIN_BUILD, "New square");
+    ToriRSChrome_IconButtonSetGlyph(ui->chrome, self->button_new, TORIRS_CHROME_ICON_PLUS);
+    /* The square picker is a map of the squares: the map glyph, where the
+     * skin has the search glass. */
     self->button_squares =
         ToriRSChrome_IconButton(ui->chrome, self->panel, TORIRS_CHROME_SKIN_SEARCH, "Squares");
+    ToriRSChrome_IconButtonSetGlyph(ui->chrome, self->button_squares, TORIRS_CHROME_ICON_MAP);
     toolrail_hints(ui, self);
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
 

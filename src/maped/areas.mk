@@ -13,7 +13,7 @@ MAPED_CLIENT_SRCS += editor/editor_areas.c editor/panels/edpanel_areas.c
 MAPED_SERVER_SRCS += editor/editor_areas.c
 
 # ...and the tests that list their sources by hand through a target-specific
-# append (iface-cs2.mk's pattern; each recipe names $(TORIMEM_SRCS)). The
+# append (iface-codec.mk's pattern; each recipe names $(TORIMEM_SRCS)). The
 # controller formats and parses rows for its area verbs. test-catalog and
 # test-builder link $(MAPED_SERVER_SRCS), which already carries it.
 test-editor-cmd test-editor-save test-torirsmaped-embed test-editor-cfg test-editor-alloc \

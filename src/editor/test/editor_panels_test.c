@@ -1230,8 +1230,10 @@ cat_press_graph(
 }
 
 /** The strip's always-shown kinds (edpanel_catalog.c k_type_strip): "more"
- *  is the chip after them while the kind is one of them. */
-#define CATALOG_TYPE_STRIP_TEST 11
+ *  is the chip after them while the kind is one of them. Six since
+ *  2026-11-09 -- all, loc, npc, obj, seq, spotanim -- where it was eleven:
+ *  the others are in the Kind dropdown "more" shows. */
+#define CATALOG_TYPE_STRIP_TEST 6
 
 static int
 cat_panel(const char* title)
@@ -1283,7 +1285,9 @@ test_catalog_panel(void)
     ToriRSChrome_PanelSetVisible(&g_cat_chrome, panel, 1);
     find = cat_widget(panel, TORIRS_CHROME_W_TEXTINPUT, "Find");
     new_name = cat_widget(panel, TORIRS_CHROME_W_TEXTINPUT, "New name");
-    copy = cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Copy to new...");
+    /* The caption is "Copy to new" since 2026-11-09 (was "Copy to new..."):
+     * the name it copies to is the New name row directly over it. */
+    copy = cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Copy to new");
     list = cat_widget(panel, TORIRS_CHROME_W_VLIST, NULL);
     kind = cat_widget(panel, TORIRS_CHROME_W_DROPDOWN, "Kind");
     CHECK(find >= 0 && new_name >= 0 && copy >= 0 && list >= 0 && kind >= 0, "catalog: its widgets are there");
@@ -2101,12 +2105,24 @@ test_chrome(void)
     Editor_UiSetVisible(&g_ui, 1);
     squares_panel = find_panel("Squares");
     g_squares_panel = squares_panel;
-    CHECK(squares_panel >= 0 && g_chrome.panels[squares_panel].visible, "the square picker opens with the editor");
+    /* The Squares list no longer opens with the editor (2026-11-09: the Build
+     * column opens with what placing needs, Editor_UiSetVisible closes the
+     * on-demand panels). Closed, its picker still fetches the atlas -- the
+     * instance helper, the Areas filter and the New square dialog read which
+     * squares exist off it (squares_tick) -- and the panel opens when it is
+     * asked for. */
+    CHECK(squares_panel >= 0 && !g_chrome.panels[squares_panel].visible,
+        "the square picker is closed when the editor opens");
     for( int i = 0; i < 3; i++ )
         frame();
     picker = edp_squares_picker(&g_ui);
-    CHECK(picker && picker->square_count >= 6, "the picker fetched the atlas (%d squares)",
+    CHECK(picker && picker->square_count >= 6, "closed, the picker fetched the atlas (%d squares)",
         picker ? picker->square_count : -1);
+    CHECK(squares_panel >= 0 && !g_chrome.panels[squares_panel].visible, "and fetching it did not open the panel");
+    CHECK(Editor_UiTogglePanel(&g_ui, "squares") == 1, "the square picker opens when it is asked for");
+    for( int i = 0; i < 3; i++ )
+        frame();
+    CHECK(squares_panel >= 0 && g_chrome.panels[squares_panel].visible, "and shows");
     /* The well is the Square map window's (a Find below opens it). */
     graph = find_widget(find_panel("Square map"), TORIRS_CHROME_W_GRAPH, NULL);
     CHECK(graph >= 0, "the picker has its GRAPH well");
@@ -3247,10 +3263,74 @@ layout_boot(
         frame();
 }
 
+static void
+view_toggle(const char* label);
+
+/** Whether registry module `name`'s window shows. */
+static int
+module_shown(const char* name)
+{
+    struct EditorUiPanel const* p = Editor_UiFindPanel(&g_ui, name);
+    return p && p->chrome_panel >= 0 && g_chrome.panels[p->chrome_panel].visible;
+}
+
+/** Whether registry module `name`'s window is one the layout docked. */
+static int
+module_docked(const char* name)
+{
+    struct EditorUiPanel const* p = Editor_UiFindPanel(&g_ui, name);
+    return p && p->chrome_panel >= g_ui.panel_first && p->chrome_panel < g_ui.panel_end
+           && g_chrome.panels[p->chrome_panel].visible && g_ui.docked[p->chrome_panel - g_ui.panel_first];
+}
+
+/**
+ * The on-demand column panels, asked for the way a user asks for them.
+ *
+ * Until 2026-11-09 Terrain, Palette, Squares and Areas opened with the
+ * editor, and the checks of this file's layout tests were written for a
+ * column that holds them ("Terrain heads the column"). Editor_UiSetVisible
+ * now closes them at boot -- the Build column opens with what placing needs:
+ * the Catalog, the Preview and the Gallery -- and each DOCKS into the column
+ * when it is asked for (its View row here; ui_docks_when_shown). So a test
+ * that is about the docked Terrain asks for it first; a plain layout_boot is
+ * the column a session opens with.
+ */
+static void
+layout_open_terrain(void)
+{
+    CHECK(!module_shown("terrain") && !module_shown("palette") && !module_shown("squares") && !module_shown("areas"),
+        "a plain boot leaves Terrain, Palette, Squares and Areas closed (%d %d %d %d)", module_shown("terrain"),
+        module_shown("palette"), module_shown("squares"), module_shown("areas"));
+    view_toggle("Areas");
+    view_toggle("Squares");
+    view_toggle("Palette");
+    view_toggle("Terrain");
+    for( int i = 0; i < 4; i++ )
+        frame();
+    {
+        int const terrain = find_panel("Terrain");
+        CHECK(module_docked("terrain") && g_chrome.panels[terrain].x == g_ui.dock_x
+                  && g_chrome.panels[terrain].y == g_ui.dock_top,
+            "asked for, Terrain docks at the head of the column (docked %d, at %d,%d, column %d,%d)",
+            module_docked("terrain"), g_chrome.panels[terrain].x, g_chrome.panels[terrain].y, g_ui.dock_x,
+            g_ui.dock_top);
+    }
+}
+
+/** Every panel layout_open_terrain asked for is in the column: true wherever
+ *  the column has their minimums (every surface of test_layout); where it
+ *  has not, the layout hides the ones lowest in the dock order, as it always
+ *  did with the default set. */
+static int
+layout_terrain_all_docked(void)
+{
+    return module_docked("terrain") && module_docked("palette") && module_docked("squares") && module_docked("areas");
+}
+
 /** No two layout panels overlap, none covers the world, all are on the
  *  surface, and the world is the largest rectangle. */
 static void
-layout_check(const char* what)
+layout_check_any(const char* what)
 {
     struct EditorUiRect const world = Editor_UiWorldRect(&g_ui);
     struct ToriRSChromeRect world_r;
@@ -3369,8 +3449,29 @@ layout_check(const char* what)
             printf(" %s@%d,%d %dx%d", g_chrome.panels[i].title, g_chrome.panels[i].last_rect.x,
                 g_chrome.panels[i].last_rect.y, g_chrome.panels[i].last_rect.w, g_chrome.panels[i].last_rect.h);
     printf("\n");
+}
+
+/** layout_check_any on a column the terrain panels were asked into
+ *  (layout_open_terrain): Terrain is in it. */
+static void
+layout_check(const char* what)
+{
+    layout_check_any(what);
     CHECK(find_panel("Terrain") >= 0 && g_chrome.panels[find_panel("Terrain")].visible,
         "%s: Terrain heads the column", what);
+}
+
+/** layout_check_any on the column a session opens with (2026-11-09): none of
+ *  the on-demand panels is in it. */
+static void
+layout_check_boot(const char* what)
+{
+    layout_check_any(what);
+    CHECK(!module_shown("terrain") && !module_shown("palette") && !module_shown("catalog_palette")
+              && !module_shown("squares") && !module_shown("areas"),
+        "%s: the column opens without the terrain panels, Squares and Areas (%d %d %d %d %d)", what,
+        module_shown("terrain"), module_shown("palette"), module_shown("catalog_palette"), module_shown("squares"),
+        module_shown("areas"));
 }
 
 static void
@@ -3398,6 +3499,7 @@ test_layout(void)
                                        { 1366, 768 }, { 1280, 720 },  { 1024, 600 },  { 960, 600 } };
     static const int sizes_2x[][2] = { { 1280, 800 }, { 1530, 1006 }, { 1920, 1080 }, { 2560, 1440 }, { 2880, 1800 } };
     char what[64];
+    char boot_what[96];
 
     for( int s = 0; s < (int)(sizeof(sizes_1x) / sizeof(sizes_1x[0])); s++ )
     {
@@ -3406,6 +3508,12 @@ test_layout(void)
         CHECK(Editor_UiCompact(&g_ui) == (sizes_1x[s][1] < EDP_COMPACT_H || sizes_1x[s][0] < EDP_COMPACT_W),
             "%s: compact is automatic below %dx%d logical (%d)", what, EDP_COMPACT_W, EDP_COMPACT_H,
             Editor_UiCompact(&g_ui));
+        /* The column a session opens with, then the one these sizes were
+         * chosen against: with the terrain panels asked into it. */
+        snprintf(boot_what, sizeof(boot_what), "%s, as booted", what);
+        layout_check_boot(boot_what);
+        layout_open_terrain();
+        CHECK(layout_terrain_all_docked(), "%s: the column takes Terrain, Palette, Squares and Areas", what);
         layout_check(what);
         Editor_UiFree(&g_ui);
     }
@@ -3413,6 +3521,10 @@ test_layout(void)
     {
         layout_boot(sizes_2x[s][0], sizes_2x[s][1], 2);
         snprintf(what, sizeof(what), "%dx%d at 2x", sizes_2x[s][0], sizes_2x[s][1]);
+        snprintf(boot_what, sizeof(boot_what), "%s, as booted", what);
+        layout_check_boot(boot_what);
+        layout_open_terrain();
+        CHECK(layout_terrain_all_docked(), "%s: the column takes Terrain, Palette, Squares and Areas", what);
         layout_check(what);
         Editor_UiFree(&g_ui);
     }
@@ -3430,6 +3542,7 @@ test_layout(void)
 
         layout_boot(1024, 600, 1);
         CHECK(Editor_UiCompact(&g_ui), "1024x600 is compact");
+        layout_open_terrain();
         for( int i = g_ui.panel_first; i < g_ui.panel_end; i++ )
         {
             if( !g_ui.docked[i - g_ui.panel_first] || g_chrome.panels[i].style != TORIRS_CHROME_PANEL_WINDOW
@@ -3498,6 +3611,7 @@ test_layout(void)
         int view = -1;
         layout_boot(1920, 1080, 1);
         CHECK(!Editor_UiCompact(&g_ui), "1920x1080 is not compact");
+        layout_open_terrain();
         for( int i = 0; i < g_chrome.widget_count; i++ )
             if( g_chrome.widgets[i].kind == TORIRS_CHROME_W_DROPDOWN && g_chrome.widgets[i].menu_mode
                 && strcmp(g_chrome.widgets[i].text, "View") == 0 )
@@ -3536,6 +3650,7 @@ test_layout(void)
 
     /* A frame resize lays out again; so does every size in between. */
     layout_boot(1280, 800, 1);
+    layout_open_terrain();
     ToriRSChrome_SetSurface(&g_chrome, 1920, 1080);
     frame();
     frame();
@@ -3727,6 +3842,13 @@ test_world_panel(void)
     struct EditorUiRect world;
     struct EditorUiRect moved;
 
+    /* The column a session opens with: History alone (2026-11-09: no
+     * Terrain, Palette, Squares or Areas). The resize below depends on it:
+     * the World dragged 120 px right lies partly under the column, and since
+     * the chrome's layers (2026-11-09, uitree_debug_overlay.c
+     * dbg_furniture_at) a press goes to the panel drawn on top -- a grip
+     * under a column panel is no longer found through it. History ends
+     * above the World's grip. */
     layout_boot(1530, 1006, 1);
     wp = find_panel("World");
     CHECK(wp >= 0 && Editor_UiWorldShown(&g_ui), "the World panel is a panel and shows");
@@ -3792,7 +3914,7 @@ test_world_panel(void)
     frame();
     CHECK(!g_chrome.panels[wp].user_placed && rect_eq(Editor_UiWorldRect(&g_ui), world),
         "Reset layout docks World back over the region");
-    layout_check("World after Reset layout");
+    layout_check_boot("World after Reset layout");
     Editor_UiFree(&g_ui);
 }
 
@@ -3898,6 +4020,7 @@ test_popout(void)
 
     memset(&g_pop, 0, sizeof(g_pop));
     layout_boot(1530, 1006, 1);
+    layout_open_terrain();
     g_ui.app_services.world_camera = fake_world_camera;
     g_ui.app_services.spawn_panel = fake_spawn_panel;
     wp = find_panel("World");
@@ -4533,9 +4656,22 @@ test_gallery(void)
         Editor_UiFree(&g_ui);
         return;
     }
-    CHECK(!g_chrome.panels[gallery].visible && !g_chrome.panels[catalog].visible,
-        "gallery: at 1280x800 the layout leaves the Gallery and the Catalog closed");
+    /* The Build column at 1280x800 (2026-11-09): the Catalog opens with the
+     * editor, docked, and the Gallery waits -- it is admitted only when the
+     * column has room after the Catalog's and the Preview's minimums. (Until
+     * then Terrain, Palette, Squares and Areas opened with the editor too,
+     * and at this size the layout left the Catalog closed as well.) */
+    CHECK(g_chrome.panels[catalog].visible && g_ui.docked[catalog - g_ui.panel_first]
+              && !g_chrome.panels[gallery].visible,
+        "gallery: at 1280x800 the column opens with the Catalog and has no room for the Gallery (catalog %d, gallery %d)",
+        g_chrome.panels[catalog].visible, g_chrome.panels[gallery].visible);
     CHECK(!Editor_Gallery_Visible(&g_ui), "gallery: closed, it says so");
+    /* With the terrain panels asked for, the column is the one the checks
+     * below were written for: no room for the Catalog either -- hidden by
+     * the layout, not by a close of the user's. */
+    layout_open_terrain();
+    CHECK(!g_chrome.panels[gallery].visible && !g_chrome.panels[catalog].visible,
+        "gallery: with the terrain panels in the column the layout leaves the Gallery and the Catalog closed");
 
     /* Open alone: the Catalog drives the shared query for it. */
     (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_GALLERY);
@@ -4609,10 +4745,27 @@ test_gallery(void)
     frame();
     CHECK(!g_chrome.panels[gallery].visible && !Editor_Gallery_Visible(&g_ui), "gallery: View toggles it closed");
     {
-        /* The Catalog's strip: eleven kinds, more, list, grid. */
-        int const cat_view = nth_graph(catalog, 0);
-        CHECK(cat_view >= 0 && main_graph_key_find(cat_view, EDP_CHIP_KEY_BASE + CATALOG_TYPE_STRIP_TEST + 2, &x, &y),
+        /* The Catalog's grid chip is the last of the shortcut strip under
+         * its list -- favourites, recent, in square, same category, grid --
+         * the panel's third GRAPH (the kinds, the filter chips, this). Until
+         * 2026-11-09 it closed the kinds' strip, after "more" and a "list"
+         * chip that did nothing; that strip now ends at "more". */
+        int const cat_kinds = nth_graph(catalog, 0);
+        int const cat_view = nth_graph(catalog, 2);
+        /* The Catalog opened as a flyout three frames ago and is still
+         * settling: its content-sized box is fitted between the bars, then
+         * its list to the box (both 2026-11-09), and a strip is laid out for
+         * the width its row had the frame before -- 200 px, folding the last
+         * chips into "+2", while the row was scrolled out of the box. */
+        for( int i = 0; i < 4; i++ )
+            frame();
+        CHECK(cat_kinds >= 0 && main_graph_key_find(cat_kinds, EDP_CHIP_KEY_BASE + CATALOG_TYPE_STRIP_TEST, &x, &y)
+                  && !main_graph_key_find(cat_kinds, EDP_CHIP_KEY_BASE + CATALOG_TYPE_STRIP_TEST + 1, &x, &y),
+            "gallery: the Catalog's kinds end at more: no list or grid chip among them");
+        CHECK(cat_view >= 0 && main_graph_key_find(cat_view, EDP_CHIP_KEY_BASE + 4, &x, &y)
+                  && !main_graph_key_find(cat_view, EDP_CHIP_KEY_BASE + 5, &x, &y),
             "gallery: the Catalog's grid chip");
+        (void)main_graph_key_find(cat_view, EDP_CHIP_KEY_BASE + 4, &x, &y);
         push_graph(cat_view, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
         frame();
         frame();
@@ -4738,11 +4891,27 @@ test_preview(void)
         return;
     }
 
-    /* 1280x800 has no room for either in the column: both hidden by the
-     * layout -- not a close of the user's. Opening the Catalog opens the
-     * Preview against its left side, top-aligned. */
+    /* The Build column at 1280x800 (2026-11-09): the Catalog and the Preview
+     * open with the editor, docked, the Preview under the Catalog -- opened
+     * by the default set, not by the auto-open rule. (Until then Terrain,
+     * Palette, Squares and Areas opened with the editor too, and at this size
+     * the layout had room for neither.) */
+    CHECK(g_chrome.panels[catalog].visible && g_chrome.panels[preview].visible
+              && g_ui.docked[catalog - g_ui.panel_first] && g_ui.docked[preview - g_ui.panel_first]
+              && g_chrome.panels[preview].last_rect.x == g_chrome.panels[catalog].last_rect.x
+              && g_chrome.panels[preview].last_rect.y
+                     == g_chrome.panels[catalog].last_rect.y + g_chrome.panels[catalog].last_rect.h,
+        "preview: at 1280x800 the column opens with the Catalog and the Preview under it (catalog %d, preview %d)",
+        g_chrome.panels[catalog].visible, g_chrome.panels[preview].visible);
+    CHECK(Editor_Preview_AutoOpens(&g_ui) == 0 && Editor_Preview_ModelView(&g_ui) == view,
+        "preview: open with the editor, not opened by a pick (%d)", Editor_Preview_AutoOpens(&g_ui));
+    /* With the terrain panels asked for, the column is the one the checks
+     * below were written for: no room for either, both hidden by the layout
+     * -- not a close of the user's. Opening the Catalog opens the Preview
+     * against its left side, top-aligned. */
+    layout_open_terrain();
     CHECK(!g_chrome.panels[catalog].visible && !g_chrome.panels[preview].visible,
-        "preview: at 1280x800 the layout leaves the Catalog and the Preview closed");
+        "preview: with the terrain panels in the column the layout leaves the Catalog and the Preview closed");
     CHECK(Editor_Preview_ModelView(&g_ui) == -1, "preview: closed, it has no well to render into");
     (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_CATALOG);
     frame();
@@ -4770,18 +4939,41 @@ test_preview(void)
         g_chrome.widgets[subject].text);
     g_ui.tools.loc_count = 0;
 
-    /* It follows the Catalog's pick. */
+    /* It follows the Catalog's pick. The row and the well are one record
+     * (2026-11-09): a new subject empties the well and asks the App to draw
+     * it, and until the App has, the row ends ": no model loaded" -- it used
+     * to name the new subject over the last one's picture. */
     Editor_SetStateCallback(&g_editor, main_on_state, &g_ui);
-    preview_pick_row(catalog, "crate", 0);
-    frame();
-    CHECK(Editor_Preview_Subject(&g_ui, &kind, &id) && kind == 0 && id == 0
-              && strcmp(g_chrome.widgets[subject].text, "loc test_crate (0)") == 0,
-        "preview: a picked row is its subject (%d %d, %s)", kind, id, g_chrome.widgets[subject].text);
+    {
+        int const asked = g_preview_resets;
+        /* The last subject's picture, as the App left it in the well. */
+        ToriRSChrome_ModelViewSet(&g_chrome, view, 7);
+        preview_pick_row(catalog, "crate", 0);
+        frame();
+        CHECK(Editor_Preview_Subject(&g_ui, &kind, &id) && kind == 0 && id == 0
+                  && strcmp(g_chrome.widgets[subject].text, "loc test_crate (0): no model loaded") == 0,
+            "preview: a picked row is its subject, not drawn yet (%d %d, %s)", kind, id,
+            g_chrome.widgets[subject].text);
+        CHECK(g_chrome.widgets[view].view_scene_id == 0 && g_preview_resets > asked,
+            "preview: the new subject emptied the well and asked the App to draw it (sprite %d, %d asks)",
+            g_chrome.widgets[view].view_scene_id, g_preview_resets - asked);
+        /* The App draws it: the row is the subject's name alone. */
+        ToriRSChrome_ModelViewSet(&g_chrome, view, 7);
+        frame();
+        CHECK(strcmp(g_chrome.widgets[subject].text, "loc test_crate (0)") == 0,
+            "preview: drawn, the row names the subject (%s)", g_chrome.widgets[subject].text);
+    }
     CHECK(Editor_Preview_AutoOpens(&g_ui) == 1, "preview: already open, a pick does not open it again");
 
-    /* Reset view: the App's camera back to the default pose. */
-    activate(reset);
-    CHECK(g_preview_resets == 1, "preview: Reset view asks the App for the default pose (%d)", g_preview_resets);
+    /* Reset view: the App's camera back to the default pose. (Counted from
+     * here: a subject change asks the App for a render through the same
+     * service since 2026-11-09.) */
+    {
+        int const asked = g_preview_resets;
+        activate(reset);
+        CHECK(g_preview_resets == asked + 1, "preview: Reset view asks the App for the default pose (%d)",
+            g_preview_resets - asked);
+    }
 
     /* Gestures over the well (workbench 6.1), no focus needed: a pan orbits
      * at the middle-drag's gearing (4 yaw, 2 pitch a logical px), a slow one
@@ -5057,6 +5249,7 @@ test_maximise(void)
     int size = 0;
 
     layout_boot(1530, 1006, 1);
+    layout_open_terrain();
     terrain = find_panel("Terrain");
     CHECK(terrain >= 0 && g_chrome.panels[terrain].visible, "Terrain is open");
     if( terrain < 0 )
@@ -5356,25 +5549,41 @@ test_saved_layout(void)
     int visible_before[TORIRS_CHROME_MAX_PANELS];
     int panel_count;
     int wp;
-    int squares;
+    int history;
     int terrain;
     char* text = NULL;
     int size = 0;
     uint32_t fingerprint;
 
-    /* A session: World dragged and resized, Squares closed, snap off. */
+    /* A session: World dragged and resized, the terrain panels asked for,
+     * History closed, snap off.
+     *
+     * Until 2026-11-09 the panel it closed was Squares. Squares no longer
+     * opens with the editor, so a file that has it closed says nothing; the
+     * History panel is one the column still opens with, and its close is one
+     * the file has to carry and Reset layout has to undo. The other way
+     * round is the terrain panels': closed in the default, open in the file.
+     * (The World goes first, while its grip is clear of the column: a grip
+     * under another panel is not reached through it, see test_world_panel.) */
     layout_boot(1530, 1006, 1);
     wp = find_panel("World");
-    squares = find_panel("Squares");
+    history = find_panel("History");
     terrain = find_panel("Terrain");
     {
-        struct ToriRSChromeRect r = g_chrome.panels[wp].last_rect;
+        struct ToriRSChromeRect const docked = g_chrome.panels[wp].last_rect;
+        struct ToriRSChromeRect r = docked;
         drag(r.x + 60, r.y + 6, r.x + 60 + 64, r.y + 6 + 48);
         r = g_chrome.panels[wp].last_rect;
         drag(r.x + r.w - 4, r.y + r.h - 4, r.x + r.w - 4 - 300, r.y + r.h - 4 - 200);
+        r = g_chrome.panels[wp].last_rect;
+        CHECK(g_chrome.panels[wp].user_placed && r.x > docked.x && r.y > docked.y && r.w < docked.w && r.h < docked.h,
+            "the session's World is dragged and resized (%d,%d %dx%d, was %d,%d %dx%d)", r.x, r.y, r.w, r.h, docked.x,
+            docked.y, docked.w, docked.h);
     }
-    if( squares >= 0 && g_chrome.panels[squares].visible )
-        view_toggle("Squares");
+    layout_open_terrain();
+    CHECK(history >= 0 && g_chrome.panels[history].visible, "History opens with the editor");
+    if( history >= 0 && g_chrome.panels[history].visible )
+        view_toggle("History");
     Editor_UiSetSnap(&g_ui, 0);
     frame();
     frame();
@@ -5419,7 +5628,12 @@ test_saved_layout(void)
     }
     CHECK(!g_ui.snap && g_chrome.snap_grid == 0, "the saved Snap to grid comes back");
     CHECK(g_chrome.panels[wp].user_placed, "the World panel is still the user's");
-    CHECK(squares < 0 || !g_chrome.panels[squares].visible, "the closed Squares panel stays closed");
+    CHECK(history >= 0 && !g_chrome.panels[history].visible, "the closed History panel stays closed");
+    /* A saved layout that has an on-demand panel open opens it again, docked
+     * (2026-11-09: Editor_UiSetVisible closes them, the file is applied after). */
+    CHECK(module_docked("terrain") && module_docked("palette") && module_docked("squares") && module_docked("areas"),
+        "the file's open Terrain, Palette, Squares and Areas open again in the column (%d %d %d %d)",
+        module_docked("terrain"), module_docked("palette"), module_docked("squares"), module_docked("areas"));
     fingerprint = Editor_UiLayoutFingerprint(&g_ui);
 
     /* Reset layout still means the DEFAULT, not the file -- and it changes
@@ -5427,7 +5641,7 @@ test_saved_layout(void)
     Editor_UiResetLayout(&g_ui);
     frame();
     frame();
-    CHECK(!g_chrome.panels[wp].user_placed && (squares < 0 || g_chrome.panels[squares].visible),
+    CHECK(!g_chrome.panels[wp].user_placed && history >= 0 && g_chrome.panels[history].visible,
         "Reset layout after a saved layout returns to the default set");
     layout_check("reset after a saved layout");
     CHECK(Editor_UiLayoutFingerprint(&g_ui) != fingerprint, "the reset is a change the host saves");
@@ -5480,7 +5694,7 @@ test_saved_layout(void)
     /* No file: the default layout, released by the empty answer. */
     layout_boot_saved(1530, 1006, 1, NULL);
     CHECK(g_ui.laid_out && !g_chrome.panels[wp].user_placed, "no saved layout: the default");
-    layout_check("boot with no saved layout");
+    layout_check_boot("boot with no saved layout");
     Editor_UiFree(&g_ui);
 
     /* Through the real IO queue and the desktop executor, the way the App
@@ -6766,6 +6980,8 @@ test_areas(void)
     CHECK(handle.text && handle.text->length == 0, "areas: absent on disk = empty");
 
     layout_boot(1920, 1080, 1);
+    /* Areas and Squares no longer open with the editor (2026-11-09). */
+    CHECK(!module_shown("areas") && !module_shown("squares"), "areas: Areas and Squares are closed at boot");
     CHECK(Editor_UiFindPanel(&g_ui, "areas") != NULL, "areas: the panel registered");
     areas_panel = find_panel("Areas");
     squares_panel = find_panel("Squares");
@@ -6778,6 +6994,7 @@ test_areas(void)
     Editor_Areas_Show(&g_ui);
     frame();
     CHECK(g_chrome.panels[areas_panel].visible, "areas: shown");
+    CHECK(!g_chrome.panels[squares_panel].visible, "areas: showing Areas does not open Squares");
     w_new = areas_widget(areas_panel, TORIRS_CHROME_W_BUTTON, "New from rect", 0);
     w_name = areas_widget(areas_panel, TORIRS_CHROME_W_TEXTINPUT, "Name", 0);
     w_coll_name = areas_widget(areas_panel, TORIRS_CHROME_W_TEXTINPUT, "Name", 1);
@@ -6886,7 +7103,11 @@ test_areas(void)
     /* Collections: New from picker selection, the picker filter, add /
      * remove the current square, Open all, delete. */
     picker = (struct Editor_Picker*)edp_squares_picker(&g_ui);
-    CHECK(picker != NULL, "areas: the picker has its atlas");
+    /* With Squares closed since boot: its picker is fed all the same
+     * (squares_tick fetches the atlas whether or not its windows show), and
+     * a collection is made from it. */
+    CHECK(picker != NULL && !g_chrome.panels[squares_panel].visible,
+        "areas: the picker has its atlas, the Squares panel closed");
     if( picker )
     {
         int const a = Editor_PickerFind(picker, 50, 50, -1);
@@ -6906,8 +7127,16 @@ test_areas(void)
             CHECK(newest_group_named("New collection Lumbridge"), "areas: history row for the collection");
             CHECK(strcmp(Editor_Areas_SelectedCollection(&g_ui), "Lumbridge") == 0, "areas: it is the selection");
 
-            /* The picker filter: only the collection's squares, on any page. */
+            /* The picker filter: only the collection's squares, on any page.
+             * The Collection dropdown is a row of the Squares panel, which
+             * lists the collections while it shows (squares_tick). It is
+             * closed at boot since 2026-11-09 and was through everything
+             * above, so it is asked for first. */
             frame();
+            CHECK(!g_chrome.panels[squares_panel].visible, "areas: Squares was closed through all of that");
+            view_toggle("Squares");
+            frame();
+            CHECK(g_chrome.panels[squares_panel].visible, "areas: View > Squares opens it");
             CHECK(g_chrome.widgets[w_coll_dropdown].option_count == 2,
                 "areas: the Collection dropdown lists all + one (%d)", g_chrome.widgets[w_coll_dropdown].option_count);
             ToriRSChrome_DropdownSetSelected(&g_chrome, w_coll_dropdown, 1);
@@ -8089,7 +8318,7 @@ test_statusbar(void)
         CHECK(r.y + r.h <= bar.y, "statusbar: '%s' (%d..%d) ends above the bar", g_chrome.panels[i].title, r.y,
             r.y + r.h);
     }
-    layout_check("with the status bar");
+    layout_check_boot("with the status bar");
 
     /* The hint: Select armed, nothing selected, the pointer off the world. */
     CHECK(g_ui.tools.tool == EDITOR_TOOL_SELECT, "statusbar: Select is armed at boot");

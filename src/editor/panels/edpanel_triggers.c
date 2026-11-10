@@ -12,6 +12,18 @@
  *              line), the subject's edited script read from this window's
  *              document when it is open (a trigger added and not saved shows,
  *              "(unsaved)"); Open in editor on the picked row.
+ *   the file   one click from the user's own tools (owner, 2026-11-09:
+ *              "there should be a button to open in the explorer"): Show in
+ *              Explorer / Finder on the picked row's file (else the folder
+ *              the subject's scripts are in), Copy path, Copy name (the
+ *              record's name as a script writes it), and New script file --
+ *              edited/<s>/scripts/<s>.rs2 with a two-line header, through
+ *              the document as Add trigger writes, then opened in the editor.
+ *   Snippets   RuneScript to paste (editor_snippets.h): the titles for the
+ *              subject's kind, then the ones any record can use; the text
+ *              rendered for the subject's name in a read-only preview; Copy
+ *              snippet puts it on the OS clipboard and says which file it
+ *              goes into.
  *   Add        a kind from the record type's list (editor_script.h, the
  *              builders' names), Op text, "Add trigger...": the op's menu
  *              field through the Record panel when the record lacks it, and
@@ -42,13 +54,16 @@
 #endif
 #include "edpanel_common.h"
 #include "edpanels.h"
+#include "editor/builder/builder_emit.h"
 #include "editor/builder/builder_text.h"
 #include "editor/editor_cfg.h"
 #include "editor/editor_host.h"
 #include "editor/editor_script.h"
+#include "editor/editor_snippets.h"
 #include "editor/live/live_panel.h"
 #include "editor/editor_spawn.h"
 #include "mem/torirs_mem.h"
+#include "platform/platform_clipboard.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_build.h"
 #include "torirsmaped/torirs_maped_catalog.h"
@@ -58,12 +73,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #define TRIGGERS_ROWS 7
 #define TRIGGERS_DIAG_ROWS 5
 #define TRIGGERS_MAX 128
 #define TRIGGERS_STALE_MAX 8
 #define TRIGGERS_PATH_MAX 1024
+/** A path under server/scripts as the file buttons build it: a row's file,
+ *  or a subject's folder ("edited/<subject>/scripts"). */
+#define TRIGGERS_REL_MAX 256
+/** The snippet preview's rows (the chrome's row pool is shared by every
+ *  list of every panel: ten, as the Quest board's code view takes); the
+ *  titles one subject is offered (its kind's and the "any" ones); the lines
+ *  of the longest snippet. */
+#define TRIGGERS_SNIPPET_ROWS 10
+#define TRIGGERS_SNIPPETS_MAX 16
+#define TRIGGERS_SNIPPET_LINES_MAX 48
 
 static const char* const k_modes[] = { "Record / selection", "Name", "File" };
 
@@ -78,6 +104,13 @@ struct TriggersPanel
     int label_status;
     int list_rows;
     int button_open;
+    int button_reveal;
+    int button_copy_path;
+    int button_copy_name;
+    int button_new_file;
+    int dropdown_snippet;
+    int code_snippet;
+    int button_copy_snippet;
     int dropdown_kind;
     int input_op;
     int button_add;
@@ -106,6 +139,26 @@ struct TriggersPanel
     /** The edited script's document revision the rows were made at. */
     uint32_t edited_revision;
     int edited_open;
+    /** The subject's edited script holds text here or is a file on disk (as
+     *  of the last rebuild): what "New script file" would otherwise make. */
+    int edited_exists;
+
+    /* Snippets: the titles offered (the subject's kind, then "any"), which
+     * catalogue entry each is, and the one shown, rendered for the name. */
+    const char* snippet_titles[TRIGGERS_SNIPPETS_MAX];
+    unsigned char snippet_kinds[TRIGGERS_SNIPPETS_MAX];
+    unsigned char snippet_indices[TRIGGERS_SNIPPETS_MAX];
+    int snippet_count;
+    /** The kind the titles were listed for, once they have been. */
+    enum Editor_SnippetKind snippet_kind;
+    int snippet_listed;
+    /** The option the preview shows, -1 when it shows none. */
+    int snippet_shown;
+    char snippet_name[EDITOR_SNIPPET_SUBJECT_MAX];
+    char snippet_text[EDITOR_SNIPPET_MAX];
+    size_t snippet_length;
+    int snippet_line_start[TRIGGERS_SNIPPET_LINES_MAX];
+    int snippet_line_count;
 
     /** Follow: the id a name was last looked up for (kind << 24 | id). */
     int32_t follow_key;
@@ -150,6 +203,18 @@ triggers_status(
     const char* text)
 {
     ToriRSChrome_SetText(ui->chrome, self->label_status, text);
+}
+
+/** One sentence on the panel's status row and in the status bar (which the
+ *  Console keeps): what a file button or a copy did, or why it did not. */
+static void
+triggers_say(
+    struct EditorUi* ui,
+    struct TriggersPanel* self,
+    const char* text)
+{
+    triggers_status(ui, self, text);
+    Editor_UiStatus(ui, "%s", text);
 }
 
 static int
@@ -209,6 +274,39 @@ triggers_read_disk(
     text[*out_length] = '\0';
     fclose(file);
     return text;
+}
+
+/** `path` as this machine spells an absolute path. On Windows the content
+ *  root is kept as it was given (Editor_Triggers_SetPaths), which may be
+ *  relative and holds forward slashes: Explorer reads neither, and a path
+ *  pasted into another program should not depend on this process's
+ *  directory. Elsewhere the root is already resolved. */
+static void
+triggers_native_path(
+    const char* path,
+    char* out,
+    size_t out_size)
+{
+#if defined(_WIN32)
+    if( _fullpath(out, path, out_size) )
+        return;
+#endif
+    snprintf(out, out_size, "%s", path);
+}
+
+/** 1 when server/scripts/`rel` is on disk (a file or a folder). */
+static int
+triggers_rel_on_disk(
+    const struct TriggersPanel* self,
+    const char* rel)
+{
+    char path[TRIGGERS_PATH_MAX + TRIGGERS_REL_MAX + 32];
+    struct stat info;
+
+    if( !self->content_root[0] )
+        return 0;
+    snprintf(path, sizeof(path), "%s/server/scripts/%s", self->content_root, rel);
+    return stat(path, &info) == 0;
 }
 
 /** The document of `rel` holds other bytes than the disk (and is not merely
@@ -459,8 +557,14 @@ triggers_rebuild(
         self->row_count = self->file[0] ? triggers_for_file(ui, self, self->file, self->rows, TRIGGERS_MAX) : 0;
     else
         self->row_count = self->subject[0] ? Editor_Triggers_ForSubject(ui, self->subject, self->rows, TRIGGERS_MAX) : 0;
+    self->edited_exists = 0;
     if( self->subject[0] && Editor_ScriptEditedPath(self->subject, edited, sizeof(edited)) )
+    {
         doc = triggers_doc(ui, edited);
+        /* One stat per rebuild (a subject, a revision, a Refresh), never
+         * per frame. */
+        self->edited_exists = (doc && doc->length > 0) || triggers_rel_on_disk(self, edited);
+    }
     self->edited_open = doc != NULL;
     self->edited_revision = doc ? doc->revision : 0;
     ToriRSChrome_VListSetCount(ui->chrome, self->list_rows, self->row_count);
@@ -492,6 +596,10 @@ triggers_rebuild(
         snprintf(self->kinds_type, sizeof(self->kinds_type), "%s", self->type);
     }
     ToriRSChrome_SetDisabled(ui->chrome, self->button_add, self->kind_count == 0 || self->mode == EDITOR_TRIGGERS_FILE);
+    /* A record's own script file, where Add trigger writes: a file shown by
+     * path has none to make. */
+    ToriRSChrome_SetDisabled(ui->chrome, self->button_new_file,
+        !self->subject[0] || self->mode == EDITOR_TRIGGERS_FILE);
     triggers_check_stale(ui, self);
 }
 
@@ -630,6 +738,542 @@ Editor_Triggers_OpenInEditor(
     Editor_UiLog(ui, "editor: open in editor: %s", command);
     snprintf(text, sizeof(text), "opened %s:%d in your editor", rel_path, line);
     triggers_status(ui, self, text);
+    return 1;
+}
+
+/* ---- the file in the user's own tools: reveal, copy path, copy name ----------------- */
+
+int
+Editor_Triggers_Reveal(
+    struct EditorUi* ui,
+    const char* content_path)
+{
+    struct TriggersPanel* self;
+    char joined[TRIGGERS_PATH_MAX + TRIGGERS_REL_MAX + 64];
+    char path[TRIGGERS_PATH_MAX + TRIGGERS_REL_MAX + 64];
+    char command[2048];
+    char text[EDITOR_UI_CONSOLE_LINE_MAX];
+    struct stat info;
+    enum EditorHost_Status status;
+    int on_disk;
+
+    assert(ui);
+    assert(content_path);
+    self = triggers_self(ui);
+    assert(self);
+    if( !self->content_root[0] )
+    {
+        snprintf(text, sizeof(text), "%s refused: this window has no content folder on this machine (%s)",
+            EDITOR_REVEAL_CAPTION, content_path);
+        triggers_say(ui, self, text);
+        return 0;
+    }
+    snprintf(joined, sizeof(joined), "%s/%s", self->content_root, content_path);
+    triggers_native_path(joined, path, sizeof(path));
+    on_disk = stat(path, &info) == 0;
+    status = Editor_HostLocalRevealInFileManager(path, command, sizeof(command));
+    if( status != EDITOR_HOST_OK )
+    {
+        snprintf(text, sizeof(text), "%s %s: %s", EDITOR_REVEAL_CAPTION,
+            status == EDITOR_HOST_UNSUPPORTED ? "is not available on this platform"
+            : status == EDITOR_HOST_REFUSED   ? "found nothing of this path on disk"
+                                              : "did not start",
+            content_path);
+        triggers_say(ui, self, text);
+        Editor_UiLog(ui, "editor: the path is %s", path);
+        return 0;
+    }
+    Editor_UiLog(ui, "editor: show in %s: %s", EDITOR_REVEAL_APP, command);
+    if( on_disk )
+        snprintf(text, sizeof(text), "Showing %s in %s", content_path, EDITOR_REVEAL_APP);
+    else
+        snprintf(text, sizeof(text), "%s is not on disk yet: showing the nearest folder that is, in %s", content_path,
+            EDITOR_REVEAL_APP);
+    triggers_say(ui, self, text);
+    return 1;
+}
+
+/**
+ * What Show in Explorer and Copy path act on, as a path under server/scripts:
+ * the picked row's file; else, in File mode, the file shown; else the folder
+ * the subject's scripts are in -- its first trigger's, or with no trigger
+ * yet edited/<s>/scripts, where Add trigger and New script file write.
+ * 0 when the panel shows nothing (or the path does not fit).
+ */
+static int
+triggers_target(
+    struct EditorUi* ui,
+    const struct TriggersPanel* self,
+    char* out,
+    size_t out_size,
+    int* out_is_folder)
+{
+    int const row = ToriRSChrome_VListSelected(ui->chrome, self->list_rows);
+    int written;
+
+    *out_is_folder = 0;
+    out[0] = '\0';
+    if( row >= 0 && row < self->row_count )
+        written = snprintf(out, out_size, "%s", self->rows[row].rel);
+    else if( self->mode == EDITOR_TRIGGERS_FILE )
+    {
+        if( !self->file[0] )
+            return 0;
+        written = snprintf(out, out_size, "%s", self->file);
+    }
+    else if( !self->subject[0] )
+        return 0;
+    else
+    {
+        *out_is_folder = 1;
+        if( self->row_count > 0 )
+        {
+            const char* slash = strrchr(self->rows[0].rel, '/');
+            written = snprintf(out, out_size, "%.*s", slash ? (int)(slash - self->rows[0].rel) : 0, self->rows[0].rel);
+        }
+        else
+            written = snprintf(out, out_size, "edited/%s/scripts", self->subject);
+    }
+    return written >= 0 && (size_t)written < out_size;
+}
+
+static void
+triggers_reveal(
+    struct EditorUi* ui,
+    struct TriggersPanel* self)
+{
+    char rel[TRIGGERS_REL_MAX];
+    char content_path[TRIGGERS_REL_MAX + 32];
+    int is_folder;
+
+    if( !triggers_target(ui, self, rel, sizeof(rel), &is_folder) )
+    {
+        triggers_say(ui, self,
+            EDITOR_REVEAL_CAPTION ": show a record or a file first (Record panel, a selection, Name or File)");
+        return;
+    }
+    snprintf(content_path, sizeof(content_path), "server/scripts/%s", rel);
+    (void)Editor_Triggers_Reveal(ui, content_path);
+}
+
+/** Copy path: the absolute path of what Show in Explorer would show. */
+static void
+triggers_copy_path(
+    struct EditorUi* ui,
+    struct TriggersPanel* self)
+{
+    char rel[TRIGGERS_REL_MAX];
+    char joined[TRIGGERS_PATH_MAX + TRIGGERS_REL_MAX + 64];
+    char path[TRIGGERS_PATH_MAX + TRIGGERS_REL_MAX + 64];
+    char text[EDITOR_UI_CONSOLE_LINE_MAX];
+    int is_folder;
+
+    if( !triggers_target(ui, self, rel, sizeof(rel), &is_folder) )
+    {
+        triggers_say(ui, self, "Copy path: show a record or a file first (Record panel, a selection, Name or File)");
+        return;
+    }
+    if( self->content_root[0] )
+    {
+        snprintf(joined, sizeof(joined), "%s/server/scripts/%s", self->content_root, rel);
+        triggers_native_path(joined, path, sizeof(path));
+    }
+    else
+        /* No content folder on this machine: the path inside the tree. */
+        snprintf(path, sizeof(path), "server/scripts/%s", rel);
+    if( !PlatformClipboard_SetText(path) )
+    {
+        triggers_say(ui, self, "Copy refused: the system clipboard did not take the path (it is in the Console)");
+        Editor_UiLog(ui, "editor: the path is %s", path);
+        return;
+    }
+    /* The bar names the file inside the tree (a whole machine path does not
+     * fit it); the Console has what was copied. */
+    snprintf(text, sizeof(text), "Copied the path of %s%s", rel[0] ? rel : "server/scripts",
+        is_folder ? " (the folder its scripts are in)" : "");
+    triggers_say(ui, self, text);
+    Editor_UiLog(ui, "editor: copied %s", path);
+}
+
+/** Copy name: the record's name as a script writes it ("fenwick"). In File
+ *  mode a file has none of its own: the picked trigger's subject. */
+static void
+triggers_copy_name(
+    struct EditorUi* ui,
+    struct TriggersPanel* self)
+{
+    int const row = ToriRSChrome_VListSelected(ui->chrome, self->list_rows);
+    const char* name = self->subject;
+    char text[EDITOR_UI_CONSOLE_LINE_MAX];
+
+    if( self->mode == EDITOR_TRIGGERS_FILE )
+        name = row >= 0 && row < self->row_count ? self->rows[row].subject : "";
+    if( !name[0] )
+    {
+        triggers_say(ui, self,
+            self->mode == EDITOR_TRIGGERS_FILE ? "Copy name: pick a trigger row first (a file has no name of its own)"
+                                               : "Copy name: show a record first (Record panel, a selection, or Name)");
+        return;
+    }
+    if( !PlatformClipboard_SetText(name) )
+        snprintf(text, sizeof(text), "Copy refused: the system clipboard did not take the name %s", name);
+    else
+        snprintf(text, sizeof(text), "Copied the name: %s", name);
+    triggers_say(ui, self, text);
+}
+
+/* ---- snippets ---------------------------------------------------------------------- */
+
+/** The record name the snippets are written for: the subject; in File mode
+ *  the file's own name ("quest_cook" of quests/quest_cook/scripts/
+ *  quest_cook.rs2), which is what a file's triggers are usually named after.
+ *  "" when nothing is shown or the name is longer than a record's. */
+static void
+triggers_snippet_name(
+    const struct TriggersPanel* self,
+    char* out,
+    size_t out_size)
+{
+    const char* name = self->subject;
+    size_t length = strlen(name);
+
+    out[0] = '\0';
+    if( self->mode == EDITOR_TRIGGERS_FILE )
+    {
+        const char* slash = strrchr(self->file, '/');
+        const char* dot;
+        name = slash ? slash + 1 : self->file;
+        dot = strrchr(name, '.');
+        length = dot ? (size_t)(dot - name) : strlen(name);
+    }
+    if( length == 0 || length >= out_size )
+        return;
+    memcpy(out, name, length);
+    out[length] = '\0';
+}
+
+/** The preview's visible lines, from the rendered text. */
+static void
+triggers_snippet_fill(
+    struct EditorUi* ui,
+    struct TriggersPanel* self)
+{
+    int first;
+    int shown;
+
+    if( !ToriRSChrome_VListWindow(ui->chrome, self->code_snippet, &first, &shown) )
+        return;
+    for( int l = first; l < first + shown && l < self->snippet_line_count; l++ )
+    {
+        char line[TORIRS_CHROME_INPUT_MAX];
+        size_t const start = (size_t)self->snippet_line_start[l];
+        size_t stop =
+            l + 1 < self->snippet_line_count ? (size_t)self->snippet_line_start[l + 1] : self->snippet_length;
+        while( stop > start && self->snippet_text[stop - 1] == '\n' )
+            stop--;
+        snprintf(line, sizeof(line), "%.*s", (int)(stop - start), self->snippet_text + start);
+        ToriRSChrome_CodeSetLine(ui->chrome, self->code_snippet, l, line);
+    }
+}
+
+/** Render the chosen snippet for the name and cut it into the preview's
+ *  lines; no choice (or no name) empties the preview. */
+static void
+triggers_snippet_render(
+    struct EditorUi* ui,
+    struct TriggersPanel* self)
+{
+    int const choice = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_snippet);
+
+    self->snippet_shown = -1;
+    self->snippet_length = 0;
+    self->snippet_line_count = 0;
+    self->snippet_text[0] = '\0';
+    if( choice >= 0 && choice < self->snippet_count && self->snippet_name[0] )
+    {
+        self->snippet_length = Editor_SnippetRender((enum Editor_SnippetKind)self->snippet_kinds[choice],
+            self->snippet_indices[choice], self->snippet_name, self->snippet_text, sizeof(self->snippet_text));
+        self->snippet_shown = choice;
+        for( size_t at = 0; at < self->snippet_length; )
+        {
+            const char* newline = memchr(self->snippet_text + at, '\n', self->snippet_length - at);
+            assert(self->snippet_line_count < TRIGGERS_SNIPPET_LINES_MAX);
+            self->snippet_line_start[self->snippet_line_count++] = (int)at;
+            if( !newline )
+                break;
+            at = (size_t)(newline - self->snippet_text) + 1;
+        }
+    }
+    ToriRSChrome_VListSetCount(ui->chrome, self->code_snippet, self->snippet_line_count);
+    ToriRSChrome_VListSetScroll(ui->chrome, self->code_snippet, 0);
+    ToriRSChrome_SetDisabled(ui->chrome, self->button_copy_snippet, self->snippet_shown < 0);
+    triggers_snippet_fill(ui, self);
+}
+
+/** The titles follow the subject's kind (its own snippets, then the ones
+ *  any record can use); the text follows the choice and the name. Run each
+ *  frame the panel shows: it compares, and renders only on a change. */
+static void
+triggers_snippets_follow(
+    struct EditorUi* ui,
+    struct TriggersPanel* self)
+{
+    char name[EDITOR_SNIPPET_SUBJECT_MAX];
+    enum Editor_SnippetKind const kind =
+        self->mode == EDITOR_TRIGGERS_FILE ? EDITOR_SNIPPET_ANY : Editor_SnippetKindOf(self->type);
+
+    triggers_snippet_name(self, name, sizeof(name));
+    if( !self->snippet_listed || kind != self->snippet_kind || (name[0] != '\0') != (self->snippet_name[0] != '\0') )
+    {
+        /* The choice is kept by its title when the new list still has it
+         * (another npc: still "Talk-to: one line"). */
+        const char* kept = self->snippet_shown >= 0 ? self->snippet_titles[self->snippet_shown] : NULL;
+        int selected = -1;
+
+        self->snippet_count = 0;
+        if( name[0] )
+        {
+            for( int pass = 0; pass < 2; pass++ )
+            {
+                enum Editor_SnippetKind const from = pass == 0 ? kind : EDITOR_SNIPPET_ANY;
+                if( pass == 1 && kind == EDITOR_SNIPPET_ANY )
+                    break;
+                for( int i = 0; i < Editor_SnippetCount(from); i++ )
+                {
+                    assert(self->snippet_count < TRIGGERS_SNIPPETS_MAX);
+                    self->snippet_titles[self->snippet_count] = Editor_SnippetTitle(from, i);
+                    self->snippet_kinds[self->snippet_count] = (unsigned char)from;
+                    self->snippet_indices[self->snippet_count] = (unsigned char)i;
+                    self->snippet_count++;
+                }
+            }
+            selected = 0;
+            for( int i = 0; i < self->snippet_count; i++ )
+                if( self->snippet_titles[i] == kept )
+                    selected = i;
+        }
+        ToriRSChrome_DropdownSetOptions(ui->chrome, self->dropdown_snippet, self->snippet_titles, self->snippet_count,
+            selected);
+        self->snippet_kind = kind;
+        self->snippet_listed = 1;
+        snprintf(self->snippet_name, sizeof(self->snippet_name), "%s", name);
+        triggers_snippet_render(ui, self);
+        return;
+    }
+    if( ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_snippet) != self->snippet_shown
+        || strcmp(name, self->snippet_name) != 0 )
+    {
+        snprintf(self->snippet_name, sizeof(self->snippet_name), "%s", name);
+        triggers_snippet_render(ui, self);
+    }
+    else if( ToriRSChrome_VListNeedsRows(ui->chrome, self->code_snippet) )
+        triggers_snippet_fill(ui, self);
+}
+
+/** 1 when server/scripts/`rel` is a builder's output (its header line): the
+ *  builder writes the file again from its model, so text pasted into it is
+ *  lost unless the file is detached there first. Asked on a click, never
+ *  per frame: with no document of the file open here it reads the disk. */
+static int
+triggers_rel_generated(
+    struct EditorUi* ui,
+    struct TriggersPanel* self,
+    const char* rel)
+{
+    static const char k_prefix[] = BUILDER_HEADER_PREFIX;
+    const struct Editor_TextDoc* doc = triggers_doc(ui, rel);
+    size_t length = 0;
+    char* disk;
+    int generated;
+
+    if( doc )
+        return doc->length >= sizeof(k_prefix) - 1 && memcmp(doc->text, k_prefix, sizeof(k_prefix) - 1) == 0;
+    disk = triggers_read_disk(self, rel, &length);
+    if( !disk )
+        return 0;
+    generated = length >= sizeof(k_prefix) - 1 && memcmp(disk, k_prefix, sizeof(k_prefix) - 1) == 0;
+    ToriMem_Free(ToriMem_Editor(), disk);
+    return generated;
+}
+
+/** Where the snippet shown is pasted, for the sentence Copy snippet says: a
+ *  script goes into the picked row's file, else the subject's first
+ *  trigger's, else the file New script file makes; a variable or a stage
+ *  list into the quest's configs folder. */
+static void
+triggers_snippet_where(
+    struct EditorUi* ui,
+    struct TriggersPanel* self,
+    enum Editor_SnippetFile file,
+    char* out,
+    size_t out_size)
+{
+    int const row = ToriRSChrome_VListSelected(ui->chrome, self->list_rows);
+    char edited[EDITOR_SCRIPT_PATH_MAX];
+    const char* rel = NULL;
+
+    if( file != EDITOR_SNIPPET_FILE_SCRIPT )
+    {
+        const char* extension = Editor_SnippetFileExtension(file);
+        snprintf(out, out_size, "a %s file, e.g. quests/quest_%s/configs/quest_%s%s", extension, self->snippet_name,
+            self->snippet_name, extension);
+        return;
+    }
+    if( row >= 0 && row < self->row_count )
+        rel = self->rows[row].rel;
+    else if( self->mode == EDITOR_TRIGGERS_FILE )
+        rel = self->file;
+    else if( self->row_count > 0 )
+        rel = self->rows[0].rel;
+    else if( Editor_ScriptEditedPath(self->subject, edited, sizeof(edited)) )
+    {
+        snprintf(out, out_size, "%s%s", edited, self->edited_exists ? "" : " (New script file makes it)");
+        return;
+    }
+    if( !rel )
+        snprintf(out, out_size, "a .rs2 script file");
+    else if( triggers_rel_generated(ui, self, rel) )
+        /* The builder's own header says the same; a paste would not survive it. */
+        snprintf(out, out_size, "%s once it is detached: a builder writes that file", rel);
+    else
+        snprintf(out, out_size, "%s", rel);
+}
+
+/** Copy snippet: the previewed text to the OS clipboard. */
+static void
+triggers_copy_snippet(
+    struct EditorUi* ui,
+    struct TriggersPanel* self)
+{
+    char text[EDITOR_UI_CONSOLE_LINE_MAX];
+    char where[TRIGGERS_REL_MAX + 64];
+    const char* title;
+
+    if( self->snippet_shown < 0 )
+    {
+        triggers_say(ui, self, "Copy snippet: show a record first (Record panel, a selection, or Name), then choose one");
+        return;
+    }
+    title = self->snippet_titles[self->snippet_shown];
+    if( !PlatformClipboard_SetText(self->snippet_text) )
+    {
+        snprintf(text, sizeof(text), "Copy refused: the system clipboard did not take %s (its text is in the preview)",
+            title);
+        triggers_say(ui, self, text);
+        return;
+    }
+    triggers_snippet_where(ui, self,
+        Editor_SnippetFileKind((enum Editor_SnippetKind)self->snippet_kinds[self->snippet_shown],
+            self->snippet_indices[self->snippet_shown]),
+        where, sizeof(where));
+    snprintf(text, sizeof(text), "Copied %s (%d lines): paste it into %s", title, self->snippet_line_count, where);
+    triggers_say(ui, self, text);
+}
+
+/* ---- a new script file ------------------------------------------------------------- */
+
+/**
+ * New script file: the subject's own script, edited/<s>/scripts/<s>.rs2 --
+ * the file Add trigger writes into, so a trigger added later lands beside
+ * what was pasted -- started as a two-line header and handed to the user's
+ * editor. Through the document, as Add trigger goes: one splice the
+ * authority applies (one undo step), saved by Open in editor before the
+ * editor reads the disk; nothing is written behind the server's back. A
+ * file that is already there is opened, not made again. Returns 1 when the
+ * editor was handed the file.
+ */
+static int
+triggers_new_file(
+    struct EditorUi* ui,
+    struct TriggersPanel* self)
+{
+    char rel[EDITOR_SCRIPT_PATH_MAX];
+    char key[EDITOR_DOC_KEY_MAX];
+    char label[160];
+    char text[EDITOR_UI_CONSOLE_LINE_MAX];
+    struct Editor_TextDoc* doc;
+    struct Editor_Cmd command;
+    int written;
+    int applied;
+
+    if( !ui->editor || !self->subject[0] || self->mode == EDITOR_TRIGGERS_FILE )
+    {
+        triggers_say(ui, self, "New script file: show a record first (Record panel, a selection, or Name)");
+        return 0;
+    }
+    if( ui->tools.stroke_open )
+    {
+        triggers_say(ui, self, "New script file: finish the stroke in progress first");
+        return 0;
+    }
+    if( !Editor_ScriptEditedPath(self->subject, rel, sizeof(rel)) )
+    {
+        snprintf(text, sizeof(text), "New script file refused: %s is too long a name for a script path", self->subject);
+        triggers_say(ui, self, text);
+        return 0;
+    }
+    snprintf(key, sizeof(key), "rs2:%s", rel);
+    if( !edp_ensure_doc(ui, EDITOR_DOC_TEXT, key) || !(doc = triggers_doc(ui, rel)) )
+    {
+        snprintf(text, sizeof(text), "New script file refused: the editor server did not open %s", rel);
+        triggers_say(ui, self, text);
+        return 0;
+    }
+    if( triggers_doc_stale(self, doc, rel) )
+    {
+        triggers_say(ui, self, "the edited script changed on disk: Refresh, then Reload from disk, first");
+        (void)Editor_Triggers_Refresh(ui);
+        return 0;
+    }
+    if( doc->length > 0 )
+    {
+        /* Already a file (or a document with text): the editor, not a
+         * second header. A builder's output says so before it is edited. */
+        int const generated = triggers_rel_generated(ui, self, rel);
+        int const opened = Editor_Triggers_OpenInEditor(ui, rel, 1);
+        snprintf(text, sizeof(text), "%s is already there%s%s", rel,
+            generated ? " (a builder writes it: detach it there before editing)" : "",
+            opened ? ": opened it in your editor" : ": your editor did not start (see the Triggers panel)");
+        Editor_UiStatus(ui, "%s", text);
+        return opened;
+    }
+
+    Editor_CmdInit(&command, EDITOR_DOC_TEXT, key, EDITOR_CMD_TEXT_SPLICE);
+    written = snprintf(command.u.text_splice.text, sizeof(command.u.text_splice.text),
+        "// %s: scripts written by hand for the %s %s (ToriRSEd, Triggers > New script file).\n"
+        "// Paste a snippet from the Triggers panel under this line, or use Add trigger. RUN builds it.\n",
+        self->subject, self->type[0] ? self->type : "record", self->subject);
+    assert(written > 0);
+    assert((size_t)written < sizeof(command.u.text_splice.text));
+    command.has_before = 1;
+    command.has_after = 1;
+    command.u.text_splice.offset = 0;
+    command.u.text_splice.before_len = 0;
+    command.u.text_splice.after_len = (uint32_t)written;
+
+    snprintf(label, sizeof(label), "New script file %s", rel);
+    Editor_StrokeBegin(ui->editor);
+    Editor_HistoryBreak(&ui->editor->history, label);
+    applied = Editor_Apply(ui->editor, &command) ? 1 : 0;
+    Editor_StrokeEnd(ui->editor);
+    if( !applied )
+    {
+        snprintf(text, sizeof(text), "New script file refused: the editor server did not take %s", rel);
+        triggers_say(ui, self, text);
+        return 0;
+    }
+    Editor_UiLog(ui, "editor: %s (a two-line header; Open in editor saves it first)", label);
+    self->dirty = 1;
+    /* Line 3: the first line under the header. Open in editor saves the
+     * document, so the editor opens a file that exists. */
+    if( !Editor_Triggers_OpenInEditor(ui, rel, 3) )
+    {
+        snprintf(text, sizeof(text), "Made %s, unsaved: your editor did not start (Save writes the file)", rel);
+        Editor_UiStatus(ui, "%s", text);
+        return 0;
+    }
+    snprintf(text, sizeof(text), "Made %s and opened it in your editor: paste a snippet under its header", rel);
+    Editor_UiStatus(ui, "%s", text);
     return 1;
 }
 
@@ -1357,6 +2001,7 @@ triggers_tick(
     if( self->dirty )
         triggers_rebuild(ui, self);
     triggers_fill(ui, self);
+    triggers_snippets_follow(ui, self);
 }
 
 static int
@@ -1398,6 +2043,33 @@ triggers_activate(
             triggers_status(ui, self, "pick a row first");
         return 1;
     }
+    if( widget == self->button_reveal )
+    {
+        triggers_reveal(ui, self);
+        return 1;
+    }
+    if( widget == self->button_copy_path )
+    {
+        triggers_copy_path(ui, self);
+        return 1;
+    }
+    if( widget == self->button_copy_name )
+    {
+        triggers_copy_name(ui, self);
+        return 1;
+    }
+    if( widget == self->button_new_file )
+    {
+        (void)triggers_new_file(ui, self);
+        return 1;
+    }
+    if( widget == self->button_copy_snippet )
+    {
+        /* The choice may have been made this frame (the tick runs after). */
+        triggers_snippets_follow(ui, self);
+        triggers_copy_snippet(ui, self);
+        return 1;
+    }
     if( widget == self->button_add )
     {
         int const choice = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_kind);
@@ -1428,7 +2100,7 @@ triggers_activate(
         return 1;
     }
     return widget == self->list_rows || widget == self->list_diags || widget == self->dropdown_kind
-           || widget == self->input_op;
+           || widget == self->input_op || widget == self->dropdown_snippet || widget == self->code_snippet;
 }
 
 /** The editor opening shows registry panels; this one only when it was
@@ -1474,6 +2146,7 @@ Editor_Triggers_Register(struct EditorUi* ui)
     self->run_shown = -2;
     self->hint_serial = UINT32_MAX;
     self->follow_key = -1;
+    self->snippet_shown = -1;
 
     self->panel = ToriRSChrome_PanelAdd(
         chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X + 8), edp_px(ui, EDP_TOP_Y), edp_px(ui, 420),
@@ -1491,6 +2164,34 @@ Editor_Triggers_Register(struct EditorUi* ui)
     self->button_open = ToriRSChrome_Button(chrome, self->panel, "Open in editor");
     ToriRSChrome_SetTooltip(chrome, self->button_open,
         "the picked row's file at its line, in your editor");
+    /* The file, one click from the user's own tools (owner, 2026-11-09):
+     * scripts are written in their editor, not here. */
+    self->button_reveal = ToriRSChrome_Button(chrome, self->panel, EDITOR_REVEAL_CAPTION);
+    ToriRSChrome_SetTooltip(chrome, self->button_reveal, "the picked row's file, else the folder its scripts are in");
+    self->button_copy_path = ToriRSChrome_Button(chrome, self->panel, "Copy path");
+    ToriRSChrome_SetTooltip(chrome, self->button_copy_path, "that file's (or folder's) full path, to the clipboard");
+    self->button_copy_name = ToriRSChrome_Button(chrome, self->panel, "Copy name");
+    ToriRSChrome_SetTooltip(chrome, self->button_copy_name, "the record's name as a script writes it");
+    self->button_new_file = ToriRSChrome_Button(chrome, self->panel, "New script file");
+    ToriRSChrome_SetTooltip(chrome, self->button_new_file, "edited/<name>/scripts/<name>.rs2, opened in your editor");
+    /* The file's buttons fill the row: at a caption's width "Show in
+     * Explorer" was "Show in Expl..." in a panel 350 px wide. */
+    ToriRSChrome_ButtonSetFill(chrome, self->button_open, 1);
+    ToriRSChrome_ButtonSetFill(chrome, self->button_reveal, 1);
+    ToriRSChrome_ButtonSetFill(chrome, self->button_copy_path, 1);
+    ToriRSChrome_ButtonSetFill(chrome, self->button_copy_name, 1);
+    ToriRSChrome_ButtonSetFill(chrome, self->button_new_file, 1);
+    ToriRSChrome_Separator(chrome, self->panel);
+    /* Snippets: text to paste there. The preview is a CODE view, the
+     * chrome's read-only multi-line widget (as the Quest board shows a file). */
+    self->dropdown_snippet = ToriRSChrome_Dropdown(chrome, self->panel, "Snippet", NULL, 0, -1);
+    ToriRSChrome_SetTooltip(chrome, self->dropdown_snippet, "RuneScript to paste, written for this record's name");
+    self->code_snippet = ToriRSChrome_Code(chrome, self->panel, "", TRIGGERS_SNIPPET_ROWS, 0);
+    assert(self->code_snippet >= 0);
+    self->button_copy_snippet = ToriRSChrome_Button(chrome, self->panel, "Copy snippet");
+    ToriRSChrome_SetTooltip(chrome, self->button_copy_snippet, "the text above to the clipboard: paste it in your editor");
+    ToriRSChrome_ButtonSetFill(chrome, self->button_copy_snippet, 1);
+    ToriRSChrome_SetDisabled(chrome, self->button_copy_snippet, 1);
     ToriRSChrome_Separator(chrome, self->panel);
     self->dropdown_kind = ToriRSChrome_Dropdown(chrome, self->panel, "Trigger", NULL, 0, -1);
     self->input_op = ToriRSChrome_TextInput(chrome, self->panel, "Op text", "");
@@ -1506,6 +2207,10 @@ Editor_Triggers_Register(struct EditorUi* ui)
     ToriRSChrome_SetHidden(chrome, self->button_reload, 1);
     self->button_check = ToriRSChrome_Button(chrome, self->panel, "Check");
     self->button_run = ToriRSChrome_Button(chrome, self->panel, "Run");
+    /* Both wear a keycap (Ctrl+Shift+B, Ctrl+Enter): in the label column's
+     * width the cap left "Ch..." of Check. They take the row. */
+    ToriRSChrome_ButtonSetFill(chrome, self->button_check, 1);
+    ToriRSChrome_ButtonSetFill(chrome, self->button_run, 1);
     triggers_hints(ui, self);
     self->list_diags = ToriRSChrome_VList(chrome, self->panel, "Problems", TRIGGERS_DIAG_ROWS, 0);
     self->button_open_diag = ToriRSChrome_Button(chrome, self->panel, "Open problem");

@@ -278,7 +278,7 @@ static const struct
     { "rect", "Mark area from rect", EDITOR_HK_EDIT_MARK_AREA },
     { "history", "Undo", EDITOR_HK_EDIT_UNDO },
     { "history", "Redo", EDITOR_HK_EDIT_REDO },
-    { "catalog", "Add to palette", EDITOR_HK_PALETTE_ADD_PICK },
+    { "catalog", "To palette", EDITOR_HK_PALETTE_ADD_PICK },
     { "catalog_palette", "Add current pick", EDITOR_HK_PALETTE_ADD_PICK },
     { "live", "RUN", EDITOR_HK_FILE_RUN },
     { "triggers", "Check", EDITOR_HK_FILE_CHECK_SCRIPTS },

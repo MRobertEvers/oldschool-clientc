@@ -346,8 +346,6 @@ ToriRSMapEd_BuildWhatName(uint32_t what)
         return "client cache";
     if( what == TORIRSMAPED_BUILD_CHECK )
         return "check";
-    if( what == TORIRSMAPED_BUILD_CS2 )
-        return "cs2 compile";
     if( what == TORIRSMAPED_BUILD_RUN )
         return "packs and client cache";
     if( what == TORIRSMAPED_BUILD_QUEST_SCAFFOLD )
@@ -564,38 +562,23 @@ ToriRSMapEd_BuildCommand(
         build_arg(out, "OBJVERIFY_SKIP=1%s%s", "", "");
         return 1;
     }
-    if( job->what == TORIRSMAPED_BUILD_CHECK || job->what == TORIRSMAPED_BUILD_CS2 )
+    if( job->what == TORIRSMAPED_BUILD_CHECK )
     {
         /* src/maped/records.mk (workbench 6.6): the Triggers panel's and the
-         * builders' Check, and the interface editor's CS2 compile, run here
-         * so the window never waits on a compiler. Everything they write is
-         * under the lane's live directory. */
+         * builders' Check runs here so the window never waits on a compiler.
+         * Everything it writes is under the lane's live directory. */
         build_arg(out, "%s%s", lane->make[0] ? lane->make : "make", "");
         build_arg(out, "-C%s%s", "", "");
         build_arg(out, "%s/src%s", lane->repo_root, "");
         build_arg(out, "--no-print-directory%s%s", "", "");
-        if( job->what == TORIRSMAPED_BUILD_CHECK )
-        {
-            build_arg(out, "maped-script-check%s%s", "", "");
-            build_arg(out, "TORIRSSERVER_CONTENT_DIR=%s%s", lane->content_dir, "");
-            build_arg(out, "MAPED_CHECK_DIR=%s/check%s", lane->live_dir, "");
-        }
-        else
-        {
-            /* The script name lands on make's command line: only a valid
-             * one gets this far (handle_build answers the rest). */
-            assert(ToriRSMapEd_BuildArgValid(job->what, job->quest));
-            build_arg(out, "maped-cs2-compile%s%s", "", "");
-            build_arg(out, "MAPED_CS2_DIR=%s/cs2%s", lane->live_dir, "");
-            build_arg(out, "MAPED_CS2_SCRIPT=%s%s", job->quest, "");
-            build_arg(out, "MAPED_CS2_CACHE=%s%s", lane->base_cache, "");
-            build_arg(out, "MAPED_CACHE_REV=%s%s", lane->rev, "");
-            /* The content's script names for --names (maped_cs2_names). */
-            build_arg(out, "MAPED_CS2_SCRIPTS=%s/scripts%s", lane->content_dir, "");
-        }
+        build_arg(out, "maped-script-check%s%s", "", "");
+        build_arg(out, "TORIRSSERVER_CONTENT_DIR=%s%s", lane->content_dir, "");
+        build_arg(out, "MAPED_CHECK_DIR=%s/check%s", lane->live_dir, "");
         build_arg(out, "OBJVERIFY_SKIP=1%s%s", "", "");
         return 1;
     }
+    /* Any other number has no command: one this server never knew, and the
+     * reserved 4 (torirs_maped_build.h). Both runners answer UNSUPPORTED. */
     if( !packs && !client )
         return 0;
 
@@ -958,9 +941,10 @@ ToriRSMapEd_BuildServPackDiff(
     return changed;
 }
 
-/* `path` read whole into a malloc'd buffer (NUL-terminated), or NULL. Plain
- * stdio, so every platform has it: the CS2 job's prepare reads the content's
- * script with it on Windows and the web too. */
+#if TORIRSMAPED_JOBS_NATIVE
+/* `path` read whole into a malloc'd buffer (NUL-terminated), or NULL. Only
+ * the native runner reads a file (the server pack's manifest before and
+ * after a packs build), so the web, which has no runner, carries no copy. */
 static char*
 build_read_whole(
     const char* path,
@@ -991,6 +975,7 @@ build_read_whole(
     *out_length = (size_t)size;
     return text;
 }
+#endif /* TORIRSMAPED_JOBS_NATIVE */
 
 /** `needle` in `text`, ignoring ASCII case. */
 static int
@@ -2011,13 +1996,13 @@ jobs_build_sink_archive(
     jobs->build_archive_count++;
 }
 
-/* ---- what CHECK and CS2 read (workbench 6.6) ------------------------------------
+/* ---- what CHECK reads (workbench 6.6) ---------------------------------------------
  *
- * Both compile what the AUTHORITY holds, not only what is on disk: the
- * builders' generated script and the interface editor's CODE view are
- * documents with unsaved edits. The server writes those texts under the
- * lane's live directory just before the job starts -- a few small files,
- * in-process -- and the job (src/maped/records.mk) reads them there. */
+ * It compiles what the AUTHORITY holds, not only what is on disk: a
+ * builder's generated script and a trigger just added are documents with
+ * unsaved edits. The server writes those texts under the lane's live
+ * directory just before the job starts -- a few small files, in-process --
+ * and the job (src/maped/records.mk) reads them there. */
 
 /** mkdir -p of `path`'s parent directories. */
 static int
@@ -2098,10 +2083,9 @@ jobs_empty_dir(const char* dir)
  * CHECK: every `rs2:` document with unsaved edits into <live>/check/puts/
  * <path under server/scripts> (the job writes each over its stage and
  * deletes it), over an emptied puts/: a put a failed Check left behind
- * would otherwise be staged again over a document since saved or reverted. CS2: the `cs2:<name>` document's text -- else the script on
- * disk -- into <live>/cs2/src/<name>.cs2, alone (the compiler takes the
- * directory). Returns OK, ABSENT for a CS2 script nobody has, IO_ERROR
- * when a file cannot be written.
+ * would otherwise be staged again over a document since saved or reverted.
+ * The other kinds read nothing the server holds unsaved. Returns OK, or
+ * IO_ERROR when a file cannot be written.
  */
 static enum EditorHost_Status
 jobs_build_prepare(
@@ -2129,50 +2113,6 @@ jobs_build_prepare(
                 return EDITOR_HOST_IO_ERROR;
         }
         return EDITOR_HOST_OK;
-    }
-    if( job->what == TORIRSMAPED_BUILD_CS2 )
-    {
-        struct Editor_DocHandle handle;
-        char key[EDITOR_DOC_KEY_MAX];
-        char* disk = NULL;
-        size_t disk_length = 0;
-        int ok;
-
-#if TORIRSMAPED_JOBS_NATIVE
-        /* The compiler takes the whole source directory: one script in it. */
-        snprintf(path, sizeof(path), "%s/cs2/src", jobs->lane.live_dir);
-        {
-            DIR* dir = opendir(path);
-            struct dirent* entry;
-            while( dir && (entry = readdir(dir)) != NULL )
-            {
-                char old[TORIRSMAPED_LANE_PATH_MAX + 512];
-                size_t const n = strlen(entry->d_name);
-                if( n < 5 || strcmp(entry->d_name + n - 4, ".cs2") != 0 )
-                    continue;
-                snprintf(old, sizeof(old), "%s/%s", path, entry->d_name);
-                unlink(old);
-            }
-            if( dir )
-                closedir(dir);
-        }
-#endif
-        snprintf(key, sizeof(key), "cs2:%s", job->quest);
-        snprintf(path, sizeof(path), "%s/cs2/src/%s.cs2", jobs->lane.live_dir, job->quest);
-        if( Editor_DocFind(&maped->doc, EDITOR_DOC_TEXT, key, &handle) && handle.text && handle.text->loaded )
-            return jobs_write_file(path, handle.text->text ? handle.text->text : "", handle.text->length)
-                       ? EDITOR_HOST_OK
-                       : EDITOR_HOST_IO_ERROR;
-        {
-            char source[TORIRSMAPED_LANE_PATH_MAX + 512];
-            snprintf(source, sizeof(source), "%s/scripts/%s.cs2", jobs->lane.content_dir, job->quest);
-            disk = build_read_whole(source, &disk_length);
-        }
-        if( !disk )
-            return EDITOR_HOST_ABSENT;
-        ok = jobs_write_file(path, disk, disk_length);
-        free(disk);
-        return ok ? EDITOR_HOST_OK : EDITOR_HOST_IO_ERROR;
     }
     return EDITOR_HOST_OK;
 }
@@ -2440,7 +2380,7 @@ handle_build(
     what = ToriRSMapEd_ReadU32(body);
     if( length > 4 )
     {
-        /* u32 what, string arg: what the quest kinds and CS2 carry. */
+        /* u32 what, string arg: what the quest kinds carry. */
         struct ToriRSMapEdReader reader;
         ToriRSMapEd_ReaderInit(&reader, body + 4, length - 4);
         ToriRSMapEd_GetString(&reader, quest, sizeof(quest));
@@ -2455,7 +2395,10 @@ handle_build(
         status = EDITOR_HOST_REFUSED;
     /* A kind that takes an argument without it, or another kind with one,
      * or an argument no make command line should carry, is answered, never
-     * run. */
+     * run. So is a number this server has no kind for: with an argument it
+     * is REFUSED here, bare it reaches the runner, which has no command for
+     * it and answers UNSUPPORTED. The reserved 4 (the interface editor's
+     * compile, which carried a script name) is such a number. */
     else if( ToriRSMapEd_BuildWhatTakesArg(what) != has_quest
              || (has_quest && !ToriRSMapEd_BuildArgValid(what, quest)) )
         status = EDITOR_HOST_REFUSED;

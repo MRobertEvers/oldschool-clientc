@@ -78,6 +78,11 @@ Editor_PickerSweepRect(
  * one with unsaved edits in its mirror (DIRTY_HERE), in the order they were
  * opened, reordered by a drag on the strip. Kept by full key, so an atlas
  * refresh that renumbers the storages keeps the order.
+ *
+ * A SCRATCH square has no cell on the map until Save places it, so the
+ * picker's flags never name one; the window says which it holds
+ * (Editor_PickerOpenSetSyncScratch) and they sit in the same strip, or the
+ * strip read "nothing open" over the square being edited (2026-11-09).
  */
 
 #define EDITOR_PICKER_OPEN_SET_MAX 64
@@ -91,6 +96,9 @@ struct Editor_PickerOpenItem
     int here;
     /** Unsaved in this window's mirror. */
     int dirty;
+    /** A scratch square ("scratch/m90_240"): held by
+     *  Editor_PickerOpenSetSyncScratch, left alone by Editor_PickerOpenSetSync. */
+    int scratch;
 };
 
 struct Editor_PickerOpenSet
@@ -107,6 +115,18 @@ Editor_PickerOpenSetSync(
     struct Editor_PickerOpenSet* set,
     const struct Editor_Picker* picker);
 
+/** Follow the scratch squares the window holds: `held` (`count` of them,
+ *  key / map_x / map_z / here / dirty filled) are every scratch square in its
+ *  world or with unplaced work in its mirror. Scratch items no longer held
+ *  leave, new ones join at the end, the rest keep their place and take their
+ *  flags; items of the map's squares are untouched. Returns 1 when anything
+ *  changed. */
+int
+Editor_PickerOpenSetSyncScratch(
+    struct Editor_PickerOpenSet* set,
+    const struct Editor_PickerOpenItem* held,
+    int count);
+
 /** Index of `key` in the set, or -1. */
 int
 Editor_PickerOpenSetFind(
@@ -120,7 +140,9 @@ Editor_PickerOpenSetMove(
     int from,
     int to);
 
-/** The chip's text for a key: "m50_50", or "<lane>/m16_101" for a lane's. */
+/** The chip's text for a key: "m50_50", "<lane>/m16_101" for a lane's, or
+ *  "scratch <n>" (the slot, from 1) for a scratch square, whose parking
+ *  coordinate means nothing to a map maker. */
 void
 Editor_PickerChipText(
     const char* key,

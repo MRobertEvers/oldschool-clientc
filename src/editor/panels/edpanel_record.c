@@ -24,12 +24,18 @@
  *               the "changed only" chip; "dirty, N fields" beside them, with
  *               "needs a client pack on RUN" when a changed field is one the
  *               client reads.
+ *   the header  on every tab: Find in world, Show in Explorer / Finder (the
+ *               file the tab in front is about), Copy name (the record's
+ *               name as a script writes it), Copy to new.
  *   the editor  for the picked row, by its kind: a number has step buttons
  *               and its range in the tooltip; a bool a checkbox; an enum a
  *               dropdown of its words; a name (and a param's name) a picker
  *               whose typing filters the catalog's records of the kind the
  *               field names; a param two columns, name and value; text a
  *               field. Set writes it (one undo step) where Write to says.
+ *               Field and Value are the highlighted row's or they are empty:
+ *               a row the Find hides is no longer picked, and a key typed
+ *               into Field by hand drops the highlight (R7).
  *   Triggers    the subject's triggers (the Triggers panel's rows), Open in
  *               editor, and Check (the editor server's job).
  *   Shell       a multiloc / multinpc's table and summary, read from the
@@ -52,6 +58,7 @@
 #include "editor/editor_script.h"
 #include "editor/map_editor_ghost.h"
 #include "mem/torirs_mem.h"
+#include "platform/platform_clipboard.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
 
@@ -90,8 +97,10 @@ record_host(struct EditorUi* ui)
  *                  "override in <overlay>" for a field a lower layer states,
  *                  or the place a field nobody states is added (the record's
  *                  top layer by default). One undo step ("edit record").
- *   Remove field   takes the statement out of that file; a lower layer's
- *                  value (or the engine default) shows through.
+ *   Remove field   takes the statement out of an overlay file; a lower
+ *                  layer's value (or the engine default) shows through. In
+ *                  the cache block, which states every key, the value
+ *                  becomes `default` instead (record_remove).
  *
  * Field names: `key`, `key#N` for the N-th statement of a key a layer
  * repeats, and `param:<name>` for a param (`param=<name>,<value>`), which the
@@ -142,6 +151,8 @@ struct RecordPanel
     int row_hint;
     /* The record's own actions, on every tab. */
     int button_find_world;
+    int button_reveal;
+    int button_copy_name;
     int input_copy_name;
     int button_copy;
     /* Triggers and Shell: one Find over whichever list shows. */
@@ -204,6 +215,12 @@ struct RecordPanel
     /** The picked row (an index into record.rows), -1 for none. */
     int picked;
     char picked_name[EDITOR_CMD_NAME_MAX * 2];
+    /** What the typed editor was loaded from (the picked row's value and
+     *  winning layer then): a row that changed under it -- an undo, another
+     *  window's edit -- is loaded again, so the boxes are never an older
+     *  state of the highlighted row. */
+    char loaded_value[EDITOR_CMD_VALUE_MAX];
+    int loaded_layer;
     int changed_count;
     int needs_client;
 
@@ -496,7 +513,9 @@ record_resolve(
     ToriRSChrome_DropdownSetOptions(ui->chrome, self->dropdown_layer, self->layer_options, self->layer_option_count,
         self->layer_option_count > 0 ? 0 : -1);
     {
-        char line[TORIRS_CHROME_LABEL_MAX];
+        /* A label's text holds a whole sentence (and wraps at the panel's
+         * width); 64 bytes cut this one at "...; 2 la" (R8's defect). */
+        char line[TORIRS_CHROME_INPUT_MAX];
         int stated = 0;
         for( int r = 0; r < self->record.row_count; r++ )
             stated += self->record.rows[r].layer >= 0;
@@ -561,6 +580,44 @@ record_layout(
     struct RecordPanel* self);
 
 static void
+record_select_row(
+    struct EditorUi* ui,
+    struct RecordPanel* self,
+    int r);
+
+/**
+ * No row is picked: the list highlights none and the typed editor is empty.
+ *
+ * R7 (2026-11-09): a Find that hid the picked row left that row's Field and
+ * Value in the boxes while the list went on highlighting whatever now stood
+ * at its index, and Set field wrote the OLD field -- an npc was renamed
+ * "Talk-to" that way. So the boxes are the highlighted row's or they are
+ * empty, and Set field / Remove field are disabled while they are (the
+ * tick's record_typed_follow).
+ */
+static void
+record_editor_clear(
+    struct EditorUi* ui,
+    struct RecordPanel* self)
+{
+    self->picked = -1;
+    self->picked_name[0] = '\0';
+    self->loaded_value[0] = '\0';
+    self->loaded_layer = -1;
+    self->editor_kind = EDITOR_CFG_FIELD_TEXT;
+    self->pick_count = 0;
+    self->pick_query[0] = '\0';
+    ToriRSChrome_VListSetSelected(ui->chrome, self->list, -1);
+    ToriRSChrome_VListSetCount(ui->chrome, self->list_pick, 0);
+    ToriRSChrome_SetText(ui->chrome, self->input_field, "");
+    ToriRSChrome_SetText(ui->chrome, self->input_param, "");
+    ToriRSChrome_SetText(ui->chrome, self->input_value, "");
+    ToriRSChrome_SetText(ui->chrome, self->label_field, "");
+    ToriRSChrome_SetText(ui->chrome, self->row_hint, "Pick a field in the list to edit it, or type a new key in Field.");
+    record_layout(ui, self);
+}
+
+static void
 record_visible_build(
     struct EditorUi* ui,
     struct RecordPanel* self)
@@ -577,14 +634,8 @@ record_visible_build(
      * row editor showed `wanderrange 5` while `multinpc2` was highlighted). */
     if( self->visible_valid && self->visible_tab != tab )
     {
-        self->picked = -1;
-        self->picked_name[0] = '\0';
-        self->editor_kind = EDITOR_CFG_FIELD_TEXT;
-        ToriRSChrome_VListSetSelected(ui->chrome, self->list, -1);
+        record_editor_clear(ui, self);
         ToriRSChrome_VListSetScroll(ui->chrome, self->list, 0);
-        ToriRSChrome_SetText(ui->chrome, self->label_field, "");
-        ToriRSChrome_SetText(ui->chrome, self->row_hint, "pick a field to edit it");
-        record_layout(ui, self);
     }
     find = find ? find : "";
     self->visible_count = 0;
@@ -620,19 +671,36 @@ record_visible_build(
             for( int r = first; r < first + shown; r++ )
                 ToriRSChrome_VListSetRow(ui->chrome, self->list, r, "");
     }
-    /* The picked row keeps its pick when it is still listed. */
+    /* The picked row keeps its pick when it is still listed. When it is not
+     * (the Find, the chip or an edit took it off the list) nothing is
+     * picked: the chrome would otherwise go on highlighting whichever row
+     * now stands at the old index, under the old row's Field and Value (R7). */
     self->picked = -1;
-    if( self->picked_name[0] )
-        for( int v = 0; v < self->visible_count; v++ )
+    if( !self->picked_name[0] )
+    {
+        ToriRSChrome_VListSetSelected(ui->chrome, self->list, -1);
+        return;
+    }
+    for( int v = 0; v < self->visible_count; v++ )
+    {
+        char name[EDITOR_CMD_NAME_MAX * 2];
+        Editor_CfgRecordRowName(&self->record.rows[self->visible[v]], name, sizeof(name));
+        if( strcmp(name, self->picked_name) == 0 )
         {
-            char name[EDITOR_CMD_NAME_MAX * 2];
-            Editor_CfgRecordRowName(&self->record.rows[self->visible[v]], name, sizeof(name));
-            if( strcmp(name, self->picked_name) == 0 )
-            {
-                self->picked = self->visible[v];
-                ToriRSChrome_VListSetSelected(ui->chrome, self->list, v);
-            }
+            self->picked = self->visible[v];
+            ToriRSChrome_VListSetSelected(ui->chrome, self->list, v);
         }
+    }
+    if( self->picked < 0 )
+    {
+        record_editor_clear(ui, self);
+        return;
+    }
+    /* Still picked, but the row is not what the editor was loaded from (an
+     * undo, a Set, another window's edit): load it again. */
+    if( strcmp(self->record.rows[self->picked].value, self->loaded_value) != 0
+        || self->record.rows[self->picked].layer != self->loaded_layer )
+        record_select_row(ui, self, self->picked);
 }
 
 static void
@@ -807,6 +875,55 @@ record_number_tips(
     ToriRSChrome_SetTooltip(ui->chrome, self->button_plus, tip);
 }
 
+/**
+ * The sentence under Set field / Remove field for row `r`: where the field
+ * is stated and what changing it costs.
+ *
+ * R8 (2026-11-09): it was built in a label's 64 bytes and read "...the
+ * client reads it: a chang". It is a paragraph now -- it wraps at the
+ * panel's width -- and it is composed to fit a label's text whole: a long
+ * overlay path gives way to its file name, and that to a sentence with no
+ * name in it, before anything is cut.
+ */
+static void
+record_hint_row(
+    struct EditorUi* ui,
+    struct RecordPanel* self,
+    int r,
+    const char* name)
+{
+    const struct Editor_CfgRecordRow* row = &self->record.rows[r];
+    int const target = Editor_CfgRecordWriteLayerFor(&self->record, -1);
+    const char* client = row->client_side ? " The client reads it: RUN builds a client pack." : "";
+    /* The cache block states every key, so it has no line to take out. */
+    const char* cache =
+        row->layer >= 0 && self->record.layers[row->layer].rank == 0 ? " Remove field writes default there." : "";
+    char hint[TORIRS_CHROME_INPUT_MAX];
+    int written = -1;
+
+    for( int pass = 0; pass < 2 && (written < 0 || (size_t)written >= sizeof(hint)); pass++ )
+    {
+        const char* stated = row->layer >= 0 ? self->record.layers[row->layer].label : "";
+        const char* adds = target >= 0 ? self->record.layers[target].label : "an authored overlay (none is open)";
+        if( pass == 1 )
+        {
+            stated = record_basename(stated);
+            adds = record_basename(adds);
+        }
+        if( row->layer >= 0 )
+            written = snprintf(hint, sizeof(hint), "%s is stated in %s%s%s%s.%s%s", name, stated,
+                row->shadowed ? ", over a lower layer" : "", row->issue ? "; " : "", Editor_CfgRowIssueText(row->issue),
+                client, cache);
+        else
+            written = snprintf(hint, sizeof(hint), "%s is stated nowhere; Set field adds it to %s.%s", name, adds, client);
+    }
+    if( written < 0 || (size_t)written >= sizeof(hint) )
+        snprintf(hint, sizeof(hint), "%s%s%s",
+            row->layer >= 0 ? "Stated in the file its source column names." : "Stated nowhere; Set field adds it.", client,
+            cache);
+    ToriRSChrome_SetText(ui->chrome, self->row_hint, hint);
+}
+
 /** Row `r` (into record.rows) into the typed editor, "where it is stated",
  *  and the hint. */
 static void
@@ -818,8 +935,7 @@ record_select_row(
     const struct Editor_CfgRecordRow* row;
     const struct Editor_CfgRegisterField* field;
     char name[EDITOR_CMD_NAME_MAX * 2];
-    char hint[TORIRS_CHROME_LABEL_MAX];
-    char head[TORIRS_CHROME_LABEL_MAX];
+    char head[TORIRS_CHROME_INPUT_MAX];
     int layer;
 
     if( r < 0 || r >= self->record.row_count )
@@ -829,6 +945,8 @@ record_select_row(
     self->picked = r;
     Editor_CfgRecordRowName(row, name, sizeof(name));
     snprintf(self->picked_name, sizeof(self->picked_name), "%s", name);
+    snprintf(self->loaded_value, sizeof(self->loaded_value), "%s", row->value);
+    self->loaded_layer = row->layer;
     self->editor_kind = row->kind;
     ToriRSChrome_SetText(ui->chrome, self->input_field, name);
     ToriRSChrome_SetText(ui->chrome, self->input_value, row->value);
@@ -885,21 +1003,7 @@ record_select_row(
         Editor_CfgFieldKindName(row->kind == EDITOR_CFG_FIELD_PARAM ? row->value_kind : row->kind),
         row->kind == EDITOR_CFG_FIELD_PARAM ? " param" : "", field ? "" : "   (not in the register)");
     ToriRSChrome_SetText(ui->chrome, self->label_field, head);
-    if( row->layer >= 0 )
-        snprintf(hint, sizeof(hint), "%s is stated in %s%s%s%s", name, self->record.layers[row->layer].label,
-            row->shadowed ? " (over a lower layer)" : "", row->issue ? "; " : "", Editor_CfgRowIssueText(row->issue));
-    else
-    {
-        int const target = Editor_CfgRecordWriteLayerFor(&self->record, -1);
-        snprintf(hint, sizeof(hint), "%s is stated nowhere; Set adds it to %s", name,
-            target >= 0 ? self->record.layers[target].label : "an authored overlay (none is open)");
-    }
-    if( row->client_side )
-    {
-        size_t const at = strlen(hint);
-        snprintf(hint + at, sizeof(hint) - at, "; the client reads it: a change needs a client pack on RUN");
-    }
-    ToriRSChrome_SetText(ui->chrome, self->row_hint, hint);
+    record_hint_row(ui, self, r, name);
     record_layout(ui, self);
 }
 
@@ -961,8 +1065,8 @@ record_set(
     count = Editor_CfgRecordFieldCommands(&self->record, key, sub, occurrence, value, layer, commands, 2);
     if( count < 0 )
     {
-        Editor_UiStatus(ui, "Set refused: %s%s%s cannot be written that way (a key or value the config grammar refuses)",
-            key, sub[0] ? ":" : "", sub);
+        Editor_UiStatus(ui, "%s refused: %s%s%s cannot be written that way (a key or value the config grammar refuses)",
+            value[0] ? "Set" : "Remove", key, sub[0] ? ":" : "", sub);
         return -1;
     }
     if( count == 0 )
@@ -1014,6 +1118,189 @@ record_editor_value(
     snprintf(out, out_size, "%s", text ? text : "");
 }
 
+/**
+ * The stem of a numbered member of one of cachepack's INDEXED key families
+ * ("model" for model3, "recol" for recol1s), or NULL for a key that states
+ * itself -- op2 and stat3 are each their own key, number or not.
+ *
+ * The families are cachepack's (3rd/rscache/tools/cachepack/config/cp_npc.c,
+ * cp_loc.c, cp_obj.c: the CP_KEY_INDEXED rows), restated here as of
+ * 2026-11-09 because the editor does not link the packer. A family this
+ * list lacks is not silent: its member gets `=default` beside its siblings
+ * and the pack refuses the record by name ("a marker is the only line for
+ * its key"), which is what says to add the stem here.
+ */
+static const char*
+record_indexed_stem(
+    const char* type,
+    const char* key)
+{
+    static const char* const k_npc[] = { "model", "head", "headicon", "recol", "retex", "multinpc", NULL };
+    static const char* const k_loc[] = { "shape",       "recol",      "retex",    "multiloc",
+                                         "soundrandom", "randomanim", "campaign", NULL };
+    static const char* const k_obj[] = { "recol", "retex", NULL };
+    const char* const* stems = strcmp(type, "npc") == 0   ? k_npc
+                               : strcmp(type, "loc") == 0 ? k_loc
+                               : strcmp(type, "obj") == 0 ? k_obj
+                                                          : NULL;
+
+    for( ; stems && *stems; stems++ )
+    {
+        size_t const length = strlen(*stems);
+        if( strncmp(key, *stems, length) == 0 && key[length] >= '0' && key[length] <= '9' )
+            return *stems;
+    }
+    return NULL;
+}
+
+/** The FIELD lines of `block` that are members of the indexed family `stem`
+ *  (the stem and a digit), `key`'s own lines left out. */
+static int
+record_family_others(
+    const struct Editor_CfgBlock* block,
+    const char* stem,
+    const char* key)
+{
+    size_t const stem_length = strlen(stem);
+    size_t const key_length = strlen(key);
+    int others = 0;
+
+    for( int i = 0; i < block->line_count; i++ )
+    {
+        const struct Editor_CfgLine* line = &block->lines[i];
+        const char* text = block->text + line->start;
+        if( line->kind != EDITOR_CFG_LINE_FIELD || line->part <= stem_length )
+            continue;
+        if( strncmp(text, stem, stem_length) != 0 || text[stem_length] < '0' || text[stem_length] > '9' )
+            continue;
+        if( line->part == key_length && strncmp(text, key, key_length) == 0 )
+            continue;
+        others++;
+    }
+    return others;
+}
+
+/**
+ * Remove field, in layer `layer`.
+ *
+ * On a server overlay the statement goes, and a lower layer's value (or the
+ * engine default) shows through. The CACHE block is another matter (R10,
+ * 2026-11-09): cachepack refuses a client record that does not state every
+ * key of its type -- "no `op2` line -- every key is stated, `op2=default`
+ * when the record does not set it" -- so taking the line out failed RUN.
+ * There Remove writes what "not set" is spelled as:
+ *
+ *   the key's only line      its value becomes `default`; for a param the
+ *                            whole line does (`param=default`: the marker
+ *                            is the key's, not the param's)
+ *   one of several lines     the line goes and the others keep the key
+ *                            stated: a list key stated more than once
+ *                            (`param`, `condop`), or a numbered member of an
+ *                            indexed family beside its siblings (`model3`
+ *                            beside `model1`). A marker must be the only
+ *                            line for its key, so `=default` there would be
+ *                            refused too.
+ *
+ * The status bar says which happened. Returns 1 when the block changed.
+ */
+static int
+record_remove(
+    struct EditorUi* ui,
+    struct RecordPanel* self,
+    const char* key,
+    const char* sub,
+    int occurrence,
+    int layer)
+{
+    const struct Editor_CfgRecordLayer* target;
+    struct Editor_Cmd commands[2];
+    char field[EDITOR_CMD_NAME_MAX * 2 + 8];
+    char file[EDITOR_DOC_KEY_MAX];
+    const char* stem;
+    int row;
+    int count;
+
+    record_fresh(ui, self);
+    if( layer < 0 || layer >= self->record.layer_count )
+    {
+        Editor_UiStatus(ui, "Remove refused: choose the file to take it out of (Write to)");
+        return 0;
+    }
+    target = &self->record.layers[layer];
+    snprintf(field, sizeof(field), "%s%s%s", key, sub[0] ? ":" : "", sub);
+    /* The file's name is copied: an edit below resolves the record again,
+     * and the sentence that follows is said after it. */
+    snprintf(file, sizeof(file), "%s", record_basename(target->label));
+
+    if( target->rank != 0 )
+    {
+        count = record_set(ui, self, key, sub, occurrence, "", layer);
+        if( count > 0 )
+            Editor_UiStatus(ui, "Removed %s from %s: a lower layer's value, or the default, shows through. Unsaved.", field,
+                file);
+        else if( count == 0 )
+            Editor_UiStatus(ui, "Remove: %s does not state %s, so there is nothing to take out", file, field);
+        return count > 0;
+    }
+
+    /* The cache block. */
+    if( strcmp(key, "param") == 0 && !sub[0] )
+    {
+        Editor_UiStatus(ui, "Remove refused: param=default already says this record sets no params");
+        return 0;
+    }
+    /* Only a statement the block makes: Remove never adds a line. */
+    row = Editor_CfgRecordFindRow(&self->record, key, sub, occurrence);
+    if( !target->present || row < 0 || Editor_CfgRecordLayerStates(&self->record, layer, row, NULL, 0) < 0 )
+    {
+        Editor_UiStatus(ui, "Remove: %s does not state %s, so there is nothing to take out", file, field);
+        return 0;
+    }
+    stem = record_indexed_stem(self->type, key);
+    if( Editor_CfgBlockFieldCount(&target->block, key) > 1
+        || (stem && record_family_others(&target->block, stem, key) > 0) )
+    {
+        /* Other lines keep the key stated: the line itself goes, as on an
+         * overlay. `stem` is a static string and `key` the caller's, so
+         * both outlive the resolve inside record_set. */
+        count = record_set(ui, self, key, sub, occurrence, "", layer);
+        if( count > 0 )
+            Editor_UiStatus(ui, "Removed that %s line from %s: its other %s lines keep the key stated. Unsaved.", field, file,
+                stem ? stem : key);
+        return count > 0;
+    }
+
+    /* The key's only line: `default`, the cache's spelling of "not set". */
+    count = Editor_CfgRecordFieldCommands(&self->record, key, sub, occurrence, "default", layer, commands, 2);
+    if( count < 0 )
+    {
+        Editor_UiStatus(ui, "Remove refused: %s cannot be written as default in %s", field, file);
+        return 0;
+    }
+    if( count == 0 )
+    {
+        Editor_UiStatus(ui, "Remove: %s is already default in %s (a cache block states every key)", field, file);
+        return 0;
+    }
+    /* A param's marker is the whole value: `param=default`, never
+     * `param=<name>,default`, which would be a param whose value is the
+     * word. */
+    if( sub[0] )
+        snprintf(commands[count - 1].u.cfg_field.after, sizeof(commands[count - 1].u.cfg_field.after), "default");
+    count = edp_apply(ui, commands, count, "edit record");
+    if( count <= 0 )
+    {
+        Editor_UiStatus(ui, "Remove refused: the editor server did not take %s=default for %s (see the Console)", key, file);
+        return 0;
+    }
+    record_resolve(ui, self);
+    Editor_UiLog(ui, "editor: %s %s: %s set to default in %s (unsaved; Save writes it, RUN builds it)", self->type,
+        self->name, field, commands[count - 1].doc_key);
+    Editor_UiStatus(ui, "%s is now default in %s: a cache block states every key, so Remove writes %s=default. Unsaved.",
+        field, file, key);
+    return 1;
+}
+
 /** Set field (`remove` 0) or Remove field (1), from the editor. */
 static int
 record_set_from_editor(
@@ -1028,10 +1315,19 @@ record_set_from_editor(
     int const choice = ToriRSChrome_DropdownSelected(ui->chrome, self->dropdown_layer);
     const struct Editor_CfgRegisterField* field = NULL;
     int vk = EDITOR_CFG_FIELD_TEXT;
+    const char* typed = ToriRSChrome_Text(ui->chrome, self->input_field);
+    const char* verb = remove ? "Remove" : "Set";
 
-    if( !record_parse_field(ToriRSChrome_Text(ui->chrome, self->input_field), key, sub, &occurrence) )
+    /* Nothing picked and nothing typed: the buttons are disabled then, and
+     * a caller that reaches here anyway hears why (R7). */
+    if( !typed[0] )
     {
-        Editor_UiStatus(ui, "Set refused: Field is `key`, `key#N` or `param:<name>`");
+        Editor_UiStatus(ui, "%s refused: pick a field in the list first (or type a new key in Field)", verb);
+        return 0;
+    }
+    if( !record_parse_field(typed, key, sub, &occurrence) )
+    {
+        Editor_UiStatus(ui, "%s refused: Field is `key`, `key#N` or `param:<name>`", verb);
         return 0;
     }
     if( self->editor_kind == EDITOR_CFG_FIELD_PARAM && strcmp(key, "param") == 0 )
@@ -1040,7 +1336,7 @@ record_set_from_editor(
         const char* param = ToriRSChrome_Text(ui->chrome, self->input_param);
         if( !param || !param[0] || strlen(param) >= EDITOR_CMD_NAME_MAX || strchr(param, ',') )
         {
-            Editor_UiStatus(ui, "Set refused: a param row needs a param name (no comma)");
+            Editor_UiStatus(ui, "%s refused: a param row needs a param name (no comma)", verb);
             return 0;
         }
         snprintf(sub, sizeof(sub), "%s", param);
@@ -1079,10 +1375,23 @@ record_set_from_editor(
     }
     if( choice < 0 || choice >= self->layer_option_count )
     {
-        Editor_UiStatus(ui, "Set refused: this record has no authored overlay to write to");
+        Editor_UiStatus(ui, "%s refused: this record has no authored overlay to write to", verb);
         return 0;
     }
-    return record_set(ui, self, key, sub, occurrence, value, self->layer_option_layer[choice]) >= 0;
+    if( remove )
+        return record_remove(ui, self, key, sub, occurrence, self->layer_option_layer[choice]);
+    {
+        int const applied = record_set(ui, self, key, sub, occurrence, value, self->layer_option_layer[choice]);
+        /* A key typed by hand is a row now: it becomes the pick, so the
+         * list highlights what was just written (when this tab lists it). */
+        if( applied > 0 && self->picked < 0 )
+        {
+            int const row = Editor_CfgRecordFindRow(&self->record, key, sub, occurrence);
+            if( row >= 0 )
+                Editor_CfgRecordRowName(&self->record.rows[row], self->picked_name, sizeof(self->picked_name));
+        }
+        return applied >= 0;
+    }
 }
 
 /** A step button: the value +/- 1, kept in the register's range. */
@@ -1146,6 +1455,63 @@ record_find_in_world(
     if( ui->tools.tool != tool )
         Editor_UiSetTool(ui, tool);
     (void)Editor_Catalog_FindInWorld(ui);
+}
+
+/**
+ * Show in Explorer / Finder: the file the tab in front is about. A layer's
+ * tab shows that layer's file (configs/all.<type>, or the overlay under
+ * server/scripts); Triggers the picked trigger's script, else the folder the
+ * record's own script goes in (edited/<name>/scripts); Where used the picked
+ * use's file. Anything else: the file an edit of this record is written to.
+ * The Triggers panel does the showing: it holds the content root.
+ */
+static void
+record_reveal(
+    struct EditorUi* ui,
+    struct RecordPanel* self)
+{
+    char path[EDITOR_DOC_KEY_MAX + 320];
+    int layer;
+    int const role = record_tab_role(ui, self, &layer);
+
+    if( !Editor_UiPanelSelf(ui, "triggers") )
+    {
+        Editor_UiStatus(ui, "%s refused: this window has no Triggers panel, which holds the content folder",
+            EDITOR_REVEAL_CAPTION);
+        return;
+    }
+    path[0] = '\0';
+    if( role == EDITOR_RECORD_TAB_TRIGGERS )
+    {
+        int const v = ToriRSChrome_VListSelected(ui->chrome, self->list_triggers);
+        if( v >= 0 && v < self->trigger_shown_count )
+            snprintf(path, sizeof(path), "server/scripts/%s", self->triggers[self->trigger_shown[v]].rel);
+        else
+            snprintf(path, sizeof(path), "server/scripts/edited/%s/scripts", self->name);
+    }
+    else if( role == EDITOR_RECORD_TAB_USES )
+    {
+        int const v = ToriRSChrome_VListSelected(ui->chrome, self->list_uses);
+        if( v >= 0 && v < self->uses_visible_count )
+            snprintf(path, sizeof(path), "%s", self->uses[self->uses_visible[v]].path);
+    }
+    if( !path[0] )
+    {
+        if( layer < 0 )
+            layer = Editor_CfgRecordWriteLayerFor(&self->record, -1);
+        if( layer < 0 && self->record.layer_count > 0 )
+            layer = 0;
+        if( layer < 0 )
+        {
+            Editor_UiStatus(ui, "%s refused: open a record first", EDITOR_REVEAL_CAPTION);
+            return;
+        }
+        /* The cache half's label is its path from the content root; an
+         * overlay's is its path under server/scripts. */
+        snprintf(path, sizeof(path), "%s%s", self->record.layers[layer].rank == 0 ? "" : "server/scripts/",
+            self->record.layers[layer].label);
+    }
+    (void)Editor_Triggers_Reveal(ui, path);
 }
 
 /* ---- Triggers, Shell, Where used ------------------------------------------------------ */
@@ -1267,7 +1633,8 @@ record_shell_fill(
     struct EditorUi* ui,
     struct RecordPanel* self)
 {
-    char line[TORIRS_CHROME_LABEL_MAX];
+    /* The whole sentence: 64 bytes cut "...Shell editor... makes it one". */
+    char line[TORIRS_CHROME_INPUT_MAX];
     /* Layers run in merge order: the cache half, when there is one, first. */
     int const cache = self->record.layer_count > 0 && self->record.layers[0].rank == 0 ? 0 : -1;
 
@@ -1464,6 +1831,41 @@ record_use_open(
 
 /* ---- the frame ------------------------------------------------------------------------ */
 
+/**
+ * Keep the typed editor honest about what Set field would write (R7).
+ *
+ * A key typed into Field by hand is not the highlighted row's -- typing one
+ * is how a field the list lacks is added -- so the highlight goes and the
+ * typed text stays: the list never marks one field while Field names
+ * another. And with no row picked and Field empty there is nothing to
+ * write, so Set field and Remove field are disabled until there is.
+ */
+static void
+record_typed_follow(
+    struct EditorUi* ui,
+    struct RecordPanel* self)
+{
+    const char* typed = ToriRSChrome_Text(ui->chrome, self->input_field);
+    int idle;
+
+    if( self->picked >= 0 && strcmp(typed, self->picked_name) != 0 )
+    {
+        self->picked = -1;
+        self->picked_name[0] = '\0';
+        self->loaded_value[0] = '\0';
+        self->loaded_layer = -1;
+        self->editor_kind = EDITOR_CFG_FIELD_TEXT;
+        ToriRSChrome_VListSetSelected(ui->chrome, self->list, -1);
+        ToriRSChrome_SetText(ui->chrome, self->label_field, "a field typed by hand");
+        ToriRSChrome_SetText(ui->chrome, self->row_hint,
+            "Set field writes the key typed in Field to the file Write to names: a new key adds a field.");
+        record_layout(ui, self);
+    }
+    idle = self->picked < 0 && !typed[0];
+    ToriRSChrome_SetDisabled(ui->chrome, self->button_set, idle);
+    ToriRSChrome_SetDisabled(ui->chrome, self->button_remove, idle);
+}
+
 static void
 record_hints(
     struct EditorUi* ui,
@@ -1544,6 +1946,7 @@ record_tick(
     if( role != EDITOR_RECORD_TAB_CACHE && role != EDITOR_RECORD_TAB_OVERLAY )
         return;
     record_visible_fresh(ui, self);
+    record_typed_follow(ui, self);
     /* The picker follows what is typed into the box it fills. */
     if( self->picked >= 0
         && (self->editor_kind == EDITOR_CFG_FIELD_NAME || self->editor_kind == EDITOR_CFG_FIELD_PARAM
@@ -1582,11 +1985,18 @@ record_activate(
         return widget == self->list || widget == self->button_set || widget == self->button_remove;
     if( widget == self->list )
     {
+        /* The clicked row is loaded whether or not the chrome already had
+         * it highlighted (R7): read first, because bringing the rows up to
+         * date below may clear a highlight that no longer stands for a
+         * pick, and the click must not be lost with it. */
         int const v = ToriRSChrome_VListSelected(ui->chrome, widget);
         record_fresh(ui, self);
         record_visible_fresh(ui, self);
         if( v >= 0 && v < self->visible_count )
+        {
             record_select_row(ui, self, self->visible[v]);
+            ToriRSChrome_VListSetSelected(ui->chrome, self->list, v);
+        }
         return 1;
     }
     if( widget == self->list_pick )
@@ -1626,6 +2036,20 @@ record_activate(
     if( widget == self->button_find_world )
     {
         record_find_in_world(ui, self);
+        return 1;
+    }
+    if( widget == self->button_reveal )
+    {
+        record_reveal(ui, self);
+        return 1;
+    }
+    if( widget == self->button_copy_name )
+    {
+        /* The name as a script writes it: `[opnpc1,<name>]`, `inv_add(inv, <name>, 1)`. */
+        if( PlatformClipboard_SetText(self->name) )
+            Editor_UiStatus(ui, "Copied the name: %s", self->name);
+        else
+            Editor_UiStatus(ui, "Copy refused: the system clipboard did not take the name %s", self->name);
         return 1;
     }
     if( widget == self->button_copy )
@@ -1727,6 +2151,7 @@ Editor_Record_Register(struct EditorUi* ui)
     self->uses_visible = ToriMem_Calloc(ToriMem_Editor(), RECORD_USES_MAX, sizeof(*self->uses_visible));
     assert(self->uses_visible);
     self->picked = -1;
+    self->loaded_layer = -1;
     self->shown_tab = -1;
     self->hint_serial = UINT32_MAX;
     self->panel = ToriRSChrome_PanelAdd(
@@ -1737,6 +2162,12 @@ Editor_Record_Register(struct EditorUi* ui)
     self->row_title = ToriRSChrome_Label(chrome, self->panel, "open a record: Catalog > Edit record, or Spawns");
     self->button_find_world = ToriRSChrome_Button(chrome, self->panel, "Find in world");
     ToriRSChrome_SetTooltip(chrome, self->button_find_world, "Select this loc's placements in the open squares");
+    /* The record's files and its name, for the user's own editor (owner,
+     * 2026-11-09: scripts are written there, not here). */
+    self->button_reveal = ToriRSChrome_Button(chrome, self->panel, EDITOR_REVEAL_CAPTION);
+    ToriRSChrome_SetTooltip(chrome, self->button_reveal, "The file this tab is about, in " EDITOR_REVEAL_APP);
+    self->button_copy_name = ToriRSChrome_Button(chrome, self->panel, "Copy name");
+    ToriRSChrome_SetTooltip(chrome, self->button_copy_name, "This record's name as a script writes it");
     self->input_copy_name = ToriRSChrome_TextInput(chrome, self->panel, "New name", "");
     self->button_copy = ToriRSChrome_Button(chrome, self->panel, "Copy to new...");
     ToriRSChrome_SetTooltip(chrome, self->button_copy, "This record under New name with a fresh id: one undo step");
@@ -1773,8 +2204,9 @@ Editor_Record_Register(struct EditorUi* ui)
     self->button_set = ToriRSChrome_Button(chrome, self->panel, "Set field");
     ToriRSChrome_SetTooltip(chrome, self->button_set, "Write the value into Write to's file: one undo step");
     self->button_remove = ToriRSChrome_Button(chrome, self->panel, "Remove field");
-    ToriRSChrome_SetTooltip(chrome, self->button_remove, "Take the statement out of that file: a lower one shows through");
-    self->row_hint = ToriRSChrome_Label(chrome, self->panel, "");
+    ToriRSChrome_SetTooltip(chrome, self->button_remove, "Out of that file; in the cache block it becomes =default");
+    /* A paragraph: the sentence wraps at the panel's width (R8). */
+    self->row_hint = ToriRSChrome_Paragraph(chrome, self->panel, "");
     /* Triggers and Shell. */
     self->input_list_find = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
     ToriRSChrome_SetTooltip(chrome, self->input_list_find, "Filter the rows: a trigger, a file, a slot value or child");
@@ -1980,7 +2412,8 @@ Editor_Record_Open(
     ToriRSChrome_SetText(ui->chrome, self->input_find, "");
     ToriRSChrome_SetChecked(ui->chrome, self->check_changed, 0);
     ToriRSChrome_SetText(ui->chrome, self->input_uses_find, "");
-    record_layout(ui, self);
+    /* Another record: nothing of the last one's row is left in the boxes. */
+    record_editor_clear(ui, self);
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 1);
     Editor_UiLog(ui, "editor: record %s:%s over %d layer(s), %d register field(s)", type, self->name,
         self->record.layer_count, self->field_count);

@@ -974,6 +974,8 @@ push_builtin_op(
         spec.u.debug_overlay.font_id_small = -1;
         spec.u.debug_overlay.font_id_menu = -1;
         spec.u.debug_overlay.font_id_body = -1;
+        for( int i = 0; i < TORIRS_CHROME_FONT_SLOT_COUNT - TORIRS_CHROME_FONT_GAME_COUNT; i++ )
+            spec.u.debug_overlay.font_id_ui[i] = -1;
         spec.u.debug_overlay.skin_scene_id = -1;
         for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
             spec.u.debug_overlay.skin_atlas[i] = -1;
@@ -985,6 +987,15 @@ push_builtin_op(
                 UITreeSceneBridge_EnsureDebugFont(builder->bridge, TORIRS_CHROME_FONT_MENU);
             spec.u.debug_overlay.font_id_body =
                 UITreeSceneBridge_EnsureDebugFont(builder->bridge, TORIRS_CHROME_FONT_BODY);
+            {
+                /* The UI faces, where the host's chrome wears a theme that
+                 * names them (-1 each otherwise): a rebuilt tree has to
+                 * carry them as the first one did. */
+                int ids[TORIRS_CHROME_FONT_SLOT_COUNT];
+                UITreeSceneBridge_EnsureDebugFonts(builder->bridge, ids);
+                for( int slot = TORIRS_CHROME_FONT_GAME_COUNT; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+                    spec.u.debug_overlay.font_id_ui[slot - TORIRS_CHROME_FONT_GAME_COUNT] = ids[slot];
+            }
             /* The bake emits the skin slots in enum order, so slot i is atlas
              * i. Stated rather than assumed: spritebake's --sprite order is
              * the build recipe's, and this is where the two agree. */

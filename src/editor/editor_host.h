@@ -265,6 +265,28 @@ Editor_HostLocalOpenInEditor(
     char* out_cmdline,
     size_t out_size);
 
+/**
+ * Show `path` (absolute, on this machine) in the desktop's file manager with
+ * the file selected: Explorer on Windows (`explorer.exe /select,<path>`),
+ * Finder on macOS (`open -R <path>`), the containing directory through
+ * `xdg-open` elsewhere. A path that does not exist yet reveals its nearest
+ * existing parent directory. Scripts are written in the user's own editor
+ * (owner, 2026-11-09); this is how they get from a record to its files.
+ * Spawned and never waited on, like Editor_HostLocalOpenInEditor; the command
+ * line goes to `out_cmdline` (may be NULL) for the Console. OK when the
+ * command was started; UNSUPPORTED on the web; REFUSED for a path that does
+ * not fit or of which nothing exists (a missing drive); IO_ERROR when it
+ * could not be started. A folder is opened, not selected. The command is
+ * TORIRS_EDITOR_REVEAL_CMD when set (`{path}`: the file when it is on disk,
+ * else its nearest folder), else editor_open_cmd.h's
+ * Editor_RevealCommandDefault / Editor_RevealCommandDefaultWindows.
+ */
+enum EditorHost_Status
+Editor_HostLocalRevealInFileManager(
+    const char* path,
+    char* out_cmdline,
+    size_t out_size);
+
 /* ---- local binding ------------------------------------------------------- */
 
 /**

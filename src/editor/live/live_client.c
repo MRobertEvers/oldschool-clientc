@@ -526,6 +526,121 @@ Editor_LiveProgressLine(
         model->progress_elapsed_ms / 1000, left);
 }
 
+/** Append to the sentence in `out`, cut at its end. */
+static void
+outcome_add(
+    char* out,
+    size_t out_size,
+    const char* format,
+    ...)
+#if defined(__GNUC__) || defined(__clang__)
+    __attribute__((format(printf, 3, 4)))
+#endif
+    ;
+
+static void
+outcome_add(
+    char* out,
+    size_t out_size,
+    const char* format,
+    ...)
+{
+    size_t const used = strlen(out);
+    va_list args;
+
+    if( used + 1 >= out_size )
+        return;
+    va_start(args, format);
+    vsnprintf(out + used, out_size - used, format, args);
+    va_end(args);
+}
+
+enum Editor_LiveRunOutcome
+Editor_LiveRunOutcomeLine(
+    const struct Editor_LiveModel* model,
+    int seconds,
+    const char* reason,
+    char* out,
+    size_t out_size)
+{
+    /* FACT_RUN_DONE's four counts, in their wire order. */
+    static const char* const k_counted[4] = { "script", "config group", "square", "spawn" };
+    int parts = 0;
+
+    assert(model);
+    assert(out);
+    assert(out_size >= EDITOR_LIVE_OUTCOME_MAX);
+    out[0] = '\0';
+    if( model->run_serial == 0 )
+        return EDITOR_LIVE_RUN_NONE;
+
+    if( model->run_status != 0 )
+    {
+        /* Refused before it began (another RUN or a build is in flight):
+         * no step of this one ran, so it did not stop anywhere. */
+        if( model->run_last_step == TORIRSMAPED_RUN_STEP_IDLE && model->run_message[0] )
+            snprintf(out, out_size, "RUN refused: %s", model->run_message);
+        else if( reason && reason[0] )
+        {
+            /* "the packs build failed: <the server's line>; nothing was
+             * launched or reloaded": what failed, then the diagnostic. */
+            size_t const head = strcspn(model->run_message, ":;");
+            snprintf(out, out_size, "RUN stopped: %.*s: %s", (int)head, model->run_message, reason);
+        }
+        else if( model->run_message[0] )
+            snprintf(out, out_size, "RUN stopped: %s", model->run_message);
+        else
+            snprintf(out, out_size, "RUN stopped at %s; the server gave no reason",
+                ToriRSMapEd_RunStepName(model->run_last_step));
+        return EDITOR_LIVE_RUN_STOPPED;
+    }
+    if( model->restart_count > 0 )
+    {
+        /* The reason is cut so the sentence keeps what to do about it. A
+         * lane this editor launched is its to stop (Detach) and RUN starts
+         * it again on the new build; a server it only dialled is not. */
+        if( model->launched )
+            snprintf(out, out_size,
+                "RUN done, but the lane's server must restart for: %.60s. Detach in the Live panel, then RUN again.",
+                model->restart[0]);
+        else
+            snprintf(out, out_size,
+                "RUN done, but the game server must restart for: %.60s. Restart it where it runs, then Attach again.",
+                model->restart[0]);
+        return EDITOR_LIVE_RUN_RESTART;
+    }
+
+    snprintf(out, out_size, "RUN done");
+    if( seconds >= 0 )
+        outcome_add(out, out_size, " in %d s", seconds);
+    outcome_add(out, out_size, ": ");
+    for( int i = 0; i < 4; i++ )
+    {
+        if( model->run_counts[i] == 0 )
+            continue;
+        outcome_add(out, out_size, "%s%u %s%s", parts ? ", " : "", model->run_counts[i], k_counted[i],
+            model->run_counts[i] == 1 ? "" : "s");
+        parts++;
+    }
+    if( parts > 0 )
+    {
+        /* The server's message is its own count of the same four, then
+         * "; " and what the play client did ("started the play client (it
+         * logs in as maped1)"): that half is kept. */
+        const char* note = strstr(model->run_message, "; ");
+        outcome_add(out, out_size, " reloaded");
+        if( note && note[2] )
+            outcome_add(out, out_size, "%s", note);
+    }
+    else if( model->run_message[0] )
+        /* Nothing was swapped in: a lane launched on the new build, a RUN
+         * with nothing changed. The server's own words say which. */
+        outcome_add(out, out_size, "%s", model->run_message);
+    else
+        outcome_add(out, out_size, "nothing on the server had to change");
+    return EDITOR_LIVE_RUN_DONE;
+}
+
 void
 Editor_LivePlayLine(
     const struct Editor_LiveModel* model,

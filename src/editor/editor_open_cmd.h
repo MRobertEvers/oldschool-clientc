@@ -19,6 +19,9 @@
  * which a program's argument parsing reads as one word, and the default
  * without VS Code is `start "" {path}`, the shell's own opener
  * (Editor_OpenCommandDefaultWindows).
+ *
+ * "Show in Explorer / Finder" is the second command line here, at the foot
+ * of the file (Editor_RevealCommandDefault).
  */
 
 #include <stdio.h>
@@ -113,6 +116,41 @@ Editor_OpenCommandLine(
     }
     out[n] = '\0';
     return n;
+}
+
+/* ---- "Show in Explorer" / "Show in Finder" ---------------------------------
+ *
+ * The command line that shows a file in the desktop's file manager
+ * (Editor_HostLocalRevealInFileManager spawns it). Scripts are written in
+ * the user's own editor (owner, 2026-11-09), so the map editor's half is
+ * getting them from a record to its files: this, Open in editor, and the
+ * names and snippets it copies.
+ *
+ * The template is TORIRS_EDITOR_REVEAL_CMD when set (another file manager; a
+ * test's `echo`), else the default below. `{path}` is what is shown -- the
+ * file when it is on disk, else its nearest folder that is -- quoted by
+ * Editor_OpenCommandLine exactly as Open in editor's `{path}` is.
+ */
+
+/** macOS and other POSIX. Finder selects a file in its folder (`open -R`)
+ *  and opens a folder; xdg-open selects nothing, so the caller hands it the
+ *  folder to open. */
+static inline const char*
+Editor_RevealCommandDefault(
+    int is_folder,
+    int apple)
+{
+    if( !apple )
+        return "xdg-open {path}";
+    return is_folder ? "open {path}" : "open -R {path}";
+}
+
+/** Windows: Explorer with the file selected, or with the folder opened.
+ *  `/select,` takes the path straight after its comma, backslashes only. */
+static inline const char*
+Editor_RevealCommandDefaultWindows(int is_folder)
+{
+    return is_folder ? "explorer.exe {path}" : "explorer.exe /select,{path}";
 }
 
 #endif

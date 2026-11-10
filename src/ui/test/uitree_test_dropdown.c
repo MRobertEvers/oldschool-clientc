@@ -125,6 +125,101 @@ main(void)
     check(
         ToriRSChrome_DropdownSelected(&ui, dd) == 2, "clicking away did not change the selection");
 
+    /* The click that dismisses is SPENT on dismissing: off every panel it is
+     * still the chrome's, press and release, so the view behind an open list
+     * is not clicked by the click that closes it -- and it stays the chrome's
+     * until the pointer is next heard from, which is after the host's own
+     * gates for the release frame have run. */
+    ToriRSChrome_Build(&ui);
+    click(&ui, box_x, box_y);
+    check(ui.dropdown_open == dd, "reopened for the dismissing click");
+    ToriRSChrome_Build(&ui);
+    ToriRSChrome_MouseMove(&ui, 700, 700);
+    check(!ToriRSChrome_WantsPointer(&ui, 700, 700), "open ground is not the chrome's before the press");
+    check(ToriRSChrome_MouseDown(&ui, 700, 700) == 1, "the press that dismisses is consumed");
+    check(ui.dropdown_open == -1, "and it closed the list");
+    check(ToriRSChrome_WantsPointer(&ui, 700, 700), "the chrome owns the pointer while it is held");
+    check(ToriRSChrome_MouseMove(&ui, 710, 705) == 1, "a drag of it is consumed too");
+    check(ToriRSChrome_MouseUp(&ui, 710, 705) == 1, "its release is consumed");
+    check(ToriRSChrome_WantsPointer(&ui, 710, 705), "and still owned on the frame of the release");
+    ToriRSChrome_MouseMove(&ui, 710, 705);
+    check(!ToriRSChrome_WantsPointer(&ui, 710, 705), "the next pointer event gives the ground back");
+    check(ToriRSChrome_MouseDown(&ui, 700, 700) == 0, "the next press off the panel is the view's again");
+    ToriRSChrome_MouseUp(&ui, 700, 700);
+
+    /* A dismissing press on ANOTHER widget of the panel reaches nothing: a
+     * second dropdown under the pointer does not open on the click that
+     * closed the first. */
+    {
+        static char const* const two[] = { "one", "two" };
+        int const other = ToriRSChrome_Dropdown(&ui, panel, "Other", two, 2, 0);
+        int ox;
+        int oy;
+
+        ToriRSChrome_Build(&ui);
+        widget_centre(&ui, dd, &box_x, &box_y);
+        click(&ui, box_x, box_y);
+        check(ui.dropdown_open == dd, "reopened beside a second dropdown");
+        ToriRSChrome_Build(&ui);
+        /* Left of the open list (it hangs under the first box), on the second
+         * row's caption: a point of the second widget the list does not cover. */
+        ox = ui.widgets[other].x + 2;
+        oy = ui.widgets[other].y + ui.widgets[other].h / 2;
+        check(ToriRSChrome_HitTest(&ui, ox, oy) == other, "the point is on the second dropdown");
+        click(&ui, ox, oy);
+        check(ui.dropdown_open == -1, "the click closed the open list");
+        check(ToriRSChrome_TakeActivated(&ui) == -1, "and activated nothing");
+        ToriRSChrome_Build(&ui);
+        click(&ui, ox, oy);
+        check(ui.dropdown_open == other, "the click after it opens the second dropdown");
+        /* Escape closes the open list and is consumed, with nothing focused. */
+        check(ui.focus == -1, "nothing holds the keyboard");
+        check(ToriRSChrome_KeyEdit(&ui, TORIRS_CHROME_KEY_ESCAPE) == 1, "Escape with a list open is consumed");
+        check(ui.dropdown_open == -1, "and closes the list");
+        check(ToriRSChrome_KeyEdit(&ui, TORIRS_CHROME_KEY_ESCAPE) == 0, "a second Escape is not the chrome's");
+        ToriRSChrome_WidgetRemove(&ui, other);
+        ToriRSChrome_Build(&ui);
+        widget_centre(&ui, dd, &box_x, &box_y);
+    }
+
+    /* A menu bar is the one place a dismissing press goes on to act: with
+     * File open, a press on Edit closes File and opens Edit, one click. A
+     * click on the open menu's OWN title closes it and leaves it closed. */
+    {
+        static char const* const file_rows[] = { "New", "Open" };
+        static char const* const edit_rows[] = { "Undo", "Redo" };
+        int const bar = ToriRSChrome_PanelAdd(&ui, TORIRS_CHROME_PANEL_MENUBAR, 0, 300, 400, "");
+        int const file = ToriRSChrome_MenuDrop(&ui, bar, "File", file_rows, 2);
+        int const edit = ToriRSChrome_MenuDrop(&ui, bar, "Edit", edit_rows, 2);
+        int fx;
+        int fy;
+        int ex;
+        int ey;
+
+        ToriRSChrome_Build(&ui);
+        fx = ui.widgets[file].x + ui.widgets[file].w / 2;
+        fy = ui.widgets[file].y + ui.widgets[file].h / 2;
+        ex = ui.widgets[edit].x + ui.widgets[edit].w / 2;
+        ey = ui.widgets[edit].y + ui.widgets[edit].h / 2;
+        click(&ui, fx, fy);
+        check(ui.dropdown_open == file, "the File title opens its menu");
+        ToriRSChrome_Build(&ui);
+        click(&ui, ex, ey);
+        check(ui.dropdown_open == edit, "a press on another menu title switches menus");
+        ToriRSChrome_Build(&ui);
+        click(&ui, ex, ey);
+        check(ui.dropdown_open == -1, "a click on the open menu's own title closes it");
+        check(ToriRSChrome_TakeActivated(&ui) == -1, "and no menu row ran");
+        /* Escape closes a menu the same way it closes a list. */
+        ToriRSChrome_Build(&ui);
+        click(&ui, fx, fy);
+        check(ui.dropdown_open == file, "File open again");
+        check(ToriRSChrome_KeyEdit(&ui, TORIRS_CHROME_KEY_ESCAPE) == 1, "Escape with a menu open is consumed");
+        check(ui.dropdown_open == -1, "and closes the menu");
+        ToriRSChrome_PanelSetVisible(&ui, bar, 0);
+        ToriRSChrome_Build(&ui);
+    }
+
     /* The wheel scrolls the open list and is consumed, so the camera behind it
      * does not also zoom. */
     ToriRSChrome_Build(&ui);
@@ -179,8 +274,12 @@ main(void)
      * the wheel something to step through. */
     ToriRSChrome_DropdownSetOptions(&ui, dd, options, OPTION_COUNT, 1);
 
-    /* Steps the selection without opening, and reports it as an activation, so
-     * a wheel behaves exactly like choosing the neighbouring row. */
+    /* A CLOSED dropdown ignores the wheel (it stepped its selection until
+     * 2026-11-09): the pointer rests wherever it was when a page was scrolled,
+     * and a control that changes value under a resting pointer changes it for
+     * someone who was scrolling. Still consumed -- it is over a panel -- so
+     * the camera behind stays still; nothing is selected and nothing is
+     * reported. */
     ToriRSChrome_Build(&ui);
     check(ui.dropdown_open == -1, "list closed before the closed-wheel cases");
     {
@@ -188,19 +287,79 @@ main(void)
         widget_centre(&ui, dd, &box_x, &box_y);
         check(ToriRSChrome_MouseWheel(&ui, box_x, box_y, -1), "wheel over the closed row consumed");
         check(
-            ToriRSChrome_DropdownSelected(&ui, dd) == before + 1,
-            "wheel down steps to the next option");
-        check(ToriRSChrome_TakeActivated(&ui) == dd, "the wheel step is an activation");
+            ToriRSChrome_DropdownSelected(&ui, dd) == before,
+            "wheel down over a closed dropdown leaves its value alone");
+        check(ToriRSChrome_TakeActivated(&ui) == -1, "and reports nothing");
         check(ToriRSChrome_MouseWheel(&ui, box_x, box_y, 1), "wheel up consumed");
         check(
-            ToriRSChrome_DropdownSelected(&ui, dd) == before, "wheel up steps back");
-        ToriRSChrome_TakeActivated(&ui);
+            ToriRSChrome_DropdownSelected(&ui, dd) == before, "wheel up leaves it alone too");
+        check(ui.dropdown_open == -1, "and the wheel never opens the list");
     }
 
-    /* The ends clamp: no wrap, and still consumed so the camera stays still. */
-    ToriRSChrome_DropdownSetSelected(&ui, dd, 0);
-    check(ToriRSChrome_MouseWheel(&ui, box_x, box_y, 1), "wheel at the top consumed");
-    check(ToriRSChrome_DropdownSelected(&ui, dd) == 0, "no wrap past the top");
+    /* In a panel that scrolls, the wheel over the closed dropdown scrolls the
+     * panel: three rows a notch. */
+    {
+        int const scroller =
+            ToriRSChrome_PanelAdd(&ui, TORIRS_CHROME_PANEL_WINDOW, 300, 10, 200, "Scrolls");
+        int rows[16];
+        int const before_rows = 4;
+        int sd;
+        int sx;
+        int sy;
+        int pitch;
+
+        for( int i = 0; i < before_rows; i++ )
+            rows[i] = ToriRSChrome_Checkbox(&ui, scroller, "row", 0);
+        sd = ToriRSChrome_Dropdown(&ui, scroller, "Sort", options, OPTION_COUNT, 3);
+        for( int i = before_rows; i < 16; i++ )
+            rows[i] = ToriRSChrome_Checkbox(&ui, scroller, "row", 0);
+        ToriRSChrome_PanelSetScrollable(&ui, scroller, 1);
+        ToriRSChrome_PanelSetFixedHeight(&ui, scroller, 160);
+        ToriRSChrome_Build(&ui);
+        check(
+            ui.panels[scroller].content_h > ui.panels[scroller].view_h,
+            "the second panel has rows past its view");
+        /* One row's pitch: two neighbouring rows' tops. */
+        pitch = ui.widgets[rows[1]].y - ui.widgets[rows[0]].y;
+        check(pitch > 0, "rows are stacked");
+        widget_centre(&ui, sd, &sx, &sy);
+        check(ToriRSChrome_HitTest(&ui, sx, sy) == sd, "the pointer rests on the closed dropdown");
+        check(ToriRSChrome_MouseWheel(&ui, sx, sy, -1), "wheel over it is consumed");
+        check(ToriRSChrome_DropdownSelected(&ui, sd) == 3, "its value did not move");
+        check(ToriRSChrome_TakeActivated(&ui) == -1, "nothing was activated");
+        check(
+            ToriRSChrome_PanelScroll(&ui, scroller) == 3 * pitch,
+            "one notch scrolled the panel three rows");
+        check(ToriRSChrome_MouseWheel(&ui, sx, sy, 1), "wheel up consumed");
+        check(ToriRSChrome_PanelScroll(&ui, scroller) == 0, "and one notch back is the top again");
+        /* The precise path moves the pixels it is given, and the integer
+         * wheel that came with them is not applied on top. */
+        {
+            struct ToriRSChromeWheelFrame f;
+            memset(&f, 0, sizeof(f));
+            f.x = sx;
+            f.y = sy;
+            f.wheel = -1;
+            f.scroll_dy = -48.0f;
+            f.px_per_notch = 48;
+            f.trackpad = 1;
+            check(ToriRSChrome_WheelFrame(&ui, &f) == 1, "a trackpad scroll over the panel is taken");
+            check(
+                ToriRSChrome_PanelScroll(&ui, scroller) == 48,
+                "by exactly its pixels, not by a notch as well");
+            /* A mouse's notch with the same 48 px beside it (what Windows
+             * sends) is one notch, once. */
+            ToriRSChrome_PanelSetScroll(&ui, scroller, 0);
+            f.trackpad = 0;
+            check(ToriRSChrome_WheelFrame(&ui, &f) == 1, "a mouse notch over the panel is taken");
+            check(
+                ToriRSChrome_PanelScroll(&ui, scroller) == 3 * pitch,
+                "as one notch: three rows, the exact scroll beside it ignored");
+        }
+        ToriRSChrome_PanelSetVisible(&ui, scroller, 0);
+        ToriRSChrome_Build(&ui);
+    }
+    widget_centre(&ui, dd, &box_x, &box_y);
 
     /* Over panel body (no widget): consumed into nothing. Off panel: not. */
     {

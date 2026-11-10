@@ -20,6 +20,46 @@
 #define CHIP_CAP_FILL 0x000000
 #define CHIP_CAP_PAD 2
 
+/** What a strip is drawn in. The literals above are the game skin's (brown
+ *  plates, a yellow checked chip); under a flat theme a chip is one of the
+ *  theme's buttons -- its plate, its checked fill, its keycap -- so a strip
+ *  does not sit in a dark panel as a row of yellow boxes (2026-11-09). */
+struct ChipInks
+{
+    uint32_t fill;
+    uint32_t fill_active;
+    uint32_t rule;
+    uint32_t rule_active;
+    uint32_t ink;
+    uint32_t ink_active;
+    uint32_t x_ink;
+    uint32_t cap_fill;
+    uint32_t cap_rule;
+    uint32_t cap_ink;
+};
+
+static struct ChipInks
+chips_inks(const struct ToriRSChrome* chrome)
+{
+    struct ToriRSChromeTheme const* theme = &chrome->theme;
+    struct ChipInks inks = { CHIP_FILL,       CHIP_FILL_ACTIVE, CHIP_RULE,     CHIP_RULE_ACTIVE, CHIP_INK,
+                             CHIP_INK_ACTIVE, CHIP_X_INK,       CHIP_CAP_FILL, CHIP_RULE,        CHIP_INK_ACTIVE };
+
+    if( !theme->flat_controls )
+        return inks;
+    inks.fill = theme->button_bg;
+    inks.fill_active = theme->button_bg_checked;
+    inks.rule = theme->button_bg;
+    inks.rule_active = theme->button_bg_checked;
+    inks.ink = theme->text;
+    inks.ink_active = theme->selection_text;
+    inks.x_ink = theme->text_dim;
+    inks.cap_fill = theme->keycap_bg;
+    inks.cap_rule = theme->keycap_bg;
+    inks.cap_ink = theme->keycap_text;
+    return inks;
+}
+
 void
 edp_chips_init(
     struct EditorUi* ui,
@@ -258,11 +298,26 @@ edp_chips_end(
      * chip past the edge (R2): place again with its room kept. */
     if( strip->hidden > 0 && strip->more_x + strip->more_w > width )
         chips_place(strip, font, width, 1, shown);
+    /* Under a flat theme a strip is a toolbar, not a picture: no frame, and
+     * as tall as the lines its chips are on now (one, when they fit on one). */
+    if( chrome->theme.flat_controls )
+    {
+        int const pitch = EDP_CHIP_H + EDP_CHIP_GAP;
+        int used = 1;
+        for( int i = 0; i < strip->count; i++ )
+            if( strip->chips[i].x >= 0 && strip->chips[i].y / pitch + 1 > used )
+                used = strip->chips[i].y / pitch + 1;
+        if( strip->hidden > 0 && strip->more_y / pitch + 1 > used )
+            used = strip->more_y / pitch + 1;
+        ToriRSChrome_GraphSetBare(
+            chrome, strip->graph, 1, ToriRSChrome_Px(chrome, used * EDP_CHIP_H + (used - 1) * EDP_CHIP_GAP));
+    }
 
     {
         int const ascent = ToriRSChrome_FontLineHeightQ(font, 4);
         int const box = ToriRSChrome_FontLineBoxQ(font, 4);
         int const x_w = chips_measure(font, "x") + CHIP_PAD;
+        struct ChipInks const inks = chips_inks(chrome);
 
         ToriRSChrome_GraphBegin(chrome, strip->graph);
         for( int i = 0; i < strip->count; i++ )
@@ -276,28 +331,29 @@ edp_chips_end(
                 continue;
             baseline = chip->y + (EDP_CHIP_H - box) / 2 + ascent;
             ToriRSChrome_GraphRect(chrome, strip->graph, chip->x, chip->y, w, EDP_CHIP_H,
-                chip->active ? CHIP_FILL_ACTIVE : CHIP_FILL, 1, EDP_CHIP_KEY_BASE + i);
+                chip->active ? inks.fill_active : inks.fill, 1, EDP_CHIP_KEY_BASE + i);
             ToriRSChrome_GraphRect(chrome, strip->graph, chip->x, chip->y, w, EDP_CHIP_H,
-                chip->active ? CHIP_RULE_ACTIVE : CHIP_RULE, 0, 0);
+                chip->active ? inks.rule_active : inks.rule, 0, 0);
             ToriRSChrome_GraphText(chrome, strip->graph, chip->x + CHIP_PAD, baseline,
-                chip->active ? CHIP_INK_ACTIVE : CHIP_INK, shown[i]);
+                chip->active ? inks.ink_active : inks.ink, shown[i]);
             if( cap_w > 0 )
             {
                 /* The keycap: a dark key set into the chip, the chord on it. */
                 int const at = chip->x + w - (chip->has_x ? x_w : 0) - cap_w + CHIP_PAD / 2;
                 ToriRSChrome_GraphRect(chrome, strip->graph, at, chip->y + 2, cap_w - CHIP_PAD, EDP_CHIP_H - 4,
-                    CHIP_CAP_FILL, 1, 0);
+                    inks.cap_fill, 1, 0);
                 ToriRSChrome_GraphRect(chrome, strip->graph, at, chip->y + 2, cap_w - CHIP_PAD, EDP_CHIP_H - 4,
-                    CHIP_RULE, 0, 0);
-                ToriRSChrome_GraphText(chrome, strip->graph, at + CHIP_CAP_PAD, baseline, CHIP_INK_ACTIVE, chip->chord);
+                    inks.cap_rule, 0, 0);
+                ToriRSChrome_GraphText(chrome, strip->graph, at + CHIP_CAP_PAD, baseline, inks.cap_ink, chip->chord);
             }
             if( chip->has_x )
             {
                 int const at = chip->x + w - x_w;
                 /* The x is its own key, drawn over the chip's. */
-                ToriRSChrome_GraphRect(chrome, strip->graph, at, chip->y + 1, x_w - 1, EDP_CHIP_H - 2, CHIP_FILL, 1,
-                    EDP_CHIP_X_BASE + i);
-                ToriRSChrome_GraphText(chrome, strip->graph, at + 1, baseline, CHIP_X_INK, "x");
+                ToriRSChrome_GraphRect(chrome, strip->graph, at, chip->y + 1, x_w - 1, EDP_CHIP_H - 2,
+                    chip->active ? inks.fill_active : inks.fill, 1, EDP_CHIP_X_BASE + i);
+                ToriRSChrome_GraphText(chrome, strip->graph, at + 1, baseline, chip->active ? inks.ink_active : inks.x_ink,
+                    "x");
             }
         }
         if( strip->hidden > 0 )
@@ -306,10 +362,10 @@ edp_chips_end(
             int const baseline = strip->more_y + (EDP_CHIP_H - box) / 2 + ascent;
             snprintf(more, sizeof(more), "+%d", strip->hidden);
             ToriRSChrome_GraphRect(chrome, strip->graph, strip->more_x, strip->more_y, strip->more_w, EDP_CHIP_H,
-                CHIP_FILL, 1, EDP_CHIP_MORE_KEY);
+                inks.fill, 1, EDP_CHIP_MORE_KEY);
             ToriRSChrome_GraphRect(chrome, strip->graph, strip->more_x, strip->more_y, strip->more_w, EDP_CHIP_H,
-                CHIP_RULE, 0, 0);
-            ToriRSChrome_GraphText(chrome, strip->graph, strip->more_x + CHIP_PAD, baseline, CHIP_INK, more);
+                inks.rule, 0, 0);
+            ToriRSChrome_GraphText(chrome, strip->graph, strip->more_x + CHIP_PAD, baseline, inks.ink, more);
         }
         ToriRSChrome_GraphEnd(chrome, strip->graph);
     }

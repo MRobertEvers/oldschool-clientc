@@ -2859,6 +2859,24 @@ UITree_DebugOverlaySetFontIds(
     }
 }
 
+void
+UITree_DebugOverlaySetUiFontIds(
+    struct UITree* tree,
+    int const* font_ids)
+{
+    assert(tree);
+    assert(font_ids);
+    /* Every overlay component, as UITree_DebugOverlaySetFontIds. */
+    for( int32_t s = 0; s < tree->debug_overlays.count; s++ )
+    {
+        struct UITreeComponent* c = &tree->components[tree->debug_overlays.slots[s]];
+        assert(c->type == UIELEM_BUILTIN_DEBUG_OVERLAY);
+        struct UITreeDebugOverlayConfig* overlay = UITree_DebugOverlayMut(c);
+        for( int slot = TORIRS_CHROME_FONT_GAME_COUNT; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+            overlay->font_id_ui[slot - TORIRS_CHROME_FONT_GAME_COUNT] = font_ids[slot];
+    }
+}
+
 static void
 uitree_id_index_note_added(struct UITree* tree, int32_t idx)
 {

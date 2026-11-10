@@ -155,8 +155,12 @@ struct LocsPanel
     struct Editor_LocRef shown[EDITOR_LOC_SELECTION_MAX];
     int shown_count;
     int shown_valid;
-    /** The selection was empty last frame: the panel follows it up and down. */
+    /** Last frame there was nothing to show (no selection, no loc pick under
+     *  Place): the panel closes itself when that begins. */
     int was_empty;
+    /** Last frame locs were selected: the panel opens itself when a
+     *  selection begins under any tool but Place (locs_tick). */
+    int was_selected;
     /** ui->hotkeys.serial the buttons' tips were labelled from. */
     uint32_t hint_serial;
 
@@ -869,8 +873,12 @@ Editor_Locs_PlaceSpawn(
     if( Editor_HostMapEdCatalogRecord(&ui->editor->host, kind, ui->tools.pick_id, "", &record) != EDITOR_HOST_OK
         || !record.name || !record.name[0] || strlen(record.name) >= EDITOR_CMD_NAME_MAX )
     {
-        Editor_UiLog(ui, "editor: no catalog symbol for %s %d", ui->tools.pick_kind == 1 ? "npc" : "obj",
-            ui->tools.pick_id);
+        if( ui->tools.pick_name[0] && ui->tools.pick_name[0] != '#' )
+            Editor_UiStatus(ui, "Place refused: %.40s (%s %d) is new: RUN builds it, then it can be placed",
+                ui->tools.pick_name, ui->tools.pick_kind == 1 ? "npc" : "obj", ui->tools.pick_id);
+        else
+            Editor_UiStatus(ui, "Place refused: %s %d is new: RUN builds it, then it can be placed",
+                ui->tools.pick_kind == 1 ? "npc" : "obj", ui->tools.pick_id);
         Editor_HostCatalogRecordFree(&record);
         return 0;
     }
@@ -904,9 +912,10 @@ locs_tick(
     struct LocsPanel* self = opaque;
     int first;
     int shown;
-    /* Open while locs are selected, and while the Place tool holds a loc
-     * pick: the pose and the shape strip are the Place tool's controls. */
-    int const empty = ui->tools.loc_count == 0
+    int const selected = ui->tools.loc_count > 0;
+    /* Something to show: selected locs, or the Place tool holding a loc pick
+     * (the pose and the shape strip are the Place tool's controls). */
+    int const empty = !selected
                       && !(ui->tools.tool == EDITOR_TOOL_LOC_PLACE && ui->tools.pick_kind == 0
                            && ui->tools.pick_id >= 0);
 
@@ -933,13 +942,21 @@ locs_tick(
     if( ToriRSChrome_Checked(ui->chrome, self->check_fit) != edp_place_fit_enabled(ui) )
         ToriRSChrome_SetChecked(ui->chrome, self->check_fit, edp_place_fit_enabled(ui));
 
-    /* Opens when something is selected, closes when nothing is, like the
-     * old Loc panel; the View menu still opens it by hand in between. */
-    if( empty != self->was_empty )
-    {
-        ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, !empty);
-        self->was_empty = empty;
-    }
+    /* Opens itself for a selection made in the world, closes when it has
+     * nothing to show; the View menu and F5 open it by hand in between.
+     *
+     * It does NOT open itself for the Place tool (2026-11-09): showing a
+     * window brings its tab to the front of its group, which is the
+     * Catalog's, so a loc picked there (the pick arms Place) and every loc
+     * placed from it (a placement selects what it put down) used to hide the
+     * Catalog the user was working from. A selection that arises while
+     * Place is armed is that placement's, so it opens nothing. */
+    if( selected && !self->was_selected && ui->tools.tool != EDITOR_TOOL_LOC_PLACE )
+        ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 1);
+    else if( empty && !self->was_empty )
+        ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
+    self->was_selected = selected;
+    self->was_empty = empty;
 
     locs_info_refresh(ui, self);
     locs_flags_refresh(ui, self);
@@ -990,6 +1007,53 @@ locs_tick(
             ref->rotation, wx, wz, ref->level, live ? "" : "  (gone)");
         ToriRSChrome_VListSetRow(ui->chrome, self->list, r, text);
     }
+}
+
+/**
+ * "Swap to catalog pick", with every way it can change nothing said
+ * (2026-11-09: the button did nothing and said nothing). edp_locs_swap says a
+ * pick that is not a loc, an empty selection and a shape the pick has no
+ * model for. Said here, before it: a pick this editor has not loaded (a
+ * record made with Copy to new has no model until RUN has built it, and
+ * "still loading" never ends for it), and a pick that is what the selection
+ * is already. Said here, after it: a swap that changed nothing with nothing
+ * said, and one that did.
+ */
+int
+Editor_Locs_Swap(struct EditorUi* ui)
+{
+    uint32_t said;
+    uint32_t mask = 0;
+    int same = 0;
+    int applied;
+
+    assert(ui);
+    if( ui->tools.pick_kind == 0 && ui->tools.pick_id >= 0 && ui->tools.loc_count > 0 )
+    {
+        if( !edp_loc_shapes(ui, ui->tools.pick_id, &mask) )
+        {
+            Editor_UiStatus(ui,
+                "Swap refused: %s is not loaded in this editor yet. Try again in a moment; a new record needs RUN first",
+                ui->tools.pick_name);
+            return 0;
+        }
+        for( int i = 0; i < ui->tools.loc_count; i++ )
+            same += ui->tools.locs[i].loc_id == ui->tools.pick_id;
+        if( same == ui->tools.loc_count )
+        {
+            Editor_UiStatus(ui, "Swap: the selection is %s already. Pick another loc in the Catalog, then Swap",
+                ui->tools.pick_name);
+            return 0;
+        }
+    }
+    said = ui->status_serial;
+    applied = edp_locs_swap(ui);
+    if( applied > 0 )
+        Editor_UiStatus(ui, "Swapped %d loc%s to %s", applied, applied == 1 ? "" : "s", ui->tools.pick_name);
+    else if( ui->status_serial == said )
+        Editor_UiStatus(ui,
+            "Swap changed nothing: the selected locs are no longer there, or the server refused (see the console)");
+    return applied;
 }
 
 static int
@@ -1065,7 +1129,7 @@ locs_activate(
     else if( widget == self->button_delete )
         (void)edp_locs_delete(ui);
     else if( widget == self->button_swap )
-        (void)edp_locs_swap(ui);
+        (void)Editor_Locs_Swap(ui);
     else if( widget == self->dropdown_shape )
     {
         int const row = ToriRSChrome_DropdownSelected(ui->chrome, widget);
@@ -1100,6 +1164,7 @@ locs_set_visible(
     if( visible && ui->tools.loc_count == 0 )
         ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
     self->was_empty = ui->tools.loc_count == 0;
+    self->was_selected = ui->tools.loc_count > 0;
 }
 
 static void

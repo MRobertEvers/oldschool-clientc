@@ -7,12 +7,11 @@
  *              finding the record and its field. Two ways in:
  *                the line stream   every build line the Live model hears
  *                                  (FACT_BUILD_LINE: the packs, the client
- *                                  cache, Check, CS2 compile, the quest
- *                                  gate) that reads as a diagnostic --
+ *                                  cache, Check, the quest gate) that reads
+ *                                  as a diagnostic --
  *                                  `<file>:<line>: [warning: ]<message>`,
- *                                  `FAIL <name>: <why>`, `error: ...` --
- *                                  is a row whose source is the build's
- *                                  name ("check", "cs2 compile"); a new
+ *                                  `error: ...` -- is a row whose source is
+ *                                  the build's name ("check", "packs"); a new
  *                                  build of a kind clears that kind's rows;
  *                                  a failed build that said nothing a row
  *                                  reads leaves its DONE line as one.
@@ -326,17 +325,6 @@ Editor_ProblemsParseLine(
     if( problems_starts(at, "sscompile: ") )
         at += 11;
 
-    /* cs2: "FAIL <name or id>: <why>" (rscache/tools/cs2). */
-    if( problems_starts(at, "FAIL ") )
-    {
-        const char* name = at + 5;
-        colon = strstr(name, ": ");
-        if( !colon || colon == name || (size_t)(colon - name) >= sizeof(out->file) - 12 )
-            return 0;
-        snprintf(out->file, sizeof(out->file), "scripts/%.*s.cs2", (int)(colon - name), name);
-        snprintf(out->text, sizeof(out->text), "%s", colon + 2);
-        return 1;
-    }
     /* No place: "error: ..." / "warning: ...". */
     if( problems_starts(at, "error: ") || problems_starts(at, "warning: ") )
     {
@@ -538,7 +526,7 @@ problems_rebuild(
                 ToriRSChrome_VListSetRow(ui->chrome, self->list, r, "");
     }
     if( self->row_count == 0 )
-        snprintf(line, sizeof(line), "No problems: builds, Check, CS2 compile and the builders report here");
+        snprintf(line, sizeof(line), "No problems: builds, Check and the builders report here");
     else if( self->shown_count == self->row_count )
         snprintf(line, sizeof(line), "%d error%s, %d warning%s%s", errors, errors == 1 ? "" : "s", warnings,
             warnings == 1 ? "" : "s", self->dropped ? " (the list is full: some were not kept)" : "");
@@ -546,7 +534,12 @@ problems_rebuild(
         snprintf(line, sizeof(line), "%d of %d shown: %d error%s, %d warning%s", self->shown_count, self->row_count,
             errors, errors == 1 ? "" : "s", warnings, warnings == 1 ? "" : "s");
     ToriRSChrome_SetText(ui->chrome, self->label_summary, line);
-    ToriRSChrome_PanelSetTitle(ui->chrome, self->panel, errors ? "Problems (!)" : "Problems");
+    /* Its own title only while it is a window of its own. In the bottom
+     * strip the frame's tab is its title (ui_group_dress took the window's
+     * away), and setting one here put a second title bar, with a second
+     * Close, under the tabs. */
+    if( Editor_UiGroupOf(ui, "problems") < 0 )
+        ToriRSChrome_PanelSetTitle(ui->chrome, self->panel, errors ? "Problems (!)" : "Problems");
     self->built_serial = self->serial;
     snprintf(self->built_find, sizeof(self->built_find), "%s", find);
     self->built_errors = errors_only;

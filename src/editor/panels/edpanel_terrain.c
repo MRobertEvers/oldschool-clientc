@@ -8,7 +8,14 @@
  * move the ground, the grid's height (the target, which Ctrl/Cmd+wheel and
  * Ctrl/Cmd+click also set; "Follow the ground" unsets it so the grid stands on
  * the hovered tile again), and whether the grid shows and how solid its
- * fill is.
+ * fill is. Its first row says the one thing a first drag needs: the grid
+ * starts at the ground, so a drag moves nothing until Ctrl+wheel has moved
+ * the grid (T9, 2026-11-09; the World says the same when a drag changed
+ * nothing).
+ *
+ * "Tile grid" under the view's levels is the World's ground grid and square
+ * borders (edp_tile_grid_set): automatic on a square with no loc yet, on, or
+ * off.
  */
 
 #include "edpanel_common.h"
@@ -55,6 +62,8 @@ static const char* const k_region_target_names[2] = { "overlay", "underlay" };
 static const char* const k_region_set_names[EDITOR_REGION_SET_COUNT] = { "natural", "paved", "all twelve" };
 static const char* const k_flag_names[4] = { "block", "link below (bridge)", "remove roof",
                                              "vis below" };
+static const char* const k_tile_grid_names[EDITOR_TILE_GRID_MODE_COUNT] = { "auto: squares with no locs", "on",
+                                                                           "off" };
 
 struct TerrainPanel
 {
@@ -98,8 +107,13 @@ struct TerrainPanel
      *  brush's tiles painted, the dither the client blends. */
     int slider_mix;
     int shown_mix;
+    /** The World's tile grid and square borders (EditorUi::tile_grid). */
+    int dropdown_tile_grid;
+    int shown_tile_grid;
     /** The Height brush's section (shown while it is armed). */
     int label_height;
+    /** What a first drag needs to know: the grid starts at the ground. */
+    int hint_height;
     int radio_height_mode[EDITOR_HEIGHT_MODE_COUNT];
     int slider_height;
     int button_height_follow;
@@ -323,6 +337,7 @@ terrain_readout(
     ToriRSChrome_SetHidden(ui->chrome, self->slider_plateau_skirt, !plateau);
     ToriRSChrome_SetHidden(ui->chrome, self->slider_mix, !underlay);
     ToriRSChrome_SetHidden(ui->chrome, self->label_height, !height);
+    ToriRSChrome_SetHidden(ui->chrome, self->hint_height, !height);
     for( int i = 0; i < EDITOR_HEIGHT_MODE_COUNT; i++ )
         ToriRSChrome_SetHidden(ui->chrome, self->radio_height_mode[i], !height);
     ToriRSChrome_SetHidden(ui->chrome, self->slider_height, !height);
@@ -350,6 +365,12 @@ terrain_tick(
 
     if( self->shown_tool != ui->tools.tool )
         terrain_readout(ui, self);
+    /* A View row or a hotkey may have cycled it. */
+    if( self->shown_tile_grid != ui->tile_grid )
+    {
+        ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_tile_grid, ui->tile_grid);
+        self->shown_tile_grid = ui->tile_grid;
+    }
     /* The level follows STATE_EDIT_LEVEL from other windows and the menu
      * bar's Level row; the view cap follows the level (edp_level_set). */
     if( self->shown_level != ui->tools.edit_level )
@@ -518,6 +539,16 @@ terrain_activate(
         tools->height_grid = ToriRSChrome_Checked(ui->chrome, widget) ? 1 : 0;
         return 1;
     }
+    else if( widget == self->dropdown_tile_grid )
+    {
+        int const mode = ToriRSChrome_DropdownSelected(ui->chrome, widget);
+        if( mode >= 0 && mode < EDITOR_TILE_GRID_MODE_COUNT )
+        {
+            edp_tile_grid_set(ui, (enum Editor_TileGridMode)mode);
+            self->shown_tile_grid = ui->tile_grid;
+        }
+        return 1;
+    }
     else if( widget == self->slider_height_fill )
     {
         tools->height_grid_opacity = ToriRSChrome_SliderValue(ui->chrome, widget);
@@ -666,6 +697,8 @@ Editor_Terrain_Register(struct EditorUi* ui)
 
     /* The Height brush (3): hidden until armed (terrain_readout). */
     self->label_height = ToriRSChrome_Label(chrome, self->panel, "Height brush");
+    self->hint_height = ToriRSChrome_Paragraph(chrome, self->panel,
+        "The grid starts at the ground. Ctrl+wheel lifts or lowers it, then drag pulls the ground to it.");
     for( int i = 0; i < EDITOR_HEIGHT_MODE_COUNT; i++ )
         self->radio_height_mode[i] = ToriRSChrome_Radio(
             chrome, self->panel, k_height_mode_names[i], TERRAIN_GROUP_HEIGHT, i == ui->tools.height_mode);
@@ -683,6 +716,7 @@ Editor_Terrain_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->slider_height_fill, "How solid the grid's fill is; its lines always show");
     self->shown_height_mode = -1;
     ToriRSChrome_SetHidden(chrome, self->label_height, 1);
+    ToriRSChrome_SetHidden(chrome, self->hint_height, 1);
     for( int i = 0; i < EDITOR_HEIGHT_MODE_COUNT; i++ )
         ToriRSChrome_SetHidden(chrome, self->radio_height_mode[i], 1);
     ToriRSChrome_SetHidden(chrome, self->slider_height, 1);
@@ -818,6 +852,11 @@ Editor_Terrain_Register(struct EditorUi* ui)
         self->radio_vis[i] =
             ToriRSChrome_Radio(chrome, self->panel, k_vis_names[i], TERRAIN_GROUP_VIS, i == 0);
     self->check_solo = ToriRSChrome_Checkbox(chrome, self->panel, "only that level", 0);
+    self->dropdown_tile_grid = ToriRSChrome_Dropdown(chrome, self->panel, "Tile grid", k_tile_grid_names,
+        EDITOR_TILE_GRID_MODE_COUNT, ui->tile_grid);
+    ToriRSChrome_SetTooltip(chrome, self->dropdown_tile_grid,
+        "Tiles near the pointer, each square's border, an arrow north");
+    self->shown_tile_grid = ui->tile_grid;
     ToriRSChrome_PanelSetScrollable(chrome, self->panel, 1);
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);
     ToriRSChrome_PanelSetVisible(chrome, self->panel, 0);

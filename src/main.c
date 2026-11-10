@@ -1,4 +1,5 @@
 #include "app.h"
+#include "agent/agent_server.h"
 #include "boot_telemetry.h"
 #include "bootmanifest/bootmanifest.h"
 #include "cmd/cmdbus.h"
@@ -2400,6 +2401,14 @@ static int window_from_cli;
 static int editor_window_placed;
 static int editor_window_x;
 static int editor_window_y;
+
+/* The agent control server (agent/agent_server.h, docs/AGENT_API.md): what
+ * --agent-port and --agent-port-file said (NULL: the TORIRS_AGENT_PORT and
+ * TORIRS_AGENT_PORT_FILE variables decide), and the server while it listens.
+ * NULL when nobody asked for one, which is every ordinary run. */
+static char const* agent_port_text;
+static char const* agent_port_file;
+static struct AgentServer* agent_server;
 
 #if !defined(TORIRS_PLATFORM_WEB)
 /**
@@ -5493,6 +5502,13 @@ frame_loop_step(void)
     }
 #endif
 
+    /* The agent control server's frame: requests answered, and the input its
+     * verbs inject pushed on the bus BEFORE this iteration's drain, where the
+     * window's own events and the TORIRS_SIM_* levers are, so a click lands
+     * in this frame's edges. */
+    if( agent_server )
+        AgentServer_Frame(agent_server, &app, &bus, platform);
+
     main_view_split_sim();
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_COMMAND_DRAIN)
     {
@@ -6205,6 +6221,11 @@ frame_loop_step(void)
 static void
 frame_loop_teardown(void)
 {
+    /* The agent control server goes first: its connections are told nothing
+     * more, and its port file stops naming a port nobody listens on. */
+    AgentServer_Stop(agent_server, &bus);
+    agent_server = NULL;
+
     /* TORIRS_EXIT_BMP=path: dump the final frame on exit (live-server
      * smoke runs under TORIRS_MAX_FRAMES + SDL dummy driver). */
     if( getenv("TORIRS_EXIT_BMP") )
@@ -7307,6 +7328,7 @@ main_print_usage(char const* program)
         "[--camera x,z,level,yaw,pitch,zoom] "
         "[--pacer gameshell|deadline] "
         "[--windowmode fixed|resizable] [--window WxH] "
+        "[--agent-port N] [--agent-port-file <path>] "
         "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|"
         "--webgl2|--webgl2-zbuffer|--gles2|--gles2-zbuffer|--gles3|--gles3-zbuffer|"
         "--gles2-dualcore|--gles2-dualcore-zbuffer|"
@@ -7580,6 +7602,22 @@ main_parse_argument_layer(
             cfg.window_w = (int)w;
             cfg.window_h = (int)h;
             window_from_cli = 1;
+            continue;
+        }
+        /* The agent control server's port (0 picks a free one) and the file
+         * it writes the port to (docs/AGENT_API.md). Refused here when it is
+         * not a port, like a bad --window: a launcher waiting on a server
+         * that never listens would wait out its whole timeout. */
+        if( strcmp(argv[argi], "--agent-port") == 0 && argi + 1 < argc )
+        {
+            agent_port_text = argv[++argi];
+            if( !AgentServer_PortTextOk(agent_port_text) )
+                return 0;
+            continue;
+        }
+        if( strcmp(argv[argi], "--agent-port-file") == 0 && argi + 1 < argc )
+        {
+            agent_port_file = argv[++argi];
             continue;
         }
         /*
@@ -7909,7 +7947,8 @@ main_argument_takes_value(char const* argument)
            strcmp(argument, "--window") == 0 || strcmp(argument, "--replay") == 0 ||
            strcmp(argument, "--world-layout") == 0 || strcmp(argument, "--maped") == 0 ||
            strcmp(argument, "--maped-group") == 0 || strcmp(argument, "--camera") == 0 ||
-           strcmp(argument, "--editor-panel") == 0;
+           strcmp(argument, "--editor-panel") == 0 || strcmp(argument, "--agent-port") == 0 ||
+           strcmp(argument, "--agent-port-file") == 0;
 }
 
 /*
@@ -9839,6 +9878,13 @@ main(
         interactive_render_present(
                 &app, platform, gl3, d3d9, gles2, webgl2, webgl1, gles3,
                 renderer_active_is_depth());
+
+        /* --agent-port / TORIRS_AGENT_PORT: the control server an agent drives
+         * the client through (docs/AGENT_API.md). Here, with the App and the
+         * window made and the loop about to start, so a client that connects
+         * the moment the port is announced finds both. NULL when nobody asked,
+         * or when it could not listen (it says why). */
+        agent_server = AgentServer_Start(agent_port_text, agent_port_file);
 
         /* TORIRS_MAX_FRAMES=N: exit after N loop iterations (headless smoke
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */

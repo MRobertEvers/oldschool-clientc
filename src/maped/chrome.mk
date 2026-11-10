@@ -129,7 +129,7 @@ test-chrome-widgets:
 		ui/uitree_debug_overlay.c ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c \
 		ui/torirs_chrome_rail.c ui/torirs_chrome_bake.c engine/torirs_chrome_skin_baked.c \
 		engine/torirs_chrome_skin_tiers.c engine/torirs_debug_font_baked.c \
-		engine/torirs_chrome_font_vector_baked.c -lm $(MAPED_TEST_LDFLAGS)
+		engine/torirs_chrome_font_vector_baked.c engine/torirs_chrome_ui_fonts_baked.c -lm $(MAPED_TEST_LDFLAGS)
 	./$(OBJ_DIR)/chrome_widget_sync_test
 	node ui/test/chrome_widgets_dom_test.js
 

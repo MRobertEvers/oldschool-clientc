@@ -8,6 +8,7 @@
 
 #include "editor/editor_ui.h"
 #include "editor/panels/edpanel_common.h"
+#include "editor/panels/edpanels.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped_build.h"
 #include "torirsmaped/torirs_maped_live.h"
@@ -64,6 +65,8 @@ struct LivePanel
     int button_attach;
     int button_launch;
     int button_detach;
+    /** Detach then Launch: a lane this editor launched, started again. */
+    int button_restart;
     int button_run;
     int button_packs;
     int button_client;
@@ -96,6 +99,24 @@ struct LivePanel
     int env_show;
     /** ui->hotkeys.serial RUN's keycap was labelled from. */
     uint32_t chord_serial;
+
+    /* The last RUN's outcome, said once in the console and the status bar
+     * when its FACT_RUN_DONE lands (live_run_outcome). */
+    /** model.run_serial of the RUN whose outcome was said. */
+    int said_run_serial;
+    /** enum Editor_LiveRunOutcome and the sentence, "" before any RUN. */
+    int outcome_kind;
+    char outcome[EDITOR_LIVE_OUTCOME_MAX];
+    /** When the RUN in flight was first seen (or sent from here), on the
+     *  chrome's clock; `run_timed` 0 when nobody saw it start. */
+    int run_timed;
+    int64_t run_started_ms;
+    /** The outcome was said while the model still showed the RUN's last
+     *  step: cleared by the first tick that sees it idle. */
+    int run_ended;
+    /** model.build_serial at the last tick no RUN was in flight: a RUN that
+     *  ends on another value ran a build, and its lines are the log's last. */
+    int idle_build_serial;
 
     /** Who this window follows ("" nobody), and the varps it asked for. */
     char following[64];
@@ -166,7 +187,11 @@ live_refresh(
     int const attached = m->state == TORIRSMAPED_LIVE_ATTACHED;
     int const connecting = m->state == TORIRSMAPED_LIVE_CONNECTING;
     int const running = m->run_step != TORIRSMAPED_RUN_STEP_IDLE;
-    char text[512];
+    /* A row's text holds TORIRS_CHROME_INPUT_MAX bytes: every line is
+     * composed to fit it. A longer one was cut by the chrome, which says so
+     * in the Output console -- the only line a failed RUN used to leave
+     * there. The Log list below keeps every message whole. */
+    char text[TORIRS_CHROME_INPUT_MAX];
 
     if( self->shown_status_serial != m->status_serial || self->shown_run_serial != m->run_serial
         || self->shown_build_serial != m->build_serial )
@@ -185,8 +210,8 @@ live_refresh(
         if( running )
             snprintf(text, sizeof(text), "RUN: %s ...", ToriRSMapEd_RunStepName(m->run_step));
         else if( m->run_serial > 0 )
-            snprintf(text, sizeof(text), "RUN %s: %s", m->run_status == 0 ? "done" : "stopped",
-                m->run_message);
+            /* The sentence the console and the status bar were given. */
+            snprintf(text, sizeof(text), "%s", self->outcome);
         else
             snprintf(text, sizeof(text), "pending: %u square(s), %u spawn file(s), %u archive(s)",
                 m->pending_squares, m->pending_spawns, m->pending_archives);
@@ -195,6 +220,11 @@ live_refresh(
         ToriRSChrome_SetDisabled(ui->chrome, self->button_attach, running || connecting);
         ToriRSChrome_SetDisabled(ui->chrome, self->button_launch, running || connecting);
         ToriRSChrome_SetDisabled(ui->chrome, self->button_detach, !(attached || connecting));
+        /* Only a lane this editor launched: a server it merely dialled is
+         * somebody else's to stop, and launching beside it would fight it
+         * for the lane's ports. */
+        ToriRSChrome_SetDisabled(ui->chrome, self->button_restart,
+            !((attached || connecting) && m->launched) || running || m->building);
         ToriRSChrome_SetDisabled(ui->chrome, self->button_run, running || m->building);
         ToriRSChrome_SetDisabled(ui->chrome, self->button_packs, running || m->building);
         ToriRSChrome_SetDisabled(ui->chrome, self->button_client, running || m->building);
@@ -211,7 +241,7 @@ live_refresh(
         Editor_LiveProgressLine(m, text, sizeof(text));
         if( running && text[0] )
         {
-            char caption[600];
+            char caption[TORIRS_CHROME_INPUT_MAX];
             snprintf(caption, sizeof(caption), "RUN %u%%: %s", m->progress_percent, text);
             ToriRSChrome_SetText(ui->chrome, self->label_run, caption);
             ToriRSChrome_SetText(ui->chrome, self->float_label, caption);
@@ -263,6 +293,146 @@ live_refresh(
     }
 }
 
+/**
+ * The FIRST error the last build printed, as "fenwick.rs2:7: unknown
+ * variable '%'": the file by its name alone (the Problems panel holds the
+ * path, and the sentence this goes in is one console line). 0 when none of
+ * its lines reads as an error.
+ *
+ * The log is newest first: the build's DONE row, then its lines back to the
+ * DONE row of the build before it. Rows with no build mark between them are
+ * live lines.
+ */
+static int
+live_first_error(
+    const struct Editor_LiveModel* m,
+    char* out,
+    size_t out_size)
+{
+    int in_build = 0;
+    int found = 0;
+
+    out[0] = '\0';
+    for( int i = 0; i < m->log_count; i++ )
+    {
+        uint32_t const mark = Editor_LiveLogWhat(m, i);
+        struct Editor_ProblemRow row;
+        const char* name;
+
+        if( mark & EDITOR_LIVE_LOG_DONE )
+        {
+            if( in_build )
+                break;
+            in_build = 1;
+            continue;
+        }
+        if( !in_build || mark == 0 )
+            continue;
+        if( !Editor_ProblemsParseLine(Editor_LiveLogLine(m, i), &row) || row.severity != EDITOR_PROBLEM_ERROR )
+            continue;
+        /* Older rows come later in this walk: the last one kept is the
+         * first the build printed. */
+        name = row.file;
+        for( const char* c = row.file; *c; c++ )
+            if( *c == '/' || *c == '\\' )
+                name = c + 1;
+        if( name[0] )
+            snprintf(out, out_size, "%s:%d: %s", name, row.line, row.text);
+        else
+            snprintf(out, out_size, "%s", row.text);
+        found = 1;
+    }
+    return found;
+}
+
+/** Bring the Problems panel to the front of its group (the bottom strip's),
+ *  in a window that lays its panels out. */
+static void
+live_show_problems(struct EditorUi* ui)
+{
+    struct EditorUiPanel* problems;
+
+    if( !ui->visible || ui->panels_hidden || ui->solo_panel >= 0 )
+        return;
+    problems = Editor_UiFindPanel(ui, "problems");
+    if( !problems || problems->chrome_panel < 0 )
+        return;
+    if( Editor_UiGroupOf(ui, "problems") >= 0 )
+        Editor_UiGroupShow(ui, "problems");
+    else
+        ToriRSChrome_PanelSetVisible(ui->chrome, problems->chrome_panel, 1);
+}
+
+/**
+ * A RUN ended since the last tick: say how, once, where the user is looking
+ * -- one line in the Output console and the status bar's sentence
+ * (Editor_UiStatus does both), whether or not this panel is open. RUN is in
+ * the File menu and the tool rail, so its outcome must not need the Live
+ * panel either (2026-11-09: "RUN done" was all the main window said, for a
+ * RUN whose new var needed a restart as much as for one that failed).
+ */
+static void
+live_run_outcome(
+    struct EditorUi* ui,
+    struct LivePanel* self)
+{
+    const struct Editor_LiveModel* m = &self->model;
+    int const running = m->run_step != TORIRSMAPED_RUN_STEP_IDLE;
+    /* Refused before it began: the RUN it collided with is still in flight
+     * and still timed. */
+    int const refused = m->run_status != 0 && m->run_last_step == TORIRSMAPED_RUN_STEP_IDLE;
+    char reason[112];
+    int seconds = -1;
+    int built;
+
+    if( !running )
+        self->run_ended = 0;
+    /* A RUN another window (or torirsmapedctl) started is timed from the
+     * tick that first sees it in flight. */
+    if( running && !self->run_timed && !self->run_ended && ui->chrome->now_ms > 0 )
+    {
+        self->run_timed = 1;
+        self->run_started_ms = ui->chrome->now_ms;
+    }
+    if( m->run_serial == self->said_run_serial )
+    {
+        if( !running )
+            self->idle_build_serial = m->build_serial;
+        return;
+    }
+    self->said_run_serial = m->run_serial;
+    built = m->build_serial != self->idle_build_serial;
+    if( self->run_timed && !refused )
+        seconds = (int)((ui->chrome->now_ms - self->run_started_ms + 500) / 1000);
+
+    reason[0] = '\0';
+    /* The failed build's first diagnostic, when this RUN's build is the one
+     * that failed (a RUN stopped before its build must not quote an older
+     * build's errors). */
+    if( m->run_status != 0 && built && m->last_build_status != 0 )
+        (void)live_first_error(m, reason, sizeof(reason));
+    self->outcome_kind = (int)Editor_LiveRunOutcomeLine(m, seconds, reason, self->outcome, sizeof(self->outcome));
+    Editor_UiStatus(ui, "%s", self->outcome);
+
+    /* The Problems list says why a RUN stopped until the next one ends, and
+     * comes to the front: the build's diagnostics are its rows already. */
+    if( refused )
+        return;
+    (void)Editor_Problems_Clear(ui, "RUN");
+    if( self->outcome_kind == EDITOR_LIVE_RUN_STOPPED )
+    {
+        Editor_Problems_Report(ui, "RUN", "", 0, EDITOR_PROBLEM_ERROR,
+            m->run_message[0] ? m->run_message : self->outcome);
+        live_show_problems(ui);
+    }
+    /* This RUN is over. Its status (run_step back to IDLE) may land a tick
+     * after its RUN_DONE: until it does, the step still showing is not a new
+     * RUN to time. */
+    self->run_timed = 0;
+    self->run_ended = running;
+    self->idle_build_serial = m->build_serial;
+}
+
 static void
 live_tick(
     struct EditorUi* ui,
@@ -278,6 +448,7 @@ live_tick(
         self->chord_serial = ui->hotkeys.serial;
     }
     Editor_LiveDrain(&self->transport, &self->model);
+    live_run_outcome(ui, self);
 #if defined(__EMSCRIPTEN__)
     /* A browser window plays the lane in a tab: tell the editor server once,
      * so its RUN never starts a native client for us. */
@@ -406,6 +577,22 @@ live_activate(
     {
         type = Editor_LiveEncodeDetach(&payload);
         live_send(ui, self, type, &payload);
+        return 1;
+    }
+    if( widget == self->button_restart )
+    {
+        /* Detach, then Launch: the two requests those buttons send, in that
+         * order on one connection. The editor server answers them in order,
+         * and its Detach has stopped the lane's servers and its play client
+         * (the link's close waits for them) before it reads the Launch. For
+         * what a reload cannot swap into a running server (a new var). */
+        type = Editor_LiveEncodeDetach(&payload);
+        if( !live_send(ui, self, type, &payload) )
+            return 1;
+        type = Editor_LiveEncodeAttach(&payload, 1, "", ToriRSChrome_Text(ui->chrome, self->input_ticket));
+        if( live_send(ui, self, type, &payload) )
+            Editor_UiStatus(ui,
+                "Restarting the lane's servers on the last build. RUN (or Play) starts the play client again");
         return 1;
     }
     if( widget == self->button_run )
@@ -599,9 +786,14 @@ Editor_Live_RegisterWith(
     self->button_attach = ToriRSChrome_Button(ui->chrome, self->panel, "Attach");
     self->button_launch = ToriRSChrome_Button(ui->chrome, self->panel, "Launch");
     self->button_detach = ToriRSChrome_Button(ui->chrome, self->panel, "Detach");
+    self->button_restart = ToriRSChrome_Button(ui->chrome, self->panel, "Restart lane");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_attach, "Connect to a running game server at the address");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_launch,
         "Start the lane's game server, JS5 and io servers and connect");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_restart,
+        "Stop the lane's servers and start them on the last build");
+    /* Enabled by the first status that says this editor launched the lane. */
+    ToriRSChrome_SetDisabled(ui->chrome, self->button_restart, 1);
     ToriRSChrome_Separator(ui->chrome, self->panel);
     self->button_run = ToriRSChrome_Button(ui->chrome, self->panel, "RUN");
     /* Tips are 63 bytes (TORIRS_CHROME_LABEL_MAX); a longer one is cut. */
@@ -746,6 +938,26 @@ Editor_Live_Run(struct EditorUi* ui)
     if( !live_send(ui, self, type, &payload) )
         return 0;
     self->run_requested = 1;
+    /* Timed from the press: the outcome says how long it took. */
+    if( ui->chrome->now_ms > 0 )
+    {
+        self->run_timed = 1;
+        self->run_started_ms = ui->chrome->now_ms;
+    }
     Editor_UiLog(ui, "RUN: save, build packs, build the client cache, reload the live server");
     return 1;
+}
+
+const char*
+Editor_Live_RunOutcome(
+    struct EditorUi* ui,
+    int* out_kind)
+{
+    struct LivePanel* self;
+
+    assert(ui);
+    assert(out_kind);
+    self = Editor_UiPanelSelf(ui, "live");
+    *out_kind = self ? self->outcome_kind : EDITOR_LIVE_RUN_NONE;
+    return self ? self->outcome : "";
 }

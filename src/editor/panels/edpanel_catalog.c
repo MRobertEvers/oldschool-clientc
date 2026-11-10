@@ -2,13 +2,18 @@
  * The asset catalog panel (docs/MAPED_DESIGN.html #catalog; the workbench's
  * loc finder, design section 6): the SERVER's index of the content tree.
  *
- *   Type       a strip of chips over the kinds the editor places or scripts
- *              against (all, loc, npc, obj, seq, spotanim, var, interface,
- *              cs2, trigger, square), the active one lit; "more" shows the
- *              Kind dropdown holding every other kind (enum, struct, param,
- *              inv, dbrow/dbtable, component, the pack tables...), and a
- *              kind chosen there stands as a lit chip of its own. The
- *              dropdown is also what TORIRS_EDITOR_CATALOG drives.
+ * The rows run from the question to the answer: Find, the kinds, the count,
+ * then the results; what narrows or reorders them waits under "more", and
+ * the other lists, Stamps and the picked record's rows come after the list.
+ *
+ *   Type       one line of chips over the kinds a map maker places or
+ *              animates (all, loc, npc, obj, seq, spotanim), the active one
+ *              lit; "more" shows the Kind dropdown holding every other kind
+ *              (varp, varbit, vars, interface, cs2, trigger, square, enum,
+ *              struct, param, inv, dbrow/dbtable, component, the pack
+ *              tables...) with Filter and Sort, and a kind chosen there
+ *              stands as a lit chip of its own. The dropdown is also what
+ *              TORIRS_EDITOR_CATALOG drives.
  *   Find       incremental: names, display names, ids, asked once the text
  *              has stood for a frame (edpanel_catalog_model.h). A typed
  *              `key=value` word becomes a FILTER CHIP under the box once a
@@ -23,13 +28,15 @@
  *              stackable. A leading `obj:` / `npc:` / `loc:` (any kind name)
  *              sets the Type and leaves the box.
  *   Count      "1 to 100 of 212 loc": the window's first row to the last row
- *              held after it, of the server's total (the row under Find:
- *              the box has no slot at its right end).
- *   Shortcuts  chips over the index: favourites (editor/favourites.txt,
+ *              held after it, of the server's total. One line: cut to the
+ *              row with "..." rather than wrapped (catalog_count_show).
+ *   Shortcuts  chips under the list: favourites (editor/favourites.txt,
  *              editor_favourites.h), recent (the session's last 20 picks), in
  *              square (the locs the open squares place, from the mirror's
- *              documents), same category (the pick's, as a chip).
- *   Sort       best match (the server's order), name, id, category, size.
+ *              documents), same category (the pick's, as a chip), and grid
+ *              (the Gallery, this search as pictures).
+ *   Sort       best match (the server's order), name, id, category, size
+ *              (under "more").
  *   Results    a CELLS list (ToriRSChrome_VListCells): a picture per row --
  *              a loc's 16 px top-down thumbnail the App rasters for the rows
  *              on screen only (app_services.loc_thumbnail, cached by id and
@@ -50,11 +57,16 @@
  *   Edit       "Edit record..." opens the selected loc / npc / obj in the
  *              RECORD panel (below, registered with this one): the record
  *              across every file that states it, every field editable.
- *   Copy       "Copy to new..." copies the picked loc / npc / obj
- *              definition to the typed name with a fresh id (SAVE_AS:
- *              Editor_CopyRecord), one undo step; the copy becomes the pick.
- *   Palette    "Add to palette" puts the pick into the Catalog palette's
- *              first free slot (edpanel_catalog_palette.c).
+ *   Copy       "Copy to new" copies the picked loc / npc / obj definition to
+ *              the name typed in the New name field directly over it, with
+ *              a fresh id (SAVE_AS: Editor_CopyRecord), one undo step; the
+ *              copy becomes the pick. With no name typed the click puts the
+ *              caret in that field and says what it is for.
+ *   Palette    "To palette" puts the pick into the Catalog palette's first
+ *              free slot (edpanel_catalog_palette.c).
+ *   Reveal     "Show in Explorer" / "Show in Finder" / "Open folder" (the
+ *              OS's word, EDITOR_REVEAL_CAPTION): the selected row's file in
+ *              the desktop's file manager (catalog_reveal).
  *
  * The pick is shared tool state (tools.pick_kind / pick_id / pick_name): a
  * loc, npc or obj row with an id becomes it, the Place tool stamps it, the
@@ -94,8 +106,17 @@
 
 #define CATALOG_LABEL_MAX 48
 #define CATALOG_VARIANT_MAX 33
-/** Result rows on screen. */
+/** Result rows on screen in a panel sized to its content, and the step the
+ *  scripted "next" scrolls by. */
 #define CATALOG_LIST_ROWS 12
+/** The list takes the height its panel has left (catalog_list_fit): never
+ *  fewer rows than this, and never more than it reserved from the chrome's
+ *  row pool when it was made. 36 rows is 720 px of list at 100 %; the pool
+ *  holds 512 across every list of the editor (371 before this, 2026-11-09). */
+#define CATALOG_LIST_ROWS_MIN 6
+#define CATALOG_LIST_ROWS_MAX 36
+/** Air under the list's last row at the fold (catalog_stretch), 1x px. */
+#define CATALOG_FOLD_PAD 6
 /** Rows a CATALOG_QUERY page holds: "1 to 100 of 212". */
 #define CATALOG_PAGE_ROWS 100
 #define CATALOG_RECORD_ROWS 8
@@ -121,6 +142,8 @@ enum CatalogShortcut
     CATALOG_SHORTCUT_RECENT,
     CATALOG_SHORTCUT_IN_SQUARE,
     CATALOG_SHORTCUT_CATEGORY,
+    /** Not a list of this panel: opens the Gallery beside it. */
+    CATALOG_SHORTCUT_GRID,
     CATALOG_SHORTCUT_COUNT,
 };
 
@@ -137,12 +160,13 @@ struct CatalogRows
 struct CatalogPanel
 {
     int panel;
-    /** The Type strip: the kinds as chips, "more" showing the dropdown,
-     *  then list | grid (the Gallery is the grid view of this search).
-     *  type_kind_of: a kind, or CATALOG_CHIP_MORE / LIST / GRID. */
+    /** The Type strip: the kinds as chips, then "more".
+     *  type_kind_of: a kind, or CATALOG_CHIP_MORE. */
     struct Edp_ChipStrip type_strip;
     int type_more;
     int type_kind_of[EDP_CHIPS_MAX];
+    /** "more" is open: the Kind, Filter and Sort dropdowns show. */
+    int more_open;
     /** The kind the "+ filter" menu and the list header were built for. */
     uint32_t shown_filter_kind;
     int dropdown_kind;
@@ -166,6 +190,11 @@ struct CatalogPanel
     /** ui->hotkeys.serial the Add button's keycap was labelled from. */
     uint32_t chord_serial;
     int button_open_script;
+    /** The selected row's file in the desktop's file manager. */
+    int button_reveal;
+    /** The count as last composed, whole (the row shows it cut to a line). */
+    char count_text[TORIRS_CHROME_INPUT_MAX];
+    int count_w;
     int row_multi;
     int dropdown_variant;
     struct CatalogRows var_rows;
@@ -521,6 +550,8 @@ catalog_record_show(
     ToriRSChrome_SetText(ui->chrome, self->row_record, line);
     ToriRSChrome_VListSetCount(ui->chrome, self->record_list, catalog_record_lines(record));
     ToriRSChrome_VListSetScroll(ui->chrome, self->record_list, 0);
+    /* A "from" row picked for the record before is not this one's. */
+    ToriRSChrome_VListSetSelected(ui->chrome, self->record_list, -1);
 }
 
 static void
@@ -607,6 +638,101 @@ catalog_list_rows(
     }
 }
 
+/** How many result rows the list shows now. */
+static int
+catalog_list_window(
+    const struct EditorUi* ui,
+    const struct CatalogPanel* self)
+{
+    return ui->chrome->widgets[self->list].rows;
+}
+
+/**
+ * The result list takes the height its panel has left (2026-11-09): it was
+ * twelve rows however tall the panel was docked, over a column of empty
+ * panel.
+ *
+ * What is left is the panel's view (the height its rows scroll in) less every
+ * other row -- the panel's content less the list's own rows, both as the last
+ * Build laid them out -- in whole list rows, CATALOG_LIST_ROWS_MIN at least:
+ * a panel too short for six still gets six, and scrolls. The other rows do
+ * not depend on the list's, so the answer settles in one Build and a frame
+ * where nothing moved sets nothing (the setter compares). A panel sized to
+ * its content has exactly its rows' height and keeps the count it has.
+ */
+static void
+catalog_list_fit(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    const struct ToriRSChromePanel* panel = &ui->chrome->panels[self->panel];
+    int const row_h = ToriRSChrome_VListRowHeight(ui->chrome);
+    int const shown = catalog_list_window(ui, self);
+    /* Find's row down to the picked record's first line, as the last Build
+     * laid them out (both move with the panel's scroll, so their distance
+     * does not): everything above the fold, the list included. */
+    int const above = ui->chrome->widgets[self->row_picked].y - ui->chrome->widgets[self->input_search].y;
+    int rows;
+
+    /* Not built yet, or collapsed to its title: no heights to fit to. */
+    if( panel->view_h <= 0 || panel->content_h <= 0 )
+        return;
+    assert(row_h > 0);
+    rows = (panel->view_h - (panel->content_h - shown * row_h)) / row_h;
+    /* The picked record's rows (its files, six buttons) are as tall as
+     * everything over them. Fitted with them, the list had its least six
+     * rows in any column a screen has, beside a Preview that already shows
+     * the pick and its actions. So the list fills the view down to the fold,
+     * the record's first line showing under it, and the rest of the record
+     * is one turn of the wheel below. */
+    if( above > shown * row_h )
+    {
+        int const to_fold = (panel->view_h - (above - shown * row_h) - 2 * row_h) / row_h;
+        if( to_fold > rows )
+            rows = to_fold;
+    }
+    if( rows < CATALOG_LIST_ROWS_MIN )
+        rows = CATALOG_LIST_ROWS_MIN;
+    if( rows > CATALOG_LIST_ROWS_MAX )
+        rows = CATALOG_LIST_ROWS_MAX;
+    ToriRSChrome_VListSetRows(ui->chrome, self->list, rows);
+}
+
+/** EditorUiPanel::stretch: the result list is the part that fills. The
+ *  column gives the Catalog whatever its other panels do not ask for (it was
+ *  the Preview's well that took it, over a Catalog showing two result rows),
+ *  and a layout measures the Catalog at twelve rows however many it shows
+ *  now. */
+static int
+catalog_stretch(
+    struct EditorUi* ui,
+    void* opaque,
+    int* out_min_h,
+    int* out_natural_h)
+{
+    struct CatalogPanel* self = opaque;
+    struct ToriRSChromeRect const rect = ToriRSChrome_PanelRect(ui->chrome, self->panel);
+    int const row_h = ToriRSChrome_VListRowHeight(ui->chrome);
+    int const now = catalog_list_window(ui, self) * row_h;
+    /* The fold: the panel's top down to the foot of the list at its least.
+     * What follows the list (the picked record, its buttons) is as tall
+     * again as everything above it, and a Catalog that may not be admitted
+     * without all of it takes the whole column: the Preview flew out over
+     * the world and the Gallery was hidden. So the least the Catalog asks is
+     * the fold -- Find, the kinds and six result rows -- and the rest
+     * scrolls under it when the column is short. */
+    int const fold = ui->chrome->widgets[self->list].y - rect.y + CATALOG_LIST_ROWS_MIN * row_h
+                     + ToriRSChrome_Px(ui->chrome, CATALOG_FOLD_PAD);
+
+    assert(out_min_h);
+    assert(out_natural_h);
+    /* The layout adds the panel's height less the list's (`now`) back to
+     * both: stated so that least comes out as the fold. */
+    *out_min_h = rect.h > 0 && fold < rect.h ? fold - (rect.h - now) : CATALOG_LIST_ROWS_MIN * row_h;
+    *out_natural_h = CATALOG_LIST_ROWS * row_h;
+    return now;
+}
+
 /** The list follows the model: its count every frame, and on a NEW answer
  *  (kind, find, source) the top of it and no selection -- a page that lands
  *  as the window moves is the same list and keeps both. */
@@ -640,7 +766,7 @@ catalog_list_show(
             self->selected = row;
             ToriRSChrome_VListSetSelected(ui->chrome, self->list, row);
             (void)ToriRSChrome_VListWindow(ui->chrome, self->list, &first, &shown);
-            if( row < first || row >= first + (shown > 0 ? shown : CATALOG_LIST_ROWS) )
+            if( row < first || row >= first + (shown > 0 ? shown : catalog_list_window(ui, self)) )
                 ToriRSChrome_VListSetScroll(ui->chrome, self->list, row > 2 ? row - 2 : 0);
             catalog_record_show(ui, self);
         }
@@ -785,23 +911,43 @@ catalog_shortcuts_draw(
         snprintf(tip, sizeof(tip), "pick a record with a category first");
     }
     (void)edp_chips_push(&self->shortcut_strip, label, tip, 0, 0);
+    /* The Gallery is the grid view of this search. Here, not among the
+     * kinds, where it sat beside a "list" chip that did nothing. */
+    (void)edp_chips_push(&self->shortcut_strip, "grid", "the Gallery: this search as pictures (Shift+F8)",
+        Editor_Gallery_Visible(ui), 0);
     edp_chips_end(ui, &self->shortcut_strip);
     edp_chips_hover(ui, &self->shortcut_strip);
 }
 
 /* ---- the Type strip ------------------------------------------------------------- */
 
-/** The kinds the strip always shows, in its order. */
+/** The kinds the strip always shows, in its order: what a map maker places
+ *  or animates. Every other kind -- vars, interface, cs2, trigger, square
+ *  among them, which sat here until 2026-11-09 -- is in the Kind dropdown
+ *  that "more" shows: eleven kinds wrapped onto three lines above the
+ *  results, and "vars" (the server's globals) was taken for varps. */
 static const uint32_t k_type_strip[] = {
-    TORIRSMAPED_CATALOG_ANY,       TORIRSMAPED_CATALOG_LOC,     TORIRSMAPED_CATALOG_NPC,       TORIRSMAPED_CATALOG_OBJ,
-    TORIRSMAPED_CATALOG_SEQ,       TORIRSMAPED_CATALOG_SPOTANIM, TORIRSMAPED_CATALOG_VARS,     TORIRSMAPED_CATALOG_INTERFACE,
-    TORIRSMAPED_CATALOG_CS2,       TORIRSMAPED_CATALOG_TRIGGER, TORIRSMAPED_CATALOG_SQUARE,
+    TORIRSMAPED_CATALOG_ANY, TORIRSMAPED_CATALOG_LOC, TORIRSMAPED_CATALOG_NPC,
+    TORIRSMAPED_CATALOG_OBJ, TORIRSMAPED_CATALOG_SEQ, TORIRSMAPED_CATALOG_SPOTANIM,
 };
 #define CATALOG_TYPE_STRIP ((int)(sizeof(k_type_strip) / sizeof(k_type_strip[0])))
 /** What a strip chip past the kinds means (type_kind_of). */
 #define CATALOG_CHIP_MORE (-1)
-#define CATALOG_CHIP_LIST (-2)
-#define CATALOG_CHIP_GRID (-3)
+
+/** Show or hide what "more" holds: the Kind dropdown (every other kind),
+ *  "+ filter" and Sort. Closed, the header is Find, the kinds and the
+ *  count, and the results start right under them. */
+static void
+catalog_more_set(
+    struct EditorUi* ui,
+    struct CatalogPanel* self,
+    int open)
+{
+    self->more_open = open ? 1 : 0;
+    ToriRSChrome_SetHidden(ui->chrome, self->dropdown_kind, !self->more_open);
+    ToriRSChrome_SetHidden(ui->chrome, self->dropdown_filter, !self->more_open);
+    ToriRSChrome_SetHidden(ui->chrome, self->dropdown_sort, !self->more_open);
+}
 
 /** The kind the dropdown holds. */
 static uint32_t
@@ -854,20 +1000,61 @@ catalog_type_strip_draw(
             self->type_kind_of[index] = (int)current;
     }
     self->type_more = edp_chips_push(&self->type_strip, "more",
-        ui->chrome->widgets[self->dropdown_kind].hidden ? "show the Kind dropdown: every other kind"
-                                                              : "hide the Kind dropdown",
-        !ui->chrome->widgets[self->dropdown_kind].hidden, 0);
+        self->more_open ? "hide Kind, Filter and Sort" : "every other kind, a filter, the sort order", self->more_open,
+        0);
     if( self->type_more >= 0 )
         self->type_kind_of[self->type_more] = CATALOG_CHIP_MORE;
-    index = edp_chips_push(&self->type_strip, "list", "this list", 1, 0);
-    if( index >= 0 )
-        self->type_kind_of[index] = CATALOG_CHIP_LIST;
-    index = edp_chips_push(&self->type_strip, "grid", "the Gallery: the same search as pictures (Shift+F8)",
-        Editor_Gallery_Visible(ui), 0);
-    if( index >= 0 )
-        self->type_kind_of[index] = CATALOG_CHIP_GRID;
     edp_chips_end(ui, &self->type_strip);
     edp_chips_hover(ui, &self->type_strip);
+}
+
+/**
+ * The count on ONE line. A label in a docked panel wraps (to two lines for
+ * "12,345 to 12,445 of 123,456 spotanim so far, index 45% read"), and every
+ * line above the results is a result row pushed off the panel. So the text
+ * is cut to the row's width with "..." and the tooltip keeps it whole.
+ * Measured again only when the text or the row's width moved.
+ */
+static void
+catalog_count_show(
+    struct EditorUi* ui,
+    struct CatalogPanel* self,
+    const char* text)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    /* The row's width as last laid out; a row scrolled out of the panel
+     * reads 0 and keeps the width it had. A label wraps at the content
+     * column less the scrollbar's, whether or not the bar shows: the margin
+     * is that column. */
+    int const laid = chrome->widgets[self->row_count].w;
+    int const width = laid > 0 ? laid - edp_px(ui, 14) : self->count_w;
+    char line[TORIRS_CHROME_INPUT_MAX];
+    char tip[TORIRS_CHROME_LABEL_MAX];
+    size_t length;
+
+    if( width == self->count_w && strcmp(text, self->count_text) == 0 )
+        return;
+    self->count_w = width;
+    snprintf(self->count_text, sizeof(self->count_text), "%s", text);
+    snprintf(line, sizeof(line), "%s", self->count_text);
+    length = strlen(line);
+    tip[0] = '\0';
+    /* No width yet (before the first Build): whole. */
+    while( width > 0 && length > 0
+           && ToriRSChrome_MeasureTextQ(chrome->theme.font_row, ToriRSChrome_ScaleQ(chrome), line) > width )
+    {
+        length--;
+        snprintf(line, sizeof(line), "%.*s...", (int)length, self->count_text);
+    }
+    if( strcmp(line, self->count_text) != 0 )
+    {
+        if( strlen(self->count_text) < sizeof(tip) )
+            snprintf(tip, sizeof(tip), "%s", self->count_text);
+        else
+            snprintf(tip, sizeof(tip), "%.*s...", (int)sizeof(tip) - 4, self->count_text);
+    }
+    ToriRSChrome_SetText(chrome, self->row_count, line);
+    ToriRSChrome_SetTooltip(chrome, self->row_count, tip);
 }
 
 /** The "+ filter" menu and the list header follow the kind. */
@@ -1446,8 +1633,13 @@ catalog_tick(
     (void)Editor_CatalogModelWant(&self->model,
         Editor_CatalogModelKindAt(kind_index >= 0 && kind_index < Editor_CatalogModelKindCount() ? kind_index : 0),
         self->composed);
+    /* The list's height first: the window the model is asked for below is
+     * the rows it shows. Only while this panel shows (the Gallery drives the
+     * query too, and a hidden panel has no height to fit). */
+    if( ui->chrome->panels[self->panel].visible )
+        catalog_list_fit(ui, self);
     first = ui->chrome->widgets[self->list].imin;
-    Editor_CatalogModelWantWindow(&self->model, first, CATALOG_LIST_ROWS);
+    Editor_CatalogModelWantWindow(&self->model, first, catalog_list_window(ui, self));
     catalog_local_follow(ui, self);
     if( host )
         /* Asks only when the kind, the settled text, the window's page or
@@ -1457,7 +1649,7 @@ catalog_tick(
         Editor_CatalogModelRangeText(&self->model, first, line, sizeof(line));
     else
         snprintf(line, sizeof(line), "no editor server with a catalog");
-    ToriRSChrome_SetText(ui->chrome, self->row_count, line);
+    catalog_count_show(ui, self, line);
     catalog_list_show(ui, self);
     catalog_list_rows(ui, self);
     catalog_list_tip(ui, self);
@@ -1706,7 +1898,15 @@ catalog_copy(
         Editor_UiStatus(ui, "Copy refused: pick the loc, npc or obj to copy first");
         return;
     }
-    if( !Editor_Catalog_CopyRecord(ui, view.kind, view.name, new_name ? new_name : "") )
+    /* No name yet: the caret goes to the field over the button, and the bar
+     * says what it is for. Not a refusal to read after the click. */
+    if( !new_name || !new_name[0] )
+    {
+        (void)ToriRSChrome_FocusWidget(ui->chrome, self->input_new_name, 0);
+        Editor_UiStatus(ui, "Type the new record's name, then Copy to new");
+        return;
+    }
+    if( !Editor_Catalog_CopyRecord(ui, view.kind, view.name, new_name) )
         return;
     /* The copy is unsaved, so the index (which reads the tree) does not hold
      * it yet; a save makes it findable. Ask again then. */
@@ -1717,6 +1917,52 @@ catalog_copy(
         snprintf(line, sizeof(line), "copy: %s", ui->tools.pick_name);
         ToriRSChrome_SetText(ui->chrome, self->row_record, line);
     }
+}
+
+/**
+ * The selected row's file in the desktop's file manager: the source picked
+ * in the record list (a "from <file>:<line>" row), else a trigger row's
+ * script, else the record's first source. Scripts and configs are written
+ * in the user's own editor (owner, 2026-11-09): this is the way from a
+ * record to the folder its files are in. Through the Triggers panel, which
+ * holds this machine's content folder and words the outcome as its own
+ * button does (Editor_Triggers_Reveal).
+ */
+static void
+catalog_reveal(
+    struct EditorUi* ui,
+    struct CatalogPanel* self)
+{
+    struct EditorHost* host = catalog_host(ui);
+    const struct EditorHost_CatalogRecord* record = NULL;
+    const char* path = NULL;
+    int const from = ToriRSChrome_VListSelected(ui->chrome, self->record_list);
+
+    if( self->selected < 0 || self->selected >= Editor_CatalogModelViewCount(&self->model) )
+    {
+        Editor_UiStatus(ui, EDITOR_REVEAL_CAPTION ": pick a row of the list first");
+        return;
+    }
+    if( host )
+        record = Editor_CatalogModelRecordAt(&self->model, host, self->selected);
+    if( record && from >= 0 && from < record->source_count )
+        path = record->sources[from].path;
+    for( int f = 0; record && !path && f < record->field_count; f++ )
+        if( strcmp(record->fields[f].key, "file") == 0 )
+            path = record->fields[f].value;
+    if( record && !path && record->source_count > 0 )
+        path = record->sources[0].path;
+    if( !path || !path[0] )
+    {
+        Editor_UiStatus(ui, EDITOR_REVEAL_CAPTION ": this row names no file in the content folder");
+        return;
+    }
+    if( !Editor_UiPanelSelf(ui, "triggers") )
+    {
+        Editor_UiStatus(ui, EDITOR_REVEAL_CAPTION " refused: this window has no content folder to show %s in", path);
+        return;
+    }
+    (void)Editor_Triggers_Reveal(ui, path);
 }
 
 /** A "+ filter" row: a whole chip, or "key=" put in Find for the value. */
@@ -1841,6 +2087,11 @@ catalog_activate(
         (void)Editor_Triggers_OpenInEditor(ui, rel, line ? atoi(line) : 0);
         return 1;
     }
+    if( widget == self->button_reveal )
+    {
+        catalog_reveal(ui, self);
+        return 1;
+    }
     if( widget == self->dropdown_variant )
     {
         int const choice = ToriRSChrome_DropdownSelected(ui->chrome, widget);
@@ -1887,9 +2138,7 @@ catalog_event(
         if( index < 0 || index >= EDP_CHIPS_MAX )
             return 1;
         if( self->type_kind_of[index] == CATALOG_CHIP_MORE )
-            ToriRSChrome_SetHidden(ui->chrome, self->dropdown_kind, !ui->chrome->widgets[self->dropdown_kind].hidden);
-        else if( self->type_kind_of[index] == CATALOG_CHIP_GRID && !Editor_Gallery_Visible(ui) )
-            Editor_UiPanelOpenBeside(ui, "gallery", "catalog");
+            catalog_more_set(ui, self, !self->more_open);
         else if( self->type_kind_of[index] >= 0 && (uint32_t)self->type_kind_of[index] != catalog_kind(ui, self) )
             catalog_set_kind(ui, self, (uint32_t)self->type_kind_of[index]);
         return 1;
@@ -1905,6 +2154,11 @@ catalog_event(
         catalog_show_source(ui, self, EDITOR_CATALOG_SOURCE_RECENT);
     else if( index == CATALOG_SHORTCUT_IN_SQUARE )
         catalog_show_source(ui, self, EDITOR_CATALOG_SOURCE_IN_SQUARE);
+    else if( index == CATALOG_SHORTCUT_GRID )
+    {
+        if( !Editor_Gallery_Visible(ui) )
+            Editor_UiPanelOpenBeside(ui, "gallery", "catalog");
+    }
     else if( index == CATALOG_SHORTCUT_CATEGORY )
     {
         catalog_symbol_follow(ui, self);
@@ -2100,36 +2354,6 @@ Editor_Catalog_PickFromWorld(
     return 1;
 }
 
-void
-Editor_Catalog_Adopt(
-    struct EditorUi* ui,
-    int loc_id)
-{
-    struct CatalogPanel* self;
-    struct ToriRS_Location* cfg;
-
-    assert(ui);
-    self = Editor_UiPanelSelf(ui, "catalog");
-    if( !self || loc_id < 0 )
-        return;
-    ui->tools.pick_kind = CACHEPROVIDER_CATALOG_LOC;
-    ui->tools.pick_id = loc_id;
-    cfg = catalog_loc_record(ui, loc_id);
-    snprintf(ui->tools.pick_name, sizeof(ui->tools.pick_name), "%s (%d)",
-        cfg && cfg->name[0] ? cfg->name : "<unnamed>", loc_id);
-    catalog_publish_pick(ui);
-    catalog_picked_label(ui, self);
-    /* Show it: kind loc, found by id (one query, when the panel next ticks). */
-    Editor_CatalogModelSetSource(&self->model, EDITOR_CATALOG_SOURCE_INDEX);
-    ToriRSChrome_DropdownSetSelected(
-        ui->chrome, self->dropdown_kind, Editor_CatalogModelKindIndex(TORIRSMAPED_CATALOG_LOC));
-    {
-        char id_text[16];
-        snprintf(id_text, sizeof(id_text), "%d", loc_id);
-        ToriRSChrome_SetText(ui->chrome, self->input_search, id_text);
-    }
-}
-
 /* ---- the pick's actions (the Preview pane's row) ------------------------------- */
 
 /** The favourite row for the pick, with Place's pose for a loc. 0 (said)
@@ -2312,13 +2536,15 @@ Editor_Catalog_EditPick(struct EditorUi* ui)
 }
 
 int
-Editor_Catalog_CopyPick(struct EditorUi* ui)
+Editor_Catalog_CopyPickAs(
+    struct EditorUi* ui,
+    const char* new_name)
 {
     struct CatalogPanel* self;
     const char* name;
-    const char* new_name;
 
     assert(ui);
+    assert(new_name);
     self = Editor_UiPanelSelf(ui, "catalog");
     if( !self || ui->tools.pick_kind < 0 || ui->tools.pick_kind > (int)TORIRSMAPED_CATALOG_OBJ )
     {
@@ -2326,15 +2552,9 @@ Editor_Catalog_CopyPick(struct EditorUi* ui)
         return 0;
     }
     name = catalog_pick_symbol(ui, self);
-    new_name = ToriRSChrome_Text(ui->chrome, self->input_new_name);
     if( !name[0] )
     {
         Editor_UiStatus(ui, "Copy refused: the catalog has no record name for %s", ui->tools.pick_name);
-        return 0;
-    }
-    if( !new_name || !new_name[0] )
-    {
-        Editor_UiStatus(ui, "Copy refused: type the new name in the Catalog's New name first");
         return 0;
     }
     if( !Editor_Catalog_CopyRecord(ui, (uint32_t)ui->tools.pick_kind, name, new_name) )
@@ -2342,6 +2562,29 @@ Editor_Catalog_CopyPick(struct EditorUi* ui)
     Editor_CatalogModelInvalidate(&self->model);
     catalog_picked_label(ui, self);
     return 1;
+}
+
+int
+Editor_Catalog_CopyPick(struct EditorUi* ui)
+{
+    struct CatalogPanel* self;
+    const char* new_name;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( !self )
+    {
+        Editor_UiStatus(ui, "Copy refused: pick a loc, npc or obj first");
+        return 0;
+    }
+    new_name = ToriRSChrome_Text(ui->chrome, self->input_new_name);
+    if( !new_name || !new_name[0] )
+    {
+        (void)ToriRSChrome_FocusWidget(ui->chrome, self->input_new_name, 0);
+        Editor_UiStatus(ui, "Type the new record's name in the Catalog's New name, then Copy to new");
+        return 0;
+    }
+    return Editor_Catalog_CopyPickAs(ui, new_name);
 }
 
 uint32_t
@@ -2374,6 +2617,19 @@ Editor_Catalog_Recents(struct EditorUi* ui)
     return self ? &self->recents : NULL;
 }
 
+/** A command of the record rows: the plate takes the row's width, so the
+ *  caption and a keycap both fit it at the dock's width. */
+static int
+catalog_button(
+    struct ToriRSChrome* chrome,
+    int panel,
+    const char* caption)
+{
+    int const button = ToriRSChrome_Button(chrome, panel, caption);
+    ToriRSChrome_ButtonSetFill(chrome, button, 1);
+    return button;
+}
+
 void
 Editor_Catalog_Register(struct EditorUi* ui)
 {
@@ -2404,47 +2660,68 @@ Editor_Catalog_Register(struct EditorUi* ui)
         chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X + EDP_COL_W + 8), edp_px(ui, 420),
         edp_px(ui, 260), "Catalog");
     assert(self->panel >= 0);
-    /* Fourteen chips (the kinds, more, list | grid): three lines at the
-     * panel's width; a well's least height is 48 px anyway. */
-    edp_chips_init(ui, &self->type_strip, self->panel, 3);
-    self->type_more = -1;
-    self->shown_filter_kind = 0xFFFFFFFFu;
-    self->dropdown_kind = ToriRSChrome_Dropdown(chrome, self->panel, "Kind", Editor_CatalogModelKindLabels(),
-        Editor_CatalogModelKindCount(), 0);
-    /* Every other kind lives here, shown by the strip's "more". */
-    ToriRSChrome_SetHidden(chrome, self->dropdown_kind, 1);
-    /* The Stamps kind (workbench 6.3): a chip beside Kind that opens the
-     * Stamps panel, which owns it (edpanel_stamps.c). */
-    Editor_Stamps_CatalogChip(ui, self->panel);
+    /* The rows, top to bottom (2026-11-09): what is asked -- Find, the kinds,
+     * the count -- and then at once what was found. The header was 280 px (the
+     * kinds on three lines, Stamps, a count that wrapped, Filter, Sort, the
+     * shortcuts), and at the dock's default height not one result row showed
+     * after a search. Everything that is not the question now waits under
+     * "more" or below the list. */
     self->input_search = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
     ToriRSChrome_SetTooltip(chrome, self->input_search, "name, #id, obj:/npc:/loc:; key=value + space = a chip");
-    self->row_count = ToriRSChrome_Label(chrome, self->panel, "");
-    edp_chips_init(ui, &self->chip_strip, self->panel, 2);
-    ToriRSChrome_SetHidden(chrome, self->chip_strip.graph, 1);
+    /* Seven chips on one line at the dock's width. Two lines are allowed (a
+     * narrower panel wraps "more" rather than folding it into a "+1" nobody
+     * can press) and cost nothing: a well's least height is 48 px. */
+    edp_chips_init(ui, &self->type_strip, self->panel, 2);
+    self->type_more = -1;
+    self->shown_filter_kind = 0xFFFFFFFFu;
+    /* What "more" shows: every other kind, "+ filter", the sort order. */
+    self->dropdown_kind = ToriRSChrome_Dropdown(chrome, self->panel, "Kind", Editor_CatalogModelKindLabels(),
+        Editor_CatalogModelKindCount(), 0);
+    ToriRSChrome_SetTooltip(chrome, self->dropdown_kind, "every kind: varp, varbit, trigger, square, enum...");
     self->dropdown_filter = ToriRSChrome_Dropdown(chrome, self->panel, "Filter", Editor_CatalogFilterMenuLabels(),
         Editor_CatalogFilterMenuCount(), 0);
     ToriRSChrome_SetTooltip(chrome, self->dropdown_filter, "add a filter chip on a summary field");
     self->dropdown_sort = ToriRSChrome_Dropdown(chrome, self->panel, "Sort", Editor_CatalogSortLabels(),
         EDITOR_CATALOG_SORT_COUNT, EDITOR_CATALOG_SORT_BEST);
-    edp_chips_init(ui, &self->shortcut_strip, self->panel, 1);
-    self->list = ToriRSChrome_VListCells(chrome, self->panel, Editor_CatalogCellsHeader(), CATALOG_LIST_ROWS, 0);
+    catalog_more_set(ui, self, 0);
+    self->row_count = ToriRSChrome_Label(chrome, self->panel, "");
+    edp_chips_init(ui, &self->chip_strip, self->panel, 2);
+    ToriRSChrome_SetHidden(chrome, self->chip_strip.graph, 1);
+    /* Made with the most rows it may ever show (what it reserves from the
+     * row pool), showing the twelve a content-sized panel has;
+     * catalog_list_fit gives it what a docked panel's height leaves. */
+    self->list =
+        ToriRSChrome_VListCells(chrome, self->panel, Editor_CatalogCellsHeader(), CATALOG_LIST_ROWS_MAX, 0);
     assert(self->list >= 0);
+    ToriRSChrome_VListSetRows(chrome, self->list, CATALOG_LIST_ROWS);
+    /* Under the list: other lists to look in (two lines, in the well's 48 px),
+     * and the Stamps kind (workbench 6.3), a chip that opens the Stamps
+     * panel, which owns it (edpanel_stamps.c). */
+    edp_chips_init(ui, &self->shortcut_strip, self->panel, 2);
+    Editor_Stamps_CatalogChip(ui, self->panel);
     ToriRSChrome_Separator(chrome, self->panel);
     self->row_picked = ToriRSChrome_Label(chrome, self->panel, "nothing picked");
     self->row_record = ToriRSChrome_Label(chrome, self->panel, "pick a row for its record");
     self->record_list = ToriRSChrome_VList(chrome, self->panel, "", CATALOG_RECORD_ROWS, 0);
-    self->button_edit_record = ToriRSChrome_Button(chrome, self->panel, "Edit record...");
+    ToriRSChrome_SetTooltip(chrome, self->record_list, "click a \"from\" row to choose the file the button shows");
+    self->button_edit_record = catalog_button(chrome, self->panel, "Edit record...");
     ToriRSChrome_SetTooltip(chrome, self->button_edit_record,
         "every field of the picked loc/npc/obj");
-    self->button_add_palette = ToriRSChrome_Button(chrome, self->panel, "Add to palette");
+    /* "Add to palette" read "Ad..." beside its own keycap: a caption shares
+     * its button with the chord, so it is short and the plate is the row's. */
+    self->button_add_palette = catalog_button(chrome, self->panel, "To palette");
     ToriRSChrome_SetTooltip(chrome, self->button_add_palette,
         "the pick into the Catalog palette's first free slot");
     edp_button_chord(ui, self->button_add_palette, EDITOR_HK_PALETTE_ADD_PICK);
     self->chord_serial = ui->hotkeys.serial;
-    self->button_open_script = ToriRSChrome_Button(chrome, self->panel, "Open in editor");
+    self->button_open_script = catalog_button(chrome, self->panel, "Open in editor");
     ToriRSChrome_SetTooltip(chrome, self->button_open_script, "the picked trigger's file at its line, in your editor");
+    self->button_reveal = catalog_button(chrome, self->panel, EDITOR_REVEAL_CAPTION);
+    ToriRSChrome_SetTooltip(chrome, self->button_reveal, "the selected row's file, in its folder on this machine");
+    /* The name Copy to new reads sits directly over it, never rows away. */
     self->input_new_name = ToriRSChrome_TextInput(chrome, self->panel, "New name", "");
-    self->button_copy = ToriRSChrome_Button(chrome, self->panel, "Copy to new...");
+    ToriRSChrome_SetTooltip(chrome, self->input_new_name, "the copy's record name: a-z, 0-9 and _");
+    self->button_copy = catalog_button(chrome, self->panel, "Copy to new");
     ToriRSChrome_SetTooltip(chrome, self->button_copy,
         "Copy the picked loc/npc/obj to New name, fresh id");
     self->row_multi = ToriRSChrome_Label(chrome, self->panel, "");
@@ -2466,6 +2743,7 @@ Editor_Catalog_Register(struct EditorUi* ui)
     desc.self = self;
     desc.chrome_panel = self->panel;
     desc.tick = catalog_tick;
+    desc.stretch = catalog_stretch;
     desc.activate = catalog_activate;
     desc.event = catalog_event;
     desc.on_state = catalog_on_state;

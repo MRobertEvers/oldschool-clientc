@@ -12,7 +12,9 @@
  *      frame's keys are its, nothing else sees them;
  *   3. the gates: the editor panel open, no text field, no model view, no
  *      menu drop or minimenu open -- else nothing resolves and nothing is
- *      claimed;
+ *      claimed. A focused list, slider or well is not a text field: the
+ *      table resolves under it, less the keys that widget takes for itself
+ *      (app_hk_chrome_focus);
  *   4. Editor_HotkeysResolve against ui->hotkeys: the chords that fire, the
  *      held actions that are active (the camera, the click accelerators), and
  *      the keys the table CLAIMS -- bound in a live context, whether or not
@@ -114,6 +116,67 @@ app_hk_snapshot(
     out->contexts = Editor_HotkeyContextsFrom(&facts);
     ui->hotkey_contexts = out->contexts;
     ui->hotkey_contexts_valid = 1;
+}
+
+/**
+ * What the developer chrome's focused widget means for the editor's keys.
+ *
+ * Returns 1 when it is typed into (a text input, a text area, a colour
+ * field, the code editor) or is a plugin's own surface: nothing resolves.
+ * Returns 0 otherwise, with `own` (TORIRSK_COUNT bytes) marking the keys the
+ * focused widget takes for itself, which the table must not also act on:
+ *
+ *   a list    Up, Down, Home, End, Enter, Escape (it has no type-to-find);
+ *   a slider  Left, Right, Home, End, Escape;
+ *   a well    every editing key and the zoom keys (- and =): the square
+ *             picker moves with them, and the chrome stops them at any
+ *             GRAPH (dbg_ext_key_edit).
+ *
+ * The gate used to be app_text_input_focused, which counts ANY focused chrome
+ * widget as a text field (app_chrome_holds_keyboard: right for the game,
+ * whose chat line must not get those keys). A click on a Catalog result row
+ * focuses its list, so 0 = Place and every other chord did nothing until
+ * the world was clicked (2026-11-09). A list is not a text field.
+ */
+static int
+app_hk_chrome_focus(
+    struct App const* app,
+    unsigned char* own)
+{
+    static const int k_list[] = { TORIRSK_UP, TORIRSK_DOWN, TORIRSK_HOME, TORIRSK_END, TORIRSK_RETURN,
+        TORIRSK_ESCAPE };
+    static const int k_slider[] = { TORIRSK_LEFT, TORIRSK_RIGHT, TORIRSK_HOME, TORIRSK_END, TORIRSK_ESCAPE };
+    static const int k_well[] = { TORIRSK_LEFT, TORIRSK_RIGHT, TORIRSK_UP, TORIRSK_DOWN, TORIRSK_HOME, TORIRSK_END,
+        TORIRSK_RETURN, TORIRSK_BACKSPACE, TORIRSK_DELETE, TORIRSK_ESCAPE, TORIRSK_MINUS, TORIRSK_EQUALS };
+    int const focus = app->dbg_ui.focus;
+    const int* keys;
+    int count;
+    int kind;
+
+    memset(own, 0, TORIRSK_COUNT);
+    if( focus < 0 || focus >= app->dbg_ui.widget_count )
+        return 0;
+    kind = app->dbg_ui.widgets[focus].kind;
+    if( kind == TORIRS_CHROME_W_VLIST )
+    {
+        keys = k_list;
+        count = (int)(sizeof(k_list) / sizeof(k_list[0]));
+    }
+    else if( kind == TORIRS_CHROME_W_SLIDER )
+    {
+        keys = k_slider;
+        count = (int)(sizeof(k_slider) / sizeof(k_slider[0]));
+    }
+    else if( kind == TORIRS_CHROME_W_GRAPH )
+    {
+        keys = k_well;
+        count = (int)(sizeof(k_well) / sizeof(k_well[0]));
+    }
+    else
+        return 1;
+    for( int i = 0; i < count; i++ )
+        own[keys[i]] = 1;
+    return 0;
 }
 
 static void
@@ -705,6 +768,8 @@ app_editor_hotkeys_frame(
 {
     struct EditorUi* ui;
     struct Editor_HotkeyInput snapshot;
+    /** The keys the chrome's focused list, slider or well takes for itself. */
+    unsigned char chrome_own[TORIRSK_COUNT];
 
     assert(app);
     assert(input);
@@ -817,7 +882,12 @@ app_editor_hotkeys_frame(
         return;
     }
 
-    if( app_text_input_focused(app) || app_modelview_focused(app) || ui->chrome->dropdown_open >= 0
+    /* A field being typed into shuts the table: the game's own (the chat
+     * line, a dialog, an IF3 field), anything focused in the plugin window,
+     * and of the developer chrome only what app_hk_chrome_focus calls typing.
+     * A focused list, slider or well does not. */
+    if( app_hk_chrome_focus(app, chrome_own) || app_text_input_focused_outside_chrome(app)
+        || app->plugin_ui.focus >= 0 || app_modelview_focused(app) || ui->chrome->dropdown_open >= 0
         || app->frame_view->minimenu->visible )
     {
         /* Nothing resolves, but a repeater must not fire the moment the
@@ -826,6 +896,15 @@ app_editor_hotkeys_frame(
         Editor_HotkeySnapHold(ui, 0);
         return;
     }
+    /* The focused widget's own keys go to it alone (the chrome routes them
+     * after this): the arrows move the list's row, they do not also nudge
+     * the selected locs; its Escape lets go of the list, not the selection. */
+    for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
+        if( chrome_own[k] )
+        {
+            snapshot.down[k] = 0;
+            snapshot.held[k] = 0;
+        }
 
     Editor_HotkeysResolve(&ui->hotkeys, &snapshot, &g_app_hk.frame);
     g_app_hk.valid = 1;

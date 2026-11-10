@@ -929,6 +929,13 @@ struct EditorUi
     int panel_first;
     int panel_end;
     int layout_scale;
+    /** The tool rail's own padding (its box less its rows of buttons), as
+     *  measured while it was its content's height, and the chrome scale it
+     *  was measured at: the layout gives the rail the column's whole height,
+     *  after which its box no longer says what the padding is. -1: not
+     *  measured yet. */
+    int rail_pad;
+    int rail_pad_scale;
     /** The surface the layout was made for. */
     int layout_surface_w;
     int layout_surface_h;
@@ -1060,6 +1067,21 @@ struct EditorUi
     int open_goto_x;
     int open_goto_z;
     int open_goto_level;
+
+    /** The ground tile grid and the open squares' borders (the World's
+     *  overlay, app_overlay.c; enum Editor_TileGridMode in
+     *  panels/edpanel_common.h): 0 AUTO, on a square that holds no loc yet,
+     *  where a flat fill is one green plane with no edge and no north; 1 ON,
+     *  everywhere; 2 OFF. Per window, not shared state. */
+    int tile_grid;
+    /** Npc and ground-item spawns this window has stood in the world since
+     *  the Spawns panel last looked (edp_spawns_note_added: a placed spawn,
+     *  and the ones a paste, a stamp or a square copy brings). The panel
+     *  turns "Show spawns in the world" on for them and says so: a spawn
+     *  placed with the preview off was a console line and nothing in the
+     *  world. */
+    int spawns_added_npc;
+    int spawns_added_obj;
 
     /** The panel groups (Editor_UiRegisterGroup), and per registry panel the
      *  group it is in now, plus one (0: not in a group). */

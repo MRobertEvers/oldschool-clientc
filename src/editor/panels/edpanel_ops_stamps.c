@@ -1,7 +1,8 @@
 /*
  * Workbench 6.3's document ops and their panel actions
  * (edpanel_ops_stamps.h): stamps, the level move, Find same, and the
- * gizmo's copy and turn by a given amount.
+ * gizmo's copy and turn by a given amount; and the spawns a stamp, the
+ * rectangle's clipboard and a square copy carry (one capture, one drop).
  */
 
 #include "edpanel_ops_stamps.h"
@@ -33,6 +34,200 @@ stamps_square_at(
     *out_x = world_x % EDITOR_SQUARE_X;
     *out_z = world_z % EDITOR_SQUARE_Z;
     return square;
+}
+
+/* ---- a square's spawns --------------------------------------------------------- */
+
+/** One square's three spawn files, as a capture or a drop reads them: the
+ *  edited file (borrowed from the document; NULL when it is not open) and
+ *  the generated and the quests' / skills' rows, parsed here from their TEXT
+ *  documents (no rows when the document is not open, or the square has no
+ *  such file). */
+struct StampsSquareSpawns
+{
+    int used;
+    int map_x;
+    int map_z;
+    const struct Editor_SpawnFile* edited;
+    struct Editor_SpawnFile generated;
+    struct Editor_SpawnFile scripted;
+};
+
+static void
+stamps_square_spawns_load(
+    struct Editor_Doc* doc,
+    int map_x,
+    int map_z,
+    struct StampsSquareSpawns* out)
+{
+    struct Editor_DocHandle handle;
+    char key[EDITOR_DOC_KEY_MAX];
+
+    memset(out, 0, sizeof(*out));
+    out->used = 1;
+    out->map_x = map_x;
+    out->map_z = map_z;
+    Editor_SpawnInit(&out->generated);
+    Editor_SpawnInit(&out->scripted);
+    Editor_SquareKey(key, map_x, map_z);
+    if( Editor_DocFind(doc, EDITOR_DOC_SPAWN, key, &handle) && handle.spawn->loaded )
+        out->edited = &handle.spawn->file;
+    /* A file that does not parse lists what parsed: the Spawns panel says
+     * which line, and a copy is no place to stop for it. */
+    Editor_SpawnGeneratedKey(key, map_x, map_z);
+    if( Editor_DocFind(doc, EDITOR_DOC_TEXT, key, &handle) && handle.text->text )
+        (void)Editor_SpawnParse(&out->generated, handle.text->text, handle.text->length);
+    Editor_SpawnScriptedKey(key, map_x, map_z);
+    if( Editor_DocFind(doc, EDITOR_DOC_TEXT, key, &handle) && handle.text->text )
+        (void)Editor_SpawnParse(&out->scripted, handle.text->text, handle.text->length);
+}
+
+static void
+stamps_square_spawns_free(struct StampsSquareSpawns* files)
+{
+    Editor_SpawnFree(&files->generated);
+    Editor_SpawnFree(&files->scripted);
+    memset(files, 0, sizeof(*files));
+}
+
+/** Whether a live spawn equal to `row` stands in the square already: a row
+ *  of the edited file, or one of the read-only files' that the edited file
+ *  does not suppress. */
+static int
+stamps_spawn_stands(
+    const struct StampsSquareSpawns* files,
+    const struct Editor_SpawnRow* row)
+{
+    if( files->edited && Editor_SpawnFind(files->edited, row) >= 0 )
+        return 1;
+    if( Editor_SpawnFind(&files->generated, row) < 0 && Editor_SpawnFind(&files->scripted, row) < 0 )
+        return 0;
+    return !Editor_SpawnIsSuppressed(files->edited, row);
+}
+
+/** `file`'s live rows standing in `box`, appended to `stamp`. `suppressor`
+ *  is the edited file whose suppression rows hide rows of a read-only
+ *  `file`; NULL for the edited file itself (and when there is none). Returns
+ *  the pieces added. */
+static int
+stamps_capture_rows(
+    const struct Editor_SpawnFile* file,
+    const struct Editor_SpawnFile* suppressor,
+    const struct Editor_StampSpawnBox* box,
+    struct Editor_Stamp* stamp)
+{
+    int added = 0;
+
+    for( int l = 0; l < file->line_count; l++ )
+    {
+        const struct Editor_SpawnLine* line = &file->lines[l];
+        struct Editor_StampPiece piece;
+
+        if( line->kind != EDITOR_SPAWN_LINE_ROW || line->row.suppress )
+            continue;
+        if( line->row.abs_x < box->x0 || line->row.abs_x > box->x1 || line->row.abs_z < box->z0
+            || line->row.abs_z > box->z1 || line->row.level < 0 || line->row.level >= EDITOR_SQUARE_LEVELS
+            || !(box->levels & (1u << line->row.level)) )
+            continue;
+        if( suppressor && Editor_SpawnIsSuppressed(suppressor, &line->row) )
+            continue;
+        memset(&piece, 0, sizeof(piece));
+        piece.kind = EDITOR_STAMP_SPAWN;
+        piece.dx = line->row.abs_x - box->origin_x;
+        piece.dz = line->row.abs_z - box->origin_z;
+        piece.dlevel = line->row.level - box->origin_level;
+        piece.is_obj = line->row.is_obj;
+        snprintf(piece.name, sizeof(piece.name), "%s", line->row.name);
+        piece.count = line->row.count < 1 ? 1 : line->row.count;
+        added += Editor_StampAdd(stamp, &piece) ? 1 : 0;
+    }
+    return added;
+}
+
+/** Whether square (map_x, map_z) holds any tile of (x0..x1, z0..z1). */
+static int
+stamps_square_touches(
+    int map_x,
+    int map_z,
+    int x0,
+    int z0,
+    int x1,
+    int z1)
+{
+    return map_x * EDITOR_SQUARE_X <= x1 && map_x * EDITOR_SQUARE_X + EDITOR_SQUARE_X - 1 >= x0
+           && map_z * EDITOR_SQUARE_Z <= z1 && map_z * EDITOR_SQUARE_Z + EDITOR_SQUARE_Z - 1 >= z0;
+}
+
+/** The rows of square (map_x, map_z)'s three files standing in `box`, the
+ *  edited ones first (the order the Spawns panel lists them in). */
+static int
+stamps_capture_square(
+    struct Editor_Doc* doc,
+    int map_x,
+    int map_z,
+    const struct Editor_StampSpawnBox* box,
+    struct Editor_Stamp* stamp)
+{
+    struct StampsSquareSpawns files;
+    int added = 0;
+
+    stamps_square_spawns_load(doc, map_x, map_z, &files);
+    if( files.edited )
+        added += stamps_capture_rows(files.edited, NULL, box, stamp);
+    added += stamps_capture_rows(&files.generated, files.edited, box, stamp);
+    added += stamps_capture_rows(&files.scripted, files.edited, box, stamp);
+    stamps_square_spawns_free(&files);
+    return added;
+}
+
+int
+Editor_StampCaptureSpawns(
+    struct Editor_Doc* doc,
+    const struct Editor_StampSpawnBox* box,
+    struct Editor_Stamp* stamp)
+{
+    int added = 0;
+
+    assert(doc);
+    assert(box);
+    assert(stamp);
+
+    for( int i = 0; i < doc->square_count; i++ )
+    {
+        const struct Editor_Square* square = &doc->squares[i];
+
+        if( !square->loaded || !stamps_square_touches(square->map_x, square->map_z, box->x0, box->z0, box->x1, box->z1) )
+            continue;
+        added += stamps_capture_square(doc, square->map_x, square->map_z, box, stamp);
+    }
+    return added;
+}
+
+int
+Editor_StampCaptureSquareSpawns(
+    struct Editor_Doc* doc,
+    int map_x,
+    int map_z,
+    struct Editor_Stamp* stamp)
+{
+    struct Editor_StampSpawnBox box;
+
+    assert(doc);
+    assert(stamp);
+    assert(map_x >= 0);
+    assert(map_z >= 0);
+
+    Editor_StampClear(stamp);
+    memset(&box, 0, sizeof(box));
+    box.x0 = map_x * EDITOR_SQUARE_X;
+    box.z0 = map_z * EDITOR_SQUARE_Z;
+    box.x1 = box.x0 + EDITOR_SQUARE_X - 1;
+    box.z1 = box.z0 + EDITOR_SQUARE_Z - 1;
+    box.levels = (1u << EDITOR_SQUARE_LEVELS) - 1u;
+    box.origin_x = box.x0;
+    box.origin_z = box.z0;
+    box.origin_level = 0;
+    return stamps_capture_square(doc, map_x, map_z, &box, stamp);
 }
 
 /* ---- capture ---------------------------------------------------------------- */
@@ -135,34 +330,22 @@ Editor_StampCaptureSelection(
                 (void)Editor_StampAdd(stamp, &piece);
             }
     }
-    /* The spawns standing in it: the edited files' rows (a generated row
-     * is the generator's, and a suppression hides one rather than being
-     * one). */
-    for( int s = 0; with_spawns && s < doc->spawn_count; s++ )
+    /* The spawns standing in it, whichever file makes each: a house's npcs
+     * are generated rows as often as edited ones, and the stamp that left
+     * them behind placed an empty house (2026-11-09). */
+    if( with_spawns )
     {
-        const struct Editor_SpawnDoc* spawn = doc->spawns[s];
-        if( !spawn->loaded )
-            continue;
-        for( int l = 0; l < spawn->file.line_count; l++ )
-        {
-            const struct Editor_SpawnLine* line = &spawn->file.lines[l];
-            struct Editor_StampPiece piece;
-            if( line->kind != EDITOR_SPAWN_LINE_ROW || line->row.suppress )
-                continue;
-            if( line->row.abs_x < x0 || line->row.abs_x > x1 || line->row.abs_z < z0 || line->row.abs_z > z1
-                || line->row.level < 0 || line->row.level >= EDITOR_SQUARE_LEVELS
-                || !(levels & (1u << line->row.level)) )
-                continue;
-            memset(&piece, 0, sizeof(piece));
-            piece.kind = EDITOR_STAMP_SPAWN;
-            piece.dx = line->row.abs_x - origin_x;
-            piece.dz = line->row.abs_z - origin_z;
-            piece.dlevel = line->row.level - origin_level;
-            piece.is_obj = line->row.is_obj;
-            snprintf(piece.name, sizeof(piece.name), "%s", line->row.name);
-            piece.count = line->row.count < 1 ? 1 : line->row.count;
-            (void)Editor_StampAdd(stamp, &piece);
-        }
+        struct Editor_StampSpawnBox box;
+        memset(&box, 0, sizeof(box));
+        box.x0 = x0;
+        box.z0 = z0;
+        box.x1 = x1;
+        box.z1 = z1;
+        box.levels = levels;
+        box.origin_x = origin_x;
+        box.origin_z = origin_z;
+        box.origin_level = origin_level;
+        (void)Editor_StampCaptureSpawns(doc, &box, stamp);
     }
     return stamp->count;
 }
@@ -257,6 +440,11 @@ Editor_StampDropCommands(
     struct Editor_StampDropResult* result)
 {
     static const enum Editor_StampPieceKind k_order[3] = { EDITOR_STAMP_TILE, EDITOR_STAMP_LOC, EDITOR_STAMP_SPAWN };
+    /* The landing squares' spawn files, read once each: a drop of 64 x 64
+     * tiles lands in four squares at most, and a wider stamp reuses the
+     * slots in turn. */
+    struct StampsSquareSpawns landing[4];
+    int landing_next = 0;
     struct Editor_LocOpResult place;
     int count = 0;
 
@@ -267,6 +455,7 @@ Editor_StampDropCommands(
     assert(level >= 0);
     assert(level < EDITOR_SQUARE_LEVELS);
 
+    memset(landing, 0, sizeof(landing));
     memset(result, 0, sizeof(*result));
     /* Tiles first, so a loc's replace and a spawn land on the new ground in
      * the history as they will in the world. */
@@ -324,6 +513,7 @@ Editor_StampDropCommands(
             }
             else
             {
+                struct StampsSquareSpawns* files = NULL;
                 struct Editor_SpawnRow row;
                 memset(&row, 0, sizeof(row));
                 row.is_obj = p->is_obj;
@@ -331,12 +521,31 @@ Editor_StampDropCommands(
                 row.abs_x = wx;
                 row.abs_z = wz;
                 row.level = wl;
-                row.count = p->count;
+                row.count = p->count < 1 ? 1 : p->count;
+                for( int s = 0; s < 4 && !files; s++ )
+                    if( landing[s].used && landing[s].map_x == square->map_x && landing[s].map_z == square->map_z )
+                        files = &landing[s];
+                if( !files )
+                {
+                    files = &landing[landing_next];
+                    landing_next = (landing_next + 1) % 4;
+                    if( files->used )
+                        stamps_square_spawns_free(files);
+                    stamps_square_spawns_load(doc, square->map_x, square->map_z, files);
+                }
+                /* Read before anything applies, so two equal pieces of one
+                 * stamp (two goblins on a tile) both land; the same stamp
+                 * a second time finds them standing. */
+                if( stamps_spawn_stands(files, &row) )
+                    continue;
                 Editor_SpawnCommand(&out[count], &row, 1);
                 count++;
                 result->spawns++;
             }
         }
+    for( int s = 0; s < 4; s++ )
+        if( landing[s].used )
+            stamps_square_spawns_free(&landing[s]);
     return count;
 }
 
@@ -559,8 +768,109 @@ static struct Editor_Stamp g_armed;
 static int g_armed_valid;
 static int g_armed_pick_kind;
 static int g_armed_pick_id;
-/** The unnamed stamp: the rectangle's locs. */
+/** The unnamed stamp: the rectangle's locs, and the spawns standing in it
+ *  (apart, so a paste can leave them out). */
 static struct Editor_Stamp g_clip;
+static struct Editor_Stamp g_clip_spawns;
+/** A square copy's spawns, between its capture and its drop. */
+static struct Editor_Stamp g_square_spawns;
+
+/** Square (map_x, map_z)'s three spawn documents into this window's mirror:
+ *  the edited `.spawn` a drop writes, and the two read-only ones. A square
+ *  with no such file opens as an empty document, once. */
+static void
+stamps_square_docs(
+    struct EditorUi* ui,
+    int map_x,
+    int map_z)
+{
+    char key[EDITOR_DOC_KEY_MAX];
+
+    Editor_SquareKey(key, map_x, map_z);
+    (void)edp_ensure_doc(ui, EDITOR_DOC_SPAWN, key);
+    Editor_SpawnGeneratedKey(key, map_x, map_z);
+    (void)edp_ensure_doc(ui, EDITOR_DOC_TEXT, key);
+    Editor_SpawnScriptedKey(key, map_x, map_z);
+    (void)edp_ensure_doc(ui, EDITOR_DOC_TEXT, key);
+}
+
+void
+edp_square_spawn_docs(
+    struct EditorUi* ui,
+    int map_x,
+    int map_z)
+{
+    assert(ui);
+    assert(map_x >= 0);
+    assert(map_z >= 0);
+    if( !ui->editor )
+        return;
+    stamps_square_docs(ui, map_x, map_z);
+}
+
+void
+edp_stamp_spawn_docs(
+    struct EditorUi* ui,
+    int x0,
+    int z0,
+    int x1,
+    int z1)
+{
+    assert(ui);
+    if( !ui->editor )
+        return;
+    /* By index and by value: opening a document may grow the mirror's
+     * tables, never the square array, and a square's coordinates are all
+     * this reads. */
+    for( int i = 0; i < ui->editor->doc.square_count; i++ )
+    {
+        int const map_x = ui->editor->doc.squares[i].map_x;
+        int const map_z = ui->editor->doc.squares[i].map_z;
+        if( !ui->editor->doc.squares[i].loaded || !stamps_square_touches(map_x, map_z, x0, z0, x1, z1) )
+            continue;
+        stamps_square_docs(ui, map_x, map_z);
+    }
+}
+
+/** The spawn documents of the squares `stamp`'s spawn pieces land in, with
+ *  its origin at (world_x, world_z). */
+static void
+stamps_landing_docs(
+    struct EditorUi* ui,
+    const struct Editor_Stamp* stamp,
+    int world_x,
+    int world_z)
+{
+    int x0 = 0;
+    int z0 = 0;
+    int x1 = -1;
+    int z1 = -1;
+
+    for( int i = 0; i < stamp->count; i++ )
+    {
+        const struct Editor_StampPiece* p = &stamp->pieces[i];
+        if( p->kind != EDITOR_STAMP_SPAWN )
+            continue;
+        if( x1 < x0 )
+        {
+            x0 = p->dx;
+            x1 = p->dx;
+            z0 = p->dz;
+            z1 = p->dz;
+        }
+        if( p->dx < x0 )
+            x0 = p->dx;
+        if( p->dx > x1 )
+            x1 = p->dx;
+        if( p->dz < z0 )
+            z0 = p->dz;
+        if( p->dz > z1 )
+            z1 = p->dz;
+    }
+    if( x1 < x0 )
+        return;
+    edp_stamp_spawn_docs(ui, world_x + x0, world_z + z0, world_x + x1, world_z + z1);
+}
 
 static int
 stamps_need_selection(
@@ -860,6 +1170,10 @@ edp_stamp_save_selection(
     Editor_StampInit(&stamp);
     snprintf(stamp.name, sizeof(stamp.name), "%s", name);
     stamps_sizes(ui, sizes);
+    /* The spawn documents of the squares the selection stands in, so the
+     * capture reads the generated and the quests' rows too. */
+    for( int i = 0; with_spawns && i < ui->tools.loc_count; i++ )
+        stamps_square_docs(ui, ui->tools.locs[i].map_x, ui->tools.locs[i].map_z);
     if( Editor_StampCaptureSelection(
             &ui->editor->doc, ui->tools.locs, ui->tools.loc_count, sizes, with_tiles, with_spawns, &stamp)
         == 0 )
@@ -1042,15 +1356,10 @@ edp_stamp_drop(
         return 0;
     if( !ui->editor )
         return 0;
-    /* Every spawn piece's document open before the stroke asks for it. */
-    for( int i = 0; i < stamp->count; i++ )
-        if( stamp->pieces[i].kind == EDITOR_STAMP_SPAWN && world_x + stamp->pieces[i].dx >= 0
-            && world_z + stamp->pieces[i].dz >= 0 )
-        {
-            char key[EDITOR_DOC_KEY_MAX];
-            Editor_SpawnDocKeyAt(key, world_x + stamp->pieces[i].dx, world_z + stamp->pieces[i].dz);
-            (void)edp_ensure_doc(ui, EDITOR_DOC_SPAWN, key);
-        }
+    /* Every spawn piece's documents open before the drop reads them and the
+     * stroke asks for them (a piece landing in a square that is not open is
+     * left out by the drop, so only the open ones' are needed). */
+    stamps_landing_docs(ui, stamp, world_x, world_z);
     count = Editor_StampDropCommands(&ui->editor->doc, stamp, world_x, world_z, level, commands, capacity,
         &g_drop_result);
     if( count == 0 )
@@ -1065,6 +1374,8 @@ edp_stamp_drop(
     applied = edp_apply(ui, commands, count, "place stamp");
     if( applied > 0 )
     {
+        /* The stamp's spawns are shown with the locs it placed. */
+        edp_spawns_note_added(ui, commands, count);
         stamps_select(ui, g_drop_result.refs, g_drop_result.ref_count);
         if( g_drop_result.skipped > 0 )
             Editor_UiStatus(ui, "Placed stamp %s (%d locs, %d tiles, %d spawns); %d pieces left out: %d,%d L%d is not open",
@@ -1080,13 +1391,36 @@ edp_stamp_drop(
 int
 edp_stamp_clip_copy(
     struct EditorUi* ui,
-    const struct Editor_TileRect* rect)
+    const struct Editor_TileRect* rect,
+    int with_spawns)
 {
+    struct Editor_TileRect r;
+    int locs;
+
     assert(ui);
     assert(rect);
+    /* A copy replaces the whole clipboard: spawns of the last one never
+     * ride along with this one's tiles. */
+    Editor_StampClear(&g_clip_spawns);
     if( !ui->editor )
         return 0;
-    return Editor_StampCaptureRect(&ui->editor->doc, rect, &g_clip);
+    locs = Editor_StampCaptureRect(&ui->editor->doc, rect, &g_clip);
+    if( with_spawns && Editor_TileRectNormalise(rect, &r) && r.level >= 0 && r.level < EDITOR_SQUARE_LEVELS )
+    {
+        struct Editor_StampSpawnBox box;
+        memset(&box, 0, sizeof(box));
+        box.x0 = r.x0;
+        box.z0 = r.z0;
+        box.x1 = r.x1;
+        box.z1 = r.z1;
+        box.levels = 1u << r.level;
+        box.origin_x = r.x0;
+        box.origin_z = r.z0;
+        box.origin_level = r.level;
+        edp_stamp_spawn_docs(ui, r.x0, r.z0, r.x1, r.z1);
+        (void)Editor_StampCaptureSpawns(&ui->editor->doc, &box, &g_clip_spawns);
+    }
+    return locs;
 }
 
 int
@@ -1106,9 +1440,67 @@ edp_stamp_clip_paste(
 }
 
 int
+edp_stamp_clip_paste_spawns(
+    struct EditorUi* ui,
+    int world_x,
+    int world_z,
+    int level,
+    struct Editor_Cmd* out,
+    int max)
+{
+    assert(ui);
+    assert(out || max == 0);
+    if( !ui->editor || g_clip_spawns.count == 0 || max <= 0 )
+        return 0;
+    stamps_landing_docs(ui, &g_clip_spawns, world_x, world_z);
+    return Editor_StampDropCommands(&ui->editor->doc, &g_clip_spawns, world_x, world_z, level, out, max,
+        &g_drop_result);
+}
+
+int
 edp_stamp_clip_locs(void)
 {
     return g_clip.count;
+}
+
+int
+edp_stamp_clip_spawns(void)
+{
+    return g_clip_spawns.count;
+}
+
+int
+edp_square_spawn_commands(
+    struct EditorUi* ui,
+    int from_map_x,
+    int from_map_z,
+    int to_map_x,
+    int to_map_z,
+    struct Editor_Cmd* out,
+    int max,
+    int* out_rows)
+{
+    int rows;
+
+    assert(ui);
+    assert(out || max == 0);
+    assert(from_map_x >= 0);
+    assert(from_map_z >= 0);
+    assert(to_map_x >= 0);
+    assert(to_map_z >= 0);
+    if( out_rows )
+        *out_rows = 0;
+    if( !ui->editor || max <= 0 )
+        return 0;
+    stamps_square_docs(ui, from_map_x, from_map_z);
+    rows = Editor_StampCaptureSquareSpawns(&ui->editor->doc, from_map_x, from_map_z, &g_square_spawns);
+    if( out_rows )
+        *out_rows = rows;
+    if( rows == 0 )
+        return 0;
+    stamps_square_docs(ui, to_map_x, to_map_z);
+    return Editor_StampDropCommands(&ui->editor->doc, &g_square_spawns, to_map_x * EDITOR_SQUARE_X,
+        to_map_z * EDITOR_SQUARE_Z, 0, out, max, &g_drop_result);
 }
 
 void
@@ -1116,5 +1508,7 @@ edp_stamps_free(void)
 {
     Editor_StampFree(&g_armed);
     Editor_StampFree(&g_clip);
+    Editor_StampFree(&g_clip_spawns);
+    Editor_StampFree(&g_square_spawns);
     g_armed_valid = 0;
 }

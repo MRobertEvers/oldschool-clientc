@@ -3191,6 +3191,10 @@ emit_debug_overlay_node(
     desc.debug_font_id[TORIRS_CHROME_FONT_SMALL] = overlay->font_id_small;
     desc.debug_font_id[TORIRS_CHROME_FONT_MENU] = overlay->font_id_menu;
     desc.debug_font_id[TORIRS_CHROME_FONT_BODY] = overlay->font_id_body;
+    /* The UI faces: -1 where the host registered none, and a text prim in
+     * such a slot is then not drawn (torirs_frame.c). */
+    for( int slot = TORIRS_CHROME_FONT_GAME_COUNT; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+        desc.debug_font_id[slot] = overlay->font_id_ui[slot - TORIRS_CHROME_FONT_GAME_COUNT];
     desc.debug_skin_scene_id = overlay->skin_scene_id;
     for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
         desc.debug_skin_atlas[i] = overlay->skin_atlas[i];

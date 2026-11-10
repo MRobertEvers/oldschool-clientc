@@ -224,18 +224,9 @@ test_workspace_defaults(void)
     frame();
     frame();
     /* Workbench 6.6 part 1 built Problems: two of the design's are left. */
-    CHECK(skipped == 2 + !Editor_UiFindPanel(&g_ui, "shop") + !Editor_UiFindPanel(&g_ui, "quest"),
-        "Script skips the two panels this tree lacks (%d)", skipped);
-    {
-        /* The Shop builder and the Quest board are Script's (workbench 6.7);
-         * they register only with an editor session. */
-        int const shop = Editor_UiFindPanel(&g_ui, "shop") != NULL;
-        int const quest = Editor_UiFindPanel(&g_ui, "quest") != NULL;
-        char line[128];
-        snprintf(line, sizeof(line), "workspace Script: no vars, %s%sdialogue_preview panel",
-            shop ? "" : "shop, ", quest ? "" : "quest, ");
-        CHECK(console_says(line, 4), "the console names what was skipped (%s)", line);
-    }
+    CHECK(skipped == 2, "Script skips the two panels this tree lacks (%d)", skipped);
+    CHECK(console_says("workspace Script: no vars, dialogue_preview panel", 4),
+        "the console names what was skipped");
     /* The Record panel shows only once a record is open (its own rule,
      * edpanel_catalog.c record_tick): with none, the workspace's show of it
      * is withdrawn on its next tick. */
@@ -247,11 +238,14 @@ test_workspace_defaults(void)
         "Record, Triggers and the Loc builder are this harness's");
     CHECK(!open_now("terrain") && !open_now("squares"), "Terrain's panels are put away");
     CHECK(g_chrome.panels[window_of("triggers")].visible
-              && g_chrome.panels[window_of("triggers")].last_rect.x >= g_ui.dock_x
-              && g_chrome.panels[window_of("locbuilder")].last_rect.x >= g_ui.dock_x,
-        "Triggers and the Loc builder dock in the column (%d, %d; dock %d)",
-        g_chrome.panels[window_of("triggers")].last_rect.x, g_chrome.panels[window_of("locbuilder")].last_rect.x,
+              && g_chrome.panels[window_of("triggers")].last_rect.x >= g_ui.dock_x,
+        "Triggers docks in the column (%d; dock %d)", g_chrome.panels[window_of("triggers")].last_rect.x,
         g_ui.dock_x);
+    /* Scripts are written in the owner's editor: the workspace opens no
+     * builder (they are on the View menu). */
+    CHECK(!open_now("locbuilder"), "Script opens no builder: the Loc builder stays on the View menu");
+    if( Editor_UiFindPanel(&g_ui, "npcbuilder") )
+        CHECK(!open_now("npcbuilder"), "nor the NPC editor");
     dock_check("Script");
 
     skipped = Editor_UiSetWorkspace(&g_ui, EDITOR_UI_WS_PLAYTEST);

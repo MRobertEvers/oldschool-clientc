@@ -36,6 +36,17 @@ Editor_MenuBar_Register(struct EditorUi* ui);
 void
 Editor_StatusBar_Register(struct EditorUi* ui);
 
+/** How the last RUN ended, as the Live panel said it in the console and the
+ *  status bar when its FACT_RUN_DONE landed: one sentence ("RUN stopped: the
+ *  packs build failed: fenwick.rs2:7: unknown variable '%'"), and through
+ *  `out_kind` an enum Editor_LiveRunOutcome (editor/live/live_client.h). ""
+ *  and EDITOR_LIVE_RUN_NONE before any RUN ended, or in a window with no
+ *  Live panel. The status bar keeps it showing. editor/live/live_panel.c */
+const char*
+Editor_Live_RunOutcome(
+    struct EditorUi* ui,
+    int* out_kind);
+
 /** The vertical TOOLBAR of tool icons. "toolrail" */
 void
 Editor_ToolRail_Register(struct EditorUi* ui);
@@ -463,6 +474,15 @@ Editor_Catalog_EditPick(struct EditorUi* ui);
 int
 Editor_Catalog_CopyPick(struct EditorUi* ui);
 
+/** Copy the pick to `new_name`, the text of the caller's OWN "New name"
+ *  field (the Preview's sits over its Copy to new chip: the Catalog's field
+ *  is rows away from it, usually scrolled out of sight). 1 when the copy was
+ *  made; 0 with the reason in the status bar. */
+int
+Editor_Catalog_CopyPickAs(
+    struct EditorUi* ui,
+    const char* new_name);
+
 /** The loc pick's placeable shapes: its resident config's, else the
  *  catalog's summary fields'. 0 for no loc pick. */
 uint32_t
@@ -510,12 +530,6 @@ struct Editor_CatalogModel;
 const struct Editor_CatalogModel*
 Editor_Catalog_Model(struct EditorUi* ui);
 
-/** The catalog follows a selected loc: kind Locs, pick = that loc. */
-void
-Editor_Catalog_Adopt(
-    struct EditorUi* ui,
-    int loc_id);
-
 /** Ask the picker to refetch the atlas (after a DOC_CREATE that this window
  *  made, before the broadcast lands). */
 void
@@ -558,6 +572,14 @@ Editor_Locs_PlaceSpawn(
     int world_x,
     int world_z,
     int level);
+
+/** "Swap to catalog pick" as the Locs panel's button does it: edp_locs_swap
+ *  with every way it can change nothing said in the status bar (a pick this
+ *  editor has not loaded, a pick the selection already is, nothing left to
+ *  swap) and the count when it did. Returns the edits the authority took.
+ *  edpanel_locs.c */
+int
+Editor_Locs_Swap(struct EditorUi* ui);
 
 /** The session's undo groups, newest first, click to undo / redo to one;
  *  filter by document key. "history" */
@@ -866,7 +888,7 @@ typedef void (*Editor_ProblemOpenFn)(
 
 struct Editor_ProblemRow
 {
-    /** Who said it: a build's name ("check", "cs2 compile", "packs"), or the
+    /** Who said it: a build's name ("check", "packs", "client cache"), or the
      *  pushing panel's ("record", "shop", "quest:<id>",
      *  "npcbuilder:<npc>"). */
     char source[EDITOR_PROBLEM_SOURCE_MAX];
@@ -961,14 +983,13 @@ Editor_Problems_Activate(
 
 /** One build line read as a row: `<file>:<line>: [error: |warning: |note: ]
  *  <message>` (sscompile's, with or without its "sscompile: " prefix),
- *  `FAIL <name>: <why>` (cs2: file "scripts/<name>.cs2"), `error: ...` /
- *  `warning: ...`. 0 for a line that is none of those. */
+ *  `error: ...` / `warning: ...`. 0 for a line that is none of those. */
 int
 Editor_ProblemsParseLine(
     const char* line,
     struct Editor_ProblemRow* out);
 
-/** A BUILD job a panel sent (Check, CS2 compile): what it was, and once
+/** A BUILD job a panel sent (Check): what it was, and once
  *  Editor_BuildJobPoll answers 1, how it ended. */
 struct Editor_BuildJob
 {
@@ -1383,6 +1404,36 @@ Editor_Triggers_OpenInEditor(
     struct EditorUi* ui,
     const char* rel_path,
     int line);
+
+/* The reveal button's caption on this OS, and what its sentences call the
+ * file manager. Decided at compile time, as the command line is
+ * (editor_open_cmd.h Editor_RevealCommandDefault): a panel that shows a
+ * file's button uses these, so every panel's button reads the same. */
+#if defined(_WIN32)
+#define EDITOR_REVEAL_CAPTION "Show in Explorer"
+#define EDITOR_REVEAL_APP "Explorer"
+#elif defined(__APPLE__)
+#define EDITOR_REVEAL_CAPTION "Show in Finder"
+#define EDITOR_REVEAL_APP "Finder"
+#else
+#define EDITOR_REVEAL_CAPTION "Open folder"
+#define EDITOR_REVEAL_APP "the file manager"
+#endif
+
+/**
+ * Show `content_path` -- relative to the content root: "configs/all.npc",
+ * "server/scripts/edited/x/scripts/x.rs2", a folder -- in the desktop's file
+ * manager (Editor_HostLocalRevealInFileManager): a file selected in its
+ * folder, a folder opened, and for a path that is not on disk yet its
+ * nearest folder that is. Says which in the status bar and logs the command
+ * line to the Console, as Open in editor does. The Triggers panel holds the
+ * content root (Editor_Triggers_SetPaths), so the window must have one.
+ * Returns 1 when the file manager was started; 0 with the reason said.
+ */
+int
+Editor_Triggers_Reveal(
+    struct EditorUi* ui,
+    const char* content_path);
 
 /** Re-read the shown files from disk and ask the catalog again; a document
  *  of one of them open here whose text differs from the disk is marked

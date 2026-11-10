@@ -63,6 +63,12 @@ edp_apply(
         Editor_StrokeEnd(ui->editor);
     if( applied < count )
         Editor_UiLog(ui, "editor: %s: the authority refused %d of %d edits", what, count - applied, count);
+    /* A spawn PLACED (the Place click in the world, the Spawns panel's
+     * Place, the builders: all submit as "place spawn") is shown in the
+     * world (S1, 2026-11-09). By the action's name, so an edit form's move,
+     * which is also a delete and an add, is not taken for a placement. */
+    if( applied > 0 && strcmp(what, "place spawn") == 0 )
+        edp_spawns_note_added(ui, commands, count);
     return applied;
 }
 
@@ -82,6 +88,73 @@ edp_ensure_doc(
     if( Editor_DocFind(&ui->editor->doc, kind, key, &handle) && Editor_DocHandleLoaded(&handle) )
         return 1;
     return Editor_OpenDoc(ui->editor, kind, key);
+}
+
+void
+edp_spawns_note_added(
+    struct EditorUi* ui,
+    const struct Editor_Cmd* commands,
+    int count)
+{
+    assert(ui);
+    assert(commands || count == 0);
+    /* Counted here and read by the Spawns panel's tick, so this file names
+     * no panel (it links into harnesses that hold none). */
+    for( int i = 0; i < count; i++ )
+        if( commands[i].kind == EDITOR_CMD_SPAWN && commands[i].has_after && !commands[i].has_before )
+        {
+            if( commands[i].u.spawn.is_obj )
+                ui->spawns_added_obj++;
+            else
+                ui->spawns_added_npc++;
+        }
+}
+
+/* ---- the tile grid ---------------------------------------------------------- */
+
+void
+edp_tile_grid_set(
+    struct EditorUi* ui,
+    enum Editor_TileGridMode mode)
+{
+    assert(ui);
+    assert(mode >= EDITOR_TILE_GRID_AUTO);
+    assert(mode < EDITOR_TILE_GRID_MODE_COUNT);
+    if( ui->tile_grid == (int)mode )
+        return;
+    ui->tile_grid = (int)mode;
+    if( mode == EDITOR_TILE_GRID_ON )
+        Editor_UiStatus(ui, "Tile grid on: tiles round the pointer, each open square's border, the arrow points north");
+    else if( mode == EDITOR_TILE_GRID_OFF )
+        Editor_UiStatus(ui, "Tile grid off");
+    else
+        Editor_UiStatus(ui, "Tile grid automatic: shown on a square until it holds its first loc");
+    if( ui->app_services.request_redraw )
+        ui->app_services.request_redraw(ui->app_services.user_data);
+}
+
+enum Editor_TileGridMode
+edp_tile_grid_cycle(struct EditorUi* ui)
+{
+    enum Editor_TileGridMode next;
+
+    assert(ui);
+    next = (enum Editor_TileGridMode)((ui->tile_grid + 1) % EDITOR_TILE_GRID_MODE_COUNT);
+    edp_tile_grid_set(ui, next);
+    return next;
+}
+
+int
+edp_tile_grid_shows(
+    const struct EditorUi* ui,
+    int loc_count)
+{
+    assert(ui);
+    if( ui->tile_grid == EDITOR_TILE_GRID_ON )
+        return 1;
+    if( ui->tile_grid == EDITOR_TILE_GRID_OFF )
+        return 0;
+    return loc_count == 0;
 }
 
 /* ---- the active level ------------------------------------------------------ */
@@ -292,6 +365,13 @@ edp_button_chord(
     edp_chord_pair(ui, action, key, (int)sizeof(key), all, (int)sizeof(all));
     ToriRSChrome_ButtonSetChord(ui->chrome, widget, key);
     ToriRSChrome_SetTooltipChord(ui->chrome, widget, all);
+    /* A button that wears a keycap takes its row. In the label column's
+     * width the cap left three letters of the caption: "Ch... [Ctrl+Shift+B]"
+     * for Check, "Re..." for Redo, "Ma..." for Mark area, "Auto-la..." -- on
+     * every one of the editor's keycapped buttons that had not been widened
+     * by hand (2026-11-09). An unbound action keeps the button's own width. */
+    if( key[0] )
+        ToriRSChrome_ButtonSetFill(ui->chrome, widget, 1);
 }
 
 void

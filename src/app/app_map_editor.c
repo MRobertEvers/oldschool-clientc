@@ -121,6 +121,18 @@ static struct
     int open;
     int64_t last_ms;
 } g_app_height_wheel;
+/* A Height drag in progress: the History's command count at its press, and
+ * whether the grid stood at the ground under the pointer then. A drag that
+ * ends having changed no tile while it did is the brush's first-use trap
+ * (T9, 2026-11-09): the grid STARTS at the ground, so pulling the ground to
+ * it does nothing, and only a status-bar token named Ctrl+wheel. The release
+ * says what to do, once a drag. */
+static struct
+{
+    int armed;
+    int applied_before;
+    int grid_at_ground;
+} g_app_height_drag;
 static int
 app_map_editor_gizmo_press(
     struct App* app,
@@ -596,8 +608,12 @@ ui_service_world_busy(void* user_data)
 {
     struct App* app = user_data;
     assert(app);
+    /* The camera move an open still owes (sq_goto_pending) is part of the
+     * open: a caller that waits for "not busy" to put the camera somewhere
+     * of its own (a scene's Enter, a placed scratch square's view) would
+     * otherwise be overwritten by it a frame later (2026-11-09). */
     return app->world_load_inflight || app->editor_panel.sq_open_pending || app->editor_panel.sq_set_count > 0
-           || app->editor_panel.sq_close_pending;
+           || app->editor_panel.sq_close_pending || app->editor_panel.sq_goto_pending;
 }
 
 static void
@@ -2839,6 +2855,13 @@ app_map_editor_drag(
             ui->tools.stroke_open = 0;
             Editor_StrokeEnd(app->editor);
             panel->stroke_active = 0;
+            /* A Height drag that moved nothing because the grid is where the
+             * ground is: say how to move the grid, once for the drag. */
+            if( g_app_height_drag.armed && g_app_height_drag.grid_at_ground
+                && Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor)) == g_app_height_drag.applied_before )
+                Editor_UiStatus(ui,
+                    "Height: the grid is at the ground. Ctrl+wheel lifts or lowers it, then drag pulls the ground to it.");
+            g_app_height_drag.armed = 0;
         }
     }
     if( panel->rect_dragging )
@@ -3242,6 +3265,13 @@ app_map_editor_world_click(
             panel->stroke_active = 1;
             panel->stroke_last_x = hx;
             panel->stroke_last_z = hz;
+            g_app_height_drag.armed = tool == EDITOR_TOOL_HEIGHT;
+            if( g_app_height_drag.armed )
+            {
+                int const ground = app_world_height(app, hx * 128 + 64, hz * 128 + 64, level);
+                g_app_height_drag.applied_before = Editor_HistoryAppliedCommands(Editor_GetHistory(app->editor));
+                g_app_height_drag.grid_at_ground = !ui->tools.height_valid || ui->tools.height_target == ground;
+            }
             Editor_PanelApplyToolAt(panel, app, hx, hz, level);
             app->need_redraw = 1;
             return;
@@ -6172,6 +6202,11 @@ app_map_editor_preview_update(struct App* app)
         subject_kind = cat_kind;
         subject_id = preview_id;
         EditorPreviewCamera_Invalidate(&app->preview_camera, false);
+        /* The well empties with the subject: until 2026-11-09 it kept the
+         * previous record's picture until the new one's model had loaded,
+         * which for a record this client's cache lacks is never ("npc
+         * fenwick" over a picture of a crate). */
+        ToriRSChrome_ModelViewSet(&app->dbg_ui, cat_view, 0);
     }
     /* A key moved the camera: re-render the same pick. Taking the render is
      * also what resets the framing for a NEW one, so the two cannot disagree

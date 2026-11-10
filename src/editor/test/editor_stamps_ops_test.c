@@ -12,7 +12,12 @@
  *             their turned tiles, the 2x1 table on the tiles it covered); its
  *             undo puts the square's .jl2 and .jm2 back byte for byte
  *   paste     the marquee's Ctrl+C / Ctrl+V: the tile commands exactly the
- *             tile paste's, the rectangle's locs after them, one step
+ *             tile paste's, the rectangle's locs after them, one step; the
+ *             spawns standing in the rectangle (an edited row, a generated
+ *             npc and a generated ground item; not a suppressed one, not one
+ *             on another level or outside) pasted as edited rows in the same
+ *             step, not stood twice by a second paste, left out with "with
+ *             spawns" off
  *   level     Ctrl+PgUp / PgDn: the selection a level, each loc keeping its
  *             tile; refused (no level 4, a taken key) with a status sentence
  *             and no history row
@@ -118,6 +123,21 @@ static const char k_jl2[] = "==== LOC ====\n"
                             "1 10 10: 1903 22\n"
                             "1 11 10: 1904 0\n"
                             "0 12 11: 2097 10\n";
+/* Spawns around local (30,30)..(31,31), clear of every loc above: the edited
+ * file's own npc and its suppression of a generated rat; the generated
+ * file's goblin, that rat, an npc a level up, one outside, and a ground
+ * item. */
+static const char k_spawn_edited[] = "==== NPC ====\n"
+                                     "hans                                          3230  3230 0\n"
+                                     "-rat                                          3231  3230 0\n";
+static const char k_spawn_generated[] = "==== NPC ====\n"
+                                        "goblin                                        3231  3231 0\n"
+                                        "rat                                           3231  3230 0\n"
+                                        "man                                           3230  3231 1\n"
+                                        "cow                                           3240  3240 0\n"
+                                        "\n"
+                                        "==== OBJ ====\n"
+                                        "knife                                         3230  3231 0 1\n";
 
 static void
 write_text(
@@ -183,6 +203,15 @@ write_fixture(const char* root)
     make_dir(root, "maps");
     make_dir(root, "pack");
     make_dir(root, "editor");
+    make_dir(root, "server");
+    make_dir(root, "server/scripts");
+    make_dir(root, "server/scripts/areas");
+    make_dir(root, "server/scripts/areas/edited");
+    make_dir(root, "server/scripts/areas/edited/configs");
+    make_dir(root, "server/scripts/areas/world");
+    make_dir(root, "server/scripts/areas/world/configs");
+    write_text(root, "server/scripts/areas/edited/configs/m50_50.spawn", k_spawn_edited);
+    write_text(root, "server/scripts/areas/world/configs/m50_50.spawn", k_spawn_generated);
     write_text(root, "configs/all.loc", "[test_wall]\nname=Wall\n\n[test_table]\nname=Table\n");
     write_text(root, "configs/all.loc.compack", "1902=test_wall\n2097=test_table\n");
     write_text(root, "maps/m50_50.jm2", k_jm2);
@@ -459,6 +488,76 @@ test_paste_carries_locs(void)
     }
     free(before_jl2);
     free(before_jm2);
+    g_ui.tools.rect.valid = 0;
+}
+
+/** Whether the mirror's edited spawn file of the test square holds the row. */
+static int
+edited_spawn_at(
+    const char* name,
+    int is_obj,
+    int x,
+    int z,
+    int level)
+{
+    struct Editor_DocHandle handle;
+    struct Editor_SpawnRow row;
+
+    if( !Editor_DocFind(&g_editor.doc, EDITOR_DOC_SPAWN, "m50_50", &handle) || !handle.spawn->loaded )
+        return 0;
+    memset(&row, 0, sizeof(row));
+    row.is_obj = is_obj;
+    snprintf(row.name, sizeof(row.name), "%s", name);
+    row.abs_x = BASE_X + x;
+    row.abs_z = BASE_Z + z;
+    row.level = level;
+    row.count = 1;
+    return Editor_SpawnFind(&handle.spawn->file, &row) >= 0;
+}
+
+static void
+test_paste_carries_spawns(void)
+{
+    struct Editor_TileRect rect = { 1, BASE_X + 30, BASE_Z + 30, BASE_X + 31, BASE_Z + 31, 0 };
+    int g0;
+
+    g_ui.tools.rect = rect;
+    CHECK(edp_rect_with_spawns(), "\"with spawns\" is on until unticked");
+    CHECK(edp_rect_copy(&g_ui) == 4, "Ctrl+C copies the 2x2 tiles");
+    CHECK(edp_stamp_clip_locs() == 0, "no loc stands there (%d)", edp_stamp_clip_locs());
+    CHECK(edp_stamp_clip_spawns() == 3,
+        "and its three live spawns on that level: the edited npc, the generated npc and ground item (%d)",
+        edp_stamp_clip_spawns());
+    CHECK(strstr(status(), "Copied 2x2 tiles, 0 locs, 3 spawns") != NULL, "the status bar counts them (%s)", status());
+
+    g0 = groups();
+    CHECK(edp_rect_paste_at(&g_ui, BASE_X + 50, BASE_Z + 50, 0) >= 3, "Ctrl+V pastes them");
+    CHECK(groups() == g0 + 1, "tiles and spawns in ONE undo step (%d -> %d)", g0, groups());
+    CHECK(edited_spawn_at("hans", 0, 50, 50, 0), "the edited npc at the same offset from the corner");
+    CHECK(edited_spawn_at("goblin", 0, 51, 51, 0), "the generated npc, now an EDITED row of the square it landed in");
+    CHECK(edited_spawn_at("knife", 1, 50, 51, 0), "the ground item too");
+    CHECK(!edited_spawn_at("rat", 0, 51, 50, 0), "a suppressed spawn is not live and is not carried");
+    CHECK(!edited_spawn_at("man", 0, 50, 51, 1) && !edited_spawn_at("man", 0, 50, 51, 0),
+        "nor one standing on another level");
+    CHECK(strstr(status(), "3 spawns") != NULL && strstr(status(), "at 3250,3250") != NULL,
+        "the status bar says how many and where (%s)", status());
+
+    g0 = groups();
+    CHECK(edp_rect_paste_at(&g_ui, BASE_X + 50, BASE_Z + 50, 0) == 0, "the same paste again changes nothing");
+    CHECK(groups() == g0, "no second npc on each tile, and no history row");
+    CHECK(strstr(status(), "already there") != NULL, "said in the status bar (%s)", status());
+
+    Editor_Undo(&g_editor);
+    CHECK(!edited_spawn_at("hans", 0, 50, 50, 0) && !edited_spawn_at("goblin", 0, 51, 51, 0)
+              && !edited_spawn_at("knife", 1, 50, 51, 0),
+        "one undo takes the pasted spawns back with the tiles");
+    CHECK(edited_spawn_at("hans", 0, 30, 30, 0), "the original stays where it was");
+
+    /* Off: the copy holds none, and says so. */
+    edp_rect_set_with_spawns(0);
+    CHECK(edp_rect_copy(&g_ui) == 4 && edp_stamp_clip_spawns() == 0, "with the box off Ctrl+C leaves the spawns");
+    CHECK(strstr(status(), "spawns stay behind") != NULL, "and says so (%s)", status());
+    edp_rect_set_with_spawns(1);
     g_ui.tools.rect.valid = 0;
 }
 
@@ -746,6 +845,7 @@ main(
 
     test_stamp_save_turn_drop(root);
     test_paste_carries_locs();
+    test_paste_carries_spawns();
     test_level_move();
     test_gizmo_actions();
     test_panels();

@@ -355,7 +355,7 @@ own keys, not the table's).
 | Text rendering: the smooth vector face at every scale | unbound | G |
 | Workspace: Build (placing locs and spawns; the default) | Ctrl+1 | G |
 | Workspace: Terrain (heights, colours, shapes, flags) | Ctrl+2 | G |
-| Workspace: Script (records, triggers, builders) | Ctrl+3 | G |
+| Workspace: Script (records, triggers, problems) | Ctrl+3 | G |
 | Workspace: Playtest (RUN, live, accounts) | Ctrl+4 | G |
 | Command palette (actions, panels, squares, records, accounts) | Ctrl+K, Alt+Space (Option+Space on a Mac) | G |
 | Go to tile... (the palette prefilled with coordinates) | Ctrl+Shift+G | G |
@@ -363,7 +363,7 @@ own keys, not the table's).
 | World layer NPCs on/off (reserved) | Alt+N | G |
 | World layer Objs on/off (reserved) | Alt+O | G |
 | World layer Collision on/off (reserved) | Alt+C | G |
-| World layer Grid on/off (reserved) | Alt+G | G |
+| The ground tile grid and the open squares' borders: automatic, on, off | Alt+G | G |
 
 The five layer toggles are the World HUD's (design section 4), which this
 tree does not have yet: the chords are claimed so nothing else takes them,
@@ -432,8 +432,8 @@ browser; rebind them there.
 A list of every action: its name, its group and context (dimmed), chord 1 and
 chord 2 as two keycap cells ("-" for an empty slot), and the gesture (the
 trackpad or touch gesture that does the same, from the table's gesture
-spelling). The summary above it reads "161 actions, 2 rebound, 0 conflicts
-(161 shown)". A search box filters by any column; under it, a **Group** and a
+spelling). The summary above it reads "181 actions, 2 rebound, 0 conflicts
+(181 shown)". A search box filters by any column; under it, a **Group** and a
 **Context** dropdown, and the **changed** (only what differs from the
 defaults) and **conflicts** (only clashing rows) chips, a lit chip's x
 turning it off. **Sort** chips order the list by group (the tables' order),
@@ -452,7 +452,11 @@ The file holds only what differs from the table above, one action per line
 under `[hotkeys]`: `<action> = <chord>[, <chord>]`, or `<action> =` for
 unbound. A line naming an unknown action, an unparsable chord or more than two
 chords is skipped and named in the console (`editor: editor_hotkeys.ini: line
-N: ...`); the rest of the file still applies. The ids, in the order of the
+N: ...`); the rest of the file still applies. The two View actions that
+opened the interface editor and the CS2 panel went with those panels on
+2026-11-09: a file that still binds them gets that "unknown action" line for
+each and loses nothing else, and the lines are gone the next time the file is
+written. The ids, in the order of the
 tables (the Hotkeys panel calls them by the name after the id):
 
 - **File**: `file.new` New square..., `file.save_all` Save all, `file.save_as` Save square as new..., `file.bake` Bake cache (slow), `file.close` Close editor, `file.check_scripts` Check scripts, `file.run` Run (save, build, reload), `file.publish` Publish..., `file.save_scene` Save scene, `file.scratch_lane` Scratch lane, `file.open_squares` Open squares...
@@ -465,7 +469,7 @@ tables (the Hotkeys panel calls them by the name after the id):
 - **Camera**: `camera.forward` Fly forward, `camera.back` Fly back, `camera.left` Fly left, `camera.right` Fly right, `camera.down` Fly down, `camera.up` Fly up, `camera.fast` Fly faster, `camera.turn_left` Turn left, `camera.turn_right` Turn right, `camera.tilt_up` Tilt up, `camera.tilt_down` Tilt down, `camera.frame` Frame the selection, `camera.frame_square` Frame the square's centre, `camera.frame_key` Frame the selection (Unity scheme), `camera.scheme` Camera scheme: default / Unity (toggle), `camera.pan` Pan (hold, then drag)
 - **Picker**: `picker.north` Focus north, `picker.south` Focus south, `picker.west` Focus west, `picker.east` Focus east, `picker.open` Open the focused square, `picker.add` Add the focused square, `picker.back` Previous open square, `picker.clear_find` Clear Find
 - **Graph**: `graph.auto_layout` Auto-layout the graph, `graph.new_node` New node
-- **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.spawn_preview` Show spawns in the world (toggle), `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.gallery` Gallery, `view.catalog_palette` Catalog palette, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC editor, `view.shelleditor` Shell editor, `view.iface` Interface editor, `view.cs2` CS2, `view.live` Live, `view.accounts` Accounts, `view.triggers` Triggers, `view.scenes` Scenes, `view.encounter` Encounters, `view.shop` Shop builder, `view.quest` Quest board, `view.problems` Problems, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.compact` Compact panels, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel, `view.scale_auto` Chrome scale Auto, `view.scale_100` Chrome scale 100 %, `view.scale_125` Chrome scale 125 %, `view.scale_150` Chrome scale 150 %, `view.scale_175` Chrome scale 175 %, `view.scale_200` Chrome scale 200 %, `view.scale_250` Chrome scale 250 %, `view.scale_300` Chrome scale 300 %, `view.text_normal` Text size Normal, `view.text_large` Text size Large, `view.text_bitmap` Text rendering bitmap, `view.text_smooth` Text rendering smooth, `view.workspace_build` Workspace Build, `view.workspace_terrain` Workspace Terrain, `view.workspace_script` Workspace Script, `view.workspace_playtest` Workspace Playtest, `view.command_palette` Command palette, `view.goto_tile` Go to tile..., `view.layer_locs` Layer Locs (reserved), `view.layer_npcs` Layer NPCs (reserved), `view.layer_objs` Layer Objs (reserved), `view.layer_collision` Layer Collision (reserved), `view.layer_grid` Layer Grid (reserved)
+- **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.spawn_preview` Show spawns in the world (toggle), `view.inspector` Inspector, `view.catalog` Catalog, `view.preview` Preview, `view.gallery` Gallery, `view.catalog_palette` Catalog palette, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC editor, `view.shelleditor` Shell editor, `view.live` Live, `view.accounts` Accounts, `view.triggers` Triggers, `view.scenes` Scenes, `view.encounter` Encounters, `view.shop` Shop builder, `view.quest` Quest board, `view.problems` Problems, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid, `view.compact` Compact panels, `view.snap_hold` Snap while dragging (hold), `view.popout` Pop out panel, `view.close_panel` Close panel, `view.scale_auto` Chrome scale Auto, `view.scale_100` Chrome scale 100 %, `view.scale_125` Chrome scale 125 %, `view.scale_150` Chrome scale 150 %, `view.scale_175` Chrome scale 175 %, `view.scale_200` Chrome scale 200 %, `view.scale_250` Chrome scale 250 %, `view.scale_300` Chrome scale 300 %, `view.text_normal` Text size Normal, `view.text_large` Text size Large, `view.text_bitmap` Text rendering bitmap, `view.text_smooth` Text rendering smooth, `view.workspace_build` Workspace Build, `view.workspace_terrain` Workspace Terrain, `view.workspace_script` Workspace Script, `view.workspace_playtest` Workspace Playtest, `view.command_palette` Command palette, `view.goto_tile` Go to tile..., `view.layer_locs` Layer Locs (reserved), `view.layer_npcs` Layer NPCs (reserved), `view.layer_objs` Layer Objs (reserved), `view.layer_collision` Layer Collision (reserved), `view.layer_grid` Tile grid (auto / on / off)
 
 Example:
 

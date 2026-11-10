@@ -844,6 +844,28 @@ void
 PlatformWindow_Present(struct PlatformWindow* platform);
 
 /**
+ * Ask for a picture of the PRESENTED frame -- the game area as the window
+ * shows it: the frame placed, scaled, filtered and letterboxed -- written to
+ * `path` as a 32-bit BMP. The agent server's `shot` verb (docs/AGENT_API.md);
+ * TORIRS_EXIT_BMP and App_WriteBmp cannot give this, they re-render the
+ * canvas before anything is placed.
+ *
+ * A REQUEST: the file exists by the end of the window's next present, and may
+ * exist already when this returns (the Win32 window keeps its latest frame
+ * and writes at once). One request is held at a time; a second before the
+ * first was served replaces it. Re-armable for the life of the window.
+ *
+ * @return false, with the reason on stderr, when this window cannot capture
+ * what it presents: an SDL window presenting through OpenGL (the frame is the
+ * GL renderer's, read back by App_RequestScreenshot instead), or a window
+ * with no client area. Android does not implement it.
+ */
+bool
+PlatformWindow_RequestCapture(
+    struct PlatformWindow* platform,
+    char const* path);
+
+/**
  * Is there somewhere to put a frame right now?
  *
  * False while the platform has no surface for the game -- Android takes the

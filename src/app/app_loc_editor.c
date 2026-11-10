@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "platform/platform_clipboard.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static void
@@ -519,6 +520,88 @@ app_chrome_route_input(
     app_chrome_route_keys(app, ui, input);
 }
 
+/**
+ * Is the chrome's focus on something that TYPES -- a text field, or a code
+ * view? Then a Ctrl+letter is a chord aimed at it and never a character, and
+ * the keys of the frame are its and not a panel's shortcuts.
+ */
+static int
+app_chrome_focus_types(struct ToriRSChrome const* ui)
+{
+    assert(ui);
+    if( ToriRSChrome_InputFocused(ui) >= 0 )
+        return 1;
+    return ui->focus >= 0 && ui->widgets[ui->focus].kind == TORIRS_CHROME_W_CODE;
+}
+
+/**
+ * The clipboard chords of a focused chrome text field (2026-11-09: a field
+ * had no way in or out but the keyboard, and was cleared one Backspace a
+ * character):
+ *
+ *   Ctrl+A   select the whole content (a double-click in a one-line field
+ *            does the same, inside the chrome);
+ *   Ctrl+C   the whole content to the OS clipboard, selected or not -- the
+ *            only selection there is is "all of it";
+ *   Ctrl+X   with the content selected, to the clipboard and out of the field;
+ *   Ctrl+V   the OS clipboard's text in at the caret, over the content when
+ *            it is selected (the chrome cuts it at the field's capacity and
+ *            turns line breaks into spaces: ToriRSChrome_InputInsertText).
+ *
+ * Here and not in the chrome because the chrome reaches nothing outside the C
+ * library: the clipboard is the platform's. Ctrl is Command on a Mac, the way
+ * the platform reports it for every other chord. With Alt held as well it is
+ * not a chord -- AltGr is Ctrl+Alt, and it types.
+ *
+ * @return 1 when a chord ran (the frame's input is the chrome's).
+ */
+static int
+app_chrome_clipboard_chords(
+    struct ToriRSChrome* ui,
+    struct LibToriRS_Input* input)
+{
+    int const field = ToriRSChrome_InputFocused(ui);
+
+    if( field < 0 )
+        return 0;
+    if( !LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) || LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT) )
+        return 0;
+
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_A) )
+    {
+        (void)ToriRSChrome_InputSelectAll(ui);
+        return 1;
+    }
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_C) )
+    {
+        /* 0 back is a machine with no clipboard to take it; the field is
+         * unchanged either way, so there is nothing to undo or to say. */
+        (void)PlatformClipboard_SetText(ToriRSChrome_Text(ui, field));
+        return 1;
+    }
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_X) )
+    {
+        /* Cut what is selected: with nothing selected there is nothing to
+         * cut, and the field keeps its content. Only once the clipboard has
+         * it -- a cut that loses the text is worse than one that does not
+         * cut. */
+        if( ToriRSChrome_InputAllSelected(ui) && PlatformClipboard_SetText(ToriRSChrome_Text(ui, field)) )
+            (void)ToriRSChrome_KeyEdit(ui, TORIRS_CHROME_KEY_DELETE);
+        return 1;
+    }
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_V) )
+    {
+        /* Room for a field's worth of text with its line ends and a lead of
+         * things the field will not take; the chrome cuts what does not fit. */
+        char text[TORIRS_CHROME_INPUT_MAX * 4];
+
+        if( PlatformClipboard_GetText(text, sizeof(text)) > 0 )
+            (void)ToriRSChrome_InputInsertText(ui, text);
+        return 1;
+    }
+    return 0;
+}
+
 /*
  * The keyboard half of the routing above, on its own because a browser-backed
  * presentation needs exactly this half: pointer intents arrive through the
@@ -541,9 +624,20 @@ app_chrome_route_keys(
     struct ToriRSChrome* ui,
     struct LibToriRS_Input* input)
 {
+    int chord;
+
     assert(app);
     assert(ui);
     assert(input);
+
+    if( app_chrome_clipboard_chords(ui, input) )
+        app->input_frame_consumed = 1;
+    /* Ctrl (without Alt) held over something that types: the letters of this
+     * frame are chords, not characters. Windows never sends the character of
+     * a Ctrl+letter; other platforms may, and Ctrl+V must not paste and then
+     * type a "v" after it. */
+    chord = LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) && !LibToriRS_Input_IsKeyHeld(input, TORIRSK_ALT)
+            && app_chrome_focus_types(ui);
 
     for( int i = 0; i < input->key_event_count; i++ )
     {
@@ -551,7 +645,7 @@ app_chrome_route_keys(
         int consumed = 0;
 
         if( ev->key_pressed >= 32 && ev->key_pressed < 127 )
-            consumed = ToriRSChrome_KeyChar(ui, ev->key_pressed);
+            consumed = chord ? 1 : ToriRSChrome_KeyChar(ui, ev->key_pressed);
         else
         {
             int const edit = app_dbgui_key_edit_from_osrs(ev->key_typed);
@@ -569,9 +663,23 @@ app_loc_editor_tick(
     struct LibToriRS_Input* input)
 {
     int activated;
+    int popup_was_open;
+    int field_had_keys;
 
     assert(app);
     assert(input);
+
+    /* A dropdown list, a menu or a colour popup up as this frame's keys
+     * arrive: its Escape is the chrome's, which closes the popup with it
+     * (ToriRSChrome_KeyEdit) -- and by the time the loc editor's own Escape is
+     * read below the popup is already gone, so it is remembered here. One
+     * press closes the menu; the next one closes the panel. */
+    popup_was_open = app->dbg_ui.dropdown_open >= 0 || app->dbg_ui.colorpick_open >= 0;
+    /* Likewise a chrome field that is being typed in as the keys arrive: they
+     * are its -- Ctrl+A selects its content, Escape leaves it -- and the loc
+     * editor's shortcuts on the same keys (Ctrl+A nudges, Escape closes the
+     * panel) wait for a frame in which no field has the keyboard. */
+    field_had_keys = app_chrome_focus_types(&app->dbg_ui) || app_chrome_focus_types(&app->plugin_ui);
 
     /* Same suppression as the developer overlay toggle: a chat line has focus
      * must not also flip debug chrome. */
@@ -751,6 +859,12 @@ app_loc_editor_tick(
         {
             /* The map editor's keys are its hotkey table's (app_editor_hotkeys.c). */
         }
+        else if( field_had_keys || app_chrome_focus_types(&app->dbg_ui) || app_chrome_focus_types(&app->plugin_ui) )
+        {
+            /* A chrome field holds the keyboard (or did when this frame's
+             * keys arrived): the letters, Backspace, Space and the Ctrl
+             * chords are text and clipboard there, not loc shortcuts. */
+        }
         else if( input->key_held[TORIRSK_CTRL] && LibToriRS_Input_IsKeyDown(input, TORIRSK_D) )
             app_loc_editor_nudge(app, 1, 0);
         else if( input->key_held[TORIRSK_CTRL] && LibToriRS_Input_IsKeyDown(input, TORIRSK_A) )
@@ -765,7 +879,7 @@ app_loc_editor_tick(
             app_loc_editor_reselect(app);
         else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_BACKSPACE) )
             app_loc_editor_deselect(app);
-        else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_ESCAPE) )
+        else if( !popup_was_open && LibToriRS_Input_IsKeyDown(input, TORIRSK_ESCAPE) )
         {
             app->locedit.visible = 0;
             ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->locedit.panel, 0);

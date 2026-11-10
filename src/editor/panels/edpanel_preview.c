@@ -10,7 +10,9 @@
  *              before (the old rule looked at the selection only until the
  *              first pick, then never again); with no selection the pick.
  *              A multiloc pick shows the rung the Catalog's variant dropdown
- *              (the Shell editor's readout) chose.
+ *              (the Shell editor's readout) chose. The row and the well are
+ *              one record: a new subject empties the well until the App has
+ *              drawn it, and the row then ends ": no model loaded".
  *   Well       the MODELVIEW, filling the body: the panel's width, and every
  *              pixel of its height the other two rows leave when the layout or
  *              a resize gave the panel one. The App renders the subject into
@@ -36,8 +38,9 @@
  *              (editor/favourites.txt), Palette (the pick into the Catalog
  *              palette's first free slot), Record (the Record panel),
  *              Triggers, Find in world (every placement in the open squares
- *              selected), Copy to new (to the Catalog's New name). A refusal
- *              says why in the status bar.
+ *              selected), Copy to new (to the New name field over the
+ *              chips; with none typed the caret goes there). A refusal says
+ *              why in the status bar.
  *
  * It follows the SHARED pick, so a popped-out Preview (its own process, solo
  * layout) shows what the main window's Catalog picks: the Catalog publishes
@@ -112,11 +115,15 @@ struct PreviewPanel
      *  as keycaps: two lines of chips, not seven rows of buttons, so the
      *  pane stays the height a column gives it. */
     struct Edp_ChipStrip action_strip;
+    /** The name the Copy to new chip under it copies the pick to. */
+    int input_new_name;
 
-    /** The subject the row last named (kind, id, the pick's name). */
+    /** The subject the row last named (kind, id, the pick's name), and
+     *  whether the well held a picture of it then. */
     int shown_kind;
     int shown_id;
     char shown_name[64];
+    int shown_pictured;
 
     /* The auto-open rule. */
     int was_visible;
@@ -191,13 +198,24 @@ Editor_Preview_AutoOpens(struct EditorUi* ui)
     return self ? self->auto_opens : 0;
 }
 
-/** The subject row, rewritten only when the subject changed. */
+/**
+ * The subject row, rewritten only when the subject or its picture changed.
+ *
+ * The row and the well are always the same record. The App renders the
+ * subject into the well when its config and models have loaded, and until
+ * then it used to leave the LAST subject's picture there -- for a record
+ * this client's cache does not hold (an npc made today, before RUN) for
+ * good: the row read "npc fenwick (27407)" over a crate (2026-11-09). So a
+ * new subject empties the well and asks for its render, and a row with no
+ * picture under it says so.
+ */
 static void
 preview_subject_row(
     struct EditorUi* ui,
     struct PreviewPanel* self)
 {
     char line[TORIRS_CHROME_LABEL_MAX];
+    char name[TORIRS_CHROME_LABEL_MAX];
     int kind;
     int id;
     int const has = Editor_Preview_Subject(ui, &kind, &id);
@@ -205,31 +223,51 @@ preview_subject_row(
                           && id == ui->tools.locs[0].loc_id
                           && !(ui->tools.tool == EDITOR_TOOL_LOC_PLACE && ui->tools.pick_id >= 0);
     int const picked = ui->tools.pick_kind >= 0 && ui->tools.pick_id >= 0 && !selection;
+    int pictured;
 
-    if( kind == self->shown_kind && id == self->shown_id && strcmp(self->shown_name, ui->tools.pick_name) == 0 )
+    if( kind != self->shown_kind || id != self->shown_id )
+    {
+        ToriRSChrome_ModelViewSet(ui->chrome, self->view, 0);
+        /* The App may have drawn this subject earlier in the frame: asking
+         * again costs one render and cannot leave the well empty. */
+        if( ui->app_services.preview_invalidate )
+            ui->app_services.preview_invalidate(ui->app_services.user_data);
+    }
+    pictured = ui->chrome->widgets[self->view].view_scene_id != 0;
+    if( kind == self->shown_kind && id == self->shown_id && pictured == self->shown_pictured
+        && strcmp(self->shown_name, ui->tools.pick_name) == 0 )
         return;
     self->shown_kind = kind;
     self->shown_id = id;
+    self->shown_pictured = pictured;
     snprintf(self->shown_name, sizeof(self->shown_name), "%s", ui->tools.pick_name);
 
     if( !has && picked )
-        snprintf(line, sizeof(line), "%s %s: nothing at this value", ToriRSMapEdCatalog_KindName((uint32_t)kind),
+        snprintf(name, sizeof(name), "%s %s: nothing at this value", ToriRSMapEdCatalog_KindName((uint32_t)kind),
             ui->tools.pick_name);
     else if( !has )
-        snprintf(line, sizeof(line), "pick a loc, npc or obj in the Catalog");
+        snprintf(name, sizeof(name), "pick a loc, npc or obj in the Catalog");
     else if( picked && id != ui->tools.pick_id )
-        snprintf(line, sizeof(line), "loc %d, a rung of %s", id, ui->tools.pick_name);
+        snprintf(name, sizeof(name), "loc %d, a rung of %s", id, ui->tools.pick_name);
     else if( picked )
-        snprintf(line, sizeof(line), "%s %s", ToriRSMapEdCatalog_KindName((uint32_t)kind), ui->tools.pick_name);
+        snprintf(name, sizeof(name), "%s %s", ToriRSMapEdCatalog_KindName((uint32_t)kind), ui->tools.pick_name);
     else
     {
         const struct EditorUiAppServices* services = &ui->app_services;
         struct ToriRS_Location* cfg = services->loc_record ? services->loc_record(services->user_data, id) : NULL;
         if( cfg && cfg->name[0] )
-            snprintf(line, sizeof(line), "selected loc %s (%d)", cfg->name, id);
+            snprintf(name, sizeof(name), "selected loc %s (%d)", cfg->name, id);
         else
-            snprintf(line, sizeof(line), "selected loc %d", id);
+            snprintf(name, sizeof(name), "selected loc %d", id);
     }
+    /* An empty well under a named subject: still loading, or a record this
+     * client's cache does not hold (a new one, until RUN has built it). Said
+     * only where an App renders the well: a window with none draws nothing
+     * for any subject. */
+    if( has && !pictured && ui->app_services.preview_invalidate )
+        snprintf(line, sizeof(line), "%.44s: no model loaded", name);
+    else
+        snprintf(line, sizeof(line), "%s", name);
     ToriRSChrome_SetText(ui->chrome, self->row_subject, line);
 }
 
@@ -413,7 +451,7 @@ preview_pose_rows(
         preview_chord(ui, EDITOR_HK_VIEW_TRIGGERS, chord, sizeof(chord));
         edp_chips_set_chord(&self->action_strip, at, chord);
         (void)edp_chips_push(&self->action_strip, "Find in world", "select every placement in the open squares", 0, 0);
-        (void)edp_chips_push(&self->action_strip, "Copy to new...", "copy the pick to the Catalog's New name", 0, 0);
+        (void)edp_chips_push(&self->action_strip, "Copy to new", "copy the pick to the New name above, fresh id", 0, 0);
         edp_chips_end(ui, &self->action_strip);
         edp_chips_hover(ui, &self->action_strip);
     }
@@ -423,6 +461,7 @@ preview_pose_rows(
 static void
 preview_action(
     struct EditorUi* ui,
+    struct PreviewPanel* self,
     int action)
 {
     int const picked = ui->tools.pick_kind >= 0 && ui->tools.pick_id >= 0;
@@ -457,8 +496,21 @@ preview_action(
         (void)Editor_Catalog_FindInWorld(ui);
         break;
     case PREVIEW_ACTION_COPY:
-        (void)Editor_Catalog_CopyPick(ui);
+    {
+        /* The name is this panel's own field, directly over the chip: it
+         * used to be the Catalog's, at the foot of another panel, and the
+         * chip refused after the click (2026-11-09). With none typed the
+         * caret goes to the field. */
+        const char* new_name = ToriRSChrome_Text(ui->chrome, self->input_new_name);
+        if( !new_name || !new_name[0] )
+        {
+            (void)ToriRSChrome_FocusWidget(ui->chrome, self->input_new_name, 0);
+            Editor_UiStatus(ui, "Type the new record's name, then Copy to new");
+        }
+        else if( Editor_Catalog_CopyPickAs(ui, new_name) )
+            ToriRSChrome_SetText(ui->chrome, self->input_new_name, "");
         break;
+    }
     default:
         break;
     }
@@ -478,7 +530,7 @@ preview_pose_press(
     {
         int const index = edp_chips_key_of(&self->action_strip, event->key, &on_x);
         if( index >= 0 )
-            preview_action(ui, index);
+            preview_action(ui, self, index);
         return;
     }
     if( event->widget == self->shape_strip.graph )
@@ -627,8 +679,9 @@ preview_activate(
             ui->app_services.preview_invalidate(ui->app_services.user_data);
         return 1;
     }
-    /* A click on the well focuses it (the orbit keys); nothing else to do. */
-    return widget == self->view;
+    /* A click on the well focuses it (the orbit keys); Enter in New name
+     * commits the text, and the Copy to new chip is what copies. */
+    return widget == self->view || widget == self->input_new_name;
 }
 
 /** Whole steps out of a q8 accumulator, the rest kept. */
@@ -728,6 +781,10 @@ Editor_Preview_Register(struct EditorUi* ui)
     edp_chips_init(ui, &self->shape_strip, self->panel, 2);
     edp_chips_init(ui, &self->rotation_strip, self->panel, 1);
     self->row_facts = ToriRSChrome_Label(chrome, self->panel, "");
+    /* The name Copy to new copies to, directly over the chips it is one
+     * of. */
+    self->input_new_name = ToriRSChrome_TextInput(chrome, self->panel, "New name", "");
+    ToriRSChrome_SetTooltip(chrome, self->input_new_name, "for Copy to new: the copy's record name, a-z 0-9 _");
     /* The pick's actions. */
     edp_chips_init(ui, &self->action_strip, self->panel, 2);
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);

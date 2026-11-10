@@ -8,8 +8,11 @@
 
 #include "app/app_internal.h"
 #include "editor/editor_doc.h"
+#include "editor/editor_view.h"
 #include "editor/loc_editor_selection.h"
+#include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanels.h"
+#include "engine/world_builder/edit/world_edit.h"
 
 /**
  * Directions sampled around a projected mesh when reducing it to a hull.
@@ -2260,6 +2263,210 @@ app_overlay_build_editor_void_grid(struct App* app)
     }
 }
 
+/* The tile grid (EditorUi::tile_grid, edp_tile_grid_shows): the tiles within
+ * this many of the pointer's, one segment a tile edge so the lines bend with
+ * the ground like the Height brush's footprint does (13 x 13 tiles is 364
+ * segments, well inside OVERLAY_STAGE_WORLD_MAX); a line on a multiple of 8
+ * is a zone's edge and drawn brighter. A square's border in runs of
+ * APP_EDITOR_VOID_GRID_RUN tiles, 64 segments a square. */
+#define APP_EDITOR_TILE_GRID_RADIUS 6
+#define APP_EDITOR_TILE_GRID_COLOR 0xFF6C7A86u
+#define APP_EDITOR_TILE_GRID_ZONE_COLOR 0xFFA0B4C4u
+#define APP_EDITOR_TILE_GRID_BORDER_COLOR 0xFFE8F0F8u
+#define APP_EDITOR_TILE_GRID_NORTH_COLOR 0xFFFFD060u
+
+/** Whether the grid is drawn on `square`: its mode says so, and the square
+ *  is in this window's world. The mirror keeps every square it ever opened,
+ *  and one the world no longer shows can still fall inside the scene's box,
+ *  where a border would stand on nothing. */
+static int
+app_overlay_tile_grid_on(
+    struct App* app,
+    struct EditorUi const* ui,
+    struct Editor_Square const* square)
+{
+    if( !square->loaded || !edp_tile_grid_shows(ui, square->loc_count) )
+        return 0;
+    if( app->world_builder && WorldBuilder_GetLayout(app->world_builder) == WORLD_BUILDER_LAYOUT_EDIT )
+        return WorldEdit_SquareInWindow(app->world_builder, square->map_x, square->map_z);
+    return 1;
+}
+
+/** The open square holding scene tile (sx, sz) when the grid shows on it,
+ *  else NULL. */
+static struct Editor_Square const*
+app_overlay_tile_grid_square(
+    struct App* app,
+    struct EditorUi const* ui,
+    int sx,
+    int sz)
+{
+    struct Editor_Square const* square;
+    int const wx = app->world->_base_tile_x + sx;
+    int const wz = app->world->_base_tile_z + sz;
+
+    if( sx < 0 || sz < 0 || sx >= app->world->_scene_size || sz >= app->world->_scene_size || wx < 0 || wz < 0 )
+        return NULL;
+    square = Editor_DocFindSquare(&app->editor->doc, wx / EDITOR_SQUARE_X, wz / EDITOR_SQUARE_Z);
+    if( !square || !app_overlay_tile_grid_on(app, ui, square) )
+        return NULL;
+    return square;
+}
+
+/** A ground segment between two scene tile corners, the far ones pulled a
+ *  fine unit inside the scene: the last tile's far corner is the scene's
+ *  edge, where there is no height to read. */
+static void
+app_overlay_tile_grid_segment(
+    struct App* app,
+    int cx0,
+    int cz0,
+    int cx1,
+    int cz1,
+    int level,
+    uint32_t color,
+    int width)
+{
+    int const limit = app->world->_scene_size * 128 - 1;
+    int fx0 = cx0 * 128;
+    int fz0 = cz0 * 128;
+    int fx1 = cx1 * 128;
+    int fz1 = cz1 * 128;
+
+    if( fx0 < 0 || fz0 < 0 || fx1 < 0 || fz1 < 0 || fx0 > limit + 1 || fz0 > limit + 1 || fx1 > limit + 1
+        || fz1 > limit + 1 )
+        return;
+    if( fx0 > limit )
+        fx0 = limit;
+    if( fz0 > limit )
+        fz0 = limit;
+    if( fx1 > limit )
+        fx1 = limit;
+    if( fz1 > limit )
+        fz1 = limit;
+    app_overlay_editor_ground_segment(app, fx0, fz0, fx1, fz1, level, color, width);
+}
+
+/**
+ * The tile grid and the open squares' borders (design: N1, 2026-11-09). A
+ * new flat square is one green plane to the horizon; this is what says where
+ * a tile is, where the square ends and which way north is:
+ *
+ *   the grid     every edge of the tiles within APP_EDITOR_TILE_GRID_RADIUS
+ *                of the hovered tile -- of the tile the camera looks at
+ *                while the pointer is off the world -- on the edit level,
+ *                each edge at its own ground height (the Height brush's
+ *                grid is the same lines on one flat plane); zone edges
+ *                (every 8 tiles) brighter
+ *   the border   each open square's four edges, and a chevron on its north
+ *                edge pointing north
+ *
+ * Drawn for a square while edp_tile_grid_shows says so: by default one that
+ * holds no loc yet.
+ */
+static void
+app_overlay_build_editor_tile_grid(struct App* app)
+{
+    struct EditorUi const* ui = app->editor_panel.ui;
+    struct MapEditorHover const* hover = &app->map_ghost.hover;
+    struct Editor_Doc const* doc;
+    int const r = APP_EDITOR_TILE_GRID_RADIUS;
+    int centre_x;
+    int centre_z;
+    int level;
+    int centred = 0;
+
+    if( !ui || !app->world || !app->editor || ui->tile_grid == EDITOR_TILE_GRID_OFF )
+        return;
+    doc = &app->editor->doc;
+
+    /* The borders, and north. */
+    for( int i = 0; i < doc->square_count; i++ )
+    {
+        struct Editor_Square const* square = &doc->squares[i];
+        int base_x;
+        int base_z;
+
+        if( !app_overlay_tile_grid_on(app, ui, square) )
+            continue;
+        base_x = square->map_x * EDITOR_SQUARE_X - app->world->_base_tile_x;
+        base_z = square->map_z * EDITOR_SQUARE_Z - app->world->_base_tile_z;
+        for( int a = 0; a < EDITOR_SQUARE_X; a += APP_EDITOR_VOID_GRID_RUN )
+        {
+            int const b = a + APP_EDITOR_VOID_GRID_RUN;
+            app_overlay_tile_grid_segment(app, base_x + a, base_z, base_x + b, base_z, 0,
+                APP_EDITOR_TILE_GRID_BORDER_COLOR, APP_OVERLAY_SEGMENT_WIDTH);
+            app_overlay_tile_grid_segment(app, base_x + a, base_z + EDITOR_SQUARE_Z, base_x + b,
+                base_z + EDITOR_SQUARE_Z, 0, APP_EDITOR_TILE_GRID_BORDER_COLOR, APP_OVERLAY_SEGMENT_WIDTH);
+            app_overlay_tile_grid_segment(app, base_x, base_z + a, base_x, base_z + b, 0,
+                APP_EDITOR_TILE_GRID_BORDER_COLOR, APP_OVERLAY_SEGMENT_WIDTH);
+            app_overlay_tile_grid_segment(app, base_x + EDITOR_SQUARE_X, base_z + a, base_x + EDITOR_SQUARE_X,
+                base_z + b, 0, APP_EDITOR_TILE_GRID_BORDER_COLOR, APP_OVERLAY_SEGMENT_WIDTH);
+        }
+        /* North is +z: an arrow standing on the middle of the north edge,
+         * its head on the edge. */
+        {
+            int const mid = base_x + EDITOR_SQUARE_X / 2;
+            int const top = base_z + EDITOR_SQUARE_Z;
+            app_overlay_tile_grid_segment(app, mid, top - 6, mid, top, 0, APP_EDITOR_TILE_GRID_NORTH_COLOR,
+                APP_OVERLAY_SEGMENT_WIDTH + 1);
+            app_overlay_tile_grid_segment(app, mid - 2, top - 2, mid, top, 0, APP_EDITOR_TILE_GRID_NORTH_COLOR,
+                APP_OVERLAY_SEGMENT_WIDTH + 1);
+            app_overlay_tile_grid_segment(app, mid + 2, top - 2, mid, top, 0, APP_EDITOR_TILE_GRID_NORTH_COLOR,
+                APP_OVERLAY_SEGMENT_WIDTH + 1);
+        }
+    }
+
+    /* The grid's centre: the hovered tile, else the tile the camera looks
+     * at (the pointer is over a panel). */
+    if( hover->valid )
+    {
+        centre_x = hover->scene_x;
+        centre_z = hover->scene_z;
+        level = hover->level;
+        centred = 1;
+    }
+    else
+    {
+        struct EditorViewCamera pose;
+        level = ui->tools.edit_level < 0 ? 0 : ui->tools.edit_level;
+        centre_x = 0;
+        centre_z = 0;
+        if( EditorView_AppWorldCamera(app, level, &pose) )
+        {
+            centre_x = pose.x / 128 - app->world->_base_tile_x;
+            centre_z = pose.z / 128 - app->world->_base_tile_z;
+            centred = 1;
+        }
+    }
+    if( !centred || level < 0 || level >= EDITOR_SQUARE_LEVELS )
+        return;
+
+    /* Each tile's west and south edge, and the east / north edge of a tile
+     * whose neighbour that way draws none: every edge once. */
+    for( int dz = -r; dz <= r; dz++ )
+        for( int dx = -r; dx <= r; dx++ )
+        {
+            int const sx = centre_x + dx;
+            int const sz = centre_z + dz;
+            int const wx = app->world->_base_tile_x + sx;
+            int const wz = app->world->_base_tile_z + sz;
+
+            if( !app_overlay_tile_grid_square(app, ui, sx, sz) )
+                continue;
+            app_overlay_tile_grid_segment(app, sx, sz, sx, sz + 1, level,
+                wx % 8 == 0 ? APP_EDITOR_TILE_GRID_ZONE_COLOR : APP_EDITOR_TILE_GRID_COLOR, 1);
+            app_overlay_tile_grid_segment(app, sx, sz, sx + 1, sz, level,
+                wz % 8 == 0 ? APP_EDITOR_TILE_GRID_ZONE_COLOR : APP_EDITOR_TILE_GRID_COLOR, 1);
+            if( dx == r || !app_overlay_tile_grid_square(app, ui, sx + 1, sz) )
+                app_overlay_tile_grid_segment(app, sx + 1, sz, sx + 1, sz + 1, level,
+                    (wx + 1) % 8 == 0 ? APP_EDITOR_TILE_GRID_ZONE_COLOR : APP_EDITOR_TILE_GRID_COLOR, 1);
+            if( dz == r || !app_overlay_tile_grid_square(app, ui, sx, sz + 1) )
+                app_overlay_tile_grid_segment(app, sx, sz + 1, sx + 1, sz + 1, level,
+                    (wz + 1) % 8 == 0 ? APP_EDITOR_TILE_GRID_ZONE_COLOR : APP_EDITOR_TILE_GRID_COLOR, 1);
+        }
+}
+
 /* The Region tools' preview (Editor_PanelRegionPreview): every tile the
  * release (or Tidy's click) would write, in the shape the fitter chose --
  * the client's own overlay faces, so the preview cannot disagree with the
@@ -2686,6 +2893,11 @@ app_overlay_build_editor_selection(struct App* app)
     app_overlay_build_editor_areas(app);
     /* The move gizmo and the multi-piece ghost (workbench 6.3). */
     app_overlay_build_editor_gizmo(app);
+    /* The tile grid and the squares' borders. After the previews, not under
+     * them: the overlay stage drops what is pushed past its budget, and it
+     * is the grid's thin lines that may go, never a tile the next click
+     * would touch. */
+    app_overlay_build_editor_tile_grid(app);
 
     /* The Place-loc ghost's FOOTPRINT: the translucent model says what it
      * looks like, this says which tiles it will own -- the question that

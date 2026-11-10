@@ -121,6 +121,16 @@ src/plugin/torirs_plugin_drive_ui.c
 # instead: the panels take struct EditorUiAppServices (editor/editor_ui.h),
 # and the view's App glue moved to src/app/app_editor_view.c.
 src/plugin/torirs_plugin_drive_record.c
+# Added 2026-11-09 (the agent control API, docs/AGENT_API.md): the agent
+# server answers "what is on screen" and "what is the editor doing" for a
+# program driving the client from outside, so it reads the App by design --
+# the chrome model, the input bus, the editor panel, the player and the chat
+# ring -- the way the quest driver above does, through the App pointer main.c
+# hands AgentServer_Start. It writes nothing but input onto the command bus.
+src/agent/agent_server.c
+src/agent/agent_verbs_core.c
+src/agent/agent_verbs_editor.c
+src/agent/agent_verbs_game.c
 # The composition root of the App layer: construction, teardown and the
 # globals main.c shares. Everything else is a unit under src/app/.
 # Raised from 1255 by the touch-UI boot resolution and the Porcelain table

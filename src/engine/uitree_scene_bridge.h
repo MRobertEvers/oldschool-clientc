@@ -52,6 +52,15 @@ struct UITreeSceneBridge
     /** The q UITREE_SCENE_CHROME_SKIN_ID's pixels were built at, or 0 before
      *  the first EnsureChromeSkin. */
     int chrome_skin_q;
+    /** The q whose UI faces (TORIRS_CHROME_FONT_UI and up) are registered
+     *  under UITREE_SCENE_DEBUG_FONT_Q_ID, or 0 for none; dropped when the
+     *  scale moves off it. Their own key and not `chrome_faces_q`: a UI face
+     *  is drawn at every q and does not come or go with the text mode. */
+    int chrome_ui_faces_q;
+    /** The host's chrome wears a theme that names the UI faces
+     *  (UITreeSceneBridge_SetChromeUiFonts): EnsureDebugFonts registers them.
+     *  Init leaves 0: a session that never asks builds no UI atlas. */
+    int chrome_ui_fonts;
 
     /** cache_graphic_id → scene_id */
     struct HMap* sprite_map;
@@ -200,6 +209,15 @@ UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id);
 #define UITREE_SCENE_DEBUG_FONT_Q_BASE 0x40002000
 /** @param slot enum ToriRSChromeFontSlot. @param q a quarter scale, 4..12. */
 #define UITREE_SCENE_DEBUG_FONT_Q_ID(slot, q) (UITREE_SCENE_DEBUG_FONT_Q_BASE + (q) * 16 + (slot))
+/**
+ * A UI face (TORIRS_CHROME_FONT_UI and up) pinned at 1x, whatever the chrome's
+ * scale (UITreeSceneBridge_EnsureDebugFont1x). At the chrome's scale a UI
+ * face is UITREE_SCENE_DEBUG_FONT_Q_ID(slot, q) at every q -- it has no
+ * bitmap tier and so no historic 1x id -- and that entry is dropped when the
+ * scale moves; this one is the row past the last q's (q = 12 ends at
+ * 0x400020CF) and stays, as the game faces' 1x ids do.
+ */
+#define UITREE_SCENE_DEBUG_FONT_UI_1X_ID(slot) (UITREE_SCENE_DEBUG_FONT_Q_BASE + 0x100 + (slot))
 /** The baked chrome skin at the chrome's scale: one scene entry, one atlas
  *  index per skin slot, each image ToriRSChromeBake_Skin at the bridge's q
  *  at its own size. @see UITreeSceneBridge_EnsureChromeSkin. */
@@ -551,11 +569,45 @@ UITreeSceneBridge_ChromeScale(struct UITreeSceneBridge const* bridge);
  * horizontal oversampling and stem darkening, ToriDraw_Font::coverage set)
  * under UITREE_SCENE_DEBUG_FONT_Q_ID -- its advances exactly the table
  * ToriRSChrome_MeasureTextQ sums.
+ *
+ * A UI face (TORIRS_CHROME_FONT_UI and up) is the bake's atlas of its
+ * vendored outline (ToriRSChromeBake_Face) under
+ * UITREE_SCENE_DEBUG_FONT_Q_ID at EVERY q, the whole ones and either text
+ * mode included: it has no tier. Dropped when the scale moves off q.
  */
 int
 UITreeSceneBridge_EnsureDebugFont(
     struct UITreeSceneBridge* bridge,
     int font_slot);
+
+/**
+ * Say whether the host's chrome wears a theme that names the UI faces
+ * (ToriRSChrome_ThemeUsesUiFonts): 1 lets EnsureDebugFonts register them, 0
+ * (the Init default) has it answer -1 for each, so a session whose themes are
+ * the game's builds and uploads none. Turning it off drops the ones that are
+ * registered. The host re-resolves the font ids after a change, as after
+ * SetChromeScaleQ.
+ */
+void
+UITreeSceneBridge_SetChromeUiFonts(struct UITreeSceneBridge* bridge, int wanted);
+
+/**
+ * Every chrome font slot's face at the bridge's scale: `out_ids[slot]` for
+ * each of the TORIRS_CHROME_FONT_SLOT_COUNT slots (ui/uitree_debug_overlay.h;
+ * `out_ids` holds that many). A game face's is
+ * UITreeSceneBridge_EnsureDebugFont(bridge, slot), as ever. A UI face's is
+ * the same where the host said its theme uses them
+ * (UITreeSceneBridge_SetChromeUiFonts), and -1 where it did not.
+ *
+ * What a host that draws a chrome's display list hands the drawer (the emit
+ * descriptor's `debug_font_id`): a text prim names a slot, and a slot whose
+ * id is negative draws nothing. Every place that resolves the overlay's
+ * fonts asks this, so they cannot disagree about which faces exist.
+ */
+void
+UITreeSceneBridge_EnsureDebugFonts(
+    struct UITreeSceneBridge* bridge,
+    int* out_ids);
 
 /**
  * The same baked faces, pinned at 1x whatever the chrome scale is.
@@ -567,6 +619,8 @@ UITreeSceneBridge_EnsureDebugFont(
  * density), and asking it for a component's face is the giant-text bug: a 2x
  * face drawn into 1x interface coordinates, doubled a second time on the way
  * to the window.
+ *
+ * A UI face at 1x is its q = 4 atlas under UITREE_SCENE_DEBUG_FONT_UI_1X_ID.
  *
  * @return the scene font id, or -1 for an unknown slot.
  */

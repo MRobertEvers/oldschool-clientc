@@ -338,10 +338,10 @@ enum ToriRSMapEdCapability
      *  Where used tab; torirs_maped_catalog.h). A client sends CATALOG_USES
      *  only to a server with this bit. Set with TORIRSMAPED_CAP_CATALOG. */
     TORIRSMAPED_CAP_CATALOG_USES = 512,
-    /** BUILD offers TORIRSMAPED_BUILD_CHECK and TORIRSMAPED_BUILD_CS2
-     *  (workbench 6.6, torirs_maped_build.h): the Triggers panel's Check and
-     *  the interface editor's compile go to the server as jobs. Set with
-     *  TORIRSMAPED_CAP_BUILD; an older server answers either UNSUPPORTED. */
+    /** BUILD offers TORIRSMAPED_BUILD_CHECK (workbench 6.6,
+     *  torirs_maped_build.h): the Triggers panel's and the builders' Check
+     *  goes to the server as a job. Set with TORIRSMAPED_CAP_BUILD; an older
+     *  server answers it UNSUPPORTED. */
     TORIRSMAPED_CAP_BUILD_CHECK = 1024,
     /** CATALOG_SQUARES takes TORIRSMAPED_CATALOG_SQUARES_NOWAIT in its
      *  `u32 flags` body: answered EDITOR_HOST_BUSY while the warm build runs

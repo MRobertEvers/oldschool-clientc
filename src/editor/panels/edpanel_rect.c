@@ -4,10 +4,16 @@
  * dragged in the world with EDITOR_TOOL_RECT_SELECT (app_map_editor.c writes
  * tools.rect); the panel opens itself when that tool is armed. "Mark area from
  * rect" names it as an area (edpanel_areas.c).
+ *
+ * "with spawns" (on by default) is what lets an area be carried to a new map
+ * with its npcs: Copy takes the spawns standing in the rectangle beside its
+ * tiles and locs, Paste stands them again (edp_rect_copy, edpanel_actions.c).
+ * The clipboard row counts what is held.
  */
 
 #include "edpanel_common.h"
 #include "edpanel_ops.h"
+#include "edpanel_ops_stamps.h"
 #include "edpanels.h"
 #include "mem/torirs_mem.h"
 
@@ -19,6 +25,7 @@ struct RectPanel
     int panel;
     int row_rect;
     int row_clip;
+    int check_spawns;
     int button_copy;
     int button_paste;
     int button_fill;
@@ -28,6 +35,8 @@ struct RectPanel
     struct Editor_TileRect shown;
     int shown_clip_w;
     int shown_clip_h;
+    int shown_clip_locs;
+    int shown_clip_spawns;
     enum Editor_Tool shown_tool;
     /** ui->hotkeys.serial the buttons' keycaps were labelled from. */
     uint32_t chord_serial;
@@ -81,16 +90,26 @@ rect_tick(
         ToriRSChrome_SetText(ui->chrome, self->row_rect, line);
         self->shown = ui->tools.rect;
     }
+    /* The box is the clipboard's switch (Ctrl+C and Ctrl+V read it too). */
+    edp_rect_set_with_spawns(ToriRSChrome_Checked(ui->chrome, self->check_spawns));
     (void)edp_rect_clip_size(&clip_w, &clip_h);
-    if( clip_w != self->shown_clip_w || clip_h != self->shown_clip_h )
     {
-        if( clip_w > 0 )
-            snprintf(line, sizeof(line), "clipboard %dx%d", clip_w, clip_h);
-        else
-            snprintf(line, sizeof(line), "clipboard empty");
-        ToriRSChrome_SetText(ui->chrome, self->row_clip, line);
-        self->shown_clip_w = clip_w;
-        self->shown_clip_h = clip_h;
+        int const locs = clip_w > 0 ? edp_stamp_clip_locs() : 0;
+        int const spawns = clip_w > 0 ? edp_stamp_clip_spawns() : 0;
+        if( clip_w != self->shown_clip_w || clip_h != self->shown_clip_h || locs != self->shown_clip_locs
+            || spawns != self->shown_clip_spawns )
+        {
+            if( clip_w > 0 )
+                snprintf(line, sizeof(line), "clipboard %dx%d, %d loc%s, %d spawn%s", clip_w, clip_h, locs,
+                    locs == 1 ? "" : "s", spawns, spawns == 1 ? "" : "s");
+            else
+                snprintf(line, sizeof(line), "clipboard empty");
+            ToriRSChrome_SetText(ui->chrome, self->row_clip, line);
+            self->shown_clip_w = clip_w;
+            self->shown_clip_h = clip_h;
+            self->shown_clip_locs = locs;
+            self->shown_clip_spawns = spawns;
+        }
     }
 }
 
@@ -105,7 +124,16 @@ rect_activate(
     if( widget == self->button_copy )
         (void)edp_rect_copy(ui);
     else if( widget == self->button_paste )
-        (void)edp_rect_paste(ui, ui->tools.rect.x0, ui->tools.rect.z0, ui->tools.rect.level);
+    {
+        /* The button pastes at the rectangle's corner, so it needs one: with
+         * none latched its fields name no tile (the hotkey pastes at the
+         * pointer instead). */
+        struct Editor_TileRect r;
+        if( Editor_TileRectNormalise(&ui->tools.rect, &r) )
+            (void)edp_rect_paste(ui, r.x0, r.z0, r.level);
+        else
+            Editor_UiStatus(ui, "Paste refused: drag a rectangle first; the paste lands at its SW corner");
+    }
     else if( widget == self->button_fill )
         (void)edp_rect_fill(ui);
     else if( widget == self->button_clear )
@@ -163,11 +191,14 @@ Editor_RectSelect_Register(struct EditorUi* ui)
     assert(self->panel >= 0);
     self->row_rect = ToriRSChrome_Label(ui->chrome, self->panel, "");
     self->row_clip = ToriRSChrome_Label(ui->chrome, self->panel, "");
+    self->check_spawns = ToriRSChrome_Checkbox(ui->chrome, self->panel, "with spawns", edp_rect_with_spawns());
+    ToriRSChrome_SetTooltip(ui->chrome, self->check_spawns,
+        "Copy and Paste take the rectangle's npcs and ground items too");
     self->button_copy = ToriRSChrome_Button(ui->chrome, self->panel, "Copy");
     self->button_paste = ToriRSChrome_Button(ui->chrome, self->panel, "Paste");
     self->button_fill = ToriRSChrome_Button(ui->chrome, self->panel, "Fill with palette");
     self->button_clear = ToriRSChrome_Button(ui->chrome, self->panel, "Clear");
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_copy, "Copy the rectangle's tiles for Paste");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_copy, "Copy the rectangle's tiles, locs and spawns for Paste");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_fill, "Paint the rectangle with the Palette's picks");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_paste,
         "Paste at the SW corner; authored heights follow the new ground");
@@ -176,6 +207,14 @@ Editor_RectSelect_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(ui->chrome, self->button_plateau,
         "Flatten to the latched tile's height, a skirt eased around it");
     self->button_mark_area = ToriRSChrome_Button(ui->chrome, self->panel, "Mark area from rect");
+    /* Every button here wears a keycap: in the label column's width the cap
+     * left "Fill ..." and "Ma..." of the captions. They take the row. */
+    ToriRSChrome_ButtonSetFill(ui->chrome, self->button_copy, 1);
+    ToriRSChrome_ButtonSetFill(ui->chrome, self->button_paste, 1);
+    ToriRSChrome_ButtonSetFill(ui->chrome, self->button_fill, 1);
+    ToriRSChrome_ButtonSetFill(ui->chrome, self->button_clear, 1);
+    ToriRSChrome_ButtonSetFill(ui->chrome, self->button_plateau, 1);
+    ToriRSChrome_ButtonSetFill(ui->chrome, self->button_mark_area, 1);
     ToriRSChrome_SetTooltip(ui->chrome, self->button_mark_area, "Name this rectangle as an area (Areas panel)");
     rect_chords(ui, self);
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);

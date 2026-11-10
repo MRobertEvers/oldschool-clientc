@@ -101,7 +101,7 @@ static const enum Editor_HotkeyAction k_level_actions[MENUBAR_LEVEL_BUTTONS] = {
 static const char* const k_workspace_tips[EDITOR_UI_WORKSPACES] = {
     "Build: placing locs and spawns (the default layout)",
     "Terrain: heights, colours, shapes, flags",
-    "Script: records, triggers, builders",
+    "Script: records, triggers, problems",
     "Playtest: RUN, live, accounts",
 };
 
@@ -560,11 +560,18 @@ Editor_MenuBar_Register(struct EditorUi* ui)
     self->menu_file = ToriRSChrome_MenuDrop(ui->chrome, self->panel, "File", NULL, 0);
     self->menu_edit = ToriRSChrome_MenuDrop(ui->chrome, self->panel, "Edit", NULL, 0);
     self->menu_view = ToriRSChrome_MenuDrop(ui->chrome, self->panel, "View", NULL, 0);
+    /* The two words that name a group are CAPTIONS, not items: under the
+     * editor's theme the chrome draws each small and dim after a rule, so the
+     * bar reads as three groups -- the menus, the level, the workspace --
+     * instead of one row of fifteen words (2026-11-09). The spaces a caption
+     * starts with are the room that rule stands in. */
     self->label_level = ToriRSChrome_Label(ui->chrome, self->panel, "   Level");
+    ToriRSChrome_LabelSetCaption(ui->chrome, self->label_level, 1);
     for( int i = 0; i < MENUBAR_LEVEL_BUTTONS; i++ )
         self->level_buttons[i] = ToriRSChrome_MenuItem(ui->chrome, self->panel, k_level_buttons[i]);
     self->button_above = ToriRSChrome_MenuItem(ui->chrome, self->panel, "Above");
     self->label_workspace = ToriRSChrome_Label(ui->chrome, self->panel, "   Workspace");
+    ToriRSChrome_LabelSetCaption(ui->chrome, self->label_workspace, 1);
     for( int w = 0; w < EDITOR_UI_WORKSPACES; w++ )
         self->workspace_buttons[w] = ToriRSChrome_MenuItem(ui->chrome, self->panel, Editor_UiWorkspaceTitle(w));
     self->shown_workspace = -1;

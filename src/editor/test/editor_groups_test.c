@@ -335,6 +335,26 @@ view_press(const char* label)
     frame();
 }
 
+/** The terrain group, asked for the way a user asks for it. It is not in the
+ *  Build column a boot shows (Editor_UiSetVisible: the column opens with the
+ *  Catalog group, the Preview and the Gallery); its View rows open it, and it
+ *  docks at the head of the column. Palette first, so Terrain ends in front,
+ *  as the group stood when it was part of the default. */
+static void
+open_terrain_group(void)
+{
+    struct EditorUiGroup* mid = group("right-mid");
+
+    CHECK(mid && !visible(mid->chrome_panel) && !visible(window_of("terrain")) && !visible(window_of("palette")),
+        "the terrain group is closed at boot");
+    view_press("Palette");
+    view_press("Terrain");
+    for( int i = 0; i < 4; i++ )
+        frame();
+    CHECK(mid && visible(mid->chrome_panel) && g_ui.docked[mid->chrome_panel - g_ui.panel_first],
+        "asked for, the terrain group docks in the column");
+}
+
 /* ---- the registry builds the default groups ------------------------------------- */
 
 static void
@@ -353,6 +373,7 @@ test_default_groups(void)
     };
 
     boot(1530, 1006, 1);
+    open_terrain_group();
     CHECK(g_ui.group_count == 3, "three default groups (%d)", g_ui.group_count);
     CHECK(g_chrome.panel_count <= TORIRS_CHROME_MAX_PANELS, "the frames fit the chrome (%d panels)",
         g_chrome.panel_count);
@@ -805,6 +826,7 @@ test_reset_groups(void)
     int palette;
 
     boot(1530, 1006, 1);
+    open_terrain_group();
     mid = group("right-mid");
     palette = window_of("palette");
 
@@ -980,6 +1002,7 @@ test_layout_file(void)
     /* A session: Spawns open behind the Catalog, Inspector closed, right-mid
      * dragged out, Palette in front of it. */
     boot(1530, 1006, 1);
+    open_terrain_group();
     top = group("right-top");
     view_press("Spawns");
     view_press("Catalog");

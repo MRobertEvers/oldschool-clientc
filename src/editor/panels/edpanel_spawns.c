@@ -54,6 +54,11 @@
  *               are listed and previewed too, marked ~; like generated rows
  *               they are not written, an edit suppresses them. The toggles
  *               persist in editor_prefs.ini.
+ *               A spawn this window adds (a Place click, this panel, a
+ *               paste, a stamp, a square copy: EditorUi::spawns_added_*)
+ *               turns the switch on, and the filters a new edited row of its
+ *               kind passes, and the status bar says so: placed with the
+ *               preview off it was a console line and nothing in the world.
  *   Pick        with the preview up, a Select click on a spawn's model or
  *               marker selects it (Shift adds, Ctrl toggles, Alt takes out) and
  *               the minimenu's "Select spawn" does the same with any tool.
@@ -720,6 +725,62 @@ spawns_hints(
     self->hint_serial = ui->hotkeys.serial;
 }
 
+/** The catalog has no record for the pick. One made by "Copy to new" in this
+ *  session is not in the index a placement reads until RUN has built it; the
+ *  old line ("no catalog record for npc 27407") named the lookup, not what
+ *  to do (S3, 2026-11-09). */
+static void
+spawns_pick_absent(
+    struct EditorUi* ui,
+    int pick_kind,
+    int pick_id)
+{
+    /* The Catalog's own name for it, once it has one ("#27407" until then). */
+    if( ui->tools.pick_name[0] && ui->tools.pick_name[0] != '#' )
+        Editor_UiStatus(ui, "Use pick refused: %.40s (%s %d) is new: RUN builds it, then it can be placed",
+            ui->tools.pick_name, pick_kind == 1 ? "npc" : "obj", pick_id);
+    else
+        Editor_UiStatus(ui, "Use pick refused: %s %d is new: RUN builds it, then it can be placed (or type its name)",
+            pick_kind == 1 ? "npc" : "obj", pick_id);
+}
+
+/** Spawns this window just added (EditorUi::spawns_added_*, counted by
+ *  edp_apply) are shown in the world: the master switch, the edited filter
+ *  and the added kinds' filters come on where they were off, and the status
+ *  bar says so with the chord that hides them again. Nothing is said when
+ *  they were on already. */
+static void
+spawns_show_added(
+    struct EditorUi* ui,
+    struct SpawnsPanel* self)
+{
+    int const npcs = ui->spawns_added_npc;
+    int const objs = ui->spawns_added_obj;
+    int const boxes[4] = { self->check_preview, self->check_view_edited, npcs ? self->check_view_npcs : -1,
+        objs ? self->check_view_objs : -1 };
+    char chords[48];
+    int turned = 0;
+
+    if( !npcs && !objs )
+        return;
+    ui->spawns_added_npc = 0;
+    ui->spawns_added_obj = 0;
+    for( int i = 0; i < 4; i++ )
+        if( boxes[i] >= 0 && !ToriRSChrome_Checked(ui->chrome, boxes[i]) )
+        {
+            ToriRSChrome_SetChecked(ui->chrome, boxes[i], 1);
+            turned = 1;
+        }
+    if( !turned )
+        return;
+    Editor_HotkeyDisplay(&ui->hotkeys, EDITOR_HK_VIEW_SPAWN_PREVIEW, chords, (int)sizeof(chords));
+    if( chords[0] )
+        Editor_UiStatus(ui, "\"Show spawns in the world\" is on now, so the spawn just placed shows; %s hides them",
+            chords);
+    else
+        Editor_UiStatus(ui, "\"Show spawns in the world\" is on now, so the spawn just placed shows (Spawns > View)");
+}
+
 /** The view toggles and their preference, each way: a preference that moved
  *  (the file landing at boot) sets the boxes, a box that moved sets the
  *  preference and has the host write it. */
@@ -774,6 +835,8 @@ spawns_tick(
 
     if( self->hint_serial != ui->hotkeys.serial )
         spawns_hints(ui, self);
+    /* Before the sync, so the boxes it turns on reach the preference. */
+    spawns_show_added(ui, self);
     spawns_view_sync(ui, self);
     spawns_env_step(ui, self);
     struct Editor_SpawnFile* edited;
@@ -998,8 +1061,8 @@ spawns_use_pick(
     if( Editor_HostMapEdCatalogRecord(&ui->editor->host, kind, ui->tools.pick_id, "", &record)
         != EDITOR_HOST_OK )
     {
-        Editor_UiLog(ui, "editor: no catalog record for %s %d", kind == TORIRSMAPED_CATALOG_NPC ? "npc" : "obj",
-            ui->tools.pick_id);
+        spawns_pick_absent(ui, ui->tools.pick_kind, ui->tools.pick_id);
+        Editor_HostCatalogRecordFree(&record);
         return;
     }
     ToriRSChrome_SetText(ui->chrome, self->input_name, record.name ? record.name : "");
@@ -1540,7 +1603,7 @@ spawns_edit_use_pick(
         ToriRSChrome_RadioSelect(ui->chrome, kind == TORIRSMAPED_CATALOG_OBJ ? self->radio_edit_obj : self->radio_edit_npc);
     }
     else
-        Editor_UiLog(ui, "editor: no catalog record for that pick");
+        spawns_pick_absent(ui, ui->tools.pick_kind, ui->tools.pick_id);
     Editor_HostCatalogRecordFree(&record);
 }
 

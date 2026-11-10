@@ -23,7 +23,8 @@
  *
  * Headless and content-free (no square is opened), so it runs where the
  * content tree is not checked out. UPDATE_GOLDEN=1 prints the digests
- * instead of comparing them.
+ * instead of comparing them; DUMP_PRIMS=1 prints the lists they are made
+ * of, to diff against another build's when one moves.
  */
 
 #include "editor/editor.h"
@@ -176,6 +177,31 @@ prims_digest(
     return h;
 }
 
+/** DUMP_PRIMS=1: the list a digest is made of, one primitive a line with
+ *  every digested field, so two builds' lists can be diffed when a golden
+ *  moves -- what moved, not only that something did. No index on the line:
+ *  an added primitive is then one line of the diff. */
+static void
+prims_dump(
+    const struct ToriRSChrome* chrome,
+    const char* what,
+    int scale)
+{
+    int count = 0;
+    const struct ToriRSChromePrim* prims = ToriRSChrome_Prims(chrome, &count);
+
+    printf("prims of scale %d %s: %d\n", scale, what, count);
+    for( int i = 0; i < count; i++ )
+    {
+        const struct ToriRSChromePrim* p = &prims[i];
+        printf("  [%d %s] kind %d box %d,%d %dx%d color %08x filled %d line %d/%d font %d baseline %d shadowed %d "
+               "sprite %d/%d trans %d clip %d,%d %dx%d text \"%s\"\n",
+            scale, what, p->kind, p->x, p->y, p->w, p->h, (unsigned)p->color, p->filled, p->line_direction,
+            p->line_width, p->font_slot, p->baseline, p->shadowed, p->sprite_slot, p->sprite_scene_id, p->trans,
+            p->clip.x, p->clip.y, p->clip.w, p->clip.h, p->text ? p->text : "");
+    }
+}
+
 /** A fixed scene of the widget kinds every panel is made of, on a titled,
  *  closable, poppable, resizable window in `theme`, the pointer over the
  *  Close box so its hover art is in the list too. */
@@ -210,13 +236,44 @@ scene_digest(
     return prims_digest(&g_chrome, out_count);
 }
 
+static int
+dump_wanted(void)
+{
+    return getenv("DUMP_PRIMS") && getenv("DUMP_PRIMS")[0] == '1';
+}
+
+/**
+ * The registry booted at `scale`: the digest of the list a Build of that
+ * state emits, and in `*out_booted` the digest of the list the boot LEFT in
+ * the chrome -- the one a renderer draws.
+ *
+ * They are one list unless the retained one went stale: Build does nothing
+ * on a frame where nothing is dirty, so the list of the last frame that built
+ * stands, and its text primitives point into the chrome's pools. Built again
+ * here with nothing changed -- one widget is marked for repaint, which is
+ * what makes Build run -- the same state must give the same list.
+ */
 static uint32_t
 registry_digest(
     int scale,
-    int* out_count)
+    int* out_count,
+    uint32_t* out_booted)
 {
+    uint32_t built;
+    int built_count = 0;
+
+    assert(out_count);
+    assert(out_booted);
     boot_registry(&g_chrome, &g_ui, NULL, 1530, 1006, scale);
-    return prims_digest(&g_chrome, out_count);
+    *out_booted = prims_digest(&g_chrome, out_count);
+    if( dump_wanted() )
+        prims_dump(&g_chrome, "registry", scale);
+    ToriRSChrome_WidgetInvalidate(&g_chrome, 0);
+    ToriRSChrome_Build(&g_chrome);
+    built = prims_digest(&g_chrome, &built_count);
+    if( dump_wanted() && built != *out_booted )
+        prims_dump(&g_chrome, "registry built again", scale);
+    return built;
 }
 
 /* Recorded at v3-workbench 64310269, before step 6.0b changed the draw path:
@@ -279,29 +336,74 @@ registry_digest(
  * the Spawns panel gained a Find box) moved the 1x registry (was
  * 38085939u), and the chrome's clip rule the same day (ec6f76523: an
  * empty clip pushes nothing, 623 prims became 601) moved it once more;
- * 2x, 3x and the scenes did not move. */
+ * 2x, 3x and the scenes did not move. (The three registry values that
+ * stood here after it -- 3107326265u, 3973481444u, 3276910591u -- were
+ * already not what the committed tree draws: dbc1b2ecc draws 2049592411u,
+ * 4140480435u and 2096316046u, 601, 407 and 241 prims.)
+ *
+ * 2026-11-09, the editor's day of deliberate changes, moved all nine. Each
+ * was read list against list, the committed tree's (dbc1b2ecc, built in a
+ * worktree) against this one's, with DUMP_PRIMS=1 in both.
+ *
+ * The six scenes (was 1970238540u, 3840548130u; 1606657634u, 3552625563u;
+ * 1621493878u, 3838641767u): the title bar's Close and Pop out where no
+ * skin art is in use. They were accent-coloured squares told apart by a
+ * notch, six prims; they are glyphs in the title's ink on a grid of cells,
+ * with a faint backing under the pointer, 27 prims (uitree_debug_overlay.c,
+ * dbg_push_flat_furniture). That one hunk is the whole difference in every
+ * scene -- 49, 52 and 56 prims became 70, 73 and 77: no text and no other
+ * box moved, the accent is the one colour that left and none joined.
+ *
+ * The registries (523, 365 and 317 prims). The Build column opens with the
+ * Catalog group, the Preview and the Gallery, and the terrain group, Squares
+ * and Areas open on demand (Editor_UiSetVisible), so every box of the
+ * column moved and those panels' rows left the lists; the Catalog's rows
+ * are Find, six kinds and "more", the count on one line, the list -- which
+ * is what fills -- and the shortcuts with "grid", Filter and Sort waiting
+ * under "more"; the Preview has a New name row and "Copy to new"; the tool
+ * rail is as tall as the space between the bars; the bottom strip is held
+ * to its own floor (EDP_STRIP_MIN_H), not the column's; a flyout is kept on
+ * the surface (at 2x the Preview ran off the bottom of it); the bars are
+ * drawn last (the chrome's layers); every window wears the title-bar glyphs
+ * above; and the console no longer opens on a "tooltip cut to 63 of 66
+ * bytes" line. The texts that left are those panels' and rows' own, the
+ * ones that joined are the Gallery's and the new rows', and the only new
+ * colours are the chips' at 3x, where the Catalog now shows.
+ *
+ * The registry values are of the list a Build of the booted state emits
+ * (registry_digest). At 1x and 3x that is the list the boot leaves; at 2x
+ * it is not, and test_golden says so in a check of its own. */
 static const uint32_t k_golden[3][3] = {
-    { 1970238540u, 3840548130u, 3107326265u },
-    { 1606657634u, 3552625563u, 3973481444u },
-    { 1621493878u, 3838641767u, 3276910591u },
+    { 3266402014u, 2103966074u, 352701982u },
+    { 4279379952u, 821327159u, 445463592u },
+    { 1299301881u, 2173031394u, 4003548988u },
 };
 
 static void
 test_golden(void)
 {
     int const update = getenv("UPDATE_GOLDEN") && getenv("UPDATE_GOLDEN")[0] == '1';
+    int const dump = dump_wanted();
 
     for( int scale = 1; scale <= 3; scale++ )
     {
         int counts[3];
         uint32_t got[3];
+        uint32_t booted = 0;
         got[0] = scene_digest(scale, &torirs_chrome_theme_default, &counts[0]);
+        if( dump )
+            prims_dump(&g_chrome, "scene (default theme)", scale);
         got[1] = scene_digest(scale, &torirs_chrome_theme_osrs, &counts[1]);
-        got[2] = registry_digest(scale, &counts[2]);
+        if( dump )
+            prims_dump(&g_chrome, "scene (osrs theme)", scale);
+        got[2] = registry_digest(scale, &counts[2], &booted);
         if( update )
         {
             printf("golden scale %d: { %uu, %uu, %uu }, (prims %d %d %d)\n", scale, got[0], got[1], got[2],
                 counts[0], counts[1], counts[2]);
+            if( booted != got[2] )
+                printf("golden scale %d: the registry list the boot leaves is another one (%uu): see test_golden\n",
+                    scale, booted);
             continue;
         }
         for( int k = 0; k < 3; k++ )
@@ -311,6 +413,31 @@ test_golden(void)
             CHECK(got[k] == k_golden[scale - 1][k], "scale %d %s draws exactly what it drew before 6.0b (%u, want %u, %d prims)",
                 scale, k_what[k], got[k], k_golden[scale - 1][k], counts[k]);
         }
+        /* The list a renderer is handed is the list a Build of the same
+         * state emits.
+         *
+         * FAILS at 2x since 2026-11-09 and is left failing: a fault in the
+         * chrome, not a golden to record again. Eleven text primitives of
+         * the list the 2x boot leaves read another chip's caption, every box
+         * where it belongs: the Catalog's kinds say "seq spotanim more 0 1 2
+         * 3" for "all loc npc obj seq spotanim more", its shortcuts "all loc
+         * npc obj" for "favourites (0) recent (0) in square (0) +2".
+         *
+         * ToriRSChrome_GraphBegin takes the graph's items out of the pool
+         * and closes the gap (dbg_graph_release: every later graph's items
+         * move down); ToriRSChrome_GraphEnd, finding the picture it already
+         * had, marks nothing dirty; Build then does nothing, and the list
+         * that stands still points its text primitives at the addresses the
+         * items left (dbg_draw_graph hands dbg_push_text the item's own
+         * buffer; uitree_debug_overlay_widgets.u.c). Here the Catalog's
+         * shortcut strip does it: on the boot's third frame its row is back
+         * in view, edp_chips_end lays it out for the new width and it comes
+         * out the same picture. That code is the committed tree's too; the
+         * column the registry boots with since 2026-11-09 is what brings it
+         * out. */
+        CHECK(booted == got[2],
+            "scale %d registry: the list the boot leaves is the list a Build of that state emits (%u, built again %u)",
+            scale, booted, got[2]);
     }
 }
 
@@ -616,7 +743,9 @@ test_view_rows(void)
     frame_of(&g_chrome, &g_ui);
     {
         int fresh = 0;
-        CHECK(registry_digest(1, &fresh) == k_golden[0][2], "a fresh 1x boot after all that is still the golden");
+        uint32_t booted = 0;
+        CHECK(registry_digest(1, &fresh, &booted) == k_golden[0][2] && booted == k_golden[0][2],
+            "a fresh 1x boot after all that is still the golden");
     }
 }
 

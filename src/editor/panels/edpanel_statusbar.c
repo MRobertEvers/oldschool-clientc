@@ -24,13 +24,17 @@
  *                   and a brush's radius ("Raise r2"), the edit level ("level
  *                   Auto", "level 1 +above"), the unsaved document count, the
  *                   live link and a RUN in flight ("live attached | RUN build
- *                   2/4"), and with TORIRS_EDITOR_FPS=1 the frame rate;
+ *                   2/4") or how the last one ended ("RUN done"; the whole
+ *                   sentence when it stopped or the lane must restart:
+ *                   Editor_Live_RunOutcome), and with TORIRS_EDITOR_FPS=1 the
+ *                   frame rate;
  *   the status      the last Editor_UiStatus sentence, for its 6 s;
  *   the server      "read-only" when FACT_HELLO said the server cannot save
  *                   its tree (the reason is the tooltip);
- *   the lane chip   (workbench 6.5) "working | 3 changed", from ui->lane,
- *                   which the Lanes module keeps (Editor_Lanes_ChipText);
- *                   a click on it opens the Lanes panel.
+ *   the lane chip   (workbench 6.5) "working: 3 changed" / "working: no
+ *                   changes", from ui->lane, which the Lanes module keeps
+ *                   (statusbar_lane_text); a click on it opens the Lanes
+ *                   panel.
  *
  * Every run is measured against its track (rule R2): hint rows that do not fit
  * the hint track are left out whole, the hover and the status end in "..." with
@@ -105,6 +109,10 @@ struct StatusBarPanel
     int fit_w;
     int fit_scale;
     int refit;
+    /* The face the runs were last fitted in (a theme change moves it). */
+    int fit_font;
+    /* The ink the hint rows were last given: 0, the bar's own. */
+    uint32_t hint_ink;
 };
 
 /** Pixels a run takes in the bar: its text in the bar's face plus the pad
@@ -115,8 +123,11 @@ statusbar_advance(
     const char* text)
 {
     /* At the chrome's quarter scale, as dbg_build_menubar measures it: the
-     * integer tier is a size too big at 125 % and too small at 150 %. */
-    return ToriRSChrome_MeasureTextQ(TORIRS_CHROME_FONT_MENU, ToriRSChrome_ScaleQ(ui->chrome), text)
+     * integer tier is a size too big at 125 % and too small at 150 %. In the
+     * face the theme gives a strip's runs (ToriRSChromeTheme::font_menu: the
+     * game's Menu face in its own themes, the UI face in the editor's), which
+     * is the face the bar draws them in. */
+    return ToriRSChrome_MeasureTextQ(ui->chrome->theme.font_menu, ToriRSChrome_ScaleQ(ui->chrome), text)
            + 2 * edp_px(ui, TORIRS_CHROME_M_PAD);
 }
 
@@ -272,6 +283,7 @@ statusbar_fit(
 
     self->fit_w = width;
     self->fit_scale = ToriRSChrome_ScaleQ(ui->chrome);
+    self->fit_font = ui->chrome->theme.font_menu;
     self->refit = 0;
 }
 
@@ -315,6 +327,9 @@ statusbar_info_text(
     if( unsaved > 0 )
         used += snprintf(out + used, (size_t)(out_size - used), " | %d unsaved", unsaved);
 
+    /* A part that did not fit leaves `used` past the end: nothing follows. */
+    if( used >= out_size )
+        return;
     if( live && live->run_step != TORIRSMAPED_RUN_STEP_IDLE )
     {
         char line[160];
@@ -323,13 +338,56 @@ statusbar_info_text(
             ToriRSMapEd_LiveStateName(live->state), line[0] ? line : ToriRSMapEd_RunStepName(live->run_step));
     }
     else if( live && live->run_serial > 0 )
-        used += snprintf(out + used, (size_t)(out_size - used), " | live %s | RUN %s",
-            ToriRSMapEd_LiveStateName(live->state), live->run_status == 0 ? "done" : "stopped");
+    {
+        /* How the last RUN ended stays here until the next one. A clean RUN
+         * is two words; one that stopped, or that needs the lane's server
+         * restarted, keeps its sentence (the Live panel's, which the console
+         * has too): "RUN stopped" alone sent the user hunting for why, and
+         * "RUN done" over a restart that was still owed was wrong. */
+        int kind = EDITOR_LIVE_RUN_NONE;
+        const char* outcome = Editor_Live_RunOutcome(ui, &kind);
+        if( kind == EDITOR_LIVE_RUN_RESTART || kind == EDITOR_LIVE_RUN_STOPPED )
+            used += snprintf(out + used, (size_t)(out_size - used), " | live %s | %s",
+                ToriRSMapEd_LiveStateName(live->state), outcome);
+        else
+            used += snprintf(out + used, (size_t)(out_size - used), " | live %s | RUN %s",
+                ToriRSMapEd_LiveStateName(live->state), live->run_status == 0 ? "done" : "stopped");
+    }
     else if( live )
         used += snprintf(out + used, (size_t)(out_size - used), " | live %s", ToriRSMapEd_LiveStateName(live->state));
 
-    if( self->fps_on && self->fps >= 0 )
+    if( self->fps_on && self->fps >= 0 && used < out_size )
         (void)snprintf(out + used, (size_t)(out_size - used), " | %d fps", self->fps);
+}
+
+/**
+ * The lane chip: "work: 3 changed", "work: no changes", "main", with
+ * " | next: <lane>" when a switch waits for the next boot; "" before the lane
+ * is known. The count is the lane's FILES against its base (ui->lane, kept
+ * by the Lanes module), which is not the unsaved count beside it: it read
+ * "1 unsaved ... clean" (2026-11-09), so it names what it counts and never
+ * says "clean". The Lanes panel words its own row (Editor_Lanes_ChipText).
+ */
+static void
+statusbar_lane_text(
+    const struct EditorUi* ui,
+    char* out,
+    int out_size)
+{
+    const struct EditorUiLane* lane = &ui->lane;
+    int at;
+
+    out[0] = '\0';
+    if( !lane->known )
+        return;
+    if( lane->is_main || !lane->changes_known )
+        at = snprintf(out, (size_t)out_size, "%s", lane->name);
+    else if( lane->changes == 0 )
+        at = snprintf(out, (size_t)out_size, "%s: no changes", lane->name);
+    else
+        at = snprintf(out, (size_t)out_size, "%s: %d changed", lane->name, lane->changes);
+    if( lane->next_boot[0] && at > 0 && at < out_size )
+        snprintf(out + at, (size_t)(out_size - at), " | next: %s", lane->next_boot);
 }
 
 /** Frames per chrome second, from ToriRSChrome_Tick's clock: a host that
@@ -452,12 +510,14 @@ statusbar_tick(
      * click does and what the next boot serves. */
     {
         char chip[STATUSBAR_LANE_MAX];
-        Editor_Lanes_ChipText(ui, chip, (int)sizeof(chip));
+        statusbar_lane_text(ui, chip, (int)sizeof(chip));
         if( statusbar_track(self->lane, (int)sizeof(self->lane), chip) )
         {
             char tip[TORIRS_CHROME_LABEL_MAX];
             if( ui->lane.next_boot[0] )
                 snprintf(tip, sizeof(tip), "Quit and launch again to switch to %.24s", ui->lane.next_boot);
+            else if( !ui->lane.is_main && ui->lane.changes_known )
+                snprintf(tip, sizeof(tip), "Files that differ from the lane's base. Click: Lanes panel");
             else
                 snprintf(tip, sizeof(tip), "Click: the Lanes panel (switch, scratch lane, publish)");
             ToriRSChrome_SetTooltip(ui->chrome, self->label_lane, tip);
@@ -465,7 +525,23 @@ statusbar_tick(
         }
     }
 
-    if( self->refit || self->fit_w != ui->chrome->surface_w || self->fit_scale != ToriRSChrome_ScaleQ(ui->chrome) )
+    /* The hints are the bar's quiet part and what the editor holds its loud
+     * one: under a flat theme (the editor's own) the hint rows are the dim
+     * ink and every state run the bar's plain one. The game's themes draw a
+     * strip's runs in one ink whatever a run asks for, so they are left the
+     * bar's own (0) and nothing there moves. */
+    {
+        uint32_t const ink = ui->chrome->theme.flat_controls ? ui->chrome->theme.text_dim : 0;
+        if( ink != self->hint_ink )
+        {
+            for( int i = 0; i < EDITOR_HK_HINT_MAX; i++ )
+                ToriRSChrome_SetColor(ui->chrome, self->label_hints[i], ink);
+            self->hint_ink = ink;
+        }
+    }
+
+    if( self->refit || self->fit_w != ui->chrome->surface_w || self->fit_scale != ToriRSChrome_ScaleQ(ui->chrome)
+        || self->fit_font != ui->chrome->theme.font_menu )
         statusbar_fit(ui, self);
 }
 

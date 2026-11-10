@@ -234,6 +234,10 @@ struct PlatformWindow
     struct ToriRS_GestureStream wheel_gesture;
     struct ToriRS_GestureStream multi_gesture;
     struct ToriRS_GestureStream native_gesture;
+
+    /* PlatformWindow_RequestCapture: where the next software present writes
+     * the frame it shows ("" none asked). Cleared when it is written. */
+    char capture_path[1024];
 };
 
 /*
@@ -5175,16 +5179,25 @@ PlatformWindow_Present(struct PlatformWindow* platform)
 #else
     (void)chrome_dst;
 #endif
-    /* TORIRS_PRESENT_BMP=path writes the PRESENTED frame once, after
-     * TORIRS_PRESENT_BMP_FRAME presents (default 60): bars, placement and
-     * filter exactly as the window shows them. TORIRS_EXIT_BMP cannot -- it
-     * re-renders the canvas, before anything is placed. */
+    /* The PRESENTED frame to a BMP -- bars, placement and filter exactly as
+     * the window shows them; TORIRS_EXIT_BMP cannot, it re-renders the canvas
+     * before anything is placed. Two askers, one read-back:
+     *
+     *   PlatformWindow_RequestCapture(path)   this present, every time it is
+     *                                         asked (the agent server's `shot`)
+     *   TORIRS_PRESENT_BMP=path               once, after
+     *                                         TORIRS_PRESENT_BMP_FRAME presents
+     *                                         (default 60)
+     *
+     * A present both ask of writes both files. */
     {
         static long presents;
         static int written;
-        char const* path = getenv("TORIRS_PRESENT_BMP");
+        char const* env_path = getenv("TORIRS_PRESENT_BMP");
         long const at = getenv("TORIRS_PRESENT_BMP_FRAME") ? atol(getenv("TORIRS_PRESENT_BMP_FRAME")) : 60;
-        if( path && path[0] && !written && ++presents >= at )
+        int const env_due = env_path && env_path[0] && !written && ++presents >= at;
+
+        if( env_due || platform->capture_path[0] )
         {
             int out_w = 0;
             int out_h = 0;
@@ -5196,20 +5209,55 @@ PlatformWindow_Present(struct PlatformWindow* platform)
             if( SDL_RenderReadPixels(
                     platform->renderer, NULL, SDL_PIXELFORMAT_ARGB8888, shot, out_w * (int)sizeof(int)) == 0 )
             {
-                bmp_write_file(path, shot, out_w, out_h);
-                fprintf(stderr, "present_bmp: wrote %s (%dx%d, frame at %d,%d %dx%d)\n", path, out_w,
-                    out_h, dst.x, dst.y, dst.w, dst.h);
+                if( env_due )
+                {
+                    bmp_write_file(env_path, shot, out_w, out_h);
+                    fprintf(stderr, "present_bmp: wrote %s (%dx%d, frame at %d,%d %dx%d)\n", env_path, out_w,
+                        out_h, dst.x, dst.y, dst.w, dst.h);
+                }
+                if( platform->capture_path[0] )
+                    bmp_write_file(platform->capture_path, shot, out_w, out_h);
             }
             else
                 fprintf(stderr, "present_bmp: SDL_RenderReadPixels failed: %s\n", SDL_GetError());
             ToriMem_Free(ToriMem_Process(), shot);
-            written = 1;
+            if( env_due )
+                written = 1;
+            /* Served or failed, the request is spent: whoever asked sees no
+             * file and asks again, rather than every later present retrying. */
+            platform->capture_path[0] = '\0';
         }
     }
     sdl_present_timed(platform);
     /* Software already uploaded and composited the retained chrome texture in
      * this present. GL clears the same latch through ChromeTakeDirty. */
     platform->chrome_dirty = false;
+}
+
+/* The agent server's `shot` (docs/AGENT_API.md). The software present reads
+ * the frame back from the SDL renderer just before it is shown
+ * (PlatformWindow_Present, beside TORIRS_PRESENT_BMP), so this only leaves
+ * the path for it. A GL window's frame is the GL renderer's and never passes
+ * through that present: refused, rather than armed for a present that will
+ * not come. */
+bool
+PlatformWindow_RequestCapture(struct PlatformWindow* platform, char const* path)
+{
+    assert(platform);
+    assert(path);
+    assert(path[0]);
+    if( platform->use_opengl || !platform->renderer )
+    {
+        fprintf(stderr, "capture: this window presents through OpenGL, which the window cannot read back\n");
+        return false;
+    }
+    if( strlen(path) >= sizeof(platform->capture_path) )
+    {
+        fprintf(stderr, "capture: the path is over %d bytes\n", (int)sizeof(platform->capture_path) - 1);
+        return false;
+    }
+    snprintf(platform->capture_path, sizeof(platform->capture_path), "%s", path);
+    return true;
 }
 
 void

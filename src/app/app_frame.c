@@ -10,7 +10,6 @@
 #include "mem/torirs_mem.h"
 #include "app/app_catalog_palette.h"
 #include "app/app_record_thumbs.h"
-#include "app/app_iface_editor.h"
 #include "app/app_internal.h"
 #include "perf_audit.h"
 #include "perf/frame_stats.h"
@@ -847,13 +846,6 @@ app_run_once_body(
          * they queue (a picker zoom, a Preview orbit) drain in it. */
         app_map_editor_gestures(app, input);
         Editor_PanelTick(&app->editor_panel, app);
-        /* Interface editor pick: with picking armed, a left press in the view
-         * selects the edited interface's component under it. Ahead of the
-         * world click and of the uitree's own input pass further down. */
-        if( !app->input_frame_consumed && !app->chrome_pointer_owned
-            && input->curr.mouse_button_down[TORIRSM_LEFT] && AppIfaceEditor_PickArmed(app)
-            && AppIfaceEditor_PickAt(app, input->curr.mouse_x, input->curr.mouse_y) )
-            app->input_frame_consumed = 1;
         app_map_editor_world_click(app, input);
         {
             uint64_t const t_hover = FrameStats_Now();

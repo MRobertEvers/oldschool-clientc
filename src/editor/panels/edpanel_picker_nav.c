@@ -5,6 +5,7 @@
 
 #include "edpanel_picker_nav.h"
 #include "edpanel_picker_find.h"
+#include "editor/editor_doc.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -168,6 +169,9 @@ Editor_PickerOpenSetSync(
     assert(picker);
 
     memset(seen, 0, sizeof(seen));
+    /* The scratch squares are not the map's to drop. */
+    for( int i = 0; i < set->count; i++ )
+        seen[i] = set->items[i].scratch ? 1 : 0;
     for( int i = 0; i < picker->square_count; i++ )
     {
         const struct Editor_PickerSquare* square = &picker->squares[i];
@@ -219,6 +223,63 @@ Editor_PickerOpenSetSync(
     return changed;
 }
 
+int
+Editor_PickerOpenSetSyncScratch(
+    struct Editor_PickerOpenSet* set,
+    const struct Editor_PickerOpenItem* held,
+    int count)
+{
+    int changed = 0;
+    int kept = 0;
+
+    assert(set);
+    assert(held || count == 0);
+    assert(count >= 0);
+
+    for( int i = 0; i < set->count; i++ )
+    {
+        struct Editor_PickerOpenItem* item = &set->items[i];
+        if( item->scratch )
+        {
+            int found = -1;
+            for( int k = 0; k < count && found < 0; k++ )
+                if( strcmp(held[k].key, item->key) == 0 )
+                    found = k;
+            if( found < 0 )
+            {
+                changed = 1;
+                continue;
+            }
+            if( item->here != (held[found].here != 0) || item->dirty != (held[found].dirty != 0) )
+            {
+                item->here = held[found].here != 0;
+                item->dirty = held[found].dirty != 0;
+                changed = 1;
+            }
+        }
+        if( kept != i )
+            set->items[kept] = set->items[i];
+        kept++;
+    }
+    set->count = kept;
+    for( int k = 0; k < count && set->count < EDITOR_PICKER_OPEN_SET_MAX; k++ )
+    {
+        struct Editor_PickerOpenItem* item;
+        if( Editor_PickerOpenSetFind(set, held[k].key) >= 0 )
+            continue;
+        item = &set->items[set->count++];
+        memset(item, 0, sizeof(*item));
+        snprintf(item->key, sizeof(item->key), "%s", held[k].key);
+        item->map_x = held[k].map_x;
+        item->map_z = held[k].map_z;
+        item->here = held[k].here != 0;
+        item->dirty = held[k].dirty != 0;
+        item->scratch = 1;
+        changed = 1;
+    }
+    return changed;
+}
+
 void
 Editor_PickerOpenSetMove(
     struct Editor_PickerOpenSet* set,
@@ -258,6 +319,24 @@ Editor_PickerChipText(
     {
         snprintf(out, EDITOR_PICKER_NAME_MAX, "%s", key);
         return;
+    }
+    /* A scratch square by its slot: where it is parked is not where it is. */
+    if( strncmp(key, EDITOR_DOC_SCRATCH_STORAGE "/", sizeof(EDITOR_DOC_SCRATCH_STORAGE)) == 0 )
+    {
+        int map_x;
+        int map_z;
+        if( Editor_SquareKeyParse(square + 1, &map_x, &map_z) )
+            for( int slot = 0; slot < EDITOR_DOC_SCRATCH_SLOTS; slot++ )
+            {
+                int slot_x;
+                int slot_z;
+                Editor_DocScratchSlot(slot, &slot_x, &slot_z);
+                if( slot_x == map_x && slot_z == map_z )
+                {
+                    snprintf(out, EDITOR_PICKER_NAME_MAX, "scratch %d", slot + 1);
+                    return;
+                }
+            }
     }
     if( Editor_PickerLaneName(key, lane) )
         snprintf(out, EDITOR_PICKER_NAME_MAX, "%s/%s", lane, square + 1);

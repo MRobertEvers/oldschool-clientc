@@ -784,8 +784,10 @@ test_lanes_and_chip(void)
     Editor_Lanes_ChipText(&g_a.ui, chip, (int)sizeof(chip));
     CHECK(expected == 1, "the lane has one change: its scenes.txt (%d)", expected);
     CHECK(strcmp(chip, "work | 1 changed") == 0, "the chip text: %s", chip);
-    label = statusbar_label(&g_a, "work |");
-    CHECK(label >= 0 && strcmp(g_a.chrome.widgets[label].text, "work | 1 changed") == 0,
+    /* The status bar's own spelling of it: a sentence's colon, not the
+     * Lanes panel's column bar ("work | 1 changed" read as two chips). */
+    label = statusbar_label(&g_a, "work:");
+    CHECK(label >= 0 && strcmp(g_a.chrome.widgets[label].text, "work: 1 changed") == 0,
         "the status bar shows it (%s)", label >= 0 ? g_a.chrome.widgets[label].text : "-");
     lanes_panel = find_panel(&g_a, "Lanes");
     CHECK(lanes_panel >= 0 && !g_a.chrome.panels[lanes_panel].visible, "the Lanes panel is closed");

@@ -596,19 +596,47 @@ static int path_to_file_url(WCHAR const* path, WCHAR* out, int capacity)
     return 1;
 }
 
+/*
+ * The loader was looked for and is not there. Latched for the process: the
+ * window asks for its browser again on every frame it has none, and until
+ * 2026-11-09 each ask ran the whole bootstrap and wrote a "bootstrap failed"
+ * line -- 76,431 of them in one 25-minute editor session started from
+ * src/torirs_win64.exe, which has no WebView2Loader.dll beside it (only the
+ * staged dist/win64 copy has). A stderr write is milliseconds, on the frame
+ * thread. A missing DLL does not appear by itself, so the answer is stable:
+ * say it once, with what to do, and stop asking.
+ */
+static int g_wv2_loader_missing;
+
+static HMODULE load_loader_at(WCHAR const* path)
+{
+    return LoadLibraryExW(path, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+}
+
 static HMODULE load_loader(void)
 {
     WCHAR path[2048];
     WCHAR* slash;
+    HMODULE loader;
     DWORD n = GetEnvironmentVariableW(L"TORIRS_WEBVIEW2_LOADER", path, 2048);
     if( n > 0 && n < 2048 )
-        return LoadLibraryExW(path, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+        return load_loader_at(path);
     n = GetModuleFileNameW(NULL, path, 2048);
     if( n == 0 || n >= 2048 ) return NULL;
     slash = wcsrchr(path, L'\\');
     if( !slash ) return NULL;
     lstrcpyW(slash + 1, L"WebView2Loader.dll");
-    return LoadLibraryExW(path, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+    loader = load_loader_at(path);
+    if( loader )
+        return loader;
+    /* A development run straight from src: the build stages the loader in
+     * the repository's dist/win64, one directory up and over. */
+    if( (size_t)(slash + 1 - path) + 40 < 2048 )
+    {
+        lstrcpyW(slash + 1, L"..\\dist\\win64\\WebView2Loader.dll");
+        loader = load_loader_at(path);
+    }
+    return loader;
 }
 
 static struct PlatformWin32Browser*
@@ -621,6 +649,7 @@ wv2_new(HWND parent, WCHAR const* bundle_root, WCHAR const* fragment)
     CreateEnvironmentFn create_environment;
     HRESULT hr = E_FAIL;
     if( !parent || !bundle_root || !bundle_root[0] ) return NULL;
+    if( g_wv2_loader_missing ) return NULL;
     lstrcpynW(root, bundle_root, 2048);
     if( wcslen(root) + 20 >= 2048 ) return NULL;
     lstrcpyW(page, root);
@@ -661,7 +690,17 @@ wv2_new(HWND parent, WCHAR const* bundle_root, WCHAR const* fragment)
     if( SUCCEEDED(hr) ) s->com_initialized = 1;
     else if( hr != RPC_E_CHANGED_MODE ) goto fail;
     s->loader = load_loader();
-    if( !s->loader ) goto fail;
+    if( !s->loader )
+    {
+        g_wv2_loader_missing = 1;
+        fprintf(
+            stderr,
+            "plugin chrome WebView2: WebView2Loader.dll was not found beside the executable; the plugin "
+            "rail stays off for this run. Copy it there from dist/win64, or set TORIRS_WEBVIEW2_LOADER "
+            "to its path.\n");
+        PlatformWin32Browser_Free(s);
+        return NULL;
+    }
     create_environment = (CreateEnvironmentFn)(void*)GetProcAddress(
         s->loader, "CreateCoreWebView2EnvironmentWithOptions");
     if( !create_environment ) goto fail;

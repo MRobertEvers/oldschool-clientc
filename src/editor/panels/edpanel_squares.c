@@ -36,10 +36,15 @@
  *   open-set strip one chip per square this window holds, in open order, a
  *                  dot on an unsaved one: click goes to it, Shift+click
  *                  closes it through the save guard, a drag reorders; chips
- *                  past the width fold into "+N" (the rest in its tooltip)
+ *                  past the width fold into "+N" (the rest in its tooltip).
+ *                  A scratch square is a chip too ("scratch 1"): it has no
+ *                  cell on the map, and the strip used to read "nothing
+ *                  open" over the square being edited
  *   detail pane    under the atlas: the focused (else hovered) square's key,
  *                  area, tiles, contents, state, collections, its actions,
- *                  and the last EDITOR_PICKER_RECENT_MAX squares opened
+ *                  and the last EDITOR_PICKER_RECENT_MAX squares opened;
+ *                  with no cell focused or hovered, the scratch square this
+ *                  window shows ("unsaved, Save places it")
  *   outlines       open squares white, unsaved ones in the accent, the
  *                  selection yellow, created-not-saved green, and every
  *                  view's window framed (STATE_VIEW_SQUARE)
@@ -58,9 +63,15 @@
  *                  one, or Copy to on any square: the hovered cell is checked
  *                  as a destination (Editor_NewSquareValidate) and outlined
  *                  green or in the accent with the reason in the bar; a click
- *                  copies the source there (DOC_CREATE). A scratch square's
- *                  Place then saves, clears the scratch slot and opens the
- *                  placed square as the working set; Copy to adds it.
+ *                  copies the source there (DOC_CREATE) -- with its spawns
+ *                  (edp_square_create), in the same undo step: always for a
+ *                  scratch square, whose npcs would otherwise stay at its
+ *                  parking coordinate, and by the bar's "with its spawns"
+ *                  box (on) for Copy to. A scratch square's Place then
+ *                  saves, clears the scratch slot and opens the placed
+ *                  square as the working set, the camera on the same local
+ *                  tile, at the same yaw, pitch and distance, it had over
+ *                  the scratch square; Copy to adds it.
  *
  * The atlas is the catalog's (CATALOG_SQUARES), fetched the first time the
  * panel is shown and replaced whenever the server broadcasts a change (a
@@ -75,6 +86,7 @@
 #include "edpanel_picker_nav.h"
 #include "edpanels.h"
 #include "editor/editor_areas.h"
+#include "editor/editor_view.h"
 #include "editor/editor_worldmap.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
@@ -149,6 +161,9 @@ enum
     SQUARES_PICK_SWEEP,
     SQUARES_PICK_PLACE,
 };
+/* Ticks a placed scratch square's camera waits for its world before it is
+ * given up (the load landed without the square: the console says which). */
+#define SQUARES_VIEW_TICKS 1200
 /* An Open squares sweep: at most this many squares a side. */
 #define SQUARES_SWEEP_SIDE 3
 _Static_assert(SQUARES_SWEEP_SIDE * SQUARES_SWEEP_SIDE <= EDITOR_UI_OPEN_SET_MAX, "a sweep fits a working set");
@@ -294,6 +309,9 @@ struct SquaresPanel
     int row_pick;
     int dropdown_place;
     int input_place_lane;
+    /** Copy to's "with its spawns" (a scratch square's Place always brings
+     *  them: it is a move). */
+    int check_place_spawns;
     int button_pick_go;
     int button_pick_cancel;
     int sweeping;
@@ -320,6 +338,21 @@ struct SquaresPanel
     /* What the outlines were last drawn from. */
     uint32_t flags_hash;
     uint32_t frames_hash;
+
+    /* The scratch square in this window's world (the pane names it when no
+     * cell is focused or hovered), and what the strip's scratch chips were
+     * made from. */
+    int scratch_here;
+    int scratch_x;
+    int scratch_z;
+    int scratch_dirty;
+    uint32_t scratch_hash;
+
+    /* A placed scratch square's camera: where it looked in the scratch
+     * square, moved to the placed one, put back once its world has landed. */
+    int view_pending;
+    int view_ticks;
+    struct EditorViewCamera view_pose;
 };
 
 static void
@@ -352,6 +385,17 @@ static void
 squares_pick_layout(
     struct EditorUi* ui,
     struct SquaresPanel* self);
+
+static void
+squares_view_step(
+    struct EditorUi* ui,
+    struct SquaresPanel* self);
+
+static void
+squares_scratch_sync(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    const struct EditorUiViewFrame* own);
 
 static struct SquaresPanel*
 squares_self(struct EditorUi* ui)
@@ -560,6 +604,25 @@ squares_take_atlas(
     /* The lane rows follow the storages, so the rows are rebuilt with every
      * atlas (a new lane is a new row), not only when the pages changed. */
     (void)Editor_PickerSetAtlas(&self->picker, atlas);
+    /* The cells the user left the pointer and the focus on are answered from
+     * the new atlas: after a Place the pointer still stands on the cell it
+     * clicked, and the readout and the pane went on saying "m10_50 empty"
+     * of the square just put there (N4, 2026-11-09). */
+    {
+        struct Editor_Picker* picker = &self->picker;
+        if( picker->hover_valid && picker->well_w > 0 )
+        {
+            int x;
+            int y;
+            int w;
+            int h;
+            Editor_PickerCellBox(picker, picker->hover_map_x, picker->hover_map_z, &x, &y, &w, &h);
+            picker->hover = Editor_PickerSquareAt(picker, x + w / 2, y + h / 2);
+        }
+        if( picker->focus < 0 && picker->empty_valid
+            && Editor_PickerFind(picker, picker->empty_map_x, picker->empty_map_z, -1) >= 0 )
+            Editor_PickerFocusSet(picker, picker->empty_map_x, picker->empty_map_z);
+    }
     squares_point_widgets(ui, self);
     squares_storage_rows(ui, self);
     self->strip_dirty = 1;
@@ -1032,8 +1095,18 @@ squares_tick(
     struct Editor_Picker* picker = &self->picker;
     struct EditorHost_CatalogSquares atlas;
 
-    if( !ui->chrome->panels[self->panel].visible && !ui->chrome->panels[self->map_panel].visible )
-        return;
+    int const shown = ui->chrome->panels[self->panel].visible || ui->chrome->panels[self->map_panel].visible;
+
+    /* Before the visibility test: the camera is owed whether or not the
+     * Squares windows are still up. */
+    squares_view_step(ui, self);
+    /* So is the atlas. The picker is not this panel's alone: the instance
+     * helper's Find free, the Areas filter and the New square dialog read
+     * which squares exist off it (edp_squares_picker). While this test came
+     * first, a session with Squares closed never fetched the atlas and never
+     * heard of a square made since -- and Squares is closed by default since
+     * 2026-11-09, when Find free offered the square the last Create had just
+     * made. */
     if( !self->fetched || self->want_refresh )
         squares_fetch(ui, self);
     if( ui->editor && ui->editor->host_open )
@@ -1047,6 +1120,21 @@ squares_tick(
     }
     if( !self->fetched )
         return;
+    if( !shown )
+    {
+        /* Closed: what the document holds and the scratch square still land
+         * on the picker; nothing is sized, baked or drawn. */
+        if( ui->editor )
+        {
+            const struct EditorUiViewFrame* own = NULL;
+            for( int f = 0; f < EDITOR_UI_VIEW_FRAMES_MAX; f++ )
+                if( ui->frames[f].used && ui->frames[f].slot == ui->view_slot )
+                    own = &ui->frames[f];
+            Editor_PickerNoteDocument(picker, &ui->editor->doc, own);
+            squares_scratch_sync(ui, self, own);
+        }
+        return;
+    }
     squares_collection_rows(ui, self);
 
     squares_size_map(ui, self);
@@ -1072,6 +1160,7 @@ squares_tick(
             if( ui->frames[f].used && ui->frames[f].slot == ui->view_slot )
                 own = &ui->frames[f];
         Editor_PickerNoteDocument(picker, &ui->editor->doc, own);
+        squares_scratch_sync(ui, self, own);
     }
     {
         uint32_t const flags = squares_hash_flags(picker);
@@ -1110,6 +1199,133 @@ squares_tick(
 }
 
 /* ---- actions ------------------------------------------------------------------------ */
+
+/**
+ * The scratch squares this window holds, into the open-set strip and the
+ * pane: one is held while it is in this window's world (`own`, its view
+ * frame) or has unplaced work in the mirror. The atlas lists none (a scratch
+ * square has no cell), so the document is asked. A blank test runs only for
+ * a scratch square that is not shown here, which is rare and never per
+ * square of the map.
+ */
+static void
+squares_scratch_sync(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    const struct EditorUiViewFrame* own)
+{
+    struct Editor_PickerOpenItem held[EDITOR_DOC_SCRATCH_SLOTS];
+    struct Editor_Doc const* doc = &ui->editor->doc;
+    uint32_t hash = 2166136261u;
+    int count = 0;
+    int here_any = 0;
+    int here_x = 0;
+    int here_z = 0;
+    int here_dirty = 0;
+
+    for( int i = 0; i < doc->square_count && count < EDITOR_DOC_SCRATCH_SLOTS; i++ )
+    {
+        struct Editor_Square const* square = &doc->squares[i];
+        int here;
+        int dirty;
+
+        if( !square->loaded || !Editor_DocStorageIsScratch(doc->square_storage[i]) )
+            continue;
+        here = own && own->used && square->map_x >= own->map_x && square->map_x < own->map_x + own->w
+               && square->map_z >= own->map_z && square->map_z < own->map_z + own->h;
+        dirty = square->dirty_map || square->dirty_loc;
+        if( !here && (!dirty || Editor_SquareIsBlank(square)) )
+            continue;
+        memset(&held[count], 0, sizeof(held[count]));
+        snprintf(held[count].key, sizeof(held[count].key), "%s/m%d_%d", EDITOR_DOC_SCRATCH_STORAGE, square->map_x,
+            square->map_z);
+        held[count].map_x = square->map_x;
+        held[count].map_z = square->map_z;
+        held[count].here = here;
+        held[count].dirty = dirty;
+        hash = (hash ^ (uint32_t)(square->map_x * 1031 + square->map_z * 31 + here * 2 + dirty)) * 16777619u;
+        if( here && !here_any )
+        {
+            here_any = 1;
+            here_x = square->map_x;
+            here_z = square->map_z;
+            here_dirty = dirty;
+        }
+        count++;
+    }
+    if( hash != self->scratch_hash )
+    {
+        self->scratch_hash = hash;
+        if( Editor_PickerOpenSetSyncScratch(&self->open_set, held, count) )
+            self->strip_dirty = 1;
+    }
+    self->scratch_here = here_any;
+    self->scratch_x = here_x;
+    self->scratch_z = here_z;
+    self->scratch_dirty = here_dirty;
+}
+
+/**
+ * The camera a placed scratch square is owed (squares_place_go): put where
+ * it looked before the Place, in the placed square, once the world that
+ * shows it has landed and the open's own "camera to the centre" has run
+ * (world_busy covers both). Given up after SQUARES_VIEW_TICKS.
+ */
+static void
+squares_view_step(
+    struct EditorUi* ui,
+    struct SquaresPanel* self)
+{
+    if( !self->view_pending )
+        return;
+    if( !ui->app_services.world_camera_set || !ui->app_services.world_busy )
+    {
+        self->view_pending = 0;
+        return;
+    }
+    if( ++self->view_ticks > SQUARES_VIEW_TICKS )
+    {
+        self->view_pending = 0;
+        Editor_UiLog(ui, "editor: the placed square did not come into the scene; the camera stays where it is");
+        return;
+    }
+    if( ui->app_services.world_busy(ui->app_services.user_data) )
+        return;
+    if( !ui->app_services.world_camera_set(ui->app_services.user_data, &self->view_pose) )
+        return; /* not in the scene yet: asked again next tick */
+    self->view_pending = 0;
+    if( ui->app_services.request_redraw )
+        ui->app_services.request_redraw(ui->app_services.user_data);
+}
+
+/**
+ * Where the World's camera looks, if that is inside scratch square
+ * (scratch_x, scratch_z), as the pose that looks at the same local tile of
+ * (to_x, to_z): same level, yaw, pitch and distance. 0 when the window has
+ * no camera or it looks elsewhere (the open then centres as it always did).
+ */
+static int
+squares_view_carry(
+    struct EditorUi* ui,
+    int scratch_x,
+    int scratch_z,
+    int to_x,
+    int to_z,
+    struct EditorViewCamera* out)
+{
+    int const level = ui->tools.edit_level < 0 ? 0 : ui->tools.edit_level;
+    int const unit = 128;
+
+    if( !ui->app_services.world_camera
+        || !ui->app_services.world_camera(ui->app_services.user_data, level, out) )
+        return 0;
+    if( out->x < scratch_x * EDITOR_SQUARE_X * unit || out->x >= (scratch_x + 1) * EDITOR_SQUARE_X * unit
+        || out->z < scratch_z * EDITOR_SQUARE_Z * unit || out->z >= (scratch_z + 1) * EDITOR_SQUARE_Z * unit )
+        return 0;
+    out->x += (to_x - scratch_x) * EDITOR_SQUARE_X * unit;
+    out->z += (to_z - scratch_z) * EDITOR_SQUARE_Z * unit;
+    return 1;
+}
 
 static void
 squares_storage_of(
@@ -1592,7 +1808,10 @@ squares_strip_tooltip(
         const struct Editor_PickerOpenItem* item = &self->open_set.items[key - 1];
         char text[EDITOR_PICKER_NAME_MAX];
         Editor_PickerChipText(item->key, text);
-        snprintf(tip, sizeof(tip), "%s%s: click go, Shift+click close", text, item->dirty ? " (unsaved)" : "");
+        if( item->scratch )
+            snprintf(tip, sizeof(tip), "%s: unsaved, Save places it on the Square map; click goes to it", text);
+        else
+            snprintf(tip, sizeof(tip), "%s%s: click go, Shift+click close", text, item->dirty ? " (unsaved)" : "");
     }
     else
         snprintf(tip, sizeof(tip), "open set: click go, Shift+click close, drag reorders");
@@ -1691,9 +1910,33 @@ squares_go(
     assert(i >= 0);
     assert(i < self->open_set.count);
     item = &self->open_set.items[i];
-    Editor_PickerFocusSet(picker, item->map_x, item->map_z);
-    Editor_PickerKeepInView(picker, item->map_x, item->map_z);
-    self->user_view = 1;
+    if( item->scratch )
+    {
+        /* No cell to focus: the map's focus goes, so the pane names the
+         * scratch square; one not shown here opens as the working set. */
+        Editor_PickerSelect(picker, -1, 0);
+        picker->empty_valid = 0;
+        self->dirty = 1;
+        if( !item->here )
+        {
+            struct EditorUiGuard guard;
+            memset(&guard, 0, sizeof(guard));
+            guard.action = EDITOR_UI_GUARD_OPEN_SQUARE;
+            guard.map_x = item->map_x;
+            guard.map_z = item->map_z;
+            snprintf(guard.storage, sizeof(guard.storage), "%s", EDITOR_DOC_SCRATCH_STORAGE);
+            guard.storage_index = Editor_PickerStorageIndex(picker, EDITOR_DOC_SCRATCH_STORAGE);
+            Editor_UiStatus(ui, "Opening the scratch square: Save places it on the Square map");
+            (void)Editor_UiGuarded(ui, &guard);
+            return;
+        }
+    }
+    else
+    {
+        Editor_PickerFocusSet(picker, item->map_x, item->map_z);
+        Editor_PickerKeepInView(picker, item->map_x, item->map_z);
+        self->user_view = 1;
+    }
     self->dirty = 1;
     if( !item->here )
     {
@@ -1734,6 +1977,13 @@ squares_close_chip(
     item = &self->open_set.items[i];
     for( int k = 0; k < self->open_set.count; k++ )
         here += self->open_set.items[k].here;
+    if( item->scratch )
+    {
+        /* Closing it would leave unplaced work with no chip to come back by
+         * but New's "Open unplaced scratch". */
+        Editor_UiStatus(ui, "Close refused: a scratch square is placed, not closed; Save places it on the Square map");
+        return;
+    }
     if( !item->here )
     {
         Editor_UiStatus(ui, "Close refused: %s is not in this window's world (its unsaved edits stay until saved)",
@@ -2064,6 +2314,10 @@ squares_pane_key(
         index,
         map_x,
         map_z,
+        self->scratch_here,
+        self->scratch_x,
+        self->scratch_z,
+        self->scratch_dirty,
         index >= 0 ? (int)self->picker.squares[index].flags : 0,
         self->pin_valid,
         self->pin_x,
@@ -2097,7 +2351,25 @@ squares_pane_update(
     if( hash == self->pane_hash )
         return;
     self->pane_hash = hash;
-    if( !squares_pane_cell(self, &index, &map_x, &map_z) )
+    if( !squares_pane_cell(self, &index, &map_x, &map_z) && self->scratch_here )
+    {
+        /* Nothing on the map is asked about, and this window is editing a
+         * scratch square: the pane says so (N3, 2026-11-09). */
+        char chip[EDITOR_PICKER_NAME_MAX];
+        snprintf(key, sizeof(key), "%s/m%d_%d", EDITOR_DOC_SCRATCH_STORAGE, self->scratch_x, self->scratch_z);
+        Editor_PickerChipText(key, chip);
+        if( !squares_contents_text(ui, self->scratch_x, self->scratch_z, 0, contents, (int)sizeof(contents)) )
+            snprintf(contents, sizeof(contents), "-");
+        snprintf(self->pane_full[0], SQUARES_PANE_TEXT_MAX, "%s: unsaved, Save places it", chip);
+        snprintf(self->pane_full[1], SQUARES_PANE_TEXT_MAX, "%s, open in this window", chip);
+        snprintf(self->pane_full[2], SQUARES_PANE_TEXT_MAX, "no cell yet: Save asks for one on the Square map");
+        snprintf(self->pane_full[3], SQUARES_PANE_TEXT_MAX, "%d x %d, placed by Save", EDITOR_SQUARE_X,
+            EDITOR_SQUARE_Z);
+        snprintf(self->pane_full[4], SQUARES_PANE_TEXT_MAX, "%s", contents);
+        snprintf(self->pane_full[5], SQUARES_PANE_TEXT_MAX, "open in this window, unsaved: Save places it");
+        snprintf(self->pane_full[6], SQUARES_PANE_TEXT_MAX, "-");
+    }
+    else if( !squares_pane_cell(self, &index, &map_x, &map_z) )
     {
         snprintf(self->pane_full[0], SQUARES_PANE_TEXT_MAX, "Click a square or Find one; the arrows move");
         for( int row = 1; row < EDITOR_SQUARES_PANE_ROWS; row++ )
@@ -2336,6 +2608,7 @@ squares_pick_layout(
     ToriRSChrome_SetHidden(ui->chrome, self->row_pick, browse);
     ToriRSChrome_SetHidden(ui->chrome, self->dropdown_place, !place);
     ToriRSChrome_SetHidden(ui->chrome, self->input_place_lane, !new_lane);
+    ToriRSChrome_SetHidden(ui->chrome, self->check_place_spawns, !place || self->place_scratch);
     ToriRSChrome_SetHidden(ui->chrome, self->button_pick_go, self->pick_mode != SQUARES_PICK_SWEEP);
     ToriRSChrome_SetHidden(ui->chrome, self->button_pick_cancel, browse);
 }
@@ -2562,11 +2835,14 @@ squares_place_hover(
 }
 
 /**
- * Place the source on cell (map_x, map_z): DOC_CREATE a copy there. A
- * scratch square's Place then clears the scratch slot (one undo step of its
+ * Place the source on cell (map_x, map_z): DOC_CREATE a copy there, with
+ * the source's spawns in the same undo step (edp_square_create: always for
+ * a scratch square, by the bar's box for Copy to). A scratch square's Place
+ * then clears the scratch slot and its spawn rows (one undo step of its
  * own), saves -- Save is what asked -- and opens the placed square as the
- * working set; the next unplaced scratch square, if any, is asked about
- * next. Copy to adds the copy to the open set.
+ * working set, the camera owed the tile it was looking at (squares_view_step);
+ * the next unplaced scratch square, if any, is asked about next. Copy to
+ * adds the copy to the open set.
  */
 static void
 squares_place_go(
@@ -2582,6 +2858,8 @@ squares_place_go(
     struct EditorUiSquareRef placed;
     enum EditorHost_Status status;
     char next[EDITOR_DOC_KEY_MAX];
+    int const with_spawns = self->place_scratch || ToriRSChrome_Checked(ui->chrome, self->check_place_spawns);
+    int spawns = 0;
 
     squares_place_form(ui, self, map_x, map_z, &form);
     if( !Editor_NewSquareValidate(picker, &form, &check, &request) )
@@ -2594,7 +2872,7 @@ squares_place_go(
         squares_pick_say(ui, self, "no editor session", 0);
         return;
     }
-    status = Editor_CreateSquare(ui->editor, &request);
+    status = edp_square_create(ui, &request, with_spawns, &spawns);
     if( status != EDITOR_HOST_OK )
     {
         squares_pick_say(ui, self,
@@ -2613,6 +2891,12 @@ squares_place_go(
     self->want_refresh = 1;
     if( !self->place_scratch )
     {
+        if( with_spawns )
+            Editor_UiStatus(ui, "Copied %s to %s with its %d spawn%s; unsaved until Save", self->place_source,
+                request.key, spawns, spawns == 1 ? "" : "s");
+        else
+            Editor_UiStatus(ui, "Copied %s to %s; its spawns stay behind (\"with its spawns\" is off)",
+                self->place_source, request.key);
         Editor_UiLog(ui, "editor: %s (unsaved until Save)", check.message);
         Editor_UiOpenSquare(ui, map_x, map_z, request.storage, Editor_PickerStorageIndex(picker, request.storage), 1);
         return;
@@ -2624,14 +2908,34 @@ squares_place_go(
         int scratch_x;
         int scratch_z;
         int saved;
+        self->view_pending = 0;
         if( Editor_DocSplitSquareKey(self->place_source, storage, bare)
-            && Editor_SquareKeyParse(bare, &scratch_x, &scratch_z)
-            && edp_ensure_doc(ui, EDITOR_DOC_SQUARE, self->place_source) )
-            (void)edp_square_clear(ui, scratch_x, scratch_z);
+            && Editor_SquareKeyParse(bare, &scratch_x, &scratch_z) )
+        {
+            /* Read before the slot is cleared and the world moves on. */
+            if( squares_view_carry(ui, scratch_x, scratch_z, map_x, map_z, &self->view_pose) )
+            {
+                self->view_pending = 1;
+                self->view_ticks = 0;
+            }
+            if( edp_ensure_doc(ui, EDITOR_DOC_SQUARE, self->place_source) )
+                (void)edp_scratch_clear(ui, scratch_x, scratch_z);
+        }
         saved = Editor_SaveAll(ui->editor);
-        Editor_UiLog(ui, "editor: placed %s as %s%s%s; saved %d document(s)", self->place_source,
-            request.storage[0] ? request.storage : "", request.storage[0] ? "/" : "", request.key, saved);
+        if( saved < 0 )
+            Editor_UiStatus(ui, "Placed the scratch square as %s%s%s with %d spawn%s; NOT saved: the session is read-only",
+                request.storage[0] ? request.storage : "", request.storage[0] ? "/" : "", request.key, spawns,
+                spawns == 1 ? "" : "s");
+        else
+            Editor_UiStatus(ui, "Placed the scratch square as %s%s%s with %d spawn%s; saved %d document%s; opening it",
+                request.storage[0] ? request.storage : "", request.storage[0] ? "/" : "", request.key, spawns,
+                spawns == 1 ? "" : "s", saved, saved == 1 ? "" : "s");
     }
+    /* The placed square is what the window shows and what the map and the
+     * pane name: its cell is focused now (an empty one until the atlas that
+     * lists it lands, squares_take_atlas). */
+    Editor_PickerFocusSet(picker, map_x, map_z);
+    self->pane_hash = 0;
     Editor_UiOpenSquareSet(ui, &placed, 1);
     if( Editor_NewSquare_UnplacedScratch(ui, next) )
         Editor_SquarePicker_Place(ui, next, 1);
@@ -3609,6 +3913,9 @@ Editor_SquarePicker_Register(struct EditorUi* ui)
         "maps/ is what the cache pack reads; a lane ships with its lane");
     self->input_place_lane = ToriRSChrome_TextInput(chrome, self->map_panel, "Lane", "");
     ToriRSChrome_SetTooltip(chrome, self->input_place_lane, "The new lane's directory: ported/<lane>/maps");
+    self->check_place_spawns = ToriRSChrome_Checkbox(chrome, self->map_panel, "with its spawns", 1);
+    ToriRSChrome_SetTooltip(chrome, self->check_place_spawns,
+        "The copy brings the source square's npcs and ground items");
     self->button_pick_go = ToriRSChrome_Button(chrome, self->map_panel, "Open");
     self->button_pick_cancel = ToriRSChrome_Button(chrome, self->map_panel, "Cancel");
     self->graph = ToriRSChrome_Graph(chrome, self->map_panel, "", edp_px(ui, SQUARES_WELL_H));

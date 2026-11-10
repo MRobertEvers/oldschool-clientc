@@ -23,8 +23,7 @@
  *
  *   BUILD  u32 what (enum ToriRSMapEdBuildWhat) [, string arg]
  *          (the quest kinds name their quest, a QUEUE.tsv test_id
- *          (ToriRSMapEd_BuildQuestValid); CS2 names its script, the name
- *          of a `cs2:<name>` document (ToriRSMapEd_BuildArgValid); the
+ *          (ToriRSMapEd_BuildQuestValid, ToriRSMapEd_BuildArgValid); the
  *          other kinds take none: ToriRSMapEd_BuildWhatTakesArg)
  *          -> broadcast FACT_BUILD_LINE  u32 what, string line   (0+)
  *             then FACT_BUILD_DONE       u32 what, u32 status (EditorHost_Status),
@@ -95,7 +94,7 @@ enum
 };
 
 /** What a BUILD builds (design #protocol: packs, client cache, the scripts'
- *  check, cs2 compile). */
+ *  check). */
 enum ToriRSMapEdBuildWhat
 {
     /** `make -C src torirsserver-packs`: allocation, both script packs and
@@ -104,8 +103,8 @@ enum ToriRSMapEdBuildWhat
     /** `make -C src maped-client-cache`: the incremental client config pack
      *  (cachepack pack --incremental) plus the changed map squares. */
     TORIRSMAPED_BUILD_CLIENT_CACHE = 2,
-    /** Workbench 6.6 (design section 9, "Check and CS2 compile run on the
-     *  server pump as BUILD jobs"): `make -C src maped-script-check
+    /** Workbench 6.6 (design section 9: Check runs on the server pump as a
+     *  BUILD job): `make -C src maped-script-check
      *  MAPED_CHECK_DIR=<live>/check` (src/maped/records.mk) stages the
      *  lane's server/scripts under <live>/check as the builders' compile
      *  check does (editor/builder/builder_ssc.h), writes every script
@@ -116,13 +115,7 @@ enum ToriRSMapEdBuildWhat
      *  (Builder_SscFormatSummary). Takes no argument. Was SCRIPTS_LINT, a
      *  number no runner ever offered. */
     TORIRSMAPED_BUILD_CHECK = 3,
-    /** `make -C src maped-cs2-compile MAPED_CS2_DIR=<live>/cs2
-     *  MAPED_CS2_SCRIPT=<name>`: `cs2 compile` of ONE script, the text of
-     *  the server's `cs2:<name>` document (unsaved edits included; else
-     *  scripts/<name>.cs2 on disk), which the server writes to
-     *  <live>/cs2/src/<name>.cs2 before the job starts. Its lines are the
-     *  compiler's ("compiled N, failed M", "FAIL <name>: <why>"). */
-    TORIRSMAPED_BUILD_CS2 = 4,
+    /* 4: RESERVED, never reuse (the interface editor's CS2 compile until 2026-11-09; older windows still send it). */
     /** `make -C src maped-run-build`: PACKS and CLIENT_CACHE together under
      *  -j2 (src/maped/live-editor.mk), RUN's own build. One job, one
      *  FACT_BUILD_* stream, both builds' units and archives. */
@@ -167,37 +160,26 @@ ToriRSMapEd_BuildWhatTakesQuest(uint32_t what)
     return what == TORIRSMAPED_BUILD_QUEST_SCAFFOLD || what == TORIRSMAPED_BUILD_QUEST_GATE;
 }
 
-/** 1 for the `what`s whose BUILD carries a string argument: the quest kinds
- *  and CS2. */
+/** 1 for the `what`s whose BUILD carries a string argument: the quest kinds,
+ *  and no other today. Callers ask this, not TakesQuest, so a later kind
+ *  with an argument of its own is one edit here. */
 static inline int
 ToriRSMapEd_BuildWhatTakesArg(uint32_t what)
 {
-    return ToriRSMapEd_BuildWhatTakesQuest(what) || what == TORIRSMAPED_BUILD_CS2;
+    return ToriRSMapEd_BuildWhatTakesQuest(what);
 }
 
 /** 1 when `arg` may ride a BUILD of `what` (and so a make command line): a
- *  quest kind's quest (ToriRSMapEd_BuildQuestValid), CS2's script name
- *  (1..63 bytes of [A-Za-z0-9_.-], not starting with '.' or '-'). */
+ *  quest kind's quest (ToriRSMapEd_BuildQuestValid). 0 for every kind that
+ *  takes no argument, whatever `arg` holds. */
 static inline int
 ToriRSMapEd_BuildArgValid(
     uint32_t what,
     const char* arg)
 {
-    size_t length = 0;
-
-    if( ToriRSMapEd_BuildWhatTakesQuest(what) )
-        return ToriRSMapEd_BuildQuestValid(arg);
-    if( what != TORIRSMAPED_BUILD_CS2 || arg[0] == '.' || arg[0] == '-' )
+    if( !ToriRSMapEd_BuildWhatTakesQuest(what) )
         return 0;
-    while( arg[length] )
-    {
-        char const c = arg[length];
-        if( !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '.'
-                || c == '-') )
-            return 0;
-        length++;
-    }
-    return length > 0 && length < 64;
+    return ToriRSMapEd_BuildQuestValid(arg);
 }
 
 /** RUN's steps, in order; FACT_RUN_DONE's `step`. */
@@ -335,8 +317,8 @@ struct ToriRSMapEdBuildJob
      *  build, as (map_x, map_z) pairs; their map archives are repacked. */
     const int32_t* squares;
     int square_count;
-    /** The argument: a quest kind's quest, CS2's script name
-     *  (ToriRSMapEd_BuildArgValid); "" for the other kinds. */
+    /** The argument: a quest kind's quest (ToriRSMapEd_BuildArgValid); ""
+     *  for the other kinds. */
     char quest[64];
 };
 

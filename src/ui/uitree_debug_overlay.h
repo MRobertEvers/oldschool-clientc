@@ -27,9 +27,11 @@
  * present a partial frame (or want to skip presenting at all) read it; callers
  * that always repaint the whole canvas can ignore it and still get the skip.
  *
- * NO DEPENDENCIES. The whole module is this header, one .c, and the generated
- * uitree_debug_font_metrics.h — which is `static const int` tables and nothing
- * else, no includes of its own. It measures its own text from those tables, so
+ * NO DEPENDENCIES. The whole module is this header, one .c, and two generated
+ * metrics headers -- uitree_debug_font_metrics.h (the game faces) and
+ * uitree_ui_font_metrics.h (the vendored UI faces) -- which are `static
+ * const` tables and nothing
+ * else, no includes of their own. It measures its own text from those tables, so
  * it does not link a font implementation, a renderer, a scene, or the rest of
  * ui/. Outside the C library (<string.h>, <stdint.h>) it depends on nothing.
  * The colour picker keeps that true the same way the fonts do: the HSL16
@@ -227,8 +229,33 @@ enum ToriRSChromeFontSlot
      * row without the layout moving underneath it.
      */
     TORIRS_CHROME_FONT_BODY = 2,
-    TORIRS_CHROME_FONT_SLOT_COUNT = 3
+    /*
+     * The UI faces (2026-11-09): vendored outline fonts, not the game's
+     * bitmaps (src/engine/fonts/vendor/; docs/CHROME_SCALE.md "The UI
+     * faces"). They have no baked tier: the drawer rasterises them at every
+     * scale, whole ones included (torirs_chrome_bake.c), and their metrics
+     * are arithmetic over src/ui/uitree_ui_font_metrics.h. Appended, so the
+     * three game faces above keep their values. A theme names them
+     * (ToriRSChromeTheme::font_row and its siblings); nothing draws in one
+     * unless a theme does.
+     */
+    /** Inter Regular at 13 px: rows, labels, field contents. */
+    TORIRS_CHROME_FONT_UI = 3,
+    /** Inter Regular at 11 px: keycaps, badges, tooltips, captions. */
+    TORIRS_CHROME_FONT_UI_SMALL = 4,
+    /** Inter SemiBold at 13 px, UI's line box: panel titles. */
+    TORIRS_CHROME_FONT_UI_BOLD = 5,
+    /** JetBrains Mono Regular at 12 px: source text. */
+    TORIRS_CHROME_FONT_UI_MONO = 6,
+    /** The icon face at 16 px: one Lucide icon per printable ASCII code
+     *  (src/ui/torirs_chrome_icons.h names them). */
+    TORIRS_CHROME_FONT_ICON = 7,
+    TORIRS_CHROME_FONT_SLOT_COUNT = 8
 };
+
+/** The game's own faces, the first slots: the ones with a baked bitmap tier
+ *  and a synthesized vector twin. Every slot from here up is a UI face. */
+#define TORIRS_CHROME_FONT_GAME_COUNT 3
 
 /**
  * The baked TIERS: the integer densities a face or a skin slot exists at. 1 is
@@ -321,6 +348,11 @@ ToriRSChrome_FontLineBox(int font_slot, int scale);
  * is exactly the advance the glyph atlas for that scale carries
  * (torirs_chrome_bake.c builds it with the same call), so text measures to
  * the width it paints at.
+ *
+ * A UI face (TORIRS_CHROME_FONT_UI and up) has no tier: at every scale its
+ * advance is round(units * em_px * q / (units_per_em * 4)), halves up, from
+ * the font units in uitree_ui_font_metrics.h -- one rounding, at the scale it
+ * is drawn at -- and the bake steps its atlas with this very number.
  */
 int
 ToriRSChrome_MeasureTextQ(int font_slot, int q, char const* text);
@@ -337,6 +369,48 @@ ToriRSChrome_FontLineHeightQ(int font_slot, int q);
 /** Line box at scale `q`: ScalePx of the 1x line box. */
 int
 ToriRSChrome_FontLineBoxQ(int font_slot, int q);
+
+/**
+ * The em of a UI face in 1x chrome pixels (13 for TORIRS_CHROME_FONT_UI): the
+ * outline is drawn at this times q / 4 device pixels per em. 0 for a game
+ * face, which is a bitmap and has no em to scale.
+ *
+ * With the two below it is what a drawer needs to rasterise a UI slot so its
+ * glyphs fit the advances ToriRSChrome_GlyphAdvanceQ measures; the model
+ * itself still links no font.
+ */
+int
+ToriRSChrome_FontEmPx(int font_slot);
+
+/** Font units per em of a UI face's file (uitree_ui_font_metrics.h); 0 for a
+ *  game face. A drawer checks it against the file it rasterises. */
+int
+ToriRSChrome_FontUnitsPerEm(int font_slot);
+
+/**
+ * The advance of byte `c` in a UI face, in font units, as GlyphAdvanceQ
+ * converts it: the face's own advance for a byte the atlas has a glyph slot
+ * for (the face's MISSING_ADVANCE where it has no outline for it), and a
+ * space's for every other byte (@see ToriRSChrome_FontDrawsByte). 0 for a
+ * game face.
+ */
+int
+ToriRSChrome_FontAdvanceUnits(int font_slot, unsigned char c);
+
+/**
+ * Whether byte `c` has a glyph slot in a UI face's atlas: the 94 printable
+ * ASCII characters, 0x21..0x7E.
+ *
+ * A struct ToriDraw_Font holds 94 glyphs and a table from byte to glyph
+ * (3rd/toridraw/toridraw_font.h), and a UI face spends them on exactly these
+ * -- not on the game faces' set, which has the pound sign for the backtick
+ * and draws no vertical bar. The faces have outlines for the rest of Latin-1
+ * and the atlas has nowhere to put them, so any other byte measures and
+ * draws as a space until the atlas grows. The bake builds its byte-to-glyph
+ * table from this function, so the two cannot disagree.
+ */
+int
+ToriRSChrome_FontDrawsByte(unsigned char c);
 
 enum ToriRSChromePrimKind
 {
@@ -809,12 +883,14 @@ struct ToriRSChromeTheme
      * width come from this slot -- so a skin that picks the game's p12 body
      * face gets game-sized rows rather than debug-sized rows with game-sized
      * glyphs spilling out of them. Panel titles are not affected; those are
-     * always the bold menu face, which is what the reference titles with.
+     * `font_title`, which in the two older themes is the bold menu face the
+     * reference titles with.
      */
     int font_row;
 
     /**
-     * Window-panel row height in chrome pixels at 1x; 0 is the grid's
+     * Window-panel row height in chrome pixels at 1x; 0 is the theme's own
+     * `row_h_base`, and where that is 0 too the grid's
      * TORIRS_CHROME_M_ROW_H (18).
      *
      * Beside `font_row` because the two move together: the editor's View >
@@ -847,10 +923,153 @@ struct ToriRSChromeTheme
      * automatic fallback -- each draw checks the slot it is about to use.
      */
     int skin_dropdown;
+
+    /* ---- the faces of the other roles (2026-11-09) ------------------------
+     *
+     * `font_row` chose the row face and nothing else: titles were the Menu
+     * face, keycaps and tooltips the Small face, source text the Menu face,
+     * each written at its draw site. A theme that draws in its own faces
+     * (torirs_chrome_theme_editor) has to say all of them, so each role is a
+     * key. The two older themes name exactly the face that was written, so
+     * every number they measure and every glyph they draw is unchanged.
+     *
+     * A theme is always a copy of a built-in one (ToriRSChrome_Init installs
+     * one; a host edits a copy and hands it to ToriRSChrome_SetTheme), which
+     * is why these have no "0 means the default" form.
+     */
+    /** Panel titles, and the title of a MENU panel. Its line box is the title
+     *  bar's height. */
+    int font_title;
+    /** The menu bar's titles and items, a MENU panel's rows, and every other
+     *  run of a MENUBAR strip (the editor's status bar is one). */
+    int font_menu;
+    /** Keycaps, an icon button's badge, tooltips, a menu bar's captions. */
+    int font_small;
+    /** A CODE view's lines and gutter. */
+    int font_code;
+    /**
+     * TORIRS_CHROME_FONT_ICON when the theme draws its furniture from the icon
+     * face: Close, Pop out and Dock, the arrows of a dropdown and a scrollbar,
+     * a tree's expander, a checkbox's tick, and the glyph an ICONBUTTON was
+     * given (ToriRSChrome_IconButtonSetGlyph). Any other value -- 0 in the
+     * two older themes -- is "no icon face": the baked skin art where the
+     * theme wears it, else the drawn glyphs (dbg_push_flat_furniture).
+     */
+    int font_icon;
+
+    /**
+     * The theme's own window-panel row height at 1x, used while `row_h` is 0;
+     * 0 is the grid's TORIRS_CHROME_M_ROW_H (18).
+     *
+     * Beside `row_h` rather than in it: `row_h` is the HOST's override (the
+     * editor's Text size Large sets it and puts 0 back), and a theme that
+     * stated its height there would lose it the first time the host put its
+     * own 0 back.
+     */
+    int row_h_base;
+
+    /**
+     * Shadow the strings that ask for one themselves: a MENU panel's rows,
+     * the menu bar's runs, a tooltip. 1 in the two older themes (they always
+     * were); a flat theme says 0 and gets none anywhere.
+     */
+    int menu_text_shadowed;
+
+    /**
+     * Draw controls flat (1) rather than as the game's settings furniture (0).
+     *
+     * 0 is every pixel the two older themes drew: a button is the tiled field
+     * box with an accent outline under the pointer, a tab is a box, a
+     * selected tree row is a veil, a window has the minimenu's inset rails.
+     * 1 is the editor's look: a button is a filled plate that lightens under
+     * the pointer and fills `button_bg_checked` when pressed, tabs are bare
+     * captions with a `tab_marker` line under the selected one, a hovered or
+     * selected row is a filled band, a window has one hairline at its edge,
+     * captions are left-aligned in their fields, and the pointer never
+     * recolours a control's outline. A switch and not a colour, because
+     * these are different shapes: no palette turns one into the other.
+     */
+    int flat_controls;
+
+    /* ---- colours the draw code used to borrow (2026-11-09) ----------------
+     *
+     * Each of these was `accent`, `menu_hover_text` or another key standing
+     * in for a role it did not name. The two older themes set each to the
+     * key (or the literal) the draw site read, so nothing they draw moves.
+     */
+    /** A pressable caption under the pointer (was `accent`). */
+    uint32_t text_hover;
+    /** A control's outline under the pointer, a slider knob's ring, an open
+     *  colour picker's swatch (was `accent`). Not read for a button's plate
+     *  when `flat_controls` is set. */
+    uint32_t outline_hover;
+    /** `flat_controls` only: a button's plate at rest, under the pointer,
+     *  pressed or checked, and its hairline. */
+    uint32_t button_bg;
+    uint32_t button_bg_hover;
+    uint32_t button_bg_checked;
+    uint32_t button_border;
+    /** The selected row of a list: the band (its transparency in the
+     *  client's sense, 0 opaque) and, under `flat_controls`, the row's ink.
+     *  Was `accent` at 160 with the ink left alone. */
+    uint32_t selection_bg;
+    int selection_trans;
+    uint32_t selection_text;
+    /** The band under a hovered list row (was `dropdown_veil` at
+     *  `dropdown_row_trans_hover`); under `flat_controls` also under a hovered
+     *  tree row, tab, tool button and menu-bar item. */
+    uint32_t row_hover;
+    int row_hover_trans;
+    /** The band behind a text field's content when it is all selected (was
+     *  `input_border_focus` at 150). */
+    uint32_t text_selection;
+    int text_selection_trans;
+    /** A keycap: its plate, its hairline and its chord (were `input_bg`,
+     *  `dropdown_border_inner` and `menu_hover_text`). */
+    uint32_t keycap_bg;
+    uint32_t keycap_border;
+    uint32_t keycap_text;
+    /** A tooltip: its body, its edge and its text (were `menu_body`,
+     *  `menu_chrome` and `menu_hover_text`). */
+    uint32_t tooltip_bg;
+    uint32_t tooltip_border;
+    uint32_t tooltip_text;
+    /** A MENU panel's title, on its `menu_chrome` bar (was `menu_body`). */
+    uint32_t menu_title_text;
+    /** `flat_controls` only: the line under the selected tab. */
+    uint32_t tab_marker;
+    /** A slider's knob with no skin, at rest and under the pointer or the
+     *  drag (were `scroll_grip` and `accent`). */
+    uint32_t slider_knob;
+    uint32_t slider_knob_hover;
+    /** The filled part of a progress row (was `check_mark`). */
+    uint32_t progress_fill;
+    /** The resize grip's dots (was `panel_border`). */
+    uint32_t grip;
+    /** An error row's outline and text when the row states no colour (was
+     *  the literal 0xFF5555). */
+    uint32_t error;
 };
 
 /** The flat developer look: grey chrome, no shadows, no sprites. */
 extern struct ToriRSChromeTheme const torirs_chrome_theme_default;
+
+/**
+ * The map editor's own look (2026-11-09): a dark tool palette on the model of
+ * VS Code's "Dark+", drawn in the vendored UI faces.
+ *
+ * No skin and no text shadow; `flat_controls`; rows in TORIRS_CHROME_FONT_UI
+ * at 22 px, titles in _UI_BOLD, keycaps and tooltips in _UI_SMALL, source in
+ * _UI_MONO, furniture from _ICON; one accent (0x3794FF: the focus ring, a
+ * ticked box, the selected tab's line) and one selection fill (0x094771,
+ * under white). Nothing in it is yellow. Body text on the body is 9.5:1 and
+ * dim text 5.6:1 (tools/chrome_ui_theme_preview.py prints the table).
+ *
+ * It names font slots the drawer has to be able to draw: a host installs it
+ * only where every text prim's slot reaches a face
+ * (UITreeSceneBridge_EnsureDebugFonts registers all of them).
+ */
+extern struct ToriRSChromeTheme const torirs_chrome_theme_editor;
 
 /**
  * The reference interface palette.
@@ -916,6 +1135,26 @@ enum ToriRSChromeDock
 
 /** PANEL_MODE flag: the panel is modal. @see ToriRSChrome_PanelSetModal. */
 #define TORIRS_CHROME_PANEL_MODE_MODAL 0x1
+
+/**
+ * The LAYERS panels are stacked in (ToriRSChrome_PanelSetLayer), lowest first.
+ * One order serves the drawing and every hit test: ascending layer, then --
+ * inside a layer -- a maximised panel over the rest, then the raise serial,
+ * then the panel's index. Modal panels, the open dropdown list, the colour
+ * popup and the tooltip stay above every layer, as they always were.
+ *
+ * BASE is every panel's layer until something says otherwise, and a BASE
+ * panel never raises: with nothing above BASE the order is the panel array's,
+ * which is the order this chrome drew and hit in before layers existed
+ * (2026-11-09) -- the game client's panels do not move.
+ */
+#define TORIRS_CHROME_LAYER_BASE 0
+/** A floating window: over every docked one, raised when shown or pressed. */
+#define TORIRS_CHROME_LAYER_FLOAT 1
+/** Always on top: a menu bar, a status bar, a tool rail -- and a popup panel
+ *  (a context menu) that must open over the floating windows. Raised when
+ *  shown, so a popup comes up over the bars; never by a press. */
+#define TORIRS_CHROME_LAYER_TOP 2
 
 enum ToriRSChromeWidgetKind
 {
@@ -1064,6 +1303,9 @@ enum ToriRSChromeWidgetKind
      * them packs left to right; a TORIRS_CHROME_PANEL_TOOLBAR is a strip of
      * nothing else. Activates on release like a BUTTON; whether that presses it
      * is the host's call (a tool rail is exclusive, a toggle is not).
+     *
+     * Under a theme with an icon face it draws its GLYPH instead of the skin
+     * slot, where it was given one (ToriRSChrome_IconButtonSetGlyph).
      */
     TORIRS_CHROME_W_ICONBUTTON,
     /**
@@ -1282,7 +1524,9 @@ struct ToriRSChromeGraphItem
 };
 
 /** Rows the open dropdown list shows at once; longer lists scroll. Chosen so a
- *  palette of several hundred entries stays inside TORIRS_CHROME_MAX_PRIMS. */
+ *  palette of several hundred entries stays inside TORIRS_CHROME_MAX_PRIMS.
+ *  A VALUE list's ceiling: a menu (ToriRSChrome_MenuDrop) shows as many of
+ *  its rows as the surface holds. */
 #define TORIRS_CHROME_DROPDOWN_ROWS 10
 
 /** Editing keys ToriRSChrome_KeyEdit understands. Printable input goes through
@@ -1473,6 +1717,10 @@ struct ToriRSChromeWidget
     /** GRAPH: content hash of the items as of the last GraphEnd, so a host
      *  that restates the same picture records nothing. */
     uint64_t graph_hash;
+    /** GRAPH: drawn with no fill and no border, exactly as tall as asked
+     *  (ToriRSChrome_GraphSetBare): a strip of the host's own controls, not
+     *  a picture in a frame. */
+    int graph_bare;
     /** Bumped whenever row texts, spans or graph items really changed; the
      *  executor shadow compares it rather than the pools themselves. */
     uint32_t rows_rev;
@@ -1508,6 +1756,22 @@ struct ToriRSChromeWidget
     /** BUTTON: the plate takes the row's whole width, not the label column's
      *  (@see ToriRSChrome_ButtonSetFill). */
     int button_fill;
+    /**
+     * ICONBUTTON: the icon it draws under a theme with an icon face, a
+     * TORIRS_CHROME_ICON_* string (one byte and its terminator); "" for none,
+     * and then the skin slot in `ivalue` is all it has
+     * (@see ToriRSChrome_IconButtonSetGlyph). Model state: a DOM presentation
+     * draws the skin art either way.
+     */
+    char glyph[4];
+    /** LABEL: a group's caption (@see ToriRSChrome_LabelSetCaption). */
+    int caption;
+    /**
+     * VLIST/CODE: the pool slots this widget reserved when it was made. `rows`
+     * is how many of them it shows now, 1..`vrow_cap`
+     * (@see ToriRSChrome_VListSetRows).
+     */
+    int vrow_cap;
 };
 
 /** Which of a widget's strings a truncation record is about. */
@@ -1713,9 +1977,12 @@ struct ToriRSChromePanel
     int user_placed;
     /**
      * Maximised (ToriRSChrome_PanelMaximise): drawn after every other
-     * non-modal panel and hit before them, so it sits over the lot; the box it
-     * had before is kept below and ToriRSChrome_PanelRestore puts it back. A
-     * title drag or an edge resize that moves past the slop restores it first.
+     * non-modal panel of its LAYER and hit before them, so it sits over the
+     * lot -- on a chrome that states no layer, over every panel that is not a
+     * dialog, as it always did; a floating window or an always-on-top bar
+     * stays over a maximised docked one. The box it had before is kept below
+     * and ToriRSChrome_PanelRestore puts it back. A title drag or an edge
+     * resize that moves past the slop restores it first.
      */
     int maximised;
     /** The drawn box when it was maximised (what a restore-for-drag sizes
@@ -1771,6 +2038,23 @@ struct ToriRSChromePanel
     /** Maximised as a compound: the area's height (ToriRSChrome_PanelMaximise),
      *  of which the child takes what the parent leaves at every Build. */
     int maximise_h;
+    /**
+     * TORIRS_CHROME_LAYER_*: where the panel is stacked, for the drawing and
+     * for every hit test alike (ToriRSChrome_PanelSetLayer). 0 by PanelAdd.
+     *
+     * A compound (ToriRSChrome_PanelAttach) is ONE window in the order: both
+     * of its panels take the ROOT's layer and raise serial, so the strip and
+     * the window under it can never be separated by a panel between them. An
+     * attached panel's own two fields wait until it is detached.
+     */
+    int layer;
+    /**
+     * When the panel was last raised inside its layer, off
+     * ToriRSChrome::raise_serial: the larger is drawn later and hit first.
+     * 0 until raised, and always 0 on TORIRS_CHROME_LAYER_BASE, where the
+     * array's order is the order (@see ToriRSChrome_PanelRaise).
+     */
+    int raise_serial;
 };
 
 /** Internal retained-model event kinds consumed by ToriRSChromeSync_Run. */
@@ -2190,6 +2474,11 @@ struct ToriRSChrome
     int graph_item_count;
     /** GRAPH between GraphBegin and GraphEnd, or -1. One at a time. */
     int graph_building;
+    /** Where that graph's items were in the pool before GraphBegin took them
+     *  out (-1: it had none). GraphEnd compares: the same picture listed
+     *  again at another place still leaves the prims of the last Build
+     *  pointing at the old one. */
+    int graph_building_first;
     /** Queued gestures and edits, oldest first. @see ToriRSChrome_TakeEvent. */
     struct ToriRSChromeEvent events[TORIRS_CHROME_EVENT_MAX];
     int event_count;
@@ -2228,6 +2517,46 @@ struct ToriRSChrome
     int truncation_head;
     int truncation_count;
     int truncation_dropped;
+
+    /** The last raise serial handed out (ToriRSChromePanel::raise_serial). */
+    int raise_serial;
+    /**
+     * The press that DISMISSED the open dropdown list is the chrome's, whole:
+     * 1 from that press until its release, 2 from the release until the next
+     * pointer event, 0 otherwise. While it is set ToriRSChrome_WantsPointer
+     * answers 1 everywhere, so a click-away to close a menu selects, paints
+     * and walks nothing in the view under it -- on the press, through a drag,
+     * and on the frame of the release, whose own gates run after the chrome
+     * has already handled the button (2026-11-09).
+     */
+    int dismiss_press;
+    /**
+     * The focused text field's content is ALL SELECTED
+     * (ToriRSChrome_InputSelectAll). The whole selection model: the content
+     * is drawn over a highlight, the next typed character or inserted text
+     * replaces it, Backspace or Delete clears it, and a caret move, a click or
+     * a change of focus drops the flag. Meaningful only while `focus` names a
+     * TEXTINPUT, TEXTAREA or COLORPICK.
+     */
+    int select_all;
+    /**
+     * The last press in a one-line text field (widget, chrome clock, where),
+     * for the double-click that selects its content: a second press in the
+     * same field within TORIRS_CHROME_DOUBLE_CLICK_MS and
+     * TORIRS_CHROME_DOUBLE_CLICK_SLOP chrome px. -1 = none.
+     */
+    int field_press_widget;
+    int64_t field_press_ms;
+    int field_press_x;
+    int field_press_y;
+    /**
+     * The part of a pixel a precise scroll (ToriRSChrome_WheelFrame, a
+     * touchpad's deltas) has moved a panel's content by and no whole pixel
+     * has taken yet, in 1/256 px, and the panel it belongs to (-1 none): a
+     * slow two-finger scroll sends less than a pixel an event.
+     */
+    int scroll_rem_q8;
+    int scroll_rem_panel;
 
     /** Set by Build when a capacity limit truncated the display list. */
     int overflow;
@@ -2378,6 +2707,15 @@ ToriRSChrome_Reset(struct ToriRSChrome* ui);
 
 void
 ToriRSChrome_SetTheme(struct ToriRSChrome* ui, struct ToriRSChromeTheme const* theme);
+
+/**
+ * Does `theme` name any UI face (TORIRS_CHROME_FONT_UI and up) for a role, or
+ * the icon face? What a host asks before it registers those faces with its
+ * drawer: the two older themes answer 0, and a session that wears only them
+ * never builds a UI atlas.
+ */
+int
+ToriRSChrome_ThemeUsesUiFonts(struct ToriRSChromeTheme const* theme);
 
 /* ---- building ----------------------------------------------------------- */
 
@@ -2550,6 +2888,44 @@ ToriRSChrome_PanelAttachedChild(struct ToriRSChrome const* ui, int panel);
 struct ToriRSChromeRect
 ToriRSChrome_PanelExtent(struct ToriRSChrome const* ui, int panel);
 
+/**
+ * Put `panel` on a layer: TORIRS_CHROME_LAYER_BASE (docked windows and every
+ * panel that never asked), _FLOAT (a floating window) or _TOP (a bar that is
+ * always over the windows, or a popup panel that opens over them).
+ * Compare-then-set.
+ *
+ * The layer orders the DRAWING and every HIT TEST together: a panel on a
+ * higher layer is drawn over a lower one wherever the two were created, and
+ * a press, a wheel, a hover or a title-bar button on it never reaches the
+ * panel underneath. Inside a layer the last raised wins
+ * (ToriRSChrome_PanelRaise). Moving a panel onto _FLOAT or _TOP raises it
+ * there; moving it back to _BASE forgets its raise, so BASE panels keep the
+ * array's order among themselves.
+ *
+ * A compound is one window: state the layer on its ROOT (the panel the others
+ * are attached under). An attached panel's own layer is not read until it is
+ * detached, so a window that moves between a docked group and a floating one
+ * needs no bookkeeping beyond the two roots' layers.
+ */
+void
+ToriRSChrome_PanelSetLayer(struct ToriRSChrome* ui, int panel, int layer);
+
+/** The layer `panel` is drawn and hit on: its compound root's. */
+int
+ToriRSChrome_PanelLayer(struct ToriRSChrome const* ui, int panel);
+
+/**
+ * Bring `panel` (the whole compound it belongs to) to the top of its layer.
+ *
+ * The chrome does this itself for a _FLOAT panel when it is shown and when
+ * it is pressed, and for a _TOP panel when it is shown; a host calls it for
+ * a window it wants in front without either (View > Hotkeys on a panel that
+ * is already open). A _BASE panel never raises -- the call does nothing
+ * there -- and no raise crosses a layer.
+ */
+void
+ToriRSChrome_PanelRaise(struct ToriRSChrome* ui, int panel);
+
 /* Modifier bits for ToriRSChrome_SetModifiers (the editor's EDITOR_HK_MOD_*
  * values, so a host passes its own mask through). */
 #define TORIRS_CHROME_MOD_CTRL 1u
@@ -2570,6 +2946,20 @@ ToriRSChrome_Label(struct ToriRSChrome* ui, int panel, char const* text);
 /** As ToriRSChrome_Label with an explicit colour (0 = theme). */
 int
 ToriRSChrome_LabelColored(struct ToriRSChrome* ui, int panel, char const* text, uint32_t color);
+
+/**
+ * Mark a LABEL of a MENUBAR strip as a group's CAPTION: the word that names
+ * the run of items after it ("Level", "Workspace"), not an item.
+ *
+ * Under a `flat_controls` theme a caption is drawn in `font_small` and
+ * `text_dim`, after a rule that separates its group from the one before; any
+ * spaces it starts with are the room the rule stands in and are not drawn.
+ * Under the two older themes, and in any other panel style, it draws as the
+ * label it is. Model state only: no command carries it, and a DOM
+ * presentation shows the label unchanged. `widget` must be a live LABEL.
+ */
+void
+ToriRSChrome_LabelSetCaption(struct ToriRSChrome* ui, int widget, int caption);
 
 /** Read-only semantic panel components, retained as distinct DOM elements. */
 int
@@ -2713,6 +3103,11 @@ ToriRSChrome_CustomMenu(
  * half here: the routing feeds only the LEFT button's press/release into this
  * library, so there is no `press` for a right button to be matched against and
  * requiring one would make the channel dead. Returns 1 when a well took it.
+ *
+ * With a dropdown list or a menu open it dismisses the list instead, the way
+ * the primary press does (ToriRSChrome_MouseDown), and returns 1: outside the
+ * list it closes it and the chrome owns the pointer for that frame, inside it
+ * does nothing.
  */
 int
 ToriRSChrome_SecondaryClick(struct ToriRSChrome* ui, int x, int y);
@@ -2986,6 +3381,12 @@ ToriRSChrome_MenuItem(struct ToriRSChrome* ui, int panel, char const* text);
  * ToriRSChrome_DropdownSelected then says which row, and the caller runs the
  * command it maps to. The selection is not a value -- it is cleared on every
  * open -- which is the difference between a menu and a picker.
+ *
+ * The opened list shows its rows: it is as tall as all of them where the
+ * surface (ToriRSChrome_SetSurface) has the room, and only a list taller
+ * than the surface less a margin scrolls (2026-11-09; it used to stop at
+ * TORIRS_CHROME_DROPDOWN_ROWS like a value list, so a fifty-row menu was ten
+ * rows behind a scrollbar). With no surface stated it keeps that ceiling.
  */
 int
 ToriRSChrome_MenuDrop(
@@ -3168,8 +3569,10 @@ ToriRSChrome_ModelViewBox(
  * Does the chrome own the pointer at (x, y)?
  *
  * True over any visible panel, over the open dropdown or colour popup (both
- * extend beyond their panel), and for as long as a gesture the chrome started
- * is still in flight.
+ * extend beyond their panel), for as long as a gesture the chrome started
+ * is still in flight, and -- anywhere on the surface -- for the click that
+ * dismissed an open dropdown list or menu, from its press to the end of the
+ * frame it is released on (ToriRSChrome::dismiss_press).
  *
  * Const and side-effect free, so the CALLER's own gates can ask it. That is
  * the whole point: a host routes this frame's input to the chrome long before
@@ -3260,7 +3663,11 @@ ToriRSChrome_SetCaretVisible(struct ToriRSChrome* ui, int visible);
 int
 ToriRSChrome_HasVisiblePanel(struct ToriRSChrome const* ui);
 
-/** @return widget handle under (x,y), or -1. Only hits visible panels. */
+/**
+ * @return widget handle under (x,y), or -1. Only hits visible panels, and of
+ * panels that overlap only the one drawn on top there: the stacking order is
+ * the drawing's (TORIRS_CHROME_LAYER_*, ToriRSChrome_PanelRaise).
+ */
 int
 ToriRSChrome_HitTest(struct ToriRSChrome const* ui, int x, int y);
 
@@ -3268,6 +3675,19 @@ ToriRSChrome_HitTest(struct ToriRSChrome const* ui, int x, int y);
 int
 ToriRSChrome_MouseMove(struct ToriRSChrome* ui, int x, int y);
 
+/**
+ * The primary button went down at (x, y). @return 1 when the chrome took it.
+ *
+ * With a dropdown list or a menu open, a press outside the list CLOSES it and
+ * is spent on that: it reaches no widget and starts no drag, the chrome
+ * answers ToriRSChrome_WantsPointer with 1 until the frame of its release is
+ * over, and ToriRSChrome_MouseUp consumes the release -- so clicking the view
+ * behind a menu to shut it does nothing in the view. The one press let
+ * through is on another menu title of the same panel, which switches menus.
+ *
+ * A press inside a TORIRS_CHROME_LAYER_FLOAT panel raises it
+ * (ToriRSChrome_PanelRaise).
+ */
 int
 ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y);
 
@@ -3276,9 +3696,22 @@ int
 ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y);
 
 /**
- * Scroll the open dropdown list. @param delta rows, negative = up.
- * @return 1 when the overlay consumed it (a list was open under the pointer),
- * so the caller can leave the camera zoom alone.
+ * The wheel turned `delta` notches at (x, y), positive up.
+ *
+ * Over the open dropdown list it scrolls the list, a row a notch. Otherwise
+ * it goes to the widget under the pointer that scrolls or steps by itself --
+ * a VLIST or CODE view (three rows a notch), a GRAPH well (an event for the
+ * host), a SLIDER that holds the focus or sits in a panel with nothing to
+ * scroll -- and failing that it scrolls the PANEL: three rows a notch (the
+ * row height and gap at the current scale), never more than its view.
+ *
+ * A CLOSED dropdown does not take the wheel, and neither does a slider that
+ * was not picked in a panel that scrolls: a control that changes its value
+ * under a pointer merely resting on it changes it for someone who was
+ * scrolling the page.
+ *
+ * @return 1 when the chrome consumed it (the pointer was over a list or a
+ * panel), so the caller can leave the camera zoom alone.
  */
 int
 ToriRSChrome_MouseWheel(struct ToriRSChrome* ui, int x, int y, int delta);
@@ -3295,9 +3728,15 @@ ToriRSChrome_Pinch(struct ToriRSChrome* ui, int x, int y, double scale);
 
 /**
  * A trackpad's exact scroll at surface (x, y): `dx`, `dy` surface pixels in
- * the platform's convention (+dy scroll up, +dx scroll right). Only a GRAPH
- * well takes one (TORIRS_CHROME_EVENT_GRAPH_SCROLL); anywhere else returns 0
- * and the caller routes the integer wheel as it always has.
+ * the platform's convention (+dy scroll up, +dx scroll right).
+ *
+ * A GRAPH well takes it whole (TORIRS_CHROME_EVENT_GRAPH_SCROLL). Over the
+ * rows of a panel that scrolls, the panel moves by exactly `dy` pixels -- the
+ * content follows the fingers, a part pixel kept for the next event -- which
+ * is the path that stays pixel-exact whatever a wheel notch is worth; `dx`
+ * moves nothing there. Anywhere else (a list, a code view, a held slider, a
+ * panel with nothing to scroll, an open popup, off the chrome) returns 0 and
+ * the caller routes the integer wheel as it always has.
  */
 int
 ToriRSChrome_Scroll(struct ToriRSChrome* ui, int x, int y, double dx, double dy);
@@ -3340,11 +3779,15 @@ struct ToriRSChromeWheelFrame
  *     TORIRS_CHROME_PINCH_WHEEL_STEP ^ -notches, the exact deltas when the
  *     platform sent them (so a fraction of a notch is a fraction of the
  *     ratio), the direction the well's plain wheel zooms;
- *  3. a TRACKPAD's exact scroll over a GRAPH is GRAPH_SCROLL, and the
- *     integer notches rounded out of it are spent;
+ *  3. a TRACKPAD's exact scroll over a GRAPH is GRAPH_SCROLL, and over a
+ *     panel's rows it scrolls the panel by those pixels
+ *     (ToriRSChrome_Scroll); either way the integer notches rounded out of
+ *     it are spent, so one motion is never applied twice;
  *  4. whatever wheel is left goes to ToriRSChrome_MouseWheel, as before.
  *
- * Anything but a GRAPH well therefore sees exactly the wheel it always saw.
+ * A mouse wheel is not a trackpad: a platform that sends a notch as both the
+ * integer wheel and an exact scroll (Windows pushes 48 px beside each notch)
+ * has the exact half ignored at step 3 and the notch applied once at step 4.
  * @return 1 when the chrome took any of it (the caller marks the frame's
  * input consumed, so the camera behind stays still).
  */
@@ -3451,9 +3894,56 @@ ToriRSChrome_FocusWidget(struct ToriRSChrome* ui, int widget, int caret);
 int
 ToriRSChrome_KeyChar(struct ToriRSChrome* ui, int ch);
 
-/** @param key enum ToriRSChromeKey. @return 1 if consumed. */
+/**
+ * @param key enum ToriRSChromeKey. @return 1 if consumed.
+ *
+ * Escape with a dropdown list, a menu or a colour popup open closes it and is
+ * consumed, whatever holds the focus -- before a focused field or a dialog
+ * sees the key.
+ */
 int
 ToriRSChrome_KeyEdit(struct ToriRSChrome* ui, int key);
+
+/**
+ * The focused widget when it is a text field the keyboard edits in place --
+ * a TEXTINPUT, a TEXTAREA or a COLORPICK's hex -- else -1. What a host asks
+ * before it runs a clipboard chord: ToriRSChrome_Text of the answer is the
+ * field's whole content.
+ */
+int
+ToriRSChrome_InputFocused(struct ToriRSChrome const* ui);
+
+/**
+ * Select the whole content of the focused text field (Ctrl+A, and what a
+ * double-click in a one-line field does). The caret goes to the end.
+ * @return 1 when a text field holds the focus, 0 when there is nothing to
+ * select in. @see ToriRSChrome::select_all for the model.
+ */
+int
+ToriRSChrome_InputSelectAll(struct ToriRSChrome* ui);
+
+/** Whether the focused text field's content is all selected. */
+int
+ToriRSChrome_InputAllSelected(struct ToriRSChrome const* ui);
+
+/**
+ * Insert `text` into the focused text field at the caret -- a paste. With
+ * the content all selected it replaces it.
+ *
+ * What the field cannot hold is not inserted: the text is cut at the field's
+ * capacity (TORIRS_CHROME_INPUT_MAX - 1 bytes in all), bytes outside
+ * printable ASCII are dropped the way ToriRSChrome_KeyChar refuses them, and
+ * a run of tabs, line breaks or other control characters becomes ONE space
+ * inside the text and nothing at either end of it (a line copied from a text
+ * editor brings its line end along) -- in a TEXTAREA a line break stays a
+ * line break. A COLORPICK's hex is committed by Enter or by leaving the
+ * field, as when it is typed.
+ *
+ * @return the bytes inserted; 0 when no text field holds the focus or
+ * nothing fitted -- and then nothing changed, a selection included.
+ */
+int
+ToriRSChrome_InputInsertText(struct ToriRSChrome* ui, char const* text);
 
 /**
  * Handle of the widget activated since the last call (menu item clicked,
@@ -3539,6 +4029,13 @@ ToriRSChrome_SetSkinAvailable(struct ToriRSChrome* ui, int slot, int available);
  * The host's clock, for the tooltip delay. ui/ owns no clock, the same way the
  * caret blink is app-driven. Call once a frame; a frame where the hover has
  * sat on one widget for TORIRS_CHROME_TOOLTIP_DELAY_MS shows its tooltip.
+ *
+ * Not over the text field (or code view) that holds the keyboard: its
+ * tooltip is taken down when it gets the focus and stays down until it gives
+ * the focus up, so it never covers what is being typed against.
+ *
+ * The same clock times the double-clicks (a title bar's, a text field's): a
+ * host that never calls this has neither.
  */
 void
 ToriRSChrome_Tick(struct ToriRSChrome* ui, int64_t now_ms);
@@ -3610,6 +4107,35 @@ ToriRSChrome_VList(
     struct ToriRSChrome* ui, int panel, char const* label, int rows, int row_count);
 void
 ToriRSChrome_VListSetCount(struct ToriRSChrome* ui, int widget, int row_count);
+/**
+ * Show `rows` rows at once: clamped to 1..the `rows` the list was made with,
+ * which is what it reserved from the row pool and all it can ever show. The
+ * list's row grows or shrinks by whole rows and its panel is laid out again;
+ * the scroll is clamped to the new window, and every visible row asks the
+ * host for its text again (ToriRSChrome_VListNeedsRows).
+ *
+ * For a list that fills the height its panel has: make it with the most rows
+ * it should ever show, and set this from the panel's height each time that
+ * moves. `widget` must be a live VLIST or CODE. A DOM presentation keeps the
+ * window it was added with: `rows` rides WIDGET_ADD and nothing after.
+ */
+void
+ToriRSChrome_VListSetRows(struct ToriRSChrome* ui, int widget, int rows);
+/** The height one row of a VLIST takes, in surface pixels at the chrome's
+ *  scale: what a host divides a panel's spare height by. */
+int
+ToriRSChrome_VListRowHeight(struct ToriRSChrome const* ui);
+/**
+ * The box of absolute row `row` of a VLIST or CODE in surface pixels, as the
+ * last Build laid the list out: the rows run down from the top of the list's
+ * box, under its caption and header. 1 with `*out` set; 0 for a row outside
+ * the window the list shows (scroll to it first) or a list with no box yet.
+ * For a program pressing a row by number: the agent server computed this
+ * itself from the foot of the widget and was wrong for every list with a
+ * header or a caption (2026-11-09).
+ */
+int
+ToriRSChrome_VListRowRect(struct ToriRSChrome const* ui, int widget, int row, struct ToriRSChromeRect* out);
 /** First visible row, clamped to the count. */
 void
 ToriRSChrome_VListSetScroll(struct ToriRSChrome* ui, int widget, int first);
@@ -3694,6 +4220,21 @@ ToriRSChrome_IconButton(struct ToriRSChrome* ui, int panel, int skin_slot, char 
 void
 ToriRSChrome_IconButtonSetIcon(struct ToriRSChrome* ui, int widget, int skin_slot);
 /**
+ * The icon an ICONBUTTON draws under a theme that has an icon face
+ * (ToriRSChromeTheme::font_icon): `icon` is a TORIRS_CHROME_ICON_* string
+ * (src/ui/torirs_chrome_icons.h), one byte. "" clears it.
+ *
+ * Under such a theme the glyph is drawn centred in the button in `text`
+ * (`accent` when the button is checked, `text_dim` when it is disabled), over
+ * a `selection_bg` backing when checked and a `row_hover` one under the
+ * pointer, and the chord badge is the bare chord in `text_dim` in the
+ * corner. Under any other theme -- and for a button never given a glyph --
+ * the skin slot draws as it always did. `widget` must be a live ICONBUTTON.
+ * Model state: no command carries it.
+ */
+void
+ToriRSChrome_IconButtonSetGlyph(struct ToriRSChrome* ui, int widget, char const* icon);
+/**
  * The chord an ICONBUTTON wears as a badge: Small face, over a black plate, in
  * the icon box's bottom-right corner. "" clears it; copied, 23 bytes;
  * `widget` must be a live ICONBUTTON. Journalled as WIDGET_CHORD.
@@ -3760,6 +4301,16 @@ ToriRSChrome_CodeSetLineSpans(
 /** A well `height` chrome pixels tall (non-positive: TORIRS_CHROME_M_CUSTOM_H). */
 int
 ToriRSChrome_Graph(struct ToriRSChrome* ui, int panel, char const* label, int height);
+/**
+ * Draw the well bare: no fill, no border, and `height` chrome pixels tall
+ * exactly, without the least height a framed well has. For a well that is a
+ * row of the host's own controls (the editor's chip strips): framed, one line
+ * of chips sat in a 48 px box, two thirds of it empty, and a panel of four
+ * strips was a stack of empty boxes (2026-11-09). `bare` 0 puts the frame and
+ * the clamp back.
+ */
+void
+ToriRSChrome_GraphSetBare(struct ToriRSChrome* ui, int widget, int bare, int height);
 /** Restate the well's whole picture: Begin, then items, then End. End compares
  *  against the previous picture, so restating the same one records nothing. */
 void

@@ -205,7 +205,7 @@ Editor_LiveEncodeBuildQuest(
     const char* quest);
 
 /** BUILD of a kind that carries an argument (ToriRSMapEd_BuildWhatTakesArg:
- *  the quest kinds, CS2's script name), which must be
+ *  the quest kinds), which must be
  *  ToriRSMapEd_BuildArgValid. */
 uint32_t
 Editor_LiveEncodeBuildArg(
@@ -247,6 +247,55 @@ Editor_LiveEncodePlay(
 void
 Editor_LiveProgressLine(
     const struct Editor_LiveModel* model,
+    char* out,
+    size_t out_size);
+
+/** How the last RUN ended, for the one sentence that says so
+ *  (Editor_LiveRunOutcomeLine). */
+enum Editor_LiveRunOutcome
+{
+    /** No FACT_RUN_DONE has arrived. */
+    EDITOR_LIVE_RUN_NONE = 0,
+    /** Every step succeeded and the reload took everything. */
+    EDITOR_LIVE_RUN_DONE,
+    /** Every step succeeded, but the reload listed what it cannot swap into
+     *  a running server (FACT_RUN_DONE's restart rows): the new content does
+     *  not run until the lane's server starts again. */
+    EDITOR_LIVE_RUN_RESTART,
+    /** A step failed; the steps after it did not run. */
+    EDITOR_LIVE_RUN_STOPPED,
+};
+
+/** Bytes Editor_LiveRunOutcomeLine fills at most: one console line. */
+#define EDITOR_LIVE_OUTCOME_MAX 160
+
+/**
+ * The last RUN's outcome as ONE sentence for the Output console and the
+ * status bar (2026-11-09: only the Live panel said it, and a RUN that needed
+ * a restart read "RUN done" while the new content did not run):
+ *
+ *   "RUN done in 31 s: 3 scripts, 2 config groups, 1 square reloaded; started
+ *    the play client (it logs in as maped1)"
+ *   "RUN done, but the lane's server must restart for: config varp records.
+ *    Detach in the Live panel, then RUN again." (a lane this editor
+ *    launched; for a server it only dialled: "... the game server must
+ *    restart for: ... Restart it where it runs, then Attach again.")
+ *   "RUN stopped: the packs build failed: fenwick.rs2:7: unknown variable '%'"
+ *   "RUN refused: a build or a RUN is already in flight" (STOPPED with
+ *    run_last_step IDLE: no step of it ran)
+ *
+ * `seconds` is how long the RUN took, negative when nobody timed it.
+ * `reason` is the failed build's first diagnostic, NULL or "" when there is
+ * none: it replaces the server's own pick of a line (its message after the
+ * first ':'), which is the build's LAST line that reads as an error and is
+ * often a summary ("1 error"). `out` holds at least EDITOR_LIVE_OUTCOME_MAX
+ * bytes; "" for EDITOR_LIVE_RUN_NONE.
+ */
+enum Editor_LiveRunOutcome
+Editor_LiveRunOutcomeLine(
+    const struct Editor_LiveModel* model,
+    int seconds,
+    const char* reason,
     char* out,
     size_t out_size);
 

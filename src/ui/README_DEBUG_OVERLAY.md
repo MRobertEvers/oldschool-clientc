@@ -531,6 +531,18 @@ follows (`y -= font->line_height`).
 `ToriRSChrome_Init` installs `torirs_chrome_theme_default`; `ToriRSChrome_SetTheme`
 swaps it wholesale.
 
+Three themes are in the tree: `torirs_chrome_theme_default` (flat, the developer
+overlay's), `torirs_chrome_theme_osrs` (the baked game skin and the game's bitmap
+faces) and, since 2026-11-09, `torirs_chrome_theme_editor`, which the map editor
+boots in: `flat_controls` (plates, bare tabs with an accent line, a dark palette),
+22 px rows (`row_h_base`), and its text in the vendored UI faces -- the font slots
+after the game's three, `TORIRS_CHROME_FONT_UI`, `_UI_SMALL`, `_UI_BOLD`, `_UI_MONO`
+and `_ICON`, named per role by `font_title`, `font_menu`, `font_small`, `font_code`
+and `font_icon`. The faces, their sizes, the bake and the theme's colour keys are
+in docs/CHROME_SCALE.md, "The UI faces"; `TORIRS_CHROME_THEME=osrs|flat|editor`
+picks one at boot (src/app/app_debug_ui.c). The tables below list the keys the
+first two themes had; the header (`struct ToriRSChromeTheme`) is the full list.
+
 | Group | Fields |
 | --- | --- |
 | Window panel | `panel_body` `panel_border` `panel_title_bg` `panel_title_text` |

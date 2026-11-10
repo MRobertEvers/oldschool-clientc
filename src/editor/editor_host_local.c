@@ -1520,6 +1520,19 @@ Editor_HostLocalOpenInEditor(
     return EDITOR_HOST_UNSUPPORTED;
 }
 
+/* A browser tab has no file manager to hand a path to. */
+enum EditorHost_Status
+Editor_HostLocalRevealInFileManager(
+    const char* path,
+    char* out_cmdline,
+    size_t out_size)
+{
+    assert(path);
+    if( out_cmdline && out_size > 0 )
+        out_cmdline[0] = '\0';
+    return EDITOR_HOST_UNSUPPORTED;
+}
+
 #elif defined(_WIN32)
 
 enum EditorHost_Status
@@ -1548,6 +1561,86 @@ Editor_HostLocalOpenInEditor(
         snprintf(out_cmdline, out_size, "%s", command);
     /* Through cmd.exe, as the user's own command line (start, a .cmd), with
      * no console and not waited on: the editor is never this process's. */
+    snprintf(cmd_line, sizeof(cmd_line), "cmd.exe /d /c %s", command);
+    memset(&startup, 0, sizeof(startup));
+    startup.cb = sizeof(startup);
+    memset(&process, 0, sizeof(process));
+    if( !CreateProcessA(NULL, cmd_line, NULL, NULL, FALSE, CREATE_NO_WINDOW | DETACHED_PROCESS, NULL, NULL, &startup,
+            &process) )
+        return EDITOR_HOST_IO_ERROR;
+    CloseHandle(process.hThread);
+    CloseHandle(process.hProcess);
+    return EDITOR_HOST_OK;
+}
+
+/* Explorer. A file on disk is selected in its folder (`/select,`); a folder
+ * is opened; a path that is not on disk yet shows its nearest folder that
+ * is, opened -- the place the file will appear. REFUSED when the path does
+ * not fit or nothing of it exists (a drive that is not there). */
+enum EditorHost_Status
+Editor_HostLocalRevealInFileManager(
+    const char* path,
+    char* out_cmdline,
+    size_t out_size)
+{
+    const char* tmpl = getenv("TORIRS_EDITOR_REVEAL_CMD");
+    char full[1024];
+    char command[2048];
+    char cmd_line[2200];
+    DWORD length;
+    DWORD attributes;
+    int is_folder;
+    STARTUPINFOA startup;
+    PROCESS_INFORMATION process;
+
+    assert(path);
+    if( out_cmdline && out_size > 0 )
+        out_cmdline[0] = '\0';
+    /* `/select,` reads backslashes only and nothing relative to this
+     * process: GetFullPathName gives both (it spells the path, it does not
+     * ask the disk for it). */
+    length = GetFullPathNameA(path, (DWORD)sizeof(full), full, NULL);
+    if( length == 0 || length >= sizeof(full) )
+        return EDITOR_HOST_REFUSED;
+    attributes = GetFileAttributesA(full);
+    while( attributes == INVALID_FILE_ATTRIBUTES )
+    {
+        char* slash = strrchr(full, '\\');
+        /* Nothing left but a root's own slashes ("\\server" is gone too). */
+        if( !slash || slash <= full + 1 )
+            return EDITOR_HOST_REFUSED;
+        /* "C:\x" gives way to "C:\", never to "C:" (that is the drive's
+         * current directory, wherever it is). */
+        if( slash == full + 2 && full[1] == ':' )
+        {
+            if( slash[1] == '\0' )
+                return EDITOR_HOST_REFUSED;
+            slash[1] = '\0';
+        }
+        else
+            *slash = '\0';
+        attributes = GetFileAttributesA(full);
+    }
+    is_folder = (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    /* A folder given with its trailing backslash: that backslash would sit
+     * before the closing quote, where a command line reads `\"` as a quote.
+     * A drive's root keeps its own ("C:\"). */
+    {
+        size_t const full_length = strlen(full);
+        if( full_length > 3 && full[full_length - 1] == '\\' )
+            full[full_length - 1] = '\0';
+    }
+
+    if( !tmpl || !tmpl[0] )
+        tmpl = Editor_RevealCommandDefaultWindows(is_folder);
+    if( Editor_OpenCommandLine(tmpl, full, 1, command, sizeof(command)) == 0 )
+        return EDITOR_HOST_REFUSED;
+    if( out_cmdline && out_size > 0 )
+        snprintf(out_cmdline, out_size, "%s", command);
+    /* Started as Open in editor starts its command: cmd.exe, no console, not
+     * waited on. explorer.exe hands the request to the running shell and
+     * exits 1 even when the window opened; nobody here reads that code, so
+     * nobody mistakes it for a failure. */
     snprintf(cmd_line, sizeof(cmd_line), "cmd.exe /d /c %s", command);
     memset(&startup, 0, sizeof(startup));
     startup.cb = sizeof(startup);
@@ -1617,6 +1710,87 @@ Editor_HostLocalOpenInEditor(
         snprintf(out_cmdline, out_size, "%s", command);
     /* Backgrounded inside the shell, which exits at once: waiting on it is
      * waiting on nothing, and the editor is never this process's child. */
+    snprintf(shell_line, sizeof(shell_line), "( %s ) >/dev/null 2>&1 &", command);
+    argv[0] = "/bin/sh";
+    argv[1] = "-c";
+    argv[2] = shell_line;
+    argv[3] = NULL;
+    if( posix_spawn(&pid, "/bin/sh", NULL, NULL, argv, environ) != 0 )
+        return EDITOR_HOST_IO_ERROR;
+    while( waitpid(pid, &status, 0) < 0 )
+    {
+        if( errno != EINTR )
+            break;
+    }
+    return EDITOR_HOST_OK;
+}
+
+/* Finder (`open -R` selects a file in its folder, `open` opens a folder), or
+ * elsewhere xdg-open on the folder: it opens things and selects nothing, so
+ * a file's folder is what it can show. A path that is not on disk yet shows
+ * its nearest folder that is, opened -- the place the file will appear.
+ * REFUSED when the path does not fit or nothing of it exists. */
+enum EditorHost_Status
+Editor_HostLocalRevealInFileManager(
+    const char* path,
+    char* out_cmdline,
+    size_t out_size)
+{
+    const char* tmpl = getenv("TORIRS_EDITOR_REVEAL_CMD");
+    char target[1024];
+    char command[2048];
+    char shell_line[2100];
+    struct stat info;
+    int is_folder;
+    char* argv[4];
+    pid_t pid;
+    int status = 0;
+
+    assert(path);
+    if( out_cmdline && out_size > 0 )
+        out_cmdline[0] = '\0';
+    if( !path[0] || strlen(path) >= sizeof(target) )
+        return EDITOR_HOST_REFUSED;
+    snprintf(target, sizeof(target), "%s", path);
+    while( stat(target, &info) != 0 )
+    {
+        char* slash = strrchr(target, '/');
+        if( !slash )
+            return EDITOR_HOST_REFUSED;
+        if( slash != target )
+            *slash = '\0';
+        else if( target[1] != '\0' )
+            target[1] = '\0';
+        else
+            return EDITOR_HOST_REFUSED;
+    }
+    is_folder = S_ISDIR(info.st_mode);
+
+    if( !tmpl || !tmpl[0] )
+    {
+#if defined(__APPLE__)
+        tmpl = Editor_RevealCommandDefault(is_folder, 1);
+#else
+        if( !is_folder )
+        {
+            char* slash = strrchr(target, '/');
+            if( !slash )
+                snprintf(target, sizeof(target), ".");
+            else if( slash == target )
+                target[1] = '\0';
+            else
+                *slash = '\0';
+            is_folder = 1;
+        }
+        tmpl = Editor_RevealCommandDefault(is_folder, 0);
+#endif
+    }
+    if( Editor_OpenCommandLine(tmpl, target, 1, command, sizeof(command)) == 0 )
+        return EDITOR_HOST_REFUSED;
+    if( out_cmdline && out_size > 0 )
+        snprintf(out_cmdline, out_size, "%s", command);
+    /* Backgrounded inside the shell, as Open in editor's command is: the
+     * shell exits at once and the file manager is never this process's. */
     snprintf(shell_line, sizeof(shell_line), "( %s ) >/dev/null 2>&1 &", command);
     argv[0] = "/bin/sh";
     argv[1] = "-c";

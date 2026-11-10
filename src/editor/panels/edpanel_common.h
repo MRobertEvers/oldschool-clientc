@@ -37,6 +37,12 @@
 #define EDP_DOCK_W_MIN 200
 #define EDP_DOCK_W_MAX 400
 #define EDP_DOCK_MIN_H 160
+/** The least a window of the bottom strip (Output, History, Problems) is
+ *  shown at under its tabs, 1x px: four rows of its list and its button. The
+ *  column's floor above is for a panel of controls; held to it, the strip's
+ *  least passed a quarter of a 900 px window by one pixel when the editor's
+ *  theme made a row 22 px, and the strip was parked at every boot. */
+#define EDP_STRIP_MIN_H 112
 /* Compact panels (Editor_UiSetCompact -1): automatic below this LOGICAL
  * surface (device px / chrome scale). 1366x768 and smaller laptops, 1280x720,
  * tablets; a 1440x900 MacBook at 2x (2880x1800) is not compact. */
@@ -319,10 +325,22 @@ edp_select_same(
     int level,
     enum Editor_LocSelectMode mode);
 
-/** The rectangle tool's clipboard ops. Paste lands at the rectangle's SW
- *  corner when one is latched, else at (world_x, world_z). */
+/** The rectangle tool's clipboard ops. Copy takes the rectangle's tiles, its
+ *  locs and -- "with spawns" -- the npc and ground-item spawns standing in
+ *  it, whichever file makes them; Paste lands them as one undo step (a
+ *  pasted spawn is an edited row of the square it lands in) at the
+ *  rectangle's SW corner when one is latched, else at (world_x, world_z).
+ *  Both say what they carried in the status bar. */
 int
 edp_rect_copy(struct EditorUi* ui);
+
+/** The Rectangle panel's "with spawns" box (on by default): whether Copy
+ *  takes the rectangle's spawns and Paste stands the copied ones. */
+int
+edp_rect_with_spawns(void);
+
+void
+edp_rect_set_with_spawns(int on);
 
 int
 edp_rect_paste(
@@ -364,6 +382,77 @@ edp_square_clear(
     struct EditorUi* ui,
     int map_x,
     int map_z);
+
+/**
+ * A square copy that brings its spawns (New square's "Copy of ...", Copy
+ * to..., a scratch square's Place): Editor_CreateSquare with `request`, then
+ * -- `with_spawns`, the copy template, another square's coordinates -- every
+ * spawn standing in the source added to the created square's edited spawn
+ * file on the same local tiles (edp_square_spawn_commands). One undo step
+ * where the server lets a create join a stroke
+ * (TORIRSMAPED_CAP_DOC_CREATE_STROKE), else the create's step and the
+ * spawns' after it. `*out_spawns` gets the spawns added. Needs ui->editor.
+ */
+enum EditorHost_Status
+edp_square_create(
+    struct EditorUi* ui,
+    const struct EditorHost_DocCreate* request,
+    int with_spawns,
+    int* out_spawns);
+
+/** A placed scratch square's slot emptied: edp_square_clear, and every row
+ *  of the slot's edited spawn file with it (its spawns went to the placed
+ *  square). One undo step. Returns the edits applied. */
+int
+edp_scratch_clear(
+    struct EditorUi* ui,
+    int map_x,
+    int map_z);
+
+/** The SPAWN adds among `commands` (just applied) are spawns this window
+ *  stood in the world: counted into EditorUi::spawns_added_*, which the
+ *  Spawns panel answers by turning "Show spawns in the world" on and saying
+ *  so. edp_apply calls it for a "place spawn"; a paste, a stamp drop and a
+ *  square copy call it for the spawns they bring. */
+void
+edp_spawns_note_added(
+    struct EditorUi* ui,
+    const struct Editor_Cmd* commands,
+    int count);
+
+/* ---- the tile grid (edpanel_common.c) ---------------------------------------
+ *
+ * A ground grid over the tiles round the pointer (the camera's tile when the
+ * pointer is off the world) and a border round each open square, a chevron
+ * on its north edge: what tells a blank square's edges and north apart
+ * (N1, 2026-11-09). EditorUi::tile_grid holds the mode; the World's overlay
+ * draws it (app_overlay.c).
+ */
+enum Editor_TileGridMode
+{
+    /** On a square that holds no loc yet; off once it does. */
+    EDITOR_TILE_GRID_AUTO = 0,
+    EDITOR_TILE_GRID_ON,
+    EDITOR_TILE_GRID_OFF,
+    EDITOR_TILE_GRID_MODE_COUNT
+};
+
+/** Set the mode and say it in the status bar. */
+void
+edp_tile_grid_set(
+    struct EditorUi* ui,
+    enum Editor_TileGridMode mode);
+
+/** Auto -> On -> Off -> Auto: what a View row or a hotkey calls. Returns
+ *  the new mode. */
+enum Editor_TileGridMode
+edp_tile_grid_cycle(struct EditorUi* ui);
+
+/** Whether the grid is drawn over a square holding `loc_count` locs. */
+int
+edp_tile_grid_shows(
+    const struct EditorUi* ui,
+    int loc_count);
 
 struct Editor_Picker;
 

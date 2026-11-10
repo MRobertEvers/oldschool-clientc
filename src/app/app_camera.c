@@ -608,26 +608,39 @@ app_world_camera_keys(
         app->frame_view->cam_key_down = 0;
         return;
     }
-    /* Suppressed while any text input has focus (the chat line, a modal
-     * prompt, a panel's search box), so typing never flies the camera -- and
-     * while the catalog's model view holds focus, whose WASD/EF orbit the
-     * preview, not the world. */
-    if( app_text_input_focused(app) || app_modelview_focused(app) )
+    /* Suppressed while the catalog's model view holds focus, whose WASD/EF
+     * orbit the preview, not the world -- and, outside the map editor, while
+     * any chrome widget has focus (the chat line, a modal prompt, a panel's
+     * search box), so typing never flies the camera.
+     *
+     * The map editor decides for itself: its hotkey table is shut by a
+     * focused text field and stays open under a focused list, slider or well
+     * (app_editor_hotkeys.c), and every editor camera action below reads that
+     * table. Returning here on any chrome focus (until 2026-11-09) left the
+     * camera dead after a click on a Catalog row until the world was clicked
+     * again. */
+    if( app_modelview_focused(app) )
+        return;
+    if( !app_editor_hotkeys_owns_camera(app) && app_text_input_focused(app) )
         return;
     (void)out;
 
-    if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_FORWARD) )
-        app_camera_move_forward(app, move);
-    if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_BACK) )
-        app_camera_move_forward(app, -move);
-    if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_LEFT) )
-        app_camera_move_left(app, -move);
-    if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_RIGHT) )
-        app_camera_move_left(app, move);
-    if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_UP) )
-        app->frame_view->world_camera_pos.y -= move;
-    if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_DOWN) )
-        app->frame_view->world_camera_pos.y += move;
+    /* The debug flight reads raw keys, so it keeps the chrome-focus gate. */
+    if( !app_text_input_focused(app) )
+    {
+        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_FORWARD) )
+            app_camera_move_forward(app, move);
+        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_BACK) )
+            app_camera_move_forward(app, -move);
+        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_LEFT) )
+            app_camera_move_left(app, -move);
+        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_RIGHT) )
+            app_camera_move_left(app, move);
+        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_UP) )
+            app->frame_view->world_camera_pos.y -= move;
+        if( app_debug_key_held(app, input, APP_DEBUG_HOTKEY_CAMERA_DOWN) )
+            app->frame_view->world_camera_pos.y += move;
+    }
     /* The map editor's own flight (bare W/A/S/D/Q/E, held; Fly faster on top)
      * -- rebindable actions of its hotkey table, resolved and gated by
      * app_editor_hotkeys.c, moving the same camera the debug flight does. */

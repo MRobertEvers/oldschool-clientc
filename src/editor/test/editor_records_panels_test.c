@@ -1,12 +1,12 @@
 /*
  * Workbench 6.6, part 1, headless: the Record panel's typed rows and tabs
  * (editor/panels/edpanel_record.c), the Problems panel
- * (editor/panels/edpanel_problems.c), Check and CS2 compile as the editor
- * server's BUILD jobs (torirsmaped/torirs_maped_build.h), and CATALOG_USES
+ * (editor/panels/edpanel_problems.c), Check as the editor server's BUILD job
+ * (torirsmaped/torirs_maped_build.h), and CATALOG_USES
  * (torirsmaped/torirs_maped_catalog.h), against the real chrome model and an
  * embedded ToriRSMapEd whose catalog indexes a SYNTHETIC content tree the
  * test writes and whose BUILD runner is the test runner (no make, no
- * sscompile, no cs2, no OSRS-Content):
+ * sscompile, no OSRS-Content):
  *
  *   ./editor_records_panels_test <tmp-dir>
  *
@@ -25,9 +25,10 @@
  *   jobs      Check sent and returning at once (the window never waits), the
  *             unsaved script the server writes for it, its lines as Problems
  *             rows and the Triggers panel's rows, a clean Check clearing
- *             them; a silent failed build leaving its DONE line; CS2 compile
- *             of a script on disk and of the open document, its FAIL line a
- *             row; the refusals (a bad name, a script nobody has)
+ *             them; a silent failed build leaving its DONE line; the
+ *             refusals (a bad argument, an argument on a kind that takes
+ *             none); the retired kind 4 (the interface editor's CS2 compile
+ *             until 2026-11-09) answered like any unknown kind and not run
  *   uses      Where used over the tree, a slice a frame: trigger, script,
  *             spawns per square, overlay, palette for an npc; placements and
  *             a stamp for a loc; a search past one slice's rows
@@ -718,9 +719,6 @@ test_problems(void)
     CHECK(Editor_ProblemsParseLine("sscompile: quests/q.rs2:3: warning: unused label", &row)
               && row.severity == EDITOR_PROBLEM_WARNING && strcmp(row.text, "unused label") == 0,
         "parse: sscompile's prefix, and a warning");
-    CHECK(Editor_ProblemsParseLine("FAIL bank_sort: unknown proc ~foo", &row)
-              && strcmp(row.file, "scripts/bank_sort.cs2") == 0 && strcmp(row.text, "unknown proc ~foo") == 0,
-        "parse: cs2's FAIL line");
     CHECK(Editor_ProblemsParseLine("error: no lane bound", &row) && row.file[0] == '\0', "parse: a placeless error");
     CHECK(!Editor_ProblemsParseLine("make: *** [maped-run-build] Error 2", &row)
               && !Editor_ProblemsParseLine("compiled 3184, failed 0", &row)
@@ -797,8 +795,6 @@ test_jobs(void)
     };
     static const char* const k_clean_lines[] = { "check: staged (copied 0, dropped 0, kept 44)", "check: ok, 0.2 s" };
     static const char* const k_packs_lines[] = { "== packs", "something went sideways" };
-    static const char* const k_cs2_lines[] = { "cs2: compiling bank_sort.cs2", "compiled 0, failed 1",
-        "FAIL bank_sort: unknown proc ~foo" };
     const struct Editor_LiveModel* live = Editor_LivePanelModel(&g_ui);
     struct Editor_BuildJob job;
     char why[160];
@@ -807,7 +803,7 @@ test_jobs(void)
     int problems;
 
     CHECK(live != NULL, "jobs: the window has a Live model");
-    CHECK(maped_caps() & TORIRSMAPED_CAP_BUILD_CHECK, "jobs: the server offers check and cs2 (with its runner)");
+    CHECK(maped_caps() & TORIRSMAPED_CAP_BUILD_CHECK, "jobs: the server offers check (with its runner)");
 
     /* An unsaved script: a trigger added and not saved. */
     CHECK(Editor_Triggers_ShowSubject(&g_ui, "npc", "goblin"), "jobs: Triggers on goblin");
@@ -898,57 +894,13 @@ test_jobs(void)
     CHECK(Editor_Problems_CountOf(&g_ui, "packs", EDITOR_PROBLEM_ERROR) == 1 && problem_index("packs", "FAILED") >= 0,
         "packs: the DONE line is the row (%d)", Editor_Problems_CountOf(&g_ui, "packs", -1));
 
-    /* CS2: a script on disk, then the open document. */
-    g_mock->scripts[TORIRSMAPED_BUILD_CS2].lines = k_cs2_lines;
-    g_mock->scripts[TORIRSMAPED_BUILD_CS2].line_count = 3;
-    g_mock->scripts[TORIRSMAPED_BUILD_CS2].status = EDITOR_HOST_BAKE_FAILED;
+    /* Refusals. An argument no make line may carry never leaves the window
+     * (the quest kinds are the ones that take an argument). */
     commands = g_mock->command_count;
     memset(&job, 0, sizeof(job));
-    CHECK(Editor_BuildJobSend(&g_ui, &job, TORIRSMAPED_BUILD_CS2, "bank_sort", why, sizeof(why)), "cs2: sent (%s)", why);
-    CHECK(run_until_idle(&job) && job.status != EDITOR_HOST_OK, "cs2: ends declined");
-    frame();
-    CHECK(g_mock->command_count == commands + 1 && strstr(g_mock->commands[commands], " maped-cs2-compile ")
-              && strstr(g_mock->commands[commands], "MAPED_CS2_SCRIPT=bank_sort"),
-        "cs2: the job is make maped-cs2-compile for the script (%s)",
-        g_mock->command_count > commands ? g_mock->commands[commands] : "-");
-    CHECK(g_mock->command_count > commands && strstr(g_mock->commands[commands], "MAPED_CS2_SCRIPTS=")
-              && strstr(g_mock->commands[commands], "/scripts"),
-        "cs2: the job names the content's scripts, for the names the compile resolves a ~call through");
-    text = read_at(g_live, "cs2/src/bank_sort.cs2");
-    CHECK(text && strcmp(text, "// 5\n[clientscript,bank_sort]\nreturn;\n") == 0, "cs2: the disk's text, written for it");
-    free(text);
-    {
-        int const at = problem_index("cs2 compile", "unknown proc");
-        CHECK(at >= 0 && strcmp(Editor_Problems_Row(&g_ui, at)->file, "scripts/bank_sort.cs2") == 0,
-            "cs2: its FAIL line is a row on the script");
-    }
-    CHECK(edp_ensure_doc(&g_ui, EDITOR_DOC_TEXT, "cs2:bank_sort"), "cs2: open the script's document");
-    {
-        struct Editor_Cmd cmd;
-        Editor_CmdInit(&cmd, EDITOR_DOC_TEXT, "cs2:bank_sort", EDITOR_CMD_TEXT_SPLICE);
-        cmd.u.text_splice.offset = (uint32_t)strlen("// 5\n[clientscript,bank_sort]\n");
-        memcpy(cmd.u.text_splice.text, "return;~foo; return;", 20);
-        cmd.u.text_splice.before_len = 7;
-        cmd.u.text_splice.after_len = 13;
-        CHECK(edp_apply(&g_ui, &cmd, 1, "test splice") == 1, "cs2: an unsaved edit");
-    }
-    frames(2);
-    memset(&job, 0, sizeof(job));
-    CHECK(Editor_BuildJobSend(&g_ui, &job, TORIRSMAPED_BUILD_CS2, "bank_sort", why, sizeof(why)), "cs2: again");
-    (void)run_until_idle(&job);
-    text = read_at(g_live, "cs2/src/bank_sort.cs2");
-    CHECK(text && strstr(text, "~foo; return;"), "cs2: the server wrote the document's unsaved text");
-    free(text);
-
-    /* Refusals. */
-    memset(&job, 0, sizeof(job));
-    CHECK(!Editor_BuildJobSend(&g_ui, &job, TORIRSMAPED_BUILD_CS2, "../etc", why, sizeof(why)) && strstr(why, "cannot name"),
-        "refuse: a name no make line may carry (%s)", why);
-    commands = g_mock->command_count;
-    memset(&job, 0, sizeof(job));
-    CHECK(Editor_BuildJobSend(&g_ui, &job, TORIRSMAPED_BUILD_CS2, "nosuch", why, sizeof(why)), "refuse: nosuch sent");
-    CHECK(run_until_idle(&job) && job.status == EDITOR_HOST_ABSENT && g_mock->command_count == commands,
-        "refuse: a script nobody has is ABSENT and runs nothing (%u)", job.status);
+    CHECK(!Editor_BuildJobSend(&g_ui, &job, TORIRSMAPED_BUILD_QUEST_GATE, "../etc", why, sizeof(why))
+              && strstr(why, "cannot name") && !job.active && g_mock->command_count == commands,
+        "refuse: a name no make line may carry is not sent (%s)", why);
     {
         struct ToriRSMapEdBuf payload;
         int const serial = live->build_serial;
@@ -964,12 +916,54 @@ test_jobs(void)
         CHECK(live->last_build_status == EDITOR_HOST_REFUSED, "refuse: check takes no argument (%u)",
             live->last_build_status);
     }
-    CHECK(ToriRSMapEd_BuildArgValid(TORIRSMAPED_BUILD_CS2, "bank_sort") && ToriRSMapEd_BuildArgValid(TORIRSMAPED_BUILD_CS2, "a.b-c")
-              && !ToriRSMapEd_BuildArgValid(TORIRSMAPED_BUILD_CS2, "-rf") && !ToriRSMapEd_BuildArgValid(TORIRSMAPED_BUILD_CS2, "a b")
-              && !ToriRSMapEd_BuildArgValid(TORIRSMAPED_BUILD_CHECK, "x"),
+    /* Kind 4 is reserved: until 2026-11-09 it was the interface editor's CS2
+     * compile, and a window from before then still sends it with a script
+     * name. The server answers it as it answers any kind it has no command
+     * for -- REFUSED with the argument, UNSUPPORTED bare -- and runs
+     * nothing. */
+    {
+        uint32_t const retired = 4;
+        struct ToriRSMapEdBuf payload;
+        int serial = live->build_serial;
+
+        commands = g_mock->command_count;
+        memset(&payload, 0, sizeof(payload));
+        ToriRSMapEd_PutU32(&payload, retired);
+        ToriRSMapEd_PutString(&payload, "bank_sort");
+        CHECK(Editor_HostMapEdLiveSend(&g_editor.host, TORIRSMAPED_REQ_BUILD, payload.data + payload.head,
+                  (uint32_t)ToriRSMapEd_BufAvailable(&payload)),
+            "retired: kind 4 with a script name sent raw");
+        ToriRSMapEd_BufFree(&payload);
+        for( int i = 0; i < 20 && live->build_serial == serial; i++ )
+            frame();
+        CHECK(live->build_serial != serial && live->last_build_what == retired
+                  && live->last_build_status == EDITOR_HOST_REFUSED,
+            "retired: kind 4 with its old argument is REFUSED (%u)", live->last_build_status);
+
+        serial = live->build_serial;
+        memset(&payload, 0, sizeof(payload));
+        ToriRSMapEd_PutU32(&payload, retired);
+        CHECK(Editor_HostMapEdLiveSend(&g_editor.host, TORIRSMAPED_REQ_BUILD, payload.data + payload.head,
+                  (uint32_t)ToriRSMapEd_BufAvailable(&payload)),
+            "retired: kind 4 bare sent raw");
+        ToriRSMapEd_BufFree(&payload);
+        for( int i = 0; i < 20 && live->build_serial == serial; i++ )
+            frame();
+        CHECK(live->build_serial != serial && live->last_build_what == retired
+                  && live->last_build_status == EDITOR_HOST_UNSUPPORTED,
+            "retired: kind 4 bare is UNSUPPORTED, the runner has no command for it (%u)", live->last_build_status);
+        CHECK(g_mock->command_count == commands, "retired: neither ran anything (%d commands)",
+            g_mock->command_count - commands);
+        CHECK(!ToriRSMapEd_BuildWhatTakesArg(retired) && strcmp(ToriRSMapEd_BuildWhatName(retired), "?") == 0,
+            "retired: the number names no kind");
+    }
+    CHECK(ToriRSMapEd_BuildArgValid(TORIRSMAPED_BUILD_QUEST_GATE, "cooks_assistant")
+              && !ToriRSMapEd_BuildArgValid(TORIRSMAPED_BUILD_QUEST_GATE, "-rf")
+              && !ToriRSMapEd_BuildArgValid(TORIRSMAPED_BUILD_QUEST_GATE, "a b")
+              && !ToriRSMapEd_BuildArgValid(TORIRSMAPED_BUILD_CHECK, "x") && !ToriRSMapEd_BuildArgValid(4, "bank_sort"),
         "refuse: the argument rule");
     CHECK(strcmp(ToriRSMapEd_BuildWhatName(TORIRSMAPED_BUILD_CHECK), "check") == 0
-              && strcmp(ToriRSMapEd_BuildWhatName(TORIRSMAPED_BUILD_CS2), "cs2 compile") == 0,
+              && strcmp(ToriRSMapEd_BuildWhatName(TORIRSMAPED_BUILD_PACKS), "packs") == 0,
         "jobs: the names Problems files them under");
 }
 

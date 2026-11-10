@@ -43,6 +43,7 @@
 #include "edpanels.h"
 #include "editor/editor_floorcolor.h"
 #include "mem/torirs_mem.h"
+#include "ui/torirs_chrome_icons.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -795,34 +796,86 @@ palette_tick(
 
 /* ---- input ------------------------------------------------------------------ */
 
-/** Picking paint arms the matching paint brush -- except under the rectangle
- *  tool, whose Fill reads the same picks. */
+/** Which of the palette's picks a press made. */
+enum PalettePick
+{
+    PALETTE_PICK_UNDERLAY = 0,
+    PALETTE_PICK_OVERLAY,
+    PALETTE_PICK_SHAPE
+};
+
+/** Room for what a pick did to the armed tool: "Rectangle select uses it". */
+#define PALETTE_ARM_TEXT 48
+
+/** Whether the armed tool itself lays this pick. Such a tool stays armed: a
+ *  pick made FOR it must not swap it for a paint brush (2026-11-09: an
+ *  overlay picked for Paint path armed Paint overlay, and the path drag
+ *  painted a brush blob over a road). The list is who reads the pick:
+ *  Editor_TileRectFill (all three), Editor_BrushCommands (the two paint
+ *  brushes), Editor_PathCommands (the overlay; the path shapes its own
+ *  edges) and editor_panel_region.c (the overlay, or the underlay when the
+ *  Terrain panel's target is Underlay; shapes are fitted). Tidy and Plateau
+ *  read no pick. */
+static int
+palette_tool_uses(
+    const struct EditorUi* ui,
+    enum PalettePick pick)
+{
+    enum Editor_Tool const tool = ui->tools.tool;
+
+    if( tool == EDITOR_TOOL_RECT_SELECT )
+        return 1;
+    if( tool == EDITOR_TOOL_PAINT_UNDERLAY )
+        return pick == PALETTE_PICK_UNDERLAY;
+    if( tool == EDITOR_TOOL_PAINT_OVERLAY )
+        return pick != PALETTE_PICK_UNDERLAY;
+    if( tool == EDITOR_TOOL_PAINT_PATH )
+        return pick == PALETTE_PICK_OVERLAY;
+    if( tool == EDITOR_TOOL_REGION || tool == EDITOR_TOOL_LASSO )
+        return pick == (ui->tools.region_underlay ? PALETTE_PICK_UNDERLAY : PALETTE_PICK_OVERLAY);
+    return 0;
+}
+
+/** A pick arms its paint brush only when the armed tool does not lay that
+ *  pick itself. `out` (PALETTE_ARM_TEXT bytes) is which happened, for the
+ *  status bar: "Paint path uses it" / "Paint overlay armed". */
 static void
 palette_arm(
     struct EditorUi* ui,
-    enum Editor_Tool tool)
+    enum PalettePick pick,
+    char* out)
 {
-    if( ui->tools.tool != EDITOR_TOOL_RECT_SELECT )
-        Editor_UiSetTool(ui, tool);
+    enum Editor_Tool const brush =
+        pick == PALETTE_PICK_UNDERLAY ? EDITOR_TOOL_PAINT_UNDERLAY : EDITOR_TOOL_PAINT_OVERLAY;
+
+    if( palette_tool_uses(ui, pick) )
+    {
+        snprintf(out, PALETTE_ARM_TEXT, "%s uses it", Editor_ToolName(ui->tools.tool));
+        return;
+    }
+    Editor_UiSetTool(ui, brush);
+    snprintf(out, PALETTE_ARM_TEXT, "%s armed", Editor_ToolName(brush));
 }
 
 static void
 palette_pick_underlay(
     struct EditorUi* ui,
-    int id)
+    int id,
+    char* out_armed)
 {
     ui->tools.underlay_id = id;
-    palette_arm(ui, EDITOR_TOOL_PAINT_UNDERLAY);
+    palette_arm(ui, PALETTE_PICK_UNDERLAY, out_armed);
 }
 
 static void
 palette_pick_overlay(
     struct EditorUi* ui,
-    int id)
+    int id,
+    char* out_armed)
 {
     ui->tools.overlay_none = id == 0;
     ui->tools.overlay_id = id;
-    palette_arm(ui, EDITOR_TOOL_PAINT_OVERLAY);
+    palette_arm(ui, PALETTE_PICK_OVERLAY, out_armed);
 }
 
 /** Arm (1 + is_overlay) or disarm (0) the eyedropper; the armed button
@@ -884,6 +937,7 @@ palette_event(
 {
     struct PalettePanel* self = opaque;
     int const key = event->key;
+    char armed[PALETTE_ARM_TEXT];
     int is_overlay = 0;
     int id;
 
@@ -910,7 +964,8 @@ palette_event(
         if( key <= EDITOR_SHAPE_COUNT )
         {
             ui->tools.overlay_shape = key - 1;
-            palette_arm(ui, EDITOR_TOOL_PAINT_OVERLAY);
+            palette_arm(ui, PALETTE_PICK_SHAPE, armed);
+            Editor_UiStatus(ui, "Shape %d picked: %s", key - 1, armed);
         }
         self->dirty_draw = 1;
         return 1;
@@ -918,10 +973,21 @@ palette_event(
     id = palette_key_id(self, event->widget, key, &is_overlay);
     if( id < 0 )
         return 1;
-    if( is_overlay )
-        palette_pick_overlay(ui, id);
+    /* The bar says what the pick did to the armed tool, either way: a tool
+     * that changed under the pointer with nothing said is how T1 happened. */
+    if( !is_overlay )
+    {
+        palette_pick_underlay(ui, id, armed);
+        Editor_UiStatus(ui, "Underlay %d picked: %s", id, armed);
+    }
     else
-        palette_pick_underlay(ui, id);
+    {
+        palette_pick_overlay(ui, id, armed);
+        if( id == 0 )
+            Editor_UiStatus(ui, "No overlay picked (painting it takes the overlay off): %s", armed);
+        else
+            Editor_UiStatus(ui, "Overlay %d picked: %s", id, armed);
+    }
     self->dirty_draw = 1;
     return 1;
 }
@@ -1154,6 +1220,7 @@ Editor_Palette_DropperAt(
     struct PalettePanel* self;
     struct Editor_Square* square;
     struct Editor_Tile const* tile;
+    char armed[PALETTE_ARM_TEXT];
     int is_overlay;
 
     assert(ui);
@@ -1172,13 +1239,13 @@ Editor_Palette_DropperAt(
     tile = &square->tiles[Editor_TileIndex(x % 64, z % 64, level)];
     if( !is_overlay )
     {
-        palette_pick_underlay(ui, tile->underlay_id);
-        Editor_UiStatus(ui, "Eyedropper: underlay %d from %d,%d L%d", tile->underlay_id, x, z, level);
+        palette_pick_underlay(ui, tile->underlay_id, armed);
+        Editor_UiStatus(ui, "Eyedropper: underlay %d from %d,%d L%d: %s", tile->underlay_id, x, z, level, armed);
     }
     else if( !tile->has_overlay )
     {
-        palette_pick_overlay(ui, 0);
-        Editor_UiStatus(ui, "Eyedropper: no overlay at %d,%d L%d (none picked)", x, z, level);
+        palette_pick_overlay(ui, 0, armed);
+        Editor_UiStatus(ui, "Eyedropper: no overlay at %d,%d L%d (none picked): %s", x, z, level, armed);
     }
     else
     {
@@ -1188,9 +1255,9 @@ Editor_Palette_DropperAt(
         ui->tools.overlay_id = tile->overlay_id;
         ui->tools.overlay_shape = tile->shape;
         ui->tools.overlay_rotation = tile->rotation & 3;
-        palette_arm(ui, EDITOR_TOOL_PAINT_OVERLAY);
-        Editor_UiStatus(ui, "Eyedropper: overlay %d shape %d rot %d from %d,%d L%d", tile->overlay_id, tile->shape,
-            (tile->rotation & 3) * 90, x, z, level);
+        palette_arm(ui, PALETTE_PICK_OVERLAY, armed);
+        Editor_UiStatus(ui, "Eyedropper: overlay %d shape %d rot %d from %d,%d L%d: %s", tile->overlay_id, tile->shape,
+            (tile->rotation & 3) * 90, x, z, level, armed);
     }
     self->dirty_draw = 1;
     return 1;
@@ -1226,6 +1293,7 @@ Editor_Palette_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->input_underlay, "Type an underlay id and press Enter");
     self->button_drop_underlay =
         ToriRSChrome_IconButton(chrome, self->panel, TORIRS_CHROME_SKIN_TOOL_EYEDROPPER, k_dropper_captions[0]);
+    ToriRSChrome_IconButtonSetGlyph(chrome, self->button_drop_underlay, TORIRS_CHROME_ICON_EYEDROPPER);
     ToriRSChrome_SetTooltip(chrome, self->button_drop_underlay, "The next click on the ground picks its underlay");
     self->row_overlay = ToriRSChrome_Label(chrome, self->panel, "Overlay");
     self->graph_overlay = ToriRSChrome_Graph(chrome, self->panel, "", PALETTE_CELL * 2 + 2);
@@ -1233,6 +1301,7 @@ Editor_Palette_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->input_overlay, "Type an overlay id and press Enter");
     self->button_drop_overlay =
         ToriRSChrome_IconButton(chrome, self->panel, TORIRS_CHROME_SKIN_TOOL_EYEDROPPER, k_dropper_captions[1]);
+    ToriRSChrome_IconButtonSetGlyph(chrome, self->button_drop_overlay, TORIRS_CHROME_ICON_EYEDROPPER);
     ToriRSChrome_SetTooltip(chrome, self->button_drop_overlay, "The next click on the ground picks its overlay and shape");
     self->row_shape = ToriRSChrome_Label(chrome, self->panel, "Shape");
     self->graph_shape = ToriRSChrome_Graph(

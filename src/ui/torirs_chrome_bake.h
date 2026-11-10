@@ -74,9 +74,37 @@ struct ToriRSChromeBakeImage
  * caller (ToriDraw_FontFree releases them), and its `coverage` flag is set
  * (coverage is 0..255 per pixel). Each call counts one atlas build
  * (ToriRSChromeBake_GlyphAtlasBuilds).
+ *
+ * A UI face (TORIRS_CHROME_FONT_UI and up) has neither cells nor a
+ * synthesized twin: it is ToriRSChromeGlyphs_RasteriseUi at every q, and
+ * `smooth` does not apply to it.
  */
 void
 ToriRSChromeGlyphs_Rasterise(int font_slot, int q, int smooth, struct ToriDraw_Font* out);
+
+/**
+ * Rasterise a UI face -- `font_slot` is TORIRS_CHROME_FONT_UI or above -- at
+ * scale `q` into `out`, from its vendored TrueType file
+ * (engine/torirs_chrome_ui_fonts_baked.h), at EVERY q, the whole ones too:
+ * these faces have no bitmap tier.
+ *
+ * The outline is drawn at ToriRSChrome_FontEmPx(slot) * q / 4 device pixels
+ * per em by stb_truetype's own antialiasing (exact area coverage, no
+ * hinting, no stem table, no oversampling and no coverage curve: there are no
+ * 1x pixels to snap to, and what comes out is what FreeType draws unhinted).
+ * The baseline is device row ToriRSChrome_FontLineHeightQ(slot, q) from the
+ * top of the line box, a whole pixel, and each glyph sits at its own
+ * fractional bearing from a whole-pixel pen.
+ *
+ * Its advances are NOT read from the file: every glyph steps the pen by
+ * ToriRSChrome_GlyphAdvanceQ(slot, q, byte), the number layout measured with,
+ * and the result is asserted byte by byte against it. The atlas holds the 94
+ * characters a struct ToriDraw_Font has slots for
+ * (ToriRSChrome_FontDrawsByte); a slot the face has no outline for draws
+ * nothing and still advances. `out` as for Rasterise; one atlas build.
+ */
+void
+ToriRSChromeGlyphs_RasteriseUi(int font_slot, int q, struct ToriDraw_Font* out);
 
 /**
  * The vector face `vec` at scale `q`, as described above, for the bitmap face
@@ -196,12 +224,18 @@ ToriRSChromeBake_TierFor(int q, unsigned tiers);
 
 /** The face `font_slot` (enum ToriRSChromeFontSlot) at scale `q` under
  *  "bitmap at whole scales": the tier at q = 4, 8, 12, the vector atlas
- *  between. Asserts that Prepare built `q`. */
+ *  between. Asserts that Prepare built `q`.
+ *
+ *  A UI face is its own atlas at every q (ToriRSChromeGlyphs_RasteriseUi),
+ *  built the first time it is asked for at that q and kept: a chrome whose
+ *  theme names none of them never pays for one, and Prepare need not have
+ *  run. */
 struct ToriDraw_Font const*
 ToriRSChromeBake_Face(int font_slot, int q);
 
 /** The vector atlas of `font_slot` at scale `q` ("smooth always"). Asserts
- *  that PrepareSmooth (or Prepare, at a fractional q) built it. */
+ *  that PrepareSmooth (or Prepare, at a fractional q) built it. A UI face
+ *  has one drawing: exactly what ToriRSChromeBake_Face answers. */
 struct ToriDraw_Font const*
 ToriRSChromeBake_FaceSmooth(int font_slot, int q);
 

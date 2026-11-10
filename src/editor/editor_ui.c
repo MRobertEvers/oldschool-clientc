@@ -4,7 +4,6 @@
 #include "editor_view.h"
 #include "input/torirs_gesture.h"
 #include "builder/builder_panels.h"
-#include "iface/iface_panels.h"
 #include "live/live_panel.h"
 #include "accounts/accounts_panel.h"
 #include "log/torirs_log.h"
@@ -134,6 +133,7 @@ Editor_UiInit(
     ui->world_panel = -1;
     ui->solo_panel = -1;
     ui->layout_reopened = -1;
+    ui->rail_pad = -1;
     Editor_HotkeysInit(&ui->hotkeys);
     ui->previous_tool = EDITOR_TOOL_SELECT;
     Editor_PrefsInit(&ui->prefs);
@@ -318,15 +318,14 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     /* The instance helper, the picker's Instance... (design section 13). */
     Editor_Instance_Register(ui);
     Editor_SaveGuard_Register(ui);
-    /* The other phase-3 owners' modules: the interaction builders and the
-     * shell editor (editor/builder/), the interface editor and the CS2 tools
-     * (editor/iface/). They start hidden; the View menu opens them. The
-     * views' thin toolbar is not a registry panel (editor_view.h). */
+    /* The interaction builders and the shell editor (editor/builder/). They
+     * start hidden; the View menu opens them. The views' thin toolbar is not
+     * a registry panel (editor_view.h). The interface editor and the CS2
+     * tools that registered here are gone (2026-11-09): interfaces are a
+     * tool of their own, not a panel of the map editor. */
     Editor_LocBuilder_Register(ui);
     Editor_NpcBuilder_Register(ui);
     Editor_ShellEditor_Register(ui);
-    Editor_Iface_Register(ui);
-    Editor_Cs2_Register(ui);
     /* Phase 4: the Live panel (editor/live/), hidden until the View menu
      * opens it; it talks to the editor server's live link. */
     Editor_Live_Register(ui);
@@ -347,7 +346,7 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     Editor_Shop_Register(ui);
     Editor_Quest_Register(ui);
     Editor_History_Register(ui);
-    /* Workbench 6.6: every build's, Check's and CS2 compile's findings and
+    /* Workbench 6.6: every build's and Check's findings and
      * the builders' lint, one list; the bottom strip's third member. */
     Editor_Problems_Register(ui);
     /* Named areas and square collections (the AREAS document). */
@@ -368,6 +367,21 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     ui_window_furniture(ui);
 }
 
+/** The column's panels that are not in the Build default: closed when the
+ *  editor opens (Editor_UiSetVisible) and docked back into the column when
+ *  asked for (ui_layout_follow), not flown out over the world. */
+static const char* const k_dock_on_demand[] = { "terrain", "palette", "catalog_palette", "squares", "areas" };
+#define UI_DOCK_ON_DEMAND_COUNT ((int)(sizeof(k_dock_on_demand) / sizeof(k_dock_on_demand[0])))
+
+static int
+ui_name_on_demand(const char* name)
+{
+    for( int i = 0; i < UI_DOCK_ON_DEMAND_COUNT; i++ )
+        if( strcmp(k_dock_on_demand[i], name) == 0 )
+            return 1;
+    return 0;
+}
+
 void
 Editor_UiSetVisible(
     struct EditorUi* ui,
@@ -386,6 +400,23 @@ Editor_UiSetVisible(
             ToriRSChrome_PanelSetVisible(ui->chrome, panel->chrome_panel, ui->visible);
         if( panel->set_visible )
             panel->set_visible(ui, panel->self, ui->visible);
+    }
+    /* The Build column opens with what placing needs and nothing else: the
+     * Catalog group, the Preview and the Gallery. With the terrain group, the
+     * Squares list and Areas docked too (the default until 2026-11-09) the
+     * column was four panels of six rows each, and a Catalog search showed
+     * no result row. These open on demand, like Record and Triggers: their
+     * keys and View rows, the Terrain workspace, and for the terrain group
+     * arming a terrain tool (Editor_UiSetTool). A saved layout that has one
+     * open opens it again after this. */
+    if( ui->visible )
+    {
+        for( int i = 0; i < UI_DOCK_ON_DEMAND_COUNT; i++ )
+        {
+            struct EditorUiPanel const* panel = Editor_UiFindPanel(ui, k_dock_on_demand[i]);
+            if( panel && panel->chrome_panel >= 0 )
+                ToriRSChrome_PanelSetVisible(ui->chrome, panel->chrome_panel, 0);
+        }
     }
     /* A group's frame goes with the editor; it comes back with its first
      * open member (ui_group_follow). */
@@ -556,6 +587,29 @@ ui_group_has_open(const struct EditorUiGroup* g)
     for( int slot = 0; slot < g->member_count; slot++ )
         if( g->open[slot] )
             return 1;
+    return 0;
+}
+
+/** Whether chrome window `panel` -- a registry panel, or a group's frame
+ *  standing for its members -- is one of the on-demand column panels. */
+static int
+ui_docks_when_shown(
+    const struct EditorUi* ui,
+    int panel)
+{
+    for( int i = 0; i < ui->group_count; i++ )
+    {
+        struct EditorUiGroup const* g = &ui->groups[i];
+        if( g->chrome_panel != panel )
+            continue;
+        for( int slot = 0; slot < g->member_count; slot++ )
+            if( ui_name_on_demand(ui->panels[g->members[slot]].name) )
+                return 1;
+        return 0;
+    }
+    for( int i = 0; i < ui->panel_count; i++ )
+        if( ui->panels[i].chrome_panel == panel )
+            return ui_name_on_demand(ui->panels[i].name);
     return 0;
 }
 
@@ -1455,6 +1509,13 @@ ui_text_size_follow(struct EditorUi* ui)
     int const face = ui->prefs.text_large ? TORIRS_CHROME_FONT_MENU : TORIRS_CHROME_FONT_BODY;
     int const row_h = ui->prefs.text_large ? EDITOR_UI_LARGE_ROW_H : 0;
 
+    /* A theme that draws in the UI faces (the editor's) has no larger face
+     * to change to: Large is the GAME's bold face, which on that theme's
+     * palette is a row of bitmap text among vector ones. There the chrome
+     * scale is how text gets larger (View > Chrome scale), and this leaves
+     * the theme as it is. */
+    if( ToriRSChrome_ThemeUsesUiFonts(&theme) )
+        return;
     /* Normal leaves a theme's own face alone (the flat developer look rows
      * in Small): only Large has an opinion, and turning it off restores
      * the face it replaced. */
@@ -1489,6 +1550,8 @@ Editor_UiSetTextLarge(
     ui->prefs.text_large = large;
     ui->prefs_serial++;
     ui_text_size_follow(ui);
+    if( large && ToriRSChrome_ThemeUsesUiFonts(&ui->chrome->theme) )
+        Editor_UiStatus(ui, "Text size Large is the game skin's: with this theme, View > Chrome scale makes text larger");
     Editor_UiLog(ui, "editor: text size %s", large ? "Large" : "Normal");
 }
 
@@ -1921,8 +1984,23 @@ ui_group_measure_end(
     for( int slot = 0; slot < g->member_count; slot++ )
     {
         int const panel = ui_group_window(ui, g, slot);
-        int const h = ToriRSChrome_PanelRect(chrome, panel).h;
-        int const least = h < floor_h ? h : floor_h;
+        struct EditorUiPanel const* module = &ui->panels[g->members[slot]];
+        int h = ToriRSChrome_PanelRect(chrome, panel).h;
+        int least = h < floor_h ? h : floor_h;
+        /* A member with a part that fills (the Catalog's result list) asks
+         * for that part's stated height, not the height it happens to have
+         * now, and is never admitted with less than its least: measured at
+         * what it showed, a Catalog once given thirty rows asked for thirty
+         * at every later layout, and one admitted at the floor showed two. */
+        if( h > 0 && module->stretch )
+        {
+            int stretch_min = 0;
+            int stretch_natural = 0;
+            int const now = module->stretch(ui, module->self, &stretch_min, &stretch_natural);
+            int const base = h - now;
+            h = base + stretch_natural;
+            least = base + stretch_min;
+        }
         if( h > natural )
             natural = h;
         if( least > min )
@@ -2164,15 +2242,36 @@ Editor_UiLayout(struct EditorUi* ui)
          * and at 2x the last row then overlapped the console.) */
         int const buttons = Editor_ToolRail_ButtonCount();
         int const rows_now = (buttons + columns_now - 1) / columns_now;
-        int pad = ToriRSChrome_PanelRect(chrome, rail).h - rows_now * pitch;
+        int const scale_q = Editor_ChromeScaleQ(chrome);
+        int pad;
         int columns = 1;
 
+        /* Measured while the rail is still its content's height; once it has
+         * been given the column's height (below) its box is that height and
+         * says nothing about the padding, so the first measure is kept and
+         * follows the chrome scale. */
+        if( p->fixed_h <= 0 || ui->rail_pad < 0 )
+        {
+            ui->rail_pad = ToriRSChrome_PanelRect(chrome, rail).h - rows_now * pitch;
+            ui->rail_pad_scale = scale_q;
+        }
+        else if( ui->rail_pad_scale != scale_q && ui->rail_pad_scale > 0 )
+        {
+            ui->rail_pad = ui->rail_pad * scale_q / ui->rail_pad_scale;
+            ui->rail_pad_scale = scale_q;
+        }
+        pad = ui->rail_pad;
         if( pad < 0 )
             pad = 0;
         /* As many columns as it takes: never past the bottom. */
         while( columns < 8 && ((buttons + columns - 1) / columns) * pitch + pad > avail )
             columns++;
         ToriRSChrome_PanelSetFixedWidth(chrome, rail, one_w + (columns - 1) * pitch);
+        /* And the whole height between the bars: at its content's height the
+         * rail ended 30 px short of the status bar, over a square of the
+         * surface nothing paints (black, in the corner of every frame). */
+        if( avail > 0 )
+            ToriRSChrome_PanelSetFixedHeight(chrome, rail, avail);
         ToriRSChrome_PanelMove(chrome, rail, 0, top);
         left = one_w + (columns - 1) * pitch;
     }
@@ -2240,7 +2339,14 @@ Editor_UiLayout(struct EditorUi* ui)
             ui_group_measure_end(
                 ui, slots[i].group, group_saved[slots[i].group - ui->groups], &slots[i].natural, &slots[i].min);
     if( strip_measured )
+    {
+        int least;
         ui_group_measure_end(ui, strip_group, group_saved[strip_group - ui->groups], &strip_natural, &strip_min);
+        /* The strip's own floor (EDP_STRIP_MIN_H), not the column's. */
+        least = strip_group->frame_h + edp_px(ui, EDP_STRIP_MIN_H);
+        if( strip_min > least )
+            strip_min = least;
+    }
 
     /* The console is a strip under the world when it takes a quarter of the
      * height or less (the plain console: and leaves the world
@@ -2434,11 +2540,19 @@ Editor_UiLayout(struct EditorUi* ui)
             left_over -= given;
         }
         /* The first stretching panel of the column: the picker's well over
-         * the Preview's when both are docked in one column. */
+         * the Preview's when both are docked in one column, and a group
+         * whose shown member stretches (the Catalog's result list) over
+         * both. */
         for( int i = 0; i < slot_count && stretcher < 0; i++ )
-            if( slots[i].h >= 0 && slots[i].col == col && !slots[i].collapsed && slots[i].module
-                && slots[i].module->stretch )
+        {
+            if( slots[i].h < 0 || slots[i].col != col || slots[i].collapsed )
+                continue;
+            if( slots[i].module && slots[i].module->stretch )
                 stretcher = i;
+            else if( slots[i].group && slots[i].group->shown >= 0
+                     && ui->panels[slots[i].group->members[slots[i].group->shown]].stretch )
+                stretcher = i;
+        }
         if( stretcher >= 0 && left_over > 0 )
             slots[stretcher].h += left_over;
     }
@@ -2549,10 +2663,16 @@ ui_follow_height(
     return h;
 }
 
+static struct ToriRSChromeRect
+ui_maximise_area(struct EditorUi* ui);
+
 static void
 ui_layout_follow(struct EditorUi* ui)
 {
     struct ToriRSChrome* chrome = ui->chrome;
+    /* What a flyout may cover: everything between the menu bar and the
+     * status bar, the bottom strip included (it floats over the Console). */
+    struct ToriRSChromeRect const area = ui_maximise_area(ui);
     int y = ui->dock_top;
     int const windows = ui->panel_count + ui->group_count;
 
@@ -2595,6 +2715,14 @@ ui_layout_follow(struct EditorUi* ui)
                 ui->laid_out = 0;
             if( ui->docked[at] && ui->member[at] )
                 ui->closed[at] = 1;
+            /* The on-demand column panels (the terrain group, Squares, Areas)
+             * count as closed while hidden, docked before or not: asking for
+             * one lays the column out again with it in its place, the way a
+             * reopened panel returns, and it flies out only when the column
+             * has no room. Flown beside the column it lay across the right
+             * of the world, over the tiles its own brush was painting. */
+            else if( ui_docks_when_shown(ui, panel) )
+                ui->closed[at] = 1;
             ui->flown[at] = 0;
             continue;
         }
@@ -2619,6 +2747,60 @@ ui_layout_follow(struct EditorUi* ui)
         ToriRSChrome_PanelMove(chrome, panel, x, y);
         ui->flown[at] = 1;
         y += ui_follow_height(ui, panel) > 0 ? ui_follow_height(ui, panel) : edp_px(ui, EDP_DOCK_MIN_H);
+    }
+
+    /* A flyout stays on the surface. It is placed before its height is known
+     * (content-sized, measured by the next Build) and stacked under whatever
+     * flyout was open at that moment, so a tall one -- Triggers, the NPC
+     * editor -- opened a third of the way down and ran off the bottom, its
+     * last buttons under the status bar and out of reach (2026-11-09). Once
+     * measured it is moved up until it fits, and one taller than the space
+     * between the bars takes that height and scrolls. A window the user placed
+     * or maximised is theirs; a group is placed as a compound by its own
+     * code. */
+    for( int i = 0; i < windows; i++ )
+    {
+        int titled;
+        int const panel = ui_follow_window(ui, i, &titled);
+        int const avail = area.h;
+        struct ToriRSChromePanel const* p;
+        int h;
+
+        if( panel < ui->panel_first || panel >= ui->panel_end || avail <= 0 )
+            continue;
+        p = &chrome->panels[panel];
+        if( !ui->flown[panel - ui->panel_first] || !p->visible || p->user_placed || ui_frame_group(ui, panel)
+            || ToriRSChrome_PanelIsMaximised(chrome, panel) )
+            continue;
+        h = p->last_rect.h;
+        if( h <= 0 )
+            continue;
+        if( h > avail )
+        {
+            ToriRSChrome_PanelSetFixedHeight(chrome, panel, avail);
+            ToriRSChrome_PanelSetScrollable(chrome, panel, 1);
+            h = avail;
+        }
+        {
+            int const w = p->last_rect.w;
+            int x = p->x;
+            int y_fit = p->y;
+
+            if( p->y + h > area.y + area.h )
+                y_fit = area.y + area.h - h;
+            else if( p->y < area.y )
+                y_fit = area.y;
+            /* Beside the column, by the width it has now: it was flown out at
+             * dock_x less the width of its LAST showing, so the Square map
+             * (sized to most of the world when it opens) started 350 px too
+             * far right and lay across the column. */
+            if( w > 0 && x + w > ui->dock_x && ui->dock_x - w >= ui->world.x )
+                x = ui->dock_x - w;
+            else if( w > 0 && x + w > area.x + area.w )
+                x = area.x + area.w - w > area.x ? area.x + area.w - w : area.x;
+            if( x != p->x || y_fit != p->y )
+                ToriRSChrome_PanelMove(chrome, panel, x, y_fit);
+        }
     }
 }
 
@@ -3269,16 +3451,23 @@ static const char* const k_workspace_names[EDITOR_UI_WORKSPACES] = { "build", "t
 static const char* const k_workspace_titles[EDITOR_UI_WORKSPACES] = { "Build", "Terrain", "Script", "Playtest" };
 
 /* The design table's panels per workspace, as registry module names; the
- * first listed member of a group is its front tab. Script also takes the
- * Shop builder and the Quest board (workbench 6.7: both write scripts);
- * Playtest the Scenes panel and the encounter builder (6.5, 6.7); Script the
- * Problems panel (6.6, part 1). "vars", "dialogue_preview" (workbench 6.6)
- * and "live_log" are not built in this tree (the Live log is the Live
- * panel's own list today) and are skipped with a console line. */
+ * first listed member of a group is its front tab. Playtest takes the Scenes
+ * panel and the encounter builder (6.5, 6.7); Script the Problems panel
+ * (6.6, part 1). "vars", "dialogue_preview" (workbench 6.6) and "live_log"
+ * are not built in this tree (the Live log is the Live panel's own list
+ * today) and are skipped with a console line.
+ *
+ * Script is Triggers, the open record and Problems, and no builder
+ * (2026-11-09). It used to open the Loc builder, the NPC editor, the Shell
+ * editor, the Shop builder and the Quest board as well: five panels each
+ * saying "open a subject", every one cut to 170 px, and Triggers -- where a
+ * script's file is opened, shown in Explorer and its snippets copied -- with
+ * its buttons scrolled out of reach. Scripts are written in the owner's own
+ * editor; the builders stay on the View menu for whoever wants one. */
 static const char* const k_ws_terrain[] = { "terrain", "palette", "squares", "inspector", "console", "history",
     NULL };
-static const char* const k_ws_script[] = { "record", "triggers", "vars", "locbuilder", "npcbuilder",
-    "shelleditor", "shop", "quest", "problems", "console", "dialogue_preview", NULL };
+static const char* const k_ws_script[] = { "record", "triggers", "vars", "problems", "console",
+    "dialogue_preview", NULL };
 static const char* const k_ws_playtest[] = { "live", "accounts", "scenes", "encounter", "live_log", "console",
     NULL };
 
@@ -4173,6 +4362,56 @@ Editor_UiSetTouchInput(
 }
 
 
+/**
+ * Which layer each of the registry's windows draws and is hit in
+ * (ToriRSChrome_PanelSetLayer), every frame after the layout has said what is
+ * docked: the World, the tool rail and everything the column or the bottom
+ * strip holds are the base; a window that floats over them is the float
+ * layer; the menu bar, the status bar and a popup menu are on top.
+ *
+ * Until 2026-11-09 every window was one layer in creation order, and the
+ * group frames are created last: a floating NPC editor drew UNDER the Console
+ * group's title and tabs, the Square map under the dock column, and a press
+ * on a floating panel's Close box closed the World whose title bar lay
+ * beneath it.
+ *
+ * Only a changed layer is set: setting the float layer raises the window, and
+ * raising every float every frame would undo the order the user's presses
+ * gave them. A group is ruled by its frame (an attached member's own layer is
+ * not read), a modal by the chrome.
+ */
+static void
+ui_layers_follow(struct EditorUi* ui)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    int const menubar = ui_chrome_panel(ui, "menubar");
+    int const statusbar = ui_chrome_panel(ui, "statusbar");
+    int const rail = ui_chrome_panel(ui, "toolrail");
+
+    /* A popped-out window is its one panel over the whole surface. */
+    if( ui->solo_panel >= 0 )
+        return;
+    for( int i = ui->panel_first; i < ui->panel_end && i < chrome->panel_count; i++ )
+    {
+        struct ToriRSChromePanel const* p = &chrome->panels[i];
+        int layer = TORIRS_CHROME_LAYER_BASE;
+
+        if( p->modal || ToriRSChrome_PanelAttachedTo(chrome, i) >= 0 )
+            continue;
+        if( i == menubar || i == statusbar || p->style == TORIRS_CHROME_PANEL_MENU )
+            layer = TORIRS_CHROME_LAYER_TOP;
+        else if( i == rail || i == ui->world_panel || p->style != TORIRS_CHROME_PANEL_WINDOW )
+            layer = TORIRS_CHROME_LAYER_BASE;
+        else if( !p->visible )
+            /* Hidden: it keeps the layer it had, and is placed when shown. */
+            continue;
+        else if( !ui->docked[i - ui->panel_first] )
+            layer = TORIRS_CHROME_LAYER_FLOAT;
+        if( ToriRSChrome_PanelLayer(chrome, i) != layer )
+            ToriRSChrome_PanelSetLayer(chrome, i, layer);
+    }
+}
+
 void
 Editor_UiTick(struct EditorUi* ui)
 {
@@ -4199,6 +4438,7 @@ Editor_UiTick(struct EditorUi* ui)
     ui_dock_tick(ui);
     ui_maximise_tick(ui);
     ui_compact_tick(ui);
+    ui_layers_follow(ui);
 
     /* ONE activation per frame, and it is either one module's or nobody's
      * here. Unclaimed, it goes back where it was: another consumer of this
@@ -4369,6 +4609,43 @@ Editor_UiSetHeightTarget(
         -ui->tools.height_target);
 }
 
+/**
+ * A terrain tool's options open with the tool. The terrain group is closed in
+ * the Build column (Editor_UiSetVisible), so arming a brush from the rail
+ * would otherwise leave its radius, strength and colour with no panel to set
+ * them in. A tool that paints a floor colour opens the Palette, where the
+ * colour is picked; the others open Terrain, where the brush is. Only when
+ * the whole group is closed: an open group keeps the tab its user chose, and
+ * a group the user closed again stays closed until the next tool change.
+ */
+static void
+ui_tool_options_follow(
+    struct EditorUi* ui,
+    enum Editor_Tool tool)
+{
+    static const char* const k_group[] = { "terrain", "palette", "catalog_palette" };
+    int const paints = tool == EDITOR_TOOL_PAINT_UNDERLAY || tool == EDITOR_TOOL_PAINT_OVERLAY;
+    struct EditorUiPanel const* panel;
+
+    if( !ui->visible || ui->solo_panel >= 0 )
+        return;
+    if( !Editor_ToolIsBrush(tool) && tool != EDITOR_TOOL_PAINT_PATH )
+        return;
+    for( size_t i = 0; i < sizeof(k_group) / sizeof(k_group[0]); i++ )
+    {
+        panel = Editor_UiFindPanel(ui, k_group[i]);
+        if( panel && panel->chrome_panel >= 0
+            && (ui->chrome->panels[panel->chrome_panel].visible || Editor_UiPanelInStrip(ui, k_group[i])) )
+            return;
+    }
+    panel = Editor_UiFindPanel(ui, paints ? "palette" : "terrain");
+    if( !panel || panel->chrome_panel < 0 )
+        return;
+    ToriRSChrome_PanelSetVisible(ui->chrome, panel->chrome_panel, 1);
+    Editor_UiStatus(ui, "%s armed: its options are in the %s panel", Editor_ToolName(tool),
+        paints ? "Palette" : "Terrain");
+}
+
 void
 Editor_UiSetTool(
     struct EditorUi* ui,
@@ -4387,6 +4664,7 @@ Editor_UiSetTool(
     ui->tools.flatten_valid = 0;
     value = (int32_t)tool;
     (void)Editor_UiPublish(ui, TORIRSMAPED_STATE_TOOL, &value, 1);
+    ui_tool_options_follow(ui, tool);
 }
 
 void

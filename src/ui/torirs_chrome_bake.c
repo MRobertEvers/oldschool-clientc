@@ -10,6 +10,7 @@
 
 #include "engine/torirs_chrome_font_tier.h"
 #include "engine/torirs_chrome_font_vector_baked.h"
+#include "engine/torirs_chrome_ui_fonts_baked.h"
 #include "engine/torirs_debug_font_baked.h"
 
 #include <assert.h>
@@ -57,7 +58,11 @@ struct BakeScale
      * scale, and at a whole one only when "smooth always" asks for them
      * (ToriRSChromeBake_PrepareSmooth). A tier's bitmap face is the bake's. */
     int smooth_built;
+    /* The game faces' vector atlases (the first TORIRS_CHROME_FONT_GAME_COUNT,
+     * under `smooth_built`), and each UI face's own atlas, built the first
+     * time it is asked for at this scale (`ui_built`, by slot). */
     struct ToriDraw_Font faces[TORIRS_CHROME_FONT_SLOT_COUNT];
+    unsigned char ui_built[TORIRS_CHROME_FONT_SLOT_COUNT];
     struct ToriRSChromeBakeImage skin[TORIRS_CHROME_SKIN_SLOT_COUNT];
     /* The pixels each `skin` entry owns, NULL where it points at the bake. */
     uint32_t* skin_owned[TORIRS_CHROME_SKIN_SLOT_COUNT];
@@ -396,8 +401,16 @@ static struct ToriDraw_Font const*
 bake_tier_face(int font_slot, int tier)
 {
     assert(font_slot >= 0);
-    assert(font_slot < TORIRS_CHROME_FONT_SLOT_COUNT);
+    /* Only a game face has tiers; a UI face is bake_ui_atlas. */
+    assert(font_slot < TORIRS_CHROME_FONT_GAME_COUNT);
     return ToriRSChromeFont_Tier(font_slot, tier);
+}
+
+/** Is `font_slot` one of the UI faces? The model says: it has an em. */
+static int
+bake_slot_is_ui(int font_slot)
+{
+    return ToriRSChrome_FontEmPx(font_slot) > 0;
 }
 
 /* ---- the vector face ------------------------------------------------------ */
@@ -937,10 +950,190 @@ ToriRSChromeGlyphs_RasteriseVector(
     g_atlas_builds++;
 }
 
+/* ---- the UI faces ---------------------------------------------------------- */
+
+/*
+ * The vendored outline faces (engine/torirs_chrome_ui_fonts_baked.h), drawn by
+ * stb_truetype as they are: no zones, no stems, no warp. Those exist for the
+ * game faces because each was made from a 1x bitmap whose pixels the drawing
+ * has to keep; Inter and JetBrains Mono were drawn as outlines and have no
+ * such grid. What is fixed is what the layout fixes: the baseline is a whole
+ * device row (ToriRSChrome_FontLineHeightQ), the pen is a whole device pixel,
+ * and every advance is the model's (ToriRSChrome_GlyphAdvanceQ).
+ *
+ * Coverage is stb's exact area, unfiltered, with no curve over it. A curve
+ * would be there to match a reference that draws heavier, and the reference
+ * (FreeType, unhinted, which is what the preview tool draws with) computes
+ * the same area and is blended the same way; oversampling a box filter over
+ * exact coverage changes nothing.
+ */
+
+/** The vendored file a UI slot is drawn from. The model measures the slot
+ *  from the same face's units (k_dbg_ui_faces, uitree_debug_overlay.c); the
+ *  rasteriser checks the two against each other glyph by glyph. */
+static struct ToriRSChromeUiFontFile const*
+bake_ui_file(int font_slot)
+{
+    switch( font_slot )
+    {
+    case TORIRS_CHROME_FONT_UI:
+    case TORIRS_CHROME_FONT_UI_SMALL:
+        return ToriRSChromeUiFont_File(TORIRS_CHROME_UI_FACE_INTER_REGULAR);
+    case TORIRS_CHROME_FONT_UI_BOLD:
+        return ToriRSChromeUiFont_File(TORIRS_CHROME_UI_FACE_INTER_SEMIBOLD);
+    case TORIRS_CHROME_FONT_UI_MONO:
+        return ToriRSChromeUiFont_File(TORIRS_CHROME_UI_FACE_JETBRAINS_MONO);
+    case TORIRS_CHROME_FONT_ICON:
+        return ToriRSChromeUiFont_File(TORIRS_CHROME_UI_FACE_ICONS);
+    default:
+        assert(0 && "not a UI font slot");
+        return NULL;
+    }
+}
+
+void
+ToriRSChromeGlyphs_RasteriseUi(int font_slot, int q, struct ToriDraw_Font* out)
+{
+    struct ToriRSChromeUiFontFile const* file;
+    stbtt_fontinfo info;
+    /* The byte each glyph slot draws; -1 for a slot no byte reaches. */
+    int slot_byte[TORIDRAW_FONT_GLYPH_COUNT];
+    int slots = 0;
+    float scale;
+    int ascent_dev;
+    int ok;
+
+    assert(out);
+    assert(q >= TORIRS_CHROME_SCALE_Q_MIN);
+    assert(q <= TORIRS_CHROME_SCALE_Q_MAX);
+    assert(bake_slot_is_ui(font_slot));
+    file = bake_ui_file(font_slot);
+    /* The file this draws is the file the model measured. */
+    assert(file->units_per_em == ToriRSChrome_FontUnitsPerEm(font_slot));
+
+    ok = stbtt_InitFont(&info, file->ttf, 0);
+    assert(ok);
+    (void)ok;
+    scale = stbtt_ScaleForMappingEmToPixels(
+        &info, (float)(ToriRSChrome_FontEmPx(font_slot) * q) / (float)BAKE_Q);
+
+    memset(out, 0, sizeof(*out));
+    /*
+     * The face's own table from byte to glyph slot, NOT the game faces': a
+     * slot for each byte the model says an atlas draws
+     * (ToriRSChrome_FontDrawsByte: the printable ASCII, in order), and the
+     * advance-only slot for every other byte. The game faces' table spends a
+     * slot on the pound sign, draws nothing for the vertical bar and draws its
+     * last glyph for any byte it does not know; an editor's text has bars and
+     * backticks in it, and an unknown byte should be a gap.
+     */
+    for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
+        slot_byte[i] = -1;
+    for( int c = 0; c < 256; c++ )
+    {
+        if( !ToriRSChrome_FontDrawsByte((unsigned char)c) )
+        {
+            out->charcodeset[c] = (char)TORIDRAW_FONT_GLYPH_COUNT;
+            continue;
+        }
+        /* The model draws no more bytes than an atlas has slots. */
+        assert(slots < TORIDRAW_FONT_GLYPH_COUNT);
+        out->charcodeset[c] = (char)slots;
+        slot_byte[slots] = c;
+        slots++;
+    }
+    /* Antialiased outlines: a renderer that thresholds a mask must read these
+     * bytes as alpha. */
+    out->coverage = 1;
+    ascent_dev = ToriRSChrome_FontLineHeightQ(font_slot, q);
+    out->line_height = ascent_dev;
+    /* The advance-only slot: the space, and every byte with no glyph slot. */
+    out->advance[TORIDRAW_FONT_GLYPH_COUNT] = ToriRSChrome_GlyphAdvanceQ(font_slot, q, ' ');
+
+    for( int gi = 0; gi < TORIDRAW_FONT_GLYPH_COUNT; gi++ )
+    {
+        int const cp = slot_byte[gi];
+        int glyph;
+        int advance_units = 0;
+        int bearing_units = 0;
+        int x0 = 0;
+        int y0 = 0;
+        int x1 = 0;
+        int y1 = 0;
+        int w;
+        int h;
+        uint8_t* mask;
+
+        /* A slot no byte reaches is never drawn or stepped over. */
+        if( cp < 0 )
+            continue;
+        out->advance[gi] = ToriRSChrome_GlyphAdvanceQ(font_slot, q, (unsigned char)cp);
+        glyph = stbtt_FindGlyphIndex(&info, cp);
+        /* The face has no outline for this character (the icon face holds
+         * 58 of the 94): the slot advances and draws nothing. */
+        if( glyph == 0 )
+            continue;
+        stbtt_GetGlyphHMetrics(&info, glyph, &advance_units, &bearing_units);
+        (void)bearing_units;
+        /* The model's units for this byte are this glyph's own advance. */
+        assert(advance_units == ToriRSChrome_FontAdvanceUnits(font_slot, (unsigned char)cp));
+        stbtt_GetGlyphBitmapBoxSubpixel(&info, glyph, scale, scale, 0.0f, 0.0f, &x0, &y0, &x1, &y1);
+        w = x1 - x0;
+        h = y1 - y0;
+        /* A glyph with an advance and no ink (none in these faces' ASCII). */
+        if( w <= 0 || h <= 0 )
+            continue;
+        mask = calloc((size_t)w * (size_t)h, 1);
+        assert(mask);
+        stbtt_MakeGlyphBitmapSubpixel(&info, mask, w, h, w, scale, scale, 0.0f, 0.0f, glyph);
+        out->glyph_alpha[gi] = mask;
+        out->glyph_width[gi] = w;
+        out->glyph_height[gi] = h;
+        /* stb's box is from the pen and the baseline, y down: the baseline is
+         * row `ascent_dev` of the line box. */
+        out->offset_x[gi] = x0;
+        out->offset_y[gi] = ascent_dev + y0;
+    }
+
+    for( int c = 0; c < 256; c++ )
+    {
+        out->draw_width[c] = out->advance[(unsigned char)out->charcodeset[c]];
+        /* The one rule: the atlas steps the pen by what layout measured, for
+         * every byte -- drawn, missing from the face, or with no slot. */
+        assert(out->draw_width[c] == ToriRSChrome_GlyphAdvanceQ(font_slot, q, (unsigned char)c));
+    }
+    g_atlas_builds++;
+}
+
+/** A UI face's atlas at scale `q`, built the first time it is asked for. */
+static struct ToriDraw_Font const*
+bake_ui_atlas(int font_slot, int q)
+{
+    struct BakeScale* b;
+
+    assert(bake_slot_is_ui(font_slot));
+    assert(q >= TORIRS_CHROME_SCALE_Q_MIN);
+    assert(q <= TORIRS_CHROME_SCALE_Q_MAX);
+    b = &g_bake[q];
+    if( !b->ui_built[font_slot] )
+    {
+        ToriRSChromeGlyphs_RasteriseUi(font_slot, q, &b->faces[font_slot]);
+        b->ui_built[font_slot] = 1;
+    }
+    return &b->faces[font_slot];
+}
+
 void
 ToriRSChromeGlyphs_Rasterise(int font_slot, int q, int smooth, struct ToriDraw_Font* out)
 {
-    struct ToriDraw_Font const* src = bake_tier_face(font_slot, 1);
+    struct ToriDraw_Font const* src;
+
+    if( bake_slot_is_ui(font_slot) )
+    {
+        ToriRSChromeGlyphs_RasteriseUi(font_slot, q, out);
+        return;
+    }
+    src = bake_tier_face(font_slot, 1);
 
     if( q % BAKE_Q != 0 || smooth )
         ToriRSChromeGlyphs_RasteriseVector(bake_vector_face(font_slot), src, q, out);
@@ -1195,7 +1388,9 @@ ToriRSChromeBake_PrepareSmooth(int q)
     b = &g_bake[q];
     if( b->smooth_built )
         return;
-    for( int slot = 0; slot < TORIRS_CHROME_FONT_SLOT_COUNT; slot++ )
+    /* The game faces: a UI face is not a vector twin of anything and is built
+     * when it is first asked for (bake_ui_atlas). */
+    for( int slot = 0; slot < TORIRS_CHROME_FONT_GAME_COUNT; slot++ )
         ToriRSChromeGlyphs_Rasterise(slot, q, 1, &b->faces[slot]);
     b->smooth_built = 1;
 }
@@ -1238,6 +1433,8 @@ ToriRSChromeBake_Face(int font_slot, int q)
 {
     assert(font_slot >= 0);
     assert(font_slot < TORIRS_CHROME_FONT_SLOT_COUNT);
+    if( bake_slot_is_ui(font_slot) )
+        return bake_ui_atlas(font_slot, q);
     assert(ToriRSChromeBake_Prepared(q));
     if( q % BAKE_Q == 0 )
         return bake_tier_face(font_slot, q / BAKE_Q);
@@ -1251,6 +1448,8 @@ ToriRSChromeBake_FaceSmooth(int font_slot, int q)
     assert(font_slot < TORIRS_CHROME_FONT_SLOT_COUNT);
     assert(q >= TORIRS_CHROME_SCALE_Q_MIN);
     assert(q <= TORIRS_CHROME_SCALE_Q_MAX);
+    if( bake_slot_is_ui(font_slot) )
+        return bake_ui_atlas(font_slot, q);
     assert(g_bake[q].smooth_built);
     return &g_bake[q].faces[font_slot];
 }

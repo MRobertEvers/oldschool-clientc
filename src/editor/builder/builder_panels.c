@@ -3039,7 +3039,7 @@ bp_set_visible(
 {
     struct builder_panel* self = opaque;
 
-    /* The editor opened or closed: like the interface editor, a builder
+    /* The editor opened or closed: a builder
      * starts (and stays) hidden until the View menu opens it, and closing the
      * editor closes it. The registry has just shown the form's window. */
     (void)visible;

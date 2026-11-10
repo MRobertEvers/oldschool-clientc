@@ -1941,6 +1941,589 @@ test_debug_overlay_dropdown_folds_into_surface(void)
     }
 }
 
+/* Index of the first TEXT primitive with exactly this string, or -1: where
+ * in the display list -- that is, how far up the stack -- a caption is. */
+static int
+dbg_test_text_index(char const* text)
+{
+    int count = 0;
+    struct ToriRSChromePrim const* prims = ToriRSChrome_Prims(&g_ui, &count);
+
+    for( int i = 0; i < count; i++ )
+        if( prims[i].kind == TORIRS_CHROME_PRIM_TEXT && prims[i].text &&
+            strcmp(prims[i].text, text) == 0 )
+            return i;
+    return -1;
+}
+
+/* A digest of the display list's geometry and ink, for "the same list as
+ * before". Field by field: a prim has padding a memcmp would read. */
+static uint64_t
+dbg_test_prims_digest(void)
+{
+    int count = 0;
+    struct ToriRSChromePrim const* prims = ToriRSChrome_Prims(&g_ui, &count);
+    uint64_t h = 1469598103934665603ull;
+
+    for( int i = 0; i < count; i++ )
+    {
+        int const fields[] = { prims[i].kind, prims[i].x,      prims[i].y,     prims[i].w,
+                               prims[i].h,    prims[i].filled, prims[i].trans, (int)prims[i].color,
+                               prims[i].clip.x, prims[i].clip.y, prims[i].clip.w, prims[i].clip.h };
+        for( int f = 0; f < (int)(sizeof(fields) / sizeof(fields[0])); f++ )
+        {
+            h ^= (uint64_t)(uint32_t)fields[f];
+            h *= 1099511628211ull;
+        }
+    }
+    h ^= (uint64_t)(uint32_t)count;
+    return h;
+}
+
+static int
+dbg_test_in_rect(int x, int y, struct ToriRSChromeRect r)
+{
+    return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+}
+
+/*
+ * The stacking order: ONE order for the drawing and for every hit test.
+ *
+ * The defect it replaces, as it was met in the map editor: panels were drawn
+ * and hit in array order, a docked group's frame is created after the
+ * floating panels, so a floating panel drew UNDER the group's title bar --
+ * and a press on a panel's Close box went to whichever panel's Close box the
+ * array walk met first at that point, covered or not.
+ *
+ * MUTATION: make dbg_z_under ignore the layer and the "over" halves go red;
+ * drop the cover test from dbg_furniture_at and "a covered Close box is not
+ * pressed through" goes red.
+ */
+static void
+test_debug_overlay_layers(void)
+{
+    int alpha;
+    int bravo;
+    int charlie;
+    int delta;
+    int a_rows[6];
+    int b_row;
+    int c_row;
+    int d_row;
+    struct ToriRSChromeRect a_close;
+    uint64_t base_digest;
+    int ax;
+    int ay;
+
+    ToriRSChrome_Init(&g_ui);
+    alpha = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 200, "Alpha");
+    ToriRSChrome_PanelSetClosable(&g_ui, alpha, 1);
+    for( int i = 0; i < 6; i++ )
+        a_rows[i] = ToriRSChrome_Checkbox(&g_ui, alpha, "alpha row", 0);
+    bravo = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 110, 10, 200, "Bravo");
+    ToriRSChrome_PanelSetClosable(&g_ui, bravo, 1);
+    b_row = ToriRSChrome_Checkbox(&g_ui, bravo, "bravo row", 0);
+    ToriRSChrome_Build(&g_ui);
+
+    TEST_ASSERT(ToriRSChrome_PanelLayer(&g_ui, alpha) == TORIRS_CHROME_LAYER_BASE, "a panel starts on the base layer");
+    /* Everything on the base layer: the array is the order, as it always was. */
+    TEST_ASSERT(
+        dbg_test_text_index("Alpha") >= 0 && dbg_test_text_index("Alpha") < dbg_test_text_index("Bravo"),
+        "base layer: the later panel is drawn later");
+    /* A point both panels hold, on the first row of each. */
+    ax = 150;
+    ay = g_ui.widgets[a_rows[0]].y + 2;
+    TEST_ASSERT(
+        dbg_test_in_rect(ax, ay, ToriRSChrome_PanelRect(&g_ui, alpha)) &&
+            dbg_test_in_rect(ax, ay, ToriRSChrome_PanelRect(&g_ui, bravo)),
+        "the two panels overlap at the probe point");
+    TEST_ASSERT(ToriRSChrome_HitTest(&g_ui, ax, ay) == b_row, "base layer: and hit first");
+    base_digest = dbg_test_prims_digest();
+
+    /* Alpha's Close box lies under Bravo's title bar. A press there is
+     * Bravo's -- its title -- and never closes the panel underneath. */
+    a_close = ToriRSChrome_PanelCloseRect(&g_ui, alpha);
+    TEST_ASSERT(a_close.w > 0, "Alpha has a Close box");
+    {
+        int const cx = a_close.x + a_close.w / 2;
+        int const cy = a_close.y + a_close.h / 2;
+
+        TEST_ASSERT(
+            dbg_test_in_rect(cx, cy, ToriRSChrome_PanelRect(&g_ui, bravo)),
+            "Alpha's Close box is under Bravo");
+        TEST_ASSERT(ToriRSChrome_MouseDown(&g_ui, cx, cy) == 1, "the press over Bravo is consumed");
+        ToriRSChrome_MouseUp(&g_ui, cx, cy);
+        TEST_ASSERT(g_ui.panels[alpha].visible, "a covered Close box is not pressed through");
+        TEST_ASSERT(g_ui.panels[bravo].visible, "and the panel on top is not closed by it either");
+        (void)ToriRSChrome_TakeTitleClick(&g_ui);
+    }
+
+    /* A raise means nothing on the base layer. */
+    ToriRSChrome_PanelRaise(&g_ui, alpha);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(g_ui.panels[alpha].raise_serial == 0, "a base panel never raises");
+    TEST_ASSERT(dbg_test_prims_digest() == base_digest, "and the display list is the one it was");
+
+    /* Alpha floats: over Bravo in the drawing AND in the hit test. */
+    ToriRSChrome_PanelSetLayer(&g_ui, alpha, TORIRS_CHROME_LAYER_FLOAT);
+    TEST_ASSERT(ToriRSChrome_Build(&g_ui) == 1, "a change of layer rebuilds");
+    TEST_ASSERT(
+        dbg_test_text_index("Alpha") > dbg_test_text_index("Bravo"),
+        "a floating panel is drawn over a base one created after it");
+    TEST_ASSERT(ToriRSChrome_HitTest(&g_ui, ax, ay) == a_rows[0], "and is hit before it");
+    {
+        /* Its own Close box is now on top, and closes IT. */
+        int const cx = a_close.x + a_close.w / 2;
+        int const cy = a_close.y + a_close.h / 2;
+
+        ToriRSChrome_MouseDown(&g_ui, cx, cy);
+        ToriRSChrome_MouseUp(&g_ui, cx, cy);
+        TEST_ASSERT(!g_ui.panels[alpha].visible, "the floating panel's Close box closes it");
+        TEST_ASSERT(g_ui.panels[bravo].visible, "and not the panel whose title bar is under it");
+        ToriRSChrome_PanelSetVisible(&g_ui, alpha, 1);
+        ToriRSChrome_Build(&g_ui);
+    }
+
+    /* Back to the base layer: exactly the list there was before any of it. */
+    ToriRSChrome_PanelSetLayer(&g_ui, alpha, TORIRS_CHROME_LAYER_BASE);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(dbg_test_prims_digest() == base_digest, "back on the base layer the display list is unchanged");
+    ToriRSChrome_PanelSetLayer(&g_ui, alpha, TORIRS_CHROME_LAYER_FLOAT);
+
+    /* Two floating panels: the one made floating last is in front; a press
+     * inside the other brings that one forward; showing one brings it back. */
+    charlie = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 60, 40, 200, "Charlie");
+    c_row = ToriRSChrome_Checkbox(&g_ui, charlie, "charlie row", 0);
+    ToriRSChrome_PanelSetLayer(&g_ui, charlie, TORIRS_CHROME_LAYER_FLOAT);
+    ToriRSChrome_Build(&g_ui);
+    {
+        /* On Charlie's row, which lies over Alpha's rows. */
+        int const px = g_ui.widgets[c_row].x + 40;
+        int const py = g_ui.widgets[c_row].y + 2;
+        /* On Alpha, left of Charlie's left edge. */
+        int const qx = 30;
+        int const qy = py;
+        int under;
+        int hit;
+
+        TEST_ASSERT(
+            dbg_test_in_rect(px, py, ToriRSChrome_PanelRect(&g_ui, alpha)) &&
+                dbg_test_in_rect(px, py, ToriRSChrome_PanelRect(&g_ui, charlie)),
+            "the two floating panels overlap at the probe point");
+        TEST_ASSERT(
+            !dbg_test_in_rect(qx, qy, ToriRSChrome_PanelRect(&g_ui, charlie)) &&
+                dbg_test_in_rect(qx, qy, ToriRSChrome_PanelRect(&g_ui, alpha)),
+            "and Alpha alone holds the press point");
+        TEST_ASSERT(ToriRSChrome_HitTest(&g_ui, px, py) == c_row, "the panel made floating last is in front");
+        under = ToriRSChrome_HitTest(&g_ui, qx, qy);
+        ToriRSChrome_MouseDown(&g_ui, qx, qy);
+        ToriRSChrome_MouseUp(&g_ui, qx, qy);
+        ToriRSChrome_Build(&g_ui);
+        hit = ToriRSChrome_HitTest(&g_ui, px, py);
+        TEST_ASSERT(
+            hit >= 0 && hit != c_row && g_ui.widgets[hit].panel == alpha,
+            "a press inside a floating panel raises it over the other");
+        TEST_ASSERT(under >= 0, "the press was on a row of Alpha");
+        TEST_ASSERT(
+            dbg_test_text_index("Alpha") > dbg_test_text_index("Charlie"),
+            "and it is drawn over it");
+
+        ToriRSChrome_PanelSetVisible(&g_ui, charlie, 0);
+        ToriRSChrome_Build(&g_ui);
+        ToriRSChrome_PanelSetVisible(&g_ui, charlie, 1);
+        ToriRSChrome_Build(&g_ui);
+        TEST_ASSERT(ToriRSChrome_HitTest(&g_ui, px, py) == c_row, "showing a floating panel brings it to the front");
+
+        /* The host's own raise, with no press and no show. */
+        ToriRSChrome_PanelRaise(&g_ui, alpha);
+        ToriRSChrome_Build(&g_ui);
+        hit = ToriRSChrome_HitTest(&g_ui, px, py);
+        TEST_ASSERT(
+            hit >= 0 && g_ui.widgets[hit].panel == alpha,
+            "ToriRSChrome_PanelRaise brings a floating panel to the front");
+    }
+
+    /* The top layer is over every floating panel, raised or not. */
+    delta = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 70, 120, "Delta");
+    d_row = ToriRSChrome_Checkbox(&g_ui, delta, "delta row", 0);
+    ToriRSChrome_PanelSetLayer(&g_ui, delta, TORIRS_CHROME_LAYER_TOP);
+    ToriRSChrome_Build(&g_ui);
+    {
+        int const px = g_ui.widgets[d_row].x + 4;
+        int const py = g_ui.widgets[d_row].y + 2;
+
+        TEST_ASSERT(
+            dbg_test_in_rect(px, py, ToriRSChrome_PanelRect(&g_ui, alpha)),
+            "the top-layer panel lies over Alpha");
+        TEST_ASSERT(ToriRSChrome_HitTest(&g_ui, px, py) == d_row, "a top-layer panel is over a floating one");
+        ToriRSChrome_PanelRaise(&g_ui, alpha);
+        ToriRSChrome_Build(&g_ui);
+        TEST_ASSERT(ToriRSChrome_HitTest(&g_ui, px, py) == d_row, "and no raise crosses a layer");
+        TEST_ASSERT(
+            dbg_test_text_index("Delta") > dbg_test_text_index("Alpha") &&
+                dbg_test_text_index("Delta") > dbg_test_text_index("Charlie") &&
+                dbg_test_text_index("Delta") > dbg_test_text_index("Bravo"),
+            "it is drawn after every panel under it");
+        TEST_ASSERT(ToriRSChrome_WantsPointer(&g_ui, px, py), "and the pointer over it is the chrome's");
+    }
+    ToriRSChrome_Init(&g_ui);
+}
+
+/* A SLIDER in a panel that scrolls gives the wheel to the panel unless it was
+ * picked; in a panel with nothing to scroll the wheel steps it, as before. */
+static void
+test_debug_overlay_wheel_over_slider(void)
+{
+    int panel;
+    int slider;
+    int sx;
+    int sy;
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 220, "Brush");
+    for( int i = 0; i < 3; i++ )
+        (void)ToriRSChrome_Checkbox(&g_ui, panel, "row", 0);
+    slider = ToriRSChrome_Slider(&g_ui, panel, "Radius", 1, 16, 4, 1);
+    for( int i = 0; i < 14; i++ )
+        (void)ToriRSChrome_Checkbox(&g_ui, panel, "row", 0);
+    ToriRSChrome_PanelSetScrollable(&g_ui, panel, 1);
+    ToriRSChrome_PanelSetFixedHeight(&g_ui, panel, 170);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(g_ui.panels[panel].content_h > g_ui.panels[panel].view_h, "the panel has rows past its view");
+
+    sx = g_ui.widgets[slider].x + g_ui.widgets[slider].w / 2;
+    sy = g_ui.widgets[slider].y + g_ui.widgets[slider].h / 2;
+    TEST_ASSERT(ToriRSChrome_HitTest(&g_ui, sx, sy) == slider, "the pointer rests on the slider");
+    TEST_ASSERT(ToriRSChrome_MouseWheel(&g_ui, sx, sy, -1) == 1, "the wheel over it is consumed");
+    TEST_ASSERT(ToriRSChrome_SliderValue(&g_ui, slider) == 4, "a slider nobody picked keeps its value");
+    TEST_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == -1, "and reports nothing");
+    TEST_ASSERT(ToriRSChrome_PanelScroll(&g_ui, panel) > 0, "the panel scrolled instead");
+
+    /* Picked -- it holds the focus -- the wheel is its own again. */
+    ToriRSChrome_PanelSetScroll(&g_ui, panel, 0);
+    ToriRSChrome_Build(&g_ui);
+    (void)ToriRSChrome_FocusWidget(&g_ui, slider, 0);
+    TEST_ASSERT(ToriRSChrome_MouseWheel(&g_ui, sx, sy, 1) == 1, "the wheel over the picked slider is consumed");
+    TEST_ASSERT(ToriRSChrome_SliderValue(&g_ui, slider) == 3, "and steps it");
+    TEST_ASSERT(ToriRSChrome_PanelScroll(&g_ui, panel) == 0, "without moving the panel");
+    (void)ToriRSChrome_TakeActivated(&g_ui);
+    (void)ToriRSChrome_FocusWidget(&g_ui, -1, 0);
+
+    /* With every row in view the wheel has nothing else to do there. */
+    g_ui.panels[panel].fixed_h = 0;
+    g_ui.panels[panel].dirty = 1;
+    g_ui.dirty = 1;
+    ToriRSChrome_Build(&g_ui);
+    sx = g_ui.widgets[slider].x + g_ui.widgets[slider].w / 2;
+    sy = g_ui.widgets[slider].y + g_ui.widgets[slider].h / 2;
+    TEST_ASSERT(ToriRSChrome_MouseWheel(&g_ui, sx, sy, -1) == 1, "the wheel over a slider in a panel that fits");
+    TEST_ASSERT(ToriRSChrome_SliderValue(&g_ui, slider) == 4, "steps it unpicked, as it always did");
+    ToriRSChrome_Init(&g_ui);
+}
+
+/* How many filled, see-through RECT prims are in this colour: the selection
+ * band behind a field's text is the only one in the focus outline's colour. */
+static int
+dbg_test_veils_in(uint32_t color)
+{
+    int count = 0;
+    int found = 0;
+    struct ToriRSChromePrim const* prims = ToriRSChrome_Prims(&g_ui, &count);
+
+    for( int i = 0; i < count; i++ )
+        if( prims[i].kind == TORIRS_CHROME_PRIM_RECT && prims[i].filled && prims[i].trans > 0 &&
+            prims[i].color == color )
+            found++;
+    return found;
+}
+
+/*
+ * The text fields' selection: all of the focused field, or nothing -- and
+ * the insert a paste is. The clipboard itself is the host's; what is pinned
+ * here is what the chrome does with the text it is handed.
+ */
+static void
+test_debug_overlay_select_all(void)
+{
+    int panel;
+    int field;
+    int area;
+    int fx;
+    int fy;
+    char longer[TORIRS_CHROME_INPUT_MAX * 2 + 1];
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 8, 260, "Record");
+    field = ToriRSChrome_TextInput(&g_ui, panel, "Name", "abc");
+    area = ToriRSChrome_TextArea(&g_ui, panel, "Notes", "one\ntwo", 3);
+    ToriRSChrome_Build(&g_ui);
+
+    TEST_ASSERT(ToriRSChrome_InputFocused(&g_ui) == -1, "no field holds the keyboard yet");
+    TEST_ASSERT(!ToriRSChrome_InputSelectAll(&g_ui), "with none focused there is nothing to select");
+    TEST_ASSERT(ToriRSChrome_InputInsertText(&g_ui, "x") == 0, "nor anywhere to insert");
+
+    (void)ToriRSChrome_FocusWidget(&g_ui, field, 1);
+    TEST_ASSERT(ToriRSChrome_InputFocused(&g_ui) == field, "the focused field is named");
+    TEST_ASSERT(!ToriRSChrome_InputAllSelected(&g_ui), "focus alone selects nothing");
+    TEST_ASSERT(ToriRSChrome_InputSelectAll(&g_ui) == 1, "select all in a focused field");
+    TEST_ASSERT(ToriRSChrome_InputAllSelected(&g_ui), "the content is all selected");
+    TEST_ASSERT(g_ui.widgets[field].caret == 3, "and the caret is at its end");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(dbg_test_veils_in(g_ui.theme.input_border_focus) == 1, "the selection is drawn as one band behind the text");
+
+    /* A caret key drops it and then moves the caret as it always does. */
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_LEFT);
+    TEST_ASSERT(!ToriRSChrome_InputAllSelected(&g_ui), "a caret move drops the selection");
+    TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, field), "abc") == 0, "without touching the content");
+    TEST_ASSERT(g_ui.widgets[field].caret == 2, "and moves the caret from the end");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(dbg_test_veils_in(g_ui.theme.input_border_focus) == 0, "the band is gone with it");
+
+    /* Typing over the selection replaces the content. */
+    (void)ToriRSChrome_InputSelectAll(&g_ui);
+    TEST_ASSERT(ToriRSChrome_KeyChar(&g_ui, 'x'), "a character typed over the selection is consumed");
+    TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, field), "x") == 0, "and replaces the content");
+    TEST_ASSERT(!ToriRSChrome_InputAllSelected(&g_ui) && g_ui.widgets[field].caret == 1, "leaving the caret after it");
+
+    /* Backspace and Delete clear it. */
+    (void)ToriRSChrome_InputSelectAll(&g_ui);
+    TEST_ASSERT(ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_BACKSPACE) == 1, "Backspace over the selection is consumed");
+    TEST_ASSERT(ToriRSChrome_Text(&g_ui, field)[0] == '\0', "and clears the field in one press");
+    ToriRSChrome_KeyChar(&g_ui, 'h');
+    ToriRSChrome_KeyChar(&g_ui, 'i');
+    (void)ToriRSChrome_InputSelectAll(&g_ui);
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_DELETE);
+    TEST_ASSERT(ToriRSChrome_Text(&g_ui, field)[0] == '\0', "Delete clears it too");
+    TEST_ASSERT(!ToriRSChrome_InputAllSelected(&g_ui), "and nothing is selected afterwards");
+
+    /* The insert a paste is: control characters at the ends dropped, a run of
+     * them inside one space, in a one-line field. */
+    TEST_ASSERT(
+        ToriRSChrome_InputInsertText(&g_ui, "\ta\r\nb\tc\r\n") == 5,
+        "a pasted line with its line ends inserts five bytes");
+    TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, field), "a b c") == 0, "line breaks and tabs become single spaces");
+    TEST_ASSERT(g_ui.widgets[field].caret == 5, "the caret follows what went in");
+    /* At the caret, not at the end. */
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_HOME);
+    TEST_ASSERT(ToriRSChrome_InputInsertText(&g_ui, "X") == 1, "an insert at the caret");
+    TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, field), "Xa b c") == 0, "goes in where the caret is");
+    /* Over a selection it replaces. */
+    (void)ToriRSChrome_InputSelectAll(&g_ui);
+    TEST_ASSERT(ToriRSChrome_InputInsertText(&g_ui, "new") == 3, "an insert over the selection");
+    TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, field), "new") == 0, "replaces the content");
+    /* What the fonts cannot draw is not inserted, and a paste of nothing
+     * usable leaves a selected field as it was. */
+    TEST_ASSERT(ToriRSChrome_InputInsertText(&g_ui, "\xC3\xA9x") == 1, "bytes past printable ASCII are dropped");
+    TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, field), "newx") == 0, "and the rest goes in");
+    (void)ToriRSChrome_InputSelectAll(&g_ui);
+    TEST_ASSERT(ToriRSChrome_InputInsertText(&g_ui, "\xC3\xA9") == 0, "a paste with nothing the field can hold inserts nothing");
+    TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, field), "newx") == 0, "and does not erase the selection it found");
+    /* Cut at the field's capacity. */
+    memset(longer, 'q', sizeof(longer) - 1);
+    longer[sizeof(longer) - 1] = '\0';
+    TEST_ASSERT(
+        ToriRSChrome_InputInsertText(&g_ui, longer) == TORIRS_CHROME_INPUT_MAX - 1,
+        "an insert longer than the field is cut at its capacity");
+    TEST_ASSERT(
+        (int)strlen(ToriRSChrome_Text(&g_ui, field)) == TORIRS_CHROME_INPUT_MAX - 1,
+        "the field is full and still terminated");
+    TEST_ASSERT(ToriRSChrome_InputInsertText(&g_ui, "more") == 0, "and a full field takes no more");
+
+    /* A click drops the selection, even one that lands the caret where it was. */
+    (void)ToriRSChrome_InputSelectAll(&g_ui);
+    fx = g_ui.widgets[field].x + g_ui.widgets[field].w - 4;
+    fy = g_ui.widgets[field].y + 2;
+    ToriRSChrome_MouseDown(&g_ui, fx, fy);
+    ToriRSChrome_MouseUp(&g_ui, fx, fy);
+    TEST_ASSERT(g_ui.focus == field && !ToriRSChrome_InputAllSelected(&g_ui), "a click in the field drops the selection");
+
+    /* So does the focus moving on. */
+    (void)ToriRSChrome_InputSelectAll(&g_ui);
+    (void)ToriRSChrome_FocusWidget(&g_ui, area, 0);
+    TEST_ASSERT(ToriRSChrome_InputFocused(&g_ui) == area, "the multiline field takes the keyboard");
+    TEST_ASSERT(!ToriRSChrome_InputAllSelected(&g_ui), "and the selection did not follow the focus");
+
+    /* A multiline field keeps the line breaks of what is pasted. */
+    (void)ToriRSChrome_FocusWidget(&g_ui, area, (int)strlen(ToriRSChrome_Text(&g_ui, area)));
+    TEST_ASSERT(ToriRSChrome_InputInsertText(&g_ui, "\r\nthree") == 6, "a pasted line break in a multiline field");
+    TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, area), "one\ntwo\nthree") == 0, "stays a line break");
+    (void)ToriRSChrome_InputSelectAll(&g_ui);
+    ToriRSChrome_KeyChar(&g_ui, 'z');
+    TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, area), "z") == 0, "and select all works there the same way");
+
+    /* The double-click: two presses in one one-line field inside the
+     * double-click time select its content; slower, they are two clicks. */
+    (void)ToriRSChrome_FocusWidget(&g_ui, field, 0);
+    ToriRSChrome_SetText(&g_ui, field, "oak");
+    ToriRSChrome_Build(&g_ui);
+    fx = g_ui.widgets[field].x + g_ui.widgets[field].w - 4;
+    fy = g_ui.widgets[field].y + 2;
+    ToriRSChrome_Tick(&g_ui, 10000);
+    ToriRSChrome_MouseDown(&g_ui, fx, fy);
+    ToriRSChrome_MouseUp(&g_ui, fx, fy);
+    TEST_ASSERT(!ToriRSChrome_InputAllSelected(&g_ui), "one click selects nothing");
+    ToriRSChrome_Tick(&g_ui, 10000 + TORIRS_CHROME_DOUBLE_CLICK_MS + 50);
+    ToriRSChrome_MouseDown(&g_ui, fx, fy);
+    ToriRSChrome_MouseUp(&g_ui, fx, fy);
+    TEST_ASSERT(!ToriRSChrome_InputAllSelected(&g_ui), "two clicks further apart than the double-click time select nothing");
+    ToriRSChrome_Tick(&g_ui, 20000);
+    ToriRSChrome_MouseDown(&g_ui, fx, fy);
+    ToriRSChrome_MouseUp(&g_ui, fx, fy);
+    ToriRSChrome_Tick(&g_ui, 20100);
+    ToriRSChrome_MouseDown(&g_ui, fx, fy);
+    ToriRSChrome_MouseUp(&g_ui, fx, fy);
+    TEST_ASSERT(ToriRSChrome_InputAllSelected(&g_ui), "a double-click in a one-line field selects its content");
+    ToriRSChrome_KeyChar(&g_ui, 'y');
+    TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, field), "y") == 0, "which the next character replaces");
+    ToriRSChrome_Init(&g_ui);
+}
+
+/* A text field that holds the keyboard shows no tooltip: the pointer is still
+ * where it clicked, and the tip would sit on what is being typed against. */
+static void
+test_debug_overlay_no_tooltip_while_typing(void)
+{
+    int panel;
+    int field;
+    int fx;
+    int fy;
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 240, "Catalog");
+    field = ToriRSChrome_TextInput(&g_ui, panel, "Find", "");
+    ToriRSChrome_SetTooltip(&g_ui, field, "Type part of a name");
+    (void)ToriRSChrome_Label(&g_ui, panel, "0 of 63,307");
+    ToriRSChrome_Build(&g_ui);
+    fx = g_ui.widgets[field].x + g_ui.widgets[field].w - 6;
+    fy = g_ui.widgets[field].y + g_ui.widgets[field].h / 2;
+
+    ToriRSChrome_Tick(&g_ui, 1000);
+    ToriRSChrome_MouseMove(&g_ui, fx, fy);
+    ToriRSChrome_Tick(&g_ui, 1010);
+    ToriRSChrome_Tick(&g_ui, 1010 + TORIRS_CHROME_TOOLTIP_DELAY_MS);
+    TEST_ASSERT(ToriRSChrome_TooltipWidget(&g_ui) == field, "a field nobody is typing in shows its tooltip");
+
+    ToriRSChrome_MouseDown(&g_ui, fx, fy);
+    ToriRSChrome_MouseUp(&g_ui, fx, fy);
+    TEST_ASSERT(g_ui.focus == field, "the click gives the field the keyboard");
+    ToriRSChrome_Tick(&g_ui, 3000);
+    TEST_ASSERT(ToriRSChrome_TooltipWidget(&g_ui) == -1, "the tooltip comes down when the field takes the keyboard");
+    ToriRSChrome_Tick(&g_ui, 3000 + 2 * TORIRS_CHROME_TOOLTIP_DELAY_MS);
+    TEST_ASSERT(ToriRSChrome_TooltipWidget(&g_ui) == -1, "and stays down however long the pointer rests there");
+    ToriRSChrome_KeyChar(&g_ui, 'o');
+    ToriRSChrome_Tick(&g_ui, 6000);
+    ToriRSChrome_Tick(&g_ui, 6000 + 2 * TORIRS_CHROME_TOOLTIP_DELAY_MS);
+    TEST_ASSERT(ToriRSChrome_TooltipWidget(&g_ui) == -1, "typing does not bring it back");
+
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_ESCAPE);
+    TEST_ASSERT(g_ui.focus == -1, "Escape gives the keyboard up");
+    ToriRSChrome_Tick(&g_ui, 9000);
+    ToriRSChrome_Tick(&g_ui, 9000 + TORIRS_CHROME_TOOLTIP_DELAY_MS);
+    TEST_ASSERT(ToriRSChrome_TooltipWidget(&g_ui) == field, "and the tooltip is back once it has");
+    ToriRSChrome_Init(&g_ui);
+}
+
+/* How many filled RECT prims in `color` lie wholly inside `box`. */
+static int
+dbg_test_fills_inside(struct ToriRSChromeRect box, uint32_t color)
+{
+    int count = 0;
+    int found = 0;
+    struct ToriRSChromePrim const* prims = ToriRSChrome_Prims(&g_ui, &count);
+
+    for( int i = 0; i < count; i++ )
+        if( prims[i].kind == TORIRS_CHROME_PRIM_RECT && prims[i].filled && prims[i].color == color &&
+            prims[i].x >= box.x && prims[i].y >= box.y && prims[i].x + prims[i].w <= box.x + box.w &&
+            prims[i].y + prims[i].h <= box.y + box.h )
+            found++;
+    return found;
+}
+
+/* Whether a filled RECT prim in `color` starts exactly at (x, y). */
+static int
+dbg_test_fill_at(int x, int y, uint32_t color)
+{
+    int count = 0;
+    struct ToriRSChromePrim const* prims = ToriRSChrome_Prims(&g_ui, &count);
+
+    for( int i = 0; i < count; i++ )
+        if( prims[i].kind == TORIRS_CHROME_PRIM_RECT && prims[i].filled && prims[i].trans == 0 &&
+            prims[i].color == color && prims[i].x == x && prims[i].y == y )
+            return 1;
+    return 0;
+}
+
+/*
+ * The title bar's furniture where no art is in use: glyphs in the title's
+ * ink, not accent-coloured blocks. Close is an X; Pop out and Dock are not.
+ */
+static void
+test_debug_overlay_flat_furniture(void)
+{
+    int panel;
+    struct ToriRSChromeRect close;
+    struct ToriRSChromeRect pop;
+    struct ToriRSChromeRect dock;
+    uint32_t ink;
+    uint32_t accent;
+    int cell;
+    int n;
+    int gx;
+    int gy;
+
+    ToriRSChrome_Init(&g_ui);
+    ToriRSChrome_SetTheme(&g_ui, &torirs_chrome_theme_default);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 20, 240, "Flat");
+    ToriRSChrome_PanelSetClosable(&g_ui, panel, 1);
+    ToriRSChrome_PanelSetPoppable(&g_ui, panel, 1);
+    ToriRSChrome_PanelSetDockable(&g_ui, panel, 1);
+    (void)ToriRSChrome_Label(&g_ui, panel, "a row");
+    ToriRSChrome_Build(&g_ui);
+    ink = g_ui.theme.panel_title_text;
+    accent = g_ui.theme.accent;
+    close = ToriRSChrome_PanelCloseRect(&g_ui, panel);
+    pop = ToriRSChrome_PanelPopOutRect(&g_ui, panel);
+    dock = ToriRSChrome_PanelDockRect(&g_ui, panel);
+    TEST_ASSERT(close.w > 0 && pop.w > 0 && dock.w > 0, "the three buttons have boxes");
+
+    TEST_ASSERT(
+        dbg_test_fills_inside(close, accent) == 0 && dbg_test_fills_inside(pop, accent) == 0 &&
+            dbg_test_fills_inside(dock, accent) == 0,
+        "no button is an accent-coloured block");
+    TEST_ASSERT(
+        dbg_test_fills_inside(close, ink) > 0 && dbg_test_fills_inside(pop, ink) > 0 &&
+            dbg_test_fills_inside(dock, ink) > 0,
+        "each is drawn in the title's ink");
+
+    /* The glyph grid, as the chrome lays it: four sevenths of the box, in
+     * cells of a fourteenth of it, centred. */
+    cell = close.w / 14 > 1 ? close.w / 14 : 1;
+    n = (close.w * 4 / 7) / cell;
+    gx = close.x + (close.w - n * cell) / 2;
+    gy = close.y + (close.h - n * cell) / 2;
+    TEST_ASSERT(n >= 5, "the glyph has a grid to be drawn on");
+    /* Close is an X: both top corners and both bottom corners are inked. */
+    TEST_ASSERT(
+        dbg_test_fill_at(gx, gy, ink) && dbg_test_fill_at(gx + (n - 1) * cell, gy, ink) &&
+            dbg_test_fill_at(gx, gy + (n - 1) * cell, ink) &&
+            dbg_test_fill_at(gx + (n - 1) * cell, gy + (n - 1) * cell, ink),
+        "Close is an X, corner to corner");
+    /* Pop out is not: its box sits low and left, so its own top-left cell is
+     * empty and its bottom-left one is inked. */
+    gx = pop.x + (pop.w - n * cell) / 2;
+    gy = pop.y + (pop.h - n * cell) / 2;
+    TEST_ASSERT(
+        !dbg_test_fill_at(gx, gy, ink) && dbg_test_fill_at(gx, gy + (n - 1) * cell, ink),
+        "Pop out is a box with an arrow leaving it, not an X");
+
+    /* Nothing behind a button at rest; a faint backing under the pointer. */
+    TEST_ASSERT(dbg_test_veils_in(ink) == 0, "a button at rest has no backing");
+    ToriRSChrome_MouseMove(&g_ui, close.x + close.w / 2, close.y + close.h / 2);
+    TEST_ASSERT(ToriRSChrome_Build(&g_ui) == 1, "hovering a button repaints it");
+    TEST_ASSERT(dbg_test_veils_in(ink) == 1, "the hovered button gets a see-through backing");
+    ToriRSChrome_Init(&g_ui);
+}
+
 void
 test_debug_overlay(void)
 {
@@ -1973,4 +2556,9 @@ test_debug_overlay(void)
     test_debug_overlay_custom_region();
     test_debug_overlay_label_column_follows_panel();
     test_debug_overlay_dropdown_folds_into_surface();
+    test_debug_overlay_layers();
+    test_debug_overlay_wheel_over_slider();
+    test_debug_overlay_select_all();
+    test_debug_overlay_no_tooltip_while_typing();
+    test_debug_overlay_flat_furniture();
 }
