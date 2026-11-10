@@ -586,13 +586,20 @@ local function next_stone(t, S, x, z, J)
     -- Surges slide south a tile a tick down their columns: a stone with one just north
     -- of it (within the hop time) is taken.
     local _, _, surges = t.npc.tiles("fire_surge_raised", 40)
-    local function burnt(sx, sz)
+    -- Ticks until the next surge down this column reaches the stone (99: none coming).
+    -- A seat hops again 2 ticks after landing, so 3 or more is clear.
+    local function arrival(sx, sz)
+        local soon = 99
         for i = 1, #(surges or {}) do
             local g = surges[i]
-            if g.x == sx and g.z >= sz - 1 and g.z <= sz + 3 then return true end
+            if g.x == sx and g.z >= sz - 1 then
+                local d = g.z - sz
+                if d < soon then soon = d end
+            end
         end
-        return false
+        return soon
     end
+    local function burnt(sx, sz) return arrival(sx, sz) < 3 end
     local best, bd
     for i = 1, #rows do
         local s = rows[i]
@@ -611,6 +618,20 @@ local function next_stone(t, S, x, z, J)
             if (dx > 0 or dz ~= 0) and math.abs(dz) <= 3 and dx <= 3 and not burnt(s.x, s.z) then
                 local d = math.abs(dz) + dx
                 if not bd or d < bd then best, bd = s, d end
+            end
+        end
+    end
+    -- Five columns stream surges the whole time (27 tiles each, 4498): when no stone
+    -- ahead is clear, cross anyway on the one whose surge comes latest and take the
+    -- hit (10..30) rather than stand still.
+    if not best then
+        local late
+        for i = 1, #rows do
+            local s = rows[i]
+            local dz, dx = s.z - z, math.abs(s.x - x)
+            if dz >= 1 and dz <= 3 and dx <= 3 then
+                local a = arrival(s.x, s.z)
+                if not late or a > late or (a == late and dz > best.z - z) then best, late = s, a end
             end
         end
     end
@@ -637,13 +658,25 @@ local function judge_tick(t, S, k, J)
     end
     -- Crossing: a stone every two ticks up to the last row, then onto the platform.
     if z < J.z - 3 then
+        -- No clear stone: stay on this one until a surge passes. A walk to the platform
+        -- cannot path over the lava, and re-clicking one every tick stood a seat still
+        -- for 100+ ticks in the owner's watched duo (2026-11-10).
+        if z ~= S.cross_z then
+            S.cross_z, S.cross_since = z, k
+        elseif k - S.cross_since > 40 then
+            t.check("judge.crossing", false, "no progress over the stones for 40 ticks at "
+                .. x .. "," .. z .. ", the Judge at " .. J.x .. "," .. J.z)
+            t.finish(1)
+            return
+        end
         if k >= S.next_hop then
             local s = next_stone(t, S, x, z, J)
             if s then
                 S.next_hop = k + 2
                 count(S, "hop")
                 t.player.click_loc("yama_steppingstone", 1, { at = { s.x, s.z }, from_here = true })
-            else
+            elseif z >= J.z - 4 then
+                -- The last stone row: the platform has no stones, so the step on is a walk.
                 D.walk = { x = J.x, z = J.z - 1 }
             end
         end
