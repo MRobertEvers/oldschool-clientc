@@ -2053,7 +2053,12 @@ live_native_open(
         const struct ToriRSMapEdLane* lane = &native->lane;
         char port[3][16];
         char env[6][TORIRSMAPED_LANE_PATH_MAX + 32];
-        const char* extra_env[7];
+        const char* extra_env[8];
+        /* The toolchain's directory in front of PATH, as the build that
+         * linked these binaries had it (jobs_lane_path_env): without it a
+         * Windows server cannot load libwinpthread-1.dll. NULL: no change. */
+        char* const path_env = jobs_lane_path_env(lane);
+        const char* const path_only_env[2] = { path_env, NULL };
         char cache[TORIRSMAPED_LANE_PATH_MAX + 16];
         char logs[3][TORIRSMAPED_LANE_PATH_MAX + 32];
         char web_root[TORIRSMAPED_LANE_PATH_MAX + 32];
@@ -2062,6 +2067,7 @@ live_native_open(
 
         if( !native->have_lane || !lane->server_bin[0] )
         {
+            free(path_env);
             snprintf(why, why_size, "launch needs the lane's torirsserver binary");
             return EDITOR_HOST_UNSUPPORTED;
         }
@@ -2085,7 +2091,8 @@ live_native_open(
         snprintf(env[5], sizeof(env[5]), "TORIRSSERVER_SKIP_WELCOME=1");
         for( int i = 0; i < 6; i++ )
             extra_env[i] = env[i];
-        extra_env[6] = NULL;
+        extra_env[6] = path_env;
+        extra_env[7] = NULL;
         snprintf(logs[0], sizeof(logs[0]), "%s/logs", lane->live_dir);
         live_mkdirs(logs[0]);
         snprintf(logs[0], sizeof(logs[0]), "%s/saves", lane->live_dir);
@@ -2098,6 +2105,7 @@ live_native_open(
             if( !jobs_process_start(argv, extra_env, logs[0], &native->launched[0]) )
             {
                 snprintf(why, why_size, "cannot start %s: %s", lane->server_bin, strerror(errno));
+                free(path_env);
                 return EDITOR_HOST_IO_ERROR;
             }
         }
@@ -2105,10 +2113,11 @@ live_native_open(
         {
             char* argv[] = { (char*)lane->js5_bin, (char*)"--cache", cache, (char*)"--revision",
                 rev_number, (char*)"--port", port[1], (char*)"--max-pending", (char*)"65535", NULL };
-            if( !jobs_process_start(argv, NULL, logs[1], &native->launched[1]) )
+            if( !jobs_process_start(argv, path_only_env, logs[1], &native->launched[1]) )
             {
                 snprintf(why, why_size, "cannot start %s: %s", lane->js5_bin, strerror(errno));
                 live_native_stop_launched(native);
+                free(path_env);
                 return EDITOR_HOST_IO_ERROR;
             }
         }
@@ -2134,13 +2143,15 @@ live_native_open(
                 ToriRSMapEd_LanePlayAccount(lane, user, sizeof(user), pass, sizeof(pass));
                 play_copy_fixture(lane, live, user);
             }
-            if( !jobs_process_start(argv, NULL, logs[2], &native->launched[2]) )
+            if( !jobs_process_start(argv, path_only_env, logs[2], &native->launched[2]) )
             {
                 snprintf(why, why_size, "cannot start %s: %s", lane->io_bin, strerror(errno));
                 live_native_stop_launched(native);
+                free(path_env);
                 return EDITOR_HOST_IO_ERROR;
             }
         }
+        free(path_env);
     }
     native->started_ms = live_now_ms();
     native->next_try_ms = native->started_ms;
@@ -2167,6 +2178,18 @@ live_native_poll(
         {
             live_native_disconnect(native);
             live_native_stop_launched(native);
+#ifdef _WIN32
+            /* 0xC0000135: the loader ended it before main, so its log is
+             * empty and the number is all there is. Say what it means. */
+            if( (unsigned)status == 0xC0000135u )
+            {
+                snprintf(why, why_size,
+                    "the launched game server exited (status %d) before it answered: Windows could not find a DLL "
+                    "%s imports",
+                    status, native->lane.server_bin);
+                return -1;
+            }
+#endif
             snprintf(why, why_size, "the launched game server exited (status %d) before it answered", status);
             return -1;
         }
