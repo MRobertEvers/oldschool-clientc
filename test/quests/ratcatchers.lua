@@ -12,7 +12,6 @@
 --     every trip to and from Hooknosed Jack's quarter (comp.py: a 473-tile pocket whose only
 --     on-foot way out is the gate);
 --   * the warehouse doors fai_varrock_poor_door 3267,3382 and 3272,3380 and its ladder, both ways;
---   * Veldaban's door dwarf_keldagrim_door 2827,10218 out of the GE trapdoor's landing room;
 --   * the Shantay Pass doorway with a bought pass, then the Rug Merchant's carpet to Pollnivneach
 --     (the desert's only way in on foot is the pass);
 --   * the mansion (map square m44_79, a sealed island): IN by the party directions' own prompt
@@ -502,20 +501,17 @@ return {
 
         { name = "keldagrim", run = function(t)
             -- travelToKeldagrim: out by the gate, the walk to the Grand Exchange trapdoor (reach.py
-            -- 3262,3405 -> 3140,3502 REACH len=219), the trapdoor (forget_keldagrim.rs2:9-19, a
-            -- p_teleport to Veldaban's room under the city).
+            -- 3262,3405 -> 3140,3502 REACH len=219), Inspect's question, then the forced cart ride
+            -- to the station (RSProx index 4495 [948]; keldagrim_travel.rs2).
             east_gate_out(t, "travelToKeldagrim.eastGateOut")
             t.exec("goto-travelToKeldagrim", t.player.goto_tile, 3140, 3502, 0)
             t.exec("travelToKeldagrim", t.player.click_loc, "ge_keldagrim_trapdoor", 1)
-            t.exec("travelToKeldagrim-dialog", t.chat.play, { "mesbox:The trapdoor leads", "choose:Yes please.", "player:Yes please." })
-            t.await({ level = function() local r, tl = t.world.tile() return r == "ok" and tl.z > 6400 end,
-                note = "the trapdoor's p_teleport into Keldagrim" }, 10)
+            t.exec("travelToKeldagrim-dialog", t.chat.play, { "npc:Ahoy up there!", "choose:Yes please.", "player:Yes please." })
+            t.await({ level = function() local r, tl = t.world.tile() return r == "ok" and tl.x == 2909 and tl.z == 10174 end,
+                note = "the ride to the station" }, 40)
             local _, kt = t.world.tile()
-            t.check("travelToKeldagrim.tile", kt.x == 2827 and kt.z == 10214 and kt.level == 0,
-                "landed " .. tile_text(t) .. " (^forget_veldaban_coord 2827,10214,0)")
-            -- Out of the landing room (28 tiles) by its door 2827,10218 (south edge).
-            t.exec("talkToSmokinJoe.veldabanDoor", t.player.pass_door, { closed = "dwarf_keldagrim_door",
-                open = "dwarf_keldagrim_door_open", at = { 2827, 10218, 0 }, near = { 2827, 10217 }, far = { 2827, 10219 } })
+            t.check("travelToKeldagrim.tile", kt.x == 2909 and kt.z == 10174 and kt.level == 0,
+                "landed " .. tile_text(t) .. " (the station 2909,10174,0)")
             -- Across the city (reach.py 2827,10220 -> 2929,10211 REACH len=135).
             t.exec("goto-talkToSmokinJoe", t.player.goto_tile, 2929, 10211, 0)
             t.exec("talkToSmokinJoe", t.player.talk_to, "vc_smokin_joe", 1)

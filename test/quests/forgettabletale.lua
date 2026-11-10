@@ -52,20 +52,27 @@ return {
             t.exec("goto-travelToKeldagrim", t.player.goto_tile, 3141, 3504, 0)
             t.exec("travelToKeldagrim", t.player.click_loc, "ge_keldagrim_trapdoor", 1)
             t.exec("travelToKeldagrim-dialog", t.chat.play, {
-                "mesbox:The trapdoor leads down",
+                "npc:Ahoy up there!",
                 "choose:Yes please.",
                 "player:Yes please.",
             })
-            t.ticks(6)
-            -- forget_keldagrim.rs2:19 p_teleport(^forget_veldaban_coord = 0_44_159_11_38 = 2827,10214,0):
-            -- the trapdoor puts the player INSIDE the Black Guard HQ (x 2825-2829 z 10208-10217), so
-            -- no goto is needed to reach Veldaban; the HQ is left by its door below.
+            -- The forced cart ride ends at the station (RSProx index 4495 [948];
+            -- keldagrim_travel.rs2), and Veldaban's HQ is entered by its door.
+            t.await({
+                level = function()
+                    local r, tl = t.world.tile()
+                    return r == "ok" and tl.x == 2909 and tl.z == 10174
+                end,
+                note = "the ride to the station",
+            }, 40)
             local _, tile = t.world.tile()
             local _, tlvl = t.world.level()
-            t.check("travelToKeldagrim-arrived", type(tile) == "table" and tlvl == 0
-                and tile.x >= 2825 and tile.x <= 2829 and tile.z >= 10208 and tile.z <= 10217,
-                "after the trapdoor the player stands at " .. (type(tile) == "table" and (tile.x .. "," .. tile.z) or tostring(tile))
-                .. " level " .. tostring(tlvl) .. " (want the HQ, x 2825-2829 z 10208-10217 level 0)")
+            t.check("travelToKeldagrim-arrived", type(tile) == "table" and tlvl == 0 and tile.x == 2909 and tile.z == 10174,
+                "after the ride the player stands at " .. (type(tile) == "table" and (tile.x .. "," .. tile.z) or tostring(tile))
+                .. " level " .. tostring(tlvl) .. " (want the station 2909,10174,0)")
+            t.exec("goto-veldabanDoor", t.player.goto_tile, 2827, 10219, 0)
+            t.exec("veldabanDoorIn", t.player.pass_door, { closed = "dwarf_keldagrim_door",
+                open = "dwarf_keldagrim_door_open", at = { 2827, 10218, 0 }, near = { 2827, 10219 }, far = { 2827, 10217 } })
 
             t.exec("talkToVeldaban", t.player.talk_to, "dwarf_city_black_guard_leader", 1)
             t.exec("talkToVeldaban-dialog", t.chat.play, {
@@ -1144,11 +1151,12 @@ return {
             t.exec("walk-bar", t.player.walk_route, { { 2912, 10192 } }, { level = 0 })
             t.exec("buyBeer", t.player.talk_to, "dwarf_city_barmaid_poor", 1)
             t.exec("buyBeer-dialog", t.chat.play, {
-                "npc:Welcome! What can I get you?",
-                "choose:A beer, please.",
-                "player:A beer, please.",
-                "npc:That'll be 2 coins.",
-                "mesbox:You buy a beer",
+                "npc:Welcome to the Laughing Miner pub",
+                "choose:I'd like a beer please.",
+                "player:I'd like a beer please.",
+                "npc:That'll be 2 gold coins.",
+                "choose:Pay.",
+                "npc:Thanks for your custom.",
             })
             t.ticks(2)
             local snap_result, snap = t.skill.snapshot()
