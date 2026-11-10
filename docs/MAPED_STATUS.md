@@ -1963,6 +1963,11 @@ What landed:
   remainder so a slow finger still turns it) and VIEW_ZOOM through the new
   `preview_orbit` / `preview_zoom` services (`EditorPreviewCamera_ZoomBy`,
   continuous). Its tooltip says "or drag to orbit, pinch to zoom".
+  Since 2026-11-10 a mouse's middle-drag that begins on the well orbits it
+  too (app_map_editor.c `app_map_editor_view_middle_drag`: the drag is handed
+  to the chrome as a pan anchored at the press, and holds the pointer until
+  the release, so the World behind a floating Preview never turns); the
+  tooltip reads "middle-drag: orbit; click: WASD orbit, E/F zoom; pinch: zoom".
 - **Gesture spelling** (section 15's column): `Editor_HotkeyActionInfo::gesture`,
   "2 fingers" on the four fly moves, "pinch" on fly down / up, "twist" on turn
   left / right. `Editor_HotkeysHint` takes `touch`; with it the tool's

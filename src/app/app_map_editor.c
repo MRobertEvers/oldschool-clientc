@@ -2986,6 +2986,77 @@ app_map_editor_world_gesture(
         app->need_redraw = 1;
 }
 
+/*
+ * A middle-drag that began on a chrome model view (the Preview's well, the
+ * NPC editor's, any MODELVIEW): it orbits that view the way it orbits the
+ * World, and holds the pointer until its release -- so sweeping off the well
+ * mid-turn keeps turning it, and nothing behind it takes the drag.
+ *
+ * A mouse had no way to turn the Preview but a click and then WASD: the well
+ * only orbited under a touch pan (ToriRSChrome_Gesture). The drag is handed
+ * to the chrome as that same pan, anchored at the PRESS point, so the view is
+ * found there every frame and the gearing, the scale and a modal over it are
+ * the chrome's own answers.
+ */
+static struct
+{
+    int active;
+    int press_x;
+    int press_y;
+    int last_x;
+    int last_y;
+} g_app_view_mmb;
+
+static void
+app_map_editor_view_middle_drag(
+    struct App* app,
+    struct LibToriRS_Input* input,
+    struct EditorUi* ui)
+{
+    int const x = input->curr.mouse_x;
+    int const y = input->curr.mouse_y;
+    struct ToriRSChromeGesture gesture;
+
+    if( !g_app_view_mmb.active )
+    {
+        int hit;
+
+        if( !input->curr.mouse_button_down[TORIRSM_MIDDLE] || !ToriRSChrome_HasVisiblePanel(ui->chrome) )
+            return;
+        hit = ToriRSChrome_HitTest(ui->chrome, x, y);
+        if( hit < 0 || ui->chrome->widgets[hit].kind != TORIRS_CHROME_W_MODELVIEW )
+            return;
+        g_app_view_mmb.active = 1;
+        g_app_view_mmb.press_x = x;
+        g_app_view_mmb.press_y = y;
+        g_app_view_mmb.last_x = x;
+        g_app_view_mmb.last_y = y;
+        app->input_frame_consumed = 1;
+        return;
+    }
+    if( !LibToriRS_Input_IsMouseHeld(input, TORIRSM_MIDDLE) || input->curr.mouse_button_up[TORIRSM_MIDDLE] )
+    {
+        g_app_view_mmb.active = 0;
+        return;
+    }
+    app->input_frame_consumed = 1;
+    if( x == g_app_view_mmb.last_x && y == g_app_view_mmb.last_y )
+        return;
+    memset(&gesture, 0, sizeof(gesture));
+    gesture.kind = TORIRS_CHROME_GESTURE_PAN;
+    gesture.x = g_app_view_mmb.press_x;
+    gesture.y = g_app_view_mmb.press_y;
+    gesture.dx = x - g_app_view_mmb.last_x;
+    gesture.dy = y - g_app_view_mmb.last_y;
+    gesture.fingers = 1;
+    gesture.scale_q16 = 65536;
+    gesture.phase = TORIRS_CHROME_GESTURE_UPDATE;
+    g_app_view_mmb.last_x = x;
+    g_app_view_mmb.last_y = y;
+    (void)ToriRSChrome_Gesture(ui->chrome, &gesture);
+    app->need_redraw = 1;
+}
+
 void
 app_map_editor_gestures(
     struct App* app,
@@ -3002,6 +3073,7 @@ app_map_editor_gestures(
     ui = app->editor_panel.ui;
     /* The touch flag: the hint strip spells gestures while it is up. */
     Editor_UiSetTouchInput(ui, ToriRS_InputLastWasTouch(input));
+    app_map_editor_view_middle_drag(app, input, ui);
     count = ToriRS_InputGestures(input, &frames);
     if( count <= 0 )
         return;
