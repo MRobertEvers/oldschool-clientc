@@ -2795,8 +2795,8 @@ handle_run(
 
     jobs_run_step_enter(maped, TORIRSMAPED_RUN_STEP_SAVE);
     status = jobs_run_save(maped, &saved, &failed);
-    if( saved > 0 )
-        catalog_atlas_changed(maped, 1);
+    /* The files those saves wrote (none: nothing is touched). */
+    catalog_saved(maped);
     if( status != EDITOR_HOST_OK )
     {
         if( status == EDITOR_HOST_LOCKED )

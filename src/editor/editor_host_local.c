@@ -111,6 +111,9 @@ struct local_host
      *  ("<content_dir> is held by pid N (...)"); empty otherwise. */
     char lock_holder[1024];
     struct scripted_spawns spawns;
+    /** Editor_HostLocalSetWriteGuard; NULL guards nothing (the main tree). */
+    Editor_HostWriteGuardFn write_guard;
+    void* write_guard_ctx;
 };
 
 static void
@@ -228,6 +231,97 @@ file_is_crlf(const char* path)
     return newline && newline > head && newline[-1] == '\r';
 }
 
+/*
+ * The write guard (Editor_HostLocalSetWriteGuard). On an editor lane a
+ * directory may still be a link to the base tree, and a file created, renamed
+ * or removed inside one is created, renamed or removed IN THE BASE. Every
+ * write below goes through host_writable first.
+ */
+
+/** 1 when the directory `path` is a link: a symlink, or on Windows a junction
+ *  (any reparse point). A directory cannot be a hard link, so for a directory
+ *  this is ToriRSMapEdLanes_IsLink's rule. */
+static int
+dir_is_link(const char* path)
+{
+#ifdef _WIN32
+    DWORD const attributes = GetFileAttributesA(path);
+    return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+#else
+    struct stat st;
+    return lstat(path, &st) == 0 && S_ISLNK(st.st_mode);
+#endif
+}
+
+/**
+ * Before anything is created, replaced or removed at `path` (or a directory
+ * made above it): the guard makes the directories above it real, then each
+ * one between the content root and `path` is checked not to be a link. OK, or
+ * IO_ERROR with the reason in the log. No guard: OK at once.
+ */
+static enum EditorHost_Status
+host_writable(
+    const struct local_host* host,
+    const char* path)
+{
+    size_t root_length;
+    const char* rel;
+    char why[600];
+    char dir[2300];
+
+    assert(host);
+    assert(path);
+    if( !host->write_guard )
+        return EDITOR_HOST_OK;
+    /* Every path this binding writes is "<content_dir>/<relative>". */
+    root_length = strlen(host->content_dir);
+    assert(strncmp(path, host->content_dir, root_length) == 0);
+    assert(path[root_length] == '/');
+    rel = path + root_length + 1;
+    why[0] = '\0';
+    if( !host->write_guard(host->write_guard_ctx, rel, why, sizeof(why)) )
+    {
+        TORIRS_ERR("editor: not written: %s: %s\n", rel, why[0] ? why : "the lane's write guard refused it");
+        return EDITOR_HOST_IO_ERROR;
+    }
+    for( const char* at = rel; *at; at++ )
+    {
+        int linked;
+
+        if( *at != '/' )
+            continue;
+        snprintf(dir, sizeof(dir), "%.*s", (int)(at - path), path);
+        linked = dir_is_link(dir);
+        if( linked )
+            TORIRS_ERR("editor: %s is still a link to the base tree: a write under it would land in the base\n", dir);
+        assert(!linked);
+        /* The shipping build compiles the assert out; there the write must
+         * still not happen. */
+        if( linked )
+            return EDITOR_HOST_IO_ERROR;
+    }
+    return EDITOR_HOST_OK;
+}
+
+/** Remove the file at `path`: absent is the state asked for, and a path that
+ *  is not there (not even through a lane's link) is that already, so it
+ *  explodes nothing. */
+static enum EditorHost_Status
+host_remove(
+    const struct local_host* host,
+    const char* path)
+{
+    enum EditorHost_Status status;
+
+    if( access(path, F_OK) != 0 && errno == ENOENT )
+        return EDITOR_HOST_OK;
+    status = host_writable(host, path);
+    if( status != EDITOR_HOST_OK )
+        return status;
+    remove(path);
+    return EDITOR_HOST_OK;
+}
+
 /**
  * Write via a temporary beside the target, then rename.
  *
@@ -241,6 +335,7 @@ file_is_crlf(const char* path)
  */
 static enum EditorHost_Status
 write_file_atomic(
+    const struct local_host* host,
     const char* path,
     const char* text,
     size_t length)
@@ -248,7 +343,9 @@ write_file_atomic(
     char temp_path[1200];
     FILE* file;
     int written_ok = 1;
+    enum EditorHost_Status status;
 
+    assert(host);
     assert(path);
     assert(text || length == 0);
 
@@ -256,11 +353,32 @@ write_file_atomic(
 
     /* Read before the temporary exists: the target's own line ending. */
     int const crlf = file_is_crlf(path);
-    file = fopen(temp_path, "wb");
-    if( !file )
+    /* The temporary and the rename land in `path`'s directory. */
+    status = host_writable(host, path);
+    if( status != EDITOR_HOST_OK )
+        return status;
+    /* A NEW file at the temporary's name, never whatever is there: a stray
+     * temporary in a lane can be a LINK to the base's file (a mirror linked
+     * one), and opening it to write would write the base's file. Its own name
+     * goes first, then the file is created exclusively. */
+    if( remove(temp_path) != 0 && errno != ENOENT )
     {
-        TORIRS_ERR("editor: cannot open %s: %s\n", temp_path, strerror(errno));
+        TORIRS_ERR("editor: cannot clear %s: %s\n", temp_path, strerror(errno));
         return EDITOR_HOST_IO_ERROR;
+    }
+    {
+#ifdef O_BINARY
+        int const fd = open(temp_path, O_WRONLY | O_CREAT | O_EXCL | O_BINARY, 0644);
+#else
+        int const fd = open(temp_path, O_WRONLY | O_CREAT | O_EXCL, 0644);
+#endif
+        if( fd < 0 )
+        {
+            TORIRS_ERR("editor: cannot open %s: %s\n", temp_path, strerror(errno));
+            return EDITOR_HOST_IO_ERROR;
+        }
+        file = fdopen(fd, "wb");
+        assert(file);
     }
     if( crlf )
     {
@@ -400,14 +518,14 @@ local_square_save(
     if( jm2_text )
     {
         square_path(host, path, sizeof(path), map_x, map_z, "jm2");
-        status = write_file_atomic(path, jm2_text, jm2_length);
+        status = write_file_atomic(host, path, jm2_text, jm2_length);
         if( status != EDITOR_HOST_OK )
             return status;
     }
     if( jl2_text )
     {
         square_path(host, path, sizeof(path), map_x, map_z, "jl2");
-        status = write_file_atomic(path, jl2_text, jl2_length);
+        status = write_file_atomic(host, path, jl2_text, jl2_length);
         if( status != EDITOR_HOST_OK )
             return status;
     }
@@ -853,6 +971,7 @@ local_spawn_save(
     struct local_host* host = user_data;
     char dir[1200];
     char path[1300];
+    enum EditorHost_Status status;
 
     assert(host);
 
@@ -862,6 +981,17 @@ local_spawn_save(
         return EDITOR_HOST_LOCKED;
     }
 
+    snprintf(
+        path, sizeof(path), "%s/server/scripts/areas/edited/configs/m%d_%d.spawn",
+        host->content_dir, map_x, map_z);
+    /* absent == no edited spawns; missing is already that */
+    if( !text || length == 0 )
+        return host_remove(host, path);
+
+    /* The mkdirs below go into the same directories the file does. */
+    status = host_writable(host, path);
+    if( status != EDITOR_HOST_OK )
+        return status;
     /* mkdir -p the edited lane; every component may already exist, and EEXIST
      * is success for this purpose. */
     {
@@ -880,15 +1010,7 @@ local_spawn_save(
         }
     }
 
-    snprintf(
-        path, sizeof(path), "%s/server/scripts/areas/edited/configs/m%d_%d.spawn",
-        host->content_dir, map_x, map_z);
-    if( !text || length == 0 )
-    {
-        remove(path); /* absent == no edited spawns; missing is already that */
-        return EDITOR_HOST_OK;
-    }
-    return write_file_atomic(path, text, length);
+    return write_file_atomic(host, path, text, length);
 }
 
 /* ---- documents by (kind, key) -------------------------------------------- */
@@ -1298,7 +1420,14 @@ make_parents(
 {
     char dir[2200];
     size_t base;
+    enum EditorHost_Status status;
 
+    /* The guard first: on a lane it makes these directories real (a mkdir
+     * inside a directory link would make it in the base). */
+    snprintf(dir, sizeof(dir), "%s/%s", host->content_dir, relative);
+    status = host_writable(host, dir);
+    if( status != EDITOR_HOST_OK )
+        return status;
     base = (size_t)snprintf(dir, sizeof(dir), "%s/", host->content_dir);
     for( const char* at = relative; *at; at++ )
     {
@@ -1319,6 +1448,7 @@ make_parents(
  * (editor_if.h, Editor_IfCompackForSave). */
 static enum EditorHost_Status
 local_iface_save(
+    const struct local_host* host,
     const char* path,
     const char* text,
     size_t length)
@@ -1359,9 +1489,9 @@ local_iface_save(
     }
     else
     {
-        status = write_file_atomic(path, text, length);
+        status = write_file_atomic(host, path, text, length);
         if( status == EDITOR_HOST_OK && rewritten )
-            status = write_file_atomic(compack_path, rewritten, rewritten_length);
+            status = write_file_atomic(host, compack_path, rewritten, rewritten_length);
     }
     ToriMem_Free(ToriMem_Editor(), rewritten);
     Editor_HostBlobFree(&old_if);
@@ -1396,21 +1526,18 @@ local_doc_save(
         return EDITOR_HOST_REFUSED;
     snprintf(path, sizeof(path), "%s/%s", host->content_dir, relative);
 
+    /* A delete makes no directories (a CFG save without text rewrites its
+     * file without the block). */
+    if( kind != EDITOR_DOC_CFG && !text )
+        return host_remove(host, path);
     status = make_parents(host, relative);
     if( status != EDITOR_HOST_OK )
         return status;
 
-    if( kind == EDITOR_DOC_IFACE && text )
-        return local_iface_save(path, text, length);
+    if( kind == EDITOR_DOC_IFACE )
+        return local_iface_save(host, path, text, length);
     if( kind != EDITOR_DOC_CFG )
-    {
-        if( !text )
-        {
-            remove(path); /* absent is the state asked for; missing is it already */
-            return EDITOR_HOST_OK;
-        }
-        return write_file_atomic(path, text, length);
-    }
+        return write_file_atomic(host, path, text, length);
 
     /* A record save rewrites one block of all.<type> and no other byte. */
     {
@@ -1456,7 +1583,7 @@ local_doc_save(
             memcpy(merged + at, file.data + end, file.size - end);
             at += file.size - end;
         }
-        status = write_file_atomic(path, merged, at);
+        status = write_file_atomic(host, path, merged, at);
         ToriMem_Free(ToriMem_Editor(), merged);
         Editor_HostBlobFree(&file);
         return status;
@@ -1500,6 +1627,22 @@ Editor_HostLocalLockHolder(const struct EditorHost* host)
     assert(host);
     assert(host->vtable == &local_vtable);
     return ((const struct local_host*)host->user_data)->lock_holder;
+}
+
+void
+Editor_HostLocalSetWriteGuard(
+    struct EditorHost* host,
+    Editor_HostWriteGuardFn guard,
+    void* ctx)
+{
+    struct local_host* local;
+
+    assert(host);
+    assert(host->vtable == &local_vtable);
+    assert(guard);
+    local = host->user_data;
+    local->write_guard = guard;
+    local->write_guard_ctx = ctx;
 }
 
 /* ---- open in the user's editor ---------------------------------------------- */

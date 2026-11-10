@@ -781,6 +781,9 @@ test_lanes_and_chip(void)
      * lane's one change). */
     expected = lane_changes("work");
     (void)pump_until_chip("work | 1 changed");
+    /* The status bar takes the count on its own tick, after the Lanes
+     * module's: the frame the chip changes it still reads "work". */
+    pump(2);
     Editor_Lanes_ChipText(&g_a.ui, chip, (int)sizeof(chip));
     CHECK(expected == 1, "the lane has one change: its scenes.txt (%d)", expected);
     CHECK(strcmp(chip, "work | 1 changed") == 0, "the chip text: %s", chip);
@@ -819,14 +822,20 @@ test_lanes_and_chip(void)
     snprintf(name, sizeof(name), "work | 1 changed | next: %s", today);
     CHECK(strcmp(chip, name) == 0, "the chip names the next boot's lane: %s", chip);
 
-    /* The Lanes panel lists it with its count. */
+    /* The Lanes panel lists it with its count. The new lane's count is a
+     * walk on the server's worker thread that lands as a broadcast (as
+     * pump_until_chip says), so pump until the rows have it, or about four
+     * seconds: a fixed four frames is a race against that thread. */
     pump(4);
     {
-        int const list = find_widget(&g_a, lanes_panel, TORIRS_CHROME_W_VLIST, "Lanes");
+        int list = -1;
         int found = 0;
-        if( list >= 0 )
+        for( int tries = 0; tries < 2000 && found != 7; tries++ )
         {
-            for( int r = 0; r < g_a.chrome.widgets[list].imax && r < 8; r++ )
+            pump(1);
+            list = find_widget(&g_a, lanes_panel, TORIRS_CHROME_W_VLIST, "Lanes");
+            found = 0;
+            for( int r = 0; list >= 0 && r < g_a.chrome.widgets[list].imax && r < 8; r++ )
             {
                 const char* row = row_text(&g_a, list, r);
                 if( strstr(row, today) && strstr(row, "| clean") )
@@ -836,6 +845,16 @@ test_lanes_and_chip(void)
                 if( strstr(row, today) && strstr(row, "| next launch") )
                     found |= 4;
             }
+            if( found == 7 )
+                break;
+#if defined(_WIN32)
+            Sleep(2);
+#else
+            {
+                struct timespec nap = { 0, 2 * 1000 * 1000 };
+                nanosleep(&nap, NULL);
+            }
+#endif
         }
         CHECK(list >= 0 && g_a.chrome.widgets[list].imax == 3, "three lanes: main, the scratch, work (%d)",
             list >= 0 ? g_a.chrome.widgets[list].imax : -1);

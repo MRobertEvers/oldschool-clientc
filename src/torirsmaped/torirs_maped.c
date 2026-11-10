@@ -78,6 +78,8 @@ static void handle_live(
 static void catalog_atlas_changed(
     struct ToriRSMapEd* maped,
     int disk_changed);
+static void catalog_saved(struct ToriRSMapEd* maped);
+static void saved_paths_clear(struct ToriRSMapEd* maped);
 /* Accounts (torirs_maped_accounts.c, compiled into this unit after the live
  * half: it reads the jobs' player list). */
 static void handle_accounts(
@@ -96,6 +98,7 @@ static void handle_lanes(
     uint32_t length);
 static void lanes_service(struct ToriRSMapEd* maped);
 static void lanes_scan_free(struct ToriRSMapEd* maped);
+static int lanes_plain_write_guard(void* ctx, const char* rel, char* why, size_t why_size);
 
 /* ------------------------------------------------------------------ */
 /* Server lifecycle                                                    */
@@ -116,6 +119,17 @@ ToriRSMapEd_Open(
     snprintf(maped->repo_root, sizeof(maped->repo_root), "%s", repo_root ? repo_root : "");
     /* Until OpenLane says otherwise, this tree is its own main lane. */
     ToriRSMapEdLanes_Main(maped->repo_root[0] ? maped->repo_root : ".", content_dir, &maped->lane);
+    /* A lane's content opened as a plain tree (content_dir or --content
+     * naming build/lanes/<name>/content, no lane=): its directories may still
+     * be links to the base, and a save through one lands in the base. Its
+     * writes are guarded all the same; OpenLane replaces this guard. */
+    if( ToriRSMapEdLanes_OfContent(content_dir, &maped->plain_lane) )
+    {
+        Editor_HostLocalSetWriteGuard(&maped->files, lanes_plain_write_guard, &maped->plain_lane);
+        TORIRS_LOG("torirsmaped: %s is lane '%s''s content (base %s); its saves make the lane's directories real "
+                   "first\n",
+            content_dir, maped->plain_lane.name, maped->plain_lane.base);
+    }
     maped->open = 1;
 
     /* The document never derives here — deriving needs the cache profile,
@@ -165,6 +179,10 @@ ToriRSMapEd_Close(struct ToriRSMapEd* maped)
         Editor_UndoFree(&maped->undo);
         ToriRSMapEdCatalog_Free(maped->catalog);
         maped->catalog = NULL;
+        saved_paths_clear(maped);
+        ToriMem_Free(ToriMem_Editor(), maped->saved_paths);
+        maped->saved_paths = NULL;
+        maped->saved_path_cap = 0;
         /* Stops a running build and whatever the live link launched. */
         jobs_free(maped);
         acct_state_drop(maped);
@@ -494,6 +512,73 @@ handle_square_load(
     Editor_HostBlobFree(&jl2);
 }
 
+/* ---- the files a request's saves wrote, for the catalog (catalog_saved) ---- */
+
+static void
+saved_paths_clear(struct ToriRSMapEd* maped)
+{
+    for( int i = 0; i < maped->saved_path_count; i++ )
+        ToriMem_Free(ToriMem_Editor(), maped->saved_paths[i]);
+    maped->saved_path_count = 0;
+}
+
+/** Note content-relative `rel` as written or removed by this request; once. */
+static void
+saved_path_add(
+    struct ToriRSMapEd* maped,
+    const char* rel)
+{
+    for( int i = 0; i < maped->saved_path_count; i++ )
+    {
+        if( strcmp(maped->saved_paths[i], rel) == 0 )
+            return;
+    }
+    if( maped->saved_path_count == maped->saved_path_cap )
+    {
+        int const cap = maped->saved_path_cap ? maped->saved_path_cap * 2 : 16;
+        maped->saved_paths = ToriMem_Realloc(ToriMem_Editor(), maped->saved_paths, (size_t)cap * sizeof(char*));
+        assert(maped->saved_paths);
+        maped->saved_path_cap = cap;
+    }
+    maped->saved_paths[maped->saved_path_count] = ToriMem_Strdup(ToriMem_Editor(), rel);
+    assert(maped->saved_paths[maped->saved_path_count]);
+    maped->saved_path_count++;
+}
+
+/** Whether a file call that returned `status` may have changed the tree: OK,
+ *  or an IO_ERROR part way (an interface's .if renamed into place, its
+ *  .compack not). LOCKED and REFUSED write nothing. */
+static int
+saved_status_wrote(enum EditorHost_Status status)
+{
+    return status == EDITOR_HOST_OK || status == EDITOR_HOST_IO_ERROR;
+}
+
+/** The file(s) a doc_save(kind, key, part) that returned `status` wrote or
+ *  removed: Editor_HostDocPath's, and an interface's sibling .compack (the
+ *  local binding rewrites it beside the .if). A scratch square names none. */
+static void
+saved_doc_note(
+    struct ToriRSMapEd* maped,
+    enum Editor_DocKind kind,
+    const char* key,
+    int part,
+    enum EditorHost_Status status)
+{
+    char rel[1024];
+    size_t length;
+
+    if( !saved_status_wrote(status) || !Editor_HostDocPath(kind, key, part, rel, sizeof(rel)) )
+        return;
+    saved_path_add(maped, rel);
+    length = strlen(rel);
+    if( kind == EDITOR_DOC_IFACE && length > 3 && strcmp(rel + length - 3, ".if") == 0 )
+    {
+        snprintf(rel + length - 3, sizeof(rel) - (length - 3), ".compack");
+        saved_path_add(maped, rel);
+    }
+}
+
 static void
 handle_square_save(
     struct ToriRSMapEdSession* session,
@@ -537,6 +622,21 @@ handle_square_save(
 
     status = maped->files.vtable->square_save(
         maped->files.user_data, map_x, map_z, jm2_text, jm2_size, jl2_text, jl2_size);
+    if( saved_status_wrote(status) )
+    {
+        /* The local binding's square_path: maps/ only, no storage. */
+        char rel[64];
+        if( jm2_text )
+        {
+            snprintf(rel, sizeof(rel), "maps/m%d_%d.jm2", map_x, map_z);
+            saved_path_add(maped, rel);
+        }
+        if( jl2_text )
+        {
+            snprintf(rel, sizeof(rel), "maps/m%d_%d.jl2", map_x, map_z);
+            saved_path_add(maped, rel);
+        }
+    }
     send_status(session, TORIRSMAPED_REQ_SQUARE_SAVE, status);
 }
 
@@ -573,6 +673,13 @@ handle_spawn_save(
 
     status = maped->files.vtable->spawn_save(
         maped->files.user_data, map_x, map_z, text, size);
+    if( saved_status_wrote(status) )
+    {
+        /* The local binding's spawn file (written, or removed when empty). */
+        char rel[96];
+        snprintf(rel, sizeof(rel), "server/scripts/areas/edited/configs/m%d_%d.spawn", map_x, map_z);
+        saved_path_add(maped, rel);
+    }
     send_status(session, TORIRSMAPED_REQ_SPAWN_SAVE, status);
 }
 
@@ -1117,6 +1224,7 @@ save_doc(
             Editor_Jm2Emit(square, text, size + 1);
             status = files->doc_save(user, EDITOR_DOC_SQUARE, file_key, 0, text, size);
             ToriMem_Free(ToriMem_Editor(), text);
+            saved_doc_note(maped, EDITOR_DOC_SQUARE, file_key, 0, status);
         }
         if( status == EDITOR_HOST_OK && (square->dirty_loc || created) )
         {
@@ -1125,6 +1233,7 @@ save_doc(
             Editor_Jl2Emit(square, text, size + 1);
             status = files->doc_save(user, EDITOR_DOC_SQUARE, file_key, 1, text, size);
             ToriMem_Free(ToriMem_Editor(), text);
+            saved_doc_note(maped, EDITOR_DOC_SQUARE, file_key, 1, status);
         }
         if( status == EDITOR_HOST_OK && created )
         {
@@ -1134,6 +1243,7 @@ save_doc(
             int size = snprintf(filepack, sizeof(filepack), "0=%s.jm2\n1=%s.jl2\n", key, key);
             status = files->doc_save(
                 user, EDITOR_DOC_SQUARE, file_key, 2, filepack, (size_t)size);
+            saved_doc_note(maped, EDITOR_DOC_SQUARE, file_key, 2, status);
             if( status == EDITOR_HOST_OK )
                 maped->doc.square_created[index] = 0;
         }
@@ -1150,6 +1260,7 @@ save_doc(
         status = files->doc_save(
             user, EDITOR_DOC_SPAWN, handle->spawn->key, 0, size > 0 ? text : NULL, size);
         ToriMem_Free(ToriMem_Editor(), text);
+        saved_doc_note(maped, EDITOR_DOC_SPAWN, handle->spawn->key, 0, status);
     }
     else
     {
@@ -1169,6 +1280,7 @@ save_doc(
                 ? NULL
                 : handle->text->text,
             handle->text->length);
+        saved_doc_note(maped, handle->kind, handle->text->key, 0, status);
     }
 
     if( status != EDITOR_HOST_OK )
@@ -1784,6 +1896,35 @@ catalog_atlas_changed(
     ToriRSMapEd_BufFree(&payload[1]);
 }
 
+/**
+ * After a request's saves (SAVE, SAVE_ALL, the v1 square and spawn saves,
+ * RUN's save, a publish's save-first): the catalog takes in exactly the files
+ * they wrote or removed (ToriRSMapEdCatalog_RefreshPaths) -- not a re-stat of
+ * maps/ and a whole-tree sweep after it, which held the frame ~0.26 s on
+ * every Save -- and every window gets the atlas when a square file was among
+ * them (the maps revision moved, as RefreshMaps would have moved it). A
+ * request that wrote nothing touches nothing. Until the index is built
+ * nobody holds an atlas, and the build reads the tree as it stands.
+ */
+static void
+catalog_saved(struct ToriRSMapEd* maped)
+{
+    struct ToriRSMapEdCatalog* catalog = maped->catalog;
+
+    assert(catalog);
+    if( maped->saved_path_count == 0 )
+        return;
+    if( ToriRSMapEdCatalog_Built(catalog) )
+    {
+        uint32_t const maps = ToriRSMapEdCatalog_MapsRevision(catalog);
+        (void)ToriRSMapEdCatalog_RefreshPaths(
+            catalog, (const char* const*)maped->saved_paths, maped->saved_path_count);
+        if( ToriRSMapEdCatalog_MapsRevision(catalog) != maps )
+            catalog_atlas_changed(maped, 0);
+    }
+    saved_paths_clear(maped);
+}
+
 /** The lane change counts' cache (torirs_maped_lanes_wire.c) holds until a
  *  request that can write a tree arrives: note it before it runs. A read
  *  (ACCOUNTS_LIST, which the Accounts panel and the spawn preview ask every
@@ -1889,10 +2030,11 @@ handle_frame(
         return;
     case TORIRSMAPED_REQ_SQUARE_SAVE:
         handle_square_save(session, maped, body, length);
-        catalog_atlas_changed(maped, 1);
+        catalog_saved(maped);
         return;
     case TORIRSMAPED_REQ_SPAWN_SAVE:
         handle_spawn_save(session, maped, body, length);
+        catalog_saved(maped);
         return;
     case TORIRSMAPED_REQ_BAKE:
         handle_bake(session, maped);
@@ -1921,7 +2063,7 @@ handle_frame(
         return;
     case TORIRSMAPED_REQ_SAVE_ALL:
         handle_save_all(session, maped);
-        catalog_atlas_changed(maped, 1);
+        catalog_saved(maped);
         return;
     case TORIRSMAPED_REQ_STATE_SET:
     {
@@ -2043,7 +2185,7 @@ handle_frame(
     if( v2 && type == TORIRSMAPED_REQ_SAVE )
     {
         handle_save(session, maped, body, length);
-        catalog_atlas_changed(maped, 1);
+        catalog_saved(maped);
         return;
     }
     if( v2 && type == TORIRSMAPED_REQ_SAVE_AS )
