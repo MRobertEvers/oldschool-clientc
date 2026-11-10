@@ -413,3 +413,78 @@ watched quests fail for reasons the driver changes do not touch: Cook's Assistan
 on run.py (rmchk1).
 
 Proof (this pass): the Scripts tab's Play on the final client, headless: duo wd4 (fresh, launched seat 2) killed at 649, both seats alive, 24/24 and 21/21, the client exiting 0 with its party up; solo ws4 (reset) killed at 1141, alive, 15/15. Scriptrun solo 16/16 (yz000..015), duo 14/16 (ydz000..015: two seats killed by an unwarded special, 98 to 0 in three ticks, and by a phase-2 burst; the fights are longer with the measured accuracy: median 933 ticks solo, was 828); live duo yld15 43/43. Shared driver changes: one ToB trio (`tob_bloat --party 3`, tbchk1) 44/44 with the lockstep PASS.
+
+## 15. The rest of the list (2026-11-10, fourth pass)
+
+| item | recorded | was | now | status |
+|---|---|---|---|---|
+| live against scriptrun tick identity | | the lanes reached the throne 2 ticks apart solo, 28 duo (scriptrun's name prompt is not the client's) | the solver waits at the throne for world tick 85 (solo) / 125 (duo), then `::synctimers`: with the same name (live `--name <seed>_p1`, scriptrun `--name <seed>`) both lanes spawn Yama on tick 89 and the logs are identical from the spawn to 369, 378, 294, 272 (yid001..004) | **Open**: where they part the live client is a tick later: the Judge's stepping stone (`[aploc1,yama_steppingstone]` 370 against 371, yid001; 378, yid002), a cast (272 against 273, yid004), a cast against a step (262 yid000, 294 yid003). Live-only deaths 2 of 5 (yid000 on the stones at 373, yid002 in phase 3 at 1039). The client sends a world op the frame it is pressed; why the server sees it a tick late is not found. run.py names a solo account `<name>`, scriptrun `<name>_p1`, so the RNG differs unless the live run is given the `_p1` name |
+| ylive02 | | died at 450 at 6429,101: 25, 20, 19, 17, 16, 19, 2 from 444 to 450 | not reproducible: the run is on the code before the accuracy and timing passes, and a live run cannot be replayed onto this code | **Open**; the live-only deaths now are the row above's |
+| portal crossings | 13 phase 1 portals with the crossing read off `hpbar_hud_hp` <= 1666: 3 portal at the first attack slot after it (3, 6, 8 ticks on), 10 at the next slot (the first slot 1..7 ticks on) | portal when his HP at the previous attack is at or under the threshold | unchanged | **Open**: no delay or decision-tick rule separates the two groups (3 ticks is in both); ours matches the 10 and is one attack late for the 3. Phase 2 cannot be read: after the first portal the HUD shows the Judge |
+| streak hits | 14 times the recorder (4498) had a fire-wall tile sent where he stood or stepped: hit 10 of 10 times he was on it at the end of the send tick and still there at the end of the next (the splat the next tick: 7 warded zeroes, 16, 17, 18), 0 of 4 otherwise ([975] on it at the end of the send tick and off the next; [2870], [4516], [10157]) | the tick after the send, on it at the end of the send tick | unchanged | **Open**: ours is 13 of 14, the one off being [975]. "Still there after the next tick's move" cannot be asked from the hazard tick, which runs before players move (no hook after movement); checking a tick later would put every streak splat a tick late |
+| Judge: fireball and surges | the fireball lands on the raider's tile at the start of the cast tick (157 of 157); fireball when he stands at dz -4..+1 of the Judge, surges at dz -7..-21; surges in his x-1..x+3 (29/26/35/30/32), the row below him; 70 casts with two surges, never in one column, 12 with one | fireball the same; surges at x-2..x+2, one or two at even odds, two could share a column | two picks of the five columns x-1..x+3, one surge when they land together (`~yama_surge_spawn`, yama_judge.rs2) | matched (the single-surge share is 1 in 5 against 12 of 82 recorded) |
+| flare body models | `[body_customisation]` 48 times on `yama_voidflare`: models 17003, 17006, 17009 on one flare of each pair | dropped | unchanged | **Open** (engine): `npc_bodymodel` holds one model and both encoders (torirs_server_encode.c, rev 239 and 241 blocks) write a list of one. Three models need a new opcode (compiler, command kinds, coverage table, encoders), and a pack using it aborts every server binary built before it, so it is the owner's to schedule |
+| facing timing | on a target's single steps (no step the tick before or after): the face the next tick 138, none 36, the same tick 0 | | unchanged | partial: ours (16 duo seeds) the next tick 123, the same tick 10, none 6, both 1. The earlier "ours the same tick" count came from runs of steps; the residual is phase order (npcs act before players move) |
+| 58 against 57 | demonbane hits on Yama come in pairs, 6/7, 9/10, 12/13 ... 54/55, 57/58 (376 hits) | max 57 | unchanged | **Open**: no single multiplier, addition or two-step floor reproduces the pairs with at most one miss; the closest, floor(floor(r x 1.5) x 1.07) over r 0..37, misses 2 |
+| thralls | see below | ghosts only; skeletons and zombies stood still | all three kinds | matched where recorded; tiers below greater by the greater's shape (no recording) |
+| deaths in the solver's runs | the recorder never let a flare reach the end of its bar; 48 of 55 meteor landings absorbed by a glyph, the other 7 hit 80, 56, 36, 18 (section 2) | 14/16 duo (ydz): an unwarded special (86 on seat 2, ydz015), a phase-2 burst (18, 18, 17, then 41 + 14, yd5003) | three kinds: (1) the meteor with no glyph lit: the seat stood still at two tiles and took 80 (the watched duo wd5, seat 1 at 626; seat 2 killed Yama alone): the solver now walks out to four tiles from the meteor's tile when no glyph is under it (`meteor_escape`, its target's run is off so it reaches three, 40): it fired 34 times in 17 of the 32 seat-runs of yd8; (2) a run for a glyph that lands late: the special lands first and the seat is rooted in the wave lanes (ys8002: 33, then 16, 17, 17, 19, 11 at 6429,101, the tile ylive02 died on; yd8014 seat 2); (3) both flares of a pair exploding after the seat ate instead of finishing them (yd6004 both seats 43 + 16 and 45 + 21; ys7007 43 + 29). Scriptrun this pass: solo 30/32 (ys6 8/8, ys7 7/8, ys8 15/16), duo 30/32 (yd6 7/8, yd7 8/8, yd8 15/16) | partial: (1) fixed in the solver; (2) and (3) **Open** (solver): the glyph's reach rule counts Chebyshev tiles at two a tick and the walk around him is longer; the flares lose to eating. The flare explosion's damage is the wiki's (Y49) |
+| `ambientsound_stop` | every 5 ticks from login, `fade=true`, in all 21 rev-241/242 recordings read, wherever the recorder is, and no `ambientsound_start` in any: rev 242.1 4480, 4490, 4491, 4493, 4494, 4495, 4496, 4499, 4500, 4501, 4502, 4503 and 4498 (Yama, 2,269 sends; the rest are Keldagrim's dwarves, gnomes, the Stronghold cave's demons, open country); rev 241.1 4392 (Chambers of Xeric), 4433 (King Arthur's knights), 4444 (Varlamore), 4446 (the Digsite), 4451 (The Feud's villagers), 4456 (Death Plateau's trolls), 4462 (Ghosts Ahoy's villagers), 4464 (swans and ducks). Rev 237 (4043, Araxxor) sends none | not sent | not changed: the owner's decision | **Open** (engine) |
+| HP HUD re-send | `if_setcolour` x3 (`hpbar_hud` 303:14..16) + `hp_hud_open` re-sent on most ticks a boss HUD is up: Yama 4498 (6,802 `hp_hud_open`, 81% of fight ticks, 1..3 a tick), Chambers of Xeric 4392 (359, sparse over 3,673 ticks), Araxxor 4043 (8,724), and the HUDs in 4480 (120; 82 of 114 HUD ticks) and 4444 (95; 65 of 225) | sent once | not changed: the owner's decision | **Open** (engine) |
+
+### Thralls, all three kinds (OSRS-Content `skill_magic/scripts/spells/thrall.rs2`)
+
+Recorded casts: greater ghost 68 (4498), greater skeleton 5 (4392) and 10 (4292), greater zombie 1
+(4292 [2108]); swings by other raiders' thralls in 4294, 4308..4316 (rev 241). Counts are greater
+thralls'.
+
+- The cast: `human_spellcast_resurrect`, the kind's cast spot (1873/1874/1875) and synth
+  (`resurrect_greater_{ghost,skele,zombie}_cast_and_fire`), the spawn spot and seq, six prayer points
+  (79->73, 59->53, 41->35, 25->19, 81->75), the used varbit = the spell's place in the book (ghost 6,
+  skeleton 7, zombie 8; lesser 0..2 and superior 3..5 by the same order). Was: ghosts only; the
+  others printed "You resurrect a thrall to fight at your side." and never swung.
+- A thrall still out when the next is cast goes back with its line, the active varbit 0 and
+  `resurrect_end` on the cast tick (4292 [2108]). Was: deleted silently.
+- The lines: "You resurrect a greater {ghostly,skeletal,zombified} thrall." five ticks on, "Your
+  greater ... thrall returns to the grave." The npc goes at cast + Magic + 3 and the line, the varbit
+  and `resurrect_end` follow a tick later: Magic 99 -> +103 (4392 three casts, 4498), 123 -> +127,
+  125 -> +129 (4292). Was: npc and line together at cast + Magic + 2, no sound.
+- The swing clock: every tick it looks; it swings when four ticks have passed since its last swing
+  (the cast + 4 for the first: no recorded first swing is earlier) and it has a target in reach. A
+  target change mid-clock swings as soon as it is noted (4392 [651] -> [658]). Was: a fixed 4-tick
+  grid from the cast that skipped a whole step when the target came late.
+- Facing: from its first swing at a target it faces the target's middle every tick (4498 [777..],
+  4292 [2116..2129]); the middle is the south-west tile + size / 2 (Yama +2,+2, 848 of 848). Was:
+  faced his south-west tile on the swing tick only, turned back to its owner between swings.
+- Ghost (4498, rev 241): its own graphic slot cleared (`spotanim -1` height 96), the swing, water
+  strike at its tile (range 1 in rev 242, 12 in rev 241), `thrall_magic_travel` 15 -> 25 + 5d (d =
+  Chebyshev to the target's south-west tile; 1,596 of 1,599 swings), the hit E / 30 ticks on (+1 for
+  E <= 55, +2 from 60; 0..3). On a target that shows spell impacts, `thrall_magic_impact` with the
+  landing (rev 241, 615 of 744 swings; Yama hides it). Rev 241's impact sound (`waterstrike_hit`) is
+  in no rev-242 swing (0 of 855) and is not sent. Was: endtime 60 and the hit +2 at every distance.
+- Skeleton (4392, 4312, 4308..4316): the cleared slot, `skeleton_update_champion_attack_thrall`,
+  `longbow` 20 cycles late (range 1, by the ghost's rev-242 change; rev 241: 12),
+  `thrall_ranged_travel` 57 -> 67 + 5d (1,654 of 1,709), the hit E / 30 ticks on (+2 to 87, +3 to
+  117, +4 from 122); on the target a cleared graphic slot (1,540 of 1,713) and its defend anim (43:
+  the npcs that have one), both with the landing.
+- Zombie (4292, 12 swings): no missile; `zombie_update_attack_normal_thrall`, `zombie_attack` at its
+  tile, the hit the next tick (0..3). It leaves its owner for its target and walks to the nearest
+  tile in reach of the target's footprint (from 3681,5406 to 3684,5411 for Akkha's shadow at
+  3685,5412), swinging the tick after it arrives ([2115]/[2116], [2137]/[2138], [2164]/[2165]); back
+  to its owner when the target is gone.
+
+Probe (thrall_probe, two hill giants at Lumbridge): the skeleton swings at cast + 4 then every 4, at
+d 1 its arrow lands at 72 and the splat follows 2 ticks on; the zombie replacing it brings the
+skeleton's line and `resurrect_end` on the cast tick, walks one tile and swings the tick after,
+splats a tick on, stays at its giant while its owner walks off, and goes at cast + 102 with its line
+and sound at + 103; all four lines verbatim. On Yama the ghost's flights now run 45..80 cycles (60
+most often) and its hits land 1 or 2 ticks on by distance.
+
+Not reached: the first swing waiting on the owner's first landed hit (4498: the first swing comes 1..3
+ticks after the owner's first demonbane after the cast, at cast + 4..10; ours takes the target when
+the owner's attack is prepared, so it swings at cast + 4 when he attacks at once) (**Open**).
+
+Proof (this pass): scriptrun solo 30/32 (ys6, ys7, ys8), duo 30/32 (yd6, yd7, yd8); the thrall probe
+above. The Scripts tab's Play on the private packs, headless: solo ws5 15/15 (the kill at 942, alive),
+duo wd5 failed (seat 1 stood in an unwarded meteor at 626, seat 2 killed Yama alone), which is what the
+meteor escape is for; after it duo wd6 24/24 on seat 1, 17/17 on seat 2 at its last status (the kill
+at 840, both alive) and solo ws6 15/15 (the kill at 1118, alive); every client exited 0 but wd5's 1.

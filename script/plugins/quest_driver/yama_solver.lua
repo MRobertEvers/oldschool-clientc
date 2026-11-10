@@ -411,6 +411,30 @@ local function dodge(t, S, D, x, z, danger, Y)
     return best ~= nil
 end
 
+-- Phase 2's fire special, the meteor: its npc comes at A+2 over the target's tile (sw = the
+-- tile - 3) and lands at A+6: 80 two tiles from the tile, 40 at three, more inside. With no
+-- glyph to stand on, walk out to four (the target's run is off, so it gets to three: 40, not
+-- 80; watched duo wd5, 2026-11-10: a seat stood still at two with no glyph lit and died).
+local function meteor_escape(S, D, x, z, k, Y)
+    local m = S.meteor
+    if not m or k > m.land or cheb(x, z, m.x, m.z) >= 4 then return false end
+    if S.ward_until and k <= S.ward_until then return false end
+    local best, bs
+    for ddx = -4, 4 do
+        for ddz = -4, 4 do
+            if math.max(math.abs(ddx), math.abs(ddz)) == 4 then
+                local nx, nz = m.x + ddx, m.z + ddz
+                if not in_boss(S, Y, nx, nz) and not tile_danger(S, nx, nz, k) then
+                    local s = cheb(x, z, nx, nz)
+                    if not bs or s < bs then best, bs = { x = nx, z = nz }, s end
+                end
+            end
+        end
+    end
+    if best then D.walk = best end
+    return best ~= nil
+end
+
 -- Home without crossing the ring next to him (melee reach on his attack tick): via the
 -- outside corner on my side, then along the north side.
 local function walk_home(S, Y, x, z, hx, hz)
@@ -467,6 +491,19 @@ local function fight_tick(t, S, k, Y)
         S.thrall_press = k + 5
         D.thrall = true
     end
+    -- The meteor's npc, once (it stays nine ticks, past its landing): its tile and its
+    -- landing four ticks on.
+    local mrow = row_of(t, "yama_meteor_npc", 30)
+    if mrow then
+        local key = (mrow.x + 3) .. "," .. (mrow.z + 3)
+        if key ~= S.meteor_key or k > (S.meteor_seen or -100) + 9 then
+            S.meteor = { x = mrow.x + 3, z = mrow.z + 3, land = k + 4 }
+            S.meteor_seen = k
+            trace(t, S, "meteor at " .. S.meteor.x - S.bx .. "," .. S.meteor.z - S.bz)
+        end
+        S.meteor_key = key
+    end
+    if S.meteor and k > S.meteor.land then S.meteor = nil end
 
     -- A special in the air: the glyph, ahead of everything but a press that costs nothing.
     if S.glyph_want then
@@ -487,6 +524,7 @@ local function fight_tick(t, S, k, Y)
             elseif g then
                 if x == g.x and z == g.z then
                     count(S, "glyph_stepped")
+                    S.ward_until = k + 10
                     S.glyph_want = nil
                     S.home_after = k + 1
                     S.home_d = draw_home(S)
@@ -499,6 +537,11 @@ local function fight_tick(t, S, k, Y)
                 S.glyph_want = nil
             end
         end
+    end
+
+    -- The meteor with no glyph under me: out of its reach.
+    if not D.walk and meteor_escape(S, D, x, z, k, Y) then
+        count(S, "meteor_run")
     end
 
     -- Hazards (only when not running for a glyph).
@@ -829,6 +872,11 @@ function QD.raid.yama_solve(t)
     -- tile, a ready barrier, ::synctimers on every seat (the login-tick clocks,
     -- health_regen.rs2), a synced barrier; then the creator sits on the throne.
     if not meet(t, "yama_ready", 200) then t.finish(1) return end
+    -- The fight starts on a fixed world tick on both lanes, so one seed is one tick log: the
+    -- lanes reach the throne on different ticks (the solo 2 apart, the duo's join 28 apart:
+    -- scriptrun's name prompt is not the client's). A world that has run longer (a watched
+    -- Play) is past it and starts at once.
+    t.until_tick(size > 1 and 125 or 85)
     t.cheat("::synctimers", false)
     if not meet(t, "yama_synced", 100) then t.finish(1) return end
     -- (Sitting says nothing and moves nobody: Yama rising is the answer, yama.p1's row.)

@@ -93,10 +93,12 @@ The tests are one call each (`QD_ROOT.raid.yama_test({ fixture =, party =, max_f
 and the play live in the driver part `script/plugins/quest_driver/yama_solver.lua`. Party: friends
 both ways, barrier `yama_friends`; the creator Travels, `yama_entered`; the partner Joins by name and
 lands, `yama_joined` (every seat passes it); the creator sees the partner; each seat walks to its
-tile, `yama_ready`, `::synctimers` on every seat, `yama_synced`, the creator sits; `yama_end` before
-the finish. A barrier that does not pass is a FAIL row and the seat's finish. Rows as each phase
+tile, `yama_ready`, waits for world tick 85 (solo) or 125 (duo) so that the fight starts on the same
+tick on the scriptrun and the live lane (a world that has run longer, a watched Play, starts at once),
+`::synctimers` on every seat, `yama_synced`, the creator sits; `yama_end` before the finish. A barrier that does not pass is a FAIL row and the seat's finish. Rows as each phase
 begins. Run on (the orb) when a watched account has it off; each seat its own random stream; a glyph
-out of reach in the ticks left is given up rather than run for. Results: README section 13.
+out of reach in the ticks left is given up rather than run for, and with no glyph under it a seat
+walks out of the meteor's reach (four tiles from its tile; the target's run is off, so three). Results: README section 13.
 
 ## Third pass (2026-11-10)
 
