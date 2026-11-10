@@ -195,15 +195,21 @@ def prepare_via_run_live(manifest_path, repo_root, env=None):
     script = os.path.join(repo_root, "run-live.sh")
     if not os.path.isfile(script):
         return True, "run-live.sh not present — nothing prepared"
+    # Through sh rather than by its own executable bit: a checkout made with
+    # core.fileMode off, or a commit that recorded the file as 100644, must
+    # not turn every `./launch run` into EACCES (2026-11-02). Windows has no
+    # /bin/sh at all; host finds Git's and the toolchain make needs.
+    try:
+        argv, shell_env = host.shell_script_command(
+            repo_root, "./run-live.sh", [manifest_path])
+    except RuntimeError as exc:
+        return False, str(exc)
     process_env = dict(os.environ)
+    process_env.update(shell_env)
     process_env["TORIRS_PREPARE_ONLY"] = "1"
     if env:
         process_env.update({str(k): str(v) for k, v in env.items()})
-    # Through /bin/sh rather than by its own executable bit: a checkout made
-    # with core.fileMode off, or a commit that recorded the file as 100644,
-    # must not turn every `./launch run` into EACCES (2026-11-02).
-    proc = subprocess.run(
-        ["/bin/sh", "./run-live.sh", manifest_path], cwd=repo_root, env=process_env)
+    proc = subprocess.run(argv, cwd=repo_root, env=process_env)
     if proc.returncode != 0:
         return False, "run-live.sh preparation exited %d" % proc.returncode
     return True, "prepared via run-live.sh"

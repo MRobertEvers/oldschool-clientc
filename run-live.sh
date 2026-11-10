@@ -82,6 +82,12 @@ set -eu
 
 cd "$(dirname "$0")"
 
+# Git for Windows ships no `make`; the repository's MinGW toolchain (put on
+# PATH by ./launch and .\make.ps1) ships GNU make as mingw32-make.
+if ! command -v make >/dev/null 2>&1 && command -v mingw32-make >/dev/null 2>&1; then
+    make() { mingw32-make "$@"; }
+fi
+
 # TORIRSSERVER_CONTENT_DIR selects the tree used by the build rules. The native mock
 # reads TORIRSSERVER_CONTENT, so keep the two sides on the same checkout whenever a
 # caller selects a non-default content tree.
@@ -471,12 +477,17 @@ build_scripts() {
     # `torirsserver-scripts` — the only target carrying the full set of content
     # contracts (God Wars, quest combat, agility XP, …). Those gates guard the
     # base tree, and the base tree is what that build is.
+    #
+    # -j: those ~30 contracts are independent read-only scripts with no
+    # prerequisites, so run serially their sum (~1.5 min on Windows) was the
+    # build; in parallel it is the slowest one.
+    _jobs="${NUMBER_OF_PROCESSORS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}"
     if [ -n "$MANIFEST_LANES" ] || [ -n "$RAW_SERVER_SCRIPTS" ]; then
-        make -C src torirsserver-scripts-lanes \
+        make -C src -j"$_jobs" torirsserver-scripts-lanes \
             TORIRSSERVER_SCRIPT_LANES="$MANIFEST_LANES" \
             ${_out:+TORIRSSERVER_SCRIPT_OUT="$_out"} || exit 1
     else
-        make -C src torirsserver-scripts || exit 1
+        make -C src -j"$_jobs" torirsserver-scripts || exit 1
     fi
     # AND PROVE IT LANDED. A compile that reports success having written
     # somewhere else is the failure this whole comment block is about, and it is

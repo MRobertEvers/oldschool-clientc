@@ -1,6 +1,7 @@
 """Host-specific command lines used by the otherwise portable launcher."""
 
 import os
+import shutil
 import sys
 
 
@@ -34,6 +35,60 @@ def make_command(repo_root, target, make_args=(), parallel=False):
 
     argv = ["make", "-C", "src"] + make_args + [target]
     return argv, " ".join(argv)
+
+
+def _windows_sh():
+    """Git for Windows' sh.exe, found the way make.ps1's environment finds it."""
+    found = shutil.which("sh")
+    if found:
+        return found
+    candidates = [
+        r"C:\Program Files\Git\usr\bin",
+        r"C:\Program Files (x86)\Git\usr\bin",
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Git",
+                     "usr", "bin"),
+    ]
+    # git.exe on PATH is <Git>\cmd\git.exe: its sh.exe is <Git>\usr\bin.
+    git = shutil.which("git")
+    if git:
+        candidates.insert(0, os.path.join(
+            os.path.dirname(os.path.dirname(git)), "usr", "bin"))
+    for directory in candidates:
+        path = os.path.join(directory, "sh.exe")
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def shell_script_command(repo_root, script, args=()):
+    """Return (argv, env_updates) running a repository .sh script on this host.
+
+    Through sh rather than the script's own executable bit (a checkout with
+    core.fileMode off records it 100644). On Windows there is no /bin/sh, and
+    the scripts' `make -C src ...` needs what .\\make.ps1 puts on PATH: the
+    repository's MinGW toolchain (gcc, mingw32-make) and Git's sh.exe, with
+    CC=gcc because make's own default `cc` does not exist there.
+    """
+    if not IS_WINDOWS:
+        return ["/bin/sh", script] + list(args), {}
+    sh = _windows_sh()
+    if not sh:
+        raise RuntimeError(
+            "no sh.exe found: %s is a POSIX script; install Git for Windows "
+            "or put its usr\\bin on PATH" % script)
+    toolchain_bin = os.path.join(repo_root, "toolchains", "mingw64", "bin")
+    if not os.path.isfile(os.path.join(toolchain_bin, "gcc.exe")):
+        raise RuntimeError(
+            "%s is not extracted yet; run `.\\make.ps1 win64` once, which "
+            "unpacks it from lib\\mingw64-win64-toolchain.zip" % toolchain_bin)
+    path = os.pathsep.join(
+        [toolchain_bin, os.path.dirname(sh), os.environ.get("PATH", "")])
+    env = {"PATH": path}
+    if not os.environ.get("CC"):
+        env["CC"] = "gcc"
+    # A script reads its arguments as POSIX paths.
+    args = [arg.replace("\\", "/") for arg in args]
+    return [sh, script] + args, env
 
 
 def python_command(argv):
