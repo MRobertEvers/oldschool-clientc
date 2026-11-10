@@ -486,10 +486,37 @@ ToriRSMapEdCatalog_Refresh(
     int force,
     struct ToriRSMapEdCatalogStats* out_stats);
 
-/** Only maps/ and the lanes' maps/ are re-stated: what a square save calls,
- *  so writing one square does not re-stat 40,000 script files. */
+/** Only maps/ and the lanes' maps/ are re-stated (~11,900 files, ~0.2 s on
+ *  Windows), and the next query sweeps the whole tree. For a change whose
+ *  files nobody can name: a lane's Discard. A save names its files and calls
+ *  ToriRSMapEdCatalog_RefreshPaths instead. */
 int
 ToriRSMapEdCatalog_RefreshMaps(struct ToriRSMapEdCatalog* catalog);
+
+/**
+ * What a save calls with the files it wrote or removed: `rels`, `count` of
+ * them, each relative to the content root ("maps/m50_50.jl2",
+ * "server/scripts/areas/edited/configs/m50_50.spawn"). Each is classified as
+ * the full scan would (a path no scan records -- a .filepack, editor/... --
+ * is skipped), stat'ed once, and re-parsed even when its mtime and size say
+ * nothing changed (Windows mtimes are whole seconds); one that is gone drops
+ * its source. Then, if anything changed, one full merge. Nothing else is
+ * stat'ed, unless a square lands in a lane directory the storage list lacks
+ * (then ported/ is listed again).
+ *
+ * Leaves the refresh interval and a pending sweep's reason alone, and a sweep
+ * in flight runs on (it would see these files unchanged) -- except when the
+ * lane list moved, which ends it. maps_revision, revision and the storage
+ * list move exactly as RefreshMaps would move them for the same change.
+ * Before the index is built it does nothing (the build reads the tree as it
+ * stands). `count` 0 does nothing; otherwise `rels` and every entry must be
+ * non-NULL. Returns 1 when the merged index changed.
+ */
+int
+ToriRSMapEdCatalog_RefreshPaths(
+    struct ToriRSMapEdCatalog* catalog,
+    const char* const* rels,
+    int count);
 
 /** 1 once the index has been built: until then nobody holds an atlas, and a
  *  change needs no broadcast. */
@@ -580,6 +607,8 @@ struct ToriRSMapEdCatalogCounters
     long scoped;
     /** Config blocks read back from disk for record views. */
     long block_reads;
+    /** ToriRSMapEdCatalog_RefreshPaths calls that reached a built index. */
+    long path_refreshes;
 };
 
 void

@@ -21,6 +21,11 @@
  * Part C, the same tree through the API: an edited overlay, a new square and
  * a deleted one are each picked up by the mtime refresh, and only they are
  * re-parsed.
+ *
+ * Part D, the same tree through the API: ToriRSMapEdCatalog_RefreshPaths, what
+ * a save calls with the files it wrote -- a saved square's loc count (even at
+ * the same size and mtime), a new square, a deleted one, a spawn file, an
+ * overlay, a new lane, and a sweep in flight -- each for one stat.
  */
 
 #include "editor/editor_host.h"
@@ -33,6 +38,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <utime.h>
 
 static int g_checks;
 static int g_failures;
@@ -935,6 +941,199 @@ part_c(const char* root)
     ToriRSMapEdCatalog_Free(catalog);
 }
 
+static long
+stats_of(const struct ToriRSMapEdCatalog* catalog)
+{
+    struct ToriRSMapEdCatalogCounters c;
+    ToriRSMapEdCatalog_Counters(catalog, &c);
+    return c.stats;
+}
+
+static long
+merges_of(const struct ToriRSMapEdCatalog* catalog)
+{
+    struct ToriRSMapEdCatalogCounters c;
+    ToriRSMapEdCatalog_Counters(catalog, &c);
+    return c.merges;
+}
+
+/** RefreshPaths over `rel` alone; checks it stat'ed that one file and nothing
+ *  else. Returns what RefreshPaths returned. */
+static int
+refresh_one(
+    struct ToriRSMapEdCatalog* catalog,
+    const char* rel,
+    const char* what)
+{
+    const char* rels[1];
+    long const before = stats_of(catalog);
+    int changed;
+    char line[256];
+
+    rels[0] = rel;
+    changed = ToriRSMapEdCatalog_RefreshPaths(catalog, rels, 1);
+    snprintf(line, sizeof(line), "%s: one stat, maps/ not re-stat'ed (%ld)", what, stats_of(catalog) - before);
+    check(stats_of(catalog) - before == 1, line);
+    return changed;
+}
+
+/* Part D: ToriRSMapEdCatalog_RefreshPaths, what a save calls with the files it
+ * wrote. */
+static void
+part_d(
+    const char* content,
+    const char* root)
+{
+    struct ToriRSMapEdCatalog* catalog;
+    struct ToriRSMapEdCatalogStats stats;
+    struct ToriRSMapEdCatalogSquare square;
+    struct stat st;
+    struct utimbuf times;
+    char path[1024];
+    char from[1024];
+    uint32_t maps;
+    long before;
+    int spawns;
+
+    /* No index yet: nothing to refresh, nothing read. */
+    catalog = ToriRSMapEdCatalog_Create(root);
+    {
+        const char* rels[1] = { "maps/m50_50.jl2" };
+        check(ToriRSMapEdCatalog_RefreshPaths(catalog, rels, 1) == 0 && stats_of(catalog) == 0
+                  && !ToriRSMapEdCatalog_Built(catalog),
+            "RefreshPaths before the build reads nothing and builds nothing");
+        check(ToriRSMapEdCatalog_RefreshPaths(catalog, NULL, 0) == 0, "no paths: nothing to do");
+    }
+    ToriRSMapEdCatalog_SetRefreshInterval(catalog, 3600);
+    ToriRSMapEdCatalog_Refresh(catalog, 1, &stats);
+    check(stats.records > 0, "part D: the scratch tree indexes");
+
+    /* A saved .jl2: its new loc count, and the maps revision moves. */
+    snprintf(path, sizeof(path), "%s/maps/m50_50.jl2", root);
+    check(write_text(path, "==== LOC ====\n0 a\n0 b\nxxxx\n"), "m50_50.jl2 rewritten");
+    maps = ToriRSMapEdCatalog_MapsRevision(catalog);
+    check(refresh_one(catalog, "maps/m50_50.jl2", "a saved .jl2") == 1, "a saved .jl2 changes the index");
+    check(ToriRSMapEdCatalog_Square(catalog, "m50_50", &square) && square.loc_count == 2,
+        "the saved square shows its new loc count (2)");
+    check(ToriRSMapEdCatalog_MapsRevision(catalog) != maps, "a square file moves the maps revision");
+
+    /* The same size and the same mtime (a rewrite inside one second on
+     * Windows): read again all the same. */
+    check(stat(path, &st) == 0, "m50_50.jl2 stats");
+    check(write_text(path, "==== LOC ====\n0 a\n0 b\n0 cc\n"), "m50_50.jl2 rewritten at the same size");
+    times.actime = st.st_atime;
+    times.modtime = st.st_mtime;
+    check(utime(path, &times) == 0, "and given its old mtime back");
+    (void)refresh_one(catalog, "maps/m50_50.jl2", "a same-size rewrite");
+    check(ToriRSMapEdCatalog_Square(catalog, "m50_50", &square) && square.loc_count == 3,
+        "a same-size, same-mtime rewrite is still re-read (3 locs)");
+
+    /* A new square appears; then, deleted, its source goes. */
+    snprintf(from, sizeof(from), "%s/maps/m50_50.jm2", root);
+    snprintf(path, sizeof(path), "%s/maps/m53_50.jm2", root);
+    check(copy_file(from, path), "m53_50.jm2 written");
+    maps = ToriRSMapEdCatalog_MapsRevision(catalog);
+    (void)refresh_one(catalog, "maps/m53_50.jm2", "a new square");
+    check(ToriRSMapEdCatalog_Square(catalog, "m53_50", &square) && square.rgb != 0
+              && (square.flags & TORIRSMAPED_SQUARE_HAS_JM2),
+        "a new square appears in the atlas, coloured");
+    check(ToriRSMapEdCatalog_MapsRevision(catalog) != maps, "and moves the maps revision");
+    remove(path);
+    maps = ToriRSMapEdCatalog_MapsRevision(catalog);
+    check(refresh_one(catalog, "maps/m53_50.jm2", "a deleted square") == 1, "a deleted square changes the index");
+    check(!ToriRSMapEdCatalog_Square(catalog, "m53_50", &square), "a deleted square's source goes");
+    check(ToriRSMapEdCatalog_MapsRevision(catalog) != maps, "and moves the maps revision");
+    check(first_record(catalog, TORIRSMAPED_CATALOG_SQUARE, "m53_50", TORIRSMAPED_CATALOG_EXACT) < 0,
+        "no record names it");
+
+    /* A spawn file: the atlas's spawn count follows; not a maps change (what
+     * RefreshMaps and the sweep after it would have said). */
+    check(ToriRSMapEdCatalog_Square(catalog, "m50_50", &square) && square.spawn_count > 0, "m50_50 has spawns");
+    spawns = square.spawn_count;
+    snprintf(path, sizeof(path), "%s/server/scripts/areas/world/configs/m50_50.spawn", root);
+    remove(path);
+    maps = ToriRSMapEdCatalog_MapsRevision(catalog);
+    (void)refresh_one(catalog, "server/scripts/areas/world/configs/m50_50.spawn", "a removed spawn file");
+    check(ToriRSMapEdCatalog_Square(catalog, "m50_50", &square) && square.spawn_count == 0,
+        "a removed spawn file takes its spawns off the square");
+    check(ToriRSMapEdCatalog_MapsRevision(catalog) == maps, "a spawn file is not a maps change");
+    snprintf(from, sizeof(from), "%s/server/scripts/areas/world/configs/m50_50.spawn", content);
+    check(copy_file(from, path), "the spawn file put back");
+    (void)refresh_one(catalog, "server/scripts/areas/world/configs/m50_50.spawn", "a new spawn file");
+    check(ToriRSMapEdCatalog_Square(catalog, "m50_50", &square) && square.spawn_count == spawns,
+        "and back again");
+
+    /* An overlay record's file. */
+    snprintf(path, sizeof(path), "%s/server/scripts/test_area/configs/test.loc", root);
+    check(write_text(path, "[test_door]\ncategory=saved_category\n"), "the overlay rewritten");
+    (void)refresh_one(catalog, "server/scripts/test_area/configs/test.loc", "a saved overlay");
+    {
+        char value[64];
+        int record = first_record(catalog, TORIRSMAPED_CATALOG_LOC, "test_door", TORIRSMAPED_CATALOG_EXACT);
+        check(record >= 0 && ToriRSMapEdCatalog_Field(catalog, record, "category", value, sizeof(value))
+                  && strcmp(value, "saved_category") == 0,
+            "a saved overlay's field is in the index");
+    }
+
+    /* Paths no scan records: nothing stat'ed, nothing merged. */
+    {
+        const char* rels[] = { "maps/m50_50.filepack", "editor/areas.txt", "pack/sub/x.pack",
+            "server/scripts/.hidden/x.rs2", "maps/sub/m50_50.jm2", "ported/x/y/maps/m50_50.jm2" };
+        long const merges = merges_of(catalog);
+        before = stats_of(catalog);
+        check(ToriRSMapEdCatalog_RefreshPaths(catalog, rels, (int)(sizeof(rels) / sizeof(rels[0]))) == 0,
+            "paths no scan records change nothing");
+        check(stats_of(catalog) == before && merges_of(catalog) == merges, "and are neither stat'ed nor merged");
+    }
+
+    /* The refresh interval and the pending-sweep flag were left alone. */
+    before = stats_of(catalog);
+    check(ToriRSMapEdCatalog_Refresh(catalog, 0, &stats) == 0 && stats.parsed == 0 && stats_of(catalog) == before,
+        "RefreshPaths left no whole-tree refresh owed");
+
+    /* A square in a lane directory the storage list does not have yet. */
+    snprintf(path, sizeof(path), "%s/ported/blane/maps", root);
+    make_dirs(path);
+    snprintf(from, sizeof(from), "%s/maps/m50_50.jm2", root);
+    snprintf(path, sizeof(path), "%s/ported/blane/maps/m54_50.jm2", root);
+    check(copy_file(from, path), "ported/blane/maps/m54_50.jm2 written");
+    {
+        const char* rels[1] = { "ported/blane/maps/m54_50.jm2" };
+        check(ToriRSMapEdCatalog_RefreshPaths(catalog, rels, 1) == 1, "a square in a new lane changes the index");
+    }
+    check(ToriRSMapEdCatalog_Square(catalog, "ported/blane/maps/m54_50", &square)
+              && strcmp(square.storage, "ported/blane/maps") == 0,
+        "the new lane's square has its own storage");
+    check(ToriRSMapEdCatalog_Square(catalog, "ported/testlane/maps/m51_50", &square)
+              && strcmp(square.storage, "ported/testlane/maps") == 0,
+        "and another lane's square keeps its own");
+
+    /* A sweep in flight runs on, and keeps what the save added. */
+    ToriRSMapEdCatalog_SetRefreshInterval(catalog, 0);
+    (void)ToriRSMapEdCatalog_Query(catalog, TORIRSMAPED_CATALOG_LOC, "", 0, NULL, 0);
+    (void)ToriRSMapEdCatalog_Service(catalog, 1e-6);
+    check(ToriRSMapEdCatalog_Working(catalog), "a sweep is part way");
+    snprintf(from, sizeof(from), "%s/maps/m50_50.jm2", root);
+    snprintf(path, sizeof(path), "%s/maps/m55_50.jm2", root);
+    check(copy_file(from, path), "m55_50.jm2 written");
+    (void)refresh_one(catalog, "maps/m55_50.jm2", "a new square mid-sweep");
+    check(ToriRSMapEdCatalog_Square(catalog, "m55_50", &square), "the square is in the atlas at once");
+    check(ToriRSMapEdCatalog_Square(catalog, "m50_50", &square) && square.loc_count == 3
+              && ToriRSMapEdCatalog_Square(catalog, "ported/blane/maps/m54_50", &square),
+        "and nothing the sweep has not reached yet left the index");
+    check(ToriRSMapEdCatalog_Working(catalog), "and the sweep was not ended");
+    for( int i = 0; i < 100000 && ToriRSMapEdCatalog_Working(catalog); i++ )
+        (void)ToriRSMapEdCatalog_Service(catalog, 1000.0);
+    check(!ToriRSMapEdCatalog_Working(catalog), "the sweep ends");
+    check(ToriRSMapEdCatalog_Square(catalog, "m55_50", &square)
+              && ToriRSMapEdCatalog_Square(catalog, "ported/blane/maps/m54_50", &square)
+              && ToriRSMapEdCatalog_Square(catalog, "m50_50", &square) && square.loc_count == 3,
+        "and what the saves added is still there");
+    remove(path);
+
+    ToriRSMapEdCatalog_Free(catalog);
+}
+
 int
 main(
     int argc,
@@ -954,6 +1153,7 @@ main(
     check(build_scratch(argv[1], root), "the scratch tree is written");
     part_b(root);
     part_c(root);
+    part_d(argv[1], root);
 
     printf("catalog_test: %d checks, %d failed\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

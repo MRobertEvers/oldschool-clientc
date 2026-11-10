@@ -721,6 +721,11 @@ struct ToriRSMapEd
      *  else the main lane of `content_dir` itself. */
     struct ToriRSMapEdLaneDef lane;
     int lane_bound;
+    /** The lane whose content `content_dir` turned out to be when it was
+     *  opened as a plain tree (ToriRSMapEdLanes_OfContent; a manifest's
+     *  content_dir, or --content, naming build/lanes/<name>/content without
+     *  its lane): the write guard's lane until OpenLane binds one. */
+    struct ToriRSMapEdLaneDef plain_lane;
     /** The lane the boot ASKED for -- the manifest's `lane=`, `--lane`,
      *  "main" when neither said -- before build/lanes/lane.ini had its say
      *  (ToriRSMapEd_SetLaneAsked); "" when the caller never told us. The
@@ -774,6 +779,13 @@ struct ToriRSMapEd
     /** The asset catalog and square atlas (torirs_maped_catalog.h); built on
      *  its first query. */
     struct ToriRSMapEdCatalog* catalog;
+    /** The content-relative files the saves of the request in hand wrote or
+     *  removed (save_doc and the v1 square and spawn saves note them, once
+     *  each); catalog_saved hands them to ToriRSMapEdCatalog_RefreshPaths
+     *  and empties the list. */
+    char** saved_paths;
+    int saved_path_count;
+    int saved_path_cap;
     /** SPAWN_VIEW's binding; spawn NULL when this host cannot start viewers
      *  (torirs_maped_view.h). */
     struct ToriRSMapEdViewSpawner view_spawner;

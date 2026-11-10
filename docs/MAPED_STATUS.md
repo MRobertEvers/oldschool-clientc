@@ -803,15 +803,74 @@ A **lane** is a content tree to edit plus the live dir its RUN builds into
 (torirsmaped/torirs_maped_lanes.h). `main` is the real tree
 (`OSRS-Content/osrs-content`) and `build/live/default`; a named lane is
 `build/lanes/<name>/{lane.ini, content/, live/}`. A lane's content is a
-copy-on-write MIRROR of its base (mirror.py's rules, ported to C in
-`ToriRSMapEdLanes_Mirror`): real directories, one symlink per file,
-directory symlinks for the pure-asset trees (models, sprites, ...), real
-copies of `pack/` (the id allocation rewrites its ledgers), no pack outputs
-and no locks. A save renames a temporary over the symlink, so the edited
-file is a real file in the lane and the base is untouched; the lane's
-**changes** are its real files that differ from the base (modified /
-added) and the base's files it no longer has (deleted). 102 k entries
-mirror in about two seconds; a changes scan reads only the real files.
+copy-on-write view of its base, in one of two layouts:
+
+- **Sparse** (every lane `ToriRSMapEdLanes_Create` makes since 2026-11-10;
+  lane.ini `layout = sparse`, `sparse_base = <tree>`, and deliberately no
+  `base =` line, so an older editor refuses the lane instead of writing
+  through its links). A directory of the lane is ONE LINK to the base's
+  (junction or symlink) until something is about to be written inside it;
+  `ToriRSMapEdLanes_MakeWritable(lane, rel)` then makes every ancestor of
+  `rel` real, top down, EXPLODING a linked one: a real directory holding one
+  link per base entry (sub-directories as directory links). Real from
+  creation: the root, `server/` and `server/scripts/` (the base's pack
+  outputs stay out, the tools' outputs land in the lane), `maps/` (exploded:
+  the first thing a map editor writes) and `pack/` (copied, with its
+  `ancestor/` seed). The explode is crash-safe (`<parent>/.<dir>.explode.tmp`
+  built complete -- a dot-name no build tool reads, ending in `.tmp`, which
+  no lane walk reads -- then the link removed, then the rename; a rename that
+  fails puts the link back; a leftover with the directory absent is
+  finished by the next MakeWritable or Follow, one beside the directory is
+  removed by Follow or rebuilt by the next MakeWritable) and never deletes
+  through a link. Explodes of one lane take turns across processes
+  (`<lane>/explode.lock`, so an editor publishing into a lane another editor
+  is saving into cannot rename a half-built directory into place). An
+  absent ancestor the base HAS is filled from the base, never made empty
+  (an empty one would read as its base files deleted by the lane). Each
+  directory made real after creation has its time in `<lane>/exploded.ini`:
+  everything the base had in it then was linked, so Changes and Follow take
+  the later of that and the lane's `created` -- a file the base gained after
+  `created`, shown through a link and then deleted by the lane, is the
+  lane's deletion and Follow keeps it deleted. Temporaries (`*.tmp`) in the
+  base are never linked into a lane, and every writer creates its temporary
+  exclusively after removing any name left there, so a link at a temporary's
+  name is never written through. A server opened on a lane's `content/` as
+  a plain tree (`content_dir` / `--content` without `lane=`) finds its lane
+  (`ToriRSMapEdLanes_OfContent`) and guards its saves all the same.
+  **The hazard**: a write that reaches a directory
+  that is still a link lands in the base tree, so every writer into a lane
+  calls MakeWritable first (publish into a lane, follow and discard do; the
+  editor server's saves through the WRITE GUARD below).
+  Follow links a directory new in the base as one link; a linked directory
+  follows on its own, so Follow's counts are lower than a mirror's for the
+  same base. Discard leaves exploded directories exploded (a real
+  directory of links reads as the link it replaced).
+  **Every tool that reads a lane must walk INTO directory links** (in a
+  mirror they were real directories, so a walker that stopped at links lost
+  nothing; in a sparse lane it loses most of the tree, silently). Audited
+  2026-11-10: sscompile, cachepack, the game server's loaders and pack
+  check, the catalog, the editor host, accounts and alloc all type an entry
+  by `d_type` and `stat()` the rest (DT_LNK and MinGW's typeless dirent
+  included), so they follow; `tools/ss_allocate.py` did not on macOS/Linux
+  (`os.walk` without `followlinks`) and now walks through links, and the
+  server's stale-pack warning (`scripts_scan_newer`) used `lstat` on POSIX
+  and now uses `stat`. The tools' in-tree writes reachable from BUILD, RUN
+  and Check land only in `pack/` (ss_allocate's ledgers) and
+  `server/scripts/build/` (its stamp), both under directories kept real.
+- **Legacy** (`base = <tree>`, lanes made before; `ToriRSMapEdLanes_Mirror`
+  still builds one): a full MIRROR (mirror.py's rules, ported): real
+  directories, one link per file, directory links for the pure-asset trees
+  (models, sprites, ...), a copy of `pack/`. Unchanged; MakeWritable works
+  on it too (an asset tree it explodes is then walked like any other).
+
+Both: no pack outputs and no locks; a save renames a temporary over the
+link, so the edited file is a real file in the lane and the base is
+untouched; the lane's **changes** are its real files that differ from the
+base (modified / added) and the base's files it no longer has (deleted).
+The walks go only into the lane's real directories, so a sparse lane's
+scan costs what it changed; Changes, Follow, Publish and Discard give a
+sparse lane the same answers as a mirror of the same content (lanes_test
+runs both side by side). No conversion of existing lanes yet.
 
 - **Serving a lane**: `torirsmaped ... --lane <name>` (or
   `$TORIRSMAPED_LANE`), the manifest's `[editor:boot] lane=<name>` for the
@@ -821,6 +880,27 @@ mirror in about two seconds; a changes scan reads only the real files.
   first use; its live dir is bound for BUILD, RUN and the servers. `main`
   (or no lane) is the shape before: the tree itself. Both editor manifests
   say `lane=working`.
+- **Write guard** (2026-11-10): `ToriRSMapEd_OpenLane` sets the server's
+  local host's guard (`Editor_HostLocalSetWriteGuard`, editor_host.h) to
+  MakeWritable on the lane. editor_host_local.c asks it with the
+  content-relative path before every mkdir (`make_parents`, the spawn
+  file's directories), every save's temporary and rename (`write_file_atomic`:
+  squares, spawns, every document kind, an interface's `.compack`) and every
+  delete; a refusal fails the save (IO_ERROR, the sentence in the log). Then,
+  right before the temporary is opened or the file removed, it checks that
+  no directory between the root and the target is a link: an assert, and in
+  the shipping build (NDEBUG) a refused write -- a missed guard never writes
+  into the base. A delete of a path that is not there at all explodes
+  nothing. Main or no lane: no guard, as before. Everything else the server
+  writes goes under the lane's live dir (builds, RUN's run_times and
+  map list, CHECK's puts, accounts, play saves and logs) or is RUN's scratch
+  squares, which go through the same host. The session lock sits at the
+  content root, always real. Not guarded: the Triggers, Quest and Shop panels
+  build their paths from the manifest's `editor_content_dir` -- the BASE
+  tree, not the lane -- so Open in editor, Show in Explorer and Copy path
+  name the base's file, which the owner then edits in the base, as before
+  sparse lanes (and the Triggers panel's "changed outside" compares the
+  lane's document with the base's file).
 - **Wire** (requests 81..90, facts 201..210, torirs_maped_lanes.h):
   LANE_INFO / LIST / CHANGES / PUBLISH (target or new name, flags reset |
   force) / DISCARD / CREATE; FACT_LANE_PUBLISHED is a broadcast (every
@@ -845,17 +925,28 @@ mirror in about two seconds; a changes scan reads only the real files.
   the editor, for photographs); editor_panels_test `test_publish`.
 - **ctl**: `lane`, `lanes`, `changes`, `publish <target> [keep] [force]`,
   `publish-new <name>`, `discard`, `lane-create <name>`.
-- Tests: lanes_test (62: names, the mirror's rules, create / lookup / list,
-  the change scan, publish to a new lane / another lane / main with reset,
-  the lock refusal and force, discard), maped_daemon_test.sh section 12 (a
+- Tests: lanes_test (190 on 2026-11-10, with and without
+  `TORIRSMAPED_LANES_LISTINGS=0`: names, the mirror's rules, create / lookup
+  / list, the change scan, publish to a new lane / another lane / main with
+  reset, the lock refusal and force, discard; the sparse skeleton and
+  lane.ini, MakeWritable on a deep path, the same edits and base moves on a
+  sparse lane and a legacy mirror compared row by row and by the tree each
+  shows, publish into a sparse target, explode crash recovery, a legacy
+  lane's asset tree exploded), lanes_host_test (`test-lanes-host`: the
+  real local host on a sparse lane with the guard -- a square, a spawn, an
+  overlay record, a new quest directory, a ledger, editor/areas.txt saved
+  and a script deleted inside linked directories, the base byte for byte
+  unchanged, the change scan exactly those; a refusing guard and a guard
+  that does nothing both fail the save), maped_daemon_test.sh section 12 (a
   daemon on `--lane work`: an edit saved through it never touches the tree,
   publish-new, publish main resets the lane, discard), editor_hotkeys_test.
 
 Open: the Publish panel has no per-file pick (all or nothing); a lane's base
-is always the main tree (no lane of a lane); a lane does not notice its base
-moving under it (publish from main into a lane is the way to refresh one);
-the mirror is per file, so a directory added to the tree later is not seen
-by an older lane until it is re-made.
+is always the main tree (no lane of a lane). (Superseded: Follow brings a
+lane up to its base; a sparse lane's linked directories show the base's
+present without it.) The script panels open the base's files, not the
+lane's (Write guard, above): a script edited in the owner's editor is
+edited in the base whatever the lane.
 
 ## RUN speed (2026-11-02)
 
@@ -959,8 +1050,11 @@ on a path the same process had already stat'd. Every walker types entries by
    sscompile's build does the same for its source walk, its inputs check and
    the symbol loaders (`SSC_Symbols.entry_is_dir`, ssc_build.c). The symbol
    table's three loader walks were 1 s of a one-script edit.
-6. **ss_allocate's stamp types entries without following links**: `os.walk`
-   never enters a symlinked directory, so the link is a name like any other.
+6. **ss_allocate's stamp types entries without following links**: a link is
+   listed by its name (with `@` since 2026-11-10) and never stat'd. (This
+   said `os.walk` never enters a symlinked directory; since sparse lanes the
+   walk enters every directory link, and the directories it reached through
+   one are stamped by the path it reached them at.)
 
 Measured interleaved against HEAD's toolchain on two copies of the lane
 (medians; outputs compared: both script.dat byte-identical, server and client
@@ -1269,6 +1363,7 @@ The numbers (this Mac, the mirror; frame = p50 / p95 ms; the loop is paced at
 | Raise brush drag, 300 frames | 3.7 / 5.1 ms (after the build); remesh flush p50 0.001 ms, max 1.8 ms | same | nothing: the edit layout's per-tile remesh is already cheap |
 | startup | world drawn 0.17-0.20 s, rss 183 MB (0.13 s with the thread); catalog ready never within 24 s (slices) | catalog ready 8.0-8.4 s on the mirror (scan 4.6 s + parse 3.7 s + merge 0.1 s of IO-bound work; the real tree's scan is faster), rss 450 MB at that moment; exit rss 192-206 MB | |
 | random hitches in use (2026-11-08; the owner: camera moves, placing the player, selecting a loc) | every 15 s a 3.4-5.9 s frame: the status bar's lane chip asked LANE_CHANGES COUNT_ONLY and the embedded server walked the lane's 100k-file mirror on the UI thread, because the count cache expired on every ACCOUNTS_LIST (a read the Accounts panel and the spawn preview send every few seconds counted as a lane write); every square open a 2-3 s frame: the `spawns:m<x>_<z>` document walked server/scripts (58k entries) synchronously | no frame over 30 ms after boot in 1500 idle frames; the chip's ask answers from the cache or starts the scan thread and the landing broadcasts FACT_LANE_COUNT; the square open answers from the spawn snapshot | note_lane_writes counts only writing account requests; every lane walk goes through lanes_scan_want (one scan thread, a queue of lane names, torirs_maped_lanes_wire.c); the Publish panel takes a broadcast count into its list row by name and re-asks after 4 periods if an answer never came; `scripted_spawns` snapshot (editor_host_local.c). Found with `TORIRS_EDITOR_FRAME_STATS_SLOW=<ms>` (one line per slow loop iteration with every phase) and `TORIRS_MAPED_PUMP_TRACE=<ms>` (every request and service step of the embedded server over that long, DOC_OPEN with its key); `TORIRSMAPED_LANES_DEBUG=1` says why a count wants a walk, `TORIRS_EDITOR_HOST_TRACE=1` times the spawn walk |
+| every Save (2026-11-10, Windows, the real tree in a sparse lane) | one frame of ~0.26 s even when nothing was written, ~0.41 s when one square was: after every save the server ran `ToriRSMapEdCatalog_RefreshMaps` (11,862 stats of maps/ and the lanes' maps/, 190-200 ms here, mingw's readdir has no d_type), a full merge when anything changed, and set `invalid` so the next query swept all ~42,000 sources again (1.8 s of stats on the service pass) | a save that wrote nothing: no frame over 50 ms; a one-tile height edit saved: 190-215 ms, of which the catalog is 1 stat + 9 ms parse + 160-181 ms merge | the server notes the files each save wrote or removed (`saved_doc_note`, `Editor_HostDocPath`, an interface's sibling .compack) and `catalog_saved` hands them to `ToriRSMapEdCatalog_RefreshPaths` (one stat each, re-parsed whatever the stat says, then one merge; no `invalid`, a sweep in flight runs on). RefreshMaps is left for Discard. What is left is the full `cat_merge` of ~408,000 records (130-180 ms; a save of `configs/all.loc` adds a 90 ms parse); a per-source merge would remove it. `TORIRS_CATALOG_TRACE=1` prints one `refresh paths:` line per save |
 
 Hot functions (`sample`, 8 s, idle with the mouse over the world): 83% of
 the main thread sleeps in the pacer; of the working samples 826/938 are
@@ -1868,6 +1963,11 @@ What landed:
   remainder so a slow finger still turns it) and VIEW_ZOOM through the new
   `preview_orbit` / `preview_zoom` services (`EditorPreviewCamera_ZoomBy`,
   continuous). Its tooltip says "or drag to orbit, pinch to zoom".
+  Since 2026-11-10 a mouse's middle-drag that begins on the well orbits it
+  too (app_map_editor.c `app_map_editor_view_middle_drag`: the drag is handed
+  to the chrome as a pan anchored at the press, and holds the pointer until
+  the release, so the World behind a floating Preview never turns); the
+  tooltip reads "middle-drag: orbit; click: WASD orbit, E/F zoom; pinch: zoom".
 - **Gesture spelling** (section 15's column): `Editor_HotkeyActionInfo::gesture`,
   "2 fingers" on the four fly moves, "pinch" on fly down / up, "twist" on turn
   left / right. `Editor_HotkeysHint` takes `touch`; with it the tool's

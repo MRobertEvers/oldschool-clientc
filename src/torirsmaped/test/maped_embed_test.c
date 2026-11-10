@@ -584,6 +584,68 @@ servpack_rows_has(
     return 0;
 }
 
+/* ---- a lane's content opened as a plain tree ------------------------------- */
+
+/* A manifest's content_dir (or --content) naming build/lanes/<name>/content
+ * without its lane: ToriRSMapEd_Open, not OpenLane. The lane's directories
+ * are still links to its base, so a save must still make them real first,
+ * or it lands in the base. */
+static void
+test_plain_open_on_lane(char const* scratch)
+{
+    struct ToriRSMapEd* maped = calloc(1, sizeof(*maped));
+    struct ToriRSMapEdLaneDef lane;
+    char repo[1024];
+    char base[1100];
+    char path[2048];
+    char why[512];
+    char* disk;
+    size_t disk_size = 0;
+
+    if( !maped )
+    {
+        fprintf(stderr, "out of memory\n");
+        exit(2);
+    }
+    snprintf(repo, sizeof(repo), "%s/plainrepo", scratch);
+    snprintf(base, sizeof(base), "%s/base", repo);
+    mkdir_p_or_die(repo);
+    mkdir_p_or_die(base);
+    snprintf(path, sizeof(path), "%s/server", base);
+    mkdir_p_or_die(path);
+    snprintf(path, sizeof(path), "%s/server/scripts", base);
+    mkdir_p_or_die(path);
+    snprintf(path, sizeof(path), "%s/server/scripts/areas", base);
+    mkdir_p_or_die(path);
+    snprintf(path, sizeof(path), "%s/server/scripts/areas/a", base);
+    mkdir_p_or_die(path);
+    snprintf(path, sizeof(path), "%s/server/scripts/areas/a/a.rs2", base);
+    write_text(path, "[proc,a]\n");
+    check(ToriRSMapEdLanes_Create(repo, base, "plain", &lane, why, sizeof(why)) && lane.sparse,
+        "plain open: a sparse lane to open");
+    snprintf(path, sizeof(path), "%s/server/scripts/areas", lane.content);
+    check(ToriRSMapEdLanes_IsLink(path), "plain open: the lane's areas/ is a link to its base");
+
+    ToriRSMapEd_Open(maped, lane.content, NULL);
+    check(maped->writable, "plain open: the lane's content opens writable");
+    check(maped->files.vtable->doc_save(maped->files.user_data, EDITOR_DOC_TEXT, "rs2:areas/a/new.rs2", 0,
+              "[proc,new]\n", 11)
+              == EDITOR_HOST_OK,
+        "plain open: a script saves under the linked directory");
+    snprintf(path, sizeof(path), "%s/server/scripts/areas/a/new.rs2", base);
+    disk = slurp(path, &disk_size);
+    check(disk == NULL, "plain open: nothing landed in the lane's base");
+    free(disk);
+    snprintf(path, sizeof(path), "%s/server/scripts/areas/a/new.rs2", lane.content);
+    disk = slurp(path, &disk_size);
+    check(disk && strcmp(disk, "[proc,new]\n") == 0, "plain open: the script is the lane's");
+    free(disk);
+    snprintf(path, sizeof(path), "%s/server/scripts/areas", lane.content);
+    check(!ToriRSMapEdLanes_IsLink(path), "plain open: areas/ was made real first");
+    ToriRSMapEd_Close(maped);
+    free(maped);
+}
+
 static void
 test_servpack_diff(void)
 {
@@ -1456,6 +1518,7 @@ main(
     /* ---- a v1 peer on the same protocol ------------------------------------ */
 
     test_v1_peer(scratch);
+    test_plain_open_on_lane(scratch);
 
     /* ---- a second SERVER over the same tree is read-only ------------------- */
 

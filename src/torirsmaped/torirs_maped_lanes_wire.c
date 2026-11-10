@@ -6,9 +6,16 @@
  */
 
 /* The change scan runs on a worker thread where the platform has one (the
- * catalog's warm build has the same shape); the web and win32 lanes scan
- * inline. Nothing on the thread allocates through ToriMem: the rows buffer is
- * the main thread's, filled by the scan and read after the join.
+ * catalog's warm build has the same shape): pthreads, and on Windows its own
+ * threads (the tree's rule: src/makefile, "Windows uses its own threads"); the
+ * web lane scans inline. Nothing on the thread allocates through ToriMem: the
+ * rows buffer is the main thread's, filled by the scan and read after the
+ * join.
+ *
+ * Windows scanned inline until 2026-11-10, on the editor's UI thread, and
+ * there the walk was at its slowest (torirs_maped_lanes.c, "a directory as
+ * the volume lists it"): TORIRS_EDITOR_FRAME_STATS showed one frame of 8.2 s
+ * after every save and one of 9.4 s at the end of every RUN.
  *
  * Every walk of a mirror goes through that scan: a LANE_CHANGES request, the
  * status bar's periodic COUNT_ONLY and the LIST's per-lane counts all ask
@@ -19,11 +26,16 @@
  * server runs on the editor's UI thread, and a walk of a 100k-file mirror is
  * 3-5 s: before 2026-11-08 the chip's ask walked it there every 15 s whenever
  * the cache had expired, which an ACCOUNTS_LIST (a read) did on every pass. */
-#if !defined(__EMSCRIPTEN__) && !defined(_WIN32)
+#if defined(__EMSCRIPTEN__)
+#define LANES_SCAN_THREAD 0
+#elif defined(_WIN32)
+#include <process.h>
+#define LANES_SCAN_THREAD 1
+typedef HANDLE lanes_scan_thread_t;
+#else
 #include <pthread.h>
 #define LANES_SCAN_THREAD 1
-#else
-#define LANES_SCAN_THREAD 0
+typedef pthread_t lanes_scan_thread_t;
 #endif
 
 struct ToriRSMapEdLaneScan
@@ -37,7 +49,7 @@ struct ToriRSMapEdLaneScan
     uint32_t writes_own;
     uint32_t writes_all;
 #if LANES_SCAN_THREAD
-    pthread_t thread;
+    lanes_scan_thread_t thread;
     int thread_live;
 #endif
     int done;
@@ -51,12 +63,53 @@ lanes_scan_run(struct ToriRSMapEdLaneScan* scan)
 }
 
 #if LANES_SCAN_THREAD
+#ifdef _WIN32
+static unsigned __stdcall
+lanes_scan_thread_main(void* arg)
+{
+    lanes_scan_run(arg);
+    return 0;
+}
+
+/** 1 when the worker took the scan; 0: no thread, the caller walks inline. */
+static int
+lanes_scan_thread_start(struct ToriRSMapEdLaneScan* scan)
+{
+    /* _beginthreadex, not CreateThread: the walk uses the C runtime. */
+    uintptr_t const handle = _beginthreadex(NULL, 0, lanes_scan_thread_main, scan, 0, NULL);
+    if( handle == 0 )
+        return 0;
+    scan->thread = (HANDLE)handle;
+    return 1;
+}
+
+static void
+lanes_scan_thread_join(struct ToriRSMapEdLaneScan* scan)
+{
+    WaitForSingleObject(scan->thread, INFINITE);
+    CloseHandle(scan->thread);
+}
+#else
 static void*
 lanes_scan_thread_main(void* arg)
 {
     lanes_scan_run(arg);
     return NULL;
 }
+
+/** 1 when the worker took the scan; 0: no thread, the caller walks inline. */
+static int
+lanes_scan_thread_start(struct ToriRSMapEdLaneScan* scan)
+{
+    return pthread_create(&scan->thread, NULL, lanes_scan_thread_main, scan) == 0;
+}
+
+static void
+lanes_scan_thread_join(struct ToriRSMapEdLaneScan* scan)
+{
+    pthread_join(scan->thread, NULL);
+}
+#endif
 #endif
 
 static void
@@ -89,7 +142,7 @@ lanes_scan_free(struct ToriRSMapEd* maped)
         return;
 #if LANES_SCAN_THREAD
     if( scan->thread_live )
-        pthread_join(scan->thread, NULL);
+        lanes_scan_thread_join(scan);
 #endif
     ToriMem_Free(ToriMem_Editor(), scan->rows);
     ToriMem_Free(ToriMem_Editor(), scan);
@@ -163,7 +216,7 @@ lanes_scan_start(
     assert(scan->rows);
     maped->lane_scan = scan;
 #if LANES_SCAN_THREAD
-    if( pthread_create(&scan->thread, NULL, lanes_scan_thread_main, scan) == 0 )
+    if( lanes_scan_thread_start(scan) )
         scan->thread_live = 1;
     else
         lanes_scan_run(scan);
@@ -252,7 +305,7 @@ lanes_service(struct ToriRSMapEd* maped)
 #if LANES_SCAN_THREAD
     if( scan->thread_live )
     {
-        pthread_join(scan->thread, NULL);
+        lanes_scan_thread_join(scan);
         scan->thread_live = 0;
     }
 #endif
@@ -321,6 +374,37 @@ lanes_scan_begin(
     lanes_scan_want(maped, &maped->lane);
 }
 
+/** The local host's write guard on a lane (Editor_HostLocalSetWriteGuard):
+ *  every directory above a save, a mkdir or a delete is made real first. It
+ *  reads maped->lane at the call, not a copy: Follow moves its `created`. */
+static int
+lanes_write_guard(
+    void* ctx,
+    const char* rel,
+    char* why,
+    size_t why_size)
+{
+    struct ToriRSMapEd* maped = ctx;
+
+    assert(maped);
+    return ToriRSMapEdLanes_MakeWritable(&maped->lane, rel, why, why_size);
+}
+
+/** The guard ToriRSMapEd_Open installs on a lane's content opened as a plain
+ *  tree: `ctx` is maped->plain_lane (ToriRSMapEdLanes_OfContent). */
+static int
+lanes_plain_write_guard(
+    void* ctx,
+    const char* rel,
+    char* why,
+    size_t why_size)
+{
+    const struct ToriRSMapEdLaneDef* lane = ctx;
+
+    assert(lane);
+    return ToriRSMapEdLanes_MakeWritable(lane, rel, why, why_size);
+}
+
 int
 ToriRSMapEd_OpenLane(
     struct ToriRSMapEd* maped,
@@ -351,6 +435,11 @@ ToriRSMapEd_OpenLane(
     ToriRSMapEd_Open(maped, lane.content, repo_root);
     maped->lane = lane;
     maped->lane_bound = 1;
+    /* A lane's directories may be links to its base (a sparse lane's, and a
+     * legacy lane's asset trees): no save may land through one. `maped` is
+     * the guard's context for the server's life, so it must not move. */
+    if( !lane.is_main )
+        Editor_HostLocalSetWriteGuard(&maped->files, lanes_write_guard, maped);
     TORIRS_LOG("torirsmaped: lane '%s': %s%s%s\n", lane.name, lane.content, lane.is_main ? "" : ", mirrors ",
         lane.is_main ? "" : lane.base);
     return 1;
@@ -461,6 +550,9 @@ handle_lane_publish(
     maped->lane_scan_queue_count = 0;
     /* What is on disk is what gets published: every dirty document first. */
     status = save_all_docs(maped, &saved);
+    /* The catalog takes in what those saves wrote (the publish below writes
+     * another tree; a reset of this one is caught by the next sweep). */
+    catalog_saved(maped);
     if( status != EDITOR_HOST_OK )
     {
         snprintf(message, sizeof(message), "a document did not save; nothing was published");

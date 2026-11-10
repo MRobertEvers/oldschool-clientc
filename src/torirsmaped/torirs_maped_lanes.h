@@ -12,15 +12,33 @@
  *   main       the real tree (OSRS-Content/osrs-content) and build/live/default
  *   <name>     <repo>/build/lanes/<name>/{lane.ini, content/, live/}
  *
- * A named lane's content is a copy-on-write MIRROR of its base (the main
- * tree): real directories holding one symlink per file, directory symlinks
- * for the large pure-asset trees nothing writes (models, sprites, ...), real
- * copies of pack/ (the id allocation rewrites its ledgers in place), and no
- * pack outputs or locks (maped/test/live_e2e/mirror.py's rules, ported). A
- * save writes a temporary beside the target and renames it over the symlink,
- * so an edited file becomes a real file in the mirror and the base is
- * untouched; the lane's CHANGES are exactly its real files that differ from
- * the base (modified / added) and the base files it no longer has (deleted).
+ * A named lane's content is a copy-on-write view of its base (the main
+ * tree), in one of two layouts (lane.ini):
+ *
+ *   sparse  (`layout = sparse`, `sparse_base = <tree>`; every lane Create
+ *           makes since 2026-11-10) a directory is ONE LINK to the base's
+ *           until something is about to be written inside it; then
+ *           ToriRSMapEdLanes_MakeWritable EXPLODES it one level into a real
+ *           directory holding one link per base entry. Real from creation:
+ *           the root, server/ and server/scripts/ (the pack outputs are left
+ *           out and the tools' outputs land in the lane), maps/ (exploded),
+ *           pack/ (copied). A sparse lane.ini has no `base = ` line, so an
+ *           editor that predates the layout refuses the lane instead of
+ *           writing through its links.
+ *   legacy  (`base = <tree>`) a full MIRROR: real directories holding one
+ *           link per file, directory links for the pure-asset trees
+ *           (models, sprites, ...), a copy of pack/.
+ *
+ * Either way there are no pack outputs or locks (maped/test/live_e2e/
+ * mirror.py's rules, ported). A save writes a temporary beside the target
+ * and renames it over the link, so an edited file becomes a real file in the
+ * lane and the base is untouched -- PROVIDED the directory it lands in is
+ * real: a write that reaches a directory link lands in the BASE, which is why
+ * every writer into a lane calls ToriRSMapEdLanes_MakeWritable first. The
+ * lane's CHANGES are exactly its real files that differ from the base
+ * (modified / added) and the base files it no longer has (deleted); the
+ * walks go only into the lane's real directories, so on a sparse lane they
+ * cost what the lane changed.
  *
  * PUBLISH writes those changes into a target lane's content -- the main
  * tree, another lane, or a new lane mirrored from main first -- and, when
@@ -155,6 +173,9 @@ struct ToriRSMapEdLaneDef
     /** The tree the content mirrors; "" for main. */
     char base[TORIRSMAPED_LANE_PATH];
     int is_main;
+    /** 1: a sparse lane (lane.ini `layout = sparse`, `sparse_base = `);
+     *  0: a legacy full mirror (`base = `), or main. */
+    int sparse;
     /** When the mirror last looked at its base (lane.ini `created`, or
      *  `followed` once ToriRSMapEdLanes_Follow has run; seconds): a base file
      *  younger than this is new in the base, not deleted by the lane. */
@@ -216,9 +237,18 @@ ToriRSMapEdLanes_Lookup(
     const char* name,
     struct ToriRSMapEdLaneDef* out);
 
-/** Create <repo>/build/lanes/<name>: lane.ini, the content mirror of
- *  `base_tree`, an empty live dir. 0 with `why` on a bad name, a lane that
- *  exists, or a mirror that failed. */
+/** The lane whose content directory `content_dir` is ("<lane dir>/content"
+ *  with a lane.ini beside it), found without its repo or its name: so an
+ *  editor server opened on a lane's content as a plain tree still knows its
+ *  directories may be links to the base (ToriRSMapEd_Open). 1 found. */
+int
+ToriRSMapEdLanes_OfContent(
+    const char* content_dir,
+    struct ToriRSMapEdLaneDef* out);
+
+/** Create <repo>/build/lanes/<name>: lane.ini, a SPARSE content view of
+ *  `base_tree`, the ancestor/ seed of its copied trees, an empty live dir.
+ *  0 with `why` on a bad name, a lane that exists, or a link that failed. */
 int
 ToriRSMapEdLanes_Create(
     const char* repo_root,
@@ -261,7 +291,51 @@ ToriRSMapEdLanes_LinkDirectory(
     const char* target,
     const char* link_path);
 
-/** The mirror itself (mirror.py's rules). `dst` must not exist. Returns the
+/**
+ * Make `rel` writable in `lane`: `rel` (relative to the content root, '/'
+ * separated) names a file or directory about to be created, replaced or
+ * removed, and every ANCESTOR directory of it is made real, top down -- one
+ * that is a link to the base is exploded (a real directory with one link per
+ * base entry), one that is absent is created. `rel` itself is not touched.
+ * Call it before EVERY write into a lane's content (a save's temporary and
+ * rename, a mkdir, a delete): a write that reaches a directory that is still
+ * a link lands in the base tree.
+ *
+ * An absent ancestor the base HAS is filled from the base (its entries
+ * linked), never made empty: an empty one would read as the base's files in
+ * it deleted by the lane.
+ *
+ * Crash-safe: an explode builds "<parent>/.<dir>.explode.tmp" complete (a
+ * dot-name, which no build tool reads, ending in .tmp, which no lane walk
+ * reads), records the time in "<lane dir>/exploded.ini", then removes the
+ * link, then renames; a leftover temporary with "<dir>" absent is completed
+ * by the next call (and by Follow), one beside the directory is removed (by
+ * Follow) or rebuilt (by the next call). A rename that fails after the link
+ * went puts the link back. Explodes of one lane take turns across processes
+ * ("<lane dir>/explode.lock"; a dead holder's lock is broken, a live one is
+ * waited for up to TORIRSMAPED_LANES_LOCK_WAIT_MS, 60 s by default).
+ *
+ * exploded.ini is the lane's last look at each directory it made real after
+ * its creation: Changes and Follow take the later of it and `created` when
+ * they tell a base entry the lane deleted from one new in the base, so a file
+ * the base gained after `created` that the lane showed through a link, and
+ * then deleted, is the lane's deletion (and Follow keeps it deleted).
+ *
+ * Nothing is ever deleted through a link. Main, and a path whose ancestors
+ * are real already: 1 at once. Works on a legacy lane too (its linked asset
+ * trees explode the same way, and its walks then go into them). 1 on
+ * success, 0 with `why` (a path that leaves the lane, an ancestor that is a
+ * file, an IO error, the lock held too long).
+ */
+int
+ToriRSMapEdLanes_MakeWritable(
+    const struct ToriRSMapEdLaneDef* lane,
+    const char* rel,
+    char* why,
+    size_t why_size);
+
+/** A LEGACY full mirror (mirror.py's rules): what Create made before sparse
+ *  lanes, kept for tests and tools. `dst` must not exist. Returns the
  *  number of files mirrored, -1 with `why`. */
 int
 ToriRSMapEdLanes_Mirror(
@@ -288,6 +362,8 @@ ToriRSMapEdLanes_Changes(
  * success with `counts` filled; 0 with `why` -- a target that is the source,
  * a main tree another editor holds (unless FORCE), a write that failed. A
  * failed write stops the publish where it was; what was written stays.
+ * A target lane's directories are made writable before each write
+ * (ToriRSMapEdLanes_MakeWritable), so nothing lands in the target's base.
  */
 int
 ToriRSMapEdLanes_Publish(
@@ -299,7 +375,9 @@ ToriRSMapEdLanes_Publish(
     size_t why_size);
 
 /** Put every change back to the base: re-link modified and deleted files,
- *  remove added ones. 1 on success. */
+ *  remove added ones. 1 on success. A sparse lane's directories a discard
+ *  leaves holding only links stay exploded (real directories of links read
+ *  exactly as the links they replaced). */
 int
 ToriRSMapEdLanes_Discard(
     const struct ToriRSMapEdLaneDef* lane,
@@ -318,7 +396,11 @@ ToriRSMapEdLanes_Discard(
  *  and by every follow. RUN and PUBLISH follow first. 1 on success (`created`
  *  and lane.ini's `followed` move to this look); 0 on a conflict or an IO
  *  error. counts: written = linked or refreshed, removed = dropped. A no-op
- *  on the main lane. */
+ *  on the main lane. A sparse lane's directory links follow on their own --
+ *  the walk never enters one, nothing is done or counted for what changed
+ *  inside it -- and a directory new in the base is ONE link (counted once);
+ *  so a sparse lane's counts are lower than a full mirror's for the same
+ *  base, while the tree it shows and its changes are the same. */
 int
 ToriRSMapEdLanes_Follow(
     struct ToriRSMapEdLaneDef* lane,

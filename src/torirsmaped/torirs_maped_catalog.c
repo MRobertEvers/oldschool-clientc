@@ -4260,6 +4260,284 @@ ToriRSMapEdCatalog_RefreshMaps(struct ToriRSMapEdCatalog* catalog)
     return cat_refresh(catalog, 1, NULL);
 }
 
+/* ---- what one save wrote: ToriRSMapEdCatalog_RefreshPaths ---- */
+
+/**
+ * What the full scan would make of the file at content-relative `rel`: 1 with
+ * its type and kind when some walk records it as a source, else 0 (outside
+ * every root, below a root that is not walked recursively, under a name
+ * starting with '.', or a name no classifier takes). A square file's maps
+ * storage ("maps" or "ported/<lane>/maps") goes to `storage`, "" otherwise.
+ */
+static int
+cat_classify_path(
+    const char* rel,
+    int* out_type,
+    int* out_kind,
+    char* storage,
+    size_t storage_size)
+{
+    const char* slash = strrchr(rel, '/');
+    const char* name;
+    char rel_dir[CAT_PATH_MAX];
+
+    storage[0] = '\0';
+    if( !slash || slash == rel || strlen(rel) >= CAT_PATH_MAX )
+        return 0;
+    name = slash + 1;
+    /* cat_walk_entry skips every name starting with '.', file or directory. */
+    if( name[0] == '\0' || name[0] == '.' )
+        return 0;
+    snprintf(rel_dir, sizeof(rel_dir), "%.*s", (int)(slash - rel), rel);
+    for( int r = 0; r < CAT_ROOT_COUNT; r++ )
+    {
+        size_t const n = strlen(k_cat_roots[r].rel);
+        if( strncmp(rel_dir, k_cat_roots[r].rel, n) != 0 || (rel_dir[n] != '\0' && rel_dir[n] != '/') )
+            continue;
+        if( rel_dir[n] == '/' )
+        {
+            if( !k_cat_roots[r].recursive )
+                return 0;
+            for( const char* at = rel_dir + n; *at; at++ )
+            {
+                if( at[0] == '/' && at[1] == '.' )
+                    return 0;
+            }
+        }
+        return k_cat_roots[r].classify(rel_dir, name, out_type, out_kind);
+    }
+    /* maps/, or a lane's: "ported/<lane>/maps" (cat_lanes). */
+    if( strcmp(rel_dir, "maps") != 0 )
+    {
+        const char* lane = rel_dir + 7;
+        const char* lane_end;
+        if( strncmp(rel_dir, "ported/", 7) != 0 || lane[0] == '.' )
+            return 0;
+        lane_end = strchr(lane, '/');
+        if( !lane_end || lane_end == lane || strcmp(lane_end, "/maps") != 0 )
+            return 0;
+    }
+    if( !cat_classify_maps(rel_dir, name, out_type, out_kind) )
+        return 0;
+    snprintf(storage, storage_size, "%s", rel_dir);
+    return 1;
+}
+
+static int
+cat_storage_known(
+    const struct ToriRSMapEdCatalog* catalog,
+    const char* storage)
+{
+    for( int i = 0; i < catalog->storage_count; i++ )
+    {
+        if( strcmp(catalog->storages[i], storage) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
+static int
+cat_index_listed(
+    const int* list,
+    int count,
+    int index)
+{
+    for( int i = 0; i < count; i++ )
+    {
+        if( list[i] == index )
+            return 1;
+    }
+    return 0;
+}
+
+/** Drop the sources at `drop` (distinct indices), keeping every other
+ *  source's `seen` and `dirty` -- unlike cat_compact, which a sweep in flight
+ *  must be left to run at its own end. Returns how many went. */
+static int
+cat_drop_sources(
+    struct ToriRSMapEdCatalog* catalog,
+    const int* drop,
+    int count)
+{
+    unsigned char* gone;
+    int kept = 0;
+
+    if( count == 0 )
+        return 0;
+    gone = ToriMem_Calloc(ToriMem_Editor(), (size_t)catalog->source_count, 1);
+    assert(gone);
+    for( int i = 0; i < count; i++ )
+    {
+        assert(drop[i] >= 0);
+        assert(drop[i] < catalog->source_count);
+        gone[drop[i]] = 1;
+    }
+    for( int i = 0; i < catalog->source_count; i++ )
+    {
+        if( gone[i] )
+        {
+            cat_source_free(&catalog->sources[i]);
+            continue;
+        }
+        if( kept != i )
+            catalog->sources[kept] = catalog->sources[i];
+        kept++;
+    }
+    ToriMem_Free(ToriMem_Editor(), gone);
+    catalog->source_count = kept;
+    cat_path_index_rebuild(catalog);
+    return count;
+}
+
+int
+ToriRSMapEdCatalog_RefreshPaths(
+    struct ToriRSMapEdCatalog* catalog,
+    const char* const* rels,
+    int count)
+{
+    double const t0 = cat_now_ms();
+    double t1;
+    double t2;
+    int* touched;
+    int* gone;
+    int touched_count = 0;
+    int gone_count = 0;
+    int storages_stale = 0;
+    int maps_changed = 0;
+    int parsed = 0;
+    int removed;
+    int changed;
+
+    assert(catalog);
+    assert(count >= 0);
+    if( count == 0 )
+        return 0;
+    assert(rels);
+    /* A warm build that is done is taken back; one still running (or none
+     * begun) reads the tree as it stands when it gets there. */
+    if( catalog->job.thread_live && cat_warm_thread_done(catalog) )
+        cat_warm_thread_join(catalog);
+    if( catalog->job.thread_live || !catalog->built )
+        return 0;
+    /* A built index runs no warm phase: the job is idle or a sweep's scan. */
+    assert(catalog->job.phase == CAT_JOB_IDLE || catalog->job.phase == CAT_JOB_SCAN);
+    if( catalog->path_slot_count == 0 )
+        cat_path_index_rebuild(catalog);
+
+    touched = ToriMem_Alloc(ToriMem_Editor(), (size_t)count * sizeof(*touched));
+    gone = ToriMem_Alloc(ToriMem_Editor(), (size_t)count * sizeof(*gone));
+    assert(touched);
+    assert(gone);
+    for( int i = 0; i < count; i++ )
+    {
+        char full[CAT_PATH_MAX * 2];
+        char storage[CAT_PATH_MAX];
+        struct stat st;
+        int type = 0;
+        int kind = -1;
+        int index;
+        uint32_t hash;
+
+        assert(rels[i]);
+        if( !cat_classify_path(rels[i], &type, &kind, storage, sizeof(storage)) )
+            continue;
+        if( storage[0] && !cat_storage_known(catalog, storage) )
+            storages_stale = 1;
+        hash = cat_hash_bytes(rels[i]);
+        index = cat_path_find(catalog, rels[i], hash);
+        if( (index >= 0 && cat_index_listed(touched, touched_count, index))
+            || (index >= 0 && cat_index_listed(gone, gone_count, index)) )
+            continue;
+        snprintf(full, sizeof(full), "%s/%s", catalog->content_dir, rels[i]);
+        catalog->counters.stats++;
+        if( stat(full, &st) != 0 || S_ISDIR(st.st_mode) )
+        {
+            /* Gone (or never a file): the source, if the index had one, goes. */
+            if( index >= 0 )
+                gone[gone_count++] = index;
+            continue;
+        }
+        cat_found(catalog, rels[i], type, kind, &st);
+        index = cat_path_find(catalog, rels[i], hash);
+        assert(index >= 0);
+        /* Re-parsed whatever its stat says: Windows mtimes are whole seconds
+         * here, and a same-size rewrite inside one would look unchanged. */
+        catalog->sources[index].dirty = 1;
+        touched[touched_count++] = index;
+    }
+
+    /* A square in a lane directory the storage list does not have: list the
+     * lanes again (what RefreshMaps's scan would have adopted). A sweep in
+     * flight walks the lane list it began with and would drop that lane's
+     * squares as unseen at its end, so it goes; its reason to run (the
+     * interval, or a save's `invalid`) still stands for the next request. */
+    if( storages_stale )
+    {
+        int lane_count;
+        char** lanes = cat_lanes(catalog, &lane_count);
+        char** sorted = cat_lanes_sorted(lanes, lane_count);
+        cat_lanes_free(lanes, lane_count);
+        if( cat_lanes_same(catalog->storages, catalog->storage_count, sorted, lane_count) )
+            cat_lanes_free(sorted, lane_count);
+        else
+        {
+            if( catalog->job.phase == CAT_JOB_SCAN )
+                cat_job_abort(catalog);
+            cat_storages_adopt(catalog, sorted, lane_count);
+        }
+    }
+
+    t1 = cat_now_ms();
+    /* Only these sources are parsed. A sweep in flight keeps what it has
+     * found dirty for its own end (merged meanwhile from their last parse). */
+    for( int i = 0; i < touched_count; i++ )
+    {
+        struct cat_source* src = &catalog->sources[touched[i]];
+        cat_parse_source(catalog, src);
+        cat_source_trim(src);
+        src->dirty = 0;
+        parsed++;
+        if( cat_is_maps_type(src->type) )
+            maps_changed = 1;
+    }
+    for( int i = 0; i < gone_count; i++ )
+    {
+        if( cat_is_maps_type(catalog->sources[gone[i]].type) )
+            maps_changed = 1;
+    }
+    removed = cat_drop_sources(catalog, gone, gone_count);
+    ToriMem_Free(ToriMem_Editor(), touched);
+    ToriMem_Free(ToriMem_Editor(), gone);
+
+    /* RefreshMaps's rule (cat_finish): any change merges; a square file
+     * parsed or gone, or the lane list moved, is a maps change. */
+    t2 = cat_now_ms();
+    maps_changed |= catalog->storages_changed;
+    changed = parsed > 0 || removed > 0 || catalog->storages_changed;
+    if( changed )
+    {
+        if( maps_changed )
+            catalog->maps_revision++;
+        cat_merge(catalog);
+        catalog->revision++;
+        catalog->counters.merges++;
+    }
+    catalog->storages_changed = 0;
+    catalog->counters.path_refreshes++;
+    if( getenv("TORIRS_CATALOG_TRACE") )
+        fprintf(stderr,
+            "catalog: refresh paths: %d named, %d parsed, %d removed%s; stat %.1f ms, parse %.1f ms, merge %.1f ms\n",
+            count, parsed, removed, storages_stale ? ", lanes re-listed" : "", t1 - t0, t2 - t1, cat_now_ms() - t2);
+    /* all.loc alone is 86 MB: do not keep its buffer for the server's life */
+    if( catalog->scratch_cap > 4 * 1024 * 1024 )
+    {
+        ToriMem_Free(ToriMem_Editor(), catalog->scratch);
+        catalog->scratch = NULL;
+        catalog->scratch_cap = 0;
+    }
+    return changed;
+}
+
 int
 ToriRSMapEdCatalog_Built(const struct ToriRSMapEdCatalog* catalog)
 {

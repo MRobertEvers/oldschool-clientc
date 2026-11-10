@@ -315,6 +315,39 @@ Editor_HostOpenLocal(
 const char*
 Editor_HostLocalLockHolder(const struct EditorHost* host);
 
+/**
+ * A LOCAL binding's write guard: asked with the content-relative path
+ * ('/'-separated, "maps/m50_50.jm2") of every file the binding is about to
+ * create, replace or remove, before the mkdirs above it, the save's
+ * temporary and its rename, or the delete. 1 lets the write go on; 0 fails it
+ * -- `why` (one sentence) goes to the log and the save answers
+ * EDITOR_HOST_IO_ERROR, as any failed write does.
+ *
+ * An editor lane's server sets ToriRSMapEdLanes_MakeWritable here
+ * (ToriRSMapEd_OpenLane): a directory of a lane may still be a LINK to the
+ * base tree, and a write that reaches one lands in the base. With a guard
+ * set, the binding also checks, right before it opens a temporary or removes
+ * a file, that no directory between the content root and the target is a
+ * link: a write the guard missed stops there (an assert; a refused write in
+ * a build without asserts) instead of landing in the base.
+ *
+ * No guard (the default: the main tree, a lane-less session) writes as
+ * before. The session lockfile at the content root is not guarded: a lane's
+ * root is always a real directory. `host` must be a local binding; `guard`
+ * must not be NULL.
+ */
+typedef int (*Editor_HostWriteGuardFn)(
+    void* ctx,
+    const char* rel,
+    char* why,
+    size_t why_size);
+
+void
+Editor_HostLocalSetWriteGuard(
+    struct EditorHost* host,
+    Editor_HostWriteGuardFn guard,
+    void* ctx);
+
 /** Calls the binding's free_ and clears the host. NULL-tolerant.
  *
  * Inline for the same reason as Editor_HostBlobFree: it belongs to the SEAM,

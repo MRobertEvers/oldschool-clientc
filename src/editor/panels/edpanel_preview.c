@@ -21,8 +21,11 @@
  *              has the focus WASD / arrows orbit and E / F zoom
  *              (app_loc_editor.c), and the editor's hotkeys stand aside
  *              (app_editor_hotkeys.c: a focused model view gates them).
- *              Gestures need no focus (workbench 6.1): a pan over the well
- *              orbits it (TORIRS_CHROME_EVENT_VIEW_ORBIT, the middle-drag's
+ *              A middle-drag that begins on the well orbits it, focus or
+ *              not, and keeps it until the release (app_map_editor.c,
+ *              app_map_editor_view_middle_drag: the drag is handed to the
+ *              chrome as a pan). Gestures need no focus either (workbench
+ *              6.1): a pan over the well orbits it (TORIRS_CHROME_EVENT_VIEW_ORBIT, the middle-drag's
  *              gearing: 4 yaw and 2 pitch a logical px, the way the orbit
  *              keys turn it) and a pinch zooms by its ratio
  *              (TORIRS_CHROME_EVENT_VIEW_ZOOM), through
@@ -775,7 +778,7 @@ Editor_Preview_Register(struct EditorUi* ui)
      * fits it to the panel from the first Build on. */
     self->view = ToriRSChrome_ModelView(chrome, self->panel, well_w, well_w * 4 / 5);
     assert(self->view >= 0);
-    ToriRSChrome_SetTooltip(chrome, self->view, "click: WASD orbit, E/F zoom; or drag to orbit, pinch to zoom");
+    ToriRSChrome_SetTooltip(chrome, self->view, "middle-drag: orbit; click: WASD orbit, E/F zoom; pinch: zoom");
     self->item_reset = ToriRSChrome_MenuItem(chrome, self->panel, "Reset view");
     /* The pose: the Locs panel's Place pose as chips. */
     edp_chips_init(ui, &self->shape_strip, self->panel, 2);
