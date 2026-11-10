@@ -51,7 +51,7 @@ client, so do not forward it.
 
 The easy way, from the repository root:
 
-    python tools/agent/torirs_agent.py start manifests/manifest_osrs239_mapeditor.ini --window 1600x900
+    python tools/agent/torirs_agent.py start manifests/manifest_osrs242_mapeditor.ini --window 1600x900
 
 That starts `src/torirs_win64.exe` (Windows) or `src/torirs` (elsewhere) with
 `--agent-port 0 --agent-port-file <temp>/torirs_agent.port`, waits until it
@@ -59,11 +59,11 @@ listens and has booted, and prints its `hello`. The client's own output goes
 to `<port file>.log`. Every later `torirs_agent.py <verb>` finds the port
 through that file with no flags. Add client arguments after `--`:
 
-    python tools/agent/torirs_agent.py start manifests/manifest_osrs239_mapeditor.ini -- --soft3d
+    python tools/agent/torirs_agent.py start manifests/manifest_osrs242_mapeditor.ini -- --soft3d
 
 By hand:
 
-    src/torirs_win64.exe --manifest manifests/manifest_osrs239_mapeditor.ini --agent-port 0 --agent-port-file agent.port
+    src/torirs_win64.exe --manifest manifests/manifest_osrs242_mapeditor.ini --agent-port 0 --agent-port-file agent.port
     python tools/agent/torirs_agent.py --port-file agent.port hello
 
 It needs no window focus and works with the window behind others, because
@@ -747,7 +747,7 @@ rows, press RUN, wait until idle, read the console. Each line is one request;
 
 **1. Start it and wait for the boot.**
 
-    A start manifests/manifest_osrs239_mapeditor.ini --window 1600x900
+    A start manifests/manifest_osrs242_mapeditor.ini --window 1600x900
 
 It prints the port, the pid, the log file and `hello`. `"editor": true` there
 means the panels are up.
@@ -823,7 +823,7 @@ import sys
 sys.path.insert(0, "tools/agent")
 from torirs_agent import start, AgentError
 
-agent, info = start("manifests/manifest_osrs239_mapeditor.ini", window="1600x900")
+agent, info = start("manifests/manifest_osrs242_mapeditor.ini", window="1600x900")
 cursor = agent.editor()["console_cursor"]
 
 catalog = agent.ui(panel="catalog")["panels"][0]

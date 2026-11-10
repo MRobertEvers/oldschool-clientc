@@ -2931,7 +2931,6 @@ main(
             enum BootManifestWorldLayout want;
         } manifests[] = {
             { "manifests/manifest_osrs242_mapeditor.ini", BOOTMANIFEST_WORLD_LAYOUT_EDIT },
-            { "manifests/manifest_osrs239_mapeditor.ini", BOOTMANIFEST_WORLD_LAYOUT_EDIT },
             { "manifests/manifest_osrs242.ini", BOOTMANIFEST_WORLD_LAYOUT_STATIC },
         };
         for( size_t i = 0; i < sizeof(manifests) / sizeof(manifests[0]); i++ )

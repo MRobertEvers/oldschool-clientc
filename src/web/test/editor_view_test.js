@@ -101,9 +101,9 @@ const q = s => new URLSearchParams(s);
 
 /* 5. manifest= picks the editor manifest; explicit arg= is kept as given. */
 {
-  let boot = editorViewBoot(q('editor_view=1&maped=ws://h:43610&manifest=manifests/manifest_osrs239_mapeditor.ini'),
+  let boot = editorViewBoot(q('editor_view=1&maped=ws://h:43610&manifest=manifests/manifest_osrs242_mapeditor.ini'),
     DEFAULT, HTTP);
-  assert.strictEqual(boot.args[1], 'manifests/manifest_osrs239_mapeditor.ini');
+  assert.strictEqual(boot.args[1], 'manifests/manifest_osrs242_mapeditor.ini');
   boot = editorViewBoot(q('editor_view=1&maped=ws://h:43610&arg=--manifest&arg=mine.ini'),
     ['--manifest', 'mine.ini'], HTTP);
   assert.deepStrictEqual(Array.from(boot.args).slice(0, 3), ['--manifest', 'mine.ini', '--editor-view']);
