@@ -260,6 +260,45 @@ LTO_CACHE_LDFLAGS   = -Wl,-cache_path_lto,$(LTO_CACHE_DIR)
 else
 OPT_RELEASE_CFLAGS  = -DNDEBUG -flto=auto
 OPT_RELEASE_LDFLAGS = -flto=auto
+# GCC ON WINDOWS: `=auto` IS ONE THREAD, and the link was 9 times slower for it.
+#
+# lto-wrapper runs its LTRANS partitions in parallel by writing a makefile and
+# running `make` on it. Two things have to hold, and neither does here:
+#
+#   - It needs a job count. `=auto` takes make's jobserver or, failing that,
+#     counts the CPUs. On Windows it finds no jobserver it can read and counts
+#     no CPUs, so `=auto` is serial -- under mingw32-make -j32 and by hand
+#     alike. An explicit count is taken as given.
+#   - It needs a program it can run as `make`: $MAKE, else the name "make".
+#     The toolchain here has only mingw32-make.exe, so with nothing exported
+#     lto-wrapper's own check (make_exists) fails and it falls back to serial,
+#     whatever the count.
+#
+# Either way it says "lto-wrapper.exe: warning: using serial compilation of N
+# LTRANS jobs" and carries on -- 161 partitions one after another for the
+# client. Measured 2026-11-10, win64, 32 threads, the torirs link:
+#
+#                               =auto     =32 and MAKE exported
+#   nothing cached              160-181 s   19 s
+#   one source file changed     16 s        10 s
+#   nothing changed             8 s         8-9 s
+#
+# What is left is WPA, the whole-program pass before LTRANS: 7 s on one
+# thread (3.1 s of IPA, 2.9 s writing the partitions out, 1.0 s reading the
+# objects in), which no job count touches.
+#
+# The count is in CFLAGS as well as LDFLAGS: the servers and the tests
+# compile and link in one command that only carries CFLAGS. It changes every
+# object's flag signature once, so the first build after this recompiles the
+# objdir.
+ifeq ($(OS),Windows_NT)
+ifeq ($(LTO_CC_IS_CLANG),)
+LTO_JOBS ?= $(or $(NUMBER_OF_PROCESSORS),4)
+OPT_RELEASE_CFLAGS  = -DNDEBUG -flto=$(LTO_JOBS)
+OPT_RELEASE_LDFLAGS = -flto=$(LTO_JOBS)
+export MAKE
+endif
+endif
 ifneq ($(LTO_GCC_MAJOR),)
 ifeq ($(filter 1 2 3 4 5 6 7 8 9 10 11 12 13 14,$(LTO_GCC_MAJOR)),)
 LTO_CACHE_LDFLAGS   = -flto-incremental=$(LTO_CACHE_DIR)
@@ -5126,12 +5165,26 @@ JS5_SERVER_SRCS = js5/server/js5_server_main.c js5/server/js5_server.c \
 	js5/server/js5_server_session.c js5/server/js5_server_cache.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c
 
-js5-server: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
-		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+# THE TARGET IS THE BINARY (2026-11-10). `js5-server` was the rule itself: a
+# name with no file behind it, so it compiled and linked on every build that
+# asked for it -- 8 s of every `launch run` on win64 with nothing changed. The
+# name now stands for the file the linker writes, which is rebuilt when a
+# source, an object it links or one of the headers those sources can reach is
+# newer. The header list is every directory `gcc -MM` names for these
+# sources (js5/server, platform, mem, the cache library's own), whole: wider
+# than what one edit touches, and not able to miss one.
+JS5_SERVER_BIN  := $(OBJ_DIR)/js5_server$(PLATFORM_EXE_SUFFIX)
+JS5_SERVER_HDRS := $(wildcard js5/*.h js5/server/*.h platform/*.h mem/*.h \
+		$(RSCACHE_DIR)/src/*.h $(RSCACHE_DIR)/include/*.h)
+.PHONY: js5-server
+js5-server: $(JS5_SERVER_BIN)
+$(JS5_SERVER_BIN): $(TORIMEM_SRCS) $(JS5_SERVER_SRCS) $(JS5_SERVER_HDRS) \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/js5_server $(TORIMEM_SRCS) $(JS5_SERVER_SRCS) \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm $(JS5_SOCKET_LIBS)
-	@echo "built $(OBJ_DIR)/js5_server"
+	@echo "built $(JS5_SERVER_BIN)"
 
 mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
@@ -5169,8 +5222,52 @@ TORIRSSERVER_HDRS := $(wildcard torirsserver/*.h scriptrun/*.h serverscript/*.h 
 		world/*.h engine/*.h engine/world_builder/*.h features/*.h game/rs_entity_sync.h \
 		platform/net_transport_ws*.h js5/server/*.h plugin/torirs_plugin_drive_parts.h \
 		plugin/torirs_drive_plan_lua.h)
-.PHONY: torirsserver
-torirsserver ToriRSServer: $(OBJ_DIR)/torirsserver
+# THE TARGET IS THE FILE THE LINKER WRITES, AND EACH SOURCE IS ITS OWN OBJECT
+# (2026-11-10). Until then this was one command, `$(CC) $(CFLAGS) -o
+# $(OBJ_DIR)/torirsserver <160 sources>`, under a target of that name. Two
+# things were wrong with it, both invisible on macOS:
+#
+#   - On Windows the linker writes torirsserver.exe. The file make was told
+#     to produce never existed, so the rule ran on EVERY build that asked for
+#     the server -- every `launch run` -- whether or not anything had changed.
+#   - One command compiles its sources one after another, whatever -j says,
+#     and then links.
+#
+# Measured on win64, 32 threads, nothing else running:
+#
+#   one command, LTRANS serial (what `-flto=auto` was here)   122 s
+#   one command, LTRANS parallel                               74 s
+#   160 objects at -j32, then the link                         10 s + 33 s
+#
+# and with nothing changed the first two were paid again each time, where the
+# third is no work at all. The link keeps an LTO cache of its own beside the
+# client's, so an edit to one source is that source's compile and the
+# partitions it reaches.
+#
+# The headers stay a prerequisite of every object, as they were of the one
+# command: a header edit recompiles all of them (ten seconds now), which is
+# coarser than a .d file and cannot go stale the way the notes above describe.
+TORIRSSERVER_BIN     := $(OBJ_DIR)/torirsserver$(PLATFORM_EXE_SUFFIX)
+TORIRSSERVER_OBJ_DIR := $(OBJ_DIR)/torirsserver_objs
+TORIRSSERVER_OBJS    := $(addprefix $(TORIRSSERVER_OBJ_DIR)/,$(notdir $(TORIRSSERVER_SRCS:.c=.o)))
+ifneq ($(words $(TORIRSSERVER_OBJS)),$(words $(sort $(TORIRSSERVER_OBJS))))
+$(error two torirsserver sources share a file name, so their objects would be one file: name the objects by path)
+endif
+TORIRSSERVER_LINK_OBJS := $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o
+TORIRSSERVER_LTO_CACHE_DIR = $(OBJ_DIR)/lto_cache_torirsserver
+TORIRSSERVER_LTO_CACHE     = $(subst $(LTO_CACHE_DIR),$(TORIRSSERVER_LTO_CACHE_DIR),$(LTO_CACHE_LDFLAGS))
+# The same response file the client's link uses, for the same reason
+# (LINK_OBJS_ARG): 160 object paths on one cmd.exe line.
+ifeq ($(firstword $(sort 4.0 $(MAKE_VERSION))),4.0)
+TORIRSSERVER_OBJS_ARG = @$(TORIRSSERVER_OBJ_DIR)/link_objs.rsp
+else
+TORIRSSERVER_OBJS_ARG = $(TORIRSSERVER_OBJS)
+endif
+.PHONY: torirsserver ToriRSServer
+torirsserver ToriRSServer: $(TORIRSSERVER_BIN)
 # Where a build with the same variables puts its binaries, for a script that
 # has to pick up what make built (tools/deploy/build_osrs239_package.py). The
 # suffixes follow the environment (ASAN, PROFILE, ...), so it is asked, not
@@ -5178,17 +5275,48 @@ torirsserver ToriRSServer: $(OBJ_DIR)/torirsserver
 .PHONY: print-obj-dir
 print-obj-dir:
 	@echo "OBJ_DIR=$(OBJ_DIR)"
-$(OBJ_DIR)/torirsserver: $(TORIRSSERVER_SRCS) $(TORIRSSERVER_HDRS) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_SRCS) \
-		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
-		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o \
-		-lm $(JS5_SOCKET_LIBS)
-	@echo "built $(OBJ_DIR)/torirsserver"
+$(TORIRSSERVER_OBJ_DIR): | $(OBJ_DIR)
+	@mkdir -p $@
+
+# THE SELFTEST IS NOT OPTIMISED WITH THE PROGRAM. torirs_server_world_selftest.c
+# is 65,000 lines of rows that run once under --selftest, and at -O3 it is 45 s
+# of codegen on its own; every other server source is under 5 s. Inside LTO
+# that one file WAS the link: 36 s with everything else cached, and paid again
+# after any edit to a file it calls into, torirs_server_world.c above all.
+# Compiled as an ordinary object at -Og it costs 9 s once, beside the other
+# compiles, and the link never sees it again:
+#
+#   torirsserver link, win64       nothing cached   after an edit to world.c
+#   selftest inside LTO at -O3     36 s             37 s
+#   selftest outside, at -Og       5.7 s            4.8 s
+#
+# (Its own compile: 45 s at -O3, 20 s at -O1, 9 s at -Og, 5 s at -O0.) The
+# flags come last so they win over CFLAGS' -O3 and -flto.
+SELFTEST_CFLAGS := -fno-lto -Og
+
+# One rule a source: its object is named by the source's file name.
+define TORIRSSERVER_OBJ_RULE
+$(TORIRSSERVER_OBJ_DIR)/$(notdir $(1:.c=.o)): $(1) $$(TORIRSSERVER_HDRS) | $$(TORIRSSERVER_OBJ_DIR)
+	$$(CC) $$(CFLAGS) -I$$(LUA_DIR) $$(RSPROT_INCLUDES) $$(if $$(filter %_selftest.c,$(1)),$$(SELFTEST_CFLAGS)) -c $(1) -o $$@
+endef
+$(foreach src,$(TORIRSSERVER_SRCS),$(eval $(call TORIRSSERVER_OBJ_RULE,$(src))))
+
+# A flag change rebuilds these as it rebuilds the client's objects (objverify
+# reads the objdir's own level only, so the stamps are what these have).
+ifneq ($(WINDOWS_FLAGS_STAMP),)
+$(TORIRSSERVER_OBJS): $(WINDOWS_FLAGS_STAMP)
+endif
+ifneq ($(LTO_MODE_STAMP),)
+$(TORIRSSERVER_OBJS): $(LTO_MODE_STAMP)
+endif
+
+$(TORIRSSERVER_BIN): $(TORIRSSERVER_OBJS) $(TORIRSSERVER_LINK_OBJS) | $(OBJ_DIR)
+	@mkdir -p $(TORIRSSERVER_OBJ_DIR) $(if $(TORIRSSERVER_LTO_CACHE),$(TORIRSSERVER_LTO_CACHE_DIR))
+	$(file >$(TORIRSSERVER_OBJ_DIR)/link_objs.rsp,$(TORIRSSERVER_OBJS))
+	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_OBJS_ARG) \
+		$(TORIRSSERVER_LINK_OBJS) \
+		-lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_LTO_CACHE)
+	@echo "built $(TORIRSSERVER_BIN)"
 
 # ---- ToriRSMapEd -----------------------------------------------------------
 #
