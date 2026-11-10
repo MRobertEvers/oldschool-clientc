@@ -1,7 +1,7 @@
 -- yama_solver: a real Yama kill, no cheats (docs/minigames/yama/solver.md is the plan).
 -- Perception is what a client gets: npc rows (seq/spot stamps, tiles, head icons), map
 -- graphics, locs, chat, my own tile/skills. One press round a tick; nothing here reads
--- the server. Run with --fixture test/bosses/fixtures/yama_kit.ini.
+-- the server. The setup cheats build the kit, so the server must be staff (--dev).
 local NEAR = 40
 local SEQ_REG, SEQ_SPEC, SEQ_MELEE, SEQ_PORTAL, SEQ_STOMP, SEQ_DESPAWN = 12144, 12145, 12146, 12147, 12148, 12161
 local SPOT_FIRE, SPOT_SHADOW = 3246, 3243
@@ -603,10 +603,44 @@ local function run(t)
     t.finish(killed and not dead and 0 or 1)
 end
 
+-- The same character as yama_kit.ini, built by cheats: a watched Play from the
+-- Scripts tab resets the account and never loads the fixture (2026-11-10: it
+-- started in Falador with nothing on and the Voice nowhere in view).
+local kit = { "::resetcharacter", "::clearinv" }
+for _, sv in ipairs({ { "attack", 97 }, { "defence", 99 }, { "strength", 98 }, { "hitpoints", 99 },
+                      { "ranged", 99 }, { "prayer", 76 }, { "magic", 99 } }) do
+    kit[#kit + 1] = "::setlevel " .. sv[1] .. " " .. sv[2]
+end
+for _, line in ipairs({
+    -- Arceuus spellbook, the chasm's permanent state, the first contract signed
+    -- (both varps carry varbits, so the cheat takes the varbit's name)
+    "::setvar varb4070_spellbook 3",
+    "::setvar varb16284_chasm_voice_progress 2",
+    "::setvar varp9561_yama_contract_signed 1",
+    -- the recorder's worn kit (index 4498 --bas)
+    "::give viking_helmet_magic 1", "::wield viking_helmet_magic",
+    "::give ma2_saradomin_cape 1", "::wield ma2_saradomin_cape",
+    "::give occult_necklace 1", "::wield occult_necklace",
+    "::give purging_staff 1", "::wield purging_staff",
+    "::give barrows_ahrim_body_50 1", "::wield barrows_ahrim_body_50",
+    "::give magictraining_bookofmagic 1", "::wield magictraining_bookofmagic",
+    "::give barrows_ahrim_legs_50 1", "::wield barrows_ahrim_legs_50",
+    "::give zenyte_bracelet_enchanted 1", "::wield zenyte_bracelet_enchanted",
+    "::give eternal_boots 1", "::wield eternal_boots",
+    "::give nzone_zenyte_ring_enchanted_recoil 1", "::wield nzone_zenyte_ring_enchanted_recoil",
+    "::give zeah_blessing_elite 1", "::wield zeah_blessing_elite",
+    "::clearinv",
+    "::give firerune 30000", "::give emberlight 1", "::give mantaray 12",
+    "::give 4doseprayerrestore 9", "::give 4dose2restore 2", "::give extended_antivenom+4 1",
+    "::give soulrune 8000", "::give cosmicrune 10000",
+    -- beside the Voice of Yama
+    "::goto 1442 10080 0",
+}) do kit[#kit + 1] = line end
+
 return {
     id = "yama_solver",
     fixture = "yama_kit.ini",
     max_frames = 400000,
-    setup = {},
+    setup = kit,
     run = run,
 }

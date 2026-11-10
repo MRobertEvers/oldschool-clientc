@@ -2026,9 +2026,12 @@ drive_ui_nearest_insert(
     return j;
 }
 
-/* Graphics and projectiles in one scene are tens, not thousands (a Nylocas
- * wave, a Zebak wave); 512 is the bound the two readers rank within. */
-#define DRIVE_UI_HAZARD_CAP 512
+/* Every map graphic the ring holds, as scriptrun's d_spotanims answers, so the
+ * two lanes see the same rows. 512 was enough for a Nylocas or Zebak wave, but
+ * one Yama shadow wave is 514 tiles and two overlap in phase 3: the live rows
+ * kept the nearest 512, never showed the second wave arrive, and the solver
+ * walked into 16 waves a fight that scriptrun dodged (2026-11-10). */
+#define DRIVE_UI_HAZARD_CAP APP_DRIVE_MAP_ANIM_CAP
 /* api.drive.route: as many tiles as app_world_click.c routes a click over */
 #define DRIVE_UI_ROUTE_CAP 4000
 

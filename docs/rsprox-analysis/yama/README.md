@@ -246,11 +246,27 @@ Judge kill) and flares' death explosions (Open).
 The solver (`test/bosses/yama_solver.lua`, plan `docs/minigames/yama/solver.md`) plays the real route
 with no cheats and needs no `--dev`:
 ```
-TORIRSSERVER_SCRIPTS=<pack> TORIRSSERVER_PACK_DIR=<servpack> \
+TORIRSSERVER_SCRIPTS=<pack> TORIRSSERVER_PACK_DIR=<servpack> TORIRSSERVER_STAFF_LEVEL=2 \
   ./src/build_yama_combat_opt/torirsserver --scriptrun test/bosses/yama_solver.lua --name y000 \
-  --ticks 5400 --session <dir with saves/> --fixture test/bosses/fixtures/yama_kit.ini
+  --ticks 5400 --session <dir with saves/> --fixture test/bosses/fixtures/yama_kit.ini --dev
 python3 docs/rsprox-analysis/yama/tools/yama_audit.py <session dir>...   # the PASS row per run
+# the live client lane, as the Scripts tab's watched Play runs it:
+QUEST_BINARY=<embed client> python3 tools/quest_gate/run.py --script test/bosses/yama_solver.lua \
+  --name <seed> --fixture <a watch save copy> --no-build --no-publish
 ```
+
+The kit is set by the test's `setup` cheats (`::resetcharacter`, levels, the
+recorder's worn kit, supplies, the Voice's progress varbit, the signed contract),
+so it needs a staff server: a watched Play resets the account and never loads
+`yama_kit.ini` (2026-11-10, it started in Falador with nothing on).
+
+Live lane, 2026-11-10: 0 of 4 seeds killed before the fix below, 7 of 8 after
+(the eighth misread a meteor; the scriptrun sweep's one loss was stomps). The
+live `api_drive.spotanims` kept only the nearest 512 rows; one shadow wave is
+514 tiles, so a second wave never showed and the bot took 16 waves a fight.
+`DRIVE_UI_HAZARD_CAP` is now the ring's 2048, as scriptrun answers. The two
+lanes are not yet tick-identical: the live fight starts a tick earlier and the
+live runs differ from each other on one save.
 The run name seeds the run (first 12 characters). `TORIRS_SCRIPTRUN_WIRELOG=<file>` adds the wirelog
 for `tools/yama_wirekinds.py`.
 
