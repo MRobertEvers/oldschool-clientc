@@ -243,16 +243,25 @@ Judge kill) and flares' death explosions (Open).
 
 ## 10. Running the tests
 
-The solver (`test/bosses/yama_solver.lua`, plan `docs/minigames/yama/solver.md`) plays the real route
-with no cheats and needs no `--dev`:
+The solver plays the real route with no cheats in the fight. Its tests are built the way the
+Theatre of Blood's are: `test/bosses/yama_solver.lua` (solo) and `test/bosses/yama_duo.lua` (duo) are
+one call, `QD_ROOT.raid.yama_test({ fixture = "yama_kit.ini", party = 1|2, max_frames = 400000 })`,
+with those three fields literal for run.py and the Scripts tab (prepare_scripts.py reads them by
+regex); the kit and the play are the driver part `script/plugins/quest_driver/yama_solver.lua`
+(`QD.raid.yama_test`, `QD.raid.yama_solve`), listed in `src/plugin/torirs_plugin_drive_parts.h`
+like `tob_relay.lua`. Plan: `docs/minigames/yama/solver.md`.
 ```
+# scriptrun (two bots for the duo)
 TORIRSSERVER_SCRIPTS=<pack> TORIRSSERVER_PACK_DIR=<servpack> TORIRSSERVER_STAFF_LEVEL=2 \
-  ./src/build_yama_combat_opt/torirsserver --scriptrun test/bosses/yama_solver.lua --name y000 \
-  --ticks 5400 --session <dir with saves/> --fixture test/bosses/fixtures/yama_kit.ini --dev
+  ./src/build_yama_combat_opt/torirsserver --scriptrun test/bosses/yama_duo.lua --bots 2 --name d000 \
+  --ticks 2600 --session <dir with saves/> --fixture test/bosses/fixtures/yama_kit.ini --dev
 python3 docs/rsprox-analysis/yama/tools/yama_audit.py <session dir>...   # the PASS row per run
-# the live client lane, as the Scripts tab's watched Play runs it:
+# the live client lane: one client per seat, the party link between them
+QUEST_BINARY=<embed client> python3 tools/raid_gate/run.py --script test/bosses/yama_duo.lua \
+  --party 2 --name <seed> --no-build --no-publish
 QUEST_BINARY=<embed client> python3 tools/quest_gate/run.py --script test/bosses/yama_solver.lua \
-  --name <seed> --fixture <a watch save copy> --no-build --no-publish
+  --name <seed> --fixture <abs path of test/bosses/fixtures/yama_kit.ini> --no-build --no-publish
+# the Scripts tab: ./launch run osrs242-scripts, Scripts, Yama Solver / Yama Duo, Play
 ```
 
 The kit is set by the test's `setup` cheats (`::resetcharacter`, levels, the
@@ -345,3 +354,62 @@ fireball tile, the streak hit rule, the flare body models and the contracts' rul
 8); Yama's re-sent faces are not fitted (ours 81 player faces in a 432-tick duo fight, the recording 125
 in 1,017); the live lane is not tick-identical to scriptrun (one live death the sweep does not show).
 
+## 13. Solo and duo from the client (2026-11-10, second batch)
+
+The owner played both from `./launch run osrs242-scripts` (Scripts tab, watched Play): the solo
+showed no row after `walk.throne`, the duo's seat 1 sat on the welcome screen and waited at barrier
+`yama_partner_in` for good while seat 2 died with "link to the leader closed after 100 boundaries".
+
+| item | found | now | evidence |
+|---|---|---|---|
+| structure | the tests carried the kit and the run; the duo's barriers were unchecked and the creator passed `yama_creator_in` before landing | the ToB shape: thin tests (`QD_ROOT.raid.yama_test`), the kit and the play in the driver part; the entry is the relay's party enter (friends, barrier `yama_friends`; creator Travels, `yama_entered`; partner Joins and lands, `yama_joined`, passed whatever the result; the creator then sees the partner); every barrier a ledger row, one that does not pass ends the seat's run (FAIL, `t.finish(1)`) | ledgers below |
+| the start | the fight began when the creator arrived | Phase 9: each seat on its tile, `yama_ready`, `::synctimers` on every seat, `yama_synced`, then the creator sits; `yama_end` before the finish so the creator's finish (which closes a watched party) waits for the partner's rows | the same barrier rows on both seats, the same tick |
+| a dead partner | `t.party.barrier` waited out its timeout (400 ticks, four minutes watched) on a leader whose member had gone | `api_drive.party()` gives a world's host `members_joined` / `members_open` (torirs_plugin_drive.c); the barrier ends at once, `refused`, when a member that joined is gone | the first watched duo after the change failed its join and ended in 91 ticks with `duo.partner_in` FAIL and the party closed, instead of hanging |
+| the welcome screen | a person's login opens it (`login_shows_welcome`); a fresh start's leader and a launched member both played behind it | `QD.session.welcome_play` presses its Play after the start (core.lua), as the person would | `watch.start ... pressed the welcome screen's Play` on both seats |
+| the name prompt | the partner's Join typed `yamaduo2` in one frame and Enter; the prompt showed only the last letter (`f*` for `abcdef`): every key of one frame read the same `%varcstring359`. And the client sent no RESUME_P_NAMEDIALOG at all: 66 client-state commands were answered as `group_getvar` (fixed in the tree by fff992ccf at 08:40; the owner's 09:28 binary predates it) | `t.text` types one character a frame (ui.lua) | `<- op 33 RESUME_P_NAMEDIALOG 7 byte(s)` and "That player is not an online mutual friend on this world." for `abcdef`; `duo.join ... landed 6431,66` on every live seed |
+| run | a watched Play's own account had run off (yama_kit.ini has it on); walking, the solo reached the glyphs late and died in phase 1 (69 and 63) | the solver presses the run orb when run is off (`run.on` row) | `run.on PASS p1 pressed the run orb` |
+| progress rows | rows only at the end of the fight | `yama.p1`, `judge.1`, `yama.p2`, `judge.2`, `yama.p3`, `yama.fought` as each begins, with hitpoints and prayer | the ledgers below |
+| two seats, one stream | both seats drew the same home tile and stood on it together | seat n's stream is the run's, then n | yld08 (both dead on one tile) before, 0 such after |
+| a glyph out of reach | a seat ran from the north side through him to the south glyph and was one tile short when the special landed (yld08, ydu012) | out of reach in the ticks left: stay, eat above 80 | 16/16 solo and 16/16 duo after |
+| lockstep grade | gate.py's boundary pattern was anchored to the line, and another thread's stderr ("Failed to load map terra") landed inside the leader's boundary 54 line: a FAIL "at boundary 55" with every digest equal | the pattern finds the line anywhere (gate.py `PARTY_TRACE_RE`) | yld02 re-graded: 595 boundaries, the same tick and digest on both seats |
+
+Proof (`src/torirs_yamalive` = this tree's client, built after fff992ccf):
+
+| lane | seeds | result |
+|---|---|---|
+| the Scripts tab's Play, headless (TORIRS_DRIVE_AUTOPLAY standing in for the button; profile osrs242-scripts' env and args; `start = fresh`, party 2, launched member), before the per-seat stream and the glyph reach | wd2 | Yama killed at tick 600, both seats alive, both drops; 24/24 and 21/21 rows PASS; the party closed and seat 2 exited 0 |
+| the same, solo (`start = reset`) | ws2 | Yama killed at tick 914, alive, the drop; 15/15 rows PASS, a row at each phase as it began |
+| live party via `tools/raid_gate/run.py --party 2` (unlocked), after the last two solver changes | yld09..yld14 | 6/6: both seats kill, alive, a drop each; `party.lockstep` PASS on every seed |
+| scriptrun solo | yg000..yg015 | 16/16 |
+| scriptrun duo (`--bots 2`) | ydg000..ydg015 | 16/16 |
+
+## 14. Everything that differs from the recordings (2026-11-10, third pass)
+
+| item | recorded | was | now | evidence |
+|---|---|---|---|---|
+| Dark Demonbane accuracy, measured | each cast's outcome is the area sound on its tick at his tile: `dark_demonbane_hit` (accuracy passed) or `spellfail` (a splash shows no splat at all, which left 307 of 827 casts unresolved before). 587 casts carry exactly one: with Mystic Might (on for 489 of them) phases 1-2 hit 262 of 374 (0.701), phase 3 92 of 115 (0.800); no dependence on his face target (0.725 / 0.712) | read from splats: 0.74..0.87 | `tools/yama_accuracy.py` reads the sounds | validation: a hit sound has the recorder's damage splat 3 ticks on 376 times of 421, a splash none 138 of 165 |
+| the demonbane spells' accuracy | wiki: +20% against demons, doubled by the purging staff, doubled under the Mark (+80% with both), doubled again on a 200% target (flares) | not modelled | `~pvm_spell_hit_roll` (player_magic.rs2) | |
+| Yama's magic defence | fitted to the measured accuracy against the recorder's roll (99 Magic, Mystic Might, +157 magic attack, +80%): +47 in phases 1-2, +10 in phase 3. The wiki's +60 against a magic-using target is 1.4 standard errors from the phase 1-2 fit; its phase 3 +81 is five away (rejected). Phase 1 against phase 3 differs by 2.3 standard errors | -30 | +47 / +10 (`~yama_magic_defence_bonus`); a melee-using primary target (wiki -30) is not recorded and not modelled | 16 solo seeds: phase 1 0.672, phase 2 0.700, phase 3 0.817 (was 0.811 overall) |
+| Mystic Might | the recorder prays it on 489 of 587 casts read (40 activations) | the solver never did | the solver turns it on while casting (prayer 15 or more) | |
+| Dark Demonbane's timing and sounds | no projectile: the splat 3 ticks after the cast at every distance 1..9 (376 of 376); `dark_demonbane_cast` synth to the caster; `dark_demonbane_hit` (or `spellfail`) at the target's tile, delay 60, on the cast tick | the hit a tick after the cast; no cast or hit sound | `spotanim_proj,null,0,0,60,0,0,0,0`, `sound_cast`, `sound_impact` on the spell's row (magic_combat_spells.dbrow) | cast to hit_npc 3 ticks on 1,103 of the casts in 16 seeds; both sounds on the live lane (yld15) |
+| impact graphics on Yama | none: 0 of 827 casts (the hit graphic shows on the Judge 76 times and the flares 87) | `dark_demonbane_hit_spotanim` / `failedspell_impact` on him, 118 + 17 a run | `param=spell_impact_hidden,yes` on Yama | 0 on every run since |
+| demonbane damage on Yama | max 58 over 376 hits; the values come in pairs (16,17 19,20 ... 54,55 57,58) | max 57 (38 x 1.5) | unchanged: neither x1.5 (57) nor the wiki's +20% for Yama (x1.6 = 60) gives 58 | **Open** |
+| shields and glyphs per kill | eight completed fights: 11.2 shield splats, 16.6 damage splats a fight on the recorder; specials warded 78 of 82 | | | 16 duo seeds (seat 1): 11.5 shields, 18.3 damage splats a fight; specials warded 164 of 178 (92%): matched |
+| facing | a player face follows 285 of the 293 ticks the target stepped (201 the next tick, 84 the same), one per step; 158 player faces a thousand fight ticks | one face per target change (92% of steps faced anyway, by the combat facing) | phases 1-2 re-face on each step of the target (`^yama_v_faced_at`, register 159); phase 3 keeps one face per target (re-facing there left a reset every third tick) | 528 of 555 steps faced (95%), but 298 the same tick and 230 the next: the npc/player phase order differs (**Open**) |
+| ambientsound_stop | every 5 ticks from login, everywhere, in all 18 rev-241/242 recordings checked; no ambientsound_start in any | not sent | not changed: an engine-wide rule, not Yama's, and sending it would cut every ambient bed our server starts | **Open** (engine) |
+| HP HUD re-send | `if_setcolour` x3 + `hp_hud_open` on 81% of fight ticks (1..3 a tick); also in other bosses' recordings (4480: 82 of 114 HUD ticks) | sent once | not changed: the hpbar_hud engine command's behaviour, not Yama's | **Open** (engine) |
+| Mark of Darkness expiry lines | none recorded (the staff's x5 Mark outlasts every fight) | not sent | wiki: "Your Mark of Darkness is about to run out." 10 ticks before, "Your Mark of Darkness has faded away." at the end; a recast keeps an older cast quiet; the fade animation is not sent (id unrecorded) | probe: a 297-tick Mark warned at 288, faded at 298 |
+
+Not reached: portal crossings, the streak hit rule, the Judge's surge columns and fireball tile, the flare body models (engine), the skeleton and zombie thralls, ylive02, live against scriptrun tick identity (**Open**).
+
+Exit with a party up: the driver shuts down before the Scripts plugin's `on_stop` closes its
+party, and `drive_launch_queue` then queued onto a cleared `g_app` (SIGSEGV on exit, seen on a watched
+duo Play with `quit`). It now answers refused (torirs_plugin_drive.c).
+
+Shared driver changes, one seed each: the ToB trio `tob_bloat --party 3` (tbchk1) 44/44, lockstep
+PASS; the watched quest `_ratcatchers_refusals` (fresh start, welcome screen pressed) 41/41. Two other
+watched quests fail for reasons the driver changes do not touch: Cook's Assistant has no coins
+(`fresh_lumbridge.ini` lost its kit in d5b504eda) and Rune Mysteries cannot reach the Duke, the same
+on run.py (rmchk1).
+
+Proof (this pass): the Scripts tab's Play on the final client, headless: duo wd4 (fresh, launched seat 2) killed at 649, both seats alive, 24/24 and 21/21, the client exiting 0 with its party up; solo ws4 (reset) killed at 1141, alive, 15/15. Scriptrun solo 16/16 (yz000..015), duo 14/16 (ydz000..015: two seats killed by an unwarded special, 98 to 0 in three ticks, and by a phase-2 burst; the fights are longer with the measured accuracy: median 933 ticks solo, was 828); live duo yld15 43/43. Shared driver changes: one ToB trio (`tob_bloat --party 3`, tbchk1) 44/44 with the lockstep PASS.

@@ -465,6 +465,39 @@ function QD.session.reset(fixture)
             ("no line (" .. tostring(said) .. ")"))
 end
 
+-- QD.session.welcome_play(wait_ticks) -> ok | <answer>, detail
+-- The welcome screen a person's login opens (torirs_server_world.c
+-- login_shows_welcome: every login of a person at a client, as Jagex's does)
+-- waits for its Play, CLICK HERE TO PLAY. A watched Play presses it the way
+-- the person would (op 1 on welcome_screen:play, the server's
+-- [if_button1,welcome_screen:play]), so the watcher sees the game rather than
+-- the welcome screen behind every row (owner 2026-11-10: the Yama duo's seat 1
+-- sat on it for the whole run). `wait_ticks`: how long a login just made may
+-- take to put it up (0: look once). None up: nothing pressed.
+function QD.session.welcome_play(wait_ticks)
+    local function up()
+        local result, shown = QD.ui.shown("welcome_screen:play")
+        return result == "ok" and shown == true
+    end
+    if not up() then
+        if (wait_ticks or 0) <= 0 or QD.await({ level = up, note = "session.welcome_play up" }, wait_ticks) ~= "ok" then
+            return "ok", "no welcome screen"
+        end
+    end
+    local component_result, component = api_drive.component("welcome_screen:play", -1)
+    if component_result ~= "ok" then
+        return component_result, "the welcome screen is up but welcome_screen:play answered " .. tostring(component)
+    end
+    local pressed, pressed_detail = api_drive.if_click(component, 1)
+    if pressed ~= "ok" then
+        return pressed, "pressing the welcome screen's Play answered " .. tostring(pressed_detail or pressed)
+    end
+    if QD.await({ level = function() return not up() end, note = "session.welcome_play gone" }, 10) ~= "ok" then
+        return "timeout", "pressed the welcome screen's Play; it was still up 10 ticks later"
+    end
+    return "ok", "pressed the welcome screen's Play"
+end
+
 -- QD.session._start(options) -> ok | <answer>, detail
 -- The Scripts tab's starting state, applied by QD.core_run_test before the
 -- script's setup.  options.start is "reset" | "fresh" | "as_is" (nil is

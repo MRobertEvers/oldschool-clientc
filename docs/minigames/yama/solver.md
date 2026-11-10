@@ -87,3 +87,19 @@ stepped off sideways or back. Duo (`--bots 2`): each seat adds the other as a fr
 seat 2 joins by the Voice's Join, seat 1 challenges when both are in.
 Results: 47/48 solo, 8/8 duo, 8/9 live (README section 12).
 
+## Built the relay's way (2026-11-10, second batch)
+
+The tests are one call each (`QD_ROOT.raid.yama_test({ fixture =, party =, max_frames = })`); the kit
+and the play live in the driver part `script/plugins/quest_driver/yama_solver.lua`. Party: friends
+both ways, barrier `yama_friends`; the creator Travels, `yama_entered`; the partner Joins by name and
+lands, `yama_joined` (every seat passes it); the creator sees the partner; each seat walks to its
+tile, `yama_ready`, `::synctimers` on every seat, `yama_synced`, the creator sits; `yama_end` before
+the finish. A barrier that does not pass is a FAIL row and the seat's finish. Rows as each phase
+begins. Run on (the orb) when a watched account has it off; each seat its own random stream; a glyph
+out of reach in the ticks left is given up rather than run for. Results: README section 13.
+
+## Third pass (2026-11-10)
+
+Mystic Might while casting (the recorder's prayer on 489 of the 587 casts read), above 15 prayer.
+With the measured accuracy (README section 14) the fights run longer (solo median 933 ticks, was 828)
+and the duo lost two seats in 16 seeds (an unwarded special at 98 hitpoints, a phase-2 burst).

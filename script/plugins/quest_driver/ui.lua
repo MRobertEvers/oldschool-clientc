@@ -853,8 +853,26 @@ function QD.key(name)
     return api_drive.key(name, false)
 end
 
+-- t.text types one character a frame, as a person does. The chatbox's typed
+-- line is a clientscript (meslayer_onkey) that appends to %varcstring359 the
+-- value it read, and every key of one frame read the same one: six characters
+-- pushed in one frame left only the last in the prompt (2026-11-10, the Voice
+-- of Yama's name prompt showed "f*" for "abcdef").
 function QD.text(str)
-    return api_drive.text(str)
+    local count = #str
+    if count <= 1 then
+        return api_drive.text(str)
+    end
+    for i = 1, count do
+        local result, detail = api_drive.text(string.sub(str, i, i))
+        if result ~= "ok" then
+            return result, detail
+        end
+        if i < count then
+            QD.ui._frames(1, "t.text")
+        end
+    end
+    return "ok"
 end
 
 -- t.shot polls api_drive.shot, which answers "timeout" (this pair's own

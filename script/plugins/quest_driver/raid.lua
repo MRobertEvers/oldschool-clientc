@@ -972,7 +972,8 @@ end
 --   t.party.names()           -> {"<run>_p1", ..., "<run>_pN"} (account names; a
 --                                copy, the n-th is raider n)
 --   t.party.name(n)           -> raider n's account name (default: this one)
---   t.party.barrier(name, ticks) -> ok timeout refused
+--   t.party.barrier(name, ticks) -> ok timeout refused (refused at once, on the
+--                                world's host, when a member that joined is gone)
 --   t.party.players(radius)   -> ("ok", detail, rows): the OTHER players this
 --                                client's entity pool holds within `radius`
 --                                tiles (nil: all), rows {name, x, z, level, pid}
@@ -1104,6 +1105,7 @@ function QD.party.barrier(name, timeout_ticks)
         return marked, "party.barrier " .. name .. ": could not write " .. mine .. " (" .. tostring(marked) .. ")"
     end
     local missing = {}
+    local gone = nil
     local result, frames, ticks = QD.party._await_counted(function()
         missing = {}
         for n = 1, size do
@@ -1111,8 +1113,27 @@ function QD.party.barrier(name, timeout_ticks)
                 missing[#missing + 1] = "p" .. n
             end
         end
-        return #missing == 0
+        if #missing == 0 then
+            return true
+        end
+        -- The world's host knows when a member is gone (api_drive.party: its
+        -- link closed, the process ended or the world dropped it): a mark
+        -- still missing then never comes, so the wait ends now, loudly,
+        -- rather than at its timeout (owner 2026-11-10: "A barrier whose
+        -- partner is dead must fail loudly, not hang").
+        local _, party = api_drive.party()
+        if type(party) == "table" and math.type(party.members_joined) == "integer"
+            and party.members_open < party.members_joined then
+            gone = string.format("%d of the %d member(s) that joined this world are gone (their link closed)",
+                party.members_joined - party.members_open, party.members_joined)
+            return true
+        end
+        return false
     end, timeout_ticks or 200, "party.barrier " .. name)
+    if gone ~= nil then
+        return "refused", string.format("party.barrier %s: p%d waited %d frame(s) (%d tick(s)); still missing %s: %s",
+            name, QD.party.role(), frames, ticks, table.concat(missing, ","), gone)
+    end
     if result ~= "ok" then
         return "timeout", string.format("party.barrier %s: p%d waited %d frame(s) (%d tick(s)); still missing %s",
             name, QD.party.role(), frames, ticks, table.concat(missing, ","))
