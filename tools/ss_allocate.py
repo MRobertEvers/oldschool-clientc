@@ -399,13 +399,45 @@ def open(file, mode='r', *args, **kwargs):  # noqa: A001 — records what is rea
 # and screenshots into selftest/, and an mtime test re-ran the whole sweep after
 # every one of them.
 #
-# Entries are typed without following symlinks. An editor lane's content is a
-# mirror of one symlink per file (torirsmaped/torirs_maped_lanes.c), and
-# following them typed all ~56,000 entries under server/scripts on every build
-# to keep a few hundred. Nothing is lost: `os.walk` never descends into a
-# symlinked directory, so what lies under one is never read; the link is a name
-# here like any other.
+# Entries are typed without following links. A legacy editor lane is a mirror
+# of one link per file (torirsmaped/torirs_maped_lanes.c), and following them
+# typed all ~56,000 entries under server/scripts on every build to keep a few
+# hundred. So a link -- a symbolic link, or a junction on Windows -- is listed
+# by its name with an '@', whatever it points at, and is never stat'd here.
+#
+# That costs nothing in what the stamp sees, because `_files_by_extension`
+# walks THROUGH directory links: a sparse lane is mostly links to the base's
+# directories (lanes.c, "sparse lanes"), and a walk that stopped at them would
+# allocate nothing for a block under one. Every directory the walk reached
+# through a link is in `_WALKED_DIRS` by the path it was reached at, so its own
+# 'D' line lists the base's directory through the link: a file the base adds or
+# changes under a linked directory moves that line or its 'F' line, and the run
+# is not called up to date. A link appearing, vanishing or being exploded into
+# a real directory moves its parent's line.
 _RELEVANT_EXTENSIONS = None
+
+
+def _entry_is_link(entry):
+    """A symbolic link, or (Windows) a junction: both are links to a directory
+    of the base in a sparse lane. `is_symlink` is False for a junction, and
+    `is_dir(follow_symlinks=False)` is True for one, so it is asked by name;
+    before 3.12 there is no `is_junction`, and a junction reads as a directory
+    -- which the walk below enters anyway."""
+    if entry.is_symlink():
+        return True
+    is_junction = getattr(entry, 'is_junction', None)
+    return bool(is_junction and is_junction())
+
+
+def _listing_name(entry):
+    """What a 'D' line records for one entry, or None for an entry it ignores."""
+    if entry.name.startswith('.'):
+        return None
+    if _entry_is_link(entry):
+        return entry.name + '@'
+    if entry.is_dir(follow_symlinks=False):
+        return entry.name + '/'
+    return entry.name if _relevant(entry.name) else None
 
 
 def _relevant(name):
@@ -421,10 +453,7 @@ def _stat_line(kind, path):
     if kind == 'D':
         try:
             with os.scandir(path) as entries:
-                names = sorted(e.name + '/' if e.is_dir(follow_symlinks=False) else e.name
-                               for e in entries
-                               if not e.name.startswith('.') and
-                               (e.is_dir(follow_symlinks=False) or _relevant(e.name)))
+                names = sorted(n for n in map(_listing_name, entries) if n is not None)
         except OSError:
             return f'D\t-\t-\t{path}'
         digest = hashlib.sha1('\n'.join(names).encode('utf-8')).hexdigest()
@@ -463,13 +492,70 @@ _FILES_BY_EXT = {}
 _BLOCK_RE = re.compile(r'\s*\[([A-Za-z0-9_+.\-]+)\]\s*$')
 
 
+def _links_back(base, entry):
+    """True when the directory link `entry` (in `base`) points at `base` itself
+    or one of its ancestors: following it would walk the same directories
+    again without end. No content tree has such a link; this is what stops a
+    broken one from hanging every pack build. Only links are resolved, so a
+    real tree pays nothing and a sparse lane one realpath per link at its few
+    real levels (inside a linked directory every entry is the base's own)."""
+    here = os.path.normcase(os.path.realpath(base))
+    target = os.path.normcase(os.path.realpath(entry.path))
+    return here == target or here.startswith(target.rstrip(os.sep) + os.sep)
+
+
+def _walk_following_links(top):
+    """(directory, [file names]) for `top` and every directory under it,
+    top-down in listing order like `os.walk`, but ENTERING directory links.
+
+    `os.walk` does not enter a symbolic link without `followlinks=True`, and
+    whether it enters a Windows junction has changed between Python releases.
+    In a sparse editor lane almost every directory is one or the other -- a
+    link to the base's directory (torirsmaped/torirs_maped_lanes.c, "sparse
+    lanes") -- so a walk that stops at them silently loses most of the tree:
+    every `[block]` under a linked directory went unallocated, and sscompile
+    then failed on the name. Paths stay the lane's: names are joined, never
+    resolved. An entry is typed as `os.walk` types it (following the link), and
+    is asked whether it is a link from what the listing already says."""
+    pending = [top]
+    while pending:
+        here = pending.pop()
+        dirs = []
+        files = []
+        try:
+            with os.scandir(here) as entries:
+                for entry in entries:
+                    try:
+                        is_dir = entry.is_dir()
+                    except OSError:
+                        is_dir = False
+                    if not is_dir:
+                        files.append(entry.name)
+                    elif entry.name.startswith('.'):
+                        # Not content: sscompile passes over dot-names too, and
+                        # an editor lane's half-made directory is one
+                        # ('.<dir>.explode.tmp', torirs_maped_lanes.c), whose
+                        # files are the same blocks a second time.
+                        continue
+                    elif _entry_is_link(entry) and _links_back(here, entry):
+                        print(f'ss_allocate: not following {entry.path}: it links back to '
+                              f'a directory that contains it', file=sys.stderr)
+                    else:
+                        dirs.append(entry.path)
+        except OSError:
+            continue
+        yield here, files
+        pending.extend(reversed(dirs))
+
+
 def _files_by_extension(source_roots):
     """{extension: [path]} for every file under the roots, walked once.
 
     Each namespace used to walk the whole tree for its own extension, and
     server/scripts holds ~54,000 files (most of them selftest screenshots): a
     dozen walks were most of this tool's 1.3 s, which every pack build pays.
-    The per-directory `sorted(files)` order is kept.
+    The per-directory `sorted(files)` order is kept. Directory links are
+    entered (`_walk_following_links`).
     """
     key = tuple(source_roots)
     if key not in _FILES_BY_EXT:
@@ -477,7 +563,7 @@ def _files_by_extension(source_roots):
         for source_root in source_roots:
             if not os.path.isdir(source_root):
                 continue
-            for base, _, files in os.walk(source_root):
+            for base, files in _walk_following_links(source_root):
                 _WALKED_DIRS.add(os.path.abspath(base))
                 for f in sorted(files):
                     dot = f.rfind('.')

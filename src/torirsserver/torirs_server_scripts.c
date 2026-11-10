@@ -64,14 +64,14 @@
 #include <string.h>
 #include <time.h>
 
-/* MinGW exposes stat but not the POSIX lstat name. Windows directory entries
- * cannot introduce the Unix symlink recursion this scan avoids with lstat, so
- * the ordinary metadata call is the equivalent operation for that lane. */
-#if defined(_WIN32)
-#define scripts_lstat stat
-#else
-#define scripts_lstat lstat
-#endif
+/* How deep scripts_scan_newer goes. It follows links -- an editor lane's
+ * content is mostly links to the base's directories (a symbolic link, or a
+ * junction on Windows; torirsmaped/torirs_maped_lanes.c, "sparse lanes"), and
+ * an lstat() walk stopped at every one, so a source edited under a linked
+ * directory never named the pack stale. Following is what can loop on a link
+ * back to an ancestor; no content tree has one, and this bound ends the walk
+ * if one ever appears. server/scripts is under ten levels deep. */
+#define SCRIPTS_SCAN_DEPTH_MAX 32
 
 /*
  * ToriRSServer_SendSynthSound is defined in torirs_server_encode.c (WEAPON_FX.md §6).
@@ -215,15 +215,19 @@ scripts_is_source(const char* name)
 static int
 scripts_scan_newer(
     const char* dir,
+    int depth,
     time_t pack_mtime,
     char* out_path,
     size_t out_len,
     long* out_delta)
 {
-    DIR* dirp = opendir(dir);
+    DIR* dirp;
     struct dirent* ent;
     int stale = 0;
 
+    if( depth > SCRIPTS_SCAN_DEPTH_MAX )
+        return 0;
+    dirp = opendir(dir);
     if( !dirp )
         return 0;
 
@@ -239,12 +243,13 @@ scripts_scan_newer(
             continue;
 
         snprintf(child, sizeof(child), "%s/%s", dir, ent->d_name);
-        if( scripts_lstat(child, &sbuf) != 0 )
+        /* stat, not lstat: a link is typed and dated by what it names. */
+        if( stat(child, &sbuf) != 0 )
             continue;
 
         if( S_ISDIR(sbuf.st_mode) )
         {
-            stale = scripts_scan_newer(child, pack_mtime, out_path, out_len,
+            stale = scripts_scan_newer(child, depth + 1, pack_mtime, out_path, out_len,
                                        out_delta);
         }
         else if( S_ISREG(sbuf.st_mode) && scripts_is_source(ent->d_name) &&
@@ -314,7 +319,7 @@ scripts_newer_than_pack(const char* dir, char* out_path, size_t out_len, long* o
     else
         snprintf(tree, sizeof(tree), "%s", ".");
 
-    if( scripts_scan_newer(tree, pack_st.st_mtime, out_path, out_len, out_delta) )
+    if( scripts_scan_newer(tree, 0, pack_st.st_mtime, out_path, out_len, out_delta) )
         return 1;
 
     /*
@@ -344,7 +349,7 @@ scripts_newer_than_pack(const char* dir, char* out_path, size_t out_len, long* o
             if( !dot || strcmp(dot, ".alloc") != 0 )
                 continue;
             snprintf(child, sizeof(child), "%s/%s", packdir, ent->d_name);
-            if( scripts_lstat(child, &sbuf) != 0 )
+            if( stat(child, &sbuf) != 0 )
                 continue;
             if( sbuf.st_mtime > pack_st.st_mtime )
             {
