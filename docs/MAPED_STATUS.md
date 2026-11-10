@@ -872,6 +872,34 @@ scan costs what it changed; Changes, Follow, Publish and Discard give a
 sparse lane the same answers as a mirror of the same content (lanes_test
 runs both side by side). No conversion of existing lanes yet.
 
+**A lane behind its base (2026-11-10).** On Windows without Developer Mode
+a file link is a hard link, and it does not follow the base: a pull, a
+publish from another lane or a save in main replaces the base's file and
+the lane keeps the old one. The owner's four-day-old `working` lane read
+"974 changed" with two edits in it, RUN stopped on
+"pack/0_animations.pack changed in both the lane and its base", and a
+publish to main would have written the old bytes over ~960 newer files.
+Now a real file the lane did not write is not the lane's change: its time
+is before the lane's last look at its directory and it is not named in
+`<lane dir>/owned.ini`, the list each follow writes of the files the lane
+did write (so a file the lane wrote before a follow stays the lane's after
+the look moves). The change scan passes over such a file and the follow
+links it again (or removes it, when the base removed it); a pack copy
+dated within a never-followed lane's creation is taken from the base the
+same way. A lane followed by a build older than this has no list, so
+nothing in it is said to have fallen behind until its first follow here.
+What this gets wrong: a file copied into a lane by something that keeps
+its old time (an Explorer copy, `cp -p`) over a name the lane linked reads
+as fallen behind. The refusal that remains (a pack file changed on both
+sides) now says what to press. lanes_test "behind (...)" covers a legacy
+and a sparse lane; not run on the owner's lanes.
+
+**The catalog index builds on a thread on Windows too (2026-11-10).** It
+was built in the UI thread's slices, and the Squares list's first request
+ran all of it at once: 4 s with the files cached, minutes after a build
+(the window sat at "Not Responding"). `cat_warm_thread_*` now has a
+Windows half; the editor answers in ~2 s and the index lands at ~4.6 s.
+
 - **Serving a lane**: `torirsmaped ... --lane <name>` (or
   `$TORIRSMAPED_LANE`), the manifest's `[editor:boot] lane=<name>` for the
   embedded server (`ToriRSMapEd_OpenLane`, `ToriRSMapEd_EmbedStartLane`,

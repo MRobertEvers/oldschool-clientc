@@ -15,6 +15,7 @@
 #include <assert.h>
 #include <dirent.h>
 #include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -427,6 +428,16 @@ write_tree(const char* tree)
     {
         snprintf(path, sizeof(path), "%s/%s", tree, files[i][0]);
         write_text(path, files[i][1]);
+        /* A base tree is older than the lanes made of it: an hour here. The
+         * lanes tell a file they wrote from one that only fell behind the
+         * base by its time against the lane's (torirs_maped_lanes.c, "what
+         * the lane wrote"), and a tree written in the lane's own second
+         * would make every link's file look like the lane's. */
+        {
+            int const dated = set_mtime(path, time(NULL) - 3600);
+            assert(dated);
+            (void)dated;
+        }
     }
 }
 
@@ -459,6 +470,213 @@ make_legacy(
     write_text(path, text);
     return ToriRSMapEdLanes_Lookup(repo, tree, name, out);
 }
+
+/* ---- a lane behind its base: what fell behind is not the lane's change ------ */
+
+#ifdef _WIN32
+/** check() with a formatted message. */
+static void
+checkf(
+    int condition,
+    const char* format,
+    ...)
+{
+    char what[512];
+    va_list args;
+
+    va_start(args, format);
+    vsnprintf(what, sizeof(what), format, args);
+    va_end(args);
+    check(condition, what);
+}
+
+/** The base's file replaced by a NEW file, as a pull, a publish or an editor
+ *  save replaces one: the lanes' hard links keep the old file. */
+static void
+replace_text(
+    const char* path,
+    const char* text)
+{
+    remove(path);
+    write_text(path, text);
+}
+
+static int
+file_names(
+    const char* path,
+    const char* line)
+{
+    char text[4096];
+    size_t n;
+    FILE* file = fopen(path, "rb");
+
+    if( !file )
+        return 0;
+    n = fread(text, 1, sizeof(text) - 1, file);
+    fclose(file);
+    text[n] = '\0';
+    return strstr(text, line) != NULL;
+}
+
+static void
+behind_one(
+    const char* repo,
+    const char* tree,
+    struct ToriRSMapEdLaneDef* lane,
+    const char* kind)
+{
+    struct ToriRSMapEdLaneChange rows[16];
+    struct ToriRSMapEdLaneCounts counts;
+    char path[2048];
+    char why[512];
+    int count;
+    time_t const now = time(NULL);
+
+    /* The lane's two edits: one file changed, one new. */
+    checkf(save_text(lane, "maps/m1.jm2", "mine\n") && save_text(lane, "maps/m9.jm2", "new square\n"),
+        "behind (%s): the lane edits one square and adds one", kind);
+    /* The base moves on: files replaced, one removed, the edited one too. */
+    snprintf(path, sizeof(path), "%s/maps/m2.jm2", tree);
+    replace_text(path, "square 2b\n");
+    snprintf(path, sizeof(path), "%s/maps/m1.jm2", tree);
+    replace_text(path, "square 1b\n");
+    snprintf(path, sizeof(path), "%s/areas/x/configs/x.npc", tree);
+    replace_text(path, "[x2]\n");
+    snprintf(path, sizeof(path), "%s/quests/q1/b.rs2", tree);
+    remove(path);
+    snprintf(path, sizeof(path), "%s/pack/obj.alloc", tree);
+    replace_text(path, "a=1\nb=2\n");
+
+    count = ToriRSMapEdLanes_Changes(lane, rows, 16, &counts);
+    checkf(count == 2 && find_change(rows, count, "maps/m1.jm2", TORIRSMAPED_LANE_CHANGE_MODIFIED)
+              && find_change(rows, count, "maps/m9.jm2", TORIRSMAPED_LANE_CHANGE_ADDED),
+        "behind (%s): the changes are the lane's two edits, not the files the base replaced (%d)", kind, count);
+    for( int i = 0; i < count && i < 16 && count != 2; i++ )
+        fprintf(stderr, "  %d %s\n", (int)rows[i].kind, rows[i].path);
+
+    checkf(ToriRSMapEdLanes_Follow(lane, &counts, why, sizeof(why)), "behind (%s): the follow is not refused: %s", kind,
+        why);
+    snprintf(path, sizeof(path), "%s/maps/m2.jm2", lane->content);
+    checkf(text_is(path, "square 2b\n") && is_link(path), "behind (%s): a replaced square is the base's again", kind);
+    snprintf(path, sizeof(path), "%s/areas/x/configs/x.npc", lane->content);
+    checkf(text_is(path, "[x2]\n"), "behind (%s): a replaced config shows the base's", kind);
+    snprintf(path, sizeof(path), "%s/quests/q1/b.rs2", lane->content);
+    checkf(!exists(path), "behind (%s): a file the base removed is gone from the lane", kind);
+    snprintf(path, sizeof(path), "%s/pack/obj.alloc", lane->content);
+    checkf(text_is(path, "a=1\nb=2\n") && is_regular(path), "behind (%s): an untouched copy takes the base's", kind);
+    snprintf(path, sizeof(path), "%s/maps/m1.jm2", lane->content);
+    checkf(text_is(path, "mine\n"), "behind (%s): the lane's edit is kept", kind);
+    snprintf(path, sizeof(path), "%s/maps/m9.jm2", lane->content);
+    checkf(text_is(path, "new square\n"), "behind (%s): the lane's new square is kept", kind);
+    snprintf(path, sizeof(path), "%s/build/lanes/%s/owned.ini", repo, lane->name);
+    checkf(file_names(path, "maps/m1.jm2\n") && file_names(path, "maps/m9.jm2\n") && !file_names(path, "m2.jm2"),
+        "behind (%s): the follow listed the two files the lane wrote", kind);
+
+    /* The look has moved past the lane's edits: only the list says they are
+     * the lane's now. Their times are put well before the follow to say so. */
+    snprintf(path, sizeof(path), "%s/maps/m1.jm2", lane->content);
+    checkf(set_mtime(path, now - 600), "behind (%s): the edit dated before the follow", kind);
+    snprintf(path, sizeof(path), "%s/maps/m9.jm2", lane->content);
+    checkf(set_mtime(path, now - 600), "behind (%s): the new square dated before the follow", kind);
+    /* And the base replaces a square again (its file dated before the
+     * follow, as one the lane linked then is). */
+    snprintf(path, sizeof(path), "%s/maps/m2.jm2", tree);
+    checkf(set_mtime(path, now - 300), "behind (%s): the linked square dated before the follow", kind);
+    replace_text(path, "square 2c\n");
+    count = ToriRSMapEdLanes_Changes(lane, rows, 16, &counts);
+    checkf(count == 2 && find_change(rows, count, "maps/m1.jm2", TORIRSMAPED_LANE_CHANGE_MODIFIED)
+              && find_change(rows, count, "maps/m9.jm2", TORIRSMAPED_LANE_CHANGE_ADDED),
+        "behind (%s): after the follow the changes are still the lane's two (%d)", kind, count);
+    checkf(ToriRSMapEdLanes_Follow(lane, &counts, why, sizeof(why)), "behind (%s): a second follow: %s", kind, why);
+    snprintf(path, sizeof(path), "%s/maps/m2.jm2", lane->content);
+    checkf(text_is(path, "square 2c\n"), "behind (%s): the square replaced again is the base's again", kind);
+    snprintf(path, sizeof(path), "%s/maps/m1.jm2", lane->content);
+    checkf(text_is(path, "mine\n"), "behind (%s): the second follow kept the lane's edit", kind);
+    snprintf(path, sizeof(path), "%s/maps/m9.jm2", lane->content);
+    checkf(text_is(path, "new square\n"), "behind (%s): the second follow kept the lane's new square", kind);
+
+    /* A discard links the lane's files again and takes them off the list. */
+    checkf(ToriRSMapEdLanes_Discard(lane, &counts, why, sizeof(why)), "behind (%s): discard: %s", kind, why);
+    checkf(ToriRSMapEdLanes_Changes(lane, rows, 16, &counts) == 0, "behind (%s): nothing changed after the discard", kind);
+    snprintf(path, sizeof(path), "%s/build/lanes/%s/owned.ini", repo, lane->name);
+    checkf(!file_names(path, "maps/m1.jm2") && !file_names(path, "maps/m9.jm2"),
+        "behind (%s): the discard took its files off the list", kind);
+}
+
+static void
+fell_behind(const char* scratch)
+{
+    static const char* const kinds[2] = { "legacy", "sparse" };
+    struct ToriRSMapEdLaneChange rows[16];
+    struct ToriRSMapEdLaneCounts counts;
+    char why[512];
+
+    for( int k = 0; k < 2; k++ )
+    {
+        char repo[1024];
+        char tree[1024];
+        char path[2048];
+        struct ToriRSMapEdLaneDef lane;
+
+        snprintf(repo, sizeof(repo), "%s/behind-%s", scratch, kinds[k]);
+        snprintf(tree, sizeof(tree), "%s/OSRS-Content/osrs-content", repo);
+        write_tree(tree);
+        /* A copied file the legacy lane holds no ancestor of. */
+        snprintf(path, sizeof(path), "%s/pack/obj.alloc", tree);
+        write_text(path, "a=1\n");
+        checkf(set_mtime(path, time(NULL) - 3600), "behind (%s): the base's copy is an hour old", kinds[k]);
+        if( k == 0 )
+        {
+            checkf(make_legacy(repo, tree, "old", &lane), "behind (legacy): a lane");
+            /* A mirror's copies are made before its lane.ini is written. */
+            snprintf(path, sizeof(path), "%s/pack/obj.alloc", lane.content);
+            checkf(set_mtime(path, time(NULL) - 60), "behind (legacy): its copy is a minute older than lane.ini");
+        }
+        else
+            checkf(ToriRSMapEdLanes_Create(repo, tree, "new", &lane, why, sizeof(why)) && lane.sparse,
+                "behind (sparse): a lane");
+        behind_one(repo, tree, &lane, kinds[k]);
+    }
+
+    /* A lane a build before the list followed: nothing in it is said to have
+     * fallen behind until a follow here writes its list. */
+    {
+        char repo[1024];
+        char tree[1024];
+        char path[2048];
+        char text[2048];
+        struct ToriRSMapEdLaneDef lane;
+
+        snprintf(repo, sizeof(repo), "%s/behind-prior", scratch);
+        snprintf(tree, sizeof(tree), "%s/OSRS-Content/osrs-content", repo);
+        write_tree(tree);
+        checkf(make_legacy(repo, tree, "prior", &lane), "behind (prior): a lane");
+        snprintf(path, sizeof(path), "%s/build/lanes/prior/lane.ini", repo);
+        snprintf(text, sizeof(text), "base = %s\ncreated = %lld\nmirrored_files = 1\nfollowed = %lld\n", tree,
+            (long long)time(NULL) - 20, (long long)time(NULL) - 5);
+        write_text(path, text);
+        checkf(ToriRSMapEdLanes_Lookup(repo, tree, "prior", &lane), "behind (prior): read again with its follow");
+        /* Its edit, written before that follow. */
+        checkf(save_text(&lane, "maps/m1.jm2", "before the list\n"), "behind (prior): an edit");
+        snprintf(path, sizeof(path), "%s/maps/m1.jm2", lane.content);
+        checkf(set_mtime(path, time(NULL) - 10), "behind (prior): dated before its follow");
+        checkf(ToriRSMapEdLanes_Changes(&lane, rows, 16, &counts) == 1
+                  && find_change(rows, 1, "maps/m1.jm2", TORIRSMAPED_LANE_CHANGE_MODIFIED),
+            "behind (prior): the edit is still the lane's change");
+        checkf(ToriRSMapEdLanes_Follow(&lane, &counts, why, sizeof(why)), "behind (prior): a follow: %s", why);
+        checkf(text_is(path, "before the list\n"), "behind (prior): the follow kept the edit");
+        snprintf(path, sizeof(path), "%s/build/lanes/prior/owned.ini", repo);
+        checkf(file_names(path, "maps/m1.jm2\n"), "behind (prior): and listed it");
+    }
+}
+#else
+static void
+fell_behind(const char* scratch)
+{
+    (void)scratch;
+    printf("lanes_test: fell-behind checks are for hard-link lanes (Windows without Developer Mode): not run\n");
+}
+#endif
 
 static void
 sparse_against_legacy(const char* scratch)
@@ -1293,7 +1511,7 @@ main(
     snprintf(path, sizeof(path), "%s/pack/npc.server", tree);
     write_text(path, "hans\nzaff\n");
     check(!ToriRSMapEdLanes_Follow(&work, &counts, why, sizeof(why)) && strstr(why, "pack/npc.server")
-              && strstr(why, "both"),
+              && strstr(why, "AND in the main tree"),
         "follow: a copy both sides changed is refused, named");
     snprintf(path, sizeof(path), "%s/pack/npc.server", work.content);
     check(text_is(path, "hans\nbob\n"), "follow: a refused copy is left as the lane had it");
@@ -1346,6 +1564,7 @@ main(
     }
 
     sparse_against_legacy(argv[1]);
+    fell_behind(argv[1]);
 
     printf("lanes_test: %d checks, %d failed\n", g_checks, g_failures);
     return g_failures ? 1 : 0;

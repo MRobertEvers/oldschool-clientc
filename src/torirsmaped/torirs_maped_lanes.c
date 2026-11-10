@@ -693,7 +693,15 @@ lanes_follow_settled(
         return LANES_ASK;
     if( base->attrs & FILE_ATTRIBUTE_DIRECTORY )
         return lanes_row_is_real_dir(lane) ? LANES_DESCEND : LANES_NOTHING;
-    return copied ? LANES_ASK : LANES_NOTHING;
+    if( copied )
+        return LANES_ASK;
+    /* A file both have: the base's own file under the mirror's name (a live
+     * hard link) or a symbolic link is left alone; a file of its own -- the
+     * lane's edit, or a link's file the base has replaced -- is asked. */
+    if( (lane->attrs & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DIRECTORY))
+        || lanes_rows_same_file(&pair->lane, lane, &pair->base, base) )
+        return LANES_NOTHING;
+    return LANES_ASK;
 }
 
 /** changes_walk_lane, entry `name` of the mirror: a link is unchanged, a
@@ -1766,6 +1774,314 @@ newer_than_look(
     return looked > 0 && mtime > looked;
 }
 
+/* ---- what the lane wrote, and what only fell behind -------------------------
+ *
+ * On Windows without Developer Mode a lane's file link is a HARD link, and a
+ * hard link does not follow its base: when the base's file is replaced (a
+ * pull, a publish from another lane, a save in main) the lane keeps the old
+ * file under its own name. That file is real, it differs from the base's, and
+ * the lane never wrote it. Until 2026-11-10 it read as the lane's change: the
+ * owner's four-day-old lane showed "974 changed" with two edits in it, RUN
+ * refused it over a pack file nobody had touched, and a publish to main would
+ * have written the old bytes over ~960 newer files.
+ *
+ * What tells the two apart: a file the lane wrote was written AFTER the lane
+ * took its links, and a file that fell behind was not. So a real file that
+ * differs from the base's is the lane's when its time is not before the
+ * lane's last look at its directory (looked_at), and otherwise it fell
+ * behind: the change scan passes over it and the follow links it again.
+ *
+ * A follow moves that look forward, and a file the lane wrote before it would
+ * then read as fallen behind. So the follow writes down every file it found
+ * to be the lane's -- "<lane dir>/owned.ini", one path a line -- before it
+ * moves the look, and a file named there is the lane's whatever its time.
+ * Publish with reset and Discard take the files they link again back out.
+ *
+ * A lane followed by a build older than this has no list for the files it
+ * wrote before that follow, so nothing in it is said to have fallen behind
+ * until its first follow here writes one (`known`).
+ *
+ * The one thing this gets wrong: a file put into a lane by something that
+ * keeps its old time (an Explorer copy, cp -p) over a name the lane linked
+ * reads as fallen behind. The editor and its tools stamp what they write.
+ */
+
+struct lanes_owned
+{
+    char** rels;
+    int count;
+    int capacity;
+    /** 0: the list cannot be trusted to be whole (see above). */
+    int known;
+    /** A lane that was never followed: when its creation ended (lane.ini is
+     *  written last, once). 0 for any other lane. Its copied files (pack/)
+     *  dated up to then are the copies the creation made. */
+    long long creation_end;
+};
+
+static void
+owned_path(
+    const struct ToriRSMapEdLaneDef* lane,
+    char* out,
+    size_t out_size)
+{
+    snprintf(out, out_size, "%s/owned.ini", lane->dir);
+}
+
+static int
+owned_compare(
+    const void* a,
+    const void* b)
+{
+    return strcmp(*(char* const*)a, *(char* const*)b);
+}
+
+static void
+owned_add(
+    struct lanes_owned* owned,
+    const char* rel)
+{
+    if( owned->count == owned->capacity )
+    {
+        owned->capacity = owned->capacity ? owned->capacity * 2 : 16;
+        owned->rels = realloc(owned->rels, (size_t)owned->capacity * sizeof(*owned->rels));
+        assert(owned->rels);
+    }
+    owned->rels[owned->count] = strdup(rel);
+    assert(owned->rels[owned->count]);
+    owned->count++;
+}
+
+/** The lane's list, read whole and sorted. malloc, not ToriMem: the change
+ *  scan runs on a worker thread. */
+static void
+owned_read(
+    const struct ToriRSMapEdLaneDef* lane,
+    struct lanes_owned* out)
+{
+    char path[TORIRSMAPED_LANE_PATH + 16];
+    char line[TORIRSMAPED_LANE_PATH + 32];
+    struct stat st;
+    int followed = 0;
+    FILE* file;
+
+    memset(out, 0, sizeof(*out));
+    if( lane->is_main || !lane->dir[0] )
+        return;
+    snprintf(path, sizeof(path), "%s/lane.ini", lane->dir);
+    file = fopen(path, "rb");
+    if( file )
+    {
+        while( fgets(line, sizeof(line), file) )
+        {
+            if( strncmp(line, "followed = ", 11) == 0 )
+                followed = 1;
+        }
+        fclose(file);
+    }
+    if( !followed && stat(path, &st) == 0 )
+        out->creation_end = (long long)st.st_mtime;
+    owned_path(lane, path, sizeof(path));
+    file = fopen(path, "rb");
+    if( !file )
+    {
+        out->known = !followed;
+        return;
+    }
+    out->known = 1;
+    while( fgets(line, sizeof(line), file) )
+    {
+        size_t length = strlen(line);
+
+        while( length > 0 && (line[length - 1] == '\n' || line[length - 1] == '\r') )
+            line[--length] = '\0';
+        if( length > 0 && line[0] != ';' )
+            owned_add(out, line);
+    }
+    fclose(file);
+    if( out->count > 1 )
+        qsort(out->rels, (size_t)out->count, sizeof(*out->rels), owned_compare);
+}
+
+static void
+owned_free(struct lanes_owned* owned)
+{
+    for( int i = 0; i < owned->count; i++ )
+        free(owned->rels[i]);
+    free(owned->rels);
+    memset(owned, 0, sizeof(*owned));
+}
+
+/** 1 when the sorted list (owned_read) names `rel`. */
+static int
+owned_has(
+    const struct lanes_owned* owned,
+    const char* rel)
+{
+    return owned->count > 0
+           && bsearch(&rel, owned->rels, (size_t)owned->count, sizeof(*owned->rels), owned_compare) != NULL;
+}
+
+/** The list written whole (a temporary, then a rename). 1, or 0 with `why`. */
+static int
+owned_write(
+    const struct ToriRSMapEdLaneDef* lane,
+    struct lanes_owned* owned,
+    char* why,
+    size_t why_size)
+{
+    char path[TORIRSMAPED_LANE_PATH + 16];
+    char temp[TORIRSMAPED_LANE_PATH + 32];
+    FILE* file;
+
+    owned_path(lane, path, sizeof(path));
+    snprintf(temp, sizeof(temp), "%s.tmp", path);
+    if( owned->count > 1 )
+        qsort(owned->rels, (size_t)owned->count, sizeof(*owned->rels), owned_compare);
+    file = fopen(temp, "wb");
+    if( !file )
+    {
+        snprintf(why, why_size, "cannot write %s: %s", temp, strerror(errno));
+        return 0;
+    }
+    fprintf(file, "; The files this lane wrote itself (torirs_maped_lanes.c, \"what the lane\n"
+                  "; wrote\"): any other file that differs from the base's only fell behind it.\n");
+    for( int i = 0; i < owned->count; i++ )
+    {
+        if( i == 0 || strcmp(owned->rels[i], owned->rels[i - 1]) != 0 )
+            fprintf(file, "%s\n", owned->rels[i]);
+    }
+    if( fclose(file) != 0 || rename(temp, path) != 0 )
+    {
+        remove(temp);
+        snprintf(why, why_size, "cannot write %s: %s", path, strerror(errno));
+        return 0;
+    }
+    return 1;
+}
+
+/** After a publish with reset or a discard linked files again: the list
+ *  without the paths that are no longer the lane's own files. A lane with no
+ *  list keeps none. 1, or 0 with `why`. */
+static int
+owned_prune(
+    const struct ToriRSMapEdLaneDef* lane,
+    char* why,
+    size_t why_size)
+{
+    struct lanes_owned owned;
+    struct lanes_owned kept;
+    char path[TORIRSMAPED_LANE_PATH];
+    struct stat st;
+    int ok = 1;
+
+    owned_path(lane, path, sizeof(path));
+    if( lane->is_main || stat(path, &st) != 0 )
+        return 1;
+    owned_read(lane, &owned);
+    memset(&kept, 0, sizeof(kept));
+    for( int i = 0; i < owned.count; i++ )
+    {
+        snprintf(path, sizeof(path), "%s/%s", lane->content, owned.rels[i]);
+        if( lstat(path, &st) == 0 && S_ISREG(st.st_mode) )
+            owned_add(&kept, owned.rels[i]);
+    }
+    if( kept.count != owned.count )
+        ok = owned_write(lane, &kept, why, why_size);
+    owned_free(&owned);
+    owned_free(&kept);
+    return ok;
+}
+
+/** 1 when the lane's real file `rel` (in its real directory `dir_rel`, with
+ *  `st` its own stat) was not written by the lane: it is a link's file that
+ *  the base has since replaced or removed. Only where a file link is a hard
+ *  link; a symbolic link shows the base's file as it is now. */
+static int
+lane_file_fell_behind(
+    const struct ToriRSMapEdLaneDef* lane,
+    const struct lanes_looks* looks,
+    const struct lanes_owned* owned,
+    const char* dir_rel,
+    const char* rel,
+    const struct stat* st)
+{
+#ifdef _WIN32
+    long long const looked = looked_at(lane, looks, dir_rel);
+
+    /* Strictly older: the clock here is whole seconds, and a file the lane
+     * wrote in the very second of its look is the lane's. */
+    if( !owned->known || looked <= 0 || (long long)st->st_mtime >= looked )
+        return 0;
+    return !owned_has(owned, rel);
+#else
+    (void)lane;
+    (void)looks;
+    (void)owned;
+    (void)dir_rel;
+    (void)rel;
+    (void)st;
+    return 0;
+#endif
+}
+
+/** 1 when the lane's copy `lane_path` of the copied file `rel` (pack/) is
+ *  still the copy the lane took: equal to the ancestor it recorded, or, in a
+ *  never-followed lane with no ancestor, dated within the lane's creation. */
+static int
+lane_copy_untouched(
+    const struct ToriRSMapEdLaneDef* lane,
+    const struct lanes_owned* owned,
+    const char* rel,
+    const char* lane_path,
+    const struct stat* st)
+{
+    char ancestor[TORIRSMAPED_LANE_PATH + 16];
+    struct stat ast;
+
+    ancestor_path(lane, rel, ancestor, sizeof(ancestor));
+    if( stat(ancestor, &ast) == 0 )
+        return files_equal(lane_path, ancestor);
+    return owned->creation_end > 0 && (long long)st->st_mtime < owned->creation_end;
+}
+
+/** 1 when the lane's entry `lane_path` is the base's own file `base_path`
+ *  under a second name, or a symbolic link (which shows the base's as it
+ *  is). 0: a hard link to a file the base has since replaced. */
+static int
+lane_link_is_live(
+    const char* lane_path,
+    const char* base_path)
+{
+#ifdef _WIN32
+    BY_HANDLE_FILE_INFORMATION info[2];
+    const char* const paths[2] = { lane_path, base_path };
+    DWORD const attrs = GetFileAttributesA(lane_path);
+
+    if( attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_REPARSE_POINT) )
+        return 1;
+    for( int i = 0; i < 2; i++ )
+    {
+        HANDLE const handle = CreateFileA(paths[i], FILE_READ_ATTRIBUTES,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+        int ok;
+
+        if( handle == INVALID_HANDLE_VALUE )
+            return 1; /* cannot say: left alone */
+        ok = GetFileInformationByHandle(handle, &info[i]) != 0;
+        CloseHandle(handle);
+        if( !ok )
+            return 1;
+    }
+    return info[0].dwVolumeSerialNumber == info[1].dwVolumeSerialNumber
+           && info[0].nFileIndexHigh == info[1].nFileIndexHigh && info[0].nFileIndexLow == info[1].nFileIndexLow;
+#else
+    (void)lane_path;
+    (void)base_path;
+    return 1;
+#endif
+}
+
 /** The real directory `dst` showing the base's directory `src` for `rel`:
  *  its entries linked (sparse_fill), or copied under a copied tree. */
 static int
@@ -2454,6 +2770,8 @@ struct change_sink
     struct ToriRSMapEdLaneCounts counts;
     /** When the lane last looked at each directory it made real (looks_read). */
     struct lanes_looks looks;
+    /** The files the lane wrote (owned_read). */
+    struct lanes_owned owned;
 };
 
 static void
@@ -2539,6 +2857,13 @@ changes_walk_lane(
         if( !S_ISREG(st.st_mode) )
             continue;
         snprintf(base_path, sizeof(base_path), "%s/%s", lane->base, sub_rel);
+        /* A file the lane never wrote is no change of the lane's: a link's
+         * file the base has since replaced or removed, or the copy the lane
+         * took of a file the base has since changed. The follow brings it
+         * up to date. */
+        if( rel_copied(sub_rel) ? lane_copy_untouched(lane, &sink->owned, sub_rel, path, &st)
+                                : lane_file_fell_behind(lane, &sink->looks, &sink->owned, rel, sub_rel, &st) )
+            continue;
         if( stat(base_path, &bst) != 0 )
             change_add(sink, TORIRSMAPED_LANE_CHANGE_ADDED, sub_rel, (uint32_t)st.st_size);
         else if( !files_equal(path, base_path) )
@@ -2650,9 +2975,11 @@ ToriRSMapEdLanes_Changes(
     if( lane->is_main || !lane->base[0] )
         return 0;
     looks_read(lane, &sink.looks);
+    owned_read(lane, &sink.owned);
     changes_walk_lane(lane, "", &sink);
     changes_walk_base(lane, "", &sink);
     looks_free(&sink.looks);
+    owned_free(&sink.owned);
     if( out && sink.count > 1 )
         qsort(out, (size_t)(sink.count < max ? sink.count : max), sizeof(*out), change_compare);
     if( counts )
@@ -2846,7 +3173,8 @@ ToriRSMapEdLanes_Publish(
         }
     }
     ToriMem_Free(ToriMem_Editor(), changes);
-    return 1;
+    /* A reset linked the source's files again: they are the base's now. */
+    return !reset || owned_prune(from, why, why_size);
 }
 
 int
@@ -2912,7 +3240,8 @@ ToriRSMapEdLanes_Discard(
         }
     }
     ToriMem_Free(ToriMem_Editor(), changes);
-    return 1;
+    /* The files linked again are the base's, not the lane's. */
+    return owned_prune(lane, why, why_size);
 }
 
 /* ---- following the base ------------------------------------------------------ */
@@ -2933,6 +3262,10 @@ struct follow_state
     size_t why_size;
     /** When the lane last looked at each directory it made real (looks_read). */
     struct lanes_looks looks;
+    /** The files the lane wrote, as the last follow left the list
+     *  (owned_read), and the list this follow is making of them. */
+    struct lanes_owned owned;
+    struct lanes_owned owned_now;
 };
 
 /** A copied file both sides have: take the base's when the lane never
@@ -2968,10 +3301,69 @@ follow_copied(
     }
     if( has_ancestor && files_equal(base_path, ancestor) )
         return 1; /* the lane's own edit */
+    /* No record of the copy, in a lane that was never followed: a copy dated
+     * within the lane's creation is the one the creation made, never
+     * written since. The base's is taken, and recorded this time. */
+    if( !has_ancestor && stat(lane_path, &st) == 0
+        && lane_copy_untouched(state->lane, &state->owned, rel, lane_path, &st) )
+    {
+        if( !lanes_make_writable(state->lane, rel, state->why, state->why_size)
+            || !copy_file(base_path, lane_path, state->why, state->why_size) || !mkdir_p_parent(ancestor)
+            || !copy_file(base_path, ancestor, state->why, state->why_size) )
+            return 0;
+        state->counts->written++;
+        return 1;
+    }
     if( state->conflicts++ == 0 )
         snprintf(state->why, state->why_size,
-            "%s changed in both the lane and its base%s; publish or discard the lane's copy", rel,
-            has_ancestor ? "" : " (or the lane has no record of the copy it took)");
+            "%s was changed in this lane AND in the main tree since the lane took it, and the two cannot be "
+            "merged. In the Lanes panel, Discard takes the main tree's copy and Publish keeps the lane's", rel);
+    return 1;
+}
+
+/** A file both sides have, the lane's a file of its own that differs from
+ *  the base's: the lane's edit stays (and goes on the list of what the lane
+ *  wrote); a link's file the base has since replaced is linked again.
+ *  Returns 0 on an IO error. */
+static int
+follow_real(
+    struct follow_state* state,
+    const char* dir_rel,
+    const char* rel,
+    const char* lane_path,
+    const char* base_path,
+    const struct stat* lst)
+{
+    if( files_equal(lane_path, base_path) )
+        return 1;
+    if( !lane_file_fell_behind(state->lane, &state->looks, &state->owned, dir_rel, rel, lst) )
+    {
+        owned_add(&state->owned_now, rel);
+        return 1;
+    }
+    if( !lanes_make_writable(state->lane, rel, state->why, state->why_size)
+        || !relink(lane_path, base_path, state->why, state->why_size) )
+        return 0;
+    state->counts->written++;
+    return 1;
+}
+
+/** A file both sides have, the lane's a hard link to a file the base has
+ *  since replaced (other lanes still hold the old one too, so it still reads
+ *  as a link): linked again. Returns 0 on an IO error. */
+static int
+follow_relink_stale(
+    struct follow_state* state,
+    const char* rel,
+    const char* lane_path,
+    const char* base_path)
+{
+    if( lane_link_is_live(lane_path, base_path) )
+        return 1;
+    if( !lanes_make_writable(state->lane, rel, state->why, state->why_size)
+        || !relink(lane_path, base_path, state->why, state->why_size) )
+        return 0;
+    state->counts->written++;
     return 1;
 }
 
@@ -3070,6 +3462,7 @@ follow_new(
 static int
 follow_gone(
     struct follow_state* state,
+    const char* dir_rel,
     const char* rel,
     const char* lane_path,
     const struct stat* lst)
@@ -3080,7 +3473,18 @@ follow_gone(
     ancestor_path(state->lane, rel, ancestor, sizeof(ancestor));
     if( !S_ISLNK(lst->st_mode)
         && !(rel_copied(rel) && S_ISREG(lst->st_mode) && stat(ancestor, &ast) == 0 && files_equal(lane_path, ancestor)) )
-        return 1;
+    {
+        /* A file of the lane's own. One it wrote stays, and goes on the
+         * list of what the lane wrote; a link's file that the base has
+         * since removed (the hard link kept it alive) goes with it. */
+        if( !S_ISREG(lst->st_mode) || rel_copied(rel) )
+            return 1;
+        if( !lane_file_fell_behind(state->lane, &state->looks, &state->owned, dir_rel, rel, lst) )
+        {
+            owned_add(&state->owned_now, rel);
+            return 1;
+        }
+    }
     /* A dangling directory link of a sparse lane goes the same way: unlink
      * removes the link's own name (lanes_unlink: RemoveDirectory of a
      * junction), never anything it pointed at. */
@@ -3163,7 +3567,7 @@ follow_walk(
             has_base = stat(base_path, &bst) == 0;
             has_lane = lstat(lane_path, &lst) == 0;
             if( pass == 1 )
-                ok = has_base || !has_lane || follow_gone(state, sub_rel, lane_path, &lst);
+                ok = has_base || !has_lane || follow_gone(state, rel, sub_rel, lane_path, &lst);
             else if( !has_base )
                 continue;
             else if( !has_lane )
@@ -3174,6 +3578,10 @@ follow_walk(
                 ok = follow_copied(state, sub_rel, lane_path, base_path);
             else if( S_ISREG(bst.st_mode) && S_ISLNK(lst.st_mode) && rel_copied(sub_rel) )
                 ok = follow_recopy(state, sub_rel, lane_path, base_path);
+            else if( S_ISREG(bst.st_mode) && S_ISREG(lst.st_mode) )
+                ok = follow_real(state, rel, sub_rel, lane_path, base_path, &lst);
+            else if( S_ISREG(bst.st_mode) && S_ISLNK(lst.st_mode) )
+                ok = follow_relink_stale(state, sub_rel, lane_path, base_path);
         }
         lanes_names_close(&names);
     }
@@ -3250,20 +3658,35 @@ ToriRSMapEdLanes_Follow(
     state.why = why;
     state.why_size = why_size;
     looks_read(lane, &state.looks);
+    owned_read(lane, &state.owned);
     if( !follow_walk(&state, "") )
     {
         looks_free(&state.looks);
+        owned_free(&state.owned);
+        owned_free(&state.owned_now);
         return 0;
     }
     looks_free(&state.looks);
+    owned_free(&state.owned);
     if( state.conflicts > 0 )
     {
         if( state.conflicts > 1 )
         {
             size_t const used = strlen(why);
-            snprintf(why + used, why_size - used, " (and %d more)", state.conflicts - 1);
+            snprintf(why + used, why_size - used, " (and %d more files)", state.conflicts - 1);
         }
+        owned_free(&state.owned_now);
         return 0;
+    }
+    /* The list of what the lane wrote FIRST, then the look moves: a file on
+     * it is the lane's whatever its time, and without it the files the lane
+     * wrote before this follow would read as fallen behind from here on. */
+    {
+        int const listed = owned_write(lane, &state.owned_now, why, why_size);
+
+        owned_free(&state.owned_now);
+        if( !listed )
+            return 0;
     }
     if( !lane_ini_set_followed(lane, started, why, why_size) )
         return 0;
