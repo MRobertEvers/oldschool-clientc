@@ -22,6 +22,7 @@ ranged 3, magic 4.
   python3 tools/check_boss_contract.py
 """
 
+import functools
 import os
 import re
 import sys
@@ -132,10 +133,16 @@ def wiki_styles(page):
     return out
 
 
+@functools.lru_cache(maxsize=None)
+def all_npc_text():
+    """configs/all.npc, filtered once: cache_hitpoints asks once per boss."""
+    return config_text.read_text(os.path.join(CONTENT, "configs", "all.npc"),
+                                 encoding="utf-8", errors="replace")
+
+
 def cache_hitpoints(record):
     """stat4 on the cache record — this tree's hitpoints slot."""
-    text = config_text.read_text(os.path.join(CONTENT, "configs", "all.npc"),
-                                 encoding="utf-8", errors="replace")
+    text = all_npc_text()
     match = re.search(r"\n\[%s\]\n(.*?)(?=\n\[|\Z)" % re.escape(record), text, re.S)
     if not match:
         return None

@@ -98,6 +98,7 @@ def load(content_dir):
 
 
 GRANTS = ("p_finduid", "p_findmutualfriend", "p_findvisibleplayer", "npc_findhero")
+GRANT = re.compile(r"\b(?:%s)\b" % "|".join(GRANTS))
 
 
 def granting_procs(bodies):
@@ -114,7 +115,7 @@ def granting_procs(bodies):
         changed = False
         for name in procs - granting:
             for _, _, line in bodies[("proc", name)]:
-                if any(re.search(r"\b%s\b" % g, line) for g in GRANTS) or \
+                if GRANT.search(line) or \
                         any(m.group(1) in granting for m in GOSUB.finditer(line)):
                     granting.add(name)
                     changed = True
@@ -137,7 +138,7 @@ def edges(body, granting=frozenset()):
     granted = False
     for path, lineno, line in body:
         before = granted
-        if any(re.search(r"\b%s\b" % g, line) for g in GRANTS):
+        if GRANT.search(line):
             granted = True
         for m in GOSUB.finditer(line):
             if m.group(1) in granting:
@@ -152,20 +153,29 @@ def edges(body, granting=frozenset()):
                 yield ("!", m.group(1)), path, lineno, granted
 
 
-def find_chains(bodies, start, granting=frozenset()):
+def find_chains(bodies, start, granting=frozenset(), memo=None):
     """{(suspend command, granted): shortest chain from `start` to it}.
 
     Walked over (script, granted) so an ungranted path to a suspend is found
     even when a granted path to the same proc was seen first.
+
+    `memo` keeps each body's edges across calls: they depend only on the body
+    and `granting`, both fixed for a run, and every start walks largely the
+    same procs.
     """
     from collections import deque
 
+    if memo is None:
+        memo = {}
     found = {}
     seen = {(start, False)}
     queue = deque([(start, False, [])])
     while queue:
         key, granted_in, chain = queue.popleft()
-        for target, path, lineno, granted_here in edges(bodies.get(key, []), granting):
+        body_edges = memo.get(key)
+        if body_edges is None:
+            body_edges = memo[key] = list(edges(bodies.get(key, []), granting))
+        for target, path, lineno, granted_here in body_edges:
             granted = granted_in or granted_here
             step = chain + [(key, target, path, lineno)]
             if target[0] == "!":
@@ -190,6 +200,7 @@ def main():
 
     bodies = load(args.content)
     granting = granting_procs(bodies)
+    memo = {}
     hits = []
     for key in sorted(bodies):
         kind, subject = key
@@ -197,7 +208,7 @@ def main():
             continue
         if args.only and args.only not in "[%s,%s]" % key:
             continue
-        chains = find_chains(bodies, key, granting)
+        chains = find_chains(bodies, key, granting, memo)
         ungranted = {cmd: chain for (cmd, granted), chain in chains.items() if not granted}
         granted = sorted({cmd for (cmd, g) in chains if g})
         if ungranted or (granted and args.all):

@@ -17,9 +17,11 @@ unfinished after a real completion, and the quest driver's quest.journal row
 overview did exactly that.
 
 The sweep is per script body: a [proc]/[label]/... that calls ~quest_journal(
-must contain the literal "QUEST COMPLETE!" somewhere in its body (a journal
+must contain the literal "QUEST COMPLETE" somewhere in its body (a journal
 that returns early per stage calls ~quest_journal once per branch; the banner
-lives in the done one). Journals that are not quest journals are listed in
+lives in the done one). No "!": that is the string the driver matches, and a
+journal transcribed from a recording carries Jagex's own banner, which has none
+(Shades of Mort'ton, RSProx index 4469 [453]). Journals that are not quest journals are listed in
 NOT_A_QUEST_JOURNAL with the reason.
 
 Exit status: 0 when every quest journal carries the banner, 1 otherwise.
@@ -35,7 +37,7 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPTS = os.path.join(REPO, "OSRS-Content", "osrs-content", "server", "scripts")
 
-BANNER = "QUEST COMPLETE!"
+BANNER = "QUEST COMPLETE"
 CALL = "~quest_journal("
 
 # (relative path, script header) -> why it is not a quest journal.
@@ -66,7 +68,8 @@ def sweep(scripts):
             if not name.endswith(".rs2"):
                 continue
             path = os.path.join(root, name)
-            rel = os.path.relpath(path, scripts)
+            # '/' on every host: NOT_A_QUEST_JOURNAL is keyed that way.
+            rel = os.path.relpath(path, scripts).replace(os.sep, "/")
             with open(path, encoding="utf-8", errors="replace") as handle:
                 source = handle.read()
             if CALL not in source:

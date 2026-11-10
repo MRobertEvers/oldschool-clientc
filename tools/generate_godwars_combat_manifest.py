@@ -248,12 +248,29 @@ def exact_bindings(trigger: str, text: str) -> Counter[str]:
     return Counter(re.findall(rf"\[{re.escape(trigger)},(godwars_[A-Za-z0-9_]+)]", text))
 
 
-def locate_binding(trigger: str, gameval: str, files: list[Path]) -> str:
-    needle = f"[{trigger},{gameval}]"
-    matches = [p for p in files if needle in p.read_text(errors="replace")]
+BINDING = re.compile(r"\[(ai_opplayer2|ai_queue3|ai_opnpc2),(godwars_[A-Za-z0-9_]+)]")
+
+
+def binding_files(sources: list[tuple[Path, str]]) -> dict[tuple[str, str], list[Path]]:
+    """(trigger, gameval) -> the files binding it, in one pass over the tree.
+
+    locate_binding is asked ~200 times; re-reading every script for each ask
+    was 44 s of every torirsserver-scripts build on Windows.
+    """
+    index: dict[tuple[str, str], list[Path]] = defaultdict(list)
+    for path, text in sources:
+        for key in set(BINDING.findall(text)):
+            index[key].append(path)
+    return index
+
+
+def locate_binding(trigger: str, gameval: str, index: dict[tuple[str, str], list[Path]]) -> str:
+    matches = index.get((trigger, gameval), [])
     if len(matches) != 1:
         raise ValueError(f"{gameval}: expected one {trigger} binding, found {len(matches)}")
-    return str(matches[0].relative_to(ROOT))
+    # as_posix: the checked-in CSV is the same on every host, so a Windows
+    # --check must not read it as stale for its separators.
+    return matches[0].relative_to(ROOT).as_posix()
 
 
 def attack_rows(gameval: str, params: dict[str, str], aligned_ambient: bool) -> list[dict[str, str]]:
@@ -354,8 +371,9 @@ def build_rows() -> list[dict[str, str]]:
         for name, entries in read_blocks(path).items():
             merge_block(params[name], param_keys[name], entries)
 
-    rs2_files = list(SCRIPTS.rglob("*.rs2"))
-    rs2_text = "\n".join(p.read_text(errors="replace") for p in rs2_files)
+    rs2_sources = [(p, p.read_text(errors="replace")) for p in SCRIPTS.rglob("*.rs2")]
+    rs2_text = "\n".join(text for _, text in rs2_sources)
+    rs2_bindings = binding_files(rs2_sources)
     attack_counts = exact_bindings("ai_opplayer2", rs2_text)
     death_counts = exact_bindings("ai_queue3", rs2_text)
     npc_attack_counts = exact_bindings("ai_opnpc2", rs2_text)
@@ -389,12 +407,12 @@ def build_rows() -> list[dict[str, str]]:
         if aligned_ambient and npc_attack_counts[gameval] != 1:
             raise ValueError(f"{gameval}: expected one exact ai_opnpc2 binding, got {npc_attack_counts[gameval]}")
 
-        attack_handler = locate_binding("ai_opplayer2", gameval, rs2_files)
-        drop_handler = locate_binding("ai_queue3", gameval, rs2_files)
+        attack_handler = locate_binding("ai_opplayer2", gameval, rs2_bindings)
+        drop_handler = locate_binding("ai_queue3", gameval, rs2_bindings)
         for attack in attack_rows(gameval, p, aligned_ambient):
             target_handler = attack_handler
             if attack["player_or_npc_target"] == "npc":
-                target_handler = locate_binding("ai_opnpc2", gameval, rs2_files)
+                target_handler = locate_binding("ai_opnpc2", gameval, rs2_bindings)
             row = {field: "" for field in FIELDS}
             row.update({
                 "npc_id": meta["id"], "gameval": gameval,
