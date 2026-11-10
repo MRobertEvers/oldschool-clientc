@@ -485,6 +485,57 @@ def _prepare(plan, skip_checks, force):
     return ok
 
 
+def _stop_what_the_build_rewrites(plan):
+    """Stop the processes running a server binary this run is about to relink.
+
+    A running .exe cannot be replaced on Windows, so a lane server the map
+    editor started on the last run made this run's build fail at the link
+    ("cannot open output file ...torirsserver.exe: Permission denied") and
+    the run end there. It is stopped instead, and started again by whatever
+    starts it: the editor's RUN launches a lane that is down, and a service
+    of this profile's starts below. (Not restarted from here: the editor
+    hands a lane server its content, cache and saves through the environment,
+    which no other process can read back.)
+
+    The client is the exception. One still open from an earlier run may hold
+    unsaved edits, so it is named and the run stops: close it and run again.
+
+    Returns True when the build may go ahead.
+    """
+    targets = list(plan.profile.prebuild)
+    targets += [service.build_target for service in plan.services if service.build_target]
+    files = []
+    for target in targets:
+        for output in services_mod.target_outputs(target):
+            built = services_mod.built_binary(REPO_ROOT, output)
+            if built and built not in files:
+                files.append(built)
+
+    if plan.target and plan.binary:
+        client = services_mod.built_binary(REPO_ROOT, plan.binary.lstrip("./"))
+        held = supervisor.image_holders([client]) if client else []
+        if held:
+            say("%s is still open from an earlier run (pid %s): close it first --"
+                % (os.path.relpath(client, REPO_ROOT), ", ".join(str(pid) for pid, _ in held)))
+            say("  it may hold unsaved edits, so it is not closed from here; or run"
+                " this one with --no-build")
+            return False
+
+    stopped = []
+    for pid, path in supervisor.image_holders(files):
+        say("stopping pid %d to rebuild %s" % (pid, os.path.relpath(path, REPO_ROOT)))
+        supervisor.stop_pid(pid)
+        stopped.append((pid, path))
+    still = [(pid, path) for pid, path in stopped if supervisor.pid_alive(pid)]
+    if still:
+        say("could not stop: %s"
+            % ", ".join("pid %d (%s)" % (pid, os.path.relpath(path, REPO_ROOT)) for pid, path in still))
+        return False
+    if stopped and plan.profile.is_editor:
+        say("the editor's RUN starts its lane servers again on the new build")
+    return True
+
+
 def _ensure_services_built(plan, no_build):
     for service in plan.services:
         if not service.build_target:
@@ -570,40 +621,23 @@ def _dying_is_an_exception():
 
 
 def _resolve_running_services(profile, live, args):
-    """This profile's services are already up. Restart them, or stop here.
+    """This profile's services are already up: stop them, so they start again.
 
-    Re-running a profile that is already running is the ordinary way to pick up
-    a change, so the answer is nearly always "restart" -- which is why this
-    asks instead of refusing. It refuses only where it cannot ask: a
-    non-interactive run (CI, a script, a pipe) must not block on a prompt, and
-    must not quietly kill a process the caller did not mention either, so there
-    it keeps the old behaviour and names the flag that says yes in advance.
+    Running a profile again is how a change is picked up, so it restarts what
+    the last run left running, without asking (the owner's call, 2026-11-10:
+    it used to ask, and refuse with no terminal to ask on). `--keep-running`
+    is the run that would rather stop here than restart anything.
 
     Returns True when the caller may proceed.
     """
     listing = ", ".join("%s(pid %s)" %
                         (row["name"], row["pid"]) for row in live)
-    say("this profile already has services running: %s" % listing)
-
-    if args.restart:
-        answer = "y"
-    elif not _stdin_is_interactive():
-        say("stop them first:  ./launch stop %s" % profile.name)
-        say("or pass --restart to stop and start them in one step")
+    if args.keep_running:
+        say("this profile already has services running: %s" % listing)
+        say("--keep-running: left as they are; stop them with  ./launch stop %s"
+            % profile.name)
         return False
-    else:
-        try:
-            answer = input(
-                "launch: stop them and start again? [Y/n] ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            # A Ctrl-C or a closed stdin at the prompt is "no", and the run has
-            # started nothing yet, so there is nothing to unwind.
-            print("")
-            return False
-
-    if answer not in ("", "y", "yes"):
-        say("left running:  ./launch stop %s" % profile.name)
-        return False
+    say("restarting what the last run left running: %s" % listing)
 
     for service_name, outcome in supervisor.stop_run_now(REPO_ROOT, profile.name):
         say("  %-14s %s" % (service_name, outcome))
@@ -618,13 +652,6 @@ def _resolve_running_services(profile, live, args):
             % ", ".join("%s(pid %s)" % (row["name"], row["pid"]) for row in still))
         return False
     return True
-
-
-def _stdin_is_interactive():
-    try:
-        return sys.stdin is not None and sys.stdin.isatty()
-    except (AttributeError, ValueError):
-        return False
 
 
 def cmd_run(args):
@@ -683,6 +710,9 @@ def _run_plan(plan, args):
         # The delegate started nothing of ours and stops its own services, so
         # there is nothing here to take down.
         return subprocess.run(argv, cwd=REPO_ROOT, env=env).returncode, True
+
+    if not args.no_build and not _stop_what_the_build_rewrites(plan):
+        return 1, False
 
     if not args.no_build:
         for target in profile.prebuild:
@@ -1181,9 +1211,14 @@ def main(argv=None):
                      help="start the services and stop there")
     run.add_argument("--detach", action="store_true",
                      help="leave services running after this command exits")
+    # A run again restarts what the last one left running (the default since
+    # 2026-11-10); --restart is kept so a script that passes it still runs.
     run.add_argument("--restart", action="store_true",
+                     help="(the default) stop this profile's running services "
+                          "and start them again")
+    run.add_argument("--keep-running", action="store_true",
                      help="if this profile's services are already running, "
-                          "stop them and start again without asking")
+                          "leave them and stop here instead of restarting")
     run.add_argument("--no-open", action="store_true",
                      help="print the URL instead of opening a browser")
     run.add_argument("--set", action="append", default=[],

@@ -8,10 +8,13 @@ answered by pattern-matching the process table, and stopping a run means
 server binaries are deliberately named dev_torirsserver / alt_torirsserver so
 that a `pkill -f torirsserver` aimed at one of them does not take the others
 with it. A launcher that kills by pattern would reintroduce exactly that bug,
-so this one only ever signals pids it started — with one exception, by port
-rather than by name: a process listening on a port the run is about to bind
-(free_port). That port belongs to the profile, and whatever holds it is a
-leftover that would otherwise fail the start as "port already in use".
+so this one only ever signals pids it started — with two exceptions, neither
+by name: a process listening on a port the run is about to bind (free_port),
+and a process whose executable IS a file the run is about to relink
+(image_holders). The port belongs to the profile, the file to the build, and
+whatever holds either is a leftover that would otherwise fail the run as "port
+already in use" or as a linker's "Permission denied". Matched by full path,
+so a dev_torirsserver -- another file -- is never one of them.
 """
 
 import contextlib
@@ -203,6 +206,78 @@ def port_holders(port):
             pids.add(int(fields[0]))
     pids.discard(os.getpid())
     return sorted(pids)
+
+
+def _win_process_images():
+    """(pid, full executable path) of every process this user can query."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel32.QueryFullProcessImageNameW.argtypes = (
+        wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD))
+    kernel32.K32EnumProcesses.argtypes = (
+        ctypes.POINTER(wintypes.DWORD), wintypes.DWORD, ctypes.POINTER(wintypes.DWORD))
+
+    capacity = 4096
+    while True:
+        pids = (wintypes.DWORD * capacity)()
+        used = wintypes.DWORD()
+        if not kernel32.K32EnumProcesses(pids, ctypes.sizeof(pids), ctypes.byref(used)):
+            return []
+        if used.value < ctypes.sizeof(pids):
+            break
+        capacity *= 2
+    images = []
+    path = ctypes.create_unicode_buffer(32768)
+    for pid in pids[:used.value // ctypes.sizeof(wintypes.DWORD)]:
+        if not pid:
+            continue
+        handle = kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            continue
+        try:
+            size = wintypes.DWORD(len(path))
+            if kernel32.QueryFullProcessImageNameW(handle, 0, path, ctypes.byref(size)):
+                images.append((int(pid), path.value))
+        finally:
+            kernel32.CloseHandle(handle)
+    return images
+
+
+def image_holders(paths):
+    """[(pid, path)] of the processes running one of these files.
+
+    `paths` are files on disk (a makefile path that may want an .exe is the
+    caller's to resolve: services.built_binary). Exact paths only, never a
+    name -- see the module comment. Not this process.
+    """
+    wanted = {}
+    for path in paths:
+        if path and os.path.isfile(path):
+            wanted[os.path.normcase(os.path.abspath(path))] = path
+    if not wanted:
+        return []
+    holders = []
+    if IS_WINDOWS:
+        for pid, image in _win_process_images():
+            key = os.path.normcase(os.path.abspath(image))
+            if key in wanted and pid != os.getpid():
+                holders.append((pid, wanted[key]))
+        return holders
+    for key, path in wanted.items():
+        try:
+            out = subprocess.run(["lsof", "-t", path], stdout=subprocess.PIPE,
+                                 stderr=subprocess.DEVNULL, check=False).stdout
+        except OSError:
+            return holders
+        for line in out.decode("utf-8", errors="replace").split():
+            if line.isdigit() and int(line) != os.getpid():
+                holders.append((int(line), path))
+    return holders
 
 
 def process_command(pid):

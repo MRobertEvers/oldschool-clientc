@@ -121,3 +121,52 @@ class CompletionScriptsTest(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertEqual("", out.getvalue())
         self.assertIn("no completion script for 'cmd'", err.getvalue())
+
+
+class RunAgainTest(unittest.TestCase):
+    """Running a profile again restarts it (2026-11-10)."""
+
+    def test_a_process_running_a_file_is_found_by_its_full_path(self):
+        import subprocess
+        import sys
+        from . import supervisor
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+        try:
+            found = [pid for pid, _ in supervisor.image_holders([sys.executable])]
+            if not found and not supervisor.IS_WINDOWS:
+                self.skipTest("lsof is not on this host")
+            self.assertIn(child.pid, found)
+            self.assertNotIn(os.getpid(), found)
+            self.assertTrue(supervisor.stop_pid(child.pid))
+            self.assertNotIn(child.pid, [pid for pid, _ in supervisor.image_holders([sys.executable])])
+        finally:
+            if child.poll() is None:
+                child.kill()
+            child.wait()
+
+    def test_a_file_that_is_not_there_has_no_holders(self):
+        from . import supervisor
+        self.assertEqual([], supervisor.image_holders([os.path.join(cli.REPO_ROOT, "no", "such.exe")]))
+
+    def test_the_server_targets_name_this_hosts_objdir(self):
+        from . import services
+        objdir = "build_win64_opt" if os.name == "nt" else "build_opt"
+        self.assertEqual(["src/%s/torirsserver" % objdir], services.target_outputs("torirsserver"))
+        self.assertEqual(["src/%s/js5_server" % objdir], services.target_outputs("js5-server"))
+        self.assertEqual([], services.target_outputs("win64"))
+
+    def test_running_services_are_restarted_without_a_prompt(self):
+        profile = mock.Mock()
+        profile.name = "test"
+        args = mock.Mock(keep_running=False)
+        with mock.patch.object(cli.supervisor, "stop_run_now", return_value=[("torirsserver", "stopped")]) as stop,                 mock.patch.object(cli.supervisor, "run_status", return_value={"services": []}),                 mock.patch("builtins.input", side_effect=AssertionError("asked")):
+            self.assertTrue(cli._resolve_running_services(profile, [{"name": "torirsserver", "pid": 1}], args))
+        stop.assert_called_once()
+
+    def test_keep_running_leaves_them_and_stops_the_run(self):
+        profile = mock.Mock()
+        profile.name = "test"
+        args = mock.Mock(keep_running=True)
+        with mock.patch.object(cli.supervisor, "stop_run_now") as stop:
+            self.assertFalse(cli._resolve_running_services(profile, [{"name": "torirsserver", "pid": 1}], args))
+        stop.assert_not_called()

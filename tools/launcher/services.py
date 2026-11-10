@@ -36,6 +36,48 @@ DEFAULT_MAPED_PORT = "43610"
 SERVER_OBJDIR = "build_opt"
 IO_SERVER_OBJDIR = "build"
 
+
+def server_objdir():
+    """The objdir the native servers are linked into on THIS host.
+
+    build_opt is the macOS and Linux one (OPT=1 over PLATFORM_OBJ_BASE=build).
+    On Windows `native` is win64 (src/platform/platform.mk), so the servers
+    land in build_win64_opt -- and a build_opt path there names a file that
+    never exists.
+    """
+    return "build_win64_opt" if os.name == "nt" else SERVER_OBJDIR
+
+
+# The makefile targets that link a server binary, and the binary's name in the
+# objdir. What a run is about to rewrite, so it can stop whatever is running it
+# first (a running .exe cannot be replaced on Windows).
+_TARGET_BINARY = {
+    "torirsserver": "torirsserver",
+    "js5-server": "js5_server",
+    "torirsmaped": "torirsmaped",
+}
+
+
+def target_outputs(target):
+    """The binaries a build of makefile target `target` links, as makefile
+    paths (no .exe). Empty for a target that links no server binary."""
+    if target == "io-server":
+        return ["src/%s/io_server" % IO_SERVER_OBJDIR]
+    name = _TARGET_BINARY.get(target)
+    if not name:
+        return []
+    return ["src/%s/%s" % (server_objdir(), name)]
+
+
+def _server_candidates(name):
+    """This host's objdir first, then the others a binary has been in."""
+    out = []
+    for objdir in (server_objdir(), SERVER_OBJDIR, "build"):
+        path = "src/%s/%s" % (objdir, name)
+        if path not in out:
+            out.append(path)
+    return tuple(out)
+
 SERVICE_NAMES = (
     "torirsserver", "io_server", "js5_server", "javconfig", "torirsmaped")
 
@@ -110,10 +152,7 @@ def _first_existing(repo_root, candidates):
 
 # ------------------------------------------------------------- builders
 def _build_torirsserver(config, context):
-    candidates = (
-        "src/%s/torirsserver" % SERVER_OBJDIR,
-        "src/build/torirsserver",
-    )
+    candidates = _server_candidates("torirsserver")
     binary = _first_existing(context["repo_root"], candidates)
     port = config.get("port") or _default_game_port(context)
     argv = ["./" + binary, str(port)]
@@ -188,10 +227,7 @@ def _build_io_server(config, context):
 
 
 def _build_js5_server(config, context):
-    candidates = (
-        "src/%s/js5_server" % SERVER_OBJDIR,
-        "src/build/js5_server",
-    )
+    candidates = _server_candidates("js5_server")
     binary = _first_existing(context["repo_root"], candidates)
     port = config.get("port") or DEFAULT_JS5_PORT
     cache = config.get("cache") or context["manifest"].cache_dir
@@ -237,10 +273,7 @@ def _build_javconfig(config, context):
 
 def _build_torirsmaped(config, context):
     manifest = context["manifest"]
-    candidates = (
-        "src/%s/torirsmaped" % SERVER_OBJDIR,
-        "src/build/torirsmaped",
-    )
+    candidates = _server_candidates("torirsmaped")
     binary = _first_existing(context["repo_root"], candidates)
     port = config.get("port") or manifest.editor_port or DEFAULT_MAPED_PORT
     content = (config.get("content_dir") or manifest.editor_content_dir
