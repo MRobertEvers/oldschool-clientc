@@ -2107,8 +2107,9 @@ ScriptrunCore_Control(
 {
     struct TorirsControlFrame frame;
     FILE* f = core_wirelog_file();
-    int index;
-    int count;
+    int index = -1;
+    int count = 0;
+    int decoded;
 
     assert(core);
     assert(len >= 0);
@@ -2119,8 +2120,13 @@ ScriptrunCore_Control(
     frame.type = type;
     frame.length = len;
     frame.payload = (uint8_t*)payload;
-    /* The server wrote it, so it decodes. */
-    assert(torirs_control_invalidate_decode(&frame, &index, &count));
+    /* The server wrote it, so it decodes. The call is OUTSIDE the assert: it
+     * was the assert's expression, so NDEBUG -- every release build -- never
+     * decoded the frame, and the test below read an uninitialised index and
+     * count. */
+    decoded = torirs_control_invalidate_decode(&frame, &index, &count);
+    assert(decoded);
+    (void)decoded;
     /* The live reload rewrote these archives. The bot's loc configs are
      * decoded from the server's own records (ToriRSServer_SceneLocConfigDecode),
      * which the reload has already replaced; the config group 2/6 row is the

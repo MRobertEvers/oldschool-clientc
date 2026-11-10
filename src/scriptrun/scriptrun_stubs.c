@@ -7,23 +7,64 @@
  *
  * Standalone server only (SCRIPTRUN_SRCS); the client links the real ones.
  */
+#include "engine/world_builder/heightmap.h"
+#include "engine/world_builder/minimap.h"
+#include "painters/painters.h"
+#include "ui/uitree.h"
+
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define SCRIPTRUN_STUB(name)                                                                       \
-    void name(void);                                                                               \
-    void name(void)                                                                                \
-    {                                                                                              \
-        fprintf(stderr, "scriptrun: the scene-less world reached %s\n", #name);                    \
-        abort();                                                                                   \
-    }
+/* Each stand-in is declared by the real header and defined with the real
+ * signature: they were all `void name(void)` once, which the link accepted
+ * and LTO reported as five type mismatches. A signature that changes now
+ * stops the compile here. */
+static _Noreturn void
+scriptrun_stub_reached(const char* name)
+{
+    fprintf(stderr, "scriptrun: the scene-less world reached %s\n", name);
+    abort();
+}
+
+/* ui/uitree_if_events.c's two tree lookups (Effective, ButtonTarget); the
+ * bot keeps the table and reads it with Lookup alone. */
+int32_t
+UITree_FindByComponentId(
+    struct UITree const* tree,
+    int component_id)
+{
+    (void)tree;
+    (void)component_id;
+    scriptrun_stub_reached("UITree_FindByComponentId");
+}
 
 /* world/world.c World_Free calls these only for a non-NULL member, and a
  * scene-less World never sets one. */
-/* ui/uitree_if_events.c's two tree lookups (Effective, ButtonTarget); the
- * bot keeps the table and reads it with Lookup alone. */
-SCRIPTRUN_STUB(UITree_FindByComponentId)
-SCRIPTRUN_STUB(heightmap_free)
-SCRIPTRUN_STUB(minimap_free)
-SCRIPTRUN_STUB(painter_free)
-SCRIPTRUN_STUB(painters_cullmap_free)
+void
+heightmap_free(struct Heightmap* heightmap)
+{
+    (void)heightmap;
+    scriptrun_stub_reached("heightmap_free");
+}
+
+void
+minimap_free(struct Minimap* minimap)
+{
+    (void)minimap;
+    scriptrun_stub_reached("minimap_free");
+}
+
+void
+painter_free(struct Painter* painter)
+{
+    (void)painter;
+    scriptrun_stub_reached("painter_free");
+}
+
+void
+painters_cullmap_free(struct PaintersCullMap* cm)
+{
+    (void)cm;
+    scriptrun_stub_reached("painters_cullmap_free");
+}

@@ -922,6 +922,12 @@ ToriRSServer_MapInstanceSourceBounds(
     assert(out_z0);
     assert(out_x1);
     assert(out_z1);
+    /* An empty box (x1 < x0) until a set zone widens it, so a caller that
+     * reads the bounds after a 0 reads "nothing", never the stack. */
+    *out_x0 = 0;
+    *out_z0 = 0;
+    *out_x1 = -1;
+    *out_z1 = -1;
     if( !inst )
         return 0;
     for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )

@@ -73,7 +73,7 @@ ToriRSServer_ServPackFresh(
     const char* content_dir)
 {
     struct RSCache_ServerPackStamp stamp;
-    const char* lanes[RSCACHE_SERVERPACK_STAMP_LANES];
+    const char* lanes[RSCACHE_SERVERPACK_STAMP_LANES] = { 0 };
     const char* allow = getenv("TORIRSSERVER_ALLOW_STALE_PACK");
 
     assert(pack_dir);
@@ -86,6 +86,9 @@ ToriRSServer_ServPackFresh(
                 pack_dir, TORIRSSERVER_SERVPACK_FIX);
         return allow && allow[0] == '1';
     }
+    /* RSCache_ServerPackStampRead stops at the table's size. */
+    assert(stamp.lane_count >= 0);
+    assert(stamp.lane_count <= RSCACHE_SERVERPACK_STAMP_LANES);
     for( int l = 0; l < stamp.lane_count; l++ )
         lanes[l] = stamp.lanes[l];
     if( RSCache_ServerPackFingerprint(content_dir, lanes, stamp.lane_count) == stamp.fingerprint )

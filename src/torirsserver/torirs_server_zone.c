@@ -595,6 +595,9 @@ ToriRSServer_ZoneEventLast(
     int found = 0;
 
     assert(out);
+    /* Zeroed when nothing matches, so a caller that reads it after a 0 reads
+     * zeros, never the stack. */
+    memset(out, 0, sizeof(*out));
     if( !map )
         return 0;
     for( int i = 0; i < map->dirty_count; i++ )

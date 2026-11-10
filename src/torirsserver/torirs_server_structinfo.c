@@ -83,14 +83,9 @@ ToriRSServer_StructInfoParamCount(void)
 int
 ToriRSServer_StructInfoLoad(struct RSCache_ServerPack* pack)
 {
-    struct RSCache profile = RSCache_ProfileZero();
     struct ToriRSServerKindRecords records;
 
     ToriRSServer_StructInfoFree();
-
-    profile.game = RSCACHE_GAME_OLDSCHOOL;
-    profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = TORIRSSERVER_CACHE_REVISION;
 
     /* The server pack's client records: the merge of the tree, encoded by the
      * codec this decoder reads. */

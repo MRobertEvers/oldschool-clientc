@@ -124,6 +124,8 @@ ToriRSServer_HelperWantedFor(
     assert(srv);
     assert(player);
     assert(out_arg);
+    /* Asserted only: NDEBUG drops the one use. */
+    (void)srv;
 
     *out_arg = 0;
 

@@ -805,6 +805,9 @@ ToriRSServer_NpcLootRestrictedFor(
     assert(srv);
     assert(npc);
     assert(player);
+    /* The world is not consulted: the restriction is the npc's damage list
+     * and the player's varbit. srv is asserted only, so NDEBUG drops it. */
+    (void)srv;
 
     if( !ids || ids->varbit_ironman < 0 )
         return 0;

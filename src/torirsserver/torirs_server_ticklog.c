@@ -1180,6 +1180,8 @@ ticklog_raider_row(
     assert(player);
     assert(player->pid >= 0);
     assert(player->pid < TORIRSSERVER_PLAYER_MAX);
+    /* Asserted only: NDEBUG drops the one use. */
+    (void)srv;
     if( player->interaction.kind == TORIRSSERVER_INTERACT_NPC )
         target = player->interaction.npc_slot;
     input = player->last_input_tick != g_ticklog.input_seen[player->pid];
