@@ -34,6 +34,7 @@
 #include "game/rs_clan.h"
 #include "game/rs_social.h"
 #include "inv/inv_manager.h"
+#include "toridraw_font.h"
 #include "ui/uitree.h"
 
 #include <assert.h>
@@ -710,9 +711,55 @@ test_clan_reads(void)
     fixture_free(&fx);
 }
 
+/*
+ * 3119 / 3228 / 3229 / 8520: which handler the host's dispatch reaches.
+ *
+ * The client-state commands share one long run of `case` labels in
+ * rs_cs2_host_exec_dispatch, and the group commands were once set down inside
+ * it with their own `return`: every label above them -- mes_typed through
+ * translations_clear -- was answered by group_getvar, which under NDEBUG
+ * pushes an int and does nothing else. translations_set therefore filled no
+ * table, and chat printed "music track: @mes_hl_red@Dream" (2026-11-09).
+ */
+static void
+test_client_state_dispatch(void)
+{
+    struct Fixture fx;
+    char const line[] = "@mes_hl_red@Dream";
+    int const line_len = (int)sizeof(line) - 1;
+    int64_t group = 0;
+    printf("3119/3228/3229/8520 client-state and group commands reach their own handlers\n");
+
+    fixture_init(&fx);
+    CHECK(ToriDraw_FontMarkupTokenLength(line, line_len, 0, NULL) == 0, "with no table, @mes_hl_red@ is text");
+
+    struct Step const set[] = { STR("mes_hl_red"), STR("<col=ff3045>"), OP(CS2_OP_TRANSLATIONS_SET) };
+    CHECK(run(&fx, set, 3) == CS2VM_EXECNO_DONE, "translations_set runs");
+    CHECK(fx.thread->ints_stack_top == 0 && fx.thread->strs_stack_top == 0, "taking two strings and pushing nothing");
+    CHECK(ToriDraw_FontMarkupTokenLength(line, line_len, 0, NULL) == 12, "and @mes_hl_red@ is now a token");
+
+    struct Step const hide[] = { INT(0), OP(CS2_OP_RENDERSELF) };
+    CHECK(fx.host.client.render_self, "the local player draws by default");
+    CHECK(run(&fx, hide, 2) == CS2VM_EXECNO_DONE, "renderself(false) runs");
+    CHECK(fx.thread->ints_stack_top == 0, "taking its boolean and pushing nothing");
+    CHECK(!fx.host.client.render_self, "and the local player no longer draws");
+
+    struct Step const clear[] = { OP(CS2_OP_TRANSLATIONS_CLEAR) };
+    CHECK(run(&fx, clear, 1) == CS2VM_EXECNO_DONE, "translations_clear runs");
+    CHECK(fx.thread->ints_stack_top == 0, "pushing nothing");
+    CHECK(ToriDraw_FontMarkupTokenLength(line, line_len, 0, NULL) == 0, "and the table is empty again");
+
+    struct Step const get[] = { INT(0), OP(CS2_OP_GROUP_GET) };
+    CHECK(run(&fx, get, 2) == CS2VM_EXECNO_DONE, "group_get runs");
+    CHECK(CS2VM2_PopLong(fx.thread, &group) == CS2VM_EXECNO_OK && group == -1, "an empty slot is group -1");
+    CHECK(fx.thread->ints_stack_top == 0, "and nothing else is left");
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
+    test_client_state_dispatch();
     test_find_param();
     test_query_refine();
     test_parent_layer();

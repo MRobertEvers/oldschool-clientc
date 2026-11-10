@@ -10987,12 +10987,6 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_RT7_GETENABLED:
     case CS2VM_HOST_REQUEST_TRANSLATIONS_SET:
     case CS2VM_HOST_REQUEST_TRANSLATIONS_CLEAR:
-    case CS2VM_HOST_REQUEST_GROUP_CHECK:
-    case CS2VM_HOST_REQUEST_GROUP_GET:
-    case CS2VM_HOST_REQUEST_GROUP_GETINDEX:
-    case CS2VM_HOST_REQUEST_GROUP_GETVAR:
-    case CS2VM_HOST_REQUEST_GROUP_GETVAR_SCOPED:
-        return RS_CS2Host_ExecGroupOp(host, vm, request);
     case CS2VM_HOST_REQUEST_REBOOTTIMER:
     case CS2VM_HOST_REQUEST_OBJ_ISUNLOCKED:
     case CS2VM_HOST_REQUEST_OBJ_UNLOCKCOUNT:
@@ -11018,6 +11012,19 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_PLATFORMTYPE:
     case CS2VM_HOST_REQUEST_CLIENT_VERSION:
         return RS_CS2Host_ExecClientOp(host, vm, (struct CS2VM_HostSignatureArgs const*)&request->u);
+
+    /* The group commands. Their own run of labels, AFTER the list above: a
+     * `return` set down inside that list takes every label over it with it
+     * (2026-11-08 to 11-09: mes_typed through translations_clear, 66 commands,
+     * answered as group_getvar -- under NDEBUG a stray int pushed and nothing
+     * done, so the `@key@` table stayed empty and chat printed
+     * "@mes_hl_red@Dream"). */
+    case CS2VM_HOST_REQUEST_GROUP_CHECK:
+    case CS2VM_HOST_REQUEST_GROUP_GET:
+    case CS2VM_HOST_REQUEST_GROUP_GETINDEX:
+    case CS2VM_HOST_REQUEST_GROUP_GETVAR:
+    case CS2VM_HOST_REQUEST_GROUP_GETVAR_SCOPED:
+        return RS_CS2Host_ExecGroupOp(host, vm, request);
 
     case CS2VM_HOST_REQUEST_SETFEEDBACKSPRITE:
         return exec_set_feedback_sprite(host, vm, request);
