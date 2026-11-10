@@ -1,0 +1,997 @@
+[[File:Fighting Yama.png|thumb|300px|A pair of players take on Yama, the Master of Pacts.]]
+After the completion of [[A Kingdom Divided]], players can fight [[Yama]] once they speak to him in person. In order to challenge Yama, players must first speak to the [[Voice of Yama]] at the bottom of the [[Chasm of Fire]] to reach [[Yama's Domain]], then agree to sign a contract to face him in an inhibited form.
+
+Yama can be fought solo or with another player. His stats are not affected by group size, but some mechanics can be made easier and the fight will progress much faster with another player.
+
+Unlike other bosses, players who die fighting Yama are sent back to the [[Voice of Yama]] instead of their [[respawn point]], where their graves are also located. Players will have their reclamation fee reduced by 75% until they have ten kills, after which the standard death cost will apply.
+
+==Requirements==
+* Completion of {{SCP|Quest}} [[A Kingdom Divided]]
+
+===Recommendations===
+* {{SCP|Magic|82+}} for [[Dark Demonbane]]
+* {{SCP|Attack|80+}}
+* {{SCP|Strength|80+}}
+* {{SCP|Defence|75+}}
+* {{SCP|Prayer|70+}} for [[Piety]] (if using melee), {{SCP|Prayer|77+}} for [[Augury]] (if using magic); if not, {{SCP|Prayer|63+}} for [[Mystic Vigour|Mystic Vigor]] is fine as the kill times are extremely similar (second/s of difference)
+* Completion of {{SCP|Quest}} [[While Guthix Sleeps]] for access to the [[Emberlight]] and [[purging staff]]
+* At least one player with a [[purging staff]] to quickly destroy [[void flare]]s
+* {{SCP|agility|73+, 83+}} for shortcuts in the Chasm of Fire
+
+==Transportation==
+There are several ways to access the Chasm of Fire:
+* The [[chasm teleport scroll]] brings players in front of the Voice of Yama.
+* The [[fairy ring]] code {{Fairycode|DJR}} is south-east of the Chasm.
+* Casting [[Battlefront Teleport]] will take players north-west of the Chasm.
+
+Players with level 73 [[Agility]] can run north to the platform edge (marked by a [[File:Agility shortcut icon.png|link=]] icon) and hang-down to instantly reach the middle level, jumping over the two gaps directly east, and finally using the north-eastern gibbet to reach the bottom level. Alternatively, with level 83 Agility, players can slide down the chain next to them after entering the Chasm to instantly reach the bottom level near the [[Voice of Yama]]. [[Protect from Melee]] is highly advised regardless of the route taken, as players will pass by several aggressive demons. Though this is less of a case with the level 83 shortcut, it is still recommended to avoid unnecessary damage from a black demon if it is idling by the shortcut.
+
+The Voice of Yama will take you to [[Yama's Domain]] via the right-click "Travel" option; for players joining their duo partner, they must use the "Join" option and enter their partner's username.
+
+==Fight overview==
+The fight with Yama begins when a player uses the "Challenge" option. Yama will then disappear from his throne and reappear in the arena in a much larger form. He will randomly target a player and begin attacking; in duo encounters, he can also periodically change targets. He will usually accompany the aggression change with a quote. Unlike other [[Demon (attribute)|demons]], he has 120% demonbane vulnerability instead of the normal 100%, meaning that Emberlight has 84% increased damage and accuracy against him rather than 70%.
+
+Yama has a unique combat behaviour in which he will adjust his combat stance depending on what he was recently attacked with. If his primary target last attacked him with melee, Yama will act like most normal NPCs would, chasing after them until he gets in melee distance. If he cannot attack with melee due to his target being away from him, he will attack with ranged and magic until he closes the distance. If his primary target last attacked him with magic, Yama will stay still and attack with ranged or magic (depending on the special attack in line) and will only use melee if the target is next to him. If his primary target attacks him with magic, his magic defence will significantly increase from -30 to +60.
+
+Yama's basic attacks cover all three combat styles, all of which can hit up to 46 without prayer:
+* '''Melee''' - Yama swings his axe at his target. This is only used if the target is adjacent to him, and will hit everyone within three tiles of his main target. Activating [[Protect from Melee]] before the attack is used will block a majority of the damage, reducing its max hit to 6.
+* '''Magic''' - Flames begin to envelop the player, after which Yama will snap his fingers to deal damage. Activating [[Protect from Magic]] before his fingers snap will fully protect the player.
+* '''Ranged''' - Shadowy swirls begin to engulf the player, after which Yama will snap his fingers to deal damage. Activating [[Protect from Missiles]] before his fingers snap will fully protect the player.
+
+Yama can also [[poison]] the player starting at 20 poison damage, and this will deal significant damage if not cured. Curing poison at Yama is primarily done through [[sanfew serum]]s, as these also restore prayer. If resupplying with alt accounts, [[araxyte venom sac]]s are preferred as these are stackable at the cost of taking 4 damage per sac when used.
+
+Additionally, Yama's Defence level can only be reduced by 80 (from 225 down to 145). The closest option to reach this cap is one [[elder maul]] special, which reduces his Defence to 147. Using the maul will require a partner with the [[soulflame horn]], as Yama's higher crush defence makes the maul unlikely to land. If soloing or neither player has a soulflame horn, [[emberlight]] is recommended, with three specials reducing his Defence to 145. A [[bandos godsword]] is the last option as this requires both hits to average at least a 40, while emberlight simply requires damage to be dealt and additionally drains both his Attack and Strength.
+
+If using magic, an [[accursed sceptre]]'s special attack will drain Yama's Defence level by 34 (from 225 to 191) and Magic level by 38 (from 250 to 212). This will slightly improve accuracy with magic, and is the only way to consistently drain his Magic level, since any damage from a special attack will drain the maximum amount, something which a [[seercull]] is unable to match. An [[Eye of Ayak]] can also be used to drain Yama's magic defence and should be used in conjunction with the sceptre to make him easier to hit, since Yama has +60 magic defence if maging, or +81 in phase 3. When applying the sceptre's debuff, make sure to have Yama in his melee stance so his magic defence is significantly reduced.
+
+Yama restores 1 stat point per minute like most other NPCs, so drained levels will maintain fairly well for the entire fight.
+
+===Phase 1===
+Yama's first attack is determined by the colour of the Glyphs nearest the throne (being the opposite of his regular attack colours), with red Glyphs of Fire indicating Yama will use one ranged attack first, and purple Glyphs of Shadow indicating Yama will use one magic attack first. After the first magic/ranged attack, Yama will use his first special attack, swap combat styles, and continue attacking. After three regular attacks (either magic, ranged, or melee), Yama uses another special attack, and repeats this pattern for the rest of the phase.
+
+Yama's special attacks in the first two phases require the player to stand on the centre of the matching glyph to negate the attack's damage and effects. The player will take 2, 6, 9 or 12 damage upon stepping on a Glyph of Fire depending on how close Yama was to it when stepped on; 2 damage if Yama was four or more tiles away, 6 if three tiles, 9 if two tiles and 12 if one or adjacent to it. The Glyph of Shadow will drain 2-12 prayer points, and like the Glyph of Fire, drains more if Yama is closer to it. 
+
+Standing on a glyph will provide the player with 10 ticks (6.0 seconds) of immunity against the corresponding attack; e.g being under the effect of a Glyph of Fire negates all of Yama's magic attacks and fire-based special attacks. Additionally, the glyph will provide a unique buff; fire will boost the special attack of [[Zorya's tome]] and a [[volatile Nightmare staff]], while shadow will boost the prayer restoration of the [[Saradomin godsword]], [[eldritch Nightmare staff]] and [[ancient mace]]. Enhancing a special attack this way will consume the glyph immediately, potentially leaving the player open to an incoming special attack. These are mostly useful in duos, but even then, other special attacks are much more beneficial. 
+
+In duo encounters, only one player needs to stand on the glyphs for both to be protected. These glyphs can also be used to block damage from the corresponding attack, but this is not recommended unless a special attack is incoming. 
+
+After a special attack, Yama will switch combat styles and special attacks, unless void flares are used, in which case he will remain with the same combat style. The flares can only be used on the second or third shadow attack (if the phase started with a shadow special attack first) or the first or second shadow attack (if a fire special attack is first). Their appearance is consistent across both phase 1 and 2, so players should take note of this to make sure their Mark of Darkness is active when they spawn.
+
+Lastly, Yama uses several arena hazards to keep players on their toes and will spawn these right before doing a special attack:
+* '''Shadow Waves''' - Waves of shadowy flames will spawn from the south-east or south-west and move across the entire arena, which the player must "skip" over to avoid taking up to 20 damage and having their protection prayers disabled briefly, leaving them open to Yama's attacks.
+* '''Fire Streaks''' - Fires are ignited at the east and west edges of the arena before moving across the entire arena at running speed. If not avoided, the player will take damage and be seared to the ground, temporarily binding them in place and potentially unable to move towards a Glyph to negate Yama's special attacks. So long as the player does not pause or stop moving, they may path directly through the flames without taking damage.
+* '''Void Flares''' - Yama will snap his fingers, summoning a fire and shadow [[void flare]] in the arena. These orbs must be destroyed before the yellow bar fills up (in roughly ~15 seconds) or they will explode. The amount of damage dealt, along with health restored to Yama, scales on their remaining health at the time of explosion. At full health, they will hit between 42-44 damage.
+** They have 200% demonbane vulnerability and using magic attacks or the [[scorching bow]] will always deal their max hit. The [[purging staff]] is most useful for this, as it can take down flares in two hits especially when using [[Dark Demonbane]] under the effects of [[Mark of Darkness]]. [[Death Charge]] works against the flares, even if the player doesn't destroy it as Yama initiates the phase transition.
+** Afflicting a flare with [[poison]] or [[venom]] will result in the flare healing Yama and damaging the player for around 75% less than normal when it detonates.
+** Players can choose to destroy only one void flare and stand on the matching Glyph before it fully charges to block the explosion damage and healing to Yama, however this not recommended due to losing out on Death Charge bonuses.
+
+<gallery mode="packed" heights="300" style="text-align:left">
+Yama - dealing with void flares.mp4|A pair of players destroy the void flares with the [[purging staff]], taking advantage of its special attack to resume attacking Yama earlier than usual.
+Yama - dodging shadow flame wall.mp4|A pair of players skip over the shadow waves.
+</gallery>
+
+===Judge of Yama===
+Upon reaching 66.6% and 33.3% of his health (not a hard cap), the first and second phases of the fight ends and an intermission phase will occur where Yama becomes bored and slams his axe's pommel to the ground, teleporting the player(s) away from the main arena. The player is fully immune to any incoming attacks during the teleport, and any void flares that were present when this occurs are immediately destroyed without penalty, which additionally triggers [[Death Charge]], provided the player damaged them at least once before this occurs. The first player (instance creator) will always be placed west, while the second player will always be placed east.
+[[File:Yama - Judge of Yama hopscotch.mp4|thumb|400px|The player fighting a Judge of Yama after the first and second phases of the fight, hopping to stones before attacking by alternating magic and melee.]]
+As players hop across the stones to reach the Judge, it will launch [[Fire spell (NPC)|fire spells]] in one or two of five potential spots en route every five ticks. Getting hit by these will deal up to 30 damage, meaning the player must dodge them or attack it with [[water spells]], which deal the player's max hit.
+
+Upon reaching the last stone, the Judge will start launching fireballs on the last tile the player stood on. This deals around 20 damage if hit by it; if the projectile lands under the demon, it will deal 13-18 damage to it. Periodically, the cavern will shake, dealing 5-7 damage; the first instance of damage occurs on the demon's fifth attack, and the second occurs around the demon's thirteenth attack.
+
+The Judge has 400 health, and uses two protection prayers at once. Initially, it will always pray against melee and ranged attacks, then switching based on the player's last attack style, so magic is essentially mandatory to defeat it. It does not react to attacks made by thralls, but the short duration of the fight makes summoning one infeasible. The player will always land a [[maximum hit]] on the Judge, though multi-hitting weapons will only hit once. Additionally, the Judge's health pool is shared between both players in a duo encounter.
+
+When using melee, prioritise strength bonuses and prayer, as these give more damage compared to magic bonuses and prayer. When using magic (with melee being primary), only prioritise swaps that give +5% magic damage bonus, as anything else gives minimal return. For example, a player using an [[Inquisitor's mace]] without any melee boosts would have a max hit of 26, whereas adding [[Piety]] increases the max hit from 26 to 32. On the other hand, players using Dark Demonbane with best-in-slot magic and augury would inflict 63 damage; disabling [[Augury]] would reduce the damage to 61. With minimal swaps while taking advantage of damage and the step-under method, the player should easily subdue the judge before the cavern shakes a second time.
+
+At the start of the phase, if the player spam-clicks the first stone and has no tick loss while jumping across the lava, the player will always be able to reach the platform before the judge makes its third attack. If the player is one tick late at any point during the crossing, they must wait after the third attack if it is launched at the middle.
+
+When the Judge is killed, players are teleported back to Yama to begin the next phase of the fight. They will always be teleported back in front of Yama's throne, while Yama himself will reposition in the centre of the arena once the judge is killed, though he may displace himself shortly afterwards.
+
+For duo teams, if one player is using magic while the other attacks with melee, it is recommended for the mage to repeatedly hop between the stones once the judge is defeated. This will ensure that Yama always targets the melee attacking player and will have a lower magic defence of -30 rather than +60.
+
+===Phase 2===
+The second phase of the fight is similar to the first, except that two Shadow Waves spawn instead of one, and more Fire Streaks spawn when they appear. Yama will reset to his melee combat behaviour at the start of this phase, so maging players should attack him immediately to set him in place.
+
+Additionally, Yama's attacks are enhanced:
+
+[[File:Yama - Meteor Strike.mp4|thumb|400px|Yama launches a Meteor Strike against their target. While both players were in range to be instantly killed, the non-target player steps on the Glyph of Fire in time to negate the damage.]]
+* '''Meteor Strike''' - Yama's fire-based special attack now drops a large meteor on his target, which has a 5x5 area-of-effect. The target's actions are cancelled for one tick, and their run is disabled (including {{Key press|Ctrl}}-clicking). Failing to move at least two tiles away from the centre of the meteor will instantly kill the player.
+** Being at the edge of the blast radius (two tiles away from centre) will deal 80 damage. If the player is one tile away (three tiles from centre) they will take 40 damage. Getting hit by this attack without protection will additionally inflict a burn value of 8.
+***If the player somehow manages to get two tiles away from the looming shadow (four tiles from centre), they will take no damage. This can be achieved by using melee and being at least six spaces away from Yama, rapidly clicking him when the fireball is launched. It is possible to do it in five or four tiles, but this requires more precise clicking.
+* '''Shadow Stomp''' - Yama stomps the ground and sends a shadow-based attack towards players, dealing up to 60 damage, rooting the player in place for 2 ticks and draining prayer.
+
+As with phase 1, Yama will make use of void flares, which follow the same spawning mechanics.
+
+Upon reaching 33.3% of his health, the second phase of the fight ends and players will once again be teleported away to defeat the Judge of Yama.
+
+===Phase 3===
+Upon returning, Yama will position himself in the centre of the arena and increase his defence bonuses, though drained stats still remain. His attack speed will also increase from 8 ticks (4.8 seconds) to 7 (4.2 seconds). Unlike the previous phases in which he chases melee players, he will remain in place in the centre of the arena. All glyphs in the arena are now disabled.
+
+Yama will alternate between ranged and magic each standard attack, and he will start with the style of the more abundant glyph in the previous phase; e.g if the glyphs closest to the throne were shadow, he will open with a ranged (shadow) attack. Note that this is the '''opposite''' of what he started with in phases 1 and 2. In this phase, Yama's prayer piercing effects are stronger; the melee attack deals up to 22 damage (from 6), while the normally blocked magic and ranged attacks will now have a max hit of 3.
+
+Players may continue to use melee or mage, depending on their primary style. If players are meleeing, they may either flinch Yama or use the one of the methods below. Due to the slightly increased magic defence, maging players may opt to bring a [[Tumeken's shadow]] switch, as it is slightly more accurate compared to a purging staff, although splashes will not benefit from [[confliction gauntlets]]. If the player has to mage, it may be beneficial to throw an [[accursed sceptre]] and [[Eye of Ayak]] special before the phase to lower Yama's magic defences. 
+
+[[File:Yama - phase 3 dodging.mp4|thumb|400px|Players avoiding both the shadow crash and shadow wave during the final phase of the fight.]]
+Yama's only special attack is '''Shadow Crash''', which he only uses when the player is outside melee distance. Shadow Crash is a set of three fireballs in a line which fall upon the player. The side fireballs will spawn shadows after impact that converge toward where the centre fireball landed (forming a bowtie shape). Yama will perform this attack three times, each one centred on the player at a cardinal, diagonal, and cardinal angle respectively. Getting caught in this attack will deal up to 20 damage per explosion. Players can dodge this by moving at least one tile from the centre fireball perpendicular to the line (ex. one tile horizontal from the centre fireball if they fall vertically).
+
+The Shadow Crash fireballs will always require the player to step north/south or east/west, diagonally across and then east/west or north/south (depending on which one was used first, if the player is required to step north/south for the first, the third one will require the player to step east/west instead). Additionally, if the player only moves one tile away from the crash and has [[Mark of Darkness]] active, their next attack will be used one tick faster than usual. Performing a perfect dodge will also provide 2 ticks of immunity from the shadow waves. Each crash is individual to the player themselves and they will not take damage from another player's crash.
+
+Note that Yama will still use his standard attack while the fireballs drop, so pray accordingly.
+
+As with the previous phases, Yama will summon void flares into the arena. Two are summoned intermittently during the fight, but one will always spawn if Yama attacks with melee. Up to four flares may be present at any given time. Unlike the previous phases, the flares spawn with half (71) health and deal reduced damage (23-25) if allowed to charge. In order to one-shot void flares during this phase, the player must use the [[purging staff]] to cast [[Dark Demonbane]] while under the effects of the [[Mark of Darkness]], with a 20% magic damage bonus (including the staff's 10%). If more than eight are allowed to spawn, Yama will summon three flares at a time, though this should be highly unlikely in any scenario with decent gear.
+
+A set of two shadow waves will first appear shortly after the final set of fireballs drop. Another set of two will appear shortly after void flares, and a final set of four will appear right after this set of two waves, which is combined with Shadow Crash and an auto-attack. This will continually repeat until the encounter ends.
+
+In duo encounters, using the donofly method is highly recommended. If this is not feasible, one player should stand east of Yama and the other west to handle shadow flares that appear, if they do. 
+
+====Melee Yama P3 Methods====
+Melee with the [[Arclight]] or [[Emberlight]] is the highest DPS against Yama, but can be challenging to use during phase 3. The player must dodge Yama's shadow waves and shadow crashes, and if they are in melee range when Yama attacks, Yama will attack with melee and spawn a void flare, slowing down the kill. Several methods have been developed that allow the player to maintain high DPS with melee, while dodging all special attacks and preventing Yama from using melee attacks.
+<tabber>
+Donofly=
+{{Tile markers box|Module:Tile markers/Yama Donofly.json|showpreview=false}}
+The Donofly is a cycle-based, tick perfect method where the player must run to specific tiles after attacking Yama and immediately run back to attack Yama after reaching each tile. The tile pattern provided will automatically dodge all shadow waves and shadow crashes without any extra effort from the player, meaning that all your attention should be focused on moving and attacking correctly, and praying against Yama's standard attacks.
+
+[[File:Yama - the donofly.mp4|thumb|450px|A pair of players demonstrate the Donofly.]]
+There are multiple ways to perform the Donofly; one example of a cycle is as follows:
+# Upon returning to the arena, move towards tile 1.
+#* If the player is within five spaces of Yama, there is enough time to attack him once before running to tile 1.
+# Wait for Yama's attack animation to have his hand above his head, then click on him to attack.
+# After clicking, immediately move to tile 2. Once your true tile is there, attack Yama.
+# Immediately move to tile 3. Once your true tile is on tile 3, attack Yama.
+# Immediately {{Key press|Ctrl}} click-walk to tile 4. Once your true tile is there, attack Yama.
+# Immediately move to tile 5. Once your true tile is on tile 5, attack Yama.
+# Immediately move to tile 1 and repeat the cycle.
+#* Note that on the third cycle, you should attack Yama as soon as he begins his attack animation rather than waiting for his hand to move above his head. 
+
+In solo encounters, donofly is not likely to defeat Yama before he spawns two void flares, but will deal a significant amount of damage. More advanced variants of donofly can have the player kill both void flares before resuming the cycle. Alternatively, stay in mage gear after killing the void flares and finish off the kill using magic.
+
+In duo encounters, donofly will defeat Yama without usage of special attacks, though dumping a few will not hurt to speed up kill times. However, the maul-using player should keep 50% special and the horn-using player 25% so they can immediately debuff Yama on the next kill.
+
+Because Donofly is heavily dependent on staying in the correct cycle, it can be very difficult (though not impossible) to recover from mistakes. Learners are recommended to get off and kill the boss with magic, since further mistakes will significantly hamper the kill, especially if Yama is able to attack with melee and spawn more void flares.
+|-|
+Godfly=
+{{Tile markers box|Module:Tile markers/Yama Godfly.json|showpreview=false}}
+The Godfly is a reaction-based method where the player stands in front of Yama and steps out of melee range every time Yama attacks. Dodging the shadow crashes is the most important part of this method, and the player dodges them in two different ways, reacting to whether the first set of fireballs are vertical (north-south) or horizontal (east-west). Because the Godfly is not dependent on following an exact cycle, it is much simpler to recover from mistakes by standing outside of Yama's melee range and waiting for the next opportunity to attack safely. A simple way to learn the timing for avoiding Yama's melee attacks is to click to step back when the hitsplat from Yama's standard attack disappears from the player.
+
+[[File:Yama - godfly.mp4|thumb|450px|A solo player performs the Godfly.]]
+
+Unlike the Donofly, the Godfly takes advantage of the speedup mechanic in phase 3 where the player's next attack comes out one tick faster if they move one tick away from a shadow crash's centre while [[Mark of Darkness]] is active. This makes the Godfly higher DPS overall, though more difficult to execute, as the player must react to the shadow crash patterns and dodge correctly while maintaining DPS.
+
+A good resource for learning Godfly is [https://www.youtube.com/watch?v=jQhK99clzaA this video from redeyejedi].
+|-|
+RoboSpear=
+{{Tile markers box|Module:Tile markers/Yama RoboSpear.json|showpreview=false}}
+The Robospear is an advanced cycle-based, tick perfect method that involves unfreezing Yama with the special attack of the [[Blue Moon spear]] and using specific tile markers as he chases you around. Because Yama begins chasing the player, certain movement can be used that allows the player to gain the one-tick speedup from every shadow crash during the fight, making this the highest DPS Yama method overall. However, if a mistake is made, the method is extremely difficult to salvage, and the player usually will need to finish the rest of the kill with magic.
+
+This method was found by jeremiah855 and Muffyn using a computer-optimized algorithmic search for the highest DPS Yama method. More info can be found in [https://www.youtube.com/watch?v=a2NqCpXz-QU jeremiah's video here].
+</tabber>
+
+==Equipment==
+Yama is weak to slash and can also be fought effectively with magic if using the [[purging staff]] or [[Tumeken's shadow]] due to their higher accuracy compared to other magic weapons and Yama's lower magic defence bonuses. Yama has a Defence level of 225 and Magic level of 250, with +80 slash defence and -30 magic defence, making magic hit well on him despite his higher Magic level. If the player currently targeted by Yama is using magic during phase 1 and 2, his magic defence raises to 60. It is not recommended to use any other combat style, as he has +100 stab, +333 crush/light/heavy ranged defence, and +220 standard ranged defence.
+
+During the final phase, his defence bonuses increase to +135 stab, +108 slash, +449 crush/light/heavy ranged, +297 standard ranged, and +81 magic defence.
+
+<tabber>
+Melee= Meleeing Yama provides the highest damage output while being cheaper than magic. In solo encounters, melee-only setups can be a bit more difficult to damage Yama while avoiding waves and preventing flares from spawning as rapidly in the final phase of the fight.
+
+Defence reduction is especially helpful against Yama. In duos, an elder maul (or dragon warhammer) with a partner using the soulflame horn is recommended, while solo players should use an emberlight.
+
+If soloing Yama with melee, purging Staff + 10% additional magic damage is needed to 2-shot the Void Flares.
+{{Recommended equipment
+|style = Melee
+|head1 = {{plink|Torva full helm}} > {{plink|Oathplate helm}}
+|head2 = {{plink|Neitiznot faceguard}} /<br /> {{plink|Serpentine helm}}
+|head3 = {{plink|Blood Moon helm}}
+|head4 = {{plink|Helm of Neitiznot}} /<br /> {{plink|Blue Moon helm}}
+|neck1 = {{plink|Amulet of rancour}}
+|neck2 = {{plink|Amulet of torture}} > {{plink|Amulet of blood fury}} 
+|neck3 = {{plink|Amulet of strength}}
+|neck4 = {{plink|Amulet of fury}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|body1 = {{plink|Torva platebody}} / {{plink|Oathplate chest}}
+|body2 = {{plink|Bandos chestplate}}
+|body3 = {{plink|Blood Moon chestplate}} <br />/ {{plink|Fighter torso}}
+|body4 = {{plink|Blue Moon chestplate}}
+|legs1 = {{plink|Torva platelegs}} / {{plink|Oathplate legs}}
+|legs2 = {{plink|Bandos tassets}}
+|legs3 = {{plink|Blood Moon tassets}}
+|legs4 = {{plink|Blue Moon tassets}}
+|weapon1 = {{plink|Emberlight}}
+|weapon2 = {{plink|Arclight}}
+|weapon3 = {{plink|Scythe of Vitur}}{{efn|name=scythe|Significantly worse than Arclight and Emberlight. Due to the accessibility of Arclight and the additional skills needed to melee phase 3, options below Arclight should not be considered.}}
+|shield1 = {{plink|Avernic defender}}
+|shield2 = {{plink|Dragon defender}}
+| ammo1 = {{plink|Rada's blessing 4}}
+| ammo2 = {{plink|God blessing|pic=Peaceful blessing}} / {{nowrap|{{plink|Rada's blessing 3|txt=Rada's blessing 3}}/[[Rada's blessing 2|2]]}}
+|hands1 = {{plink|Ferocious gloves}}
+|hands2 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Dragon boots}} /<br /> {{plink|Echo boots}} / {{plink|Aranea boots}}
+|ring1 = {{plink|Ultor ring}}
+|ring2 = {{plink|Bellator ring}} / {{plink|Berserker ring (i)}}
+|ring3 = {{plink|Lightbearer}}
+|special1 = {{plink|Elder maul}} with {{plink|Soulflame horn}} ></br> {{plink|Dragon warhammer}} with {{plink|Soulflame horn}}
+|special2 = {{plink|Emberlight}} / {{plink|Bandos godsword}}
+|special3 = {{plink|Dragon claws}} / {{plink|Burning claws}}
+|special4 = {{plink|Voidwaker}} > {{plink|Saradomin godsword}}{{efn|To be used against the Judge of Yama, guaranteeing a max hit.}}
+}}
+{{Notelist}}
+
+{{Recommended equipment
+|style = Void flares
+|weapon1={{plink|Purging staff}} & {{plinkp|Occult necklace}}{{plinkp|Tormented bracelet}}
+}}
+
+|-|
+
+Mage=Magic gives players more leeway in fighting Yama, as his ranged and magic attacks are fully blocked with prayer until the last phase and it is easier to manage positioning compared to melee. It is not recommended to mage without Tumeken's shadow and/or a purging staff, as the player's damage output will be significantly lower otherwise and void flares cannot be managed effectively.
+For a melee switch for the Judge of Yama, [[noxious halberd]] is a fast and effective two-handed weapon. Good one handed weapons include inquisitor mace, emberlight, and ham joint. A blood fury can sustain quite a bit of healing due to always max hitting the Judge of Yama. Little melee switches are needed but an ultor ring and ferocious gloves can be brought to reduce the number of hits needed at the Judge. Alternately a [[twisted bow]] with dragon arrows also deals a large amount of damage to the Judge due to his 250 magic level.
+
+{{Recommended equipment
+| style = Mage
+| head1 = {{plink|Ancestral hat}}
+| head2 = {{plink|Virtus mask}}
+| head3 = {{plink|Blue Moon helm}} > ({{plinkp|Ahrim's hood}}>{{plinkp|Dagon'hai hat}}>{{plinkp|Bloodbark helm}})
+| head4 = {{plink|Void mage helm}}{{efn|name=void}}
+| neck1 = {{plink|Occult necklace}}
+| cape1 = {{plink|Imbued god cape|pic=Imbued Saradomin cape}}
+| cape2 = {{plink|God cape|pic=Saradomin cape}}
+| body1 = {{plink|Ancestral robe top}}
+| body2 = {{plink|Virtus robe top}}
+| body3 = {{plink|Blue Moon chestplate}} > ({{plinkp|Ahrim's robetop}}>{{plinkp|Dagon'hai robe top}}>{{plinkp|Bloodbark body}})
+| body4 = {{plink|Elite void top}}{{efn|With full void set.|name=void}}
+| legs1 = {{plink|Ancestral robe bottom}}
+| legs2 = {{plink|Virtus robe bottom}}
+| legs3 = {{plink|Blue Moon tassets}} > ({{plinkp|Ahrim's robeskirt}}>{{plinkp|Dagon'hai robe bottom}}>{{plinkp|Bloodbark legs}})
+| legs4 = {{plink|Elite void robe}}{{efn|name=void}}
+| weapon1 = {{plink|Tumeken's shadow}}
+| weapon2 = {{plink|Purging staff}}{{efn|Casting [[Dark Demonbane]] while [[Mark of Darkness]] is active.|name=demonbane}}
+| shield1 = {{plink|Elidinis' ward (f)}}
+| shield2 = {{plink|Arcane spirit shield}} > {{plink|Elidinis' ward}}
+| shield3 = {{plink|Ancient wyvern shield}} / {{plink|Malediction ward}} / <br />{{plink|Mage's book}}
+| shield4 = {{plink|Book of the Dead}} / {{plink|Tome of Fire}} / <br />{{plink|Book of Darkness}} 
+| hands1 = {{plink|Confliction gauntlets}}
+| hands2 = {{plink|Tormented bracelet}}
+| hands4 = {{plink|Void knight gloves}}{{efn|name=void}}
+| feet1 = {{plink|Avernic treads (max)}}
+| feet2 = {{plink|Eternal boots}}
+| feet3 = {{plink|Aranea boots}} > {{plink|Infinity boots}}
+| feet4 = {{plink|Bloodbark boots}}
+| ring1 = {{plink|Magus ring}}
+| ring2 = {{plink|Lightbearer}}
+| ring3 = {{plink|Ring of suffering (ri)}} > {{plink|Seers ring (i)}}
+| special1 = {{plink|Eye of Ayak}} ≈ {{plink|Accursed sceptre}}{{efn|When in a mage duo ideally both will be used}}
+| special2 = {{plink|Zorya's tome}}{{efn|Ideally used after draining defence, its accurate burst damage can help skip void flares in the final phase}}
+| special3 = {{plink|Purging staff}}{{efn|Used on the last hit of void flares which reduces the delay for your next attack and refunds energy}}
+| special4 = {{plink|Saradomin godsword}}{{efn|Used on the Judge of Yama during extended trips as a source of healing and prayer restoration}}
+| ammo1 = {{plink|Rada's blessing 4}}
+| ammo2 = {{plink|God blessing|pic=Peaceful blessing}} / {{nowrap|{{plink|Rada's blessing 3|txt=Rada's blessing 3}}/[[Rada's blessing 2|2]]}}
+}}
+{{Notelist}}
+</tabber>
+
+==Inventory setups==
+<tabber>
+Melee=This setup is ideal for duo encounters as Yama's defence can be reduced for higher damage output.
+<div style="float:right; clear:right; margin-left:1em;">
+  <div style="float:left; margin-right:1em;">
+    {{Equipment
+    |align =
+    |head = Torva full helm
+    |neck = Amulet of rancour
+    |cape = Infernal cape
+    |ammo = Rada's blessing 4
+    |torso = Oathplate chest
+    |legs = Oathplate legs
+    |gloves = Ferocious gloves
+    |boots = Avernic treads (max)
+    |weapon = Emberlight
+    |shield = Avernic defender
+    |ring = Ultor ring
+    }}
+  </div>
+  <div style="float:left;">
+    {{Inventory
+    |Purging staff|Confliction gauntlets|Divine super combat potion(4)|Sanfew serum(4)
+    |Occult necklace|Burning claws|Super restore|Super restore
+    |Elder maul|Soulflame horn|Super restore|Super restore
+    |Saradomin godsword|Anglerfish|Anglerfish|Anglerfish
+    |Anglerfish|Anglerfish|Anglerfish|Anglerfish
+    |Anglerfish|Anglerfish|Anglerfish|Anglerfish
+    |Anglerfish|Book of the Dead|Teleport to house (tablet)|Divine rune pouch
+    }}
+    {{Rune pouch
+    |1=Aether rune
+    |2=Fire rune
+    |3=Death rune
+    |4=Blood rune
+    }}
+  </div>
+</div>
+
+===Inventory===
+* [[Purging staff]] and equipment with high magic damage for [[Void flare]]s
+* [[Soulflame horn]] and [[Elder maul]] for consistent defence reduction (Optional in duo. Each player brings only 1).
+* [[Saradomin godsword]] for consistent heals when used against the Judge of Yama
+* Divine rune pouch with [[cosmic rune|cosmic]], [[soul rune|soul]], [[death rune|death]], and [[blood rune]]s, with [[fire rune]]s in inventory, for [[Thralls]], [[Death charge]], [[Mark of Darkness]], and [[Dark Demonbane]]
+** [[Nature rune]]s for [[Ward of Arceuus]] (optional)
+** [[Aether rune]]s instead of cosmic and soul runes to save an inventory slot (optional)
+* One click teleport to bank and restore stats such as a [[Construct. cape]] and [[Crafting cape]], or [[Teleport to house (tablet)]]
+*[[Dramen staff|Dramen]] or [[lunar staff]] if the Elite [[Lumbridge & Draynor Diary]] has not been completed
+*[[Surge potion]] for additional special attacks (optional)
+*2-5 [[Super restore]]s or [[Sanfew serum]]s for prayer and protection from Yama's poison
+* The rest [[Cooked karambwan]] or better
+
+|-|
+Max Mage=Mages have the advantage of avoiding most chip damage in phase 1 & 2, while also being able to carry more food in the event of a mistake. A cast of [[Dark Demonbane]] costs {{NoCoins|{{GEP|Soul rune|2}}+{{GEP|Fire rune|7}}}} coins.
+<div style="float:right; clear:right; margin-left:1em;">
+  <div style="float:left; margin-right:1em;">
+    {{Equipment
+    |align =
+    |head = Ancestral hat
+    |neck = Occult necklace
+    |cape = Imbued Saradomin cape
+    |ammo = Rada's blessing 4
+    |torso = Ancestral robe top
+    |legs = Ancestral robe bottom
+    |gloves = Confliction gauntlets
+    |boots = Avernic treads (max)
+    |weapon = Purging staff
+    |shield = Elidinis' ward (f)
+    |ring = Magus ring
+    }}
+  </div>
+  <div style="float:left;">
+    {{Inventory
+    |Tumeken's shadow|Accursed sceptre|Sanfew serum|Sanfew serum
+    |Inquisitor's mace|Saradomin godsword|Super restore|Super restore
+    |Anglerfish|Anglerfish|Super restore|Super restore
+    |Anglerfish|Anglerfish|Anglerfish|Anglerfish
+    |Anglerfish|Anglerfish|Anglerfish|Anglerfish
+    |Anglerfish|Anglerfish|Anglerfish|Anglerfish
+    |Saturated heart|Book of the Dead|Divine rune pouch|Teleport to house (tablet)
+    }}
+    {{Rune pouch
+    |1=Aether rune
+    |2=Fire rune
+    |3=Death rune
+    |4=Blood rune
+    }}
+  </div>
+</div>
+
+===Inventory===
+* [[Purging staff]] for [[Void flare]]s
+* [[Accursed sceptre]] to lower Yama's magic level (optional)
+* Fast (4-tick or below) melee weapon for the Judge of Yama, such as [[Inquisitor's mace]], [[Emberlight]], or [[Ham joint]]. Alternately [[noxious halberd]] is good DPS as a two handed weapon and has high heals with a [[blood fury]]. A [[ferocious gloves]] and [[ultor]] switch can be brought to reduce the number of hits needed per phase. A [[twisted bow]] is another strong two-handed option that hits 70+ but lacks heals.
+** [[Saradomin godsword]] for health and prayer restore with its special attack (optional)
+* Divine rune pouch with [[cosmic rune|cosmic]], [[soul rune|soul]], [[death rune|death]], and [[blood rune]]s, with [[fire rune]]s in inventory, for [[Thralls]], [[Death charge]], [[Mark of Darkness]], and [[Dark Demonbane]]
+** [[Nature rune]]s for [[Ward of Arceuus]] (optional)
+** [[Aether rune]]s instead of cosmic and soul runes to save an inventory slot (optional)
+* One click teleport to bank and restore stats such as a [[Construct. cape]] and [[Crafting cape]], or [[Teleport to house (tablet)]]
+*[[Dramen staff|Dramen]] or [[lunar staff]] if the Elite [[Lumbridge & Draynor Diary]] has not been completed
+*2-5 [[Super restore]]s or [[Sanfew serum]]s for prayer and protection from Yama's poison
+* The rest [[Cooked karambwan]] or better
+
+|-|
+Melee and Mage=This setup allows players to benefit from both combat styles; melee in phases 1/2 and magic in phase 3. This is only viable for players who want to save costs from runes during the first two phases. If not, it is recommended to use a melee or magic setup instead.
+<div style="float:right; clear:right; margin-left:1em;">
+  <div style="float:left; margin-right:1em;">
+    {{Equipment
+    |align =
+    |head = Torva full helm
+    |neck = Amulet of rancour
+    |cape = Infernal cape
+    |ammo = Rada's blessing 4
+    |torso = Oathplate chest
+    |legs = Oathplate legs
+    |gloves = Ferocious gloves
+    |boots = Avernic treads (max)
+    |weapon = Emberlight
+    |shield = Avernic defender
+    |ring = Ultor ring
+    }}
+  </div>
+  <div style="float:left;">
+    {{Inventory
+    |Tumeken's shadow|Confliction gauntlets|Ancestral robe bottom|Imbued Saradomin cape
+    |Occult necklace|Ancestral robe top|Ancestral hat|Magus ring
+    |Purging staff|Saradomin godsword|Saturated heart|Sanfew serum
+    |Elder maul|Soulflame horn|Divine super combat potion|Super restore
+    |Anglerfish|Anglerfish|Anglerfish|Super restore
+    |Anglerfish|Anglerfish|Anglerfish|Anglerfish
+    |Anglerfish|Book of the Dead|Teleport to house (tablet)|Divine rune pouch
+    }}
+    {{Rune pouch
+    |1=Aether rune
+    |2=Fire rune
+    |3=Death rune
+    |4=Blood rune
+    }}
+  </div>
+</div>
+
+===Inventory===
+* [[Purging staff]] and equipment with high magic damage for [[Void flare]]s
+* [[Soulflame horn]] and [[Elder maul]] for consistent defence reduction (optional, only if duo)
+* [[Saradomin godsword]] for consistent heals when used against the Judge of Yama (ideal for Duo, but not solo)
+* Divine rune pouch with [[cosmic rune|cosmic]], [[soul rune|soul]], [[death rune|death]], and [[blood rune]]s, with [[fire rune]]s in inventory, for [[Thralls]], [[Death charge]], [[Mark of Darkness]], and [[Dark Demonbane]]
+** [[Nature rune]]s for [[Ward of Arceuus]] (optional)
+** [[Aether rune]]s instead of cosmic and soul runes to save an inventory slot (optional)
+* One click teleport to bank and restore stats such as a [[Construct. cape]] and [[Crafting cape]], or [[Teleport to house (tablet)]]
+*[[Dramen staff|Dramen]] or [[lunar staff]] if the Elite [[Lumbridge & Draynor Diary]] has not been completed
+*[[Surge potion]] for additional special attacks (optional)
+*1-3 [[Super restore]]s or [[Sanfew serum]]s for prayer and protection from Yama's poison
+* The rest [[Cooked karambwan]] or better
+
+|-|
+Learner (Mage)=
+<div style="float:right; clear:right; margin-left:1em;">
+  <div style="float:left; margin-right:1em;">
+    {{Equipment
+    |align =
+    |head = Blue Moon helm
+    |neck = Occult necklace
+    |cape = Imbued Saradomin cape
+    |ammo = Rada's blessing 3
+    |torso = Blue Moon chestplate
+    |legs = Blue Moon tassets
+    |gloves = Tormented bracelet
+    |boots = Infinity boots
+    |weapon = Purging staff
+    |shield = Mage's book
+    |ring = Seers ring (i)
+    }}
+  </div>
+  <div style="float:left;">
+    {{Inventory
+    |Accursed sceptre|Super restore|Super restore|Antidote++
+    |Zombie axe|Saradomin brew|Saradomin brew|Anglerfish
+    |Anglerfish|Cooked karambwan|Anglerfish|Cooked karambwan
+    |Anglerfish|Cooked karambwan|Anglerfish|Cooked karambwan
+    |Anglerfish|Cooked karambwan|Anglerfish|Cooked karambwan
+    |Anglerfish|Cooked karambwan|Anglerfish|Cooked karambwan
+    |Book of the Dead|Divine rune pouch|Teleport to house (tablet)|Fire rune
+    }}
+    {{Rune pouch
+    |1=Cosmic rune
+    |2=Soul rune
+    |3=Death rune
+    |4=Blood rune
+    }}
+  </div>
+</div>
+
+===Inventory===
+* [[Accursed sceptre]] to lower Yama's magic level, boosting accuracy (optional)
+* [[Zombie axe]] or [[Leaf-bladed battleaxe]] for a melee swap for the Judge. Solo learners should be attacking on a 5-tick cycle to ensure fireballs hit the Judge, and Arclight provides a negligible max hit increase over staff bashing
+* Upgrading boots and off-hand to [[Eternal boots]] and [[Elidinis' ward]] provides 3 additional max hits. Switching the Seer's ring out for a Lightbearer or Suffering would then require a [[Virtus mask]] as well in order to attain this
+* Divine rune pouch with [[cosmic rune|cosmic]], [[soul rune|soul]], [[death rune|death]], and [[blood rune]]s, with [[fire rune]]s in inventory, for [[Thralls]], [[Death charge]], [[Mark of Darkness]], and [[Dark Demonbane]]
+** [[Nature rune]]s for [[Ward of Arceuus]] (optional)
+** [[Aether rune]]s instead of cosmic and soul runes to save an inventory slot (optional, but nearly doubles casting costs for Dark Demonbane)
+** Make sure you bring a [[Book of the Dead]] as well to cast the Arceuus spells listed above
+* One click teleport to bank and restore stats such as a [[Construct. cape]] and [[Crafting cape]], [[Farming Cape]], or [[Teleport to house (tablet)]]
+*[[Dramen staff|Dramen]] or [[lunar staff]] if the Elite [[Lumbridge & Draynor Diary]] has not been completed
+*1-3 [[Super restore]]s or [[Sanfew serum]]s for prayer and protection from Yama's poison
+*[[Sanfew serum]] or other protection from poison
+*1-2 [[Saradomin brew]]s for additional healing
+* The rest [[Cooked karambwan]] or better
+</tabber>
+
+==Contracts==
+By using a specific contract on Yama, players can tackle a more challenging fight with him in exchange for guaranteed rewards. The contract is burned up once the fight starts, but will be returned to the player as a drop should they complete the challenge; acquisition contracts '''are not''' returned to the player, however (except for familiar acquisition).
+
+All contract fights have a base set of changes compared to the regular fight:
+* Yama has increased stats, and all specials do more damage.
+* Phase transition thresholds during contracted fights trigger at 75% and 50% health, rather than 66% and 33%.
+* Yama's attack cycle in phase 1 and 2 is 1 tick faster, matching phase 3 (8->7 ticks).
+* Yama does two standard attacks before a special attack; glyphs respawn faster.
+* Shadow Waves and Fire Streaks appear more frequently.
+* Special attacks in phase 1 land 1 tick faster (6->5 ticks).
+* The Judge of Yama throws fire bombs 2 ticks faster (5->3 ticks), and throws two per attack.
+* Shadow Waves and Shadow Crashes are more frequent in phase 3, and have some variation in their positioning.
+
+{| class="wikitable sortable sticky-header" style="text-align:left;width:800px"
+!colspan=2 | Contract
+!Details
+|-
+|{{plinkt|Contract of Catalyst Acquisition|txt=Catalyst Acquisition}}
+| rowspan="3" |
+* Hitpoints and prayer restoration are halved.
+* In phase 1 and 2, Shadow Crash is used after every Yama mage or ranged attack, with one set of fireballs.
+* Four [[void flare]]s spawn instead of two, with two of the same colour having half health in phase 1 and 2, and all four in phase 3.
+* The Judge of Yama throws two fire bombs every 3 ticks.
+* In phase 3, shadow crash has five sets of fireballs instead of three.
+* In phase 3, void flares spawn more often.
+|-
+|{{plinkt|Contract of Worm Acquisition|txt=Worm Acquisition}}
+|-
+|{{plinkt|Contract of Shard Acquisition|txt=Shard Acquisition}}
+|-
+|{{plinkt|Contract of Oathplate Acquisition|txt=Oathplate Acquisition}}
+| rowspan="2" |
+Identical to the contracts of catalyst, worm, and shard acquisition, except:
+* Yama must be defeated alone.
+* The centre fireball from the Shadow Crash attack leaves behind [[shadow pool]]s which persist for the entire fight.
+|-
+|{{plinkt|Contract of Harmony Acquisition|txt=Harmony Acquisition}}
+|-
+|{{plinkt|Contract of Familiar Acquisition|txt=Familiar Acquisition}}
+|
+* Yama's attacks will deal more damage through prayers.
+* All [[Special attacks|special attack]] regeneration is doubled.
+* [[Void Flare]]s with 81HP continuously spawn throughout the entire fight.
+* Players cannot heal or restore prayer via consumables such as food or prayer potions.
+* Player special attacks are 100% accurate.
+* Fire Streaks and Shadow Waves during phases 1 and 2 behave as if they were one phase ahead (ex. criss-crossed Shadow Waves in phase 1 and double Shadow Waves in phase 2).
+|-
+|{{plinkt|Contract of Forfeit Breath|txt=Forfeit Breath}}
+|
+*Yama must be defeated alone
+*The player's run energy is passively drained by 1% every 4 ticks.
+* Yama drains run energy equal to damage dealt.
+* The player dies if run energy reaches 0%.
+* Fire Streaks and Shadow Waves during phases 1 and 2 behave as if they were one phase ahead (ex. criss-crossed Shadow Waves in phase 1 and double Shadow Waves in phase 2).
+|-
+|{{plinkt|Contract of Glyphic Attenuation|txt=Glyphic Attenuation}}
+|
+* Yama must be defeated alone
+* Yama's health is increased to 2875.
+* Yama's defence bonuses are now +80 crush defence and +666 for all others.
+* Glyphs protect players for 3 ticks instead of 10.
+* Players take 3x damage when absorbing a Glyph of Fire.
+* Prayer points are drained 3x more when absorbing a Glyph of Shadow.
+* The player's max hit is increased with a higher prayer bonus.
+* Prayer bonuses now affect drain rate inversely (i.e. drains faster instead of slower)
+|-
+|{{plinkt|Contract of Sensory Clouding|txt=Sensory Clouding}}
+|
+* Yama must be defeated alone
+* Yama will always attempt to attack with melee (non-stop pursuit).
+* All of Yama's standard attacks will pierce through protection prayers.
+* Void flares will kill an unprotected player if allowed to explode.
+* Weapon attack ranges are halved.
+|-
+|{{plinkt|Contract of Divine Severance|txt=Divine Severance}}
+|
+* Yama must be defeated alone
+* Protection prayers are forcibly turned off two ticks after activation.
+* All of Yama's standard attacks are fully blocked with protection prayers.
+* [[Void Flare]]s with 81HP continuously spawn throughout the entire fight.
+* Void flares will kill an unprotected player if allowed to explode.
+|-
+|{{plinkt|Contract of Bloodied Blows|txt=Bloodied Blows}}
+|
+* Yama must be defeated alone
+* Yama's health is increased to 3000.
+* The player and Yama both gain [[Wretched Strength]] (successful attacks have a minimum hit of (100 - player health)% of their maximum hit)
+* In phase 1 and 2, four [[void flare]]s spawn instead of two, with two of the same colour having half health.
+* In phase 3, void flares spawn more often.
+* Magic attacks against void flares are not guaranteed to max hit.
+|}
+
+===Inventory setups===
+<tabber>
+Catalyst/Worm/Shard=
+<div style="float:left; clear:left; margin-right:1em;">
+  <div style="float:left; margin-right:1em;">
+    {{Equipment
+	|align =
+	|head = Ancestral hat
+	|neck = Occult necklace
+	|cape = Imbued Saradomin cape
+	|ammo = Rada's blessing 4
+	|torso = Ancestral robe top
+	|legs = Ancestral robe bottom
+	|gloves = Confliction gauntlets
+	|boots = Avernic treads (max)
+	|weapon = Purging staff
+	|shield = Elysian spirit shield
+	|ring = Magus ring
+    }}
+  </div>
+  <div style="float:left;">
+    {{Inventory
+	|Tumeken's shadow|Saturated heart|Sanfew serum|Sanfew serum
+	|Contract of Shard Acquisition|Phoenix necklace|Sanfew serum|Sanfew serum
+	|Saradomin godsword|Phoenix necklace|Anglerfish|Anglerfish
+	|Accursed sceptre|Cooked karambwan|Cooked karambwan|Cooked karambwan
+	|Anglerfish|Anglerfish|Anglerfish|Anglerfish
+	|Cooked karambwan|Cooked karambwan|Cooked karambwan|Cooked karambwan
+	|Divine rune pouch|Book of the Dead|Chasm teleport scroll|Teleport to house (tablet)
+    }}
+    {{Rune pouch
+	|1=Aether rune
+	|2=Fire rune
+	|3=Death rune
+	|4=Blood rune
+	}}
+  </div>
+</div>
+<div style="overflow:auto;">
+===Strategy===
+* Hitpoints and prayer restoration is halved and then rounded down.
+* A partner is allowed and may be required due to the number of [[Void flare]] spawns.
+* The hourglass fireball attack drops in 3 fireballs in 5 total waves (up from 3 waves).
+===Items===
+* Combo eating [[Anglerfish]] and [[Cooked karambwan]] is a reliable way to burst heal through the health restoration debuff.
+</div>
+
+|-|
+Oathplate/Harmony=
+  <div style="margin-right:1em;">
+    {{Equipment
+	|align =
+	|head = Ancestral hat
+	|neck = Occult necklace
+	|cape = Imbued Saradomin cape
+	|ammo = Rada's blessing 4
+	|torso = Ancestral robe top
+	|legs = Ancestral robe bottom
+	|gloves = Confliction gauntlets
+	|boots = Avernic treads (max)
+	|weapon = Purging staff
+	|shield = Elysian spirit shield
+	|ring = Magus ring
+    }}
+  </div>
+<div style="display: flex; flex-wrap: wrap; align-items: flex-start;">
+  <div style="margin-right:1em;">
+    {{Inventory
+    |Tumeken's shadow|Saturated heart|Sanfew serum|Sanfew serum
+    |Contract of Shard Acquisition|Phoenix necklace|Sanfew serum|Sanfew serum
+    |Saradomin godsword|Phoenix necklace|Sanfew serum|Anglerfish
+    |Accursed sceptre|Phoenix necklace|Phoenix necklace|Anglerfish
+    |Phoenix necklace|Phoenix necklace|Snowy knight mix (2)|Snowy knight mix (2)
+    |Snowy knight mix (2)|Snowy knight mix (2)|Snowy knight mix (2)|Snowy knight mix (2)
+    |Snowy knight mix (2)|Snowy knight mix (2)|Book of the Dead|Divine rune pouch
+    }}
+{{Rune pouch
+|1=Aether rune
+|2=Fire rune
+|3=Death rune
+|4=Blood rune
+}}
+  </div>
+  <div style="flex: 1; min-width: 200px;">
+===Strategy===
+*Recommend players use the the 'gridlock' method; a solve that eliminates the mechanical complexity of shadow tiles by restraining all movement and positioning into the 3x3 square area of a shadow or fire glyph.
+**The shadow tiles cannot spawn in this area and will instead be randomly spawned outside of the 3x3 area.
+**This effectively 'solves' the tile ragging mechanic, allowing for more consistent clears.
+===Items===
+*[[Snowy knight (item)]] or [[Snowy knight mix (2)]] can both be valuable instant healing in this encounter.
+**Take note that because of the halving and rounding mechanic, a [[Snowy knight mix (2)]] restores 8 total Hp across two uses, and a [[Snowy knight (item)]] restores 7 in one.
+* [[Phoenix necklace]]s can restore up to 14 Hp each and are the highest potential healing item for this fight.
+* [[Cooked moonlight antelope]] can effectively replace [[Phoenix necklace]]s if players would rather use a less complex healing method.
+===Healing===
+* 6x Phoenix necklace → 84 hp
+** No attack or eating delay, can save player from some types of mistakes.
+* 3x Anglerfish → 33 hp
+* 8x Snowy knight mix (2) → 64 hp
+** Uses potion delay, no attack delay.
+* Total: 181 hp
+===Prayer restoration===
+*5x Sanfew serum → 320 pp
+  </div>
+</div>
+<div style="float:left; clear:left; margin-right:1em;">
+  <div style="float:left;">
+   {{Inventory
+    |Purging staff|Tumeken's shadow|Saradomin godsword|Book of the Dead
+    |Contract of Oathplate Acquisition|Cooked moonlight antelope|Cooked moonlight antelope|Cooked moonlight antelope
+    |Cooked moonlight antelope|Anglerfish|Anglerfish|Anglerfish
+    |Cooked moonlight antelope|Snowy knight (item)|Snowy knight (item)|Snowy knight (item)
+    |Snowy knight (item)|Snowy knight (item)|Snowy knight (item)|Snowy knight (item)
+    |Sanfew serum|Sanfew serum|Snowy knight (item)|Snowy knight (item)
+    |Sanfew serum|Sanfew serum|Saturated heart|Divine rune pouch
+    }}
+    {{Rune pouch
+      |1=Aether rune
+      |2=Lava rune
+      |3=Death rune
+      |4=Blood rune
+      }}
+  </div>
+</div>
+<div style="overflow:auto;">
+===Item setup #2===
+*Optionally uses [[Snowy knight (item)]] instead of [[Snowy knight mix (2)]].
+*Optionally uses [[Cooked moonlight antelope]] instead of [[Phoenix necklace]].
+*Brings 1 less [[Sanfew serum]]
+===Healing===
+* 5x Cooked moonlight antelope → 65 hp
+** 7 hitpoints are restored immediately, 6 more after a delay of 7 [[ticks]] (4.2s)
+* 3x Anglerfish → 33 hp
+* 9x Snowy knight → 63 hp
+** restores 7 hitpoints each, uses potion delay, no attack delay.
+* Total: 161 hp
+===Prayer restoration===
+*4x Sanfew serum → 256 pp
+</div>
+|-|
+Forfeit Breath=
+<div style="float:left; clear:left; margin-right:1em;">
+  <div style="float:left; margin-right:1em;">
+    {{Equipment
+	|align =
+	|head = Ancestral hat
+	|neck = Occult necklace
+	|cape = Imbued Guthix cape
+	|ammo = Rada's blessing 4
+	|torso = Ancestral robe top
+	|legs = Ancestral robe bottom
+	|gloves = Confliction gauntlets
+	|boots = Avernic treads (max)
+	|weapon = Purging staff
+	|shield = Elidinis' ward (f)
+	|ring = Ring of endurance
+    }}
+  </div>
+  <div style="float:left;">
+    {{Inventory
+	|Saradomin godsword|Eye of Ayak|Saturated heart|Divine rune pouch
+	|Contract of Forfeit Breath|Nature rune|Book of the Dead|Teleport to house (tablet)
+	|Sanfew serum|Anglerfish|Anglerfish|Anglerfish
+	|Sanfew serum|Cooked moonlight antelope|Cooked moonlight antelope|Cooked karambwan
+	|Sanfew serum|Cooked moonlight antelope|Cooked moonlight antelope|Cooked karambwan
+	|Sanfew serum|Cooked moonlight antelope|Cooked moonlight antelope|Cooked karambwan
+	|Extended stamina potion|Extreme energy potion|Extreme energy potion|Extreme energy potion
+    }}
+    {{Rune pouch
+	|1=Aether rune
+	|2=Fire rune
+	|3=Death rune
+	|4=Blood rune
+	}}
+  </div>
+</div>
+<div style="overflow:auto;">
+===Strategy===
+* Forfeit Breath's conditions make it the easiest among the five sigil contracts to get to grips with the fundamental changes present throughout all sigil contracts.
+* Because of the run energy penalties, players must keep an eye on their run energy so that errant damage does not instantly kill them.
+
+===Items===
+* With a charged [[ring of endurance]], each dose of [[stamina potion]] will restore 40% run energy, allowing for multiple mistakes. The player may opt to bring less as they become more consistent at the fight.
+* An [[Explorer's ring 4]] can be extremely helpful, as it can be used to restore 100% run energy up to 3 times per day. If using the [[RuneLite|Runelite client]], the ring can be shift-right-clicked with the Menu Entry Swapper plugin enabled to change the left-click option from Wear to Energy, making it a single click to fully restore run energy.
+</div>
+|-|
+Glyphic Attenuation=
+<div style="float:left; clear:left; margin-right:1em;">
+  <div style="float:left; margin-right:1em;">
+    {{Equipment
+	|align =
+	|head = Sunfire fanatic helm
+	|neck = Bonecrusher necklace
+	|cape = Ardougne cloak 4
+	|ammo = Rada's blessing 4
+	|torso = Sunfire fanatic cuirass
+	|legs = Sunfire fanatic chausses
+	|gloves = Ferocious gloves
+	|boots = Devout boots
+	|weapon = Inquisitor's mace
+	|shield = Avernic defender
+	|ring = Ring of the gods (i)
+    }}
+  </div>
+  <div style="float:left;">
+    {{Inventory
+	|Saradomin godsword|Voidwaker|Elder maul|Divine rune pouch
+	|Contract of Glyphic Attenuation|Nature rune|Book of the Dead|Teleport to house (tablet)
+	|Super combat potion|Super combat potion|Anglerfish|Anglerfish
+	|Saradomin brew|Saradomin brew|Sanfew serum|Sanfew serum
+	|Saradomin brew|Saradomin brew|Sanfew serum|Sanfew serum
+	|Saradomin brew|Saradomin brew|Sanfew serum|Sanfew serum
+	|Purging staff|Sanfew serum|Sanfew serum|Sanfew serum
+    }}
+    {{Rune pouch
+	|1=Aether rune
+	|2=Fire rune
+	|3=Death rune
+	|4=Blood rune
+	}}
+  </div>
+</div>
+<div style="overflow:auto;">
+===Strategy===
+* Players should always be in position to move toward the next glyph, but far enough away to minimise the tripled penalty from stepping on them.
+* Knowing how to melee during phase 3 with methods such as "No Fly" will help immensely.
+
+===Items===
+* The listed setup will always allow players to two-shot void flares at full health.
+</div>
+|-|
+Sensory Clouding=
+<div style="float:left; clear:left; margin-right:1em;">
+  <div style="float:left; margin-right:1em;">
+    {{Equipment
+	|align =
+	|head = Ancestral hat
+	|neck = Occult necklace
+	|cape = Imbued Guthix cape
+	|ammo = Dragon arrow
+	|torso = Ancestral robe top
+	|legs = Ancestral robe bottom
+	|gloves = Confliction gauntlets
+	|boots = Avernic treads (max)
+	|weapon = Purging staff
+	|shield = Elidinis' ward (f)
+	|ring = Lightbearer
+    }}
+  </div>
+  <div style="float:left;">
+    {{Inventory
+	|Scorching bow|Saradomin godsword|Accursed sceptre|Saturated heart
+	|Contract of Sensory Clouding|Anglerfish|Anglerfish|Anglerfish
+	|Anglerfish|Anglerfish|Anglerfish|Anglerfish
+	|Anglerfish|Anglerfish|Anglerfish|Anglerfish
+	|Forgotten brew|Saradomin brew|Sanfew serum|Sanfew serum
+	|Surge potion(1)|Saradomin brew|Sanfew serum|Sanfew serum
+	|Divine rune pouch|Book of the Dead|Nature rune|Teleport to house (tablet)
+    }}
+    {{Rune pouch
+	|1=Aether rune
+	|2=Fire rune
+	|3=Death rune
+	|4=Blood rune
+	}}
+  </div>
+</div>
+<div style="overflow:auto;">
+===Strategy===
+* Use a stepback method to prevent Yama from using melee; a good indicator to step back is when the player's hitsplat disappears after Yama's magic or ranged attack.
+
+===Items===
+* The [[forgotten brew]] and [[Saradomin brew]]s are used to recover health and boost Magic during phases 1 and 2.
+* The [[scorching bow]] is used during phase 3 to bind Yama via its special attack. With an upgraded [[Death Charge]] and [[lightbearer]], the player should never run out of special attack energy to bind Yama with when destroying [[void flare]]s.
+* A dose of [[surge potion]] is used in case the player forgets to cast Death Charge during a phase 3 cycle.
+</div>
+|-|
+Divine Severance=
+<div style="float:left; clear:left; margin-right:1em;">
+  <div style="float:left; margin-right:1em;">
+    {{Equipment
+	|align =
+	|head = Ancestral hat
+	|neck = Occult necklace
+	|cape = Imbued Guthix cape
+	|ammo = Rada's blessing 4
+	|torso = Ancestral robe top
+	|legs = Ancestral robe bottom
+	|gloves = Confliction gauntlets
+	|boots = Avernic treads (max)
+	|weapon = Purging staff
+	|shield = Elidinis' ward (f)
+	|ring = Magus ring
+    }}
+  </div>
+  <div style="float:left;">
+    {{Inventory
+	|Saradomin godsword|Accursed sceptre|Saturated heart|Book of the Dead
+	|Contract of Divine Severance|Nature rune|Divine rune pouch|Teleport to house (tablet)
+	|Cooked moonlight antelope|Cooked moonlight antelope|Cooked moonlight antelope|Cooked karambwan
+	|Cooked moonlight antelope|Cooked moonlight antelope|Cooked moonlight antelope|Cooked karambwan
+	|Cooked moonlight antelope|Cooked moonlight antelope|Cooked moonlight antelope|Cooked karambwan
+    |Anglerfish|Anglerfish|Anglerfish|Anglerfish
+	|Sanfew serum|Sanfew serum|Sanfew serum|Sanfew serum
+    }}
+    {{Rune pouch
+	|1=Aether rune
+	|2=Fire rune
+	|3=Death rune
+	|4=Blood rune
+	}}
+  </div>
+</div>
+<div style="overflow:auto;">
+===Strategy===
+* Players do not need to flick their protection prayers, only activate them, as Yama will turn it off for them.
+* Always pay attention to spawning void flares as an unprotected explosion will kill the player.
+* During phases 1 and 2, when Yama would spawn two void flares, players should kill the void flares with the opposing element of the glyph they are next stepping on to focus on Yama instead.
+* Step on the glyph shortly after he performs his special attack rather than immediately or before, which will protect the player from Yama's first standard attack and save the player from needing to activate their prayer for one attack.
+
+</div>
+|-|
+Bloodied Blows=
+<div style="float:left; clear:left; margin-right:1em;">
+  <div style="float:left; margin-right:1em;">
+    {{Equipment
+	|align =
+	|head = Ancestral hat
+	|neck = Occult necklace
+	|cape = Imbued Guthix cape
+	|ammo = Rada's blessing 4
+	|torso = Ancestral robe top
+	|legs = Ancestral robe bottom
+	|gloves = Confliction gauntlets
+	|boots = Avernic treads (max)
+	|weapon = Purging staff
+	|shield = Elidinis' ward (f)
+	|ring = Magus ring
+    }}
+  </div>
+  <div style="float:left;">
+    {{Inventory
+	|Saradomin godsword|Eye of Ayak|Saturated heart|Locator orb
+	|Contract of Bloodied Blows|Cooked moonlight antelope|Cooked moonlight antelope|Dwarven rock cake (cool)
+	|Snowy knight mix (2)|Snowy knight mix (2)|Guthix rest|Guthix rest
+	|Snowy knight mix (2)|Snowy knight mix (2)|Guthix rest|Guthix rest
+	|Snowy knight mix (2)|Snowy knight mix (2)|Guthix rest|Guthix rest
+    |Sanfew serum|Sanfew serum|Guthix rest|Guthix rest
+	|Divine rune pouch|Book of the Dead|Nature rune|Teleport to house (tablet)
+    }}
+    {{Rune pouch
+	|1=Aether rune
+	|2=Fire rune
+	|3=Death rune
+	|4=Blood rune
+	}}
+  </div>
+</div>
+<div style="overflow:auto;">
+===Strategy===
+* The player and Yama both gain ''Wretched Strength''. Unlike the Dharok's set effect of the same name, this increases the minimum hit of the player and not the maximum hit. As such, the player must camp low health in order to achieve a massive damage output.
+* The contract effectively requires players to perform a perfect kill, as any damage will kill the player at low health. With current best-in-slot Magic damage gear (+46% with Augury, shown on the left) the player must stay at or below 16 hitpoints in order to two-shot void flares; any gear downgrades will require the player to stay slightly lower (down to 11 if downgrading to Virtus robes, eternal boots, tormented bracelet, unfortified Elidinis' ward, and no magus ring).
+
+===Items===
+* The [[locator orb]] is used to reduce the player's health to 1 for the first two phases.
+* Use the [[Eye of Ayak]] special attack twice at the beginning to considerably reduce Yama's magic defence.
+* The two [[cooked moonlight antelope]] are used to restore the player's health during the [[Judge of Yama]] intermissions.
+* The [[Saradomin godsword]] is used to melee the Judge and heal off them using its special attack in case the player is hit by a fire bomb.
+* The [[dwarven rock cake]], [[snowy knight mix]]es, and [[Guthix rest]]s are used to fine-tune the player's health during phase 3.
+</div>
+</tabber>
+
+== Contract of Forfeit Breath ==
+{{Equipment
+|align = right
+|head = Ancestral hat
+|neck = Occult necklace
+|cape = Imbued Saradomin cape
+|ammo = Rada's blessing 4
+|torso = Ancestral robe top
+|legs = Ancestral robe bottom
+|gloves = Confliction gauntlets
+|boots = Avernic treads (max)
+|weapon = Purging staff
+|shield = Elidinis' ward (f)
+|ring = Magus ring
+}}
+{{Inventory
+|align = right
+|Saradomin godsword|Surge potion|Eye of Ayak|Saturated heart
+|Contract of Forfeit Breath|Sanfew serum|Sanfew serum|Sanfew serum
+|Sanfew serum|Extended stamina potion(4)|Extreme energy potion(4)|Extreme energy potion(4)
+|Extreme energy potion(4)|Marlin|Marlin|Marlin
+|Marlin|Marlin|Marlin|Marlin
+|Halibut|Halibut|Halibut|Halibut
+|Teleport to house (tablet)|Chasm teleport scroll|Book of the Dead|Divine rune pouch
+}}<div style="overflow:auto;">
+
+It is strongly recommended for players aiming to complete any of Yama's contracts to begin by completing the [[Contract of Forfeit Breath]], as it allows the player to learn the baseline set of changes that apply to all contracts. Furthermore, the stamina-related restrictions added to the fight are relatively easy to manage through [[Extreme energy potion|extreme energy potions]] and [[Extended stamina potion|extended stamina potions]].
+
+The player's run energy is continously depleted throughout the fight, both passively and for every point of damage received. Keep run energy high throughout the kill, and be prepared to restore run energy after making a mistake that causes a lot of damage. Players on the [[RuneLite]] client may choose to enable the 'Status Bars' plugin to display their current run energy more prominently.
+
+=== Phase 1 and 2 ===
+Begin the kill by using two [[Eye of Ayak]] special attacks, optionally first attacking the boss with regular attacks until missing once for the passive accuracy increase from the [[confliction gauntlets]]. It is important throughout the phase to be aware of which special Yama will use next: as specials happen much more frequently than the base fight, it is easy to lose track. It can be useful to look at in-game messages beginning with {{mes|Yama conjures|colour=#A53FFF}}, as the colour of these messages indicate the previous special used by Yama ({{mes|purple|colour=#A53FFF}} for shadow, and {{mes|orange|colour=#FF8E32}} for fire).
+
+It is often useful to kill both [[Void Flare|void flares]] that Yama spawns, as although they can be skipped using the glyphs, the extra special attack can be used for more Eye of Ayak or [[Saradomin godsword]] special attacks. The [[surge potion]] is useful in Phase 1, as the player will not have regenerated 25% special attack for the [[purging staff]] in time.  A common mistake is forgetting about the first fire special after Yama summons void flares, which is sometimes caused by the player using both fire and shadow glyphs to skip the void flares and losing track of the next special.
+
+Avoid waiting until the Judge of Yama to heal, and remain high HP throughout the fight.
+
+In Phase 2, there is a significant threat posed by Meteor Strike specials that occur after Yama has spawned void flares: these overlap with Shadow Waves, which can be difficult to skip over as the player is forced to walk. It can be helpful to proactively activate a fire glyph, and then skip over a nearby shadow wave before the player's run is disabled. It is not recommended to skip the Meteor Strike special over using a glyph of fire: this is often more dangerous as the player is forced to walk in a straight line, and may be unable to dodge nearby Shadow Waves. 
+
+=== Phase 3 ===
+{{Tile markers box|Module:Tile markers/Yama mage contract.json}}One key change in Phase 3 of the fight is the increased frequency and somewhat random nature of the Shadow Waves that spawn. In the base version of Yama, the vertical column where Shadow Waves intersect is the same for the entirety of Phase 3. However, in all contract fights the column where the waves intersect is random for the 2nd and 3rd waves in each set, as it can be shifted either one tile to the east, west, or not at all. Furthermore the hitbox of the wave changes if it is shifted east or west: it is moved 1 tile south, which can be disorienting as this causes the correct timing to skip over waves to change.
+
+The following procedure using the provided tile markers is effective for dealing with the Shadow Waves in this phase:
+
+# Move to the northernmost green tile when Shadow Waves appear in the south of the arena.
+# When the three fireballs appear from the Shadow Crash special that Yama uses, click to the southernmost green tile. This will skip the 1st waves (which are always consistent), and also the 1st and 2nd parts of the Shadow Crash AOE.
+# After the Shadow Crash special ends, move to the northernmost grey tile. The column where the 2nd and 3rd waves intersect will align with one of the three white 2x1 rectangles marked.
+# When the intersection point of the shadow waves enters the white 2x1 rectangle, click to move to the grey tile in the same vertical column as the 2x1 rectangle. Then return north and repeat to dodge the 3rd wave.
+It is important to be very consistent at this wave cycle, as it is fundamental to all of Yama's contracts and being hit by a Shadow Wave can cause significant damage to the player, due to the increased damage of the special and the prayer disabling effect potentially causing the player to tank a mage or ranged attack off-prayer.
+
+After the set of shadow waves, Yama will spawn orbs, and then another set of Shadow Waves will enter the room. This cycle of waves -> orbs -> waves repeats for the entire phase.
+
+
+{{Yama}}
