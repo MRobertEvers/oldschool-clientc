@@ -1269,6 +1269,91 @@ ui_service_cache_sprite(
     scene_id = UITreeSceneBridge_EnsureSprite(&app->bridge, archive);
     return scene_id > 0 ? scene_id : -1;
 }
+
+/* The Palette's Textures well (edpanel_palette.c): one scene sprite a ground
+ * texture, between the shape strip's id and the thumbnails'. */
+#define APP_EDITOR_TEXTURE_SPRITE_BASE 0x40001000
+#define APP_EDITOR_TEXTURE_SPRITE_MAX 0x1000
+#define APP_EDITOR_TEXTURE_SPRITE_PX 24
+#define APP_EDITOR_TEXTURE_OVERLAY_MAX 1025
+
+static int
+ui_service_overlay_texture(
+    void* user_data,
+    int id,
+    int* out_texture)
+{
+    /* Asked once each: a record or a texture the cache does not have would
+     * otherwise be asked for again on every frame the well is probed. */
+    static uint8_t asked_overlay[APP_EDITOR_TEXTURE_OVERLAY_MAX];
+    static uint8_t asked_texture[APP_EDITOR_TEXTURE_SPRITE_MAX];
+    struct App* app = user_data;
+    struct ToriRS_Flotype* flo;
+    struct ToriRS_Texture* texture;
+    struct ToriDraw_Sprite** sprites;
+    uint32_t* argb;
+    int scene_id;
+
+    assert(app);
+    assert(out_texture);
+    *out_texture = -1;
+    if( id <= 0 )
+        return -1;
+    if( !app->provider || !app->scene )
+        return 0;
+    /* A `.jm2` id is the config id + 1 (0 is "none"). */
+    flo = CacheProvider_FlotypeGet(app->provider, id - 1);
+    if( !flo )
+    {
+        if( id < APP_EDITOR_TEXTURE_OVERLAY_MAX && !asked_overlay[id] )
+        {
+            struct ToriRS_Task* task = CreateTask_FlotypeLoad(app->provider, id - 1);
+            asked_overlay[id] = 1;
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+        }
+        return 0;
+    }
+    if( flo->texture < 0 || flo->texture >= APP_EDITOR_TEXTURE_SPRITE_MAX )
+        return -1;
+    *out_texture = flo->texture;
+    scene_id = APP_EDITOR_TEXTURE_SPRITE_BASE + flo->texture;
+    if( ToriDraw_SceneSpriteHas(app->scene, scene_id) )
+        return scene_id;
+    texture = CacheProvider_TextureGet(app->provider, flo->texture);
+    if( !texture || !texture->texels || texture->width <= 0 || texture->height <= 0 )
+    {
+        if( !asked_texture[flo->texture] )
+        {
+            struct ToriRS_Task* task = CreateTask_TextureLoad(app->provider, flo->texture);
+            asked_texture[flo->texture] = 1;
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+        }
+        return 0;
+    }
+    /* The texture sampled down to the well's cell: a texel of 0 is the
+     * texture's transparent one, drawn black as the ground under it would
+     * show through. */
+    argb = TORIDRAW_MALLOC((size_t)APP_EDITOR_TEXTURE_SPRITE_PX * APP_EDITOR_TEXTURE_SPRITE_PX * sizeof(uint32_t));
+    assert(argb);
+    for( int y = 0; y < APP_EDITOR_TEXTURE_SPRITE_PX; y++ )
+    {
+        int const sy = y * texture->height / APP_EDITOR_TEXTURE_SPRITE_PX;
+        for( int x = 0; x < APP_EDITOR_TEXTURE_SPRITE_PX; x++ )
+        {
+            int const sx = x * texture->width / APP_EDITOR_TEXTURE_SPRITE_PX;
+            argb[y * APP_EDITOR_TEXTURE_SPRITE_PX + x] =
+                ((uint32_t)texture->texels[sy * texture->width + sx] & 0xFFFFFFu) | 0xFF000000u;
+        }
+    }
+    sprites = TORIDRAW_MALLOC(sizeof(*sprites)); /* SceneSpriteAdd frees it */
+    assert(sprites);
+    sprites[0] = ToriDraw_SpriteNewFromArgbOwned(argb, APP_EDITOR_TEXTURE_SPRITE_PX, APP_EDITOR_TEXTURE_SPRITE_PX);
+    assert(sprites[0]);
+    ToriDraw_SceneSpriteAdd(app->scene, scene_id, sprites, 1);
+    return scene_id;
+}
 #endif
 
 void
@@ -1311,6 +1396,7 @@ app_map_editor_ui_services(
      * silhouettes, scene sprites as the thumbnails are. */
     out->obj_icon = ui_service_obj_icon;
     out->cache_sprite = ui_service_cache_sprite;
+    out->overlay_texture = ui_service_overlay_texture;
     /* The Gallery's tiles and the Catalog's npc rows: one renderer for the
      * small pictures of loc, npc and obj records (app_record_thumbs.c). */
     out->record_thumb = ui_service_record_thumb;

@@ -33,6 +33,17 @@
  * tile's underlay, or its overlay with its shape and rotation, as I does for
  * every layer at once. Pressing the button again disarms it.
  *
+ * The TEXTURES well (the owner's request, 2026-11-10: "How do you specify a
+ * textured overlay? The UI doesn't seem to have a way to select"): a textured
+ * overlay's own colour is a placeholder, so in the Overlay well water, a road
+ * and lava were the same magenta cell, or a flat average once the texture had
+ * loaded, and nothing said which id lays which. The well shows every ground
+ * texture the cache's overlays lay, as the picture itself, one cell a
+ * texture; a click picks the lowest overlay id that lays it and the tooltip
+ * names it and how many others do. The panel asks the window for the overlay
+ * records and the textures a batch a tick while it is open
+ * (app_services.overlay_texture), so the well fills in over the first second.
+ *
  * Colours come from the window (hooks.floor_rgb, the provider's records); a
  * record the window has not loaded draws as a hatched grey cell with its id,
  * so the palette still works on a cache the editor cannot fully decode.
@@ -58,6 +69,15 @@
 #define PALETTE_OVERLAY_PROBE 1024
 #define PALETTE_WELL_W 184
 #define PALETTE_CELL 14
+/** The Textures well: the service's sprite, a cell around it, and how long
+ *  the panel keeps asking after the last answer (ids past the cache's
+ *  records never answer). */
+#define PALETTE_TEX_PX 24
+#define PALETTE_TEX_CELL (PALETTE_TEX_PX + 2)
+#define PALETTE_TEX_COLS (PALETTE_WELL_W / PALETTE_TEX_CELL)
+#define PALETTE_TEX_MAX 256
+#define PALETTE_TEX_BATCH 64
+#define PALETTE_TEX_SETTLE_TICKS 300
 #define PALETTE_COLS (PALETTE_WELL_W / PALETTE_CELL)
 #define SHAPE_PX 3
 #define SHAPE_BOX (EDITOR_SHAPE_GRID * SHAPE_PX + 2)
@@ -105,6 +125,8 @@ struct PalettePanel
     int input_overlay;
     int button_drop_underlay;
     int button_drop_overlay;
+    int row_textures;
+    int graph_textures;
     int row_shape;
     int graph_shape;
     int radio_rotation[4];
@@ -157,6 +179,20 @@ struct PalettePanel
     /** The eyedropper the next ground click answers: 0 none, else 1 +
      *  is_overlay. */
     int dropper;
+
+    /** The Textures well. Per overlay id what the window said: 0 not yet,
+     *  1 it lays a texture, -1 it lays none. */
+    signed char texture_state[PALETTE_OVERLAY_PROBE + 1];
+    /** The next id to ask, and the ticks left to keep asking. */
+    int texture_cursor;
+    int texture_settle;
+    int texture_started;
+    /** One cell a texture, in texture-id order: the texture, the lowest
+     *  overlay id that lays it, and how many overlays do. */
+    int texture_ids[PALETTE_TEX_MAX];
+    int texture_overlay[PALETTE_TEX_MAX];
+    int texture_users[PALETTE_TEX_MAX];
+    int texture_count;
 };
 
 static const char* const k_dropper_captions[2] = { "Eyedropper: pick a tile's underlay",
@@ -692,6 +728,169 @@ palette_labels(
     ToriRSChrome_SetText(ui->chrome, self->row_match_over, line);
 }
 
+/* ---- the Textures well -------------------------------------------------------- */
+
+/** The cells again from what the window has said so far. */
+static void
+palette_textures_rebuild(
+    struct EditorUi* ui,
+    struct PalettePanel* self)
+{
+    const struct EditorUiAppServices* services = &ui->app_services;
+
+    self->texture_count = 0;
+    if( !services->overlay_texture )
+        return;
+    for( int id = 1; id <= PALETTE_OVERLAY_PROBE; id++ )
+    {
+        int texture = -1;
+        int at;
+
+        if( self->texture_state[id] != 1 )
+            continue;
+        if( services->overlay_texture(services->user_data, id, &texture) <= 0 || texture < 0 )
+            continue;
+        /* Kept in texture-id order: an insertion into a short sorted list. */
+        for( at = 0; at < self->texture_count && self->texture_ids[at] < texture; at++ )
+            ;
+        if( at < self->texture_count && self->texture_ids[at] == texture )
+        {
+            self->texture_users[at]++;
+            continue;
+        }
+        if( self->texture_count == PALETTE_TEX_MAX )
+            continue;
+        for( int move = self->texture_count; move > at; move-- )
+        {
+            self->texture_ids[move] = self->texture_ids[move - 1];
+            self->texture_overlay[move] = self->texture_overlay[move - 1];
+            self->texture_users[move] = self->texture_users[move - 1];
+        }
+        self->texture_ids[at] = texture;
+        self->texture_overlay[at] = id;
+        self->texture_users[at] = 1;
+        self->texture_count++;
+    }
+}
+
+/** Ask the window about the overlays it has not answered for, a batch a
+ *  tick, until every id has an answer or none has landed for a while. */
+static void
+palette_textures_probe(
+    struct EditorUi* ui,
+    struct PalettePanel* self)
+{
+    const struct EditorUiAppServices* services = &ui->app_services;
+    int budget = PALETTE_TEX_BATCH;
+    int answered = 0;
+    int found = 0;
+
+    if( !services->overlay_texture )
+        return;
+    if( !self->texture_started )
+    {
+        self->texture_started = 1;
+        self->texture_settle = PALETTE_TEX_SETTLE_TICKS;
+    }
+    if( self->texture_settle <= 0 )
+        return;
+    for( int n = 0; n < PALETTE_OVERLAY_PROBE && budget > 0; n++ )
+    {
+        int const id = self->texture_cursor % PALETTE_OVERLAY_PROBE + 1;
+        int texture = -1;
+        int scene_id;
+
+        self->texture_cursor++;
+        if( self->texture_state[id] != 0 )
+            continue;
+        budget--;
+        scene_id = services->overlay_texture(services->user_data, id, &texture);
+        if( scene_id == 0 )
+            continue;
+        self->texture_state[id] = scene_id > 0 ? 1 : -1;
+        answered = 1;
+        if( scene_id > 0 )
+            found = 1;
+    }
+    if( answered )
+        self->texture_settle = PALETTE_TEX_SETTLE_TICKS;
+    else
+        self->texture_settle--;
+    if( found )
+    {
+        palette_textures_rebuild(ui, self);
+        /* The Overlay well's cells of these overlays take the texture's
+         * average colour now that it is resident. */
+        self->dirty_draw = 1;
+    }
+    else if( self->texture_settle == 0 )
+        self->dirty_draw = 1; /* the label stops saying "loading" */
+}
+
+static void
+palette_draw_textures(
+    struct EditorUi* ui,
+    struct PalettePanel* self)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    const struct EditorUiAppServices* services = &ui->app_services;
+    int const rows = (self->texture_count + PALETTE_TEX_COLS - 1) / PALETTE_TEX_COLS;
+    int const picked = ui->tools.overlay_none ? 0 : ui->tools.overlay_id;
+    int picked_texture = -1;
+    char line[TORIRS_CHROME_LABEL_MAX];
+
+    if( picked > 0 && services->overlay_texture )
+        (void)services->overlay_texture(services->user_data, picked, &picked_texture);
+    ToriRSChrome_SetCustomHeight(chrome, self->graph_textures, (rows > 0 ? rows : 1) * PALETTE_TEX_CELL + 2);
+    ToriRSChrome_GraphBegin(chrome, self->graph_textures);
+    for( int i = 0; i < self->texture_count; i++ )
+    {
+        int const x = 1 + (i % PALETTE_TEX_COLS) * PALETTE_TEX_CELL;
+        int const y = 1 + (i / PALETTE_TEX_COLS) * PALETTE_TEX_CELL;
+        int texture = -1;
+        int const scene_id = services->overlay_texture(services->user_data, self->texture_overlay[i], &texture);
+
+        /* The keyed cell under the picture: the press and the hover land on it. */
+        ToriRSChrome_GraphRect(chrome, self->graph_textures, x, y, PALETTE_TEX_PX, PALETTE_TEX_PX, 0x201c16, 1, i + 1);
+        if( scene_id > 0 )
+            ToriRSChrome_GraphImage(
+                chrome, self->graph_textures, x, y, PALETTE_TEX_PX, PALETTE_TEX_PX, scene_id, 0, 1);
+        /* The picked overlay's texture is outlined, whichever of the
+         * overlays that lay it is the pick. */
+        if( self->texture_ids[i] == picked_texture )
+            ToriRSChrome_GraphRect(
+                chrome, self->graph_textures, x - 1, y - 1, PALETTE_TEX_CELL, PALETTE_TEX_CELL, 0xffffff, 0, 0);
+    }
+    ToriRSChrome_GraphEnd(chrome, self->graph_textures);
+    if( !services->overlay_texture )
+        snprintf(line, sizeof(line), "Textures: this window cannot draw them");
+    else if( self->texture_count > 0 )
+        snprintf(line, sizeof(line), "Textures: %d%s", self->texture_count, self->texture_settle > 0 ? " (loading)" : "");
+    else
+        snprintf(line, sizeof(line), "Textures: %s", self->texture_settle > 0 ? "loading" : "none in this cache");
+    ToriRSChrome_SetText(chrome, self->row_textures, line);
+}
+
+/** The Textures well's tooltip: the cell under the pointer. */
+static void
+palette_textures_tooltip(
+    struct EditorUi* ui,
+    struct PalettePanel* self,
+    int key)
+{
+    char text[TORIRS_CHROME_LABEL_MAX];
+
+    if( key <= 0 || key > self->texture_count )
+        snprintf(text, sizeof(text), "click a texture to pick an overlay that lays it");
+    else if( self->texture_users[key - 1] > 1 )
+        snprintf(text, sizeof(text), "texture %d: overlay %d lays it (and %d more)", self->texture_ids[key - 1],
+            self->texture_overlay[key - 1], self->texture_users[key - 1] - 1);
+    else
+        snprintf(text, sizeof(text), "texture %d: overlay %d lays it", self->texture_ids[key - 1],
+            self->texture_overlay[key - 1]);
+    ToriRSChrome_SetTooltip(ui->chrome, self->graph_textures, text);
+}
+
 /** The tooltip of a well names the swatch under the pointer: id, colour and
  *  the hue / sat / light the client packs it to (64, 8 and 128 steps). */
 static void
@@ -782,11 +981,13 @@ palette_tick(
         if( self->all_settle > 0 && --self->all_settle % 15 == 0 )
             palette_rebuild(ui, self);
     }
+    palette_textures_probe(ui, self);
     if( !self->dirty_draw )
         return;
     palette_draw_list(ui, self->graph_underlay, &self->underlays, 0, ui->tools.underlay_id);
     palette_draw_list(
         ui, self->graph_overlay, &self->overlays, 1, ui->tools.overlay_none ? 0 : ui->tools.overlay_id);
+    palette_draw_textures(ui, self);
     palette_draw_shapes(ui, self);
     palette_draw_blend(ui, self);
     palette_draw_match(ui, self);
@@ -913,6 +1114,11 @@ palette_key_id(
         *out_is_overlay = 1;
         return self->overlays.ids[key - 1];
     }
+    if( graph == self->graph_textures && key <= self->texture_count )
+    {
+        *out_is_overlay = 1;
+        return self->texture_overlay[key - 1];
+    }
     if( graph == self->graph_match )
     {
         if( key > PALETTE_MATCH_KEY_OVERLAY && key - PALETTE_MATCH_KEY_OVERLAY <= self->match_over_count )
@@ -942,7 +1148,8 @@ palette_event(
     int id;
 
     if( event->widget != self->graph_underlay && event->widget != self->graph_overlay
-        && event->widget != self->graph_shape && event->widget != self->graph_match )
+        && event->widget != self->graph_shape && event->widget != self->graph_match
+        && event->widget != self->graph_textures )
         return 0;
     if( event->kind == TORIRS_CHROME_EVENT_GRAPH_HOVER )
     {
@@ -952,6 +1159,11 @@ palette_event(
             return 1;
         self->hover_graph = event->widget;
         self->hover_key = key;
+        if( event->widget == self->graph_textures )
+        {
+            palette_textures_tooltip(ui, self, key);
+            return 1;
+        }
         id = palette_key_id(self, event->widget, key, &is_overlay);
         palette_tooltip(ui, self, event->widget, is_overlay, id);
         return 1;
@@ -985,6 +1197,8 @@ palette_event(
         palette_pick_overlay(ui, id, armed);
         if( id == 0 )
             Editor_UiStatus(ui, "No overlay picked (painting it takes the overlay off): %s", armed);
+        else if( event->widget == self->graph_textures )
+            Editor_UiStatus(ui, "Overlay %d picked (texture %d): %s", id, self->texture_ids[key - 1], armed);
         else
             Editor_UiStatus(ui, "Overlay %d picked: %s", id, armed);
     }
@@ -1303,6 +1517,9 @@ Editor_Palette_Register(struct EditorUi* ui)
         ToriRSChrome_IconButton(chrome, self->panel, TORIRS_CHROME_SKIN_TOOL_EYEDROPPER, k_dropper_captions[1]);
     ToriRSChrome_IconButtonSetGlyph(chrome, self->button_drop_overlay, TORIRS_CHROME_ICON_EYEDROPPER);
     ToriRSChrome_SetTooltip(chrome, self->button_drop_overlay, "The next click on the ground picks its overlay and shape");
+    self->row_textures = ToriRSChrome_Label(chrome, self->panel, "Textures");
+    self->graph_textures = ToriRSChrome_Graph(chrome, self->panel, "", PALETTE_TEX_CELL + 2);
+    ToriRSChrome_SetTooltip(chrome, self->graph_textures, "click a texture to pick an overlay that lays it");
     self->row_shape = ToriRSChrome_Label(chrome, self->panel, "Shape");
     self->graph_shape = ToriRSChrome_Graph(
         chrome, self->panel, "", ((EDITOR_SHAPE_COUNT + SHAPE_COLS - 1) / SHAPE_COLS) * (SHAPE_BOX + 4) + 2);

@@ -469,6 +469,14 @@ struct EditorUiAppServices
      *  panel's worn slots draw the game's own silhouettes (156..166) on its
      *  slot plate (170). NULL member: the wells draw plain boxes. */
     int (*cache_sprite)(void* user_data, int archive);
+    /** Overlay `id`'s (a `.jm2` id: config id + 1) ground texture as a
+     *  24 x 24 scene sprite: its id, 0 while the overlay's record or the
+     *  texture is still loading (asked for: ask again next frame, and an id
+     *  past the records answers 0 for ever), -1 when the overlay lays no
+     *  texture. `out_texture` gets the texture's id, -1 with none. The
+     *  Palette's Textures well is these. NULL member: the well stays empty
+     *  (a headless harness, the web). */
+    int (*overlay_texture)(void* user_data, int id, int* out_texture);
     /** Put the catalog's model preview back at its default pose. NULL
      *  member: nothing happens. */
     void (*preview_invalidate)(void* user_data);

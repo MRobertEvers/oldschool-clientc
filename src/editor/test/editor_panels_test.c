@@ -317,6 +317,33 @@ fake_floor_request(
     g_floor_requests++;
 }
 
+/* The window's answer for an overlay's ground texture (the Palette's Textures
+ * well): overlays 3 and 7 lay texture 5, overlay 9 lays texture 2, an id past
+ * 600 is past the records and never answers, the rest lay none. */
+static int g_texture_asks;
+
+static int
+fake_overlay_texture(
+    void* user,
+    int id,
+    int* out_texture)
+{
+    (void)user;
+    g_texture_asks++;
+    *out_texture = -1;
+    if( id == 3 || id == 7 )
+    {
+        *out_texture = 5;
+        return 0x40001005;
+    }
+    if( id == 9 )
+    {
+        *out_texture = 2;
+        return 0x40001002;
+    }
+    return id > 600 ? 0 : -1;
+}
+
 static int
 fake_view_window(
     void* user,
@@ -8123,6 +8150,58 @@ test_palette_colour(void)
               && Editor_Palette_BlendFrom(&g_ui) == 40,
         "palette: the press picks 12, arms Paint underlay and the strip now runs from 40 (%d %d %d)",
         g_ui.tools.underlay_id, (int)g_ui.tools.tool, Editor_Palette_BlendFrom(&g_ui));
+
+    /* The Textures well: one cell a texture the window's overlays lay, in
+     * texture order; the hover names the texture and an overlay that lays
+     * it, a press picks that overlay and arms Paint overlay; and the panel
+     * stops asking once no answer has landed for a while. */
+    {
+        int const row = label_with(palette, "Textures");
+        int const graph_tex = row + 1;
+        struct EditorUiTools const tools_before = g_ui.tools;
+        int asks;
+
+        CHECK(row >= 0 && g_chrome.widgets[graph_tex].kind == TORIRS_CHROME_W_GRAPH
+                  && g_chrome.widgets[graph_tex].panel == palette,
+            "palette: a Textures row with its well under it (%d)", row);
+        CHECK(strstr(g_chrome.widgets[row].text, "cannot draw"),
+            "palette: a window with no texture service says so (%s)", g_chrome.widgets[row].text);
+        g_ui.app_services.overlay_texture = fake_overlay_texture;
+        g_ui.tools.underlay_id = 41; /* a pick moves: the wells redraw */
+        for( int i = 0; i < 4; i++ )
+            frame();
+        CHECK(strcmp(g_chrome.widgets[row].text, "Textures: 2 (loading)") == 0,
+            "palette: two textures found while ids past the records are still asked (%s)", g_chrome.widgets[row].text);
+        push_graph(graph_tex, TORIRS_CHROME_EVENT_GRAPH_HOVER, 1 + 12, 1 + 12, 0);
+        frame();
+        CHECK(strcmp(g_chrome.widgets[graph_tex].tooltip, "texture 2: overlay 9 lays it") == 0,
+            "palette: the first cell is the lowest texture (%s)", g_chrome.widgets[graph_tex].tooltip);
+        push_graph(graph_tex, TORIRS_CHROME_EVENT_GRAPH_HOVER, 1 + 26 + 12, 1 + 12, 0);
+        frame();
+        CHECK(strcmp(g_chrome.widgets[graph_tex].tooltip, "texture 5: overlay 3 lays it (and 1 more)") == 0,
+            "palette: a texture two overlays lay names the lowest and counts the other (%s)",
+            g_chrome.widgets[graph_tex].tooltip);
+        Editor_UiSetTool(&g_ui, EDITOR_TOOL_HEIGHT);
+        push_graph(graph_tex, TORIRS_CHROME_EVENT_GRAPH_PRESS, 1 + 26 + 12, 1 + 12, 0);
+        frame();
+        CHECK(g_ui.tools.overlay_id == 3 && !g_ui.tools.overlay_none && g_ui.tools.tool == EDITOR_TOOL_PAINT_OVERLAY,
+            "palette: a press on a texture picks an overlay that lays it and arms Paint overlay (%d %d %d)",
+            g_ui.tools.overlay_id, g_ui.tools.overlay_none, (int)g_ui.tools.tool);
+        for( int i = 0; i < 400; i++ )
+            frame();
+        CHECK(strcmp(g_chrome.widgets[row].text, "Textures: 2") == 0, "palette: the well settles (%s)",
+            g_chrome.widgets[row].text);
+        asks = g_texture_asks;
+        g_ui.tools.underlay_id = 40;
+        for( int i = 0; i < 20; i++ )
+            frame();
+        /* A redraw asks for the picked overlay's texture and each cell's
+         * picture: 3 calls a draw, not a probe of every id. */
+        CHECK(g_texture_asks - asks <= 3 * 20, "palette: settled, the ids are not probed again (%d asks in 20 frames)",
+            g_texture_asks - asks);
+        g_ui.tools = tools_before;
+        frame();
+    }
 
     /* Every id lists the window's whole set (the fake answers every id). */
     CHECK(!Editor_Palette_SwatchAt(&g_ui, 0, 200, &x, &y), "palette: an unused id is not listed by default");
