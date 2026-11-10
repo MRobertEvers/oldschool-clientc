@@ -70,6 +70,24 @@ EMBED_SERVER ?= 0
 .DEFAULT_GOAL := all
 
 REPO_ROOT    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
+# Windows: ONE spelling of the drive letter, whoever started this make.
+# $(abspath) keeps the case the caller's working directory was spelled with:
+# `c:/Users/...` from a VSCode terminal, `C:/Users/...` from the map editor's
+# RUN, from Explorer and from most scripts. Every -I and every tool path below
+# is made of REPO_ROOT, so that one letter was the whole difference between
+# two flag signatures -- and each time the other spelling built here,
+# .effective_flags and tools/objverify.py called every object of the
+# directory stale: a full rebuild of the client (three minutes), of cachepack
+# and of sscompile, and then a full repack of every editor lane, because both
+# pack tools fingerprint their own binary. src/build_win64_opt went through
+# exactly that at 07:44 on 2026-11-10, and it is most of what "Build takes
+# forever on Windows" was. Upper case is what Windows itself reports.
+ifeq ($(OS),Windows_NT)
+win_drive_upper = $(or $(strip $(foreach d,a/A b/B c/C d/D e/E f/F g/G h/H i/I j/J k/K l/L m/M \
+	n/N o/O p/P q/Q r/R s/S t/T u/U v/V w/W x/X y/Y z/Z,$(patsubst $(firstword $(subst /, ,$d)):/%,$(lastword \
+	$(subst /, ,$d)):/%,$(filter $(firstword $(subst /, ,$d)):/%,$1)))),$1)
+REPO_ROOT    := $(call win_drive_upper,$(REPO_ROOT))
+endif
 SRC_DIR      := $(REPO_ROOT)/src
 
 # Every text file in this tree is UTF-8, and the python3 check/generate scripts
@@ -3582,6 +3600,12 @@ SSC_CFLAGS = $(CFLAGS) -O3
 # space only until it is touched.
 ifeq ($(OS),Windows_NT)
 SSC_CFLAGS += -Wl,--stack,268435456
+# sscompile keys its incremental state on a hash of its own executable
+# (serverscript/ssc_build.c), and a PE link stamps the wall clock into the
+# header: a relink of unchanged code was "a new compiler", and every script
+# of every lane compiled again. A zero stamp makes two builds of the same
+# sources the same bytes (checked 2026-11-10: two builds, cmp equal).
+SSC_CFLAGS += -Wl,--no-insert-timestamp
 endif
 
 # A file target behind the phony name: an unchanged compiler is not relinked on
@@ -7623,7 +7647,22 @@ test-objverify:
 # Header dependency tracking: -MMD writes a .d next to each .o; include them so
 # editing a header rebuilds every object that includes it (stale objects read
 # struct fields at old offsets otherwise).
+#
+# The map editor's Build and RUN goals compile no object of $(OBJ_DIR): their
+# only compiled prerequisites are sscompile and maped_script_check, each one
+# command from its sources. Reading every object's .d for them is the largest
+# single cost of a warm RUN on Windows -- 719 files, 11.8 MB, 2.1 s of a 6.8 s
+# build that changed nothing (2026-11-10; a .d names each header once per
+# object, and make stats none of them but still parses them all). So a make
+# whose goals are ALL in PACK_ONLY_GOALS reads those two tools' .d files and
+# no other. Any other goal beside them, or no goal at all, reads everything.
+PACK_ONLY_GOALS := maped-run-build maped-run-tools maped-lane-seed maped-lane-packs \
+	maped-client-cache maped-script-check torirsserver-packs sscompile
+ifeq ($(and $(MAKECMDGOALS),$(if $(filter-out $(PACK_ONLY_GOALS),$(MAKECMDGOALS)),,pack-only)),pack-only)
+-include $(wildcard $(OBJ_DIR)/sscompile.d $(OBJ_DIR)/maped_script_check.d)
+else
 -include $(wildcard $(OBJ_DIR)/*.d)
+endif
 
 # The three revision-239 music packets: encode as RSProt does, parse back.
 test-midi-packets: $(OBJ_DIR) $(OBJS)

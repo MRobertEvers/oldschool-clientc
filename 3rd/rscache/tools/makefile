@@ -5,10 +5,23 @@
 #   make -C 3rd/rscache/tools clean
 
 CC      ?= cc
-REPO    := $(abspath ../../..)
-RSCACHE := $(abspath ..)
-THIRD   := $(abspath ../..)
-TOOLS   := $(abspath .)
+# Windows: one spelling of the drive letter. $(abspath) keeps the case the
+# caller's working directory was spelled with (`c:/` from one terminal, `C:/`
+# from the map editor's RUN), every -I below is made of these four, and the
+# objverify signature further down is made of the -I's: the other spelling
+# called every object here stale and rebuilt cachepack. src/makefile does the
+# same to its REPO_ROOT, for the same reason.
+ifeq ($(OS),Windows_NT)
+win_drive_upper = $(or $(strip $(foreach d,a/A b/B c/C d/D e/E f/F g/G h/H i/I j/J k/K l/L m/M \
+	n/N o/O p/P q/Q r/R s/S t/T u/U v/V w/W x/X y/Y z/Z,$(patsubst $(firstword $(subst /, ,$d)):/%,$(lastword \
+	$(subst /, ,$d)):/%,$(filter $(firstword $(subst /, ,$d)):/%,$1)))),$1)
+else
+win_drive_upper = $1
+endif
+REPO    := $(call win_drive_upper,$(abspath ../../..))
+RSCACHE := $(call win_drive_upper,$(abspath ..))
+THIRD   := $(call win_drive_upper,$(abspath ../..))
+TOOLS   := $(call win_drive_upper,$(abspath .))
 
 INCLUDES := -I$(RSCACHE)/include -I$(RSCACHE)/src -I$(RSCACHE) \
 	-I$(THIRD)/bmp -I$(THIRD)/bzip -I$(THIRD)/miniz -I$(THIRD)/xteas -I$(THIRD)/ini \
@@ -29,9 +42,16 @@ DEP_CFLAGS := -std=c11 -O3 -g -w $(INCLUDES)
 # strdup is implicitly `int`, truncates the pointer, and cachepack segfaults on
 # its first lane name. macOS exposes them regardless; src/platform/platform.mk
 # gives the client the same flag on Linux. Appended, so `make CFLAGS=...` keeps it.
+#
+# Windows sets $(OS) itself, so it is told apart without a shell: every
+# $(shell) here is a sh.exe started at parse time, 0.1-0.2 s each on Windows,
+# and the map editor's RUN parses this file once per build
+# (src/maped/live-editor.mk, maped-run-tools).
+ifneq ($(OS),Windows_NT)
 ifeq ($(shell uname -s),Linux)
 CFLAGS     += -D_GNU_SOURCE
 DEP_CFLAGS += -D_GNU_SOURCE
+endif
 endif
 
 # The linker writes cachepack.exe on Windows. A rule named for `cachepack`
@@ -225,8 +245,20 @@ $(TOOLS)/packfile/packfile: $(PACKFILE_SRCS)
 
 cachepack: $(TOOLS)/cachepack/cachepack$(EXE)
 
+# cachepack keys its incremental state on a hash of its own executable
+# (cp_incremental.c, executable_hash), and a PE link stamps the wall clock
+# into the header: a relink of unchanged code was "a new binary", and every
+# editor lane's next build repacked every type (30 s instead of 2). A zero
+# stamp makes two links of the same objects the same bytes (checked
+# 2026-11-10: two links, cmp equal).
+ifeq ($(OS),Windows_NT)
+CACHEPACK_LDFLAGS := -Wl,--no-insert-timestamp
+else
+CACHEPACK_LDFLAGS :=
+endif
+
 $(TOOLS)/cachepack/cachepack$(EXE): $(CACHEPACK_SRCS) $(COMMON_OBJS) $(LIB_OBJS)
-	$(CC) $(CFLAGS) -I$(TOOLS)/cachepack -I$(TOOLS)/port_lostcity -o $@ $^ -lm -lpthread
+	$(CC) $(CFLAGS) -I$(TOOLS)/cachepack -I$(TOOLS)/port_lostcity -o $@ $^ -lm -lpthread $(CACHEPACK_LDFLAGS)
 
 clean:
 	rm -rf $(BUILD) $(TOOLS)/find_anims/find_anims $(TOOLS)/find_named/find_named $(TOOLS)/anim_compare/anim_compare $(TOOLS)/port_npc/port_npc \
@@ -246,8 +278,14 @@ $(TOOLS)/cs2/cs2$(EXE): $(TOOLS)/cs2/main.c $(COMMON_OBJS) $(LIB_OBJS)
 # GL entry points are resolved at runtime through SDL_GL_GetProcAddress, so
 # nothing links against a GL library here; on macOS the framework still has to be
 # named for SDL's own use.
+#
+# Asked only by a make that was asked for poser-gl (nothing else here uses SDL,
+# and `all` does not build it): the two sdl2-config runs at parse time were
+# 0.4 s of every `make cachepack` on Windows, where there is none to find.
+ifneq ($(filter poser-gl %/poser-gl,$(MAKECMDGOALS)),)
 SDL2_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null)
 SDL2_LIBS   := $(shell sdl2-config --libs 2>/dev/null)
+endif
 
 POSER_SRCS := \
 	$(TOOLS)/poser-gl-c/main.c \
