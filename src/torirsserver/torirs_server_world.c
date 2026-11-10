@@ -3193,6 +3193,26 @@ planned:
     return dir;
 }
 
+/* The client's angle for a step direction (ToriRSServer_StepDirection's
+ * numbering: 0 NW .. 7 SE): 0 south, 512 west, 1024 north, 1536 east. */
+static int
+step_angle(int dir)
+{
+    static const int k_angle[8] = { 768, 1024, 1280, 512, 1536, 256, 0, 1792 };
+
+    assert(dir >= 0);
+    assert(dir <= 7);
+    return k_angle[dir];
+}
+
+/* The client's angle for looking along (dx, dz): 0 south, 512 west, 1024
+ * north, 1536 east -- the same sum `player_face_release` sends. */
+static int
+angle_toward(double dx, double dz)
+{
+    return (int)lround(atan2(-dx, -dz) * 1024.0 / 3.14159265358979323846) & 2047;
+}
+
 /* Consume one planned step, recording its direction so PLAYER_INFO can spell
  * it out. Port of PathingEntity.validateAndAdvanceStep / takeStep: prefer the
  * diagonal, then E/W, then N/S, and retain a blocked route because another
@@ -3542,6 +3562,7 @@ advance_player(struct ToriRSServer* srv)
                 break;
             player->move_dirs[player->move_count++] = dir;
             player->steps_taken++;
+            player->orientation = step_angle(dir);
         }
 
         /*
@@ -18527,10 +18548,56 @@ player_face_release(
      * centre to the entity's. */
     dx = (double)(x * 128 + size * 64) - (double)(player->x * 128 + 64);
     dz = (double)(z * 128 + size * 64) - (double)(player->z * 128 + 64);
-    player->face_angle = (int)lround(atan2(-dx, -dz) * 1024.0 / 3.14159265358979323846) & 2047;
+    player->face_angle = angle_toward(dx, dz);
     player->face_angle_instant = 0;
     player->masks |= TORIRSSERVER_PMASK_FACE_ANGLE;
     player->masks &= ~(uint32_t)(TORIRSSERVER_PMASK_FACE_ENTITY | TORIRSSERVER_PMASK_FACE_COORD);
+}
+
+int
+ToriRSServer_PlayerOrientation(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player)
+{
+    int const face = player->face_entity;
+    int x;
+    int z;
+    int size = 1;
+
+    assert(srv);
+    assert(player);
+    if( face < 0 )
+        return player->orientation;
+    if( face < TORIRSSERVER_FACE_PLAYER_BASE )
+    {
+        const struct ToriRSServerNpc* npc;
+
+        if( face >= TORIRSSERVER_NPC_MAX )
+            return player->orientation;
+        npc = &srv->npcs[face];
+        if( !npc->active || npc->level != player->level )
+            return player->orientation;
+        x = npc->x;
+        z = npc->z;
+        size = npc->size > 0 ? npc->size : 1;
+    }
+    else
+    {
+        int const pid = face - TORIRSSERVER_FACE_PLAYER_BASE;
+        const struct ToriRSServerPlayer* other;
+
+        if( pid >= srv->player_count )
+            return player->orientation;
+        other = &srv->players[pid];
+        if( !other->active || other->level != player->level )
+            return player->orientation;
+        x = other->x;
+        z = other->z;
+    }
+    if( x == player->x && z == player->z && size == 1 )
+        return player->orientation;
+    return angle_toward((double)(x * 128 + size * 64) - (double)(player->x * 128 + 64),
+                        (double)(z * 128 + size * 64) - (double)(player->z * 128 + 64));
 }
 
 /*
@@ -20968,6 +21035,23 @@ phase_cleanup_player(struct ToriRSServerPlayer* player)
     /* One social packet per tick, spent by whichever of the six arrived first.
      * The reference clears it in `resetEntity`, which is this phase. */
     player->social_protect = 0;
+
+    /* A square or angle faced on a tick with no step is the way the player
+     * now stands (a step this tick already set `orientation`). Read before the
+     * masks go, which are the only record of which face went out. */
+    if( player->steps_taken == 0 )
+    {
+        if( player->masks & TORIRSSERVER_PMASK_FACE_ANGLE )
+            player->orientation = player->face_angle;
+        else if( player->masks & TORIRSSERVER_PMASK_FACE_COORD )
+        {
+            int const dx = player->face_x - ToriRSServer_CoordFine(player->x, 1);
+            int const dz = player->face_z - ToriRSServer_CoordFine(player->z, 1);
+
+            if( dx != 0 || dz != 0 )
+                player->orientation = angle_toward((double)dx, (double)dz);
+        }
+    }
 
     /* Extended info describes one tick only. Clearing it here rather than
      * inside the encoder means a field set after PLAYER_INFO was written still

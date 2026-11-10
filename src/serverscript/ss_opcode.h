@@ -639,10 +639,11 @@
 #define SS_OP_GE_OFFER_GET 11324
 #define SS_OP_GE_OFFER_COLLECT 11325
 #define SS_OP_SEND_VARP_LONG 11326
+#define SS_OP_P_ORIENTATION 11327
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11327
+#define SS_OPCODE_MAX 11328
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 617
+#define SS_OPCODE_COUNT 618
 
 #endif

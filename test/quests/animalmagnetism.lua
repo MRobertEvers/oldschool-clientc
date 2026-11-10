@@ -1,8 +1,10 @@
 -- Animal Magnetism: Ava -> Malcolm/Alice (Ectofuntus farm) -> Old crone -> chickens ->
 -- witch/magnet -> undead trees/Turael -> research notes -> container.
--- Dialogue is Transcript:Animal_Magnetism (oldid 15263367), page for page. The
--- chicken-catching cutscene's actors and camera are not played (CUTSCENES.tsv ported=no):
--- its lines are chat pages with each speaker's head, driven through as dialogue.
+-- Dialogue and stages follow RSProx index 4511, 4513 and 4514 (rev 242, 2026-11-10),
+-- page for page: the start confirm, the chickens one at a time (110 = Ava holds the
+-- first), Ava's bounce talk writing no stage (Turael writes 170), the twigs given by
+-- talk (190), the notes on the next talk (200). The chicken scene is played in a copy
+-- of the farm (anma_chicken_scene.rs2); its pages are driven through as dialogue.
 --
 -- WALLS (door rule, re-driven in b71). Every goto departs from and lands on open ground;
 -- every door, gate, barrier, trapdoor and ladder between the player and a target is pressed
@@ -45,6 +47,10 @@ return {
         "::setlevel crafting 19",
         "::setlevel ranged 30",
         "::setlevel woodcutting 35",
+        -- The undead trees swing at whoever stands by them: RSProx 4514's recorder (combat 51)
+        -- blocked all ten; a fresh character dies there.
+        "::setlevel hitpoints 40",
+        "::setlevel defence 40",
         "::complete quest_restlessghost",
         "::complete quest_ernestthechicken",
         "::complete quest_priestinperil",
@@ -231,8 +237,8 @@ return {
             "after ::complete quest_priestinperil varp302_priestperil = " .. tostring(pip_v)
             .. " (quest_cheat.rs2:1011 sets ^priestperil_complete = 60)")
         t.exec("talkToAva-dialogue", t.chat.play, {
-            "npc:Hello there and welcome",
-            "choose:I would be happy to make your home a better place.",
+            "npc:Hello and welcome to my humble abode",
+            "choose:Yes.",
             "player:I would be happy",
             "npc:Yay, I didn't even",
             "npc:Don't worry, though",
@@ -240,7 +246,7 @@ return {
             "npc:Don't be silly",
             "player:I'm not convinced",
             "npc:What I need is simple",
-            "npc:have some ideas involving infinite feathers",
+            "npc:I'll use one for my bed",
             "player:Very well then",
         })
         t.ticks(2)
@@ -272,8 +278,9 @@ return {
             "npc:Hello. How can I help you?",
             "choose:I'm here about a quest.",
             "player:I'm here about a quest.",
-            "player:I have a message from your husband",
+            "player:I have a message from Malcolm",
             "npc:The curse of undeath",
+            "npc:Ever since that day",
             "npc:Tell him I love him",
             "player:I'll have a word with him",
         })
@@ -302,7 +309,7 @@ return {
             "npc:Hello. How can I help you?",
             "choose:I'm here about a quest.",
             "player:I'm here about that quest.",
-            "player:Your husband says he put",
+            "player:Malcolm says he put",
             "npc:I'll need his bank pass",
             "player:Can't you just take",
             "npc:I tried that once",
@@ -326,7 +333,7 @@ return {
             "npc:Hello. How can I help you?",
             "choose:I'm here about a quest.",
             "player:I'm here about that quest.",
-            "player:He says he won't trust me",
+            "player:Malcolm says he won't trust me",
             "player:What if I gave some sort",
             "npc:You're so clever",
             "npc:I think she lives a bit west",
@@ -390,17 +397,26 @@ return {
             "npc:Chickens is tricksy",
             "player:They look pretty pathetic",
             "npc:Stand back while I catches",
-            "npc:Here, chicky chicky!",
-            "npc:Git 'ere, yer pesky bird!",
-            "npc:Where'd she go?",
-            "npc:Git orf my laaand!",
-            "npc:You heard my husband",
-            "npc:Always the same",
-            "npc:You killed Bessie!",
-            "npc:Buying cowhides",
-            "npc:Woo woo woo!",
-            "player:Well, that's one way",
         })
+        -- The chicken scene (anma_chicken_scene.rs2, RSProx 4513 [1445..1652]): a click the
+        -- scene follows with a pause closes the chat, so each page is awaited on its own.
+        local function scene_page(row, entry)
+            for _ = 1, 40 do
+                if t.chat.kind() ~= "none" then break end
+                t.ticks(1)
+            end
+            t.exec(row, t.chat.play, { entry })
+        end
+        scene_page("chickenScene-p1", "npc:Here, chicky chicky!")
+        scene_page("chickenScene-p2", "npc:Git 'ere, yer pesky bird!")
+        scene_page("chickenScene-p3", "npc:Where'd she go?")
+        scene_page("chickenScene-p4", "npc:Git orf my laaand!")
+        t.exec("chickenScene-p5", t.chat.play, { "npc:You heard my husband", "npc:Always the same" })
+        scene_page("chickenScene-p6", "npc:You killed Bessie!")
+        t.exec("chickenScene-p7", t.chat.play, { "npc:Buying cowhides" })
+        scene_page("chickenScene-p8", "npc:Woo woo woo!")
+        scene_page("chickenScene-p9", "player:Well, that's one way")
+        t.ticks(14)
         t.ticks(2)
         t.expect("quest.stage.buy_chickens", t.quest.expect_stage("buy_chickens"))
         -- The scene ends the talk; Malcolm sells on the next one (transcript
@@ -416,7 +432,7 @@ return {
             "npc:Great! I'm laying away",
         })
         t.ticks(2)
-        t.expect("quest.stage.give_ava", t.quest.expect_stage("give_ava"))
+        t.expect("quest.stage.buy_chickens-bought", t.quest.expect_stage("buy_chickens"))
         t.exec("buyUndeadChickens-have", t.inv.expect_has, "anma_chicken_sack_full", 2)
 
         -- 1.10 giveChickensToAva
@@ -425,7 +441,14 @@ return {
         t.exec("giveChickensToAva", t.player.talk_to, "anma_assistant", 1)
         t.exec("giveChickensToAva-dialogue", t.chat.play, {
             "npc:My spiritometric devices",
-            "player:Here they are.",
+            "player:Here's one.",
+            "npc:Thanks! This is great for me",
+        })
+        t.ticks(2)
+        t.expect("quest.stage.give_ava", t.quest.expect_stage("give_ava"))
+        t.exec("giveChickensToAva2", t.player.talk_to, "anma_assistant", 1)
+        t.exec("giveChickensToAva2-dialogue", t.chat.play, {
+            "player:Here's the second one for my reward.",
             "npc:Amazing! Success!",
             "player:Can I ask exactly",
             "npc:Well, I need the feathers",
@@ -468,7 +491,14 @@ return {
         -- 1.12 goToIronMine / 1.13 useHammerOnMagnet
         witch_out("goToIronMine")
         manor_out("goToIronMine.leaveManor")
-        t.exec("goto-goToIronMine", t.player.goto_tile, 2978, 3241, 0)
+        -- The magnet is made facing due north only (p_orientation; RSProx 4513: after a north
+        -- step 2/2, after any other 0/16). As 4513 [~2990,3252]: a step south gets the hint,
+        -- the step back north the magnet.
+        t.exec("goto-goToIronMine", t.player.goto_tile, 2990, 3252, 0)
+        t.exec("stepSouth", t.player.walk_to, 2990, 3251, 10)
+        t.exec("useHammerFacingSouth", t.player.use_item_on_item, "hammer", "anma_iron_bar")
+        t.expect("useHammerFacingSouth-message", t.msg.expect("You think that facing North might work better."))
+        t.exec("stepNorth", t.player.walk_to, 2990, 3252, 10)
         t.exec("useHammerOnMagnet", t.player.use_item_on_item, "hammer", "anma_iron_bar")
         t.exec("useHammerOnMagnet-magnet", t.inv.await, "anma_magnet", 1, 10)
         t.expect("useHammerOnMagnet-message", t.msg.expect("You hammer the iron bar and create a magnet."))
@@ -517,7 +547,8 @@ return {
             "player:Oh dear, I hope he",
         })
         t.ticks(2)
-        t.expect("quest.stage.turael_axe", t.quest.expect_stage("turael_axe"))
+        -- No stage: Turael's talk writes 170 (4514 [475]).
+        t.expect("quest.stage.tree_bounce-reported", t.quest.expect_stage("tree_bounce"))
 
         -- 1.16 talkToTurael (twice)
         ava_out("talkToTurael.leaveAva")
@@ -539,7 +570,7 @@ return {
             "player:Okay, so I'll see whether I can spare",
         })
         t.ticks(2)
-        t.expect("quest.stage.turael_axe-heard", t.quest.expect_stage("turael_axe"))
+        t.expect("quest.stage.turael_axe", t.quest.expect_stage("turael_axe"))
         t.exec("talkToTurael2", t.player.talk_to, "slayer_master_1_tureal", 1)
         t.exec("talkToTurael2-dialogue", t.chat.play, {
             "npc:'Ello, and what are you after then?",
@@ -566,7 +597,8 @@ return {
             if twig_have >= 1 then break end
         end
         t.check("cutTree-twigs", twig_have >= 1, "anma_wood in backpack after chopping with the blessed axe = " .. tostring(twig_have))
-        t.expect("quest.stage.give_twigs", t.quest.expect_stage("give_twigs"))
+        -- No stage: the hand-in writes 190.
+        t.expect("quest.stage.cut_twigs-cut", t.quest.expect_stage("cut_twigs"))
 
         -- 1.18 giveTwigsToAva / 1.19 getNotesFromAva
         ava_in("giveTwigsToAva")
@@ -579,7 +611,7 @@ return {
             "npc:I've gathered together some research",
         })
         t.ticks(2)
-        t.expect("quest.stage.notes", t.quest.expect_stage("notes"))
+        t.expect("quest.stage.give_twigs", t.quest.expect_stage("give_twigs"))
         -- "just ask me for a copy": the notes come on the next talk.
         t.exec("getNotesFromAva", t.player.talk_to, "anma_assistant", 1)
         t.exec("getNotesFromAva-dialogue", t.chat.play, {
@@ -590,6 +622,7 @@ return {
             "player:Your concern is touching",
         })
         t.ticks(2)
+        t.expect("quest.stage.notes", t.quest.expect_stage("notes"))
         t.exec("getNotesFromAva-notes", t.inv.expect_has, "anma_garb_notes", 1)
 
         -- 1.20 translateNotes: all nine start on; the fixed solution turns 1,3,4,6,7,8 off
@@ -602,7 +635,7 @@ return {
             local _, bit_value = t.var.varp("varp6879_anma_note_bits")
             t.check("translateNotes-switch" .. n, inv_r == "ok", "clicked anma_buton_" .. n .. "_on (component " .. tostring(sw) .. "); varp6879_anma_note_bits = " .. tostring(bit_value))
         end
-        t.exec("translateNotes-dialogue", t.chat.play, { "mesbox:It suddenly all makes sense." })
+        t.expect("translateNotes-message", t.msg.expect("It suddenly all makes sense."))
         t.ticks(2)
         t.expect("quest.stage.translate", t.quest.expect_stage("translate"))
         t.exec("translateNotes-translated", t.inv.expect_has, "anma_trans_notes", 1)

@@ -1078,6 +1078,23 @@ d_varp(lua_State* L)
     return 2;
 }
 
+/* api_drive.var_content: the server's own copy of a varp, for the vars the
+ * client never holds (a content-allocated varp above SCRIPTRUN_VARPS, or one
+ * declared transmit=no).  The scriptrun twin of DriveState_VarpContent. */
+static int
+d_var_content(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    int id = (int)luaL_checkinteger(L, 1);
+
+    assert(bot->player);
+    if( id < 0 || id >= TORIRSSERVER_VARP_COUNT )
+        return push_result(L, "not_found", NULL);
+    lua_pushstring(L, "ok");
+    lua_pushinteger(L, (lua_Integer)ToriRSServer_VarpsGet(&bot->player->varps, id));
+    return 2;
+}
+
 static int
 d_varbit(lua_State* L)
 {
@@ -4747,6 +4764,7 @@ push_drive_table(
     bind(L, bot, "run_energy", d_run_energy);
     bind(L, bot, "varp", d_varp);
     bind(L, bot, "var_server", d_varp);
+    bind(L, bot, "var_content", d_var_content);
     bind(L, bot, "varbit", d_varbit);
     bind(L, bot, "varbit_server", d_varbit);
     bind(L, bot, "inv_count", d_inv_count);

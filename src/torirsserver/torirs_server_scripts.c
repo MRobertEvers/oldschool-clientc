@@ -10841,6 +10841,22 @@ script_command(
     }
 
     /*
+     * `p_orientation` -- which way the active player faces now (0 south, 512
+     * west, 1024 north, 1536 east): toward the npc or player faced, else the
+     * last step's direction or a square/angle faced while standing
+     * (ToriRSServerPlayer.orientation). Animal Magnetism's magnet needs due
+     * north (RSProx index 4513: after a north step 2/2, any other 0/16).
+     */
+    case SS_OP_P_ORIENTATION:
+        if( !player )
+        {
+            SSVM_Abort(state, "p_orientation with no active player");
+            return 1;
+        }
+        SSVM_PushInt(state, ToriRSServer_PlayerOrientation(srv, player));
+        return 1;
+
+    /*
      * `p_headbar_clear(healthbar $bar)` -- the active player's bar removed:
      * a HEADBARS entry with end time 0x7FFF and nothing after it, RSProx
      * `[headbar] id=0, removed=true`. Jagex sends it with every death
