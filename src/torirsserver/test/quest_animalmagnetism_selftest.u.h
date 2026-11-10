@@ -343,7 +343,7 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
     if( ali_slot < 0 )
         goto anma_done;
     anma_talk(srv, player, npc_alice, ali_slot);
-    anma_choose(srv, player, 1);
+    anma_choose(srv, player, 4);
     anma_drain(srv, player, 0);
     anma_release(srv, player);
     SELFTEST_CHECK(anma_state(player, varbit_anma) == 30, "Alice first talk should write 30, got %d",
@@ -358,6 +358,7 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
     anma_pass("return_malcolm", "OPNPC1", "anma_main=40");
 
     anma_talk(srv, player, npc_alice, ali_slot);
+    anma_choose(srv, player, 4);
     anma_drain(srv, player, 0);
     anma_release(srv, player);
     SELFTEST_CHECK(anma_state(player, varbit_anma) == 50, "Alice return should write 50, got %d",
@@ -372,6 +373,7 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
     anma_pass("return_malcolm2", "OPNPC1", "anma_main=60");
 
     anma_talk(srv, player, npc_alice, ali_slot);
+    anma_choose(srv, player, 4);
     anma_drain(srv, player, 0);
     anma_release(srv, player);
     SELFTEST_CHECK(anma_state(player, varbit_anma) == 70, "Alice crone tip should write 70, got %d",
@@ -422,6 +424,7 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
     inv_set(player, 8, obj_ecto, 20);
     anma_talk(srv, player, npc_malcolm, mal_slot);
     anma_choose(srv, player, 1);
+    anma_choose(srv, player, 2);
     anma_drain(srv, player, 0);
     anma_release(srv, player);
     SELFTEST_CHECK(anma_state(player, varbit_anma) == 110, "chicken buy should write 110, got %d",
@@ -504,6 +507,7 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
     if( tur_slot < 0 )
         goto anma_done;
     anma_talk(srv, player, npc_turael, tur_slot);
+    anma_choose(srv, player, 3);
     anma_drain(srv, player, 0);
     anma_release(srv, player);
     SELFTEST_CHECK(anma_state(player, varbit_anma) == 170, "Turael intro must not make the axe, state=%d",
@@ -512,6 +516,7 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
 
     inv_set(player, 12, obj_holy, 1);
     anma_talk(srv, player, npc_turael, tur_slot);
+    anma_choose(srv, player, 3);
     anma_choose(srv, player, 1);
     anma_drain(srv, player, 0);
     anma_release(srv, player);
@@ -538,6 +543,9 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
     anma_release(srv, player);
     SELFTEST_CHECK(anma_state(player, varbit_anma) == 200, "twig hand-in should write 200, got %d",
                    anma_state(player, varbit_anma));
+    anma_talk(srv, player, npc_ava, ava_slot);
+    anma_drain(srv, player, 0);
+    anma_release(srv, player);
     SELFTEST_CHECK(selftest_count_obj(player, obj_notes) == 1, "Ava should grant research notes");
     anma_pass("give_twigs", "OPNPC1", "anma_main=200");
 

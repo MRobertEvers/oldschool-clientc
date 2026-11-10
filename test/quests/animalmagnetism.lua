@@ -1,7 +1,8 @@
 -- Animal Magnetism: Ava -> Malcolm/Alice (Ectofuntus farm) -> Old crone -> chickens ->
 -- witch/magnet -> undead trees/Turael -> research notes -> container.
--- The chicken-catching cutscene is not played by the content (CUTSCENES.tsv ported=no):
--- the scene is a ~mesbox page, driven through as dialogue.
+-- Dialogue is Transcript:Animal_Magnetism (oldid 15263367), page for page. The
+-- chicken-catching cutscene's actors and camera are not played (CUTSCENES.tsv ported=no):
+-- its lines are chat pages with each speaker's head, driven through as dialogue.
 --
 -- WALLS (door rule, re-driven in b71). Every goto departs from and lands on open ground;
 -- every door, gate, barrier, trapdoor and ladder between the player and a target is pressed
@@ -160,15 +161,22 @@ return {
             -- Priest in Peril's farewell advice (mausoleum_drezel.rs2:145-154): 60 -> 61, the barrier opens.
             t.exec(step .. ".drezelPresent", t.npc.await_present, "priestperiltrappedmonk2", 15, 12)
             t.exec(step .. ".talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
+            -- Drezel's pages since 6382aa3302 (RSProx 4459), mausoleum_drezel.rs2:133-147.
             t.exec(step .. ".talkToDrezel-dialog", t.chat.play, {
                 "player:So can I pass through that barrier now?",
-                "npc:Ah, ",
-                "npc:Morytania is an evil land",
-                "npc:You should take some basic precautions",
-                "npc:In many ways Werewolves",
-                "npc:and it is a holy relic",
-                "npc:wolf form is incredibly powerful",
-                "player:Okay, I will keep it equipped",
+                "npc:Into Morytania? Yes, you can.",
+                "npc:I must warn you though, Morytania is an evil land.",
+                "npc:Worst of all are the vampyres",
+                "player:I'll be careful. Anything else I should know?",
+                "npc:The first settlement you'll likely come across is Canifis",
+                "npc:You should keep that dagger I gave you to hand.",
+                "player:I see. Thanks.",
+                "npc:One last thing.",
+                "player:The Myreque?",
+                "npc:Yes. They're a band of freedom fighters.",
+                "npc:Veliaf, the leader of their Mort Myre group",
+                "player:I'll keep an eye out for them.",
+                "npc:Right, I think that's everything.",
             })
             t.exec(step .. ".drezelAdvice", t.var.await_server, "varp302_priestperil", 61, 8)
             t.exec(step .. ".holyBarrier", t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
@@ -231,7 +239,8 @@ return {
             "player:Great, will I be able",
             "npc:Don't be silly",
             "player:I'm not convinced",
-            "npc:I'll use one for my bed",
+            "npc:What I need is simple",
+            "npc:have some ideas involving infinite feathers",
             "player:Very well then",
         })
         t.ticks(2)
@@ -243,7 +252,13 @@ return {
         t.exec("goto-talkToAlicesHusband", t.player.goto_tile, 3618, 3528, 0)
         t.exec("talkToAlicesHusband", t.player.talk_to, "anma_ghost_farmer", 1)
         t.exec("talkToAlicesHusband-dialogue", t.chat.play, {
-            "npc:Hello, how can I help you",
+            "player:Your animals don't look too healthy.",
+            "npc:It's that fountain",
+            "player:What use are zombie",
+            "npc:None at all, mate",
+            "player:But you're a ghost",
+            "npc:I don't know nuthin'",
+            "npc:I do miss the wife",
             "player:Would I be able to buy some",
             "npc:Talk to my wife",
         })
@@ -254,11 +269,13 @@ return {
         t.exec("walk-talkToAlice", t.player.walk_to, 3627, 3527, 40)
         t.exec("talkToAlice", t.player.talk_to, "farming_shopkeeper_4", 1)
         t.exec("talkToAlice-dialogue", t.chat.play, {
-            "npc:Hello. Would you like to see my farming",
+            "npc:Hello. How can I help you?",
             "choose:I'm here about a quest.",
-            "player:I'm here about a quest",
-            "npc:My husband wants to sell",
-            "npc:Tell him I would allow",
+            "player:I'm here about a quest.",
+            "player:I have a message from your husband",
+            "npc:The curse of undeath",
+            "npc:Tell him I love him",
+            "player:I'll have a word with him",
         })
         t.ticks(2)
         t.expect("quest.stage.return_malcolm", t.quest.expect_stage("return_malcolm"))
@@ -267,9 +284,13 @@ return {
         t.exec("walk-talkToAlicesHusband2", t.player.walk_to, 3618, 3528, 40)
         t.exec("talkToAlicesHusband2", t.player.talk_to, "anma_ghost_farmer", 1)
         t.exec("talkToAlicesHusband2-dialogue", t.chat.play, {
-            "npc:Well? What did Alice say",
-            "player:She says she cannot understand",
-            "npc:Then go back and tell her",
+            "player:Your wife says she needs",
+            "npc:Tell 'er I spent it",
+            "player:Your sense of humour",
+            "npc:Hah, just trying",
+            "player:I rest my case",
+            "npc:Suit yerself",
+            "npc:A warning to ya",
         })
         t.ticks(2)
         t.expect("quest.stage.return_alice", t.quest.expect_stage("return_alice"))
@@ -278,26 +299,39 @@ return {
         t.exec("walk-talkToAlice2", t.player.walk_to, 3627, 3527, 40)
         t.exec("talkToAlice2", t.player.talk_to, "farming_shopkeeper_4", 1)
         t.exec("talkToAlice2-dialogue", t.chat.play, {
-            "npc:Well? What did he say this time",
-            "player:He still cannot hear you",
-            "npc:Then we are no further forward",
+            "npc:Hello. How can I help you?",
+            "choose:I'm here about a quest.",
+            "player:I'm here about that quest.",
+            "player:Your husband says he put",
+            "npc:I'll need his bank pass",
+            "player:Can't you just take",
+            "npc:I tried that once",
         })
         t.ticks(2)
         t.expect("quest.stage.return_malcolm2", t.quest.expect_stage("return_malcolm2"))
 
-        -- (guide folds the second Malcolm and Alice visits into the s50/s60 hops)
+        -- The bank pass: Malcolm 50 -> 60, then Alice names the crone 60 -> 70.
         t.exec("walk-talkToAlicesHusband2b", t.player.walk_to, 3618, 3528, 40)
         t.exec("talkToAlicesHusband2b", t.player.talk_to, "anma_ghost_farmer", 1)
         t.exec("talkToAlicesHusband2b-dialogue", t.chat.play, {
-            "npc:This is hopeless",
-            "player:I'll ask Alice",
+            "player:You may not believe me",
+            "npc:Maybe she said that",
+            "npc:Go tell 'er now",
         })
         t.ticks(2)
         t.expect("quest.stage.return_alice2", t.quest.expect_stage("return_alice2"))
         t.exec("walk-talkToAlice2b", t.player.walk_to, 3627, 3527, 40)
         t.exec("talkToAlice2b", t.player.talk_to, "farming_shopkeeper_4", 1)
         t.exec("talkToAlice2b-dialogue", t.chat.play, {
-            "npc:There is an old crone west",
+            "npc:Hello. How can I help you?",
+            "choose:I'm here about a quest.",
+            "player:I'm here about that quest.",
+            "player:He says he won't trust me",
+            "player:What if I gave some sort",
+            "npc:You're so clever",
+            "npc:I think she lives a bit west",
+            "player:I'll see if I can find her",
+            "npc:Mysterious indeed",
         })
         t.ticks(2)
         t.expect("quest.stage.talk_crone", t.quest.expect_stage("talk_crone"))
@@ -306,13 +340,26 @@ return {
         crone_in("talkToOldCrone")
         t.exec("talkToOldCrone", t.player.talk_to, "ahoy_crone", 1)
         t.exec("talkToOldCrone-dialogue", t.chat.play, {
-            "npc:Alice's husband needs to speak",
+            "player:I'm here about the farmers east of here.",
+            "player:Alice and her husband",
+            "npc:Ah, I know them",
+            "player:Alice seems to think",
+            "npc:Well, the poor young lady",
+            "npc:You seem to have one of her golden hairs",
+            "mesbox:In a flash, the crone",
+            "npc:Talk to me again with a ghostspeak",
+            "npc:I can mirror part",
+            "npc:The second amulet",
         })
         t.ticks(2)
         t.expect("quest.stage.crone_mirror", t.quest.expect_stage("crone_mirror"))
         t.exec("talkToOldCrone2", t.player.talk_to, "ahoy_crone", 1)
         t.exec("talkToOldCrone2-dialogue", t.chat.play, {
-            "npc:There - a crone-made amulet",
+            "player:I'm here about the farmers east of here.",
+            "player:I'm here to see if you are ready",
+            "npc:I most certainly am; there you go.",
+            "player:Wow, that was quick",
+            "npc:Just being a good neighbour",
         })
         t.ticks(2)
         t.expect("quest.stage.give_amulet", t.quest.expect_stage("give_amulet"))
@@ -323,10 +370,14 @@ return {
         t.exec("goto-giveAmuletToHusband", t.player.goto_tile, 3618, 3528, 0)
         t.exec("giveAmuletToHusband", t.player.talk_to, "anma_ghost_farmer", 1)
         t.exec("giveAmuletToHusband-dialogue", t.chat.play, {
+            "player:I talked to your wife and thought",
+            "npc:Arr, that makes far more sense",
+            "player:Well... oh, never mind",
             "npc:Give me that amulet",
             "choose:Okay, you need it more than I do, I suppose.",
             "player:Okay, you need it more",
-            "npc:Ta, mate",
+            "npc:Ta, mate.",
+            "player:Lucky we had such",
         })
         t.ticks(2)
         t.expect("quest.stage.talk_malcolm_amulet", t.quest.expect_stage("talk_malcolm_amulet"))
@@ -334,25 +385,57 @@ return {
         -- 1.8 talkToAlicesHusband3 / 1.9 buyUndeadChickens
         t.exec("talkToAlicesHusband3", t.player.talk_to, "anma_ghost_farmer_amulet", 1)
         t.exec("talkToAlicesHusband3-dialogue", t.chat.play, {
-            "npc:That's better",
-            "npc:Alice! The chickens",
-            "mesbox:Alice and Malcolm call",
-            "npc:There. Now I can sell",
+            "npc:Ahhh, many thanks",
+            "player:I need a couple of your chickens",
+            "npc:Chickens is tricksy",
+            "player:They look pretty pathetic",
+            "npc:Stand back while I catches",
+            "npc:Here, chicky chicky!",
+            "npc:Git 'ere, yer pesky bird!",
+            "npc:Where'd she go?",
+            "npc:Git orf my laaand!",
+            "npc:You heard my husband",
+            "npc:Always the same",
+            "npc:You killed Bessie!",
+            "npc:Buying cowhides",
+            "npc:Woo woo woo!",
+            "player:Well, that's one way",
+        })
+        t.ticks(2)
+        t.expect("quest.stage.buy_chickens", t.quest.expect_stage("buy_chickens"))
+        -- The scene ends the talk; Malcolm sells on the next one (transcript
+        -- "Speaking to Malcolm after catching the chicken").
+        t.exec("buyUndeadChickens", t.player.talk_to, "anma_ghost_farmer_amulet", 1)
+        t.exec("buyUndeadChickens-dialogue", t.chat.play, {
+            "npc:Hello, how can I help you? I'm sellin'",
+            "choose:Could I buy those chickens now, then?",
+            "player:Could I buy those chickens now?",
             "npc:I can hand over a chicken",
-            "choose:Buy the chickens for ecto-tokens.",
-            "npc:There you go",
+            "choose:Could I buy 2 chickens?",
+            "player:Could I buy 2 chickens?",
+            "npc:Great! I'm laying away",
         })
         t.ticks(2)
         t.expect("quest.stage.give_ava", t.quest.expect_stage("give_ava"))
-        t.exec("buyUndeadChickens", t.inv.expect_has, "anma_chicken_sack_full", 2)
+        t.exec("buyUndeadChickens-have", t.inv.expect_has, "anma_chicken_sack_full", 2)
 
         -- 1.10 giveChickensToAva
         morytania_out("giveChickensToAva.leaveMorytania")
         ava_in("giveChickensToAva")
         t.exec("giveChickensToAva", t.player.talk_to, "anma_assistant", 1)
         t.exec("giveChickensToAva-dialogue", t.chat.play, {
-            "npc:Wonderful! Those chickens",
-            "npc:Next I need a bar magnet",
+            "npc:My spiritometric devices",
+            "player:Here they are.",
+            "npc:Amazing! Success!",
+            "player:Can I ask exactly",
+            "npc:Well, I need the feathers",
+            "player:Obvious, yes, but why",
+            "npc:Well, for a start",
+            "player:Then why do I need",
+            "npc:Seeing as how",
+            "player:Beats chicken slaying",
+            "npc:We'll need a magnet next",
+            "npc:Go and talk to the Witch next door.",
         })
         t.ticks(2)
         t.expect("quest.stage.talk_witch", t.quest.expect_stage("talk_witch"))
@@ -363,7 +446,9 @@ return {
         t.exec("talkToWitch-dialogue", t.chat.play, {
             "npc:Hello, hello, my poppet",
             "player:Ava told me to ask you",
-            "npc:Don't worry, deary, I can tell",
+            "npc:Don't worry, deary",
+            "player:No need to patronise",
+            "npc:I went to anger management",
             "npc:Just bring me 5 iron bars",
             "player:I'll be back",
         })
@@ -371,8 +456,10 @@ return {
         t.expect("quest.stage.witch_bars", t.quest.expect_stage("witch_bars"))
         t.exec("talkToWitch2", t.player.talk_to, "anma_witch", 1)
         t.exec("talkToWitch2-dialogue", t.chat.play, {
-            "npc:Great, you'll go far",
-            "npc:Hit the bar with a plain old",
+            "npc:Great, you'll go far!",
+            "player:Toys? Snookums?",
+            "npc:Oh, forget it, then",
+            "npc:Go to the iron mine",
         })
         t.ticks(2)
         t.expect("quest.stage.make_magnet", t.quest.expect_stage("make_magnet"))
@@ -388,13 +475,24 @@ return {
 
         -- 1.14 giveMagnetToAva
         ava_in("giveMagnetToAva")
+        local magnet_snap_result, magnet_snap = t.skill.snapshot()
+        t.check("giveMagnetToAva-snapshot", magnet_snap_result == "ok", "skill.snapshot before the magnet -> " .. tostring(magnet_snap_result))
         t.exec("giveMagnetToAva", t.player.talk_to, "anma_assistant", 1)
         t.exec("giveMagnetToAva-dialogue", t.chat.play, {
+            "player:I've manufactured the magnet",
             "npc:Great stuff! With the Witch",
+            "npc:The plan is that the chicken",
+            "npc:In addition, arrows",
+            "player:I begin to understand",
             "npc:We need a source of wood",
             "npc:Try using a woodcutting axe",
+            "player:They will try to kill me",
+            "npc:Now you know how those poor guards",
+            "npc:pretty close.",
         })
         t.ticks(2)
+        t.expect("giveMagnetToAva-message", t.msg.expect("Your work with the magnet increases your Crafting experience slightly."))
+        t.expect("reward.magnet_crafting_xp", t.skill.expect_gain("crafting", 50, magnet_snap))
         t.expect("quest.stage.undead_trees", t.quest.expect_stage("undead_trees"))
         -- 1.15 attemptToCutTree
         ava_out("attemptToCutTree.leaveAva")
@@ -408,6 +506,7 @@ return {
         ava_in("attemptToCutTree-report")
         t.exec("attemptToCutTree-report", t.player.talk_to, "anma_assistant", 1)
         t.exec("attemptToCutTree-report-dialogue", t.chat.play, {
+            "player:Well, I tried to hack",
             "npc:Fortunately for you",
             "player:Tell me the worst",
             "npc:The first is more interesting",
@@ -415,6 +514,7 @@ return {
             "player:I'm not exactly addicted",
             "npc:Well, in that case",
             "npc:As he's not known",
+            "player:Oh dear, I hope he",
         })
         t.ticks(2)
         t.expect("quest.stage.turael_axe", t.quest.expect_stage("turael_axe"))
@@ -428,10 +528,13 @@ return {
         t.check("talkToTurael-npc-spawned", tur_r == "ok", "npc.nearest(slayer_master_1_tureal, 25) = " .. tostring(tur_r) .. " " .. tostring(tur_d))
         t.exec("talkToTurael", t.player.talk_to, "slayer_master_1_tureal", 1)
         t.exec("talkToTurael-dialogue", t.chat.play, {
-            "player:I'm here about those undead trees",
+            "npc:'Ello, and what are you after then?",
+            "choose:I'm here about a quest.",
+            "player:I'm here about a quest. Ava said",
             "npc:Ahh, you came to the right man",
             "player:I think I need some of the wood",
             "npc:Sounds like you need a blessed axe",
+            "npc:Blessed axes are too soft",
             "npc:If you can give me a mithril axe",
             "player:Okay, so I'll see whether I can spare",
         })
@@ -439,8 +542,12 @@ return {
         t.expect("quest.stage.turael_axe-heard", t.quest.expect_stage("turael_axe"))
         t.exec("talkToTurael2", t.player.talk_to, "slayer_master_1_tureal", 1)
         t.exec("talkToTurael2-dialogue", t.chat.play, {
+            "npc:'Ello, and what are you after then?",
+            "choose:Hello, I'm here about those trees again.",
+            "player:Hello, I'm here about those trees again.",
             "npc:I can make an axe for you now",
             "choose:I'd love one, thanks.",
+            "player:I'd love one, thanks.",
             "npc:Here's a new axe",
         })
         t.ticks(2)
@@ -465,13 +572,24 @@ return {
         ava_in("giveTwigsToAva")
         t.exec("giveTwigsToAva", t.player.talk_to, "anma_assistant", 1)
         t.exec("giveTwigsToAva-dialogue", t.chat.play, {
+            "player:I have that undead wood",
             "npc:You certainly took your time",
             "player:I'd say they didn't grow on trees",
             "npc:Quite. Now that we have all",
-            "npc:I've gathered research notes",
+            "npc:I've gathered together some research",
         })
         t.ticks(2)
         t.expect("quest.stage.notes", t.quest.expect_stage("notes"))
+        -- "just ask me for a copy": the notes come on the next talk.
+        t.exec("getNotesFromAva", t.player.talk_to, "anma_assistant", 1)
+        t.exec("getNotesFromAva-dialogue", t.chat.play, {
+            "player:I'd like to look at those research notes",
+            "npc:They are still stumping me",
+            "player:I'd find it slightly inconvenient",
+            "npc:It wouldn't be all bad",
+            "player:Your concern is touching",
+        })
+        t.ticks(2)
         t.exec("getNotesFromAva-notes", t.inv.expect_has, "anma_garb_notes", 1)
 
         -- 1.20 translateNotes: all nine start on; the fixed solution turns 1,3,4,6,7,8 off
@@ -484,6 +602,7 @@ return {
             local _, bit_value = t.var.varp("varp6879_anma_note_bits")
             t.check("translateNotes-switch" .. n, inv_r == "ok", "clicked anma_buton_" .. n .. "_on (component " .. tostring(sw) .. "); varp6879_anma_note_bits = " .. tostring(bit_value))
         end
+        t.exec("translateNotes-dialogue", t.chat.play, { "mesbox:It suddenly all makes sense." })
         t.ticks(2)
         t.expect("quest.stage.translate", t.quest.expect_stage("translate"))
         t.exec("translateNotes-translated", t.inv.expect_has, "anma_trans_notes", 1)
@@ -492,9 +611,14 @@ return {
         -- 1.21 giveNotesToAva
         t.exec("giveNotesToAva", t.player.talk_to, "anma_assistant", 1)
         t.exec("giveNotesToAva-dialogue", t.chat.play, {
+            "player:I've translated those notes",
             "npc:For all I know",
+            "player:I can see why you don't",
+            "npc:Let's get back to the work",
             "npc:I've given you a pattern",
             "npc:If you are having trouble",
+            "player:Really? How would you know",
+            "npc:I hear they lose their clothes",
         })
         t.ticks(2)
         t.expect("quest.stage.pattern", t.quest.expect_stage("pattern"))
@@ -510,7 +634,7 @@ return {
         t.check("giveContainerToAva-snapshot", xp_snapshot_result == "ok", "skill.snapshot before hand-in -> " .. tostring(xp_snapshot_result))
         t.exec("giveContainerToAva", t.player.talk_to, "anma_assistant", 1)
         t.exec("giveContainerToAva-dialogue", t.chat.play, {
-            "npc:Perfect! With the undead chicken",
+            "npc:Wow, great, now the arrow",
         })
         t.ticks(3)
         t.expect("reward.crafting_xp", t.skill.expect_gain("crafting", 1000, xp_snapshot))
