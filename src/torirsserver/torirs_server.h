@@ -4413,6 +4413,14 @@ struct ToriRSServerPlayer
     int face_angle;
     int face_angle_instant;
     /**
+     * Which way the player stands, as the client draws them: 0 south, 512 west,
+     * 1024 north, 1536 east. Set by every step taken (to the step's direction)
+     * and, on a tick with no step, by the square or angle faced that tick.
+     * An entity faced is not stored: `ToriRSServer_PlayerOrientation` answers
+     * the way to it. Outlives the tick, unlike the masks it is read from.
+     */
+    int orientation;
+    /**
      * `p_transparency` -- the TRANSPARENCY block's fields, read only while
      * TORIRSSERVER_PMASK_TRANSPARENCY is set: client cycles relative to
      * arrival (signed shorts), the alphas (0 opaque .. 255 gone), and whether
@@ -7252,6 +7260,15 @@ ToriRSServer_SceneOrigin(int zone)
 {
     return (zone - 6) * 8;
 }
+
+/**
+ * `p_orientation`: the way the player faces now -- toward the npc or player
+ * they face, else `orientation`. 0 south, 512 west, 1024 north, 1536 east.
+ */
+int
+ToriRSServer_PlayerOrientation(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player);
 
 /** Direction index for a one-tile step, in the client's World_CoordStep
  *  numbering: 0 NW, 1 N, 2 NE, 3 W, 4 E, 5 SW, 6 S, 7 SE. -1 when (dx, dz) is

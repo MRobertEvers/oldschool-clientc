@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11327] = {
+static const char* const g_ss_opcode_names[11328] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -624,6 +624,7 @@ static const char* const g_ss_opcode_names[11327] = {
     [11324] = "GE_OFFER_GET",
     [11325] = "GE_OFFER_COLLECT",
     [11326] = "SEND_VARP_LONG",
+    [11327] = "P_ORIENTATION",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -633,7 +634,7 @@ static const char* const g_ss_opcode_names[11327] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11327] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11328] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -1251,6 +1252,7 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11327] = {
     [11324] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* GE_OFFER_GET */
     [11325] = { 3, 0, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* GE_OFFER_COLLECT */
     [11326] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* SEND_VARP_LONG */
+    [11327] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* P_ORIENTATION */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

@@ -383,6 +383,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # keeps the value itself where content needs it.
     "SEND_VARP_LONG": (11326, 2, 0, 0, 0),
 
+    # p_orientation()(int)
+    #
+    # Which way the active player stands, as the client draws them: 0 south,
+    # 512 west, 1024 north, 1536 east. The direction of the last step taken;
+    # a square or angle faced while standing still; while an npc or player is
+    # faced, the way to it. Animal Magnetism's magnet is made only facing due
+    # north: 18 hammer tries in RSProx index 4513 [3329..3734], made after a
+    # north step 2/2, after any other step (diagonals included) 0/16.
+    "P_ORIENTATION": (11327, 0, 0, 1, 0),
+
     # map_instance_find(coord $coord)(int)
     #
     # The handle of the instance containing `$coord`, or -1. This is the query
@@ -2004,6 +2014,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_PROJANIM_PL": (1 << POINTER_BITS["active_npc"], 0),
     "SPOTANIM_MAP_SPECIFIC": (1 << POINTER_BITS["active_player"], 0),
     "P_TINT": (1 << POINTER_BITS["active_player"], 0),
+    "P_ORIENTATION": (1 << POINTER_BITS["active_player"], 0),
     "P_FACEANGLE": (1 << POINTER_BITS["active_player"], 0),
     "P_HEADBAR_CLEAR": (1 << POINTER_BITS["active_player"], 0),
     "P_TRANSPARENCY": (1 << POINTER_BITS["active_player"], 0),

@@ -306,3 +306,12 @@ the test: scriptrun turns no book's page (`_books.lua` fails its turn rows the s
 - The journal's four unrecorded states (above).
 - The tour's camera on the live client (scriptrun has no camera reader).
 - The outpost-door press at [586] in the test.
+
+## Droalak after the quest (RSProx index 4513 [1933..1941], rev 242, 2026-11-10)
+
+Recorded by an account with Making History complete (`makinghistory_prog` 4, `ghost_prog` 6): the
+four farewell pages ("I have delivered the scroll, you can rest in peace now." / "Thanks for
+telling me! I've been waiting for ages!" / "Good bye." / "Bye!"), every one chathap1, and
+`makinghistory_droalak_pres` 0 -> 1 on the click of "Bye!" ([1941]), which fades him. Our text
+and the bit already matched; the moods were neutral and are now chathap1, and the branch is no
+longer UNVERIFIED. The wiki transcript has the four lines exactly (Transcript:Making_History).
