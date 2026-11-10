@@ -664,6 +664,9 @@ def load_squares(maps_dir):
 # --------------------------------------------------------------- dataset side
 
 
+# `(map square x, map square z)` -> planes to add to every npc row of that square.
+NPC_SQUARE_PLANE_SHIFTS = {(22, 157): -1}
+
 Spawn = collections.namedtuple("Spawn", "kind name x z level count")
 
 
@@ -886,6 +889,15 @@ def main():
         assert key not in seen, key
         seen.add(key)
         kept[square].append(Spawn("npc", name, x, z, level, None))
+
+    # The dump puts every npc of the Chasm of Fire square one plane too high:
+    # RSProx index 4498, 798 and 3268 have the Voice of Yama and the black demons
+    # on plane 0, the greater demons on 1, the lesser demons on 2 (900 adds, every
+    # one); ours were 1, 2, 3 and the Voice could not be reached.
+    for square, shift in NPC_SQUARE_PLANE_SHIFTS.items():
+        assert square in kept, square
+        kept[square] = [s._replace(level=s.level + shift) if s.kind == "npc" else s
+                        for s in kept[square]]
 
     # ---------------------------------------------------------------- write
 

@@ -1,0 +1,57 @@
+{{Infobox Item
+|name = Forgotten lockbox
+|image = [[File:Forgotten lockbox.png]]
+|release = [[14 May]] [[2025]]
+|update = Yama, the Master of Pacts: Out Today
+|members = Yes
+|quest = No
+|tradeable = No
+|bankable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Open, Drop
+|examine = Once stored by somebody in Yama's vaults, but now forgotten.
+|value = 100
+|weight = 2.100
+|id = 30763
+|leagueRegion = Kourend
+}}
+[[File:Forgotten lockbox detail.png|130px|left]]
+The '''forgotten lockbox''' is a drop received from defeating [[Yama]] that can be opened to obtain a reward. 
+
+Each forgotten lockbox yields an average of approximately 3.45 [[oathplate shards]] and 28.54 [[dragon dart]]s. When the respective reward is rolled, it yields an average of approximately 11.82 oathplate shards or 104.55 dragon darts. Based on the lockbox's drop rate of 1/33 from Yama, lockboxes account for approximately 0.098 oathplate shards and 0.865 dragon darts per Yama kill.
+
+
+
+==Rewards==
+{{DropLogProject|jagex=yes}}
+
+{{Average drop value|killname=opening|mobname=forgotten lockbox}}
+
+{{DropsTableHead}}
+{{DropsLineReward|name=Dragon bolts (unf)|quantity=125|rarity=60/403}}
+{{DropsLineReward|name=Dragon dart|quantity=125|rarity=60/403}}
+{{DropsLineReward|name=Oathplate shards|quantity=14|rarity=60/403}}
+{{DropsLineReward|name=Dragon dart|quantity=80|rarity=50/403}}
+{{DropsLineReward|name=Oathplate shards|quantity=11|rarity=50/403}}
+{{DropsLineReward|name=Dragon platelegs|quantity=1|rarity=50/403}}
+{{DropsLineReward|name=Dragon plateskirt|quantity=1|rarity=50/403}}
+{{DropsLineReward|name=Coins|quantity=233333|rarity=20/403}}
+{{DropsLineReward|name=Oathplate helm|quantity=1|rarity=1/403}}
+{{DropsLineReward|name=Oathplate chest|quantity=1|rarity=1/403}}
+{{DropsLineReward|name=Oathplate legs|quantity=1|rarity=1/403}}
+{{DropsTableBottom}}
+
+==Item sources==
+{{Drop sources|Forgotten lockbox}}
+
+==Transcript==
+{{hastranscript|item}}
+
+==Trivia==
+* The lockbox uses the same item model as the [[:File:Boss Slayer Master Blog (6).png|divine reliquary]], a proposed ammunition slot item that could store [[god blessing]]s. The reliquary, among other items, were proposed as a reward in the [[Update:Boss Slayer Master Blog|Boss Slayer Master Blog]] on [[14 July]] [[2020]], though the Boss Slayer Master and its rewards were ultimately scrapped and never polled.
+* Attempting to open the lockbox on [[Entrana]] will present the player with the message "You can't open that here".
+
+{{Yama}}
+[[Category:Collection log items]]

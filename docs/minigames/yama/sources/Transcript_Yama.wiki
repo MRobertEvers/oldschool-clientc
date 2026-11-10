@@ -1,0 +1,546 @@
+{{Transcript|npc}}
+
+==Standard dialogue==
+===First time===
+* '''Yama:''' Ah... [player name], welcome. I would offer you some water, but we don't get much of it down here.
+* '''Player:''' Thanks...
+* '''Yama:''' I take it you have questions.
+* {{tselect|Select an option}}
+* {{topt|You know why I'm here. Stop messing around.}}
+** '''Yama:''' I do, but it is important that it is you who is asking for information, not me that is offering it.
+** '''Player:''' Okay... How are you still communicating with your followers?
+** {{tact|Continues from "Why, through my voice, of course."}}
+* {{topt|I take it you have answers.}}
+** '''Player:''' I take it you have answers.
+** '''Yama:''' I do, but I rarely share them umprompted.
+** '''Player:''' Okay, how are you still communicating with your followers?
+** {{tact|Continues from "Why, through my voice, of course."}}
+* {{topt|Yes, a few of them actually.}}
+** '''Player:''' Yes, a few of them actually. How are you still communicating with your followers?
+** '''Yama:''' Why, through my voice, of course.
+** '''Player:''' You know what I mean. How are you still communicating with your voice?
+** '''Yama:''' The same way I always have.
+** '''Player:''' But the dark nullifier... I thought it was supposed to sever your connection.
+** '''Yama:''' Hmm... Yes, if anything could have done so, it would have been the power of the Dark Altar.
+** '''Yama:''' However, when your opponents have only one angle of approach, it makes them so predictable.
+** '''Player:''' You knew we would try to use it?
+** '''Yama:''' Yes. When I heard you would be hand delivering me a connection to the Dark Altar... Why, I was overjoyed.
+** '''Player:''' But... I remember planting it! The plan went off without a hitch!
+** '''Yama:''' I do not doubt that you remember it that way.
+** '''Player:''' What did you do?!
+** '''Yama:''' A simple transfiguration of the mind. My disciples granted you a memory of success. A fitting payment for your gratious{{Sic}} service.
+** {{Tcond|If Icthlarin's Little Helper has been completed:}}
+*** '''Player:''' You modified my memory?! That's only the second time someone has done that to me, and I wasn't very happy about it then either!
+*** {{tact|continues}}
+** {{Tcond|If Icthlarin's Little Helper hasn't been completed:}}
+*** '''Player:''' You modified my memory?!
+*** {{tact|continues}}
+** '''Yama:''' Yes. And I have now answered five of your questions. I believe my generosity has been both demonstrated and exhausted.
+** '''Player:''' You call that gloating generosity? If you didn't want something from me, I wouldn't still be down here. Get to the point.
+** '''Yama:''' Hmm... Perhaps you are more astute than I thought. Very well, there is something that I want.
+** '''Player:''' Well you won't be getting it from me!
+** '''Yama:''' I am Yama. Every mortal desires something of mine. Ancient armaments? Hidden knowledge? Or perhaps a taste of revenge...
+** '''Yama:''' These things could be yours.
+** '''Yama:''' Face me in combat. If you win, you take it all. Armaments, knowledge, revenge.
+** '''Player:''' And if I lose?
+** '''Yama:''' I take your soul. For all of eternity.
+** '''Player:''' No thanks.
+** '''Yama:''' I see. Perhaps we could lower the stakes then.
+** '''Yama:''' I will face you in an inhibited form. I'll even allow you to bring an ally, provided they have entered the same contract.
+** '''Yama:''' If you win, I will give you a chance to gain some of my treasures, and of course, you will have sampled your revenge.
+** '''Player:''' And if I lose?
+** '''Yama:''' When you take your final rest, I shall take your soul for a year. A drop in the ocean compared to eternity.
+** '''Player:''' How can I know you'll keep your word?
+** '''Yama:''' The same way I will know you shall keep yours. A binding contract. As luck would have it, I had one of my scribes draft one up for just such an occasion.
+** '''Player:''' ...Okay.
+** '''Yama:''' Sign right here.
+** {{tselect|Sign the contract?}}
+** {{topt|Yes.}}
+*** {{tselect|{{Colour|#ff0000|Are you sure?}} A contract with Yama cannot be backed out of.}}
+*** {{topt|Yes.}}
+**** '''Yama:''' Excellent... Challenge me when you are ready, [player name]. I very much look forward to it.
+**** {{tact|end}}
+*** {{topt|No.}}
+**** {{tact|below}}
+** {{topt|No.}}
+*** '''Player:''' I'm not sure I want to...
+*** '''Yama:''' Of course. There is no rush. Leave, with your tail tucked between your legs. If you grow a spine and wish to fulfil your revenge, I will be waiting.
+*** {{tact|end}}
+
+=== After backing out from signing the contract ===
+* '''Yama:''' You are back. Excellent. I have little time for cowards. If you are ready, I will retrieve the contract.
+* '''Yama:''' Sign right here.
+* {{tselect|Sign the contract?}}
+* {{topt|Yes.}}
+** {{tact|above}}
+* {{topt|No.}}
+** {{tact|above}}
+
+===Using the right-click Challenge option before being presented with the contract===
+* '''Yama:''' Ah... Yes, let us not get bogged down in the minutiae. Before we start, a quick contract. Nothing but a formality.
+* '''Yama:''' Sign right here.
+* {{topt|Yes.}}
+** {{tact|above}}
+* {{topt|No.}}
+** {{tact|above}}
+
+===Afterwards===
+* '''Yama:''' Welcome, [player name]. Have you come to challenge me?
+* {{tselect|Select an option}}
+* {{topt|Yes. Let's do this.}}
+** '''Player:''' Yes. Let's do this.
+** {{qact|Yama snaps his fingers and teleports off his throne.}}
+** {{tact|end}}
+* {{topt|Actually, I have some questions.}}
+** '''Player:''' Actually, I have some questions.
+** '''Yama:''' Of course.
+** {{tselect|Select an option}}
+** {{topt|There's something in our contract about additional contracts...}}
+*** '''Player:''' There's something in our contract about additional contracts... Why would I want to sign any more of them?
+*** '''Yama:''' As outlined in subsection C, if you wish for your revenge to feel more 'real', I am willing to lift some of the restrictions placed by the original contract.
+*** '''Player:''' Why would I want that?
+*** {{tcond|If the player is an Ironman or Group Ironman:}}
+**** '''Yama:''' You seem to enjoy self-imposed difficulty. I thought I would indulge you.
+**** {{tact|continues}}
+*** {{tcond|If the player is not an Ironman:}}
+**** '''Yama:''' You may not, in which case you can sell them to someone with greater respect for themselves. But if you do, the option is there.
+**** {{tact|continues}}
+*** '''Yama:''' And if you manage to claim victory, there is of course a reward for each contract.
+*** '''Player:''' Okay, can I see the contracts?
+*** '''Yama:''' No. For this, I require from you a service. My demons are... Lacking, of late. Unrefined.
+*** '''Yama:''' They must fight, suffer and reform. If you deliver them specific ends during your 'tasks' in my domain, they may leave behind a contract.
+*** '''Yama:''' And of course, if you defeat me, I may also reward you with one.
+*** '''Player:''' What kinds of 'ends'?
+*** '''Yama:''' Death by two-handed melee weapons, heavy ranged weapons, magic spells, special attacks, and defeating them whilst bound. Each kind may award a different contract.
+*** '''Yama:''' If you find yourself eager to obtain any contract, I will use a glyph to indicate my preferred method, which you can utilise for a better chance to receive that contract.
+*** '''Player:''' What kinds of contracts can I obtain?
+*** '''Yama:''' Were you more adept at reading you would find the details in our original contract. Otherwise, bring any you obtain to me and I shall explain then.
+*** {{tact|previous}}
+** {{topt|Do you keep any record of our fights?}}
+*** '''Player:''' Do you keep any record of our fights?
+*** '''Yama:''' I do, I can have somebody retrieve your file. One moment.
+*** {{qact|A mail-imp holding a scroll appears. Yama smites the imp.}}
+*** '''Yama:''' For your reading pleasure.
+*** {{tact|opens2=Yama hiscores}}
+*** {{tact|end}}
+** {{topt|That's all.}}
+*** '''Player:''' That's all.
+*** {{tact|end}}
+* {{topt|No, I'd rather not.}}
+** '''Player:''' No, I'd rather not.
+** '''Yama:''' I see. Perhaps you are just here to waste my time then? Return when you are not.
+** {{tact|end}}
+
+===During battle===
+====Changing aggro====
+* {{trandom}}
+* {{topt|Dialogue 1}}
+** '''Yama:''' {{overhead|Your strike lacks bite.}}
+* {{topt|Dialogue 2}}
+** '''Yama:''' {{overhead|A change of pace.}}
+
+====Infernal Rockfall====
+* {{trandom}}
+* {{topt|Dialogue 1}}
+** '''Yama:''' {{overhead|Colabi, infernus}}
+* {{topt|Dialogue 2}}
+** '''Yama:''' {{overhead|Ven, estella infernus}}
+* {{topt|Dialogue 3}}
+** '''Yama:''' {{overhead|Colabesur infernus}}
+
+====Shadow Stomp====
+* {{trandom}}
+* {{topt|Dialogue 1}}
+** '''Yama:''' {{overhead|Ven, umbra eclipta}}
+* {{topt|Dialogue 2}}
+** '''Yama:''' {{overhead|Umbra, proriumpse}}
+* {{topt|Dialogue 3}}
+** '''Yama:''' {{overhead|Umbra apprerendehe}}
+
+====Phase Transitioning====
+* {{trandom}}
+* {{topt|Dialogue 1}}
+** '''Yama:''' {{overhead|Begone}}
+* {{topt|Dialogue 2}}
+** '''Yama:''' {{overhead|You bore me.}}
+* {{topt|Dialogue 3}}
+** '''Yama:''' {{overhead|Enough.}}
+
+====Player dies====
+* {{trandom}}
+* {{topt|Dialogue 1}}
+** '''Yama:''' {{overhead|Lacking.}}
+* {{topt|Dialogue 2}}
+** '''Yama:''' {{overhead|Pathetic.}}
+* {{topt|Dialogue 3}}
+** '''Yama:''' {{overhead|The price is paid.}}
+* {{topt|Dialogue 4}}
+** '''Yama:''' {{overhead|Another day, perhaps.}}
+* {{topt|Dialogue 5}}
+** '''Yama:''' {{overhead|Another day, another soul.}}
+* {{topt|Dialogue 6}}
+** '''Yama:''' {{overhead|Your soul was always mine.}}
+
+====Defeating Yama====
+* {{trandom}}
+* {{topt|Dialogue 1}}
+** '''Yama:''' {{overhead|Fair is fair.}}
+* {{topt|Dialogue 2}}
+** '''Yama:''' {{overhead|Your reward, as agreed.}}
+* {{topt|Dialogue 3}}
+** '''Yama:''' {{overhead|A satisfying warmup. Collect your loot and let us continue.}}
+* {{topt|Dialogue 4}}
+** '''Yama:''' {{overhead|A passing performance.}}
+
+====Defeating Yama with low hitpoints====
+* {{trandom}}
+* {{topt|Dialogue 1}}
+** '''Yama:''' {{Overhead|A close fight. Your nerve was well held.}}
+* {{topt|Dialogue 2}}
+** '''Yama:''' {{Overhead|A good risk, adequately rewarded.}}
+* {{topt|Dialogue 3}}
+** '''Yama:''' {{Overhead|Excellent performance. Again?}}
+
+==== Defeating Yama, perfect kill ====
+* {{trandom}}
+* {{topt|Dialogue 1}}
+** '''Yama:''' {{Overhead|Effective, if a bit cowardly.}}
+* {{topt|Dialogue 2}}
+** '''Yama:''' {{Overhead|Risk averse, are we?}}
+
+====Attempting to pick up another player's dropped item during a solo-only contract====
+* '''Yama:''' {{Overhead|Missed the fine print, did we? Our contract forbids you from picking up stashed items.}}
+
+===After battle, victorious===
+* {{tact|One of the following is said before standard dialogue follows, after which the "In any case" section is played. This can appear as an overhead quote if Yama is challenged, which ignores the "In any case" section.}}
+* {{trandom}}
+* {{topt|Dialogue 1}}
+** '''Yama:''' I hope you are finding the spoils from my treasury to your liking. There are plenty more for you to claim.
+* {{topt|Dialogue 2}}
+** '''Yama:''' Your victories mount. You are getting better at this.
+* {{topt|Dialogue 3}}
+** '''Yama:''' A victory earned. But there is room for improvement, is there not?
+* {{topt|Dialogue 4}}
+** '''Yama:''' Here we go again. I suppose it is entertaining watching you desperately guzzle potions, at the very least.
+* {{topt|Dialogue 5}}
+** '''Yama:''' I must once again commend your strategy. Employing tactics so boring that they put your opponents to sleep is very novel.
+* {{topt|Dialogue 6}}
+** '''Yama:''' Back again I see. I can see how you find these bouts exhilarating, being such a feeble opponent.
+* {{topt|Dialogue 7}}
+** '''Yama:''' Your willingness to wager your soul continues to surprise. I suppose you think of it even less worth than I do.
+* {{topt|Dialogue 8}}
+** '''Yama:''' Honestly, I expected more. That it takes you as long as it does to defeat my inhibited form is rather embarrassing.
+* {{topt|Dialogue 9}}
+** '''Yama:''' You look happy with yourself. How endearing.
+* {{topt|Dialogue 10}}
+** '''Yama:''' You return once more. Excellent.
+* {{topt|Dialogue 11}}
+** '''Yama:''' Ah, you have returned. Your competence matches only your greed.
+
+* '''Yama:''' In any case, [player name], are you here to challenge me?
+* {{tact|above}}
+
+===After battle, defeated===
+* {{tact|One of the following is said before standard dialogue follows. This can appear as an overhead quote if Yama is challenged, which ignores the "In any case" section.}}
+* {{trandom}}
+* {{topt|Dialogue 1}}
+** '''Yama:''' Don't let a single defeat set you back. You could have so many more.
+* {{topt|Dialogue 2}}
+** '''Yama:''' My treasury remains over capacity. And here I was hoping to be relieved of some of its contents.
+* {{topt|Dialogue 3}}
+** '''Yama:''' What a shame for our last bout to have ended that way! Maybe you will do better next time.
+* {{topt|Dialogue 4}}
+** '''Yama:''' Back after being defeated so quickly? I suppose what you lack in skill you make up for with perseverance.
+* {{topt|Dialogue 5}}
+** '''Yama:''' Some losses are unavoidable. Yours, of course, was not.
+* {{topt|Dialogue 6}}
+** '''Yama:''' Your donation is greatly appreciated.
+* {{topt|Dialogue 7}}
+** '''Yama:''' Defeat finds you. Of course, that is hardly unexpected.
+* {{topt|cond=If the player has been victorious against Yama numerous times:|Dialogue 8}}
+** '''Yama:''' I can hardly believe it. After all of that practice, still you lose. You are a truly unique kind of pathetic.
+
+===After battle, having escaped midfight===
+* {{tact|One of the following is said before standard dialogue follows, after which the "In any case" section is played. This can appear as an overhead quote if Yama is challenged, which ignores the "In any case" section.}}
+* {{trandom}}
+* {{topt|Dialogue 1}}
+** '''Yama:''' If you are struggling to achieve victory, I suppose avoiding defeat is the best you can do.
+* {{topt|Dialogue 2}}
+** '''Yama:''' You must be tired, having to run all the way back here.
+* {{topt|Dialogue 3}}
+** '''Yama:''' Back for more? Well, you can always escape again I suppose.
+* {{topt|Dialogue 3}}
+** '''Yama:''' Excellent work evading. Next time, try fighting back.
+* {{topt|Dialogue 4}}
+** '''Yama:''' Our last bout was cut short. Perhaps the next will be more fruitful.
+* {{topt|Dialogue 5}}
+** '''Yama:''' Back again? Watching you escape in such a hurry, I thought you might never return.
+* {{topt|Dialogue 6}}
+** '''Yama:''' Ah, I see your legs have stopped quivering. Perhaps next time you will fight to the end.
+* {{topt|Dialogue 7}}
+** '''Yama:''' I hear adventurers like to boast about their feats. I wonder if people realise how readily they run at the first sight of risk.
+* {{topt|Dialogue 8}}
+** '''Yama:''' A well executed retreat. You must be very practiced.
+* {{topt|Dialogue 9}}
+** '''Yama:''' There is no shame in defeat. There is plenty to be found in your cowardice, however.
+* {{topt|cond=If the player has been victorious against Yama numerous times:|Dialogue 10}}
+** '''Yama:''' After all the confidence you demonstrated... still you lost your nerve. Perhaps I should have included in our contract a clause to cover your cowardly retreats.
+
+* '''Yama:''' In any case, [player name], have you come to challenge me?
+* {{tact|above}}
+
+==Using items on Yama==
+===Any contract===
+* '''Yama:''' Why... Do my eyes deceive me? I see a glimmer of courage within you.
+* {{tselect|Select an option}}
+* {{topt|cond=If Yama has been defeated at least 100 times:|I've seen what you have to offer. It doesn't scare me.}}
+** '''Player:''' I've seen what you have to offer. It doesn't scare me.
+** '''Yama:''' Excellent! let{{sic}} us sign the contract and find out how long that feeling lasts.
+** {{tselect|Sign the contract?}}
+** {{topt|Yes.}}
+*** {{tcond|If the player is signing a contract of oathplate acquisition:}}
+**** '''Yama:''' The terms of this contract dictate that you are to make your choice of oathplate to receive known prior to the fight. Sign it here.
+**** {{tselect|Which piece of oathplate would you like to receive?}}
+**** {{topt|Oathplate helm}}
+***** {{tbox|pic=Oathplate helm detail.png|You picked Oathplate Helm, are you sure?}}
+***** {{topt|No, I've changed my mind.}}
+****** {{tact|end}}
+***** {{topt|Yes, I want the Oathplate helm.}}
+****** {{tact|continue}}
+**** {{topt|Oathplate chest}}
+***** {{tbox|pic=Oathplate chest detail.png|You picked Oathplate Chest, are you sure?}}
+***** {{tselect|Select an option}}
+***** {{topt|No, I've changed my mind.}}
+****** {{tact|end}}
+***** {{topt|Yes, I want the Oathplate chest.}}
+****** {{tact|continue}}
+**** {{topt|Oathplate legs}}
+***** {{tbox|pic=Oathplate legs detail.png|You picked Oathplate Legs, are you sure?}}
+***** {{tselect|Select an option}}
+***** {{topt|No, I've changed my mind.}}
+****** {{tact|end}}
+***** {{topt|Yes, I want the Oathplate legs.}}
+****** {{tact|continue}}
+*** {{mes|The {{Colour|red|[contract name]}} burns up and Yama breathes a contented sigh...}}
+*** '''Yama:''' {{overhead|Good luck.}}
+*** {{qact|Yama snaps his fingers and teleports off his throne.}}
+*** {{tact|end}}
+** {{topt|No.}}
+*** '''Player:''' Actually, I think I may have forgotten to feed my kitten...
+*** '''Yama:''' That's all it took? A vague threat to match your bravado? Get out of my sight.
+*** {{tact|end}}
+* {{topt|I know what I'm doing, sign the contract.}}
+** '''Player:''' I know what I'm doing, sign the contract.
+** '''Yama:''' With pleasure.
+** {{tselect|Sign the contract?}}
+** {{topt|Yes.}}
+*** {{tact|above}}
+** {{topt|No.}}
+*** '''Player:''' On second thought, I think I'll hold off.
+*** '''Yama:''' Do not make a habit of wasting my time like this. Get out of my sight.
+*** {{tact|end}}
+* {{topt|I want to know more about this contract.}}
+** '''Player:''' I want to know more about this contract.
+** '''Yama:''' Signing these contracts agrees us to a duel in which I am less inhibited. My powers will be greater than what you have experienced before.
+** '''Yama:''' Each one details unique rules and rewards, the details of which you can read on the contract itself.
+** '''Yama:''' But I'm sure you already have. Shall we?
+** {{tbox|pic=Contract of Bloodied Blows detail.png|Yama presses a quill firmly into your hands.}}
+** {{tselect|Sign the contract?}}
+** {{topt|Yes.}}
+*** {{tact|above}}
+** {{topt|No.}}
+*** '''Player:''' No, I think I'd like to read over the terms again.
+*** '''Yama:''' Very well. Return when you are ready.
+*** {{tact|end}}
+* {{topt|Er... No, I thought you'd lost this.}}
+** '''Player:''' Er... No, I thought you'd lost this.
+** '''Yama:''' No, that contract was allowed to come into your possession quite deliberately. And I see you have bravely decided to make use of it.
+** '''Player:''' I'm not sure I...
+** '''Yama:''' I see that I had misjudged you, [player name]. Let us sign the contract and cement that assessment.
+** {{tbox|pic=Contract of Bloodied Blows detail.png|Yama presses a quill firmly into your hands.}}
+** {{tselect|Sign the contract?}}
+** {{topt|Yes.}}
+*** {{tact|above}}
+** {{topt|No.}}
+*** '''Player:''' No, I think it might have been somebody else that dropped it. I should really go and find them...
+*** '''Yama:''' Yes, perhaps it was. Perhaps it belonged to somebody else. Somebody with a semblance of pride or self respect.
+*** '''Yama:''' If you find them, be sure to send them my way.
+*** {{tact|end}}
+
+===Plain pizza===
+* '''Yama:''' Ah... The humble plain pizza. Unremarkable, yet powerful. Hand me it.
+* {{tselect|Hand Yama the pizza?}}
+* {{topt|Yes.}}
+** {{tact|Yama eats half of the pizza.}}
+** '''Yama:''' Yes... Delicious.
+** {{tact|end}}
+* {{topt|No.}}
+** {{tact|Yama eats half of the pizza.}}
+** '''Yama:''' You think you can deny me pizza? Double check the fine print of our contract, [player name].
+** '''Player:''' What do you mean?! You can't just take my pizza!
+** '''Yama:''' Oh but I can. As per our contract, any pizza you present to me cannot be taken back. Right here.
+** {{tbox|pic=Contract of Oathplate Acquisition detail.png|Yama points to a line on the contract that states that once a full pizza is shown to him, it cannot be taken back.}}
+** '''Player:''' That's outrageous! You can't hold me to this!
+** '''Yama:''' Perhaps you should have expressed that opinion before signing. Indeed, perhaps if you felt that way you should not have signed at all.
+** {{tact|end}}
+
+===Meat pizza===
+* '''Yama:''' The meat pizza. An adequate if uninspired offering. Hand me it.
+* {{tselect|Hand Yama the pizza?}}
+* {{topt|Yes.}}
+** {{tact|above}}
+* {{topt|No.}}
+** {{tact|above}}
+
+===Anchovy pizza===
+* '''Yama:''' Anchovy pizza. Flavourful and bold. Hand me it.
+* {{tselect|Hand Yama the pizza?}}
+* {{topt|Yes.}}
+** {{tact|above}}
+* {{topt|No.}}
+** {{tact|above}}
+
+===Pineapple pizza===
+* '''Yama:''' Pineapple pizza, topped with delicious acidic flavours and the angry tears of a thousand nay-sayers. Excellent. Hand me it.
+* {{tselect|Hand Yama the pizza?}}
+* {{topt|Yes.}}
+** {{tact|Yama eats half of the pizza.}}
+** '''Yama:''' Yes... Delicious.
+** '''Player:''' Is that your favourite kind of pizza?
+** '''Yama:''' No. My favourite kind of pizza is the jalapeño pizza. Were it that I could enjoy its zesty heat for every meal.
+** {{tact|end}}
+* {{topt|No.}}
+** {{tact|above}}
+
+===100 noted pineapple pizzas===
+* '''Yama:''' My my, that's a lot of goods your{{Sic}} dealing with. What are your terms?
+* '''Player:''' I'm looking for a fight, show me how much these are worth to you.
+* '''Yama:''' Hmm. No reward, but purely action? I could be convinced.
+* '''Player:''' I know what I'm doing, sign the contract.
+* '''Yama:''' With pleasure.
+* {{tselect|Sign the contract?}}
+* {{topt|Yes.}}
+** {{mes|The {{Colour|red|Pineapple pizza}} burns up and Yama breathes a contented sigh...}}
+** '''Yama:''' {{overhead|Good luck.}}
+** {{qact|Yama snaps his fingers and teleports off his throne.}}
+** {{tact|end}}
+* {{topt|No.}}
+** '''Player:''' On second thought, I think I'll hold off.
+** '''Yama:''' Do not make a habit of wasting my time like this. Get out of my sight.
+** {{tact|end}}
+
+===Any half pizza===
+* '''Yama:''' Do not insult me. I will not eat your leftovers.
+* {{tact|end}}
+
+===Burnt pizza===
+* {{tcond|If the player has previously tried to deny Yama a pizza:}}
+** '''Yama:''' Do you think you are funny, [player name].
+** '''Player:''' Not at all, Yama. Here, take it.
+** '''Yama:''' I'm quite alright. You can keep the evidence of your lackluster cooking ability to yourself.
+** '''Player:''' I'm afraid I can't. As per our contract, once shown to you, a full pizza cannot be taken back.
+** '''Yama:''' Do not test me, [player name]. I will not be eating burnt pizza today.
+** '''Player:''' Do whatever you like with it, but I cannot take it back.
+** {{tbox|pic=Burnt pizza detail.png|Yama begrudgingly takes the pizza and incinerates it.}}
+** '''Yama:''' Very clever. Now get out of my sight.
+** {{tact|end}}
+* {{tcond|If the player has not previously tried to deny Yama a pizza:}}
+** '''Yama:''' Keep your pathetic lack of cooking skills to yourself.
+** {{tact|end}}
+
+===Walking away after showing Yama a pizza===
+* '''Yama:''' You think you can deny me pizza? Double check the fine print of our contract, [player name].
+* {{tact|above}}
+
+===Teleporting or dying after showing Yama a pizza===
+* '''Yama:''' You thought you could escape with your pizza? I'm afraid not, [player name].
+* {{tact|end}}
+
+===Any contract (historical)===
+* '''Yama:''' I'm afraid my scribes are a tad overwhelmed at the moment. Please, return with your contract soon, I would be delighted to sign once they are unblocked.
+* {{tbox|Contracts will be enabled 1-2 weeks after Yama has launched.}}
+* {{tact|end}}
+
+==Standard dialogue (Demonic Pacts League)==
+===Initial dialogue===
+* '''Yama:''' Make it quick, [player name], I have no appetite for distraction.
+* {{tselect|Select an option}}
+* {{topt|Why am I here?}}
+** '''Player:''' Why am I here?
+** '''Yama:''' You are here for a number of reasons, [player name]. Chiefly because I deign to allow these petty games to play out.
+** '''Player:''' Petty games? You mean the League?
+** '''Yama:''' Yes, {{Colour|#000080|my}} League.
+** '''Yama:''' I confess my curiosity has finally won through. Long have I heard tales of these Leagues, and the lengths mortals like you will go to for a shred of favour from a superior being.
+** '''Yama:''' So now I offer you the same bargain that the 'mighty' Sage has struck time and time again. However, I present you with the chance of {{Colour|#000080|true}} power.
+** '''Player:''' True power, eh?
+** '''Yama:''' Does that intrigue you?
+** '''Player:''' Of course! Who wouldn't be interested in that?
+** '''Yama:''' Very good. In that case, complete the tasks you have been presented with and we can arrange some appropriate enhancements.
+** '''Player:''' Alright!
+** '''Yama:''' The League awaits you. Impress me.
+** {{tact|other}}
+* {{topt|What have you done to the Sage?}}
+** '''Player:''' Why have you imprisoned the Sage? They're usually quite pleasant.
+** '''Yama:''' I have seized the Sage just as I have claimed this League.
+** '''Yama:''' The Sage has well and truly earned their place in my domain. Such squandered potential...
+** '''Yama:''' More than that, do you understand what this League actually is? Where we are?
+** '''Player:''' Erm... Yes?
+** '''Yama:''' Hah! You do not. Nor did I before lengthy discussions with my guest.
+** '''Yama:''' It is enough to say that I require guarantees for the near future.
+** '''Player:''' What does that mean? Should I be concerned?
+** '''Yama:''' You are small. When the time comes you will slip through the net and leave this chapter without incident.
+** '''Yama:''' I, however, must ensure I have passage at the end.
+** '''Player:''' Hmm... I'm not sure I like being called small, but I do like not having to worry!
+** '''Player:''' So what exactly are you going to do with the Sage?
+** '''Yama:''' What am I going to do with them? Nothing. Unless they refuse my demands.
+** '''Yama:''' You cannot possibly fathom the potential futures I am conjuring for the contents of that cage should they fail me.
+** '''Yama:''' If I told you but one element of my intent, your mind would collapse, and your soul would scream with agony for a thousand years.
+** '''Yama:''' You simply would not comprehend.
+** '''Player:''' Try me.
+** {{tcond|Unknown condition - seen when unranked}}
+*** '''Yama:''' Perhaps once you have proven yourself to me.
+** {{tcond|Unknown condition - seen at Iron, Steel, Mithril, Rune, and Dragon rank}}
+*** '''Yama:''' It would not benefit me to lose a valued pawn in such a way.
+** '''Yama:''' Do you wish to ask anything else of me?
+** {{tact|other}}
+* {{topt|Why are you so interested in this League?}}
+** '''Player:''' You seem to be very interested in this league, why is that?
+** '''Yama:''' I {{Colour|#000080|seem}} interested to you, do I?
+** '''Yama:''' This Sage {{Colour|#000080|seems}} to be my hostage. You {{Colour|#000080|seem}} to be at my beck and call.
+** '''Yama:''' Yes, you deal with me now, and no other. {{Colour|#000080|Perhaps}} I am interested in how you will fare, {{Colour|#000080|perhaps}} not.
+** '''Player:''' I think I will do just fine.
+** '''Yama:''' Really? Well, this could be advantageous for you, [player name].
+** '''Yama:''' What I offer is far greater than what this Sage would dare present to you.
+** '''Yama:''' Naturally, such boons come at a high price. Your confidence suggests deep pockets, it will be a shame if that is not the case.
+** '''Yama:''' Any further questions, mortal?
+** {{tact|other}}
+* {{topt|Goodbye.}}
+** '''Player:''' Goodbye.
+** {{tcond|Unknown condition - seen when unranked}}
+*** '''Yama:''' Away with you.
+*** {{tact|end}}
+** {{tcond|Unknown condition - seen at Mithril, Rune, and Dragon rank}}
+*** '''Yama:''' I await your return.
+*** {{tact|end}}
+
+===Subsequent dialogue at Iron or lower rank===
+* {{trandom}}
+* {{topt|Dialogue 1:}}
+** '''Yama:''' Welcome, contestant. Not dead yet I see.
+* {{topt|Dialogue 2:}}
+** '''Yama:''' Once more you stand before me.
+* {{topt|Dialogue 3:}}
+** '''Yama:''' Greetings, acolyte. What compels you to beg my attention?
+* {{topt|Dialogue 4:}}
+** '''Yama:''' I knew you would return here.
+** {{tact|above}}
+
+===Subsequent dialogue at Steel or higher rank===
+* {{trandom}}
+* {{topt|Dialogue 1:}}
+** '''Yama:''' My chosen, back from the fray. Welcome.
+* {{topt|Dialogue 2:}}
+** '''Yama:''' Well, well, well. Here to bask in the warmth of my domain no doubt. Do not linger too long, you have much yet to do.
+* {{topt|Dialogue 3:}}
+** '''Yama:''' Ah, [player name]! How goes the League? 
+** {{tact|above}}

@@ -1,0 +1,42 @@
+id	section	recorded	ours	status	note
+Y01	attack clock	8t P1/P2, 7t P3, first attack add+8 (16/16)	same	matched
+Y02	regular landing	A+3 on every raider, prayer read at landing	same	matched	unprayed accuracy roll is the npc formula; max 46 wiki, recorded max 34
+Y03	melee	A+1, target and within 3	same	partial	within-3 is wiki
+Y04	slot structure P1/P2	opener opposite north pair; special/regular x3; flare in a shadow slot	same	matched
+Y05	hazard alternation	wave/streak alternate from layout; wave -2, P2 +2, streak -1	same	matched
+Y06	wave tiles/delays	514-tile mask, delay formula (kind2/kind3)	same	matched	exact
+Y07	wave hit tile rule	floor(delay/30) on tile end of previous tick; 33/33	same	matched
+Y08	wave disable prayers	message + prayers off; re-presses at +3,+3,+4,+5,+5 all took	block 3 ticks	matched	no press before +3 recorded: a shorter block is not ruled out
+Y09	streak lanes	origins fixed per row, 6..10 lanes	same	matched
+Y10	streak hit tile rule	18 splats, rule unclear	sent-last-tick tiles	open
+Y11	flare spawn	four corners, two per summon, +2 P1/P2, 0 P3, +1 ops, +3 bar	same	matched	timed bar cycles 630/600/360
+Y12	flare body_customisation	3 models on one flare of each pair (48)	dropped	open	engine command sets one model
+Y13	flare explosion	no recording	wiki 42..44 scaled, heal	open	unverified
+Y14	glyph layouts	A/B coin flip; 5 tiles	same	matched
+Y15	glyph step	middle tile; both warded 10 ticks; 96-tick relight	same	matched	stepper hurt table is wiki's 2/6/9/12; recorded step splats 2..18 not fully fitted
+Y16	specials timing	rock/spike +6, meteor +6 (npc at +2), root +5	same	matched
+Y17	meteor area damage	80/40 and core lethal; 18..80 recorded	d<=1 121, d=2 80, d=3 40	partial
+Y18	portal rule	21/26 match rule (prev attack hp <= threshold); 5 late	same rule	partial	5/26 crossings one attack late
+Y19	judge landing	creator west partner east, npcs, seq, headicon	same	matched
+Y20	judge casts/surges/shake	4 then 5 cadence; surges; shakes add+17..19 (26/26) and +40..44 (9/9), cam_reset +1 (30/30)	shakes on 5th/10th cast, cam_reset +1	partial	surge columns and the fireball tile not fitted
+Y21	judge prayer flip	frame 7 melee / 6 magic, flips at launch, prayed style lands 0; hits 57 magic 22 melee (max)	same; demonbane melee passive in ~yama_hit_prepare	matched	solver kills both Judges on 47/48 seeds with 57/22 alternating
+Y22	P3 cycle	C/R pattern, 10-slot repeat, waves on 3/11/13/14, 2f on 8	same	matched
+Y23	crash	per-raider, 3 rocks, bowtie, hit only centre tile (18/18)	same	matched
+Y24	entry frame	531..536 shape	same	matched
+Y25	summon	S, S+2, S+5, S+7, S+10	same	matched
+Y26	kill	K, K+5, K+7, K+9, K+11, K+15	same	matched	throne say on K+9 not confirmed in the test log
+Y27	death	Voice room teleport	hook in player/death.rs2	matched	gravestone flow is the generic path
+Y28	contracts	hp/cycle (3000/2875/2500, 7t) recorded	those only	open	each contract's own rules are not implemented
+Y29	stance	chase melee / stand for ranged and magic (wiki)	set from the last hit style at launch	partial	movement not testable: no recorded melee target
+Y30	magic defence by style	4498 accuracy 0.74..0.87 in every phase and face state (tools/yama_accuracy.py)	-30 always	matched	the wiki +60/+81 are not in the recording
+Y31	duo	target switching 19 on 16 fights, slot 2 everywhere	1/8 per attack	open	no run: Join needs mutual friends and no lane can add a friend
+Y32	facing	per-tick pattern	npc_faceplayer each tick	partial
+Y33	wire: packet kinds	one recorded fight vs one solver kill (tools/yama_wirekinds.py)	diffed	partial	HUD refresh (if_setcolour x3 + hp_hud_open most ticks) and ambientsound_stop not sent by us
+Y34	wave damage	16..20 (25 splats)	random_range(16,20)	matched
+Y35	stone hop reach	198/206 clicks at Chebyshev 2..3	aploc1 reach 3	matched
+Y36	varp transmit	4711 yama_rewards (transition varbits), 4715 chasm_temp_transmit_1 (throne state) sent	transmit=yes	matched	generated varp blocks edited
+Y37	contract 798	recorded fight under a contract	hp/cycle only	open	rules of its contract not implemented
+Y38	contract 3329	recorded fight under a contract	hp/cycle only	open	rules of its contract not implemented
+Y39	contract 3368	recorded fight under a contract	hp/cycle only	open	rules of its contract not implemented
+Y40	contract 3371	recorded fight under a contract	hp/cycle only	open	rules of its contract not implemented
+Y41	solver PASS row	-	47/48 kills, 0/3895 style-wrong, both Judges by play	matched	y046 dies in P2 (three unabsorbed stomp specials)

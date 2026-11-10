@@ -1,0 +1,76 @@
+{{otheruses|the drop from [[Yama]]|the item from the [[Black Knights' Fortress]] quest|Dossier (Black Knights' Fortress)}}
+{{Infobox Item
+|name = Dossier
+|image = [[File:Dossier.png]]
+|release = [[14 May]] [[2025]]
+|update = Yama, the Master of Pacts: Out Today
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Open, Drop
+|examine = It contains a single sheet of paper. I wonder what it is...
+|value = 10
+|alchable = No
+|weight = 1.000
+|id = 30803
+|leagueRegion = Kourend
+}}
+[[File:Dossier detail.png|left|100px]]
+'''Dossiers''' are a drop from [[Yama]]. They can be opened to obtain a [[Yama#Contracts|contract]], [[chasm teleport scroll]]s, or a [[rite of vile transference]]. The Rite of Vile Transference is guaranteed from the first Dossier opened with at least 100 Yama kill count.
+
+==Drops==
+{{DropLogProject|jagex=yes}}
+
+{{Average drop value|mobname=dossier|killname=opening}}
+
+Excluding the [[Contract of Oathplate Acquisition]], the average dossier opening is worth {{Coins|floor(({{Average drop value|mobname=dossier|raw=y}}-{{GEP|Contract of Oathplate Acquisition}}*(13/1740)))}}.
+
+{{DropsTableHead}}
+{{DropsLineReward|name=Contract of Bloodied Blows|quantity=3|rarity=260/1740}}
+{{DropsLineReward|name=Contract of Divine Severance|quantity=3|rarity=260/1740}}
+{{DropsLineReward|name=Contract of Forfeit Breath|quantity=3|rarity=260/1740}}
+{{DropsLineReward|name=Contract of Glyphic Attenuation|quantity=3|rarity=260/1740}}
+{{DropsLineReward|name=Contract of Sensory Clouding|quantity=3|rarity=260/1740}}
+{{DropsLineReward|name=Chasm teleport scroll|quantity=15-18|rarity=1/15}}
+{{DropsLineReward|name=Rite of vile transference|quantity=1|rarity=1/15|raritynotes=<ref group="d">Guaranteed on first dossier opened after 100 Yama kills.</ref><ref group="d">Replaced with 15-18 chasm teleport scrolls if already owned or used.</ref>|gemw=no}}
+{{DropsLineReward|name=Contract of Familiar Acquisition|quantity=2|rarity=65/1740}}
+{{DropsLineReward|name=Contract of Shard Acquisition|quantity=1|rarity=39/1740}}
+{{DropsLineReward|name=Contract of Worm Acquisition|quantity=1|rarity=39/1740}}
+{{DropsLineReward|name=Contract of Catalyst Acquisition|quantity=1|rarity=39/1740}}
+{{DropsLineReward|name=Contract of Harmony Acquisition|quantity=1|rarity=13/1740}}
+{{DropsLineReward|name=Contract of Oathplate Acquisition|quantity=1|rarity=13/1740}}
+{{DropsTableBottom}}
+
+==Item sources==
+{{Drop sources|Dossier}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2025
+|update = Yama CAs & More!
+|change = 
+* Opening a dossier no longer informs the player that they opened a lockbox.
+* The dossier's collection log entry now displays the proper dossier, rather than the dummy item that uses the appearance of a [[full folder]].
+}}
+{{Subject changes
+|date = 23 May 2025
+|update = Yama: The Calm Before the Contract Storm#Blog Update - Friday, May 23rd
+|type = hotfix
+|change = The dossier drop rate has been increased from 1/17 to 1/12, and the quantities and drop rates for the items inside have also been adjusted.
+}}
+{{Subject changes
+|date = 22 May 2025
+|update = Yama: The Calm Before the Contract Storm
+|change = The dossier drop rate has been increased from 1/20 to 1/17.
+}}
+{{Subject changes footer}}
+
+{{Yama}}
+[[Category:Collection log items]]

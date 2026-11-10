@@ -1,0 +1,803 @@
+{{Instance}}
+{{HasStrategy}}
+{{Multi Infobox
+|text1 = Yama
+|item1 =
+{{Infobox Monster
+|version1 = Normal
+|version2 = Phase 3
+|name = Yama
+|image = [[File:Yama.png|280px]]
+|release = [[14 May]] [[2025]]
+|update = Yama, the Master of Pacts: Out Today
+|members = Yes
+|combat = 1238
+|size = 5
+|examine = A demon of quite obviously fathomable power. The vicious grin rarely leaves his face.
+|attributes = demon
+|xpbonus = 82.5
+|max hit = 46 (auto-attacks), 162 (Meteor Strike), 80 (Shadow Stomp)
+|aggressive = Yes
+|poisonous = Yes (20)
+|attack style = Melee (Slash), Ranged, Magic
+|attack speed1 = 8
+|attack speed2 = 7
+|hitpoints = 2500
+|att = 320
+|str = 350
+|def = 225
+|mage = 250
+|range = 210
+|attbns = 50
+|strbns = 15
+|amagic = 100
+|mbns = 65
+|arange = 100
+|rngbns = 80
+|dstab1 = 100
+|dstab2 = 135
+|dslash1 = 80
+|dslash2 = 108
+|dcrush1 = 333
+|dcrush2 = 449
+|dmagic1 = -30{{efn|name=mdefa|If primary target is using melee.}} or +60{{efn|name=mdefb|If primary target is using magic.}}
+|dmagic2 = 81
+|dlight1 = 333
+|dlight2 = 449
+|dstandard1 = 220
+|dstandard2 = 297
+|dheavy1 = 333
+|dheavy2 = 449
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|dropversion = Contract, Junk
+|id = 14176
+}}
+|text2 = Throne
+|item2 = 
+{{Infobox NPC
+|version1 = Occupied
+|version2 = Unoccupied
+|name1 = Yama
+|name2 = Yama's throne
+|image1 = [[File:Yama (sitting).png|230px]]
+|image2 = [[File:Yama's throne.png|230px]]
+|release = [[14 May]] [[2025]]
+|update = Yama, the Master of Pacts: Out Today
+|members = Yes
+|location = [[Yama's Domain]]
+|gender1 = Male
+|gender2 = 
+|options1 = Talk-to, Challenge
+|options2 = None
+|examine1 = Atop his throne, always looking down on others.
+|examine2 = A fiery throne, fit for only the strongest demons.
+|map = {{Map|name=Yama|x=1503|y=10091|mtype=pin|mapID=-1}}
+|dropversion = Contract, Junk
+|id1 = 124
+|id2 = 14157
+|leagueRegion = Kourend
+}}
+}}
+[[File:Yama chathead.png|left]]
+'''Yama, the Master of Pacts'''{{CiteNews|url=https://secure.runescape.com/m=news/more-poll-84--yama-prep?oldschool=1|title=More Poll 84 & Yama Prep|newsdate=7 May 2025|quote=Make sure that you are prepared, because one week today, you'll be able to face the Master of Pacts!|notes=Yama is not referred to with the title "Master of Pacts" in-game, only in newsposts such as this one.}} is a powerful demonic duo-focused [[boss]] who dwells in [[Yama's Domain]] found in the depths of the [[Chasm of Fire]].
+
+In order to access Yama, the player must have completed [[A Kingdom Divided]], then return to the Chasm of Fire after the quest and head to his domain after speaking to the [[Voice of Yama]] (who is on the bottom floor of the chasm). After speaking to him, Yama will offer a contract that allows the player to fight an inhibited form as "revenge", granting the player the ability to challenge him.
+
+The base fight places emphasis on movements and prayer switching, and was intended by the developers to be a step up from the post-[[Desert Treasure II]] fights of [[the Forgotten Four]]{{CiteNews|url=https://secure.runescape.com/m=news/a=97/yama---master-of-pacts?oldschool=1|title=Yama - Master of Pacts|newsdate=17 March 2025|quote=While difficulty comparisons are always a struggle, the baseline experience will be a step beyond the Desert Treasure II bosses}}. The boss also has tradeable contracts to fight him in a stronger form. These contracts can either allow the player to fight him alone or in some cases, with another player.
+
+Yama is similar to the [[Royal Titans]] in that he can be fought alongside a partner in his base form. Several mechanics are easier to handle in a pair, and loot is distributed accordingly based on the player's damage dealt in the fight.
+
+Unique rewards from the fight include the [[dossier]], which provides various contracts (including some exclusive to him only) and an upgrade to [[Death Charge]]; the [[soulflame horn]], which has a special attack that boosts allies' next melee attack; and [[oathplate armour]], best-in-slot slash armour. Yama may also drop [[oathplate shards|shards]] of said armour as a bad luck mitigation of sorts.
+
+Yama also functions as his own [[scoreboard]]. When spoken to and asked if he is keeping records on the player, Yama will summon an [[Imp (Yama)|imp]] to fetch the statistics, then promptly incinerate the imp.
+
+[[Group Ironman Mode|Group ironman players]] will lose their [[Group Ironman Mode#Prestige|prestige]] upon entering the encounter with a player outside of their group.
+
+==Official worlds==
+The following [[Server#Themed servers/worlds|official worlds]] are assigned to Yama:
+
+{| class="wikitable sortable align-center-1 align-center-3" style="text-align: left;"
+!World
+!Location
+!Members
+!Activity
+{{WorldLine|325|United Kingdom|mems=yes|Yama}}
+{{WorldLine|339|United States (west)|mems=yes|Yama}}
+{{WorldLine|343|Germany|mems=yes|Yama}}
+{{WorldLine|394|United States (east)|mems=yes|Yama}}
+|}
+
+==History==
+Yama is an opportunistic demon, taking advantage of the power vacuum left after the [[gods]] were banished from [[Gielinor]] by [[Guthix]].{{CiteVideo|author=Old School RuneScape|title=These Relics Change EVERYTHING! | Dev Diary - Leagues VI: Demonic Pacts |url=https://www.youtube.com/watch?v=xsj2D8plBYM|timestamp=0:59|date=|site=|notes=|name=}} He is worshipped by the [[Disciple of Yama|Disciples of Yama]], a group of [[Zamorak]]ian cultists who were formerly known as the Disciples of Chaos until Yama gained influence over them,{{CiteNPC|npc=Mori|quote=He's a demon of some sorts, but he doesn't seem to have any actual presence in Kourend yet. In fact, until recently, he had no connection to the cult. It does sound odd, but back then they were known as the Disciples of Chaos. They were just a small Zamorakian cult of little note.}} whose initiates participate in a ritual of human sacrifice and staring into a fire so bright that they lose their vision. He also had some influence over the politics of [[Great Kourend]] through [[Councillor Hughes|Sophia Hughes]], who was part of the cult, though its not known if she was part of them before Yama's arrival.
+
+He also has a priest-like figure, the [[Voice of Yama]], that he uses to convey messages to, as well as [[Judge of Yama|judges]] to mete punishment out to both his enemies and those who take advantage of his generosity. Following the opening of Kourend to the human kingdoms east of them, Yama originally allowed adventurers to slay his minions as long as they are on a [[Slayer task]] for them,{{CiteNPC|npc=Disciple of Yama|quote=My master wishes you not to kill his minions without an agenda. You may only slay within the Chasm that which you have been assigned by a Slayer Master.}} although the reason behind was unknown at the time.
+
+Apart from the human followers, Yama has a sizable amount of demonic minions outside of the Voice and judge, mostly consisting of [[lesser demon|lesser]], [[greater demon|greater]], and [[black demon]]s, although he also has a few [[imp]]s in his service.
+
+During the events of [[A Kingdom Divided]], Yama has Sophia targeted for death after she had taken advantage of his generosity. However, he was unable to find her until Sophia summoned a Judge of Yama in order to kill an adventurer who was responsible for her arrest, along with [[Commander Fullore]]. The judge quickly burnt Sophia to a crisp before focusing on the two of them. The judge declared that they were Yama's enemies since they had been accused alongside endangering the work of his children. The adventurer challenged the judge, who stated that if they were not guilty, they would be free of their sins. The adventurer defeated the judge, presumably making them innocent for the time being in Yama's eyes. The adventurer was also tasked with severing the connection between Yama and his followers with a device powered by the Dark Altar. However, he caught wind of the plot and had a disciple seize it from them while implanting a memory to make them believe they had succeeded.
+
+After the quest, the adventurer found a group of Shayzien soldiers stationed outside the Chasm, who were on orders to observe activity in the chasm, as the higher-ups were concerned about vile demons being so close to their base. The adventurer ventured inside and was informed by the Voice of Yama that Yama wished to talk to them in person, teleporting them to his domain. There, they asked him how he was still able to communicate with his followers, believing their mission had been a success. Yama revealed that they were quite predictable and had implanted a false memory, which angered the adventurer, who wanted revenge. He agreed to let them fight him under the condition that if they were to lose, their soul would be his for all eternity. The adventurer found this too extreme, so he offered to let them fight a weaker version of him and hold their soul for a year after their final rest if he won. The adventurer agreed to the terms and signed the contract. They also noticed in the contract that there were more contracted fights and asked him about it. Yama explained that his followers needed to be pushed and reformed, and by killing them in his preference, they could potentially find these contracts which would make their fight harder, but for guaranteed rewards. He also told them that they could alternatively acquire them by defeating him in battle.
+
+An alternative version of Yama later learned about the [[Leagues]] and with great interest, decided to oversee the next iteration himself, imprisoning [[The Sage]] and learning much about the mode from them. He had also planned this so he could guarantee a passage for himself into the next iteration once the event was over. As the adventurer spoke to Yama, he told them that he would be willing to give them some of his powers and treasures as long as they participated.
+
+==Transportation==
+The quickest methods of reaching the Chasm of Fire, where Yama resides, are:
+* Using a [[chasm teleport scroll]], which teleports the player next to the Voice of Yama
+* [[Fairy ring]] code {{Fairycode|DJR}} then run north-west
+** With 83 [[Agility]], players can slide down a [[Chain (Chasm of Fire)|chain]] by the entrance, placing them next to the Voice of Yama
+** With 73 Agility, players can use the platform edge north of the entrance, then jump [[Gap (Chasm of Fire)|gaps]] to get to the lift to the bottom floor
+* History and Hearsay teleport on [[Kharedst's memoirs]]/[[Book of the Dead]], then run north
+
+==Contract variants==
+{{See also|Yama/Strategies#Contracts}}
+The fight with Yama can be varied through various contracts, which change his combat stats and add additional mechanics. 
+
+Uniquely, stat draining effects which reference Yama's maximum stats only consider his normal form. For example, the [[accursed sceptre]] special attack can drain stats twice.
+
+{|class=wikitable style="text-align:center;"
+! colspan="7" |Combat stats
+|-
+!
+!{{plinkp|Hitpoints|pic=Hitpoints icon}}
+!{{plinkp|Attack|pic=Attack icon}}
+!{{plinkp|Strength|pic=Strength icon}}
+!{{plinkp|Defence|pic=Defence icon}}
+!{{plinkp|Magic|pic=Magic icon}}
+!{{plinkp|Ranged|pic=Ranged icon}}
+|-
+!Yama
+|2,500
+|320
+|350
+|225
+|250
+|210
+|-
+!Bloodied Blows
+|3,000
+|400
+|402
+|247
+|275
+|241
+|-
+!Glyphic Attenuation
+|2,875
+|400
+|402
+|247
+|275
+|241
+|-
+!Other contracts
+|2,500
+|400
+|402
+|247
+|275
+|241
+|}
+
+{|class=wikitable style="text-align:center;"
+! colspan="9" |Defensive stats
+|-
+!
+!{{plinkp|Stab|pic=White dagger}}
+!{{plinkp|Slash|pic=White scimitar}}
+!{{plinkp|Crush|pic=White warhammer}}
+!{{plinkp|Magic|pic=Magic icon}}
+!{{plinkp|Elemental weakness|pic=Water rune}}
+!{{plinkp|Light ranged|pic=Steel dart}}
+!{{plinkp|Standard ranged|pic=Steel arrow}}
+!{{plinkp|Heavy ranged|pic=Steel bolts}}
+|-
+!Yama
+| +100
+| +80
+| +333
+| -30 or +60
+| 50%
+| +333
+| +220
+| +333
+|-
+!Yama (Phase 3)
+| +135
+| +108
+| +449
+| +81
+| 50%
+| +449
+| +297
+| +449
+|-
+!Glyphic Attenuation
+| +666
+| +666
+| +80
+| +666
+| 50%
+| +666
+| +666
+| +666
+|-
+!Glyphic Attenuation (Phase 3)
+| +666
+| +666
+| +108
+| +666
+| 50%
+| +666
+| +666
+| +666
+|-
+!Other contracts
+| +100
+| +80
+| +333
+| -30 or +60
+| 50%
+| +333
+| +220
+| +333
+|-
+!Other contracts (Phase 3)
+| +135
+| +108
+| +449
+| +81
+| 50%
+| +449
+| +297
+| +449
+|}
+
+{|class=wikitable style="text-align:center;"
+! colspan="7" |Other
+|-
+!
+!XP bonus
+!Max hit
+!Attack speed
+|-
+!Yama
+| +82.5%
+| 46 (auto-attacks)
+121 (Meteor Strike)
+
+80 (Shadow Stomp)
+| 8 ticks, 7 ticks (Phase 3)
+|-
+!Bloodied Blows
+| +87.5%
+|53 (auto-attacks)
+121 (Meteor Strike)
+
+80 (Shadow Stomp)
+| 7 ticks
+|-
+!Glyphic Attenuation
+| +87.5%
+|53 (auto-attacks)
+121 (Meteor Strike)
+
+80 (Shadow Stomp)
+| 7 ticks
+|-
+!Other contracts
+| +87.5%
+|53 (auto-attacks)
+121 (Meteor Strike)
+
+80 (Shadow Stomp)
+| 7 ticks
+|}
+
+==Contracts==
+:''See {{Section|Chasm of Fire|Contracts}} for information on contracts dropped by demons.''
+
+Yama can be offered contracts to alter the nature of the fight. Acquisition contracts can only be acquired from a [[dossier]], which Yama uncommonly drops. The combat contracts for the [[purifying sigil]] can be acquired from both this dossier and killing Yama's demons in various manners. Similar in function to [[awakener's orb]]s, these contracts are tradeable and are consumed upon attempting the fight.
+
+There are several contracts which modify the fight to some degree:
+
+{| class="wikitable sortable sticky-header align-center-5 align-center-8" style="text-align:center;"
+!colspan=2 | Contract
+!Duo partner<br>allowed
+!Returned<br>on kill
+!Details
+!colspan=2 | Guaranteed Reward
+!Qty
+!Net Profit
+!Implied<br>Success Rate
+|-
+|{{plinkt|Contract of Catalyst Acquisition}}
+|{{Yes}}
+|{{No}}
+|Yama can spawn enhanced voidflares.
+Yama can cast enhanced incantations.
+
+Challenger will regain 50% less prayer and health.
+
+|{{plinkt|Aether catalyst}} || 2000
+|{{Coins|(2000*{{GEP|Aether catalyst}}-{{GEP|Contract of Catalyst Acquisition}}+{{YamaUniquesOnlyValue}})}}
+|{{#ifexpr:(2000*{{GEP|Aether catalyst}}-{{GEP|Contract of Catalyst Acquisition}}+{{YamaUniquesOnlyValue}})>0|{{#expr:{{GEP|Contract of Catalyst Acquisition}}/(2000*{{GEP|Aether catalyst}}+{{YamaUniquesOnlyValue}})*100 round 1}}%|Loss}}
+|-
+|{{plinkt|Contract of Worm Acquisition}}
+|{{Yes}}
+|{{No}}
+|Yama can spawn enhanced voidflares.
+Yama can cast enhanced incantations.
+
+Challenger will regain 50% less prayer and health.
+
+|{{plinkt|Diabolic worms|Diabolic worms}} || 250
+|{{Coins|(250*{{GEP|Diabolic worms}}-{{GEP|Contract of Worm Acquisition}}+{{YamaUniquesOnlyValue}})}}
+|{{#ifexpr:(250*{{GEP|Diabolic worms}}-{{GEP|Contract of Worm Acquisition}}+{{YamaUniquesOnlyValue}})>0|{{#expr:{{GEP|Contract of Worm Acquisition}}/(250*{{GEP|Diabolic worms}}+{{YamaUniquesOnlyValue}})*100 round 1}}%|Loss}}
+|-
+|{{plinkt|Contract of Shard Acquisition}}
+|{{Yes}}
+|{{No}}
+|Yama can spawn enhanced voidflares.
+
+Yama can cast enhanced incantations.
+
+Challenger will regain 50% less prayer and health.
+
+|{{plinkt|Oathplate shards|Oathplate shards}} || 45
+|{{Coins|(45*{{GEP|Oathplate shards}}-{{GEP|Contract of Shard Acquisition}}+{{YamaUniquesOnlyValue}})}}
+|{{#ifexpr:(45*{{GEP|Oathplate shards}}-{{GEP|Contract of Shard Acquisition}}+{{YamaUniquesOnlyValue}})>0|{{#expr:{{GEP|Contract of Shard Acquisition}}/(45*{{GEP|Oathplate shards}}+{{YamaUniquesOnlyValue}})*100 round 1}}%|Loss}}
+|-
+|{{plinkt|Contract of Oathplate Acquisition}}
+|{{No}}
+|{{No}}
+|Yama can spawn enhanced voidflares.
+Yama can cast enhanced incantations.
+
+Challenger will regain 50% less prayer and health.
+
+Challenger must be alone.
+|{{plinkt|Oathplate armour|pic=Oathplate helm|txt=Oathplate armour piece}} || 1
+|{{Coins|(({{Max|{{GEP|Oathplate chest}}|{{GEP|Oathplate legs}}|{{GEP|Oathplate helm}}}})-{{GEP|Contract of Oathplate Acquisition}}+{{YamaUniquesOnlyValue}})}}
+|{{#ifexpr:(({{Max|{{GEP|Oathplate chest}}|{{GEP|Oathplate legs}}|{{GEP|Oathplate helm}}}})-{{GEP|Contract of Oathplate Acquisition}}+{{YamaUniquesOnlyValue}})>0|{{#expr:{{GEP|Contract of Oathplate Acquisition}}/({{Max|{{GEP|Oathplate chest}}|{{GEP|Oathplate legs}}|{{GEP|Oathplate helm}}}}+{{YamaUniquesOnlyValue}})*100 round 1}}%|Loss}}
+|-
+|{{plinkt|Contract of Harmony Acquisition}}
+|{{No}}
+|{{No}}
+|Yama can spawn enhanced voidflares.
+Yama can cast enhanced incantations.
+
+Challenger will regain 50% less prayer and health.
+
+Challenger must be alone.
+|{{plinkt|Soulflame horn}} || 1
+|{{Coins|({{GEP|Soulflame horn}}-{{GEP|Contract of Harmony Acquisition}}+{{YamaUniquesOnlyValue}})}}
+|{{#ifexpr:({{GEP|Soulflame horn}}-{{GEP|Contract of Harmony Acquisition}}+{{YamaUniquesOnlyValue}})>0|{{#expr:{{GEP|Contract of Harmony Acquisition}}/({{GEP|Soulflame horn}}+{{YamaUniquesOnlyValue}})*100 round 1}}%|Loss}}
+|-
+|{{plinkt|Contract of Forfeit Breath}}
+|{{No}}
+|{{Yes}}
+|Yama drains Challenger's stamina passively.
+Yama drains Challenger's stamina on dealing damage.
+
+Challenger loses upon reaching 0 stamina.
+
+Challenger must be alone.
+|{{plinkt|Purifying sigil (top)|Purifying sigil (top)}} || 1
+|{{NA}}
+|{{NA}}
+|-
+|{{plinkt|Contract of Glyphic Attenuation}}
+|{{No}}
+|{{Yes}}
+|Glyphs protect you for less time, and are more punishing.
+
+Yama is now weak to crush, and nothing else.
+
+Challenger's prayer bonus affects their drain rate inversely.
+
+Challenger's prayer bonus increases the damage they deal.
+
+Challenger must be alone.
+|{{plinkt|Purifying sigil (bottom)|Purifying sigil (bottom)}} || 1
+|{{NA}}
+|{{NA}}
+|-
+|{{plinkt|Contract of Sensory Clouding}}
+|{{No}}
+|{{Yes}}
+|Yama's attacks have increased prayer penetration.
+
+Yama can pursue forever.
+
+Voidflare explosions are lethal.
+
+Challenger has 50% reduced attack range.
+
+Challenger must be alone.
+
+|{{plinkt|Purifying sigil (left)|Purifying sigil (left)}} || 1
+|{{NA}}
+|{{NA}}
+|-
+|{{plinkt|Contract of Divine Severance}}
+|{{No}}
+|{{Yes}}
+|Yama deactivates protection prayers on sight.
+
+Yama no longer penetrates prayers.
+
+Yama spawns Voidflares continuously
+
+Voidflare explosions are lethal.
+
+Challenger must be alone.
+|{{plinkt|Purifying sigil (right)|Purifying sigil (right)}} || 1
+|{{NA}}
+|{{NA}}
+|-
+|{{plinkt|Contract of Bloodied Blows}}
+|{{No}}
+|{{Yes}}
+|Voidflares are spawned in higher quantities
+Voidflares are more resistant to attacks.
+
+Both Yama & Challenger gain Wretched Strength.
+
+Challenger must be alone.
+|{{plinkt|Purifying sigil (middle)|Purifying sigil (middle)}} || 1
+|{{NA}}
+|{{NA}}
+|-
+|{{plinkt|Contract of Familiar Acquisition}}
+|{{Yes}}{{refn|group=d|Both players will benefit from one contract, though Ironmen need to provide their own contract to benefit.}}
+|{{Yes}}
+|Yama's attacks will deal more damage through prayers.
+Yama can continously spawn Voidflares.
+
+Challenger cannot heal with consumables.
+
+Challenger cannot restore prayer with consumables.
+
+Challenger's special attacks are enhanced.
+|{{plinkt|Yami}} (1/100 chance) || {{NA}}
+|{{NA}}
+|{{NA}}
+|}
+{{reflist|group=d}}
+
+Some of these contracts have a difficulty comparable to that of the awakened variants of the post-quest Desert Treasure II bosses, and defeating Yama with these contracts will grant the player with purifying sigil pieces, which are used to grant the ability to use Radiant Oathplate armour, which is white in colour. Apart from Yama's stats being adjusted, these contracted fights add or modify existing mechanics from the original fight.
+
+The resource and pet contracts allow two players to challenge Yama, as long as one of these two players has the contract to show him. The equipment and sigil contracts can only be completed alone. If Yama is defeated after being shown the sigil or pet contracts, the player will be refunded the contract. 
+
+A "custom contract" fight can be started with one player giving Yama 100 noted [[pineapple pizza]]s, which initiates a fight the same as the worms/shard/catalyst contracts. As with the other contracts, the pizzas will only last for one attempt, and are not refunded regardless of victory or defeat.
+
+Unlike the awakened Desert Treasure II bosses, successfully completed contracted fights are not tracked separately.
+
+==Fight overview==
+{{Main|Yama/Strategies}}
+
+Yama can be fought alone or with another player that has signed the initial contract with him. His stats do not change in either size. When accounting for stat drains, his stats can be drained a maximum of 80 Defence levels (to 145). If using the [[Emberlight]]'s special attack, his Attack and Strength stats can be drained 120/150 levels respectively to a cap of 200. Not only is Yama considered [[Demon (attribute)|demonic]], he also is more vulnerable to demonbane weapons than other demons; all demonbane modifiers are increased by 20%. This means that Emberlight, for example, has an accuracy and damage increase of 84% against Yama (compared to the usual 70% against demonic creatures).
+
+Yama utilises all forms of combat; swinging his axe with melee, engulfing players in shadow with ranged or fire with magic. Yama has two distinct combat behaviours in which he checks the weapon being used by his current target; if a melee weapon is used, Yama will close the distance. If a magic or ranged weapon is being used, he will instead stay still and attack from afar. This check additionally influences his magic defence. His melee attacks can hit through prayer and will hit everyone within three tiles of his target, while the ranged and magic attacks are fully blocked with prayer. Yama also inflicts [[poison]] starting at 20, the highest possible value. He also makes use of shadow and fire-based elemental attacks, which deal heavy damage. These attacks can only be fully blocked by standing on the according glyph to gain temporary protection against such attacks. Though he only focuses on one player, Yama can change aggression to the other player in duo encounters.
+
+Shortly after 66.6% and 33.3% of his health, Yama will slam the pommel of his axe to the ground, teleporting the player to the pockets of land to the side of the arena, where a [[Judge of Yama]] must be defeated in order to continue the fight. After the threshold is reached but before he teleports the players, he gains 50% damage resistance to any attacks. The Judge prays against two combat styles, with one of them always being ranged, and reactively prays against the last attack, so players must bring melee and magic in order to kill it efficiently. After the judge is slain, Yama begins the next phase.
+
+In the final phase, Yama will remain static in the centre of the room, increasing all of his defence bonuses and using one of two different combat behaviours; if the target is out of melee range, he will launch three sets of fireballs at everyone in the arena, whereas being in melee range will result in a quick swipe from his axe that additionally summons a flare. Every auto-attack switches between styles (if he used shadow on the previous hit, then he uses magic on the next hit). His ranged and magic attacks will now pierce prayer (although very negligible), while the melee attack deals even more damage. Players must defeat Yama as quickly as possible while handling numerous rapid shadow waves and flares, the latter of which will damage players and heal Yama if not destroyed.  
+
+After Yama is defeated, he will teleport back to his throne and snap his fingers, rewarding players for their efforts. He can be immediately challenged again if desired.
+
+===Death mechanics===
+{{Safe death|IRS=no|HCIM=no|HCGIM=no}}
+[[Death|Dying]] results in the player being sent back to the [[Voice of Yama]] instead of their [[respawn point]], unlike most other bosses. Their grave is also located there. Players will have their reclamation fee reduced by 75% until they have 10 kills, after which the standard death cost will apply.
+
+Dying at Yama causes the contents of an [[Item Retrieval Service]] to be lost.
+
+Dying at Yama is always a [[Death#Unsafe and safe deaths|dangerous death]], and results in {{Ironman|icon|mode=HCIM}} [[Ironman_Mode#Hardcore_Ironman|Hardcore Ironman]] players losing their Hardcore status and {{Ironman|icon|mode=HCGIM}} [[Group_Ironman_Mode#Hardcore_Group_Ironman|Hardcore Group Ironman]] players losing a life.
+
+==Money making==
+{{Mmgsection|Killing Yama (solo)|Killing Yama (Contract of Shard Acquisition, duo)|Killing Yama (Contract of Catalyst Acquisition, duo)|Killing Yama (Contract of Harmony Acquisition)|Killing Yama (Contract of Oathplate Acquisition)}}
+
+==Drops==
+{{Has calculator|Calculator:Yama rewards}}
+{{DropLogProject|jagex=yes}}
+
+After being defeated, Yama will teleport back to his throne and snap his fingers, after which the rewards will be dropped in front of him. Drops are rolled for until the roll results in a success:
+* If a player deals less than 375 damage (15%), roll the junk drop table.
+* Otherwise, roll 1/120 for the unique drop table (scales with contribution).
+** If successful, roll 3/5 for a piece of [[oathplate armour]] and 2/5 for the [[soulflame horn]].
+* If unsuccessful, roll 1/12 for the [[dossier]] (scales with contribution).
+* If unsuccessful, roll 1/30 for the [[forgotten lockbox]].
+* If unsuccessful, roll 1/15 for 12 [[oathplate shards]] (quantity scales with contribution).
+* If unsuccessful, the standard table is rolled.
+* Roll again for tertiary drops: 1/2,500 for [[Yami]] and 1/30 for an [[Clue scroll (elite)|elite clue]].
+
+If the player is fighting Yama under any contract other than the [[Contract of Familiar Acquisition]], the standard table will not be rolled. Uniques can still be obtained from any contracted fight alongside the guaranteed rewards.
+
+Unlike other group bosses, Yama rolls drops for each player individually in a duo encounter, rather than rolling for a unique for the kill. This means that two uniques can be obtained per encounter, with the rate of getting a unique based on contribution. For example, if both players have 50% contribution, both players will roll for the unique drop table at 1/240 chance each, rather than 1/120 and then choosing which player obtains it.
+
+===Contribution===
+'''{{Colour|red|The drop rates and quantities listed below assume Yama is killed by one player.}}'''
+
+With two players, the quantities of regular items and drop rates of some unique items scale linearly, proportional to damage dealt by a given player, similarly to the [[Royal Titans]]. For example, a player who deals 1,000 damage to Yama, or 40% of his health, is eligible to receive 16,000 fire runes, 40% of the maximum.
+
+If one player dies during a duo encounter, their contribution is not redistributed to the surviving player.
+
+===Unique===
+{{Listen
+|filename = Unique_drop_(Yama).wav
+|title = Unique drop [[sound effect]]
+|desc = The sound that plays when receiving a soulflame horn or oathplate armour piece from Yama.
+|align = right
+}}
+{{Listen
+|title = Unique drop [[sound effect]]
+|align = right
+|filename = Unique drop sound effect.ogg
+|desc = The sound that plays when receiving a dossier, forgotten lockbox, or oathplate shards from Yama.
+}}
+For solo kills, there is a 1/120 (0.83%) chance to receive either a piece of [[oathplate armour]] or a [[soulflame horn]]. If the armour table roll fails, there is a 1/12 chance to receive a [[dossier]]. If the dossier roll fails, there is a 1/30 chance to receive a [[forgotten lockbox]]. Finally, if all preceding rolls fail, there is a 1/15 chance to receive [[oathplate shards]]. Effective rates are listed below.
+{{DropsTableHead}}
+{{DropsLine|name=Soulflame horn|quantity=1|rarity=2/600|raritynotes={{Refn|group=d|name=contrib|Scales with contribution; rates and quantities are shown for 100% contribution.}}}}
+{{DropsLine|name=Oathplate helm|quantity=1|rarity=1/600|raritynotes={{Refn|group=d|name=contrib}}}}
+{{DropsLine|name=Oathplate chest|quantity=1|rarity=1/600|raritynotes={{Refn|group=d|name=contrib}}}}
+{{DropsLine|name=Oathplate legs|quantity=1|rarity=1/600|raritynotes={{Refn|group=d|name=contrib}}}}
+{{DropsLine|name=Dossier|quantity=1|rarity=1/12.1|raritynotes={{Refn|group=d|name=contrib}}|gemw=no}}
+{{DropsLine|name=Forgotten lockbox|quantity=1|rarity=1/33|gemw=no}}
+{{DropsLine|name=Oathplate shards|quantity=12|quantitynotes={{Refn|group=d|name=contrib}}|rarity=1/17.07}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+<!-- main table has 78 slots, but effectively it's /95.11 after all the pre-rolls for a solo kill. use calculator if you want to see it for other contributions -->
+
+===Supplies===
+There is a 15/95.11 (15.8%) chance of getting a supply drop. It will include:
+* Either 3-4 [[pineapple pizza]]s or 3-4 [[wild pie]]s
+* Either 2 [[prayer potion(3)]] or 2 [[super restore mix(2)]]
+* Either 1 [[super combat potion(1)]] or 1 [[Zamorak mix(2)]]
+
+{{DropsTableHead}}
+{{DropsLine|name=Pineapple pizza|quantity=3-4|Rarity=7.5/95.11}}
+{{DropsLine|name=Wild pie|quantity=3-4|Rarity=7.5/95.11}}
+{{DropsLine|name=Prayer potion(3)|quantity=2|rarity=7.5/95.11}}
+{{DropsLine|name=Super restore mix(2)|quantity=2|rarity=7.5/95.11}}
+{{DropsLine|name=Super combat potion(1)|quantity=1|rarity=7.5/95.11}}
+{{DropsLine|name=Zamorak mix(2)|quantity=1|rarity=7.5/95.11}}
+{{DropsTableBottom}}
+
+Supply quantities do not depend on contribution.
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Rune chainbody|quantity=8 (noted)|quantitynotes={{Refn|group=d|name=contrib|Scales with contribution; rates and quantities are shown for 100% contribution.}}|rarity=5/95.11}}
+{{DropsLine|name=Battlestaff|quantity=40 (noted)|quantitynotes={{Refn|group=d|name=contrib}}|rarity=4/95.11}}
+{{DropsLine|name=Rune platebody|quantity=8 (noted)|quantitynotes={{Refn|group=d|name=contrib}}|rarity=3/95.11}}
+{{DropsLine|name=Dragon plateskirt|quantity=1|rarity=2/95.11}}
+{{DropsLine|name=Dragon platelegs|quantity=1|rarity=2/95.11}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Runes===
+{{DropsTableHead}}
+{{DropsLine|name=Blood rune|quantity=400|quantitynotes={{Refn|group=d|name=contrib|Scales with contribution; rates and quantities are shown for 100% contribution.}}|Rarity=3/95.11}}
+{{DropsLine|name=Law rune|Quantity=150|quantitynotes={{Refn|group=d|name=contrib}}|Rarity=3/95.11}}
+{{DropsLine|name=Smoke rune|quantity=350|quantitynotes={{Refn|group=d|name=contrib}}|Rarity=2/95.11}}
+{{DropsLine|name=Soul rune|quantity=500|quantitynotes={{Refn|group=d|name=contrib}}|Rarity=2/95.11}}
+{{DropsLine|name=Soul rune|quantity=1000|quantitynotes={{Refn|group=d|name=contrib}}|Rarity=2/95.11}}
+{{DropsLine|name=Fire rune|quantity=40000|quantitynotes={{Refn|group=d|name=contrib}}|Rarity=1/95.11}}
+{{DropsLine|name=Wrath rune|Quantity=800|quantitynotes={{Refn|group=d|name=contrib}}|Rarity=1/95.11}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Aether catalyst|quantity=850|quantitynotes={{Refn|group=d|name=contrib|Scales with contribution; rates and quantities are shown for 100% contribution.}}|rarity=7/95.11}}
+{{DropsLine|name=Diabolic worms|quantity=90|quantitynotes={{Refn|group=d|name=contrib}}|rarity=7/95.11}}
+{{DropsLine|name=Barrel of demonic tallow (full)|image=Barrel of demonic tallow.png|quantity=1|rarity=5/95.11}}
+{{DropsLine|name=Chasm teleport scroll|quantity=6|quantitynotes={{Refn|group=d|name=contrib}}|rarity=4/95.11}}
+{{DropsLine|name=Emerald|quantity=40 (noted)|quantitynotes={{Refn|group=d|name=contrib}}|rarity=3/95.11}}
+{{DropsLine|name=Ruby|quantity=40 (noted)|quantitynotes={{Refn|group=d|name=contrib}}|rarity=3/95.11}}
+{{DropsLine|name=Diamond|Quantity=40 (noted)|quantitynotes={{Refn|group=d|name=contrib}}|Rarity=3/95.11}}
+{{DropsLine|name=Onyx bolt tips|quantity=150|quantitynotes={{Refn|group=d|name=contrib}}|rarity=1/95.11}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Junk===
+These items are rolled instead of all the others for players who have contributed less than 15% to the kill. When receiving demon dung a special [[Demon dung#Sound effects|sound effect]] will play.
+{{DropsTableHead|dropversion=Junk}}
+{{DropsLineReward|name=Cabbage|quantity=1|rarity=3/11}}
+{{DropsLineReward|name=Black bead|quantity=1|rarity=3/11}}
+{{DropsLineReward|name=Spinach roll|quantity=1|rarity=3/11}}
+{{DropsLineReward|name=Demon dung|quantity=1|rarity=2/11|gemw=no}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLineClue|type=elite|rarity=1/30}}
+{{DropsLine|name=Yami|quantity=1|rarity=1/2500|raritynotes={{Refn|group=d|name=nocontrib|The drop rate is fixed at 1/2500, as long as contribution is higher than 15%.}}|gemw=no}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Contract===
+When defeating Yama in a contract fight, a special drop specific to that contract will be received rather than normal loot. Certain contracts will also be returned on successful kills.
+
+See {{Section|Contracts}} for a more detailed summary.
+
+{{DropsTableHead|dropversion=Contract}}
+{{DropsLine|name=Aether catalyst|quantity=2000|rarity=Always}}
+{{DropsLine|name=Diabolic worms|quantity=250|rarity=Always}}
+{{DropsLine|name=Oathplate shards|quantity=45|rarity=Always}}
+{{DropsLine|name=Oathplate helm|namenotes={{Refn|group=d|name=choice|Choice of [[Oathplate helm|helm]], [[Oathplate chest|chest]], or [[Oathplate legs|legs]]}}|quantity=1|rarity=Always}}
+{{DropsLine|name=Oathplate chest|namenotes={{Refn|group=d|name=choice}}|quantity=1|rarity=Always}}
+{{DropsLine|name=Oathplate legs|namenotes={{Refn|group=d|name=choice}}|quantity=1|rarity=Always}}
+{{DropsLine|name=Soulflame horn|quantity=1|rarity=Always}}
+{{DropsLine|name=Contract of Forfeit Breath|quantity=1|rarity=Always}}
+{{DropsLine|name=Purifying sigil (top)|quantity=1|rarity=Always}}
+{{DropsLine|name=Contract of Glyphic Attenuation|quantity=1|rarity=Always}}
+{{DropsLine|name=Purifying sigil (bottom)|quantity=1|rarity=Always}}
+{{DropsLine|name=Contract of Sensory Clouding|quantity=1|rarity=Always}}
+{{DropsLine|name=Purifying sigil (left)|quantity=1|rarity=Always}}
+{{DropsLine|name=Contract of Divine Severance|quantity=1|rarity=Always}}
+{{DropsLine|name=Purifying sigil (right)|quantity=1|rarity=Always}}
+{{DropsLine|name=Contract of Bloodied Blows|quantity=1|rarity=Always}}
+{{DropsLine|name=Purifying sigil (middle)|quantity=1|rarity=Always}}
+{{DropsLine|name=Contract of Familiar Acquisition|quantity=1|rarity=Always}}
+{{DropsLine|name=Yami|quantity=1|rarity=1/100}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Collection log==
+{{PAGENAME}} has 11 [[collection log]] items.
+{{Sync}}
+{{Collection log list|category={{PAGENAME}}}}
+
+==Combat Achievements==
+{{Combat Achievements list|{{PAGENAME}}}}
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+Yama release announcement.png|A poster announcing Yama's release date.
+Yama CAs & More! (1).png|The promotional art for the Yama, used in marketing and social media.
+Farming & Autocast QoL Improvements (6).gif|A preliminary render of Yama upon his throne. 
+Poll 84- Batch II (5).gif|A preliminary render of Yama teleporting off his throne.
+</gallery>
+
+===Concept art===
+<gallery mode="packed" heights="150" style="text-align:left">
+Yama concept art.png|Concept art of Yama - first shown at the RuneFest Art Area during {{RSL|RuneFest 2025}} - by [[Mod Grub]].
+Yama (non-combat) concept art.png|Concept art of Yama in his non-combat form, by Mod Grub.
+Yama boss environment paintover.png|Paintover of the boss's environment - also shown at RuneFest - by Mod Grub.
+</gallery>
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 January 2026
+|update = New Player Improvements Round 2
+|change = Attacking Yama with the [[Eye of Ayak]] no longer causes the player to turn invisible.
+}}
+{{Subject changes
+|date = 9 July 2025
+|update = The New Renderer Beta is Out Today!
+|change = The drop rate for [[Clue scroll (elite)|elite clue scrolls]] has increased from 1/66 to 1/30.
+}}
+{{Subject changes
+|date = 11 June 2025
+|type = hotfix
+|change =
+* A bug in which the Emberlight's special attack was reducing Yama's Strength level instead of Defence has been fixed.
+* Yama's offensive stats can now be drained outside of contracts, capped to level 200 Attack and Strength.
+}}
+{{Subject changes
+|date = 11 June 2025
+|update = Misc Galore & Yama Tweaks
+|change =
+* The boosted [[Yami|pet]] drop rate from the [[Contract of Familiar Acquisition]] now applies to both players if they are in the same [[Group Ironman Mode|group ironman]] team.
+* [[Emberlight]]'s [[special attack]] no longer reduces Yama's offensive stats to prevent him from being rendered harmless via repeated stat drains.
+* Enchanted [[Ruby bolts (e)|ruby]] and [[Diamond bolts (e)|diamond]] bolt special effects no longer trigger when fighting Yama during the [[Contract of Glyphic Attenuation]] to enforce the intended melee-only strategy.
+}}
+{{Subject changes
+|date = 4 June 2025
+|update = Poll 84, AFK Timers & More
+|change =
+* [[Contractually Unbound]] is now retroactively completed if players owned a piece of the [[purifying sigil]] or [[radiant oathplate armour]] before 29 May 2025.
+* A bug in which [[Shadow dancer]] would fail if players were hit by Yama's shadow waves as they were being teleported away between phase transitions has been fixed.
+* Void flares that spawn with reduced health during the [[Contract of Divine Severance]] and [[Contract of Familiar Acquisition]] fights have had their health decreased from 83 to 81.
+* The drop rate for [[Yami]] from the Contract of Familiar Acquisition has been increased from 1/250 to 1/100. Additionally, both players will benefit from the contract of whoever used it - unless one of the players is an ironman, in which case they will need to provide their own to benefit from the increased rate.
+}}
+{{Subject changes
+|date = 29 May 2025
+|update = Yama CAs & More!
+|change = * [[Combat Achievements]] have been added for Yama. Unlike previous Combat Achievement releases, speed times were '''not''' tracked on release, and opening the Combat Achievements interface will not automatically complete kill count tasks; players must kill Yama after this update to complete them.
+** Additionally, players who have completed at least one sigil contract before this update will not have automatically completed [[Contractually Unbound]].
+* It was stated that the drop rate for [[elite clue scroll]]s were increased from 1/66 to 1/30, but this did not occur.
+* The [[dragon chainbody]] has been removed from Yama's [[collection log]] entry; this was due to the item originally being intended as a possible drop.
+* [[Oathplate shards]] have been added to Yama's collection log entry; shards acquired prior to this update were tracked and thus will count as logged.
+* Players can now bring 100 noted [[pineapple pizza]]s to Yama to initiate a fight, identical to the catalyst/shard/worm acquisition fights, as a way to practice the contract fights in exchange for standard loot rolls.
+* The following adjustments have been made for contracted fights:
+** Yama's health is no longer increased for all but two contracts.
+** Yama's health for the [[Contract of Bloodied Blows]] has been decreased from 4,125 to 3,000.
+** Yama's health for the [[Contract of Glyphic Attenuation]] has been decreased from 3,500 to 2,875.
+** Phase transition thresholds have been changed to trigger at 75% and 50% health instead.
+** Yama is once again vulnerable to [[demonbane weapons]].
+** Shadow pools will now only appear in the Contracts of Harmony and Oathplate Acquisition.
+** Void flares in duo-eligible fights no longer always spawn at full health.
+** Void flares will now always take successful hits from the player for the Contract of Bloodied Blows.
+** Magic and ranged prayer-penetration for the Contract of Bloodied Blows has been decreased from 10% to 5%.
+** Damage increases from higher [[prayer bonus]]es for the Contract of Glyphic Attenuation have been increased to make the damage bonus larger at higher thresholds.
+}}
+{{Subject changes
+|date = 23 May 2025
+|update = Yama: The Calm Before the Contract Storm#Blog Update - Friday, May 23rd
+|type = hotfix
+|change = 
+*The [[dossier]] drop rate has been increased from 1/17 to 1/12.
+*Fixed the void flare bug in the [[Contract of Bloodied Blows]] which caused them to be unaffected by Wretched Strength.
+*Fixed the void flare bug in the [[Contract of Divine Severance]] fight that made it impossible to clear; three of these would spawn at full health in enrage phase, but this was originally intended for a duo fight. This unintentionally carried over to solo, and it was not possible to deal the necessary 420 damage in 20 ticks, as not destroying them completely would result in instant death.
+}}
+{{Subject changes
+|date = 22 May 2025
+|update = Yama: The Calm Before the Contract Storm
+|change = 
+* Yama will no longer become 'inactive' if his target was forcibly logged out.
+* Adjusted the following drops:
+** The [[dossier]] drop rate has been increased from 1/20 to 1/17.
+** The quantity of [[fire rune]]s dropped has been increased from 15,000 to 40,000.
+** Added [[elite clue]]s to Yama's loot table at a rate of 1 in 66.
+** [[Yami]] is now a tertiary drop.
+* Yama will now be in the centre of the arena after each transition phase, rather than wandering around the arena until the player(s) return.
+}}
+{{Subject changes
+|date = 16 May 2025
+|type = hotfix
+|change = The drop rates for the soulflame horn and oathplate armour has been decreased by ~30%.
+}}
+{{Subject changes
+|date = 14 May 2025
+|type = hotfix
+|change = Players can now acquire the [[Yami]] boss pet from defeating the boss.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Unlike other bosses, who have a kill count (including those that return after being killed lore-wise), Yama's "kill count" is instead tracked as "success count". Likewise, the "deaths" at the boss are labeled as "Soul Debt".
+* In Hindu mythology, {{WP|Yama}} is the god of death and justice. In some Buddhist traditions, {{WP|Yama (Buddhism)|Yama}} is regarded as the king of hell, responsible for judging the dead and dispatching them to the appropriate rebirth. The concept for the boss was originally inspired by these deities.{{CiteReddit|author=Mod West|url=https://www.reddit.com/r/2007scape/comments/67wfpd/chasm_of_fire_easter_egg_osbuddy_map_floor_0/dgty9iv/?context=2|title=Chasm of Fire easter egg (OSBuddy map floor 0)|quote=Based on the East Asian god Yama and the mouth of sauron from lotr|date=27 April 2017|archiveurl=https://reldo.runescape.wiki/i/27964024|archivedate=15 May 2026}}
+* Yama enjoys pizza.{{CiteReddit|author=JagexArcane|url=https://www.reddit.com/r/2007scape/comments/1kkrsui/yamama_ask_the_devs_about_yama/mrwvrwg/|title=YamAMA - Ask the devs about Yama!|quote=Trivia? Yama really likes pizza.|date=12 May 2025|archiveurl=https://reldo.runescape.wiki/i/27963072|archivedate=16 March 2026}} He appears to enjoy pineapple on pizza{{CiteReddit|author=JagexArcane|url=https://www.reddit.com/r/2007scape/comments/1kkrsui/comment/mrwnx47/|title=YamAMA - Ask the devs about Yama!|quote=[Does Yama like pineapple on pizza?] Yes|date=12 May 2025|archiveurl=https://reldo.runescape.wiki/i/27963073|archivedate=16 March 2025}}, but something spicy would suit him better,{{CiteReddit|author=JagexArcane|url=https://www.reddit.com/r/2007scape/comments/1kkrsui/comment/mrx2ywu/?context=3|title=YamAMA - Ask the devs about Yama!|quote=[...any advice for what kind of pizza would fit Yama?] Something spicy |date=12 May 2025|archiveurl=https://reldo.runescape.wiki/i/27964025|archivedate=15 May 2026}} like [[jalapeño pizza]], which is his favourite.{{CiteNPC|npc=Yama|quote=My favourite kind of pizza is the jalapeño pizza. Were it that I could enjoy its zesty heat for every meal.}} This sparked rumours that he would introduce a spicy pizza (like [[Jalapeño pizza|jalapeno]]) on launch.
+** In the ''Old School'' lore panel at [[RuneFest]] 2026, it was revealed that Yama's chef is the inventor of pizza.{{CiteDiscord|author=Mod Rice|url=https://discord.com/channels/177206626514632704/269673599554551808/1557362344219254807|date=2026-10-07|quote=Yama is the earliest being to eat a pizza in the known OSRS universe thus far (I think the panels may not be uploaded this year)|archiveurl=https://reldo.runescape.wiki/i/27964563#chat-messages-269673599554551808-1557362344219254807|archivedate=18 October 2026|ctxquote=|notes=|name=}}
+** As part of the contract signed with Yama, if a player shows him a full [[Pizza]] of any type he will always take a slice, even if the player refuses to give it to him.
+*** If a 1/2 pizza is offered, he will refuse, even if the player offers him pizza that he had already eaten from.
+*** When shown a [[Pineapple pizza]], Yama will say "Pineapple pizza, topped with delicious acidic flavours and the angry tears of a thousand nay-sayers. Excellent. Hand me it." If given to Yama, he will then remark about jalapeno pizzas, though no such item exists in-game.
+**** Yama's remark "angry tears of a thousand nay-sayers" is a reference to how many people consider pineapple as a topping to be highly controversial.
+*** Upon trying to teleport out after offering Yama a pizza, Yama will stop the player, stating "You thought you could escape with your pizza? I'm afraid not (player name)."
+*** Logging out will result in the player's pizza being eaten anyway upon logging back in, though there is no dialogue accompanying this.
+*** If the player offers a [[burnt pizza]], Yama will question the player's intention as humour, but begrudgingly take it due to the contract's terms before promptly incinerating it at the player's suggestion.
+** He also might enjoy a breakfast of [[cheese]] and [[tomato]] on sourdough.{{CiteReddit|author=JagexArcane|url=https://www.reddit.com/r/2007scape/comments/1kkrsui/comment/mrx5pce/?context=3|title=YamAMA - Ask the devs about Yama!|quote=[If Yama had a favourite breakfast, what would it be?] Tomato & Cheese on a sourdough bread, maybe with some toppings.|date=12 May 2025|archiveurl=https://reldo.runescape.wiki/i/27964026|archivedate=15 May 2026}} Or a Tomato and Jalapeño picadillo with cheese on the side for Lunch.{{Better source|Added to page by Mod Rice.}}
+** It is possible that all the mentions of "spicy" and "jalapeño" are a reference to the [[Arceuus spellbook#Unused spells|cut Arceuus spellbook rework spell]] which appears to be "Bones to Jalapeño."
+* Yama will make a comment judging the player's overall performance after a fight or after the player teleports away. [[Sol Heredit]] also comments on the player's performance, but only whether they have won or lost.
+* Upon learning that their memories were altered by Yama during [[A Kingdom Divided]], the player will remark that this is the second time someone has modified their memories {{CiteNPC|npc = Player character{{!}}Player|quote=You modified my memory?! That's only the second time someone has done that to me, and I wasn't very happy about it then either!|loc=Transcript:Yama#First time}}. It is likely that this is a reference to [[Icthlarin's Little Helper]], as the player is aware of their mind being manipulated through their [[cat]] and the [[Sphinx]].
+** While the player's mind is also modified during [[Forgettable Tale...]], the player is not aware of it.
+* All of Yama's contracts feature markings that can be interpreted as {{WP|Morse code}}. When translated, they read {{Morse|CONTRNCT}}{{sic}}.
+** The second {{Morse|N}} is likely meant to be an {{Morse|A}}, though the order of the dots and dashes is reversed.
+* Yama utilises two different [[sound effects]] when a unique drop is awarded. If the player rolls a [[dossier]], [[forgotten lockbox]] or [[oathplate shards]], the sound effect used is the same as obtaining uniques from other bosses, such as [[Araxxor]]. If the player rolls a [[soulflame horn]] or [[oathplate armour]] piece, a deeper-sounding variant of this effect is used instead.
+* Yama had a festive override wearing a [[santa hat]] during the [[2025 Christmas event/Gallery|2025]] Christmas event.
+* An [[Demonic axe ornament kit|ornament kit]] for the [[Soulreaper axe]] that makes the axe appear visually similar to Yama's axe was released as part of the [[Demonic Pacts League]].
+
+==Notes==
+{{notelist}}
+
+==References==
+{{reflist}}
+
+{{Yama}}
+{{Bosses}}
+{{Demons}}
+{{Chasm of Fire}}
+[[Category:Zamorakians]]
+[[Category:Seated NPCs]]
+[[Category:Morse code]]

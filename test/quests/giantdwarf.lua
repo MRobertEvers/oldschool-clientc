@@ -62,18 +62,12 @@ return {
     },
 
     run = function(t)
+        t.ticklog.start()
         t.quest.bind({
             varp = "varb571_giantdwarf_quest",
             constants = {
-                not_started = 0, arrived = 1, veldaban_done = 2, blasidar_done = 3,
-                vermundi_asked = 4, librarian_asked = 5, got_book = 6, showed_book = 7,
-                machine_loaded = 8, machine_started = 9, clothes_done = 10,
-                saro_asked = 11, dromund_asked = 12, left_boot = 13, boots_done = 14,
-                santiri_asked = 15, sapphires_used = 16, imcando_asked = 17,
-                reldo_told = 18, axe_done = 19, items_given = 20, blasidar_after = 21,
-                entered_consortium = 22, secretary_done = 23, director_done = 24,
-                joined_company = 25, director_after = 26, ready_to_finish = 28,
-                complete = 50,
+                not_started = 0, boat_ride = 5, see_blasidar = 10, items = 20,
+                consortium = 30, meeting = 40, complete = 50,
             },
             row = "quest_thegiantdwarf",
             display = "The Giant Dwarf",
@@ -232,8 +226,17 @@ return {
         -- The way into Keldagrim from the surface: Camelot Teleport, the hillside
         -- east of Rellekka, the two tunnels onto the ferry bank.
         local function camelot_teleport(name)
-            t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = name,
-                runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot" })
+            -- Graded on the landing: the spell's hop is several ticks after the cast.
+            t.exec(name, t.player.cast, "camelot_teleport")
+            t.await({
+                level = function()
+                    local r, tl = t.world.tile()
+                    return r == "ok" and math.abs(tl.x - 2757) <= 2 and math.abs(tl.z - 3478) <= 2
+                end,
+                note = name .. ": waiting for the landing",
+            }, 12)
+            local r, tl = t.world.tile()
+            t.check(name .. ".landed", r == "ok" and math.abs(tl.x - 2757) <= 2 and math.abs(tl.z - 3478) <= 2, tile_text(r, tl))
         end
         local function tunnels_to_bank(p)
             camelot_teleport(p .. ".camelotTeleport")
@@ -277,110 +280,119 @@ return {
         -- The consortium floor by the west-south wide stairs: ~climb on the maplink row
         -- (gdwarf_consortium.rs2:240-251; maplink.dbrow maplink_0_44_159_49_33_up lands
         -- 2862,10209,1, maplink_1_44_159_46_33_down lands 2865,10209,0, the open street).
+        -- The palace floor by the east wide stairs, the recorder's route to the Green
+        -- Gemstone's office (index 4495 [361], [412]).
         local function up_to_consortium(name)
-            t.exec("goto-" .. name, t.player.goto_tile, 2865, 10209, 0)
+            t.exec("goto-" .. name, t.player.goto_tile, 2893, 10209, 0)
             t.exec(name, t.player.climb, { loc = "dwarf_keldagrim_wide_stairs_lower", op = 1, op_name = "Climb-up",
-                at = { 2863, 10209, 0 }, src = { 2865, 10209 }, dest = { 2862, 10209, 1 } })
+                at = { 2894, 10209, 0 }, src = { 2893, 10209 }, dest = { 2896, 10209, 1 } })
         end
         local function in_hq(tl) return tl.level == 0 and tl.x >= 2825 and tl.x <= 2829 and tl.z >= 10208 and tl.z <= 10217 end
-        -- The Grand Exchange trapdoor (forget_keldagrim.rs2:9-19) lands in Veldaban's HQ.
-        local function trapdoor_to_hq(name)
+        -- The Grand Exchange trapdoor's Travel: a forced ride along the rails that
+        -- ends at the station (keldagrim_travel.rs2, index 4494 [2816..2838]).
+        local function trapdoor_to_station(name)
             t.exec("goto-" .. name, t.player.goto_tile, 3141, 3504, 0)
-            t.exec(name, t.player.cross_gate, { loc = "ge_keldagrim_trapdoor", at = { 3140, 3504, 0 }, near = { 3141, 3504 },
-                far_ok = in_hq, far_desc = "Veldaban's HQ x 2825-2829 z 10208-10217 (forget_keldagrim.rs2:19 ^forget_veldaban_coord)",
-                chat = { "mesbox:The trapdoor leads down", "choose:Yes please.", "player:Yes please." } })
+            t.exec(name, t.player.click_loc, "ge_keldagrim_trapdoor", 2, { at = { 3140, 3504, 0 } })
+            t.await({
+                level = function()
+                    local r, tl = t.world.tile()
+                    return r == "ok" and tl.x == 2909 and tl.z == 10174
+                end,
+                note = name .. ": waiting for the ride to end",
+            }, 40)
+            local r, tl = t.world.tile()
+            t.check(name .. ".landed", r == "ok" and tl.x == 2909 and tl.z == 10174, "landed " .. tile_text(r, tl))
+        end
+        -- Page through a conversation, pressing the first listed row a menu has.
+        local function drive(name, rows)
+            for _ = 1, 60 do
+                local kind = t.chat.kind()
+                if kind == "none" then return end
+                if kind == "options" then
+                    local done = false
+                    for _, row in ipairs(rows) do
+                        if t.chat.choose(row) == "ok" then done = true; break end
+                    end
+                    t.check(name .. ".row", done, "none of the rows is on this menu")
+                    if not done then return end
+                else
+                    t.chat.continue_()
+                end
+                t.ticks(2)
+            end
+        end
+        local function await_chat(name)
+            for _ = 1, 12 do
+                if t.chat.kind() ~= "none" then return end
+                t.ticks(1)
+            end
+        end
+        local function talk(name, npc, rows)
+            t.exec(name, t.player.talk_to, npc, 1)
+            await_chat(name)
+            drive(name, rows)
+            t.ticks(2)
+        end
+        local function server(var)
+            local _, v = t.var.server(var)
+            return v
         end
         local function down_from_consortium(name)
-            walk(name .. ".toStairs", 2862, 10209, 1, 0)
+            walk(name .. ".toStairs", 2896, 10209, 1, 1)
             t.exec(name, t.player.climb, { loc = "dwarf_keldagrim_wide_stairs_upper", op = 1, op_name = "Climb-down",
-                at = { 2863, 10209, 1 }, src = { 2862, 10209 }, dest = { 2865, 10209, 0 } })
-            walk(name .. ".offStairs", 2870, 10209, 0, 0)
+                at = { 2895, 10209, 1 }, src = { 2896, 10209 }, dest = { 2893, 10209, 0 } })
+            walk(name .. ".offStairs", 2889, 10209, 0, 1)
         end
 
         -- ============================================================
-        -- Leg 1
+        -- The start, index 4491 [285..574]
         -- ============================================================
         tunnels_to_bank("start")
-        -- the prequest symbol has no spawn row; the placed boatman (m44_158.spawn:12) routes to it
-        -- the tunnel's landing rebuilds the scene: the boatman joins the npc pool late
         walk("talkToBoatman.walk", 2840, 10128, 0, 1)
         t.exec("talkToBoatman.present", t.npc.await_present, "dwarf_city_boatman_mines", 10, 15)
-        local br, bt = t.world.tile()
-        t.exec("talkToBoatman", t.player.talk_to, "dwarf_city_boatman_mines", 1)
-        t.exec("talkToBoatman.chat", t.chat.play, {
-            "npc:For a human like you",
-            "choose:That's a deal!",
-            "player:That's a deal!",
-            "npc:Yes, I'm ready",
-            "player:Yes.",
-        })
-        t.ticks(4)
-        t.expect("quest.stage.arrived", t.quest.expect_stage("arrived"))
+        talk("talkToBoatman", "dwarf_city_boatman_mines", { "That's a deal!", "Yes." })
+        t.expect("quest.stage.boat_ride", t.quest.expect_stage("boat_ride"))
+        t.await({
+            level = function()
+                local r, tl = t.world.tile()
+                return r == "ok" and in_hq(tl) and t.chat.kind() ~= "none"
+            end,
+            note = "the ride, the crash, the arrest: waiting for Veldaban's first page",
+        }, 300)
         local ar, at = t.world.tile()
-        t.check("talkToBoatman.landed", br == "ok" and bt.z < 10150 and ar == "ok" and in_hq(at),
-            "from " .. tile_text(br, bt) .. " the boat landed " .. tile_text(ar, at)
-                .. " (want Veldaban's HQ x 2825-2829 z 10208-10217: gdwarf_start.rs2:64 ^gdwarf_veldaban_coord)")
-
-        t.exec("talkToVeldaban", t.player.talk_to, "dwarf_city_black_guard_leader", 1)
-        t.exec("talkToVeldaban.chat", t.chat.play, {
-            "npc:Welcome to Keldagrim",
-            "npc:I want you to go",
-            "npc:I need you to go to Blasidar",
-            "choose:Yes, I will do this.",
-            "player:Yes, I will do this.",
-        })
-        t.ticks(3)
-        t.expect("quest.stage.veldaban_done", t.quest.expect_stage("veldaban_done"))
+        t.check("arrested.landed", ar == "ok" and in_hq(at), "landed " .. tile_text(ar, at))
+        drive("talkToVeldaban", { "Yes, I will do this." })
+        t.ticks(2)
+        t.expect("quest.stage.see_blasidar", t.quest.expect_stage("see_blasidar"))
         door_out("talkToVeldaban.doorOut", "veldaban")
 
         t.exec("goto-talkToBlasidar", t.player.goto_tile, 2906, 10199, 0)
         door_in("talkToBlasidar.doorIn", "blasidar")
-        t.exec("talkToBlasidar", t.player.talk_to, "dwarf_city_shop_sculpture", 1)
-        t.exec("talkToBlasidar.chat", t.chat.play, {
-            "npc:Ah, a human!",
-            "npc:I'm building a grand statue",
-            "choose:Yes, I will do this.",
-            "player:Yes, I will do this.",
-            "npc:Wonderful! Vermundi",
-        })
-        t.ticks(3)
-        t.expect("quest.stage.blasidar_done", t.quest.expect_stage("blasidar_done"))
+        talk("talkToBlasidar", "dwarf_city_shop_sculpture", { "Yes, I will do this." })
+        t.expect("quest.stage.items", t.quest.expect_stage("items"))
         door_out("talkToBlasidar.doorOut", "blasidar")
 
+        -- ============================================================
+        -- The clothes, index 4492 and 4494 [1141..1868]
+        -- ============================================================
         t.exec("goto-talkToVermundi", t.player.goto_tile, 2887, 10188, 0)
-        t.exec("talkToVermundi", t.player.talk_to, "dwarf_city_shop_cloth_poor", 1)
-        t.exec("talkToVermundi.chat", t.chat.play, {
-            "player:Yes, I'm looking for some special clothes.",
-            "npc:Clothes fit for King Alvis",
-        })
-        t.ticks(3)
-        t.expect("quest.stage.vermundi_asked", t.quest.expect_stage("vermundi_asked"))
+        talk("talkToVermundi", "dwarf_city_shop_cloth_poor", { "Yes, I'm looking for some special clothes." })
+        t.check("vermundi.asked", server("varp9553_gdwarf_vermundi_asked") == 1, "asked about the clothes")
 
         t.exec("goto-talkToLibrarian", t.player.goto_tile, 2863, 10230, 0)
         door_in("talkToLibrarian.doorIn", "library")
-        t.exec("talkToLibrarian", t.player.talk_to, "dwarf_city_librarian", 1)
-        t.exec("talkToLibrarian.chat", t.chat.play, {
-            "player:Do you know anything about King Alvis' clothes?",
-            "npc:There is a book on dwarven costumes",
-        })
-        t.ticks(3)
-        t.expect("quest.stage.librarian_asked", t.quest.expect_stage("librarian_asked"))
+        talk("talkToLibrarian", "dwarf_city_librarian", { "Do you know anything about King Alvis' clothes?" })
+        t.check("librarian.hint", server("varp9554_gdwarf_book_hint") == 1, "told about the book")
 
         t.exec("climbBookcase", t.player.click_loc, "dwarf_keldagrim_bookcase_ladder", 1, { at = { 2859, 10228 } })
-        t.ticks(3)
-        t.expect("quest.stage.got_book", t.quest.expect_stage("got_book"))
-        local book = count("dwarf_library_book")
-        t.check("climbBookcase.book", book == 1, "Scholars Guide in backpack count=" .. tostring(book))
+        await_chat("climbBookcase")
+        drive("climbBookcase.page", {})
+        t.check("climbBookcase.book", count("dwarf_library_book") == 1, "Scholars Guide in backpack")
         door_out("climbBookcase.doorOut", "library")
 
         t.exec("goto-talkToVermundiAfterBook", t.player.goto_tile, 2887, 10188, 0)
-        t.exec("talkToVermundiWithBook", t.player.talk_to, "dwarf_city_shop_cloth_poor", 1)
-        t.exec("talkToVermundiWithBook.chat", t.chat.play, {
-            "player:Yes, about those special clothes again...",
-            "npc:Ah, the Scholars Guide",
-        })
-        t.ticks(3)
-        t.expect("quest.stage.showed_book", t.quest.expect_stage("showed_book"))
+        talk("talkToVermundiWithBook", "dwarf_city_shop_cloth_poor", { "Yes, about those special clothes again..." })
+        t.check("vermundi.book", server("varb584_giantdwarf_vermundi_givenbook") == 1, "the book went to Vermundi")
 
         -- Coal for the machine is on the ferry bank; the same trip takes the ferry on
         -- to the alcove for the iron Thurgo's bar is smelted from (iron smelts half the
@@ -399,329 +411,273 @@ return {
         t.check("smeltIronBar", bar_have >= 1, "smelted iron bar for Thurgo, count=" .. tostring(bar_have))
 
         t.exec("goto-useCoalOnMachine", t.player.goto_tile, 2885, 10187, 0)
-        local logs0, coal0 = count("logs"), count("coal")
         local machine = t.player.by_symbol("loc", "dwarf_keldagrim_spinning_machine")
         t.exec("useCoalOnMachine", t.player.use_on, "coal", machine)
         t.ticks(3)
-        t.expect("quest.stage.machine_loaded", t.quest.expect_stage("machine_loaded"))
-        local logs1, coal1 = count("logs"), count("coal")
-        t.check("useCoalOnMachine.spent", logs0 ~= nil and coal0 ~= nil and logs1 == logs0 - 1 and coal1 == coal0 - 1,
-            "logs " .. tostring(logs0) .. " -> " .. tostring(logs1) .. ", coal " .. tostring(coal0) .. " -> "
-                .. tostring(coal1) .. " (want one of each into the machine: gdwarf_clothes.rs2:126)")
-        machine = t.player.by_symbol("loc", "dwarf_keldagrim_spinning_machine")
-        t.exec("startMachine", t.player.use_on, "tinderbox", machine)
-        t.ticks(3)
-        t.expect("quest.stage.machine_started", t.quest.expect_stage("machine_started"))
+        t.check("machine.loaded", server("varp9552_gdwarf_machine") == 1, "coal and logs went in")
+        for i = 1, 25 do
+            if server("varp9552_gdwarf_machine") == 2 then break end
+            machine = t.player.by_symbol("loc", "dwarf_keldagrim_spinning_machine")
+            t.player.use_on("tinderbox", machine)
+            t.ticks(10)
+        end
+        t.check("machine.lit", server("varp9552_gdwarf_machine") == 2, "the machine runs")
 
-        t.exec("talkToVermundiWithMachine", t.player.talk_to, "dwarf_city_shop_cloth_poor", 1)
-        t.exec("talkToVermundiWithMachine.chat", t.chat.play, {
-            "player:Yes, about those special clothes again...",
-            "npc:The machine's running now",
-            "choose:I'll pay.",
-            "player:I'll pay.",
-            "mesbox:Vermundi spins you",
-        })
-        t.ticks(3)
-        t.expect("quest.stage.clothes_done", t.quest.expect_stage("clothes_done"))
-        local clothes = count("dwarf_clothes")
-        t.check("clothes.received", clothes == 1, "exquisite clothes count=" .. tostring(clothes))
+        talk("talkToVermundiWithMachine", "dwarf_city_shop_cloth_poor", { "Yes, about those special clothes again...", "I'll pay." })
+        t.check("clothes.received", count("dwarf_clothes") == 1, "the clothes are in the pack")
 
+        -- ============================================================
+        -- The boots, index 4492 [1396..2518]
+        -- ============================================================
         t.exec("goto-talkToSaro", t.player.goto_tile, 2827, 10197, 0)
-        t.exec("talkToSaro", t.player.talk_to, "dwarf_city_shop_armour", 1)
-        t.exec("talkToSaro.chat", t.chat.play, {
-            "player:Yes, I'm looking for a pair of special boots.",
-            "npc:Special boots?",
-        })
-        t.ticks(3)
-        t.expect("quest.stage.saro_asked", t.quest.expect_stage("saro_asked"))
+        talk("talkToSaro", "dwarf_city_shop_armour", { "Yes, I'm looking for a pair of special boots." })
+        t.check("saro.asked", server("varp9557_gdwarf_saro_asked") == 1, "Saro named Dromund")
 
         t.exec("goto-talkToDromund", t.player.goto_tile, 2837, 10218, 0)
         door_in("talkToDromund.doorIn", "dromund")
-        t.exec("talkToDromund", t.player.talk_to, "dwarf_city_excentric_dwarf")
-        t.exec("talkToDromund.chat", t.chat.play, { "player:Saro said", "npc:Get out you pesky human" })
-        t.ticks(2)
-        t.expect("quest.stage.dromund_asked", t.quest.expect_stage("dromund_asked"))
+        talk("talkToDromund", "dwarf_city_excentric_dwarf", {})
+        t.check("dromund.asked", server("varp9551_gdwarf_dromund_asked") == 1, "Dromund refused")
 
-        -- Dromund catches a grab while he watches (gdwarf_boots.rs2): retry, each press a note;
-        -- the boot in the pack is the graded row.
+        -- Dromund paces a 22-tick loop and sees what is ahead of him: press with his
+        -- back turned (going north up the west wall), as the recorder did (index 4492 [1537]).
+        local function dromund_at(want_x, want_z, ticks)
+            for _ = 1, ticks do
+                local _, _, rows = t.npc.tiles("dwarf_city_excentric_dwarf", 30)
+                if type(rows) == "table" and rows[1] and rows[1].x == want_x and rows[1].z == want_z then return true end
+                t.ticks(1)
+            end
+            return false
+        end
         local got, tries = false, 0
-        for i = 1, 12 do
+        walk("takeLeftBoot.tile", 2838, 10221, 0, 0)
+        for i = 1, 6 do
             tries = i
-            local r, d = t.player.click_obj("dwarf_perfect_left_boot", 3)
-            t.note("leftBootAttempt-" .. i .. ": take -> " .. tostring(r) .. " " .. tostring(d))
+            t.check("takeLeftBoot.timed-" .. i, dromund_at(2835, 10222, 60), "Dromund came round the west wall")
+            t.player.click_obj("dwarf_perfect_left_boot", 3)
             t.ticks(2)
             local n = count("dwarf_perfect_left_boot")
             if n and n > 0 then got = true break end
-            t.chat.close()
-            t.ticks(6)
+            drive("leftBootCaught-" .. i, {})
         end
-        t.check("takeLeftBoot", got, "left boot in backpack after " .. tries
-            .. " press(es), waiting for Dromund to look away")
-        t.ticks(2)
-        t.expect("quest.stage.left_boot", t.quest.expect_stage("left_boot"))
+        t.check("takeLeftBoot", got, "left boot in backpack after " .. tries .. " press(es)")
         door_out("takeLeftBoot.doorOut", "dromund")
 
-        -- the right boot: through the window, from the street north of the house
-        t.exec("goto-takeRightBoot", t.player.goto_tile, 2836, 10229, 0)
+        -- The right boot: through the window, from the tile under it (2836,10227 worked, 2836,10228
+        -- is 'try moving a little closer', index 4492 [1704], [1722]).
+        t.exec("goto-takeRightBoot", t.player.goto_tile, 2836, 10227, 0)
+        -- From the street he is timed on the north wall, walking away from the window
+        -- (index 4492 [1722], [1890], [2088]: 2838..2839,10225).
         local pair, casts = false, 0
-        local law0, air0 = count("lawrune"), count("airrune")
-        for i = 1, 12 do
+        for i = 1, 6 do
             casts = i
+            t.check("takeRightBoot.timed-" .. i, dromund_at(2837, 10225, 60), "Dromund on the north wall")
             local r, d = t.player.cast("telegrab", { kind = "obj", id = "dwarf_perfect_right_boot" })
-            t.note("rightBootAttempt-" .. i .. ": telegrab -> " .. tostring(r) .. " " .. tostring(d))
-            t.ticks(4)
+            t.ticks(5)
             local nn = count("dwarf_perfect_pair_of_boots")
             if nn and nn > 0 then pair = true break end
-            t.chat.close()
-            t.ticks(4)
+            drive("rightBootCaught-" .. i, {})
         end
-        local law1, air1 = count("lawrune"), count("airrune")
-        local spent = (law0 and law1) and (law0 - law1) or nil
-        t.check("takeRightBoot", pair and spent ~= nil and spent >= 1 and spent <= casts
-            and air0 ~= nil and air1 ~= nil and air0 - air1 == spent,
-            "exquisite pair in backpack: " .. tostring(pair) .. " after " .. casts .. " telegrab press(es); law "
-                .. tostring(law0) .. " -> " .. tostring(law1) .. ", air " .. tostring(air0) .. " -> " .. tostring(air1)
-                .. " (want 1 law + 1 air per grab that went off, at least one)")
-        t.expect("quest.stage.boots_done", t.quest.expect_stage("boots_done"))
+        t.check("takeRightBoot", pair, "the pair is in the pack after " .. casts .. " telegrab press(es)")
+        drive("takeRightBoot.page", {})
 
+        -- ============================================================
+        -- The axe, index 4494 [2438..4369]; Reldo is the wiki's route for a
+        -- player without The Knight's Sword, which this fixture is
+        -- ============================================================
         t.exec("goto-talkToSantiri", t.player.goto_tile, 2828, 10228, 0)
-        t.exec("talkToSantiri", t.player.talk_to, "dwarf_city_shop_weapons", 1)
-        t.exec("talkToSantiri.chat", t.chat.play, {
-            "player:Yes, I'm looking for a particular battleaxe.",
-            "npc:A battleaxe, you say?",
-            "player:Blasidar the sculptor needs it",
-            "npc:Ah, I see.",
-            "player:Perhaps I can repair the axe?",
-        })
-        t.ticks(3)
-        t.expect("quest.stage.santiri_asked", t.quest.expect_stage("santiri_asked"))
+        talk("talkToSantiri", "dwarf_city_shop_weapons", { "Yes, I'm looking for a particular battleaxe.",
+            "Blasidar the sculptor needs it for his statue.", "Perhaps I can repair the axe?" })
+        t.check("santiri.axe", count("dwarf_battleaxe_old") == 1, "Santiri handed over the axe")
 
         t.exec("goto-buySapphires", t.player.goto_tile, 2888, 10209, 0)
         t.exec("buySapphires.open", t.shop.open, "dwarf_city_shop_gems", 3, "keldagrim_gem_stall")
         t.exec("buySapphires.buy", t.shop.buy, "sapphire", 3)
         t.shop.close()
-        local sapph = count("sapphire")
-        t.check("buySapphires.count", sapph == 3, "bought sapphires, count=" .. tostring(sapph))
+        t.check("buySapphires.count", count("sapphire") == 3, "three sapphires bought")
 
         t.exec("useSapphires", t.player.use_item_on_item, "sapphire", "dwarf_battleaxe_old")
         t.ticks(3)
-        t.expect("quest.stage.sapphires_used", t.quest.expect_stage("sapphires_used"))
-        local sapph1, axe1 = count("sapphire"), count("dwarf_battleaxe_sapphires")
-        t.check("useSapphires.axe", sapph1 == 0 and axe1 == 1,
-            "sapphires left " .. tostring(sapph1) .. ", dwarf_battleaxe_sapphires " .. tostring(axe1)
-                .. " (want the three sapphires set into the old axe)")
+        t.check("useSapphires.axe", count("sapphire") == 0 and count("dwarf_battleaxe_sapphires") == 1, "the sapphires are set")
 
         t.exec("goto-talkToLibrarianAboutImcando", t.player.goto_tile, 2863, 10230, 0)
         door_in("talkToLibrarianAboutImcando.doorIn", "library")
-        t.exec("talkToLibrarianAboutImcando", t.player.talk_to, "dwarf_city_librarian", 1)
-        t.exec("talkToLibrarianAboutImcando.chat", t.chat.play, {
-            "player:Can you help me find an Imcando dwarf?",
-            "npc:Imcando dwarves?",
-        })
-        t.ticks(3)
-        t.expect("quest.stage.imcando_asked", t.quest.expect_stage("imcando_asked"))
+        talk("talkToLibrarianAboutImcando", "dwarf_city_librarian", { "Can you help me find an Imcando dwarf?" })
         door_out("talkToLibrarianAboutImcando.doorOut", "library")
 
-        -- Out to Varrock: the Grand Exchange cart from track 3 (free once the quest
-        -- is started: keldagrim_travel.rs2 keldagrim_cart_ride).
-        t.exec("goto-talkToReldo.cart", t.player.goto_tile, 2923, 10172, 0)
-        t.exec("talkToReldo.cartToGrandExchange", t.player.cross_gate, {
-            loc = "keldagrim_train_cart", at = { 2923, 10171, 0 }, near = { 2923, 10172 },
-            far_ok = function(tl) return math.abs(tl.x - 3141) <= 1 and math.abs(tl.z - 3504) <= 1 end,
-            far_desc = "the Grand Exchange 3141,3504 (keldagrim_travel.rs2 p_teleport(0_49_54_5_48))" })
+        -- Out to Varrock on the Grand Exchange cart (index 4495 [1294..1316]).
+        t.exec("goto-talkToReldo.cart", t.player.goto_tile, 2923, 10170, 0)
+        t.exec("talkToReldo.cartClick", t.player.click_loc, "keldagrim_train_cart", 1, { at = { 2923, 10171, 0 } })
+        t.await({
+            level = function()
+                local r, tl = t.world.tile()
+                return r == "ok" and tl.x == 3141 and tl.z == 3504
+            end,
+            note = "the cart ride to the Grand Exchange",
+        }, 60)
+        local gr, gt = t.world.tile()
+        t.check("talkToReldo.cartLanded", gr == "ok" and gt.x == 3141 and gt.z == 3504, "landed " .. tile_text(gr, gt))
         t.exec("goto-talkToReldo", t.player.goto_tile, 3219, 3492, 0)
         door_in("talkToReldo.palaceDoorIn", "palace")
         walk("talkToReldo.hall", 3210, 3489, 0, 0)
         door_in("talkToReldo.libraryDoorIn", "reldo")
-        t.exec("talkToReldo", t.player.talk_to, "reldo_normal", 1)
-        t.exec("talkToReldo.chat", t.chat.play, {
-            "player:Ask about Imcando dwarves.",
-            "npc:Imcando dwarves?",
-        })
-        t.ticks(3)
-        t.expect("quest.stage.reldo_told", t.quest.expect_stage("reldo_told"))
+        talk("talkToReldo", "reldo_normal", {})
         door_out("talkToReldo.libraryDoorOut", "reldo")
         walk("talkToReldo.hallOut", 3217, 3492, 0, 0)
         door_out("talkToReldo.palaceDoorOut", "palace")
 
-        -- ============================================================
-        -- Leg 3
-        -- ============================================================
         t.exec("goto-talkToThurgo", t.player.goto_tile, 3001, 3145, 0)
-        t.exec("talkToThurgo", t.player.talk_to, "thurgo", 1)
-        t.exec("talkToThurgo.chat", t.chat.play, {
-            "player:Would you like a redberry pie?",
-            "npc:You make excellent redberry pies",
-            "player:Can you repair that axe now?",
-            "mesbox:Thurgo hammers",
-            "player:Return to Keldagrim immediately.",
-        })
-        t.ticks(3)
-        t.expect("quest.stage.axe_done", t.quest.expect_stage("axe_done"))
+        talk("thurgo.pie", "thurgo", { "Would you like a redberry pie?" })
+        t.check("thurgo.pie.given", server("varb580_giantdwarf_pie_given") == 1, "Thurgo ate the pie")
+        talk("thurgo.ask", "thurgo", { "Can you help me with this ancient axe?" })
+        talk("thurgo.repair", "thurgo", { "Can you repair that axe now?", "Return to Keldagrim immediately." })
+        t.ticks(4)
+        t.check("thurgo.axe", count("dwarf_battleaxe_new") == 1, "the axe is restored")
+        local tr, tt = t.world.tile()
+        t.check("thurgo.returned", tr == "ok" and tt.x == 2906 and tt.z == 10202, "landed " .. tile_text(tr, tt))
 
-        -- Back to Keldagrim: the street to the Grand Exchange trapdoor, Veldaban's HQ door out.
-        trapdoor_to_hq("returnToKeldagrim.trapdoor")
-        door_out("returnToKeldagrim.hqDoorOut", "veldaban")
+        -- Riki, inside Blasidar's house already (the return lands there).
+        talk("giveBoots", "dwarf_city_shop_sculpture_model_multi", {})
+        talk("giveClothes", "dwarf_city_shop_sculpture_model_multi", {})
+        talk("giveAxe", "dwarf_city_shop_sculpture_model_multi", {})
+        t.check("model.finished", server("varb576_giantdwarf_model_state") == 7, "Riki has all three")
+        talk("talkToBlasidarHead", "dwarf_city_shop_sculpture", {})
+        t.expect("quest.stage.consortium", t.quest.expect_stage("consortium"))
+        door_out("talkToBlasidarHead.doorOut", "blasidar")
 
-        t.exec("goto-giveItemsToRiki", t.player.goto_tile, 2906, 10199, 0)
-        door_in("giveItemsToRiki.doorIn", "blasidar")
-        t.exec("giveItemsToRiki", t.player.talk_to, "dwarf_city_shop_sculpture_model_multi", 1)
-        t.exec("giveItemsToRiki.chat", t.chat.play, {
-            "npc:Thank...you.",
-            "npc:Thank...you.",
-            "npc:Thank...you.",
-            "mesbox:Riki the model stands dressed",
-        })
-        t.ticks(3)
-        t.expect("quest.stage.items_given", t.quest.expect_stage("items_given"))
-
-        t.exec("talkToBlasidarAfterItems", t.player.talk_to, "dwarf_city_shop_sculpture", 1)
-        t.exec("talkToBlasidarAfterItems.chat", t.chat.play, {
-            "player:I've given Riki the clothes",
-            "npc:Wonderful! Let me take a look",
-            "npc:Now, to win the Black Guard's trust",
-        })
-        t.ticks(3)
-        t.expect("quest.stage.blasidar_after", t.quest.expect_stage("blasidar_after"))
-        door_out("talkToBlasidarAfterItems.doorOut", "blasidar")
-
-        -- Leg 3: the consortium
+        -- The trapdoor way in (keldagrim_travel.rs2): one ride, down from the Grand Exchange.
+        -- ============================================================
+        -- The Consortium, index 4495..4501
+        -- ============================================================
         up_to_consortium("enterConsortium")
-        t.expect("quest.stage.entered_consortium", t.quest.expect_stage("entered_consortium"))
 
-        -- The tasks are random; the ores are MINED for real on the ferry bank and in
-        -- the alcove, and a task we cannot mine (clay, silver, gold, mithril) is
-        -- turned down with "No thanks." (the quest's own refusal, -2 points).
         local ORE_OF = { [2] = "copper_ore", [3] = "tin_ore", [4] = "iron_ore", [8] = "coal" }
-
-        local function task_vars()
-            local _, task = t.var.server("varp7874_gdwarf_task")
-            local _, n = t.var.server("varp7875_gdwarf_task_count")
-            local _, points = t.var.server("varp7873_gdwarf_points")
-            local _, st = t.quest.stage()
-            return task, n, points, st
-        end
-        local function task_dialog(accept)
-            for _ = 1, 12 do
+        local SEC, DIR = "dwarf_city_secretary_green_gemstone", "dwarf_city_director_green_gemstone"
+        local function points() return server("varp9543_gdwarf_points_green_gemstone") or 0 end
+        local function task() return server("varp9548_gdwarf_task_item") or 0, server("varp9549_gdwarf_task_amount") or 0 end
+        -- Read the offer's page, refuse what no rock or furnace here can supply (the
+        -- recorded -2), and take the rest.
+        local WANT = { ["copper ore"] = "copper_ore", ["tin ore"] = "tin_ore", ["iron ore"] = "iron_ore", ["coal"] = "coal",
+            ["bronze"] = "bronze_bar", ["iron"] = "iron_bar" }
+        local function offer(npc, name, ask)
+            t.exec(name .. ".present", t.npc.await_present, npc, 20, 15)
+            t.exec(name, t.player.talk_to, npc, 1)
+            await_chat(name)
+            local wanted
+            for _ = 1, 40 do
                 local kind = t.chat.kind()
+                if kind == "none" then break end
+                local _, text = t.chat.text()
+                text = tostring(text or ""):gsub("<br>", " ")
+                local item = text:match("pieces of ([a-z ]-) in the next") or text:match("bars of ([a-z]-) in the next")
+                if item then wanted = item end
                 if kind == "options" then
-                    local _, tk = t.var.server("varp7874_gdwarf_task")
-                    if accept(tk) then
-                        if t.chat.choose("I'll take it.") ~= "ok" then t.chat.choose("I'll keep looking.") end
-                    else
-                        if t.chat.choose("No thanks.") ~= "ok" then t.chat.choose("I'll keep looking.") end
+                    local pressed = false
+                    if wanted then
+                        local row = WANT[wanted] and "I'll take it." or "No thanks."
+                        pressed = t.chat.choose(row) == "ok"
+                        wanted = nil
                     end
-                elseif kind == "none" then break
-                else t.chat.continue_() end
+                    if not pressed then
+                        for _, row in ipairs(ask) do
+                            if t.chat.choose(row) == "ok" then pressed = true; break end
+                        end
+                    end
+                    t.check(name .. ".row", pressed, "no expected row")
+                    if not pressed then break end
+                else
+                    t.chat.continue_()
+                end
                 t.ticks(2)
             end
             t.ticks(2)
         end
-
-        for i = 1, 40 do
-            -- after a climb the floor's npcs join the client's pool a few ticks late
-            t.exec("talkToSecretary-" .. i .. ".present", t.npc.await_present, "dwarf_city_secretary_blue_opal", 15, 15)
-            t.exec("talkToSecretary-" .. i, t.player.talk_to, "dwarf_city_secretary_blue_opal")
-            task_dialog(function(tk) return tk ~= nil and ORE_OF[tk] ~= nil end)
-            local task, n, points, st = task_vars()
-            if st and st >= 23 then
-                t.check("talkToSecretary-done-" .. i, points ~= nil and points >= 75,
-                    "secretary finished, points=" .. tostring(points) .. " (want >= 75, ^gdwarf_points_secretary_limit)")
-                break
+        local BAR_OF = { [11] = "bronze_bar", [12] = "iron_bar" }
+        local function smelt(p, bar, n)
+            t.exec("goto-" .. p .. ".furnace", t.player.goto_tile, 2873, 10210, 0)
+            local furnace = t.player.by_symbol("loc", "dwarf_keldagrim_furnace")
+            local made = 0
+            for _ = 1, 60 do
+                made = count(bar) or 0
+                if made >= n then break end
+                t.player.use_on((bar == "bronze_bar") and "copper_ore" or "iron_ore", furnace)
+                t.chat.close()
+                t.inv.await(bar, made + 1, 8)
             end
-            local ore = task and ORE_OF[task]
-            if ore and n and n > 0 then
+            t.check(p .. ".smelted", made >= n, "smelted " .. tostring(made) .. "/" .. tostring(n) .. " " .. bar)
+        end
+
+        -- A refusal or a lapsed task costs 2, and below 75 the director will not
+        -- talk: a dropped score goes back through the secretary, as a player's would.
+        -- Refused or lapsed tasks leave ore behind: a full pack stops the next mine.
+        local function drop_ores(keep)
+            for _, ore in ipairs({ "copper_ore", "tin_ore", "iron_ore", "coal", "bronze_bar", "iron_bar" }) do
+                if not keep[ore] then
+                    for _ = 1, 28 do
+                        if (count(ore) or 0) == 0 then break end
+                        t.player.inv_op(ore, 5)
+                        t.ticks(1)
+                    end
+                end
+            end
+        end
+        local function secretary_round(i)
+            local p = "secretary-" .. i
+            offer(SEC, p, { "Is there anything I can help you with?", "Do you have another task for me?", "I have to go!" })
+            local item, n = task()
+            local ore = ORE_OF[item]
+            if ore then
+                drop_ores({ [ore] = true })
                 if (count(ore) or 0) < n then
-                    local p = "secretaryTrip-" .. i
                     down_from_consortium(p .. ".down")
                     gather(p, { [ore] = n })
                     up_to_consortium(p .. ".up")
                 end
-                local have = count(ore) or 0
-                t.check("mine-" .. ore .. "-" .. i, have >= n,
-                    tostring(have) .. "/" .. tostring(n) .. " " .. ore .. " in the pack for the secretary, points=" .. tostring(points))
-            else
-                t.check("talkToSecretary-refused-" .. i, task == 0 and n == 0,
-                    "task turned down: varp7199 task=" .. tostring(task) .. " count=" .. tostring(n)
-                        .. " (want 0/0 after ~gdwarf_refuse_points), points=" .. tostring(points))
+                t.check(p .. ".carrying", (count(ore) or 0) >= n, ore .. " x" .. n)
+                talk(p .. ".handin", SEC, { "I have to go!" })
             end
         end
-        t.expect("quest.stage.secretary_done", t.quest.expect_stage("secretary_done"))
-
-        for i = 1, 40 do
-            t.exec("talkToDirector-" .. i .. ".present", t.npc.await_present, "dwarf_city_director_blue_opal", 20, 15)
-            t.exec("talkToDirector-" .. i, t.player.talk_to, "dwarf_city_director_blue_opal")
-            task_dialog(function(tk) return tk == 1 or tk == 2 end)
-            local task, n, points, st = task_vars()
-            if st and st >= 24 then
-                t.check("talkToDirector-done-" .. i, points ~= nil and points >= 100,
-                    "director finished, points=" .. tostring(points) .. " (want >= 100, ^gdwarf_points_total)")
-                break
-            end
-            if (task == 1 or task == 2) and n and n > 0 then
-                local bar = (task == 1) and "bronze_bar" or "iron_bar"
+        local function director_round(i)
+            local p = "director-" .. i
+            offer(DIR, p, { "Do you have any more tasks for me?", "Thank you for your time." })
+            local item, n = task()
+            local bar = BAR_OF[item]
+            if bar then
+                drop_ores({ [bar] = true, copper_ore = (bar == "bronze_bar"), tin_ore = (bar == "bronze_bar"), iron_ore = (bar == "iron_bar") })
                 if (count(bar) or 0) < n then
-                    local p = "directorTrip-" .. i
                     down_from_consortium(p .. ".down")
-                    if task == 1 then
+                    if bar == "bronze_bar" then
                         gather(p, { copper_ore = n, tin_ore = n })
                     else
                         gather(p, { iron_ore = n * 2 + 2 })
                     end
-                    t.exec("goto-" .. p .. ".furnace", t.player.goto_tile, 2873, 10210, 0)
-                    local furnace = t.player.by_symbol("loc", "dwarf_keldagrim_furnace")
-                    local made = 0
-                    for _ = 1, 60 do
-                        made = count(bar) or 0
-                        if made >= n then break end
-                        t.player.use_on((task == 1) and "copper_ore" or "iron_ore", furnace)
-                        t.chat.close()
-                        t.inv.await(bar, made + 1, 8)
-                    end
-                    t.check("smelt-" .. bar .. "-" .. i, made >= n,
-                        "smelted " .. tostring(made) .. "/" .. tostring(n) .. " " .. bar .. " at the furnace")
+                    smelt(p, bar, n)
                     up_to_consortium(p .. ".up")
                 end
-            else
-                t.check("talkToDirector-refused-" .. i, task == 0 and n == 0,
-                    "task turned down: varp7199 task=" .. tostring(task) .. " count=" .. tostring(n)
-                        .. " (want 0/0 after ~gdwarf_refuse_points), points=" .. tostring(points))
+                t.check(p .. ".carrying", (count(bar) or 0) >= n, bar .. " x" .. n)
+                talk(p .. ".handin", DIR, { "Thank you for your time." })
             end
         end
-        t.expect("quest.stage.director_done", t.quest.expect_stage("director_done"))
+        for i = 1, 80 do
+            if points() >= 100 then break end
+            if points() < 75 then secretary_round(i) else director_round(i) end
+        end
+        t.check("points.director", points() >= 100, "points " .. points())
 
-        t.exec("joinCompany", t.player.talk_to, "dwarf_city_director_blue_opal")
-        t.exec("joinCompany.chat", t.chat.play, {
-            "npc:Have you ever considered joining",
-            "choose:I'd like to officially join your company.",
-            "player:I'd like to officially join your company.",
-            "npc:It is agreed then!",
-        })
-        t.ticks(2)
-        t.expect("quest.stage.joined_company", t.quest.expect_stage("joined_company"))
-
-        t.exec("talkToDirectorAfterJoining", t.player.talk_to, "dwarf_city_director_blue_opal")
-        t.exec("talkToDirectorAfterJoining.chat", t.chat.play, {
-            "npc:Blasidar the sculptor has sent you?",
-            "player:Blasidar the sculptor has sent me.",
-            "npc:Then I will remember it",
-            "player:Yes! Long live",
-        })
-        t.ticks(2)
-        t.expect("quest.stage.director_after", t.quest.expect_stage("director_after"))
-
+        talk("joinCompany", DIR, { "I'd like to officially join your company.", "Thank you for your time." })
+        t.check("joined", server("varb578_giantdwarf_current_company") == 4, "the Green Gemstone")
+        talk("pledge", DIR, { "Blasidar the sculptor has sent me.", "I would support you.", "Yes! Long live the Green Gemstone!" })
+        t.expect("quest.stage.meeting", t.quest.expect_stage("meeting"))
         down_from_consortium("leaveConsortium")
-        t.expect("quest.stage.ready_to_finish", t.quest.expect_stage("ready_to_finish"))
 
         local _, before = t.skill.snapshot()
         t.exec("goto-talkToVeldabanAfterJoining", t.player.goto_tile, 2827, 10219, 0)
         door_in("talkToVeldabanAfterJoining.doorIn", "veldaban")
         t.exec("talkToVeldabanAfterJoining.present", t.npc.await_present, "dwarf_city_black_guard_leader", 8, 15)
-        t.exec("talkToVeldabanAfterJoining", t.player.talk_to, "dwarf_city_black_guard_leader")
-        t.exec("talkToVeldabanAfterJoining.chat", t.chat.play, {
-            "player:I've been accepted into the consortium",
-            "npc:Excellent work, human.",
-        })
+        talk("talkToVeldabanAfterJoining", "dwarf_city_black_guard_leader", { "I'm ready.", "I want to see the meeting." })
+        t.await({
+            level = function() return server("varb571_giantdwarf_quest") == 50 end,
+            note = "the Consortium meeting",
+        }, 400)
         t.ticks(3)
         t.quest.expect_complete()
         t.check("reward.mining", t.skill.expect_gain("mining", 2500, before))
@@ -730,6 +686,7 @@ return {
         t.check("reward.magic", t.skill.expect_gain("magic", 1500, before))
         t.check("reward.thieving", t.skill.expect_gain("thieving", 1500, before))
         t.check("reward.firemaking", t.skill.expect_gain("firemaking", 1500, before))
+        t.check("notes", count("dwarf_meeting_notes1") == 1, "the minutes are in the pack")
         t.finish(0)
     end,
 }
