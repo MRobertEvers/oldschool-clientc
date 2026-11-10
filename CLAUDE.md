@@ -261,3 +261,58 @@ Whole-server UBSan is not `ENABLE_UBSAN=1` (ToriDraw-only); pass the
 compiler through `PLATFORM_CC='cc -fsanitize=undefined -fsanitize-recover=all'`
 on its own `PLATFORM_OBJ_BASE`, because a command-line `CFLAGS=` replaces
 the Makefile's flags.
+
+## An editor UI change is checked by USING the editor, not by a photograph
+
+The map editor was built against one-shot photographs (`TORIRS_EDITOR_<PANEL>=...`
+poses one panel, `TORIRS_PRESENT_BMP` writes one frame) and headless tests.
+Both stayed green while the editor could not get through a small job. On
+2026-11-09 an hour spent building one quest in it found about a hundred
+faults no posed frame can show: the click that dismissed a menu also painted
+the terrain under it; picking a palette colour silently changed the armed
+tool; a line typed into a dialogue node was thrown away unless a button
+600 px below was pressed; a record made by Copy to new could never be placed;
+a floating panel's Close box closed the World under it.
+
+So before and after a change to a panel, the dock or the chrome toolkit,
+drive the RUNNING editor through a real task with the agent API
+(docs/AGENT_API.md has every verb), and read what it says back.
+
+```sh
+# NO -- proves one frame can be drawn.
+TORIRS_EDITOR_TRIGGERS=fenwick TORIRS_PRESENT_BMP=shot.bmp ./src/torirs --manifest ...
+
+# YES -- do what a user does.
+python tools/agent/torirs_agent.py start <manifest> --window 1600x900
+python tools/agent/torirs_agent.py set Find crate panel=Catalog
+python tools/agent/torirs_agent.py ui panel=Catalog visible_only=true   # the rows, as data
+python tools/agent/torirs_agent.py action tool.place
+python tools/agent/torirs_agent.py world_click x=3226 z=3232 level=0
+python tools/agent/torirs_agent.py editor       # tool, selection, unsaved, status sentence
+python tools/agent/torirs_agent.py shot out.png
+```
+
+Four things that run needs, each learned by getting it wrong:
+
+- **Its own settings.** The editor reads and writes `editor_layout.ini`,
+  `editor_hotkeys.ini`, `editor_prefs.ini`, `editor_recent.ini` and
+  `preferences.ini` in the working directory -- the owner's. Point
+  `TORIRS_EDITOR_LAYOUT`, `_HOTKEYS`, `_PREFS`, `_RECENT` and `TORIRS_PREFS`
+  at a scratch directory per run, spelled with forward slashes. Two runs
+  sharing one directory restore each other's layout: a "regression" chased
+  for twenty minutes on 2026-11-09 was the previous run's saved windows.
+- **Its own lane.** Copy the manifest to `build/manifests/` (relative paths
+  gain one `../`) and set `[editor:boot] lane=<name>`: every save lands in
+  `build/lanes/<name>`, never in OSRS-Content.
+- **Its own binary.** `make -C src PLATFORM=<lane> OPT=1 PLATFORM_OBJ_BASE=build_<name>
+  PLATFORM_TARGET=torirs_<name>.exe all` builds into an object directory no
+  other session uses; pass it to `start --exe`.
+- **No truncation lines.** The chrome cuts a label or a tooltip at 63 bytes
+  and says so in the Output console the first time it is shown
+  (`chrome: <panel> tooltip cut to 63 of 77 bytes`). Zero such lines after
+  opening what you changed is part of done.
+
+Scripts are not edited in the editor: RuneScript is written in the owner's
+own text editor, and the map editor's part is to open the file, show it in
+Explorer or Finder, and offer names, paths and snippets to copy (the Triggers
+panel). Do not grow the in-app builders.
