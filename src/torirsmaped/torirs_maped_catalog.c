@@ -49,12 +49,37 @@
 #include "log/torirs_log.h"
 
 /* The warm build runs on a worker thread where the platform has one
- * (cat_warm_thread_*); the web and win32 lanes keep the sliced build. */
-#if !defined(__EMSCRIPTEN__) && !defined(_WIN32)
+ * (cat_warm_thread_*): pthreads, and on Windows its own threads (the tree's
+ * rule: src/makefile, "Windows uses its own threads"); the web lane keeps the
+ * sliced build.
+ *
+ * Windows kept the sliced build until 2026-11-10, and there it was worse than
+ * slow: with no thread ToriRSMapEdCatalog_Building is never true, so the
+ * Squares list's first CATALOG_SQUARES -- asked with NOWAIT precisely so the
+ * window need not wait -- ran the whole build inside cat_request_index, on
+ * the editor's UI thread. That is 4 s of work with the files in the cache and
+ * minutes with them cold (the first launch after a build): the owner's window
+ * sat at "Not Responding" with an empty loading bar, main thread in
+ * cat_parse_source under squares_fetch's await_reply. */
+#if defined(__EMSCRIPTEN__)
+#define CAT_WARM_THREAD 0
+#elif defined(_WIN32)
+/* Lean, so the old winsock.h stays out: this file is compiled into
+ * torirs_maped.c ahead of the units that include winsock2.h. */
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <process.h>
+#include <windows.h>
+#define CAT_WARM_THREAD 1
+typedef HANDLE cat_warm_thread_t;
+#else
 #include <pthread.h>
 #define CAT_WARM_THREAD 1
-#else
-#define CAT_WARM_THREAD 0
+typedef pthread_t cat_warm_thread_t;
 #endif
 
 #ifndef O_BINARY
@@ -290,7 +315,7 @@ struct cat_job
     int thread_live;
     int thread_done;
 #if CAT_WARM_THREAD
-    pthread_t thread;
+    cat_warm_thread_t thread;
 #endif
 
     /* The warm build: source indices in the order they are parsed and
@@ -3490,16 +3515,62 @@ cat_job_step(
     double deadline_ms);
 
 #if CAT_WARM_THREAD
-static void*
-cat_warm_thread_main(void* arg)
+static void
+cat_warm_thread_run(struct ToriRSMapEdCatalog* catalog)
 {
-    struct ToriRSMapEdCatalog* catalog = arg;
     (void)cat_job_step(catalog, 0.0);
     /* Release: every write of the build is visible to the join's acquire. */
     __atomic_store_n(&catalog->job.thread_done, 1, __ATOMIC_RELEASE);
     ToriMem_ThreadExit();
+}
+
+#ifdef _WIN32
+static unsigned __stdcall
+cat_warm_thread_main(void* arg)
+{
+    cat_warm_thread_run(arg);
+    return 0;
+}
+
+/** 1 when the thread took the build; 0: no thread, the slices build it. */
+static int
+cat_warm_thread_spawn(struct ToriRSMapEdCatalog* catalog)
+{
+    /* _beginthreadex, not CreateThread: the build uses the C runtime. */
+    uintptr_t const handle = _beginthreadex(NULL, 0, cat_warm_thread_main, catalog, 0, NULL);
+    if( handle == 0 )
+        return 0;
+    catalog->job.thread = (HANDLE)handle;
+    return 1;
+}
+
+static void
+cat_warm_thread_wait(struct ToriRSMapEdCatalog* catalog)
+{
+    WaitForSingleObject(catalog->job.thread, INFINITE);
+    CloseHandle(catalog->job.thread);
+}
+#else
+static void*
+cat_warm_thread_main(void* arg)
+{
+    cat_warm_thread_run(arg);
     return NULL;
 }
+
+/** 1 when the thread took the build; 0: no thread, the slices build it. */
+static int
+cat_warm_thread_spawn(struct ToriRSMapEdCatalog* catalog)
+{
+    return pthread_create(&catalog->job.thread, NULL, cat_warm_thread_main, catalog) == 0;
+}
+
+static void
+cat_warm_thread_wait(struct ToriRSMapEdCatalog* catalog)
+{
+    pthread_join(catalog->job.thread, NULL);
+}
+#endif
 #endif
 
 /** Hand the begun warm build to its thread. */
@@ -3513,7 +3584,7 @@ cat_warm_thread_start(struct ToriRSMapEdCatalog* catalog)
     job->thread_done = 0;
     job->shown_done_kib = 0;
     job->shown_total_kib = 0;
-    if( pthread_create(&job->thread, NULL, cat_warm_thread_main, catalog) != 0 )
+    if( !cat_warm_thread_spawn(catalog) )
         return; /* the slices below build it instead */
     job->thread_live = 1;
 #else
@@ -3538,7 +3609,7 @@ cat_warm_thread_join(struct ToriRSMapEdCatalog* catalog)
     struct cat_job* job = &catalog->job;
     if( !job->thread_live )
         return;
-    pthread_join(job->thread, NULL);
+    cat_warm_thread_wait(catalog);
     job->thread_live = 0;
     job->thread_done = 0;
     catalog->counters.slices++;

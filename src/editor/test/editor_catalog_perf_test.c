@@ -1112,6 +1112,17 @@ main(
         fprintf(stderr, "usage: catalog_perf_test <scratch-dir> [<content-dir>]\n");
         return 2;
     }
+    /* This file measures the SLICED warm build -- its slices, its parts, its
+     * partial answers between Service passes -- so it asks for that build on
+     * every platform. Before the first catalog exists: the catalog reads the
+     * variable once. The worker-thread build is catalog_test's and
+     * maped_embed_test's (they run with the platform's default). */
+    {
+        static char k_sliced[] = "TORIRS_CATALOG_WARM_THREAD=0";
+        int const set = putenv(k_sliced);
+        assert(set == 0);
+        (void)set;
+    }
     snprintf(root, sizeof(root), "%s/content", argv[1]);
     test_synthetic(root);
     test_partial_build(root);
