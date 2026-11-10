@@ -20,6 +20,7 @@
 #include "log/torirs_log.h"
 #include "net/net.h"
 #include "net/net_out.h"
+#include "perf/frame_stats.h"
 #include "perf/torirs_perf.h"
 #include "torirs_env.h"
 
@@ -759,6 +760,10 @@ interactive_render_present(
         struct ToriRS_Frame frame;
         int progress = 0;
         int pick_armed = 0;
+        /* The frame stats' phases, as App_Render marks them for the software
+         * lane (perf/frame_stats.h): this lane's frame is built and drawn
+         * here, so without these a slow D3D9 frame had no phase to name. */
+        uint64_t const t_frame0 = FrameStats_Now();
 
         App_NoteFrameDrawn(app);
         ToriPlatformWin32_Renderer_D3D9_SetInterfaceScaleMode(d3d9, interface_scale_mode);
@@ -783,10 +788,15 @@ interactive_render_present(
                 ToriPlatformWin32_Renderer_D3D9_SetPick(
                     d3d9, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
                 pick_armed = 1;
+                FrameStats_Count(FRAME_STATS_CTR_PICK_FRAMES, 1);
             }
-            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
-                ToriPlatformWin32_Renderer_D3D9_RenderFrame(d3d9, &frame);
+                uint64_t const t_rf = FrameStats_Now();
+                TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
+                {
+                    ToriPlatformWin32_Renderer_D3D9_RenderFrame(d3d9, &frame);
+                }
+                FrameStats_Span(FRAME_STATS_RENDER, t_rf);
             }
             if( torirs_env_frame_debug() )
                 TORIRS_LOG(
@@ -797,10 +807,12 @@ interactive_render_present(
                     frame.dbg_drop_no_model);
             if( pick_armed )
             {
+                uint64_t const t_pick = FrameStats_Now();
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
                 {
                     App_PickFinish(app, ToriPlatformWin32_Renderer_D3D9_PickHits(d3d9));
                 }
+                FrameStats_Span(FRAME_STATS_HOVER_GHOSTS, t_pick);
             }
         }
         /*
@@ -814,9 +826,14 @@ interactive_render_present(
          * than the other lanes.
          */
         App_DrawComplete(app, capture_from_d3d9, d3d9);
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
+        FrameStats_Span(FRAME_STATS_FRAME, t_frame0);
         {
-            ToriPlatformWin32_Renderer_D3D9_Present(d3d9);
+            uint64_t const t_present = FrameStats_Now();
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
+            {
+                ToriPlatformWin32_Renderer_D3D9_Present(d3d9);
+            }
+            FrameStats_Span(FRAME_STATS_PRESENT, t_present);
         }
         return;
     }

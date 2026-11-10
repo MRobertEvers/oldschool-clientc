@@ -14,8 +14,16 @@
  * world frame so the boot's loading frames do not pollute the steady state.
  *
  * Phases nest: EDITOR_UI contains CHROME_BUILD, RENDER contains WORLD_DRAW,
- * FRAME contains everything. A phase is one `FrameStats_Add` per frame at
- * most -- several spans in one frame add up.
+ * FRAME contains everything but PRESENT. A phase is one `FrameStats_Add` per
+ * frame at most -- several spans in one frame add up.
+ *
+ * Which lane marks what: the app's phases (ui, pump, logic, flush, interact)
+ * are marked on every lane, and so is the world-drawn mark that starts the
+ * sampling (App_BuildFrame). RENDER, the hover pick and FRAME's render half
+ * are marked by the software lane (App_Render) and by D3D9 (main.c); PRESENT
+ * by D3D9 only; WORLD_DRAW by the software rasteriser only. On another GPU
+ * lane a slow frame is still printed, with its render time under "outside
+ * frame".
  *
  * Header-only on purpose: the renderer (platform/) and the app (app/) both
  * mark phases, and a .c would have to join every link line that carries
@@ -49,6 +57,7 @@ enum FrameStatsPhase
     FRAME_STATS_INTERACT,    /* UITree_InteractFrame (the game tree's input pass) */
     FRAME_STATS_RENDER,      /* Soft3D_RenderFrame: world + 2D raster */
     FRAME_STATS_WORLD_DRAW,  /* the DRAW_MODEL commands inside RENDER (the world) */
+    FRAME_STATS_PRESENT,     /* the swap (D3D9 Present): outside FRAME, inside the loop interval */
     FRAME_STATS_PHASE_COUNT
 };
 
@@ -215,7 +224,7 @@ FrameStats_FrameEnd(void)
             fprintf(stderr,
                 "frame_stats: slow frame %d: loop %.1f ms, frame %.1f (ui %.1f [chrome %.1f] "
                 "hover %.1f pump %.1f logic %.1f flush %.1f interact %.1f render %.1f "
-                "[world %.1f] other %.1f), outside frame %.1f\n",
+                "[world %.1f] other %.1f), outside frame %.1f [present %.1f]\n",
                 g_frame_stats.frames_total, loop_us / 1000.0, frame_us / 1000.0,
                 g_frame_stats.accum_ns[FRAME_STATS_EDITOR_UI] / 1e6,
                 g_frame_stats.accum_ns[FRAME_STATS_CHROME_BUILD] / 1e6,
@@ -234,7 +243,8 @@ FrameStats_FrameEnd(void)
                             + g_frame_stats.accum_ns[FRAME_STATS_INTERACT]
                             + g_frame_stats.accum_ns[FRAME_STATS_RENDER]))
                     / 1e6,
-                (loop_us > frame_us ? loop_us - frame_us : 0) / 1000.0);
+                (loop_us > frame_us ? loop_us - frame_us : 0) / 1000.0,
+                g_frame_stats.accum_ns[FRAME_STATS_PRESENT] / 1e6);
             fflush(stderr);
         }
     }
@@ -265,7 +275,7 @@ FrameStats_Report(void)
         "frame (RunOnce+Render)", "editor ui tick (+chrome build)", "  chrome build",
         "hover pick + ghosts",     "async pump (io, maped server)",  "logic + movers",
         "edit flush (remesh)",     "tree interact",                  "render (world + 2D)",
-        "  world draw (models)",
+        "  world draw (models)",    "present (swap)",
     };
     static char const* const counter_names[FRAME_STATS_CTR_COUNT] = {
         "chrome rebuilds", "pick frames", "remesh tiles", "preview rasters",

@@ -112,6 +112,12 @@ App_BuildFrame(
          * camera and attach it so UITREE_EMIT_WORLD opens the 3D pass. */
         if( app_world_drawable(app) )
         {
+            /* Here, not in App_Render: that is the software lane's frame, and
+             * the GPU lanes (D3D9 is the Windows default) build through this
+             * function and render themselves. Marked only there, the frame
+             * stats never began sampling on Windows -- "0 sampled, world drawn
+             * (never)" -- and no slow frame was ever printed (2026-11-10). */
+            FrameStats_Mark(FRAME_STATS_MARK_WORLD_DRAWN);
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PAINT)
             {
                 app_world_paint(app);
@@ -765,9 +771,6 @@ App_Render(
             app->soft, app->frame_view->world_mouse_x, app->frame_view->world_mouse_y);
         FrameStats_Count(FRAME_STATS_CTR_PICK_FRAMES, 1);
     }
-    if( app_world_drawable(app) )
-        FrameStats_Mark(FRAME_STATS_MARK_WORLD_DRAWN);
-
     {
         uint64_t const t_rf = FrameStats_Now();
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
