@@ -342,6 +342,25 @@ hook_floor_rgb(
 }
 
 static void
+hook_floor_define(
+    void* user,
+    int is_overlay,
+    int id,
+    uint32_t rgb,
+    int texture,
+    int blend_rgb,
+    int hide_underlay,
+    int rebake)
+{
+    struct App* app = user;
+
+    assert(app);
+    assert(id > 0);
+    /* A `.jm2` id is the config id + 1 (0 is "none"). */
+    app_map_editor_floor_define(app, is_overlay, id - 1, rgb, texture, blend_rgb, hide_underlay, rebake);
+}
+
+static void
 hook_floor_request(
     void* user,
     int is_overlay,
@@ -451,6 +470,7 @@ Editor_PanelInit(
     panel->ui->hooks.open_in_new_view = hook_open_in_new_view;
     panel->ui->hooks.floor_rgb = hook_floor_rgb;
     panel->ui->hooks.floor_request = hook_floor_request;
+    panel->ui->hooks.floor_define = hook_floor_define;
     panel->ui->hooks.close_editor = hook_close_editor;
     panel->ui->hooks.bake = hook_bake;
     panel->ui->hooks.view_window = hook_view_window;
@@ -1082,6 +1102,11 @@ panel_scatter_set(
     }
 }
 
+/** The Roughen stroke in hand: what it has pushed each tile, so the stroke
+ *  lays its relief once however many times the brush crosses a tile. One
+ *  pointer, one stroke at a time. */
+static struct Editor_RoughenStroke g_roughen_stroke;
+
 int
 Editor_PanelApplyToolAt(
     struct Editor_Panel* panel,
@@ -1157,6 +1182,18 @@ Editor_PanelApplyToolAt(
 
         memset(&op, 0, sizeof(op));
         op.noise_seed = ui->tools.noise_seed;
+        op.noise_scale = ui->tools.noise_scale;
+        op.noise_detail = ui->tools.noise_detail;
+        if( ui->tools.tool == EDITOR_TOOL_NOISE )
+        {
+            /* One stroke lays the relief once: the stroke remembers what it
+             * pushed each tile (edpanel_ops.h Editor_RoughenStroke). Every
+             * stroke draws from a seed of its own (the press moves it on),
+             * so a new seed is a new stroke. */
+            if( g_roughen_stroke.seed != op.noise_seed || g_roughen_stroke.count == 0 )
+                Editor_RoughenStrokeBegin(&g_roughen_stroke, op.noise_seed);
+            op.noise_stroke = &g_roughen_stroke;
+        }
         op.paint_mix = ui->tools.paint_mix;
         op.tool = ui->tools.tool;
         op.world_x = world_x;
@@ -1193,7 +1230,14 @@ Editor_PanelApplyToolAt(
         count = Editor_BrushCommands(&app->editor->doc, &op, commands, capacity);
         if( count == 0 && !Editor_DocFindSquare(&app->editor->doc, world_x / 64, world_z / 64) )
             Editor_UiLog(ui, "editor: m%d_%d is not open in the editor", world_x / 64, world_z / 64);
-        return edp_apply(ui, commands, count, Editor_ToolName(ui->tools.tool));
+        {
+            int const applied = edp_apply(ui, commands, count, Editor_ToolName(ui->tools.tool));
+            /* What the stroke has now pushed: only when the authority took
+             * the edit (a refused one moved nothing). */
+            if( op.tool == EDITOR_TOOL_NOISE && applied > 0 )
+                Editor_RoughenStrokeNote(&g_roughen_stroke, &op, commands, count);
+            return applied;
+        }
     }
 
     /* An armed spawn move takes the click whatever tool is up. */

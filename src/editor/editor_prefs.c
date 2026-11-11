@@ -140,6 +140,10 @@ prefs_line(
             prefs->gallery_tile = EDITOR_PREFS_GALLERY_TILE_M;
         else if( strcmp(word, "L") == 0 || strcmp(word, "l") == 0 )
             prefs->gallery_tile = EDITOR_PREFS_GALLERY_TILE_L;
+        else if( strcmp(word, "XL") == 0 || strcmp(word, "xl") == 0 )
+            prefs->gallery_tile = EDITOR_PREFS_GALLERY_TILE_XL;
+        else if( strcmp(word, "XXL") == 0 || strcmp(word, "xxl") == 0 )
+            prefs->gallery_tile = EDITOR_PREFS_GALLERY_TILE_XXL;
         else
             return 0;
         return 1;
@@ -290,7 +294,11 @@ Editor_PrefsEncode(
         "gallery_tile = %s\n",
         EDITOR_PREFS_VERSION, scale, prefs->text_large ? "large" : "normal",
         prefs->text_smooth ? "smooth" : "bitmap", spawn_view,
-        prefs->gallery_tile == EDITOR_PREFS_GALLERY_TILE_S ? "S" : prefs->gallery_tile == EDITOR_PREFS_GALLERY_TILE_L ? "L" : "M");
+        prefs->gallery_tile == EDITOR_PREFS_GALLERY_TILE_S     ? "S"
+        : prefs->gallery_tile == EDITOR_PREFS_GALLERY_TILE_L   ? "L"
+        : prefs->gallery_tile == EDITOR_PREFS_GALLERY_TILE_XL  ? "XL"
+        : prefs->gallery_tile == EDITOR_PREFS_GALLERY_TILE_XXL ? "XXL"
+                                                               : "M");
     assert(length > 0);
     assert((size_t)length < capacity);
     *out_text = text;

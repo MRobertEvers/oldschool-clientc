@@ -494,6 +494,42 @@ test_parse_reports_bad_input(void)
     Editor_SquareFree(&square);
 }
 
+/** An underlay is as wide as the map's u16 opcode holds. The field was a
+ *  byte, so a square that stated an underlay past 255 -- a ported lane's own
+ *  (`u1102`), or one made in the editor (the cache's fill 1..256) -- was
+ *  refused whole. */
+static void
+test_wide_underlay(void)
+{
+    struct Editor_Square square;
+    struct Editor_ParseResult result;
+    const char* source = "==== MAP ====\n"
+                         "0 0 0: h5 u1113\n"
+                         "0 0 1: o1013;0;0 u65454\n";
+    const char* past = "==== MAP ====\n0 0 0: u65455\n";
+    char* text;
+    size_t size;
+
+    Editor_SquareInit(&square, 50, 50);
+    result = Editor_Jm2Parse(&square, source, strlen(source));
+    check(result.status == EDITOR_PARSE_OK, "an underlay past 255 parses");
+    check(square.tiles[Editor_TileIndex(0, 0, 0)].underlay_id == 1113
+              && square.tiles[Editor_TileIndex(0, 1, 0)].underlay_id == EDITOR_UNDERLAY_MAX
+              && square.tiles[Editor_TileIndex(0, 1, 0)].overlay_id == 1013,
+        "and is the id the file states, not its low byte");
+    size = Editor_Jm2Emit(&square, NULL, 0);
+    text = malloc(size + 1);
+    Editor_Jm2Emit(&square, text, size + 1);
+    check(strcmp(text, source) == 0, "a square with wide underlays round-trips exactly");
+    free(text);
+    Editor_SquareFree(&square);
+
+    Editor_SquareInit(&square, 50, 50);
+    result = Editor_Jm2Parse(&square, past, strlen(past));
+    check(result.status == EDITOR_PARSE_BAD_TOKEN, "an underlay the opcode cannot carry is reported");
+    Editor_SquareFree(&square);
+}
+
 /** A section the editor does not own survives a load/save cycle untouched.
  *  Spawns are not such a section: they live in `.spawn` files, and cachepack
  *  refuses a jm2 that carries one. */
@@ -601,6 +637,7 @@ main(void)
     test_loc_add_onto_taken_key();
     test_rebuild_span_crosses_borders();
     test_parse_reports_bad_input();
+    test_wide_underlay();
     test_foreign_sections_survive();
     test_run_stroke_undoes_whole();
 

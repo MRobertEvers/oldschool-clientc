@@ -2109,6 +2109,59 @@ app_map_editor_edit_step(
     return rebake;
 }
 
+/** A floor record the editor defined since the last flush is one ground in
+ *  the window may wear: the window is baked again (hooks.floor_define). */
+static int g_app_floor_rebake;
+
+void
+app_map_editor_floor_define(
+    struct App* app,
+    int is_overlay,
+    int config_id,
+    uint32_t rgb,
+    int texture,
+    int blend_rgb,
+    int hide_underlay,
+    int rebake)
+{
+    struct ToriRS_Flotype* held;
+    struct ToriRS_Flotype* flo;
+
+    assert(app);
+    assert(config_id >= 0);
+    if( !app->provider )
+        return;
+    /* An underlay is a colour and nothing else (ToriRS_FlotypeFromRSCache
+     * Underlay). */
+    if( !is_overlay )
+    {
+        texture = -1;
+        blend_rgb = -1;
+        hide_underlay = 0;
+    }
+    held = is_overlay ? CacheProvider_FlotypeGet(app->provider, config_id)
+                      : CacheProvider_UnderlayGet(app->provider, config_id);
+    if( held && held->rgb_color == (int)(rgb & 0xffffff) && held->texture == texture
+        && held->secondary_rgb_color == blend_rgb && held->hide_underlay == (hide_underlay != 0) )
+        return;
+    /* As the load tasks make one (torirs_flotype_from_rscache.c): the Add
+     * takes it, and frees the record it replaces. */
+    flo = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*flo));
+    assert(flo);
+    flo->id = config_id;
+    flo->rgb_color = (int)(rgb & 0xffffff);
+    flo->texture = texture;
+    flo->secondary_rgb_color = blend_rgb;
+    flo->hide_underlay = hide_underlay != 0;
+    if( is_overlay )
+        CacheProvider_FlotypeAdd(app->provider, config_id, flo);
+    else
+        CacheProvider_UnderlayAdd(app->provider, config_id, flo);
+    if( rebake )
+        g_app_floor_rebake = 1;
+    app->need_redraw = 1;
+}
+
 /* Bake the window the world shows again, from the provider. */
 static void
 app_edit_rebake_window(struct App* app)
@@ -2153,6 +2206,17 @@ app_map_editor_flush_edits(struct App* app)
      * never meets an occupant the ghost has hidden. It is back next frame. */
     if( had_work && app->map_ghost.active )
         app_map_editor_ghost_remove(app);
+    /* A floor record the ground may wear was defined: the tiles baked
+     * without it (a hole) or with its old colour are only right again from
+     * a bake. The queued edits are in the provider's squares by the same
+     * step, so the bake shows them too. */
+    if( g_app_floor_rebake )
+    {
+        g_app_floor_rebake = 0;
+        (void)app_map_editor_edit_step(app->editor, app->provider, app->world_builder, app->world, app->scene);
+        app_edit_rebake_window(app);
+        return;
+    }
     if( app_map_editor_edit_step(
             app->editor, app->provider, app->world_builder, app->world, app->scene) )
     {

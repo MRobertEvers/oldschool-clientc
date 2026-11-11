@@ -85,8 +85,10 @@ enum Editor_Tool
     /** Drag a path: the palette's overlay along the drag, its edges shaped to
      *  the line (editor/editor_path.h), one undo step on release. */
     EDITOR_TOOL_PAINT_PATH,
-    /** Roughen: seeded height noise under the brush, the step its amplitude,
-     *  the falloff fading it to the rim (ground that is not a plane). */
+    /** Roughen: a seeded relief under the brush -- hills a chosen number of
+     *  tiles across with finer bumps on them, not a draw per tile -- the
+     *  step its amplitude, the falloff fading it to the rim (ground that is
+     *  not a plane, and reads as ground). */
     EDITOR_TOOL_NOISE,
     /** Scatter: locs from a set (the selection's ids, else the catalog's
      *  pick) dropped on the brush's free tiles at a density, each turned at
@@ -295,9 +297,14 @@ struct EditorUiTools
     int path_height_mode;
     int path_height_units;
 
-    /** The Roughen brush: the seed its noise is drawn from, moved on at
-     *  every stroke so the same drag twice does not undo itself. */
+    /** The Roughen brush: the seed its relief is drawn from, moved on at
+     *  every stroke so the same drag twice does not undo itself; the
+     *  relief's feature size in tiles (1..EDITOR_ROUGHEN_SCALE_MAX, 1 a
+     *  draw per tile) and how much finer bumps ride on its hills, 0..100 %
+     *  (edpanel_ops.h Editor_RoughenRelief). */
     uint32_t noise_seed;
+    int noise_scale;
+    int noise_detail;
     /** The Scatter brush (edpanel_ops.h Editor_ScatterCommands): the share
      *  of the brush's tiles that take a loc (1..100 %, scaled by the
      *  falloff), whether each is turned at random, and the seed the choices
@@ -375,6 +382,17 @@ struct EditorUiHooks
      *  them one id at a time, as its squares need them); floor_rgb answers
      *  once it is resident. An id past the records is a quiet miss. */
     void (*floor_request)(void* user, int is_overlay, int id);
+    /** Put floor config `id` in the window's own table as the tree states
+     *  it, in place of whatever the window held: a record made in the tree
+     *  is in no cache until the next build, and without this its swatch is a
+     *  hatched cell and the ground painted with it a hole. `rgb` is the
+     *  record's `colour`; an overlay also carries its `texture` (-1 none),
+     *  `blendcolour` (-1 none) and `hideunderlay`. `rebake` 1 when ground
+     *  the window shows may wear the record, so the world is baked again
+     *  when the record is new to the window or changed. NULL in a window
+     *  with no world (a controller, a headless harness). */
+    void (*floor_define)(
+        void* user, int is_overlay, int id, uint32_t rgb, int texture, int blend_rgb, int hide_underlay, int rebake);
     /** Close the editor's chrome (File > Close, after the save guard). */
     void (*close_editor)(void* user);
     /** Bake the cache (File > Bake). */

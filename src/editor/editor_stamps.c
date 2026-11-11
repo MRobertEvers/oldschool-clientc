@@ -171,7 +171,7 @@ parse_tile_token(
         tile->rotation = (uint8_t)rotation;
         return 1;
     }
-    if( !parse_int(word + 1, 0, 255, &value) )
+    if( !parse_int(word + 1, 0, word[0] == 'u' ? EDITOR_UNDERLAY_MAX : 255, &value) )
         return 0;
     if( word[0] == 'h' )
     {
@@ -185,7 +185,7 @@ parse_tile_token(
     {
         if( value == 0 )
             return 0;
-        tile->underlay_id = (uint8_t)value;
+        tile->underlay_id = (uint16_t)value;
     }
     else
     {

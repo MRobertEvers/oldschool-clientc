@@ -3824,6 +3824,20 @@ ToriRSMapEdLanes_BootLane(
     assert(note);
     note[0] = '\0';
     snprintf(out, out_size, "%s", asked);
+    /* A test run keeps to the lane it was started on. The file is the
+     * owner's switch for their own boots, and it is repo-wide: a test editor
+     * started on a private manifest (lane=perf1110) opened the lane the
+     * owner had switched to an hour before, with nothing said but this
+     * note (2026-11-10). */
+    {
+        const char* const ignore = getenv("TORIRSMAPED_IGNORE_BOOT_LANE");
+        if( ignore && ignore[0] && strcmp(ignore, "0") != 0 )
+        {
+            snprintf(note, note_size, "lane '%s' (TORIRSMAPED_IGNORE_BOOT_LANE is set: build/lanes/lane.ini was not read)",
+                asked);
+            return 0;
+        }
+    }
     if( !ToriRSMapEdLanes_BootName(repo_root, named, sizeof(named)) )
         return 0;
     if( !ToriRSMapEdLanes_Lookup(repo_root, base_tree, named, &lane) )

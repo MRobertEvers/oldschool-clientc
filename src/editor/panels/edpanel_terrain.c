@@ -107,6 +107,12 @@ struct TerrainPanel
      *  brush's tiles painted, the dither the client blends. */
     int slider_mix;
     int shown_mix;
+    /** Roughen's relief (shown while it is armed): the hills' size in tiles
+     *  and how much finer bumps ride on them. */
+    int slider_noise_scale;
+    int slider_noise_detail;
+    int shown_noise_scale;
+    int shown_noise_detail;
     /** The World's tile grid and square borders (EditorUi::tile_grid). */
     int dropdown_tile_grid;
     int shown_tile_grid;
@@ -189,7 +195,7 @@ terrain_hints(
 {
     terrain_slider_chords(ui, self->slider_radius, "Radius", "Brush radius in tiles", EDITOR_HK_BRUSH_RADIUS_DOWN,
         EDITOR_HK_BRUSH_RADIUS_UP);
-    terrain_slider_chords(ui, self->slider_step, "Step", "Height: units per wheel notch; Roughen: amplitude",
+    terrain_slider_chords(ui, self->slider_step, "Step", "Height: units per wheel notch; Roughen: a hill's height",
         EDITOR_HK_BRUSH_STEP_DOWN, EDITOR_HK_BRUSH_STEP_UP);
     terrain_slider_chords(ui, self->slider_strength, "Strength",
         "Height and Smooth's pull per stroke; also density, skirt, mix", EDITOR_HK_BRUSH_STRENGTH_DOWN,
@@ -255,6 +261,7 @@ terrain_readout(
     int const scatter = ui->tools.tool == EDITOR_TOOL_SCATTER;
     int const plateau = ui->tools.tool == EDITOR_TOOL_PLATEAU;
     int const underlay = ui->tools.tool == EDITOR_TOOL_PAINT_UNDERLAY;
+    int const roughen = ui->tools.tool == EDITOR_TOOL_NOISE;
     int const height = ui->tools.tool == EDITOR_TOOL_HEIGHT;
     int const region_brush = ui->tools.tool == EDITOR_TOOL_REGION;
     int const lasso = ui->tools.tool == EDITOR_TOOL_LASSO;
@@ -277,6 +284,12 @@ terrain_readout(
     else if( plateau )
         snprintf(line, sizeof(line), "%s  r%d skirt %d", Editor_ToolName(ui->tools.tool), brush->radius,
             ui->tools.plateau_skirt);
+    else if( roughen && ui->tools.noise_scale < 2 )
+        snprintf(line, sizeof(line), "%s  r%d %s, a draw per tile", Editor_ToolName(ui->tools.tool), brush->radius,
+            k_falloff_names[brush->falloff]);
+    else if( roughen )
+        snprintf(line, sizeof(line), "%s  r%d %s, hills %d tiles, detail %d%%", Editor_ToolName(ui->tools.tool),
+            brush->radius, k_falloff_names[brush->falloff], ui->tools.noise_scale, ui->tools.noise_detail);
     else if( Editor_ToolIsBrush(ui->tools.tool) )
         snprintf(line, sizeof(line), "%s  r%d %s", Editor_ToolName(ui->tools.tool), brush->radius,
             k_falloff_names[brush->falloff]);
@@ -336,6 +349,8 @@ terrain_readout(
     ToriRSChrome_SetHidden(ui->chrome, self->button_scatter_seed, !scatter);
     ToriRSChrome_SetHidden(ui->chrome, self->slider_plateau_skirt, !plateau);
     ToriRSChrome_SetHidden(ui->chrome, self->slider_mix, !underlay);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_noise_scale, !roughen);
+    ToriRSChrome_SetHidden(ui->chrome, self->slider_noise_detail, !roughen || ui->tools.noise_scale < 2);
     ToriRSChrome_SetHidden(ui->chrome, self->label_height, !height);
     ToriRSChrome_SetHidden(ui->chrome, self->hint_height, !height);
     for( int i = 0; i < EDITOR_HEIGHT_MODE_COUNT; i++ )
@@ -432,6 +447,14 @@ terrain_tick(
         self->shown_mix = ui->tools.paint_mix;
         terrain_readout(ui, self);
     }
+    if( self->shown_noise_scale != ui->tools.noise_scale || self->shown_noise_detail != ui->tools.noise_detail )
+    {
+        ToriRSChrome_SliderSet(ui->chrome, self->slider_noise_scale, ui->tools.noise_scale);
+        ToriRSChrome_SliderSet(ui->chrome, self->slider_noise_detail, ui->tools.noise_detail);
+        self->shown_noise_scale = ui->tools.noise_scale;
+        self->shown_noise_detail = ui->tools.noise_detail;
+        terrain_readout(ui, self);
+    }
     /* The wheel, Ctrl/Cmd+click and other windows move the Height state. */
     if( self->shown_height_mode != ui->tools.height_mode || self->shown_height_valid != ui->tools.height_valid
         || self->shown_height_target != ui->tools.height_target || self->shown_height_grid != ui->tools.height_grid
@@ -520,6 +543,16 @@ terrain_activate(
     else if( widget == self->slider_mix )
     {
         self->shown_mix = tools->paint_mix = ToriRSChrome_SliderValue(ui->chrome, widget);
+        terrain_readout(ui, self);
+        return 1;
+    }
+    else if( widget == self->slider_noise_scale || widget == self->slider_noise_detail )
+    {
+        self->shown_noise_scale = tools->noise_scale = ToriRSChrome_SliderValue(ui->chrome, self->slider_noise_scale);
+        self->shown_noise_detail = tools->noise_detail =
+            ToriRSChrome_SliderValue(ui->chrome, self->slider_noise_detail);
+        /* The readout, and Detail's row: a draw per tile has no hills for
+         * detail to ride on. */
         terrain_readout(ui, self);
         return 1;
     }
@@ -783,6 +816,17 @@ Editor_Terrain_Register(struct EditorUi* ui)
     self->shown_plateau_skirt = ui->tools.plateau_skirt;
     self->shown_mix = ui->tools.paint_mix;
     ToriRSChrome_SetHidden(chrome, self->slider_mix, 1);
+    /* Roughen (U): its relief, hidden until armed. */
+    self->slider_noise_scale = ToriRSChrome_Slider(
+        chrome, self->panel, "Hills (tiles)", 1, EDITOR_ROUGHEN_SCALE_MAX, ui->tools.noise_scale, 1);
+    ToriRSChrome_SetTooltip(chrome, self->slider_noise_scale, "How wide the relief's hills are; 1 is a draw per tile");
+    self->slider_noise_detail =
+        ToriRSChrome_Slider(chrome, self->panel, "Detail (%)", 0, 100, ui->tools.noise_detail, 10);
+    ToriRSChrome_SetTooltip(chrome, self->slider_noise_detail, "Finer bumps on the hills: 0 rolling ground, 100 crags");
+    self->shown_noise_scale = ui->tools.noise_scale;
+    self->shown_noise_detail = ui->tools.noise_detail;
+    ToriRSChrome_SetHidden(chrome, self->slider_noise_scale, 1);
+    ToriRSChrome_SetHidden(chrome, self->slider_noise_detail, 1);
     ToriRSChrome_SetHidden(chrome, self->label_scatter, 1);
     ToriRSChrome_SetHidden(chrome, self->slider_scatter_density, 1);
     ToriRSChrome_SetHidden(chrome, self->check_scatter_rotate, 1);

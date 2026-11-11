@@ -454,6 +454,30 @@ Editor_Catalog_PickFromWorld(
 int
 Editor_Catalog_IsFavourite(struct EditorUi* ui);
 
+/** editor/favourites.txt as it is now: a number that moves whenever the file's
+ *  text does (what a view of the stars redraws by) and how many it holds. */
+uint32_t
+Editor_Catalog_FavouritesSerial(
+    struct EditorUi* ui,
+    int* out_count);
+
+/** The record `name` of `kind` (0 loc, 1 npc, 2 obj) is a favourite, as the
+ *  file read at the last Editor_Catalog_FavouritesSerial. */
+int
+Editor_Catalog_RecordIsFavourite(
+    struct EditorUi* ui,
+    uint32_t kind,
+    const char* name);
+
+/** The list both the Catalog and the Gallery show is the favourites. */
+int
+Editor_Catalog_ShowingFavourites(struct EditorUi* ui);
+
+/** The Catalog's "favourites" chip: the shared list becomes the favourites,
+ *  or the index again when it is them already. */
+void
+Editor_Catalog_ShowFavourites(struct EditorUi* ui);
+
 /** The favourite star: the pick into editor/favourites.txt (a loc with
  *  Place's pose), or out of it when it is there; one TEXT_SPLICE through the
  *  authority, one undo step. 1 a favourite now, 0 not, -1 refused (said). */

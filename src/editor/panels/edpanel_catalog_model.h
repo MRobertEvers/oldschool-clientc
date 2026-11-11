@@ -613,6 +613,21 @@ Editor_CatalogModelRangeText(
     int out_size);
 
 /**
+ * The count a window of `shown` rows from `first` shows: "37 to 72 of
+ * 63,334 loc" -- what is on screen, of everything the list scrolls
+ * through. The Gallery's line: it read "100 of 63334 loc", the page the
+ * model happened to hold, which said a hundred was all there was. The
+ * states with nothing to count read as Editor_CatalogModelRangeText's.
+ */
+void
+Editor_CatalogModelWindowText(
+    const struct Editor_CatalogModel* model,
+    int first,
+    int shown,
+    char* out,
+    int out_size);
+
+/**
  * Feed an answer the way a CATALOG_QUERY round trip would (the model is
  * pure: the test gives it rows): page `page` of the question the model now
  * wants, `total` matches, `rows` copied. Held exactly as an asked answer is.

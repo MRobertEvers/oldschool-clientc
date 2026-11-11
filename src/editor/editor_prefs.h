@@ -27,6 +27,7 @@
  *     spawn_view = npcs objs player generated edited scripted markers wander
  *                            ; the Spawns panel's view toggles that are on
  *     gallery_tile = M      ; the Gallery's tile size: S (32 px) | M (48) | L (64)
+ *                            ; | XL (96) | XXL (128)
  */
 
 #define EDITOR_PREFS_VERSION 1
@@ -50,7 +51,8 @@ struct Editor_Prefs
     int text_smooth;
     /** The Spawns panel's view toggles, EDITOR_PREFS_SPAWN_*. */
     int spawn_view;
-    /** The Gallery's picture size in px: 32, 48 or 64 (S, M, L). */
+    /** The Gallery's picture size in px: 32, 48, 64, 96 or 128 (S, M, L, XL,
+     *  XXL). */
     int gallery_tile;
 };
 /** The Gallery's tile sizes (Editor_Prefs.gallery_tile). */
@@ -59,6 +61,8 @@ enum
     EDITOR_PREFS_GALLERY_TILE_S = 32,
     EDITOR_PREFS_GALLERY_TILE_M = 48,
     EDITOR_PREFS_GALLERY_TILE_L = 64,
+    EDITOR_PREFS_GALLERY_TILE_XL = 96,
+    EDITOR_PREFS_GALLERY_TILE_XXL = 128,
     EDITOR_PREFS_GALLERY_TILE_DEFAULT = EDITOR_PREFS_GALLERY_TILE_M,
 };
 

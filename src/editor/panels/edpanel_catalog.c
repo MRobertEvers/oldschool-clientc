@@ -218,6 +218,15 @@ struct CatalogPanel
 
     /* The shortcuts. */
     struct Editor_CatalogRecents recents;
+    /** The Gallery's window (Editor_Catalog_WantWindow): the rows it shows.
+     *  `gallery_rows` 0 until it asked. The model anchors ONE page, so one
+     *  of the two views says which: the Gallery while this panel is closed,
+     *  else whichever of the two was scrolled last (`window_from_gallery`,
+     *  `list_first_seen` being this list's first row when that was decided). */
+    int gallery_first;
+    int gallery_rows;
+    int window_from_gallery;
+    int list_first_seen;
     /** editor/favourites.txt as last parsed, and what it was parsed from. */
     struct Editor_FavouritesFile favourites;
     const char* fav_text;
@@ -1639,7 +1648,22 @@ catalog_tick(
     if( ui->chrome->panels[self->panel].visible )
         catalog_list_fit(ui, self);
     first = ui->chrome->widgets[self->list].imin;
-    Editor_CatalogModelWantWindow(&self->model, first, catalog_list_window(ui, self));
+    /* The window the model fetches for. This used to be this list's, always
+     * -- and this runs for the Gallery too, with this panel closed and its
+     * list at row 0. So the Gallery's own request was overwritten every
+     * frame, the page its rows were on was never asked for, and past the
+     * couple of pages held around row 0 its tiles were empty: a grid of
+     * "the first hundred or so" out of 63,334. */
+    if( first != self->list_first_seen )
+    {
+        self->list_first_seen = first;
+        self->window_from_gallery = 0;
+    }
+    if( Editor_Gallery_Visible(ui) && self->gallery_rows > 0
+        && (!ui->chrome->panels[self->panel].visible || self->window_from_gallery) )
+        Editor_CatalogModelWantWindow(&self->model, self->gallery_first, self->gallery_rows);
+    else
+        Editor_CatalogModelWantWindow(&self->model, first, catalog_list_window(ui, self));
     catalog_local_follow(ui, self);
     if( host )
         /* Asks only when the kind, the settled text, the window's page or
@@ -2404,6 +2428,63 @@ Editor_Catalog_IsFavourite(struct EditorUi* ui)
            && Editor_FavouritesFind(&self->favourites, ui->tools.pick_kind, self->sym_name) >= 0;
 }
 
+uint32_t
+Editor_Catalog_FavouritesSerial(
+    struct EditorUi* ui,
+    int* out_count)
+{
+    struct CatalogPanel* self;
+
+    assert(ui);
+    assert(out_count);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    *out_count = 0;
+    if( !self )
+        return 0;
+    catalog_favourites_follow(ui, self);
+    *out_count = catalog_favourite_count(self);
+    return self->fav_hash;
+}
+
+int
+Editor_Catalog_RecordIsFavourite(
+    struct EditorUi* ui,
+    uint32_t kind,
+    const char* name)
+{
+    struct CatalogPanel* self;
+
+    assert(ui);
+    assert(name);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( !self || kind > TORIRSMAPED_CATALOG_OBJ || !name[0] )
+        return 0;
+    return Editor_FavouritesFind(&self->favourites, (int)kind, name) >= 0;
+}
+
+int
+Editor_Catalog_ShowingFavourites(struct EditorUi* ui)
+{
+    struct CatalogPanel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    return self && self->model.source == EDITOR_CATALOG_SOURCE_FAVOURITES;
+}
+
+void
+Editor_Catalog_ShowFavourites(struct EditorUi* ui)
+{
+    struct CatalogPanel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "catalog");
+    if( !self )
+        return;
+    catalog_favourites_follow(ui, self);
+    catalog_show_source(ui, self, EDITOR_CATALOG_SOURCE_FAVOURITES);
+}
+
 int
 Editor_Catalog_ToggleFavourite(struct EditorUi* ui)
 {
@@ -2838,8 +2919,14 @@ Editor_Catalog_WantWindow(
     assert(first >= 0);
     assert(rows > 0);
     self = Editor_UiPanelSelf(ui, "catalog");
-    if( self )
-        Editor_CatalogModelWantWindow(&self->model, first, rows);
+    if( !self )
+        return;
+    /* Kept for the Catalog's tick, which is what asks the model: with both
+     * panels up the one scrolled last anchors the page. */
+    if( first != self->gallery_first || self->gallery_rows == 0 )
+        self->window_from_gallery = 1;
+    self->gallery_first = first;
+    self->gallery_rows = rows;
 }
 
 int

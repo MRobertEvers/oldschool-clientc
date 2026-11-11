@@ -606,7 +606,14 @@ RSCache_MapTerrainEncode(
                 if( tile->settings != 0 )
                     write_decode(&buffer, tile->settings + 49, u16);
                 if( tile->underlay_id != 0 )
+                {
+                    /* A u8 opcode holds 82..255: past that the byte wraps
+                     * onto a settings or overlay opcode. The caller checks
+                     * what it was given (cachepack's jm2 reader does). */
+                    assert(u16 || tile->underlay_id <= RSCACHE_MAP_UNDERLAY_MAX_U8);
+                    assert(tile->underlay_id <= RSCACHE_MAP_UNDERLAY_MAX_U16);
                     write_decode(&buffer, tile->underlay_id + 81, u16);
+                }
 
                 /*
                  * Height comes from `authored_height`, never from `height`: the

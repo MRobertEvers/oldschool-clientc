@@ -664,7 +664,7 @@ tile_parse_tokens(
         else if( kind == 'f' )
             tile->settings = (uint8_t)value;
         else if( kind == 'u' )
-            tile->underlay_id = (uint8_t)value;
+            tile->underlay_id = (uint16_t)value;
         else
             return 0;
     }

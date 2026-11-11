@@ -305,6 +305,40 @@ fake_floor_rgb(
 static int g_floor_requests;
 static int g_floor_request_first;
 
+/* hooks.floor_define: what the window was last told a floor record is. */
+static struct
+{
+    int calls;
+    int is_overlay;
+    int id;
+    uint32_t rgb;
+    int texture;
+    int hide_underlay;
+    int rebake;
+} g_floor_defined;
+
+static void
+fake_floor_define(
+    void* user,
+    int is_overlay,
+    int id,
+    uint32_t rgb,
+    int texture,
+    int blend_rgb,
+    int hide_underlay,
+    int rebake)
+{
+    (void)user;
+    (void)blend_rgb;
+    g_floor_defined.calls++;
+    g_floor_defined.is_overlay = is_overlay;
+    g_floor_defined.id = id;
+    g_floor_defined.rgb = rgb;
+    g_floor_defined.texture = texture;
+    g_floor_defined.hide_underlay = hide_underlay;
+    g_floor_defined.rebake = rebake;
+}
+
 static void
 fake_floor_request(
     void* user,
@@ -4718,8 +4752,10 @@ test_gallery(void)
         frame();
     CHECK(strcmp(Editor_Catalog_FindText(&g_ui), "crate") == 0 && strcmp(model->filter, "crate") == 0,
         "gallery: Find here is the Catalog's Find and the query (%s / %s)", Editor_Catalog_FindText(&g_ui), model->filter);
+    /* What is on screen, of the whole list (it read "1 of 1 loc", the page
+     * the model held: over the index, "100 of 63334 loc"). */
     Editor_CatalogModelCountText(model, text, sizeof(text));
-    CHECK(strcmp(text, "1 of 1 loc") == 0 && strcmp(g_chrome.widgets[count_row].text, text) == 0,
+    CHECK(strcmp(text, "1 of 1 loc") == 0 && strcmp(g_chrome.widgets[count_row].text, "1 to 1 of 1 loc") == 0,
         "gallery: the count row reads %s", g_chrome.widgets[count_row].text);
 
     /* A click picks; a second within the double-click window arms Place. */
@@ -4735,7 +4771,7 @@ test_gallery(void)
 
     /* The size chips move the device pref; the kind chips the Catalog's kind. */
     serial = g_ui.prefs_serial;
-    /* The line: all loc npc obj | S M L | list grid. */
+    /* The line: all loc npc obj | S M L XL XXL | list grid | favourites. */
     CHECK(main_graph_key_find(strip, EDP_CHIP_KEY_BASE + 6, &x, &y), "gallery: the L chip is there");
     push_graph(strip, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
     frame();
@@ -4746,6 +4782,64 @@ test_gallery(void)
     CHECK(ToriRSChrome_GraphKeyAt(&g_chrome, well, 70, 6) == 1 && ToriRSChrome_GraphKeyAt(&g_chrome, well, 82, 6) == 0,
         "gallery: the grid relaid at the new size (%d, %d)", ToriRSChrome_GraphKeyAt(&g_chrome, well, 70, 6),
         ToriRSChrome_GraphKeyAt(&g_chrome, well, 82, 6));
+    /* Past L (2026-11-10, "the option to ... even bigger"): XXL is 128 px,
+     * and the grid relays again. */
+    CHECK(main_graph_key_find(strip, EDP_CHIP_KEY_BASE + 8, &x, &y), "gallery: the XXL chip is there");
+    push_graph(strip, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+    frame();
+    frame();
+    CHECK(Editor_Gallery_TilePx(&g_ui) == 128 && g_ui.prefs.gallery_tile == EDITOR_PREFS_GALLERY_TILE_XXL
+              && ToriRSChrome_GraphKeyAt(&g_chrome, well, 100, 60) == 1,
+        "gallery: XXL makes the tiles 128 px (%d, key %d)", Editor_Gallery_TilePx(&g_ui),
+        ToriRSChrome_GraphKeyAt(&g_chrome, well, 100, 60));
+    {
+        /* The star: the hovered tile shows one in its corner, a press on it
+         * stars the record (and picks the tile), the chip counts it, and a
+         * second press takes it out again. */
+        int const star_key = (1 << 24) + 0;
+        int const sx = 136 - 8;
+        int count = -1;
+
+        push_graph(well, TORIRS_CHROME_EVENT_GRAPH_HOVER, 60, 60, 0);
+        frame();
+        CHECK(ToriRSChrome_GraphKeyAt(&g_chrome, well, sx, 7) == star_key, "gallery: the hovered tile has a star to click (%d)",
+            ToriRSChrome_GraphKeyAt(&g_chrome, well, sx, 7));
+        (void)Editor_Catalog_FavouritesSerial(&g_ui, &count);
+        CHECK(count == 0 && !Editor_Catalog_RecordIsFavourite(&g_ui, 0, "test_crate"), "gallery: nothing is starred yet");
+        push_graph(well, TORIRS_CHROME_EVENT_GRAPH_PRESS, sx, 7, 0);
+        frame();
+        frame();
+        (void)Editor_Catalog_FavouritesSerial(&g_ui, &count);
+        CHECK(count == 1 && Editor_Catalog_RecordIsFavourite(&g_ui, 0, "test_crate") && Editor_Catalog_IsFavourite(&g_ui),
+            "gallery: a press on the star stars test_crate and picks it (count %d: %s)", count, Editor_UiStatusText(&g_ui));
+        /* Starred, the star stays without the pointer. */
+        push_graph(well, TORIRS_CHROME_EVENT_GRAPH_HOVER, 300, 300, 0);
+        frame();
+        CHECK(ToriRSChrome_GraphKeyAt(&g_chrome, well, sx, 7) == star_key, "gallery: a starred tile keeps its star");
+        /* The favourites chip: the starred records alone, and back. */
+        CHECK(main_graph_key_find(strip, EDP_CHIP_KEY_BASE + 11, &x, &y), "gallery: the favourites chip is there");
+        push_graph(strip, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+        for( int i = 0; i < 3; i++ )
+            frame();
+        CHECK(Editor_Catalog_ShowingFavourites(&g_ui) && strstr(g_chrome.widgets[count_row].text, "1 to 1 of 1"),
+            "gallery: favourites lists the starred record (%s)", g_chrome.widgets[count_row].text);
+        (void)main_graph_key_find(strip, EDP_CHIP_KEY_BASE + 11, &x, &y);
+        push_graph(strip, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+        for( int i = 0; i < 3; i++ )
+            frame();
+        CHECK(!Editor_Catalog_ShowingFavourites(&g_ui), "gallery: the chip again is the index");
+        push_graph(well, TORIRS_CHROME_EVENT_GRAPH_PRESS, sx, 7, 0);
+        frame();
+        frame();
+        (void)Editor_Catalog_FavouritesSerial(&g_ui, &count);
+        CHECK(count == 0 && !Editor_Catalog_RecordIsFavourite(&g_ui, 0, "test_crate"),
+            "gallery: the star again unstars it (count %d)", count);
+    }
+    /* Back to L for what follows. */
+    (void)main_graph_key_find(strip, EDP_CHIP_KEY_BASE + 6, &x, &y);
+    push_graph(strip, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
+    frame();
+    frame();
     CHECK(main_graph_key_find(strip, EDP_CHIP_KEY_BASE + 3, &x, &y), "gallery: the obj chip is there");
     ToriRSChrome_SetText(&g_chrome, find, "");
     push_graph(strip, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
@@ -4757,7 +4851,7 @@ test_gallery(void)
 
     /* list | grid: this panel's list opens the Catalog beside it; the
      * Catalog's grid opens this panel. */
-    CHECK(main_graph_key_find(strip, EDP_CHIP_KEY_BASE + 7, &x, &y), "gallery: the list chip is there");
+    CHECK(main_graph_key_find(strip, EDP_CHIP_KEY_BASE + 9, &x, &y), "gallery: the list chip is there");
     push_graph(strip, TORIRS_CHROME_EVENT_GRAPH_PRESS, x, y, 0);
     frame();
     frame();
@@ -8254,6 +8348,31 @@ test_palette_colour(void)
     ToriRSChrome_SetChecked(&g_chrome, w_all, 0);
     activate(w_all);
 
+    /* Squares that state no floor (a new square: 2026-11-10, "How do I pick
+     * an underlay color?" over two wells of one crossed-out cell each): the
+     * wells list every record without Every id. With the squares' own
+     * floors back, they are the palette again. */
+    {
+        int was_loaded[EDITOR_DOC_MAX_SQUARES];
+        int const count = g_editor.doc.square_count;
+
+        CHECK(!Editor_Palette_SwatchAt(&g_ui, 0, 200, &x, &y), "palette: Every id off, an unused id is not listed");
+        for( int i = 0; i < count; i++ )
+        {
+            was_loaded[i] = g_editor.doc.squares[i].loaded;
+            g_editor.doc.squares[i].loaded = 0;
+        }
+        for( int i = 0; i < 3; i++ )
+            frame();
+        CHECK(Editor_Palette_SwatchAt(&g_ui, 0, 200, &x, &y) && Editor_Palette_SwatchAt(&g_ui, 1, 700, &x, &y),
+            "palette: with no floor in the open squares the wells list every record");
+        for( int i = 0; i < count; i++ )
+            g_editor.doc.squares[i].loaded = was_loaded[i];
+        for( int i = 0; i < 3; i++ )
+            frame();
+        CHECK(!Editor_Palette_SwatchAt(&g_ui, 0, 200, &x, &y), "palette: and a map that uses floors is its own palette again");
+    }
+
     /* The hex finds the record of that exact colour; the sliders follow. */
     ToriRSChrome_SetText(&g_chrome, w_hex, "#40a04c");
     activate(w_hex);
@@ -8348,6 +8467,136 @@ test_palette_colour(void)
         frame();
         CHECK(ToriRSChrome_SliderValue(&g_chrome, w_mix) == 60, "terrain: the slider follows the hotkey");
         g_ui.tools.paint_mix = 100;
+    }
+
+    /* Roughen's relief: its two sliders show while it is armed, the readout
+     * says the hills, and a draw per tile (1) has no detail to set. */
+    {
+        int const w_hills = find_widget(terrain, TORIRS_CHROME_W_SLIDER, "Hills (tiles)");
+        int const w_detail = find_widget(terrain, TORIRS_CHROME_W_SLIDER, "Detail (%)");
+
+        CHECK(w_hills >= 0 && w_detail >= 0, "terrain: Roughen's Hills and Detail sliders");
+        if( w_hills >= 0 && w_detail >= 0 )
+        {
+            Editor_UiSetTool(&g_ui, EDITOR_TOOL_HEIGHT);
+            frame();
+            CHECK(g_chrome.widgets[w_hills].hidden && g_chrome.widgets[w_detail].hidden,
+                "terrain: Hills and Detail are hidden under Height");
+            Editor_UiSetTool(&g_ui, EDITOR_TOOL_NOISE);
+            frame();
+            CHECK(!g_chrome.widgets[w_hills].hidden && !g_chrome.widgets[w_detail].hidden && g_ui.tools.noise_scale == 8
+                      && g_ui.tools.noise_detail == 50 && label_with(terrain, "hills 8 tiles, detail 50%") >= 0,
+                "terrain: under Roughen they show, at 8 tiles and 50%% (%d %d)", g_ui.tools.noise_scale,
+                g_ui.tools.noise_detail);
+            ToriRSChrome_SliderSet(&g_chrome, w_hills, 16);
+            activate(w_hills);
+            CHECK(g_ui.tools.noise_scale == 16 && label_with(terrain, "hills 16 tiles") >= 0,
+                "terrain: the slider sets the hills' size and the readout says so (%d)", g_ui.tools.noise_scale);
+            ToriRSChrome_SliderSet(&g_chrome, w_hills, 1);
+            activate(w_hills);
+            CHECK(g_ui.tools.noise_scale == 1 && g_chrome.widgets[w_detail].hidden && label_with(terrain, "a draw per tile") >= 0,
+                "terrain: at 1 it is a draw per tile and Detail goes");
+            g_ui.tools.noise_scale = 8;
+            frame();
+        }
+    }
+
+    /* New records (2026-11-10, "you also need to be able to create an
+     * underlay and overlay and then add it to the palette"): the picker's
+     * colour under a name, with the allocator's id, picked to paint, in the
+     * well whether a square uses it or not, and the window told what it is. */
+    {
+        int const w_name = find_widget(palette, TORIRS_CHROME_W_TEXTINPUT, "name");
+        int const w_new_under = find_widget(palette, TORIRS_CHROME_W_BUTTON, "New underlay of this colour");
+        int const w_new_over = find_widget(palette, TORIRS_CHROME_W_BUTTON, "New overlay of this colour");
+        int const w_recolour = find_widget(palette, TORIRS_CHROME_W_BUTTON, "Recolour the picked underlay");
+        int made = 0;
+        int made_over = 0;
+
+        CHECK(w_name >= 0 && w_new_under >= 0 && w_new_over >= 0 && w_recolour >= 0,
+            "palette: a name, New underlay, New overlay and Recolour");
+        g_ui.hooks.floor_define = fake_floor_define;
+        memset(&g_floor_defined, 0, sizeof(g_floor_defined));
+        ToriRSChrome_SetText(&g_chrome, w_hex, "#7a3fb0");
+        activate(w_hex);
+
+        /* A name a block header cannot carry, and the cache's own spelling. */
+        ToriRSChrome_SetText(&g_chrome, w_name, "Not A Name");
+        activate(w_new_under);
+        CHECK(strstr(Editor_UiStatusText(&g_ui), "New underlay refused") && g_floor_defined.calls == 0,
+            "palette: a name with capitals and spaces is refused (%s)", Editor_UiStatusText(&g_ui));
+        ToriRSChrome_SetText(&g_chrome, w_name, "underlay_900");
+        activate(w_new_under);
+        CHECK(strstr(Editor_UiStatusText(&g_ui), "New underlay refused"), "palette: underlay_<number> is the cache's spelling (%s)",
+            Editor_UiStatusText(&g_ui));
+
+        Editor_UiSetTool(&g_ui, EDITOR_TOOL_SELECT);
+        ToriRSChrome_SetText(&g_chrome, w_name, "test_purple");
+        activate(w_new_under);
+        made = g_ui.tools.underlay_id;
+        /* The cache's underlays are 1..256 in a map; the tree's own start at
+         * the register's floor, 400, which a map states as 401. */
+        CHECK(made == 401 && g_ui.tools.tool == EDITOR_TOOL_PAINT_UNDERLAY
+                  && strstr(Editor_UiStatusText(&g_ui), "New underlay 401 test_purple #7a3fb0"),
+            "palette: New underlay makes underlay 401, picks it and arms Paint underlay (%d: %s)", made,
+            Editor_UiStatusText(&g_ui));
+        CHECK(g_floor_defined.calls >= 1 && !g_floor_defined.is_overlay && g_floor_defined.id == 401
+                  && g_floor_defined.rgb == 0x7a3fb0u && !g_floor_defined.rebake,
+            "palette: the window is told the record's colour (%d calls, id %d #%06x)", g_floor_defined.calls,
+            g_floor_defined.id, (unsigned)g_floor_defined.rgb);
+        frame();
+        CHECK(Editor_Palette_SwatchAt(&g_ui, 0, 401, &x, &y), "palette: the new underlay is in the well, used by no square");
+        CHECK(strcmp(ToriRSChrome_Text(&g_chrome, w_name), "") == 0, "palette: the name box is cleared for the next one");
+
+        /* The same name again is that record. */
+        g_ui.tools.underlay_id = 12;
+        ToriRSChrome_SetText(&g_chrome, w_name, "test_purple");
+        activate(w_new_under);
+        CHECK(g_ui.tools.underlay_id == 401 && strstr(Editor_UiStatusText(&g_ui), "already"),
+            "palette: a name the tree made is picked, not made twice (%s)", Editor_UiStatusText(&g_ui));
+
+        /* Recolour: the tree's own record takes the picker's colour; the
+         * cache's own are refused. */
+        ToriRSChrome_SetText(&g_chrome, w_hex, "#208a80");
+        activate(w_hex);
+        activate(w_recolour);
+        CHECK(g_floor_defined.id == 401 && g_floor_defined.rgb == 0x208a80u
+                  && strstr(Editor_UiStatusText(&g_ui), "is #208a80 now"),
+            "palette: Recolour sets the picked record's colour (#%06x: %s)", (unsigned)g_floor_defined.rgb,
+            Editor_UiStatusText(&g_ui));
+        g_ui.tools.underlay_id = 12;
+        activate(w_recolour);
+        CHECK(strstr(Editor_UiStatusText(&g_ui), "the cache's own"), "palette: a cache record is not recoloured (%s)",
+            Editor_UiStatusText(&g_ui));
+
+        /* An overlay, named by its colour when no name is typed. */
+        ToriRSChrome_SetText(&g_chrome, w_hex, "#c8a020");
+        activate(w_hex);
+        ToriRSChrome_SetText(&g_chrome, w_name, "");
+        activate(w_new_over);
+        made_over = g_ui.tools.overlay_id;
+        CHECK(made_over == 801 && !g_ui.tools.overlay_none && g_ui.tools.tool == EDITOR_TOOL_PAINT_OVERLAY
+                  && strstr(Editor_UiStatusText(&g_ui), "ed_overlay_c8a020"),
+            "palette: New overlay makes overlay 801 named by its colour and arms Paint overlay (%d: %s)", made_over,
+            Editor_UiStatusText(&g_ui));
+        CHECK(g_floor_defined.is_overlay && g_floor_defined.id == 801 && g_floor_defined.rgb == 0xc8a020u
+                  && g_floor_defined.texture == -1,
+            "palette: the window is told the overlay, a colour with no texture (id %d #%06x texture %d)",
+            g_floor_defined.id, (unsigned)g_floor_defined.rgb, g_floor_defined.texture);
+
+        /* Undo takes them back, and the wells follow. The overlay's well is
+         * the one to ask: the underlay's keeps the pick before this one in
+         * reach (the blend strip's other end), record or no record. */
+        g_ui.tools.overlay_none = 1;
+        frame();
+        CHECK(Editor_Palette_SwatchAt(&g_ui, 1, 801, &x, &y), "palette: the new overlay is in its well with nothing picked");
+        for( int i = 0; i < 6 && Editor_Undo(&g_editor) > 0; i++ )
+            ;
+        g_ui.tools.underlay_id = 12;
+        for( int i = 0; i < 40; i++ )
+            frame();
+        CHECK(!Editor_Palette_SwatchAt(&g_ui, 1, 801, &x, &y), "palette: undone, the record leaves the well");
+        g_ui.hooks.floor_define = NULL;
     }
     Editor_UiFree(&g_ui);
 }

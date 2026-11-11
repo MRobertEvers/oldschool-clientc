@@ -1427,6 +1427,22 @@ app_map_editor_spawn_preview_select_element(
 void
 app_map_editor_world_load_begin(struct App* app);
 
+/** The editor's hooks.floor_define (editor/editor_ui.h): floor config
+ *  `config_id` in the provider's table as given, replacing the one there. A
+ *  record that is new to the provider or differs from the one it held, with
+ *  `rebake` set, has the window baked again at the next flush. Nothing
+ *  happens when the provider already holds exactly this. */
+void
+app_map_editor_floor_define(
+    struct App* app,
+    int is_overlay,
+    int config_id,
+    uint32_t rgb,
+    int texture,
+    int blend_rgb,
+    int hide_underlay,
+    int rebake);
+
 struct MapEditorSpawnPreview;
 
 /** The active player in the spawn preview, for the overlay: 1 when it stands

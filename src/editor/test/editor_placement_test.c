@@ -48,6 +48,7 @@
 #include <rscache.h>
 
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -768,6 +769,166 @@ test_noise(void)
     CHECK(Editor_Undo(&g_editor) == n && derived(cx, cz) == before[2][2], "noise: one undo levels it again");
 }
 
+/* Roughen's relief is ground, not static: a tile goes the way its neighbours
+ * go. Measured as the correlation of each tile with the next one along x --
+ * near 0 for a draw per tile (what Roughen was), high for hills -- and the
+ * relief keeps the step as a hill's height at every scale and detail. */
+static double
+relief_neighbour_correlation(
+    uint32_t seed,
+    int scale,
+    int detail,
+    double* out_peak)
+{
+    enum
+    {
+        SIDE = 96
+    };
+    double covariance = 0.0;
+    double variance = 0.0;
+    double peak = 0.0;
+
+    for( int z = 0; z < SIDE; z++ )
+        for( int x = 0; x < SIDE; x++ )
+        {
+            double const here = Editor_RoughenRelief(seed, BASE_X + x, BASE_Z + z, scale, detail);
+            double const next = Editor_RoughenRelief(seed, BASE_X + x + 1, BASE_Z + z, scale, detail);
+            covariance += here * next;
+            variance += here * here;
+            if( fabs(here) > peak )
+                peak = fabs(here);
+        }
+    *out_peak = peak;
+    return variance > 0.0 ? covariance / variance : 0.0;
+}
+
+static void
+test_relief(void)
+{
+    static struct Editor_Cmd plan[EDITOR_BRUSH_TILES_MAX];
+    static struct Editor_Cmd again[EDITOR_BRUSH_TILES_MAX];
+    struct Editor_BrushOp op;
+    double peak;
+    double correlation;
+    int const cx = BASE_X + 32;
+    int const cz = BASE_Z + 20;
+    int n;
+    int m;
+    int agree = 0;
+    int pairs = 0;
+    int same = 1;
+
+    correlation = relief_neighbour_correlation(11, 1, 50, &peak);
+    CHECK(fabs(correlation) < 0.1, "relief: scale 1 is a draw per tile (neighbour correlation %.3f)", correlation);
+    correlation = relief_neighbour_correlation(11, 8, 50, &peak);
+    CHECK(correlation > 0.7 && peak > 0.8 && peak <= 1.0,
+        "relief: at 8 tiles a tile goes where its neighbour goes (correlation %.3f, peak %.3f)", correlation, peak);
+    correlation = relief_neighbour_correlation(11, 8, 100, &peak);
+    CHECK(correlation > 0.6 && correlation < relief_neighbour_correlation(11, 8, 0, &peak),
+        "relief: detail roughens the same hills (correlation %.3f at 100)", correlation);
+    correlation = relief_neighbour_correlation(11, 24, 50, &peak);
+    CHECK(correlation > 0.95 && peak > 0.8, "relief: wider hills are smoother (correlation %.3f at 24, peak %.3f)",
+        correlation, peak);
+    CHECK(Editor_RoughenRelief(11, cx, cz, 0, 50) == Editor_RoughenRelief(11, cx, cz, EDITOR_ROUGHEN_SCALE_DEFAULT, 50)
+              && Editor_RoughenRelief(11, cx, cz, 8, 50) != Editor_RoughenRelief(12, cx, cz, 8, 50),
+        "relief: scale 0 reads as the default, and another seed is another relief");
+
+    /* The brush lays it: under a wide flat brush with a tall step, tiles
+     * that moved mostly moved the way the tile beside them did. */
+    memset(&op, 0, sizeof(op));
+    op.tool = EDITOR_TOOL_NOISE;
+    op.world_x = cx;
+    op.world_z = cz;
+    op.level = 0;
+    op.brush.radius = 8;
+    op.brush.falloff = EDITOR_BRUSH_FALLOFF_FLAT;
+    op.brush.step = 6;
+    op.noise_seed = 21;
+    op.noise_scale = 8;
+    op.noise_detail = 50;
+    n = Editor_BrushCommands(&g_editor.doc, &op, plan, EDITOR_BRUSH_TILES_MAX);
+    m = Editor_BrushCommands(&g_editor.doc, &op, again, EDITOR_BRUSH_TILES_MAX);
+    for( int i = 0; i < n && i < m; i++ )
+        if( plan[i].u.tile.x != again[i].u.tile.x || plan[i].u.tile.z != again[i].u.tile.z
+            || plan[i].u.tile.after.height != again[i].u.tile.after.height )
+            same = 0;
+    CHECK(n > 100 && n == m && same, "relief: the brush plans the same ground twice (%d, %d)", n, m);
+    for( int i = 0; i + 1 < n; i++ )
+    {
+        /* Commands come out row by row: the next one on the same row is
+         * the tile beside it. */
+        if( plan[i].u.tile.z != plan[i + 1].u.tile.z || plan[i + 1].u.tile.x != plan[i].u.tile.x + 1 )
+            continue;
+        pairs++;
+        if( (Editor_RoughenRelief(21, BASE_X + plan[i].u.tile.x, BASE_Z + plan[i].u.tile.z, 8, 50) > 0)
+            == (Editor_RoughenRelief(21, BASE_X + plan[i + 1].u.tile.x, BASE_Z + plan[i + 1].u.tile.z, 8, 50) > 0) )
+            agree++;
+    }
+    CHECK(pairs > 60 && agree * 10 >= pairs * 8, "relief: %d of %d neighbouring tiles go the same way", agree, pairs);
+
+    /* Whole units from a fraction: a step of one still moves ground, where
+     * rounding to the nearest left every tile under half a unit alone. */
+    op.brush.step = 1;
+    n = Editor_BrushCommands(&g_editor.doc, &op, plan, EDITOR_BRUSH_TILES_MAX);
+    CHECK(n > 20, "relief: a step of one unit moves tiles too (%d)", n);
+
+    /* One stroke lays the relief once. A drag applies the brush at every
+     * tile it crosses, so a tile is under many applications; pushed by each,
+     * a step of 6 under a radius-8 brush raised hills of a hundred units.
+     * With the stroke remembered, no tile ends further than the step from
+     * where it began, and going over the same ground again adds nothing. */
+    {
+        static struct Editor_RoughenStroke stroke;
+        static int before[17][33];
+        int worst = 0;
+        int moved = 0;
+        int again_total = 0;
+
+        op.brush.step = 6;
+        op.brush.falloff = EDITOR_BRUSH_FALLOFF_SMOOTH;
+        op.noise_seed = 33;
+        op.noise_stroke = &stroke;
+        Editor_RoughenStrokeBegin(&stroke, op.noise_seed);
+        for( int dz = -8; dz <= 8; dz++ )
+            for( int dx = -8; dx <= 24; dx++ )
+                before[dz + 8][dx + 8] = derived(cx + dx, cz + dz);
+        Editor_StrokeBegin(&g_editor);
+        Editor_HistoryName(&g_editor, "roughen");
+        for( int pass = 0; pass < 2; pass++ )
+            for( int step = 0; step <= 16; step++ )
+            {
+                op.world_x = cx + step;
+                n = Editor_BrushCommands(&g_editor.doc, &op, plan, EDITOR_BRUSH_TILES_MAX);
+                for( int i = 0; i < n; i++ )
+                    (void)Editor_Apply(&g_editor, &plan[i]);
+                Editor_RoughenStrokeNote(&stroke, &op, plan, n);
+                if( pass == 1 )
+                    again_total += n;
+            }
+        Editor_StrokeEnd(&g_editor);
+        for( int dz = -8; dz <= 8; dz++ )
+            for( int dx = -8; dx <= 24; dx++ )
+            {
+                int d = derived(cx + dx, cz + dz) - before[dz + 8][dx + 8];
+                if( d < 0 )
+                    d = -d;
+                if( d > 0 )
+                    moved++;
+                if( d > worst )
+                    worst = d;
+            }
+        /* The step in units of 8, plus the ladder's snap of a generated
+         * tile onto a representable height. */
+        CHECK(moved > 150 && worst <= 6 * 8 + 16,
+            "relief: a 17-tile drag moves %d tiles and none further than the step (worst %d of %d)", moved, worst,
+            6 * 8 + 16);
+        CHECK(again_total == 0, "relief: the same stroke over the same ground again adds nothing (%d)", again_total);
+        CHECK(Editor_Undo(&g_editor) > 150 && derived(cx, cz) == before[8][8], "relief: one undo takes the stroke back");
+        op.world_x = cx;
+        op.noise_stroke = NULL;
+    }
+}
+
 /* Paint underlay's mix: under 100 the brush paints a seeded share of its
  * tiles (the dither the client's blend smooths); 100 is the flat paint. */
 static void
@@ -1281,6 +1442,7 @@ main(
     test_fit_run();
     test_diagonal_run();
     test_noise();
+    test_relief();
     test_scatter();
     test_plateau();
     test_mix();

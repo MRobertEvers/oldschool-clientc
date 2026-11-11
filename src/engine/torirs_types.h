@@ -151,7 +151,9 @@ struct ToriRS_Texture
 struct ToriRS_MapFloor
 {
     uint16_t overlay_id;
-    uint8_t underlay_id;
+    /** The record's id + 1 (0 = none), as wide as the map states it
+     *  (RSCache_MapFloor::underlay_id). */
+    uint16_t underlay_id;
     /**
      * The RESOLVED height the renderer meshes from: scaled by the tile-height
      * basis, generated from Perlin noise where the file authored none, and

@@ -35,6 +35,11 @@
 #define EDITOR_SQUARE_Z 64
 #define EDITOR_SQUARE_LEVELS 4
 #define EDITOR_SQUARE_TILES (EDITOR_SQUARE_X * EDITOR_SQUARE_Z * EDITOR_SQUARE_LEVELS)
+/** The largest `u` token: the underlay rides the map's attribute opcode as
+ *  `value + 81`, a u16 from OldSchool 209 on (rscache maps.h
+ *  RSCACHE_MAP_UNDERLAY_MAX_U16). A pre-209 cache holds 174; cachepack
+ *  refuses a square that states more than its cache can. */
+#define EDITOR_UNDERLAY_MAX (0xFFFF - 81)
 
 /** Tile index. Level-major, then x, then z — the order the file lists them and
  *  the order RSCACHE_MAP_TILE_COORD uses, so a re-encode is byte-exact. */
@@ -75,8 +80,11 @@ struct Editor_Tile
      *  4 remove-roof, 8 vis-below). 0 = no token. */
     uint8_t settings;
 
-    /** The `u` token. 0 = no token. */
-    uint8_t underlay_id;
+    /** The `u` token: the underlay record's id + 1. 0 = no token. As wide
+     *  as the u16 era's map opcode holds (EDITOR_UNDERLAY_MAX): the cache's
+     *  own underlays fill 1..256, so a record made in the tree is past a
+     *  byte from the first one. */
+    uint16_t underlay_id;
 };
 
 /** One scenery placement, as a `.jl2` line: `level x z: id shape [rotation]`. */

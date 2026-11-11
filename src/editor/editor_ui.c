@@ -101,6 +101,8 @@ Editor_UiInit(
     ui->tools.path_height_mode = 0;
     ui->tools.path_height_units = 2;
     ui->tools.noise_seed = 1;
+    ui->tools.noise_scale = 8;
+    ui->tools.noise_detail = 50;
     ui->tools.paint_mix = 100;
     ui->tools.scatter_density = 20;
     ui->tools.scatter_rotate = 1;

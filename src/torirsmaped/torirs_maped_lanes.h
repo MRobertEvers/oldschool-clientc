@@ -442,6 +442,11 @@ ToriRSMapEdLanes_BootName(
  * nothing) says what the file did: "lane 'x' (build/lanes/lane.ini, switched
  * in the editor; the boot asked for 'working')", or that the lane it names is
  * gone. Returns 1 when the file chose the lane.
+ *
+ * $TORIRSMAPED_IGNORE_BOOT_LANE (anything but "" or "0"): the file is not
+ * read and the boot serves `configured`, the note saying so. For a test or
+ * an agent's run, which must stay in the lane it was started on whatever the
+ * owner last switched to.
  */
 int
 ToriRSMapEdLanes_BootLane(

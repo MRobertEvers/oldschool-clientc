@@ -47,7 +47,7 @@ decode_tile(
     tile->shape = (uint8_t)ToriRSMapEd_ReadU32(body + 16);
     tile->rotation = (uint8_t)ToriRSMapEd_ReadU32(body + 20);
     tile->settings = (uint8_t)ToriRSMapEd_ReadU32(body + 24);
-    tile->underlay_id = (uint8_t)ToriRSMapEd_ReadU32(body + 28);
+    tile->underlay_id = (uint16_t)ToriRSMapEd_ReadU32(body + 28);
 }
 
 static void
