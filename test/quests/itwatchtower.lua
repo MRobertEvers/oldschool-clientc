@@ -53,6 +53,7 @@ return {
         "::give rope 2",          -- tree_ropeswing4_norope, two outbound swings
         "::give guamvial",        -- Guam potion (unf)
         "::give torch_lit",       -- lit light source for the skavid caves
+        "::give tinderbox",       -- with the light, no warning at a cave (RSProx index 4527 [5687]: the recorder fetched one)
         "::give pestle_and_mortar",
         "::give bat_bones",
         "::give jangerberries",
@@ -324,7 +325,12 @@ return {
         climb_to_wizard("goUpLadderToWizard")
 
         t.exec("talkToWizard", t.player.talk_to, "watchtower_wizard", 1)
+        -- Every page and menu as RSProx index 4527 recorded them ([697..802]).
         t.exec("talkToWizard-dialog", t.chat.play, {
+            "npc:Who are you? Are you one of the new guards?",
+            "player:No, I'm an adventurer.",
+            "npc:Well what are you doing here?",
+            "player:Looking for adventures - what else?",
             "npc:Oh my, oh my",
             "choose:What's the matter?",
             "player:What's the matter",
@@ -334,7 +340,6 @@ return {
             "player:What do you mean it isn't work",
             "npc:The Watchtower here works",
             "npc:The exact knowledge of the spe",
-            "npc:Feldips.",
             "choose:So how come the spell doesn't work?",
             "player:So how come the spell doesn't",
             "npc:The crystals! The crystals hav",
@@ -342,7 +347,7 @@ return {
             "npc:Stolen!",
             "player:Stolen?",
             "npc:Yes, yes! Do I have to repeat",
-            "choose:Can I be of help?",
+            "choose:Yes.",
             "player:Can I be of help?",
             "npc:Help? Oh wonderful, dear trave",
             "npc:Yes I could do with an extra p",
@@ -350,6 +355,7 @@ return {
             "npc:There must be some evidence of",
             "player:I would be happy to.",
             "npc:Try searching the surrounding",
+            "npc:I will tell the guards to let you past",
         })
         t.check("quest.stage.started", t.quest.expect_stage("itwatchtower_started"))
 
@@ -390,8 +396,8 @@ return {
             "player:That sounds scary",
             "npc:Ogres are nasty creatures",
             "player:What do I need to do to get into",
-            "npc:Well, the guards need to be dealt",
-            "npc:Tribal ogres often dislike",
+            "npc:You'll need some way to make the guards let you in.",
+            "npc:You could start by checking out the ogre settlements",
         })
         t.check("quest.stage.given_fingernails", t.quest.expect_stage("itwatchtower_given_fingernails"))
 
@@ -400,7 +406,7 @@ return {
         t.exec("goto-talkToOg", t.player.goto_tile, 2506, 3116, 0)
         t.exec("talkToOg", t.player.talk_to, "og", 1)
         t.exec("talkToOg-dialog", t.chat.play, {
-            "npc:Why you here little rat?",
+            "npc:Why you here, little t'ing?",
             "choose:I seek entrance to the city of ogres.",
             "player:I seek entrance to the city of",
             "npc:You got no business there!",
@@ -478,7 +484,7 @@ return {
         -- ================= Talk to Toban (first) =================
         t.exec("talkToToban", t.player.talk_to, "toban", 1)
         t.exec("talkToToban-dialog", t.chat.play, {
-            "npc:What do you want, small thing",
+            "npc:What do you want, small t'ing",
             "choose:I seek entrance to the city of ogres.",
             "player:I seek entrance to the city of",
             "npc:Hahaha! You'll never get in there",
@@ -536,17 +542,21 @@ return {
         t.exec("goto-bringRelicUpToFirstFloor", t.player.goto_tile, 2544, 3113, 0)
         up_to_wizard("bringRelicUpToFirstFloor", "bringRelicUpToWizard")
 
-        -- Each relicpartN use_on assembles the statue; the third call fires
-        -- @check_relic_parts (watchtower_wizard.rs2:201-211) which auto-
-        -- advances the stage once all three bits are set -- no separate
-        -- talk_to needed.
-        local wizard_t = t.player.by_symbol("npc", "watchtower_wizard")
-        t.exec("talkToWizardWithRelic-part1", t.player.use_on, "relicpart1", wizard_t)
-        t.exec("talkToWizardWithRelic-part1-drain", t.chat.drain, {stop_at = "none", max_pages = 10})
-        t.exec("talkToWizardWithRelic-part2", t.player.use_on, "relicpart2", wizard_t)
-        t.exec("talkToWizardWithRelic-part2-drain", t.chat.drain, {stop_at = "none", max_pages = 10})
-        t.exec("talkToWizardWithRelic-part3", t.player.use_on, "relicpart3", wizard_t)
-        t.exec("talkToWizardWithRelic-part3-drain", t.chat.drain, {stop_at = "none", max_pages = 10})
+        -- One talk hands in every part held, then assembles the statue
+        -- (RSProx index 4527 [4089..4110]; watchtower_wizard.rs2
+        -- ~watchwiz_take_relic_parts).
+        t.exec("talkToWizardWithRelic", t.player.talk_to, "watchtower_wizard", 1)
+        t.exec("talkToWizardWithRelic-dialog", t.chat.play, {
+            "player:An ogre called Og gave me this...",
+            "npc:Ah, it's part of an old ogre statue.",
+            "player:An ogre called Grew gave me this...",
+            "npc:Ah, it's more of that old ogre statue.",
+            "player:An ogre called Toban gave me this...",
+            "npc:Ah, it's more of that old ogre statue.",
+            "npc:It looks like you've brought me all the pieces",
+            "npc:Well, if you ever want to make friends with an ogre",
+        })
+        t.exec("talkToWizardWithRelic-drain", t.chat.drain, {stop_at = "none", max_pages = 3})
         t.exec("inv.ogrerelic", t.inv.await, "ogrerelic", 1, 5)
         t.check("quest.stage.made_relic", t.quest.expect_stage("itwatchtower_made_relic"))
 
@@ -556,13 +566,13 @@ return {
         t.exec("goto-enterGuTanoth", t.player.goto_tile, 2506, 3063, 0)
         local guard2_t = t.player.by_symbol("npc", "ogre_guard2")
         t.exec("enterGuTanoth", t.player.use_on, "ogrerelic", guard2_t)
-        -- @ogre_guard_friendship_proof (ogre_guard.rs2:65-77): the pages,
-        -- then p_teleport(0_39_47_7_54) = 2503,3062, inside the gate.
+        -- The guard's pages, then he has the gate opened and the player goes
+        -- through it (RSProx index 4527 [4271..4283]).
         t.exec("enterGuTanoth-drain", t.chat.drain, {stop_at = "none", max_pages = 10})
-        await_tile(function(tt) return tt.x <= 2503 and tt.z <= 3063 end, 10, "enterGuTanoth")
+        await_tile(function(tt) return tt.x <= 2503 end, 20, "enterGuTanoth")
         local eg_r, eg_tile = t.world.tile()
-        t.check("enterGuTanoth.landed", eg_r == "ok" and eg_tile.x == 2503 and eg_tile.z == 3062 and eg_tile.level == 0,
-            "the guard let the player in: at " .. tile_text(eg_r, eg_tile) .. " (want 2503,3062,0, ogre_guard.rs2:74)")
+        t.check("enterGuTanoth.landed", eg_r == "ok" and eg_tile.x <= 2503 and eg_tile.level == 0,
+            "the guard let the player in: at " .. tile_text(eg_r, eg_tile) .. " (want inside the north-west gate, x <= 2503)")
         t.check("quest.stage.given_relic", t.quest.expect_stage("itwatchtower_given_relic"))
 
         -- ================= Market: rock cake for the battlement guard =================
@@ -624,11 +634,12 @@ return {
         t.exec("inv.rockcake_spent", t.inv.expect_absent, "rockcake")
 
         -- ================= Over the battlement, jump the broken bridge =================
-        -- [oploc1,ganothbattlement] (quest_itwatchtower.rs2:344-357): with the
-        -- market bits at 2 the player climbs from loc-1 to loc+1 on x.
-        t.exec("walk-climbBattlement", t.player.walk_to, 2506, 3012)
-        t.exec("climbBattlement", t.player.cross_trap, { loc = "ganothbattlement", op = 1, op_name = "Climb-over",
-            at = { 2507, 3012, 0 }, src = { 2506, 3012 }, dest = { 2508, 3012 }, attempts = 2 })
+        -- The guard who takes the cake sends the player over the battlement
+        -- himself (RSProx index 4527 [4779..4784]: a run to it and the climb).
+        await_tile(function(tt) return tt.x >= 2508 and tt.z >= 3010 and tt.z <= 3013 end, 20, "climbBattlement")
+        local cb_r, cb_tile = t.world.tile()
+        t.check("climbBattlement", cb_r == "ok" and cb_tile.x >= 2508,
+            "over the battlement after the cake: at " .. tile_text(cb_r, cb_tile) .. " (want x >= 2508)")
         -- tanothjump1 is maps/m39_47.jl2 `1 34 18: 2830 10`: raw level 1 on
         -- the bridge deck the player walks on plane 0. [oploc1,tanothjump1]
         -- (quest_itwatchtower.rs2:418-444): ogre_guard4 (within 8) asks the
@@ -641,7 +652,7 @@ return {
             far_desc = "over the gap on the city guard's side (2530,3029)",
             chat = {
                 "npc:Oi! Little thing",
-                "player:20 gold pieces to jump",
+                "player:You want me to give you 20 gold pieces",
                 "npc:That's what I said",
                 "choose:Okay, I'll pay it.",
                 "player:Okay, I'll pay it.",
@@ -694,7 +705,7 @@ return {
 
         -- ================= Skavid caves: the scared skavid =================
         t.exec("goto-enterScaredSkavidCave", t.player.goto_tile, 2552, 3034, 0)
-        cave_in("enterScaredSkavidCave", "skavid_cave5", { 2553, 3033 }, { 2552, 3034 }, { 2504, 9441 })
+        cave_in("enterScaredSkavidCave", "skavid_cave5", { 2553, 3033 }, { 2552, 3034 }, { 2504, 9440 })
         t.exec("talkToScaredSkavid", t.player.talk_to, "scared_skavid", 1)
         t.exec("talkToScaredSkavid-dialog", t.chat.play, {
             "npc:Tanath cur, tanath cur",
@@ -711,10 +722,11 @@ return {
             "npc:Thank you, kind one",
             "npc:I'll tells you where",
             "npc:You will have to learn skavid",
-            "npc:Let me tells you the most comm",
-            "npc:Ar, nod, gor, ig, cur",
-            "npc:Those will gets you started",
         })
+        -- The chat closes for the ogre who silences him and opens again six
+        -- ticks on (RSProx index 4527 [5933..5939]).
+        t.ticks(8)
+        t.exec("talkToScaredSkavid-words", t.chat.play, { "npc:I cannot help you, but the others can." })
         cave_out("leaveScaredSkavidRoom", "cave5exit", { 2504, 9442 }, { 2552, 3034 })
 
         -- ================= Room 1 (skavid_cave4): skavidtalker3, "Cur." =================
@@ -731,7 +743,7 @@ return {
 
         -- ================= Room 2 (skavid_cave3): skavidtalker2, "Ar." =================
         t.exec("goto-enterSkavid2Cave", t.player.goto_tile, 2540, 3054, 0)
-        cave_in("enterSkavid2Cave", "skavid_cave3", { 2539, 3052 }, { 2540, 3054 }, { 2518, 9455 })
+        cave_in("enterSkavid2Cave", "skavid_cave3", { 2539, 3052 }, { 2540, 3054 }, { 2518, 9454 })
         t.exec("talkToSkavid2", t.player.talk_to, "skavidtalker2", 1)
         t.exec("talkToSkavid2-dialog", t.chat.play, {
             "npc:Gor cur",
@@ -743,7 +755,7 @@ return {
 
         -- ================= Room 3 (skavid_cave2): skavidtalker1, "Ig." + nightshade #1 =================
         t.exec("goto-enterSkavid3Cave", t.player.goto_tile, 2524, 3070, 0)
-        cave_in("enterSkavid3Cave", "skavid_cave2", { 2522, 3068 }, { 2524, 3070 }, { 2532, 9469 })
+        cave_in("enterSkavid3Cave", "skavid_cave2", { 2522, 3068 }, { 2524, 3070 }, { 2530, 9467 })
         t.exec("talkToSkavid3", t.player.talk_to, "skavidtalker1", 1)
         t.exec("talkToSkavid3-dialog", t.chat.play, {
             "npc:Cur bidith",
@@ -759,7 +771,7 @@ return {
         local ns1_r, ns1_d = t.player.click_obj("nightshade", 3)
         t.check("pickUp2Nightshade-1", ns1_r == "ok", "click_obj nightshade op3 -> " .. tostring(ns1_r) .. " " .. tostring(ns1_d))
         t.exec("inv.nightshade1", t.inv.await, "nightshade", 1, 5)
-        cave_out("leaveSkavid3", "cave2exit", { 2532, 9470 }, { 2524, 3070 })
+        cave_out("leaveSkavid3", "cave2exit", { 2532, 9470 }, { 2523, 3070 })
 
         -- ================= Room 4 (skavid_cave1): skavidtalker4, "Nod." =================
         t.exec("goto-enterSkavid4Cave", t.player.goto_tile, 2562, 3024, 0)
@@ -771,7 +783,7 @@ return {
             "player:Nod.",
             "npc:Nod",
         })
-        cave_out("leaveSkavid4", "cave1exit", { 2497, 9418 }, { 2562, 3024 })
+        cave_out("leaveSkavid4", "cave1exit", { 2497, 9418 }, { 2563, 3024 })
 
         -- ================= The SE gate: ogre_guard1, gold bar toll =================
         -- open_gutanoth_gate (ogre_guard.rs2:187-202): while %gutanoth_gold <
@@ -793,15 +805,14 @@ return {
                         "npc:Halt! You cannot pass here.",
                         "player:I am a friend to ogres.",
                         "npc:You will be my friend only with gold.",
-                        "npc:For now - begone!",
                     })
-                    await_tile(function(tt) return tt.x == 2546 and tt.z == 3065 end, 8, "tryToGoThroughToInsaneSkavid")
-                    local ar, after = t.world.tile()
-                    t.check("tryToGoThroughToInsaneSkavid", ar == "ok" and after.x == 2546 and after.z == 3065
-                            and after.level == 0,
+                    -- The first meeting asks for the gold and lets the player
+                    -- be (RSProx index 4527 [1559..1562]): no push.
+                    local vr, chat1 = t.var.varbit("varb3118_watchtower_gate_chat_1")
+                    t.check("tryToGoThroughToInsaneSkavid", cr == "ok" and chat1 == 1,
                         "ogreguardgate1 2550,3028 from " .. tile_text(br, before) .. ": click_loc -> " .. tostring(r)
                             .. " " .. tostring(d) .. "; guard's pages -> " .. tostring(cr) .. " " .. tostring(cd)
-                            .. "; pushed to " .. tile_text(ar, after) .. " (want ^gutanoth_hill 2546,3065,0)")
+                            .. "; watchtower_gate_chat_1 " .. tostring(vr) .. " " .. tostring(chat1) .. " (want 1)")
                     pushed = true
                 else
                     t.note("tryToGoThroughToInsaneSkavid attempt " .. attempt .. ": click_loc -> " .. tostring(r)
@@ -818,7 +829,7 @@ return {
         t.exec("throughSEGate", t.player.cross_gate, { loc = "ogreguardgate1", op = 1, at = { 2550, 3028, 0 },
             near = { 2550, 3029 },
             far_ok = function(tile) return tile.z <= 3027 end,
-            far_desc = "through the SE gate (2549,3027, ogre_guard.rs2:22)",
+            far_desc = "through the SE gate: the guard has it opened after his page",
             chat = {
                 "npc:Creature, did you bring me the gold?",
                 "player:Here it is!",
@@ -873,7 +884,7 @@ return {
         t.check("pickUp2Nightshade-2", ns2_r == "ok", "click_obj nightshade op3 -> " .. tostring(ns2_r) .. " " .. tostring(ns2_d))
         t.exec("inv.nightshade2", t.inv.await, "nightshade", 2, 5)
 
-        cave_out("leaveMadSkavid", "cave6exit", { 2521, 9411 }, { 2529, 3013 })
+        cave_out("leaveMadSkavid", "cave6exit", { 2521, 9411 }, { 2529, 3012 })
 
         -- ================= Infiltrate the enclave (nightshade #1) =================
         -- "Leave the way you came in ... Return to the Gu'Tanoth market"
@@ -897,7 +908,20 @@ return {
         -- enter_skavid_cave waits p_delay(2) and p_teleport's into the
         -- enclave (0_40_147_28_2 = 2588,9410).
         t.exec("useNightshadeOnGuard-drain", t.chat.drain, {stop_at = "none", max_pages = 5})
-        await_tile(function(tt) return tt.z > 9000 end, 8, "useNightshadeOnGuard")
+        -- The dangerous-area warning, then the run past and, the first time,
+        -- the enclave scene ("Meanwhile, in the Shaman's enclave...") played
+        -- in a copy before the player lands at the entry (RSProx index 4527
+        -- [7680..7718]).
+        t.check("useNightshadeOnGuard.warning", t.ui.await_open("cws_warning_12", 12) == "ok", "cws_warning_12 open")
+        local w1r, w1 = t.ui.widget("cws_warning_12:warn1")
+        t.exec("useNightshadeOnGuard.runPast", t.ui.invoke, w1, 1)
+        local scene_mark = t.cutscene.mark()
+        -- The box comes fourteen ticks after the run past (M+11).
+        t.ticks(16)
+        t.exec("enclaveScene.box", t.chat.play, { "mesbox:Meanwhile, in the Shaman's enclave..." })
+        t.exec("enclaveScene.camera", t.cutscene.await, "enclave", { since = scene_mark,
+            expect = { { op = "moveto", height = 500 }, { op = "lookat", height = 200 } } })
+        await_tile(function(tt) return tt.x == 2588 and tt.z == 9410 end, 40, "useNightshadeOnGuard")
         local _, enclave_tile = t.world.tile()
         t.check("enclave.entered", enclave_tile ~= nil and enclave_tile.x == 2588 and enclave_tile.z == 9410,
             "player at " .. tile_text("ok", enclave_tile) .. " (want 2588,9410,0, enclave_guard.rs2:47)")
@@ -965,7 +989,11 @@ return {
         })
         t.exec("msg.wizard_mutters", t.msg.expect, "wizard mutters strange words")
         t.ticks(3)
-        t.exec("talkToWizardWithPotion-enchant", t.chat.play, {"npc:Here it is - a dangerous"})
+        t.exec("talkToWizardWithPotion-enchant", t.chat.play, {
+            "npc:Here it is - a dangerous",
+            "player:How high is high enough?",
+            "npc:Well, if you can cast Bones to Bananas",
+        })
         t.exec("inv.magic_ogre_potion", t.inv.await, "magic_ogre_potion", 1, 5)
         t.check("quest.stage.made_potion", t.quest.expect_stage("itwatchtower_made_potion"))
 
@@ -978,7 +1006,10 @@ return {
         local guard_encl_t2 = t.player.by_symbol("npc", "enclave_guard")
         t.exec("useNightshadeOnGuardAgain", t.player.use_on, "nightshade", guard_encl_t2)
         t.exec("useNightshadeOnGuardAgain-drain", t.chat.drain, {stop_at = "none", max_pages = 5})
-        await_tile(function(tt) return tt.z > 9000 end, 8, "useNightshadeOnGuardAgain")
+        t.check("useNightshadeOnGuardAgain.warning", t.ui.await_open("cws_warning_12", 12) == "ok", "cws_warning_12 open")
+        local w2r, w2 = t.ui.widget("cws_warning_12:warn1")
+        t.exec("useNightshadeOnGuardAgain.runPast", t.ui.invoke, w2, 1)
+        await_tile(function(tt) return tt.z > 9000 end, 10, "useNightshadeOnGuardAgain")
         local _, enclave_tile2 = t.world.tile()
         t.check("enclave.entered_again", enclave_tile2 ~= nil and enclave_tile2.x == 2588 and enclave_tile2.z == 9410,
             "player at " .. tile_text("ok", enclave_tile2) .. " (want 2588,9410,0)")
@@ -996,15 +1027,18 @@ return {
             {sym = "qip_watchtower_ogre_shaman_05", x = 2607, z = 9451},
             {sym = "qip_watchtower_ogre_shaman_06", x = 2606, z = 9438},
         }
+        -- Each pour holds the player ten ticks among the enclave's monsters
+        -- (RSProx index 4527 [8571..8579]): eat earlier here.
+        EAT_BELOW = 45
         margin_begin()
         for i, shaman in ipairs(shamans) do
             vitals()
             t.exec("goto-usePotionOnOgre" .. i, t.player.goto_tile, shaman.x, shaman.z, 0)
             local shaman_t = t.player.by_symbol("npc", shaman.sym)
             t.exec("usePotionOnOgre" .. i, t.player.use_on, "magic_ogre_potion", shaman_t)
-            -- seam23 copy: the handler pages after its own p_delay(1); a
-            -- page left up here holds the script and drops the next click.
-            t.ticks(2)
+            -- The pour, then the lines and the page eight ticks on (RSProx
+            -- index 4527 [8571..8579]); a page left up here drops the next click.
+            t.ticks(12)
             t.exec("usePotionOnOgre" .. i .. "-drain", t.chat.drain, {})
             vitals()
         end
@@ -1072,9 +1106,7 @@ return {
         t.ticks(10)
         t.exec("pullLever-dialog", t.chat.play, {
             "npc:Marvellous! It works!",
-            "npc:Take this payment",
-            "npc:improve your Magic level",
-            "npc:Here is a special item",
+            "npc:I've given you a special scroll too",
         })
         t.quest.expect_complete()
 

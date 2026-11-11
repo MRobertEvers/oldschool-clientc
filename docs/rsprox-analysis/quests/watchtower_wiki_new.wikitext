@@ -1,0 +1,1158 @@
+{{External|rs}}
+{{Transcript|Quest}}
+{{Transcript list|Enclave guard|Tower guard|Watchtower Wizard|Wizard (Watchtower)|Gorad|Grew|Mad skavid|Og|Ogre guard|Ogre shaman|Scared skavid|Skavid|Toban|City guard|Ogre chieftain}}
+
+==Getting started==
+===Speaking to a tower guard===
+* '''Player:''' Hello. What are you doing here?
+* '''Tower guard:''' We are the tower guards - our business is our own!
+* {{tact|end}}
+
+===Attempting to climb the ladder===
+* {{tcond|Before starting the quest:}}
+** '''Tower guard:''' You can't go up there. That's private, that is.
+** {{tact|end}}
+* {{tcond|The first time after starting the quest:}}
+** '''Tower guard:''' It is the wizards' helping hand - let 'em up.
+** {{tact|end}}
+
+===Speaking to a wizard===
+* '''Player:''' What's going on here?
+* '''Wizard:''' You'll have to speak with the Watchtower Wizard about that.
+* {{tact|end}}
+
+===Speaking to the Watchtower Wizard===
+* '''Watchtower Wizard:''' Who are you? Are you one of the new guards?
+* '''Player:''' No, I'm an adventurer.
+* '''Watchtower Wizard:''' Well what are you doing here?
+* '''Player:''' Looking for adventures - what else?
+* '''Watchtower Wizard:''' Oh my, oh my! What does it all matter in the end, anyway?
+* {{tselect|Select an Option}}
+* {{topt|What's the matter?}}
+** '''Player:''' What's the matter?
+** '''Watchtower Wizard:''' Oh dear, oh dear. Darn and drat!
+** '''Watchtower Wizard:''' We try hard to keep this town protected.
+** '''Watchtower Wizard:''' But how can we do that when the Watchtower isn't working?
+*** '''Player:''' What do you mean it isn't working?
+** '''Watchtower Wizard:''' The Watchtower here works by the power of magic. An ancient spell designed to ward off ogres that has been in place here for many moons.
+** '''Watchtower Wizard:''' The exact knowledge of the spell is lost to us now, but the essence of the spell has been infused into four powering crystals that keep the tower protected from the hordes in the Feldips.
+** {{tselect|Select an Option}}
+** {{topt|So how come the spell doesn't work?}}
+*** '''Player:''' So how come the spell doesn't work?
+*** '''Watchtower Wizard:''' The crystals! The crystals have been taken!
+*** '''Player:''' Taken?
+*** '''Watchtower Wizard:''' Stolen!
+*** '''Player:''' Stolen?
+*** '''Watchtower Wizard:''' Yes, yes! Do I have to repeat myself?
+*** {{tselect|Start the Watchtower quest?}}
+*** {{topt|Yes.}}
+**** '''Player:''' Can I be of help?
+**** '''Watchtower Wizard:''' Help? Oh wonderful, dear traveller!
+**** '''Watchtower Wizard:''' Yes I could do with an extra pair of eyes here.
+**** '''Player:''' ???
+**** '''Watchtower Wizard:''' There must be some evidence of what has happened here. Perhaps you could assist me in searching for clues?
+**** '''Player:''' I would be happy to.
+**** '''Watchtower Wizard:''' Try searching the surrounding area. If you find anything unusual, bring it here. Try the bushes - I've read enough adventure stories to know that clues get caught in bushes all the time.
+**** '''Watchtower Wizard:''' I will tell the guards to let you past - that way, you can just use the ladder to get in and out.
+**** {{tact|end}}
+*** {{topt|No.}}
+**** '''Player:''' I'm not interested.
+**** '''Watchtower Wizard:''' That's typical, nowadays. It's left to us wizards to do all the work.
+**** {{tact|end}}
+** {{topt|I'm not interested in your rantings.}}
+*** '''Player:''' I'm not interested in your rantings.
+*** '''Watchtower Wizard:''' Hmph! Suit yourself.
+*** {{tact|end}}
+* {{topt|You wizards are always complaining.}}
+** '''Player:''' You wizards are always complaining.
+** '''Watchtower Wizard:''' Complaining? Complaining!
+** '''Watchtower Wizard:''' What folks these days don't realise is that if it weren't for us wizards, this entire world would be overrun with every creature you could possibly imagine. And some you couldn't even conceive of!
+** {{tact|end}}
+
+==Searching for evidence==
+===Speaking to a wizard===
+* '''Player:''' I've got some questions about the search for evidence.
+* '''Wizard:''' You'll have to speak with the Watchtower Wizard about that.
+* {{tact|end}}
+
+===Talking to the Watchtower Wizard===
+* '''Watchtower Wizard:''' Hello again. Did you find anything of interest?
+* {{tcond|With no evidence to show him:}}
+** '''Player:''' No, sorry, nothing yet.
+** '''Watchtower Wizard:''' Oh dear, oh dear, there must be something, somewhere...
+** {{tact|end}}
+* {{tcond|With any of the evidence besides fingernails:}}
+** '''Player:''' I have this [robe/dagger/armour/eyepatch]...
+** '''Watchtower Wizard:''' Let me see...
+** '''Watchtower Wizard:''' No, sorry, this is not evidence. You need to keep searching, I'm afraid.
+** {{tact|end}}
+
+===Using evidence other than the fingernails on the Watchtower Wizard===
+* '''Watchtower Wizard:''' Let me see...
+* '''Watchtower Wizard:''' No, sorry, this is not evidence. You need to keep searching, I'm afraid.
+* {{tact|end}}
+* {{tcond|With the fingernails}}
+** '''Player:''' Have a look at these...
+** '''Watchtower Wizard:''' Interesting, very interesting.
+** '''Watchtower Wizard:''' Long nails...grey in colour...well chewed...
+** '''Watchtower Wizard:''' Of course! They belong to a skavid!
+** '''Player:''' A skavid?
+** '''Watchtower Wizard:''' A servant race to the ogres: grey, depressed-looking creatures, always losing nails, teeth and hair!
+** '''Watchtower Wizard:''' They inhabit the caves in the Feldip Hills.
+** '''Watchtower Wizard:''' They normally keep to themselves, though. It's unusual for them to venture from their caves.
+** {{tselect|Select an Option}}
+** {{topt|What do you suggest I do?}}
+*** '''Player:''' What do you suggest I do?
+*** '''Watchtower Wizard:''' It's no good searching the caves. Well, not yet, anyway.
+*** '''Player:''' Why not?
+*** '''Watchtower Wizard:''' They are deep and complex. The only way you will navigate the caves is to have a map or something.
+*** '''Watchtower Wizard:''' It may be that the ogres have one...
+*** '''Player:''' And how do you know that?
+*** '''Watchtower Wizard:''' Well... I don't.
+*** {{tselect|Select an Option}}
+*** {{topt|So what do I do?}}
+**** '''Player:''' So what do I do?
+**** '''Watchtower Wizard:''' You need to be fearless and gain entrance to Gu'Tanoth, the city of the ogres, then find out how to navigate the caves.
+**** '''Player:''' That sounds scary...
+**** '''Watchtower Wizard:''' Ogres are nasty creatures, yes. Only a strong warrior, and a clever one at that, can get the better of them.
+**** '''Player:''' What do I need to do to get into the city?
+**** '''Watchtower Wizard:''' You'll need some way to make the guards let you in.
+**** '''Watchtower Wizard:''' You could start by checking out the ogre settlements around here. Tribal ogres often dislike their neighbours... In the meantime, I'll throw those fingernails out for you.
+**** {{tact|end}}
+*** {{topt|I won't bother then.}}
+**** '''Player:''' I won't bother, then.
+**** '''Watchtower Wizard:''' Won't bother? Won't bother!
+**** '''Watchtower Wizard:''' Perhaps this quest is too hard for you?
+**** {{tact|end}}
+** {{topt|Shall I search the caves?}}
+*** '''Player:''' Shall I search the caves?
+*** '''Watchtower Wizard:''' It's no good searching the caves. Well, not yet, anyway.
+*** '''Player:''' Why not?
+*** '''Watchtower Wizard:''' They are deep and complex. The only way you will navigate the caves is to have a map or something.
+*** '''Watchtower Wizard:''' It may be that the ogres have one...
+*** '''Player:''' And how do you know that?
+*** '''Watchtower Wizard:''' Well... I don't.
+*** {{tselect|Select an Option}}
+*** {{topt|So what do I do?}}
+**** {{tact|above}}
+*** {{topt|I won't bother then.}}
+**** {{tact|above}}
+
+===Searching the bushes===
+* {{tcond|Before starting the quest:}}
+** '''Player:''' I am not sure why I am searching this bush.
+** {{tact|end}}
+* {{tcond|Before starting the quest, the bush with the fingernails:}}
+** '''Player:''' {{overhead|I am not sure why I am searching this bush.}}
+** {{tact|end}}
+* {{tcond|Old robe:}}
+** '''Player:''' Aha! A robe. This could be a clue...
+** {{tact|receives=[[old robe]]}}
+** {{tact|end}}
+* {{tcond|Unusual armour:}}
+** '''Player:''' Here's some armour; it could be evidence...
+** {{tact|receives=[[unusual armour]]}}
+** {{tact|end}}
+* {{tcond|Damaged dagger:}}
+** '''Player:''' Aha, a dagger! I wonder if this is evidence...
+** {{tact|receives=[[damaged dagger]]}}
+** {{tact|end}}
+* {{tcond|Tattered eye patch:}}
+** '''Player:''' I've found an eye patch; I had better show this to the Watchtower Wizard.
+** {{tact|receives=[[tattered eye patch]]}}
+** {{tact|end}}
+* {{tcond|Fingernails:}}
+** '''Player:''' What's this? Disgusting! Some fingernails. They may be a clue though... I'd better take them.
+** {{tact|receives=[[Fingernails]]}}
+** {{tact|end}}
+* {{tcond|Searching the same bush after finding an item in it:}}
+* '''Player:''' I have already searched this place.
+** {{tact|end}}
+* {{tcond|Finding nothing:}}
+* '''Player:''' Hmmm, nothing here.
+** {{tact|end}}
+
+==Ogre investigations==
+===Talking to a wizard===
+* '''Player:''' I've got some questions regarding the tribal ogres.
+* '''Wizard:''' You'll have to speak with the Watchtower Wizard about that.
+* {{tact|end}}
+
+===Talking to the Watchtower Wizard===
+* '''Watchtower Wizard:''' How's it going?
+* {{tselect|Select an Option}}
+* {{topt|I am having difficulty with the tribes.}}
+** '''Player:''' I am having difficulty with the tribes.
+** '''Watchtower Wizard:''' Talk to them face to face and don't show any fear. Make sure you are rested and well fed, and fight the good fight!
+** {{tact|end}}
+* {{topt|I have everything under control.}}
+** '''Player:''' I have everything under control.
+** '''Watchtower Wizard:''' Good, good! I will expect the crystals back shortly then...
+** {{tact|end}}
+* {{topt|I have lost something the ogres gave to me.}}
+** '''Player:''' I have lost something the ogres gave to me.
+** '''Watchtower Wizard:''' Oh, deary me! Well, there's nothing I can do about it. You will have to go back to them, I'm afraid.
+** {{tact|end}}
+
+===Toban===
+* '''Toban:''' What do you want, small t'ing?
+* {{tselect|Select an Option}}
+* {{topt|I seek entrance to the city of ogres.}}
+** '''Player:''' I seek entrance to the city of ogres.
+** '''Toban:''' Hahaha! You'll never get in there.
+** '''Player:''' I'll find a way, trust me.
+** '''Toban:''' Bold words for a t'ing so small.
+** {{tselect|Select an Option}}
+** {{topt|I could do something for you...}}
+*** '''Player:''' I could do something for you...
+*** '''Toban:''' Hahaha! This creature t'inks it can help me! I would eat you now, but for your puny size.
+*** '''Toban:''' Prove to me your might: bring me the bones of an adult dragon to chew on, and I'll eat them, not you.
+*** {{tact|end}}
+** {{topt|Die, creature!}}
+*** {{tact|below}}
+* {{topt|Die, creature!}}
+** '''Player:''' Die, creature!
+** '''Toban:''' Hahaha! It t'inks it's a match for Toban, does it?
+** {{qact|Tobans hits and damages the player}}
+
+====Speaking to Toban again====
+* '''Toban:''' Hahaha! Small t'ing returns. Did you bring the dragon bone?
+* {{tcond|Without dragon bones:}}
+** '''Player:''' I don't have what you want.
+** '''Toban:''' Then you shall get nothing from me!
+** {{tact|end}}
+* {{tcond|With dragon bones:}}
+** '''Player:''' When I say I will get something, I get it!
+** '''Toban:''' Hahaha! Small t'ing has done it. Toban is glad - take this...
+** {{tbox|pic=Relic part 3 detail.png|The ogre gives you part of a statue.}}
+** {{tact|end}}
+
+====Speaking to Toban after giving him dragon bones====
+* '''Toban:''' The small t'ing returns; what do you want now?
+* {{tselect|Select an Option}}
+* {{topt|I seek another task.}}
+** '''Player:''' I seek another task.
+** '''Toban:''' Have you arrived for dinner? Hahaha! Be gone, small t'ing!
+** {{tact|end}}
+* {{topt|I can't find the relic part you gave me.}}
+** {{tcond|If the player has the relic part on them:}}
+*** '''Player:''' I can't find the relic part you gave me.
+*** '''Toban:''' Small t'ing, you lie to me! I always says that small t'ings are big trouble.
+*** {{tact|end}}
+
+====Toban's island====
+* {{tcond|Looking at the broken bridge:}}
+** '''Player:''' What's this? The bridge is out - I'll need to find another way in. I can see a ladder up there coming out of a hole; there must be a tunnel that leads here...
+** {{tact|end}}
+* {{tcond|Entering the tunnel:}}
+** {{mes|You enter the cave.}}
+** '''Player:''' Wow! That tunnel went a long way.
+** {{tact|end}}
+
+====Looting Toban's chest====
+* {{tcond|With Toban's key:}}
+** {{tbox|pic=Toban's gold detail.png|You find a stash of gold inside.}}
+** {{tact|end}}
+* {{tcond|Without Toban's key:}}
+** {{mes|The chest is locked.}}
+** '''Player:''' I think I need a key of some sort.
+** {{tact|end}}
+
+===Og===
+* '''Og:''' Why you here, little t'ing?
+* {{tselect|Select an Option}}
+* {{topt|I seek entrance to the city of ogres.}}
+** '''Player:''' I seek entrance to the city of ogres.
+** '''Og:''' You got no business there!
+** '''Og:''' Just a minute... Maybe if you did somet'ing for me, I might help you get in.
+** '''Player:''' What can I do to help an ogre?
+** '''Og:''' South-east of here der is more ogres - the name of the chieftain is Toban. He stole gold from me and I want it back!
+** '''Og:''' Here is a key to the chest it's in. If you bring it here, I may reward you...
+** {{tact|end}}
+* {{topt|I have come to kill you.}}
+** '''Player:''' I have come to kill you!
+** '''Og:''' Kill me, eh? You shall be crushed. Guards!
+** {{qact|An ogre attacks the player.}}
+
+====Speaking to Og again====
+* '''Og:''' Where my gold from dat dirty Toban?
+* {{tcond|If the player has the gold:}}
+** '''Player:''' I have your gold.
+** '''Og:''' Well, well, the little t'ing has got it! Take dis to show little t'ing is a friend to da ogres. Hahahahaha!
+** {{tbox|pic=Relic part 1 detail.png|The ogre gives you part of a horrible statue.}}
+** {{tact|end}}
+* {{tcond|Otherwise:}}
+* {{tselect|Select an Option}}
+* {{topt|I have your gold.}}
+** '''Player:''' I have your gold.
+** '''Og:''' No you don't! If you want to impress me, get da gold I asked for!
+** {{tact|end}}
+* {{topt|I haven't got it yet.}}
+** '''Player:''' I haven't got it yet.
+** '''Og:''' Don't come back until you have it, unless you wanna be on tonight's menu!
+** {{tact|end}}
+* {{topt|I have lost the key!}}
+** {{tcond|If the player no longer has the key:}}
+*** '''Player:''' I have lost the key!
+*** '''Og:''' Stoopid! Take another and don't lose it!
+*** {{tact|end}}
+** {{tcond|If the player has the key on them:}}
+*** '''Og:''' Oh yeah? What's dat den?
+*** '''Player:''' Oh yeah, I've got it right here.
+*** '''Og:''' Stoopid!
+*** {{tact|end}}
+** {{tcond|If the player has the key stored somewhere:}}
+*** '''Player:''' I have lost the key!
+*** '''Og:''' Are you trying to trick me? I bet you got it stored somewhere. Humans always do that.
+*** {{tact|end}}
+
+====Speaking to Og after giving him Toban's gold====
+* '''Og:''' It's the little t'ing again.
+* {{tselect|Select an Option}}
+* {{topt|Do you have any other tasks for me?}}
+** '''Player:''' Do you have any other tasks for me?
+** '''Og:''' No, I have no more tasks for you, now go away.
+** {{tact|end}}
+* {{topt|I have lost the relic part you gave me.}}
+** {{tcond|If the player has the relic part on them:}}
+*** '''Player:''' I have lost the relic part you gave me.
+*** '''Og:''' Are you blind? I can see you got it even from here!
+*** {{tact|end}}
+** {{tcond|If the player lost the relic part:}}
+*** '''Player:''' I have lost the relic part you gave me.
+*** '''Og:''' Grrr, why do I bother? It's a good job I got another part.
+*** {{tact|end}}
+** {{tcond|If the relic part is stored somewhere:}}
+*** '''Player:''' I have lost the relic part you gave me.
+*** '''Og:''' Are you trying to trick me? I bet you got it stored somewhere. Humans always do that.
+*** {{tact|end}}
+
+===Grew===
+* '''Grew:''' What do you want, little morsel? You would look good on my plate!
+* '''Player:''' I want to enter the city of ogres.
+* '''Grew:''' Hah! I should eat you instead!
+* {{tselect|Select an Option}}
+* {{topt|Don't eat me; I can help you.}}
+** '''Player:''' Don't eat me; I can help you.
+** '''Grew:''' What can a morsel like you do for me?
+** '''Player:''' I am a mighty adventurer, slayer of monsters and user of magic powers.
+** '''Grew:''' Well, well, perhaps the morsel can help after all...
+** '''Grew:''' If you t'ink you're tough, find Gorad, my enemy to the south-east, and knock one of his teeth out! Heheheheh!
+** {{tact|end}}
+* {{topt|You will have to kill me first.}}
+** '''Player:''' You will have to kill me first.
+** '''Grew:''' That's not tricky - guards!
+** {{qact|An ogre attacks the player.}}
+
+====Speaking to Grew again====
+* '''Grew:''' The morsel is back. Does it have our tooth for us?
+* {{tcond|Without the ogre tooth:}}
+** '''Player:''' Err, I don't have it.
+** '''Grew:''' Morsel, you dare to return without the tooth! Either you are stoopid, or wants to be eaten!
+** {{tact|end}}
+* {{tcond|With the ogre tooth:}}
+** '''Player:''' I have it.
+** '''Grew:''' That'll annoy Gorad lots! Heheheheh! Here's a token of my gratitude: some old gem I stole from Gorad, and an old part of a statue.
+** {{tbox|pic=Relic part 2 detail.png|pic2=Crystal (yellow) detail.png|You get part of a horrible statue... and one of the crystals!}}
+** {{tact|end}}
+
+====Facing Gorad====
+* '''Player:''' I've come to knock your teeth out!
+* '''Gorad:''' You shut your face! I smack you till you dead and sorry!
+* {{tact|end}}
+* {{tcond|After killing Gorad:}}
+** {{tbox|pic=Ogre tooth detail.png|He's dropped a tooth. You grab it quickly.}}
+
+====Talking to Gorad after getting his tooth====
+* '''Player:''' Hello!
+* '''Gorad:''' You know who I is?
+* {{tselect|Select an Option}}
+* {{topt|A big, ugly creature.}}
+** '''Player:''' A big, ugly creature.
+** '''Gorad:''' I hit you!
+** {{qact|Gorad hits the player for 12 damage.}}
+** {{mes|You don't need to fight him now.}}
+** {{tact|end}}
+* {{topt|I don't know who you are.}}
+** '''Player:''' I don't know who you are.
+** '''Gorad:''' I am Gorad, and you are tiny. Go now and I won't chase you!
+** {{tact|end}}
+
+====Attacking Gorad after getting his tooth====
+* {{mes|You don't need to fight him now.}}
+
+====Speaking to Grew after giving him Gorad's tooth====
+* '''Grew:''' What are you doing here, morsel?
+* {{tselect|Select an Option}}
+* {{topt|Can I do anything else for you?}}
+** '''Player:''' Can I do anything else for you?
+** '''Grew:''' I have nothing left for you but the cooking pot!
+** {{tact|end}}
+* {{topt|I've lost the relic part you gave me.}}
+** {{tcond|If the player has the relic part on them:}}
+*** '''Player:''' I've lost the relic part you gave me.
+*** '''Grew:''' You lie to me, morsel!
+*** {{tact|end}}
+** {{tcond|If the player doesn't have the relic part:}}
+*** '''Player:''' I've lost the relic part you gave me.
+*** '''Grew:''' Stupid morsel, I have another. Take it and go now before I lose my temper.
+*** {{tact|end}}
+** {{tcond|If the relic part is stored somewhere:}}
+*** '''Player:''' I've lost the relic part you gave me.
+*** '''Grew:''' You probably got it stored somewhere, morsel! Humans do that a lot.
+*** {{tact|end}}
+* {{topt|I've lost the crystal you gave me.}}
+** {{tcond|If the player has the crystal on them:}}
+*** '''Player:''' I've lost the crystal you gave me.
+*** '''Grew:''' How dare you lie to me morsel! I will grind you up for my bread!
+*** {{tact|end}}
+** {{tcond|If the player doesn't have the crystal:}}
+*** '''Player:''' I've lost the crystal you gave me.
+*** '''Grew:''' I suppose you want another? I suppose just this once I could give you my copy...
+*** {{tact|end}}
+** {{tcond|If the crystal is stored somewhere:}}
+*** '''Player:''' I've lost the crystal you gave me.
+*** '''Grew:''' You probably got it stored somewhere, morsel! Humans do that a lot.
+*** {{tact|end}}
+
+===Assembling the relic===
+''Talking to the Watchtower Wizard hands in every relic part the player carries, one after the other. If any are still missing, the conversation then carries on as above ("How's it going?").''
+* {{tcond|Handing in relic part 1:}}
+** '''Player:''' An ogre called Og gave me this...
+* {{tcond|Handing in relic part 2:}}
+** '''Player:''' An ogre called Grew gave me this...
+* {{tcond|Handing in relic part 3:}}
+** '''Player:''' An ogre called Toban gave me this...
+* {{tcond|The first part he takes:}}
+** '''Watchtower Wizard:''' Ah, it's part of an old ogre statue. I'll take that off you - it might come in handy if I can fix it up.
+* {{tcond|Each later part, the last one included:}}
+** '''Watchtower Wizard:''' Ah, it's more of that old ogre statue. I'll take this bit too.
+* {{tcond|After handing in the third relic part:}}
+** '''Watchtower Wizard:''' It looks like you've brought me all the pieces of the relic. It is as I thought - a statue symbolising an ogre warrior of old.
+** '''Watchtower Wizard:''' Well, if you ever want to make friends with an ogre, this is the item to have! Now I'll try to assemble it...
+** {{tbox|pic=Ogre relic detail.png|The wizard gives you a complete statue.}}
+** {{tact|end}}
+
+===Using the relic parts on each other===
+* {{mes|The pieces look like they would fit together, but you can't work out how to do it. Maybe someone with more experience of ogres could help.}}
+
+===Using a crystal on the Watchtower Wizard===
+* '''Player:''' Wizard, look what I have found.
+* '''Watchtower Wizard:''' Well done, well done! You are clever; hold onto it until you have all four.
+* '''Watchtower Wizard:''' Keep searching for the others. If you've dropped any, then you will need to go back to where you got it from.
+* {{tact|end}}
+
+===Talking to a wizard===
+* '''Player:''' I've got some questions about the ogre city.
+* '''Wizard:''' You'll have to speak with the Watchtower Wizard about that.
+* '''Player:''' I had a feeling you might say that.
+* {{tact|end}}
+
+===Talking to the Watchtower Wizard again===
+* '''Watchtower Wizard:''' Ah, the warrior returns. Have you found a way into Gu'Tanoth yet?
+* '''Player:''' I can't get past the guards.
+* '''Watchtower Wizard:''' Well, ogres dislike others apart from their own kind. What you need is some form of proof of friendship, something to trick them into believing you're their friend.
+* '''Watchtower Wizard:''' Which shouldn't be too hard, considering their intelligence.
+* {{tselect|Select an Option}}
+* {{topt|I have lost the relic you gave me.}}
+** {{tcond|If the player has the relic in their inventory:}}
+*** '''Player:''' I have lost the relic you gave me.
+*** '''Watchtower Wizard:''' Have you gone mad? I can see you have it with you!
+*** {{tact|end}}
+** {{tcond|If the player lost the relic:}}
+*** '''Player:''' I have lost the relic you gave me.
+*** '''Watchtower Wizard:''' What? Lost the relic? How careless! It's a good job I copied its design, then! You can take this copy instead - it's just as good.
+*** {{tbox|pic=Ogre relic detail.png|The wizard gives you another statue.}}
+*** {{tact|end}}
+** {{tcond|If the player stored the relic somewhere:}}
+*** '''Player:''' I have lost the relic you gave me.
+*** '''Watchtower Wizard:''' I imagine you've stored it somewhere. Go and see where you might have put it.
+*** {{tact|end}}
+* {{topt|I will find my way in, no problem.}}
+** '''Player:''' I will find my way in, no problem.
+** '''Watchtower Wizard:''' Yes, I'm sure you will... Good luck!
+** {{tact|end}}
+
+==Entering Gu'Tanoth==
+''Trying to open either gate before its guard is satisfied gives the message {{mes|A nearby guard calls you over.}} and starts that guard's conversation.''
+
+===East gate guard===
+* {{tcond|The first time:}}
+** '''Ogre guard:''' Halt! You cannot pass here.
+** '''Player:''' I am a friend to ogres.
+** '''Ogre guard:''' You will be my friend only with gold. Bring me a bar of pure gold and I will let you pass.
+** {{tact|end}}
+* {{tcond|Afterwards, without a gold bar:}}
+** '''Ogre guard:''' Creature, did you bring me the gold?
+** '''Player:''' No, I don't have it.
+** '''Ogre guard:''' No gold, no passage. Get out of this city!
+** {{mes|The guard pushes you back down the hill.}}
+** {{tact|(The ogre guard pushes you back down the hill, stunning you and dealing 3 damage)}}
+** {{tact|end}}
+* {{tcond|Afterwards, with a gold bar:}}
+** '''Ogre guard:''' Creature, did you bring me the gold?
+** '''Player:''' Here it is!
+** '''Ogre guard:''' It's brought it! On your way.
+** {{tact|(The gate opens and the player walks through)}}
+** {{tact|end}}
+* {{tcond|After giving him the gold:}}
+** '''Ogre guard:''' I know you, creature; you may pass.
+** {{tact|end}}
+
+===City guard===
+* {{tcond|If the player is not carrying the relic:}}
+** '''Ogre guard:''' Stop, creature! Only ogres and their friends allowed in this city. Show me a sign of companionship, like a lost relic or somefing, and you may pass.
+** '''Ogre guard:''' Until then, back to whence you came!
+** {{mes|The guard pushes you back down the hill.}}
+** {{tact|(The ogre guard pushes you back down the hill, stunning you and dealing 3 damage)}}
+** {{tact|end}}
+* {{tcond|If the player is carrying the relic:}}
+** '''Ogre guard:''' Well, what proof of friendship did you bring?
+** '''Player:''' I have a relic!
+** '''Ogre guard:''' It's got the statue of Dalgroth. Welcome to Gu'Tanoth, friend of the ogres.
+** {{tact|end}}
+
+====Talking to the city guard again====
+* '''Ogre guard:''' Well, what proof of friendship did you bring?
+* {{tcond|With a relic part:}}
+** '''Player:''' I've got this odd piece of a relic.
+** '''Ogre guard:''' What's this thing? It looks a bit like our Dalgroth... but it's broken. Go away!
+** {{mes|The guard pushes you back down the hill.}}
+** {{tact|end}}
+* {{tcond|With nothing:}}
+** '''Player:''' I don't have anything.
+** '''Ogre guard:''' Why have you returned with no proof of companionship? Back to whence you came!
+** {{mes|The guard pushes you back down the hill.}}
+** {{tact|end}}
+
+====Using another item on the city guard====
+* '''Ogre guard:''' That is of no use to me, creature!
+* {{tact|end}}
+
+====Talking to the city guard after giving him the relic====
+* '''Ogre guard:''' It's the small creature; you may pass.
+* {{tact|end}}
+
+===Talking to the wizards after gaining access to the city===
+* '''Player:''' I've made it into the ogre city!
+* '''Wizard:''' You'll have to speak with the Watchtower Wizard about that.
+* '''Player:''' It's like talking to a broken record.
+* {{tact|end}}
+
+===Talking to the Watchtower Wizard after gaining access to the city===
+* '''Watchtower Wizard:''' How are you doing with the ogres?
+* '''Player:''' I have gained entry to the city!
+* '''Watchtower Wizard:''' Already? Excellent!
+* '''Player:''' I still can't navigate the skavid caves.
+* '''Watchtower Wizard:''' You need a map of some kind... I bet one of the ogres has one.
+* '''Player:''' Okay thanks, I'll go and find out.
+* {{tact|end}}
+
+===Ogre guard===
+* '''Ogre guard:''' Oi! Where do you think you are going? You are for the cooking pot!
+* {{tselect|Select an Option}}
+* {{topt|But I am a friend to ogres...}}
+** '''Player:''' But I am a friend to ogres...
+** '''Ogre guard:''' Prove it to us with a gift. Get us something from the market.
+** '''Player:''' Like what?
+** '''Ogre guard:''' Surprise us...
+** {{tact|end}}
+* {{topt|Not if I can help it.}}
+** '''Player:''' Not if I can help it.
+** '''Ogre guard:''' You can help by being tonight's dinner, or you can go away. Now, which shall it be?
+** {{tselect|Select an Option}}
+** {{topt|Okay, okay, I'm going.}}
+*** '''Player:''' Okay, okay, I'm going.
+*** '''Ogre guard:''' Back to whence you came!
+*** {{qact|The guard attacks the player, who falls into the lava. Fade out/in. The player appears south of Gu'Tanoth and takes damage.}}
+** {{topt|I tire of ogres; prepare to die!}}
+*** '''Ogre guard:''' Grrrrr!
+*** {{qact|The ogre guard attacks the player.}}
+
+====Talking to the ogre guard again====
+* {{tcond|Without an ogre rockcake:}}
+** '''Player:''' Um... is there anything in my backpack that you'd want?
+** '''Ogre guard:''' You didn't bring anything! Shove off!
+** {{tact|end}}
+* {{tcond|With an ogre rockcake:}}
+** '''Ogre guard:''' Stop, creature! Oh it's you. Well, what have you got for us, then?
+** '''Player:''' How about this?
+** {{tbox|pic=Rock cake detail.png|You offer the guard a rock cake.}}
+** '''Ogre guard:''' Well, well, look at this. My favourite: rock cake! Okay, we will let it through.
+** {{tact|end}}
+* {{tcond|After giving him the rock cake:}}
+** '''Ogre guard:''' It's that creature again. This time we will let it go.
+** {{tact|end}}
+
+===Talking to the southern ogre guard===
+* '''Ogre guard:''' What do you want, small thing? Leave us alone!
+* {{tact|end}}
+
+===Crossing the bridge===
+* '''Ogre guard:''' Oi! Little thing. If you want to cross here, you must pay me 20 gold pieces first!
+* '''Player:''' You want me to give you 20 gold pieces to let me jump off a bridge?
+* '''Ogre guard:''' That's what I said, like it or lump it.
+* {{tselect|Select an Option}}
+* {{topt|Okay, I'll pay it.}}
+** {{tcond|If the player doesn't have 20 coins:}}
+*** '''Player:''' Okay, I'll pay it.
+*** '''Ogre guard:''' A wise choice, little thing.
+*** '''Ogre guard:''' And where is your money? Grrrr! Do you want to get hurt or something?
+*** {{tact|end}}
+** {{tcond|If the player has 20 coins:}}
+*** '''Player:''' Okay, I'll pay it.
+*** '''Ogre guard:''' A wise choice, little thing.
+*** {{qact|The player jumps over the gap.}}
+*** '''Player:''' Phew! I just made it.
+*** {{tact|end}}
+* {{topt|Forget it, I'm not paying.}}
+** '''Player:''' Forget it, I'm not paying.
+** '''Ogre guard:''' In that case you're not crossing.
+** {{tact|end}}
+
+===Seeking passage===
+* '''City guard:''' Grrrr, what business you got here?
+* '''Player:''' I am on an errand.
+* '''City guard:''' So what you want with me?
+* {{topt|I am an ogre killer come to destroy you!}}
+** '''Player:''' I am an ogre killer come to destroy you!
+** '''City guard:''' I would like to see you try!
+** {{mes|You are under attack!}}
+** {{tact|end}}
+* {{topt|I seek passage into the skavid caves}}
+** '''Player:''' I seek passage into the skavid caves.
+** '''City guard:''' Is that so... You humour me small t'ing. Answer this riddle and I will help you...
+** '''City guard:''' I want you to bring me an item: I will give you all the letters of this item, you work out what it is...
+** '''City guard:''' My first is in days, but not in years, My second is in evil, and also in tears, My third is in all, but not in none, My fourth is in hot, but not in sun.
+** '''City guard:''' My fifth is in heaven, and also in hate, My sixth is in fearing, but not in fate, My seventh is in plush, but not in place.
+** '''City guard:''' My eighth is in nine, but not in eight, My last is in earth, and also in great.
+** '''City guard:''' My whole is an object, that magic will make. It brings wrack and ruin to all in its wake... Now how long, I wonder, will this riddle take?
+** {{tact|end}}
+
+====Talking to the city guard again====
+* '''City guard:''' Hur, hur, hur... I see you haven't worked it out yet. Keep trying, imp.
+* {{tselect|Select an Option}}
+* {{topt|Can I hear the riddle again?}}
+** '''Player:''' Can I hear the riddle again?
+** '''City guard:''' I want you to bring me an item: I will give you all the letters of this item, you work out what it is...
+** '''City guard:''' My first is in days, but not in years, My second is in evil, and also in tears, My third is in all, but not in none, My fourth is in hot, but not in sun.
+** '''City guard:''' My fifth is in heaven, and also in hate, My sixth is in fearing, but not in fate, My seventh is in plush, but not in place.
+** '''City guard:''' My eighth is in nine, but not in eight, My last is in earth, and also in great.
+** '''City guard:''' My whole is an object, that magic will make. It brings wrack and ruin to all in its wake... Now how long, I wonder, will this riddle take?
+** {{tact|end}}
+* {{topt|I'll be back!}}
+** '''Player:''' I'll be back!
+** {{tact|end}}
+
+====Using the wrong item on the guard====
+* '''City guard:''' That is not what I want, imp!
+* {{tact|end}}
+
+====Using the death rune on the guard (or talking to him with it)====
+* '''Player:''' I worked it out!
+* {{tcond|With no space for the map:}}
+** '''City guard:''' Hur, hur, hur. Well done imp, but you haven't got anywhere for me to put the reward, have you?
+** '''City guard:''' Come back again when you have and I might reward you.
+** {{tact|end}}
+* '''City guard:''' Hur, hur. The imp has done it! This is what you be needing...
+* {{tbox|pic=Skavid map detail.png|The guard takes your death rune and gives you a map.}}
+* {{tact|end}}
+
+====Talking to him after having given him the rune====
+* '''City guard:''' What is it?
+* {{tselect|Select an Option}}
+* {{topt|Do you have any other riddles for me?}}
+** '''Player:''' Do you have any other riddles for me?
+** '''City guard:''' Yes, what looks good on a plate with salad?
+** {{tselect|Select an Option}}
+** {{topt|I don't know...}}
+*** '''Player:''' I don't know...
+*** '''City guard:''' You! Now go, and bother me no more.){{sic}}
+*** {{tact|end}}
+** {{topt|A nice pizza?}}
+*** '''Player:''' A nice pizza?
+*** '''City guard:''' Grr! Think you are a comedian, eh? Get lost!
+*** {{tact|end}}
+* {{topt|I have lost the map you gave me.}}
+** '''Player:''' I have lost the map you gave me.
+** {{tcond|If the player does not have a [[Skavid map]] in their inventory or bank:}}
+*** '''City guard:''' What's the point? Take this one and go away!
+*** {{tbox|pic=Skavid map detail.png|The guard gives you another map.}}
+*** {{tact|receives=[[Skavid map]]}}
+*** {{tact|end}}
+** {{tcond|If the player has a Skavid map in their bank:}}
+*** '''City guard:''' You imps always store things in places and forget. Go look for it.
+*** {{tact|end}}
+** {{tcond|If the player has a Skavid map in their inventory:}}
+*** '''City guard:''' Are you blind? What is that you are carrying?
+*** '''Player:''' Oh, that map...
+*** {{tact|end}}
+
+===Crossing back across the bridge===
+* '''Player:''' I'm glad that was easier on the way back!
+* {{tact|end}}
+
+==Skavid search==
+===Talking to the wizards after getting the skavid map===
+* '''Player:''' I've got some questions about the skavid caves.
+* '''Wizard:''' Oh, really? I'm quite an expert on skavids.
+* '''Player:''' Wonderful!
+* '''Wizard:''' Only joking!
+* '''Wizard:''' You'll have to speak with the Watchtower Wizard about that.
+* '''Player:''' Okay, okay.
+* {{tact|end}}
+
+===Talking to the Watchtower Wizard after getting the skavid map===
+* '''Watchtower Wizard:''' How is the quest going?
+* '''Player:''' I have worked out the guard's puzzle.
+* '''Watchtower Wizard:''' My, my. A wordsmith as well as a hero.
+* {{tselect|Select an Option}}
+* {{topt|I am still trying to navigate the skavid caves.}}
+** '''Player:''' I am still trying to navigate the skavid caves.
+** '''Watchtower Wizard:''' Take some illumination with you or else it will be dark.
+** {{tact|end}}
+* {{topt|I am trying to get into the shamans' cave.}}
+** '''Player:''' I am trying to get into the shamans' cave.
+** '''Watchtower Wizard:''' Yes, it will be well guarded. Hmmm, let me see...
+** '''Watchtower Wizard:''' Ah yes, I gather some ogres are allergic to certain herbs. Now what was it? It had white berries and blue leaves....
+** '''Watchtower Wizard:''' Cave nightshade, that's it!
+** '''Watchtower Wizard:''' You should try looking through some of the caves.
+** '''Player:''' Alright!
+** '''Watchtower Wizard:''' And don't forget to look out for the dragons!
+** '''Player:''' The WHAT?
+** '''Watchtower Wizard:''' Dragons.
+** '''Watchtower Wizard:''' Didn't you know that the ogres keep blue dragons as pets and for magical ingredients?
+** '''Watchtower Wizard:''' Well, regardless, I'm sure a bold, brave adventurer such as yourself won't have any problems.
+** '''Player:''' Great...
+** {{tact|end}}
+* {{topt|It is going well.}}
+** '''Player:''' It is going well.
+** '''Watchtower Wizard:''' That's good to hear. We are much closer to fixing the tower now.
+** {{tact|end}}
+
+===Entering the caves===
+* {{tcond|Without the skavid map:}}
+** {{mes|There's no way I can find my way through without a map of some kind.}}
+** {{tact|(The player comes out of a different cave)}}
+* {{tcond|Without a light source or a tinderbox:}}
+** {{tbox|The cave is very dark and you don't have a light source or a tinderbox. Are you sure you want to go down?}}
+** {{tselect|Select an Option}}
+** {{topt|I'm not scared of the dark!}}
+*** {{mes|You enter the cave...}}
+** {{topt|I am scared of the dark.}}
+*** {{mes|You should find a light source and a tinderbox before going down there.}}
+* {{tcond|With a light source but no tinderbox:}}
+** {{tbox|If your light source goes out down there you'll be in trouble! Are you sure you want to go in without a tinderbox?}}
+** {{tselect|Select an Option}}
+** {{topt|I'll be fine without a tinderbox.}}
+** {{topt|I'll come back with a tinderbox.}}
+
+===Scared skavid===
+* '''Scared skavid:''' Tanath cur, tanath cur!
+* '''Player:''' ???
+* '''Scared skavid:''' Don't hurt me, don't hurt me!
+* '''Player:''' Stop moaning, creature. I know about you skavids - you serve those monsters, the ogres.
+* '''Scared skavid:''' Please don't touch me!
+* '''Player:''' You have something that belongs to me...
+* '''Scared skavid:''' I don't have anything; please believe me!
+* '''Player:''' Somehow, I find your words hard to believe.
+* '''Scared skavid:''' I'm begging your kindness; I don't have it!
+* {{tselect|Select an Option}}
+* {{topt|I don't believe you, hand it over!}}
+** '''Player:''' I don't believe you, hand it over!
+** '''Scared skavid:''' Ahhhhh, help!
+** '''Player:''' Oh great, I'm not getting anywhere.
+** {{tact|end}}
+* {{topt|Okay, okay, I'm not going to hurt you.}}
+** '''Player:''' Okay, okay, I'm not going to hurt you.
+** '''Scared skavid:''' Thank you, kind one.
+** '''Scared skavid:''' I'll tells you where that things you wants is. The mad skavids have it in their cave in the city.
+** '''Scared skavid:''' You will have to learn skavid, otherwise they will not talks to you. Here, I'll tell you what you need to know...
+** {{qact|An ogre shaman appears.}}
+** '''Ogre shaman:''' {{overhead|You shut your mouth! Don't tell them anything!}}
+** '''Scared skavid:''' {{overhead|Tanath cur, tanath cur!}}
+** {{qact|The ogre shaman disappears.}}
+** '''Scared skavid:''' I cannot help you, but the others can. Let me tells you the most common skavid words: Ar, nod, gor, ig and cur. Those will gets you started.
+** {{tact|end}}
+
+====Talking to the scared skavid again====
+* '''Scared skavid:''' Master, how are you doing learning our language?
+* '''Player:''' I am studying the speech of your kind...
+* {{tact|end}}
+
+===Learning skavid===
+* {{tcond|Before the scared skavid has taught the player any words:}}
+** '''Skavid:''' Bidith tanath...
+** '''Player:''' ???
+** {{mes|The skavid is trying to communicate...}}
+** {{mes|You don't know any skavid words yet!}}
+** {{tact|end}}
+
+====Skavid 1====
+* '''Skavid:''' Bidith tanath...
+* {{mes|The skavid is trying to communicate...}}
+* {{tselect|Select an Option}}
+* {{topt|Cur.}}
+** '''Player:''' Cur.
+** {{mes|It seems the skavid understood you.}}
+** '''Skavid:''' Cur, cur tanath!
+** {{tact|end}}
+* {{topt|Ar.}}
+** '''Player:''' Ar.
+** '''Skavid:''' ???
+** {{mes|It seems that was the wrong reply.}}
+** '''Skavid:''' Bidith tanath...
+** {{tselect|Select an Option}}
+** {{tact|initial}}
+* {{topt|Ig.}}
+* {{topt|Nod.}}
+* {{topt|Gor.}}
+
+====Skavid 2====
+* '''Skavid:''' Cur bidith...
+* {{tselect|Select an Option}}
+* {{topt|Cur.}}
+* {{topt|Ar.}}
+* {{topt|Ig.}}
+** '''Player:''' Ig.
+** '''Skavid:''' Ig! Bidith ig!
+** {{tact|end}}
+* {{topt|Nod.}}
+* {{topt|Gor.}}
+
+====Talking to a skavid again====
+* '''Skavid:''' [Cur tanath!/Gor nod!/...]
+* {{mes|You have already talked to this skavid.}}
+* {{tact|end}}
+
+====Skavid 3====
+* '''Skavid:''' Tanath gor...
+* {{tselect|Select an Option}}
+* {{topt|Cur.}}
+* {{topt|Ar.}}
+* {{topt|Ig.}}
+* {{topt|Nod.}}
+** '''Player:''' Nod.
+** '''Skavid:''' Nod, gor nod!
+** {{tact|end}}
+* {{topt|Gor.}}
+
+===Talking to the scared skavid after learning skavid===
+* '''Scared skavid:''' Master, my kinsmen tell me you have learned skavid. You should speak to the mad ones in their cave.
+* {{tact|end}}
+
+===The mad skavid===
+''He greets the player with one of four phrases, each with its own answer: "Ar cur..." (Gor), "Bidith ig..." (Cur), "Cur tanath..." (Bidith) or "Gor nod..." (Tanath). A wrong answer gives {{mes|The response was wrong.}} and '''Mad skavid:''' ???''
+* '''Mad skavid:''' Gor nod...
+* {{tselect|Select an Option}}
+* {{topt|Cur.}}
+* {{topt|Ar.}}
+* {{topt|Bidith.}}
+* {{topt|Tanath.}}
+** '''Player:''' Tanath.
+** '''Mad skavid:''' Hehe! So you speak a little skavid, eh? I'll give you a prize for that!
+** '''Mad skavid:''' The others are with the shamans in the enclave - you'll never get them back. They hid one in the sacred rock! Nothing can touch it now.
+** {{tbox|pic=Crystal (magenta) detail.png|The skavid gives you a large crystal.}}
+** {{tact|end}}
+* {{topt|Gor.}}
+
+====Talking to the mad skavid again====
+* '''Mad skavid:''' What, you gots the crystal...
+* {{tselect|Select an Option}}
+* {{topt|But I've lost it!}}
+** {{tcond|If the player lost the crystal:}}
+*** '''Player:''' But I've lost it!
+*** '''Mad skavid:''' Alright, take this one then...
+*** {{tact|end}}
+** {{tcond|If the player has the crystal:}}
+*** '''Player:''' But I've lost it!
+*** '''Mad skavid:''' I haves no more for you.
+*** {{tact|end}}
+** {{tcond|If the crystal is stored somewhere:}}
+*** '''Mad skavid:''' You stored it somewhere maybe. Go away!
+*** {{tact|end}}
+* {{topt|Oh, okay then.}}
+** '''Player:''' Oh, okay then.
+** '''Mad skavid:''' You be on your way, then.
+** {{tact|end}}
+
+===Talking to the wizards after learning to navigate the skavid caves===
+* '''Player:''' I have gained access to the skavid caves.
+* '''Wizard:''' You'll have to speak with the Watchtower Wizard about that.
+* '''Player:''' 'You'll have to speak with the Watchtower Wizard about that.'
+* '''Player:''' I'd get more help out of a-
+* '''Wizard:''' What was that?
+* '''Player:''' Nothing.
+* {{tact|end}}
+
+===Talking to the Watchtower Wizard after learning to navigate the skavid caves===
+* '''Watchtower Wizard:''' Hello again. How do you fare?
+* {{tselect|Select an Option}}
+* {{topt|It goes well. I can now navigate the skavid caves.}}
+** '''Player:''' It goes well. I can now navigate the skavid caves.
+** '''Watchtower Wizard:''' That is good news. Let me know if you find anything of interest.
+** {{tact|end}}
+* {{topt|I had a crystal but I lost it!}}
+** '''Player:''' I had a crystal, but I lost it!
+** '''Watchtower Wizard:''' Oh no. Well, you had better go back there, then!
+** {{tact|end}}
+* {{topt|I am now ready for the shamans.}}
+** '''Player:''' I am now ready for the shamans.
+** '''Watchtower Wizard:''' Remember all I told you. You must distract the guard somehow. Cave nightshade is what you are looking for - try searching the skavid caves for it.
+** '''Watchtower Wizard:''' This herb is very poisonous, however, so handle it with care. Also, be on your guard in that cave. Who knows what monsters may be in that awful place...
+** '''Player:''' Alright!
+** '''Watchtower Wizard:''' And don't forget to look out for the dragons!
+** '''Player:''' The WHAT?
+** '''Watchtower Wizard:''' Dragons.
+** '''Watchtower Wizard:''' Didn't you know that the ogres keep blue dragons as pets and for magical ingredients
+** '''Watchtower Wizard:''' Well, regardless, I'm sure a bold, brave adventurer such as yourself won't have any problems.
+** '''Player:''' Great...
+** {{tact|end}}
+
+==Entering the Enclave==
+===Talking to an enclave guard before getting the mad skavid's crystal===
+* '''Enclave guard:''' Stop bothering me, minion!
+* {{tact|end}}
+
+===Attempting to enter the Ogre Enclave before distracting the guards===
+* '''Enclave guard:''' No you don't!
+* {{qact|The enclave guard attacks the player.}}
+
+===Talking to an enclave guard===
+* '''Enclave guard:''' What do you want?
+* {{tselect|Select an option}}
+* {{topt|I want to go in there.}}
+** '''Player:''' I want to go in there.
+** '''Enclave guard:''' Oh you do, do you? How about 'no'?
+** {{qact|The enclave guard attacks the player.}}
+* {{topt|I want to rid the world of ogres!}}
+** '''Player:''' I want to rid the world of ogres.
+** '''Enclave guard:''' You dare mock me, creature!
+** {{qact|The enclave guard attacks the player.}}
+
+===Using cave nightshade on an enclave guard===
+* '''Enclave guard:''' What is this? Arrrrgh! I cannot stand this plant! Argh, it burns! It burns!
+* {{tselect|You can run past, but keep in mind that a dangerous area follows!}}
+* {{topt|I'm not scared}}
+** {{mes|You run past the guard while he's busy.}}
+* {{topt|I think I'll stay here}}
+** {{tact|end}}
+
+===Inside the enclave===
+* {{tbox|Meanwhile, in the Shaman's enclave...}}
+* {{qact|A cutscene plays. A blue dragon attacks an ogre shaman, who takes no damage and reflects 30 damage back to the dragon}}
+* '''Ogre shaman:''' {{overhead|Hur, hut, hur. Stoopid dragon!}}
+* '''Ogre shaman:''' {{overhead|Take dis!}}
+* {{qact|The ogre shaman hits the blue dragon with a spell that deals 75 damage, killing the dragon}}
+* '''Ogre shaman:''' {{overhead|Hur, hur, hur, hur!}}
+* {{tact|end}}
+
+====Talking to an ogre chieftain====
+* '''Ogre chieftain:''' Grrr! Go away from me, vermin!
+* {{tact|end}}
+
+====Talking to an ogre shaman====
+* {{mes|A magic blast comes from the shaman. You are badly injured by the blast.}}
+* '''Ogre shaman:''' Grr! How dare you talk to us. We will destroy you!
+* {{tact|end}}
+
+====Attacking an ogre shaman====
+* {{mes|A magic blast comes from the shaman. You are badly injured by the blast.}}
+* '''Ogre shaman:''' {{overhead|You fool! Your primitive weapons are no match for our superior magics!}}
+
+====The Rock of Dalgroth before killing the shamans====
+* {{tcond|Prospecting:}}
+** {{mes|You examine the rock for ores...}}
+** {{mes|The rock contains a crystal!}}
+* {{tcond|Mining:}}
+** '''Player:''' I can't touch it... Perhaps it is linked with the shamans in some strange way?
+** {{tact|end}}
+
+===Talking to the wizards after discovering the shamans are invincible===
+* '''Player:''' The shamans are too powerful for me to attack!
+* '''Wizard:''' You'll have to speak with the Watchtower Wizard about that.
+* {{tact|end}}
+
+===Talking to the Watchtower Wizard after discovering the shamans are invincible===
+* '''Player:''' I have found the cave of ogre shaman, but I cannot touch them!
+* '''Watchtower Wizard:''' That is because of their magical powers. We must fight them with their own methods; do not speak to them! I suggest a potion...
+* '''Watchtower Wizard:''' Collect a guam leaf, add jangerberries, then mix in some ground bat bones. You must return it to me before you use it, so that I can empower it with my magic.
+* '''Watchtower Wizard:''' Be very careful how you mix it as it is extremely volatile. Mixing ingredients of this type in the wrong order can cause explosions!
+* '''Watchtower Wizard:''' I hope you've been brushing up Herblore and Magic? I must warn you, only experienced magicians can use the potion. It is too dangerous in the hands of the unskilled.
+* {{tact|end}}
+
+====Talking to the Watchtower Wizard again====
+* '''Watchtower Wizard:''' Any more news?
+* {{tselect|Select an Option}}
+* {{topt|Can you tell me again what I need for the potion?}}
+** '''Player:''' Can you tell me again what I need for the potion?
+** '''Watchtower Wizard:''' Yes indeed, let me see, what was it again...
+** '''Watchtower Wizard:''' You will need a guam leaf. That goes into the mix first.
+** '''Player:''' What is the next ingredient?
+** '''Watchtower Wizard:''' You need some jangerberries.
+** '''Player:''' I have some of those.
+** '''Watchtower Wizard:''' Wonderful!
+** '''Watchtower Wizard:''' You will need to add those after the guam leaf has gone in, but before the final ingredient.
+** '''Player:''' What is the final ingredient?
+** '''Watchtower Wizard:''' The final ingredient is ground bat bones.
+** '''Player:''' I have some bat bones; how can I grind them?
+** '''Watchtower Wizard:''' A pestle and mortar will more than do the trick.
+** '''Watchtower Wizard:''' When you have mixed the potion correctly, then I can empower the potion with magic and the ogre shamans can be destroyed.
+** {{tact|end}}
+* {{topt|No, I'm still working on it.}}
+** '''Player:''' No, I'm still working on it.
+** {{tact|end}}
+
+====Mixing the potion====
+* {{tcond|Jangerberries into a guam potion (unf):}}
+** {{mes|You mix the jangerberries into your potion.}}
+* {{tcond|Ground bat bones into the guam and jangerberry potion:}}
+** {{mes|You mix the ground bones into the liquid.}}
+** {{mes|You produce a strong potion.}}
+* {{tcond|Ground bat bones into a guam potion (unf):}}
+** {{mes|You mix the ground bones into the liquid.}}
+** {{mes|You mixed the ingredients incorrectly and the mixture exploded.}}
+* {{tcond|Ground bat bones into a vial of water:}}
+** {{mes|You mix the ground bones into the water.}}
+** '''Player:''' Oh dear, the mixture has evaporated.
+
+====Talking to the wizards after learning the potion recipe====
+* '''Player:''' Any chance of advice about this potion?
+* '''Wizard:''' Nope. Try the Watchtower Wizard.
+* {{tact|end}}
+
+===Talking to the Watchtower Wizard after making the potion===
+* '''Watchtower Wizard:''' Any more news?
+* '''Player:''' I have made the potion.
+* '''Watchtower Wizard:''' That's great news; let me infuse it with magic...
+* '''Watchtower Wizard:''' Here it is - a dangerous substance. I must remind you that this potion can only be used if your Magic level is high enough.
+* '''Player:''' How high is high enough?
+* '''Watchtower Wizard:''' Well, if you can cast Bones to Bananas, or any spells beyond that, you should be alright.
+* {{tact|end}}
+
+===Killing the ogre shamans===
+* {{tcond|After killing one shaman:}}
+** '''Player:''' That's one destroyed...
+* {{tcond|After killing two shamans:}}
+** '''Player:''' That's the second one gone...
+* {{tcond|After killing three shamans:}}
+** '''Player:''' That's the third one dealt with...
+* {{tcond|After killing four shamans:}}
+** '''Player:''' There goes the fourth...
+* {{tcond|After killing five shamans:}}
+** '''Player:''' That's five! Only one more left now...
+* {{tcond|After killing the last shaman:}}
+** {{tbox|pic=Crystal (cyan) detail.png|A crystal drops from the hand of the disappearing ogre. You snatch it up quickly.}}
+* {{tcond|Searching the shaman robe before killing all the shamans:}}
+** {{tbox|pic=Shaman robe detail.png|You search the robe, but find nothing. Maybe you need to defeat the shamans first.}}
+* {{tcond|Searching the shaman robe while already having the crystal:}}
+** {{tbox|pic=Shaman robe detail.png|pic2=Crystal (cyan) detail.png|You search the robe, but find nothing. You already have the shamans' crystal.}}
+* {{tcond|Searching the shaman robe while not having the crystal:}}
+** {{tbox|pic=Shaman robe detail.png|pic2=Crystal (cyan) detail.png|You search the robe and find a crystal!}}
+
+===Mining the Rock of Dalgroth===
+* {{tbox|pic=Crystal (grey) detail.png|A crack appears in the rock and you prise a crystal out.}}
+
+===Prospecting the Rock of Dalgroth after mining it===
+* {{mes|You examine the rock for ores...}}
+* {{mes|The rock has a gap in which a crystal used to sit.}}
+
+===Attempting to mine the Rock of Dalgroth again===
+* '''Player:''' I already have this crystal. There is no benefit to getting another.
+* {{tact|end}}
+
+===Talking to the Watchtower Wizard before killing the shamans===
+* '''Watchtower Wizard:''' Hello again. Did the potion work?
+* '''Player:''' I am still working to rid us of the shamans...
+* '''Watchtower Wizard:''' May you have success in your task.
+* {{tact|end}}
+
+===Returning to the Watchtower Wizard after killing the shamans without mining the rock===
+* '''Watchtower Wizard:''' Hello again. Did the potion work?
+* '''Player:''' Indeed it did! I wiped out those ogre shamans!
+* {{tselect|Select an Option}}
+* {{topt|I had another crystal but I lost it.}}
+** '''Player:''' I had another crystal but I lost it.
+** '''Watchtower Wizard:''' Oh, really? If you got it from someone, maybe they'll have found it again. Otherwise, go and search the place where you got it in the first place.
+** {{tact|end}}
+* {{topt|I am looking for another crystal.}}
+** '''Player:''' I am looking for another crystal.
+** '''Watchtower Wizard:''' I am sure the cave holds the final crystal. Look for the source of the shamans' power.
+** '''Player:''' Okay, I will go and have a look.
+** {{tact|end}}
+* {{topt|I have found another crystal!}}
+** '''Player:''' I have found another crystal!
+** '''Watchtower Wizard:''' Good, hand it over to me.
+** {{tact|end}}
+
+==Reviving the Watchtower==
+===Talking to a wizard===
+* '''Player:''' Any chance of a hand?
+* '''Wizard:''' Well, you could ask the Watchtower Wizard for one.
+* {{tact|end}}
+
+===Talking to the Watchtower Wizard with all the crystals===
+* '''Watchtower Wizard:''' Hello again. Did the potion work?
+* '''Player:''' Indeed it did! I wiped out those ogre shamans!
+* '''Watchtower Wizard:''' Magnificent! At last you've brought all the crystals.
+* '''Watchtower Wizard:''' Now the shield generator can be activated and, once again, Yanille will be safe from the threat of the ogres.
+* '''Watchtower Wizard:''' Put the crystals on the pillars there and throw the lever to activate the system.
+* {{tact|end}}
+
+===Talking to the Watchtower Wizard again===
+* '''Watchtower Wizard:''' The system is not activated yet. Throw the switch to start it.
+* {{tact|end}}
+
+===Talking to a wizard before activating the generator===
+* '''Player:''' What should I do now?
+* '''Wizard:''' You will need to speak to the Watchtower Wizard.
+* '''Wizard:''' Seriously, he's the one in charge here.
+* {{tact|end}}
+
+===Pulling the lever before placing the crystals===
+* {{tbox|You need to put the crystals on the correct pillars before the shield will work. All that happens now is a rather unsatisfying clunking noise.}}
+
+===Placing a crystal on the wrong pillar===
+* {{mes|That is not the right crystal for this pillar; try another.}}
+
+===Activating the shield generator===
+* {{mes|The magic force field activates.}}
+* {{tact|receives=15,250 Magic experience, 5,000 coins, and a [[spell scroll]]}}
+* '''Watchtower Wizard:''' Marvellous! It works! The town will now be safe. Take these coins as a token of my gratitude. Also, let me improve your Magic level.
+* '''Watchtower Wizard:''' I've given you a special scroll too - it's a new spell. Read the scroll and you will be able to teleport yourself here.
+* {{mes|Congratulations, you've completed a quest: Watchtower}}
+
+==Post-quest==
+===Talking to the Watchtower Wizard===
+* '''Watchtower Wizard:''' Greetings, friend. I trust all is well with you? Yanille is safe at last!
+* {{tselect|Select an Option}}
+* {{tcond|If the player has read the spell scroll:}}
+* {{topt|Do you have any more quests for me?}}
+* '''Player:''' Do you have any more quests for me?
+** '''Watchtower wizard:''' More quests? No, indeed, adventurer. You have done us a great service, already.
+** {{tact|end}}
+* {{tcond|If the player has not read the spell scroll:}}
+* {{topt|I lost the scroll you gave me.}}
+** '''Player:''' I lost the scroll you gave me.
+** {{tcond|If the player lost the spell scroll:}}
+*** '''Watchtower Wizard:''' Never mind, have another...
+*** {{tact|receives=[[spell scroll]]}}
+*** {{tact|end}}
+** {{tcond|If the player has the spell scroll}}
+*** '''Watchtower Wizard:''' Ho, ho, ho! A comedian to the finish. There it is, in your backpack!
+*** {{tact|end}}
+* {{topt|That's okay.}}
+** '''Player:''' That's okay.
+** '''Watchtower Wizard:''' We are always in your debt; do come and visit us again.
+** {{tact|end}}
+
+===Talking to a wizard===
+* '''Wizard:''' All's well that ends well.
+* {{tact|end}}
+
+===Reading the spell scroll===
+* {{tbox|You memorise what is written on the scroll.}}
+* {{tbox|You can now cast the Watchtower teleport spell... ...Provided you have the required runes and magic level.}}
+* {{mes|The scroll crumbles to dust.}}
+
+{{Watchtower}}
