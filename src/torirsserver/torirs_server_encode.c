@@ -5073,7 +5073,16 @@ ToriRSServer_ZoneSubStandalone(
 
     if( name < 0 )
         return 0;
-    return ToriRSServer_WireOpcode(wire ? wire : ToriRSServer_WireDefault(), name) >= 0;
+    if( !wire )
+        wire = ToriRSServer_WireDefault();
+    /*
+     * A question, not a send: asked through ToriRSServer_WireOpcode it filed
+     * "osrs242 has no MAP_PROJANIM -- dropping it" for every zone sub a
+     * revision carries only enclosed (MAP_PROJANIM_V2, OBJ_ADD), while the
+     * caller went on to send it in UPDATE_ZONE_PARTIAL_ENCLOSED. The report
+     * belongs to a send that really is dropped.
+     */
+    return wire->opcode && wire->opcode(name) >= 0;
 }
 
 int
