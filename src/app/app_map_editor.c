@@ -3708,14 +3708,14 @@ app_map_editor_ghost_is_edit(struct App const* app)
            && WorldBuilder_GetLayout(app->world_builder) == WORLD_BUILDER_LAYOUT_EDIT;
 }
 
-/** A shadow loc that named `old_handle` now names `new_handle`. */
-static void
+/** A shadow loc that named `old_handle` now names `new_handle`. Returns 0
+ *  when no shadow loc named it. */
+static int
 app_edit_shadow_rebind(
     int old_handle,
     int new_handle)
 {
-    if( old_handle == WORLD_BUILDER_HANDLE_NONE )
-        return;
+    assert(old_handle != WORLD_BUILDER_HANDLE_NONE);
     for( int i = 0; i < EDITOR_DOC_MAX_SQUARES; i++ )
     {
         struct AppMapEditShadow* sh = &g_app_edit_mirror.squares[i];
@@ -3725,9 +3725,10 @@ app_edit_shadow_rebind(
             if( sh->handles[k] == old_handle )
             {
                 sh->handles[k] = new_handle;
-                return;
+                return 1;
             }
     }
+    return 0;
 }
 
 /** Forget the ghost WITHOUT removing it (STATIC commit). */
@@ -3773,10 +3774,20 @@ app_map_editor_ghost_remove(struct App* app)
             struct World_LocPlacement next_live;
             int next = g_app_edit_ghost.occupant_next;
             int handle;
+            int adopted;
             if( next != WORLD_BUILDER_HANDLE_NONE && !WorldEdit_PlacementGet(wb, next, &next_live) )
                 next = WORLD_BUILDER_HANDLE_NONE;
             handle = WorldEdit_LocPlaceBefore(wb, &place, next);
-            app_edit_shadow_rebind(g_app_edit_ghost.occupant_handle, handle);
+            adopted = app_edit_shadow_rebind(g_app_edit_ghost.occupant_handle, handle);
+            /* An occupant in a square the document has open is one of its
+             * locs, bound to this bake when the ghost went up: a put-back
+             * no shadow adopts is a placement nothing will take down again
+             * -- the loc a Delete reports deleted and leaves standing. */
+            assert(adopted
+                   || !app_edit_shadow_find(
+                       (app->world->_base_tile_x + restore.scene_x) / EDITOR_SQUARE_X,
+                       (app->world->_base_tile_z + restore.scene_z) / EDITOR_SQUARE_Z));
+            (void)adopted;
         }
         g_app_edit_ghost.ghost_handle = WORLD_BUILDER_HANDLE_NONE;
         g_app_edit_ghost.occupant_handle = WORLD_BUILDER_HANDLE_NONE;
@@ -3821,6 +3832,18 @@ app_map_editor_ghost_place_edit(
         }
         return 0;
     }
+    /*
+     * The shadow names this bake's placements BEFORE the occupant comes down.
+     * It learns them lazily, at the first sync after a bake -- and a bake is
+     * what the first Place of a loc whose model was not resident asks for.
+     * With the pointer still on the tile, the ghost went up over the new loc
+     * before any sync had bound the new bake: the put-back's rebind then
+     * searched the OLD bake's handles and found nothing, and the late bind
+     * read the taken-down placement as NONE. The loc stood in the world under
+     * no shadow handle; a Delete took it out of the document, said "Deleted",
+     * and left it standing and unselectable (2026-11-11).
+     */
+    app_edit_bind_handles(&ctx);
     g_app_edit_ghost.occupant_next = WORLD_BUILDER_HANDLE_NONE;
     occupant = WorldEdit_FindPlacement(wb, wanted->scene_x, wanted->scene_z, wanted->level, wanted->shape);
     if( occupant != WORLD_BUILDER_HANDLE_NONE )
