@@ -2469,6 +2469,21 @@ static int g_multiway_count;
 static int g_multiway_capacity;
 
 /*
+ * Template squares whose copies are single-way, from
+ * `maps/instance_singleway.csv` (one `mapx_mapz` per line).
+ *
+ * A map instance has no address on the real map, so the zone set above cannot
+ * answer for it, and an instance is multi-way by default (see
+ * ToriRSServer_TileMultiway). That default is right for the raids and every
+ * arena of adds. This set is the exception, square by square, each line backed
+ * by a recording whose multi-combat icon (varbit 4605 `multiway_indicator`)
+ * stays 0 inside the copy.
+ */
+static int* g_singleway_squares;
+static int g_singleway_square_count;
+static int g_singleway_square_capacity;
+
+/*
  * Same packing as `ToriRSServer_ZoneIndex` / the reference's `ZoneMap.zoneIndex`.
  * Kept local so `ToriRSServer_Pack` need not link the zone module.
  */
@@ -2528,6 +2543,68 @@ load_multiway(const char* path)
     }
     fclose(file);
     qsort(g_multiway, (size_t)g_multiway_count, sizeof(*g_multiway), compare_zone_index);
+}
+
+static int
+singleway_square_key(
+    int map_x,
+    int map_z)
+{
+    return (map_x << 10) | (map_z & 0x3ff);
+}
+
+static void
+load_instance_singleway(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char line[256];
+
+    if( !file )
+        return;
+    while( fgets(line, sizeof(line), file) )
+    {
+        int map_x, map_z;
+
+        if( sscanf(line, "%d_%d", &map_x, &map_z) != 2 )
+            continue; /* a comment or a blank line */
+        if( g_singleway_square_count == g_singleway_square_capacity )
+        {
+            int capacity = g_singleway_square_capacity ? g_singleway_square_capacity * 2 : 64;
+            int* grown = ToriMem_Realloc(
+                ToriMem_ServerContent(), g_singleway_squares, (size_t)capacity * sizeof(*grown));
+
+            assert(grown);
+            g_singleway_squares = grown;
+            g_singleway_square_capacity = capacity;
+        }
+        g_singleway_squares[g_singleway_square_count++] = singleway_square_key(map_x, map_z);
+    }
+    fclose(file);
+    qsort(g_singleway_squares, (size_t)g_singleway_square_count, sizeof(*g_singleway_squares),
+          compare_zone_index);
+}
+
+int
+ToriRSServer_ContentInstanceSingleway(
+    int x,
+    int z)
+{
+    int key = singleway_square_key(x >> 6, z >> 6);
+    int low = 0;
+    int high = g_singleway_square_count - 1;
+
+    while( low <= high )
+    {
+        int mid = low + (high - low) / 2;
+
+        if( g_singleway_squares[mid] == key )
+            return 1;
+        if( g_singleway_squares[mid] < key )
+            low = mid + 1;
+        else
+            high = mid - 1;
+    }
+    return 0;
 }
 
 int
@@ -3140,6 +3217,8 @@ ToriRSServer_ContentLoad(
 
     snprintf(path, sizeof(path), "%s/maps/multiway.csv", dir);
     load_multiway(path);
+    snprintf(path, sizeof(path), "%s/maps/instance_singleway.csv", dir);
+    load_instance_singleway(path);
 
     {
         int requires_total = 0;
@@ -3955,6 +4034,9 @@ ToriRSServer_ContentFree(void)
     ToriMem_Free(ToriMem_ServerContent(), g_multiway);
     g_multiway = NULL;
     g_multiway_count = g_multiway_capacity = 0;
+    ToriMem_Free(ToriMem_ServerContent(), g_singleway_squares);
+    g_singleway_squares = NULL;
+    g_singleway_square_count = g_singleway_square_capacity = 0;
     for( int i = 0; i < g_enum_def_count; i++ )
     {
         ToriMem_Free(ToriMem_ServerContent(), (void*)g_enum_defs[i].symbol);

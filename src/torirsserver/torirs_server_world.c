@@ -6310,9 +6310,9 @@ advance_npcs(struct ToriRSServer* srv)
                      * projectile it rides, if one was sent with it. */
                     int const saved_land_cycle = srv->hit_land_cycle;
                     srv->hit_land_cycle = npc->queue[i].splat_land_cycle;
-                    ToriRSServer_ScriptsRunTriggerLastint(
-                        srv, SS_TRIGGER_AI_QUEUE1 + (npc->queue[i].queue - 1), npc->type, -1, slot,
-                        npc->queue[i].arg);
+                    ToriRSServer_ScriptsRunNpcQueue(
+                        srv, SS_TRIGGER_AI_QUEUE1 + (npc->queue[i].queue - 1), npc->type, slot,
+                        npc->queue[i].arg, npc->queue[i].hero_deals);
                     srv->hit_land_cycle = saved_land_cycle;
                     if( bound )
                         ToriRSServer_WorldSetActive(srv, saved);
@@ -18300,6 +18300,47 @@ npc_face_follow(struct ToriRSServer* srv)
     }
 }
 
+/*
+ * Facing goes out once per turn, as the turn ended, and only when it changed.
+ *
+ * The reference derives FACE_ENTITY from the target at the END of the npc's
+ * turn (`Npc.turn` -> `setFaceEntity`, which masks only on a change). Ours
+ * writes the latch where each step decides it, so a turn that takes a target
+ * and drops it again -- a guard's timer re-taking the player, then its swing
+ * refused single-way (`npc_setmode(null)`) -- masked twice and shipped a
+ * reset every tick it waited. Jagex sends that reset once ([9647]) and then
+ * nothing while the guard stays refused ([9648..9650]; RSProx index 4523, the
+ * mill cellar). A latch that ended where it began is no change.
+ */
+static void
+npc_face_turn_begin(struct ToriRSServer* srv)
+{
+    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+    {
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
+
+        npc->face_turn_start = npc->face_entity;
+        /* An empty slot is left alone at the settle: an npc spawned into it
+         * this phase has no turn-start latch to compare. */
+        npc->face_turn_start_masked =
+            !npc->active || (npc->masks & TORIRSSERVER_NMASK_FACE_ENTITY) != 0;
+    }
+}
+
+static void
+npc_face_settle(struct ToriRSServer* srv)
+{
+    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+    {
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
+
+        if( !npc->active || npc->face_turn_start_masked )
+            continue;
+        if( npc->face_entity == npc->face_turn_start )
+            npc->masks &= ~TORIRSSERVER_NMASK_FACE_ENTITY;
+    }
+}
+
 static void
 phase_npcs(struct ToriRSServer* srv)
 {
@@ -18328,7 +18369,9 @@ phase_npcs(struct ToriRSServer* srv)
         if( srv->npcs[slot].death_tick >= 0 )
             ToriRSServer_CombatNpcTick(srv, slot);
     }
+    npc_face_turn_begin(srv);
     advance_npcs(srv);
+    npc_face_settle(srv);
     /* After combat and modes have claimed facing: clear idle latches
      * (LostCity setFaceEntity with no pathing target). */
     for( int slot = 0; slot < srv->npc_slot_max; slot++ )
@@ -20600,8 +20643,9 @@ music_enter_track(
  * 183, 193, 199, 2111: 1 on landing in the arena). Nothing here sent it, so
  * the icon never showed anywhere.
  *
- * The answer is the one combat already gives (ToriRSServer_CombatMultiway,
- * SS_OP_MAP_MULTIWAY): a map instance is multi-way, otherwise the zone set.
+ * The answer is the one combat already gives (ToriRSServer_TileMultiway,
+ * shared with SS_OP_MAP_MULTIWAY): the zone set, or for a map instance its
+ * template square's entry in maps/instance_singleway.csv.
  * The icon says what the multi-combat rule will do to the player, so it must
  * not disagree with the rule. Zones are 8x8, so the zone latch is the place.
  */
@@ -20615,9 +20659,7 @@ world_sync_multiway_indicator(
 
     if( id < 0 )
         return;
-    multi = ToriRSServer_MapInstanceFind(player->x, player->z)
-                ? 1
-                : ToriRSServer_ContentMultiway(player->x, player->z, player->level);
+    multi = ToriRSServer_TileMultiway(player->x, player->z, player->level);
     if( ToriRSServer_VarbitGet(player, id) != multi )
         ToriRSServer_VarbitSetOn(srv, player, id, multi);
 }

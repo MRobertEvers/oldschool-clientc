@@ -3050,6 +3050,11 @@ struct ToriRSServerNpc
     /** The angle (0..2047) to the faced player when FACE_ENTITY last went out:
      *  the block is re-sent whenever it turns (`npc_face_follow`). */
     int face_sent_angle;
+    /** `face_entity` and its FACE_ENTITY mask bit as the npc phase began, for
+     *  `npc_face_settle`: a turn that sets and clears the latch has not
+     *  changed it. */
+    int face_turn_start;
+    int face_turn_start_masked;
     /**
      * The facing an `[add]` restates, beside the entity latch above (an entity
      * held wins): one of TORIRSSERVER_NPCFACEADD_*. Updated once a tick by
@@ -3310,6 +3315,16 @@ struct ToriRSServerNpc
          */
         int hero_pid;
         uint32_t hero_gen;
+        /**
+         * Whether that player DEALT what the entry carries: 1 when a
+         * player's own script armed it (their swing's `npc_queue(2, ...)`),
+         * 0 when an npc's script did with a player only bound around it --
+         * borrowed for the npc phase, or an owned npc's owner. A guard's
+         * swing at a follower is the guard's hit, not the owner's: the
+         * splat goes out as another's and nobody is credited (DttD's mill
+         * cellar, RSProx index 4523 [9656], 13/17 on Zanik).
+         */
+        int hero_deals;
         /** The client cycle the projectile this entry's hit rides lands on,
          *  or 0; see `ToriRSServer_ProjectileLandCycleFor`. */
         int splat_land_cycle;
@@ -5584,6 +5599,11 @@ struct ToriRSServer
      *  would pass -1 for. */
     int32_t pending_last_int;
     int pending_last_int_valid;
+    /** Whether the player the NEXT ai_* dispatch binds dealt its hits, read
+     *  the same way: set across `ToriRSServer_ScriptsRunTriggerLastint` (1)
+     *  and `ToriRSServer_ScriptsRunNpcQueue` (the entry's `hero_deals`).
+     *  Every other ai trigger's player is context only. */
+    int pending_ai_player_deals;
 
     int verbose;
 
@@ -7440,6 +7460,18 @@ int
 ToriRSServer_CombatMultiway(const struct ToriRSServerNpc* npc);
 
 /**
+ * Is this tile multi-way? The one answer combat, the multi-combat icon and
+ * `map_multiway` all give: on the real map the zone set; in a map instance
+ * multi-way, unless the template square the tile was copied from is listed in
+ * `maps/instance_singleway.csv`.
+ */
+int
+ToriRSServer_TileMultiway(
+    int x,
+    int z,
+    int level);
+
+/**
  * Stamp the single-way claim on both halves of a fight — the player and the
  * npc — for TORIRSSERVER_SINGLEWAY_COMBAT_TICKS.
  *
@@ -8456,6 +8488,17 @@ ToriRSServer_ScriptsRunTriggerLastint(
     int category,
     int npc_slot,
     int32_t last_int);
+
+/** The npc queue's dispatch: `ToriRSServer_ScriptsRunTriggerLastint`, stating
+ *  whether the player bound for it dealt the entry's hit (`hero_deals`). */
+int
+ToriRSServer_ScriptsRunNpcQueue(
+    struct ToriRSServer* srv,
+    int trigger,
+    int type,
+    int npc_slot,
+    int32_t last_int,
+    int hero_deals);
 
 /** Trigger dispatch that also arms a SECONDARY active npc — the thing the
  *  subject npc is acting on. `[ai_opnpc<n>,<attacker>]` is the only caller:

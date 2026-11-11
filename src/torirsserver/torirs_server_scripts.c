@@ -1711,6 +1711,17 @@ report_abort(struct SSVM_State* state)
  */
 #define SCRIPT_PTR_BORROWED_PLAYER (1u << 30)
 
+/*
+ * The player an npc's own turn runs with is its CONTEXT, not the dealer of
+ * what it does: borrowed for the npc phase, or an owned npc's owner. Set on
+ * every ai_* trigger except a queue a player's own script armed (the entry's
+ * `hero_deals`), and never lifted by binding a player -- an npc that finds its
+ * hero still swung the hit itself. `npc_damage` and `npc_hitmark` read it: a
+ * guard's hit on a follower is not the owner's (DttD, RSProx index 4523
+ * [9656]: 13/17, another's, on Zanik), and credits nobody's loot.
+ */
+#define SCRIPT_PTR_CONTEXT_PLAYER (1u << 29)
+
 static const char*
 trigger_label(
     int trigger,
@@ -3169,6 +3180,8 @@ run_trigger_script_inner(
     if( trigger_is_ai_npc(state->trigger) &&
         !(npc_slot >= 0 && npc_slot < TORIRSSERVER_NPC_MAX && srv->npcs[npc_slot].owner_gen != 0) )
         SSVM_PointerAdd(state, SCRIPT_PTR_BORROWED_PLAYER);
+    if( trigger_is_ai_npc(state->trigger) && !srv->pending_ai_player_deals )
+        SSVM_PointerAdd(state, SCRIPT_PTR_CONTEXT_PLAYER);
 
     /* Targeted player casts keep their owner as active_player so a script's
      * common post-operation commit cannot debit the recipient. The selected
@@ -3541,12 +3554,39 @@ ToriRSServer_ScriptsRunTriggerLastint(
     int rc;
     int32_t saved = srv->pending_last_int;
     int saved_valid = srv->pending_last_int_valid;
+    int saved_deals = srv->pending_ai_player_deals;
 
     srv->pending_last_int = last_int;
     srv->pending_last_int_valid = 1;
+    srv->pending_ai_player_deals = 1;
     rc = run_trigger_impl(srv, trigger, type, category, npc_slot, -1, -1, 1, 1);
     srv->pending_last_int = saved;
     srv->pending_last_int_valid = saved_valid;
+    srv->pending_ai_player_deals = saved_deals;
+    return rc;
+}
+
+int
+ToriRSServer_ScriptsRunNpcQueue(
+    struct ToriRSServer* srv,
+    int trigger,
+    int type,
+    int npc_slot,
+    int32_t last_int,
+    int hero_deals)
+{
+    int rc;
+    int32_t saved = srv->pending_last_int;
+    int saved_valid = srv->pending_last_int_valid;
+    int saved_deals = srv->pending_ai_player_deals;
+
+    srv->pending_last_int = last_int;
+    srv->pending_last_int_valid = 1;
+    srv->pending_ai_player_deals = hero_deals;
+    rc = run_trigger_impl(srv, trigger, type, -1, npc_slot, -1, -1, 1, 1);
+    srv->pending_last_int = saved;
+    srv->pending_last_int_valid = saved_valid;
+    srv->pending_ai_player_deals = saved_deals;
     return rc;
 }
 
@@ -7683,6 +7723,8 @@ script_command(
                     state, SSVM_ENT_PLAYER, SSVM_PRIMARY);
                 npc->queue[i].hero_pid = hero ? hero->pid : -1;
                 npc->queue[i].hero_gen = hero ? hero->login_generation : 0;
+                npc->queue[i].hero_deals =
+                    hero && !(state->pointers & SCRIPT_PTR_CONTEXT_PLAYER);
             }
             npc->queue[i].splat_land_cycle =
                 ToriRSServer_ProjectileLandCycleFor(srv, (int)(npc - &srv->npcs[0]) + 1);
@@ -12847,7 +12889,7 @@ script_command(
     case SS_OP_NPC_DAMAGE:
     {
         int32_t values[2];
-        int slot = (int)state->host_tag - 1;
+        int slot = active_npc_slot(state);
 
         for( int i = 1; i >= 0; i-- )
         {
@@ -12863,11 +12905,15 @@ script_command(
          * (hitmark, tick log) and the retaliation latch read the server's
          * active player, and a script with no player of its own (a timer, a
          * map queue) ran under whatever the server had bound last -- a
-         * different player on each lane (2026-10-09, seed sb t+635). */
+         * different player on each lane (2026-10-09, seed sb t+635). An npc's
+         * own turn deals its hits itself (SCRIPT_PTR_CONTEXT_PLAYER). */
         {
             struct ToriRSServerPlayer* saved = srv->active_player;
-            struct ToriRSServerPlayer* own = (struct ToriRSServerPlayer*)SSVM_ActiveSlot(
-                state, SSVM_ENT_PLAYER, SSVM_PRIMARY);
+            struct ToriRSServerPlayer* own =
+                (state->pointers & SCRIPT_PTR_CONTEXT_PLAYER)
+                    ? NULL
+                    : (struct ToriRSServerPlayer*)SSVM_ActiveSlot(state, SSVM_ENT_PLAYER,
+                                                                  SSVM_PRIMARY);
 
             ToriRSServer_WorldSetActive(srv, own);
             ToriRSServer_TicklogSetHitSource(ticklog_hit_source(state, ""));
@@ -12889,7 +12935,7 @@ script_command(
     case SS_OP_NPC_HITMARK:
     {
         int32_t values[2];
-        int slot = (int)state->host_tag - 1;
+        int slot = active_npc_slot(state);
 
         for( int i = 1; i >= 0; i-- )
         {
@@ -12901,7 +12947,19 @@ script_command(
             SSVM_Abort(state, "npc_hitmark with no active npc");
             return 1;
         }
-        ToriRSServer_CombatHitmarkNpc(srv, slot, values[0], values[1]);
+        /* Its dealer as `npc_damage`'s: the script's own player, none on an
+         * npc's own turn. */
+        {
+            struct ToriRSServerPlayer* saved = srv->active_player;
+
+            ToriRSServer_WorldSetActive(
+                srv, (state->pointers & SCRIPT_PTR_CONTEXT_PLAYER)
+                         ? NULL
+                         : (struct ToriRSServerPlayer*)SSVM_ActiveSlot(state, SSVM_ENT_PLAYER,
+                                                                       SSVM_PRIMARY));
+            ToriRSServer_CombatHitmarkNpc(srv, slot, values[0], values[1]);
+            ToriRSServer_WorldSetActive(srv, saved);
+        }
         /* A splat with no damage behind it (the script sets the hitpoints
          * itself): a HIT_NPC row all the same, or the tick log never shows a
          * room's scripted damage (the Guardian's battery blasts). */
@@ -15764,16 +15822,10 @@ script_command(
 
         if( !SSVM_PopInt(state, &coord) )
             return 1;
-        /* The same answer combat gives (ToriRSServer_CombatMultiway): a map
-         * instance is multi-combat, whatever the zone set says of its tiles. */
-        if( ToriRSServer_MapInstanceFind(ToriRSServer_CoordX(coord), ToriRSServer_CoordZ(coord)) )
-        {
-            SSVM_PushInt(state, 1);
-            return 1;
-        }
-        SSVM_PushInt(state, ToriRSServer_ContentMultiway(ToriRSServer_CoordX(coord),
-                                                     ToriRSServer_CoordZ(coord),
-                                                     ToriRSServer_CoordLevel(coord)));
+        /* The same answer combat gives (ToriRSServer_TileMultiway). */
+        SSVM_PushInt(state, ToriRSServer_TileMultiway(ToriRSServer_CoordX(coord),
+                                                  ToriRSServer_CoordZ(coord),
+                                                  ToriRSServer_CoordLevel(coord)));
         return 1;
     }
 

@@ -824,9 +824,6 @@ ToriRSServer_NpcLootRestrictedFor(
     assert(srv);
     assert(npc);
     assert(player);
-    /* The world is not consulted: the restriction is the npc's damage list
-     * and the player's varbit. srv is asserted only, so NDEBUG drops it. */
-    (void)srv;
 
     if( !ids || ids->varbit_ironman < 0 )
         return 0;
@@ -1875,6 +1872,7 @@ npc_queue_death_script(
         npc->queue[i].arg = 0;
         npc->queue[i].hero_pid = hero && hero->active ? hero->pid : -1;
         npc->queue[i].hero_gen = hero && hero->active ? hero->login_generation : 0;
+        npc->queue[i].hero_deals = 1;
         npc->queue[i].splat_land_cycle = 0;
         return;
     }
@@ -2725,8 +2723,12 @@ ToriRSServer_CombatHitPlayer(
  * ------------------------------------------------------------------
  *
  * Not the reference's rule, and stated here rather than smuggled in, because
- * it is the one place this deliberately answers "multi" where OldSchool might
- * not.
+ * it is the default this deliberately gives where OldSchool might not. The
+ * exceptions are named square by square in `maps/instance_singleway.csv`
+ * (ToriRSServer_TileMultiway): a copy whose template square is listed there is
+ * single-way, each line backed by a recording whose multi-combat icon stays off
+ * inside the copy (Death to the Dorgeshuun's mill cellar, RSProx index 4523
+ * [9561..10142]: varbit 4605 0 throughout, one attacker at a time).
  *
  * `maps/multiway.csv` is a *zone set over the real map*, and an instance has no
  * address on the real map: the pool hands out map squares from x >= 100, past
@@ -2753,9 +2755,27 @@ ToriRSServer_CombatMultiway(const struct ToriRSServerNpc* npc)
     assert(npc);
     if( npc_def(npc)->forcemulti )
         return 1;
-    if( ToriRSServer_MapInstanceFind(npc->x, npc->z) )
+    return ToriRSServer_TileMultiway(npc->x, npc->z, npc->level);
+}
+
+int
+ToriRSServer_TileMultiway(
+    int x,
+    int z,
+    int level)
+{
+    int handle = ToriRSServer_MapInstanceFind(x, z);
+    int src_x;
+    int src_z;
+    int src_level;
+
+    if( !handle )
+        return ToriRSServer_ContentMultiway(x, z, level);
+    /* A tile past the copied zones has no source: still the instance's, and
+     * multi-way as the instance is. */
+    if( !ToriRSServer_MapInstanceSourceTile(handle, level, x, z, &src_x, &src_z, &src_level) )
         return 1;
-    return ToriRSServer_ContentMultiway(npc->x, npc->z, npc->level);
+    return ToriRSServer_ContentInstanceSingleway(src_x, src_z) ? 0 : 1;
 }
 
 /*
@@ -4237,6 +4257,23 @@ npc_dispatch_combat_applayer_mode(
     return 1;
 }
 
+/* The npc-vs-npc reach: range, and line of sight for a ranged attacker. */
+static int
+npc_vs_npc_in_reach(
+    const struct ToriRSServerNpc* npc,
+    const struct ToriRSServerNpc* target)
+{
+    int const target_size = target->size > 0 ? target->size : 1;
+    int const npc_size = npc->size > 0 ? npc->size : 1;
+
+    if( !in_npc_attack_range_npc(npc, target) )
+        return 0;
+    if( npc_def(npc)->attackrange <= 1 )
+        return 1;
+    return ToriRSServer_SceneApproached(npc->level, target->x, target->z, npc->x, npc->z,
+                                        target_size, target_size, npc_size, npc_size);
+}
+
 /*
  * One turn of a fight between two npcs.
  *
@@ -4263,7 +4300,6 @@ npc_vs_npc_tick(
     struct ToriRSServerNpc* npc = &srv->npcs[slot];
     int target_slot = npc->combat_target_npc;
     struct ToriRSServerNpc* target;
-    int in_reach;
 
     if( target_slot < 0 || target_slot >= TORIRSSERVER_NPC_MAX )
     {
@@ -4289,16 +4325,7 @@ npc_vs_npc_tick(
      * the same reason as the player path. */
     ToriRSServer_NpcFaceNpc(npc, target_slot);
 
-    in_reach = in_npc_attack_range_npc(npc, target);
-    if( in_reach && npc_def(npc)->attackrange > 1 &&
-        !ToriRSServer_SceneApproached(npc->level, target->x, target->z, npc->x, npc->z,
-                                  target->size > 0 ? target->size : 1,
-                                  target->size > 0 ? target->size : 1,
-                                  npc->size > 0 ? npc->size : 1,
-                                  npc->size > 0 ? npc->size : 1) )
-        in_reach = 0;
-
-    if( !in_reach )
+    if( !npc_vs_npc_in_reach(npc, target) )
     {
         struct CollisionApproach approach = {
             .kind = COLL_APPROACH_RECT_ADJACENT,
@@ -4307,10 +4334,16 @@ npc_vs_npc_tick(
             .mover_size = npc->size > 0 ? npc->size : 1,
         };
 
-        if( ToriRSServer_WorldNpcWalkToApproach(npc, target->x, target->z, &approach) &&
-            !npc_def(npc)->givechase )
+        if( !ToriRSServer_WorldNpcWalkToApproach(npc, target->x, target->z, &approach) )
+            return 1;
+        if( !npc_def(npc)->givechase )
+        {
             ToriRSServer_CombatStopNpc(srv, slot);
-        return 1;
+            return 1;
+        }
+        /* The step into reach is the swing's tick, as on the player path. */
+        if( !npc_vs_npc_in_reach(npc, target) )
+            return 1;
     }
 
     if( srv->tick < npc->attack_clock )
@@ -4407,6 +4440,33 @@ ToriRSServer_NpcRangedApproached(
     return npc_ranged_approached(npc, px, pz, npc->size > 0 ? npc->size : 1);
 }
 
+/*
+ * Whether the npc reaches its target from where it stands: the attack range,
+ * and for a ranged or magic attacker the APPROACHED line of sight too -- the
+ * same cast `npc_run_mode`'s AP dispatch makes (player -> npc, backwards,
+ * because that is the direction the reference asks it in). Without it, giving
+ * the Inferno's rangers their wiki-stated arena-wide `attackrange` let a
+ * retaliating Jal-Xil shoot through the pillars, and hiding behind one is the
+ * fight's whole mechanic. Melee (`attackrange <= 1`) keeps the plain adjacency
+ * test: the shared-edge wall check in the approach already answers fences.
+ */
+static int
+npc_tick_in_reach(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerNpc* npc)
+{
+    int px;
+    int pz;
+
+    if( !in_npc_attack_range(srv, player, npc) )
+        return 0;
+    if( npc_def(npc)->attackrange <= 1 )
+        return 1;
+    ToriRSServer_PlayerReachTile(srv, player, npc->x, npc->z, &px, &pz);
+    return npc_ranged_approached(npc, px, pz, npc->size > 0 ? npc->size : 1);
+}
+
 void
 ToriRSServer_CombatNpcTick(
     struct ToriRSServer* srv,
@@ -4499,28 +4559,7 @@ ToriRSServer_CombatNpcTick(
      */
     ToriRSServer_NpcFacePlayer(npc, npc->combat_target);
 
-    /* A ranged or magic attacker also needs *approached* line of sight before
-     * its reach counts — the same cast `npc_run_mode`'s AP dispatch makes
-     * (player → npc, backwards, because that is the direction the reference
-     * asks it in). Without this, giving the Inferno's rangers their
-     * wiki-stated arena-wide `attackrange` let a retaliating Jal-Xil shoot
-     * through the pillars, and hiding behind one is the fight's whole
-     * mechanic. Melee (`attackrange <= 1`) keeps the plain adjacency test:
-     * the shared-edge wall check in the approach already answers fences. */
-    int npc_size = npc->size > 0 ? npc->size : 1;
-    int in_reach = in_npc_attack_range(srv, player, npc);
-
-    {
-        int px;
-        int pz;
-
-        ToriRSServer_PlayerReachTile(srv, player, npc->x, npc->z, &px, &pz);
-        if( in_reach && npc_def(npc)->attackrange > 1 &&
-            !npc_ranged_approached(npc, px, pz, npc_size) )
-            in_reach = 0;
-    }
-
-    if( !in_reach )
+    if( !npc_tick_in_reach(srv, player, npc) )
     {
         /*
          * Pursue — the reference's `aiMode()`: path to the target, take one
@@ -4574,11 +4613,19 @@ ToriRSServer_CombatNpcTick(
             /* Pursue toward where the rider IS in this world — the hull's
              * edge, not their pool tile a continent away. */
             ToriRSServer_PlayerReachTile(srv, player, npc->x, npc->z, &px, &pz);
-            if( ToriRSServer_WorldNpcWalkToApproach(npc, px, pz, &approach) &&
-                !npc_def(npc)->givechase )
+            if( !ToriRSServer_WorldNpcWalkToApproach(npc, px, pz, &approach) )
+                return;
+            if( !npc_def(npc)->givechase )
+            {
                 ToriRSServer_CombatStopNpc(srv, slot);
+                return;
+            }
         }
-        return;
+        /* The step that brings it into reach is also its swing's tick, as
+         * Jagex's: the reach is asked again after the move (DttD's mill guards,
+         * RSProx index 4523: the swing on the step tick, ours a tick later). */
+        if( !npc_tick_in_reach(srv, player, npc) )
+            return;
     }
 
     /* Facing is set above, before the approach returns early — an npc has to

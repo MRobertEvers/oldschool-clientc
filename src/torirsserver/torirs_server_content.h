@@ -1054,6 +1054,16 @@ ToriRSServer_ContentMultiway(
     int z,
     int level);
 
+/**
+ * Is a copy of the template square holding this tile single-way? —
+ * `maps/instance_singleway.csv`. Asked of an instance tile's SOURCE tile; see
+ * ToriRSServer_TileMultiway.
+ */
+int
+ToriRSServer_ContentInstanceSingleway(
+    int x,
+    int z);
+
 /** Diagnostics: what the last load rejected. Zero means the tree is clean. */
 int
 ToriRSServer_ContentErrorCount(void);
