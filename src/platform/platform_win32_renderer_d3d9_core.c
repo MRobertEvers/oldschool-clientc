@@ -1010,8 +1010,13 @@ d3d9_ui_sprite_slot_index(struct ToriPlatformWin32_Renderer_D3D9* renderer, int 
         if( free_index < 0 && renderer->ui_sprite_slots[i].scene_id <= 0 )
             free_index = i;
     }
-    if( !create || free_index < 0 )
+    if( !create )
         return -1;
+    if( free_index < 0 )
+    {
+        renderer->ui_sprite_sheet_full = true;
+        return -1;
+    }
     renderer->ui_sprite_slots[free_index].scene_id = scene_id;
     renderer->ui_sprite_slots[free_index].count = 0;
     ToriMem_Free(ToriMem_Renderer(), renderer->ui_sprite_slots[free_index].uvs);
@@ -1130,7 +1135,10 @@ d3d9_ui_upload_sprite_pixels(
     }
     ToriMem_Free(ToriMem_Renderer(), argb);
     if( !inserted )
+    {
+        renderer->ui_sprite_sheet_full = true;
         return false;
+    }
     if( tile_io )
     {
         tile_io->x = tile.x;
@@ -1238,8 +1246,13 @@ d3d9_ui_sprite_variant(
             variant->if3_transform == (uint8_t)(command->if3 && !command->tiled) )
             return variant;
     }
-    if( !create || !free_variant )
+    if( !create )
         return NULL;
+    if( !free_variant )
+    {
+        renderer->ui_sprite_sheet_full = true;
+        return NULL;
+    }
     memset(free_variant, 0, sizeof(*free_variant));
     free_variant->scene_id = command->scene_id;
     free_variant->atlas_index = command->atlas_index;
@@ -1914,6 +1927,53 @@ d3d9_ui_rotated_sprite_quad(
     uv[3][1] = tile_uv[3];
 }
 
+/*
+ * Start the UI sprite sheet over, after it ran out on the sprite being drawn.
+ *
+ * The sheet only ever grew. A slot keeps its scene id for the life of the
+ * renderer, the bin-pack allocator has no per-tile free, and a sprite put
+ * back under its id at another size takes a new tile and strands the old
+ * one. So a client that keeps drawing new pictures -- the editor's Gallery
+ * paging through records, its thumbnails re-rendered at S/M/L/XL/XXL under
+ * the same ids, an obj icon per item browsed -- eventually fills it, and from
+ * then on every sprite not already resident drew nothing, for the rest of
+ * the session.
+ *
+ * Every tile is lazily uploaded from the scene on its first draw, so the
+ * sheet can be emptied at any point: the quads already queued are drawn
+ * first (they sample the old tiles), then every slot and variant is
+ * forgotten and the next draw of each re-uploads it. At most once a 2D
+ * pass, so a pass that does not fit even in an empty sheet evicts nothing
+ * more than once.
+ */
+static bool
+d3d9_ui_sprite_sheet_restart(struct ToriPlatformWin32_Renderer_D3D9* renderer)
+{
+    int i;
+    uint32_t v;
+
+    assert(renderer);
+    if( !renderer->ui_sprite_sheet_full || renderer->ui_sprite_sheet_restarted )
+        return false;
+    d3d9_ui_flush(renderer);
+    trspk_atlas_binpack_reset(&renderer->ui_sprite_atlas);
+    for( i = 0; i < D3D9_UI_SPRITE_CAP; i++ )
+    {
+        struct D3D9UISpriteSlot* slot = &renderer->ui_sprite_slots[i];
+        ToriMem_Free(ToriMem_Renderer(), slot->uvs);
+        ToriMem_Free(ToriMem_Renderer(), slot->loaded);
+        ToriMem_Free(ToriMem_Renderer(), slot->tiles);
+        memset(slot, 0, sizeof(*slot));
+    }
+    for( v = 0u; v < D3D9_UI_VARIANT_CAP; v++ )
+        renderer->ui_variants[v].valid = false;
+    renderer->ui_sprite_sheet_full = false;
+    renderer->ui_sprite_sheet_restarted = true;
+    if( renderer->ui_sprite_sheet_restarts++ == 0u )
+        fprintf(stderr, "d3d9: the UI sprite sheet filled; started it over (it refills as sprites are drawn)\n");
+    return true;
+}
+
 static void
 d3d9_ui_draw_sprite(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
@@ -1999,6 +2059,7 @@ d3d9_ui_draw_sprite(
                 renderer, command, slot, &box_scissor, color);
         return;
     }
+    renderer->ui_sprite_sheet_full = false;
     if( !d3d9_ui_sprite_ensure_variant(
             renderer,
             command,
@@ -2007,7 +2068,17 @@ d3d9_ui_draw_sprite(
             &offset_x,
             &offset_y,
             &width,
-            &height) )
+            &height) &&
+        (!d3d9_ui_sprite_sheet_restart(renderer) ||
+         !d3d9_ui_sprite_ensure_variant(
+             renderer,
+             command,
+             &sprite,
+             uv,
+             &offset_x,
+             &offset_y,
+             &width,
+             &height)) )
         return;
     if( command->rotated )
     {
@@ -6087,6 +6158,7 @@ d3d9_begin_2d(
     d3d9_ui_batch_reset(renderer);
     if( d3d9_ui_layer_wanted(renderer) )
         d3d9_ui_layer_begin(renderer);
+    renderer->ui_sprite_sheet_restarted = false;
     renderer->in2d = true;
 }
 

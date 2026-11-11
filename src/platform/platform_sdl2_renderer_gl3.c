@@ -1074,21 +1074,11 @@ gl3_sprite_slot_index(
         if( free_idx < 0 && renderer->sprite_slots[i].scene_id <= 0 )
             free_idx = i;
     }
-    if( !create || free_idx < 0 )
+    if( !create )
+        return -1;
+    if( free_idx < 0 )
     {
-        if( create && free_idx < 0 )
-        {
-            static int warned = 0;
-            if( !warned )
-            {
-                warned = 1;
-                fprintf(
-                    stderr,
-                    "gl3: 2D sprite slot table full (%d entries); further scene "
-                    "sprites dropped\n",
-                    TRSPK_GL3_SPRITE_CAP);
-            }
-        }
+        renderer->sprite_sheet_full = true;
         return -1;
     }
     renderer->sprite_slots[free_idx].scene_id = scene_id;
@@ -1196,7 +1186,10 @@ gl3_sprite_upload_rgba(
                 (uint32_t)upload_w,
                 (uint32_t)upload_h,
                 &tile) )
+        {
+            renderer->sprite_sheet_full = true;
             return false;
+        }
         if( tile_io )
         {
             tile_io->tile = tile;
@@ -1269,8 +1262,13 @@ gl3_sprite_find_variant(
             v->flip_v == cmd->flip_v && v->if3_transform == if3_transform )
             return v;
     }
-    if( !create || !free_variant )
+    if( !create )
         return NULL;
+    if( !free_variant )
+    {
+        renderer->sprite_sheet_full = true;
+        return NULL;
+    }
     memset(free_variant, 0, sizeof(*free_variant));
     free_variant->scene_id = cmd->scene_id;
     free_variant->atlas_index = cmd->atlas_index;
@@ -2276,6 +2274,7 @@ gl3_ev_begin_2d(
 {
     (void)command;
     renderer->in2d = true;
+    renderer->sprite_sheet_restarted = false;
     glDisable(GL_DEPTH_TEST);
     /* Off for 2D. GL state is global and sticky, and the z-buffer world
      * pass turns culling ON -- a UI quad wound the other way would vanish.
@@ -2438,6 +2437,50 @@ gl3_ev_sprite_unload(
     }
 }
 
+/*
+ * Start the 2D sprite sheet over, after it ran out on the sprite being drawn.
+ *
+ * The sheet only ever grew. A slot keeps its scene id for the life of the
+ * renderer, the bin-pack allocator has no per-tile free, and a sprite put
+ * back under its id at another size takes a new tile and strands the old
+ * one. So a client that keeps drawing new pictures -- the editor's Gallery
+ * paging through records, its thumbnails re-rendered at S/M/L/XL/XXL under
+ * the same ids, an obj icon per item browsed -- eventually filled it, and
+ * from then on every sprite not already resident drew nothing, for the rest
+ * of the session.
+ *
+ * Every tile is lazily uploaded from the scene on its first draw, so the
+ * sheet can be emptied at any point: the quads already queued are drawn
+ * first (they sample the old tiles), then every slot and variant is
+ * forgotten and the next draw of each re-uploads it. At most once a 2D
+ * pass, so a pass that does not fit even in an empty sheet evicts nothing
+ * more than once.
+ */
+static bool
+gl3_sprite_sheet_restart(struct ToriPlatformSDL2_Renderer_GL3* renderer)
+{
+    assert(renderer);
+    if( !renderer->sprite_sheet_full || renderer->sprite_sheet_restarted )
+        return false;
+    gl3_flush_2d_batch(renderer);
+    trspk_atlas_binpack_reset(&renderer->sprite_atlas);
+    for( int i = 0; i < TRSPK_GL3_SPRITE_CAP; i++ )
+    {
+        struct GL3SpriteSlot* slot = &renderer->sprite_slots[i];
+        ToriMem_Free(ToriMem_Renderer(), slot->uvs);
+        ToriMem_Free(ToriMem_Renderer(), slot->loaded);
+        ToriMem_Free(ToriMem_Renderer(), slot->tiles);
+        memset(slot, 0, sizeof(*slot));
+    }
+    for( size_t v = 0; v < GL3_SPRITE_VARIANT_CAP; v++ )
+        renderer->sprite_variants[v].valid = false;
+    renderer->sprite_sheet_full = false;
+    renderer->sprite_sheet_restarted = true;
+    if( renderer->sprite_sheet_restarts++ == 0u )
+        fprintf(stderr, "gl3: the 2D sprite sheet filled; started it over (it refills as sprites are drawn)\n");
+    return true;
+}
+
 static void
 gl3_ev_sprite(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
@@ -2528,7 +2571,10 @@ gl3_ev_sprite(
     }
     {
         float uvtmp[4];
-        if( !gl3_sprite_ensure_variant(renderer, spr_cmd, &sp, uvtmp, &ox, &oy, &sw, &sh) )
+        renderer->sprite_sheet_full = false;
+        if( !gl3_sprite_ensure_variant(renderer, spr_cmd, &sp, uvtmp, &ox, &oy, &sw, &sh) &&
+            (!gl3_sprite_sheet_restart(renderer) ||
+             !gl3_sprite_ensure_variant(renderer, spr_cmd, &sp, uvtmp, &ox, &oy, &sw, &sh)) )
             return;
         u0 = uvtmp[0]; v0 = uvtmp[1]; u1 = uvtmp[2]; v1 = uvtmp[3];
     }

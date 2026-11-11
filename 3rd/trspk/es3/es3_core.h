@@ -860,6 +860,13 @@ struct TRSPK_Renderer_ES3
     bool ui_sprite_atlas_allocated;
     struct ES3UISpriteSlot ui_sprite_slots[ES3_UI_SPRITE_CAP];
     struct ES3UISpriteVariant ui_variants[ES3_UI_VARIANT_CAP];
+    /* The sheet above ran out on the sprite being drawn: no tile left in
+     * the atlas, no free slot or no free variant (es3_ui_sprite_sheet_restart). */
+    bool ui_sprite_sheet_full;
+    /* Started over in this 2D pass already: a second time would only evict
+     * what the pass has drawn so far. */
+    bool ui_sprite_sheet_restarted;
+    uint32_t ui_sprite_sheet_restarts;
     struct ES3UIFontSlot ui_fonts[ES3_UI_FONT_CAP];
     struct ES3UIRotmaskSlot* ui_rotmasks;
     uint32_t ui_rotmask_count;

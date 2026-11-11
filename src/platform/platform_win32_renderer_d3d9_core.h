@@ -385,6 +385,13 @@ struct ToriPlatformWin32_Renderer_D3D9
     IDirect3DTexture9* ui_sprite_atlas_texture;
     struct D3D9UISpriteSlot ui_sprite_slots[D3D9_UI_SPRITE_CAP];
     struct D3D9UISpriteVariant ui_variants[D3D9_UI_VARIANT_CAP];
+    /* The sheet above ran out on the sprite being drawn: no tile left in
+     * the atlas, no free slot or no free variant (d3d9_ui_sprite_sheet_restart). */
+    bool ui_sprite_sheet_full;
+    /* Started over in this 2D pass already: a second time would only evict
+     * what the pass has drawn so far. */
+    bool ui_sprite_sheet_restarted;
+    uint32_t ui_sprite_sheet_restarts;
     struct D3D9UIFontSlot ui_fonts[D3D9_UI_FONT_CAP];
     struct D3D9UIRotmaskSlot* ui_rotmasks;
     uint32_t ui_rotmask_count;

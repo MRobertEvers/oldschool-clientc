@@ -835,6 +835,7 @@ es2_begin_2d(struct TRSPK_Renderer_ES2* renderer)
     es2_ui_apply_states(renderer);
     es2_set_scissor(renderer, NULL);
     es2_ui_batch_reset(renderer);
+    renderer->ui_sprite_sheet_restarted = false;
     renderer->in2d = true;
 }
 
@@ -922,8 +923,13 @@ es2_ui_sprite_slot_index(struct TRSPK_Renderer_ES2* renderer, int scene_id, bool
         if( free_index < 0 && renderer->ui_sprite_slots[slot].scene_id <= 0 )
             free_index = slot;
     }
-    if( !create || free_index < 0 )
+    if( !create )
         return -1;
+    if( free_index < 0 )
+    {
+        renderer->ui_sprite_sheet_full = true;
+        return -1;
+    }
     renderer->ui_sprite_slots[free_index].scene_id = scene_id;
     renderer->ui_sprite_slots[free_index].count = 0;
     ToriMem_Free(ToriMem_Renderer(), renderer->ui_sprite_slots[free_index].uvs);
@@ -1029,6 +1035,7 @@ es2_ui_upload_sprite_pixels(
         tile.y = tile_io->y;
     }
     else
+    {
         inserted = trspk_atlas_binpack_insert(
             &renderer->ui_sprite_atlas,
             (const uint8_t*)padded,
@@ -1036,6 +1043,9 @@ es2_ui_upload_sprite_pixels(
             padded_width,
             padded_height,
             &tile);
+        if( !inserted )
+            renderer->ui_sprite_sheet_full = true;
+    }
     ToriMem_Free(ToriMem_Renderer(), padded);
     if( !inserted )
         return false;
@@ -1144,8 +1154,13 @@ es2_ui_sprite_variant(
             variant->if3_transform == (uint8_t)(command->if3 && !command->tiled) )
             return variant;
     }
-    if( !create || !free_variant )
+    if( !create )
         return NULL;
+    if( !free_variant )
+    {
+        renderer->ui_sprite_sheet_full = true;
+        return NULL;
+    }
     memset(free_variant, 0, sizeof(*free_variant));
     free_variant->scene_id = command->scene_id;
     free_variant->atlas_index = command->atlas_index;
@@ -1808,6 +1823,54 @@ es2_ui_draw_rotmask_native(
     es2_ui_apply_states(renderer);
 }
 
+/*
+ * Start the UI sprite sheet over, after it ran out on the sprite being drawn.
+ *
+ * The sheet only ever grew. A slot keeps its scene id for the life of the
+ * renderer, the bin-pack allocator has no per-tile free, and a sprite put
+ * back under its id at another size takes a new tile and strands the old
+ * one. So a client that keeps drawing new pictures -- obj icons for every
+ * item a bank or a shop scrolls past, the editor's record thumbnails --
+ * eventually filled it, and from then on every sprite not already resident
+ * drew nothing, for the rest of the session (D3D9 and GL3 first showed it,
+ * as a Gallery of blank tiles, 2026-11-11).
+ *
+ * Every tile is lazily uploaded from the scene on its first draw, so the
+ * sheet can be emptied at any point: the pass recorded so far is submitted
+ * first (it samples the old tiles), then every slot and variant is
+ * forgotten and the next draw of each re-uploads it. At most once a 2D
+ * pass, so a pass that does not fit even in an empty sheet evicts nothing
+ * more than once.
+ */
+static bool
+es2_ui_sprite_sheet_restart(struct TRSPK_Renderer_ES2* renderer)
+{
+    int slot;
+    uint32_t variant;
+
+    assert(renderer);
+    if( !renderer->ui_sprite_sheet_full || renderer->ui_sprite_sheet_restarted )
+        return false;
+    es2_ui_flush(renderer);
+    trspk_atlas_binpack_reset(&renderer->ui_sprite_atlas);
+    for( slot = 0; slot < ES2_UI_SPRITE_CAP; slot++ )
+    {
+        struct ES2UISpriteSlot* s = &renderer->ui_sprite_slots[slot];
+        ToriMem_Free(ToriMem_Renderer(), s->uvs);
+        ToriMem_Free(ToriMem_Renderer(), s->loaded);
+        ToriMem_Free(ToriMem_Renderer(), s->tiles);
+        memset(s, 0, sizeof(*s));
+    }
+    for( variant = 0u; variant < ES2_UI_VARIANT_CAP; variant++ )
+        renderer->ui_variants[variant].valid = false;
+    renderer->ui_sprite_sheet_full = false;
+    renderer->ui_sprite_sheet_restarted = true;
+    if( renderer->ui_sprite_sheet_restarts++ == 0u )
+        TORIRS_LOG("%s: the UI sprite sheet filled; started it over (it refills as sprites are drawn)\n",
+            es2_log_name());
+    return true;
+}
+
 void
 es2_ui_draw_sprite(
     struct TRSPK_Renderer_ES2* renderer,
@@ -1891,8 +1954,12 @@ es2_ui_draw_sprite(
             es2_ui_draw_rotmask_native(renderer, command, slot, &box_scissor, rgba);
         return;
     }
+    renderer->ui_sprite_sheet_full = false;
     if( !es2_ui_sprite_ensure_variant(
-            renderer, command, &sprite, uv, &offset_x, &offset_y, &width, &height) )
+            renderer, command, &sprite, uv, &offset_x, &offset_y, &width, &height) &&
+        (!es2_ui_sprite_sheet_restart(renderer) ||
+         !es2_ui_sprite_ensure_variant(
+             renderer, command, &sprite, uv, &offset_x, &offset_y, &width, &height)) )
         return;
     if( command->rotated )
     {

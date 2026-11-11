@@ -306,4 +306,15 @@ trspk_atlas_binpack_insert(
     uint32_t src_h,
     struct TRSPK_AtlasTile* tile_out);
 
+/*
+ * Give the whole sheet back to the bin-pack allocator: every tile handed out
+ * so far is forgotten, and the next insert may land on top of it. The
+ * guillotine allocator has no per-tile free, so this is the only way a sheet
+ * that has filled ever takes a new tile again. The pixels are left as they
+ * are (each insert overwrites its own tile); the caller drops every UV it
+ * holds into the sheet.
+ */
+void
+trspk_atlas_binpack_reset(struct TRSPK_Atlas* atlas);
+
 #endif
